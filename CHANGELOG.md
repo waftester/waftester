@@ -15,7 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Race conditions in discovery, distributed, and deserialize packages
 - Version embedding via ldflags in release builds
-- Hardcoded version strings now use centralized ui.Version
+- Centralized 40+ hardcoded User-Agent strings to use `ui.UserAgent()`
+- CI/CD template install paths now correctly reference `cmd/cli`
 
 ### Changed
 - Updated README with browser scanning documentation
