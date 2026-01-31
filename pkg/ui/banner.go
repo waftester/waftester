@@ -24,6 +24,16 @@ const (
 	Website = "https://waftester.com"
 )
 
+// UserAgent returns the standard User-Agent string for WAFtester requests
+func UserAgent() string {
+	return fmt.Sprintf("waftester/%s", Version)
+}
+
+// UserAgentWithContext returns a User-Agent with context (e.g., "waftester/2.3.1 (Calibration)")
+func UserAgentWithContext(context string) string {
+	return fmt.Sprintf("waftester/%s (%s)", Version, context)
+}
+
 // Global UI state
 var (
 	silentMode  bool

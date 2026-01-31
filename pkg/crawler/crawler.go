@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // CrawlResult represents a crawled page result
@@ -120,7 +122,7 @@ func DefaultConfig() *Config {
 		ExtractMeta:       true,
 		FollowRobots:      true,
 		IncludeSubdomains: true,
-		UserAgent:         "Mozilla/5.0 (compatible; waf-tester/2.0)",
+		UserAgent:         ui.UserAgentWithContext("crawler"),
 		DisallowedExtensions: []string{
 			".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp", ".ico",
 			".mp3", ".mp4", ".wav", ".avi", ".mov", ".webm",

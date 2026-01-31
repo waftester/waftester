@@ -1,4 +1,4 @@
-// cmd/waf-tester/fp.go - False Positive Testing Command
+// cmd/cli/fp.go - False Positive Testing Command
 package main
 
 import (

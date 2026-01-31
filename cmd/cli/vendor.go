@@ -1,4 +1,4 @@
-// cmd/waf-tester/vendor.go - Vendor WAF Detection Command
+// cmd/cli/vendor.go - Vendor WAF Detection Command
 package main
 
 import (

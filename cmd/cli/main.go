@@ -5562,7 +5562,7 @@ func runProbe() {
 				w.WriteHeader(http.StatusOK)
 				json.NewEncoder(w).Encode(map[string]string{
 					"status":  "healthy",
-					"version": "waf-tester/2.1.0",
+					"version": ui.UserAgent(),
 				})
 			})
 			mux.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
@@ -7313,7 +7313,7 @@ func makeHTTPRequest(ctx context.Context, target string, timeout time.Duration) 
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "waf-tester/2.1.0")
+	req.Header.Set("User-Agent", ui.UserAgent())
 	return client.Do(req)
 }
 
@@ -7517,7 +7517,7 @@ func makeProbeHTTPRequestWithOptions(ctx context.Context, target string, timeout
 	if opts.RandomAgent {
 		req.Header.Set("User-Agent", randomUserAgents[time.Now().UnixNano()%int64(len(randomUserAgents))])
 	} else {
-		req.Header.Set("User-Agent", "waf-tester/2.1.0")
+		req.Header.Set("User-Agent", ui.UserAgent())
 	}
 
 	// Parse and set custom headers
@@ -7756,6 +7756,9 @@ func runCrawl() {
 
 	// Determine user agent
 	effectiveUserAgent := *userAgent
+	if effectiveUserAgent == "" {
+		effectiveUserAgent = ui.UserAgent()
+	}
 	if *randomAgent {
 		userAgents := []string{
 			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -8857,8 +8860,8 @@ func runScan() {
 	// Network options
 	proxy := scanFlags.String("proxy", "", "HTTP/SOCKS5 proxy URL")
 	scanFlags.StringVar(proxy, "x", "", "Proxy (alias)")
-	userAgent := scanFlags.String("user-agent", "waf-tester/2.1.0", "Custom User-Agent")
-	scanFlags.StringVar(userAgent, "ua", "waf-tester/2.1.0", "User-Agent (alias)")
+	userAgent := scanFlags.String("user-agent", "", "Custom User-Agent (default: waftester/VERSION)")
+	scanFlags.StringVar(userAgent, "ua", "", "User-Agent (alias)")
 	randomAgent := scanFlags.Bool("random-agent", false, "Use random User-Agent")
 	scanFlags.BoolVar(randomAgent, "ra", false, "Random agent (alias)")
 	headers := scanFlags.String("header", "", "Custom header (Name: Value)")
@@ -9057,6 +9060,9 @@ func runScan() {
 
 	// Determine user agent
 	effectiveUserAgent := *userAgent
+	if effectiveUserAgent == "" {
+		effectiveUserAgent = ui.UserAgent()
+	}
 	if *randomAgent {
 		userAgents := []string{
 			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -9150,7 +9156,7 @@ func runScan() {
 	runScanner("sqli", func() {
 		cfg := &sqli.TesterConfig{
 			Timeout:   timeoutDur,
-			UserAgent: "waf-tester/2.1.0",
+			UserAgent: ui.UserAgent(),
 			Client:    httpClient,
 		}
 		tester := sqli.NewTester(cfg)
@@ -9175,7 +9181,7 @@ func runScan() {
 	runScanner("xss", func() {
 		cfg := &xss.TesterConfig{
 			Timeout:   timeoutDur,
-			UserAgent: "waf-tester/2.1.0",
+			UserAgent: ui.UserAgent(),
 			Client:    httpClient,
 		}
 		tester := xss.NewTester(cfg)
@@ -9200,7 +9206,7 @@ func runScan() {
 	runScanner("traversal", func() {
 		cfg := &traversal.TesterConfig{
 			Timeout:   timeoutDur,
-			UserAgent: "waf-tester/2.1.0",
+			UserAgent: ui.UserAgent(),
 			Client:    httpClient,
 		}
 		tester := traversal.NewTester(cfg)
@@ -9225,7 +9231,7 @@ func runScan() {
 	runScanner("cmdi", func() {
 		cfg := &cmdi.TesterConfig{
 			Timeout:   timeoutDur,
-			UserAgent: "waf-tester/2.1.0",
+			UserAgent: ui.UserAgent(),
 		}
 		tester := cmdi.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -9249,7 +9255,7 @@ func runScan() {
 	runScanner("nosqli", func() {
 		cfg := &nosqli.TesterConfig{
 			Timeout:   timeoutDur,
-			UserAgent: "waf-tester/2.1.0",
+			UserAgent: ui.UserAgent(),
 			Client:    httpClient,
 		}
 		tester := nosqli.NewTester(cfg)
@@ -9274,7 +9280,7 @@ func runScan() {
 	runScanner("hpp", func() {
 		cfg := &hpp.TesterConfig{
 			Timeout:   timeoutDur,
-			UserAgent: "waf-tester/2.1.0",
+			UserAgent: ui.UserAgent(),
 			Client:    httpClient,
 		}
 		tester := hpp.NewTester(cfg)
@@ -9299,7 +9305,7 @@ func runScan() {
 	runScanner("crlf", func() {
 		cfg := &crlf.TesterConfig{
 			Timeout:   timeoutDur,
-			UserAgent: "waf-tester/2.1.0",
+			UserAgent: ui.UserAgent(),
 			Client:    httpClient,
 		}
 		tester := crlf.NewTester(cfg)
@@ -9324,7 +9330,7 @@ func runScan() {
 	runScanner("prototype", func() {
 		cfg := &prototype.TesterConfig{
 			Timeout:   timeoutDur,
-			UserAgent: "waf-tester/2.1.0",
+			UserAgent: ui.UserAgent(),
 			Client:    httpClient,
 		}
 		tester := prototype.NewTester(cfg)
@@ -9349,7 +9355,7 @@ func runScan() {
 	runScanner("cors", func() {
 		cfg := &cors.TesterConfig{
 			Timeout:   timeoutDur,
-			UserAgent: "waf-tester/2.1.0",
+			UserAgent: ui.UserAgent(),
 		}
 		tester := cors.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -9373,7 +9379,7 @@ func runScan() {
 	runScanner("redirect", func() {
 		cfg := &redirect.TesterConfig{
 			Timeout:   timeoutDur,
-			UserAgent: "waf-tester/2.1.0",
+			UserAgent: ui.UserAgent(),
 		}
 		tester := redirect.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -9397,7 +9403,7 @@ func runScan() {
 	runScanner("hostheader", func() {
 		cfg := &hostheader.TesterConfig{
 			Timeout:   timeoutDur,
-			UserAgent: "waf-tester/2.1.0",
+			UserAgent: ui.UserAgent(),
 			Client:    httpClient,
 		}
 		tester := hostheader.NewTester(cfg)
@@ -9422,7 +9428,7 @@ func runScan() {
 	runScanner("websocket", func() {
 		cfg := &websocket.TesterConfig{
 			Timeout:   timeoutDur,
-			UserAgent: "waf-tester/2.1.0",
+			UserAgent: ui.UserAgent(),
 		}
 		tester := websocket.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -9446,7 +9452,7 @@ func runScan() {
 	runScanner("cache", func() {
 		cfg := &cache.TesterConfig{
 			Timeout:   timeoutDur,
-			UserAgent: "waf-tester/2.1.0",
+			UserAgent: ui.UserAgent(),
 			Client:    httpClient,
 		}
 		tester := cache.NewTester(cfg)
@@ -9475,7 +9481,7 @@ func runScan() {
 
 		cfg := &upload.TesterConfig{
 			Timeout:   timeoutDur,
-			UserAgent: "waf-tester/2.1.0",
+			UserAgent: ui.UserAgent(),
 		}
 		tester := upload.NewTester(cfg)
 		vulns, err := tester.Scan(uploadCtx, target)
@@ -9497,7 +9503,7 @@ func runScan() {
 	runScanner("deserialize", func() {
 		cfg := &deserialize.TesterConfig{
 			Timeout:   timeoutDur,
-			UserAgent: "waf-tester/2.1.0",
+			UserAgent: ui.UserAgent(),
 		}
 		tester := deserialize.NewTester(cfg)
 		vulns, err := tester.Scan(ctx, target)
@@ -9525,7 +9531,7 @@ func runScan() {
 		}
 		cfg := &oauth.TesterConfig{
 			Timeout:   timeoutDur,
-			UserAgent: "waf-tester/2.1.0",
+			UserAgent: ui.UserAgent(),
 		}
 		endpoints := &oauth.OAuthEndpoint{
 			AuthorizationURL: *oauthAuthEndpoint,
@@ -9576,7 +9582,7 @@ func runScan() {
 	runScanner("ssti", func() {
 		cfg := &ssti.DetectorConfig{
 			Timeout:   timeoutDur,
-			UserAgent: "waf-tester/2.1.0",
+			UserAgent: ui.UserAgent(),
 		}
 		detector := ssti.NewDetector(cfg)
 		vulns, err := detector.Detect(ctx, target, "input")
@@ -9598,7 +9604,7 @@ func runScan() {
 	runScanner("xxe", func() {
 		cfg := xxe.DefaultConfig()
 		cfg.Timeout = timeoutDur
-		cfg.UserAgent = "waf-tester/2.1.0"
+		cfg.UserAgent = ui.UserAgent()
 		detector := xxe.NewDetector(cfg)
 		vulns, err := detector.Detect(ctx, target, "POST")
 		if err != nil && *verbose {
@@ -9640,7 +9646,7 @@ func runScan() {
 	runScanner("graphql", func() {
 		cfg := graphql.DefaultConfig()
 		cfg.Timeout = timeoutDur
-		cfg.UserAgent = "waf-tester/2.1.0"
+		cfg.UserAgent = ui.UserAgent()
 		// Attempt common GraphQL endpoints
 		graphqlEndpoints := []string{
 			target + "/graphql",
@@ -9692,7 +9698,7 @@ func runScan() {
 	runScanner("subtakeover", func() {
 		cfg := &subtakeover.TesterConfig{
 			Timeout:     timeoutDur,
-			UserAgent:   "waf-tester/2.1.0",
+			UserAgent:   ui.UserAgent(),
 			Concurrency: *concurrency,
 			CheckHTTP:   true,
 			FollowCNAME: true,
@@ -9728,7 +9734,7 @@ func runScan() {
 	runScanner("bizlogic", func() {
 		cfg := bizlogic.DefaultConfig()
 		cfg.Timeout = timeoutDur
-		cfg.UserAgent = "waf-tester/2.1.0"
+		cfg.UserAgent = ui.UserAgent()
 		tester := bizlogic.NewTester(cfg)
 		// Test common business logic vulnerabilities
 		vulns, err := tester.Scan(ctx, target, []string{"/", "/api", "/admin", "/user", "/account"})
@@ -9750,7 +9756,7 @@ func runScan() {
 	runScanner("race", func() {
 		cfg := race.DefaultConfig()
 		cfg.Timeout = timeoutDur
-		cfg.UserAgent = "waf-tester/2.1.0"
+		cfg.UserAgent = ui.UserAgent()
 		tester := race.NewTester(cfg)
 		// Test common race condition scenarios
 		reqCfg := &race.RequestConfig{
@@ -9779,7 +9785,7 @@ func runScan() {
 	runScanner("apifuzz", func() {
 		cfg := apifuzz.DefaultConfig()
 		cfg.Timeout = timeoutDur
-		cfg.UserAgent = "waf-tester/2.1.0"
+		cfg.UserAgent = ui.UserAgent()
 		tester := apifuzz.NewTester(cfg)
 		// Define basic endpoints to fuzz
 		endpoints := []apifuzz.Endpoint{
@@ -10081,7 +10087,7 @@ func runScan() {
 		}
 		domain := parsedURL.Hostname()
 
-		sources := discovery.NewExternalSources(timeoutDur, "waf-tester/2.0 OSINT")
+		sources := discovery.NewExternalSources(timeoutDur, ui.UserAgentWithContext("OSINT"))
 		osintResult := sources.GatherAllSources(ctx, target, domain)
 
 		if osintResult != nil && osintResult.TotalUnique > 0 {
@@ -10170,7 +10176,7 @@ func runScan() {
 		if err != nil {
 			return
 		}
-		req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; waf-tester/2.0)")
+		req.Header.Set("User-Agent", ui.UserAgentWithContext("Discovery"))
 
 		client := &http.Client{
 			Timeout: timeoutDur,

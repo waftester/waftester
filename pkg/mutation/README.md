@@ -273,5 +273,4 @@ go test ./pkg/mutation/encoder/... -v
 - `pkg/mutation/location/` - Location mutators
 - `pkg/mutation/evasion/` - Evasion mutators
 - `pkg/mutation/protocol/` - Protocol mutators
-- `cmd/waf-tester/mutate.go` - CLI mutate command
-- `cmd/waf-tester/bypass.go` - CLI bypass command
+- `cmd/cli/main.go` - CLI mutate and bypass commands

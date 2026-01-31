@@ -166,9 +166,9 @@ jobs:
       - name: Install waf-tester
         run: |
           if [ "{{ .WafTesterVersion }}" = "latest" ]; then
-            go install github.com/waftester/waftester/cmd/waf-tester@latest
+            go install github.com/waftester/waftester/cmd/cli@latest
           else
-            go install github.com/waftester/waftester/cmd/waf-tester@{{ .WafTesterVersion }}
+            go install github.com/waftester/waftester/cmd/cli@{{ .WafTesterVersion }}
           fi
 
 {{- range .PreCommands }}
@@ -263,7 +263,7 @@ waf-security-scan:
 {{- end }}
   
   before_script:
-    - go install github.com/waftester/waftester/cmd/waf-tester@{{ .WafTesterVersion }}
+    - go install github.com/waftester/waftester/cmd/cli@{{ .WafTesterVersion }}
 {{- range .PreCommands }}
     - {{ . }}
 {{- end }}
@@ -329,7 +329,7 @@ pipeline {
     stages {
         stage('Install waf-tester') {
             steps {
-                sh 'go install github.com/waftester/waftester/cmd/waf-tester@${WAF_TESTER_VERSION}'
+                sh 'go install github.com/waftester/waftester/cmd/cli@${WAF_TESTER_VERSION}'
             }
         }
         
@@ -438,7 +438,7 @@ stages:
               version: '1.21'
 
           - script: |
-              go install github.com/waftester/waftester/cmd/waf-tester@$(WAF_TESTER_VERSION)
+              go install github.com/waftester/waftester/cmd/cli@$(WAF_TESTER_VERSION)
             displayName: 'Install waf-tester'
 
 {{- range .PreCommands }}
@@ -494,7 +494,7 @@ jobs:
       
       - run:
           name: Install waf-tester
-          command: go install github.com/waftester/waftester/cmd/waf-tester@{{ .WafTesterVersion }}
+          command: go install github.com/waftester/waftester/cmd/cli@{{ .WafTesterVersion }}
 
 {{- range .PreCommands }}
       - run:
@@ -575,7 +575,7 @@ pipelines:
       - step:
           name: WAF Security Scan
           script:
-            - go install github.com/waftester/waftester/cmd/waf-tester@{{ $.WafTesterVersion }}
+            - go install github.com/waftester/waftester/cmd/cli@{{ $.WafTesterVersion }}
 {{- range $.PreCommands }}
             - {{ . }}
 {{- end }}
@@ -605,7 +605,7 @@ pipelines:
       - step:
           name: WAF Security Scan (PR)
           script:
-            - go install github.com/waftester/waftester/cmd/waf-tester@{{ .WafTesterVersion }}
+            - go install github.com/waftester/waftester/cmd/cli@{{ .WafTesterVersion }}
 {{- range .PreCommands }}
             - {{ . }}
 {{- end }}
@@ -634,7 +634,7 @@ pipelines:
       - step:
           name: Scheduled WAF Security Scan
           script:
-            - go install github.com/waftester/waftester/cmd/waf-tester@{{ .WafTesterVersion }}
+            - go install github.com/waftester/waftester/cmd/cli@{{ .WafTesterVersion }}
             - |
               TARGET_URL="{{ if .TargetEnvVar }}${{ .TargetEnvVar }}{{ else }}{{ .TargetURL }}{{ end }}"
               waf-tester run \

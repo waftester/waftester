@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // DepthScanner implements kiterunner-style depth-based API scanning
@@ -248,7 +250,7 @@ func (d *DepthScanner) sendRequest(ctx context.Context, method, url string, head
 		return nil, err
 	}
 
-	req.Header.Set("User-Agent", "WAF-Tester/2.1.0 (DepthScan)")
+	req.Header.Set("User-Agent", ui.UserAgentWithContext("DepthScan"))
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}

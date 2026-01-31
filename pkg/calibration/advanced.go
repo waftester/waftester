@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // AdvancedCalibrator provides ffuf-style advanced auto-calibration with
@@ -245,7 +247,7 @@ func (c *AdvancedCalibrator) CalibrateHost(ctx context.Context, targetURL string
 				continue
 			}
 
-			req.Header.Set("User-Agent", "WAF-Tester/2.1.0 (AutoCal)")
+			req.Header.Set("User-Agent", ui.UserAgentWithContext("AutoCal"))
 			for k, v := range strategy.Headers {
 				req.Header.Set(k, v)
 			}

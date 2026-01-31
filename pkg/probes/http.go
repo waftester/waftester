@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // HTTPProbeResult contains HTTP probing results
@@ -46,7 +48,7 @@ func NewHTTPProber() *HTTPProber {
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 5 * time.Second,
 		MaxRedirects: 5,
-		UserAgent:    "Mozilla/5.0 (compatible; waf-tester/2.0)",
+		UserAgent:    ui.UserAgentWithContext("prober"),
 	}
 }
 
@@ -418,7 +420,7 @@ type VHostProber struct {
 func NewVHostProber() *VHostProber {
 	return &VHostProber{
 		Timeout:   10 * time.Second,
-		UserAgent: "Mozilla/5.0 (compatible; waf-tester/2.0)",
+		UserAgent: ui.UserAgentWithContext("vhost-prober"),
 	}
 }
 

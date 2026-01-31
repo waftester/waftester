@@ -13,6 +13,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/waftester/waftester/pkg/ui"
 	"gopkg.in/yaml.v3"
 )
 
@@ -329,7 +330,7 @@ func (e *Engine) executeHTTPRequest(ctx context.Context, req *HTTPRequest, targe
 
 		// Set default headers
 		if httpReq.Header.Get("User-Agent") == "" {
-			httpReq.Header.Set("User-Agent", "waf-tester/1.0")
+			httpReq.Header.Set("User-Agent", ui.UserAgent())
 		}
 
 		// Execute request

@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // VulnerabilityType represents the type of Host header vulnerability
@@ -81,7 +83,7 @@ type Tester struct {
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:   30 * time.Second,
-		UserAgent: "waf-tester/2.1.0",
+		UserAgent: ui.UserAgent(),
 	}
 }
 

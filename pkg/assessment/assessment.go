@@ -18,6 +18,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/corpus"
 	"github.com/waftester/waftester/pkg/metrics"
+	"github.com/waftester/waftester/pkg/ui"
 	"golang.org/x/time/rate"
 )
 
@@ -520,7 +521,7 @@ func (a *Assessment) executeAttackTest(ctx context.Context, payload AttackPayloa
 		return result
 	}
 
-	req.Header.Set("User-Agent", "WAF-Tester/2.2 (Security Assessment)")
+	req.Header.Set("User-Agent", ui.UserAgentWithContext("Assessment"))
 
 	resp, err := a.httpClient.Do(req)
 	result.Latency = time.Since(start)

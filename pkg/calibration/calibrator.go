@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // Result represents auto-calibration results
@@ -97,7 +99,7 @@ func (c *Calibrator) Calibrate(ctx context.Context) (*Result, error) {
 			continue
 		}
 
-		req.Header.Set("User-Agent", "WAF-Tester/2.1.0 (Calibration)")
+		req.Header.Set("User-Agent", ui.UserAgentWithContext("Calibration"))
 
 		resp, err := c.client.Do(req)
 		if err != nil {

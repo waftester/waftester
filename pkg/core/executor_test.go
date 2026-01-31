@@ -101,9 +101,9 @@ func TestExecuteTest(t *testing.T) {
 			if r.Method != "GET" {
 				t.Errorf("expected GET, got %s", r.Method)
 			}
-			// Verify User-Agent
-			if ua := r.Header.Get("User-Agent"); ua != "WAF-Tester/2.1" {
-				t.Errorf("expected User-Agent WAF-Tester/2.1, got %s", ua)
+			// Verify User-Agent starts with waftester
+			if ua := r.Header.Get("User-Agent"); !strings.HasPrefix(ua, "waftester/") {
+				t.Errorf("expected User-Agent starting with waftester/, got %s", ua)
 			}
 			// Check that payload is in query param
 			if !strings.Contains(r.URL.RawQuery, "test=") {

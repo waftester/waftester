@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/ui"
 	"golang.org/x/time/rate"
 )
 
@@ -274,7 +275,7 @@ func (t *Tester) executeTest(ctx context.Context, task TestTask) (blocked bool, 
 		return false, 0, "", err
 	}
 
-	req.Header.Set("User-Agent", "WAF-Tester/2.2 (FP-Test)")
+	req.Header.Set("User-Agent", ui.UserAgentWithContext("FP-Test"))
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // UpdateConfig holds configuration for payload updates
@@ -262,7 +263,7 @@ func updateFromGitHub(cfg *UpdateConfig, report *UpdateReport) error {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	req.Header.Set("User-Agent", "waf-tester-updater/1.0")
+	req.Header.Set("User-Agent", ui.UserAgentWithContext("Updater"))
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)

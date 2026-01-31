@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // DBMS represents a database management system
@@ -103,7 +105,7 @@ func DefaultConfig() *TesterConfig {
 		Timeout:       30 * time.Second,
 		DBMS:          DBMSGeneric,
 		TimeThreshold: 5 * time.Second,
-		UserAgent:     "waf-tester/2.1.0",
+		UserAgent:     ui.UserAgent(),
 	}
 }
 

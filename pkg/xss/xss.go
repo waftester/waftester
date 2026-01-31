@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // XSSType represents the type of XSS vulnerability
@@ -97,7 +99,7 @@ type Tester struct {
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:           30 * time.Second,
-		UserAgent:         "waf-tester/2.1.0",
+		UserAgent:         ui.UserAgent(),
 		IncludeBypassOnly: false,
 		TestDOMXSS:        true,
 	}

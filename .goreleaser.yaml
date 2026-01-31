@@ -6,7 +6,7 @@ before:
 
 builds:
   - main: ./cmd/cli
-    binary: waftester
+    binary: waf-tester
     env:
       - CGO_ENABLED=0
     goos:

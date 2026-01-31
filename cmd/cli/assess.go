@@ -1,4 +1,4 @@
-// cmd/waf-tester/assess.go - Enterprise WAF Assessment Command
+// cmd/cli/assess.go - Enterprise WAF Assessment Command
 package main
 
 import (

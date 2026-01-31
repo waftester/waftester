@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // VulnerabilityType represents the type of prototype pollution vulnerability
@@ -89,7 +91,7 @@ type Tester struct {
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:     30 * time.Second,
-		UserAgent:   "waf-tester/2.1.0",
+		UserAgent:   ui.UserAgent(),
 		Concurrency: 5,
 		TestParams: []string{
 			"config",

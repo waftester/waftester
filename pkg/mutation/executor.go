@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/realistic"
+	"github.com/waftester/waftester/pkg/ui"
 	"github.com/waftester/waftester/pkg/waf"
 	"golang.org/x/time/rate"
 )
@@ -48,7 +49,7 @@ func DefaultExecutorConfig() *ExecutorConfig {
 		RateLimit:          50,
 		Timeout:            10 * time.Second,
 		Retries:            2,
-		UserAgent:          "WAF-Tester/2.1 (Mutation Engine)",
+		UserAgent:          ui.UserAgentWithContext("Mutation Engine"),
 		Pipeline:           DefaultPipelineConfig(),
 		AnalyzeResponses:   true,
 		CollectFingerprint: false,

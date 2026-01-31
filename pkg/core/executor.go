@@ -343,7 +343,7 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 
 	// Only set static User-Agent if not using realistic mode
 	if e.enhancer == nil || !e.config.RealisticMode {
-		req.Header.Set("User-Agent", "WAF-Tester/2.1")
+		req.Header.Set("User-Agent", ui.UserAgent())
 	}
 
 	start := time.Now()

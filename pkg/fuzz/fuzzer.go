@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/ui"
 	"golang.org/x/time/rate"
 )
 
@@ -310,7 +311,7 @@ func (f *Fuzzer) fuzz(ctx context.Context, word string) *Result {
 	}
 
 	// Set headers
-	req.Header.Set("User-Agent", "waf-tester/2.1")
+	req.Header.Set("User-Agent", ui.UserAgent())
 	for key, val := range f.config.Headers {
 		val = strings.ReplaceAll(val, "FUZZ", word)
 		req.Header.Set(key, val)

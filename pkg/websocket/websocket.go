@@ -14,6 +14,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // VulnerabilityType represents the type of WebSocket vulnerability
@@ -79,7 +81,7 @@ type Tester struct {
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:   30 * time.Second,
-		UserAgent: "waf-tester/2.1.0",
+		UserAgent: ui.UserAgent(),
 		TestOrigins: []string{
 			"https://evil.com",
 			"https://attacker.com",
