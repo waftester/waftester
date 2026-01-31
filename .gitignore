@@ -77,6 +77,7 @@ desktop.ini
 
 # Checkpoint/resume state files
 resume.cfg
+*.cfg.tmp
 
 # Scan outputs (generated per-scan)
 workspaces/
