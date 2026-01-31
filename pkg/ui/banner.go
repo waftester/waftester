@@ -11,12 +11,17 @@ import (
 	"github.com/muesli/termenv"
 )
 
-// Version information
+// Version information - these can be overridden at build time via ldflags:
+// go build -ldflags "-X github.com/waftester/waftester/pkg/ui.Version=1.0.0"
+var (
+	Version   = "2.3.1"
+	BuildDate = "2026-01-31"
+	Commit    = "dev"
+)
+
 const (
-	Version   = "2.3.0"
-	BuildDate = "2026-01-27"
-	Author    = "WAFtester Team"
-	Website   = "https://waftester.com"
+	Author  = "WAFtester Team"
+	Website = "https://waftester.com"
 )
 
 // Global UI state

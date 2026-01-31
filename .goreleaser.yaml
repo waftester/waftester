@@ -18,9 +18,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X main.version={{.Version}}
-      - -X main.commit={{.Commit}}
-      - -X main.date={{.Date}}
+      - -X github.com/waftester/waftester/pkg/ui.Version={{.Version}}
+      - -X github.com/waftester/waftester/pkg/ui.Commit={{.Commit}}
+      - -X github.com/waftester/waftester/pkg/ui.BuildDate={{.Date}}
 
 archives:
   - format: tar.gz
@@ -37,7 +37,7 @@ archives:
       - README.md
       - LICENSE
       - LICENSE-COMMUNITY
-      - payloads/community/**/*
+      - payloads/**/*
 
 checksum:
   name_template: 'checksums.txt'

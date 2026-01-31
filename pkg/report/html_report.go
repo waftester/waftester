@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 //go:embed templates/enterprise_report.html
@@ -1362,7 +1364,7 @@ func BuildFromMetrics(m interface{}, targetName string, scanDuration time.Durati
 
 	report := &EnterpriseReport{
 		GeneratedAt:   time.Now(),
-		ToolVersion:   "2.3.0",
+		ToolVersion:   ui.Version,
 		ToolName:      "WAF-Tester",
 		ReportVersion: "1.0",
 		TargetName:    targetName,
