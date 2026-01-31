@@ -386,7 +386,7 @@ func (s *AuthenticatedScanner) runChromedpScan(ctx context.Context, result *Brow
 	if s.config.ShowBrowser {
 		// VISIBLE BROWSER MODE - Use defaults but skip Headless option
 		if progressFn != nil {
-			progressFn(fmt.Sprintf("DEBUG: ShowBrowser=true - launching VISIBLE browser window"))
+			progressFn("Launching visible browser window")
 		}
 
 		// chromedp.DefaultExecAllocatorOptions is an array like:
@@ -410,7 +410,7 @@ func (s *AuthenticatedScanner) runChromedpScan(ctx context.Context, result *Brow
 		)
 
 		if progressFn != nil {
-			progressFn(fmt.Sprintf("DEBUG: Browser options configured without headless flag"))
+			progressFn("Browser options configured for visible mode")
 		}
 	} else {
 		// HEADLESS MODE - Use defaults which include headless
@@ -452,14 +452,14 @@ func (s *AuthenticatedScanner) runChromedpScan(ctx context.Context, result *Brow
 	defer allocCancel()
 
 	if progressFn != nil {
-		progressFn("DEBUG: chromedp.NewExecAllocator created")
+		progressFn("Browser allocator initialized")
 	}
 
 	browserCtx, browserCancel := chromedp.NewContext(allocCtx)
 	defer browserCancel()
 
 	if progressFn != nil {
-		progressFn("DEBUG: chromedp.NewContext created - browser should launch now")
+		progressFn("Browser context created, launching...")
 	}
 
 	// Initialize storage data early
