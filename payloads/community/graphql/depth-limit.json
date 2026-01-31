@@ -1,0 +1,271 @@
+[
+  {
+      "id": "GQL-DEPTH-001",
+      "payload": "{\"query\": \"{ user { posts { comments { author { posts { comments { author { id } } } } } } } }\"}",
+      "tags": [
+        "depth-limit",
+        "nested-query",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "6-level deep nested query (user->posts->comments->author->posts->comments->author)",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-DEPTH-002",
+      "payload": "{\"query\": \"{ user { friends { friends { friends { friends { friends { id } } } } } } }\"}",
+      "tags": [
+        "depth-limit",
+        "recursive",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "5-level recursive self-referencing query (friends of friends)",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-DEPTH-003",
+      "payload": "{\"query\": \"{ user { posts { comments { replies { replies { replies { replies { replies { content } } } } } } } } }\"}",
+      "tags": [
+        "depth-limit",
+        "deep-nesting",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "8-level deep comment thread traversal",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-DEPTH-004",
+      "payload": "{\"query\": \"{ organization { teams { members { organization { teams { members { id } } } } } } }\"}",
+      "tags": [
+        "depth-limit",
+        "circular"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Circular query pattern (org->teams->members->org)",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-DEPTH-005",
+      "payload": "{\"query\": \"{ a: user { b: friends { c: friends { d: friends { e: friends { f: friends { g: id } } } } } } }\"}",
+      "tags": [
+        "depth-limit",
+        "alias",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Deep nested query with field aliases",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-DEPTH-006",
+      "payload": "{\"query\": \"fragment DeepUser on User { friends { friends { friends { friends { id } } } } } query { user { ...DeepUser } }\"}",
+      "tags": [
+        "depth-limit",
+        "fragments"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Deep nesting via fragment spread",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-DEPTH-007",
+      "payload": "{\"query\": \"fragment Level1 on User { friends { ...Level2 } } fragment Level2 on User { friends { ...Level3 } } fragment Level3 on User { friends { ...Level4 } } fragment Level4 on User { friends { id } } query { user { ...Level1 } }\"}",
+      "tags": [
+        "depth-limit",
+        "fragment-chain",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Chained fragment spreading for deep traversal",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-DEPTH-008",
+      "payload": "{\"query\": \"{ user { posts { author { posts { author { posts { author { posts { author { id } } } } } } } } } }\"}",
+      "tags": [
+        "depth-limit",
+        "bidirectional"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "8-level bidirectional traversal (user<->posts<->author)",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-DEPTH-009",
+      "payload": "{\"query\": \"{ node(id: \\\"1\\\") { ... on User { friends { ... on User { friends { ... on User { friends { id } } } } } } } }\"}",
+      "tags": [
+        "depth-limit",
+        "inline-fragments"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Deep nesting with inline fragment spreads",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-DEPTH-010",
+      "payload": "{\"query\": \"{ user { posts { comments { author { posts { comments { author { posts { comments { id } } } } } } } } } }\"}",
+      "tags": [
+        "depth-limit",
+        "extreme",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "9-level deep query (should definitely exceed limits)",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-DEPTH-011",
+      "payload": "{\"query\": \"{ user { followers { following { followers { following { followers { id } } } } } } }\"}",
+      "tags": [
+        "depth-limit",
+        "social-graph"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Deep social graph traversal (followers/following chain)",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-DEPTH-012",
+      "payload": "{\"query\": \"{ category { subcategories { subcategories { subcategories { subcategories { subcategories { name } } } } } } }\"}",
+      "tags": [
+        "depth-limit",
+        "hierarchy"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "6-level category hierarchy traversal",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-DEPTH-013",
+      "payload": "{\"query\": \"{ repository { forks { forks { forks { forks { forks { name } } } } } } }\"}",
+      "tags": [
+        "depth-limit",
+        "github-style"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Deep fork traversal (GitHub-style schema)",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-DEPTH-014",
+      "payload": "{\"query\": \"{ user { posts { comments { parent { parent { parent { parent { parent { id } } } } } } } } } }\"}",
+      "tags": [
+        "depth-limit",
+        "threaded"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Deep threaded comment parent traversal",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-DEPTH-015",
+      "payload": "{\"query\": \"query DeepQuery { a: user { b: friends { c: posts { d: comments { e: author { f: friends { g: posts { h: id } } } } } } } }\"}",
+      "tags": [
+        "depth-limit",
+        "mixed-relations",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "7-level deep query mixing different relation types with aliases",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-DEPTH-016",
+      "payload": "{\"query\": \"{ user { posts { comments { likes { user { posts { comments { id } } } } } } } }\"}",
+      "tags": [
+        "depth-limit",
+        "engagement"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Deep engagement chain (user->posts->comments->likes->user)",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-DEPTH-017",
+      "payload": "{\"query\": \"{ user @skip(if: false) { friends @skip(if: false) { friends @skip(if: false) { friends @skip(if: false) { friends { id } } } } } }\"}",
+      "tags": [
+        "depth-limit",
+        "directive-bypass"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Deep nesting with @skip directives (potential bypass attempt)",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-DEPTH-018",
+      "payload": "{\"query\": \"{ viewer { organization { repository { pullRequest { comments { author { organization { repository { id } } } } } } } } } }\"}",
+      "tags": [
+        "depth-limit",
+        "github-api"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Deep GitHub API-style nested query",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-DEPTH-019",
+      "payload": "{\"query\": \"{ user { posts(first: 1) { comments(first: 1) { replies(first: 1) { replies(first: 1) { replies(first: 1) { content } } } } } } }\"}",
+      "tags": [
+        "depth-limit",
+        "pagination-abuse"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Deep nesting with pagination arguments (still deep despite first: 1)",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-DEPTH-020",
+      "payload": "{\"query\": \"{ node(id: \\\"1\\\") { ... on User { friends { ... on User { friends { ... on User { friends { ... on User { friends { ... on User { id } } } } } } } } } } }\"}",
+      "tags": [
+        "depth-limit",
+        "polymorphic",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "5-level deep polymorphic inline fragment chain",
+      "destructive": false,
+      "category": "GraphQL"
+  }
+]

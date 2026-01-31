@@ -1,0 +1,421 @@
+[
+  {
+      "id": "AUTH-OAUTH-040",
+      "payload": "redirect_uri=https://attacker.com/callback",
+      "tags": [
+        "redirect-uri",
+        "open-redirect",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "OAuth redirect_uri manipulation - authorization code interception",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-041",
+      "payload": "redirect_uri=https://legitimate.com@attacker.com/callback",
+      "tags": [
+        "redirect-uri",
+        "url-parsing",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "OAuth redirect_uri with @ character - URL parser confusion",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-042",
+      "payload": "redirect_uri=https://legitimate.com.attacker.com/callback",
+      "tags": [
+        "redirect-uri",
+        "subdomain-takeover",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "OAuth redirect_uri subdomain confusion - lookalike domain",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-043",
+      "payload": "redirect_uri=https://legitimate.com/../../../attacker.com/callback",
+      "tags": [
+        "redirect-uri",
+        "path-traversal",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "OAuth redirect_uri with path traversal - domain escape attempt",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-044",
+      "payload": "redirect_uri=javascript:alert(document.domain)",
+      "tags": [
+        "redirect-uri",
+        "xss",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "OAuth redirect_uri with javascript: protocol - XSS via OAuth flow",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-045",
+      "payload": "redirect_uri=data:text/html,<script>alert(1)</script>",
+      "tags": [
+        "redirect-uri",
+        "xss",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "OAuth redirect_uri with data: protocol - inline XSS payload",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-046",
+      "payload": "state=",
+      "tags": [
+        "state-parameter",
+        "csrf",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "OAuth with empty state parameter - CSRF protection bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-047",
+      "payload": "state=static_value",
+      "tags": [
+        "state-parameter",
+        "csrf",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "OAuth with predictable state - CSRF attack via replay",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-048",
+      "payload": "code=AUTH_CODE_123&state=ATTACKER_STATE",
+      "tags": [
+        "authorization-code",
+        "replay",
+        "quick",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "OAuth authorization code replay with mismatched state",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-049",
+      "payload": "code=AUTH_CODE_123&code=AUTH_CODE_456",
+      "tags": [
+        "authorization-code",
+        "parameter-pollution",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "OAuth with duplicate code parameters - HPP (HTTP Parameter Pollution)",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-050",
+      "payload": "response_type=token&redirect_uri=https://attacker.com",
+      "tags": [
+        "implicit-flow",
+        "token-leakage",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "OAuth implicit flow with malicious redirect_uri - token in URL fragment",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-051",
+      "payload": "scope=read write admin delete",
+      "tags": [
+        "scope-escalation",
+        "privilege",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "OAuth with escalated scope including 'admin' - privilege escalation",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-052",
+      "payload": "scope=* openid profile email",
+      "tags": [
+        "scope-escalation",
+        "wildcard",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "OAuth with wildcard scope - requesting all permissions",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-053",
+      "payload": "client_id=legitimate_client&client_secret=",
+      "tags": [
+        "client-credentials",
+        "empty-secret",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "OAuth token request with empty client_secret - weak authentication",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-054",
+      "payload": "client_id=PUBLIC_CLIENT&code=AUTH_CODE",
+      "tags": [
+        "client-impersonation",
+        "public-client",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "OAuth token exchange using public client_id - client impersonation",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-055",
+      "payload": "code_verifier=",
+      "tags": [
+        "pkce",
+        "empty-verifier",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "OAuth PKCE with empty code_verifier - PKCE bypass attempt",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-056",
+      "payload": "code_challenge=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "tags": [
+        "pkce",
+        "weak-challenge",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "OAuth PKCE with predictable code_challenge - weak PKCE implementation",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-057",
+      "payload": "code_challenge_method=plain&code_challenge=simple_secret",
+      "tags": [
+        "pkce",
+        "plain-method",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "OAuth PKCE with 'plain' method - no hashing, verifier exposed in authorize request",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-058",
+      "payload": "grant_type=password&username=admin&password=password123",
+      "tags": [
+        "resource-owner",
+        "password-flow",
+        "quick",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "OAuth Resource Owner Password Credentials flow - deprecated, credentials exposed",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-059",
+      "payload": "grant_type=client_credentials&scope=admin",
+      "tags": [
+        "client-credentials",
+        "scope-escalation",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "OAuth client credentials with admin scope - machine-to-machine privilege escalation",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-060",
+      "payload": "grant_type=refresh_token&refresh_token=OLD_REFRESH_TOKEN",
+      "tags": [
+        "refresh-token",
+        "token-reuse",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "OAuth refresh token reuse - testing token rotation enforcement",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-061",
+      "payload": "redirect_uri=https://legitimate.com%0d%0aHost: attacker.com",
+      "tags": [
+        "redirect-uri",
+        "crlf-injection",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "OAuth redirect_uri with CRLF injection - HTTP response splitting",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-062",
+      "payload": "redirect_uri=https://legitimate.com\\@attacker.com",
+      "tags": [
+        "redirect-uri",
+        "backslash-trick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "OAuth redirect_uri with backslash - Windows path parsing confusion",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-063",
+      "payload": "redirect_uri=https://legitimate.com#@attacker.com/callback",
+      "tags": [
+        "redirect-uri",
+        "fragment-confusion",
+        "high"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "OAuth redirect_uri with # and @ - fragment parsing bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-064",
+      "payload": "redirect_uri=https://legitimate.com/../callback",
+      "tags": [
+        "redirect-uri",
+        "path-normalization",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "OAuth redirect_uri with relative path - normalization bypass attempt",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-065",
+      "payload": "nonce=",
+      "tags": [
+        "nonce",
+        "replay",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "OAuth/OIDC with empty nonce - replay attack protection bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-066",
+      "payload": "id_token_hint=eyJhbGciOiJub25lIn0.eyJzdWIiOiJhZG1pbiJ9.",
+      "tags": [
+        "oidc",
+        "id-token-hint",
+        "algorithm-confusion",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "OIDC id_token_hint with 'none' algorithm - logout endpoint manipulation",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-067",
+      "payload": "prompt=none&login_hint=admin@company.com",
+      "tags": [
+        "oidc",
+        "prompt-none",
+        "session-hijack",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "OIDC prompt=none with login_hint - silent authentication hijacking",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-068",
+      "payload": "acr_values=urn:mace:incommon:iap:silver urn:mace:incommon:iap:bronze",
+      "tags": [
+        "oidc",
+        "acr-downgrade",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "OIDC with multiple acr_values - authentication context downgrade",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-069",
+      "payload": "response_mode=form_post&redirect_uri=https://attacker.com",
+      "tags": [
+        "response-mode",
+        "form-post",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "OAuth response_mode=form_post to attacker domain - credential theft via auto-submit form",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-OAUTH-070",
+      "payload": "response_type=code token&redirect_uri=https://attacker.com",
+      "tags": [
+        "hybrid-flow",
+        "token-leakage",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "OAuth hybrid flow with attacker redirect - both code and token leaked",
+      "category": "Auth"
+  }
+]

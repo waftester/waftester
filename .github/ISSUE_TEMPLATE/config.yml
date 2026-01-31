@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/waftester/waftester/tree/main/docs
+    about: Check the documentation for guides and references
+  - name: Discussions
+    url: https://github.com/waftester/waftester/discussions
+    about: Ask questions and share ideas in Discussions
+  - name: Security Vulnerability
+    url: https://github.com/waftester/waftester/security/advisories/new
+    about: Report security vulnerabilities privately

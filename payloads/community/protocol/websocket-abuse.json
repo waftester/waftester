@@ -1,0 +1,375 @@
+[
+  {
+      "id": "PROTO-WS-001",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+      "tags": [
+        "valid-handshake",
+        "baseline"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Valid WebSocket handshake (baseline)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-002",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n",
+      "tags": [
+        "missing-key",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Missing Sec-WebSocket-Key header",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-003",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n",
+      "tags": [
+        "missing-version",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Missing Sec-WebSocket-Version header",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-004",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+      "tags": [
+        "missing-upgrade"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Missing Upgrade header",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-005",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+      "tags": [
+        "missing-connection"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Missing Connection: Upgrade header",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-006",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: short\r\nSec-WebSocket-Version: 13\r\n\r\n",
+      "tags": [
+        "invalid-key-length",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Sec-WebSocket-Key too short (should be 16 bytes base64)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-007",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: !!!invalid-base64!!!\r\nSec-WebSocket-Version: 13\r\n\r\n",
+      "tags": [
+        "invalid-key-encoding"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Invalid base64 encoding in Sec-WebSocket-Key",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-008",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 8\r\n\r\n",
+      "tags": [
+        "old-version"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Old WebSocket protocol version (8, current is 13)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-009",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 99\r\n\r\n",
+      "tags": [
+        "invalid-version"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Invalid WebSocket protocol version (99)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-010",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: keep-alive, Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+      "tags": [
+        "multiple-connection-tokens"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Connection header with multiple tokens (valid per spec)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-011",
+      "payload": "POST /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+      "tags": [
+        "wrong-method",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "WebSocket handshake with POST instead of GET",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-012",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: h2c\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+      "tags": [
+        "wrong-upgrade-value"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Upgrade to h2c instead of websocket",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-013",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: close\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+      "tags": [
+        "connection-close",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Connection: close instead of Connection: Upgrade",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-014",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Protocol: chat, superchat\r\n\r\n",
+      "tags": [
+        "valid-subprotocol"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Valid subprotocol negotiation",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-015",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Protocol: <script>alert(1)</script>\r\n\r\n",
+      "tags": [
+        "xss-subprotocol",
+        "injection",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS injection attempt in Sec-WebSocket-Protocol",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-016",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Extensions: permessage-deflate\r\n\r\n",
+      "tags": [
+        "valid-extension"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Valid extension negotiation (permessage-deflate)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-017",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Extensions: ../../../etc/passwd\r\n\r\n",
+      "tags": [
+        "traversal-extension",
+        "injection"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Path traversal attempt in Sec-WebSocket-Extensions",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-018",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Key: YW5vdGhlciBrZXkgdmFsdWU=\r\nSec-WebSocket-Version: 13\r\n\r\n",
+      "tags": [
+        "duplicate-key"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Duplicate Sec-WebSocket-Key headers",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-019",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Version: 8\r\n\r\n",
+      "tags": [
+        "duplicate-version"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Duplicate Sec-WebSocket-Version headers with different values",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-020",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\nOrigin: http://evil.com\r\n\r\n",
+      "tags": [
+        "cross-origin",
+        "cors"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Cross-origin WebSocket connection from untrusted origin",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-021",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\nOrigin: null\r\n\r\n",
+      "tags": [
+        "null-origin"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Null origin in WebSocket handshake",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-022",
+      "payload": "GET /chat HTTP/1.0\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+      "tags": [
+        "http10"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "WebSocket handshake over HTTP/1.0 (requires HTTP/1.1+)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-023",
+      "payload": "GET /chat HTTP/2.0\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+      "tags": [
+        "http2-upgrade"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "WebSocket upgrade over HTTP/2 (not allowed per RFC 8441)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-024",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: AAAAAAAAAAAAAAAAAAAAAA==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+      "tags": [
+        "null-key"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "All-zeros WebSocket key (weak randomness)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-025",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\nContent-Length: 100\r\n\r\n",
+      "tags": [
+        "body-with-upgrade"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Content-Length on WebSocket upgrade request (should have no body)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-026",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\nTransfer-Encoding: chunked\r\n\r\n",
+      "tags": [
+        "te-with-upgrade"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Transfer-Encoding on WebSocket upgrade request",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-027",
+      "payload": "GET /../admin HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+      "tags": [
+        "path-traversal",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Path traversal in WebSocket endpoint",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-028",
+      "payload": "GET /chat?token=<script>alert(1)</script> HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+      "tags": [
+        "xss-query",
+        "injection"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS injection in WebSocket query parameter",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-029",
+      "payload": "GET /chat HTTP/1.1\r\nHost: 127.0.0.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+      "tags": [
+        "localhost-host"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "WebSocket connection to localhost (potential SSRF)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-WS-030",
+      "payload": "GET /chat HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket, h2c\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+      "tags": [
+        "multiple-upgrade-protocols"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Multiple protocols in Upgrade header",
+      "destructive": false,
+      "category": "Protocol"
+  }
+]

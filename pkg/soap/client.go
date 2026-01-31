@@ -1,0 +1,536 @@
+// Package soap provides SOAP/WSDL testing capabilities for WAF assessment
+package soap
+
+import (
+	"bytes"
+	"encoding/xml"
+	"fmt"
+	"io"
+	"net/http"
+	"regexp"
+	"strings"
+	"time"
+)
+
+// Client is a SOAP client
+type Client struct {
+	httpClient *http.Client
+	endpoint   string
+	timeout    time.Duration
+	namespace  string
+	soapAction string
+}
+
+// ClientOption configures the client
+type ClientOption func(*Client)
+
+// WithTimeout sets the request timeout
+func WithTimeout(d time.Duration) ClientOption {
+	return func(c *Client) {
+		c.timeout = d
+		c.httpClient.Timeout = d
+	}
+}
+
+// WithSOAPAction sets the SOAPAction header
+func WithSOAPAction(action string) ClientOption {
+	return func(c *Client) {
+		c.soapAction = action
+	}
+}
+
+// WithNamespace sets the default namespace
+func WithNamespace(ns string) ClientOption {
+	return func(c *Client) {
+		c.namespace = ns
+	}
+}
+
+// NewClient creates a new SOAP client
+func NewClient(endpoint string, opts ...ClientOption) *Client {
+	c := &Client{
+		endpoint: endpoint,
+		timeout:  30 * time.Second,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+	}
+
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c
+}
+
+// Envelope represents a SOAP envelope
+type Envelope struct {
+	XMLName xml.Name `xml:"soap:Envelope"`
+	SoapNS  string   `xml:"xmlns:soap,attr"`
+	XsiNS   string   `xml:"xmlns:xsi,attr,omitempty"`
+	XsdNS   string   `xml:"xmlns:xsd,attr,omitempty"`
+	Header  *Header  `xml:"soap:Header,omitempty"`
+	Body    Body     `xml:"soap:Body"`
+}
+
+// Header represents a SOAP header
+type Header struct {
+	Content []byte `xml:",innerxml"`
+}
+
+// Body represents a SOAP body
+type Body struct {
+	Content []byte `xml:",innerxml"`
+	Fault   *Fault `xml:"Fault,omitempty"`
+}
+
+// Fault represents a SOAP fault
+type Fault struct {
+	Code   string `xml:"faultcode"`
+	String string `xml:"faultstring"`
+	Actor  string `xml:"faultactor,omitempty"`
+	Detail string `xml:"detail,omitempty"`
+}
+
+// Request represents a SOAP request
+type Request struct {
+	Action     string            // SOAP action
+	Operation  string            // Operation name
+	Namespace  string            // Operation namespace
+	Body       string            // Raw XML body content
+	Headers    map[string]string // HTTP headers
+	SOAPHeader string            // SOAP header content
+}
+
+// Response represents a SOAP response
+type Response struct {
+	StatusCode int
+	Body       string
+	Fault      *Fault
+	RawXML     []byte
+	Latency    time.Duration
+	Headers    map[string]string
+	Blocked    bool
+}
+
+// Call makes a SOAP call
+func (c *Client) Call(req *Request) (*Response, error) {
+	// Build SOAP envelope
+	envelope := c.buildEnvelope(req)
+
+	// Create HTTP request
+	httpReq, err := http.NewRequest("POST", c.endpoint, bytes.NewReader(envelope))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers
+	httpReq.Header.Set("Content-Type", "text/xml; charset=utf-8")
+	if req.Action != "" {
+		httpReq.Header.Set("SOAPAction", req.Action)
+	} else if c.soapAction != "" {
+		httpReq.Header.Set("SOAPAction", c.soapAction)
+	}
+
+	for k, v := range req.Headers {
+		httpReq.Header.Set(k, v)
+	}
+
+	// Make request
+	start := time.Now()
+	httpResp, err := c.httpClient.Do(httpReq)
+	latency := time.Since(start)
+
+	if err != nil {
+		return &Response{
+			Blocked: true,
+			Latency: latency,
+		}, fmt.Errorf("request failed: %w", err)
+	}
+	defer httpResp.Body.Close()
+
+	// Read response
+	body, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Parse response
+	resp := &Response{
+		StatusCode: httpResp.StatusCode,
+		RawXML:     body,
+		Latency:    latency,
+		Headers:    make(map[string]string),
+	}
+
+	// Extract headers
+	for k, v := range httpResp.Header {
+		if len(v) > 0 {
+			resp.Headers[k] = v[0]
+		}
+	}
+
+	// Check if blocked
+	if httpResp.StatusCode == 403 || httpResp.StatusCode == 406 ||
+		httpResp.StatusCode == 418 || httpResp.StatusCode >= 500 {
+		resp.Blocked = true
+	}
+
+	// Parse SOAP response
+	var respEnvelope Envelope
+	if err := xml.Unmarshal(body, &respEnvelope); err == nil {
+		if respEnvelope.Body.Fault != nil {
+			resp.Fault = respEnvelope.Body.Fault
+		}
+		resp.Body = string(respEnvelope.Body.Content)
+	} else {
+		resp.Body = string(body)
+	}
+
+	return resp, nil
+}
+
+// buildEnvelope creates a SOAP envelope
+func (c *Client) buildEnvelope(req *Request) []byte {
+	var sb strings.Builder
+
+	sb.WriteString(`<?xml version="1.0" encoding="UTF-8"?>`)
+	sb.WriteString(`<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"`)
+	sb.WriteString(` xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"`)
+	sb.WriteString(` xmlns:xsd="http://www.w3.org/2001/XMLSchema"`)
+
+	ns := req.Namespace
+	if ns == "" {
+		ns = c.namespace
+	}
+	if ns != "" {
+		sb.WriteString(fmt.Sprintf(` xmlns:ns="%s"`, ns))
+	}
+
+	sb.WriteString(`>`)
+
+	// Add header if present
+	if req.SOAPHeader != "" {
+		sb.WriteString(`<soap:Header>`)
+		sb.WriteString(req.SOAPHeader)
+		sb.WriteString(`</soap:Header>`)
+	}
+
+	sb.WriteString(`<soap:Body>`)
+
+	if req.Operation != "" && req.Body == "" {
+		if ns != "" {
+			sb.WriteString(fmt.Sprintf(`<ns:%s/>`, req.Operation))
+		} else {
+			sb.WriteString(fmt.Sprintf(`<%s/>`, req.Operation))
+		}
+	} else {
+		sb.WriteString(req.Body)
+	}
+
+	sb.WriteString(`</soap:Body>`)
+	sb.WriteString(`</soap:Envelope>`)
+
+	return []byte(sb.String())
+}
+
+// WSDLDefinition represents a parsed WSDL
+type WSDLDefinition struct {
+	TargetNamespace string
+	Services        []ServiceInfo
+	Operations      []OperationInfo
+	Types           []TypeInfo
+	Messages        []MessageInfo
+}
+
+// ServiceInfo describes a WSDL service
+type ServiceInfo struct {
+	Name     string
+	Ports    []PortInfo
+	Endpoint string
+}
+
+// PortInfo describes a WSDL port
+type PortInfo struct {
+	Name     string
+	Binding  string
+	Location string
+}
+
+// OperationInfo describes a WSDL operation
+type OperationInfo struct {
+	Name          string
+	Input         string
+	Output        string
+	SOAPAction    string
+	Documentation string
+}
+
+// TypeInfo describes a WSDL type
+type TypeInfo struct {
+	Name      string
+	Elements  []ElementInfo
+	Namespace string
+	IsComplex bool
+}
+
+// ElementInfo describes a type element
+type ElementInfo struct {
+	Name      string
+	Type      string
+	MinOccurs int
+	MaxOccurs string
+	Nillable  bool
+}
+
+// MessageInfo describes a WSDL message
+type MessageInfo struct {
+	Name  string
+	Parts []PartInfo
+}
+
+// PartInfo describes a message part
+type PartInfo struct {
+	Name    string
+	Element string
+	Type    string
+}
+
+// ParseWSDL parses a WSDL from URL or raw content
+func ParseWSDL(content []byte) (*WSDLDefinition, error) {
+	def := &WSDLDefinition{}
+
+	// Extract target namespace
+	nsMatch := regexp.MustCompile(`targetNamespace="([^"]+)"`).FindSubmatch(content)
+	if len(nsMatch) > 1 {
+		def.TargetNamespace = string(nsMatch[1])
+	}
+
+	// Extract services
+	svcRe := regexp.MustCompile(`<(?:wsdl:)?service\s+name="([^"]+)"[^>]*>([\s\S]*?)</(?:wsdl:)?service>`)
+	for _, match := range svcRe.FindAllSubmatch(content, -1) {
+		svc := ServiceInfo{Name: string(match[1])}
+
+		// Extract ports
+		portRe := regexp.MustCompile(`<(?:wsdl:)?port\s+name="([^"]+)"[^>]*binding="([^"]+)"[^>]*>[\s\S]*?<(?:soap:)?address\s+location="([^"]+)"`)
+		for _, portMatch := range portRe.FindAllSubmatch(match[2], -1) {
+			svc.Ports = append(svc.Ports, PortInfo{
+				Name:     string(portMatch[1]),
+				Binding:  string(portMatch[2]),
+				Location: string(portMatch[3]),
+			})
+			if svc.Endpoint == "" {
+				svc.Endpoint = string(portMatch[3])
+			}
+		}
+
+		def.Services = append(def.Services, svc)
+	}
+
+	// Extract operations
+	opRe := regexp.MustCompile(`<(?:wsdl:)?operation\s+name="([^"]+)"`)
+	actionRe := regexp.MustCompile(`<(?:soap:)?operation\s+soapAction="([^"]+)"`)
+
+	opMatches := opRe.FindAllSubmatch(content, -1)
+	actionMatches := actionRe.FindAllSubmatch(content, -1)
+
+	for i, match := range opMatches {
+		op := OperationInfo{Name: string(match[1])}
+		if i < len(actionMatches) && len(actionMatches[i]) > 1 {
+			op.SOAPAction = string(actionMatches[i][1])
+		}
+		def.Operations = append(def.Operations, op)
+	}
+
+	// Extract messages
+	msgRe := regexp.MustCompile(`<(?:wsdl:)?message\s+name="([^"]+)"[^>]*>([\s\S]*?)</(?:wsdl:)?message>`)
+	for _, match := range msgRe.FindAllSubmatch(content, -1) {
+		msg := MessageInfo{Name: string(match[1])}
+
+		partRe := regexp.MustCompile(`<(?:wsdl:)?part\s+name="([^"]+)"(?:\s+element="([^"]+)")?(?:\s+type="([^"]+)")?`)
+		for _, partMatch := range partRe.FindAllSubmatch(match[2], -1) {
+			part := PartInfo{Name: string(partMatch[1])}
+			if len(partMatch) > 2 {
+				part.Element = string(partMatch[2])
+			}
+			if len(partMatch) > 3 {
+				part.Type = string(partMatch[3])
+			}
+			msg.Parts = append(msg.Parts, part)
+		}
+
+		def.Messages = append(def.Messages, msg)
+	}
+
+	// Extract complex types
+	typeRe := regexp.MustCompile(`<(?:xs?|xsd):complexType\s+name="([^"]+)"[^>]*>([\s\S]*?)</(?:xs?|xsd):complexType>`)
+	for _, match := range typeRe.FindAllSubmatch(content, -1) {
+		typ := TypeInfo{
+			Name:      string(match[1]),
+			IsComplex: true,
+		}
+
+		elemRe := regexp.MustCompile(`<(?:xs?|xsd):element\s+name="([^"]+)"(?:\s+type="([^"]+)")?`)
+		for _, elemMatch := range elemRe.FindAllSubmatch(match[2], -1) {
+			elem := ElementInfo{Name: string(elemMatch[1])}
+			if len(elemMatch) > 2 {
+				elem.Type = string(elemMatch[2])
+			}
+			typ.Elements = append(typ.Elements, elem)
+		}
+
+		def.Types = append(def.Types, typ)
+	}
+
+	return def, nil
+}
+
+// FetchWSDL fetches WSDL from a URL
+func FetchWSDL(url string) (*WSDLDefinition, error) {
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch WSDL: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)
+	}
+
+	content, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read WSDL: %w", err)
+	}
+
+	return ParseWSDL(content)
+}
+
+// TestCase represents a SOAP security test case
+type TestCase struct {
+	ID           string
+	Operation    string
+	Description  string
+	Category     string
+	Request      *Request
+	ExpectBlock  bool
+	PayloadField string
+}
+
+// Generator creates test cases for SOAP services
+type Generator struct {
+	wsdl     *WSDLDefinition
+	endpoint string
+	payloads []string
+}
+
+// NewGenerator creates a test case generator
+func NewGenerator(wsdl *WSDLDefinition, endpoint string, payloads []string) *Generator {
+	return &Generator{
+		wsdl:     wsdl,
+		endpoint: endpoint,
+		payloads: payloads,
+	}
+}
+
+// Generate creates test cases for all operations
+func (g *Generator) Generate() []TestCase {
+	var testCases []TestCase
+	id := 1
+
+	for _, op := range g.wsdl.Operations {
+		for _, payload := range g.payloads {
+			// Test payload in operation body
+			tc := TestCase{
+				ID:          fmt.Sprintf("soap-%s-%03d", op.Name, id),
+				Operation:   op.Name,
+				Description: fmt.Sprintf("Inject payload in %s operation", op.Name),
+				Category:    "injection",
+				Request: &Request{
+					Action:    op.SOAPAction,
+					Operation: op.Name,
+					Namespace: g.wsdl.TargetNamespace,
+					Body:      fmt.Sprintf(`<%s xmlns="%s"><input>%s</input></%s>`, op.Name, g.wsdl.TargetNamespace, payload, op.Name),
+				},
+				ExpectBlock: true,
+			}
+			testCases = append(testCases, tc)
+			id++
+
+			// Test payload in SOAP header
+			tc = TestCase{
+				ID:          fmt.Sprintf("soap-%s-%03d", op.Name, id),
+				Operation:   op.Name,
+				Description: fmt.Sprintf("Inject payload in %s SOAP header", op.Name),
+				Category:    "injection",
+				Request: &Request{
+					Action:     op.SOAPAction,
+					Operation:  op.Name,
+					Namespace:  g.wsdl.TargetNamespace,
+					SOAPHeader: fmt.Sprintf(`<CustomHeader>%s</CustomHeader>`, payload),
+				},
+				ExpectBlock: true,
+			}
+			testCases = append(testCases, tc)
+			id++
+
+			// Test XXE in body
+			xxePayload := fmt.Sprintf(`<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><%s xmlns="%s"><input>&xxe;</input></%s>`, op.Name, g.wsdl.TargetNamespace, op.Name)
+			tc = TestCase{
+				ID:          fmt.Sprintf("soap-%s-xxe-%03d", op.Name, id),
+				Operation:   op.Name,
+				Description: fmt.Sprintf("XXE attack in %s operation", op.Name),
+				Category:    "xxe",
+				Request: &Request{
+					Action:    op.SOAPAction,
+					Operation: op.Name,
+					Namespace: g.wsdl.TargetNamespace,
+					Body:      xxePayload,
+				},
+				ExpectBlock: true,
+			}
+			testCases = append(testCases, tc)
+			id++
+		}
+	}
+
+	return testCases
+}
+
+// GenerateForOperation creates test cases for a specific operation
+func (g *Generator) GenerateForOperation(opName string) []TestCase {
+	var testCases []TestCase
+	id := 1
+
+	var op *OperationInfo
+	for _, o := range g.wsdl.Operations {
+		if o.Name == opName {
+			op = &o
+			break
+		}
+	}
+
+	if op == nil {
+		return testCases
+	}
+
+	for _, payload := range g.payloads {
+		tc := TestCase{
+			ID:          fmt.Sprintf("soap-%s-%03d", op.Name, id),
+			Operation:   op.Name,
+			Description: fmt.Sprintf("Inject payload in %s operation", op.Name),
+			Category:    "injection",
+			Request: &Request{
+				Action:    op.SOAPAction,
+				Operation: op.Name,
+				Namespace: g.wsdl.TargetNamespace,
+				Body:      fmt.Sprintf(`<%s><data>%s</data></%s>`, op.Name, payload, op.Name),
+			},
+			ExpectBlock: true,
+		}
+		testCases = append(testCases, tc)
+		id++
+	}
+
+	return testCases
+}

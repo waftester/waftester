@@ -1,0 +1,263 @@
+[
+  {
+      "id": "XSS-MXSS-080",
+      "payload": "<noscript><p title=\"</noscript><img src=x onerror=alert(1)>\">",
+      "tags": [
+        "mutation",
+        "noscript",
+        "attribute-escape",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "mXSS via noscript attribute mutation",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-MXSS-081",
+      "payload": "<svg><style><img src=x onerror=alert(1)></style></svg>",
+      "tags": [
+        "mutation",
+        "svg",
+        "style"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "mXSS via SVG style element mutation",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-MXSS-082",
+      "payload": "<math><mtext><table><mglyph><style><!--</style><img title=\"--><img src=x onerror=alert(1)>\">",
+      "tags": [
+        "mutation",
+        "mathml",
+        "table"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "mXSS via MathML table mutation",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-MXSS-083",
+      "payload": "<form><math><mtext></form><form><mglyph><style></math><img src=x onerror=alert(1)>",
+      "tags": [
+        "mutation",
+        "form",
+        "mathml"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "mXSS via form/MathML namespace confusion",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-MXSS-084",
+      "payload": "<svg><foreignObject><body><img src=x onerror=alert(1)></foreignObject></svg>",
+      "tags": [
+        "mutation",
+        "foreignObject",
+        "namespace"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "mXSS via foreignObject namespace switch",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-MXSS-085",
+      "payload": "<div><style><xss id=\"</style><img src=x onerror=alert(1)>\"></div>",
+      "tags": [
+        "mutation",
+        "style",
+        "attribute-escape"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "mXSS via style tag attribute escape",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-MXSS-086",
+      "payload": "<listing><img src=x onerror=alert(1)></listing>",
+      "tags": [
+        "mutation",
+        "listing",
+        "legacy"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "mXSS via deprecated listing element",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-MXSS-087",
+      "payload": "<xmp><img src=x onerror=alert(1)></xmp>",
+      "tags": [
+        "mutation",
+        "xmp",
+        "legacy"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "mXSS via deprecated xmp element",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-MXSS-088",
+      "payload": "<svg><desc><![CDATA[</desc><img src=x onerror=alert(1)>]]></svg>",
+      "tags": [
+        "mutation",
+        "cdata",
+        "svg"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "mXSS via CDATA mutation in SVG",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-MXSS-089",
+      "payload": "<svg><title><iframe onload=alert(1)></title></svg>",
+      "tags": [
+        "mutation",
+        "svg",
+        "title"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "mXSS via SVG title element mutation",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-MXSS-090",
+      "payload": "<table><math><select><mi><select><mi><select><mi><select><img src=x onerror=alert(1)>",
+      "tags": [
+        "mutation",
+        "nested",
+        "select"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "mXSS via deeply nested select/MathML mutation",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-MXSS-091",
+      "payload": "<svg><style>*{background:url(\"</style><img src=x onerror=alert(1)\">\"}</style></svg>",
+      "tags": [
+        "mutation",
+        "css",
+        "url"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "mXSS via CSS URL mutation",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-MXSS-092",
+      "payload": "<img alt=\"<x>\" src=x onerror=alert(1)>",
+      "tags": [
+        "mutation",
+        "attribute",
+        "entity"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "mXSS via attribute entity mutation",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-MXSS-093",
+      "payload": "<svg><animate attributeName=href from=javascript:alert(1) to=1 />",
+      "tags": [
+        "mutation",
+        "animate",
+        "href"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "mXSS via SVG animate attributeName mutation",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-MXSS-094",
+      "payload": "<plaintext><script>alert(1)</script>",
+      "tags": [
+        "mutation",
+        "plaintext",
+        "legacy"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "mXSS via plaintext element (stops parsing)",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-MXSS-095",
+      "payload": "<isindex type=image src=x onerror=alert(1)>",
+      "tags": [
+        "mutation",
+        "isindex",
+        "deprecated"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "mXSS via deprecated isindex element",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-MXSS-096",
+      "payload": "<math><mi xlink:href=\"javascript:alert(1)\">click</mi></math>",
+      "tags": [
+        "mutation",
+        "xlink",
+        "namespace"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "mXSS via XLink namespace in MathML",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-MXSS-097",
+      "payload": "<svg><use href=\"data:image/svg+xml,<svg id='x' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='100' height='100'><a xlink:href='javascript:alert(1)'><rect x='0' y='0' width='100' height='100' /></a></svg>#x\" /></svg>",
+      "tags": [
+        "mutation",
+        "use",
+        "data-uri"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "mXSS via SVG use element with data URI",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-MXSS-098",
+      "payload": "<img src=\"javascript:alert(1)\" onerror=\"this.src='javascript:alert(2)'\">",
+      "tags": [
+        "mutation",
+        "double-trigger",
+        "onerror"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "mXSS double trigger via src mutation in onerror",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-MXSS-099",
+      "payload": "<form><button formaction=javascript:alert(1)>Click</button></form>",
+      "tags": [
+        "mutation",
+        "formaction",
+        "sanitizer-bypass"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "mXSS via formaction sanitizer bypass",
+      "category": "XSS"
+  }
+]

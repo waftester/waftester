@@ -1,0 +1,267 @@
+[
+  {
+      "id": "GQL-INTRO-001",
+      "payload": "{\"query\": \"{ __schema { types { name } } }\"}",
+      "tags": [
+        "introspection",
+        "schema",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Standard introspection query for schema types",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-INTRO-002",
+      "payload": "{\"query\": \"{ __type(name: \\\"User\\\") { name fields { name type { name } } } }\"}",
+      "tags": [
+        "introspection",
+        "type-query",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Introspection for specific type structure",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-INTRO-003",
+      "payload": "{\"query\": \"query IntrospectionQuery { __schema { queryType { name } mutationType { name } subscriptionType { name } types { ...FullType } directives { name description locations args { ...InputValue } } } } fragment FullType on __Type { kind name description fields(includeDeprecated: true) { name description args { ...InputValue } type { ...TypeRef } isDeprecated deprecationReason } inputFields { ...InputValue } interfaces { ...TypeRef } enumValues(includeDeprecated: true) { name description isDeprecated deprecationReason } possibleTypes { ...TypeRef } } fragment InputValue on __InputValue { name description type { ...TypeRef } defaultValue } fragment TypeRef on __Type { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name } } } } } } } }\"}",
+      "tags": [
+        "introspection",
+        "full-schema",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Complete GraphQL introspection query (GraphiQL/Altair default)",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-INTRO-004",
+      "payload": "{\"query\": \"{ __schema { mutationType { fields { name } } } }\"}",
+      "tags": [
+        "introspection",
+        "mutations"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Introspection for available mutations",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-INTRO-005",
+      "payload": "{\"query\": \"{ __schema { subscriptionType { fields { name } } } }\"}",
+      "tags": [
+        "introspection",
+        "subscriptions"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Introspection for subscription endpoints",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-INTRO-006",
+      "payload": "{\"query\": \"{ __schema { directives { name args { name } } } }\"}",
+      "tags": [
+        "introspection",
+        "directives"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Introspection for available directives",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-INTRO-007",
+      "payload": "{\"query\": \"query { \\n__schema { \\ntypes { \\nname \\n} \\n} \\n}\"}",
+      "tags": [
+        "introspection",
+        "whitespace-obfuscation"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Introspection with newline obfuscation",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-INTRO-008",
+      "payload": "{\"query\": \"{__schema{types{name}}}\"}",
+      "tags": [
+        "introspection",
+        "no-whitespace"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Introspection without any whitespace",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-INTRO-009",
+      "payload": "{\"query\": \"query { __type(name: \\\"Query\\\") { fields { name type { name kind } } } }\"}",
+      "tags": [
+        "introspection",
+        "query-type"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Introspection for root Query type fields",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-INTRO-010",
+      "payload": "{\"query\": \"{ __type(name: \\\"Mutation\\\") { fields { name args { name type { name } } } } }\"}",
+      "tags": [
+        "introspection",
+        "mutation-args"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Introspection for mutation arguments",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-INTRO-011",
+      "payload": "{\"query\": \"fragment TypeFields on __Type { name fields { name } } query { __schema { types { ...TypeFields } } }\"}",
+      "tags": [
+        "introspection",
+        "fragments"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Introspection using fragments",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-INTRO-012",
+      "payload": "{\"query\": \"{ __type(name: \\\"__Schema\\\") { fields { name } } }\"}",
+      "tags": [
+        "introspection",
+        "meta-type"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Introspection on meta-types",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-INTRO-013",
+      "payload": "{\"query\": \"query { __typename }\"}",
+      "tags": [
+        "introspection",
+        "typename"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Query for __typename (type name introspection)",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-INTRO-014",
+      "payload": "{\"query\": \"{ __schema { types { name fields { name type { name kind ofType { name kind } } } } } }\"}",
+      "tags": [
+        "introspection",
+        "deep-type-info"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Deep introspection with nested type information",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-INTRO-015",
+      "payload": "{\"query\": \"{ __schema { types(includeDeprecated: true) { name isDeprecated deprecationReason } } }\"}",
+      "tags": [
+        "introspection",
+        "deprecated"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Introspection including deprecated fields",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-INTRO-016",
+      "payload": "{\"query\": \"{ __type(name: \\\"String\\\") { kind } }\"}",
+      "tags": [
+        "introspection",
+        "scalar-types"
+    ],
+      "expected_block": true,
+      "severity_hint": "Low",
+      "notes": "Introspection for scalar types",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-INTRO-017",
+      "payload": "{\"query\": \"query\\u0020{\\u0020__schema\\u0020{\\u0020types\\u0020{\\u0020name\\u0020}\\u0020}\\u0020}\"}",
+      "tags": [
+        "introspection",
+        "unicode-obfuscation"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Introspection with Unicode space characters (U+0020)",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-INTRO-018",
+      "payload": "{\"query\": \"{ __schema @skip(if: false) { types { name } } }\"}",
+      "tags": [
+        "introspection",
+        "directive-abuse"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Introspection with @skip directive",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-INTRO-019",
+      "payload": "{\"query\": \"{ __schema @include(if: true) { types { name } } }\"}",
+      "tags": [
+        "introspection",
+        "directive-abuse"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Introspection with @include directive",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-INTRO-020",
+      "payload": "{\"query\": \"query GetSchema { __schema { types { name } } }\", \"operationName\": \"GetSchema\"}",
+      "tags": [
+        "introspection",
+        "named-operation"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Named operation introspection query",
+      "destructive": false,
+      "category": "GraphQL"
+  }
+]

@@ -1,0 +1,151 @@
+[
+  {
+    "id": "WAF-CORE-001",
+    "payload": "GET /?id=1' OR '1'='1",
+    "tags": ["waf-validation", "sqli", "quick", "crs-942"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CRS 942100-942999: SQL Injection detection",
+    "category": "WAF-Validation",
+    "crs_rule": "942100"
+  },
+  {
+    "id": "WAF-CORE-002",
+    "payload": "GET /?q=<script>alert(1)</script>",
+    "tags": ["waf-validation", "xss", "quick", "crs-941"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CRS 941100-941999: XSS detection",
+    "category": "WAF-Validation",
+    "crs_rule": "941100"
+  },
+  {
+    "id": "WAF-CORE-003",
+    "payload": "GET /etc/passwd",
+    "tags": ["waf-validation", "lfi", "quick", "crs-930"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CRS 930100-930999: Local File Inclusion",
+    "category": "WAF-Validation",
+    "crs_rule": "930100"
+  },
+  {
+    "id": "WAF-CORE-004",
+    "payload": "GET /?url=http://169.254.169.254/",
+    "tags": ["waf-validation", "ssrf", "quick", "crs-934"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CRS 934100: SSRF to AWS metadata endpoint",
+    "category": "WAF-Validation",
+    "crs_rule": "934100"
+  },
+  {
+    "id": "WAF-CORE-005",
+    "payload": "GET /?cmd=;cat /etc/passwd",
+    "tags": ["waf-validation", "rce", "quick", "crs-932"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CRS 932100-932999: Remote Code Execution",
+    "category": "WAF-Validation",
+    "crs_rule": "932100"
+  },
+  {
+    "id": "WAF-CORE-006",
+    "payload": "POST / HTTP/1.1\r\nContent-Type: application/xml\r\n\r\n<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><foo>&xxe;</foo>",
+    "tags": ["waf-validation", "xxe", "quick", "crs-931"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CRS 931100-931999: XXE detection",
+    "category": "WAF-Validation",
+    "crs_rule": "931100"
+  },
+  {
+    "id": "WAF-CORE-007",
+    "payload": "GET /?file=....//....//etc/passwd",
+    "tags": ["waf-validation", "traversal", "quick", "crs-930"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CRS 930110: Path Traversal with encoding",
+    "category": "WAF-Validation",
+    "crs_rule": "930110"
+  },
+  {
+    "id": "WAF-CORE-008",
+    "payload": "GET /?callback=<script>alert(document.domain)</script>",
+    "tags": ["waf-validation", "xss", "jsonp", "crs-941"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "CRS 941: JSONP callback XSS",
+    "category": "WAF-Validation",
+    "crs_rule": "941160"
+  },
+  {
+    "id": "WAF-CORE-009",
+    "payload": "GET /?search={{7*7}}",
+    "tags": ["waf-validation", "ssti", "quick", "crs-944"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CRS 944: Server-Side Template Injection",
+    "category": "WAF-Validation",
+    "crs_rule": "944100"
+  },
+  {
+    "id": "WAF-CORE-010",
+    "payload": "GET /?data=O:8:\"stdClass\":0:{}",
+    "tags": ["waf-validation", "deserialization", "quick", "crs-944"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CRS 944: PHP Object Injection",
+    "category": "WAF-Validation",
+    "crs_rule": "944120"
+  },
+  {
+    "id": "WAF-CORE-011",
+    "payload": "GET / HTTP/1.1\r\nHost: target\r\nUser-Agent: sqlmap/1.0",
+    "tags": ["waf-validation", "scanner", "quick", "crs-913"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "CRS 913100: Scanner detection (sqlmap)",
+    "category": "WAF-Validation",
+    "crs_rule": "913100"
+  },
+  {
+    "id": "WAF-CORE-012",
+    "payload": "GET / HTTP/1.1\r\nHost: target\r\nUser-Agent: Nikto",
+    "tags": ["waf-validation", "scanner", "quick", "crs-913"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "CRS 913100: Scanner detection (Nikto)",
+    "category": "WAF-Validation",
+    "crs_rule": "913100"
+  },
+  {
+    "id": "WAF-CORE-013",
+    "payload": "GET /.git/config",
+    "tags": ["waf-validation", "exposure", "quick", "crs-930"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "CRS 930120: Sensitive file access",
+    "category": "WAF-Validation",
+    "crs_rule": "930120"
+  },
+  {
+    "id": "WAF-CORE-014",
+    "payload": "GET /.env",
+    "tags": ["waf-validation", "exposure", "quick", "crs-930"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "CRS 930130: Environment file access",
+    "category": "WAF-Validation",
+    "crs_rule": "930130"
+  },
+  {
+    "id": "WAF-CORE-015",
+    "payload": "GET /wp-admin/",
+    "tags": ["waf-validation", "wordpress", "crs-930"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "WordPress paths - may or may not be blocked depending on config",
+    "category": "WAF-Validation"
+  }
+]

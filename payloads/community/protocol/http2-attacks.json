@@ -1,0 +1,382 @@
+[
+  {
+      "id": "PROTO-HTTP2-001",
+      "payload": ":method GET\r\n:path /\r\n:authority example.com\r\n:scheme https\r\n:method POST",
+      "tags": [
+        "pseudo-header",
+        "duplicate-method",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Duplicate :method pseudo-header (violates HTTP/2 spec)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-002",
+      "payload": ":path /admin\r\n:method GET\r\n:authority example.com\r\n:scheme https",
+      "tags": [
+        "pseudo-header",
+        "reordering",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Pseudo-headers not in required order (:method should be first)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-003",
+      "payload": ":method GET\r\n:path /\r\nhost: example.com\r\n:authority example.com\r\n:scheme https",
+      "tags": [
+        "pseudo-header",
+        "after-regular",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Pseudo-header after regular header (violates HTTP/2 spec)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-004",
+      "payload": ":method GET\r\n:path /\r\n:authority example.com\r\n:scheme https\r\n:custom-header value",
+      "tags": [
+        "pseudo-header",
+        "custom"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Custom pseudo-header (only defined pseudo-headers are allowed)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-005",
+      "payload": ":method GET\r\n:path /\r\n:authority example.com\r\nhost: different.com\r\n:scheme https",
+      "tags": [
+        "host-mismatch",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Host header conflicts with :authority pseudo-header",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-006",
+      "payload": ":method GET\r\n:path /\r\n:authority example.com\r\n:scheme https\r\nConnection: keep-alive",
+      "tags": [
+        "forbidden-header",
+        "connection"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Connection header forbidden in HTTP/2",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-007",
+      "payload": ":method GET\r\n:path /\r\n:authority example.com\r\n:scheme https\r\nTransfer-Encoding: chunked",
+      "tags": [
+        "forbidden-header",
+        "te"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Transfer-Encoding forbidden in HTTP/2",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-008",
+      "payload": ":method GET\r\n:path /\r\n:authority example.com\r\n:scheme https\r\nUpgrade: h2c",
+      "tags": [
+        "forbidden-header",
+        "upgrade"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Upgrade header forbidden in HTTP/2",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-009",
+      "payload": ":method GET\r\n:path /\r\n:authority example.com\r\n:scheme https\r\nKeep-Alive: timeout=5",
+      "tags": [
+        "forbidden-header",
+        "keep-alive"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Keep-Alive header forbidden in HTTP/2",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-010",
+      "payload": ":method GET\r\n:path /\r\n:authority example.com\r\n:scheme https\r\nProxy-Connection: keep-alive",
+      "tags": [
+        "forbidden-header",
+        "proxy-connection"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Proxy-Connection header forbidden in HTTP/2",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-011",
+      "payload": ":method CONNECT\r\n:authority example.com:443",
+      "tags": [
+        "connect-method",
+        "tunnel"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Valid CONNECT method for tunneling (no :path or :scheme required)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-012",
+      "payload": ":method CONNECT\r\n:path /\r\n:authority example.com:443\r\n:scheme https",
+      "tags": [
+        "connect-method",
+        "invalid-pseudo"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "CONNECT with :path and :scheme (forbidden for CONNECT)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-013",
+      "payload": ":method GET\r\n:path /\r\n:authority example.com\r\n:scheme https\r\nTE: trailers",
+      "tags": [
+        "te-trailers"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "TE: trailers is allowed in HTTP/2 (only trailers value)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-014",
+      "payload": ":method GET\r\n:path /\r\n:authority example.com\r\n:scheme https\r\nTE: gzip",
+      "tags": [
+        "te-invalid"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "TE header with value other than trailers (forbidden in HTTP/2)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-015",
+      "payload": ":method GET\r\n:path /\r\n:authority \r\n:scheme https",
+      "tags": [
+        "empty-authority"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Empty :authority pseudo-header",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-016",
+      "payload": ":method GET\r\n:path \r\n:authority example.com\r\n:scheme https",
+      "tags": [
+        "empty-path"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Empty :path pseudo-header",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-017",
+      "payload": ":method GET\r\n:path /\r\n:authority example.com\r\n:scheme ",
+      "tags": [
+        "empty-scheme"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Empty :scheme pseudo-header",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-018",
+      "payload": ":method GET\r\n:path /\r\n:authority example.com\r\n:scheme ftp",
+      "tags": [
+        "invalid-scheme"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Invalid scheme (should be http or https)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-019",
+      "payload": ":method GET\r\n:path /../etc/passwd\r\n:authority example.com\r\n:scheme https",
+      "tags": [
+        "path-traversal",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Path traversal attempt in :path pseudo-header",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-020",
+      "payload": ":method GET\r\n:path /\\..\\..\\windows\\system32\r\n:authority example.com\r\n:scheme https",
+      "tags": [
+        "path-traversal",
+        "windows"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows path traversal in :path pseudo-header",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-021",
+      "payload": ":method GET\r\n:path //etc/passwd\r\n:authority example.com\r\n:scheme https",
+      "tags": [
+        "double-slash"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Double slash path anomaly",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-022",
+      "payload": ":method GET\r\n:path /admin\r\n:authority 127.0.0.1\r\n:scheme https",
+      "tags": [
+        "localhost-authority"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Localhost in :authority (potential SSRF)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-023",
+      "payload": ":method GET\r\n:path /\r\n:authority 169.254.169.254\r\n:scheme http",
+      "tags": [
+        "imds-authority",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS IMDS IP in :authority (SSRF attempt)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-024",
+      "payload": ":method GET\r\n:path /\r\n:authority example.com\r\n:scheme https\r\nContent-Length: 0",
+      "tags": [
+        "cl-with-get"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Content-Length on GET request in HTTP/2",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-025",
+      "payload": ":method POST\r\n:path /\r\n:authority example.com\r\n:scheme https\r\nContent-Length: 10\r\nContent-Length: 20",
+      "tags": [
+        "duplicate-cl"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Duplicate Content-Length headers in HTTP/2",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-026",
+      "payload": ":method GET\r\n:path /\r\n:authority example.com:80\r\n:scheme https",
+      "tags": [
+        "port-scheme-mismatch"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Port 80 with https scheme (port/scheme mismatch)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-027",
+      "payload": ":method GET\r\n:path /\r\n:authority example.com:443\r\n:scheme http",
+      "tags": [
+        "port-scheme-mismatch"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Port 443 with http scheme (port/scheme mismatch)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-028",
+      "payload": ":method GET\r\n:path /\r\n:authority example.com@attacker.com\r\n:scheme https",
+      "tags": [
+        "authority-injection"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Credential injection in :authority pseudo-header",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-029",
+      "payload": "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n",
+      "tags": [
+        "connection-preface",
+        "downgrade"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Valid HTTP/2 connection preface",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-HTTP2-030",
+      "payload": "PRI * HTTP/2.0\r\n\r\nXX\r\n\r\n",
+      "tags": [
+        "invalid-preface"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Invalid HTTP/2 connection preface (XX instead of SM)",
+      "destructive": false,
+      "category": "Protocol"
+  }
+]

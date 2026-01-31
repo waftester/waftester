@@ -1,0 +1,402 @@
+[
+  {
+      "id": "AUTH-MFA-110",
+      "payload": "totp_code=",
+      "tags": [
+        "mfa-bypass",
+        "empty-code",
+        "quick",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Empty TOTP code - MFA enforcement bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-111",
+      "payload": "totp_code=000000",
+      "tags": [
+        "mfa-bypass",
+        "default-code",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Default/null TOTP code - testing for weak MFA validation",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-112",
+      "payload": "totp_code=123456",
+      "tags": [
+        "mfa-brute-force",
+        "common-code",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Common TOTP code - brute force attempt with frequent pattern",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-113",
+      "payload": "backup_code=AAAAA-AAAAA",
+      "tags": [
+        "backup-code",
+        "predictable",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Predictable backup code pattern - weak code generation",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-114",
+      "payload": "backup_code=12345-67890",
+      "tags": [
+        "backup-code",
+        "sequential",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Sequential backup code - testing backup code entropy",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-115",
+      "payload": "sms_code=1234",
+      "tags": [
+        "sms-intercept",
+        "short-code",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "4-digit SMS code - brute forceable, weak MFA",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-116",
+      "payload": "trust_device=true&skip_mfa=true",
+      "tags": [
+        "mfa-bypass",
+        "trust-device",
+        "quick",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "MFA bypass via trust_device parameter - client-side control",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-117",
+      "payload": "mfa_required=false",
+      "tags": [
+        "mfa-bypass",
+        "parameter-tampering",
+        "quick",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "MFA enforcement disabled via parameter - authorization bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-118",
+      "payload": "totp_code=999999&totp_code=000000",
+      "tags": [
+        "mfa-bypass",
+        "parameter-pollution",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Multiple TOTP codes - HPP (HTTP Parameter Pollution) bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-119",
+      "payload": "X-Skip-MFA: true",
+      "tags": [
+        "mfa-bypass",
+        "header-injection",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Custom header to skip MFA - testing for undocumented bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-120",
+      "payload": "mfa_token=expired_token_from_previous_session",
+      "tags": [
+        "mfa-bypass",
+        "token-reuse",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Expired MFA token reuse - testing token expiration enforcement",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-121",
+      "payload": "totp_code=123456&totp_code=234567&totp_code=345678",
+      "tags": [
+        "mfa-brute-force",
+        "multiple-attempts",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Multiple TOTP codes in single request - rate limit bypass via batching",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-122",
+      "payload": "totp_verified=true",
+      "tags": [
+        "mfa-bypass",
+        "status-injection",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Pre-verified TOTP status - session parameter manipulation",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-123",
+      "payload": "mfa_step=completed",
+      "tags": [
+        "mfa-bypass",
+        "workflow-skip",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "MFA workflow step bypass - jumping to completed state",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-124",
+      "payload": "totp_code=null",
+      "tags": [
+        "mfa-bypass",
+        "null-value",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Null TOTP code - type confusion bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-125",
+      "payload": "remember_mfa=999999",
+      "tags": [
+        "mfa-bypass",
+        "remember-device",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Extended remember-device period - persistent MFA bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-126",
+      "payload": "totp_code[]=123456",
+      "tags": [
+        "mfa-bypass",
+        "array-injection",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "TOTP code as array - type juggling bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-127",
+      "payload": "totp_window=999",
+      "tags": [
+        "mfa-bypass",
+        "time-window",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Extended TOTP time window - relaxed validation bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-128",
+      "payload": "recovery_code=RECOVER-12345",
+      "tags": [
+        "recovery-code",
+        "weak-format",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Predictable recovery code format - enumeration risk",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-129",
+      "payload": "authenticator_id=00000000-0000-0000-0000-000000000001",
+      "tags": [
+        "mfa-bypass",
+        "device-impersonation",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Predictable authenticator device ID - device impersonation",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-130",
+      "payload": "totp_code=../../../etc/passwd",
+      "tags": [
+        "injection",
+        "path-traversal",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Path traversal in TOTP code field - testing input validation",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-131",
+      "payload": "totp_code=<script>alert('xss')</script>",
+      "tags": [
+        "injection",
+        "xss",
+        "quick",
+        "high"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XSS in MFA code field - reflected in error messages",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-132",
+      "payload": "totp_code=' OR '1'='1",
+      "tags": [
+        "injection",
+        "sqli",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL injection in TOTP validation - targeting verification query",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-133",
+      "payload": "push_notification_approved=true",
+      "tags": [
+        "push-mfa",
+        "auto-approve",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Auto-approved push notification - client-side approval bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-134",
+      "payload": "biometric_verified=true",
+      "tags": [
+        "biometric",
+        "status-injection",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Fake biometric verification status - client-side control",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-135",
+      "payload": "webauthn_response={\"type\":\"public-key\",\"challenge\":\"fake\"}",
+      "tags": [
+        "webauthn",
+        "response-forgery",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Forged WebAuthn response - testing cryptographic validation",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-136",
+      "payload": "totp_code=123456&rate_limit_bypass=true",
+      "tags": [
+        "rate-limit",
+        "bypass-flag",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Rate limit bypass flag with brute force - testing rate limit enforcement",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-137",
+      "payload": "totp_attempts=0",
+      "tags": [
+        "rate-limit",
+        "counter-reset",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Reset MFA attempt counter - client-side rate limit manipulation",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-138",
+      "payload": "mfa_grace_period=999999",
+      "tags": [
+        "mfa-bypass",
+        "grace-period",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Extended MFA grace period - delayed enforcement bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MFA-139",
+      "payload": "fallback_method=email&email_code_verified=true",
+      "tags": [
+        "mfa-bypass",
+        "fallback-method",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "MFA fallback method with pre-verified status - weaker method bypass",
+      "category": "Auth"
+  }
+]

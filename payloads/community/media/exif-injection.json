@@ -1,0 +1,225 @@
+[
+  {
+      "id": "MEDIA-EXIF-001",
+      "payload": "/api/assets/upload?filename=image.jpg&exif_comment=<script>alert(1)</script>",
+      "tags": [
+        "exif-injection",
+        "xss",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "XSS in EXIF comment field",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-EXIF-002",
+      "payload": "/api/assets/upload?filename=image.jpg&exif_artist=<img src=x onerror=alert(document.cookie)>",
+      "tags": [
+        "exif-injection",
+        "xss",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "XSS in EXIF artist field",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-EXIF-003",
+      "payload": "/api/assets/upload?filename=../../etc/passwd.jpg",
+      "tags": [
+        "exif-injection",
+        "path-traversal",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Path traversal in filename",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-EXIF-004",
+      "payload": "/api/assets/upload?filename=image.jpg&exif_copyright=' OR '1'='1",
+      "tags": [
+        "exif-injection",
+        "sqli",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "SQLi in EXIF copyright field",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-EXIF-005",
+      "payload": "/api/assets/upload?filename=image.jpg&exif_description={{7*7}}",
+      "tags": [
+        "exif-injection",
+        "ssti",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "SSTI in EXIF description",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-EXIF-006",
+      "payload": "/api/assets/upload?filename=shell.php%00.jpg",
+      "tags": [
+        "exif-injection",
+        "null-byte",
+        "file-upload",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Null byte injection in filename",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-EXIF-007",
+      "payload": "/api/assets/upload?filename=‮gpj.exe",
+      "tags": [
+        "exif-injection",
+        "unicode",
+        "rtlo",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Right-to-Left Override (RTLO) attack in filename",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-EXIF-008",
+      "payload": "/api/assets/upload?filename=image.jpg&exif_gps_latitude='; DROP TABLE assets;--",
+      "tags": [
+        "exif-injection",
+        "sqli",
+        "geolocation",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "SQLi in GPS latitude metadata",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-EXIF-009",
+      "payload": "/api/assets/upload?filename=image.jpg&exif_make=<svg/onload=alert(1)>",
+      "tags": [
+        "exif-injection",
+        "xss",
+        "svg",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "SVG-based XSS in EXIF camera make",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-EXIF-010",
+      "payload": "/api/assets/upload?filename=image.jpg&exif_software=../../bin/sh",
+      "tags": [
+        "exif-injection",
+        "path-traversal",
+        "medium"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Path traversal in EXIF software field",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-EXIF-011",
+      "payload": "/api/assets/upload?filename=\u0000etc\u0000passwd.jpg",
+      "tags": [
+        "exif-injection",
+        "null-byte",
+        "unicode",
+        "quick",
+        "high"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Null byte path traversal via Unicode",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-EXIF-012",
+      "payload": "/api/assets/upload?filename=image.jpg&exif_user_comment=javascript:void(0)",
+      "tags": [
+        "exif-injection",
+        "xss",
+        "javascript-protocol",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "JavaScript protocol in EXIF user comment",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-EXIF-013",
+      "payload": "/api/assets/upload?filename=image.jpg&exif_image_description=data:text/html,<script>alert(1)</script>",
+      "tags": [
+        "exif-injection",
+        "xss",
+        "data-uri",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Data URI XSS in EXIF description",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-EXIF-014",
+      "payload": "/api/assets/upload?filename=.\\..\\..\\windows\\system32\\cmd.exe",
+      "tags": [
+        "exif-injection",
+        "path-traversal",
+        "windows",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows path traversal in filename",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-EXIF-015",
+      "payload": "/api/assets/upload?filename=image.jpg&exif_datetime=${{7*7}}",
+      "tags": [
+        "exif-injection",
+        "expression-injection",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Expression language injection in datetime",
+      "category": "Media"
+  },
+  {
+      "id": "MEDIA-EXIF-016",
+      "payload": "/api/assets/upload?filename=con.jpg",
+      "tags": [
+        "exif-injection",
+        "windows",
+        "reserved-name",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Windows reserved filename (CON device)",
+      "category": "Media"
+  }
+]

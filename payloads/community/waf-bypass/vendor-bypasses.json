@@ -1,0 +1,72 @@
+[
+  {
+    "id": "WAF-INCAP-001",
+    "payload": "<svg onload\\r\\n=$.globalEval(\"al\"+\"ert()\");>",
+    "tags": ["incapsula", "waf-bypass", "newline", "2019"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Incapsula bypass - newline in event handler (May 2019)",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "WAF-INCAP-002",
+    "payload": "anythinglr00</script><script>alert(document.domain)</script>uxldz",
+    "tags": ["incapsula", "waf-bypass", "script-break", "2018"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Incapsula bypass - garbage prefix/suffix (Mar 2018)",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "WAF-INCAP-003",
+    "payload": "<object data='data:text/html;;;;;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=='></object>",
+    "tags": ["incapsula", "waf-bypass", "data-uri", "base64", "2018"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Incapsula bypass - data URI with multiple semicolons (Sep 2018)",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "WAF-AKAMAI-001",
+    "payload": "?\"></script><base%20c%3D=href%3Dhttps:\\mysite>",
+    "tags": ["akamai", "waf-bypass", "base-tag", "2018"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Akamai bypass - base tag injection (Jun 2018)",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "WAF-AKAMAI-002",
+    "payload": "<dETAILS%0aopen%0aonToGgle%0a=%0aa=prompt,a() x>",
+    "tags": ["akamai", "waf-bypass", "details", "case-toggle", "2018"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Akamai bypass - details tag with newlines (Oct 2018)",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "WAF-WORDFENCE-001",
+    "payload": "<a href=javas&#99;ript:alert(1)>",
+    "tags": ["wordfence", "waf-bypass", "entity", "2018"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "WordFence bypass - HTML entity in javascript protocol (Sep 2018)",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "WAF-FORTIWEB-001",
+    "payload": "\\u003e\\u003c\\u0068\\u0031 onclick=alert('1')\\u003e",
+    "tags": ["fortiweb", "waf-bypass", "unicode-escape", "2019"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Fortiweb bypass - Unicode escape sequences (Jul 2019)",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  }
+]

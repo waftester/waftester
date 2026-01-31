@@ -1,0 +1,632 @@
+[
+  {
+    "id": "UPLOAD-001",
+    "payload": "filename=\"shell.php\"",
+    "tags": ["file-upload", "extension", "php"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Direct PHP extension upload attempt",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-002",
+    "payload": "filename=\"shell.php5\"",
+    "tags": ["file-upload", "extension", "php-alternative"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "PHP5 alternative extension",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-003",
+    "payload": "filename=\"shell.phtml\"",
+    "tags": ["file-upload", "extension", "phtml"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "PHTML extension bypass",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-004",
+    "payload": "filename=\"shell.phar\"",
+    "tags": ["file-upload", "extension", "phar"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "PHP Archive file upload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-005",
+    "payload": "filename=\"shell.php.jpg\"",
+    "tags": ["file-upload", "double-extension"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Double extension bypass",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-006",
+    "payload": "filename=\"shell.jpg.php\"",
+    "tags": ["file-upload", "double-extension"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Reverse double extension",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-007",
+    "payload": "filename=\"shell.php%00.jpg\"",
+    "tags": ["file-upload", "null-byte"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Null byte injection in filename",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-008",
+    "payload": "filename=\"shell.php;.jpg\"",
+    "tags": ["file-upload", "semicolon-bypass"],
+    "expected_block": true,
+    "severity_hint": "high",
+    "notes": "Semicolon extension bypass",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-009",
+    "payload": "filename=\"shell.PhP\"",
+    "tags": ["file-upload", "case-manipulation"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Case manipulation bypass",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-010",
+    "payload": "filename=\"shell.p.h.p\"",
+    "tags": ["file-upload", "dotted-extension"],
+    "expected_block": true,
+    "severity_hint": "high",
+    "notes": "Dotted extension bypass attempt",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-011",
+    "payload": "filename=\"shell.jsp\"",
+    "tags": ["file-upload", "extension", "jsp"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Java Server Pages upload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-012",
+    "payload": "filename=\"shell.jspx\"",
+    "tags": ["file-upload", "extension", "jspx"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "JSPX variant upload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-013",
+    "payload": "filename=\"shell.asp\"",
+    "tags": ["file-upload", "extension", "asp"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Classic ASP upload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-014",
+    "payload": "filename=\"shell.aspx\"",
+    "tags": ["file-upload", "extension", "aspx"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "ASP.NET WebForms upload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-015",
+    "payload": "filename=\"shell.ashx\"",
+    "tags": ["file-upload", "extension", "ashx"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "ASP.NET handler upload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-016",
+    "payload": "filename=\"shell.asmx\"",
+    "tags": ["file-upload", "extension", "asmx"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "ASP.NET web service upload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-017",
+    "payload": "filename=\"shell.cfm\"",
+    "tags": ["file-upload", "extension", "coldfusion"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "ColdFusion upload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-018",
+    "payload": "filename=\"shell.cfc\"",
+    "tags": ["file-upload", "extension", "coldfusion"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "ColdFusion Component upload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-019",
+    "payload": "filename=\"shell.pl\"",
+    "tags": ["file-upload", "extension", "perl"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Perl script upload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-020",
+    "payload": "filename=\"shell.cgi\"",
+    "tags": ["file-upload", "extension", "cgi"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "CGI script upload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-021",
+    "payload": "filename=\"shell.py\"",
+    "tags": ["file-upload", "extension", "python"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Python script upload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-022",
+    "payload": "filename=\"shell.rb\"",
+    "tags": ["file-upload", "extension", "ruby"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Ruby script upload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-023",
+    "payload": "filename=\".htaccess\"",
+    "tags": ["file-upload", "config", "htaccess"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Apache config upload - can enable PHP in directories",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-024",
+    "payload": "filename=\".user.ini\"",
+    "tags": ["file-upload", "config", "php-ini"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "PHP user config upload - auto_prepend_file attacks",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-025",
+    "payload": "filename=\"web.config\"",
+    "tags": ["file-upload", "config", "iis"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "IIS configuration file upload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-026",
+    "payload": "filename=\"..%2F..%2F..%2Fshell.php\"",
+    "tags": ["file-upload", "path-traversal", "encoded"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Path traversal in filename - URL encoded",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-027",
+    "payload": "filename=\"....//....//shell.php\"",
+    "tags": ["file-upload", "path-traversal", "filter-bypass"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Filter bypass traversal",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-028",
+    "payload": "filename=\"..\\..\\..\\shell.php\"",
+    "tags": ["file-upload", "path-traversal", "windows"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Windows path traversal",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-029",
+    "payload": "filename=\"/var/www/html/shell.php\"",
+    "tags": ["file-upload", "absolute-path"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Absolute path injection",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-030",
+    "payload": "Content-Type: image/gif\nGIF89a; <?php",
+    "tags": ["file-upload", "polyglot", "gif-php"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "GIF/PHP polyglot header",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-031",
+    "payload": "Content-Type: image/jpeg\nFFD8FFE0; <?php",
+    "tags": ["file-upload", "polyglot", "jpeg-php"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "JPEG/PHP polyglot",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-032",
+    "payload": "Content-Type: image/png\n%PNG; <?php",
+    "tags": ["file-upload", "polyglot", "png-php"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "PNG/PHP polyglot",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-033",
+    "payload": "Content-Type: application/pdf\n%PDF-1.4 <?php",
+    "tags": ["file-upload", "polyglot", "pdf-php"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "PDF/PHP polyglot",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-034",
+    "payload": "Content-Type: text/html\n<html><body><?php",
+    "tags": ["file-upload", "content-type-bypass"],
+    "expected_block": true,
+    "severity_hint": "high",
+    "notes": "HTML content-type with PHP",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-035",
+    "payload": "Content-Type: application/x-httpd-php",
+    "tags": ["file-upload", "content-type", "php-mime"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Direct PHP MIME type",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-036",
+    "payload": "filename=\"shell.svg\"\n<svg onload=\"alert(1)\">",
+    "tags": ["file-upload", "svg", "xss"],
+    "expected_block": true,
+    "severity_hint": "high",
+    "notes": "SVG XSS payload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-037",
+    "payload": "filename=\"shell.svg\"\n<svg><script>alert(1)</script>",
+    "tags": ["file-upload", "svg", "xss-script"],
+    "expected_block": true,
+    "severity_hint": "high",
+    "notes": "SVG with embedded script",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-038",
+    "payload": "filename=\"xxe.svg\"\n<!DOCTYPE svg [<!ENTITY xxe SYSTEM",
+    "tags": ["file-upload", "svg", "xxe"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "SVG XXE injection",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-039",
+    "payload": "filename=\"ssrf.svg\"\n<image xlink:href=\"http://169.254.169.254",
+    "tags": ["file-upload", "svg", "ssrf"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "SVG SSRF via xlink",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-040",
+    "payload": "filename=\"exploit.pdf\"\n%PDF-1.4 /OpenAction /JS",
+    "tags": ["file-upload", "pdf", "javascript"],
+    "expected_block": true,
+    "severity_hint": "high",
+    "notes": "PDF with JavaScript",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-041",
+    "payload": "filename=\"shell.php \"\nContent-Disposition: form-data",
+    "tags": ["file-upload", "trailing-space"],
+    "expected_block": true,
+    "severity_hint": "high",
+    "notes": "Trailing space extension bypass",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-042",
+    "payload": "filename=\"shell.php.\"",
+    "tags": ["file-upload", "trailing-dot"],
+    "expected_block": true,
+    "severity_hint": "high",
+    "notes": "Trailing dot extension bypass (Windows)",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-043",
+    "payload": "filename=\"shell.php::$DATA\"",
+    "tags": ["file-upload", "ntfs-ads", "windows"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "NTFS Alternate Data Stream bypass",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-044",
+    "payload": "filename=\"shell.php:$DATA\"",
+    "tags": ["file-upload", "ntfs-ads", "windows"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "NTFS ADS variant",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-045",
+    "payload": "filename=\"con.php\"",
+    "tags": ["file-upload", "windows-reserved"],
+    "expected_block": true,
+    "severity_hint": "medium",
+    "notes": "Windows reserved name bypass attempt",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-046",
+    "payload": "filename=\"shell.hta\"",
+    "tags": ["file-upload", "extension", "hta"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "HTML Application upload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-047",
+    "payload": "filename=\"shell.shtml\"",
+    "tags": ["file-upload", "extension", "ssi"],
+    "expected_block": true,
+    "severity_hint": "high",
+    "notes": "Server Side Includes",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-048",
+    "payload": "filename=\"shell.shtm\"",
+    "tags": ["file-upload", "extension", "ssi"],
+    "expected_block": true,
+    "severity_hint": "high",
+    "notes": "SSI short extension",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-049",
+    "payload": "filename=\"exploit.exe\"",
+    "tags": ["file-upload", "extension", "executable"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Windows executable upload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-050",
+    "payload": "filename=\"exploit.dll\"",
+    "tags": ["file-upload", "extension", "dll"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "DLL upload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-051",
+    "payload": "filename=\"exploit.so\"",
+    "tags": ["file-upload", "extension", "linux-lib"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Linux shared object upload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-052",
+    "payload": "filename=\"shell.war\"",
+    "tags": ["file-upload", "extension", "java-war"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Java WAR archive upload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-053",
+    "payload": "filename=\"shell.jar\"",
+    "tags": ["file-upload", "extension", "java-jar"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Java JAR archive upload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-054",
+    "payload": "filename=\"shell.ear\"",
+    "tags": ["file-upload", "extension", "java-ear"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Java EAR archive upload",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-055",
+    "payload": "filename=\"evil.zip\"\nPK\\x03\\x04..../../../",
+    "tags": ["file-upload", "archive", "zip-slip"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Zip Slip path traversal",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-056",
+    "payload": "filename=\"evil.tar\"\n..%2F..%2F..%2Fshell.php",
+    "tags": ["file-upload", "archive", "tar-traversal"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Tar archive path traversal",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-057",
+    "payload": "filename=\"symlink.zip\"\nlrwxrwxrwx /etc/passwd",
+    "tags": ["file-upload", "archive", "symlink"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Symlink in archive",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-058",
+    "payload": "filename=\"image.jpg\"\nContent-Type: application/octet-stream",
+    "tags": ["file-upload", "content-type-mismatch"],
+    "expected_block": true,
+    "severity_hint": "medium",
+    "notes": "Content-type mismatch",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-059",
+    "payload": "filename=\"%00shell.php\"",
+    "tags": ["file-upload", "null-byte", "prefix"],
+    "expected_block": true,
+    "severity_hint": "critical",
+    "notes": "Null byte prefix",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-060",
+    "payload": "filename=\"shell.php%20%20%20%20%20%20%20\"",
+    "tags": ["file-upload", "trailing-spaces"],
+    "expected_block": true,
+    "severity_hint": "high",
+    "notes": "Multiple trailing spaces",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-061",
+    "payload": "filename=\"shell%2Ephp\"",
+    "tags": ["file-upload", "encoded-dot"],
+    "expected_block": true,
+    "severity_hint": "high",
+    "notes": "URL encoded dot in extension",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-062",
+    "payload": "filename=\"shell.inc\"",
+    "tags": ["file-upload", "extension", "include"],
+    "expected_block": true,
+    "severity_hint": "high",
+    "notes": "PHP include file",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-063",
+    "payload": "filename=\"shell.module\"",
+    "tags": ["file-upload", "extension", "drupal"],
+    "expected_block": true,
+    "severity_hint": "high",
+    "notes": "Drupal module file",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-064",
+    "payload": "filename=\"shell.theme\"",
+    "tags": ["file-upload", "extension", "drupal"],
+    "expected_block": true,
+    "severity_hint": "high",
+    "notes": "Drupal theme file",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-065",
+    "payload": "filename=\"shell.engine\"",
+    "tags": ["file-upload", "extension", "drupal"],
+    "expected_block": true,
+    "severity_hint": "high",
+    "notes": "Drupal engine file",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-066",
+    "payload": "Content-Disposition: form-data; name=\"file\"; filename=\"shell.php\"; filename*=utf-8''shell.php",
+    "tags": ["file-upload", "rfc5987", "bypass"],
+    "expected_block": true,
+    "severity_hint": "high",
+    "notes": "RFC 5987 filename encoding",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-067",
+    "payload": "filename*=utf-8''%73%68%65%6c%6c%2e%70%68%70",
+    "tags": ["file-upload", "rfc5987", "encoded"],
+    "expected_block": true,
+    "severity_hint": "high",
+    "notes": "RFC 5987 fully encoded",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-068",
+    "payload": "filename=\"shell.php\"; filename=\"safe.jpg\"",
+    "tags": ["file-upload", "duplicate-param"],
+    "expected_block": true,
+    "severity_hint": "high",
+    "notes": "Duplicate filename parameter",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-069",
+    "payload": "multipart/form-data; boundary=\"x\"; name=\"file\"; filename=\"shell.php\"",
+    "tags": ["file-upload", "multipart-abuse"],
+    "expected_block": true,
+    "severity_hint": "high",
+    "notes": "Multipart boundary abuse",
+    "category": "Upload"
+  },
+  {
+    "id": "UPLOAD-070",
+    "payload": "Transfer-Encoding: chunked\nContent-Length: 0\nfilename=\"shell.php\"",
+    "tags": ["file-upload", "chunked-bypass"],
+    "expected_block": true,
+    "severity_hint": "high",
+    "notes": "Chunked encoding bypass attempt",
+    "category": "Upload"
+  }
+]

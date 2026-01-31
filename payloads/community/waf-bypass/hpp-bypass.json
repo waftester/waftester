@@ -1,0 +1,92 @@
+[
+  {
+    "id": "HPP-SQLI-001",
+    "payload": "id=1&id=' OR 1=1--",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "tags": ["hpp", "sqli", "duplicate-param"],
+    "notes": "Duplicate parameter - some servers take first, WAF checks last"
+  },
+  {
+    "id": "HPP-SQLI-002",
+    "payload": "id=1/*&id=*/UNION/*&id=*/SELECT/*&id=*/password/*&id=*/FROM/*&id=*/users",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "tags": ["hpp", "sqli", "fragmented"],
+    "notes": "Fragmented SQL across multiple parameters - server joins them"
+  },
+  {
+    "id": "HPP-XSS-001",
+    "payload": "q=test&q=<script>alert(1)</script>",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["hpp", "xss"],
+    "notes": "HTTP Parameter Pollution with XSS in second parameter value"
+  },
+  {
+    "id": "HPP-TRAVERSAL-001",
+    "payload": "file=index.html&file=../../../etc/passwd",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "tags": ["hpp", "traversal", "lfi"],
+    "notes": "HPP with path traversal - backend may use malicious second value"
+  },
+  {
+    "id": "HPP-ARRAY-001",
+    "payload": "id[]=1&id[]=2 OR 1=1--",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["hpp", "array", "sqli"],
+    "notes": "Array notation HPP - common in PHP/Ruby"
+  },
+  {
+    "id": "HPP-JSON-001",
+    "payload": "{\"id\":1,\"id\":\"1' OR '1'='1\"}",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "tags": ["hpp", "json", "duplicate-key", "sqli"],
+    "notes": "JSON duplicate key - parser behavior varies"
+  },
+  {
+    "id": "HPP-JSON-002",
+    "payload": "{\"role\":\"user\",\"role\":\"admin\"}",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["hpp", "json", "duplicate-key", "privilege-escalation"],
+    "notes": "JSON duplicate key privilege escalation - last key wins in most parsers"
+  },
+  {
+    "id": "HPP-SEMICOLON-001",
+    "payload": "id=1;id=2 OR 1=1--",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["hpp", "semicolon", "sqli"],
+    "notes": "Semicolon as parameter separator (IIS)"
+  },
+  {
+    "id": "HPP-NULL-001",
+    "payload": "id=1%00&id=2 OR 1=1--",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "tags": ["hpp", "null-byte", "sqli"],
+    "notes": "Null byte between duplicate parameters"
+  },
+  {
+    "id": "HPP-ENCODED-001",
+    "payload": "id=1&%69%64=' OR 1=1--",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "tags": ["hpp", "url-encoded", "sqli"],
+    "notes": "URL-encoded parameter name (id = %69%64)"
+  }
+]

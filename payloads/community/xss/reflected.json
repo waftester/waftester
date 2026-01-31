@@ -1,0 +1,187 @@
+[
+  {
+      "id": "XSS-REFL-001",
+      "payload": "<script>alert('XSS')</script>",
+      "tags": [
+        "basic",
+        "reflected",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Classic reflected XSS",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-REFL-002",
+      "payload": "<img src=x onerror=alert('XSS')>",
+      "tags": [
+        "basic",
+        "img",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Image tag with onerror event",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-REFL-003",
+      "payload": "<svg onload=alert('XSS')>",
+      "tags": [
+        "svg",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "SVG-based XSS",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-REFL-004",
+      "payload": "javascript:alert('XSS')",
+      "tags": [
+        "protocol",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "JavaScript protocol handler",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-REFL-005",
+      "payload": "<iframe src=\"javascript:alert('XSS')\">",
+      "tags": [
+        "iframe",
+        "protocol"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Iframe with javascript protocol",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-REFL-006",
+      "payload": "<body onload=alert('XSS')>",
+      "tags": [
+        "body",
+        "event"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Body tag event handler",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-REFL-007",
+      "payload": "<input onfocus=alert('XSS') autofocus>",
+      "tags": [
+        "input",
+        "autofocus"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Input with autofocus trigger",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-REFL-008",
+      "payload": "%3Cscript%3Ealert('XSS')%3C%2Fscript%3E",
+      "tags": [
+        "encoded",
+        "basic",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "URL-encoded script tag",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-REFL-009",
+      "payload": "<scr<script>ipt>alert('XSS')</scr</script>ipt>",
+      "tags": [
+        "obfuscation",
+        "evasion"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Tag splitting evasion",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-001",
+      "payload": "jaVasCript:/*-/*`/*\\`/*'/*\"/**/(/* */oNcliCk=alert() )//%0D%0A%0d%0a//</stYle/</titLe/</teXtarEa/</scRipt/--!>\\x3csVg/<sVg/oNloAd=alert()//\\x3e",
+      "tags": [
+        "polyglot",
+        "obfuscation"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS polyglot - multiple context bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-REFL-010",
+      "payload": "<details open ontoggle=alert('XSS')>",
+      "tags": [
+        "details",
+        "html5"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "HTML5 details tag",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-REFL-011",
+      "payload": "<marquee onstart=alert('XSS')>",
+      "tags": [
+        "marquee",
+        "legacy"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Legacy marquee tag",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-REFL-012",
+      "payload": "<math><mtext></mtext><mglyph><style></math><img src onerror=alert('XSS')>",
+      "tags": [
+        "mathml",
+        "mutation"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "MathML mutation XSS",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-002",
+      "payload": "'\"><img src=x onerror=alert(1)>",
+      "tags": [
+        "polyglot",
+        "attribute-escape",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS polyglot - escapes single quote, double quote, and tag context",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-003",
+      "payload": "javascript:/*--></title></style></textarea></script></xmp><svg/onload='+/\"/+/onmouseover=1/+/[*/[]/+alert(1)//'>",
+      "tags": [
+        "polyglot",
+        "multi-context",
+        "advanced"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Advanced XSS polyglot - breaks out of multiple contexts (title, style, textarea, script, xmp)",
+      "category": "XSS"
+  }
+]

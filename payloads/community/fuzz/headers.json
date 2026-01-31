@@ -1,0 +1,401 @@
+[
+  {
+      "id": "FUZZ-HEADER-001",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nX-Custom: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "overlong",
+        "quick"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Overlong header value (1024 characters) - tests buffer handling",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-002",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nX-Test: value1\r\nX-Test: value2\r\nX-Test: value3\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "duplicate"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Duplicate header names - tests parser handling of multiple values",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-003",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\nContent-Type: text/html\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "duplicate",
+        "content-type"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Duplicate Content-Type headers - parser confusion",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-004",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nX-Control: test\u0000value\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "null-byte",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Null byte in header value - potential parser bypass",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-005",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nX-Control: test\rinjected\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "crlf-injection"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "CR character in header value - CRLF injection attempt",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-006",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nX-Test: test\ninjected\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "lf-injection"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "LF character in header value - header injection",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-007",
+      "payload": "GET / HTTP/1.1\r\nHOST: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "case-variation"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Uppercase HOST header - case sensitivity test",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-008",
+      "payload": "GET / HTTP/1.1\r\nhost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "case-variation"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Lowercase host header - case normalization test",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-009",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nX-Test:\u0001\u0002\u0003\u0004\u0005\u0006\u0007\b\t\u000b\f\u000e\u000f\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "control-chars"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Control characters (0x01-0x0F) in header value",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-010",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nX-UTF8: éèêëüöäß\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "unicode"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "UTF-8 encoded characters in header value",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-011",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nX-Test: value with  multiple   spaces\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "whitespace"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Multiple consecutive spaces in header value",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-012",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nX-Test:value\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "no-space"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "No space after colon in header (valid per RFC)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-013",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nX-Test :value\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "space-before-colon"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Space before colon (invalid header format)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-014",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nX-Empty:\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "empty-value"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Empty header value (valid per RFC)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-015",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\n: value\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "empty-name"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Empty header name (invalid)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-016",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nX-Forward-For: 127.0.0.1\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "typo"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Typo in X-Forwarded-For (Forward vs Forwarded)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-017",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nX-Forwarded-For: 127.0.0.1, 127.0.0.1, 127.0.0.1, 127.0.0.1, 127.0.0.1, 127.0.0.1, 127.0.0.1, 127.0.0.1, 127.0.0.1, 127.0.0.1\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "forwarded-for",
+        "quick"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "10 IPs in X-Forwarded-For (chain exhaustion test)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-018",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nConnection: keep-alive\r\nConnection: close\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "duplicate",
+        "connection"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Conflicting Connection headers",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-019",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nContent-Length: 10\r\nContent-Length: 20\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "duplicate",
+        "content-length"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Duplicate Content-Length (request smuggling vector)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-020",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nContent-Length: -1\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "negative-length"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Negative Content-Length value",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-021",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nContent-Length: 999999999999999999999\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "huge-length"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Extremely large Content-Length (DoS vector)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-022",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nContent-Length: abc\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "invalid-length"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Non-numeric Content-Length value",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-023",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nTransfer-Encoding: chunked\r\nTransfer-Encoding: identity\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "duplicate",
+        "transfer-encoding"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Duplicate Transfer-Encoding (smuggling vector)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-024",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nX-Header: \r\n continued-value\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "folding"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Obsolete line folding (deprecated in HTTP/1.1)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-025",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nX-Test@Domain: value\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "special-char"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Special character @ in header name",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-026",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nX-Test[0]: value\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "special-char"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Brackets in header name (array notation)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-027",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nAccept-Encoding: gzip, deflate, br, compress, bzip2, lzma, xz, zstd\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "accept-encoding"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Multiple encoding types in Accept-Encoding",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-028",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nAccept: */*;q=1.0,text/html;q=0.9,application/json;q=0.8,application/xml;q=0.7,text/plain;q=0.6\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "accept"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Complex Accept header with quality values",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-029",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nUser-Agent: \r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "empty-user-agent",
+        "quick"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Empty User-Agent header",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-HEADER-030",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nCookie: session=a; token=b; preferences=c; tracking=d; analytics=e; session=a; token=b; preferences=c; tracking=d; analytics=e; session=a; token=b; preferences=c; tracking=d; analytics=e\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "header",
+        "cookie",
+        "overlong"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Very long Cookie header with duplicate keys",
+      "category": "Fuzzing"
+  }
+]

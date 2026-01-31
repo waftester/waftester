@@ -1,0 +1,370 @@
+[
+  {
+      "id": "DESER-PROTO-001",
+      "payload": "POST /api/settings HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__proto__\":{\"admin\":true}}",
+      "tags": [
+        "deserialization",
+        "prototype-pollution",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Direct __proto__ pollution attempt to inject admin property",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-002",
+      "payload": "POST /api/config HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__proto__\":{\"isAdmin\":true,\"role\":\"admin\"}}",
+      "tags": [
+        "prototype-pollution",
+        "privilege-escalation"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Multiple property pollution via __proto__",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-003",
+      "payload": "POST /api/user HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"constructor\":{\"prototype\":{\"admin\":true}}}",
+      "tags": [
+        "prototype-pollution",
+        "constructor"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Constructor.prototype pollution chain",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-004",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__proto__.admin\":true}",
+      "tags": [
+        "prototype-pollution",
+        "dot-notation"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Dot notation __proto__ pollution",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-005",
+      "payload": "POST /api/update HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"nested\":{\"__proto__\":{\"polluted\":true}}}",
+      "tags": [
+        "prototype-pollution",
+        "nested"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Nested __proto__ pollution attempt",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-006",
+      "payload": "POST /api/settings HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__proto__\":{\"toString\":\"hacked\"}}",
+      "tags": [
+        "prototype-pollution",
+        "built-in-override",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Override Object.prototype.toString",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-007",
+      "payload": "POST /api/config HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__proto__\":{\"valueOf\":\"polluted\"}}",
+      "tags": [
+        "prototype-pollution",
+        "built-in-override"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Override Object.prototype.valueOf",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-008",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__proto__\":{\"hasOwnProperty\":null}}",
+      "tags": [
+        "prototype-pollution",
+        "denial-of-service"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Pollute hasOwnProperty causing TypeError crashes",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-009",
+      "payload": "POST /api/user HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__proto__\":{\"constructor\":null}}",
+      "tags": [
+        "prototype-pollution",
+        "denial-of-service"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Nullify constructor property causing application errors",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-010",
+      "payload": "POST /api/settings HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__proto__%00\":{\"admin\":true}}",
+      "tags": [
+        "prototype-pollution",
+        "null-byte",
+        "evasion"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Null byte in __proto__ to bypass filters",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-011",
+      "payload": "POST /api/config HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__PROTO__\":{\"admin\":true}}",
+      "tags": [
+        "prototype-pollution",
+        "case-variation"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Uppercase __PROTO__ evasion",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-012",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__Proto__\":{\"admin\":true}}",
+      "tags": [
+        "prototype-pollution",
+        "case-variation"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Mixed case __Proto__ evasion",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-013",
+      "payload": "POST /api/update HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"_%5F_proto_%5F_\":{\"admin\":true}}",
+      "tags": [
+        "prototype-pollution",
+        "url-encoding",
+        "evasion"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "URL-encoded __proto__ (%5F = underscore)",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-014",
+      "payload": "POST /api/settings HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"\\u005f\\u005fproto\\u005f\\u005f\":{\"admin\":true}}",
+      "tags": [
+        "prototype-pollution",
+        "unicode-escape",
+        "evasion"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Unicode-escaped __proto__ (\\u005f = underscore)",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-015",
+      "payload": "POST /api/config HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"['__proto__']\":{\"admin\":true}}",
+      "tags": [
+        "prototype-pollution",
+        "bracket-notation"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Bracket notation ['__proto__'] pollution",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-016",
+      "payload": "POST /api/workflow HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__proto__\":{\"blocked\":false,\"validated\":true}}",
+      "tags": [
+        "prototype-pollution",
+        "n8n-specific"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "n8n workflow validation bypass via pollution",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-017",
+      "payload": "POST /api/photos HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__proto__\":{\"isPublic\":true,\"shared\":true}}",
+      "tags": [
+        "prototype-pollution",
+        "immich-specific"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Immich photo privacy bypass via pollution",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-018",
+      "payload": "POST /api/auth HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__proto__\":{\"authenticated\":true,\"role\":\"superadmin\"}}",
+      "tags": [
+        "prototype-pollution",
+        "authentik-specific",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Authentik authentication bypass via pollution",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-019",
+      "payload": "POST /api/merge HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n[{\"__proto__\":{\"admin\":true}},{\"user\":\"test\"}]",
+      "tags": [
+        "prototype-pollution",
+        "array-merge"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Array with __proto__ pollution during merge",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-020",
+      "payload": "POST /api/deep HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"level1\":{\"level2\":{\"level3\":{\"__proto__\":{\"admin\":true}}}}}",
+      "tags": [
+        "prototype-pollution",
+        "deep-nested"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Deeply nested __proto__ pollution (4 levels)",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-021",
+      "payload": "POST /api/settings HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"Object\":{\"prototype\":{\"admin\":true}}}",
+      "tags": [
+        "prototype-pollution",
+        "object-direct"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Direct Object.prototype pollution",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-022",
+      "payload": "POST /api/config HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"prototype\":{\"admin\":true}}",
+      "tags": [
+        "prototype-pollution",
+        "short-form"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Short-form 'prototype' pollution without __proto__",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-023",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__proto__\":{\"exec\":\"/bin/sh\"}}",
+      "tags": [
+        "prototype-pollution",
+        "rce-attempt"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Pollution with exec property (RCE gadget marker)",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-024",
+      "payload": "POST /api/settings HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__proto__\":{\"env\":{\"NODE_ENV\":\"development\"}}}",
+      "tags": [
+        "prototype-pollution",
+        "env-manipulation"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Environment variable manipulation via pollution",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-025",
+      "payload": "POST /api/config HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__proto__\":{\"shell\":\"cmd.exe\",\"args\":[\"/c\",\"calc\"]}}",
+      "tags": [
+        "prototype-pollution",
+        "shell-injection"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Shell command injection via pollution",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-026",
+      "payload": "POST /api/user HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__proto__\":{\"statusCode\":200,\"body\":\"hacked\"}}",
+      "tags": [
+        "prototype-pollution",
+        "response-manipulation"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "HTTP response manipulation via pollution",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-027",
+      "payload": "POST /api/query HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__proto__\":{\"where\":{\"admin\":true}}}",
+      "tags": [
+        "prototype-pollution",
+        "query-manipulation"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Database query manipulation via pollution",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-028",
+      "payload": "POST /api/settings HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__proto__\":{\"toString\":\"function(){return 'hacked';}\"}}",
+      "tags": [
+        "prototype-pollution",
+        "function-override"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Function override via toString pollution",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-029",
+      "payload": "POST /api/config HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__proto__\":{\"type\":\"Buffer\",\"data\":[60,115,99,114,105,112,116,62]}}",
+      "tags": [
+        "prototype-pollution",
+        "buffer-confusion"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Buffer type confusion pollution (data = '<script>')",
+      "category": "Deserialization"
+  },
+  {
+      "id": "DESER-PROTO-030",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"__proto__\":{\"__proto__\":{\"admin\":true}}}",
+      "tags": [
+        "prototype-pollution",
+        "recursive",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Recursive __proto__ pollution chain",
+      "category": "Deserialization"
+  }
+]

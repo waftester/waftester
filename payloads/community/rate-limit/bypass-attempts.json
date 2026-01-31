@@ -1,0 +1,326 @@
+[
+  {
+      "id": "RATE-BYPASS-001",
+      "payload": "/login",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "128",
+        "X-Forwarded-For": "192.168.1.100"
+    },
+      "tags": [
+        "rate-limit",
+        "bypass",
+        "xff-spoof",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "X-Forwarded-For spoofing to bypass rate limiting (should fail - realip validates source)",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-BYPASS-002",
+      "payload": "/login",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "128",
+        "X-Real-IP": "10.0.0.1"
+    },
+      "tags": [
+        "rate-limit",
+        "bypass",
+        "real-ip-spoof",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "X-Real-IP spoofing attempt (should fail - realip validates source)",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-BYPASS-003",
+      "payload": "/login",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "128",
+        "CF-Connecting-IP": "1.1.1.1"
+    },
+      "tags": [
+        "rate-limit",
+        "bypass",
+        "cf-ip-spoof",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "CF-Connecting-IP spoofing (should fail - realip validates source)",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-BYPASS-004",
+      "payload": "/login",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "128",
+        "X-Forwarded-For": "1.1.1.1, 2.2.2.2, 3.3.3.3"
+    },
+      "tags": [
+        "rate-limit",
+        "bypass",
+        "xff-chain",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Multiple IPs in X-Forwarded-For (should use real IP)",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-BYPASS-005",
+      "payload": "/login",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "128",
+        "X-Forwarded-For": "127.0.0.1"
+    },
+      "tags": [
+        "rate-limit",
+        "bypass",
+        "localhost-spoof",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Localhost IP spoofing in X-Forwarded-For",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-BYPASS-006",
+      "payload": "/login",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "128",
+        "Client-IP": "8.8.8.8"
+    },
+      "tags": [
+        "rate-limit",
+        "bypass",
+        "client-ip-header",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Non-standard Client-IP header (should be ignored)",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-BYPASS-007",
+      "payload": "/login",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "128",
+        "X-Originating-IP": "9.9.9.9"
+    },
+      "tags": [
+        "rate-limit",
+        "bypass",
+        "originating-ip",
+        "quick",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "X-Originating-IP header (should be ignored)",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-BYPASS-008",
+      "payload": "/login",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "128",
+        "True-Client-IP": "10.10.10.10"
+    },
+      "tags": [
+        "rate-limit",
+        "bypass",
+        "true-client-ip",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "True-Client-IP header (should be ignored)",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-BYPASS-009",
+      "payload": "/login",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "128",
+        "X-Forwarded-For": ""
+    },
+      "tags": [
+        "rate-limit",
+        "bypass",
+        "empty-xff",
+        "quick",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Empty X-Forwarded-For header (should use real connection IP)",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-BYPASS-010",
+      "payload": "/login",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "128",
+        "X-Forwarded-For": "null"
+    },
+      "tags": [
+        "rate-limit",
+        "bypass",
+        "null-xff",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Literal 'null' in X-Forwarded-For",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-BYPASS-011",
+      "payload": "/login",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "128",
+        "X-Forwarded-For": "unknown"
+    },
+      "tags": [
+        "rate-limit",
+        "bypass",
+        "invalid-xff",
+        "quick",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Invalid IP format in X-Forwarded-For",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-BYPASS-012",
+      "payload": "/login?cache_bust=1234567890",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "128"
+    },
+      "tags": [
+        "rate-limit",
+        "bypass",
+        "cache-bust",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Cache-busting query parameter (rate limit is IP-based, not URL-based)",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-BYPASS-013",
+      "payload": "/LOGIN",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "128"
+    },
+      "tags": [
+        "rate-limit",
+        "bypass",
+        "case-manipulation",
+        "quick",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Uppercase path (should match /login* pattern)",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-BYPASS-014",
+      "payload": "/login/../login",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "128"
+    },
+      "tags": [
+        "rate-limit",
+        "bypass",
+        "path-traversal",
+        "medium"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Path traversal to evade matcher (should be normalized and blocked by WAF)",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-BYPASS-015",
+      "payload": "/login",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "128",
+        "X-Forwarded-For": "::1"
+    },
+      "tags": [
+        "rate-limit",
+        "bypass",
+        "ipv6-spoof",
+        "quick",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "IPv6 localhost spoofing in X-Forwarded-For",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-BYPASS-016",
+      "payload": "/login%00",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "128"
+    },
+      "tags": [
+        "rate-limit",
+        "bypass",
+        "null-byte",
+        "high"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Null byte in path to evade matcher (should be blocked by WAF)",
+      "category": "RateLimit"
+  }
+]

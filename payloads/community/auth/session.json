@@ -1,0 +1,404 @@
+[
+  {
+      "id": "AUTH-SESSION-080",
+      "payload": "PHPSESSID=attacker_controlled_session_id",
+      "tags": [
+        "session-fixation",
+        "cookie-injection",
+        "quick",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Session fixation - attacker sets known session ID before victim login",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-081",
+      "payload": "sessionid=00000000-0000-0000-0000-000000000001",
+      "tags": [
+        "session-prediction",
+        "sequential-id",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Predictable session ID - sequential/incremental session identifier",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-082",
+      "payload": "session_token=admin_session_12345",
+      "tags": [
+        "session-hijacking",
+        "weak-token",
+        "quick",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Weak session token - predictable pattern with username",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-083",
+      "payload": "JSESSIONID=1111111111111111111111111111",
+      "tags": [
+        "session-prediction",
+        "weak-randomness",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Session ID with weak entropy - repeated characters indicate poor randomness",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-084",
+      "payload": "sid=MTIzNDU2Nzg5MA==",
+      "tags": [
+        "session-prediction",
+        "base64-sequential",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Base64-encoded sequential session ID - 1234567890 in base64",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-085",
+      "payload": "session=user123_20250112_001",
+      "tags": [
+        "session-prediction",
+        "timestamp-based",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Timestamp-based session ID - predictable pattern with date/time",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-086",
+      "payload": "auth_token=; Path=/; Domain=.attacker.com",
+      "tags": [
+        "cookie-injection",
+        "domain-manipulation",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Session cookie with attacker-controlled domain - session hijacking via subdomain",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-087",
+      "payload": "session=valid_session; HttpOnly=false; Secure=false",
+      "tags": [
+        "cookie-attributes",
+        "missing-flags",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Session cookie without HttpOnly/Secure flags - XSS and network sniffing risk",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-088",
+      "payload": "session=valid_session; SameSite=None",
+      "tags": [
+        "cookie-attributes",
+        "samesite-none",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Session cookie with SameSite=None - CSRF vulnerability",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-089",
+      "payload": "session=expired_session_token",
+      "tags": [
+        "session-timeout",
+        "expired-token",
+        "quick",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Expired session token - testing session timeout enforcement",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-090",
+      "payload": "session=logged_out_session",
+      "tags": [
+        "logout-bypass",
+        "session-reuse",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Session reuse after logout - testing session invalidation on logout",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-091",
+      "payload": "session=victim_session_id",
+      "tags": [
+        "session-hijacking",
+        "stolen-token",
+        "quick",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Session hijacking with stolen session ID - replay attack",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-092",
+      "payload": "session=session_from_different_ip",
+      "tags": [
+        "session-hijacking",
+        "ip-binding",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Session from different IP address - testing IP binding enforcement",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-093",
+      "payload": "session=session_with_changed_user_agent",
+      "tags": [
+        "session-hijacking",
+        "user-agent-mismatch",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Session with mismatched User-Agent - fingerprint validation bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-094",
+      "payload": "csrf_token=",
+      "tags": [
+        "csrf",
+        "empty-token",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Empty CSRF token - CSRF protection bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-095",
+      "payload": "csrf_token=static_token_value",
+      "tags": [
+        "csrf",
+        "static-token",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Static/predictable CSRF token - not tied to session",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-096",
+      "payload": "X-CSRF-Token: null",
+      "tags": [
+        "csrf",
+        "null-token",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "CSRF token with null value - type confusion bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-097",
+      "payload": "session=../../../etc/passwd",
+      "tags": [
+        "session-manipulation",
+        "path-traversal",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Session token with path traversal - file-based session storage attack",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-098",
+      "payload": "session=' OR '1'='1",
+      "tags": [
+        "session-manipulation",
+        "sqli",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL injection in session ID - targeting session retrieval query",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-099",
+      "payload": "session={\"admin\":true,\"user\":\"attacker\"}",
+      "tags": [
+        "session-manipulation",
+        "json-injection",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "JSON object as session ID - client-side session manipulation",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-100",
+      "payload": "session=eyJhZG1pbiI6dHJ1ZSwidXNlciI6ImF0dGFja2VyIn0=",
+      "tags": [
+        "session-manipulation",
+        "base64-json",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Base64-encoded JSON session - client-side session tampering",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-101",
+      "payload": "remember_me=1; session=auto_login_token",
+      "tags": [
+        "remember-me",
+        "persistent-session",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Remember-me token with weak session - persistent authentication bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-102",
+      "payload": "session=; session=valid_session",
+      "tags": [
+        "cookie-injection",
+        "parameter-pollution",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Duplicate session cookies - HPP (HTTP Parameter Pollution) in cookies",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-103",
+      "payload": "session=valid_session%0d%0aSet-Cookie: admin=true",
+      "tags": [
+        "crlf-injection",
+        "cookie-injection",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CRLF injection in session cookie - HTTP response splitting",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-104",
+      "payload": "session=valid_session\\x00admin",
+      "tags": [
+        "null-byte",
+        "session-manipulation",
+        "high"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Null byte in session token - string truncation attack",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-105",
+      "payload": "session=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "tags": [
+        "dos",
+        "long-session-id",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Extremely long session ID - buffer overflow or DoS attempt",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-106",
+      "payload": "session=<script>alert('xss')</script>",
+      "tags": [
+        "xss",
+        "session-reflection",
+        "quick",
+        "high"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XSS in session token - reflected in error messages or logs",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-107",
+      "payload": "session=; Max-Age=-1",
+      "tags": [
+        "cookie-manipulation",
+        "negative-maxage",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Session cookie with negative Max-Age - immediate expiry, DoS potential",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-108",
+      "payload": "session_lock=0",
+      "tags": [
+        "concurrent-sessions",
+        "session-lock",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Disabled session locking - concurrent session abuse",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SESSION-109",
+      "payload": "session=token1&backup_session=token2",
+      "tags": [
+        "session-confusion",
+        "multiple-sessions",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Multiple active sessions - session confusion attack",
+      "category": "Auth"
+  }
+]

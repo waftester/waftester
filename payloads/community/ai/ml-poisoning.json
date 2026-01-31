@@ -1,0 +1,173 @@
+[
+  {
+      "id": "AI-ML-001",
+      "payload": "/api/assets?metadata={\"description\":\"<script>alert(1)</script>\"}",
+      "tags": [
+        "ml-poisoning",
+        "xss",
+        "metadata",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "XSS in ML-generated image description",
+      "category": "AI"
+  },
+  {
+      "id": "AI-ML-002",
+      "payload": "/api/assets/upload",
+      "method": "POST",
+      "body": "adversarial_image_with_misclassification_pattern.jpg",
+      "tags": [
+        "ml-poisoning",
+        "adversarial",
+        "classification",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Adversarial image to poison ML classification",
+      "category": "AI"
+  },
+  {
+      "id": "AI-ML-003",
+      "payload": "/api/search/metadata?q=../../etc/passwd",
+      "tags": [
+        "ml-poisoning",
+        "path-traversal",
+        "high"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Path traversal in ML metadata search",
+      "category": "AI"
+  },
+  {
+      "id": "AI-ML-004",
+      "payload": "/api/assets?faces=[{\"name\":\"<img src=x onerror=alert(1)>\"}]",
+      "tags": [
+        "ml-poisoning",
+        "xss",
+        "face-recognition",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "XSS in face recognition metadata",
+      "category": "AI"
+  },
+  {
+      "id": "AI-ML-005",
+      "payload": "/api/assets?objects=[\"' OR '1'='1\"]",
+      "tags": [
+        "ml-poisoning",
+        "sqli",
+        "object-detection",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "SQLi in object detection metadata",
+      "category": "AI"
+  },
+  {
+      "id": "AI-ML-006",
+      "payload": "/api/assets?description={{constructor.constructor('return process')().mainModule.require('child_process').execSync('id')}}",
+      "tags": [
+        "ml-poisoning",
+        "rce",
+        "ssti",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "SSTI/RCE in ML description field",
+      "category": "AI"
+  },
+  {
+      "id": "AI-ML-007",
+      "payload": "/api/assets?tags=[\"tag1\",\"tag2\",\"tag3\",...x10000]",
+      "tags": [
+        "ml-poisoning",
+        "dos",
+        "resource-exhaustion",
+        "quick",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "DoS via excessive ML tags",
+      "category": "AI"
+  },
+  {
+      "id": "AI-ML-008",
+      "payload": "/api/search/smart?q=UNION SELECT password FROM users--",
+      "tags": [
+        "ml-poisoning",
+        "sqli",
+        "smart-search",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "SQLi in AI-powered smart search",
+      "category": "AI"
+  },
+  {
+      "id": "AI-ML-009",
+      "payload": "/api/assets?location={\"latitude\":\"'; DROP TABLE assets;--\",\"longitude\":0}",
+      "tags": [
+        "ml-poisoning",
+        "sqli",
+        "geolocation",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "SQLi in ML geolocation metadata",
+      "category": "AI"
+  },
+  {
+      "id": "AI-ML-010",
+      "payload": "/api/assets?ocr_text=javascript:alert(document.domain)",
+      "tags": [
+        "ml-poisoning",
+        "xss",
+        "ocr",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "XSS in OCR extracted text",
+      "category": "AI"
+  },
+  {
+      "id": "AI-ML-011",
+      "payload": "/api/search/clip?embedding=[0.1,0.2,...,NaN,...,0.5]",
+      "tags": [
+        "ml-poisoning",
+        "model-confusion",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "NaN injection in CLIP embedding search",
+      "category": "AI"
+  },
+  {
+      "id": "AI-ML-012",
+      "payload": "/api/assets?ml_metadata={\"confidence\":-1.5}",
+      "tags": [
+        "ml-poisoning",
+        "invalid-data",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Negative confidence score injection",
+      "category": "AI"
+  }
+]

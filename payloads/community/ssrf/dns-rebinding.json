@@ -1,0 +1,503 @@
+[
+  {
+      "id": "SSRF-DNS-001",
+      "payload": "http://127.0.0.1.nip.io/",
+      "tags": [
+        "dns-rebinding",
+        "nip.io",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "nip.io DNS rebinding to localhost",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-002",
+      "payload": "http://169.254.169.254.nip.io/latest/meta-data/",
+      "tags": [
+        "dns-rebinding",
+        "nip.io",
+        "aws-imds",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "nip.io DNS rebinding to AWS IMDS",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-003",
+      "payload": "http://127.0.0.1.xip.io/",
+      "tags": [
+        "dns-rebinding",
+        "xip.io",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "xip.io DNS rebinding to localhost",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-004",
+      "payload": "http://169.254.169.254.xip.io/latest/meta-data/",
+      "tags": [
+        "dns-rebinding",
+        "xip.io",
+        "aws-imds"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "xip.io DNS rebinding to AWS IMDS",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-005",
+      "payload": "http://localtest.me/",
+      "tags": [
+        "dns-rebinding",
+        "localtest",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "localtest.me DNS rebinding (resolves to 127.0.0.1)",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-006",
+      "payload": "http://localhost.localdomain/",
+      "tags": [
+        "dns-rebinding",
+        "localhost-variant"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "localhost.localdomain variant",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-007",
+      "payload": "http://spoofed.burpcollaborator.net/",
+      "tags": [
+        "dns-rebinding",
+        "burp-collaborator"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Burp Collaborator DNS rebinding pattern",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-008",
+      "payload": "http://10.0.0.1.nip.io/",
+      "tags": [
+        "dns-rebinding",
+        "nip.io",
+        "private-network",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "nip.io DNS rebinding to RFC1918 10.x network",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-009",
+      "payload": "http://192.168.1.1.nip.io/",
+      "tags": [
+        "dns-rebinding",
+        "nip.io",
+        "private-network"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "nip.io DNS rebinding to RFC1918 192.168.x network",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-010",
+      "payload": "http://172.16.0.1.nip.io/",
+      "tags": [
+        "dns-rebinding",
+        "nip.io",
+        "private-network"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "nip.io DNS rebinding to RFC1918 172.16.x network",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-011",
+      "payload": "http://0x7f000001/",
+      "tags": [
+        "ip-obfuscation",
+        "hex",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Hexadecimal IP representation of 127.0.0.1",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-012",
+      "payload": "http://2130706433/",
+      "tags": [
+        "ip-obfuscation",
+        "decimal",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Decimal IP representation of 127.0.0.1",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-013",
+      "payload": "http://0177.0000.0000.0001/",
+      "tags": [
+        "ip-obfuscation",
+        "octal"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Octal IP representation of 127.0.0.1",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-014",
+      "payload": "http://127.1/",
+      "tags": [
+        "ip-obfuscation",
+        "shorthand",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Shorthand IP notation for 127.0.0.1",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-015",
+      "payload": "http://0/",
+      "tags": [
+        "ip-obfuscation",
+        "zero",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IP address 0 (can resolve to localhost)",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-016",
+      "payload": "http://[::1]/",
+      "tags": [
+        "ipv6",
+        "localhost",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IPv6 localhost address",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-017",
+      "payload": "http://[::ffff:127.0.0.1]/",
+      "tags": [
+        "ipv6",
+        "ipv4-mapped",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IPv4-mapped IPv6 address for 127.0.0.1",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-018",
+      "payload": "http://[0:0:0:0:0:ffff:169.254.169.254]/",
+      "tags": [
+        "ipv6",
+        "ipv4-mapped",
+        "aws-imds"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IPv4-mapped IPv6 for AWS IMDS",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-019",
+      "payload": "http://[::ffff:a9fe:a9fe]/",
+      "tags": [
+        "ipv6",
+        "ipv4-mapped",
+        "aws-imds"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IPv4-mapped IPv6 hex notation for AWS IMDS",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-020",
+      "payload": "http://make-127.0.0.1-rr.1u.ms/",
+      "tags": [
+        "dns-rebinding",
+        "custom-service"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Custom DNS rebinding service pattern",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-021",
+      "payload": "http://127.0.0.1.nip.io:8080/admin",
+      "tags": [
+        "dns-rebinding",
+        "nip.io",
+        "alt-port"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "nip.io DNS rebinding with alternative port",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-022",
+      "payload": "http://169.254.169.254.xip.io:80/metadata",
+      "tags": [
+        "dns-rebinding",
+        "xip.io",
+        "metadata"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "xip.io DNS rebinding to metadata endpoint",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-023",
+      "payload": "http://127.0.0.1.sslip.io/",
+      "tags": [
+        "dns-rebinding",
+        "sslip.io"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "sslip.io DNS rebinding to localhost",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-024",
+      "payload": "http://127.0.0.1.trafficpeak.stream/",
+      "tags": [
+        "dns-rebinding",
+        "custom-service"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Alternative DNS rebinding service",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-025",
+      "payload": "http://customer1.app.localhost.run/",
+      "tags": [
+        "dns-rebinding",
+        "subdomain-bypass"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Subdomain-based localhost bypass attempt",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-026",
+      "payload": "http://make-1.2.3.4-rebind-169.254-169.254-rr.1u.ms/",
+      "tags": ["dns-rebinding", "1u.ms", "rr"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "1u.ms DNS rebinding round-robin to AWS IMDS",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-027",
+      "payload": "http://make-127-0-0-1-rebind-169-254-169-254.1u.ms/",
+      "tags": ["dns-rebinding", "1u.ms", "localhost-rebind"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "1u.ms DNS rebinding localhost to metadata",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-028",
+      "payload": "http://0.0.0.0/",
+      "tags": ["dns-rebinding", "all-interfaces", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "0.0.0.0 all-interfaces bypass",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-029",
+      "payload": "http://0.0.0.0:80/",
+      "tags": ["dns-rebinding", "all-interfaces", "port"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "0.0.0.0 with explicit port",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-030",
+      "payload": "http://0.0.0.0.nip.io/",
+      "tags": ["dns-rebinding", "nip.io", "all-interfaces"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "nip.io 0.0.0.0 all-interfaces bypass",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-031",
+      "payload": "http://a]@127.0.0.1/",
+      "tags": ["dns-rebinding", "url-parsing", "bracket"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "URL parser confusion with bracket",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-032",
+      "payload": "http://localhost#@evil.com/",
+      "tags": ["dns-rebinding", "url-parsing", "fragment"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "URL parser confusion with fragment and @",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-033",
+      "payload": "http://127.0.0.1%0d%0a.evil.com/",
+      "tags": ["dns-rebinding", "crlf", "injection"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CRLF injection in hostname",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-034",
+      "payload": "http://127.0.0.1\\@evil.com/",
+      "tags": ["dns-rebinding", "backslash", "url-parsing"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Backslash URL parsing confusion",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-035",
+      "payload": "http://127.0.0.1%00.evil.com/",
+      "tags": ["dns-rebinding", "null-byte", "truncation"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Null byte hostname truncation",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-036",
+      "payload": "http://[::]",
+      "tags": ["dns-rebinding", "ipv6", "localhost"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IPv6 localhost shorthand",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-037",
+      "payload": "http://[::1]",
+      "tags": ["dns-rebinding", "ipv6", "loopback"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IPv6 loopback address",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-038",
+      "payload": "http://[0:0:0:0:0:0:0:1]/",
+      "tags": ["dns-rebinding", "ipv6", "full-loopback"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IPv6 full loopback notation",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-039",
+      "payload": "http://[0:0:0:0:0:ffff:127.0.0.1]/",
+      "tags": ["dns-rebinding", "ipv6", "mapped-ipv4"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IPv6 mapped IPv4 localhost",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-040",
+      "payload": "http://[::ffff:127.0.0.1]/",
+      "tags": ["dns-rebinding", "ipv6", "mapped-short"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IPv6 mapped IPv4 localhost short form",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-041",
+      "payload": "http://[::ffff:169.254.169.254]/",
+      "tags": ["dns-rebinding", "ipv6", "mapped-imds"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IPv6 mapped AWS IMDS",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-042",
+      "payload": "http://127.1/",
+      "tags": ["dns-rebinding", "shorthand", "localhost"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Shorthand localhost IP",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-043",
+      "payload": "http://127.0.1/",
+      "tags": ["dns-rebinding", "shorthand", "three-octet"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Three-octet localhost shorthand",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-044",
+      "payload": "http://127.127.127.127/",
+      "tags": ["dns-rebinding", "loopback-range"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Alternative loopback address",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-DNS-045",
+      "payload": "http://myservice.localhost/",
+      "tags": ["dns-rebinding", "localhost-subdomain"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Subdomain of localhost bypass",
+      "category": "SSRF"
+  }
+]

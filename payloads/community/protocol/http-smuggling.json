@@ -1,0 +1,798 @@
+[
+  {
+      "id": "PROTO-SMUG-001",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 6\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nG",
+      "tags": [
+        "cl-te",
+        "quick",
+        "critical",
+        "desync"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CL.TE desync: Front-end uses CL, back-end uses TE",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-002",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 4\r\nTransfer-Encoding: chunked\r\n\r\n12\r\nSMUGGLED REQUEST\r\n0\r\n\r\n",
+      "tags": [
+        "te-cl",
+        "quick",
+        "critical",
+        "desync"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "TE.CL desync: Front-end uses TE, back-end uses CL",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-003",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\nTransfer-Encoding: identity\r\n\r\n5\r\nhello\r\n0\r\n\r\n",
+      "tags": [
+        "te-te",
+        "quick",
+        "critical",
+        "dual-encoding"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "TE.TE desync: Duplicate Transfer-Encoding headers",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-004",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 10\r\nContent-Length: 20\r\n\r\ntest",
+      "tags": [
+        "duplicate-cl",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Duplicate Content-Length headers with different values",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-005",
+      "payload": "GET / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n Transfer-Encoding: identity\r\n\r\n0\r\n\r\n",
+      "tags": [
+        "space-prefix",
+        "obfuscation"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Space before Transfer-Encoding header",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-006",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding : chunked\r\n\r\n0\r\n\r\n",
+      "tags": [
+        "space-before-colon",
+        "obfuscation"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Space before colon in Transfer-Encoding",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-007",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\nTransfer-Encoding: cow\r\n\r\n0\r\n\r\n",
+      "tags": [
+        "invalid-encoding",
+        "te-te"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Invalid Transfer-Encoding value (cow)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-008",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\nTransfer-Encoding: \r\n\r\n0\r\n\r\n",
+      "tags": [
+        "empty-encoding",
+        "te-te"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Empty Transfer-Encoding value",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-009",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\nTransfer-Encoding: x\r\n\r\n0\r\n\r\n",
+      "tags": [
+        "invalid-encoding",
+        "single-char"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Single character Transfer-Encoding",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-010",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 0\r\nTransfer-Encoding: chunked\r\n\r\n1\r\nZ\r\n0\r\n\r\n",
+      "tags": [
+        "cl-te",
+        "zero-cl",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CL.TE with CL:0 but chunked body",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-011",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\nContent-Length: 100\r\n\r\n0\r\n\r\n",
+      "tags": [
+        "te-cl",
+        "conflicting"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Both TE and CL headers present (TE should take precedence per RFC)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-012",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n0 \r\n\r\n",
+      "tags": [
+        "chunk-trailing-space"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Chunk size with trailing space",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-013",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n 0\r\n\r\n",
+      "tags": [
+        "chunk-leading-space"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Chunk size with leading space",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-014",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n0\n\n",
+      "tags": [
+        "lf-only",
+        "line-ending"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "LF-only line endings instead of CRLF",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-015",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n00000\r\n\r\n",
+      "tags": [
+        "chunk-zero-padding"
+    ],
+      "expected_block": true,
+      "severity_hint": "Low",
+      "notes": "Chunk size with leading zeros",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-016",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: -5\r\n\r\n",
+      "tags": [
+        "negative-cl"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Negative Content-Length value",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-017",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: +10\r\n\r\ntest",
+      "tags": [
+        "plus-sign-cl"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Content-Length with explicit plus sign",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-018",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 0x10\r\n\r\n",
+      "tags": [
+        "hex-cl"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Hexadecimal Content-Length value",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-019",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\nFF\r\n[255 bytes of data]\r\n0\r\n\r\n",
+      "tags": [
+        "large-chunk"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Large but valid chunk size (0xFF = 255)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-020",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n-1\r\n\r\n",
+      "tags": [
+        "negative-chunk"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Negative chunk size",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-021",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\nG\r\n\r\n",
+      "tags": [
+        "invalid-hex-chunk"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Invalid hexadecimal chunk size (G is not a hex digit)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-022",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n5;foo=bar\r\nhello\r\n0\r\n\r\n",
+      "tags": [
+        "chunk-extension"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Valid chunk extension (allowed per RFC 7230)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-023",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n5;x=y;a=b\r\nhello\r\n0\r\n\r\n",
+      "tags": [
+        "multiple-chunk-extensions"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Multiple chunk extensions",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-024",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n5;x=\"y\"\r\nhello\r\n0\r\n\r\n",
+      "tags": [
+        "quoted-chunk-extension"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Quoted chunk extension value",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-025",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked, gzip\r\n\r\n0\r\n\r\n",
+      "tags": [
+        "comma-separated-te"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Comma-separated Transfer-Encoding values (valid per RFC)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-026",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: gzip, chunked\r\n\r\n0\r\n\r\n",
+      "tags": [
+        "multiple-encodings"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Multiple encodings with chunked last (valid)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-027",
+      "payload": "GET / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n",
+      "tags": [
+        "get-with-te"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "GET request with Transfer-Encoding (unusual)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-028",
+      "payload": "GET / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 10\r\n\r\n",
+      "tags": [
+        "get-with-cl"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "GET request with Content-Length (unusual)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-029",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nTrailer: value\r\n\r\n",
+      "tags": [
+        "trailer-headers"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Valid trailer headers after chunked body",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-030",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nContent-Length: 10\r\n\r\n",
+      "tags": [
+        "trailer-cl",
+        "suspicious"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Content-Length in trailer headers (forbidden per RFC)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-031",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nTransfer-Encoding: identity\r\n\r\n",
+      "tags": [
+        "trailer-te",
+        "suspicious"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Transfer-Encoding in trailer headers (forbidden per RFC)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-032",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\nFFFFFFFF\r\n",
+      "tags": [
+        "huge-chunk",
+        "destructive"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Extremely large chunk size (4GB) - resource exhaustion",
+      "destructive": true,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-033",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 4294967295\r\n\r\n",
+      "tags": [
+        "huge-cl",
+        "destructive"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Maximum 32-bit Content-Length - resource exhaustion",
+      "destructive": true,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-034",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n1\r\nA\r\n1\r\nB\r\n1\r\nC\r\n0\r\n\r\n",
+      "tags": [
+        "multiple-small-chunks"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Multiple valid 1-byte chunks",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-035",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-encoding: chunked\r\n\r\n0\r\n\r\n",
+      "tags": [
+        "lowercase-te"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Lowercase transfer-encoding (should be case-insensitive)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-036",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\ncontent-length: 4\r\n\r\ntest",
+      "tags": [
+        "lowercase-cl"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Lowercase content-length (should be case-insensitive)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-037",
+      "payload": "GET / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: \tchunked\r\n\r\n0\r\n\r\n",
+      "tags": ["tab-prefix", "te-obfuscation"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Tab character before chunked value",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-038",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\nTransfer-Encoding: x\r\n\r\n0\r\n\r\n",
+      "tags": ["duplicate-te", "second-invalid"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Duplicate TE with second invalid",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-039",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: x\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n",
+      "tags": ["duplicate-te", "first-invalid"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Duplicate TE with first invalid",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-040",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 0\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n0\r\n\r\n",
+      "tags": ["cl-zero", "te-chunked"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CL:0 with TE:chunked body",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-041",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\n Transfer-Encoding: chunked\r\nContent-Length: 4\r\n\r\ntest",
+      "tags": ["leading-space", "te-header"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Leading space on TE header",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-042",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nX-Forwarded-For: x\r\nTransfer-Encoding: chunked\r\nContent-Length: 4\r\n\r\ntest",
+      "tags": ["cl-te", "xff"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CL+TE with XFF header",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-043",
+      "payload": "GET / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding:\r\n chunked\r\n\r\n0\r\n\r\n",
+      "tags": ["folded-header", "te"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Folded TE header (line continuation)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-044",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\nContent-Length : 4\r\n\r\ntest",
+      "tags": ["space-colon", "cl"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Space before colon on CL",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-045",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 6\r\n\r\nPOST /admin HTTP/1.1\r\nHost: example.com",
+      "tags": ["request-smuggling", "admin-access"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Smuggle admin path request",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-046",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nGET /admin HTTP/1.1\r\nHost: example.com\r\n\r\n",
+      "tags": ["te-smuggle", "admin-access"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "TE smuggle to admin path",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-047",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\nTransfer-Encoding\t: chunked\r\n\r\n0\r\n\r\n",
+      "tags": ["tab-before-colon", "te"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Tab before colon in TE",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-048",
+      "payload": "GET / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked, identity\r\n\r\n0\r\n\r\n",
+      "tags": ["comma-separated", "te"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Comma-separated TE values",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-049",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer_Encoding: chunked\r\nContent-Length: 4\r\n\r\ntest",
+      "tags": ["underscore", "te-bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Underscore instead of hyphen in TE",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-050",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 30\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nPOST / HTTP/1.1\r\nX: X",
+      "tags": ["cl-te", "prefix-injection"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CL.TE request prefix injection",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-051",
+      "payload": "GET / HTTP/1.1\r\nHost: evil.com\r\nHost: example.com\r\n\r\n",
+      "tags": ["duplicate-host", "host-override"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Duplicate Host header",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-052",
+      "payload": "GET / HTTP/1.1\r\nHost: example.com\r\nX-Forwarded-Host: evil.com\r\n\r\n",
+      "tags": ["host-override", "xfh"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "X-Forwarded-Host override",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-053",
+      "payload": "GET / HTTP/1.1\r\nHost: example.com\r\nX-Host: evil.com\r\n\r\n",
+      "tags": ["host-override", "x-host"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "X-Host header override",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-054",
+      "payload": "GET / HTTP/1.1\r\nHost: example.com\r\nX-Original-URL: /admin\r\n\r\n",
+      "tags": ["path-override", "x-original-url"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "X-Original-URL path override",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-055",
+      "payload": "GET / HTTP/1.1\r\nHost: example.com\r\nX-Rewrite-URL: /admin\r\n\r\n",
+      "tags": ["path-override", "x-rewrite-url"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "X-Rewrite-URL path override",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-056",
+      "payload": "GET @evil.com/ HTTP/1.1\r\nHost: example.com\r\n\r\n",
+      "tags": ["absolute-uri", "host-confusion"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Absolute URI with @ confusion",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-057",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: \n chunked\r\n\r\n0\r\n\r\n",
+      "tags": ["newline-fold", "te"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Newline folded TE value",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-058",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n1;foo=bar\r\na\r\n0\r\n\r\n",
+      "tags": ["chunk-extension", "parameter"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Chunk extension parameter",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-059",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n1\r\na\r\n0\r\nX-Trailer: test\r\n\r\n",
+      "tags": ["trailer-header", "te"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "TE with trailer header",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-060",
+      "payload": "GPOST / HTTP/1.1\r\nHost: example.com\r\n\r\n",
+      "tags": ["method-mutation", "malformed"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Invalid/mutated HTTP method",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-061",
+      "payload": "GET / HTTP/1.1\rHost: example.com\r\n\r\n",
+      "tags": ["bare-cr", "malformed"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Bare CR instead of CRLF",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-062",
+      "payload": "GET / HTTP/1.1\nHost: example.com\n\n",
+      "tags": ["bare-lf", "unix-style"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Bare LF (Unix-style newlines)",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-063",
+      "payload": "GET / HTTP/1.1\r\n\rHost: example.com\r\n\r\n",
+      "tags": ["embedded-cr", "malformed"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Embedded bare CR",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-064",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: -1\r\n\r\n",
+      "tags": ["negative-cl", "malformed"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Negative Content-Length",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-065",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 9999999999999\r\n\r\n",
+      "tags": ["overflow-cl", "dos"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Integer overflow Content-Length",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-066",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 4 \r\n\r\ntest",
+      "tags": ["trailing-space", "cl"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Trailing space in CL value",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-067",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 04\r\n\r\ntest",
+      "tags": ["leading-zero", "cl"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Leading zero in CL",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-068",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: +4\r\n\r\ntest",
+      "tags": ["plus-sign", "cl"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Plus sign in CL",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-069",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 0x04\r\n\r\ntest",
+      "tags": ["hex-cl", "malformed"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Hex Content-Length",
+      "destructive": false,
+      "category": "Protocol"
+  },
+  {
+      "id": "PROTO-SMUG-070",
+      "payload": "POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\nffffffff\r\n",
+      "tags": ["huge-chunk", "dos"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Extremely large chunk size",
+      "destructive": false,
+      "category": "Protocol"
+  }
+]

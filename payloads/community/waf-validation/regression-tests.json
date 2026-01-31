@@ -1,0 +1,227 @@
+[
+  {
+    "id": "LEGIT-API-001",
+    "payload": "GET /api/health",
+    "tags": ["regression", "legitimate", "health", "quick"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "Health check endpoint - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-API-002",
+    "payload": "POST /api/login HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"username\":\"admin\",\"password\":\"test123\"}",
+    "tags": ["regression", "legitimate", "auth", "quick"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "Normal login request - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-API-003",
+    "payload": "GET /api/users?page=1&limit=10&sort=name",
+    "tags": ["regression", "legitimate", "pagination", "quick"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "Normal pagination request - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-API-004",
+    "payload": "POST /api/search HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"query\":\"SELECT report\",\"filters\":[\"date\"]}",
+    "tags": ["regression", "legitimate", "search", "quick"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "Search with SQL-like word (not injection) - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-API-005",
+    "payload": "POST /api/documents HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"title\":\"O'Brien Contract\",\"content\":\"John's agreement\"}",
+    "tags": ["regression", "legitimate", "apostrophe", "quick"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "Legitimate apostrophe in content - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-API-006",
+    "payload": "GET /api/users?filter=status==active",
+    "tags": ["regression", "legitimate", "query-operators", "quick"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "Double equals in filter - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-API-007",
+    "payload": "POST /api/content HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"html\":\"<p>Hello <b>World</b></p>\"}",
+    "tags": ["regression", "legitimate", "html-content", "quick"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "Safe HTML in content field - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-API-008",
+    "payload": "GET /api/files?path=/uploads/documents/report.pdf",
+    "tags": ["regression", "legitimate", "path", "quick"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "Normal file path - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-API-009",
+    "payload": "POST /api/webhook/test HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"event\":\"user.created\",\"data\":{}}",
+    "tags": ["regression", "legitimate", "webhook", "quick"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "Normal webhook call - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-API-010",
+    "payload": "GET /api/search?q=python%20programming%20tutorial",
+    "tags": ["regression", "legitimate", "encoded-spaces", "quick"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "URL-encoded spaces in search - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-API-011",
+    "payload": "POST /api/code HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"code\":\"function test() { return 1 || 2; }\"}",
+    "tags": ["regression", "legitimate", "code-content"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "JavaScript code with || operator - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-API-012",
+    "payload": "POST /api/formula HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"formula\":\"IF(A1>0, A1*2, 0)\"}",
+    "tags": ["regression", "legitimate", "formula"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "Excel-like formula - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-API-013",
+    "payload": "GET /api/metrics?from=2024-01-01T00:00:00Z&to=2024-12-31T23:59:59Z",
+    "tags": ["regression", "legitimate", "timestamp"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "ISO timestamp with special chars - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-API-014",
+    "payload": "GET /api/users/search?email=user%40example.com",
+    "tags": ["regression", "legitimate", "email"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "Email with @ symbol - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-API-015",
+    "payload": "POST /api/markdown HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"content\":\"# Title\\n## Subtitle\\n- Item 1\\n- Item 2\\n`code`\"}",
+    "tags": ["regression", "legitimate", "markdown"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "Markdown content - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-N8N-001",
+    "payload": "POST /webhook/test-workflow HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"data\":\"test\"}",
+    "tags": ["regression", "n8n", "webhook", "quick"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "n8n webhook - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-N8N-002",
+    "payload": "GET /healthz",
+    "tags": ["regression", "n8n", "health", "quick"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "n8n health check - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-N8N-003",
+    "payload": "POST /rest/workflows HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"name\":\"Test Workflow\",\"nodes\":[]}",
+    "tags": ["regression", "n8n", "workflow"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "n8n workflow creation - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-IMMICH-001",
+    "payload": "GET /api/server/ping",
+    "tags": ["regression", "immich", "health", "quick"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "Immich health check - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-IMMICH-002",
+    "payload": "GET /api/assets/abc123-def456",
+    "tags": ["regression", "immich", "asset", "quick"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "Immich asset request - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-IMMICH-003",
+    "payload": "POST /api/upload HTTP/1.1\r\nContent-Type: multipart/form-data; boundary=----WebKitFormBoundary\r\n\r\n------WebKitFormBoundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"photo.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n[binary]\r\n------WebKitFormBoundary--",
+    "tags": ["regression", "immich", "upload"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "Immich file upload - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-AUTHENTIK-001",
+    "payload": "GET /-/health/ready/",
+    "tags": ["regression", "authentik", "health", "quick"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "Authentik health check - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-AUTHENTIK-002",
+    "payload": "POST /api/v3/flows/executor/default-authentication-flow/ HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"uid_field\":\"admin\"}",
+    "tags": ["regression", "authentik", "auth", "quick"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "Authentik authentication flow - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-AGREEMENTPULSE-001",
+    "payload": "GET /api/health",
+    "tags": ["regression", "agreementpulse", "health", "quick"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "AgreementPulse health check - MUST NOT be blocked",
+    "category": "Regression"
+  },
+  {
+    "id": "LEGIT-AGREEMENTPULSE-002",
+    "payload": "POST /api/contracts HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"title\":\"Service Agreement\",\"parties\":[\"Company A\",\"Company B\"]}",
+    "tags": ["regression", "agreementpulse", "contract", "quick"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "AgreementPulse contract creation - MUST NOT be blocked",
+    "category": "Regression"
+  }
+]

@@ -1,0 +1,271 @@
+[
+  {
+      "id": "GQL-BATCH-001",
+      "payload": "[{\"query\": \"{ user { id } }\"}, {\"query\": \"{ user { id } }\"}, {\"query\": \"{ user { id } }\"}, {\"query\": \"{ user { id } }\"}, {\"query\": \"{ user { id } }\"}]",
+      "tags": [
+        "batching",
+        "multiple-ops",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "5 identical queries in single batch request",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-BATCH-002",
+      "payload": "[{\"query\": \"{ user { id } }\"}, {\"query\": \"{ user { id } }\"}, {\"query\": \"{ user { id } }\"}, {\"query\": \"{ user { id } }\"}, {\"query\": \"{ user { id } }\"}, {\"query\": \"{ user { id } }\"}, {\"query\": \"{ user { id } }\"}, {\"query\": \"{ user { id } }\"}, {\"query\": \"{ user { id } }\"}, {\"query\": \"{ user { id } }\"}]",
+      "tags": [
+        "batching",
+        "dos",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "10 queries in single batch (DoS amplification)",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-BATCH-003",
+      "payload": "{\"query\": \"{ a: user { id } b: user { id } c: user { id } d: user { id } e: user { id } f: user { id } g: user { id } h: user { id } i: user { id } j: user { id } }\"}",
+      "tags": [
+        "batching",
+        "alias-abuse",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "10 aliased identical queries in single operation",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-BATCH-004",
+      "payload": "{\"query\": \"{ user1: user(id: 1) { id } user2: user(id: 2) { id } user3: user(id: 3) { id } user4: user(id: 4) { id } user5: user(id: 5) { id } user6: user(id: 6) { id } user7: user(id: 7) { id } user8: user(id: 8) { id } user9: user(id: 9) { id } user10: user(id: 10) { id } }\"}",
+      "tags": [
+        "batching",
+        "alias-enumeration"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "10 different user queries with aliases (ID enumeration)",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-BATCH-005",
+      "payload": "{\"query\": \"{ a: __schema { types { name } } b: __schema { types { name } } c: __schema { types { name } } d: __schema { types { name } } e: __schema { types { name } } }\"}",
+      "tags": [
+        "batching",
+        "introspection-spam"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "5 aliased introspection queries (amplification + info disclosure)",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-BATCH-006",
+      "payload": "[{\"query\": \"mutation { createPost(title: \\\"test1\\\") { id } }\"}, {\"query\": \"mutation { createPost(title: \\\"test2\\\") { id } }\"}, {\"query\": \"mutation { createPost(title: \\\"test3\\\") { id } }\"}, {\"query\": \"mutation { createPost(title: \\\"test4\\\") { id } }\"}, {\"query\": \"mutation { createPost(title: \\\"test5\\\") { id } }\"}]",
+      "tags": [
+        "batching",
+        "mutation-batch",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "5 mutations in single batch (data modification amplification)",
+      "destructive": true,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-BATCH-007",
+      "payload": "{\"query\": \"mutation { a: createPost(title: \\\"test1\\\") { id } b: createPost(title: \\\"test2\\\") { id } c: createPost(title: \\\"test3\\\") { id } d: createPost(title: \\\"test4\\\") { id } e: createPost(title: \\\"test5\\\") { id } }\"}",
+      "tags": [
+        "batching",
+        "aliased-mutations",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "5 aliased mutations in single operation",
+      "destructive": true,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-BATCH-008",
+      "payload": "{\"query\": \"{ users { a: id b: id c: id d: id e: id f: id g: id h: id i: id j: id } }\"}",
+      "tags": [
+        "batching",
+        "field-duplication"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Same field requested 10 times with different aliases",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-BATCH-009",
+      "payload": "[{\"query\": \"{ user { posts { comments { id } } } }\"}, {\"query\": \"{ user { posts { comments { id } } } }\"}, {\"query\": \"{ user { posts { comments { id } } } }\"}]",
+      "tags": [
+        "batching",
+        "complex-ops"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "3 complex nested queries in single batch",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-BATCH-010",
+      "payload": "{\"query\": \"query Op1 { user { id } } query Op2 { user { id } } query Op3 { user { id } } query Op4 { user { id } } query Op5 { user { id } }\"}",
+      "tags": [
+        "batching",
+        "multiple-named-ops"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "5 named operations in single query string",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-BATCH-011",
+      "payload": "[{\"query\": \"{ user { id } }\", \"operationName\": \"Op1\"}, {\"query\": \"{ user { id } }\", \"operationName\": \"Op2\"}, {\"query\": \"{ user { id } }\", \"operationName\": \"Op3\"}]",
+      "tags": [
+        "batching",
+        "named-batch"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "3 named operations in batch array",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-BATCH-012",
+      "payload": "{\"query\": \"{ a: user { friends { id } } b: user { friends { id } } c: user { friends { id } } d: user { friends { id } } e: user { friends { id } } }\"}",
+      "tags": [
+        "batching",
+        "relation-spam"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "5 aliased queries with expensive relations",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-BATCH-013",
+      "payload": "{\"query\": \"fragment UserData on User { id email username } query { a: user { ...UserData } b: user { ...UserData } c: user { ...UserData } d: user { ...UserData } e: user { ...UserData } }\"}",
+      "tags": [
+        "batching",
+        "fragment-reuse"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "5 aliased queries reusing same fragment",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-BATCH-014",
+      "payload": "{\"query\": \"{ user { a: posts { id } b: posts { id } c: posts { id } d: posts { id } e: posts { id } } }\"}",
+      "tags": [
+        "batching",
+        "subfield-aliases"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Same subfield requested 5 times with aliases",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-BATCH-015",
+      "payload": "[{\"query\": \"{ __typename }\"}, {\"query\": \"{ __typename }\"}, {\"query\": \"{ __typename }\"}, {\"query\": \"{ __typename }\"}, {\"query\": \"{ __typename }\"}, {\"query\": \"{ __typename }\"}, {\"query\": \"{ __typename }\"}, {\"query\": \"{ __typename }\"}, {\"query\": \"{ __typename }\"}, {\"query\": \"{ __typename }\"}]",
+      "tags": [
+        "batching",
+        "typename-spam"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "10 __typename queries in batch (minimal payload amplification)",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-BATCH-016",
+      "payload": "{\"query\": \"{ a: user(id: 1) { b: friends { c: posts { d: comments { id } } } } e: user(id: 2) { f: friends { g: posts { h: comments { id } } } } }\"}",
+      "tags": [
+        "batching",
+        "overlapping-types",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "2 deep nested queries with alias collision (overlapping User type)",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-BATCH-017",
+      "payload": "[{\"query\": \"subscription { userCreated { id } }\"}, {\"query\": \"subscription { userCreated { id } }\"}, {\"query\": \"subscription { userCreated { id } }\"}]",
+      "tags": [
+        "batching",
+        "subscription-spam"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "3 subscription operations in batch (connection exhaustion)",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-BATCH-018",
+      "payload": "{\"query\": \"query { a: search(query: \\\"test\\\") { id } b: search(query: \\\"test\\\") { id } c: search(query: \\\"test\\\") { id } d: search(query: \\\"test\\\") { id } e: search(query: \\\"test\\\") { id } }\"}",
+      "tags": [
+        "batching",
+        "search-amplification"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "5 aliased search queries (expensive operation amplification)",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-BATCH-019",
+      "payload": "[{\"query\": \"{ user { posts(first: 100) { id } } }\"}, {\"query\": \"{ user { posts(first: 100) { id } } }\"}, {\"query\": \"{ user { posts(first: 100) { id } } }\"}]",
+      "tags": [
+        "batching",
+        "pagination-abuse"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "3 batched queries with large pagination (300 total records)",
+      "destructive": false,
+      "category": "GraphQL"
+  },
+  {
+      "id": "GQL-BATCH-020",
+      "payload": "{\"query\": \"{ a: user { id name email } b: user { id name email } c: user { id name email } d: user { id name email } e: user { id name email } f: user { id name email } g: user { id name email } h: user { id name email } i: user { id name email } j: user { id name email } k: user { id name email } l: user { id name email } m: user { id name email } n: user { id name email } o: user { id name email } }\"}",
+      "tags": [
+        "batching",
+        "extreme-aliasing",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "15 aliased identical queries (extreme amplification)",
+      "destructive": false,
+      "category": "GraphQL"
+  }
+]

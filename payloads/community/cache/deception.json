@@ -1,0 +1,402 @@
+[
+  {
+      "id": "CACHE-DECEPT-001",
+      "payload": "GET /api/user/profile/..;/style.css HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "fake-extension",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Web Cache Deception with semicolon path separator and fake CSS extension",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-002",
+      "payload": "GET /api/user/profile/..%2fstyle.css HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "fake-extension",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Web Cache Deception with encoded slash and fake CSS extension",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-003",
+      "payload": "GET /api/user/profile/anything.js HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "js-extension",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Web Cache Deception with JavaScript extension to cache sensitive data",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-004",
+      "payload": "GET /api/user/profile/x.png HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "image-extension"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Web Cache Deception with PNG extension",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-005",
+      "payload": "GET /api/user/profile/%2e%2e%3b/static.js HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "encoding"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Web Cache Deception with encoded ..%3B (semicolon) path separator",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-006",
+      "payload": "GET /api/user/profile.json/..;/app.js HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "double-extension"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Double extension with semicolon separator",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-007",
+      "payload": "GET /api/user/profile HTTP/1.1\r\nHost: target.com%0d%0aX-Cache-Override: public\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "host-injection"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Host header injection with CRLF to add cache override header",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-008",
+      "payload": "GET /api/user/profile?;.css HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "query-extension"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Fake extension in query string with semicolon",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-009",
+      "payload": "GET /api/user/profile#.js HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "fragment-extension"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Fake extension in URL fragment (may be stripped inconsistently)",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-010",
+      "payload": "GET /api/user/profile.json HTTP/1.1\r\nHost: target.com\r\nX-Original-URL: /api/user/profile\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "path-confusion",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Path confusion via X-Original-URL to serve sensitive data with cacheable extension",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-011",
+      "payload": "GET /api/user/profile HTTP/1.1\r\nHost: target.com\r\nX-Forwarded-Uri: /static/app.js\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "uri-override"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "URI override header to trick cache into storing with static path",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-012",
+      "payload": "GET /api/user/profile.css;.json HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "complex-extension"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Multiple extensions with semicolon separator",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-013",
+      "payload": "GET /api/user/profile HTTP/1.1\r\nHost: target.com\r\nHost: cdn.target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "duplicate-host",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Duplicate Host header to confuse cache vs origin routing",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-014",
+      "payload": "GET /api/user/profile/..%00.css HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "null-byte"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Null byte with fake extension for path truncation",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-015",
+      "payload": "GET //api/user/profile.js HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "double-slash",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Double slash normalization with fake JS extension",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-016",
+      "payload": "GET /api/user/profile/.css HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "dotfile"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Dotfile path segment with extension",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-017",
+      "payload": "GET /api/user/profile\\..\\static.css HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "backslash"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Backslash path separator with fake extension (IIS-style)",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-018",
+      "payload": "GET /api/user/profile%2F..%3B/static.js HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "full-encoding"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Fully encoded path traversal with semicolon and fake extension",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-019",
+      "payload": "GET /api/user/profile/;.woff HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "font-extension"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Web font extension with semicolon separator",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-020",
+      "payload": "GET /api/user/profile.json%20 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "trailing-space"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Encoded trailing space after extension (normalization bypass)",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-021",
+      "payload": "GET /api/user/profile.css%09 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "trailing-tab"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Encoded trailing tab after extension",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-022",
+      "payload": "GET /api/user/profile HTTP/1.1\r\nHost: target.com\r\nX-Forwarded-Path: /static/bundle.js\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "forwarded-path"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "X-Forwarded-Path to make CDN cache sensitive endpoint",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-023",
+      "payload": "GET /api/user/profile.json;jsessionid=ABC123 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "session-suffix"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Session ID suffix with cacheable extension (Java-style)",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-024",
+      "payload": "GET /api/user/PROFILE/data.css HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "case-sensitivity"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Case variation with fake extension (case-insensitive routing)",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-025",
+      "payload": "GET /api/user/profile/./static.js HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "dot-segment",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Dot segment normalization with fake extension",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-026",
+      "payload": "GET /api/user/profile.json? HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "query-separator"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Empty query string after cacheable extension",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-027",
+      "payload": "GET /api/user/profile HTTP/1.1\r\nHost: target.com\r\nX-Rewrite-URL: /api/user/profile.css\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "rewrite-url",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "X-Rewrite-URL to add cacheable extension at CDN level",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-028",
+      "payload": "GET /api/user/profile%252e%252e%253b/static.js HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "double-encoding"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Double-encoded path traversal with fake extension",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-029",
+      "payload": "GET /api/user/profile.json%2f HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "trailing-slash-encoded"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Encoded trailing slash after extension",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-DECEPT-030",
+      "payload": "GET /api/user/profile.css%2e%2e%2fdata HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-deception",
+        "extension-traversal",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Cacheable extension with encoded path traversal suffix",
+      "destructive": false,
+      "category": "Cache"
+  }
+]

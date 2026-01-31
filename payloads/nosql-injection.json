@@ -1,0 +1,227 @@
+[
+    {
+      "id": "nosql-001",
+      "payload": "username[$ne]=admin&password[$ne]=admin",
+      "tags": ["nosql", "mongodb", "auth-bypass"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "NoSQL auth bypass using $ne operator (not equal)",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-002",
+      "payload": "{\"username\": {\"$ne\": null}, \"password\": {\"$ne\": null}}",
+      "tags": ["nosql", "mongodb", "auth-bypass", "json"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "JSON NoSQL auth bypass - matches any user",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-003",
+      "payload": "{\"username\": {\"$gt\": \"\"}, \"password\": {\"$gt\": \"\"}}",
+      "tags": ["nosql", "mongodb", "auth-bypass", "json"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "JSON NoSQL auth bypass using $gt (greater than)",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-004",
+      "payload": "username[$regex]=.*&password[$regex]=.*",
+      "tags": ["nosql", "mongodb", "auth-bypass", "regex"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "NoSQL auth bypass using regex operator",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-005",
+      "payload": "{\"username\": {\"$regex\": \"^admin\"}, \"password\": {\"$regex\": \".*\"}}",
+      "tags": ["nosql", "mongodb", "auth-bypass", "regex", "json"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Target specific user with regex",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-006",
+      "payload": "password[$regex]=^a",
+      "tags": ["nosql", "mongodb", "blind", "regex"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Blind NoSQL password enumeration via regex",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-007",
+      "payload": "password[$regex]=.{6}",
+      "tags": ["nosql", "mongodb", "blind", "length"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Blind NoSQL password length detection",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-008",
+      "payload": "username[$nin][]=admin&username[$nin][]=test&password[$ne]=",
+      "tags": ["nosql", "mongodb", "auth-bypass", "nin"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "NoSQL auth bypass using $nin (not in)",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-009",
+      "payload": "login[$gt]=admin&login[$lt]=test&pass[$ne]=1",
+      "tags": ["nosql", "mongodb", "auth-bypass", "range"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "NoSQL auth bypass using range operators",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-010",
+      "payload": "{\"$where\": \"1 == 1\"}",
+      "tags": ["nosql", "mongodb", "where-injection"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "MongoDB $where injection - always true",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-011",
+      "payload": "', $where: '1 == 1",
+      "tags": ["nosql", "mongodb", "where-injection"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "MongoDB $where string injection",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-012",
+      "payload": "true, $where: '1 == 1'",
+      "tags": ["nosql", "mongodb", "where-injection"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "MongoDB $where with true prefix",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-013",
+      "payload": "1, $where: '1 == 1'",
+      "tags": ["nosql", "mongodb", "where-injection"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "MongoDB $where with numeric prefix",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-014",
+      "payload": "' && this.password.match(/.*/)//+%00",
+      "tags": ["nosql", "mongodb", "regex", "null-byte"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "MongoDB JS injection with password match",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-015",
+      "payload": "';sleep(5000);'",
+      "tags": ["nosql", "mongodb", "time-based"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "MongoDB time-based blind injection",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-016",
+      "payload": "';sleep(5000);+'",
+      "tags": ["nosql", "mongodb", "time-based"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "MongoDB time-based with string concat",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-017",
+      "payload": "db.injection.insert({success:1});",
+      "tags": ["nosql", "mongodb", "data-manipulation"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "MongoDB data insertion attack",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-018",
+      "payload": "', $or: [ {}, { 'a':'a' } ], $comment:'successful MongoDB injection'",
+      "tags": ["nosql", "mongodb", "or-injection"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "MongoDB $or injection with comment",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-019",
+      "payload": "{\"username\":\"admin\", \"password\":{\"$gt\":\"\"}}",
+      "tags": ["nosql", "mongodb", "auth-bypass", "json"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Target admin with $gt empty string",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-020",
+      "payload": "{\"username\":{\"$in\":[\"Admin\", \"admin\", \"root\", \"administrator\"]},\"password\":{\"$gt\":\"\"}}",
+      "tags": ["nosql", "mongodb", "auth-bypass", "in"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "NoSQL auth bypass targeting multiple admin accounts",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-021",
+      "payload": "[$ne]=1",
+      "tags": ["nosql", "mongodb", "operator"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Simple $ne operator injection",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-022",
+      "payload": "{$gt: ''}",
+      "tags": ["nosql", "mongodb", "operator"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Simple $gt operator injection",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-023",
+      "payload": "{ $ne: 1 }",
+      "tags": ["nosql", "mongodb", "operator"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Simple $ne with spaces",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-024",
+      "payload": "\";return(true);var xyz='a",
+      "tags": ["nosql", "mongodb", "js-injection"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "MongoDB JavaScript injection - return true",
+      "category": "Injection"
+    },
+    {
+      "id": "nosql-025",
+      "payload": "0;return true",
+      "tags": ["nosql", "mongodb", "js-injection"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "MongoDB JavaScript - numeric prefix return true",
+      "category": "Injection"
+    }
+]

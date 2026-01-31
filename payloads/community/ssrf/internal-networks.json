@@ -1,0 +1,627 @@
+[
+  {
+      "id": "SSRF-NET-001",
+      "payload": "http://10.0.0.1/",
+      "tags": [
+        "rfc1918",
+        "10-net",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "RFC1918 10.0.0.0/8 network gateway",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-002",
+      "payload": "http://10.0.0.10/admin",
+      "tags": [
+        "rfc1918",
+        "10-net",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "RFC1918 10.x admin endpoint",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-003",
+      "payload": "http://10.10.10.10/",
+      "tags": [
+        "rfc1918",
+        "10-net"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Common RFC1918 10.x internal address",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-004",
+      "payload": "http://192.168.0.1/",
+      "tags": [
+        "rfc1918",
+        "192-net",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "RFC1918 192.168.0.0/16 network gateway",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-005",
+      "payload": "http://192.168.1.1/",
+      "tags": [
+        "rfc1918",
+        "192-net",
+        "router",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Common home router address",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-006",
+      "payload": "http://192.168.1.254/",
+      "tags": [
+        "rfc1918",
+        "192-net",
+        "router"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Alternative common router address",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-007",
+      "payload": "http://192.168.100.1/api",
+      "tags": [
+        "rfc1918",
+        "192-net"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "RFC1918 192.168.x API endpoint",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-008",
+      "payload": "http://172.16.0.1/",
+      "tags": [
+        "rfc1918",
+        "172-net",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "RFC1918 172.16.0.0/12 network gateway",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-009",
+      "payload": "http://172.16.10.10/",
+      "tags": [
+        "rfc1918",
+        "172-net"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "RFC1918 172.16.x internal address",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-010",
+      "payload": "http://172.31.255.254/",
+      "tags": [
+        "rfc1918",
+        "172-net"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "RFC1918 172.16-31.x high range address",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-011",
+      "payload": "http://127.0.0.1/",
+      "tags": [
+        "localhost",
+        "loopback",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Localhost loopback address",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-012",
+      "payload": "http://127.0.0.1:8080/",
+      "tags": [
+        "localhost",
+        "loopback",
+        "alt-port",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Localhost with common application port",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-013",
+      "payload": "http://127.0.1.1/",
+      "tags": [
+        "localhost",
+        "loopback"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Alternative loopback address (Ubuntu default)",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-014",
+      "payload": "http://localhost/",
+      "tags": [
+        "localhost",
+        "hostname",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Localhost by hostname",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-015",
+      "payload": "http://localhost:3000/api",
+      "tags": [
+        "localhost",
+        "hostname",
+        "alt-port"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Localhost with Node.js default port",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-016",
+      "payload": "http://169.254.169.254/",
+      "tags": [
+        "link-local",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Link-local address (AWS IMDS, Azure IMDS)",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-017",
+      "payload": "http://169.254.0.1/",
+      "tags": [
+        "link-local"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Link-local 169.254.0.0/16 range",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-018",
+      "payload": "http://0.0.0.0/",
+      "tags": [
+        "wildcard",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Wildcard address (can bind to all interfaces)",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-019",
+      "payload": "http://0.0.0.0:8080/",
+      "tags": [
+        "wildcard",
+        "alt-port"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Wildcard address with application port",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-020",
+      "payload": "http://[::]/",
+      "tags": [
+        "ipv6",
+        "wildcard"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IPv6 wildcard address",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-021",
+      "payload": "http://[fe80::1]/",
+      "tags": [
+        "ipv6",
+        "link-local"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "IPv6 link-local address",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-022",
+      "payload": "http://[fc00::1]/",
+      "tags": [
+        "ipv6",
+        "unique-local"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "IPv6 unique local address (fc00::/7)",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-023",
+      "payload": "http://[fd00::1]/",
+      "tags": [
+        "ipv6",
+        "unique-local"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "IPv6 unique local address (fd00::/8)",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-024",
+      "payload": "http://0x7f000001/",
+      "tags": ["hex-ip", "localhost", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Hex IP representation of 127.0.0.1",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-025",
+      "payload": "http://2130706433/",
+      "tags": ["decimal-ip", "localhost", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Decimal IP representation of 127.0.0.1",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-026",
+      "payload": "http://0177.0.0.1/",
+      "tags": ["octal-ip", "localhost", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Octal IP representation of 127.0.0.1",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-027",
+      "payload": "http://0x7f.0x0.0x0.0x1/",
+      "tags": ["hex-dotted", "localhost", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Dotted hex notation",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-028",
+      "payload": "http://127.1/",
+      "tags": ["short-ip", "localhost", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Short localhost notation",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-029",
+      "payload": "http://127.0.1/",
+      "tags": ["short-ip", "localhost", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Three-octet localhost notation",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-030",
+      "payload": "http://0/",
+      "tags": ["zero-ip", "localhost", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Zero as localhost",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-031",
+      "payload": "http://0.0.0.0/",
+      "tags": ["zero-ip", "all-interfaces"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "All interfaces address",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-032",
+      "payload": "http://[::ffff:127.0.0.1]/",
+      "tags": ["ipv6-mapped", "localhost", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IPv6 mapped IPv4 localhost",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-033",
+      "payload": "http://[0:0:0:0:0:ffff:127.0.0.1]/",
+      "tags": ["ipv6-mapped", "expanded", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Expanded IPv6 mapped localhost",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-034",
+      "payload": "http://localtest.me/",
+      "tags": ["dns-bypass", "localhost"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "DNS that resolves to 127.0.0.1",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-035",
+      "payload": "http://127.0.0.1.nip.io/",
+      "tags": ["dns-bypass", "wildcard-dns"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "nip.io wildcard DNS localhost",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-036",
+      "payload": "http://127.0.0.1.xip.io/",
+      "tags": ["dns-bypass", "wildcard-dns"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "xip.io wildcard DNS localhost",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-037",
+      "payload": "http://spoofed.burpcollaborator.net/",
+      "tags": ["dns-bypass", "collaborator"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Burp Collaborator DNS exfil",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-038",
+      "payload": "http://127.0.0.1:22/",
+      "tags": ["port-scan", "ssh"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Internal port scan - SSH",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-039",
+      "payload": "http://127.0.0.1:3306/",
+      "tags": ["port-scan", "mysql"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Internal port scan - MySQL",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-040",
+      "payload": "http://127.0.0.1:5432/",
+      "tags": ["port-scan", "postgres"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Internal port scan - PostgreSQL",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-041",
+      "payload": "http://127.0.0.1:6379/",
+      "tags": ["port-scan", "redis"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Internal port scan - Redis",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-042",
+      "payload": "http://127.0.0.1:27017/",
+      "tags": ["port-scan", "mongodb"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Internal port scan - MongoDB",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-043",
+      "payload": "http://127.0.0.1:9200/",
+      "tags": ["port-scan", "elasticsearch"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Internal port scan - Elasticsearch",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-044",
+      "payload": "http://127.0.0.1:11211/",
+      "tags": ["port-scan", "memcached"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Internal port scan - Memcached",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-045",
+      "payload": "dict://127.0.0.1:11211/",
+      "tags": ["protocol", "dict", "memcached"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Dict protocol to memcached",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-046",
+      "payload": "gopher://127.0.0.1:6379/_*1%0d%0a$8%0d%0aflushall%0d%0a",
+      "tags": ["protocol", "gopher", "redis-rce"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Gopher Redis RCE - flushall",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-047",
+      "payload": "gopher://127.0.0.1:3306/_%a5%00%00%01%85%a6%ff%01%00%00%00%01%21%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00root%00%00mysql_native_password",
+      "tags": ["protocol", "gopher", "mysql"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Gopher MySQL connection attempt",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-048",
+      "payload": "file:///etc/passwd",
+      "tags": ["protocol", "file", "lfi"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "File protocol read",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-049",
+      "payload": "file:///c:/windows/system32/config/sam",
+      "tags": ["protocol", "file", "windows"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "File protocol Windows SAM",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-050",
+      "payload": "ldap://127.0.0.1:389/",
+      "tags": ["protocol", "ldap"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "LDAP protocol internal",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-051",
+      "payload": "sftp://127.0.0.1/",
+      "tags": ["protocol", "sftp"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "SFTP protocol internal",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-052",
+      "payload": "tftp://127.0.0.1/",
+      "tags": ["protocol", "tftp"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "TFTP protocol internal",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-053",
+      "payload": "http://127。0。0。1/",
+      "tags": ["unicode-dot", "bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Unicode ideographic full stop (U+3002)",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-054",
+      "payload": "http://127%E3%80%820%E3%80%820%E3%80%821/",
+      "tags": ["unicode-dot", "encoded", "bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "URL-encoded Unicode dots",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-055",
+      "payload": "http://ⓛⓞⓒⓐⓛⓗⓞⓢⓣ/",
+      "tags": ["unicode-letters", "bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Circled letters spelling localhost",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-056",
+      "payload": "http://①②⑦.⓪.⓪.①/",
+      "tags": ["unicode-numbers", "bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Circled numbers for IP",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-057",
+      "payload": "http://localhost%00.evil.com/",
+      "tags": ["null-byte", "hostname-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Null byte hostname truncation",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-058",
+      "payload": "http://evil.com@127.0.0.1/",
+      "tags": ["url-confusion", "auth-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "URL authority confusion",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-059",
+      "payload": "http://127.0.0.1#@evil.com/",
+      "tags": ["url-confusion", "fragment"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Fragment-based URL confusion",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-NET-060",
+      "payload": "http://127.0.0.1%23@evil.com/",
+      "tags": ["url-confusion", "encoded-fragment"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Encoded fragment URL confusion",
+      "category": "SSRF"
+  }
+]

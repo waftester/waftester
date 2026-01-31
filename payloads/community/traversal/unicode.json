@@ -1,0 +1,134 @@
+[
+  {
+      "id": "TRV-UNI-001",
+      "payload": "..․/.․./.․./etc/passwd",
+      "tags": [
+        "unicode",
+        "dots",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Unicode one dot leader (U+2024)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNI-002",
+      "payload": "..︒..︒..︒etc︒passwd",
+      "tags": [
+        "unicode",
+        "separator",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Unicode presentation form for vertical two dot leader (U+FE52)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNI-003",
+      "payload": "．．／．．／．．／etc／passwd",
+      "tags": [
+        "unicode",
+        "fullwidth",
+        "unix",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Full-width period and solidus (U+FF0E, U+FF0F)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNI-004",
+      "payload": "..\\u2216..\\u2216..\\u2216etc\\u2216passwd",
+      "tags": [
+        "unicode",
+        "escape",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Unicode escape sequence for division slash",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNI-005",
+      "payload": "‥‥⁄‥‥⁄‥‥⁄etc⁄passwd",
+      "tags": [
+        "unicode",
+        "dots",
+        "fraction",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Two dot leader (U+2025) and fraction slash (U+2044)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNI-006",
+      "payload": "..⁄..⁄..⁄etc⁄passwd",
+      "tags": [
+        "unicode",
+        "fraction",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Fraction slash character (U+2044)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNI-007",
+      "payload": "..%u2215..%u2215..%u2215etc%u2215passwd",
+      "tags": [
+        "unicode",
+        "division",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Division slash (U+2215) with %u encoding",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNI-008",
+      "payload": "．．∕．．∕．．∕etc∕passwd",
+      "tags": [
+        "unicode",
+        "mixed",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Mixed full-width periods and division slash",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNI-009",
+      "payload": "../../../etc/passwd\u0000.jpg",
+      "tags": [
+        "unicode",
+        "null",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Unicode null character (U+0000) for extension bypass",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNI-010",
+      "payload": "..%c0%2e%c0%2e%c0%2fetc%c0%2fpasswd",
+      "tags": [
+        "unicode",
+        "overlong",
+        "mixed"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Mixed overlong and normal encoding",
+      "category": "Traversal"
+  }
+]

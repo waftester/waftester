@@ -1,0 +1,1028 @@
+[
+  {
+    "id": "REDIRECT-BASIC-001",
+    "payload": "GET /redirect?url=https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "basic", "phishing", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Basic open redirect to external domain",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BASIC-002",
+    "payload": "GET /redirect?url=http://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "basic", "phishing", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Open redirect with HTTP protocol",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BASIC-003",
+    "payload": "GET /redirect?url=//evil.com HTTP/1.1",
+    "tags": ["open-redirect", "protocol-relative", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Protocol-relative URL redirect",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BASIC-004",
+    "payload": "GET /redirect?next=https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "next-param", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Redirect via 'next' parameter",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BASIC-005",
+    "payload": "GET /redirect?return=https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "return-param", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Redirect via 'return' parameter",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BASIC-006",
+    "payload": "GET /redirect?returnUrl=https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "returnUrl-param", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Redirect via 'returnUrl' parameter",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BASIC-007",
+    "payload": "GET /redirect?redirect_uri=https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "redirect_uri", "oauth", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Redirect via 'redirect_uri' (OAuth style)",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BASIC-008",
+    "payload": "GET /redirect?continue=https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "continue-param", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Redirect via 'continue' parameter",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BASIC-009",
+    "payload": "GET /redirect?destination=https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "destination-param", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Redirect via 'destination' parameter",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BASIC-010",
+    "payload": "GET /redirect?goto=https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "goto-param", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Redirect via 'goto' parameter",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BYPASS-001",
+    "payload": "GET /redirect?url=https://legitimate.com@evil.com HTTP/1.1",
+    "tags": ["open-redirect", "at-sign-bypass", "url-parsing", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "@ symbol bypass - userinfo section abuse",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BYPASS-002",
+    "payload": "GET /redirect?url=https://evil.com#legitimate.com HTTP/1.1",
+    "tags": ["open-redirect", "fragment-bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Fragment bypass - legitimate domain in hash",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BYPASS-003",
+    "payload": "GET /redirect?url=https://evil.com?legitimate.com HTTP/1.1",
+    "tags": ["open-redirect", "query-bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Query string bypass - legitimate domain as param",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BYPASS-004",
+    "payload": "GET /redirect?url=https://legitimate.com.evil.com HTTP/1.1",
+    "tags": ["open-redirect", "subdomain-bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Subdomain bypass - lookalike domain",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BYPASS-005",
+    "payload": "GET /redirect?url=https://evil.com/legitimate.com HTTP/1.1",
+    "tags": ["open-redirect", "path-bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Path bypass - legitimate domain as path",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BYPASS-006",
+    "payload": "GET /redirect?url=https://evil.com\\@legitimate.com HTTP/1.1",
+    "tags": ["open-redirect", "backslash-bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Backslash @ bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BYPASS-007",
+    "payload": "GET /redirect?url=https://evil.com/%2F/legitimate.com HTTP/1.1",
+    "tags": ["open-redirect", "encoded-slash", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Encoded slash bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BYPASS-008",
+    "payload": "GET /redirect?url=https://legitimate.com%2F%2Fevil.com HTTP/1.1",
+    "tags": ["open-redirect", "double-encode", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Double-encoded slash bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BYPASS-009",
+    "payload": "GET /redirect?url=https:evil.com HTTP/1.1",
+    "tags": ["open-redirect", "missing-slash", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Missing double slash bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BYPASS-010",
+    "payload": "GET /redirect?url=https:/evil.com HTTP/1.1",
+    "tags": ["open-redirect", "single-slash", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Single slash bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BYPASS-011",
+    "payload": "GET /redirect?url=https:///evil.com HTTP/1.1",
+    "tags": ["open-redirect", "triple-slash", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Triple slash bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BYPASS-012",
+    "payload": "GET /redirect?url=\\/\\/evil.com HTTP/1.1",
+    "tags": ["open-redirect", "backslash-protocol", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Backslash protocol-relative bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BYPASS-013",
+    "payload": "GET /redirect?url=\\/evil.com HTTP/1.1",
+    "tags": ["open-redirect", "single-backslash", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Single backslash redirect",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BYPASS-014",
+    "payload": "GET /redirect?url=%2F%2Fevil.com HTTP/1.1",
+    "tags": ["open-redirect", "encoded-protocol-relative", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "URL-encoded protocol-relative",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BYPASS-015",
+    "payload": "GET /redirect?url=%252F%252Fevil.com HTTP/1.1",
+    "tags": ["open-redirect", "double-encoded", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Double URL-encoded protocol-relative",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BYPASS-016",
+    "payload": "GET /redirect?url=//evil%E3%80%82com HTTP/1.1",
+    "tags": ["open-redirect", "unicode-dot", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Unicode full-width dot bypass (U+3002)",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BYPASS-017",
+    "payload": "GET /redirect?url=https://evil。com HTTP/1.1",
+    "tags": ["open-redirect", "ideographic-dot", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Ideographic full stop bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BYPASS-018",
+    "payload": "GET /redirect?url=https://evil．com HTTP/1.1",
+    "tags": ["open-redirect", "fullwidth-dot", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Full-width full stop bypass (U+FF0E)",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BYPASS-019",
+    "payload": "GET /redirect?url=https://ⓔⓥⓘⓛ.com HTTP/1.1",
+    "tags": ["open-redirect", "circled-letters", "bypass", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Circled letters Unicode bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BYPASS-020",
+    "payload": "GET /redirect?url=https://evil%00.com HTTP/1.1",
+    "tags": ["open-redirect", "null-byte", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Null byte in domain bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-PROTOCOL-001",
+    "payload": "GET /redirect?url=javascript:alert(document.domain) HTTP/1.1",
+    "tags": ["open-redirect", "javascript", "xss", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "JavaScript protocol XSS via redirect",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-PROTOCOL-002",
+    "payload": "GET /redirect?url=javascript://evil.com/%0aalert(1) HTTP/1.1",
+    "tags": ["open-redirect", "javascript", "xss", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "JavaScript with comment bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-PROTOCOL-003",
+    "payload": "GET /redirect?url=data:text/html,<script>alert(1)</script> HTTP/1.1",
+    "tags": ["open-redirect", "data-uri", "xss", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Data URI XSS via redirect",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-PROTOCOL-004",
+    "payload": "GET /redirect?url=data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg== HTTP/1.1",
+    "tags": ["open-redirect", "data-uri", "base64", "xss", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Base64 data URI XSS",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-PROTOCOL-005",
+    "payload": "GET /redirect?url=vbscript:msgbox(1) HTTP/1.1",
+    "tags": ["open-redirect", "vbscript", "ie", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "VBScript protocol (IE specific)",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-PROTOCOL-006",
+    "payload": "GET /redirect?url=file:///etc/passwd HTTP/1.1",
+    "tags": ["open-redirect", "file-protocol", "lfi", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "File protocol for local file access",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-PROTOCOL-007",
+    "payload": "GET /redirect?url=file://evil.com/share HTTP/1.1",
+    "tags": ["open-redirect", "file-protocol", "unc", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "File protocol with UNC path",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-CASE-001",
+    "payload": "GET /redirect?url=HTTPS://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "case-variation", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Uppercase protocol bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-CASE-002",
+    "payload": "GET /redirect?url=HtTpS://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "mixed-case", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Mixed case protocol bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-CASE-003",
+    "payload": "GET /redirect?url=JAVASCRIPT:alert(1) HTTP/1.1",
+    "tags": ["open-redirect", "javascript", "uppercase", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Uppercase JavaScript protocol",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-WHITESPACE-001",
+    "payload": "GET /redirect?url=%20https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "leading-space", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Leading space bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-WHITESPACE-002",
+    "payload": "GET /redirect?url=%09https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "tab", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Leading tab character bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-WHITESPACE-003",
+    "payload": "GET /redirect?url=%0ahttps://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "newline", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Leading newline bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-WHITESPACE-004",
+    "payload": "GET /redirect?url=https://evil.com%20 HTTP/1.1",
+    "tags": ["open-redirect", "trailing-space", "bypass", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Trailing space bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-IP-001",
+    "payload": "GET /redirect?url=http://167772161 HTTP/1.1",
+    "tags": ["open-redirect", "decimal-ip", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Decimal IP address (10.0.0.1)",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-IP-002",
+    "payload": "GET /redirect?url=http://0x0a.0x00.0x00.0x01 HTTP/1.1",
+    "tags": ["open-redirect", "hex-ip", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Hexadecimal IP octets",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-IP-003",
+    "payload": "GET /redirect?url=http://0x0a000001 HTTP/1.1",
+    "tags": ["open-redirect", "hex-ip", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Hexadecimal IP combined",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-IP-004",
+    "payload": "GET /redirect?url=http://012.0.0.1 HTTP/1.1",
+    "tags": ["open-redirect", "octal-ip", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Octal IP address",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-IP-005",
+    "payload": "GET /redirect?url=http://[::ffff:10.0.0.1] HTTP/1.1",
+    "tags": ["open-redirect", "ipv6-mapped", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "IPv6-mapped IPv4 address",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-IP-006",
+    "payload": "GET /redirect?url=http://[::1] HTTP/1.1",
+    "tags": ["open-redirect", "ipv6-localhost", "bypass", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "IPv6 localhost",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-OAUTH-001",
+    "payload": "GET /oauth/authorize?client_id=app&redirect_uri=https://evil.com/callback HTTP/1.1",
+    "tags": ["open-redirect", "oauth", "token-theft", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "OAuth redirect_uri manipulation",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-OAUTH-002",
+    "payload": "GET /oauth/authorize?client_id=app&redirect_uri=https://legitimate.com@evil.com HTTP/1.1",
+    "tags": ["open-redirect", "oauth", "at-sign", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "OAuth @ bypass for token theft",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-OAUTH-003",
+    "payload": "GET /oauth/authorize?client_id=app&redirect_uri=https://legitimate.com%2F@evil.com HTTP/1.1",
+    "tags": ["open-redirect", "oauth", "encoded-at", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "OAuth encoded slash + @ bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-OAUTH-004",
+    "payload": "GET /oauth/callback?code=AUTH_CODE&state=xyz HTTP/1.1\r\nReferer: https://evil.com/",
+    "tags": ["open-redirect", "oauth", "referer-leak", "high"],
+    "expected_block": false,
+    "severity_hint": "High",
+    "notes": "OAuth code leak via Referer header",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-SAML-001",
+    "payload": "GET /saml/login?RelayState=https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "saml", "relaystate", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "SAML RelayState open redirect",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-SAML-002",
+    "payload": "POST /saml/acs HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\nSAMLResponse=...&RelayState=https://evil.com",
+    "tags": ["open-redirect", "saml", "post", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "SAML POST RelayState redirect",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-SSO-001",
+    "payload": "GET /sso/login?service=https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "sso", "cas", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CAS SSO service parameter redirect",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-SSO-002",
+    "payload": "GET /sso/logout?redirect=https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "sso", "logout", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "SSO logout redirect",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-LOGIN-001",
+    "payload": "GET /login?next=https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "login", "post-auth", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Post-login redirect manipulation",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-LOGIN-002",
+    "payload": "POST /login HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\nusername=admin&password=pass&redirect=https://evil.com",
+    "tags": ["open-redirect", "login", "post", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Hidden redirect field in login form",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-LOGOUT-001",
+    "payload": "GET /logout?redirect=https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "logout", "phishing", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Post-logout redirect to phishing",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-HEADER-001",
+    "payload": "GET / HTTP/1.1\r\nHost: legitimate.com\r\nX-Forwarded-Host: evil.com",
+    "tags": ["open-redirect", "host-header", "cache-poison", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Host header redirect via X-Forwarded-Host",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-HEADER-002",
+    "payload": "GET / HTTP/1.1\r\nHost: evil.com",
+    "tags": ["open-redirect", "host-header", "direct", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Direct Host header manipulation",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-HEADER-003",
+    "payload": "GET / HTTP/1.1\r\nHost: legitimate.com\r\nX-Original-URL: https://evil.com",
+    "tags": ["open-redirect", "x-original-url", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "X-Original-URL header redirect",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-META-001",
+    "payload": "<meta http-equiv=\"refresh\" content=\"0;url=https://evil.com\">",
+    "tags": ["open-redirect", "meta-refresh", "html", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Meta refresh redirect (stored XSS context)",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-JS-001",
+    "payload": "<script>window.location='https://evil.com'</script>",
+    "tags": ["open-redirect", "javascript", "dom", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "JavaScript window.location redirect",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-JS-002",
+    "payload": "<script>document.location.href='https://evil.com'</script>",
+    "tags": ["open-redirect", "javascript", "dom", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "JavaScript document.location redirect",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-JS-003",
+    "payload": "<script>location.replace('https://evil.com')</script>",
+    "tags": ["open-redirect", "javascript", "replace", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "JavaScript location.replace redirect",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-PATH-001",
+    "payload": "GET /https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "path-prefix", "bypass", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "URL as path prefix",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-PATH-002",
+    "payload": "GET /redirect/https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "path-segment", "bypass", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "URL in path segment",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-FRAGMENT-001",
+    "payload": "GET /page#https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "fragment", "dom-based", "high"],
+    "expected_block": false,
+    "severity_hint": "High",
+    "notes": "DOM-based redirect via fragment",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-ENCODED-001",
+    "payload": "GET /redirect?url=%68%74%74%70%73%3a%2f%2f%65%76%69%6c%2e%63%6f%6d HTTP/1.1",
+    "tags": ["open-redirect", "url-encoded", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Fully URL-encoded redirect",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-ENCODED-002",
+    "payload": "GET /redirect?url=aHR0cHM6Ly9ldmlsLmNvbQ== HTTP/1.1",
+    "tags": ["open-redirect", "base64", "encoded", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Base64-encoded redirect URL",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-ENCODED-003",
+    "payload": "GET /redirect?url=%2568%2574%2574%2570%253a%252f%252f%2565%2576%2569%256c%252e%2563%256f%256d HTTP/1.1",
+    "tags": ["open-redirect", "double-encoded", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Double URL-encoded redirect",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-CHAIN-001",
+    "payload": "GET /redirect?url=https://legitimate.com/redirect?url=https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "chain", "multi-hop", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Redirect chain through legitimate site",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-CHAIN-002",
+    "payload": "GET /redirect?url=https://www.google.com/url?q=https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "google-redirect", "chain", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Chain through Google redirect",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-SHORTENER-001",
+    "payload": "GET /redirect?url=https://bit.ly/evillink HTTP/1.1",
+    "tags": ["open-redirect", "url-shortener", "obfuscation", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "URL shortener obfuscation",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-IDN-001",
+    "payload": "GET /redirect?url=https://еvil.com HTTP/1.1",
+    "tags": ["open-redirect", "idn", "homograph", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "IDN homograph attack (Cyrillic 'е')",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-IDN-002",
+    "payload": "GET /redirect?url=https://xn--vil-8na.com HTTP/1.1",
+    "tags": ["open-redirect", "punycode", "idn", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Punycode encoded IDN domain",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-PORT-001",
+    "payload": "GET /redirect?url=https://evil.com:443 HTTP/1.1",
+    "tags": ["open-redirect", "port", "bypass", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Explicit port number in redirect",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-PORT-002",
+    "payload": "GET /redirect?url=https://evil.com:8443 HTTP/1.1",
+    "tags": ["open-redirect", "alt-port", "bypass", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Alternative HTTPS port redirect",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-AUTH-001",
+    "payload": "GET /redirect?url=https://user:pass@evil.com HTTP/1.1",
+    "tags": ["open-redirect", "credentials", "userinfo", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Credentials in URL (basic auth bypass)",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-CRLF-001",
+    "payload": "GET /redirect?url=https://legitimate.com%0d%0aLocation:%20https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "crlf", "header-injection", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CRLF injection for Location header override",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-ARRAY-001",
+    "payload": "GET /redirect?url[]=https://legitimate.com&url[]=https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "array", "parameter-pollution", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Array parameter pollution",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-ARRAY-002",
+    "payload": "GET /redirect?url=https://legitimate.com&url=https://evil.com HTTP/1.1",
+    "tags": ["open-redirect", "hpp", "duplicate-param", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "HTTP Parameter Pollution",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-SPECIAL-001",
+    "payload": "GET /redirect?url=https://evil.com/%2e%2e HTTP/1.1",
+    "tags": ["open-redirect", "dot-segment", "bypass", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Encoded dot segments in path",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-SPECIAL-002",
+    "payload": "GET /redirect?url=https://evil.com/./path/../final HTTP/1.1",
+    "tags": ["open-redirect", "path-normalization", "bypass", "high"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Path normalization dots",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-WILDCARD-001",
+    "payload": "GET /redirect?url=https://*.legitimate.com.evil.com HTTP/1.1",
+    "tags": ["open-redirect", "wildcard-abuse", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Wildcard subdomain abuse",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-UNICODE-001",
+    "payload": "GET /redirect?url=//google%E3%80%82com HTTP/1.1",
+    "tags": ["open-redirect", "unicode", "fullwidth-dot", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Unicode fullwidth dot bypass (%E3%80%82 = 。)",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-UNICODE-002",
+    "payload": "GET /redirect?url=〱google.com HTTP/1.1",
+    "tags": ["open-redirect", "unicode", "ideograph", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Unicode ideograph repeat mark bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-UNICODE-003",
+    "payload": "GET /redirect?url=〵google.com HTTP/1.1",
+    "tags": ["open-redirect", "unicode", "ideograph", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Unicode vertical ideograph bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-UNICODE-004",
+    "payload": "GET /redirect?url=ゝgoogle.com HTTP/1.1",
+    "tags": ["open-redirect", "unicode", "katakana", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Katakana iteration mark bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-UNICODE-005",
+    "payload": "GET /redirect?url=ーgoogle.com HTTP/1.1",
+    "tags": ["open-redirect", "unicode", "katakana-dash", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Katakana-Hiragana prolonged sound mark bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-UNICODE-006",
+    "payload": "GET /redirect?url=ｰgoogle.com HTTP/1.1",
+    "tags": ["open-redirect", "unicode", "halfwidth", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Halfwidth Katakana sound mark bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-UNICODE-007",
+    "payload": "GET /redirect?url=https://evil.c℀.example.com HTTP/1.1",
+    "tags": ["open-redirect", "unicode", "normalization", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Unicode normalization Host/Split attack (℀ -> a/c)",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-UNICODE-008",
+    "payload": "GET /redirect?url=http://a.com／X.b.com HTTP/1.1",
+    "tags": ["open-redirect", "unicode", "fullwidth-slash", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Unicode fullwidth slash normalization bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-CRLF-003",
+    "payload": "GET /redirect?url=java%0d%0ascript%0d%0a:alert(0) HTTP/1.1",
+    "tags": ["open-redirect", "crlf", "javascript-bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CRLF bypass for javascript keyword (HTTP request)",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-CRLF-004",
+    "payload": "GET /redirect?url=%E5%98%8A%E5%98%8Djavascript:alert(1) HTTP/1.1",
+    "tags": ["open-redirect", "utf8-crlf", "firefox-bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "UTF-8 CRLF bypass (嘊嘍 stripped to 0A0D in Firefox)",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BACKSLASH-001",
+    "payload": "GET /redirect?url=/\\/example.com HTTP/1.1",
+    "tags": ["open-redirect", "backslash", "slash-mix", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Mixed backslash forward slash bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-BACKSLASH-002",
+    "payload": "GET /redirect?url=\\/\\/example.com HTTP/1.1",
+    "tags": ["open-redirect", "backslash", "protocol-relative", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Backslash protocol-relative bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-TAB-001",
+    "payload": "GET /redirect?url=/%09/example.com HTTP/1.1",
+    "tags": ["open-redirect", "tab", "whitespace", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Tab character whitespace bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-NULL-001",
+    "payload": "GET /redirect?url=//google%00.com HTTP/1.1",
+    "tags": ["open-redirect", "null-byte", "truncation", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Null byte domain truncation bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-SEMICOLON-001",
+    "payload": "GET /redirect?url=///\\;@example.com HTTP/1.1",
+    "tags": ["open-redirect", "semicolon", "userinfo", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Semicolon with userinfo section bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-JSURI-001",
+    "payload": "GET /redirect?url=javascript://www.whitelisted.com?%a0alert%281%29 HTTP/1.1",
+    "tags": ["open-redirect", "javascript-uri", "comment", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "JavaScript URI with comment and whitelisted domain",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-HEX-001",
+    "payload": "GET /redirect?url=http://%67%6f%6f%67%6c%65%2e%63%6f%6d HTTP/1.1",
+    "tags": ["open-redirect", "hex-encoded", "domain", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Fully hex-encoded domain bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-HEX-002",
+    "payload": "GET /redirect?url=%68%74%74%70%3a%2f%2f%67%6f%6f%67%6c%65%2e%63%6f%6d HTTP/1.1",
+    "tags": ["open-redirect", "hex-encoded", "full-url", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Fully hex-encoded URL bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-IPENC-001",
+    "payload": "GET /redirect?url=http://0xd8.0x3a.0xd6.0xce HTTP/1.1",
+    "tags": ["open-redirect", "hex-ip", "encoding", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Hex-encoded IP address bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-IPENC-002",
+    "payload": "GET /redirect?url=http://3627734734 HTTP/1.1",
+    "tags": ["open-redirect", "decimal-ip", "dword", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Decimal (DWORD) IP address bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-IPENC-003",
+    "payload": "GET /redirect?url=http://0330.072.0326.0316 HTTP/1.1",
+    "tags": ["open-redirect", "octal-ip", "encoding", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Octal IP address bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-IPENC-004",
+    "payload": "GET /redirect?url=http://[::216.58.214.206] HTTP/1.1",
+    "tags": ["open-redirect", "ipv6", "mapped", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "IPv6-mapped IPv4 address bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-IPENC-005",
+    "payload": "GET /redirect?url=http://[::ffff:216.58.214.206] HTTP/1.1",
+    "tags": ["open-redirect", "ipv6", "ffff-mapped", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "IPv6 ::ffff: mapped IPv4 bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-USERINFO-001",
+    "payload": "GET /redirect?url=http://whitelisted.tld@0xd8.072.54990 HTTP/1.1",
+    "tags": ["open-redirect", "userinfo", "hex-octal-ip", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Userinfo with hex/octal mixed IP bypass",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-PUNYCODE-001",
+    "payload": "GET /redirect?url=http://xn--ypal-43d9g.com HTTP/1.1",
+    "tags": ["open-redirect", "punycode", "idn", "homograph", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Punycode IDN homograph bypass (looks like paypal)",
+    "category": "Auth"
+  },
+  {
+    "id": "REDIRECT-DBLENC-001",
+    "payload": "GET /redirect?url=https%253A%252F%252Fevil.com HTTP/1.1",
+    "tags": ["open-redirect", "double-encoded", "bypass", "critical"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Double URL encoding bypass",
+    "category": "Auth"
+  }
+]

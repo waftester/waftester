@@ -1,0 +1,740 @@
+[
+  {
+      "id": "FUZZ-CHAR-001",
+      "payload": "%00",
+      "tags": ["null-byte", "injection", "quick"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Null byte injection",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-CHAR-002",
+      "payload": "%0a",
+      "tags": ["newline", "crlf"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Line feed injection",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-CHAR-003",
+      "payload": "%0d",
+      "tags": ["carriage-return", "crlf"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Carriage return injection",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-CHAR-004",
+      "payload": "%0d%0a",
+      "tags": ["crlf", "header-injection"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "CRLF sequence",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-CHAR-005",
+      "payload": "%7f",
+      "tags": ["del", "control-char"],
+      "expected_block": true,
+      "severity_hint": "Low",
+      "notes": "DEL control character",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-CHAR-006",
+      "payload": "%ff",
+      "tags": ["high-byte", "binary"],
+      "expected_block": true,
+      "severity_hint": "Low",
+      "notes": "High byte injection",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-CHAR-007",
+      "payload": "\\t",
+      "tags": ["tab", "whitespace"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Tab character",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-CHAR-008",
+      "payload": "\\n",
+      "tags": ["newline", "escape"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Escaped newline",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-CHAR-009",
+      "payload": "\\r",
+      "tags": ["carriage-return", "escape"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Escaped carriage return",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-CHAR-010",
+      "payload": "\\0",
+      "tags": ["null", "escape"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Escaped null",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-META-001",
+      "payload": "<>\"'%;)(&+",
+      "tags": ["metachar", "mixed", "quick"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Mixed metacharacters",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-META-002",
+      "payload": "!@#$%^&*()",
+      "tags": ["metachar", "special"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Common special characters",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-META-003",
+      "payload": "|",
+      "tags": ["pipe", "command"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Pipe character",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-META-004",
+      "payload": "||",
+      "tags": ["double-pipe", "or"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Double pipe OR",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-META-005",
+      "payload": "&",
+      "tags": ["ampersand", "command"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Ampersand character",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-META-006",
+      "payload": "&&",
+      "tags": ["double-ampersand", "and"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Double ampersand AND",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-META-007",
+      "payload": ";",
+      "tags": ["semicolon", "command"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Semicolon command separator",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-META-008",
+      "payload": "`",
+      "tags": ["backtick", "command"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Backtick command substitution",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-META-009",
+      "payload": "$(",
+      "tags": ["command-sub", "bash"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Command substitution",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-META-010",
+      "payload": "${",
+      "tags": ["variable", "expansion"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Variable expansion",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-META-011",
+      "payload": "#",
+      "tags": ["comment", "shell"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Shell comment",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-META-012",
+      "payload": "--",
+      "tags": ["comment", "sql"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "SQL comment",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-META-013",
+      "payload": "/**/",
+      "tags": ["comment", "multi-line"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Multi-line comment",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-META-014",
+      "payload": "//",
+      "tags": ["comment", "single-line"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Single-line comment",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-META-015",
+      "payload": "\\",
+      "tags": ["backslash", "escape"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Backslash escape",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-FORMAT-001",
+      "payload": "%s%s%s%s%s",
+      "tags": ["format-string", "string", "quick"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "String format specifiers",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-FORMAT-002",
+      "payload": "%x%x%x%x%x",
+      "tags": ["format-string", "hex"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Hex format specifiers",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-FORMAT-003",
+      "payload": "%n%n%n%n%n",
+      "tags": ["format-string", "write"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Write format specifiers",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-FORMAT-004",
+      "payload": "%p%p%p%p%p",
+      "tags": ["format-string", "pointer"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Pointer format specifiers",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-FORMAT-005",
+      "payload": "%d%d%d%d%d",
+      "tags": ["format-string", "integer"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Integer format specifiers",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-FORMAT-006",
+      "payload": "%08x.%08x.%08x.%08x",
+      "tags": ["format-string", "padded"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Padded hex format",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-FORMAT-007",
+      "payload": "AAAA%08x.%08x.%08x.%08x",
+      "tags": ["format-string", "marker"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Format string with marker",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-BOUNDARY-001",
+      "payload": "-1",
+      "tags": ["integer", "negative"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Negative integer",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-BOUNDARY-002",
+      "payload": "0",
+      "tags": ["integer", "zero"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Zero value",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-BOUNDARY-003",
+      "payload": "2147483647",
+      "tags": ["integer", "max-int32"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Max 32-bit signed integer",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-BOUNDARY-004",
+      "payload": "2147483648",
+      "tags": ["integer", "overflow"],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Integer overflow",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-BOUNDARY-005",
+      "payload": "-2147483648",
+      "tags": ["integer", "min-int32"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Min 32-bit signed integer",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-BOUNDARY-006",
+      "payload": "-2147483649",
+      "tags": ["integer", "underflow"],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Integer underflow",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-BOUNDARY-007",
+      "payload": "9999999999999999999999999999",
+      "tags": ["integer", "large"],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Very large integer",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-BOUNDARY-008",
+      "payload": "0xFFFFFFFF",
+      "tags": ["integer", "hex-max"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Hex max uint32",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-BOUNDARY-009",
+      "payload": "1e308",
+      "tags": ["float", "large"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Large float exponent",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-BOUNDARY-010",
+      "payload": "1e-308",
+      "tags": ["float", "small"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Small float exponent",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-NULL-001",
+      "payload": "NULL",
+      "tags": ["null", "string"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "NULL string",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-NULL-002",
+      "payload": "null",
+      "tags": ["null", "lowercase"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "null string",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-NULL-003",
+      "payload": "(null)",
+      "tags": ["null", "pointer"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Null pointer representation",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-NULL-004",
+      "payload": "nil",
+      "tags": ["null", "ruby"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Ruby nil value",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-NULL-005",
+      "payload": "None",
+      "tags": ["null", "python"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Python None value",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-NULL-006",
+      "payload": "undefined",
+      "tags": ["null", "javascript"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "JavaScript undefined",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-NULL-007",
+      "payload": "NaN",
+      "tags": ["nan", "number"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Not a Number",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-NULL-008",
+      "payload": "Infinity",
+      "tags": ["infinity", "number"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Infinity value",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-BOOL-001",
+      "payload": "true",
+      "tags": ["boolean", "true"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Boolean true",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-BOOL-002",
+      "payload": "false",
+      "tags": ["boolean", "false"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Boolean false",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-BOOL-003",
+      "payload": "TRUE",
+      "tags": ["boolean", "uppercase"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Uppercase TRUE",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-BOOL-004",
+      "payload": "FALSE",
+      "tags": ["boolean", "uppercase"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Uppercase FALSE",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-BOOL-005",
+      "payload": "1",
+      "tags": ["boolean", "numeric-true"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Numeric true",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-BOOL-006",
+      "payload": "0",
+      "tags": ["boolean", "numeric-false"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Numeric false",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-LONG-001",
+      "payload": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "tags": ["buffer", "long-string", "quick"],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "100 A's buffer test",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-LONG-002",
+      "payload": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "tags": ["buffer", "1k-string"],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "1000 character string",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-LONG-003",
+      "payload": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "tags": ["buffer", "10k-string"],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "1000 character string (reduced from 10k for JSON compatibility)",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-UNICODE-001",
+      "payload": "Ā",
+      "tags": ["unicode", "latin-ext"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Latin extended A",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-UNICODE-002",
+      "payload": "中文",
+      "tags": ["unicode", "cjk"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Chinese characters",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-UNICODE-003",
+      "payload": "العربية",
+      "tags": ["unicode", "arabic", "rtl"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Arabic RTL text",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-UNICODE-004",
+      "payload": "𝕳𝖊𝖑𝖑𝖔",
+      "tags": ["unicode", "gothic"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Gothic mathematical symbols",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-UNICODE-005",
+      "payload": "🔥💉🐛",
+      "tags": ["unicode", "emoji"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Emoji characters",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-UNICODE-006",
+      "payload": "‮RLO",
+      "tags": ["unicode", "bidi", "override"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Right-to-Left Override",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-UNICODE-007",
+      "payload": "‭LRO",
+      "tags": ["unicode", "bidi", "override"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Left-to-Right Override",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-UNICODE-008",
+      "payload": "­",
+      "tags": ["unicode", "soft-hyphen"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Soft hyphen (invisible)",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-UNICODE-009",
+      "payload": "​",
+      "tags": ["unicode", "zwsp"],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Zero-width space",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-UNICODE-010",
+      "payload": "‌",
+      "tags": ["unicode", "zwnj"],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Zero-width non-joiner",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-EMPTY-001",
+      "payload": "",
+      "tags": ["empty", "string"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Empty string",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-EMPTY-002",
+      "payload": "   ",
+      "tags": ["whitespace", "only"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Whitespace only",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-EMPTY-003",
+      "payload": "\\t\\n\\r",
+      "tags": ["whitespace", "control"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Control characters only",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-JSON-001",
+      "payload": "{}",
+      "tags": ["json", "empty-object"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Empty JSON object",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-JSON-002",
+      "payload": "[]",
+      "tags": ["json", "empty-array"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Empty JSON array",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-JSON-003",
+      "payload": "{\"__proto__\": {}}",
+      "tags": ["json", "prototype-pollution"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Prototype pollution attempt",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-JSON-004",
+      "payload": "{\"constructor\": {\"prototype\": {}}}",
+      "tags": ["json", "prototype-pollution"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Constructor prototype pollution",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-JSON-005",
+      "payload": "{\"a\": {\"b\": {\"c\": {\"d\": {\"e\": {}}}}}}",
+      "tags": ["json", "deep-nesting"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Deeply nested JSON",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-XML-001",
+      "payload": "<?xml version=\"1.0\"?>",
+      "tags": ["xml", "declaration"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "XML declaration",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-XML-002",
+      "payload": "<!DOCTYPE test>",
+      "tags": ["xml", "doctype"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "DOCTYPE declaration",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-XML-003",
+      "payload": "<![CDATA[]]>",
+      "tags": ["xml", "cdata"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Empty CDATA section",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-XML-004",
+      "payload": "<!---->",
+      "tags": ["xml", "comment"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Empty XML comment",
+      "category": "Fuzz"
+  },
+  {
+      "id": "FUZZ-XML-005",
+      "payload": "&amp;&lt;&gt;&quot;&apos;",
+      "tags": ["xml", "entities"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "XML entities",
+      "category": "Fuzz"
+  }
+]

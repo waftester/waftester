@@ -1,0 +1,403 @@
+[
+  {
+      "id": "CACHE-POISON-001",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-Forwarded-Proto: https\r\nX-Forwarded-Proto: http\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "duplicate-headers",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Duplicate X-Forwarded-Proto header to poison cache key",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-002",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-FORWARDED-PROTO: javascript:alert(1)\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "header-case",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Case variation of X-Forwarded-Proto with malicious value",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-003",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nAccept-Encoding: gzip\r\nAccept-Encoding: identity, <script>alert(1)</script>\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "accept-encoding"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Duplicate Accept-Encoding with XSS payload",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-004",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-Original-URL: /admin/delete\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "unkeyed-header",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "X-Original-URL unkeyed header to poison cache with different route",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-005",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-Rewrite-URL: /../admin\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "unkeyed-header"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "X-Rewrite-URL with path traversal",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-006",
+      "payload": "GET /api/data?callback=alert(1) HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "query-param",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JSONP callback parameter with XSS payload",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-007",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-Forwarded-Host: evil.com\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "host-header",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "X-Forwarded-Host poisoning to inject evil domain",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-008",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-Forwarded-Scheme: javascript\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "scheme-injection"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "X-Forwarded-Scheme with javascript protocol",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-009",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-HTTP-Method-Override: DELETE\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "method-override",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Method override header to poison cache with DELETE semantics",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-010",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-Method-Override: PUT\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "method-override"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "X-Method-Override to change cached method semantics",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-011",
+      "payload": "GET /api/data?utm_content=<script>alert(1)</script> HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "utm-params"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "UTM parameter with XSS payload (often unkeyed)",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-012",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nTranslate: <script>alert(1)</script>\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "rare-header"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Translate header (WebDAV) with XSS payload",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-013",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-Forwarded-Prefix: /xss'><script>alert(1)</script>\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "prefix-injection"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "X-Forwarded-Prefix with XSS payload",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-014",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-Custom-IP-Authorization: 127.0.0.1\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "auth-bypass"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Custom IP authorization header to poison cache with admin access",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-015",
+      "payload": "GET /api/data?_=<img src=x onerror=alert(1)> HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "cache-buster",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Cache buster parameter with XSS payload",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-016",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-Forwarded-Port: 8080<script>alert(1)</script>\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "port-injection"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "X-Forwarded-Port with XSS payload",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-017",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nAccept-Language: en-US<script>alert(1)</script>\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "language-header"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Accept-Language with XSS payload (sometimes unkeyed)",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-018",
+      "payload": "GET /api/data?version=1.0&version=<script>alert(1)</script> HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "duplicate-params"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Duplicate query parameters with XSS in second occurrence",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-019",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-Amz-Website-Redirect-Location: javascript:alert(1)\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "aws-header"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "AWS S3 redirect header with javascript protocol",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-020",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-Original-Url: /admin\r\nX-Rewrite-Url: /public\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "conflicting-headers",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Conflicting URL rewrite headers to confuse cache/origin",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-021",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-Forwarded-Proto: http\r\nX-Forwarded-Ssl: on\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "protocol-confusion"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Conflicting protocol headers (http vs SSL on)",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-022",
+      "payload": "GET /api/data?callback=jQuery<script>alert(1)</script> HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "jsonp-injection"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JSONP callback with injected script tags",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-023",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nUser-Agent: Mozilla/5.0<script>alert(1)</script>\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "user-agent"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "User-Agent header with XSS payload (if used in cache key)",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-024",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nReferer: https://evil.com/<script>alert(1)</script>\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "referer"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Referer header with XSS payload",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-025",
+      "payload": "GET /api/data?%3Finjected=1 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "encoding-bypass",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "URL-encoded question mark to inject extra query parameters",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-026",
+      "payload": "GET /api/data?utm_source=test&%26injected=<script>alert(1)</script> HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "ampersand-encoding"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "URL-encoded ampersand to inject parameter after cache key calculation",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-027",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-Forwarded-For: 127.0.0.1, <script>alert(1)</script>\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "xff-injection"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "X-Forwarded-For with XSS payload after valid IP",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-028",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nCookie: session=abc123; injected=<script>alert(1)</script>\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "cookie-injection"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Cookie with XSS payload (if cookies included in cache key)",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-029",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-Edge-Location: <script>alert(1)</script>\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "cdn-header"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "CDN-specific header with XSS payload",
+      "destructive": false,
+      "category": "Cache"
+  },
+  {
+      "id": "CACHE-POISON-030",
+      "payload": "GET /api/data HTTP/1.1\r\nHost: target.com\r\nX-Host: evil.com:80@target.com\r\n\r\n",
+      "tags": [
+        "cache-poisoning",
+        "host-confusion",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "X-Host header with credential-style host confusion",
+      "destructive": false,
+      "category": "Cache"
+  }
+]

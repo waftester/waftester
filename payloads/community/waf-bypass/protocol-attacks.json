@@ -1,0 +1,101 @@
+[
+  {
+    "id": "SMUG-CLTE-001",
+    "payload": "POST / HTTP/1.1\r\nHost: target.com\r\nContent-Length: 13\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nGPOST /admin",
+    "category": "Protocol",
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "tags": ["smuggling", "cl-te", "desync"],
+    "notes": "CL.TE request smuggling - frontend uses CL, backend uses TE"
+  },
+  {
+    "id": "SMUG-CLTE-002",
+    "payload": "POST / HTTP/1.1\r\nHost: target.com\r\nContent-Length: 6\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nX",
+    "category": "Protocol",
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "tags": ["smuggling", "cl-te"],
+    "notes": "Minimal CL.TE smuggling probe for desync detection"
+  },
+  {
+    "id": "SMUG-TECL-001",
+    "payload": "POST / HTTP/1.1\r\nHost: target.com\r\nContent-Length: 3\r\nTransfer-Encoding: chunked\r\n\r\n8\r\nSMUGGLED\r\n0\r\n\r\n",
+    "category": "Protocol",
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "tags": ["smuggling", "te-cl", "desync"],
+    "notes": "TE.CL request smuggling - frontend uses TE, backend uses CL"
+  },
+  {
+    "id": "SMUG-TETE-001",
+    "payload": "POST / HTTP/1.1\r\nHost: target.com\r\nTransfer-Encoding: chunked\r\nTransfer-Encoding: identity\r\n\r\n5\r\nHello\r\n0\r\n\r\n",
+    "category": "Protocol",
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "tags": ["smuggling", "te-te"],
+    "notes": "TE.TE with duplicate headers - different server interpretations"
+  },
+  {
+    "id": "HEADER-INJECT-001",
+    "payload": "X-Forwarded-For: 127.0.0.1\r\nX-Real-IP: 127.0.0.1",
+    "category": "Protocol",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["header", "ip-spoofing"],
+    "notes": "IP spoofing via X-Forwarded-For"
+  },
+  {
+    "id": "HEADER-INJECT-002",
+    "payload": "X-Forwarded-Host: evil.com",
+    "category": "Protocol",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["header", "host-header"],
+    "notes": "Host header injection for cache poisoning and password reset attacks"
+  },
+  {
+    "id": "PROTO-CRLF-001",
+    "payload": "value%0d%0aX-Injected: malicious",
+    "category": "Protocol",
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "tags": ["crlf", "header-injection"],
+    "notes": "CRLF injection to inject arbitrary HTTP headers"
+  },
+  {
+    "id": "WS-UPGRADE-001",
+    "payload": "GET /ws HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+    "category": "Protocol",
+    "expected_block": false,
+    "severity_hint": "Medium",
+    "tags": ["websocket", "upgrade"],
+    "notes": "Legitimate WebSocket upgrade - test WAF handling"
+  },
+  {
+    "id": "WS-SMUGGLE-001",
+    "payload": "GET /socket HTTP/1.1\r\nUpgrade: websocket\r\nConnection: keep-alive, Upgrade",
+    "category": "Protocol",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["websocket", "smuggling"],
+    "notes": "WebSocket connection smuggling attempt"
+  },
+  {
+    "id": "METHOD-OVERRIDE-001",
+    "payload": "X-HTTP-Method-Override: DELETE",
+    "category": "Protocol",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["method-override", "header"],
+    "notes": "HTTP method override via X-HTTP-Method-Override header to bypass access controls"
+  },
+  {
+    "id": "METHOD-OVERRIDE-002",
+    "payload": "_method=DELETE",
+    "category": "Protocol",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["method-override", "parameter"],
+    "notes": "Rails/Laravel-style _method parameter to override HTTP verb"
+  }
+]

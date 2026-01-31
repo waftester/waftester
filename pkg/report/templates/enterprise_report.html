@@ -1,0 +1,2002 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WAF Security Assessment Report - {{.TargetName}}</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --black: #0f172a;
+            --white: #ffffff;
+            --grey: #f1f5f9;
+            --dark-grey: #e2e8f0;
+            --blue: #3b82f6;
+            --green: #22c55e;
+            --yellow: #eab308;
+            --orange: #f97316;
+            --orange-red: #ef4444;
+            --red: #dc2626;
+            --light-green: #dcfce7;
+            --light-yellow: #fef9c3;
+            --light-orange: #ffedd5;
+            --light-red: #fee2e2;
+            --br-small: 4px;
+            --br-medium: 8px;
+            --br-large: 12px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            color: var(--black);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        /* Header */
+        .header {
+            background: var(--white);
+            border-radius: var(--br-large);
+            padding: 30px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+
+        .header__top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+
+        .header__title {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--black);
+        }
+
+        .header__subtitle {
+            color: #64748b;
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .header__meta {
+            text-align: right;
+            font-size: 13px;
+            color: #64748b;
+        }
+
+        /* Overall Grade Card */
+        .grade-card {
+            display: flex;
+            background: var(--white);
+            border-radius: var(--br-large);
+            overflow: hidden;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+
+        .grade-card__grade {
+            flex: 0 0 200px;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: var(--white);
+        }
+
+        .grade-card__grade--a { background: linear-gradient(135deg, var(--green) 0%, #16a34a 100%); }
+        .grade-card__grade--b { background: linear-gradient(135deg, var(--yellow) 0%, #ca8a04 100%); }
+        .grade-card__grade--c { background: linear-gradient(135deg, var(--orange) 0%, #ea580c 100%); }
+        .grade-card__grade--d { background: linear-gradient(135deg, var(--orange-red) 0%, #dc2626 100%); }
+        .grade-card__grade--f { background: linear-gradient(135deg, var(--red) 0%, #b91c1c 100%); }
+
+        .grade-card__mark {
+            font-size: 72px;
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .grade-card__label {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-top: 8px;
+        }
+
+        .grade-card__details {
+            flex: 1;
+            padding: 24px 30px;
+        }
+
+        .grade-card__target {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--black);
+            margin-bottom: 4px;
+        }
+
+        .grade-card__url {
+            color: var(--blue);
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        .stat-card {
+            background: var(--white);
+            border-radius: var(--br-medium);
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .stat-card__value {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--black);
+        }
+
+        .stat-card__label {
+            font-size: 12px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 4px;
+        }
+
+        /* Sections */
+        .section {
+            background: var(--white);
+            border-radius: var(--br-large);
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+
+        .section__title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--black);
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--grey);
+        }
+
+        /* Enterprise Metrics */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        @media (max-width: 768px) {
+            .metrics-grid { grid-template-columns: 1fr; }
+        }
+
+        .metric-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: var(--grey);
+            border-radius: var(--br-small);
+        }
+
+        .metric-item__label {
+            font-size: 13px;
+            color: #475569;
+        }
+
+        .metric-item__value {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--black);
+        }
+
+        .metric-item__value--good { color: var(--green); }
+        .metric-item__value--warning { color: var(--yellow); }
+        .metric-item__value--bad { color: var(--red); }
+
+        /* Confusion Matrix */
+        .confusion-matrix {
+            display: grid;
+            grid-template-columns: auto repeat(2, 1fr);
+            gap: 8px;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .confusion-matrix__cell {
+            padding: 16px;
+            text-align: center;
+            border-radius: var(--br-small);
+            font-weight: 600;
+        }
+
+        .confusion-matrix__header {
+            font-size: 12px;
+            color: #64748b;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .confusion-matrix__cell--tp { background: var(--light-green); color: var(--green); }
+        .confusion-matrix__cell--tn { background: var(--light-green); color: var(--green); }
+        .confusion-matrix__cell--fp { background: var(--light-red); color: var(--red); }
+        .confusion-matrix__cell--fn { background: var(--light-red); color: var(--red); }
+
+        /* Category Results Table */
+        .category-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .category-table th,
+        .category-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--dark-grey);
+        }
+
+        .category-table th {
+            background: var(--grey);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #64748b;
+            font-weight: 600;
+        }
+
+        .category-table tr:hover {
+            background: var(--grey);
+        }
+
+        .category-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--white);
+        }
+
+        .category-badge--a { background: var(--green); }
+        .category-badge--b { background: var(--yellow); color: var(--black); }
+        .category-badge--c { background: var(--orange); }
+        .category-badge--d { background: var(--orange-red); }
+        .category-badge--f { background: var(--red); }
+
+        .progress-bar {
+            height: 8px;
+            background: var(--dark-grey);
+            border-radius: 4px;
+            overflow: hidden;
+            width: 100px;
+        }
+
+        .progress-bar__fill {
+            height: 100%;
+            border-radius: 4px;
+        }
+
+        .progress-bar__fill--a { background: var(--green); }
+        .progress-bar__fill--b { background: var(--yellow); }
+        .progress-bar__fill--c { background: var(--orange); }
+        .progress-bar__fill--d { background: var(--orange-red); }
+        .progress-bar__fill--f { background: var(--red); }
+
+        /* Charts */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+        }
+
+        @media (max-width: 768px) {
+            .charts-grid { grid-template-columns: 1fr; }
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        /* Recommendations */
+        .recommendation-list {
+            list-style: none;
+        }
+
+        .recommendation-item {
+            display: flex;
+            align-items: flex-start;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: var(--grey);
+            border-radius: var(--br-small);
+            border-left: 4px solid var(--blue);
+        }
+
+        .recommendation-item__icon {
+            margin-right: 12px;
+            font-size: 18px;
+        }
+
+        /* Browser Findings */
+        .browser-section {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%);
+            border-radius: var(--br-large);
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+
+        .browser-section__header {
+            color: var(--white);
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .browser-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px;
+        }
+
+        .browser-card {
+            background: var(--white);
+            border-radius: var(--br-medium);
+            padding: 16px;
+        }
+
+        .browser-card__title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--black);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .browser-card__list {
+            list-style: none;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .browser-card__item {
+            padding: 8px 10px;
+            margin-bottom: 4px;
+            background: var(--grey);
+            border-radius: var(--br-small);
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .browser-card__item--critical {
+            background: var(--light-red);
+            border-left: 3px solid var(--red);
+        }
+
+        .browser-card__item--high {
+            background: var(--light-orange);
+            border-left: 3px solid var(--orange);
+        }
+
+        .browser-card__item--medium {
+            background: var(--light-yellow);
+            border-left: 3px solid var(--yellow);
+        }
+
+        .browser-risk-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--white);
+        }
+
+        .browser-risk-badge--critical { background: var(--red); }
+        .browser-risk-badge--high { background: var(--orange); }
+        .browser-risk-badge--medium { background: var(--yellow); color: var(--black); }
+        .browser-risk-badge--low { background: var(--green); }
+
+        /* Findings Table */
+        .findings-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .findings-table th,
+        .findings-table td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--dark-grey);
+        }
+
+        .findings-table th {
+            background: var(--grey);
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        .findings-table code {
+            background: #1e293b;
+            color: #22c55e;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 11px;
+            word-break: break-all;
+        }
+
+        .severity-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .severity-badge--critical { background: var(--red); color: var(--white); }
+        .severity-badge--high { background: var(--orange); color: var(--white); }
+        .severity-badge--medium { background: var(--yellow); color: var(--black); }
+        .severity-badge--low { background: var(--blue); color: var(--white); }
+
+        /* Outcome badges */
+        .outcome-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .outcome-badge--blocked { background: #22c55e; color: white; }
+        .outcome-badge--pass { background: #ef4444; color: white; }
+        .outcome-badge--error { background: #f97316; color: white; }
+
+        /* Results table with filtering */
+        .results-section {
+            margin-bottom: 24px;
+        }
+        .results-controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .results-search {
+            flex: 1;
+            min-width: 200px;
+            padding: 8px 12px;
+            border: 1px solid var(--dark-grey);
+            border-radius: var(--br-small);
+            font-size: 14px;
+        }
+        .results-filter {
+            padding: 8px 16px;
+            border: 1px solid var(--dark-grey);
+            border-radius: var(--br-small);
+            background: var(--white);
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .results-filter.active {
+            background: var(--blue);
+            color: white;
+            border-color: var(--blue);
+        }
+        .results-count {
+            font-size: 13px;
+            color: #64748b;
+        }
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        .results-table th,
+        .results-table td {
+            padding: 8px 10px;
+            text-align: left;
+            border-bottom: 1px solid var(--dark-grey);
+        }
+        .results-table th {
+            background: var(--grey);
+            font-size: 10px;
+            text-transform: uppercase;
+            position: sticky;
+            top: 0;
+            cursor: pointer;
+        }
+        .results-table th:hover {
+            background: var(--dark-grey);
+        }
+        .results-table tbody tr:hover {
+            background: rgba(59, 130, 246, 0.05);
+        }
+        .results-table .payload-cell {
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .results-table .payload-cell:hover {
+            white-space: normal;
+            word-break: break-all;
+        }
+        .results-table-wrapper {
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid var(--dark-grey);
+            border-radius: var(--br-small);
+        }
+
+        /* Enterprise Finding Cards */
+        .finding-card {
+            background: var(--white);
+            border: 1px solid var(--dark-grey);
+            border-radius: var(--br-medium);
+            margin-bottom: 16px;
+            overflow: hidden;
+            transition: box-shadow 0.2s ease;
+        }
+
+        .finding-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .finding-card__header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            background: var(--grey);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .finding-card__header:hover {
+            background: var(--dark-grey);
+        }
+
+        .finding-card__header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .finding-card__header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .finding-card__category {
+            font-weight: 600;
+            color: var(--black);
+        }
+
+        .finding-card__id {
+            font-family: monospace;
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .finding-card__status {
+            font-family: monospace;
+            font-size: 12px;
+            padding: 2px 8px;
+            background: #1e293b;
+            color: #94a3b8;
+            border-radius: 3px;
+        }
+
+        .finding-card__risk {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--orange);
+        }
+
+        .finding-card__toggle {
+            font-size: 12px;
+            color: #64748b;
+            transition: transform 0.2s ease;
+        }
+
+        .finding-card__toggle--open {
+            transform: rotate(180deg);
+        }
+
+        .finding-card__summary {
+            padding: 12px 20px;
+            background: #f8fafc;
+            border-bottom: 1px solid var(--dark-grey);
+            font-size: 13px;
+        }
+
+        .endpoint-code {
+            background: #1e293b;
+            color: #22c55e;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-all;
+        }
+
+        .finding-card__details {
+            padding: 20px;
+        }
+
+        .finding-detail {
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--grey);
+        }
+
+        .finding-detail:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .finding-detail__title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--black);
+            margin-bottom: 8px;
+        }
+
+        .finding-detail p {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #475569;
+        }
+
+        .finding-detail--impact {
+            background: var(--light-red);
+            margin: 0 -20px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            border-radius: 0;
+        }
+
+        .finding-detail--impact p {
+            color: #991b1b;
+        }
+
+        .finding-detail--remediation {
+            background: var(--light-green);
+            margin: 0 -20px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            border-radius: 0;
+        }
+
+        .finding-detail--remediation p {
+            color: #166534;
+        }
+
+        .finding-detail--technical {
+            background: var(--light-yellow);
+            margin: 0 -20px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            border-radius: 0;
+        }
+
+        .finding-detail--technical p {
+            color: #854d0e;
+        }
+
+        .code-block {
+            background: #0f172a;
+            border-radius: var(--br-small);
+            padding: 16px;
+            overflow-x: auto;
+            margin: 0;
+        }
+
+        .code-block code {
+            background: none;
+            color: #22c55e;
+            font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .code-block--curl {
+            position: relative;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: #334155;
+            color: var(--white);
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .copy-btn:hover {
+            background: #475569;
+        }
+
+        .reference-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .reference-tag {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            text-decoration: none;
+            transition: opacity 0.2s ease;
+        }
+
+        .reference-tag:hover {
+            opacity: 0.8;
+        }
+
+        .reference-tag--cwe {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .reference-tag--owasp {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .reference-tag--link {
+            background: var(--grey);
+            color: #475569;
+        }
+
+        .reference-tag--wasc {
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+
+        .reference-tag--pci {
+            background: #fce7f3;
+            color: #9d174d;
+        }
+
+        /* Risk Assessment Grid */
+        .risk-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+        }
+
+        .risk-info-item {
+            font-size: 13px;
+            color: #475569;
+        }
+
+        .risk-info-item strong {
+            color: var(--black);
+        }
+
+        .cvss-score {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .cvss-score--critical { background: #fee2e2; color: #dc2626; }
+        .cvss-score--high { background: #ffedd5; color: #ea580c; }
+        .cvss-score--medium { background: #fef9c3; color: #ca8a04; }
+        .cvss-score--low { background: #dcfce7; color: #16a34a; }
+
+        .cvss-vector {
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 11px;
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 3px;
+            word-break: break-all;
+        }
+
+        .confidence-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .confidence-badge--confirmed, .confidence-badge--high {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+
+        .confidence-badge--medium {
+            background: #fef9c3;
+            color: #ca8a04;
+        }
+
+        .confidence-badge--low {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .technique-tag {
+            display: inline-block;
+            background: #ede9fe;
+            color: #6d28d9;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        /* EPSS Gauge - Nuclei-style exploit prediction visualization */
+        .finding-detail--epss {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-left: 4px solid #f59e0b;
+        }
+
+        .epss-container {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .epss-score-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .epss-gauge {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            background: conic-gradient(
+                #dc2626 0deg calc(var(--epss-value) * 3.6deg),
+                #e5e7eb calc(var(--epss-value) * 3.6deg) 360deg
+            );
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .epss-gauge::before {
+            content: '';
+            position: absolute;
+            width: 90px;
+            height: 90px;
+            background: white;
+            border-radius: 50%;
+        }
+
+        .epss-gauge-text {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .epss-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #dc2626;
+        }
+
+        .epss-label {
+            font-size: 10px;
+            color: #64748b;
+            text-align: center;
+        }
+
+        .epss-description {
+            font-size: 12px;
+            color: #64748b;
+            text-align: center;
+            margin-top: 8px;
+        }
+
+        .epss-percentile {
+            font-size: 14px;
+            padding: 8px 12px;
+            background: #fff3cd;
+            border-radius: 6px;
+        }
+
+        .percentile-value {
+            font-weight: 700;
+            color: #b45309;
+        }
+
+        .epss-cpe {
+            font-size: 13px;
+        }
+
+        .cpe-identifier {
+            background: #1e293b;
+            color: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 11px;
+        }
+
+        /* Risk Confidence Badge - ZAP-style */
+        .risk-confidence-badge {
+            display: inline-block;
+            background: #fef3c7;
+            color: #92400e;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        /* Solution Section - ZAP-style */
+        .finding-detail--solution {
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+            border-left: 4px solid #10b981;
+        }
+
+        .solution-box {
+            background: white;
+            border-radius: 6px;
+            padding: 12px;
+            border: 1px solid #a7f3d0;
+        }
+
+        .solution-box p {
+            margin: 0;
+            color: #065f46;
+            font-weight: 500;
+        }
+
+        /* Other Info Section - ZAP-style */
+        .finding-detail--other-info {
+            background: #f0f9ff;
+            border-left: 4px solid #0ea5e9;
+        }
+
+        .other-info-text {
+            color: #0369a1;
+            font-style: italic;
+        }
+
+        .evidence-note {
+            margin-top: 8px;
+            font-size: 13px;
+            color: #64748b;
+            border-left: 3px solid var(--yellow);
+            padding-left: 10px;
+        }
+
+        /* Reproduction Tabs */
+        .reproduction-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 12px;
+        }
+
+        .repro-tab {
+            padding: 6px 16px;
+            border: none;
+            background: var(--grey);
+            color: #64748b;
+            border-radius: 4px 4px 0 0;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .repro-tab:hover {
+            background: var(--dark-grey);
+        }
+
+        .repro-tab--active {
+            background: #1e293b;
+            color: var(--white);
+        }
+
+        .repro-content {
+            position: relative;
+        }
+
+        .code-block--powershell code {
+            color: #60a5fa;
+        }
+
+        .code-block--python code {
+            color: #fbbf24;
+        }
+
+        .code-block--modsec code {
+            color: #f97316;
+        }
+
+        /* ModSecurity Section */
+        .finding-detail--modsec {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border: 1px solid #f59e0b;
+        }
+
+        .finding-detail--modsec p {
+            color: #78350f;
+        }
+
+        .finding-detail--risk-info {
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            border: 1px solid #94a3b8;
+        }
+
+        /* Comparison Table */
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 12px 16px;
+            text-align: center;
+            border-bottom: 1px solid var(--dark-grey);
+        }
+
+        .comparison-table th {
+            background: var(--grey);
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+
+        .comparison-table td:first-child {
+            text-align: left;
+            font-weight: 500;
+        }
+
+        .comparison-table tr.highlight {
+            background: linear-gradient(90deg, var(--light-green) 0%, var(--white) 100%);
+            font-weight: 600;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 24px;
+            color: #94a3b8;
+            font-size: 13px;
+        }
+
+        .footer a {
+            color: var(--blue);
+            text-decoration: none;
+        }
+
+        /* Print styles */
+        @media print {
+            body {
+                background: white;
+            }
+            .container {
+                max-width: 100%;
+                padding: 0;
+            }
+            .section {
+                box-shadow: none;
+                border: 1px solid var(--dark-grey);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header__top">
+                <div>
+                    <h1 class="header__title">🛡️ WAF Security Assessment Report</h1>
+                    <p class="header__subtitle">Enterprise Security Analysis powered by {{.ToolName}} v{{.ToolVersion}}</p>
+                </div>
+                <div class="header__meta">
+                    <div><strong>Report Date:</strong> {{.TestingDate}}</div>
+                    <div><strong>Duration:</strong> {{.ScanDuration}}</div>
+                    <div><strong>Report Version:</strong> {{.ReportVersion}}</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Overall Grade Card -->
+        <section class="grade-card">
+            <div class="grade-card__grade grade-card__grade--{{.OverallGrade.CSSClassSuffix}}">
+                <div class="grade-card__mark">{{.OverallGrade.Mark}}</div>
+                <div class="grade-card__label">Overall Grade</div>
+            </div>
+            <div class="grade-card__details">
+                <div class="grade-card__target">{{if .TargetName}}{{.TargetName}}{{else}}Target Assessment{{end}}</div>
+                <div class="grade-card__url">{{.TargetURL}}</div>
+                {{if .WAFVendor}}<div style="margin-bottom: 16px;"><strong>WAF:</strong> {{.WAFVendor}}</div>{{end}}
+                <div class="stats-grid" style="margin: 0;">
+                    <div class="stat-card" style="margin: 0;">
+                        <div class="stat-card__value">{{printf "%.1f" (mult .DetectionRate 100)}}%</div>
+                        <div class="stat-card__label">Detection Rate</div>
+                    </div>
+                    <div class="stat-card" style="margin: 0;">
+                        <div class="stat-card__value">{{printf "%.1f" (mult .FalsePositiveRate 100)}}%</div>
+                        <div class="stat-card__label">False Positive Rate</div>
+                    </div>
+                    <div class="stat-card" style="margin: 0;">
+                        <div class="stat-card__value">{{printf "%.1f" (mult .BypassResistance 100)}}%</div>
+                        <div class="stat-card__label">Bypass Resistance</div>
+                    </div>
+                    {{if .EnterpriseMetrics}}
+                    <div class="stat-card" style="margin: 0;">
+                        <div class="stat-card__value">{{printf "%.2f" (mult .EnterpriseMetrics.F1Score 100)}}%</div>
+                        <div class="stat-card__label">F1 Score</div>
+                    </div>
+                    {{end}}
+                </div>
+            </div>
+        </section>
+
+        <!-- Quick Stats -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-card__value">{{.TotalRequests}}</div>
+                <div class="stat-card__label">Total Requests</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card__value">{{.BlockedRequests}}</div>
+                <div class="stat-card__label">Blocked</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card__value">{{.PassedRequests}}</div>
+                <div class="stat-card__label">Passed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card__value">{{.AvgLatencyMs}}ms</div>
+                <div class="stat-card__label">Avg Latency</div>
+            </div>
+        </div>
+
+        {{if .EnterpriseMetrics}}
+        <!-- Enterprise Metrics -->
+        <section class="section">
+            <h2 class="section__title">📊 Enterprise Metrics</h2>
+            <div class="metrics-grid">
+                <div class="metric-item">
+                    <span class="metric-item__label">F1 Score</span>
+                    <span class="metric-item__value {{if ge .EnterpriseMetrics.F1Score 0.8}}metric-item__value--good{{else if ge .EnterpriseMetrics.F1Score 0.6}}metric-item__value--warning{{else}}metric-item__value--bad{{end}}">{{printf "%.2f%%" (mult .EnterpriseMetrics.F1Score 100)}}</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-item__label">F2 Score</span>
+                    <span class="metric-item__value">{{printf "%.2f%%" (mult .EnterpriseMetrics.F2Score 100)}}</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-item__label">Precision</span>
+                    <span class="metric-item__value">{{printf "%.2f%%" (mult .EnterpriseMetrics.Precision 100)}}</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-item__label">Recall (TPR)</span>
+                    <span class="metric-item__value">{{printf "%.2f%%" (mult .EnterpriseMetrics.Recall 100)}}</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-item__label">Specificity (TNR)</span>
+                    <span class="metric-item__value">{{printf "%.2f%%" (mult .EnterpriseMetrics.Specificity 100)}}</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-item__label">Balanced Accuracy</span>
+                    <span class="metric-item__value">{{printf "%.2f%%" (mult .EnterpriseMetrics.BalancedAccuracy 100)}}</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-item__label">Matthews Correlation (MCC)</span>
+                    <span class="metric-item__value {{if ge .EnterpriseMetrics.MCC 0.7}}metric-item__value--good{{else if ge .EnterpriseMetrics.MCC 0.4}}metric-item__value--warning{{else}}metric-item__value--bad{{end}}">{{formatMCC .EnterpriseMetrics.MCC}}</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-item__label">Block Consistency</span>
+                    <span class="metric-item__value">{{printf "%.2f%%" (mult .EnterpriseMetrics.BlockConsistency 100)}}</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-item__label">Mutation Potency</span>
+                    <span class="metric-item__value">{{printf "%.2f%%" (mult .EnterpriseMetrics.MutationPotency 100)}}</span>
+                </div>
+            </div>
+        </section>
+        {{end}}
+
+        <div class="charts-grid">
+            <!-- Confusion Matrix -->
+            <section class="section">
+                <h2 class="section__title">🎯 Confusion Matrix</h2>
+                <div class="confusion-matrix">
+                    <div></div>
+                    <div class="confusion-matrix__header">Predicted Positive</div>
+                    <div class="confusion-matrix__header">Predicted Negative</div>
+                    <div class="confusion-matrix__header">Actual Attack</div>
+                    <div class="confusion-matrix__cell confusion-matrix__cell--tp">
+                        <div style="font-size: 24px;">{{.ConfusionMatrix.TruePositives}}</div>
+                        <div style="font-size: 11px;">True Positives</div>
+                    </div>
+                    <div class="confusion-matrix__cell confusion-matrix__cell--fn">
+                        <div style="font-size: 24px;">{{.ConfusionMatrix.FalseNegatives}}</div>
+                        <div style="font-size: 11px;">False Negatives</div>
+                    </div>
+                    <div class="confusion-matrix__header">Actual Benign</div>
+                    <div class="confusion-matrix__cell confusion-matrix__cell--fp">
+                        <div style="font-size: 24px;">{{.ConfusionMatrix.FalsePositives}}</div>
+                        <div style="font-size: 11px;">False Positives</div>
+                    </div>
+                    <div class="confusion-matrix__cell confusion-matrix__cell--tn">
+                        <div style="font-size: 24px;">{{.ConfusionMatrix.TrueNegatives}}</div>
+                        <div style="font-size: 11px;">True Negatives</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Category Radar Chart -->
+            {{if .RadarChartData}}
+            <section class="section">
+                <h2 class="section__title">🕸️ Detection by Category</h2>
+                <div class="chart-container">
+                    <canvas id="radarChart"></canvas>
+                </div>
+            </section>
+            {{end}}
+        </div>
+
+        <!-- Category Results -->
+        <section class="section">
+            <h2 class="section__title">📋 Category Breakdown</h2>
+            <table class="category-table">
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th>Grade</th>
+                        <th>Detection Rate</th>
+                        <th>Progress</th>
+                        <th>Blocked</th>
+                        <th>Bypassed</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .CategoryResults}}
+                    <tr>
+                        <td><strong>{{.DisplayName}}</strong></td>
+                        <td><span class="category-badge category-badge--{{.Grade.CSSClassSuffix}}">{{.Grade.Mark}}</span></td>
+                        <td>{{printf "%.1f%%" (mult .DetectionRate 100)}}</td>
+                        <td>
+                            <div class="progress-bar">
+                                <div class="progress-bar__fill progress-bar__fill--{{.Grade.CSSClassSuffix}}" style="width: {{printf "%.0f" (mult .DetectionRate 100)}}%;"></div>
+                            </div>
+                        </td>
+                        <td style="color: var(--green);">{{.Blocked}}</td>
+                        <td style="color: var(--red);">{{.Bypassed}}</td>
+                        <td>{{.TotalTests}}</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </section>
+
+        {{if .Bypasses}}
+        <!-- Bypasses - Enterprise Detail View -->
+        <section class="section">
+            <h2 class="section__title">⚠️ WAF Bypasses ({{len .Bypasses}})</h2>
+            <p style="color: #64748b; margin-bottom: 20px; font-size: 14px;">
+                The following attacks successfully bypassed WAF protection. Each finding includes reproduction steps, impact analysis, and remediation guidance.
+            </p>
+            
+            {{range $index, $bypass := .Bypasses}}
+            <div class="finding-card" id="finding-{{$index}}">
+                <div class="finding-card__header" onclick="toggleFinding({{$index}})">
+                    <div class="finding-card__header-left">
+                        <span class="severity-badge severity-badge--{{.Severity}}">{{.Severity}}</span>
+                        <span class="finding-card__category">{{.Category}}</span>
+                        {{if .ID}}<span class="finding-card__id">[{{.ID}}]</span>{{end}}
+                    </div>
+                    <div class="finding-card__header-right">
+                        <span class="finding-card__status">HTTP {{.StatusCode}}</span>
+                        {{if .RiskScore}}<span class="finding-card__risk" title="Risk Score">🎯 {{printf "%.1f" .RiskScore}}/10</span>{{end}}
+                        <span class="finding-card__toggle" id="toggle-{{$index}}">▼</span>
+                    </div>
+                </div>
+                
+                <div class="finding-card__summary">
+                    <strong>Endpoint:</strong> <code class="endpoint-code">{{.Method}} {{.Endpoint}}</code>
+                </div>
+                
+                <div class="finding-card__details" id="details-{{$index}}" style="display: none;">
+                    {{if .Description}}
+                    <div class="finding-detail">
+                        <h4 class="finding-detail__title">📋 Description</h4>
+                        <p>{{.Description}}</p>
+                    </div>
+                    {{end}}
+                    
+                    <!-- CVSS / Risk Info -->
+                    {{if or .CVSSVector .CVSSScore .Confidence}}
+                    <div class="finding-detail finding-detail--risk-info">
+                        <h4 class="finding-detail__title">📊 Risk Assessment</h4>
+                        <div class="risk-info-grid">
+                            {{if .CVSSScore}}<div class="risk-info-item"><strong>CVSS Score:</strong> <span class="cvss-score cvss-score--{{if ge .CVSSScore 9.0}}critical{{else if ge .CVSSScore 7.0}}high{{else if ge .CVSSScore 4.0}}medium{{else}}low{{end}}">{{printf "%.1f" .CVSSScore}}</span></div>{{end}}
+                            {{if .CVSSVector}}<div class="risk-info-item"><strong>CVSS Vector:</strong> <code class="cvss-vector">{{.CVSSVector}}</code></div>{{end}}
+                            {{if .Confidence}}<div class="risk-info-item"><strong>Confidence:</strong> <span class="confidence-badge confidence-badge--{{lower .Confidence}}">{{.Confidence}}</span></div>{{end}}
+                            {{if .RiskConfidence}}<div class="risk-info-item"><strong>Risk (Confidence):</strong> <span class="risk-confidence-badge">{{.RiskConfidence}}</span></div>{{end}}
+                            {{if .InputVector}}<div class="risk-info-item"><strong>Input Vector:</strong> {{.InputVector}}</div>{{end}}
+                            {{if .BypassTechnique}}<div class="risk-info-item"><strong>Bypass Technique:</strong> <span class="technique-tag">{{.BypassTechnique}}</span></div>{{end}}
+                            {{if .Timestamp}}<div class="risk-info-item"><strong>Detected:</strong> {{.Timestamp}}</div>{{end}}
+                            {{if .LatencyMs}}<div class="risk-info-item"><strong>Response Time:</strong> {{.LatencyMs}}ms</div>{{end}}
+                            {{if .InstanceCount}}<div class="risk-info-item"><strong>Instances:</strong> {{.InstanceCount}}</div>{{end}}
+                        </div>
+                    </div>
+                    {{end}}
+                    
+                    <!-- EPSS (Exploit Prediction Scoring System) - Nuclei-style -->
+                    {{if or .EPSSScore .EPSSPercentile .CPE}}
+                    <div class="finding-detail finding-detail--epss">
+                        <h4 class="finding-detail__title">🎯 Exploit Prediction (EPSS)</h4>
+                        <div class="epss-container">
+                            {{if .EPSSScore}}
+                            <div class="epss-score-wrapper">
+                                <div class="epss-gauge" style="--epss-value: {{printf "%.0f" (mult .EPSSScore 100)}}%">
+                                    <div class="epss-gauge-fill"></div>
+                                    <div class="epss-gauge-text">
+                                        <span class="epss-value">{{printf "%.0f" (mult .EPSSScore 100)}}%</span>
+                                        <span class="epss-label">Exploit Probability</span>
+                                    </div>
+                                </div>
+                                <p class="epss-description">Probability of exploitation in the next 30 days</p>
+                            </div>
+                            {{end}}
+                            {{if .EPSSPercentile}}
+                            <div class="epss-percentile">
+                                <strong>Percentile:</strong> Top <span class="percentile-value">{{printf "%.1f" (sub 100 .EPSSPercentile)}}%</span> of all vulnerabilities
+                            </div>
+                            {{end}}
+                            {{if .CPE}}
+                            <div class="epss-cpe">
+                                <strong>CPE:</strong> <code class="cpe-identifier">{{.CPE}}</code>
+                            </div>
+                            {{end}}
+                        </div>
+                    </div>
+                    {{end}}
+                    
+                    {{if .Impact}}
+                    <div class="finding-detail finding-detail--impact">
+                        <h4 class="finding-detail__title">💥 Impact</h4>
+                        <p>{{.Impact}}</p>
+                    </div>
+                    {{end}}
+                    
+                    <!-- Attack Evidence -->
+                    <div class="finding-detail">
+                        <h4 class="finding-detail__title">🔍 Attack Payload</h4>
+                        <pre class="code-block"><code>{{.Payload}}</code></pre>
+                        {{if .Evidence}}<p class="evidence-note"><strong>Evidence:</strong> {{.Evidence}}</p>{{end}}
+                    </div>
+                    
+                    <!-- Reproduction Commands with Tabs -->
+                    <div class="finding-detail">
+                        <h4 class="finding-detail__title">🔧 How to Reproduce</h4>
+                        <div class="reproduction-tabs">
+                            <button class="repro-tab repro-tab--active" onclick="switchReproTab({{$index}}, 'curl')">cURL</button>
+                            <button class="repro-tab" onclick="switchReproTab({{$index}}, 'powershell')">PowerShell</button>
+                            <button class="repro-tab" onclick="switchReproTab({{$index}}, 'python')">Python</button>
+                        </div>
+                        {{if .CurlCommand}}
+                        <div class="repro-content repro-content--curl" id="repro-curl-{{$index}}">
+                            <pre class="code-block code-block--curl"><code>{{.CurlCommand}}</code></pre>
+                            <button class="copy-btn" onclick="copyCode('{{$index}}', 'curl')">📋 Copy</button>
+                        </div>
+                        {{end}}
+                        {{if .PowerShellCmd}}
+                        <div class="repro-content repro-content--powershell" id="repro-powershell-{{$index}}" style="display:none;">
+                            <pre class="code-block code-block--powershell"><code>{{.PowerShellCmd}}</code></pre>
+                            <button class="copy-btn" onclick="copyCode('{{$index}}', 'powershell')">📋 Copy</button>
+                        </div>
+                        {{end}}
+                        {{if .PythonCode}}
+                        <div class="repro-content repro-content--python" id="repro-python-{{$index}}" style="display:none;">
+                            <pre class="code-block code-block--python"><code>{{.PythonCode}}</code></pre>
+                            <button class="copy-btn" onclick="copyCode('{{$index}}', 'python')">📋 Copy</button>
+                        </div>
+                        {{end}}
+                    </div>
+                    
+                    <!-- Solution (ZAP-style - specific actionable fix) -->
+                    {{if .Solution}}
+                    <div class="finding-detail finding-detail--solution">
+                        <h4 class="finding-detail__title">💡 Solution</h4>
+                        <div class="solution-box">
+                            <p>{{.Solution}}</p>
+                        </div>
+                    </div>
+                    {{end}}
+                    
+                    {{if .Remediation}}
+                    <div class="finding-detail finding-detail--remediation">
+                        <h4 class="finding-detail__title">🛡️ Remediation</h4>
+                        <p>{{.Remediation}}</p>
+                    </div>
+                    {{end}}
+                    
+                    <!-- Other Information (ZAP-style) -->
+                    {{if .OtherInfo}}
+                    <div class="finding-detail finding-detail--other-info">
+                        <h4 class="finding-detail__title">ℹ️ Additional Information</h4>
+                        <p class="other-info-text">{{.OtherInfo}}</p>
+                    </div>
+                    {{end}}
+                    
+                    <!-- ModSecurity Rules -->
+                    {{if or .ExpectedRule .SuggestedRule}}
+                    <div class="finding-detail finding-detail--modsec">
+                        <h4 class="finding-detail__title">🔒 ModSecurity Rules</h4>
+                        {{if .ExpectedRule}}<p><strong>Expected Rule IDs:</strong> <code>{{.ExpectedRule}}</code></p>{{end}}
+                        {{if .SuggestedRule}}
+                        <p><strong>Suggested Custom Rule:</strong></p>
+                        <pre class="code-block code-block--modsec"><code>{{.SuggestedRule}}</code></pre>
+                        {{end}}
+                    </div>
+                    {{end}}
+                    
+                    <!-- References & Compliance -->
+                    <div class="finding-detail">
+                        <h4 class="finding-detail__title">📚 References & Compliance</h4>
+                        <div class="reference-links">
+                            {{if .CWE}}
+                            <a href="{{.CWEURL}}" target="_blank" class="reference-tag reference-tag--cwe">{{.CWE}}</a>
+                            {{end}}
+                            {{if .OWASPCategory}}
+                            <a href="{{.OWASPURL}}" target="_blank" class="reference-tag reference-tag--owasp">{{.OWASPCategory}}</a>
+                            {{end}}
+                            {{if .WASCID}}
+                            <a href="{{.WASCURL}}" target="_blank" class="reference-tag reference-tag--wasc">{{.WASCID}}</a>
+                            {{end}}
+                            {{if .PCIDSS}}
+                            <span class="reference-tag reference-tag--pci">PCI-DSS {{.PCIDSS}}</span>
+                            {{end}}
+                            {{range .References}}
+                            <a href="{{.}}" target="_blank" class="reference-tag reference-tag--link">🔗 Reference</a>
+                            {{end}}
+                        </div>
+                    </div>
+                    
+                    {{if .TechnicalNotes}}
+                    <div class="finding-detail finding-detail--technical">
+                        <h4 class="finding-detail__title">🔬 Technical Notes</h4>
+                        <p>{{.TechnicalNotes}}</p>
+                    </div>
+                    {{end}}
+                </div>
+            </div>
+            {{end}}
+        </section>
+        {{end}}
+
+        {{if .FalsePositives}}
+        <!-- False Positives -->
+        <section class="section">
+            <h2 class="section__title">🚫 False Positives ({{len .FalsePositives}})</h2>
+            <table class="findings-table">
+                <thead>
+                    <tr>
+                        <th>Payload</th>
+                        <th>Status Code</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .FalsePositives}}
+                    <tr>
+                        <td><code>{{.Payload}}</code></td>
+                        <td>{{.StatusCode}}</td>
+                        <td>{{.Reason}}</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </section>
+        {{end}}
+
+        {{if .BrowserFindings}}
+        <!-- Browser Scan Findings -->
+        <section class="section">
+            <h2 class="section__title">🌐 Authenticated Browser Scan Findings</h2>
+            <p style="color: #64748b; margin-bottom: 20px; font-size: 14px;">
+                The following findings were discovered during authenticated browser scanning, capturing real browser network traffic, storage data, and third-party integrations.
+            </p>
+
+            <!-- Auth Flow Info -->
+            {{if .BrowserFindings.AuthProvider}}
+            <div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); border-radius: 8px; padding: 16px; margin-bottom: 20px; color: white;">
+                <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">🔐 Authentication Flow Detected</div>
+                <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+                    <div><span style="opacity: 0.8;">Provider:</span> <strong>{{.BrowserFindings.AuthProvider}}</strong></div>
+                    <div><span style="opacity: 0.8;">Flow Type:</span> <strong>{{.BrowserFindings.AuthFlowType}}</strong></div>
+                    {{if .BrowserFindings.ScanDuration}}
+                    <div><span style="opacity: 0.8;">Scan Duration:</span> <strong>{{.BrowserFindings.ScanDuration}}</strong></div>
+                    {{end}}
+                </div>
+            </div>
+            {{end}}
+
+            <!-- Risk Summary -->
+            {{if .BrowserFindings.RiskSummary}}
+            <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px; flex-wrap: wrap;">
+                <span class="browser-risk-badge browser-risk-badge--{{.BrowserFindings.RiskSummary.OverallRisk}}">
+                    Overall Risk: {{.BrowserFindings.RiskSummary.OverallRisk | upper}}
+                </span>
+                <div style="font-size: 13px; color: #64748b;">
+                    <span style="color: var(--red); font-weight: 600;">{{.BrowserFindings.RiskSummary.CriticalCount}} Critical</span> · 
+                    <span style="color: var(--orange); font-weight: 600;">{{.BrowserFindings.RiskSummary.HighCount}} High</span> · 
+                    <span style="color: var(--yellow); font-weight: 600;">{{.BrowserFindings.RiskSummary.MediumCount}} Medium</span> · 
+                    <span style="color: var(--green); font-weight: 600;">{{.BrowserFindings.RiskSummary.LowCount}} Low</span>
+                </div>
+            </div>
+            {{end}}
+
+            <div class="browser-grid">
+                <!-- Exposed Tokens -->
+                {{if .BrowserFindings.ExposedTokens}}
+                <div class="browser-card">
+                    <div class="browser-card__title">⚠️ Exposed Tokens/Secrets ({{len .BrowserFindings.ExposedTokens}})</div>
+                    <ul class="browser-card__list">
+                        {{range .BrowserFindings.ExposedTokens}}
+                        <li class="browser-card__item browser-card__item--{{.Severity}}">
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600;">{{.Type}}</div>
+                                <div style="font-size: 11px; color: #64748b;">Location: {{.Location}}</div>
+                                <div style="font-size: 11px; color: #dc2626; margin-top: 4px;">{{.Risk}}</div>
+                            </div>
+                        </li>
+                        {{end}}
+                    </ul>
+                </div>
+                {{end}}
+
+                <!-- Third-Party APIs -->
+                {{if .BrowserFindings.ThirdPartyAPIs}}
+                <div class="browser-card">
+                    <div class="browser-card__title">🔗 Third-Party Integrations ({{len .BrowserFindings.ThirdPartyAPIs}})</div>
+                    <ul class="browser-card__list">
+                        {{range .BrowserFindings.ThirdPartyAPIs}}
+                        <li class="browser-card__item browser-card__item--{{.Severity}}">
+                            <div>
+                                <div style="font-weight: 600;">{{.Name}}</div>
+                                <div style="font-size: 11px; color: #64748b;">Type: {{.RequestType}}</div>
+                            </div>
+                        </li>
+                        {{end}}
+                    </ul>
+                </div>
+                {{end}}
+
+                <!-- Discovered Routes -->
+                {{if .BrowserFindings.DiscoveredRoutes}}
+                <div class="browser-card">
+                    <div class="browser-card__title">🗺️ Discovered Routes ({{len .BrowserFindings.DiscoveredRoutes}})</div>
+                    <ul class="browser-card__list">
+                        {{range .BrowserFindings.DiscoveredRoutes}}
+                        <li class="browser-card__item">
+                            <div>
+                                {{if .RequiresAuth}}🔒{{else}}🔓{{end}}
+                                <code style="margin-left: 4px;">{{.Path}}</code>
+                                {{if .PageTitle}}<span style="color: #64748b; font-size: 11px; margin-left: 8px;">{{.PageTitle}}</span>{{end}}
+                            </div>
+                        </li>
+                        {{end}}
+                    </ul>
+                </div>
+                {{end}}
+            </div>
+
+            <!-- Top Risks -->
+            {{if .BrowserFindings.RiskSummary}}
+            {{if .BrowserFindings.RiskSummary.TopRisks}}
+            <div style="margin-top: 20px;">
+                <div style="font-weight: 600; margin-bottom: 10px; color: var(--red);">🚨 Top Risks Identified:</div>
+                <ul style="list-style: none;">
+                    {{range .BrowserFindings.RiskSummary.TopRisks}}
+                    <li style="padding: 8px 12px; margin-bottom: 6px; background: var(--light-red); border-radius: 4px; border-left: 3px solid var(--red); font-size: 13px;">
+                        {{.}}
+                    </li>
+                    {{end}}
+                </ul>
+            </div>
+            {{end}}
+            {{end}}
+        </section>
+        {{end}}
+
+        {{if .Recommendations}}
+        <!-- Recommendations -->
+        <section class="section">
+            <h2 class="section__title">💡 Recommendations</h2>
+            <ul class="recommendation-list">
+                {{range .Recommendations}}
+                <li class="recommendation-item">
+                    <span class="recommendation-item__icon">→</span>
+                    <span>{{.}}</span>
+                </li>
+                {{end}}
+            </ul>
+        </section>
+        {{end}}
+
+        {{if .ComparisonTable}}
+        <!-- Industry Comparison -->
+        <section class="section">
+            <h2 class="section__title">📈 Industry Benchmark Comparison</h2>
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>WAF Solution</th>
+                        <th>Detection Rate</th>
+                        <th>FP Rate</th>
+                        <th>Overall Score</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .ComparisonTable}}
+                    <tr>
+                        <td>{{.Name}}</td>
+                        <td><span class="category-badge category-badge--{{.DetectionRate.CSSClassSuffix}}">{{.DetectionRate.Mark}}</span> {{printf "%.1f%%" .DetectionRate.Percentage}}</td>
+                        <td><span class="category-badge category-badge--{{.FPRate.CSSClassSuffix}}">{{.FPRate.Mark}}</span></td>
+                        <td><span class="category-badge category-badge--{{.OverallScore.CSSClassSuffix}}">{{.OverallScore.Mark}}</span> {{printf "%.1f%%" .OverallScore.Percentage}}</td>
+                    </tr>
+                    {{end}}
+                    <tr class="highlight">
+                        <td><strong>Your WAF</strong></td>
+                        <td><span class="category-badge category-badge--{{.OverallGrade.CSSClassSuffix}}">{{.OverallGrade.Mark}}</span> {{printf "%.1f%%" (mult .DetectionRate 100)}}</td>
+                        <td><span class="category-badge category-badge--{{if lt .FalsePositiveRate 0.05}}a{{else if lt .FalsePositiveRate 0.1}}b{{else if lt .FalsePositiveRate 0.15}}c{{else}}d{{end}}">{{printf "%.1f%%" (mult .FalsePositiveRate 100)}}</span></td>
+                        <td><span class="category-badge category-badge--{{.OverallGrade.CSSClassSuffix}}">{{.OverallGrade.Mark}}</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        {{end}}
+
+        {{if .AllResults}}
+        <!-- All Test Results -->
+        <section class="section results-section">
+            <h2 class="section__title">📊 All Test Results ({{len .AllResults}} total)</h2>
+            
+            <div class="results-controls">
+                <input type="text" class="results-search" id="resultsSearch" placeholder="Search by ID, payload, category, URL..." onkeyup="filterResults()">
+                <button class="results-filter active" onclick="filterByOutcome('all')" data-outcome="all">All ({{len .AllResults}})</button>
+                <button class="results-filter" onclick="filterByOutcome('Blocked')" data-outcome="Blocked">Blocked ({{.BlockedRequests}})</button>
+                <button class="results-filter" onclick="filterByOutcome('Pass')" data-outcome="Pass">⚠️ Bypassed ({{.PassedRequests}})</button>
+                <button class="results-filter" onclick="filterByOutcome('Error')" data-outcome="Error">Errors ({{.ErrorRequests}})</button>
+                <span class="results-count" id="resultsCount">Showing {{len .AllResults}} results</span>
+            </div>
+            
+            <div class="results-table-wrapper">
+                <table class="results-table" id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable(0)">ID ↕</th>
+                            <th onclick="sortTable(1)">Category ↕</th>
+                            <th onclick="sortTable(2)">Severity ↕</th>
+                            <th onclick="sortTable(3)">Outcome ↕</th>
+                            <th onclick="sortTable(4)">Status ↕</th>
+                            <th onclick="sortTable(5)">Latency ↕</th>
+                            <th>Payload</th>
+                            <th>Endpoint</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody">
+                        {{range .AllResults}}
+                        <tr data-outcome="{{.Outcome}}" data-searchable="{{.ID}} {{.Category}} {{.Payload}} {{.RequestURL}}">
+                            <td><code>{{.ID}}</code></td>
+                            <td>{{.Category}}</td>
+                            <td><span class="severity-badge severity-badge--{{lower .Severity}}">{{.Severity}}</span></td>
+                            <td><span class="outcome-badge outcome-badge--{{lower .Outcome}}">{{.Outcome}}</span></td>
+                            <td>{{.StatusCode}}</td>
+                            <td>{{.LatencyMs}}ms</td>
+                            <td class="payload-cell" title="{{.Payload}}"><code>{{truncate .Payload 60}}</code></td>
+                            <td><a href="{{.RequestURL}}" target="_blank" title="{{.RequestURL}}">{{truncate .TargetPath 30}}</a></td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        {{end}}
+
+        <!-- Latency Stats -->
+        <section class="section">
+            <h2 class="section__title">⏱️ Latency Statistics</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-card__value">{{.AvgLatencyMs}}ms</div>
+                    <div class="stat-card__label">Average</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card__value">{{.P50LatencyMs}}ms</div>
+                    <div class="stat-card__label">P50 (Median)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card__value">{{.P95LatencyMs}}ms</div>
+                    <div class="stat-card__label">P95</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card__value">{{.P99LatencyMs}}ms</div>
+                    <div class="stat-card__label">P99</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Generated by <strong>{{.ToolName}}</strong> v{{.ToolVersion}} on {{.TestingDate}}</p>
+            <p>Enterprise WAF Security Assessment Platform</p>
+        </footer>
+    </div>
+
+    <!-- Interactive JavaScript -->
+    <script>
+        // Toggle finding details
+        function toggleFinding(index) {
+            const details = document.getElementById('details-' + index);
+            const toggle = document.getElementById('toggle-' + index);
+            
+            if (details.style.display === 'none') {
+                details.style.display = 'block';
+                toggle.classList.add('finding-card__toggle--open');
+                toggle.textContent = '▲';
+            } else {
+                details.style.display = 'none';
+                toggle.classList.remove('finding-card__toggle--open');
+                toggle.textContent = '▼';
+            }
+        }
+
+        // Copy curl command to clipboard (legacy)
+        function copyToClipboard(index) {
+            copyCode(index, 'curl');
+        }
+
+        // Copy code from specific tab
+        function copyCode(index, type) {
+            const contentDiv = document.getElementById('repro-' + type + '-' + index);
+            if (!contentDiv) return;
+            
+            const codeBlock = contentDiv.querySelector('code');
+            if (codeBlock) {
+                navigator.clipboard.writeText(codeBlock.textContent).then(() => {
+                    const btn = contentDiv.querySelector('.copy-btn');
+                    const originalText = btn.textContent;
+                    btn.textContent = '✓ Copied!';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                    }, 2000);
+                });
+            }
+        }
+
+        // Switch reproduction tabs
+        function switchReproTab(index, type) {
+            const findingCard = document.getElementById('finding-' + index);
+            if (!findingCard) return;
+            
+            // Hide all content divs
+            const allContent = findingCard.querySelectorAll('.repro-content');
+            allContent.forEach(el => el.style.display = 'none');
+            
+            // Deactivate all tabs
+            const allTabs = findingCard.querySelectorAll('.repro-tab');
+            allTabs.forEach(el => el.classList.remove('repro-tab--active'));
+            
+            // Show selected content
+            const targetContent = document.getElementById('repro-' + type + '-' + index);
+            if (targetContent) targetContent.style.display = 'block';
+            
+            // Activate selected tab
+            allTabs.forEach(tab => {
+                if (tab.textContent.toLowerCase().includes(type.substring(0, 4))) {
+                    tab.classList.add('repro-tab--active');
+                }
+            });
+        }
+
+        // Expand all findings
+        function expandAllFindings() {
+            document.querySelectorAll('.finding-card__details').forEach((el, i) => {
+                el.style.display = 'block';
+                const toggle = document.getElementById('toggle-' + i);
+                if (toggle) {
+                    toggle.classList.add('finding-card__toggle--open');
+                    toggle.textContent = '▲';
+                }
+            });
+        }
+
+        // Collapse all findings
+        function collapseAllFindings() {
+            document.querySelectorAll('.finding-card__details').forEach((el, i) => {
+                el.style.display = 'none';
+                const toggle = document.getElementById('toggle-' + i);
+                if (toggle) {
+                    toggle.classList.remove('finding-card__toggle--open');
+                    toggle.textContent = '▼';
+                }
+            });
+        }
+
+        // Results filtering
+        let currentOutcomeFilter = 'all';
+        
+        function filterResults() {
+            const searchText = document.getElementById('resultsSearch').value.toLowerCase();
+            const rows = document.querySelectorAll('#resultsBody tr');
+            let visibleCount = 0;
+            
+            rows.forEach(row => {
+                const outcome = row.dataset.outcome;
+                const searchable = row.dataset.searchable.toLowerCase();
+                
+                const matchesOutcome = currentOutcomeFilter === 'all' || outcome === currentOutcomeFilter;
+                const matchesSearch = searchText === '' || searchable.includes(searchText);
+                
+                if (matchesOutcome && matchesSearch) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            
+            document.getElementById('resultsCount').textContent = 'Showing ' + visibleCount + ' results';
+        }
+        
+        function filterByOutcome(outcome) {
+            currentOutcomeFilter = outcome;
+            
+            // Update button states
+            document.querySelectorAll('.results-filter').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.outcome === outcome) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            filterResults();
+        }
+        
+        // Table sorting
+        let sortDirection = {};
+        function sortTable(columnIndex) {
+            const table = document.getElementById('resultsTable');
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            // Toggle direction
+            sortDirection[columnIndex] = sortDirection[columnIndex] === 'asc' ? 'desc' : 'asc';
+            const dir = sortDirection[columnIndex] === 'asc' ? 1 : -1;
+            
+            rows.sort((a, b) => {
+                let aVal = a.cells[columnIndex].textContent.trim();
+                let bVal = b.cells[columnIndex].textContent.trim();
+                
+                // Try numeric comparison
+                const aNum = parseInt(aVal);
+                const bNum = parseInt(bVal);
+                if (!isNaN(aNum) && !isNaN(bNum)) {
+                    return (aNum - bNum) * dir;
+                }
+                
+                return aVal.localeCompare(bVal) * dir;
+            });
+            
+            rows.forEach(row => tbody.appendChild(row));
+        }
+    </script>
+
+    {{if .RadarChartData}}
+    <script>
+        // Radar Chart
+        const ctx = document.getElementById('radarChart').getContext('2d');
+        const radarData = {{json .RadarChartData}};
+        
+        new Chart(ctx, {
+            type: 'radar',
+            data: {
+                labels: radarData.categories,
+                datasets: [{
+                    label: 'Detection Rate %',
+                    data: radarData.values,
+                    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                    borderColor: 'rgba(59, 130, 246, 1)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(59, 130, 246, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(59, 130, 246, 1)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    r: {
+                        angleLines: {
+                            display: true
+                        },
+                        suggestedMin: 0,
+                        suggestedMax: 100,
+                        ticks: {
+                            stepSize: 20
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+    </script>
+    {{end}}
+</body>
+</html>

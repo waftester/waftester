@@ -1,0 +1,332 @@
+[
+  {
+      "id": "RATE-ZONE-001",
+      "payload": "/rest/workflows",
+      "tags": [
+        "rate-limit",
+        "zone-api",
+        "quick",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Test 'api' zone (1000 req/min limit on /rest/*)",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-ZONE-002",
+      "payload": "/api/assets",
+      "tags": [
+        "rate-limit",
+        "zone-api",
+        "quick",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Test 'api' zone (1000 req/min limit on /api/*)",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-ZONE-003",
+      "payload": "/login",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "128"
+    },
+      "tags": [
+        "rate-limit",
+        "zone-auth-like",
+        "quick",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Test 'auth_like' zone (10 req/min limit - strict)",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-ZONE-004",
+      "payload": "/auth/signin",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "256"
+    },
+      "tags": [
+        "rate-limit",
+        "zone-auth-like",
+        "brute-force-protection",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Test 'auth_like' zone on /auth* path",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-ZONE-005",
+      "payload": "/token",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "512"
+    },
+      "tags": [
+        "rate-limit",
+        "zone-auth-like",
+        "quick",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Test 'auth_like' zone on /token* path",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-ZONE-006",
+      "payload": "/api/assets/stream.mp4",
+      "headers": {
+        "Range": "bytes=0-1024"
+    },
+      "tags": [
+        "rate-limit",
+        "zone-streaming",
+        "quick",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Test 'streaming' zone (1000 req/min for Range requests)",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-ZONE-007",
+      "payload": "/api/assets/upload",
+      "method": "POST",
+      "headers": {
+        "Content-Length": "10485760"
+    },
+      "tags": [
+        "rate-limit",
+        "zone-uploads",
+        "large-file",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Test 'uploads' zone (100 req/min for >1MB uploads)",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-ZONE-008",
+      "payload": "/icons/favicon.ico",
+      "tags": [
+        "rate-limit",
+        "zone-static-assets",
+        "quick",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Test 'static_assets' zone (10,000 req/min)",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-ZONE-009",
+      "payload": "/style.css",
+      "tags": [
+        "rate-limit",
+        "zone-static-assets",
+        "quick",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Test 'static_assets' zone for CSS files",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-ZONE-010",
+      "payload": "/",
+      "tags": [
+        "rate-limit",
+        "zone-general",
+        "quick",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Test 'general' zone (360 req/min = 6 req/sec)",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-ZONE-011",
+      "payload": "/password/reset",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "64"
+    },
+      "tags": [
+        "rate-limit",
+        "zone-auth-like",
+        "password-reset",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Test 'auth_like' zone on /password* path",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-ZONE-012",
+      "payload": "/signup",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "200"
+    },
+      "tags": [
+        "rate-limit",
+        "zone-auth-like",
+        "registration",
+        "quick",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Test 'auth_like' zone on /signup* path",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-ZONE-013",
+      "payload": "/register",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "180"
+    },
+      "tags": [
+        "rate-limit",
+        "zone-auth-like",
+        "registration",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Test 'auth_like' zone on /register* path",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-ZONE-014",
+      "payload": "/health",
+      "tags": [
+        "rate-limit",
+        "excluded",
+        "health-check",
+        "quick",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Verify /health is excluded from rate limiting",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-ZONE-015",
+      "payload": "/api/socket.io/",
+      "headers": {
+        "Connection": "Upgrade",
+        "Upgrade": "websocket"
+    },
+      "tags": [
+        "rate-limit",
+        "excluded",
+        "websocket",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Verify WebSocket connections excluded from rate limiting",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-ZONE-016",
+      "payload": "/rest/executions",
+      "tags": [
+        "rate-limit",
+        "zone-api",
+        "n8n",
+        "quick",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Test 'api' zone for n8n executions endpoint",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-ZONE-017",
+      "payload": "/api/search/metadata",
+      "tags": [
+        "rate-limit",
+        "zone-api",
+        "immich",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Test 'api' zone for Immich search endpoint",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-ZONE-018",
+      "payload": "/application/saml/",
+      "tags": [
+        "rate-limit",
+        "zone-general",
+        "authentik",
+        "quick",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Test 'general' zone for Authentik SAML paths",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-ZONE-019",
+      "payload": "/signin",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Content-Length": "100"
+    },
+      "tags": [
+        "rate-limit",
+        "zone-auth-like",
+        "quick",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Test 'auth_like' zone on /signin* path",
+      "category": "RateLimit"
+  },
+  {
+      "id": "RATE-ZONE-020",
+      "payload": "/image.png",
+      "tags": [
+        "rate-limit",
+        "zone-static-assets",
+        "quick",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Test 'static_assets' zone for PNG files",
+      "category": "RateLimit"
+  }
+]

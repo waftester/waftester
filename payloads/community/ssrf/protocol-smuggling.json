@@ -1,0 +1,350 @@
+[
+  {
+      "id": "SSRF-PROTO-001",
+      "payload": "gopher://localhost:25/_MAIL%20FROM:<admin@example.com>",
+      "tags": [
+        "gopher",
+        "smtp",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Gopher protocol SMTP smuggling",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-002",
+      "payload": "gopher://127.0.0.1:6379/_*1%0d%0a$8%0d%0aflushall%0d%0a",
+      "tags": [
+        "gopher",
+        "redis",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Gopher protocol Redis FLUSHALL command",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-003",
+      "payload": "gopher://127.0.0.1:11211/_set%20test%200%200%205%0d%0ahello%0d%0a",
+      "tags": [
+        "gopher",
+        "memcached",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Gopher protocol Memcached injection",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-004",
+      "payload": "dict://localhost:11211/stat",
+      "tags": [
+        "dict",
+        "memcached",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "DICT protocol Memcached stats",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-005",
+      "payload": "dict://127.0.0.1:6379/info",
+      "tags": [
+        "dict",
+        "redis",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "DICT protocol Redis info",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-006",
+      "payload": "file:///etc/passwd",
+      "tags": [
+        "file",
+        "local-file",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "File protocol local file read (Unix)",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-007",
+      "payload": "file://c:/windows/win.ini",
+      "tags": [
+        "file",
+        "local-file",
+        "windows"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "File protocol local file read (Windows)",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-008",
+      "payload": "file:///proc/self/environ",
+      "tags": [
+        "file",
+        "proc",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "File protocol proc filesystem access",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-009",
+      "payload": "ldap://localhost:389/dc=example,dc=com?cn,mail?sub?(objectClass=*)",
+      "tags": [
+        "ldap",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "LDAP protocol query",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-010",
+      "payload": "ldaps://127.0.0.1:636/",
+      "tags": [
+        "ldap",
+        "ssl"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "LDAPS (secure LDAP) protocol",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-011",
+      "payload": "tftp://localhost:69/config.txt",
+      "tags": [
+        "tftp"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "TFTP protocol file retrieval",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-012",
+      "payload": "ftp://anonymous:password@localhost:21/",
+      "tags": [
+        "ftp",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "FTP protocol with credentials",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-013",
+      "payload": "sftp://127.0.0.1:22/root/.ssh/id_rsa",
+      "tags": [
+        "sftp",
+        "ssh-keys"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SFTP protocol SSH key access",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-014",
+      "payload": "jar:http://localhost:8080/app.jar!/META-INF/MANIFEST.MF",
+      "tags": [
+        "jar",
+        "java"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JAR protocol Java archive access",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-015",
+      "payload": "netdoc:///etc/hosts",
+      "tags": [
+        "netdoc",
+        "java"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Netdoc protocol (Java-specific)",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-016",
+      "payload": "gopher://127.0.0.1:3306/_%a3%00%00%01%85%a6%ff%01%00%00%00%01%21%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00",
+      "tags": [
+        "gopher",
+        "mysql",
+        "handshake"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Gopher protocol MySQL handshake marker",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-017",
+      "payload": "gopher://127.0.0.1:5432/_",
+      "tags": [
+        "gopher",
+        "postgresql"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Gopher protocol PostgreSQL connection attempt",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-018",
+      "payload": "gopher://127.0.0.1:27017/_",
+      "tags": [
+        "gopher",
+        "mongodb"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Gopher protocol MongoDB connection attempt",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-019",
+      "payload": "gopher://127.0.0.1:9200/_GET%20/_cluster/health",
+      "tags": [
+        "gopher",
+        "elasticsearch"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Gopher protocol Elasticsearch query",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-020",
+      "payload": "data:text/html,<script>alert('XSS')</script>",
+      "tags": [
+        "data-uri",
+        "xss"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Data URI with embedded script",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-021",
+      "payload": "data:application/x-sh;base64,Y2F0IC9ldGMvcGFzc3dk",
+      "tags": [
+        "data-uri",
+        "base64",
+        "shell"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Data URI with base64-encoded shell command",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-022",
+      "payload": "php://filter/convert.base64-encode/resource=/etc/passwd",
+      "tags": [
+        "php-wrapper",
+        "lfi"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "PHP filter wrapper for LFI",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-023",
+      "payload": "expect://id",
+      "tags": [
+        "php-wrapper",
+        "rce"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "PHP expect wrapper for command execution",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-024",
+      "payload": "zip://archive.zip#shell.php",
+      "tags": [
+        "zip-wrapper",
+        "php"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "ZIP wrapper file access",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-025",
+      "payload": "phar://archive.phar/malicious.php",
+      "tags": [
+        "phar-wrapper",
+        "php"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "PHAR wrapper archive access",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-026",
+      "payload": "gopher://localhost:9000/_GET%20/status%20HTTP/1.1%0d%0aHost:%20localhost%0d%0a%0d%0a",
+      "tags": [
+        "gopher",
+        "http-smuggling"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Gopher protocol HTTP request smuggling",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-027",
+      "payload": "file:///dev/null",
+      "tags": [
+        "file",
+        "device"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "File protocol device access",
+      "category": "SSRF"
+  },
+  {
+      "id": "SSRF-PROTO-028",
+      "payload": "dict://localhost:8080/",
+      "tags": [
+        "dict",
+        "http-alt-port"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "DICT protocol to HTTP alternative port",
+      "category": "SSRF"
+  }
+]

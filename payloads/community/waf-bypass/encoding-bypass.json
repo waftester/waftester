@@ -1,0 +1,120 @@
+[
+  {
+    "id": "ENC-UTF7-001",
+    "payload": "+ADw-script+AD4-alert(1)+ADw-/script+AD4-",
+    "category": "WAF-Bypass",
+    "method": "GET",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["utf7", "xss", "encoding"],
+    "notes": "UTF-7 encoded XSS - bypasses UTF-8 only filters"
+  },
+  {
+    "id": "ENC-UTF7-002",
+    "payload": "+ADw-img src=x onerror=alert(1)+AD4-",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["utf7", "xss"],
+    "notes": "UTF-7 encoded img tag XSS - bypasses UTF-8 sanitization"
+  },
+  {
+    "id": "ENC-OVERLONG-001",
+    "payload": "%c0%bc%c1%b3%c1%b2%c0%b9%c1%b0%c1%b4",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "tags": ["overlong-utf8", "xss"],
+    "notes": "Overlong UTF-8 encoded <script - critical bypass technique"
+  },
+  {
+    "id": "ENC-OVERLONG-002",
+    "payload": "%c0%ae%c0%ae%c0%af%c0%ae%c0%ae%c0%afetc/passwd",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "tags": ["overlong-utf8", "traversal"],
+    "notes": "Overlong UTF-8 ../../ for path traversal"
+  },
+  {
+    "id": "ENC-WIDE-GBK-001",
+    "payload": "%bf%27 OR 1=1--",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "tags": ["wide-byte", "gbk", "sqli"],
+    "notes": "GBK wide-byte injection - %bf eats the backslash escape"
+  },
+  {
+    "id": "ENC-WIDE-GBK-002",
+    "payload": "%bf%5c%27 UNION SELECT * FROM users--",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "tags": ["wide-byte", "gbk", "sqli"],
+    "notes": "GBK wide-byte UNION injection - multi-byte char consumes escape"
+  },
+  {
+    "id": "ENC-WIDE-SJIS-001",
+    "payload": "%81%27 OR 1=1--",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["wide-byte", "shift-jis", "sqli"],
+    "notes": "Shift-JIS wide-byte injection"
+  },
+  {
+    "id": "ENC-TRIPLE-URL-001",
+    "payload": "%252527%252520OR%2525201%25253D1",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["triple-url", "sqli"],
+    "notes": "Triple URL encoded SQL injection"
+  },
+  {
+    "id": "ENC-TRIPLE-URL-002",
+    "payload": "%25253Cscript%25253Ealert(1)%25253C%25252Fscript%25253E",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["triple-url", "xss"],
+    "notes": "Triple URL encoded XSS - requires 3 decode passes to reveal payload"
+  },
+  {
+    "id": "ENC-MIXED-001",
+    "payload": "%3Cscr%69pt%3Eale%72t(1)%3C/script%3E",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["mixed", "partial-url", "xss"],
+    "notes": "Partial URL encoding - only some characters encoded"
+  },
+  {
+    "id": "ENC-MIXED-002",
+    "payload": "<scr%00ipt>alert(1)</script>",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["null-byte", "xss"],
+    "notes": "Null byte in script tag breaks regex pattern matching"
+  },
+  {
+    "id": "ENC-FULLWIDTH-001",
+    "payload": "＜ｓｃｒｉｐｔ＞ａｌｅｒｔ（１）＜／ｓｃｒｉｐｔ＞",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["unicode", "fullwidth", "xss"],
+    "notes": "Unicode fullwidth characters - normalizes to ASCII"
+  },
+  {
+    "id": "ENC-FULLWIDTH-002",
+    "payload": "＇ ＯＲ ＇１＇＝＇１",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["unicode", "fullwidth", "sqli"],
+    "notes": "Fullwidth Unicode SQLi - bypasses ASCII-only pattern matching"
+  }
+]

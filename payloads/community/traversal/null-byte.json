@@ -1,0 +1,105 @@
+[
+  {
+      "id": "TRV-NULL-002",
+      "payload": "../../../etc/shadow%00.txt",
+      "tags": [
+        "null-byte",
+        "unix",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Null byte bypass with .txt extension",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-NULL-003",
+      "payload": "..\\..\\..\\windows\\system32\\config\\sam%00.pdf",
+      "tags": [
+        "null-byte",
+        "windows"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows null byte bypass with .pdf",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-NULL-004",
+      "payload": "../../../root/.ssh/id_rsa%00.png",
+      "tags": [
+        "null-byte",
+        "unix",
+        "ssh"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SSH key with null byte image extension",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-NULL-005",
+      "payload": "../../../etc%00/passwd",
+      "tags": [
+        "null-byte",
+        "mid-path",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Null byte in middle of path",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-NULL-006",
+      "payload": "../../../.env%00%00.bak",
+      "tags": [
+        "null-byte",
+        "multiple",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Multiple null bytes for double bypass",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-NULL-007",
+      "payload": "../../../var/www/html/.htaccess%00.txt",
+      "tags": [
+        "null-byte",
+        "web",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Apache config with null byte",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-NULL-008",
+      "payload": "..\\..\\..\\inetpub\\wwwroot\\web.config%00.xml",
+      "tags": [
+        "null-byte",
+        "windows",
+        "iis"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "IIS config with null byte",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-NULL-009",
+      "payload": "../../../proc/self/environ%00.log",
+      "tags": [
+        "null-byte",
+        "process",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Process environment with null byte",
+      "category": "Traversal"
+  }
+]

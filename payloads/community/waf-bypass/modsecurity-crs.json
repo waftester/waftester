@@ -1,0 +1,220 @@
+[
+  {
+    "id": "MODSEC-XSS-001",
+    "payload": "<scr<script>ipt>alert(1)</scr</script>ipt>",
+    "tags": ["modsecurity", "nested", "xss"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "ModSecurity double-tag bypass attempt - nested script tags",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "MODSEC-XSS-002",
+    "payload": "<svg/onload=alert(1)//",
+    "tags": ["modsecurity", "svg", "comment", "xss"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "SVG with JS comment - sometimes bypasses tag detection",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "MODSEC-XSS-003",
+    "payload": "<img src=1 onerror  =alert(1)>",
+    "tags": ["modsecurity", "whitespace", "xss"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Extra whitespace before = in event handler",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "MODSEC-XSS-004",
+    "payload": "<img/src=1/onerror=alert(1)>",
+    "tags": ["modsecurity", "slash", "xss"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Slash instead of space as attribute separator",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "MODSEC-XSS-005",
+    "payload": "<svg><animate onbegin=alert(1) attributeName=x dur=1s>",
+    "tags": ["modsecurity", "animate", "svg", "xss"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "SVG animate tag - less commonly blocked",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "MODSEC-XSS-006",
+    "payload": "<svg><set onbegin=alert(1) attributeName=x to=1>",
+    "tags": ["modsecurity", "set", "svg", "xss"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "SVG set tag with onbegin",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "MODSEC-XSS-007",
+    "payload": "<math><maction actiontype=statusline#http://google.com xlink:href=javascript:alert(1)>CLICKME",
+    "tags": ["modsecurity", "mathml", "xss"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "MathML bypass - rarely in CRS rules",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "MODSEC-SQL-001",
+    "payload": "1'--/**/",
+    "tags": ["modsecurity", "comment", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Mixed comment style bypass",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "MODSEC-SQL-002",
+    "payload": "1'#/**/",
+    "tags": ["modsecurity", "hash-comment", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "MySQL hash comment with inline comment",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "MODSEC-SQL-003",
+    "payload": "1' OR '1'='1'/*",
+    "tags": ["modsecurity", "trailing-comment", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Trailing inline comment bypass",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "MODSEC-SQL-004",
+    "payload": "1'/**/OR/**/1=1--",
+    "tags": ["modsecurity", "space-bypass", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Inline comments as space replacement",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "MODSEC-SQL-005",
+    "payload": "1'%00OR 1=1--",
+    "tags": ["modsecurity", "null-byte", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Null byte injection before keyword",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "MODSEC-RCE-001",
+    "payload": "| c'a't /etc/passwd",
+    "tags": ["modsecurity", "quote-break", "rce"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Quote insertion to break command detection",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "MODSEC-RCE-002",
+    "payload": "| c\"a\"t /etc/passwd",
+    "tags": ["modsecurity", "double-quote", "rce"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Double quote insertion bypass",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "MODSEC-RCE-003",
+    "payload": "| c\\at /etc/passwd",
+    "tags": ["modsecurity", "backslash", "rce"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Backslash in command name",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "MODSEC-RCE-004",
+    "payload": "| $PATH:0:1}etc${PATH:0:1}passwd",
+    "tags": ["modsecurity", "variable-slice", "rce"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Variable slicing for slash character",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "MODSEC-RCE-005",
+    "payload": "| rev<<<'dwssap/cte/ tac'",
+    "tags": ["modsecurity", "reverse", "rce"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Reverse command bypass",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "MODSEC-PATH-001",
+    "payload": "..././..././..././etc/passwd",
+    "tags": ["modsecurity", "traversal", "double"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Double dot-slash to survive strip",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "MODSEC-PATH-002",
+    "payload": "....//....//....//etc/passwd",
+    "tags": ["modsecurity", "traversal", "multi-slash"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Multiple dots with double slash",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "MODSEC-PATH-003",
+    "payload": "%252e%252e%252f%252e%252e%252f%252e%252e%252fetc/passwd",
+    "tags": ["modsecurity", "traversal", "double-encode"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Double URL encoded path traversal",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "MODSEC-PATH-004",
+    "payload": "%c0%ae%c0%ae%c0%af%c0%ae%c0%ae%c0%afetc/passwd",
+    "tags": ["modsecurity", "traversal", "overlong-utf8"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Overlong UTF-8 encoding bypass",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "MODSEC-PATH-005",
+    "payload": "..%00/..%00/..%00/etc/passwd",
+    "tags": ["modsecurity", "traversal", "null-byte"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Null bytes in path traversal",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "CRS-BYPASS-001",
+    "payload": "JavaScript://%250Aalert?.(1)//'/*\\'/*\"/*\\\"/*`/*\\`/*%26apos;)/*<!--></Title/</Style/</Script/</textArea/</iFrame/</noScript>\\74k<K/contentEditable/autoFocus/OnFocus=/*${/*/;{/**/(alert)(1)}//><Base/Href=//X55.is\\76-->",
+    "tags": ["crs", "polyglot", "ultimate", "xss"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Ultimate XSS polyglot from PayloadsAllTheThings - tests many contexts",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "CRS-BYPASS-002",
+    "payload": "SLEEP(1) /*' or SLEEP(1) or '\" or SLEEP(1) or \"*/",
+    "tags": ["crs", "polyglot", "timing", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "SQL timing polyglot - works across quote contexts",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  }
+]

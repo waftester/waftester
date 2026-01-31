@@ -1,0 +1,357 @@
+[
+  {
+      "id": "INJ-XPATH-320",
+      "payload": "' or '1'='1",
+      "tags": [
+        "basic",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XPath classic boolean bypass - always true",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-321",
+      "payload": "' or 1=1 or '1'='1",
+      "tags": [
+        "basic"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XPath double boolean injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-322",
+      "payload": "admin' or '1'='1' and '1'='1",
+      "tags": [
+        "basic",
+        "auth-bypass"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XPath authentication bypass with AND",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-323",
+      "payload": "'] | //password | a['a'='a",
+      "tags": [
+        "union",
+        "node-extraction"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XPath node injection - extract all password nodes",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-324",
+      "payload": "'] | //user[username='admin' and password='*'] | a['a'='a",
+      "tags": [
+        "enumeration"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XPath user enumeration with wildcard",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-325",
+      "payload": "count(//user)>0",
+      "tags": [
+        "blind",
+        "boolean"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XPath blind boolean - check if users exist",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-326",
+      "payload": "string-length(//user[1]/password)>5",
+      "tags": [
+        "blind",
+        "length"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XPath blind - extract password length",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-327",
+      "payload": "substring(//user[1]/password,1,1)='a'",
+      "tags": [
+        "blind",
+        "extraction"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XPath blind - character-by-character extraction",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-328",
+      "payload": "//user[contains(username,'admin')]",
+      "tags": [
+        "enumeration"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XPath contains() function - username enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-329",
+      "payload": "//user[starts-with(password,'pass')]",
+      "tags": [
+        "enumeration",
+        "prefix"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XPath starts-with() - password prefix guessing",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-330",
+      "payload": "'] | //* | a['a'='a",
+      "tags": [
+        "wildcard",
+        "enumeration"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XPath wildcard - extract all nodes",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-331",
+      "payload": "' and count(parent::*[position()=1])>0 and '1'='1",
+      "tags": [
+        "structure-discovery"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "XPath parent node discovery",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-332",
+      "payload": "'] | //user[@role='admin'] | a['a'='a",
+      "tags": [
+        "attribute",
+        "privilege"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XPath attribute injection - extract admin users",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-333",
+      "payload": "' or name()='username' or '1'='1",
+      "tags": [
+        "node-name"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XPath name() function - node name discovery",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-334",
+      "payload": "'] | //user[position()=1] | a['a'='a",
+      "tags": [
+        "position",
+        "enumeration"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XPath position() - extract first user",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-335",
+      "payload": "' or string-length(name(/*[1]))>0 or 'a'='b",
+      "tags": ["blind", "extraction"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Blind XPath - root element name length",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-336",
+      "payload": "' or substring(name(/*[1]),1,1)='a' or 'a'='b",
+      "tags": ["blind", "char-extraction"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Blind XPath - character by character extraction",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-337",
+      "payload": "' or count(//*[contains(.,'password')])>0 or 'a'='b",
+      "tags": ["blind", "password-search"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Blind XPath - search for password nodes",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-338",
+      "payload": "admin']/parent::*/child::password | a[a='",
+      "tags": ["axis", "traversal"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XPath axis navigation - parent/child traversal",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-339",
+      "payload": "']/ancestor::*[1] | a['a'='a",
+      "tags": ["axis", "ancestor"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XPath ancestor axis injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-340",
+      "payload": "']/following-sibling::* | a['a'='a",
+      "tags": ["axis", "sibling"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XPath following-sibling axis",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-341",
+      "payload": "' or normalize-space(//secret)!='' or 'a'='b",
+      "tags": ["function", "secret-extraction"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XPath normalize-space for secret extraction",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-342",
+      "payload": "' or boolean(//config[contains(@type,'admin')]) or 'a'='b",
+      "tags": ["function", "config-access"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XPath boolean config enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-343",
+      "payload": "' or number(//user[1]/id)>0 or 'a'='b",
+      "tags": ["function", "numeric"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XPath number function injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-344",
+      "payload": "' or starts-with(//user[1]/name,'a') or 'a'='b",
+      "tags": ["function", "string-match"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XPath starts-with for enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-345",
+      "payload": "' or translate(//password,'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ')!='' or 'a'='b",
+      "tags": ["function", "obfuscation"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XPath translate function for password extraction",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-346",
+      "payload": "%27%20or%20%271%27%3d%271",
+      "tags": ["url-encoded", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "URL-encoded XPath injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-347",
+      "payload": "&#x27; or &#x27;1&#x27;=&#x27;1",
+      "tags": ["html-encoded", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "HTML entity encoded XPath injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-348",
+      "payload": "' or document('')//* or 'a'='b",
+      "tags": ["document-function", "advanced"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XPath document() function injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-349",
+      "payload": "']/descendant::*[local-name()='password'] | a['a'='a",
+      "tags": ["local-name", "namespace-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XPath local-name() namespace bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-350",
+      "payload": "' or namespace-uri(/*[1])!='' or 'a'='b",
+      "tags": ["namespace-uri", "enumeration"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "XPath namespace-uri enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-351",
+      "payload": "' or ceiling(//price)>100 or 'a'='b",
+      "tags": ["math-function", "data-extraction"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "XPath ceiling function injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-352",
+      "payload": "' or concat(//user[1]/name,':',//user[1]/password)!='' or 'a'='b",
+      "tags": ["concat", "credential-extraction"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XPath concat for credential extraction",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-353",
+      "payload": "' or last()>0 or 'a'='b",
+      "tags": ["last-function", "count"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "XPath last() function injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-XPATH-354",
+      "payload": "admin'[not(contains(.,'\")) or 'a'='a",
+      "tags": ["not-function", "bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XPath not() function bypass",
+      "category": "Injection"
+  }
+]

@@ -1,0 +1,102 @@
+[
+  {
+    "id": "WAF-CF-001",
+    "payload": "<svg/onrandom=random onload=confirm(1)>",
+    "tags": ["cloudflare", "waf-bypass", "svg", "2021"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Cloudflare bypass - fake event handler with real onload (Jan 2021)",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "WAF-CF-002",
+    "payload": "<video onnull=null onmouseover=confirm(1)>",
+    "tags": ["cloudflare", "waf-bypass", "video", "2021"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Cloudflare bypass - video tag with fake event",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "WAF-CF-003",
+    "payload": "<svg/OnLoad=\"`${prompt``}`\">",
+    "tags": ["cloudflare", "waf-bypass", "template-literal", "2020"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Cloudflare bypass - template literal execution (Apr 2020)",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "WAF-CF-004",
+    "payload": "<svg/onload=%26nbsp;alert`1`+",
+    "tags": ["cloudflare", "waf-bypass", "entity", "2019"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Cloudflare bypass - HTML entity in event handler (Aug 2019)",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "WAF-CF-005",
+    "payload": "1'\"><img/src/onerror=.1|alert``>",
+    "tags": ["cloudflare", "waf-bypass", "img", "2019"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Cloudflare bypass - bitwise OR execution (Jun 2019)",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "WAF-CF-006",
+    "payload": "<svg onload=prompt%26%230000000040document.domain)>",
+    "tags": ["cloudflare", "waf-bypass", "unicode", "2019"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Cloudflare bypass - padded Unicode entities (Jun 2019)",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "WAF-CF-007",
+    "payload": "xss'\"><iframe srcdoc='%26lt;script>;prompt`${document.domain}`%26lt;/script>'>",
+    "tags": ["cloudflare", "waf-bypass", "srcdoc", "2019"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Cloudflare bypass - srcdoc with encoded script",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "WAF-CF-008",
+    "payload": "<svg/onload=&#97&#108&#101&#114&#00116&#40&#41&#x2f&#x2f",
+    "tags": ["cloudflare", "waf-bypass", "mixed-encoding", "2019"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Cloudflare bypass - mixed decimal/hex entities (Mar 2019)",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "WAF-CF-009",
+    "payload": "<a href=\"j&Tab;a&Tab;v&Tab;asc&NewLine;ri&Tab;pt&colon;&lpar;a&Tab;l&Tab;e&Tab;r&Tab;t&Tab;(document.domain)&rpar;\">X</a>",
+    "tags": ["cloudflare", "waf-bypass", "whitespace", "2018"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Cloudflare bypass - whitespace entities in protocol (Feb 2018)",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "WAF-CF-010",
+    "payload": "</script><svg><script>alert(1)-%26apos%3B",
+    "tags": ["cloudflare", "waf-bypass", "script-break", "2018"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Chrome Auditor/Cloudflare bypass",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  }
+]

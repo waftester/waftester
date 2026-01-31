@@ -1,0 +1,855 @@
+[
+  {
+      "id": "AUTH-JWT-001",
+      "payload": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.",
+      "tags": [
+        "algorithm-confusion",
+        "none-attack",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with 'none' algorithm - signature validation bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-002",
+      "payload": "eyJhbGciOiJOT05FIiwidHlwIjoiSldUIn0.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.",
+      "tags": [
+        "algorithm-confusion",
+        "none-attack",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with 'NONE' (uppercase) algorithm variation",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-003",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImFkbWluIjp0cnVlLCJpYXQiOjE2MDk0NTkyMDB9.YWJjMTIzNDU2",
+      "tags": [
+        "weak-secret",
+        "brute-force",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "JWT with predictable weak secret 'secret' - HS256 signed with common password",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-004",
+      "payload": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.fake-signature-here",
+      "tags": [
+        "algorithm-confusion",
+        "rs256-hs256",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Algorithm confusion - RS256 signed with HS256 secret (public key as HMAC)",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-005",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6OTk5OTk5OTk5OSwiaWF0IjoxNjA5NDU5MjAwfQ.signature",
+      "tags": [
+        "expiry-manipulation",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "JWT with far-future expiry (year 2286) - bypasses time-based validation",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-006",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyIiwiYWRtaW4iOnRydWUsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": [
+        "claim-injection",
+        "privilege-escalation",
+        "quick",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "JWT with injected 'admin: true' claim - privilege escalation attempt",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-007",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIuLi8uLi9ldGMvcGFzc3dkIiwiaWF0IjoxNjA5NDU5MjAwfQ.signature",
+      "tags": [
+        "claim-injection",
+        "path-traversal",
+        "quick",
+        "high"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JWT with path traversal in 'sub' claim",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-008",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyIiwicm9sZSI6WyJ1c2VyIiwiYWRtaW4iXSwiaWF0IjoxNjA5NDU5MjAwfQ.signature",
+      "tags": [
+        "claim-injection",
+        "role-escalation",
+        "quick",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "JWT with array-based role injection - adding 'admin' to roles",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-009",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ii4uLy4uL2V0Yy9wYXNzd2QifQ.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": [
+        "kid-manipulation",
+        "path-traversal",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with path traversal in 'kid' (Key ID) header - file read attempt",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-010",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Imh0dHA6Ly9hdHRhY2tlci5jb20va2V5Lmpzb24ifQ.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": [
+        "kid-manipulation",
+        "ssrf",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with remote URL in 'kid' header - SSRF via key fetching",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-011",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6LTEsImV4cCI6OTk5OTk5OTk5OX0.signature",
+      "tags": [
+        "expiry-manipulation",
+        "negative-iat",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "JWT with negative 'iat' (issued at) - timestamp manipulation",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-012",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsIm5iZiI6OTk5OTk5OTk5OSwiaWF0IjoxNjA5NDU5MjAwfQ.signature",
+      "tags": [
+        "expiry-manipulation",
+        "nbf-future",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "JWT with far-future 'nbf' (not before) - token not yet valid but may be accepted",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-013",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbicsJ2FkbWluJy0tIiwiaWF0IjoxNjA5NDU5MjAwfQ.signature",
+      "tags": [
+        "claim-injection",
+        "sqli",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with SQL injection in 'sub' claim - targeting claim-based queries",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-014",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ7eyc3KjcnfX0iLCJpYXQiOjE2MDk0NTkyMDB9.signature",
+      "tags": [
+        "claim-injection",
+        "ssti",
+        "quick",
+        "high"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JWT with SSTI payload in 'sub' claim - targeting template rendering",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-015",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyIiwianRpIjoiMTExMTExMTEtMTExMS0xMTExLTExMTEtMTExMTExMTExMTExIiwiaWF0IjoxNjA5NDU5MjAwfQ.signature",
+      "tags": [
+        "jti-prediction",
+        "token-reuse",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "JWT with predictable 'jti' (JWT ID) - sequential/guessable token ID",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-016",
+      "payload": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": [
+        "header-manipulation",
+        "type-field",
+        "low"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "JWT with swapped header fields (typ before alg) - parser confusion",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-017",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImN0eSI6IkpXVCJ9.eyJhbGciOiJub25lIn0.eyJzdWIiOiJhZG1pbiJ9.",
+      "tags": [
+        "nested-jwt",
+        "algorithm-confusion",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Nested JWT with 'none' algorithm in inner token - double-decode bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-018",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInNjb3BlIjoiKiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": [
+        "scope-injection",
+        "wildcard",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "JWT with wildcard '*' scope - attempting full access permission",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-019",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImF1ZCI6WyJhcGkxIiwiYXBpMiIsImFsbCJdLCJpYXQiOjE2MDk0NTkyMDB9.signature",
+      "tags": [
+        "audience-manipulation",
+        "scope-escalation",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "JWT with multiple audiences including generic 'all' - audience validation bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-020",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImlzcyI6Imh0dHBzOi8vdHJ1c3RlZC5jb20iLCJpYXQiOjE2MDk0NTkyMDB9.signature",
+      "tags": [
+        "issuer-spoofing",
+        "trusted-issuer",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "JWT with spoofed trusted issuer - bypassing issuer validation",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-021",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..signature",
+      "tags": [
+        "malformed",
+        "empty-payload",
+        "quick",
+        "high"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JWT with empty payload section - parser error exploitation",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-022",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0",
+      "tags": [
+        "malformed",
+        "missing-signature",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT missing signature section - signature validation bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-023",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ew0KICAic3ViIjogImFkbWluIiwNCiAgImFkbWluIjogdHJ1ZSwNCiAgImlhdCI6IDE2MDk0NTkyMDANCn0.signature",
+      "tags": [
+        "encoding-tricks",
+        "newlines",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "JWT with newlines in payload JSON - encoding normalization bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-024",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMCwiZXhwIjoxNjA5NDU5MjAwfQ.signature",
+      "tags": [
+        "expiry-manipulation",
+        "expired-token",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "JWT with exp = iat (already expired) - testing expiry enforcement",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-025",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMCwiYXV0aF90aW1lIjoxNjA5NDU5MTAwfQ.signature",
+      "tags": [
+        "auth-time-manipulation",
+        "session-extension",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "JWT with auth_time before iat - backdating authentication time",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-026",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsIng1dSI6Imh0dHA6Ly9hdHRhY2tlci5jb20vZXZpbC5jZXIifQ.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": [
+        "x5u-injection",
+        "ssrf",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with malicious 'x5u' (X.509 URL) header - SSRF via certificate fetching",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-027",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImp3ayI6eyJrdHkiOiJvY3QiLCJrIjoiWVdKak1USXpORFUyIn19.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": [
+        "jwk-injection",
+        "self-signed",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with embedded 'jwk' (JSON Web Key) - self-signing attack",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-028",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pblx1MDAwMCIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": [
+        "null-byte-injection",
+        "encoding-tricks",
+        "high"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JWT with null byte (\\u0000) in 'sub' claim - string truncation attack",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-029",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInBlcm1pc3Npb25zIjp7Il9fcHJvdG9fXyI6eyJpc0FkbWluIjp0cnVlfX0sImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": [
+        "prototype-pollution",
+        "object-injection",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "JWT with __proto__ pollution in nested object - prototype pollution via claims",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-030",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJ1c2VyXHUwMDdmYWRtaW4iLCJpYXQiOjE2MDk0NTkyMDB9.signature",
+      "tags": [
+        "unicode-tricks",
+        "encoding-tricks",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "JWT with Unicode control character (\\u007f DELETE) - normalization bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-031",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ii4uLy4uLy4uL2V0Yy9wYXNzd2QifQ.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["kid-injection", "path-traversal", "lfi", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with 'kid' path traversal to /etc/passwd",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-032",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ii9kZXYvbnVsbCJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["kid-injection", "dev-null", "bypass", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with 'kid' pointing to /dev/null (empty secret)",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-033",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InwgY2F0IC9ldGMvcGFzc3dkIn0.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["kid-injection", "command-injection", "rce", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with 'kid' command injection via pipe",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-034",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjsgY2F0IC9ldGMvcGFzc3dkIn0.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["kid-injection", "command-injection", "rce", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with 'kid' command injection via semicolon",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-035",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IicgT1IgJzEnPScxIn0.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["kid-injection", "sql-injection", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with 'kid' SQL injection",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-036",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Imh0dHA6Ly9ldmlsLmNvbS9rZXkifQ.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["kid-injection", "ssrf", "remote-key", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with 'kid' SSRF to attacker-controlled key",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-037",
+      "payload": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImprdSI6Imh0dHA6Ly9ldmlsLmNvbS9qd2tzLmpzb24ifQ.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["jku-injection", "ssrf", "key-injection", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with 'jku' (JWK Set URL) pointing to attacker server",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-038",
+      "payload": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImprdSI6Imh0dHBzOi8vbGVnaXRpbWF0ZS5jb21AZXZpbC5jb20vandrcy5qc29uIn0.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["jku-injection", "at-bypass", "ssrf", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with 'jku' URL @ bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-039",
+      "payload": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImprdSI6Imh0dHBzOi8vbGVnaXRpbWF0ZS5jb20uZXZpbC5jb20vandrcy5qc29uIn0.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["jku-injection", "subdomain-bypass", "ssrf", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with 'jku' subdomain confusion bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-040",
+      "payload": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.bm90aGluZw",
+      "tags": ["none-attack", "garbage-signature", "bypass", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with 'none' algorithm but garbage in signature",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-041",
+      "payload": "eyJhbGciOiJuT25FIiwidHlwIjoiSldUIn0.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.",
+      "tags": ["none-attack", "mixed-case", "bypass", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with mixed case 'nOnE' algorithm",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-042",
+      "payload": "eyJhbGciOiJOb25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.",
+      "tags": ["none-attack", "pascal-case", "bypass", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with Pascal case 'None' algorithm",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-043",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6LTEsImV4cCI6OTk5OTk5OTk5OX0.signature",
+      "tags": ["time-attack", "negative-iat", "high"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JWT with negative 'iat' (issued at) time",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-044",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsIm5iZiI6MCwiZXhwIjo5OTk5OTk5OTk5fQ.signature",
+      "tags": ["time-attack", "zero-nbf", "high"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JWT with zero 'nbf' (not before) - always valid",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-045",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6IjIyODYtMTEtMjBUMTc6NDY6NDBaIiwiaWF0IjoxNjA5NDU5MjAwfQ.signature",
+      "tags": ["time-attack", "string-exp", "type-confusion", "high"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JWT with string 'exp' instead of number - type confusion",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-046",
+      "payload": "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["algorithm-confusion", "hs512", "downgrade", "high"],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "JWT with HS512 - testing server accepts different algorithm",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-047",
+      "payload": "eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["algorithm-confusion", "hs384", "downgrade", "high"],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "JWT with HS384 - testing server accepts different algorithm",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-048",
+      "payload": "eyJhbGciOiJQUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["algorithm-confusion", "ps256", "downgrade", "high"],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "JWT with PS256 (RSASSA-PSS) algorithm",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-049",
+      "payload": "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["algorithm-confusion", "es256", "ecdsa", "high"],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "JWT with ES256 (ECDSA) algorithm",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-050",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImF1ZCI6ImV2aWwuY29tIiwiaWF0IjoxNjA5NDU5MjAwfQ.signature",
+      "tags": ["audience-manipulation", "aud-claim", "critical"],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "JWT with manipulated 'aud' (audience) claim",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-051",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImlzcyI6ImV2aWwuY29tIiwiaWF0IjoxNjA5NDU5MjAwfQ.signature",
+      "tags": ["issuer-manipulation", "iss-claim", "critical"],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "JWT with manipulated 'iss' (issuer) claim",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-052",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImp0aSI6IjEiLCJpYXQiOjE2MDk0NTkyMDB9.signature",
+      "tags": ["jti-manipulation", "predictable-id", "replay", "high"],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "JWT with predictable 'jti' (JWT ID) for replay",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-053",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInNjb3BlIjoiYWRtaW46KiByZWFkOiogd3JpdGU6KiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["scope-injection", "privilege-escalation", "critical"],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "JWT with injected admin scopes",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-054",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInJvbGVzIjpbImFkbWluIiwic3VwZXJ1c2VyIiwicm9vdCJdLCJpYXQiOjE2MDk0NTkyMDB9.signature",
+      "tags": ["role-injection", "array-roles", "critical"],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "JWT with multiple admin roles in array",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-055",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInVzZXJfdHlwZSI6ImludGVybmFsIiwiaWF0IjoxNjA5NDU5MjAwfQ.signature",
+      "tags": ["user-type-injection", "internal-user", "critical"],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "JWT with 'internal' user type claim",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-056",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInRlbmFudF9pZCI6Im90aGVyLXRlbmFudCIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["tenant-manipulation", "cross-tenant", "critical"],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "JWT with different tenant_id claim",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-057",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsIm9yZ19pZCI6MSwiZW52IjoicHJvZHVjdGlvbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["env-claim", "production-access", "critical"],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "JWT with production environment claim",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-058",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ7eyBjb25maWcuc2VjcmV0IH19IiwiaWF0IjoxNjA5NDU5MjAwfQ.signature",
+      "tags": ["ssti", "template-injection", "claim", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with SSTI payload in sub claim",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-059",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI8c2NyaXB0PmFsZXJ0KDEpPC9zY3JpcHQ-IiwiaWF0IjoxNjA5NDU5MjAwfQ.signature",
+      "tags": ["xss", "claim-injection", "high"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JWT with XSS payload in sub claim",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-060",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsIm5hbWUiOiJSb2JlcnQnKTsgRFJPUCBUQUJMRSB1c2VyczsgLS0iLCJpYXQiOjE2MDk0NTkyMDB9.signature",
+      "tags": ["sqli", "claim-injection", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with SQLi payload in name claim",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-061",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImN0eSI6InRleHQvaHRtbCJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["cty-manipulation", "content-type", "high"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JWT with manipulated 'cty' (content type) header",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-062",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsInppcCI6IkRFRiJ9.eNpLzi9SKUYBAAA//wMfAYI=.signature",
+      "tags": ["zip-bomb", "compressed", "dos", "high"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JWT with DEFLATE compression (zip header)",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-063",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImRhdGEiOnsiYSI6eyJiIjp7ImMiOnsiZCI6eyJlIjp7ImYiOnsiZyI6eyJoIjp7ImkiOnsiaiI6eyJrIjp7ImwiOnsibSI6eyJuIjp7Im8iOiJuZXN0ZWQifX19fX19fX19fX19fX19fX0sImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["deep-nesting", "dos", "parser-abuse", "high"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JWT with deeply nested JSON (parser DoS)",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-064",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.AAAA...AAAA.signature",
+      "tags": ["large-payload", "dos", "memory", "high"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JWT with oversized payload (memory exhaustion)",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-065",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature.extra.parts",
+      "tags": ["malformed", "extra-parts", "parser-confusion", "high"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JWT with extra dot-separated parts",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-066",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0",
+      "tags": ["malformed", "missing-signature", "bypass", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with missing signature part entirely",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-067",
+      "payload": "..eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.",
+      "tags": ["malformed", "empty-header", "bypass", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with empty header (leading dots)",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-068",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..signature",
+      "tags": ["malformed", "empty-payload", "bypass", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with empty payload",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-069",
+      "payload": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["bearer-prefix", "header-format", "high"],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "JWT with Bearer prefix included in token",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-070",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImFjdCI6eyJzdWIiOiJ2aWN0aW0ifSwiaWF0IjoxNjA5NDU5MjAwfQ.signature",
+      "tags": ["act-claim", "token-exchange", "impersonation", "critical"],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "JWT with 'act' (actor) claim for delegation abuse",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-071",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsIm1heV9hY3RfYXMiOlsiYWRtaW4iLCJyb290Il0sImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["may-act-as", "delegation", "privilege-escalation", "critical"],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "JWT with 'may_act_as' delegation claim",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-072",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImNuZiI6eyJqa3QiOiJfIH0sImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["cnf-claim", "proof-of-possession", "bypass", "high"],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "JWT with weak 'cnf' (confirmation) claim",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-073",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsIng1YyI6WyJNSUlCLi4uIl19.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["x5c-injection", "certificate-chain", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JWT with 'x5c' (X.509 certificate chain) injection",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-074",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsIng1dCI6InNlbGYtc2lnbmVkIn0.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["x5t-manipulation", "thumbprint", "high"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JWT with manipulated 'x5t' (X.509 thumbprint)",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-075",
+      "payload": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["eddsa", "ed25519", "algorithm", "high"],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "JWT with EdDSA algorithm (Ed25519)",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-076",
+      "payload": "eyJhbGciOiJBMTI4S1ciLCJ0eXAiOiJKV1QiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0.encrypted.iv.ciphertext.tag",
+      "tags": ["jwe", "encrypted-jwt", "a128kw", "high"],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "JWE with A128KW key wrapping algorithm",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-077",
+      "payload": "eyJhbGciOiJkaXIiLCJ0eXAiOiJKV1QiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..iv.ciphertext.tag",
+      "tags": ["jwe", "direct-encryption", "dir", "high"],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "JWE with direct encryption (no key wrapping)",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-078",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6ImF0K2p3dCJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["access-token-jwt", "at+jwt", "type-confusion", "high"],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "JWT with 'at+jwt' type (access token)",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-079",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImNyaXQiOlsiYWxnIl19.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTYwOTQ1OTIwMH0.signature",
+      "tags": ["crit-header", "critical-claims", "bypass", "high"],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "JWT with 'crit' header (critical claims list)",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-JWT-080",
+      "payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImI2NCI6ZmFsc2V9.not-base64-payload.signature",
+      "tags": ["b64-false", "unencoded-payload", "rfc7797", "high"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JWT with b64:false header (unencoded payload)",
+      "category": "Auth"
+  }
+]

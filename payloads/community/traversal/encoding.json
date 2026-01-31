@@ -1,0 +1,558 @@
+[
+  {
+      "id": "TRV-ENC-003",
+      "payload": "..%252f..%252f..%252fetc%252fpasswd",
+      "tags": [
+        "double-encoded",
+        "unix",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Double URL-encoded forward slashes",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-004",
+      "payload": "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd",
+      "tags": [
+        "encoded",
+        "unix",
+        "dots"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "URL-encoded dots and slashes",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-005",
+      "payload": "..%c0%af..%c0%af..%c0%afetc%c0%afpasswd",
+      "tags": [
+        "utf-8",
+        "overlong",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "UTF-8 overlong encoding of forward slash",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-006",
+      "payload": "..%25252F..%25252F..%25252Fetc%25252Fpasswd",
+      "tags": [
+        "triple-encoded",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Triple URL-encoded traversal",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-007",
+      "payload": "..\\%5c..\\%5c..\\%5cwindows\\%5csystem32\\%5cconfig\\%5csam",
+      "tags": [
+        "encoded",
+        "windows",
+        "mixed"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Mixed encoded and unencoded backslashes",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-008",
+      "payload": "%2e%2e%252f%2e%2e%252f%2e%2e%252fetc%252fpasswd",
+      "tags": [
+        "mixed-encoded",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Mixed single and double encoding",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-009",
+      "payload": "..%u2216..%u2216..%u2216etc%u2216passwd",
+      "tags": [
+        "unicode-encoded",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Unicode-encoded backslash (U+2216)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-033",
+      "payload": "%2e%2e/%2e%2e/%2e%2e/etc/passwd",
+      "tags": [
+        "partial-encoded",
+        "unix",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Partially encoded traversal (dots only)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-034",
+      "payload": "..%ef%bc%8f..%ef%bc%8f..%ef%bc%8fetc%ef%bc%8fpasswd",
+      "tags": [
+        "fullwidth",
+        "unicode",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Full-width Unicode forward slash (U+FF0F)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-035",
+      "payload": "..%e0%80%af..%e0%80%af..%e0%80%afetc%e0%80%afpasswd",
+      "tags": [
+        "utf-8",
+        "overlong",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "UTF-8 overlong 3-byte encoding",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-036",
+      "payload": "..%c1%1c..%c1%1c..%c1%1cetc%c1%1cpasswd",
+      "tags": ["utf-8", "overlong", "slash"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "UTF-8 overlong 2-byte slash encoding",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-037",
+      "payload": "..%f0%80%80%af..%f0%80%80%af..%f0%80%80%afetc%f0%80%80%afpasswd",
+      "tags": ["utf-8", "overlong", "4-byte"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "UTF-8 overlong 4-byte encoding",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-038",
+      "payload": "..%bg%qf..%bg%qf..%bg%qfetc%bg%qfpasswd",
+      "tags": ["invalid-encoding", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Invalid percent encoding sequences",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-039",
+      "payload": "....//....//....//etc/passwd",
+      "tags": ["double-dot-slash", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Double dot double slash bypass",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-040",
+      "payload": "..../..../..../etc/passwd",
+      "tags": ["quadruple-dot", "bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Quadruple dot traversal",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-041",
+      "payload": "%252e%252e%252f%252e%252e%252f%252e%252e%252fetc%252fpasswd",
+      "tags": ["double-encoded", "full"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Fully double-encoded dots and slashes",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-042",
+      "payload": "..%255c..%255c..%255cwindows%255csystem32%255cconfig%255csam",
+      "tags": ["double-encoded", "windows"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Double-encoded backslash Windows",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-043",
+      "payload": "%c0%2e%c0%2e%c0%af%c0%2e%c0%2e%c0%afetc%c0%afpasswd",
+      "tags": ["mixed-overlong", "bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Mixed overlong dot and slash encoding",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-021",
+      "payload": ".%00./.%00./.%00./etc/passwd",
+      "tags": ["null-byte", "mixed"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Null byte in traversal sequence",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-022",
+      "payload": "..%u002f..%u002f..%u002fetc%u002fpasswd",
+      "tags": ["iis-unicode", "bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "IIS Unicode encoded slash",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-023",
+      "payload": "..%u005c..%u005c..%u005cwindows%u005csystem32",
+      "tags": ["iis-unicode", "windows"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "IIS Unicode encoded backslash",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-024",
+      "payload": "..%uFF0F..%uFF0F..%uFF0Fetc%uFF0Fpasswd",
+      "tags": ["fullwidth-unicode", "bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Unicode full-width slash %uFF0F",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-025",
+      "payload": "..%uFF3C..%uFF3C..%uFF3Cwindows%uFF3Csystem32",
+      "tags": ["fullwidth-unicode", "windows"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Unicode full-width backslash %uFF3C",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-026",
+      "payload": "../\\../\\../\\etc/passwd",
+      "tags": ["mixed-separator", "bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Mixed forward and backslash",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-027",
+      "payload": "..%2F%2e%2e%2F%2e%2e%2Fetc%2Fpasswd",
+      "tags": ["selective-encoding", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Selective encoding - slashes only",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-028",
+      "payload": "%2e%2e/%2e%2e/%2e%2e/etc/passwd",
+      "tags": ["selective-encoding", "dots-only"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Selective encoding - dots only",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-029",
+      "payload": "..\\u002f..\\u002f..\\u002fetc\\u002fpasswd",
+      "tags": ["java-unicode", "bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Java-style Unicode escape",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-030",
+      "payload": "..&#47;..&#47;..&#47;etc&#47;passwd",
+      "tags": ["html-entity", "numeric"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "HTML numeric entity slash",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-031",
+      "payload": "..&#x2f;..&#x2f;..&#x2f;etc&#x2f;passwd",
+      "tags": ["html-entity", "hex"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "HTML hex entity slash",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-032",
+      "payload": "..%c0%ae%c0%ae%c0%af..%c0%ae%c0%ae%c0%afetc%c0%afpasswd",
+      "tags": ["double-overlong", "dots"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Overlong encoded dots and slash",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-061","payload": "Li4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vLi4vZXRjL3Bhc3N3ZA==",
+      "tags": ["base64", "linux"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Base64 encoded ../../etc/passwd",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-062","payload": "L2V0Yy9wYXNzd2Q=",
+      "tags": ["base64", "linux", "absolute"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Base64 encoded /etc/passwd",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-063","payload": "%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5c..%25%5cetc%25%5cpasswd",
+      "tags": ["double-encoded", "backslash"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Double-encoded backslash traversal",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-064",
+      "payload": "..%2f..%2f..%2f..%2f..%2f..%2f..%2f..%2f..%2f..%2fetc%2fshadow%00",
+      "tags": ["encoded", "null-byte", "shadow"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Encoded traversal with null byte to shadow",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-065",
+      "payload": "..2f..2f..2f..2f..2f..2f..2f..2f..2f..2fetc2fpasswd",
+      "tags": ["partial-encoding", "malformed"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Partial encoding without percent signs",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-066",
+      "payload": "etc%2fpasswd",
+      "tags": ["encoded", "relative"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Relative path with encoded slash",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-067",
+      "payload": "etc%5cpasswd",
+      "tags": ["encoded", "backslash"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Relative path with encoded backslash",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-068",
+      "payload": "etc%c0%afpasswd",
+      "tags": ["overlong", "relative"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Relative path with overlong slash",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-069",
+      "payload": "etc%c0%afpasswd%00",
+      "tags": ["overlong", "null-byte"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Overlong slash with null byte",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-070",
+      "payload": "//./C:/Windows/system32/drivers/etc/hosts",
+      "tags": ["windows", "unc", "device"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows device path bypass",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-071",
+      "payload": "\\\\.\\C:\\Windows\\system32\\drivers\\etc\\hosts",
+      "tags": ["windows", "unc", "device"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows device namespace path",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-044",
+      "payload": "\\\\?\\C:\\Windows\\system32\\drivers\\etc\\hosts",
+      "tags": ["windows", "unc", "extended"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows extended-length path",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-045",
+      "payload": "\\\\127.0.0.1\\C$\\Windows\\system32\\drivers\\etc\\hosts",
+      "tags": ["windows", "unc", "admin-share"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows UNC admin share path",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-046",
+      "payload": "\\\\localhost\\C$\\Windows\\system32\\drivers\\etc\\hosts",
+      "tags": ["windows", "unc", "localhost"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows UNC localhost admin share",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-047",
+      "payload": "\\\\::1\\C$\\Windows\\system32\\drivers\\etc\\hosts",
+      "tags": ["windows", "unc", "ipv6"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows UNC IPv6 localhost admin share",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-048",
+      "payload": "\\/127.0.0.1\\C$/Windows///////\\system32/drivers//////\\etc/hosts",
+      "tags": ["windows", "unc", "slash-mix"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Mixed slash UNC with extra slashes",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-049",
+      "payload": "C:..\\..\\..\\..\\..\\..\\..\\..\\..\\Windows\\system32\\drivers\\etc\\hosts",
+      "tags": ["windows", "drive", "relative"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Drive-relative traversal without separator",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-050",
+      "payload": "..//..//..//..//..//Windows/system32/drivers/etc/hosts",
+      "tags": ["windows", "double-slash"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Double-slash traversal",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-051",
+      "payload": "..\\/..\\/..\\/..\\/..\\/..\\/..\\/Windows/system32\\drivers/etc\\hosts",
+      "tags": ["windows", "mixed-slash", "alternating"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Alternating mixed slash traversal",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-052",
+      "payload": "../..\\..\\/..\\../..\\/Windows/system32\\drivers/etc\\hosts",
+      "tags": ["windows", "mixed-slash", "irregular"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Irregular mixed slash patterns",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-053",
+      "payload": "RANDOMDIR..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\Windows\\system32\\drivers\\etc\\hosts",
+      "tags": ["windows", "prefix", "random"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Random prefix traversal bypass",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-054",
+      "payload": "..\\..\\..\\..\\..\\..\\..\\..\\Windows\\system32\\drivers\\etc\\hosts.",
+      "tags": ["windows", "trailing-dot"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Trailing dot Windows bypass",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-055",
+      "payload": "..;/..;/..;/..;/etc/passwd",
+      "tags": ["tomcat", "semicolon", "nginx"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Tomcat/Nginx semicolon traversal",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-056",
+      "payload": "/..;/..;/..;/etc/passwd",
+      "tags": ["reverse-proxy", "semicolon"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Reverse proxy path confusion",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-057",
+      "payload": "....//....//....//etc/passwd",
+      "tags": ["double-dot", "double-slash"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Double dot double slash bypass",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-058",
+      "payload": "....\\\\....\\\\....\\\\Windows\\system32\\drivers\\etc\\hosts",
+      "tags": ["windows", "double-dot", "double-backslash"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Windows double dot double backslash",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-059",
+      "payload": "/.../.../.../etc/passwd",
+      "tags": ["triple-dot", "linux"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Triple dot traversal attempt",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-060",
+      "payload": "\\....\\\\\\....\\\\\\....\\\\\\",
+      "tags": ["windows", "obfuscated"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Obfuscated Windows traversal",
+      "category": "Traversal"
+  }
+]

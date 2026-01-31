@@ -1,0 +1,195 @@
+[
+  {
+      "id": "TRV-UNIX-006",
+      "payload": "../../../etc/hosts",
+      "tags": [
+        "unix",
+        "network",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Unix hosts file containing network mappings",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-007",
+      "payload": "../../../../../../../../proc/self/environ",
+      "tags": [
+        "unix",
+        "process",
+        "environment"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Current process environment variables (8-level deep)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-008",
+      "payload": "../../../var/log/auth.log",
+      "tags": [
+        "unix",
+        "logs",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Authentication log file",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-009",
+      "payload": "../../../var/www/html/.htaccess",
+      "tags": [
+        "unix",
+        "web",
+        "config"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Apache configuration file",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-033",
+      "payload": "../../../home/user/.bash_history",
+      "tags": [
+        "unix",
+        "history",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "User command history file",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-034",
+      "payload": "/proc/version",
+      "tags": [
+        "unix",
+        "absolute",
+        "system"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Kernel version information (absolute path)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-035",
+      "payload": "../../../etc/crontab",
+      "tags": [
+        "unix",
+        "schedule",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "System-wide cron jobs",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-036",
+      "payload": "../../../var/log/nginx/access.log",
+      "tags": [
+        "unix",
+        "logs",
+        "nginx"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Nginx access log",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-037",
+      "payload": "../../../usr/local/etc/php/php.ini",
+      "tags": [
+        "unix",
+        "config",
+        "php"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "PHP configuration file",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-038",
+      "payload": "../../../opt/app/.env.production",
+      "tags": [
+        "unix",
+        "env",
+        "production"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Production environment configuration",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-039",
+      "payload": "/etc/mysql/my.cnf",
+      "tags": [
+        "unix",
+        "database",
+        "absolute"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MySQL configuration file (absolute path)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-040",
+      "payload": "../../../proc/self/cmdline",
+      "tags": [
+        "unix",
+        "process"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Current process command line",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-041",
+      "payload": "../../../../../../../../../../etc/passwd",
+      "tags": [
+        "unix",
+        "deep"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Extremely deep traversal (10 levels)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-042",
+      "payload": "../../../root/.bashrc",
+      "tags": [
+        "unix",
+        "config",
+        "root"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Root user shell configuration",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-043",
+      "payload": "../etc/../etc/../etc/passwd",
+      "tags": [
+        "unix",
+        "redundant",
+        "obfuscation"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Redundant directory traversal",
+      "category": "Traversal"
+  }
+]

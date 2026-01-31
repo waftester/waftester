@@ -1,0 +1,272 @@
+[
+  {
+    "id": "EVASION-CHUNKED-001",
+    "payload": "POST /api/data HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n5\r\n<scri\r\n7\r\npt>alert\r\n4\r\n(1)</\r\n7\r\nscript>\r\n0\r\n\r\n",
+    "tags": ["evasion", "chunked", "xss", "advanced"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Chunked transfer encoding to split XSS payload across chunks",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "WAFVAL-MULTILINE-001",
+    "payload": "GET /api/search?q=SE\r\nLECT%20*%20FROM%20users",
+    "tags": ["evasion", "multiline", "sqli", "advanced"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CRLF injection to split SQL keyword across lines",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "WAFVAL-CONCAT-001",
+    "payload": "GET /api/search?q=SEL'+'ECT * FROM users",
+    "tags": ["evasion", "concatenation", "sqli", "advanced"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "String concatenation to bypass keyword detection",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-CONCAT-002",
+    "payload": "GET /api/search?q=SEL||ECT%20*%20FROM%20users",
+    "tags": ["evasion", "concatenation", "sqli", "advanced"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Oracle-style concatenation bypass",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-SCIENTIFIC-001",
+    "payload": "GET /api/users?id=1e0UNION%20SELECT%20*%20FROM%20users",
+    "tags": ["evasion", "scientific-notation", "sqli", "advanced"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Scientific notation to join SQL keywords without space",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-BUFFER-001",
+    "payload": "GET /api/search?q=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' OR '1'='1",
+    "tags": ["evasion", "buffer-overflow", "sqli", "advanced"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Long string padding to overflow WAF buffer",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-TIMING-001",
+    "payload": "POST /api/login HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 0\r\n\r\nusername=admin' AND SLEEP(5)--&password=test",
+    "tags": ["evasion", "content-length", "sqli", "advanced"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Content-Length mismatch to bypass body inspection",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-JSON-001",
+    "payload": "POST /api/data HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"query\":\"1' OR '1'='1\",\"bypass\":true}",
+    "tags": ["evasion", "json", "sqli", "advanced"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "SQL injection in JSON body",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-JSON-002",
+    "payload": "POST /api/data HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"query\":{\"$gt\":\"\"}}",
+    "tags": ["evasion", "json", "nosqli", "advanced"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "NoSQL injection via JSON operator",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-MULTIPART-001",
+    "payload": "POST /api/upload HTTP/1.1\r\nContent-Type: multipart/form-data; boundary=----X\r\n\r\n------X\r\nContent-Disposition: form-data; name=\"file\"; filename=\"test.php\"\r\nContent-Type: image/jpeg\r\n\r\n<?php system($_GET['c']); ?>\r\n------X--",
+    "tags": ["evasion", "multipart", "rce", "advanced"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "PHP webshell in multipart upload with fake content-type",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-MULTIPART-002",
+    "payload": "POST /api/upload HTTP/1.1\r\nContent-Type: multipart/form-data; boundary=----X\r\n\r\n------X\r\nContent-Disposition: form-data; name=\"data\"\r\n\r\n<script>alert(1)</script>\r\n------X--",
+    "tags": ["evasion", "multipart", "xss", "advanced"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "XSS in multipart form field",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-CHARSET-001",
+    "payload": "GET /api/search?q=%u003Cscript%u003Ealert(1)%u003C/script%u003E",
+    "tags": ["evasion", "charset", "xss", "iis", "advanced"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "IIS %u encoding bypass",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-CHARSET-002",
+    "payload": "GET /api/search?q=\\x3Cscript\\x3Ealert(1)\\x3C/script\\x3E",
+    "tags": ["evasion", "charset", "xss", "hex", "advanced"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Hex escape sequence XSS",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-UTF7-001",
+    "payload": "GET /api/search?q=+ADw-script+AD4-alert(1)+ADw-/script+AD4-",
+    "tags": ["evasion", "utf7", "xss", "advanced"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "UTF-7 encoded XSS",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-PUNYCODE-001",
+    "payload": "GET / HTTP/1.1\r\nHost: xn--e1afmkfd.xn--p1ai",
+    "tags": ["evasion", "punycode", "dns", "advanced"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "Punycode domain - may be legitimate IDN",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-OVERLONG-001",
+    "payload": "GET /api/search?q=%c0%ae%c0%ae%c0%af/etc/passwd",
+    "tags": ["evasion", "overlong-utf8", "traversal", "advanced"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Overlong UTF-8 encoding for path traversal (../ = %c0%ae%c0%ae%c0%af)",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-NORMALIZATION-001",
+    "payload": "GET /api/search?q=ｓｅｌｅｃｔ%20*%20ｆｒｏｍ%20users",
+    "tags": ["evasion", "fullwidth", "sqli", "unicode", "advanced"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Fullwidth Unicode characters for SQL keywords",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-NORMALIZATION-002",
+    "payload": "GET /api/search?q=%EF%BC%9Cscript%EF%BC%9Ealert(1)%EF%BC%9C/script%EF%BC%9E",
+    "tags": ["evasion", "fullwidth", "xss", "unicode", "advanced"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Fullwidth angle brackets for XSS",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-VERB-001",
+    "payload": "FOOBAR /api/admin HTTP/1.1\r\nX-HTTP-Method-Override: DELETE\r\nHost: target.com",
+    "tags": ["evasion", "method-override", "access-control", "advanced"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "HTTP method override header with invalid verb",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-VERB-002",
+    "payload": "POST /api/data HTTP/1.1\r\nX-HTTP-Method: PUT\r\nX-Method-Override: DELETE\r\nContent-Type: application/json\r\n\r\n{}",
+    "tags": ["evasion", "method-override", "access-control", "advanced"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Multiple method override headers",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-PATHCONF-001",
+    "payload": "GET /api;/admin HTTP/1.1",
+    "tags": ["evasion", "path-confusion", "access-control", "tomcat", "advanced"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Tomcat/Spring path parameter confusion",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-PATHCONF-002",
+    "payload": "GET /api%2fadmin HTTP/1.1",
+    "tags": ["evasion", "path-confusion", "access-control", "advanced"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "URL-encoded path separator",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-PATHCONF-003",
+    "payload": "GET /api\\admin HTTP/1.1",
+    "tags": ["evasion", "path-confusion", "access-control", "windows", "advanced"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Backslash path separator (Windows)",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-CACHE-001",
+    "payload": "GET /api/search?q=test HTTP/1.1\r\nX-Original-URL: /admin\r\nHost: target.com",
+    "tags": ["evasion", "cache", "path-override", "advanced"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "X-Original-URL header to bypass path restrictions",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-CACHE-002",
+    "payload": "GET /api/search?q=test HTTP/1.1\r\nX-Rewrite-URL: /admin\r\nHost: target.com",
+    "tags": ["evasion", "cache", "path-override", "advanced"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "X-Rewrite-URL header to bypass path restrictions",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-FRAGMENT-001",
+    "payload": "GET /api/search?q=test#<script>alert(1)</script>",
+    "tags": ["evasion", "fragment", "xss", "advanced"],
+    "expected_block": true,
+    "severity_hint": "Medium",
+    "notes": "XSS in URL fragment (client-side only)",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "WAFVAL-PROTO-001",
+    "payload": "POST /api/data HTTP/1.0\r\nContent-Type: application/json\r\n\r\n{\"query\":\"' OR '1'='1\"}",
+    "tags": ["evasion", "http1.0", "sqli", "advanced"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "HTTP/1.0 protocol downgrade with injection",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-PROTO-002",
+    "payload": "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n",
+    "tags": ["evasion", "http2", "protocol", "advanced"],
+    "expected_block": false,
+    "severity_hint": "Low",
+    "notes": "HTTP/2 connection preface (informational)",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-SMUGGLE-001",
+    "payload": "POST / HTTP/1.1\r\nHost: target.com\r\nContent-Length: 6\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nG",
+    "tags": ["evasion", "smuggling", "cl-te", "advanced", "quick"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "CL.TE HTTP request smuggling attempt",
+    "category": "WAF-Bypass"
+  },
+  {
+    "id": "EVASION-SMUGGLE-002",
+    "payload": "POST / HTTP/1.1\r\nHost: target.com\r\nTransfer-Encoding: chunked\r\nContent-Length: 4\r\n\r\n5c\r\nGPOST / HTTP/1.1\r\nHost: target.com\r\nContent-Length: 10\r\n\r\ntest\r\n0\r\n\r\n",
+    "tags": ["evasion", "smuggling", "te-cl", "advanced", "quick"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "TE.CL HTTP request smuggling attempt",
+    "category": "WAF-Bypass"
+  }
+]

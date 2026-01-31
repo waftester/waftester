@@ -1,0 +1,357 @@
+[
+  {
+      "id": "INJ-LDAP-300",
+      "payload": "*",
+      "tags": [
+        "basic",
+        "wildcard",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "LDAP wildcard - matches all entries",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-301",
+      "payload": "admin)(|(password=*))",
+      "tags": [
+        "filter-bypass",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "LDAP filter bypass - authentication without password",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-302",
+      "payload": "*)(uid=*))(|(uid=*",
+      "tags": [
+        "filter-bypass"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "LDAP filter injection with OR logic",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-303",
+      "payload": "admin)(&(password=*)",
+      "tags": [
+        "filter-bypass"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "LDAP AND operator with wildcard",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-304",
+      "payload": "*()|&'",
+      "tags": [
+        "special-chars"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "LDAP special characters - filter corruption",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-305",
+      "payload": "admin*",
+      "tags": [
+        "wildcard",
+        "enumeration"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "LDAP prefix wildcard - username enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-306",
+      "payload": "*admin*",
+      "tags": [
+        "wildcard",
+        "enumeration"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "LDAP infix wildcard - substring search",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-307",
+      "payload": ")(objectClass=*",
+      "tags": [
+        "enumeration"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "LDAP objectClass enumeration - all objects",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-308",
+      "payload": "admin)(!(&(1=0",
+      "tags": [
+        "filter-bypass",
+        "negation"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "LDAP negation bypass - complex filter manipulation",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-309",
+      "payload": "\\2a",
+      "tags": [
+        "encoded",
+        "wildcard"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "LDAP encoded asterisk - hex wildcard",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-310",
+      "payload": "admin)(cn=*)",
+      "tags": [
+        "filter-bypass"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "LDAP cn (common name) wildcard bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-311",
+      "payload": "admin)(userPassword=*)",
+      "tags": [
+        "filter-bypass",
+        "sensitive"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "LDAP userPassword field bypass",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-312",
+      "payload": "*))(|(cn=*",
+      "tags": [
+        "filter-bypass",
+        "or-logic"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "LDAP OR injection - match any cn",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-313",
+      "payload": "admin)(|(userAccountControl:1.2.840.113556.1.4.803:=512))",
+      "tags": [
+        "active-directory",
+        "enumeration"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Active Directory LDAP - normal user account enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-314",
+      "payload": "*)(objectCategory=person)(sAMAccountName=*",
+      "tags": [
+        "active-directory"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Active Directory - enumerate all person objects",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-315",
+      "payload": ")(cn=*)(|(cn=*",
+      "tags": ["filter-bypass", "injection"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "LDAP filter bypass with nested OR",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-316",
+      "payload": "*)(userPassword=*",
+      "tags": ["password-disclosure", "enumeration"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "LDAP password attribute enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-317",
+      "payload": "admin\\00",
+      "tags": ["null-byte", "truncation"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "LDAP null byte truncation",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-318",
+      "payload": "*)(mail=*@*",
+      "tags": ["enumeration", "email"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "LDAP email enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-319",
+      "payload": "*)(memberOf=CN=Domain Admins*",
+      "tags": ["active-directory", "privilege-enum"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AD Domain Admins group enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-320",
+      "payload": "*)(servicePrincipalName=*",
+      "tags": ["active-directory", "kerberoasting"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AD SPN enumeration for Kerberoasting",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-321",
+      "payload": "*)(msDS-AllowedToDelegateTo=*",
+      "tags": ["active-directory", "delegation"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AD constrained delegation enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-322",
+      "payload": "*)(adminCount=1)",
+      "tags": ["active-directory", "admin-enum"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AD admin account enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-323",
+      "payload": "*)(objectClass=computer)(operatingSystem=*Server*",
+      "tags": ["active-directory", "server-enum"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "AD server enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-324",
+      "payload": "*)(objectClass=group)(member=*",
+      "tags": ["active-directory", "group-enum"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "AD group membership enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-325",
+      "payload": "%2a%29%28%7c%28uid%3d%2a",
+      "tags": ["url-encoded", "filter-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "URL-encoded LDAP injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-326",
+      "payload": "%5c%32%61%5c%32%39%5c%32%38%5c%37%63%5c%32%38%75%69%64%5c%33%64%5c%32%61",
+      "tags": ["hex-encoded", "filter-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Hex-encoded LDAP injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-327",
+      "payload": "*)(!(userAccountControl:1.2.840.113556.1.4.803:=2))",
+      "tags": ["active-directory", "enabled-accounts"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "AD enabled accounts enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-328",
+      "payload": "*)(pwdLastSet=0)",
+      "tags": ["active-directory", "weak-accounts"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "AD accounts with password never set",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-329",
+      "payload": "*)(userAccountControl:1.2.840.113556.1.4.803:=524288)",
+      "tags": ["active-directory", "trusted-delegation"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AD trusted for delegation accounts",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-330",
+      "payload": "*))%00",
+      "tags": ["null-byte", "filter-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "LDAP null byte filter termination",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-331",
+      "payload": "x])(cn=*))(|(cn=",
+      "tags": ["bracket-injection", "filter-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "LDAP bracket injection",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-332",
+      "payload": "*)(objectSid=S-1-5-21-*-500)",
+      "tags": ["active-directory", "rid-500"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AD Administrator RID enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-333",
+      "payload": "*)(distinguishedName=*,OU=Domain Controllers,*",
+      "tags": ["active-directory", "dc-enum"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AD Domain Controller enumeration",
+      "category": "Injection"
+  },
+  {
+      "id": "INJ-LDAP-334",
+      "payload": "*)(|(objectClass=organizationalUnit))",
+      "tags": ["active-directory", "ou-enum"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "AD Organizational Unit enumeration",
+      "category": "Injection"
+  }
+]

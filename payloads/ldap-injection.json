@@ -1,0 +1,182 @@
+[
+    {
+      "id": "ldap-001",
+      "payload": "*",
+      "tags": ["ldap", "wildcard"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "LDAP wildcard - matches all entries",
+      "category": "Injection"
+    },
+    {
+      "id": "ldap-002",
+      "payload": "*)(&",
+      "tags": ["ldap", "filter-injection"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "LDAP filter injection - break out of filter",
+      "category": "Injection"
+    },
+    {
+      "id": "ldap-003",
+      "payload": "*))%00",
+      "tags": ["ldap", "null-byte", "filter-injection"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "LDAP filter injection with null byte terminator",
+      "category": "Injection"
+    },
+    {
+      "id": "ldap-004",
+      "payload": ")(cn=))\u0000",
+      "tags": ["ldap", "null-byte", "cn-injection"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "LDAP cn attribute injection with null byte",
+      "category": "Injection"
+    },
+    {
+      "id": "ldap-005",
+      "payload": "*(|(mail=*))",
+      "tags": ["ldap", "wildcard", "mail-enum"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "LDAP wildcard with mail attribute OR",
+      "category": "Injection"
+    },
+    {
+      "id": "ldap-006",
+      "payload": "*(|(objectclass=*))",
+      "tags": ["ldap", "wildcard", "objectclass-enum"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "LDAP wildcard with objectclass enumeration",
+      "category": "Injection"
+    },
+    {
+      "id": "ldap-007",
+      "payload": "*)(uid=*))(|(uid=*",
+      "tags": ["ldap", "auth-bypass", "uid-injection"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "LDAP auth bypass via uid filter manipulation",
+      "category": "Injection"
+    },
+    {
+      "id": "ldap-008",
+      "payload": "admin*",
+      "tags": ["ldap", "wildcard", "username-enum"],
+      "expected_block": true,
+      "severity_hint": "medium",
+      "notes": "LDAP wildcard username enumeration",
+      "category": "Injection"
+    },
+    {
+      "id": "ldap-009",
+      "payload": "admin*)((|userpassword=*)",
+      "tags": ["ldap", "password-extraction", "filter-injection"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "LDAP password attribute extraction attempt",
+      "category": "Injection"
+    },
+    {
+      "id": "ldap-010",
+      "payload": "admin*)((|userPassword=*)",
+      "tags": ["ldap", "password-extraction", "filter-injection"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "LDAP password extraction (camelCase variant)",
+      "category": "Injection"
+    },
+    {
+      "id": "ldap-011",
+      "payload": "x' or name()='username' or 'x'='y",
+      "tags": ["ldap", "xpath-style", "injection"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "LDAP/XPATH style injection",
+      "category": "Injection"
+    },
+    {
+      "id": "ldap-012",
+      "payload": "*()|%26'",
+      "tags": ["ldap", "filter-injection", "encoded"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "LDAP filter with URL-encoded ampersand",
+      "category": "Injection"
+    },
+    {
+      "id": "ldap-013",
+      "payload": "*()|&'",
+      "tags": ["ldap", "filter-injection"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "LDAP filter injection with pipe and ampersand",
+      "category": "Injection"
+    },
+    {
+      "id": "ldap-014",
+      "payload": "*/*",
+      "tags": ["ldap", "path-injection"],
+      "expected_block": true,
+      "severity_hint": "medium",
+      "notes": "LDAP path/filter manipulation",
+      "category": "Injection"
+    },
+    {
+      "id": "ldap-015",
+      "payload": "*|",
+      "tags": ["ldap", "pipe-injection"],
+      "expected_block": true,
+      "severity_hint": "medium",
+      "notes": "LDAP pipe character injection",
+      "category": "Injection"
+    },
+    {
+      "id": "ldap-016",
+      "payload": "admin)(!(&(1=0",
+      "tags": ["ldap", "auth-bypass", "logic-injection"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "LDAP logic manipulation for auth bypass",
+      "category": "Injection"
+    },
+    {
+      "id": "ldap-017",
+      "payload": "%2A%28%7C%28mail%3D%2A%29%29",
+      "tags": ["ldap", "url-encoded", "filter-injection"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "URL-encoded LDAP filter *(|(mail=*))",
+      "category": "Injection"
+    },
+    {
+      "id": "ldap-018",
+      "payload": "%2A%28%7C%28objectclass%3D%2A%29%29",
+      "tags": ["ldap", "url-encoded", "filter-injection"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "URL-encoded LDAP filter *(|(objectclass=*))",
+      "category": "Injection"
+    },
+    {
+      "id": "ldap-019",
+      "payload": "userPassword:2.5.13.18:=\\00",
+      "tags": ["ldap", "password-extraction", "oid"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "LDAP OID-based password attribute extraction",
+      "category": "Injection"
+    },
+    {
+      "id": "ldap-020",
+      "payload": ")(&(objectClass=*)",
+      "tags": ["ldap", "filter-injection", "objectclass"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "LDAP filter breakout with objectClass wildcard",
+      "category": "Injection"
+    }
+]

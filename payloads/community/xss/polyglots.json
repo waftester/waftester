@@ -1,0 +1,371 @@
+[
+  {
+      "id": "XSS-POLY-010",
+      "payload": "jaVasCript:/*-/*`/*\\`/*'/*\"/**/(/* */oNcliCk=alert() )//%0D%0A%0d%0a//</stYle/</titLe/</teXtarEa/</scRipt/--!>\\x3csVg/<sVg/oNloAd=alert()//\\x3e",
+      "tags": ["polyglot", "ultimate", "multi-context"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Ultimate XSS polyglot - works in 20+ contexts",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-011",
+      "payload": "javascript:/*--></title></style></textarea></script></xmp><svg/onload='+/\"/+/onmouseover=1/+/[*/[]/+alert(1)//'>",
+      "tags": ["polyglot", "multi-context", "advanced"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Breaks title, style, textarea, script, xmp contexts",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-012",
+      "payload": "'\"><img src=x onerror=alert(1)//>",
+      "tags": ["polyglot", "attribute", "quick"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Escapes single and double quote attribute contexts",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-013",
+      "payload": "\"'><script>alert(1)</script>",
+      "tags": ["polyglot", "script", "attribute"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Attribute escape with script injection",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-014",
+      "payload": "'-alert(1)-'",
+      "tags": ["polyglot", "string-context", "minimal"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Works in JS string context with subtraction",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-015",
+      "payload": "\\'-alert(1)//",
+      "tags": ["polyglot", "escape", "string"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Backslash escape bypass",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-016",
+      "payload": "</script><svg/onload=alert(1)>",
+      "tags": ["polyglot", "script-escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Script block escape polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-017",
+      "payload": "*/</script><script>alert(1)</script>/*",
+      "tags": ["polyglot", "comment", "script"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Comment and script escape polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-018",
+      "payload": "\";alert(1)//",
+      "tags": ["polyglot", "attribute", "string"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Attribute value escape with comment",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-019",
+      "payload": "'-alert(1)+'",
+      "tags": ["polyglot", "string", "concatenation"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "String concatenation context",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-020",
+      "payload": "</title><script>alert(1)</script><title>",
+      "tags": ["polyglot", "title", "escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Title tag polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-021",
+      "payload": "</textarea><script>alert(1)</script><textarea>",
+      "tags": ["polyglot", "textarea", "escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Textarea escape polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-022",
+      "payload": "</style><script>alert(1)</script><style>",
+      "tags": ["polyglot", "style", "escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Style tag polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-023",
+      "payload": "</noscript><script>alert(1)</script><noscript>",
+      "tags": ["polyglot", "noscript", "escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Noscript escape polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-024",
+      "payload": "x]><script>alert(1)</script>",
+      "tags": ["polyglot", "processing-instruction"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Processing instruction escape",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-025",
+      "payload": "--><script>alert(1)</script><!--",
+      "tags": ["polyglot", "comment", "escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "HTML comment polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-026",
+      "payload": "]]><script>alert(1)</script><![CDATA[",
+      "tags": ["polyglot", "cdata", "xml"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "CDATA escape polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-027",
+      "payload": "%3Cscript%3Ealert(1)%3C/script%3E",
+      "tags": ["polyglot", "url-encoded"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "URL-encoded script polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-028",
+      "payload": "&lt;script&gt;alert(1)&lt;/script&gt;",
+      "tags": ["polyglot", "html-entities"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "HTML entity encoded polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-029",
+      "payload": "<img src=\"x\" onerror=\"alert(1)\">",
+      "tags": ["polyglot", "img", "standard"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Standard img onerror polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-030",
+      "payload": "<svg><script>alert(1)</script></svg>",
+      "tags": ["polyglot", "svg", "script"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SVG with script polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-031",
+      "payload": "<math><maction actiontype=\"statusline#http://google.com\" xlink:href=\"javascript:alert(1)\">CLICKME</maction></math>",
+      "tags": ["polyglot", "mathml", "advanced"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MathML XSS polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-032",
+      "payload": "<xmp><p title=\"</xmp><script>alert(1)</script>\">",
+      "tags": ["polyglot", "xmp", "escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XMP tag polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-033",
+      "payload": "jaVasCript:alert(1)//';\"--></title></style></textarea></script></xmp>",
+      "tags": ["polyglot", "javascript-proto", "multi"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JavaScript protocol multi-context polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-034",
+      "payload": "1;alert(1)//';\"--></script></style></title></textarea>",
+      "tags": ["polyglot", "js-context", "multi"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JS context multi-escape polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-035",
+      "payload": "{{constructor.constructor('alert(1)')()}}",
+      "tags": ["polyglot", "angular", "ssti"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Angular/Vue SSTI polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-036",
+      "payload": "${alert(1)}",
+      "tags": ["polyglot", "template", "es6"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "ES6 template literal injection",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-037",
+      "payload": "#{alert(1)}",
+      "tags": ["polyglot", "ruby", "interpolation"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Ruby string interpolation style",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-038",
+      "payload": "{{7*7}}",
+      "tags": ["polyglot", "ssti", "detection"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "SSTI detection polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-039",
+      "payload": "${7*7}",
+      "tags": ["polyglot", "ssti", "detection"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "SSTI/EL detection polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-040",
+      "payload": "<a href=\"javascript:alert(1)\">click</a>",
+      "tags": ["polyglot", "href", "javascript"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JavaScript in href attribute",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-041",
+      "payload": "<form action=\"javascript:alert(1)\"><input type=submit></form>",
+      "tags": ["polyglot", "form", "action"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Form action JavaScript polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-042",
+      "payload": "<button formaction=\"javascript:alert(1)\">X</button>",
+      "tags": ["polyglot", "formaction", "button"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Button formaction polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-043",
+      "payload": "<input onfocus=\"alert(1)\" autofocus>",
+      "tags": ["polyglot", "autofocus", "onfocus"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Autofocus trigger polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-044",
+      "payload": "<select onfocus=\"alert(1)\" autofocus>",
+      "tags": ["polyglot", "select", "autofocus"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Select autofocus polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-045",
+      "payload": "<textarea onfocus=\"alert(1)\" autofocus>",
+      "tags": ["polyglot", "textarea", "autofocus"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Textarea autofocus polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-046",
+      "payload": "<keygen onfocus=\"alert(1)\" autofocus>",
+      "tags": ["polyglot", "keygen", "deprecated"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Deprecated keygen autofocus",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-047",
+      "payload": "<video><source onerror=\"alert(1)\">",
+      "tags": ["polyglot", "video", "source"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Video source error polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-048",
+      "payload": "<audio src=x onerror=\"alert(1)\">",
+      "tags": ["polyglot", "audio", "onerror"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Audio tag onerror polyglot",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-049",
+      "payload": "<body/onload=alert(1)>",
+      "tags": ["polyglot", "body", "onload"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Body onload without space",
+      "category": "XSS"
+  },
+  {
+      "id": "XSS-POLY-050",
+      "payload": "<isindex action=\"javascript:alert(1)\" type=submit>",
+      "tags": ["polyglot", "isindex", "deprecated"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Deprecated isindex polyglot",
+      "category": "XSS"
+  }
+]

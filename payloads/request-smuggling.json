@@ -1,0 +1,182 @@
+[
+    {
+      "id": "smuggle-001",
+      "payload": "Transfer-Encoding: chunked",
+      "tags": ["request-smuggling", "header", "chunked"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Transfer-Encoding header - used in smuggling attacks",
+      "category": "Protocol"
+    },
+    {
+      "id": "smuggle-002",
+      "payload": "Transfer-Encoding: xchunked",
+      "tags": ["request-smuggling", "header", "obfuscation"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "TE.TE obfuscation - malformed chunked",
+      "category": "Protocol"
+    },
+    {
+      "id": "smuggle-003",
+      "payload": "Transfer-Encoding : chunked",
+      "tags": ["request-smuggling", "header", "obfuscation"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "TE.TE obfuscation - space before colon",
+      "category": "Protocol"
+    },
+    {
+      "id": "smuggle-004",
+      "payload": " Transfer-Encoding: chunked",
+      "tags": ["request-smuggling", "header", "obfuscation"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "TE.TE obfuscation - leading space",
+      "category": "Protocol"
+    },
+    {
+      "id": "smuggle-005",
+      "payload": "Transfer-Encoding:\tchunked",
+      "tags": ["request-smuggling", "header", "obfuscation"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "TE.TE obfuscation - tab separator",
+      "category": "Protocol"
+    },
+    {
+      "id": "smuggle-006",
+      "payload": "X: X\nTransfer-Encoding: chunked",
+      "tags": ["request-smuggling", "header", "newline"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "TE.TE obfuscation - newline before TE",
+      "category": "Protocol"
+    },
+    {
+      "id": "smuggle-007",
+      "payload": "Transfer-Encoding\n: chunked",
+      "tags": ["request-smuggling", "header", "obfuscation"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "TE.TE obfuscation - newline in header name",
+      "category": "Protocol"
+    },
+    {
+      "id": "smuggle-008",
+      "payload": "0\r\n\r\nGET /admin HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": ["request-smuggling", "cl-te", "request-injection"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "CL.TE smuggled request to /admin",
+      "category": "Protocol"
+    },
+    {
+      "id": "smuggle-009",
+      "payload": "0\r\n\r\nPOST /admin HTTP/1.1\r\nHost: target.com\r\nContent-Length: 10\r\n\r\ndata=evil",
+      "tags": ["request-smuggling", "cl-te", "post-injection"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "CL.TE smuggled POST request",
+      "category": "Protocol"
+    },
+    {
+      "id": "smuggle-010",
+      "payload": "Content-Length: 0\r\nTransfer-Encoding: chunked",
+      "tags": ["request-smuggling", "cl-te", "headers"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "CL.TE conflicting headers",
+      "category": "Protocol"
+    },
+    {
+      "id": "smuggle-011",
+      "payload": "Transfer-Encoding: chunked\r\nContent-Length: 4",
+      "tags": ["request-smuggling", "te-cl", "headers"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "TE.CL conflicting headers",
+      "category": "Protocol"
+    },
+    {
+      "id": "smuggle-012",
+      "payload": "Transfer-Encoding: chunked\r\nTransfer-Encoding: identity",
+      "tags": ["request-smuggling", "te-te", "duplicate"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "TE.TE duplicate Transfer-Encoding headers",
+      "category": "Protocol"
+    },
+    {
+      "id": "smuggle-013",
+      "payload": "Transfer-Encoding: chunked, identity",
+      "tags": ["request-smuggling", "te-te", "multiple-values"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "TE.TE multiple values in single header",
+      "category": "Protocol"
+    },
+    {
+      "id": "smuggle-014",
+      "payload": "Transfer-Encoding: chunk",
+      "tags": ["request-smuggling", "te-te", "truncated"],
+      "expected_block": true,
+      "severity_hint": "medium",
+      "notes": "TE.TE truncated value",
+      "category": "Protocol"
+    },
+    {
+      "id": "smuggle-015",
+      "payload": "Foo: bar\r\n\r\nGET / HTTP/1.1\r\nHost: smuggled.com",
+      "tags": ["request-smuggling", "header-injection"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "HTTP/2 downgrade request smuggling",
+      "category": "Protocol"
+    },
+    {
+      "id": "smuggle-016",
+      "payload": "GET / HTTP/1.1\r\nHost: target.com\r\nContent-Length: 50\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nGET /evil HTTP/1.1\r\nHost: evil.com\r\n\r\n",
+      "tags": ["request-smuggling", "full-request"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Complete request smuggling payload",
+      "category": "Protocol"
+    },
+    {
+      "id": "smuggle-017",
+      "payload": "GPOST / HTTP/1.1",
+      "tags": ["request-smuggling", "method-confusion"],
+      "expected_block": true,
+      "severity_hint": "medium",
+      "notes": "Method confusion attack (GPOST)",
+      "category": "Protocol"
+    },
+    {
+      "id": "smuggle-018",
+      "payload": "Content-Length: 6\r\nContent-Length: 100",
+      "tags": ["request-smuggling", "duplicate-cl"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Duplicate Content-Length headers",
+      "category": "Protocol"
+    },
+    {
+      "id": "smuggle-019",
+      "payload": "Content-Length : 6",
+      "tags": ["request-smuggling", "cl-obfuscation"],
+      "expected_block": true,
+      "severity_hint": "medium",
+      "notes": "Content-Length with space before colon",
+      "category": "Protocol"
+    },
+    {
+      "id": "smuggle-020",
+      "payload": "fetch('/', {method:'POST',body:'0\\r\\n\\r\\nGET /admin HTTP/1.1\\r\\nHost: x\\r\\n\\r\\n'})",
+      "tags": ["request-smuggling", "client-side", "desync"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Client-side desync attack via fetch",
+      "category": "Protocol"
+    }
+]

@@ -1,0 +1,423 @@
+package smuggling
+
+import (
+	"context"
+	"fmt"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestNewDetector(t *testing.T) {
+	d := NewDetector()
+	if d == nil {
+		t.Fatal("NewDetector returned nil")
+	}
+	if d.Timeout == 0 {
+		t.Error("Timeout should be set")
+	}
+	if d.ReadTimeout == 0 {
+		t.Error("ReadTimeout should be set")
+	}
+	if !d.SafeMode {
+		t.Error("SafeMode should default to true")
+	}
+}
+
+func TestNewHTTP2Detector(t *testing.T) {
+	d := NewHTTP2Detector()
+	if d == nil {
+		t.Fatal("NewHTTP2Detector returned nil")
+	}
+	if d.Detector == nil {
+		t.Error("Embedded Detector should be set")
+	}
+}
+
+func TestVulnTypes(t *testing.T) {
+	types := []VulnType{
+		VulnCLTE,
+		VulnTECL,
+		VulnTETE,
+		VulnH2CL,
+		VulnH2TE,
+		VulnWebSocket,
+		VulnHTTP2,
+	}
+
+	for _, vt := range types {
+		if vt == "" {
+			t.Error("VulnType should not be empty")
+		}
+	}
+}
+
+func TestGeneratePayloads(t *testing.T) {
+	d := NewDetector()
+	payloads := d.GeneratePayloads("example.com")
+
+	if len(payloads) == 0 {
+		t.Fatal("No payloads generated")
+	}
+
+	for _, p := range payloads {
+		if p.Name == "" {
+			t.Error("Payload should have a name")
+		}
+		if p.Type == "" {
+			t.Error("Payload should have a type")
+		}
+		if p.Raw == "" {
+			t.Error("Payload should have raw content")
+		}
+		if !strings.Contains(p.Raw, "example.com") {
+			t.Error("Payload should contain host")
+		}
+	}
+}
+
+func TestPayloadHostSubstitution(t *testing.T) {
+	d := NewDetector()
+
+	hosts := []string{
+		"test.com",
+		"sub.example.com",
+		"192.168.1.1",
+		"[::1]",
+	}
+
+	for _, host := range hosts {
+		t.Run(host, func(t *testing.T) {
+			payloads := d.GeneratePayloads(host)
+			for _, p := range payloads {
+				if !strings.Contains(p.Raw, "Host: "+host) && !strings.Contains(p.Raw, "Host: evil.com") {
+					t.Errorf("Payload should contain Host header with %s", host)
+				}
+			}
+		})
+	}
+}
+
+func TestDetectWithTestServer(t *testing.T) {
+	// Create a simple test server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	}))
+	defer server.Close()
+
+	d := NewDetector()
+	d.Timeout = 2 * time.Second
+	d.ReadTimeout = 1 * time.Second
+	d.DelayMs = 100
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := d.Detect(ctx, server.URL)
+	if err != nil {
+		t.Fatalf("Detect failed: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Result should not be nil")
+	}
+	if result.Target != server.URL {
+		t.Errorf("Target mismatch: got %s", result.Target)
+	}
+	if len(result.TestedTechniques) == 0 {
+		t.Error("Should have tested some techniques")
+	}
+}
+
+func TestDetectInvalidURL(t *testing.T) {
+	d := NewDetector()
+	ctx := context.Background()
+
+	// Test with an actually invalid URL that has an invalid scheme
+	_, err := d.Detect(ctx, "://invalid")
+	if err == nil {
+		t.Error("Should error on invalid URL")
+	}
+}
+
+func TestDetectContextCancellation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(5 * time.Second) // Slow response
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	d := NewDetector()
+	d.Timeout = 1 * time.Second
+	d.DelayMs = 10
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	result, _ := d.Detect(ctx, server.URL)
+	// Should complete without hanging
+	if result == nil {
+		t.Error("Result should not be nil even with cancellation")
+	}
+}
+
+func TestTruncate(t *testing.T) {
+	tests := []struct {
+		input    string
+		maxLen   int
+		expected string
+	}{
+		{"hello", 10, "hello"},
+		{"hello world", 5, "hello..."},
+		{"test", 4, "test"},
+		{"a", 1, "a"},
+		{"", 5, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := truncate(tt.input, tt.maxLen)
+			if result != tt.expected {
+				t.Errorf("expected '%s', got '%s'", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestIsTimeout(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{"nil error", nil, false},
+		{"regular error", fmt.Errorf("some error"), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isTimeout(tt.err)
+			if result != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestContainsDesyncIndicator(t *testing.T) {
+	tests := []struct {
+		name     string
+		resp     string
+		expected bool
+	}{
+		{"empty", "", false},
+		{"normal 200", "HTTP/1.1 200 OK\r\n\r\nBody", false},
+		{"single 400", "HTTP/1.1 400 Bad Request\r\n\r\n", false},
+		{"multiple responses", "HTTP/1.1 200 OK\r\n\r\nHTTP/1.1 200 OK\r\n\r\n", true},
+		{"400 with multiple", "HTTP/1.1 400 Bad Request\r\n\r\nHTTP/1.1 200 OK\r\n\r\n", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := containsDesyncIndicator(tt.resp)
+			if result != tt.expected {
+				t.Errorf("expected %v, got %v for response: %s", tt.expected, result, tt.resp)
+			}
+		})
+	}
+}
+
+func TestSendRawRequestConnection(t *testing.T) {
+	// Create a TCP server that echoes
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Failed to create listener: %v", err)
+	}
+	defer listener.Close()
+
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+
+		buf := make([]byte, 1024)
+		n, _ := conn.Read(buf)
+		conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
+		_ = n
+	}()
+
+	addr := listener.Addr().(*net.TCPAddr)
+
+	d := NewDetector()
+	d.Timeout = 2 * time.Second
+	d.ReadTimeout = 1 * time.Second
+
+	ctx := context.Background()
+	duration, resp, err := d.sendRawRequest(ctx, "127.0.0.1", fmt.Sprintf("%d", addr.Port), false, "GET / HTTP/1.1\r\nHost: test\r\n\r\n")
+
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	// Duration can be 0 or very small if request is fast
+	_ = duration
+	if !strings.Contains(resp, "HTTP/1.1 200") {
+		t.Errorf("Expected HTTP 200, got: %s", resp)
+	}
+}
+
+func TestSendRawRequestTimeout(t *testing.T) {
+	// Create a TCP server that doesn't respond
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Failed to create listener: %v", err)
+	}
+	defer listener.Close()
+
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+
+		// Read but don't respond - let it timeout
+		buf := make([]byte, 1024)
+		conn.Read(buf)
+		time.Sleep(5 * time.Second)
+	}()
+
+	addr := listener.Addr().(*net.TCPAddr)
+
+	d := NewDetector()
+	d.Timeout = 500 * time.Millisecond
+	d.ReadTimeout = 200 * time.Millisecond
+
+	ctx := context.Background()
+	start := time.Now()
+	_, _, err = d.sendRawRequest(ctx, "127.0.0.1", fmt.Sprintf("%d", addr.Port), false, "GET / HTTP/1.1\r\nHost: test\r\n\r\n")
+	elapsed := time.Since(start)
+
+	// Should timeout within reasonable time
+	if elapsed > 2*time.Second {
+		t.Error("Request took too long, should have timed out")
+	}
+	// Error is acceptable (timeout)
+	_ = err
+}
+
+func TestDetectWithHTTPS(t *testing.T) {
+	// Just ensure HTTPS URL parsing works
+	d := NewDetector()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	// This will fail to connect but should parse correctly
+	result, _ := d.Detect(ctx, "https://nonexistent.example.com:8443/path")
+
+	if result == nil {
+		t.Skip("Could not create result - may be expected for unreachable host")
+	}
+}
+
+func TestHTTP2DetectorDetectH2Smuggling(t *testing.T) {
+	d := NewHTTP2Detector()
+
+	ctx := context.Background()
+	result, err := d.DetectH2Smuggling(ctx, "https://example.com")
+
+	if err != nil {
+		t.Fatalf("DetectH2Smuggling failed: %v", err)
+	}
+	if result == nil {
+		t.Fatal("Result should not be nil")
+	}
+	if len(result.TestedTechniques) == 0 {
+		t.Error("Should list tested techniques")
+	}
+}
+
+func TestVulnerabilityFields(t *testing.T) {
+	v := Vulnerability{
+		Type:        VulnCLTE,
+		Technique:   "test technique",
+		Description: "test description",
+		Severity:    "high",
+		Evidence:    []Evidence{{Request: "test", Response: "resp"}},
+		Confidence:  0.9,
+		Exploitable: true,
+		FrontEnd:    "nginx",
+		BackEnd:     "apache",
+	}
+
+	if v.Type != VulnCLTE {
+		t.Error("Type mismatch")
+	}
+	if v.Confidence != 0.9 {
+		t.Error("Confidence mismatch")
+	}
+	if !v.Exploitable {
+		t.Error("Should be exploitable")
+	}
+	if len(v.Evidence) != 1 {
+		t.Error("Should have 1 evidence")
+	}
+}
+
+func TestEvidenceFields(t *testing.T) {
+	e := Evidence{
+		Request:  "GET / HTTP/1.1",
+		Response: "HTTP/1.1 200 OK",
+		Timing:   500 * time.Millisecond,
+		Notes:    "Test note",
+	}
+
+	if e.Request == "" {
+		t.Error("Request should be set")
+	}
+	if e.Timing != 500*time.Millisecond {
+		t.Error("Timing mismatch")
+	}
+}
+
+func TestResultFields(t *testing.T) {
+	r := Result{
+		Target:           "https://example.com",
+		Vulnerabilities:  []Vulnerability{{Type: VulnCLTE}},
+		TestedTechniques: []string{"CL.TE", "TE.CL"},
+		SafeMode:         true,
+		Duration:         5 * time.Second,
+	}
+
+	if r.Target == "" {
+		t.Error("Target should be set")
+	}
+	if len(r.Vulnerabilities) != 1 {
+		t.Error("Should have 1 vulnerability")
+	}
+	if len(r.TestedTechniques) != 2 {
+		t.Error("Should have 2 techniques")
+	}
+}
+
+func TestPayloadFields(t *testing.T) {
+	p := Payload{
+		Name:        "Test Payload",
+		Type:        VulnCLTE,
+		Raw:         "POST / HTTP/1.1\r\n",
+		Description: "Test description",
+	}
+
+	if p.Name == "" {
+		t.Error("Name should be set")
+	}
+	if p.Type != VulnCLTE {
+		t.Error("Type mismatch")
+	}
+}

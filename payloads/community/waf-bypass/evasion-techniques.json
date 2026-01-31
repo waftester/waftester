@@ -1,0 +1,164 @@
+[
+  {
+    "id": "EVASION-WHITESPACE-001",
+    "payload": "SELECT\t\t\t*\t\t\tFROM\t\t\tusers",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["whitespace", "tab", "sqli"],
+    "notes": "Tab character substitution for spaces"
+  },
+  {
+    "id": "EVASION-WHITESPACE-002",
+    "payload": "SELECT%0a*%0aFROM%0ausers",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["whitespace", "lf-encoded", "sqli"],
+    "notes": "Line feed (LF) encoded as space substitute in SQL"
+  },
+  {
+    "id": "EVASION-WHITESPACE-003",
+    "payload": "SELECT%a0*%a0FROM%a0users",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["whitespace", "nbsp", "sqli"],
+    "notes": "Non-breaking space (0xa0)"
+  },
+  {
+    "id": "EVASION-COMMENT-001",
+    "payload": "SEL/**/ECT * FR/**/OM users",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["comment", "sqli"],
+    "notes": "SQL inline comments to break keywords"
+  },
+  {
+    "id": "EVASION-COMMENT-002",
+    "payload": "/*!50000SELECT*/ * /*!50000FROM*/ users",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["comment", "mysql-versioned", "sqli"],
+    "notes": "MySQL versioned comments"
+  },
+  {
+    "id": "EVASION-NULL-001",
+    "payload": "SEL%00ECT * FROM users",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "tags": ["null-byte", "sqli"],
+    "notes": "Null byte in middle of keyword"
+  },
+  {
+    "id": "EVASION-NULL-002",
+    "payload": "<scr%00ipt>alert(1)</script>",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "tags": ["null-byte", "xss"],
+    "notes": "Null byte splits XSS tag to evade pattern detection"
+  },
+  {
+    "id": "EVASION-NULL-003",
+    "payload": "../../../etc/passwd%00.jpg",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "tags": ["null-byte", "traversal"],
+    "notes": "Null byte truncation to bypass extension checks"
+  },
+  {
+    "id": "EVASION-CASE-001",
+    "payload": "SeLeCt * FrOm UsErS",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "Medium",
+    "tags": ["case", "sqli"],
+    "notes": "Mixed case SQL keywords bypass case-sensitive regex"
+  },
+  {
+    "id": "EVASION-CASE-002",
+    "payload": "<ScRiPt>alert(1)</sCrIpT>",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "Medium",
+    "tags": ["case", "xss"],
+    "notes": "Mixed case HTML tags bypass case-sensitive XSS filters"
+  },
+  {
+    "id": "EVASION-CONCAT-001",
+    "payload": "SEL'+'ECT * FROM users",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["concat", "sqli"],
+    "notes": "String concatenation to break keywords"
+  },
+  {
+    "id": "EVASION-CHAR-001",
+    "payload": "SELECT CHAR(83)+CHAR(69)+CHAR(76)+CHAR(69)+CHAR(67)+CHAR(84)",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["char", "sqli"],
+    "notes": "CHAR() function to build strings"
+  },
+  {
+    "id": "EVASION-DOUBLE-WRITE-001",
+    "payload": "<scrscriptipt>alert(1)</scrscriptipt>",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["double-write", "xss"],
+    "notes": "Double-write to survive single-pass filter"
+  },
+  {
+    "id": "EVASION-PARENTHESIS-001",
+    "payload": "SELECT(password)FROM(users)",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["parenthesis", "sqli"],
+    "notes": "No spaces, parenthesis as delimiters"
+  },
+  {
+    "id": "EVASION-MULTILINE-001",
+    "payload": "<svg\nonload\n=\nalert(1)>",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["multiline", "xss"],
+    "notes": "Newlines in SVG attributes bypass single-line regex patterns"
+  },
+  {
+    "id": "EVASION-ENTITY-001",
+    "payload": "<img src=x on&#x65;rror=alert(1)>",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["entity", "partial-encoding", "xss"],
+    "notes": "HTML entity encoding in event handler name (&#x65; = 'e')"
+  },
+  {
+    "id": "EVASION-PROTO-001",
+    "payload": "javas\tcript:alert(1)",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["protocol", "tab", "xss"],
+    "notes": "Tab character in javascript: protocol bypasses keyword detection"
+  },
+  {
+    "id": "EVASION-DATA-URI-001",
+    "payload": "data:text/html,<script>alert(1)</script>",
+    "category": "WAF-Bypass",
+    "expected_block": true,
+    "severity_hint": "High",
+    "tags": ["data-uri", "xss"],
+    "notes": "Data URI scheme to embed XSS payload inline"
+  }
+]

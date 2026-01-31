@@ -1,0 +1,675 @@
+[
+  {
+      "id": "TRV-UNIX-001",
+      "payload": "../../../etc/passwd",
+      "tags": [
+        "unix",
+        "basic",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Classic Unix path traversal",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-002",
+      "payload": "../../../../../../etc/shadow",
+      "tags": [
+        "unix",
+        "sensitive",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Shadow file access attempt",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-003",
+      "payload": "../../../root/.ssh/id_rsa",
+      "tags": [
+        "unix",
+        "ssh",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SSH private key access",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-001",
+      "payload": "..\\..\\..\\windows\\system32\\config\\sam",
+      "tags": [
+        "windows",
+        "basic",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows SAM file access",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-002",
+      "payload": "..\\..\\..\\..\\boot.ini",
+      "tags": [
+        "windows",
+        "basic"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Windows boot.ini",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-001",
+      "payload": "..%2F..%2F..%2Fetc%2Fpasswd",
+      "tags": [
+        "encoded",
+        "unix",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "URL-encoded traversal",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-002",
+      "payload": "..%252F..%252F..%252Fetc%252Fpasswd",
+      "tags": [
+        "double-encoded",
+        "evasion"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Double URL-encoded",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-NULL-001",
+      "payload": "../../../etc/passwd%00.jpg",
+      "tags": [
+        "null-byte",
+        "bypass"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Null byte injection",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-004",
+      "payload": "/etc/passwd",
+      "tags": [
+        "absolute",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Absolute path attempt",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-005",
+      "payload": "....//....//....//etc/passwd",
+      "tags": [
+        "obfuscation",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Obfuscated traversal",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENV-001",
+      "payload": "../../../.env",
+      "tags": [
+        "env",
+        "config",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Environment file exposure",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENV-002",
+      "payload": "../../../.aws/credentials",
+      "tags": [
+        "aws",
+        "cloud",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "AWS credentials exposure",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-010",
+      "payload": "../../../proc/self/environ",
+      "tags": ["unix", "proc", "env"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Linux process environment variables",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-011",
+      "payload": "../../../proc/self/cmdline",
+      "tags": ["unix", "proc"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Linux process command line",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-012",
+      "payload": "../../../proc/version",
+      "tags": ["unix", "proc", "recon"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Linux kernel version",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-013",
+      "payload": "../../../proc/self/fd/0",
+      "tags": ["unix", "proc", "fd"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Process file descriptors",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-014",
+      "payload": "../../../var/log/apache2/access.log",
+      "tags": ["unix", "logs", "apache"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Apache access logs",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-015",
+      "payload": "../../../var/log/apache2/error.log",
+      "tags": ["unix", "logs", "apache"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Apache error logs",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-016",
+      "payload": "../../../var/log/nginx/access.log",
+      "tags": ["unix", "logs", "nginx"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Nginx access logs",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-017",
+      "payload": "../../../var/log/nginx/error.log",
+      "tags": ["unix", "logs", "nginx"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Nginx error logs",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-018",
+      "payload": "../../../etc/nginx/nginx.conf",
+      "tags": ["unix", "config", "nginx"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Nginx main configuration",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-019",
+      "payload": "../../../etc/apache2/apache2.conf",
+      "tags": ["unix", "config", "apache"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Apache main configuration",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-020",
+      "payload": "../../../etc/mysql/my.cnf",
+      "tags": ["unix", "config", "mysql"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MySQL configuration",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-021",
+      "payload": "../../../var/lib/mysql/mysql/user.MYD",
+      "tags": ["unix", "database", "mysql"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MySQL user data file",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-022",
+      "payload": "../../../root/.bash_history",
+      "tags": ["unix", "history", "sensitive"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Root bash history",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-023",
+      "payload": "../../../root/.mysql_history",
+      "tags": ["unix", "history", "mysql"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MySQL command history",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-024",
+      "payload": "../../../home/www-data/.ssh/authorized_keys",
+      "tags": ["unix", "ssh", "web-user"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Web user SSH authorized keys",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-025",
+      "payload": "../../../etc/crontab",
+      "tags": ["unix", "cron", "config"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "System cron configuration",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-026",
+      "payload": "../../../var/spool/cron/crontabs/root",
+      "tags": ["unix", "cron", "root"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Root crontab",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-027",
+      "payload": "../../../etc/sudoers",
+      "tags": ["unix", "sudo", "config"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Sudo configuration",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-028",
+      "payload": "../../../etc/resolv.conf",
+      "tags": ["unix", "dns", "config"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "DNS resolver configuration",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-029",
+      "payload": "../../../etc/hosts",
+      "tags": ["unix", "hosts", "config"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Hosts file",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-UNIX-030",
+      "payload": "../../../etc/hostname",
+      "tags": ["unix", "hostname", "recon"],
+      "expected_block": true,
+      "severity_hint": "Low",
+      "notes": "System hostname",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-010",
+      "payload": "..\\..\\..\\Windows\\System32\\config\\SYSTEM",
+      "tags": ["windows", "registry", "sensitive"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows SYSTEM hive",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-011",
+      "payload": "..\\..\\..\\Windows\\System32\\config\\SOFTWARE",
+      "tags": ["windows", "registry"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows SOFTWARE hive",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-012",
+      "payload": "..\\..\\..\\Windows\\repair\\SAM",
+      "tags": ["windows", "repair", "sam"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows repair SAM backup",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-013",
+      "payload": "..\\..\\..\\Windows\\System32\\inetsrv\\config\\applicationHost.config",
+      "tags": ["windows", "iis", "config"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IIS application host configuration",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-014",
+      "payload": "..\\..\\..\\inetpub\\logs\\LogFiles\\W3SVC1\\u_ex.log",
+      "tags": ["windows", "iis", "logs"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "IIS web server logs",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-015",
+      "payload": "..\\..\\..\\xampp\\apache\\conf\\httpd.conf",
+      "tags": ["windows", "xampp", "config"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XAMPP Apache configuration",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-016",
+      "payload": "..\\..\\..\\xampp\\phpMyAdmin\\config.inc.php",
+      "tags": ["windows", "phpmyadmin", "config"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "phpMyAdmin configuration",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-017",
+      "payload": "..\\..\\..\\Program Files\\MySQL\\MySQL Server 5.1\\my.ini",
+      "tags": ["windows", "mysql", "config"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows MySQL configuration",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-018",
+      "payload": "..\\..\\..\\Windows\\php.ini",
+      "tags": ["windows", "php", "config"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Windows PHP configuration",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-019",
+      "payload": "..\\..\\..\\Users\\Administrator\\NTUser.dat",
+      "tags": ["windows", "ntuser", "profile"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Admin user registry hive",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-WIN-020",
+      "payload": "..\\..\\..\\Windows\\debug\\NetSetup.log",
+      "tags": ["windows", "debug", "logs"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Network setup debug log",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-010",
+      "payload": "..%c0%af..%c0%af..%c0%afetc/passwd",
+      "tags": ["encoded", "utf8", "overlong"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "UTF-8 overlong encoding",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-011",
+      "payload": "..%bg%qf..%bg%qf..%bg%qfetc/passwd",
+      "tags": ["encoded", "invalid", "bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Invalid encoding bypass",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-012",
+      "payload": "..%u2215..%u2215..%u2215etc/passwd",
+      "tags": ["encoded", "unicode", "slash"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Unicode division slash",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-013",
+      "payload": "..%u2216..%u2216..%u2216etc/passwd",
+      "tags": ["encoded", "unicode", "set-minus"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Unicode set minus encoding",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-014",
+      "payload": "..%255c..%255c..%255cetc/passwd",
+      "tags": ["encoded", "double", "backslash"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Double encoded backslash",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-015",
+      "payload": "..%%35%63..%%35%63etc/passwd",
+      "tags": ["encoded", "nested"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Nested percent encoding",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-016",
+      "payload": "..%%35c..%%35cetc/passwd",
+      "tags": ["encoded", "partial-double"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Partial double encoding",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-017",
+      "payload": "..\\/..\\/..\\/etc/passwd",
+      "tags": ["encoded", "mixed-slash"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Mixed slash encoding",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-018",
+      "payload": "....//....//....//etc/passwd",
+      "tags": ["encoded", "filter-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Filter stripping bypass",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-019",
+      "payload": "..../..../..../etc/passwd",
+      "tags": ["encoded", "filter-bypass", "alternate"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Alternate filter bypass",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENC-020",
+      "payload": "..%5c..%5c..%5cetc\\passwd",
+      "tags": ["encoded", "backslash", "mixed"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Encoded backslash mix",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-APP-001",
+      "payload": "../../../wp-config.php",
+      "tags": ["app", "wordpress", "config"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "WordPress configuration",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-APP-002",
+      "payload": "../../../config/database.yml",
+      "tags": ["app", "rails", "config"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Rails database config",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-APP-003",
+      "payload": "../../../config/secrets.yml",
+      "tags": ["app", "rails", "secrets"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Rails secrets file",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-APP-004",
+      "payload": "../../../config/settings.yml",
+      "tags": ["app", "rails", "settings"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Rails settings file",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-APP-005",
+      "payload": "../../../.git/config",
+      "tags": ["app", "git", "config"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Git repository config",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-APP-006",
+      "payload": "../../../.git/HEAD",
+      "tags": ["app", "git", "metadata"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Git HEAD reference",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-APP-007",
+      "payload": "../../../.svn/entries",
+      "tags": ["app", "svn", "metadata"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "SVN entries file",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-APP-008",
+      "payload": "../../../composer.json",
+      "tags": ["app", "php", "composer"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "PHP Composer dependencies",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-APP-009",
+      "payload": "../../../package.json",
+      "tags": ["app", "node", "npm"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Node.js package info",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-APP-010",
+      "payload": "../../../.npmrc",
+      "tags": ["app", "node", "npm", "auth"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "NPM auth tokens",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-DOCKER-001",
+      "payload": "../../../.docker/config.json",
+      "tags": ["docker", "config", "auth"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Docker registry auth",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-DOCKER-002",
+      "payload": "../../../var/run/docker.sock",
+      "tags": ["docker", "socket", "escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Docker socket access",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-K8S-001",
+      "payload": "../../../var/run/secrets/kubernetes.io/serviceaccount/token",
+      "tags": ["kubernetes", "token", "cloud"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "K8s service account token",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-K8S-002",
+      "payload": "../../../var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+      "tags": ["kubernetes", "cert", "cloud"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "K8s CA certificate",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-K8S-003",
+      "payload": "../../../var/run/secrets/kubernetes.io/serviceaccount/namespace",
+      "tags": ["kubernetes", "namespace", "cloud"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "K8s namespace info",
+      "category": "Traversal"
+  }
+]

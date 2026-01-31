@@ -1,0 +1,93 @@
+[
+  {
+      "id": "TRV-SYM-001",
+      "payload": "../../../tmp/symlink-to-etc/passwd",
+      "tags": [
+        "symlink",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Symlink traversal through /tmp",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-SYM-002",
+      "payload": "../../../proc/self/root/etc/passwd",
+      "tags": [
+        "symlink",
+        "proc",
+        "unix",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Symlink via /proc/self/root recursion",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-SYM-003",
+      "payload": "../../../var/www/uploads/../../../etc/passwd",
+      "tags": [
+        "symlink",
+        "chain",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Symlink chain through uploads directory",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-SYM-004",
+      "payload": "C:\\Users\\Public\\Documents\\junction\\..\\..\\..\\Windows\\System32\\config\\sam",
+      "tags": [
+        "symlink",
+        "junction",
+        "windows"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Windows junction point traversal",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-SYM-005",
+      "payload": "../../../proc/self/cwd/../../../etc/passwd",
+      "tags": [
+        "symlink",
+        "cwd",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Current working directory symlink",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-SYM-006",
+      "payload": "../../../proc/self/fd/3",
+      "tags": [
+        "symlink",
+        "fd",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "File descriptor symlink access",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-SYM-007",
+      "payload": "../../../var/lib/docker/overlay2/symlink/../../etc/passwd",
+      "tags": [
+        "symlink",
+        "docker",
+        "unix"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Docker overlay filesystem symlink",
+      "category": "Traversal"
+  }
+]

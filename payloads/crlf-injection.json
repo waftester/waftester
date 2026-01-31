@@ -1,0 +1,182 @@
+[
+    {
+      "id": "crlf-001",
+      "payload": "%0d%0aSet-Cookie:crlf=injection",
+      "tags": ["crlf", "header-injection", "session-fixation"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Basic CRLF injection - set arbitrary cookie",
+      "category": "Injection"
+    },
+    {
+      "id": "crlf-002",
+      "payload": "%0d%0aLocation:%20http://evil.com",
+      "tags": ["crlf", "header-injection", "open-redirect"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "CRLF injection for open redirect via Location header",
+      "category": "Injection"
+    },
+    {
+      "id": "crlf-003",
+      "payload": "%0aSet-Cookie:crlf=injection",
+      "tags": ["crlf", "header-injection", "lf-only"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "LF-only injection - works on some servers",
+      "category": "Injection"
+    },
+    {
+      "id": "crlf-004",
+      "payload": "%0dSet-Cookie:crlf=injection",
+      "tags": ["crlf", "header-injection", "cr-only"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "CR-only injection - works on some servers",
+      "category": "Injection"
+    },
+    {
+      "id": "crlf-005",
+      "payload": "/%23%0aSet-Cookie:crlf=injection",
+      "tags": ["crlf", "header-injection", "fragment-bypass"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "CRLF with fragment character bypass",
+      "category": "Injection"
+    },
+    {
+      "id": "crlf-006",
+      "payload": "/%23%0d%0aSet-Cookie:crlf=injection",
+      "tags": ["crlf", "header-injection", "fragment-bypass"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "CRLF with fragment character and full CRLF",
+      "category": "Injection"
+    },
+    {
+      "id": "crlf-007",
+      "payload": "%25%30%61Set-Cookie:crlf=injection",
+      "tags": ["crlf", "header-injection", "double-encode"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Double URL-encoded LF",
+      "category": "Injection"
+    },
+    {
+      "id": "crlf-008",
+      "payload": "%25250aSet-Cookie:crlf=injection",
+      "tags": ["crlf", "header-injection", "triple-encode"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Triple URL-encoded LF",
+      "category": "Injection"
+    },
+    {
+      "id": "crlf-009",
+      "payload": "/%2e%2e%2f%0d%0aSet-Cookie:crlf=injection",
+      "tags": ["crlf", "header-injection", "path-traversal"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "CRLF with path traversal prefix",
+      "category": "Injection"
+    },
+    {
+      "id": "crlf-010",
+      "payload": "/%2f%2e%2e%0d%0aSet-Cookie:crlf=injection",
+      "tags": ["crlf", "header-injection", "path-traversal"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "CRLF with alternate path traversal",
+      "category": "Injection"
+    },
+    {
+      "id": "crlf-011",
+      "payload": "/%u000aSet-Cookie:crlf=injection",
+      "tags": ["crlf", "header-injection", "unicode"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Unicode-encoded LF (%u notation)",
+      "category": "Injection"
+    },
+    {
+      "id": "crlf-012",
+      "payload": "/%3f%0d%0aSet-Cookie:crlf=injection",
+      "tags": ["crlf", "header-injection", "query-string"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "CRLF with query string prefix",
+      "category": "Injection"
+    },
+    {
+      "id": "crlf-013",
+      "payload": "%0d%0aContent-Length:%200%0d%0a%0d%0aHTTP/1.1%20200%20OK%0d%0aContent-Type:%20text/html%0d%0a%0d%0a<html>Phished</html>",
+      "tags": ["crlf", "http-response-splitting", "phishing"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "HTTP Response Splitting - inject entire fake response",
+      "category": "Injection"
+    },
+    {
+      "id": "crlf-014",
+      "payload": "%0d%0aContent-Length:35%0d%0aX-XSS-Protection:0%0d%0a%0d%0a23%0d%0a<svg%20onload=alert(document.domain)>%0d%0a0%0d%0a",
+      "tags": ["crlf", "xss", "response-splitting"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "CRLF to XSS by disabling XSS protection",
+      "category": "Injection"
+    },
+    {
+      "id": "crlf-015",
+      "payload": "%E5%98%8A%E5%98%8Dcontent-type:text/html%E5%98%8A%E5%98%8Dlocation:",
+      "tags": ["crlf", "header-injection", "utf8-bypass"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "UTF-8 CRLF bypass (嘊嘍 characters stripped to 0A 0D)",
+      "category": "Injection"
+    },
+    {
+      "id": "crlf-016",
+      "payload": "%E5%98%8A%E5%98%8D%E5%98%BCsvg/onload=alert(1)%E5%98%BE",
+      "tags": ["crlf", "xss", "utf8-bypass"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "UTF-8 CRLF + XSS (嘊嘍嘼...嘾)",
+      "category": "Injection"
+    },
+    {
+      "id": "crlf-017",
+      "payload": "\\r\\nSet-Cookie:crlf=injection",
+      "tags": ["crlf", "header-injection", "escaped"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Escaped CRLF characters",
+      "category": "Injection"
+    },
+    {
+      "id": "crlf-018",
+      "payload": "*))%00%0d%0aSet-Cookie:crlf=injection",
+      "tags": ["crlf", "header-injection", "null-byte"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "CRLF with null byte prefix",
+      "category": "Injection"
+    },
+    {
+      "id": "crlf-019",
+      "payload": "%0d%0aX-Injected-Header:%20test",
+      "tags": ["crlf", "header-injection", "custom-header"],
+      "expected_block": true,
+      "severity_hint": "medium",
+      "notes": "CRLF to inject custom header",
+      "category": "Injection"
+    },
+    {
+      "id": "crlf-020",
+      "payload": "%0d%0aAccess-Control-Allow-Origin:%20*",
+      "tags": ["crlf", "header-injection", "cors"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "CRLF to inject CORS header",
+      "category": "Injection"
+    }
+]

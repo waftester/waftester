@@ -1,0 +1,193 @@
+[
+  {
+      "id": "TRV-ENV-003",
+      "payload": "../../../.git/config",
+      "tags": [
+        "git",
+        "vcs",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Git repository configuration (may contain remote URLs and credentials)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENV-004",
+      "payload": "../../../package.json",
+      "tags": [
+        "node",
+        "config",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Node.js project configuration",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENV-005",
+      "payload": "../../../composer.json",
+      "tags": [
+        "php",
+        "config"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "PHP Composer configuration",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENV-006",
+      "payload": "../../../Dockerfile",
+      "tags": [
+        "docker",
+        "config",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Docker build instructions (may contain secrets)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENV-007",
+      "payload": "../../../docker-compose.yml",
+      "tags": [
+        "docker",
+        "orchestration"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Docker Compose configuration (may contain environment variables)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENV-008",
+      "payload": "../../../.npmrc",
+      "tags": [
+        "node",
+        "npm",
+        "credentials"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "NPM configuration (may contain auth tokens)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENV-009",
+      "payload": "../../../.pypirc",
+      "tags": [
+        "python",
+        "pip",
+        "credentials"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "PyPI configuration (may contain credentials)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENV-010",
+      "payload": "../../../settings.py",
+      "tags": [
+        "python",
+        "django",
+        "config"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Django settings file (database credentials, secret keys)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENV-011",
+      "payload": "../../../application.properties",
+      "tags": [
+        "java",
+        "spring",
+        "config",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Spring Boot configuration (database, API keys)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENV-012",
+      "payload": "../../../appsettings.json",
+      "tags": [
+        "dotnet",
+        "config"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": ".NET application settings (connection strings)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENV-013",
+      "payload": "../../../wp-config.php",
+      "tags": [
+        "wordpress",
+        "php",
+        "database"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "WordPress database configuration",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENV-014",
+      "payload": "../../../.htpasswd",
+      "tags": [
+        "apache",
+        "auth"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Apache HTTP authentication passwords",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENV-015",
+      "payload": "../../../Gemfile.lock",
+      "tags": [
+        "ruby",
+        "dependencies"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Ruby dependency lock file (version information)",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENV-016",
+      "payload": "../../../yarn.lock",
+      "tags": [
+        "node",
+        "yarn",
+        "dependencies"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Yarn dependency lock file",
+      "category": "Traversal"
+  },
+  {
+      "id": "TRV-ENV-017",
+      "payload": "../../../Pipfile",
+      "tags": [
+        "python",
+        "pipenv",
+        "dependencies"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Python Pipenv configuration",
+      "category": "Traversal"
+  }
+]

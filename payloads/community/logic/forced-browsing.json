@@ -1,0 +1,405 @@
+[
+  {
+      "id": "LOGIC-FORCED-001",
+      "payload": "GET /admin HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "admin-path",
+        "quick",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Direct access to admin panel without authentication",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-002",
+      "payload": "GET /admin/ HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "admin-path",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Admin panel with trailing slash",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-003",
+      "payload": "GET /administrator HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "admin-variant"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Alternative admin path naming",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-004",
+      "payload": "GET /api/admin/users HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "api-admin",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Admin API endpoint without auth",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-005",
+      "payload": "GET /api/v1/admin/settings HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "settings-api"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Versioned admin settings API",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-006",
+      "payload": "GET /dashboard HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "dashboard"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Dashboard access without authentication",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-007",
+      "payload": "GET /console HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "console"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Management console access",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-008",
+      "payload": "GET /api/internal/config HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "internal-api",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Internal configuration API",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-009",
+      "payload": "GET /api/debug HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "debug-endpoint"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Debug endpoint (often left exposed)",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-010",
+      "payload": "GET /.env HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "env-file",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Environment configuration file",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-011",
+      "payload": "GET /api/v1/users HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "user-list"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "User listing API without auth",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-012",
+      "payload": "GET /api/users/1/private HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "private-data"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Private user data endpoint",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-013",
+      "payload": "GET /backup HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "backup"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Backup directory access",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-014",
+      "payload": "GET /logs HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "logs"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Log file directory access",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-015",
+      "payload": "GET /phpmyadmin HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "database-admin"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "phpMyAdmin database management",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-016",
+      "payload": "GET /actuator/health HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "actuator"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Spring Boot actuator endpoint",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-017",
+      "payload": "GET /actuator/env HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "actuator-sensitive",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Spring Boot environment variables exposure",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-018",
+      "payload": "GET /api/v1/internal/metrics HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "metrics"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Internal metrics endpoint",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-019",
+      "payload": "GET /graphql HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"query\":\"{__schema{types{name}}}\"}",
+      "tags": [
+        "forced-browsing",
+        "graphql"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "GraphQL endpoint without auth",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-020",
+      "payload": "GET /api/v1/secrets HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "secrets",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Secrets management endpoint",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-021",
+      "payload": "GET /api/v1/config.json HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "config-file"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "JSON configuration file",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-022",
+      "payload": "GET /server-status HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "server-status"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Apache server-status page",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-023",
+      "payload": "GET /api/swagger.json HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "api-docs"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Swagger API documentation",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-024",
+      "payload": "GET /api-docs HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "api-docs"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "API documentation endpoint",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-025",
+      "payload": "GET /admin/phpinfo.php HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "phpinfo",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "phpinfo() page in admin directory",
+      "destructive": false,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-026",
+      "payload": "PUT /api/admin/settings HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"maintenance_mode\":true}",
+      "tags": [
+        "forced-browsing",
+        "method-misuse",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "PUT method on admin settings (should require auth)",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-027",
+      "payload": "DELETE /api/users/1 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "method-misuse",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "DELETE method without authentication",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-028",
+      "payload": "POST /api/admin/users HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"username\":\"hacker\",\"role\":\"admin\"}",
+      "tags": [
+        "forced-browsing",
+        "method-misuse",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "POST to create admin user without auth",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-029",
+      "payload": "PATCH /api/users/1 HTTP/1.1\r\nHost: target.com\r\nContent-Type: application/json\r\n\r\n{\"role\":\"admin\"}",
+      "tags": [
+        "forced-browsing",
+        "method-misuse",
+        "critical"
+    ],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "PATCH method for privilege escalation",
+      "destructive": true,
+      "category": "Logic"
+  },
+  {
+      "id": "LOGIC-FORCED-030",
+      "payload": "GET /api/v1/workflows HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "forced-browsing",
+        "n8n-specific"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "n8n workflows listing without auth",
+      "destructive": false,
+      "category": "Logic"
+  }
+]

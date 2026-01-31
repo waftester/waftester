@@ -1,0 +1,397 @@
+[
+  {
+      "id": "FUZZ-METHOD-001",
+      "payload": "INVALID / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "invalid",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Invalid HTTP method name",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-002",
+      "payload": "get / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "lowercase"
+    ],
+      "expected_block": true,
+      "severity_hint": "Low",
+      "notes": "Lowercase GET method (should be uppercase)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-003",
+      "payload": "Get / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "mixed-case"
+    ],
+      "expected_block": true,
+      "severity_hint": "Low",
+      "notes": "Mixed case GET method",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-004",
+      "payload": "PROPFIND / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "webdav",
+        "quick"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "WebDAV PROPFIND method (should be blocked if WebDAV not enabled)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-005",
+      "payload": "PROPPATCH / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "webdav"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "WebDAV PROPPATCH method",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-006",
+      "payload": "MKCOL / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "webdav"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "WebDAV MKCOL method (create collection)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-007",
+      "payload": "COPY / HTTP/1.1\r\nHost: target.com\r\nDestination: /copied\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "webdav"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "WebDAV COPY method",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-008",
+      "payload": "MOVE / HTTP/1.1\r\nHost: target.com\r\nDestination: /moved\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "webdav"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "WebDAV MOVE method",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-009",
+      "payload": "LOCK / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "webdav"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "WebDAV LOCK method",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-010",
+      "payload": "UNLOCK / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "webdav"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "WebDAV UNLOCK method",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-011",
+      "payload": "TRACE / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "trace",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "TRACE method (often disabled for security)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-012",
+      "payload": "TRACK / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "track"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "TRACK method (Microsoft variant of TRACE)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-013",
+      "payload": "DEBUG / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "debug"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "DEBUG method (non-standard, potentially dangerous)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-014",
+      "payload": "CONNECT target.com:443 HTTP/1.1\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "connect"
+    ],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "CONNECT method (proxy tunneling, should be blocked)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-015",
+      "payload": "123 / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "numeric"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Numeric method name",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-016",
+      "payload": "GET@ADMIN / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "special-char"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Special character in method name",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-017",
+      "payload": "G E T / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "spaces"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Spaces within method name",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-018",
+      "payload": "GET\t/ HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "tab"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Tab character after method (should be space)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-019",
+      "payload": "GETPOSTPUTDELETE / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "concatenated"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Concatenated method names",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-020",
+      "payload": "A / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "single-char",
+        "quick"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Single character method name",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-021",
+      "payload": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "overlong"
+    ],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Very long method name (50 characters)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-022",
+      "payload": "SEARCH / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "search"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "SEARCH method (WebDAV/RFC 5323)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-023",
+      "payload": "REPORT / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "report"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "REPORT method (WebDAV versioning)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-024",
+      "payload": "CHECKIN / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "checkin"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "CHECKIN method (WebDAV versioning)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-025",
+      "payload": "CHECKOUT / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "checkout"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "CHECKOUT method (WebDAV versioning)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-026",
+      "payload": "MERGE / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "merge"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "MERGE method (WebDAV versioning)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-027",
+      "payload": "MKACTIVITY / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "mkactivity"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "MKACTIVITY method (WebDAV versioning)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-028",
+      "payload": "ORDERPATCH / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "orderpatch"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "ORDERPATCH method (WebDAV ordering)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-029",
+      "payload": "ACL / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "acl"
+    ],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "ACL method (WebDAV access control)",
+      "category": "Fuzzing"
+  },
+  {
+      "id": "FUZZ-METHOD-030",
+      "payload": "BASELINE-CONTROL / HTTP/1.1\r\nHost: target.com\r\n\r\n",
+      "tags": [
+        "fuzzing",
+        "method",
+        "baseline-control",
+        "quick"
+    ],
+      "expected_block": false,
+      "severity_hint": "Low",
+      "notes": "BASELINE-CONTROL method (WebDAV versioning)",
+      "category": "Fuzzing"
+  }
+]

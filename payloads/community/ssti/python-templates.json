@@ -1,0 +1,200 @@
+[
+    {
+      "id": "ssti-python-001",
+      "payload": "{{7*7}}",
+      "tags": ["ssti", "detection", "jinja2", "universal"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Universal SSTI detection - evaluates to 49",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-python-002",
+      "payload": "${7*7}",
+      "tags": ["ssti", "detection", "mako"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Mako template detection payload",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-python-003",
+      "payload": "${{<%[%'\"}}%\\.",
+      "tags": ["ssti", "detection", "polyglot"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Universal SSTI polyglot - triggers errors in multiple engines",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-python-004",
+      "payload": "{{config}}",
+      "tags": ["ssti", "jinja2", "flask", "info-disclosure"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Flask/Jinja2 - dump config object containing secrets",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-python-005",
+      "payload": "{{config.items()}}",
+      "tags": ["ssti", "jinja2", "flask", "info-disclosure"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Flask/Jinja2 - enumerate all config values",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-python-006",
+      "payload": "{{self.__dict__}}",
+      "tags": ["ssti", "jinja2", "introspection"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Jinja2 - access template self dict",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-python-007",
+      "payload": "{{lipsum.__globals__[\"os\"].popen(\"id\").read()}}",
+      "tags": ["ssti", "jinja2", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Jinja2 shortest RCE via lipsum",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-python-008",
+      "payload": "{{cycler.__init__.__globals__.os.popen('id').read()}}",
+      "tags": ["ssti", "jinja2", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Jinja2 RCE via cycler object",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-python-009",
+      "payload": "{{joiner.__init__.__globals__.os.popen('id').read()}}",
+      "tags": ["ssti", "jinja2", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Jinja2 RCE via joiner object",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-python-010",
+      "payload": "{{namespace.__init__.__globals__.os.popen('id').read()}}",
+      "tags": ["ssti", "jinja2", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Jinja2 RCE via namespace object",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-python-011",
+      "payload": "{{''.__class__.__mro__[2].__subclasses__()}}",
+      "tags": ["ssti", "jinja2", "introspection"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Jinja2 - list all subclasses via MRO",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-python-012",
+      "payload": "{{''.__class__.__base__.__subclasses__()}}",
+      "tags": ["ssti", "jinja2", "introspection"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Jinja2 - list all subclasses via __base__",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-python-013",
+      "payload": "{{request.application.__globals__.__builtins__.__import__('os').popen('id').read()}}",
+      "tags": ["ssti", "jinja2", "flask", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Flask/Jinja2 RCE via request object",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-python-014",
+      "payload": "{%import os%}{{os.system('id')}}",
+      "tags": ["ssti", "tornado", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Tornado template RCE",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-python-015",
+      "payload": "{{os.system('whoami')}}",
+      "tags": ["ssti", "tornado", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Tornado direct OS command",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-python-016",
+      "payload": "{% debug %}",
+      "tags": ["ssti", "django", "info-disclosure"],
+      "expected_block": true,
+      "severity_hint": "high",
+      "notes": "Django template debug tag - leaks context",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-python-017",
+      "payload": "{{ messages.storages.0.signer.key }}",
+      "tags": ["ssti", "django", "secret-leak"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Django - leak SECRET_KEY via messages framework",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-python-018",
+      "payload": "<%import os%>${os.popen('id').read()}",
+      "tags": ["ssti", "mako", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Mako template RCE",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-python-019",
+      "payload": "${self.module.cache.util.os.popen('id').read()}",
+      "tags": ["ssti", "mako", "rce"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Mako RCE via module cache",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-python-020",
+      "payload": "{{request|attr('application')|attr('\\x5f\\x5fglobals\\x5f\\x5f')}}",
+      "tags": ["ssti", "jinja2", "filter-bypass"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Jinja2 filter bypass using attr() and hex escapes",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-python-021",
+      "payload": "{{()|attr('\\x5f\\x5fclass\\x5f\\x5f')|attr('\\x5f\\x5fbase\\x5f\\x5f')}}",
+      "tags": ["ssti", "jinja2", "filter-bypass"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Jinja2 underscore bypass via hex encoding",
+      "category": "Injection"
+    },
+    {
+      "id": "ssti-python-022",
+      "payload": "{%set a='__cla'%}{%set b='ss__'%}{{()|attr(a~b)}}",
+      "tags": ["ssti", "jinja2", "filter-bypass"],
+      "expected_block": true,
+      "severity_hint": "critical",
+      "notes": "Jinja2 keyword bypass via string concatenation",
+      "category": "Injection"
+    }
+]

@@ -1,0 +1,155 @@
+{
+  "schema_version": "1.0.0",
+  "last_updated": "2025-01-22",
+  "taxonomy": {
+    "Injection": {
+      "prefix": "INJ",
+      "subcategories": {
+        "SQLi": { "range_start": 0, "range_end": 199, "next_available": 0 },
+        "NoSQLi": { "range_start": 200, "range_end": 249, "next_available": 200 },
+        "Command": { "range_start": 250, "range_end": 299, "next_available": 250 },
+        "LDAP": { "range_start": 300, "range_end": 319, "next_available": 300 },
+        "XPath": { "range_start": 320, "range_end": 339, "next_available": 320 },
+        "SSTI": { "range_start": 340, "range_end": 379, "next_available": 340 },
+        "XXE": { "range_start": 380, "range_end": 399, "next_available": 380 }
+      }
+    },
+    "XSS": {
+      "prefix": "XSS",
+      "subcategories": {
+        "Reflected": { "range_start": 0, "range_end": 49, "next_available": 0 },
+        "DOM": { "range_start": 50, "range_end": 79, "next_available": 50 },
+        "Stored": { "range_start": 80, "range_end": 99, "next_available": 80 },
+        "Mutation": { "range_start": 100, "range_end": 119, "next_available": 100 },
+        "CSP-Bypass": { "range_start": 120, "range_end": 139, "next_available": 120 },
+        "Polyglot": { "range_start": 140, "range_end": 159, "next_available": 140 }
+      }
+    },
+    "Traversal": {
+      "prefix": "TRV",
+      "subcategories": {
+        "Unix": { "range_start": 0, "range_end": 29, "next_available": 0 },
+        "Windows": { "range_start": 30, "range_end": 59, "next_available": 30 },
+        "DoubleEncoding": { "range_start": 60, "range_end": 79, "next_available": 60 },
+        "NullByte": { "range_start": 80, "range_end": 99, "next_available": 80 }
+      }
+    },
+    "SSRF": {
+      "prefix": "SSRF",
+      "subcategories": {
+        "Cloud": { "range_start": 0, "range_end": 99, "next_available": 34, "description": "Cloud metadata endpoints (AWS, GCP, Azure, etc.)" },
+        "Proto": { "range_start": 100, "range_end": 199, "next_available": 128, "description": "Protocol smuggling (gopher, dict, file, ldap, etc.)" },
+        "DNS": { "range_start": 200, "range_end": 299, "next_available": 225, "description": "DNS rebinding and IP obfuscation" },
+        "Net": { "range_start": 300, "range_end": 399, "next_available": 323, "description": "Internal network targeting (RFC1918, localhost)" }
+      }
+    },
+    "Auth": {
+      "prefix": "AUTH",
+      "subcategories": {
+        "JWT": { "range_start": 0, "range_end": 39, "next_available": 0 },
+        "OAuth": { "range_start": 40, "range_end": 79, "next_available": 40 },
+        "Session": { "range_start": 80, "range_end": 119, "next_available": 80 },
+        "CSRF": { "range_start": 120, "range_end": 139, "next_available": 120 }
+      }
+    },
+    "Protocol": {
+      "prefix": "PROTO",
+      "subcategories": {
+        "Smug": { "range_start": 0, "range_end": 99, "next_available": 36, "description": "HTTP request smuggling (CL.TE, TE.CL, TE.TE, chunk manipulation)" },
+        "HTTP2": { "range_start": 100, "range_end": 199, "next_available": 130, "description": "HTTP/2 attacks (pseudo-header abuse, forbidden headers, desync)" },
+        "WS": { "range_start": 200, "range_end": 299, "next_available": 230, "description": "WebSocket abuse (handshake manipulation, cross-protocol)" }
+      }
+    },
+    "GraphQL": {
+      "prefix": "GQL",
+      "subcategories": {
+        "Introspection": { "range_start": 0, "range_end": 29, "next_available": 20 },
+        "DepthLimit": { "range_start": 30, "range_end": 59, "next_available": 50 },
+        "Batching": { "range_start": 60, "range_end": 99, "next_available": 80 }
+      }
+    },
+    "Cache": {
+      "prefix": "CACHE",
+      "subcategories": {
+        "Poisoning": { "range_start": 0, "range_end": 29, "next_available": 30 },
+        "Deception": { "range_start": 30, "range_end": 59, "next_available": 60 }
+      }
+    },
+    "Logic": {
+      "prefix": "LOGIC",
+      "subcategories": {
+        "ForcedBrowsing": { "range_start": 0, "range_end": 29, "next_available": 30 },
+        "IDOR": { "range_start": 30, "range_end": 59, "next_available": 60 },
+        "Privilege": { "range_start": 60, "range_end": 89, "next_available": 85 }
+      }
+    },
+    "Deserialization": {
+      "prefix": "DESER",
+      "subcategories": {
+        "Prototype": { "range_start": 0, "range_end": 39, "next_available": 30 },
+        "Gadget": { "range_start": 40, "range_end": 79, "next_available": 70 }
+      }
+    },
+    "Fuzzing": {
+      "prefix": "FUZZ",
+      "subcategories": {
+        "Headers": { "range_start": 0, "range_end": 39, "next_available": 30 },
+        "Methods": { "range_start": 40, "range_end": 59, "next_available": 70 },
+        "ContentType": { "range_start": 60, "range_end": 89, "next_available": 90 }
+      }
+    },
+    "AI": {
+      "prefix": "AI",
+      "subcategories": {
+        "Prompt": { "range_start": 0, "range_end": 29, "next_available": 18, "description": "Prompt injection, system prompt extraction, jailbreaks" },
+        "Workflow": { "range_start": 30, "range_end": 59, "next_available": 46, "description": "n8n workflow manipulation, code injection, node abuse" },
+        "ML": { "range_start": 60, "range_end": 89, "next_available": 72, "description": "ML model poisoning, adversarial attacks on Immich" }
+      }
+    },
+    "Media": {
+      "prefix": "MEDIA",
+      "subcategories": {
+        "EXIF": { "range_start": 0, "range_end": 29, "next_available": 16, "description": "EXIF injection, XSS in metadata, path traversal in filenames" },
+        "ContentType": { "range_start": 30, "range_end": 49, "next_available": 41, "description": "MIME confusion, polyglot files, content-type attacks" },
+        "Metadata": { "range_start": 50, "range_end": 79, "next_available": 67, "description": "GPS spoofing, unicode attacks, oversized metadata" }
+      }
+    },
+    "RateLimit": {
+      "prefix": "RATE",
+      "subcategories": {
+        "Zone": { "range_start": 0, "range_end": 29, "next_available": 20, "description": "Zone-specific tests (auth_like, api, uploads, streaming, static, general)" },
+        "Burst": { "range_start": 30, "range_end": 59, "next_available": 45, "description": "Burst simulation, 200→429 transitions, traffic spikes" },
+        "Bypass": { "range_start": 60, "range_end": 89, "next_available": 76, "description": "X-Forwarded-For spoofing, header manipulation, evasion attempts" }
+      }
+    }
+  },
+  "cwe_mapping": {
+    "INJ-SQLI": "CWE-89",
+    "INJ-NOSQLI": "CWE-943",
+    "INJ-COMMAND": "CWE-78",
+    "INJ-LDAP": "CWE-90",
+    "INJ-XPATH": "CWE-643",
+    "INJ-SSTI": "CWE-94",
+    "INJ-XXE": "CWE-611",
+    "XSS-REFLECTED": "CWE-79",
+    "XSS-DOM": "CWE-79",
+    "XSS-STORED": "CWE-79",
+    "TRV": "CWE-22",
+    "SSRF": "CWE-918",
+    "AUTH-JWT": "CWE-347",
+    "AUTH-OAUTH": "CWE-601",
+    "AUTH-SESSION": "CWE-384",
+    "AUTH-CSRF": "CWE-352",
+    "AUTH-MFA": "CWE-287",
+    "PROTO-SMUGGLING": "CWE-444",
+    "DESER-PROTOTYPE": "CWE-1321",
+    "LOGIC-IDOR": "CWE-639",
+    "AI-PROMPT": "CWE-94",
+    "AI-WORKFLOW": "CWE-94",
+    "AI-ML": "CWE-20",
+    "MEDIA-EXIF": "CWE-79",
+    "MEDIA-CONTENTTYPE": "CWE-434",
+    "MEDIA-METADATA": "CWE-20",
+    "RATE": "CWE-770"
+  }
+}

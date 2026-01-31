@@ -1,0 +1,452 @@
+[
+  {
+      "id": "WAF-BYPASS-001",
+      "payload": "s]E[l]E[c]T",
+      "tags": ["sqli", "bracket-bypass", "quick"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL SELECT with bracket obfuscation",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-002",
+      "payload": "un/**/ion se/**/lect",
+      "tags": ["sqli", "comment-split", "quick"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL UNION SELECT comment splitting",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-003",
+      "payload": "uni%6fn se%6cect",
+      "tags": ["sqli", "hex-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL with hex-encoded characters",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-004",
+      "payload": "/*!50000union*//*!50000select*/",
+      "tags": ["sqli", "mysql-version", "quick"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MySQL version-specific comment bypass",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-005",
+      "payload": "sel%00ect",
+      "tags": ["sqli", "null-byte"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL with null byte injection",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-006",
+      "payload": "0'XOR(if(now()=sysdate(),sleep(5),0))XOR'Z",
+      "tags": ["sqli", "time-based", "xor"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Time-based blind SQLi with XOR",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-007",
+      "payload": "'-IF(1=1,SLEEP(5),0)--",
+      "tags": ["sqli", "time-based", "if"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IF-based time SQLi",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-008",
+      "payload": "1 AND (SELECT * FROM (SELECT(SLEEP(5)))a)",
+      "tags": ["sqli", "subquery", "sleep"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Subquery-wrapped SLEEP",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-009",
+      "payload": "1' AND BENCHMARK(10000000,SHA1('test'))#",
+      "tags": ["sqli", "benchmark", "mysql"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "MySQL BENCHMARK time-based",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-010",
+      "payload": "<scr\\x00ipt>alert(1)</scr\\x00ipt>",
+      "tags": ["xss", "null-byte"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS with null bytes in tag",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-011",
+      "payload": "<img src=x onerror=al\\u0065rt(1)>",
+      "tags": ["xss", "unicode-escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS with Unicode escape",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-012",
+      "payload": "<svg/onload=alert(1)>",
+      "tags": ["xss", "no-space"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS without spaces",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-013",
+      "payload": "<svg\\x0conload=alert(1)>",
+      "tags": ["xss", "form-feed"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS with form feed character",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-014",
+      "payload": "java%0ascript:alert(1)",
+      "tags": ["xss", "newline-split"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JavaScript with newline split",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-015",
+      "payload": "jav\tascript:alert(1)",
+      "tags": ["xss", "tab-split"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "JavaScript with tab character",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-016",
+      "payload": "\\x3cscript\\x3ealert(1)\\x3c/script\\x3e",
+      "tags": ["xss", "hex-escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS with hex escape sequences",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-017",
+      "payload": "\\u003cscript\\u003ealert(1)\\u003c/script\\u003e",
+      "tags": ["xss", "unicode-escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS with Unicode escape sequences",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-018",
+      "payload": "<img src=1 onerror\\x0b=alert(1)>",
+      "tags": ["xss", "vertical-tab"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "XSS with vertical tab",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-019",
+      "payload": "..%c0%af..%c0%af..%c0%afetc/passwd",
+      "tags": ["traversal", "overlong"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Path traversal UTF-8 overlong",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-020",
+      "payload": "..%252f..%252f..%252fetc/passwd",
+      "tags": ["traversal", "double-encode"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Double URL-encoded traversal",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-021",
+      "payload": "....//....//....//etc/passwd",
+      "tags": ["traversal", "double-slash"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Double dot double slash bypass",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-022",
+      "payload": "..../\\/..../\\/etc/passwd",
+      "tags": ["traversal", "mixed-slash"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Mixed slash traversal",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-023",
+      "payload": ";c$()at /etc/passwd",
+      "tags": ["rce", "variable-injection"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Command with empty variable",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-024",
+      "payload": ";c''at /etc/passwd",
+      "tags": ["rce", "quote-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Command with empty quotes",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-025",
+      "payload": ";c\"\"at /etc/passwd",
+      "tags": ["rce", "double-quote-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Command with empty double quotes",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-026",
+      "payload": ";c\\at /etc/passwd",
+      "tags": ["rce", "backslash-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "Command with backslash",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-027",
+      "payload": "$'c\\x61t' /etc/passwd",
+      "tags": ["rce", "ansi-c-quote"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "ANSI-C quoted hex escape",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-028",
+      "payload": "Content-Type: application/x-www-form-urlencoded\\r\\nX-Injected: true",
+      "tags": ["header", "crlf"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "CRLF header injection",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-029",
+      "payload": "chunked\\r\\nTransfer-Encoding: chunked",
+      "tags": ["header", "smuggling"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "HTTP smuggling header",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-030",
+      "payload": " chunked",
+      "tags": ["header", "space-prefix"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Space-prefixed header value",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-031",
+      "payload": "Transfer-Encoding:\\tchunked",
+      "tags": ["header", "tab-separator"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Tab-separated header value",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-032",
+      "payload": "application/json\\x00text/html",
+      "tags": ["content-type", "null-byte"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "Content-Type null byte truncation",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-033",
+      "payload": "multipart/form-data; boundary=----;",
+      "tags": ["content-type", "boundary-trick"],
+      "expected_block": true,
+      "severity_hint": "Medium",
+      "notes": "Malformed multipart boundary",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-034",
+      "payload": "%u003c%u0073%u0063%u0072%u0069%u0070%u0074%u003e",
+      "tags": ["xss", "iis-unicode"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "IIS Unicode encoded XSS",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-035",
+      "payload": "0xunion0x0xselect",
+      "tags": ["sqli", "hex-padding"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL with hex padding",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-036",
+      "payload": "1e0union1e0select",
+      "tags": ["sqli", "scientific-notation"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL with scientific notation",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-037",
+      "payload": "1.union.select",
+      "tags": ["sqli", "dot-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL with dot separators",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-038",
+      "payload": "1%0aunion%0aselect",
+      "tags": ["sqli", "newline-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL with newline separators",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-039",
+      "payload": "1%09union%09select",
+      "tags": ["sqli", "tab-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL with tab separators",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-040",
+      "payload": "1%0bunion%0bselect",
+      "tags": ["sqli", "vtab-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL with vertical tab",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-041",
+      "payload": "1%0cunion%0cselect",
+      "tags": ["sqli", "formfeed-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL with form feed",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-042",
+      "payload": "1%0dunion%0dselect",
+      "tags": ["sqli", "cr-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL with carriage return",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-043",
+      "payload": "1%a0union%a0select",
+      "tags": ["sqli", "nbsp-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL with non-breaking space",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-044",
+      "payload": "'+or+'1",
+      "tags": ["sqli", "plus-bypass"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL with plus sign bypass",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-045",
+      "payload": "\\' or 1=1--",
+      "tags": ["sqli", "backslash-escape"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL with backslash before quote",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-046",
+      "payload": "' or ''='",
+      "tags": ["sqli", "double-quote-compare"],
+      "expected_block": true,
+      "severity_hint": "Critical",
+      "notes": "SQL empty string comparison",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-047",
+      "payload": "'-'",
+      "tags": ["sqli", "minus-bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "SQL minus operator bypass",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-048",
+      "payload": "'+''+'",
+      "tags": ["sqli", "concat-bypass"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "SQL string concatenation bypass",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-049",
+      "payload": "X-Originating-IP: 127.0.0.1",
+      "tags": ["header", "ip-spoof"],
+      "expected_block": true,
+      "severity_hint": "High",
+      "notes": "IP spoofing header",
+      "category": "Bypass"
+  },
+  {
+      "id": "WAF-BYPASS-050",
+      "payload": "X-Forwarded-For: 127.0.0.1",
+      "tags": ["header", "xff-spoof"],
+      "expected_block": false,
+      "severity_hint": "Medium",
+      "notes": "XFF header (may be legitimate)",
+      "category": "Bypass"
+  }
+]
