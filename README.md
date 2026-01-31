@@ -11,11 +11,17 @@ WAFtester is a command-line tool for security professionals to assess Web Applic
 
 **Key capabilities:**
 
+- **Authenticated browser scanning** - Opens a real browser window for manual login (MFA, CAPTCHA, SSO)
 - Detects 197 WAF vendors from response signatures
 - Includes 1,500+ community payloads (SQL injection, XSS, path traversal, etc.)
 - Smart mode adapts rate limits and evasion techniques per vendor
 - Outputs to JSON, SARIF, CSV, HTML, and Markdown
 - Enterprise assessment mode with F1, precision, and MCC metrics
+
+## Requirements
+
+- **Go 1.22+** for building from source
+- **Chrome or Chromium** (optional) - Required for authenticated browser scanning with manual login
 
 ## Installation
 
@@ -129,6 +135,32 @@ waf-tester bypass -u https://target.com -m full -chain
 waf-tester assess -u https://target.com -o assessment.json
 ```
 
+### Authenticated Browser Scanning
+
+For applications requiring login (SSO, MFA, CAPTCHA), WAFtester opens a real browser window where you manually authenticate. After login, it captures all network traffic, tokens, and API calls.
+
+```bash
+# Auto mode with browser (default: opens visible browser for manual login)
+waf-tester auto -u https://app.example.com
+
+# Browser opens → you log in manually → WAFtester captures:
+#   • All network requests and responses
+#   • JWT tokens and API keys in storage
+#   • Third-party API integrations
+#   • Authentication flow details
+
+# Run browser in headless mode (no manual login)
+waf-tester auto -u https://app.example.com -browser-headless
+
+# Disable browser scanning entirely
+waf-tester auto -u https://app.example.com -browser=false
+
+# Increase login timeout (default: 3 minutes)
+waf-tester auto -u https://app.example.com -browser-timeout 5m
+```
+
+**Note:** Authenticated browser scanning requires Chrome or Chromium installed on your system.
+
 ## Configuration
 
 Common flags across commands:
@@ -146,6 +178,14 @@ Common flags across commands:
 | `-o` | Output file path |
 | `-v`, `-verbose` | Verbose output |
 | `-s`, `-silent` | Silent mode |
+
+### Browser Scanning Flags
+
+| Flag | Description |
+|------|-------------|
+| `-browser` | Enable/disable browser scanning (default: true) |
+| `-browser-headless` | Run browser in headless mode, no visible window |
+| `-browser-timeout` | Time to wait for manual login (default: 3m) |
 
 ## Payloads
 
