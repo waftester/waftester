@@ -10,6 +10,8 @@
 .github/copilot-instructions.md
 .github/memory-seed.json
 .github/skills/
+.claude/
+.mcp.json
 .vscode/
 docs/plans/
 
