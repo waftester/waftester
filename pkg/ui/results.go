@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -147,33 +148,36 @@ type Summary struct {
 	Severity       string
 }
 
-// PrintSummary prints a beautiful summary box
+// PrintSummary prints a beautiful summary box (to stderr)
 func PrintSummary(s Summary) {
-	fmt.Println()
+	if IsSilent() {
+		return
+	}
+	fmt.Fprintln(os.Stderr)
 	PrintSection("Execution Summary")
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Target info
-	fmt.Printf("  %s %s\n",
+	fmt.Fprintf(os.Stderr, "  %s %s\n",
 		ConfigLabelStyle.Render("Target:"),
 		URLStyle.Render(s.TargetURL),
 	)
 
 	if s.Category != "" {
-		fmt.Printf("  %s %s\n",
+		fmt.Fprintf(os.Stderr, "  %s %s\n",
 			ConfigLabelStyle.Render("Category:"),
 			CategoryStyle.Render(s.Category),
 		)
 	}
 
 	if s.Severity != "" {
-		fmt.Printf("  %s %s\n",
+		fmt.Fprintf(os.Stderr, "  %s %s\n",
 			ConfigLabelStyle.Render("Severity:"),
 			SeverityStyle(s.Severity).Render(s.Severity+"+"),
 		)
 	}
 
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Results box - simple fixed-width layout
 	// Use simple ASCII to avoid Unicode width issues
@@ -183,7 +187,7 @@ func PrintSummary(s Summary) {
 	bottomBorder := "+" + strings.Repeat("-", boxWidth-2) + "+"
 	separator := "+" + strings.Repeat("-", boxWidth-2) + "+"
 
-	fmt.Println(BracketStyle.Render("  " + topBorder))
+	fmt.Fprintln(os.Stderr, BracketStyle.Render("  "+topBorder))
 
 	// Simple row format: "|  Label:          Value                    |"
 	printRow := func(label string, value string, valueStyle lipgloss.Style) {
@@ -204,7 +208,7 @@ func PrintSummary(s Summary) {
 			valuePadded += " "
 		}
 
-		fmt.Printf("  |  %s%s|\n",
+		fmt.Fprintf(os.Stderr, "  |  %s%s|\n",
 			StatLabelStyle.Render(labelPadded),
 			valueStyle.Render(valuePadded),
 		)
@@ -214,7 +218,7 @@ func PrintSummary(s Summary) {
 	printRow("Total Tests:", fmt.Sprintf("%d", s.TotalTests), StatValueStyle)
 
 	// Separator
-	fmt.Println(BracketStyle.Render("  " + separator))
+	fmt.Fprintln(os.Stderr, BracketStyle.Render("  "+separator))
 
 	// Results breakdown - use simple text symbols
 	printRow("Blocked (WAF):", fmt.Sprintf("[OK] %d", s.BlockedTests), BlockedStyle)
@@ -223,17 +227,17 @@ func PrintSummary(s Summary) {
 	printRow("Errors:", fmt.Sprintf("[??] %d", s.ErrorTests), ErrorStyle)
 
 	// Separator
-	fmt.Println(BracketStyle.Render("  " + separator))
+	fmt.Fprintln(os.Stderr, BracketStyle.Render("  "+separator))
 
 	// Performance stats
 	printRow("Duration:", formatDuration(s.Duration), StatValueStyle)
 	printRow("Req/sec:", fmt.Sprintf("%.1f", s.RequestsPerSec), StatValueStyle)
 
-	fmt.Println(BracketStyle.Render("  " + bottomBorder))
+	fmt.Fprintln(os.Stderr, BracketStyle.Render("  "+bottomBorder))
 
 	// WAF effectiveness = Blocked / (Blocked + Failed)
 	// This measures what % of attack payloads were stopped by the WAF
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 	attackTests := s.BlockedTests + s.FailedTests
 	var effectiveness float64
 	if attackTests > 0 {
@@ -244,7 +248,7 @@ func PrintSummary(s Summary) {
 	PrintWAFEffectiveness(effectiveness)
 
 	// Final verdict
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 	if s.FailedTests > 0 {
 		PrintError(fmt.Sprintf("%d payloads bypassed the WAF - Review required!", s.FailedTests))
 	} else if s.ErrorTests > s.TotalTests/10 {
@@ -252,11 +256,15 @@ func PrintSummary(s Summary) {
 	} else {
 		PrintSuccess("All attack payloads were blocked by the WAF")
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 }
 
 // PrintWAFEffectiveness prints a visual WAF effectiveness meter
 func PrintWAFEffectiveness(percent float64) {
+	if IsSilent() {
+		return
+	}
+
 	barWidth := 25
 
 	var color lipgloss.Color
@@ -293,7 +301,7 @@ func PrintWAFEffectiveness(percent float64) {
 
 	// Print on single line - avoid style rendering issues
 	labelStyled := StatLabelStyle.Render("WAF Effectiveness: ")
-	fmt.Printf("  %s%s %s %s %s\n",
+	fmt.Fprintf(os.Stderr, "  %s%s %s %s %s\n",
 		labelStyled,
 		bar.String(),
 		percentStyle.Render(fmt.Sprintf("%.1f%%", percent)),
@@ -338,9 +346,13 @@ func max(a, b int) int {
 
 // PrintLiveResult prints a single result during execution (for verbose mode)
 func PrintLiveResult(outcome, id, category, severity string, statusCode int) {
+	if IsSilent() {
+		return
+	}
+
 	switch outcome {
 	case "Fail":
-		fmt.Printf("\n  %s %s %s %s %s\n",
+		fmt.Fprintf(os.Stderr, "\n  %s %s %s %s %s\n",
 			FailStyle.Render("[X]"),
 			SeverityStyle(severity).Render(strings.ToLower(severity)),
 			BracketStyle.Render("[")+CategoryStyle.Render(category)+BracketStyle.Render("]"),
@@ -348,7 +360,7 @@ func PrintLiveResult(outcome, id, category, severity string, statusCode int) {
 			StatusCodeStyle(statusCode).Render(fmt.Sprintf("[%d]", statusCode)),
 		)
 	case "Error":
-		fmt.Printf("\n  %s %s %s\n",
+		fmt.Fprintf(os.Stderr, "\n  %s %s %s\n",
 			ErrorStyle.Render("[!]"),
 			BracketStyle.Render("[")+CategoryStyle.Render(category)+BracketStyle.Render("]"),
 			StatValueStyle.Render(id),

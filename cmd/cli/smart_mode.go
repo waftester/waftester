@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/waftester/waftester/pkg/mutation"
@@ -118,55 +119,60 @@ func DetectAndOptimize(ctx context.Context, targetURL string, config *SmartModeC
 
 // PrintSmartModeInfo prints the smart mode detection and configuration info
 func PrintSmartModeInfo(result *SmartModeResult, verbose bool) {
+	// Respect silent mode for JSON output
+	if ui.IsSilent() {
+		return
+	}
+
 	if result.WAFDetected {
 		ui.PrintSuccess(fmt.Sprintf("🎯 WAF Detected: %s (%.0f%% confidence)", result.VendorName, result.Confidence*100))
 
 		if verbose {
 			// Show evidence
 			if len(result.Evidence) > 0 {
-				fmt.Println("   Evidence:")
+				fmt.Fprintln(os.Stderr, "   Evidence:")
 				for _, ev := range result.Evidence[:min(3, len(result.Evidence))] {
-					fmt.Printf("     • %s\n", ev)
+					fmt.Fprintf(os.Stderr, "     • %s\n", ev)
 				}
 			}
 
 			// Show optimized config
-			fmt.Println()
-			fmt.Println("   📋 WAF-Optimized Configuration:")
-			fmt.Printf("     Rate Limit: %.0f req/sec (safe for %s)\n", result.RateLimit, result.VendorName)
-			fmt.Printf("     Concurrency: %d workers\n", result.Concurrency)
+			fmt.Fprintln(os.Stderr)
+			fmt.Fprintln(os.Stderr, "   📋 WAF-Optimized Configuration:")
+			fmt.Fprintf(os.Stderr, "     Rate Limit: %.0f req/sec (safe for %s)\n", result.RateLimit, result.VendorName)
+			fmt.Fprintf(os.Stderr, "     Concurrency: %d workers\n", result.Concurrency)
 
 			if len(result.Pipeline.Encoders) > 0 {
-				fmt.Printf("     Encoders: %d prioritized\n", len(result.Pipeline.Encoders))
+				fmt.Fprintf(os.Stderr, "     Encoders: %d prioritized\n", len(result.Pipeline.Encoders))
 				if len(result.Pipeline.Encoders) <= 5 {
-					fmt.Printf("       → %v\n", result.Pipeline.Encoders)
+					fmt.Fprintf(os.Stderr, "       → %v\n", result.Pipeline.Encoders)
 				}
 			}
 			if len(result.Pipeline.Evasions) > 0 {
-				fmt.Printf("     Evasions: %d selected\n", len(result.Pipeline.Evasions))
+				fmt.Fprintf(os.Stderr, "     Evasions: %d selected\n", len(result.Pipeline.Evasions))
 			}
 		}
 
 		// Show bypass hints
 		if len(result.BypassHints) > 0 {
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 			ui.PrintInfo("   💡 Bypass Hints:")
 			for i, hint := range result.BypassHints {
 				if i >= 3 {
-					fmt.Printf("     ... and %d more\n", len(result.BypassHints)-3)
+					fmt.Fprintf(os.Stderr, "     ... and %d more\n", len(result.BypassHints)-3)
 					break
 				}
-				fmt.Printf("     → %s\n", hint)
+				fmt.Fprintf(os.Stderr, "     → %s\n", hint)
 			}
 		}
 	} else {
 		ui.PrintInfo("🔍 No specific WAF detected - using generic testing configuration")
 		if verbose {
-			fmt.Printf("     Rate Limit: %.0f req/sec\n", result.RateLimit)
-			fmt.Printf("     Concurrency: %d workers\n", result.Concurrency)
+			fmt.Fprintf(os.Stderr, "     Rate Limit: %.0f req/sec\n", result.RateLimit)
+			fmt.Fprintf(os.Stderr, "     Concurrency: %d workers\n", result.Concurrency)
 		}
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 }
 
 // ApplySmartConfig applies the smart mode result to an ExecutorConfig

@@ -193,6 +193,11 @@ func ParseFlags() (*Config, error) {
 		cfg.OutputFormat = "jsonl"
 	}
 
+	// Auto-enable silent mode for JSON/JSONL output formats to avoid contaminating stdout
+	if cfg.OutputFormat == "json" || cfg.OutputFormat == "jsonl" {
+		cfg.Silent = true
+	}
+
 	// Handle backwards compatibility: if TargetURLs has values, use first one as TargetURL
 	if len(cfg.TargetURLs) > 0 && cfg.TargetURL == "" {
 		cfg.TargetURL = cfg.TargetURLs[0]

@@ -106,7 +106,7 @@ func DefaultLiveProgressConfig() LiveProgressConfig {
 	return LiveProgressConfig{
 		DisplayLines:   2,
 		Mode:           OutputModeInteractive,
-		Writer:         os.Stdout,
+		Writer:         os.Stderr,
 		SpinnerType:    SpinnerDots,
 		BarWidth:       30,
 		Unit:           "items",
@@ -123,7 +123,7 @@ func NewLiveProgress(config LiveProgressConfig) *LiveProgress {
 		config.DisplayLines = 2
 	}
 	if config.Writer == nil {
-		config.Writer = os.Stdout
+		config.Writer = os.Stderr
 	}
 	if config.BarWidth == 0 {
 		config.BarWidth = 30
