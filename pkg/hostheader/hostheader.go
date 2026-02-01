@@ -5,11 +5,11 @@ package hostheader
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -273,8 +273,8 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 			continue
 		}
 
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		body, _ := iohelper.ReadBodyDefault(resp.Body)
+		iohelper.DrainAndClose(resp.Body)
 		bodyStr := string(body)
 
 		// Check for reflection in body
@@ -378,9 +378,9 @@ func (t *Tester) TestPasswordReset(ctx context.Context, targetURL string, email 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	bodyStr := string(body)
 
 	// Check if the response mentions the attack domain

@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // BlockDetector analyzes HTTP responses to determine if a request was blocked
@@ -88,9 +90,9 @@ func (d *BlockDetector) DetectBlock(resp *http.Response, responseTime time.Durat
 		result.MatchedPatterns = append(result.MatchedPatterns, headerMatches...)
 	}
 
-	// 3. Read and analyze body
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
+	// 3. Read and analyze body (limit to 100KB for block pages)
+	bodyBytes, err := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
+	if err != nil && err != io.EOF {
 		return result, err
 	}
 	body := string(bodyBytes)
@@ -243,8 +245,8 @@ func (d *BlockDetector) compareToBaseline(resp *http.Response, body string, resp
 
 // CaptureBaseline records a normal response for comparison
 func (d *BlockDetector) CaptureBaseline(resp *http.Response, responseTime time.Duration) error {
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
+	bodyBytes, err := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
+	if err != nil && err != io.EOF {
 		return err
 	}
 

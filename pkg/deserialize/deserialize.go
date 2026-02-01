@@ -8,13 +8,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // VulnerabilityType represents the type of deserialization vulnerability.
@@ -147,9 +148,9 @@ func (t *Tester) TestPayload(ctx context.Context, targetURL string, param string
 	if err != nil {
 		return nil, fmt.Errorf("sending request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	bodyStr := string(body)
 
 	// Check for deserialization indicators
@@ -190,9 +191,9 @@ func (t *Tester) TestPOST(ctx context.Context, targetURL string, payload Payload
 	if err != nil {
 		return nil, fmt.Errorf("sending request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	bodyStr := string(body)
 
 	if t.isVulnerable(resp.StatusCode, bodyStr, payload.VulnType) {
@@ -536,7 +537,7 @@ func DetectSerializationFormat(data []byte) VulnerabilityType {
 
 	// Check for PHP serialized object
 	dataStr := string(data)
-	phpPattern := regexp.MustCompile(`^[aOCNRsbidr]:\d+`)
+	phpPattern := regexcache.MustGet(`^[aOCNRsbidr]:\d+`)
 	if phpPattern.MatchString(dataStr) {
 		return VulnPHPDeserial
 	}
@@ -569,7 +570,7 @@ func IsBase64Encoded(s string) bool {
 	if len(s) < 4 || len(s)%4 != 0 {
 		return false
 	}
-	base64Pattern := regexp.MustCompile(`^[A-Za-z0-9+/]*={0,2}$`)
+	base64Pattern := regexcache.MustGet(`^[A-Za-z0-9+/]*={0,2}$`)
 	return base64Pattern.MatchString(s)
 }
 

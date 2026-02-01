@@ -3,10 +3,11 @@ package headless
 import (
 	"encoding/json"
 	"net/url"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // XHRExtractor captures and analyzes XHR/fetch requests from page navigation
@@ -216,7 +217,7 @@ func ExtractURLsFromJS(jsCode string, baseURL string) []string {
 	}
 
 	// Pattern: fetch('url') or fetch("url")
-	fetchPattern := regexp.MustCompile(`fetch\s*\(\s*['"]([^'"]+)['"]`)
+	fetchPattern := regexcache.MustGet(`fetch\s*\(\s*['"]([^'"]+)['"]`)
 	matches := fetchPattern.FindAllStringSubmatch(jsCode, -1)
 	for _, m := range matches {
 		if len(m) > 1 {
@@ -228,7 +229,7 @@ func ExtractURLsFromJS(jsCode string, baseURL string) []string {
 	}
 
 	// Pattern: XMLHttpRequest.open('method', 'url')
-	xhrPattern := regexp.MustCompile(`\.open\s*\(\s*['"][^'"]+['"]\s*,\s*['"]([^'"]+)['"]`)
+	xhrPattern := regexcache.MustGet(`\.open\s*\(\s*['"][^'"]+['"]\s*,\s*['"]([^'"]+)['"]`)
 	matches = xhrPattern.FindAllStringSubmatch(jsCode, -1)
 	for _, m := range matches {
 		if len(m) > 1 {
@@ -240,7 +241,7 @@ func ExtractURLsFromJS(jsCode string, baseURL string) []string {
 	}
 
 	// Pattern: axios.get|post|put|delete('url')
-	axiosPattern := regexp.MustCompile(`axios\.(get|post|put|delete|patch)\s*\(\s*['"]([^'"]+)['"]`)
+	axiosPattern := regexcache.MustGet(`axios\.(get|post|put|delete|patch)\s*\(\s*['"]([^'"]+)['"]`)
 	matches = axiosPattern.FindAllStringSubmatch(jsCode, -1)
 	for _, m := range matches {
 		if len(m) > 2 {
@@ -252,7 +253,7 @@ func ExtractURLsFromJS(jsCode string, baseURL string) []string {
 	}
 
 	// Pattern: $.ajax({ url: 'url' }) or $.get/post('url')
-	jqueryPattern := regexp.MustCompile(`\$\.(ajax|get|post)\s*\(\s*(?:\{[^}]*url\s*:\s*)?['"]([^'"]+)['"]`)
+	jqueryPattern := regexcache.MustGet(`\$\.(ajax|get|post)\s*\(\s*(?:\{[^}]*url\s*:\s*)?['"]([^'"]+)['"]`)
 	matches = jqueryPattern.FindAllStringSubmatch(jsCode, -1)
 	for _, m := range matches {
 		if len(m) > 2 {
@@ -264,7 +265,7 @@ func ExtractURLsFromJS(jsCode string, baseURL string) []string {
 	}
 
 	// Pattern: url: "..." or "url": "..."
-	urlPropertyPattern := regexp.MustCompile(`["']?url["']?\s*[:=]\s*['"]([^'"]+)['"]`)
+	urlPropertyPattern := regexcache.MustGet(`["']?url["']?\s*[:=]\s*['"]([^'"]+)['"]`)
 	matches = urlPropertyPattern.FindAllStringSubmatch(jsCode, -1)
 	for _, m := range matches {
 		if len(m) > 1 {
@@ -276,7 +277,7 @@ func ExtractURLsFromJS(jsCode string, baseURL string) []string {
 	}
 
 	// Pattern: /api/... paths
-	apiPathPattern := regexp.MustCompile(`['"](/(?:api|v[0-9]+)/[^'"]+)['"]`)
+	apiPathPattern := regexcache.MustGet(`['"](/(?:api|v[0-9]+)/[^'"]+)['"]`)
 	matches = apiPathPattern.FindAllStringSubmatch(jsCode, -1)
 	for _, m := range matches {
 		if len(m) > 1 {

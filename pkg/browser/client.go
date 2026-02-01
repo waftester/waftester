@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Profile represents a browser fingerprint profile
@@ -385,19 +387,19 @@ func (c *Client) doOnce(ctx context.Context, req *Request) (*Response, error) {
 			Request: req,
 		}, fmt.Errorf("request failed: %w", err)
 	}
-	defer httpResp.Body.Close()
+	defer iohelper.DrainAndClose(httpResp.Body)
 
 	// Read body
 	var respBody []byte
 	if httpResp.Header.Get("Content-Encoding") == "gzip" {
 		gzr, err := gzip.NewReader(httpResp.Body)
 		if err == nil {
-			respBody, _ = io.ReadAll(gzr)
+			respBody, _ = iohelper.ReadBodyDefault(gzr)
 			gzr.Close()
 		}
 	}
 	if respBody == nil {
-		respBody, _ = io.ReadAll(httpResp.Body)
+		respBody, _ = iohelper.ReadBodyDefault(httpResp.Body)
 	}
 
 	// Build response

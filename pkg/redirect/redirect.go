@@ -6,12 +6,14 @@ package redirect
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // VulnerabilityType represents different open redirect vulnerability types
@@ -348,10 +350,10 @@ func (t *Tester) testPayload(ctx context.Context, baseURL, param string, payload
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Read body for meta refresh and JavaScript detection
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	bodyStr := string(body)
 
 	// Analyze response
@@ -380,7 +382,7 @@ func (t *Tester) analyzeResponse(testURL, param string, payload *Payload, resp *
 	}
 
 	// Check for meta refresh redirect
-	metaPattern := regexp.MustCompile(`(?i)<meta[^>]+http-equiv=["']?refresh["']?[^>]+content=["']?\d+;\s*url=([^"'>]+)`)
+	metaPattern := regexcache.MustGet(`(?i)<meta[^>]+http-equiv=["']?refresh["']?[^>]+content=["']?\d+;\s*url=([^"'>]+)`)
 	if matches := metaPattern.FindStringSubmatch(body); len(matches) > 1 {
 		if isRedirectToAttacker(matches[1], attackerDomain) {
 			return &Vulnerability{

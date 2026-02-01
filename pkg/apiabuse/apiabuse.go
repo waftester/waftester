@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Config configures API abuse testing
@@ -101,8 +103,8 @@ func (s *Scanner) TestRateLimiting(ctx context.Context, targetURL string, reques
 		if err != nil {
 			continue
 		}
-		io.ReadAll(resp.Body)
-		resp.Body.Close()
+		iohelper.ReadBodyDefault(resp.Body)
+		iohelper.DrainAndClose(resp.Body)
 
 		totalTime += time.Since(start)
 		lastStatusCode = resp.StatusCode
@@ -183,9 +185,9 @@ func (s *Scanner) testResourcePayload(ctx context.Context, targetURL string, pay
 	if err != nil {
 		return result
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	io.ReadAll(resp.Body)
+	iohelper.ReadBodyDefault(resp.Body)
 	result.ResponseTime = time.Since(start)
 	result.StatusCode = resp.StatusCode
 

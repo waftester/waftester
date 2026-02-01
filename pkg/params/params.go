@@ -8,7 +8,6 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,6 +16,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // Discoverer handles parameter discovery operations
@@ -170,9 +172,9 @@ func (d *Discoverer) getBaseline(ctx context.Context, targetURL string, method s
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 
 	return &baselineResponse{
 		StatusCode:    resp.StatusCode,
@@ -203,9 +205,9 @@ func (d *Discoverer) passiveDiscovery(ctx context.Context, targetURL string) []D
 	if err != nil {
 		return params
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	content := string(body)
 
 	// Extract from HTML forms
@@ -228,7 +230,7 @@ func extractFormParams(content string) []DiscoveredParam {
 	var params []DiscoveredParam
 
 	// Input fields
-	inputRe := regexp.MustCompile(`<input[^>]+name=["']([^"']+)["'][^>]*>`)
+	inputRe := regexcache.MustGet(`<input[^>]+name=["']([^"']+)["'][^>]*>`)
 	for _, match := range inputRe.FindAllStringSubmatch(content, -1) {
 		if len(match) > 1 {
 			params = append(params, DiscoveredParam{
@@ -241,7 +243,7 @@ func extractFormParams(content string) []DiscoveredParam {
 	}
 
 	// Select fields
-	selectRe := regexp.MustCompile(`<select[^>]+name=["']([^"']+)["'][^>]*>`)
+	selectRe := regexcache.MustGet(`<select[^>]+name=["']([^"']+)["'][^>]*>`)
 	for _, match := range selectRe.FindAllStringSubmatch(content, -1) {
 		if len(match) > 1 {
 			params = append(params, DiscoveredParam{
@@ -254,7 +256,7 @@ func extractFormParams(content string) []DiscoveredParam {
 	}
 
 	// Textarea fields
-	textareaRe := regexp.MustCompile(`<textarea[^>]+name=["']([^"']+)["'][^>]*>`)
+	textareaRe := regexcache.MustGet(`<textarea[^>]+name=["']([^"']+)["'][^>]*>`)
 	for _, match := range textareaRe.FindAllStringSubmatch(content, -1) {
 		if len(match) > 1 {
 			params = append(params, DiscoveredParam{
@@ -276,26 +278,26 @@ func extractJSParams(content string) []DiscoveredParam {
 
 	patterns := []*regexp.Regexp{
 		// Object property access patterns
-		regexp.MustCompile(`(?:params|query|data|body|payload|request)\s*\.\s*([a-zA-Z_][a-zA-Z0-9_]*)`),
-		regexp.MustCompile(`(?:params|query|data|body|payload|request)\s*\[\s*["']([^"']+)["']\s*\]`),
+		regexcache.MustGet(`(?:params|query|data|body|payload|request)\s*\.\s*([a-zA-Z_][a-zA-Z0-9_]*)`),
+		regexcache.MustGet(`(?:params|query|data|body|payload|request)\s*\[\s*["']([^"']+)["']\s*\]`),
 
 		// URLSearchParams
-		regexp.MustCompile(`(?:searchParams|urlParams|params)\s*\.(?:get|set|append|has)\s*\(\s*["']([^"']+)["']\s*\)`),
+		regexcache.MustGet(`(?:searchParams|urlParams|params)\s*\.(?:get|set|append|has)\s*\(\s*["']([^"']+)["']\s*\)`),
 
 		// FormData
-		regexp.MustCompile(`(?:formData|form)\s*\.(?:append|set|get)\s*\(\s*["']([^"']+)["']\s*`),
+		regexcache.MustGet(`(?:formData|form)\s*\.(?:append|set|get)\s*\(\s*["']([^"']+)["']\s*`),
 
 		// $.ajax/axios data objects
-		regexp.MustCompile(`(?:data|params)\s*:\s*\{[^}]*["']?([a-zA-Z_][a-zA-Z0-9_]*)["']?\s*:`),
+		regexcache.MustGet(`(?:data|params)\s*:\s*\{[^}]*["']?([a-zA-Z_][a-zA-Z0-9_]*)["']?\s*:`),
 
 		// fetch body JSON
-		regexp.MustCompile(`JSON\.stringify\s*\(\s*\{[^}]*["']?([a-zA-Z_][a-zA-Z0-9_]*)["']?\s*:`),
+		regexcache.MustGet(`JSON\.stringify\s*\(\s*\{[^}]*["']?([a-zA-Z_][a-zA-Z0-9_]*)["']?\s*:`),
 
 		// GraphQL variables
-		regexp.MustCompile(`variables\s*:\s*\{[^}]*["']?([a-zA-Z_][a-zA-Z0-9_]*)["']?\s*:`),
+		regexcache.MustGet(`variables\s*:\s*\{[^}]*["']?([a-zA-Z_][a-zA-Z0-9_]*)["']?\s*:`),
 
 		// Direct assignments
-		regexp.MustCompile(`["']([a-zA-Z_][a-zA-Z0-9_]*)["']\s*:\s*(?:req\.|this\.|data\.)`),
+		regexcache.MustGet(`["']([a-zA-Z_][a-zA-Z0-9_]*)["']\s*:\s*(?:req\.|this\.|data\.)`),
 	}
 
 	for _, re := range patterns {
@@ -321,7 +323,7 @@ func extractURLParams(content string) []DiscoveredParam {
 	seen := make(map[string]bool)
 
 	// Find URLs with query strings
-	urlRe := regexp.MustCompile(`[?&]([a-zA-Z_][a-zA-Z0-9_]*)=`)
+	urlRe := regexcache.MustGet(`[?&]([a-zA-Z_][a-zA-Z0-9_]*)=`)
 	for _, match := range urlRe.FindAllStringSubmatch(content, -1) {
 		if len(match) > 1 && !seen[match[1]] {
 			seen[match[1]] = true
@@ -418,9 +420,9 @@ func (d *Discoverer) testParamChunk(ctx context.Context, targetURL string, metho
 	if err != nil {
 		return found
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	content := string(body)
 	newHash := fmt.Sprintf("%x", md5.Sum(body))
 
@@ -482,8 +484,8 @@ func (d *Discoverer) testReflection(ctx context.Context, targetURL string, param
 			continue
 		}
 
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		body, _ := iohelper.ReadBodyDefault(resp.Body)
+		iohelper.DrainAndClose(resp.Body)
 
 		if strings.Contains(string(body), canary) {
 			reflected = append(reflected, param.Name)

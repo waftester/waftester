@@ -6,12 +6,13 @@ package cmdi
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // InjectionType represents different command injection types
@@ -345,8 +346,7 @@ func (t *Tester) getBaselineTime(ctx context.Context, targetURL string, method s
 	if err != nil {
 		return 0, err
 	}
-	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body)
+	defer iohelper.DrainAndClose(resp.Body)
 
 	return time.Since(start), nil
 }
@@ -379,10 +379,10 @@ func (t *Tester) testPayload(ctx context.Context, targetURL, param, method strin
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 	elapsed := time.Since(start)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	bodyStr := string(body)
 
 	return t.analyzeResponse(testURL.String(), param, payload, bodyStr, elapsed, baseline)

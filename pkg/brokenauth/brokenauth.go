@@ -3,13 +3,14 @@ package brokenauth
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Config configures broken authentication testing
@@ -83,8 +84,8 @@ func (s *Scanner) TestSessionManagement(ctx context.Context, loginURL string, cr
 	if err != nil {
 		return nil, err
 	}
-	io.ReadAll(loginResp.Body)
-	loginResp.Body.Close()
+	iohelper.ReadBodyDefault(loginResp.Body)
+	iohelper.DrainAndClose(loginResp.Body)
 
 	// Check for weak session tokens
 	u, _ := url.Parse(loginURL)
@@ -173,8 +174,8 @@ func (s *Scanner) TestPasswordPolicy(ctx context.Context, registerURL string) ([
 		if err != nil {
 			continue
 		}
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		body, _ := iohelper.ReadBodyDefault(resp.Body)
+		iohelper.DrainAndClose(resp.Body)
 
 		result.StatusCode = resp.StatusCode
 		result.ResponseSize = len(body)
@@ -223,8 +224,8 @@ func (s *Scanner) TestAccountLockout(ctx context.Context, loginURL string, usern
 		if err != nil {
 			continue
 		}
-		io.ReadAll(resp.Body)
-		resp.Body.Close()
+		iohelper.ReadBodyDefault(resp.Body)
+		iohelper.DrainAndClose(resp.Body)
 
 		result.StatusCode = resp.StatusCode
 

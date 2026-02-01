@@ -3,13 +3,16 @@ package runner
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/ratelimit"
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // Result represents the result of processing a single target
@@ -135,6 +138,18 @@ func (r *Runner[T]) Run(ctx context.Context, targets []string, task TaskFunc[T])
 		default:
 		}
 
+		// Skip hosts that are known to be failing
+		if hosterrors.Check(target) {
+			atomic.AddInt64(&r.Stats.Completed, 1)
+			atomic.AddInt64(&r.Stats.Failed, 1)
+			resultsChan <- Result[T]{
+				Target:   target,
+				Error:    fmt.Errorf("host skipped: exceeded error threshold"),
+				Duration: 0,
+			}
+			continue
+		}
+
 		// Rate limiting with per-host support
 		if r.limiter != nil {
 			host := extractHost(target)
@@ -172,6 +187,10 @@ func (r *Runner[T]) Run(ctx context.Context, targets []string, task TaskFunc[T])
 				atomic.AddInt64(&r.Stats.Successful, 1)
 			} else {
 				atomic.AddInt64(&r.Stats.Failed, 1)
+				// Track network errors for host skipping
+				if hosterrors.IsNetworkError(err) {
+					hosterrors.MarkError(t)
+				}
 				if r.OnError != nil {
 					r.OnError(t, err)
 				}
@@ -251,6 +270,18 @@ func (r *Runner[T]) RunWithCallback(ctx context.Context, targets []string, task 
 		default:
 		}
 
+		// Skip hosts that are known to be failing
+		if hosterrors.Check(target) {
+			atomic.AddInt64(&r.Stats.Completed, 1)
+			atomic.AddInt64(&r.Stats.Failed, 1)
+			callback(Result[T]{
+				Target:   target,
+				Error:    fmt.Errorf("host skipped: exceeded error threshold"),
+				Duration: 0,
+			})
+			continue
+		}
+
 		// Rate limiting with per-host support
 		if r.limiter != nil {
 			host := extractHost(target)
@@ -288,6 +319,10 @@ func (r *Runner[T]) RunWithCallback(ctx context.Context, targets []string, task 
 				atomic.AddInt64(&r.Stats.Successful, 1)
 			} else {
 				atomic.AddInt64(&r.Stats.Failed, 1)
+				// Track network errors for host skipping
+				if hosterrors.IsNetworkError(err) {
+					hosterrors.MarkError(t)
+				}
 			}
 
 			// Call the callback immediately (streaming output)
@@ -315,4 +350,31 @@ func extractHost(target string) string {
 	host = strings.Split(host, "/")[0]
 	host = strings.Split(host, ":")[0]
 	return host
+}
+
+// PerformanceMetrics holds performance statistics for the runner
+type PerformanceMetrics struct {
+	HostErrorsTracked int64   // Number of hosts tracked in error cache
+	HostErrorsHits    int64   // Number of requests skipped due to host errors
+	HostErrorsMisses  int64   // Number of requests not skipped
+	HostErrorsHitRate float64 // Hit rate percentage
+	RegexCacheSize    int     // Number of compiled regexes cached
+}
+
+// GetPerformanceMetrics returns current performance metrics
+func GetPerformanceMetrics() PerformanceMetrics {
+	hits, misses := hosterrors.Stats()
+	hitRate := 0.0
+	total := hits + misses
+	if total > 0 {
+		hitRate = float64(hits) / float64(total) * 100.0
+	}
+
+	return PerformanceMetrics{
+		HostErrorsTracked: int64(hosterrors.Size()),
+		HostErrorsHits:    hits,
+		HostErrorsMisses:  misses,
+		HostErrorsHitRate: hitRate,
+		RegexCacheSize:    regexcache.Size(),
+	}
 }

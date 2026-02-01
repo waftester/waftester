@@ -7,13 +7,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // VulnerabilityType represents the type of business logic vulnerability.
@@ -177,9 +179,9 @@ func (t *Tester) TestIDOR(ctx context.Context, baseURL, path string, originalID,
 	if err != nil {
 		return nil, fmt.Errorf("original request: %w", err)
 	}
-	defer originalResp.Body.Close()
+	defer iohelper.DrainAndClose(originalResp.Body)
 
-	originalBody, _ := io.ReadAll(originalResp.Body)
+	originalBody, _ := iohelper.ReadBodyDefault(originalResp.Body)
 
 	// Now test with modified ID - replace in path only, not in baseURL
 	modifiedPath := strings.Replace(path, "{id}", modifiedID, -1)
@@ -197,9 +199,9 @@ func (t *Tester) TestIDOR(ctx context.Context, baseURL, path string, originalID,
 	if err != nil {
 		return nil, fmt.Errorf("modified request: %w", err)
 	}
-	defer modifiedResp.Body.Close()
+	defer iohelper.DrainAndClose(modifiedResp.Body)
 
-	modifiedBody, _ := io.ReadAll(modifiedResp.Body)
+	modifiedBody, _ := iohelper.ReadBodyDefault(modifiedResp.Body)
 
 	// Check for IDOR - if we can access another user's resource
 	if modifiedResp.StatusCode == 200 && originalResp.StatusCode == 200 {
@@ -259,8 +261,8 @@ func (t *Tester) TestAuthBypass(ctx context.Context, targetURL string) ([]Vulner
 			continue
 		}
 
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		body, _ := iohelper.ReadBodyDefault(resp.Body)
+		iohelper.DrainAndClose(resp.Body)
 
 		// Check for bypass indicators
 		if resp.StatusCode == 200 && (len(body) > 100 || containsAdminIndicators(string(body))) {
@@ -298,9 +300,9 @@ func (t *Tester) TestPrivilegeEscalation(ctx context.Context, targetURL string, 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 
 	if resp.StatusCode == 200 && len(body) > 50 {
 		return &Vulnerability{
@@ -333,7 +335,7 @@ func (t *Tester) TestMassAssignment(ctx context.Context, targetURL string, norma
 	if err != nil {
 		return nil, err
 	}
-	normalResp.Body.Close()
+	iohelper.DrainAndClose(normalResp.Body)
 
 	// Now try with malicious payload (adding admin/role fields)
 	malReq, err := http.NewRequestWithContext(ctx, "POST", targetURL, strings.NewReader(maliciousPayload))
@@ -348,9 +350,9 @@ func (t *Tester) TestMassAssignment(ctx context.Context, targetURL string, norma
 	if err != nil {
 		return nil, err
 	}
-	defer malResp.Body.Close()
+	defer iohelper.DrainAndClose(malResp.Body)
 
-	malBody, _ := io.ReadAll(malResp.Body)
+	malBody, _ := iohelper.ReadBodyDefault(malResp.Body)
 
 	// Check for mass assignment indicators
 	if malResp.StatusCode == 200 || malResp.StatusCode == 201 {
@@ -409,9 +411,9 @@ func (t *Tester) TestRaceCondition(ctx context.Context, targetURL, method, body 
 			if err != nil {
 				return
 			}
-			defer resp.Body.Close()
+			defer iohelper.DrainAndClose(resp.Body)
 
-			respBody, _ := io.ReadAll(resp.Body)
+			respBody, _ := iohelper.ReadBodyDefault(resp.Body)
 
 			mu.Lock()
 			responses[idx] = RaceResponse{
@@ -479,9 +481,9 @@ func (t *Tester) TestPriceManipulation(ctx context.Context, targetURL string, or
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 
 	if resp.StatusCode == 200 || resp.StatusCode == 201 {
 		// Check if manipulated price was accepted
@@ -517,9 +519,9 @@ func (t *Tester) TestWorkflowBypass(ctx context.Context, finalStepURL string, re
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 
 	if resp.StatusCode == 200 && len(body) > 20 {
 		return &Vulnerability{
@@ -551,8 +553,8 @@ func (t *Tester) TestEnumeration(ctx context.Context, targetURL string, validID,
 	if err != nil {
 		return nil, err
 	}
-	validBody, _ := io.ReadAll(validResp.Body)
-	validResp.Body.Close()
+	validBody, _ := iohelper.ReadBodyDefault(validResp.Body)
+	iohelper.DrainAndClose(validResp.Body)
 
 	// Test with invalid ID
 	invalidURL := strings.Replace(targetURL, "{id}", invalidID, -1)
@@ -566,8 +568,8 @@ func (t *Tester) TestEnumeration(ctx context.Context, targetURL string, validID,
 	if err != nil {
 		return nil, err
 	}
-	invalidBody, _ := io.ReadAll(invalidResp.Body)
-	invalidResp.Body.Close()
+	invalidBody, _ := iohelper.ReadBodyDefault(invalidResp.Body)
+	iohelper.DrainAndClose(invalidResp.Body)
 
 	// Check for enumeration - different responses indicate valid vs invalid
 	if validResp.StatusCode != invalidResp.StatusCode || len(validBody) != len(invalidBody) {
@@ -804,7 +806,7 @@ func parseInt(s string) int {
 }
 
 func isUUID(s string) bool {
-	uuidPattern := regexp.MustCompile(`^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$`)
+	uuidPattern := regexcache.MustGet(`^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$`)
 	return uuidPattern.MatchString(strings.ToLower(s))
 }
 
