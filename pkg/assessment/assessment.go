@@ -210,7 +210,7 @@ func (a *Assessment) detectWAF(ctx context.Context) {
 	if err != nil {
 		return
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Check headers for WAF signatures
 	a.detectedWAF = detectWAFFromHeaders(resp.Header)
@@ -225,7 +225,7 @@ func (a *Assessment) detectWAF(ctx context.Context) {
 		if err != nil {
 			return
 		}
-		defer resp2.Body.Close()
+		defer iohelper.DrainAndClose(resp2.Body)
 
 		body, _ := iohelper.ReadBody(resp2.Body, iohelper.SmallMaxBodySize)
 		a.detectedWAF = detectWAFFromResponse(resp2.Header, resp2.StatusCode, string(body))
@@ -530,7 +530,7 @@ func (a *Assessment) executeAttackTest(ctx context.Context, payload AttackPayloa
 		result.Error = err.Error()
 		return result
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	result.StatusCode = resp.StatusCode
 	result.Blocked = isBlockedResponse(resp.StatusCode)
@@ -565,7 +565,7 @@ func (a *Assessment) executeFPTest(ctx context.Context, payload corpus.Payload) 
 		result.Error = err.Error()
 		return result
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	result.StatusCode = resp.StatusCode
 	result.Blocked = isBlockedResponse(resp.StatusCode)

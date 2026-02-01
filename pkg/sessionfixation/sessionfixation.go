@@ -89,7 +89,7 @@ func (s *Scanner) Scan(ctx context.Context, loginURL string, credentials url.Val
 	if err != nil {
 		return result, err
 	}
-	preResp.Body.Close()
+	iohelper.DrainAndClose(preResp.Body)
 
 	preAuthSession := s.extractSession(jar, loginURL)
 	result.PreAuthSession = preAuthSession
@@ -117,7 +117,7 @@ func (s *Scanner) Scan(ctx context.Context, loginURL string, credentials url.Val
 		return result, err
 	}
 	iohelper.ReadBodyDefault(loginResp.Body)
-	loginResp.Body.Close()
+	iohelper.DrainAndClose(loginResp.Body)
 
 	// Step 3: Check if session changed after auth
 	postAuthSession := s.extractSession(jar, loginURL)

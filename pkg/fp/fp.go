@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 	"golang.org/x/time/rate"
 )
@@ -284,9 +285,9 @@ func (t *Tester) executeTest(ctx context.Context, task TestTask) (blocked bool, 
 	if err != nil {
 		return false, 0, "", err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
+	bodyBytes, _ := iohelper.ReadBody(resp.Body, iohelper.SmallMaxBodySize)
 	respBody = string(bodyBytes)
 	statusCode = resp.StatusCode
 

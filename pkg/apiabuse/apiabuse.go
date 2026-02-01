@@ -104,7 +104,7 @@ func (s *Scanner) TestRateLimiting(ctx context.Context, targetURL string, reques
 			continue
 		}
 		iohelper.ReadBodyDefault(resp.Body)
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		totalTime += time.Since(start)
 		lastStatusCode = resp.StatusCode
@@ -185,7 +185,7 @@ func (s *Scanner) testResourcePayload(ctx context.Context, targetURL string, pay
 	if err != nil {
 		return result
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	iohelper.ReadBodyDefault(resp.Body)
 	result.ResponseTime = time.Since(start)

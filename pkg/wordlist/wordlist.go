@@ -18,6 +18,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 )
 
@@ -242,7 +243,7 @@ func (m *Manager) loadFromURL(url string) (*Wordlist, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to download: %w", err)
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("download failed with status: %d", resp.StatusCode)

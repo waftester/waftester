@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"regexp"
@@ -13,6 +12,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/ui"
 	"gopkg.in/yaml.v3"
@@ -340,8 +340,8 @@ func (e *Engine) executeHTTPRequest(ctx context.Context, req *HTTPRequest, targe
 			continue
 		}
 
-		respBody, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024)) // 10MB limit
-		resp.Body.Close()
+		respBody, err := iohelper.ReadBody(resp.Body, 10*1024*1024) // 10MB limit
+		iohelper.DrainAndClose(resp.Body)
 		if err != nil {
 			continue
 		}

@@ -343,7 +343,7 @@ func (c *Crawler) crawlURL(rawURL string, depth int) *CrawlResult {
 		result.Error = err.Error()
 		return result
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	result.StatusCode = resp.StatusCode
 	result.ContentType = resp.Header.Get("Content-Type")

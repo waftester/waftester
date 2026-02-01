@@ -90,7 +90,7 @@ func (s *Scanner) TestNegativeQuantity(ctx context.Context, targetURL string, qu
 	if err != nil {
 		return result, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	result.StatusCode = resp.StatusCode
@@ -144,7 +144,7 @@ func (s *Scanner) TestPriceManipulation(ctx context.Context, targetURL string) (
 			continue
 		}
 		body, _ := iohelper.ReadBodyDefault(resp.Body)
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		result.StatusCode = resp.StatusCode
 		result.ResponseSize = len(body)
@@ -190,7 +190,7 @@ func (s *Scanner) TestWorkflowBypass(ctx context.Context, steps []string) ([]Res
 				continue
 			}
 			body, _ := iohelper.ReadBodyDefault(resp.Body)
-			resp.Body.Close()
+			iohelper.DrainAndClose(resp.Body)
 
 			result.StatusCode = resp.StatusCode
 			result.ResponseSize = len(body)

@@ -173,7 +173,7 @@ func (t *Tester) TestUpload(ctx context.Context, targetURL string, payload Uploa
 	if err != nil {
 		return nil, fmt.Errorf("sending request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	respBody, _ := iohelper.ReadBodyDefault(resp.Body)
 
@@ -210,7 +210,7 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) ([]Vulnerability, e
 			// Target might be down or not responding - skip upload scan
 			return nil, nil
 		}
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 		// If target explicitly rejects with 405 Method Not Allowed, skip
 		if resp.StatusCode == 405 {
 			return nil, nil

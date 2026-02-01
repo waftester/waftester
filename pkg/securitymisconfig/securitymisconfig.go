@@ -80,7 +80,7 @@ func (s *Scanner) TestSecurityHeaders(ctx context.Context, targetURL string) ([]
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 	iohelper.ReadBodyDefault(resp.Body)
 
 	for _, header := range RequiredSecurityHeaders() {
@@ -164,7 +164,7 @@ func (s *Scanner) testEndpoint(ctx context.Context, url, testType, endpoint stri
 	if err != nil {
 		return result
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 	iohelper.ReadBodyDefault(resp.Body)
 
 	result.StatusCode = resp.StatusCode

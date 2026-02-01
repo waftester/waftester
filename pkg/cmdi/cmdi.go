@@ -347,7 +347,7 @@ func (t *Tester) getBaselineTime(ctx context.Context, targetURL string, method s
 	if err != nil {
 		return 0, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 	io.Copy(io.Discard, resp.Body)
 
 	return time.Since(start), nil
@@ -381,7 +381,7 @@ func (t *Tester) testPayload(ctx context.Context, targetURL, param, method strin
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 	elapsed := time.Since(start)
 
 	body, _ := iohelper.ReadBodyDefault(resp.Body)

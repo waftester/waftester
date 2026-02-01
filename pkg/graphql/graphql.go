@@ -231,7 +231,7 @@ func (t *Tester) SendBatchQuery(ctx context.Context, queries []Request) ([]Respo
 	if err != nil {
 		return nil, 0, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	respBody, err := iohelper.ReadBodyDefault(resp.Body)
 	if err != nil {
@@ -268,7 +268,7 @@ func (t *Tester) sendRequest(ctx context.Context, req Request) (*Response, int, 
 	if err != nil {
 		return nil, 0, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	respBody, err := iohelper.ReadBodyDefault(resp.Body)
 	if err != nil {

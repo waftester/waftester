@@ -5,11 +5,12 @@ package requestforgery
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // VulnerabilityType represents request forgery vulnerability types
@@ -253,8 +254,8 @@ func (t *Tester) TestRequestSplitting(ctx context.Context, param string) ([]Test
 			continue
 		}
 
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		resp.Body.Close()
+		body, _ := iohelper.ReadBody(resp.Body, 4096)
+		iohelper.DrainAndClose(resp.Body)
 
 		result := TestResult{
 			VulnType:   HTTPRequestSplitting,
@@ -301,8 +302,8 @@ func (t *Tester) TestHostHeaderInjection(ctx context.Context) ([]TestResult, err
 			continue
 		}
 
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		resp.Body.Close()
+		body, _ := iohelper.ReadBody(resp.Body, 4096)
+		iohelper.DrainAndClose(resp.Body)
 
 		result := TestResult{
 			VulnType:   HostHeaderInjection,
@@ -355,7 +356,7 @@ func (t *Tester) TestMethodOverride(ctx context.Context, endpoint string) ([]Tes
 		if err != nil {
 			continue
 		}
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		result := TestResult{
 			VulnType:   MethodOverride,
@@ -399,8 +400,8 @@ func (t *Tester) TestProxyHeaderInjection(ctx context.Context) ([]TestResult, er
 			continue
 		}
 
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		resp.Body.Close()
+		body, _ := iohelper.ReadBody(resp.Body, 4096)
+		iohelper.DrainAndClose(resp.Body)
 
 		result := TestResult{
 			VulnType:   ProxyHeaderInjection,
@@ -456,8 +457,8 @@ func (t *Tester) TestRefererSpoofing(ctx context.Context, protectedPath string) 
 			continue
 		}
 
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		resp.Body.Close()
+		body, _ := iohelper.ReadBody(resp.Body, 4096)
+		iohelper.DrainAndClose(resp.Body)
 
 		result := TestResult{
 			VulnType:   RefererSpoofing,
@@ -500,7 +501,7 @@ func (t *Tester) TestOriginSpoofing(ctx context.Context) ([]TestResult, error) {
 		if err != nil {
 			continue
 		}
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		result := TestResult{
 			VulnType:   OriginSpoofing,
@@ -565,8 +566,8 @@ func (t *Tester) TestCacheKeyInjection(ctx context.Context) ([]TestResult, error
 			continue
 		}
 
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		resp.Body.Close()
+		body, _ := iohelper.ReadBody(resp.Body, 4096)
+		iohelper.DrainAndClose(resp.Body)
 
 		result := TestResult{
 			VulnType:   CacheKeyInjection,

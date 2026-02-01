@@ -5,7 +5,6 @@ package vendors
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"regexp"
 	"sort"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // WAFVendor represents a detected WAF vendor
@@ -273,9 +273,9 @@ func (d *VendorDetector) makeRequest(ctx context.Context, url, method string, he
 	if err != nil {
 		return nil, "", err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 32768))
+	body, _ := iohelper.ReadBody(resp.Body, 32768)
 	return resp, string(body), nil
 }
 

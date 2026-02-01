@@ -261,7 +261,7 @@ func (c *AdvancedCalibrator) CalibrateHost(ctx context.Context, targetURL string
 			latency := time.Since(start)
 
 			body, _ := iohelper.ReadBodyDefault(resp.Body)
-			resp.Body.Close()
+			iohelper.DrainAndClose(resp.Body)
 
 			responses = append(responses, calibrationResponse{
 				status:  resp.StatusCode,

@@ -6,7 +6,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"regexp"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // DetectionResult contains comprehensive WAF/CDN detection results
@@ -121,7 +121,7 @@ func NewDetector(timeout time.Duration) *Detector {
 	})
 
 	d := &Detector{
-		client: client,
+		client:    client,
 		timeout:   timeout,
 		userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
 	}
@@ -173,7 +173,7 @@ func (d *Detector) passiveDetection(ctx context.Context, target string, result *
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Store raw headers
 	for k, v := range resp.Header {
@@ -227,8 +227,8 @@ func (d *Detector) activeDetection(ctx context.Context, target string, result *D
 			continue
 		}
 
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
-		resp.Body.Close()
+		body, _ := iohelper.ReadBody(resp.Body, 8192)
+		iohelper.DrainAndClose(resp.Body)
 
 		// Check for WAF block indicators
 		if resp.StatusCode == 403 || resp.StatusCode == 406 || resp.StatusCode == 418 ||
@@ -290,7 +290,7 @@ func (d *Detector) behavioralAnalysis(ctx context.Context, target string, result
 		normalResp, err := d.client.Do(normalReq)
 		if err == nil {
 			normalStatus = normalResp.StatusCode
-			normalResp.Body.Close()
+			iohelper.DrainAndClose(normalResp.Body)
 		}
 	}
 
@@ -309,7 +309,7 @@ func (d *Detector) behavioralAnalysis(ctx context.Context, target string, result
 		if err != nil {
 			continue
 		}
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		// Check if behavior matches expectation
 		isBlocked := resp.StatusCode == 403 || resp.StatusCode == 406 ||
@@ -431,7 +431,7 @@ func (d *Detector) timingAnalysis(ctx context.Context, target string, result *De
 		req.Header.Set("User-Agent", d.userAgent)
 		resp, err := d.client.Do(req)
 		if err == nil {
-			resp.Body.Close()
+			iohelper.DrainAndClose(resp.Body)
 			normalTimes = append(normalTimes, time.Since(start))
 		}
 	}
@@ -446,7 +446,7 @@ func (d *Detector) timingAnalysis(ctx context.Context, target string, result *De
 		req.Header.Set("User-Agent", d.userAgent)
 		resp, err := d.client.Do(req)
 		if err == nil {
-			resp.Body.Close()
+			iohelper.DrainAndClose(resp.Body)
 			attackTimes = append(attackTimes, time.Since(start))
 		}
 	}

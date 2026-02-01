@@ -206,7 +206,7 @@ func updateFromOWASP(cfg *UpdateConfig, report *UpdateReport) error {
 				fmt.Printf("%s (fetch error: %v)\n", red("failed"), err)
 				return
 			}
-			defer resp.Body.Close()
+			defer iohelper.DrainAndClose(resp.Body)
 
 			if resp.StatusCode != 200 {
 				fmt.Printf("%s (HTTP %d)\n", red("failed"), resp.StatusCode)
@@ -270,7 +270,7 @@ func updateFromGitHub(cfg *UpdateConfig, report *UpdateReport) error {
 	if err != nil {
 		return fmt.Errorf("failed to fetch releases: %w", err)
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode == 404 {
 		fmt.Printf("   %s No releases found in repository\n", yellow("⚠"))
@@ -360,19 +360,19 @@ func updateFromGitHubRepo(cfg *UpdateConfig, report *UpdateReport, tag string) e
 		}
 
 		if resp.StatusCode == 404 {
-			resp.Body.Close()
+			iohelper.DrainAndClose(resp.Body)
 			fmt.Printf("%s (not found)\n", yellow("skipped"))
 			continue
 		}
 
 		if resp.StatusCode != 200 {
-			resp.Body.Close()
+			iohelper.DrainAndClose(resp.Body)
 			fmt.Printf("%s (HTTP %d)\n", yellow("skipped"), resp.StatusCode)
 			continue
 		}
 
 		body, err := iohelper.ReadBodyDefault(resp.Body)
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 		if err != nil {
 			fmt.Printf("%s (read error)\n", red("failed"))
 			continue
@@ -410,7 +410,7 @@ func downloadAndMergePayload(cfg *UpdateConfig, url, filename string) (int, erro
 	if err != nil {
 		return 0, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return 0, fmt.Errorf("HTTP %d", resp.StatusCode)

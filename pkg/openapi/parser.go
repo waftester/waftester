@@ -166,7 +166,7 @@ func (p *Parser) ParseURL(url string) (*Spec, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch URL: %w", err)
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	data, err := iohelper.ReadBodyDefault(resp.Body)
 	if err != nil {

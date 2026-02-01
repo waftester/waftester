@@ -6,13 +6,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"net/http"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Fingerprint contains a unique WAF fingerprint
@@ -113,7 +113,7 @@ func (f *Fingerprinter) collectHeaderInfo(ctx context.Context, target string) (s
 	if err != nil {
 		return "", nil
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Collect header order
 	var headerNames []string
@@ -166,9 +166,9 @@ func (f *Fingerprinter) hashErrorPage(ctx context.Context, target string) string
 	if err != nil {
 		return ""
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 32768))
+	body, _ := iohelper.ReadBody(resp.Body, 32768)
 	if len(body) == 0 {
 		return ""
 	}
@@ -190,9 +190,9 @@ func (f *Fingerprinter) hashBlockPage(ctx context.Context, target string) (strin
 	if err != nil {
 		return "", 0
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 32768))
+	body, _ := iohelper.ReadBody(resp.Body, 32768)
 	if len(body) == 0 {
 		return "", resp.StatusCode
 	}
@@ -216,7 +216,7 @@ func (f *Fingerprinter) profileTiming(ctx context.Context, target string) Timing
 		req.Header.Set("User-Agent", f.userAgent)
 		resp, err := f.client.Do(req)
 		if err == nil {
-			resp.Body.Close()
+			iohelper.DrainAndClose(resp.Body)
 			normalTimes = append(normalTimes, float64(time.Since(start).Milliseconds()))
 		}
 	}
@@ -232,7 +232,7 @@ func (f *Fingerprinter) profileTiming(ctx context.Context, target string) Timing
 		req.Header.Set("User-Agent", f.userAgent)
 		resp, err := f.client.Do(req)
 		if err == nil {
-			resp.Body.Close()
+			iohelper.DrainAndClose(resp.Body)
 			blockedTimes = append(blockedTimes, float64(time.Since(start).Milliseconds()))
 		}
 	}

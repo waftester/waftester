@@ -350,7 +350,7 @@ func (t *Tester) testPayload(ctx context.Context, baseURL, param string, payload
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Read body for meta refresh and JavaScript detection
 	body, _ := iohelper.ReadBodyDefault(resp.Body)

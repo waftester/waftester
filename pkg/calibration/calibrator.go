@@ -107,7 +107,7 @@ func (c *Calibrator) Calibrate(ctx context.Context) (*Result, error) {
 		}
 
 		body, _ := iohelper.ReadBodyDefault(resp.Body)
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		status := resp.StatusCode
 		size := len(body)

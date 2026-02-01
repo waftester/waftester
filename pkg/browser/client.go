@@ -387,7 +387,7 @@ func (c *Client) doOnce(ctx context.Context, req *Request) (*Response, error) {
 			Request: req,
 		}, fmt.Errorf("request failed: %w", err)
 	}
-	defer httpResp.Body.Close()
+	defer iohelper.DrainAndClose(httpResp.Body)
 
 	// Read body
 	var respBody []byte

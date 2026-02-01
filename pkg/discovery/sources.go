@@ -66,7 +66,7 @@ func (es *ExternalSources) ParseRobotsTxt(ctx context.Context, targetURL string)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch robots.txt: %w", err)
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("robots.txt not found (status %d)", resp.StatusCode)
@@ -210,7 +210,7 @@ func (es *ExternalSources) fetchSitemap(ctx context.Context, sitemapURL string, 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("sitemap not found")
@@ -394,7 +394,7 @@ func (es *ExternalSources) FetchWaybackURLs(ctx context.Context, domain string, 
 	if err != nil {
 		return nil, fmt.Errorf("wayback machine request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("wayback machine returned status %d", resp.StatusCode)
@@ -454,7 +454,7 @@ func (es *ExternalSources) FetchCommonCrawlURLs(ctx context.Context, domain stri
 	if err != nil {
 		return nil, fmt.Errorf("commoncrawl request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("commoncrawl returned status %d", resp.StatusCode)
@@ -698,7 +698,7 @@ func (es *ExternalSources) FetchOTXURLs(ctx context.Context, domain string) ([]O
 		}
 
 		body, err := iohelper.ReadBody(resp.Body, 5*1024*1024)
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 		if err != nil {
 			return allURLs, err
 		}
@@ -764,7 +764,7 @@ func (es *ExternalSources) FetchVirusTotalURLs(ctx context.Context, domain strin
 	if err != nil {
 		return nil, fmt.Errorf("VirusTotal request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("VirusTotal returned status %d", resp.StatusCode)

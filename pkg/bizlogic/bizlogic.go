@@ -179,7 +179,7 @@ func (t *Tester) TestIDOR(ctx context.Context, baseURL, path string, originalID,
 	if err != nil {
 		return nil, fmt.Errorf("original request: %w", err)
 	}
-	defer originalResp.Body.Close()
+	defer iohelper.DrainAndClose(originalResp.Body)
 
 	originalBody, _ := iohelper.ReadBodyDefault(originalResp.Body)
 
@@ -199,7 +199,7 @@ func (t *Tester) TestIDOR(ctx context.Context, baseURL, path string, originalID,
 	if err != nil {
 		return nil, fmt.Errorf("modified request: %w", err)
 	}
-	defer modifiedResp.Body.Close()
+	defer iohelper.DrainAndClose(modifiedResp.Body)
 
 	modifiedBody, _ := iohelper.ReadBodyDefault(modifiedResp.Body)
 
@@ -262,7 +262,7 @@ func (t *Tester) TestAuthBypass(ctx context.Context, targetURL string) ([]Vulner
 		}
 
 		body, _ := iohelper.ReadBodyDefault(resp.Body)
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		// Check for bypass indicators
 		if resp.StatusCode == 200 && (len(body) > 100 || containsAdminIndicators(string(body))) {
@@ -300,7 +300,7 @@ func (t *Tester) TestPrivilegeEscalation(ctx context.Context, targetURL string, 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
 
@@ -335,7 +335,7 @@ func (t *Tester) TestMassAssignment(ctx context.Context, targetURL string, norma
 	if err != nil {
 		return nil, err
 	}
-	normalResp.Body.Close()
+	iohelper.DrainAndClose(normalResp.Body)
 
 	// Now try with malicious payload (adding admin/role fields)
 	malReq, err := http.NewRequestWithContext(ctx, "POST", targetURL, strings.NewReader(maliciousPayload))
@@ -350,7 +350,7 @@ func (t *Tester) TestMassAssignment(ctx context.Context, targetURL string, norma
 	if err != nil {
 		return nil, err
 	}
-	defer malResp.Body.Close()
+	defer iohelper.DrainAndClose(malResp.Body)
 
 	malBody, _ := iohelper.ReadBodyDefault(malResp.Body)
 
@@ -411,7 +411,7 @@ func (t *Tester) TestRaceCondition(ctx context.Context, targetURL, method, body 
 			if err != nil {
 				return
 			}
-			defer resp.Body.Close()
+			defer iohelper.DrainAndClose(resp.Body)
 
 			respBody, _ := iohelper.ReadBodyDefault(resp.Body)
 
@@ -481,7 +481,7 @@ func (t *Tester) TestPriceManipulation(ctx context.Context, targetURL string, or
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
 
@@ -519,7 +519,7 @@ func (t *Tester) TestWorkflowBypass(ctx context.Context, finalStepURL string, re
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
 
@@ -554,7 +554,7 @@ func (t *Tester) TestEnumeration(ctx context.Context, targetURL string, validID,
 		return nil, err
 	}
 	validBody, _ := iohelper.ReadBodyDefault(validResp.Body)
-	validResp.Body.Close()
+	iohelper.DrainAndClose(validResp.Body)
 
 	// Test with invalid ID
 	invalidURL := strings.Replace(targetURL, "{id}", invalidID, -1)
@@ -569,7 +569,7 @@ func (t *Tester) TestEnumeration(ctx context.Context, targetURL string, validID,
 		return nil, err
 	}
 	invalidBody, _ := iohelper.ReadBodyDefault(invalidResp.Body)
-	invalidResp.Body.Close()
+	iohelper.DrainAndClose(invalidResp.Body)
 
 	// Check for enumeration - different responses indicate valid vs invalid
 	if validResp.StatusCode != invalidResp.StatusCode || len(validBody) != len(invalidBody) {

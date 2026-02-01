@@ -148,7 +148,7 @@ func (c *Client) Call(req *Request) (*Response, error) {
 			Latency: latency,
 		}, fmt.Errorf("request failed: %w", err)
 	}
-	defer httpResp.Body.Close()
+	defer iohelper.DrainAndClose(httpResp.Body)
 
 	// Read response
 	body, err := iohelper.ReadBodyDefault(httpResp.Body)
@@ -393,7 +393,7 @@ func FetchWSDL(url string) (*WSDLDefinition, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch WSDL: %w", err)
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)

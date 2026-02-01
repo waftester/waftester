@@ -123,7 +123,7 @@ func (s *Scanner) testParameter(ctx context.Context, targetURL string, param Dan
 	if err != nil {
 		return result
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	result.StatusCode = resp.StatusCode

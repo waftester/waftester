@@ -274,7 +274,7 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 		}
 
 		body, _ := iohelper.ReadBodyDefault(resp.Body)
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 		bodyStr := string(body)
 
 		// Check for reflection in body
@@ -378,7 +378,7 @@ func (t *Tester) TestPasswordReset(ctx context.Context, targetURL string, email 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	bodyStr := string(body)

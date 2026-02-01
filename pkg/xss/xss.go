@@ -513,7 +513,7 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 		}
 
 		body, _ := iohelper.ReadBodyDefault(resp.Body)
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 		bodyStr := string(body)
 
 		// Check for reflection
@@ -565,7 +565,7 @@ func (t *Tester) checkDOMXSS(ctx context.Context, targetURL string) []Vulnerabil
 	if err != nil {
 		return vulns
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	bodyStr := string(body)

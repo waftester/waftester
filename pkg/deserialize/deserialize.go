@@ -148,7 +148,7 @@ func (t *Tester) TestPayload(ctx context.Context, targetURL string, param string
 	if err != nil {
 		return nil, fmt.Errorf("sending request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	bodyStr := string(body)
@@ -191,7 +191,7 @@ func (t *Tester) TestPOST(ctx context.Context, targetURL string, payload Payload
 	if err != nil {
 		return nil, fmt.Errorf("sending request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	bodyStr := string(body)
