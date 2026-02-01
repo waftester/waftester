@@ -105,6 +105,38 @@ waf-tester scan -u https://target.com --smart
 waf-tester bypass -u https://target.com --smart --smart-mode=full
 ```
 
+### Output Files & Locations
+
+WAFtester clearly displays file locations after each execution:
+
+```
+✓ Results saved to ./results.json
+✓ Report saved to ./report.html
+```
+
+**Default Output Locations:**
+
+| Command | Default Output File | Location |
+|---------|---------------------|----------|
+| `discover` | `discovery.json` | Current directory |
+| `learn` | `testplan.json` | Current directory |
+| `run` | Stdout (use `-o`) | Specified path |
+| `auto` | Multiple files | `workspaces/<domain>/<timestamp>/` |
+| `assess` | Stdout (use `-o`) | Specified path |
+| `bypass` | Stdout (use `-o`) | Specified path |
+
+**Auto Command Workspace Structure:**
+```
+workspaces/
+└── example.com/
+    └── 2026-02-01_14-30-00/
+        ├── discovery.json     # Discovered endpoints
+        ├── testplan.json      # Generated test plan
+        ├── results.json       # Test results
+        ├── results.html       # HTML report
+        └── results.sarif      # SARIF for CI/CD
+```
+
 ### Output Formats
 
 ```bash

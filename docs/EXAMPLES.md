@@ -31,7 +31,8 @@ This guide shows you every way to use WAF-Tester with real examples. Each exampl
 21. [Using Proxies](#-using-proxies)
 22. [Smart Mode (WAF-Aware Testing)](#-smart-mode-waf-aware-testing)
 23. [CI/CD Pipeline Integration](#-cicd-pipeline-integration)
-24. [Real-World Scenarios](#-real-world-scenarios)
+24. [Output Files Reference](#-output-files-reference)
+25. [Real-World Scenarios](#-real-world-scenarios)
 
 ---
 
@@ -1206,6 +1207,90 @@ waf-tester assess -u https://app.example.com \
 
 # Parse results
 cat assessment.json | jq '.metrics.f1_score'
+```
+
+---
+
+## 📁 Output Files Reference
+
+WAFtester clearly displays file locations after each command execution:
+
+```
+✓ Results saved to ./results.json
+✓ Report saved to ./report.html
+📊 Full report saved to: workspaces/example.com/2026-02-01_14-30-00/results.html
+```
+
+### Default Output Locations by Command
+
+| Command | Default Output | Customize With |
+|---------|----------------|----------------|
+| `discover` | `discovery.json` | `-output <file>` |
+| `learn` | `testplan.json` | `-output <file>` |
+| `run` | Stdout | `-o <file>` |
+| `scan` | Stdout | `-o <file>` |
+| `auto` | `workspaces/<domain>/<timestamp>/` | `-output-dir <dir>` |
+| `assess` | Stdout | `-o <file>` |
+| `bypass` | Stdout | `-o <file>` |
+| `fuzz` | Stdout | `-o <file>` |
+| `probe` | Stdout | `-o <file>` |
+| `vendor` | Stdout | `-output <file>` |
+| `fp` | Stdout | `-output <file>` |
+
+### Auto Command Workspace Structure
+
+The `auto` command creates a complete workspace directory:
+
+```
+workspaces/
+└── example.com/
+    └── 2026-02-01_14-30-00/
+        ├── discovery.json     # All discovered endpoints, parameters, forms
+        ├── testplan.json      # Generated test plan with prioritized tests
+        ├── results.json       # Complete test results with all findings
+        ├── results.html       # Interactive HTML report with charts
+        └── results.sarif      # SARIF format for GitHub/GitLab integration
+```
+
+### Output Formats
+
+| Format | Flag | Best For |
+|--------|------|----------|
+| JSON | `-format json` or `-j` | Programmatic processing, APIs |
+| JSONL | `-format jsonl` | Streaming, large datasets |
+| HTML | `-format html` | Reports, stakeholder sharing |
+| SARIF | `-format sarif` or `-sarif` | CI/CD integration, code scanning |
+| Markdown | `-format markdown` | Documentation, GitHub issues |
+| CSV | `-format csv` | Spreadsheets, data analysis |
+
+### Example: Custom Output Locations
+
+```bash
+# Save discovery to custom location
+waf-tester discover -u https://example.com -output ./scans/disco.json
+
+# Generate HTML report in specific directory
+waf-tester run -plan testplan.json -format html -o ./reports/security-audit.html
+
+# Auto scan with custom output directory
+waf-tester auto -u https://example.com -output-dir ./my-assessment
+
+# Assessment with JSON output
+waf-tester assess -u https://example.com -format json -o ./metrics/waf-score.json
+```
+
+### Console Output After Execution
+
+Every command shows exactly where files are saved:
+
+```
+╔═══════════════════════════════════════════════════════════════╗
+║                     EXECUTION COMPLETE                         ║
+╠═══════════════════════════════════════════════════════════════╣
+║  ✓ Results saved to: ./results.json                           ║
+║  ✓ HTML report: ./report.html                                 ║
+║  ✓ SARIF output: ./results.sarif                              ║
+╚═══════════════════════════════════════════════════════════════╝
 ```
 
 ---
