@@ -371,6 +371,28 @@ waf-tester run -plan testplan.json -format sarif -o results.sarif
 
 Use `--stream` flag to disable animated progress for clean CI logs.
 
+### JSON Output for Automation (v2.3.4+)
+
+The `--json` flag is available on all major commands for machine-readable output:
+
+```bash
+# JSON output from any command
+waf-tester auto -u https://target.com --json
+waf-tester scan -u https://target.com --json > results.json
+waf-tester probe -u https://target.com --json | jq '.waf'
+waf-tester assess -u https://target.com --json -o assessment.json
+waf-tester vendor -u https://target.com --json
+
+# Combine with streaming for real-time events
+waf-tester scan -u https://target.com -stream -json | jq
+```
+
+**Use Cases:**
+- Parse scan results in bash scripts: `waf-tester scan -u $URL --json | jq '.vulnerabilities'`
+- Feed into monitoring dashboards
+- Process with automation tools (Ansible, Terraform, etc.)
+- Generate metrics for CI/CD pipelines
+
 ### Streaming JSON Mode (v2.3.3+)
 
 For real-time machine-readable output, use `-stream -json`:

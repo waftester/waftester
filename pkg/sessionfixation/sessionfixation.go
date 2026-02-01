@@ -3,13 +3,14 @@ package sessionfixation
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Config configures session fixation testing
@@ -88,7 +89,7 @@ func (s *Scanner) Scan(ctx context.Context, loginURL string, credentials url.Val
 	if err != nil {
 		return result, err
 	}
-	preResp.Body.Close()
+	iohelper.DrainAndClose(preResp.Body)
 
 	preAuthSession := s.extractSession(jar, loginURL)
 	result.PreAuthSession = preAuthSession
@@ -115,8 +116,8 @@ func (s *Scanner) Scan(ctx context.Context, loginURL string, credentials url.Val
 	if err != nil {
 		return result, err
 	}
-	io.ReadAll(loginResp.Body)
-	loginResp.Body.Close()
+	iohelper.ReadBodyDefault(loginResp.Body)
+	iohelper.DrainAndClose(loginResp.Body)
 
 	// Step 3: Check if session changed after auth
 	postAuthSession := s.extractSession(jar, loginURL)

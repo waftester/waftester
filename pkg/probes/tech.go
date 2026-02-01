@@ -7,11 +7,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // TechResult contains technology detection results
@@ -164,7 +166,7 @@ func (t *TechDetector) Detect(resp *http.Response, body []byte) *TechResult {
 }
 
 func techExtractTitle(html string) string {
-	re := regexp.MustCompile(`(?i)<title[^>]*>([^<]+)</title>`)
+	re := regexcache.MustGet(`(?i)<title[^>]*>([^<]+)</title>`)
 	matches := re.FindStringSubmatch(html)
 	if len(matches) > 1 {
 		title := strings.TrimSpace(matches[1])
@@ -463,5 +465,5 @@ func ReadBody(resp *http.Response, maxSize int64) ([]byte, error) {
 	if maxSize <= 0 {
 		maxSize = 2 * 1024 * 1024 // 2MB default
 	}
-	return io.ReadAll(io.LimitReader(resp.Body, maxSize))
+	return iohelper.ReadBody(resp.Body, maxSize)
 }

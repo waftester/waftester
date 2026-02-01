@@ -3,11 +3,12 @@ package plugin
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // HTTPClient is the HTTP client used by built-in scanners
@@ -53,7 +54,7 @@ func (s *HeaderScanner) Scan(ctx context.Context, target *Target) (*ScanResult, 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Check for security headers
 	securityHeaders := map[string]struct {
@@ -215,10 +216,10 @@ func (s *TechScanner) Scan(ctx context.Context, target *Target) (*ScanResult, er
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Read body
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024)) // 1MB limit
+	body, err := iohelper.ReadBody(resp.Body, iohelper.LargeMaxBodySize) // 1MB limit
 	if err != nil {
 		return nil, err
 	}
@@ -324,7 +325,7 @@ func (s *CORSScanner) Scan(ctx context.Context, target *Target) (*ScanResult, er
 
 		acao := resp.Header.Get("Access-Control-Allow-Origin")
 		acac := resp.Header.Get("Access-Control-Allow-Credentials")
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		if acao == "*" {
 			result.Findings = append(result.Findings, Finding{

@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"gopkg.in/yaml.v3"
 )
 
@@ -319,7 +320,8 @@ func LoadFromFile(path string) (*Config, error) {
 
 // Load loads configuration from a reader
 func Load(r io.Reader, filename string) (*Config, error) {
-	data, err := io.ReadAll(r)
+	// Config files are typically small, but allow up to 10MB
+	data, err := iohelper.ReadBody(r, iohelper.LargeMaxBodySize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read: %w", err)
 	}

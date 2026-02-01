@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"regexp"
@@ -13,6 +12,8 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/ui"
 	"gopkg.in/yaml.v3"
 )
@@ -339,8 +340,8 @@ func (e *Engine) executeHTTPRequest(ctx context.Context, req *HTTPRequest, targe
 			continue
 		}
 
-		respBody, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024)) // 10MB limit
-		resp.Body.Close()
+		respBody, err := iohelper.ReadBody(resp.Body, 10*1024*1024) // 10MB limit
+		iohelper.DrainAndClose(resp.Body)
 		if err != nil {
 			continue
 		}
@@ -581,7 +582,7 @@ func matchDSL(expressions []string, resp *ResponseData, condition string) bool {
 
 func evaluateDSLStatusCode(expr string, statusCode int) bool {
 	// Parse: status_code == 200
-	re := regexp.MustCompile(`status_code\s*(==|!=|>=|<=|>|<)\s*(\d+)`)
+	re := regexcache.MustGet(`status_code\s*(==|!=|>=|<=|>|<)\s*(\d+)`)
 	matches := re.FindStringSubmatch(expr)
 	if len(matches) != 3 {
 		return false
@@ -610,7 +611,7 @@ func evaluateDSLStatusCode(expr string, statusCode int) bool {
 
 func evaluateDSLContains(expr string, content string) bool {
 	// Parse: contains(body, "string")
-	re := regexp.MustCompile(`contains\s*\(\s*\w+\s*,\s*"([^"]+)"\s*\)`)
+	re := regexcache.MustGet(`contains\s*\(\s*\w+\s*,\s*"([^"]+)"\s*\)`)
 	matches := re.FindStringSubmatch(expr)
 	if len(matches) != 2 {
 		return false

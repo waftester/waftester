@@ -6,9 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // Route represents an API route discovered from OpenAPI specs
@@ -584,7 +585,7 @@ func InferAPIRoutes(content string) []Route {
 	seen := make(map[string]bool)
 
 	// Pattern: /api/v1/resource, /api/resource, /v1/resource
-	apiPattern := regexp.MustCompile(`['"](/(?:api(?:/v\d+)?|v\d+)/[a-zA-Z0-9_/-]+)['"]`)
+	apiPattern := regexcache.MustGet(`['"](/(?:api(?:/v\d+)?|v\d+)/[a-zA-Z0-9_/-]+)['"]`)
 	matches := apiPattern.FindAllStringSubmatch(content, -1)
 
 	for _, m := range matches {

@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,7 +15,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/js"
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // Endpoint represents a discovered API endpoint
@@ -498,13 +499,13 @@ func (d *Discoverer) discoverFromJavaScript(ctx context.Context, result *Discove
 		resp, err := d.httpClient.Do(req)
 		if err != nil || resp.StatusCode != 200 {
 			if resp != nil {
-				resp.Body.Close()
+				iohelper.DrainAndClose(resp.Body)
 			}
 			continue
 		}
 
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024)) // 2MB limit
-		resp.Body.Close()
+		body, _ := iohelper.ReadBody(resp.Body, 2*1024*1024) // 2MB limit
+		iohelper.DrainAndClose(resp.Body)
 
 		jsCode := string(body)
 
@@ -558,20 +559,20 @@ func (d *Discoverer) extractJSFromHomepage(ctx context.Context) []string {
 	resp, err := d.httpClient.Do(req)
 	if err != nil || resp.StatusCode != 200 {
 		if resp != nil {
-			resp.Body.Close()
+			iohelper.DrainAndClose(resp.Body)
 		}
 		return nil
 	}
 
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 512*1024)) // 512KB limit for HTML
-	resp.Body.Close()
+	body, _ := iohelper.ReadBody(resp.Body, 512*1024) // 512KB limit for HTML
+	iohelper.DrainAndClose(resp.Body)
 
 	html := string(body)
 	var jsURLs []string
 
 	// Extract script src attributes
 	// Pattern: <script ... src="..." ...>
-	scriptPattern := regexp.MustCompile(`<script[^>]*\ssrc=["']([^"']+)["']`)
+	scriptPattern := regexcache.MustGet(`<script[^>]*\ssrc=["']([^"']+)["']`)
 	matches := scriptPattern.FindAllStringSubmatch(html, -1)
 	for _, match := range matches {
 		if len(match) > 1 {
@@ -594,7 +595,7 @@ func (d *Discoverer) extractJSFromHomepage(ctx context.Context) []string {
 
 	// Also check for dynamic imports in inline scripts
 	// Pattern: import("...") or require("...")
-	importPattern := regexp.MustCompile(`(?:import|require)\s*\(\s*["']([^"']+\.js[^"']*)["']`)
+	importPattern := regexcache.MustGet(`(?:import|require)\s*\(\s*["']([^"']+\.js[^"']*)["']`)
 	importMatches := importPattern.FindAllStringSubmatch(html, -1)
 	for _, match := range importMatches {
 		if len(match) > 1 {
@@ -635,13 +636,13 @@ func (d *Discoverer) discoverForms(ctx context.Context, result *DiscoveryResult)
 		resp, err := d.httpClient.Do(req)
 		if err != nil || resp.StatusCode != 200 {
 			if resp != nil {
-				resp.Body.Close()
+				iohelper.DrainAndClose(resp.Body)
 			}
 			continue
 		}
 
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1*1024*1024)) // 1MB limit
-		resp.Body.Close()
+		body, _ := iohelper.ReadBody(resp.Body, iohelper.DefaultMaxBodySize) // 1MB limit
+		iohelper.DrainAndClose(resp.Body)
 
 		forms := ExtractForms(string(body), d.config.Target)
 		for _, form := range forms {
@@ -708,7 +709,7 @@ func (d *Discoverer) detectWAF(ctx context.Context, result *DiscoveryResult) {
 		if err != nil {
 			continue
 		}
-		defer resp.Body.Close()
+		defer iohelper.DrainAndClose(resp.Body)
 
 		// Check for WAF signatures
 		if resp.StatusCode == 403 || resp.StatusCode == 406 || resp.StatusCode == 418 {
@@ -841,8 +842,8 @@ func (d *Discoverer) probeEndpoint(ctx context.Context, path string, result *Dis
 			continue
 		}
 
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		resp.Body.Close()
+		body, _ := iohelper.ReadBody(resp.Body, 4096)
+		iohelper.DrainAndClose(resp.Body)
 
 		// Skip 404s and errors
 		if resp.StatusCode == 404 || resp.StatusCode >= 500 {
@@ -901,8 +902,8 @@ func (d *Discoverer) probeEndpointWithMethod(ctx context.Context, path, method s
 		return
 	}
 
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-	resp.Body.Close()
+	body, _ := iohelper.ReadBody(resp.Body, 4096)
+	iohelper.DrainAndClose(resp.Body)
 
 	// Skip 404s and errors
 	if resp.StatusCode == 404 || resp.StatusCode >= 500 {
@@ -997,7 +998,7 @@ func (d *Discoverer) parseOpenAPISpec(ctx context.Context, specPath string) []En
 	resp, err := d.httpClient.Do(req)
 	if err != nil || resp.StatusCode != 200 {
 		if resp != nil {
-			resp.Body.Close()
+			iohelper.DrainAndClose(resp.Body)
 		}
 		return endpoints
 	}
@@ -1005,12 +1006,12 @@ func (d *Discoverer) parseOpenAPISpec(ctx context.Context, specPath string) []En
 	// Check content-type - must be JSON, not HTML
 	contentType := resp.Header.Get("Content-Type")
 	if strings.Contains(contentType, "text/html") {
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 		return endpoints
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 5*1024*1024)) // 5MB limit
-	resp.Body.Close()
+	body, err := iohelper.ReadBody(resp.Body, 5*1024*1024) // 5MB limit
+	iohelper.DrainAndClose(resp.Body)
 	if err != nil {
 		return endpoints
 	}
@@ -1069,7 +1070,7 @@ func (d *Discoverer) parseOpenAPISpec(ctx context.Context, specPath string) []En
 
 		fullPath := basePath + path
 		// Normalize path - replace {param} with placeholder
-		fullPath = regexp.MustCompile(`\{[^}]+\}`).ReplaceAllString(fullPath, "1")
+		fullPath = regexcache.MustGet(`\{[^}]+\}`).ReplaceAllString(fullPath, "1")
 
 		for method, details := range methodMap {
 			method = strings.ToUpper(method)
@@ -1241,7 +1242,7 @@ func (d *Discoverer) introspectGraphQL(ctx context.Context, gqlPath string) []En
 	resp, err := d.httpClient.Do(req)
 	if err != nil || (resp.StatusCode != 200 && resp.StatusCode != 400) {
 		if resp != nil {
-			resp.Body.Close()
+			iohelper.DrainAndClose(resp.Body)
 		}
 		return endpoints
 	}
@@ -1249,12 +1250,12 @@ func (d *Discoverer) introspectGraphQL(ctx context.Context, gqlPath string) []En
 	// Check content-type - must be JSON, not HTML (handles SPAs)
 	contentType := resp.Header.Get("Content-Type")
 	if strings.Contains(contentType, "text/html") {
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 		return endpoints
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024)) // 2MB limit
-	resp.Body.Close()
+	body, err := iohelper.ReadBody(resp.Body, 2*1024*1024) // 2MB limit
+	iohelper.DrainAndClose(resp.Body)
 	if err != nil {
 		return endpoints
 	}
@@ -1428,9 +1429,9 @@ func (d *Discoverer) crawlEndpoints(ctx context.Context, result *DiscoveryResult
 	// Extract links from responses and add to queue
 	// This is a simplified implementation
 	linkPatterns := []*regexp.Regexp{
-		regexp.MustCompile(`href=["']([^"']+)["']`),
-		regexp.MustCompile(`action=["']([^"']+)["']`),
-		regexp.MustCompile(`"path"\s*:\s*"([^"]+)"`),
+		regexcache.MustGet(`href=["']([^"']+)["']`),
+		regexcache.MustGet(`action=["']([^"']+)["']`),
+		regexcache.MustGet(`"path"\s*:\s*"([^"]+)"`),
 	}
 
 	for _, endpoint := range d.endpoints {
@@ -1450,8 +1451,8 @@ func (d *Discoverer) crawlEndpoints(ctx context.Context, result *DiscoveryResult
 			continue
 		}
 
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 65536))
-		resp.Body.Close()
+		body, _ := iohelper.ReadBody(resp.Body, 65536)
+		iohelper.DrainAndClose(resp.Body)
 
 		for _, pattern := range linkPatterns {
 			matches := pattern.FindAllStringSubmatch(string(body), -1)

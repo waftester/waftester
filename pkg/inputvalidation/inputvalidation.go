@@ -4,11 +4,12 @@ package inputvalidation
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // VulnerabilityType represents input validation vulnerability types
@@ -301,8 +302,8 @@ func (t *Tester) TestTypeJuggling(ctx context.Context, endpoint, param string) (
 			continue
 		}
 
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		resp.Body.Close()
+		body, _ := iohelper.ReadBody(resp.Body, 4096)
+		iohelper.DrainAndClose(resp.Body)
 
 		result := TestResult{
 			VulnType:   TypeJuggling,
@@ -352,8 +353,8 @@ func (t *Tester) TestIntegerOverflow(ctx context.Context, endpoint, param string
 			continue
 		}
 
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		resp.Body.Close()
+		body, _ := iohelper.ReadBody(resp.Body, 4096)
+		iohelper.DrainAndClose(resp.Body)
 
 		result := TestResult{
 			VulnType:   IntegerOverflow,
@@ -401,8 +402,8 @@ func (t *Tester) TestFormatString(ctx context.Context, endpoint, param string) (
 			continue
 		}
 
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		resp.Body.Close()
+		body, _ := iohelper.ReadBody(resp.Body, 4096)
+		iohelper.DrainAndClose(resp.Body)
 
 		result := TestResult{
 			VulnType:   FormatStringVuln,
@@ -451,8 +452,8 @@ func (t *Tester) TestNullByte(ctx context.Context, endpoint, param string) ([]Te
 			continue
 		}
 
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		resp.Body.Close()
+		body, _ := iohelper.ReadBody(resp.Body, 4096)
+		iohelper.DrainAndClose(resp.Body)
 
 		result := TestResult{
 			VulnType:   NullByteInjection,
@@ -499,8 +500,8 @@ func (t *Tester) TestUnicodeBypass(ctx context.Context, endpoint, param string) 
 			continue
 		}
 
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		resp.Body.Close()
+		body, _ := iohelper.ReadBody(resp.Body, 4096)
+		iohelper.DrainAndClose(resp.Body)
 
 		result := TestResult{
 			VulnType:   UnicodeBypass,
@@ -547,8 +548,8 @@ func (t *Tester) TestEncodingBypass(ctx context.Context, endpoint, param string)
 			continue
 		}
 
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		resp.Body.Close()
+		body, _ := iohelper.ReadBody(resp.Body, 4096)
+		iohelper.DrainAndClose(resp.Body)
 
 		result := TestResult{
 			VulnType:   EncodingBypass,

@@ -7,6 +7,8 @@ import (
 	"html"
 	"net/url"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/bufpool"
 )
 
 func init() {
@@ -127,7 +129,8 @@ type UnicodeEncoder struct{}
 
 func (e *UnicodeEncoder) Name() string { return "unicode" }
 func (e *UnicodeEncoder) Encode(payload string) (string, error) {
-	var result strings.Builder
+	result := bufpool.GetString()
+	defer bufpool.PutString(result)
 	for _, r := range payload {
 		if r < 128 && r > 31 && r != '<' && r != '>' && r != '"' && r != '\'' && r != '&' {
 			result.WriteRune(r)
@@ -165,7 +168,8 @@ type HTMLNumericEncoder struct{}
 
 func (e *HTMLNumericEncoder) Name() string { return "html-numeric" }
 func (e *HTMLNumericEncoder) Encode(payload string) (string, error) {
-	var result strings.Builder
+	result := bufpool.GetString()
+	defer bufpool.PutString(result)
 	for _, r := range payload {
 		if r == '<' || r == '>' || r == '"' || r == '\'' || r == '&' {
 			result.WriteString(fmt.Sprintf("&#%d;", r))
@@ -184,7 +188,8 @@ type HTMLHexEncoder struct{}
 
 func (e *HTMLHexEncoder) Name() string { return "html-hex" }
 func (e *HTMLHexEncoder) Encode(payload string) (string, error) {
-	var result strings.Builder
+	result := bufpool.GetString()
+	defer bufpool.PutString(result)
 	for _, r := range payload {
 		if r == '<' || r == '>' || r == '"' || r == '\'' || r == '&' {
 			result.WriteString(fmt.Sprintf("&#x%x;", r))
@@ -203,7 +208,8 @@ type JSUnicodeEncoder struct{}
 
 func (e *JSUnicodeEncoder) Name() string { return "js-unicode" }
 func (e *JSUnicodeEncoder) Encode(payload string) (string, error) {
-	var result strings.Builder
+	result := bufpool.GetString()
+	defer bufpool.PutString(result)
 	for _, r := range payload {
 		if r < 128 && r > 31 && r != '<' && r != '>' && r != '"' && r != '\'' {
 			result.WriteRune(r)
@@ -230,7 +236,8 @@ type JSHexEncoder struct{}
 
 func (e *JSHexEncoder) Name() string { return "js-hex" }
 func (e *JSHexEncoder) Encode(payload string) (string, error) {
-	var result strings.Builder
+	result := bufpool.GetString()
+	defer bufpool.PutString(result)
 	for _, b := range []byte(payload) {
 		result.WriteString(fmt.Sprintf("\\x%02x", b))
 	}
@@ -253,7 +260,8 @@ type UTF7Encoder struct{}
 
 func (e *UTF7Encoder) Name() string { return "utf7" }
 func (e *UTF7Encoder) Encode(payload string) (string, error) {
-	var result strings.Builder
+	result := bufpool.GetString()
+	defer bufpool.PutString(result)
 	for _, r := range payload {
 		switch r {
 		case '<':
@@ -317,7 +325,8 @@ type OctalEncoder struct{}
 
 func (e *OctalEncoder) Name() string { return "octal" }
 func (e *OctalEncoder) Encode(payload string) (string, error) {
-	var result strings.Builder
+	result := bufpool.GetString()
+	defer bufpool.PutString(result)
 	for _, b := range []byte(payload) {
 		result.WriteString(fmt.Sprintf("\\%03o", b))
 	}
@@ -344,7 +353,8 @@ type BinaryEncoder struct{}
 
 func (e *BinaryEncoder) Name() string { return "binary" }
 func (e *BinaryEncoder) Encode(payload string) (string, error) {
-	var result strings.Builder
+	result := bufpool.GetString()
+	defer bufpool.PutString(result)
 	for _, b := range []byte(payload) {
 		result.WriteString(fmt.Sprintf("%08b", b))
 	}

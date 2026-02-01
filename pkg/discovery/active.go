@@ -6,14 +6,15 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // ActiveDiscoverer performs aggressive endpoint discovery
@@ -437,7 +438,7 @@ func (ad *ActiveDiscoverer) fingerprintTechnology(ctx context.Context) []string 
 	if err != nil {
 		return detected
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Check headers for technology hints
 	headers := resp.Header
@@ -488,7 +489,7 @@ func (ad *ActiveDiscoverer) fingerprintTechnology(ctx context.Context) []string 
 	}
 
 	// Check response body for hints
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 100*1024))
+	body, _ := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
 	bodyStr := strings.ToLower(string(body))
 
 	if strings.Contains(bodyStr, "wp-content") || strings.Contains(bodyStr, "wordpress") {
@@ -531,8 +532,8 @@ func (ad *ActiveDiscoverer) detectWildcardBaseline(ctx context.Context) {
 				continue
 			}
 
-			body, _ := io.ReadAll(io.LimitReader(resp.Body, 50*1024))
-			resp.Body.Close()
+			body, _ := iohelper.ReadBody(resp.Body, 50*1024)
+			iohelper.DrainAndClose(resp.Body)
 
 			fp := CalculateFingerprint(resp.StatusCode, body, resp.Header.Get("Content-Type"))
 			ad.wildcardDetector.AddBaseline(method, fp)
@@ -680,10 +681,10 @@ func (ad *ActiveDiscoverer) probeSinglePath(ctx context.Context, path string) {
 	if err != nil {
 		return
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Read body for analysis
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 50*1024))
+	body, _ := iohelper.ReadBody(resp.Body, 50*1024)
 	contentType := resp.Header.Get("Content-Type")
 
 	// Check if this is a wildcard/soft-404 response using fingerprinting
@@ -802,9 +803,9 @@ func (ad *ActiveDiscoverer) extractLinksFromPage(ctx context.Context, path strin
 	if err != nil {
 		return
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 100*1024))
+	body, _ := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
 	bodyStr := string(body)
 	contentType := resp.Header.Get("Content-Type")
 
@@ -1057,8 +1058,8 @@ func (ad *ActiveDiscoverer) probeParameters(ctx context.Context, path string, pa
 	if err != nil {
 		return found
 	}
-	baseBody, _ := io.ReadAll(baseResp.Body)
-	baseResp.Body.Close()
+	baseBody, _ := iohelper.ReadBodyDefault(baseResp.Body)
+	iohelper.DrainAndClose(baseResp.Body)
 	baseLen := len(baseBody)
 
 	// Try each parameter
@@ -1074,8 +1075,8 @@ func (ad *ActiveDiscoverer) probeParameters(ctx context.Context, path string, pa
 		if err != nil {
 			continue
 		}
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		body, _ := iohelper.ReadBodyDefault(resp.Body)
+		iohelper.DrainAndClose(resp.Body)
 
 		// If response differs significantly, parameter is likely processed
 		if abs(len(body)-baseLen) > 50 || resp.StatusCode != baseResp.StatusCode {
@@ -1182,7 +1183,7 @@ func (ad *ActiveDiscoverer) probeMethod(ctx context.Context, ep Endpoint, method
 	if err != nil {
 		return
 	}
-	resp.Body.Close()
+	iohelper.DrainAndClose(resp.Body)
 
 	// Method is supported if not 405 Method Not Allowed
 	if resp.StatusCode != 405 && resp.StatusCode != 501 {
@@ -1246,7 +1247,7 @@ func extractParamsFromResponse(body, path string) []Parameter {
 	seen := make(map[string]bool)
 
 	// Extract from URL query strings in body
-	urlRe := regexp.MustCompile(`[?&]([a-zA-Z_][a-zA-Z0-9_]*)=`)
+	urlRe := regexcache.MustGet(`[?&]([a-zA-Z_][a-zA-Z0-9_]*)=`)
 	matches := urlRe.FindAllStringSubmatch(body, -1)
 	for _, m := range matches {
 		if len(m) > 1 && !seen[m[1]] {
@@ -1260,7 +1261,7 @@ func extractParamsFromResponse(body, path string) []Parameter {
 	}
 
 	// Extract from form inputs
-	inputRe := regexp.MustCompile(`<input[^>]*name=["']([^"']+)["']`)
+	inputRe := regexcache.MustGet(`<input[^>]*name=["']([^"']+)["']`)
 	matches = inputRe.FindAllStringSubmatch(body, -1)
 	for _, m := range matches {
 		if len(m) > 1 && !seen[m[1]] {
@@ -1287,7 +1288,7 @@ func extractLinks(body, target string) []string {
 	}
 
 	// Extract href and src attributes
-	linkRe := regexp.MustCompile(`(?:href|src|action)=["']([^"']+)["']`)
+	linkRe := regexcache.MustGet(`(?:href|src|action)=["']([^"']+)["']`)
 	matches := linkRe.FindAllStringSubmatch(body, -1)
 
 	for _, m := range matches {

@@ -4,13 +4,13 @@ package openapi
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
+	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 	"gopkg.in/yaml.v3"
 )
 
@@ -166,9 +166,9 @@ func (p *Parser) ParseURL(url string) (*Spec, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch URL: %w", err)
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	data, err := io.ReadAll(resp.Body)
+	data, err := iohelper.ReadBodyDefault(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
@@ -218,7 +218,7 @@ func (p *Parser) ResolveRef(spec *Spec, ref string) *Schema {
 	}
 
 	// Parse reference path: #/components/schemas/User
-	refPattern := regexp.MustCompile(`^#/components/schemas/(.+)$`)
+	refPattern := regexcache.MustGet(`^#/components/schemas/(.+)$`)
 	matches := refPattern.FindStringSubmatch(ref)
 	if len(matches) != 2 {
 		return nil

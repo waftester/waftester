@@ -5,10 +5,12 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/bufpool"
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // FaviconResult contains favicon probing results
@@ -77,7 +79,7 @@ func (p *FaviconProber) Probe(ctx context.Context, baseURL string) *FaviconResul
 		if err != nil {
 			continue
 		}
-		defer resp.Body.Close()
+		defer iohelper.DrainAndClose(resp.Body)
 
 		if resp.StatusCode != 200 {
 			continue
@@ -93,7 +95,7 @@ func (p *FaviconProber) Probe(ctx context.Context, baseURL string) *FaviconResul
 		}
 
 		// Read favicon content
-		data, err := io.ReadAll(io.LimitReader(resp.Body, p.MaxFileSize))
+		data, err := iohelper.ReadBody(resp.Body, p.MaxFileSize)
 		if err != nil {
 			continue
 		}
@@ -125,7 +127,8 @@ func faviconBase64(data []byte) []byte {
 	encoded := base64.StdEncoding.EncodeToString(data)
 
 	// Shodan/httpx uses base64 with \n every 76 chars
-	var result strings.Builder
+	result := bufpool.GetString()
+	defer bufpool.PutString(result)
 	for i := 0; i < len(encoded); i += 76 {
 		end := i + 76
 		if end > len(encoded) {

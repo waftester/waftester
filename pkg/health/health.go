@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Common errors
@@ -197,13 +199,13 @@ func (c *Checker) checkHTTP(ctx context.Context, check *Check, result *Result) (
 		result.Latency = time.Since(start)
 		return result, nil
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	result.StatusCode = resp.StatusCode
 	result.Latency = time.Since(start)
 
 	// Read body for comparison
-	bodyBytes, _ := io.ReadAll(resp.Body)
+	bodyBytes, _ := iohelper.ReadBodyDefault(resp.Body)
 	result.Body = string(bodyBytes)
 
 	// Check status code
