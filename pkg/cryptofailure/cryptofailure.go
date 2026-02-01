@@ -6,12 +6,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // VulnerabilityType represents cryptographic vulnerability types
@@ -103,28 +105,28 @@ func WeakCipherSuites() map[uint16]string {
 // SecretPatterns returns regex patterns for detecting hardcoded secrets
 func SecretPatterns() map[string]*regexp.Regexp {
 	return map[string]*regexp.Regexp{
-		"AWS Access Key":   regexp.MustCompile(`AKIA[0-9A-Z]{16}`),
-		"AWS Secret Key":   regexp.MustCompile(`(?i)aws_secret_access_key[\"'=:\s]+[A-Za-z0-9/+=]{40}`),
-		"Private Key":      regexp.MustCompile(`-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----`),
-		"Generic Secret":   regexp.MustCompile(`(?i)(password|secret|api_key|apikey|auth_token|authtoken)[\"'=:\s]+[\"']?[A-Za-z0-9+/=]{8,}[\"']?`),
-		"JWT":              regexp.MustCompile(`eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+`),
-		"GitHub Token":     regexp.MustCompile(`gh[pousr]_[A-Za-z0-9_]{36,}`),
-		"Slack Token":      regexp.MustCompile(`xox[baprs]-[0-9]{10,13}-[0-9]{10,13}[a-zA-Z0-9-]*`),
-		"Google API Key":   regexp.MustCompile(`AIza[0-9A-Za-z_-]{35}`),
-		"Stripe Key":       regexp.MustCompile(`(?i)sk_live_[0-9a-zA-Z]{24,}`),
-		"RSA Key Fragment": regexp.MustCompile(`(?i)(rsa_private|id_rsa|ssh_key)[\"'=:\s]`),
-		"Database URL":     regexp.MustCompile(`(?i)(mongodb|postgres|mysql|redis):\/\/[^:]+:[^@]+@`),
-		"Bearer Token":     regexp.MustCompile(`(?i)bearer\s+[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+`),
+		"AWS Access Key":   regexcache.MustGet(`AKIA[0-9A-Z]{16}`),
+		"AWS Secret Key":   regexcache.MustGet(`(?i)aws_secret_access_key[\"'=:\s]+[A-Za-z0-9/+=]{40}`),
+		"Private Key":      regexcache.MustGet(`-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----`),
+		"Generic Secret":   regexcache.MustGet(`(?i)(password|secret|api_key|apikey|auth_token|authtoken)[\"'=:\s]+[\"']?[A-Za-z0-9+/=]{8,}[\"']?`),
+		"JWT":              regexcache.MustGet(`eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+`),
+		"GitHub Token":     regexcache.MustGet(`gh[pousr]_[A-Za-z0-9_]{36,}`),
+		"Slack Token":      regexcache.MustGet(`xox[baprs]-[0-9]{10,13}-[0-9]{10,13}[a-zA-Z0-9-]*`),
+		"Google API Key":   regexcache.MustGet(`AIza[0-9A-Za-z_-]{35}`),
+		"Stripe Key":       regexcache.MustGet(`(?i)sk_live_[0-9a-zA-Z]{24,}`),
+		"RSA Key Fragment": regexcache.MustGet(`(?i)(rsa_private|id_rsa|ssh_key)[\"'=:\s]`),
+		"Database URL":     regexcache.MustGet(`(?i)(mongodb|postgres|mysql|redis):\/\/[^:]+:[^@]+@`),
+		"Bearer Token":     regexcache.MustGet(`(?i)bearer\s+[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+`),
 	}
 }
 
 // WeakHashPatterns returns patterns for weak hashing algorithms
 func WeakHashPatterns() map[string]*regexp.Regexp {
 	return map[string]*regexp.Regexp{
-		"MD5 Hash":   regexp.MustCompile(`(?i)\b[a-f0-9]{32}\b`),
-		"SHA1 Hash":  regexp.MustCompile(`(?i)\b[a-f0-9]{40}\b`),
-		"MD5 Usage":  regexp.MustCompile(`(?i)(md5|MD5)\s*\(`),
-		"SHA1 Usage": regexp.MustCompile(`(?i)(sha1|SHA1)\s*\(`),
+		"MD5 Hash":   regexcache.MustGet(`(?i)\b[a-f0-9]{32}\b`),
+		"SHA1 Hash":  regexcache.MustGet(`(?i)\b[a-f0-9]{40}\b`),
+		"MD5 Usage":  regexcache.MustGet(`(?i)(md5|MD5)\s*\(`),
+		"SHA1 Usage": regexcache.MustGet(`(?i)(sha1|SHA1)\s*\(`),
 	}
 }
 
@@ -329,7 +331,7 @@ func (t *Tester) TestHSTS(ctx context.Context) (*TestResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	hstsHeader := resp.Header.Get("Strict-Transport-Security")
 
@@ -387,7 +389,7 @@ func (t *Tester) TestHTTPDowngrade(ctx context.Context) (*TestResult, error) {
 			Severity:    "Low",
 		}, nil
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	result := &TestResult{
 		VulnType: InsecureTransport,
@@ -493,9 +495,9 @@ func (t *Tester) ScanResponseForSecrets(ctx context.Context, path string) ([]Tes
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024)) // 1MB limit
+	body, err := iohelper.ReadBody(resp.Body, iohelper.DefaultMaxBodySize) // 1MB limit
 	if err != nil {
 		return nil, err
 	}

@@ -12,6 +12,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // AttackType represents different race condition attack types
@@ -145,8 +147,8 @@ func (t *Tester) SendConcurrent(ctx context.Context, requests []*RequestConfig) 
 			}
 
 			if resp != nil {
-				defer resp.Body.Close()
-				body, _ := io.ReadAll(resp.Body)
+				defer iohelper.DrainAndClose(resp.Body)
+				body, _ := iohelper.ReadBodyDefault(resp.Body)
 				responses[idx].StatusCode = resp.StatusCode
 				responses[idx].Body = string(body)
 				responses[idx].Headers = resp.Header
@@ -310,7 +312,7 @@ func (t *Tester) TestSequential(ctx context.Context, checkRequest *RequestConfig
 			defer wg.Done()
 			resp, _ := t.sendRequest(ctx, checkRequest)
 			if resp != nil && resp.Body != nil {
-				resp.Body.Close()
+				iohelper.DrainAndClose(resp.Body)
 			}
 		}()
 
@@ -323,7 +325,7 @@ func (t *Tester) TestSequential(ctx context.Context, checkRequest *RequestConfig
 				if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 					atomic.AddInt32(&successCount, 1)
 				}
-				resp.Body.Close()
+				iohelper.DrainAndClose(resp.Body)
 			}
 		}()
 	}

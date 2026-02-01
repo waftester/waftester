@@ -3,11 +3,12 @@ package csrf
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Config configures CSRF testing
@@ -130,9 +131,9 @@ func (s *Scanner) analyzePage(ctx context.Context, url string) PageAnalysis {
 	if err != nil {
 		return result
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	bodyStr := string(body)
 
 	// Check for common CSRF token patterns
@@ -178,7 +179,7 @@ func (s *Scanner) testWithoutToken(ctx context.Context, url string, method strin
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// If request succeeds (2xx or 3xx), might be vulnerable
 	return resp.StatusCode >= 200 && resp.StatusCode < 400
@@ -195,7 +196,7 @@ func (s *Scanner) checkSameSite(ctx context.Context, url string) string {
 	if err != nil {
 		return ""
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	for _, cookie := range resp.Cookies() {
 		switch cookie.SameSite {

@@ -17,6 +17,9 @@ import (
 	"sync/atomic"
 	"time"
 	"unicode"
+
+	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // Wordlist represents a loaded wordlist
@@ -240,7 +243,7 @@ func (m *Manager) loadFromURL(url string) (*Wordlist, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to download: %w", err)
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("download failed with status: %d", resp.StatusCode)
@@ -877,7 +880,7 @@ func detectWordlistType(path string, words []string) WordlistType {
 
 func sanitizeFilename(url string) string {
 	// Create a safe filename from URL
-	safe := regexp.MustCompile(`[^a-zA-Z0-9.-]`).ReplaceAllString(url, "_")
+	safe := regexcache.MustGet(`[^a-zA-Z0-9.-]`).ReplaceAllString(url, "_")
 	if len(safe) > 100 {
 		safe = safe[:100]
 	}

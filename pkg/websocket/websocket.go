@@ -11,10 +11,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -147,7 +148,7 @@ func (t *Tester) CheckWebSocket(ctx context.Context, targetURL string) (bool, er
 	if err != nil {
 		return false, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Check for 101 Switching Protocols
 	if resp.StatusCode == http.StatusSwitchingProtocols {
@@ -233,7 +234,7 @@ func (t *Tester) TestOriginValidation(ctx context.Context, targetURL string) ([]
 		secWSAccept := resp.Header.Get("Sec-WebSocket-Accept")
 
 		// Don't try to read body on WebSocket upgrade - just close it
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		// If we get 101 with evil origin, it's vulnerable
 		if statusCode == http.StatusSwitchingProtocols {
@@ -294,7 +295,7 @@ func (t *Tester) TestTLS(ctx context.Context, targetURL string) ([]Vulnerability
 
 		resp, err := t.client.Do(req)
 		if err == nil {
-			resp.Body.Close()
+			iohelper.DrainAndClose(resp.Body)
 			if resp.StatusCode == http.StatusSwitchingProtocols {
 				vulns = append(vulns, Vulnerability{
 					Type:        VulnNoTLS,
@@ -322,16 +323,17 @@ func (t *Tester) TestTokenInURL(ctx context.Context, targetURL string) ([]Vulner
 	}
 
 	// Patterns for sensitive data in URL
-	sensitivePatterns := []*regexp.Regexp{
-		regexp.MustCompile(`(?i)(token|jwt|auth|key|session|sid|api_?key)=[^&]+`),
-		regexp.MustCompile(`(?i)bearer[=\s][^&]+`),
-		regexp.MustCompile(`(?i)password=[^&]+`),
-		regexp.MustCompile(`(?i)secret=[^&]+`),
+	sensitivePatterns := []string{
+		`(?i)(token|jwt|auth|key|session|sid|api_?key)=[^&]+`,
+		`(?i)bearer[=\s][^&]+`,
+		`(?i)password=[^&]+`,
+		`(?i)secret=[^&]+`,
 	}
 
 	queryStr := u.RawQuery
 	for _, pattern := range sensitivePatterns {
-		if match := pattern.FindString(queryStr); match != "" {
+		re := regexcache.MustGet(pattern)
+		if match := re.FindString(queryStr); match != "" {
 			vulns = append(vulns, Vulnerability{
 				Type:        VulnTokenExposure,
 				Description: "Sensitive token exposed in WebSocket URL",

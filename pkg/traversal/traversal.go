@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -365,7 +366,7 @@ func (t *Tester) DetectPlatform(ctx context.Context, targetURL string) (Platform
 	if err != nil {
 		return PlatformUnknown, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Check Server header
 	server := strings.ToLower(resp.Header.Get("Server"))
@@ -415,7 +416,7 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL string, param stri
 		}
 
 		body := readBodyLimit(resp, 100*1024)
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		// Check for evidence of successful traversal
 		evidence := t.detectEvidence(body, payload.Platform)
@@ -616,7 +617,7 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 		}
 
 		body := readBodyLimit(resp, 100*1024)
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		evidence := t.detectEvidence(body, PlatformUnknown)
 		if evidence != "" {

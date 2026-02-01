@@ -8,11 +8,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // AttackType represents different GraphQL attack types
@@ -230,9 +231,9 @@ func (t *Tester) SendBatchQuery(ctx context.Context, queries []Request) ([]Respo
 	if err != nil {
 		return nil, 0, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := iohelper.ReadBodyDefault(resp.Body)
 	if err != nil {
 		return nil, resp.StatusCode, err
 	}
@@ -267,9 +268,9 @@ func (t *Tester) sendRequest(ctx context.Context, req Request) (*Response, int, 
 	if err != nil {
 		return nil, 0, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := iohelper.ReadBodyDefault(resp.Body)
 	if err != nil {
 		return nil, resp.StatusCode, err
 	}
@@ -592,7 +593,7 @@ func (t *Tester) TestFieldSuggestion(ctx context.Context) (*Vulnerability, []str
 	}
 
 	var suggestions []string
-	suggestionRegex := regexp.MustCompile(`(?i)did you mean ['"]([\w]+)['"]`)
+	suggestionRegex := regexcache.MustGet(`(?i)did you mean ['"]([\w]+)['"]`)
 
 	for _, query := range testQueries {
 		resp, _, err := t.SendQuery(ctx, query, nil)

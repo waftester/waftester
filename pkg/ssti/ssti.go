@@ -14,6 +14,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // TemplateEngine represents a server-side template engine
@@ -1020,12 +1022,12 @@ func (d *Detector) testPayload(ctx context.Context, targetURL *url.URL, paramete
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 	elapsed := time.Since(start)
 
-	// Read response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
+	// Read response body (limit to 1MB for safety)
+	body, err := iohelper.ReadBodyDefault(resp.Body)
+	if err != nil && err != io.EOF {
 		return nil, err
 	}
 	bodyStr := string(body)
@@ -1197,8 +1199,7 @@ func (d *Detector) measureResponseTime(ctx context.Context, targetURL *url.URL, 
 	if err != nil {
 		return 0, err
 	}
-	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body)
+	defer iohelper.DrainAndClose(resp.Body)
 
 	return time.Since(start), nil
 }
@@ -1242,9 +1243,9 @@ func (d *Detector) FingerprintEngine(ctx context.Context, targetURL string, para
 		if err != nil {
 			continue
 		}
-		defer resp.Body.Close()
+		defer iohelper.DrainAndClose(resp.Body)
 
-		body, err := io.ReadAll(resp.Body)
+		body, err := iohelper.ReadBodyDefault(resp.Body)
 		if err != nil {
 			continue
 		}

@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -259,8 +260,8 @@ func (c *AdvancedCalibrator) CalibrateHost(ctx context.Context, targetURL string
 			}
 			latency := time.Since(start)
 
-			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
+			body, _ := iohelper.ReadBodyDefault(resp.Body)
+			iohelper.DrainAndClose(resp.Body)
 
 			responses = append(responses, calibrationResponse{
 				status:  resp.StatusCode,

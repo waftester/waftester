@@ -7,13 +7,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -270,9 +270,9 @@ func (t *Tester) testQueryParam(ctx context.Context, baseURL string, payload Pay
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 100*1024))
+	body, _ := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
 
 	evidence := t.detectPollution(string(body), resp.Header)
 	if evidence != "" {
@@ -306,9 +306,9 @@ func (t *Tester) testJSONBody(ctx context.Context, targetURL string, param strin
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 100*1024))
+	body, _ := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
 
 	evidence := t.detectPollution(string(body), resp.Header)
 	if evidence != "" {
@@ -336,17 +336,18 @@ func (t *Tester) detectPollution(body string, headers http.Header) string {
 	}
 
 	// Check for error patterns indicating pollution attempt was processed
-	errorPatterns := []*regexp.Regexp{
-		regexp.MustCompile(`(?i)__proto__`),
-		regexp.MustCompile(`(?i)constructor.*prototype`),
-		regexp.MustCompile(`(?i)Object\.prototype`),
-		regexp.MustCompile(`(?i)prototype pollution`),
-		regexp.MustCompile(`(?i)cannot set property.*prototype`),
-		regexp.MustCompile(`(?i)Object\.assign.*circular`),
+	errorPatterns := []string{
+		`(?i)__proto__`,
+		`(?i)constructor.*prototype`,
+		`(?i)Object\.prototype`,
+		`(?i)prototype pollution`,
+		`(?i)cannot set property.*prototype`,
+		`(?i)Object\.assign.*circular`,
 	}
 
-	for _, p := range errorPatterns {
-		if match := p.FindString(body); match != "" {
+	for _, pattern := range errorPatterns {
+		re := regexcache.MustGet(pattern)
+		if match := re.FindString(body); match != "" {
 			return fmt.Sprintf("Pollution pattern in response: %s", match)
 		}
 	}

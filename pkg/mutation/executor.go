@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/realistic"
 	"github.com/waftester/waftester/pkg/ui"
 	"github.com/waftester/waftester/pkg/waf"
@@ -413,10 +414,10 @@ func (e *Executor) executeTask(ctx context.Context, task MutationTask) *TestResu
 		result.ErrorMessage = err.Error()
 		return result
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Read response
-	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 32768))
+	bodyBytes, _ := iohelper.ReadBody(resp.Body, iohelper.SmallMaxBodySize)
 	result.StatusCode = resp.StatusCode
 	result.ContentLength = len(bodyBytes)
 

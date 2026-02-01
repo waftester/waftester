@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -17,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // FuzzType represents the type of fuzzing to perform.
@@ -615,9 +616,9 @@ func (t *Tester) sendFuzzRequest(ctx context.Context, baseURL string, endpoint E
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 
 	headers := make(map[string]string)
 	for k, v := range resp.Header {
@@ -658,9 +659,9 @@ func (t *Tester) sendBodyFuzzRequest(ctx context.Context, baseURL string, endpoi
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 
 	headers := make(map[string]string)
 	for k, v := range resp.Header {

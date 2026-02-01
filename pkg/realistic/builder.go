@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Note: Go 1.20+ auto-seeds the global random source, no init() needed
@@ -493,7 +495,7 @@ func CloneRequest(req *http.Request) (*http.Request, error) {
 	clone := req.Clone(req.Context())
 
 	if req.Body != nil {
-		bodyBytes, err := io.ReadAll(req.Body)
+		bodyBytes, err := iohelper.ReadBodyDefault(req.Body)
 		if err != nil {
 			return nil, err
 		}

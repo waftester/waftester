@@ -6,13 +6,14 @@ package xss
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -380,43 +381,43 @@ func (t *Tester) GetBypassPayloads() []Payload {
 
 // Patterns for detecting XSS reflection
 var reflectionPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`<script[^>]*>[^<]*alert\s*\([^)]*\)[^<]*</script>`),
-	regexp.MustCompile(`<img[^>]+onerror\s*=`),
-	regexp.MustCompile(`<svg[^>]+onload\s*=`),
-	regexp.MustCompile(`<[a-z]+[^>]+on\w+\s*=\s*["']?[^"'>\s]+`),
-	regexp.MustCompile(`javascript:\s*alert`),
-	regexp.MustCompile(`<iframe[^>]+src\s*=\s*["']?javascript:`),
-	regexp.MustCompile(`<[^>]+style\s*=\s*["'][^"']*expression\s*\(`),
+	regexcache.MustGet(`<script[^>]*>[^<]*alert\s*\([^)]*\)[^<]*</script>`),
+	regexcache.MustGet(`<img[^>]+onerror\s*=`),
+	regexcache.MustGet(`<svg[^>]+onload\s*=`),
+	regexcache.MustGet(`<[a-z]+[^>]+on\w+\s*=\s*["']?[^"'>\s]+`),
+	regexcache.MustGet(`javascript:\s*alert`),
+	regexcache.MustGet(`<iframe[^>]+src\s*=\s*["']?javascript:`),
+	regexcache.MustGet(`<[^>]+style\s*=\s*["'][^"']*expression\s*\(`),
 }
 
 // DOM XSS sink patterns
 var domSinkPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`\.innerHTML\s*=`),
-	regexp.MustCompile(`\.outerHTML\s*=`),
-	regexp.MustCompile(`document\.write\s*\(`),
-	regexp.MustCompile(`document\.writeln\s*\(`),
-	regexp.MustCompile(`eval\s*\(`),
-	regexp.MustCompile(`setTimeout\s*\(\s*["']`),
-	regexp.MustCompile(`setInterval\s*\(\s*["']`),
-	regexp.MustCompile(`Function\s*\(`),
-	regexp.MustCompile(`\.src\s*=`),
-	regexp.MustCompile(`location\s*=`),
-	regexp.MustCompile(`location\.href\s*=`),
-	regexp.MustCompile(`location\.assign\s*\(`),
-	regexp.MustCompile(`location\.replace\s*\(`),
+	regexcache.MustGet(`\.innerHTML\s*=`),
+	regexcache.MustGet(`\.outerHTML\s*=`),
+	regexcache.MustGet(`document\.write\s*\(`),
+	regexcache.MustGet(`document\.writeln\s*\(`),
+	regexcache.MustGet(`eval\s*\(`),
+	regexcache.MustGet(`setTimeout\s*\(\s*["']`),
+	regexcache.MustGet(`setInterval\s*\(\s*["']`),
+	regexcache.MustGet(`Function\s*\(`),
+	regexcache.MustGet(`\.src\s*=`),
+	regexcache.MustGet(`location\s*=`),
+	regexcache.MustGet(`location\.href\s*=`),
+	regexcache.MustGet(`location\.assign\s*\(`),
+	regexcache.MustGet(`location\.replace\s*\(`),
 }
 
 // DOM XSS source patterns
 var domSourcePatterns = []*regexp.Regexp{
-	regexp.MustCompile(`location\.hash`),
-	regexp.MustCompile(`location\.search`),
-	regexp.MustCompile(`location\.href`),
-	regexp.MustCompile(`document\.URL`),
-	regexp.MustCompile(`document\.referrer`),
-	regexp.MustCompile(`document\.cookie`),
-	regexp.MustCompile(`window\.name`),
-	regexp.MustCompile(`localStorage\.getItem`),
-	regexp.MustCompile(`sessionStorage\.getItem`),
+	regexcache.MustGet(`location\.hash`),
+	regexcache.MustGet(`location\.search`),
+	regexcache.MustGet(`location\.href`),
+	regexcache.MustGet(`document\.URL`),
+	regexcache.MustGet(`document\.referrer`),
+	regexcache.MustGet(`document\.cookie`),
+	regexcache.MustGet(`window\.name`),
+	regexcache.MustGet(`localStorage\.getItem`),
+	regexcache.MustGet(`sessionStorage\.getItem`),
 }
 
 // checkReflection checks if the payload is reflected in the response
@@ -472,17 +473,17 @@ func DetectContext(body, payload string) InjectionContext {
 	context := body[start:end]
 
 	// Check for script context
-	if regexp.MustCompile(`<script[^>]*>[^<]*$`).MatchString(context[:payloadPos-start]) {
+	if regexcache.MustGet(`<script[^>]*>[^<]*$`).MatchString(context[:payloadPos-start]) {
 		return ContextJavaScript
 	}
 
 	// Check for style context
-	if regexp.MustCompile(`<style[^>]*>[^<]*$`).MatchString(context[:payloadPos-start]) {
+	if regexcache.MustGet(`<style[^>]*>[^<]*$`).MatchString(context[:payloadPos-start]) {
 		return ContextCSS
 	}
 
 	// Check for attribute context
-	attrPattern := regexp.MustCompile(`[a-z]+\s*=\s*["'][^"']*$`)
+	attrPattern := regexcache.MustGet(`[a-z]+\s*=\s*["'][^"']*$`)
 	if attrPattern.MatchString(context[:payloadPos-start]) {
 		return ContextAttribute
 	}
@@ -511,8 +512,8 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 			continue
 		}
 
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		body, _ := iohelper.ReadBodyDefault(resp.Body)
+		iohelper.DrainAndClose(resp.Body)
 		bodyStr := string(body)
 
 		// Check for reflection
@@ -564,9 +565,9 @@ func (t *Tester) checkDOMXSS(ctx context.Context, targetURL string) []Vulnerabil
 	if err != nil {
 		return vulns
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	bodyStr := string(body)
 
 	hasSink := false

@@ -5,6 +5,24 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.4] - 2026-02-01
+
+### Performance
+- **Comprehensive HTTP Keep-Alive Optimization**: Migrated 165+ `resp.Body.Close()` patterns to `iohelper.DrainAndClose()` for proper connection reuse
+- **Safe Body Reading**: Migrated 23 `io.ReadAll(io.LimitReader())` patterns to `iohelper.ReadBody()` with size limits (8KB/100KB/1MB)
+- **Regex Caching**: Migrated hot-path `regexp.MustCompile()` to `regexcache.MustGet()` (315x faster on cache hits)
+- **Removed Redundant Code**: Eliminated duplicate `io.Copy(io.Discard)` calls after DrainAndClose
+
+### Changed
+- All scanner packages now use `iohelper` for consistent HTTP response handling
+- WAF detection, discovery, and API packages optimized for connection pooling
+- 83 files updated with consistent resource management patterns
+
+### Documentation
+- Added `--json` flag examples to README.md for automation/CI use cases
+- Added `--json` automation section to docs/EXAMPLES.md
+- Highlighted JSON output flag across all documentation
+
 ## [2.3.3] - 2026-02-01
 
 ### Added

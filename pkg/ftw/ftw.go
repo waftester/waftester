@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/waftester/waftester/pkg/regexcache"
 	"gopkg.in/yaml.v3"
 )
 
@@ -362,11 +363,11 @@ func SaveTestCaseFile(tests []*TestCase, path string) error {
 // sanitizeID creates a safe ID from a test title
 func sanitizeID(title string) string {
 	// Replace spaces and special characters
-	re := regexp.MustCompile(`[^a-zA-Z0-9-_]`)
+	re := regexcache.MustGet(`[^a-zA-Z0-9-_]`)
 	id := re.ReplaceAllString(title, "-")
 
 	// Remove consecutive hyphens
-	re = regexp.MustCompile(`-+`)
+	re = regexcache.MustGet(`-+`)
 	id = re.ReplaceAllString(id, "-")
 
 	// Trim hyphens from start/end

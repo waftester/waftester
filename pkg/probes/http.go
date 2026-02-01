@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -357,7 +358,7 @@ func (p *HTTPProber) ProbeMethods(ctx context.Context, host string, port int, us
 
 		resp, err := client.Do(req)
 		if err == nil {
-			defer resp.Body.Close()
+			defer iohelper.DrainAndClose(resp.Body)
 			if allow := resp.Header.Get("Allow"); allow != "" {
 				methods := strings.Split(allow, ",")
 				for i := range methods {
@@ -389,7 +390,7 @@ func (p *HTTPProber) ProbeMethods(ctx context.Context, host string, port int, us
 		if err != nil {
 			continue
 		}
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		// Not 405 Method Not Allowed means it's probably allowed
 		if resp.StatusCode != 405 {
@@ -457,8 +458,8 @@ func (p *VHostProber) ProbeVHosts(ctx context.Context, targetIP string, port int
 	if err != nil {
 		return nil, err
 	}
-	baseBody, _ := io.ReadAll(baseResp.Body)
-	baseResp.Body.Close()
+	baseBody, _ := iohelper.ReadBodyDefault(baseResp.Body)
+	iohelper.DrainAndClose(baseResp.Body)
 
 	baseStatus := baseResp.StatusCode
 	baseLen := len(baseBody)
@@ -486,8 +487,8 @@ func (p *VHostProber) ProbeVHosts(ctx context.Context, targetIP string, port int
 			continue
 		}
 
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		body, _ := iohelper.ReadBodyDefault(resp.Body)
+		iohelper.DrainAndClose(resp.Body)
 
 		result := VHostProbeResult{
 			Host:          targetIP,

@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // VulnerabilityType represents different access control vulnerability types
@@ -198,7 +200,7 @@ func (t *Tester) TestVerticalPrivilegeEscalation(ctx context.Context) ([]TestRes
 		if err != nil {
 			continue
 		}
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		result := TestResult{
 			VulnType:   VerticalPrivilegeEscalation,
@@ -249,7 +251,7 @@ func (t *Tester) TestHorizontalPrivilegeEscalation(ctx context.Context, userID s
 		if err != nil {
 			continue
 		}
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		result := TestResult{
 			VulnType:   HorizontalPrivilegeEscalation,
@@ -286,7 +288,7 @@ func (t *Tester) TestMetadataManipulation(ctx context.Context) ([]TestResult, er
 	baseReq, _ := http.NewRequestWithContext(ctx, "GET", baseURL, nil)
 	baseResp, _ := t.client.Do(baseReq)
 	if baseResp != nil {
-		baseResp.Body.Close()
+		iohelper.DrainAndClose(baseResp.Body)
 	}
 
 	payloads := MetadataManipulationPayloads()
@@ -304,7 +306,7 @@ func (t *Tester) TestMetadataManipulation(ctx context.Context) ([]TestResult, er
 			if err != nil {
 				continue
 			}
-			resp.Body.Close()
+			iohelper.DrainAndClose(resp.Body)
 
 			result := TestResult{
 				VulnType: MetadataManipulation,
@@ -379,7 +381,7 @@ func (t *Tester) TestForcefulBrowsing(ctx context.Context) ([]TestResult, error)
 		if err != nil {
 			continue
 		}
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		result := TestResult{
 			VulnType:   ForceFullBrowsing,
@@ -428,7 +430,7 @@ func (t *Tester) TestMissingFunctionLevelAccess(ctx context.Context) ([]TestResu
 		if err != nil {
 			continue
 		}
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		result := TestResult{
 			VulnType:   MissingFunctionLevelAccess,
@@ -497,7 +499,7 @@ func (t *Tester) TestPathTraversalACL(ctx context.Context) ([]TestResult, error)
 	var baseStatus int
 	if baseResp != nil {
 		baseStatus = baseResp.StatusCode
-		baseResp.Body.Close()
+		iohelper.DrainAndClose(baseResp.Body)
 	}
 
 	for _, payload := range payloads {
@@ -520,7 +522,7 @@ func (t *Tester) TestPathTraversalACL(ctx context.Context) ([]TestResult, error)
 		if err != nil {
 			continue
 		}
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		result := TestResult{
 			VulnType:   PathTraversalACL,

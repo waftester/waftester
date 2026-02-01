@@ -4,11 +4,12 @@ package businesslogic
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Config configures business logic testing
@@ -89,9 +90,9 @@ func (s *Scanner) TestNegativeQuantity(ctx context.Context, targetURL string, qu
 	if err != nil {
 		return result, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	result.StatusCode = resp.StatusCode
 	result.ResponseSize = len(body)
 
@@ -142,8 +143,8 @@ func (s *Scanner) TestPriceManipulation(ctx context.Context, targetURL string) (
 		if err != nil {
 			continue
 		}
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		body, _ := iohelper.ReadBodyDefault(resp.Body)
+		iohelper.DrainAndClose(resp.Body)
 
 		result.StatusCode = resp.StatusCode
 		result.ResponseSize = len(body)
@@ -188,8 +189,8 @@ func (s *Scanner) TestWorkflowBypass(ctx context.Context, steps []string) ([]Res
 			if err != nil {
 				continue
 			}
-			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
+			body, _ := iohelper.ReadBodyDefault(resp.Body)
+			iohelper.DrainAndClose(resp.Body)
 
 			result.StatusCode = resp.StatusCode
 			result.ResponseSize = len(body)

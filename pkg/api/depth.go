@@ -5,13 +5,13 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"fmt"
-	"io"
 	"math/big"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -264,10 +264,10 @@ func (d *DepthScanner) sendRequest(ctx context.Context, method, url string, head
 			Error:  err.Error(),
 		}, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 	latency := time.Since(start)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 
 	result := &ScanResult{
 		Path:        url,

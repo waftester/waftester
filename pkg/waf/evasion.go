@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"strings"
 	"unicode/utf16"
+
+	"github.com/waftester/waftester/pkg/bufpool"
 )
 
 // Pre-compiled replacers for performance (avoid creating in hot loops)
@@ -120,7 +122,8 @@ func (e *Evasion) initTechniques() {
 			Description: "Hex encoding with \\x prefix",
 			Category:    "encoding",
 			Transform: func(payload string) []string {
-				var result strings.Builder
+				result := bufpool.GetString()
+				defer bufpool.PutString(result)
 				for _, b := range []byte(payload) {
 					result.WriteString(fmt.Sprintf("\\x%02x", b))
 				}
@@ -132,7 +135,8 @@ func (e *Evasion) initTechniques() {
 			Description: "Unicode encoding with \\u prefix",
 			Category:    "encoding",
 			Transform: func(payload string) []string {
-				var result strings.Builder
+				result := bufpool.GetString()
+				defer bufpool.PutString(result)
 				for _, r := range payload {
 					result.WriteString(fmt.Sprintf("\\u%04x", r))
 				}
@@ -146,7 +150,8 @@ func (e *Evasion) initTechniques() {
 			Transform: func(payload string) []string {
 				results := make([]string, 0, 2)
 				// Named entities for common chars
-				var named strings.Builder
+				named := bufpool.GetString()
+				defer bufpool.PutString(named)
 				for _, r := range payload {
 					switch r {
 					case '<':
@@ -166,7 +171,8 @@ func (e *Evasion) initTechniques() {
 				results = append(results, named.String())
 
 				// Numeric entities
-				var numeric strings.Builder
+				numeric := bufpool.GetString()
+				defer bufpool.PutString(numeric)
 				for _, r := range payload {
 					if r < 128 && r > 31 {
 						numeric.WriteString(fmt.Sprintf("&#%d;", r))
@@ -177,7 +183,8 @@ func (e *Evasion) initTechniques() {
 				results = append(results, numeric.String())
 
 				// Hex entities
-				var hexEnt strings.Builder
+				hexEnt := bufpool.GetString()
+				defer bufpool.PutString(hexEnt)
 				for _, r := range payload {
 					if r < 128 && r > 31 {
 						hexEnt.WriteString(fmt.Sprintf("&#x%x;", r))
@@ -204,7 +211,8 @@ func (e *Evasion) initTechniques() {
 			Category:    "encoding",
 			Transform: func(payload string) []string {
 				// Simple UTF-7 for special chars
-				var result strings.Builder
+				result := bufpool.GetString()
+				defer bufpool.PutString(result)
 				for _, r := range payload {
 					if r < 128 && r > 31 && r != '+' && r != '-' {
 						result.WriteRune(r)
@@ -241,7 +249,8 @@ func (e *Evasion) initTechniques() {
 				results := make([]string, 0, 3)
 
 				// Alternating case
-				var alt strings.Builder
+				alt := bufpool.GetString()
+				defer bufpool.PutString(alt)
 				for i, r := range payload {
 					if i%2 == 0 {
 						alt.WriteString(strings.ToUpper(string(r)))
@@ -255,7 +264,8 @@ func (e *Evasion) initTechniques() {
 				results = append(results, strings.Title(strings.ToLower(payload)))
 
 				// Random-like pattern
-				var random strings.Builder
+				random := bufpool.GetString()
+				defer bufpool.PutString(random)
 				for i, r := range payload {
 					if (i+1)%3 == 0 {
 						random.WriteString(strings.ToUpper(string(r)))
@@ -417,7 +427,8 @@ func (e *Evasion) initTechniques() {
 				results = append(results, strings.ReplaceAll(payload, "'", "\\'"))
 
 				// JavaScript unicode
-				var jsUnicode strings.Builder
+				jsUnicode := bufpool.GetString()
+				defer bufpool.PutString(jsUnicode)
 				for _, r := range payload {
 					if r < 128 && r > 31 {
 						jsUnicode.WriteString(fmt.Sprintf("\\u%04x", r))

@@ -8,6 +8,9 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/bufpool"
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // ExtractedData represents all data extracted from JavaScript
@@ -548,7 +551,7 @@ func (a *Analyzer) ExtractCloudURLs(code string) []CloudURL {
 			}
 
 			// Extract region if present
-			if regionMatch := regexp.MustCompile(`[a-z]{2}-[a-z]+-\d`).FindString(match); regionMatch != "" {
+			if regionMatch := regexcache.MustGet(`[a-z]{2}-[a-z]+-\d`).FindString(match); regionMatch != "" {
 				cloudURL.Region = regionMatch
 			}
 
@@ -577,7 +580,7 @@ var invalidTLDs = map[string]bool{
 // ExtractSubdomains extracts subdomains from code with enhanced false positive filtering
 func (a *Analyzer) ExtractSubdomains(code string) []string {
 	// Require at least one subdomain part (2+ dots) to reduce false positives
-	pattern := regexp.MustCompile(`(?:https?://)?([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}`)
+	pattern := regexcache.MustGet(`(?:https?://)?([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}`)
 	matches := pattern.FindAllString(code, -1)
 
 	seen := make(map[string]bool)
@@ -950,7 +953,7 @@ func (a *Analyzer) extractParams(url string) []string {
 	}
 
 	// Path parameters (e.g., :id, {id})
-	pathParamRE := regexp.MustCompile(`[:{}]([a-zA-Z_][a-zA-Z0-9_]*)`)
+	pathParamRE := regexcache.MustGet(`[:{}]([a-zA-Z_][a-zA-Z0-9_]*)`)
 	matches := pathParamRE.FindAllStringSubmatch(url, -1)
 	for _, m := range matches {
 		if len(m) > 1 {
@@ -1031,7 +1034,8 @@ func (d *ExtractedData) ToJSON() ([]byte, error) {
 
 // Summary returns a text summary of extracted data
 func (d *ExtractedData) Summary() string {
-	var sb strings.Builder
+	sb := bufpool.GetString()
+	defer bufpool.PutString(sb)
 	sb.WriteString("=== JavaScript Analysis Summary ===\n")
 	sb.WriteString(fmt.Sprintf("URLs: %d\n", len(d.URLs)))
 	sb.WriteString(fmt.Sprintf("Endpoints: %d\n", len(d.Endpoints)))

@@ -9,12 +9,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // VulnerabilityType represents the type of OAuth vulnerability.
@@ -165,7 +166,7 @@ func (t *Tester) TestOpenRedirect(ctx context.Context) ([]Vulnerability, error) 
 		if err != nil {
 			continue
 		}
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		// Check if redirect is accepted
 		if resp.StatusCode == 302 || resp.StatusCode == 301 {
@@ -222,7 +223,7 @@ func (t *Tester) TestCSRFAuthorization(ctx context.Context) ([]Vulnerability, er
 	if err != nil {
 		return nil, err
 	}
-	resp.Body.Close()
+	iohelper.DrainAndClose(resp.Body)
 
 	// If request succeeds without state, it's vulnerable
 	if resp.StatusCode == 200 || resp.StatusCode == 302 {
@@ -277,7 +278,7 @@ func (t *Tester) TestStateBypass(ctx context.Context) ([]Vulnerability, error) {
 		if err != nil {
 			continue
 		}
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		if resp.StatusCode == 200 || resp.StatusCode == 302 {
 			vulns = append(vulns, Vulnerability{
@@ -332,7 +333,7 @@ func (t *Tester) TestScopeManipulation(ctx context.Context) ([]Vulnerability, er
 		if err != nil {
 			continue
 		}
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		// Check if elevated scopes are accepted
 		if resp.StatusCode == 200 || resp.StatusCode == 302 {
@@ -387,7 +388,7 @@ func (t *Tester) TestPKCEBypass(ctx context.Context) ([]Vulnerability, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp.Body.Close()
+	iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode == 200 || resp.StatusCode == 302 {
 		vulns = append(vulns, Vulnerability{
@@ -618,13 +619,13 @@ func DiscoverOIDCEndpoints(ctx context.Context, issuer string) (*OAuthEndpoint, 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("discovery failed with status %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := iohelper.ReadBodyDefault(resp.Body)
 	if err != nil {
 		return nil, err
 	}

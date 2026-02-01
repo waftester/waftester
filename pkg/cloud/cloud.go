@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Provider represents a cloud service provider
@@ -670,7 +672,7 @@ func (c *IPRangeChecker) LoadAWSRanges(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	var data struct {
 		Prefixes []struct {

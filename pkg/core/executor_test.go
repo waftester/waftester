@@ -5,15 +5,25 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/output"
 	"github.com/waftester/waftester/pkg/payloads"
 	"github.com/waftester/waftester/pkg/ui"
 )
+
+// TestMain resets global state before running tests
+func TestMain(m *testing.M) {
+	// Clear hosterrors cache before tests to prevent cross-test pollution
+	hosterrors.ClearAll()
+	code := m.Run()
+	os.Exit(code)
+}
 
 // mockWriter collects results for testing
 type mockWriter struct {
@@ -95,6 +105,7 @@ func TestNewExecutor(t *testing.T) {
 
 // TestExecuteTest tests the executeTest method with various scenarios
 func TestExecuteTest(t *testing.T) {
+	hosterrors.ClearAll() // Reset host error cache for clean test
 	t.Run("GET request blocked 403", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Verify it's a GET request
@@ -460,6 +471,7 @@ func TestExecuteTest(t *testing.T) {
 
 // TestExecute tests the Execute method with parallel workers
 func TestExecute(t *testing.T) {
+	hosterrors.ClearAll() // Reset host error cache for clean test
 	t.Run("multiple payloads parallel", func(t *testing.T) {
 		requestCount := 0
 		var mu sync.Mutex
@@ -637,6 +649,7 @@ func TestRateLimiting(t *testing.T) {
 
 // TestResultFields verifies all result fields are populated
 func TestResultFields(t *testing.T) {
+	hosterrors.ClearAll() // Reset host error cache for clean test
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
 	}))
@@ -700,6 +713,7 @@ func TestResultFields(t *testing.T) {
 
 // TestNoRedirectFollow verifies redirects are not followed
 func TestNoRedirectFollow(t *testing.T) {
+	hosterrors.ClearAll() // Reset host error cache for clean test
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/redirected", http.StatusFound)
 	}))
@@ -722,6 +736,7 @@ func TestNoRedirectFollow(t *testing.T) {
 
 // TestDefaultMethod verifies GET is used when method not specified
 func TestDefaultMethod(t *testing.T) {
+	hosterrors.ClearAll() // Reset host error cache for clean test
 	var receivedMethod string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedMethod = r.Method
@@ -750,6 +765,7 @@ func TestDefaultMethod(t *testing.T) {
 
 // TestQueryEscaping verifies payload is URL-escaped in query
 func TestQueryEscaping(t *testing.T) {
+	hosterrors.ClearAll() // Reset host error cache for clean test
 	var receivedQuery string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedQuery = r.URL.RawQuery
@@ -778,6 +794,7 @@ func TestQueryEscaping(t *testing.T) {
 
 // TestExecuteWithProgress tests the progress-aware execution method
 func TestExecuteWithProgress(t *testing.T) {
+	hosterrors.ClearAll() // Reset host error cache for clean test
 	t.Run("basic execution with progress", func(t *testing.T) {
 		requestCount := 0
 		var mu sync.Mutex

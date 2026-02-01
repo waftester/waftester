@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 	"golang.org/x/time/rate"
 )
@@ -329,7 +330,7 @@ func (f *Fuzzer) fuzz(ctx context.Context, word string) *Result {
 		result.Filtered = true
 		return result
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	result.StatusCode = resp.StatusCode
 

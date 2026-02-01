@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"crypto/sha256"
-	"crypto/tls"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -16,9 +15,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/hosterrors"
+	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/output"
 	"github.com/waftester/waftester/pkg/payloads"
 	"github.com/waftester/waftester/pkg/realistic"
+	"github.com/waftester/waftester/pkg/requestpool"
 	"github.com/waftester/waftester/pkg/scoring"
 	"github.com/waftester/waftester/pkg/ui"
 	"golang.org/x/time/rate"
@@ -80,39 +83,20 @@ func NewExecutor(cfg ExecutorConfig) *Executor {
 		cfg.Retries = 0 // No negative retries
 	}
 
-	// Use provided HTTPClient (e.g., JA3-aware) or create default
+	// Use provided HTTPClient (e.g., JA3-aware) or create default using shared httpclient factory
 	var client *http.Client
 	if cfg.HTTPClient != nil {
 		client = cfg.HTTPClient
 	} else {
-		// Create HTTP client with connection pooling
-		transport := &http.Transport{
-			MaxIdleConns:        cfg.Concurrency * 2,
-			MaxIdleConnsPerHost: cfg.Concurrency,
-			MaxConnsPerHost:     cfg.Concurrency,
-			IdleConnTimeout:     30 * time.Second,
-			DisableKeepAlives:   false,
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: cfg.SkipVerify,
-			},
-		}
-
-		// Add proxy if configured
-		if cfg.Proxy != "" {
-			proxyURL, err := url.Parse(cfg.Proxy)
-			if err == nil && proxyURL != nil {
-				transport.Proxy = http.ProxyURL(proxyURL)
-			}
-			// Silently ignore malformed proxy URLs - continue without proxy
-		}
-
-		client = &http.Client{
-			Transport: transport,
-			Timeout:   cfg.Timeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse // Don't follow redirects
-			},
-		}
+		// Use shared httpclient factory for connection pooling and optimized transport
+		client = httpclient.New(httpclient.Config{
+			Timeout:            cfg.Timeout,
+			InsecureSkipVerify: cfg.SkipVerify,
+			Proxy:              cfg.Proxy,
+			MaxIdleConns:       cfg.Concurrency * 2,
+			MaxConnsPerHost:    cfg.Concurrency,
+			IdleConnTimeout:    30 * time.Second,
+		})
 	}
 
 	// Create rate limiter (token bucket)
@@ -281,6 +265,14 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 		OriginalPayload: payload.OriginalPayload,
 	}
 
+	// Check if target host is known to be failing (skip to save time)
+	if hosterrors.Check(e.config.TargetURL) {
+		result.Outcome = "Skipped"
+		result.ErrorMessage = "[HOST_FAILED] Host has exceeded error threshold"
+		result.RiskScore = scoring.Result{RiskScore: 0}
+		return result
+	}
+
 	var req *http.Request
 	var err error
 
@@ -319,14 +311,24 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 		// Legacy: For POST with body (custom payloads from 'learn' command)
 		// The payload IS the body (e.g., JSON like {"message": "' OR '1'='1"})
 		body := strings.NewReader(payload.Payload)
-		req, err = http.NewRequestWithContext(ctx, method, targetURL, body)
+		req = requestpool.GetWithMethod(method)
+		defer requestpool.Put(req) // Return to pool when done
+		req.URL, err = url.Parse(targetURL)
 		if err == nil {
+			req = req.WithContext(ctx)
+			req.Body = io.NopCloser(body)
+			req.ContentLength = int64(len(payload.Payload))
 			req.Header.Set("Content-Type", payload.ContentType)
 		}
 	} else {
 		// Legacy: For GET or simple payloads, inject in URL parameter
 		targetWithPayload := fmt.Sprintf("%s?test=%s", targetURL, url.QueryEscape(payload.Payload))
-		req, err = http.NewRequestWithContext(ctx, method, targetWithPayload, nil)
+		req = requestpool.GetWithMethod(method)
+		defer requestpool.Put(req) // Return to pool when done
+		req.URL, err = url.Parse(targetWithPayload)
+		if err == nil {
+			req = req.WithContext(ctx)
+		}
 	}
 
 	if err != nil {
@@ -366,6 +368,12 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 		result.Outcome = "Error"
 		// Categorize the error for better analysis
 		result.ErrorMessage = categorizeError(err)
+
+		// Track network errors to skip failing hosts after threshold
+		if hosterrors.IsNetworkError(err) {
+			hosterrors.MarkError(e.config.TargetURL)
+		}
+
 		// Calculate risk score for error case
 		result.RiskScore = scoring.Calculate(scoring.Input{
 			Severity: payload.SeverityHint,
@@ -374,7 +382,7 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 		})
 		return result
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Capture important response headers (WAF-related)
 	wafHeaders := []string{

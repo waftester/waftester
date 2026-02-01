@@ -2,9 +2,10 @@ package probes
 
 import (
 	"net/http"
-	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // SecurityHeaders contains extracted security header information
@@ -474,7 +475,7 @@ func analyzeCSPIssues(directives map[string][]string) []string {
 	}
 
 	// Check for JSONP/callback bypasses
-	jsonpBypass := regexp.MustCompile(`(?i)(googleapis\.com|google\.com|facebook\.com|\.cloudflare\.com)`)
+	jsonpBypass := regexcache.MustGet(`(?i)(googleapis\.com|google\.com|facebook\.com|\.cloudflare\.com)`)
 	for _, vals := range directives {
 		for _, v := range vals {
 			if jsonpBypass.MatchString(v) {
@@ -489,7 +490,7 @@ func analyzeCSPIssues(directives map[string][]string) []string {
 
 // ExtractDomainsFromCSP extracts all domains mentioned in CSP
 func ExtractDomainsFromCSP(csp string) []string {
-	domainRE := regexp.MustCompile(`(?:https?://)?([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}`)
+	domainRE := regexcache.MustGet(`(?:https?://)?([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}`)
 
 	matches := domainRE.FindAllString(csp, -1)
 	domains := make(map[string]bool)

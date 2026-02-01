@@ -2,7 +2,11 @@
 // (https://github.com/m4ll0k/SecretFinder)
 package js
 
-import "regexp"
+import (
+	"regexp"
+
+	"github.com/waftester/waftester/pkg/regexcache"
+)
 
 // EnhancedSecretPatterns returns additional secret patterns from SecretFinder
 // that complement the existing patterns in analyzer.go
@@ -265,7 +269,7 @@ func GetAllSecretPatterns() map[string]*regexp.Regexp {
 
 	// Add enhanced patterns
 	for name, pattern := range EnhancedSecretPatterns() {
-		if compiled, err := regexp.Compile(pattern); err == nil {
+		if compiled, err := regexcache.Get(pattern); err == nil {
 			patterns[name] = compiled
 		}
 	}

@@ -55,6 +55,7 @@ import (
 	"github.com/waftester/waftester/pkg/hpp"
 	"github.com/waftester/waftester/pkg/input"
 	"github.com/waftester/waftester/pkg/interactive"
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/js"
 	"github.com/waftester/waftester/pkg/jwt"
 	"github.com/waftester/waftester/pkg/leakypaths"
@@ -74,6 +75,7 @@ import (
 	"github.com/waftester/waftester/pkg/race"
 	"github.com/waftester/waftester/pkg/recon"
 	"github.com/waftester/waftester/pkg/redirect"
+	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/report"
 	"github.com/waftester/waftester/pkg/runner"
 	"github.com/waftester/waftester/pkg/smuggling"
@@ -786,11 +788,25 @@ func printDocsAuto() {
 	fmt.Println()
 	fmt.Println("  -u, -target <url>    Target URL (required)")
 	fmt.Println("  -service <name>      Service name (for workspace organization)")
-	fmt.Println("  -c <n>               Concurrency (default: 25)")
-	fmt.Println("  -rl <n>              Rate limit (default: 100)")
+	fmt.Println("  -c <n>               Concurrency (default: 50)")
+	fmt.Println("  -rl <n>              Rate limit (default: 200)")
 	fmt.Println("  -depth <n>           Discovery depth (default: 3)")
-	fmt.Println("  -format <type>       Output format (json, html, sarif, etc.)")
+	fmt.Println("  -output-dir <path>   Custom output directory")
 	fmt.Println("  -payloads <dir>      Payload directory")
+	fmt.Println("  -j, -json            Output final summary as JSON to stdout")
+	fmt.Println("  -stream              Streaming output mode for CI/scripts")
+	fmt.Println("  -v                   Verbose output")
+	fmt.Println()
+	fmt.Println("  Smart Mode:")
+	fmt.Println("  --smart              Enable WAF-aware testing (auto-detect WAF)")
+	fmt.Println("  --smart-mode <mode>  Optimization level: quick, standard, full, bypass")
+	fmt.Println()
+	fmt.Println("  Feature Toggles:")
+	fmt.Println("  --assess             Run enterprise assessment (default: true)")
+	fmt.Println("  --leaky-paths        Enable sensitive path scanning (default: true)")
+	fmt.Println("  --discover-params    Enable parameter discovery (default: true)")
+	fmt.Println("  --browser            Enable browser-based scanning (default: true)")
+	fmt.Println("  --full-recon         Run unified reconnaissance")
 	fmt.Println()
 
 	fmt.Println(ui.SectionStyle.Render("WORKSPACE STRUCTURE"))
@@ -811,11 +827,17 @@ func printDocsAuto() {
 	fmt.Println("  # Full automated scan")
 	fmt.Println("  waf-tester auto -u https://target.com -service myapp")
 	fmt.Println()
+	fmt.Println("  # Output JSON summary to stdout (for scripting)")
+	fmt.Println("  waf-tester auto -u https://target.com --json")
+	fmt.Println()
+	fmt.Println("  # CI/CD pipeline with JSON output")
+	fmt.Println("  waf-tester auto -u https://target.com -j > summary.json")
+	fmt.Println()
 	fmt.Println("  # Conservative automated scan")
 	fmt.Println("  waf-tester auto -u https://prod.com -c 10 -rl 20")
 	fmt.Println()
-	fmt.Println("  # With HTML report")
-	fmt.Println("  waf-tester auto -u https://target.com -format html")
+	fmt.Println("  # Smart mode with WAF-aware optimization")
+	fmt.Println("  waf-tester auto -u https://target.com --smart")
 	fmt.Println()
 }
 
@@ -1835,6 +1857,10 @@ func runAutoScan() {
 	// Streaming mode (CI-friendly output)
 	streamMode := autoFlags.Bool("stream", false, "Streaming output mode for CI/scripts")
 
+	// JSON output mode (print final summary as JSON to stdout)
+	jsonOutput := autoFlags.Bool("json", false, "Output final summary as JSON to stdout")
+	autoFlags.BoolVar(jsonOutput, "j", false, "Output final summary as JSON to stdout (short)")
+
 	autoFlags.Parse(os.Args[2:])
 
 	// Auto-detect payload directory if not specified
@@ -2302,13 +2328,13 @@ func runAutoScan() {
 		resp, err := client.Do(req)
 		if err != nil || resp.StatusCode != 200 {
 			if resp != nil {
-				resp.Body.Close()
+				iohelper.DrainAndClose(resp.Body) // Drain for connection reuse
 			}
 			continue
 		}
 
-		body, err := io.ReadAll(io.LimitReader(resp.Body, 5*1024*1024)) // 5MB limit
-		resp.Body.Close()
+		body, err := iohelper.ReadBody(resp.Body, 5*1024*1024) // 5MB limit
+		iohelper.DrainAndClose(resp.Body)                      // Drain for connection reuse
 		if err != nil {
 			continue
 		}
@@ -3440,6 +3466,81 @@ func runAutoScan() {
 	_ = browserHeadless
 	_ = browserTimeout
 	_ = enableBrowserScan
+
+	// Output JSON summary to stdout if requested
+	if *jsonOutput {
+		// Create a comprehensive output structure
+		jsonSummary := map[string]interface{}{
+			"target":            target,
+			"domain":            domain,
+			"timestamp":         time.Now().UTC().Format(time.RFC3339),
+			"duration_seconds":  duration.Seconds(),
+			"waf_effectiveness": wafEffectiveness,
+			"success":           results.FailedTests == 0,
+			"workspace":         workspaceDir,
+			"stats": map[string]interface{}{
+				"total_tests":      results.TotalTests,
+				"blocked":          results.BlockedTests,
+				"passed":           results.PassedTests,
+				"failed":           results.FailedTests,
+				"errors":           results.ErrorTests,
+				"requests_per_sec": results.RequestsPerSec,
+			},
+			"discovery": map[string]interface{}{
+				"endpoints":    len(discResult.Endpoints),
+				"waf_detected": discResult.WAFDetected,
+				"waf_vendor":   discResult.WAFFingerprint,
+			},
+			"js_analysis": map[string]interface{}{
+				"files_analyzed": jsAnalyzed,
+				"secrets_found":  len(allJSData.Secrets),
+				"endpoints":      len(allJSData.Endpoints),
+				"dom_sinks":      len(allJSData.DOMSinks),
+			},
+			"latency": map[string]interface{}{
+				"min_ms": results.LatencyStats.Min,
+				"max_ms": results.LatencyStats.Max,
+				"avg_ms": results.LatencyStats.Avg,
+				"p50_ms": results.LatencyStats.P50,
+				"p95_ms": results.LatencyStats.P95,
+				"p99_ms": results.LatencyStats.P99,
+			},
+			"severity_breakdown": results.SeverityBreakdown,
+			"category_breakdown": results.CategoryBreakdown,
+			"bypass_count":       results.FailedTests,
+			"files": map[string]string{
+				"discovery":   discoveryFile,
+				"js_analysis": jsAnalysisFile,
+				"test_plan":   testPlanFile,
+				"results":     resultsFile,
+				"summary":     summaryFile,
+				"report":      reportFile,
+			},
+		}
+
+		// Add enterprise metrics if available
+		if enterpriseMetrics, ok := summary["enterprise_metrics"]; ok {
+			jsonSummary["enterprise_metrics"] = enterpriseMetrics
+		}
+
+		// Add browser scan summary if available
+		if browserScan, ok := summary["browser_scan"]; ok {
+			jsonSummary["browser_scan"] = browserScan
+		}
+
+		// Add smart mode info if available
+		if smartResult != nil && smartResult.WAFDetected {
+			jsonSummary["smart_mode"] = map[string]interface{}{
+				"waf_detected": true,
+				"vendor":       smartResult.VendorName,
+				"confidence":   smartResult.Confidence,
+			}
+		}
+
+		// Output to stdout
+		jsonBytes, _ := json.MarshalIndent(jsonSummary, "", "  ")
+		fmt.Println(string(jsonBytes))
+	}
 
 	if results.FailedTests > 0 {
 		os.Exit(1)
@@ -5167,7 +5268,7 @@ func runProbe() {
 			return
 		}
 		// Extract plugins
-		pluginRe := regexp.MustCompile(`/wp-content/plugins/([^/'"]+)`)
+		pluginRe := regexcache.MustGet(`/wp-content/plugins/([^/'"]+)`)
 		pluginMatches := pluginRe.FindAllStringSubmatch(body, 50)
 		pluginSet := make(map[string]bool)
 		for _, m := range pluginMatches {
@@ -5179,7 +5280,7 @@ func runProbe() {
 			plugins = append(plugins, p)
 		}
 		// Extract themes
-		themeRe := regexp.MustCompile(`/wp-content/themes/([^/'"]+)`)
+		themeRe := regexcache.MustGet(`/wp-content/themes/([^/'"]+)`)
 		themeMatches := themeRe.FindAllStringSubmatch(body, 50)
 		themeSet := make(map[string]bool)
 		for _, m := range themeMatches {
@@ -5195,7 +5296,7 @@ func runProbe() {
 
 	// CSP domain extraction helper
 	extractDomainsFromCSP := func(csp string) []string {
-		domainRe := regexp.MustCompile(`(?:https?://)?([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+)`)
+		domainRe := regexcache.MustGet(`(?:https?://)?([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+)`)
 		matches := domainRe.FindAllStringSubmatch(csp, 100)
 		domains := make(map[string]bool)
 		for _, m := range matches {
@@ -5239,15 +5340,15 @@ func runProbe() {
 	// Helper function to strip HTML/XML tags from content
 	stripHTMLTags := func(content string) string {
 		// Remove script and style elements entirely
-		scriptRe := regexp.MustCompile(`(?is)<script[^>]*>.*?</script>`)
+		scriptRe := regexcache.MustGet(`(?is)<script[^>]*>.*?</script>`)
 		content = scriptRe.ReplaceAllString(content, "")
-		styleRe := regexp.MustCompile(`(?is)<style[^>]*>.*?</style>`)
+		styleRe := regexcache.MustGet(`(?is)<style[^>]*>.*?</style>`)
 		content = styleRe.ReplaceAllString(content, "")
 		// Remove all HTML tags
-		tagRe := regexp.MustCompile(`<[^>]+>`)
+		tagRe := regexcache.MustGet(`<[^>]+>`)
 		content = tagRe.ReplaceAllString(content, " ")
 		// Collapse multiple whitespace
-		spaceRe := regexp.MustCompile(`\s+`)
+		spaceRe := regexcache.MustGet(`\s+`)
 		content = spaceRe.ReplaceAllString(content, " ")
 		return strings.TrimSpace(content)
 	}
@@ -5407,7 +5508,7 @@ func runProbe() {
 
 		// Simple expression parser
 		// Handle contains(body, "string")
-		containsRe := regexp.MustCompile(`contains\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
+		containsRe := regexcache.MustGet(`contains\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
 		expr = containsRe.ReplaceAllStringFunc(expr, func(match string) string {
 			parts := containsRe.FindStringSubmatch(match)
 			if len(parts) == 3 {
@@ -5426,7 +5527,7 @@ func runProbe() {
 		})
 
 		// Handle !contains(body, "string")
-		notContainsRe := regexp.MustCompile(`!\s*contains\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
+		notContainsRe := regexcache.MustGet(`!\s*contains\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
 		expr = notContainsRe.ReplaceAllStringFunc(expr, func(match string) string {
 			parts := notContainsRe.FindStringSubmatch(match)
 			if len(parts) == 3 {
@@ -5445,7 +5546,7 @@ func runProbe() {
 		})
 
 		// Handle matches(body, "regex")
-		matchesRe := regexp.MustCompile(`matches\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
+		matchesRe := regexcache.MustGet(`matches\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
 		expr = matchesRe.ReplaceAllStringFunc(expr, func(match string) string {
 			parts := matchesRe.FindStringSubmatch(match)
 			if len(parts) == 3 {
@@ -5453,7 +5554,7 @@ func runProbe() {
 				pattern := parts[2]
 				if val, ok := variables[varName]; ok {
 					if strVal, ok := val.(string); ok {
-						re, err := regexp.Compile(pattern)
+						re, err := regexcache.Get(pattern)
 						if err == nil && re.MatchString(strVal) {
 							return "true"
 						}
@@ -5465,7 +5566,7 @@ func runProbe() {
 		})
 
 		// Handle hasPrefix(str, "prefix")
-		hasPrefixRe := regexp.MustCompile(`hasPrefix\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
+		hasPrefixRe := regexcache.MustGet(`hasPrefix\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
 		expr = hasPrefixRe.ReplaceAllStringFunc(expr, func(match string) string {
 			parts := hasPrefixRe.FindStringSubmatch(match)
 			if len(parts) == 3 {
@@ -5484,7 +5585,7 @@ func runProbe() {
 		})
 
 		// Handle hasSuffix(str, "suffix")
-		hasSuffixRe := regexp.MustCompile(`hasSuffix\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
+		hasSuffixRe := regexcache.MustGet(`hasSuffix\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
 		expr = hasSuffixRe.ReplaceAllStringFunc(expr, func(match string) string {
 			parts := hasSuffixRe.FindStringSubmatch(match)
 			if len(parts) == 3 {
@@ -5503,7 +5604,7 @@ func runProbe() {
 		})
 
 		// Handle len(var) - replace with actual length
-		lenRe := regexp.MustCompile(`len\s*\(\s*(\w+)\s*\)`)
+		lenRe := regexcache.MustGet(`len\s*\(\s*(\w+)\s*\)`)
 		expr = lenRe.ReplaceAllStringFunc(expr, func(match string) string {
 			parts := lenRe.FindStringSubmatch(match)
 			if len(parts) == 2 {
@@ -5518,7 +5619,7 @@ func runProbe() {
 		})
 
 		// Replace numeric variable comparisons: status_code == 200
-		numericRe := regexp.MustCompile(`(status_code|content_length)\s*(==|!=|<=|>=|<|>)\s*(\d+)`)
+		numericRe := regexcache.MustGet(`(status_code|content_length)\s*(==|!=|<=|>=|<|>)\s*(\d+)`)
 		expr = numericRe.ReplaceAllStringFunc(expr, func(match string) string {
 			parts := numericRe.FindStringSubmatch(match)
 			if len(parts) == 4 {
@@ -5555,7 +5656,7 @@ func runProbe() {
 		})
 
 		// Replace string variable comparisons: content_type == "text/html"
-		stringRe := regexp.MustCompile(`(content_type|title|host|path|method|scheme|server|location)\s*(==|!=)\s*"([^"]+)"`)
+		stringRe := regexcache.MustGet(`(content_type|title|host|path|method|scheme|server|location)\s*(==|!=)\s*"([^"]+)"`)
 		expr = stringRe.ReplaceAllStringFunc(expr, func(match string) string {
 			parts := stringRe.FindStringSubmatch(match)
 			if len(parts) == 4 {
@@ -5929,7 +6030,7 @@ func runProbe() {
 
 		if err == nil {
 			// Ensure body is closed even on panic
-			defer initialResp.Body.Close()
+			defer iohelper.DrainAndClose(initialResp.Body)
 
 			// Debug response output
 			if *debugResp {
@@ -5960,7 +6061,7 @@ func runProbe() {
 					n, _ := io.ReadFull(initialResp.Body, body)
 					body = body[:n]
 				} else {
-					body, _ = io.ReadAll(initialResp.Body)
+					body, _ = iohelper.ReadBody(initialResp.Body, iohelper.LargeMaxBodySize)
 				}
 				// Decode body unless skipDecode is set
 				if !skipDecode {
@@ -6184,7 +6285,7 @@ func runProbe() {
 
 			// Extract regex
 			if *extractRegex != "" {
-				re, err := regexp.Compile(*extractRegex)
+				re, err := regexcache.Get(*extractRegex)
 				if err == nil {
 					matches := re.FindAllString(bodyStr, 50) // limit to 50 matches
 					results.Extracted = matches
@@ -6205,7 +6306,7 @@ func runProbe() {
 						pattern = `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`
 					}
 					if pattern != "" {
-						re, err := regexp.Compile(pattern)
+						re, err := regexcache.Get(pattern)
 						if err == nil {
 							matches := re.FindAllString(bodyStr, 50)
 							results.Extracted = append(results.Extracted, matches...)
@@ -6217,7 +6318,7 @@ func runProbe() {
 			// Extract FQDN (domains and subdomains) from response body and headers
 			if *extractFQDN {
 				fqdnPattern := `(?i)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}`
-				re, err := regexp.Compile(fqdnPattern)
+				re, err := regexcache.Get(fqdnPattern)
 				if err == nil {
 					// Extract from body
 					bodyMatches := re.FindAllString(bodyStr, 100)
@@ -6320,7 +6421,7 @@ func runProbe() {
 						if showDetails {
 							ui.PrintConfigLine(ip, fmt.Sprintf("Status %d", resp.StatusCode))
 						}
-						resp.Body.Close()
+						iohelper.DrainAndClose(resp.Body)
 					}
 				}
 			}
@@ -6418,7 +6519,7 @@ func runProbe() {
 					ui.PrintWarning(fmt.Sprintf("Header extraction failed: %v", err))
 				}
 			} else {
-				defer resp.Body.Close()
+				defer iohelper.DrainAndClose(resp.Body)
 				headerExtractor := probes.NewHeaderExtractor()
 				headers := headerExtractor.Extract(resp)
 				results.Headers = headers
@@ -6465,8 +6566,8 @@ func runProbe() {
 					ui.PrintWarning(fmt.Sprintf("Technology detection failed: %v", err))
 				}
 			} else {
-				defer resp.Body.Close()
-				body, _ := io.ReadAll(resp.Body)
+				defer iohelper.DrainAndClose(resp.Body)
+				body, _ := iohelper.ReadBodyDefault(resp.Body)
 				techDetector := probes.NewTechDetector()
 				techResult := techDetector.Detect(resp, body)
 				results.Tech = techResult
@@ -6763,7 +6864,7 @@ func runProbe() {
 
 		// Match regex - only show if body matches regex
 		if *matchRegex != "" && !skipOutput {
-			re, err := regexp.Compile(*matchRegex)
+			re, err := regexcache.Get(*matchRegex)
 			if err == nil && !re.MatchString(results.rawBody) {
 				skipOutput = true
 			}
@@ -6771,7 +6872,7 @@ func runProbe() {
 
 		// Filter regex - skip if body matches regex
 		if *filterRegex != "" && !skipOutput {
-			re, err := regexp.Compile(*filterRegex)
+			re, err := regexcache.Get(*filterRegex)
 			if err == nil && re.MatchString(results.rawBody) {
 				skipOutput = true
 			}
@@ -6879,7 +6980,7 @@ func runProbe() {
 		if *matchCondition != "" && !skipOutput {
 			// Extract title from body if present
 			titleStr := ""
-			titleRe := regexp.MustCompile(`<title[^>]*>([^<]+)</title>`)
+			titleRe := regexcache.MustGet(`<title[^>]*>([^<]+)</title>`)
 			if titleMatch := titleRe.FindStringSubmatch(results.rawBody); len(titleMatch) > 1 {
 				titleStr = titleMatch[1]
 			}
@@ -6891,7 +6992,7 @@ func runProbe() {
 		// DSL Filter Condition - skip if DSL expression matches
 		if *filterCondition != "" && !skipOutput {
 			titleStr := ""
-			titleRe := regexp.MustCompile(`<title[^>]*>([^<]+)</title>`)
+			titleRe := regexcache.MustGet(`<title[^>]*>([^<]+)</title>`)
 			if titleMatch := titleRe.FindStringSubmatch(results.rawBody); len(titleMatch) > 1 {
 				titleStr = titleMatch[1]
 			}
@@ -8347,7 +8448,7 @@ func runFuzz() {
 				ui.PrintError(fmt.Sprintf("Failed to download wordlist: %v", err))
 				os.Exit(1)
 			}
-			defer resp.Body.Close()
+			defer iohelper.DrainAndClose(resp.Body)
 			scanner := bufio.NewScanner(resp.Body)
 			for scanner.Scan() {
 				line := strings.TrimSpace(scanner.Text())
@@ -8453,7 +8554,7 @@ func runFuzz() {
 	var matchRe, filterRe *regexp.Regexp
 	if *matchRegex != "" {
 		var err error
-		matchRe, err = regexp.Compile(*matchRegex)
+		matchRe, err = regexcache.Get(*matchRegex)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Invalid match regex: %v", err))
 			os.Exit(1)
@@ -8461,7 +8562,7 @@ func runFuzz() {
 	}
 	if *filterRegex != "" {
 		var err error
-		filterRe, err = regexp.Compile(*filterRegex)
+		filterRe, err = regexcache.Get(*filterRegex)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Invalid filter regex: %v", err))
 			os.Exit(1)
@@ -9012,9 +9113,9 @@ func fetchContent(req *http.Request) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
+	body, err := iohelper.ReadBody(resp.Body, iohelper.LargeMaxBodySize)
 	if err != nil {
 		return "", err
 	}
@@ -9358,7 +9459,7 @@ func runScan() {
 	// Dry run mode - list what would be scanned and exit
 	if *dryRun {
 		allScanTypes := []string{"sqli", "xss", "traversal", "cmdi", "nosqli", "hpp", "crlf", "prototype", "cors", "redirect", "hostheader", "websocket", "cache", "upload", "deserialize", "oauth", "ssrf", "ssti", "xxe", "jwt", "smuggling", "bizlogic", "race", "httpprobe", "secheaders", "jsanalyze", "apidepth", "osint", "vhost", "techdetect", "dnsrecon", "wafdetect", "waffprint"}
-		
+
 		var selectedScans []string
 		for _, t := range allScanTypes {
 			if shouldScan(t) {
@@ -10787,7 +10888,7 @@ func runScan() {
 			}
 			return
 		}
-		defer resp.Body.Close()
+		defer iohelper.DrainAndClose(resp.Body)
 		extractor := probes.NewHeaderExtractor()
 		headers := extractor.Extract(resp)
 		mu.Lock()
@@ -10833,8 +10934,8 @@ func runScan() {
 			}
 			return
 		}
-		defer resp.Body.Close()
-		body, err := io.ReadAll(resp.Body)
+		defer iohelper.DrainAndClose(resp.Body)
+		body, err := iohelper.ReadBodyDefault(resp.Body)
 		if err != nil {
 			return
 		}
@@ -11053,9 +11154,9 @@ func runScan() {
 		if err != nil {
 			return
 		}
-		defer resp.Body.Close()
+		defer iohelper.DrainAndClose(resp.Body)
 
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 100*1024))
+		body, _ := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
 
 		var techStack []string
 
@@ -11221,11 +11322,11 @@ func runScan() {
 
 	// Emit scan_end event for streaming JSON
 	emitEvent("scan_end", map[string]interface{}{
-		"target":       target,
-		"duration_ms":  result.Duration.Milliseconds(),
-		"total_vulns":  result.TotalVulns,
-		"by_severity":  result.BySeverity,
-		"by_category":  result.ByCategory,
+		"target":      target,
+		"duration_ms": result.Duration.Milliseconds(),
+		"total_vulns": result.TotalVulns,
+		"by_severity": result.BySeverity,
+		"by_category": result.ByCategory,
 	})
 
 	// Progress cleanup is handled by defer progress.Stop()
@@ -11678,7 +11779,7 @@ func buildFilterConfig(cfg *config.Config) *core.FilterConfig {
 
 	// Parse match regex
 	if cfg.MatchRegex != "" {
-		if re, err := regexp.Compile(cfg.MatchRegex); err == nil {
+		if re, err := regexcache.Get(cfg.MatchRegex); err == nil {
 			fc.MatchRegex = re
 			hasAny = true
 		}
@@ -11686,7 +11787,7 @@ func buildFilterConfig(cfg *config.Config) *core.FilterConfig {
 
 	// Parse filter regex
 	if cfg.FilterRegex != "" {
-		if re, err := regexp.Compile(cfg.FilterRegex); err == nil {
+		if re, err := regexcache.Get(cfg.FilterRegex); err == nil {
 			fc.FilterRegex = re
 			hasAny = true
 		}

@@ -3,11 +3,12 @@ package responsesplit
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Config configures HTTP response splitting testing
@@ -123,9 +124,9 @@ func (s *Scanner) testPayload(ctx context.Context, targetURL, param string, payl
 	if err != nil {
 		return result
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	result.StatusCode = resp.StatusCode
 	result.ResponseSize = len(body)
 
