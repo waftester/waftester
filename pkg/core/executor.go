@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"crypto/sha256"
-	"crypto/tls"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -16,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/output"
 	"github.com/waftester/waftester/pkg/payloads"
 	"github.com/waftester/waftester/pkg/realistic"
@@ -80,39 +80,20 @@ func NewExecutor(cfg ExecutorConfig) *Executor {
 		cfg.Retries = 0 // No negative retries
 	}
 
-	// Use provided HTTPClient (e.g., JA3-aware) or create default
+	// Use provided HTTPClient (e.g., JA3-aware) or create default using shared httpclient factory
 	var client *http.Client
 	if cfg.HTTPClient != nil {
 		client = cfg.HTTPClient
 	} else {
-		// Create HTTP client with connection pooling
-		transport := &http.Transport{
-			MaxIdleConns:        cfg.Concurrency * 2,
-			MaxIdleConnsPerHost: cfg.Concurrency,
-			MaxConnsPerHost:     cfg.Concurrency,
-			IdleConnTimeout:     30 * time.Second,
-			DisableKeepAlives:   false,
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: cfg.SkipVerify,
-			},
-		}
-
-		// Add proxy if configured
-		if cfg.Proxy != "" {
-			proxyURL, err := url.Parse(cfg.Proxy)
-			if err == nil && proxyURL != nil {
-				transport.Proxy = http.ProxyURL(proxyURL)
-			}
-			// Silently ignore malformed proxy URLs - continue without proxy
-		}
-
-		client = &http.Client{
-			Transport: transport,
-			Timeout:   cfg.Timeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse // Don't follow redirects
-			},
-		}
+		// Use shared httpclient factory for connection pooling and optimized transport
+		client = httpclient.New(httpclient.Config{
+			Timeout:            cfg.Timeout,
+			InsecureSkipVerify: cfg.SkipVerify,
+			Proxy:              cfg.Proxy,
+			MaxIdleConns:       cfg.Concurrency * 2,
+			MaxConnsPerHost:    cfg.Concurrency,
+			IdleConnTimeout:    30 * time.Second,
+		})
 	}
 
 	// Create rate limiter (token bucket)
