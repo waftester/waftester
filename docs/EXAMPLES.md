@@ -38,73 +38,128 @@ This guide shows you every way to use WAF-Tester with real examples. Each exampl
 
 ## 🚀 Quick Start (5 minutes)
 
-### Your First Scan
+### 👉 Step 1: Copy and Paste This
 
 ```bash
-# The simplest scan - just point at a target
-waf-tester scan -u https://example.com
-```
-
-**What this does:** Scans the website for common vulnerabilities (SQL injection, XSS, etc.)
-
-### The "I Want Everything" Command
-
-```bash
-# Full automated scan - discovers, plans, tests, and reports
 waf-tester auto -u https://example.com
 ```
 
-**What this does:** 
-1. 🕵️ Discovers all endpoints (pages, forms, APIs)
-2. 📝 Creates a smart test plan
-3. 🎯 Tests for vulnerabilities
-4. 📊 Generates a report
+### 👀 What You'll See
+
+```
+🚀 WAF-Tester v2.3.2
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📡 Discovering endpoints...
+   Found: 47 pages, 12 forms, 8 API endpoints
+
+📝 Creating test plan...
+   Generated: 156 tests across 5 categories
+
+🎯 Running security tests...
+   [████████████████████░░░░] 85% (132/156)
+
+✅ COMPLETE!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📂 YOUR FILES ARE HERE:
+   workspaces/example.com/2026-02-01_14-30-00/
+
+   📄 results.json      ← All findings (for scripts)
+   📊 results.html      ← Pretty report (open in browser!)
+   📋 results.sarif     ← For GitHub/GitLab
+```
+
+### 🎉 That's It!
+
+Open `results.html` in your browser to see your security report.
+
+---
+
+## 📂 Where Are My Files?
+
+**Every command tells you exactly where files are saved:**
+
+```
+✓ Results saved to ./results.json
+✓ Report saved to ./report.html
+```
+
+### Quick Reference
+
+| You Run | Files Created | Location |
+|---------|---------------|----------|
+| `waf-tester auto -u URL` | 5 files | `workspaces/<domain>/<timestamp>/` |
+| `waf-tester discover -u URL` | 1 file | `./discovery.json` |
+| `waf-tester learn ...` | 1 file | `./testplan.json` |
+| `waf-tester scan -u URL -o out.json` | 1 file | `./out.json` (you choose!) |
+
+### Want Files Somewhere Else?
+
+```bash
+# Put discovery file in my-folder/
+waf-tester discover -u https://example.com -output my-folder/disco.json
+
+# Save report to Desktop (Windows)
+waf-tester auto -u https://example.com -output-dir C:\Users\YOU\Desktop\scan
+
+# Save report to Desktop (Mac/Linux)
+waf-tester auto -u https://example.com -output-dir ~/Desktop/scan
+```
 
 ---
 
 ## 🧠 The Smart Workflow (Recommended)
 
-This 3-step workflow is the **professional way** to test a website.
+**Three commands. Copy, paste, done.**
 
-### Step 1: Discover the Target
+### Step 1: Find All The Pages
 
 ```bash
-# Find all pages, forms, and APIs
 waf-tester discover -u https://example.com
 ```
 
-**Output:** Creates `discovery.json` with all found endpoints.
+**You'll see:**
+```
+📡 Crawling https://example.com...
+   Found 47 pages, 12 forms, 8 APIs
 
-**Why do this first?** You can't test what you can't see. Discovery finds hidden pages, API endpoints, and forms.
+✓ Saved to: discovery.json
+```
 
-### Step 2: Learn and Plan
+### Step 2: Make a Test Plan
 
 ```bash
-# Create a smart test plan based on what was found
 waf-tester learn -discovery discovery.json
 ```
 
-**Output:** Creates `testplan.json` with prioritized tests.
+**You'll see:**
+```
+📝 Analyzing discovery.json...
+   Login page → auth attacks
+   Search box → SQL injection
+   File upload → malware tests
 
-**Why do this?** Instead of blindly testing everything, this creates a targeted plan. Login pages get auth attacks, search pages get SQL injection tests, etc.
+✓ Saved to: testplan.json
+```
 
 ### Step 3: Run the Tests
 
 ```bash
-# Execute the test plan
-waf-tester run -plan testplan.json
+waf-tester run -plan testplan.json -format html -o report.html
 ```
 
-**Why do this?** Runs exactly the right tests for each endpoint, in the right order.
-
-### Complete Workflow Example
-
-```bash
-# Professional WAF assessment in 3 commands
-waf-tester discover -u https://target.com -output disco.json
-waf-tester learn -discovery disco.json -output plan.json
-waf-tester run -plan plan.json -format html -o report.html
+**You'll see:**
 ```
+🎯 Running 156 tests...
+   [████████████████████████] 100%
+
+✅ Done! Found 3 vulnerabilities.
+
+✓ Saved to: report.html
+```
+
+**Now open `report.html` in your browser!**
 
 ---
 

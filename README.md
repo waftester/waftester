@@ -41,26 +41,43 @@ Download from the [releases page](https://github.com/waftester/waftester/release
 waf-tester -h
 ```
 
-## Quick Start
+## 🚀 Quick Start
 
-The recommended workflow uses three commands:
-
-```bash
-# 1. Discover endpoints (robots.txt, sitemap, JS analysis, Wayback)
-waf-tester discover -u https://example.com
-
-# 2. Generate a test plan based on discovered attack surface
-waf-tester learn -discovery discovery.json
-
-# 3. Execute the test plan
-waf-tester run -plan testplan.json
-```
-
-Or use `auto` for a fully automated scan:
+### One Command To Do Everything
 
 ```bash
 waf-tester auto -u https://example.com
 ```
+
+**What happens:**
+```
+📡 Finding all pages...     Found 47 pages, 12 forms
+📝 Making test plan...      156 security tests
+🎯 Running tests...         [████████████████] 100%
+
+✅ Done! Files saved to:
+   📂 workspaces/example.com/2026-02-01_14-30-00/
+      📄 results.json    ← For scripts
+      📊 results.html    ← Open in browser!
+```
+
+### Step-by-Step (More Control)
+
+```bash
+# Step 1: Find all pages on the website
+waf-tester discover -u https://example.com
+# → Creates: discovery.json
+
+# Step 2: Make a smart test plan
+waf-tester learn -discovery discovery.json
+# → Creates: testplan.json
+
+# Step 3: Run the tests, get a report
+waf-tester run -plan testplan.json -format html -o report.html
+# → Creates: report.html (open in browser!)
+```
+
+📖 **[See Full Examples Guide](docs/EXAMPLES.md)** for more commands and options.
 
 ## Commands
 
@@ -105,49 +122,40 @@ waf-tester scan -u https://target.com --smart
 waf-tester bypass -u https://target.com --smart --smart-mode=full
 ```
 
-### Output Files & Locations
+### 📂 Where Are My Files?
 
-WAFtester clearly displays file locations after each execution:
-
+**Every command tells you:**
 ```
 ✓ Results saved to ./results.json
 ✓ Report saved to ./report.html
 ```
 
-**Default Output Locations:**
+**Quick answer:**
 
-| Command | Default Output File | Location |
-|---------|---------------------|----------|
-| `discover` | `discovery.json` | Current directory |
-| `learn` | `testplan.json` | Current directory |
-| `run` | Stdout (use `-o`) | Specified path |
-| `auto` | Multiple files | `workspaces/<domain>/<timestamp>/` |
-| `assess` | Stdout (use `-o`) | Specified path |
-| `bypass` | Stdout (use `-o`) | Specified path |
+| Command | Your Files Are In |
+|---------|-------------------|
+| `auto` | `workspaces/example.com/2026-02-01.../results.html` ← **Open this!** |
+| `discover` | `./discovery.json` |
+| `learn` | `./testplan.json` |
+| Other commands | Wherever you put `-o filename.json` |
 
-**Auto Command Workspace Structure:**
-```
-workspaces/
-└── example.com/
-    └── 2026-02-01_14-30-00/
-        ├── discovery.json     # Discovered endpoints
-        ├── testplan.json      # Generated test plan
-        ├── results.json       # Test results
-        ├── results.html       # HTML report
-        └── results.sarif      # SARIF for CI/CD
+**Want files somewhere else?**
+```bash
+# Save to your Desktop
+waf-tester auto -u https://example.com -output-dir ~/Desktop/my-scan
 ```
 
 ### Output Formats
 
 ```bash
-# JSON output
+# HTML report (prettiest - open in browser)
+waf-tester run -plan testplan.json -format html -o report.html
+
+# JSON (for scripts)
 waf-tester run -plan testplan.json -format json -o results.json
 
-# SARIF for CI/CD integration
+# SARIF (for GitHub/GitLab)
 waf-tester run -plan testplan.json -format sarif -o results.sarif
-
-# HTML report
-waf-tester run -plan testplan.json -format html -o report.html
 ```
 
 ### Mutation Testing
