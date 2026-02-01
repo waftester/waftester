@@ -29,7 +29,7 @@ func UserAgent() string {
 	return fmt.Sprintf("waftester/%s", Version)
 }
 
-// UserAgentWithContext returns a User-Agent with context (e.g., "waftester/2.3.1 (Calibration)")
+// UserAgentWithContext returns a User-Agent with context (e.g., "waftester/X.Y.Z (Calibration)")
 func UserAgentWithContext(context string) string {
 	return fmt.Sprintf("waftester/%s (%s)", Version, context)
 }
