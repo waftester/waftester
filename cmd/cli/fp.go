@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"sync/atomic"
 	"time"
 
 	"github.com/waftester/waftester/pkg/fp"
@@ -37,6 +36,7 @@ func runFP() {
 	// Output
 	output := fpFlags.String("output", "", "Output file for results (JSON)")
 	verbose := fpFlags.Bool("v", false, "Verbose output")
+	streamMode := fpFlags.Bool("stream", false, "Streaming output mode (for CI/scripts)")
 
 	// Local WAF testing
 	localTest := fpFlags.Bool("local", false, "Run local WAF simulation test")
@@ -57,6 +57,7 @@ func runFP() {
 		fmt.Println("  -corpus <src>   Corpus sources (default: all)")
 		fmt.Println("  -dynamic <file> Dynamic corpus file")
 		fmt.Println("  -output <file>  Output results to JSON")
+		fmt.Println("  -stream         Streaming output (for CI/scripts)")
 		fmt.Println("  -local          Run local WAF simulation only")
 		fmt.Println("  -v              Verbose output")
 		os.Exit(1)
@@ -97,79 +98,56 @@ func runFP() {
 		}
 	}
 
-	// Run tests
-	ui.PrintInfo("Running false positive tests...")
-	fmt.Println()
+	// Get corpus count for manifest display
+	corpusCount := tester.GetCorpus().Count()
+
+	// Display execution manifest BEFORE running (only in interactive mode)
+	if !*streamMode {
+		manifest := ui.NewExecutionManifest("FALSE POSITIVE TEST MANIFEST")
+		manifest.SetDescription("Testing benign content against WAF rules")
+		manifest.AddWithIcon("🎯", "Target", *target)
+		manifest.AddEmphasis("📦", "Test Cases", fmt.Sprintf("%d benign payloads", corpusCount))
+		manifest.AddWithIcon("🏷️", "Corpus", *corpusSources)
+		manifest.AddWithIcon("🔒", "Paranoia Level", fmt.Sprintf("PL%d", *paranoiaLevel))
+		manifest.AddWithIcon("⚡", "Concurrency", fmt.Sprintf("%d workers", *concurrency))
+		manifest.AddWithIcon("🚦", "Rate Limit", fmt.Sprintf("%.0f req/s", *rateLimit))
+		manifest.AddEstimate(corpusCount, *rateLimit)
+		manifest.Print()
+	} else {
+		// Streaming mode: simple line output for CI/scripts
+		fmt.Printf("[INFO] Starting false positive test: target=%s payloads=%d concurrency=%d rate=%.0f\n",
+			*target, corpusCount, *concurrency, *rateLimit)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
-	// Animated progress display
-	startTime := time.Now()
-	var progressDone = make(chan struct{})
-	var fpCount int32
-	var testsComplete int32
-	spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-	frameIdx := 0
+	// Determine output mode
+	outputMode := ui.OutputModeInteractive
+	if *streamMode {
+		outputMode = ui.OutputModeStreaming
+	}
 
-	go func() {
-		ticker := time.NewTicker(100 * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-progressDone:
-				return
-			case <-ticker.C:
-				completed := atomic.LoadInt32(&testsComplete)
-				fps := atomic.LoadInt32(&fpCount)
-				elapsed := time.Since(startTime)
-				rate := float64(0)
-				if elapsed.Seconds() > 0 {
-					rate = float64(completed) / elapsed.Seconds()
-				}
+	// Use unified LiveProgress component
+	progress := ui.NewLiveProgress(ui.LiveProgressConfig{
+		Total:        corpusCount,
+		DisplayLines: 2,
+		Title:        "Testing false positives",
+		Unit:         "tests",
+		Mode:         outputMode,
+		Metrics: []ui.MetricConfig{
+			{Name: "fps", Label: "FPs", Icon: "⚠️", Highlight: true},
+		},
+		StreamFormat: "[PROGRESS] {completed}/{total} ({percent}%) - {metrics} - {elapsed} elapsed",
+	})
 
-				spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
-				frameIdx++
+	progress.Start()
 
-				// Build progress bar
-				progressWidth := 30
-				fillWidth := 0
-				if completed > 0 {
-					fillWidth = int(float64(progressWidth) * 0.5) // Estimate since we don't know total
-					if fillWidth > progressWidth {
-						fillWidth = progressWidth
-					}
-				}
-				bar := fmt.Sprintf("[%s%s]",
-					repeatChar("█", fillWidth),
-					repeatChar("░", progressWidth-fillWidth))
-
-				fpColor := "\033[32m" // Green
-				if fps > 0 {
-					fpColor = "\033[31m" // Red for false positives
-				}
-
-				fmt.Printf("\033[3A\033[J") // Clear 3 lines
-				fmt.Printf("  %s Testing false positives...\n", spinner)
-				fmt.Printf("  %s  \033[36m%d\033[0m tests  %sFPs: %d\033[0m  \033[33m%.1f req/s\033[0m\n",
-					bar, completed, fpColor, fps, rate)
-				fmt.Printf("  ⏱️  Elapsed: %s\n", formatElapsed(elapsed))
-			}
-		}
-	}()
-	fmt.Println() // Initial spacing for progress
-	fmt.Println()
-	fmt.Println()
-
-	// Monitor FP results in background (we'll get final from result)
+	// Run tests
 	result, err := tester.Run(ctx)
 
 	// Stop progress display
-	close(progressDone)
-	time.Sleep(50 * time.Millisecond) // Let progress goroutine exit
-
-	// Clear progress lines
-	fmt.Printf("\033[3A\033[J")
+	progress.Stop()
 
 	if err != nil {
 		fmt.Println(ui.ErrorStyle.Render(fmt.Sprintf("Error: %v", err)))
@@ -177,17 +155,21 @@ func runFP() {
 	}
 
 	// Show completion summary
-	elapsed := time.Since(startTime)
-	fmt.Printf("  ✅ Completed %d tests in %s\n", result.TotalTests, formatElapsed(elapsed))
-	if result.FalsePositives > 0 {
-		fmt.Printf("  ⚠️  \033[31m%d false positives detected\033[0m\n", result.FalsePositives)
+	elapsed := progress.GetElapsed()
+	if *streamMode {
+		fmt.Printf("[COMPLETE] %d tests in %s, FPs=%d\n", result.TotalTests, formatElapsed(elapsed), result.FalsePositives)
 	} else {
-		fmt.Printf("  ✨ \033[32mNo false positives detected\033[0m\n")
-	}
-	fmt.Println()
+		fmt.Printf("  ✅ Completed %d tests in %s\n", result.TotalTests, formatElapsed(elapsed))
+		if result.FalsePositives > 0 {
+			fmt.Printf("  ⚠️  \033[31m%d false positives detected\033[0m\n", result.FalsePositives)
+		} else {
+			fmt.Printf("  ✨ \033[32mNo false positives detected\033[0m\n")
+		}
+		fmt.Println()
 
-	// Display results
-	displayFPResults(result)
+		// Display results
+		displayFPResults(result)
+	}
 
 	// Save to file if requested
 	if *output != "" {
