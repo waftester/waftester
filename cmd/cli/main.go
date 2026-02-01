@@ -1832,6 +1832,9 @@ func runAutoScan() {
 	browserHeadless := autoFlags.Bool("browser-headless", false, "Run browser in headless mode (no visible window)")
 	browserTimeout := autoFlags.Duration("browser-timeout", 3*time.Minute, "Timeout for user login during browser scan")
 
+	// Streaming mode (CI-friendly output)
+	streamMode := autoFlags.Bool("stream", false, "Streaming output mode for CI/scripts")
+
 	autoFlags.Parse(os.Args[2:])
 
 	// Auto-detect payload directory if not specified
@@ -2205,7 +2208,7 @@ func runAutoScan() {
 	jsFrameIdx := 0
 	jsStartTime := time.Now()
 
-	if totalJSFiles > 1 {
+	if totalJSFiles > 1 && !*streamMode {
 		go func() {
 			ticker := time.NewTicker(100 * time.Millisecond)
 			defer ticker.Stop()
@@ -2456,13 +2459,14 @@ func runAutoScan() {
 			paramFrameIdx := 0
 			totalEndpoints := len(testEndpoints)
 
-			go func() {
-				ticker := time.NewTicker(100 * time.Millisecond)
-				defer ticker.Stop()
-				for {
-					select {
-					case <-paramProgressDone:
-						return
+			if !*streamMode {
+				go func() {
+					ticker := time.NewTicker(100 * time.Millisecond)
+					defer ticker.Stop()
+					for {
+						select {
+						case <-paramProgressDone:
+							return
 					case <-ticker.C:
 						done := atomic.LoadInt32(&paramCompleted)
 						found := atomic.LoadInt32(&paramsFoundCount)
@@ -2490,6 +2494,7 @@ func runAutoScan() {
 					}
 				}
 			}()
+			} // end if !*streamMode
 			fmt.Println()
 			fmt.Println()
 
@@ -6872,7 +6877,7 @@ func runProbe() {
 
 	// Live progress display for multi-target probing
 	var progressDone chan struct{}
-	if len(targets) > 1 && !*silent && !*oneliner && !*jsonl && !*jsonOutput {
+	if len(targets) > 1 && !*silent && !*oneliner && !*jsonl && !*jsonOutput && !*streamMode {
 		progressDone = make(chan struct{})
 		totalTargets := int64(len(targets))
 
@@ -7870,6 +7875,9 @@ func runCrawl() {
 	debugRequest := crawlFlags.Bool("debug-request", false, "Show request details")
 	crawlFlags.BoolVar(debugRequest, "dreq", false, "Debug request (alias)")
 
+	// Streaming mode (CI-friendly output)
+	_ = crawlFlags.Bool("stream", false, "Streaming output mode for CI/scripts")
+
 	crawlFlags.Parse(os.Args[2:])
 
 	// Apply silent mode
@@ -8219,6 +8227,7 @@ func runFuzz() {
 	silent := fuzzFlags.Bool("s", false, "Silent mode")
 	noColor := fuzzFlags.Bool("nc", false, "No color output")
 	jsonOutput := fuzzFlags.Bool("json", false, "Output in JSON format")
+	streamMode := fuzzFlags.Bool("stream", false, "Streaming output mode for CI/scripts")
 
 	// === NEW FUZZ FLAGS ===
 
@@ -8494,23 +8503,32 @@ func runFuzz() {
 		os.Setenv("NO_COLOR", "1")
 	}
 
-	// Print config
+	// Print config or manifest
 	if !*silent {
-		ui.PrintConfigLine("Target", targetURL)
-		ui.PrintConfigLine("Method", *method)
-		ui.PrintConfigLine("Wordlist", fmt.Sprintf("%d words", len(words)))
-		if len(exts) > 0 {
-			ui.PrintConfigLine("Extensions", strings.Join(exts, ", "))
+		if *streamMode {
+			// Streaming mode: simple line output
+			fmt.Printf("[INFO] Starting fuzz: target=%s words=%d concurrency=%d rate=%d\n",
+				targetURL, len(words), *concurrency, *rateLimit)
+		} else {
+			// Interactive mode: full manifest
+			manifest := ui.NewExecutionManifest("CONTENT FUZZER")
+			manifest.SetDescription("Fuzzing paths, parameters, or content")
+			manifest.AddWithIcon("🎯", "Target", targetURL)
+			manifest.AddWithIcon("📝", "Method", *method)
+			manifest.AddEmphasis("📦", "Wordlist", fmt.Sprintf("%d words", len(words)))
+			if len(exts) > 0 {
+				manifest.AddWithIcon("📎", "Extensions", strings.Join(exts, ", "))
+			}
+			manifest.AddConcurrency(*concurrency, float64(*rateLimit))
+			if *matchStatus != "" {
+				manifest.AddWithIcon("✓", "Match Status", *matchStatus)
+			}
+			if *filterStatus != "" {
+				manifest.AddWithIcon("✗", "Filter Status", *filterStatus)
+			}
+			manifest.AddEstimate(len(words), float64(*rateLimit))
+			manifest.Print()
 		}
-		ui.PrintConfigLine("Threads", fmt.Sprintf("%d", *concurrency))
-		ui.PrintConfigLine("Rate Limit", fmt.Sprintf("%d req/s", *rateLimit))
-		if *matchStatus != "" {
-			ui.PrintConfigLine("Match Status", *matchStatus)
-		}
-		if *filterStatus != "" {
-			ui.PrintConfigLine("Filter Status", *filterStatus)
-		}
-		fmt.Println()
 	}
 
 	// Create fuzzer
@@ -8558,7 +8576,7 @@ func runFuzz() {
 
 	// Progress display goroutine (ffuf-style periodic status)
 	progressDone := make(chan struct{})
-	if !*silent && !*jsonOutput {
+	if !*silent && !*jsonOutput && !*streamMode {
 		go func() {
 			ticker := time.NewTicker(1 * time.Second)
 			defer ticker.Stop()
@@ -9197,6 +9215,9 @@ func runScan() {
 	profile := scanFlags.Bool("profile", false, "Enable CPU profiling")
 	memProfile := scanFlags.Bool("mem-profile", false, "Enable memory profiling")
 
+	// Streaming mode (CI-friendly output)
+	streamMode := scanFlags.Bool("stream", false, "Streaming output mode for CI/scripts")
+
 	scanFlags.Parse(os.Args[2:])
 
 	// Apply silent mode
@@ -9412,7 +9433,7 @@ func runScan() {
 	// Live progress display
 	startTime := time.Now()
 	progressDone := make(chan struct{})
-	if !*silent {
+	if !*silent && !*streamMode {
 		ui.PrintSection("🔬 Deep Vulnerability Scan")
 		fmt.Printf("  Target: %s\n", target)
 		fmt.Printf("  Scan Types: %d | Concurrency: %d\n\n", totalScans, *concurrency)
