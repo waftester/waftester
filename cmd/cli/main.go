@@ -75,6 +75,7 @@ import (
 	"github.com/waftester/waftester/pkg/race"
 	"github.com/waftester/waftester/pkg/recon"
 	"github.com/waftester/waftester/pkg/redirect"
+	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/report"
 	"github.com/waftester/waftester/pkg/runner"
 	"github.com/waftester/waftester/pkg/smuggling"
@@ -5168,7 +5169,7 @@ func runProbe() {
 			return
 		}
 		// Extract plugins
-		pluginRe := regexp.MustCompile(`/wp-content/plugins/([^/'"]+)`)
+		pluginRe := regexcache.MustGet(`/wp-content/plugins/([^/'"]+)`)
 		pluginMatches := pluginRe.FindAllStringSubmatch(body, 50)
 		pluginSet := make(map[string]bool)
 		for _, m := range pluginMatches {
@@ -5180,7 +5181,7 @@ func runProbe() {
 			plugins = append(plugins, p)
 		}
 		// Extract themes
-		themeRe := regexp.MustCompile(`/wp-content/themes/([^/'"]+)`)
+		themeRe := regexcache.MustGet(`/wp-content/themes/([^/'"]+)`)
 		themeMatches := themeRe.FindAllStringSubmatch(body, 50)
 		themeSet := make(map[string]bool)
 		for _, m := range themeMatches {
@@ -5196,7 +5197,7 @@ func runProbe() {
 
 	// CSP domain extraction helper
 	extractDomainsFromCSP := func(csp string) []string {
-		domainRe := regexp.MustCompile(`(?:https?://)?([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+)`)
+		domainRe := regexcache.MustGet(`(?:https?://)?([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+)`)
 		matches := domainRe.FindAllStringSubmatch(csp, 100)
 		domains := make(map[string]bool)
 		for _, m := range matches {
@@ -5240,15 +5241,15 @@ func runProbe() {
 	// Helper function to strip HTML/XML tags from content
 	stripHTMLTags := func(content string) string {
 		// Remove script and style elements entirely
-		scriptRe := regexp.MustCompile(`(?is)<script[^>]*>.*?</script>`)
+		scriptRe := regexcache.MustGet(`(?is)<script[^>]*>.*?</script>`)
 		content = scriptRe.ReplaceAllString(content, "")
-		styleRe := regexp.MustCompile(`(?is)<style[^>]*>.*?</style>`)
+		styleRe := regexcache.MustGet(`(?is)<style[^>]*>.*?</style>`)
 		content = styleRe.ReplaceAllString(content, "")
 		// Remove all HTML tags
-		tagRe := regexp.MustCompile(`<[^>]+>`)
+		tagRe := regexcache.MustGet(`<[^>]+>`)
 		content = tagRe.ReplaceAllString(content, " ")
 		// Collapse multiple whitespace
-		spaceRe := regexp.MustCompile(`\s+`)
+		spaceRe := regexcache.MustGet(`\s+`)
 		content = spaceRe.ReplaceAllString(content, " ")
 		return strings.TrimSpace(content)
 	}
@@ -5408,7 +5409,7 @@ func runProbe() {
 
 		// Simple expression parser
 		// Handle contains(body, "string")
-		containsRe := regexp.MustCompile(`contains\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
+		containsRe := regexcache.MustGet(`contains\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
 		expr = containsRe.ReplaceAllStringFunc(expr, func(match string) string {
 			parts := containsRe.FindStringSubmatch(match)
 			if len(parts) == 3 {
@@ -5427,7 +5428,7 @@ func runProbe() {
 		})
 
 		// Handle !contains(body, "string")
-		notContainsRe := regexp.MustCompile(`!\s*contains\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
+		notContainsRe := regexcache.MustGet(`!\s*contains\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
 		expr = notContainsRe.ReplaceAllStringFunc(expr, func(match string) string {
 			parts := notContainsRe.FindStringSubmatch(match)
 			if len(parts) == 3 {
@@ -5446,7 +5447,7 @@ func runProbe() {
 		})
 
 		// Handle matches(body, "regex")
-		matchesRe := regexp.MustCompile(`matches\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
+		matchesRe := regexcache.MustGet(`matches\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
 		expr = matchesRe.ReplaceAllStringFunc(expr, func(match string) string {
 			parts := matchesRe.FindStringSubmatch(match)
 			if len(parts) == 3 {
@@ -5454,7 +5455,7 @@ func runProbe() {
 				pattern := parts[2]
 				if val, ok := variables[varName]; ok {
 					if strVal, ok := val.(string); ok {
-						re, err := regexp.Compile(pattern)
+						re, err := regexcache.Get(pattern)
 						if err == nil && re.MatchString(strVal) {
 							return "true"
 						}
@@ -5466,7 +5467,7 @@ func runProbe() {
 		})
 
 		// Handle hasPrefix(str, "prefix")
-		hasPrefixRe := regexp.MustCompile(`hasPrefix\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
+		hasPrefixRe := regexcache.MustGet(`hasPrefix\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
 		expr = hasPrefixRe.ReplaceAllStringFunc(expr, func(match string) string {
 			parts := hasPrefixRe.FindStringSubmatch(match)
 			if len(parts) == 3 {
@@ -5485,7 +5486,7 @@ func runProbe() {
 		})
 
 		// Handle hasSuffix(str, "suffix")
-		hasSuffixRe := regexp.MustCompile(`hasSuffix\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
+		hasSuffixRe := regexcache.MustGet(`hasSuffix\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
 		expr = hasSuffixRe.ReplaceAllStringFunc(expr, func(match string) string {
 			parts := hasSuffixRe.FindStringSubmatch(match)
 			if len(parts) == 3 {
@@ -5504,7 +5505,7 @@ func runProbe() {
 		})
 
 		// Handle len(var) - replace with actual length
-		lenRe := regexp.MustCompile(`len\s*\(\s*(\w+)\s*\)`)
+		lenRe := regexcache.MustGet(`len\s*\(\s*(\w+)\s*\)`)
 		expr = lenRe.ReplaceAllStringFunc(expr, func(match string) string {
 			parts := lenRe.FindStringSubmatch(match)
 			if len(parts) == 2 {
@@ -5519,7 +5520,7 @@ func runProbe() {
 		})
 
 		// Replace numeric variable comparisons: status_code == 200
-		numericRe := regexp.MustCompile(`(status_code|content_length)\s*(==|!=|<=|>=|<|>)\s*(\d+)`)
+		numericRe := regexcache.MustGet(`(status_code|content_length)\s*(==|!=|<=|>=|<|>)\s*(\d+)`)
 		expr = numericRe.ReplaceAllStringFunc(expr, func(match string) string {
 			parts := numericRe.FindStringSubmatch(match)
 			if len(parts) == 4 {
@@ -5556,7 +5557,7 @@ func runProbe() {
 		})
 
 		// Replace string variable comparisons: content_type == "text/html"
-		stringRe := regexp.MustCompile(`(content_type|title|host|path|method|scheme|server|location)\s*(==|!=)\s*"([^"]+)"`)
+		stringRe := regexcache.MustGet(`(content_type|title|host|path|method|scheme|server|location)\s*(==|!=)\s*"([^"]+)"`)
 		expr = stringRe.ReplaceAllStringFunc(expr, func(match string) string {
 			parts := stringRe.FindStringSubmatch(match)
 			if len(parts) == 4 {
@@ -6185,7 +6186,7 @@ func runProbe() {
 
 			// Extract regex
 			if *extractRegex != "" {
-				re, err := regexp.Compile(*extractRegex)
+				re, err := regexcache.Get(*extractRegex)
 				if err == nil {
 					matches := re.FindAllString(bodyStr, 50) // limit to 50 matches
 					results.Extracted = matches
@@ -6206,7 +6207,7 @@ func runProbe() {
 						pattern = `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`
 					}
 					if pattern != "" {
-						re, err := regexp.Compile(pattern)
+						re, err := regexcache.Get(pattern)
 						if err == nil {
 							matches := re.FindAllString(bodyStr, 50)
 							results.Extracted = append(results.Extracted, matches...)
@@ -6218,7 +6219,7 @@ func runProbe() {
 			// Extract FQDN (domains and subdomains) from response body and headers
 			if *extractFQDN {
 				fqdnPattern := `(?i)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}`
-				re, err := regexp.Compile(fqdnPattern)
+				re, err := regexcache.Get(fqdnPattern)
 				if err == nil {
 					// Extract from body
 					bodyMatches := re.FindAllString(bodyStr, 100)
@@ -6764,7 +6765,7 @@ func runProbe() {
 
 		// Match regex - only show if body matches regex
 		if *matchRegex != "" && !skipOutput {
-			re, err := regexp.Compile(*matchRegex)
+			re, err := regexcache.Get(*matchRegex)
 			if err == nil && !re.MatchString(results.rawBody) {
 				skipOutput = true
 			}
@@ -6772,7 +6773,7 @@ func runProbe() {
 
 		// Filter regex - skip if body matches regex
 		if *filterRegex != "" && !skipOutput {
-			re, err := regexp.Compile(*filterRegex)
+			re, err := regexcache.Get(*filterRegex)
 			if err == nil && re.MatchString(results.rawBody) {
 				skipOutput = true
 			}
@@ -6880,7 +6881,7 @@ func runProbe() {
 		if *matchCondition != "" && !skipOutput {
 			// Extract title from body if present
 			titleStr := ""
-			titleRe := regexp.MustCompile(`<title[^>]*>([^<]+)</title>`)
+			titleRe := regexcache.MustGet(`<title[^>]*>([^<]+)</title>`)
 			if titleMatch := titleRe.FindStringSubmatch(results.rawBody); len(titleMatch) > 1 {
 				titleStr = titleMatch[1]
 			}
@@ -6892,7 +6893,7 @@ func runProbe() {
 		// DSL Filter Condition - skip if DSL expression matches
 		if *filterCondition != "" && !skipOutput {
 			titleStr := ""
-			titleRe := regexp.MustCompile(`<title[^>]*>([^<]+)</title>`)
+			titleRe := regexcache.MustGet(`<title[^>]*>([^<]+)</title>`)
 			if titleMatch := titleRe.FindStringSubmatch(results.rawBody); len(titleMatch) > 1 {
 				titleStr = titleMatch[1]
 			}
@@ -8454,7 +8455,7 @@ func runFuzz() {
 	var matchRe, filterRe *regexp.Regexp
 	if *matchRegex != "" {
 		var err error
-		matchRe, err = regexp.Compile(*matchRegex)
+		matchRe, err = regexcache.Get(*matchRegex)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Invalid match regex: %v", err))
 			os.Exit(1)
@@ -8462,7 +8463,7 @@ func runFuzz() {
 	}
 	if *filterRegex != "" {
 		var err error
-		filterRe, err = regexp.Compile(*filterRegex)
+		filterRe, err = regexcache.Get(*filterRegex)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Invalid filter regex: %v", err))
 			os.Exit(1)
@@ -11679,7 +11680,7 @@ func buildFilterConfig(cfg *config.Config) *core.FilterConfig {
 
 	// Parse match regex
 	if cfg.MatchRegex != "" {
-		if re, err := regexp.Compile(cfg.MatchRegex); err == nil {
+		if re, err := regexcache.Get(cfg.MatchRegex); err == nil {
 			fc.MatchRegex = re
 			hasAny = true
 		}
@@ -11687,7 +11688,7 @@ func buildFilterConfig(cfg *config.Config) *core.FilterConfig {
 
 	// Parse filter regex
 	if cfg.FilterRegex != "" {
-		if re, err := regexp.Compile(cfg.FilterRegex); err == nil {
+		if re, err := regexcache.Get(cfg.FilterRegex); err == nil {
 			fc.FilterRegex = re
 			hasAny = true
 		}
