@@ -148,3 +148,27 @@ func TestNewClient_ConcurrentAccess(t *testing.T) {
 		}
 	}
 }
+
+// Benchmarks
+
+func BenchmarkDefault(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = Default()
+	}
+}
+
+func BenchmarkNew(b *testing.B) {
+	cfg := DefaultConfig()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = New(cfg)
+	}
+}
+
+func BenchmarkDefaultConfig(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = DefaultConfig()
+	}
+}
