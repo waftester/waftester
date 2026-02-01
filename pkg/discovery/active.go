@@ -6,7 +6,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -490,7 +489,7 @@ func (ad *ActiveDiscoverer) fingerprintTechnology(ctx context.Context) []string 
 	}
 
 	// Check response body for hints
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 100*1024))
+	body, _ := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
 	bodyStr := strings.ToLower(string(body))
 
 	if strings.Contains(bodyStr, "wp-content") || strings.Contains(bodyStr, "wordpress") {
@@ -533,8 +532,8 @@ func (ad *ActiveDiscoverer) detectWildcardBaseline(ctx context.Context) {
 				continue
 			}
 
-			body, _ := io.ReadAll(io.LimitReader(resp.Body, 50*1024))
-			resp.Body.Close()
+			body, _ := iohelper.ReadBody(resp.Body, 50*1024)
+			iohelper.DrainAndClose(resp.Body)
 
 			fp := CalculateFingerprint(resp.StatusCode, body, resp.Header.Get("Content-Type"))
 			ad.wildcardDetector.AddBaseline(method, fp)
@@ -685,7 +684,7 @@ func (ad *ActiveDiscoverer) probeSinglePath(ctx context.Context, path string) {
 	defer resp.Body.Close()
 
 	// Read body for analysis
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 50*1024))
+	body, _ := iohelper.ReadBody(resp.Body, 50*1024)
 	contentType := resp.Header.Get("Content-Type")
 
 	// Check if this is a wildcard/soft-404 response using fingerprinting
@@ -806,7 +805,7 @@ func (ad *ActiveDiscoverer) extractLinksFromPage(ctx context.Context, path strin
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 100*1024))
+	body, _ := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
 	bodyStr := string(body)
 	contentType := resp.Header.Get("Content-Type")
 
@@ -1077,7 +1076,7 @@ func (ad *ActiveDiscoverer) probeParameters(ctx context.Context, path string, pa
 			continue
 		}
 		body, _ := iohelper.ReadBodyDefault(resp.Body)
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		// If response differs significantly, parameter is likely processed
 		if abs(len(body)-baseLen) > 50 || resp.StatusCode != baseResp.StatusCode {
@@ -1184,7 +1183,7 @@ func (ad *ActiveDiscoverer) probeMethod(ctx context.Context, ep Endpoint, method
 	if err != nil {
 		return
 	}
-	resp.Body.Close()
+	iohelper.DrainAndClose(resp.Body)
 
 	// Method is supported if not 405 Method Not Allowed
 	if resp.StatusCode != 405 && resp.StatusCode != 501 {

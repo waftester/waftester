@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,6 +16,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/corpus"
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/ui"
 	"golang.org/x/time/rate"
@@ -227,7 +227,7 @@ func (a *Assessment) detectWAF(ctx context.Context) {
 		}
 		defer resp2.Body.Close()
 
-		body, _ := io.ReadAll(io.LimitReader(resp2.Body, 8192))
+		body, _ := iohelper.ReadBody(resp2.Body, iohelper.SmallMaxBodySize)
 		a.detectedWAF = detectWAFFromResponse(resp2.Header, resp2.StatusCode, string(body))
 	}
 

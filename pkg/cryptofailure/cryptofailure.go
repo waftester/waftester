@@ -6,12 +6,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // VulnerabilityType represents cryptographic vulnerability types
@@ -495,7 +496,7 @@ func (t *Tester) ScanResponseForSecrets(ctx context.Context, path string) ([]Tes
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024)) // 1MB limit
+	body, err := iohelper.ReadBody(resp.Body, iohelper.DefaultMaxBodySize) // 1MB limit
 	if err != nil {
 		return nil, err
 	}
