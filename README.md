@@ -106,20 +106,34 @@ waf-tester scan -u https://target.com -stream -json > scan-events.jsonl
 
 ### CI/CD Pipeline Integration
 
-Use `-stream -json` for machine-readable real-time output:
+Use `--json` for machine-readable output in automation pipelines:
 
 ```bash
-# GitHub Actions example
-waf-tester scan -u $TARGET_URL -stream -json | tee scan.jsonl
+# JSON output for automation (v2.3.4+)
+waf-tester auto -u https://target.com --json
+waf-tester scan -u https://target.com --json > results.json
+waf-tester probe -u https://target.com --json | jq '.waf'
 
-# Count vulnerabilities found
-waf-tester scan -u $TARGET_URL -stream -json | jq 'select(.type=="vulnerability")' | wc -l
+# Real-time streaming JSON for CI/CD pipelines
+waf-tester scan -u $TARGET_URL -stream -json | jq 'select(.type=="vulnerability")'
 
-# Filter by severity
-waf-tester scan -u $TARGET_URL -stream -json | jq 'select(.data.severity=="Critical")'
+# Save events to NDJSON file
+waf-tester scan -u $TARGET_URL -stream -json > scan-events.jsonl
+
+# Filter critical vulnerabilities and fail build
+waf-tester scan -u $TARGET_URL -stream -json | jq 'select(.data.severity=="Critical")' | grep -q . && exit 1
 ```
 
-Event types emitted:
+**Key Flags for Automation:**
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output results as JSON (use with any command) |
+| `-stream -json` | Real-time NDJSON events for pipelines |
+| `-sarif` | SARIF format for GitHub Security tab |
+| `-o` | Write output to file |
+
+Event types emitted in streaming mode:
 - `scan_start` - Scanner beginning execution
 - `vulnerability` - Vulnerability discovered
 - `scan_complete` - Scanner finished (guaranteed even on errors)
