@@ -35,6 +35,7 @@ const (
 
 // hostState tracks the error count and expiration for a host
 type hostState struct {
+	mu        sync.RWMutex
 	count     int32
 	markedAt  time.Time
 	permanent bool
@@ -72,10 +73,12 @@ func (c *Cache) MarkError(host string) bool {
 	if v, ok := c.hosts.Load(host); ok {
 		state = v.(*hostState)
 		// Check if expired and reset if so
+		state.mu.Lock()
 		if !state.permanent && !state.markedAt.IsZero() && time.Since(state.markedAt) > c.expiry {
 			atomic.StoreInt32(&state.count, 0)
 			state.markedAt = time.Time{}
 		}
+		state.mu.Unlock()
 	} else {
 		state = &hostState{}
 		actual, _ := c.hosts.LoadOrStore(host, state)
@@ -85,9 +88,11 @@ func (c *Cache) MarkError(host string) bool {
 	newCount := atomic.AddInt32(&state.count, 1)
 	if newCount >= c.maxErrors {
 		// Only set markedAt on first time reaching threshold
+		state.mu.Lock()
 		if state.markedAt.IsZero() {
 			state.markedAt = time.Now()
 		}
+		state.mu.Unlock()
 		return true
 	}
 	return false
@@ -126,9 +131,17 @@ func (c *Cache) Check(host string) bool {
 	// Check if exceeded threshold
 	if atomic.LoadInt32(&state.count) >= c.maxErrors {
 		// Check expiry for non-permanent entries
-		if !state.permanent && time.Since(state.markedAt) > c.expiry {
+		state.mu.RLock()
+		permanent := state.permanent
+		markedAt := state.markedAt
+		state.mu.RUnlock()
+
+		if !permanent && time.Since(markedAt) > c.expiry {
 			// Expired, reset the state
+			state.mu.Lock()
 			atomic.StoreInt32(&state.count, 0)
+			state.markedAt = time.Time{}
+			state.mu.Unlock()
 			c.misses.Add(1)
 			return false
 		}
