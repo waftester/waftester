@@ -5,12 +5,12 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"fmt"
-	"io"
 	"math/big"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -106,7 +106,7 @@ func (c *Calibrator) Calibrate(ctx context.Context) (*Result, error) {
 			continue
 		}
 
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := iohelper.ReadBodyDefault(resp.Body)
 		resp.Body.Close()
 
 		status := resp.StatusCode

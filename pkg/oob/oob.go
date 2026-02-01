@@ -7,11 +7,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // InteractionType represents the type of OOB interaction
@@ -189,11 +190,11 @@ func (c *InteractshClient) Poll(ctx context.Context) ([]Interaction, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := iohelper.ReadBodyDefault(resp.Body)
 		return nil, fmt.Errorf("poll failed: %d - %s", resp.StatusCode, string(body))
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := iohelper.ReadBodyDefault(resp.Body)
 	if err != nil {
 		return nil, err
 	}

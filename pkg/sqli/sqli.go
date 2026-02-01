@@ -6,13 +6,13 @@ package sqli
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -513,7 +513,7 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 		return nil, err
 	}
 	baselineTime := time.Since(baselineStart)
-	baseBody, _ := io.ReadAll(baseResp.Body)
+	baseBody, _ := iohelper.ReadBodyDefault(baseResp.Body)
 	baseResp.Body.Close()
 	baseLen := len(baseBody)
 
@@ -531,7 +531,7 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 		}
 
 		responseTime := time.Since(start)
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := iohelper.ReadBodyDefault(resp.Body)
 		resp.Body.Close()
 
 		// Error-based detection

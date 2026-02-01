@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -13,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Source represents an OSINT data source
@@ -543,7 +544,7 @@ func (c *CrtshClient) FetchSubdomains(ctx context.Context, domain string) ([]Res
 		return nil, fmt.Errorf("crt.sh error: %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := iohelper.ReadBodyDefault(resp.Body)
 	if err != nil {
 		return nil, err
 	}

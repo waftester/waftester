@@ -5,11 +5,12 @@ import (
 	"bytes"
 	"encoding/xml"
 	"fmt"
-	"io"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Client is a SOAP client
@@ -150,7 +151,7 @@ func (c *Client) Call(req *Request) (*Response, error) {
 	defer httpResp.Body.Close()
 
 	// Read response
-	body, err := io.ReadAll(httpResp.Body)
+	body, err := iohelper.ReadBodyDefault(httpResp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
@@ -398,7 +399,7 @@ func FetchWSDL(url string) (*WSDLDefinition, error) {
 		return nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)
 	}
 
-	content, err := io.ReadAll(resp.Body)
+	content, err := iohelper.ReadBodyDefault(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read WSDL: %w", err)
 	}

@@ -3,12 +3,13 @@ package lfi
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Config configures LFI testing
@@ -136,7 +137,7 @@ func (s *Scanner) testPayload(ctx context.Context, targetURL, param string, payl
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	result.StatusCode = resp.StatusCode
 	result.ResponseSize = len(body)
 

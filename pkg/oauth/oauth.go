@@ -9,12 +9,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // VulnerabilityType represents the type of OAuth vulnerability.
@@ -624,7 +625,7 @@ func DiscoverOIDCEndpoints(ctx context.Context, issuer string) (*OAuthEndpoint, 
 		return nil, fmt.Errorf("discovery failed with status %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := iohelper.ReadBodyDefault(resp.Body)
 	if err != nil {
 		return nil, err
 	}

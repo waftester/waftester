@@ -3,11 +3,12 @@ package csrf
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Config configures CSRF testing
@@ -132,7 +133,7 @@ func (s *Scanner) analyzePage(ctx context.Context, url string) PageAnalysis {
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	bodyStr := string(body)
 
 	// Check for common CSRF token patterns

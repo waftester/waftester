@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // InjectionType represents different command injection types
@@ -382,7 +384,7 @@ func (t *Tester) testPayload(ctx context.Context, targetURL, param, method strin
 	defer resp.Body.Close()
 	elapsed := time.Since(start)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	bodyStr := string(body)
 
 	return t.analyzeResponse(testURL.String(), param, payload, bodyStr, elapsed, baseline)

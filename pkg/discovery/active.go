@@ -14,6 +14,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // ActiveDiscoverer performs aggressive endpoint discovery
@@ -1057,7 +1059,7 @@ func (ad *ActiveDiscoverer) probeParameters(ctx context.Context, path string, pa
 	if err != nil {
 		return found
 	}
-	baseBody, _ := io.ReadAll(baseResp.Body)
+	baseBody, _ := iohelper.ReadBodyDefault(baseResp.Body)
 	baseResp.Body.Close()
 	baseLen := len(baseBody)
 
@@ -1074,7 +1076,7 @@ func (ad *ActiveDiscoverer) probeParameters(ctx context.Context, path string, pa
 		if err != nil {
 			continue
 		}
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := iohelper.ReadBodyDefault(resp.Body)
 		resp.Body.Close()
 
 		// If response differs significantly, parameter is likely processed

@@ -3,11 +3,12 @@ package securitymisconfig
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Config configures security misconfiguration testing
@@ -80,7 +81,7 @@ func (s *Scanner) TestSecurityHeaders(ctx context.Context, targetURL string) ([]
 		return nil, err
 	}
 	defer resp.Body.Close()
-	io.ReadAll(resp.Body)
+	iohelper.ReadBodyDefault(resp.Body)
 
 	for _, header := range RequiredSecurityHeaders() {
 		result := Result{
@@ -164,7 +165,7 @@ func (s *Scanner) testEndpoint(ctx context.Context, url, testType, endpoint stri
 		return result
 	}
 	defer resp.Body.Close()
-	io.ReadAll(resp.Body)
+	iohelper.ReadBodyDefault(resp.Body)
 
 	result.StatusCode = resp.StatusCode
 

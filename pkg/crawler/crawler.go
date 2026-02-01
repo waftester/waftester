@@ -5,7 +5,6 @@ package crawler
 import (
 	"context"
 	"crypto/tls"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -14,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -349,7 +349,7 @@ func (c *Crawler) crawlURL(rawURL string, depth int) *CrawlResult {
 	result.Headers = resp.Header
 
 	// Read body
-	body, err := io.ReadAll(resp.Body)
+	body, err := iohelper.ReadBodyDefault(resp.Body)
 	if err != nil {
 		result.Error = err.Error()
 		return result

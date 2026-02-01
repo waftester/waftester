@@ -3,13 +3,14 @@ package sessionfixation
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Config configures session fixation testing
@@ -115,7 +116,7 @@ func (s *Scanner) Scan(ctx context.Context, loginURL string, credentials url.Val
 	if err != nil {
 		return result, err
 	}
-	io.ReadAll(loginResp.Body)
+	iohelper.ReadBodyDefault(loginResp.Body)
 	loginResp.Body.Close()
 
 	// Step 3: Check if session changed after auth

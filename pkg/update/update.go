@@ -4,7 +4,6 @@ package update
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -213,7 +213,7 @@ func updateFromOWASP(cfg *UpdateConfig, report *UpdateReport) error {
 				return
 			}
 
-			body, err := io.ReadAll(resp.Body)
+			body, err := iohelper.ReadBodyDefault(resp.Body)
 			if err != nil {
 				fmt.Printf("%s (read error: %v)\n", red("failed"), err)
 				return
@@ -278,7 +278,7 @@ func updateFromGitHub(cfg *UpdateConfig, report *UpdateReport) error {
 	}
 
 	if resp.StatusCode != 200 {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := iohelper.ReadBodyDefault(resp.Body)
 		return fmt.Errorf("GitHub API error (HTTP %d): %s", resp.StatusCode, string(body))
 	}
 
@@ -371,7 +371,7 @@ func updateFromGitHubRepo(cfg *UpdateConfig, report *UpdateReport, tag string) e
 			continue
 		}
 
-		body, err := io.ReadAll(resp.Body)
+		body, err := iohelper.ReadBodyDefault(resp.Body)
 		resp.Body.Close()
 		if err != nil {
 			fmt.Printf("%s (read error)\n", red("failed"))
@@ -416,7 +416,7 @@ func downloadAndMergePayload(cfg *UpdateConfig, url, filename string) (int, erro
 		return 0, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := iohelper.ReadBodyDefault(resp.Body)
 	if err != nil {
 		return 0, err
 	}

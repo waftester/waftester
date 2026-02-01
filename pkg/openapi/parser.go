@@ -4,13 +4,13 @@ package openapi
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"gopkg.in/yaml.v3"
 )
 
@@ -168,7 +168,7 @@ func (p *Parser) ParseURL(url string) (*Spec, error) {
 	}
 	defer resp.Body.Close()
 
-	data, err := io.ReadAll(resp.Body)
+	data, err := iohelper.ReadBodyDefault(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}

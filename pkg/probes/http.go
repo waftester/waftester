@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -457,7 +458,7 @@ func (p *VHostProber) ProbeVHosts(ctx context.Context, targetIP string, port int
 	if err != nil {
 		return nil, err
 	}
-	baseBody, _ := io.ReadAll(baseResp.Body)
+	baseBody, _ := iohelper.ReadBodyDefault(baseResp.Body)
 	baseResp.Body.Close()
 
 	baseStatus := baseResp.StatusCode
@@ -486,7 +487,7 @@ func (p *VHostProber) ProbeVHosts(ctx context.Context, targetIP string, port int
 			continue
 		}
 
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := iohelper.ReadBodyDefault(resp.Body)
 		resp.Body.Close()
 
 		result := VHostProbeResult{

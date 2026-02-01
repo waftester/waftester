@@ -7,13 +7,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // VulnerabilityType represents the type of business logic vulnerability.
@@ -179,7 +180,7 @@ func (t *Tester) TestIDOR(ctx context.Context, baseURL, path string, originalID,
 	}
 	defer originalResp.Body.Close()
 
-	originalBody, _ := io.ReadAll(originalResp.Body)
+	originalBody, _ := iohelper.ReadBodyDefault(originalResp.Body)
 
 	// Now test with modified ID - replace in path only, not in baseURL
 	modifiedPath := strings.Replace(path, "{id}", modifiedID, -1)
@@ -199,7 +200,7 @@ func (t *Tester) TestIDOR(ctx context.Context, baseURL, path string, originalID,
 	}
 	defer modifiedResp.Body.Close()
 
-	modifiedBody, _ := io.ReadAll(modifiedResp.Body)
+	modifiedBody, _ := iohelper.ReadBodyDefault(modifiedResp.Body)
 
 	// Check for IDOR - if we can access another user's resource
 	if modifiedResp.StatusCode == 200 && originalResp.StatusCode == 200 {
@@ -259,7 +260,7 @@ func (t *Tester) TestAuthBypass(ctx context.Context, targetURL string) ([]Vulner
 			continue
 		}
 
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := iohelper.ReadBodyDefault(resp.Body)
 		resp.Body.Close()
 
 		// Check for bypass indicators
@@ -300,7 +301,7 @@ func (t *Tester) TestPrivilegeEscalation(ctx context.Context, targetURL string, 
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 
 	if resp.StatusCode == 200 && len(body) > 50 {
 		return &Vulnerability{
@@ -350,7 +351,7 @@ func (t *Tester) TestMassAssignment(ctx context.Context, targetURL string, norma
 	}
 	defer malResp.Body.Close()
 
-	malBody, _ := io.ReadAll(malResp.Body)
+	malBody, _ := iohelper.ReadBodyDefault(malResp.Body)
 
 	// Check for mass assignment indicators
 	if malResp.StatusCode == 200 || malResp.StatusCode == 201 {
@@ -411,7 +412,7 @@ func (t *Tester) TestRaceCondition(ctx context.Context, targetURL, method, body 
 			}
 			defer resp.Body.Close()
 
-			respBody, _ := io.ReadAll(resp.Body)
+			respBody, _ := iohelper.ReadBodyDefault(resp.Body)
 
 			mu.Lock()
 			responses[idx] = RaceResponse{
@@ -481,7 +482,7 @@ func (t *Tester) TestPriceManipulation(ctx context.Context, targetURL string, or
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 
 	if resp.StatusCode == 200 || resp.StatusCode == 201 {
 		// Check if manipulated price was accepted
@@ -519,7 +520,7 @@ func (t *Tester) TestWorkflowBypass(ctx context.Context, finalStepURL string, re
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 
 	if resp.StatusCode == 200 && len(body) > 20 {
 		return &Vulnerability{
@@ -551,7 +552,7 @@ func (t *Tester) TestEnumeration(ctx context.Context, targetURL string, validID,
 	if err != nil {
 		return nil, err
 	}
-	validBody, _ := io.ReadAll(validResp.Body)
+	validBody, _ := iohelper.ReadBodyDefault(validResp.Body)
 	validResp.Body.Close()
 
 	// Test with invalid ID
@@ -566,7 +567,7 @@ func (t *Tester) TestEnumeration(ctx context.Context, targetURL string, validID,
 	if err != nil {
 		return nil, err
 	}
-	invalidBody, _ := io.ReadAll(invalidResp.Body)
+	invalidBody, _ := iohelper.ReadBodyDefault(invalidResp.Body)
 	invalidResp.Body.Close()
 
 	// Check for enumeration - different responses indicate valid vs invalid

@@ -6,12 +6,13 @@ package redirect
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // VulnerabilityType represents different open redirect vulnerability types
@@ -351,7 +352,7 @@ func (t *Tester) testPayload(ctx context.Context, baseURL, param string, payload
 	defer resp.Body.Close()
 
 	// Read body for meta refresh and JavaScript detection
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	bodyStr := string(body)
 
 	// Analyze response

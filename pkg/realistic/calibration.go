@@ -5,9 +5,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Calibrator performs automatic baseline calibration for WAF testing
@@ -176,7 +177,7 @@ func (c *Calibrator) executeRequest(ctx context.Context, req *http.Request) (*Sa
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := iohelper.ReadBodyDefault(resp.Body)
 	if err != nil {
 		return nil, err
 	}

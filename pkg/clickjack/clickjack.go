@@ -3,11 +3,12 @@ package clickjack
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Config configures clickjacking testing
@@ -221,7 +222,7 @@ func (s *Scanner) CheckIframeLoad(ctx context.Context, targetURL string) bool {
 	defer resp.Body.Close()
 
 	// Read body to check for frame-busting scripts
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	bodyStr := string(body)
 
 	// Check for frame-busting JavaScript patterns

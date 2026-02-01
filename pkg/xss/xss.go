@@ -6,13 +6,13 @@ package xss
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -511,7 +511,7 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 			continue
 		}
 
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := iohelper.ReadBodyDefault(resp.Body)
 		resp.Body.Close()
 		bodyStr := string(body)
 
@@ -566,7 +566,7 @@ func (t *Tester) checkDOMXSS(ctx context.Context, targetURL string) []Vulnerabil
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	bodyStr := string(body)
 
 	hasSink := false

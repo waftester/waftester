@@ -3,11 +3,12 @@ package xmlinjection
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Config configures XML injection testing
@@ -115,7 +116,7 @@ func (s *Scanner) testPayload(ctx context.Context, targetURL string, payload Pay
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	result.StatusCode = resp.StatusCode
 	result.ResponseSize = len(body)
 

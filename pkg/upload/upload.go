@@ -9,7 +9,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
@@ -17,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // VulnerabilityType represents the type of upload vulnerability.
@@ -174,7 +175,7 @@ func (t *Tester) TestUpload(ctx context.Context, targetURL string, payload Uploa
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, _ := iohelper.ReadBodyDefault(resp.Body)
 
 	if t.isUploadSuccessful(resp.StatusCode, string(respBody)) {
 		return &Vulnerability{

@@ -8,11 +8,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // AttackType represents different GraphQL attack types
@@ -232,7 +233,7 @@ func (t *Tester) SendBatchQuery(ctx context.Context, queries []Request) ([]Respo
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := iohelper.ReadBodyDefault(resp.Body)
 	if err != nil {
 		return nil, resp.StatusCode, err
 	}
@@ -269,7 +270,7 @@ func (t *Tester) sendRequest(ctx context.Context, req Request) (*Response, int, 
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := iohelper.ReadBodyDefault(resp.Body)
 	if err != nil {
 		return nil, resp.StatusCode, err
 	}

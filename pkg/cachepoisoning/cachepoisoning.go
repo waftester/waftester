@@ -5,11 +5,12 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Config configures cache poisoning testing
@@ -121,7 +122,7 @@ func (s *Scanner) testUnkeyedHeader(ctx context.Context, targetURL, header strin
 	if err != nil {
 		return result
 	}
-	body1, _ := io.ReadAll(resp1.Body)
+	body1, _ := iohelper.ReadBodyDefault(resp1.Body)
 	resp1.Body.Close()
 
 	result.CacheHeaders = extractCacheHeaders(resp1.Header)
@@ -143,7 +144,7 @@ func (s *Scanner) testUnkeyedHeader(ctx context.Context, targetURL, header strin
 		if err != nil {
 			return result
 		}
-		body2, _ := io.ReadAll(resp2.Body)
+		body2, _ := iohelper.ReadBodyDefault(resp2.Body)
 		resp2.Body.Close()
 
 		// Check if poison persisted in cache

@@ -8,13 +8,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // VulnerabilityType represents the type of deserialization vulnerability.
@@ -149,7 +150,7 @@ func (t *Tester) TestPayload(ctx context.Context, targetURL string, param string
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	bodyStr := string(body)
 
 	// Check for deserialization indicators
@@ -192,7 +193,7 @@ func (t *Tester) TestPOST(ctx context.Context, targetURL string, payload Payload
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	bodyStr := string(body)
 
 	if t.isVulnerable(resp.StatusCode, bodyStr, payload.VulnType) {

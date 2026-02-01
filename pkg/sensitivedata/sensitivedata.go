@@ -3,12 +3,13 @@ package sensitivedata
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Config configures sensitive data testing
@@ -111,7 +112,7 @@ func (s *Scanner) Scan(ctx context.Context, targetURL string) ([]Result, error) 
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 
 	// Check body for sensitive data
 	bodyResults := s.scanContent(targetURL, string(body), "body")
