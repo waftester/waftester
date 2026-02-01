@@ -6,7 +6,6 @@ package cmdi
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -348,7 +347,6 @@ func (t *Tester) getBaselineTime(ctx context.Context, targetURL string, method s
 		return 0, err
 	}
 	defer iohelper.DrainAndClose(resp.Body)
-	io.Copy(io.Discard, resp.Body)
 
 	return time.Since(start), nil
 }
