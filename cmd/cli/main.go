@@ -11322,6 +11322,9 @@ func runMutate() {
 	showStats := mutateFlags.Bool("stats", false, "Show mutation registry stats only")
 	dryRun := mutateFlags.Bool("dry-run", false, "Show what would be tested without executing")
 
+	// Streaming mode (CI-friendly output)
+	streamMode := mutateFlags.Bool("stream", false, "Streaming output mode for CI/scripts")
+
 	mutateFlags.Parse(os.Args[2:])
 
 	// Resolve target
@@ -11567,10 +11570,12 @@ func runMutate() {
 	fmt.Printf("  Mutations: %d | Mode: %s\n\n", len(tasks), effectiveMode)
 
 	// Print initial placeholder lines for live update
-	fmt.Println("  ") // Progress bar line
-	fmt.Println("  ") // Stats line
-	fmt.Println("  ") // Bypass line
-	fmt.Println("  ") // Fun fact line
+	if !*streamMode {
+		fmt.Println("  ") // Progress bar line
+		fmt.Println("  ") // Stats line
+		fmt.Println("  ") // Bypass line
+		fmt.Println("  ") // Fun fact line
+	}
 
 	startTime := time.Now()
 	progressTicker := time.NewTicker(150 * time.Millisecond)
@@ -11578,13 +11583,14 @@ func runMutate() {
 
 	// Progress update goroutine
 	doneChan := make(chan struct{})
-	go func() {
-		spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-		frameIdx := 0
-		for {
-			select {
-			case <-doneChan:
-				return
+	if !*streamMode {
+		go func() {
+			spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+			frameIdx := 0
+			for {
+				select {
+				case <-doneChan:
+					return
 			case <-progressTicker.C:
 				total := atomic.LoadInt64(&blocked) + atomic.LoadInt64(&passed) + atomic.LoadInt64(&errors)
 				blk := atomic.LoadInt64(&blocked)
@@ -11669,6 +11675,7 @@ func runMutate() {
 			}
 		}
 	}()
+	} // end if !*streamMode
 
 	// Execute mutation tests
 	stats := executor.Execute(ctx, tasks, func(r *mutation.TestResult) {
@@ -11708,10 +11715,12 @@ func runMutate() {
 	})
 
 	close(doneChan)
-	time.Sleep(200 * time.Millisecond) // Let final render complete
+	if !*streamMode {
+		time.Sleep(200 * time.Millisecond) // Let final render complete
 
-	// Clear the live progress area
-	fmt.Print("\033[4A\033[J")
+		// Clear the live progress area
+		fmt.Print("\033[4A\033[J")
+	}
 
 	// Print final results with celebration or commiseration
 	fmt.Println()
