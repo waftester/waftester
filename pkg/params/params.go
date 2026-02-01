@@ -8,7 +8,6 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Discoverer handles parameter discovery operations
@@ -172,7 +173,7 @@ func (d *Discoverer) getBaseline(ctx context.Context, targetURL string, method s
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 
 	return &baselineResponse{
 		StatusCode:    resp.StatusCode,
@@ -205,7 +206,7 @@ func (d *Discoverer) passiveDiscovery(ctx context.Context, targetURL string) []D
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	content := string(body)
 
 	// Extract from HTML forms
@@ -420,7 +421,7 @@ func (d *Discoverer) testParamChunk(ctx context.Context, targetURL string, metho
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	content := string(body)
 	newHash := fmt.Sprintf("%x", md5.Sum(body))
 
@@ -482,7 +483,7 @@ func (d *Discoverer) testReflection(ctx context.Context, targetURL string, param
 			continue
 		}
 
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := iohelper.ReadBodyDefault(resp.Body)
 		resp.Body.Close()
 
 		if strings.Contains(string(body), canary) {
