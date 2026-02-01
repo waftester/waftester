@@ -788,11 +788,25 @@ func printDocsAuto() {
 	fmt.Println()
 	fmt.Println("  -u, -target <url>    Target URL (required)")
 	fmt.Println("  -service <name>      Service name (for workspace organization)")
-	fmt.Println("  -c <n>               Concurrency (default: 25)")
-	fmt.Println("  -rl <n>              Rate limit (default: 100)")
+	fmt.Println("  -c <n>               Concurrency (default: 50)")
+	fmt.Println("  -rl <n>              Rate limit (default: 200)")
 	fmt.Println("  -depth <n>           Discovery depth (default: 3)")
-	fmt.Println("  -format <type>       Output format (json, html, sarif, etc.)")
+	fmt.Println("  -output-dir <path>   Custom output directory")
 	fmt.Println("  -payloads <dir>      Payload directory")
+	fmt.Println("  -j, -json            Output final summary as JSON to stdout")
+	fmt.Println("  -stream              Streaming output mode for CI/scripts")
+	fmt.Println("  -v                   Verbose output")
+	fmt.Println()
+	fmt.Println("  Smart Mode:")
+	fmt.Println("  --smart              Enable WAF-aware testing (auto-detect WAF)")
+	fmt.Println("  --smart-mode <mode>  Optimization level: quick, standard, full, bypass")
+	fmt.Println()
+	fmt.Println("  Feature Toggles:")
+	fmt.Println("  --assess             Run enterprise assessment (default: true)")
+	fmt.Println("  --leaky-paths        Enable sensitive path scanning (default: true)")
+	fmt.Println("  --discover-params    Enable parameter discovery (default: true)")
+	fmt.Println("  --browser            Enable browser-based scanning (default: true)")
+	fmt.Println("  --full-recon         Run unified reconnaissance")
 	fmt.Println()
 
 	fmt.Println(ui.SectionStyle.Render("WORKSPACE STRUCTURE"))
@@ -813,11 +827,17 @@ func printDocsAuto() {
 	fmt.Println("  # Full automated scan")
 	fmt.Println("  waf-tester auto -u https://target.com -service myapp")
 	fmt.Println()
+	fmt.Println("  # Output JSON summary to stdout (for scripting)")
+	fmt.Println("  waf-tester auto -u https://target.com --json")
+	fmt.Println()
+	fmt.Println("  # CI/CD pipeline with JSON output")
+	fmt.Println("  waf-tester auto -u https://target.com -j > summary.json")
+	fmt.Println()
 	fmt.Println("  # Conservative automated scan")
 	fmt.Println("  waf-tester auto -u https://prod.com -c 10 -rl 20")
 	fmt.Println()
-	fmt.Println("  # With HTML report")
-	fmt.Println("  waf-tester auto -u https://target.com -format html")
+	fmt.Println("  # Smart mode with WAF-aware optimization")
+	fmt.Println("  waf-tester auto -u https://target.com --smart")
 	fmt.Println()
 }
 
@@ -1836,6 +1856,10 @@ func runAutoScan() {
 
 	// Streaming mode (CI-friendly output)
 	streamMode := autoFlags.Bool("stream", false, "Streaming output mode for CI/scripts")
+
+	// JSON output mode (print final summary as JSON to stdout)
+	jsonOutput := autoFlags.Bool("json", false, "Output final summary as JSON to stdout")
+	autoFlags.BoolVar(jsonOutput, "j", false, "Output final summary as JSON to stdout (short)")
 
 	autoFlags.Parse(os.Args[2:])
 
@@ -3442,6 +3466,81 @@ func runAutoScan() {
 	_ = browserHeadless
 	_ = browserTimeout
 	_ = enableBrowserScan
+
+	// Output JSON summary to stdout if requested
+	if *jsonOutput {
+		// Create a comprehensive output structure
+		jsonSummary := map[string]interface{}{
+			"target":            target,
+			"domain":            domain,
+			"timestamp":         time.Now().UTC().Format(time.RFC3339),
+			"duration_seconds":  duration.Seconds(),
+			"waf_effectiveness": wafEffectiveness,
+			"success":           results.FailedTests == 0,
+			"workspace":         workspaceDir,
+			"stats": map[string]interface{}{
+				"total_tests":     results.TotalTests,
+				"blocked":         results.BlockedTests,
+				"passed":          results.PassedTests,
+				"failed":          results.FailedTests,
+				"errors":          results.ErrorTests,
+				"requests_per_sec": results.RequestsPerSec,
+			},
+			"discovery": map[string]interface{}{
+				"endpoints":   len(discResult.Endpoints),
+				"waf_detected": discResult.WAFDetected,
+				"waf_vendor":  discResult.WAFFingerprint,
+			},
+			"js_analysis": map[string]interface{}{
+				"files_analyzed": jsAnalyzed,
+				"secrets_found":  len(allJSData.Secrets),
+				"endpoints":      len(allJSData.Endpoints),
+				"dom_sinks":      len(allJSData.DOMSinks),
+			},
+			"latency": map[string]interface{}{
+				"min_ms": results.LatencyStats.Min,
+				"max_ms": results.LatencyStats.Max,
+				"avg_ms": results.LatencyStats.Avg,
+				"p50_ms": results.LatencyStats.P50,
+				"p95_ms": results.LatencyStats.P95,
+				"p99_ms": results.LatencyStats.P99,
+			},
+			"severity_breakdown": results.SeverityBreakdown,
+			"category_breakdown": results.CategoryBreakdown,
+			"bypass_count":       results.FailedTests,
+			"files": map[string]string{
+				"discovery":   discoveryFile,
+				"js_analysis": jsAnalysisFile,
+				"test_plan":   testPlanFile,
+				"results":     resultsFile,
+				"summary":     summaryFile,
+				"report":      reportFile,
+			},
+		}
+
+		// Add enterprise metrics if available
+		if enterpriseMetrics, ok := summary["enterprise_metrics"]; ok {
+			jsonSummary["enterprise_metrics"] = enterpriseMetrics
+		}
+
+		// Add browser scan summary if available
+		if browserScan, ok := summary["browser_scan"]; ok {
+			jsonSummary["browser_scan"] = browserScan
+		}
+
+		// Add smart mode info if available
+		if smartResult != nil && smartResult.WAFDetected {
+			jsonSummary["smart_mode"] = map[string]interface{}{
+				"waf_detected": true,
+				"vendor":       smartResult.VendorName,
+				"confidence":   smartResult.Confidence,
+			}
+		}
+
+		// Output to stdout
+		jsonBytes, _ := json.MarshalIndent(jsonSummary, "", "  ")
+		fmt.Println(string(jsonBytes))
+	}
 
 	if results.FailedTests > 0 {
 		os.Exit(1)
