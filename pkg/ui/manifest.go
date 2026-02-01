@@ -139,7 +139,7 @@ func (m *ExecutionManifest) printBoxed() {
 	// Box characters
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "  ╔%s╗\n", strings.Repeat("═", maxWidth))
-	
+
 	// Title
 	titlePadding := (maxWidth - len(m.Title)) / 2
 	fmt.Fprintf(w, "  ║%s\033[1m%s\033[0m%s║\n",
@@ -166,7 +166,7 @@ func (m *ExecutionManifest) printBoxed() {
 		}
 
 		valueStr := fmt.Sprintf("%v", item.Value)
-		
+
 		// Apply emphasis styling
 		if item.Emphasis {
 			valueStr = fmt.Sprintf("\033[1;36m%s\033[0m", valueStr)
@@ -231,7 +231,7 @@ func AttackManifest(target string, payloadCount int, categories []string, concur
 func MultiTargetManifest(title string, targets []string, operation string) *ExecutionManifest {
 	m := NewExecutionManifest(title)
 	m.SetDescription(operation)
-	
+
 	sample := ""
 	if len(targets) > 0 {
 		sample = targets[0]
@@ -240,7 +240,7 @@ func MultiTargetManifest(title string, targets []string, operation string) *Exec
 		}
 	}
 	m.AddTargetInfo(len(targets), sample)
-	
+
 	return m
 }
 

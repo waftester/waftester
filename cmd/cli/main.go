@@ -2467,33 +2467,33 @@ func runAutoScan() {
 						select {
 						case <-paramProgressDone:
 							return
-					case <-ticker.C:
-						done := atomic.LoadInt32(&paramCompleted)
-						found := atomic.LoadInt32(&paramsFoundCount)
-						elapsed := time.Since(paramStartTime)
+						case <-ticker.C:
+							done := atomic.LoadInt32(&paramCompleted)
+							found := atomic.LoadInt32(&paramsFoundCount)
+							elapsed := time.Since(paramStartTime)
 
-						spinner := paramSpinnerFrames[paramFrameIdx%len(paramSpinnerFrames)]
-						paramFrameIdx++
+							spinner := paramSpinnerFrames[paramFrameIdx%len(paramSpinnerFrames)]
+							paramFrameIdx++
 
-						percent := float64(done) / float64(totalEndpoints) * 100
-						progressWidth := 25
-						fillWidth := int(float64(progressWidth) * percent / 100)
-						bar := fmt.Sprintf("[%s%s]",
-							strings.Repeat("█", fillWidth),
-							strings.Repeat("░", progressWidth-fillWidth))
+							percent := float64(done) / float64(totalEndpoints) * 100
+							progressWidth := 25
+							fillWidth := int(float64(progressWidth) * percent / 100)
+							bar := fmt.Sprintf("[%s%s]",
+								strings.Repeat("█", fillWidth),
+								strings.Repeat("░", progressWidth-fillWidth))
 
-						paramColor := "\033[33m" // Yellow
-						if found > 0 {
-							paramColor = "\033[32m" // Green - params found!
+							paramColor := "\033[33m" // Yellow
+							if found > 0 {
+								paramColor = "\033[32m" // Green - params found!
+							}
+
+							fmt.Printf("\033[2A\033[J")
+							fmt.Printf("  %s %s %.1f%% (%d/%d endpoints)\n", spinner, bar, percent, done, totalEndpoints)
+							fmt.Printf("  %s🔍 Parameters found: %d\033[0m  ⏱️  %s\n",
+								paramColor, found, elapsed.Round(time.Second))
 						}
-
-						fmt.Printf("\033[2A\033[J")
-						fmt.Printf("  %s %s %.1f%% (%d/%d endpoints)\n", spinner, bar, percent, done, totalEndpoints)
-						fmt.Printf("  %s🔍 Parameters found: %d\033[0m  ⏱️  %s\n",
-							paramColor, found, elapsed.Round(time.Second))
 					}
-				}
-			}()
+				}()
 			} // end if !*streamMode
 			fmt.Println()
 			fmt.Println()
@@ -7266,7 +7266,7 @@ func runProbe() {
 	if progressDone != nil {
 		close(progressDone)
 		time.Sleep(50 * time.Millisecond) // Allow goroutine to exit cleanly
-		fmt.Print("\033[3A\033[J")         // Clear progress lines
+		fmt.Print("\033[3A\033[J")        // Clear progress lines
 	}
 
 	// Clean up checkpoint file on successful completion
@@ -9418,9 +9418,9 @@ func runScan() {
 	// Progress tracking
 	var completedScans int32
 	var totalScans int32
-	var scanTimings sync.Map       // map[string]time.Duration
-	var activeScans sync.Map       // map[string]time.Time - currently running scans
-	var vulnsFound int32           // live vulnerability counter
+	var scanTimings sync.Map // map[string]time.Duration
+	var activeScans sync.Map // map[string]time.Time - currently running scans
+	var vulnsFound int32     // live vulnerability counter
 
 	// Count total scans first
 	allScanTypes := []string{"sqli", "xss", "traversal", "cmdi", "nosqli", "ssrf", "ssti", "xxe", "smuggling", "oauth", "jwt", "cors", "redirect", "hostheader", "cache", "upload", "deserialize", "bizlogic", "race", "secheaders", "wafdetect", "waffprint", "wafevasion", "techdetect", "jsanalyze"}
@@ -10797,7 +10797,7 @@ func runScan() {
 	if !*silent {
 		close(progressDone)
 		time.Sleep(50 * time.Millisecond) // Allow goroutine to exit cleanly
-		fmt.Print("\033[4A\033[J")         // Clear progress lines
+		fmt.Print("\033[4A\033[J")        // Clear progress lines
 	}
 
 	// Print scan completion summary
@@ -11591,90 +11591,90 @@ func runMutate() {
 				select {
 				case <-doneChan:
 					return
-			case <-progressTicker.C:
-				total := atomic.LoadInt64(&blocked) + atomic.LoadInt64(&passed) + atomic.LoadInt64(&errors)
-				blk := atomic.LoadInt64(&blocked)
-				pss := atomic.LoadInt64(&passed)
-				err := atomic.LoadInt64(&errors)
+				case <-progressTicker.C:
+					total := atomic.LoadInt64(&blocked) + atomic.LoadInt64(&passed) + atomic.LoadInt64(&errors)
+					blk := atomic.LoadInt64(&blocked)
+					pss := atomic.LoadInt64(&passed)
+					err := atomic.LoadInt64(&errors)
 
-				elapsed := time.Since(startTime)
-				percent := float64(total) / float64(len(tasks)) * 100
-				rps := float64(total) / elapsed.Seconds()
-				if elapsed.Seconds() < 1 {
-					rps = float64(total)
+					elapsed := time.Since(startTime)
+					percent := float64(total) / float64(len(tasks)) * 100
+					rps := float64(total) / elapsed.Seconds()
+					if elapsed.Seconds() < 1 {
+						rps = float64(total)
+					}
+
+					// Calculate ETA
+					eta := time.Duration(0)
+					if total > 0 && total < int64(len(tasks)) {
+						remaining := int64(len(tasks)) - total
+						eta = time.Duration(float64(remaining) / rps * float64(time.Second))
+					}
+
+					// Build progress bar (50 chars wide)
+					barWidth := 50
+					filled := int(percent / 100 * float64(barWidth))
+					bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
+
+					// Choose color based on bypass count
+					barColor := "82" // Green
+					if pss > 0 {
+						barColor = "226" // Gold
+					}
+					if pss > 10 {
+						barColor = "196" // Red hot
+					}
+
+					// Move cursor up 4 lines and redraw
+					fmt.Print("\033[4A\033[J")
+
+					// Progress bar
+					spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
+					fmt.Printf("  %s \033[38;5;%sm%s\033[0m %.1f%% (%d/%d)\n",
+						spinner, barColor, bar, percent, total, len(tasks))
+
+					// Stats with emojis
+					bypassIcon := "🔍"
+					if pss > 0 {
+						bypassIcon = "🎯"
+					}
+					if pss > 5 {
+						bypassIcon = "🔓"
+					}
+					if pss > 10 {
+						bypassIcon = "💥"
+					}
+
+					fmt.Printf("  %s Bypasses: \033[32m%d\033[0m | 🛡️ Blocked: \033[31m%d\033[0m | ⚠️ Errors: \033[33m%d\033[0m | ⚡ %.0f req/s | ETA: %s\n",
+						bypassIcon, pss, blk, err, rps, formatETA(eta))
+
+					// Last bypass found (sanitize for display - remove newlines/control chars)
+					bypassMu.Lock()
+					if lastBypassPayload != "" {
+						cleanPayload := sanitizeForDisplay(lastBypassPayload)
+						fmt.Printf("  🎯 Last bypass: \033[32m[%s]\033[0m %s\n", lastBypassEncoder, truncateString(cleanPayload, 50))
+					} else {
+						fmt.Println("  🔍 Hunting for bypasses...")
+					}
+					bypassMu.Unlock()
+
+					// Rotating fun facts
+					funFacts := []string{
+						"💡 Tip: Chunked encoding can split payloads to evade pattern matching",
+						"💡 Fun fact: Most WAFs can't properly normalize Unicode in all contexts",
+						"💡 Pro tip: Encoders combined with evasions multiply your test coverage",
+						"💡 Did you know? Parameter pollution bypasses 30%+ of WAFs",
+						"💡 Insight: Case variations alone find bypasses in 1 out of 5 WAFs",
+						"💡 Trivia: The first WAF was created in 1999 by Perfecto Technologies",
+						"💡 Fact: SQL comments /**/ can hide entire payload chunks",
+					}
+					factIdx := int(elapsed.Seconds()/8) % len(funFacts)
+					fmt.Printf("  %s\n", funFacts[factIdx])
+
+					frameIdx++
 				}
-
-				// Calculate ETA
-				eta := time.Duration(0)
-				if total > 0 && total < int64(len(tasks)) {
-					remaining := int64(len(tasks)) - total
-					eta = time.Duration(float64(remaining) / rps * float64(time.Second))
-				}
-
-				// Build progress bar (50 chars wide)
-				barWidth := 50
-				filled := int(percent / 100 * float64(barWidth))
-				bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
-
-				// Choose color based on bypass count
-				barColor := "82" // Green
-				if pss > 0 {
-					barColor = "226" // Gold
-				}
-				if pss > 10 {
-					barColor = "196" // Red hot
-				}
-
-				// Move cursor up 4 lines and redraw
-				fmt.Print("\033[4A\033[J")
-
-				// Progress bar
-				spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
-				fmt.Printf("  %s \033[38;5;%sm%s\033[0m %.1f%% (%d/%d)\n",
-					spinner, barColor, bar, percent, total, len(tasks))
-
-				// Stats with emojis
-				bypassIcon := "🔍"
-				if pss > 0 {
-					bypassIcon = "🎯"
-				}
-				if pss > 5 {
-					bypassIcon = "🔓"
-				}
-				if pss > 10 {
-					bypassIcon = "💥"
-				}
-
-				fmt.Printf("  %s Bypasses: \033[32m%d\033[0m | 🛡️ Blocked: \033[31m%d\033[0m | ⚠️ Errors: \033[33m%d\033[0m | ⚡ %.0f req/s | ETA: %s\n",
-					bypassIcon, pss, blk, err, rps, formatETA(eta))
-
-				// Last bypass found (sanitize for display - remove newlines/control chars)
-				bypassMu.Lock()
-				if lastBypassPayload != "" {
-					cleanPayload := sanitizeForDisplay(lastBypassPayload)
-					fmt.Printf("  🎯 Last bypass: \033[32m[%s]\033[0m %s\n", lastBypassEncoder, truncateString(cleanPayload, 50))
-				} else {
-					fmt.Println("  🔍 Hunting for bypasses...")
-				}
-				bypassMu.Unlock()
-
-				// Rotating fun facts
-				funFacts := []string{
-					"💡 Tip: Chunked encoding can split payloads to evade pattern matching",
-					"💡 Fun fact: Most WAFs can't properly normalize Unicode in all contexts",
-					"💡 Pro tip: Encoders combined with evasions multiply your test coverage",
-					"💡 Did you know? Parameter pollution bypasses 30%+ of WAFs",
-					"💡 Insight: Case variations alone find bypasses in 1 out of 5 WAFs",
-					"💡 Trivia: The first WAF was created in 1999 by Perfecto Technologies",
-					"💡 Fact: SQL comments /**/ can hide entire payload chunks",
-				}
-				factIdx := int(elapsed.Seconds()/8) % len(funFacts)
-				fmt.Printf("  %s\n", funFacts[factIdx])
-
-				frameIdx++
 			}
-		}
-	}()
+		}()
 	} // end if !*streamMode
 
 	// Execute mutation tests
