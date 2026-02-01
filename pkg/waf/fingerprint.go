@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 // Fingerprint contains a unique WAF fingerprint
@@ -51,13 +53,12 @@ func NewFingerprinter(timeout time.Duration) *Fingerprinter {
 	if timeout == 0 {
 		timeout = 10 * time.Second
 	}
+	// Use shared httpclient factory for connection pooling
 	return &Fingerprinter{
-		client: &http.Client{
-			Timeout: timeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
+		client: httpclient.New(httpclient.Config{
+			Timeout:            timeout,
+			InsecureSkipVerify: true,
+		}),
 		timeout:   timeout,
 		userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
 	}

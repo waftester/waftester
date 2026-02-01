@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 // DetectionResult contains comprehensive WAF/CDN detection results
@@ -109,27 +111,17 @@ func NewDetector(timeout time.Duration) *Detector {
 		timeout = 10 * time.Second
 	}
 
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
-		},
-		MaxIdleConns:        10,
-		IdleConnTimeout:     30 * time.Second,
-		DisableKeepAlives:   false,
-		MaxIdleConnsPerHost: 5,
-	}
+	// Use shared httpclient factory for connection pooling
+	client := httpclient.New(httpclient.Config{
+		Timeout:            timeout,
+		InsecureSkipVerify: true,
+		MaxIdleConns:       10,
+		MaxConnsPerHost:    5,
+		IdleConnTimeout:    30 * time.Second,
+	})
 
 	d := &Detector{
-		client: &http.Client{
-			Transport: transport,
-			Timeout:   timeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				if len(via) >= 5 {
-					return fmt.Errorf("too many redirects")
-				}
-				return nil
-			},
-		},
+		client: client,
 		timeout:   timeout,
 		userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
 	}
