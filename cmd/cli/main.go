@@ -2196,6 +2196,59 @@ func runAutoScan() {
 	}
 
 	jsAnalyzed := 0
+	totalJSFiles := len(jsFiles)
+	var secretsFound, endpointsFound int32
+
+	// Animated progress for JS analysis
+	jsProgressDone := make(chan struct{})
+	jsSpinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	jsFrameIdx := 0
+	jsStartTime := time.Now()
+
+	if totalJSFiles > 1 {
+		go func() {
+			ticker := time.NewTicker(100 * time.Millisecond)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-jsProgressDone:
+					return
+				case <-ticker.C:
+					analyzed := jsAnalyzed
+					secrets := atomic.LoadInt32(&secretsFound)
+					endpoints := atomic.LoadInt32(&endpointsFound)
+					elapsed := time.Since(jsStartTime)
+
+					spinner := jsSpinnerFrames[jsFrameIdx%len(jsSpinnerFrames)]
+					jsFrameIdx++
+
+					percent := float64(0)
+					if totalJSFiles > 0 {
+						percent = float64(analyzed) / float64(totalJSFiles) * 100
+					}
+
+					progressWidth := 25
+					fillWidth := int(float64(progressWidth) * percent / 100)
+					bar := fmt.Sprintf("[%s%s]",
+						strings.Repeat("█", fillWidth),
+						strings.Repeat("░", progressWidth-fillWidth))
+
+					secretColor := "\033[32m" // Green
+					if secrets > 0 {
+						secretColor = "\033[31m" // Red - secrets found!
+					}
+
+					fmt.Printf("\033[2A\033[J")
+					fmt.Printf("  %s %s %.1f%% (%d/%d files)\n", spinner, bar, percent, analyzed, totalJSFiles)
+					fmt.Printf("  📊 Endpoints: %d  %s🔑 Secrets: %d\033[0m  ⏱️  %s\n",
+						endpoints, secretColor, secrets, elapsed.Round(time.Second))
+				}
+			}
+		}()
+		fmt.Println()
+		fmt.Println()
+	}
+
 	for _, jsPath := range jsFiles {
 		var jsURL string
 		if !strings.HasPrefix(jsPath, "http") {
@@ -2236,10 +2289,21 @@ func runAutoScan() {
 		allJSData.Subdomains = append(allJSData.Subdomains, result.Subdomains...)
 		jsAnalyzed++
 
+		// Update atomic counters for progress display
+		atomic.AddInt32(&secretsFound, int32(len(result.Secrets)))
+		atomic.AddInt32(&endpointsFound, int32(len(result.Endpoints)))
+
 		if *verbose {
 			ui.PrintInfo(fmt.Sprintf("  Analyzed: %s (%d URLs, %d endpoints, %d secrets)",
 				jsPath, len(result.URLs), len(result.Endpoints), len(result.Secrets)))
 		}
+	}
+
+	// Stop JS analysis progress display
+	if totalJSFiles > 1 {
+		close(jsProgressDone)
+		time.Sleep(50 * time.Millisecond)
+		fmt.Printf("\033[2A\033[J")
 	}
 
 	// Deduplicate subdomains
@@ -2382,35 +2446,74 @@ func runAutoScan() {
 			ui.PrintInfo(fmt.Sprintf("  Testing %d endpoints for hidden parameters...", len(testEndpoints)))
 			fmt.Println()
 
-			// Discover params for each endpoint with progress display
+			// Discover params for each endpoint with animated progress display
 			allParams := make([]params.DiscoveredParam, 0)
-			startTime := time.Now()
-			for i, endpoint := range testEndpoints {
-				// Show progress
-				percent := float64(i+1) / float64(len(testEndpoints)) * 100
-				shortEndpoint := endpoint
-				if len(shortEndpoint) > 50 {
-					shortEndpoint = "..." + shortEndpoint[len(shortEndpoint)-47:]
-				}
-				fmt.Printf("\r  %s [%d/%d] %.0f%% %s",
-					ui.SpinnerStyle.Render("⟳"),
-					i+1, len(testEndpoints), percent,
-					ui.SubtitleStyle.Render(shortEndpoint))
+			paramStartTime := time.Now()
+			var paramCompleted int32
+			var paramsFoundCount int32
+			paramProgressDone := make(chan struct{})
+			paramSpinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+			paramFrameIdx := 0
+			totalEndpoints := len(testEndpoints)
 
+			go func() {
+				ticker := time.NewTicker(100 * time.Millisecond)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-paramProgressDone:
+						return
+					case <-ticker.C:
+						done := atomic.LoadInt32(&paramCompleted)
+						found := atomic.LoadInt32(&paramsFoundCount)
+						elapsed := time.Since(paramStartTime)
+
+						spinner := paramSpinnerFrames[paramFrameIdx%len(paramSpinnerFrames)]
+						paramFrameIdx++
+
+						percent := float64(done) / float64(totalEndpoints) * 100
+						progressWidth := 25
+						fillWidth := int(float64(progressWidth) * percent / 100)
+						bar := fmt.Sprintf("[%s%s]",
+							strings.Repeat("█", fillWidth),
+							strings.Repeat("░", progressWidth-fillWidth))
+
+						paramColor := "\033[33m" // Yellow
+						if found > 0 {
+							paramColor = "\033[32m" // Green - params found!
+						}
+
+						fmt.Printf("\033[2A\033[J")
+						fmt.Printf("  %s %s %.1f%% (%d/%d endpoints)\n", spinner, bar, percent, done, totalEndpoints)
+						fmt.Printf("  %s🔍 Parameters found: %d\033[0m  ⏱️  %s\n",
+							paramColor, found, elapsed.Round(time.Second))
+					}
+				}
+			}()
+			fmt.Println()
+			fmt.Println()
+
+			for _, endpoint := range testEndpoints {
 				result, err := paramDiscoverer.Discover(ctx, endpoint)
 				if err != nil {
 					if *verbose {
 						fmt.Println()
 						ui.PrintWarning(fmt.Sprintf("  Warning for %s: %v", endpoint, err))
 					}
+					atomic.AddInt32(&paramCompleted, 1)
 					continue
 				}
 				allParams = append(allParams, result.Parameters...)
+				atomic.AddInt32(&paramsFoundCount, int32(len(result.Parameters)))
+				atomic.AddInt32(&paramCompleted, 1)
 			}
-			fmt.Println() // Clear progress line
-			fmt.Println()
 
-			duration := time.Since(startTime)
+			// Stop progress display
+			close(paramProgressDone)
+			time.Sleep(50 * time.Millisecond)
+			fmt.Printf("\033[2A\033[J")
+
+			duration := time.Since(paramStartTime)
 
 			// Create combined result
 			paramResult = &params.DiscoveryResult{
