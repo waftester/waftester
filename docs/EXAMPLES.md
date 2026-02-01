@@ -1,194 +1,70 @@
-# 🎯 WAF-Tester Examples Guide
+# WAFtester Examples Guide
 
-> **The Complete Guide to WAF Testing** — From beginner to expert, every command explained.
+Complete usage examples for WAFtester commands.
 
-This guide shows you every way to use WAF-Tester with real examples. Each example explains **what it does** and **when to use it**.
+## Table of Contents
 
----
-
-## 📖 Table of Contents
-
-1. [Quick Start (5 minutes)](#-quick-start-5-minutes)
-2. [The Smart Workflow (Recommended)](#-the-smart-workflow-recommended)
-3. [Full Automated Scan (auto)](#-full-automated-scan-auto)
-4. [Enterprise Assessment (assess)](#-enterprise-assessment-assess)
-5. [Deep Vulnerability Scanning (scan)](#-deep-vulnerability-scanning-scan)
-6. [WAF Detection (vendor)](#-waf-detection-vendor)
-7. [WAF Bypass Hunting (bypass)](#-waf-bypass-hunting-bypass)
-8. [Mutation Testing (mutate)](#-mutation-testing-mutate)
-9. [False Positive Testing (fp)](#-false-positive-testing-fp)
-10. [Content Fuzzing (fuzz)](#-content-fuzzing-fuzz)
-11. [Protocol Probing (probe)](#-protocol-probing-probe)
-12. [Web Crawling (crawl)](#-web-crawling-crawl)
-13. [JavaScript Analysis (analyze)](#-javascript-analysis-analyze)
-14. [Protocol Detection (protocol)](#-protocol-detection-protocol)
-15. [Target Discovery (discover)](#-target-discovery-discover)
-16. [Test Plan Generation (learn)](#-test-plan-generation-learn)
-17. [Running Tests (run)](#-running-tests-run)
-18. [Payload Management](#-payload-management)
-19. [Output Formats](#-output-formats)
-20. [Working with Multiple Targets](#-working-with-multiple-targets)
-21. [Using Proxies](#-using-proxies)
-22. [Smart Mode (WAF-Aware Testing)](#-smart-mode-waf-aware-testing)
-23. [CI/CD Pipeline Integration](#-cicd-pipeline-integration)
-24. [Output Files Reference](#-output-files-reference)
-25. [Real-World Scenarios](#-real-world-scenarios)
+- [Quick Start](#quick-start)
+- [Automated Scanning (auto)](#automated-scanning-auto)
+- [Enterprise Assessment (assess)](#enterprise-assessment-assess)
+- [Vulnerability Scanning (scan)](#vulnerability-scanning-scan)
+- [WAF Detection (vendor)](#waf-detection-vendor)
+- [Bypass Hunting (bypass)](#bypass-hunting-bypass)
+- [Mutation Testing (mutate)](#mutation-testing-mutate)
+- [False Positive Testing (fp)](#false-positive-testing-fp)
+- [Content Fuzzing (fuzz)](#content-fuzzing-fuzz)
+- [Protocol Probing (probe)](#protocol-probing-probe)
+- [Discovery and Planning](#discovery-and-planning)
+- [Output Formats](#output-formats)
+- [CI/CD Integration](#cicd-integration)
+- [Real-World Scenarios](#real-world-scenarios)
 
 ---
 
-## 🚀 Quick Start (5 minutes)
+## Quick Start
 
-### 👉 Step 1: Copy and Paste This
+### One Command
 
 ```bash
 waf-tester auto -u https://example.com
 ```
 
-### 👀 What You'll See
+This discovers endpoints, generates a test plan, runs tests, and creates reports.
 
-```
-🚀 WAF-Tester v2.3.2
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📡 Discovering endpoints...
-   Found: 47 pages, 12 forms, 8 API endpoints
-
-📝 Creating test plan...
-   Generated: 156 tests across 5 categories
-
-🎯 Running security tests...
-   [████████████████████░░░░] 85% (132/156)
-
-✅ COMPLETE!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📂 YOUR FILES ARE HERE:
-   workspaces/example.com/2026-02-01_14-30-00/
-
-   📄 results.json      ← All findings (for scripts)
-   📊 results.html      ← Pretty report (open in browser!)
-   📋 results.sarif     ← For GitHub/GitLab
-```
-
-### 🎉 That's It!
-
-Open `results.html` in your browser to see your security report.
-
----
-
-## 📂 Where Are My Files?
-
-**Every command tells you exactly where files are saved:**
-
-```
-✓ Results saved to ./results.json
-✓ Report saved to ./report.html
-```
-
-### Quick Reference
-
-| You Run | Files Created | Location |
-|---------|---------------|----------|
-| `waf-tester auto -u URL` | 5 files | `workspaces/<domain>/<timestamp>/` |
-| `waf-tester discover -u URL` | 1 file | `./discovery.json` |
-| `waf-tester learn ...` | 1 file | `./testplan.json` |
-| `waf-tester scan -u URL -o out.json` | 1 file | `./out.json` (you choose!) |
-
-### Want Files Somewhere Else?
+### Three-Step Workflow
 
 ```bash
-# Put discovery file in my-folder/
-waf-tester discover -u https://example.com -output my-folder/disco.json
-
-# Save report to Desktop (Windows)
-waf-tester auto -u https://example.com -output-dir C:\Users\YOU\Desktop\scan
-
-# Save report to Desktop (Mac/Linux)
-waf-tester auto -u https://example.com -output-dir ~/Desktop/scan
-```
-
----
-
-## 🧠 The Smart Workflow (Recommended)
-
-**Three commands. Copy, paste, done.**
-
-### Step 1: Find All The Pages
-
-```bash
+# 1. Discover endpoints
 waf-tester discover -u https://example.com
-```
 
-**You'll see:**
-```
-📡 Crawling https://example.com...
-   Found 47 pages, 12 forms, 8 APIs
-
-✓ Saved to: discovery.json
-```
-
-### Step 2: Make a Test Plan
-
-```bash
+# 2. Generate test plan
 waf-tester learn -discovery discovery.json
-```
 
-**You'll see:**
-```
-📝 Analyzing discovery.json...
-   Login page → auth attacks
-   Search box → SQL injection
-   File upload → malware tests
-
-✓ Saved to: testplan.json
-```
-
-### Step 3: Run the Tests
-
-```bash
+# 3. Run tests
 waf-tester run -plan testplan.json -format html -o report.html
 ```
 
-**You'll see:**
-```
-🎯 Running 156 tests...
-   [████████████████████████] 100%
-
-✅ Done! Found 3 vulnerabilities.
-
-✓ Saved to: report.html
-```
-
-**Now open `report.html` in your browser!**
-
 ---
 
-## 🚀 Full Automated Scan (auto)
+## Automated Scanning (auto)
 
-The `auto` command does **everything** in one shot.
-
-### Basic Auto Scan
+### Basic Usage
 
 ```bash
 waf-tester auto -u https://example.com
 ```
 
-### With Smart WAF Detection
+### With Smart Mode
+
+Smart mode detects the WAF vendor and optimizes testing:
 
 ```bash
-# Detects WAF vendor and optimizes attacks
 waf-tester auto -u https://example.com --smart
 ```
 
-**What --smart does:**
-- Identifies the WAF (Cloudflare, AWS, Imperva, etc.)
-- Adjusts attack speed to avoid rate limiting
-- Prioritizes bypass techniques that work against that WAF
-
-### Full Power Mode
+### Full Options
 
 ```bash
-# Maximum coverage with all features enabled
 waf-tester auto -u https://example.com \
   --smart \
   --smart-mode=full \
@@ -197,31 +73,26 @@ waf-tester auto -u https://example.com \
   --browser
 ```
 
-**Options explained:**
-| Option | What it does |
-|--------|--------------|
+| Option | Description |
+|--------|-------------|
 | `--smart` | Enable WAF-aware testing |
 | `--smart-mode=full` | Use all bypass techniques |
-| `-c 100` | Use 100 parallel workers (faster) |
+| `-c 100` | 100 parallel workers |
 | `-rl 300` | 300 requests per second |
-| `--browser` | Use real browser for authenticated scanning |
+| `--browser` | Enable authenticated browser scanning |
 
-### Auto Scan for Specific Services
+### Service-Specific Scanning
 
 ```bash
-# For WordPress sites
 waf-tester auto -u https://myblog.com -service wordpress
-
-# For Django applications
 waf-tester auto -u https://myapp.com -service django
 ```
 
-**Available services:** `wordpress`, `drupal`, `nextjs`, `flask`, `django`
+Available services: `wordpress`, `drupal`, `nextjs`, `flask`, `django`
 
-### Stealth Mode (Avoid Detection)
+### Stealth Mode
 
 ```bash
-# Low and slow - avoid WAF detection
 waf-tester auto -u https://example.com \
   --smart \
   --smart-mode=stealth \
@@ -231,9 +102,9 @@ waf-tester auto -u https://example.com \
 
 ---
 
-## 🏢 Enterprise Assessment (assess)
+## Enterprise Assessment (assess)
 
-Professional WAF assessment with metrics that security teams understand.
+Professional WAF assessment with quantitative metrics.
 
 ### Basic Assessment
 
@@ -241,964 +112,268 @@ Professional WAF assessment with metrics that security teams understand.
 waf-tester assess -u https://example.com
 ```
 
-### Full Assessment with False Positive Testing
+### Full Assessment with Output
 
 ```bash
 waf-tester assess -u https://example.com \
   -fp \
-  -corpus "builtin,leipzig"
-```
-
-**What this measures:**
-- **Precision:** How many blocked requests were actually attacks?
-- **Recall (F1):** How many attacks were blocked?
-- **False Positive Rate:** How many normal requests were blocked?
-- **MCC Score:** Overall WAF quality score
-
-### Assessment for Specific Attack Types
-
-```bash
-# Test only SQL injection and XSS
-waf-tester assess -u https://example.com \
-  -categories "sqli,xss"
-```
-
-### Save Assessment Report
-
-```bash
-waf-tester assess -u https://example.com \
+  -corpus "builtin,leipzig" \
   -format json \
-  -o assessment-report.json
+  -o assessment.json
+```
+
+### Metrics Produced
+
+- **Detection Rate (TPR)** - Percentage of attacks blocked
+- **False Positive Rate (FPR)** - Percentage of legitimate traffic blocked
+- **Precision** - Percentage of blocks that were real attacks
+- **F1 Score** - Harmonic mean of precision and recall
+- **MCC** - Matthews Correlation Coefficient
+
+### Custom Categories
+
+```bash
+waf-tester assess -u https://example.com \
+  -categories sqli,xss,rce \
+  -o assessment.json
 ```
 
 ---
 
-## 🔍 Deep Vulnerability Scanning (scan)
+## Vulnerability Scanning (scan)
 
-The `scan` command does deep vulnerability testing.
-
-### Basic Vulnerability Scan
+### Basic Scan
 
 ```bash
-waf-tester scan -u https://example.com
+waf-tester scan -u https://target.com
 ```
 
-### Scan for Specific Vulnerabilities
+### Specific Categories
 
 ```bash
-# Only SQL injection
-waf-tester scan -u https://example.com -types sqli
-
-# SQL injection and XSS
-waf-tester scan -u https://example.com -types sqli,xss
-
-# Everything except fuzz testing
-waf-tester scan -u https://example.com -exclude-types apifuzz
+waf-tester scan -u https://target.com -category sqli,xss,traversal
 ```
 
-**Available scan types:**
-| Category | Types |
-|----------|-------|
-| **Injection** | `sqli`, `nosqli`, `cmdi`, `ssti`, `xxe` |
-| **Client-Side** | `xss`, `cors`, `redirect`, `prototype` |
-| **File/Path** | `traversal`, `upload`, `smuggling` |
-| **Auth/Session** | `oauth`, `jwt`, `bizlogic`, `race` |
-| **API** | `graphql`, `apifuzz`, `websocket` |
-| **Recon** | `wafdetect`, `waffprint`, `techdetect`, `osint` |
-
-### Scan with Custom Headers
+### Multiple Targets
 
 ```bash
-# Add authentication header
-waf-tester scan -u https://api.example.com \
-  -header "Authorization: Bearer eyJhbGc..."
-
-# Multiple headers
-waf-tester scan -u https://api.example.com \
-  -header "Authorization: Bearer token123" \
-  -cookie "session=abc123"
+waf-tester scan -l targets.txt -c 50
 ```
 
-### Scan with Smart Mode
+### All Available Categories
 
 ```bash
-waf-tester scan -u https://example.com \
+waf-tester scan -u https://target.com -types all
+```
+
+Categories: `sqli`, `xss`, `traversal`, `cmdi`, `nosqli`, `ssrf`, `ssti`, `xxe`, `smuggling`, `oauth`, `jwt`, `cors`, `redirect`, `hostheader`, `cache`, `upload`, `deserialize`, `bizlogic`, `race`
+
+---
+
+## WAF Detection (vendor)
+
+### Detect WAF Vendor
+
+```bash
+waf-tester vendor -u https://target.com
+```
+
+### JSON Output
+
+```bash
+waf-tester vendor -u https://target.com -output waf-info.json
+```
+
+### Protocol Detection
+
+```bash
+waf-tester protocol -u https://target.com
+```
+
+---
+
+## Bypass Hunting (bypass)
+
+### Basic Bypass Search
+
+```bash
+waf-tester bypass -u https://target.com
+```
+
+### Smart Bypass with Chaining
+
+```bash
+waf-tester bypass -u https://target.com \
   --smart \
-  --smart-mode=bypass \
-  -types sqli,xss
-```
-
-### Save Scan Results
-
-```bash
-# JSON format
-waf-tester scan -u https://example.com -json -output results.json
-
-# HTML report
-waf-tester scan -u https://example.com -html > report.html
-
-# SARIF for CI/CD
-waf-tester scan -u https://example.com -sarif -output results.sarif
-```
-
-### Speed Control
-
-```bash
-# Fast scan (be careful with WAFs!)
-waf-tester scan -u https://example.com -concurrency 20 -rate-limit 100
-
-# Slow scan (stealth mode)
-waf-tester scan -u https://example.com -concurrency 2 -delay 1s
-```
-
----
-
-## 🎭 WAF Detection (vendor)
-
-Identify what WAF is protecting a target.
-
-### Detect WAF
-
-```bash
-waf-tester vendor -u https://example.com
-```
-
-**Output shows:**
-- WAF vendor name (Cloudflare, AWS, Imperva, etc.)
-- Confidence level
-- Bypass hints
-
-### Get Bypass Hints
-
-```bash
-waf-tester vendor -u https://example.com -hints
-```
-
-### List All Supported WAFs
-
-```bash
-waf-tester vendor -list
-```
-
-**Supports 197+ WAF vendors** including:
-- Cloud: Cloudflare, AWS WAF, Azure WAF, GCP Cloud Armor
-- Enterprise: Imperva, F5 BIG-IP, Fortinet, Barracuda
-- Open Source: ModSecurity, NAXSI
-
-### Save Detection Results
-
-```bash
-waf-tester vendor -u https://example.com -output waf-detection.json
-```
-
----
-
-## 🔓 WAF Bypass Hunting (bypass)
-
-Find ways to bypass the WAF.
-
-### Basic Bypass Hunt
-
-```bash
-waf-tester bypass -u https://example.com
-```
-
-### Hunt for SQL Injection Bypasses
-
-```bash
-waf-tester bypass -u https://example.com -category injection
-```
-
-### Smart Bypass Mode
-
-```bash
-# Let the tool auto-detect WAF and use known bypasses
-waf-tester bypass -u https://example.com \
-  --smart \
-  --smart-mode=bypass
-```
-
-### Save Discovered Bypasses
-
-```bash
-waf-tester bypass -u https://example.com \
+  --smart-mode=full \
+  -chain \
   -o bypasses.json
 ```
 
-### With Realistic Mode
+### Category-Specific
 
 ```bash
-# Use browser-like requests to evade detection
-waf-tester bypass -u https://example.com -R
+waf-tester bypass -u https://target.com -category injection
 ```
 
 ---
 
-## 🧬 Mutation Testing (mutate)
+## Mutation Testing (mutate)
 
-Test every encoding, location, and evasion combination.
-
-### Show Available Mutations
+### Basic Mutation
 
 ```bash
-waf-tester mutate -stats
+waf-tester mutate -u https://target.com
 ```
 
-### Basic Mutation Test
+### With Specific Encoders
 
 ```bash
-waf-tester mutate -u https://example.com/search?q=FUZZ
+waf-tester mutate -u https://target.com \
+  -encoders url,double_url,unicode,html
 ```
 
-### Test a Single Payload with All Mutations
+### Available Encoders
 
-```bash
-# Test <script>alert(1)</script> with all encodings
-waf-tester mutate -u https://example.com \
-  -payload "<script>alert(1)</script>"
-```
-
-### Mutation Modes
-
-```bash
-# Quick - fast overview (10 mutations)
-waf-tester mutate -u https://example.com -mode quick
-
-# Standard - good coverage (100+ mutations)
-waf-tester mutate -u https://example.com -mode standard
-
-# Full - exhaustive testing (1000+ mutations)
-waf-tester mutate -u https://example.com -mode full
-
-# Bypass - focus on bypass techniques
-waf-tester mutate -u https://example.com -mode bypass
-```
-
-### Specific Encoders
-
-```bash
-waf-tester mutate -u https://example.com \
-  -encoders "url,double_url,html_hex,unicode"
-```
-
-**Available encoders:**
-- `url` - URL encoding (%3C → <)
-- `double_url` - Double URL encoding (%253C → <)
-- `html_hex` - HTML hex encoding (&#x3C; → <)
-- `unicode` - Unicode encoding
-- `base64` - Base64 encoding
-- `utf7` - UTF-7 encoding
-
-### Specific Evasions
-
-```bash
-waf-tester mutate -u https://example.com \
-  -evasions "case_swap,sql_comment,space_replace"
-```
-
-**Available evasions:**
-- `case_swap` - SeLeCt instead of SELECT
-- `sql_comment` - SEL/**/ECT
-- `space_replace` - SELECT%09FROM (tab instead of space)
-- `null_byte` - SELECT%00FROM
-
-### Test All Injection Points
-
-```bash
-waf-tester mutate -u https://example.com \
-  -locations "query_param,post_json,header,cookie"
-```
-
-### Chain Mutations Together
-
-```bash
-# Apply encoding THEN evasion
-waf-tester mutate -u https://example.com \
-  -chain \
-  -max-chain 3
-```
+`url`, `double_url`, `triple_url`, `unicode`, `html`, `hex`, `base64`, `utf7`, `utf16`
 
 ---
 
-## ✅ False Positive Testing (fp)
+## False Positive Testing (fp)
 
-Test if the WAF blocks normal, harmless traffic.
+Test WAF with legitimate traffic to measure false positive rate.
 
 ### Basic FP Test
 
 ```bash
-waf-tester fp -u https://example.com
+waf-tester fp -u https://target.com
 ```
 
-### Test with Different Corpus Types
+### With Leipzig Corpus
 
 ```bash
-# All corpus types
-waf-tester fp -u https://example.com -corpus all
-
-# Only Leipzig corpus (real German text)
-waf-tester fp -u https://example.com -corpus leipzig
-
-# API-style requests
-waf-tester fp -u https://example.com -corpus api
-
-# Form submissions
-waf-tester fp -u https://example.com -corpus forms
-
-# Edge cases (special characters, Unicode)
-waf-tester fp -u https://example.com -corpus edge
+waf-tester fp -u https://target.com -corpus leipzig
 ```
 
-### Test Against Paranoia Levels (CRS)
+### Custom Corpus
 
 ```bash
-# Test paranoia level 2 (default)
-waf-tester fp -u https://example.com -pl 2
-
-# Test paranoia level 4 (strictest)
-waf-tester fp -u https://example.com -pl 4
-```
-
-### Local WAF Simulation
-
-```bash
-# Test without a real target (validates your WAF rules)
-waf-tester fp -local
+waf-tester fp -u https://target.com -corpus /path/to/corpus.txt
 ```
 
 ---
 
-## 🔎 Content Fuzzing (fuzz)
+## Content Fuzzing (fuzz)
 
-Like `ffuf` but integrated with WAF testing.
-
-### Basic Directory Fuzzing
+### Directory Fuzzing
 
 ```bash
-waf-tester fuzz -u https://example.com/FUZZ \
-  -w /path/to/wordlist.txt
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt
 ```
 
-### Use Built-in Wordlists
+### Parameter Fuzzing
 
 ```bash
-# Directory fuzzing
-waf-tester fuzz -u https://example.com/FUZZ -wt directories
-
-# File fuzzing
-waf-tester fuzz -u https://example.com/FUZZ -wt files
-
-# Parameter fuzzing
-waf-tester fuzz -u https://example.com/api?FUZZ=test -wt parameters
+waf-tester fuzz -u "https://target.com/search?q=FUZZ" -w params.txt
 ```
 
-### Fuzz with Extensions
+### With Filters
 
 ```bash
-# Try each word with .php, .html, .txt
-waf-tester fuzz -u https://example.com/FUZZ \
+waf-tester fuzz -u https://target.com/FUZZ \
   -w wordlist.txt \
-  -e php,html,txt
-```
-
-### Filter Results
-
-```bash
-# Only show 200 and 403 responses
-waf-tester fuzz -u https://example.com/FUZZ -mc 200,403
-
-# Hide 404 responses
-waf-tester fuzz -u https://example.com/FUZZ -fc 404
-
-# Filter by response size
-waf-tester fuzz -u https://example.com/FUZZ -fs 1234
-```
-
-### POST Data Fuzzing
-
-```bash
-waf-tester fuzz -u https://example.com/login \
-  -X POST \
-  -d "username=admin&password=FUZZ" \
-  -w passwords.txt
-```
-
-### Header Fuzzing
-
-```bash
-waf-tester fuzz -u https://example.com \
-  -H "X-Custom-Header: FUZZ" \
-  -w wordlist.txt
-```
-
-### Auto-Calibrate (Automatic Filtering)
-
-```bash
-# Automatically detect and filter baseline responses
-waf-tester fuzz -u https://example.com/FUZZ -ac
-```
-
-### Recursive Fuzzing
-
-```bash
-# When you find a directory, fuzz inside it too
-waf-tester fuzz -u https://example.com/FUZZ \
-  -recursion \
-  -recursion-depth 3
-```
-
-### Save Responses
-
-```bash
-# Store all responses
-waf-tester fuzz -u https://example.com/FUZZ \
-  -sr \
-  -srd ./responses
-
-# Store only matching responses
-waf-tester fuzz -u https://example.com/FUZZ \
-  -sr \
-  -som
+  -fc 404,403 \
+  -fs 0
 ```
 
 ---
 
-## 🌐 Protocol Probing (probe)
-
-Comprehensive HTTP probing (like httpx).
+## Protocol Probing (probe)
 
 ### Basic Probe
 
 ```bash
-waf-tester probe -u https://example.com
+waf-tester probe -u https://target.com
 ```
 
-### Probe Multiple Targets
+### Multiple Targets
 
 ```bash
-# From command line
-waf-tester probe -u "site1.com,site2.com,site3.com"
-
-# From file
-waf-tester probe -l targets.txt
-
-# From stdin
-cat targets.txt | waf-tester probe -stdin
+waf-tester probe -l targets.txt -c 50 -o probes.json
 ```
 
-### Show Specific Information
+### With Streaming Output
 
 ```bash
-# Show title and status
-waf-tester probe -u https://example.com -title
-
-# Show IP and ASN
-waf-tester probe -u https://example.com -ip -asn
-
-# Show technologies
-waf-tester probe -u https://example.com -td
-
-# Show WAF/CDN
-waf-tester probe -u https://example.com -cdn
-```
-
-### Filter Results
-
-```bash
-# Only show 200 OK responses
-waf-tester probe -l targets.txt -mc 200
-
-# Filter out errors
-waf-tester probe -l targets.txt -fc 404,500,502,503
-```
-
-### Screenshot Capture
-
-```bash
-waf-tester probe -u https://example.com -ss
-```
-
-### Tech Detection
-
-```bash
-# Detect frameworks, CMS, servers
-waf-tester probe -u https://example.com -tech
-```
-
-### TLS Information
-
-```bash
-waf-tester probe -u https://example.com -tls -jarm
+waf-tester probe -l targets.txt --stream
 ```
 
 ---
 
-## 🕷️ Web Crawling (crawl)
+## Discovery and Planning
 
-Discover pages and content.
-
-### Basic Crawl
-
-```bash
-waf-tester crawl -u https://example.com
-```
-
-### Control Crawl Depth
-
-```bash
-# Shallow crawl (homepage + 1 level)
-waf-tester crawl -u https://example.com -depth 1
-
-# Deep crawl
-waf-tester crawl -u https://example.com -depth 5
-```
-
-### Extract Specific Content
-
-```bash
-# Extract all forms
-waf-tester crawl -u https://example.com -forms
-
-# Extract emails
-waf-tester crawl -u https://example.com -emails
-
-# Extract API endpoints
-waf-tester crawl -u https://example.com -endpoints
-
-# Extract secrets/credentials
-waf-tester crawl -u https://example.com -secrets
-```
-
-### Stay Within Scope
-
-```bash
-# Only crawl same domain
-waf-tester crawl -u https://example.com -same-domain
-
-# Include subdomains
-waf-tester crawl -u https://example.com -subdomains
-```
-
-### JavaScript Rendering
-
-```bash
-# Use headless browser to render JavaScript
-waf-tester crawl -u https://example.com -js
-```
-
-### Save Crawl Results
-
-```bash
-waf-tester crawl -u https://example.com -output crawl-results.json
-```
-
----
-
-## 📜 JavaScript Analysis (analyze)
-
-Extract secrets and endpoints from JavaScript.
-
-### Basic Analysis
-
-```bash
-waf-tester analyze -u https://example.com
-```
-
-### Analyze Local File
-
-```bash
-waf-tester analyze -file /path/to/app.js
-```
-
-### What It Finds
-
-```bash
-# Find API endpoints
-waf-tester analyze -u https://example.com -endpoints
-
-# Find secrets (API keys, tokens)
-waf-tester analyze -u https://example.com -secrets
-
-# Find DOM XSS sinks
-waf-tester analyze -u https://example.com -sinks
-```
-
-### Output as JSON
-
-```bash
-waf-tester analyze -u https://example.com -json -output js-analysis.json
-```
-
----
-
-## 🔌 Protocol Detection (protocol)
-
-Detect enterprise protocols (gRPC, SOAP, GraphQL, WCF).
-
-### Detect Protocol
-
-```bash
-waf-tester protocol -u https://api.example.com
-```
-
-**Detects:**
-- gRPC endpoints
-- SOAP web services
-- GraphQL APIs
-- WCF services
-- REST APIs
-
----
-
-## 🔎 Target Discovery (discover)
-
-Find endpoints before testing.
-
-### Basic Discovery
+### Endpoint Discovery
 
 ```bash
 waf-tester discover -u https://example.com
+waf-tester discover -u https://example.com -output custom-discovery.json
 ```
-
-### Discovery Sources
-
-The discover command checks:
-- `robots.txt` - hidden paths
-- `sitemap.xml` - all pages
-- JavaScript files - API endpoints
-- Wayback Machine - historical URLs
-- HTML forms - login pages, search forms
-
-### Discovery for Specific Services
-
-```bash
-# WordPress - checks wp-admin, wp-content, etc.
-waf-tester discover -u https://blog.example.com -service wordpress
-
-# Django - checks admin, api, static, etc.
-waf-tester discover -u https://app.example.com -service django
-```
-
-### Control Discovery
-
-```bash
-waf-tester discover -u https://example.com \
-  -depth 3 \
-  -concurrency 20 \
-  -output my-discovery.json
-```
-
----
-
-## 📋 Test Plan Generation (learn)
-
-Create smart test plans.
 
 ### Generate Test Plan
 
 ```bash
 waf-tester learn -discovery discovery.json
+waf-tester learn -discovery discovery.json -output custom-plan.json
 ```
 
-### What the Plan Contains
-
-The test plan prioritizes tests:
-- **P1 (Critical):** Auth endpoints → Auth attacks
-- **P2 (High):** Search forms → SQL injection
-- **P3 (Medium):** File uploads → Upload attacks
-- **P4 (Low):** General pages → XSS
-- **P5 (Info):** Everything else → Fuzzing
-
-### Custom Output
-
-```bash
-waf-tester learn \
-  -discovery discovery.json \
-  -output my-testplan.json \
-  -custom-payloads custom-payloads.json
-```
-
----
-
-## ▶️ Running Tests (run)
-
-Execute WAF tests.
-
-### Run with Test Plan
+### Execute Plan
 
 ```bash
 waf-tester run -plan testplan.json
-```
-
-### Run Against Target Directly
-
-```bash
-waf-tester run -u https://example.com
-```
-
-### Filter Tests
-
-```bash
-# Only XSS tests
-waf-tester run -u https://example.com -category xss
-
-# Only critical/high severity
-waf-tester run -u https://example.com -severity High
-```
-
-### Mutation Testing
-
-```bash
-# Quick mutations
-waf-tester run -u https://example.com -m quick
-
-# Full mutation matrix
-waf-tester run -u https://example.com -m full
-
-# Specific encoders
-waf-tester run -u https://example.com \
-  -encoders "url,double_url" \
-  -evasions "case_swap"
-```
-
-### Filter/Match Results
-
-```bash
-# Only show blocked requests (403)
-waf-tester run -u https://example.com -mc 403
-
-# Only show successful bypasses (200)
-waf-tester run -u https://example.com -mc 200
-
-# Hide server errors
-waf-tester run -u https://example.com -fc 500,502,503
-```
-
-### Realistic Mode
-
-```bash
-# Browser-like requests, smart block detection
-waf-tester run -u https://example.com -R
-```
-
-### Speed Control
-
-```bash
-# Fast testing
-waf-tester run -u https://example.com -c 100 -rl 500
-
-# Slow/stealth testing
-waf-tester run -u https://example.com -c 5 -rl 10
-```
-
-### Save Results
-
-```bash
-# JSON Lines (for processing)
-waf-tester run -u https://example.com -j -o results.jsonl
-
-# HTML report
-waf-tester run -u https://example.com -format html -o report.html
-
-# SARIF (for GitHub/CI)
-waf-tester run -u https://example.com -format sarif -o results.sarif
-```
-
-### Dry Run (Preview)
-
-```bash
-# See what tests would run without executing
-waf-tester run -u https://example.com -dry-run
+waf-tester run -plan testplan.json -format html -o report.html
 ```
 
 ---
 
-## 📦 Payload Management
+## Output Formats
 
-### Validate Payloads
+### Available Formats
 
-```bash
-# Check all payload files for errors
-waf-tester validate
+| Format | Flag | Use Case |
+|--------|------|----------|
+| JSON | `-format json` | Programmatic processing |
+| JSONL | `-format jsonl` | Streaming, large datasets |
+| HTML | `-format html` | Human-readable reports |
+| SARIF | `-format sarif` | CI/CD integration |
+| Markdown | `-format markdown` | Documentation |
+| CSV | `-format csv` | Spreadsheet analysis |
 
-# Check specific directory
-waf-tester validate -payloads ./my-payloads
-```
-
-### Update Payloads
-
-```bash
-# Preview updates
-waf-tester update -dry-run
-
-# Apply updates
-waf-tester update -auto-apply
-```
-
-### Validate Templates
+### Examples
 
 ```bash
-# Check nuclei YAML templates
-waf-tester validate-templates
+waf-tester run -plan testplan.json -format json -o results.json
+waf-tester run -plan testplan.json -format html -o report.html
+waf-tester run -plan testplan.json -format sarif -o results.sarif
 ```
+
+### Output File Locations
+
+| Command | Default Output |
+|---------|----------------|
+| `discover` | `./discovery.json` |
+| `learn` | `./testplan.json` |
+| `auto` | `workspaces/<domain>/<timestamp>/` |
+| Others | Stdout (use `-o` to save) |
 
 ---
 
-## 📊 Output Formats
+## CI/CD Integration
 
-### Console (Default)
-
-```bash
-waf-tester scan -u https://example.com
-```
-
-### JSON
-
-```bash
-waf-tester scan -u https://example.com -json -output results.json
-```
-
-### JSON Lines (JSONL)
-
-```bash
-# One JSON object per line - great for streaming
-waf-tester scan -u https://example.com -jsonl -output results.jsonl
-```
-
-### HTML Report
-
-```bash
-waf-tester scan -u https://example.com -html > report.html
-# or
-waf-tester scan -u https://example.com -format html -output report.html
-```
-
-### CSV
-
-```bash
-waf-tester scan -u https://example.com -csv > results.csv
-```
-
-### Markdown
-
-```bash
-waf-tester scan -u https://example.com -md > report.md
-```
-
-### SARIF (For CI/CD)
-
-```bash
-# GitHub Actions, Azure DevOps, etc.
-waf-tester scan -u https://example.com -sarif -output results.sarif
-```
-
----
-
-## 📋 Working with Multiple Targets
-
-### Command Line
-
-```bash
-# Comma-separated
-waf-tester scan -u "site1.com,site2.com,site3.com"
-
-# Repeated flag
-waf-tester scan -u site1.com -u site2.com -u site3.com
-```
-
-### From File
-
-```bash
-# Create targets.txt:
-# https://site1.com
-# https://site2.com
-# https://site3.com
-
-waf-tester scan -l targets.txt
-```
-
-### From Stdin (Piping)
-
-```bash
-# From cat
-cat targets.txt | waf-tester scan -stdin
-
-# From other tools
-subfinder -d example.com | waf-tester probe -stdin
-```
-
----
-
-## 🌐 Using Proxies
-
-### HTTP Proxy
-
-```bash
-waf-tester scan -u https://example.com -proxy http://127.0.0.1:8080
-```
-
-### SOCKS5 Proxy
-
-```bash
-waf-tester scan -u https://example.com -proxy socks5://127.0.0.1:1080
-```
-
-### Burp Suite Integration
-
-```bash
-# Send all requests through Burp
-waf-tester scan -u https://example.com -proxy http://127.0.0.1:8080 -k
-```
-
-The `-k` flag skips TLS verification (needed for Burp's certificate).
-
----
-
-## 🧠 Smart Mode (WAF-Aware Testing)
-
-Smart mode automatically detects the WAF and optimizes testing.
-
-### Enable Smart Mode
-
-```bash
-waf-tester scan -u https://example.com --smart
-```
-
-### Smart Mode Types
-
-```bash
-# Quick - fast detection, minimal evasion
-waf-tester scan -u https://example.com --smart --smart-mode=quick
-
-# Standard - balanced approach (default)
-waf-tester scan -u https://example.com --smart --smart-mode=standard
-
-# Full - maximum evasion techniques
-waf-tester scan -u https://example.com --smart --smart-mode=full
-
-# Bypass - focus on finding bypasses
-waf-tester scan -u https://example.com --smart --smart-mode=bypass
-
-# Stealth - avoid detection
-waf-tester scan -u https://example.com --smart --smart-mode=stealth
-```
-
-### See What Smart Mode Detects
-
-```bash
-waf-tester scan -u https://example.com --smart --smart-verbose
-```
-
----
-
-## 🔄 CI/CD Pipeline Integration
-
-The `--stream` flag enables clean output for CI/CD pipelines by disabling animated progress bars and ANSI escape codes.
+Use `--stream` flag to disable animated progress for clean CI logs.
 
 ### GitHub Actions
 
 ```yaml
-# .github/workflows/security.yml
 - name: WAF Security Scan
   run: |
     waf-tester scan -u ${{ secrets.TARGET_URL }} \
@@ -1235,134 +410,21 @@ waf_scan:
 
 ### Commands Supporting --stream
 
-All major commands support `--stream` for CI-friendly output:
-
-| Command | Stream Support |
-|---------|----------------|
-| `assess` | ✅ Full LiveProgress + ExecutionManifest |
-| `auto` | ✅ Skips JS analysis and param discovery progress |
-| `bypass` | ✅ Full LiveProgress with metrics |
-| `crawl` | ✅ Skips crawl progress animation |
-| `fuzz` | ✅ Skips ffuf-style progress |
-| `headless` | ✅ Full LiveProgress |
-| `mutate` | ✅ Skips bypass hunting animation |
-| `probe` | ✅ Uses existing `-s`/`--stream` flag |
-| `scan` | ✅ Skips deep scan progress |
-| `smuggle` | ✅ Full LiveProgress |
-| `fp` | ✅ Streaming false positive testing |
-
-### Best Practice
-
-```bash
-# Always use --stream in CI, combine with structured output
-waf-tester assess -u https://app.example.com \
-  --stream \
-  -format json \
-  -o assessment.json
-
-# Parse results
-cat assessment.json | jq '.metrics.f1_score'
-```
+All major commands support `--stream` for CI-friendly output: `assess`, `auto`, `bypass`, `crawl`, `fuzz`, `headless`, `mutate`, `probe`, `scan`, `smuggle`, `fp`
 
 ---
 
-## 📁 Output Files Reference
+## Real-World Scenarios
 
-WAFtester clearly displays file locations after each command execution:
-
-```
-✓ Results saved to ./results.json
-✓ Report saved to ./report.html
-📊 Full report saved to: workspaces/example.com/2026-02-01_14-30-00/results.html
-```
-
-### Default Output Locations by Command
-
-| Command | Default Output | Customize With |
-|---------|----------------|----------------|
-| `discover` | `discovery.json` | `-output <file>` |
-| `learn` | `testplan.json` | `-output <file>` |
-| `run` | Stdout | `-o <file>` |
-| `scan` | Stdout | `-o <file>` |
-| `auto` | `workspaces/<domain>/<timestamp>/` | `-output-dir <dir>` |
-| `assess` | Stdout | `-o <file>` |
-| `bypass` | Stdout | `-o <file>` |
-| `fuzz` | Stdout | `-o <file>` |
-| `probe` | Stdout | `-o <file>` |
-| `vendor` | Stdout | `-output <file>` |
-| `fp` | Stdout | `-output <file>` |
-
-### Auto Command Workspace Structure
-
-The `auto` command creates a complete workspace directory:
-
-```
-workspaces/
-└── example.com/
-    └── 2026-02-01_14-30-00/
-        ├── discovery.json     # All discovered endpoints, parameters, forms
-        ├── testplan.json      # Generated test plan with prioritized tests
-        ├── results.json       # Complete test results with all findings
-        ├── results.html       # Interactive HTML report with charts
-        └── results.sarif      # SARIF format for GitHub/GitLab integration
-```
-
-### Output Formats
-
-| Format | Flag | Best For |
-|--------|------|----------|
-| JSON | `-format json` or `-j` | Programmatic processing, APIs |
-| JSONL | `-format jsonl` | Streaming, large datasets |
-| HTML | `-format html` | Reports, stakeholder sharing |
-| SARIF | `-format sarif` or `-sarif` | CI/CD integration, code scanning |
-| Markdown | `-format markdown` | Documentation, GitHub issues |
-| CSV | `-format csv` | Spreadsheets, data analysis |
-
-### Example: Custom Output Locations
+### Bug Bounty Quick Check
 
 ```bash
-# Save discovery to custom location
-waf-tester discover -u https://example.com -output ./scans/disco.json
-
-# Generate HTML report in specific directory
-waf-tester run -plan testplan.json -format html -o ./reports/security-audit.html
-
-# Auto scan with custom output directory
-waf-tester auto -u https://example.com -output-dir ./my-assessment
-
-# Assessment with JSON output
-waf-tester assess -u https://example.com -format json -o ./metrics/waf-score.json
-```
-
-### Console Output After Execution
-
-Every command shows exactly where files are saved:
-
-```
-╔═══════════════════════════════════════════════════════════════╗
-║                     EXECUTION COMPLETE                         ║
-╠═══════════════════════════════════════════════════════════════╣
-║  ✓ Results saved to: ./results.json                           ║
-║  ✓ HTML report: ./report.html                                 ║
-║  ✓ SARIF output: ./results.sarif                              ║
-╚═══════════════════════════════════════════════════════════════╝
-```
-
----
-
-## 🎯 Real-World Scenarios
-
-### Scenario 1: Bug Bounty Quick Check
-
-```bash
-# Fast check for common vulnerabilities
 waf-tester auto -u https://target.com --smart -c 50 -rl 100
 ```
 
-### Scenario 2: Penetration Test Assessment
+### Penetration Test
 
 ```bash
-# Full professional assessment
 waf-tester auto -u https://client-site.com \
   --smart \
   --smart-mode=full \
@@ -1370,20 +432,18 @@ waf-tester auto -u https://client-site.com \
   -output-dir ./pentest-results
 ```
 
-### Scenario 3: WAF Validation (Blue Team)
+### WAF Validation (Blue Team)
 
 ```bash
-# Test if your WAF is working
 waf-tester assess -u https://your-app.com \
   -fp \
   -corpus "builtin,leipzig" \
   -o waf-assessment.json
 ```
 
-### Scenario 4: Find WAF Bypasses
+### Find WAF Bypasses
 
 ```bash
-# Hunt for bypasses
 waf-tester bypass -u https://target.com \
   --smart \
   --smart-mode=bypass \
@@ -1391,31 +451,25 @@ waf-tester bypass -u https://target.com \
   -o bypasses.json
 ```
 
-### Scenario 5: CI/CD Security Check
+### CI/CD Security Gate
 
 ```bash
-# In your pipeline - use --stream for clean logs without ANSI escape codes
-waf-tester scan -u https://staging.app.com \
-  -types sqli,xss,traversal \
+waf-tester scan -u https://staging.example.com \
   --stream \
-  -match-severity critical,high \
+  -types sqli,xss,rce \
   -sarif -o security-results.sarif
-
-# All major commands support --stream for CI:
-# assess, auto, bypass, crawl, fuzz, headless, mutate, probe, scan, smuggle, fp
 ```
 
-### Scenario 6: API Security Testing
+### API Security Testing
 
 ```bash
-# Test API endpoints
 waf-tester scan -u https://api.example.com \
   -types sqli,nosqli,ssrf,jwt \
-  -header "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $TOKEN" \
   -json -o api-security.json
 ```
 
-### Scenario 7: WordPress Security Audit
+### WordPress Audit
 
 ```bash
 waf-tester auto -u https://myblog.com \
@@ -1424,121 +478,100 @@ waf-tester auto -u https://myblog.com \
   -format html -o wordpress-audit.html
 ```
 
-### Scenario 8: Test Through Burp Suite
+### Authenticated Testing
 
 ```bash
-# See all requests in Burp
-waf-tester scan -u https://target.com \
-  -proxy http://127.0.0.1:8080 \
-  -k \
-  -c 5 \
-  -rl 10
+# Opens browser for manual login
+waf-tester auto -u https://app.example.com --browser
+
+# With custom timeout
+waf-tester auto -u https://app.example.com --browser -browser-timeout 5m
 ```
 
-### Scenario 9: Stealthy Reconnaissance
+### Stealth Reconnaissance
 
 ```bash
-# Low and slow - avoid detection
-waf-tester probe -l targets.txt \
-  -c 2 \
+waf-tester discover -u https://target.com \
+  -c 3 \
+  -rl 5 \
   -delay 2s \
-  -random-agent \
   -o recon.json
 ```
 
-### Scenario 10: Find Hidden Content
+### Parameter Discovery
 
 ```bash
-# Comprehensive fuzzing
-waf-tester fuzz -u https://example.com/FUZZ \
-  -wt directories \
-  -e php,html,txt,bak \
-  -recursion \
-  -ac \
+waf-tester fuzz -u "https://target.com/api?FUZZ=test" \
+  -w params.txt \
+  -mc 200 \
   -o fuzz-results.json
 ```
 
 ---
 
-## 💡 Tips and Tricks
+## Browser Scanning
 
-### 1. Always Start with Discovery
-
-```bash
-waf-tester discover -u https://target.com
-```
-
-### 2. Use Smart Mode for Better Results
+For applications requiring authentication (SSO, MFA, CAPTCHA):
 
 ```bash
-waf-tester auto -u https://target.com --smart
-```
+# Opens browser for manual login
+waf-tester auto -u https://app.example.com
 
-### 3. Save Everything
+# Headless mode (no visible browser)
+waf-tester auto -u https://app.example.com -browser-headless
 
-```bash
-waf-tester scan -u https://target.com \
-  -sr -srd ./responses \
-  -json -o results.json
-```
+# Disable browser scanning
+waf-tester auto -u https://app.example.com -browser=false
 
-### 4. Use Dry Run First
-
-```bash
-waf-tester run -u https://target.com -dry-run
-```
-
-### 5. Control Your Speed
-
-```bash
-# Aggressive: -c 100 -rl 500
-# Normal:    -c 25 -rl 150
-# Stealth:   -c 5 -rl 10
-```
-
-### 6. Check for False Positives
-
-```bash
-waf-tester fp -u https://target.com
+# Custom login timeout
+waf-tester auto -u https://app.example.com -browser-timeout 5m
 ```
 
 ---
 
-## 🆘 Getting Help
-
-### Command Help
+## Working with Proxies
 
 ```bash
-waf-tester --help
-waf-tester scan -h
-waf-tester auto -h
-```
+# HTTP proxy
+waf-tester scan -u https://target.com -proxy http://127.0.0.1:8080
 
-### Version
+# SOCKS5 proxy
+waf-tester scan -u https://target.com -proxy socks5://127.0.0.1:1080
 
-```bash
-waf-tester -version
+# Burp Suite integration
+waf-tester scan -u https://target.com -proxy http://127.0.0.1:8080 -k
 ```
 
 ---
 
-## 📚 Quick Reference Card
+## Multiple Targets
 
-| Task | Command |
-|------|---------|
-| Full auto scan | `waf-tester auto -u URL --smart` |
-| Detect WAF | `waf-tester vendor -u URL` |
-| Vulnerability scan | `waf-tester scan -u URL` |
-| Find bypasses | `waf-tester bypass -u URL --smart` |
-| Test false positives | `waf-tester fp -u URL` |
-| Fuzz directories | `waf-tester fuzz -u URL/FUZZ -wt directories` |
-| Crawl website | `waf-tester crawl -u URL -depth 3` |
-| Analyze JavaScript | `waf-tester analyze -u URL` |
-| Probe targets | `waf-tester probe -l targets.txt` |
-| Enterprise assessment | `waf-tester assess -u URL -fp` |
+```bash
+# From file
+waf-tester scan -l targets.txt
+
+# Comma-separated
+waf-tester scan -u https://site1.com,https://site2.com
+
+# With concurrency
+waf-tester scan -l targets.txt -c 100 -rl 500
+```
 
 ---
 
-**Made with ❤️ by the WAFtester team**
+## Smart Mode
 
-*For more information, visit [waftester.com](https://waftester.com)*
+Smart mode detects WAF vendors and adapts testing:
+
+```bash
+# Basic smart mode
+waf-tester scan -u https://target.com --smart
+
+# Full bypass hunting
+waf-tester bypass -u https://target.com --smart --smart-mode=full
+
+# Stealth mode
+waf-tester auto -u https://target.com --smart --smart-mode=stealth
+```
+
+Smart mode options: `basic`, `full`, `bypass`, `stealth`
