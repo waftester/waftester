@@ -9,13 +9,13 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // ActiveDiscoverer performs aggressive endpoint discovery
@@ -1248,7 +1248,7 @@ func extractParamsFromResponse(body, path string) []Parameter {
 	seen := make(map[string]bool)
 
 	// Extract from URL query strings in body
-	urlRe := regexp.MustCompile(`[?&]([a-zA-Z_][a-zA-Z0-9_]*)=`)
+	urlRe := regexcache.MustGet(`[?&]([a-zA-Z_][a-zA-Z0-9_]*)=`)
 	matches := urlRe.FindAllStringSubmatch(body, -1)
 	for _, m := range matches {
 		if len(m) > 1 && !seen[m[1]] {
@@ -1262,7 +1262,7 @@ func extractParamsFromResponse(body, path string) []Parameter {
 	}
 
 	// Extract from form inputs
-	inputRe := regexp.MustCompile(`<input[^>]*name=["']([^"']+)["']`)
+	inputRe := regexcache.MustGet(`<input[^>]*name=["']([^"']+)["']`)
 	matches = inputRe.FindAllStringSubmatch(body, -1)
 	for _, m := range matches {
 		if len(m) > 1 && !seen[m[1]] {
@@ -1289,7 +1289,7 @@ func extractLinks(body, target string) []string {
 	}
 
 	// Extract href and src attributes
-	linkRe := regexp.MustCompile(`(?:href|src|action)=["']([^"']+)["']`)
+	linkRe := regexcache.MustGet(`(?:href|src|action)=["']([^"']+)["']`)
 	matches := linkRe.FindAllStringSubmatch(body, -1)
 
 	for _, m := range matches {

@@ -12,6 +12,8 @@ import (
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // TechResult contains technology detection results
@@ -164,7 +166,7 @@ func (t *TechDetector) Detect(resp *http.Response, body []byte) *TechResult {
 }
 
 func techExtractTitle(html string) string {
-	re := regexp.MustCompile(`(?i)<title[^>]*>([^<]+)</title>`)
+	re := regexcache.MustGet(`(?i)<title[^>]*>([^<]+)</title>`)
 	matches := re.FindStringSubmatch(html)
 	if len(matches) > 1 {
 		title := strings.TrimSpace(matches[1])

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // VulnerabilityType represents the type of business logic vulnerability.
@@ -805,7 +806,7 @@ func parseInt(s string) int {
 }
 
 func isUUID(s string) bool {
-	uuidPattern := regexp.MustCompile(`^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$`)
+	uuidPattern := regexcache.MustGet(`^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$`)
 	return uuidPattern.MatchString(strings.ToLower(s))
 }
 

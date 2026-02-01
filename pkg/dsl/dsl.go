@@ -9,6 +9,8 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // Formatter handles DSL template-based output formatting
@@ -444,7 +446,7 @@ func evaluateStatusCode(expr string, statusCode int) bool {
 
 func evaluateContains(expr string, result *Result) bool {
 	// Parse contains(field, "value")
-	re := regexp.MustCompile(`contains\((\w+),\s*"([^"]+)"\)`)
+	re := regexcache.MustGet(`contains\((\w+),\s*"([^"]+)"\)`)
 	matches := re.FindStringSubmatch(expr)
 	if len(matches) != 3 {
 		return false

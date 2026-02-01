@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 	"gopkg.in/yaml.v3"
 )
 
@@ -218,7 +218,7 @@ func (p *Parser) ResolveRef(spec *Spec, ref string) *Schema {
 	}
 
 	// Parse reference path: #/components/schemas/User
-	refPattern := regexp.MustCompile(`^#/components/schemas/(.+)$`)
+	refPattern := regexcache.MustGet(`^#/components/schemas/(.+)$`)
 	matches := refPattern.FindStringSubmatch(ref)
 	if len(matches) != 2 {
 		return nil

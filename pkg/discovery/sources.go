@@ -18,6 +18,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // ExternalSources provides methods to discover endpoints from external sources
@@ -85,10 +87,10 @@ func parseRobotsContent(content string) *RobotsResult {
 		Sitemaps:        make([]string, 0),
 	}
 
-	allowRe := regexp.MustCompile(`(?i)^\s*Allow:\s*(.+)$`)
-	disallowRe := regexp.MustCompile(`(?i)^\s*Disallow:\s*(.+)$`)
-	sitemapRe := regexp.MustCompile(`(?i)^\s*Sitemap:\s*(.+)$`)
-	crawlDelayRe := regexp.MustCompile(`(?i)^\s*Crawl-delay:\s*(\d+)`)
+	allowRe := regexcache.MustGet(`(?i)^\s*Allow:\s*(.+)$`)
+	disallowRe := regexcache.MustGet(`(?i)^\s*Disallow:\s*(.+)$`)
+	sitemapRe := regexcache.MustGet(`(?i)^\s*Sitemap:\s*(.+)$`)
+	crawlDelayRe := regexcache.MustGet(`(?i)^\s*Crawl-delay:\s*(\d+)`)
 
 	lines := strings.Split(content, "\n")
 	for _, line := range lines {
@@ -245,10 +247,10 @@ func (es *ExternalSources) fetchSitemap(ctx context.Context, sitemapURL string, 
 
 // LinkFinderRegex is the regex pattern used by gospider for finding URLs in JavaScript
 // This is the famous LinkFinder regex pattern
-var LinkFinderRegex = regexp.MustCompile(`(?:"|')(((?:[a-zA-Z]{1,10}://|//)[^"'/]{1,}\.[a-zA-Z]{2,}[^"']{0,})|((?:/|\.\./|\./)[^"'><,;| *()(%%$^/\\\[\]][^"'><,;|()]{1,})|([a-zA-Z0-9_\-/]{1,}/[a-zA-Z0-9_\-/]{1,}\.(?:[a-zA-Z]{1,4}|action)(?:[\?|#][^"|']{0,}|))|([a-zA-Z0-9_\-/]{1,}/[a-zA-Z0-9_\-/]{3,}(?:[\?|#][^"|']{0,}|))|([a-zA-Z0-9_\-]{1,}\.(?:php|asp|aspx|jsp|json|action|html|js|txt|xml)(?:[\?|#][^"|']{0,}|)))(?:"|')`)
+var LinkFinderRegex = regexcache.MustGet(`(?:"|')(((?:[a-zA-Z]{1,10}://|//)[^"'/]{1,}\.[a-zA-Z]{2,}[^"']{0,})|((?:/|\.\./|\./)[^"'><,;| *()(%%$^/\\\[\]][^"'><,;|()]{1,})|([a-zA-Z0-9_\-/]{1,}/[a-zA-Z0-9_\-/]{1,}\.(?:[a-zA-Z]{1,4}|action)(?:[\?|#][^"|']{0,}|))|([a-zA-Z0-9_\-/]{1,}/[a-zA-Z0-9_\-/]{3,}(?:[\?|#][^"|']{0,}|))|([a-zA-Z0-9_\-]{1,}\.(?:php|asp|aspx|jsp|json|action|html|js|txt|xml)(?:[\?|#][^"|']{0,}|)))(?:"|')`)
 
 // Pre-compiled regex for title extraction (used in fingerprinting)
-var titleExtractRegex = regexp.MustCompile(`(?i)<title>([^<]+)</title>`)
+var titleExtractRegex = regexcache.MustGet(`(?i)<title>([^<]+)</title>`)
 
 // FindLinksInJS extracts URLs and paths from JavaScript content
 func FindLinksInJS(content string) []string {
@@ -280,25 +282,25 @@ func FindLinksInJS(content string) []string {
 	// Additional API route patterns for modern SPAs
 	apiPatterns := []*regexp.Regexp{
 		// fetch("/api/...") or fetch('/api/...')
-		regexp.MustCompile(`fetch\s*\(\s*["'\x60](/[^"'\x60]+)["'\x60]`),
+		regexcache.MustGet(`fetch\s*\(\s*["'\x60](/[^"'\x60]+)["'\x60]`),
 		// axios.get("/api/..."), axios.post(...), etc.
-		regexp.MustCompile(`axios\.\w+\s*\(\s*["'\x60](/[^"'\x60]+)["'\x60]`),
+		regexcache.MustGet(`axios\.\w+\s*\(\s*["'\x60](/[^"'\x60]+)["'\x60]`),
 		// $.ajax({ url: "/api/..." }) or $.get("/api/...")
-		regexp.MustCompile(`\$\.(?:ajax|get|post)\s*\(\s*(?:\{[^}]*url\s*:\s*)?["'\x60](/[^"'\x60]+)["'\x60]`),
+		regexcache.MustGet(`\$\.(?:ajax|get|post)\s*\(\s*(?:\{[^}]*url\s*:\s*)?["'\x60](/[^"'\x60]+)["'\x60]`),
 		// apiEndpoint: "/api/v1/users" or API_URL = "/api"
-		regexp.MustCompile(`(?:api|API|endpoint|ENDPOINT|url|URL|path|PATH|route|ROUTE)\s*[=:]\s*["'\x60](/[^"'\x60]+)["'\x60]`),
+		regexcache.MustGet(`(?:api|API|endpoint|ENDPOINT|url|URL|path|PATH|route|ROUTE)\s*[=:]\s*["'\x60](/[^"'\x60]+)["'\x60]`),
 		// path("/api/v1/users") in router definitions
-		regexp.MustCompile(`path\s*\(\s*["'\x60](/[^"'\x60]+)["'\x60]`),
+		regexcache.MustGet(`path\s*\(\s*["'\x60](/[^"'\x60]+)["'\x60]`),
 		// Route definitions: <Route path="/users" or route: "/users"
-		regexp.MustCompile(`[Rr]oute[^=]*(?:path|to)\s*[=:]\s*["'\x60](/[^"'\x60]+)["'\x60]`),
+		regexcache.MustGet(`[Rr]oute[^=]*(?:path|to)\s*[=:]\s*["'\x60](/[^"'\x60]+)["'\x60]`),
 		// createAsyncThunk or API functions: "/api/users"
-		regexp.MustCompile(`(?:createAsyncThunk|useMutation|useQuery)\s*\([^,]+,\s*(?:async\s*)?\([^)]*\)\s*=>\s*\{?[^}]*["'\x60](/api[^"'\x60]+)["'\x60]`),
+		regexcache.MustGet(`(?:createAsyncThunk|useMutation|useQuery)\s*\([^,]+,\s*(?:async\s*)?\([^)]*\)\s*=>\s*\{?[^}]*["'\x60](/api[^"'\x60]+)["'\x60]`),
 		// Template strings with API paths: `${baseUrl}/api/users`
-		regexp.MustCompile(`\x60\$\{[^}]+\}(/api[^$\x60]+)\x60`),
+		regexcache.MustGet(`\x60\$\{[^}]+\}(/api[^$\x60]+)\x60`),
 		// /v1/, /v2/, /v3/ versioned APIs
-		regexp.MustCompile(`["'\x60](/v[1-3]/[^"'\x60]+)["'\x60]`),
+		regexcache.MustGet(`["'\x60](/v[1-3]/[^"'\x60]+)["'\x60]`),
 		// REST patterns: /users/:id, /posts/{id}
-		regexp.MustCompile(`["'\x60](/(?:api/)?(?:users|posts|items|products|orders|auth|login|register|admin|settings|profile|upload|files|documents|media|search|reports|analytics|notifications|messages|comments|reviews|categories|tags)[^"'\x60]*)["'\x60]`),
+		regexcache.MustGet(`["'\x60](/(?:api/)?(?:users|posts|items|products|orders|auth|login|register|admin|settings|profile|upload|files|documents|media|search|reports|analytics|notifications|messages|comments|reviews|categories|tags)[^"'\x60]*)["'\x60]`),
 	}
 
 	for _, pattern := range apiPatterns {
@@ -332,7 +334,7 @@ var (
 		`\u003f`, "?",
 		`\u003F`, "?",
 	)
-	filterNewlinesRegex = regexp.MustCompile(`[\t\r\n]+`)
+	filterNewlinesRegex = regexcache.MustGet(`[\t\r\n]+`)
 )
 
 // Content-hash based caches for expensive extraction functions
@@ -505,21 +507,21 @@ func ExtractForms(htmlContent, baseURL string) []Form {
 	var forms []Form
 
 	// Simple regex-based form extraction
-	formRe := regexp.MustCompile(`(?is)<form[^>]*>(.*?)</form>`)
-	actionRe := regexp.MustCompile(`(?i)action=["']([^"']+)["']`)
-	methodRe := regexp.MustCompile(`(?i)method=["']([^"']+)["']`)
-	formIDRe := regexp.MustCompile(`(?i)id=["']([^"']+)["']`)
+	formRe := regexcache.MustGet(`(?is)<form[^>]*>(.*?)</form>`)
+	actionRe := regexcache.MustGet(`(?i)action=["']([^"']+)["']`)
+	methodRe := regexcache.MustGet(`(?i)method=["']([^"']+)["']`)
+	formIDRe := regexcache.MustGet(`(?i)id=["']([^"']+)["']`)
 
-	inputRe := regexp.MustCompile(`(?i)<input[^>]*>`)
-	inputNameRe := regexp.MustCompile(`(?i)name=["']([^"']+)["']`)
-	inputTypeRe := regexp.MustCompile(`(?i)type=["']([^"']+)["']`)
-	inputIDRe := regexp.MustCompile(`(?i)id=["']([^"']+)["']`)
-	inputValueRe := regexp.MustCompile(`(?i)value=["']([^"']+)["']`)
-	inputPlaceholderRe := regexp.MustCompile(`(?i)placeholder=["']([^"']+)["']`)
-	inputRequiredRe := regexp.MustCompile(`(?i)\brequired\b`)
+	inputRe := regexcache.MustGet(`(?i)<input[^>]*>`)
+	inputNameRe := regexcache.MustGet(`(?i)name=["']([^"']+)["']`)
+	inputTypeRe := regexcache.MustGet(`(?i)type=["']([^"']+)["']`)
+	inputIDRe := regexcache.MustGet(`(?i)id=["']([^"']+)["']`)
+	inputValueRe := regexcache.MustGet(`(?i)value=["']([^"']+)["']`)
+	inputPlaceholderRe := regexcache.MustGet(`(?i)placeholder=["']([^"']+)["']`)
+	inputRequiredRe := regexcache.MustGet(`(?i)\brequired\b`)
 
-	textareaRe := regexp.MustCompile(`(?i)<textarea[^>]*`)
-	selectRe := regexp.MustCompile(`(?i)<select[^>]*`)
+	textareaRe := regexcache.MustGet(`(?i)<textarea[^>]*`)
+	selectRe := regexcache.MustGet(`(?i)<select[^>]*`)
 
 	formMatches := formRe.FindAllStringSubmatch(htmlContent, -1)
 	for _, formMatch := range formMatches {
@@ -798,14 +800,14 @@ func (es *ExternalSources) FetchVirusTotalURLs(ctx context.Context, domain strin
 var (
 	// Match S3 bucket URLs and references
 	s3BucketPatterns = []*regexp.Regexp{
-		regexp.MustCompile(`[a-zA-Z0-9.\-_]+\.s3\.amazonaws\.com`),
-		regexp.MustCompile(`[a-zA-Z0-9.\-_]+\.s3-[a-z0-9-]+\.amazonaws\.com`),
-		regexp.MustCompile(`[a-zA-Z0-9.\-_]+\.s3\.[a-z0-9-]+\.amazonaws\.com`),
-		regexp.MustCompile(`s3\.amazonaws\.com/[a-zA-Z0-9.\-_]+`),
-		regexp.MustCompile(`s3-[a-z0-9-]+\.amazonaws\.com/[a-zA-Z0-9.\-_]+`),
-		regexp.MustCompile(`s3\.[a-z0-9-]+\.amazonaws\.com/[a-zA-Z0-9.\-_]+`),
-		regexp.MustCompile(`//[a-zA-Z0-9.\-_]+\.s3\.amazonaws\.com`),
-		regexp.MustCompile(`arn:aws:s3:::[a-zA-Z0-9.\-_]+`),
+		regexcache.MustGet(`[a-zA-Z0-9.\-_]+\.s3\.amazonaws\.com`),
+		regexcache.MustGet(`[a-zA-Z0-9.\-_]+\.s3-[a-z0-9-]+\.amazonaws\.com`),
+		regexcache.MustGet(`[a-zA-Z0-9.\-_]+\.s3\.[a-z0-9-]+\.amazonaws\.com`),
+		regexcache.MustGet(`s3\.amazonaws\.com/[a-zA-Z0-9.\-_]+`),
+		regexcache.MustGet(`s3-[a-z0-9-]+\.amazonaws\.com/[a-zA-Z0-9.\-_]+`),
+		regexcache.MustGet(`s3\.[a-z0-9-]+\.amazonaws\.com/[a-zA-Z0-9.\-_]+`),
+		regexcache.MustGet(`//[a-zA-Z0-9.\-_]+\.s3\.amazonaws\.com`),
+		regexcache.MustGet(`arn:aws:s3:::[a-zA-Z0-9.\-_]+`),
 	}
 )
 
@@ -850,7 +852,7 @@ func ExtractSubdomains(content string, baseDomain string) []string {
 	escapedDomain := strings.ReplaceAll(baseDomain, ".", `\.`)
 
 	// Pattern to match subdomains
-	subdomainRe := regexp.MustCompile(`(?i)([a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?\.)+` + escapedDomain)
+	subdomainRe := regexcache.MustGet(`(?i)([a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?\.)+` + escapedDomain)
 
 	matches := subdomainRe.FindAllString(content, -1)
 	for _, match := range matches {
@@ -883,20 +885,20 @@ var directoryListingPatterns = []struct {
 	Name    string
 	Pattern *regexp.Regexp
 }{
-	{"apache", regexp.MustCompile(`(?i)<title>Index of /`)},
-	{"nginx", regexp.MustCompile(`(?i)<title>Index of /`)},
-	{"nginx-autoindex", regexp.MustCompile(`(?i)autoindex on`)},
-	{"lighttpd", regexp.MustCompile(`(?i)<title>Index of /`)},
-	{"iis", regexp.MustCompile(`(?i)<title>.*- /</title>`)},
-	{"python-http", regexp.MustCompile(`(?i)Directory listing for /`)},
-	{"tomcat", regexp.MustCompile(`(?i)<title>Directory Listing For /`)},
-	{"webdav", regexp.MustCompile(`(?i)<D:multistatus`)},
+	{"apache", regexcache.MustGet(`(?i)<title>Index of /`)},
+	{"nginx", regexcache.MustGet(`(?i)<title>Index of /`)},
+	{"nginx-autoindex", regexcache.MustGet(`(?i)autoindex on`)},
+	{"lighttpd", regexcache.MustGet(`(?i)<title>Index of /`)},
+	{"iis", regexcache.MustGet(`(?i)<title>.*- /</title>`)},
+	{"python-http", regexcache.MustGet(`(?i)Directory listing for /`)},
+	{"tomcat", regexcache.MustGet(`(?i)<title>Directory Listing For /`)},
+	{"webdav", regexcache.MustGet(`(?i)<D:multistatus`)},
 }
 
 // Link extraction patterns for directory listings
 var directoryLinkPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`<a\s+href="([^"?]+)"`),
-	regexp.MustCompile(`<a\s+href='([^'?]+)'`),
+	regexcache.MustGet(`<a\s+href="([^"?]+)"`),
+	regexcache.MustGet(`<a\s+href='([^'?]+)'`),
 }
 
 // DetectDirectoryListing checks if content is a directory listing and extracts entries
@@ -1006,39 +1008,39 @@ type JSURLMatch struct {
 // Enhanced JavaScript URL extraction patterns
 var (
 	// fetch() calls - fetch('/api/users', { method: 'POST' })
-	fetchPattern = regexp.MustCompile(`fetch\s*\(\s*['"]([^'"]+)['"](?:\s*,\s*\{([^}]+)\})?`)
+	fetchPattern = regexcache.MustGet(`fetch\s*\(\s*['"]([^'"]+)['"](?:\s*,\s*\{([^}]+)\})?`)
 
 	// XMLHttpRequest.open() - xhr.open('POST', '/api/data')
-	xhrOpenPattern = regexp.MustCompile(`\.open\s*\(\s*['"]([A-Z]+)['"]\s*,\s*['"]([^'"]+)['"]`)
+	xhrOpenPattern = regexcache.MustGet(`\.open\s*\(\s*['"]([A-Z]+)['"]\s*,\s*['"]([^'"]+)['"]`)
 
 	// jQuery AJAX - $.ajax({ url: '/api', method: 'POST' })
-	jqueryAjaxPattern = regexp.MustCompile(`\$\.ajax\s*\(\s*\{([^}]+)\}`)
+	jqueryAjaxPattern = regexcache.MustGet(`\$\.ajax\s*\(\s*\{([^}]+)\}`)
 
 	// jQuery shortcuts - $.get('/api'), $.post('/api')
-	jqueryGetPattern  = regexp.MustCompile(`\$\.get\s*\(\s*['"]([^'"]+)['"]`)
-	jqueryPostPattern = regexp.MustCompile(`\$\.post\s*\(\s*['"]([^'"]+)['"]`)
+	jqueryGetPattern  = regexcache.MustGet(`\$\.get\s*\(\s*['"]([^'"]+)['"]`)
+	jqueryPostPattern = regexcache.MustGet(`\$\.post\s*\(\s*['"]([^'"]+)['"]`)
 
 	// Location assignments - location.href = '/path'
-	locationPattern = regexp.MustCompile(`(?:location\.href|window\.location|document\.location)\s*=\s*['"]([^'"]+)['"]`)
+	locationPattern = regexcache.MustGet(`(?:location\.href|window\.location|document\.location)\s*=\s*['"]([^'"]+)['"]`)
 
 	// location.replace() - location.replace('/path')
-	locationReplacePattern = regexp.MustCompile(`location\.replace\s*\(\s*['"]([^'"]+)['"]`)
+	locationReplacePattern = regexcache.MustGet(`location\.replace\s*\(\s*['"]([^'"]+)['"]`)
 
 	// window.open() - window.open('/popup')
-	windowOpenPattern = regexp.MustCompile(`window\.open\s*\(\s*['"]([^'"]+)['"]`)
+	windowOpenPattern = regexcache.MustGet(`window\.open\s*\(\s*['"]([^'"]+)['"]`)
 
 	// src/href assignments - element.src = '/image.png'
-	srcHrefPattern = regexp.MustCompile(`\.(src|href)\s*=\s*['"]([^'"]+)['"]`)
+	srcHrefPattern = regexcache.MustGet(`\.(src|href)\s*=\s*['"]([^'"]+)['"]`)
 
 	// API endpoint patterns - const API_URL = '/api/v1'
-	apiConstPattern = regexp.MustCompile(`(?:API_URL|API_ENDPOINT|BASE_URL|apiUrl|apiEndpoint|baseUrl)\s*[=:]\s*['"]([^'"]+)['"]`)
+	apiConstPattern = regexcache.MustGet(`(?:API_URL|API_ENDPOINT|BASE_URL|apiUrl|apiEndpoint|baseUrl)\s*[=:]\s*['"]([^'"]+)['"]`)
 
 	// Route definitions - '/users/:id'
-	routePattern = regexp.MustCompile(`['"](/[a-zA-Z0-9_/-]+/:[a-zA-Z0-9_]+(?:/[a-zA-Z0-9_/-]*)*)['"]`)
+	routePattern = regexcache.MustGet(`['"](/[a-zA-Z0-9_/-]+/:[a-zA-Z0-9_]+(?:/[a-zA-Z0-9_/-]*)*)['"]`)
 
 	// Helper patterns for extracting method/url from options
-	methodExtractPattern = regexp.MustCompile(`(?i)(?:method|type)\s*:\s*['"]([A-Z]+)['"]`)
-	urlExtractPattern    = regexp.MustCompile(`(?i)url\s*:\s*['"]([^'"]+)['"]`)
+	methodExtractPattern = regexcache.MustGet(`(?i)(?:method|type)\s*:\s*['"]([A-Z]+)['"]`)
+	urlExtractPattern    = regexcache.MustGet(`(?i)url\s*:\s*['"]([^'"]+)['"]`)
 )
 
 // ExtractJSURLsEnhanced performs smart JavaScript URL extraction
@@ -1258,57 +1260,57 @@ var secretPatterns = []struct {
 	Severity string
 }{
 	// AWS
-	{"aws_access_key", regexp.MustCompile(`AKIA[0-9A-Z]{16}`), "high"},
-	{"aws_secret_key", regexp.MustCompile(`(?i)aws.{0,20}?['\"][0-9a-zA-Z/+]{40}['\"]`), "high"},
+	{"aws_access_key", regexcache.MustGet(`AKIA[0-9A-Z]{16}`), "high"},
+	{"aws_secret_key", regexcache.MustGet(`(?i)aws.{0,20}?['\"][0-9a-zA-Z/+]{40}['\"]`), "high"},
 
 	// Google
-	{"google_api_key", regexp.MustCompile(`AIza[0-9A-Za-z\-_]{35}`), "medium"},
-	{"google_oauth", regexp.MustCompile(`[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com`), "medium"},
+	{"google_api_key", regexcache.MustGet(`AIza[0-9A-Za-z\-_]{35}`), "medium"},
+	{"google_oauth", regexcache.MustGet(`[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com`), "medium"},
 
 	// GitHub
-	{"github_token", regexp.MustCompile(`gh[pousr]_[A-Za-z0-9_]{36,255}`), "high"},
-	{"github_oauth", regexp.MustCompile(`gho_[A-Za-z0-9]{36}`), "high"},
+	{"github_token", regexcache.MustGet(`gh[pousr]_[A-Za-z0-9_]{36,255}`), "high"},
+	{"github_oauth", regexcache.MustGet(`gho_[A-Za-z0-9]{36}`), "high"},
 
 	// Slack
-	{"slack_token", regexp.MustCompile(`xox[baprs]-[0-9]{10,13}-[0-9]{10,13}[a-zA-Z0-9-]*`), "high"},
-	{"slack_webhook", regexp.MustCompile(`https://hooks\.slack\.com/services/[A-Za-z0-9+/]+`), "medium"},
+	{"slack_token", regexcache.MustGet(`xox[baprs]-[0-9]{10,13}-[0-9]{10,13}[a-zA-Z0-9-]*`), "high"},
+	{"slack_webhook", regexcache.MustGet(`https://hooks\.slack\.com/services/[A-Za-z0-9+/]+`), "medium"},
 
 	// JWT
-	{"jwt_token", regexp.MustCompile(`eyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*`), "medium"},
+	{"jwt_token", regexcache.MustGet(`eyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*`), "medium"},
 
 	// Private keys
-	{"private_key", regexp.MustCompile(`-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----`), "high"},
+	{"private_key", regexcache.MustGet(`-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----`), "high"},
 
 	// Generic API keys
-	{"api_key", regexp.MustCompile(`(?i)(?:api[_-]?key|apikey)['\"]?\s*[:=]\s*['\"]([a-zA-Z0-9_\-]{20,})['\"]`), "medium"},
-	{"secret_key", regexp.MustCompile(`(?i)(?:secret[_-]?key|secretkey)['\"]?\s*[:=]\s*['\"]([a-zA-Z0-9_\-]{20,})['\"]`), "medium"},
-	{"auth_token", regexp.MustCompile(`(?i)(?:auth[_-]?token|access[_-]?token)['\"]?\s*[:=]\s*['\"]([a-zA-Z0-9_\-]{20,})['\"]`), "medium"},
+	{"api_key", regexcache.MustGet(`(?i)(?:api[_-]?key|apikey)['\"]?\s*[:=]\s*['\"]([a-zA-Z0-9_\-]{20,})['\"]`), "medium"},
+	{"secret_key", regexcache.MustGet(`(?i)(?:secret[_-]?key|secretkey)['\"]?\s*[:=]\s*['\"]([a-zA-Z0-9_\-]{20,})['\"]`), "medium"},
+	{"auth_token", regexcache.MustGet(`(?i)(?:auth[_-]?token|access[_-]?token)['\"]?\s*[:=]\s*['\"]([a-zA-Z0-9_\-]{20,})['\"]`), "medium"},
 
 	// Firebase
-	{"firebase_config", regexp.MustCompile(`(?i)firebase[a-zA-Z]*\.json`), "low"},
+	{"firebase_config", regexcache.MustGet(`(?i)firebase[a-zA-Z]*\.json`), "low"},
 
 	// Database URLs
-	{"database_url", regexp.MustCompile(`(?i)(?:mongodb|postgres|mysql|redis)://[^\s'"]+`), "high"},
+	{"database_url", regexcache.MustGet(`(?i)(?:mongodb|postgres|mysql|redis)://[^\s'"]+`), "high"},
 
 	// Stripe
-	{"stripe_key", regexp.MustCompile(`sk_live_[0-9a-zA-Z]{24}`), "high"},
-	{"stripe_publishable", regexp.MustCompile(`pk_live_[0-9a-zA-Z]{24}`), "low"},
+	{"stripe_key", regexcache.MustGet(`sk_live_[0-9a-zA-Z]{24}`), "high"},
+	{"stripe_publishable", regexcache.MustGet(`pk_live_[0-9a-zA-Z]{24}`), "low"},
 
 	// Twilio
-	{"twilio_sid", regexp.MustCompile(`AC[a-zA-Z0-9_\-]{32}`), "medium"},
-	{"twilio_auth", regexp.MustCompile(`SK[a-zA-Z0-9_\-]{32}`), "high"},
+	{"twilio_sid", regexcache.MustGet(`AC[a-zA-Z0-9_\-]{32}`), "medium"},
+	{"twilio_auth", regexcache.MustGet(`SK[a-zA-Z0-9_\-]{32}`), "high"},
 
 	// SendGrid
-	{"sendgrid_key", regexp.MustCompile(`SG\.[a-zA-Z0-9_\-]{22}\.[a-zA-Z0-9_\-]{43}`), "high"},
+	{"sendgrid_key", regexcache.MustGet(`SG\.[a-zA-Z0-9_\-]{22}\.[a-zA-Z0-9_\-]{43}`), "high"},
 
 	// Mailgun
-	{"mailgun_key", regexp.MustCompile(`key-[0-9a-zA-Z]{32}`), "high"},
+	{"mailgun_key", regexcache.MustGet(`key-[0-9a-zA-Z]{32}`), "high"},
 
 	// Square
-	{"square_token", regexp.MustCompile(`sq0[a-z]{3}-[0-9A-Za-z_-]{22,43}`), "high"},
+	{"square_token", regexcache.MustGet(`sq0[a-z]{3}-[0-9A-Za-z_-]{22,43}`), "high"},
 
 	// Heroku
-	{"heroku_key", regexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`), "low"},
+	{"heroku_key", regexcache.MustGet(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`), "low"},
 }
 
 // DetectSecrets finds secrets in content

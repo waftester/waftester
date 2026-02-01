@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -472,17 +473,17 @@ func DetectContext(body, payload string) InjectionContext {
 	context := body[start:end]
 
 	// Check for script context
-	if regexp.MustCompile(`<script[^>]*>[^<]*$`).MatchString(context[:payloadPos-start]) {
+	if regexcache.MustGet(`<script[^>]*>[^<]*$`).MatchString(context[:payloadPos-start]) {
 		return ContextJavaScript
 	}
 
 	// Check for style context
-	if regexp.MustCompile(`<style[^>]*>[^<]*$`).MatchString(context[:payloadPos-start]) {
+	if regexcache.MustGet(`<style[^>]*>[^<]*$`).MatchString(context[:payloadPos-start]) {
 		return ContextCSS
 	}
 
 	// Check for attribute context
-	attrPattern := regexp.MustCompile(`[a-z]+\s*=\s*["'][^"']*$`)
+	attrPattern := regexcache.MustGet(`[a-z]+\s*=\s*["'][^"']*$`)
 	if attrPattern.MatchString(context[:payloadPos-start]) {
 		return ContextAttribute
 	}

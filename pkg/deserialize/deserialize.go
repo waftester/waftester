@@ -10,12 +10,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // VulnerabilityType represents the type of deserialization vulnerability.
@@ -537,7 +537,7 @@ func DetectSerializationFormat(data []byte) VulnerabilityType {
 
 	// Check for PHP serialized object
 	dataStr := string(data)
-	phpPattern := regexp.MustCompile(`^[aOCNRsbidr]:\d+`)
+	phpPattern := regexcache.MustGet(`^[aOCNRsbidr]:\d+`)
 	if phpPattern.MatchString(dataStr) {
 		return VulnPHPDeserial
 	}
@@ -570,7 +570,7 @@ func IsBase64Encoded(s string) bool {
 	if len(s) < 4 || len(s)%4 != 0 {
 		return false
 	}
-	base64Pattern := regexp.MustCompile(`^[A-Za-z0-9+/]*={0,2}$`)
+	base64Pattern := regexcache.MustGet(`^[A-Za-z0-9+/]*={0,2}$`)
 	return base64Pattern.MatchString(s)
 }
 

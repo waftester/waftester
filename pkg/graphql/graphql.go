@@ -9,11 +9,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // AttackType represents different GraphQL attack types
@@ -593,7 +593,7 @@ func (t *Tester) TestFieldSuggestion(ctx context.Context) (*Vulnerability, []str
 	}
 
 	var suggestions []string
-	suggestionRegex := regexp.MustCompile(`(?i)did you mean ['"]([\w]+)['"]`)
+	suggestionRegex := regexcache.MustGet(`(?i)did you mean ['"]([\w]+)['"]`)
 
 	for _, query := range testQueries {
 		resp, _, err := t.SendQuery(ctx, query, nil)

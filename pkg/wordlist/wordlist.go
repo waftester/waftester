@@ -17,6 +17,8 @@ import (
 	"sync/atomic"
 	"time"
 	"unicode"
+
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // Wordlist represents a loaded wordlist
@@ -877,7 +879,7 @@ func detectWordlistType(path string, words []string) WordlistType {
 
 func sanitizeFilename(url string) string {
 	// Create a safe filename from URL
-	safe := regexp.MustCompile(`[^a-zA-Z0-9.-]`).ReplaceAllString(url, "_")
+	safe := regexcache.MustGet(`[^a-zA-Z0-9.-]`).ReplaceAllString(url, "_")
 	if len(safe) > 100 {
 		safe = safe[:100]
 	}

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/js"
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // Endpoint represents a discovered API endpoint
@@ -571,7 +572,7 @@ func (d *Discoverer) extractJSFromHomepage(ctx context.Context) []string {
 
 	// Extract script src attributes
 	// Pattern: <script ... src="..." ...>
-	scriptPattern := regexp.MustCompile(`<script[^>]*\ssrc=["']([^"']+)["']`)
+	scriptPattern := regexcache.MustGet(`<script[^>]*\ssrc=["']([^"']+)["']`)
 	matches := scriptPattern.FindAllStringSubmatch(html, -1)
 	for _, match := range matches {
 		if len(match) > 1 {
@@ -594,7 +595,7 @@ func (d *Discoverer) extractJSFromHomepage(ctx context.Context) []string {
 
 	// Also check for dynamic imports in inline scripts
 	// Pattern: import("...") or require("...")
-	importPattern := regexp.MustCompile(`(?:import|require)\s*\(\s*["']([^"']+\.js[^"']*)["']`)
+	importPattern := regexcache.MustGet(`(?:import|require)\s*\(\s*["']([^"']+\.js[^"']*)["']`)
 	importMatches := importPattern.FindAllStringSubmatch(html, -1)
 	for _, match := range importMatches {
 		if len(match) > 1 {
@@ -1069,7 +1070,7 @@ func (d *Discoverer) parseOpenAPISpec(ctx context.Context, specPath string) []En
 
 		fullPath := basePath + path
 		// Normalize path - replace {param} with placeholder
-		fullPath = regexp.MustCompile(`\{[^}]+\}`).ReplaceAllString(fullPath, "1")
+		fullPath = regexcache.MustGet(`\{[^}]+\}`).ReplaceAllString(fullPath, "1")
 
 		for method, details := range methodMap {
 			method = strings.ToUpper(method)
@@ -1428,9 +1429,9 @@ func (d *Discoverer) crawlEndpoints(ctx context.Context, result *DiscoveryResult
 	// Extract links from responses and add to queue
 	// This is a simplified implementation
 	linkPatterns := []*regexp.Regexp{
-		regexp.MustCompile(`href=["']([^"']+)["']`),
-		regexp.MustCompile(`action=["']([^"']+)["']`),
-		regexp.MustCompile(`"path"\s*:\s*"([^"]+)"`),
+		regexcache.MustGet(`href=["']([^"']+)["']`),
+		regexcache.MustGet(`action=["']([^"']+)["']`),
+		regexcache.MustGet(`"path"\s*:\s*"([^"]+)"`),
 	}
 
 	for _, endpoint := range d.endpoints {

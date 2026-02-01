@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -200,14 +201,14 @@ func NewCrawler(config *Config) *Crawler {
 
 	// Compile include patterns
 	for _, pattern := range config.IncludeScope {
-		if re, err := regexp.Compile(pattern); err == nil {
+		if re, err := regexcache.Get(pattern); err == nil {
 			c.includeRE = append(c.includeRE, re)
 		}
 	}
 
 	// Compile exclude patterns
 	for _, pattern := range config.ExcludeScope {
-		if re, err := regexp.Compile(pattern); err == nil {
+		if re, err := regexcache.Get(pattern); err == nil {
 			c.excludeRE = append(c.excludeRE, re)
 		}
 	}
@@ -544,7 +545,7 @@ func (c *Crawler) extractLinks(html string, base *url.URL) []string {
 	seen := make(map[string]bool)
 
 	// Extract href attributes
-	hrefRE := regexp.MustCompile(`href\s*=\s*["']([^"']+)["']`)
+	hrefRE := regexcache.MustGet(`href\s*=\s*["']([^"']+)["']`)
 	matches := hrefRE.FindAllStringSubmatch(html, -1)
 
 	for _, match := range matches {
@@ -567,7 +568,7 @@ func extractForms(html string, base *url.URL) []FormInfo {
 	var forms []FormInfo
 
 	// Simple form extraction
-	formRE := regexp.MustCompile(`(?is)<form([^>]*)>(.*?)</form>`)
+	formRE := regexcache.MustGet(`(?is)<form([^>]*)>(.*?)</form>`)
 	formMatches := formRE.FindAllStringSubmatch(html, -1)
 
 	for _, match := range formMatches {
@@ -583,27 +584,27 @@ func extractForms(html string, base *url.URL) []FormInfo {
 		}
 
 		// Extract action
-		if actionMatch := regexp.MustCompile(`action\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(actionMatch) > 1 {
+		if actionMatch := regexcache.MustGet(`action\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(actionMatch) > 1 {
 			form.Action = resolveURL(actionMatch[1], base)
 		}
 
 		// Extract method
-		if methodMatch := regexp.MustCompile(`(?i)method\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(methodMatch) > 1 {
+		if methodMatch := regexcache.MustGet(`(?i)method\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(methodMatch) > 1 {
 			form.Method = strings.ToUpper(methodMatch[1])
 		}
 
 		// Extract id
-		if idMatch := regexp.MustCompile(`id\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(idMatch) > 1 {
+		if idMatch := regexcache.MustGet(`id\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(idMatch) > 1 {
 			form.ID = idMatch[1]
 		}
 
 		// Extract name
-		if nameMatch := regexp.MustCompile(`name\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(nameMatch) > 1 {
+		if nameMatch := regexcache.MustGet(`name\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(nameMatch) > 1 {
 			form.Name = nameMatch[1]
 		}
 
 		// Extract enctype
-		if encMatch := regexp.MustCompile(`enctype\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(encMatch) > 1 {
+		if encMatch := regexcache.MustGet(`enctype\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(encMatch) > 1 {
 			form.Enctype = encMatch[1]
 		}
 
@@ -620,7 +621,7 @@ func extractInputs(formBody string) []InputInfo {
 	var inputs []InputInfo
 
 	// Input tags
-	inputRE := regexp.MustCompile(`(?i)<input([^>]+)>`)
+	inputRE := regexcache.MustGet(`(?i)<input([^>]+)>`)
 	inputMatches := inputRE.FindAllStringSubmatch(formBody, -1)
 
 	for _, match := range inputMatches {
@@ -634,19 +635,19 @@ func extractInputs(formBody string) []InputInfo {
 		}
 
 		// Extract attributes
-		if nameMatch := regexp.MustCompile(`name\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(nameMatch) > 1 {
+		if nameMatch := regexcache.MustGet(`name\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(nameMatch) > 1 {
 			input.Name = nameMatch[1]
 		}
-		if typeMatch := regexp.MustCompile(`type\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(typeMatch) > 1 {
+		if typeMatch := regexcache.MustGet(`type\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(typeMatch) > 1 {
 			input.Type = typeMatch[1]
 		}
-		if valueMatch := regexp.MustCompile(`value\s*=\s*["']([^"']*?)["']`).FindStringSubmatch(attrs); len(valueMatch) > 1 {
+		if valueMatch := regexcache.MustGet(`value\s*=\s*["']([^"']*?)["']`).FindStringSubmatch(attrs); len(valueMatch) > 1 {
 			input.Value = valueMatch[1]
 		}
-		if idMatch := regexp.MustCompile(`id\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(idMatch) > 1 {
+		if idMatch := regexcache.MustGet(`id\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(idMatch) > 1 {
 			input.ID = idMatch[1]
 		}
-		if phMatch := regexp.MustCompile(`placeholder\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(phMatch) > 1 {
+		if phMatch := regexcache.MustGet(`placeholder\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(phMatch) > 1 {
 			input.Placeholder = phMatch[1]
 		}
 		if strings.Contains(strings.ToLower(attrs), "required") {
@@ -659,7 +660,7 @@ func extractInputs(formBody string) []InputInfo {
 	}
 
 	// Textarea tags
-	textareaRE := regexp.MustCompile(`(?i)<textarea([^>]*)>([^<]*)</textarea>`)
+	textareaRE := regexcache.MustGet(`(?i)<textarea([^>]*)>([^<]*)</textarea>`)
 	taMatches := textareaRE.FindAllStringSubmatch(formBody, -1)
 
 	for _, match := range taMatches {
@@ -672,7 +673,7 @@ func extractInputs(formBody string) []InputInfo {
 			Type: "textarea",
 		}
 
-		if nameMatch := regexp.MustCompile(`name\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(nameMatch) > 1 {
+		if nameMatch := regexcache.MustGet(`name\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(nameMatch) > 1 {
 			input.Name = nameMatch[1]
 		}
 		if len(match) > 2 {
@@ -685,7 +686,7 @@ func extractInputs(formBody string) []InputInfo {
 	}
 
 	// Select tags
-	selectRE := regexp.MustCompile(`(?i)<select([^>]*)>`)
+	selectRE := regexcache.MustGet(`(?i)<select([^>]*)>`)
 	selMatches := selectRE.FindAllStringSubmatch(formBody, -1)
 
 	for _, match := range selMatches {
@@ -698,7 +699,7 @@ func extractInputs(formBody string) []InputInfo {
 			Type: "select",
 		}
 
-		if nameMatch := regexp.MustCompile(`name\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(nameMatch) > 1 {
+		if nameMatch := regexcache.MustGet(`name\s*=\s*["']([^"']+)["']`).FindStringSubmatch(attrs); len(nameMatch) > 1 {
 			input.Name = nameMatch[1]
 		}
 
@@ -714,7 +715,7 @@ func extractScripts(html string, base *url.URL) []string {
 	var scripts []string
 	seen := make(map[string]bool)
 
-	srcRE := regexp.MustCompile(`<script[^>]+src\s*=\s*["']([^"']+)["']`)
+	srcRE := regexcache.MustGet(`<script[^>]+src\s*=\s*["']([^"']+)["']`)
 	matches := srcRE.FindAllStringSubmatch(html, -1)
 
 	for _, match := range matches {
@@ -736,7 +737,7 @@ func extractStylesheets(html string, base *url.URL) []string {
 	var stylesheets []string
 	seen := make(map[string]bool)
 
-	hrefRE := regexp.MustCompile(`<link[^>]+href\s*=\s*["']([^"']+)["'][^>]*>`)
+	hrefRE := regexcache.MustGet(`<link[^>]+href\s*=\s*["']([^"']+)["'][^>]*>`)
 	matches := hrefRE.FindAllStringSubmatch(html, -1)
 
 	for _, match := range matches {
@@ -764,7 +765,7 @@ func extractImages(html string, base *url.URL) []string {
 	var images []string
 	seen := make(map[string]bool)
 
-	srcRE := regexp.MustCompile(`<img[^>]+src\s*=\s*["']([^"']+)["']`)
+	srcRE := regexcache.MustGet(`<img[^>]+src\s*=\s*["']([^"']+)["']`)
 	matches := srcRE.FindAllStringSubmatch(html, -1)
 
 	for _, match := range matches {
@@ -785,7 +786,7 @@ func extractImages(html string, base *url.URL) []string {
 func extractComments(html string) []string {
 	var comments []string
 
-	commentRE := regexp.MustCompile(`<!--(.*?)-->`)
+	commentRE := regexcache.MustGet(`<!--(.*?)-->`)
 	matches := commentRE.FindAllStringSubmatch(html, -1)
 
 	for _, match := range matches {
@@ -806,7 +807,7 @@ func extractMeta(html string) map[string]string {
 	meta := make(map[string]string)
 
 	// Name-content pairs
-	nameRE := regexp.MustCompile(`<meta[^>]+name\s*=\s*["']([^"']+)["'][^>]+content\s*=\s*["']([^"']*)["']`)
+	nameRE := regexcache.MustGet(`<meta[^>]+name\s*=\s*["']([^"']+)["'][^>]+content\s*=\s*["']([^"']*)["']`)
 	matches := nameRE.FindAllStringSubmatch(html, -1)
 
 	for _, match := range matches {
@@ -816,7 +817,7 @@ func extractMeta(html string) map[string]string {
 	}
 
 	// Content-name pairs (reversed order in HTML)
-	contentRE := regexp.MustCompile(`<meta[^>]+content\s*=\s*["']([^"']*)["'][^>]+name\s*=\s*["']([^"']+)["']`)
+	contentRE := regexcache.MustGet(`<meta[^>]+content\s*=\s*["']([^"']*)["'][^>]+name\s*=\s*["']([^"']+)["']`)
 	matches = contentRE.FindAllStringSubmatch(html, -1)
 
 	for _, match := range matches {
@@ -826,7 +827,7 @@ func extractMeta(html string) map[string]string {
 	}
 
 	// Property-content (Open Graph)
-	propRE := regexp.MustCompile(`<meta[^>]+property\s*=\s*["']([^"']+)["'][^>]+content\s*=\s*["']([^"']*)["']`)
+	propRE := regexcache.MustGet(`<meta[^>]+property\s*=\s*["']([^"']+)["'][^>]+content\s*=\s*["']([^"']*)["']`)
 	matches = propRE.FindAllStringSubmatch(html, -1)
 
 	for _, match := range matches {
@@ -839,7 +840,7 @@ func extractMeta(html string) map[string]string {
 }
 
 func extractTitle(html string) string {
-	titleRE := regexp.MustCompile(`(?i)<title[^>]*>([^<]*)</title>`)
+	titleRE := regexcache.MustGet(`(?i)<title[^>]*>([^<]*)</title>`)
 	if match := titleRE.FindStringSubmatch(html); len(match) > 1 {
 		return strings.TrimSpace(match[1])
 	}
