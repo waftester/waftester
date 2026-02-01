@@ -236,6 +236,24 @@ func (lp *LiveProgress) AddMetricBy(name string, n int) {
 	lp.metricsLock.RUnlock()
 }
 
+// SetMetric sets a named metric to a specific value
+func (lp *LiveProgress) SetMetric(name string, value int64) {
+	lp.metricsLock.RLock()
+	if ptr, ok := lp.metrics[name]; ok {
+		atomic.StoreInt64(ptr, value)
+	}
+	lp.metricsLock.RUnlock()
+}
+
+// AddMetricN increments a named metric by n (int64 version)
+func (lp *LiveProgress) AddMetricN(name string, n int64) {
+	lp.metricsLock.RLock()
+	if ptr, ok := lp.metrics[name]; ok {
+		atomic.AddInt64(ptr, n)
+	}
+	lp.metricsLock.RUnlock()
+}
+
 // GetMetric returns the current value of a named metric
 func (lp *LiveProgress) GetMetric(name string) int64 {
 	lp.metricsLock.RLock()
@@ -378,6 +396,7 @@ func (lp *LiveProgress) renderStreaming() {
 	completed := atomic.LoadInt64(&lp.completed)
 	total := atomic.LoadInt64(&lp.total)
 	elapsed := time.Since(lp.startTime)
+	status := lp.status.Load().(string)
 
 	percent := float64(0)
 	if total > 0 {
@@ -397,12 +416,21 @@ func (lp *LiveProgress) renderStreaming() {
 	// Format output
 	output := lp.config.StreamFormat
 	output = strings.ReplaceAll(output, "{time}", formatElapsedCompact(elapsed))
+	output = strings.ReplaceAll(output, "{elapsed}", formatElapsedCompact(elapsed))
 	output = strings.ReplaceAll(output, "{completed}", fmt.Sprintf("%d", completed))
 	output = strings.ReplaceAll(output, "{total}", fmt.Sprintf("%d", total))
 	output = strings.ReplaceAll(output, "{percent}", fmt.Sprintf("%.1f", percent))
 	output = strings.ReplaceAll(output, "{metrics}", metricsStr)
+	output = strings.ReplaceAll(output, "{status}", status)
 
-	fmt.Fprintln(lp.config.Writer, output)
+	// Replace individual metric placeholders {metric:name}
+	for _, m := range lp.config.Metrics {
+		val := lp.GetMetric(m.Name)
+		output = strings.ReplaceAll(output, fmt.Sprintf("{metric:%s}", m.Name), fmt.Sprintf("%d", val))
+	}
+
+	// Streaming mode writes to stderr to keep stdout clean for JSON/data output
+	fmt.Fprintln(os.Stderr, output)
 }
 
 // buildProgressBar creates the visual progress bar

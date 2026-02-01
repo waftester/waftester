@@ -1959,6 +1959,30 @@ func runAutoScan() {
 		cancel()
 	}()
 
+	// Determine output mode for LiveProgress
+	autoOutputMode := ui.OutputModeInteractive
+	if *streamMode {
+		autoOutputMode = ui.OutputModeStreaming
+	}
+
+	// Use unified LiveProgress for phases
+	autoProgress := ui.NewLiveProgress(ui.LiveProgressConfig{
+		Total:        7, // 7 major phases: smart mode, discover, JS, learn, run, assess, browser
+		DisplayLines: 3,
+		Title:        "Auto mode",
+		Unit:         "phases",
+		Mode:         autoOutputMode,
+		Metrics: []ui.MetricConfig{
+			{Name: "endpoints", Label: "Endpoints", Icon: "🎯"},
+			{Name: "secrets", Label: "Secrets", Icon: "🔑", Highlight: true},
+			{Name: "bypasses", Label: "Bypasses", Icon: "⚠️", Highlight: true},
+		},
+		StreamFormat:   "[PROGRESS] phase {completed}/{total} | {status} | endpoints: {metric:endpoints} | {elapsed}",
+		StreamInterval: 5 * time.Second,
+	})
+	autoProgress.Start()
+	defer autoProgress.Stop()
+
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 0: SMART MODE - WAF DETECTION & STRATEGY OPTIMIZATION (Optional)
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -2003,6 +2027,10 @@ func runAutoScan() {
 	_ = smartVerbose
 	_ = smartModeType
 
+	// Update progress after smart mode
+	autoProgress.SetStatus("Discovery")
+	autoProgress.Increment()
+
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 1: DISCOVERY
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -2039,6 +2067,11 @@ func runAutoScan() {
 		ui.PrintInfo(fmt.Sprintf("  WAF Detected: %s", discResult.WAFFingerprint))
 	}
 	fmt.Println()
+
+	// Update progress after discovery
+	autoProgress.SetMetric("endpoints", int64(len(discResult.Endpoints)))
+	autoProgress.SetStatus("Leaky paths")
+	autoProgress.Increment()
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 1.5: LEAKY PATHS SCANNING (NEW - competitive feature from leaky-paths)
@@ -2326,6 +2359,11 @@ func runAutoScan() {
 	ui.PrintSuccess(fmt.Sprintf("✓ Analyzed %d JavaScript files", jsAnalyzed))
 	ui.PrintInfo(fmt.Sprintf("  Found: %d URLs, %d endpoints, %d secrets, %d DOM sinks",
 		len(allJSData.URLs), len(allJSData.Endpoints), len(allJSData.Secrets), len(allJSData.DOMSinks)))
+
+	// Update progress after JS analysis
+	autoProgress.AddMetricN("secrets", int64(len(allJSData.Secrets)))
+	autoProgress.SetStatus("Learning")
+	autoProgress.Increment()
 
 	// Add JS-discovered endpoints to discovery result
 	for _, ep := range allJSData.Endpoints {
@@ -2706,6 +2744,10 @@ func runAutoScan() {
 	}
 	fmt.Println()
 
+	// Update progress after learning phase
+	autoProgress.SetStatus("Testing")
+	autoProgress.Increment()
+
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 4: WAF SECURITY TESTING
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -2885,6 +2927,11 @@ func runAutoScan() {
 	progress.Stop()
 
 	writer.Close()
+
+	// Update progress after WAF testing
+	autoProgress.AddMetricN("bypasses", int64(results.FailedTests))
+	autoProgress.SetStatus("Analysis")
+	autoProgress.Increment()
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 4.5: VENDOR-SPECIFIC WAF ANALYSIS (NEW)
@@ -3091,6 +3138,11 @@ func runAutoScan() {
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 6: ENTERPRISE ASSESSMENT (NOW DEFAULT)
 	// ═══════════════════════════════════════════════════════════════════════════
+
+	// Update progress for assessment phase
+	autoProgress.SetStatus("Assessment")
+	autoProgress.Increment()
+
 	if *enableAssess {
 		fmt.Println()
 		fmt.Println(ui.SectionStyle.Render("PHASE 6: Enterprise Assessment (Quantitative Metrics)"))
@@ -3173,6 +3225,11 @@ func runAutoScan() {
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 7-9: AUTHENTICATED BROWSER SCANNING
 	// ═══════════════════════════════════════════════════════════════════════════
+
+	// Update progress for browser phase
+	autoProgress.SetStatus("Browser scan")
+	autoProgress.Increment()
+
 	var browserResult *browser.BrowserScanResult
 
 	if *enableBrowserScan {
@@ -6875,78 +6932,31 @@ func runProbe() {
 		return &results, nil
 	} // end of probeTask function
 
-	// Live progress display for multi-target probing
-	var progressDone chan struct{}
-	if len(targets) > 1 && !*silent && !*oneliner && !*jsonl && !*jsonOutput && !*streamMode {
-		progressDone = make(chan struct{})
-		totalTargets := int64(len(targets))
+	// Determine output mode for LiveProgress
+	probeOutputMode := ui.OutputModeInteractive
+	if *streamMode {
+		probeOutputMode = ui.OutputModeStreaming
+	} else if *silent || *jsonOutput || *jsonl {
+		probeOutputMode = ui.OutputModeSilent
+	}
 
-		// Print placeholder lines for live update
-		fmt.Println("  ") // Progress bar
-		fmt.Println("  ") // Stats line
-		fmt.Println("  ") // Current target
-
-		go func() {
-			ticker := time.NewTicker(100 * time.Millisecond)
-			defer ticker.Stop()
-			spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-			frameIdx := 0
-
-			for {
-				select {
-				case <-progressDone:
-					return
-				case <-ticker.C:
-					completed := atomic.LoadInt64(&statsTotal)
-					success := atomic.LoadInt64(&statsSuccess)
-					failed := atomic.LoadInt64(&statsFailed)
-					elapsed := time.Since(statsStart)
-
-					percent := float64(completed) / float64(totalTargets) * 100
-					rps := float64(0)
-					if elapsed.Seconds() > 0 {
-						rps = float64(completed) / elapsed.Seconds()
-					}
-
-					eta := time.Duration(0)
-					if completed > 0 && completed < totalTargets {
-						avgTime := elapsed / time.Duration(completed)
-						remaining := totalTargets - completed
-						eta = avgTime * time.Duration(remaining)
-					}
-
-					// Build progress bar
-					barWidth := 40
-					filled := int(percent / 100 * float64(barWidth))
-					bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
-
-					// Color based on success rate
-					barColor := "\033[32m" // Green
-					if failed > 0 && float64(failed)/float64(completed) > 0.5 {
-						barColor = "\033[33m" // Yellow
-					}
-					if failed > success {
-						barColor = "\033[31m" // Red
-					}
-
-					// Move up and redraw
-					fmt.Print("\033[3A\033[J")
-
-					spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
-					fmt.Printf("  %s %s%s\033[0m %.1f%% (%d/%d)\n",
-						spinner, barColor, bar, percent, completed, totalTargets)
-
-					fmt.Printf("  ✓ %d success | ✗ %d failed | %.1f req/s | ETA: %s\n",
-						success, failed, rps, formatETA(eta))
-
-					// Show current activity
-					fmt.Printf("  🔄 Elapsed: %s | Targets: %d remaining\n",
-						elapsed.Round(time.Second), totalTargets-completed)
-
-					frameIdx++
-				}
-			}
-		}()
+	// Use unified LiveProgress for probe command
+	probeProgress := ui.NewLiveProgress(ui.LiveProgressConfig{
+		Total:        len(targets),
+		DisplayLines: 3,
+		Title:        "Probing targets",
+		Unit:         "targets",
+		Mode:         probeOutputMode,
+		Metrics: []ui.MetricConfig{
+			{Name: "alive", Label: "Alive", Icon: "✅", Highlight: true},
+			{Name: "dead", Label: "Dead", Icon: "❌"},
+		},
+		StreamFormat:   "[PROGRESS] {completed}/{total} ({percent}%) | alive: {metric:alive} | dead: {metric:dead} | {elapsed}",
+		StreamInterval: 3 * time.Second,
+	})
+	if len(targets) > 1 && !*oneliner {
+		probeProgress.Start()
+		defer probeProgress.Stop()
 	}
 
 	// Run probes in parallel with streaming output using callback
@@ -6955,6 +6965,8 @@ func runProbe() {
 			// Handle error output
 			atomic.AddInt64(&statsTotal, 1)
 			atomic.AddInt64(&statsFailed, 1)
+			probeProgress.Increment()
+			probeProgress.AddMetric("dead")
 			return
 		}
 
@@ -6968,10 +6980,13 @@ func runProbe() {
 
 		// Update statistics (atomic for thread-safe HTTP API access)
 		atomic.AddInt64(&statsTotal, 1)
+		probeProgress.Increment()
 		if results.Alive {
 			atomic.AddInt64(&statsSuccess, 1)
+			probeProgress.AddMetric("alive")
 		} else {
 			atomic.AddInt64(&statsFailed, 1)
+			probeProgress.AddMetric("dead")
 			// Track host errors for MaxHostErrors feature
 			if hostErrorLimit > 0 {
 				hostForFilter := strings.TrimPrefix(currentTarget, "https://")
@@ -7262,12 +7277,7 @@ func runProbe() {
 		}
 	}) // end of RunWithCallback
 
-	// Stop progress goroutine and clear progress lines
-	if progressDone != nil {
-		close(progressDone)
-		time.Sleep(50 * time.Millisecond) // Allow goroutine to exit cleanly
-		fmt.Print("\033[3A\033[J")        // Clear progress lines
-	}
+	// LiveProgress is automatically stopped by defer
 
 	// Clean up checkpoint file on successful completion
 	if checkpointMgr != nil && checkpointMgr.GetProgress() >= 100 {
@@ -8021,49 +8031,50 @@ func runCrawl() {
 
 	// Progress tracking
 	startTime := time.Now()
-	progressTicker := time.NewTicker(200 * time.Millisecond)
-	defer progressTicker.Stop()
-
-	doneChan := make(chan struct{})
 	var pageCount int64
 
-	// Progress display goroutine
-	if !*silent && !*jsonOutput && !*streamMode {
-		go func() {
-			spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-			frameIdx := 0
-			for {
-				select {
-				case <-doneChan:
-					return
-				case <-progressTicker.C:
-					count := atomic.LoadInt64(&pageCount)
-					elapsed := time.Since(startTime)
-					rps := float64(count) / elapsed.Seconds()
-					if elapsed.Seconds() < 1 {
-						rps = float64(count)
-					}
-					spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
-					fmt.Printf("\r  %s Crawling: %d pages | %d forms | %d scripts | %.1f pages/sec    ",
-						spinner, count, len(allForms), len(allScripts), rps)
-					frameIdx++
-				}
-			}
-		}()
+	// Determine output mode for LiveProgress
+	crawlOutputMode := ui.OutputModeInteractive
+	if *streamMode {
+		crawlOutputMode = ui.OutputModeStreaming
+	} else if *silent || *jsonOutput {
+		crawlOutputMode = ui.OutputModeSilent
 	}
+
+	// Use unified LiveProgress for crawl command
+	crawlProgress := ui.NewLiveProgress(ui.LiveProgressConfig{
+		Total:        0, // Unknown - will be updated dynamically
+		DisplayLines: 3,
+		Title:        "Crawling",
+		Unit:         "pages",
+		Mode:         crawlOutputMode,
+		Metrics: []ui.MetricConfig{
+			{Name: "links", Label: "Links", Icon: "🔗"},
+			{Name: "forms", Label: "Forms", Icon: "📝"},
+			{Name: "scripts", Label: "Scripts", Icon: "📜"},
+		},
+		StreamFormat:   "[PROGRESS] {completed} pages | links: {metric:links} | forms: {metric:forms} | {elapsed}",
+		StreamInterval: 3 * time.Second,
+	})
+	crawlProgress.Start()
 
 	for result := range results {
 		atomic.AddInt64(&pageCount, 1)
+		crawlProgress.Increment()
 		crawlResults = append(crawlResults, result)
 		allURLs = append(allURLs, result.URL)
 		allForms = append(allForms, result.Forms...)
 		allScripts = append(allScripts, result.Scripts...)
+		// Update metrics
+		crawlProgress.SetMetric("links", int64(len(allURLs)))
+		crawlProgress.SetMetric("forms", int64(len(allForms)))
+		crawlProgress.SetMetric("scripts", int64(len(allScripts)))
 	}
 
-	close(doneChan)
-	if !*silent && !*jsonOutput {
-		fmt.Printf("\r%s\r", strings.Repeat(" ", 80)) // Clear progress line
-	}
+	crawlProgress.Stop()
+
+	// Silence unused variable
+	_ = startTime
 
 	if !*jsonOutput && !*silent {
 		ui.PrintSection("Crawl Results")
@@ -8503,6 +8514,15 @@ func runFuzz() {
 		os.Setenv("NO_COLOR", "1")
 	}
 
+	// Determine output mode for progress
+	outputMode := ui.OutputModeInteractive
+	if *streamMode {
+		outputMode = ui.OutputModeStreaming
+	}
+	if *silent {
+		outputMode = ui.OutputModeSilent
+	}
+
 	// Print config or manifest
 	if !*silent {
 		if *streamMode {
@@ -8567,66 +8587,56 @@ func runFuzz() {
 	var resultsMu sync.Mutex
 
 	// Progress tracking
-	startTime := time.Now()
 	var totalReqs, matchCount int64
 	totalWords := len(words)
 	if len(cfg.Extensions) > 0 {
 		totalWords = len(words) * len(cfg.Extensions)
 	}
 
-	// Progress display goroutine (ffuf-style periodic status)
-	progressDone := make(chan struct{})
-	if !*silent && !*jsonOutput && !*streamMode {
-		go func() {
-			ticker := time.NewTicker(1 * time.Second)
-			defer ticker.Stop()
-			spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-			frameIdx := 0
-			for {
-				select {
-				case <-progressDone:
-					return
-				case <-ticker.C:
-					reqs := atomic.LoadInt64(&totalReqs)
-					matches := atomic.LoadInt64(&matchCount)
-					elapsed := time.Since(startTime)
-					rps := float64(reqs) / elapsed.Seconds()
-					if elapsed.Seconds() < 1 {
-						rps = float64(reqs)
-					}
-					percent := float64(reqs) / float64(totalWords) * 100
-					eta := time.Duration(0)
-					if reqs > 0 && reqs < int64(totalWords) {
-						remaining := int64(totalWords) - reqs
-						eta = time.Duration(float64(remaining) / rps * float64(time.Second))
-					}
-					spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
-					// Use stderr for progress so results can be piped
-					fmt.Fprintf(os.Stderr, "\r%s [%d/%d] %.1f%% | ✓ %d matches | ⚡ %.0f req/s | ETA: %s    ",
-						spinner, reqs, totalWords, percent, matches, rps, formatETA(eta))
-					frameIdx++
-				}
-			}
-		}()
+	// Use unified LiveProgress for progress display
+	progress := ui.NewLiveProgress(ui.LiveProgressConfig{
+		Total:        totalWords,
+		DisplayLines: 4,
+		Title:        "Fuzzing",
+		Unit:         "words",
+		Mode:         outputMode,
+		Metrics: []ui.MetricConfig{
+			{Name: "matches", Label: "Matches", Icon: "✅", Highlight: true},
+			{Name: "filtered", Label: "Filtered", Icon: "🔇"},
+		},
+		Tips: []string{
+			"💡 Content fuzzing discovers hidden paths, parameters, and endpoints",
+			"💡 Response size and status code variations indicate interesting findings",
+			"💡 Use -ac for auto-calibration to filter baseline responses",
+			"💡 Extensions (-e) multiply wordlist entries for file discovery",
+		},
+		StreamFormat:   "[PROGRESS] {completed}/{total} ({percent}%) | matches: {metric:matches} | {status} | {elapsed}",
+		StreamInterval: 3 * time.Second,
+	})
+	if !*jsonOutput {
+		progress.Start()
+		defer progress.Stop()
 	}
 
 	callback := func(result *fuzz.Result) {
 		atomic.AddInt64(&totalReqs, 1)
+		progress.Increment()
+		progress.SetStatus(result.Input)
 
 		// Apply auto-calibration filter
 		if calibration != nil && calibration.ShouldFilter(result) {
+			progress.AddMetric("filtered")
 			return // Skip baseline matches
 		}
 
 		atomic.AddInt64(&matchCount, 1)
+		progress.AddMetric("matches")
 		resultsMu.Lock()
 		results = append(results, result)
 		resultsMu.Unlock()
 
+		// Print result (LiveProgress handles terminal management)
 		if !*silent && !*jsonOutput {
-			// Clear progress line before printing result
-			fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", 80))
-
 			statusColor := ui.StatValueStyle
 			switch {
 			case result.StatusCode >= 200 && result.StatusCode < 300:
@@ -8668,12 +8678,6 @@ func runFuzz() {
 	fuzzStartTime := time.Now()
 	stats := fuzzer.Run(ctx, callback)
 	duration := time.Since(fuzzStartTime)
-
-	// Stop progress display
-	close(progressDone)
-	if !*silent && !*jsonOutput {
-		fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", 80)) // Clear progress line
-	}
 
 	// Print summary
 	if !*silent && !*jsonOutput && !*csvFuzz && !*markdownFuzz && !*htmlFuzz {
@@ -9093,9 +9097,6 @@ type DNSReconResult struct {
 }
 
 func runScan() {
-	ui.PrintCompactBanner()
-	ui.PrintSection("Deep Vulnerability Scan")
-
 	scanFlags := flag.NewFlagSet("scan", flag.ExitOnError)
 	var targetURLs input.StringSliceFlag
 	scanFlags.Var(&targetURLs, "u", "Target URL(s) - comma-separated or repeated")
@@ -9220,6 +9221,15 @@ func runScan() {
 
 	scanFlags.Parse(os.Args[2:])
 
+	// Check if we're in streaming JSON mode (suppress UI output)
+	streamJSON := *streamMode && (*jsonOutput || *formatType == "json" || *formatType == "jsonl")
+
+	// Print banner unless in streaming JSON mode
+	if !streamJSON {
+		ui.PrintCompactBanner()
+		ui.PrintSection("Deep Vulnerability Scan")
+	}
+
 	// Apply silent mode
 	if *silent {
 		ui.SetSilent(true)
@@ -9320,14 +9330,17 @@ func runScan() {
 	_ = smartModeType
 	_ = smartResult
 
-	ui.PrintConfigLine("Target", target)
-	ui.PrintConfigLine("Scan Types", *types)
-	ui.PrintConfigLine("Timeout", fmt.Sprintf("%ds", *timeout))
-	ui.PrintConfigLine("Concurrency", fmt.Sprintf("%d", *concurrency))
-	if *smartMode {
-		ui.PrintConfigLine("Rate Limit", fmt.Sprintf("%d req/sec (WAF-optimized)", *rateLimit))
+	// Only print config to stdout if not in streaming JSON mode
+	if !streamJSON {
+		ui.PrintConfigLine("Target", target)
+		ui.PrintConfigLine("Scan Types", *types)
+		ui.PrintConfigLine("Timeout", fmt.Sprintf("%ds", *timeout))
+		ui.PrintConfigLine("Concurrency", fmt.Sprintf("%d", *concurrency))
+		if *smartMode {
+			ui.PrintConfigLine("Rate Limit", fmt.Sprintf("%d req/sec (WAF-optimized)", *rateLimit))
+		}
+		fmt.Println()
 	}
-	fmt.Println()
 
 	// Parse scan types
 	scanAll := *types == "all"
@@ -9340,6 +9353,28 @@ func runScan() {
 
 	shouldScan := func(name string) bool {
 		return scanAll || typeSet[name]
+	}
+
+	// Dry run mode - list what would be scanned and exit
+	if *dryRun {
+		allScanTypes := []string{"sqli", "xss", "traversal", "cmdi", "nosqli", "hpp", "crlf", "prototype", "cors", "redirect", "hostheader", "websocket", "cache", "upload", "deserialize", "oauth", "ssrf", "ssti", "xxe", "jwt", "smuggling", "bizlogic", "race", "httpprobe", "secheaders", "jsanalyze", "apidepth", "osint", "vhost", "techdetect", "dnsrecon", "wafdetect", "waffprint"}
+		
+		var selectedScans []string
+		for _, t := range allScanTypes {
+			if shouldScan(t) {
+				selectedScans = append(selectedScans, t)
+			}
+		}
+
+		ui.PrintSection("Dry Run Mode")
+		ui.PrintInfo(fmt.Sprintf("Would execute %d scan types against %s:", len(selectedScans), target))
+		fmt.Println()
+		for _, s := range selectedScans {
+			fmt.Printf("  • %s\n", s)
+		}
+		fmt.Println()
+		ui.PrintHelp("Remove -dry-run flag to execute scans")
+		os.Exit(0)
 	}
 
 	// Build HTTP transport with proxy support
@@ -9416,11 +9451,8 @@ func runScan() {
 	semaphore := make(chan struct{}, *concurrency)
 
 	// Progress tracking
-	var completedScans int32
 	var totalScans int32
 	var scanTimings sync.Map // map[string]time.Duration
-	var activeScans sync.Map // map[string]time.Time - currently running scans
-	var vulnsFound int32     // live vulnerability counter
 
 	// Count total scans first
 	allScanTypes := []string{"sqli", "xss", "traversal", "cmdi", "nosqli", "ssrf", "ssti", "xxe", "smuggling", "oauth", "jwt", "cors", "redirect", "hostheader", "cache", "upload", "deserialize", "bizlogic", "race", "secheaders", "wafdetect", "waffprint", "wafevasion", "techdetect", "jsanalyze"}
@@ -9430,106 +9462,61 @@ func runScan() {
 		}
 	}
 
-	// Live progress display
-	startTime := time.Now()
-	progressDone := make(chan struct{})
-	if !*silent && !*streamMode {
-		ui.PrintSection("🔬 Deep Vulnerability Scan")
-		fmt.Printf("  Target: %s\n", target)
-		fmt.Printf("  Scan Types: %d | Concurrency: %d\n\n", totalScans, *concurrency)
-
-		// Print placeholder lines for live update
-		fmt.Println("  ") // Progress bar
-		fmt.Println("  ") // Stats line
-		fmt.Println("  ") // Active scans line
-		fmt.Println("  ") // Tip line
-
-		go func() {
-			ticker := time.NewTicker(150 * time.Millisecond)
-			defer ticker.Stop()
-			spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-			frameIdx := 0
-
-			for {
-				select {
-				case <-progressDone:
-					return
-				case <-ticker.C:
-					completed := atomic.LoadInt32(&completedScans)
-					total := atomic.LoadInt32(&totalScans)
-					vulns := atomic.LoadInt32(&vulnsFound)
-					elapsed := time.Since(startTime)
-
-					percent := float64(completed) / float64(total) * 100
-					eta := time.Duration(0)
-					if completed > 0 && completed < total {
-						avgTime := elapsed / time.Duration(completed)
-						remaining := total - completed
-						eta = avgTime * time.Duration(remaining)
-					}
-
-					// Build progress bar
-					barWidth := 50
-					filled := int(percent / 100 * float64(barWidth))
-					bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
-
-					// Color based on vulnerabilities found
-					barColor := "82" // Green
-					if vulns > 0 {
-						barColor = "226" // Gold
-					}
-					if vulns > 5 {
-						barColor = "196" // Red
-					}
-
-					// Get active scans list
-					var activeList []string
-					activeScans.Range(func(key, value interface{}) bool {
-						name := key.(string)
-						started := value.(time.Time)
-						runTime := time.Since(started).Round(time.Second)
-						activeList = append(activeList, fmt.Sprintf("%s(%s)", name, runTime))
-						return true
-					})
-					activeStr := strings.Join(activeList, ", ")
-					if len(activeStr) > 60 {
-						activeStr = activeStr[:57] + "..."
-					}
-					if activeStr == "" {
-						activeStr = "waiting..."
-					}
-
-					// Move up and redraw
-					fmt.Print("\033[4A\033[J")
-
-					spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
-					fmt.Printf("  %s \033[38;5;%sm%s\033[0m %.1f%% (%d/%d)\n",
-						spinner, barColor, bar, percent, completed, total)
-
-					vulnIcon := "🔍"
-					if vulns > 0 {
-						vulnIcon = "🚨"
-					}
-					fmt.Printf("  %s Vulns: \033[31m%d\033[0m | ⏱️ Elapsed: %s | ETA: %s\n",
-						vulnIcon, vulns, elapsed.Round(time.Second), formatETA(eta))
-
-					fmt.Printf("  🔄 Active: %s\n", activeStr)
-
-					tips := []string{
-						"💡 SQLi uses error-based, time-based, union, and boolean techniques",
-						"💡 XSS tests reflected, stored, and DOM-based vectors",
-						"💡 SSRF probes for internal network access and cloud metadata",
-						"💡 Path traversal tests for file system access vulnerabilities",
-						"💡 Each scan type uses context-aware payload selection",
-					}
-					tipIdx := int(elapsed.Seconds()/5) % len(tips)
-					fmt.Printf("  %s\n", tips[tipIdx])
-
-					frameIdx++
-				}
-			}
-		}()
+	// Determine output mode for progress
+	outputMode := ui.OutputModeInteractive
+	if *streamMode {
+		outputMode = ui.OutputModeStreaming
 	}
+	if *silent {
+		outputMode = ui.OutputModeSilent
+	}
+
+	// Live progress display using unified LiveProgress
+	progress := ui.NewLiveProgress(ui.LiveProgressConfig{
+		Total:        int(totalScans),
+		DisplayLines: 4,
+		Title:        "Deep Vulnerability Scan",
+		Unit:         "scans",
+		Mode:         outputMode,
+		Metrics: []ui.MetricConfig{
+			{Name: "vulns", Label: "Vulns", Icon: "🚨", Highlight: true},
+		},
+		Tips: []string{
+			"💡 SQLi uses error-based, time-based, union, and boolean techniques",
+			"💡 XSS tests reflected, stored, and DOM-based vectors",
+			"💡 SSRF probes for internal network access and cloud metadata",
+			"💡 Path traversal tests for file system access vulnerabilities",
+			"💡 Each scan type uses context-aware payload selection",
+		},
+		StreamFormat:   "[PROGRESS] {completed}/{total} ({percent}%) | vulns: {metric:vulns} | active: {status} | {elapsed}",
+		StreamInterval: 3 * time.Second,
+	})
+	progress.Start()
+	defer progress.Stop()
+
+	// Streaming JSON event emitter for real-time output
+	var eventMu sync.Mutex
+	emitEvent := func(eventType string, data interface{}) {
+		if !streamJSON {
+			return
+		}
+		eventMu.Lock()
+		defer eventMu.Unlock()
+		event := map[string]interface{}{
+			"type":      eventType,
+			"timestamp": time.Now().Format(time.RFC3339),
+			"data":      data,
+		}
+		eventData, _ := json.Marshal(event)
+		fmt.Println(string(eventData))
+	}
+
+	// Emit scan start event
+	emitEvent("scan_start", map[string]interface{}{
+		"target":      target,
+		"scan_types":  allScanTypes,
+		"concurrency": *concurrency,
+	})
 
 	// Helper to run a scanner with progress tracking
 	runScanner := func(name string, fn func()) {
@@ -9543,13 +9530,12 @@ func runScan() {
 			defer func() { <-semaphore }()
 
 			scanStart := time.Now()
-			activeScans.Store(name, scanStart)
-			defer activeScans.Delete(name)
+			progress.SetStatus(name)
 
 			fn()
 			elapsed := time.Since(scanStart)
 			scanTimings.Store(name, elapsed)
-			atomic.AddInt32(&completedScans, 1)
+			progress.Increment()
 		}()
 	}
 
@@ -9557,6 +9543,14 @@ func runScan() {
 
 	// SQL Injection Scanner
 	runScanner("sqli", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{
+				"scanner": "sqli",
+				"vulns":   vulnCount,
+			})
+		}()
+
 		cfg := &sqli.TesterConfig{
 			Timeout:   timeoutDur,
 			UserAgent: ui.UserAgent(),
@@ -9564,17 +9558,29 @@ func runScan() {
 		}
 		tester := sqli.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
-		if err != nil && *verbose {
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("SQLi scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.SQLi = scanResult
 		if scanResult != nil {
-			result.ByCategory["sqli"] = len(scanResult.Vulnerabilities)
-			result.TotalVulns += len(scanResult.Vulnerabilities)
-			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
+			vulnCount = len(scanResult.Vulnerabilities)
+			result.ByCategory["sqli"] = vulnCount
+			result.TotalVulns += vulnCount
+			progress.AddMetricBy("vulns", vulnCount)
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
+				// Emit real-time event for each vulnerability
+				emitEvent("vulnerability", map[string]interface{}{
+					"category":  "sqli",
+					"severity":  v.Severity,
+					"type":      v.Type,
+					"parameter": v.Parameter,
+					"payload":   v.Payload,
+				})
 			}
 		}
 		mu.Unlock()
@@ -9582,6 +9588,10 @@ func runScan() {
 
 	// XSS Scanner
 	runScanner("xss", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "xss", "vulns": vulnCount})
+		}()
 		cfg := &xss.TesterConfig{
 			Timeout:   timeoutDur,
 			UserAgent: ui.UserAgent(),
@@ -9589,18 +9599,27 @@ func runScan() {
 		}
 		tester := xss.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("XSS scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("XSS scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.XSS = scanResult
 		if scanResult != nil {
-			result.ByCategory["xss"] = len(scanResult.Vulnerabilities)
-			result.TotalVulns += len(scanResult.Vulnerabilities)
-			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
+			vulnCount = len(scanResult.Vulnerabilities)
+			result.ByCategory["xss"] = vulnCount
+			result.TotalVulns += vulnCount
+			progress.AddMetricBy("vulns", vulnCount)
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
+				emitEvent("vulnerability", map[string]interface{}{
+					"category":  "xss",
+					"severity":  v.Severity,
+					"type":      v.Type,
+					"parameter": v.Parameter,
+				})
 			}
 		}
 		mu.Unlock()
@@ -9608,6 +9627,10 @@ func runScan() {
 
 	// Path Traversal Scanner
 	runScanner("traversal", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "traversal", "vulns": vulnCount})
+		}()
 		cfg := &traversal.TesterConfig{
 			Timeout:   timeoutDur,
 			UserAgent: ui.UserAgent(),
@@ -9615,18 +9638,27 @@ func runScan() {
 		}
 		tester := traversal.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("Traversal scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("Traversal scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.Traversal = scanResult
 		if scanResult != nil {
-			result.ByCategory["traversal"] = len(scanResult.Vulnerabilities)
-			result.TotalVulns += len(scanResult.Vulnerabilities)
-			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
+			vulnCount = len(scanResult.Vulnerabilities)
+			result.ByCategory["traversal"] = vulnCount
+			result.TotalVulns += vulnCount
+			progress.AddMetricBy("vulns", vulnCount)
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
+				emitEvent("vulnerability", map[string]interface{}{
+					"category":  "traversal",
+					"severity":  v.Severity,
+					"type":      v.Type,
+					"parameter": v.Parameter,
+				})
 			}
 		}
 		mu.Unlock()
@@ -9634,24 +9666,37 @@ func runScan() {
 
 	// Command Injection Scanner
 	runScanner("cmdi", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "cmdi", "vulns": vulnCount})
+		}()
 		cfg := &cmdi.TesterConfig{
 			Timeout:   timeoutDur,
 			UserAgent: ui.UserAgent(),
 		}
 		tester := cmdi.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("CMDi scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("CMDi scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.CMDI = scanResult
 		if scanResult != nil {
-			result.ByCategory["cmdi"] = len(scanResult.Vulnerabilities)
-			result.TotalVulns += len(scanResult.Vulnerabilities)
-			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
+			vulnCount = len(scanResult.Vulnerabilities)
+			result.ByCategory["cmdi"] = vulnCount
+			result.TotalVulns += vulnCount
+			progress.AddMetricBy("vulns", vulnCount)
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
+				emitEvent("vulnerability", map[string]interface{}{
+					"category":  "cmdi",
+					"severity":  v.Severity,
+					"type":      v.Type,
+					"parameter": v.Parameter,
+				})
 			}
 		}
 		mu.Unlock()
@@ -9659,6 +9704,10 @@ func runScan() {
 
 	// NoSQL Injection Scanner
 	runScanner("nosqli", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "nosqli", "vulns": vulnCount})
+		}()
 		cfg := &nosqli.TesterConfig{
 			Timeout:   timeoutDur,
 			UserAgent: ui.UserAgent(),
@@ -9666,18 +9715,27 @@ func runScan() {
 		}
 		tester := nosqli.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("NoSQLi scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("NoSQLi scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.NoSQLi = scanResult
 		if scanResult != nil {
-			result.ByCategory["nosqli"] = len(scanResult.Vulnerabilities)
-			result.TotalVulns += len(scanResult.Vulnerabilities)
-			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
+			vulnCount = len(scanResult.Vulnerabilities)
+			result.ByCategory["nosqli"] = vulnCount
+			result.TotalVulns += vulnCount
+			progress.AddMetricBy("vulns", vulnCount)
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
+				emitEvent("vulnerability", map[string]interface{}{
+					"category":  "nosqli",
+					"severity":  v.Severity,
+					"type":      v.Type,
+					"parameter": v.Parameter,
+				})
 			}
 		}
 		mu.Unlock()
@@ -9685,6 +9743,10 @@ func runScan() {
 
 	// HTTP Parameter Pollution Scanner
 	runScanner("hpp", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "hpp", "vulns": vulnCount})
+		}()
 		cfg := &hpp.TesterConfig{
 			Timeout:   timeoutDur,
 			UserAgent: ui.UserAgent(),
@@ -9692,18 +9754,26 @@ func runScan() {
 		}
 		tester := hpp.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("HPP scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("HPP scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.HPP = scanResult
 		if scanResult != nil {
-			result.ByCategory["hpp"] = len(scanResult.Vulnerabilities)
-			result.TotalVulns += len(scanResult.Vulnerabilities)
-			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
+			vulnCount = len(scanResult.Vulnerabilities)
+			result.ByCategory["hpp"] = vulnCount
+			result.TotalVulns += vulnCount
+			progress.AddMetricBy("vulns", vulnCount)
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
+				emitEvent("vulnerability", map[string]interface{}{
+					"category":  "hpp",
+					"severity":  v.Severity,
+					"parameter": v.Parameter,
+				})
 			}
 		}
 		mu.Unlock()
@@ -9711,6 +9781,10 @@ func runScan() {
 
 	// CRLF Injection Scanner
 	runScanner("crlf", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "crlf", "vulns": vulnCount})
+		}()
 		cfg := &crlf.TesterConfig{
 			Timeout:   timeoutDur,
 			UserAgent: ui.UserAgent(),
@@ -9718,18 +9792,26 @@ func runScan() {
 		}
 		tester := crlf.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("CRLF scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("CRLF scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.CRLF = scanResult
 		if scanResult != nil {
-			result.ByCategory["crlf"] = len(scanResult.Vulnerabilities)
-			result.TotalVulns += len(scanResult.Vulnerabilities)
-			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
+			vulnCount = len(scanResult.Vulnerabilities)
+			result.ByCategory["crlf"] = vulnCount
+			result.TotalVulns += vulnCount
+			progress.AddMetricBy("vulns", vulnCount)
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
+				emitEvent("vulnerability", map[string]interface{}{
+					"category": "crlf",
+					"severity": v.Severity,
+					"type":     v.Type,
+				})
 			}
 		}
 		mu.Unlock()
@@ -9737,6 +9819,10 @@ func runScan() {
 
 	// Prototype Pollution Scanner
 	runScanner("prototype", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "prototype", "vulns": vulnCount})
+		}()
 		cfg := &prototype.TesterConfig{
 			Timeout:   timeoutDur,
 			UserAgent: ui.UserAgent(),
@@ -9744,18 +9830,26 @@ func runScan() {
 		}
 		tester := prototype.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("Prototype pollution scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("Prototype pollution scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.Prototype = scanResult
 		if scanResult != nil {
-			result.ByCategory["prototype"] = len(scanResult.Vulnerabilities)
-			result.TotalVulns += len(scanResult.Vulnerabilities)
-			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
+			vulnCount = len(scanResult.Vulnerabilities)
+			result.ByCategory["prototype"] = vulnCount
+			result.TotalVulns += vulnCount
+			progress.AddMetricBy("vulns", vulnCount)
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
+				emitEvent("vulnerability", map[string]interface{}{
+					"category": "prototype",
+					"severity": v.Severity,
+					"type":     v.Type,
+				})
 			}
 		}
 		mu.Unlock()
@@ -9763,24 +9857,37 @@ func runScan() {
 
 	// CORS Misconfiguration Scanner
 	runScanner("cors", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "cors", "vulns": vulnCount})
+		}()
 		cfg := &cors.TesterConfig{
 			Timeout:   timeoutDur,
 			UserAgent: ui.UserAgent(),
 		}
 		tester := cors.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("CORS scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("CORS scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.CORS = scanResult
 		if scanResult != nil {
-			result.ByCategory["cors"] = len(scanResult.Vulnerabilities)
-			result.TotalVulns += len(scanResult.Vulnerabilities)
-			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
+			vulnCount = len(scanResult.Vulnerabilities)
+			result.ByCategory["cors"] = vulnCount
+			result.TotalVulns += vulnCount
+			progress.AddMetricBy("vulns", vulnCount)
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
+				emitEvent("vulnerability", map[string]interface{}{
+					"category": "cors",
+					"severity": v.Severity,
+					"type":     v.Type,
+					"origin":   v.TestedOrigin,
+				})
 			}
 		}
 		mu.Unlock()
@@ -9788,24 +9895,37 @@ func runScan() {
 
 	// Open Redirect Scanner
 	runScanner("redirect", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "redirect", "vulns": vulnCount})
+		}()
 		cfg := &redirect.TesterConfig{
 			Timeout:   timeoutDur,
 			UserAgent: ui.UserAgent(),
 		}
 		tester := redirect.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("Redirect scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("Redirect scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.Redirect = scanResult
 		if scanResult != nil {
-			result.ByCategory["redirect"] = len(scanResult.Vulnerabilities)
-			result.TotalVulns += len(scanResult.Vulnerabilities)
-			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
+			vulnCount = len(scanResult.Vulnerabilities)
+			result.ByCategory["redirect"] = vulnCount
+			result.TotalVulns += vulnCount
+			progress.AddMetricBy("vulns", vulnCount)
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
+				emitEvent("vulnerability", map[string]interface{}{
+					"category":  "redirect",
+					"severity":  v.Severity,
+					"type":      v.Type,
+					"parameter": v.Parameter,
+				})
 			}
 		}
 		mu.Unlock()
@@ -9813,6 +9933,10 @@ func runScan() {
 
 	// Host Header Injection Scanner
 	runScanner("hostheader", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "hostheader", "vulns": vulnCount})
+		}()
 		cfg := &hostheader.TesterConfig{
 			Timeout:   timeoutDur,
 			UserAgent: ui.UserAgent(),
@@ -9820,18 +9944,27 @@ func runScan() {
 		}
 		tester := hostheader.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("Host header scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("Host header scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.HostHeader = scanResult
 		if scanResult != nil {
-			result.ByCategory["hostheader"] = len(scanResult.Vulnerabilities)
-			result.TotalVulns += len(scanResult.Vulnerabilities)
-			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
+			vulnCount = len(scanResult.Vulnerabilities)
+			result.ByCategory["hostheader"] = vulnCount
+			result.TotalVulns += vulnCount
+			progress.AddMetricBy("vulns", vulnCount)
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
+				emitEvent("vulnerability", map[string]interface{}{
+					"category": "hostheader",
+					"severity": v.Severity,
+					"type":     v.Type,
+					"header":   v.Header,
+				})
 			}
 		}
 		mu.Unlock()
@@ -9839,24 +9972,36 @@ func runScan() {
 
 	// WebSocket Security Scanner
 	runScanner("websocket", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "websocket", "vulns": vulnCount})
+		}()
 		cfg := &websocket.TesterConfig{
 			Timeout:   timeoutDur,
 			UserAgent: ui.UserAgent(),
 		}
 		tester := websocket.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("WebSocket scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("WebSocket scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.WebSocket = scanResult
 		if scanResult != nil {
-			result.ByCategory["websocket"] = len(scanResult.Vulnerabilities)
-			result.TotalVulns += len(scanResult.Vulnerabilities)
-			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
+			vulnCount = len(scanResult.Vulnerabilities)
+			result.ByCategory["websocket"] = vulnCount
+			result.TotalVulns += vulnCount
+			progress.AddMetricBy("vulns", vulnCount)
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
+				emitEvent("vulnerability", map[string]interface{}{
+					"category": "websocket",
+					"severity": v.Severity,
+					"type":     v.Type,
+				})
 			}
 		}
 		mu.Unlock()
@@ -9864,6 +10009,10 @@ func runScan() {
 
 	// Cache Poisoning Scanner
 	runScanner("cache", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "cache", "vulns": vulnCount})
+		}()
 		cfg := &cache.TesterConfig{
 			Timeout:   timeoutDur,
 			UserAgent: ui.UserAgent(),
@@ -9871,18 +10020,27 @@ func runScan() {
 		}
 		tester := cache.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("Cache poisoning scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("Cache poisoning scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.Cache = scanResult
 		if scanResult != nil {
-			result.ByCategory["cache"] = len(scanResult.Vulnerabilities)
-			result.TotalVulns += len(scanResult.Vulnerabilities)
-			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
+			vulnCount = len(scanResult.Vulnerabilities)
+			result.ByCategory["cache"] = vulnCount
+			result.TotalVulns += vulnCount
+			progress.AddMetricBy("vulns", vulnCount)
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
+				emitEvent("vulnerability", map[string]interface{}{
+					"category":  "cache",
+					"severity":  v.Severity,
+					"type":      v.Type,
+					"parameter": v.Parameter,
+				})
 			}
 		}
 		mu.Unlock()
@@ -9890,6 +10048,10 @@ func runScan() {
 
 	// File Upload Scanner - with dedicated timeout to prevent hanging
 	runScanner("upload", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "upload", "vulns": vulnCount})
+		}()
 		// Create a dedicated context with 60s max timeout for upload scanning
 		uploadCtx, uploadCancel := context.WithTimeout(ctx, 60*time.Second)
 		defer uploadCancel()
@@ -9900,46 +10062,70 @@ func runScan() {
 		}
 		tester := upload.NewTester(cfg)
 		vulns, err := tester.Scan(uploadCtx, target)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("Upload scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("Upload scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.Upload = vulns
-		result.ByCategory["upload"] = len(vulns)
-		result.TotalVulns += len(vulns)
-		atomic.AddInt32(&vulnsFound, int32(len(vulns)))
+		vulnCount = len(vulns)
+		result.ByCategory["upload"] = vulnCount
+		result.TotalVulns += vulnCount
+		progress.AddMetricBy("vulns", vulnCount)
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
+			emitEvent("vulnerability", map[string]interface{}{
+				"category": "upload",
+				"severity": v.Severity,
+				"type":     v.Type,
+			})
 		}
 		mu.Unlock()
 	})
 
 	// Deserialization Scanner
 	runScanner("deserialize", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "deserialize", "vulns": vulnCount})
+		}()
 		cfg := &deserialize.TesterConfig{
 			Timeout:   timeoutDur,
 			UserAgent: ui.UserAgent(),
 		}
 		tester := deserialize.NewTester(cfg)
 		vulns, err := tester.Scan(ctx, target)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("Deserialization scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("Deserialization scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.Deserialize = vulns
-		result.ByCategory["deserialize"] = len(vulns)
-		result.TotalVulns += len(vulns)
-		atomic.AddInt32(&vulnsFound, int32(len(vulns)))
+		vulnCount = len(vulns)
+		result.ByCategory["deserialize"] = vulnCount
+		result.TotalVulns += vulnCount
+		progress.AddMetricBy("vulns", vulnCount)
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
+			emitEvent("vulnerability", map[string]interface{}{
+				"category": "deserialize",
+				"severity": v.Severity,
+				"type":     v.Type,
+			})
 		}
 		mu.Unlock()
 	})
 
 	// OAuth/OIDC Scanner
 	runScanner("oauth", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "oauth", "vulns": vulnCount})
+		}()
 		if *oauthAuthEndpoint == "" {
 			if *verbose {
 				ui.PrintInfo("OAuth scan skipped: no -oauth-auth-endpoint provided")
@@ -9960,38 +10146,59 @@ func runScan() {
 		}
 		tester := oauth.NewTester(cfg, endpoints, oauthCfg)
 		vulns, err := tester.Scan(ctx)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("OAuth scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("OAuth scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.OAuth = vulns
-		result.ByCategory["oauth"] = len(vulns)
-		result.TotalVulns += len(vulns)
-		atomic.AddInt32(&vulnsFound, int32(len(vulns)))
+		vulnCount = len(vulns)
+		result.ByCategory["oauth"] = vulnCount
+		result.TotalVulns += vulnCount
+		progress.AddMetricBy("vulns", vulnCount)
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
+			emitEvent("vulnerability", map[string]interface{}{
+				"category": "oauth",
+				"severity": v.Severity,
+				"type":     v.Type,
+			})
 		}
 		mu.Unlock()
 	})
 
 	// SSRF Scanner
 	runScanner("ssrf", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "ssrf", "vulns": vulnCount})
+		}()
 		detector := ssrf.NewDetector()
 		detector.Timeout = timeoutDur
 		scanResult, err := detector.Detect(ctx, target, "url")
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("SSRF scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("SSRF scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.SSRF = scanResult
 		if scanResult != nil {
-			result.ByCategory["ssrf"] = len(scanResult.Vulnerabilities)
-			result.TotalVulns += len(scanResult.Vulnerabilities)
-			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
+			vulnCount = len(scanResult.Vulnerabilities)
+			result.ByCategory["ssrf"] = vulnCount
+			result.TotalVulns += vulnCount
+			progress.AddMetricBy("vulns", vulnCount)
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[v.Severity]++
+				emitEvent("vulnerability", map[string]interface{}{
+					"category":  "ssrf",
+					"severity":  v.Severity,
+					"type":      v.Type,
+					"parameter": v.Parameter,
+				})
 			}
 		}
 		mu.Unlock()
@@ -9999,66 +10206,103 @@ func runScan() {
 
 	// SSTI Scanner
 	runScanner("ssti", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "ssti", "vulns": vulnCount})
+		}()
 		cfg := &ssti.DetectorConfig{
 			Timeout:   timeoutDur,
 			UserAgent: ui.UserAgent(),
 		}
 		detector := ssti.NewDetector(cfg)
 		vulns, err := detector.Detect(ctx, target, "input")
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("SSTI scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("SSTI scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.SSTI = vulns
-		result.ByCategory["ssti"] = len(vulns)
-		result.TotalVulns += len(vulns)
-		atomic.AddInt32(&vulnsFound, int32(len(vulns)))
+		vulnCount = len(vulns)
+		result.ByCategory["ssti"] = vulnCount
+		result.TotalVulns += vulnCount
+		progress.AddMetricBy("vulns", vulnCount)
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
+			emitEvent("vulnerability", map[string]interface{}{
+				"category":  "ssti",
+				"severity":  v.Severity,
+				"engine":    v.Engine,
+				"parameter": v.Parameter,
+			})
 		}
 		mu.Unlock()
 	})
 
 	// XXE Scanner
 	runScanner("xxe", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "xxe", "vulns": vulnCount})
+		}()
 		cfg := xxe.DefaultConfig()
 		cfg.Timeout = timeoutDur
 		cfg.UserAgent = ui.UserAgent()
 		detector := xxe.NewDetector(cfg)
 		vulns, err := detector.Detect(ctx, target, "POST")
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("XXE scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("XXE scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.XXE = vulns
-		result.ByCategory["xxe"] = len(vulns)
-		result.TotalVulns += len(vulns)
-		atomic.AddInt32(&vulnsFound, int32(len(vulns)))
+		vulnCount = len(vulns)
+		result.ByCategory["xxe"] = vulnCount
+		result.TotalVulns += vulnCount
+		progress.AddMetricBy("vulns", vulnCount)
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
+			emitEvent("vulnerability", map[string]interface{}{
+				"category": "xxe",
+				"severity": v.Severity,
+				"type":     v.Type,
+			})
 		}
 		mu.Unlock()
 	})
 
 	// HTTP Request Smuggling Scanner
 	runScanner("smuggling", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "smuggling", "vulns": vulnCount})
+		}()
 		detector := smuggling.NewDetector()
 		detector.Timeout = timeoutDur
 		scanResult, err := detector.Detect(ctx, target)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("Smuggling scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("Smuggling scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.Smuggling = scanResult
 		if scanResult != nil {
-			result.ByCategory["smuggling"] = len(scanResult.Vulnerabilities)
-			result.TotalVulns += len(scanResult.Vulnerabilities)
-			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
+			vulnCount = len(scanResult.Vulnerabilities)
+			result.ByCategory["smuggling"] = vulnCount
+			result.TotalVulns += vulnCount
+			progress.AddMetricBy("vulns", vulnCount)
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[v.Severity]++
+				emitEvent("vulnerability", map[string]interface{}{
+					"category": "smuggling",
+					"severity": v.Severity,
+					"type":     v.Type,
+				})
 			}
 		}
 		mu.Unlock()
@@ -10066,6 +10310,15 @@ func runScan() {
 
 	// GraphQL Security Scanner
 	runScanner("graphql", func() {
+		var vulnCount int
+		var foundEndpoint string
+		defer func() {
+			data := map[string]interface{}{"scanner": "graphql", "vulns": vulnCount}
+			if foundEndpoint != "" {
+				data["endpoint"] = foundEndpoint
+			}
+			emitEvent("scan_complete", data)
+		}()
 		cfg := graphql.DefaultConfig()
 		cfg.Timeout = timeoutDur
 		cfg.UserAgent = ui.UserAgent()
@@ -10082,11 +10335,18 @@ func runScan() {
 			if err == nil && scanResult != nil && len(scanResult.Vulnerabilities) > 0 {
 				mu.Lock()
 				result.GraphQL = scanResult
-				result.ByCategory["graphql"] = len(scanResult.Vulnerabilities)
-				result.TotalVulns += len(scanResult.Vulnerabilities)
-				atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
+				vulnCount = len(scanResult.Vulnerabilities)
+				foundEndpoint = endpoint
+				result.ByCategory["graphql"] = vulnCount
+				result.TotalVulns += vulnCount
+				progress.AddMetricBy("vulns", vulnCount)
 				for _, v := range scanResult.Vulnerabilities {
 					result.BySeverity[string(v.Severity)]++
+					emitEvent("vulnerability", map[string]interface{}{
+						"category": "graphql",
+						"severity": v.Severity,
+						"type":     v.Type,
+					})
 				}
 				mu.Unlock()
 				return
@@ -10099,27 +10359,43 @@ func runScan() {
 
 	// JWT Security Scanner
 	runScanner("jwt", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "jwt", "vulns": vulnCount})
+		}()
 		attacker := jwt.NewAttacker()
 		// Generate test tokens to demonstrate JWT attack capabilities
 		testToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IlRlc3QgVXNlciIsImlhdCI6MTUxNjIzOTAyMn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
 		vulns, err := attacker.GenerateMaliciousTokens(testToken)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("JWT scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("JWT scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.JWT = vulns
-		result.ByCategory["jwt"] = len(vulns)
-		result.TotalVulns += len(vulns)
-		atomic.AddInt32(&vulnsFound, int32(len(vulns)))
+		vulnCount = len(vulns)
+		result.ByCategory["jwt"] = vulnCount
+		result.TotalVulns += vulnCount
+		progress.AddMetricBy("vulns", vulnCount)
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
+			emitEvent("vulnerability", map[string]interface{}{
+				"category": "jwt",
+				"severity": v.Severity,
+				"type":     v.Type,
+			})
 		}
 		mu.Unlock()
 	})
 
 	// Subdomain Takeover Scanner
 	runScanner("subtakeover", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "subtakeover", "vulns": vulnCount})
+		}()
 		cfg := &subtakeover.TesterConfig{
 			Timeout:     timeoutDur,
 			UserAgent:   ui.UserAgent(),
@@ -10138,18 +10414,27 @@ func runScan() {
 			return
 		}
 		scanResult, err := tester.CheckSubdomain(ctx, u.Host)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("Subtakeover scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("Subtakeover scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		if scanResult != nil && scanResult.IsVulnerable {
 			result.Subtakeover = append(result.Subtakeover, *scanResult)
-			result.ByCategory["subtakeover"] = len(scanResult.Vulnerabilities)
-			result.TotalVulns += len(scanResult.Vulnerabilities)
-			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
+			vulnCount = len(scanResult.Vulnerabilities)
+			result.ByCategory["subtakeover"] = vulnCount
+			result.TotalVulns += vulnCount
+			progress.AddMetricBy("vulns", vulnCount)
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
+				emitEvent("vulnerability", map[string]interface{}{
+					"category": "subtakeover",
+					"severity": v.Severity,
+					"type":     v.Type,
+					"domain":   u.Host,
+				})
 			}
 		}
 		mu.Unlock()
@@ -10157,29 +10442,45 @@ func runScan() {
 
 	// Business Logic Scanner
 	runScanner("bizlogic", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "bizlogic", "vulns": vulnCount})
+		}()
 		cfg := bizlogic.DefaultConfig()
 		cfg.Timeout = timeoutDur
 		cfg.UserAgent = ui.UserAgent()
 		tester := bizlogic.NewTester(cfg)
 		// Test common business logic vulnerabilities
 		vulns, err := tester.Scan(ctx, target, []string{"/", "/api", "/admin", "/user", "/account"})
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("BizLogic scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("BizLogic scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.BizLogic = vulns
-		result.ByCategory["bizlogic"] = len(vulns)
-		result.TotalVulns += len(vulns)
-		atomic.AddInt32(&vulnsFound, int32(len(vulns)))
+		vulnCount = len(vulns)
+		result.ByCategory["bizlogic"] = vulnCount
+		result.TotalVulns += vulnCount
+		progress.AddMetricBy("vulns", vulnCount)
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
+			emitEvent("vulnerability", map[string]interface{}{
+				"category": "bizlogic",
+				"severity": v.Severity,
+				"type":     v.Type,
+			})
 		}
 		mu.Unlock()
 	})
 
 	// Race Condition Scanner
 	runScanner("race", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "race", "vulns": vulnCount})
+		}()
 		cfg := race.DefaultConfig()
 		cfg.Timeout = timeoutDur
 		cfg.UserAgent = ui.UserAgent()
@@ -10191,18 +10492,26 @@ func runScan() {
 			Body:   "",
 		}
 		scanResult, err := tester.Scan(ctx, reqCfg)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("Race condition scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("Race condition scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.Race = scanResult
 		if scanResult != nil {
-			result.ByCategory["race"] = len(scanResult.Vulnerabilities)
-			result.TotalVulns += len(scanResult.Vulnerabilities)
-			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
+			vulnCount = len(scanResult.Vulnerabilities)
+			result.ByCategory["race"] = vulnCount
+			result.TotalVulns += vulnCount
+			progress.AddMetricBy("vulns", vulnCount)
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
+				emitEvent("vulnerability", map[string]interface{}{
+					"category": "race",
+					"severity": v.Severity,
+					"type":     v.Type,
+				})
 			}
 		}
 		mu.Unlock()
@@ -10210,6 +10519,10 @@ func runScan() {
 
 	// API Fuzzing Scanner
 	runScanner("apifuzz", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "apifuzz", "vulns": vulnCount})
+		}()
 		cfg := apifuzz.DefaultConfig()
 		cfg.Timeout = timeoutDur
 		cfg.UserAgent = ui.UserAgent()
@@ -10220,32 +10533,49 @@ func runScan() {
 			{Path: "/api", Method: "POST", Parameters: []apifuzz.Parameter{{Name: "data", Type: apifuzz.ParamString, In: "body"}}},
 		}
 		vulns, err := tester.FuzzAPI(ctx, target, endpoints)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("API Fuzz scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("API Fuzz scan error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.APIFuzz = vulns
-		result.ByCategory["apifuzz"] = len(vulns)
-		result.TotalVulns += len(vulns)
-		atomic.AddInt32(&vulnsFound, int32(len(vulns)))
+		vulnCount = len(vulns)
+		result.ByCategory["apifuzz"] = vulnCount
+		result.TotalVulns += vulnCount
+		progress.AddMetricBy("vulns", vulnCount)
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
+			emitEvent("vulnerability", map[string]interface{}{
+				"category": "apifuzz",
+				"severity": v.Severity,
+				"type":     v.Type,
+			})
 		}
 		mu.Unlock()
 	})
 
 	// WAF Detection Scanner
 	runScanner("wafdetect", func() {
+		var detected bool
+		var wafs []waf.WAFInfo
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "wafdetect", "detected": detected, "wafs": wafs})
+		}()
 		detector := waf.NewDetector(timeoutDur)
 		scanResult, err := detector.Detect(ctx, target)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("WAF detect error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("WAF detect error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.WAFDetect = scanResult
 		if scanResult != nil && scanResult.Detected {
+			detected = scanResult.Detected
+			wafs = scanResult.WAFs
 			// WAF detection is informational, not a vulnerability
 			result.ByCategory["wafdetect"] = len(scanResult.WAFs)
 		}
@@ -10254,15 +10584,22 @@ func runScan() {
 
 	// WAF Fingerprinting Scanner
 	runScanner("waffprint", func() {
+		var hash string
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "waffprint", "hash": hash})
+		}()
 		fingerprinter := waf.NewFingerprinter(timeoutDur)
 		fp, err := fingerprinter.CreateFingerprint(ctx, target)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("WAF fingerprint error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("WAF fingerprint error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
 		result.WAFFprint = fp
 		if fp != nil && fp.Hash != "" {
+			hash = fp.Hash
 			result.ByCategory["waffprint"] = 1
 		}
 		mu.Unlock()
@@ -10270,6 +10607,10 @@ func runScan() {
 
 	// WAF Evasion Testing Scanner
 	runScanner("wafevasion", func() {
+		var techniqueCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "wafevasion", "techniques": techniqueCount})
+		}()
 		evasion := waf.NewEvasion()
 		// Test with common attack payloads
 		testPayloads := []string{
@@ -10282,7 +10623,8 @@ func runScan() {
 			transformed := evasion.Transform(payload)
 			allTransformed = append(allTransformed, transformed...)
 		}
-		if len(allTransformed) > 0 {
+		techniqueCount = len(allTransformed)
+		if techniqueCount > 0 {
 			mu.Lock()
 			// Store a sample (first 50) to avoid massive output
 			if len(allTransformed) > 50 {
@@ -10290,13 +10632,17 @@ func runScan() {
 			} else {
 				result.WAFEvasion = allTransformed
 			}
-			result.ByCategory["wafevasion"] = len(allTransformed)
+			result.ByCategory["wafevasion"] = techniqueCount
 			mu.Unlock()
 		}
 	})
 
 	// TLS Security Probe
 	runScanner("tlsprobe", func() {
+		var vulnFound bool
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "tlsprobe", "vuln_found": vulnFound})
+		}()
 		parsedURL, err := url.Parse(target)
 		if err != nil {
 			if *verbose {
@@ -10321,8 +10667,10 @@ func runScan() {
 		prober := probes.NewTLSProber()
 		prober.Timeout = timeoutDur
 		tlsInfo, err := prober.Probe(ctx, parsedURL.Hostname(), portNum)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("TLS probe error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("TLS probe error: %v", err))
+			}
 			return
 		}
 		mu.Lock()
@@ -10332,12 +10680,30 @@ func runScan() {
 			result.TotalVulns++
 			result.BySeverity["Medium"]++
 			result.ByCategory["tlsprobe"] = 1
+			vulnFound = true
+			emitEvent("vulnerability", map[string]interface{}{
+				"category":    "tlsprobe",
+				"severity":    "Medium",
+				"self_signed": tlsInfo.SelfSigned,
+				"expired":     tlsInfo.Expired,
+				"mismatched":  tlsInfo.Mismatched,
+			})
 		}
 		mu.Unlock()
 	})
 
 	// HTTP Protocol Probe
 	runScanner("httpprobe", func() {
+		var http2Supported, pipelineSupported bool
+		var dangerousMethods int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{
+				"scanner":           "httpprobe",
+				"http2":             http2Supported,
+				"pipeline":          pipelineSupported,
+				"dangerous_methods": dangerousMethods,
+			})
+		}()
 		parsedURL, err := url.Parse(target)
 		if err != nil {
 			if *verbose {
@@ -10390,14 +10756,15 @@ func runScan() {
 
 		mu.Lock()
 		result.HTTPInfo = httpResult
+		http2Supported = httpResult.HTTP2Supported
+		pipelineSupported = httpResult.PipelineSupported
 		// Dangerous methods or pipelining support is informational
-		dangerousMethods := 0
 		for _, m := range httpResult.Methods {
 			if m == "PUT" || m == "DELETE" || m == "TRACE" || m == "CONNECT" {
 				dangerousMethods++
 			}
 		}
-		if dangerousMethods > 0 || httpResult.PipelineSupported {
+		if dangerousMethods > 0 || pipelineSupported {
 			result.ByCategory["httpprobe"] = dangerousMethods
 			if dangerousMethods > 0 {
 				result.BySeverity["Low"] += dangerousMethods
@@ -10408,6 +10775,10 @@ func runScan() {
 
 	// Security Headers Probe
 	runScanner("secheaders", func() {
+		var missingCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "secheaders", "missing_headers": missingCount})
+		}()
 		client := &http.Client{Timeout: timeoutDur}
 		resp, err := client.Get(target)
 		if err != nil {
@@ -10423,7 +10794,6 @@ func runScan() {
 		result.SecHeaders = headers
 		// Missing security headers count as informational findings
 		if headers != nil {
-			missingCount := 0
 			if headers.StrictTransportSecurity == "" {
 				missingCount++
 			}
@@ -10445,6 +10815,15 @@ func runScan() {
 
 	// JavaScript Analysis Scanner
 	runScanner("jsanalyze", func() {
+		var secretsCount, endpointsCount, domsinksCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{
+				"scanner":   "jsanalyze",
+				"secrets":   secretsCount,
+				"endpoints": endpointsCount,
+				"domsinks":  domsinksCount,
+			})
+		}()
 		// Fetch JavaScript from target and analyze
 		client := &http.Client{Timeout: timeoutDur}
 		resp, err := client.Get(target)
@@ -10463,22 +10842,38 @@ func runScan() {
 		// Analyze any inline JavaScript
 		analyzer := js.NewAnalyzer()
 		extracted := analyzer.Analyze(string(body))
-		if extracted != nil && (len(extracted.Secrets) > 0 || len(extracted.Endpoints) > 0 || len(extracted.DOMSinks) > 0) {
-			mu.Lock()
-			result.JSAnalysis = extracted
-			// Secrets are critical vulnerabilities
-			if len(extracted.Secrets) > 0 {
-				result.TotalVulns += len(extracted.Secrets)
-				atomic.AddInt32(&vulnsFound, int32(len(extracted.Secrets)))
-				result.BySeverity["Critical"] += len(extracted.Secrets)
-				result.ByCategory["jsanalyze"] = len(extracted.Secrets)
+		if extracted != nil {
+			secretsCount = len(extracted.Secrets)
+			endpointsCount = len(extracted.Endpoints)
+			domsinksCount = len(extracted.DOMSinks)
+			if secretsCount > 0 || endpointsCount > 0 || domsinksCount > 0 {
+				mu.Lock()
+				result.JSAnalysis = extracted
+				// Secrets are critical vulnerabilities
+				if secretsCount > 0 {
+					result.TotalVulns += secretsCount
+					progress.AddMetricBy("vulns", secretsCount)
+					result.BySeverity["Critical"] += secretsCount
+					result.ByCategory["jsanalyze"] = secretsCount
+					for _, secret := range extracted.Secrets {
+						emitEvent("vulnerability", map[string]interface{}{
+							"category": "jsanalyze",
+							"severity": "Critical",
+							"type":     secret.Type,
+						})
+					}
+				}
+				mu.Unlock()
 			}
-			mu.Unlock()
 		}
 	})
 
 	// API Route Depth Scanner
 	runScanner("apidepth", func() {
+		var routeCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "apidepth", "routes": routeCount})
+		}()
 		depthConfig := api.DefaultDepthScanConfig()
 		depthConfig.Timeout = timeoutDur
 		depthScanner := api.NewDepthScanner(depthConfig)
@@ -10491,21 +10886,32 @@ func runScan() {
 			{Path: "/admin", Method: "GET"},
 		}
 		results, err := depthScanner.ScanRoutes(ctx, target, routes)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("API depth scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("API depth scan error: %v", err))
+			}
 			return
 		}
-		if len(results) > 0 {
+		routeCount = len(results)
+		if routeCount > 0 {
 			mu.Lock()
 			result.APIRoutes = results
 			// API routes exposed is informational
-			result.ByCategory["apidepth"] = len(results)
+			result.ByCategory["apidepth"] = routeCount
 			mu.Unlock()
 		}
 	})
 
 	// OSINT Scanner - Wayback, CommonCrawl, OTX, VirusTotal
 	runScanner("osint", func() {
+		var secretCount, endpointCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{
+				"scanner":   "osint",
+				"endpoints": endpointCount,
+				"secrets":   secretCount,
+			})
+		}()
 		// Extract domain from target
 		parsedURL, err := url.Parse(target)
 		if err != nil {
@@ -10520,27 +10926,40 @@ func runScan() {
 		osintResult := sources.GatherAllSources(ctx, target, domain)
 
 		if osintResult != nil && osintResult.TotalUnique > 0 {
+			endpointCount = osintResult.TotalUnique
+			secretCount = len(osintResult.Secrets)
 			mu.Lock()
 			result.OSINT = osintResult
 			// OSINT findings are informational
-			result.ByCategory["osint"] = osintResult.TotalUnique
+			result.ByCategory["osint"] = endpointCount
 
 			// Secrets found via OSINT are critical
-			if len(osintResult.Secrets) > 0 {
-				result.TotalVulns += len(osintResult.Secrets)
-				atomic.AddInt32(&vulnsFound, int32(len(osintResult.Secrets)))
-				result.BySeverity["Critical"] += len(osintResult.Secrets)
+			if secretCount > 0 {
+				result.TotalVulns += secretCount
+				progress.AddMetricBy("vulns", secretCount)
+				result.BySeverity["Critical"] += secretCount
+				for _, secret := range osintResult.Secrets {
+					emitEvent("vulnerability", map[string]interface{}{
+						"category": "osint",
+						"severity": "Critical",
+						"type":     secret.Type,
+					})
+				}
 			}
 			mu.Unlock()
 
 			if *verbose {
-				ui.PrintInfo(fmt.Sprintf("OSINT: Found %d unique endpoints from external sources", osintResult.TotalUnique))
+				ui.PrintInfo(fmt.Sprintf("OSINT: Found %d unique endpoints from external sources", endpointCount))
 			}
 		}
 	})
 
 	// Virtual Host Scanner
 	runScanner("vhost", func() {
+		var vhostCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "vhost", "vhosts": vhostCount})
+		}()
 		// Extract host from target
 		parsedURL, err := url.Parse(target)
 		if err != nil {
@@ -10568,8 +10987,10 @@ func runScan() {
 		}
 
 		vhosts, err := vhostProber.ProbeVHosts(ctx, host, port, host, wordlist)
-		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("VHost scan error: %v", err))
+		if err != nil {
+			if *verbose {
+				ui.PrintWarning(fmt.Sprintf("VHost scan error: %v", err))
+			}
 			return
 		}
 
@@ -10580,25 +11001,37 @@ func runScan() {
 				validVHosts = append(validVHosts, v)
 			}
 		}
+		vhostCount = len(validVHosts)
 
-		if len(validVHosts) > 0 {
+		if vhostCount > 0 {
 			mu.Lock()
 			result.VHosts = validVHosts
 			// New vhosts are informational but potentially high risk
-			result.ByCategory["vhost"] = len(validVHosts)
-			result.TotalVulns += len(validVHosts)
-			atomic.AddInt32(&vulnsFound, int32(len(validVHosts)))
-			result.BySeverity["Low"] += len(validVHosts)
+			result.ByCategory["vhost"] = vhostCount
+			result.TotalVulns += vhostCount
+			progress.AddMetricBy("vulns", vhostCount)
+			result.BySeverity["Low"] += vhostCount
+			for _, vh := range validVHosts {
+				emitEvent("vulnerability", map[string]interface{}{
+					"category": "vhost",
+					"severity": "Low",
+					"vhost":    vh.VHost,
+				})
+			}
 			mu.Unlock()
 
 			if *verbose {
-				ui.PrintInfo(fmt.Sprintf("VHost: Found %d virtual hosts", len(validVHosts)))
+				ui.PrintInfo(fmt.Sprintf("VHost: Found %d virtual hosts", vhostCount))
 			}
 		}
 	})
 
 	// Technology Detection Scanner
 	runScanner("techdetect", func() {
+		var uniqueTech []string
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "techdetect", "technologies": uniqueTech})
+		}()
 		// Use active discoverer for tech fingerprinting
 		ad := discovery.NewActiveDiscoverer(target, timeoutDur, *skipVerify)
 
@@ -10702,7 +11135,6 @@ func runScan() {
 
 		// Deduplicate
 		seen := make(map[string]bool)
-		var uniqueTech []string
 		for _, t := range techStack {
 			if !seen[t] {
 				seen[t] = true
@@ -10710,17 +11142,9 @@ func runScan() {
 			}
 		}
 
-		// Use active discoverer for additional detection if available
-		if ad != nil && len(uniqueTech) == 0 {
-			// Try active discovery as fallback
-			endpoints := ad.DiscoverAll(ctx, 5)
-			for _, ep := range endpoints {
-				if ep.Service != "" && !seen[ep.Service] {
-					seen[ep.Service] = true
-					uniqueTech = append(uniqueTech, ep.Service)
-				}
-			}
-		}
+		// Skip slow active discovery fallback - only use header/body analysis
+		// The ad.DiscoverAll call can hang for extended periods
+		_ = ad // Suppress unused variable warning
 
 		if len(uniqueTech) > 0 {
 			mu.Lock()
@@ -10736,6 +11160,10 @@ func runScan() {
 
 	// DNS Reconnaissance Scanner
 	runScanner("dnsrecon", func() {
+		var totalRecords int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "dnsrecon", "records": totalRecords})
+		}()
 		parsedURL, err := url.Parse(target)
 		if err != nil {
 			return
@@ -10772,19 +11200,17 @@ func runScan() {
 			}
 		}
 
-		hasData := len(dnsResult.CNAMEs) > 0 || len(dnsResult.MXRecords) > 0 ||
-			len(dnsResult.TXTRecords) > 0 || len(dnsResult.NSRecords) > 0
+		totalRecords = len(dnsResult.CNAMEs) + len(dnsResult.MXRecords) +
+			len(dnsResult.TXTRecords) + len(dnsResult.NSRecords)
 
-		if hasData {
+		if totalRecords > 0 {
 			mu.Lock()
 			result.DNSInfo = dnsResult
-			total := len(dnsResult.CNAMEs) + len(dnsResult.MXRecords) +
-				len(dnsResult.TXTRecords) + len(dnsResult.NSRecords)
-			result.ByCategory["dnsrecon"] = total
+			result.ByCategory["dnsrecon"] = totalRecords
 			mu.Unlock()
 
 			if *verbose {
-				ui.PrintInfo(fmt.Sprintf("DNSRecon: Found %d DNS records", total))
+				ui.PrintInfo(fmt.Sprintf("DNSRecon: Found %d DNS records", totalRecords))
 			}
 		}
 	})
@@ -10793,25 +11219,31 @@ func runScan() {
 	wg.Wait()
 	result.Duration = time.Since(result.StartTime)
 
-	// Stop progress goroutine and clear progress lines
-	if !*silent {
-		close(progressDone)
-		time.Sleep(50 * time.Millisecond) // Allow goroutine to exit cleanly
-		fmt.Print("\033[4A\033[J")        // Clear progress lines
-	}
+	// Emit scan_end event for streaming JSON
+	emitEvent("scan_end", map[string]interface{}{
+		"target":       target,
+		"duration_ms":  result.Duration.Milliseconds(),
+		"total_vulns":  result.TotalVulns,
+		"by_severity":  result.BySeverity,
+		"by_category":  result.ByCategory,
+	})
 
-	// Print scan completion summary
-	vulnColor := "\033[32m" // Green
-	if result.TotalVulns > 0 {
-		vulnColor = "\033[33m" // Yellow
+	// Progress cleanup is handled by defer progress.Stop()
+
+	// Print scan completion summary (to stderr if streaming JSON)
+	if !streamJSON {
+		vulnColor := "\033[32m" // Green
+		if result.TotalVulns > 0 {
+			vulnColor = "\033[33m" // Yellow
+		}
+		if result.TotalVulns > 5 {
+			vulnColor = "\033[31m" // Red
+		}
+		fmt.Println()
+		ui.PrintSuccess(fmt.Sprintf("✓ Scan complete in %s", result.Duration.Round(time.Millisecond)))
+		fmt.Printf("  📊 Results: %s%d vulnerabilities\033[0m across %d scan types\n", vulnColor, result.TotalVulns, totalScans)
+		fmt.Println()
 	}
-	if result.TotalVulns > 5 {
-		vulnColor = "\033[31m" // Red
-	}
-	fmt.Println()
-	ui.PrintSuccess(fmt.Sprintf("✓ Scan complete in %s", result.Duration.Round(time.Millisecond)))
-	fmt.Printf("  📊 Results: %s%d vulnerabilities\033[0m across %d scan types\n", vulnColor, result.TotalVulns, atomic.LoadInt32(&completedScans))
-	fmt.Println()
 
 	// Apply delay/jitter for rate limiting (used in scanner loops)
 	_ = delay  // Used for rate limiting in future iterations
@@ -10949,8 +11381,8 @@ func runScan() {
 		}
 	}
 
-	// Print summary
-	if !*jsonOutput {
+	// Print summary (skip in stream+json mode - we already emitted events)
+	if !*jsonOutput && !streamJSON {
 		fmt.Println()
 		ui.PrintSection("Scan Results")
 		ui.PrintConfigLine("Duration", result.Duration.Round(time.Millisecond).String())
@@ -11008,8 +11440,8 @@ func runScan() {
 		}
 	}
 
-	// Output JSON
-	if *jsonOutput || *outputFile != "" {
+	// Output JSON (skip final blob in stream+json mode - we already emitted events)
+	if (*jsonOutput || *outputFile != "") && !streamJSON {
 		jsonData, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("JSON encoding error: %v", err))
@@ -11026,6 +11458,14 @@ func runScan() {
 
 		if *jsonOutput {
 			fmt.Println(string(jsonData))
+		}
+	}
+
+	// Still write to file if specified in stream mode
+	if *outputFile != "" && streamJSON {
+		jsonData, _ := json.MarshalIndent(result, "", "  ")
+		if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "[ERROR] Error writing output: %v\n", err)
 		}
 	}
 
@@ -11553,11 +11993,6 @@ func runMutate() {
 		writer = json.NewEncoder(outputFh)
 	}
 
-	// Progress tracking with live display
-	var blocked, passed, errors int64
-	var lastBypassPayload, lastBypassEncoder string
-	var bypassMu sync.Mutex
-
 	// Run tests with live progress
 	ui.PrintSection("🔥 WAF Bypass Hunt")
 
@@ -11569,131 +12004,55 @@ func runMutate() {
 	fmt.Printf("  Target: %s (%s)\n", targetURL, wafName)
 	fmt.Printf("  Mutations: %d | Mode: %s\n\n", len(tasks), effectiveMode)
 
-	// Print initial placeholder lines for live update
-	if !*streamMode {
-		fmt.Println("  ") // Progress bar line
-		fmt.Println("  ") // Stats line
-		fmt.Println("  ") // Bypass line
-		fmt.Println("  ") // Fun fact line
+	// Determine output mode for progress
+	outputMode := ui.OutputModeInteractive
+	if *streamMode {
+		outputMode = ui.OutputModeStreaming
 	}
 
-	startTime := time.Now()
-	progressTicker := time.NewTicker(150 * time.Millisecond)
-	defer progressTicker.Stop()
-
-	// Progress update goroutine
-	doneChan := make(chan struct{})
-	if !*streamMode {
-		go func() {
-			spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-			frameIdx := 0
-			for {
-				select {
-				case <-doneChan:
-					return
-				case <-progressTicker.C:
-					total := atomic.LoadInt64(&blocked) + atomic.LoadInt64(&passed) + atomic.LoadInt64(&errors)
-					blk := atomic.LoadInt64(&blocked)
-					pss := atomic.LoadInt64(&passed)
-					err := atomic.LoadInt64(&errors)
-
-					elapsed := time.Since(startTime)
-					percent := float64(total) / float64(len(tasks)) * 100
-					rps := float64(total) / elapsed.Seconds()
-					if elapsed.Seconds() < 1 {
-						rps = float64(total)
-					}
-
-					// Calculate ETA
-					eta := time.Duration(0)
-					if total > 0 && total < int64(len(tasks)) {
-						remaining := int64(len(tasks)) - total
-						eta = time.Duration(float64(remaining) / rps * float64(time.Second))
-					}
-
-					// Build progress bar (50 chars wide)
-					barWidth := 50
-					filled := int(percent / 100 * float64(barWidth))
-					bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
-
-					// Choose color based on bypass count
-					barColor := "82" // Green
-					if pss > 0 {
-						barColor = "226" // Gold
-					}
-					if pss > 10 {
-						barColor = "196" // Red hot
-					}
-
-					// Move cursor up 4 lines and redraw
-					fmt.Print("\033[4A\033[J")
-
-					// Progress bar
-					spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
-					fmt.Printf("  %s \033[38;5;%sm%s\033[0m %.1f%% (%d/%d)\n",
-						spinner, barColor, bar, percent, total, len(tasks))
-
-					// Stats with emojis
-					bypassIcon := "🔍"
-					if pss > 0 {
-						bypassIcon = "🎯"
-					}
-					if pss > 5 {
-						bypassIcon = "🔓"
-					}
-					if pss > 10 {
-						bypassIcon = "💥"
-					}
-
-					fmt.Printf("  %s Bypasses: \033[32m%d\033[0m | 🛡️ Blocked: \033[31m%d\033[0m | ⚠️ Errors: \033[33m%d\033[0m | ⚡ %.0f req/s | ETA: %s\n",
-						bypassIcon, pss, blk, err, rps, formatETA(eta))
-
-					// Last bypass found (sanitize for display - remove newlines/control chars)
-					bypassMu.Lock()
-					if lastBypassPayload != "" {
-						cleanPayload := sanitizeForDisplay(lastBypassPayload)
-						fmt.Printf("  🎯 Last bypass: \033[32m[%s]\033[0m %s\n", lastBypassEncoder, truncateString(cleanPayload, 50))
-					} else {
-						fmt.Println("  🔍 Hunting for bypasses...")
-					}
-					bypassMu.Unlock()
-
-					// Rotating fun facts
-					funFacts := []string{
-						"💡 Tip: Chunked encoding can split payloads to evade pattern matching",
-						"💡 Fun fact: Most WAFs can't properly normalize Unicode in all contexts",
-						"💡 Pro tip: Encoders combined with evasions multiply your test coverage",
-						"💡 Did you know? Parameter pollution bypasses 30%+ of WAFs",
-						"💡 Insight: Case variations alone find bypasses in 1 out of 5 WAFs",
-						"💡 Trivia: The first WAF was created in 1999 by Perfecto Technologies",
-						"💡 Fact: SQL comments /**/ can hide entire payload chunks",
-					}
-					factIdx := int(elapsed.Seconds()/8) % len(funFacts)
-					fmt.Printf("  %s\n", funFacts[factIdx])
-
-					frameIdx++
-				}
-			}
-		}()
-	} // end if !*streamMode
+	// Use unified LiveProgress
+	progress := ui.NewLiveProgress(ui.LiveProgressConfig{
+		Total:        len(tasks),
+		DisplayLines: 4,
+		Title:        "Mutation testing",
+		Unit:         "mutations",
+		Mode:         outputMode,
+		Metrics: []ui.MetricConfig{
+			{Name: "bypasses", Label: "Bypasses", Icon: "🔓", Highlight: true},
+			{Name: "blocked", Label: "Blocked", Icon: "🛡️"},
+			{Name: "errors", Label: "Errors", Icon: "⚠️"},
+		},
+		Tips: []string{
+			"💡 Chunked encoding can split payloads to evade pattern matching",
+			"💡 Most WAFs can't properly normalize Unicode in all contexts",
+			"💡 Encoders combined with evasions multiply your test coverage",
+			"💡 Parameter pollution bypasses 30%+ of WAFs",
+			"💡 Case variations alone find bypasses in 1 out of 5 WAFs",
+			"💡 SQL comments /**/ can hide entire payload chunks",
+		},
+		StreamFormat:   "[PROGRESS] {completed}/{total} ({percent}%) | bypasses: {metric:bypasses} | blocked: {metric:blocked} | {status} | {elapsed}",
+		StreamInterval: 3 * time.Second,
+	})
+	progress.Start()
+	defer progress.Stop()
 
 	// Execute mutation tests
 	stats := executor.Execute(ctx, tasks, func(r *mutation.TestResult) {
-		// Update counters
+		// Update progress and metrics
+		progress.Increment()
+
 		if r.Blocked {
-			atomic.AddInt64(&blocked, 1)
+			progress.AddMetric("blocked")
 		} else if r.ErrorMessage != "" {
-			atomic.AddInt64(&errors, 1)
+			progress.AddMetric("errors")
 		} else {
-			atomic.AddInt64(&passed, 1)
-			// Record bypass details
-			bypassMu.Lock()
-			lastBypassPayload = r.MutatedPayload
-			lastBypassEncoder = r.EncoderUsed
+			progress.AddMetric("bypasses")
+			// Update status with last bypass info
+			encoder := r.EncoderUsed
 			if r.EvasionUsed != "" {
-				lastBypassEncoder += "+" + r.EvasionUsed
+				encoder += "+" + r.EvasionUsed
 			}
-			bypassMu.Unlock()
+			progress.SetStatus(fmt.Sprintf("bypass: %s", encoder))
 		}
 
 		// Write to output file
@@ -11709,18 +12068,10 @@ func runMutate() {
 			} else if r.ErrorMessage != "" {
 				status = "!"
 			}
-			fmt.Printf("\033[5A  [%s] %s | %s | %s | %dms\n\033[4B",
+			fmt.Printf("  [%s] %s | %s | %s | %dms\n",
 				status, r.EncoderUsed, r.LocationUsed, r.EvasionUsed, r.LatencyMs)
 		}
 	})
-
-	close(doneChan)
-	if !*streamMode {
-		time.Sleep(200 * time.Millisecond) // Let final render complete
-
-		// Clear the live progress area
-		fmt.Print("\033[4A\033[J")
-	}
 
 	// Print final results with celebration or commiseration
 	fmt.Println()

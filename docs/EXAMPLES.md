@@ -371,6 +371,39 @@ waf-tester run -plan testplan.json -format sarif -o results.sarif
 
 Use `--stream` flag to disable animated progress for clean CI logs.
 
+### Streaming JSON Mode (v2.3.3+)
+
+For real-time machine-readable output, use `-stream -json`:
+
+```bash
+# Stream events to stdout as NDJSON
+waf-tester scan -u https://target.com -stream -json
+
+# Pipe to jq for filtering
+waf-tester scan -u https://target.com -stream -json | jq 'select(.type=="vulnerability")'
+
+# Save to file while watching progress
+waf-tester scan -u https://target.com -stream -json 2>/dev/null > scan-events.jsonl
+```
+
+**Event Types:**
+
+| Event | Description | Data Fields |
+|-------|-------------|-------------|
+| `scan_start` | Scanner beginning | `scanner` |
+| `vulnerability` | Finding discovered | `category`, `severity`, `type`, etc. |
+| `scan_complete` | Scanner finished | `scanner`, `vulns` (count) |
+| `scan_end` | All scanners done | `target`, `duration_ms`, `total_vulns`, `by_severity` |
+
+**Example Events:**
+
+```json
+{"type":"scan_start","timestamp":"2026-02-01T10:00:00Z","data":{"scanner":"sqli"}}
+{"type":"vulnerability","timestamp":"2026-02-01T10:00:01Z","data":{"category":"sqli","severity":"High","type":"error-based"}}
+{"type":"scan_complete","timestamp":"2026-02-01T10:00:05Z","data":{"scanner":"sqli","vulns":3}}
+{"type":"scan_end","timestamp":"2026-02-01T10:01:00Z","data":{"target":"https://target.com","duration_ms":60000,"total_vulns":15}}
+```
+
 ### GitHub Actions
 
 ```yaml
@@ -385,6 +418,24 @@ Use `--stream` flag to disable animated progress for clean CI logs.
   uses: github/codeql-action/upload-sarif@v2
   with:
     sarif_file: results.sarif
+```
+
+### GitHub Actions with Streaming JSON
+
+```yaml
+- name: WAF Security Scan (Streaming)
+  run: |
+    waf-tester scan -u ${{ secrets.TARGET_URL }} \
+      -stream -json > scan-events.jsonl 2>&1
+    
+    # Count critical vulnerabilities
+    CRITICAL=$(jq -s '[.[] | select(.type=="vulnerability" and .data.severity=="Critical")] | length' scan-events.jsonl)
+    echo "Found $CRITICAL critical vulnerabilities"
+    
+    # Fail if critical vulns found
+    if [ "$CRITICAL" -gt 0 ]; then
+      exit 1
+    fi
 ```
 
 ### GitLab CI

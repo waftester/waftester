@@ -83,7 +83,7 @@ Run `waf-tester <command> -h` for options.
 waf-tester scan -u https://target.com
 
 # Scan specific categories
-waf-tester scan -u https://target.com -category sqli,xss
+waf-tester scan -u https://target.com -types sqli,xss
 
 # Multi-target from file
 waf-tester scan -l targets.txt -c 50
@@ -96,7 +96,34 @@ waf-tester bypass -u https://target.com --smart --smart-mode=full
 
 # Enterprise assessment
 waf-tester assess -u https://target.com -o assessment.json
+
+# Streaming JSON for CI/CD pipelines (v2.3.3+)
+waf-tester scan -u https://target.com -stream -json | jq
+
+# Save real-time events to NDJSON file
+waf-tester scan -u https://target.com -stream -json > scan-events.jsonl
 ```
+
+### CI/CD Pipeline Integration
+
+Use `-stream -json` for machine-readable real-time output:
+
+```bash
+# GitHub Actions example
+waf-tester scan -u $TARGET_URL -stream -json | tee scan.jsonl
+
+# Count vulnerabilities found
+waf-tester scan -u $TARGET_URL -stream -json | jq 'select(.type=="vulnerability")' | wc -l
+
+# Filter by severity
+waf-tester scan -u $TARGET_URL -stream -json | jq 'select(.data.severity=="Critical")'
+```
+
+Event types emitted:
+- `scan_start` - Scanner beginning execution
+- `vulnerability` - Vulnerability discovered
+- `scan_complete` - Scanner finished (guaranteed even on errors)
+- `scan_end` - All scanners complete with summary
 
 ## Output
 

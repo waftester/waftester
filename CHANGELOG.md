@@ -5,6 +5,32 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.3] - 2026-02-01
+
+### Added
+- **Real-time Streaming JSON Events**: New `-stream -json` mode emits NDJSON events to stdout for CI/CD pipelines
+  - Event types: `scan_start`, `vulnerability`, `scan_complete`, `scan_end`
+  - Progress output goes to stderr, JSON events to stdout for clean piping
+  - Example: `waf-tester scan -u https://target.com -stream -json | jq`
+- **Guaranteed Event Emission**: All 35+ scanners now use `defer` pattern to emit `scan_complete` even on errors
+- **Banner Suppression**: Banner and config output suppressed in `-stream -json` mode for clean JSON output
+
+### Changed
+- Refactored all scanners to use defer pattern for reliable event emission
+- Error handling improved: errors are logged (if verbose) but don't skip completion events
+- Streaming mode now properly separates progress (stderr) from data (stdout)
+
+### Fixed
+- Scanners no longer silently skip `scan_complete` events on early returns or errors
+- `techdetect` scanner no longer hangs on slow `DiscoverAll()` calls
+- Duplicate `streamJSON` variable declarations removed
+- `wafdetect` scanner type mismatch with `WAFInfo` slice fixed
+
+### CI/CD Improvements
+- Pipeline tools can now reliably count scanner completions
+- NDJSON output compatible with `jq`, log aggregators, and monitoring tools
+- Clean stdout output suitable for `> results.jsonl` redirection
+
 ## [2.3.2] - 2026-02-01
 
 ### Added
@@ -63,6 +89,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[2.3.3]: https://github.com/waftester/waftester/compare/v2.3.2...v2.3.3
 [2.3.2]: https://github.com/waftester/waftester/compare/v2.3.1...v2.3.2
 [2.3.1]: https://github.com/waftester/waftester/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/waftester/waftester/releases/tag/v2.3.0
