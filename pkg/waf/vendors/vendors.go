@@ -4,7 +4,6 @@ package vendors
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 // WAFVendor represents a detected WAF vendor
@@ -85,17 +86,11 @@ func NewVendorDetectorWithClient(timeout time.Duration, httpClient *http.Client)
 	if httpClient != nil {
 		client = httpClient
 	} else {
-		client = &http.Client{
-			Timeout: timeout,
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true,
-				},
-			},
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		}
+		// Use shared HTTP client pool for connection reuse and better performance
+		client = httpclient.New(httpclient.Config{
+			Timeout:            timeout,
+			InsecureSkipVerify: true,
+		})
 	}
 
 	return &VendorDetector{
