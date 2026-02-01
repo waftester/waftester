@@ -1,6 +1,8 @@
 package bufpool
 
 import (
+	"bytes"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -130,4 +132,53 @@ func TestStringPool_ConcurrentSafe(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+// Benchmarks - comparing pooled vs non-pooled allocations
+
+func BenchmarkGet(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		buf := Get()
+		buf.WriteString("benchmark test data for buffer pool performance testing")
+		Put(buf)
+	}
+}
+
+func BenchmarkNewBuffer(b *testing.B) {
+	// Baseline: creating new buffer each time (no pooling)
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		buf := new(bytes.Buffer)
+		buf.WriteString("benchmark test data for buffer pool performance testing")
+		_ = buf
+	}
+}
+
+func BenchmarkGetSized(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		buf := GetSized(1024)
+		buf.WriteString("benchmark test data for buffer pool performance testing")
+		Put(buf)
+	}
+}
+
+func BenchmarkGetString(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		sb := GetString()
+		sb.WriteString("benchmark test data for string builder pool performance testing")
+		PutString(sb)
+	}
+}
+
+func BenchmarkNewStringBuilder(b *testing.B) {
+	// Baseline: creating new builder each time (no pooling)
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		sb := new(strings.Builder)
+		sb.WriteString("benchmark test data for string builder pool performance testing")
+		_ = sb
+	}
 }
