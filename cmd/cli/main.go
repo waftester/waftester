@@ -11797,6 +11797,9 @@ func runBypassFinder() {
 	outputFile := bypassFlags.String("o", "bypasses.json", "Output file for bypass results")
 	skipVerify := bypassFlags.Bool("k", false, "Skip TLS verification")
 
+	// Streaming mode (CI-friendly output)
+	streamMode := bypassFlags.Bool("stream", false, "Streaming output mode for CI/scripts")
+
 	// Realistic mode (intelligent block detection)
 	realisticMode := bypassFlags.Bool("realistic", false, "Use intelligent block detection + realistic headers")
 	realisticShort := bypassFlags.Bool("R", false, "Realistic mode (shorthand)")
@@ -11903,149 +11906,92 @@ func runBypassFinder() {
 	// Generate tasks for progress tracking
 	tasks := executor.GenerateTasks(testPayloads, nil)
 
-	// Progress tracking with live display (same pattern as mutate command)
-	var blocked, passed, errors int64
-	var lastBypassPayload, lastBypassEncoder string
+	// Progress tracking
 	var bypassMu sync.Mutex
 	var bypassPayloads []*mutation.TestResult
 
-	ui.PrintSection("🔥 WAF Bypass Hunt")
-
-	// Determine WAF name for display
+	// Determine WAF name for manifest display
 	wafName := "Unknown WAF"
 	if smartResult != nil && smartResult.WAFDetected {
 		wafName = smartResult.VendorName
 	}
-	fmt.Printf("  Target: %s (%s)\n", targetURL, wafName)
-	fmt.Printf("  Mutations: %d | Mode: %s\n\n", len(tasks), "bypass")
 
-	// Print initial placeholder lines for live update
-	fmt.Println("  ") // Progress bar line
-	fmt.Println("  ") // Stats line
-	fmt.Println("  ") // Bypass line
-	fmt.Println("  ") // Tip line
+	// Tips for bypass hunting
+	tips := []string{
+		"Chunked encoding can split payloads to evade pattern matching",
+		"Most WAFs can't properly normalize Unicode in all contexts",
+		"Encoders combined with evasions multiply your test coverage",
+		"Parameter pollution bypasses 30%+ of WAFs",
+		"Case variations alone find bypasses in 1 out of 5 WAFs",
+	}
 
-	startTime := time.Now()
-	progressTicker := time.NewTicker(150 * time.Millisecond)
-	defer progressTicker.Stop()
+	// Determine output mode
+	outputMode := ui.OutputModeInteractive
+	if *streamMode {
+		outputMode = ui.OutputModeStreaming
+	}
 
-	// Progress update goroutine
-	doneChan := make(chan struct{})
-	go func() {
-		spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-		frameIdx := 0
-		for {
-			select {
-			case <-doneChan:
-				return
-			case <-progressTicker.C:
-				total := atomic.LoadInt64(&blocked) + atomic.LoadInt64(&passed) + atomic.LoadInt64(&errors)
-				blk := atomic.LoadInt64(&blocked)
-				pss := atomic.LoadInt64(&passed)
-				err := atomic.LoadInt64(&errors)
-
-				elapsed := time.Since(startTime)
-				percent := float64(total) / float64(len(tasks)) * 100
-				rps := float64(total) / elapsed.Seconds()
-				if elapsed.Seconds() < 1 {
-					rps = float64(total)
-				}
-
-				// Calculate ETA
-				eta := time.Duration(0)
-				if total > 0 && total < int64(len(tasks)) {
-					remaining := int64(len(tasks)) - total
-					eta = time.Duration(float64(remaining) / rps * float64(time.Second))
-				}
-
-				// Build progress bar (50 chars wide)
-				barWidth := 50
-				filled := int(percent / 100 * float64(barWidth))
-				bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
-
-				// Choose color based on bypass count
-				barColor := "82" // Green
-				if pss > 0 {
-					barColor = "226" // Gold
-				}
-				if pss > 10 {
-					barColor = "196" // Red hot
-				}
-
-				// Move cursor up 4 lines and redraw
-				fmt.Print("\033[4A\033[J")
-
-				// Progress bar
-				spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
-				fmt.Printf("  %s \033[38;5;%sm%s\033[0m %.1f%% (%d/%d)\n",
-					spinner, barColor, bar, percent, total, len(tasks))
-
-				// Stats with emojis
-				bypassIcon := "🔍"
-				if pss > 0 {
-					bypassIcon = "🎯"
-				}
-				if pss > 5 {
-					bypassIcon = "🔓"
-				}
-				if pss > 10 {
-					bypassIcon = "💥"
-				}
-
-				fmt.Printf("  %s Bypasses: \033[32m%d\033[0m | 🛡️ Blocked: \033[31m%d\033[0m | ⚠️ Errors: \033[33m%d\033[0m | ⚡ %.0f req/s | ETA: %s\n",
-					bypassIcon, pss, blk, err, rps, formatETA(eta))
-
-				// Last bypass found
-				bypassMu.Lock()
-				if lastBypassPayload != "" {
-					cleanPayload := sanitizeForDisplay(lastBypassPayload)
-					fmt.Printf("  🎯 Last bypass: \033[32m[%s]\033[0m %s\n", lastBypassEncoder, truncateString(cleanPayload, 50))
-				} else {
-					fmt.Println("  🔍 Hunting for bypasses...")
-				}
-				bypassMu.Unlock()
-
-				// Rotating tips
-				tips := []string{
-					"💡 Tip: Chunked encoding can split payloads to evade pattern matching",
-					"💡 Fun fact: Most WAFs can't properly normalize Unicode in all contexts",
-					"💡 Pro tip: Encoders combined with evasions multiply your test coverage",
-					"💡 Did you know? Parameter pollution bypasses 30%+ of WAFs",
-					"💡 Insight: Case variations alone find bypasses in 1 out of 5 WAFs",
-				}
-				tipIdx := int(elapsed.Seconds()/8) % len(tips)
-				fmt.Printf("  %s\n", tips[tipIdx])
-
-				frameIdx++
-			}
+	// Display execution manifest BEFORE running (only in interactive mode)
+	if !*streamMode {
+		manifest := ui.NewExecutionManifest("BYPASS HUNT MANIFEST")
+		manifest.SetDescription("Hunting for WAF bypass vectors")
+		manifest.AddWithIcon("🎯", "Target", targetURL)
+		manifest.AddWithIcon("🛡️", "WAF", wafName)
+		manifest.AddEmphasis("📦", "Payloads", fmt.Sprintf("%d base payloads", len(testPayloads)))
+		manifest.AddEmphasis("🔀", "Mutations", fmt.Sprintf("%d test combinations", len(tasks)))
+		manifest.AddWithIcon("🏷️", "Category", *category)
+		if *smartMode {
+			manifest.AddWithIcon("🧠", "Mode", fmt.Sprintf("Smart (%s)", *smartModeType))
+		} else {
+			manifest.AddWithIcon("⚔️", "Mode", "Bypass Hunter (all evasions)")
 		}
-	}()
+		manifest.AddConcurrency(*concurrency, *rateLimit)
+		manifest.AddEstimate(len(tasks), *rateLimit)
+		manifest.Print()
+	} else {
+		fmt.Printf("[INFO] Starting bypass hunt: target=%s waf=%s payloads=%d mutations=%d\n",
+			targetURL, wafName, len(testPayloads), len(tasks))
+	}
+
+	// Use unified LiveProgress component
+	progress := ui.NewLiveProgress(ui.LiveProgressConfig{
+		Total:        len(tasks),
+		DisplayLines: 3,
+		Title:        "Hunting for bypasses",
+		Unit:         "tests",
+		Mode:         outputMode,
+		Metrics: []ui.MetricConfig{
+			{Name: "bypasses", Label: "Bypasses", Icon: "🎯", Highlight: true},
+			{Name: "blocked", Label: "Blocked", Icon: "🛡️"},
+			{Name: "errors", Label: "Errors", Icon: "⚠️"},
+		},
+		Tips:        tips,
+		TipInterval: 8 * time.Second,
+	})
+
+	progress.Start()
 
 	// Execute mutation tests with callback
 	executor.Execute(ctx, tasks, func(r *mutation.TestResult) {
+		progress.Increment()
+
 		if r.Blocked {
-			atomic.AddInt64(&blocked, 1)
+			progress.AddMetric("blocked")
 		} else if r.ErrorMessage != "" {
-			atomic.AddInt64(&errors, 1)
+			progress.AddMetric("errors")
 		} else {
-			atomic.AddInt64(&passed, 1)
+			progress.AddMetric("bypasses")
 			// Record bypass
 			bypassMu.Lock()
 			bypassPayloads = append(bypassPayloads, r)
-			lastBypassPayload = r.MutatedPayload
-			lastBypassEncoder = r.EncoderUsed
-			if r.EvasionUsed != "" {
-				lastBypassEncoder += "+" + r.EvasionUsed
-			}
 			bypassMu.Unlock()
 		}
 	})
 
-	close(doneChan)
-	fmt.Print("\033[4A\033[J") // Clear progress lines
+	progress.Stop()
 
 	// Build result
-	totalTested := atomic.LoadInt64(&blocked) + atomic.LoadInt64(&passed) + atomic.LoadInt64(&errors)
+	totalTested := progress.GetCompleted()
 	bypassRate := float64(0)
 	if totalTested > 0 {
 		bypassRate = float64(len(bypassPayloads)) / float64(totalTested) * 100
@@ -12159,6 +12105,7 @@ func runSmuggle() {
 	outputFile := fs.String("o", "", "Output file (JSON)")
 	jsonOutput := fs.Bool("json", false, "JSON output to stdout")
 	verbose := fs.Bool("v", false, "Verbose output")
+	streamMode := fs.Bool("stream", false, "Streaming output mode for CI/scripts")
 
 	fs.Parse(os.Args[2:])
 
@@ -12206,58 +12153,39 @@ func runSmuggle() {
 	ctx := context.Background()
 	allResults := []*smuggling.Result{}
 
-	// Live progress for multi-target smuggle testing
-	var progressDone chan struct{}
-	var completed, vulnsFound int32
-	totalTargets := int32(len(targets))
-	startTime := time.Now()
+	// Determine output mode
+	outputMode := ui.OutputModeInteractive
+	if *streamMode {
+		outputMode = ui.OutputModeStreaming
+	}
 
+	// Display execution manifest BEFORE running (multi-target only, interactive mode)
+	var progress *ui.LiveProgress
 	if len(targets) > 1 {
-		progressDone = make(chan struct{})
+		if !*streamMode {
+			manifest := ui.NewExecutionManifest("HTTP SMUGGLING DETECTION")
+			manifest.SetDescription("Testing for request smuggling vulnerabilities")
+			manifest.AddEmphasis("🎯", "Targets", fmt.Sprintf("%d URLs", len(targets)))
+			manifest.AddWithIcon("🛡️", "Mode", map[bool]string{true: "Safe (timing only)", false: "Full (payload injection)"}[*safeMode])
+			manifest.AddWithIcon("⏱️", "Timeout", fmt.Sprintf("%ds per target", *timeout))
+			manifest.Print()
+		} else {
+			fmt.Printf("[INFO] Starting smuggle detection: targets=%d mode=%s\n",
+				len(targets), map[bool]string{true: "safe", false: "full"}[*safeMode])
+		}
 
-		// Print placeholder lines
-		fmt.Println("  ") // Progress bar
-		fmt.Println("  ") // Stats line
-
-		go func() {
-			ticker := time.NewTicker(150 * time.Millisecond)
-			defer ticker.Stop()
-			spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-			frameIdx := 0
-
-			for {
-				select {
-				case <-progressDone:
-					return
-				case <-ticker.C:
-					done := atomic.LoadInt32(&completed)
-					vulns := atomic.LoadInt32(&vulnsFound)
-					elapsed := time.Since(startTime)
-
-					percent := float64(done) / float64(totalTargets) * 100
-					barWidth := 40
-					filled := int(percent / 100 * float64(barWidth))
-					bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
-
-					barColor := "\033[32m" // Green
-					if vulns > 0 {
-						barColor = "\033[31m" // Red - vulnerabilities found!
-					}
-
-					fmt.Print("\033[2A\033[J")
-					spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
-					fmt.Printf("  %s %s%s\033[0m %.1f%% (%d/%d targets)\n",
-						spinner, barColor, bar, percent, done, totalTargets)
-
-					vulnIcon := "🔍"
-					if vulns > 0 {
-						vulnIcon = "🚨"
-					}
-					fmt.Printf("  %s Vulnerabilities: %d | Elapsed: %s\n", vulnIcon, vulns, elapsed.Round(time.Second))
-					frameIdx++
-				}
-			}
-		}()
+		// Use unified LiveProgress component
+		progress = ui.NewLiveProgress(ui.LiveProgressConfig{
+			Total:        len(targets),
+			DisplayLines: 2,
+			Title:        "Testing for request smuggling",
+			Unit:         "targets",
+			Mode:         outputMode,
+			Metrics: []ui.MetricConfig{
+				{Name: "vulns", Label: "Vulnerabilities", Icon: "🚨", Highlight: true},
+			},
+		})
+		progress.Start()
 	}
 
 	for _, target := range targets {
@@ -12270,13 +12198,17 @@ func runSmuggle() {
 			if len(targets) == 1 {
 				ui.PrintError(fmt.Sprintf("  Error: %v", err))
 			}
-			atomic.AddInt32(&completed, 1)
+			if progress != nil {
+				progress.Increment()
+			}
 			continue
 		}
 
 		allResults = append(allResults, result)
-		atomic.AddInt32(&vulnsFound, int32(len(result.Vulnerabilities)))
-		atomic.AddInt32(&completed, 1)
+		if progress != nil {
+			progress.Increment()
+			progress.AddMetricBy("vulns", len(result.Vulnerabilities))
+		}
 
 		if len(targets) == 1 {
 			if len(result.Vulnerabilities) > 0 {
@@ -12297,11 +12229,9 @@ func runSmuggle() {
 		}
 	}
 
-	// Stop progress and show summary
-	if progressDone != nil {
-		close(progressDone)
-		time.Sleep(50 * time.Millisecond)
-		fmt.Print("\033[2A\033[J")
+	// Stop progress
+	if progress != nil {
+		progress.Stop()
 	}
 
 	// Summary
@@ -12665,6 +12595,7 @@ func runHeadless() {
 	outputFile := fs.String("o", "", "Output file (JSON)")
 	jsonOutput := fs.Bool("json", false, "JSON output to stdout")
 	verbose := fs.Bool("v", false, "Verbose output")
+	streamMode := fs.Bool("stream", false, "Streaming output mode for CI/scripts")
 
 	fs.Parse(os.Args[2:])
 
@@ -12737,54 +12668,42 @@ func runHeadless() {
 	ctx := context.Background()
 	allResults := []*headless.PageResult{}
 
-	// Live progress for multi-target headless browsing
-	var progressDone chan struct{}
-	var completed, urlsFound int32
-	totalTargets := int32(len(targets))
-	startTime := time.Now()
+	// Determine output mode
+	outputMode := ui.OutputModeInteractive
+	if *streamMode {
+		outputMode = ui.OutputModeStreaming
+	}
 
+	// Display execution manifest and progress for multi-target
+	var progress *ui.LiveProgress
 	if len(targets) > 1 {
-		progressDone = make(chan struct{})
-
-		// Print placeholder lines
-		fmt.Println("  ") // Progress bar
-		fmt.Println("  ") // Stats line
-
-		go func() {
-			ticker := time.NewTicker(150 * time.Millisecond)
-			defer ticker.Stop()
-			spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-			frameIdx := 0
-
-			for {
-				select {
-				case <-progressDone:
-					return
-				case <-ticker.C:
-					done := atomic.LoadInt32(&completed)
-					urls := atomic.LoadInt32(&urlsFound)
-					elapsed := time.Since(startTime)
-
-					percent := float64(done) / float64(totalTargets) * 100
-					barWidth := 40
-					filled := int(percent / 100 * float64(barWidth))
-					bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
-
-					fmt.Print("\033[2A\033[J")
-					spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
-					fmt.Printf("  %s \033[36m%s\033[0m %.1f%% (%d/%d pages)\n",
-						spinner, bar, percent, done, totalTargets)
-
-					pps := float64(0)
-					if elapsed.Seconds() > 0 {
-						pps = float64(done) / elapsed.Seconds()
-					}
-					fmt.Printf("  🌐 URLs extracted: %d | %.2f pages/sec | Elapsed: %s\n",
-						urls, pps, elapsed.Round(time.Second))
-					frameIdx++
-				}
+		if !*streamMode {
+			manifest := ui.NewExecutionManifest("HEADLESS BROWSER TESTING")
+			manifest.SetDescription("Visiting pages with headless browser")
+			manifest.AddEmphasis("🎯", "Targets", fmt.Sprintf("%d URLs", len(targets)))
+			manifest.AddWithIcon("🌐", "Headless", fmt.Sprintf("%v", *headlessMode))
+			manifest.AddWithIcon("⏱️", "Timeout", fmt.Sprintf("%ds", *timeout))
+			if *screenshot {
+				manifest.AddWithIcon("📸", "Screenshots", *screenshotDir)
 			}
-		}()
+			manifest.Print()
+		} else {
+			fmt.Printf("[INFO] Starting headless browsing: targets=%d headless=%v\n",
+				len(targets), *headlessMode)
+		}
+
+		// Use unified LiveProgress component
+		progress = ui.NewLiveProgress(ui.LiveProgressConfig{
+			Total:        len(targets),
+			DisplayLines: 2,
+			Title:        "Browsing pages",
+			Unit:         "pages",
+			Mode:         outputMode,
+			Metrics: []ui.MetricConfig{
+				{Name: "urls", Label: "URLs Found", Icon: "🔗"},
+			},
+		})
+		progress.Start()
 	}
 
 	for _, target := range targets {
@@ -12797,13 +12716,17 @@ func runHeadless() {
 			if len(targets) == 1 {
 				ui.PrintError(fmt.Sprintf("  Error: %v", err))
 			}
-			atomic.AddInt32(&completed, 1)
+			if progress != nil {
+				progress.Increment()
+			}
 			continue
 		}
 
 		allResults = append(allResults, result)
-		atomic.AddInt32(&urlsFound, int32(len(result.FoundURLs)))
-		atomic.AddInt32(&completed, 1)
+		if progress != nil {
+			progress.Increment()
+			progress.AddMetricBy("urls", len(result.FoundURLs))
+		}
 
 		if len(targets) == 1 {
 			fmt.Printf("  Status: %d\n", result.StatusCode)
@@ -12831,11 +12754,9 @@ func runHeadless() {
 		}
 	}
 
-	// Stop progress and show summary
-	if progressDone != nil {
-		close(progressDone)
-		time.Sleep(50 * time.Millisecond)
-		fmt.Print("\033[2A\033[J")
+	// Stop progress
+	if progress != nil {
+		progress.Stop()
 	}
 
 	// Summary

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/waftester/waftester/pkg/assessment"
@@ -50,6 +49,7 @@ func runAssess() {
 	output := assessFlags.String("o", "", "Output file for results")
 	format := assessFlags.String("format", "console", "Output format: console, json")
 	verbose := assessFlags.Bool("v", false, "Verbose output")
+	streamMode := assessFlags.Bool("stream", false, "Streaming output mode (for CI/scripts)")
 
 	// TLS
 	skipVerify := assessFlags.Bool("k", false, "Skip TLS certificate verification")
@@ -129,105 +129,80 @@ func runAssess() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
-	// Animated progress state
-	var currentPhase atomic.Value
-	var currentCompleted, currentTotal int64
-	currentPhase.Store("Initializing...")
-	progressDone := make(chan struct{})
-	spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-	frameIdx := 0
-	startTime := time.Now()
-
-	// Progress callback - updates shared state
-	progressFn := func(completed, total int64, phase string) {
-		atomic.StoreInt64(&currentCompleted, completed)
-		atomic.StoreInt64(&currentTotal, total)
-		currentPhase.Store(phase)
+	// Display execution manifest BEFORE running (only in interactive mode)
+	if !*streamMode {
+		manifest := ui.NewExecutionManifest("ENTERPRISE WAF ASSESSMENT")
+		manifest.SetDescription("Attack testing + FP testing + quantitative metrics")
+		manifest.AddWithIcon("🎯", "Target", *target)
+		if *categories != "" {
+			manifest.AddWithIcon("🏷️", "Categories", *categories)
+		} else {
+			manifest.AddWithIcon("🏷️", "Categories", "all")
+		}
+		manifest.AddWithIcon("🧪", "FP Testing", fmt.Sprintf("%v", *enableFP))
+		manifest.AddWithIcon("⚡", "Concurrency", fmt.Sprintf("%d workers", *concurrency))
+		manifest.AddWithIcon("🚦", "Rate Limit", fmt.Sprintf("%.0f req/s", *rateLimit))
+		manifest.AddWithIcon("🔍", "WAF Detection", fmt.Sprintf("%v", *detectWAF))
+		manifest.Print()
+	} else {
+		fmt.Printf("[INFO] Starting enterprise assessment: target=%s concurrency=%d rate=%.0f\n",
+			*target, *concurrency, *rateLimit)
 	}
 
-	// Animated display goroutine
-	go func() {
-		ticker := time.NewTicker(100 * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-progressDone:
-				return
-			case <-ticker.C:
-				completed := atomic.LoadInt64(&currentCompleted)
-				total := atomic.LoadInt64(&currentTotal)
-				phase := currentPhase.Load().(string)
-				elapsed := time.Since(startTime)
+	// Determine output mode
+	outputMode := ui.OutputModeInteractive
+	if *streamMode {
+		outputMode = ui.OutputModeStreaming
+	}
 
-				spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
-				frameIdx++
+	// Use unified LiveProgress component
+	progress := ui.NewLiveProgress(ui.LiveProgressConfig{
+		Total:        0, // Will be set dynamically by callback
+		DisplayLines: 4,
+		Title:        "Enterprise assessment",
+		Unit:         "tests",
+		Mode:         outputMode,
+		Tips: []string{
+			"💡 Enterprise assessment combines attack testing with FP testing",
+			"💡 F1 score balances precision and recall for accurate grading",
+			"💡 Quantitative metrics provide objective WAF evaluation",
+		},
+		StreamFormat: "[PROGRESS] {completed}/{total} ({percent}%) - {status} - {elapsed} elapsed",
+	})
 
-				// Build progress bar
-				progressWidth := 30
-				fillWidth := 0
-				pct := float64(0)
-				if total > 0 {
-					pct = float64(completed) / float64(total) * 100
-					fillWidth = int(float64(progressWidth) * pct / 100)
-				}
-				bar := fmt.Sprintf("[%s%s]",
-					repeatCharAssess("█", fillWidth),
-					repeatCharAssess("░", progressWidth-fillWidth))
+	// Progress callback - updates LiveProgress
+	progressFn := func(completed, total int64, phase string) {
+		progress.SetTotal(int(total))
+		progress.SetCompleted(int(completed))
+		progress.SetStatus(phase)
+	}
 
-				// Calculate rate
-				rate := float64(0)
-				if elapsed.Seconds() > 0 {
-					rate = float64(completed) / elapsed.Seconds()
-				}
-
-				// ETA
-				eta := "calculating..."
-				if rate > 0 && total > 0 {
-					remaining := float64(total-completed) / rate
-					if remaining < 60 {
-						eta = fmt.Sprintf("%.0fs", remaining)
-					} else {
-						eta = fmt.Sprintf("%.1fm", remaining/60)
-					}
-				}
-
-				fmt.Printf("\033[4A\033[J") // Clear 4 lines
-				fmt.Printf("  %s %s\n", spinner, phase)
-				fmt.Printf("  %s  \033[36m%.1f%%\033[0m  (%d/%d)\n", bar, pct, completed, total)
-				fmt.Printf("  📊 \033[33m%.1f req/s\033[0m  ⏱️  %s  ETA: %s\n",
-					rate, formatElapsedAssess(elapsed), eta)
-				fmt.Printf("  💡 Enterprise WAF assessment with quantitative metrics\n")
-			}
-		}
-	}()
-
-	// Initial spacing for progress display
-	fmt.Println()
-	fmt.Println()
-	fmt.Println()
-	fmt.Println()
+	progress.Start()
 
 	// Run assessment
-	ui.PrintInfo("Starting enterprise assessment...")
 	result, err := assess.Run(ctx, progressFn)
-	duration := time.Since(startTime)
 
 	// Stop progress display
-	close(progressDone)
-	time.Sleep(50 * time.Millisecond)
-
-	// Clear progress lines
-	fmt.Printf("\033[4A\033[J")
-	fmt.Printf("  ✅ Assessment completed in %s\n", formatElapsedAssess(duration))
-	fmt.Println()
+	progress.Stop()
+	elapsed := progress.GetElapsed()
 
 	if err != nil {
 		fmt.Println(ui.ErrorStyle.Render(fmt.Sprintf("Assessment error: %v", err)))
 		os.Exit(1)
 	}
 
-	// Display results
-	displayAssessmentResults(result, duration)
+	// Show completion summary
+	if *streamMode {
+		fmt.Printf("[COMPLETE] Assessment in %s, Grade=%s\n", formatElapsedAssess(elapsed), result.Grade)
+	} else {
+		fmt.Printf("  ✅ Assessment completed in %s\n", formatElapsedAssess(elapsed))
+		fmt.Println()
+	}
+
+	// Display results (only in interactive mode)
+	if !*streamMode {
+		displayAssessmentResults(result, elapsed)
+	}
 
 	// Save to file if requested
 	if *output != "" {
