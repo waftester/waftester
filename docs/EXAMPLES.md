@@ -30,7 +30,8 @@ This guide shows you every way to use WAF-Tester with real examples. Each exampl
 20. [Working with Multiple Targets](#-working-with-multiple-targets)
 21. [Using Proxies](#-using-proxies)
 22. [Smart Mode (WAF-Aware Testing)](#-smart-mode-waf-aware-testing)
-23. [Real-World Scenarios](#-real-world-scenarios)
+23. [CI/CD Pipeline Integration](#-cicd-pipeline-integration)
+24. [Real-World Scenarios](#-real-world-scenarios)
 
 ---
 
@@ -1134,6 +1135,81 @@ waf-tester scan -u https://example.com --smart --smart-verbose
 
 ---
 
+## 🔄 CI/CD Pipeline Integration
+
+The `--stream` flag enables clean output for CI/CD pipelines by disabling animated progress bars and ANSI escape codes.
+
+### GitHub Actions
+
+```yaml
+# .github/workflows/security.yml
+- name: WAF Security Scan
+  run: |
+    waf-tester scan -u ${{ secrets.TARGET_URL }} \
+      --stream \
+      -types sqli,xss,traversal \
+      -sarif -o results.sarif
+
+- name: Upload SARIF
+  uses: github/codeql-action/upload-sarif@v2
+  with:
+    sarif_file: results.sarif
+```
+
+### GitLab CI
+
+```yaml
+waf_scan:
+  script:
+    - waf-tester assess -u $TARGET_URL --stream -format json -o report.json
+  artifacts:
+    reports:
+      security: report.json
+```
+
+### Azure DevOps
+
+```yaml
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+      waf-tester scan -u $(TARGET_URL) --stream -sarif -o $(Build.ArtifactStagingDirectory)/security.sarif
+```
+
+### Commands Supporting --stream
+
+All major commands support `--stream` for CI-friendly output:
+
+| Command | Stream Support |
+|---------|----------------|
+| `assess` | ✅ Full LiveProgress + ExecutionManifest |
+| `auto` | ✅ Skips JS analysis and param discovery progress |
+| `bypass` | ✅ Full LiveProgress with metrics |
+| `crawl` | ✅ Skips crawl progress animation |
+| `fuzz` | ✅ Skips ffuf-style progress |
+| `headless` | ✅ Full LiveProgress |
+| `mutate` | ✅ Skips bypass hunting animation |
+| `probe` | ✅ Uses existing `-s`/`--stream` flag |
+| `scan` | ✅ Skips deep scan progress |
+| `smuggle` | ✅ Full LiveProgress |
+| `fp` | ✅ Streaming false positive testing |
+
+### Best Practice
+
+```bash
+# Always use --stream in CI, combine with structured output
+waf-tester assess -u https://app.example.com \
+  --stream \
+  -format json \
+  -o assessment.json
+
+# Parse results
+cat assessment.json | jq '.metrics.f1_score'
+```
+
+---
+
 ## 🎯 Real-World Scenarios
 
 ### Scenario 1: Bug Bounty Quick Check
@@ -1178,11 +1254,15 @@ waf-tester bypass -u https://target.com \
 ### Scenario 5: CI/CD Security Check
 
 ```bash
-# In your pipeline - fail on critical findings
+# In your pipeline - use --stream for clean logs without ANSI escape codes
 waf-tester scan -u https://staging.app.com \
   -types sqli,xss,traversal \
+  --stream \
   -match-severity critical,high \
   -sarif -o security-results.sarif
+
+# All major commands support --stream for CI:
+# assess, auto, bypass, crawl, fuzz, headless, mutate, probe, scan, smuggle, fp
 ```
 
 ### Scenario 6: API Security Testing

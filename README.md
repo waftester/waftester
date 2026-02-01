@@ -178,6 +178,7 @@ Common flags across commands:
 | `-o` | Output file path |
 | `-v`, `-verbose` | Verbose output |
 | `-s`, `-silent` | Silent mode |
+| `--stream` | CI/pipeline mode - no animated progress |
 
 ### Browser Scanning Flags
 
