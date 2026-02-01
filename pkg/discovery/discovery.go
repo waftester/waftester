@@ -171,64 +171,86 @@ func (d *Discoverer) Discover(ctx context.Context) (*DiscoveryResult, error) {
 		},
 	}
 
+	// Helper for animated phase execution
+	spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	runPhaseWithSpinner := func(phaseNum int, phaseName string, work func()) int {
+		beforeCount := len(d.endpoints)
+		done := make(chan struct{})
+
+		go func() {
+			frame := 0
+			for {
+				select {
+				case <-done:
+					return
+				default:
+					fmt.Printf("\r  [%d/9] %s %s ", phaseNum, spinnerFrames[frame%len(spinnerFrames)], phaseName)
+					frame++
+					time.Sleep(100 * time.Millisecond)
+				}
+			}
+		}()
+
+		work()
+		close(done)
+
+		added := len(d.endpoints) - beforeCount
+		fmt.Printf("\r  [%d/9] ✅ %s +%d\033[K\n", phaseNum, phaseName, added)
+		return added
+	}
+
 	// Phase 1: Detect WAF
-	fmt.Print("  [1/9] Detecting WAF... ")
+	fmt.Print("  [1/9] ⠋ Detecting WAF... ")
 	d.detectWAF(ctx, result)
 	if result.WAFDetected {
-		fmt.Printf("✓ %s\n", result.WAFFingerprint)
+		fmt.Printf("\r  [1/9] ✅ WAF detected: %s\033[K\n", result.WAFFingerprint)
 	} else {
-		fmt.Println("none detected")
+		fmt.Print("\r  [1/9] ✅ No WAF detected\033[K\n")
 	}
 
 	// Phase 2: ACTIVE DISCOVERY - Comprehensive path brute-forcing with tech fingerprinting
 	// This is the primary discovery method - doesn't rely on robots.txt/sitemap
 	// Skip if DisableActive is set (useful for testing)
 	if !d.config.DisableActive {
-		fmt.Print("  [2/9] Active discovery (path brute-force)... ")
+		fmt.Print("  [2/9] ⠋ Active discovery (path brute-force)... ")
 		d.discoverActiveEndpoints(ctx, result)
-		fmt.Printf("✓ %d endpoints\n", len(d.endpoints))
+		fmt.Printf("\r  [2/9] ✅ Active discovery: %d endpoints\033[K\n", len(d.endpoints))
 	}
 
-	// Phase 3: External Sources (robots.txt, sitemap.xml, Wayback) - supplementary
-	fmt.Print("  [3/9] External sources (robots.txt, sitemap, wayback)... ")
-	beforeCount := len(d.endpoints)
-	d.discoverFromExternalSources(ctx, result)
-	fmt.Printf("✓ +%d\n", len(d.endpoints)-beforeCount)
+	// Phase 3: External Sources
+	runPhaseWithSpinner(3, "External sources", func() {
+		d.discoverFromExternalSources(ctx, result)
+	})
 
 	// Phase 4: Service-specific endpoint probing
-	fmt.Print("  [4/9] Service-specific probing... ")
-	beforeCount = len(d.endpoints)
-	d.probeKnownEndpoints(ctx, result)
-	fmt.Printf("✓ +%d\n", len(d.endpoints)-beforeCount)
+	runPhaseWithSpinner(4, "Service-specific probing", func() {
+		d.probeKnownEndpoints(ctx, result)
+	})
 
 	// Phase 5: JavaScript link extraction
-	fmt.Print("  [5/9] JavaScript analysis... ")
-	beforeCount = len(d.endpoints)
-	d.discoverFromJavaScript(ctx, result)
-	fmt.Printf("✓ +%d\n", len(d.endpoints)-beforeCount)
+	runPhaseWithSpinner(5, "JavaScript analysis", func() {
+		d.discoverFromJavaScript(ctx, result)
+	})
 
 	// Phase 6: API Spec Parsing (OpenAPI/Swagger/GraphQL introspection)
-	fmt.Print("  [6/9] API spec parsing... ")
-	beforeCount = len(d.endpoints)
-	d.parseAPISpecs(ctx, result)
-	fmt.Printf("✓ +%d\n", len(d.endpoints)-beforeCount)
+	runPhaseWithSpinner(6, "API spec parsing", func() {
+		d.parseAPISpecs(ctx, result)
+	})
 
 	// Phase 7: Form extraction
-	fmt.Print("  [7/9] Form extraction... ")
-	beforeCount = len(d.endpoints)
-	d.discoverForms(ctx, result)
-	fmt.Printf("✓ +%d\n", len(d.endpoints)-beforeCount)
+	runPhaseWithSpinner(7, "Form extraction", func() {
+		d.discoverForms(ctx, result)
+	})
 
 	// Phase 8: Crawl discovered endpoints (recursive link following)
-	fmt.Print("  [8/9] Crawling links... ")
-	beforeCount = len(d.endpoints)
-	d.crawlEndpoints(ctx, result)
-	fmt.Printf("✓ +%d\n", len(d.endpoints)-beforeCount)
+	runPhaseWithSpinner(8, "Crawling links", func() {
+		d.crawlEndpoints(ctx, result)
+	})
 
 	// Phase 9: Analyze and categorize
-	fmt.Print("  [9/9] Analyzing attack surface... ")
+	fmt.Print("  [9/9] ⠋ Analyzing attack surface... ")
 	d.analyzeAttackSurface(result)
-	fmt.Println("✓")
+	fmt.Print("\r  [9/9] ✅ Attack surface analyzed\033[K\n")
 
 	result.Duration = time.Since(start)
 	result.Endpoints = d.endpoints

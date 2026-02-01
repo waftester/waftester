@@ -6767,6 +6767,80 @@ func runProbe() {
 		return &results, nil
 	} // end of probeTask function
 
+	// Live progress display for multi-target probing
+	var progressDone chan struct{}
+	if len(targets) > 1 && !*silent && !*oneliner && !*jsonl && !*jsonOutput {
+		progressDone = make(chan struct{})
+		totalTargets := int64(len(targets))
+
+		// Print placeholder lines for live update
+		fmt.Println("  ") // Progress bar
+		fmt.Println("  ") // Stats line
+		fmt.Println("  ") // Current target
+
+		go func() {
+			ticker := time.NewTicker(100 * time.Millisecond)
+			defer ticker.Stop()
+			spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+			frameIdx := 0
+
+			for {
+				select {
+				case <-progressDone:
+					return
+				case <-ticker.C:
+					completed := atomic.LoadInt64(&statsTotal)
+					success := atomic.LoadInt64(&statsSuccess)
+					failed := atomic.LoadInt64(&statsFailed)
+					elapsed := time.Since(statsStart)
+
+					percent := float64(completed) / float64(totalTargets) * 100
+					rps := float64(0)
+					if elapsed.Seconds() > 0 {
+						rps = float64(completed) / elapsed.Seconds()
+					}
+
+					eta := time.Duration(0)
+					if completed > 0 && completed < totalTargets {
+						avgTime := elapsed / time.Duration(completed)
+						remaining := totalTargets - completed
+						eta = avgTime * time.Duration(remaining)
+					}
+
+					// Build progress bar
+					barWidth := 40
+					filled := int(percent / 100 * float64(barWidth))
+					bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
+
+					// Color based on success rate
+					barColor := "\033[32m" // Green
+					if failed > 0 && float64(failed)/float64(completed) > 0.5 {
+						barColor = "\033[33m" // Yellow
+					}
+					if failed > success {
+						barColor = "\033[31m" // Red
+					}
+
+					// Move up and redraw
+					fmt.Print("\033[3A\033[J")
+
+					spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
+					fmt.Printf("  %s %s%s\033[0m %.1f%% (%d/%d)\n",
+						spinner, barColor, bar, percent, completed, totalTargets)
+
+					fmt.Printf("  ✓ %d success | ✗ %d failed | %.1f req/s | ETA: %s\n",
+						success, failed, rps, formatETA(eta))
+
+					// Show current activity
+					fmt.Printf("  🔄 Elapsed: %s | Targets: %d remaining\n",
+						elapsed.Round(time.Second), totalTargets-completed)
+
+					frameIdx++
+				}
+			}
+		}()
+	}
+
 	// Run probes in parallel with streaming output using callback
 	probeRunner.RunWithCallback(context.Background(), targets, probeTask, func(result runner.Result[*ProbeResults]) {
 		if result.Error != nil {
@@ -7079,6 +7153,13 @@ func runProbe() {
 			checkpointMgr.MarkCompleted(currentTarget)
 		}
 	}) // end of RunWithCallback
+
+	// Stop progress goroutine and clear progress lines
+	if progressDone != nil {
+		close(progressDone)
+		time.Sleep(50 * time.Millisecond) // Allow goroutine to exit cleanly
+		fmt.Print("\033[3A\033[J")         // Clear progress lines
+	}
 
 	// Clean up checkpoint file on successful completion
 	if checkpointMgr != nil && checkpointMgr.GetProgress() >= 100 {
@@ -9213,7 +9294,9 @@ func runScan() {
 	// Progress tracking
 	var completedScans int32
 	var totalScans int32
-	var scanTimings sync.Map // map[string]time.Duration
+	var scanTimings sync.Map       // map[string]time.Duration
+	var activeScans sync.Map       // map[string]time.Time - currently running scans
+	var vulnsFound int32           // live vulnerability counter
 
 	// Count total scans first
 	allScanTypes := []string{"sqli", "xss", "traversal", "cmdi", "nosqli", "ssrf", "ssti", "xxe", "smuggling", "oauth", "jwt", "cors", "redirect", "hostheader", "cache", "upload", "deserialize", "bizlogic", "race", "secheaders", "wafdetect", "waffprint", "wafevasion", "techdetect", "jsanalyze"}
@@ -9221,6 +9304,107 @@ func runScan() {
 		if shouldScan(t) {
 			atomic.AddInt32(&totalScans, 1)
 		}
+	}
+
+	// Live progress display
+	startTime := time.Now()
+	progressDone := make(chan struct{})
+	if !*silent {
+		ui.PrintSection("🔬 Deep Vulnerability Scan")
+		fmt.Printf("  Target: %s\n", target)
+		fmt.Printf("  Scan Types: %d | Concurrency: %d\n\n", totalScans, *concurrency)
+
+		// Print placeholder lines for live update
+		fmt.Println("  ") // Progress bar
+		fmt.Println("  ") // Stats line
+		fmt.Println("  ") // Active scans line
+		fmt.Println("  ") // Tip line
+
+		go func() {
+			ticker := time.NewTicker(150 * time.Millisecond)
+			defer ticker.Stop()
+			spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+			frameIdx := 0
+
+			for {
+				select {
+				case <-progressDone:
+					return
+				case <-ticker.C:
+					completed := atomic.LoadInt32(&completedScans)
+					total := atomic.LoadInt32(&totalScans)
+					vulns := atomic.LoadInt32(&vulnsFound)
+					elapsed := time.Since(startTime)
+
+					percent := float64(completed) / float64(total) * 100
+					eta := time.Duration(0)
+					if completed > 0 && completed < total {
+						avgTime := elapsed / time.Duration(completed)
+						remaining := total - completed
+						eta = avgTime * time.Duration(remaining)
+					}
+
+					// Build progress bar
+					barWidth := 50
+					filled := int(percent / 100 * float64(barWidth))
+					bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
+
+					// Color based on vulnerabilities found
+					barColor := "82" // Green
+					if vulns > 0 {
+						barColor = "226" // Gold
+					}
+					if vulns > 5 {
+						barColor = "196" // Red
+					}
+
+					// Get active scans list
+					var activeList []string
+					activeScans.Range(func(key, value interface{}) bool {
+						name := key.(string)
+						started := value.(time.Time)
+						runTime := time.Since(started).Round(time.Second)
+						activeList = append(activeList, fmt.Sprintf("%s(%s)", name, runTime))
+						return true
+					})
+					activeStr := strings.Join(activeList, ", ")
+					if len(activeStr) > 60 {
+						activeStr = activeStr[:57] + "..."
+					}
+					if activeStr == "" {
+						activeStr = "waiting..."
+					}
+
+					// Move up and redraw
+					fmt.Print("\033[4A\033[J")
+
+					spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
+					fmt.Printf("  %s \033[38;5;%sm%s\033[0m %.1f%% (%d/%d)\n",
+						spinner, barColor, bar, percent, completed, total)
+
+					vulnIcon := "🔍"
+					if vulns > 0 {
+						vulnIcon = "🚨"
+					}
+					fmt.Printf("  %s Vulns: \033[31m%d\033[0m | ⏱️ Elapsed: %s | ETA: %s\n",
+						vulnIcon, vulns, elapsed.Round(time.Second), formatETA(eta))
+
+					fmt.Printf("  🔄 Active: %s\n", activeStr)
+
+					tips := []string{
+						"💡 SQLi uses error-based, time-based, union, and boolean techniques",
+						"💡 XSS tests reflected, stored, and DOM-based vectors",
+						"💡 SSRF probes for internal network access and cloud metadata",
+						"💡 Path traversal tests for file system access vulnerabilities",
+						"💡 Each scan type uses context-aware payload selection",
+					}
+					tipIdx := int(elapsed.Seconds()/5) % len(tips)
+					fmt.Printf("  %s\n", tips[tipIdx])
+
+					frameIdx++
+				}
+			}
+		}()
 	}
 
 	// Helper to run a scanner with progress tracking
@@ -9235,13 +9419,13 @@ func runScan() {
 			defer func() { <-semaphore }()
 
 			scanStart := time.Now()
-			ui.PrintInfo(fmt.Sprintf("Starting %s scan...", name))
+			activeScans.Store(name, scanStart)
+			defer activeScans.Delete(name)
+
 			fn()
 			elapsed := time.Since(scanStart)
 			scanTimings.Store(name, elapsed)
-			completed := atomic.AddInt32(&completedScans, 1)
-			total := atomic.LoadInt32(&totalScans)
-			ui.PrintSuccess(fmt.Sprintf("[%d/%d] Completed %s scan (%s)", completed, total, name, elapsed.Round(time.Millisecond)))
+			atomic.AddInt32(&completedScans, 1)
 		}()
 	}
 
@@ -9257,7 +9441,6 @@ func runScan() {
 		tester := sqli.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
 		if err != nil && *verbose {
-			ui.PrintWarning(fmt.Sprintf("SQLi scan error: %v", err))
 			return
 		}
 		mu.Lock()
@@ -9265,6 +9448,7 @@ func runScan() {
 		if scanResult != nil {
 			result.ByCategory["sqli"] = len(scanResult.Vulnerabilities)
 			result.TotalVulns += len(scanResult.Vulnerabilities)
+			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 			}
@@ -9290,6 +9474,7 @@ func runScan() {
 		if scanResult != nil {
 			result.ByCategory["xss"] = len(scanResult.Vulnerabilities)
 			result.TotalVulns += len(scanResult.Vulnerabilities)
+			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 			}
@@ -9315,6 +9500,7 @@ func runScan() {
 		if scanResult != nil {
 			result.ByCategory["traversal"] = len(scanResult.Vulnerabilities)
 			result.TotalVulns += len(scanResult.Vulnerabilities)
+			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 			}
@@ -9339,6 +9525,7 @@ func runScan() {
 		if scanResult != nil {
 			result.ByCategory["cmdi"] = len(scanResult.Vulnerabilities)
 			result.TotalVulns += len(scanResult.Vulnerabilities)
+			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 			}
@@ -9364,6 +9551,7 @@ func runScan() {
 		if scanResult != nil {
 			result.ByCategory["nosqli"] = len(scanResult.Vulnerabilities)
 			result.TotalVulns += len(scanResult.Vulnerabilities)
+			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 			}
@@ -9389,6 +9577,7 @@ func runScan() {
 		if scanResult != nil {
 			result.ByCategory["hpp"] = len(scanResult.Vulnerabilities)
 			result.TotalVulns += len(scanResult.Vulnerabilities)
+			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 			}
@@ -9414,6 +9603,7 @@ func runScan() {
 		if scanResult != nil {
 			result.ByCategory["crlf"] = len(scanResult.Vulnerabilities)
 			result.TotalVulns += len(scanResult.Vulnerabilities)
+			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 			}
@@ -9439,6 +9629,7 @@ func runScan() {
 		if scanResult != nil {
 			result.ByCategory["prototype"] = len(scanResult.Vulnerabilities)
 			result.TotalVulns += len(scanResult.Vulnerabilities)
+			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 			}
@@ -9463,6 +9654,7 @@ func runScan() {
 		if scanResult != nil {
 			result.ByCategory["cors"] = len(scanResult.Vulnerabilities)
 			result.TotalVulns += len(scanResult.Vulnerabilities)
+			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 			}
@@ -9487,6 +9679,7 @@ func runScan() {
 		if scanResult != nil {
 			result.ByCategory["redirect"] = len(scanResult.Vulnerabilities)
 			result.TotalVulns += len(scanResult.Vulnerabilities)
+			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 			}
@@ -9512,6 +9705,7 @@ func runScan() {
 		if scanResult != nil {
 			result.ByCategory["hostheader"] = len(scanResult.Vulnerabilities)
 			result.TotalVulns += len(scanResult.Vulnerabilities)
+			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 			}
@@ -9536,6 +9730,7 @@ func runScan() {
 		if scanResult != nil {
 			result.ByCategory["websocket"] = len(scanResult.Vulnerabilities)
 			result.TotalVulns += len(scanResult.Vulnerabilities)
+			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 			}
@@ -9561,6 +9756,7 @@ func runScan() {
 		if scanResult != nil {
 			result.ByCategory["cache"] = len(scanResult.Vulnerabilities)
 			result.TotalVulns += len(scanResult.Vulnerabilities)
+			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 			}
@@ -9588,6 +9784,7 @@ func runScan() {
 		result.Upload = vulns
 		result.ByCategory["upload"] = len(vulns)
 		result.TotalVulns += len(vulns)
+		atomic.AddInt32(&vulnsFound, int32(len(vulns)))
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
 		}
@@ -9610,6 +9807,7 @@ func runScan() {
 		result.Deserialize = vulns
 		result.ByCategory["deserialize"] = len(vulns)
 		result.TotalVulns += len(vulns)
+		atomic.AddInt32(&vulnsFound, int32(len(vulns)))
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
 		}
@@ -9646,6 +9844,7 @@ func runScan() {
 		result.OAuth = vulns
 		result.ByCategory["oauth"] = len(vulns)
 		result.TotalVulns += len(vulns)
+		atomic.AddInt32(&vulnsFound, int32(len(vulns)))
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
 		}
@@ -9666,6 +9865,7 @@ func runScan() {
 		if scanResult != nil {
 			result.ByCategory["ssrf"] = len(scanResult.Vulnerabilities)
 			result.TotalVulns += len(scanResult.Vulnerabilities)
+			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[v.Severity]++
 			}
@@ -9689,6 +9889,7 @@ func runScan() {
 		result.SSTI = vulns
 		result.ByCategory["ssti"] = len(vulns)
 		result.TotalVulns += len(vulns)
+		atomic.AddInt32(&vulnsFound, int32(len(vulns)))
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
 		}
@@ -9710,6 +9911,7 @@ func runScan() {
 		result.XXE = vulns
 		result.ByCategory["xxe"] = len(vulns)
 		result.TotalVulns += len(vulns)
+		atomic.AddInt32(&vulnsFound, int32(len(vulns)))
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
 		}
@@ -9730,6 +9932,7 @@ func runScan() {
 		if scanResult != nil {
 			result.ByCategory["smuggling"] = len(scanResult.Vulnerabilities)
 			result.TotalVulns += len(scanResult.Vulnerabilities)
+			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[v.Severity]++
 			}
@@ -9757,6 +9960,7 @@ func runScan() {
 				result.GraphQL = scanResult
 				result.ByCategory["graphql"] = len(scanResult.Vulnerabilities)
 				result.TotalVulns += len(scanResult.Vulnerabilities)
+				atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
 				for _, v := range scanResult.Vulnerabilities {
 					result.BySeverity[string(v.Severity)]++
 				}
@@ -9783,6 +9987,7 @@ func runScan() {
 		result.JWT = vulns
 		result.ByCategory["jwt"] = len(vulns)
 		result.TotalVulns += len(vulns)
+		atomic.AddInt32(&vulnsFound, int32(len(vulns)))
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
 		}
@@ -9818,6 +10023,7 @@ func runScan() {
 			result.Subtakeover = append(result.Subtakeover, *scanResult)
 			result.ByCategory["subtakeover"] = len(scanResult.Vulnerabilities)
 			result.TotalVulns += len(scanResult.Vulnerabilities)
+			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 			}
@@ -9841,6 +10047,7 @@ func runScan() {
 		result.BizLogic = vulns
 		result.ByCategory["bizlogic"] = len(vulns)
 		result.TotalVulns += len(vulns)
+		atomic.AddInt32(&vulnsFound, int32(len(vulns)))
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
 		}
@@ -9869,6 +10076,7 @@ func runScan() {
 		if scanResult != nil {
 			result.ByCategory["race"] = len(scanResult.Vulnerabilities)
 			result.TotalVulns += len(scanResult.Vulnerabilities)
+			atomic.AddInt32(&vulnsFound, int32(len(scanResult.Vulnerabilities)))
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 			}
@@ -9896,6 +10104,7 @@ func runScan() {
 		result.APIFuzz = vulns
 		result.ByCategory["apifuzz"] = len(vulns)
 		result.TotalVulns += len(vulns)
+		atomic.AddInt32(&vulnsFound, int32(len(vulns)))
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
 		}
@@ -10136,6 +10345,7 @@ func runScan() {
 			// Secrets are critical vulnerabilities
 			if len(extracted.Secrets) > 0 {
 				result.TotalVulns += len(extracted.Secrets)
+				atomic.AddInt32(&vulnsFound, int32(len(extracted.Secrets)))
 				result.BySeverity["Critical"] += len(extracted.Secrets)
 				result.ByCategory["jsanalyze"] = len(extracted.Secrets)
 			}
@@ -10194,6 +10404,7 @@ func runScan() {
 			// Secrets found via OSINT are critical
 			if len(osintResult.Secrets) > 0 {
 				result.TotalVulns += len(osintResult.Secrets)
+				atomic.AddInt32(&vulnsFound, int32(len(osintResult.Secrets)))
 				result.BySeverity["Critical"] += len(osintResult.Secrets)
 			}
 			mu.Unlock()
@@ -10252,6 +10463,7 @@ func runScan() {
 			// New vhosts are informational but potentially high risk
 			result.ByCategory["vhost"] = len(validVHosts)
 			result.TotalVulns += len(validVHosts)
+			atomic.AddInt32(&vulnsFound, int32(len(validVHosts)))
 			result.BySeverity["Low"] += len(validVHosts)
 			mu.Unlock()
 
@@ -10454,13 +10666,27 @@ func runScan() {
 	})
 
 	// Wait for all scanners to complete
-	ui.PrintInfo(fmt.Sprintf("Waiting for %d scan types to complete...", atomic.LoadInt32(&totalScans)))
 	wg.Wait()
 	result.Duration = time.Since(result.StartTime)
 
+	// Stop progress goroutine and clear progress lines
+	if !*silent {
+		close(progressDone)
+		time.Sleep(50 * time.Millisecond) // Allow goroutine to exit cleanly
+		fmt.Print("\033[4A\033[J")         // Clear progress lines
+	}
+
 	// Print scan completion summary
+	vulnColor := "\033[32m" // Green
+	if result.TotalVulns > 0 {
+		vulnColor = "\033[33m" // Yellow
+	}
+	if result.TotalVulns > 5 {
+		vulnColor = "\033[31m" // Red
+	}
 	fmt.Println()
-	ui.PrintSuccess(fmt.Sprintf("✓ All %d scans completed in %s", atomic.LoadInt32(&completedScans), result.Duration.Round(time.Millisecond)))
+	ui.PrintSuccess(fmt.Sprintf("✓ Scan complete in %s", result.Duration.Round(time.Millisecond)))
+	fmt.Printf("  📊 Results: %s%d vulnerabilities\033[0m across %d scan types\n", vulnColor, result.TotalVulns, atomic.LoadInt32(&completedScans))
 	fmt.Println()
 
 	// Apply delay/jitter for rate limiting (used in scanner loops)
