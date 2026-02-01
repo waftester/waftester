@@ -1200,7 +1200,6 @@ func (d *Detector) measureResponseTime(ctx context.Context, targetURL *url.URL, 
 		return 0, err
 	}
 	defer iohelper.DrainAndClose(resp.Body)
-	io.Copy(io.Discard, resp.Body)
 
 	return time.Since(start), nil
 }
