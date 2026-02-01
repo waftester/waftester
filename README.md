@@ -208,6 +208,7 @@ waf-tester update
 
 ## Documentation
 
+- **[📖 Complete CLI Examples Guide](docs/EXAMPLES.md)** - 100+ examples for every command
 - [Installation Guide](docs/INSTALLATION.md)
 
 ## License
