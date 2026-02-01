@@ -42,6 +42,16 @@ archives:
 checksum:
   name_template: 'checksums.txt'
 
+release:
+  make_latest: true
+  mode: replace
+  prerelease: auto
+  name_template: "WAFtester {{ .Tag }}"
+  header: |
+    ## WAFtester {{ .Tag }}
+    
+    The most comprehensive WAF testing CLI.
+
 snapshot:
   name_template: "{{ incpatch .Version }}-next"
 
