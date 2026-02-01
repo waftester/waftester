@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/waftester/waftester/pkg/assessment"
@@ -128,26 +129,96 @@ func runAssess() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
-	// Progress tracking
+	// Animated progress state
+	var currentPhase atomic.Value
+	var currentCompleted, currentTotal int64
+	currentPhase.Store("Initializing...")
+	progressDone := make(chan struct{})
+	spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	frameIdx := 0
+	startTime := time.Now()
+
+	// Progress callback - updates shared state
 	progressFn := func(completed, total int64, phase string) {
-		if *verbose || completed%50 == 0 || completed == total {
-			pct := float64(0)
-			if total > 0 {
-				pct = float64(completed) / float64(total) * 100
-			}
-			fmt.Printf("\r  %s: %d/%d (%.1f%%)     ", phase, completed, total, pct)
-		}
+		atomic.StoreInt64(&currentCompleted, completed)
+		atomic.StoreInt64(&currentTotal, total)
+		currentPhase.Store(phase)
 	}
+
+	// Animated display goroutine
+	go func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-progressDone:
+				return
+			case <-ticker.C:
+				completed := atomic.LoadInt64(&currentCompleted)
+				total := atomic.LoadInt64(&currentTotal)
+				phase := currentPhase.Load().(string)
+				elapsed := time.Since(startTime)
+
+				spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
+				frameIdx++
+
+				// Build progress bar
+				progressWidth := 30
+				fillWidth := 0
+				pct := float64(0)
+				if total > 0 {
+					pct = float64(completed) / float64(total) * 100
+					fillWidth = int(float64(progressWidth) * pct / 100)
+				}
+				bar := fmt.Sprintf("[%s%s]",
+					repeatCharAssess("█", fillWidth),
+					repeatCharAssess("░", progressWidth-fillWidth))
+
+				// Calculate rate
+				rate := float64(0)
+				if elapsed.Seconds() > 0 {
+					rate = float64(completed) / elapsed.Seconds()
+				}
+
+				// ETA
+				eta := "calculating..."
+				if rate > 0 && total > 0 {
+					remaining := float64(total-completed) / rate
+					if remaining < 60 {
+						eta = fmt.Sprintf("%.0fs", remaining)
+					} else {
+						eta = fmt.Sprintf("%.1fm", remaining/60)
+					}
+				}
+
+				fmt.Printf("\033[4A\033[J") // Clear 4 lines
+				fmt.Printf("  %s %s\n", spinner, phase)
+				fmt.Printf("  %s  \033[36m%.1f%%\033[0m  (%d/%d)\n", bar, pct, completed, total)
+				fmt.Printf("  📊 \033[33m%.1f req/s\033[0m  ⏱️  %s  ETA: %s\n",
+					rate, formatElapsedAssess(elapsed), eta)
+				fmt.Printf("  💡 Enterprise WAF assessment with quantitative metrics\n")
+			}
+		}
+	}()
+
+	// Initial spacing for progress display
+	fmt.Println()
+	fmt.Println()
+	fmt.Println()
+	fmt.Println()
 
 	// Run assessment
 	ui.PrintInfo("Starting enterprise assessment...")
-	fmt.Println()
-
-	startTime := time.Now()
 	result, err := assess.Run(ctx, progressFn)
 	duration := time.Since(startTime)
 
-	fmt.Println() // Clear progress line
+	// Stop progress display
+	close(progressDone)
+	time.Sleep(50 * time.Millisecond)
+
+	// Clear progress lines
+	fmt.Printf("\033[4A\033[J")
+	fmt.Printf("  ✅ Assessment completed in %s\n", formatElapsedAssess(duration))
 	fmt.Println()
 
 	if err != nil {
@@ -339,4 +410,22 @@ func assessTruncateString(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-3] + "..."
+}
+
+// Helper functions for animated progress
+func repeatCharAssess(char string, count int) string {
+	result := ""
+	for i := 0; i < count; i++ {
+		result += char
+	}
+	return result
+}
+
+func formatElapsedAssess(d time.Duration) string {
+	if d < time.Minute {
+		return fmt.Sprintf("%.1fs", d.Seconds())
+	}
+	mins := int(d.Minutes())
+	secs := int(d.Seconds()) % 60
+	return fmt.Sprintf("%dm%ds", mins, secs)
 }

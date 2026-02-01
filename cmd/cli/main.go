@@ -12103,32 +12103,102 @@ func runSmuggle() {
 	ctx := context.Background()
 	allResults := []*smuggling.Result{}
 
+	// Live progress for multi-target smuggle testing
+	var progressDone chan struct{}
+	var completed, vulnsFound int32
+	totalTargets := int32(len(targets))
+	startTime := time.Now()
+
+	if len(targets) > 1 {
+		progressDone = make(chan struct{})
+
+		// Print placeholder lines
+		fmt.Println("  ") // Progress bar
+		fmt.Println("  ") // Stats line
+
+		go func() {
+			ticker := time.NewTicker(150 * time.Millisecond)
+			defer ticker.Stop()
+			spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+			frameIdx := 0
+
+			for {
+				select {
+				case <-progressDone:
+					return
+				case <-ticker.C:
+					done := atomic.LoadInt32(&completed)
+					vulns := atomic.LoadInt32(&vulnsFound)
+					elapsed := time.Since(startTime)
+
+					percent := float64(done) / float64(totalTargets) * 100
+					barWidth := 40
+					filled := int(percent / 100 * float64(barWidth))
+					bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
+
+					barColor := "\033[32m" // Green
+					if vulns > 0 {
+						barColor = "\033[31m" // Red - vulnerabilities found!
+					}
+
+					fmt.Print("\033[2A\033[J")
+					spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
+					fmt.Printf("  %s %s%s\033[0m %.1f%% (%d/%d targets)\n",
+						spinner, barColor, bar, percent, done, totalTargets)
+
+					vulnIcon := "🔍"
+					if vulns > 0 {
+						vulnIcon = "🚨"
+					}
+					fmt.Printf("  %s Vulnerabilities: %d | Elapsed: %s\n", vulnIcon, vulns, elapsed.Round(time.Second))
+					frameIdx++
+				}
+			}
+		}()
+	}
+
 	for _, target := range targets {
-		ui.PrintInfo(fmt.Sprintf("Testing: %s", target))
+		if len(targets) == 1 {
+			ui.PrintInfo(fmt.Sprintf("Testing: %s", target))
+		}
 
 		result, err := detector.Detect(ctx, target)
 		if err != nil {
-			ui.PrintError(fmt.Sprintf("  Error: %v", err))
+			if len(targets) == 1 {
+				ui.PrintError(fmt.Sprintf("  Error: %v", err))
+			}
+			atomic.AddInt32(&completed, 1)
 			continue
 		}
 
 		allResults = append(allResults, result)
+		atomic.AddInt32(&vulnsFound, int32(len(result.Vulnerabilities)))
+		atomic.AddInt32(&completed, 1)
 
-		if len(result.Vulnerabilities) > 0 {
-			for _, vuln := range result.Vulnerabilities {
-				severity := ui.SeverityStyle(vuln.Severity)
-				fmt.Printf("  [%s] %s - %s\n", severity.Render(vuln.Severity), vuln.Type, vuln.Description)
-				if *verbose {
-					fmt.Printf("    Confidence: %.0f%%\n", vuln.Confidence*100)
-					fmt.Printf("    Exploitable: %v\n", vuln.Exploitable)
+		if len(targets) == 1 {
+			if len(result.Vulnerabilities) > 0 {
+				for _, vuln := range result.Vulnerabilities {
+					severity := ui.SeverityStyle(vuln.Severity)
+					fmt.Printf("  [%s] %s - %s\n", severity.Render(vuln.Severity), vuln.Type, vuln.Description)
+					if *verbose {
+						fmt.Printf("    Confidence: %.0f%%\n", vuln.Confidence*100)
+						fmt.Printf("    Exploitable: %v\n", vuln.Exploitable)
+					}
 				}
+			} else {
+				ui.PrintSuccess("  No smuggling vulnerabilities detected")
 			}
-		} else {
-			ui.PrintSuccess("  No smuggling vulnerabilities detected")
-		}
 
-		fmt.Printf("  Tested: %s in %v\n", strings.Join(result.TestedTechniques, ", "), result.Duration.Round(time.Millisecond))
-		fmt.Println()
+			fmt.Printf("  Tested: %s in %v\n", strings.Join(result.TestedTechniques, ", "), result.Duration.Round(time.Millisecond))
+			fmt.Println()
+		}
+	}
+
+	// Stop progress and show summary
+	if progressDone != nil {
+		close(progressDone)
+		time.Sleep(50 * time.Millisecond)
+		fmt.Print("\033[2A\033[J")
 	}
 
 	// Summary
@@ -12564,39 +12634,105 @@ func runHeadless() {
 	ctx := context.Background()
 	allResults := []*headless.PageResult{}
 
+	// Live progress for multi-target headless browsing
+	var progressDone chan struct{}
+	var completed, urlsFound int32
+	totalTargets := int32(len(targets))
+	startTime := time.Now()
+
+	if len(targets) > 1 {
+		progressDone = make(chan struct{})
+
+		// Print placeholder lines
+		fmt.Println("  ") // Progress bar
+		fmt.Println("  ") // Stats line
+
+		go func() {
+			ticker := time.NewTicker(150 * time.Millisecond)
+			defer ticker.Stop()
+			spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+			frameIdx := 0
+
+			for {
+				select {
+				case <-progressDone:
+					return
+				case <-ticker.C:
+					done := atomic.LoadInt32(&completed)
+					urls := atomic.LoadInt32(&urlsFound)
+					elapsed := time.Since(startTime)
+
+					percent := float64(done) / float64(totalTargets) * 100
+					barWidth := 40
+					filled := int(percent / 100 * float64(barWidth))
+					bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
+
+					fmt.Print("\033[2A\033[J")
+					spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
+					fmt.Printf("  %s \033[36m%s\033[0m %.1f%% (%d/%d pages)\n",
+						spinner, bar, percent, done, totalTargets)
+
+					pps := float64(0)
+					if elapsed.Seconds() > 0 {
+						pps = float64(done) / elapsed.Seconds()
+					}
+					fmt.Printf("  🌐 URLs extracted: %d | %.2f pages/sec | Elapsed: %s\n",
+						urls, pps, elapsed.Round(time.Second))
+					frameIdx++
+				}
+			}
+		}()
+	}
+
 	for _, target := range targets {
-		ui.PrintInfo(fmt.Sprintf("Visiting: %s", target))
+		if len(targets) == 1 {
+			ui.PrintInfo(fmt.Sprintf("Visiting: %s", target))
+		}
 
 		result, err := browser.Visit(ctx, target)
 		if err != nil {
-			ui.PrintError(fmt.Sprintf("  Error: %v", err))
+			if len(targets) == 1 {
+				ui.PrintError(fmt.Sprintf("  Error: %v", err))
+			}
+			atomic.AddInt32(&completed, 1)
 			continue
 		}
 
 		allResults = append(allResults, result)
+		atomic.AddInt32(&urlsFound, int32(len(result.FoundURLs)))
+		atomic.AddInt32(&completed, 1)
 
-		fmt.Printf("  Status: %d\n", result.StatusCode)
-		fmt.Printf("  Title: %s\n", result.Title)
+		if len(targets) == 1 {
+			fmt.Printf("  Status: %d\n", result.StatusCode)
+			fmt.Printf("  Title: %s\n", result.Title)
 
-		if *extractURLs && len(result.FoundURLs) > 0 {
-			fmt.Printf("  URLs found: %d\n", len(result.FoundURLs))
-			if *verbose {
-				for i, u := range result.FoundURLs {
-					if i < 10 {
-						fmt.Printf("    - %s\n", u.URL)
+			if *extractURLs && len(result.FoundURLs) > 0 {
+				fmt.Printf("  URLs found: %d\n", len(result.FoundURLs))
+				if *verbose {
+					for i, u := range result.FoundURLs {
+						if i < 10 {
+							fmt.Printf("    - %s\n", u.URL)
+						}
+					}
+					if len(result.FoundURLs) > 10 {
+						fmt.Printf("    ... and %d more\n", len(result.FoundURLs)-10)
 					}
 				}
-				if len(result.FoundURLs) > 10 {
-					fmt.Printf("    ... and %d more\n", len(result.FoundURLs)-10)
-				}
 			}
-		}
 
-		if *screenshot && result.ScreenshotPath != "" {
-			fmt.Printf("  Screenshot: %s\n", result.ScreenshotPath)
-		}
+			if *screenshot && result.ScreenshotPath != "" {
+				fmt.Printf("  Screenshot: %s\n", result.ScreenshotPath)
+			}
 
-		fmt.Println()
+			fmt.Println()
+		}
+	}
+
+	// Stop progress and show summary
+	if progressDone != nil {
+		close(progressDone)
+		time.Sleep(50 * time.Millisecond)
+		fmt.Print("\033[2A\033[J")
 	}
 
 	// Summary

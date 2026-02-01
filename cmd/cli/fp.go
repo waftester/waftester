@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/waftester/waftester/pkg/fp"
@@ -103,11 +104,87 @@ func runFP() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
+	// Animated progress display
+	startTime := time.Now()
+	var progressDone = make(chan struct{})
+	var fpCount int32
+	var testsComplete int32
+	spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	frameIdx := 0
+
+	go func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-progressDone:
+				return
+			case <-ticker.C:
+				completed := atomic.LoadInt32(&testsComplete)
+				fps := atomic.LoadInt32(&fpCount)
+				elapsed := time.Since(startTime)
+				rate := float64(0)
+				if elapsed.Seconds() > 0 {
+					rate = float64(completed) / elapsed.Seconds()
+				}
+
+				spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
+				frameIdx++
+
+				// Build progress bar
+				progressWidth := 30
+				fillWidth := 0
+				if completed > 0 {
+					fillWidth = int(float64(progressWidth) * 0.5) // Estimate since we don't know total
+					if fillWidth > progressWidth {
+						fillWidth = progressWidth
+					}
+				}
+				bar := fmt.Sprintf("[%s%s]",
+					repeatChar("█", fillWidth),
+					repeatChar("░", progressWidth-fillWidth))
+
+				fpColor := "\033[32m" // Green
+				if fps > 0 {
+					fpColor = "\033[31m" // Red for false positives
+				}
+
+				fmt.Printf("\033[3A\033[J") // Clear 3 lines
+				fmt.Printf("  %s Testing false positives...\n", spinner)
+				fmt.Printf("  %s  \033[36m%d\033[0m tests  %sFPs: %d\033[0m  \033[33m%.1f req/s\033[0m\n",
+					bar, completed, fpColor, fps, rate)
+				fmt.Printf("  ⏱️  Elapsed: %s\n", formatElapsed(elapsed))
+			}
+		}
+	}()
+	fmt.Println() // Initial spacing for progress
+	fmt.Println()
+	fmt.Println()
+
+	// Monitor FP results in background (we'll get final from result)
 	result, err := tester.Run(ctx)
+
+	// Stop progress display
+	close(progressDone)
+	time.Sleep(50 * time.Millisecond) // Let progress goroutine exit
+
+	// Clear progress lines
+	fmt.Printf("\033[3A\033[J")
+
 	if err != nil {
 		fmt.Println(ui.ErrorStyle.Render(fmt.Sprintf("Error: %v", err)))
 		os.Exit(1)
 	}
+
+	// Show completion summary
+	elapsed := time.Since(startTime)
+	fmt.Printf("  ✅ Completed %d tests in %s\n", result.TotalTests, formatElapsed(elapsed))
+	if result.FalsePositives > 0 {
+		fmt.Printf("  ⚠️  \033[31m%d false positives detected\033[0m\n", result.FalsePositives)
+	} else {
+		fmt.Printf("  ✨ \033[32mNo false positives detected\033[0m\n")
+	}
+	fmt.Println()
 
 	// Display results
 	displayFPResults(result)
@@ -276,4 +353,22 @@ func runLocalFPTest(paranoiaLevel int, verbose bool) {
 
 	fmt.Println()
 	fmt.Println(fp.FormatLocalFPReport(stats))
+}
+
+// Helper functions for progress display
+func repeatChar(char string, count int) string {
+	result := ""
+	for i := 0; i < count; i++ {
+		result += char
+	}
+	return result
+}
+
+func formatElapsed(d time.Duration) string {
+	if d < time.Minute {
+		return fmt.Sprintf("%.1fs", d.Seconds())
+	}
+	mins := int(d.Minutes())
+	secs := int(d.Seconds()) % 60
+	return fmt.Sprintf("%dm%ds", mins, secs)
 }
