@@ -51,6 +51,14 @@ release:
     ## WAFtester {{ .Tag }}
     
     The most comprehensive WAF testing CLI.
+    
+    📖 **[Full Examples Guide](docs/EXAMPLES.md)** | 📋 **[Changelog](CHANGELOG.md)**
+  footer: |
+    ---
+    
+    **Need help?** See [docs/EXAMPLES.md](docs/EXAMPLES.md) for usage examples.
+    
+    **Upgrading?** Check [CHANGELOG.md](CHANGELOG.md) for breaking changes.
 
 snapshot:
   name_template: "{{ incpatch .Version }}-next"

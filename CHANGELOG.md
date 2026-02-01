@@ -9,18 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **CI/CD Pipeline Integration**: New `--stream` flag across 10+ commands for clean pipeline output
+  - See: [CI/CD Pipeline Integration](docs/EXAMPLES.md#-cicd-pipeline-integration)
 - **LiveProgress Component**: Unified progress display with Interactive/Streaming/Silent modes (`pkg/ui/liveprogress.go`)
 - **ExecutionManifest Component**: Pre-run display showing payload counts, targets, categories (`pkg/ui/manifest.go`)
 - Commands now show payload count and target summary before execution starts
 
 ### Changed
 - Refactored `assess`, `bypass`, `smuggle`, `headless` commands to use LiveProgress
+  - See: [Enterprise Assessment](docs/EXAMPLES.md#-enterprise-assessment-assess), [WAF Bypass Hunting](docs/EXAMPLES.md#-waf-bypass-hunting-bypass)
 - Consolidated 400+ lines of duplicated inline progress code into reusable components
 - All animated progress displays now respect `--stream` flag
 
 ### Fixed
 - ANSI escape codes no longer pollute CI/CD pipeline logs when using `--stream`
 - Consistent progress display behavior across all major commands
+
+### CI/CD
+- Releases now automatically marked as "Latest" on GitHub
+- Tag overwrites supported for re-releases (preserves changelog history)
 
 ## [2.3.1] - 2026-01-31
 
