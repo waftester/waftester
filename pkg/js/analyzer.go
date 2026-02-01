@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/waftester/waftester/pkg/bufpool"
 	"github.com/waftester/waftester/pkg/regexcache"
 )
 
@@ -1033,7 +1034,8 @@ func (d *ExtractedData) ToJSON() ([]byte, error) {
 
 // Summary returns a text summary of extracted data
 func (d *ExtractedData) Summary() string {
-	var sb strings.Builder
+	sb := bufpool.GetString()
+	defer bufpool.PutString(sb)
 	sb.WriteString("=== JavaScript Analysis Summary ===\n")
 	sb.WriteString(fmt.Sprintf("URLs: %d\n", len(d.URLs)))
 	sb.WriteString(fmt.Sprintf("Endpoints: %d\n", len(d.Endpoints)))

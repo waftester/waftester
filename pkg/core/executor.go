@@ -20,6 +20,7 @@ import (
 	"github.com/waftester/waftester/pkg/output"
 	"github.com/waftester/waftester/pkg/payloads"
 	"github.com/waftester/waftester/pkg/realistic"
+	"github.com/waftester/waftester/pkg/requestpool"
 	"github.com/waftester/waftester/pkg/scoring"
 	"github.com/waftester/waftester/pkg/ui"
 	"golang.org/x/time/rate"
@@ -309,14 +310,24 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 		// Legacy: For POST with body (custom payloads from 'learn' command)
 		// The payload IS the body (e.g., JSON like {"message": "' OR '1'='1"})
 		body := strings.NewReader(payload.Payload)
-		req, err = http.NewRequestWithContext(ctx, method, targetURL, body)
+		req = requestpool.GetWithMethod(method)
+		defer requestpool.Put(req) // Return to pool when done
+		req.URL, err = url.Parse(targetURL)
 		if err == nil {
+			req = req.WithContext(ctx)
+			req.Body = io.NopCloser(body)
+			req.ContentLength = int64(len(payload.Payload))
 			req.Header.Set("Content-Type", payload.ContentType)
 		}
 	} else {
 		// Legacy: For GET or simple payloads, inject in URL parameter
 		targetWithPayload := fmt.Sprintf("%s?test=%s", targetURL, url.QueryEscape(payload.Payload))
-		req, err = http.NewRequestWithContext(ctx, method, targetWithPayload, nil)
+		req = requestpool.GetWithMethod(method)
+		defer requestpool.Put(req) // Return to pool when done
+		req.URL, err = url.Parse(targetWithPayload)
+		if err == nil {
+			req = req.WithContext(ctx)
+		}
 	}
 
 	if err != nil {

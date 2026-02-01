@@ -12,6 +12,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/ratelimit"
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // Result represents the result of processing a single target
@@ -349,4 +350,31 @@ func extractHost(target string) string {
 	host = strings.Split(host, "/")[0]
 	host = strings.Split(host, ":")[0]
 	return host
+}
+
+// PerformanceMetrics holds performance statistics for the runner
+type PerformanceMetrics struct {
+	HostErrorsTracked int64   // Number of hosts tracked in error cache
+	HostErrorsHits    int64   // Number of requests skipped due to host errors
+	HostErrorsMisses  int64   // Number of requests not skipped
+	HostErrorsHitRate float64 // Hit rate percentage
+	RegexCacheSize    int     // Number of compiled regexes cached
+}
+
+// GetPerformanceMetrics returns current performance metrics
+func GetPerformanceMetrics() PerformanceMetrics {
+	hits, misses := hosterrors.Stats()
+	hitRate := 0.0
+	total := hits + misses
+	if total > 0 {
+		hitRate = float64(hits) / float64(total) * 100.0
+	}
+
+	return PerformanceMetrics{
+		HostErrorsTracked: int64(hosterrors.Size()),
+		HostErrorsHits:    hits,
+		HostErrorsMisses:  misses,
+		HostErrorsHitRate: hitRate,
+		RegexCacheSize:    regexcache.Size(),
+	}
 }

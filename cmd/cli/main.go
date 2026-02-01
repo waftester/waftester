@@ -2328,13 +2328,13 @@ func runAutoScan() {
 		resp, err := client.Do(req)
 		if err != nil || resp.StatusCode != 200 {
 			if resp != nil {
-				resp.Body.Close()
+				iohelper.DrainAndClose(resp.Body) // Drain for connection reuse
 			}
 			continue
 		}
 
-		body, err := io.ReadAll(io.LimitReader(resp.Body, 5*1024*1024)) // 5MB limit
-		resp.Body.Close()
+		body, err := iohelper.ReadBody(resp.Body, 5*1024*1024) // 5MB limit
+		iohelper.DrainAndClose(resp.Body) // Drain for connection reuse
 		if err != nil {
 			continue
 		}
@@ -6421,7 +6421,7 @@ func runProbe() {
 						if showDetails {
 							ui.PrintConfigLine(ip, fmt.Sprintf("Status %d", resp.StatusCode))
 						}
-						resp.Body.Close()
+						iohelper.DrainAndClose(resp.Body)
 					}
 				}
 			}
@@ -9115,7 +9115,7 @@ func fetchContent(req *http.Request) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
+	body, err := iohelper.ReadBody(resp.Body, iohelper.LargeMaxBodySize)
 	if err != nil {
 		return "", err
 	}
@@ -11156,7 +11156,7 @@ func runScan() {
 		}
 		defer resp.Body.Close()
 
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 100*1024))
+		body, _ := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
 
 		var techStack []string
 
