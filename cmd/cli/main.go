@@ -7821,17 +7821,56 @@ func runCrawl() {
 		os.Exit(1)
 	}
 
-	// Collect results
+	// Collect results with live progress
 	var crawlResults []*crawler.CrawlResult
 	var allForms []crawler.FormInfo
 	var allScripts []string
 	var allURLs []string
 
+	// Progress tracking
+	startTime := time.Now()
+	progressTicker := time.NewTicker(200 * time.Millisecond)
+	defer progressTicker.Stop()
+
+	doneChan := make(chan struct{})
+	var pageCount int64
+
+	// Progress display goroutine
+	if !*silent && !*jsonOutput {
+		go func() {
+			spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+			frameIdx := 0
+			for {
+				select {
+				case <-doneChan:
+					return
+				case <-progressTicker.C:
+					count := atomic.LoadInt64(&pageCount)
+					elapsed := time.Since(startTime)
+					rps := float64(count) / elapsed.Seconds()
+					if elapsed.Seconds() < 1 {
+						rps = float64(count)
+					}
+					spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
+					fmt.Printf("\r  %s Crawling: %d pages | %d forms | %d scripts | %.1f pages/sec    ",
+						spinner, count, len(allForms), len(allScripts), rps)
+					frameIdx++
+				}
+			}
+		}()
+	}
+
 	for result := range results {
+		atomic.AddInt64(&pageCount, 1)
 		crawlResults = append(crawlResults, result)
 		allURLs = append(allURLs, result.URL)
 		allForms = append(allForms, result.Forms...)
 		allScripts = append(allScripts, result.Scripts...)
+	}
+
+	close(doneChan)
+	if !*silent && !*jsonOutput {
+		fmt.Printf("\r%s\r", strings.Repeat(" ", 80)) // Clear progress line
 	}
 
 	if !*jsonOutput && !*silent {
@@ -8325,17 +8364,67 @@ func runFuzz() {
 	var results []*fuzz.Result
 	var resultsMu sync.Mutex
 
+	// Progress tracking
+	startTime := time.Now()
+	var totalReqs, matchCount int64
+	totalWords := len(words)
+	if len(cfg.Extensions) > 0 {
+		totalWords = len(words) * len(cfg.Extensions)
+	}
+
+	// Progress display goroutine (ffuf-style periodic status)
+	progressDone := make(chan struct{})
+	if !*silent && !*jsonOutput {
+		go func() {
+			ticker := time.NewTicker(1 * time.Second)
+			defer ticker.Stop()
+			spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+			frameIdx := 0
+			for {
+				select {
+				case <-progressDone:
+					return
+				case <-ticker.C:
+					reqs := atomic.LoadInt64(&totalReqs)
+					matches := atomic.LoadInt64(&matchCount)
+					elapsed := time.Since(startTime)
+					rps := float64(reqs) / elapsed.Seconds()
+					if elapsed.Seconds() < 1 {
+						rps = float64(reqs)
+					}
+					percent := float64(reqs) / float64(totalWords) * 100
+					eta := time.Duration(0)
+					if reqs > 0 && reqs < int64(totalWords) {
+						remaining := int64(totalWords) - reqs
+						eta = time.Duration(float64(remaining) / rps * float64(time.Second))
+					}
+					spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
+					// Use stderr for progress so results can be piped
+					fmt.Fprintf(os.Stderr, "\r%s [%d/%d] %.1f%% | ✓ %d matches | ⚡ %.0f req/s | ETA: %s    ",
+						spinner, reqs, totalWords, percent, matches, rps, formatETA(eta))
+					frameIdx++
+				}
+			}
+		}()
+	}
+
 	callback := func(result *fuzz.Result) {
+		atomic.AddInt64(&totalReqs, 1)
+
 		// Apply auto-calibration filter
 		if calibration != nil && calibration.ShouldFilter(result) {
 			return // Skip baseline matches
 		}
 
+		atomic.AddInt64(&matchCount, 1)
 		resultsMu.Lock()
 		results = append(results, result)
 		resultsMu.Unlock()
 
 		if !*silent && !*jsonOutput {
+			// Clear progress line before printing result
+			fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", 80))
+
 			statusColor := ui.StatValueStyle
 			switch {
 			case result.StatusCode >= 200 && result.StatusCode < 300:
@@ -8374,9 +8463,15 @@ func runFuzz() {
 	}
 
 	// Run fuzzer
-	startTime := time.Now()
+	fuzzStartTime := time.Now()
 	stats := fuzzer.Run(ctx, callback)
-	duration := time.Since(startTime)
+	duration := time.Since(fuzzStartTime)
+
+	// Stop progress display
+	close(progressDone)
+	if !*silent && !*jsonOutput {
+		fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", 80)) // Clear progress line
+	}
 
 	// Print summary
 	if !*silent && !*jsonOutput && !*csvFuzz && !*markdownFuzz && !*htmlFuzz {
@@ -11201,7 +11296,7 @@ func runMutate() {
 				bypassMu.Lock()
 				if lastBypassPayload != "" {
 					cleanPayload := sanitizeForDisplay(lastBypassPayload)
-					fmt.Printf("  🎯 Last bypass: \033[32m[%s]\033[0m %s\n", lastBypassEncoder, truncateStr(cleanPayload, 50))
+					fmt.Printf("  🎯 Last bypass: \033[32m[%s]\033[0m %s\n", lastBypassEncoder, truncateString(cleanPayload, 50))
 				} else {
 					fmt.Println("  🔍 Hunting for bypasses...")
 				}
@@ -11476,26 +11571,173 @@ func runBypassFinder() {
 		cancel()
 	}()
 
-	ui.PrintSection("Hunting for Bypasses...")
+	// Generate tasks for progress tracking
+	tasks := executor.GenerateTasks(testPayloads, nil)
 
-	result := executor.FindBypasses(ctx, testPayloads)
+	// Progress tracking with live display (same pattern as mutate command)
+	var blocked, passed, errors int64
+	var lastBypassPayload, lastBypassEncoder string
+	var bypassMu sync.Mutex
+	var bypassPayloads []*mutation.TestResult
+
+	ui.PrintSection("🔥 WAF Bypass Hunt")
+
+	// Determine WAF name for display
+	wafName := "Unknown WAF"
+	if smartResult != nil && smartResult.WAFDetected {
+		wafName = smartResult.VendorName
+	}
+	fmt.Printf("  Target: %s (%s)\n", targetURL, wafName)
+	fmt.Printf("  Mutations: %d | Mode: %s\n\n", len(tasks), "bypass")
+
+	// Print initial placeholder lines for live update
+	fmt.Println("  ") // Progress bar line
+	fmt.Println("  ") // Stats line
+	fmt.Println("  ") // Bypass line
+	fmt.Println("  ") // Tip line
+
+	startTime := time.Now()
+	progressTicker := time.NewTicker(150 * time.Millisecond)
+	defer progressTicker.Stop()
+
+	// Progress update goroutine
+	doneChan := make(chan struct{})
+	go func() {
+		spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+		frameIdx := 0
+		for {
+			select {
+			case <-doneChan:
+				return
+			case <-progressTicker.C:
+				total := atomic.LoadInt64(&blocked) + atomic.LoadInt64(&passed) + atomic.LoadInt64(&errors)
+				blk := atomic.LoadInt64(&blocked)
+				pss := atomic.LoadInt64(&passed)
+				err := atomic.LoadInt64(&errors)
+
+				elapsed := time.Since(startTime)
+				percent := float64(total) / float64(len(tasks)) * 100
+				rps := float64(total) / elapsed.Seconds()
+				if elapsed.Seconds() < 1 {
+					rps = float64(total)
+				}
+
+				// Calculate ETA
+				eta := time.Duration(0)
+				if total > 0 && total < int64(len(tasks)) {
+					remaining := int64(len(tasks)) - total
+					eta = time.Duration(float64(remaining) / rps * float64(time.Second))
+				}
+
+				// Build progress bar (50 chars wide)
+				barWidth := 50
+				filled := int(percent / 100 * float64(barWidth))
+				bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
+
+				// Choose color based on bypass count
+				barColor := "82" // Green
+				if pss > 0 {
+					barColor = "226" // Gold
+				}
+				if pss > 10 {
+					barColor = "196" // Red hot
+				}
+
+				// Move cursor up 4 lines and redraw
+				fmt.Print("\033[4A\033[J")
+
+				// Progress bar
+				spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
+				fmt.Printf("  %s \033[38;5;%sm%s\033[0m %.1f%% (%d/%d)\n",
+					spinner, barColor, bar, percent, total, len(tasks))
+
+				// Stats with emojis
+				bypassIcon := "🔍"
+				if pss > 0 {
+					bypassIcon = "🎯"
+				}
+				if pss > 5 {
+					bypassIcon = "🔓"
+				}
+				if pss > 10 {
+					bypassIcon = "💥"
+				}
+
+				fmt.Printf("  %s Bypasses: \033[32m%d\033[0m | 🛡️ Blocked: \033[31m%d\033[0m | ⚠️ Errors: \033[33m%d\033[0m | ⚡ %.0f req/s | ETA: %s\n",
+					bypassIcon, pss, blk, err, rps, formatETA(eta))
+
+				// Last bypass found
+				bypassMu.Lock()
+				if lastBypassPayload != "" {
+					cleanPayload := sanitizeForDisplay(lastBypassPayload)
+					fmt.Printf("  🎯 Last bypass: \033[32m[%s]\033[0m %s\n", lastBypassEncoder, truncateString(cleanPayload, 50))
+				} else {
+					fmt.Println("  🔍 Hunting for bypasses...")
+				}
+				bypassMu.Unlock()
+
+				// Rotating tips
+				tips := []string{
+					"💡 Tip: Chunked encoding can split payloads to evade pattern matching",
+					"💡 Fun fact: Most WAFs can't properly normalize Unicode in all contexts",
+					"💡 Pro tip: Encoders combined with evasions multiply your test coverage",
+					"💡 Did you know? Parameter pollution bypasses 30%+ of WAFs",
+					"💡 Insight: Case variations alone find bypasses in 1 out of 5 WAFs",
+				}
+				tipIdx := int(elapsed.Seconds()/8) % len(tips)
+				fmt.Printf("  %s\n", tips[tipIdx])
+
+				frameIdx++
+			}
+		}
+	}()
+
+	// Execute mutation tests with callback
+	executor.Execute(ctx, tasks, func(r *mutation.TestResult) {
+		if r.Blocked {
+			atomic.AddInt64(&blocked, 1)
+		} else if r.ErrorMessage != "" {
+			atomic.AddInt64(&errors, 1)
+		} else {
+			atomic.AddInt64(&passed, 1)
+			// Record bypass
+			bypassMu.Lock()
+			bypassPayloads = append(bypassPayloads, r)
+			lastBypassPayload = r.MutatedPayload
+			lastBypassEncoder = r.EncoderUsed
+			if r.EvasionUsed != "" {
+				lastBypassEncoder += "+" + r.EvasionUsed
+			}
+			bypassMu.Unlock()
+		}
+	})
+
+	close(doneChan)
+	fmt.Print("\033[4A\033[J") // Clear progress lines
+
+	// Build result
+	totalTested := atomic.LoadInt64(&blocked) + atomic.LoadInt64(&passed) + atomic.LoadInt64(&errors)
+	bypassRate := float64(0)
+	if totalTested > 0 {
+		bypassRate = float64(len(bypassPayloads)) / float64(totalTested) * 100
+	}
 
 	ui.PrintSection("Bypass Hunt Results")
-	fmt.Printf("  Total Tested:    %d\n", result.TotalTested)
-	fmt.Printf("  Bypasses Found:  %d\n", len(result.BypassPayloads))
-	fmt.Printf("  Bypass Rate:     %.2f%%\n", result.BypassRate)
+	fmt.Printf("  Total Tested:    %d\n", totalTested)
+	fmt.Printf("  Bypasses Found:  %d\n", len(bypassPayloads))
+	fmt.Printf("  Bypass Rate:     %.2f%%\n", bypassRate)
 	fmt.Println()
 
-	if result.Found {
-		ui.PrintWarning(fmt.Sprintf("🚨 Found %d WAF bypasses!", len(result.BypassPayloads)))
+	if len(bypassPayloads) > 0 {
+		ui.PrintWarning(fmt.Sprintf("🚨 Found %d WAF bypasses!", len(bypassPayloads)))
 		fmt.Println()
 
 		// Show top bypasses
 		ui.PrintSection("Top Bypasses")
 		shown := 0
-		for _, bp := range result.BypassPayloads {
+		for _, bp := range bypassPayloads {
 			if shown >= 10 {
-				fmt.Printf("  ... and %d more (see %s)\n", len(result.BypassPayloads)-10, *outputFile)
+				fmt.Printf("  ... and %d more (see %s)\n", len(bypassPayloads)-10, *outputFile)
 				break
 			}
 			fmt.Printf("  [%d] %s | %s | %s\n",
@@ -11512,6 +11754,13 @@ func runBypassFinder() {
 				defer f.Close()
 				enc := json.NewEncoder(f)
 				enc.SetIndent("", "  ")
+				// Create result structure for JSON output
+				result := &mutation.WAFBypassResult{
+					Found:          true,
+					BypassPayloads: bypassPayloads,
+					TotalTested:    totalTested,
+					BypassRate:     bypassRate,
+				}
 				enc.Encode(result)
 				ui.PrintSuccess(fmt.Sprintf("Full results saved to %s", *outputFile))
 			}
