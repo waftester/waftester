@@ -7876,7 +7876,7 @@ func runCrawl() {
 	crawlFlags.BoolVar(debugRequest, "dreq", false, "Debug request (alias)")
 
 	// Streaming mode (CI-friendly output)
-	_ = crawlFlags.Bool("stream", false, "Streaming output mode for CI/scripts")
+	streamMode := crawlFlags.Bool("stream", false, "Streaming output mode for CI/scripts")
 
 	crawlFlags.Parse(os.Args[2:])
 
@@ -8028,7 +8028,7 @@ func runCrawl() {
 	var pageCount int64
 
 	// Progress display goroutine
-	if !*silent && !*jsonOutput {
+	if !*silent && !*jsonOutput && !*streamMode {
 		go func() {
 			spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 			frameIdx := 0
