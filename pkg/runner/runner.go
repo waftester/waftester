@@ -3,12 +3,14 @@ package runner
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/ratelimit"
 )
 
@@ -135,6 +137,18 @@ func (r *Runner[T]) Run(ctx context.Context, targets []string, task TaskFunc[T])
 		default:
 		}
 
+		// Skip hosts that are known to be failing
+		if hosterrors.Check(target) {
+			atomic.AddInt64(&r.Stats.Completed, 1)
+			atomic.AddInt64(&r.Stats.Failed, 1)
+			resultsChan <- Result[T]{
+				Target:   target,
+				Error:    fmt.Errorf("host skipped: exceeded error threshold"),
+				Duration: 0,
+			}
+			continue
+		}
+
 		// Rate limiting with per-host support
 		if r.limiter != nil {
 			host := extractHost(target)
@@ -172,6 +186,10 @@ func (r *Runner[T]) Run(ctx context.Context, targets []string, task TaskFunc[T])
 				atomic.AddInt64(&r.Stats.Successful, 1)
 			} else {
 				atomic.AddInt64(&r.Stats.Failed, 1)
+				// Track network errors for host skipping
+				if hosterrors.IsNetworkError(err) {
+					hosterrors.MarkError(t)
+				}
 				if r.OnError != nil {
 					r.OnError(t, err)
 				}
@@ -251,6 +269,18 @@ func (r *Runner[T]) RunWithCallback(ctx context.Context, targets []string, task 
 		default:
 		}
 
+		// Skip hosts that are known to be failing
+		if hosterrors.Check(target) {
+			atomic.AddInt64(&r.Stats.Completed, 1)
+			atomic.AddInt64(&r.Stats.Failed, 1)
+			callback(Result[T]{
+				Target:   target,
+				Error:    fmt.Errorf("host skipped: exceeded error threshold"),
+				Duration: 0,
+			})
+			continue
+		}
+
 		// Rate limiting with per-host support
 		if r.limiter != nil {
 			host := extractHost(target)
@@ -288,6 +318,10 @@ func (r *Runner[T]) RunWithCallback(ctx context.Context, targets []string, task 
 				atomic.AddInt64(&r.Stats.Successful, 1)
 			} else {
 				atomic.AddInt64(&r.Stats.Failed, 1)
+				// Track network errors for host skipping
+				if hosterrors.IsNetworkError(err) {
+					hosterrors.MarkError(t)
+				}
 			}
 
 			// Call the callback immediately (streaming output)

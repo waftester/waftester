@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/output"
 	"github.com/waftester/waftester/pkg/payloads"
@@ -262,6 +263,14 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 		OriginalPayload: payload.OriginalPayload,
 	}
 
+	// Check if target host is known to be failing (skip to save time)
+	if hosterrors.Check(e.config.TargetURL) {
+		result.Outcome = "Skipped"
+		result.ErrorMessage = "[HOST_FAILED] Host has exceeded error threshold"
+		result.RiskScore = scoring.Result{RiskScore: 0}
+		return result
+	}
+
 	var req *http.Request
 	var err error
 
@@ -347,6 +356,12 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 		result.Outcome = "Error"
 		// Categorize the error for better analysis
 		result.ErrorMessage = categorizeError(err)
+
+		// Track network errors to skip failing hosts after threshold
+		if hosterrors.IsNetworkError(err) {
+			hosterrors.MarkError(e.config.TargetURL)
+		}
+
 		// Calculate risk score for error case
 		result.RiskScore = scoring.Calculate(scoring.Input{
 			Severity: payload.SeverityHint,
