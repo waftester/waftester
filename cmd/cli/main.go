@@ -1802,12 +1802,8 @@ func runUpdate() {
 // It chains: discover → deep JS analysis → learn → run → comprehensive report
 func runAutoScan() {
 	startTime := time.Now()
-	ui.PrintBanner()
 
-	fmt.Println()
-	fmt.Println(ui.SectionStyle.Render("🚀 SUPERPOWER MODE - Full Automated Security Scan"))
-	fmt.Println()
-
+	// Parse flags FIRST so we can determine output mode before printing anything
 	autoFlags := flag.NewFlagSet("auto", flag.ExitOnError)
 	var targetURLs input.StringSliceFlag
 	autoFlags.Var(&targetURLs, "u", "Target URL(s)")
@@ -1862,6 +1858,36 @@ func runAutoScan() {
 	autoFlags.BoolVar(jsonOutput, "j", false, "Output final summary as JSON to stdout (short)")
 
 	autoFlags.Parse(os.Args[2:])
+
+	// Apply silent mode for JSON output - suppress all non-JSON output to stdout
+	if *jsonOutput {
+		ui.SetSilent(true)
+	}
+
+	// Print banner and intro only when not in JSON mode
+	if !*jsonOutput {
+		ui.PrintBanner()
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, ui.SectionStyle.Render("🚀 SUPERPOWER MODE - Full Automated Security Scan"))
+		fmt.Fprintln(os.Stderr)
+	}
+
+	// Helper to suppress console output in JSON mode
+	// All informational output should use these instead of fmt.Print*
+	quietMode := *jsonOutput
+	printStatus := func(format string, args ...interface{}) {
+		if !quietMode {
+			fmt.Fprintf(os.Stderr, format, args...)
+		}
+	}
+	printStatusLn := func(args ...interface{}) {
+		if !quietMode {
+			fmt.Fprintln(os.Stderr, args...)
+		}
+	}
+	// Silence unused warnings - these will be used throughout
+	_ = printStatus
+	_ = printStatusLn
 
 	// Auto-detect payload directory if not specified
 	payloadDir := *payloadDirFlag
@@ -1926,7 +1952,7 @@ func runAutoScan() {
 	resultsFile := filepath.Join(workspaceDir, "results.json")
 	reportFile := filepath.Join(workspaceDir, "report.md")
 
-	fmt.Printf("  %s\n", ui.SubtitleStyle.Render("Configuration"))
+	fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("Configuration"))
 	ui.PrintConfigLine("Target", target)
 	ui.PrintConfigLine("Domain", domain)
 	if *service != "" {
@@ -1951,7 +1977,7 @@ func runAutoScan() {
 	if *enableFullRecon {
 		ui.PrintConfigLine("Full Recon", "Enabled (unified reconnaissance)")
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Create JA3-aware HTTP client if enabled
 	var ja3Client *http.Client
@@ -1980,14 +2006,16 @@ func runAutoScan() {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-sigChan
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 		ui.PrintWarning("Interrupt received, shutting down gracefully...")
 		cancel()
 	}()
 
 	// Determine output mode for LiveProgress
 	autoOutputMode := ui.OutputModeInteractive
-	if *streamMode {
+	if *jsonOutput {
+		autoOutputMode = ui.OutputModeSilent
+	} else if *streamMode {
 		autoOutputMode = ui.OutputModeStreaming
 	}
 
@@ -2014,8 +2042,8 @@ func runAutoScan() {
 	// ═══════════════════════════════════════════════════════════════════════════
 	var smartResult *SmartModeResult
 	if *smartMode {
-		fmt.Println(ui.SectionStyle.Render("PHASE 0: Smart Mode - WAF Detection & Strategy Optimization"))
-		fmt.Println()
+		printStatusLn(ui.SectionStyle.Render("PHASE 0: Smart Mode - WAF Detection & Strategy Optimization"))
+		printStatusLn()
 
 		ui.PrintInfo("🧠 Detecting WAF vendor from 197+ signatures...")
 
@@ -2031,7 +2059,9 @@ func runAutoScan() {
 			ui.PrintWarning(fmt.Sprintf("Smart mode detection warning: %v", err))
 		}
 
-		PrintSmartModeInfo(smartResult, *smartVerbose)
+		if !quietMode {
+			PrintSmartModeInfo(smartResult, *smartVerbose)
+		}
 
 		// Apply WAF-optimized rate limit and concurrency
 		// The smart mode values are the safe limits for that specific WAF
@@ -2047,7 +2077,7 @@ func runAutoScan() {
 				*concurrency = smartResult.Concurrency
 			}
 		}
-		fmt.Println()
+		printStatusLn()
 	}
 	// Silence unused variable warning when smart mode not enabled
 	_ = smartVerbose
@@ -2060,8 +2090,8 @@ func runAutoScan() {
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 1: DISCOVERY
 	// ═══════════════════════════════════════════════════════════════════════════
-	fmt.Println(ui.SectionStyle.Render("PHASE 1: Target Discovery & Reconnaissance"))
-	fmt.Println()
+	printStatusLn(ui.SectionStyle.Render("PHASE 1: Target Discovery & Reconnaissance"))
+	printStatusLn()
 
 	discoveryCfg := discovery.DiscoveryConfig{
 		Target:      target,
@@ -2092,7 +2122,7 @@ func runAutoScan() {
 	if discResult.WAFDetected {
 		ui.PrintInfo(fmt.Sprintf("  WAF Detected: %s", discResult.WAFFingerprint))
 	}
-	fmt.Println()
+	printStatusLn()
 
 	// Update progress after discovery
 	autoProgress.SetMetric("endpoints", int64(len(discResult.Endpoints)))
@@ -2106,8 +2136,8 @@ func runAutoScan() {
 	var leakyResult *leakypaths.ScanSummary
 
 	if *enableLeakyPaths {
-		fmt.Println(ui.SectionStyle.Render("PHASE 1.5: Sensitive Path Scanning (leaky-paths)"))
-		fmt.Println()
+		printStatusLn(ui.SectionStyle.Render("PHASE 1.5: Sensitive Path Scanning (leaky-paths)"))
+		printStatusLn()
 
 		// Filter categories if specified
 		var categories []string
@@ -2119,9 +2149,9 @@ func runAutoScan() {
 		}
 
 		// Show what we're looking for
-		fmt.Println()
-		fmt.Printf("  %s\n", ui.SubtitleStyle.Render("  Targets: .git, .env, admin panels, backups, configs, debug endpoints..."))
-		fmt.Println()
+		printStatusLn()
+		printStatus("  %s\n", ui.SubtitleStyle.Render("  Targets: .git, .env, admin panels, backups, configs, debug endpoints..."))
+		printStatusLn()
 
 		leakyScanner := leakypaths.NewScanner(&leakypaths.Config{
 			Timeout:     time.Duration(*timeout) * time.Second,
@@ -2141,28 +2171,28 @@ func runAutoScan() {
 
 			// Summary with timing
 			ui.PrintSuccess(fmt.Sprintf("✓ Scanned %d paths in %s", leakyResult.TotalPaths, leakyResult.Duration.Round(time.Millisecond)))
-			fmt.Println()
+			printStatusLn()
 
-			if leakyResult.InterestingHits > 0 {
+			if leakyResult.InterestingHits > 0 && !quietMode {
 				// Show severity breakdown in nuclei-style
-				fmt.Printf("  %s\n", ui.SectionStyle.Render("📊 Findings by Severity:"))
+				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render("📊 Findings by Severity:"))
 				for severity, count := range leakyResult.BySeverity {
 					sevStyle := ui.SeverityStyle(severity)
 					bar := strings.Repeat("█", min(count, 20))
-					fmt.Printf("    %s %s %d\n", sevStyle.Render(fmt.Sprintf("%-8s", severity)), ui.ProgressFullStyle.Render(bar), count)
+					fmt.Fprintf(os.Stderr, "    %s %s %d\n", sevStyle.Render(fmt.Sprintf("%-8s", severity)), ui.ProgressFullStyle.Render(bar), count)
 				}
-				fmt.Println()
+				fmt.Fprintln(os.Stderr)
 
 				// Show category breakdown
-				fmt.Printf("  %s\n", ui.SectionStyle.Render("📂 Findings by Category:"))
+				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render("📂 Findings by Category:"))
 				for category, count := range leakyResult.ByCategory {
 					bar := strings.Repeat("▪", min(count, 20))
-					fmt.Printf("    %-15s %s %d\n", category, ui.StatLabelStyle.Render(bar), count)
+					fmt.Fprintf(os.Stderr, "    %-15s %s %d\n", category, ui.StatLabelStyle.Render(bar), count)
 				}
-				fmt.Println()
+				fmt.Fprintln(os.Stderr)
 
 				// Show top findings in nuclei-style bracketed format
-				fmt.Printf("  %s\n", ui.SectionStyle.Render("🎯 Top Findings:"))
+				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render("🎯 Top Findings:"))
 				shownCount := 0
 				for _, result := range leakyResult.Results {
 					if !result.Interesting {
@@ -2171,14 +2201,14 @@ func runAutoScan() {
 					if shownCount >= 10 {
 						remaining := leakyResult.InterestingHits - 10
 						if remaining > 0 {
-							fmt.Printf("    %s\n", ui.SubtitleStyle.Render(fmt.Sprintf("... and %d more findings (see %s)", remaining, leakyPathsFile)))
+							fmt.Fprintf(os.Stderr, "    %s\n", ui.SubtitleStyle.Render(fmt.Sprintf("... and %d more findings (see %s)", remaining, leakyPathsFile)))
 						}
 						break
 					}
 					// Nuclei-style output: [severity] [category] path [status]
 					sevStyle := ui.SeverityStyle(result.Severity)
 					statusStyle := ui.StatusCodeStyle(result.StatusCode)
-					fmt.Printf("    %s%s%s %s%s%s %s %s%s%s\n",
+					fmt.Fprintf(os.Stderr, "    %s%s%s %s%s%s %s %s%s%s\n",
 						ui.BracketStyle.Render("["),
 						sevStyle.Render(strings.ToLower(result.Severity)),
 						ui.BracketStyle.Render("]"),
@@ -2196,7 +2226,9 @@ func runAutoScan() {
 				ui.PrintSuccess("  ✓ No sensitive paths exposed - good security posture!")
 			}
 		}
-		fmt.Println()
+		if !quietMode {
+			fmt.Fprintln(os.Stderr)
+		}
 	}
 	// Silence unused variable warnings
 	_ = enableLeakyPaths
@@ -2205,8 +2237,8 @@ func runAutoScan() {
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 2: DEEP JAVASCRIPT ANALYSIS
 	// ═══════════════════════════════════════════════════════════════════════════
-	fmt.Println(ui.SectionStyle.Render("PHASE 2: Deep JavaScript Analysis"))
-	fmt.Println()
+	printStatusLn(ui.SectionStyle.Render("PHASE 2: Deep JavaScript Analysis"))
+	printStatusLn()
 
 	ui.PrintInfo("📜 Extracting and analyzing JavaScript files...")
 
@@ -2267,7 +2299,7 @@ func runAutoScan() {
 	jsFrameIdx := 0
 	jsStartTime := time.Now()
 
-	if totalJSFiles > 1 && !*streamMode {
+	if totalJSFiles > 1 && !*streamMode && !quietMode {
 		go func() {
 			ticker := time.NewTicker(100 * time.Millisecond)
 			defer ticker.Stop()
@@ -2300,15 +2332,15 @@ func runAutoScan() {
 						secretColor = "\033[31m" // Red - secrets found!
 					}
 
-					fmt.Printf("\033[2A\033[J")
-					fmt.Printf("  %s %s %.1f%% (%d/%d files)\n", spinner, bar, percent, analyzed, totalJSFiles)
-					fmt.Printf("  📊 Endpoints: %d  %s🔑 Secrets: %d\033[0m  ⏱️  %s\n",
+					fmt.Fprintf(os.Stderr, "\033[2A\033[J")
+					fmt.Fprintf(os.Stderr, "  %s %s %.1f%% (%d/%d files)\n", spinner, bar, percent, analyzed, totalJSFiles)
+					fmt.Fprintf(os.Stderr, "  📊 Endpoints: %d  %s🔑 Secrets: %d\033[0m  ⏱️  %s\n",
 						endpoints, secretColor, secrets, elapsed.Round(time.Second))
 				}
 			}
 		}()
-		fmt.Println()
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr)
 	}
 
 	for _, jsPath := range jsFiles {
@@ -2365,7 +2397,9 @@ func runAutoScan() {
 	if totalJSFiles > 1 {
 		close(jsProgressDone)
 		time.Sleep(50 * time.Millisecond)
-		fmt.Printf("\033[2A\033[J")
+		if !quietMode {
+			fmt.Fprintf(os.Stderr, "\033[2A\033[J")
+		}
 	}
 
 	// Deduplicate subdomains
@@ -2440,8 +2474,8 @@ func runAutoScan() {
 	}
 
 	// Print secrets if found
-	if len(allJSData.Secrets) > 0 {
-		fmt.Println()
+	if len(allJSData.Secrets) > 0 && !quietMode {
+		fmt.Fprintln(os.Stderr)
 		ui.PrintSection("🔑 Secrets Detected in JavaScript")
 		for _, secret := range allJSData.Secrets {
 			severity := strings.ToUpper(secret.Confidence)
@@ -2456,8 +2490,8 @@ func runAutoScan() {
 		}
 	}
 
-	if len(allJSData.Subdomains) > 0 {
-		fmt.Println()
+	if len(allJSData.Subdomains) > 0 && !quietMode {
+		fmt.Fprintln(os.Stderr)
 		ui.PrintSection("🌐 Subdomains Discovered")
 		for _, sub := range allJSData.Subdomains[:min(10, len(allJSData.Subdomains))] {
 			ui.PrintInfo("  " + sub)
@@ -2466,7 +2500,9 @@ func runAutoScan() {
 			ui.PrintInfo(fmt.Sprintf("  ... and %d more", len(allJSData.Subdomains)-10))
 		}
 	}
-	fmt.Println()
+	if !quietMode {
+		fmt.Fprintln(os.Stderr)
+	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 2.5: PARAMETER DISCOVERY (NEW - competitive feature from Arjun)
@@ -2475,14 +2511,14 @@ func runAutoScan() {
 	var paramResult *params.DiscoveryResult
 
 	if *enableParamDiscovery {
-		fmt.Println(ui.SectionStyle.Render("PHASE 2.5: Parameter Discovery (Arjun-style)"))
-		fmt.Println()
+		printStatusLn(ui.SectionStyle.Render("PHASE 2.5: Parameter Discovery (Arjun-style)"))
+		printStatusLn()
 
 		ui.PrintInfo("🔍 Discovering hidden API parameters...")
-		fmt.Println()
-		fmt.Printf("  %s\n", ui.SubtitleStyle.Render("  Technique: Chunked parameter injection (256 params/request)"))
-		fmt.Printf("  %s\n", ui.SubtitleStyle.Render("  Wordlist: 1,000+ common parameters (id, key, token, debug, admin...)"))
-		fmt.Println()
+		printStatusLn()
+		printStatus("  %s\n", ui.SubtitleStyle.Render("  Technique: Chunked parameter injection (256 params/request)"))
+		printStatus("  %s\n", ui.SubtitleStyle.Render("  Wordlist: 1,000+ common parameters (id, key, token, debug, admin...)"))
+		printStatusLn()
 
 		paramDiscoverer := params.NewDiscoverer(&params.Config{
 			Timeout:     time.Duration(*timeout) * time.Second,
@@ -2511,7 +2547,7 @@ func runAutoScan() {
 
 		if len(testEndpoints) > 0 {
 			ui.PrintInfo(fmt.Sprintf("  Testing %d endpoints for hidden parameters...", len(testEndpoints)))
-			fmt.Println()
+			printStatusLn()
 
 			// Discover params for each endpoint with animated progress display
 			allParams := make([]params.DiscoveredParam, 0)
@@ -2523,7 +2559,7 @@ func runAutoScan() {
 			paramFrameIdx := 0
 			totalEndpoints := len(testEndpoints)
 
-			if !*streamMode {
+			if !*streamMode && !quietMode {
 				go func() {
 					ticker := time.NewTicker(100 * time.Millisecond)
 					defer ticker.Stop()
@@ -2551,22 +2587,22 @@ func runAutoScan() {
 								paramColor = "\033[32m" // Green - params found!
 							}
 
-							fmt.Printf("\033[2A\033[J")
-							fmt.Printf("  %s %s %.1f%% (%d/%d endpoints)\n", spinner, bar, percent, done, totalEndpoints)
-							fmt.Printf("  %s🔍 Parameters found: %d\033[0m  ⏱️  %s\n",
+							fmt.Fprintf(os.Stderr, "\033[2A\033[J")
+							fmt.Fprintf(os.Stderr, "  %s %s %.1f%% (%d/%d endpoints)\n", spinner, bar, percent, done, totalEndpoints)
+							fmt.Fprintf(os.Stderr, "  %s🔍 Parameters found: %d\033[0m  ⏱️  %s\n",
 								paramColor, found, elapsed.Round(time.Second))
 						}
 					}
 				}()
+				fmt.Fprintln(os.Stderr)
+				fmt.Fprintln(os.Stderr)
 			} // end if !*streamMode
-			fmt.Println()
-			fmt.Println()
 
 			for _, endpoint := range testEndpoints {
 				result, err := paramDiscoverer.Discover(ctx, endpoint)
 				if err != nil {
-					if *verbose {
-						fmt.Println()
+					if *verbose && !quietMode {
+						fmt.Fprintln(os.Stderr)
 						ui.PrintWarning(fmt.Sprintf("  Warning for %s: %v", endpoint, err))
 					}
 					atomic.AddInt32(&paramCompleted, 1)
@@ -2580,7 +2616,9 @@ func runAutoScan() {
 			// Stop progress display
 			close(paramProgressDone)
 			time.Sleep(50 * time.Millisecond)
-			fmt.Printf("\033[2A\033[J")
+			if !quietMode {
+				fmt.Fprintf(os.Stderr, "\033[2A\033[J")
+			}
 
 			duration := time.Since(paramStartTime)
 
@@ -2605,10 +2643,10 @@ func runAutoScan() {
 
 			ui.PrintSuccess(fmt.Sprintf("✓ Scanned %d endpoints in %s", len(testEndpoints), duration.Round(time.Millisecond)))
 
-			if len(allParams) > 0 {
-				fmt.Println()
+			if len(allParams) > 0 && !quietMode {
+				fmt.Fprintln(os.Stderr)
 				// Show type breakdown
-				fmt.Printf("  %s\n", ui.SectionStyle.Render("📊 Parameters by Type:"))
+				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render("📊 Parameters by Type:"))
 				for paramType, count := range paramResult.ByType {
 					typeStyle := ui.ConfigValueStyle
 					switch paramType {
@@ -2620,25 +2658,25 @@ func runAutoScan() {
 						typeStyle = ui.ErrorStyle
 					}
 					bar := strings.Repeat("█", min(count, 20))
-					fmt.Printf("    %s %s %d\n", typeStyle.Render(fmt.Sprintf("%-8s", paramType)), ui.ProgressFullStyle.Render(bar), count)
+					fmt.Fprintf(os.Stderr, "    %s %s %d\n", typeStyle.Render(fmt.Sprintf("%-8s", paramType)), ui.ProgressFullStyle.Render(bar), count)
 				}
-				fmt.Println()
+				fmt.Fprintln(os.Stderr)
 
 				// Show source breakdown
-				fmt.Printf("  %s\n", ui.SectionStyle.Render("🔎 Discovery Sources:"))
+				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render("🔎 Discovery Sources:"))
 				for source, count := range paramResult.BySource {
 					bar := strings.Repeat("▪", min(count, 20))
-					fmt.Printf("    %-15s %s %d\n", source, ui.StatLabelStyle.Render(bar), count)
+					fmt.Fprintf(os.Stderr, "    %-15s %s %d\n", source, ui.StatLabelStyle.Render(bar), count)
 				}
-				fmt.Println()
+				fmt.Fprintln(os.Stderr)
 
 				// Show top findings in nuclei-style
-				fmt.Printf("  %s\n", ui.SectionStyle.Render("🎯 Discovered Parameters:"))
+				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render("🎯 Discovered Parameters:"))
 				for i, p := range allParams {
 					if i >= 10 {
 						remaining := len(allParams) - 10
 						if remaining > 0 {
-							fmt.Printf("    %s\n", ui.SubtitleStyle.Render(fmt.Sprintf("... and %d more parameters (see %s)", remaining, paramsFile)))
+							fmt.Fprintf(os.Stderr, "    %s\n", ui.SubtitleStyle.Render(fmt.Sprintf("... and %d more parameters (see %s)", remaining, paramsFile)))
 						}
 						break
 					}
@@ -2653,7 +2691,7 @@ func runAutoScan() {
 						typeStyle = ui.ErrorStyle
 					}
 					confPercent := int(p.Confidence * 100)
-					fmt.Printf("    %s%s%s %s%s%s %s %s%d%%%s\n",
+					fmt.Fprintf(os.Stderr, "    %s%s%s %s%s%s %s %s%d%%%s\n",
 						ui.BracketStyle.Render("["),
 						typeStyle.Render(p.Type),
 						ui.BracketStyle.Render("]"),
@@ -2666,24 +2704,28 @@ func runAutoScan() {
 						ui.BracketStyle.Render("]"),
 					)
 				}
-			} else {
+			} else if !quietMode {
 				ui.PrintSuccess("  ✓ No hidden parameters discovered - endpoints are well-documented!")
 			}
 		} else {
 			ui.PrintInfo("  ⏭️  No suitable endpoints found for parameter discovery")
 			ui.PrintInfo("     (Need API endpoints from Phase 1 to test for hidden params)")
 		}
-		fmt.Println()
+		if !quietMode {
+			fmt.Fprintln(os.Stderr)
+		}
 	}
 	// Full Recon Mode - runs unified reconnaissance if enabled
 	var fullReconResult *recon.FullReconResult
 	if *enableFullRecon {
-		fmt.Println(ui.SectionStyle.Render("PHASE 2.7: Unified Reconnaissance (Full Recon)"))
-		fmt.Println()
+		printStatusLn(ui.SectionStyle.Render("PHASE 2.7: Unified Reconnaissance (Full Recon)"))
+		printStatusLn()
 
 		ui.PrintInfo("🔬 Running comprehensive reconnaissance scan...")
-		fmt.Printf("  %s\n", ui.SubtitleStyle.Render("  Combining: leaky-paths + param-discovery + JS analysis + JA3 rotation"))
-		fmt.Println()
+		if !quietMode {
+			fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("  Combining: leaky-paths + param-discovery + JS analysis + JA3 rotation"))
+			fmt.Fprintln(os.Stderr)
+		}
 
 		// Handle empty categories - nil means all categories, not [""] which matches nothing
 		var leakyPathCats []string
@@ -2717,28 +2759,31 @@ func runAutoScan() {
 			os.WriteFile(reconFile, reconData, 0644)
 
 			ui.PrintSuccess(fmt.Sprintf("✓ Full reconnaissance completed in %s", fullReconResult.Duration.Round(time.Millisecond)))
-			fmt.Println()
+			
+			if !quietMode {
+				fmt.Fprintln(os.Stderr)
 
-			// Show risk assessment
-			fmt.Printf("  %s\n", ui.SectionStyle.Render("📊 Risk Assessment:"))
-			riskStyle := ui.PassStyle
-			switch fullReconResult.RiskLevel {
-			case "critical":
-				riskStyle = ui.SeverityStyle("Critical")
-			case "high":
-				riskStyle = ui.SeverityStyle("High")
-			case "medium":
-				riskStyle = ui.SeverityStyle("Medium")
-			}
-			fmt.Printf("    Risk Score: %s (%.1f/100)\n", riskStyle.Render(fullReconResult.RiskLevel), fullReconResult.RiskScore)
-			fmt.Println()
-
-			if len(fullReconResult.TopRisks) > 0 {
-				fmt.Printf("  %s\n", ui.SectionStyle.Render("⚠️  Top Risks:"))
-				for _, risk := range fullReconResult.TopRisks[:min(5, len(fullReconResult.TopRisks))] {
-					ui.PrintWarning(fmt.Sprintf("    • %s", risk))
+				// Show risk assessment
+				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render("📊 Risk Assessment:"))
+				riskStyle := ui.PassStyle
+				switch fullReconResult.RiskLevel {
+				case "critical":
+					riskStyle = ui.SeverityStyle("Critical")
+				case "high":
+					riskStyle = ui.SeverityStyle("High")
+				case "medium":
+					riskStyle = ui.SeverityStyle("Medium")
 				}
-				fmt.Println()
+				fmt.Fprintf(os.Stderr, "    Risk Score: %s (%.1f/100)\n", riskStyle.Render(fullReconResult.RiskLevel), fullReconResult.RiskScore)
+				fmt.Fprintln(os.Stderr)
+
+				if len(fullReconResult.TopRisks) > 0 {
+					fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render("⚠️  Top Risks:"))
+					for _, risk := range fullReconResult.TopRisks[:min(5, len(fullReconResult.TopRisks))] {
+						ui.PrintWarning(fmt.Sprintf("    • %s", risk))
+					}
+					fmt.Fprintln(os.Stderr)
+				}
 			}
 		}
 	}
@@ -2747,8 +2792,8 @@ func runAutoScan() {
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 3: INTELLIGENT LEARNING
 	// ═══════════════════════════════════════════════════════════════════════════
-	fmt.Println(ui.SectionStyle.Render("PHASE 3: Intelligent Test Plan Generation"))
-	fmt.Println()
+	printStatusLn(ui.SectionStyle.Render("PHASE 3: Intelligent Test Plan Generation"))
+	printStatusLn()
 
 	ui.PrintInfo("🧠 Analyzing attack surface and generating test plan...")
 
@@ -2761,14 +2806,17 @@ func runAutoScan() {
 
 	ui.PrintSuccess(fmt.Sprintf("✓ Generated test plan with %d tests", testPlan.TotalTests))
 	ui.PrintInfo(fmt.Sprintf("  Estimated time: %s", testPlan.EstimatedTime))
-	fmt.Println()
+	
+	if !quietMode {
+		fmt.Fprintln(os.Stderr)
 
-	// Show test categories
-	fmt.Printf("  %s\n", ui.SubtitleStyle.Render("Test Categories:"))
-	for _, group := range testPlan.TestGroups {
-		fmt.Printf("    [P%d] %s - %s\n", group.Priority, group.Category, group.Reason)
+		// Show test categories
+		fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("Test Categories:"))
+		for _, group := range testPlan.TestGroups {
+			fmt.Fprintf(os.Stderr, "    [P%d] %s - %s\n", group.Priority, group.Category, group.Reason)
+		}
+		fmt.Fprintln(os.Stderr)
 	}
-	fmt.Println()
 
 	// Update progress after learning phase
 	autoProgress.SetStatus("Testing")
@@ -2777,11 +2825,11 @@ func runAutoScan() {
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 4: WAF SECURITY TESTING
 	// ═══════════════════════════════════════════════════════════════════════════
-	fmt.Println(ui.SectionStyle.Render("PHASE 4: WAF Security Testing"))
-	fmt.Println()
+	printStatusLn(ui.SectionStyle.Render("PHASE 4: WAF Security Testing"))
+	printStatusLn()
 
 	ui.PrintInfo("⚡ Executing security tests with auto-calibration...")
-	fmt.Println()
+	printStatusLn()
 
 	// Load payloads
 	loader := payloads.NewLoader(payloadDir)
@@ -2888,7 +2936,7 @@ func runAutoScan() {
 	}
 
 	ui.PrintInfo(fmt.Sprintf("Loaded %d payloads for testing", len(allPayloads)))
-	fmt.Println()
+	printStatusLn()
 
 	// Auto-calibration
 	ui.PrintInfo("Running auto-calibration...")
@@ -2902,7 +2950,7 @@ func runAutoScan() {
 	} else if calErr != nil {
 		ui.PrintWarning(fmt.Sprintf("Calibration warning: %v", calErr))
 	}
-	fmt.Println()
+	printStatusLn()
 
 	// Create progress tracker
 	progress := ui.NewProgress(ui.ProgressConfig{
@@ -2929,11 +2977,13 @@ func runAutoScan() {
 
 	// Print section header
 	ui.PrintSection("Executing Tests")
-	fmt.Printf("\n  %s Running with %s parallel workers @ %s req/sec max\n\n",
-		ui.SpinnerStyle.Render(">>>"),
-		ui.StatValueStyle.Render(fmt.Sprintf("%d", *concurrency)),
-		ui.StatValueStyle.Render(fmt.Sprintf("%d", *rateLimit)),
-	)
+	if !quietMode {
+		fmt.Fprintf(os.Stderr, "\n  %s Running with %s parallel workers @ %s req/sec max\n\n",
+			ui.SpinnerStyle.Render(">>>"),
+			ui.StatValueStyle.Render(fmt.Sprintf("%d", *concurrency)),
+			ui.StatValueStyle.Render(fmt.Sprintf("%d", *rateLimit)),
+		)
+	}
 
 	// Create and run executor
 	executor := core.NewExecutor(core.ExecutorConfig{
@@ -2962,9 +3012,9 @@ func runAutoScan() {
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 4.5: VENDOR-SPECIFIC WAF ANALYSIS (NEW)
 	// ═══════════════════════════════════════════════════════════════════════════
-	fmt.Println()
-	fmt.Println(ui.SectionStyle.Render("PHASE 4.5: Vendor-Specific WAF Analysis"))
-	fmt.Println()
+	printStatusLn()
+	printStatusLn(ui.SectionStyle.Render("PHASE 4.5: Vendor-Specific WAF Analysis"))
+	printStatusLn()
 
 	ui.PrintInfo("🔍 Detecting WAF vendor with 150+ signatures...")
 
@@ -2988,31 +3038,33 @@ func runAutoScan() {
 
 		ui.PrintSuccess(fmt.Sprintf("  WAF Vendor: %s (%.0f%% confidence)", vendorName, vendorConfidence*100))
 
-		// Show detection evidence
-		if len(vendorResult.Evidence) > 0 {
-			for _, ev := range vendorResult.Evidence[:min(3, len(vendorResult.Evidence))] {
-				fmt.Printf("    • %s\n", ev)
+		if !quietMode {
+			// Show detection evidence
+			if len(vendorResult.Evidence) > 0 {
+				for _, ev := range vendorResult.Evidence[:min(3, len(vendorResult.Evidence))] {
+					fmt.Fprintf(os.Stderr, "    • %s\n", ev)
+				}
 			}
-		}
 
-		// Show bypass recommendations
-		if len(bypassHints) > 0 {
-			fmt.Println()
-			ui.PrintInfo("  📋 Bypass Recommendations:")
-			for _, hint := range bypassHints[:min(5, len(bypassHints))] {
-				fmt.Printf("    → %s\n", hint)
+			// Show bypass recommendations
+			if len(bypassHints) > 0 {
+				fmt.Fprintln(os.Stderr)
+				ui.PrintInfo("  📋 Bypass Recommendations:")
+				for _, hint := range bypassHints[:min(5, len(bypassHints))] {
+					fmt.Fprintf(os.Stderr, "    → %s\n", hint)
+				}
 			}
-		}
 
-		// Show recommended encoders/evasions
-		if len(recommendedEncoders) > 0 || len(recommendedEvasions) > 0 {
-			fmt.Println()
-			ui.PrintInfo("  🔧 Recommended Techniques:")
-			if len(recommendedEncoders) > 0 {
-				fmt.Printf("    Encoders: %s\n", strings.Join(recommendedEncoders[:min(4, len(recommendedEncoders))], ", "))
-			}
-			if len(recommendedEvasions) > 0 {
-				fmt.Printf("    Evasions: %s\n", strings.Join(recommendedEvasions[:min(4, len(recommendedEvasions))], ", "))
+			// Show recommended encoders/evasions
+			if len(recommendedEncoders) > 0 || len(recommendedEvasions) > 0 {
+				fmt.Fprintln(os.Stderr)
+				ui.PrintInfo("  🔧 Recommended Techniques:")
+				if len(recommendedEncoders) > 0 {
+					fmt.Fprintf(os.Stderr, "    Encoders: %s\n", strings.Join(recommendedEncoders[:min(4, len(recommendedEncoders))], ", "))
+				}
+				if len(recommendedEvasions) > 0 {
+					fmt.Fprintf(os.Stderr, "    Evasions: %s\n", strings.Join(recommendedEvasions[:min(4, len(recommendedEvasions))], ", "))
+				}
 			}
 		}
 	} else if discResult.WAFDetected && discResult.WAFFingerprint != "" {
@@ -3023,15 +3075,15 @@ func runAutoScan() {
 	} else {
 		ui.PrintInfo("  No specific WAF vendor detected - using default configuration")
 	}
-	fmt.Println()
+	printStatusLn()
 	_, _, _ = bypassHints, recommendedEncoders, recommendedEvasions // Used above
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 5: COMPREHENSIVE REPORT
 	// ═══════════════════════════════════════════════════════════════════════════
-	fmt.Println()
-	fmt.Println(ui.SectionStyle.Render("PHASE 5: Comprehensive Report"))
-	fmt.Println()
+	printStatusLn()
+	printStatusLn(ui.SectionStyle.Render("PHASE 5: Comprehensive Report"))
+	printStatusLn()
 
 	// Calculate WAF effectiveness
 	wafEffectiveness := float64(0)
@@ -3041,60 +3093,62 @@ func runAutoScan() {
 
 	duration := time.Since(startTime)
 
-	// Print summary
-	fmt.Println("  ════════════════════════════════════════════════════════════")
-	fmt.Println("                    SUPERPOWER SCAN COMPLETE")
-	fmt.Println("  ════════════════════════════════════════════════════════════")
-	fmt.Println()
+	// Print summary (only in non-JSON mode)
+	if !quietMode {
+		fmt.Fprintln(os.Stderr, "  ════════════════════════════════════════════════════════════")
+		fmt.Fprintln(os.Stderr, "                    SUPERPOWER SCAN COMPLETE")
+		fmt.Fprintln(os.Stderr, "  ════════════════════════════════════════════════════════════")
+		fmt.Fprintln(os.Stderr)
 
-	ui.PrintConfigLine("Target", target)
-	ui.PrintConfigLine("Duration", duration.Round(time.Second).String())
-	ui.PrintConfigLine("Workspace", workspaceDir)
-	fmt.Println()
+		ui.PrintConfigLine("Target", target)
+		ui.PrintConfigLine("Duration", duration.Round(time.Second).String())
+		ui.PrintConfigLine("Workspace", workspaceDir)
+		fmt.Fprintln(os.Stderr)
 
-	fmt.Printf("  +------------------------------------------------+\n")
-	fmt.Printf("  |  Total Endpoints:    %-26d |\n", len(discResult.Endpoints))
-	fmt.Printf("  |  JS Files Analyzed:  %-26d |\n", jsAnalyzed)
-	fmt.Printf("  |  Secrets Found:      %-26d |\n", len(allJSData.Secrets))
-	fmt.Printf("  |  Subdomains Found:   %-26d |\n", len(allJSData.Subdomains))
-	// Recon findings from new competitive features
-	if leakyResult != nil {
-		fmt.Printf("  |  Leaky Paths Found:  %-26d |\n", leakyResult.InterestingHits)
+		fmt.Fprintf(os.Stderr, "  +------------------------------------------------+\n")
+		fmt.Fprintf(os.Stderr, "  |  Total Endpoints:    %-26d |\n", len(discResult.Endpoints))
+		fmt.Fprintf(os.Stderr, "  |  JS Files Analyzed:  %-26d |\n", jsAnalyzed)
+		fmt.Fprintf(os.Stderr, "  |  Secrets Found:      %-26d |\n", len(allJSData.Secrets))
+		fmt.Fprintf(os.Stderr, "  |  Subdomains Found:   %-26d |\n", len(allJSData.Subdomains))
+		// Recon findings from new competitive features
+		if leakyResult != nil {
+			fmt.Fprintf(os.Stderr, "  |  Leaky Paths Found:  %-26d |\n", leakyResult.InterestingHits)
+		}
+		if paramResult != nil {
+			fmt.Fprintf(os.Stderr, "  |  Hidden Params Found:%-26d |\n", paramResult.FoundParams)
+		}
+		fmt.Fprintf(os.Stderr, "  +------------------------------------------------+\n")
+		fmt.Fprintf(os.Stderr, "  |  Total Tests:        %-26d |\n", results.TotalTests)
+		fmt.Fprintf(os.Stderr, "  |  Blocked (WAF):      %-26d |\n", results.BlockedTests)
+		fmt.Fprintf(os.Stderr, "  |  Passed:             %-26d |\n", results.PassedTests)
+		fmt.Fprintf(os.Stderr, "  |  Failed (Bypass):    %-26d |\n", results.FailedTests)
+		fmt.Fprintf(os.Stderr, "  |  Errors:             %-26d |\n", results.ErrorTests)
+		fmt.Fprintf(os.Stderr, "  +------------------------------------------------+\n")
+		fmt.Fprintln(os.Stderr)
+
+		// WAF Effectiveness
+		if wafEffectiveness >= 95 {
+			ui.PrintSuccess(fmt.Sprintf("  WAF Effectiveness: %.1f%% - EXCELLENT", wafEffectiveness))
+		} else if wafEffectiveness >= 80 {
+			ui.PrintWarning(fmt.Sprintf("  WAF Effectiveness: %.1f%% - GOOD (room for improvement)", wafEffectiveness))
+		} else {
+			ui.PrintError(fmt.Sprintf("  WAF Effectiveness: %.1f%% - NEEDS ATTENTION", wafEffectiveness))
+		}
+		fmt.Fprintln(os.Stderr)
+
+		// Print summary and enhanced stats
+		ui.PrintSummary(ui.Summary{
+			TotalTests:     results.TotalTests,
+			BlockedTests:   results.BlockedTests,
+			PassedTests:    results.PassedTests,
+			FailedTests:    results.FailedTests,
+			ErrorTests:     results.ErrorTests,
+			Duration:       results.Duration,
+			RequestsPerSec: results.RequestsPerSec,
+			TargetURL:      target,
+		})
+		output.PrintSummary(results)
 	}
-	if paramResult != nil {
-		fmt.Printf("  |  Hidden Params Found:%-26d |\n", paramResult.FoundParams)
-	}
-	fmt.Printf("  +------------------------------------------------+\n")
-	fmt.Printf("  |  Total Tests:        %-26d |\n", results.TotalTests)
-	fmt.Printf("  |  Blocked (WAF):      %-26d |\n", results.BlockedTests)
-	fmt.Printf("  |  Passed:             %-26d |\n", results.PassedTests)
-	fmt.Printf("  |  Failed (Bypass):    %-26d |\n", results.FailedTests)
-	fmt.Printf("  |  Errors:             %-26d |\n", results.ErrorTests)
-	fmt.Printf("  +------------------------------------------------+\n")
-	fmt.Println()
-
-	// WAF Effectiveness
-	if wafEffectiveness >= 95 {
-		ui.PrintSuccess(fmt.Sprintf("  WAF Effectiveness: %.1f%% - EXCELLENT", wafEffectiveness))
-	} else if wafEffectiveness >= 80 {
-		ui.PrintWarning(fmt.Sprintf("  WAF Effectiveness: %.1f%% - GOOD (room for improvement)", wafEffectiveness))
-	} else {
-		ui.PrintError(fmt.Sprintf("  WAF Effectiveness: %.1f%% - NEEDS ATTENTION", wafEffectiveness))
-	}
-	fmt.Println()
-
-	// Print summary and enhanced stats
-	ui.PrintSummary(ui.Summary{
-		TotalTests:     results.TotalTests,
-		BlockedTests:   results.BlockedTests,
-		PassedTests:    results.PassedTests,
-		FailedTests:    results.FailedTests,
-		ErrorTests:     results.ErrorTests,
-		Duration:       results.Duration,
-		RequestsPerSec: results.RequestsPerSec,
-		TargetURL:      target,
-	})
-	output.PrintSummary(results)
 
 	// Generate markdown report
 	generateAutoMarkdownReport(reportFile, target, domain, duration, discResult, allJSData, testPlan, results, wafEffectiveness)
@@ -3143,23 +3197,25 @@ func runAutoScan() {
 	summaryData, _ := json.MarshalIndent(summary, "", "  ")
 	os.WriteFile(summaryFile, summaryData, 0644)
 
-	fmt.Println()
-	ui.PrintSuccess(fmt.Sprintf("📊 Full report saved to: %s", reportFile))
-	fmt.Println()
+	if !quietMode {
+		fmt.Fprintln(os.Stderr)
+		ui.PrintSuccess(fmt.Sprintf("📊 Full report saved to: %s", reportFile))
+		fmt.Fprintln(os.Stderr)
 
-	// Show output files
-	fmt.Printf("  %s\n", ui.SubtitleStyle.Render("Output Files:"))
-	fmt.Printf("    • Discovery:   %s\n", discoveryFile)
-	fmt.Printf("    • JS Analysis: %s\n", jsAnalysisFile)
-	fmt.Printf("    • Test Plan:   %s\n", testPlanFile)
-	fmt.Printf("    • Results:     %s\n", resultsFile)
-	fmt.Printf("    • Summary:     %s\n", summaryFile)
-	fmt.Printf("    • Report:      %s\n", reportFile)
-	fmt.Println()
+		// Show output files
+		fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("Output Files:"))
+		fmt.Fprintf(os.Stderr, "    • Discovery:   %s\n", discoveryFile)
+		fmt.Fprintf(os.Stderr, "    • JS Analysis: %s\n", jsAnalysisFile)
+		fmt.Fprintf(os.Stderr, "    • Test Plan:   %s\n", testPlanFile)
+		fmt.Fprintf(os.Stderr, "    • Results:     %s\n", resultsFile)
+		fmt.Fprintf(os.Stderr, "    • Summary:     %s\n", summaryFile)
+		fmt.Fprintf(os.Stderr, "    • Report:      %s\n", reportFile)
+		fmt.Fprintln(os.Stderr)
 
-	fmt.Println("  ════════════════════════════════════════════════════════════")
-	fmt.Printf("  🚀 SUPERPOWER SCAN COMPLETE in %s\n", duration.Round(time.Second))
-	fmt.Println("  ════════════════════════════════════════════════════════════")
+		fmt.Fprintln(os.Stderr, "  ════════════════════════════════════════════════════════════")
+		fmt.Fprintf(os.Stderr, "  🚀 SUPERPOWER SCAN COMPLETE in %s\n", duration.Round(time.Second))
+		fmt.Fprintln(os.Stderr, "  ════════════════════════════════════════════════════════════")
+	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 6: ENTERPRISE ASSESSMENT (NOW DEFAULT)
@@ -3170,12 +3226,12 @@ func runAutoScan() {
 	autoProgress.Increment()
 
 	if *enableAssess {
-		fmt.Println()
-		fmt.Println(ui.SectionStyle.Render("PHASE 6: Enterprise Assessment (Quantitative Metrics)"))
-		fmt.Println()
+		printStatusLn()
+		printStatusLn(ui.SectionStyle.Render("PHASE 6: Enterprise Assessment (Quantitative Metrics)"))
+		printStatusLn()
 
 		ui.PrintInfo("Running enterprise WAF assessment with F1/precision/MCC metrics...")
-		fmt.Println()
+		printStatusLn()
 
 		assessConfig := &assessment.Config{
 			TargetURL:       target,
@@ -3195,23 +3251,27 @@ func runAutoScan() {
 		defer assessCancel()
 
 		progressFn := func(completed, total int64, phase string) {
-			if *verbose || completed%25 == 0 || completed == total {
+			if !quietMode && (*verbose || completed%25 == 0 || completed == total) {
 				pct := float64(0)
 				if total > 0 {
 					pct = float64(completed) / float64(total) * 100
 				}
-				fmt.Printf("\r  %s: %d/%d (%.1f%%)     ", phase, completed, total, pct)
+				fmt.Fprintf(os.Stderr, "\r  %s: %d/%d (%.1f%%)     ", phase, completed, total, pct)
 			}
 		}
 
 		assessResult, err := assess.Run(assessCtx, progressFn)
-		fmt.Println() // Clear progress line
+		if !quietMode {
+			fmt.Fprintln(os.Stderr) // Clear progress line
+		}
 
 		if err != nil {
 			ui.PrintWarning(fmt.Sprintf("Assessment error: %v", err))
 		} else {
-			// Display assessment results
-			displayAssessmentResults(assessResult, time.Since(startTime))
+			// Display assessment results (only in non-JSON mode)
+			if !quietMode {
+				displayAssessmentResults(assessResult, time.Since(startTime))
+			}
 
 			// Save assessment results
 			assessFile := filepath.Join(workspaceDir, "assessment.json")
@@ -3223,8 +3283,8 @@ func runAutoScan() {
 			htmlReportFile := filepath.Join(workspaceDir, "enterprise-report.html")
 			if err := report.GenerateEnterpriseHTMLReportFromWorkspace(workspaceDir, domain, duration, htmlReportFile); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Enterprise HTML report generation error: %v", err))
-			} else {
-				fmt.Printf("    • Enterprise:  %s\n", htmlReportFile)
+			} else if !quietMode {
+				fmt.Fprintf(os.Stderr, "    • Enterprise:  %s\n", htmlReportFile)
 			}
 
 			// Update summary with enterprise metrics
@@ -3245,7 +3305,7 @@ func runAutoScan() {
 			summaryData, _ = json.MarshalIndent(summary, "", "  ")
 			os.WriteFile(summaryFile, summaryData, 0644)
 		}
-		fmt.Println()
+		printStatusLn()
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -3259,16 +3319,18 @@ func runAutoScan() {
 	var browserResult *browser.BrowserScanResult
 
 	if *enableBrowserScan {
-		fmt.Println()
-		fmt.Println(ui.SectionStyle.Render("PHASE 7: Authenticated Browser Scanning"))
-		fmt.Println()
+		printStatusLn()
+		printStatusLn(ui.SectionStyle.Render("PHASE 7: Authenticated Browser Scanning"))
+		printStatusLn()
 
 		ui.PrintInfo("🌐 Launching browser for authenticated scanning...")
-		fmt.Println()
+		printStatusLn()
 
-		fmt.Printf("  %s\n", ui.SubtitleStyle.Render("  Browser Mode: Authenticated Discovery"))
-		fmt.Printf("  %s\n", ui.SubtitleStyle.Render("  Captures: Routes, Tokens, Storage, Third-Party APIs, Network Traffic"))
-		fmt.Println()
+		if !quietMode {
+			fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("  Browser Mode: Authenticated Discovery"))
+			fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("  Captures: Routes, Tokens, Storage, Third-Party APIs, Network Traffic"))
+			fmt.Fprintln(os.Stderr)
+		}
 
 		// Configure browser scanner
 		browserConfig := &browser.AuthConfig{
@@ -3294,7 +3356,7 @@ func runAutoScan() {
 
 		ui.PrintWarning("⏳ Browser will open - please log in when prompted")
 		ui.PrintInfo(fmt.Sprintf("   You have %s to complete authentication", browserConfig.WaitForLogin))
-		fmt.Println()
+		printStatusLn()
 
 		// Run the browser scan
 		browserCtx, browserCancel := context.WithTimeout(ctx, browserConfig.Timeout)
@@ -3309,9 +3371,9 @@ func runAutoScan() {
 			// ═══════════════════════════════════════════════════════════════════════════
 			// PHASE 8: Browser Findings Analysis
 			// ═══════════════════════════════════════════════════════════════════════════
-			fmt.Println()
-			fmt.Println(ui.SectionStyle.Render("PHASE 8: Browser Findings Analysis"))
-			fmt.Println()
+			printStatusLn()
+			printStatusLn(ui.SectionStyle.Render("PHASE 8: Browser Findings Analysis"))
+			printStatusLn()
 
 			// Save browser results
 			browserFile := filepath.Join(workspaceDir, "browser-scan.json")
@@ -3319,103 +3381,105 @@ func runAutoScan() {
 				ui.PrintWarning(fmt.Sprintf("Error saving browser results: %v", err))
 			}
 
-			// Display authentication info
-			if browserResult.AuthFlowInfo != nil && browserResult.AuthFlowInfo.Provider != "" {
-				fmt.Printf("  %s\n", ui.SectionStyle.Render("🔐 Authentication Flow Detected:"))
-				fmt.Printf("    Provider: %s\n", ui.ConfigValueStyle.Render(browserResult.AuthFlowInfo.Provider))
-				fmt.Printf("    Flow Type: %s\n", ui.ConfigValueStyle.Render(browserResult.AuthFlowInfo.FlowType))
-				if browserResult.AuthFlowInfo.LibraryUsed != "" {
-					fmt.Printf("    Library: %s\n", ui.ConfigValueStyle.Render(browserResult.AuthFlowInfo.LibraryUsed))
-				}
-				fmt.Println()
-			}
-
-			// Display discovered routes
-			if len(browserResult.DiscoveredRoutes) > 0 {
-				fmt.Printf("  %s\n", ui.SectionStyle.Render("🗺️  Discovered Routes:"))
-				for i, route := range browserResult.GetSortedRoutes() {
-					if i >= 15 {
-						remaining := len(browserResult.DiscoveredRoutes) - 15
-						fmt.Printf("    %s\n", ui.SubtitleStyle.Render(fmt.Sprintf("... and %d more routes", remaining)))
-						break
+			if !quietMode {
+				// Display authentication info
+				if browserResult.AuthFlowInfo != nil && browserResult.AuthFlowInfo.Provider != "" {
+					fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render("🔐 Authentication Flow Detected:"))
+					fmt.Fprintf(os.Stderr, "    Provider: %s\n", ui.ConfigValueStyle.Render(browserResult.AuthFlowInfo.Provider))
+					fmt.Fprintf(os.Stderr, "    Flow Type: %s\n", ui.ConfigValueStyle.Render(browserResult.AuthFlowInfo.FlowType))
+					if browserResult.AuthFlowInfo.LibraryUsed != "" {
+						fmt.Fprintf(os.Stderr, "    Library: %s\n", ui.ConfigValueStyle.Render(browserResult.AuthFlowInfo.LibraryUsed))
 					}
-					authIcon := "🔓"
-					if route.RequiresAuth {
-						authIcon = "🔒"
-					}
-					fmt.Printf("    %s %s %s\n", authIcon, ui.ConfigValueStyle.Render(route.Path),
-						ui.SubtitleStyle.Render(route.PageTitle))
+					fmt.Fprintln(os.Stderr)
 				}
-				fmt.Println()
-			}
 
-			// Display exposed tokens (CRITICAL)
-			if len(browserResult.ExposedTokens) > 0 {
-				fmt.Printf("  %s\n", ui.SectionStyle.Render("⚠️  Exposed Tokens/Secrets:"))
-				for _, token := range browserResult.ExposedTokens {
-					sevStyle := ui.SeverityStyle(token.Severity)
-					fmt.Printf("    %s%s%s %s in %s\n",
-						ui.BracketStyle.Render("["),
-						sevStyle.Render(strings.ToUpper(token.Severity)),
-						ui.BracketStyle.Render("]"),
-						ui.ConfigValueStyle.Render(token.Type),
-						ui.SubtitleStyle.Render(token.Location),
+				// Display discovered routes
+				if len(browserResult.DiscoveredRoutes) > 0 {
+					fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render("🗺️  Discovered Routes:"))
+					for i, route := range browserResult.GetSortedRoutes() {
+						if i >= 15 {
+							remaining := len(browserResult.DiscoveredRoutes) - 15
+							fmt.Fprintf(os.Stderr, "    %s\n", ui.SubtitleStyle.Render(fmt.Sprintf("... and %d more routes", remaining)))
+							break
+						}
+						authIcon := "🔓"
+						if route.RequiresAuth {
+							authIcon = "🔒"
+						}
+						fmt.Fprintf(os.Stderr, "    %s %s %s\n", authIcon, ui.ConfigValueStyle.Render(route.Path),
+							ui.SubtitleStyle.Render(route.PageTitle))
+					}
+					fmt.Fprintln(os.Stderr)
+				}
+
+				// Display exposed tokens (CRITICAL)
+				if len(browserResult.ExposedTokens) > 0 {
+					fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render("⚠️  Exposed Tokens/Secrets:"))
+					for _, token := range browserResult.ExposedTokens {
+						sevStyle := ui.SeverityStyle(token.Severity)
+						fmt.Fprintf(os.Stderr, "    %s%s%s %s in %s\n",
+							ui.BracketStyle.Render("["),
+							sevStyle.Render(strings.ToUpper(token.Severity)),
+							ui.BracketStyle.Render("]"),
+							ui.ConfigValueStyle.Render(token.Type),
+							ui.SubtitleStyle.Render(token.Location),
+						)
+						fmt.Fprintf(os.Stderr, "      → %s\n", token.Risk)
+					}
+					fmt.Fprintln(os.Stderr)
+				}
+
+				// Display third-party APIs
+				if len(browserResult.ThirdPartyAPIs) > 0 {
+					fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render("🔗 Third-Party Integrations:"))
+					for i, api := range browserResult.ThirdPartyAPIs {
+						if i >= 10 {
+							remaining := len(browserResult.ThirdPartyAPIs) - 10
+							fmt.Fprintf(os.Stderr, "    %s\n", ui.SubtitleStyle.Render(fmt.Sprintf("... and %d more integrations", remaining)))
+							break
+						}
+						sevStyle := ui.SeverityStyle(api.Severity)
+						fmt.Fprintf(os.Stderr, "    %s%s%s %s (%s)\n",
+							ui.BracketStyle.Render("["),
+							sevStyle.Render(api.Severity),
+							ui.BracketStyle.Render("]"),
+							ui.ConfigValueStyle.Render(api.Name),
+							ui.SubtitleStyle.Render(api.RequestType),
+						)
+					}
+					fmt.Fprintln(os.Stderr)
+				}
+
+				// Risk Summary
+				if browserResult.RiskSummary != nil {
+					fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render("📊 Browser Scan Risk Summary:"))
+					riskStyle := ui.SeverityStyle(browserResult.RiskSummary.OverallRisk)
+					fmt.Fprintf(os.Stderr, "    Overall Risk: %s\n", riskStyle.Render(strings.ToUpper(browserResult.RiskSummary.OverallRisk)))
+					fmt.Fprintf(os.Stderr, "    Total Findings: %d (Critical: %d, High: %d, Medium: %d, Low: %d)\n",
+						browserResult.RiskSummary.TotalFindings,
+						browserResult.RiskSummary.CriticalCount,
+						browserResult.RiskSummary.HighCount,
+						browserResult.RiskSummary.MediumCount,
+						browserResult.RiskSummary.LowCount,
 					)
-					fmt.Printf("      → %s\n", token.Risk)
-				}
-				fmt.Println()
-			}
 
-			// Display third-party APIs
-			if len(browserResult.ThirdPartyAPIs) > 0 {
-				fmt.Printf("  %s\n", ui.SectionStyle.Render("🔗 Third-Party Integrations:"))
-				for i, api := range browserResult.ThirdPartyAPIs {
-					if i >= 10 {
-						remaining := len(browserResult.ThirdPartyAPIs) - 10
-						fmt.Printf("    %s\n", ui.SubtitleStyle.Render(fmt.Sprintf("... and %d more integrations", remaining)))
-						break
+					if len(browserResult.RiskSummary.TopRisks) > 0 {
+						fmt.Fprintln(os.Stderr)
+						fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render("🚨 Top Risks:"))
+						for _, risk := range browserResult.RiskSummary.TopRisks {
+							ui.PrintWarning(fmt.Sprintf("    • %s", risk))
+						}
 					}
-					sevStyle := ui.SeverityStyle(api.Severity)
-					fmt.Printf("    %s%s%s %s (%s)\n",
-						ui.BracketStyle.Render("["),
-						sevStyle.Render(api.Severity),
-						ui.BracketStyle.Render("]"),
-						ui.ConfigValueStyle.Render(api.Name),
-						ui.SubtitleStyle.Render(api.RequestType),
-					)
+					fmt.Fprintln(os.Stderr)
 				}
-				fmt.Println()
-			}
-
-			// Risk Summary
-			if browserResult.RiskSummary != nil {
-				fmt.Printf("  %s\n", ui.SectionStyle.Render("📊 Browser Scan Risk Summary:"))
-				riskStyle := ui.SeverityStyle(browserResult.RiskSummary.OverallRisk)
-				fmt.Printf("    Overall Risk: %s\n", riskStyle.Render(strings.ToUpper(browserResult.RiskSummary.OverallRisk)))
-				fmt.Printf("    Total Findings: %d (Critical: %d, High: %d, Medium: %d, Low: %d)\n",
-					browserResult.RiskSummary.TotalFindings,
-					browserResult.RiskSummary.CriticalCount,
-					browserResult.RiskSummary.HighCount,
-					browserResult.RiskSummary.MediumCount,
-					browserResult.RiskSummary.LowCount,
-				)
-
-				if len(browserResult.RiskSummary.TopRisks) > 0 {
-					fmt.Println()
-					fmt.Printf("  %s\n", ui.SectionStyle.Render("🚨 Top Risks:"))
-					for _, risk := range browserResult.RiskSummary.TopRisks {
-						ui.PrintWarning(fmt.Sprintf("    • %s", risk))
-					}
-				}
-				fmt.Println()
 			}
 
 			// ═══════════════════════════════════════════════════════════════════════════
 			// PHASE 9: Browser Findings Integration
 			// ═══════════════════════════════════════════════════════════════════════════
-			fmt.Println()
-			fmt.Println(ui.SectionStyle.Render("PHASE 9: Browser Findings Integration"))
-			fmt.Println()
+			printStatusLn()
+			printStatusLn(ui.SectionStyle.Render("PHASE 9: Browser Findings Integration"))
+			printStatusLn()
 
 			ui.PrintInfo("📊 Merging browser findings into enterprise report...")
 
@@ -3458,8 +3522,10 @@ func runAutoScan() {
 			}
 
 			ui.PrintSuccess(fmt.Sprintf("✓ Browser scan completed in %s", browserResult.ScanDuration.Round(time.Millisecond)))
-			fmt.Printf("    • Browser Results: %s\n", browserFile)
-			fmt.Println()
+			if !quietMode {
+				fmt.Fprintf(os.Stderr, "    • Browser Results: %s\n", browserFile)
+				fmt.Fprintln(os.Stderr)
+			}
 		}
 	}
 	// Silence unused variable warning
@@ -4135,7 +4201,7 @@ func runTests() {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-sigChan
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 		ui.PrintWarning("Interrupt received, shutting down gracefully...")
 		cancel()
 	}()
@@ -4478,13 +4544,13 @@ func runTests() {
 
 		// Add spacing between targets
 		if totalTargets > 1 && targetIdx < totalTargets-1 && !cfg.Silent {
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 	}
 
 	// Print aggregated summary for multi-target
 	if totalTargets > 1 && !cfg.Silent {
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 		ui.PrintSection("Aggregated Results (All Targets)")
 		aggregatedResults.RequestsPerSec = float64(aggregatedResults.TotalTests) / aggregatedResults.Duration.Seconds()
 		ui.PrintSummary(ui.Summary{
@@ -9394,7 +9460,7 @@ func runScan() {
 	var smartResult *SmartModeResult
 	if *smartMode {
 		ui.PrintSection("🧠 Smart Mode: WAF Detection & Optimization")
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 
 		smartConfig := &SmartModeConfig{
 			DetectionTimeout: time.Duration(*timeout) * time.Second,
@@ -9424,7 +9490,7 @@ func runScan() {
 				*concurrency = smartResult.Concurrency
 			}
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 	// Silence unused variable warnings
 	_ = smartVerbose
@@ -9440,7 +9506,7 @@ func runScan() {
 		if *smartMode {
 			ui.PrintConfigLine("Rate Limit", fmt.Sprintf("%d req/sec (WAF-optimized)", *rateLimit))
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Parse scan types
@@ -9469,11 +9535,11 @@ func runScan() {
 
 		ui.PrintSection("Dry Run Mode")
 		ui.PrintInfo(fmt.Sprintf("Would execute %d scan types against %s:", len(selectedScans), target))
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 		for _, s := range selectedScans {
-			fmt.Printf("  • %s\n", s)
+			fmt.Fprintf(os.Stderr, "  • %s\n", s)
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 		ui.PrintHelp("Remove -dry-run flag to execute scans")
 		os.Exit(0)
 	}
@@ -12076,7 +12142,7 @@ func runMutate() {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-sigChan
-		fmt.Println("\n\nInterrupted, shutting down...")
+		fmt.Fprintln(os.Stderr, "\n\nInterrupted, shutting down...")
 		cancel()
 	}()
 
@@ -12376,7 +12442,7 @@ func runBypassFinder() {
 	// Count combinations
 	expectedTests := executor.CountCombinations(len(testPayloads))
 	ui.PrintConfigLine("Expected Tests", fmt.Sprintf("%d", expectedTests))
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)

@@ -157,16 +157,19 @@ func TestConfigOutputFlags(t *testing.T) {
 			name:       "json format",
 			args:       []string{"cmd", "-target", "https://example.com", "-format", "json"},
 			wantFormat: "json",
+			wantSilent: true, // JSON output auto-enables silent mode
 		},
 		{
 			name:       "jsonl shortcut",
 			args:       []string{"cmd", "-target", "https://example.com", "-jsonl"},
 			wantFormat: "jsonl",
+			wantSilent: true, // JSON output auto-enables silent mode
 		},
 		{
 			name:       "jsonl alias -j",
 			args:       []string{"cmd", "-target", "https://example.com", "-j"},
 			wantFormat: "jsonl",
+			wantSilent: true, // JSON output auto-enables silent mode
 		},
 		{
 			name:        "verbose with -v",

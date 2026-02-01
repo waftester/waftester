@@ -5,6 +5,22 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.5] - 2026-02-02
+
+### Fixed
+- **Clean JSON Output in Auto Mode**: All informational output now correctly goes to stderr when `-json` flag is used
+- **Smart Mode Output**: `PrintSmartModeInfo()` now respects silent mode and uses stderr
+- **Execution Manifest**: Default writer changed from stdout to stderr; respects `IsSilent()` check
+- **Progress Display**: All progress bars and stats now properly output to stderr
+- **Banner/Config**: All UI functions (`PrintConfig`, `PrintConfigLine`, `PrintBracketedInfo`, `PrintResult`) now use stderr
+- **Results Summary**: `PrintSummary`, `PrintWAFEffectiveness`, `PrintLiveResult` use stderr and respect silent mode
+- **Live Progress**: Default writer changed from stdout to stderr
+
+### Changed
+- Auto mode (`waf-tester auto -json`) now outputs only valid JSON to stdout
+- All phase headers, progress indicators, and informational output redirected to stderr
+- Silent mode automatically enabled for JSON/JSONL output formats
+
 ## [2.3.4] - 2026-02-01
 
 ### Performance

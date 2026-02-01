@@ -14,8 +14,8 @@ import (
 // Version information - these can be overridden at build time via ldflags:
 // go build -ldflags "-X github.com/waftester/waftester/pkg/ui.Version=1.0.0"
 var (
-	Version   = "2.3.4"
-	BuildDate = "2026-02-01"
+	Version   = "2.3.5"
+	BuildDate = "2026-02-02"
 	Commit    = "dev"
 )
 
@@ -130,7 +130,7 @@ func PrintCompactBanner() {
 // PrintMiniBanner prints the minimal banner (ffuf-style box)
 func PrintMiniBanner() {
 	fmt.Fprintf(os.Stderr, "%s\n", BannerStyle.Render(fmt.Sprintf(miniBanner, Version)))
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 }
 
 // printOption prints a configuration option in ffuf/nuclei style
@@ -185,6 +185,10 @@ func PrintSection(title string) {
 
 // PrintConfig prints configuration in a nice format
 func PrintConfig(config map[string]string) {
+	if IsSilent() {
+		return
+	}
+
 	maxKeyLen := 0
 	for key := range config {
 		if len(key) > maxKeyLen {
@@ -194,7 +198,7 @@ func PrintConfig(config map[string]string) {
 
 	for key, value := range config {
 		paddedKey := key + strings.Repeat(" ", maxKeyLen-len(key))
-		fmt.Printf("  %s : %s\n",
+		fmt.Fprintf(os.Stderr, "  %s : %s\n",
 			ConfigLabelStyle.Render(paddedKey),
 			ConfigValueStyle.Render(value),
 		)
@@ -203,7 +207,10 @@ func PrintConfig(config map[string]string) {
 
 // PrintConfigLine prints a single config line
 func PrintConfigLine(key, value string) {
-	fmt.Printf("  %s %s\n",
+	if IsSilent() {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "  %s %s\n",
 		ConfigLabelStyle.Render(key+":"),
 		ConfigValueStyle.Render(value),
 	)
@@ -212,13 +219,17 @@ func PrintConfigLine(key, value string) {
 // PrintBracketedInfo prints nuclei-style bracketed information
 // Example: [critical] [sqli] https://example.com [payload-id]
 func PrintBracketedInfo(parts ...BracketPart) {
+	if IsSilent() {
+		return
+	}
+
 	var output strings.Builder
 	for _, part := range parts {
 		output.WriteString(BracketStyle.Render("["))
 		output.WriteString(part.Style.Render(part.Text))
 		output.WriteString(BracketStyle.Render("] "))
 	}
-	fmt.Println(output.String())
+	fmt.Fprintln(os.Stderr, output.String())
 }
 
 // BracketPart represents a piece of bracketed output
@@ -333,12 +344,18 @@ func PrintResult(id, category, severity, outcome string, statusCode int, latency
 	output.WriteString(StatLabelStyle.Render(fmt.Sprintf("%dms", latencyMs)))
 	output.WriteString(BracketStyle.Render("]"))
 
-	fmt.Println(output.String())
+	if !IsSilent() {
+		fmt.Fprintln(os.Stderr, output.String())
+	}
 }
 
 // PrintResultCompact prints a compact result line (ffuf-style)
 // Format: target [Status: 403, Size: 1234, Duration: 45ms]
 func PrintResultCompact(id string, statusCode, size int, latencyMs int64) {
+	if IsSilent() {
+		return
+	}
+
 	var output strings.Builder
 
 	output.WriteString(ConfigValueStyle.Render(id))
@@ -358,5 +375,5 @@ func PrintResultCompact(id string, statusCode, size int, latencyMs int64) {
 
 	output.WriteString(BracketStyle.Render("]"))
 
-	fmt.Println(output.String())
+	fmt.Fprintln(os.Stderr, output.String())
 }

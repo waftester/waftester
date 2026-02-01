@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"math"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -92,7 +93,9 @@ func (p *Progress) Stop() {
 	if p.running {
 		close(p.done)
 		p.running = false
-		fmt.Println() // New line after progress
+		if !IsSilent() {
+			fmt.Fprintln(os.Stderr) // New line after progress
+		}
 	}
 }
 
@@ -203,16 +206,21 @@ func (p *Progress) renderTurbo(spinner string, workerIndicator string) {
 	failed := atomic.LoadInt64(&p.failed)
 	errored := atomic.LoadInt64(&p.errored)
 
-	// Clear line
-	fmt.Print("\033[2K\r")
+	// Skip rendering in silent mode
+	if IsSilent() {
+		return
+	}
+
+	// Clear line (stderr)
+	fmt.Fprint(os.Stderr, "\033[2K\r")
 
 	// Nuclei-style progress format:
 	// [elapsed] [percent%] | Tests: current/total | Blocked: n | Pass: n | Fail: n | Errors: n | RPS: n.n | ETA: mm:ss
 	elapsedStr := formatDuration(elapsed)
 	etaStr := formatDuration(eta)
 
-	// Build colorized output
-	fmt.Printf("[%s] [%s] %s Tests: %s/%d %s Blocked: %s %s Pass: %s %s Fail: %s %s Errors: %s %s RPS: %s %s ETA: %s",
+	// Build colorized output (to stderr)
+	fmt.Fprintf(os.Stderr, "[%s] [%s] %s Tests: %s/%d %s Blocked: %s %s Pass: %s %s Fail: %s %s Errors: %s %s RPS: %s %s ETA: %s",
 		StatValueStyle.Render(elapsedStr),
 		StatValueStyle.Render(fmt.Sprintf("%5.1f%%", percent)),
 		BracketStyle.Render("|"),
@@ -355,7 +363,10 @@ func PrintFinalProgress(total int, elapsed time.Duration, rps float64, blocked, 
 		StatLabelStyle.Render(formatDuration(elapsed)),
 	)
 
-	fmt.Printf("\r  %s %s %s\n", PassStyle.Render("[DONE]"), bar.String(), stats)
+	if IsSilent() {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "\r  %s %s %s\n", PassStyle.Render("[DONE]"), bar.String(), stats)
 }
 
 // ProgressBar is a simple static progress bar
@@ -501,8 +512,12 @@ func (s *StatsDisplay) render() {
 		eta = 0
 	}
 
-	// Nuclei-style stats output
-	fmt.Printf("\r[%s] [%s] Templates: %d/%d | Blocked: %s | Pass: %s | Fail: %s | Errors: %s | RPS: %.0f | ETA: %s",
+	if IsSilent() {
+		return
+	}
+
+	// Nuclei-style stats output (to stderr)
+	fmt.Fprintf(os.Stderr, "\r[%s] [%s] Templates: %d/%d | Blocked: %s | Pass: %s | Fail: %s | Errors: %s | RPS: %.0f | ETA: %s",
 		StatValueStyle.Render(formatDuration(elapsed)),
 		StatValueStyle.Render(fmt.Sprintf("%.0f%%", percent)),
 		current, s.total,

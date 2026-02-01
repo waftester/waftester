@@ -31,7 +31,7 @@ func NewExecutionManifest(title string) *ExecutionManifest {
 	return &ExecutionManifest{
 		Title:    title,
 		Items:    make([]ManifestItem, 0),
-		Writer:   os.Stdout,
+		Writer:   os.Stderr,
 		BoxStyle: true,
 	}
 }
@@ -110,6 +110,10 @@ func (m *ExecutionManifest) AddConcurrency(workers int, rateLimit float64) *Exec
 
 // Print displays the manifest
 func (m *ExecutionManifest) Print() {
+	// Respect silent mode for JSON output
+	if IsSilent() {
+		return
+	}
 	if m.BoxStyle {
 		m.printBoxed()
 	} else {
