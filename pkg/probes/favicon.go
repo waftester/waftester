@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/bufpool"
 )
 
 // FaviconResult contains favicon probing results
@@ -125,7 +127,8 @@ func faviconBase64(data []byte) []byte {
 	encoded := base64.StdEncoding.EncodeToString(data)
 
 	// Shodan/httpx uses base64 with \n every 76 chars
-	var result strings.Builder
+	result := bufpool.GetString()
+	defer bufpool.PutString(result)
 	for i := 0; i < len(encoded); i += 76 {
 		end := i + 76
 		if end > len(encoded) {

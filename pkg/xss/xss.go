@@ -381,43 +381,43 @@ func (t *Tester) GetBypassPayloads() []Payload {
 
 // Patterns for detecting XSS reflection
 var reflectionPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`<script[^>]*>[^<]*alert\s*\([^)]*\)[^<]*</script>`),
-	regexp.MustCompile(`<img[^>]+onerror\s*=`),
-	regexp.MustCompile(`<svg[^>]+onload\s*=`),
-	regexp.MustCompile(`<[a-z]+[^>]+on\w+\s*=\s*["']?[^"'>\s]+`),
-	regexp.MustCompile(`javascript:\s*alert`),
-	regexp.MustCompile(`<iframe[^>]+src\s*=\s*["']?javascript:`),
-	regexp.MustCompile(`<[^>]+style\s*=\s*["'][^"']*expression\s*\(`),
+	regexcache.MustGet(`<script[^>]*>[^<]*alert\s*\([^)]*\)[^<]*</script>`),
+	regexcache.MustGet(`<img[^>]+onerror\s*=`),
+	regexcache.MustGet(`<svg[^>]+onload\s*=`),
+	regexcache.MustGet(`<[a-z]+[^>]+on\w+\s*=\s*["']?[^"'>\s]+`),
+	regexcache.MustGet(`javascript:\s*alert`),
+	regexcache.MustGet(`<iframe[^>]+src\s*=\s*["']?javascript:`),
+	regexcache.MustGet(`<[^>]+style\s*=\s*["'][^"']*expression\s*\(`),
 }
 
 // DOM XSS sink patterns
 var domSinkPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`\.innerHTML\s*=`),
-	regexp.MustCompile(`\.outerHTML\s*=`),
-	regexp.MustCompile(`document\.write\s*\(`),
-	regexp.MustCompile(`document\.writeln\s*\(`),
-	regexp.MustCompile(`eval\s*\(`),
-	regexp.MustCompile(`setTimeout\s*\(\s*["']`),
-	regexp.MustCompile(`setInterval\s*\(\s*["']`),
-	regexp.MustCompile(`Function\s*\(`),
-	regexp.MustCompile(`\.src\s*=`),
-	regexp.MustCompile(`location\s*=`),
-	regexp.MustCompile(`location\.href\s*=`),
-	regexp.MustCompile(`location\.assign\s*\(`),
-	regexp.MustCompile(`location\.replace\s*\(`),
+	regexcache.MustGet(`\.innerHTML\s*=`),
+	regexcache.MustGet(`\.outerHTML\s*=`),
+	regexcache.MustGet(`document\.write\s*\(`),
+	regexcache.MustGet(`document\.writeln\s*\(`),
+	regexcache.MustGet(`eval\s*\(`),
+	regexcache.MustGet(`setTimeout\s*\(\s*["']`),
+	regexcache.MustGet(`setInterval\s*\(\s*["']`),
+	regexcache.MustGet(`Function\s*\(`),
+	regexcache.MustGet(`\.src\s*=`),
+	regexcache.MustGet(`location\s*=`),
+	regexcache.MustGet(`location\.href\s*=`),
+	regexcache.MustGet(`location\.assign\s*\(`),
+	regexcache.MustGet(`location\.replace\s*\(`),
 }
 
 // DOM XSS source patterns
 var domSourcePatterns = []*regexp.Regexp{
-	regexp.MustCompile(`location\.hash`),
-	regexp.MustCompile(`location\.search`),
-	regexp.MustCompile(`location\.href`),
-	regexp.MustCompile(`document\.URL`),
-	regexp.MustCompile(`document\.referrer`),
-	regexp.MustCompile(`document\.cookie`),
-	regexp.MustCompile(`window\.name`),
-	regexp.MustCompile(`localStorage\.getItem`),
-	regexp.MustCompile(`sessionStorage\.getItem`),
+	regexcache.MustGet(`location\.hash`),
+	regexcache.MustGet(`location\.search`),
+	regexcache.MustGet(`location\.href`),
+	regexcache.MustGet(`document\.URL`),
+	regexcache.MustGet(`document\.referrer`),
+	regexcache.MustGet(`document\.cookie`),
+	regexcache.MustGet(`window\.name`),
+	regexcache.MustGet(`localStorage\.getItem`),
+	regexcache.MustGet(`sessionStorage\.getItem`),
 }
 
 // checkReflection checks if the payload is reflected in the response
