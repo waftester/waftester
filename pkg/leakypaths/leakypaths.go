@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Scanner performs leaky path discovery on target URLs
@@ -195,7 +197,7 @@ func (s *Scanner) scanPath(ctx context.Context, baseURL string, path PathEntry) 
 	if err != nil {
 		return result
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	result.StatusCode = resp.StatusCode
 	result.ContentLength = resp.ContentLength

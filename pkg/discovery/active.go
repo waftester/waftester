@@ -438,7 +438,7 @@ func (ad *ActiveDiscoverer) fingerprintTechnology(ctx context.Context) []string 
 	if err != nil {
 		return detected
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Check headers for technology hints
 	headers := resp.Header
@@ -681,7 +681,7 @@ func (ad *ActiveDiscoverer) probeSinglePath(ctx context.Context, path string) {
 	if err != nil {
 		return
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Read body for analysis
 	body, _ := iohelper.ReadBody(resp.Body, 50*1024)
@@ -803,7 +803,7 @@ func (ad *ActiveDiscoverer) extractLinksFromPage(ctx context.Context, path strin
 	if err != nil {
 		return
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body, _ := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
 	bodyStr := string(body)
@@ -1059,7 +1059,7 @@ func (ad *ActiveDiscoverer) probeParameters(ctx context.Context, path string, pa
 		return found
 	}
 	baseBody, _ := iohelper.ReadBodyDefault(baseResp.Body)
-	baseResp.Body.Close()
+	iohelper.DrainAndClose(baseResp.Body)
 	baseLen := len(baseBody)
 
 	// Try each parameter

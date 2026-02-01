@@ -288,7 +288,7 @@ func (t *Tester) testURL(ctx context.Context, testURL string, param string, payl
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Check for header injection
 	evidence := t.detectInjection(resp, payload)
@@ -378,7 +378,7 @@ func (t *Tester) TestHeader(ctx context.Context, targetURL string, headerName st
 		}
 
 		evidence := t.detectInjection(resp, payload)
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		if evidence != "" {
 			vulns = append(vulns, Vulnerability{
@@ -422,7 +422,7 @@ func (t *Tester) TestPOST(ctx context.Context, targetURL string, param string) (
 		}
 
 		evidence := t.detectInjection(resp, payload)
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		if evidence != "" {
 			vulns = append(vulns, Vulnerability{

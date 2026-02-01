@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Config configures IDOR testing
@@ -188,7 +190,7 @@ func (s *Scanner) testAccess(ctx context.Context, url, method, originalID, testI
 	if err != nil {
 		return result
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	result.StatusCode = resp.StatusCode
 	result.ResponseSize = int(resp.ContentLength)
@@ -276,7 +278,7 @@ func (s *Scanner) testWithToken(ctx context.Context, endpoint, token string) Res
 	if err != nil {
 		return result
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	result.StatusCode = resp.StatusCode
 	return result

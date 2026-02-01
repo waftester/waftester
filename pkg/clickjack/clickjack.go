@@ -84,7 +84,7 @@ func (s *Scanner) Scan(ctx context.Context, targetURL string) (Result, error) {
 	if err != nil {
 		return result, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Check X-Frame-Options
 	result.XFrameOptions = resp.Header.Get("X-Frame-Options")
@@ -219,7 +219,7 @@ func (s *Scanner) CheckIframeLoad(ctx context.Context, targetURL string) bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Read body to check for frame-busting scripts
 	body, _ := iohelper.ReadBodyDefault(resp.Body)

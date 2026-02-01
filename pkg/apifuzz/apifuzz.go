@@ -616,7 +616,7 @@ func (t *Tester) sendFuzzRequest(ctx context.Context, baseURL string, endpoint E
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
 
@@ -659,7 +659,7 @@ func (t *Tester) sendBodyFuzzRequest(ctx context.Context, baseURL string, endpoi
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
 

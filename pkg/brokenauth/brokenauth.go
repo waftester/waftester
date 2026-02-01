@@ -85,7 +85,7 @@ func (s *Scanner) TestSessionManagement(ctx context.Context, loginURL string, cr
 		return nil, err
 	}
 	iohelper.ReadBodyDefault(loginResp.Body)
-	loginResp.Body.Close()
+	iohelper.DrainAndClose(loginResp.Body)
 
 	// Check for weak session tokens
 	u, _ := url.Parse(loginURL)
@@ -175,7 +175,7 @@ func (s *Scanner) TestPasswordPolicy(ctx context.Context, registerURL string) ([
 			continue
 		}
 		body, _ := iohelper.ReadBodyDefault(resp.Body)
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		result.StatusCode = resp.StatusCode
 		result.ResponseSize = len(body)
@@ -225,7 +225,7 @@ func (s *Scanner) TestAccountLockout(ctx context.Context, loginURL string, usern
 			continue
 		}
 		iohelper.ReadBodyDefault(resp.Body)
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		result.StatusCode = resp.StatusCode
 

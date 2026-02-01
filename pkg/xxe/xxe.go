@@ -517,7 +517,7 @@ func (d *Detector) testPayload(ctx context.Context, targetURL, method string, pa
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 	elapsed := time.Since(start)
 
 	body, err := iohelper.ReadBodyDefault(resp.Body)

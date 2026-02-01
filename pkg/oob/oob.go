@@ -187,7 +187,7 @@ func (c *InteractshClient) Poll(ctx context.Context) ([]Interaction, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := iohelper.ReadBodyDefault(resp.Body)

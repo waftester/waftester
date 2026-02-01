@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -216,7 +217,7 @@ func (t *Tester) DetectCache(ctx context.Context, targetURL string) (bool, map[s
 	if err != nil {
 		return false, nil, err
 	}
-	resp.Body.Close()
+	iohelper.DrainAndClose(resp.Body)
 
 	// Collect cache-related headers
 	cacheIndicators := []string{
@@ -280,7 +281,7 @@ func (t *Tester) TestUnkeyedHeader(ctx context.Context, targetURL string, header
 	}
 
 	body1 := readBodyLimit(resp1, 100*1024)
-	resp1.Body.Close()
+	iohelper.DrainAndClose(resp1.Body)
 
 	// Check if canary is reflected in first response
 	if !strings.Contains(body1, canary) {
@@ -300,7 +301,7 @@ func (t *Tester) TestUnkeyedHeader(ctx context.Context, targetURL string, header
 	}
 
 	body2 := readBodyLimit(resp2, 100*1024)
-	resp2.Body.Close()
+	iohelper.DrainAndClose(resp2.Body)
 
 	// If canary appears in second response without header, cache is poisoned
 	if strings.Contains(body2, canary) {
@@ -357,7 +358,7 @@ func (t *Tester) TestUnkeyedParameter(ctx context.Context, targetURL string, par
 	}
 
 	body1 := readBodyLimit(resp1, 100*1024)
-	resp1.Body.Close()
+	iohelper.DrainAndClose(resp1.Body)
 
 	if !strings.Contains(body1, canary) {
 		return nil, nil // Param not reflected
@@ -376,7 +377,7 @@ func (t *Tester) TestUnkeyedParameter(ctx context.Context, targetURL string, par
 	}
 
 	body2 := readBodyLimit(resp2, 100*1024)
-	resp2.Body.Close()
+	iohelper.DrainAndClose(resp2.Body)
 
 	if strings.Contains(body2, canary) {
 		return &Vulnerability{
@@ -453,7 +454,7 @@ func (t *Tester) TestCacheDeception(ctx context.Context, targetURL string) ([]Vu
 	}
 
 	originalBody := readBodyLimit(resp, 100*1024)
-	resp.Body.Close()
+	iohelper.DrainAndClose(resp.Body)
 
 	// Try each extension with delimiter
 	for _, ext := range cacheableExtensions {
@@ -484,7 +485,7 @@ func (t *Tester) TestCacheDeception(ctx context.Context, targetURL string) ([]Vu
 			// Check cache headers
 			cacheStatus := resp2.Header.Get("X-Cache")
 			cfCache := resp2.Header.Get("CF-Cache-Status")
-			resp2.Body.Close()
+			iohelper.DrainAndClose(resp2.Body)
 
 			// If responses are similar and it's being cached, it's vulnerable
 			if (cacheStatus == "HIT" || cfCache == "HIT" || cfCache == "DYNAMIC") &&
@@ -559,7 +560,7 @@ func (t *Tester) TestPathNormalization(ctx context.Context, targetURL string) ([
 		// Check if response was cached
 		cacheStatus := resp.Header.Get("X-Cache")
 		age := resp.Header.Get("Age")
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		// Check for cache hit on first request (shouldn't happen normally)
 		if strings.Contains(cacheStatus, "HIT") || (age != "" && age != "0") {
@@ -602,7 +603,7 @@ func (t *Tester) TestFatGET(ctx context.Context, targetURL string) (*Vulnerabili
 	}
 
 	body := readBodyLimit(resp, 100*1024)
-	resp.Body.Close()
+	iohelper.DrainAndClose(resp.Body)
 
 	if strings.Contains(body, canary) {
 		return &Vulnerability{
@@ -663,7 +664,7 @@ func (t *Tester) TestParameterCloaking(ctx context.Context, targetURL string) ([
 		}
 
 		body := readBodyLimit(resp, 100*1024)
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		if strings.Contains(body, canary) {
 			vulns = append(vulns, Vulnerability{

@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"regexp"
@@ -15,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -373,8 +373,8 @@ func (t *Tester) checkHTTPFingerprint(ctx context.Context, subdomain string, fp 
 			continue
 		}
 
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 100*1024))
-		resp.Body.Close()
+		body, _ := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
+		iohelper.DrainAndClose(resp.Body)
 
 		bodyStr := string(body)
 

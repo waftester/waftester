@@ -565,7 +565,7 @@ func (d *Discoverer) extractJSFromHomepage(ctx context.Context) []string {
 	}
 
 	body, _ := iohelper.ReadBody(resp.Body, 512*1024) // 512KB limit for HTML
-	resp.Body.Close()
+	iohelper.DrainAndClose(resp.Body)
 
 	html := string(body)
 	var jsURLs []string
@@ -709,7 +709,7 @@ func (d *Discoverer) detectWAF(ctx context.Context, result *DiscoveryResult) {
 		if err != nil {
 			continue
 		}
-		defer resp.Body.Close()
+		defer iohelper.DrainAndClose(resp.Body)
 
 		// Check for WAF signatures
 		if resp.StatusCode == 403 || resp.StatusCode == 406 || resp.StatusCode == 418 {
@@ -903,7 +903,7 @@ func (d *Discoverer) probeEndpointWithMethod(ctx context.Context, path, method s
 	}
 
 	body, _ := iohelper.ReadBody(resp.Body, 4096)
-	resp.Body.Close()
+	iohelper.DrainAndClose(resp.Body)
 
 	// Skip 404s and errors
 	if resp.StatusCode == 404 || resp.StatusCode >= 500 {
@@ -1011,7 +1011,7 @@ func (d *Discoverer) parseOpenAPISpec(ctx context.Context, specPath string) []En
 	}
 
 	body, err := iohelper.ReadBody(resp.Body, 5*1024*1024) // 5MB limit
-	resp.Body.Close()
+	iohelper.DrainAndClose(resp.Body)
 	if err != nil {
 		return endpoints
 	}
@@ -1255,7 +1255,7 @@ func (d *Discoverer) introspectGraphQL(ctx context.Context, gqlPath string) []En
 	}
 
 	body, err := iohelper.ReadBody(resp.Body, 2*1024*1024) // 2MB limit
-	resp.Body.Close()
+	iohelper.DrainAndClose(resp.Body)
 	if err != nil {
 		return endpoints
 	}

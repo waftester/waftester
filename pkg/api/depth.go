@@ -264,7 +264,7 @@ func (d *DepthScanner) sendRequest(ctx context.Context, method, url string, head
 			Error:  err.Error(),
 		}, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 	latency := time.Since(start)
 
 	body, _ := iohelper.ReadBodyDefault(resp.Body)

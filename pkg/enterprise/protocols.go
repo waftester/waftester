@@ -9,9 +9,10 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // ProtocolType represents an enterprise protocol type
@@ -70,9 +71,9 @@ func (d *ProtocolDetector) DetectProtocol(ctx context.Context, url string) (*Det
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	body, _ := iohelper.ReadBody(resp.Body, iohelper.SmallMaxBodySize)
 	bodyStr := string(body)
 
 	// Check for gRPC-Web

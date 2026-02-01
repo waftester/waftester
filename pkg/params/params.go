@@ -172,7 +172,7 @@ func (d *Discoverer) getBaseline(ctx context.Context, targetURL string, method s
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
 
@@ -205,7 +205,7 @@ func (d *Discoverer) passiveDiscovery(ctx context.Context, targetURL string) []D
 	if err != nil {
 		return params
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	content := string(body)
@@ -420,7 +420,7 @@ func (d *Discoverer) testParamChunk(ctx context.Context, targetURL string, metho
 	if err != nil {
 		return found
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	content := string(body)
@@ -485,7 +485,7 @@ func (d *Discoverer) testReflection(ctx context.Context, targetURL string, param
 		}
 
 		body, _ := iohelper.ReadBodyDefault(resp.Body)
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		if strings.Contains(string(body), canary) {
 			reflected = append(reflected, param.Name)

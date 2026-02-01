@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/hosterrors"
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/output"
 	"github.com/waftester/waftester/pkg/payloads"
@@ -381,7 +382,7 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 		})
 		return result
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Capture important response headers (WAF-related)
 	wafHeaders := []string{

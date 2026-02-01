@@ -7,13 +7,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -310,9 +310,9 @@ func (t *Tester) getResponse(ctx context.Context, targetURL string) (string, err
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 100*1024))
+	body, err := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
 	if err != nil {
 		return "", err
 	}
@@ -400,7 +400,7 @@ func (t *Tester) DetectTechnology(ctx context.Context, targetURL string) (Techno
 	if err != nil {
 		return TechUnknown, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Check headers
 	server := strings.ToLower(resp.Header.Get("Server"))
@@ -493,8 +493,8 @@ func (t *Tester) TestPOST(ctx context.Context, targetURL string, param string) (
 			continue
 		}
 
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 100*1024))
-		resp.Body.Close()
+		body, _ := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
+		iohelper.DrainAndClose(resp.Body)
 
 		evidence := t.detectVulnerability(string(body), "", payload)
 		if evidence != "" {

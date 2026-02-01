@@ -1022,7 +1022,7 @@ func (d *Detector) testPayload(ctx context.Context, targetURL *url.URL, paramete
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 	elapsed := time.Since(start)
 
 	// Read response body (limit to 1MB for safety)
@@ -1199,7 +1199,7 @@ func (d *Detector) measureResponseTime(ctx context.Context, targetURL *url.URL, 
 	if err != nil {
 		return 0, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 	io.Copy(io.Discard, resp.Body)
 
 	return time.Since(start), nil
@@ -1244,7 +1244,7 @@ func (d *Detector) FingerprintEngine(ctx context.Context, targetURL string, para
 		if err != nil {
 			continue
 		}
-		defer resp.Body.Close()
+		defer iohelper.DrainAndClose(resp.Body)
 
 		body, err := iohelper.ReadBodyDefault(resp.Body)
 		if err != nil {

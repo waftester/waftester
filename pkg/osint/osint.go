@@ -230,7 +230,7 @@ func (c *ShodanClient) FetchSubdomains(ctx context.Context, domain string) ([]Re
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("shodan API error: %d", resp.StatusCode)
@@ -268,7 +268,7 @@ func (c *ShodanClient) FetchIPs(ctx context.Context, domain string) ([]Result, e
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	var data map[string]string
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
@@ -301,7 +301,7 @@ func (c *ShodanClient) FetchPorts(ctx context.Context, ip string) ([]Result, err
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	var data struct {
 		Ports []int `json:"ports"`
@@ -368,7 +368,7 @@ func (c *CensysClient) FetchSubdomains(ctx context.Context, domain string) ([]Re
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("censys API error: %d", resp.StatusCode)
@@ -418,7 +418,7 @@ func (c *CensysClient) FetchIPs(ctx context.Context, domain string) ([]Result, e
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("Censys API error: %d", resp.StatusCode)
@@ -469,7 +469,7 @@ func (c *CensysClient) FetchPorts(ctx context.Context, ip string) ([]Result, err
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("Censys API error: %d", resp.StatusCode)
@@ -538,7 +538,7 @@ func (c *CrtshClient) FetchSubdomains(ctx context.Context, domain string) ([]Res
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("crt.sh error: %d", resp.StatusCode)
@@ -667,7 +667,7 @@ func (c *SecurityTrailsClient) FetchSubdomains(ctx context.Context, domain strin
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("SecurityTrails API error: %d", resp.StatusCode)
@@ -707,7 +707,7 @@ func (c *SecurityTrailsClient) FetchIPs(ctx context.Context, domain string) ([]R
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("SecurityTrails API error: %d", resp.StatusCode)
@@ -836,7 +836,7 @@ func (c *ChaosClient) FetchSubdomains(ctx context.Context, domain string) ([]Res
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("Chaos API error: %d", resp.StatusCode)
@@ -940,7 +940,7 @@ func (c *BinaryEdgeClient) FetchSubdomains(ctx context.Context, domain string) (
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("BinaryEdge API error: %d", resp.StatusCode)
@@ -980,7 +980,7 @@ func (c *BinaryEdgeClient) FetchIPs(ctx context.Context, domain string) ([]Resul
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("BinaryEdge API error: %d", resp.StatusCode)
@@ -1030,7 +1030,7 @@ func (c *BinaryEdgeClient) FetchPorts(ctx context.Context, ip string) ([]Result,
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("BinaryEdge API error: %d", resp.StatusCode)
@@ -1103,7 +1103,7 @@ func (c *FullHuntClient) FetchSubdomains(ctx context.Context, domain string) ([]
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("FullHunt API error: %d", resp.StatusCode)
@@ -1143,7 +1143,7 @@ func (c *FullHuntClient) FetchIPs(ctx context.Context, domain string) ([]Result,
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("FullHunt API error: %d", resp.StatusCode)
@@ -1194,7 +1194,7 @@ func (c *FullHuntClient) FetchPorts(ctx context.Context, ip string) ([]Result, e
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("FullHunt API error: %d", resp.StatusCode)

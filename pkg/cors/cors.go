@@ -6,11 +6,12 @@ package cors
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // VulnerabilityType represents different CORS vulnerability types
@@ -226,7 +227,7 @@ func (t *Tester) TestOrigin(ctx context.Context, targetURL string, origin *TestO
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Analyze CORS headers
 	return t.analyzeResponse(targetURL, origin, resp)
@@ -248,7 +249,7 @@ func (t *Tester) TestPreflight(ctx context.Context, targetURL string, origin str
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	allowOrigin := resp.Header.Get("Access-Control-Allow-Origin")
 	allowMethods := resp.Header.Get("Access-Control-Allow-Methods")
@@ -494,8 +495,7 @@ func (t *Tester) GetCORSHeaders(ctx context.Context, targetURL string, origin st
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body)
+	defer iohelper.DrainAndClose(resp.Body)
 
 	return CheckCORSHeaders(resp.Header), nil
 }
@@ -514,8 +514,7 @@ func (t *Tester) VaryOriginCheck(ctx context.Context, targetURL string) (bool, e
 	if err != nil {
 		return false, err
 	}
-	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body)
+	defer iohelper.DrainAndClose(resp.Body)
 
 	vary := resp.Header.Get("Vary")
 	return strings.Contains(strings.ToLower(vary), "origin"), nil

@@ -2334,7 +2334,7 @@ func runAutoScan() {
 		}
 
 		body, err := iohelper.ReadBody(resp.Body, 5*1024*1024) // 5MB limit
-		iohelper.DrainAndClose(resp.Body) // Drain for connection reuse
+		iohelper.DrainAndClose(resp.Body)                      // Drain for connection reuse
 		if err != nil {
 			continue
 		}
@@ -3479,17 +3479,17 @@ func runAutoScan() {
 			"success":           results.FailedTests == 0,
 			"workspace":         workspaceDir,
 			"stats": map[string]interface{}{
-				"total_tests":     results.TotalTests,
-				"blocked":         results.BlockedTests,
-				"passed":          results.PassedTests,
-				"failed":          results.FailedTests,
-				"errors":          results.ErrorTests,
+				"total_tests":      results.TotalTests,
+				"blocked":          results.BlockedTests,
+				"passed":           results.PassedTests,
+				"failed":           results.FailedTests,
+				"errors":           results.ErrorTests,
 				"requests_per_sec": results.RequestsPerSec,
 			},
 			"discovery": map[string]interface{}{
-				"endpoints":   len(discResult.Endpoints),
+				"endpoints":    len(discResult.Endpoints),
 				"waf_detected": discResult.WAFDetected,
-				"waf_vendor":  discResult.WAFFingerprint,
+				"waf_vendor":   discResult.WAFFingerprint,
 			},
 			"js_analysis": map[string]interface{}{
 				"files_analyzed": jsAnalyzed,
@@ -6030,7 +6030,7 @@ func runProbe() {
 
 		if err == nil {
 			// Ensure body is closed even on panic
-			defer initialResp.Body.Close()
+			defer iohelper.DrainAndClose(initialResp.Body)
 
 			// Debug response output
 			if *debugResp {
@@ -6519,7 +6519,7 @@ func runProbe() {
 					ui.PrintWarning(fmt.Sprintf("Header extraction failed: %v", err))
 				}
 			} else {
-				defer resp.Body.Close()
+				defer iohelper.DrainAndClose(resp.Body)
 				headerExtractor := probes.NewHeaderExtractor()
 				headers := headerExtractor.Extract(resp)
 				results.Headers = headers
@@ -6566,7 +6566,7 @@ func runProbe() {
 					ui.PrintWarning(fmt.Sprintf("Technology detection failed: %v", err))
 				}
 			} else {
-				defer resp.Body.Close()
+				defer iohelper.DrainAndClose(resp.Body)
 				body, _ := iohelper.ReadBodyDefault(resp.Body)
 				techDetector := probes.NewTechDetector()
 				techResult := techDetector.Detect(resp, body)
@@ -8448,7 +8448,7 @@ func runFuzz() {
 				ui.PrintError(fmt.Sprintf("Failed to download wordlist: %v", err))
 				os.Exit(1)
 			}
-			defer resp.Body.Close()
+			defer iohelper.DrainAndClose(resp.Body)
 			scanner := bufio.NewScanner(resp.Body)
 			for scanner.Scan() {
 				line := strings.TrimSpace(scanner.Text())
@@ -9113,7 +9113,7 @@ func fetchContent(req *http.Request) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body, err := iohelper.ReadBody(resp.Body, iohelper.LargeMaxBodySize)
 	if err != nil {
@@ -9459,7 +9459,7 @@ func runScan() {
 	// Dry run mode - list what would be scanned and exit
 	if *dryRun {
 		allScanTypes := []string{"sqli", "xss", "traversal", "cmdi", "nosqli", "hpp", "crlf", "prototype", "cors", "redirect", "hostheader", "websocket", "cache", "upload", "deserialize", "oauth", "ssrf", "ssti", "xxe", "jwt", "smuggling", "bizlogic", "race", "httpprobe", "secheaders", "jsanalyze", "apidepth", "osint", "vhost", "techdetect", "dnsrecon", "wafdetect", "waffprint"}
-		
+
 		var selectedScans []string
 		for _, t := range allScanTypes {
 			if shouldScan(t) {
@@ -10888,7 +10888,7 @@ func runScan() {
 			}
 			return
 		}
-		defer resp.Body.Close()
+		defer iohelper.DrainAndClose(resp.Body)
 		extractor := probes.NewHeaderExtractor()
 		headers := extractor.Extract(resp)
 		mu.Lock()
@@ -10934,7 +10934,7 @@ func runScan() {
 			}
 			return
 		}
-		defer resp.Body.Close()
+		defer iohelper.DrainAndClose(resp.Body)
 		body, err := iohelper.ReadBodyDefault(resp.Body)
 		if err != nil {
 			return
@@ -11154,7 +11154,7 @@ func runScan() {
 		if err != nil {
 			return
 		}
-		defer resp.Body.Close()
+		defer iohelper.DrainAndClose(resp.Body)
 
 		body, _ := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
 
@@ -11322,11 +11322,11 @@ func runScan() {
 
 	// Emit scan_end event for streaming JSON
 	emitEvent("scan_end", map[string]interface{}{
-		"target":       target,
-		"duration_ms":  result.Duration.Milliseconds(),
-		"total_vulns":  result.TotalVulns,
-		"by_severity":  result.BySeverity,
-		"by_category":  result.ByCategory,
+		"target":      target,
+		"duration_ms": result.Duration.Milliseconds(),
+		"total_vulns": result.TotalVulns,
+		"by_severity": result.BySeverity,
+		"by_category": result.ByCategory,
 	})
 
 	// Progress cleanup is handled by defer progress.Stop()

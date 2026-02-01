@@ -135,7 +135,7 @@ func (s *Scanner) testPayload(ctx context.Context, targetURL, param string, payl
 	if err != nil {
 		return result
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	result.StatusCode = resp.StatusCode

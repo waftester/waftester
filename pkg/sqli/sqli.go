@@ -515,7 +515,7 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 	}
 	baselineTime := time.Since(baselineStart)
 	baseBody, _ := iohelper.ReadBodyDefault(baseResp.Body)
-	baseResp.Body.Close()
+	iohelper.DrainAndClose(baseResp.Body)
 	baseLen := len(baseBody)
 
 	for _, payload := range t.payloads {
@@ -533,7 +533,7 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 
 		responseTime := time.Since(start)
 		body, _ := iohelper.ReadBodyDefault(resp.Body)
-		resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		// Error-based detection
 		if hasError, evidence := containsError(string(body)); hasError {

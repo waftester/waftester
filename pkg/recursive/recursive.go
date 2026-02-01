@@ -4,7 +4,6 @@ package recursive
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -13,6 +12,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Config configures recursive fuzzing
@@ -317,10 +318,10 @@ func (f *Fuzzer) request(ctx context.Context, targetURL string) (Result, error) 
 	if err != nil {
 		return Result{}, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	// Read body to get length
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024*1024)) // Max 1MB
+	body, _ := iohelper.ReadBody(resp.Body, iohelper.LargeMaxBodySize) // Max 1MB
 
 	result := Result{
 		URL:         targetURL,

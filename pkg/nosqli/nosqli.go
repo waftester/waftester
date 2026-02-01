@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -281,7 +282,7 @@ func (t *Tester) testQueryParam(ctx context.Context, u *url.URL, param string, p
 	}
 
 	body := readBodyLimit(resp, 100*1024)
-	resp.Body.Close()
+	iohelper.DrainAndClose(resp.Body)
 
 	// Check for evidence of successful injection
 	evidence := t.detectEvidence(body, resp.StatusCode, payload.Database)
@@ -328,7 +329,7 @@ func (t *Tester) testJSONBody(ctx context.Context, targetURL string, param strin
 	}
 
 	body := readBodyLimit(resp, 100*1024)
-	resp.Body.Close()
+	iohelper.DrainAndClose(resp.Body)
 
 	evidence := t.detectEvidence(body, resp.StatusCode, payload.Database)
 	if evidence != "" {
@@ -367,7 +368,7 @@ func (t *Tester) testFormBody(ctx context.Context, targetURL string, param strin
 	}
 
 	body := readBodyLimit(resp, 100*1024)
-	resp.Body.Close()
+	iohelper.DrainAndClose(resp.Body)
 
 	evidence := t.detectEvidence(body, resp.StatusCode, payload.Database)
 	if evidence != "" {
@@ -469,7 +470,7 @@ func (t *Tester) DetectDatabase(ctx context.Context, targetURL string) (Database
 	if err != nil {
 		return DBUnknown, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body := readBodyLimit(resp, 50*1024)
 

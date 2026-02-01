@@ -123,7 +123,7 @@ func (s *Scanner) testUnkeyedHeader(ctx context.Context, targetURL, header strin
 		return result
 	}
 	body1, _ := iohelper.ReadBodyDefault(resp1.Body)
-	resp1.Body.Close()
+	iohelper.DrainAndClose(resp1.Body)
 
 	result.CacheHeaders = extractCacheHeaders(resp1.Header)
 	result.IsCached = isCacheableResponse(resp1.Header)
@@ -145,7 +145,7 @@ func (s *Scanner) testUnkeyedHeader(ctx context.Context, targetURL, header strin
 			return result
 		}
 		body2, _ := iohelper.ReadBodyDefault(resp2.Body)
-		resp2.Body.Close()
+		iohelper.DrainAndClose(resp2.Body)
 
 		// Check if poison persisted in cache
 		if strings.Contains(string(body2), payload) {

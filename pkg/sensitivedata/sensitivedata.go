@@ -110,7 +110,7 @@ func (s *Scanner) Scan(ctx context.Context, targetURL string) ([]Result, error) 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
 

@@ -175,7 +175,7 @@ func (c *Calibrator) executeRequest(ctx context.Context, req *http.Request) (*Sa
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body, err := iohelper.ReadBodyDefault(resp.Body)
 	if err != nil {
