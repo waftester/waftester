@@ -55,6 +55,7 @@ import (
 	"github.com/waftester/waftester/pkg/hpp"
 	"github.com/waftester/waftester/pkg/input"
 	"github.com/waftester/waftester/pkg/interactive"
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/js"
 	"github.com/waftester/waftester/pkg/jwt"
 	"github.com/waftester/waftester/pkg/leakypaths"
@@ -5960,7 +5961,7 @@ func runProbe() {
 					n, _ := io.ReadFull(initialResp.Body, body)
 					body = body[:n]
 				} else {
-					body, _ = io.ReadAll(initialResp.Body)
+					body, _ = iohelper.ReadBody(initialResp.Body, iohelper.LargeMaxBodySize)
 				}
 				// Decode body unless skipDecode is set
 				if !skipDecode {
@@ -6466,7 +6467,7 @@ func runProbe() {
 				}
 			} else {
 				defer resp.Body.Close()
-				body, _ := io.ReadAll(resp.Body)
+				body, _ := iohelper.ReadBodyDefault(resp.Body)
 				techDetector := probes.NewTechDetector()
 				techResult := techDetector.Detect(resp, body)
 				results.Tech = techResult
@@ -10834,7 +10835,7 @@ func runScan() {
 			return
 		}
 		defer resp.Body.Close()
-		body, err := io.ReadAll(resp.Body)
+		body, err := iohelper.ReadBodyDefault(resp.Body)
 		if err != nil {
 			return
 		}
