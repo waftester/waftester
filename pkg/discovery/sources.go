@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -19,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 )
 
@@ -72,7 +72,7 @@ func (es *ExternalSources) ParseRobotsTxt(ctx context.Context, targetURL string)
 		return nil, fmt.Errorf("robots.txt not found (status %d)", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024)) // 1MB limit
+	body, err := iohelper.ReadBody(resp.Body, iohelper.DefaultMaxBodySize) // 1MB limit
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +216,7 @@ func (es *ExternalSources) fetchSitemap(ctx context.Context, sitemapURL string, 
 		return nil, fmt.Errorf("sitemap not found")
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024)) // 10MB limit
+	body, err := iohelper.ReadBody(resp.Body, iohelper.LargeMaxBodySize) // 10MB limit
 	if err != nil {
 		return nil, err
 	}
@@ -400,7 +400,7 @@ func (es *ExternalSources) FetchWaybackURLs(ctx context.Context, domain string, 
 		return nil, fmt.Errorf("wayback machine returned status %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
+	body, err := iohelper.ReadBody(resp.Body, iohelper.LargeMaxBodySize)
 	if err != nil {
 		return nil, err
 	}
@@ -697,7 +697,7 @@ func (es *ExternalSources) FetchOTXURLs(ctx context.Context, domain string) ([]O
 			return allURLs, fmt.Errorf("OTX request failed: %w", err)
 		}
 
-		body, err := io.ReadAll(io.LimitReader(resp.Body, 5*1024*1024))
+		body, err := iohelper.ReadBody(resp.Body, 5*1024*1024)
 		resp.Body.Close()
 		if err != nil {
 			return allURLs, err
@@ -770,7 +770,7 @@ func (es *ExternalSources) FetchVirusTotalURLs(ctx context.Context, domain strin
 		return nil, fmt.Errorf("VirusTotal returned status %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
+	body, err := iohelper.ReadBody(resp.Body, iohelper.LargeMaxBodySize)
 	if err != nil {
 		return nil, err
 	}

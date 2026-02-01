@@ -7,13 +7,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -331,7 +331,7 @@ func (t *Tester) detectInjection(resp *http.Response, payload Payload) string {
 
 	// Check for response splitting (body contains our marker after blank line)
 	if payload.Type == VulnResponseSplitting || payload.Type == VulnXSSViaCRLF {
-		body, err := io.ReadAll(io.LimitReader(resp.Body, 100*1024))
+		body, err := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
 		if err == nil {
 			bodyStr := string(body)
 			if strings.Contains(bodyStr, "waftester") {
