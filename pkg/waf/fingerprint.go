@@ -51,7 +51,7 @@ type Fingerprinter struct {
 // NewFingerprinter creates a new fingerprinter
 func NewFingerprinter(timeout time.Duration) *Fingerprinter {
 	if timeout == 0 {
-		timeout = 10 * time.Second
+		timeout = httpclient.TimeoutProbing
 	}
 	// Use shared httpclient factory for connection pooling
 	return &Fingerprinter{

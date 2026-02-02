@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -202,7 +203,7 @@ func NewClient(opts ...Option) (*Client, error) {
 	c := &Client{
 		profile:     Chrome,
 		cookieJar:   jar,
-		timeout:     30 * time.Second,
+		timeout:     duration.BrowserPage,
 		retries:     0,
 		retryDelay:  time.Second,
 		followRedir: true,
@@ -218,12 +219,12 @@ func NewClient(opts ...Option) (*Client, error) {
 	transport := &http.Transport{
 		DialContext: (&net.Dialer{
 			Timeout:   c.timeout,
-			KeepAlive: 30 * time.Second,
+			KeepAlive: duration.KeepAlive,
 		}).DialContext,
 		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
+		IdleConnTimeout:       duration.IdleConnTimeout,
+		TLSHandshakeTimeout:   duration.TLSHandshake,
+		ExpectContinueTimeout: duration.RetryFast,
 		ForceAttemptHTTP2:     true,
 	}
 

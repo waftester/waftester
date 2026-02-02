@@ -8,19 +8,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // HTTPClient is the HTTP client used by built-in scanners
-var HTTPClient = &http.Client{
-	Timeout: 10 * time.Second,
-	CheckRedirect: func(req *http.Request, via []*http.Request) error {
-		if len(via) >= 10 {
-			return http.ErrUseLastResponse
-		}
-		return nil
-	},
-}
+var HTTPClient = httpclient.Default()
 
 // HeaderScanner checks for security headers
 type HeaderScanner struct{}

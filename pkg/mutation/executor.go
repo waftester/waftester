@@ -4,7 +4,6 @@ package mutation
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/realistic"
 	"github.com/waftester/waftester/pkg/ui"
@@ -48,7 +49,7 @@ func DefaultExecutorConfig() *ExecutorConfig {
 	return &ExecutorConfig{
 		Concurrency:        10,
 		RateLimit:          50,
-		Timeout:            10 * time.Second,
+		Timeout:            duration.DialTimeout,
 		Retries:            2,
 		UserAgent:          ui.UserAgentWithContext("Mutation Engine"),
 		Pipeline:           DefaultPipelineConfig(),
@@ -116,26 +117,9 @@ func NewExecutor(config *ExecutorConfig) *Executor {
 		config = DefaultExecutorConfig()
 	}
 
-	transport := &http.Transport{
-		MaxIdleConns:        config.Concurrency * 2,
-		MaxIdleConnsPerHost: config.Concurrency,
-		IdleConnTimeout:     30 * time.Second,
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: config.SkipVerify,
-		},
-	}
-
-	client := &http.Client{
-		Transport: transport,
-		Timeout:   config.Timeout,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
 	exec := &Executor{
 		config:     config,
-		httpClient: client,
+		httpClient: httpclient.Default(),
 		limiter:    rate.NewLimiter(rate.Limit(config.RateLimit), int(config.RateLimit)),
 		registry:   DefaultRegistry,
 	}
@@ -149,7 +133,7 @@ func NewExecutor(config *ExecutorConfig) *Executor {
 		// Auto-calibrate if requested
 		if config.AutoCalibrate && config.TargetURL != "" {
 			calibrator := realistic.NewCalibrator(config.TargetURL)
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), duration.ContextShort)
 			result, err := calibrator.Calibrate(ctx)
 			cancel()
 			if err == nil && result.Success {
@@ -358,7 +342,7 @@ sendLoop:
 
 	// Collect WAF fingerprint if enabled
 	if e.fingerprinter != nil && e.config.TargetURL != "" {
-		fpCtx, fpCancel := context.WithTimeout(ctx, 30*time.Second)
+		fpCtx, fpCancel := context.WithTimeout(ctx, duration.ContextShort)
 		fingerprint, err := e.fingerprinter.CreateFingerprint(fpCtx, e.config.TargetURL)
 		fpCancel()
 		if err == nil {

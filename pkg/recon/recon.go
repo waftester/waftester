@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/js"
 	"github.com/waftester/waftester/pkg/leakypaths"
 	"github.com/waftester/waftester/pkg/params"
@@ -102,7 +103,7 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() *Config {
 	return &Config{
-		Timeout:              30 * time.Second,
+		Timeout:              duration.HTTPFuzzing,
 		Concurrency:          20,
 		Verbose:              false,
 		EnableLeakyPaths:     true,

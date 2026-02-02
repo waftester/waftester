@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/internal/hexutil"
+	"github.com/waftester/waftester/pkg/duration"
 )
 
 // Detector detects SSRF vulnerabilities
@@ -31,7 +32,7 @@ type Detector struct {
 // NewDetector creates a new SSRF detector
 func NewDetector() *Detector {
 	return &Detector{
-		Timeout: 10 * time.Second,
+		Timeout: duration.DialTimeout,
 		LocalIPs: []string{
 			"127.0.0.1",
 			"localhost",
@@ -741,7 +742,7 @@ func NewInternalNetworkScanner() *InternalNetworkScanner {
 			"192.168.0.0/16",
 		},
 		CommonPorts: []int{22, 80, 443, 8080, 8443, 3306, 5432, 6379, 27017},
-		Timeout:     5 * time.Second,
+		Timeout:     duration.HTTPProbing,
 	}
 }
 

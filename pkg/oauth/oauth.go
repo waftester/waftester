@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -101,7 +103,7 @@ type Tester struct {
 // DefaultTesterConfig returns default configuration.
 func DefaultTesterConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:        30 * time.Second,
+		Timeout:        duration.HTTPFuzzing,
 		UserAgent:      "OAuth-Tester/1.0",
 		Concurrency:    5,
 		Cookies:        make(map[string]string),
@@ -115,21 +117,11 @@ func NewTester(config *TesterConfig, endpoints *OAuthEndpoint, oauthConfig *OAut
 		config = DefaultTesterConfig()
 	}
 
-	checkRedirect := func(req *http.Request, via []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
-	if config.FollowRedirect {
-		checkRedirect = nil
-	}
-
 	return &Tester{
 		config:    config,
 		endpoints: endpoints,
 		oauth:     oauthConfig,
-		client: &http.Client{
-			Timeout:       config.Timeout,
-			CheckRedirect: checkRedirect,
-		},
+		client:    httpclient.Default(),
 	}
 }
 
@@ -614,7 +606,7 @@ func DiscoverOIDCEndpoints(ctx context.Context, issuer string) (*OAuthEndpoint, 
 		return nil, err
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := httpclient.Default()
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err

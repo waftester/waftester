@@ -12,6 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -88,10 +91,10 @@ func (c *Check) Validate() error {
 		c.Method = "GET"
 	}
 	if c.Timeout == 0 {
-		c.Timeout = 5 * time.Second
+		c.Timeout = httpclient.TimeoutProbing
 	}
 	if c.Interval == 0 {
-		c.Interval = 1 * time.Second
+		c.Interval = duration.RetryFast
 	}
 	if len(c.ExpectedStatus) == 0 {
 		c.ExpectedStatus = []int{200}
@@ -113,9 +116,9 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		Checks:      make([]*Check, 0),
-		Timeout:     30 * time.Second,
-		MaxRetries:  10,
-		RetryDelay:  1 * time.Second,
+		Timeout:     httpclient.TimeoutFuzzing,
+		MaxRetries:  defaults.RetryMax,
+		RetryDelay:  duration.RetryFast,
 		FailFast:    false,
 		Concurrency: 5,
 	}
@@ -133,10 +136,8 @@ func NewChecker(config *Config) *Checker {
 		config = DefaultConfig()
 	}
 	return &Checker{
-		config: config,
-		httpClient: &http.Client{
-			Timeout: config.Timeout,
-		},
+		config:     config,
+		httpClient: httpclient.Default(),
 	}
 }
 
@@ -330,8 +331,8 @@ type WaiterConfig struct {
 // DefaultWaiterConfig returns default waiter configuration
 func DefaultWaiterConfig() *WaiterConfig {
 	return &WaiterConfig{
-		Timeout:       60 * time.Second,
-		CheckInterval: 2 * time.Second,
+		Timeout:       httpclient.TimeoutAPI,
+		CheckInterval: duration.HealthCheck,
 		MinChecks:     1,
 		FailFast:      false,
 	}
@@ -497,7 +498,7 @@ type Monitor struct {
 // NewMonitor creates a new health monitor
 func NewMonitor(checker *Checker, interval time.Duration) *Monitor {
 	if interval == 0 {
-		interval = 10 * time.Second
+		interval = httpclient.TimeoutProbing
 	}
 	return &Monitor{
 		checker:  checker,

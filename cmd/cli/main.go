@@ -48,12 +48,14 @@ import (
 	"github.com/waftester/waftester/pkg/crlf"
 	"github.com/waftester/waftester/pkg/deserialize"
 	"github.com/waftester/waftester/pkg/discovery"
+	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
 	"github.com/waftester/waftester/pkg/fuzz"
 	"github.com/waftester/waftester/pkg/graphql"
 	"github.com/waftester/waftester/pkg/headless"
 	"github.com/waftester/waftester/pkg/hostheader"
 	"github.com/waftester/waftester/pkg/hpp"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/input"
 	"github.com/waftester/waftester/pkg/interactive"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -1856,7 +1858,7 @@ func runAutoScan() {
 	// NEW: Browser-based authenticated scanning (Phase 7-9)
 	enableBrowserScan := autoFlags.Bool("browser", true, "Enable authenticated browser scanning (default: true)")
 	browserHeadless := autoFlags.Bool("browser-headless", false, "Run browser in headless mode (no visible window)")
-	browserTimeout := autoFlags.Duration("browser-timeout", 3*time.Minute, "Timeout for user login during browser scan")
+	browserTimeout := autoFlags.Duration("browser-timeout", duration.BrowserLogin, "Timeout for user login during browser scan")
 
 	// Streaming mode (CI-friendly output)
 	streamMode := autoFlags.Bool("stream", false, "Streaming output mode for CI/scripts")
@@ -2040,7 +2042,7 @@ func runAutoScan() {
 			{Name: "bypasses", Label: "Bypasses", Icon: "⚠️", Highlight: true},
 		},
 		StreamFormat:   "[PROGRESS] phase {completed}/{total} | {status} | endpoints: {metric:endpoints} | {elapsed}",
-		StreamInterval: 5 * time.Second,
+		StreamInterval: duration.StreamSlow,
 	})
 	autoProgress.Start()
 	defer autoProgress.Stop()
@@ -2289,12 +2291,7 @@ func runAutoScan() {
 	if ja3Client != nil {
 		client = ja3Client
 	} else {
-		client = &http.Client{
-			Timeout: time.Duration(*timeout) * time.Second,
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: *skipVerify},
-			},
-		}
+		client = httpclient.New(httpclient.WithTimeout(time.Duration(*timeout) * time.Second))
 	}
 
 	jsAnalyzed := 0
@@ -2767,7 +2764,7 @@ func runAutoScan() {
 			os.WriteFile(reconFile, reconData, 0644)
 
 			ui.PrintSuccess(fmt.Sprintf("✓ Full reconnaissance completed in %s", fullReconResult.Duration.Round(time.Millisecond)))
-			
+
 			if !quietMode {
 				fmt.Fprintln(os.Stderr)
 
@@ -2814,7 +2811,7 @@ func runAutoScan() {
 
 	ui.PrintSuccess(fmt.Sprintf("✓ Generated test plan with %d tests", testPlan.TotalTests))
 	ui.PrintInfo(fmt.Sprintf("  Estimated time: %s", testPlan.EstimatedTime))
-	
+
 	if !quietMode {
 		fmt.Fprintln(os.Stderr)
 
@@ -3162,7 +3159,7 @@ func runAutoScan() {
 		wafEffectiveness = float64(results.BlockedTests) / float64(results.BlockedTests+results.FailedTests) * 100
 	}
 
-	duration := time.Since(startTime)
+	scanDuration := time.Since(startTime)
 
 	// Print summary (only in non-JSON mode)
 	if !quietMode {
@@ -3172,7 +3169,7 @@ func runAutoScan() {
 		fmt.Fprintln(os.Stderr)
 
 		ui.PrintConfigLine("Target", target)
-		ui.PrintConfigLine("Duration", duration.Round(time.Second).String())
+		ui.PrintConfigLine("Duration", scanDuration.Round(time.Second).String())
 		ui.PrintConfigLine("Workspace", workspaceDir)
 		fmt.Fprintln(os.Stderr)
 
@@ -3222,7 +3219,7 @@ func runAutoScan() {
 	}
 
 	// Generate markdown report
-	generateAutoMarkdownReport(reportFile, target, domain, duration, discResult, allJSData, testPlan, results, wafEffectiveness)
+	generateAutoMarkdownReport(reportFile, target, domain, scanDuration, discResult, allJSData, testPlan, results, wafEffectiveness)
 
 	// Generate summary.json for CI/CD integration
 	summaryFile := filepath.Join(workspaceDir, "summary.json")
@@ -3230,7 +3227,7 @@ func runAutoScan() {
 		"target":            target,
 		"domain":            domain,
 		"timestamp":         time.Now().UTC().Format(time.RFC3339),
-		"duration_seconds":  duration.Seconds(),
+		"duration_seconds":  scanDuration.Seconds(),
 		"waf_effectiveness": wafEffectiveness,
 		"pass":              results.FailedTests == 0,
 		"stats": map[string]interface{}{
@@ -3284,7 +3281,7 @@ func runAutoScan() {
 		fmt.Fprintln(os.Stderr)
 
 		fmt.Fprintln(os.Stderr, "  ════════════════════════════════════════════════════════════")
-		fmt.Fprintf(os.Stderr, "  🚀 SUPERPOWER SCAN COMPLETE in %s\n", duration.Round(time.Second))
+		fmt.Fprintf(os.Stderr, "  🚀 SUPERPOWER SCAN COMPLETE in %s\n", scanDuration.Round(time.Second))
 		fmt.Fprintln(os.Stderr, "  ════════════════════════════════════════════════════════════")
 	}
 
@@ -3318,7 +3315,7 @@ func runAutoScan() {
 		}
 
 		assess := assessment.New(assessConfig)
-		assessCtx, assessCancel := context.WithTimeout(ctx, 15*time.Minute)
+		assessCtx, assessCancel := context.WithTimeout(ctx, duration.ContextLong)
 		defer assessCancel()
 
 		progressFn := func(completed, total int64, phase string) {
@@ -3352,7 +3349,7 @@ func runAutoScan() {
 
 			// Generate Enterprise HTML Report now that assessment.json exists
 			htmlReportFile := filepath.Join(workspaceDir, "enterprise-report.html")
-			if err := report.GenerateEnterpriseHTMLReportFromWorkspace(workspaceDir, domain, duration, htmlReportFile); err != nil {
+			if err := report.GenerateEnterpriseHTMLReportFromWorkspace(workspaceDir, domain, scanDuration, htmlReportFile); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Enterprise HTML report generation error: %v", err))
 			} else if !quietMode {
 				fmt.Fprintf(os.Stderr, "    • Enterprise:  %s\n", htmlReportFile)
@@ -3406,9 +3403,9 @@ func runAutoScan() {
 		// Configure browser scanner
 		browserConfig := &browser.AuthConfig{
 			TargetURL:      target,
-			Timeout:        5 * time.Minute,
+			Timeout:        duration.HTTPLongOps,
 			WaitForLogin:   *browserTimeout,
-			PostLoginDelay: 5 * time.Second,
+			PostLoginDelay: duration.BrowserPostWait,
 			CrawlDepth:     *depth,
 			ShowBrowser:    !*browserHeadless,
 			Verbose:        *verbose,
@@ -3586,7 +3583,7 @@ func runAutoScan() {
 
 			// Regenerate enterprise report to include browser findings
 			htmlReportFile := filepath.Join(workspaceDir, "enterprise-report.html")
-			if err := report.GenerateEnterpriseHTMLReportFromWorkspace(workspaceDir, domain, duration, htmlReportFile); err != nil {
+			if err := report.GenerateEnterpriseHTMLReportFromWorkspace(workspaceDir, domain, scanDuration, htmlReportFile); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Enterprise report regeneration error: %v", err))
 			} else {
 				ui.PrintSuccess("✓ Enterprise report updated with browser findings")
@@ -3611,7 +3608,7 @@ func runAutoScan() {
 			"target":            target,
 			"domain":            domain,
 			"timestamp":         time.Now().UTC().Format(time.RFC3339),
-			"duration_seconds":  duration.Seconds(),
+			"duration_seconds":  scanDuration.Seconds(),
 			"waf_effectiveness": wafEffectiveness,
 			"success":           results.FailedTests == 0,
 			"workspace":         workspaceDir,
@@ -3991,7 +3988,7 @@ func runDiscover() {
 	discoverer := discovery.NewDiscoverer(cfg)
 
 	// Setup context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), duration.ContextMedium)
 	defer cancel()
 
 	// Run discovery
@@ -6538,18 +6535,7 @@ func runProbe() {
 					ipURL := fmt.Sprintf("%s://%s", scheme, ip)
 
 					// Make request to IP with Host header
-					client := &http.Client{
-						Timeout: timeoutDur,
-						Transport: &http.Transport{
-							TLSClientConfig: &tls.Config{
-								InsecureSkipVerify: true,
-								ServerName:         host,
-							},
-						},
-						CheckRedirect: func(req *http.Request, via []*http.Request) error {
-							return http.ErrUseLastResponse
-						},
-					}
+					client := httpclient.New(httpclient.WithTimeout(timeoutDur))
 					req, err := http.NewRequestWithContext(ctx, "GET", ipURL, nil)
 					if err != nil {
 						continue
@@ -7192,7 +7178,7 @@ func runProbe() {
 			{Name: "dead", Label: "Dead", Icon: "❌"},
 		},
 		StreamFormat:   "[PROGRESS] {completed}/{total} ({percent}%) | alive: {metric:alive} | dead: {metric:dead} | {elapsed}",
-		StreamInterval: 3 * time.Second,
+		StreamInterval: duration.StreamStd,
 	})
 	if len(targets) > 1 && !*oneliner {
 		probeProgress.Start()
@@ -7740,14 +7726,7 @@ func runProbe() {
 
 // makeHTTPRequest performs a simple HTTP GET request
 func makeHTTPRequest(ctx context.Context, target string, timeout time.Duration) (*http.Response, error) {
-	client := &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
-	}
+	client := httpclient.New(httpclient.WithTimeout(timeout))
 	req, err := http.NewRequestWithContext(ctx, "GET", target, nil)
 	if err != nil {
 		return nil, err
@@ -7890,8 +7869,8 @@ func makeProbeHTTPRequestWithOptions(ctx context.Context, target string, timeout
 	// Configure custom DNS resolvers
 	if len(opts.CustomResolvers) > 0 {
 		dialer := &net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
+			Timeout:   duration.HTTPFuzzing,
+			KeepAlive: duration.KeepAlive,
 		}
 		// Create custom resolver using the first resolver
 		resolver := opts.CustomResolvers[0]
@@ -7908,7 +7887,7 @@ func makeProbeHTTPRequestWithOptions(ctx context.Context, target string, timeout
 			customResolver := &net.Resolver{
 				PreferGo: true,
 				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-					d := net.Dialer{Timeout: 10 * time.Second}
+					d := net.Dialer{Timeout: duration.DialTimeout}
 					return d.DialContext(ctx, "udp", resolver)
 				},
 			}
@@ -8251,7 +8230,7 @@ func runCrawl() {
 
 	c := crawler.NewCrawler(cfg)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), duration.ContextExtended)
 	defer cancel()
 
 	ui.PrintInfo("Starting crawler...")
@@ -8294,7 +8273,7 @@ func runCrawl() {
 			{Name: "scripts", Label: "Scripts", Icon: "📜"},
 		},
 		StreamFormat:   "[PROGRESS] {completed} pages | links: {metric:links} | forms: {metric:forms} | {elapsed}",
-		StreamInterval: 3 * time.Second,
+		StreamInterval: duration.StreamStd,
 	})
 	crawlProgress.Start()
 
@@ -8851,7 +8830,7 @@ func runFuzz() {
 			"💡 Extensions (-e) multiply wordlist entries for file discovery",
 		},
 		StreamFormat:   "[PROGRESS] {completed}/{total} ({percent}%) | matches: {metric:matches} | {status} | {elapsed}",
-		StreamInterval: 3 * time.Second,
+		StreamInterval: duration.StreamStd,
 	})
 	if !*jsonOutput {
 		progress.Start()
@@ -9112,7 +9091,7 @@ func runAnalyze() {
 	} else {
 		ui.PrintConfigLine("Target", target)
 		// Fetch JavaScript from URL
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), duration.ContextShort)
 		defer cancel()
 
 		// Use a simple HTTP client to fetch
@@ -9239,12 +9218,7 @@ func createRequest(ctx context.Context, targetURL string) (*http.Request, error)
 }
 
 func fetchContent(req *http.Request) (string, error) {
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
+	client := httpclient.Probing()
 
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 
@@ -9683,7 +9657,7 @@ func runScan() {
 		TLSClientConfig:     &tls.Config{InsecureSkipVerify: *skipVerify},
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 10,
-		IdleConnTimeout:     90 * time.Second,
+		IdleConnTimeout:     duration.IdleConnTimeout,
 	}
 
 	// Configure proxy if specified
@@ -9790,7 +9764,7 @@ func runScan() {
 			"💡 Each scan type uses context-aware payload selection",
 		},
 		StreamFormat:   "[PROGRESS] {completed}/{total} ({percent}%) | vulns: {metric:vulns} | active: {status} | {elapsed}",
-		StreamInterval: 3 * time.Second,
+		StreamInterval: duration.StreamStd,
 	})
 	progress.Start()
 	defer progress.Stop()
@@ -10354,7 +10328,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "upload", "vulns": vulnCount})
 		}()
 		// Create a dedicated context with 60s max timeout for upload scanning
-		uploadCtx, uploadCancel := context.WithTimeout(ctx, 60*time.Second)
+		uploadCtx, uploadCancel := context.WithTimeout(ctx, duration.HTTPAPI)
 		defer uploadCancel()
 
 		cfg := &upload.TesterConfig{
@@ -11080,7 +11054,7 @@ func runScan() {
 		defer func() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "secheaders", "missing_headers": missingCount})
 		}()
-		client := &http.Client{Timeout: timeoutDur}
+		client := httpclient.New(httpclient.WithTimeout(timeoutDur))
 		resp, err := client.Get(target)
 		if err != nil {
 			if *verbose {
@@ -11126,7 +11100,7 @@ func runScan() {
 			})
 		}()
 		// Fetch JavaScript from target and analyze
-		client := &http.Client{Timeout: timeoutDur}
+		client := httpclient.New(httpclient.WithTimeout(timeoutDur))
 		resp, err := client.Get(target)
 		if err != nil {
 			if *verbose {
@@ -11343,12 +11317,7 @@ func runScan() {
 		}
 		req.Header.Set("User-Agent", ui.UserAgentWithContext("Discovery"))
 
-		client := &http.Client{
-			Timeout: timeoutDur,
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: *skipVerify},
-			},
-		}
+		client := httpclient.New(httpclient.WithTimeout(timeoutDur))
 
 		resp, err := client.Do(req)
 		if err != nil {
@@ -12332,7 +12301,7 @@ func runMutate() {
 			"💡 SQL comments /**/ can hide entire payload chunks",
 		},
 		StreamFormat:   "[PROGRESS] {completed}/{total} ({percent}%) | bypasses: {metric:bypasses} | blocked: {metric:blocked} | {status} | {elapsed}",
-		StreamInterval: 3 * time.Second,
+		StreamInterval: duration.StreamStd,
 	})
 	progress.Start()
 	defer progress.Stop()
@@ -12523,7 +12492,7 @@ func runBypassFinder() {
 		fmt.Println()
 
 		smartConfig := &SmartModeConfig{
-			DetectionTimeout: 15 * time.Second,
+			DetectionTimeout: duration.HTTPScanning,
 			Verbose:          *smartVerbose,
 			Mode:             *smartModeType,
 		}
@@ -12648,7 +12617,7 @@ func runBypassFinder() {
 			{Name: "errors", Label: "Errors", Icon: "⚠️"},
 		},
 		Tips:        tips,
-		TipInterval: 8 * time.Second,
+		TipInterval: duration.TipRotate,
 	})
 
 	progress.Start()

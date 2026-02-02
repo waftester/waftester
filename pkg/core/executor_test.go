@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/hosterrors"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/output"
 	"github.com/waftester/waftester/pkg/payloads"
 	"github.com/waftester/waftester/pkg/ui"
@@ -1617,7 +1618,7 @@ func TestExecuteTestContextCancellation(t *testing.T) {
 		TargetURL:   server.URL,
 		Concurrency: 1,
 		RateLimit:   100,
-		Timeout:     30 * time.Second, // Long timeout
+		Timeout:     httpclient.TimeoutFuzzing, // Default fuzzing timeout
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
