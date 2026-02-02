@@ -45,6 +45,7 @@ import (
 	"github.com/waftester/waftester/pkg/core"
 	"github.com/waftester/waftester/pkg/cors"
 	"github.com/waftester/waftester/pkg/crawler"
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/crlf"
 	"github.com/waftester/waftester/pkg/deserialize"
 	"github.com/waftester/waftester/pkg/discovery"
@@ -2882,7 +2883,7 @@ func runAutoScan() {
 				strings.Contains(pathLower, "token") || strings.Contains(pathLower, "oauth"):
 				authEndpoints = append(authEndpoints, ep)
 			case strings.Contains(pathLower, "/api/") || strings.Contains(pathLower, ".json") ||
-				ep.ContentType == "application/json":
+				ep.ContentType == defaults.ContentTypeJSON:
 				apiEndpoints = append(apiEndpoints, ep)
 			case strings.HasSuffix(pathLower, ".js") || strings.HasSuffix(pathLower, ".css") ||
 				strings.HasSuffix(pathLower, ".png") || strings.HasSuffix(pathLower, ".jpg"):
@@ -3059,7 +3060,7 @@ func runAutoScan() {
 		Concurrency:   *concurrency,
 		RateLimit:     *rateLimit,
 		Timeout:       time.Duration(*timeout) * time.Second,
-		Retries:       2,
+		Retries:       defaults.RetryLow,
 		Filter:        &filterCfg,
 		RealisticMode: true,
 		AutoCalibrate: true,

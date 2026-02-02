@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -78,7 +79,7 @@ func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:        duration.DialTimeout,
 		UserAgent:      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-		MaxRedirects:   5,
+		MaxRedirects:   defaults.MaxRedirects,
 		AttackerDomain: "evil.com",
 	}
 }

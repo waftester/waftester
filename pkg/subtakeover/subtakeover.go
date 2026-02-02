@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -106,7 +107,7 @@ func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:     duration.HTTPFuzzing,
 		UserAgent:   ui.UserAgent(),
-		Concurrency: 10,
+		Concurrency: defaults.ConcurrencyMedium,
 		DNSResolver: "",
 		CheckHTTP:   true,
 		FollowCNAME: true,

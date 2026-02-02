@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
@@ -38,13 +39,13 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		MaxDepth:     3,
-		Concurrency:  10,
+		MaxDepth:     defaults.DepthMedium,
+		Concurrency:  defaults.ConcurrencyMedium,
 		Timeout:      httpclient.TimeoutProbing,
 		MaxResults:   1000,
 		Extensions:   []string{"", ".html", ".php", ".asp", ".aspx", ".jsp", ".json", ".xml"},
 		FollowLinks:  true,
-		Delay:        100 * time.Millisecond,
+		Delay:        duration.CrawlDelay,
 		UserAgent:    "Mozilla/5.0 (compatible; FuzzBot/1.0)",
 		SuccessCodes: []int{200, 201, 204, 301, 302, 307, 308, 401, 403},
 	}

@@ -168,7 +168,7 @@ func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:         duration.HTTPFuzzing,
 		UserAgent:       "Mozilla/5.0 (compatible; GraphQLTester/1.0)",
-		MaxDepth:        20,
+		MaxDepth:        defaults.DepthGraphQL,
 		MaxBatchSize:    100,
 		SafeMode:        true,
 		FollowRedirects: true,

@@ -134,7 +134,7 @@ func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:     duration.HTTPFuzzing,
 		UserAgent:   "BizLogic-Tester/1.0",
-		Concurrency: 10,
+		Concurrency: defaults.ConcurrencyMedium,
 		RetryCount:  defaults.RetryLow,
 		EnableRace:  true,
 		RaceCount:   10,

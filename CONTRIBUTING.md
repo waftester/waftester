@@ -46,7 +46,42 @@ go test ./...
 
 # Run linter
 golangci-lint run
+
+# Hardcode checks run automatically with tests
+# See pkg/defaults/defaults_test.go for TestNoHardcoded* tests
 ```
+
+## ⚠️ Configuration Constants Policy
+
+**DO NOT use hardcoded configuration values.** All runtime defaults are centralized:
+
+| Package | Use For |
+|---------|---------|
+| `pkg/defaults` | Concurrency, Retry, Buffer, Channel, ContentType, Depth |
+| `pkg/duration` | All `time.Duration` values |
+| `pkg/httpclient` | HTTP timeout presets (Probing, Scanning, Fuzzing) |
+
+### ❌ Forbidden Patterns
+
+```go
+// WRONG - hardcoded values
+config.Concurrency = 10
+config.Timeout = 30 * time.Second
+config.MaxRetries = 3
+req.Header.Set("Content-Type", "application/json")
+```
+
+### ✅ Required Patterns
+
+```go
+// CORRECT - use centralized constants
+config.Concurrency = defaults.ConcurrencyMedium
+config.Timeout = duration.HTTPScan
+config.MaxRetries = defaults.RetryMedium
+req.Header.Set("Content-Type", defaults.ContentTypeJSON)
+```
+
+The CI will **fail** if hardcoded values are detected. The tests in `pkg/defaults/defaults_test.go` use AST parsing to detect violations.
 
 ## Pull Request Process
 
@@ -65,6 +100,7 @@ golangci-lint run
 - Keep functions focused and small
 - Add comments for exported functions
 - Write tests for new functionality
+- **Use `pkg/defaults` and `pkg/duration` for all configuration values**
 
 ## Reporting Issues
 

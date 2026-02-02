@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/benchmark"
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/encoding"
 	"github.com/waftester/waftester/pkg/evasion/advanced"
 	"github.com/waftester/waftester/pkg/falsepositive"
@@ -59,7 +60,7 @@ func DefaultConfig() *Config {
 		Output:      "",
 		Format:      "json",
 		Timeout:     httpclient.TimeoutFuzzing,
-		Concurrency: 10,
+		Concurrency: defaults.ConcurrencyMedium,
 		Tags:        []string{},
 	}
 }

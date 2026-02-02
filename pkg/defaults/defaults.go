@@ -228,6 +228,10 @@ const (
 
 	// DepthMax is the maximum crawl depth (10)
 	DepthMax = 10
+
+	// DepthGraphQL is for GraphQL introspection queries (20)
+	// GraphQL schemas can have deeply nested types requiring extra depth
+	DepthGraphQL = 20
 )
 
 // ============================================================================
@@ -307,8 +311,8 @@ const (
 // ============================================================================
 
 const (
-	PortHTTP    = 80
-	PortHTTPS   = 443
+	PortHTTP     = 80
+	PortHTTPS    = 443
 	PortHTTP8080 = 8080
 	PortHTTP8443 = 8443
 )

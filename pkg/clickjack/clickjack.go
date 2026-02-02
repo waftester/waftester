@@ -23,7 +23,7 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Concurrency: 10,
+		Concurrency: defaults.ConcurrencyMedium,
 		Timeout:     httpclient.TimeoutProbing,
 	}
 }

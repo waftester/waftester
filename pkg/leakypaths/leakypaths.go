@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -68,7 +69,7 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() *Config {
 	return &Config{
-		Concurrency: 20,
+		Concurrency: defaults.ConcurrencyHigh,
 		Timeout:     duration.DialTimeout,
 		UserAgent:   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
 		Verbose:     false,

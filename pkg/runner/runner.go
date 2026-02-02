@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/ratelimit"
@@ -82,7 +83,7 @@ type Runner[T any] struct {
 // NewRunner creates a new runner with default settings
 func NewRunner[T any]() *Runner[T] {
 	return &Runner[T]{
-		Concurrency: 50, // Default concurrency
+		Concurrency: defaults.ConcurrencyMax, // Default concurrency
 		Timeout:     duration.HTTPFuzzing,
 	}
 }

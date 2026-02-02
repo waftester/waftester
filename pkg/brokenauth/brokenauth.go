@@ -25,7 +25,7 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Concurrency: 5,
+		Concurrency: defaults.ConcurrencyLow,
 		Timeout:     httpclient.TimeoutScanning,
 	}
 }

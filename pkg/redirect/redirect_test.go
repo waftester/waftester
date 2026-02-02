@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/defaults"
 )
 
 func TestNewTester(t *testing.T) {
@@ -41,8 +43,8 @@ func TestDefaultConfig(t *testing.T) {
 	if config.Timeout != 10*time.Second {
 		t.Errorf("expected 10s timeout, got %v", config.Timeout)
 	}
-	if config.MaxRedirects != 5 {
-		t.Errorf("expected 5 max redirects")
+	if config.MaxRedirects != defaults.MaxRedirects {
+		t.Errorf("expected %d max redirects, got %d", defaults.MaxRedirects, config.MaxRedirects)
 	}
 	if config.AttackerDomain != "evil.com" {
 		t.Errorf("expected evil.com as attacker domain")

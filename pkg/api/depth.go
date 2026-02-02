@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
@@ -53,7 +54,7 @@ func DefaultDepthScanConfig() *DepthScanConfig {
 	return &DepthScanConfig{
 		Timeout:        httpclient.TimeoutProbing,
 		PreflightDepth: 3,
-		MaxDepth:       5,
+		MaxDepth:       defaults.DepthHigh,
 		ContentLenIgnore: []Range{
 			{Min: 0, Max: 100},     // Empty/minimal responses
 			{Min: 4000, Max: 5000}, // Common error page sizes

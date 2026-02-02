@@ -124,6 +124,9 @@ const (
 	// HealthCheck is for health check intervals (2s)
 	HealthCheck = 2 * time.Second
 
+	// CrawlDelay is the delay between crawl/recursive requests (100ms)
+	CrawlDelay = 100 * time.Millisecond
+
 	// WorkerHeartbeat is for distributed worker heartbeat (10s)
 	WorkerHeartbeat = 10 * time.Second
 

@@ -57,7 +57,7 @@ type Config struct {
 // DefaultConfig returns sensible defaults for assessment
 func DefaultConfig() *Config {
 	return &Config{
-		Concurrency:     25,
+		Concurrency:     defaults.ConcurrencyHigh,
 		RateLimit:       100,
 		Timeout:         httpclient.TimeoutProbing,
 		EnableFPTesting: true,

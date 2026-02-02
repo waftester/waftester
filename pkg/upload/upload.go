@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -99,7 +100,7 @@ func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:        duration.HTTPFuzzing,
 		UserAgent:      "Upload-Tester/1.0",
-		Concurrency:    5,
+		Concurrency:    defaults.ConcurrencyLow,
 		FileField:      "file",
 		ExtraFields:    make(map[string]string),
 		Cookies:        make(map[string]string),
@@ -350,7 +351,7 @@ func GetMaliciousContentPayloads() []UploadPayload {
 	xmlContent := []byte(`<?xml version="1.0"?><root><data>test</data></root>`)
 	return []UploadPayload{
 		{Filename: "test.svg", Content: svgContent, ContentType: "image/svg+xml", Description: "SVG file upload", VulnType: VulnSVGXSS},
-		{Filename: "test.xml", Content: xmlContent, ContentType: "application/xml", Description: "XML file upload", VulnType: VulnXMLXXE},
+		{Filename: "test.xml", Content: xmlContent, ContentType: defaults.ContentTypeXML, Description: "XML file upload", VulnType: VulnXMLXXE},
 		{Filename: ".htaccess", Content: []byte("# htaccess test"), ContentType: "text/plain", Description: ".htaccess upload", VulnType: VulnMaliciousContent},
 	}
 }

@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -173,7 +174,7 @@ func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:       duration.HTTPFuzzing,
 		UserAgent:     "API-Fuzzer/1.0",
-		Concurrency:   10,
+		Concurrency:   defaults.ConcurrencyMedium,
 		MaxIterations: 100,
 		FuzzTypes:     []FuzzType{FuzzMutation, FuzzSmart},
 		SkipCodes:     []int{404},

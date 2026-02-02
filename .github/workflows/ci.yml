@@ -23,6 +23,9 @@ jobs:
       - name: Test
         run: go test -v -race -coverprofile=coverage.txt ./...
 
+      # Hardcode enforcement runs as part of normal test suite
+      # See pkg/defaults/defaults_test.go for TestNoHardcoded* tests
+
   lint:
     runs-on: ubuntu-latest
     steps:
