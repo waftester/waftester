@@ -307,14 +307,35 @@ func TestURLEncodeMutator(t *testing.T) {
 		t.Errorf("expected 'url-encode', got %s", m.Name())
 	}
 
-	results := m.Mutate("' OR '1'='1")
-	if len(results) == 0 {
-		t.Error("expected results")
+	// Test that alphanumeric chars are NOT encoded
+	results := m.Mutate("abc123ABC")
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0] != "abc123ABC" {
+		t.Errorf("alphanumeric should not be encoded, got %s", results[0])
 	}
 
-	// Should contain %27 for single quote
-	if results[0] == "' OR '1'='1" {
-		t.Error("expected encoded output")
+	// Test that special chars ARE encoded with correct format
+	results = m.Mutate("' OR '1'='1")
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	expected := "%27%20OR%20%271%27%3D%271"
+	if results[0] != expected {
+		t.Errorf("expected %q, got %q", expected, results[0])
+	}
+
+	// Test single special character
+	results = m.Mutate("<")
+	if results[0] != "%3C" {
+		t.Errorf("expected %%3C for '<', got %q", results[0])
+	}
+
+	// Test empty string
+	results = m.Mutate("")
+	if results[0] != "" {
+		t.Errorf("expected empty string, got %q", results[0])
 	}
 }
 
