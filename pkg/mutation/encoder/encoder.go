@@ -312,7 +312,7 @@ func (e *OverlongUTF8Encoder) Mutate(payload string) []mutation.MutatedPayload {
 
 	// 2-byte overlong variant
 	var result2 strings.Builder
-	result2.Grow(len(payload) * 10) // %cXX%cXX = 10 chars per byte
+	result2.Grow(len(payload) * 6) // %XX%XX = 6 chars per byte
 	for _, b := range []byte(payload) {
 		if b < 128 {
 			hexutil.WriteOverlong2Byte(&result2, b)
@@ -329,7 +329,7 @@ func (e *OverlongUTF8Encoder) Mutate(payload string) []mutation.MutatedPayload {
 
 	// 3-byte overlong variant
 	var result3 strings.Builder
-	result3.Grow(len(payload) * 15) // %eXX%cXX%cXX = 15 chars per byte
+	result3.Grow(len(payload) * 9) // %XX%XX%XX = 9 chars per byte
 	for _, b := range []byte(payload) {
 		if b < 128 {
 			hexutil.WriteOverlong3Byte(&result3, b)

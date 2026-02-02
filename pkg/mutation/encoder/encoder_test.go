@@ -118,20 +118,33 @@ func TestOverlongUTF8Encoder(t *testing.T) {
 	enc := &OverlongUTF8Encoder{}
 
 	results := enc.Mutate("<")
-	if len(results) == 0 {
-		t.Fatal("Expected at least 1 result")
+	if len(results) != 2 {
+		t.Fatalf("Expected 2 results (2-byte and 3-byte), got %d", len(results))
 	}
 
-	// Should produce overlong UTF-8 variants (may be multiple)
-	found := false
-	for _, r := range results {
-		if strings.Contains(r.Mutated, "%c") || r.Mutated != "<" {
-			found = true
-			break
-		}
+	// 2-byte overlong for '<' (0x3C) should be %C0%BC
+	// 110000xx 10xxxxxx where xx = 0x3C >> 6 = 0, xxxxxx = 0x3C & 0x3F = 0x3C
+	// First byte: 0xC0 | 0 = 0xC0
+	// Second byte: 0x80 | 0x3C = 0xBC
+	if results[0].Mutated != "%C0%BC" {
+		t.Errorf("2-byte overlong for '<' expected %%C0%%BC, got %q", results[0].Mutated)
 	}
-	if !found {
-		t.Log("Overlong UTF-8 encoder should transform input")
+
+	// 3-byte overlong for '<' (0x3C) should be %E0%80%BC
+	// 1110xxxx 10xxxxxx 10xxxxxx
+	// First: 0xE0, Second: 0x80 | (0x3C >> 6) = 0x80, Third: 0x80 | 0x3C = 0xBC
+	if results[1].Mutated != "%E0%80%BC" {
+		t.Errorf("3-byte overlong for '<' expected %%E0%%80%%BC, got %q", results[1].Mutated)
+	}
+
+	// Test that ASCII is encoded, non-ASCII is preserved
+	results = enc.Mutate("A\xfe")
+	if len(results) != 2 {
+		t.Fatalf("Expected 2 results, got %d", len(results))
+	}
+	// 'A' (0x41) becomes %C1%81 in 2-byte, 0xFE is preserved
+	if results[0].Mutated != "%C1%81\xfe" {
+		t.Errorf("2-byte overlong expected %%C1%%81 + raw byte, got %q", results[0].Mutated)
 	}
 }
 
