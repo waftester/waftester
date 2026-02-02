@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 )
@@ -74,7 +76,7 @@ type TesterConfig struct {
 // DefaultConfig returns a default tester configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:        10 * time.Second,
+		Timeout:        duration.DialTimeout,
 		UserAgent:      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
 		MaxRedirects:   5,
 		AttackerDomain: "evil.com",
@@ -94,17 +96,9 @@ func NewTester(config *TesterConfig) *Tester {
 		config = DefaultConfig()
 	}
 
-	client := &http.Client{
-		Timeout: config.Timeout,
-		// Don't follow redirects automatically
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
 	t := &Tester{
 		config: config,
-		client: client,
+		client: httpclient.Default(),
 	}
 
 	t.payloads = t.generatePayloads()

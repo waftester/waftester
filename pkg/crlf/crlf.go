@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -90,7 +92,7 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:     30 * time.Second,
+		Timeout:     httpclient.TimeoutFuzzing,
 		UserAgent:   ui.UserAgent(),
 		Concurrency: 5,
 		TestParams: []string{
@@ -126,12 +128,7 @@ func NewTester(config *TesterConfig) *Tester {
 
 	client := config.Client
 	if client == nil {
-		client = &http.Client{
-			Timeout: config.Timeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		}
+		client = httpclient.Default()
 	}
 
 	return &Tester{
@@ -413,7 +410,7 @@ func (t *Tester) TestPOST(ctx context.Context, targetURL string, param string) (
 		if err != nil {
 			continue
 		}
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("Content-Type", defaults.ContentTypeForm)
 		req.Header.Set("User-Agent", t.config.UserAgent)
 
 		resp, err := t.client.Do(req)

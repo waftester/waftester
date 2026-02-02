@@ -12,6 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 )
@@ -163,7 +166,7 @@ type TesterConfig struct {
 // DefaultConfig returns a default tester configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:         30 * time.Second,
+		Timeout:         duration.HTTPFuzzing,
 		UserAgent:       "Mozilla/5.0 (compatible; GraphQLTester/1.0)",
 		MaxDepth:        20,
 		MaxBatchSize:    100,
@@ -186,9 +189,7 @@ func NewTester(endpoint string, config *TesterConfig) *Tester {
 		config = DefaultConfig()
 	}
 
-	client := &http.Client{
-		Timeout: config.Timeout,
-	}
+	client := httpclient.New(httpclient.WithTimeout(config.Timeout))
 
 	if !config.FollowRedirects {
 		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
@@ -284,7 +285,7 @@ func (t *Tester) sendRequest(ctx context.Context, req Request) (*Response, int, 
 }
 
 func (t *Tester) setHeaders(req *http.Request) {
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", defaults.ContentTypeJSON)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", t.config.UserAgent)
 

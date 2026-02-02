@@ -7,11 +7,13 @@ import (
 	"bytes"
 	"strings"
 	"sync"
+
+	"github.com/waftester/waftester/pkg/defaults"
 )
 
 // maxBufferSize is the maximum buffer size to keep in pool.
 // Buffers larger than this are not returned to prevent memory bloat.
-const maxBufferSize = 64 * 1024 // 64KB
+var maxBufferSize = defaults.BufferLarge // 64KB
 
 // bufferPool is the global pool for bytes.Buffer
 var bufferPool = sync.Pool{

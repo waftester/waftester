@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 func TestNewDetector(t *testing.T) {
@@ -27,8 +29,8 @@ func TestNewDetector(t *testing.T) {
 
 func TestNewDetectorDefaults(t *testing.T) {
 	d := NewDetector(0)
-	if d.timeout != 10*time.Second {
-		t.Errorf("expected default timeout 10s, got %v", d.timeout)
+	if d.timeout != httpclient.TimeoutProbing {
+		t.Errorf("expected default timeout %v, got %v", httpclient.TimeoutProbing, d.timeout)
 	}
 }
 
@@ -187,8 +189,8 @@ func TestNewFingerprinter(t *testing.T) {
 
 func TestFingerprinterDefaults(t *testing.T) {
 	fp := NewFingerprinter(0)
-	if fp.timeout != 10*time.Second {
-		t.Errorf("expected default timeout 10s, got %v", fp.timeout)
+	if fp.timeout != httpclient.TimeoutProbing {
+		t.Errorf("expected default timeout %v, got %v", httpclient.TimeoutProbing, fp.timeout)
 	}
 }
 

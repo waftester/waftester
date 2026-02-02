@@ -17,6 +17,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 )
@@ -73,7 +76,7 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		Concurrency: 10,
-		Timeout:     10 * time.Second,
+		Timeout:     duration.DialTimeout,
 		UserAgent:   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
 		ChunkSize:   256, // Arjun default is 256
 		Methods:     []string{"GET", "POST"},
@@ -91,9 +94,7 @@ func NewDiscoverer(cfg *Config) *Discoverer {
 	if cfg.HTTPClient != nil {
 		client = cfg.HTTPClient
 	} else {
-		client = &http.Client{
-			Timeout: cfg.Timeout,
-		}
+		client = httpclient.New(httpclient.WithTimeout(cfg.Timeout))
 	}
 
 	return &Discoverer{
@@ -407,7 +408,7 @@ func (d *Discoverer) testParamChunk(ctx context.Context, targetURL string, metho
 	} else {
 		req, err = http.NewRequestWithContext(ctx, method, targetURL, strings.NewReader(q.Encode()))
 		if err == nil {
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.Header.Set("Content-Type", defaults.ContentTypeForm)
 		}
 	}
 	if err != nil {

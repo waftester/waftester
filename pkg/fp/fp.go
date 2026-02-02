@@ -5,7 +5,6 @@ package fp
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,6 +16,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 	"golang.org/x/time/rate"
@@ -39,7 +40,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		Concurrency:   20,
 		RateLimit:     50,
-		Timeout:       10 * time.Second,
+		Timeout:       duration.DialTimeout,
 		ParanoiaLevel: 2,
 		CorpusSources: []string{"leipzig", "edgecases", "forms", "api"},
 	}
@@ -86,26 +87,11 @@ func NewTester(cfg *Config) *Tester {
 		cfg = DefaultConfig()
 	}
 
-	transport := &http.Transport{
-		MaxIdleConns:        cfg.Concurrency * 2,
-		MaxIdleConnsPerHost: cfg.Concurrency,
-		IdleConnTimeout:     30 * time.Second,
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: cfg.SkipVerify,
-		},
-	}
-
 	return &Tester{
-		config: cfg,
-		httpClient: &http.Client{
-			Transport: transport,
-			Timeout:   cfg.Timeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
-		limiter: rate.NewLimiter(rate.Limit(cfg.RateLimit), int(cfg.RateLimit)),
-		corpus:  NewCorpus(),
+		config:     cfg,
+		httpClient: httpclient.Default(),
+		limiter:    rate.NewLimiter(rate.Limit(cfg.RateLimit), int(cfg.RateLimit)),
+		corpus:     NewCorpus(),
 	}
 }
 

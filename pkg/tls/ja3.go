@@ -19,6 +19,8 @@ import (
 	"time"
 
 	utls "github.com/refraction-networking/utls"
+
+	"github.com/waftester/waftester/pkg/duration"
 )
 
 // JA3Profile represents a TLS fingerprint profile
@@ -56,7 +58,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		Profiles:    DefaultProfiles(),
 		RotateEvery: 25, // Rotate every 25 requests
-		Timeout:     30 * time.Second,
+		Timeout:     duration.HTTPFuzzing,
 		SkipVerify:  false,
 		Verbose:     false,
 	}

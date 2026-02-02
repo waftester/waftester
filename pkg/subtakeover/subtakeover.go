@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -102,7 +104,7 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:     30 * time.Second,
+		Timeout:     duration.HTTPFuzzing,
 		UserAgent:   ui.UserAgent(),
 		Concurrency: 10,
 		DNSResolver: "",
@@ -119,12 +121,7 @@ func NewTester(config *TesterConfig) *Tester {
 
 	client := config.Client
 	if client == nil {
-		client = &http.Client{
-			Timeout: config.Timeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		}
+		client = httpclient.New(httpclient.WithTimeout(config.Timeout))
 	}
 
 	return &Tester{

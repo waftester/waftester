@@ -13,6 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -38,7 +40,7 @@ func DefaultConfig() Config {
 	return Config{
 		MaxDepth:     3,
 		Concurrency:  10,
-		Timeout:      10 * time.Second,
+		Timeout:      httpclient.TimeoutProbing,
 		MaxResults:   1000,
 		Extensions:   []string{"", ".html", ".php", ".asp", ".aspx", ".jsp", ".json", ".xml"},
 		FollowLinks:  true,
@@ -99,29 +101,24 @@ type fuzzerTask struct {
 // NewFuzzer creates a recursive fuzzer
 func NewFuzzer(config Config) (*Fuzzer, error) {
 	if config.MaxDepth <= 0 {
-		config.MaxDepth = 3
+		config.MaxDepth = defaults.DepthMedium
 	}
 	if config.Concurrency <= 0 {
-		config.Concurrency = 10
+		config.Concurrency = defaults.ConcurrencyMedium
 	}
 	if config.Timeout <= 0 {
-		config.Timeout = 10 * time.Second
+		config.Timeout = httpclient.TimeoutProbing
 	}
 	if len(config.SuccessCodes) == 0 {
 		config.SuccessCodes = DefaultConfig().SuccessCodes
 	}
 
 	f := &Fuzzer{
-		config:  config,
-		results: make([]Result, 0),
-		visited: make(map[string]bool),
-		queue:   make(chan fuzzerTask, 10000),
-		httpClient: &http.Client{
-			Timeout: config.Timeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
+		config:     config,
+		results:    make([]Result, 0),
+		visited:    make(map[string]bool),
+		queue:      make(chan fuzzerTask, 10000),
+		httpClient: httpclient.New(httpclient.WithTimeout(config.Timeout)),
 	}
 
 	if config.ExcludeRegex != "" {

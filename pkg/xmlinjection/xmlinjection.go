@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -22,8 +24,8 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Concurrency: 10,
-		Timeout:     15 * time.Second,
+		Concurrency: defaults.ConcurrencyMedium,
+		Timeout:     httpclient.TimeoutScanning,
 	}
 }
 
@@ -52,17 +54,15 @@ type Scanner struct {
 // NewScanner creates a new XML injection scanner
 func NewScanner(config Config) *Scanner {
 	if config.Concurrency <= 0 {
-		config.Concurrency = 10
+		config.Concurrency = defaults.ConcurrencyMedium
 	}
 	if config.Timeout <= 0 {
-		config.Timeout = 15 * time.Second
+		config.Timeout = httpclient.TimeoutScanning
 	}
 
 	return &Scanner{
-		config: config,
-		client: &http.Client{
-			Timeout: config.Timeout,
-		},
+		config:  config,
+		client:  httpclient.Default(),
 		results: make([]Result, 0),
 	}
 }
@@ -105,7 +105,7 @@ func (s *Scanner) testPayload(ctx context.Context, targetURL string, payload Pay
 		return result
 	}
 
-	req.Header.Set("Content-Type", "application/xml")
+	req.Header.Set("Content-Type", defaults.ContentTypeXML)
 	for k, v := range s.config.Headers {
 		req.Header.Set(k, v)
 	}

@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -23,8 +25,8 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Concurrency: 5,
-		Timeout:     10 * time.Second,
+		Concurrency: defaults.ConcurrencyLow,
+		Timeout:     httpclient.TimeoutProbing,
 	}
 }
 
@@ -53,17 +55,15 @@ type Scanner struct {
 // NewScanner creates a new mass assignment scanner
 func NewScanner(config Config) *Scanner {
 	if config.Concurrency <= 0 {
-		config.Concurrency = 5
+		config.Concurrency = defaults.ConcurrencyLow
 	}
 	if config.Timeout <= 0 {
-		config.Timeout = 10 * time.Second
+		config.Timeout = httpclient.TimeoutProbing
 	}
 
 	return &Scanner{
-		config: config,
-		client: &http.Client{
-			Timeout: config.Timeout,
-		},
+		config:  config,
+		client:  httpclient.Default(),
 		results: make([]Result, 0),
 	}
 }
@@ -114,7 +114,7 @@ func (s *Scanner) testParameter(ctx context.Context, targetURL string, param Dan
 		return result
 	}
 
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", defaults.ContentTypeJSON)
 	for k, v := range s.config.Headers {
 		req.Header.Set(k, v)
 	}

@@ -18,6 +18,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 )
@@ -85,16 +86,14 @@ func NewManager(cfg *Config) *Manager {
 		cfg.MaxCacheSize = 100 * 1024 * 1024 // 100MB
 	}
 	if cfg.DownloadTimeout == 0 {
-		cfg.DownloadTimeout = 5 * time.Minute
+		cfg.DownloadTimeout = httpclient.TimeoutLongOps
 	}
 
 	m := &Manager{
 		cache:        make(map[string]*Wordlist),
 		cacheDir:     cfg.CacheDir,
 		maxCacheSize: cfg.MaxCacheSize,
-		httpClient: &http.Client{
-			Timeout: cfg.DownloadTimeout,
-		},
+		httpClient:   httpclient.New(httpclient.WithTimeout(cfg.DownloadTimeout)),
 		builtInLists: initBuiltInLists(),
 	}
 

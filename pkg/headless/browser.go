@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/duration"
 )
 
 // CrawlMode defines the crawling strategy
@@ -74,8 +76,8 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		MaxBrowsers:         4,
-		PageTimeout:         30 * time.Second,
-		IdleTimeout:         2 * time.Second,
+		PageTimeout:         duration.BrowserPage,
+		IdleTimeout:         duration.BrowserIdle,
 		NoSandbox:           true,
 		CookieConsentBypass: true,
 		CookieConsentWords: []string{

@@ -15,9 +15,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/hosterrors"
-	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/output"
 	"github.com/waftester/waftester/pkg/payloads"
 	"github.com/waftester/waftester/pkg/realistic"
@@ -71,13 +72,13 @@ type Executor struct {
 func NewExecutor(cfg ExecutorConfig) *Executor {
 	// Validate and apply defaults for invalid config values
 	if cfg.Concurrency <= 0 {
-		cfg.Concurrency = 1 // Default to 1 worker
+		cfg.Concurrency = defaults.ConcurrencyMinimal // Default to 1 worker
 	}
 	if cfg.RateLimit <= 0 {
 		cfg.RateLimit = 100 // Default to 100 requests/sec
 	}
 	if cfg.Timeout <= 0 {
-		cfg.Timeout = 30 * time.Second // Default 30 second timeout
+		cfg.Timeout = httpclient.TimeoutFuzzing // Default fuzzing timeout
 	}
 	if cfg.Retries < 0 {
 		cfg.Retries = 0 // No negative retries
@@ -88,15 +89,15 @@ func NewExecutor(cfg ExecutorConfig) *Executor {
 	if cfg.HTTPClient != nil {
 		client = cfg.HTTPClient
 	} else {
-		// Use shared httpclient factory for connection pooling and optimized transport
-		client = httpclient.New(httpclient.Config{
-			Timeout:            cfg.Timeout,
-			InsecureSkipVerify: cfg.SkipVerify,
-			Proxy:              cfg.Proxy,
-			MaxIdleConns:       cfg.Concurrency * 2,
-			MaxConnsPerHost:    cfg.Concurrency,
-			IdleConnTimeout:    30 * time.Second,
-		})
+		// Start from FuzzingConfig preset and override with executor-specific settings
+		httpCfg := httpclient.FuzzingConfig()
+		httpCfg.Timeout = cfg.Timeout
+		httpCfg.InsecureSkipVerify = cfg.SkipVerify
+		httpCfg.Proxy = cfg.Proxy
+		// Scale connection pool to concurrency level
+		httpCfg.MaxConnsPerHost = cfg.Concurrency
+		httpCfg.MaxIdleConns = cfg.Concurrency * 2
+		client = httpclient.New(httpCfg)
 	}
 
 	// Create rate limiter (token bucket)
@@ -406,8 +407,8 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 	}
 
 	// Read response body for filtering (limited to 1MB)
-	bodyBytes := make([]byte, 0, 1024*1024)
-	buf := make([]byte, 32*1024)
+	bodyBytes := make([]byte, 0, defaults.BufferHuge)
+	buf := make([]byte, defaults.BufferMedium)
 	for {
 		n, readErr := resp.Body.Read(buf)
 		if n > 0 {

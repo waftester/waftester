@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -14,8 +16,8 @@ func TestDefaultConfig(t *testing.T) {
 	if config.Concurrency != 10 {
 		t.Errorf("expected Concurrency 10, got %d", config.Concurrency)
 	}
-	if config.Timeout != 10*time.Second {
-		t.Errorf("expected Timeout 10s, got %v", config.Timeout)
+	if config.Timeout != httpclient.TimeoutProbing {
+		t.Errorf("expected Timeout %v, got %v", httpclient.TimeoutProbing, config.Timeout)
 	}
 	if len(config.IDPatterns) == 0 {
 		t.Error("expected ID patterns")
@@ -34,7 +36,7 @@ func TestNewScanner_Defaults(t *testing.T) {
 	if scanner.config.Concurrency != 10 {
 		t.Error("default concurrency not set")
 	}
-	if scanner.config.Timeout != 10*time.Second {
+	if scanner.config.Timeout != httpclient.TimeoutProbing {
 		t.Error("default timeout not set")
 	}
 }

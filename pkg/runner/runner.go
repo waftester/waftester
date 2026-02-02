@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/ratelimit"
 	"github.com/waftester/waftester/pkg/regexcache"
@@ -82,7 +83,7 @@ type Runner[T any] struct {
 func NewRunner[T any]() *Runner[T] {
 	return &Runner[T]{
 		Concurrency: 50, // Default concurrency
-		Timeout:     30 * time.Second,
+		Timeout:     duration.HTTPFuzzing,
 	}
 }
 

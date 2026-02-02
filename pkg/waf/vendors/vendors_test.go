@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 func TestNewVendorDetector(t *testing.T) {
@@ -23,8 +25,8 @@ func TestNewVendorDetector(t *testing.T) {
 
 func TestNewVendorDetectorDefaultTimeout(t *testing.T) {
 	detector := NewVendorDetector(0)
-	if detector.timeout != 10*time.Second {
-		t.Errorf("Expected default timeout 10s, got %v", detector.timeout)
+	if detector.timeout != httpclient.TimeoutProbing {
+		t.Errorf("Expected default timeout %v, got %v", httpclient.TimeoutProbing, detector.timeout)
 	}
 }
 

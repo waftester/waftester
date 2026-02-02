@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -25,7 +27,7 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		Concurrency: 5,
-		Timeout:     15 * time.Second,
+		Timeout:     httpclient.TimeoutScanning,
 	}
 }
 
@@ -54,17 +56,15 @@ type Scanner struct {
 // NewScanner creates a new insecure deserialization scanner
 func NewScanner(config Config) *Scanner {
 	if config.Concurrency <= 0 {
-		config.Concurrency = 5
+		config.Concurrency = defaults.ConcurrencyLow
 	}
 	if config.Timeout <= 0 {
-		config.Timeout = 15 * time.Second
+		config.Timeout = httpclient.TimeoutScanning
 	}
 
 	return &Scanner{
-		config: config,
-		client: &http.Client{
-			Timeout: config.Timeout,
-		},
+		config:  config,
+		client:  httpclient.Default(),
 		results: make([]Result, 0),
 	}
 }
@@ -118,7 +118,7 @@ func (s *Scanner) testPayload(ctx context.Context, targetURL, param string, payl
 		return result
 	}
 
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Content-Type", defaults.ContentTypeForm)
 	for k, v := range s.config.Headers {
 		req.Header.Set(k, v)
 	}

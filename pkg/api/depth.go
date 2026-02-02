@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"crypto/rand"
-	"crypto/tls"
 	"fmt"
 	"math/big"
 	"net/http"
@@ -11,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -51,7 +51,7 @@ type DepthScanConfig struct {
 // DefaultDepthScanConfig returns sensible defaults
 func DefaultDepthScanConfig() *DepthScanConfig {
 	return &DepthScanConfig{
-		Timeout:        10 * time.Second,
+		Timeout:        httpclient.TimeoutProbing,
 		PreflightDepth: 3,
 		MaxDepth:       5,
 		ContentLenIgnore: []Range{
@@ -67,18 +67,8 @@ func NewDepthScanner(config *DepthScanConfig) *DepthScanner {
 		config = DefaultDepthScanConfig()
 	}
 
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: config.SkipVerify},
-	}
-
 	return &DepthScanner{
-		client: &http.Client{
-			Timeout:   config.Timeout,
-			Transport: transport,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
+		client:           httpclient.Probing(),
 		preflightDepth:   config.PreflightDepth,
 		contentLenIgnore: config.ContentLenIgnore,
 		wildcardCache:    make(map[string]*WildcardInfo),

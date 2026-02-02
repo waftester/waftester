@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 func TestNewFuzzer(t *testing.T) {
@@ -24,7 +25,7 @@ func TestNewFuzzer(t *testing.T) {
 		require.NotNil(t, f)
 		assert.Equal(t, 40, f.config.Concurrency)
 		assert.Equal(t, 100, f.config.RateLimit)
-		assert.Equal(t, 10*time.Second, f.config.Timeout)
+		assert.Equal(t, httpclient.TimeoutProbing, f.config.Timeout)
 		assert.Equal(t, "GET", f.config.Method)
 	})
 

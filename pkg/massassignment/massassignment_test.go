@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -14,8 +16,8 @@ func TestDefaultConfig(t *testing.T) {
 	if config.Concurrency != 5 {
 		t.Errorf("DefaultConfig().Concurrency = %d, want 5", config.Concurrency)
 	}
-	if config.Timeout != 10*1e9 {
-		t.Errorf("DefaultConfig().Timeout = %v, want 10s", config.Timeout)
+	if config.Timeout != httpclient.TimeoutProbing {
+		t.Errorf("DefaultConfig().Timeout = %v, want %v", config.Timeout, httpclient.TimeoutProbing)
 	}
 }
 

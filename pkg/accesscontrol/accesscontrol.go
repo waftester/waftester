@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -62,16 +63,11 @@ type TesterConfig struct {
 func NewTester(cfg TesterConfig) *Tester {
 	timeout := cfg.Timeout
 	if timeout == 0 {
-		timeout = 10 * time.Second
+		timeout = httpclient.TimeoutProbing
 	}
 
 	return &Tester{
-		client: &http.Client{
-			Timeout: timeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
+		client:         httpclient.Default(),
 		target:         cfg.Target,
 		authTokenLow:   cfg.AuthTokenLow,
 		authTokenHigh:  cfg.AuthTokenHigh,

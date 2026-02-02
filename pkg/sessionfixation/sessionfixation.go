@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -23,8 +25,8 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Concurrency: 5,
-		Timeout:     15 * time.Second,
+		Concurrency: defaults.ConcurrencyLow,
+		Timeout:     httpclient.TimeoutScanning,
 	}
 }
 
@@ -51,10 +53,10 @@ type Scanner struct {
 // NewScanner creates a new session fixation scanner
 func NewScanner(config Config) *Scanner {
 	if config.Concurrency <= 0 {
-		config.Concurrency = 5
+		config.Concurrency = defaults.ConcurrencyLow
 	}
 	if config.Timeout <= 0 {
-		config.Timeout = 15 * time.Second
+		config.Timeout = httpclient.TimeoutScanning
 	}
 
 	return &Scanner{
@@ -71,10 +73,8 @@ func (s *Scanner) Scan(ctx context.Context, loginURL string, credentials url.Val
 	}
 
 	jar, _ := cookiejar.New(nil)
-	client := &http.Client{
-		Timeout: s.config.Timeout,
-		Jar:     jar,
-	}
+	client := httpclient.Default()
+	client.Jar = jar
 
 	// Step 1: Get initial session (pre-auth)
 	preReq, err := http.NewRequestWithContext(ctx, "GET", loginURL, nil)
@@ -107,7 +107,7 @@ func (s *Scanner) Scan(ctx context.Context, loginURL string, credentials url.Val
 	if err != nil {
 		return result, err
 	}
-	loginReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	loginReq.Header.Set("Content-Type", defaults.ContentTypeForm)
 	for k, v := range s.config.Headers {
 		loginReq.Header.Set(k, v)
 	}

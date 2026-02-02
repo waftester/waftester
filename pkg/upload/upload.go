@@ -17,6 +17,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -95,7 +97,7 @@ type Tester struct {
 // DefaultConfig returns default configuration.
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:        30 * time.Second,
+		Timeout:        duration.HTTPFuzzing,
 		UserAgent:      "Upload-Tester/1.0",
 		Concurrency:    5,
 		FileField:      "file",
@@ -112,19 +114,9 @@ func NewTester(config *TesterConfig) *Tester {
 		config = DefaultConfig()
 	}
 
-	checkRedirect := func(req *http.Request, via []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
-	if config.FollowRedirect {
-		checkRedirect = nil
-	}
-
 	return &Tester{
 		config: config,
-		client: &http.Client{
-			Timeout:       config.Timeout,
-			CheckRedirect: checkRedirect,
-		},
+		client: httpclient.Default(),
 	}
 }
 
@@ -199,7 +191,7 @@ func (t *Tester) TestUpload(ctx context.Context, targetURL string, payload Uploa
 func (t *Tester) Scan(ctx context.Context, targetURL string) ([]Vulnerability, error) {
 	// Quick pre-check: see if target accepts POST at all
 	// This prevents wasting time on targets without upload functionality
-	preCheckCtx, preCheckCancel := context.WithTimeout(ctx, 5*time.Second)
+	preCheckCtx, preCheckCancel := context.WithTimeout(ctx, duration.HTTPProbing)
 	defer preCheckCancel()
 
 	req, err := http.NewRequestWithContext(preCheckCtx, "OPTIONS", targetURL, nil)

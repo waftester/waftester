@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 )
@@ -90,7 +92,7 @@ type Tester struct {
 // DefaultConfig returns default configuration.
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:        30 * time.Second,
+		Timeout:        duration.HTTPFuzzing,
 		UserAgent:      "Deserialize-Tester/1.0",
 		Concurrency:    5,
 		Parameters:     []string{"data", "object", "session", "token", "state", "viewstate"},
@@ -105,19 +107,9 @@ func NewTester(config *TesterConfig) *Tester {
 		config = DefaultConfig()
 	}
 
-	checkRedirect := func(req *http.Request, via []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
-	if config.FollowRedirect {
-		checkRedirect = nil
-	}
-
 	return &Tester{
 		config: config,
-		client: &http.Client{
-			Timeout:       config.Timeout,
-			CheckRedirect: checkRedirect,
-		},
+		client: httpclient.Default(),
 	}
 }
 

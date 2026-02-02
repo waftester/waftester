@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 // TestNewDiscoverer tests discoverer creation
@@ -19,8 +21,8 @@ func TestNewDiscoverer(t *testing.T) {
 		}
 		d := NewDiscoverer(cfg)
 
-		if d.config.Timeout != 10*time.Second {
-			t.Errorf("expected default Timeout 10s, got %v", d.config.Timeout)
+		if d.config.Timeout != httpclient.TimeoutProbing {
+			t.Errorf("expected default Timeout %v, got %v", httpclient.TimeoutProbing, d.config.Timeout)
 		}
 		if d.config.MaxDepth != 3 {
 			t.Errorf("expected default MaxDepth 3, got %d", d.config.MaxDepth)

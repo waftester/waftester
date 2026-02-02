@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"sync"
 	"testing"
+
+	"github.com/waftester/waftester/pkg/defaults"
 )
 
 func TestGet(t *testing.T) {
@@ -37,7 +39,7 @@ func TestPutResetsRequest(t *testing.T) {
 	// Set various fields
 	req.Method = "POST"
 	req.URL, _ = url.Parse("https://example.com/path?query=value")
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", defaults.ContentTypeJSON)
 	req.Header.Set("Authorization", "Bearer secret-token")
 	req.Host = "example.com"
 	req.ContentLength = 100
@@ -152,7 +154,7 @@ func BenchmarkGetPutWithHeaders(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		req := Get()
 		req.Method = "POST"
-		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Content-Type", defaults.ContentTypeJSON)
 		req.Header.Set("Authorization", "Bearer token")
 		req.Header.Set("User-Agent", "WAFtester/1.0")
 		Put(req)
@@ -166,7 +168,7 @@ func BenchmarkNewRequestWithHeaders(b *testing.B) {
 			Method: "POST",
 			Header: make(http.Header),
 		}
-		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Content-Type", defaults.ContentTypeJSON)
 		req.Header.Set("Authorization", "Bearer token")
 		req.Header.Set("User-Agent", "WAFtester/1.0")
 		_ = req

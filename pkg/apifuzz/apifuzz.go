@@ -17,6 +17,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -169,7 +171,7 @@ type Tester struct {
 // DefaultConfig returns default configuration.
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:       30 * time.Second,
+		Timeout:       duration.HTTPFuzzing,
 		UserAgent:     "API-Fuzzer/1.0",
 		Concurrency:   10,
 		MaxIterations: 100,
@@ -190,13 +192,8 @@ func NewTester(config *TesterConfig) *Tester {
 
 	return &Tester{
 		config: config,
-		client: &http.Client{
-			Timeout: config.Timeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
-		rng: rand.New(rand.NewSource(time.Now().UnixNano())),
+		client: httpclient.Fuzzing(),
+		rng:    rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 }
 
@@ -781,7 +778,7 @@ func (t *Tester) analyzeResponse(endpoint Endpoint, param Parameter, payload str
 	}
 
 	// Check for DoS indicators (very slow response)
-	if resp.ResponseTime > 10*time.Second {
+	if resp.ResponseTime > duration.VerySlowResponse {
 		return &Vulnerability{
 			Type:        VulnDoS,
 			Description: fmt.Sprintf("Slow response (%v) may indicate DoS vulnerability", resp.ResponseTime),

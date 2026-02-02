@@ -4,7 +4,6 @@ package assessment
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -16,6 +15,8 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/corpus"
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/ui"
@@ -58,7 +59,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		Concurrency:     25,
 		RateLimit:       100,
-		Timeout:         10 * time.Second,
+		Timeout:         httpclient.TimeoutProbing,
 		EnableFPTesting: true,
 		CorpusSources:   []string{"builtin"},
 		LeipzigLanguage: "eng",
@@ -100,22 +101,7 @@ func New(cfg *Config) *Assessment {
 	if cfg.HTTPClient != nil {
 		httpClient = cfg.HTTPClient
 	} else {
-		transport := &http.Transport{
-			MaxIdleConns:        cfg.Concurrency * 2,
-			MaxIdleConnsPerHost: cfg.Concurrency,
-			IdleConnTimeout:     30 * time.Second,
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: cfg.SkipTLSVerify,
-			},
-		}
-
-		httpClient = &http.Client{
-			Transport: transport,
-			Timeout:   cfg.Timeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		}
+		httpClient = httpclient.Default()
 	}
 
 	return &Assessment{
@@ -510,7 +496,7 @@ func (a *Assessment) executeAttackTest(ctx context.Context, payload AttackPayloa
 		req, err = http.NewRequestWithContext(ctx, "POST", a.config.TargetURL,
 			strings.NewReader("data="+url.QueryEscape(payload.Payload)))
 		if req != nil {
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.Header.Set("Content-Type", defaults.ContentTypeForm)
 		}
 	case "header":
 		req, err = http.NewRequestWithContext(ctx, "GET", a.config.TargetURL, nil)

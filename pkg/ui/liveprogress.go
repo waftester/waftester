@@ -9,6 +9,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/waftester/waftester/pkg/duration"
 )
 
 // OutputMode determines how progress is displayed
@@ -110,8 +112,8 @@ func DefaultLiveProgressConfig() LiveProgressConfig {
 		SpinnerType:    SpinnerDots,
 		BarWidth:       30,
 		Unit:           "items",
-		TipInterval:    5 * time.Second,
-		StreamInterval: 1 * time.Second,
+		TipInterval:    duration.StreamSlow,
+		StreamInterval: duration.StreamFast,
 		StreamFormat:   "[{time}] {completed}/{total} ({percent}%) {metrics}",
 	}
 }
@@ -132,10 +134,10 @@ func NewLiveProgress(config LiveProgressConfig) *LiveProgress {
 		config.Unit = "items"
 	}
 	if config.TipInterval == 0 {
-		config.TipInterval = 5 * time.Second
+		config.TipInterval = duration.StreamSlow
 	}
 	if config.StreamInterval == 0 {
-		config.StreamInterval = 1 * time.Second
+		config.StreamInterval = duration.StreamFast
 	}
 	if config.StreamFormat == "" {
 		config.StreamFormat = "[{time}] {completed}/{total} ({percent}%) {metrics}"

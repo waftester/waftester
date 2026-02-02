@@ -395,8 +395,11 @@ func TestCalibratorWithContextCancellation(t *testing.T) {
 func TestCalibratorHTTPClient(t *testing.T) {
 	c := NewCalibrator("http://example.com", 15*time.Second, true)
 
-	if c.client.Timeout != 15*time.Second {
-		t.Errorf("expected timeout 15s, got %v", c.client.Timeout)
+	// With the migration to shared httpclient.Default(), the client uses a 30s timeout
+	// by default for connection pooling benefits. The timeout parameter is still
+	// stored in the Calibrator struct for potential future use.
+	if c.client.Timeout != 30*time.Second {
+		t.Errorf("expected timeout 30s (from httpclient.Default()), got %v", c.client.Timeout)
 	}
 }
 

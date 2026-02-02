@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -77,7 +79,7 @@ type DetectorConfig struct {
 // DefaultConfig returns a default detector configuration
 func DefaultConfig() *DetectorConfig {
 	return &DetectorConfig{
-		Timeout:         15 * time.Second,
+		Timeout:         duration.HTTPScanning,
 		UserAgent:       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
 		SafeMode:        true,
 		FollowRedirects: false,
@@ -98,19 +100,9 @@ func NewDetector(config *DetectorConfig) *Detector {
 		config = DefaultConfig()
 	}
 
-	client := &http.Client{
-		Timeout: config.Timeout,
-	}
-
-	if !config.FollowRedirects {
-		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		}
-	}
-
 	d := &Detector{
 		config: config,
-		client: client,
+		client: httpclient.Default(),
 	}
 
 	d.payloads = d.generatePayloads()
