@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/waftester/waftester/pkg/defaults"
 )
 
 // ProgressConfig holds progress display settings
@@ -61,7 +62,7 @@ func NewProgress(config ProgressConfig) *Progress {
 		config.Width = 40
 	}
 	if config.Concurrency == 0 {
-		config.Concurrency = 25
+		config.Concurrency = defaults.ConcurrencyHigh
 	}
 	return &Progress{
 		config:        config,

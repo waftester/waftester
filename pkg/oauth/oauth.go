@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -105,7 +106,7 @@ func DefaultTesterConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:        duration.HTTPFuzzing,
 		UserAgent:      "OAuth-Tester/1.0",
-		Concurrency:    5,
+		Concurrency:    defaults.ConcurrencyLow,
 		Cookies:        make(map[string]string),
 		FollowRedirect: false,
 	}

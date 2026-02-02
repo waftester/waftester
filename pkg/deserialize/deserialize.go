@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -94,7 +95,7 @@ func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:        duration.HTTPFuzzing,
 		UserAgent:      "Deserialize-Tester/1.0",
-		Concurrency:    5,
+		Concurrency:    defaults.ConcurrencyLow,
 		Parameters:     []string{"data", "object", "session", "token", "state", "viewstate"},
 		Cookies:        make(map[string]string),
 		FollowRedirect: false,
@@ -361,7 +362,7 @@ func GetDotNetPayloads() []Payload {
 			Name:        "dotnet-viewstate",
 			Data:        "DOTNET_DESER_MARKER_VIEWSTATE",
 			Encoded:     true,
-			ContentType: "application/x-www-form-urlencoded",
+			ContentType: defaults.ContentTypeForm,
 			VulnType:    VulnDotNetDeserial,
 			Description: ".NET ViewState deserialization",
 		},
@@ -377,7 +378,7 @@ func GetDotNetPayloads() []Payload {
 			Name:        "dotnet-json",
 			Data:        "DOTNET_DESER_MARKER_JSON",
 			Encoded:     true,
-			ContentType: "application/json",
+			ContentType: defaults.ContentTypeJSON,
 			VulnType:    VulnDotNetDeserial,
 			Description: ".NET JSON.NET TypeNameHandling",
 		},
@@ -391,7 +392,7 @@ func GetNodePayloads() []Payload {
 			Name:        "node-serialize",
 			Data:        "NODE_DESER_MARKER_SERIALIZE",
 			Encoded:     true,
-			ContentType: "application/json",
+			ContentType: defaults.ContentTypeJSON,
 			VulnType:    VulnNodeDeserial,
 			Description: "Node.js node-serialize IIFE",
 		},
@@ -399,7 +400,7 @@ func GetNodePayloads() []Payload {
 			Name:        "node-funcster",
 			Data:        "NODE_DESER_MARKER_FUNCSTER",
 			Encoded:     true,
-			ContentType: "application/json",
+			ContentType: defaults.ContentTypeJSON,
 			VulnType:    VulnNodeDeserial,
 			Description: "Node.js funcster deserialization",
 		},

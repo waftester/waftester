@@ -31,10 +31,10 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Concurrency:    100,
+		Concurrency:    defaults.ConcurrencyDNS,
 		Timeout:        duration.DNSTimeout,
 		Resolvers:      DefaultResolvers(),
-		Retries:        2,
+		Retries:        defaults.RetryLow,
 		WildcardFilter: true,
 		RecursionDepth: 0, // No recursion by default
 	}
@@ -100,7 +100,7 @@ func NewBruteforcer(config Config) *Bruteforcer {
 		config.Resolvers = DefaultResolvers()
 	}
 	if config.Retries <= 0 {
-		config.Retries = 2
+		config.Retries = defaults.RetryLow
 	}
 
 	resolvers := make([]*net.Resolver, len(config.Resolvers))

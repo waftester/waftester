@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 )
 
@@ -54,7 +55,7 @@ func DefaultConfig() Config {
 		Timeout:     TimeoutFuzzing,
 		WaitFor:     duration.BrowserIdle,
 		OutputDir:   "screenshots",
-		Concurrency: 5,
+		Concurrency: defaults.ConcurrencyLow,
 	}
 }
 
@@ -95,7 +96,7 @@ func NewCapturer(config Config) *Capturer {
 		config.Timeout = TimeoutFuzzing
 	}
 	if config.Concurrency <= 0 {
-		config.Concurrency = 5
+		config.Concurrency = defaults.ConcurrencyLow
 	}
 	if config.Format == "" {
 		config.Format = FormatPNG

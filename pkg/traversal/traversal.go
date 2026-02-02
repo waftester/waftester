@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -114,9 +115,9 @@ func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:         duration.HTTPFuzzing,
 		UserAgent:       ui.UserAgent(),
-		Concurrency:     5,
+		Concurrency:     defaults.ConcurrencyLow,
 		Platform:        PlatformUnknown,
-		MaxDepth:        10,
+		MaxDepth:        defaults.DepthMax,
 		FollowRedirects: false,
 		TestParams: []string{
 			"file",
