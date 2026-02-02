@@ -94,7 +94,10 @@ func (s *Scanner) TestRateLimiting(ctx context.Context, targetURL string, reques
 		}
 
 		start := time.Now()
-		req, _ := http.NewRequestWithContext(ctx, "GET", targetURL, nil)
+		req, err := http.NewRequestWithContext(ctx, "GET", targetURL, nil)
+		if err != nil {
+			continue
+		}
 		for k, v := range s.config.Headers {
 			req.Header.Set(k, v)
 		}
@@ -173,7 +176,10 @@ func (s *Scanner) testResourcePayload(ctx context.Context, targetURL string, pay
 	}
 
 	start := time.Now()
-	req, _ := http.NewRequestWithContext(ctx, payload.Method, targetURL, body)
+	req, err := http.NewRequestWithContext(ctx, payload.Method, targetURL, body)
+	if err != nil {
+		return result
+	}
 	if payload.ContentType != "" {
 		req.Header.Set("Content-Type", payload.ContentType)
 	}
