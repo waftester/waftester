@@ -4,7 +4,6 @@ package crawler
 
 import (
 	"context"
-	"crypto/tls"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -13,6 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/ui"
@@ -111,11 +113,11 @@ type Config struct {
 // DefaultConfig returns default crawler configuration
 func DefaultConfig() *Config {
 	return &Config{
-		MaxDepth:          3,
+		MaxDepth:          defaults.DepthMedium,
 		MaxPages:          100,
 		MaxConcurrency:    10,
-		Timeout:           30 * time.Second,
-		Delay:             100 * time.Millisecond,
+		Timeout:           httpclient.TimeoutFuzzing,
+		Delay:             duration.CrawlDelay,
 		ExtractForms:      true,
 		ExtractScripts:    true,
 		ExtractLinks:      true,
@@ -164,39 +166,30 @@ func NewCrawler(config *Config) *Crawler {
 		config = DefaultConfig()
 	}
 
-	// Build transport with proxy and TLS options
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: config.SkipVerify,
-		},
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 10,
-		IdleConnTimeout:     90 * time.Second,
-	}
-
-	// Configure proxy if specified
+	// Build HTTP client with appropriate configuration
+	var client *http.Client
 	if config.Proxy != "" {
-		proxyURL, err := url.Parse(config.Proxy)
-		if err == nil {
-			transport.Proxy = http.ProxyURL(proxyURL)
-		}
+		// Use custom client with proxy
+		cfg := httpclient.WithProxy(config.Proxy)
+		cfg.Timeout = config.Timeout
+		cfg.InsecureSkipVerify = config.SkipVerify
+		client = httpclient.New(cfg)
+	} else if config.Timeout != httpclient.TimeoutFuzzing {
+		// Use custom client with non-default timeout
+		cfg := httpclient.WithTimeout(config.Timeout)
+		cfg.InsecureSkipVerify = config.SkipVerify
+		client = httpclient.New(cfg)
+	} else {
+		// Use shared fuzzing client (default fuzzing timeout, optimized for scanning)
+		client = httpclient.Fuzzing()
 	}
 
 	c := &Crawler{
 		config:  config,
 		visited: make(map[string]bool),
-		queue:   make(chan *crawlTask, 10000),
-		results: make(chan *CrawlResult, 1000),
-		client: &http.Client{
-			Timeout:   config.Timeout,
-			Transport: transport,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				if len(via) >= 10 {
-					return http.ErrUseLastResponse
-				}
-				return nil
-			},
-		},
+		queue:   make(chan *crawlTask, defaults.ChannelLarge),
+		results: make(chan *CrawlResult, defaults.ChannelMedium),
+		client:  client,
 	}
 
 	// Compile include patterns

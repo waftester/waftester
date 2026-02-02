@@ -3,6 +3,8 @@ package ui
 import (
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/defaults"
 )
 
 // TestVersion checks version constants
@@ -52,8 +54,8 @@ func TestNewProgress(t *testing.T) {
 		if p.config.Width != 40 {
 			t.Errorf("expected default Width 40, got %d", p.config.Width)
 		}
-		if p.config.Concurrency != 25 {
-			t.Errorf("expected default Concurrency 25, got %d", p.config.Concurrency)
+		if p.config.Concurrency != defaults.ConcurrencyHigh {
+			t.Errorf("expected default Concurrency %d, got %d", defaults.ConcurrencyHigh, p.config.Concurrency)
 		}
 		if p.config.Total != 50 {
 			t.Errorf("expected Total 50, got %d", p.config.Total)

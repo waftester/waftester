@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/discovery"
 	"github.com/waftester/waftester/pkg/payloads"
 )
@@ -444,7 +445,7 @@ func (l *Learner) generateInjectPayloads(ep discovery.Endpoint, point InjectPoin
 			Notes:         fmt.Sprintf("Auto-generated SQLi for %s in %s", point.Name, ep.Path),
 		}
 		if point.Type == "body" {
-			payload.ContentType = "application/json"
+			payload.ContentType = defaults.ContentTypeJSON
 		}
 		result = append(result, payload)
 		*idCounter++
@@ -471,7 +472,7 @@ func (l *Learner) generateInjectPayloads(ep discovery.Endpoint, point InjectPoin
 			Notes:         fmt.Sprintf("Auto-generated XSS for %s in %s", point.Name, ep.Path),
 		}
 		if point.Type == "body" {
-			payload.ContentType = "application/json"
+			payload.ContentType = defaults.ContentTypeJSON
 		}
 		result = append(result, payload)
 		*idCounter++
@@ -500,7 +501,7 @@ func (l *Learner) generateInjectPayloads(ep discovery.Endpoint, point InjectPoin
 				Notes:         fmt.Sprintf("Auto-generated traversal for %s in %s", point.Name, ep.Path),
 			}
 			if point.Type == "body" {
-				payload.ContentType = "application/json"
+				payload.ContentType = defaults.ContentTypeJSON
 			}
 			result = append(result, payload)
 			*idCounter++
@@ -530,7 +531,7 @@ func (l *Learner) generateInjectPayloads(ep discovery.Endpoint, point InjectPoin
 				Notes:         fmt.Sprintf("Auto-generated SSRF for %s in %s", point.Name, ep.Path),
 			}
 			if point.Type == "body" {
-				payload.ContentType = "application/json"
+				payload.ContentType = defaults.ContentTypeJSON
 			}
 			result = append(result, payload)
 			*idCounter++
@@ -543,7 +544,7 @@ func (l *Learner) generateInjectPayloads(ep discovery.Endpoint, point InjectPoin
 // calculateRecommendedConfig determines optimal test settings
 func (l *Learner) calculateRecommendedConfig() RecommendedConfig {
 	cfg := RecommendedConfig{
-		Concurrency: 25,
+		Concurrency: defaults.ConcurrencyHigh,
 		RateLimit:   100,
 		Timeout:     10,
 		SkipStatic:  true,
@@ -553,10 +554,10 @@ func (l *Learner) calculateRecommendedConfig() RecommendedConfig {
 	// Adjust based on number of endpoints
 	numEndpoints := len(l.discovery.Endpoints)
 	if numEndpoints > 50 {
-		cfg.Concurrency = 50
+		cfg.Concurrency = defaults.ConcurrencyMax
 		cfg.RateLimit = 200
 	} else if numEndpoints < 10 {
-		cfg.Concurrency = 10
+		cfg.Concurrency = defaults.ConcurrencyMedium
 		cfg.RateLimit = 50
 	}
 

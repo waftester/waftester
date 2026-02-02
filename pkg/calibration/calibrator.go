@@ -3,13 +3,13 @@ package calibration
 import (
 	"context"
 	"crypto/rand"
-	"crypto/tls"
 	"fmt"
 	"math/big"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -51,17 +51,7 @@ func NewCalibratorWithClient(targetURL string, timeout time.Duration, skipVerify
 	if httpClient != nil {
 		client = httpClient
 	} else {
-		transport := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: skipVerify},
-		}
-
-		client = &http.Client{
-			Timeout:   timeout,
-			Transport: transport,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		}
+		client = httpclient.Default()
 	}
 
 	return &Calibrator{

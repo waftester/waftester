@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -52,15 +54,10 @@ type Tester struct {
 // NewTester creates a new request forgery tester
 func NewTester(target string, timeout time.Duration) *Tester {
 	if timeout == 0 {
-		timeout = 10 * time.Second
+		timeout = httpclient.TimeoutProbing
 	}
 	return &Tester{
-		client: &http.Client{
-			Timeout: timeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
+		client:  httpclient.Default(),
 		target:  target,
 		timeout: timeout,
 	}
@@ -350,7 +347,7 @@ func (t *Tester) TestMethodOverride(ctx context.Context, endpoint string) ([]Tes
 		}
 
 		req.Header.Set(h.Header, h.Method)
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("Content-Type", defaults.ContentTypeForm)
 
 		resp, err := t.client.Do(req)
 		if err != nil {

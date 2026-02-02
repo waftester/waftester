@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -22,8 +24,8 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Concurrency: 10,
-		Timeout:     10 * time.Second,
+		Concurrency: defaults.ConcurrencyMedium,
+		Timeout:     httpclient.TimeoutProbing,
 	}
 }
 
@@ -51,20 +53,15 @@ type Scanner struct {
 // NewScanner creates a new open redirect scanner
 func NewScanner(config Config) *Scanner {
 	if config.Concurrency <= 0 {
-		config.Concurrency = 10
+		config.Concurrency = defaults.ConcurrencyMedium
 	}
 	if config.Timeout <= 0 {
-		config.Timeout = 10 * time.Second
+		config.Timeout = httpclient.TimeoutProbing
 	}
 
 	return &Scanner{
-		config: config,
-		client: &http.Client{
-			Timeout: config.Timeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
+		config:  config,
+		client:  httpclient.Default(),
 		results: make([]Result, 0),
 	}
 }

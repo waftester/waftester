@@ -15,6 +15,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -106,9 +109,9 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:     30 * time.Second,
+		Timeout:     duration.HTTPFuzzing,
 		UserAgent:   ui.UserAgent(),
-		Concurrency: 5,
+		Concurrency: defaults.ConcurrencyLow,
 		Database:    DBUnknown,
 		TestParams: []string{
 			"username",
@@ -136,12 +139,7 @@ func NewTester(config *TesterConfig) *Tester {
 
 	client := config.Client
 	if client == nil {
-		client = &http.Client{
-			Timeout: config.Timeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		}
+		client = httpclient.Default()
 	}
 
 	return &Tester{
@@ -321,7 +319,7 @@ func (t *Tester) testJSONBody(ctx context.Context, targetURL string, param strin
 		return nil, err
 	}
 	req.Header.Set("User-Agent", t.config.UserAgent)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", defaults.ContentTypeJSON)
 
 	resp, err := t.client.Do(req)
 	if err != nil {
@@ -360,7 +358,7 @@ func (t *Tester) testFormBody(ctx context.Context, targetURL string, param strin
 		return nil, err
 	}
 	req.Header.Set("User-Agent", t.config.UserAgent)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Content-Type", defaults.ContentTypeForm)
 
 	resp, err := t.client.Do(req)
 	if err != nil {

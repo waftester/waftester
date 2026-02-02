@@ -14,8 +14,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // VulnerabilityType represents the type of business logic vulnerability.
@@ -129,10 +133,10 @@ type Tester struct {
 // DefaultConfig returns default configuration.
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:     30 * time.Second,
-		UserAgent:   "BizLogic-Tester/1.0",
-		Concurrency: 10,
-		RetryCount:  2,
+		Timeout:     duration.HTTPFuzzing,
+		UserAgent:   ui.UserAgentWithContext("BizLogic Tester"),
+		Concurrency: defaults.ConcurrencyMedium,
+		RetryCount:  defaults.RetryLow,
 		EnableRace:  true,
 		RaceCount:   10,
 		Cookies:     make(map[string]string),
@@ -152,12 +156,7 @@ func NewTester(config *TesterConfig) *Tester {
 
 	return &Tester{
 		config: config,
-		client: &http.Client{
-			Timeout: config.Timeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
+		client: httpclient.Fuzzing(),
 	}
 }
 
@@ -329,7 +328,7 @@ func (t *Tester) TestMassAssignment(ctx context.Context, targetURL string, norma
 	}
 
 	t.applyHeaders(normalReq)
-	normalReq.Header.Set("Content-Type", "application/json")
+	normalReq.Header.Set("Content-Type", defaults.ContentTypeJSON)
 
 	normalResp, err := t.client.Do(normalReq)
 	if err != nil {
@@ -344,7 +343,7 @@ func (t *Tester) TestMassAssignment(ctx context.Context, targetURL string, norma
 	}
 
 	t.applyHeaders(malReq)
-	malReq.Header.Set("Content-Type", "application/json")
+	malReq.Header.Set("Content-Type", defaults.ContentTypeJSON)
 
 	malResp, err := t.client.Do(malReq)
 	if err != nil {
@@ -401,7 +400,7 @@ func (t *Tester) TestRaceCondition(ctx context.Context, targetURL, method, body 
 
 			t.applyHeaders(req)
 			if body != "" {
-				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("Content-Type", defaults.ContentTypeJSON)
 			}
 
 			startTime := time.Now()
@@ -475,7 +474,7 @@ func (t *Tester) TestPriceManipulation(ctx context.Context, targetURL string, or
 	}
 
 	t.applyHeaders(req)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", defaults.ContentTypeJSON)
 
 	resp, err := t.client.Do(req)
 	if err != nil {

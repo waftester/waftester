@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/duration"
 )
 
 // JARMResult contains JARM fingerprint results
@@ -28,7 +30,7 @@ type JARMProber struct {
 // NewJARMProber creates a new JARM prober with defaults
 func NewJARMProber() *JARMProber {
 	return &JARMProber{
-		Timeout: 10 * time.Second,
+		Timeout: duration.DialTimeout,
 	}
 }
 

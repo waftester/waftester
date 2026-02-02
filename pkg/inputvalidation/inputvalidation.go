@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -52,12 +53,10 @@ type Tester struct {
 // NewTester creates a new input validation tester
 func NewTester(target string, timeout time.Duration) *Tester {
 	if timeout == 0 {
-		timeout = 10 * time.Second
+		timeout = httpclient.TimeoutProbing
 	}
 	return &Tester{
-		client: &http.Client{
-			Timeout: timeout,
-		},
+		client:  httpclient.Default(),
 		target:  target,
 		timeout: timeout,
 	}

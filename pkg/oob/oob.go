@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -85,8 +86,8 @@ type InteractshConfig struct {
 func DefaultInteractshConfig() InteractshConfig {
 	return InteractshConfig{
 		ServerURL:    "https://interact.sh",
-		PollInterval: 5 * time.Second,
-		Timeout:      30 * time.Second,
+		PollInterval: httpclient.TimeoutProbing,
+		Timeout:      httpclient.TimeoutFuzzing,
 	}
 }
 
@@ -96,10 +97,10 @@ func NewInteractshClient(config InteractshConfig) *InteractshClient {
 		config.ServerURL = "https://interact.sh"
 	}
 	if config.PollInterval <= 0 {
-		config.PollInterval = 5 * time.Second
+		config.PollInterval = httpclient.TimeoutProbing
 	}
 	if config.Timeout <= 0 {
-		config.Timeout = 30 * time.Second
+		config.Timeout = httpclient.TimeoutFuzzing
 	}
 
 	correlationID := generateCorrelationID()
@@ -108,7 +109,7 @@ func NewInteractshClient(config InteractshConfig) *InteractshClient {
 		serverURL:     config.ServerURL,
 		secretKey:     config.SecretKey,
 		correlationID: correlationID,
-		httpClient:    &http.Client{Timeout: config.Timeout},
+		httpClient:    httpclient.New(httpclient.WithTimeout(config.Timeout)),
 		interactions:  make([]Interaction, 0),
 		pollInterval:  config.PollInterval,
 	}

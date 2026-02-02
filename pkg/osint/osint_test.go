@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 func TestNewManager(t *testing.T) {
@@ -203,7 +205,7 @@ func TestCrtshClient_FetchSubdomains(t *testing.T) {
 	defer server.Close()
 
 	c := &CrtshClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
+		httpClient: httpclient.Default(),
 		baseURL:    server.URL,
 	}
 
@@ -235,7 +237,7 @@ func TestCrtshClient_FetchSubdomains_EmptyResponse(t *testing.T) {
 	defer server.Close()
 
 	c := &CrtshClient{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
+		httpClient: httpclient.Default(),
 		baseURL:    server.URL,
 	}
 
@@ -260,7 +262,7 @@ func TestShodanClient_FetchSubdomains(t *testing.T) {
 
 	c := &ShodanClient{
 		apiKey:     "test-key",
-		httpClient: &http.Client{Timeout: 5 * time.Second},
+		httpClient: httpclient.Default(),
 		baseURL:    server.URL,
 	}
 
@@ -290,7 +292,7 @@ func TestShodanClient_FetchIPs(t *testing.T) {
 
 	c := &ShodanClient{
 		apiKey:     "test-key",
-		httpClient: &http.Client{Timeout: 5 * time.Second},
+		httpClient: httpclient.Default(),
 		baseURL:    server.URL,
 	}
 
@@ -316,7 +318,7 @@ func TestShodanClient_FetchPorts(t *testing.T) {
 
 	c := &ShodanClient{
 		apiKey:     "test-key",
-		httpClient: &http.Client{Timeout: 5 * time.Second},
+		httpClient: httpclient.Default(),
 		baseURL:    server.URL,
 	}
 
@@ -447,7 +449,7 @@ func TestSecurityTrailsClient_FetchSubdomains(t *testing.T) {
 
 	c := &SecurityTrailsClient{
 		apiKey:     "test-key",
-		httpClient: &http.Client{Timeout: 5 * time.Second},
+		httpClient: httpclient.Default(),
 		baseURL:    server.URL,
 	}
 
@@ -473,7 +475,7 @@ func TestBinaryEdgeClient_FetchSubdomains(t *testing.T) {
 
 	c := &BinaryEdgeClient{
 		apiKey:     "test-key",
-		httpClient: &http.Client{Timeout: 5 * time.Second},
+		httpClient: httpclient.Default(),
 		baseURL:    server.URL,
 	}
 
@@ -499,7 +501,7 @@ func TestFullHuntClient_FetchSubdomains(t *testing.T) {
 
 	c := &FullHuntClient{
 		apiKey:     "test-key",
-		httpClient: &http.Client{Timeout: 5 * time.Second},
+		httpClient: httpclient.Default(),
 		baseURL:    server.URL,
 	}
 
@@ -525,7 +527,7 @@ func TestChaosClient_FetchSubdomains(t *testing.T) {
 
 	c := &ChaosClient{
 		apiKey:     "test-key",
-		httpClient: &http.Client{Timeout: 5 * time.Second},
+		httpClient: httpclient.Default(),
 		baseURL:    server.URL,
 	}
 
@@ -554,7 +556,7 @@ func TestCensysClient_FetchSubdomains(t *testing.T) {
 	c := &CensysClient{
 		apiKey:     "test-key",
 		apiSecret:  "test-secret",
-		httpClient: &http.Client{Timeout: 5 * time.Second},
+		httpClient: httpclient.Default(),
 		baseURL:    server.URL,
 	}
 
@@ -576,7 +578,7 @@ func TestShodanClient_FetchSubdomains_HTTPError(t *testing.T) {
 
 	c := &ShodanClient{
 		apiKey:     "invalid-key",
-		httpClient: &http.Client{Timeout: 5 * time.Second},
+		httpClient: httpclient.Default(),
 		baseURL:    server.URL,
 	}
 

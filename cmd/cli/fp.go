@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/fp"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -119,7 +120,7 @@ func runFP() {
 			*target, corpusCount, *concurrency, *rateLimit)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), duration.ContextMax)
 	defer cancel()
 
 	// Determine output mode

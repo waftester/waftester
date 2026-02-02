@@ -12,6 +12,35 @@ import (
 	"time"
 )
 
+// ============================================================================
+// CANONICAL TIMEOUT CONSTANTS
+// ============================================================================
+//
+// These are the ONLY timeout values that should be used across the codebase.
+// All package Config structs should reference these constants, NOT hardcoded
+// time.Duration values.
+//
+// Usage in other packages:
+//   Timeout: httpclient.TimeoutProbing,  // NOT: 10 * time.Second
+// ============================================================================
+
+const (
+	// TimeoutProbing is for quick fingerprinting and health checks (5s)
+	TimeoutProbing = 5 * time.Second
+
+	// TimeoutScanning is for WAF detection and security scanning (15s)
+	TimeoutScanning = 15 * time.Second
+
+	// TimeoutFuzzing is for deep payload testing (30s) - the default
+	TimeoutFuzzing = 30 * time.Second
+
+	// TimeoutLongOps is for crawling, uploads, and authenticated flows (5min)
+	TimeoutLongOps = 5 * time.Minute
+
+	// TimeoutAPI is for external API calls like AI services (60s)
+	TimeoutAPI = 60 * time.Second
+)
+
 // Config holds HTTP client configuration options.
 type Config struct {
 	// Timeout is the total request timeout (default: 30s)
@@ -44,17 +73,48 @@ type Config struct {
 
 // DefaultConfig returns sensible defaults optimized for security scanning workloads.
 // These values are tuned for high-throughput scanning with connection reuse.
+// Based on industry patterns from fasthttp, Caddy, Traefik, and ProjectDiscovery tools.
 func DefaultConfig() Config {
 	return Config{
 		Timeout:             30 * time.Second,
 		InsecureSkipVerify:  true, // Security scanners often need this
 		MaxIdleConns:        100,
-		MaxConnsPerHost:     25,
+		MaxConnsPerHost:     100, // Increased from 25 to match industry (Nuclei, HTTPx use 100)
 		IdleConnTimeout:     90 * time.Second,
 		DisableKeepAlives:   false,
 		DialTimeout:         10 * time.Second,
 		TLSHandshakeTimeout: 10 * time.Second,
 	}
+}
+
+// SprayingConfig returns configuration optimized for scanning many different hosts.
+// Disables keep-alives since connections won't be reused across different hosts.
+// Use this for reconnaissance and multi-target discovery.
+func SprayingConfig() Config {
+	return Config{
+		Timeout:             30 * time.Second,
+		InsecureSkipVerify:  true,
+		MaxIdleConns:        0,
+		MaxConnsPerHost:     0,
+		IdleConnTimeout:     0,
+		DisableKeepAlives:   true, // No connection reuse for spraying
+		DialTimeout:         10 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+	}
+}
+
+// Spraying returns a shared HTTP client optimized for scanning many different hosts.
+// Unlike Default(), this client does not maintain connection pools.
+var (
+	sprayingClient *http.Client
+	sprayingOnce   sync.Once
+)
+
+func Spraying() *http.Client {
+	sprayingOnce.Do(func() {
+		sprayingClient = New(SprayingConfig())
+	})
+	return sprayingClient
 }
 
 var (
@@ -163,4 +223,130 @@ func WithProxy(proxyURL string) Config {
 	cfg := DefaultConfig()
 	cfg.Proxy = proxyURL
 	return cfg
+}
+
+// ============================================================================
+// SEMANTIC PRESETS - The canonical way to get HTTP clients
+// ============================================================================
+//
+// These presets eliminate configuration drift by providing purpose-driven
+// clients. Each preset is tuned for specific use cases and shares connection
+// pools via sync.Once singletons.
+//
+// Usage:
+//   client := httpclient.Probing()   // Quick fingerprinting
+//   client := httpclient.Scanning()  // WAF detection
+//   client := httpclient.Fuzzing()   // Deep payload testing
+//   client := httpclient.LongOps()   // Crawling, uploads
+//
+// DO NOT create &http.Client{} directly - use these presets instead.
+// ============================================================================
+
+// ProbingConfig returns configuration for quick fingerprinting operations.
+// Fast timeout (5s), used for initial recon and quick checks.
+func ProbingConfig() Config {
+	return Config{
+		Timeout:             5 * time.Second,
+		InsecureSkipVerify:  true,
+		MaxIdleConns:        100,
+		MaxConnsPerHost:     100,
+		IdleConnTimeout:     90 * time.Second,
+		DisableKeepAlives:   false,
+		DialTimeout:         5 * time.Second,
+		TLSHandshakeTimeout: 5 * time.Second,
+	}
+}
+
+// ScanningConfig returns configuration for WAF detection and security scanning.
+// Medium timeout (15s), balanced for accuracy and speed.
+func ScanningConfig() Config {
+	return Config{
+		Timeout:             15 * time.Second,
+		InsecureSkipVerify:  true,
+		MaxIdleConns:        100,
+		MaxConnsPerHost:     100,
+		IdleConnTimeout:     90 * time.Second,
+		DisableKeepAlives:   false,
+		DialTimeout:         10 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+	}
+}
+
+// FuzzingConfig returns configuration for deep payload testing.
+// Standard timeout (30s), allows for complex responses.
+func FuzzingConfig() Config {
+	return Config{
+		Timeout:             30 * time.Second,
+		InsecureSkipVerify:  true,
+		MaxIdleConns:        100,
+		MaxConnsPerHost:     100,
+		IdleConnTimeout:     90 * time.Second,
+		DisableKeepAlives:   false,
+		DialTimeout:         10 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+	}
+}
+
+// LongOpsConfig returns configuration for long-running operations.
+// Extended timeout (5min), for crawling, file uploads, authenticated flows.
+func LongOpsConfig() Config {
+	return Config{
+		Timeout:             5 * time.Minute,
+		InsecureSkipVerify:  true,
+		MaxIdleConns:        100,
+		MaxConnsPerHost:     50, // Lower for long ops - fewer concurrent connections
+		IdleConnTimeout:     120 * time.Second,
+		DisableKeepAlives:   false,
+		DialTimeout:         30 * time.Second,
+		TLSHandshakeTimeout: 15 * time.Second,
+	}
+}
+
+// Singleton clients for each preset
+var (
+	probingClient  *http.Client
+	probingOnce    sync.Once
+	scanningClient *http.Client
+	scanningOnce   sync.Once
+	fuzzingClient  *http.Client
+	fuzzingOnce    sync.Once
+	longOpsClient  *http.Client
+	longOpsOnce    sync.Once
+)
+
+// Probing returns a shared HTTP client for quick fingerprinting (5s timeout).
+// Use for: initial recon, health checks, quick probes, WAF presence detection.
+func Probing() *http.Client {
+	probingOnce.Do(func() {
+		probingClient = New(ProbingConfig())
+	})
+	return probingClient
+}
+
+// Scanning returns a shared HTTP client for security scanning (15s timeout).
+// Use for: WAF detection, vulnerability scanning, bypass testing.
+func Scanning() *http.Client {
+	scanningOnce.Do(func() {
+		scanningClient = New(ScanningConfig())
+	})
+	return scanningClient
+}
+
+// Fuzzing returns a shared HTTP client for payload testing (30s timeout).
+// Use for: injection testing, payload delivery, deep fuzzing.
+// This is equivalent to Default() but with semantic naming.
+func Fuzzing() *http.Client {
+	fuzzingOnce.Do(func() {
+		fuzzingClient = New(FuzzingConfig())
+	})
+	return fuzzingClient
+}
+
+// LongOps returns a shared HTTP client for long operations (5min timeout).
+// Use for: crawling, file uploads, authenticated flows, browser operations.
+func LongOps() *http.Client {
+	longOpsOnce.Do(func() {
+		longOpsClient = New(LongOpsConfig())
+	})
+	return longOpsClient
 }

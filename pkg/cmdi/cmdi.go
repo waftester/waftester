@@ -12,6 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -86,10 +89,10 @@ type TesterConfig struct {
 // DefaultConfig returns a default tester configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:       30 * time.Second,
-		UserAgent:     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+		Timeout:       duration.HTTPFuzzing,
+		UserAgent:     defaults.UAChrome,
 		Platform:      PlatformBoth,
-		TimeThreshold: 5 * time.Second,
+		TimeThreshold: duration.CMDIThreshold,
 	}
 }
 
@@ -106,16 +109,9 @@ func NewTester(config *TesterConfig) *Tester {
 		config = DefaultConfig()
 	}
 
-	client := &http.Client{
-		Timeout: config.Timeout,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
 	t := &Tester{
 		config: config,
-		client: client,
+		client: httpclient.Fuzzing(),
 	}
 
 	t.payloads = t.generatePayloads()
@@ -396,7 +392,7 @@ func (t *Tester) analyzeResponse(testURL, param string, payload *Payload, body s
 	case InjectionTimeBased:
 		// Check if response time indicates delay
 		expectedDelay := payload.ExpectedDelay
-		if elapsed > baseline+expectedDelay-(1*time.Second) {
+		if elapsed > baseline+expectedDelay-duration.CMDITolerance {
 			evidence = fmt.Sprintf("Response delayed by %v (baseline: %v, expected: %v)", elapsed, baseline, expectedDelay)
 			detected = true
 		}

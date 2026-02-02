@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -50,11 +52,9 @@ func WithNamespace(ns string) ClientOption {
 // NewClient creates a new SOAP client
 func NewClient(endpoint string, opts ...ClientOption) *Client {
 	c := &Client{
-		endpoint: endpoint,
-		timeout:  30 * time.Second,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		endpoint:   endpoint,
+		timeout:    duration.HTTPFuzzing,
+		httpClient: httpclient.Default(),
 	}
 
 	for _, opt := range opts {
@@ -388,7 +388,7 @@ func ParseWSDL(content []byte) (*WSDLDefinition, error) {
 
 // FetchWSDL fetches WSDL from a URL
 func FetchWSDL(url string) (*WSDLDefinition, error) {
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := httpclient.Default()
 	resp, err := client.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch WSDL: %w", err)

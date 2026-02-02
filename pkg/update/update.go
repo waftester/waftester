@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -265,7 +266,7 @@ func updateFromGitHub(cfg *UpdateConfig, report *UpdateReport) error {
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 	req.Header.Set("User-Agent", ui.UserAgentWithContext("Updater"))
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := httpclient.Default()
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to fetch releases: %w", err)

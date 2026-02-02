@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -178,7 +179,7 @@ func (b *Builder) buildFormRequest(targetURL, payload string, template *RequestT
 		return nil, err
 	}
 
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Content-Type", defaults.ContentTypeForm)
 	return req, nil
 }
 
@@ -213,7 +214,7 @@ func (b *Builder) buildJSONRequest(targetURL, payload string, template *RequestT
 		return nil, err
 	}
 
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", defaults.ContentTypeJSON)
 	return req, nil
 }
 

@@ -17,6 +17,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -95,9 +98,9 @@ type Tester struct {
 // DefaultConfig returns default configuration.
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:        30 * time.Second,
+		Timeout:        duration.HTTPFuzzing,
 		UserAgent:      "Upload-Tester/1.0",
-		Concurrency:    5,
+		Concurrency:    defaults.ConcurrencyLow,
 		FileField:      "file",
 		ExtraFields:    make(map[string]string),
 		Cookies:        make(map[string]string),
@@ -112,19 +115,9 @@ func NewTester(config *TesterConfig) *Tester {
 		config = DefaultConfig()
 	}
 
-	checkRedirect := func(req *http.Request, via []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
-	if config.FollowRedirect {
-		checkRedirect = nil
-	}
-
 	return &Tester{
 		config: config,
-		client: &http.Client{
-			Timeout:       config.Timeout,
-			CheckRedirect: checkRedirect,
-		},
+		client: httpclient.Default(),
 	}
 }
 
@@ -199,7 +192,7 @@ func (t *Tester) TestUpload(ctx context.Context, targetURL string, payload Uploa
 func (t *Tester) Scan(ctx context.Context, targetURL string) ([]Vulnerability, error) {
 	// Quick pre-check: see if target accepts POST at all
 	// This prevents wasting time on targets without upload functionality
-	preCheckCtx, preCheckCancel := context.WithTimeout(ctx, 5*time.Second)
+	preCheckCtx, preCheckCancel := context.WithTimeout(ctx, duration.HTTPProbing)
 	defer preCheckCancel()
 
 	req, err := http.NewRequestWithContext(preCheckCtx, "OPTIONS", targetURL, nil)
@@ -358,7 +351,7 @@ func GetMaliciousContentPayloads() []UploadPayload {
 	xmlContent := []byte(`<?xml version="1.0"?><root><data>test</data></root>`)
 	return []UploadPayload{
 		{Filename: "test.svg", Content: svgContent, ContentType: "image/svg+xml", Description: "SVG file upload", VulnType: VulnSVGXSS},
-		{Filename: "test.xml", Content: xmlContent, ContentType: "application/xml", Description: "XML file upload", VulnType: VulnXMLXXE},
+		{Filename: "test.xml", Content: xmlContent, ContentType: defaults.ContentTypeXML, Description: "XML file upload", VulnType: VulnXMLXXE},
 		{Filename: ".htaccess", Content: []byte("# htaccess test"), ContentType: "text/plain", Description: ".htaccess upload", VulnType: VulnMaliciousContent},
 	}
 }

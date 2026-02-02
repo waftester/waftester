@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/waf/vendors"
 )
 
@@ -54,7 +55,7 @@ type StrategyEngine struct {
 // NewStrategyEngine creates a new strategy engine
 func NewStrategyEngine(timeout time.Duration) *StrategyEngine {
 	if timeout == 0 {
-		timeout = 15 * time.Second
+		timeout = httpclient.TimeoutScanning
 	}
 	return &StrategyEngine{
 		detector: vendors.NewVendorDetector(timeout),

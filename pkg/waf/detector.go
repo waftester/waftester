@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
@@ -108,7 +109,7 @@ type CDNSignature struct {
 // NewDetector creates a new WAF/CDN detector
 func NewDetector(timeout time.Duration) *Detector {
 	if timeout == 0 {
-		timeout = 10 * time.Second
+		timeout = httpclient.TimeoutProbing
 	}
 
 	// Use shared httpclient factory for connection pooling
@@ -117,7 +118,7 @@ func NewDetector(timeout time.Duration) *Detector {
 		InsecureSkipVerify: true,
 		MaxIdleConns:       10,
 		MaxConnsPerHost:    5,
-		IdleConnTimeout:    30 * time.Second,
+		IdleConnTimeout:    duration.HTTPFuzzing,
 	})
 
 	d := &Detector{

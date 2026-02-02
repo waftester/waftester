@@ -12,6 +12,9 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
 )
 
 // Vulnerability represents a detected smuggling vulnerability
@@ -61,9 +64,9 @@ type Detector struct {
 // NewDetector creates a new smuggling detector
 func NewDetector() *Detector {
 	return &Detector{
-		Timeout:     10 * time.Second,
-		ReadTimeout: 5 * time.Second,
-		MaxRetries:  3,
+		Timeout:     duration.DialTimeout,
+		ReadTimeout: duration.HTTPProbing,
+		MaxRetries:  defaults.RetryMedium,
 		DelayMs:     1000,
 		SafeMode:    true, // Default to safe mode
 		CustomPorts: []int{80, 443, 8080, 8443},
@@ -191,7 +194,7 @@ func (d *Detector) detectCLTE(ctx context.Context, host, port string, useTLS boo
 
 	// Check for significant timing difference (vulnerability indicator)
 	timeDiff := probeTime - baselineTime
-	if timeDiff > 3*time.Second {
+	if timeDiff > duration.DNSTimeout {
 		return &Vulnerability{
 			Type:        VulnCLTE,
 			Technique:   "CL.TE timing-based detection",
@@ -264,7 +267,7 @@ func (d *Detector) detectTECL(ctx context.Context, host, port string, useTLS boo
 	}
 
 	timeDiff := probeTime - baselineTime
-	if timeDiff > 3*time.Second {
+	if timeDiff > duration.DNSTimeout {
 		return &Vulnerability{
 			Type:        VulnTECL,
 			Technique:   "TE.CL timing-based detection",
@@ -343,7 +346,7 @@ func (d *Detector) detectTETE(ctx context.Context, host, port string, useTLS boo
 		}
 
 		timeDiff := probeTime - baselineTime
-		if timeDiff > 3*time.Second {
+		if timeDiff > duration.DNSTimeout {
 			return &Vulnerability{
 				Type:        VulnTETE,
 				Technique:   fmt.Sprintf("TE.TE obfuscation: %s", obf.name),

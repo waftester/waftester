@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/defaults"
 )
 
 func init() {
@@ -160,7 +162,7 @@ func (p *BodyJSONPlaceholder) Apply(targetURL, payload string, config *Placehold
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", defaults.ContentTypeJSON)
 	return req, nil
 }
 
@@ -179,7 +181,7 @@ func (p *BodyFormPlaceholder) Apply(targetURL, payload string, config *Placehold
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Content-Type", defaults.ContentTypeForm)
 	return req, nil
 }
 
@@ -197,7 +199,7 @@ func (p *BodyXMLPlaceholder) Apply(targetURL, payload string, config *Placeholde
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/xml")
+	req.Header.Set("Content-Type", defaults.ContentTypeXML)
 	return req, nil
 }
 

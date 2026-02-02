@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -42,7 +43,7 @@ func WithTimeout(d time.Duration) ClientOption {
 func NewClient(target string, opts ...ClientOption) (*Client, error) {
 	c := &Client{
 		target:  target,
-		timeout: 30 * time.Second,
+		timeout: duration.HTTPFuzzing,
 		files:   new(protoregistry.Files),
 	}
 

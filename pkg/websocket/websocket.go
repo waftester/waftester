@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/ui"
@@ -81,7 +83,7 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:   30 * time.Second,
+		Timeout:   duration.HTTPFuzzing,
 		UserAgent: ui.UserAgent(),
 		TestOrigins: []string{
 			"https://evil.com",
@@ -100,9 +102,7 @@ func NewTester(config *TesterConfig) *Tester {
 
 	client := config.Client
 	if client == nil {
-		client = &http.Client{
-			Timeout: config.Timeout,
-		}
+		client = httpclient.New(httpclient.WithTimeout(config.Timeout))
 	}
 
 	return &Tester{

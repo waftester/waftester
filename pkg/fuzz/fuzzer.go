@@ -4,8 +4,6 @@ package fuzz
 
 import (
 	"context"
-	"crypto/tls"
-	"fmt"
 	"io"
 	"math/rand"
 	"net/http"
@@ -17,6 +15,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 	"golang.org/x/time/rate"
@@ -121,50 +121,40 @@ type Fuzzer struct {
 // NewFuzzer creates a new fuzzer instance
 func NewFuzzer(cfg *Config) *Fuzzer {
 	if cfg.Concurrency <= 0 {
-		cfg.Concurrency = 40
+		cfg.Concurrency = defaults.ConcurrencyVeryHigh
 	}
 	if cfg.RateLimit <= 0 {
 		cfg.RateLimit = 100
 	}
 	if cfg.Timeout <= 0 {
-		cfg.Timeout = 10 * time.Second
+		cfg.Timeout = httpclient.TimeoutProbing
 	}
 	if cfg.Method == "" {
 		cfg.Method = "GET"
 	}
 
-	transport := &http.Transport{
-		MaxIdleConns:        cfg.Concurrency * 2,
-		MaxIdleConnsPerHost: cfg.Concurrency,
-		MaxConnsPerHost:     cfg.Concurrency,
-		IdleConnTimeout:     30 * time.Second,
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: cfg.SkipVerify,
-		},
-	}
-
-	// Configure proxy if specified
+	// Build HTTP client with appropriate configuration
+	var clientCfg httpclient.Config
 	if cfg.Proxy != "" {
-		proxyURL, err := url.Parse(cfg.Proxy)
-		if err == nil {
-			transport.Proxy = http.ProxyURL(proxyURL)
-		}
+		clientCfg = httpclient.WithProxy(cfg.Proxy)
+	} else {
+		clientCfg = httpclient.WithTimeout(cfg.Timeout)
 	}
+	clientCfg.Timeout = cfg.Timeout
+	clientCfg.InsecureSkipVerify = cfg.SkipVerify
+	clientCfg.MaxConnsPerHost = cfg.Concurrency
+	clientCfg.MaxIdleConns = cfg.Concurrency * 2
 
-	redirectPolicy := func(req *http.Request, via []*http.Request) error {
-		if cfg.FollowRedir {
+	client := httpclient.New(clientCfg)
+
+	// Override redirect policy if following redirects is enabled
+	if cfg.FollowRedir {
+		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 10 {
-				return fmt.Errorf("too many redirects")
+				return http.ErrUseLastResponse
 			}
 			return nil
 		}
-		return http.ErrUseLastResponse
-	}
-
-	client := &http.Client{
-		Transport:     transport,
-		Timeout:       cfg.Timeout,
-		CheckRedirect: redirectPolicy,
 	}
 
 	limiter := rate.NewLimiter(rate.Limit(cfg.RateLimit), cfg.RateLimit)

@@ -18,8 +18,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // ExternalSources provides methods to discover endpoints from external sources
@@ -31,13 +34,13 @@ type ExternalSources struct {
 // NewExternalSources creates a new external sources discoverer
 func NewExternalSources(timeout time.Duration, userAgent string) *ExternalSources {
 	if timeout == 0 {
-		timeout = 15 * time.Second
+		timeout = httpclient.TimeoutScanning
 	}
 	if userAgent == "" {
-		userAgent = "WAF-Tester-Discovery/1.0"
+		userAgent = ui.UserAgentWithContext("Discovery")
 	}
 	return &ExternalSources{
-		httpClient: &http.Client{Timeout: timeout},
+		httpClient: httpclient.New(httpclient.WithTimeout(timeout)),
 		userAgent:  userAgent,
 	}
 }
@@ -1566,7 +1569,7 @@ func (es *ExternalSources) GatherAllSources(ctx context.Context, targetURL strin
 	}
 
 	// Wayback Machine (with timeout context)
-	waybackCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	waybackCtx, cancel := context.WithTimeout(ctx, duration.ContextShort)
 	if wayback, err := es.FetchWaybackURLs(waybackCtx, domain, false); err == nil {
 		for _, w := range wayback {
 			parsed, _ := url.Parse(w.URL)
@@ -1580,7 +1583,7 @@ func (es *ExternalSources) GatherAllSources(ctx context.Context, targetURL strin
 	cancel()
 
 	// CommonCrawl
-	ccCtx, ccCancel := context.WithTimeout(ctx, 30*time.Second)
+	ccCtx, ccCancel := context.WithTimeout(ctx, duration.ContextShort)
 	if cc, err := es.FetchCommonCrawlURLs(ccCtx, domain, false); err == nil {
 		for _, u := range cc {
 			parsed, _ := url.Parse(u)
@@ -1594,7 +1597,7 @@ func (es *ExternalSources) GatherAllSources(ctx context.Context, targetURL strin
 	ccCancel()
 
 	// OTX AlienVault
-	otxCtx, otxCancel := context.WithTimeout(ctx, 30*time.Second)
+	otxCtx, otxCancel := context.WithTimeout(ctx, duration.ContextShort)
 	if otx, err := es.FetchOTXURLs(otxCtx, domain); err == nil {
 		for _, o := range otx {
 			parsed, _ := url.Parse(o.URL)
@@ -1610,7 +1613,7 @@ func (es *ExternalSources) GatherAllSources(ctx context.Context, targetURL strin
 	// VirusTotal (only if API key is available)
 	vtAPIKey := getEnvWithDefault("VT_API_KEY", "")
 	if vtAPIKey != "" {
-		vtCtx, vtCancel := context.WithTimeout(ctx, 30*time.Second)
+		vtCtx, vtCancel := context.WithTimeout(ctx, duration.ContextShort)
 		if vt, err := es.FetchVirusTotalURLs(vtCtx, domain, vtAPIKey); err == nil {
 			for _, u := range vt {
 				parsed, _ := url.Parse(u)

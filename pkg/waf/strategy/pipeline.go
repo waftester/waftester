@@ -5,6 +5,7 @@ package strategy
 import (
 	"sort"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/mutation"
 )
 
@@ -39,7 +40,7 @@ func WAFOptimizedPipeline(s *Strategy, mode string) *mutation.PipelineConfig {
 		config.Locations = mapLocationsToMutation(s.Locations)
 		config.Evasions = mapEvasionsToMutation(s.Evasions)
 		config.ChainEncodings = true
-		config.MaxChainDepth = 2
+		config.MaxChainDepth = defaults.DepthLow
 
 	case "bypass", "aggressive":
 		// Maximum bypass potential - everything + deep chaining
@@ -47,7 +48,7 @@ func WAFOptimizedPipeline(s *Strategy, mode string) *mutation.PipelineConfig {
 		config.Locations = getAllLocations()
 		config.Evasions = getAllEvasions()
 		config.ChainEncodings = true
-		config.MaxChainDepth = 3
+		config.MaxChainDepth = defaults.DepthMedium
 		config.IncludeRaw = true
 
 	case "stealth", "slow":
@@ -232,7 +233,7 @@ func CreateOptimizedConfig(s *Strategy, mode string, targetURL string) *mutation
 		Concurrency:        concurrency,
 		RateLimit:          rateLimit,
 		Timeout:            10 * 1e9, // 10 seconds
-		Retries:            2,
+		Retries:            defaults.RetryLow,
 		Pipeline:           WAFOptimizedPipeline(s, mode),
 		AnalyzeResponses:   true,
 		CollectFingerprint: true,

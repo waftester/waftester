@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 // Role defines the node role in the distributed system
@@ -338,7 +341,7 @@ func (c *Coordinator) checkNodeHealth() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	staleThreshold := time.Now().Add(-30 * time.Second)
+	staleThreshold := time.Now().Add(-duration.WorkerStale)
 	for _, node := range c.nodes {
 		if node.LastSeen.Before(staleThreshold) && node.Status == StatusHealthy {
 			node.Status = StatusUnhealthy
@@ -384,7 +387,7 @@ func NewWorker(id, address, coordinator string, capacity int) *Worker {
 		},
 		Coordinator: coordinator,
 		StopChan:    make(chan struct{}),
-		httpClient:  &http.Client{Timeout: 10 * time.Second},
+		httpClient:  httpclient.Default(),
 	}
 }
 
@@ -411,7 +414,7 @@ func (w *Worker) register() error {
 }
 
 func (w *Worker) heartbeatLoop(ctx context.Context) {
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(duration.WorkerHeartbeat)
 	defer ticker.Stop()
 
 	for {
@@ -431,7 +434,7 @@ func (w *Worker) sendHeartbeat() {
 }
 
 func (w *Worker) pollTasks(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(duration.RetryFast)
 	defer ticker.Stop()
 
 	for {

@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/mutation"
 	"github.com/waftester/waftester/pkg/ui"
 	"github.com/waftester/waftester/pkg/waf/strategy"
@@ -33,7 +34,7 @@ type SmartModeConfig struct {
 // DefaultSmartModeConfig returns sensible defaults for smart mode
 func DefaultSmartModeConfig() *SmartModeConfig {
 	return &SmartModeConfig{
-		DetectionTimeout: 15 * time.Second,
+		DetectionTimeout: duration.HTTPScanning,
 		Verbose:          false,
 		Mode:             "standard",
 	}

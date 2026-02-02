@@ -2,7 +2,6 @@ package calibration
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -135,12 +135,8 @@ func DefaultStrategies() []CalibrationStrategy {
 
 // NewAdvancedCalibrator creates a new advanced calibrator
 func NewAdvancedCalibrator(config AdvancedConfig) *AdvancedCalibrator {
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: config.SkipVerify},
-	}
-
 	if config.Timeout == 0 {
-		config.Timeout = 10 * time.Second
+		config.Timeout = httpclient.TimeoutProbing
 	}
 
 	calibrator := &AdvancedCalibrator{
@@ -148,13 +144,7 @@ func NewAdvancedCalibrator(config AdvancedConfig) *AdvancedCalibrator {
 		skipVerify:    config.SkipVerify,
 		perHost:       config.PerHost,
 		hostBaselines: make(map[string]*Baseline),
-		client: &http.Client{
-			Timeout:   config.Timeout,
-			Transport: transport,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
+		client:        httpclient.Default(),
 	}
 
 	// Load strategies
