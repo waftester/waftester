@@ -88,11 +88,13 @@ func (s *Scanner) TestSessionManagement(ctx context.Context, loginURL string, cr
 	iohelper.DrainAndClose(loginResp.Body)
 
 	// Check for weak session tokens
-	u, _ := url.Parse(loginURL)
-	for _, cookie := range jar.Cookies(u) {
-		if isSessionCookie(cookie.Name) {
-			result := s.analyzeSessionToken(cookie)
-			results = append(results, result)
+	u, err := url.Parse(loginURL)
+	if err == nil {
+		for _, cookie := range jar.Cookies(u) {
+			if isSessionCookie(cookie.Name) {
+				result := s.analyzeSessionToken(cookie)
+				results = append(results, result)
+			}
 		}
 	}
 
