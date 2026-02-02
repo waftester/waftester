@@ -1,7 +1,6 @@
 package tampers
 
 import (
-	"fmt"
 	"math/rand"
 	"strings"
 
@@ -56,12 +55,14 @@ func (t *CommentRandom) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
+	// Pre-allocate with room for comments (~30% chance per char, 4 chars each)
 	var result strings.Builder
-	runes := []rune(payload)
-	for i, r := range runes {
+	result.Grow(len(payload) * 2)
+	last := len(payload) - 1
+	for i, r := range payload {
 		result.WriteRune(r)
 		// Randomly insert comment (about 30% chance)
-		if i < len(runes)-1 && rand.Intn(10) < 3 {
+		if i < last && rand.Intn(10) < 3 {
 			result.WriteString("/**/")
 		}
 	}
@@ -99,7 +100,7 @@ func (t *SlashStar) Transform(payload string) string {
 		return payload
 	}
 	// Wrap entire payload
-	return fmt.Sprintf("/*%s*/", payload)
+	return "/*" + payload + "*/"
 }
 
 // Concat splits strings and concatenates them

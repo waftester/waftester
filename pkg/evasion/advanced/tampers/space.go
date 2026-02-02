@@ -154,6 +154,7 @@ func (t *Space2MSSQLBlank) Transform(payload string) string {
 		return payload
 	}
 	var result strings.Builder
+	result.Grow(len(payload))
 	for _, r := range payload {
 		if r == ' ' {
 			result.WriteByte(mssqlBlanks[rand.Intn(len(mssqlBlanks))])
@@ -189,6 +190,7 @@ func (t *Space2MySQLBlank) Transform(payload string) string {
 		return payload
 	}
 	var result strings.Builder
+	result.Grow(len(payload))
 	for _, r := range payload {
 		if r == ' ' {
 			result.WriteByte(mysqlBlanks[rand.Intn(len(mysqlBlanks))])
@@ -235,7 +237,9 @@ func (t *Space2RandomBlank) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
+	// Pre-allocate: spaces become 3 chars, others stay same
 	var result strings.Builder
+	result.Grow(len(payload) * 2)
 	for _, r := range payload {
 		if r == ' ' {
 			result.WriteString(randomBlanks[rand.Intn(len(randomBlanks))])
@@ -275,7 +279,9 @@ func (t *Blankspace) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
+	// Pre-allocate: Unicode spaces are 3 bytes
 	var result strings.Builder
+	result.Grow(len(payload) * 3)
 	for _, r := range payload {
 		if r == ' ' {
 			result.WriteRune(blankspaceChars[rand.Intn(len(blankspaceChars))])

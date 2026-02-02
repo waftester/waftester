@@ -2,7 +2,6 @@ package tampers
 
 import (
 	"encoding/base64"
-	"fmt"
 	"strings"
 )
 
@@ -105,9 +104,11 @@ func (t *CharEncode) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
+	// Pre-allocate: each byte becomes %XX (3 chars)
 	var result strings.Builder
+	result.Grow(len(payload) * 3)
 	for _, b := range []byte(payload) {
-		result.WriteString(fmt.Sprintf("%%%02X", b))
+		writeURLEncodedByte(&result, b)
 	}
 	return result.String()
 }
@@ -121,10 +122,11 @@ func (t *CharDoubleEncode) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
+	// Pre-allocate: each byte becomes %25XX (5 chars)
 	var result strings.Builder
+	result.Grow(len(payload) * 5)
 	for _, b := range []byte(payload) {
-		// First encode: %XX, then encode the %: %25XX
-		result.WriteString(fmt.Sprintf("%%25%02X", b))
+		writeDoubleURLEncodedByte(&result, b)
 	}
 	return result.String()
 }
@@ -138,12 +140,14 @@ func (t *CharUnicodeEncode) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
+	// Pre-allocate: most chars become %u00XX (6 chars)
 	var result strings.Builder
+	result.Grow(len(payload) * 6)
 	for _, r := range payload {
 		if r > 127 {
 			result.WriteRune(r)
 		} else {
-			result.WriteString(fmt.Sprintf("%%u00%02X", r))
+			writeASPUnicodeEncode(&result, r)
 		}
 	}
 	return result.String()
@@ -158,13 +162,11 @@ func (t *CharUnicodeEscape) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
+	// Pre-allocate: each char becomes \uXXXX (6 chars)
 	var result strings.Builder
+	result.Grow(len(payload) * 6)
 	for _, r := range payload {
-		if r > 127 {
-			result.WriteString(fmt.Sprintf("\\u%04X", r))
-		} else {
-			result.WriteString(fmt.Sprintf("\\u00%02X", r))
-		}
+		writeUnicodeEscape(&result, r, true)
 	}
 	return result.String()
 }
@@ -178,9 +180,11 @@ func (t *DecEntities) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
+	// Pre-allocate: each char becomes &#NNN; (~6 chars avg)
 	var result strings.Builder
+	result.Grow(len(payload) * 6)
 	for _, r := range payload {
-		result.WriteString(fmt.Sprintf("&#%d;", r))
+		writeDecEntity(&result, r)
 	}
 	return result.String()
 }
@@ -194,9 +198,11 @@ func (t *HexEntities) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
+	// Pre-allocate: each char becomes &#xNN; (~6 chars)
 	var result strings.Builder
+	result.Grow(len(payload) * 6)
 	for _, r := range payload {
-		result.WriteString(fmt.Sprintf("&#x%X;", r))
+		writeHexEntity(&result, r)
 	}
 	return result.String()
 }
@@ -206,18 +212,20 @@ type HTMLEncode struct {
 	BaseTamper
 }
 
+// htmlReplacer is created once for efficiency (avoid per-call allocation)
+var htmlReplacer = strings.NewReplacer(
+	"&", "&amp;",
+	"<", "&lt;",
+	">", "&gt;",
+	"\"", "&quot;",
+	"'", "&#x27;",
+)
+
 func (t *HTMLEncode) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
-	replacer := strings.NewReplacer(
-		"&", "&amp;",
-		"<", "&lt;",
-		">", "&gt;",
-		"\"", "&quot;",
-		"'", "&#x27;",
-	)
-	return replacer.Replace(payload)
+	return htmlReplacer.Replace(payload)
 }
 
 // OverlongUTF8 converts ASCII to 2-byte overlong UTF-8 encoding
@@ -230,12 +238,12 @@ func (t *OverlongUTF8) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
+	// Pre-allocate: each ASCII byte becomes %XX%XX (6 chars)
 	var result strings.Builder
+	result.Grow(len(payload) * 6)
 	for _, b := range []byte(payload) {
 		if b < 128 {
-			// Convert ASCII to 2-byte overlong: 110000xx 10xxxxxx
-			// For byte b: first byte = 0xC0 | (b >> 6), second = 0x80 | (b & 0x3F)
-			result.WriteString(fmt.Sprintf("%%%02X%%%02X", 0xC0|(b>>6), 0x80|(b&0x3F)))
+			writeOverlongUTF8_2byte(&result, b)
 		} else {
 			result.WriteByte(b)
 		}
@@ -252,11 +260,12 @@ func (t *OverlongUTF8More) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
+	// Pre-allocate: each ASCII byte becomes %XX%XX%XX (9 chars)
 	var result strings.Builder
+	result.Grow(len(payload) * 9)
 	for _, b := range []byte(payload) {
 		if b < 128 {
-			// Convert ASCII to 3-byte overlong: 1110xxxx 10xxxxxx 10xxxxxx
-			result.WriteString(fmt.Sprintf("%%%02X%%%02X%%%02X", 0xE0, 0x80|(b>>6), 0x80|(b&0x3F)))
+			writeOverlongUTF8_3byte(&result, b)
 		} else {
 			result.WriteByte(b)
 		}
@@ -273,12 +282,15 @@ func (t *Percentage) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
+	// Pre-allocate: each char may become %X (2 chars)
 	var result strings.Builder
+	result.Grow(len(payload) * 2)
 	for _, r := range payload {
 		if r == '%' || r == ' ' {
 			result.WriteRune(r)
 		} else {
-			result.WriteString(fmt.Sprintf("%%%c", r))
+			result.WriteByte('%')
+			result.WriteRune(r)
 		}
 	}
 	return result.String()
