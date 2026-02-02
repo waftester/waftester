@@ -74,7 +74,10 @@ func (s *Scanner) TestSessionManagement(ctx context.Context, loginURL string, cr
 	}
 
 	// Login
-	loginReq, _ := http.NewRequestWithContext(ctx, "POST", loginURL, strings.NewReader(credentials.Encode()))
+	loginReq, err := http.NewRequestWithContext(ctx, "POST", loginURL, strings.NewReader(credentials.Encode()))
+	if err != nil {
+		return nil, err
+	}
 	loginReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for k, v := range s.config.Headers {
 		loginReq.Header.Set(k, v)
@@ -88,11 +91,13 @@ func (s *Scanner) TestSessionManagement(ctx context.Context, loginURL string, cr
 	iohelper.DrainAndClose(loginResp.Body)
 
 	// Check for weak session tokens
-	u, _ := url.Parse(loginURL)
-	for _, cookie := range jar.Cookies(u) {
-		if isSessionCookie(cookie.Name) {
-			result := s.analyzeSessionToken(cookie)
-			results = append(results, result)
+	u, err := url.Parse(loginURL)
+	if err == nil {
+		for _, cookie := range jar.Cookies(u) {
+			if isSessionCookie(cookie.Name) {
+				result := s.analyzeSessionToken(cookie)
+				results = append(results, result)
+			}
 		}
 	}
 
@@ -164,7 +169,10 @@ func (s *Scanner) TestPasswordPolicy(ctx context.Context, registerURL string) ([
 			"email":    {"test@example.com"},
 		}
 
-		req, _ := http.NewRequestWithContext(ctx, "POST", registerURL, strings.NewReader(data.Encode()))
+		req, err := http.NewRequestWithContext(ctx, "POST", registerURL, strings.NewReader(data.Encode()))
+		if err != nil {
+			continue
+		}
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		for k, v := range s.config.Headers {
 			req.Header.Set(k, v)
@@ -214,7 +222,10 @@ func (s *Scanner) TestAccountLockout(ctx context.Context, loginURL string, usern
 			"password": {"wrongpassword" + time.Now().Format("150405")},
 		}
 
-		req, _ := http.NewRequestWithContext(ctx, "POST", loginURL, strings.NewReader(data.Encode()))
+		req, err := http.NewRequestWithContext(ctx, "POST", loginURL, strings.NewReader(data.Encode()))
+		if err != nil {
+			continue
+		}
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		for k, v := range s.config.Headers {
 			req.Header.Set(k, v)

@@ -5,6 +5,77 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-02-02
+
+### Fixed
+- **Unicode Truncation Bugs**: Fixed `uint16` truncation for runes > 0xFFFF in hexutil and tampers packages
+- **JSUnicodeEncoder Truncation**: Fixed encoder casting rune to byte, truncating characters > 255
+- **Empty Payload Panic**: Fixed `payload[:1]` panic in protocol.go when payload is empty
+- **Nil Dereference from url.Parse**: Fixed ignored errors causing nil pointer panics in:
+  - `pkg/openapi/generator.go`
+  - `pkg/brokenauth/brokenauth.go`
+  - `pkg/apifuzz/apifuzz.go`
+  - `pkg/discovery/sources.go`
+  - `cmd/cli/main.go`
+- **Nil Dereference from http.NewRequestWithContext**: Fixed ignored errors causing nil pointer panics in:
+  - `pkg/securitymisconfig/securitymisconfig.go`
+  - `pkg/enterprise/protocols.go`
+  - `pkg/businesslogic/businesslogic.go`
+  - `pkg/brokenauth/brokenauth.go`
+  - `pkg/assessment/assessment.go`
+  - `pkg/apiabuse/apiabuse.go`
+  - `pkg/accesscontrol/accesscontrol.go`
+- **Overlong UTF-8 Encoding**: Fixed `WriteOverlong2Byte`/`WriteOverlong3Byte` format bugs in hexutil
+
+### Added
+- **68 SQLMap-Compatible Tamper Scripts**: Complete port of sqlmap's tamper library for WAF bypass
+  - `--tamper` flag to apply payload transformations
+  - Support for tamper chaining: `--tamper "space2comment,randomcase,base64encode"`
+  - Priority-based execution with `ChainByPriority()`
+  - HTTP-level request transformations via `TransformRequest()`
+
+- **Tamper Categories** (8 categories, 68 scripts):
+  - `encoding` (12): base64encode, charencode, htmlencode, overlongutf8, unmagicquotes, etc.
+  - `space` (12): space2comment, space2plus, space2dash, blankspace, varnishbypass, etc.
+  - `sql` (16): apostrophemask, between, equaltolike, randomcase, symboliclogical, etc.
+  - `mysql` (10): modsecurityversioned, versionedkeywords, misunion, multipleurlencode, etc.
+  - `mssql` (6): mssqlblind, chardeclareandexec, topclause, bracketcomment, etc.
+  - `waf` (4): informationschemacomment, luanginxwaf, jsonobfuscate, schemasplit
+  - `http` (3): xforwardedfor, randomuseragent, varnishbypass
+  - `obfuscation` (6): commentrandom, nullbyte, suffix, concat, slashstar, etc.
+
+- **Protocol Testing Documentation**: README updated with guidance for:
+  - GraphQL endpoint testing (introspection, mutations, batching)
+  - gRPC service testing (reflection, protobuf payloads)
+  - SOAP/XML testing (XXE, WSDL enumeration)
+
+### Technical
+- Thread-safe tamper registry with Get, List, ByCategory, ByTag functions
+- Tamper interface: `Transform(payload string) string` + `TransformRequest(req *http.Request) *http.Request`
+- Full test coverage for all 68 tampers (8 test files, 1000+ test cases)
+- New package: `pkg/evasion/advanced/tampers/`
+
+### Performance
+- **Hex Lookup Tables**: Pre-computed 256-entry tables eliminate fmt.Sprintf overhead
+- **Pre-allocated Buffers**: strings.Builder.Grow() prevents reallocations during transforms
+- **Regex Caching**: All patterns use regexcache.MustGet() for 315x faster repeat matches
+- **Batch Lookups**: GetMultiple() reduces lock contention for tamper chaining
+- **Single-Pass Patterns**: SQL keyword matching uses alternation instead of per-keyword loops
+- **Static Replacers**: HTMLEncode replacer created once at package level
+- **Main App Encoding Optimization**: pkg/waf/evasion.go now uses hexutil lookup tables
+- **Encoder Package Optimization**: pkg/encoding/encoders.go hot paths optimized
+- **Mutation Encoder Optimization**: pkg/mutation/encoder hot paths optimized
+- **New hexutil Package**: internal/hexutil provides shared high-performance encoding utilities
+
+**Benchmarks** (Intel Ultra 7 265U):
+- HexEscape: 380ns vs 7,435ns fmt.Sprintf (**19.6x faster**, 98% fewer allocs)
+- URLEncode: 325ns vs 5,831ns fmt.Sprintf (**18.0x faster**, 98% fewer allocs)
+- BinaryEncode: 361ns vs 5,844ns fmt.Sprintf (**16.2x faster**, 98% fewer allocs)
+- UnicodeEscape: 743ns vs 7,123ns fmt.Sprintf (**9.6x faster**, 98% fewer allocs)
+- CharEncode: 352ns/op, 1 alloc
+- Chain(5 tampers): 5.8μs/op
+- Registry Get(): 23ns/op, 0 allocs
+
 ## [2.3.5] - 2026-02-02
 
 ### Fixed

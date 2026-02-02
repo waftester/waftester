@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/internal/hexutil"
 )
 
 // Detector detects SSRF vulnerabilities
@@ -569,8 +571,9 @@ func (d *Detector) AnalyzeResponse(payload Payload, statusCode int, body string,
 
 func urlEncode(s string) string {
 	var result strings.Builder
+	result.Grow(len(s) * 3) // %xx = 3 chars per byte
 	for _, b := range []byte(s) {
-		result.WriteString(fmt.Sprintf("%%%02x", b))
+		hexutil.WriteURLEncodedLower(&result, b)
 	}
 	return result.String()
 }

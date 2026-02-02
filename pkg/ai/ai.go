@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/internal/hexutil"
 )
 
 // Provider represents an AI provider
@@ -658,16 +660,17 @@ type URLEncodeMutator struct{}
 func (m *URLEncodeMutator) Name() string { return "url-encode" }
 
 func (m *URLEncodeMutator) Mutate(payload string) []string {
-	var result []byte
+	var result strings.Builder
+	result.Grow(len(payload) * 3)
 	for i := 0; i < len(payload); i++ {
 		c := payload[i]
 		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
-			result = append(result, c)
+			result.WriteByte(c)
 		} else {
-			result = append(result, fmt.Sprintf("%%%02X", c)...)
+			result.WriteString(hexutil.URLEncoded[c])
 		}
 	}
-	return []string{string(result)}
+	return []string{result.String()}
 }
 
 // DoubleURLEncodeMutator double URL encodes
