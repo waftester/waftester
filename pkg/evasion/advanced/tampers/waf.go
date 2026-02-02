@@ -1,7 +1,6 @@
 package tampers
 
 import (
-	"fmt"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -90,13 +89,13 @@ func (t *LuanginxWAF) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
-	// Insert null bytes at random positions
-	runes := []rune(payload)
+	// Pre-allocate: payload plus null bytes (~33% overhead)
 	var result strings.Builder
-	for i, r := range runes {
+	result.Grow(len(payload) + len(payload)/2)
+	for i, r := range payload {
 		result.WriteRune(r)
 		// Add null byte every few characters
-		if i > 0 && i%3 == 0 && i < len(runes)-1 {
+		if i > 0 && i%3 == 0 && i < len(payload)-1 {
 			result.WriteString("%00")
 		}
 	}
@@ -160,8 +159,9 @@ func (t *JSONObfuscate) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
-	// Add Unicode escapes to JSON strings
+	// Pre-allocate with generous expansion for whitespace/escapes
 	var result strings.Builder
+	result.Grow(len(payload) * 2)
 	for _, r := range payload {
 		switch r {
 		case '{':
@@ -182,7 +182,7 @@ func (t *JSONObfuscate) Transform(payload string) string {
 		default:
 			// Randomly Unicode-escape some characters
 			if r >= 'a' && r <= 'z' && rand.Intn(10) < 3 {
-				result.WriteString(fmt.Sprintf("\\u00%02x", r))
+				writeUnicodeEscape(&result, r, false)
 			} else {
 				result.WriteRune(r)
 			}
