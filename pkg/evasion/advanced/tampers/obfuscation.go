@@ -3,8 +3,9 @@ package tampers
 import (
 	"fmt"
 	"math/rand"
-	"regexp"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 func init() {
@@ -72,26 +73,20 @@ type RandomComments struct {
 	BaseTamper
 }
 
-var randomCommentKeywords = []string{
-	"SELECT", "INSERT", "UPDATE", "DELETE", "DROP", "CREATE",
-	"ALTER", "TRUNCATE", "FROM", "WHERE", "AND", "OR", "UNION",
-}
+// Pre-compiled pattern for SQL keywords (single pass, no loop compilation)
+var randomCommentKeywordsPattern = regexcache.MustGet(`(?i)\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|FROM|WHERE|AND|OR|UNION)\b`)
+
+// Comment variants for random selection
+var commentVariants = []string{"/**/", "/* */", "/**_**/", "/*-*/"}
 
 func (t *RandomComments) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
-	result := payload
-	for _, kw := range randomCommentKeywords {
-		pattern := regexp.MustCompile(`(?i)\b` + kw + `\b`)
-		result = pattern.ReplaceAllStringFunc(result, func(match string) string {
-			// Random comment type
-			comments := []string{"/**/", "/* */", "/**_**/", "/*-*/"}
-			comment := comments[rand.Intn(len(comments))]
-			return comment + match + comment
-		})
-	}
-	return result
+	return randomCommentKeywordsPattern.ReplaceAllStringFunc(payload, func(match string) string {
+		comment := commentVariants[rand.Intn(len(commentVariants))]
+		return comment + match + comment
+	})
 }
 
 // SlashStar wraps with comments

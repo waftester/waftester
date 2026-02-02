@@ -186,53 +186,59 @@ func Count() int {
 	return len(registry)
 }
 
-// Chain applies multiple tampers in sequence to a payload
-func Chain(payload string, tamperNames ...string) string {
-	result := payload
-	for _, name := range tamperNames {
-		if t := Get(name); t != nil {
-			result = t.Transform(result)
+// GetMultiple returns multiple tampers with a single lock acquisition
+func GetMultiple(names ...string) []Tamper {
+	mu.RLock()
+	defer mu.RUnlock()
+	result := make([]Tamper, 0, len(names))
+	for _, name := range names {
+		if t, ok := registry[name]; ok {
+			result = append(result, t)
 		}
+	}
+	return result
+}
+
+// Chain applies multiple tampers in sequence to a payload
+// Uses single lock acquisition for all lookups
+func Chain(payload string, tamperNames ...string) string {
+	tampers := GetMultiple(tamperNames...)
+	result := payload
+	for _, t := range tampers {
+		result = t.Transform(result)
 	}
 	return result
 }
 
 // ChainByPriority applies tampers sorted by priority (highest first)
+// Uses single lock acquisition for all lookups
 func ChainByPriority(payload string, tamperNames ...string) string {
-	// Collect tampers with their priorities
-	type tamperWithPriority struct {
-		t        Tamper
-		priority Priority
-	}
-
-	tampers := make([]tamperWithPriority, 0, len(tamperNames))
-	for _, name := range tamperNames {
-		if t := Get(name); t != nil {
-			tampers = append(tampers, tamperWithPriority{t: t, priority: t.Priority()})
-		}
+	tampers := GetMultiple(tamperNames...)
+	if len(tampers) == 0 {
+		return payload
 	}
 
 	// Sort by priority (highest first)
 	sort.Slice(tampers, func(i, j int) bool {
-		return tampers[i].priority > tampers[j].priority
+		return tampers[i].Priority() > tampers[j].Priority()
 	})
 
 	// Apply in order
 	result := payload
-	for _, tp := range tampers {
-		result = tp.t.Transform(result)
+	for _, t := range tampers {
+		result = t.Transform(result)
 	}
 	return result
 }
 
 // ChainRequest applies multiple tampers to an HTTP request
+// Uses single lock acquisition for all lookups
 func ChainRequest(req *http.Request, tamperNames ...string) *http.Request {
+	tampers := GetMultiple(tamperNames...)
 	result := req
-	for _, name := range tamperNames {
-		if t := Get(name); t != nil {
-			if modified := t.TransformRequest(result); modified != nil {
-				result = modified
-			}
+	for _, t := range tampers {
+		if modified := t.TransformRequest(result); modified != nil {
+			result = modified
 		}
 	}
 	return result

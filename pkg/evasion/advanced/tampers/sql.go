@@ -3,9 +3,10 @@ package tampers
 import (
 	"fmt"
 	"math/rand"
-	"regexp"
 	"strings"
 	"unicode"
+
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 func init() {
@@ -157,7 +158,7 @@ type Commentbeforeparentheses struct {
 	BaseTamper
 }
 
-var funcPattern = regexp.MustCompile(`(\w+)\(`)
+var funcPattern = regexcache.MustGet(`(\w+)\(`)
 
 func (t *Commentbeforeparentheses) Transform(payload string) string {
 	if payload == "" {
@@ -171,7 +172,7 @@ type Concat2Concatws struct {
 	BaseTamper
 }
 
-var concatPattern = regexp.MustCompile(`(?i)CONCAT\s*\(`)
+var concatPattern = regexcache.MustGet(`(?i)CONCAT\s*\(`)
 
 func (t *Concat2Concatws) Transform(payload string) string {
 	if payload == "" {
@@ -228,24 +229,16 @@ type HalfVersionedMoreKeywords struct {
 	BaseTamper
 }
 
-var sqlKeywords = []string{
-	"UNION", "SELECT", "INSERT", "UPDATE", "DELETE", "DROP", "CREATE",
-	"ALTER", "TRUNCATE", "FROM", "WHERE", "AND", "OR", "NOT", "NULL",
-	"ORDER", "GROUP", "HAVING", "LIMIT", "OFFSET", "JOIN", "INNER",
-	"OUTER", "LEFT", "RIGHT", "LIKE", "IN", "BETWEEN", "EXISTS",
-}
+// Pre-compiled SQL keyword pattern - matches all keywords in one pass (MUCH faster than loop)
+var sqlKeywordsPattern = regexcache.MustGet(`(?i)\b(UNION|SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|FROM|WHERE|AND|OR|NOT|NULL|ORDER|GROUP|HAVING|LIMIT|OFFSET|JOIN|INNER|OUTER|LEFT|RIGHT|LIKE|IN|BETWEEN|EXISTS)\b`)
 
 func (t *HalfVersionedMoreKeywords) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
-	result := payload
-	for _, kw := range sqlKeywords {
-		// Case insensitive replacement with versioned comment
-		pattern := regexp.MustCompile(`(?i)\b` + kw + `\b`)
-		result = pattern.ReplaceAllString(result, "/*!"+kw+"*/")
-	}
-	return result
+	return sqlKeywordsPattern.ReplaceAllStringFunc(payload, func(match string) string {
+		return "/*!" + strings.ToUpper(match) + "*/"
+	})
 }
 
 // IfNull2CaseWhenNull replaces IFNULL with CASE WHEN
@@ -253,7 +246,7 @@ type IfNull2CaseWhenNull struct {
 	BaseTamper
 }
 
-var ifnullPattern = regexp.MustCompile(`(?i)IFNULL\s*\(\s*([^,]+)\s*,\s*([^)]+)\s*\)`)
+var ifnullPattern = regexcache.MustGet(`(?i)IFNULL\s*\(\s*([^,]+)\s*,\s*([^)]+)\s*\)`)
 
 func (t *IfNull2CaseWhenNull) Transform(payload string) string {
 	if payload == "" {
@@ -330,8 +323,8 @@ type SymbolsComment struct {
 	BaseTamper
 }
 
-var andPattern = regexp.MustCompile(`(?i)\bAND\b`)
-var orPattern = regexp.MustCompile(`(?i)\bOR\b`)
+var andPattern = regexcache.MustGet(`(?i)\bAND\b`)
+var orPattern = regexcache.MustGet(`(?i)\bOR\b`)
 
 func (t *SymbolsComment) Transform(payload string) string {
 	if payload == "" {
@@ -347,7 +340,7 @@ type SubstringExtreme struct {
 	BaseTamper
 }
 
-var substringPattern = regexp.MustCompile(`(?i)SUBSTRING\s*\(\s*([^,]+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)`)
+var substringPattern = regexcache.MustGet(`(?i)SUBSTRING\s*\(\s*([^,]+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)`)
 
 func (t *SubstringExtreme) Transform(payload string) string {
 	if payload == "" {
