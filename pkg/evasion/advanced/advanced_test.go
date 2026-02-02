@@ -183,9 +183,41 @@ func TestTripleURLEncode(t *testing.T) {
 }
 
 func TestMixedCaseURLEncode(t *testing.T) {
+	// Test that encoding produces valid hex patterns
 	result := MixedCaseURLEncode("<>")
 	assert.Contains(t, strings.ToUpper(result), "%3C")
 	assert.Contains(t, strings.ToUpper(result), "%3E")
+
+	// Test that the output length is correct (each char becomes %XX = 3 chars)
+	result = MixedCaseURLEncode("<")
+	assert.Len(t, result, 3)
+	assert.Equal(t, '%', rune(result[0]))
+
+	// Test that over many iterations, we get both cases (testing randomness)
+	// This is statistical - with 100 iterations, probability of all same case is 2^-100
+	upperCount := 0
+	lowerCount := 0
+	for i := 0; i < 100; i++ {
+		r := MixedCaseURLEncode("<")
+		if r == "%3C" {
+			upperCount++
+		} else if r == "%3c" {
+			lowerCount++
+		} else {
+			t.Fatalf("unexpected encoding: %q", r)
+		}
+	}
+	// Both should have at least some occurrences (with very high probability)
+	assert.Greater(t, upperCount, 0, "expected some uppercase encodings")
+	assert.Greater(t, lowerCount, 0, "expected some lowercase encodings")
+
+	// Test alphanumeric chars are not encoded
+	result = MixedCaseURLEncode("abc123")
+	assert.Equal(t, "abc123", result)
+
+	// Test empty string
+	result = MixedCaseURLEncode("")
+	assert.Equal(t, "", result)
 }
 
 func TestOverlongUTF8(t *testing.T) {

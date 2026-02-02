@@ -213,34 +213,34 @@ func writeHexRune(sb *strings.Builder, r rune) {
 	}
 }
 
-// WriteOverlong2Byte writes a byte as 2-byte overlong UTF-8: %cXX%cXX
+// WriteOverlong2Byte writes a byte as 2-byte overlong UTF-8: %XX%XX
 // Used for WAF bypass testing - encodes b as overlong 2-byte UTF-8
 func WriteOverlong2Byte(sb *strings.Builder, b byte) {
 	// 2-byte overlong: 110xxxxx 10xxxxxx
 	first := 0xC0 | (b >> 6)
 	second := 0x80 | (b & 0x3F)
-	sb.WriteString("%c")
-	sb.WriteByte(HexLower[first>>4])
-	sb.WriteByte(HexLower[first&0xF])
-	sb.WriteString("%c")
-	sb.WriteByte(HexLower[second>>4])
-	sb.WriteByte(HexLower[second&0xF])
+	sb.WriteByte('%')
+	sb.WriteByte(HexUpper[first>>4])
+	sb.WriteByte(HexUpper[first&0xF])
+	sb.WriteByte('%')
+	sb.WriteByte(HexUpper[second>>4])
+	sb.WriteByte(HexUpper[second&0xF])
 }
 
-// WriteOverlong3Byte writes a byte as 3-byte overlong UTF-8: %eXX%cXX%cXX
+// WriteOverlong3Byte writes a byte as 3-byte overlong UTF-8: %XX%XX%XX
 // Used for WAF bypass testing - encodes b as overlong 3-byte UTF-8
 func WriteOverlong3Byte(sb *strings.Builder, b byte) {
 	// 3-byte: 1110xxxx 10xxxxxx 10xxxxxx
 	first := byte(0xE0)
 	second := 0x80 | ((b >> 6) & 0x3F)
 	third := 0x80 | (b & 0x3F)
-	sb.WriteString("%e")
-	sb.WriteByte(HexLower[first>>4])
-	sb.WriteByte(HexLower[first&0xF])
-	sb.WriteString("%c")
-	sb.WriteByte(HexLower[second>>4])
-	sb.WriteByte(HexLower[second&0xF])
-	sb.WriteString("%c")
-	sb.WriteByte(HexLower[third>>4])
-	sb.WriteByte(HexLower[third&0xF])
+	sb.WriteByte('%')
+	sb.WriteByte(HexUpper[first>>4])
+	sb.WriteByte(HexUpper[first&0xF])
+	sb.WriteByte('%')
+	sb.WriteByte(HexUpper[second>>4])
+	sb.WriteByte(HexUpper[second&0xF])
+	sb.WriteByte('%')
+	sb.WriteByte(HexUpper[third>>4])
+	sb.WriteByte(HexUpper[third&0xF])
 }
