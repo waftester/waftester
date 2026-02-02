@@ -1,8 +1,8 @@
 package tampers
 
 import (
-	"fmt"
 	"math/rand"
+	"strconv"
 	"strings"
 
 	"github.com/waftester/waftester/pkg/regexcache"
@@ -93,7 +93,7 @@ func (t *CharlongEscape) Transform(payload string) string {
 	return charPattern.ReplaceAllStringFunc(payload, func(match string) string {
 		submatch := charPattern.FindStringSubmatch(match)
 		if len(submatch) == 2 {
-			return fmt.Sprintf("0x%s", submatch[1])
+			return "0x" + submatch[1]
 		}
 		return match
 	})
@@ -138,7 +138,7 @@ func (t *Modsecurityversioned) Transform(payload string) string {
 	}
 	// Random version number between 30000 and 99999
 	version := 30000 + rand.Intn(69999)
-	return fmt.Sprintf("/*!%d%s*/", version, payload)
+	return "/*!" + strconv.Itoa(version) + payload + "*/"
 }
 
 // Modsecurityzeroversioned wraps with /*!00000 comment
@@ -150,7 +150,7 @@ func (t *Modsecurityzeroversioned) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
-	return fmt.Sprintf("/*!00000%s*/", payload)
+	return "/*!00000" + payload + "*/"
 }
 
 // MultipleURLEncode encodes payload multiple times
@@ -164,12 +164,14 @@ func (t *MultipleURLEncode) Transform(payload string) string {
 	}
 	// First pass encoding
 	var result strings.Builder
+	result.Grow(len(payload) * 3)
 	for _, b := range []byte(payload) {
-		result.WriteString(fmt.Sprintf("%%%02X", b))
+		writeURLEncodedByte(&result, b)
 	}
 	// Second pass encoding (encode the %)
 	encoded := result.String()
 	var result2 strings.Builder
+	result2.Grow(len(encoded) + len(encoded)/3) // ~33% expansion for %->%25
 	for _, b := range []byte(encoded) {
 		if b == '%' {
 			result2.WriteString("%25")
@@ -219,9 +221,12 @@ func (t *VersionedKeywords) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
-	return keywordsPattern.ReplaceAllStringFunc(payload, func(match string) string {
-		return fmt.Sprintf("/*!%s*/", strings.ToUpper(match))
-	})
+	return keywordsPattern.ReplaceAllStringFunc(payload, wrapVersionedKeyword)
+}
+
+// wrapVersionedKeyword wraps a keyword - avoids closure and fmt.Sprintf allocation
+func wrapVersionedKeyword(match string) string {
+	return "/*!" + strings.ToUpper(match) + "*/"
 }
 
 // VersionedMoreKeywords wraps more SQL keywords with versioned comments
@@ -235,7 +240,5 @@ func (t *VersionedMoreKeywords) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
-	return moreKeywordsPattern.ReplaceAllStringFunc(payload, func(match string) string {
-		return fmt.Sprintf("/*!%s*/", strings.ToUpper(match))
-	})
+	return moreKeywordsPattern.ReplaceAllStringFunc(payload, wrapVersionedKeyword)
 }

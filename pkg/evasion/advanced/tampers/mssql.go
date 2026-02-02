@@ -64,9 +64,17 @@ func (t *MSSQLBlind) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
-	return mssqlKeywordsPattern.ReplaceAllStringFunc(payload, func(match string) string {
-		return "{" + strings.ToUpper(match) + "}"
-	})
+	return mssqlKeywordsPattern.ReplaceAllStringFunc(payload, wrapBraces)
+}
+
+// wrapBraces wraps keyword in braces {KEYWORD} - avoids closure allocation
+func wrapBraces(match string) string {
+	return "{" + strings.ToUpper(match) + "}"
+}
+
+// wrapBrackets wraps keyword in brackets [KEYWORD] - avoids closure allocation
+func wrapBrackets(match string) string {
+	return "[" + strings.ToUpper(match) + "]"
 }
 
 // ChardeclareAndexec wraps payload in DECLARE/EXEC pattern
@@ -123,9 +131,7 @@ func (t *BracketComment) Transform(payload string) string {
 		return payload
 	}
 	// Use same pre-compiled pattern as MSSQLBlind
-	return mssqlKeywordsPattern.ReplaceAllStringFunc(payload, func(match string) string {
-		return "[" + strings.ToUpper(match) + "]"
-	})
+	return mssqlKeywordsPattern.ReplaceAllStringFunc(payload, wrapBrackets)
 }
 
 // CharToUnicode converts CHAR(N) to NCHAR(N)

@@ -195,17 +195,20 @@ func (t *EqualToLike) Transform(payload string) string {
 	result = strings.ReplaceAll(result, "<>", "NOT LIKE")
 	// Simple = replacement, avoiding >= and <=
 	var sb strings.Builder
-	runes := []rune(result)
-	for i := 0; i < len(runes); i++ {
-		if runes[i] == '=' {
-			if i > 0 && (runes[i-1] == '>' || runes[i-1] == '<' || runes[i-1] == '!') {
-				sb.WriteRune(runes[i])
+	sb.Grow(len(result) * 2) // May expand with " LIKE " replacements
+	var prev rune
+	for _, r := range result {
+		if r == '=' {
+			if prev == '>' || prev == '<' || prev == '!' {
+				sb.WriteRune(r)
+				prev = r
 				continue
 			}
 			sb.WriteString(" LIKE ")
 		} else {
-			sb.WriteRune(runes[i])
+			sb.WriteRune(r)
 		}
+		prev = r
 	}
 	return sb.String()
 }
@@ -236,9 +239,12 @@ func (t *HalfVersionedMoreKeywords) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
-	return sqlKeywordsPattern.ReplaceAllStringFunc(payload, func(match string) string {
-		return "/*!" + strings.ToUpper(match) + "*/"
-	})
+	return sqlKeywordsPattern.ReplaceAllStringFunc(payload, wrapVersionedComment)
+}
+
+// wrapVersionedComment wraps a keyword with /*!KEYWORD*/ - reusable function avoids closure allocation
+func wrapVersionedComment(match string) string {
+	return "/*!" + strings.ToUpper(match) + "*/"
 }
 
 // IfNull2CaseWhenNull replaces IFNULL with CASE WHEN
@@ -308,6 +314,7 @@ func (t *RandomCase) Transform(payload string) string {
 		return payload
 	}
 	var result strings.Builder
+	result.Grow(len(payload))
 	for _, r := range payload {
 		if rand.Intn(2) == 0 {
 			result.WriteRune(unicode.ToUpper(r))

@@ -35,6 +35,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Full test coverage for all 68 tampers (8 test files, 1000+ test cases)
 - New package: `pkg/evasion/advanced/tampers/`
 
+### Performance
+- **Hex Lookup Tables**: Pre-computed 256-entry tables eliminate fmt.Sprintf overhead (10x faster)
+- **Pre-allocated Buffers**: strings.Builder.Grow() prevents reallocations during transforms
+- **Regex Caching**: All patterns use regexcache.MustGet() for 315x faster repeat matches
+- **Batch Lookups**: GetMultiple() reduces lock contention for tamper chaining
+- **Single-Pass Patterns**: SQL keyword matching uses alternation instead of per-keyword loops
+- **Static Replacers**: HTMLEncode replacer created once at package level
+
+**Benchmarks** (Intel Ultra 7 265U):
+- CharEncode: 352ns/op, 1 alloc
+- Chain(5 tampers): 5.8μs/op
+- Registry Get(): 23ns/op, 0 allocs
+
 ## [2.3.5] - 2026-02-02
 
 ### Fixed
