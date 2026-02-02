@@ -2,8 +2,9 @@ package tampers
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 func init() {
@@ -56,18 +57,16 @@ type MSSQLBlind struct {
 	BaseTamper
 }
 
-var mssqlKeywords = []string{"SELECT", "INSERT", "UPDATE", "DELETE", "WHERE", "FROM", "AND", "OR"}
+// Pre-compiled pattern for all MSSQL keywords (single pass, no loop compilation)
+var mssqlKeywordsPattern = regexcache.MustGet(`(?i)\b(SELECT|INSERT|UPDATE|DELETE|WHERE|FROM|AND|OR)\b`)
 
 func (t *MSSQLBlind) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
-	result := payload
-	for _, kw := range mssqlKeywords {
-		pattern := regexp.MustCompile(`(?i)\b` + kw + `\b`)
-		result = pattern.ReplaceAllString(result, "{"+kw+"}")
-	}
-	return result
+	return mssqlKeywordsPattern.ReplaceAllStringFunc(payload, func(match string) string {
+		return "{" + strings.ToUpper(match) + "}"
+	})
 }
 
 // ChardeclareAndexec wraps payload in DECLARE/EXEC pattern
@@ -93,7 +92,7 @@ type TopClause struct {
 	BaseTamper
 }
 
-var selectPattern = regexp.MustCompile(`(?i)\bSELECT\b`)
+var selectPattern = regexcache.MustGet(`(?i)\bSELECT\b`)
 
 func (t *TopClause) Transform(payload string) string {
 	if payload == "" {
@@ -123,13 +122,10 @@ func (t *BracketComment) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
-	// Replace spaces within identifiers with bracketed versions
-	result := payload
-	for _, kw := range mssqlKeywords {
-		pattern := regexp.MustCompile(`(?i)\b` + kw + `\b`)
-		result = pattern.ReplaceAllString(result, "["+kw+"]")
-	}
-	return result
+	// Use same pre-compiled pattern as MSSQLBlind
+	return mssqlKeywordsPattern.ReplaceAllStringFunc(payload, func(match string) string {
+		return "[" + strings.ToUpper(match) + "]"
+	})
 }
 
 // CharToUnicode converts CHAR(N) to NCHAR(N)
@@ -137,7 +133,7 @@ type CharToUnicode struct {
 	BaseTamper
 }
 
-var charFuncPattern = regexp.MustCompile(`(?i)\bCHAR\s*\(`)
+var charFuncPattern = regexcache.MustGet(`(?i)\bCHAR\s*\(`)
 
 func (t *CharToUnicode) Transform(payload string) string {
 	if payload == "" {

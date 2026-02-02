@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
-	"regexp"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 func init() {
@@ -56,7 +57,7 @@ type Informationschemacomment struct {
 	BaseTamper
 }
 
-var infoSchemaPattern = regexp.MustCompile(`(?i)(INFORMATION_SCHEMA)\.`)
+var infoSchemaPattern = regexcache.MustGet(`(?i)(INFORMATION_SCHEMA)\.`)
 
 func (t *Informationschemacomment) Transform(payload string) string {
 	if payload == "" {

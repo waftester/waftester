@@ -3,8 +3,9 @@ package tampers
 import (
 	"fmt"
 	"math/rand"
-	"regexp"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 func init() {
@@ -83,7 +84,7 @@ type CharlongEscape struct {
 	BaseTamper
 }
 
-var charPattern = regexp.MustCompile(`(?i)CHAR\s*\(\s*(\d+)\s*\)`)
+var charPattern = regexcache.MustGet(`(?i)CHAR\s*\(\s*(\d+)\s*\)`)
 
 func (t *CharlongEscape) Transform(payload string) string {
 	if payload == "" {
@@ -117,7 +118,7 @@ type MisUnion struct {
 	BaseTamper
 }
 
-var unionPattern = regexp.MustCompile(`(?i)\bUNION\b`)
+var unionPattern = regexcache.MustGet(`(?i)\bUNION\b`)
 
 func (t *MisUnion) Transform(payload string) string {
 	if payload == "" {
@@ -212,7 +213,7 @@ type VersionedKeywords struct {
 	BaseTamper
 }
 
-var keywordsPattern = regexp.MustCompile(`(?i)\b(UNION|SELECT|INSERT|UPDATE|DELETE|WHERE)\b`)
+var keywordsPattern = regexcache.MustGet(`(?i)\b(UNION|SELECT|INSERT|UPDATE|DELETE|WHERE)\b`)
 
 func (t *VersionedKeywords) Transform(payload string) string {
 	if payload == "" {
@@ -228,7 +229,7 @@ type VersionedMoreKeywords struct {
 	BaseTamper
 }
 
-var moreKeywordsPattern = regexp.MustCompile(`(?i)\b(UNION|SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|FROM|WHERE|AND|OR|NOT|NULL|ORDER|GROUP|HAVING|LIMIT|OFFSET|JOIN|LIKE|IN|BETWEEN)\b`)
+var moreKeywordsPattern = regexcache.MustGet(`(?i)\b(UNION|SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|FROM|WHERE|AND|OR|NOT|NULL|ORDER|GROUP|HAVING|LIMIT|OFFSET|JOIN|LIKE|IN|BETWEEN)\b`)
 
 func (t *VersionedMoreKeywords) Transform(payload string) string {
 	if payload == "" {
