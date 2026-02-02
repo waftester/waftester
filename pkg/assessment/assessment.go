@@ -203,7 +203,10 @@ func (a *Assessment) Run(ctx context.Context, progressFn ProgressCallback) (*met
 // detectWAF attempts to detect the WAF vendor
 func (a *Assessment) detectWAF(ctx context.Context) {
 	// Send a benign request first
-	req, _ := http.NewRequestWithContext(ctx, "GET", a.config.TargetURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", a.config.TargetURL, nil)
+	if err != nil {
+		return
+	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 
 	resp, err := a.httpClient.Do(req)
@@ -218,7 +221,10 @@ func (a *Assessment) detectWAF(ctx context.Context) {
 	// If not detected, try with a simple attack to trigger WAF response
 	if a.detectedWAF == "" {
 		testURL := a.config.TargetURL + "?test=<script>alert(1)</script>"
-		req2, _ := http.NewRequestWithContext(ctx, "GET", testURL, nil)
+		req2, err := http.NewRequestWithContext(ctx, "GET", testURL, nil)
+		if err != nil {
+			return
+		}
 		req2.Header.Set("User-Agent", "Mozilla/5.0")
 
 		resp2, err := a.httpClient.Do(req2)

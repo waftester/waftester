@@ -4442,8 +4442,10 @@ func runTests() {
 			ext := filepath.Ext(cfg.OutputFile)
 			base := strings.TrimSuffix(cfg.OutputFile, ext)
 			// Extract domain for clearer filenames
-			u, _ := url.Parse(currentTarget)
-			domain := u.Host
+			domain := ""
+			if u, err := url.Parse(currentTarget); err == nil && u != nil {
+				domain = u.Host
+			}
 			if domain == "" {
 				domain = fmt.Sprintf("target-%d", targetIdx+1)
 			}

@@ -199,11 +199,15 @@ func (g *Generator) createParameterTest(op EndpointOperation, baseURL string, pa
 	switch param.In {
 	case "query":
 		test.QueryParams = map[string]string{param.Name: payload}
-		u, _ := url.Parse(baseURL + path)
-		q := u.Query()
-		q.Set(param.Name, payload)
-		u.RawQuery = q.Encode()
-		test.Endpoint = u.String()
+		u, err := url.Parse(baseURL + path)
+		if err != nil {
+			test.Endpoint = baseURL + path
+		} else {
+			q := u.Query()
+			q.Set(param.Name, payload)
+			u.RawQuery = q.Encode()
+			test.Endpoint = u.String()
+		}
 
 	case "path":
 		// Replace path parameter with payload

@@ -4,11 +4,11 @@ package waf
 import (
 	"encoding/base64"
 	"encoding/hex"
-	"fmt"
 	"net/url"
 	"strings"
 	"unicode/utf16"
 
+	"github.com/waftester/waftester/internal/hexutil"
 	"github.com/waftester/waftester/pkg/bufpool"
 )
 
@@ -125,7 +125,7 @@ func (e *Evasion) initTechniques() {
 				result := bufpool.GetString()
 				defer bufpool.PutString(result)
 				for _, b := range []byte(payload) {
-					result.WriteString(fmt.Sprintf("\\x%02x", b))
+					hexutil.WriteHexEscape(result, b)
 				}
 				return []string{result.String()}
 			},
@@ -138,7 +138,7 @@ func (e *Evasion) initTechniques() {
 				result := bufpool.GetString()
 				defer bufpool.PutString(result)
 				for _, r := range payload {
-					result.WriteString(fmt.Sprintf("\\u%04x", r))
+					hexutil.WriteUnicodeEscape(result, r)
 				}
 				return []string{result.String()}
 			},
@@ -175,7 +175,7 @@ func (e *Evasion) initTechniques() {
 				defer bufpool.PutString(numeric)
 				for _, r := range payload {
 					if r < 128 && r > 31 {
-						numeric.WriteString(fmt.Sprintf("&#%d;", r))
+						hexutil.WriteDecEntity(numeric, r)
 					} else {
 						numeric.WriteRune(r)
 					}
@@ -187,7 +187,7 @@ func (e *Evasion) initTechniques() {
 				defer bufpool.PutString(hexEnt)
 				for _, r := range payload {
 					if r < 128 && r > 31 {
-						hexEnt.WriteString(fmt.Sprintf("&#x%x;", r))
+						hexutil.WriteHexEntity(hexEnt, r)
 					} else {
 						hexEnt.WriteRune(r)
 					}
@@ -218,7 +218,9 @@ func (e *Evasion) initTechniques() {
 						result.WriteRune(r)
 					} else {
 						// Encode as UTF-7
-						result.WriteString(fmt.Sprintf("+%s-", base64.StdEncoding.EncodeToString([]byte(string(r)))))
+						result.WriteByte('+')
+						result.WriteString(base64.StdEncoding.EncodeToString([]byte(string(r))))
+						result.WriteByte('-')
 					}
 				}
 				return []string{result.String()}
@@ -431,7 +433,7 @@ func (e *Evasion) initTechniques() {
 				defer bufpool.PutString(jsUnicode)
 				for _, r := range payload {
 					if r < 128 && r > 31 {
-						jsUnicode.WriteString(fmt.Sprintf("\\u%04x", r))
+						hexutil.WriteUnicodeEscape(jsUnicode, r)
 					} else {
 						jsUnicode.WriteRune(r)
 					}
@@ -494,7 +496,7 @@ func (e *Evasion) initTechniques() {
 				results = append(results, "id[]="+payload+"&id[]=safe")
 
 				// JSON in param
-				results = append(results, fmt.Sprintf("{\"id\":\"%s\"}", payload))
+				results = append(results, `{"id":"`+payload+`"}`)
 
 				return results
 			},
@@ -508,13 +510,13 @@ func (e *Evasion) initTechniques() {
 				results := make([]string, 0, 3)
 
 				// JSON wrapper
-				results = append(results, fmt.Sprintf(`{"data":"%s"}`, payload))
+				results = append(results, `{"data":"`+payload+`"}`)
 
 				// XML wrapper
-				results = append(results, fmt.Sprintf(`<?xml version="1.0"?><data>%s</data>`, payload))
+				results = append(results, `<?xml version="1.0"?><data>`+payload+`</data>`)
 
 				// Multipart boundary
-				results = append(results, fmt.Sprintf(`------WebKitFormBoundary\r\nContent-Disposition: form-data; name="data"\r\n\r\n%s\r\n------WebKitFormBoundary--`, payload))
+				results = append(results, `------WebKitFormBoundary\r\nContent-Disposition: form-data; name="data"\r\n\r\n`+payload+`\r\n------WebKitFormBoundary--`)
 
 				return results
 			},
@@ -557,13 +559,13 @@ func (e *Evasion) initTechniques() {
 
 				// Split with concat
 				mid := len(payload) / 2
-				results = append(results, fmt.Sprintf("%s'+'%s", payload[:mid], payload[mid:]))
+				results = append(results, payload[:mid]+"'+'"+payload[mid:])
 
 				// Split with comments (SQL)
-				results = append(results, fmt.Sprintf("%s/*split*/%s", payload[:mid], payload[mid:]))
+				results = append(results, payload[:mid]+"/*split*/"+payload[mid:])
 
 				// String concat
-				results = append(results, fmt.Sprintf("concat('%s','%s')", payload[:mid], payload[mid:]))
+				results = append(results, "concat('"+payload[:mid]+"','"+payload[mid:]+"')")
 
 				return results
 			},

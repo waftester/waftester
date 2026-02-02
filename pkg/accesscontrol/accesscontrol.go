@@ -285,7 +285,10 @@ func (t *Tester) TestMetadataManipulation(ctx context.Context) ([]TestResult, er
 	baseURL := t.target + adminEndpoint
 
 	// First, get baseline (should be 403/401)
-	baseReq, _ := http.NewRequestWithContext(ctx, "GET", baseURL, nil)
+	baseReq, err := http.NewRequestWithContext(ctx, "GET", baseURL, nil)
+	if err != nil {
+		return nil, err
+	}
 	baseResp, _ := t.client.Do(baseReq)
 	if baseResp != nil {
 		iohelper.DrainAndClose(baseResp.Body)
@@ -494,7 +497,10 @@ func (t *Tester) TestPathTraversalACL(ctx context.Context) ([]TestResult, error)
 	payloads := PathManipulationPayloads()
 
 	// First, verify admin is blocked normally
-	baseReq, _ := http.NewRequestWithContext(ctx, "GET", t.target+"/admin", nil)
+	baseReq, err := http.NewRequestWithContext(ctx, "GET", t.target+"/admin", nil)
+	if err != nil {
+		return nil, err
+	}
 	baseResp, _ := t.client.Do(baseReq)
 	var baseStatus int
 	if baseResp != nil {

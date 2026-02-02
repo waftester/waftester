@@ -193,3 +193,25 @@ func TestProtocolCategoryCorrect(t *testing.T) {
 		}
 	}
 }
+
+func TestEmptyPayloadDoesNotPanic(t *testing.T) {
+	// Regression test: ensure empty payload doesn't cause panic from [:1] slice
+	protocols := []mutation.Mutator{
+		&HTTPSmugglingCLTE{},
+		&HTTP2Downgrade{},
+	}
+
+	for _, proto := range protocols {
+		t.Run(proto.Name(), func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("%s panicked on empty payload: %v", proto.Name(), r)
+				}
+			}()
+			results := proto.Mutate("")
+			if len(results) == 0 {
+				t.Errorf("%s returned no results for empty payload", proto.Name())
+			}
+		})
+	}
+}

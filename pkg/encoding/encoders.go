@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/waftester/waftester/internal/hexutil"
 	"github.com/waftester/waftester/pkg/bufpool"
 )
 
@@ -135,7 +136,7 @@ func (e *UnicodeEncoder) Encode(payload string) (string, error) {
 		if r < 128 && r > 31 && r != '<' && r != '>' && r != '"' && r != '\'' && r != '&' {
 			result.WriteRune(r)
 		} else {
-			result.WriteString(fmt.Sprintf("\\u%04x", r))
+			hexutil.WriteUnicodeEscape(result, r)
 		}
 	}
 	return result.String(), nil
@@ -172,7 +173,7 @@ func (e *HTMLNumericEncoder) Encode(payload string) (string, error) {
 	defer bufpool.PutString(result)
 	for _, r := range payload {
 		if r == '<' || r == '>' || r == '"' || r == '\'' || r == '&' {
-			result.WriteString(fmt.Sprintf("&#%d;", r))
+			hexutil.WriteDecEntity(result, r)
 		} else {
 			result.WriteRune(r)
 		}
@@ -192,7 +193,7 @@ func (e *HTMLHexEncoder) Encode(payload string) (string, error) {
 	defer bufpool.PutString(result)
 	for _, r := range payload {
 		if r == '<' || r == '>' || r == '"' || r == '\'' || r == '&' {
-			result.WriteString(fmt.Sprintf("&#x%x;", r))
+			hexutil.WriteHexEntity(result, r)
 		} else {
 			result.WriteRune(r)
 		}
@@ -213,8 +214,12 @@ func (e *JSUnicodeEncoder) Encode(payload string) (string, error) {
 	for _, r := range payload {
 		if r < 128 && r > 31 && r != '<' && r != '>' && r != '"' && r != '\'' {
 			result.WriteRune(r)
+		} else if r <= 0xFF {
+			// \xXX format for bytes (0-255)
+			hexutil.WriteHexEscape(result, byte(r))
 		} else {
-			result.WriteString(fmt.Sprintf("\\x%02x", r))
+			// \uXXXX format for runes > 255
+			hexutil.WriteUnicodeEscape(result, r)
 		}
 	}
 	return result.String(), nil
@@ -238,8 +243,9 @@ func (e *JSHexEncoder) Name() string { return "js-hex" }
 func (e *JSHexEncoder) Encode(payload string) (string, error) {
 	result := bufpool.GetString()
 	defer bufpool.PutString(result)
+	result.Grow(len(payload) * 4) // \\xXX = 4 chars per byte
 	for _, b := range []byte(payload) {
-		result.WriteString(fmt.Sprintf("\\x%02x", b))
+		hexutil.WriteHexEscape(result, b)
 	}
 	return result.String(), nil
 }
@@ -327,8 +333,9 @@ func (e *OctalEncoder) Name() string { return "octal" }
 func (e *OctalEncoder) Encode(payload string) (string, error) {
 	result := bufpool.GetString()
 	defer bufpool.PutString(result)
+	result.Grow(len(payload) * 4) // \OOO = 4 chars per byte
 	for _, b := range []byte(payload) {
-		result.WriteString(fmt.Sprintf("\\%03o", b))
+		hexutil.WriteOctalEscape(result, b)
 	}
 	return result.String(), nil
 }
@@ -355,8 +362,9 @@ func (e *BinaryEncoder) Name() string { return "binary" }
 func (e *BinaryEncoder) Encode(payload string) (string, error) {
 	result := bufpool.GetString()
 	defer bufpool.PutString(result)
+	result.Grow(len(payload) * 8) // 8 binary digits per byte
 	for _, b := range []byte(payload) {
-		result.WriteString(fmt.Sprintf("%08b", b))
+		hexutil.WriteBinaryEscape(result, b)
 	}
 	return result.String(), nil
 }
