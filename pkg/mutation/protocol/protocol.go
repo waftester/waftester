@@ -10,6 +10,15 @@ import (
 	"github.com/waftester/waftester/pkg/mutation"
 )
 
+// firstChar returns the first character of s, or "X" if s is empty.
+// This prevents panics from s[:1] on empty strings.
+func firstChar(s string) string {
+	if len(s) == 0 {
+		return "X"
+	}
+	return s[:1]
+}
+
 func init() {
 	// Register protocol-level mutators
 	protocols := []mutation.Mutator{
@@ -77,7 +86,7 @@ func (p *HTTPSmugglingCLTE) Mutate(payload string) []mutation.MutatedPayload {
 		"\r\n"+
 		"1\r\n"+
 		"%s\r\n"+
-		"Q", payload[:1])
+		"Q", firstChar(payload))
 	results = append(results, mutation.MutatedPayload{
 		Original:    payload,
 		Mutated:     timingProbe,
@@ -210,7 +219,7 @@ func (p *HTTP2Downgrade) Mutate(payload string) []mutation.MutatedPayload {
 	// H2.TE - HTTP/2 with Transfer-Encoding (should be stripped)
 	results = append(results, mutation.MutatedPayload{
 		Original:    payload,
-		Mutated:     fmt.Sprintf(":method: POST\r\n:path: /\r\ntransfer-encoding: chunked\r\n\r\n1\r\n%s\r\n0\r\n\r\n", payload[:1]),
+		Mutated:     fmt.Sprintf(":method: POST\r\n:path: /\r\ntransfer-encoding: chunked\r\n\r\n1\r\n%s\r\n0\r\n\r\n", firstChar(payload)),
 		MutatorName: p.Name() + "_h2te",
 		Category:    p.Category(),
 	})

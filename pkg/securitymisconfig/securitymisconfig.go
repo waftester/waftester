@@ -155,7 +155,10 @@ func (s *Scanner) testEndpoint(ctx context.Context, url, testType, endpoint stri
 		Timestamp:   time.Now(),
 	}
 
-	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return result
+	}
 	for k, v := range s.config.Headers {
 		req.Header.Set(k, v)
 	}
