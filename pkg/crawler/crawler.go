@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
@@ -112,11 +113,11 @@ type Config struct {
 // DefaultConfig returns default crawler configuration
 func DefaultConfig() *Config {
 	return &Config{
-		MaxDepth:          3,
+		MaxDepth:          defaults.DepthMedium,
 		MaxPages:          100,
 		MaxConcurrency:    10,
 		Timeout:           httpclient.TimeoutFuzzing,
-		Delay:             100 * time.Millisecond,
+		Delay:             duration.CrawlDelay,
 		ExtractForms:      true,
 		ExtractScripts:    true,
 		ExtractLinks:      true,

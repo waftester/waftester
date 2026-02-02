@@ -120,7 +120,7 @@ func DefaultConfig() *Config {
 		MaxRetries:  defaults.RetryMax,
 		RetryDelay:  duration.RetryFast,
 		FailFast:    false,
-		Concurrency: 5,
+		Concurrency: defaults.ConcurrencyLow,
 	}
 }
 

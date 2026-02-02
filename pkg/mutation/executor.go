@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -47,10 +48,10 @@ type ExecutorConfig struct {
 // DefaultExecutorConfig returns sensible defaults
 func DefaultExecutorConfig() *ExecutorConfig {
 	return &ExecutorConfig{
-		Concurrency:        10,
+		Concurrency:        defaults.ConcurrencyMedium,
 		RateLimit:          50,
 		Timeout:            duration.DialTimeout,
-		Retries:            2,
+		Retries:            defaults.RetryLow,
 		UserAgent:          ui.UserAgentWithContext("Mutation Engine"),
 		Pipeline:           DefaultPipelineConfig(),
 		AnalyzeResponses:   true,

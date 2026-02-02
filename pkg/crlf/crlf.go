@@ -94,7 +94,7 @@ func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:     httpclient.TimeoutFuzzing,
 		UserAgent:   ui.UserAgent(),
-		Concurrency: 5,
+		Concurrency: defaults.ConcurrencyLow,
 		TestParams: []string{
 			"redirect",
 			"url",

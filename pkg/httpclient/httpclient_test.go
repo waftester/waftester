@@ -1,7 +1,14 @@
 package httpclient
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -170,5 +177,111 @@ func BenchmarkDefaultConfig(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		_ = DefaultConfig()
+	}
+}
+
+// ============================================================================
+// ENFORCEMENT TESTS - Detect raw http.Client creation
+// ============================================================================
+
+// TestNoRawHTTPClient ensures code uses httpclient.New() instead of &http.Client{}
+func TestNoRawHTTPClient(t *testing.T) {
+	violations := findRawHTTPClients(t)
+
+	if len(violations) > 0 {
+		t.Errorf("Found %d raw &http.Client{} literals. Use httpclient.New() or httpclient.Default() instead:", len(violations))
+		for _, v := range violations {
+			t.Errorf("  %s", v)
+		}
+	}
+}
+
+func findRawHTTPClients(t *testing.T) []string {
+	t.Helper()
+
+	var violations []string
+	root := findProjectRoot(t)
+
+	// Files that legitimately need custom http.Client configuration
+	excludePatterns := []string{
+		"httpclient.go",      // The factory itself
+		"httpclient_test.go", // Tests for the factory
+		"_test.go",           // All tests can create clients for testing
+		"ja3.go",             // JA3 fingerprinting needs custom transport
+		"client.go",          // browser/client.go needs cookie jar + custom redirect
+		"main.go",            // CLI needs custom transport/redirect for flags
+	}
+
+	for _, dir := range []string{"pkg", "cmd"} {
+		dirPath := filepath.Join(root, dir)
+		if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+			continue
+		}
+
+		_ = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") {
+				return nil
+			}
+
+			for _, pattern := range excludePatterns {
+				if strings.Contains(path, pattern) {
+					return nil
+				}
+			}
+
+			fset := token.NewFileSet()
+			node, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+			if err != nil {
+				return nil
+			}
+
+			ast.Inspect(node, func(n ast.Node) bool {
+				// Look for &http.Client{} or http.Client{}
+				if unary, ok := n.(*ast.UnaryExpr); ok {
+					if comp, ok := unary.X.(*ast.CompositeLit); ok {
+						if isHTTPClientType(comp.Type) {
+							pos := fset.Position(comp.Pos())
+							relPath, _ := filepath.Rel(root, pos.Filename)
+							violations = append(violations,
+								relPath+":"+strconv.Itoa(pos.Line)+": &http.Client{}")
+						}
+					}
+				}
+				return true
+			})
+
+			return nil
+		})
+	}
+
+	return violations
+}
+
+func isHTTPClientType(expr ast.Expr) bool {
+	if sel, ok := expr.(*ast.SelectorExpr); ok {
+		if ident, ok := sel.X.(*ast.Ident); ok {
+			return ident.Name == "http" && sel.Sel.Name == "Client"
+		}
+	}
+	return false
+}
+
+func findProjectRoot(t *testing.T) string {
+	t.Helper()
+
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
+
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatalf("Could not find project root (go.mod)")
+		}
+		dir = parent
 	}
 }

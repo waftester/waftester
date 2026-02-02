@@ -233,7 +233,7 @@ func CreateOptimizedConfig(s *Strategy, mode string, targetURL string) *mutation
 		Concurrency:        concurrency,
 		RateLimit:          rateLimit,
 		Timeout:            10 * 1e9, // 10 seconds
-		Retries:            2,
+		Retries:            defaults.RetryLow,
 		Pipeline:           WAFOptimizedPipeline(s, mode),
 		AnalyzeResponses:   true,
 		CollectFingerprint: true,

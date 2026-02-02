@@ -111,7 +111,7 @@ func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:     duration.HTTPFuzzing,
 		UserAgent:   ui.UserAgent(),
-		Concurrency: 5,
+		Concurrency: defaults.ConcurrencyLow,
 		Technology:  TechUnknown,
 		TestParams: []string{
 			"id",

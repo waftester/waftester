@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -50,7 +51,7 @@ func NewHTTPProber() *HTTPProber {
 		DialTimeout:  duration.HTTPProbing,
 		ReadTimeout:  duration.DialTimeout,
 		WriteTimeout: duration.HTTPProbing,
-		MaxRedirects: 5,
+		MaxRedirects: defaults.MaxRedirects,
 		UserAgent:    ui.UserAgentWithContext("prober"),
 	}
 }

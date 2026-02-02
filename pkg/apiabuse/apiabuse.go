@@ -27,7 +27,7 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Concurrency: 5,
+		Concurrency: defaults.ConcurrencyLow,
 		Timeout:     httpclient.TimeoutProbing,
 		RateLimit:   100,
 	}
@@ -222,21 +222,21 @@ func ResourceExhaustionPayloads() []ResourcePayload {
 		{
 			Name:        "deep_nesting",
 			Payload:     generateDeepJSON(50),
-			ContentType: "application/json",
+			ContentType: defaults.ContentTypeJSON,
 			Method:      "POST",
 		},
 		// Large array
 		{
 			Name:        "large_array",
 			Payload:     generateLargeArray(10000),
-			ContentType: "application/json",
+			ContentType: defaults.ContentTypeJSON,
 			Method:      "POST",
 		},
 		// Long string
 		{
 			Name:        "long_string",
 			Payload:     map[string]string{"data": strings.Repeat("A", 100000)},
-			ContentType: "application/json",
+			ContentType: defaults.ContentTypeJSON,
 			Method:      "POST",
 		},
 	}
