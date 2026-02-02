@@ -94,6 +94,45 @@ func TestVersionConsistency(t *testing.T) {
 			t.Errorf("  %s", v)
 		}
 	}
+
+	// Also check markdown files for "Current stable release: X.Y.Z" pattern
+	mdViolations := checkMarkdownVersions(t, root)
+	if len(mdViolations) > 0 {
+		t.Errorf("Found %d outdated version references in markdown files:", len(mdViolations))
+		for _, v := range mdViolations {
+			t.Errorf("  %s", v)
+		}
+	}
+}
+
+// checkMarkdownVersions checks markdown files for version references that should match defaults.Version
+func checkMarkdownVersions(t *testing.T, root string) []string {
+	t.Helper()
+	var violations []string
+
+	// Files and patterns to check
+	checks := []struct {
+		file    string
+		pattern *regexp.Regexp
+	}{
+		{"SECURITY.md", regexp.MustCompile(`Current stable release:\s*(\d+\.\d+\.\d+)`)},
+	}
+
+	for _, check := range checks {
+		path := filepath.Join(root, check.file)
+		content, err := os.ReadFile(path)
+		if err != nil {
+			continue // File might not exist
+		}
+
+		matches := check.pattern.FindStringSubmatch(string(content))
+		if len(matches) > 1 && matches[1] != defaults.Version {
+			violations = append(violations,
+				check.file+": found \""+matches[1]+"\" but expected \""+defaults.Version+"\"")
+		}
+	}
+
+	return violations
 }
 
 // TestNoHardcodedConcurrency ensures all concurrency values use defaults.Concurrency* constants
