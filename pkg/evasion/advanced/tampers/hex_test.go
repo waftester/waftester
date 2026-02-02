@@ -54,8 +54,8 @@ func TestGetMSSQLChar_Unicode(t *testing.T) {
 		{255, "CHAR(255)"},
 		{256, "CHAR(256)"},
 		{1000, "CHAR(1000)"},
-		{'é', "CHAR(233)"},   // Latin small letter e with acute
-		{'中', "CHAR(20013)"}, // Chinese character
+		{'é', "CHAR(233)"},    // Latin small letter e with acute
+		{'中', "CHAR(20013)"},  // Chinese character
 		{'🔥', "CHAR(128293)"}, // Fire emoji
 	}
 	for _, tt := range tests {
