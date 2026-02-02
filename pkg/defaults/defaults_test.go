@@ -6,10 +6,95 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/ui"
 )
+
+// TestVersionConsistency ensures all version references match defaults.Version
+func TestVersionConsistency(t *testing.T) {
+	// Verify ui.Version matches defaults.Version
+	if ui.Version != defaults.Version {
+		t.Errorf("ui.Version (%s) != defaults.Version (%s)", ui.Version, defaults.Version)
+	}
+
+	// Verify version format is valid semver
+	semverPattern := regexp.MustCompile(`^\d+\.\d+\.\d+(-[a-zA-Z0-9]+)?$`)
+	if !semverPattern.MatchString(defaults.Version) {
+		t.Errorf("defaults.Version (%s) is not valid semver", defaults.Version)
+	}
+
+	// Scan for hardcoded version strings that should use defaults.Version
+	root := findProjectRoot(t)
+	var violations []string
+
+	for _, dir := range []string{"pkg", "cmd"} {
+		dirPath := filepath.Join(root, dir)
+		if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+			continue
+		}
+
+		_ = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") {
+				return nil
+			}
+
+			// Skip test files and the definition files
+			if strings.HasSuffix(path, "_test.go") ||
+				strings.HasSuffix(path, "defaults.go") ||
+				strings.Contains(path, "banner.go") { // banner.go uses defaults.Version
+				return nil
+			}
+
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return nil
+			}
+			contentStr := string(content)
+
+			// Skip files with legitimate non-waftester version references
+			// - update/ package: deals with payload versions
+			// - workflow/ package: workflow definition versions
+			// - SARIF spec version: always "2.1.0" per SARIF standard
+			if strings.Contains(path, "update") ||
+				strings.Contains(path, "workflow") {
+				return nil
+			}
+
+			// Look for hardcoded version strings like Version = "X.Y.Z" or Version: "X.Y.Z"
+			// Exclude SARIF spec version (schema line contains "sarif")
+			versionPattern := regexp.MustCompile(`(?m)Version\s*[:=]\s*"(\d+\.\d+\.\d+)"`)
+			lines := strings.Split(contentStr, "\n")
+			for i, line := range lines {
+				if matches := versionPattern.FindStringSubmatch(line); len(matches) > 1 {
+					// Skip if this is SARIF spec version (check surrounding context)
+					contextStart := max(0, i-3)
+					contextEnd := min(len(lines), i+3)
+					context := strings.Join(lines[contextStart:contextEnd], "\n")
+					if strings.Contains(strings.ToLower(context), "sarif") &&
+						strings.Contains(strings.ToLower(context), "schema") {
+						continue
+					}
+					relPath, _ := filepath.Rel(root, path)
+					violations = append(violations, relPath+":"+strconv.Itoa(i+1)+": hardcoded Version = \""+matches[1]+"\"")
+				}
+			}
+
+			return nil
+		})
+	}
+
+	if len(violations) > 0 {
+		t.Errorf("Found %d hardcoded version strings. Use defaults.Version instead:", len(violations))
+		for _, v := range violations {
+			t.Errorf("  %s", v)
+		}
+	}
+}
 
 // TestNoHardcodedConcurrency ensures all concurrency values use defaults.Concurrency* constants
 func TestNoHardcodedConcurrency(t *testing.T) {
