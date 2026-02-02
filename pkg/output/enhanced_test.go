@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/scoring"
 )
 
@@ -20,7 +21,7 @@ func TestEJSONWriter(t *testing.T) {
 		StartTime:   time.Now(),
 		Target:      "http://example.com",
 		CommandLine: "waf-tester -u http://example.com",
-		Version:     "2.1.0",
+		Version:     defaults.Version,
 	}
 
 	writer, err := NewEJSONWriter(outPath, metadata)
@@ -384,8 +385,8 @@ func TestEJSONWriterWithNilMetadata(t *testing.T) {
 	if output.Metadata == nil {
 		t.Error("metadata should not be nil")
 	}
-	if output.Metadata.Version != "2.1.0" {
-		t.Errorf("expected version 2.1.0, got %s", output.Metadata.Version)
+	if output.Metadata.Version != defaults.Version {
+		t.Errorf("expected version %s, got %s", defaults.Version, output.Metadata.Version)
 	}
 }
 
