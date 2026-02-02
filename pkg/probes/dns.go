@@ -7,6 +7,8 @@ import (
 	"net"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/duration"
 )
 
 // DNSResult contains DNS resolution results
@@ -48,7 +50,7 @@ type DNSProber struct {
 // NewDNSProber creates a new DNS prober with defaults
 func NewDNSProber() *DNSProber {
 	return &DNSProber{
-		Timeout: 5 * time.Second,
+		Timeout: duration.HTTPProbing,
 	}
 }
 

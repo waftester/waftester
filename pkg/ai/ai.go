@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/internal/hexutil"
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 // Provider represents an AI provider
@@ -185,12 +186,10 @@ func NewOpenAIClient(apiKey, model string) *OpenAIClient {
 		model = "gpt-4"
 	}
 	return &OpenAIClient{
-		APIKey:  apiKey,
-		Model:   model,
-		BaseURL: "https://api.openai.com/v1",
-		httpClient: &http.Client{
-			Timeout: 60 * time.Second,
-		},
+		APIKey:     apiKey,
+		Model:      model,
+		BaseURL:    "https://api.openai.com/v1",
+		httpClient: httpclient.New(httpclient.WithTimeout(httpclient.TimeoutAPI)),
 	}
 }
 
@@ -352,11 +351,9 @@ func NewAnthropicClient(apiKey, model string) *AnthropicClient {
 		model = "claude-3-opus-20240229"
 	}
 	return &AnthropicClient{
-		APIKey: apiKey,
-		Model:  model,
-		httpClient: &http.Client{
-			Timeout: 60 * time.Second,
-		},
+		APIKey:     apiKey,
+		Model:      model,
+		httpClient: httpclient.New(httpclient.WithTimeout(httpclient.TimeoutAPI)),
 	}
 }
 

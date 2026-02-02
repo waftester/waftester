@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/duration"
 )
 
 // TLSInfo contains TLS connection information
@@ -66,8 +68,8 @@ type TLSProber struct {
 // NewTLSProber creates a new TLS prober with defaults
 func NewTLSProber() *TLSProber {
 	return &TLSProber{
-		Timeout:     10 * time.Second,
-		DialTimeout: 5 * time.Second,
+		Timeout:     duration.DialTimeout,
+		DialTimeout: duration.HTTPProbing,
 		MaxVersions: []uint16{
 			tls.VersionTLS13,
 			tls.VersionTLS12,

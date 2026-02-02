@@ -13,6 +13,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -204,7 +207,7 @@ type ShodanClient struct {
 func NewShodanClient(apiKey string) *ShodanClient {
 	return &ShodanClient{
 		apiKey:     apiKey,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: httpclient.Spraying(),
 		baseURL:    "https://api.shodan.io",
 	}
 }
@@ -337,7 +340,7 @@ func NewCensysClient(apiKey, apiSecret string) *CensysClient {
 	return &CensysClient{
 		apiKey:     apiKey,
 		apiSecret:  apiSecret,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: httpclient.Spraying(),
 		baseURL:    "https://search.censys.io/api/v2",
 	}
 }
@@ -362,7 +365,7 @@ func (c *CensysClient) FetchSubdomains(ctx context.Context, domain string) ([]Re
 	}
 
 	req.SetBasicAuth(c.apiKey, c.apiSecret)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", defaults.ContentTypeJSON)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -412,7 +415,7 @@ func (c *CensysClient) FetchIPs(ctx context.Context, domain string) ([]Result, e
 	}
 
 	req.SetBasicAuth(c.apiKey, c.apiSecret)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", defaults.ContentTypeJSON)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -515,7 +518,7 @@ type CrtshClient struct {
 // NewCrtshClient creates a crt.sh client
 func NewCrtshClient() *CrtshClient {
 	return &CrtshClient{
-		httpClient: &http.Client{Timeout: 60 * time.Second},
+		httpClient: httpclient.New(httpclient.WithTimeout(duration.HTTPAPI)),
 		baseURL:    "https://crt.sh",
 	}
 }
@@ -640,7 +643,7 @@ type SecurityTrailsClient struct {
 func NewSecurityTrailsClient(apiKey string) *SecurityTrailsClient {
 	return &SecurityTrailsClient{
 		apiKey:     apiKey,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: httpclient.Spraying(),
 		baseURL:    "https://api.securitytrails.com/v1",
 	}
 }
@@ -754,7 +757,7 @@ type DNSDumpsterClient struct {
 // NewDNSDumpsterClient creates a DNSDumpster client
 func NewDNSDumpsterClient() *DNSDumpsterClient {
 	return &DNSDumpsterClient{
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: httpclient.Spraying(),
 		baseURL:    "https://dnsdumpster.com",
 	}
 }
@@ -809,7 +812,7 @@ type ChaosClient struct {
 func NewChaosClient(apiKey string) *ChaosClient {
 	return &ChaosClient{
 		apiKey:     apiKey,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: httpclient.Spraying(),
 		baseURL:    "https://dns.projectdiscovery.io",
 	}
 }
@@ -913,7 +916,7 @@ type BinaryEdgeClient struct {
 func NewBinaryEdgeClient(apiKey string) *BinaryEdgeClient {
 	return &BinaryEdgeClient{
 		apiKey:     apiKey,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: httpclient.Spraying(),
 		baseURL:    "https://api.binaryedge.io/v2",
 	}
 }
@@ -1076,7 +1079,7 @@ type FullHuntClient struct {
 func NewFullHuntClient(apiKey string) *FullHuntClient {
 	return &FullHuntClient{
 		apiKey:     apiKey,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: httpclient.Spraying(),
 		baseURL:    "https://fullhunt.io/api/v1",
 	}
 }

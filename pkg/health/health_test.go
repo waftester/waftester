@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 func TestStatusConstants(t *testing.T) {
@@ -228,7 +229,7 @@ func TestNewMonitor(t *testing.T) {
 	checker := NewChecker(nil)
 	monitor := NewMonitor(checker, 0)
 	assert.NotNil(t, monitor)
-	assert.Equal(t, 10*time.Second, monitor.interval)
+	assert.Equal(t, httpclient.TimeoutProbing, monitor.interval)
 }
 
 func TestMonitorSetCallback(t *testing.T) {

@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -24,7 +26,7 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		Concurrency: 5,
-		Timeout:     15 * time.Second,
+		Timeout:     httpclient.TimeoutScanning,
 	}
 }
 
@@ -51,10 +53,10 @@ type Scanner struct {
 // NewScanner creates a new broken authentication scanner
 func NewScanner(config Config) *Scanner {
 	if config.Concurrency <= 0 {
-		config.Concurrency = 5
+		config.Concurrency = defaults.ConcurrencyLow
 	}
 	if config.Timeout <= 0 {
-		config.Timeout = 15 * time.Second
+		config.Timeout = httpclient.TimeoutScanning
 	}
 
 	return &Scanner{
@@ -68,17 +70,15 @@ func (s *Scanner) TestSessionManagement(ctx context.Context, loginURL string, cr
 	results := make([]Result, 0)
 
 	jar, _ := cookiejar.New(nil)
-	client := &http.Client{
-		Timeout: s.config.Timeout,
-		Jar:     jar,
-	}
+	client := httpclient.Scanning()
+	client.Jar = jar
 
 	// Login
 	loginReq, err := http.NewRequestWithContext(ctx, "POST", loginURL, strings.NewReader(credentials.Encode()))
 	if err != nil {
 		return nil, err
 	}
-	loginReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	loginReq.Header.Set("Content-Type", defaults.ContentTypeForm)
 	for k, v := range s.config.Headers {
 		loginReq.Header.Set(k, v)
 	}
@@ -153,7 +153,7 @@ func (s *Scanner) TestPasswordPolicy(ctx context.Context, registerURL string) ([
 
 	weakPasswords := WeakPasswords()
 
-	client := &http.Client{Timeout: s.config.Timeout}
+	client := httpclient.Default()
 
 	for _, pwd := range weakPasswords {
 		result := Result{
@@ -214,7 +214,7 @@ func (s *Scanner) TestAccountLockout(ctx context.Context, loginURL string, usern
 		Timestamp:   time.Now(),
 	}
 
-	client := &http.Client{Timeout: s.config.Timeout}
+	client := httpclient.Default()
 
 	for i := 0; i < attempts; i++ {
 		data := url.Values{
@@ -226,7 +226,7 @@ func (s *Scanner) TestAccountLockout(ctx context.Context, loginURL string, usern
 		if err != nil {
 			continue
 		}
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("Content-Type", defaults.ContentTypeForm)
 		for k, v := range s.config.Headers {
 			req.Header.Set(k, v)
 		}

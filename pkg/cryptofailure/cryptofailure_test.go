@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 func TestWeakTLSVersions(t *testing.T) {
@@ -318,8 +320,8 @@ func TestNewTester(t *testing.T) {
 
 	// Test default timeout
 	tester2 := NewTester("https://example.com", 0)
-	if tester2.timeout != 10*time.Second {
-		t.Errorf("Expected default timeout 10s, got %v", tester2.timeout)
+	if tester2.timeout != httpclient.TimeoutProbing {
+		t.Errorf("Expected default timeout %v, got %v", httpclient.TimeoutProbing, tester2.timeout)
 	}
 }
 

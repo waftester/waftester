@@ -12,6 +12,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/ui"
@@ -186,16 +187,8 @@ type Engine struct {
 // NewEngine creates a new template engine
 func NewEngine() *Engine {
 	return &Engine{
-		HTTPClient: &http.Client{
-			Timeout: 30 * time.Second,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				if len(via) >= 10 {
-					return http.ErrUseLastResponse
-				}
-				return nil
-			},
-		},
-		Variables: make(map[string]string),
+		HTTPClient: httpclient.Default(),
+		Variables:  make(map[string]string),
 	}
 }
 

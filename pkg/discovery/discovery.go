@@ -4,7 +4,6 @@ package discovery
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -15,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/js"
 	"github.com/waftester/waftester/pkg/regexcache"
@@ -113,13 +114,13 @@ type Discoverer struct {
 // NewDiscoverer creates a new discovery instance
 func NewDiscoverer(cfg DiscoveryConfig) *Discoverer {
 	if cfg.Timeout == 0 {
-		cfg.Timeout = 10 * time.Second
+		cfg.Timeout = httpclient.TimeoutProbing
 	}
 	if cfg.MaxDepth == 0 {
-		cfg.MaxDepth = 3
+		cfg.MaxDepth = defaults.DepthMedium
 	}
 	if cfg.Concurrency == 0 {
-		cfg.Concurrency = 10
+		cfg.Concurrency = defaults.ConcurrencyMedium
 	}
 	if cfg.UserAgent == "" {
 		cfg.UserAgent = "WAF-Tester-Discovery/1.0"
@@ -130,24 +131,13 @@ func NewDiscoverer(cfg DiscoveryConfig) *Discoverer {
 	if cfg.HTTPClient != nil {
 		client = cfg.HTTPClient
 	} else {
-		transport := &http.Transport{
-			MaxIdleConns:        cfg.Concurrency * 2,
-			MaxIdleConnsPerHost: cfg.Concurrency,
-			IdleConnTimeout:     30 * time.Second,
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: cfg.SkipVerify,
-			},
-		}
-
-		client = &http.Client{
-			Transport: transport,
-			Timeout:   cfg.Timeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				if len(via) >= 5 {
-					return fmt.Errorf("too many redirects")
-				}
-				return nil
-			},
+		// Use shared pooled client with custom timeout if needed
+		if cfg.Timeout != httpclient.TimeoutFuzzing {
+			httpCfg := httpclient.WithTimeout(cfg.Timeout)
+			httpCfg.InsecureSkipVerify = cfg.SkipVerify
+			client = httpclient.New(httpCfg)
+		} else {
+			client = httpclient.Default()
 		}
 	}
 
@@ -780,7 +770,7 @@ func (d *Discoverer) probeKnownEndpoints(ctx context.Context, result *DiscoveryR
 
 	concurrency := d.config.Concurrency
 	if concurrency <= 0 {
-		concurrency = 10
+		concurrency = defaults.ConcurrencyMedium
 	}
 
 	work := make(chan string, concurrency)
@@ -1236,7 +1226,7 @@ func (d *Discoverer) introspectGraphQL(ctx context.Context, gqlPath string) []En
 		return endpoints
 	}
 	req.Header.Set("User-Agent", d.config.UserAgent)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", defaults.ContentTypeJSON)
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := d.httpClient.Do(req)

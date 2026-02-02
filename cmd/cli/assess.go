@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/assessment"
+	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -126,7 +127,7 @@ func runAssess() {
 	assess := assessment.New(config)
 
 	// Setup context with timeout (30 min max)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), duration.ContextMax)
 	defer cancel()
 
 	// Display execution manifest BEFORE running (only in interactive mode)
