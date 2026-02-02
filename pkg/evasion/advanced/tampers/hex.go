@@ -39,7 +39,7 @@ func writeDoubleURLEncodedByte(sb *strings.Builder, b byte) {
 	sb.WriteString(doubleUrlEncodedBytes[b])
 }
 
-// writeUnicodeEscape writes a rune as \uXXXX format
+// writeUnicodeEscape writes a rune as \uXXXX format (or \uXXXXXX for runes > 0xFFFF)
 func writeUnicodeEscape(sb *strings.Builder, r rune, upper bool) {
 	table := hexLowerTable
 	if upper {
@@ -51,7 +51,15 @@ func writeUnicodeEscape(sb *strings.Builder, r rune, upper bool) {
 		sb.WriteByte('0')
 		sb.WriteByte(table[byte(r)>>4])
 		sb.WriteByte(table[byte(r)&0x0F])
+	} else if r <= 0xFFFF {
+		sb.WriteByte(table[(r>>12)&0x0F])
+		sb.WriteByte(table[(r>>8)&0x0F])
+		sb.WriteByte(table[(r>>4)&0x0F])
+		sb.WriteByte(table[r&0x0F])
 	} else {
+		// Runes > 0xFFFF need 6 hex digits (up to 0x10FFFF)
+		sb.WriteByte(table[(r>>20)&0x0F])
+		sb.WriteByte(table[(r>>16)&0x0F])
 		sb.WriteByte(table[(r>>12)&0x0F])
 		sb.WriteByte(table[(r>>8)&0x0F])
 		sb.WriteByte(table[(r>>4)&0x0F])
