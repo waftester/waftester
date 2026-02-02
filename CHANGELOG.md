@@ -36,14 +36,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New package: `pkg/evasion/advanced/tampers/`
 
 ### Performance
-- **Hex Lookup Tables**: Pre-computed 256-entry tables eliminate fmt.Sprintf overhead (10x faster)
+- **Hex Lookup Tables**: Pre-computed 256-entry tables eliminate fmt.Sprintf overhead
 - **Pre-allocated Buffers**: strings.Builder.Grow() prevents reallocations during transforms
 - **Regex Caching**: All patterns use regexcache.MustGet() for 315x faster repeat matches
 - **Batch Lookups**: GetMultiple() reduces lock contention for tamper chaining
 - **Single-Pass Patterns**: SQL keyword matching uses alternation instead of per-keyword loops
 - **Static Replacers**: HTMLEncode replacer created once at package level
+- **Main App Encoding Optimization**: pkg/waf/evasion.go now uses hexutil lookup tables
+- **Encoder Package Optimization**: pkg/encoding/encoders.go hot paths optimized
+- **Mutation Encoder Optimization**: pkg/mutation/encoder hot paths optimized
+- **New hexutil Package**: internal/hexutil provides shared high-performance encoding utilities
 
 **Benchmarks** (Intel Ultra 7 265U):
+- HexEscape: 380ns vs 7,435ns fmt.Sprintf (**19.6x faster**, 98% fewer allocs)
+- URLEncode: 325ns vs 5,831ns fmt.Sprintf (**18.0x faster**, 98% fewer allocs)
+- BinaryEncode: 361ns vs 5,844ns fmt.Sprintf (**16.2x faster**, 98% fewer allocs)
+- UnicodeEscape: 743ns vs 7,123ns fmt.Sprintf (**9.6x faster**, 98% fewer allocs)
 - CharEncode: 352ns/op, 1 alloc
 - Chain(5 tampers): 5.8μs/op
 - Registry Get(): 23ns/op, 0 allocs

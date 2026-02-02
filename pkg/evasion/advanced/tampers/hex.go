@@ -10,7 +10,7 @@ import (
 // hexUpperTable is the uppercase hex character table
 const hexUpperTable = "0123456789ABCDEF"
 
-// hexLowerTable is the lowercase hex character table  
+// hexLowerTable is the lowercase hex character table
 const hexLowerTable = "0123456789abcdef"
 
 // Pre-computed URL-encoded byte lookup table ("%XX" format)
