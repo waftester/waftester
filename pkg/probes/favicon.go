@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/bufpool"
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -39,7 +40,7 @@ func NewFaviconProber() *FaviconProber {
 	return &FaviconProber{
 		Timeout:     duration.DialTimeout,
 		SkipVerify:  true,
-		UserAgent:   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+		UserAgent:   defaults.UAChrome,
 		MaxFileSize: 1024 * 1024, // 1MB max
 	}
 }

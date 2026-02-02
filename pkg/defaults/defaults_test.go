@@ -100,6 +100,32 @@ func TestNoHardcodedContentType(t *testing.T) {
 	}
 }
 
+// TestNoHardcodedUserAgent ensures User-Agent values use defaults.UA* or ui.UserAgentWithContext()
+func TestNoHardcodedUserAgent(t *testing.T) {
+	violations := findHardcodedStrings(t, "UserAgent", []string{
+		"Mozilla/5.0",           // Browser UA patterns
+		"API-Fuzzer/1.0",        // Old component-specific UAs
+		"BizLogic-Tester/1.0",
+		"Deserialize-Tester/1.0",
+		"OAuth-Tester/1.0",
+		"WAF-Tester-Discovery/1.0",
+		"FuzzBot/1.0",
+		"GraphQLTester/1.0",
+	}, []string{
+		"defaults.go",
+		"_test.go",
+		"browser/client.go", // Browser profiles legitimately define UA strings
+		"realistic",         // Realistic testing needs various UAs
+	})
+
+	if len(violations) > 0 {
+		t.Errorf("Found %d hardcoded UserAgent values. Use defaults.UA* or ui.UserAgentWithContext() instead:", len(violations))
+		for _, v := range violations {
+			t.Errorf("  %s", v)
+		}
+	}
+}
+
 // findHardcodedStrings walks the codebase and finds struct field assignments with hardcoded string literals
 func findHardcodedStrings(t *testing.T, fieldName string, forbiddenValues []string, excludePatterns []string) []string {
 	t.Helper()

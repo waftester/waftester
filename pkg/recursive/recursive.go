@@ -17,6 +17,7 @@ import (
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // Config configures recursive fuzzing
@@ -46,7 +47,7 @@ func DefaultConfig() Config {
 		Extensions:   []string{"", ".html", ".php", ".asp", ".aspx", ".jsp", ".json", ".xml"},
 		FollowLinks:  true,
 		Delay:        duration.CrawlDelay,
-		UserAgent:    "Mozilla/5.0 (compatible; FuzzBot/1.0)",
+		UserAgent:    ui.UserAgentWithContext("Recursive Fuzzer"),
 		SuccessCodes: []int{200, 201, 204, 301, 302, 307, 308, 401, 403},
 	}
 }
