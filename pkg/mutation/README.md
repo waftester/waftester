@@ -273,4 +273,10 @@ go test ./pkg/mutation/encoder/... -v
 - `pkg/mutation/location/` - Location mutators
 - `pkg/mutation/evasion/` - Evasion mutators
 - `pkg/mutation/protocol/` - Protocol mutators
+- `pkg/evasion/advanced/tampers/` - Tamper scripts (70+ sqlmap-compatible)
 - `cmd/cli/main.go` - CLI mutate and bypass commands
+
+## See Also
+
+- **Tamper Scripts** (`pkg/evasion/advanced/tampers/`): 70+ sqlmap-compatible tamper scripts for WAF bypass. Use `--tamper` flag with scan/auto commands. See `waf-tester tampers --list` for available tampers.
+- **WAF Intelligence Matrix**: Vendor-specific tamper recommendations. Use `waf-tester tampers --for-waf=<vendor>` or `--tamper-auto` for automatic selection.

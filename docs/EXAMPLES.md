@@ -100,12 +100,26 @@ Smart mode detects the WAF vendor and optimizes testing:
 waf-tester auto -u https://example.com --smart
 ```
 
+#### With Automatic Tamper Selection (v2.4.2+)
+
+```bash
+# Auto-select optimal tampers based on detected WAF
+waf-tester auto -u https://example.com --smart --tamper-auto
+
+# Use specific tamper profile
+waf-tester auto -u https://example.com --tamper-profile=aggressive
+
+# Combine manual tampers with auto-selection
+waf-tester auto -u https://example.com --tamper=nullbyte --tamper-auto
+```
+
 #### Full Options
 
 ```bash
 waf-tester auto -u https://example.com \
   --smart \
   --smart-mode=full \
+  --tamper-auto \
   -c 100 \
   -rl 300 \
   --browser
@@ -115,6 +129,9 @@ waf-tester auto -u https://example.com \
 |--------|-------------|
 | `--smart` | Enable WAF-aware testing |
 | `--smart-mode=MODE` | Optimization level: `quick`, `standard`, `full`, `bypass`, `stealth` |
+| `--tamper=LIST` | Comma-separated tampers to apply (v2.4.2+) |
+| `--tamper-auto` | Auto-select tampers based on WAF (v2.4.2+) |
+| `--tamper-profile=PROFILE` | Use preset: stealth, standard, aggressive, bypass (v2.4.2+) |
 | `-c N` | Parallel workers (default: 25) |
 | `-rl N` | Requests per second (default: 150) |
 | `--browser` | Enable authenticated browser scanning |
@@ -198,6 +215,22 @@ Deep vulnerability scanning with 50+ attack categories.
 
 ```bash
 waf-tester scan -u https://target.com
+```
+
+#### With Smart Mode and Tampers (v2.4.2+)
+
+```bash
+# Smart mode with auto-tamper selection
+waf-tester scan -u https://target.com --smart --tamper-auto
+
+# Specific tampers for known WAF
+waf-tester scan -u https://target.com --tamper=space2comment,randomcase
+
+# Aggressive tamper profile
+waf-tester scan -u https://target.com --tamper-profile=aggressive
+
+# Stealth profile for low detection risk
+waf-tester scan -u https://target.com --tamper-profile=stealth
 ```
 
 #### Specific Categories
@@ -371,9 +404,20 @@ waf-tester bypass -u https://target.com -category sqli -mutation full
 #### With Tamper Scripts
 
 ```bash
+# Manual tamper selection
 waf-tester bypass -u https://target.com \
   --smart \
   --tamper=space2comment,randomcase
+
+# Auto-select tampers based on detected WAF (v2.4.2+)
+waf-tester bypass -u https://target.com \
+  --smart \
+  --tamper-auto
+
+# Use aggressive profile for maximum bypass attempts
+waf-tester bypass -u https://target.com \
+  --smart \
+  --tamper-profile=aggressive
 ```
 
 ---
@@ -1445,6 +1489,77 @@ waf-tester tampers --list
 
 # List tampers by category
 waf-tester tampers --category=encoding
+```
+
+### Auto-Select Tampers (v2.4.2+)
+
+Let WAFtester automatically select optimal tampers based on detected WAF:
+
+```bash
+# Auto mode with automatic tamper selection
+waf-tester auto -u https://target.com --tamper-auto
+
+# Scan mode with smart WAF detection + auto tampers
+waf-tester scan -u https://target.com --smart --tamper-auto
+
+# Combine with custom tampers (custom applied first, then auto)
+waf-tester scan -u https://target.com --tamper=nullbyte --tamper-auto
+```
+
+### Tamper Profiles (v2.4.2+)
+
+Use predefined tamper profiles optimized for different scenarios:
+
+```bash
+# Stealth profile - minimal transformation, low detection risk
+waf-tester scan -u https://target.com --tamper-profile=stealth
+
+# Standard profile - balanced approach
+waf-tester scan -u https://target.com --tamper-profile=standard
+
+# Aggressive profile - maximum bypass attempts
+waf-tester scan -u https://target.com --tamper-profile=aggressive
+
+# Bypass profile - all available techniques
+waf-tester scan -u https://target.com --tamper-profile=bypass
+```
+
+### WAF Intelligence Matrix (v2.4.2+)
+
+Get WAF-specific tamper recommendations:
+
+```bash
+# Show recommended tampers for a specific WAF
+waf-tester tampers --for-waf=cloudflare
+waf-tester tampers --for-waf=aws_waf
+waf-tester tampers --for-waf=modsecurity
+
+# Show full WAF intelligence matrix (16+ vendors)
+waf-tester tampers --matrix
+
+# JSON output for automation
+waf-tester tampers --for-waf=cloudflare --json
+waf-tester tampers --matrix --json
+```
+
+Supported WAF vendors in the intelligence matrix:
+- Cloudflare, AWS WAF, Akamai, Imperva, Azure WAF
+- F5 BIG-IP, Fortinet FortiWeb, ModSecurity, Barracuda
+- Sucuri, Radware, Citrix, Palo Alto, Sophos, Wallarm
+
+### Test Payload Transformation (v2.4.2+)
+
+Preview how tampers transform payloads step-by-step:
+
+```bash
+# Test single tamper
+waf-tester tampers --test "' OR 1=1--" --tamper=space2comment
+
+# Test tamper chain (see step-by-step transformation)
+waf-tester tampers --test "SELECT * FROM users" --tamper=space2comment,randomcase,charencode
+
+# Without --tamper, uses default chain
+waf-tester tampers --test "admin'--"
 ```
 
 ### Tamper Categories

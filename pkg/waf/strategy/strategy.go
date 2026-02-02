@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
 	"github.com/waftester/waftester/pkg/waf/vendors"
 )
 
@@ -503,4 +504,44 @@ func sortByFrequency(freqMap map[string]int) []string {
 		result[i] = kv.Key
 	}
 	return result
+}
+
+// ============================================================================
+// Tamper Integration
+// ============================================================================
+
+// GetTamperEngine creates a tamper engine configured for this WAF strategy
+func (s *Strategy) GetTamperEngine(profile tampers.Profile) *tampers.Engine {
+	return tampers.NewEngine(&tampers.EngineConfig{
+		Profile:       profile,
+		WAFVendor:     string(s.Vendor),
+		EnableMetrics: true,
+	})
+}
+
+// GetRecommendedTampers returns tampers recommended for the detected WAF
+func (s *Strategy) GetRecommendedTampers() []string {
+	return tampers.GetTampersForVendor(string(s.Vendor))
+}
+
+// GetTopTampers returns the top N most effective tampers for this WAF
+func (s *Strategy) GetTopTampers(n int) []string {
+	return tampers.GetTopTampersForVendor(string(s.Vendor), n)
+}
+
+// GetTamperRecommendations returns detailed tamper recommendations
+func (s *Strategy) GetTamperRecommendations() []tampers.TamperRecommendation {
+	return tampers.GetRecommendations(string(s.Vendor))
+}
+
+// TamperAwareTransform transforms a payload using WAF-optimized tampers
+func (s *Strategy) TamperAwareTransform(payload string, profile tampers.Profile) string {
+	engine := s.GetTamperEngine(profile)
+	return engine.Transform(payload)
+}
+
+// TamperChain returns the recommended tamper chain for this WAF
+func (s *Strategy) TamperChain(profile tampers.Profile) []string {
+	engine := s.GetTamperEngine(profile)
+	return engine.GetSelectedTampers()
 }

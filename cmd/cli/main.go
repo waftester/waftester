@@ -48,6 +48,7 @@ import (
 	"github.com/waftester/waftester/pkg/crlf"
 	"github.com/waftester/waftester/pkg/deserialize"
 	"github.com/waftester/waftester/pkg/discovery"
+	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
 	"github.com/waftester/waftester/pkg/fuzz"
 	"github.com/waftester/waftester/pkg/graphql"
 	"github.com/waftester/waftester/pkg/headless"
@@ -1553,6 +1554,8 @@ func main() {
 		runAssess()
 	case "vendor", "waf-detect", "detect-waf":
 		runVendorDetect()
+	case "tampers", "tamper":
+		runTampers()
 	case "protocol", "proto":
 		runProtocolDetect()
 	case "run":
@@ -1825,6 +1828,11 @@ func runAutoScan() {
 	smartMode := autoFlags.Bool("smart", false, "Enable WAF-aware testing (auto-detect WAF and optimize)")
 	smartModeType := autoFlags.String("smart-mode", "standard", "Smart mode type: quick, standard, full, bypass, stealth")
 	smartVerbose := autoFlags.Bool("smart-verbose", false, "Show detailed WAF detection info")
+
+	// Tamper scripts (70+ sqlmap-compatible WAF bypass transformations)
+	tamperList := autoFlags.String("tamper", "", "Comma-separated tamper scripts: space2comment,randomcase,charencode")
+	tamperAuto := autoFlags.Bool("tamper-auto", false, "Auto-select tampers based on detected WAF")
+	tamperProfile := autoFlags.String("tamper-profile", "standard", "Tamper profile: stealth, standard, aggressive, bypass")
 
 	// Enterprise assessment with quantitative metrics (NOW DEFAULT for superpower mode)
 	enableAssess := autoFlags.Bool("assess", true, "Run enterprise assessment with F1/precision/MCC metrics (default: true)")
@@ -2937,6 +2945,69 @@ func runAutoScan() {
 
 	ui.PrintInfo(fmt.Sprintf("Loaded %d payloads for testing", len(allPayloads)))
 	printStatusLn()
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// TAMPER ENGINE INITIALIZATION
+	// ═══════════════════════════════════════════════════════════════════════════
+	var tamperEngine *tampers.Engine
+	if *tamperList != "" || *tamperAuto || (*smartMode && smartResult != nil && smartResult.WAFDetected) {
+		// Determine tamper profile
+		profile := tampers.ProfileStandard
+		switch *tamperProfile {
+		case "stealth":
+			profile = tampers.ProfileStealth
+		case "aggressive":
+			profile = tampers.ProfileAggressive
+		case "bypass":
+			profile = tampers.ProfileBypass
+		}
+
+		// If custom tamper list provided, use custom profile
+		if *tamperList != "" {
+			profile = tampers.ProfileCustom
+		}
+
+		// Get WAF vendor for intelligent selection
+		wafVendor := ""
+		if smartResult != nil && smartResult.WAFDetected {
+			wafVendor = smartResult.VendorName
+		}
+
+		// Create tamper engine
+		tamperEngine = tampers.NewEngine(&tampers.EngineConfig{
+			Profile:       profile,
+			CustomTampers: tampers.ParseTamperList(*tamperList),
+			WAFVendor:     wafVendor,
+			EnableMetrics: true,
+		})
+
+		// Validate custom tampers if specified
+		if *tamperList != "" {
+			valid, invalid := tampers.ValidateTamperNames(tampers.ParseTamperList(*tamperList))
+			if len(invalid) > 0 {
+				ui.PrintWarning(fmt.Sprintf("Unknown tampers: %s", strings.Join(invalid, ", ")))
+			}
+			if len(valid) > 0 {
+				ui.PrintInfo(fmt.Sprintf("🔧 Using %d custom tampers: %s", len(valid), strings.Join(valid, ", ")))
+			}
+		} else if *tamperAuto || (*smartMode && smartResult != nil && smartResult.WAFDetected) {
+			selectedTampers := tamperEngine.GetSelectedTampers()
+			ui.PrintInfo(fmt.Sprintf("🔧 Auto-selected %d tampers for %s: %s",
+				len(selectedTampers), wafVendor, strings.Join(selectedTampers, ", ")))
+		}
+
+		// Apply tamper transformations to all payloads
+		ui.PrintInfo("⚡ Applying tamper transformations to payloads...")
+		for i := range allPayloads {
+			allPayloads[i].Payload = tamperEngine.Transform(allPayloads[i].Payload)
+		}
+		ui.PrintSuccess(fmt.Sprintf("✓ Transformed %d payloads with tamper chain", len(allPayloads)))
+		printStatusLn()
+	}
+	// Silence unused variable warning
+	_ = tamperList
+	_ = tamperAuto
+	_ = tamperProfile
 
 	// Auto-calibration
 	ui.PrintInfo("Running auto-calibration...")
@@ -9285,6 +9356,11 @@ func runScan() {
 	smartModeType := scanFlags.String("smart-mode", "standard", "Smart mode type: quick, standard, full, bypass, stealth")
 	smartVerbose := scanFlags.Bool("smart-verbose", false, "Show detailed WAF detection info")
 
+	// Tamper scripts (70+ sqlmap-compatible WAF bypass transformations)
+	tamperList := scanFlags.String("tamper", "", "Comma-separated tamper scripts: space2comment,randomcase,charencode")
+	tamperAuto := scanFlags.Bool("tamper-auto", false, "Auto-select tampers based on detected WAF")
+	tamperProfile := scanFlags.String("tamper-profile", "standard", "Tamper profile: stealth, standard, aggressive, bypass")
+
 	// OAuth-specific flags
 	oauthClientID := scanFlags.String("oauth-client-id", "", "OAuth client ID for OAuth testing")
 	oauthAuthEndpoint := scanFlags.String("oauth-auth-endpoint", "", "OAuth authorization endpoint")
@@ -9497,6 +9573,62 @@ func runScan() {
 	// Silence unused variable warnings
 	_ = smartVerbose
 	_ = smartModeType
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// TAMPER ENGINE INITIALIZATION (Scan Command)
+	// ═══════════════════════════════════════════════════════════════════════════
+	var tamperEngine *tampers.Engine
+	if *tamperList != "" || *tamperAuto || (*smartMode && smartResult != nil && smartResult.WAFDetected) {
+		// Determine tamper profile
+		profile := tampers.ProfileStandard
+		switch *tamperProfile {
+		case "stealth":
+			profile = tampers.ProfileStealth
+		case "aggressive":
+			profile = tampers.ProfileAggressive
+		case "bypass":
+			profile = tampers.ProfileBypass
+		}
+
+		// If custom tamper list provided, use custom profile
+		if *tamperList != "" {
+			profile = tampers.ProfileCustom
+		}
+
+		// Get WAF vendor for intelligent selection
+		wafVendor := ""
+		if smartResult != nil && smartResult.WAFDetected {
+			wafVendor = smartResult.VendorName
+		}
+
+		// Create tamper engine
+		tamperEngine = tampers.NewEngine(&tampers.EngineConfig{
+			Profile:       profile,
+			CustomTampers: tampers.ParseTamperList(*tamperList),
+			WAFVendor:     wafVendor,
+			EnableMetrics: true,
+		})
+
+		// Validate custom tampers if specified
+		if *tamperList != "" {
+			valid, invalid := tampers.ValidateTamperNames(tampers.ParseTamperList(*tamperList))
+			if len(invalid) > 0 {
+				ui.PrintWarning(fmt.Sprintf("Unknown tampers: %s", strings.Join(invalid, ", ")))
+			}
+			if len(valid) > 0 {
+				ui.PrintInfo(fmt.Sprintf("🔧 Using %d custom tampers: %s", len(valid), strings.Join(valid, ", ")))
+			}
+		} else if *tamperAuto || (*smartMode && smartResult != nil && smartResult.WAFDetected) {
+			selectedTampers := tamperEngine.GetSelectedTampers()
+			ui.PrintInfo(fmt.Sprintf("🔧 Auto-selected %d tampers for %s: %s",
+				len(selectedTampers), wafVendor, strings.Join(selectedTampers, ", ")))
+		}
+	}
+	// Silence unused variable warning
+	_ = tamperList
+	_ = tamperAuto
+	_ = tamperProfile
+	_ = tamperEngine
 	_ = smartResult
 
 	// Only print config to stdout if not in streaming JSON mode
