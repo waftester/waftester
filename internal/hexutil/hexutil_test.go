@@ -180,3 +180,158 @@ func BenchmarkUnicodeEscape_FmtSprintf(b *testing.B) {
 		_ = sb.String()
 	}
 }
+
+// =============================================================================
+// UNIT TESTS FOR HELPER FUNCTIONS
+// =============================================================================
+
+func TestWriteHexEscape(t *testing.T) {
+	var sb strings.Builder
+	WriteHexEscape(&sb, 'A')
+	if sb.String() != "\\x41" {
+		t.Errorf("WriteHexEscape('A') = %q, expected \\x41", sb.String())
+	}
+
+	sb.Reset()
+	WriteHexEscape(&sb, 0xFF)
+	if sb.String() != "\\xff" {
+		t.Errorf("WriteHexEscape(0xFF) = %q, expected \\xff", sb.String())
+	}
+}
+
+func TestWriteHexEscapeUpper(t *testing.T) {
+	var sb strings.Builder
+	WriteHexEscapeUpper(&sb, 'A')
+	if sb.String() != "\\x41" {
+		t.Errorf("WriteHexEscapeUpper('A') = %q, expected \\x41", sb.String())
+	}
+
+	sb.Reset()
+	WriteHexEscapeUpper(&sb, 0xFF)
+	if sb.String() != "\\xFF" {
+		t.Errorf("WriteHexEscapeUpper(0xFF) = %q, expected \\xFF", sb.String())
+	}
+}
+
+func TestWriteOctalEscape(t *testing.T) {
+	var sb strings.Builder
+	WriteOctalEscape(&sb, 'A') // 65 = 101 octal
+	if sb.String() != "\\101" {
+		t.Errorf("WriteOctalEscape('A') = %q, expected \\101", sb.String())
+	}
+
+	sb.Reset()
+	WriteOctalEscape(&sb, 0) // 0 = 000 octal
+	if sb.String() != "\\000" {
+		t.Errorf("WriteOctalEscape(0) = %q, expected \\000", sb.String())
+	}
+}
+
+func TestWriteBinaryEscape(t *testing.T) {
+	var sb strings.Builder
+	WriteBinaryEscape(&sb, 'A') // 65 = 01000001
+	if sb.String() != "01000001" {
+		t.Errorf("WriteBinaryEscape('A') = %q, expected 01000001", sb.String())
+	}
+}
+
+func TestWriteURLEncoded(t *testing.T) {
+	var sb strings.Builder
+	WriteURLEncoded(&sb, '<')
+	if sb.String() != "%3C" {
+		t.Errorf("WriteURLEncoded('<') = %q, expected %%3C", sb.String())
+	}
+}
+
+func TestWriteURLEncodedLower(t *testing.T) {
+	var sb strings.Builder
+	WriteURLEncodedLower(&sb, '<')
+	if sb.String() != "%3c" {
+		t.Errorf("WriteURLEncodedLower('<') = %q, expected %%3c", sb.String())
+	}
+}
+
+func TestWriteDoubleURLEncoded(t *testing.T) {
+	var sb strings.Builder
+	WriteDoubleURLEncoded(&sb, 'A')
+	if sb.String() != "%2541" {
+		t.Errorf("WriteDoubleURLEncoded('A') = %q, expected %%2541", sb.String())
+	}
+}
+
+func TestWriteDecEntity(t *testing.T) {
+	var sb strings.Builder
+	WriteDecEntity(&sb, 'A') // 65
+	if sb.String() != "&#65;" {
+		t.Errorf("WriteDecEntity('A') = %q, expected &#65;", sb.String())
+	}
+
+	sb.Reset()
+	WriteDecEntity(&sb, 0)
+	if sb.String() != "&#0;" {
+		t.Errorf("WriteDecEntity(0) = %q, expected &#0;", sb.String())
+	}
+
+	// Test multi-digit
+	sb.Reset()
+	WriteDecEntity(&sb, 127)
+	if sb.String() != "&#127;" {
+		t.Errorf("WriteDecEntity(127) = %q, expected &#127;", sb.String())
+	}
+}
+
+func TestWriteHexEntity(t *testing.T) {
+	var sb strings.Builder
+	WriteHexEntity(&sb, 'A')
+	if sb.String() != "&#x41;" {
+		t.Errorf("WriteHexEntity('A') = %q, expected &#x41;", sb.String())
+	}
+
+	// Multi-byte rune
+	sb.Reset()
+	WriteHexEntity(&sb, 0x1234)
+	if sb.String() != "&#x1234;" {
+		t.Errorf("WriteHexEntity(0x1234) = %q, expected &#x1234;", sb.String())
+	}
+}
+
+func TestWriteUnicodeEscape(t *testing.T) {
+	var sb strings.Builder
+	WriteUnicodeEscape(&sb, 'A')
+	if sb.String() != "\\u0041" {
+		t.Errorf("WriteUnicodeEscape('A') = %q, expected \\u0041", sb.String())
+	}
+
+	// Multi-byte rune
+	sb.Reset()
+	WriteUnicodeEscape(&sb, 0x1234)
+	if sb.String() != "\\u1234" {
+		t.Errorf("WriteUnicodeEscape(0x1234) = %q, expected \\u1234", sb.String())
+	}
+}
+
+func TestWriteUnicodeEscapeUpper(t *testing.T) {
+	var sb strings.Builder
+	WriteUnicodeEscapeUpper(&sb, 0xABCD)
+	if sb.String() != "\\uABCD" {
+		t.Errorf("WriteUnicodeEscapeUpper(0xABCD) = %q, expected \\uABCD", sb.String())
+	}
+}
+
+func TestWriteOverlong2Byte(t *testing.T) {
+	var sb strings.Builder
+	WriteOverlong2Byte(&sb, 'A') // 0x41
+	// 2-byte overlong: C1 81
+	if sb.String() != "%C1%81" {
+		t.Errorf("WriteOverlong2Byte('A') = %q, expected %%C1%%81", sb.String())
+	}
+}
+
+func TestWriteOverlong3Byte(t *testing.T) {
+	var sb strings.Builder
+	WriteOverlong3Byte(&sb, 'A') // 0x41
+	// 3-byte overlong: E0 81 81
+	if sb.String() != "%E0%81%81" {
+		t.Errorf("WriteOverlong3Byte('A') = %q, expected %%E0%%81%%81", sb.String())
+	}
+}
