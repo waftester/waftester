@@ -9,12 +9,14 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
+	"github.com/waftester/waftester/pkg/defaults"
 )
 
-// Version information - these can be overridden at build time via ldflags:
-// go build -ldflags "-X github.com/waftester/waftester/pkg/ui.Version=1.0.0"
+// Version information - BuildDate and Commit can be overridden at build time via ldflags:
+// go build -ldflags "-X github.com/waftester/waftester/pkg/ui.BuildDate=2026-02-02"
+// Version comes from defaults.Version (single source of truth)
 var (
-	Version   = "2.4.1"
+	Version   = defaults.Version
 	BuildDate = "2026-02-02"
 	Commit    = "dev"
 )

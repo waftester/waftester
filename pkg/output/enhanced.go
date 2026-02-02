@@ -10,6 +10,8 @@ import (
 	"sync"
 	"text/template"
 	"time"
+
+	"github.com/waftester/waftester/pkg/defaults"
 )
 
 // EJSONWriter writes enhanced JSON with execution metadata
@@ -57,7 +59,7 @@ func NewEJSONWriter(path string, metadata *ExecutionMetadata) (*EJSONWriter, err
 	if metadata == nil {
 		metadata = &ExecutionMetadata{
 			StartTime: time.Now(),
-			Version:   "2.1.0",
+			Version:   defaults.Version,
 		}
 	}
 	if path == "" {
