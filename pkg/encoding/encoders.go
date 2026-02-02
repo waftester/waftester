@@ -214,8 +214,12 @@ func (e *JSUnicodeEncoder) Encode(payload string) (string, error) {
 	for _, r := range payload {
 		if r < 128 && r > 31 && r != '<' && r != '>' && r != '"' && r != '\'' {
 			result.WriteRune(r)
-		} else {
+		} else if r <= 0xFF {
+			// \xXX format for bytes (0-255)
 			hexutil.WriteHexEscape(result, byte(r))
+		} else {
+			// \uXXXX format for runes > 255
+			hexutil.WriteUnicodeEscape(result, r)
 		}
 	}
 	return result.String(), nil
