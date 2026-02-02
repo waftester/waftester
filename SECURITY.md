@@ -10,6 +10,8 @@
 | 1.x.x   | :x:                |
 | < 1.0   | :x:                |
 
+**Current stable release: 2.4.2**
+
 ## Reporting a Vulnerability
 
 We take security seriously at WAFtester. If you discover a security vulnerability, please report it responsibly.

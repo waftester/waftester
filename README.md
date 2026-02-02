@@ -1,337 +1,323 @@
 # WAFtester
 
-[![License: BSL 1.1](https://img.shields.io/badge/License-BSL%201.1-blue.svg)](LICENSE)
-[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8.svg)](https://go.dev/)
-[![Release](https://img.shields.io/github/v/release/waftester/waftester)](https://github.com/waftester/waftester/releases)
+<p align="center">
+  <strong>The WAF testing tool that security professionals actually use.</strong><br>
+  Detect. Fingerprint. Bypass. Assess. Report. — All in one command.
+</p>
 
-Adaptive WAF security testing toolkit. Discover endpoints, detect WAF vendors, and test security rules with 2,800+ attack payloads.
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-BSL%201.1-blue.svg" alt="License"></a>
+  <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.22+-00ADD8.svg" alt="Go"></a>
+  <a href="https://github.com/waftester/waftester/releases"><img src="https://img.shields.io/github/v/release/waftester/waftester" alt="Release"></a>
+</p>
 
-## Features
+---
 
-- Authenticated browser scanning with manual login support (MFA, CAPTCHA, SSO)
-- Detection of 197 WAF vendors from response signatures
-- 2,800+ community payloads (SQL injection, XSS, path traversal, etc.)
-- Smart mode adapts rate limits and evasion techniques per vendor
-- Enterprise assessment with F1, precision, recall, and MCC metrics
-- Multiple output formats: JSON, SARIF, CSV, HTML, Markdown
-- **70+ sqlmap-compatible tamper scripts** for WAF bypass (v2.4.0+)
-- **Full GraphQL, gRPC, and SOAP/WSDL protocol support** (v2.4.0+)
-- **httpx-compatible probe command** with 100+ options for recon
-- **ffuf-compatible fuzzer** with recursive mode and clusterbomb support
-- HTTP request smuggling and race condition testing
-- YAML/JSON workflow orchestration for multi-step assessments
-
-## Protocol Support
-
-WAFtester provides native security testing for modern API protocols beyond traditional HTTP:
-
-### GraphQL Security Testing
+## One Command. Full Assessment.
 
 ```bash
-# Automatic GraphQL endpoint detection and testing
-waf-tester auto -u https://api.example.com/graphql
+waf-tester auto -u https://target.com --smart
+```
 
-# Deep GraphQL introspection and schema analysis
+That's it. WAFtester discovers endpoints, identifies the WAF vendor, selects optimal bypass techniques, runs 2,800+ payloads, and generates a quantitative security report — automatically.
+
+**No YAML templates to write. No signature updates to download. No manual chaining of tools.**
+
+---
+
+## What Makes WAFtester Different
+
+### vs. Manual Testing with sqlmap + wafw00f + nuclei
+
+| You'd normally do... | WAFtester does... |
+|---------------------|-------------------|
+| Run wafw00f to detect WAF | Integrated: 197 vendor signatures |
+| Manually pick sqlmap tampers | Auto-selects from 70+ tampers based on detected WAF |
+| Write nuclei templates per vulnerability | 2,800+ payloads across 50+ categories, built-in |
+| Parse outputs and correlate manually | Unified JSON/SARIF/HTML with metrics |
+| Repeat for GraphQL, gRPC, WebSocket | Native multi-protocol support |
+
+### What you get that other tools don't
+
+| Feature | sqlmap | nuclei | Burp | WAFtester |
+|---------|--------|--------|------|-----------|
+| WAF-aware tamper selection | Manual | N/A | Manual | Automatic |
+| False positive measurement | No | No | Limited | Full (FPR, precision) |
+| Statistical metrics (MCC, F1) | No | No | No | Yes |
+| Multi-protocol (GraphQL, gRPC) | No | Limited | Yes | Native |
+| Mutation engine | 60 tampers | N/A | Intruder | 49 mutators × payloads |
+| CI/CD native (SARIF, streaming) | No | Yes | No | Yes |
+
+---
+
+## Install in Seconds
+
+```bash
+go install github.com/waftester/waftester/cmd/cli@latest
+```
+
+Or: `brew install waftester` | `docker pull ghcr.io/waftester/waftester`
+
+---
+
+## See It In Action
+
+### Detect the WAF — Know What You're Attacking
+
+```
+$ waf-tester vendor -u https://protected.example.com
+
+WAF Detection Results
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Vendor         Cloudflare
+  Confidence     98%
+  Evidence       cf-ray header, __cfduid cookie, 1020 error page
+  
+Recommended tampers for Cloudflare:
+  charunicodeencode, space2morecomment, randomcase
+```
+
+### Find Bypasses — Automatically
+
+```
+$ waf-tester bypass -u https://target.com --smart --tamper-auto
+
+Bypass Discovery
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Payload Variants Tested     2,847
+  Blocked by WAF              2,728 (95.8%)
+  Bypassed WAF                119 (4.2%)
+  
+Top Bypass Chains:
+  1. charunicodeencode + space2morecomment    (42 bypasses)
+  2. modsecurityversioned + randomcase        (31 bypasses)  
+  3. between + equaltolike                    (19 bypasses)
+
+Bypass evidence exported to: bypasses.json
+```
+
+### Quantitative Assessment — Numbers That Matter
+
+```
+$ waf-tester assess -u https://target.com -fp -o assessment.json
+
+Enterprise WAF Assessment
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Metric                  Score
+  ─────────────────────────────
+  Detection Rate (TPR)    94.2%
+  False Positive Rate     0.3%
+  Precision               99.7%
+  Recall                  94.2%
+  F1 Score                0.969
+  MCC                     0.942
+
+Payload Categories: sqli, xss, traversal, rce, ssrf, xxe
+Benign Corpus:       1,200 requests (Leipzig + builtin)
+```
+
+---
+
+## Power Features
+
+### WAF Intelligence Matrix
+
+Stop guessing which tampers work. WAFtester maintains a tested matrix:
+
+```
+$ waf-tester tampers --for-waf=cloudflare
+
+Tampers Ranked by Effectiveness for Cloudflare
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #  TAMPER                    SUCCESS RATE
+  1  charunicodeencode         ████████░░ 85%
+  2  space2morecomment         ████████░░ 82%
+  3  randomcase                ███████░░░ 75%
+  4  between                   ██████░░░░ 68%
+  5  modsecurityversioned      █████░░░░░ 55%
+```
+
+16+ WAF vendors mapped: Cloudflare, AWS WAF, Akamai, Imperva, Azure WAF, F5, Fortinet, ModSecurity, Barracuda, Sucuri, Radware, Citrix ADC, Palo Alto, Sophos, Wallarm, and more.
+
+### Multi-Protocol Native
+
+```bash
+# HTTP endpoints
+waf-tester scan -u https://api.example.com
+
+# GraphQL introspection + injection
 waf-tester scan -u https://api.example.com/graphql -types graphql
 
-# GraphQL-specific attack categories:
-# - Introspection exposure
-# - Query depth attacks
-# - Batch query abuse
-# - Field suggestion exploitation
-# - Authorization bypass via aliases
-# - Directive injection
-```
+# gRPC reflection + message fuzzing  
+waf-tester scan -u grpc://service:50051 -types grpc
 
-**Supported GraphQL Features:**
-- Schema introspection and type enumeration
-- Mutation fuzzing with type-aware payloads
-- Query complexity analysis
-- Subscription testing
-- Persisted query detection
-
-### gRPC Security Testing
-
-```bash
-# gRPC reflection-based testing
-waf-tester scan -u grpc://service.example.com:50051 -types grpc
-
-# With TLS
-waf-tester scan -u grpcs://service.example.com:50051 -types grpc
-
-# gRPC-specific attack categories:
-# - Reflection enumeration
-# - Message field fuzzing
-# - Streaming abuse
-# - Metadata injection
-# - Proto type confusion
-```
-
-**Supported gRPC Features:**
-- Server reflection for service discovery
-- Automatic proto message construction
-- Unary, server streaming, client streaming, and bidirectional testing
-- TLS/mTLS support
-- Metadata header injection
-
-### SOAP/WSDL Security Testing
-
-```bash
-# WSDL-based SOAP testing
+# SOAP/WSDL enumeration + XXE
 waf-tester scan -u https://api.example.com/service.wsdl -types soap
 
-# SOAP-specific attack categories:
-# - WSDL enumeration
-# - XML injection in SOAP body
-# - XXE attacks
-# - WS-Security bypass
-# - SOAP action manipulation
+# WebSocket message injection
+waf-tester scan -u wss://api.example.com/socket -types websocket
 ```
 
-**Supported SOAP Features:**
-- Automatic WSDL parsing
-- Operation enumeration
-- Type-aware XML payload generation
-- WS-Security header support
-- MTOM/XOP attachment handling
+### Mutation Engine (Not Just Static Payloads)
 
-## Tamper Scripts
-
-WAFtester includes 70+ tamper scripts (ported from sqlmap) for WAF bypass. Use `--tamper` to apply transformations:
+49 mutators × 2,800 payloads = comprehensive coverage:
 
 ```bash
-# Single tamper
-waf-tester scan -u https://target.com --tamper=space2comment
+# Generate 490,000+ variants from base payloads
+waf-tester mutate -payloads payloads/sqli/ -full
 
-# Multiple tampers (applied in sequence)
-waf-tester scan -u https://target.com --tamper=space2comment,charencode,randomcase
-
-# List all available tampers
-waf-tester tampers --list
-
-# List tampers by category
-waf-tester tampers --category=encoding
+# Targeted bypass attempts
+waf-tester bypass -u https://target.com \
+  -encoders url,double_url,unicode,hex \
+  -evasions case_swap,sql_comment,whitespace \
+  -locations query,body,headers
 ```
 
-### Tamper Categories
+### Structured JSON Output
 
-| Category | Count | Description |
-|----------|-------|-------------|
-| `encoding` | 12 | Base64, URL encoding, Unicode escapes |
-| `space` | 12 | Space replacement (comments, tabs, etc.) |
-| `sql` | 16 | SQL syntax transformations |
-| `mysql` | 10 | MySQL-specific bypasses |
-| `mssql` | 6 | MSSQL-specific bypasses |
-| `waf` | 4 | WAF-specific bypasses (ModSecurity, etc.) |
-| `http` | 3 | HTTP-level modifications (headers) |
-| `obfuscation` | 6 | General obfuscation techniques |
+Every finding is machine-readable. No parsing nightmares:
 
-### Popular Tampers
+```json
+{
+  "finding": {
+    "id": "sqli-001",
+    "type": "sql_injection",
+    "severity": "Critical",
+    "confidence": 0.95,
+    "url": "https://target.com/api/users",
+    "parameter": "id",
+    "payload": "1' OR '1'='1",
+    "tampers_used": ["charunicodeencode", "space2comment"],
+    "waf_bypassed": true,
+    "evidence": {
+      "request": "GET /api/users?id=1%27%20OR...",
+      "response_code": 200,
+      "response_time_ms": 847,
+      "indicators": ["SQL syntax in response", "5 rows returned vs 1 expected"]
+    }
+  },
+  "context": {
+    "waf_vendor": "Cloudflare",
+    "waf_confidence": 0.98,
+    "scan_id": "a1b2c3d4",
+    "timestamp": "2026-02-02T14:23:01Z"
+  }
+}
+```
+
+**Real problems this solves:**
+
+| Problem | How JSON Output Fixes It |
+|---------|-------------------------|
+| "Which findings are real vs noise?" | `confidence` score + `evidence` block with proof |
+| "Did we actually bypass the WAF?" | `waf_bypassed` boolean + `tampers_used` array |
+| "What exactly was sent/received?" | Full `request`/`response` in evidence |
+| "How do I correlate across scans?" | `scan_id` + `timestamp` for tracking |
+| "My SIEM can't parse this" | Flat JSON, one finding per line with `-stream` |
+
+### CI/CD Integration
 
 ```bash
-# ModSecurity bypass
---tamper=modsecurityversioned,space2comment
+# Stream findings as they happen (JSONL format)
+waf-tester scan -u $TARGET -stream -json | \
+  jq 'select(.severity == "Critical")'
 
-# Cloudflare bypass
---tamper=charunicodeencode,randomcase
+# GitHub Security tab (SARIF)
+waf-tester scan -u $TARGET -format sarif -o results.sarif
 
-# AWS WAF bypass  
---tamper=between,equaltolike,space2morecomment
+# Fail pipeline on critical findings
+waf-tester scan -u $TARGET -json | \
+  jq -e '[.vulnerabilities[] | select(.severity=="Critical")] | length == 0'
 
-# Generic WAF bypass combo
---tamper=space2comment,randomcase,charencode,unmagicquotes
+# Slack/Teams webhook on bypass found
+waf-tester bypass -u $TARGET -json | \
+  jq 'select(.waf_bypassed==true)' | \
+  while read finding; do curl -X POST $WEBHOOK -d "$finding"; done
+
+# Aggregate metrics for dashboards
+waf-tester assess -u $TARGET -json | \
+  jq '{tpr: .metrics.detection_rate, fpr: .metrics.false_positive_rate, f1: .metrics.f1_score}'
 ```
 
-## Requirements
+**Output formats for every workflow:**
 
-- Go 1.22+ (for building from source)
-- Chrome or Chromium (optional, for authenticated browser scanning)
+| Format | Use Case | Flag |
+|--------|----------|------|
+| JSON | Automation, APIs, scripting | `-json` or `-format json` |
+| JSONL | Streaming, real-time processing | `-stream -json` |
+| SARIF | GitHub/GitLab Security, VS Code | `-format sarif` |
+| HTML | Reports for stakeholders | `-format html` |
+| CSV | Excel, data analysis | `-format csv` |
+| Markdown | Documentation, wikis | `-format md` |
 
-## Installation
+---
 
-```bash
-# From source
-go install github.com/waftester/waftester/cmd/cli@latest
+## Full Command Reference
 
-# Or download binary from releases
-# https://github.com/waftester/waftester/releases
-```
+| Command | What It Does | Example |
+|---------|--------------|---------|
+| `auto` | Complete automated assessment | `waf-tester auto -u https://target.com` |
+| `scan` | Vulnerability scanning (50+ categories) | `waf-tester scan -u https://target.com -types sqli,xss` |
+| `bypass` | WAF bypass discovery | `waf-tester bypass -u https://target.com --smart` |
+| `assess` | Enterprise metrics (F1, MCC, FPR) | `waf-tester assess -u https://target.com -fp` |
+| `tampers` | List/test/recommend tampers | `waf-tester tampers --for-waf=cloudflare` |
+| `vendor` | WAF fingerprinting (197 signatures) | `waf-tester vendor -u https://target.com` |
+| `probe` | Protocol detection (httpx-compatible) | `waf-tester probe -l urls.txt` |
+| `fuzz` | Directory/content fuzzing (ffuf-compatible) | `waf-tester fuzz -u https://target.com/FUZZ` |
+| `smuggle` | HTTP request smuggling detection | `waf-tester smuggle -u https://target.com` |
+| `race` | Race condition testing | `waf-tester race -u https://target.com/checkout` |
+| `discover` | Endpoint crawling | `waf-tester discover -u https://target.com` |
+| `workflow` | YAML workflow execution | `waf-tester workflow -f recon.yaml` |
 
-Verify installation:
+---
 
-```bash
-waf-tester -h
-```
+## Key Options
 
-## Quick Start
+| Flag | Purpose | Default |
+|------|---------|---------|
+| `-u` | Target URL | required |
+| `-l` | File with targets (one per line) | - |
+| `-c` | Concurrent workers | 25 |
+| `-rl` | Rate limit (requests/second) | 150 |
+| `--smart` | WAF-aware adaptive mode | false |
+| `--tamper` | Tamper list (comma-separated) | - |
+| `--tamper-auto` | Auto-select for detected WAF | false |
+| `--tamper-profile` | Preset: stealth, standard, aggressive, bypass | - |
+| `-format` | Output: json, sarif, html, csv, md | json |
+| `-o` | Output file | - |
+| `-x` | Proxy (HTTP/SOCKS5) | - |
+| `-H` | Custom headers | - |
+| `-types` | Test categories | all |
 
-Full automated scan:
+---
 
-```bash
-waf-tester auto -u https://example.com
-```
+## The Numbers
 
-Step-by-step workflow:
+| Metric | Value |
+|--------|-------|
+| WAF signatures | 197 vendors |
+| Attack payloads | 2,800+ |
+| Tamper scripts | 70+ |
+| Mutator functions | 49 |
+| Attack categories | 50+ (SQLi, XSS, RCE, SSRF, XXE, traversal...) |
+| Protocols | HTTP, GraphQL, gRPC, SOAP, WebSocket |
+| Output formats | JSON, SARIF, HTML, CSV, Markdown |
 
-```bash
-# 1. Discover endpoints
-waf-tester discover -u https://example.com
-
-# 2. Generate test plan
-waf-tester learn -discovery discovery.json
-
-# 3. Execute tests
-waf-tester run -plan testplan.json -format html -o report.html
-```
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `auto` | Full workflow: discover, analyze, learn, run, report |
-| `discover` | Crawl target and find endpoints |
-| `learn` | Generate targeted test plan from discovery |
-| `run` | Execute tests from plan |
-| `scan` | Deep vulnerability scanning (50+ categories) |
-| `assess` | Enterprise WAF assessment with metrics |
-| `bypass` | WAF bypass finder using mutation matrix |
-| `mutate` | Test payloads with encoding/evasion combinations |
-| `probe` | Protocol probing and WAF detection (httpx-compatible) |
-| `fuzz` | Directory and content fuzzing (ffuf-compatible) |
-| `crawl` | Advanced web crawling with scope control |
-| `analyze` | JavaScript analysis for endpoints and secrets |
-| `smuggle` | HTTP request smuggling detection |
-| `race` | Race condition testing |
-| `headless` | Headless browser testing |
-| `workflow` | Execute multi-step security workflows |
-| `protocol` | Enterprise protocol detection (gRPC, SOAP, GraphQL) |
-| `report` | Generate enterprise HTML reports |
-| `fp` | False positive testing |
-| `vendor` | Vendor-specific WAF detection (197 signatures) |
-
-Run `waf-tester <command> -h` for options.
-
-## Usage Examples
-
-```bash
-# Basic scan
-waf-tester scan -u https://target.com
-
-# Scan specific categories
-waf-tester scan -u https://target.com -types sqli,xss
-
-# Multi-target from file
-waf-tester scan -l targets.txt -c 50
-
-# Smart mode (adapts to detected WAF)
-waf-tester scan -u https://target.com --smart
-
-# Bypass hunting
-waf-tester bypass -u https://target.com --smart --smart-mode=full
-
-# Enterprise assessment
-waf-tester assess -u https://target.com -o assessment.json
-
-# Streaming JSON for CI/CD pipelines (v2.3.3+)
-waf-tester scan -u https://target.com -stream -json | jq
-
-# Save real-time events to NDJSON file
-waf-tester scan -u https://target.com -stream -json > scan-events.jsonl
-```
-
-### CI/CD Pipeline Integration
-
-Use `--json` for machine-readable output in automation pipelines:
-
-```bash
-# JSON output for automation (v2.3.4+)
-waf-tester auto -u https://target.com --json
-waf-tester scan -u https://target.com --json > results.json
-waf-tester probe -u https://target.com --json | jq '.waf'
-
-# Real-time streaming JSON for CI/CD pipelines
-waf-tester scan -u $TARGET_URL -stream -json | jq 'select(.type=="vulnerability")'
-
-# Save events to NDJSON file
-waf-tester scan -u $TARGET_URL -stream -json > scan-events.jsonl
-
-# Filter critical vulnerabilities and fail build
-waf-tester scan -u $TARGET_URL -stream -json | jq 'select(.data.severity=="Critical")' | grep -q . && exit 1
-```
-
-**Key Flags for Automation:**
-
-| Flag | Description |
-|------|-------------|
-| `--json` | Output results as JSON (use with any command) |
-| `-stream -json` | Real-time NDJSON events for pipelines |
-| `-sarif` | SARIF format for GitHub Security tab |
-| `-o` | Write output to file |
-
-Event types emitted in streaming mode:
-- `scan_start` - Scanner beginning execution
-- `vulnerability` - Vulnerability discovered
-- `scan_complete` - Scanner finished (guaranteed even on errors)
-- `scan_end` - All scanners complete with summary
-
-## Output
-
-Results are saved to the location you specify with `-o`:
-
-```bash
-waf-tester run -plan testplan.json -o results.json
-waf-tester run -plan testplan.json -format html -o report.html
-waf-tester run -plan testplan.json -format sarif -o results.sarif
-```
-
-The `auto` command creates a workspace directory:
-
-```
-workspaces/<domain>/<timestamp>/
-├── discovery.json
-├── testplan.json
-├── results.json
-├── results.html
-└── results.sarif
-```
-
-## Configuration
-
-| Flag | Description |
-|------|-------------|
-| `-u`, `-target` | Target URL(s) |
-| `-l` | File containing target URLs |
-| `-c` | Concurrent workers (default: 25) |
-| `-rl` | Requests per second (default: 150) |
-| `-timeout` | HTTP timeout in seconds (default: 5) |
-| `-x`, `-proxy` | HTTP/SOCKS5 proxy |
-| `-format` | Output format: json, sarif, csv, html, md |
-| `-o` | Output file path |
-| `--stream` | CI/CD mode (no animated progress) |
-
-## Browser Scanning
-
-For applications requiring login:
-
-```bash
-# Opens browser for manual authentication
-waf-tester auto -u https://app.example.com
-
-# Headless mode
-waf-tester auto -u https://app.example.com -browser-headless
-
-# Disable browser
-waf-tester auto -u https://app.example.com -browser=false
-```
+---
 
 ## Documentation
 
-- [Examples Guide](docs/EXAMPLES.md) - Detailed usage examples
-- [Installation Guide](docs/INSTALLATION.md)
-- [Contributing](CONTRIBUTING.md)
+| Resource | Description |
+|----------|-------------|
+| [Examples Guide](docs/EXAMPLES.md) | 2,200+ lines of usage examples |
+| [Installation](docs/INSTALLATION.md) | All installation methods |
+| [Contributing](CONTRIBUTING.md) | Contribution guidelines |
+| [Changelog](CHANGELOG.md) | Version history |
+| [Security](SECURITY.md) | Security policy |
+
+---
 
 ## License
 
-Core engine: [Business Source License 1.1](LICENSE) (converts to Apache 2.0 on Jan 31, 2030)
-
-Community payloads (`payloads/community/`): [MIT](LICENSE-COMMUNITY)
+**Core:** [Business Source License 1.1](LICENSE) (Apache 2.0 after Jan 31, 2030)  
+**Community Payloads:** [MIT](LICENSE-COMMUNITY)
