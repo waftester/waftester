@@ -23,15 +23,18 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/waftester/waftester/pkg/duration"
 )
 
 // Default configuration
 const (
 	// DefaultMaxErrors is the max errors before marking a host as failed
 	DefaultMaxErrors = 3
-	// DefaultExpiry is how long to cache a failed host
-	DefaultExpiry = 5 * time.Minute
 )
+
+// DefaultExpiry is how long to cache a failed host
+var DefaultExpiry = duration.CacheMedium
 
 // hostState tracks the error count and expiration for a host
 type hostState struct {

@@ -79,7 +79,7 @@ func NewVendorDetector(timeout time.Duration) *VendorDetector {
 // NewVendorDetectorWithClient creates a new vendor detector with optional custom HTTP client
 func NewVendorDetectorWithClient(timeout time.Duration, httpClient *http.Client) *VendorDetector {
 	if timeout == 0 {
-		timeout = 10 * time.Second
+		timeout = httpclient.TimeoutProbing
 	}
 
 	var client *http.Client

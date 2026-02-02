@@ -4,7 +4,6 @@ package discovery
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -13,6 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 )
@@ -38,25 +39,20 @@ type ActiveDiscoverer struct {
 
 // NewActiveDiscoverer creates an active discovery engine
 func NewActiveDiscoverer(target string, timeout time.Duration, skipVerify bool) *ActiveDiscoverer {
-	transport := &http.Transport{
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 20,
-		IdleConnTimeout:     30 * time.Second,
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: skipVerify,
-		},
+	// Use shared pooled client with custom timeout if needed
+	var client *http.Client
+	if timeout != httpclient.TimeoutFuzzing {
+		cfg := httpclient.WithTimeout(timeout)
+		cfg.InsecureSkipVerify = skipVerify
+		client = httpclient.New(cfg)
+	} else {
+		client = httpclient.Default()
 	}
 
 	return &ActiveDiscoverer{
-		client: &http.Client{
-			Transport: transport,
-			Timeout:   timeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
+		client:    client,
 		target:    strings.TrimRight(target, "/"),
-		userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+		userAgent: defaults.UAChrome,
 		results:   make([]Endpoint, 0),
 	}
 }
@@ -225,7 +221,7 @@ func (ad *ActiveDiscoverer) DiscoverAllWithProgress(ctx context.Context, concurr
 // DiscoverAllWithPhaseProgress runs all phases with per-phase progress reporting
 func (ad *ActiveDiscoverer) DiscoverAllWithPhaseProgress(ctx context.Context, concurrency int, progress func(PhaseProgress)) []Endpoint {
 	if concurrency <= 0 {
-		concurrency = 20
+		concurrency = defaults.ConcurrencyHigh
 	}
 
 	report := func(phase int, name string, done, total int) {

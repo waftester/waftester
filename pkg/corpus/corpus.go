@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 // Source represents a corpus source type
@@ -72,12 +74,10 @@ func NewManager(cacheDir string, verbose bool) *Manager {
 	}
 
 	return &Manager{
-		cacheDir: cacheDir,
-		corpora:  make(map[string]*Corpus),
-		httpClient: &http.Client{
-			Timeout: 5 * time.Minute, // Long timeout for large downloads
-		},
-		verbose: verbose,
+		cacheDir:   cacheDir,
+		corpora:    make(map[string]*Corpus),
+		httpClient: httpclient.New(httpclient.WithTimeout(httpclient.TimeoutLongOps)),
+		verbose:    verbose,
 	}
 }
 

@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 // TestNewDiscoverer tests discoverer creation
@@ -19,8 +21,8 @@ func TestNewDiscoverer(t *testing.T) {
 		}
 		d := NewDiscoverer(cfg)
 
-		if d.config.Timeout != 10*time.Second {
-			t.Errorf("expected default Timeout 10s, got %v", d.config.Timeout)
+		if d.config.Timeout != httpclient.TimeoutProbing {
+			t.Errorf("expected default Timeout %v, got %v", httpclient.TimeoutProbing, d.config.Timeout)
 		}
 		if d.config.MaxDepth != 3 {
 			t.Errorf("expected default MaxDepth 3, got %d", d.config.MaxDepth)
@@ -28,7 +30,7 @@ func TestNewDiscoverer(t *testing.T) {
 		if d.config.Concurrency != 10 {
 			t.Errorf("expected default Concurrency 10, got %d", d.config.Concurrency)
 		}
-		if d.config.UserAgent != "WAF-Tester-Discovery/1.0" {
+		if !strings.Contains(d.config.UserAgent, "waftester/") || !strings.Contains(d.config.UserAgent, "Discovery") {
 			t.Errorf("unexpected UserAgent: %s", d.config.UserAgent)
 		}
 	})
@@ -434,7 +436,7 @@ func TestNewExternalSources(t *testing.T) {
 		if es == nil {
 			t.Fatal("expected external sources, got nil")
 		}
-		if es.userAgent != "WAF-Tester-Discovery/1.0" {
+		if !strings.Contains(es.userAgent, "waftester/") || !strings.Contains(es.userAgent, "Discovery") {
 			t.Errorf("expected default user agent, got %s", es.userAgent)
 		}
 	})

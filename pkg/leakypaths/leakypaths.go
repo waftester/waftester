@@ -13,6 +13,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -66,9 +69,9 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() *Config {
 	return &Config{
-		Concurrency: 20,
-		Timeout:     10 * time.Second,
-		UserAgent:   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+		Concurrency: defaults.ConcurrencyHigh,
+		Timeout:     duration.DialTimeout,
+		UserAgent:   defaults.UAChrome,
 		Verbose:     false,
 	}
 }
@@ -84,12 +87,7 @@ func NewScanner(cfg *Config) *Scanner {
 	if cfg.HTTPClient != nil {
 		client = cfg.HTTPClient
 	} else {
-		client = &http.Client{
-			Timeout: cfg.Timeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse // Don't follow redirects
-			},
-		}
+		client = httpclient.New(httpclient.WithTimeout(cfg.Timeout))
 	}
 
 	return &Scanner{

@@ -48,6 +48,56 @@ go test ./...
 golangci-lint run
 ```
 
+### Enforcement Tests
+
+These AST-based tests run automatically and **fail the build** if violations are detected:
+
+| Test | Enforces |
+|------|----------|
+| `TestVersionConsistency` | `ui.Version == defaults.Version`, SECURITY.md, CHANGELOG.md |
+| `TestNoHardcodedConcurrency` | Use `defaults.Concurrency*` |
+| `TestNoHardcodedRetries` | Use `defaults.Retry*` |
+| `TestNoHardcodedMaxDepth` | Use `defaults.Depth*` |
+| `TestNoHardcodedMaxRedirects` | Use `defaults.MaxRedirects` |
+| `TestNoHardcodedContentType` | Use `defaults.ContentType*` |
+| `TestNoHardcodedUserAgent` | Use `defaults.UA*` or `ui.UserAgentWithContext()` |
+| `TestNoHardcodedTimeouts` | Use `duration.Timeout*` |
+| `TestNoHardcodedIntervals` | Use `duration.Interval*` |
+| `TestNoRawHTTPClient` | Use `httpclient.*` presets, not raw `&http.Client{}` |
+
+## ⚠️ Configuration Constants Policy
+
+**DO NOT use hardcoded configuration values.** All runtime defaults are centralized:
+
+| Package | Use For |
+|---------|---------|
+| `pkg/defaults` | Concurrency, Retry, Buffer, Channel, ContentType, UserAgent, Depth, MaxRedirects, Version |
+| `pkg/duration` | All `time.Duration` values (Timeout*, Interval*) |
+| `pkg/httpclient` | HTTP client presets (NewScanner, NewProbing, NewAggressive) |
+| `pkg/ui` | `UserAgentWithContext()` for component-specific UAs |
+
+### ❌ Forbidden Patterns
+
+```go
+// WRONG - hardcoded values
+config.Concurrency = 10
+config.Timeout = 30 * time.Second
+config.MaxRetries = 3
+req.Header.Set("Content-Type", "application/json")
+```
+
+### ✅ Required Patterns
+
+```go
+// CORRECT - use centralized constants
+config.Concurrency = defaults.ConcurrencyMedium
+config.Timeout = duration.HTTPScan
+config.MaxRetries = defaults.RetryMedium
+req.Header.Set("Content-Type", defaults.ContentTypeJSON)
+```
+
+The CI will **fail** if hardcoded values are detected. The tests in `pkg/defaults/defaults_test.go` use AST parsing to detect violations.
+
 ## Pull Request Process
 
 1. Fork the repository
@@ -65,6 +115,7 @@ golangci-lint run
 - Keep functions focused and small
 - Add comments for exported functions
 - Write tests for new functionality
+- **Use `pkg/defaults` and `pkg/duration` for all configuration values**
 
 ## Reporting Issues
 

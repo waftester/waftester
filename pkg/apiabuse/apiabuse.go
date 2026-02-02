@@ -10,6 +10,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -24,8 +27,8 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Concurrency: 5,
-		Timeout:     10 * time.Second,
+		Concurrency: defaults.ConcurrencyLow,
+		Timeout:     httpclient.TimeoutProbing,
 		RateLimit:   100,
 	}
 }
@@ -55,20 +58,18 @@ type Scanner struct {
 // NewScanner creates a new API abuse scanner
 func NewScanner(config Config) *Scanner {
 	if config.Concurrency <= 0 {
-		config.Concurrency = 5
+		config.Concurrency = defaults.ConcurrencyLow
 	}
 	if config.Timeout <= 0 {
-		config.Timeout = 10 * time.Second
+		config.Timeout = httpclient.TimeoutProbing
 	}
 	if config.RateLimit <= 0 {
 		config.RateLimit = 100
 	}
 
 	return &Scanner{
-		config: config,
-		client: &http.Client{
-			Timeout: config.Timeout,
-		},
+		config:  config,
+		client:  httpclient.Probing(),
 		results: make([]Result, 0),
 	}
 }
@@ -198,7 +199,7 @@ func (s *Scanner) testResourcePayload(ctx context.Context, targetURL string, pay
 	result.StatusCode = resp.StatusCode
 
 	// Check for slow response (potential DoS)
-	if result.ResponseTime > 5*time.Second {
+	if result.ResponseTime > duration.SlowResponse {
 		result.Vulnerable = true
 		result.Evidence = "Slow response: " + result.ResponseTime.String()
 		result.Severity = "HIGH"
@@ -221,21 +222,21 @@ func ResourceExhaustionPayloads() []ResourcePayload {
 		{
 			Name:        "deep_nesting",
 			Payload:     generateDeepJSON(50),
-			ContentType: "application/json",
+			ContentType: defaults.ContentTypeJSON,
 			Method:      "POST",
 		},
 		// Large array
 		{
 			Name:        "large_array",
 			Payload:     generateLargeArray(10000),
-			ContentType: "application/json",
+			ContentType: defaults.ContentTypeJSON,
 			Method:      "POST",
 		},
 		// Long string
 		{
 			Name:        "long_string",
 			Payload:     map[string]string{"data": strings.Repeat("A", 100000)},
-			ContentType: "application/json",
+			ContentType: defaults.ContentTypeJSON,
 			Method:      "POST",
 		},
 	}

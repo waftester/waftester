@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 )
@@ -65,7 +66,7 @@ type Tester struct {
 // NewTester creates a new cryptographic failure tester
 func NewTester(target string, timeout time.Duration) *Tester {
 	if timeout == 0 {
-		timeout = 10 * time.Second
+		timeout = httpclient.TimeoutProbing
 	}
 	return &Tester{
 		target:  target,
@@ -315,12 +316,7 @@ func (t *Tester) TestCertificate(ctx context.Context) ([]TestResult, error) {
 
 // TestHSTS tests for HSTS header
 func (t *Tester) TestHSTS(ctx context.Context) (*TestResult, error) {
-	client := &http.Client{
-		Timeout: t.timeout,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
+	client := httpclient.Default()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", t.target, nil)
 	if err != nil {
@@ -366,12 +362,7 @@ func (t *Tester) TestHSTS(ctx context.Context) (*TestResult, error) {
 func (t *Tester) TestHTTPDowngrade(ctx context.Context) (*TestResult, error) {
 	httpTarget := strings.Replace(t.target, "https://", "http://", 1)
 
-	client := &http.Client{
-		Timeout: t.timeout,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
+	client := httpclient.Default()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", httpTarget, nil)
 	if err != nil {
@@ -477,12 +468,7 @@ func ScanForWeakHashing(content string) []TestResult {
 
 // ScanResponseForSecrets scans an HTTP response for secrets
 func (t *Tester) ScanResponseForSecrets(ctx context.Context, path string) ([]TestResult, error) {
-	client := &http.Client{
-		Timeout: t.timeout,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
+	client := httpclient.Default()
 
 	fullURL := t.target + path
 

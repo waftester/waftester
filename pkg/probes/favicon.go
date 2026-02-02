@@ -2,7 +2,6 @@ package probes
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"net/http"
@@ -10,6 +9,9 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/bufpool"
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -36,9 +38,9 @@ type FaviconProber struct {
 // NewFaviconProber creates a new favicon prober with defaults
 func NewFaviconProber() *FaviconProber {
 	return &FaviconProber{
-		Timeout:     10 * time.Second,
+		Timeout:     duration.DialTimeout,
 		SkipVerify:  true,
-		UserAgent:   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+		UserAgent:   defaults.UAChrome,
 		MaxFileSize: 1024 * 1024, // 1MB max
 	}
 }
@@ -55,14 +57,7 @@ func (p *FaviconProber) Probe(ctx context.Context, baseURL string) *FaviconResul
 		"/apple-touch-icon-precomposed.png",
 	}
 
-	client := &http.Client{
-		Timeout: p.Timeout,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: p.SkipVerify,
-			},
-		},
-	}
+	client := httpclient.Default()
 
 	baseURL = strings.TrimSuffix(baseURL, "/")
 

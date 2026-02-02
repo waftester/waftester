@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -634,7 +635,7 @@ func (w *SARIFWriter) buildSARIF() sarifDocument {
 				Tool: sarifTool{
 					Driver: sarifDriver{
 						Name:           "WAF-Tester",
-						Version:        "2.1.0",
+						Version:        defaults.Version,
 						InformationUri: "https://github.com/waftester/waftester",
 						Rules:          ruleSlice,
 					},

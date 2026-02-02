@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/js"
 	"github.com/waftester/waftester/pkg/leakypaths"
 	"github.com/waftester/waftester/pkg/params"
@@ -102,8 +104,8 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() *Config {
 	return &Config{
-		Timeout:              30 * time.Second,
-		Concurrency:          20,
+		Timeout:              duration.HTTPFuzzing,
+		Concurrency:          defaults.ConcurrencyHigh,
 		Verbose:              false,
 		EnableLeakyPaths:     true,
 		EnableParamDiscovery: true,
@@ -328,7 +330,7 @@ func (s *Scanner) calculateRisk(result *FullReconResult) (float64, string, []str
 func (s *Scanner) QuickScan(ctx context.Context, targetURL string) (*FullReconResult, error) {
 	// Use reduced settings for quick scan
 	originalConcurrency := s.config.Concurrency
-	s.config.Concurrency = 50                                         // Higher concurrency
+	s.config.Concurrency = defaults.ConcurrencyMax // Higher concurrency
 	s.config.LeakyPathCategories = []string{"config", "vcs", "debug"} // Only high-value categories
 
 	result, err := s.FullScan(ctx, targetURL)

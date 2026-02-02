@@ -1,13 +1,13 @@
 package enterprise
 
 import (
-	"net/http"
 	"testing"
-	"time"
+
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 func TestProtocolDetectorNew(t *testing.T) {
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := httpclient.Default()
 	detector := NewProtocolDetector(client)
 	if detector == nil {
 		t.Fatal("NewProtocolDetector returned nil")

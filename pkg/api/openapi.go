@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/regexcache"
 )
 
@@ -447,7 +448,7 @@ func (spec *OpenAPISpec) GenerateTestCases(baseURL string) []TestCase {
 			Name:        route.OperationID,
 			Method:      route.Method,
 			Path:        spec.BasePath + route.Path,
-			ContentType: firstOrDefault(route.ContentType, "application/json"),
+			ContentType: firstOrDefault(route.ContentType, defaults.ContentTypeJSON),
 			Tags:        route.Tags,
 		}
 

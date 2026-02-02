@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 func TestCommandConstants(t *testing.T) {
@@ -30,7 +31,7 @@ func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
 	assert.False(t, config.Verbose)
 	assert.Equal(t, "json", config.Format)
-	assert.Equal(t, 30*time.Second, config.Timeout)
+	assert.Equal(t, httpclient.TimeoutFuzzing, config.Timeout)
 	assert.Equal(t, 10, config.Concurrency)
 }
 
