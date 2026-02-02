@@ -5,6 +5,57 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.2] - 2026-02-02
+
+### Added
+- **Intelligent Tamper Engine**: Full integration of 70+ sqlmap-compatible tampers into auto and scan modes
+  - New `--tamper` flag: Specify custom tampers (e.g., `--tamper=space2comment,randomcase`)
+  - New `--tamper-auto` flag: Automatically select optimal tampers based on detected WAF
+  - New `--tamper-profile` flag: Use predefined profiles (stealth, standard, aggressive, bypass, custom)
+  
+- **WAF Intelligence Matrix**: Curated tamper recommendations for 16+ WAF vendors
+  - Cloudflare, AWS WAF, Akamai, Imperva, Azure WAF, F5 BIG-IP, Fortinet FortiWeb
+  - ModSecurity, Barracuda, Sucuri, Radware, Citrix, Palo Alto, Sophos, Wallarm
+  - Each vendor mapped to optimal tamper chains with effectiveness scores
+  
+- **Tampers Subcommand** (`waf-tester tampers`):
+  - `--list`: List all 70+ available tampers with descriptions
+  - `--category`: Filter by category (encoding, space, sql, mysql, mssql, waf, http, obfuscation)
+  - `--for-waf=<vendor>`: Show recommended tampers for a specific WAF
+  - `--test "<payload>"`: Test payload transformation step-by-step
+  - `--matrix`: Display full WAF intelligence matrix
+  - `--json`: Output in JSON format for automation
+
+- **Real-time Metrics Collection**: Track tamper effectiveness during scans
+  - Success rates, block rates, latency tracking per tamper
+  - Top performers analysis for adaptive learning
+  - Thread-safe atomic operations for concurrent scanning
+
+- **Adaptive Learning**: Engine learns from scan results to optimize future tamper selection
+  - `RecordSuccess`/`RecordFailure` methods update tamper rankings
+  - Priority-based chaining adjusts based on observed effectiveness
+
+### Changed
+- **Auto Mode Enhancement**: Now automatically applies optimal tamper chains when WAF is detected
+- **Scan Mode Enhancement**: Tamper flags available for manual bypass testing
+- **Strategy Integration**: WAF strategy now includes tamper recommendations
+
+### Documentation
+- **README.md Updates**:
+  - Added `tampers` command to Commands table
+  - Expanded Tamper Scripts section with new flags and examples
+  
+- **EXAMPLES.md Updates**:
+  - Added "With Automatic Tamper Selection" subsection to auto mode
+  - Added "With Smart Mode and Tampers" subsection to scan mode
+  - Enhanced bypass command with `--tamper-auto` and `--tamper-profile` examples
+  - Expanded Tamper Scripts section with 5 new subsections:
+    - Auto-Select Tampers (v2.4.2+)
+    - Tamper Profiles (v2.4.2+)
+    - WAF Intelligence Matrix (v2.4.2+)
+    - Test Payload Transformation (v2.4.2+)
+    - Full vendor list for matrix
+
 ## [2.4.1] - 2026-02-02
 
 ### Fixed
