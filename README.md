@@ -16,6 +16,10 @@ Adaptive WAF security testing toolkit. Discover endpoints, detect WAF vendors, a
 - Multiple output formats: JSON, SARIF, CSV, HTML, Markdown
 - **70+ sqlmap-compatible tamper scripts** for WAF bypass (v2.4.0+)
 - **Full GraphQL, gRPC, and SOAP/WSDL protocol support** (v2.4.0+)
+- **httpx-compatible probe command** with 100+ options for recon
+- **ffuf-compatible fuzzer** with recursive mode and clusterbomb support
+- HTTP request smuggling and race condition testing
+- YAML/JSON workflow orchestration for multi-step assessments
 
 ## Protocol Support
 
@@ -188,14 +192,22 @@ waf-tester run -plan testplan.json -format html -o report.html
 | `discover` | Crawl target and find endpoints |
 | `learn` | Generate targeted test plan from discovery |
 | `run` | Execute tests from plan |
-| `scan` | Deep vulnerability scanning |
+| `scan` | Deep vulnerability scanning (50+ categories) |
 | `assess` | Enterprise WAF assessment with metrics |
 | `bypass` | WAF bypass finder using mutation matrix |
 | `mutate` | Test payloads with encoding/evasion combinations |
-| `probe` | Protocol probing and WAF detection |
-| `fuzz` | Directory and content fuzzing |
+| `probe` | Protocol probing and WAF detection (httpx-compatible) |
+| `fuzz` | Directory and content fuzzing (ffuf-compatible) |
+| `crawl` | Advanced web crawling with scope control |
+| `analyze` | JavaScript analysis for endpoints and secrets |
+| `smuggle` | HTTP request smuggling detection |
+| `race` | Race condition testing |
+| `headless` | Headless browser testing |
+| `workflow` | Execute multi-step security workflows |
+| `protocol` | Enterprise protocol detection (gRPC, SOAP, GraphQL) |
+| `report` | Generate enterprise HTML reports |
 | `fp` | False positive testing |
-| `vendor` | Vendor-specific WAF detection |
+| `vendor` | Vendor-specific WAF detection (197 signatures) |
 
 Run `waf-tester <command> -h` for options.
 

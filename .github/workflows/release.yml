@@ -19,6 +19,23 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Verify tag is on main branch
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          # Get the commit SHA that the tag points to
+          TAG_SHA=$(git rev-list -n 1 ${{ github.ref }})
+          
+          # Check if this commit exists on main branch
+          if ! git branch -r --contains "$TAG_SHA" | grep -q "origin/main"; then
+            echo "::error::Tag must be created from main branch. This tag points to a commit not on main."
+            echo "Tagged commit: $TAG_SHA"
+            echo "Branches containing this commit:"
+            git branch -r --contains "$TAG_SHA"
+            exit 1
+          fi
+          
+          echo "✅ Tag verified: commit $TAG_SHA is on main branch"
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
