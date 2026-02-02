@@ -14,7 +14,7 @@ import (
 // Version information - these can be overridden at build time via ldflags:
 // go build -ldflags "-X github.com/waftester/waftester/pkg/ui.Version=1.0.0"
 var (
-	Version   = "2.4.0"
+	Version   = "2.4.1"
 	BuildDate = "2026-02-02"
 	Commit    = "dev"
 )
