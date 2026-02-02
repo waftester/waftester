@@ -52,7 +52,7 @@ func NewActiveDiscoverer(target string, timeout time.Duration, skipVerify bool) 
 	return &ActiveDiscoverer{
 		client:    client,
 		target:    strings.TrimRight(target, "/"),
-		userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+		userAgent: defaults.UAChrome,
 		results:   make([]Endpoint, 0),
 	}
 }

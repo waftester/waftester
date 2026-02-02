@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -84,7 +85,7 @@ type TesterConfig struct {
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:        duration.HTTPFuzzing,
-		UserAgent:      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+		UserAgent:      defaults.UAChrome,
 		MaxConcurrency: 50,
 		Iterations:     1,
 		DelayBetween:   0,

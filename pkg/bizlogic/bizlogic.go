@@ -19,6 +19,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // VulnerabilityType represents the type of business logic vulnerability.
@@ -133,7 +134,7 @@ type Tester struct {
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:     duration.HTTPFuzzing,
-		UserAgent:   "BizLogic-Tester/1.0",
+		UserAgent:   ui.UserAgentWithContext("BizLogic Tester"),
 		Concurrency: defaults.ConcurrencyMedium,
 		RetryCount:  defaults.RetryLow,
 		EnableRace:  true,

@@ -30,7 +30,7 @@ func TestNewDiscoverer(t *testing.T) {
 		if d.config.Concurrency != 10 {
 			t.Errorf("expected default Concurrency 10, got %d", d.config.Concurrency)
 		}
-		if d.config.UserAgent != "WAF-Tester-Discovery/1.0" {
+		if !strings.Contains(d.config.UserAgent, "waftester/") || !strings.Contains(d.config.UserAgent, "Discovery") {
 			t.Errorf("unexpected UserAgent: %s", d.config.UserAgent)
 		}
 	})
@@ -436,7 +436,7 @@ func TestNewExternalSources(t *testing.T) {
 		if es == nil {
 			t.Fatal("expected external sources, got nil")
 		}
-		if es.userAgent != "WAF-Tester-Discovery/1.0" {
+		if !strings.Contains(es.userAgent, "waftester/") || !strings.Contains(es.userAgent, "Discovery") {
 			t.Errorf("expected default user agent, got %s", es.userAgent)
 		}
 	})
