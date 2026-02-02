@@ -80,7 +80,10 @@ func (s *Scanner) TestNegativeQuantity(ctx context.Context, targetURL string, qu
 	}
 	jsonData, _ := json.Marshal(payload)
 
-	req, _ := http.NewRequestWithContext(ctx, "POST", targetURL, strings.NewReader(string(jsonData)))
+	req, err := http.NewRequestWithContext(ctx, "POST", targetURL, strings.NewReader(string(jsonData)))
+	if err != nil {
+		return result, err
+	}
 	req.Header.Set("Content-Type", "application/json")
 	for k, v := range s.config.Headers {
 		req.Header.Set(k, v)
@@ -133,7 +136,10 @@ func (s *Scanner) TestPriceManipulation(ctx context.Context, targetURL string) (
 		}
 
 		jsonData, _ := json.Marshal(test.payload)
-		req, _ := http.NewRequestWithContext(ctx, "POST", targetURL, strings.NewReader(string(jsonData)))
+		req, err := http.NewRequestWithContext(ctx, "POST", targetURL, strings.NewReader(string(jsonData)))
+		if err != nil {
+			continue
+		}
 		req.Header.Set("Content-Type", "application/json")
 		for k, v := range s.config.Headers {
 			req.Header.Set(k, v)
@@ -180,7 +186,10 @@ func (s *Scanner) TestWorkflowBypass(ctx context.Context, steps []string) ([]Res
 				Timestamp:   time.Now(),
 			}
 
-			req, _ := http.NewRequestWithContext(ctx, "GET", steps[i+2], nil)
+			req, err := http.NewRequestWithContext(ctx, "GET", steps[i+2], nil)
+			if err != nil {
+				continue
+			}
 			for k, v := range s.config.Headers {
 				req.Header.Set(k, v)
 			}

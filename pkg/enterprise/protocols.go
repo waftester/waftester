@@ -64,7 +64,10 @@ type DetectedProtocol struct {
 // DetectProtocol auto-detects the protocol at a URL
 func (d *ProtocolDetector) DetectProtocol(ctx context.Context, url string) (*DetectedProtocol, error) {
 	// Try HEAD/GET first
-	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
 	req.Header.Set("Accept", "*/*")
 
 	resp, err := d.client.Do(req)
