@@ -131,3 +131,53 @@ func writeOverlongUTF8_3byte(sb *strings.Builder, b byte) {
 	sb.WriteByte(hexUpperTable[third>>4])
 	sb.WriteByte(hexUpperTable[third&0x0F])
 }
+
+// MSSQL CHAR() lookup table for ASCII values 0-127
+// Pre-computed "CHAR(N)" strings to avoid fmt.Sprintf in hot loops
+var mssqlCharLookup [128]string
+
+func init() {
+	for i := 0; i < 128; i++ {
+		mssqlCharLookup[i] = "CHAR(" + itoa(i) + ")"
+	}
+}
+
+// itoa converts small positive int to string without fmt
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	var buf [3]byte // max 3 digits for 0-127
+	i := len(buf)
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	return string(buf[i:])
+}
+
+// GetMSSQLChar returns the MSSQL CHAR(N) string for a rune.
+// Uses lookup table for ASCII (0-127), falls back to fmt.Sprintf for unicode.
+func GetMSSQLChar(r rune) string {
+	if r >= 0 && r < 128 {
+		return mssqlCharLookup[r]
+	}
+	// Fallback for non-ASCII runes (rare in SQL injection payloads)
+	return "CHAR(" + itoaLarge(int(r)) + ")"
+}
+
+// itoaLarge handles integers larger than 127
+func itoaLarge(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	var buf [10]byte // max 10 digits for int32
+	i := len(buf)
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	return string(buf[i:])
+}

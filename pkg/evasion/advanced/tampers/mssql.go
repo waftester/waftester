@@ -1,7 +1,6 @@
 package tampers
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/waftester/waftester/pkg/regexcache"
@@ -86,13 +85,20 @@ func (t *ChardeclareAndexec) Transform(payload string) string {
 	if payload == "" {
 		return payload
 	}
-	// Convert payload to CHAR representation
-	var chars []string
-	for _, r := range payload {
-		chars = append(chars, fmt.Sprintf("CHAR(%d)", r))
+	// Convert payload to CHAR representation using optimized lookup table
+	var result strings.Builder
+	// Pre-allocate: "DECLARE @x VARCHAR(MAX)=(" + chars + ");EXEC(@x)"
+	// Each char becomes "CHAR(N)+" (~10 chars avg)
+	result.Grow(30 + len(payload)*10)
+	result.WriteString("DECLARE @x VARCHAR(MAX)=(")
+	for i, r := range payload {
+		if i > 0 {
+			result.WriteByte('+')
+		}
+		result.WriteString(GetMSSQLChar(r))
 	}
-	charStr := strings.Join(chars, "+")
-	return fmt.Sprintf("DECLARE @x VARCHAR(MAX)=(%s);EXEC(@x)", charStr)
+	result.WriteString(");EXEC(@x)")
+	return result.String()
 }
 
 // TopClause adds TOP 1 to SELECT statements
