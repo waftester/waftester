@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.4.0] - 2026-02-02
 
+### Fixed
+- **Unicode Truncation Bugs**: Fixed `uint16` truncation for runes > 0xFFFF in hexutil and tampers packages
+- **JSUnicodeEncoder Truncation**: Fixed encoder casting rune to byte, truncating characters > 255
+- **Empty Payload Panic**: Fixed `payload[:1]` panic in protocol.go when payload is empty
+- **Nil Dereference from url.Parse**: Fixed ignored errors causing nil pointer panics in:
+  - `pkg/openapi/generator.go`
+  - `pkg/brokenauth/brokenauth.go`
+  - `pkg/apifuzz/apifuzz.go`
+  - `pkg/discovery/sources.go`
+  - `cmd/cli/main.go`
+- **Nil Dereference from http.NewRequestWithContext**: Fixed ignored errors causing nil pointer panics in:
+  - `pkg/securitymisconfig/securitymisconfig.go`
+  - `pkg/enterprise/protocols.go`
+  - `pkg/businesslogic/businesslogic.go`
+  - `pkg/brokenauth/brokenauth.go`
+  - `pkg/assessment/assessment.go`
+  - `pkg/apiabuse/apiabuse.go`
+  - `pkg/accesscontrol/accesscontrol.go`
+- **Overlong UTF-8 Encoding**: Fixed `WriteOverlong2Byte`/`WriteOverlong3Byte` format bugs in hexutil
+
 ### Added
 - **68 SQLMap-Compatible Tamper Scripts**: Complete port of sqlmap's tamper library for WAF bypass
   - `--tamper` flag to apply payload transformations
