@@ -117,6 +117,22 @@ func TestJSUnicodeEncoder(t *testing.T) {
 	assert.Equal(t, "\\x3cscript\\x3e", result)
 }
 
+func TestJSUnicodeEncoder_NonASCII(t *testing.T) {
+	enc := Get("js-unicode")
+	require.NotNil(t, enc)
+
+	// Test runes 256-65535 use \uXXXX format
+	result, err := enc.Encode("\u0100") // Latin Extended A (256)
+	require.NoError(t, err)
+	assert.Equal(t, "\\u0100", result)
+
+	// Test emoji (runes > 0xFFFF) use extended format
+	// 0x1F525 = 5 hex digits, not 6 (variable length minimal encoding)
+	result, err = enc.Encode("🔥") // U+1F525
+	require.NoError(t, err)
+	assert.Equal(t, "\\u1f525", result)
+}
+
 func TestJSHexEncoder(t *testing.T) {
 	enc := Get("js-hex")
 	require.NotNil(t, enc)
