@@ -287,11 +287,25 @@ func TestWriteHexEntity(t *testing.T) {
 		t.Errorf("WriteHexEntity('A') = %q, expected &#x41;", sb.String())
 	}
 
-	// Multi-byte rune
+	// Multi-byte rune (16-bit)
 	sb.Reset()
 	WriteHexEntity(&sb, 0x1234)
 	if sb.String() != "&#x1234;" {
 		t.Errorf("WriteHexEntity(0x1234) = %q, expected &#x1234;", sb.String())
+	}
+
+	// Emoji - tests runes > 0xFFFF (the bug we fixed!)
+	sb.Reset()
+	WriteHexEntity(&sb, 0x1F525) // 🔥 Fire emoji
+	if sb.String() != "&#x1f525;" {
+		t.Errorf("WriteHexEntity(0x1F525) = %q, expected &#x1f525;", sb.String())
+	}
+
+	// Max unicode codepoint
+	sb.Reset()
+	WriteHexEntity(&sb, 0x10FFFF)
+	if sb.String() != "&#x10ffff;" {
+		t.Errorf("WriteHexEntity(0x10FFFF) = %q, expected &#x10ffff;", sb.String())
 	}
 }
 
@@ -302,11 +316,18 @@ func TestWriteUnicodeEscape(t *testing.T) {
 		t.Errorf("WriteUnicodeEscape('A') = %q, expected \\u0041", sb.String())
 	}
 
-	// Multi-byte rune
+	// Multi-byte rune (16-bit)
 	sb.Reset()
 	WriteUnicodeEscape(&sb, 0x1234)
 	if sb.String() != "\\u1234" {
 		t.Errorf("WriteUnicodeEscape(0x1234) = %q, expected \\u1234", sb.String())
+	}
+
+	// Emoji - tests runes > 0xFFFF (the uint16 truncation bug we fixed!)
+	sb.Reset()
+	WriteUnicodeEscape(&sb, 0x1F525) // 🔥 Fire emoji
+	if sb.String() != "\\u1f525" {
+		t.Errorf("WriteUnicodeEscape(0x1F525) = %q, expected \\u1f525", sb.String())
 	}
 }
 
@@ -315,6 +336,13 @@ func TestWriteUnicodeEscapeUpper(t *testing.T) {
 	WriteUnicodeEscapeUpper(&sb, 0xABCD)
 	if sb.String() != "\\uABCD" {
 		t.Errorf("WriteUnicodeEscapeUpper(0xABCD) = %q, expected \\uABCD", sb.String())
+	}
+
+	// Emoji - tests runes > 0xFFFF
+	sb.Reset()
+	WriteUnicodeEscapeUpper(&sb, 0x1F525) // 🔥 Fire emoji
+	if sb.String() != "\\u1F525" {
+		t.Errorf("WriteUnicodeEscapeUpper(0x1F525) = %q, expected \\u1F525", sb.String())
 	}
 }
 

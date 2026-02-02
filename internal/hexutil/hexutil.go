@@ -150,16 +150,28 @@ func WriteHexEntity(sb *strings.Builder, r rune) {
 	}
 }
 
-// WriteUnicodeEscape writes a rune as \uXXXX to the builder
+// WriteUnicodeEscape writes a rune as \uXXXX to the builder.
+// For runes > 0xFFFF, uses \uXXXXX or \uXXXXXX format (extended)
 func WriteUnicodeEscape(sb *strings.Builder, r rune) {
 	sb.WriteString("\\u")
-	writeHex4(sb, uint16(r))
+	if r <= 0xFFFF {
+		writeHex4(sb, uint16(r))
+	} else {
+		// Extended format for supplementary characters
+		writeHexRune(sb, r)
+	}
 }
 
-// WriteUnicodeEscapeUpper writes a rune as \uXXXX (uppercase) to the builder
+// WriteUnicodeEscapeUpper writes a rune as \uXXXX (uppercase) to the builder.
+// For runes > 0xFFFF, uses \uXXXXX or \uXXXXXX format (extended)
 func WriteUnicodeEscapeUpper(sb *strings.Builder, r rune) {
 	sb.WriteString("\\u")
-	writeHex4Upper(sb, uint16(r))
+	if r <= 0xFFFF {
+		writeHex4Upper(sb, uint16(r))
+	} else {
+		// Extended format for supplementary characters (uppercase)
+		writeHexRuneUpper(sb, r)
+	}
 }
 
 // writeInt writes an integer to the builder without allocations
@@ -194,7 +206,7 @@ func writeHex4Upper(sb *strings.Builder, v uint16) {
 	sb.WriteByte(HexUpper[v&0xF])
 }
 
-// writeHexRune writes a rune as hex digits (variable length)
+// writeHexRune writes a rune as hex digits (variable length, up to 6 digits for Unicode)
 func writeHexRune(sb *strings.Builder, r rune) {
 	if r < 0x10 {
 		sb.WriteByte(HexLower[r])
@@ -205,11 +217,60 @@ func writeHexRune(sb *strings.Builder, r rune) {
 		sb.WriteByte(HexLower[r>>8])
 		sb.WriteByte(HexLower[r>>4&0xF])
 		sb.WriteByte(HexLower[r&0xF])
-	} else {
+	} else if r < 0x10000 {
 		sb.WriteByte(HexLower[r>>12&0xF])
 		sb.WriteByte(HexLower[r>>8&0xF])
 		sb.WriteByte(HexLower[r>>4&0xF])
 		sb.WriteByte(HexLower[r&0xF])
+	} else if r < 0x100000 {
+		// 5 hex digits (0x10000 - 0xFFFFF)
+		sb.WriteByte(HexLower[r>>16&0xF])
+		sb.WriteByte(HexLower[r>>12&0xF])
+		sb.WriteByte(HexLower[r>>8&0xF])
+		sb.WriteByte(HexLower[r>>4&0xF])
+		sb.WriteByte(HexLower[r&0xF])
+	} else {
+		// 6 hex digits (0x100000 - 0x10FFFF)
+		sb.WriteByte(HexLower[r>>20&0xF])
+		sb.WriteByte(HexLower[r>>16&0xF])
+		sb.WriteByte(HexLower[r>>12&0xF])
+		sb.WriteByte(HexLower[r>>8&0xF])
+		sb.WriteByte(HexLower[r>>4&0xF])
+		sb.WriteByte(HexLower[r&0xF])
+	}
+}
+
+// writeHexRuneUpper writes a rune as uppercase hex digits (variable length, up to 6 digits)
+func writeHexRuneUpper(sb *strings.Builder, r rune) {
+	if r < 0x10 {
+		sb.WriteByte(HexUpper[r])
+	} else if r < 0x100 {
+		sb.WriteByte(HexUpper[r>>4])
+		sb.WriteByte(HexUpper[r&0xF])
+	} else if r < 0x1000 {
+		sb.WriteByte(HexUpper[r>>8])
+		sb.WriteByte(HexUpper[r>>4&0xF])
+		sb.WriteByte(HexUpper[r&0xF])
+	} else if r < 0x10000 {
+		sb.WriteByte(HexUpper[r>>12&0xF])
+		sb.WriteByte(HexUpper[r>>8&0xF])
+		sb.WriteByte(HexUpper[r>>4&0xF])
+		sb.WriteByte(HexUpper[r&0xF])
+	} else if r < 0x100000 {
+		// 5 hex digits (0x10000 - 0xFFFFF)
+		sb.WriteByte(HexUpper[r>>16&0xF])
+		sb.WriteByte(HexUpper[r>>12&0xF])
+		sb.WriteByte(HexUpper[r>>8&0xF])
+		sb.WriteByte(HexUpper[r>>4&0xF])
+		sb.WriteByte(HexUpper[r&0xF])
+	} else {
+		// 6 hex digits (0x100000 - 0x10FFFF)
+		sb.WriteByte(HexUpper[r>>20&0xF])
+		sb.WriteByte(HexUpper[r>>16&0xF])
+		sb.WriteByte(HexUpper[r>>12&0xF])
+		sb.WriteByte(HexUpper[r>>8&0xF])
+		sb.WriteByte(HexUpper[r>>4&0xF])
+		sb.WriteByte(HexUpper[r&0xF])
 	}
 }
 
