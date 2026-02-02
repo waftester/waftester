@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/waftester/waftester/internal/hexutil"
 )
 
 // Category represents the category of evasion technique.
@@ -682,12 +684,13 @@ func TripleURLEncode(s string) string {
 // MixedCaseURLEncode uses mixed case hex in URL encoding.
 func MixedCaseURLEncode(s string) string {
 	var buf bytes.Buffer
+	buf.Grow(len(s) * 3)
 	for _, b := range []byte(s) {
 		if shouldEncode(b) {
 			if rand.Intn(2) == 0 {
-				fmt.Fprintf(&buf, "%%%02X", b)
+				buf.WriteString(hexutil.URLEncoded[b])
 			} else {
-				fmt.Fprintf(&buf, "%%%02x", b)
+				buf.WriteString(hexutil.URLEncodedLower[b])
 			}
 		} else {
 			buf.WriteByte(b)
