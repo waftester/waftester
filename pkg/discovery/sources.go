@@ -657,7 +657,10 @@ func resolveURL(link, baseURL string) string {
 		return "https:" + link
 	}
 	if strings.HasPrefix(link, "/") {
-		base, _ := url.Parse(baseURL)
+		base, err := url.Parse(baseURL)
+		if err != nil || base.Host == "" {
+			return baseURL + link // fallback
+		}
 		return base.Scheme + "://" + base.Host + link
 	}
 	return baseURL + "/" + link
