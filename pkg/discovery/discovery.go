@@ -19,6 +19,7 @@ import (
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/js"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // Endpoint represents a discovered API endpoint
@@ -123,7 +124,7 @@ func NewDiscoverer(cfg DiscoveryConfig) *Discoverer {
 		cfg.Concurrency = defaults.ConcurrencyMedium
 	}
 	if cfg.UserAgent == "" {
-		cfg.UserAgent = "WAF-Tester-Discovery/1.0"
+		cfg.UserAgent = ui.UserAgentWithContext("Discovery")
 	}
 
 	// Use provided HTTPClient (e.g., JA3-aware) or create default

@@ -22,6 +22,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // ExternalSources provides methods to discover endpoints from external sources
@@ -36,7 +37,7 @@ func NewExternalSources(timeout time.Duration, userAgent string) *ExternalSource
 		timeout = httpclient.TimeoutScanning
 	}
 	if userAgent == "" {
-		userAgent = "WAF-Tester-Discovery/1.0"
+		userAgent = ui.UserAgentWithContext("Discovery")
 	}
 	return &ExternalSources{
 		httpClient: httpclient.New(httpclient.WithTimeout(timeout)),

@@ -78,7 +78,7 @@ type TesterConfig struct {
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:        duration.DialTimeout,
-		UserAgent:      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+		UserAgent:      defaults.UAChrome,
 		MaxRedirects:   defaults.MaxRedirects,
 		AttackerDomain: "evil.com",
 	}

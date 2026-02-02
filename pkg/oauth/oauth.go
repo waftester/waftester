@@ -19,6 +19,7 @@ import (
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // VulnerabilityType represents the type of OAuth vulnerability.
@@ -105,7 +106,7 @@ type Tester struct {
 func DefaultTesterConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:        duration.HTTPFuzzing,
-		UserAgent:      "OAuth-Tester/1.0",
+		UserAgent:      ui.UserAgentWithContext("OAuth Tester"),
 		Concurrency:    defaults.ConcurrencyLow,
 		Cookies:        make(map[string]string),
 		FollowRedirect: false,

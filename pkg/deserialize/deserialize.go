@@ -19,6 +19,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // VulnerabilityType represents the type of deserialization vulnerability.
@@ -94,7 +95,7 @@ type Tester struct {
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:        duration.HTTPFuzzing,
-		UserAgent:      "Deserialize-Tester/1.0",
+		UserAgent:      ui.UserAgentWithContext("Deserialize Tester"),
 		Concurrency:    defaults.ConcurrencyLow,
 		Parameters:     []string{"data", "object", "session", "token", "state", "viewstate"},
 		Cookies:        make(map[string]string),

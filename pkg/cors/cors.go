@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
@@ -72,7 +73,7 @@ type TesterConfig struct {
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:         httpclient.TimeoutProbing,
-		UserAgent:       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+		UserAgent:       defaults.UAChrome,
 		FollowRedirects: false,
 	}
 }

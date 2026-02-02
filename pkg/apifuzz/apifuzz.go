@@ -21,6 +21,7 @@ import (
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // FuzzType represents the type of fuzzing to perform.
@@ -173,7 +174,7 @@ type Tester struct {
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:       duration.HTTPFuzzing,
-		UserAgent:     "API-Fuzzer/1.0",
+		UserAgent:     ui.UserAgentWithContext("API Fuzzer"),
 		Concurrency:   defaults.ConcurrencyMedium,
 		MaxIterations: 100,
 		FuzzTypes:     []FuzzType{FuzzMutation, FuzzSmart},

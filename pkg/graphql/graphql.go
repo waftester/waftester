@@ -17,6 +17,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // AttackType represents different GraphQL attack types
@@ -167,7 +168,7 @@ type TesterConfig struct {
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
 		Timeout:         duration.HTTPFuzzing,
-		UserAgent:       "Mozilla/5.0 (compatible; GraphQLTester/1.0)",
+		UserAgent:       ui.UserAgentWithContext("GraphQL Tester"),
 		MaxDepth:        defaults.DepthGraphQL,
 		MaxBatchSize:    100,
 		SafeMode:        true,
