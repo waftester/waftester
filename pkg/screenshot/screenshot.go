@@ -10,6 +10,16 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
+)
+
+// Timeout constants for screenshot operations
+var (
+	// TimeoutFuzzing is the default timeout for screenshot capture (30s)
+	// Uses duration.BrowserPage for consistency across codebase
+	TimeoutFuzzing = duration.BrowserPage
 )
 
 // Config configures screenshot capture
@@ -42,10 +52,10 @@ func DefaultConfig() Config {
 		FullPage:    false,
 		Quality:     80,
 		Format:      FormatPNG,
-		Timeout:     30 * time.Second,
-		WaitFor:     2 * time.Second,
+		Timeout:     TimeoutFuzzing,
+		WaitFor:     duration.BrowserIdle,
 		OutputDir:   "screenshots",
-		Concurrency: 5,
+		Concurrency: defaults.ConcurrencyLow,
 	}
 }
 
@@ -83,10 +93,10 @@ func NewCapturer(config Config) *Capturer {
 		config.Quality = 80
 	}
 	if config.Timeout <= 0 {
-		config.Timeout = 30 * time.Second
+		config.Timeout = TimeoutFuzzing
 	}
 	if config.Concurrency <= 0 {
-		config.Concurrency = 5
+		config.Concurrency = defaults.ConcurrencyLow
 	}
 	if config.Format == "" {
 		config.Format = FormatPNG

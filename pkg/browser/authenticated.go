@@ -19,6 +19,7 @@ import (
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/storage"
 	"github.com/chromedp/chromedp"
+	"github.com/waftester/waftester/pkg/duration"
 )
 
 // AuthenticatedScanner provides authenticated browser-based discovery
@@ -52,9 +53,9 @@ type AuthConfig struct {
 // DefaultAuthConfig returns sensible defaults for authenticated scanning
 func DefaultAuthConfig() *AuthConfig {
 	return &AuthConfig{
-		Timeout:        5 * time.Minute,
-		WaitForLogin:   3 * time.Minute, // User has 3 minutes to log in
-		PostLoginDelay: 5 * time.Second,
+		Timeout:        duration.HTTPLongOps,
+		WaitForLogin:   duration.BrowserLogin, // User has 3 minutes to log in
+		PostLoginDelay: duration.BrowserPostWait,
 		CrawlDepth:     3,
 		ShowBrowser:    true, // Show browser for manual login
 		Verbose:        true,
@@ -528,7 +529,7 @@ func (s *AuthenticatedScanner) runChromedpScan(ctx context.Context, result *Brow
 
 	// Minimum wait before checking auth - prevents false positives from initial page load
 	// User needs time to actually log in, and SPAs can briefly show target URL during redirect
-	minWaitTime := 15 * time.Second
+	minWaitTime := duration.BrowserMinWait
 	startTime := time.Now()
 
 	// Poll for login indicators
@@ -544,7 +545,7 @@ func (s *AuthenticatedScanner) runChromedpScan(ctx context.Context, result *Brow
 			elapsed := time.Since(startTime)
 			if elapsed < minWaitTime {
 				// Still in minimum wait period - just wait
-				time.Sleep(1 * time.Second)
+				time.Sleep(duration.RetryFast)
 				continue
 			}
 
@@ -700,7 +701,7 @@ func (s *AuthenticatedScanner) runChromedpScan(ctx context.Context, result *Brow
 			// Navigate to link
 			err = chromedp.Run(browserCtx,
 				chromedp.Navigate(link),
-				chromedp.Sleep(1*time.Second),
+				chromedp.Sleep(duration.RetryFast),
 			)
 			if err != nil {
 				if s.config.Verbose && progressFn != nil {

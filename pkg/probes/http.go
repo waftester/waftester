@@ -13,6 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -45,10 +48,10 @@ type HTTPProber struct {
 // NewHTTPProber creates a new HTTP prober with defaults
 func NewHTTPProber() *HTTPProber {
 	return &HTTPProber{
-		DialTimeout:  5 * time.Second,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 5 * time.Second,
-		MaxRedirects: 5,
+		DialTimeout:  duration.HTTPProbing,
+		ReadTimeout:  duration.DialTimeout,
+		WriteTimeout: duration.HTTPProbing,
+		MaxRedirects: defaults.MaxRedirects,
 		UserAgent:    ui.UserAgentWithContext("prober"),
 	}
 }
@@ -339,17 +342,7 @@ func (p *HTTPProber) ProbeMethods(ctx context.Context, host string, port int, us
 
 	url := fmt.Sprintf("%s://%s:%d%s", scheme, host, port, path)
 
-	client := &http.Client{
-		Timeout: p.ReadTimeout,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
+	client := httpclient.Default()
 
 	// First try OPTIONS
 	req, err := http.NewRequestWithContext(ctx, "OPTIONS", url, nil)
@@ -420,7 +413,7 @@ type VHostProber struct {
 // NewVHostProber creates a new vhost prober
 func NewVHostProber() *VHostProber {
 	return &VHostProber{
-		Timeout:   10 * time.Second,
+		Timeout:   duration.DialTimeout,
 		UserAgent: ui.UserAgentWithContext("vhost-prober"),
 	}
 }
@@ -434,17 +427,7 @@ func (p *VHostProber) ProbeVHosts(ctx context.Context, targetIP string, port int
 
 	baseURL := fmt.Sprintf("%s://%s:%d/", scheme, targetIP, port)
 
-	client := &http.Client{
-		Timeout: p.Timeout,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
+	client := httpclient.Default()
 
 	// Get baseline with original domain
 	baseReq, err := http.NewRequestWithContext(ctx, "GET", baseURL, nil)

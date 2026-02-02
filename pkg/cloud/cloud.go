@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -81,7 +83,7 @@ func NewManager() *Manager {
 	return &Manager{
 		clients:  make(map[Provider]CloudClient),
 		cache:    make(map[string][]*Resource),
-		cacheTTL: 5 * time.Minute,
+		cacheTTL: duration.CacheMedium,
 	}
 }
 
@@ -208,9 +210,7 @@ func NewAWSClient(accessKeyID, secretAccessKey, region string) *AWSClient {
 		AccessKeyID:     accessKeyID,
 		SecretAccessKey: secretAccessKey,
 		Region:          region,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		httpClient:      httpclient.Default(),
 	}
 }
 
@@ -381,9 +381,7 @@ func NewGCPClient(projectID, serviceAccount string) *GCPClient {
 	return &GCPClient{
 		ProjectID:      projectID,
 		ServiceAccount: serviceAccount,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		httpClient:     httpclient.Default(),
 	}
 }
 
@@ -524,9 +522,7 @@ func NewAzureClient(subscriptionID, tenantID, clientID, clientSecret string) *Az
 		TenantID:       tenantID,
 		ClientID:       clientID,
 		ClientSecret:   clientSecret,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		httpClient:     httpclient.Default(),
 	}
 }
 

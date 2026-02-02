@@ -5,6 +5,42 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.3] - 2026-02-02
+
+### Added
+- **HTTP Client Pooling**: Industry-aligned connection pooling with semantic presets
+  - New `pkg/httpclient` package with `NewScanner()`, `NewProbing()`, `NewAggressive()` presets
+  - Aligned with fasthttp, Caddy, Traefik, Nuclei, HTTPx best practices
+  
+- **Centralized Configuration**: Single source of truth for all runtime defaults
+  - New `pkg/defaults` package: Concurrency, Retry, Buffer, Channel, ContentType, UserAgent, Depth, MaxRedirects
+  - New `pkg/duration` package: All timeout and interval constants
+  
+- **10 AST-Based Enforcement Tests**: Prevent configuration drift at compile time
+  - `TestVersionConsistency`: Ensures ui.Version == defaults.Version, checks SECURITY.md
+  - `TestNoHardcodedConcurrency`: All concurrency values use `defaults.Concurrency*`
+  - `TestNoHardcodedRetries`: All retry counts use `defaults.Retry*`
+  - `TestNoHardcodedMaxDepth`: All depth limits use `defaults.Depth*`
+  - `TestNoHardcodedMaxRedirects`: All redirect limits use `defaults.MaxRedirects`
+  - `TestNoHardcodedContentType`: All content types use `defaults.ContentType*`
+  - `TestNoHardcodedUserAgent`: All UAs use `defaults.UA*` or `ui.UserAgentWithContext()`
+  - `TestNoHardcodedTimeouts`: All timeouts use `duration.Timeout*`
+  - `TestNoHardcodedIntervals`: All intervals use `duration.Interval*`
+  - `TestNoRawHTTPClient`: No raw `&http.Client{}`, must use `httpclient.*`
+
+### Changed
+- **User-Agent Unification**: All components now use consistent UA format
+  - Browser-like UAs use `defaults.UAChrome`, `defaults.UAFirefox`, etc.
+  - Component-specific UAs use `ui.UserAgentWithContext("Component")` → `waftester/2.4.3 (Component)`
+  
+- **Version Management**: Single source of truth in `defaults.Version`
+  - `ui.Version` now references `defaults.Version`
+  - SARIF output, enhanced JSON, and all reports use centralized version
+
+### Fixed
+- **54+ Files Updated**: Migrated hardcoded values to centralized constants
+- **Test Expectations**: Updated tests to use `defaults.*` constants instead of magic numbers
+
 ## [2.4.2] - 2026-02-02
 
 ### Added

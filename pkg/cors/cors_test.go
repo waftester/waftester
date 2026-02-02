@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 func TestNewTester(t *testing.T) {
@@ -35,8 +37,8 @@ func TestNewTester(t *testing.T) {
 func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
 
-	if config.Timeout != 10*time.Second {
-		t.Errorf("expected 10s timeout, got %v", config.Timeout)
+	if config.Timeout != httpclient.TimeoutProbing {
+		t.Errorf("expected %v timeout, got %v", httpclient.TimeoutProbing, config.Timeout)
 	}
 	if config.FollowRedirects {
 		t.Error("expected follow redirects to be false")

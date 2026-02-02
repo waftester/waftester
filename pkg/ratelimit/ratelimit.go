@@ -7,6 +7,8 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/duration"
 )
 
 // Config holds rate limiting configuration
@@ -49,7 +51,7 @@ func DefaultConfig() *Config {
 		PerHost:           false,
 		AdaptiveSlowdown:  false,
 		SlowdownFactor:    1.5,
-		SlowdownMaxDelay:  10 * time.Second,
+		SlowdownMaxDelay:  duration.VerySlowResponse,
 		RecoveryRate:      0.9,
 		Burst:             10,
 	}
@@ -457,7 +459,7 @@ func NewAdaptive(rps int, baseDelay time.Duration) *Limiter {
 		Delay:             baseDelay,
 		AdaptiveSlowdown:  true,
 		SlowdownFactor:    1.5,
-		SlowdownMaxDelay:  10 * time.Second,
+		SlowdownMaxDelay:  duration.VerySlowResponse,
 		RecoveryRate:      0.9,
 	})
 }

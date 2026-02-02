@@ -12,6 +12,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
 )
 
 // Config configures DNS bruteforce
@@ -28,10 +31,10 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Concurrency:    100,
-		Timeout:        3 * time.Second,
+		Concurrency:    defaults.ConcurrencyDNS,
+		Timeout:        duration.DNSTimeout,
 		Resolvers:      DefaultResolvers(),
-		Retries:        2,
+		Retries:        defaults.RetryLow,
 		WildcardFilter: true,
 		RecursionDepth: 0, // No recursion by default
 	}
@@ -88,16 +91,16 @@ type Bruteforcer struct {
 // NewBruteforcer creates a DNS bruteforcer
 func NewBruteforcer(config Config) *Bruteforcer {
 	if config.Concurrency <= 0 {
-		config.Concurrency = 100
+		config.Concurrency = defaults.ConcurrencyDNS
 	}
 	if config.Timeout <= 0 {
-		config.Timeout = 3 * time.Second
+		config.Timeout = duration.DNSTimeout
 	}
 	if len(config.Resolvers) == 0 {
 		config.Resolvers = DefaultResolvers()
 	}
 	if config.Retries <= 0 {
-		config.Retries = 2
+		config.Retries = defaults.RetryLow
 	}
 
 	resolvers := make([]*net.Resolver, len(config.Resolvers))

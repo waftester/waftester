@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -24,8 +26,8 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Concurrency: 5,
-		Timeout:     15 * time.Second,
+		Concurrency: defaults.ConcurrencyLow,
+		Timeout:     httpclient.TimeoutScanning,
 	}
 }
 
@@ -54,17 +56,15 @@ type Scanner struct {
 // NewScanner creates a new cache poisoning scanner
 func NewScanner(config Config) *Scanner {
 	if config.Concurrency <= 0 {
-		config.Concurrency = 5
+		config.Concurrency = defaults.ConcurrencyLow
 	}
 	if config.Timeout <= 0 {
-		config.Timeout = 15 * time.Second
+		config.Timeout = httpclient.TimeoutScanning
 	}
 
 	return &Scanner{
-		config: config,
-		client: &http.Client{
-			Timeout: config.Timeout,
-		},
+		config:  config,
+		client:  httpclient.Scanning(),
 		results: make([]Result, 0),
 	}
 }

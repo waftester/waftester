@@ -13,11 +13,13 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/benchmark"
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/encoding"
 	"github.com/waftester/waftester/pkg/evasion/advanced"
 	"github.com/waftester/waftester/pkg/falsepositive"
 	"github.com/waftester/waftester/pkg/ftw"
 	"github.com/waftester/waftester/pkg/health"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/override"
 	"github.com/waftester/waftester/pkg/paranoia"
 	"github.com/waftester/waftester/pkg/placeholder"
@@ -57,8 +59,8 @@ func DefaultConfig() *Config {
 		Verbose:     false,
 		Output:      "",
 		Format:      "json",
-		Timeout:     30 * time.Second,
-		Concurrency: 10,
+		Timeout:     httpclient.TimeoutFuzzing,
+		Concurrency: defaults.ConcurrencyMedium,
 		Tags:        []string{},
 	}
 }
@@ -274,7 +276,7 @@ func RunHealth(opts *HealthOptions, w io.Writer) error {
 	if opts.Wait {
 		timeout := opts.Timeout
 		if timeout == 0 {
-			timeout = 60 * time.Second
+			timeout = httpclient.TimeoutAPI
 		}
 		waiterCfg := health.DefaultWaiterConfig()
 		waiterCfg.Timeout = timeout

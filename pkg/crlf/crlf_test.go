@@ -8,6 +8,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 func TestNewTester(t *testing.T) {
@@ -36,8 +39,8 @@ func TestNewTester(t *testing.T) {
 func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
 
-	if config.Timeout != 30*time.Second {
-		t.Errorf("expected timeout 30s, got %v", config.Timeout)
+	if config.Timeout != httpclient.TimeoutFuzzing {
+		t.Errorf("expected timeout %v, got %v", httpclient.TimeoutFuzzing, config.Timeout)
 	}
 
 	if len(config.TestParams) == 0 {
@@ -117,7 +120,7 @@ func TestDetectInjection(t *testing.T) {
 		resp := &http.Response{
 			Header: make(http.Header),
 		}
-		resp.Header.Set("Content-Type", "text/html")
+		resp.Header.Set("Content-Type", defaults.ContentTypeHTML)
 
 		payload := Payload{
 			Type:   VulnHeaderInjection,

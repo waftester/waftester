@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -46,19 +48,11 @@ type SampleResult struct {
 // NewCalibrator creates a new calibrator
 func NewCalibrator(baseURL string) *Calibrator {
 	return &Calibrator{
-		Client: &http.Client{
-			Timeout: 30 * time.Second,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				if len(via) >= 10 {
-					return fmt.Errorf("too many redirects")
-				}
-				return nil
-			},
-		},
+		Client:     httpclient.Default(),
 		BaseURL:    baseURL,
 		Builder:    NewBuilder(baseURL),
 		Detector:   NewBlockDetector(),
-		Timeout:    10 * time.Second,
+		Timeout:    duration.DialTimeout,
 		NumSamples: 3,
 	}
 }
