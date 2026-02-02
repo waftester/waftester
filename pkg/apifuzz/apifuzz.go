@@ -580,11 +580,15 @@ func (t *Tester) sendFuzzRequest(ctx context.Context, baseURL string, endpoint E
 
 	switch param.In {
 	case "query":
-		u, _ := url.Parse(fullURL)
-		q := u.Query()
-		q.Set(param.Name, payload)
-		u.RawQuery = q.Encode()
-		req, err = http.NewRequestWithContext(ctx, endpoint.Method, u.String(), nil)
+		u, parseErr := url.Parse(fullURL)
+		if parseErr != nil {
+			req, err = http.NewRequestWithContext(ctx, endpoint.Method, fullURL, nil)
+		} else {
+			q := u.Query()
+			q.Set(param.Name, payload)
+			u.RawQuery = q.Encode()
+			req, err = http.NewRequestWithContext(ctx, endpoint.Method, u.String(), nil)
+		}
 
 	case "path":
 		fullURL = strings.Replace(fullURL, "{"+param.Name+"}", url.PathEscape(payload), 1)
