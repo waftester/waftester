@@ -1,22 +1,56 @@
 # WAFtester Examples Guide
 
-Complete usage examples for WAFtester commands.
+Complete usage examples for WAFtester commands and features.
 
 ## Table of Contents
 
 - [Quick Start](#quick-start)
-- [Automated Scanning (auto)](#automated-scanning-auto)
-- [Enterprise Assessment (assess)](#enterprise-assessment-assess)
-- [Vulnerability Scanning (scan)](#vulnerability-scanning-scan)
-- [WAF Detection (vendor)](#waf-detection-vendor)
-- [Bypass Hunting (bypass)](#bypass-hunting-bypass)
-- [Mutation Testing (mutate)](#mutation-testing-mutate)
-- [False Positive Testing (fp)](#false-positive-testing-fp)
-- [Content Fuzzing (fuzz)](#content-fuzzing-fuzz)
-- [Protocol Probing (probe)](#protocol-probing-probe)
-- [Discovery and Planning](#discovery-and-planning)
+- [Core Commands](#core-commands)
+  - [Automated Scanning (auto)](#automated-scanning-auto)
+  - [Enterprise Assessment (assess)](#enterprise-assessment-assess)
+  - [Vulnerability Scanning (scan)](#vulnerability-scanning-scan)
+  - [WAF Detection (vendor)](#waf-detection-vendor)
+  - [Protocol Detection (protocol)](#protocol-detection-protocol)
+  - [Bypass Hunting (bypass)](#bypass-hunting-bypass)
+  - [Mutation Testing (mutate)](#mutation-testing-mutate)
+  - [False Positive Testing (fp)](#false-positive-testing-fp)
+  - [Content Fuzzing (fuzz)](#content-fuzzing-fuzz)
+  - [Protocol Probing (probe)](#protocol-probing-probe)
+  - [HTTP Smuggling (smuggle)](#http-smuggling-smuggle)
+  - [Race Condition Testing (race)](#race-condition-testing-race)
+  - [Web Crawling (crawl)](#web-crawling-crawl)
+  - [JavaScript Analysis (analyze)](#javascript-analysis-analyze)
+  - [Headless Browser Testing (headless)](#headless-browser-testing-headless)
+- [Workflow Commands](#workflow-commands)
+  - [Discovery and Planning](#discovery-and-planning)
+  - [Test Execution (run)](#test-execution-run)
+  - [Workflow Orchestration](#workflow-orchestration)
+- [Protocol Testing](#protocol-testing)
+  - [GraphQL Security Testing](#graphql-security-testing)
+  - [gRPC Security Testing](#grpc-security-testing)
+  - [SOAP/WSDL Security Testing](#soapwsdl-security-testing)
+- [Tamper Scripts](#tamper-scripts)
+- [Mutation Engine](#mutation-engine)
+  - [Encoders](#encoders)
+  - [Evasion Techniques](#evasion-techniques)
+  - [Injection Locations](#injection-locations)
+  - [Protocol Mutations](#protocol-mutations)
+- [Smart Mode](#smart-mode)
 - [Output Formats](#output-formats)
 - [CI/CD Integration](#cicd-integration)
+- [Advanced Options](#advanced-options)
+  - [Headers and Authentication](#headers-and-authentication)
+  - [Proxies](#proxies)
+  - [Rate Limiting](#rate-limiting)
+  - [Response Filtering](#response-filtering)
+  - [Realistic Mode](#realistic-mode)
+  - [Resume and Checkpoints](#resume-and-checkpoints)
+  - [JA3 Fingerprint Rotation](#ja3-fingerprint-rotation)
+- [Browser Scanning](#browser-scanning)
+- [Multiple Targets](#multiple-targets)
+- [Utility Commands](#utility-commands)
+  - [Enterprise Report Generation](#enterprise-report-generation-report)
+- [Attack Categories Reference](#attack-categories-reference)
 - [Real-World Scenarios](#real-world-scenarios)
 
 ---
@@ -46,15 +80,19 @@ waf-tester run -plan testplan.json -format html -o report.html
 
 ---
 
-## Automated Scanning (auto)
+## Core Commands
 
-### Basic Usage
+### Automated Scanning (auto)
+
+Full automated workflow: discover → analyze JS → learn → run → report.
+
+#### Basic Usage
 
 ```bash
 waf-tester auto -u https://example.com
 ```
 
-### With Smart Mode
+#### With Smart Mode
 
 Smart mode detects the WAF vendor and optimizes testing:
 
@@ -62,7 +100,7 @@ Smart mode detects the WAF vendor and optimizes testing:
 waf-tester auto -u https://example.com --smart
 ```
 
-### Full Options
+#### Full Options
 
 ```bash
 waf-tester auto -u https://example.com \
@@ -76,21 +114,24 @@ waf-tester auto -u https://example.com \
 | Option | Description |
 |--------|-------------|
 | `--smart` | Enable WAF-aware testing |
-| `--smart-mode=full` | Use all bypass techniques |
-| `-c 100` | 100 parallel workers |
-| `-rl 300` | 300 requests per second |
+| `--smart-mode=MODE` | Optimization level: `quick`, `standard`, `full`, `bypass`, `stealth` |
+| `-c N` | Parallel workers (default: 25) |
+| `-rl N` | Requests per second (default: 150) |
 | `--browser` | Enable authenticated browser scanning |
 
-### Service-Specific Scanning
+#### Service-Specific Scanning
 
 ```bash
 waf-tester auto -u https://myblog.com -service wordpress
 waf-tester auto -u https://myapp.com -service django
+waf-tester auto -u https://store.com -service nextjs
 ```
 
-Available services: `wordpress`, `drupal`, `nextjs`, `flask`, `django`
+Available services: `wordpress`, `drupal`, `nextjs`, `flask`, `django`, `rails`, `laravel`, `spring`
 
-### Stealth Mode
+#### Stealth Mode
+
+Low and slow scanning to avoid detection:
 
 ```bash
 waf-tester auto -u https://example.com \
@@ -102,17 +143,17 @@ waf-tester auto -u https://example.com \
 
 ---
 
-## Enterprise Assessment (assess)
+### Enterprise Assessment (assess)
 
 Professional WAF assessment with quantitative metrics.
 
-### Basic Assessment
+#### Basic Assessment
 
 ```bash
 waf-tester assess -u https://example.com
 ```
 
-### Full Assessment with Output
+#### Full Assessment with Output
 
 ```bash
 waf-tester assess -u https://example.com \
@@ -122,15 +163,18 @@ waf-tester assess -u https://example.com \
   -o assessment.json
 ```
 
-### Metrics Produced
+#### Metrics Produced
 
-- **Detection Rate (TPR)** - Percentage of attacks blocked
-- **False Positive Rate (FPR)** - Percentage of legitimate traffic blocked
-- **Precision** - Percentage of blocks that were real attacks
-- **F1 Score** - Harmonic mean of precision and recall
-- **MCC** - Matthews Correlation Coefficient
+| Metric | Description |
+|--------|-------------|
+| **Detection Rate (TPR)** | Percentage of attacks blocked |
+| **False Positive Rate (FPR)** | Percentage of legitimate traffic blocked |
+| **Precision** | Percentage of blocks that were real attacks |
+| **Recall** | Percentage of real attacks that were blocked |
+| **F1 Score** | Harmonic mean of precision and recall |
+| **MCC** | Matthews Correlation Coefficient |
 
-### Custom Categories
+#### Custom Categories
 
 ```bash
 waf-tester assess -u https://example.com \
@@ -138,69 +182,176 @@ waf-tester assess -u https://example.com \
   -o assessment.json
 ```
 
+#### With Streaming Output for CI
+
+```bash
+waf-tester assess -u https://example.com --stream -format json -o report.json
+```
+
 ---
 
-## Vulnerability Scanning (scan)
+### Vulnerability Scanning (scan)
 
-### Basic Scan
+Deep vulnerability scanning with 50+ attack categories.
+
+#### Basic Scan
 
 ```bash
 waf-tester scan -u https://target.com
 ```
 
-### Specific Categories
+#### Specific Categories
 
 ```bash
 waf-tester scan -u https://target.com -category sqli,xss,traversal
+waf-tester scan -u https://target.com -types sqli,xss,traversal  # alias
 ```
 
-### Multiple Targets
+#### Multiple Targets
 
 ```bash
 waf-tester scan -l targets.txt -c 50
 ```
 
-### All Available Categories
+#### All Available Categories
 
 ```bash
 waf-tester scan -u https://target.com -types all
 ```
 
-Categories: `sqli`, `xss`, `traversal`, `cmdi`, `nosqli`, `ssrf`, `ssti`, `xxe`, `smuggling`, `oauth`, `jwt`, `cors`, `redirect`, `hostheader`, `cache`, `upload`, `deserialize`, `bizlogic`, `race`
+See [Attack Categories Reference](#attack-categories-reference) for full list.
+
+#### Severity Filtering
+
+```bash
+# Match only critical and high severity findings
+waf-tester scan -u https://target.com -msev critical,high
+
+# Filter out low severity
+waf-tester scan -u https://target.com -fsev low
+
+# Match specific category
+waf-tester scan -u https://target.com -mcat sqli,xss
+
+# Filter specific category
+waf-tester scan -u https://target.com -fcat info
+```
+
+#### OAuth Testing
+
+```bash
+# Scan OAuth endpoints
+waf-tester scan -u https://auth.example.com -types oauth \
+  -oauth-client-id "client123" \
+  -oauth-auth-endpoint "https://auth.example.com/authorize" \
+  -oauth-token-endpoint "https://auth.example.com/token" \
+  -oauth-redirect-uri "https://app.example.com/callback"
+```
+
+#### Debug Options
+
+```bash
+# Enable debug output
+waf-tester scan -u https://target.com -debug
+
+# Show request details
+waf-tester scan -u https://target.com -dreq
+
+# Show response details
+waf-tester scan -u https://target.com -dresp
+
+# CPU/Memory profiling
+waf-tester scan -u https://target.com -profile -mem-profile
+```
+
+#### Dry Run
+
+```bash
+# Show what would be scanned without actually scanning
+waf-tester scan -u https://target.com -dry-run
+```
+
+#### Report Options
+
+```bash
+# Custom report title and author
+waf-tester scan -u https://target.com \
+  -report-title "Security Assessment Q1 2026" \
+  -report-author "Security Team"
+
+# Include/exclude evidence and remediation
+waf-tester scan -u https://target.com -ie=false -ir=false
+```
+
+#### Scope Control
+
+```bash
+# Exclude scan types
+waf-tester scan -u https://target.com -et info,techdetect
+
+# Exclude URL patterns
+waf-tester scan -u https://target.com -ep "logout|signout"
+
+# Include only matching patterns
+waf-tester scan -u https://target.com -ip "api/v2"
+```
 
 ---
 
-## WAF Detection (vendor)
+### WAF Detection (vendor)
 
-### Detect WAF Vendor
+Detect WAF vendor from 197+ signatures.
+
+#### Detect WAF Vendor
 
 ```bash
 waf-tester vendor -u https://target.com
 ```
 
-### JSON Output
+#### JSON Output
 
 ```bash
 waf-tester vendor -u https://target.com -output waf-info.json
 ```
 
-### Protocol Detection
+#### With Bypass Hints
+
+The vendor command shows WAF-specific bypass techniques:
+
+```bash
+waf-tester vendor -u https://target.com -v
+```
+
+---
+
+### Protocol Detection (protocol)
+
+Enterprise protocol detection (gRPC, SOAP, GraphQL, WCF).
 
 ```bash
 waf-tester protocol -u https://target.com
 ```
 
+Detects:
+- GraphQL endpoints
+- gRPC services
+- SOAP/WSDL services
+- WCF endpoints
+- REST API patterns
+
 ---
 
-## Bypass Hunting (bypass)
+### Bypass Hunting (bypass)
 
-### Basic Bypass Search
+WAF bypass finder using full mutation matrix.
+
+#### Basic Bypass Search
 
 ```bash
 waf-tester bypass -u https://target.com
 ```
 
-### Smart Bypass with Chaining
+#### Smart Bypass with Chaining
 
 ```bash
 waf-tester bypass -u https://target.com \
@@ -210,74 +361,102 @@ waf-tester bypass -u https://target.com \
   -o bypasses.json
 ```
 
-### Category-Specific
+#### Category-Specific
 
 ```bash
 waf-tester bypass -u https://target.com -category injection
+waf-tester bypass -u https://target.com -category sqli -mutation full
+```
+
+#### With Tamper Scripts
+
+```bash
+waf-tester bypass -u https://target.com \
+  --smart \
+  --tamper=space2comment,randomcase
 ```
 
 ---
 
-## Mutation Testing (mutate)
+### Mutation Testing (mutate)
 
-### Basic Mutation
+Test payloads with all encoding/location/evasion combinations.
+
+#### Basic Mutation
 
 ```bash
 waf-tester mutate -u https://target.com
 ```
 
-### With Specific Encoders
+#### With Specific Encoders
 
 ```bash
 waf-tester mutate -u https://target.com \
   -encoders url,double_url,unicode,html
 ```
 
-### Available Encoders
+#### Full Mutation Matrix
 
-`url`, `double_url`, `triple_url`, `unicode`, `html`, `hex`, `base64`, `utf7`, `utf16`
+```bash
+waf-tester mutate -u https://target.com \
+  -mutation full \
+  -chain \
+  -max-chain 3
+```
+
+See [Mutation Engine](#mutation-engine) for all available mutators.
 
 ---
 
-## False Positive Testing (fp)
+### False Positive Testing (fp)
 
 Test WAF with legitimate traffic to measure false positive rate.
 
-### Basic FP Test
+#### Basic FP Test
 
 ```bash
 waf-tester fp -u https://target.com
 ```
 
-### With Leipzig Corpus
+#### With Leipzig Corpus
 
 ```bash
 waf-tester fp -u https://target.com -corpus leipzig
 ```
 
-### Custom Corpus
+#### Custom Corpus
 
 ```bash
 waf-tester fp -u https://target.com -corpus /path/to/corpus.txt
 ```
 
+#### Available Corpora
+
+| Corpus | Description |
+|--------|-------------|
+| `builtin` | Built-in legitimate traffic samples |
+| `leipzig` | Leipzig corpora for natural language |
+| Custom path | Your own legitimate request corpus |
+
 ---
 
-## Content Fuzzing (fuzz)
+### Content Fuzzing (fuzz)
 
-### Directory Fuzzing
+Directory and content fuzzing with FUZZ keyword.
+
+#### Directory Fuzzing
 
 ```bash
 waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt
 ```
 
-### Parameter Fuzzing
+#### Parameter Fuzzing
 
 ```bash
 waf-tester fuzz -u "https://target.com/search?q=FUZZ" -w params.txt
 ```
 
-### With Filters
+#### With Filters
 
 ```bash
 waf-tester fuzz -u https://target.com/FUZZ \
@@ -286,52 +465,1165 @@ waf-tester fuzz -u https://target.com/FUZZ \
   -fs 0
 ```
 
+#### Multiple FUZZ Keywords
+
+```bash
+waf-tester fuzz -u "https://target.com/FUZZ1/FUZZ2" \
+  -w wordlist1.txt:wordlist2.txt
+```
+
+#### Built-in Wordlists
+
+```bash
+# Use built-in presets instead of custom files
+waf-tester fuzz -u https://target.com/FUZZ -w common
+waf-tester fuzz -u https://target.com/api/FUZZ -w api
+```
+
+| Preset | Description |
+|--------|-------------|
+| `common` | Common directories and files |
+| `api` | API endpoints |
+| `backup` | Backup file extensions |
+| `config` | Configuration files |
+| `git` | Git repository files |
+
+#### Wordlist Options
+
+```bash
+# Limit wordlist entries
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt -wmax 1000
+
+# Skip first N entries
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt -wskip 500
+
+# Shuffle wordlist
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt -wshuffle
+
+# Wordlist type
+waf-tester fuzz -u https://target.com/FUZZ -wt directories
+waf-tester fuzz -u https://target.com/FUZZ -wt files
+waf-tester fuzz -u https://target.com/FUZZ -wt parameters
+waf-tester fuzz -u https://target.com/FUZZ -wt subdomains
+```
+
+#### Wordlist Transformations
+
+```bash
+# Convert to lowercase
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt -wlower
+
+# Convert to uppercase
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt -wupper
+
+# Add prefix/suffix
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt -wprefix "api_" -wsuffix ".json"
+```
+
+#### Fuzzing Modes
+
+```bash
+# Sniper mode (default) - one position at a time
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt -mode sniper
+
+# Pitchfork mode - parallel positions, same index
+waf-tester fuzz -u "https://target.com/FUZZ1/FUZZ2" \
+  -w wordlist1.txt:wordlist2.txt -mode pitchfork
+
+# Clusterbomb mode - all combinations
+waf-tester fuzz -u "https://target.com/FUZZ1/FUZZ2" \
+  -w wordlist1.txt:wordlist2.txt -mode clusterbomb
+```
+
+| Mode | Description |
+|------|-------------|
+| `sniper` | Replace one position at a time (default) |
+| `pitchfork` | Replace all positions with same-index words |
+| `clusterbomb` | All combinations of all wordlists |
+
+#### Fuzz Position
+
+```bash
+# Fuzz URL parameter
+waf-tester fuzz -u https://target.com/search?q=FUZZ -fp url
+
+# Fuzz header value
+waf-tester fuzz -u https://target.com -fp header -H "X-Custom: FUZZ"
+
+# Fuzz POST body
+waf-tester fuzz -u https://target.com -X POST -d "param=FUZZ" -fp body
+
+# Fuzz cookie value
+waf-tester fuzz -u https://target.com -fp cookie -b "session=FUZZ"
+```
+
+#### Recursive Fuzzing
+
+```bash
+# Enable recursion for discovered directories
+waf-tester fuzz -u https://target.com/FUZZ -w dirs.txt -recursion
+
+# Custom recursion depth
+waf-tester fuzz -u https://target.com/FUZZ -w dirs.txt -recursion -rd 3
+```
+
+#### Response Extraction
+
+```bash
+# Extract content matching regex
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt \
+  -er "api[_-]?key[=:][a-zA-Z0-9]+"
+
+# Extract preset patterns
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt -epr emails
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt -epr urls
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt -epr ips
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt -epr secrets
+```
+
+#### Store Responses
+
+```bash
+# Store all responses
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt -sr
+
+# Custom response directory
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt -sr -srd ./fuzz-responses
+
+# Store only matching responses
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt -sr -som
+```
+
+#### Auto-Calibration
+
+```bash
+# Enable auto-calibration
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt -ac
+
+# Custom calibration words
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt -ac \
+  -cw "random12345,notfound99"
+```
+
+#### Debug and Verbose
+
+```bash
+# Verbose output
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt -v
+
+# Debug mode (show requests/responses)
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt -debug
+
+# Debug request only
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt -dreq
+
+# Debug response only
+waf-tester fuzz -u https://target.com/FUZZ -w wordlist.txt -dresp
+```
+
 ---
 
-## Protocol Probing (probe)
+### Protocol Probing (probe)
 
-### Basic Probe
+Protocol probing and WAF/CDN detection. The probe command is httpx-compatible with 100+ options for advanced recon.
+
+#### Basic Probe
 
 ```bash
 waf-tester probe -u https://target.com
 ```
 
-### Multiple Targets
+#### Multiple Targets
 
 ```bash
 waf-tester probe -l targets.txt -c 50 -o probes.json
 ```
 
-### With Streaming Output
+#### With Streaming Output
 
 ```bash
 waf-tester probe -l targets.txt --stream
 ```
 
+#### Probe Information Gathered
+
+- TLS/SSL configuration (JARM fingerprint)
+- HTTP/2 and pipelining support
+- WAF/CDN detection
+- Server headers and technology detection
+- Response characteristics (status, length, word/line count)
+- Favicon hash (mmh3)
+- DNS info (IP, CNAME, ASN)
+
+#### Screenshots
+
+Capture screenshots of web pages for visual recon:
+
+```bash
+# Enable screenshots
+waf-tester probe -l targets.txt -ss
+
+# With custom timeout
+waf-tester probe -u https://target.com --screenshot -st 15
+
+# Use system Chrome instead of embedded
+waf-tester probe -l targets.txt -ss -system-chrome
+
+# Exclude screenshot bytes from JSON (keep only file path)
+waf-tester probe -l targets.txt -ss -esb -json
+
+# Full page vs viewport screenshot
+waf-tester probe -u https://target.com -ss -no-screenshot-full-page
+
+# Headless browser options
+waf-tester probe -l targets.txt -ss -ho "--proxy-server=http://localhost:8080"
+```
+
+| Flag | Description |
+|------|-------------|
+| `-ss`, `--screenshot` | Enable saving screenshot |
+| `-st`, `--screenshot-timeout` | Screenshot timeout (seconds) |
+| `-system-chrome` | Use local installed Chrome |
+| `-esb`, `--exclude-screenshot-bytes` | Exclude screenshot bytes from JSON |
+| `-no-screenshot-full-page` | Disable full page screenshot |
+| `-ho`, `--headless-options` | Additional headless Chrome options |
+| `-sid`, `--screenshot-idle` | Idle time before screenshot (seconds) |
+| `-jsc`, `--javascript-code` | Execute JS after navigation |
+
+#### Hash Calculation
+
+Calculate response body hashes for fingerprinting:
+
+```bash
+# MD5 hash
+waf-tester probe -u https://target.com -hash md5
+
+# SHA256 hash
+waf-tester probe -l targets.txt -hash sha256
+
+# MurmurHash3 (Shodan/Censys compatible)
+waf-tester probe -l targets.txt -hash mmh3
+
+# Show header hash (for fingerprinting)
+waf-tester probe -u https://target.com --header-hash
+
+# Favicon hash for WAF/CDN detection
+waf-tester probe -l targets.txt --favicon-hash
+```
+
+| Hash Type | Description |
+|-----------|-------------|
+| `md5` | MD5 body hash |
+| `sha256` | SHA256 body hash |
+| `mmh3` | MurmurHash3 (Shodan-compatible) |
+| `simhash` | Similarity hash for deduplication |
+
+#### Content Extraction
+
+Extract content from responses using regex or presets:
+
+```bash
+# Extract with custom regex
+waf-tester probe -u https://target.com -er "api[_-]?key['\"]?\s*[:=]\s*['\"]?([a-zA-Z0-9]+)"
+
+# Extract URLs from response
+waf-tester probe -l targets.txt -ep url
+
+# Extract IPv4 addresses
+waf-tester probe -l targets.txt -ep ipv4
+
+# Extract email addresses
+waf-tester probe -l targets.txt --extract-preset mail
+
+# Extract FQDNs (domains/subdomains)
+waf-tester probe -l targets.txt -efqdn
+```
+
+| Preset | Description |
+|--------|-------------|
+| `url` | Extract URLs from response |
+| `ipv4` | Extract IPv4 addresses |
+| `mail` | Extract email addresses |
+
+#### Simhash Deduplication
+
+Filter near-duplicate responses based on content similarity:
+
+```bash
+# Enable simhash with threshold (0-64, lower = more similar)
+waf-tester probe -l targets.txt -simhash 10
+
+# Combine with filter duplicates
+waf-tester probe -l targets.txt -simhash 8 -fd
+```
+
+#### Matchers and Filters
+
+Filter results based on response characteristics:
+
+```bash
+# Match specific status codes
+waf-tester probe -l targets.txt -mc 200,302
+
+# Filter out 404 and 500 errors
+waf-tester probe -l targets.txt -fc 404,500
+
+# Match responses containing string
+waf-tester probe -l targets.txt -ms "admin"
+
+# Filter responses containing string
+waf-tester probe -l targets.txt -fs "Not Found"
+
+# Match by content length
+waf-tester probe -l targets.txt -ml 1000-5000
+
+# Match by line count
+waf-tester probe -l targets.txt -mlc 10-100
+
+# Match by word count
+waf-tester probe -l targets.txt -mwc 50-500
+
+# Match with regex
+waf-tester probe -l targets.txt -mr "password|secret|token"
+
+# Match by favicon hash (find similar tech)
+waf-tester probe -l targets.txt -mfc "-123456789"
+
+# Match specific CDN
+waf-tester probe -l targets.txt -mcdn cloudflare
+
+# Match response time
+waf-tester probe -l targets.txt -mrt "<1s"
+```
+
+#### DSL Condition Matching
+
+Advanced matching with DSL expressions (like Nuclei):
+
+```bash
+# Match with complex DSL condition
+waf-tester probe -l targets.txt -mdc "status_code == 200 && contains(body, 'admin')"
+
+# Filter with DSL condition
+waf-tester probe -l targets.txt -fdc "content_length < 100"
+
+# List available DSL variables
+waf-tester probe -ldv
+```
+
+#### Output Options
+
+Control output format and fields:
+
+```bash
+# Show content length, type, word/line count
+waf-tester probe -l targets.txt -cl -ct -wc -lc
+
+# Show server header
+waf-tester probe -l targets.txt -server
+
+# Show page title
+waf-tester probe -l targets.txt -title
+
+# Show resolved IP
+waf-tester probe -l targets.txt -ip
+
+# Show ASN info
+waf-tester probe -l targets.txt -asn
+
+# Show CDN/WAF detection
+waf-tester probe -l targets.txt -cdn
+
+# Show technology detection
+waf-tester probe -l targets.txt -td
+
+# Show HTTP/2 support
+waf-tester probe -l targets.txt -http2
+
+# Show WebSocket support
+waf-tester probe -l targets.txt -ws
+
+# Body preview (first N characters)
+waf-tester probe -l targets.txt -bp 100
+
+# CSV output
+waf-tester probe -l targets.txt -csv -o results.csv
+
+# JSON output with full response
+waf-tester probe -l targets.txt -json -irr
+
+# Include response headers in JSON
+waf-tester probe -l targets.txt -json -irh
+
+# Include base64 encoded response
+waf-tester probe -l targets.txt -json -irrb
+
+# HTML summary report
+waf-tester probe -l targets.txt -html report.html
+```
+
+#### Store Responses
+
+Save full HTTP responses to disk:
+
+```bash
+# Store responses
+waf-tester probe -l targets.txt -sr
+
+# Custom response directory
+waf-tester probe -l targets.txt --store-response -srd ./responses
+
+# Include redirect chain
+waf-tester probe -l targets.txt -sr --store-chain
+```
+
+#### Rate Limiting and Delays
+
+Control request rate:
+
+```bash
+# Requests per second
+waf-tester probe -l targets.txt -rl 10
+
+# Rate limit per host
+waf-tester probe -l targets.txt -rl 5 -rlph
+
+# Rate limit per minute
+waf-tester probe -l targets.txt -rlm 100
+
+# Delay between requests
+waf-tester probe -l targets.txt -delay 100ms
+```
+
+#### Proxy Support
+
+Route through proxy:
+
+```bash
+# HTTP proxy
+waf-tester probe -l targets.txt -proxy http://localhost:8080
+
+# SOCKS5 proxy
+waf-tester probe -l targets.txt -proxy socks5://localhost:1080
+```
+
+#### TLS/SSL Options
+
+Advanced TLS configuration:
+
+```bash
+# Skip certificate verification
+waf-tester probe -l targets.txt -k
+
+# Custom SNI name
+waf-tester probe -l targets.txt -sni custom.example.com
+
+# TLS impersonation (client hello randomization)
+waf-tester probe -l targets.txt -tlsi
+
+# Use ztls library for TLS 1.3
+waf-tester probe -l targets.txt -ztls
+
+# TLS grab (extract TLS/SSL data)
+waf-tester probe -l targets.txt -tls-grab
+```
+
+#### Raw Request Support
+
+Import requests from files or Burp:
+
+```bash
+# Raw HTTP request file
+waf-tester probe -rr request.txt
+
+# Burp XML import
+waf-tester probe -im burp -l burp-export.xml
+```
+
 ---
 
-## Discovery and Planning
+### HTTP Smuggling (smuggle)
 
-### Endpoint Discovery
+HTTP request smuggling testing.
+
+#### Basic Smuggling Test
+
+```bash
+waf-tester smuggle -u https://target.com
+```
+
+#### Safe Mode vs Full Mode
+
+```bash
+# Safe mode (default) - timing-based detection only
+waf-tester smuggle -u https://target.com -safe
+
+# Full mode - payload injection (more accurate but invasive)
+waf-tester smuggle -u https://target.com -safe=false
+```
+
+#### Multiple Targets
+
+```bash
+waf-tester smuggle -l targets.txt -o smuggle-results.json
+```
+
+#### Detection Options
+
+```bash
+# Custom timeout
+waf-tester smuggle -u https://target.com -timeout 15
+
+# Delay between requests (milliseconds)
+waf-tester smuggle -u https://target.com -delay 2000
+
+# Retries per technique
+waf-tester smuggle -u https://target.com -retries 5
+
+# Verbose output
+waf-tester smuggle -u https://target.com -v
+```
+
+| Technique | Description |
+|-----------|-------------|
+| `clte` | Content-Length.Transfer-Encoding |
+| `tecl` | Transfer-Encoding.Content-Length |
+| `tete` | Transfer-Encoding.Transfer-Encoding |
+
+---
+
+### Race Condition Testing (race)
+
+Test for race conditions in web applications.
+
+#### Basic Race Test
+
+```bash
+waf-tester race -u https://target.com/checkout -c 50
+```
+
+#### Attack Types
+
+```bash
+# Double submit attack
+waf-tester race -u https://target.com/submit -attack double_submit
+
+# Token reuse attack
+waf-tester race -u https://target.com/action -attack token_reuse
+
+# Rate limit bypass
+waf-tester race -u https://target.com/api -attack limit_bypass
+
+# Time-of-check to time-of-use
+waf-tester race -u https://target.com/process -attack toctou
+```
+
+| Attack Type | Description |
+|-------------|-------------|
+| `double_submit` | Submit same request twice simultaneously |
+| `token_reuse` | Reuse single-use tokens concurrently |
+| `limit_bypass` | Bypass rate limits with concurrent requests |
+| `toctou` | Time-of-check to time-of-use vulnerabilities |
+
+#### Race Options
+
+```bash
+# Custom HTTP method
+waf-tester race -u https://target.com/api -method POST
+
+# Request body
+waf-tester race -u https://target.com/api -method POST -body '{"amount":100}'
+
+# Custom headers
+waf-tester race -u https://target.com/api -H "Authorization: Bearer TOKEN"
+
+# Number of concurrent requests
+waf-tester race -u https://target.com/action -c 100
+
+# Number of iterations
+waf-tester race -u https://target.com/action -n 5
+
+# Custom timeout
+waf-tester race -u https://target.com/action -timeout 60
+```
+
+---
+
+### Web Crawling (crawl)
+
+Advanced web crawler with scope control.
+
+#### Basic Crawl
+
+```bash
+waf-tester crawl -u https://target.com
+```
+
+#### With Depth Control
+
+```bash
+waf-tester crawl -u https://target.com -depth 5 -max-pages 500
+```
+
+#### Scope Control
+
+```bash
+# Include subdomains
+waf-tester crawl -u https://target.com -subdomains
+
+# Include URL pattern (regex)
+waf-tester crawl -u https://target.com -include "api|admin"
+
+# Exclude URL pattern
+waf-tester crawl -u https://target.com -exclude "logout|signout"
+```
+
+| Scope | Description |
+|-------|-------------|
+| `strict` | Same host only |
+| `domain` | Same domain including subdomains |
+| `loose` | Follow all links |
+
+#### Content Extraction
+
+```bash
+# Extract forms (default: enabled)
+waf-tester crawl -u https://target.com -forms
+
+# Extract scripts (default: enabled)
+waf-tester crawl -u https://target.com -scripts
+
+# Extract email addresses
+waf-tester crawl -u https://target.com -emails
+
+# Extract HTML comments (for hidden endpoints/secrets)
+waf-tester crawl -u https://target.com -comments
+
+# Extract API endpoints
+waf-tester crawl -u https://target.com -endpoints
+```
+
+#### Rate Control
+
+```bash
+# Concurrent crawlers
+waf-tester crawl -u https://target.com -concurrency 10
+
+# Delay between requests (milliseconds)
+waf-tester crawl -u https://target.com -delay 100
+
+# Request timeout
+waf-tester crawl -u https://target.com -timeout 15
+```
+
+---
+
+### JavaScript Analysis (analyze)
+
+JavaScript analysis for URLs, methods, secrets, and DOM sinks.
+
+#### Basic Analysis
+
+```bash
+waf-tester analyze -u https://target.com
+```
+
+#### Analyze Local File
+
+```bash
+waf-tester analyze -file ./app.js
+```
+
+#### Multiple Targets
+
+```bash
+waf-tester analyze -l js-urls.txt -o analysis.json
+```
+
+#### Extraction Options
+
+```bash
+# Extract URLs (default: enabled)
+waf-tester analyze -u https://target.com -urls
+
+# Extract API endpoints (default: enabled)
+waf-tester analyze -u https://target.com -endpoints
+
+# Extract secrets/credentials (default: enabled)
+waf-tester analyze -u https://target.com -secrets
+
+# Extract DOM XSS sinks (default: enabled)
+waf-tester analyze -u https://target.com -sinks
+```
+
+#### What It Finds
+
+- **API Endpoints**: fetch(), axios(), jQuery.ajax(), XMLHttpRequest
+- **HTTP Methods**: Inferred from URL patterns and code context
+- **Secrets**: API keys, tokens, credentials (AWS, Google, GitHub, Stripe, etc.)
+- **DOM XSS Sinks**: innerHTML, document.write, eval, etc.
+
+---
+
+### Headless Browser Testing (headless)
+
+Browser-based security testing with real Chrome/Chromium.
+
+#### Basic Headless Testing
+
+```bash
+waf-tester headless -u https://target.com
+waf-tester headless -u https://target.com --stream
+```
+
+#### Multiple Targets
+
+```bash
+waf-tester headless -l targets.txt -o results.json
+```
+
+#### Screenshots
+
+```bash
+# Take screenshots of all pages
+waf-tester headless -u https://target.com -screenshot
+
+# Custom screenshot directory
+waf-tester headless -l targets.txt -screenshot -screenshot-dir ./screens
+```
+
+#### JavaScript Execution
+
+```bash
+# Execute custom JavaScript after page load
+waf-tester headless -u https://target.com \
+  -js "document.querySelectorAll('a').forEach(a => console.log(a.href))"
+```
+
+#### Browser Options
+
+```bash
+# Custom Chrome path
+waf-tester headless -u https://target.com -chrome /path/to/chrome
+
+# Show browser (non-headless)
+waf-tester headless -u https://target.com -headless=false
+
+# Custom timeout and wait
+waf-tester headless -u https://target.com -timeout 60 -wait 5
+```
+
+#### URL Extraction
+
+```bash
+# Extract URLs from pages (default enabled)
+waf-tester headless -l targets.txt -extract-urls -o urls.json -v
+```
+
+| Flag | Description |
+|------|-------------|
+| `-screenshot` | Take screenshots |
+| `-screenshot-dir` | Screenshot output directory |
+| `-js` | JavaScript to execute after load |
+| `-chrome` | Path to Chrome executable |
+| `-headless` | Run in headless mode (default: true) |
+| `-timeout` | Page load timeout (seconds) |
+| `-wait` | Wait time after page load (seconds) |
+| `-extract-urls` | Extract URLs from page (default: true) |
+
+---
+
+## Workflow Commands
+
+### Discovery and Planning
+
+#### Endpoint Discovery
 
 ```bash
 waf-tester discover -u https://example.com
 waf-tester discover -u https://example.com -output custom-discovery.json
 ```
 
-### Generate Test Plan
+Discovery sources:
+- robots.txt
+- sitemap.xml (9 locations)
+- JavaScript analysis
+- Wayback Machine
+- HTML forms
+- Service presets
+
+#### Generate Test Plan
 
 ```bash
 waf-tester learn -discovery discovery.json
 waf-tester learn -discovery discovery.json -output custom-plan.json
 ```
 
-### Execute Plan
+---
+
+### Test Execution (run)
+
+Execute tests from a plan or standalone.
+
+#### With Test Plan
 
 ```bash
 waf-tester run -plan testplan.json
 waf-tester run -plan testplan.json -format html -o report.html
 ```
+
+#### Standalone
+
+```bash
+waf-tester run -u https://example.com -c 50 -rl 200
+```
+
+#### All Run Options
+
+```bash
+waf-tester run -u https://example.com \
+  -c 50 \                    # Concurrent workers
+  -rl 200 \                  # Rate limit (req/sec)
+  -timeout 10 \              # HTTP timeout
+  -retries 3 \               # Retry count
+  -category sqli,xss \       # Filter categories
+  -severity High,Critical \  # Filter severity
+  -format json \             # Output format
+  -o results.json            # Output file
+```
+
+---
+
+### Workflow Orchestration
+
+Execute multi-step security workflows from YAML/JSON files.
+
+#### Basic Workflow Execution
+
+```bash
+waf-tester workflow -f security-workflow.yaml
+```
+
+#### With Input Variables
+
+```bash
+waf-tester workflow -f workflow.yaml -var "target=https://example.com,token=abc123"
+```
+
+#### Dry Run Mode
+
+```bash
+# Preview workflow steps without executing
+waf-tester workflow -f workflow.yaml -dry-run
+```
+
+#### Workflow Options
+
+```bash
+# Custom timeout (seconds)
+waf-tester workflow -f workflow.yaml -timeout 600
+
+# Verbose output
+waf-tester workflow -f workflow.yaml -v
+
+# JSON output
+waf-tester workflow -f workflow.yaml -json
+
+# Save results to file
+waf-tester workflow -f workflow.yaml -o workflow-results.json
+```
+
+#### Example Workflow File
+
+```yaml
+name: "Full Security Assessment"
+description: "Complete security testing workflow"
+
+steps:
+  - name: discover
+    command: waf-tester discover -u {{target}} -output discovery.json
+
+  - name: learn
+    command: waf-tester learn -discovery discovery.json -output testplan.json
+
+  - name: scan
+    command: waf-tester run -plan testplan.json -o results.json
+
+  - name: report
+    command: waf-tester report -workspace . -target "{{target}}"
+```
+
+| Flag | Description |
+|------|-------------|
+| `-f`, `-file` | Workflow file (YAML or JSON) |
+| `-var` | Input variables (name=value, comma-separated) |
+| `-dry-run` | Preview without executing |
+| `-timeout` | Workflow timeout in seconds (default: 300) |
+| `-v` | Verbose output |
+| `-json` | JSON output to stdout |
+| `-o` | Output file for results |
+
+---
+
+## Protocol Testing
+
+### GraphQL Security Testing
+
+```bash
+# Automatic GraphQL endpoint detection
+waf-tester auto -u https://api.example.com/graphql
+
+# Deep GraphQL introspection
+waf-tester scan -u https://api.example.com/graphql -types graphql
+```
+
+#### GraphQL Attack Categories
+
+| Attack | Description |
+|--------|-------------|
+| Introspection exposure | Schema enumeration |
+| Query depth attacks | Resource exhaustion |
+| Batch query abuse | DoS via batching |
+| Field suggestion | Information disclosure |
+| Authorization bypass | Alias-based access |
+| Directive injection | Malicious directives |
+
+---
+
+### gRPC Security Testing
+
+```bash
+# gRPC reflection-based testing
+waf-tester scan -u grpc://service.example.com:50051 -types grpc
+
+# With TLS
+waf-tester scan -u grpcs://service.example.com:50051 -types grpc
+```
+
+#### gRPC Attack Categories
+
+- Reflection enumeration
+- Message field fuzzing
+- Streaming abuse
+- Metadata injection
+- Proto type confusion
+
+---
+
+### SOAP/WSDL Security Testing
+
+```bash
+# WSDL-based SOAP testing
+waf-tester scan -u https://api.example.com/service.wsdl -types soap
+```
+
+#### SOAP Attack Categories
+
+- WSDL enumeration
+- XML injection in SOAP body
+- XXE attacks
+- WS-Security bypass
+- SOAP action manipulation
+
+---
+
+## Tamper Scripts
+
+70+ tamper scripts ported from sqlmap for WAF bypass.
+
+### Using Tampers
+
+```bash
+# Single tamper
+waf-tester scan -u https://target.com --tamper=space2comment
+
+# Multiple tampers (applied in sequence)
+waf-tester scan -u https://target.com --tamper=space2comment,charencode,randomcase
+
+# List all available tampers
+waf-tester tampers --list
+
+# List tampers by category
+waf-tester tampers --category=encoding
+```
+
+### Tamper Categories
+
+| Category | Count | Description |
+|----------|-------|-------------|
+| `encoding` | 12 | Base64, URL encoding, Unicode escapes |
+| `space` | 12 | Space replacement (comments, tabs, etc.) |
+| `sql` | 16 | SQL syntax transformations |
+| `mysql` | 10 | MySQL-specific bypasses |
+| `mssql` | 6 | MSSQL-specific bypasses |
+| `waf` | 4 | WAF-specific bypasses (ModSecurity, etc.) |
+| `http` | 3 | HTTP-level modifications (headers) |
+| `obfuscation` | 6 | General obfuscation techniques |
+
+### Popular Tamper Combinations
+
+```bash
+# ModSecurity bypass
+--tamper=modsecurityversioned,space2comment
+
+# Cloudflare bypass
+--tamper=charunicodeencode,randomcase
+
+# AWS WAF bypass
+--tamper=between,equaltolike,space2morecomment
+
+# Generic WAF bypass combo
+--tamper=space2comment,randomcase,charencode,unmagicquotes
+```
+
+---
+
+## Mutation Engine
+
+The mutation engine automatically transforms payloads to bypass WAF filters.
+
+### Encoders
+
+16 encoding types available:
+
+| Encoder | Description |
+|---------|-------------|
+| `raw` | No encoding - original payload |
+| `url` | Standard URL percent-encoding |
+| `double_url` | Double URL encoding |
+| `triple_url` | Triple URL encoding |
+| `html_decimal` | HTML decimal encoding (&#65;) |
+| `html_hex` | HTML hex encoding (&#x41;) |
+| `html_named` | HTML named entities (&amp;) |
+| `unicode` | Unicode encoding (\u0041) |
+| `utf7` | UTF-7 encoding |
+| `utf16le` | UTF-16 Little Endian |
+| `utf16be` | UTF-16 Big Endian |
+| `overlong_utf8` | Overlong UTF-8 sequences |
+| `wide_gbk` | Wide GBK encoding |
+| `wide_sjis` | Wide Shift-JIS encoding |
+| `base64` | Base64 encoding |
+| `hex` | Hex encoding |
+| `octal` | Octal encoding |
+| `mixed` | Mixed encoding combinations |
+
+```bash
+waf-tester mutate -u https://target.com -encoders url,double_url,unicode
+```
+
+### Evasion Techniques
+
+10 evasion techniques:
+
+| Evasion | Description |
+|---------|-------------|
+| `case_swap` | Case manipulation (SeLeCt) |
+| `sql_comment` | SQL comment insertion (SEL/**/ECT) |
+| `whitespace_alt` | Alternative whitespace characters |
+| `null_byte` | Null byte injection |
+| `chunked` | Chunked encoding evasion |
+| `hpp` | HTTP Parameter Pollution |
+| `double_submit` | Double submit parameters |
+| `content_type_mismatch` | Content-Type confusion |
+| `unicode_normalization` | Unicode normalization attacks |
+| `comment_wrapping` | Comment-wrapped payloads |
+
+```bash
+waf-tester mutate -u https://target.com -evasions case_swap,sql_comment
+```
+
+### Injection Locations
+
+13 injection locations:
+
+| Location | Description |
+|----------|-------------|
+| `query_param` | URL query parameter |
+| `post_form` | POST form body |
+| `post_json` | POST JSON body |
+| `post_xml` | POST XML body |
+| `header_xforward` | X-Forwarded-For header |
+| `header_referer` | Referer header |
+| `header_useragent` | User-Agent header |
+| `header_custom` | Custom headers |
+| `cookie` | Cookie values |
+| `path_segment` | URL path segment |
+| `multipart` | Multipart form data |
+| `fragment` | URL fragment |
+| `basic_auth` | Basic authentication |
+
+```bash
+waf-tester mutate -u https://target.com -locations query_param,post_json,cookie
+```
+
+### Protocol Mutations
+
+8 protocol-level mutations:
+
+| Mutation | Description |
+|----------|-------------|
+| `smuggle_clte` | CL.TE HTTP smuggling |
+| `smuggle_tecl` | TE.CL HTTP smuggling |
+| `smuggle_tete` | TE.TE HTTP smuggling |
+| `http2_downgrade` | HTTP/2 downgrade attacks |
+| `websocket_upgrade` | WebSocket upgrade attacks |
+| `request_line` | Request line mutations |
+| `header_folding` | Header folding |
+| `te_obfuscation` | Transfer-Encoding obfuscation |
+
+### Mutation Chaining
+
+```bash
+# Enable chaining
+waf-tester mutate -u https://target.com -chain
+
+# Set maximum chain depth
+waf-tester mutate -u https://target.com -chain -max-chain 3
+
+# Full mutation mode
+waf-tester mutate -u https://target.com -mutation full
+```
+
+Mutation modes:
+- `none` - No mutations
+- `quick` - Fast essential mutations
+- `standard` - Balanced coverage
+- `full` - Complete mutation matrix
+
+---
+
+## Smart Mode
+
+WAF-aware testing with 197+ vendor signatures.
+
+```bash
+# Enable smart mode
+waf-tester scan -u https://target.com --smart
+
+# With optimization level
+waf-tester bypass -u https://target.com --smart --smart-mode=full
+
+# Verbose output
+waf-tester auto -u https://target.com --smart --smart-verbose
+```
+
+### Smart Mode Levels
+
+| Mode | Description |
+|------|-------------|
+| `quick` | Fast detection, minimal adaptation |
+| `standard` | Balanced detection and optimization |
+| `full` | Complete WAF analysis and bypass |
+| `bypass` | Focus on bypass techniques |
+| `stealth` | Low and slow to avoid detection |
+
+### What Smart Mode Does
+
+1. **WAF Detection** - Identifies WAF from 197+ vendor signatures
+2. **Rate Optimization** - Adjusts rate limit to avoid triggering blocks
+3. **Encoder Priority** - Prioritizes encoders known to bypass that WAF
+4. **Evasion Selection** - Enables effective evasion techniques
+5. **Bypass Hints** - Shows specific bypass tips for the detected WAF
 
 ---
 
@@ -344,9 +1636,10 @@ waf-tester run -plan testplan.json -format html -o report.html
 | JSON | `-format json` | Programmatic processing |
 | JSONL | `-format jsonl` | Streaming, large datasets |
 | HTML | `-format html` | Human-readable reports |
-| SARIF | `-format sarif` | CI/CD integration |
-| Markdown | `-format markdown` | Documentation |
+| SARIF | `-format sarif` | CI/CD integration, GitHub Security |
+| Markdown | `-format markdown` or `-format md` | Documentation |
 | CSV | `-format csv` | Spreadsheet analysis |
+| Console | `-format console` | Terminal output (default) |
 
 ### Examples
 
@@ -354,6 +1647,7 @@ waf-tester run -plan testplan.json -format html -o report.html
 waf-tester run -plan testplan.json -format json -o results.json
 waf-tester run -plan testplan.json -format html -o report.html
 waf-tester run -plan testplan.json -format sarif -o results.sarif
+waf-tester scan -u https://target.com -format csv -o results.csv
 ```
 
 ### Output File Locations
@@ -365,15 +1659,24 @@ waf-tester run -plan testplan.json -format sarif -o results.sarif
 | `auto` | `workspaces/<domain>/<timestamp>/` |
 | Others | Stdout (use `-o` to save) |
 
+### Auto Command Workspace Structure
+
+```
+workspaces/<domain>/<timestamp>/
+├── discovery.json
+├── testplan.json
+├── results.json
+├── results.html
+└── results.sarif
+```
+
 ---
 
 ## CI/CD Integration
 
 Use `--stream` flag to disable animated progress for clean CI logs.
 
-### JSON Output for Automation (v2.3.4+)
-
-The `--json` flag is available on all major commands for machine-readable output:
+### JSON Output for Automation
 
 ```bash
 # JSON output from any command
@@ -382,42 +1685,33 @@ waf-tester scan -u https://target.com --json > results.json
 waf-tester probe -u https://target.com --json | jq '.waf'
 waf-tester assess -u https://target.com --json -o assessment.json
 waf-tester vendor -u https://target.com --json
-
-# Combine with streaming for real-time events
-waf-tester scan -u https://target.com -stream -json | jq
 ```
 
-**Use Cases:**
-- Parse scan results in bash scripts: `waf-tester scan -u $URL --json | jq '.vulnerabilities'`
-- Feed into monitoring dashboards
-- Process with automation tools (Ansible, Terraform, etc.)
-- Generate metrics for CI/CD pipelines
+### Streaming JSON Mode
 
-### Streaming JSON Mode (v2.3.3+)
-
-For real-time machine-readable output, use `-stream -json`:
+Real-time NDJSON events for CI/CD pipelines:
 
 ```bash
-# Stream events to stdout as NDJSON
+# Stream events to stdout
 waf-tester scan -u https://target.com -stream -json
 
-# Pipe to jq for filtering
+# Filter specific events
 waf-tester scan -u https://target.com -stream -json | jq 'select(.type=="vulnerability")'
 
-# Save to file while watching progress
+# Save to file
 waf-tester scan -u https://target.com -stream -json 2>/dev/null > scan-events.jsonl
 ```
 
-**Event Types:**
+#### Event Types
 
 | Event | Description | Data Fields |
 |-------|-------------|-------------|
 | `scan_start` | Scanner beginning | `scanner` |
-| `vulnerability` | Finding discovered | `category`, `severity`, `type`, etc. |
+| `vulnerability` | Finding discovered | `category`, `severity`, `type` |
 | `scan_complete` | Scanner finished | `scanner`, `vulns` (count) |
-| `scan_end` | All scanners done | `target`, `duration_ms`, `total_vulns`, `by_severity` |
+| `scan_end` | All scanners done | `target`, `duration_ms`, `total_vulns` |
 
-**Example Events:**
+#### Example Events
 
 ```json
 {"type":"scan_start","timestamp":"2026-02-01T10:00:00Z","data":{"scanner":"sqli"}}
@@ -483,7 +1777,304 @@ waf_scan:
 
 ### Commands Supporting --stream
 
-All major commands support `--stream` for CI-friendly output: `assess`, `auto`, `bypass`, `crawl`, `fuzz`, `headless`, `mutate`, `probe`, `scan`, `smuggle`, `fp`
+All major commands support `--stream`: `assess`, `auto`, `bypass`, `crawl`, `fuzz`, `headless`, `mutate`, `probe`, `scan`, `smuggle`, `fp`
+
+---
+
+## Advanced Options
+
+### Headers and Authentication
+
+```bash
+# Custom headers
+waf-tester scan -u https://target.com -H "Authorization: Bearer TOKEN"
+waf-tester scan -u https://target.com -H "X-API-Key: secret"
+
+# Multiple headers
+waf-tester scan -u https://target.com \
+  -H "Authorization: Bearer TOKEN" \
+  -H "X-Custom: value"
+
+# Cookies
+waf-tester scan -u https://target.com -cookie "session=abc123"
+```
+
+### Proxies
+
+```bash
+# HTTP proxy
+waf-tester scan -u https://target.com -proxy http://127.0.0.1:8080
+
+# SOCKS5 proxy
+waf-tester scan -u https://target.com -proxy socks5://127.0.0.1:1080
+
+# Burp Suite integration
+waf-tester scan -u https://target.com -proxy http://127.0.0.1:8080 -k
+```
+
+### Rate Limiting
+
+```bash
+# Set rate limit
+waf-tester scan -u https://target.com -rl 100  # 100 req/sec
+
+# Set concurrency
+waf-tester scan -u https://target.com -c 50  # 50 parallel workers
+
+# Combined
+waf-tester scan -u https://target.com -c 25 -rl 200
+
+# With delay between requests
+waf-tester discover -u https://target.com -delay 2s
+```
+
+### Response Filtering
+
+#### Matchers (what to report)
+
+```bash
+# Match status codes
+waf-tester run -u https://target.com -mc 200,403,500
+
+# Match response size
+waf-tester run -u https://target.com -ms 1234
+```
+
+#### Filters (what to hide)
+
+```bash
+# Filter status codes
+waf-tester run -u https://target.com -fc 404,500
+
+# Filter response size
+waf-tester run -u https://target.com -fs 0
+
+# Auto-calibrate (detect baseline responses)
+waf-tester run -u https://target.com -ac
+```
+
+### Realistic Mode
+
+Makes requests look like real browser traffic:
+
+```bash
+waf-tester run -u https://target.com -R
+waf-tester run -u https://target.com --realistic
+```
+
+Features:
+- Rotating User-Agents (Chrome, Firefox, Safari)
+- Real browser headers (Accept, Accept-Language)
+- Intelligent WAF block detection
+- Multi-location injection
+
+### Resume and Checkpoints
+
+```bash
+# Enable checkpoints
+waf-tester scan -u https://target.com -checkpoint scan.checkpoint
+
+# Resume from checkpoint
+waf-tester scan -resume scan.checkpoint
+```
+
+### JA3 Fingerprint Rotation
+
+Evade WAF detection by rotating TLS fingerprints:
+
+```bash
+# Enable JA3 rotation with random profiles
+waf-tester auto -u https://target.com -ja3-rotate
+
+# Use specific browser profile
+waf-tester auto -u https://target.com -ja3-rotate -ja3-profile chrome120
+waf-tester auto -u https://target.com -ja3-rotate -ja3-profile firefox121
+```
+
+#### Available JA3 Profiles
+
+| Profile | Description |
+|---------|-------------|
+| `chrome120` | Chrome 120 TLS fingerprint |
+| `firefox121` | Firefox 121 TLS fingerprint |
+| `safari17` | Safari 17 TLS fingerprint |
+| `edge120` | Edge 120 TLS fingerprint |
+
+### Additional Options
+
+```bash
+# Skip TLS verification
+waf-tester scan -u https://target.com -k
+waf-tester scan -u https://target.com --skip-verify
+
+# Set timeout
+waf-tester scan -u https://target.com -timeout 10
+
+# Set retries
+waf-tester scan -u https://target.com -retries 3
+
+# Verbose output
+waf-tester scan -u https://target.com -v
+
+# Silent mode
+waf-tester scan -u https://target.com -s
+
+# No color output
+waf-tester scan -u https://target.com -nc
+
+# Show statistics
+waf-tester scan -u https://target.com --stats
+
+# Non-interactive mode
+waf-tester scan -u https://target.com -noninteractive
+
+# Store responses
+waf-tester scan -u https://target.com -sr -srd ./responses/
+
+# Add timestamp to output
+waf-tester scan -u https://target.com -ts
+
+# Dry run (list tests without executing)
+waf-tester run -u https://target.com -dry-run
+```
+
+---
+
+## Browser Scanning
+
+For applications requiring authentication (SSO, MFA, CAPTCHA):
+
+```bash
+# Opens browser for manual login
+waf-tester auto -u https://app.example.com
+
+# Headless mode (no visible browser)
+waf-tester auto -u https://app.example.com -browser-headless
+
+# Disable browser scanning
+waf-tester auto -u https://app.example.com -browser=false
+
+# Custom login timeout
+waf-tester auto -u https://app.example.com -browser-timeout 5m
+```
+
+**Requirements**: Chrome or Chromium installed.
+
+---
+
+## Multiple Targets
+
+```bash
+# From file
+waf-tester scan -l targets.txt
+
+# Comma-separated
+waf-tester scan -u https://site1.com,https://site2.com
+
+# From stdin
+cat urls.txt | waf-tester probe -stdin
+
+# With concurrency
+waf-tester scan -l targets.txt -c 100 -rl 500
+```
+
+---
+
+## Utility Commands
+
+### Enterprise Report Generation (report)
+
+Generate comprehensive HTML reports from workspace results:
+
+```bash
+# Generate report from workspace
+waf-tester report -workspace ./workspaces/example.com/2026-02-01_10-00-00
+
+# With custom output file
+waf-tester report -workspace ./workspace -output custom-report.html
+
+# With custom target name
+waf-tester report -workspace ./workspace -target "Production API"
+```
+
+### Update Payloads
+
+```bash
+waf-tester update
+```
+
+### Validate Payloads
+
+```bash
+# Validate payload files for schema errors
+waf-tester validate
+
+# Validate nuclei templates
+waf-tester validate-templates
+```
+
+### List Tampers
+
+```bash
+waf-tester tampers --list
+waf-tester tampers --category encoding
+```
+
+---
+
+## Attack Categories Reference
+
+### Full Category List
+
+| Category | Description |
+|----------|-------------|
+| `sqli` | SQL injection |
+| `xss` | Cross-site scripting |
+| `traversal` | Path traversal (LFI) |
+| `cmdi` | Command injection |
+| `nosqli` | NoSQL injection |
+| `ssrf` | Server-side request forgery |
+| `ssti` | Server-side template injection |
+| `xxe` | XML external entity |
+| `ldapi` | LDAP injection |
+| `xpath` | XPath injection |
+| `crlf` | CRLF injection |
+| `rfi` | Remote file inclusion |
+| `rce` | Remote code execution |
+| `deserialize` | Insecure deserialization |
+| `prototype` | Prototype pollution |
+| `smuggling` | HTTP request smuggling |
+| `cors` | CORS misconfiguration |
+| `oauth` | OAuth vulnerabilities |
+| `jwt` | JWT attacks |
+| `redirect` | Open redirect |
+| `hostheader` | Host header injection |
+| `cache` | Cache poisoning |
+| `upload` | File upload vulnerabilities |
+| `bizlogic` | Business logic flaws |
+| `race` | Race conditions |
+| `idor` | Insecure direct object reference |
+| `csrf` | Cross-site request forgery |
+| `clickjack` | Clickjacking |
+| `websocket` | WebSocket vulnerabilities |
+| `graphql` | GraphQL attacks |
+| `grpc` | gRPC attacks |
+| `soap` | SOAP/XML attacks |
+| `ssi` | Server-side includes |
+| `hpp` | HTTP parameter pollution |
+| `massassign` | Mass assignment |
+| `sensitivedata` | Sensitive data exposure |
+| `brokenauth` | Broken authentication |
+| `securitymisconfig` | Security misconfiguration |
+| `accesscontrol` | Broken access control |
+| `cryptofailure` | Cryptographic failures |
+
+### Category Aliases
+
+```bash
+waf-tester scan -u https://target.com -types injection  # sqli, nosqli, cmdi, ldapi, xpath
+waf-tester scan -u https://target.com -types all        # All categories
+```
 
 ---
 
@@ -521,6 +2112,7 @@ waf-tester bypass -u https://target.com \
   --smart \
   --smart-mode=bypass \
   -category injection \
+  --tamper=space2comment,randomcase \
   -o bypasses.json
 ```
 
@@ -540,6 +2132,15 @@ waf-tester scan -u https://api.example.com \
   -types sqli,nosqli,ssrf,jwt \
   -H "Authorization: Bearer $TOKEN" \
   -json -o api-security.json
+```
+
+### GraphQL API Testing
+
+```bash
+waf-tester scan -u https://api.example.com/graphql \
+  -types graphql \
+  -H "Authorization: Bearer $TOKEN" \
+  --json
 ```
 
 ### WordPress Audit
@@ -580,71 +2181,38 @@ waf-tester fuzz -u "https://target.com/api?FUZZ=test" \
   -o fuzz-results.json
 ```
 
----
-
-## Browser Scanning
-
-For applications requiring authentication (SSO, MFA, CAPTCHA):
+### Full Bypass Campaign
 
 ```bash
-# Opens browser for manual login
-waf-tester auto -u https://app.example.com
-
-# Headless mode (no visible browser)
-waf-tester auto -u https://app.example.com -browser-headless
-
-# Disable browser scanning
-waf-tester auto -u https://app.example.com -browser=false
-
-# Custom login timeout
-waf-tester auto -u https://app.example.com -browser-timeout 5m
+waf-tester bypass -u https://target.com \
+  --smart \
+  --smart-mode=full \
+  -mutation full \
+  -chain \
+  --tamper=space2comment,charencode,randomcase \
+  -o full-bypass-results.json
 ```
 
 ---
 
-## Working with Proxies
+## Getting Help
 
 ```bash
-# HTTP proxy
-waf-tester scan -u https://target.com -proxy http://127.0.0.1:8080
+# General help
+waf-tester -h
 
-# SOCKS5 proxy
-waf-tester scan -u https://target.com -proxy socks5://127.0.0.1:1080
+# Command-specific help
+waf-tester <command> -h
 
-# Burp Suite integration
-waf-tester scan -u https://target.com -proxy http://127.0.0.1:8080 -k
+# Detailed documentation
+waf-tester docs
+
+# Topic-specific docs
+waf-tester docs discover
+waf-tester docs mutation
+waf-tester docs categories
 ```
 
 ---
 
-## Multiple Targets
-
-```bash
-# From file
-waf-tester scan -l targets.txt
-
-# Comma-separated
-waf-tester scan -u https://site1.com,https://site2.com
-
-# With concurrency
-waf-tester scan -l targets.txt -c 100 -rl 500
-```
-
----
-
-## Smart Mode
-
-Smart mode detects WAF vendors and adapts testing:
-
-```bash
-# Basic smart mode
-waf-tester scan -u https://target.com --smart
-
-# Full bypass hunting
-waf-tester bypass -u https://target.com --smart --smart-mode=full
-
-# Stealth mode
-waf-tester auto -u https://target.com --smart --smart-mode=stealth
-```
-
-Smart mode options: `basic`, `full`, `bypass`, `stealth`
+*For more information, see the [README](../README.md) and [CHANGELOG](../CHANGELOG.md).*

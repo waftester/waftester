@@ -5,6 +5,30 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.1] - 2026-02-02
+
+### Fixed
+- **CI Release Workflow**: Release publishing now verifies tags are on the main branch before proceeding
+  - Prevents accidental releases from feature/fix branches
+  - Clear error message when tag is not on main
+
+### Documentation
+- **Comprehensive EXAMPLES.md Rewrite**: Expanded from 651 to 2,200+ lines
+  - Added 100+ probe command options (httpx-compatible)
+  - Added fuzz modes: sniper, pitchfork, clusterbomb
+  - Added recursive fuzzing and wordlist transformations
+  - Added scan severity/category filtering and OAuth testing
+  - Added smuggle safe/full modes and race attack types
+  - Added headless browser testing options
+  - Added workflow orchestration with YAML examples
+  - Added crawl content extraction options
+  - Added analyze JavaScript analysis options
+
+- **README Updates**:
+  - Added 8 missing commands to Commands table
+  - Added 4 new feature highlights
+  - Enhanced command descriptions with compatibility notes
+
 ## [2.4.0] - 2026-02-02
 
 ### Fixed
