@@ -5,11 +5,11 @@ package encoder
 import (
 	"encoding/base64"
 	"encoding/hex"
-	"fmt"
 	"net/url"
 	"strings"
 	"unicode/utf16"
 
+	"github.com/waftester/waftester/internal/hexutil"
 	"github.com/waftester/waftester/pkg/mutation"
 )
 
@@ -128,10 +128,11 @@ func (e *HTMLDecimalEncoder) Description() string { return "HTML decimal entitie
 
 func (e *HTMLDecimalEncoder) Mutate(payload string) []mutation.MutatedPayload {
 	var result strings.Builder
+	result.Grow(len(payload) * 6) // &#NN; = ~6 chars per rune
 	for _, r := range payload {
 		// Encode all printable ASCII as decimal entities
 		if r >= 32 && r < 127 {
-			result.WriteString(fmt.Sprintf("&#%d;", r))
+			hexutil.WriteDecEntity(&result, r)
 		} else {
 			result.WriteRune(r)
 		}
@@ -152,9 +153,10 @@ func (e *HTMLHexEncoder) Description() string { return "HTML hex entities &#x3c;
 
 func (e *HTMLHexEncoder) Mutate(payload string) []mutation.MutatedPayload {
 	var result strings.Builder
+	result.Grow(len(payload) * 7) // &#xXX; = 7 chars per rune
 	for _, r := range payload {
 		if r >= 32 && r < 127 {
-			result.WriteString(fmt.Sprintf("&#x%x;", r))
+			hexutil.WriteHexEntity(&result, r)
 		} else {
 			result.WriteRune(r)
 		}
@@ -211,8 +213,9 @@ func (e *UnicodeEncoder) Description() string { return "Unicode escape sequences
 
 func (e *UnicodeEncoder) Mutate(payload string) []mutation.MutatedPayload {
 	var result strings.Builder
+	result.Grow(len(payload) * 6) // \uXXXX = 6 chars per rune
 	for _, r := range payload {
-		result.WriteString(fmt.Sprintf("\\u%04x", r))
+		hexutil.WriteUnicodeEscape(&result, r)
 	}
 	return []mutation.MutatedPayload{{
 		Original:    payload,
@@ -304,32 +307,15 @@ func (e *OverlongUTF8Encoder) Description() string {
 	return "Overlong UTF-8 encoding - uses more bytes than necessary (e.g., %c0%bc for <)"
 }
 
-// overlongEncode encodes a single byte using 2-byte overlong UTF-8
-func overlongEncode2Byte(b byte) string {
-	// 2-byte overlong: 110xxxxx 10xxxxxx
-	// For byte b: first byte = 0xC0 | (b >> 6), second byte = 0x80 | (b & 0x3F)
-	first := 0xC0 | (b >> 6)
-	second := 0x80 | (b & 0x3F)
-	return fmt.Sprintf("%%c%x%%c%x", first, second)
-}
-
-// overlongEncode3Byte uses 3-byte overlong for ASCII
-func overlongEncode3Byte(b byte) string {
-	// 3-byte: 1110xxxx 10xxxxxx 10xxxxxx
-	first := byte(0xE0)
-	second := 0x80 | ((b >> 6) & 0x3F)
-	third := 0x80 | (b & 0x3F)
-	return fmt.Sprintf("%%e%x%%c%x%%c%x", first, second, third)
-}
-
 func (e *OverlongUTF8Encoder) Mutate(payload string) []mutation.MutatedPayload {
 	results := make([]mutation.MutatedPayload, 0, 2)
 
 	// 2-byte overlong variant
 	var result2 strings.Builder
+	result2.Grow(len(payload) * 10) // %cXX%cXX = 10 chars per byte
 	for _, b := range []byte(payload) {
 		if b < 128 {
-			result2.WriteString(overlongEncode2Byte(b))
+			hexutil.WriteOverlong2Byte(&result2, b)
 		} else {
 			result2.WriteByte(b)
 		}
@@ -343,9 +329,10 @@ func (e *OverlongUTF8Encoder) Mutate(payload string) []mutation.MutatedPayload {
 
 	// 3-byte overlong variant
 	var result3 strings.Builder
+	result3.Grow(len(payload) * 15) // %eXX%cXX%cXX = 15 chars per byte
 	for _, b := range []byte(payload) {
 		if b < 128 {
-			result3.WriteString(overlongEncode3Byte(b))
+			hexutil.WriteOverlong3Byte(&result3, b)
 		} else {
 			result3.WriteByte(b)
 		}
@@ -452,8 +439,9 @@ func (e *HexEncoder) Description() string { return "Hex encoding with \\x prefix
 
 func (e *HexEncoder) Mutate(payload string) []mutation.MutatedPayload {
 	var result strings.Builder
+	result.Grow(len(payload) * 4) // \xXX = 4 chars per byte
 	for _, b := range []byte(payload) {
-		result.WriteString(fmt.Sprintf("\\x%02x", b))
+		hexutil.WriteHexEscape(&result, b)
 	}
 	return []mutation.MutatedPayload{{
 		Original:    payload,
@@ -471,8 +459,9 @@ func (e *OctalEncoder) Description() string { return "Octal encoding \\074 for <
 
 func (e *OctalEncoder) Mutate(payload string) []mutation.MutatedPayload {
 	var result strings.Builder
+	result.Grow(len(payload) * 4) // \\OOO = 4 chars per byte
 	for _, b := range []byte(payload) {
-		result.WriteString(fmt.Sprintf("\\%03o", b))
+		hexutil.WriteOctalEscape(&result, b)
 	}
 	return []mutation.MutatedPayload{{
 		Original:    payload,
