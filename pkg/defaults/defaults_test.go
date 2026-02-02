@@ -110,7 +110,7 @@ func checkMarkdownVersions(t *testing.T, root string) []string {
 	t.Helper()
 	var violations []string
 
-	// Files and patterns to check
+	// Files and patterns to check for exact version match
 	checks := []struct {
 		file    string
 		pattern *regexp.Regexp
@@ -129,6 +129,16 @@ func checkMarkdownVersions(t *testing.T, root string) []string {
 		if len(matches) > 1 && matches[1] != defaults.Version {
 			violations = append(violations,
 				check.file+": found \""+matches[1]+"\" but expected \""+defaults.Version+"\"")
+		}
+	}
+
+	// Check CHANGELOG.md has an entry for current version
+	changelogPath := filepath.Join(root, "CHANGELOG.md")
+	if content, err := os.ReadFile(changelogPath); err == nil {
+		versionHeader := regexp.MustCompile(`## \[` + regexp.QuoteMeta(defaults.Version) + `\]`)
+		if !versionHeader.Match(content) {
+			violations = append(violations,
+				"CHANGELOG.md: missing entry for version "+defaults.Version)
 		}
 	}
 
