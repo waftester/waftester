@@ -46,10 +46,24 @@ go test ./...
 
 # Run linter
 golangci-lint run
-
-# Hardcode checks run automatically with tests
-# See pkg/defaults/defaults_test.go for TestNoHardcoded* tests
 ```
+
+### Enforcement Tests
+
+These AST-based tests run automatically and **fail the build** if violations are detected:
+
+| Test | Enforces |
+|------|----------|
+| `TestVersionConsistency` | `ui.Version == defaults.Version`, SECURITY.md, CHANGELOG.md |
+| `TestNoHardcodedConcurrency` | Use `defaults.Concurrency*` |
+| `TestNoHardcodedRetries` | Use `defaults.Retry*` |
+| `TestNoHardcodedMaxDepth` | Use `defaults.Depth*` |
+| `TestNoHardcodedMaxRedirects` | Use `defaults.MaxRedirects` |
+| `TestNoHardcodedContentType` | Use `defaults.ContentType*` |
+| `TestNoHardcodedUserAgent` | Use `defaults.UA*` or `ui.UserAgentWithContext()` |
+| `TestNoHardcodedTimeouts` | Use `duration.Timeout*` |
+| `TestNoHardcodedIntervals` | Use `duration.Interval*` |
+| `TestNoRawHTTPClient` | Use `httpclient.*` presets, not raw `&http.Client{}` |
 
 ## ⚠️ Configuration Constants Policy
 
@@ -57,9 +71,10 @@ golangci-lint run
 
 | Package | Use For |
 |---------|---------|
-| `pkg/defaults` | Concurrency, Retry, Buffer, Channel, ContentType, Depth |
-| `pkg/duration` | All `time.Duration` values |
-| `pkg/httpclient` | HTTP timeout presets (Probing, Scanning, Fuzzing) |
+| `pkg/defaults` | Concurrency, Retry, Buffer, Channel, ContentType, UserAgent, Depth, MaxRedirects, Version |
+| `pkg/duration` | All `time.Duration` values (Timeout*, Interval*) |
+| `pkg/httpclient` | HTTP client presets (NewScanner, NewProbing, NewAggressive) |
+| `pkg/ui` | `UserAgentWithContext()` for component-specific UAs |
 
 ### ❌ Forbidden Patterns
 
