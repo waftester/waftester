@@ -14,6 +14,129 @@ Adaptive WAF security testing toolkit. Discover endpoints, detect WAF vendors, a
 - Smart mode adapts rate limits and evasion techniques per vendor
 - Enterprise assessment with F1, precision, recall, and MCC metrics
 - Multiple output formats: JSON, SARIF, CSV, HTML, Markdown
+- **70+ sqlmap-compatible tamper scripts** for WAF bypass (v2.4.0+)
+- **Full GraphQL, gRPC, and SOAP/WSDL protocol support** (v2.4.0+)
+
+## Protocol Support
+
+WAFtester provides native security testing for modern API protocols beyond traditional HTTP:
+
+### GraphQL Security Testing
+
+```bash
+# Automatic GraphQL endpoint detection and testing
+waf-tester auto -u https://api.example.com/graphql
+
+# Deep GraphQL introspection and schema analysis
+waf-tester scan -u https://api.example.com/graphql -types graphql
+
+# GraphQL-specific attack categories:
+# - Introspection exposure
+# - Query depth attacks
+# - Batch query abuse
+# - Field suggestion exploitation
+# - Authorization bypass via aliases
+# - Directive injection
+```
+
+**Supported GraphQL Features:**
+- Schema introspection and type enumeration
+- Mutation fuzzing with type-aware payloads
+- Query complexity analysis
+- Subscription testing
+- Persisted query detection
+
+### gRPC Security Testing
+
+```bash
+# gRPC reflection-based testing
+waf-tester scan -u grpc://service.example.com:50051 -types grpc
+
+# With TLS
+waf-tester scan -u grpcs://service.example.com:50051 -types grpc
+
+# gRPC-specific attack categories:
+# - Reflection enumeration
+# - Message field fuzzing
+# - Streaming abuse
+# - Metadata injection
+# - Proto type confusion
+```
+
+**Supported gRPC Features:**
+- Server reflection for service discovery
+- Automatic proto message construction
+- Unary, server streaming, client streaming, and bidirectional testing
+- TLS/mTLS support
+- Metadata header injection
+
+### SOAP/WSDL Security Testing
+
+```bash
+# WSDL-based SOAP testing
+waf-tester scan -u https://api.example.com/service.wsdl -types soap
+
+# SOAP-specific attack categories:
+# - WSDL enumeration
+# - XML injection in SOAP body
+# - XXE attacks
+# - WS-Security bypass
+# - SOAP action manipulation
+```
+
+**Supported SOAP Features:**
+- Automatic WSDL parsing
+- Operation enumeration
+- Type-aware XML payload generation
+- WS-Security header support
+- MTOM/XOP attachment handling
+
+## Tamper Scripts
+
+WAFtester includes 70+ tamper scripts (ported from sqlmap) for WAF bypass. Use `--tamper` to apply transformations:
+
+```bash
+# Single tamper
+waf-tester scan -u https://target.com --tamper=space2comment
+
+# Multiple tampers (applied in sequence)
+waf-tester scan -u https://target.com --tamper=space2comment,charencode,randomcase
+
+# List all available tampers
+waf-tester tampers --list
+
+# List tampers by category
+waf-tester tampers --category=encoding
+```
+
+### Tamper Categories
+
+| Category | Count | Description |
+|----------|-------|-------------|
+| `encoding` | 12 | Base64, URL encoding, Unicode escapes |
+| `space` | 12 | Space replacement (comments, tabs, etc.) |
+| `sql` | 16 | SQL syntax transformations |
+| `mysql` | 10 | MySQL-specific bypasses |
+| `mssql` | 6 | MSSQL-specific bypasses |
+| `waf` | 4 | WAF-specific bypasses (ModSecurity, etc.) |
+| `http` | 3 | HTTP-level modifications (headers) |
+| `obfuscation` | 6 | General obfuscation techniques |
+
+### Popular Tampers
+
+```bash
+# ModSecurity bypass
+--tamper=modsecurityversioned,space2comment
+
+# Cloudflare bypass
+--tamper=charunicodeencode,randomcase
+
+# AWS WAF bypass  
+--tamper=between,equaltolike,space2morecomment
+
+# Generic WAF bypass combo
+--tamper=space2comment,randomcase,charencode,unmagicquotes
+```
 
 ## Requirements
 

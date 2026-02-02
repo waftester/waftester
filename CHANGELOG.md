@@ -5,6 +5,36 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-02-02
+
+### Added
+- **68 SQLMap-Compatible Tamper Scripts**: Complete port of sqlmap's tamper library for WAF bypass
+  - `--tamper` flag to apply payload transformations
+  - Support for tamper chaining: `--tamper "space2comment,randomcase,base64encode"`
+  - Priority-based execution with `ChainByPriority()`
+  - HTTP-level request transformations via `TransformRequest()`
+
+- **Tamper Categories** (8 categories, 68 scripts):
+  - `encoding` (12): base64encode, charencode, htmlencode, overlongutf8, unmagicquotes, etc.
+  - `space` (12): space2comment, space2plus, space2dash, blankspace, varnishbypass, etc.
+  - `sql` (16): apostrophemask, between, equaltolike, randomcase, symboliclogical, etc.
+  - `mysql` (10): modsecurityversioned, versionedkeywords, misunion, multipleurlencode, etc.
+  - `mssql` (6): mssqlblind, chardeclareandexec, topclause, bracketcomment, etc.
+  - `waf` (4): informationschemacomment, luanginxwaf, jsonobfuscate, schemasplit
+  - `http` (3): xforwardedfor, randomuseragent, varnishbypass
+  - `obfuscation` (6): commentrandom, nullbyte, suffix, concat, slashstar, etc.
+
+- **Protocol Testing Documentation**: README updated with guidance for:
+  - GraphQL endpoint testing (introspection, mutations, batching)
+  - gRPC service testing (reflection, protobuf payloads)
+  - SOAP/XML testing (XXE, WSDL enumeration)
+
+### Technical
+- Thread-safe tamper registry with Get, List, ByCategory, ByTag functions
+- Tamper interface: `Transform(payload string) string` + `TransformRequest(req *http.Request) *http.Request`
+- Full test coverage for all 68 tampers (8 test files, 1000+ test cases)
+- New package: `pkg/evasion/advanced/tampers/`
+
 ## [2.3.5] - 2026-02-02
 
 ### Fixed
