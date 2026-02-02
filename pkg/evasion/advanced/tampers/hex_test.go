@@ -187,6 +187,38 @@ func TestWriteUnicodeEscape_NonASCII(t *testing.T) {
 	}
 }
 
+func TestWriteUnicodeEscape_Emoji(t *testing.T) {
+	// Test runes > 0xFFFF (supplementary Unicode plane)
+	// These require 6 hex digits
+	var sb strings.Builder
+
+	// Fire emoji U+1F525
+	writeUnicodeEscape(&sb, 0x1F525, true)
+	if sb.String() != "\\u01F525" {
+		t.Errorf("writeUnicodeEscape(0x1F525, true) = %q, expected \\u01F525", sb.String())
+	}
+
+	sb.Reset()
+	writeUnicodeEscape(&sb, 0x1F525, false)
+	if sb.String() != "\\u01f525" {
+		t.Errorf("writeUnicodeEscape(0x1F525, false) = %q, expected \\u01f525", sb.String())
+	}
+
+	sb.Reset()
+	// Grinning face U+1F600
+	writeUnicodeEscape(&sb, 0x1F600, true)
+	if sb.String() != "\\u01F600" {
+		t.Errorf("writeUnicodeEscape(0x1F600, true) = %q, expected \\u01F600", sb.String())
+	}
+
+	sb.Reset()
+	// Max valid Unicode U+10FFFF
+	writeUnicodeEscape(&sb, 0x10FFFF, false)
+	if sb.String() != "\\u10ffff" {
+		t.Errorf("writeUnicodeEscape(0x10FFFF, false) = %q, expected \\u10ffff", sb.String())
+	}
+}
+
 // =============================================================================
 // HTML ENTITY TESTS
 // =============================================================================
