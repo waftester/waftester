@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
 )
@@ -57,11 +58,9 @@ func NewTeamsHook(webhookURL string, opts TeamsOptions) *TeamsHook {
 
 	return &TeamsHook{
 		webhookURL: webhookURL,
-		client: &http.Client{
-			Timeout: opts.Timeout,
-		},
-		opts:     opts,
-		bypasses: make([]*events.BypassEvent, 0),
+		client:     httpclient.New(httpclient.Config{Timeout: opts.Timeout}),
+		opts:       opts,
+		bypasses:   make([]*events.BypassEvent, 0),
 	}
 }
 

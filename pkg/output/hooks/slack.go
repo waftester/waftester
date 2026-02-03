@@ -12,6 +12,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
 )
@@ -66,11 +67,9 @@ func NewSlackHook(webhookURL string, opts SlackOptions) *SlackHook {
 
 	return &SlackHook{
 		webhookURL: webhookURL,
-		client: &http.Client{
-			Timeout: opts.Timeout,
-		},
-		opts:     opts,
-		bypasses: make([]*events.BypassEvent, 0),
+		client:     httpclient.New(httpclient.Config{Timeout: opts.Timeout}),
+		opts:       opts,
+		bypasses:   make([]*events.BypassEvent, 0),
 	}
 }
 
