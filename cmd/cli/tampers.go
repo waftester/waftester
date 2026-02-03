@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
 	"github.com/waftester/waftester/pkg/ui"
@@ -26,11 +28,46 @@ func runTampers() {
 	showMatrix := tamperFlags.Bool("matrix", false, "Show WAF intelligence matrix")
 	jsonOutput := tamperFlags.Bool("json", false, "Output as JSON")
 
+	// Enterprise hook flags
+	tampersSlack := tamperFlags.String("slack-webhook", "", "Slack webhook URL for notifications")
+	tampersTeams := tamperFlags.String("teams-webhook", "", "Teams webhook URL for notifications")
+	tampersPagerDuty := tamperFlags.String("pagerduty-key", "", "PagerDuty routing key")
+	tampersOtel := tamperFlags.String("otel-endpoint", "", "OpenTelemetry endpoint")
+	tampersWebhook := tamperFlags.String("webhook-url", "", "Generic webhook URL")
+
 	tamperFlags.Parse(os.Args[2:])
 
 	// If no flags, show list
 	if !*listAll && *category == "" && *forWAF == "" && *test == "" && !*showMatrix {
 		*listAll = true
+	}
+
+	// Initialize dispatcher for hooks (only for --for-waf mode which is actionable)
+	var tampersDispCtx *DispatcherContext
+	if *forWAF != "" {
+		tampersOutputFlags := OutputFlags{
+			SlackWebhook: *tampersSlack,
+			TeamsWebhook: *tampersTeams,
+			PagerDutyKey: *tampersPagerDuty,
+			OTelEndpoint: *tampersOtel,
+			WebhookURL:   *tampersWebhook,
+		}
+		tampersScanID := fmt.Sprintf("tampers-%d", time.Now().Unix())
+		var tampersDispErr error
+		tampersDispCtx, tampersDispErr = tampersOutputFlags.InitDispatcher(tampersScanID, *forWAF)
+		if tampersDispErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Dispatcher warning: %v", tampersDispErr))
+		}
+		if tampersDispCtx != nil {
+			defer tampersDispCtx.Close()
+		}
+	}
+	tampersStartTime := time.Now()
+	tampersCtx := context.Background()
+
+	// Emit start event for scan lifecycle hooks
+	if tampersDispCtx != nil {
+		_ = tampersDispCtx.EmitStart(tampersCtx, *forWAF, 0, 1, nil)
 	}
 
 	// List all tampers
@@ -42,6 +79,13 @@ func runTampers() {
 	// Show tampers for a WAF vendor
 	if *forWAF != "" {
 		showTampersForWAF(*forWAF, *jsonOutput)
+		// Emit tamper recommendations to hooks
+		if tampersDispCtx != nil {
+			recs := tampers.GetRecommendations(strings.ToLower(*forWAF))
+			tamperDesc := fmt.Sprintf("%d tampers recommended for %s", len(recs), *forWAF)
+			_ = tampersDispCtx.EmitBypass(tampersCtx, "tamper-recommendation", "info", *forWAF, tamperDesc, 0)
+			_ = tampersDispCtx.EmitSummary(tampersCtx, len(recs), len(recs), 0, time.Since(tampersStartTime))
+		}
 		return
 	}
 

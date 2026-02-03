@@ -45,6 +45,10 @@ type FilterConfig struct {
 	FilterRegex  *regexp.Regexp // Body regex pattern to exclude
 }
 
+// ResultCallback is called for each test result during execution.
+// Use this for real-time streaming to hooks (Slack, Teams, OTEL, etc.)
+type ResultCallback func(result *output.TestResult)
+
 // ExecutorConfig holds execution settings
 type ExecutorConfig struct {
 	TargetURL     string
@@ -58,6 +62,10 @@ type ExecutorConfig struct {
 	RealisticMode bool          // Use realistic request building and block detection
 	AutoCalibrate bool          // Auto-calibrate before testing
 	HTTPClient    *http.Client  // Optional custom HTTP client (e.g., JA3-aware)
+
+	// OnResult is called for each test result (optional).
+	// Use for real-time streaming to webhooks, Slack, Teams, PagerDuty, OTEL, etc.
+	OnResult ResultCallback
 }
 
 // Executor runs security tests in parallel
@@ -182,6 +190,11 @@ func (e *Executor) Execute(ctx context.Context, allPayloads []payloads.Payload, 
 		defer collectorWg.Done()
 		for result := range resultsChan {
 			writer.Write(result)
+
+			// Call OnResult callback for real-time streaming to hooks
+			if e.config.OnResult != nil {
+				e.config.OnResult(result)
+			}
 		}
 	}()
 
@@ -686,6 +699,12 @@ func (e *Executor) ExecuteWithProgress(ctx context.Context, allPayloads []payloa
 			}
 
 			writer.Write(result)
+
+			// Call OnResult callback for real-time streaming to hooks
+			// This enables Slack/Teams/PagerDuty/OTEL notifications as results come in
+			if e.config.OnResult != nil {
+				e.config.OnResult(result)
+			}
 
 			// Collect stats (thread-safe)
 			statsMu.Lock()

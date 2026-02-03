@@ -1,6 +1,7 @@
 package output
 
 import (
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/scoring"
 )
 
@@ -47,30 +48,53 @@ type TestResult struct {
 	OriginalPayload string `json:"original_payload,omitempty"` // Pre-mutation payload
 }
 
-// OWASPMapping maps attack categories to OWASP Top 10 2021
-var OWASPMapping = map[string]struct {
+// OWASPMapping maps attack categories to OWASP Top 10 2021 and CWE IDs.
+// OWASP codes are derived from defaults.OWASPCategoryMapping at runtime.
+var OWASPMapping = func() map[string]struct {
 	OWASP string
 	CWE   []string
-}{
-	"sqli":            {"A03:2021-Injection", []string{"CWE-89"}},
-	"injection":       {"A03:2021-Injection", []string{"CWE-89", "CWE-77", "CWE-78"}},
-	"xss":             {"A03:2021-Injection", []string{"CWE-79"}},
-	"xxe":             {"A05:2021-Security Misconfiguration", []string{"CWE-611"}},
-	"ssrf":            {"A10:2021-SSRF", []string{"CWE-918"}},
-	"traversal":       {"A01:2021-Broken Access Control", []string{"CWE-22"}},
-	"auth":            {"A07:2021-Identification and Authentication Failures", []string{"CWE-287"}},
-	"idor":            {"A01:2021-Broken Access Control", []string{"CWE-639"}},
-	"deserialize":     {"A08:2021-Software and Data Integrity Failures", []string{"CWE-502"}},
-	"crypto":          {"A02:2021-Cryptographic Failures", []string{"CWE-327"}},
-	"rce":             {"A03:2021-Injection", []string{"CWE-78", "CWE-94"}},
-	"lfi":             {"A01:2021-Broken Access Control", []string{"CWE-22", "CWE-98"}},
-	"rfi":             {"A03:2021-Injection", []string{"CWE-98"}},
-	"cmd":             {"A03:2021-Injection", []string{"CWE-78"}},
-	"template":        {"A03:2021-Injection", []string{"CWE-94"}},
-	"nosql":           {"A03:2021-Injection", []string{"CWE-943"}},
-	"ldap":            {"A03:2021-Injection", []string{"CWE-90"}},
-	"generic-attacks": {"A03:2021-Injection", []string{"CWE-74"}},
-}
+} {
+	// CWE mappings for each category
+	cwes := map[string][]string{
+		"sqli":            {"CWE-89"},
+		"injection":       {"CWE-89", "CWE-77", "CWE-78"},
+		"xss":             {"CWE-79"},
+		"xxe":             {"CWE-611"},
+		"ssrf":            {"CWE-918"},
+		"traversal":       {"CWE-22"},
+		"auth":            {"CWE-287"},
+		"idor":            {"CWE-639"},
+		"deserialize":     {"CWE-502"},
+		"crypto":          {"CWE-327"},
+		"rce":             {"CWE-78", "CWE-94"},
+		"lfi":             {"CWE-22", "CWE-98"},
+		"rfi":             {"CWE-98"},
+		"cmd":             {"CWE-78"},
+		"template":        {"CWE-94"},
+		"nosql":           {"CWE-943"},
+		"ldap":            {"CWE-90"},
+		"generic-attacks": {"CWE-74"},
+	}
+
+	result := make(map[string]struct {
+		OWASP string
+		CWE   []string
+	})
+
+	// Build from centralized OWASPCategoryMapping
+	for category := range cwes {
+		cat := defaults.GetOWASPForCategory(category)
+		result[category] = struct {
+			OWASP string
+			CWE   []string
+		}{
+			OWASP: cat.FullName,
+			CWE:   cwes[category],
+		}
+	}
+
+	return result
+}()
 
 // ErrorCategory categorizes test errors for better analysis
 type ErrorCategory string

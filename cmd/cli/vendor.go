@@ -1,4 +1,3 @@
-// cmd/cli/vendor.go - Vendor WAF Detection Command
 package main
 
 import (
@@ -7,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/waftester/waftester/pkg/ui"
@@ -29,6 +29,13 @@ func runVendorDetect() {
 	autoTune := vendorFlags.Bool("autotune", false, "Show auto-tune configuration")
 	showHints := vendorFlags.Bool("hints", true, "Show bypass hints")
 	listVendors := vendorFlags.Bool("list", false, "List all supported WAF vendors")
+
+	// Enterprise hook flags
+	vendorSlack := vendorFlags.String("slack-webhook", "", "Slack webhook URL for notifications")
+	vendorTeams := vendorFlags.String("teams-webhook", "", "Teams webhook URL for notifications")
+	vendorPagerDuty := vendorFlags.String("pagerduty-key", "", "PagerDuty routing key")
+	vendorOtel := vendorFlags.String("otel-endpoint", "", "OpenTelemetry endpoint")
+	vendorWebhook := vendorFlags.String("webhook-url", "", "Generic webhook URL")
 
 	vendorFlags.Parse(os.Args[2:])
 
@@ -61,6 +68,30 @@ func runVendorDetect() {
 	ui.PrintConfigLine("Signatures", fmt.Sprintf("%d WAF vendors", len(vendors.GetAllSignatures())))
 	fmt.Println()
 
+	// Initialize dispatcher for hooks
+	vendorOutputFlags := OutputFlags{
+		SlackWebhook: *vendorSlack,
+		TeamsWebhook: *vendorTeams,
+		PagerDutyKey: *vendorPagerDuty,
+		OTelEndpoint: *vendorOtel,
+		WebhookURL:   *vendorWebhook,
+	}
+	vendorScanID := fmt.Sprintf("vendor-%d", time.Now().Unix())
+	vendorDispCtx, vendorDispErr := vendorOutputFlags.InitDispatcher(vendorScanID, *target)
+	if vendorDispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Dispatcher warning: %v", vendorDispErr))
+	}
+	if vendorDispCtx != nil {
+		defer vendorDispCtx.Close()
+	}
+	vendorStartTime := time.Now()
+	vendorCtx := context.Background()
+
+	// Emit start event for scan lifecycle hooks
+	if vendorDispCtx != nil {
+		_ = vendorDispCtx.EmitStart(vendorCtx, *target, 0, 1, nil)
+	}
+
 	// Create detector
 	detector := vendors.NewVendorDetector(time.Duration(*timeout) * time.Second)
 
@@ -72,6 +103,10 @@ func runVendorDetect() {
 
 	result, err := detector.Detect(ctx, *target)
 	if err != nil {
+		// Emit error to hooks
+		if vendorDispCtx != nil {
+			_ = vendorDispCtx.EmitError(vendorCtx, "vendor", fmt.Sprintf("Vendor detection error: %v", err), true)
+		}
 		fmt.Println(ui.ErrorStyle.Render(fmt.Sprintf("Error: %v", err)))
 		os.Exit(1)
 	}
@@ -80,6 +115,29 @@ func runVendorDetect() {
 
 	// Display results
 	displayVendorResults(result, *showHints)
+
+	// Emit WAF detection to hooks
+	if vendorDispCtx != nil {
+		if result.Detected {
+			wafDesc := fmt.Sprintf("WAF detected: %s (%.0f%% confidence)", result.VendorName, result.Confidence*100)
+			_ = vendorDispCtx.EmitBypass(vendorCtx, "waf-vendor-detection", "info", *target, wafDesc, 0)
+
+			// Emit bypass hints as actionable intelligence
+			for _, hint := range result.BypassHints {
+				_ = vendorDispCtx.EmitBypass(vendorCtx, "bypass-hint", "info", *target, hint, 0)
+			}
+			// Emit recommended techniques
+			if len(result.RecommendedEncoders) > 0 {
+				encDesc := fmt.Sprintf("Recommended encoders: %s", strings.Join(result.RecommendedEncoders, ", "))
+				_ = vendorDispCtx.EmitBypass(vendorCtx, "recommended-encoders", "info", *target, encDesc, 0)
+			}
+			if len(result.RecommendedEvasions) > 0 {
+				evDesc := fmt.Sprintf("Recommended evasions: %s", strings.Join(result.RecommendedEvasions, ", "))
+				_ = vendorDispCtx.EmitBypass(vendorCtx, "recommended-evasions", "info", *target, evDesc, 0)
+			}
+		}
+		_ = vendorDispCtx.EmitSummary(vendorCtx, 1, 1, 0, time.Since(vendorStartTime))
+	}
 
 	// Show auto-tune if requested
 	if *autoTune && result.Detected {
@@ -203,6 +261,13 @@ func runProtocolDetect() {
 	timeout := protoFlags.Int("timeout", 10, "Request timeout in seconds")
 	output := protoFlags.String("output", "", "Output file for results (JSON)")
 
+	// Enterprise hook flags
+	protoSlack := protoFlags.String("slack-webhook", "", "Slack webhook URL for notifications")
+	protoTeams := protoFlags.String("teams-webhook", "", "Teams webhook URL for notifications")
+	protoPagerDuty := protoFlags.String("pagerduty-key", "", "PagerDuty routing key")
+	protoOtel := protoFlags.String("otel-endpoint", "", "OpenTelemetry endpoint")
+	protoWebhook := protoFlags.String("webhook-url", "", "Generic webhook URL")
+
 	protoFlags.Parse(os.Args[2:])
 
 	if *target == "" {
@@ -216,6 +281,30 @@ func runProtocolDetect() {
 
 	ui.PrintConfigLine("Target", *target)
 	fmt.Println()
+
+	// Initialize dispatcher for hooks
+	protoOutputFlags := OutputFlags{
+		SlackWebhook: *protoSlack,
+		TeamsWebhook: *protoTeams,
+		PagerDutyKey: *protoPagerDuty,
+		OTelEndpoint: *protoOtel,
+		WebhookURL:   *protoWebhook,
+	}
+	protoScanID := fmt.Sprintf("protocol-%d", time.Now().Unix())
+	protoDispCtx, protoDispErr := protoOutputFlags.InitDispatcher(protoScanID, *target)
+	if protoDispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Dispatcher warning: %v", protoDispErr))
+	}
+	if protoDispCtx != nil {
+		defer protoDispCtx.Close()
+	}
+	protoStartTime := time.Now()
+	protoCtx := context.Background()
+
+	// Emit start event for scan lifecycle hooks
+	if protoDispCtx != nil {
+		_ = protoDispCtx.EmitStart(protoCtx, *target, 0, 1, nil)
+	}
 
 	ui.PrintInfo("Detecting protocol...")
 
@@ -239,6 +328,11 @@ func runProtocolDetect() {
 
 	// Note: Full implementation would use pkg/enterprise
 	ui.PrintInfo("Protocol detection complete")
+
+	// Emit summary to hooks
+	if protoDispCtx != nil {
+		_ = protoDispCtx.EmitSummary(protoCtx, 1, 1, 0, time.Since(protoStartTime))
+	}
 
 	_ = output // Would save results
 }

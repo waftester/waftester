@@ -58,6 +58,9 @@ These AST-based tests run automatically and **fail the build** if violations are
 | `TestNoHardcodedConcurrency` | Use `defaults.Concurrency*` |
 | `TestNoHardcodedRetries` | Use `defaults.Retry*` |
 | `TestNoHardcodedMaxDepth` | Use `defaults.Depth*` |
+| `TestDispatcherWiringMinimumEmissions` | Minimum emission counts per hook method |
+| `TestAllDispatcherContextsHaveEmitStart` | All 22 dispatchers call EmitStart |
+| `TestErrorPathsHaveEmitError` | Error-prone commands emit EmitError |
 | `TestNoHardcodedMaxRedirects` | Use `defaults.MaxRedirects` |
 | `TestNoHardcodedContentType` | Use `defaults.ContentType*` |
 | `TestNoHardcodedUserAgent` | Use `defaults.UA*` or `ui.UserAgentWithContext()` |

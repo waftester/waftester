@@ -241,14 +241,52 @@ waf-tester assess -u $TARGET -json | \
 
 **Output formats for every workflow:**
 
-| Format | Use Case | Flag |
-|--------|----------|------|
-| JSON | Automation, APIs, scripting | `-json` or `-format json` |
-| JSONL | Streaming, real-time processing | `-stream -json` |
-| SARIF | GitHub/GitLab Security, VS Code | `-format sarif` |
-| HTML | Reports for stakeholders | `-format html` |
-| CSV | Excel, data analysis | `-format csv` |
-| Markdown | Documentation, wikis | `-format md` |
+| Format | Use Case | Flag | v2.5.0 Enhancements |
+|--------|----------|------|---------------------|
+| JSON | Automation, APIs, scripting | `-json` or `-format json` | Streaming events |
+| JSONL | Streaming, real-time processing | `-stream -json` | Full event types |
+| SARIF | GitHub/GitLab Security, VS Code | `-format sarif` | 100% compliant |
+| HTML | Reports for stakeholders | `-format html` | Themes, interactive charts |
+| CSV | Excel, data analysis | `-format csv` | OWASP columns |
+| Markdown | Documentation, wikis | `-format md` | TOC, OWASP sections |
+| Console | Terminal output | `-format console` | Colorized, compact mode |
+| Template | Custom formats | `--template=FILE` | Go template engine |
+| PDF | Executive reports | `-format pdf` | Branding, signatures |
+| JUnit | CI/CD test frameworks | `-format junit` | Jenkins, GitLab, Azure |
+| CycloneDX | SBOM vulnerability exchange | `-format cyclonedx` | VEX 1.5 format |
+
+**Enterprise Integrations (v2.5.0+):**
+
+| Integration | Format | Flag |
+|------------|--------|------|
+| SonarQube | Generic Issue Import | `-format sonarqube` |
+| GitLab SAST | gl-sast-report.json | `-format gitlab-sast` |
+| DefectDojo | Findings import | `-format defectdojo` |
+| HAR | HTTP Archive | `-format har` |
+| JUnit XML | CI/CD test reports | `-format junit` |
+| CycloneDX VEX | SBOM vulnerability exchange | `-format cyclonedx` |
+
+**Real-time Alerting & Observability (v2.5.0+):**
+
+```bash
+# Slack webhook on critical findings
+waf-tester scan -u $TARGET --hook-slack=$WEBHOOK_URL
+
+# Microsoft Teams notifications  
+waf-tester scan -u $TARGET --hook-teams=$WEBHOOK_URL
+
+# PagerDuty for on-call escalation
+waf-tester scan -u $TARGET --hook-pagerduty=$ROUTING_KEY
+
+# Jira ticket creation
+waf-tester scan -u $TARGET --hook-jira=$JIRA_URL --jira-project=SEC
+
+# GitHub Actions step summary & outputs
+waf-tester scan -u $TARGET --hook-github
+
+# OpenTelemetry tracing (Jaeger, Zipkin, etc.)
+waf-tester scan -u $TARGET --hook-otel=$OTEL_ENDPOINT
+```
 
 ---
 
@@ -283,11 +321,22 @@ waf-tester assess -u $TARGET -json | \
 | `--tamper` | Tamper list (comma-separated) | - |
 | `--tamper-auto` | Auto-select for detected WAF | false |
 | `--tamper-profile` | Preset: stealth, standard, aggressive, bypass | - |
-| `-format` | Output: json, sarif, html, csv, md | json |
+| `-format` | Output: json, sarif, html, csv, md, pdf, template | json |
 | `-o` | Output file | - |
 | `-x` | Proxy (HTTP/SOCKS5) | - |
 | `-H` | Custom headers | - |
 | `-types` | Test categories | all |
+| `--stream` | Real-time streaming output | false |
+| `--html-theme` | HTML theme: light, dark, corporate, security | light |
+| `--md-toc` | Include table of contents in Markdown | false |
+| `--md-owasp` | Group by OWASP category in Markdown | false |
+| `--template` | Custom Go template file | - |
+| `--hook-slack` | Slack webhook URL for alerts | - |
+| `--hook-teams` | Microsoft Teams webhook URL | - |
+| `--hook-pagerduty` | PagerDuty routing key | - |
+| `--hook-jira` | Jira base URL for ticket creation | - |
+| `--hook-github` | GitHub Actions step summary & outputs | - |
+| `--hook-otel` | OpenTelemetry collector endpoint | - |
 
 ---
 
@@ -301,7 +350,11 @@ waf-tester assess -u $TARGET -json | \
 | Mutator functions | 49 |
 | Attack categories | 50+ (SQLi, XSS, RCE, SSRF, XXE, traversal...) |
 | Protocols | HTTP, GraphQL, gRPC, SOAP, WebSocket |
-| Output formats | JSON, SARIF, HTML, CSV, Markdown |
+| Output formats | 15 (JSON, JSONL, SARIF, HTML, CSV, Markdown, Console, Template, PDF, JUnit, CycloneDX, SonarQube, GitLab SAST, DefectDojo, HAR) |
+| Enterprise integrations | 6 (SonarQube, GitLab SAST, DefectDojo, HAR, JUnit, CycloneDX) |
+| Alerting hooks | 8 (Slack, Teams, PagerDuty, Jira, GitHub Actions, OpenTelemetry, Prometheus, Webhook) |
+| Streaming emissions | 179 hook emission points across 22 CLI commands |
+| CI/CD platforms | 9 (GitHub, GitLab, Azure, Jenkins, CircleCI, Drone, Tekton, ArgoCD, Harness) |
 
 ---
 

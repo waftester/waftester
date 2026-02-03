@@ -55,7 +55,14 @@ func runAssess() {
 	// TLS
 	skipVerify := assessFlags.Bool("k", false, "Skip TLS certificate verification")
 
+	// Enterprise output flags (SARIF, JUnit, webhooks, policy, etc.)
+	var outputFlags OutputFlags
+	outputFlags.RegisterEnterpriseFlags(assessFlags)
+
 	assessFlags.Parse(os.Args[2:])
+
+	// Apply UI settings from output flags
+	outputFlags.ApplyUISettings()
 
 	// Validate
 	if *target == "" {
@@ -80,6 +87,14 @@ func runAssess() {
 		fmt.Println("  -format <fmt>         Output format: console, json (default: console)")
 		fmt.Println("  -v                    Verbose output")
 		fmt.Println("  -k                    Skip TLS verification")
+		fmt.Println()
+		fmt.Println("CI/CD Integration:")
+		fmt.Println("  -sarif-export <file>  Export SARIF for GitHub/Azure DevOps")
+		fmt.Println("  -junit-export <file>  Export JUnit XML for CI systems")
+		fmt.Println("  -policy <file>        Policy YAML for exit code rules")
+		fmt.Println("  -baseline <file>      Baseline JSON for regression detection")
+		fmt.Println("  -github-output        Enable GitHub Actions output")
+		fmt.Println("  -github-summary       Add to GitHub Actions job summary")
 		fmt.Println()
 		fmt.Println("Examples:")
 		fmt.Println("  waf-tester assess -u https://example.com")
@@ -129,6 +144,28 @@ func runAssess() {
 	// Setup context with timeout (30 min max)
 	ctx, cancel := context.WithTimeout(context.Background(), duration.ContextMax)
 	defer cancel()
+
+	// Initialize dispatcher for hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
+	scanID := fmt.Sprintf("assess-%d", time.Now().Unix())
+	dispCtx, dispErr := outputFlags.InitDispatcher(scanID, *target)
+	if dispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Output dispatcher warning: %v", dispErr))
+	}
+	if dispCtx != nil {
+		defer dispCtx.Close()
+		if !*streamMode {
+			ui.PrintInfo("Real-time integrations enabled (hooks active)")
+		}
+	}
+
+	// Emit start event for scan lifecycle hooks
+	if dispCtx != nil {
+		var cats []string
+		if *categories != "" {
+			cats = strings.Split(*categories, ",")
+		}
+		_ = dispCtx.EmitStart(ctx, *target, 0, *concurrency, cats)
+	}
 
 	// Display execution manifest BEFORE running (only in interactive mode)
 	if !*streamMode {
@@ -188,6 +225,10 @@ func runAssess() {
 	elapsed := progress.GetElapsed()
 
 	if err != nil {
+		// Emit error to hooks
+		if dispCtx != nil {
+			_ = dispCtx.EmitError(ctx, "assess", fmt.Sprintf("Assessment error: %v", err), true)
+		}
 		fmt.Println(ui.ErrorStyle.Render(fmt.Sprintf("Assessment error: %v", err)))
 		os.Exit(1)
 	}
@@ -198,6 +239,32 @@ func runAssess() {
 	} else {
 		fmt.Printf("  ✅ Assessment completed in %s\n", formatElapsedAssess(elapsed))
 		fmt.Println()
+	}
+
+	// Emit findings to all hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
+	if dispCtx != nil {
+		// Emit overall grade as a result event
+		gradeDesc := fmt.Sprintf("Enterprise Assessment Grade: %s - %s", result.Grade, result.GradeReason)
+		_ = dispCtx.EmitBypass(ctx, "assess-grade", result.Grade, *target, gradeDesc, 0)
+
+		// Emit weak categories (low detection rate or poor grades)
+		for cat, cm := range result.CategoryMetrics {
+			if cm.Grade == "D" || cm.Grade == "F" || cm.DetectionRate < 0.6 {
+				weakDesc := fmt.Sprintf("Weak category: %s - Detection %.1f%% (%d bypassed) - Grade %s",
+					cat, cm.DetectionRate*100, cm.Bypassed, cm.Grade)
+				_ = dispCtx.EmitBypass(ctx, "assess-weak-category", "high", *target, weakDesc, 0)
+			}
+		}
+
+		// Emit recommendations
+		for _, rec := range result.Recommendations {
+			_ = dispCtx.EmitBypass(ctx, "assess-recommendation", "info", *target, rec, 0)
+		}
+
+		// Emit summary
+		_ = dispCtx.EmitSummary(ctx, int(result.TotalRequests),
+			int(result.Matrix.TruePositives+result.Matrix.TrueNegatives),
+			int(result.Matrix.FalseNegatives), elapsed)
 	}
 
 	// Display results (only in interactive mode)

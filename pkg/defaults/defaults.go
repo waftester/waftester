@@ -16,6 +16,12 @@ import "fmt"
 // Version is the current WAFtester version
 const Version = "2.4.3"
 
+// ToolName is the canonical tool name for output formats and integrations
+const ToolName = "waftester"
+
+// ToolNameDisplay is the display name for user-facing output
+const ToolNameDisplay = "WAFtester"
+
 // ============================================================================
 // CONCURRENCY SETTINGS
 // ============================================================================

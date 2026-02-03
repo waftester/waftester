@@ -330,7 +330,7 @@ func (s *Scanner) calculateRisk(result *FullReconResult) (float64, string, []str
 func (s *Scanner) QuickScan(ctx context.Context, targetURL string) (*FullReconResult, error) {
 	// Use reduced settings for quick scan
 	originalConcurrency := s.config.Concurrency
-	s.config.Concurrency = defaults.ConcurrencyMax // Higher concurrency
+	s.config.Concurrency = defaults.ConcurrencyMax                    // Higher concurrency
 	s.config.LeakyPathCategories = []string{"config", "vcs", "debug"} // Only high-value categories
 
 	result, err := s.FullScan(ctx, targetURL)

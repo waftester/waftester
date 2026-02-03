@@ -5,6 +5,145 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2026-02-03
+
+### Added
+
+- **Complete Streaming/Hook Integration**: All 22 CLI commands now emit to enterprise hooks
+  - Every command emits `EmitStart` for scan lifecycle tracking
+  - Every command emits `EmitSummary` for completion metrics
+  - Test-based commands (auto, run, mutate, bypass) emit `EmitResult` for individual test telemetry
+  - Error paths emit `EmitError` for alerting on failures
+  - Discovery commands emit `EmitBypass` for vulnerability/finding events
+  - **179 total emission points** across the CLI
+
+- **Architecture Enforcement Tests**: Prevent regression of hook wiring
+  - `TestDispatcherWiringMinimumEmissions`: Minimum counts per emission method
+  - `TestAllDispatcherContextsHaveEmitStart`: All 22 dispatchers emit start
+  - `TestAllDispatcherContextsHaveEmitSummary`: All 15 summary-worthy dispatchers emit
+  - `TestTestBasedCommandsHaveEmitResult`: 4 test commands emit per-result telemetry
+  - `TestOnResultCallbacksHaveEmitResult`: OnResult callbacks wired to hooks
+  - `TestMutationCallbacksHaveEmitResult`: Mutation callbacks wired to hooks
+  - `TestErrorPathsHaveEmitError`: 11 error-prone commands emit errors
+  - `TestDispatcherContextsHaveDeferClose`: All dispatchers properly closed
+  - `TestNoOrphanedDispatcherContexts`: No init without EmitStart+Close
+
+- **Streaming Event Architecture**: Real-time CI/CD-friendly output
+  - New `pkg/output/events` package with typed events (Start, Progress, Result, Bypass, Summary, Complete, Error)
+  - NDJSON streaming mode for pipeline integration (`-stream -json`)
+  - Events emit to stdout while progress goes to stderr for proper pipe handling
+
+- **Unified Output Builder**: Factory pattern for all output writers
+  - New `pkg/output/builder.go` with fluent API for constructing output pipelines
+  - Single entrypoint for all 15 writers with consistent configuration
+  - Thread-safe dispatcher for concurrent multi-format output
+
+- **15 Output Writers** (6 new in v2.5.0):
+  - **JUnit XML** (`-format junit`): CI/CD test framework integration for Jenkins, GitLab CI, Azure DevOps
+  - **CycloneDX VEX** (`-format cyclonedx`): SBOM vulnerability exchange format v1.5
+  - **GitLab SAST** (`-format gitlab-sast`): Native gl-sast-report.json for GitLab Security Dashboard
+  - **SonarQube** (`-format sonarqube`): Generic Issue Import format
+  - **DefectDojo** (`-format defectdojo`): Vulnerability management platform import
+  - **HAR** (`-format har`): HTTP Archive format for request/response analysis
+  - Enhanced existing writers: HTML (themes), Markdown (TOC, OWASP sections), PDF (branding), CSV (OWASP columns)
+
+- **8 Real-time Alerting Hooks**:
+  - **Slack** (`--hook-slack`): Rich message formatting with severity colors, field blocks
+  - **Microsoft Teams** (`--hook-teams`): Adaptive Cards with action buttons
+  - **PagerDuty** (`--hook-pagerduty`): Incident creation with severity routing
+  - **Jira** (`--hook-jira`): Automatic issue creation with configurable project/type
+  - **GitHub Actions** (`--hook-github`): Step summary and outputs for workflow integration
+  - **OpenTelemetry** (`--hook-otel`): Distributed tracing with scan spans and finding events
+  - **Prometheus** (`--hook-prometheus`): Metrics exposition endpoint for monitoring
+  - **Generic Webhook** (`--hook-webhook`): Custom HTTP POST for any integration
+
+- **Exit Code Policy Engine**: Configurable pipeline failure conditions
+  - New `pkg/output/policy` package for declarative exit code rules
+  - Threshold-based (count, severity) and condition-based (bypass found) policies
+  - CI/CD-friendly exit codes: 0=clean, 1=findings, 2=critical, 3=bypass
+
+- **Baseline Comparison**: Track security posture over time
+  - New `pkg/output/baseline` package for finding comparison
+  - Detects new, fixed, and unchanged vulnerabilities between scans
+  - JSON baseline files for CI/CD regression detection
+
+- **Centralized OWASP Data**: Single source of truth for compliance mapping
+  - New `pkg/defaults/owasp.go` with `OWASPTop10` map and utilities
+  - `GetOWASPInfo(code)`, `GetAllOWASPCodes()`, `FormatOWASPReference()` helpers
+  - AST-based guard test prevents OWASP duplication across codebase
+
+- **Smart Mode Hook Integration**: WAF detection and bypass hints emit to CI/CD
+  - Detected WAF vendor/confidence emits to all configured hooks
+  - Recommended tampers for detected WAF sent to alerting channels
+  - Bypass discovery hints streamed in real-time
+
+- **Comprehensive Finding Emissions**: All security discoveries emit to hooks
+  - Cloud assets: S3 buckets, subdomains, cloud URLs, attack surface
+  - Browser risks, TLS issues, certificate problems
+  - OAuth/SAML endpoints, authentication attack surface
+  - Template validation errors, workflow step completions
+  - Crawled scripts, headless page discoveries, probe technology detection
+  - Policy violations from security misconfigurations
+
+- **Centralized Timeout Configuration**: All durations in `pkg/duration`
+  - Migrated hardcoded timeouts across 40+ files
+  - `duration.Timeout*` and `duration.Interval*` constants
+  - Prometheus hook uses centralized timeout values
+
+### Changed
+
+- **CLI Output Integration**: All scan commands now use unified output architecture
+  - `cmd/cli/output.go` bridges CLI flags to output builder
+  - Consistent flag handling for format, hooks, streaming, templates
+  - Automatic format detection from file extension
+
+- **HTML Reports**: Nuclei-level quality with interactive features
+  - 4 themes: light, dark, corporate, security
+  - Interactive severity charts with Chart.js
+  - Collapsible finding details, syntax-highlighted code blocks
+  - Executive summary with key metrics
+
+- **PDF Reports**: Professional executive quality
+  - Custom branding, signatures, watermarks
+  - OWASP Top 10 compliance matrix
+  - Severity distribution pie charts
+  - Page headers/footers with metadata
+
+- **Markdown Reports**: Wiki-ready documentation
+  - Auto-generated table of contents (`--md-toc`)
+  - OWASP category grouping (`--md-owasp`)
+  - Collapsible sections with evidence
+
+### Fixed
+
+- **OpenTelemetry Hook**: Uses `defaults.Version` for service version
+- **OpenTelemetry Tests**: Skip gracefully when collector unavailable
+- **Webhook Hook**: Uses `defaults.RetryMedium` instead of hardcoded retry count
+- **GitLab SAST Version**: Spec version (15.0.0) excluded from version consistency test
+- **Prometheus Timeout**: Uses `duration.TimeoutHTTP` instead of hardcoded value
+- **Tool Names**: Centralized hardcoded tool name strings
+
+### Tests
+
+- **29,000+ lines** of comprehensive test coverage:
+  - `pkg/output/writers/writers_test.go`: All 15 writers
+  - `pkg/output/hooks/hooks_test.go`: All 8 hooks
+  - `pkg/output/events/events_test.go`: Event serialization/deserialization
+  - `pkg/output/policy/policy_test.go`: Exit code policy evaluation
+  - `pkg/output/baseline/baseline_test.go`: Baseline comparison logic
+  - `pkg/output/integration_test.go`: End-to-end output pipeline
+  - `pkg/defaults/defaults_test.go`: OWASP duplication guard
+  - `cmd/cli/dispatcher_wiring_test.go`: 9 architecture enforcement tests (350 lines)
+
+### Documentation
+
+- **README.md**: Updated output formats table, enterprise integrations, alerting hooks
+- **EXAMPLES.md**: Added JUnit, CycloneDX, GitHub Actions, OpenTelemetry sections
+- **Integration Guide**: Comprehensive guide for CI/CD pipeline integration
+- **Sample Outputs**: Complete sample output files for all 15 formats
+- **SECURITY.md**: Updated supported versions for v2.5.x
+- **CONTRIBUTING.md**: Added dispatcher wiring enforcement tests
+
 ## [2.4.3] - 2026-02-02
 
 ### Added
