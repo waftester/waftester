@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/assessment"
+	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/metrics"
+	detectionoutput "github.com/waftester/waftester/pkg/output/detection"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -55,11 +57,19 @@ func runAssess() {
 	// TLS
 	skipVerify := assessFlags.Bool("k", false, "Skip TLS certificate verification")
 
+	// Detection (v2.5.2)
+	noDetect := assessFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
+
 	// Enterprise output flags (SARIF, JUnit, webhooks, policy, etc.)
 	var outputFlags OutputFlags
 	outputFlags.RegisterEnterpriseFlags(assessFlags)
 
 	assessFlags.Parse(os.Args[2:])
+
+	// Disable detection if requested
+	if *noDetect {
+		detection.Disable()
+	}
 
 	// Apply UI settings from output flags
 	outputFlags.ApplyUISettings()
@@ -153,6 +163,8 @@ func runAssess() {
 	}
 	if dispCtx != nil {
 		defer dispCtx.Close()
+		// Register detection callbacks to emit drop/ban events
+		dispCtx.RegisterDetectionCallbacks(ctx)
 		if !*streamMode {
 			ui.PrintInfo("Real-time integrations enabled (hooks active)")
 		}
@@ -368,6 +380,13 @@ func displayAssessmentResults(m *metrics.EnterpriseMetrics, duration time.Durati
 		fmt.Printf("  %-28s %.1f ms\n", "P95:", m.P95LatencyMs)
 		fmt.Printf("  %-28s %.1f ms\n", "P99:", m.P99LatencyMs)
 		fmt.Println()
+	}
+
+	// Detection Stats (v2.5.2 - using unified detection output package)
+	detStats := detectionoutput.FromDetector()
+	if detStats.HasData() {
+		fmt.Println(ui.SectionStyle.Render("DETECTION STATS"))
+		detStats.PrintConsole()
 	}
 
 	// Category Breakdown

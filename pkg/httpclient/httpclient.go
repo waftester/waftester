@@ -122,6 +122,34 @@ var (
 	defaultOnce   sync.Once
 )
 
+// TransportWrapper is a function that wraps an http.RoundTripper.
+// Used by detection and other systems to inject middleware.
+type TransportWrapper func(http.RoundTripper) http.RoundTripper
+
+var (
+	transportWrapper TransportWrapper
+	wrapperMu        sync.RWMutex
+)
+
+// RegisterTransportWrapper registers a function to wrap all transports.
+// This should be called once at startup before creating clients.
+// Used by detection package to inject connection drop/ban detection.
+func RegisterTransportWrapper(wrapper TransportWrapper) {
+	wrapperMu.Lock()
+	defer wrapperMu.Unlock()
+	transportWrapper = wrapper
+}
+
+// wrapTransport applies the registered wrapper if one exists.
+func wrapTransport(transport http.RoundTripper) http.RoundTripper {
+	wrapperMu.RLock()
+	defer wrapperMu.RUnlock()
+	if transportWrapper != nil {
+		return transportWrapper(transport)
+	}
+	return transport
+}
+
 // Default returns a shared, pre-configured HTTP client.
 // This client is safe for concurrent use and employs connection pooling.
 // All packages should prefer Default() over creating their own clients.
@@ -199,8 +227,11 @@ func New(cfg Config) *http.Client {
 		// Silently ignore malformed proxy URLs - continue without proxy
 	}
 
+	// Apply registered transport wrapper (e.g., detection)
+	wrappedTransport := wrapTransport(transport)
+
 	return &http.Client{
-		Transport: transport,
+		Transport: wrappedTransport,
 		Timeout:   cfg.Timeout,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			// Don't follow redirects - security scanners need to see the redirect response

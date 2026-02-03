@@ -48,6 +48,7 @@ import (
 	"github.com/waftester/waftester/pkg/crlf"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/deserialize"
+	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/discovery"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
@@ -73,6 +74,7 @@ import (
 	"github.com/waftester/waftester/pkg/oauth"
 	"github.com/waftester/waftester/pkg/output"
 	"github.com/waftester/waftester/pkg/output/baseline"
+	detectionoutput "github.com/waftester/waftester/pkg/output/detection"
 	"github.com/waftester/waftester/pkg/output/policy"
 	"github.com/waftester/waftester/pkg/params"
 	"github.com/waftester/waftester/pkg/payloads"
@@ -1512,6 +1514,10 @@ func printDocsWorkflow() {
 }
 
 func main() {
+	// Register detection transport wrapper globally
+	// This ensures ALL httpclient.New() calls get detection capabilities
+	httpclient.RegisterTransportWrapper(detection.WrapRoundTripper)
+
 	// Check for subcommands
 	if len(os.Args) < 2 {
 		printUsage()
@@ -2068,7 +2074,15 @@ func runAutoScan() {
 	// Note: stream, json, and -j flags are now registered via outFlags.RegisterFlags()
 	// Use outFlags.StreamMode and outFlags.JSONMode instead of local variables
 
+	// Detection (v2.5.2)
+	noDetect := autoFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
+
 	autoFlags.Parse(os.Args[2:])
+
+	// Disable detection if requested
+	if *noDetect {
+		detection.Disable()
+	}
 
 	// Apply unified output settings (silent, color)
 	outFlags.ApplyUISettings()
@@ -2226,6 +2240,7 @@ func runAutoScan() {
 	}
 	if autoDispCtx != nil {
 		defer autoDispCtx.Close()
+		autoDispCtx.RegisterDetectionCallbacks(ctx)
 		if !quietMode {
 			ui.PrintInfo("Real-time integrations enabled (hooks active)")
 		}
@@ -3583,6 +3598,11 @@ func runAutoScan() {
 			"p95_ms": results.LatencyStats.P95,
 			"p99_ms": results.LatencyStats.P99,
 		},
+		"detection": detectionoutput.Stats{
+			DropsDetected: results.DropsDetected,
+			BansDetected:  results.BansDetected,
+			HostsSkipped:  results.HostsSkipped,
+		}.ToJSON(),
 		"severity_breakdown": results.SeverityBreakdown,
 		"category_breakdown": results.CategoryBreakdown,
 		"owasp_breakdown":    results.OWASPBreakdown,
@@ -4788,6 +4808,11 @@ func runTests() {
 	outputFlags.NoColor = cfg.NoColor
 	outputFlags.ShowStats = cfg.Stats
 	outputFlags.StatsInterval = cfg.StatsInterval
+
+	// Disable detection if user requested
+	if !cfg.EnableDetection {
+		detection.Disable()
+	}
 
 	// Load policy and baseline for CI/CD gating
 	pol, err := outputFlags.LoadPolicy()
@@ -6707,6 +6732,7 @@ func runProbe() {
 
 	// Create runner for parallel target processing
 	probeRunner := runner.NewRunner[*ProbeResults]()
+	probeRunner.EnableDetection() // Enable connection drop and silent ban detection
 	probeRunner.Concurrency = workerCount
 	probeRunner.Timeout = time.Duration(*timeout*5) * time.Second
 	if *rateLimit > 0 {
@@ -8678,6 +8704,9 @@ func makeProbeHTTPRequestWithOptions(ctx context.Context, target string, timeout
 		Transport:     transport,
 	}
 
+	// Wrap with detection transport for connection drop/silent ban detection
+	client = detection.WrapClient(client)
+
 	// Prepare request body if provided
 	var bodyReader io.Reader
 	if opts.RequestBody != "" {
@@ -8874,7 +8903,15 @@ func runCrawl() {
 	var outputFlags OutputFlags
 	outputFlags.RegisterEnterpriseFlags(crawlFlags)
 
+	// Detection (v2.5.2)
+	noDetect := crawlFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
+
 	crawlFlags.Parse(os.Args[2:])
+
+	// Disable detection if requested
+	if *noDetect {
+		detection.Disable()
+	}
 
 	// Sync local flags to outputFlags for unified handling
 	outputFlags.Silent = *silent
@@ -9008,6 +9045,7 @@ func runCrawl() {
 	}
 	if crawlDispCtx != nil {
 		defer crawlDispCtx.Close()
+		crawlDispCtx.RegisterDetectionCallbacks(ctx)
 		_ = crawlDispCtx.EmitStart(ctx, target, 0, *concurrency, nil)
 	}
 
@@ -9335,7 +9373,15 @@ func runFuzz() {
 	var outputFlags OutputFlags
 	outputFlags.RegisterFuzzEnterpriseFlags(fuzzFlags)
 
+	// Detection (v2.5.2)
+	noDetect := fuzzFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
+
 	fuzzFlags.Parse(os.Args[2:])
+
+	// Disable detection if requested
+	if *noDetect {
+		detection.Disable()
+	}
 
 	// Apply UI settings from OutputFlags (sync with local flags)
 	outputFlags.Silent = *silent
@@ -9598,6 +9644,7 @@ func runFuzz() {
 	}
 	if fuzzDispCtx != nil {
 		defer fuzzDispCtx.Close()
+		fuzzDispCtx.RegisterDetectionCallbacks(ctx)
 		_ = fuzzDispCtx.EmitStart(ctx, targetURL, len(words), *concurrency, nil)
 	}
 
@@ -10373,7 +10420,15 @@ func runScan() {
 	// Streaming mode (CI-friendly output)
 	streamMode := scanFlags.Bool("stream", false, "Streaming output mode for CI/scripts")
 
+	// Detection (v2.5.2)
+	noDetect := scanFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
+
 	scanFlags.Parse(os.Args[2:])
+
+	// Disable detection if requested
+	if *noDetect {
+		detection.Disable()
+	}
 
 	// Merge legacy output flags into outFlags (backward compatibility)
 	// Legacy flags take precedence only if outFlags equivalents are empty
@@ -10479,6 +10534,7 @@ func runScan() {
 	}
 	if dispCtx != nil {
 		defer dispCtx.Close()
+		dispCtx.RegisterDetectionCallbacks(ctx)
 		if !streamJSON {
 			ui.PrintInfo("Real-time integrations enabled (hooks active)")
 		}
@@ -10707,6 +10763,9 @@ func runScan() {
 		CheckRedirect: redirectPolicy,
 	}
 
+	// Wrap with detection transport for connection drop/silent ban detection
+	httpClient = detection.WrapClient(httpClient)
+
 	result := &ScanResult{
 		Target:     target,
 		StartTime:  time.Now(),
@@ -10816,6 +10875,10 @@ func runScan() {
 		"concurrency": *concurrency,
 	})
 
+	// Extract host from target URL for detection checks
+	targetURL, _ := url.Parse(target)
+	targetHost := targetURL.Host
+
 	// Helper to run a scanner with progress tracking
 	runScanner := func(name string, fn func()) {
 		if !shouldScan(name) {
@@ -10826,6 +10889,16 @@ func runScan() {
 			defer wg.Done()
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
+
+			// Check if host is blocked due to drops/bans before running
+			if skip, reason := detection.Default().ShouldSkipHost(targetHost); skip {
+				emitEvent("scanner_skipped", map[string]interface{}{
+					"scanner": name,
+					"reason":  reason,
+				})
+				progress.Increment()
+				return
+			}
 
 			scanStart := time.Now()
 			progress.SetStatus(name)
@@ -13114,7 +13187,15 @@ func runMutate() {
 	otelEndpoint := mutateFlags.String("otel-endpoint", "", "OpenTelemetry endpoint")
 	webhookURL := mutateFlags.String("webhook-url", "", "Generic webhook URL")
 
+	// Detection (v2.5.2)
+	noDetect := mutateFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
+
 	mutateFlags.Parse(os.Args[2:])
+
+	// Disable detection if requested
+	if *noDetect {
+		detection.Disable()
+	}
 
 	// Resolve target
 	targetURL := *target
@@ -13357,6 +13438,7 @@ func runMutate() {
 	}
 	if mutateDispCtx != nil {
 		defer mutateDispCtx.Close()
+		mutateDispCtx.RegisterDetectionCallbacks(ctx)
 	}
 	mutateStartTime := time.Now()
 
@@ -13600,7 +13682,15 @@ func runBypassFinder() {
 	var outputFlags OutputFlags
 	outputFlags.RegisterBypassEnterpriseFlags(bypassFlags)
 
+	// Detection (v2.5.2)
+	noDetect := bypassFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
+
 	bypassFlags.Parse(os.Args[2:])
+
+	// Disable detection if requested
+	if *noDetect {
+		detection.Disable()
+	}
 
 	// Apply UI settings from output flags
 	outputFlags.ApplyUISettings()
@@ -13641,6 +13731,7 @@ func runBypassFinder() {
 	}
 	if bypassDispCtx != nil {
 		defer bypassDispCtx.Close()
+		bypassDispCtx.RegisterDetectionCallbacks(ctx)
 	}
 	bypassCtx := context.Background()
 

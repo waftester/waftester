@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/ratelimit"
@@ -60,6 +61,9 @@ type Runner[T any] struct {
 	// RateLimit is max requests per second (0 = unlimited)
 	RateLimit int
 
+	// detector tracks connection drops and silent bans
+	detector *detection.Detector
+
 	// RateLimitPerHost enables per-host rate limiting
 	// When true, RateLimit applies per host instead of globally
 	RateLimitPerHost bool
@@ -86,6 +90,13 @@ func NewRunner[T any]() *Runner[T] {
 		Concurrency: defaults.ConcurrencyMax, // Default concurrency
 		Timeout:     duration.HTTPFuzzing,
 	}
+}
+
+// EnableDetection enables the detection system for connection drops and silent bans.
+// Call this method before Run() or RunWithCallback() to benefit from detection.
+func (r *Runner[T]) EnableDetection() *Runner[T] {
+	r.detector = detection.Default()
+	return r
 }
 
 // TaskFunc is the function type for processing a single target
@@ -152,6 +163,20 @@ func (r *Runner[T]) Run(ctx context.Context, targets []string, task TaskFunc[T])
 			continue
 		}
 
+		// Check if detection system recommends skipping
+		if r.detector != nil {
+			if skip, reason := r.detector.ShouldSkipHost(target); skip {
+				atomic.AddInt64(&r.Stats.Completed, 1)
+				atomic.AddInt64(&r.Stats.Failed, 1)
+				resultsChan <- Result[T]{
+					Target:   target,
+					Error:    fmt.Errorf("[DETECTION] %s", reason),
+					Duration: 0,
+				}
+				continue
+			}
+		}
+
 		// Rate limiting with per-host support
 		if r.limiter != nil {
 			host := extractHost(target)
@@ -192,6 +217,10 @@ func (r *Runner[T]) Run(ctx context.Context, targets []string, task TaskFunc[T])
 				// Track network errors for host skipping
 				if hosterrors.IsNetworkError(err) {
 					hosterrors.MarkError(t)
+				}
+				// Record error in detection system
+				if r.detector != nil {
+					r.detector.RecordError(t, err)
 				}
 				if r.OnError != nil {
 					r.OnError(t, err)
@@ -284,6 +313,20 @@ func (r *Runner[T]) RunWithCallback(ctx context.Context, targets []string, task 
 			continue
 		}
 
+		// Check if detection system recommends skipping
+		if r.detector != nil {
+			if skip, reason := r.detector.ShouldSkipHost(target); skip {
+				atomic.AddInt64(&r.Stats.Completed, 1)
+				atomic.AddInt64(&r.Stats.Failed, 1)
+				callback(Result[T]{
+					Target:   target,
+					Error:    fmt.Errorf("[DETECTION] %s", reason),
+					Duration: 0,
+				})
+				continue
+			}
+		}
+
 		// Rate limiting with per-host support
 		if r.limiter != nil {
 			host := extractHost(target)
@@ -324,6 +367,10 @@ func (r *Runner[T]) RunWithCallback(ctx context.Context, targets []string, task 
 				// Track network errors for host skipping
 				if hosterrors.IsNetworkError(err) {
 					hosterrors.MarkError(t)
+				}
+				// Record error in detection system
+				if r.detector != nil {
+					r.detector.RecordError(t, err)
 				}
 			}
 

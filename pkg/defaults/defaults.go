@@ -11,10 +11,13 @@
 // Instead, reference the appropriate constant from this package.
 package defaults
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // Version is the current WAFtester version
-const Version = "2.5.1"
+const Version = "2.5.2"
 
 // ToolName is the canonical tool name for output formats and integrations
 const ToolName = "waftester"
@@ -321,4 +324,69 @@ const (
 	PortHTTPS    = 443
 	PortHTTP8080 = 8080
 	PortHTTP8443 = 8443
+)
+
+// ============================================================================
+// CONNECTION DROP DETECTION
+// ============================================================================
+//
+// Use these for detecting connection drops (TCP RST, timeouts, EOF).
+// These thresholds help distinguish WAF blocking from network issues.
+// ============================================================================
+
+const (
+	// DropDetectConsecutiveThreshold is the number of consecutive failures
+	// before considering the connection dropped (3 failures triggers detection)
+	DropDetectConsecutiveThreshold = 3
+
+	// DropDetectTimeoutMultiplier multiplies the base timeout to detect
+	// slow-down attacks vs actual drops (3x normal timeout)
+	DropDetectTimeoutMultiplier = 3.0
+
+	// DropDetectRecoveryProbes is the number of successful probes needed
+	// to confirm connection has recovered after a detected drop
+	DropDetectRecoveryProbes = 2
+)
+
+var (
+	// DropDetectRecoveryWindow is the time window to wait before
+	// attempting recovery probes after a connection drop
+	DropDetectRecoveryWindow = 30 * time.Second
+)
+
+// ============================================================================
+// SILENT BAN DETECTION
+// ============================================================================
+//
+// Use these for detecting silent bans (subtle blocking patterns).
+// Silent bans may manifest as latency drift, body size changes, or header changes
+// without explicit block pages.
+// ============================================================================
+
+const (
+	// SilentBanLatencyDriftThreshold is the multiplier for latency increase
+	// that indicates a potential silent ban (2x baseline = suspicious)
+	SilentBanLatencyDriftThreshold = 2.0
+
+	// SilentBanBodySizeDriftThreshold is the fractional change in response
+	// body size that indicates content manipulation (0.5 = 50% change)
+	SilentBanBodySizeDriftThreshold = 0.5
+
+	// SilentBanConsecutiveErrors is the number of consecutive soft errors
+	// (timeouts, 5xx) before flagging a silent ban
+	SilentBanConsecutiveErrors = 5
+
+	// SilentBanMinSamples is the minimum number of baseline samples
+	// required before silent ban detection becomes active
+	SilentBanMinSamples = 10
+
+	// SilentBanHeaderChangeThreshold is the number of header changes
+	// between responses that indicates potential silent ban behavior
+	SilentBanHeaderChangeThreshold = 3
+)
+
+var (
+	// SilentBanCooldownPeriod is the time to wait after detecting a
+	// silent ban before resuming normal testing
+	SilentBanCooldownPeriod = 60 * time.Second
 )

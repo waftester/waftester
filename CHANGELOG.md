@@ -5,6 +5,165 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.2] - 2026-02-03
+
+### Added
+
+- **Connection Drop Detection** (`pkg/detection`): Comprehensive network-level failure detection
+  - TCP Reset (RST) detection - catches forced connection terminations
+  - TLS Handshake Abort detection - identifies SSL/TLS negotiation failures
+  - Connection Timeout detection - detects unresponsive targets
+  - Unexpected EOF detection - catches mid-stream connection closures
+  - Tarpit detection - identifies intentional slow-response blocking (3x baseline threshold)
+  - Connection Refused detection - catches active port rejection
+  - DNS Resolution Failure detection - identifies hostname lookup issues
+  - Per-host tracking with thread-safe atomic counters
+  - Automatic recovery detection after consecutive successful probes
+
+- **Silent Ban Detection** (`pkg/detection`): Behavioral analysis for subtle blocking patterns
+  - Latency drift detection - flags 200%+ response time increases vs baseline
+  - Body size drift detection - catches 50%+ content size changes
+  - Header change monitoring - detects WAF header injection (Server, X-Cache, CF-Ray, etc.)
+  - Consecutive error tracking - identifies systematic failures
+  - Honeypot detection - catches 90%+ body size changes indicating redirect
+  - Confidence scoring system (0.0-1.0) with multi-factor analysis
+  - Ban type classification: RateLimit, IPBlock, Behavioral, Honeypot, GeoBlock, SessionPoison
+
+- **Unified Detection Interface**: Combined monitoring with skip recommendations
+  - `detection.Default()` singleton for global access
+  - `ShouldSkipHost()` - returns skip recommendation with reason
+  - `RecordError()`/`RecordResponse()` - unified tracking API
+  - `CaptureBaseline()` - establishes normal behavior metrics
+  - Thread-safe design with sync.RWMutex protection
+
+- **Unified Detection Stats Output** (`pkg/output/detection`): Centralized stats display
+  - Multi-format output: Console, JSON, Markdown, SARIF
+  - `Stats` struct with `DropsDetected`, `BansDetected`, `HostsSkipped`, `Details`
+  - `FromDetector()` - extracts stats from global detector singleton
+  - `FromProvider()` - extracts from any `StatsProvider` interface implementation
+  - `FromMap()` - constructs from `map[string]int` for flexible integration
+  - `HasData()`, `Severity()`, `ExitCodeContribution()` - analysis methods
+  - `ToJSON()` - structured JSON output for summary files
+  - `WriteTo(io.Writer, Format)` - format-agnostic output
+  - `PrintConsole()` - colorized console output with severity indicators
+  - `Recommendations()` - actionable advice based on detection stats
+  - Contract tests ensure all formats include required fields
+  - Used by: `cmd/cli/assess.go`, `pkg/output/writer.go`, `cmd/cli/main.go`
+
+- **New Configuration Constants** (`pkg/defaults`, Section 2.5.2):
+  - `DropDetectConsecutiveThreshold` (3) - failures before flagging
+  - `DropDetectTimeoutMultiplier` (3.0) - tarpit detection threshold
+  - `DropDetectRecoveryProbes` (2) - successes needed for recovery
+  - `DropDetectRecoveryWindow` (30s) - max backoff wait time
+  - `SilentBanLatencyDriftThreshold` (2.0) - 200% latency increase
+  - `SilentBanBodySizeDriftThreshold` (0.5) - 50% size change
+  - `SilentBanConsecutiveErrors` (5) - error count threshold
+  - `SilentBanMinSamples` (10) - minimum baseline samples
+  - `SilentBanHeaderChangeThreshold` (3) - header change count
+  - `SilentBanCooldownPeriod` (60s) - wait time after detection
+
+### Technical Details
+
+- New package: `pkg/detection/` with 5 files (types.go, connmon.go, silentban.go, detector.go, detector_test.go)
+- 44 unit tests covering all detection scenarios
+- Exponential backoff for recovery: 5s base, doubling up to 30s max
+- EMA (α=0.3) for baseline latency/body size smoothing
+- Key header monitoring: Server, X-Cache, X-CDN, CF-Ray, X-Request-ID, Set-Cookie, Content-Type, X-Frame-Options
+
+### Integration
+
+- **Executor Integration** (`pkg/core/executor.go`): Detection wired into test execution
+  - Automatic baseline capture on successful responses
+  - Drop detection on network errors with enhanced error categorization
+  - Silent ban detection on response analysis
+  - Skip recommendation before each request
+  - Tarpit detection on slow responses
+
+- **TestResult Fields** (`pkg/output/types.go`): New fields for detection data
+  - `DropDetected`, `DropType` - connection drop information
+  - `BanDetected`, `BanType`, `BanConfidence` - silent ban details
+  - `LatencyDrift` - latency change ratio vs baseline
+
+- **Event Types** (`pkg/output/events/detection.go`): Streaming events
+  - `EventTypeDropDetected` - for connection drop events
+  - `EventTypeBanDetected` - for silent ban events
+  - `DropDetectedEvent`, `BanDetectedEvent` - structured event types
+
+- **Hosterrors Bridge** (`pkg/detection/detector.go`): Synergy with existing cache
+  - `SyncWithHostErrors()` - bridges detection with hosterrors cache
+  - `ClearHostErrors()` - clears both systems
+  - `ClearAll()` - resets all detection state for new scans
+  - Automatic sync on 3+ consecutive drops
+  - Permanent marking on high-confidence (≥80%) bans
+
+- **CLI Hook Emitters** (`cmd/cli/output.go`): Real-time alerts for detection events
+  - `EmitDropDetected()` - sends drop events to Slack, Teams, PagerDuty, OTEL
+  - `EmitBanDetected()` - sends ban events to all configured hooks
+
+- **Runner Integration** (`pkg/runner/runner.go`): Multi-target detection support
+  - `EnableDetection()` - opt-in detection for runner tasks
+  - Skip recommendation before each target
+  - Error recording for failed tasks
+
+- **Realistic Package Bridge** (`pkg/realistic/executor_integration.go`): Unified detection
+  - `UseUnifiedDetection()` - enables unified detector alongside block detection
+  - `ShouldSkipHost()` - check skip recommendation from unified detector
+
+- **Execution Statistics** (`pkg/output/types.go`, `pkg/core/executor.go`):
+  - `DropsDetected`, `BansDetected`, `HostsSkipped` in ExecutionResults
+  - `DetectionStats` map with detailed detector metrics
+
+- **CLI Detection Flag** (`pkg/config/config.go`): User control over detection
+  - `--detect` / `--detection` flag (default: true)
+  - Allows disabling detection when not needed
+
+- **Assessment Integration** (`pkg/assessment/assessment.go`): Enterprise assessment detection
+  - Detection system integrated into assessment workflow
+  - Host skip checks before each payload test
+  - Error/response recording for accurate metrics
+
+- **Mutation Executor Integration** (`pkg/mutation/executor.go`): Bypass testing detection
+  - Detection system integrated into mutation-based testing
+  - Host skip checks prevent wasted requests on blocked hosts
+  - Error/response recording for all mutation tests
+
+- **Report Statistics** (`pkg/report/report.go`): Enterprise reports include detection
+  - `DropsDetected`, `BansDetected`, `HostsSkipped` fields in Statistics
+  - `DetectionStats` map for detailed breakdown
+
+- **Fuzzer Integration** (`pkg/fuzz/fuzzer.go`): Directory fuzzing detection
+  - Detection system integrated into content/directory fuzzing
+  - Host skip checks prevent wasted requests on banned hosts
+  - Error/response recording for all fuzz requests
+
+- **API Fuzzer Integration** (`pkg/apifuzz/apifuzz.go`): API fuzzing detection
+  - Detection system integrated into API endpoint fuzzing
+  - Host skip checks in sendFuzzRequest and sendBodyFuzzRequest
+  - Error/response recording for all API fuzz operations
+
+- **Recursive Fuzzer Integration** (`pkg/recursive/recursive.go`): Recursive scanning detection
+  - Detection system integrated into recursive directory scanning
+  - Host skip checks before each directory request
+  - Error/response recording with latency tracking
+
+- **Detection Transport Wrapper** (`pkg/detection/transport.go`): Universal HTTP client wrapper
+  - `WrapTransport()` - wraps any `http.RoundTripper` with detection
+  - `WrapClient()` - convenience function to wrap existing `*http.Client`
+  - `SkipHostError` - returned when host should be skipped
+  - Automatic error/response recording for all requests
+  - Pre-request skip checks prevent wasted requests
+  - Zero-config integration with existing HTTP code
+
+- **CLI Assess Command Integration** (`cmd/cli/main.go`): Deep scan detection
+  - HTTP client wrapped with detection transport
+  - Per-scanner skip checks in `runScanner()` helper
+  - Emits `scanner_skipped` event when host is blocked
+  - Prevents wasted time on banned hosts during vulnerability scans
+
+- **HTTP Probe Detection** (`cmd/cli/main.go`): Probe request detection
+  - `makeProbeHTTPRequestWithOptions()` wrapped with detection
+  - All HTTP probing benefits from automatic detection
+
 ## [2.5.1] - 2026-02-03
 
 ### Fixed

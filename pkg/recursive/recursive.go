@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -82,6 +83,7 @@ type Stats struct {
 type Fuzzer struct {
 	config       Config
 	httpClient   *http.Client
+	detector     *detection.Detector
 	results      []Result
 	visited      map[string]bool
 	queue        chan fuzzerTask
@@ -121,6 +123,7 @@ func NewFuzzer(config Config) (*Fuzzer, error) {
 		visited:    make(map[string]bool),
 		queue:      make(chan fuzzerTask, 10000),
 		httpClient: httpclient.New(httpclient.WithTimeout(config.Timeout)),
+		detector:   detection.Default(),
 	}
 
 	if config.ExcludeRegex != "" {
@@ -298,6 +301,11 @@ func (f *Fuzzer) processTask(ctx context.Context, task fuzzerTask) {
 
 // request makes an HTTP request
 func (f *Fuzzer) request(ctx context.Context, targetURL string) (Result, error) {
+	// Check for connection drops/silent bans
+	if skip, reason := f.detector.ShouldSkipHost(targetURL); skip {
+		return Result{}, fmt.Errorf("host blocked by detector: %s", reason)
+	}
+
 	req, err := http.NewRequestWithContext(ctx, "GET", targetURL, nil)
 	if err != nil {
 		return Result{}, err
@@ -313,14 +321,20 @@ func (f *Fuzzer) request(ctx context.Context, targetURL string) (Result, error) 
 		}
 	}
 
+	start := time.Now()
 	resp, err := f.httpClient.Do(req)
+	latency := time.Since(start)
 	if err != nil {
+		f.detector.RecordError(targetURL, err)
 		return Result{}, err
 	}
 	defer iohelper.DrainAndClose(resp.Body)
 
 	// Read body to get length
 	body, _ := iohelper.ReadBody(resp.Body, iohelper.LargeMaxBodySize) // Max 1MB
+
+	// Record successful response for detection tracking
+	f.detector.RecordResponse(targetURL, resp, latency, len(body))
 
 	result := Result{
 		URL:         targetURL,

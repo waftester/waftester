@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/output"
 	"github.com/waftester/waftester/pkg/output/baseline"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
@@ -747,6 +748,30 @@ func (o *OutputFlags) InitDispatcher(scanID, target string) (*DispatcherContext,
 	}, nil
 }
 
+// RegisterDetectionCallbacks sets up callbacks on the default detector
+// to emit events when drops or bans are detected.
+func (dc *DispatcherContext) RegisterDetectionCallbacks(ctx context.Context) {
+	if dc == nil || dc.Dispatcher == nil {
+		return
+	}
+
+	detector := detection.Default()
+
+	// Register drop callback
+	detector.OnDrop(func(host string, result *detection.DropResult) {
+		errStr := ""
+		if result.Error != nil {
+			errStr = result.Error.Error()
+		}
+		_ = dc.EmitDropDetected(ctx, host, result.Type.String(), result.Consecutive, result.RecoveryWait.Milliseconds(), errStr)
+	})
+
+	// Register ban callback
+	detector.OnBan(func(host string, result *detection.BanResult) {
+		_ = dc.EmitBanDetected(ctx, host, result.Type.String(), result.Confidence, result.Evidence, result.LatencyDrift, result.BodySizeDrift, result.RecommendedWait.Milliseconds())
+	})
+}
+
 // Close shuts down the dispatcher and releases resources.
 func (dc *DispatcherContext) Close() error {
 	if dc == nil || dc.Dispatcher == nil {
@@ -925,5 +950,27 @@ func (dc *DispatcherContext) EmitSummary(ctx context.Context, totalTests, blocke
 		},
 	}
 
+	return dc.Dispatcher.Dispatch(ctx, event)
+}
+
+// EmitDropDetected sends a connection drop event to all registered hooks.
+// This notifies integrations when targets are dropping connections.
+func (dc *DispatcherContext) EmitDropDetected(ctx context.Context, host, dropType string, consecutive int, recoveryWaitMs int64, originalErr string) error {
+	if dc == nil || dc.Dispatcher == nil {
+		return nil
+	}
+
+	event := events.NewDropDetectedEvent(dc.ScanID, host, dropType, consecutive, time.Duration(recoveryWaitMs)*time.Millisecond, originalErr)
+	return dc.Dispatcher.Dispatch(ctx, event)
+}
+
+// EmitBanDetected sends a silent ban detection event to all registered hooks.
+// This notifies integrations when targets appear to be silently banning the scanner.
+func (dc *DispatcherContext) EmitBanDetected(ctx context.Context, host, banType string, confidence float64, evidence []string, latencyDrift, bodySizeDrift float64, recommendedWaitMs int64) error {
+	if dc == nil || dc.Dispatcher == nil {
+		return nil
+	}
+
+	event := events.NewBanDetectedEvent(dc.ScanID, host, banType, confidence, evidence, latencyDrift, bodySizeDrift, time.Duration(recommendedWaitMs)*time.Millisecond)
 	return dc.Dispatcher.Dispatch(ctx, event)
 }

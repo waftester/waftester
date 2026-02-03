@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -74,6 +75,7 @@ type Executor struct {
 	httpClient *http.Client
 	limiter    *rate.Limiter
 	enhancer   *realistic.ExecutorEnhancer // Realistic mode enhancer
+	detector   *detection.Detector          // Connection drop and silent ban detection
 }
 
 // NewExecutor creates a new parallel executor
@@ -122,6 +124,9 @@ func NewExecutor(cfg ExecutorConfig) *Executor {
 		executor.enhancer = realistic.NewExecutorEnhancer(cfg.TargetURL)
 	}
 
+	// Initialize detection system for connection drops and silent bans
+	executor.detector = detection.Default()
+
 	return executor
 }
 
@@ -147,6 +152,7 @@ func (e *Executor) Execute(ctx context.Context, allPayloads []payloads.Payload, 
 	// Atomic counters for progress
 	var completed int64
 	var blocked, passed, failed, errored int64
+	var skipped, drops, bans int64
 
 	// Start worker pool
 	var wg sync.WaitGroup
@@ -177,6 +183,15 @@ func (e *Executor) Execute(ctx context.Context, allPayloads []payloads.Payload, 
 						atomic.AddInt64(&failed, 1)
 					case "Error":
 						atomic.AddInt64(&errored, 1)
+					case "Skipped":
+						atomic.AddInt64(&skipped, 1)
+					}
+					// Track detection events
+					if result.DropDetected {
+						atomic.AddInt64(&drops, 1)
+					}
+					if result.BanDetected {
+						atomic.AddInt64(&bans, 1)
 					}
 				}
 			}
@@ -247,8 +262,21 @@ sendLoop:
 	results.PassedTests = int(atomic.LoadInt64(&passed))
 	results.FailedTests = int(atomic.LoadInt64(&failed))
 	results.ErrorTests = int(atomic.LoadInt64(&errored))
+	results.HostsSkipped = int(atomic.LoadInt64(&skipped))
+	results.DropsDetected = int(atomic.LoadInt64(&drops))
+	results.BansDetected = int(atomic.LoadInt64(&bans))
 	if results.Duration.Seconds() > 0 {
 		results.RequestsPerSec = float64(results.TotalTests) / results.Duration.Seconds()
+	}
+
+	// Capture detection statistics from detector
+	if e.detector != nil {
+		detStats := e.detector.Stats()
+		results.DetectionStats = detStats
+		// Override drops count from detector if available (more accurate)
+		if connmonDrops, ok := detStats["connmon_total_drops"]; ok && connmonDrops > results.DropsDetected {
+			results.DropsDetected = connmonDrops
+		}
 	}
 
 	fmt.Println() // New line after progress
@@ -285,6 +313,16 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 		result.ErrorMessage = "[HOST_FAILED] Host has exceeded error threshold"
 		result.RiskScore = scoring.Result{RiskScore: 0}
 		return result
+	}
+
+	// Check if detection system recommends skipping
+	if e.detector != nil {
+		if skip, reason := e.detector.ShouldSkipHost(e.config.TargetURL); skip {
+			result.Outcome = "Skipped"
+			result.ErrorMessage = fmt.Sprintf("[DETECTION] %s", reason)
+			result.RiskScore = scoring.Result{RiskScore: 0}
+			return result
+		}
 	}
 
 	var req *http.Request
@@ -388,6 +426,14 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 			hosterrors.MarkError(e.config.TargetURL)
 		}
 
+		// Record error in detection system
+		if e.detector != nil {
+			dropResult := e.detector.RecordError(e.config.TargetURL, err)
+			if dropResult.Drop != nil && dropResult.Drop.Dropped {
+				result.ErrorMessage = fmt.Sprintf("[%s] %s", dropResult.Drop.Type.String(), result.ErrorMessage)
+			}
+		}
+
 		// Calculate risk score for error case
 		result.RiskScore = scoring.Calculate(scoring.Input{
 			Severity: payload.SeverityHint,
@@ -397,6 +443,11 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 		return result
 	}
 	defer iohelper.DrainAndClose(resp.Body)
+
+	// Capture baseline for detection (first few successful responses)
+	if e.detector != nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		e.detector.CaptureBaseline(e.config.TargetURL, resp, time.Duration(result.LatencyMs)*time.Millisecond, int(result.ContentLength))
+	}
 
 	// Capture important response headers (WAF-related)
 	wafHeaders := []string{
@@ -528,6 +579,18 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 		ResponseContains: bodyStr, // Pass response body for pattern detection
 		Reflected:        reflected,
 	})
+
+	// Record response for silent ban detection
+	if e.detector != nil {
+		detectionResult := e.detector.RecordResponse(e.config.TargetURL, resp, time.Duration(result.LatencyMs)*time.Millisecond, result.ContentLength)
+		if detectionResult.Ban != nil && detectionResult.Ban.Banned {
+			// Add warning to result
+			result.ErrorMessage = fmt.Sprintf("[SILENT_BAN] confidence=%.0f%% %s", detectionResult.Ban.Confidence*100, result.ErrorMessage)
+		}
+		if detectionResult.Drop != nil && detectionResult.Drop.Dropped && detectionResult.Drop.Type == detection.DropTypeTarpit {
+			result.ErrorMessage = fmt.Sprintf("[TARPIT] slow response detected %s", result.ErrorMessage)
+		}
+	}
 
 	return result
 }

@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/detection"
 )
 
 // ExecutorEnhancer wraps an HTTP client to add realistic request capabilities
@@ -17,6 +19,7 @@ type ExecutorEnhancer struct {
 	Builder            *Builder
 	Detector           *BlockDetector
 	Calibrator         *Calibrator
+	UnifiedDetector    *detection.Detector // Optional unified detector for connection/ban detection
 	IsCalibrated       bool
 	UseRealistic       bool
 	DetectBlocks       bool
@@ -73,9 +76,26 @@ func (e *ExecutorEnhancer) BuildRequestWithTemplate(payload string, template *Re
 	return e.Builder.BuildRequest(payload, template)
 }
 
+// UseUnifiedDetection enables the unified detection package for connection
+// drop and silent ban detection alongside the block detector.
+func (e *ExecutorEnhancer) UseUnifiedDetection() {
+	e.UnifiedDetector = detection.Default()
+}
+
 // AnalyzeResponse checks if a response indicates blocking
 func (e *ExecutorEnhancer) AnalyzeResponse(resp *http.Response, responseTime time.Duration) (*BlockResult, error) {
-	return e.Detector.DetectBlock(resp, responseTime)
+	result, err := e.Detector.DetectBlock(resp, responseTime)
+
+	// Also record in unified detector if enabled
+	if e.UnifiedDetector != nil && resp != nil {
+		bodySize := 0
+		if resp.ContentLength > 0 {
+			bodySize = int(resp.ContentLength)
+		}
+		e.UnifiedDetector.RecordResponse("", resp, responseTime, bodySize)
+	}
+
+	return result, err
 }
 
 // IsBlocked is a simple helper to check if response indicates WAF blocking
@@ -94,6 +114,14 @@ func (e *ExecutorEnhancer) IsBlocked(statusCode int, body string, headers http.H
 	}
 
 	return result.IsBlocked
+}
+
+// ShouldSkipHost checks if the unified detector recommends skipping a host.
+func (e *ExecutorEnhancer) ShouldSkipHost(targetURL string) (bool, string) {
+	if e.UnifiedDetector == nil {
+		return false, ""
+	}
+	return e.UnifiedDetector.ShouldSkipHost(targetURL)
 }
 
 // GetBlockConfidence returns the confidence level that a response is a WAF block

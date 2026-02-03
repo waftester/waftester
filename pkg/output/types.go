@@ -42,6 +42,14 @@ type TestResult struct {
 	ResponseBodyHash    string   `json:"response_body_hash,omitempty"`    // SHA256 prefix for dedup
 	EvidenceMarkers     []string `json:"evidence_markers,omitempty"`      // Detected vuln patterns
 
+	// Detection information (v2.5.2)
+	DropDetected  bool    `json:"drop_detected,omitempty"`  // Connection drop detected
+	DropType      string  `json:"drop_type,omitempty"`      // Type of drop (tcp_reset, tls_abort, timeout, eof, tarpit)
+	BanDetected   bool    `json:"ban_detected,omitempty"`   // Silent ban detected
+	BanType       string  `json:"ban_type,omitempty"`       // Type of ban (rate_limit, ip_block, behavioral, honeypot)
+	BanConfidence float64 `json:"ban_confidence,omitempty"` // Ban detection confidence 0-1
+	LatencyDrift  float64 `json:"latency_drift,omitempty"`  // Latency change ratio vs baseline
+
 	// Encoding/mutation tracking
 	EncodingUsed    string `json:"encoding_used,omitempty"`    // url, double_url, base64, etc.
 	MutationType    string `json:"mutation_type,omitempty"`    // encoder type applied
@@ -104,10 +112,13 @@ const (
 	ErrorDNS        ErrorCategory = "dns_failure"
 	ErrorTLS        ErrorCategory = "tls_error"
 	ErrorConnection ErrorCategory = "connection_refused"
-	ErrorHTTPStatus ErrorCategory = "unexpected_status"
-	ErrorInvalidReq ErrorCategory = "invalid_request"
-	ErrorRateLimit  ErrorCategory = "rate_limited"
-	ErrorUnknown    ErrorCategory = "unknown"
+	ErrorHTTPStatus   ErrorCategory = "unexpected_status"
+	ErrorInvalidReq   ErrorCategory = "invalid_request"
+	ErrorRateLimit    ErrorCategory = "rate_limited"
+	ErrorDropDetected ErrorCategory = "connection_drop"
+	ErrorSilentBan    ErrorCategory = "silent_ban"
+	ErrorTarpit       ErrorCategory = "tarpit"
+	ErrorUnknown      ErrorCategory = "unknown"
 )
 
 // Writer interface for different output formats

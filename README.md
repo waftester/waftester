@@ -288,6 +288,47 @@ waf-tester scan -u $TARGET --hook-github
 waf-tester scan -u $TARGET --hook-otel=$OTEL_ENDPOINT
 ```
 
+### Connection Drop & Silent Ban Detection (v2.5.2+)
+
+WAFtester automatically detects when targets start blocking you:
+
+```
+$ waf-tester scan -u https://target.com -types sqli,xss
+
+Detection Stats
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔴 Connection Drops:   12  (TCP RST, TLS abort, timeout)
+  🟡 Silent Bans:        3   (latency drift, body size change)
+  ⏭ Hosts Skipped:       2   (auto-skipped after detection)
+  
+Recommendations:
+  • Connection drops detected. Try reducing rate with -rate 50
+  • Silent bans detected. Target is actively blocking. Use -rate 25 and -delay 500ms
+```
+
+**Detection Types:**
+
+| Type | What It Catches | Indicator |
+|------|-----------------|-----------|
+| TCP Reset | Forced connection termination | RST packet |
+| TLS Abort | SSL handshake failure | TLS error before response |
+| Timeout | Unresponsive target | 3x baseline response time |
+| EOF | Mid-stream connection close | Unexpected EOF |
+| Tarpit | Intentional slow-response | Response time > 3x baseline |
+| Latency Drift | Subtle rate limiting | 200%+ latency increase |
+| Body Size Drift | Content manipulation | 50%+ body size change |
+| Header Change | WAF header injection | Server, X-Cache, CF-Ray changes |
+
+**Control Detection:**
+
+```bash
+# Disable detection (for known unstable targets)
+waf-tester scan -u https://target.com --no-detect
+
+# Detection is enabled by default
+waf-tester scan -u https://target.com --detect
+```
+
 ---
 
 ## Full Command Reference
@@ -337,6 +378,8 @@ waf-tester scan -u $TARGET --hook-otel=$OTEL_ENDPOINT
 | `--hook-jira` | Jira base URL for ticket creation | - |
 | `--hook-github` | GitHub Actions step summary & outputs | - |
 | `--hook-otel` | OpenTelemetry collector endpoint | - |
+| `--detect` | Enable connection drop/silent ban detection | true |
+| `--no-detect` | Disable detection for unstable targets | - |
 
 ---
 

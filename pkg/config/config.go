@@ -80,6 +80,9 @@ type Config struct {
 	// Realistic mode settings (advanced WAF testing)
 	RealisticMode bool     // Use realistic request building and intelligent block detection
 	Categories    []string // Parsed category list (internal use)
+
+	// Detection settings (v2.5.2)
+	EnableDetection bool // Enable connection drop and silent ban detection
 }
 
 // ParseFlags parses command line arguments and returns Config
@@ -181,6 +184,10 @@ func ParseFlags() (*Config, error) {
 	// === REALISTIC MODE (advanced WAF testing) ===
 	flag.BoolVar(&cfg.RealisticMode, "realistic", false, "Use realistic browser-like requests and intelligent block detection")
 	flag.BoolVar(&cfg.RealisticMode, "R", false, "Realistic mode (alias)")
+
+	// === DETECTION (v2.5.2) ===
+	flag.BoolVar(&cfg.EnableDetection, "detect", true, "Enable connection drop and silent ban detection")
+	flag.BoolVar(&cfg.EnableDetection, "detection", true, "Enable detection (alias)")
 
 	// Parse
 	flag.Parse()
