@@ -39,6 +39,21 @@ const (
 )
 
 // ============================================================================
+// WEBHOOK/HOOK TIMEOUTS
+// ============================================================================
+//
+// Use these for outbound webhook calls, alerting hooks, and integrations.
+// ============================================================================
+
+const (
+	// WebhookTimeout is for outbound webhook/alerting calls (10s)
+	WebhookTimeout = 10 * time.Second
+
+	// WebhookShutdown is for graceful webhook shutdown (5s)
+	WebhookShutdown = 5 * time.Second
+)
+
+// ============================================================================
 // CONTEXT/OPERATION TIMEOUTS
 // ============================================================================
 //

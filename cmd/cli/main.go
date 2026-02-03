@@ -45,8 +45,8 @@ import (
 	"github.com/waftester/waftester/pkg/core"
 	"github.com/waftester/waftester/pkg/cors"
 	"github.com/waftester/waftester/pkg/crawler"
-	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/crlf"
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/deserialize"
 	"github.com/waftester/waftester/pkg/discovery"
 	"github.com/waftester/waftester/pkg/duration"
@@ -72,6 +72,8 @@ import (
 	"github.com/waftester/waftester/pkg/nosqli"
 	"github.com/waftester/waftester/pkg/oauth"
 	"github.com/waftester/waftester/pkg/output"
+	"github.com/waftester/waftester/pkg/output/baseline"
+	"github.com/waftester/waftester/pkg/output/policy"
 	"github.com/waftester/waftester/pkg/params"
 	"github.com/waftester/waftester/pkg/payloads"
 	"github.com/waftester/waftester/pkg/probes"
@@ -1592,14 +1594,48 @@ func runValidate() {
 	verbose := validateFlags.Bool("verbose", false, "Show detailed validation output")
 	outputJSON := validateFlags.String("output", "", "Output results to JSON file")
 
+	// Enterprise hook flags
+	validateSlack := validateFlags.String("slack-webhook", "", "Slack webhook URL for notifications")
+	validateTeams := validateFlags.String("teams-webhook", "", "Teams webhook URL for notifications")
+	validatePagerDuty := validateFlags.String("pagerduty-key", "", "PagerDuty routing key")
+	validateOtel := validateFlags.String("otel-endpoint", "", "OpenTelemetry endpoint")
+	validateWebhook := validateFlags.String("webhook-url", "", "Generic webhook URL")
+
 	validateFlags.Parse(os.Args[2:])
 
 	ui.PrintConfigLine("Payload Dir", *payloadDir)
 	ui.PrintConfigLine("Fail Fast", fmt.Sprintf("%v", *failFast))
 	fmt.Println()
 
+	// Initialize dispatcher for hooks
+	validateOutputFlags := OutputFlags{
+		SlackWebhook: *validateSlack,
+		TeamsWebhook: *validateTeams,
+		PagerDutyKey: *validatePagerDuty,
+		OTelEndpoint: *validateOtel,
+		WebhookURL:   *validateWebhook,
+	}
+	validateScanID := fmt.Sprintf("validate-%d", time.Now().Unix())
+	validateDispCtx, validateDispErr := validateOutputFlags.InitDispatcher(validateScanID, *payloadDir)
+	if validateDispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Dispatcher warning: %v", validateDispErr))
+	}
+	if validateDispCtx != nil {
+		defer validateDispCtx.Close()
+	}
+	validateStartTime := time.Now()
+	validateCtx := context.Background()
+
+	// Emit start event for scan lifecycle hooks
+	if validateDispCtx != nil {
+		_ = validateDispCtx.EmitStart(validateCtx, *payloadDir, 0, 1, nil)
+	}
+
 	result, err := validate.ValidatePayloads(*payloadDir, *failFast, *verbose)
 	if err != nil {
+		if validateDispCtx != nil {
+			_ = validateDispCtx.EmitError(validateCtx, "validate", fmt.Sprintf("Validation error: %v", err), true)
+		}
 		ui.PrintError(fmt.Sprintf("Validation error: %v", err))
 		os.Exit(1)
 	}
@@ -1608,6 +1644,9 @@ func runValidate() {
 		// Write JSON output
 		f, err := os.Create(*outputJSON)
 		if err != nil {
+			if validateDispCtx != nil {
+				_ = validateDispCtx.EmitError(validateCtx, "validate", fmt.Sprintf("Cannot create output file: %v", err), true)
+			}
 			ui.PrintError(fmt.Sprintf("Cannot create output file: %v", err))
 			os.Exit(1)
 		}
@@ -1617,10 +1656,19 @@ func runValidate() {
 	}
 
 	if !result.Valid {
+		// Emit validation failure
+		if validateDispCtx != nil {
+			_ = validateDispCtx.EmitBypass(validateCtx, "payload-validation-failure", "high", *payloadDir, "Payload validation failed", 0)
+			_ = validateDispCtx.EmitSummary(validateCtx, 1, 0, 1, time.Since(validateStartTime))
+		}
 		ui.PrintError("Validation failed!")
 		os.Exit(1)
 	}
 
+	// Emit success
+	if validateDispCtx != nil {
+		_ = validateDispCtx.EmitSummary(validateCtx, 1, 1, 0, time.Since(validateStartTime))
+	}
 	ui.PrintSuccess("All payloads validated successfully!")
 }
 
@@ -1634,15 +1682,49 @@ func runValidateTemplates() {
 	verbose := validateFlags.Bool("verbose", false, "Show detailed validation output")
 	outputJSON := validateFlags.String("output", "", "Output results to JSON file")
 
+	// Enterprise hook flags
+	vtSlack := validateFlags.String("slack-webhook", "", "Slack webhook URL for notifications")
+	vtTeams := validateFlags.String("teams-webhook", "", "Teams webhook URL for notifications")
+	vtPagerDuty := validateFlags.String("pagerduty-key", "", "PagerDuty routing key")
+	vtOtel := validateFlags.String("otel-endpoint", "", "OpenTelemetry endpoint")
+	vtWebhook := validateFlags.String("webhook-url", "", "Generic webhook URL")
+
 	validateFlags.Parse(os.Args[2:])
 
 	ui.PrintConfigLine("Template Dir", *templateDir)
 	ui.PrintConfigLine("Strict Mode", fmt.Sprintf("%v", *strict))
 	fmt.Println()
 
+	// Initialize dispatcher for hooks
+	vtOutputFlags := OutputFlags{
+		SlackWebhook: *vtSlack,
+		TeamsWebhook: *vtTeams,
+		PagerDutyKey: *vtPagerDuty,
+		OTelEndpoint: *vtOtel,
+		WebhookURL:   *vtWebhook,
+	}
+	vtScanID := fmt.Sprintf("validate-templates-%d", time.Now().Unix())
+	vtDispCtx, vtDispErr := vtOutputFlags.InitDispatcher(vtScanID, *templateDir)
+	if vtDispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Dispatcher warning: %v", vtDispErr))
+	}
+	if vtDispCtx != nil {
+		defer vtDispCtx.Close()
+	}
+	vtStartTime := time.Now()
+	vtCtx := context.Background()
+
+	// Emit start event for scan lifecycle hooks
+	if vtDispCtx != nil {
+		_ = vtDispCtx.EmitStart(vtCtx, *templateDir, 0, 1, nil)
+	}
+
 	validator := templatevalidator.NewValidator(*strict)
 	summary, err := validator.ValidateDirectory(*templateDir)
 	if err != nil {
+		if vtDispCtx != nil {
+			_ = vtDispCtx.EmitError(vtCtx, "validate-templates", fmt.Sprintf("Validation error: %v", err), true)
+		}
 		ui.PrintError(fmt.Sprintf("Validation error: %v", err))
 		os.Exit(1)
 	}
@@ -1671,14 +1753,38 @@ func runValidateTemplates() {
 		}
 	}
 
+	// Emit individual validation errors to hooks
+	if vtDispCtx != nil {
+		for _, result := range summary.Results {
+			if !result.Valid {
+				for _, e := range result.Errors {
+					errDesc := fmt.Sprintf("Template error in %s: %s", result.File, e)
+					_ = vtDispCtx.EmitBypass(vtCtx, "template-error", "high", result.File, errDesc, 0)
+				}
+			}
+			if *strict {
+				for _, w := range result.Warnings {
+					warnDesc := fmt.Sprintf("Template warning in %s: %s", result.File, w)
+					_ = vtDispCtx.EmitBypass(vtCtx, "template-warning", "medium", result.File, warnDesc, 0)
+				}
+			}
+		}
+	}
+
 	if *outputJSON != "" {
 		// Write JSON output
 		data, err := json.MarshalIndent(summary, "", "  ")
 		if err != nil {
+			if vtDispCtx != nil {
+				_ = vtDispCtx.EmitError(vtCtx, "validate-templates", fmt.Sprintf("Cannot marshal results: %v", err), true)
+			}
 			ui.PrintError(fmt.Sprintf("Cannot marshal results: %v", err))
 			os.Exit(1)
 		}
 		if err := os.WriteFile(*outputJSON, data, 0644); err != nil {
+			if vtDispCtx != nil {
+				_ = vtDispCtx.EmitError(vtCtx, "validate-templates", fmt.Sprintf("Cannot create output file: %v", err), true)
+			}
 			ui.PrintError(fmt.Sprintf("Cannot create output file: %v", err))
 			os.Exit(1)
 		}
@@ -1686,10 +1792,20 @@ func runValidateTemplates() {
 	}
 
 	if summary.InvalidFiles > 0 {
+		// Emit validation failures
+		if vtDispCtx != nil {
+			failDesc := fmt.Sprintf("%d invalid templates found", summary.InvalidFiles)
+			_ = vtDispCtx.EmitBypass(vtCtx, "template-validation-failure", "high", *templateDir, failDesc, 0)
+			_ = vtDispCtx.EmitSummary(vtCtx, summary.TotalFiles, summary.ValidFiles, summary.InvalidFiles, time.Since(vtStartTime))
+		}
 		ui.PrintError(fmt.Sprintf("Validation failed! %d invalid templates found.", summary.InvalidFiles))
 		os.Exit(1)
 	}
 
+	// Emit success
+	if vtDispCtx != nil {
+		_ = vtDispCtx.EmitSummary(vtCtx, summary.TotalFiles, summary.ValidFiles, 0, time.Since(vtStartTime))
+	}
 	ui.PrintSuccess(fmt.Sprintf("All %d templates validated successfully!", summary.TotalFiles))
 }
 
@@ -1701,6 +1817,13 @@ func runEnterpriseReport() {
 	workspaceDir := reportFlags.String("workspace", "", "Path to workspace directory containing results.json and assessment.json")
 	outputFile := reportFlags.String("output", "", "Output HTML report file path (default: workspace/enterprise-report.html)")
 	targetName := reportFlags.String("target", "", "Target name for the report header")
+
+	// Enterprise hook flags
+	reportSlack := reportFlags.String("slack-webhook", "", "Slack webhook URL for notifications")
+	reportTeams := reportFlags.String("teams-webhook", "", "Teams webhook URL for notifications")
+	reportPagerDuty := reportFlags.String("pagerduty-key", "", "PagerDuty routing key")
+	reportOtel := reportFlags.String("otel-endpoint", "", "OpenTelemetry endpoint")
+	reportWebhook := reportFlags.String("webhook-url", "", "Generic webhook URL")
 
 	reportFlags.Parse(os.Args[2:])
 
@@ -1751,12 +1874,45 @@ func runEnterpriseReport() {
 	ui.PrintConfigLine("Output", output)
 	fmt.Println()
 
+	// Initialize dispatcher for hooks
+	reportOutputFlags := OutputFlags{
+		SlackWebhook: *reportSlack,
+		TeamsWebhook: *reportTeams,
+		PagerDutyKey: *reportPagerDuty,
+		OTelEndpoint: *reportOtel,
+		WebhookURL:   *reportWebhook,
+	}
+	reportScanID := fmt.Sprintf("report-%d", time.Now().Unix())
+	reportDispCtx, reportDispErr := reportOutputFlags.InitDispatcher(reportScanID, target)
+	if reportDispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Dispatcher warning: %v", reportDispErr))
+	}
+	if reportDispCtx != nil {
+		defer reportDispCtx.Close()
+	}
+	reportStartTime := time.Now()
+	reportCtx := context.Background()
+
+	// Emit start event for scan lifecycle hooks
+	if reportDispCtx != nil {
+		_ = reportDispCtx.EmitStart(reportCtx, target, 0, 1, nil)
+	}
+
 	// Generate report
 	if err := report.GenerateEnterpriseHTMLReportFromWorkspace(*workspaceDir, target, 0, output); err != nil {
+		// Emit failure
+		if reportDispCtx != nil {
+			_ = reportDispCtx.EmitBypass(reportCtx, "report-generation-failure", "medium", target, err.Error(), 0)
+			_ = reportDispCtx.EmitSummary(reportCtx, 1, 0, 1, time.Since(reportStartTime))
+		}
 		ui.PrintError(fmt.Sprintf("Report generation failed: %v", err))
 		os.Exit(1)
 	}
 
+	// Emit success
+	if reportDispCtx != nil {
+		_ = reportDispCtx.EmitSummary(reportCtx, 1, 1, 0, time.Since(reportStartTime))
+	}
 	ui.PrintSuccess(fmt.Sprintf("Enterprise HTML report saved to: %s", output))
 }
 
@@ -1773,6 +1929,13 @@ func runUpdate() {
 	versionBump := updateFlags.String("version-bump", "minor", "Version bump type: major, minor, patch")
 	outputFile := updateFlags.String("output", "payload-update-report.json", "Output report file")
 
+	// Enterprise hook flags
+	updateSlack := updateFlags.String("slack-webhook", "", "Slack webhook URL for notifications")
+	updateTeams := updateFlags.String("teams-webhook", "", "Teams webhook URL for notifications")
+	updatePagerDuty := updateFlags.String("pagerduty-key", "", "PagerDuty routing key")
+	updateOtel := updateFlags.String("otel-endpoint", "", "OpenTelemetry endpoint")
+	updateWebhook := updateFlags.String("webhook-url", "", "Generic webhook URL")
+
 	updateFlags.Parse(os.Args[2:])
 
 	ui.PrintConfigLine("Source", *source)
@@ -1780,6 +1943,30 @@ func runUpdate() {
 	ui.PrintConfigLine("Dry Run", fmt.Sprintf("%v", *dryRun))
 	ui.PrintConfigLine("Auto Apply", fmt.Sprintf("%v", *autoApply))
 	fmt.Println()
+
+	// Initialize dispatcher for hooks
+	updateOutputFlags := OutputFlags{
+		SlackWebhook: *updateSlack,
+		TeamsWebhook: *updateTeams,
+		PagerDutyKey: *updatePagerDuty,
+		OTelEndpoint: *updateOtel,
+		WebhookURL:   *updateWebhook,
+	}
+	updateScanID := fmt.Sprintf("update-%d", time.Now().Unix())
+	updateDispCtx, updateDispErr := updateOutputFlags.InitDispatcher(updateScanID, *payloadDir)
+	if updateDispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Dispatcher warning: %v", updateDispErr))
+	}
+	if updateDispCtx != nil {
+		defer updateDispCtx.Close()
+	}
+	updateStartTime := time.Now()
+	updateCtx := context.Background()
+
+	// Emit start event for scan lifecycle hooks
+	if updateDispCtx != nil {
+		_ = updateDispCtx.EmitStart(updateCtx, *payloadDir, 0, 1, nil)
+	}
 
 	cfg := &update.UpdateConfig{
 		PayloadDir:      *payloadDir,
@@ -1793,8 +1980,18 @@ func runUpdate() {
 
 	_, err := update.UpdatePayloads(cfg)
 	if err != nil {
+		// Emit failure
+		if updateDispCtx != nil {
+			_ = updateDispCtx.EmitBypass(updateCtx, "payload-update-failure", "medium", *payloadDir, err.Error(), 0)
+			_ = updateDispCtx.EmitSummary(updateCtx, 1, 0, 1, time.Since(updateStartTime))
+		}
 		ui.PrintError(fmt.Sprintf("Update error: %v", err))
 		os.Exit(1)
+	}
+
+	// Emit success
+	if updateDispCtx != nil {
+		_ = updateDispCtx.EmitSummary(updateCtx, 1, 1, 0, time.Since(updateStartTime))
 	}
 
 	if *dryRun {
@@ -1811,6 +2008,13 @@ func runAutoScan() {
 
 	// Parse flags FIRST so we can determine output mode before printing anything
 	autoFlags := flag.NewFlagSet("auto", flag.ExitOnError)
+
+	// Output configuration (unified architecture)
+	var outFlags OutputFlags
+	outFlags.RegisterFlags(autoFlags)
+	outFlags.RegisterOutputAliases(autoFlags)
+	outFlags.Version = ui.Version
+
 	var targetURLs input.StringSliceFlag
 	autoFlags.Var(&targetURLs, "u", "Target URL(s)")
 	autoFlags.Var(&targetURLs, "target", "Target URL(s)")
@@ -1861,22 +2065,21 @@ func runAutoScan() {
 	browserHeadless := autoFlags.Bool("browser-headless", false, "Run browser in headless mode (no visible window)")
 	browserTimeout := autoFlags.Duration("browser-timeout", duration.BrowserLogin, "Timeout for user login during browser scan")
 
-	// Streaming mode (CI-friendly output)
-	streamMode := autoFlags.Bool("stream", false, "Streaming output mode for CI/scripts")
-
-	// JSON output mode (print final summary as JSON to stdout)
-	jsonOutput := autoFlags.Bool("json", false, "Output final summary as JSON to stdout")
-	autoFlags.BoolVar(jsonOutput, "j", false, "Output final summary as JSON to stdout (short)")
+	// Note: stream, json, and -j flags are now registered via outFlags.RegisterFlags()
+	// Use outFlags.StreamMode and outFlags.JSONMode instead of local variables
 
 	autoFlags.Parse(os.Args[2:])
 
+	// Apply unified output settings (silent, color)
+	outFlags.ApplyUISettings()
+
 	// Apply silent mode for JSON output - suppress all non-JSON output to stdout
-	if *jsonOutput {
+	if outFlags.JSONMode {
 		ui.SetSilent(true)
 	}
 
 	// Print banner and intro only when not in JSON mode
-	if !*jsonOutput {
+	if !outFlags.ShouldSuppressBanner() {
 		ui.PrintBanner()
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintln(os.Stderr, ui.SectionStyle.Render("🚀 SUPERPOWER MODE - Full Automated Security Scan"))
@@ -1885,7 +2088,7 @@ func runAutoScan() {
 
 	// Helper to suppress console output in JSON mode
 	// All informational output should use these instead of fmt.Print*
-	quietMode := *jsonOutput
+	quietMode := outFlags.JSONMode
 	printStatus := func(format string, args ...interface{}) {
 		if !quietMode {
 			fmt.Fprintf(os.Stderr, format, args...)
@@ -2013,6 +2216,23 @@ func runAutoScan() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// ═══════════════════════════════════════════════════════════════════════════
+	// DISPATCHER INITIALIZATION (Hooks: Slack, Teams, PagerDuty, OTEL, Prometheus)
+	// ═══════════════════════════════════════════════════════════════════════════
+	autoScanID := fmt.Sprintf("auto-%d", time.Now().Unix())
+	autoDispCtx, autoDispErr := outFlags.InitDispatcher(autoScanID, target)
+	if autoDispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Output dispatcher warning: %v", autoDispErr))
+	}
+	if autoDispCtx != nil {
+		defer autoDispCtx.Close()
+		if !quietMode {
+			ui.PrintInfo("Real-time integrations enabled (hooks active)")
+		}
+		// Emit scan start event to hooks
+		_ = autoDispCtx.EmitStart(ctx, target, 0, *concurrency, nil)
+	}
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -2024,9 +2244,9 @@ func runAutoScan() {
 
 	// Determine output mode for LiveProgress
 	autoOutputMode := ui.OutputModeInteractive
-	if *jsonOutput {
+	if outFlags.JSONMode {
 		autoOutputMode = ui.OutputModeSilent
-	} else if *streamMode {
+	} else if outFlags.StreamMode {
 		autoOutputMode = ui.OutputModeStreaming
 	}
 
@@ -2087,6 +2307,16 @@ func runAutoScan() {
 					smartResult.Concurrency))
 				*concurrency = smartResult.Concurrency
 			}
+
+			// Emit smart mode WAF detection to hooks
+			if autoDispCtx != nil {
+				wafDesc := fmt.Sprintf("Smart mode detected: %s (%.0f%% confidence)", smartResult.VendorName, smartResult.Confidence*100)
+				_ = autoDispCtx.EmitBypass(ctx, "smart-waf-detection", "info", target, wafDesc, 0)
+				// Emit bypass hints as actionable intelligence
+				for _, hint := range smartResult.BypassHints {
+					_ = autoDispCtx.EmitBypass(ctx, "bypass-hint", "info", target, hint, 0)
+				}
+			}
 		}
 		printStatusLn()
 	}
@@ -2120,12 +2350,16 @@ func runAutoScan() {
 	ui.PrintInfo("🔍 Starting endpoint discovery...")
 	discResult, err := discoverer.Discover(ctx)
 	if err != nil {
-		ui.PrintError(fmt.Sprintf("Discovery failed: %v", err))
+		errMsg := fmt.Sprintf("Discovery failed: %v", err)
+		ui.PrintError(errMsg)
+		_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
 		os.Exit(1)
 	}
 
 	if err := discResult.SaveResult(discoveryFile); err != nil {
-		ui.PrintError(fmt.Sprintf("Error saving discovery: %v", err))
+		errMsg := fmt.Sprintf("Error saving discovery: %v", err)
+		ui.PrintError(errMsg)
+		_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
 		os.Exit(1)
 	}
 
@@ -2233,6 +2467,16 @@ func runAutoScan() {
 					)
 					shownCount++
 				}
+
+				// Emit leaky-paths findings to hooks (sensitive path exposure)
+				if autoDispCtx != nil {
+					for _, result := range leakyResult.Results {
+						if result.Interesting {
+							leakyDesc := fmt.Sprintf("Sensitive path exposed: %s (%s)", result.Path, result.Category)
+							_ = autoDispCtx.EmitBypass(ctx, "sensitive-path-exposure", result.Severity, target, leakyDesc, result.StatusCode)
+						}
+					}
+				}
 			} else {
 				ui.PrintSuccess("  ✓ No sensitive paths exposed - good security posture!")
 			}
@@ -2305,7 +2549,7 @@ func runAutoScan() {
 	jsFrameIdx := 0
 	jsStartTime := time.Now()
 
-	if totalJSFiles > 1 && !*streamMode && !quietMode {
+	if totalJSFiles > 1 && !outFlags.StreamMode && !quietMode {
 		go func() {
 			ticker := time.NewTicker(100 * time.Millisecond)
 			defer ticker.Stop()
@@ -2496,6 +2740,42 @@ func runAutoScan() {
 		}
 	}
 
+	// Emit JS secrets to hooks (critical findings)
+	if autoDispCtx != nil && len(allJSData.Secrets) > 0 {
+		for _, secret := range allJSData.Secrets {
+			severity := strings.ToUpper(secret.Confidence)
+			if severity == "" {
+				severity = "medium"
+			}
+			secretDesc := fmt.Sprintf("JS secret found: %s", secret.Type)
+			_ = autoDispCtx.EmitBypass(ctx, "js-secret-exposure", severity, target, secretDesc, 0)
+		}
+	}
+
+	// Emit DOM XSS sinks to hooks (potential XSS vulnerabilities)
+	if autoDispCtx != nil && len(allJSData.DOMSinks) > 0 {
+		for _, sink := range allJSData.DOMSinks {
+			sinkDesc := fmt.Sprintf("DOM XSS sink: %s in %s", sink.Sink, sink.Context)
+			_ = autoDispCtx.EmitBypass(ctx, "js-dom-xss-sink", sink.Severity, target, sinkDesc, 0)
+		}
+	}
+
+	// Emit discovered subdomains to hooks (attack surface expansion)
+	if autoDispCtx != nil && len(allJSData.Subdomains) > 0 {
+		for _, sub := range allJSData.Subdomains {
+			subDesc := fmt.Sprintf("Subdomain discovered in JS: %s", sub)
+			_ = autoDispCtx.EmitBypass(ctx, "js-subdomain-discovery", "info", target, subDesc, 0)
+		}
+	}
+
+	// Emit cloud URLs to hooks (potential misconfigurations)
+	if autoDispCtx != nil && len(allJSData.CloudURLs) > 0 {
+		for _, cloudURL := range allJSData.CloudURLs {
+			cloudDesc := fmt.Sprintf("Cloud URL in JS: %s (%s)", cloudURL.URL, cloudURL.Service)
+			_ = autoDispCtx.EmitBypass(ctx, "js-cloud-url", "medium", target, cloudDesc, 0)
+		}
+	}
+
 	if len(allJSData.Subdomains) > 0 && !quietMode {
 		fmt.Fprintln(os.Stderr)
 		ui.PrintSection("🌐 Subdomains Discovered")
@@ -2565,7 +2845,7 @@ func runAutoScan() {
 			paramFrameIdx := 0
 			totalEndpoints := len(testEndpoints)
 
-			if !*streamMode && !quietMode {
+			if !outFlags.StreamMode && !quietMode {
 				go func() {
 					ticker := time.NewTicker(100 * time.Millisecond)
 					defer ticker.Stop()
@@ -2602,7 +2882,7 @@ func runAutoScan() {
 				}()
 				fmt.Fprintln(os.Stderr)
 				fmt.Fprintln(os.Stderr)
-			} // end if !*streamMode
+			} // end if !outFlags.StreamMode
 
 			for _, endpoint := range testEndpoints {
 				result, err := paramDiscoverer.Discover(ctx, endpoint)
@@ -2710,6 +2990,14 @@ func runAutoScan() {
 						ui.BracketStyle.Render("]"),
 					)
 				}
+
+				// Emit hidden parameters to hooks (potential attack surface)
+				if autoDispCtx != nil {
+					for _, p := range allParams {
+						paramDesc := fmt.Sprintf("Hidden parameter discovered: %s (%s via %s)", p.Name, p.Type, p.Source)
+						_ = autoDispCtx.EmitBypass(ctx, "hidden-parameter", "info", target, paramDesc, 0)
+					}
+				}
 			} else if !quietMode {
 				ui.PrintSuccess("  ✓ No hidden parameters discovered - endpoints are well-documented!")
 			}
@@ -2790,6 +3078,17 @@ func runAutoScan() {
 					}
 					fmt.Fprintln(os.Stderr)
 				}
+
+				// Emit full recon findings to hooks
+				if autoDispCtx != nil {
+					// Emit risk assessment
+					riskDesc := fmt.Sprintf("Full recon risk: %s (%.1f/100)", fullReconResult.RiskLevel, fullReconResult.RiskScore)
+					_ = autoDispCtx.EmitBypass(ctx, "recon-risk-assessment", fullReconResult.RiskLevel, target, riskDesc, 0)
+					// Emit top risks as individual findings
+					for _, risk := range fullReconResult.TopRisks {
+						_ = autoDispCtx.EmitBypass(ctx, "recon-top-risk", "high", target, risk, 0)
+					}
+				}
 			}
 		}
 	}
@@ -2841,7 +3140,9 @@ func runAutoScan() {
 	loader := payloads.NewLoader(payloadDir)
 	allPayloads, err := loader.LoadAll()
 	if err != nil {
-		ui.PrintError(fmt.Sprintf("Error loading payloads: %v", err))
+		errMsg := fmt.Sprintf("Error loading payloads: %v", err)
+		ui.PrintError(errMsg)
+		_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
 		os.Exit(1)
 	}
 
@@ -3040,7 +3341,9 @@ func runAutoScan() {
 		Target:        target,
 	})
 	if err != nil {
-		ui.PrintError(fmt.Sprintf("Error creating output writer: %v", err))
+		errMsg := fmt.Sprintf("Error creating output writer: %v", err)
+		ui.PrintError(errMsg)
+		_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
 		os.Exit(1)
 	}
 
@@ -3065,6 +3368,18 @@ func runAutoScan() {
 		RealisticMode: true,
 		AutoCalibrate: true,
 		HTTPClient:    ja3Client, // JA3 TLS fingerprint rotation
+		// Real-time streaming to hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
+		OnResult: func(result *output.TestResult) {
+			// Emit every test result for complete telemetry
+			if autoDispCtx != nil {
+				blocked := result.Outcome == "Blocked"
+				_ = autoDispCtx.EmitResult(ctx, result.Category, result.Severity, blocked, result.StatusCode, float64(result.LatencyMs))
+			}
+			// Additionally emit bypass event for non-blocked results
+			if autoDispCtx != nil && result.Outcome != "Blocked" && result.Outcome != "Error" {
+				_ = autoDispCtx.EmitBypass(ctx, result.Category, result.Severity, target, result.Payload, result.StatusCode)
+			}
+		},
 	})
 
 	progress.Start()
@@ -3136,6 +3451,25 @@ func runAutoScan() {
 				}
 			}
 		}
+
+		// Emit vendor detection and bypass recommendations to hooks
+		if autoDispCtx != nil {
+			wafDesc := fmt.Sprintf("WAF vendor detected: %s (%.0f%% confidence)", vendorName, vendorConfidence*100)
+			_ = autoDispCtx.EmitBypass(ctx, "waf-vendor-detection", "info", target, wafDesc, 0)
+			// Emit bypass hints
+			for _, hint := range bypassHints {
+				_ = autoDispCtx.EmitBypass(ctx, "bypass-hint", "info", target, hint, 0)
+			}
+			// Emit recommended techniques
+			if len(recommendedEncoders) > 0 {
+				encDesc := fmt.Sprintf("Recommended encoders: %s", strings.Join(recommendedEncoders, ", "))
+				_ = autoDispCtx.EmitBypass(ctx, "recommended-encoders", "info", target, encDesc, 0)
+			}
+			if len(recommendedEvasions) > 0 {
+				evDesc := fmt.Sprintf("Recommended evasions: %s", strings.Join(recommendedEvasions, ", "))
+				_ = autoDispCtx.EmitBypass(ctx, "recommended-evasions", "info", target, evDesc, 0)
+			}
+		}
 	} else if discResult.WAFDetected && discResult.WAFFingerprint != "" {
 		// Fallback to discovery result
 		vendorName = discResult.WAFFingerprint
@@ -3145,7 +3479,6 @@ func runAutoScan() {
 		ui.PrintInfo("  No specific WAF vendor detected - using default configuration")
 	}
 	printStatusLn()
-	_, _, _ = bypassHints, recommendedEncoders, recommendedEvasions // Used above
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 5: COMPREHENSIVE REPORT
@@ -3337,6 +3670,27 @@ func runAutoScan() {
 		if err != nil {
 			ui.PrintWarning(fmt.Sprintf("Assessment error: %v", err))
 		} else {
+			// Emit enterprise assessment results to hooks
+			if autoDispCtx != nil {
+				// Emit overall grade
+				gradeDesc := fmt.Sprintf("Enterprise Assessment: %s - %s", assessResult.Grade, assessResult.GradeReason)
+				_ = autoDispCtx.EmitBypass(ctx, "enterprise-grade", assessResult.Grade, target, gradeDesc, 0)
+
+				// Emit weak categories
+				for cat, cm := range assessResult.CategoryMetrics {
+					if cm.Grade == "D" || cm.Grade == "F" || cm.DetectionRate < 0.6 {
+						weakDesc := fmt.Sprintf("Weak category: %s - Detection %.1f%% (%d bypassed) - Grade %s",
+							cat, cm.DetectionRate*100, cm.Bypassed, cm.Grade)
+						_ = autoDispCtx.EmitBypass(ctx, "enterprise-weak-category", "high", target, weakDesc, 0)
+					}
+				}
+
+				// Emit recommendations
+				for _, rec := range assessResult.Recommendations {
+					_ = autoDispCtx.EmitBypass(ctx, "enterprise-recommendation", "info", target, rec, 0)
+				}
+			}
+
 			// Display assessment results (only in non-JSON mode)
 			if !quietMode {
 				displayAssessmentResults(assessResult, time.Since(startTime))
@@ -3541,6 +3895,33 @@ func runAutoScan() {
 					}
 					fmt.Fprintln(os.Stderr)
 				}
+
+				// Emit browser findings to hooks (exposed tokens are critical!)
+				if autoDispCtx != nil {
+					for _, token := range browserResult.ExposedTokens {
+						tokenDesc := fmt.Sprintf("Token exposed in browser: %s at %s - %s", token.Type, token.Location, token.Risk)
+						_ = autoDispCtx.EmitBypass(ctx, "browser-token-exposure", token.Severity, target, tokenDesc, 0)
+					}
+					// Emit third-party API integrations that may leak data
+					for _, api := range browserResult.ThirdPartyAPIs {
+						if api.Severity == "critical" || api.Severity == "high" {
+							apiDesc := fmt.Sprintf("Risky third-party API: %s (%s)", api.Name, api.RequestType)
+							_ = autoDispCtx.EmitBypass(ctx, "browser-risky-integration", api.Severity, target, apiDesc, 0)
+						}
+					}
+					// Emit top risks from browser scan
+					if browserResult.RiskSummary != nil {
+						for _, risk := range browserResult.RiskSummary.TopRisks {
+							_ = autoDispCtx.EmitBypass(ctx, "browser-top-risk", "high", target, risk, 0)
+						}
+						// Emit overall risk level
+						if browserResult.RiskSummary.OverallRisk != "" {
+							riskDesc := fmt.Sprintf("Browser scan overall risk: %s (Critical:%d, High:%d)",
+								browserResult.RiskSummary.OverallRisk, browserResult.RiskSummary.CriticalCount, browserResult.RiskSummary.HighCount)
+							_ = autoDispCtx.EmitBypass(ctx, "browser-risk-summary", browserResult.RiskSummary.OverallRisk, target, riskDesc, 0)
+						}
+					}
+				}
 			}
 
 			// ═══════════════════════════════════════════════════════════════════════════
@@ -3603,7 +3984,7 @@ func runAutoScan() {
 	_ = enableBrowserScan
 
 	// Output JSON summary to stdout if requested
-	if *jsonOutput {
+	if outFlags.JSONMode {
 		// Create a comprehensive output structure
 		jsonSummary := map[string]interface{}{
 			"target":            target,
@@ -3675,6 +4056,14 @@ func runAutoScan() {
 		// Output to stdout
 		jsonBytes, _ := json.MarshalIndent(jsonSummary, "", "  ")
 		fmt.Println(string(jsonBytes))
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// DISPATCHER SUMMARY EMISSION
+	// ═══════════════════════════════════════════════════════════════════════════
+	// Notify all hooks (Slack, Teams, PagerDuty, OTEL, etc.) that scan is complete
+	if autoDispCtx != nil {
+		_ = autoDispCtx.EmitSummary(ctx, int(results.TotalTests), int(results.BlockedTests), int(results.FailedTests), scanDuration)
 	}
 
 	if results.FailedTests > 0 {
@@ -3953,6 +4342,13 @@ func runDiscover() {
 	skipVerify := discoverFlags.Bool("skip-verify", false, "Skip TLS certificate verification")
 	verbose := discoverFlags.Bool("verbose", false, "Show detailed discovery output")
 
+	// Enterprise hook flags (Slack, Teams, PagerDuty, OTEL, etc.)
+	discoverSlack := discoverFlags.String("slack-webhook", "", "Slack webhook URL for notifications")
+	discoverTeams := discoverFlags.String("teams-webhook", "", "Teams webhook URL for notifications")
+	discoverPagerDuty := discoverFlags.String("pagerduty-key", "", "PagerDuty routing key")
+	discoverOtel := discoverFlags.String("otel-endpoint", "", "OpenTelemetry endpoint")
+	discoverWebhook := discoverFlags.String("webhook-url", "", "Generic webhook URL")
+
 	discoverFlags.Parse(os.Args[2:])
 
 	// Collect targets using shared TargetSource
@@ -3976,6 +4372,24 @@ func runDiscover() {
 	ui.PrintConfigLine("Output", *outputFile)
 	fmt.Println()
 
+	// Initialize dispatcher for hooks (Slack, Teams, PagerDuty, OTEL, etc.)
+	discoverOutputFlags := OutputFlags{
+		SlackWebhook: *discoverSlack,
+		TeamsWebhook: *discoverTeams,
+		PagerDutyKey: *discoverPagerDuty,
+		OTelEndpoint: *discoverOtel,
+		WebhookURL:   *discoverWebhook,
+	}
+	discoverScanID := fmt.Sprintf("discover-%d", time.Now().Unix())
+	discoverDispCtx, discoverDispErr := discoverOutputFlags.InitDispatcher(discoverScanID, target)
+	if discoverDispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Dispatcher warning: %v", discoverDispErr))
+	}
+	if discoverDispCtx != nil {
+		defer discoverDispCtx.Close()
+		_ = discoverDispCtx.EmitStart(context.Background(), target, 0, *concurrency, nil)
+	}
+
 	// Create discoverer
 	cfg := discovery.DiscoveryConfig{
 		Target:      target,
@@ -3998,7 +4412,9 @@ func runDiscover() {
 
 	result, err := discoverer.Discover(ctx)
 	if err != nil {
-		ui.PrintError(fmt.Sprintf("Discovery error: %v", err))
+		errMsg := fmt.Sprintf("Discovery error: %v", err)
+		ui.PrintError(errMsg)
+		_ = discoverDispCtx.EmitError(ctx, "discover", errMsg, true)
 		os.Exit(1)
 	}
 
@@ -4012,6 +4428,63 @@ func runDiscover() {
 	}
 	ui.PrintConfigLine("Duration", result.Duration.String())
 	fmt.Println()
+
+	// Emit security findings to hooks in real-time
+	discoverCtx := context.Background()
+	if discoverDispCtx != nil {
+		// Emit WAF detection
+		if result.WAFDetected {
+			wafDesc := fmt.Sprintf("WAF detected: %s", result.WAFFingerprint)
+			_ = discoverDispCtx.EmitBypass(discoverCtx, "waf-detection", "info", target, wafDesc, 0)
+		}
+		// Emit secrets found during discovery
+		for path, secrets := range result.Secrets {
+			for _, s := range secrets {
+				secretDesc := fmt.Sprintf("%s found at %s", s.Type, path)
+				_ = discoverDispCtx.EmitBypass(discoverCtx, "secret-exposure", s.Severity, target, secretDesc, 0)
+			}
+		}
+		// Emit S3 buckets (potential cloud misconfigurations)
+		for _, bucket := range result.S3Buckets {
+			bucketDesc := fmt.Sprintf("S3 bucket discovered: %s", bucket)
+			_ = discoverDispCtx.EmitBypass(discoverCtx, "s3-bucket-discovery", "medium", target, bucketDesc, 0)
+		}
+		// Emit subdomains
+		for _, sub := range result.Subdomains {
+			subDesc := fmt.Sprintf("Subdomain discovered: %s", sub)
+			_ = discoverDispCtx.EmitBypass(discoverCtx, "subdomain-discovery", "info", target, subDesc, 0)
+		}
+		// Emit high-risk attack surface features
+		surface := result.AttackSurface
+		if surface.HasFileUpload {
+			_ = discoverDispCtx.EmitBypass(discoverCtx, "attack-surface-upload", "high", target, "File upload endpoints detected", 0)
+		}
+		if surface.HasGraphQL {
+			_ = discoverDispCtx.EmitBypass(discoverCtx, "attack-surface-graphql", "medium", target, "GraphQL endpoint detected", 0)
+		}
+		if surface.HasWebSockets {
+			_ = discoverDispCtx.EmitBypass(discoverCtx, "attack-surface-websocket", "medium", target, "WebSocket endpoints detected", 0)
+		}
+		if surface.HasOAuth {
+			_ = discoverDispCtx.EmitBypass(discoverCtx, "attack-surface-oauth", "medium", target, "OAuth endpoints detected", 0)
+		}
+		if surface.HasSAML {
+			_ = discoverDispCtx.EmitBypass(discoverCtx, "attack-surface-saml", "medium", target, "SAML endpoints detected", 0)
+		}
+		if surface.HasAuthEndpoints {
+			_ = discoverDispCtx.EmitBypass(discoverCtx, "attack-surface-auth", "high", target, "Authentication endpoints detected", 0)
+		}
+
+		// Emit discovered endpoints (attack surface inventory)
+		for _, ep := range result.Endpoints {
+			epMethod := ep.Method
+			if epMethod == "" {
+				epMethod = "GET"
+			}
+			epDesc := fmt.Sprintf("Endpoint discovered: %s %s (category: %s, status: %d)", epMethod, ep.Path, ep.Category, ep.StatusCode)
+			_ = discoverDispCtx.EmitBypass(discoverCtx, "endpoint-discovery", "info", target, epDesc, ep.StatusCode)
+		}
+	}
 
 	// Show attack surface
 	ui.PrintSection("Attack Surface Analysis")
@@ -4085,13 +4558,25 @@ func runDiscover() {
 
 	// Save results
 	if err := result.SaveResult(*outputFile); err != nil {
-		ui.PrintError(fmt.Sprintf("Error saving results: %v", err))
+		errMsg := fmt.Sprintf("Error saving results: %v", err)
+		ui.PrintError(errMsg)
+		_ = discoverDispCtx.EmitError(discoverCtx, "discover", errMsg, true)
 		os.Exit(1)
 	}
 
 	ui.PrintSuccess(fmt.Sprintf("Discovery results saved to %s", *outputFile))
 	fmt.Println()
 	ui.PrintHelp("Next step: waf-tester learn -discovery " + *outputFile)
+
+	// Emit summary to hooks
+	if discoverDispCtx != nil {
+		totalSecrets := 0
+		for _, secrets := range result.Secrets {
+			totalSecrets += len(secrets)
+		}
+		totalFindings := result.Statistics.TotalEndpoints + result.Statistics.TotalParameters + totalSecrets
+		_ = discoverDispCtx.EmitSummary(discoverCtx, totalFindings, 0, totalFindings, result.Duration)
+	}
 }
 
 func runLearn() {
@@ -4109,6 +4594,13 @@ func runLearn() {
 	outputPlan := learnFlags.String("output", "testplan.json", "Output test plan file")
 	outputPayloads := learnFlags.String("custom-payloads", "", "Output file for generated custom payloads")
 	verbose := learnFlags.Bool("verbose", false, "Show detailed test plan")
+
+	// Enterprise hook flags
+	learnSlack := learnFlags.String("slack-webhook", "", "Slack webhook URL for notifications")
+	learnTeams := learnFlags.String("teams-webhook", "", "Teams webhook URL for notifications")
+	learnPagerDuty := learnFlags.String("pagerduty-key", "", "PagerDuty routing key")
+	learnOtel := learnFlags.String("otel-endpoint", "", "OpenTelemetry endpoint")
+	learnWebhook := learnFlags.String("webhook-url", "", "Generic webhook URL")
 
 	learnFlags.Parse(os.Args[2:])
 
@@ -4130,12 +4622,38 @@ func runLearn() {
 	ui.PrintConfigLine("Output Plan", *outputPlan)
 	fmt.Println()
 
+	// Initialize dispatcher for hooks
+	learnOutputFlags := OutputFlags{
+		SlackWebhook: *learnSlack,
+		TeamsWebhook: *learnTeams,
+		PagerDutyKey: *learnPagerDuty,
+		OTelEndpoint: *learnOtel,
+		WebhookURL:   *learnWebhook,
+	}
+	learnScanID := fmt.Sprintf("learn-%d", time.Now().Unix())
+	learnDispCtx, learnDispErr := learnOutputFlags.InitDispatcher(learnScanID, target)
+	if learnDispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Dispatcher warning: %v", learnDispErr))
+	}
+	if learnDispCtx != nil {
+		defer learnDispCtx.Close()
+	}
+	learnStartTime := time.Now()
+	learnCtx := context.Background()
+
+	// Emit start event for scan lifecycle hooks
+	if learnDispCtx != nil {
+		_ = learnDispCtx.EmitStart(learnCtx, target, 0, 1, nil)
+	}
+
 	// Load discovery results
 	ui.PrintInfo("Loading discovery results...")
 	disc, err := discovery.LoadResult(*discoveryFile)
 	if err != nil {
-		ui.PrintError(fmt.Sprintf("Error loading discovery file: %v", err))
+		errMsg := fmt.Sprintf("Error loading discovery file: %v", err)
+		ui.PrintError(errMsg)
 		ui.PrintHelp("Run 'waf-tester discover' first to generate discovery.json")
+		_ = learnDispCtx.EmitError(learnCtx, "learn", errMsg, true)
 		os.Exit(1)
 	}
 
@@ -4146,6 +4664,20 @@ func runLearn() {
 	ui.PrintInfo("Analyzing attack surface and generating test plan...")
 	learner := learning.NewLearner(disc, *payloadDir)
 	plan := learner.GenerateTestPlan()
+
+	// Emit test plan to hooks (attack categories identified for testing)
+	if learnDispCtx != nil {
+		for _, group := range plan.TestGroups {
+			groupDesc := fmt.Sprintf("Test plan: [P%d] %s - %s", group.Priority, group.Category, group.Reason)
+			severity := "info"
+			if group.Priority == 1 {
+				severity = "high"
+			} else if group.Priority == 2 {
+				severity = "medium"
+			}
+			_ = learnDispCtx.EmitBypass(learnCtx, "test-plan-category", severity, plan.Target, groupDesc, 0)
+		}
+	}
 
 	// Display plan summary
 	ui.PrintSection("Test Plan Summary")
@@ -4193,7 +4725,9 @@ func runLearn() {
 
 	// Save test plan
 	if err := plan.SavePlan(*outputPlan); err != nil {
-		ui.PrintError(fmt.Sprintf("Error saving test plan: %v", err))
+		errMsg := fmt.Sprintf("Error saving test plan: %v", err)
+		ui.PrintError(errMsg)
+		_ = learnDispCtx.EmitError(learnCtx, "learn", errMsg, true)
 		os.Exit(1)
 	}
 	ui.PrintSuccess(fmt.Sprintf("Test plan saved to %s", *outputPlan))
@@ -4201,7 +4735,9 @@ func runLearn() {
 	// Save custom payloads if requested
 	if *outputPayloads != "" {
 		if err := plan.GeneratePayloadFile(*outputPayloads); err != nil {
-			ui.PrintError(fmt.Sprintf("Error saving custom payloads: %v", err))
+			errMsg := fmt.Sprintf("Error saving custom payloads: %v", err)
+			ui.PrintError(errMsg)
+			_ = learnDispCtx.EmitError(learnCtx, "learn", errMsg, true)
 			os.Exit(1)
 		}
 		ui.PrintSuccess(fmt.Sprintf("Custom payloads saved to %s", *outputPayloads))
@@ -4225,13 +4761,43 @@ func runLearn() {
 	}
 
 	ui.PrintHelp("Next step: " + runCmd)
+
+	// Emit success summary
+	if learnDispCtx != nil {
+		_ = learnDispCtx.EmitSummary(learnCtx, plan.TotalTests, plan.TotalTests, 0, time.Since(learnStartTime))
+	}
 }
 
 func runTests() {
+	// Register enterprise output flags on global flag.CommandLine BEFORE config.ParseFlags()
+	// This allows enterprise features without modifying the config package
+	var outputFlags OutputFlags
+	outputFlags.RegisterRunEnterpriseFlags(flag.CommandLine)
+
 	// Parse CLI flags first to check for silent mode
 	cfg, err := config.ParseFlags()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[ERR] Configuration error: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Sync OutputFlags with config settings (config.ParseFlags defines some overlapping flags)
+	outputFlags.OutputFile = cfg.OutputFile
+	outputFlags.Format = cfg.OutputFormat
+	outputFlags.Silent = cfg.Silent
+	outputFlags.NoColor = cfg.NoColor
+	outputFlags.ShowStats = cfg.Stats
+	outputFlags.StatsInterval = cfg.StatsInterval
+
+	// Load policy and baseline for CI/CD gating
+	pol, err := outputFlags.LoadPolicy()
+	if err != nil {
+		ui.PrintError(fmt.Sprintf("Error loading policy: %v", err))
+		os.Exit(1)
+	}
+	bl, err := outputFlags.LoadBaseline()
+	if err != nil {
+		ui.PrintError(fmt.Sprintf("Error loading baseline: %v", err))
 		os.Exit(1)
 	}
 
@@ -4266,6 +4832,23 @@ func runTests() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// ═══════════════════════════════════════════════════════════════════════════
+	// DISPATCHER INITIALIZATION (Hooks: Slack, Teams, PagerDuty, OTEL, Prometheus)
+	// ═══════════════════════════════════════════════════════════════════════════
+	runScanID := fmt.Sprintf("run-%d", time.Now().Unix())
+	runDispCtx, runDispErr := outputFlags.InitDispatcher(runScanID, cfg.TargetURL)
+	if runDispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Output dispatcher warning: %v", runDispErr))
+	}
+	if runDispCtx != nil {
+		defer runDispCtx.Close()
+		if !cfg.Silent {
+			ui.PrintInfo("Real-time integrations enabled (hooks active)")
+		}
+		// Emit scan start event to hooks
+		_ = runDispCtx.EmitStart(ctx, cfg.TargetURL, 0, cfg.Concurrency, cfg.Categories)
+	}
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -4283,8 +4866,10 @@ func runTests() {
 		}
 		plan, err = learning.LoadPlan(cfg.PlanFile)
 		if err != nil {
-			ui.PrintError(fmt.Sprintf("Error loading test plan: %v", err))
+			errMsg := fmt.Sprintf("Error loading test plan: %v", err)
+			ui.PrintError(errMsg)
 			ui.PrintHelp("Run 'waf-tester learn -discovery <file>' first to generate a test plan")
+			_ = runDispCtx.EmitError(ctx, "run", errMsg, true)
 			os.Exit(1)
 		}
 
@@ -4417,7 +5002,9 @@ func runTests() {
 	loader := payloads.NewLoader(cfg.PayloadDir)
 	allPayloads, err := loader.LoadAll()
 	if err != nil {
-		ui.PrintError(fmt.Sprintf("Error loading payloads: %v", err))
+		errMsg := fmt.Sprintf("Error loading payloads: %v", err)
+		ui.PrintError(errMsg)
+		_ = runDispCtx.EmitError(ctx, "run", errMsg, true)
 		os.Exit(1)
 	}
 
@@ -4564,6 +5151,18 @@ func runTests() {
 			Filter:        buildFilterConfig(cfg),
 			RealisticMode: cfg.RealisticMode,
 			AutoCalibrate: cfg.RealisticMode && cfg.AutoCalibration,
+			// Real-time streaming to hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
+			OnResult: func(result *output.TestResult) {
+				// Emit every test result for complete telemetry
+				if runDispCtx != nil {
+					blocked := result.Outcome == "Blocked"
+					_ = runDispCtx.EmitResult(ctx, result.Category, result.Severity, blocked, result.StatusCode, float64(result.LatencyMs))
+				}
+				// Additionally emit bypass event for non-blocked results
+				if runDispCtx != nil && result.Outcome != "Blocked" && result.Outcome != "Error" {
+					_ = runDispCtx.EmitBypass(ctx, result.Category, result.Severity, result.RequestURL, result.Payload, result.StatusCode)
+				}
+			},
 		})
 
 		// Start progress display (skip if silent)
@@ -4639,9 +5238,97 @@ func runTests() {
 		output.PrintSummary(aggregatedResults)
 	}
 
-	// Exit with appropriate code
-	if aggregatedResults.FailedTests > 0 {
-		os.Exit(1)
+	// Handle enterprise exports if configured
+	if outputFlags.HasEnterpriseExports() {
+		if !cfg.Silent {
+			outputFlags.PrintOutputConfig()
+		}
+		if err := outputFlags.WriteEnterpriseExports(aggregatedResults); err != nil {
+			ui.PrintError(fmt.Sprintf("Error writing enterprise exports: %v", err))
+		}
+	}
+
+	// Determine exit code using policy and baseline (CI/CD gating)
+	exitCode := 0
+
+	// Policy evaluation takes precedence
+	if pol != nil {
+		// Build SummaryData from aggregated results
+		summaryData := policy.SummaryData{
+			TotalBypasses:      aggregatedResults.PassedTests, // Bypasses = passed tests (WAF didn't block)
+			TotalTests:         aggregatedResults.TotalTests,
+			TotalErrors:        aggregatedResults.ErrorTests,
+			BypassesBySeverity: aggregatedResults.SeverityBreakdown,
+			BypassesByCategory: aggregatedResults.CategoryBreakdown,
+			Effectiveness:      float64(aggregatedResults.BlockedTests) / float64(aggregatedResults.TotalTests) * 100,
+			ErrorRate:          float64(aggregatedResults.ErrorTests) / float64(aggregatedResults.TotalTests) * 100,
+		}
+		policyResult := pol.Evaluate(summaryData)
+		if !policyResult.Pass {
+			if !cfg.Silent {
+				ui.PrintError(fmt.Sprintf("Policy violations: %v", policyResult.Failures))
+			}
+			// Emit policy violations to hooks
+			if runDispCtx != nil {
+				for _, failure := range policyResult.Failures {
+					_ = runDispCtx.EmitBypass(ctx, "policy-violation", "critical", cfg.TargetURL, failure, 0)
+				}
+			}
+			exitCode = policyResult.ExitCode
+		} else if !cfg.Silent {
+			ui.PrintSuccess("Policy check passed")
+		}
+	}
+
+	// Baseline regression detection
+	if bl != nil && exitCode == 0 {
+		// Convert bypass details to baseline entries for comparison
+		currentBypasses := make([]baseline.BypassEntry, len(aggregatedResults.BypassDetails))
+		for i, d := range aggregatedResults.BypassDetails {
+			currentBypasses[i] = baseline.BypassEntry{
+				ID:          d.PayloadID,
+				Category:    d.Category,
+				Severity:    d.Severity,
+				TargetPath:  d.Endpoint,
+				PayloadHash: d.Payload, // Use payload as hash for comparison
+			}
+		}
+		comparison := bl.Compare(currentBypasses)
+		if comparison.HasNewBypasses {
+			if !cfg.Silent {
+				ui.PrintError(fmt.Sprintf("Baseline regression: %d new bypass(es) detected", len(comparison.NewBypasses)))
+				for _, r := range comparison.NewBypasses {
+					ui.PrintWarning(fmt.Sprintf("  - %s (%s)", r.ID, r.Category))
+				}
+			}
+			// Emit baseline regression events to hooks
+			if runDispCtx != nil {
+				for _, r := range comparison.NewBypasses {
+					regDesc := fmt.Sprintf("Baseline regression: new bypass %s (%s)", r.ID, r.Category)
+					_ = runDispCtx.EmitBypass(ctx, "baseline-regression", "critical", cfg.TargetURL, regDesc, 0)
+				}
+			}
+			exitCode = 2 // Different exit code for regressions
+		} else if !cfg.Silent {
+			ui.PrintSuccess(fmt.Sprintf("No baseline regressions: %s", comparison.Summary))
+		}
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// DISPATCHER SUMMARY EMISSION
+	// ═══════════════════════════════════════════════════════════════════════════
+	// Notify all hooks (Slack, Teams, PagerDuty, OTEL, etc.) that test run is complete
+	if runDispCtx != nil {
+		_ = runDispCtx.EmitSummary(ctx, int(aggregatedResults.TotalTests), int(aggregatedResults.BlockedTests), int(aggregatedResults.FailedTests), aggregatedResults.Duration)
+	}
+
+	// Default exit logic if no policy/baseline configured
+	if pol == nil && bl == nil && aggregatedResults.FailedTests > 0 {
+		exitCode = 1
+	}
+
+	if exitCode != 0 {
+		os.Exit(exitCode)
 	}
 }
 
@@ -4961,6 +5648,11 @@ func runProbe() {
 	pdDashboardUpload := probeFlags.String("pdu", "", "Upload httpx output file to pdcp UI")
 	probeFlags.StringVar(pdDashboardUpload, "dashboard-upload", "", "Upload httpx output file to pdcp UI")
 
+	// Output configuration (unified architecture)
+	var outFlags OutputFlags
+	outFlags.RegisterProbeEnterpriseFlags(probeFlags)
+	outFlags.Version = ui.Version
+
 	probeFlags.Parse(os.Args[2:])
 
 	// Handle special flags that exit early
@@ -5010,6 +5702,25 @@ func runProbe() {
 		return
 	}
 
+	// Apply unified output settings
+	outFlags.ApplyUISettings()
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// DISPATCHER INITIALIZATION (Hooks: Slack, Teams, PagerDuty, OTEL, Prometheus)
+	// ═══════════════════════════════════════════════════════════════════════════
+	probeScanID := fmt.Sprintf("probe-%d", time.Now().Unix())
+	probeDispCtx, probeDispErr := outFlags.InitDispatcher(probeScanID, "multi-target")
+	if probeDispErr != nil {
+		if !*silent {
+			ui.PrintWarning(fmt.Sprintf("Output dispatcher warning: %v", probeDispErr))
+		}
+	}
+	if probeDispCtx != nil {
+		defer probeDispCtx.Close()
+		_ = probeDispCtx.EmitStart(context.Background(), "multi-target", 0, *threads, nil)
+	}
+	probeStartTime := time.Now()
+
 	// Print banner unless in silent/oneliner mode
 	if !*silent && !*oneliner && !*jsonl {
 		ui.PrintCompactBanner()
@@ -5025,7 +5736,9 @@ func runProbe() {
 
 	targets, err := ts.GetTargets()
 	if err != nil {
-		ui.PrintError(fmt.Sprintf("Failed to load targets: %v", err))
+		errMsg := fmt.Sprintf("Failed to load targets: %v", err)
+		ui.PrintError(errMsg)
+		_ = probeDispCtx.EmitError(context.Background(), "probe", errMsg, true)
 		os.Exit(1)
 	}
 
@@ -5266,7 +5979,9 @@ func runProbe() {
 	if *configFile != "" {
 		configData, err := os.ReadFile(*configFile)
 		if err != nil {
-			ui.PrintError(fmt.Sprintf("Cannot read config file: %v", err))
+			errMsg := fmt.Sprintf("Cannot read config file: %v", err)
+			ui.PrintError(errMsg)
+			_ = probeDispCtx.EmitError(context.Background(), "probe", errMsg, true)
 			os.Exit(1)
 		}
 		// Parse config file (JSON format)
@@ -7211,6 +7926,41 @@ func runProbe() {
 		if results.Alive {
 			atomic.AddInt64(&statsSuccess, 1)
 			probeProgress.AddMetric("alive")
+
+			// Real-time streaming to hooks (Slack, Teams, PagerDuty, OTEL, etc.)
+			// Emit WAF detections and interesting findings as they're discovered
+			if probeDispCtx != nil {
+				// Emit WAF detection events
+				if results.WAF != nil && results.WAF.Detected && len(results.WAF.WAFs) > 0 {
+					for _, wafInfo := range results.WAF.WAFs {
+						wafDesc := fmt.Sprintf("WAF detected: %s (confidence: %.0f%%)", wafInfo.Name, wafInfo.Confidence*100)
+						_ = probeDispCtx.EmitBypass(context.Background(), "probe-waf-detected", "info", currentTarget, wafDesc, results.StatusCode)
+					}
+				}
+				// Emit security header findings (missing important headers)
+				if results.Headers != nil && len(results.Headers.MissingHeaders) > 3 {
+					headerDesc := fmt.Sprintf("Missing security headers: %s", strings.Join(results.Headers.MissingHeaders, ", "))
+					_ = probeDispCtx.EmitBypass(context.Background(), "probe-weak-headers", "medium", currentTarget, headerDesc, results.StatusCode)
+				}
+				// Emit TLS issues (expired, self-signed, weak cipher)
+				if results.TLS != nil {
+					if results.TLS.Expired {
+						_ = probeDispCtx.EmitBypass(context.Background(), "probe-tls-expired", "critical", currentTarget, "TLS certificate is expired", results.StatusCode)
+					}
+					if results.TLS.SelfSigned {
+						_ = probeDispCtx.EmitBypass(context.Background(), "probe-tls-self-signed", "high", currentTarget, "TLS certificate is self-signed", results.StatusCode)
+					}
+				}
+				// Emit technology detection with CPEs
+				if results.Tech != nil && len(results.Tech.Technologies) > 0 {
+					for _, tech := range results.Tech.Technologies {
+						if tech.Confidence > 90 && tech.Version != "" {
+							techDesc := fmt.Sprintf("Technology: %s v%s", tech.Name, tech.Version)
+							_ = probeDispCtx.EmitBypass(context.Background(), "probe-tech-detected", "info", currentTarget, techDesc, results.StatusCode)
+						}
+					}
+				}
+			}
 		} else {
 			atomic.AddInt64(&statsFailed, 1)
 			probeProgress.AddMetric("dead")
@@ -7440,13 +8190,17 @@ func runProbe() {
 				jsonData, err = json.MarshalIndent(results, "", "  ")
 			}
 			if err != nil {
-				ui.PrintError(fmt.Sprintf("JSON encoding error: %v", err))
+				errMsg := fmt.Sprintf("JSON encoding error: %v", err)
+				ui.PrintError(errMsg)
+				_ = probeDispCtx.EmitError(context.Background(), "probe", errMsg, true)
 				os.Exit(1)
 			}
 
 			if *outputFile != "" {
 				if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
-					ui.PrintError(fmt.Sprintf("Error writing output: %v", err))
+					errMsg := fmt.Sprintf("Error writing output: %v", err)
+					ui.PrintError(errMsg)
+					_ = probeDispCtx.EmitError(context.Background(), "probe", errMsg, true)
 					os.Exit(1)
 				}
 				ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
@@ -7722,6 +8476,14 @@ func runProbe() {
 		} else {
 			fmt.Printf("[!] PDCP dashboard upload file not found: %s\n", *pdDashboardUpload)
 		}
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// DISPATCHER SUMMARY EMISSION
+	// ═══════════════════════════════════════════════════════════════════════════
+	// Notify all hooks that probe is complete (probed targets, alive count)
+	if probeDispCtx != nil {
+		_ = probeDispCtx.EmitSummary(context.Background(), int(statsTotal), int(statsSuccess), int(statsFailed), time.Since(probeStartTime))
 	}
 }
 
@@ -8108,17 +8870,19 @@ func runCrawl() {
 	// Streaming mode (CI-friendly output)
 	streamMode := crawlFlags.Bool("stream", false, "Streaming output mode for CI/scripts")
 
+	// Register enterprise output flags
+	var outputFlags OutputFlags
+	outputFlags.RegisterEnterpriseFlags(crawlFlags)
+
 	crawlFlags.Parse(os.Args[2:])
 
-	// Apply silent mode
-	if *silent {
-		ui.SetSilent(true)
-	}
+	// Sync local flags to outputFlags for unified handling
+	outputFlags.Silent = *silent
+	outputFlags.NoColor = *noColor
+	outputFlags.StreamMode = *streamMode
 
-	// Apply no-color mode
-	if *noColor {
-		ui.SetNoColor(true)
-	}
+	// Apply UI settings via outputFlags
+	outputFlags.ApplyUISettings()
 
 	// Apply debug mode output
 	if *debug || *debugRequest {
@@ -8234,12 +8998,27 @@ func runCrawl() {
 	ctx, cancel := context.WithTimeout(context.Background(), duration.ContextExtended)
 	defer cancel()
 
+	// ═══════════════════════════════════════════════════════════════════════════
+	// DISPATCHER INITIALIZATION (Hooks: Slack, Teams, PagerDuty, OTEL, Prometheus)
+	// ═══════════════════════════════════════════════════════════════════════════
+	crawlScanID := fmt.Sprintf("crawl-%d", time.Now().Unix())
+	crawlDispCtx, crawlDispErr := outputFlags.InitDispatcher(crawlScanID, target)
+	if crawlDispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Output dispatcher warning: %v", crawlDispErr))
+	}
+	if crawlDispCtx != nil {
+		defer crawlDispCtx.Close()
+		_ = crawlDispCtx.EmitStart(ctx, target, 0, *concurrency, nil)
+	}
+
 	ui.PrintInfo("Starting crawler...")
 	fmt.Println()
 
 	results, err := c.Crawl(ctx, target)
 	if err != nil {
-		ui.PrintError(fmt.Sprintf("Crawl error: %v", err))
+		errMsg := fmt.Sprintf("Crawl error: %v", err)
+		ui.PrintError(errMsg)
+		_ = crawlDispCtx.EmitError(ctx, "crawl", errMsg, true)
 		os.Exit(1)
 	}
 
@@ -8289,6 +9068,24 @@ func runCrawl() {
 		crawlProgress.SetMetric("links", int64(len(allURLs)))
 		crawlProgress.SetMetric("forms", int64(len(allForms)))
 		crawlProgress.SetMetric("scripts", int64(len(allScripts)))
+
+		// Real-time streaming to hooks (Slack, Teams, PagerDuty, OTEL, etc.)
+		// Emit forms as they're discovered (potential attack surfaces)
+		if crawlDispCtx != nil && len(result.Forms) > 0 {
+			for _, form := range result.Forms {
+				formDesc := fmt.Sprintf("form[action=%s,method=%s,inputs=%d]", form.Action, form.Method, len(form.Inputs))
+				_ = crawlDispCtx.EmitBypass(ctx, "crawl-form", "info", result.URL, formDesc, result.StatusCode)
+			}
+		}
+		// Emit external scripts as potential attack surfaces
+		if crawlDispCtx != nil && len(result.Scripts) > 0 {
+			for _, script := range result.Scripts {
+				// Only emit external scripts (those with src attribute containing http)
+				if strings.HasPrefix(script, "http") || strings.Contains(script, "://") {
+					_ = crawlDispCtx.EmitBypass(ctx, "crawl-external-script", "info", result.URL, script, result.StatusCode)
+				}
+			}
+		}
 	}
 
 	crawlProgress.Stop()
@@ -8389,13 +9186,17 @@ func runCrawl() {
 
 		jsonData, err := json.MarshalIndent(output, "", "  ")
 		if err != nil {
-			ui.PrintError(fmt.Sprintf("JSON encoding error: %v", err))
+			errMsg := fmt.Sprintf("JSON encoding error: %v", err)
+			ui.PrintError(errMsg)
+			_ = crawlDispCtx.EmitError(context.Background(), "crawl", errMsg, true)
 			os.Exit(1)
 		}
 
 		if *outputFile != "" {
 			if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
-				ui.PrintError(fmt.Sprintf("Error writing output: %v", err))
+				errMsg := fmt.Sprintf("Error writing output: %v", err)
+				ui.PrintError(errMsg)
+				_ = crawlDispCtx.EmitError(context.Background(), "crawl", errMsg, true)
 				os.Exit(1)
 			}
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
@@ -8404,6 +9205,14 @@ func runCrawl() {
 		if *jsonOutput {
 			fmt.Println(string(jsonData))
 		}
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// DISPATCHER SUMMARY EMISSION
+	// ═══════════════════════════════════════════════════════════════════════════
+	// Notify all hooks that crawl is complete (pages discovered, forms found)
+	if crawlDispCtx != nil {
+		_ = crawlDispCtx.EmitSummary(ctx, len(crawlResults), len(allURLs), len(allForms), time.Since(startTime))
 	}
 }
 
@@ -8522,17 +9331,18 @@ func runFuzz() {
 	calibrationWords := fuzzFlags.String("calibration-words", "", "Specific words for baseline (comma-separated)")
 	fuzzFlags.StringVar(calibrationWords, "cw", "", "Calibration words (alias)")
 
+	// Enterprise output flags (unified with other commands)
+	var outputFlags OutputFlags
+	outputFlags.RegisterFuzzEnterpriseFlags(fuzzFlags)
+
 	fuzzFlags.Parse(os.Args[2:])
 
-	// Apply silent mode
-	if *silent {
-		ui.SetSilent(true)
-	}
-
-	// Apply no-color mode
-	if *noColor {
-		ui.SetNoColor(true)
-	}
+	// Apply UI settings from OutputFlags (sync with local flags)
+	outputFlags.Silent = *silent
+	outputFlags.NoColor = *noColor
+	outputFlags.JSONMode = *jsonOutput
+	outputFlags.StreamMode = *streamMode
+	outputFlags.ApplyUISettings()
 
 	// Apply debug mode output
 	if *debug || *debugRequest || *debugResponse {
@@ -8778,6 +9588,19 @@ func runFuzz() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// ═══════════════════════════════════════════════════════════════════════════
+	// DISPATCHER INITIALIZATION (Hooks: Slack, Teams, PagerDuty, OTEL, Prometheus)
+	// ═══════════════════════════════════════════════════════════════════════════
+	fuzzScanID := fmt.Sprintf("fuzz-%d", time.Now().Unix())
+	fuzzDispCtx, fuzzDispErr := outputFlags.InitDispatcher(fuzzScanID, targetURL)
+	if fuzzDispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Output dispatcher warning: %v", fuzzDispErr))
+	}
+	if fuzzDispCtx != nil {
+		defer fuzzDispCtx.Close()
+		_ = fuzzDispCtx.EmitStart(ctx, targetURL, len(words), *concurrency, nil)
+	}
+
 	// Auto-calibration
 	var calibration *fuzz.Calibration
 	if *autoCalibrate {
@@ -8854,6 +9677,19 @@ func runFuzz() {
 		resultsMu.Lock()
 		results = append(results, result)
 		resultsMu.Unlock()
+
+		// Real-time streaming to hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
+		// Emit each interesting finding (non-filtered match) as it's discovered
+		if fuzzDispCtx != nil {
+			// Classify severity based on status code
+			severity := "info"
+			if result.StatusCode >= 200 && result.StatusCode < 300 {
+				severity = "medium"
+			} else if result.StatusCode >= 500 {
+				severity = "high"
+			}
+			_ = fuzzDispCtx.EmitBypass(ctx, "fuzz-discovery", severity, result.URL, result.Input, result.StatusCode)
+		}
 
 		// Print result (LiveProgress handles terminal management)
 		if !*silent && !*jsonOutput {
@@ -8970,13 +9806,17 @@ func runFuzz() {
 
 		jsonData, err := json.MarshalIndent(output, "", "  ")
 		if err != nil {
-			ui.PrintError(fmt.Sprintf("JSON encoding error: %v", err))
+			errMsg := fmt.Sprintf("JSON encoding error: %v", err)
+			ui.PrintError(errMsg)
+			_ = fuzzDispCtx.EmitError(context.Background(), "fuzz", errMsg, true)
 			os.Exit(1)
 		}
 
 		if *outputFile != "" {
 			if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
-				ui.PrintError(fmt.Sprintf("Error writing output: %v", err))
+				errMsg := fmt.Sprintf("Error writing output: %v", err)
+				ui.PrintError(errMsg)
+				_ = fuzzDispCtx.EmitError(context.Background(), "fuzz", errMsg, true)
 				os.Exit(1)
 			}
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
@@ -8985,6 +9825,14 @@ func runFuzz() {
 		if *jsonOutput {
 			fmt.Println(string(jsonData))
 		}
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// DISPATCHER SUMMARY EMISSION
+	// ═══════════════════════════════════════════════════════════════════════════
+	// Notify all hooks that fuzz is complete (total requests, matches found)
+	if fuzzDispCtx != nil {
+		_ = fuzzDispCtx.EmitSummary(ctx, int(stats.TotalRequests), int(stats.Matches), int(stats.Filtered), duration)
 	}
 }
 
@@ -9065,6 +9913,13 @@ func runAnalyze() {
 	extractDOMSinks := analyzeFlags.Bool("sinks", true, "Extract DOM XSS sinks")
 	jsonOutput := analyzeFlags.Bool("json", false, "Output in JSON format")
 
+	// Enterprise hook flags (Slack, Teams, PagerDuty, OTEL, etc.)
+	analyzeSlack := analyzeFlags.String("slack-webhook", "", "Slack webhook URL for notifications")
+	analyzeTeams := analyzeFlags.String("teams-webhook", "", "Teams webhook URL for notifications")
+	analyzePagerDuty := analyzeFlags.String("pagerduty-key", "", "PagerDuty routing key")
+	analyzeOtel := analyzeFlags.String("otel-endpoint", "", "OpenTelemetry endpoint")
+	analyzeWebhook := analyzeFlags.String("webhook-url", "", "Generic webhook URL")
+
 	analyzeFlags.Parse(os.Args[2:])
 
 	// Collect targets using shared TargetSource
@@ -9111,6 +9966,67 @@ func runAnalyze() {
 
 	analyzer := js.NewAnalyzer()
 	result := analyzer.Analyze(jsCode)
+	analyzeStartTime := time.Now()
+
+	// Initialize dispatcher for hooks (Slack, Teams, PagerDuty, OTEL, etc.)
+	analyzeOutputFlags := OutputFlags{
+		SlackWebhook: *analyzeSlack,
+		TeamsWebhook: *analyzeTeams,
+		PagerDutyKey: *analyzePagerDuty,
+		OTelEndpoint: *analyzeOtel,
+		WebhookURL:   *analyzeWebhook,
+	}
+	analyzeScanID := fmt.Sprintf("analyze-%d", time.Now().Unix())
+	analyzeTarget := target
+	if analyzeTarget == "" {
+		analyzeTarget = *file
+	}
+	analyzeDispCtx, analyzeDispErr := analyzeOutputFlags.InitDispatcher(analyzeScanID, analyzeTarget)
+	if analyzeDispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Dispatcher warning: %v", analyzeDispErr))
+	}
+	if analyzeDispCtx != nil {
+		defer analyzeDispCtx.Close()
+	}
+
+	// Emit security findings to hooks in real-time
+	ctx := context.Background()
+
+	// Emit start event for scan lifecycle hooks
+	if analyzeDispCtx != nil {
+		_ = analyzeDispCtx.EmitStart(ctx, analyzeTarget, 0, 1, nil)
+	}
+	if analyzeDispCtx != nil {
+		// Emit secrets as critical findings
+		for _, secret := range result.Secrets {
+			secretDesc := fmt.Sprintf("Secret found: %s", secret.Type)
+			_ = analyzeDispCtx.EmitBypass(ctx, "js-secret-exposure", "critical", analyzeTarget, secretDesc, 0)
+		}
+		// Emit DOM XSS sinks
+		for _, sink := range result.DOMSinks {
+			sinkDesc := fmt.Sprintf("DOM XSS sink: %s at line %d", sink.Sink, sink.Line)
+			_ = analyzeDispCtx.EmitBypass(ctx, "js-dom-xss", sink.Severity, analyzeTarget, sinkDesc, 0)
+		}
+		// Emit cloud URLs (potential misconfigurations)
+		for _, cloud := range result.CloudURLs {
+			cloudDesc := fmt.Sprintf("Cloud resource: %s (%s)", cloud.URL, cloud.Service)
+			_ = analyzeDispCtx.EmitBypass(ctx, "js-cloud-url", "medium", analyzeTarget, cloudDesc, 0)
+		}
+		// Emit subdomains
+		for _, sub := range result.Subdomains {
+			subDesc := fmt.Sprintf("Subdomain discovered: %s", sub)
+			_ = analyzeDispCtx.EmitBypass(ctx, "js-subdomain", "info", analyzeTarget, subDesc, 0)
+		}
+		// Emit discovered endpoints (potential attack surface)
+		for _, ep := range result.Endpoints {
+			method := ep.Method
+			if method == "" {
+				method = "GET"
+			}
+			epDesc := fmt.Sprintf("Endpoint discovered: %s %s (source: %s)", method, ep.Path, ep.Source)
+			_ = analyzeDispCtx.EmitBypass(ctx, "js-endpoint", "info", analyzeTarget, epDesc, 0)
+		}
+	}
 
 	if !*jsonOutput {
 		ui.PrintSection("Analysis Results")
@@ -9196,13 +10112,17 @@ func runAnalyze() {
 
 		jsonData, err := json.MarshalIndent(outputData, "", "  ")
 		if err != nil {
-			ui.PrintError(fmt.Sprintf("JSON encoding error: %v", err))
+			errMsg := fmt.Sprintf("JSON encoding error: %v", err)
+			ui.PrintError(errMsg)
+			_ = analyzeDispCtx.EmitError(context.Background(), "analyze", errMsg, true)
 			os.Exit(1)
 		}
 
 		if *outputFile != "" {
 			if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
-				ui.PrintError(fmt.Sprintf("Error writing output: %v", err))
+				errMsg := fmt.Sprintf("Error writing output: %v", err)
+				ui.PrintError(errMsg)
+				_ = analyzeDispCtx.EmitError(context.Background(), "analyze", errMsg, true)
 				os.Exit(1)
 			}
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
@@ -9211,6 +10131,13 @@ func runAnalyze() {
 		if *jsonOutput {
 			fmt.Println(string(jsonData))
 		}
+	}
+
+	// Emit summary to hooks
+	if analyzeDispCtx != nil {
+		analyzeDuration := time.Since(analyzeStartTime)
+		totalFindings := len(result.Secrets) + len(result.DOMSinks) + len(result.CloudURLs)
+		_ = analyzeDispCtx.EmitSummary(ctx, totalFindings, 0, totalFindings, analyzeDuration)
 	}
 }
 
@@ -9313,6 +10240,13 @@ type DNSReconResult struct {
 
 func runScan() {
 	scanFlags := flag.NewFlagSet("scan", flag.ExitOnError)
+
+	// Output configuration (unified architecture - enterprise flags only)
+	// Uses RegisterEnterpriseFlags to avoid conflicts with existing legacy flags
+	var outFlags OutputFlags
+	outFlags.RegisterEnterpriseFlags(scanFlags)
+	outFlags.Version = ui.Version
+
 	var targetURLs input.StringSliceFlag
 	scanFlags.Var(&targetURLs, "u", "Target URL(s) - comma-separated or repeated")
 	scanFlags.Var(&targetURLs, "target", "Target URL(s)")
@@ -9441,23 +10375,49 @@ func runScan() {
 
 	scanFlags.Parse(os.Args[2:])
 
-	// Check if we're in streaming JSON mode (suppress UI output)
-	streamJSON := *streamMode && (*jsonOutput || *formatType == "json" || *formatType == "jsonl")
+	// Merge legacy output flags into outFlags (backward compatibility)
+	// Legacy flags take precedence only if outFlags equivalents are empty
+	if outFlags.OutputFile == "" && *outputFile != "" {
+		outFlags.OutputFile = *outputFile
+	}
+	if !outFlags.JSONMode && *jsonOutput {
+		outFlags.JSONMode = true
+	}
+	if outFlags.Format == "console" && *formatType != "console" {
+		outFlags.Format = *formatType
+	}
+	if !outFlags.StreamMode && *streamMode {
+		outFlags.StreamMode = true
+	}
+	if *sarifOutput && outFlags.SARIFExport == "" {
+		outFlags.SARIFExport = "results.sarif"
+	}
+	if *markdownOutput && outFlags.MDExport == "" {
+		outFlags.MDExport = "results.md"
+	}
+	if *htmlOutput && outFlags.HTMLExport == "" {
+		outFlags.HTMLExport = "results.html"
+	}
+	if *csvOutput && outFlags.CSVExport == "" {
+		outFlags.CSVExport = "results.csv"
+	}
+	if *silent {
+		outFlags.Silent = true
+	}
+	if *noColor {
+		outFlags.NoColor = true
+	}
 
-	// Print banner unless in streaming JSON mode
-	if !streamJSON {
+	// Apply UI settings from unified output flags
+	outFlags.ApplyUISettings()
+
+	// Check if we're in streaming JSON mode (suppress UI output)
+	streamJSON := outFlags.StreamMode && (outFlags.JSONMode || outFlags.Format == "json" || outFlags.Format == "jsonl")
+
+	// Print banner unless in streaming JSON mode or suppressed by outFlags
+	if !streamJSON && !outFlags.ShouldSuppressBanner() {
 		ui.PrintCompactBanner()
 		ui.PrintSection("Deep Vulnerability Scan")
-	}
-
-	// Apply silent mode
-	if *silent {
-		ui.SetSilent(true)
-	}
-
-	// Apply no-color mode
-	if *noColor {
-		ui.SetNoColor(true)
 	}
 
 	// Apply debug mode
@@ -9509,6 +10469,23 @@ func runScan() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(*timeout*60)*time.Second)
 	defer cancel()
 
+	// ═══════════════════════════════════════════════════════════════════════════
+	// DISPATCHER INITIALIZATION (Hooks: Slack, Teams, PagerDuty, OTEL, Prometheus)
+	// ═══════════════════════════════════════════════════════════════════════════
+	scanID := fmt.Sprintf("scan-%d", time.Now().Unix())
+	dispCtx, dispErr := outFlags.InitDispatcher(scanID, target)
+	if dispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Output dispatcher warning: %v", dispErr))
+	}
+	if dispCtx != nil {
+		defer dispCtx.Close()
+		if !streamJSON {
+			ui.PrintInfo("Real-time integrations enabled (hooks active)")
+		}
+		// Emit scan start event to hooks
+		_ = dispCtx.EmitStart(ctx, target, 0, *concurrency, nil)
+	}
+
 	// Smart Mode: Detect WAF and optimize configuration
 	var smartResult *SmartModeResult
 	if *smartMode {
@@ -9541,6 +10518,16 @@ func runScan() {
 				ui.PrintInfo(fmt.Sprintf("📊 Concurrency: %d workers (WAF-optimized)",
 					smartResult.Concurrency))
 				*concurrency = smartResult.Concurrency
+			}
+
+			// Emit smart mode WAF detection to hooks
+			if dispCtx != nil {
+				wafDesc := fmt.Sprintf("Smart mode detected: %s (%.0f%% confidence)", smartResult.VendorName, smartResult.Confidence*100)
+				_ = dispCtx.EmitBypass(ctx, "smart-waf-detection", "info", target, wafDesc, 0)
+				// Emit bypass hints as actionable intelligence
+				for _, hint := range smartResult.BypassHints {
+					_ = dispCtx.EmitBypass(ctx, "bypass-hint", "info", target, hint, 0)
+				}
 			}
 		}
 		fmt.Fprintln(os.Stderr)
@@ -9616,6 +10603,11 @@ func runScan() {
 			ui.PrintConfigLine("Rate Limit", fmt.Sprintf("%d req/sec (WAF-optimized)", *rateLimit))
 		}
 		fmt.Fprintln(os.Stderr)
+
+		// Print output configuration if verbose
+		if *verbose {
+			outFlags.PrintOutputConfig()
+		}
 	}
 
 	// Parse scan types
@@ -9771,8 +10763,38 @@ func runScan() {
 	defer progress.Stop()
 
 	// Streaming JSON event emitter for real-time output
+	// Also dispatches to hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
 	var eventMu sync.Mutex
 	emitEvent := func(eventType string, data interface{}) {
+		// Always dispatch to hooks if dispatcher is available
+		if dispCtx != nil {
+			dataMap, ok := data.(map[string]interface{})
+			if ok && eventType == "vulnerability" {
+				category, _ := dataMap["category"].(string)
+				severity, _ := dataMap["severity"].(string)
+				// Try payload first, then fallback to type, parameter, or endpoint for description
+				payload, _ := dataMap["payload"].(string)
+				if payload == "" {
+					if vulnType, ok := dataMap["type"].(string); ok {
+						payload = vulnType
+					}
+				}
+				if payload == "" {
+					if param, ok := dataMap["parameter"].(string); ok {
+						payload = "parameter: " + param
+					}
+				}
+				if payload == "" {
+					if endpoint, ok := dataMap["endpoint"].(string); ok {
+						payload = "endpoint: " + endpoint
+					}
+				}
+				// Dispatch bypass event to all hooks (Slack, Teams, PagerDuty, OTEL, etc.)
+				_ = dispCtx.EmitBypass(ctx, category, severity, target, payload, 200)
+			}
+		}
+
+		// JSON streaming output (only if streamJSON mode)
 		if !streamJSON {
 			return
 		}
@@ -11035,15 +12057,29 @@ func runScan() {
 		http2Supported = httpResult.HTTP2Supported
 		pipelineSupported = httpResult.PipelineSupported
 		// Dangerous methods or pipelining support is informational
+		dangerousMethodsList := []string{}
 		for _, m := range httpResult.Methods {
 			if m == "PUT" || m == "DELETE" || m == "TRACE" || m == "CONNECT" {
 				dangerousMethods++
+				dangerousMethodsList = append(dangerousMethodsList, m)
 			}
 		}
 		if dangerousMethods > 0 || pipelineSupported {
 			result.ByCategory["httpprobe"] = dangerousMethods
 			if dangerousMethods > 0 {
 				result.BySeverity["Low"] += dangerousMethods
+				emitEvent("vulnerability", map[string]interface{}{
+					"category": "httpprobe",
+					"severity": "Low",
+					"type":     fmt.Sprintf("Dangerous HTTP methods enabled: %s", strings.Join(dangerousMethodsList, ", ")),
+				})
+			}
+			if pipelineSupported {
+				emitEvent("vulnerability", map[string]interface{}{
+					"category": "httpprobe",
+					"severity": "Medium",
+					"type":     "HTTP pipelining supported (potential request smuggling vector)",
+				})
 			}
 		}
 		mu.Unlock()
@@ -11070,20 +12106,31 @@ func runScan() {
 		result.SecHeaders = headers
 		// Missing security headers count as informational findings
 		if headers != nil {
+			missingHeaders := []string{}
 			if headers.StrictTransportSecurity == "" {
 				missingCount++
+				missingHeaders = append(missingHeaders, "Strict-Transport-Security")
 			}
 			if headers.ContentSecurityPolicy == "" {
 				missingCount++
+				missingHeaders = append(missingHeaders, "Content-Security-Policy")
 			}
 			if headers.XFrameOptions == "" {
 				missingCount++
+				missingHeaders = append(missingHeaders, "X-Frame-Options")
 			}
 			if headers.XContentTypeOptions == "" {
 				missingCount++
+				missingHeaders = append(missingHeaders, "X-Content-Type-Options")
 			}
 			if missingCount > 0 {
 				result.ByCategory["secheaders"] = missingCount
+				// Emit missing headers as a vulnerability
+				emitEvent("vulnerability", map[string]interface{}{
+					"category": "secheaders",
+					"severity": "Low",
+					"type":     fmt.Sprintf("Missing headers: %s", strings.Join(missingHeaders, ", ")),
+				})
 			}
 		}
 		mu.Unlock()
@@ -11136,6 +12183,19 @@ func runScan() {
 							"category": "jsanalyze",
 							"severity": "Critical",
 							"type":     secret.Type,
+						})
+					}
+				}
+				// DOM sinks are potential XSS vulnerabilities
+				if domsinksCount > 0 {
+					result.TotalVulns += domsinksCount
+					progress.AddMetricBy("vulns", domsinksCount)
+					for _, sink := range extracted.DOMSinks {
+						result.BySeverity[sink.Severity]++
+						emitEvent("vulnerability", map[string]interface{}{
+							"category": "dom-xss",
+							"severity": sink.Severity,
+							"type":     fmt.Sprintf("DOM sink: %s in %s", sink.Sink, sink.Context),
 						})
 					}
 				}
@@ -11490,6 +12550,11 @@ func runScan() {
 	wg.Wait()
 	result.Duration = time.Since(result.StartTime)
 
+	// Emit summary to all hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
+	if dispCtx != nil {
+		_ = dispCtx.EmitSummary(ctx, int(totalScans), 0, result.TotalVulns, result.Duration)
+	}
+
 	// Emit scan_end event for streaming JSON
 	emitEvent("scan_end", map[string]interface{}{
 		"target":      target,
@@ -11715,13 +12780,17 @@ func runScan() {
 	if (*jsonOutput || *outputFile != "") && !streamJSON {
 		jsonData, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
-			ui.PrintError(fmt.Sprintf("JSON encoding error: %v", err))
+			errMsg := fmt.Sprintf("JSON encoding error: %v", err)
+			ui.PrintError(errMsg)
+			_ = dispCtx.EmitError(ctx, "scan", errMsg, true)
 			os.Exit(1)
 		}
 
 		if *outputFile != "" {
 			if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
-				ui.PrintError(fmt.Sprintf("Error writing output: %v", err))
+				errMsg := fmt.Sprintf("Error writing output: %v", err)
+				ui.PrintError(errMsg)
+				_ = dispCtx.EmitError(ctx, "scan", errMsg, true)
 				os.Exit(1)
 			}
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
@@ -11736,7 +12805,9 @@ func runScan() {
 	if *outputFile != "" && streamJSON {
 		jsonData, _ := json.MarshalIndent(result, "", "  ")
 		if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
-			fmt.Fprintf(os.Stderr, "[ERROR] Error writing output: %v\n", err)
+			errMsg := fmt.Sprintf("Error writing output: %v", err)
+			fmt.Fprintf(os.Stderr, "[ERROR] %s\n", errMsg)
+			_ = dispCtx.EmitError(ctx, "scan", errMsg, true)
 		}
 	}
 
@@ -12036,6 +13107,13 @@ func runMutate() {
 	// Streaming mode (CI-friendly output)
 	streamMode := mutateFlags.Bool("stream", false, "Streaming output mode for CI/scripts")
 
+	// Enterprise hook flags (Slack, Teams, PagerDuty, OTEL, etc.)
+	slackWebhook := mutateFlags.String("slack-webhook", "", "Slack webhook URL for notifications")
+	teamsWebhook := mutateFlags.String("teams-webhook", "", "Teams webhook URL for notifications")
+	pagerdutyKey := mutateFlags.String("pagerduty-key", "", "PagerDuty routing key")
+	otelEndpoint := mutateFlags.String("otel-endpoint", "", "OpenTelemetry endpoint")
+	webhookURL := mutateFlags.String("webhook-url", "", "Generic webhook URL")
+
 	mutateFlags.Parse(os.Args[2:])
 
 	// Resolve target
@@ -12264,6 +13342,39 @@ func runMutate() {
 		writer = json.NewEncoder(outputFh)
 	}
 
+	// Initialize dispatcher for hooks (Slack, Teams, PagerDuty, OTEL, etc.)
+	mutateOutputFlags := OutputFlags{
+		SlackWebhook: *slackWebhook,
+		TeamsWebhook: *teamsWebhook,
+		PagerDutyKey: *pagerdutyKey,
+		OTelEndpoint: *otelEndpoint,
+		WebhookURL:   *webhookURL,
+	}
+	mutateScanID := fmt.Sprintf("mutate-%d", time.Now().Unix())
+	mutateDispCtx, mutateDispErr := mutateOutputFlags.InitDispatcher(mutateScanID, targetURL)
+	if mutateDispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Dispatcher warning: %v", mutateDispErr))
+	}
+	if mutateDispCtx != nil {
+		defer mutateDispCtx.Close()
+	}
+	mutateStartTime := time.Now()
+
+	// Emit start event for scan lifecycle hooks
+	if mutateDispCtx != nil {
+		_ = mutateDispCtx.EmitStart(ctx, targetURL, 0, *concurrency, nil)
+	}
+
+	// Emit smart mode WAF detection to hooks (after dispatcher is initialized)
+	if mutateDispCtx != nil && smartResult != nil && smartResult.WAFDetected {
+		wafDesc := fmt.Sprintf("Smart mode detected: %s (%.0f%% confidence)", smartResult.VendorName, smartResult.Confidence*100)
+		_ = mutateDispCtx.EmitBypass(ctx, "smart-waf-detection", "info", targetURL, wafDesc, 0)
+		// Emit bypass hints as actionable intelligence
+		for _, hint := range smartResult.BypassHints {
+			_ = mutateDispCtx.EmitBypass(ctx, "bypass-hint", "info", targetURL, hint, 0)
+		}
+	}
+
 	// Run tests with live progress
 	ui.PrintSection("🔥 WAF Bypass Hunt")
 
@@ -12312,6 +13423,15 @@ func runMutate() {
 		// Update progress and metrics
 		progress.Increment()
 
+		// Emit every test result for complete telemetry
+		if mutateDispCtx != nil {
+			category := "mutation"
+			if r.EvasionUsed != "" {
+				category = "mutation-" + r.EvasionUsed
+			}
+			_ = mutateDispCtx.EmitResult(ctx, category, "high", r.Blocked, r.StatusCode, float64(r.LatencyMs))
+		}
+
 		if r.Blocked {
 			progress.AddMetric("blocked")
 		} else if r.ErrorMessage != "" {
@@ -12324,6 +13444,15 @@ func runMutate() {
 				encoder += "+" + r.EvasionUsed
 			}
 			progress.SetStatus(fmt.Sprintf("bypass: %s", encoder))
+
+			// Real-time streaming to hooks (Slack, Teams, PagerDuty, OTEL, etc.)
+			if mutateDispCtx != nil {
+				category := "mutation-bypass"
+				if r.EvasionUsed != "" {
+					category = "mutation-bypass-" + r.EvasionUsed
+				}
+				_ = mutateDispCtx.EmitBypass(ctx, category, "high", r.URL, r.MutatedPayload, r.StatusCode)
+			}
 		}
 
 		// Write to output file
@@ -12387,6 +13516,11 @@ func runMutate() {
 
 	if *outputFile != "" {
 		ui.PrintSuccess(fmt.Sprintf("Results written to %s", *outputFile))
+	}
+
+	// Emit summary to hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
+	if mutateDispCtx != nil {
+		_ = mutateDispCtx.EmitSummary(ctx, int(stats.TotalTests), int(stats.Blocked), int(stats.Passed), time.Since(mutateStartTime))
 	}
 
 	// Final message
@@ -12462,7 +13596,18 @@ func runBypassFinder() {
 	smartModeType := bypassFlags.String("smart-mode", "bypass", "Smart mode type: quick, standard, full, bypass, stealth")
 	smartVerbose := bypassFlags.Bool("smart-verbose", false, "Show detailed WAF detection info")
 
+	// Enterprise output flags (unified output configuration)
+	var outputFlags OutputFlags
+	outputFlags.RegisterBypassEnterpriseFlags(bypassFlags)
+
 	bypassFlags.Parse(os.Args[2:])
+
+	// Apply UI settings from output flags
+	outputFlags.ApplyUISettings()
+
+	// Sync legacy flags to outputFlags for unified handling
+	outputFlags.OutputFile = *outputFile
+	outputFlags.StreamMode = *streamMode
 
 	targetURL := *target
 	if targetURL == "" {
@@ -12486,6 +13631,24 @@ func runBypassFinder() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// ═══════════════════════════════════════════════════════════════════════════
+	// DISPATCHER INITIALIZATION (Hooks: Slack, Teams, PagerDuty, OTEL, Prometheus)
+	// ═══════════════════════════════════════════════════════════════════════════
+	bypassScanID := fmt.Sprintf("bypass-%d", time.Now().Unix())
+	bypassDispCtx, bypassDispErr := outputFlags.InitDispatcher(bypassScanID, targetURL)
+	if bypassDispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Output dispatcher warning: %v", bypassDispErr))
+	}
+	if bypassDispCtx != nil {
+		defer bypassDispCtx.Close()
+	}
+	bypassCtx := context.Background()
+
+	// Emit start event for scan lifecycle hooks
+	if bypassDispCtx != nil {
+		_ = bypassDispCtx.EmitStart(bypassCtx, targetURL, 0, *concurrency, nil)
+	}
+
 	// Smart Mode: Detect WAF and optimize configuration
 	var smartResult *SmartModeResult
 	if *smartMode {
@@ -12505,13 +13668,25 @@ func runBypassFinder() {
 		}
 
 		PrintSmartModeInfo(smartResult, *smartVerbose)
+
+		// Emit smart mode WAF detection to hooks
+		if bypassDispCtx != nil && smartResult != nil && smartResult.WAFDetected {
+			wafDesc := fmt.Sprintf("Smart mode detected: %s (%.0f%% confidence)", smartResult.VendorName, smartResult.Confidence*100)
+			_ = bypassDispCtx.EmitBypass(ctx, "smart-waf-detection", "info", targetURL, wafDesc, 0)
+			// Emit bypass hints as actionable intelligence
+			for _, hint := range smartResult.BypassHints {
+				_ = bypassDispCtx.EmitBypass(ctx, "bypass-hint", "info", targetURL, hint, 0)
+			}
+		}
 	}
 
 	// Load payloads
 	loader := payloads.NewLoader(*payloadDir)
 	allPayloads, err := loader.LoadAll()
 	if err != nil {
-		ui.PrintError(fmt.Sprintf("Cannot load payloads: %v", err))
+		errMsg := fmt.Sprintf("Cannot load payloads: %v", err)
+		ui.PrintError(errMsg)
+		_ = bypassDispCtx.EmitError(ctx, "bypass", errMsg, true)
 		os.Exit(1)
 	}
 
@@ -12605,6 +13780,9 @@ func runBypassFinder() {
 			targetURL, wafName, len(testPayloads), len(tasks))
 	}
 
+	// Track execution time for summary
+	bypassStartTime := time.Now()
+
 	// Use unified LiveProgress component
 	progress := ui.NewLiveProgress(ui.LiveProgressConfig{
 		Total:        len(tasks),
@@ -12627,6 +13805,15 @@ func runBypassFinder() {
 	executor.Execute(ctx, tasks, func(r *mutation.TestResult) {
 		progress.Increment()
 
+		// Emit every test result for complete telemetry
+		if bypassDispCtx != nil {
+			category := "bypass-hunt"
+			if r.EvasionUsed != "" {
+				category = "bypass-hunt-" + r.EvasionUsed
+			}
+			_ = bypassDispCtx.EmitResult(ctx, category, "high", r.Blocked, r.StatusCode, float64(r.LatencyMs))
+		}
+
 		if r.Blocked {
 			progress.AddMetric("blocked")
 		} else if r.ErrorMessage != "" {
@@ -12637,6 +13824,17 @@ func runBypassFinder() {
 			bypassMu.Lock()
 			bypassPayloads = append(bypassPayloads, r)
 			bypassMu.Unlock()
+
+			// Real-time streaming to hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
+			// Emit each bypass as it's found for immediate alerting
+			if bypassDispCtx != nil {
+				// Build category from encoder/evasion used
+				category := "waf-bypass"
+				if r.EvasionUsed != "" {
+					category = "waf-bypass-" + r.EvasionUsed
+				}
+				_ = bypassDispCtx.EmitBypass(ctx, category, "high", r.URL, r.MutatedPayload, r.StatusCode)
+			}
 		}
 	})
 
@@ -12694,6 +13892,15 @@ func runBypassFinder() {
 		}
 	} else {
 		ui.PrintSuccess("✓ No bypasses found - WAF held strong!")
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// DISPATCHER SUMMARY EMISSION
+	// ═══════════════════════════════════════════════════════════════════════════
+	// Notify all hooks (Slack, Teams, PagerDuty, OTEL, etc.) that bypass hunt is complete
+	if bypassDispCtx != nil {
+		blocked := int(totalTested) - len(bypassPayloads)
+		_ = bypassDispCtx.EmitSummary(ctx, int(totalTested), blocked, len(bypassPayloads), time.Since(bypassStartTime))
 	}
 }
 
@@ -12759,6 +13966,13 @@ func runSmuggle() {
 	verbose := fs.Bool("v", false, "Verbose output")
 	streamMode := fs.Bool("stream", false, "Streaming output mode for CI/scripts")
 
+	// Enterprise hook flags (Slack, Teams, PagerDuty, OTEL, etc.)
+	smuggleSlack := fs.String("slack-webhook", "", "Slack webhook URL for notifications")
+	smuggleTeams := fs.String("teams-webhook", "", "Teams webhook URL for notifications")
+	smugglePagerDuty := fs.String("pagerduty-key", "", "PagerDuty routing key")
+	smuggleOtel := fs.String("otel-endpoint", "", "OpenTelemetry endpoint")
+	smuggleWebhook := fs.String("webhook-url", "", "Generic webhook URL")
+
 	fs.Parse(os.Args[2:])
 
 	// Collect targets
@@ -12804,6 +14018,34 @@ func runSmuggle() {
 
 	ctx := context.Background()
 	allResults := []*smuggling.Result{}
+	smuggleStartTime := time.Now()
+
+	// Initialize dispatcher for hooks (Slack, Teams, PagerDuty, OTEL, etc.)
+	smuggleOutputFlags := OutputFlags{
+		SlackWebhook: *smuggleSlack,
+		TeamsWebhook: *smuggleTeams,
+		PagerDutyKey: *smugglePagerDuty,
+		OTelEndpoint: *smuggleOtel,
+		WebhookURL:   *smuggleWebhook,
+	}
+	smuggleScanID := fmt.Sprintf("smuggle-%d", time.Now().Unix())
+	firstTarget := ""
+	if len(targets) > 0 {
+		firstTarget = targets[0]
+	}
+	smuggleDispCtx, smuggleDispErr := smuggleOutputFlags.InitDispatcher(smuggleScanID, firstTarget)
+	if smuggleDispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Dispatcher warning: %v", smuggleDispErr))
+	}
+	if smuggleDispCtx != nil {
+		defer smuggleDispCtx.Close()
+	}
+	smugglerCtx := context.Background()
+
+	// Emit start event for scan lifecycle hooks
+	if smuggleDispCtx != nil {
+		_ = smuggleDispCtx.EmitStart(smugglerCtx, firstTarget, len(targets), 1, nil)
+	}
 
 	// Determine output mode
 	outputMode := ui.OutputModeInteractive
@@ -12850,6 +14092,10 @@ func runSmuggle() {
 			if len(targets) == 1 {
 				ui.PrintError(fmt.Sprintf("  Error: %v", err))
 			}
+			// Emit error to hooks (Slack, Teams, PagerDuty, OTEL, etc.)
+			if smuggleDispCtx != nil {
+				_ = smuggleDispCtx.EmitError(ctx, "smuggle", fmt.Sprintf("Detection error for %s: %v", target, err), false)
+			}
 			if progress != nil {
 				progress.Increment()
 			}
@@ -12860,6 +14106,14 @@ func runSmuggle() {
 		if progress != nil {
 			progress.Increment()
 			progress.AddMetricBy("vulns", len(result.Vulnerabilities))
+		}
+
+		// Real-time streaming to hooks (Slack, Teams, PagerDuty, OTEL, etc.)
+		if smuggleDispCtx != nil && len(result.Vulnerabilities) > 0 {
+			for _, vuln := range result.Vulnerabilities {
+				vulnDesc := fmt.Sprintf("%s: %s", vuln.Type, vuln.Description)
+				_ = smuggleDispCtx.EmitBypass(ctx, "request-smuggling", vuln.Severity, target, vulnDesc, 0)
+			}
 		}
 
 		if len(targets) == 1 {
@@ -12895,6 +14149,11 @@ func runSmuggle() {
 	ui.PrintSection("Summary")
 	fmt.Printf("  Targets tested: %d\n", len(allResults))
 	fmt.Printf("  Vulnerabilities found: %d\n", totalVulns)
+
+	// Emit summary to hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
+	if smuggleDispCtx != nil {
+		_ = smuggleDispCtx.EmitSummary(ctx, len(allResults), len(allResults)-totalVulns, totalVulns, time.Since(smuggleStartTime))
+	}
 
 	// Output
 	if *jsonOutput {
@@ -12945,6 +14204,13 @@ func runRace() {
 	jsonOutput := fs.Bool("json", false, "JSON output to stdout")
 	verbose := fs.Bool("v", false, "Verbose output")
 
+	// Enterprise hook flags (Slack, Teams, PagerDuty, OTEL, etc.)
+	raceSlack := fs.String("slack-webhook", "", "Slack webhook URL for notifications")
+	raceTeams := fs.String("teams-webhook", "", "Teams webhook URL for notifications")
+	racePagerDuty := fs.String("pagerduty-key", "", "PagerDuty routing key")
+	raceOtel := fs.String("otel-endpoint", "", "OpenTelemetry endpoint")
+	raceWebhook := fs.String("webhook-url", "", "Generic webhook URL")
+
 	fs.Parse(os.Args[2:])
 
 	if *targetURL == "" {
@@ -12981,6 +14247,30 @@ func runRace() {
 
 	ctx := context.Background()
 	var vulns []*race.Vulnerability
+	raceStartTime := time.Now()
+
+	// Initialize dispatcher for hooks (Slack, Teams, PagerDuty, OTEL, etc.)
+	raceOutputFlags := OutputFlags{
+		SlackWebhook: *raceSlack,
+		TeamsWebhook: *raceTeams,
+		PagerDutyKey: *racePagerDuty,
+		OTelEndpoint: *raceOtel,
+		WebhookURL:   *raceWebhook,
+	}
+	raceScanID := fmt.Sprintf("race-%d", time.Now().Unix())
+	raceDispCtx, raceDispErr := raceOutputFlags.InitDispatcher(raceScanID, *targetURL)
+	if raceDispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Dispatcher warning: %v", raceDispErr))
+	}
+	if raceDispCtx != nil {
+		defer raceDispCtx.Close()
+	}
+	raceCtx := context.Background()
+
+	// Emit start event for scan lifecycle hooks
+	if raceDispCtx != nil {
+		_ = raceDispCtx.EmitStart(raceCtx, *targetURL, 0, *concurrency, nil)
+	}
 
 	// Create request config
 	reqConfig := &race.RequestConfig{
@@ -13028,6 +14318,10 @@ func runRace() {
 
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Test failed: %v", err))
+		// Emit error to hooks (Slack, Teams, PagerDuty, OTEL, etc.)
+		if raceDispCtx != nil {
+			_ = raceDispCtx.EmitError(ctx, "race", fmt.Sprintf("Race test failed: %v", err), true)
+		}
 	} else if vuln != nil {
 		vulns = append(vulns, vuln)
 		severity := ui.SeverityStyle(string(vuln.Severity))
@@ -13036,6 +14330,12 @@ func runRace() {
 			fmt.Printf("    Evidence: %s\n", vuln.Evidence)
 			fmt.Printf("    Remediation: %s\n", vuln.Remediation)
 		}
+
+		// Real-time streaming to hooks (Slack, Teams, PagerDuty, OTEL, etc.)
+		if raceDispCtx != nil {
+			vulnDesc := fmt.Sprintf("%s: %s", *attackType, vuln.Description)
+			_ = raceDispCtx.EmitBypass(ctx, "race-condition", string(vuln.Severity), *targetURL, vulnDesc, 0)
+		}
 	} else {
 		ui.PrintSuccess("  No race condition vulnerability detected")
 	}
@@ -13043,6 +14343,15 @@ func runRace() {
 	// Summary
 	ui.PrintSection("Summary")
 	fmt.Printf("  Vulnerabilities found: %d\n", len(vulns))
+
+	// Emit summary to hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
+	if raceDispCtx != nil {
+		blocked := 1
+		if len(vulns) > 0 {
+			blocked = 0
+		}
+		_ = raceDispCtx.EmitSummary(ctx, 1, blocked, len(vulns), time.Since(raceStartTime))
+	}
 
 	// Output
 	if *jsonOutput && len(vulns) > 0 {
@@ -13092,6 +14401,13 @@ func runWorkflow() {
 	jsonOutput := fs.Bool("json", false, "JSON output to stdout")
 	verbose := fs.Bool("v", false, "Verbose output")
 
+	// Enterprise hook flags (Slack, Teams, PagerDuty, OTEL, etc.)
+	workflowSlack := fs.String("slack-webhook", "", "Slack webhook URL for notifications")
+	workflowTeams := fs.String("teams-webhook", "", "Teams webhook URL for notifications")
+	workflowPagerDuty := fs.String("pagerduty-key", "", "PagerDuty routing key")
+	workflowOtel := fs.String("otel-endpoint", "", "OpenTelemetry endpoint")
+	workflowWebhook := fs.String("webhook-url", "", "Generic webhook URL")
+
 	fs.Parse(os.Args[2:])
 
 	if *workflowFile == "" {
@@ -13115,6 +14431,29 @@ func runWorkflow() {
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Failed to load workflow: %v", err))
 		os.Exit(1)
+	}
+
+	// Initialize dispatcher for hooks (Slack, Teams, PagerDuty, OTEL, etc.)
+	workflowOutputFlags := OutputFlags{
+		SlackWebhook: *workflowSlack,
+		TeamsWebhook: *workflowTeams,
+		PagerDutyKey: *workflowPagerDuty,
+		OTelEndpoint: *workflowOtel,
+		WebhookURL:   *workflowWebhook,
+	}
+	workflowScanID := fmt.Sprintf("workflow-%d", time.Now().Unix())
+	workflowDispCtx, workflowDispErr := workflowOutputFlags.InitDispatcher(workflowScanID, wf.Name)
+	if workflowDispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Dispatcher warning: %v", workflowDispErr))
+	}
+	if workflowDispCtx != nil {
+		defer workflowDispCtx.Close()
+	}
+	workflowCtx := context.Background()
+
+	// Emit start event for scan lifecycle hooks
+	if workflowDispCtx != nil {
+		_ = workflowDispCtx.EmitStart(workflowCtx, wf.Name, len(wf.Steps), 1, nil)
 	}
 
 	if *verbose {
@@ -13145,6 +14484,10 @@ func runWorkflow() {
 	result, err := engine.Execute(ctx, wf, inputs)
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Workflow failed: %v", err))
+		// Emit error to hooks (Slack, Teams, PagerDuty, OTEL, etc.)
+		if workflowDispCtx != nil {
+			_ = workflowDispCtx.EmitError(workflowCtx, "workflow", fmt.Sprintf("Workflow '%s' failed: %v", *workflowFile, err), true)
+		}
 	}
 
 	// Print step results
@@ -13152,8 +14495,24 @@ func runWorkflow() {
 		statusIcon := "✓"
 		if sr.Status == "failed" {
 			statusIcon = "✗"
+			// Emit step failure to hooks
+			if workflowDispCtx != nil {
+				failDesc := fmt.Sprintf("Step '%s' failed", sr.StepName)
+				_ = workflowDispCtx.EmitBypass(workflowCtx, "workflow-step-failure", "high", wf.Name, failDesc, 0)
+			}
 		} else if sr.Status == "skipped" {
 			statusIcon = "○"
+			// Emit step skipped to hooks
+			if workflowDispCtx != nil {
+				skipDesc := fmt.Sprintf("Step '%s' skipped", sr.StepName)
+				_ = workflowDispCtx.EmitBypass(workflowCtx, "workflow-step-skipped", "info", wf.Name, skipDesc, 0)
+			}
+		} else if sr.Status == "success" {
+			// Emit step success to hooks
+			if workflowDispCtx != nil {
+				successDesc := fmt.Sprintf("Step '%s' completed in %v", sr.StepName, sr.Duration.Round(time.Millisecond))
+				_ = workflowDispCtx.EmitBypass(workflowCtx, "workflow-step-success", "info", wf.Name, successDesc, 0)
+			}
 		}
 
 		fmt.Printf("  %s %s (%s) - %v\n", statusIcon, sr.StepName, sr.Status, sr.Duration.Round(time.Millisecond))
@@ -13202,7 +14561,17 @@ func runWorkflow() {
 	}
 
 	if result.Status == "failed" {
+		// Emit summary for failed workflow
+		if workflowDispCtx != nil {
+			failedCount := countStepStatus(result.Steps, "failed")
+			_ = workflowDispCtx.EmitSummary(workflowCtx, len(result.Steps), len(result.Steps)-failedCount, failedCount, result.Duration)
+		}
 		os.Exit(1)
+	}
+
+	// Emit summary for successful workflow
+	if workflowDispCtx != nil {
+		_ = workflowDispCtx.EmitSummary(workflowCtx, len(result.Steps), len(result.Steps), 0, result.Duration)
 	}
 }
 
@@ -13248,6 +14617,13 @@ func runHeadless() {
 	jsonOutput := fs.Bool("json", false, "JSON output to stdout")
 	verbose := fs.Bool("v", false, "Verbose output")
 	streamMode := fs.Bool("stream", false, "Streaming output mode for CI/scripts")
+
+	// Enterprise hook flags (Slack, Teams, PagerDuty, OTEL, etc.)
+	headlessSlack := fs.String("slack-webhook", "", "Slack webhook URL for notifications")
+	headlessTeams := fs.String("teams-webhook", "", "Teams webhook URL for notifications")
+	headlessPagerDuty := fs.String("pagerduty-key", "", "PagerDuty routing key")
+	headlessOtel := fs.String("otel-endpoint", "", "OpenTelemetry endpoint")
+	headlessWebhook := fs.String("webhook-url", "", "Generic webhook URL")
 
 	fs.Parse(os.Args[2:])
 
@@ -13317,7 +14693,35 @@ func runHeadless() {
 		}
 	}
 
+	// Initialize dispatcher for hooks (Slack, Teams, PagerDuty, OTEL, etc.)
+	headlessOutputFlags := OutputFlags{
+		SlackWebhook: *headlessSlack,
+		TeamsWebhook: *headlessTeams,
+		PagerDutyKey: *headlessPagerDuty,
+		OTelEndpoint: *headlessOtel,
+		WebhookURL:   *headlessWebhook,
+	}
+	headlessScanID := fmt.Sprintf("headless-%d", time.Now().Unix())
+	headlessTarget := targets[0]
+	if len(targets) > 1 {
+		headlessTarget = fmt.Sprintf("%d targets", len(targets))
+	}
+	headlessDispCtx, headlessDispErr := headlessOutputFlags.InitDispatcher(headlessScanID, headlessTarget)
+	if headlessDispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Dispatcher warning: %v", headlessDispErr))
+	}
+	if headlessDispCtx != nil {
+		defer headlessDispCtx.Close()
+	}
+	headlessStartTime := time.Now()
+
 	ctx := context.Background()
+
+	// Emit start event for scan lifecycle hooks
+	if headlessDispCtx != nil {
+		_ = headlessDispCtx.EmitStart(ctx, headlessTarget, len(targets), 1, nil)
+	}
+
 	allResults := []*headless.PageResult{}
 
 	// Determine output mode
@@ -13367,6 +14771,10 @@ func runHeadless() {
 		if err != nil {
 			if len(targets) == 1 {
 				ui.PrintError(fmt.Sprintf("  Error: %v", err))
+			}
+			// Emit error to hooks (Slack, Teams, PagerDuty, OTEL, etc.)
+			if headlessDispCtx != nil {
+				_ = headlessDispCtx.EmitError(ctx, "headless", fmt.Sprintf("Visit error for %s: %v", target, err), false)
 			}
 			if progress != nil {
 				progress.Increment()
@@ -13437,6 +14845,26 @@ func runHeadless() {
 			enc.SetIndent("", "  ")
 			enc.Encode(allResults)
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
+		}
+	}
+
+	// Emit summary to hooks
+	if headlessDispCtx != nil {
+		headlessDuration := time.Since(headlessStartTime)
+		_ = headlessDispCtx.EmitSummary(ctx, len(allResults), 0, totalURLs, headlessDuration)
+		// Emit individual page results with extracted URLs
+		for _, result := range allResults {
+			// Emit the page visit as a result
+			pageDesc := fmt.Sprintf("Page visited: %s (status: %d, title: %s, URLs: %d)",
+				result.URL, result.StatusCode, result.Title, len(result.FoundURLs))
+			_ = headlessDispCtx.EmitBypass(ctx, "headless-page", "info", result.URL, pageDesc, result.StatusCode)
+			// Emit interesting URLs discovered (API endpoints, XHR, etc.)
+			for _, foundURL := range result.FoundURLs {
+				if foundURL.Source == "xhr" || foundURL.Source == "action" || foundURL.Source == "js" {
+					urlDesc := fmt.Sprintf("Discovered %s URL: %s", foundURL.Source, foundURL.URL)
+					_ = headlessDispCtx.EmitBypass(ctx, "headless-discovered-url", "info", foundURL.URL, urlDesc, 0)
+				}
+			}
 		}
 	}
 }

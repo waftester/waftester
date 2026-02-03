@@ -79,6 +79,11 @@ func TestVersionConsistency(t *testing.T) {
 						strings.Contains(strings.ToLower(context), "schema") {
 						continue
 					}
+					// Skip if this is GitLab SAST format version (spec version, not waftester version)
+					if strings.Contains(strings.ToLower(context), "gitlab") &&
+						strings.Contains(strings.ToLower(context), "sast") {
+						continue
+					}
 					relPath, _ := filepath.Rel(root, path)
 					violations = append(violations, relPath+":"+strconv.Itoa(i+1)+": hardcoded Version = \""+matches[1]+"\"")
 				}
@@ -237,8 +242,8 @@ func TestNoHardcodedContentType(t *testing.T) {
 // TestNoHardcodedUserAgent ensures User-Agent values use defaults.UA* or ui.UserAgentWithContext()
 func TestNoHardcodedUserAgent(t *testing.T) {
 	violations := findHardcodedStrings(t, "UserAgent", []string{
-		"Mozilla/5.0",           // Browser UA patterns
-		"API-Fuzzer/1.0",        // Old component-specific UAs
+		"Mozilla/5.0",    // Browser UA patterns
+		"API-Fuzzer/1.0", // Old component-specific UAs
 		"BizLogic-Tester/1.0",
 		"Deserialize-Tester/1.0",
 		"OAuth-Tester/1.0",
@@ -319,7 +324,6 @@ func findHardcodedStrings(t *testing.T, fieldName string, forbiddenValues []stri
 // findHardcodedValues walks the codebase and finds struct field assignments with hardcoded numeric values
 func findHardcodedValues(t *testing.T, fieldName string, minVal, maxVal int, excludePatterns []string) []string {
 	t.Helper()
-
 
 	var violations []string
 	root := findProjectRoot(t)
@@ -426,5 +430,176 @@ func findProjectRoot(t *testing.T) string {
 			t.Fatalf("Could not find project root (go.mod)")
 		}
 		dir = parent
+	}
+}
+
+// TestNoHardcodedOWASPData ensures OWASP Top 10 data is only defined in defaults/owasp.go
+func TestNoHardcodedOWASPData(t *testing.T) {
+	root := findProjectRoot(t)
+	var violations []string
+
+	// Patterns that indicate OWASP Top 10 data duplication
+	// This catches struct/slice literals that define OWASP codes with descriptions
+	// e.g., {"A01:2021", "Broken Access Control"} or Code: "A01:2021", Name: "..."
+	owaspCodePattern := regexp.MustCompile(`"A(0[1-9]|10):2021`)
+
+	// Variable definitions that likely contain duplicated OWASP Top 10 data
+	// Match: var owaspTop10Mapping = []struct or var pdfOWASPTop10 = ...
+	// Must include "Top10" or "top10" to avoid false positives like "owaspSources"
+	owaspVarDefPattern := regexp.MustCompile(`^var\s+(owasp[Tt]op10|pdfOWASP[Tt]op10|owaspURLMap)\w*\s*=\s*(\[\]struct|\[\]string|map\[)`)
+
+	// Files that are allowed to have OWASP data
+	allowedFiles := []string{
+		"owasp.go",       // The centralized source
+		"_test.go",       // Test files (test data is OK)
+		"html_report.go", // Template data (uses OWASP strings in test fixtures)
+	}
+
+	for _, dir := range []string{"pkg", "cmd"} {
+		dirPath := filepath.Join(root, dir)
+		if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+			continue
+		}
+
+		_ = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") {
+				return nil
+			}
+
+			// Skip allowed files
+			for _, allowed := range allowedFiles {
+				if strings.HasSuffix(path, allowed) {
+					return nil
+				}
+			}
+
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return nil
+			}
+			contentStr := string(content)
+			lines := strings.Split(contentStr, "\n")
+
+			relPath, _ := filepath.Rel(root, path)
+
+			// Check for OWASP variable definitions (not just usage)
+			for i, line := range lines {
+				// Skip comments
+				trimmed := strings.TrimSpace(line)
+				if strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "/*") {
+					continue
+				}
+
+				// Check for OWASP Top 10 mapping variable definitions with struct/slice/map literals
+				if owaspVarDefPattern.MatchString(trimmed) {
+					violations = append(violations,
+						relPath+":"+strconv.Itoa(i+1)+": OWASP Top 10 variable definition - use defaults.OWASPTop10 instead")
+				}
+
+				// Check for struct/map definitions with OWASP codes AND their full descriptions
+				// This catches things like:
+				//   {"A01:2021", "Broken Access Control"},
+				//   {"A02:2021", "Cryptographic Failures"},
+				// We look for lines that define OWASP codes with their full descriptions
+				if owaspCodePattern.MatchString(line) {
+					// Check if this is a struct/map definition (has both code and description)
+					// Avoid flagging simple string comparisons or single references
+					if strings.Contains(line, "Broken Access Control") ||
+						strings.Contains(line, "Cryptographic Failures") ||
+						strings.Contains(line, "Insecure Design") ||
+						strings.Contains(line, "Security Misconfiguration") ||
+						strings.Contains(line, "Vulnerable and Outdated") ||
+						strings.Contains(line, "Authentication Failures") ||
+						strings.Contains(line, "Integrity Failures") ||
+						strings.Contains(line, "Monitoring Failures") ||
+						strings.Contains(line, "Request Forgery") {
+						violations = append(violations,
+							relPath+":"+strconv.Itoa(i+1)+": hardcoded OWASP mapping - use defaults.OWASPTop10 instead")
+					}
+				}
+			}
+
+			return nil
+		})
+	}
+
+	if len(violations) > 0 {
+		t.Errorf("Found %d hardcoded OWASP data definitions. Use pkg/defaults/owasp.go as the single source of truth:", len(violations))
+		for _, v := range violations {
+			t.Errorf("  %s", v)
+		}
+	}
+}
+
+// TestNoHardcodedToolName ensures all tool name references use defaults.ToolName
+// in the pkg/output package (v2.5.0+ code)
+func TestNoHardcodedToolName(t *testing.T) {
+	root := findProjectRoot(t)
+	var violations []string
+
+	// Patterns that indicate hardcoded tool names in defaults (not string comparisons)
+	// Look for assignments like: = "waftester" or : "waftester" or ("waftester")
+	assignmentPatterns := []*regexp.Regexp{
+		regexp.MustCompile(`=\s*"waftester"`),
+		regexp.MustCompile(`:\s*"waftester"`),
+		regexp.MustCompile(`\(\s*"waftester"\s*\)`),
+		regexp.MustCompile(`=\s*"WAFtester"`),
+		regexp.MustCompile(`:\s*"WAFtester"`),
+	}
+
+	// Only check pkg/output for now (v2.5.0 code)
+	// Other packages will be migrated separately
+	dirPath := filepath.Join(root, "pkg", "output")
+	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+		t.Skip("pkg/output directory not found")
+	}
+
+	_ = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+
+		// Skip test files
+		if strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+
+		// Skip template.go - contains embedded template literals with AWS ASFF product identifiers
+		// and template.New() internal names that are not user-facing tool identifiers
+		if strings.HasSuffix(path, "template.go") {
+			return nil
+		}
+
+		relPath, _ := filepath.Rel(root, path)
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+
+		lines := strings.Split(string(content), "\n")
+		for i, line := range lines {
+			// Skip comments
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "/*") {
+				continue
+			}
+
+			for _, pattern := range assignmentPatterns {
+				if pattern.MatchString(line) {
+					violations = append(violations,
+						relPath+":"+strconv.Itoa(i+1)+": hardcoded tool name - use defaults.ToolName or defaults.ToolNameDisplay")
+					break
+				}
+			}
+		}
+
+		return nil
+	})
+
+	if len(violations) > 0 {
+		t.Errorf("Found %d hardcoded tool name strings. Use defaults.ToolName or defaults.ToolNameDisplay:", len(violations))
+		for _, v := range violations {
+			t.Errorf("  %s", v)
+		}
 	}
 }

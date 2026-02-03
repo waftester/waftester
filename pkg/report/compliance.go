@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/defaults"
 )
 
 // ComplianceFramework represents a compliance framework
@@ -176,15 +178,6 @@ func (m *ComplianceMapper) getControlName(controlID string) string {
 		"6.6":   "Web Application Firewall",
 		"10.2":  "Audit Logging",
 		"10.3":  "Audit Trail",
-		// OWASP
-		"A01:2021": "Broken Access Control",
-		"A02:2021": "Cryptographic Failures",
-		"A03:2021": "Injection",
-		"A05:2021": "Security Misconfiguration",
-		"A06:2021": "Vulnerable Components",
-		"A07:2021": "Auth Failures",
-		"A08:2021": "Software Integrity",
-		"A09:2021": "Security Monitoring",
 		// SOC 2
 		"CC6.1": "Logical Access Security",
 		"CC6.2": "Access Provisioning",
@@ -201,6 +194,13 @@ func (m *ComplianceMapper) getControlName(controlID string) string {
 		"A.13.1.3": "Network Segregation",
 		"A.14.2.5": "Secure Development",
 	}
+	// Check for OWASP codes first - use centralized data
+	if name := defaults.GetOWASPFullName(controlID); name != "" {
+		// Return just the name portion (without code prefix)
+		if cat, ok := defaults.OWASPTop10[controlID]; ok {
+			return cat.Name
+		}
+	}
 	if name, ok := names[controlID]; ok {
 		return name
 	}
@@ -209,9 +209,12 @@ func (m *ComplianceMapper) getControlName(controlID string) string {
 
 func (m *ComplianceMapper) getControlDescription(controlID string) string {
 	descriptions := map[string]string{
-		"6.6":      "Protect public-facing web applications via WAF or code review",
-		"A03:2021": "User-supplied data is not validated, filtered, or sanitized",
-		"CC6.1":    "Logical access security controls are in place",
+		"6.6":   "Protect public-facing web applications via WAF or code review",
+		"CC6.1": "Logical access security controls are in place",
+	}
+	// Check for OWASP codes first - use centralized descriptions
+	if cat, ok := defaults.OWASPTop10[controlID]; ok {
+		return cat.Description
 	}
 	if desc, ok := descriptions[controlID]; ok {
 		return desc
