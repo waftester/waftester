@@ -23,16 +23,19 @@ builds:
       - -X github.com/waftester/waftester/pkg/ui.BuildDate={{.Date}}
 
 archives:
-  - format: tar.gz
+  - rlcp: true
+    formats:
+      - tar.gz
     name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
-    format_overrides:
+    overrides:
       - goos: windows
-        format: zip
+        formats:
+          - zip
     files:
       - README.md
       - LICENSE
@@ -61,7 +64,7 @@ release:
     **Upgrading?** Check [CHANGELOG.md](CHANGELOG.md) for breaking changes.
 
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  version_template: "{{ incpatch .Version }}-next"
 
 changelog:
   sort: asc
