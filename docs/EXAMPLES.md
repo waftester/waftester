@@ -37,7 +37,29 @@ Complete usage examples for WAFtester commands and features.
   - [Protocol Mutations](#protocol-mutations)
 - [Smart Mode](#smart-mode)
 - [Output Formats](#output-formats)
+  - [HTML Reports with Themes](#html-reports-with-themes-v250)
+  - [Markdown with Enhanced Features](#markdown-with-enhanced-features-v250)
+  - [Colorized Console Output](#colorized-console-output-v250)
+  - [Custom Templates](#custom-templates-v250)
+  - [PDF Reports](#pdf-reports-v250)
+  - [Enterprise Integrations](#enterprise-integrations-v250)
+  - [JUnit XML Reports](#junit-xml-reports-v250)
+  - [CycloneDX VEX Reports](#cyclonedx-vex-reports-v250)
+  - [Real-time Alerting Hooks](#real-time-alerting-hooks-v250)
+  - [GitHub Actions Integration](#github-actions-integration-v250)
+  - [OpenTelemetry Tracing](#opentelemetry-tracing-v250)
 - [CI/CD Integration](#cicd-integration)
+  - [GitHub Actions](#github-actions)
+  - [GitLab CI](#gitlab-ci)
+  - [Azure DevOps](#azure-devops)
+  - [Jenkins Pipeline](#jenkins-pipeline-v250)
+  - [CircleCI](#circleci-v250)
+  - [Drone CI](#drone-ci-v250)
+  - [Tekton Pipeline](#tekton-pipeline-v250)
+  - [ArgoCD Pre-Sync Hook](#argocd-pre-sync-hook-v250)
+  - [Harness CI](#harness-ci-v250)
+  - [AWS CodePipeline](#aws-codepipeline-v250)
+  - [Prometheus Metrics](#prometheus-metrics-integration-v250)
 - [Advanced Options](#advanced-options)
   - [Headers and Authentication](#headers-and-authentication)
   - [Proxies](#proxies)
@@ -1742,21 +1764,204 @@ waf-tester auto -u https://target.com --smart --smart-verbose
 
 ---
 
+## Integration Overview (v2.5.0+)
+
+WAFtester provides comprehensive integration options for enterprise environments. This section helps you choose the right integration approach for your needs.
+
+### Integration Decision Guide
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    What do you need to integrate?                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐             │
+│  │  FILE OUTPUTS   │  │  REAL-TIME      │  │  OBSERVABILITY  │             │
+│  │                 │  │  ALERTING       │  │                 │             │
+│  └───────┬─────────┘  └───────┬─────────┘  └───────┬─────────┘             │
+│          │                    │                    │                        │
+│          ▼                    ▼                    ▼                        │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐             │
+│  │ • SARIF (CI/CD) │  │ • Slack         │  │ • OpenTelemetry │             │
+│  │ • JUnit (tests) │  │ • Teams         │  │ • Prometheus    │             │
+│  │ • JSON/JSONL    │  │ • PagerDuty     │  │                 │             │
+│  │ • SonarQube     │  │ • Jira          │  │                 │             │
+│  │ • GitLab SAST   │  │ • Webhook       │  │                 │             │
+│  │ • CycloneDX VEX │  │ • GitHub Actions│  │                 │             │
+│  │ • DefectDojo    │  │                 │  │                 │             │
+│  │ • HAR           │  │                 │  │                 │             │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘             │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Complete Integration Flag Reference
+
+#### File Output Flags
+
+| Flag | Format | Description |
+|------|--------|-------------|
+| `-format json` | JSON | Full results as JSON object |
+| `-format jsonl` | JSONL | Newline-delimited JSON (streaming) |
+| `-format sarif` | SARIF 2.1.0 | GitHub/GitLab Security integration |
+| `-format junit` | JUnit XML | CI/CD test frameworks |
+| `-format csv` | CSV | Spreadsheet analysis |
+| `-format html` | HTML | Interactive reports |
+| `-format markdown` | Markdown | Documentation |
+| `-format pdf` | PDF | Executive reports |
+| `-format sonarqube` | SonarQube | Generic Issue Import |
+| `-format gitlab-sast` | GitLab SAST | Security Dashboard |
+| `-format cyclonedx` | CycloneDX VEX | SBOM integration |
+| `-format defectdojo` | DefectDojo | Findings import |
+| `-format har` | HAR | HTTP Archive for replay |
+
+#### Real-time Alerting Flags
+
+| Flag | Service | When to Use |
+|------|---------|-------------|
+| `--slack-webhook=URL` | Slack | Team notifications |
+| `--teams-webhook=URL` | Microsoft Teams | Enterprise IM |
+| `--pagerduty-key=KEY` | PagerDuty | On-call escalation |
+| `--webhook=URL` | Any HTTP | Custom integrations |
+| `--jira-url=URL` | Jira | Issue tracking |
+| `--jira-project=KEY` | Jira | Project for issues |
+| `--jira-email=EMAIL` | Jira | Authentication |
+| `--jira-token=TOKEN` | Jira | API token |
+
+#### Observability Flags
+
+| Flag | Service | When to Use |
+|------|---------|-------------|
+| `--otel-endpoint=HOST:PORT` | OpenTelemetry | Distributed tracing |
+| `--otel-insecure` | OpenTelemetry | Skip TLS verification |
+| `--metrics-port=PORT` | Prometheus | Metrics scraping |
+
+#### CI/CD-Specific Flags
+
+| Flag | Platform | Description |
+|------|----------|-------------|
+| `--github-output` | GitHub Actions | Set step outputs |
+| `--github-summary` | GitHub Actions | Job summary report |
+| `--stream` | All CI/CD | Non-animated output |
+
+### Integration by Use Case
+
+#### 1. Security Scanning in CI/CD Pipeline
+
+**Goal:** Block deployments with critical vulnerabilities
+
+```bash
+# GitHub/GitLab - SARIF for Security tab
+waf-tester scan -u $TARGET_URL --stream -format sarif -o results.sarif
+
+# Jenkins/Azure DevOps - JUnit for test reporting
+waf-tester scan -u $TARGET_URL --stream -format junit -o results.xml
+
+# Exit code 1 on bypasses (use --policy for custom rules)
+```
+
+#### 2. Real-time Security Operations
+
+**Goal:** Alert SOC team immediately on critical findings
+
+```bash
+waf-tester scan -u $TARGET_URL \
+  --slack-webhook=$SLACK_WEBHOOK \
+  --pagerduty-key=$PD_KEY
+```
+
+#### 3. Vulnerability Management
+
+**Goal:** Track findings in vulnerability management system
+
+```bash
+# DefectDojo
+waf-tester scan -u $TARGET_URL -format defectdojo -o findings.json
+
+# SonarQube
+waf-tester scan -u $TARGET_URL -format sonarqube -o issues.json
+```
+
+#### 4. Observability and Monitoring
+
+**Goal:** Monitor WAF effectiveness over time
+
+```bash
+# Prometheus metrics + Grafana dashboards
+waf-tester scan -u $TARGET_URL --metrics-port=9090
+
+# OpenTelemetry traces to Jaeger/Tempo
+waf-tester scan -u $TARGET_URL --otel-endpoint=localhost:4317
+```
+
+#### 5. Compliance and Reporting
+
+**Goal:** Generate executive reports with evidence
+
+```bash
+waf-tester scan -u $TARGET_URL \
+  -format pdf -o executive-report.pdf \
+  -format html -o detailed-report.html \
+  -format cyclonedx -o vulnerability-sbom.json
+```
+
+### Environment Variables
+
+All flags can be set via environment variables:
+
+| Environment Variable | Flag Equivalent |
+|---------------------|-----------------|
+| `WAFTESTER_SLACK_WEBHOOK` | `--slack-webhook` |
+| `WAFTESTER_TEAMS_WEBHOOK` | `--teams-webhook` |
+| `WAFTESTER_PAGERDUTY_KEY` | `--pagerduty-key` |
+| `WAFTESTER_WEBHOOK_URL` | `--webhook` |
+| `WAFTESTER_JIRA_URL` | `--jira-url` |
+| `WAFTESTER_JIRA_PROJECT` | `--jira-project` |
+| `WAFTESTER_JIRA_EMAIL` | `--jira-email` |
+| `WAFTESTER_JIRA_TOKEN` | `--jira-token` |
+| `WAFTESTER_OTEL_ENDPOINT` | `--otel-endpoint` |
+| `WAFTESTER_METRICS_PORT` | `--metrics-port` |
+
+### Multiple Outputs
+
+WAFtester can produce multiple outputs in a single scan:
+
+```bash
+# Generate all formats at once
+waf-tester scan -u https://target.com \
+  -format sarif -o results.sarif \
+  -format junit -o results.xml \
+  -format html -o report.html \
+  -format json -o results.json \
+  --slack-webhook=$SLACK_WEBHOOK \
+  --metrics-port=9090
+```
+
+---
+
 ## Output Formats
 
 ### Available Formats
 
-| Format | Flag | Use Case |
-|--------|------|----------|
-| JSON | `-format json` | Programmatic processing |
-| JSONL | `-format jsonl` | Streaming, large datasets |
-| HTML | `-format html` | Human-readable reports |
-| SARIF | `-format sarif` | CI/CD integration, GitHub Security |
-| Markdown | `-format markdown` or `-format md` | Documentation |
-| CSV | `-format csv` | Spreadsheet analysis |
-| Console | `-format console` | Terminal output (default) |
+| Format | Flag | Use Case | v2.5.0 Enhancements |
+|--------|------|----------|---------------------|
+| JSON | `-format json` | Programmatic processing | Full scan events |
+| JSONL | `-format jsonl` | Streaming, large datasets | Event types: scan_start, vulnerability, scan_complete |
+| HTML | `-format html` | Human-readable reports | Themes, interactive charts, DataTables |
+| SARIF | `-format sarif` | CI/CD integration, GitHub Security | 100% SARIF 2.1.0 compliant |
+| Markdown | `-format markdown` or `-format md` | Documentation | TOC, OWASP sections, badges |
+| CSV | `-format csv` | Spreadsheet analysis | OWASP columns, risk scores |
+| Console | `-format console` | Terminal output (default) | Colorized, compact mode |
+| Template | `--template=FILE` | Custom formats | Go template engine |
+| PDF | `-format pdf` | Executive reports | Branding, digital signatures |
+| JUnit | `-format junit` | CI/CD test frameworks | Jenkins, GitLab, Azure DevOps |
+| CycloneDX | `-format cyclonedx` | SBOM vulnerability exchange | VEX 1.5 format |
+| SonarQube | `-format sonarqube` | SonarQube integration | Generic issue import |
+| GitLab SAST | `-format gitlab-sast` | GitLab Security Dashboard | gl-sast-report.json |
+| DefectDojo | `-format defectdojo` | DefectDojo import | Findings format |
+| HAR | `-format har` | HTTP Archive | Traffic replay |
 
-### Examples
+### Basic Examples
 
 ```bash
 waf-tester run -plan testplan.json -format json -o results.json
@@ -1764,6 +1969,571 @@ waf-tester run -plan testplan.json -format html -o report.html
 waf-tester run -plan testplan.json -format sarif -o results.sarif
 waf-tester scan -u https://target.com -format csv -o results.csv
 ```
+
+### HTML Reports with Themes (v2.5.0+)
+
+```bash
+# Light theme (default) - clean professional look
+waf-tester scan -u https://target.com -format html -o report.html
+
+# Dark theme - reduced eye strain
+waf-tester scan -u https://target.com -format html --html-theme=dark -o report.html
+
+# Corporate theme - for enterprise reports
+waf-tester scan -u https://target.com -format html --html-theme=corporate -o report.html
+
+# Security theme - SOC-focused colors
+waf-tester scan -u https://target.com -format html --html-theme=security -o report.html
+
+# Custom branding
+waf-tester scan -u https://target.com -format html \
+  --html-logo=logo.png \
+  --html-title="Q4 WAF Assessment" \
+  -o report.html
+```
+
+### Markdown with Enhanced Features (v2.5.0+)
+
+```bash
+# Table of contents
+waf-tester scan -u https://target.com -format md --md-toc -o report.md
+
+# OWASP category grouping
+waf-tester scan -u https://target.com -format md --md-owasp -o report.md
+
+# GitHub-flavored Markdown with badges
+waf-tester scan -u https://target.com -format md \
+  --md-flavor=github \
+  --md-badges \
+  -o report.md
+
+# Collapsible sections for long reports
+waf-tester scan -u https://target.com -format md --md-collapsible -o report.md
+
+# Full featured report
+waf-tester scan -u https://target.com -format md \
+  --md-toc \
+  --md-owasp \
+  --md-badges \
+  --md-collapsible \
+  -o report.md
+```
+
+### Colorized Console Output (v2.5.0+)
+
+```bash
+# Compact table mode (default)
+waf-tester scan -u https://target.com --table-mode=compact
+
+# Detailed table with all columns
+waf-tester scan -u https://target.com --table-mode=detailed
+
+# Wide table for large terminals
+waf-tester scan -u https://target.com --table-mode=wide
+
+# Minimal - one line per finding
+waf-tester scan -u https://target.com --table-mode=minimal
+
+# Disable colors (for pipes)
+waf-tester scan -u https://target.com --no-color
+```
+
+### Custom Templates (v2.5.0+)
+
+```bash
+# Use built-in templates
+waf-tester scan -u https://target.com --template=executive
+waf-tester scan -u https://target.com --template=technical
+waf-tester scan -u https://target.com --template=compliance
+
+# Custom Go template file
+waf-tester scan -u https://target.com --template=custom-report.tmpl -o report.html
+```
+
+Example custom template (`custom-report.tmpl`):
+```html
+<!DOCTYPE html>
+<html>
+<head><title>{{.Title}}</title></head>
+<body>
+  <h1>Security Assessment: {{.Target}}</h1>
+  <p>Scan completed: {{.Timestamp}}</p>
+  
+  <h2>Summary</h2>
+  <ul>
+    <li>Total tests: {{.Summary.Total}}</li>
+    <li>Blocked: {{.Summary.Blocked}}</li>
+    <li>Bypassed: {{.Summary.Bypassed}}</li>
+    <li>WAF Effectiveness: {{printf "%.1f" .Summary.Effectiveness}}%</li>
+  </ul>
+  
+  {{range .Results}}
+  <div class="finding {{.Severity | lower}}">
+    <h3>{{.ID}}: {{.Category}}</h3>
+    <p>Severity: {{.Severity}} | Status: {{.Outcome}}</p>
+  </div>
+  {{end}}
+</body>
+</html>
+```
+
+### PDF Reports (v2.5.0+)
+
+```bash
+# Basic PDF report
+waf-tester scan -u https://target.com -format pdf -o report.pdf
+
+# Executive summary PDF
+waf-tester scan -u https://target.com -format pdf \
+  --pdf-template=executive \
+  -o executive-summary.pdf
+
+# Branded PDF with logo and signature
+waf-tester scan -u https://target.com -format pdf \
+  --pdf-logo=company-logo.png \
+  --pdf-header="Confidential - Internal Use Only" \
+  --pdf-footer="Generated by Security Team" \
+  -o branded-report.pdf
+
+# PDF with digital signature (requires certificate)
+waf-tester scan -u https://target.com -format pdf \
+  --pdf-sign \
+  --pdf-cert=signing-cert.p12 \
+  -o signed-report.pdf
+```
+
+### Enterprise Integrations (v2.5.0+)
+
+```bash
+# SonarQube Generic Issue Import
+waf-tester scan -u https://target.com -format sonarqube -o sonar-issues.json
+# Upload: sonar-scanner -Dsonar.externalIssuesReportPaths=sonar-issues.json
+
+# GitLab SAST Report
+waf-tester scan -u https://target.com -format gitlab-sast -o gl-sast-report.json
+
+# DefectDojo Import
+waf-tester scan -u https://target.com -format defectdojo -o findings.json
+# Import: curl -X POST https://defectdojo.example.com/api/v2/import-scan/
+
+# HAR for traffic replay
+waf-tester scan -u https://target.com -format har -o traffic.har
+```
+
+### JUnit XML Reports (v2.5.0+)
+
+JUnit XML is the standard format for CI/CD test frameworks. WAFtester generates JUnit-compatible reports that integrate with Jenkins, GitLab CI, Azure DevOps, CircleCI, and more.
+
+```bash
+# Basic JUnit report
+waf-tester scan -u https://target.com -format junit -o results.xml
+
+# JUnit with custom test suite name
+waf-tester scan -u https://target.com -format junit \
+  --junit-suite="WAF Security Tests" \
+  -o test-results.xml
+
+# JUnit for Jenkins
+waf-tester scan -u https://target.com -format junit -o junit-report.xml
+# Jenkins: Post-build action -> Publish JUnit test result report
+
+# JUnit for GitLab CI
+waf-tester scan -u https://target.com -format junit -o junit.xml
+# .gitlab-ci.yml: artifacts: reports: junit: junit.xml
+
+# JUnit for Azure DevOps
+waf-tester scan -u https://target.com -format junit -o test-results.xml
+# Azure: PublishTestResults@2 task with testResultsFiles: '**/test-results.xml'
+```
+
+**Sample JUnit XML Output:**
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="WAFtester Security Scan" tests="2847" failures="119" errors="0" time="45.23">
+  <testsuite name="SQL Injection" tests="847" failures="42" time="12.34">
+    <testcase name="sqli-001: Union-based injection" classname="sqli.union" time="0.234">
+      <failure message="WAF Bypass Detected" type="security">
+Target: https://target.com/api/users?id=1
+Payload: 1' UNION SELECT username,password FROM users--
+Severity: Critical
+OWASP: A03:2021 - Injection
+Evidence: SQL syntax in response, 5 rows returned
+Tampers: charunicodeencode, space2comment
+      </failure>
+    </testcase>
+    <testcase name="sqli-002: Boolean-based blind" classname="sqli.blind" time="0.156"/>
+    <testcase name="sqli-003: Time-based blind" classname="sqli.time" time="0.189"/>
+  </testsuite>
+  <testsuite name="Cross-Site Scripting" tests="623" failures="31" time="9.87">
+    <testcase name="xss-001: Reflected XSS" classname="xss.reflected" time="0.123">
+      <failure message="WAF Bypass Detected" type="security">
+Target: https://target.com/search?q=test
+Payload: &lt;script&gt;alert(1)&lt;/script&gt;
+Severity: High
+OWASP: A03:2021 - Injection
+      </failure>
+    </testcase>
+  </testsuite>
+</testsuites>
+```
+
+### CycloneDX VEX Reports (v2.5.0+)
+
+CycloneDX VEX (Vulnerability Exploitability eXchange) format for SBOM integration and vulnerability tracking.
+
+```bash
+# Basic CycloneDX VEX report
+waf-tester scan -u https://target.com -format cyclonedx -o vulnerabilities.json
+
+# CycloneDX with component information
+waf-tester scan -u https://target.com -format cyclonedx \
+  --cyclonedx-component="web-application" \
+  --cyclonedx-version="1.0.0" \
+  -o vex-report.json
+
+# CycloneDX for SBOM tools
+waf-tester scan -u https://target.com -format cyclonedx -o waf-findings.vex.json
+# Merge with your SBOM: cyclonedx merge --input-files sbom.json waf-findings.vex.json
+```
+
+**Sample CycloneDX VEX Output:**
+
+```json
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:3e671687-395b-41f5-a30f-a58921a69b79",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-02-03T14:30:00Z",
+    "tools": [
+      {
+        "vendor": "WAFtester",
+        "name": "waf-tester",
+        "version": "2.5.0"
+      }
+    ],
+    "component": {
+      "type": "application",
+      "name": "web-application",
+      "version": "1.0.0"
+    }
+  },
+  "vulnerabilities": [
+    {
+      "id": "WAFT-2026-0001",
+      "source": { "name": "WAFtester" },
+      "ratings": [
+        {
+          "severity": "critical",
+          "method": "other",
+          "vector": "WAF bypass with payload execution"
+        }
+      ],
+      "cwes": [89],
+      "description": "SQL Injection bypass detected via union-based technique",
+      "detail": "The WAF failed to block a SQL injection payload using charunicodeencode and space2comment tampers.",
+      "recommendation": "Update WAF rules to detect unicode-encoded SQL keywords",
+      "advisories": [
+        { "title": "OWASP A03:2021", "url": "https://owasp.org/Top10/A03_2021-Injection/" }
+      ],
+      "affects": [
+        {
+          "ref": "https://target.com/api/users",
+          "versions": [{ "version": "N/A", "status": "affected" }]
+        }
+      ],
+      "properties": [
+        { "name": "waftester:category", "value": "sqli" },
+        { "name": "waftester:payload", "value": "1' UNION SELECT * FROM users--" },
+        { "name": "waftester:tampers", "value": "charunicodeencode,space2comment" },
+        { "name": "waftester:waf_bypassed", "value": "true" }
+      ]
+    }
+  ]
+}
+```
+
+### Real-time Alerting Hooks (v2.5.0+)
+
+WAFtester provides real-time alerting integrations to notify your team immediately when security issues are detected.
+
+#### Quick Reference: Integration Flags
+
+| Integration | Flag | Description |
+|-------------|------|-------------|
+| Generic Webhook | `--webhook` | Any HTTP endpoint |
+| Slack | `--slack-webhook` | Slack incoming webhook |
+| Microsoft Teams | `--teams-webhook` | Teams connector webhook |
+| PagerDuty | `--pagerduty-key` | Routing key for incidents |
+| Jira | `--jira-url` + `--jira-project` | Create issues for bypasses |
+| OpenTelemetry | `--otel-endpoint` | Export traces to OTLP |
+| Prometheus | `--metrics-port` | Expose /metrics endpoint |
+| GitHub Actions | `--github-output` | Set step outputs |
+
+```bash
+# Slack notifications on critical findings
+waf-tester scan -u https://target.com \
+  --slack-webhook=https://hooks.slack.com/services/XXX/YYY/ZZZ
+
+# Microsoft Teams webhook
+waf-tester scan -u https://target.com \
+  --teams-webhook=https://outlook.office.com/webhook/XXX
+
+# PagerDuty for on-call escalation
+waf-tester scan -u https://target.com \
+  --pagerduty-key=YOUR_ROUTING_KEY
+
+# Jira ticket creation (requires all 4 flags)
+waf-tester scan -u https://target.com \
+  --jira-url=https://company.atlassian.net \
+  --jira-project=SEC \
+  --jira-email=security@company.com \
+  --jira-token=$JIRA_API_TOKEN
+
+# Generic webhook (any HTTP endpoint)
+waf-tester scan -u https://target.com \
+  --webhook=https://your-api.com/waf-events
+
+# Multiple hooks simultaneously
+waf-tester scan -u https://target.com \
+  --slack-webhook=$SLACK_WEBHOOK \
+  --pagerduty-key=$PD_KEY \
+  --webhook=$CUSTOM_WEBHOOK
+```
+
+**Sample Slack Webhook Payload:**
+
+```json
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": { "type": "plain_text", "text": "🚨 WAF Bypass Detected", "emoji": true }
+    },
+    {
+      "type": "section",
+      "fields": [
+        { "type": "mrkdwn", "text": "*Severity:*\n🔴 Critical" },
+        { "type": "mrkdwn", "text": "*Category:*\nSQL Injection" },
+        { "type": "mrkdwn", "text": "*Target:*\nhttps://target.com/api/users" },
+        { "type": "mrkdwn", "text": "*OWASP:*\nA03:2021 - Injection" }
+      ]
+    },
+    {
+      "type": "section",
+      "text": { "type": "mrkdwn", "text": "*Payload:*\n```1' UNION SELECT username,password FROM users--```" }
+    },
+    {
+      "type": "context",
+      "elements": [
+        { "type": "mrkdwn", "text": "WAFtester v2.5.0 | Scan ID: a1b2c3d4 | 2026-02-03T14:30:00Z" }
+      ]
+    }
+  ]
+}
+```
+
+**Sample Generic Webhook Payload:**
+
+```json
+{
+  "event": "bypass",
+  "timestamp": "2026-02-03T14:30:00Z",
+  "scan_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "finding": {
+    "id": "sqli-089",
+    "category": "sqli",
+    "severity": "Critical",
+    "confidence": 0.95,
+    "url": "https://target.com/api/users",
+    "parameter": "id",
+    "payload": "1' UNION SELECT username,password FROM users--",
+    "tampers": ["charunicodeencode", "space2comment"],
+    "waf_bypassed": true,
+    "owasp": "A03:2021",
+    "cwe": [89],
+    "evidence": {
+      "request": "GET /api/users?id=1%27%20UNION...",
+      "response_code": 200,
+      "response_time_ms": 847,
+      "indicators": ["SQL syntax in response", "5 rows returned vs 1 expected"]
+    }
+  },
+  "context": {
+    "target": "https://target.com",
+    "waf_vendor": "Cloudflare",
+    "waf_confidence": 0.98,
+    "total_tests": 2847,
+    "total_bypasses": 119
+  }
+}
+```
+
+### GitHub Actions Integration (v2.5.0+)
+
+Native GitHub Actions integration for step summaries and output variables.
+
+```bash
+# Enable GitHub Actions output (step outputs)
+waf-tester scan -u https://target.com --github-output
+
+# Enable GitHub Actions step summary (Markdown report in workflow)
+waf-tester scan -u https://target.com --github-summary
+
+# Both outputs and summary
+waf-tester scan -u https://target.com --github-output --github-summary
+
+# Outputs available: bypass_count, blocked_count, total_tests, effectiveness, 
+#                    critical_count, high_count, waf_vendor, scan_duration
+```
+
+Example GitHub Actions workflow:
+
+```yaml
+- name: WAF Security Scan
+  id: waf-scan
+  run: |
+    waf-tester scan -u ${{ secrets.TARGET_URL }} \
+      --hook-github \
+      --hook-github-summary \
+      -format sarif -o results.sarif
+
+- name: Check Results
+  run: |
+    echo "Bypasses found: ${{ steps.waf-scan.outputs.bypass_count }}"
+    echo "WAF effectiveness: ${{ steps.waf-scan.outputs.effectiveness }}%"
+    if [ "${{ steps.waf-scan.outputs.bypass_count }}" -gt 0 ]; then
+      echo "::warning::WAF bypasses detected!"
+    fi
+```
+
+**GitHub Actions Step Summary (rendered in workflow run):**
+
+```markdown
+## 🛡️ WAF Security Scan Results
+
+| Metric | Value |
+|--------|-------|
+| Target | https://target.com |
+| Total Tests | 2,847 |
+| Blocked | 2,728 (95.8%) |
+| Bypassed | 119 (4.2%) |
+| WAF Vendor | Cloudflare |
+| Scan Duration | 45.2s |
+
+### Critical Bypasses (5)
+
+| Category | Payload | Severity |
+|----------|---------|----------|
+| SQL Injection | `1' UNION SELECT...` | 🔴 Critical |
+| XSS | `<script>alert(1)</script>` | 🟠 High |
+| Path Traversal | `../../../etc/passwd` | 🟠 High |
+
+<details>
+<summary>Full scan details</summary>
+// Complete findings JSON
+</details>
+```
+
+**GitHub Actions Output Variables:**
+
+```bash
+# These are set automatically when --hook-github is used
+echo "bypass_count=119" >> $GITHUB_OUTPUT
+echo "blocked_count=2728" >> $GITHUB_OUTPUT
+echo "total_tests=2847" >> $GITHUB_OUTPUT
+echo "effectiveness=95.8" >> $GITHUB_OUTPUT
+echo "critical_count=5" >> $GITHUB_OUTPUT
+echo "high_count=23" >> $GITHUB_OUTPUT
+echo "waf_vendor=Cloudflare" >> $GITHUB_OUTPUT
+echo "scan_duration=45.2" >> $GITHUB_OUTPUT
+```
+
+### OpenTelemetry Tracing (v2.5.0+)
+
+Export scan telemetry to OpenTelemetry-compatible backends (Jaeger, Zipkin, Grafana Tempo, etc.).
+
+```bash
+# Send traces to OTLP collector
+waf-tester scan -u https://target.com \
+  --otel-endpoint=localhost:4317
+
+# With insecure connection (no TLS)
+waf-tester scan -u https://target.com \
+  --otel-endpoint=otel-collector.monitoring:4317 \
+  --otel-insecure
+
+# Secure connection (default)
+waf-tester scan -u https://target.com \
+  --otel-endpoint=otel.example.com:4317
+```
+
+**Sample OpenTelemetry Trace (JSON export):**
+
+```json
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          { "key": "service.name", "value": { "stringValue": "waf-tester" } },
+          { "key": "service.version", "value": { "stringValue": "2.5.0" } }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": { "name": "waftester.scan" },
+          "spans": [
+            {
+              "traceId": "5b8aa5a2d2c872e8321cf37308d69df2",
+              "spanId": "051581bf3cb55c13",
+              "name": "waf-scan",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1706968200000000000",
+              "endTimeUnixNano": "1706968245230000000",
+              "attributes": [
+                { "key": "waf.target", "value": { "stringValue": "https://target.com" } },
+                { "key": "waf.vendor", "value": { "stringValue": "Cloudflare" } },
+                { "key": "waf.total_tests", "value": { "intValue": "2847" } },
+                { "key": "waf.bypasses", "value": { "intValue": "119" } },
+                { "key": "waf.effectiveness", "value": { "doubleValue": 95.8 } }
+              ],
+              "events": [
+                {
+                  "name": "finding",
+                  "timeUnixNano": "1706968212340000000",
+                  "attributes": [
+                    { "key": "waf.category", "value": { "stringValue": "sqli" } },
+                    { "key": "waf.severity", "value": { "stringValue": "critical" } },
+                    { "key": "waf.outcome", "value": { "stringValue": "bypass" } },
+                    { "key": "waf.owasp", "value": { "stringValue": "A03:2021" } },
+                    { "key": "waf.cwe", "value": { "intValue": "89" } },
+                    { "key": "waf.payload", "value": { "stringValue": "1' UNION SELECT..." } }
+                  ]
+                }
+              ],
+              "status": { "code": "STATUS_CODE_OK" }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+OpenTelemetry attributes exported:
+
+| Attribute | Description |
+|-----------|-------------|
+| `waf.target` | Target URL being scanned |
+| `waf.category` | Attack category (sqli, xss, etc.) |
+| `waf.severity` | Finding severity level |
+| `waf.outcome` | Test outcome (blocked, bypass, error) |
+| `waf.owasp` | OWASP Top 10 category |
+| `waf.cwe` | CWE identifiers |
 
 ### Output File Locations
 
@@ -1782,7 +2552,9 @@ workspaces/<domain>/<timestamp>/
 ├── testplan.json
 ├── results.json
 ├── results.html
-└── results.sarif
+├── results.sarif
+├── results.pdf          # v2.5.0+
+└── results.md           # v2.5.0+
 ```
 
 ---
@@ -1802,7 +2574,7 @@ waf-tester assess -u https://target.com --json -o assessment.json
 waf-tester vendor -u https://target.com --json
 ```
 
-### Streaming JSON Mode
+### Streaming JSON Mode (v2.5.0+)
 
 Real-time NDJSON events for CI/CD pipelines:
 
@@ -1811,28 +2583,64 @@ Real-time NDJSON events for CI/CD pipelines:
 waf-tester scan -u https://target.com -stream -json
 
 # Filter specific events
-waf-tester scan -u https://target.com -stream -json | jq 'select(.type=="vulnerability")'
+waf-tester scan -u https://target.com -stream -json | jq 'select(.type=="result")'
 
-# Save to file
+# Filter bypasses only
+waf-tester scan -u https://target.com -stream -json | jq 'select(.type=="bypass")'
+
+# Save to file (stderr has progress, stdout has events)
 waf-tester scan -u https://target.com -stream -json 2>/dev/null > scan-events.jsonl
+
+# Real-time critical alert
+waf-tester scan -u https://target.com -stream -json | \
+  jq -c 'select(.severity=="Critical")' | \
+  while read event; do curl -X POST $WEBHOOK -d "$event"; done
 ```
 
-#### Event Types
+#### Event Types (v2.5.0)
 
-| Event | Description | Data Fields |
-|-------|-------------|-------------|
-| `scan_start` | Scanner beginning | `scanner` |
-| `vulnerability` | Finding discovered | `category`, `severity`, `type` |
-| `scan_complete` | Scanner finished | `scanner`, `vulns` (count) |
-| `scan_end` | All scanners done | `target`, `duration_ms`, `total_vulns` |
+| Event | Description | Key Fields |
+|-------|-------------|------------|
+| `start` | Scan beginning | `target`, `categories`, `timestamp` |
+| `progress` | Periodic status update | `tested`, `total`, `percent`, `bypasses` |
+| `result` | Test completed | `category`, `severity`, `blocked`, `payload` |
+| `bypass` | WAF bypass found | `category`, `severity`, `payload`, `tampers`, `evidence` |
+| `summary` | Category summary | `category`, `total`, `blocked`, `bypassed`, `effectiveness` |
+| `complete` | Scan finished | `duration_ms`, `total_tests`, `total_bypasses`, `metrics` |
+| `error` | Error occurred | `message`, `category`, `recoverable` |
 
-#### Example Events
+#### Sample Streaming Events (v2.5.0)
 
 ```json
-{"type":"scan_start","timestamp":"2026-02-01T10:00:00Z","data":{"scanner":"sqli"}}
-{"type":"vulnerability","timestamp":"2026-02-01T10:00:01Z","data":{"category":"sqli","severity":"High","type":"error-based"}}
-{"type":"scan_complete","timestamp":"2026-02-01T10:00:05Z","data":{"scanner":"sqli","vulns":3}}
-{"type":"scan_end","timestamp":"2026-02-01T10:01:00Z","data":{"target":"https://target.com","duration_ms":60000,"total_vulns":15}}
+{"type":"start","timestamp":"2026-02-03T10:00:00Z","target":"https://target.com","categories":["sqli","xss","traversal"],"waf_vendor":"Cloudflare","waf_confidence":0.98}
+{"type":"progress","timestamp":"2026-02-03T10:00:05Z","tested":250,"total":2847,"percent":8.8,"bypasses":3,"current_category":"sqli"}
+{"type":"result","timestamp":"2026-02-03T10:00:06Z","id":"sqli-042","category":"sqli","severity":"Medium","blocked":true,"response_code":403,"response_time_ms":45}
+{"type":"bypass","timestamp":"2026-02-03T10:00:12Z","id":"sqli-089","category":"sqli","severity":"Critical","payload":"1' UNION/**/SELECT/**/username,password/**/FROM/**/users--","tampers":["space2comment","charunicodeencode"],"url":"https://target.com/api/users?id=1","evidence":{"response_code":200,"response_time_ms":847,"indicators":["SQL syntax in response","5 rows returned vs 1 expected"]},"owasp":"A03:2021","cwe":[89]}
+{"type":"summary","timestamp":"2026-02-03T10:00:30Z","category":"sqli","total":847,"blocked":805,"bypassed":42,"errors":0,"effectiveness":95.0}
+{"type":"progress","timestamp":"2026-02-03T10:00:35Z","tested":1500,"total":2847,"percent":52.7,"bypasses":58,"current_category":"xss"}
+{"type":"bypass","timestamp":"2026-02-03T10:00:42Z","id":"xss-156","category":"xss","severity":"High","payload":"<img src=x onerror=alert(1)>","url":"https://target.com/search?q=test","evidence":{"response_code":200,"reflected":true},"owasp":"A03:2021","cwe":[79]}
+{"type":"summary","timestamp":"2026-02-03T10:00:55Z","category":"xss","total":623,"blocked":592,"bypassed":31,"errors":0,"effectiveness":95.0}
+{"type":"complete","timestamp":"2026-02-03T10:01:00Z","duration_ms":60000,"total_tests":2847,"total_blocked":2728,"total_bypasses":119,"metrics":{"detection_rate":0.958,"false_positive_rate":0.003,"precision":0.997,"f1_score":0.969}}
+```
+
+#### Processing Streaming Events
+
+```bash
+# Count bypasses by severity
+waf-tester scan -u $TARGET -stream -json | \
+  jq -s '[.[] | select(.type=="bypass")] | group_by(.severity) | map({severity: .[0].severity, count: length})'
+
+# Extract all bypass payloads
+waf-tester scan -u $TARGET -stream -json | \
+  jq -r 'select(.type=="bypass") | .payload' > bypasses.txt
+
+# Real-time dashboard (with timestamped progress)
+waf-tester scan -u $TARGET -stream -json | \
+  jq -r 'select(.type=="progress") | "\(.timestamp) | \(.percent)% | \(.bypasses) bypasses"'
+
+# Fail CI on any Critical bypass
+waf-tester scan -u $TARGET -stream -json | \
+  jq -e 'select(.type=="bypass" and .severity=="Critical") | halt_error(1)' || exit 1
 ```
 
 ### GitHub Actions
@@ -1893,6 +2701,229 @@ waf_scan:
 ### Commands Supporting --stream
 
 All major commands support `--stream`: `assess`, `auto`, `bypass`, `crawl`, `fuzz`, `headless`, `mutate`, `probe`, `scan`, `smuggle`, `fp`
+
+### Jenkins Pipeline (v2.5.0+)
+
+```groovy
+pipeline {
+    agent any
+    stages {
+        stage('WAF Security Scan') {
+            steps {
+                sh '''
+                    waf-tester scan -u ${TARGET_URL} \
+                        --stream \
+                        -format sarif \
+                        -o results.sarif \
+                        --slack-webhook=${SLACK_WEBHOOK}
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'results.sarif'
+                    recordIssues tool: sarif(pattern: 'results.sarif')
+                }
+            }
+        }
+    }
+}
+```
+
+### CircleCI (v2.5.0+)
+
+```yaml
+version: 2.1
+jobs:
+  waf-scan:
+    docker:
+      - image: ghcr.io/waftester/waftester:latest
+    steps:
+      - run:
+          name: WAF Security Scan
+          command: |
+            waf-tester scan -u $TARGET_URL \
+              --stream \
+              -format sarif \
+              -o results.sarif
+      - store_artifacts:
+          path: results.sarif
+      - run:
+          name: Check for Critical Findings
+          command: |
+            CRITICAL=$(jq '.runs[].results | map(select(.level == "error")) | length' results.sarif)
+            if [ "$CRITICAL" -gt 0 ]; then
+              echo "Found $CRITICAL critical findings"
+              exit 1
+            fi
+```
+
+### Drone CI (v2.5.0+)
+
+```yaml
+kind: pipeline
+type: docker
+name: security-scan
+
+steps:
+  - name: waf-scan
+    image: ghcr.io/waftester/waftester:latest
+    commands:
+      - waf-tester scan -u $TARGET_URL --stream -format json -o results.json
+      - waf-tester scan -u $TARGET_URL --stream -format sarif -o results.sarif
+    environment:
+      TARGET_URL:
+        from_secret: target_url
+```
+
+### Tekton Pipeline (v2.5.0+)
+
+```yaml
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: waf-security-scan
+spec:
+  params:
+    - name: target-url
+      type: string
+  steps:
+    - name: scan
+      image: ghcr.io/waftester/waftester:latest
+      script: |
+        waf-tester scan -u $(params.target-url) \
+          --stream \
+          -format sarif \
+          -o /workspace/results.sarif \
+          --slack-webhook=$SLACK_WEBHOOK
+```
+
+### ArgoCD Pre-Sync Hook (v2.5.0+)
+
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: waf-security-scan
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+spec:
+  template:
+    spec:
+      containers:
+        - name: waf-scan
+          image: ghcr.io/waftester/waftester:latest
+          command:
+            - waf-tester
+            - scan
+            - -u
+            - $(TARGET_URL)
+            - --stream
+            - -format
+            - sarif
+          env:
+            - name: TARGET_URL
+              valueFrom:
+                secretKeyRef:
+                  name: waf-scan-config
+                  key: target-url
+      restartPolicy: Never
+```
+
+### Harness CI (v2.5.0+)
+
+```yaml
+stages:
+  - stage:
+      name: Security Scan
+      type: SecurityTests
+      spec:
+        execution:
+          steps:
+            - step:
+                type: Run
+                name: WAF Scan
+                spec:
+                  connectorRef: docker-hub
+                  image: ghcr.io/waftester/waftester:latest
+                  command: |
+                    waf-tester scan -u $TARGET_URL \
+                      --stream \
+                      -format json \
+                      -o results.json \
+                      --hook-pagerduty=$PAGERDUTY_KEY
+```
+
+### AWS CodePipeline (v2.5.0+)
+
+```yaml
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      golang: 1.22
+    commands:
+      - go install github.com/waftester/waftester/cmd/cli@latest
+  build:
+    commands:
+      - waf-tester scan -u $TARGET_URL --stream -format sarif -o results.sarif
+      - waf-tester scan -u $TARGET_URL --stream -format json -o results.json
+artifacts:
+  files:
+    - results.sarif
+    - results.json
+reports:
+  security-report:
+    files:
+      - results.sarif
+    file-format: SARIFEXPORT
+```
+
+### Prometheus Metrics Integration (v2.5.0+)
+
+Expose real-time metrics for Prometheus scraping during scan execution.
+
+```bash
+# Enable Prometheus metrics endpoint during scan
+waf-tester scan -u https://target.com --metrics-port=9090
+
+# Default metrics path is /metrics
+# Access at: http://localhost:9090/metrics
+```
+
+**Metrics Exposed:**
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `waftester_tests_total` | Counter | `target`, `category`, `severity`, `outcome` | Total tests executed |
+| `waftester_bypasses_total` | Counter | `target`, `category`, `severity` | WAF bypasses detected |
+| `waftester_blocked_total` | Counter | `target`, `category` | Requests blocked by WAF |
+| `waftester_errors_total` | Counter | `target`, `category` | Test errors |
+| `waftester_response_time_seconds` | Histogram | `target`, `category` | Response time distribution |
+| `waftester_effectiveness_percent` | Gauge | `target` | WAF effectiveness score |
+| `waftester_scan_duration_seconds` | Gauge | `target` | Total scan duration |
+
+**Example Prometheus Config:**
+
+```yaml
+scrape_configs:
+  - job_name: 'waftester'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 5s
+```
+
+**Example Grafana Queries:**
+
+```promql
+# Bypass rate over time
+rate(waftester_bypasses_total[5m])
+
+# WAF effectiveness
+waftester_effectiveness_percent{target="https://example.com"}
+
+# Response time 95th percentile
+histogram_quantile(0.95, waftester_response_time_seconds_bucket)
+```
 
 ---
 

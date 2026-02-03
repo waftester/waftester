@@ -42,6 +42,13 @@ func runFP() {
 	// Local WAF testing
 	localTest := fpFlags.Bool("local", false, "Run local WAF simulation test")
 
+	// Enterprise hook flags
+	fpSlack := fpFlags.String("slack-webhook", "", "Slack webhook URL for notifications")
+	fpTeams := fpFlags.String("teams-webhook", "", "Teams webhook URL for notifications")
+	fpPagerDuty := fpFlags.String("pagerduty-key", "", "PagerDuty routing key")
+	fpOtel := fpFlags.String("otel-endpoint", "", "OpenTelemetry endpoint")
+	fpWebhook := fpFlags.String("webhook-url", "", "Generic webhook URL")
+
 	fpFlags.Parse(os.Args[2:])
 
 	// Validate required args
@@ -120,6 +127,29 @@ func runFP() {
 			*target, corpusCount, *concurrency, *rateLimit)
 	}
 
+	// Initialize dispatcher for hooks
+	fpOutputFlags := OutputFlags{
+		SlackWebhook: *fpSlack,
+		TeamsWebhook: *fpTeams,
+		PagerDutyKey: *fpPagerDuty,
+		OTelEndpoint: *fpOtel,
+		WebhookURL:   *fpWebhook,
+	}
+	fpScanID := fmt.Sprintf("fp-%d", time.Now().Unix())
+	fpDispCtx, fpDispErr := fpOutputFlags.InitDispatcher(fpScanID, *target)
+	if fpDispErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Dispatcher warning: %v", fpDispErr))
+	}
+	if fpDispCtx != nil {
+		defer fpDispCtx.Close()
+	}
+	fpCtx := context.Background()
+
+	// Emit start event for scan lifecycle hooks
+	if fpDispCtx != nil {
+		_ = fpDispCtx.EmitStart(fpCtx, *target, corpusCount, *concurrency, nil)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), duration.ContextMax)
 	defer cancel()
 
@@ -151,6 +181,10 @@ func runFP() {
 	progress.Stop()
 
 	if err != nil {
+		// Emit error to hooks
+		if fpDispCtx != nil {
+			_ = fpDispCtx.EmitError(fpCtx, "fp", fmt.Sprintf("FP test error: %v", err), true)
+		}
 		fmt.Println(ui.ErrorStyle.Render(fmt.Sprintf("Error: %v", err)))
 		os.Exit(1)
 	}
@@ -180,6 +214,32 @@ func runFP() {
 		} else {
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *output))
 		}
+	}
+
+	// Emit FP findings and summary to hooks
+	if fpDispCtx != nil {
+		if result.FalsePositives > 0 {
+			fpDesc := fmt.Sprintf("%d false positives detected at PL%d", result.FalsePositives, *paranoiaLevel)
+			_ = fpDispCtx.EmitBypass(fpCtx, "false-positive-detected", "medium", *target, fpDesc, 0)
+
+			// Emit individual FP details
+			for _, fpDetail := range result.FalsePositiveDetails {
+				detailDesc := fmt.Sprintf("False positive: %s blocked at %s (rule %d)",
+					truncate(fpDetail.Payload, 80), fpDetail.Location, fpDetail.RuleID)
+				_ = fpDispCtx.EmitBypass(fpCtx, "false-positive-detail", "medium", *target, detailDesc, fpDetail.StatusCode)
+			}
+		}
+
+		// Emit FP rating (critical if >10%)
+		if result.FPRatio >= 0.10 {
+			ratingDesc := fmt.Sprintf("CRITICAL FP rate: %.1f%% (>10%%) - significant tuning required", result.FPRatio*100)
+			_ = fpDispCtx.EmitBypass(fpCtx, "fp-rating-critical", "critical", *target, ratingDesc, 0)
+		} else if result.FPRatio >= 0.05 {
+			ratingDesc := fmt.Sprintf("POOR FP rate: %.1f%% (5-10%%) - needs tuning", result.FPRatio*100)
+			_ = fpDispCtx.EmitBypass(fpCtx, "fp-rating-poor", "high", *target, ratingDesc, 0)
+		}
+
+		_ = fpDispCtx.EmitSummary(fpCtx, int(result.TotalTests), int(result.TotalTests-result.FalsePositives), int(result.FalsePositives), elapsed)
 	}
 }
 

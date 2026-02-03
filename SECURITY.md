@@ -4,13 +4,14 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 2.5.x   | :white_check_mark: |
 | 2.4.x   | :white_check_mark: |
-| 2.3.x   | :white_check_mark: |
-| 2.0.x - 2.2.x | :warning: Security fixes only |
+| 2.3.x   | :warning: Security fixes only |
+| 2.0.x - 2.2.x | :x: |
 | 1.x.x   | :x:                |
 | < 1.0   | :x:                |
 
-**Current stable release: 2.4.3**
+**Current stable release: 2.5.0**
 
 ## Reporting a Vulnerability
 
