@@ -9,6 +9,12 @@ on:
 permissions:
   contents: write
 
+# Prevent parallel release runs - serialize by commit SHA
+# First run wins, subsequent runs wait and can skip if release exists
+concurrency:
+  group: release-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -33,8 +39,25 @@ jobs:
             echo "is_tag=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Verify tag is on main branch
+      - name: Check if release already published
         if: steps.get_tag.outputs.is_tag == 'true'
+        id: check_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=${{ steps.get_tag.outputs.tag }}
+          # Check if release exists AND has assets (meaning another run already published)
+          ASSET_COUNT=$(gh release view "$TAG" --json assets -q '.assets | length' 2>/dev/null || echo "0")
+          if [ "$ASSET_COUNT" -gt "0" ]; then
+            echo "✅ Release $TAG already published with $ASSET_COUNT assets - skipping"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "Release $TAG not yet published or has no assets - proceeding"
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Verify tag is on main branch
+        if: steps.get_tag.outputs.is_tag == 'true' && steps.check_release.outputs.skip != 'true'
         run: |
           TAG_SHA=${{ github.event.workflow_run.head_sha }}
           
@@ -62,7 +85,7 @@ jobs:
           gh release delete dev --yes --cleanup-tag 2>/dev/null || true
 
       - name: Preserve and merge previous release notes
-        if: steps.get_tag.outputs.is_tag == 'true'
+        if: steps.get_tag.outputs.is_tag == 'true' && steps.check_release.outputs.skip != 'true'
         id: prev_notes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -80,7 +103,7 @@ jobs:
           fi
 
       - name: Delete existing release if tag exists
-        if: steps.get_tag.outputs.is_tag == 'true'
+        if: steps.get_tag.outputs.is_tag == 'true' && steps.check_release.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -88,7 +111,7 @@ jobs:
           gh release delete "$TAG" --yes 2>/dev/null || true
 
       - name: Run GoReleaser (tagged release)
-        if: steps.get_tag.outputs.is_tag == 'true'
+        if: steps.get_tag.outputs.is_tag == 'true' && steps.check_release.outputs.skip != 'true'
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
