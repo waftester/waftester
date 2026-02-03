@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/corpus"
+	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -88,6 +90,9 @@ type Assessment struct {
 
 	// WAF info
 	detectedWAF string
+
+	// Detection (v2.5.2)
+	detector *detection.Detector
 }
 
 // New creates a new Assessment
@@ -112,6 +117,7 @@ func New(cfg *Config) *Assessment {
 		calculator:    metrics.NewCalculator(),
 		attackResults: make([]metrics.AttackResult, 0),
 		benignResults: make([]metrics.BenignResult, 0),
+		detector:      detection.Default(),
 	}
 }
 
@@ -398,6 +404,13 @@ func (a *Assessment) runAttackTests(ctx context.Context, payloads []AttackPayloa
 				default:
 				}
 
+				// Check if host should be skipped due to drops/bans
+				if a.detector != nil {
+					if skip, _ := a.detector.ShouldSkipHost(a.config.TargetURL); skip {
+						continue // Skip this payload
+					}
+				}
+
 				a.limiter.Wait(ctx)
 				result := a.executeAttackTest(ctx, payload)
 
@@ -519,10 +532,19 @@ func (a *Assessment) executeAttackTest(ctx context.Context, payload AttackPayloa
 	result.Latency = time.Since(start)
 
 	if err != nil {
+		if a.detector != nil {
+			a.detector.RecordError(a.config.TargetURL, err)
+		}
 		result.Error = err.Error()
 		return result
 	}
 	defer iohelper.DrainAndClose(resp.Body)
+
+	// Read body for detection analysis
+	body, _ := io.ReadAll(resp.Body)
+	if a.detector != nil {
+		a.detector.RecordResponse(a.config.TargetURL, resp, result.Latency, len(body))
+	}
 
 	result.StatusCode = resp.StatusCode
 	result.Blocked = isBlockedResponse(resp.StatusCode)

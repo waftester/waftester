@@ -133,8 +133,8 @@ func NewJiraHook(baseURL string, opts JiraOptions) *JiraHook {
 
 	return &JiraHook{
 		baseURL: baseURL,
-		client: httpclient.New(httpclient.Config{Timeout: opts.Timeout}),
-		opts:   opts,
+		client:  httpclient.New(httpclient.Config{Timeout: opts.Timeout}),
+		opts:    opts,
 	}
 }
 

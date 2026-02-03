@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
@@ -116,6 +117,7 @@ type Fuzzer struct {
 	config     *Config
 	httpClient *http.Client
 	limiter    *rate.Limiter
+	detector   *detection.Detector // Connection drop and silent ban detection (v2.5.2)
 }
 
 // NewFuzzer creates a new fuzzer instance
@@ -159,11 +161,16 @@ func NewFuzzer(cfg *Config) *Fuzzer {
 
 	limiter := rate.NewLimiter(rate.Limit(cfg.RateLimit), cfg.RateLimit)
 
-	return &Fuzzer{
+	fuzzer := &Fuzzer{
 		config:     cfg,
 		httpClient: client,
 		limiter:    limiter,
 	}
+
+	// Initialize detection system (v2.5.2)
+	fuzzer.detector = detection.Default()
+
+	return fuzzer
 }
 
 // ResultCallback is called for each matching result
@@ -288,6 +295,14 @@ func (f *Fuzzer) fuzz(ctx context.Context, word string) *Result {
 	targetURL := strings.ReplaceAll(f.config.TargetURL, "FUZZ", url.PathEscape(word))
 	result.URL = targetURL
 
+	// Check if host should be skipped (v2.5.2)
+	if f.detector != nil {
+		if skip, _ := f.detector.ShouldSkipHost(targetURL); skip {
+			result.Filtered = true
+			return result
+		}
+	}
+
 	// Prepare request body if POST
 	var body io.Reader
 	if f.config.Data != "" {
@@ -317,6 +332,10 @@ func (f *Fuzzer) fuzz(ctx context.Context, word string) *Result {
 	result.ResponseTime = time.Since(start)
 
 	if err != nil {
+		// Record error for detection (v2.5.2)
+		if f.detector != nil {
+			f.detector.RecordError(targetURL, err)
+		}
 		result.Filtered = true
 		return result
 	}
@@ -346,6 +365,11 @@ func (f *Fuzzer) fuzz(ctx context.Context, word string) *Result {
 	result.LineCount = strings.Count(bodyStr, "\n") + 1
 	if len(bodyStr) == 0 {
 		result.LineCount = 0
+	}
+
+	// Record response for detection (v2.5.2)
+	if f.detector != nil {
+		f.detector.RecordResponse(targetURL, resp, result.ResponseTime, result.ContentLength)
 	}
 
 	// Check for redirect

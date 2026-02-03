@@ -247,6 +247,33 @@ func TestReportBuilder_IncludeAppendix(t *testing.T) {
 	}
 }
 
+func TestReportBuilder_SetDetectionStats(t *testing.T) {
+	builder := NewReportBuilder(ReportConfig{})
+	builder.SetDetectionStats(10, 5, 3, map[string]int{
+		"tcp_reset":     4,
+		"tls_handshake": 3,
+		"timeout":       3,
+	})
+
+	report := builder.Build()
+
+	if report.Technical.Statistics.DropsDetected != 10 {
+		t.Errorf("DropsDetected = %d, want 10", report.Technical.Statistics.DropsDetected)
+	}
+	if report.Technical.Statistics.BansDetected != 5 {
+		t.Errorf("BansDetected = %d, want 5", report.Technical.Statistics.BansDetected)
+	}
+	if report.Technical.Statistics.HostsSkipped != 3 {
+		t.Errorf("HostsSkipped = %d, want 3", report.Technical.Statistics.HostsSkipped)
+	}
+	if report.Technical.Statistics.DetectionStats == nil {
+		t.Error("DetectionStats should not be nil")
+	}
+	if report.Technical.Statistics.DetectionStats["tcp_reset"] != 4 {
+		t.Errorf("DetectionStats[tcp_reset] = %d, want 4", report.Technical.Statistics.DetectionStats["tcp_reset"])
+	}
+}
+
 func TestNewReportGenerator(t *testing.T) {
 	gen := NewReportGenerator()
 	if gen == nil {

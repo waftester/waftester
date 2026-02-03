@@ -99,7 +99,12 @@ type Statistics struct {
 	Coverage        float64        `json:"coverage"` // 0-100
 	ByCategory      map[string]int `json:"by_category"`
 	ByEndpoint      map[string]int `json:"by_endpoint"`
-	TrendData       []TrendPoint   `json:"trend_data,omitempty"`
+	// Detection statistics (v2.5.2)
+	DropsDetected  int            `json:"drops_detected,omitempty"`
+	BansDetected   int            `json:"bans_detected,omitempty"`
+	HostsSkipped   int            `json:"hosts_skipped,omitempty"`
+	DetectionStats map[string]int `json:"detection_stats,omitempty"`
+	TrendData      []TrendPoint   `json:"trend_data,omitempty"`
 }
 
 // TrendPoint represents a data point in a trend
@@ -130,8 +135,17 @@ type Report struct {
 
 // ReportBuilder builds reports from findings
 type ReportBuilder struct {
-	findings []*Finding
-	config   ReportConfig
+	findings       []*Finding
+	config         ReportConfig
+	detectionStats DetectionStats // v2.5.2: Detection statistics
+}
+
+// DetectionStats holds connection drop and silent ban detection data
+type DetectionStats struct {
+	DropsDetected  int
+	BansDetected   int
+	HostsSkipped   int
+	Details        map[string]int
 }
 
 // ReportConfig configures report generation
@@ -177,6 +191,16 @@ func (b *ReportBuilder) SetConfig(config ReportConfig) {
 // GetConfig returns the current configuration
 func (b *ReportBuilder) GetConfig() ReportConfig {
 	return b.config
+}
+
+// SetDetectionStats sets the detection statistics for the report (v2.5.2)
+func (b *ReportBuilder) SetDetectionStats(drops, bans, skipped int, details map[string]int) {
+	b.detectionStats = DetectionStats{
+		DropsDetected: drops,
+		BansDetected:  bans,
+		HostsSkipped:  skipped,
+		Details:       details,
+	}
 }
 
 // Build generates the report
@@ -296,6 +320,11 @@ func (b *ReportBuilder) calculateStatistics() Statistics {
 		VulnsFound: len(b.findings),
 		ByCategory: make(map[string]int),
 		ByEndpoint: make(map[string]int),
+		// v2.5.2: Include detection statistics
+		DropsDetected:  b.detectionStats.DropsDetected,
+		BansDetected:   b.detectionStats.BansDetected,
+		HostsSkipped:   b.detectionStats.HostsSkipped,
+		DetectionStats: b.detectionStats.Details,
 	}
 
 	for _, f := range b.findings {

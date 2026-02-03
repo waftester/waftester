@@ -181,6 +181,69 @@ func BenchmarkDefaultConfig(b *testing.B) {
 }
 
 // ============================================================================
+// TRANSPORT WRAPPER TESTS
+// ============================================================================
+
+func TestRegisterTransportWrapper(t *testing.T) {
+	// Save original state
+	wrapperMu.Lock()
+	origWrapper := transportWrapper
+	wrapperMu.Unlock()
+
+	// Clean up after test
+	defer func() {
+		wrapperMu.Lock()
+		transportWrapper = origWrapper
+		wrapperMu.Unlock()
+	}()
+
+	// Test registering a wrapper
+	called := false
+	testWrapper := func(rt http.RoundTripper) http.RoundTripper {
+		called = true
+		return rt
+	}
+
+	RegisterTransportWrapper(testWrapper)
+
+	// Create a new client - wrapper should be applied
+	client := New(DefaultConfig())
+	if client == nil {
+		t.Fatal("expected non-nil client")
+	}
+
+	// The wrapper was called during New()
+	if !called {
+		t.Error("expected wrapper to be called during New()")
+	}
+}
+
+func TestTransportWrapperNil(t *testing.T) {
+	// Save original state
+	wrapperMu.Lock()
+	origWrapper := transportWrapper
+	wrapperMu.Unlock()
+
+	// Set wrapper to nil
+	wrapperMu.Lock()
+	transportWrapper = nil
+	wrapperMu.Unlock()
+
+	// Clean up after test
+	defer func() {
+		wrapperMu.Lock()
+		transportWrapper = origWrapper
+		wrapperMu.Unlock()
+	}()
+
+	// Should still work without wrapper
+	client := New(DefaultConfig())
+	if client == nil {
+		t.Fatal("expected non-nil client")
+	}
+}
+
+// ============================================================================
 // ENFORCEMENT TESTS - Detect raw http.Client creation
 // ============================================================================
 
@@ -210,6 +273,7 @@ func findRawHTTPClients(t *testing.T) []string {
 		"ja3.go",             // JA3 fingerprinting needs custom transport
 		"client.go",          // browser/client.go needs cookie jar + custom redirect
 		"main.go",            // CLI needs custom transport/redirect for flags
+		"transport.go",       // detection/transport.go wraps existing transports
 	}
 
 	for _, dir := range []string{"pkg", "cmd"} {

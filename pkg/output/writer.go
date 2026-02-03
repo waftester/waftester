@@ -11,6 +11,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/waftester/waftester/pkg/defaults"
+	detectionoutput "github.com/waftester/waftester/pkg/output/detection"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -52,6 +53,11 @@ type ExecutionResults struct {
 	EncodingStats map[string]*EncodingEffectiveness `json:"encoding_stats,omitempty"`
 	// OWASP category breakdown
 	OWASPBreakdown map[string]int `json:"owasp_breakdown,omitempty"` // A01:2021 → count
+	// Detection statistics (v2.5.2)
+	DropsDetected  int            `json:"drops_detected,omitempty"`
+	BansDetected   int            `json:"bans_detected,omitempty"`
+	HostsSkipped   int            `json:"hosts_skipped,omitempty"`
+	DetectionStats map[string]int `json:"detection_stats,omitempty"`
 }
 
 // EncodingEffectiveness tracks how well each encoding evades the WAF
@@ -366,6 +372,16 @@ func PrintSummary(results ExecutionResults) {
 			}
 			color.Yellow("    • %s", err)
 		}
+	}
+
+	// Detection stats (v2.5.2 - using unified detection output package)
+	detStats := detectionoutput.Stats{
+		DropsDetected: results.DropsDetected,
+		BansDetected:  results.BansDetected,
+		HostsSkipped:  results.HostsSkipped,
+	}
+	if detStats.HasData() {
+		detStats.PrintConsole()
 	}
 
 	fmt.Println("\n" + strings.Repeat("═", 60))
