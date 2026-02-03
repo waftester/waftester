@@ -68,6 +68,7 @@ Complete usage examples for WAFtester commands and features.
   - [Realistic Mode](#realistic-mode)
   - [Resume and Checkpoints](#resume-and-checkpoints)
   - [JA3 Fingerprint Rotation](#ja3-fingerprint-rotation)
+  - [Connection Drop & Silent Ban Detection](#connection-drop--silent-ban-detection-v252)
 - [Browser Scanning](#browser-scanning)
 - [Multiple Targets](#multiple-targets)
 - [Utility Commands](#utility-commands)
@@ -3045,6 +3046,65 @@ waf-tester auto -u https://target.com -ja3-rotate -ja3-profile firefox121
 | `firefox121` | Firefox 121 TLS fingerprint |
 | `safari17` | Safari 17 TLS fingerprint |
 | `edge120` | Edge 120 TLS fingerprint |
+
+### Connection Drop & Silent Ban Detection (v2.5.2)
+
+WAFtester automatically detects when targets are dropping connections or silently banning your IP:
+
+```bash
+# Detection is automatic - no flags needed
+waf-tester scan -u https://target.com
+
+# View detection stats in verbose mode
+waf-tester scan -u https://target.com -v
+```
+
+#### Detection Types
+
+**Connection Drops** (network-level):
+| Type | Description |
+|------|-------------|
+| `tcp_reset` | Connection reset by peer (RST packet) |
+| `tls_abort` | TLS/SSL handshake failure |
+| `timeout` | No response within timeout |
+| `eof` | Unexpected end of stream |
+| `tarpit` | Response 3x slower than baseline |
+| `refused` | Connection actively refused |
+| `dns` | DNS resolution failure |
+
+**Silent Bans** (behavioral):
+| Type | Description |
+|------|-------------|
+| `rate_limit` | Rate limiting detected |
+| `ip_block` | IP-based blocking |
+| `behavioral` | Fingerprint-based blocking |
+| `honeypot` | Redirected to honeypot |
+| `geo_block` | Geographic blocking |
+
+#### Detection in JSON Output
+
+```bash
+waf-tester scan -u https://target.com -format json | jq '.results[] | select(.drop_detected or .ban_detected)'
+```
+
+Output includes:
+```json
+{
+  "drop_detected": true,
+  "drop_type": "tcp_reset",
+  "ban_detected": false,
+  "ban_type": "",
+  "ban_confidence": 0,
+  "latency_drift": 1.5
+}
+```
+
+#### Automatic Recovery
+
+When drops are detected:
+1. WAFtester waits with exponential backoff (5s → 10s → 20s → 30s max)
+2. After 2 successful probes, the host is considered recovered
+3. For high-confidence bans (≥80%), the host is marked as permanently failed
 
 ### Additional Options
 

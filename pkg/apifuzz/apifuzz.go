@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -165,9 +166,10 @@ type TesterConfig struct {
 
 // Tester handles API fuzzing.
 type Tester struct {
-	config *TesterConfig
-	client *http.Client
-	rng    *rand.Rand
+	config   *TesterConfig
+	client   *http.Client
+	rng      *rand.Rand
+	detector *detection.Detector
 }
 
 // DefaultConfig returns default configuration.
@@ -193,9 +195,10 @@ func NewTester(config *TesterConfig) *Tester {
 	}
 
 	return &Tester{
-		config: config,
-		client: httpclient.Fuzzing(),
-		rng:    rand.New(rand.NewSource(time.Now().UnixNano())),
+		config:   config,
+		client:   httpclient.Fuzzing(),
+		rng:      rand.New(rand.NewSource(time.Now().UnixNano())),
+		detector: detection.Default(),
 	}
 }
 
@@ -571,6 +574,11 @@ func (t *Tester) randomMutation() string {
 
 // sendFuzzRequest sends a fuzz request.
 func (t *Tester) sendFuzzRequest(ctx context.Context, baseURL string, endpoint Endpoint, param Parameter, payload string) (*FuzzResponse, error) {
+	// Check if host should be skipped due to connection issues
+	if skip, _ := t.detector.ShouldSkipHost(baseURL); skip {
+		return nil, fmt.Errorf("host skipped due to connection issues")
+	}
+
 	fullURL := baseURL + endpoint.Path
 
 	// Build request based on parameter location
@@ -617,11 +625,13 @@ func (t *Tester) sendFuzzRequest(ctx context.Context, baseURL string, endpoint E
 	duration := time.Since(startTime)
 
 	if err != nil {
+		t.detector.RecordError(baseURL, err)
 		return nil, err
 	}
 	defer iohelper.DrainAndClose(resp.Body)
 
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
+	t.detector.RecordResponse(baseURL, resp, duration, len(body))
 
 	headers := make(map[string]string)
 	for k, v := range resp.Header {
@@ -642,6 +652,11 @@ func (t *Tester) sendFuzzRequest(ctx context.Context, baseURL string, endpoint E
 
 // sendBodyFuzzRequest sends a fuzz request with body.
 func (t *Tester) sendBodyFuzzRequest(ctx context.Context, baseURL string, endpoint Endpoint, payload string) (*FuzzResponse, error) {
+	// Check if host should be skipped due to connection issues
+	if skip, _ := t.detector.ShouldSkipHost(baseURL); skip {
+		return nil, fmt.Errorf("host skipped due to connection issues")
+	}
+
 	fullURL := baseURL + endpoint.Path
 
 	req, err := http.NewRequestWithContext(ctx, endpoint.Method, fullURL, bytes.NewReader([]byte(payload)))
@@ -660,11 +675,13 @@ func (t *Tester) sendBodyFuzzRequest(ctx context.Context, baseURL string, endpoi
 	duration := time.Since(startTime)
 
 	if err != nil {
+		t.detector.RecordError(baseURL, err)
 		return nil, err
 	}
 	defer iohelper.DrainAndClose(resp.Body)
 
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
+	t.detector.RecordResponse(baseURL, resp, duration, len(body))
 
 	headers := make(map[string]string)
 	for k, v := range resp.Header {

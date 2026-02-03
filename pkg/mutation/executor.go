@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -110,6 +111,7 @@ type Executor struct {
 	blockDetector *realistic.BlockDetector // Intelligent block detection
 	builder       *realistic.Builder       // Realistic request building
 	fingerprinter *waf.Fingerprinter       // WAF fingerprinting (if CollectFingerprint enabled)
+	detector      *detection.Detector      // Connection drop and silent ban detection (v2.5.2)
 }
 
 // NewExecutor creates a new mutation executor
@@ -147,6 +149,9 @@ func NewExecutor(config *ExecutorConfig) *Executor {
 	if config.CollectFingerprint {
 		exec.fingerprinter = waf.NewFingerprinter(config.Timeout)
 	}
+
+	// Initialize detection system (v2.5.2)
+	exec.detector = detection.Default()
 
 	return exec
 }
@@ -369,6 +374,15 @@ func (e *Executor) executeTask(ctx context.Context, task MutationTask) *TestResu
 		result.MutatedPayload = task.Evasion.Mutated
 	}
 
+	// Check if host should be skipped (connection drops/silent bans detected)
+	if e.detector != nil {
+		if skip, reason := e.detector.ShouldSkipHost(e.config.TargetURL); skip {
+			result.Outcome = "Error"
+			result.ErrorMessage = fmt.Sprintf("Host skipped: %s", reason)
+			return result
+		}
+	}
+
 	// Build request based on location
 	req, err := e.buildRequest(ctx, task)
 	if err != nil {
@@ -395,6 +409,10 @@ func (e *Executor) executeTask(ctx context.Context, task MutationTask) *TestResu
 	result.LatencyMs = time.Since(start).Milliseconds()
 
 	if err != nil {
+		// Record error for connection drop detection (v2.5.2)
+		if e.detector != nil {
+			e.detector.RecordError(e.config.TargetURL, err)
+		}
 		result.Outcome = "Error"
 		result.ErrorMessage = err.Error()
 		return result
@@ -405,6 +423,11 @@ func (e *Executor) executeTask(ctx context.Context, task MutationTask) *TestResu
 	bodyBytes, _ := iohelper.ReadBody(resp.Body, iohelper.SmallMaxBodySize)
 	result.StatusCode = resp.StatusCode
 	result.ContentLength = len(bodyBytes)
+
+	// Record response for silent ban detection (v2.5.2)
+	if e.detector != nil {
+		e.detector.RecordResponse(e.config.TargetURL, resp, time.Duration(result.LatencyMs)*time.Millisecond, len(bodyBytes))
+	}
 
 	// Collect response headers if analyzing
 	if e.config.AnalyzeResponses {
