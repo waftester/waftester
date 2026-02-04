@@ -140,7 +140,7 @@ func (s Stats) writeSARIF(w io.Writer) error {
 				"tool": map[string]interface{}{
 					"driver": map[string]interface{}{
 						"name":    "waftester-detection",
-						"version": "2.5.2",
+						"version": "2.5.3",
 					},
 				},
 				"results": s.toSARIFResults(),
