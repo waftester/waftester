@@ -605,4 +605,3 @@ func TestCheckpoint_RaceGetPendingTargets(t *testing.T) {
 		t.Errorf("expected 0 pending after all marked, got %d", len(finalPending))
 	}
 }
-

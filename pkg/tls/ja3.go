@@ -9,9 +9,10 @@ package tls
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"net"
 	"net/http"
 	"strings"
@@ -84,9 +85,11 @@ func NewTransport(cfg *Config) *Transport {
 		verbose:      cfg.Verbose,
 	}
 
-	// Set initial random index (Go 1.20+ auto-seeds global rand)
+	// Set initial random index using crypto/rand for unpredictability
 	if len(profiles) > 0 {
-		t.currentIndex = rand.Intn(len(profiles))
+		if n, err := rand.Int(rand.Reader, big.NewInt(int64(len(profiles)))); err == nil {
+			t.currentIndex = int(n.Int64())
+		}
 	}
 
 	return t
@@ -107,8 +110,10 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		t.requestCount = 0
 		t.currentIndex = (t.currentIndex + 1) % len(t.profiles)
 	} else if t.rotateEvery == 0 {
-		// Random selection for each request
-		t.currentIndex = rand.Intn(len(t.profiles))
+		// Random selection for each request using crypto/rand
+		if n, err := rand.Int(rand.Reader, big.NewInt(int64(len(t.profiles)))); err == nil {
+			t.currentIndex = int(n.Int64())
+		}
 	}
 	t.mu.Unlock()
 
@@ -360,9 +365,11 @@ func NewFallbackTransport(cfg *Config) *FallbackTransport {
 		skipVerify:   cfg.SkipVerify,
 	}
 
-	// Set initial random index (Go 1.20+ auto-seeds global rand)
+	// Set initial random index using crypto/rand for unpredictability
 	if len(profiles) > 0 {
-		t.currentIndex = rand.Intn(len(profiles))
+		if n, err := rand.Int(rand.Reader, big.NewInt(int64(len(profiles)))); err == nil {
+			t.currentIndex = int(n.Int64())
+		}
 	}
 
 	return t
@@ -378,7 +385,9 @@ func (t *FallbackTransport) RoundTrip(req *http.Request) (*http.Response, error)
 		t.requestCount = 0
 		t.currentIndex = (t.currentIndex + 1) % len(t.profiles)
 	} else if t.rotateEvery == 0 {
-		t.currentIndex = rand.Intn(len(t.profiles))
+		if n, err := rand.Int(rand.Reader, big.NewInt(int64(len(t.profiles)))); err == nil {
+			t.currentIndex = int(n.Int64())
+		}
 	}
 	t.mu.Unlock()
 

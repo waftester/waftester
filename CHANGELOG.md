@@ -5,6 +5,68 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.0] - 2026-02-04
+
+### Added
+
+- **WAF Strategy Test Suite** (`pkg/waf/strategy/strategy_test.go`): 55 comprehensive tests
+  - `TestNewStrategyEngine_*` - engine initialization tests
+  - `TestBuildStrategy_*` - strategy building for all WAF vendors
+  - `TestPipeline_*` - tamper pipeline execution tests
+  - `TestRateLimiting_*` - WAF-aware rate limit configuration
+  - `TestTamperIntegration_*` - tamper chain integration tests
+  - `TestConcurrencySafety_*` - thread-safe strategy access
+
+### Changed
+
+- **Massive CLI Architecture Refactoring**: Split `cmd/cli/main.go` from **14,962 → 348 lines** (97.7% reduction)
+  - Created 14 focused command files for better maintainability:
+    - `cmd_scan.go` (2,553 lines) - vulnerability scanning command
+    - `cmd_autoscan.go` (2,114 lines) - automatic WAF testing command
+    - `cmd_probe.go` (3,424 lines) - protocol probing (httpx-compatible)
+    - `cmd_docs.go` (1,269 lines) - all documentation printing functions
+    - `cmd_misc.go` (824 lines) - smuggle, race, workflow, headless commands
+    - `cmd_fuzz.go` (649 lines) - content fuzzing command
+    - `cmd_tests.go` (543 lines) - WAF testing workflow command
+    - `cmd_mutate.go` (505 lines) - payload mutation command
+    - `cmd_crawl.go` (419 lines) - web crawling command
+    - `cmd_admin.go` (382 lines) - validate, update, report commands
+    - `cmd_bypass.go` (315 lines) - WAF bypass discovery command
+    - `cmd_analyze.go` (263 lines) - response analysis command
+    - `cmd_discover.go` (243 lines) - endpoint discovery command
+    - `cmd_learn.go` (178 lines) - WAF behavior learning command
+
+### Fixed
+
+- **Flaky Test Fix** (`pkg/evasion/advanced/tampers/tampers_test.go`): Fixed `TestChainByPriority_RespectsOrder`
+  - Replaced non-deterministic `modsecurityversioned` tamper with deterministic `base64encode` and `unmagicquotes`
+  - Test now reliably verifies priority ordering (Priority 0 before Priority 100)
+
+- **Security Hardening** (`pkg/workflow/workflow.go`): Command injection prevention
+  - Added `isAllowedExternalCommand()` with strict allowlist (echo, cat, grep, curl, nuclei, python, etc.)
+  - Added `validateFilePath()` for path traversal protection
+  - Blocks `..`, absolute paths, and suspicious patterns
+
+- **Cryptographic Randomness**: Replaced insecure `math/rand` with `crypto/rand`
+  - `pkg/tls/ja3.go`: Fixed 3 occurrences of random JA3 fingerprint generation
+  - `pkg/ssrf/ssrf.go`: Fixed random ID generation for SSRF probes
+
+### Removed
+
+- **Duplicate Packages**: Deleted 3 redundant packages to reduce codebase confusion
+  - `pkg/businesslogic/` - duplicate of `pkg/bizlogic/`
+  - `pkg/insecuredeser/` - duplicate of `pkg/deserialize/`
+  - `pkg/openredirect/` - duplicate of `pkg/redirect/`
+
+### Technical Details
+
+- Updated `cmd/cli/dispatcher_wiring_test.go` to scan all new command files
+- All dispatcher wiring tests pass with new file structure
+- Build verification: `go build ./...` passes
+- Test verification: All CLI and structural tests pass
+
+---
+
 ## [2.5.3] - 2026-02-03
 
 ### Added

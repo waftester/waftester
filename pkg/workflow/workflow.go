@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"text/template"
@@ -375,7 +376,16 @@ func (e *Engine) executeStep(ctx context.Context, step *Step, vars map[string]st
 	if step.Input != "" {
 		expanded := e.expand(step.Input, vars)
 		if strings.HasPrefix(expanded, "file:") {
-			data, err := os.ReadFile(strings.TrimPrefix(expanded, "file:"))
+			filePath := strings.TrimPrefix(expanded, "file:")
+			// Security: Validate path to prevent path traversal attacks
+			if err := e.validateFilePath(filePath); err != nil {
+				result.Status = "failed"
+				result.Error = fmt.Sprintf("security: %v", err)
+				result.EndTime = time.Now()
+				result.Duration = result.EndTime.Sub(result.StartTime)
+				return result
+			}
+			data, err := os.ReadFile(filePath)
 			if err == nil {
 				inputData = string(data)
 			}
@@ -405,7 +415,14 @@ func (e *Engine) executeStep(ctx context.Context, step *Step, vars map[string]st
 		cmdArgs := append([]string{command}, args...)
 		cmd = exec.CommandContext(ctx, e.WafTesterPath, cmdArgs...)
 	} else {
-		// External command
+		// External command - validate against allowlist for security
+		if !isAllowedExternalCommand(command) {
+			result.Status = "failed"
+			result.Error = fmt.Sprintf("security: command %q is not in the allowed command list", command)
+			result.EndTime = time.Now()
+			result.Duration = result.EndTime.Sub(result.StartTime)
+			return result
+		}
 		cmd = exec.CommandContext(ctx, command, args...)
 	}
 
@@ -637,6 +654,71 @@ func isWafTesterCommand(cmd string) bool {
 		}
 	}
 	return false
+}
+
+// isAllowedExternalCommand validates external commands against a security allowlist.
+// This prevents arbitrary command execution from user-controlled workflow files.
+func isAllowedExternalCommand(cmd string) bool {
+	// Allowlist of safe external commands that can be executed from workflows
+	allowedCommands := map[string]bool{
+		// Common safe utilities
+		"echo":   true,
+		"cat":    true,
+		"grep":   true,
+		"awk":    true,
+		"sed":    true,
+		"jq":     true,
+		"curl":   true,
+		"wget":   true,
+		"head":   true,
+		"tail":   true,
+		"sort":   true,
+		"uniq":   true,
+		"wc":     true,
+		"tee":    true,
+		"xargs":  true,
+		"tr":     true,
+		"cut":    true,
+		"base64": true,
+		// Nuclei integration
+		"nuclei": true,
+		// Python for scripting
+		"python":  true,
+		"python3": true,
+	}
+
+	// Extract base command name (handle paths like /usr/bin/echo)
+	baseName := filepath.Base(cmd)
+	return allowedCommands[baseName]
+}
+
+// validateFilePath checks for path traversal attacks.
+// It ensures the file path doesn't escape the workflow working directory.
+func (e *Engine) validateFilePath(path string) error {
+	// Clean the path to resolve any .. or . components
+	cleanPath := filepath.Clean(path)
+
+	// Check for absolute paths that try to escape
+	if filepath.IsAbs(cleanPath) {
+		// If we have a working directory, ensure the path is within it
+		if e.WorkDir != "" {
+			absWorkDir, err := filepath.Abs(e.WorkDir)
+			if err != nil {
+				return fmt.Errorf("invalid working directory: %w", err)
+			}
+			if !strings.HasPrefix(cleanPath, absWorkDir) {
+				return fmt.Errorf("path %q escapes working directory", path)
+			}
+		}
+		return nil
+	}
+
+	// For relative paths, check for traversal attempts
+	if strings.HasPrefix(cleanPath, "..") || strings.Contains(cleanPath, string(filepath.Separator)+"..") {
+		return fmt.Errorf("path traversal detected in %q", path)
+	}
+
+	return nil
 }
 
 // SaveWorkflow saves a workflow to a file
