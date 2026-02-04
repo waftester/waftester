@@ -60,7 +60,7 @@ func TestOptimizeListener(t *testing.T) {
 
 func TestDialControl(t *testing.T) {
 	ctrl := DialControl()
-	
+
 	if runtime.GOOS == "linux" {
 		if ctrl == nil {
 			t.Error("DialControl() on Linux should return a function")

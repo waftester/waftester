@@ -7,7 +7,7 @@ import (
 
 func TestSupported(t *testing.T) {
 	supported := Supported()
-	
+
 	if runtime.GOOS == "linux" {
 		// On Linux, io_uring may or may not be supported depending on kernel version
 		// Just verify the function runs without panic
@@ -40,7 +40,7 @@ func TestRingStubMethods(t *testing.T) {
 	}
 
 	r := &Ring{}
-	
+
 	// Test Read
 	buf := make([]byte, 100)
 	n, err := r.Read(0, buf)

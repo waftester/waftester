@@ -5,6 +5,53 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.2] - 2026-02-04
+
+### Added
+
+- **7 New CLI Commands**: Wire orphaned packages to CLI for full feature access
+  - `template` / `nuclei`: Nuclei-compatible YAML template scanner
+  - `grpc` / `grpc-test`: gRPC service testing via reflection
+  - `soap` / `wsdl`: SOAP/WSDL service testing and fuzzing
+  - `openapi` / `swagger`: OpenAPI specification security fuzzing
+  - `cicd` / `pipeline`: CI/CD pipeline configuration generator
+  - `plugin` / `plugins`: Plugin management system
+  - `cloud` / `cloud-discover`: Cloud resource discovery (AWS, Azure, GCP)
+
+- **Package Enhancements**:
+  - `pkg/nuclei`: Added `FilterOptions` struct and `LoadDirectory()` for recursive template loading
+  - `pkg/cloud`: Added `ResourceType` constants, `Discoverer`, `DiscovererConfig`, `DiscoveryRequest`, `DiscoveryResults`
+  - `pkg/grpc`: Added `InvokeMethod()` for raw gRPC invocation with service/method parsing
+  - `pkg/openapi`: Added `ParseFromFile()`, `ParseFromURL()` convenience functions
+  - `pkg/openapi`: Added `TestGenerator`, `GeneratorOptions`, `GeneratedTestCase`, `ExecuteFuzzTest()`
+  - `pkg/plugin`: Added `LoadBuiltins()`, `LoadFromDirectory()`, `IsBuiltin()`, `GetPluginInfo()`
+  - `pkg/soap`: Added `FetchAndParseWSDL()`, `GetOperations()` for WSDL parsing
+  - `pkg/ui`: Added ANSI color constants (Reset, Bold, Red, Green, Yellow, Blue, Magenta, Cyan, White, BoldRed)
+
+- **Documentation**:
+  - `docs/STRUCTURAL_ANALYSIS_REPORT.md`: Comprehensive codebase analysis report
+  - Updated CLI usage documentation with new API & Protocol Testing section
+
+### Fixed
+
+- **Duplicate Function Resolution** (`pkg/nuclei/nuclei.go`):
+  - Removed duplicate `FilterTemplates()` function, kept new `FilterOptions`-based version
+  - Added missing `filepath` import for directory walking
+
+- **Package Interface Corrections**:
+  - Fixed `cmd_plugin.go` to handle two-value `manager.Get()` return
+  - Fixed `pkg/soap/client.go` to use `duration.HTTPFuzzing` instead of hardcoded timeout
+
+- **Test Fixes**:
+  - Updated `pkg/nuclei/nuclei_test.go` to use new `FilterOptions` signature
+
+### Changed
+
+- Updated `cmd/cli/main.go` with 7 new command switch cases
+- Updated `cmd/cli/cmd_docs.go` with new API & Protocol Testing section
+
+---
+
 ## [2.6.1] - 2026-02-04
 
 ### Added

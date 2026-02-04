@@ -115,6 +115,20 @@ func main() {
 		runTests()
 	case "report", "html-report", "enterprise-report":
 		runEnterpriseReport()
+	case "template", "templates", "nuclei":
+		runTemplate()
+	case "grpc", "grpc-test":
+		runGRPC()
+	case "soap", "wsdl":
+		runSOAP()
+	case "openapi", "openapi-fuzz", "swagger":
+		runOpenAPI()
+	case "cicd", "ci-cd", "pipeline":
+		runCICD()
+	case "plugin", "plugins":
+		runPlugin()
+	case "cloud", "cloud-discover":
+		runCloud()
 	case "-h", "--help", "help":
 		printUsage()
 		os.Exit(0)
