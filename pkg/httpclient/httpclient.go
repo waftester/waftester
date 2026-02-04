@@ -8,7 +8,6 @@ import (
 	"crypto/tls"
 	"net"
 	"net/http"
-	"net/url"
 	"sync"
 	"time"
 
@@ -52,8 +51,23 @@ type Config struct {
 	// InsecureSkipVerify skips TLS certificate verification (default: true for security scanning)
 	InsecureSkipVerify bool
 
-	// Proxy is the HTTP/HTTPS proxy URL (optional)
+	// Proxy is the HTTP/HTTPS/SOCKS proxy URL (optional)
+	// Supported schemes: http://, https://, socks4://, socks5://, socks5h://
 	Proxy string
+
+	// ReplayProxy is a secondary proxy for matched/interesting requests (ffuf/feroxbuster pattern)
+	// Useful for sending only relevant findings to Burp/ZAP
+	ReplayProxy string
+
+	// SNI is the TLS Server Name Indication override (optional)
+	// When set, overrides the Host header value in TLS handshake
+	// Essential for testing hosts via IP address or CDN bypass
+	SNI string
+
+	// ProxyDNS controls DNS resolution for SOCKS5 proxies
+	// "local" = resolve locally (default for socks5://)
+	// "remote" = resolve on proxy (default for socks5h://)
+	ProxyDNS string
 
 	// MaxIdleConns is the maximum number of idle connections across all hosts (default: 100)
 	MaxIdleConns int
@@ -203,7 +217,36 @@ func New(cfg Config) *http.Client {
 	// Also apply platform-specific socket optimizations (TCP_NODELAY, larger buffers, etc.)
 	var dialContext func(ctx context.Context, network, address string) (net.Conn, error)
 
-	if cfg.UseDNSCache {
+	// Build TLS configuration with SNI support
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+	}
+	// Apply SNI override if configured
+	if cfg.SNI != "" {
+		tlsConfig.ServerName = cfg.SNI
+	}
+
+	// Parse proxy configuration if provided
+	var proxyConfig *ProxyConfig
+	if cfg.Proxy != "" {
+		var err error
+		proxyConfig, err = ParseProxyURL(cfg.Proxy)
+		if err != nil {
+			// Log warning but continue without proxy
+			// This matches the previous behavior of silently ignoring malformed URLs
+			proxyConfig = nil
+		}
+	}
+
+	// Determine dial context based on DNS caching and proxy type
+	if proxyConfig != nil && proxyConfig.IsSOCKS {
+		// SOCKS proxy requires custom dialer
+		socksDialer, err := CreateSOCKSDialer(proxyConfig, cfg.DialTimeout)
+		if err == nil {
+			dialContext = socksDialer.DialContext
+		}
+		// If SOCKS dialer creation fails, fall through to normal dialer
+	} else if cfg.UseDNSCache {
 		cachingDialer := NewCachingDialer(GetDNSCache(), cfg.DialTimeout)
 		// Wrap with socket optimization
 		dialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
@@ -243,22 +286,16 @@ func New(cfg Config) *http.Client {
 		WriteBufferSize: 32 * 1024, // 32KB write buffer
 		ReadBufferSize:  32 * 1024, // 32KB read buffer
 
-		// Dialer with timeouts (uses DNS caching if enabled)
+		// Dialer with timeouts (uses DNS caching if enabled, or SOCKS dialer)
 		DialContext: dialContext,
 
-		// TLS configuration
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: cfg.InsecureSkipVerify,
-		},
+		// TLS configuration with SNI support
+		TLSClientConfig: tlsConfig,
 	}
 
-	// Proxy support (optional)
-	if cfg.Proxy != "" {
-		proxyURL, err := url.Parse(cfg.Proxy)
-		if err == nil && proxyURL != nil {
-			transport.Proxy = http.ProxyURL(proxyURL)
-		}
-		// Silently ignore malformed proxy URLs - continue without proxy
+	// HTTP/HTTPS Proxy support (SOCKS is handled via DialContext above)
+	if proxyConfig != nil && !proxyConfig.IsSOCKS {
+		transport.Proxy = http.ProxyURL(proxyConfig.URL)
 	}
 
 	// Apply registered transport wrapper (e.g., detection)
@@ -287,6 +324,42 @@ func WithTimeout(timeout time.Duration) Config {
 func WithProxy(proxyURL string) Config {
 	cfg := DefaultConfig()
 	cfg.Proxy = proxyURL
+	return cfg
+}
+
+// WithSNI returns a new Config based on DefaultConfig with the specified SNI.
+// Convenience function for testing hosts via IP address with custom SNI.
+func WithSNI(sni string) Config {
+	cfg := DefaultConfig()
+	cfg.SNI = sni
+	return cfg
+}
+
+// WithProxyAndSNI returns a new Config with both proxy and SNI configured.
+// Convenience function for the common case of proxied scanning with SNI override.
+func WithProxyAndSNI(proxyURL, sni string) Config {
+	cfg := DefaultConfig()
+	cfg.Proxy = proxyURL
+	cfg.SNI = sni
+	return cfg
+}
+
+// WithBurp returns a Config pre-configured for Burp Suite integration.
+// Uses default Burp proxy (127.0.0.1:8080) with TLS verification disabled.
+// Based on feroxbuster's --burp flag pattern.
+func WithBurp() Config {
+	cfg := DefaultConfig()
+	cfg.Proxy = BurpProxyURL
+	cfg.InsecureSkipVerify = true
+	return cfg
+}
+
+// WithZAP returns a Config pre-configured for OWASP ZAP integration.
+// Uses default ZAP proxy (127.0.0.1:8081) with TLS verification disabled.
+func WithZAP() Config {
+	cfg := DefaultConfig()
+	cfg.Proxy = ZAPProxyURL
+	cfg.InsecureSkipVerify = true
 	return cfg
 }
 

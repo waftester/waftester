@@ -23,4 +23,9 @@ type ScanConfig struct {
 	ThrottleMs      int      `json:"throttle_ms,omitempty"`
 	FollowRedirects bool     `json:"follow_redirects"`
 	VerifySSL       bool     `json:"verify_ssl"`
+	
+	// Proxy and SNI configuration (v2.6.3)
+	Proxy       string `json:"proxy,omitempty"`
+	ReplayProxy string `json:"replay_proxy,omitempty"`
+	SNI         string `json:"sni,omitempty"`
 }

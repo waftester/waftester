@@ -371,7 +371,11 @@ waf-tester scan -u https://target.com --detect
 | `--tamper-profile` | Preset: stealth, standard, aggressive, bypass | - |
 | `-format` | Output: json, sarif, html, csv, md, pdf, template | json |
 | `-o` | Output file | - |
-| `-x` | Proxy (HTTP/SOCKS5) | - |
+| `-x` | Proxy (HTTP/HTTPS/SOCKS4/SOCKS5/SOCKS5h) | - |
+| `--sni` | Override TLS SNI for CDN bypass | - |
+| `--replay-proxy` / `-rp` | Duplicate traffic to security proxy | - |
+| `--burp` | Shortcut for Burp Suite proxy (127.0.0.1:8080) | false |
+| `--zap` | Shortcut for OWASP ZAP proxy (127.0.0.1:8081) | false |
 | `-H` | Custom headers | - |
 | `-types` | Test categories | all |
 | `--stream` | Real-time streaming output | false |

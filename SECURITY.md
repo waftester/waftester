@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 2.6.x   | :white_check_mark: |
 | 2.5.x   | :white_check_mark: |
 | 2.4.x   | :white_check_mark: |
 | 2.3.x   | :warning: Security fixes only |
@@ -11,7 +12,7 @@
 | 1.x.x   | :x:                |
 | < 1.0   | :x:                |
 
-**Current stable release: 2.6.2**
+**Current stable release: 2.6.3**
 
 ## Reporting a Vulnerability
 

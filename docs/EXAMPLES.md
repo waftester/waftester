@@ -978,8 +978,29 @@ Route through proxy:
 # HTTP proxy
 waf-tester probe -l targets.txt -proxy http://localhost:8080
 
+# HTTPS proxy
+waf-tester probe -l targets.txt -proxy https://localhost:8080
+
+# SOCKS4 proxy
+waf-tester probe -l targets.txt -proxy socks4://localhost:1080
+
 # SOCKS5 proxy
 waf-tester probe -l targets.txt -proxy socks5://localhost:1080
+
+# SOCKS5h proxy (DNS over proxy - enhanced anonymity)
+waf-tester probe -l targets.txt -proxy socks5h://localhost:1080
+
+# Burp Suite shortcut (127.0.0.1:8080)
+waf-tester probe -l targets.txt --burp
+
+# OWASP ZAP shortcut (127.0.0.1:8081)
+waf-tester probe -l targets.txt --zap
+
+# Replay proxy (duplicate traffic to security tool)
+waf-tester scan -u https://target.com --replay-proxy http://localhost:8080
+
+# Authenticated proxy
+waf-tester probe -l targets.txt -proxy http://user:pass@localhost:8080
 ```
 
 #### TLS/SSL Options
@@ -2960,11 +2981,35 @@ waf-tester scan -u https://target.com -cookie "session=abc123"
 # HTTP proxy
 waf-tester scan -u https://target.com -proxy http://127.0.0.1:8080
 
+# HTTPS proxy
+waf-tester scan -u https://target.com -proxy https://127.0.0.1:8080
+
+# SOCKS4 proxy
+waf-tester scan -u https://target.com -proxy socks4://127.0.0.1:1080
+
 # SOCKS5 proxy
 waf-tester scan -u https://target.com -proxy socks5://127.0.0.1:1080
 
-# Burp Suite integration
-waf-tester scan -u https://target.com -proxy http://127.0.0.1:8080 -k
+# SOCKS5h proxy (DNS queries routed through proxy)
+waf-tester scan -u https://target.com -proxy socks5h://127.0.0.1:1080
+
+# Burp Suite shortcut (sets proxy to 127.0.0.1:8080)
+waf-tester scan -u https://target.com --burp -k
+
+# OWASP ZAP shortcut (sets proxy to 127.0.0.1:8081)
+waf-tester scan -u https://target.com --zap -k
+
+# Replay proxy (duplicate traffic to security tool while scanning)
+waf-tester scan -u https://target.com --replay-proxy http://127.0.0.1:8080
+
+# SNI override (bypass CDN to test origin directly)
+waf-tester scan -u https://cdn.example.com --sni origin.example.com
+
+# Combined: Proxy + SNI + Burp replay
+waf-tester scan -u https://target.com \
+  -proxy socks5://tor-proxy:9050 \
+  --sni internal.target.com \
+  --replay-proxy http://127.0.0.1:8080
 ```
 
 ### Rate Limiting
