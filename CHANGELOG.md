@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Intelligence Engine** (`pkg/intelligence/`): 🧠 Transform auto mode from "automated sequencing" to "adaptive reasoning"
+  - **Learning Memory**: Stores all findings with indexing by category, phase, and path for cross-phase correlation
+  - **WAF Behavioral Model**: Learns WAF patterns (block rates, weaknesses, strengths) to adapt attack strategies
+  - **Technology Profiling**: Auto-detects frameworks, databases, servers, and languages to inform payload selection
+  - **Attack Chain Building**: Combines low-severity findings into high-impact compound attacks:
+    - Secret + Auth chains (leaked credentials + authentication endpoints)
+    - Leaky Path + Parameter chains (exposed paths + injectable parameters)
+    - Pattern Exploitation chains (consistent bypass patterns across endpoints)
+    - SSRF + Cloud chains (SSRF vulnerabilities + cloud metadata endpoints)
+    - XSS + DOM chains (XSS vulnerabilities + DOM sinks)
+    - SQLi + Auth Bypass chains (SQL injection + authentication bypass)
+  - **Smart Payload Recommendations**: Prioritizes payloads based on technology fingerprinting and bypass history
+  - **Resource Optimization**: Allocates testing resources to most promising attack vectors
+  - **Real-Time Insights**: Generates actionable insights during scan (bypass clusters, weak WAF rules, high-value endpoints)
+  - New flags: `--intelligence` (enabled by default), `--intelligence-verbose`
+  - Intelligence summary displayed before final report with top weaknesses, chains, and recommendations
+
 - **Enhanced Auto Mode Intelligence**:
   - **Auto-Resume**: Interrupted auto scans can now be resumed from the last checkpoint using `--resume` flag
   - **Auto-Report Multi-Format**: Generates multiple report formats using `--report-formats` flag (supports json, md, html, sarif)
