@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/waftester/waftester/pkg/assessment"
 	"github.com/waftester/waftester/pkg/browser"
 	"github.com/waftester/waftester/pkg/calibration"
+	"github.com/waftester/waftester/pkg/checkpoint"
 	"github.com/waftester/waftester/pkg/core"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
@@ -34,6 +36,7 @@ import (
 	detectionoutput "github.com/waftester/waftester/pkg/output/detection"
 	"github.com/waftester/waftester/pkg/params"
 	"github.com/waftester/waftester/pkg/payloads"
+	"github.com/waftester/waftester/pkg/ratelimit"
 	"github.com/waftester/waftester/pkg/recon"
 	"github.com/waftester/waftester/pkg/report"
 	tlsja3 "github.com/waftester/waftester/pkg/tls"
@@ -110,6 +113,16 @@ func runAutoScan() {
 
 	// Detection (v2.5.2)
 	noDetect := autoFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
+
+	// NEW v2.6.4: Auto-resume with checkpoint support
+	resumeScan := autoFlags.Bool("resume", false, "Resume interrupted scan from checkpoint")
+	checkpointFile := autoFlags.String("checkpoint", "", "Checkpoint file path (default: <workspace>/checkpoint.json)")
+
+	// NEW v2.6.4: Multi-format report generation
+	reportFormats := autoFlags.String("report-formats", "json,md,html", "Comma-separated report formats: json,md,html,sarif")
+
+	// NEW v2.6.4: Adaptive rate limiting
+	adaptiveRate := autoFlags.Bool("adaptive-rate", true, "Enable adaptive rate limiting (auto-adjust on WAF response)")
 
 	autoFlags.Parse(os.Args[2:])
 
@@ -213,6 +226,63 @@ func runAutoScan() {
 	testPlanFile := filepath.Join(workspaceDir, "testplan.json")
 	resultsFile := filepath.Join(workspaceDir, "results.json")
 	reportFile := filepath.Join(workspaceDir, "report.md")
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// AUTO-RESUME: Checkpoint Manager Initialization (v2.6.4)
+	// ═══════════════════════════════════════════════════════════════════════════
+	cpFile := *checkpointFile
+	if cpFile == "" {
+		cpFile = filepath.Join(workspaceDir, "checkpoint.json")
+	}
+	cpManager := checkpoint.NewManager(cpFile)
+
+	// Define scan phases for checkpoint tracking
+	phaseNames := []string{
+		"smart-mode",
+		"discovery",
+		"leaky-paths",
+		"js-analysis",
+		"param-discovery",
+		"learning",
+		"waf-testing",
+		"assessment",
+		"browser-scan",
+	}
+
+	// Initialize checkpoint with phase names as targets
+	cpManager.Init("auto", phaseNames, map[string]interface{}{
+		"target":      target,
+		"workspace":   workspaceDir,
+		"concurrency": *concurrency,
+		"rate_limit":  *rateLimit,
+	})
+
+	// Helper to check if phase is completed (for resume)
+	isPhaseCompleted := func(name string) bool {
+		return cpManager.IsCompleted(name)
+	}
+
+	// Helper to mark phase as completed and save checkpoint
+	markPhaseCompleted := func(name string) {
+		_ = cpManager.MarkCompleted(name)
+	}
+
+	// Check for resume mode
+	if *resumeScan && cpManager.Exists() {
+		state, err := cpManager.Load()
+		if err == nil && state != nil {
+			ui.PrintInfo(fmt.Sprintf("Resuming scan from checkpoint (started: %s)", state.StartTime.Format(time.RFC3339)))
+
+			completedCount := state.CompletedTargets
+			ui.PrintSuccess(fmt.Sprintf("  Restored %d completed phases, resuming from phase %d", completedCount, completedCount+1))
+		}
+	}
+
+	// Silence unused variable warnings
+	_ = isPhaseCompleted
+	_ = markPhaseCompleted
+	_ = resumeScan
+	_ = checkpointFile
 
 	fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("Configuration"))
 	ui.PrintConfigLine("Target", target)
@@ -422,6 +492,9 @@ func runAutoScan() {
 	autoProgress.SetMetric("endpoints", int64(len(discResult.Endpoints)))
 	autoProgress.SetStatus("Leaky paths")
 	autoProgress.Increment()
+
+	// Mark discovery phase complete for resume
+	markPhaseCompleted("discovery")
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 1.5: LEAKY PATHS SCANNING (NEW - competitive feature from leaky-paths)
@@ -1371,6 +1444,87 @@ func runAutoScan() {
 	}
 	printStatusLn()
 
+	// ═══════════════════════════════════════════════════════════════════════════
+	// ADAPTIVE RATE LIMITING (v2.6.4)
+	// Auto-adjust rate on WAF detection events (drops, bans, 429s)
+	// ═══════════════════════════════════════════════════════════════════════════
+	currentRateLimit := *rateLimit
+	currentConcurrency := *concurrency
+	rateMu := &sync.Mutex{}
+
+	// Create adaptive rate limiter if enabled
+	var adaptiveLimiter *ratelimit.Limiter
+	if *adaptiveRate {
+		adaptiveLimiter = ratelimit.New(&ratelimit.Config{
+			RequestsPerSecond: *rateLimit,
+			AdaptiveSlowdown:  true,
+			SlowdownFactor:    1.5,
+			SlowdownMaxDelay:  5 * time.Second,
+			RecoveryRate:      0.9,
+			Burst:             *concurrency,
+		})
+		ui.PrintInfo("📊 Adaptive rate limiting enabled (auto-adjusts on WAF response)")
+	}
+
+	// Auto-escalation callback: reduce rate when WAF drops/bans detected
+	escalationCount := int32(0)
+	autoEscalate := func(reason string) {
+		count := atomic.AddInt32(&escalationCount, 1)
+		if count > 5 {
+			// Don't escalate too many times
+			return
+		}
+
+		rateMu.Lock()
+		defer rateMu.Unlock()
+
+		oldRate := currentRateLimit
+		oldConc := currentConcurrency
+
+		// Reduce by 50%
+		currentRateLimit = currentRateLimit / 2
+		if currentRateLimit < 10 {
+			currentRateLimit = 10 // Floor
+		}
+		currentConcurrency = currentConcurrency / 2
+		if currentConcurrency < 5 {
+			currentConcurrency = 5 // Floor
+		}
+
+		ui.PrintWarning(fmt.Sprintf("⚡ Auto-escalation triggered (%s): rate %d→%d, concurrency %d→%d",
+			reason, oldRate, currentRateLimit, oldConc, currentConcurrency))
+
+		// Notify adaptive limiter
+		if adaptiveLimiter != nil {
+			adaptiveLimiter.OnError()
+		}
+
+		// Emit to dispatcher
+		if autoDispCtx != nil {
+			escalateDesc := fmt.Sprintf("Auto-escalation: %s - rate reduced to %d, concurrency to %d",
+				reason, currentRateLimit, currentConcurrency)
+			_ = autoDispCtx.EmitBypass(ctx, "auto-escalation", "warning", target, escalateDesc, 0)
+		}
+	}
+
+	// Register detection callbacks for auto-escalation
+	detector := detection.Default()
+	detector.OnDrop(func(host string, result *detection.DropResult) {
+		if result.Consecutive >= 3 {
+			autoEscalate(fmt.Sprintf("connection drops (%d consecutive)", result.Consecutive))
+		}
+	})
+	detector.OnBan(func(host string, result *detection.BanResult) {
+		if result.Banned {
+			autoEscalate(fmt.Sprintf("silent ban detected (%s)", result.Type))
+		}
+	})
+
+	// Silence unused variable warnings
+	_ = adaptiveRate
+	_ = adaptiveLimiter
+	_ = rateMu
+
 	// Create progress tracker
 	progress := ui.NewProgress(ui.ProgressConfig{
 		Total:       len(allPayloads),
@@ -1378,7 +1532,7 @@ func runAutoScan() {
 		ShowPercent: true,
 		ShowETA:     true,
 		ShowRPS:     true,
-		Concurrency: *concurrency,
+		Concurrency: currentConcurrency,
 		TurboMode:   true,
 	})
 
@@ -1401,16 +1555,16 @@ func runAutoScan() {
 	if !quietMode {
 		fmt.Fprintf(os.Stderr, "\n  %s Running with %s parallel workers @ %s req/sec max\n\n",
 			ui.SpinnerStyle.Render(">>>"),
-			ui.StatValueStyle.Render(fmt.Sprintf("%d", *concurrency)),
-			ui.StatValueStyle.Render(fmt.Sprintf("%d", *rateLimit)),
+			ui.StatValueStyle.Render(fmt.Sprintf("%d", currentConcurrency)),
+			ui.StatValueStyle.Render(fmt.Sprintf("%d", currentRateLimit)),
 		)
 	}
 
-	// Create and run executor
+	// Create and run executor (using current adaptive values)
 	executor := core.NewExecutor(core.ExecutorConfig{
 		TargetURL:     target,
-		Concurrency:   *concurrency,
-		RateLimit:     *rateLimit,
+		Concurrency:   currentConcurrency,
+		RateLimit:     currentRateLimit,
 		Timeout:       time.Duration(*timeout) * time.Second,
 		Retries:       defaults.RetryLow,
 		Filter:        &filterCfg,
@@ -1419,6 +1573,9 @@ func runAutoScan() {
 		HTTPClient:    ja3Client, // JA3 TLS fingerprint rotation
 		// Real-time streaming to hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
 		OnResult: func(result *output.TestResult) {
+			// Adaptive rate: call OnError for 429, OnSuccess otherwise
+			handleAdaptiveRate(result.StatusCode, result.Outcome, adaptiveLimiter, autoEscalate)
+
 			// Emit every test result for complete telemetry
 			if autoDispCtx != nil {
 				blocked := result.Outcome == "Blocked"
@@ -1441,6 +1598,9 @@ func runAutoScan() {
 	autoProgress.AddMetricN("bypasses", int64(results.FailedTests))
 	autoProgress.SetStatus("Analysis")
 	autoProgress.Increment()
+
+	// Mark WAF testing phase complete for resume
+	markPhaseCompleted("waf-testing")
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 4.5: VENDOR-SPECIFIC WAF ANALYSIS (NEW)
@@ -1601,8 +1761,42 @@ func runAutoScan() {
 		output.PrintSummary(results)
 	}
 
-	// Generate markdown report
-	generateAutoMarkdownReport(reportFile, target, domain, scanDuration, discResult, allJSData, testPlan, results, wafEffectiveness)
+	// ═══════════════════════════════════════════════════════════════════════════
+	// MULTI-FORMAT REPORT GENERATION (v2.6.4)
+	// ═══════════════════════════════════════════════════════════════════════════
+	formats := strings.Split(*reportFormats, ",")
+	generatedReports := make([]string, 0, len(formats))
+
+	for _, format := range formats {
+		format = strings.TrimSpace(strings.ToLower(format))
+		switch format {
+		case "md", "markdown":
+			// Generate markdown report
+			generateAutoMarkdownReport(reportFile, target, domain, scanDuration, discResult, allJSData, testPlan, results, wafEffectiveness)
+			generatedReports = append(generatedReports, reportFile)
+		case "json":
+			// JSON is already generated as results.json
+			generatedReports = append(generatedReports, resultsFile)
+		case "html":
+			// HTML enterprise report will be generated after assessment
+			htmlFile := filepath.Join(workspaceDir, "report.html")
+			if err := report.GenerateEnterpriseHTMLReportFromWorkspace(workspaceDir, domain, scanDuration, htmlFile); err == nil {
+				generatedReports = append(generatedReports, htmlFile)
+			}
+		case "sarif":
+			// SARIF format for CI/CD integration (GitHub Code Scanning, etc.)
+			sarifFile := filepath.Join(workspaceDir, "report.sarif")
+			if err := generateSARIFReport(sarifFile, target, results); err == nil {
+				generatedReports = append(generatedReports, sarifFile)
+				if !quietMode {
+					ui.PrintInfo(fmt.Sprintf("📋 SARIF report generated: %s", sarifFile))
+				}
+			}
+		}
+	}
+
+	// Silence unused variable warning
+	_ = reportFormats
 
 	// Generate summary.json for CI/CD integration
 	summaryFile := filepath.Join(workspaceDir, "summary.json")
@@ -2125,6 +2319,19 @@ func runAutoScan() {
 	}
 }
 
+// handleAdaptiveRate processes adaptive rate limiting based on response
+func handleAdaptiveRate(statusCode int, outcome string, limiter *ratelimit.Limiter, escalate func(string)) {
+	if limiter == nil {
+		return
+	}
+	if statusCode == 429 {
+		limiter.OnError()
+		escalate("HTTP 429 Too Many Requests")
+	} else if outcome != "Error" {
+		limiter.OnSuccess()
+	}
+}
+
 // inferHTTPMethod tries to determine the HTTP method from path and source
 func inferHTTPMethod(path, source string) string {
 	pathLower := strings.ToLower(path)
@@ -2376,4 +2583,150 @@ func generateAutoMarkdownReport(filename, target, domain string, duration time.D
 	sb.WriteString(fmt.Sprintf("*Report generated by WAF-Tester v%s - Superpower Mode*\n", ui.Version))
 
 	os.WriteFile(filename, []byte(sb.String()), 0644)
+}
+
+// generateSARIFReport creates a SARIF format report for CI/CD integration
+// SARIF (Static Analysis Results Interchange Format) is used by GitHub Code Scanning,
+// Azure DevOps, and other security analysis tools.
+func generateSARIFReport(filename, target string, results output.ExecutionResults) error {
+	// SARIF 2.1.0 schema
+	sarif := map[string]interface{}{
+		"version": "2.1.0",
+		"$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+		"runs": []map[string]interface{}{
+			{
+				"tool": map[string]interface{}{
+					"driver": map[string]interface{}{
+						"name":            "WAFtester",
+						"version":         defaults.Version,
+						"informationUri":  "https://github.com/waftester/waftester",
+						"semanticVersion": defaults.Version,
+						"rules":           buildSARIFRules(results),
+					},
+				},
+				"results":    buildSARIFResults(target, results),
+				"invocations": []map[string]interface{}{
+					{
+						"executionSuccessful": true,
+						"endTimeUtc":          time.Now().UTC().Format(time.RFC3339),
+					},
+				},
+			},
+		},
+	}
+
+	data, err := json.MarshalIndent(sarif, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(filename, data, 0644)
+}
+
+// buildSARIFRules creates rule definitions from categories
+func buildSARIFRules(results output.ExecutionResults) []map[string]interface{} {
+	rules := make([]map[string]interface{}, 0)
+	seenCategories := make(map[string]bool)
+
+	for _, bypass := range results.BypassDetails {
+		if seenCategories[bypass.Category] {
+			continue
+		}
+		seenCategories[bypass.Category] = true
+
+		level := "warning"
+		switch strings.ToLower(bypass.Severity) {
+		case "critical", "high":
+			level = "error"
+		case "medium":
+			level = "warning"
+		case "low", "info":
+			level = "note"
+		}
+
+		rules = append(rules, map[string]interface{}{
+			"id":   bypass.Category,
+			"name": bypass.Category,
+			"shortDescription": map[string]string{
+				"text": fmt.Sprintf("WAF bypass: %s", bypass.Category),
+			},
+			"fullDescription": map[string]string{
+				"text": fmt.Sprintf("WAF bypass detected for %s attack category", bypass.Category),
+			},
+			"defaultConfiguration": map[string]string{
+				"level": level,
+			},
+			"properties": map[string]interface{}{
+				"security-severity": severityToScore(bypass.Severity),
+				"tags":              []string{"security", "waf-bypass", bypass.Category},
+			},
+		})
+	}
+
+	return rules
+}
+
+// buildSARIFResults creates result entries from bypass details
+func buildSARIFResults(target string, results output.ExecutionResults) []map[string]interface{} {
+	sarifResults := make([]map[string]interface{}, 0, len(results.BypassDetails))
+
+	for _, bypass := range results.BypassDetails {
+		level := "warning"
+		switch strings.ToLower(bypass.Severity) {
+		case "critical", "high":
+			level = "error"
+		case "medium":
+			level = "warning"
+		case "low", "info":
+			level = "note"
+		}
+
+		sarifResults = append(sarifResults, map[string]interface{}{
+			"ruleId": bypass.Category,
+			"level":  level,
+			"message": map[string]string{
+				"text": fmt.Sprintf("WAF bypass detected: %s payload passed through WAF on endpoint %s (HTTP %d)",
+					bypass.Category, bypass.Endpoint, bypass.StatusCode),
+			},
+			"locations": []map[string]interface{}{
+				{
+					"physicalLocation": map[string]interface{}{
+						"artifactLocation": map[string]string{
+							"uri": target + bypass.Endpoint,
+						},
+					},
+					"logicalLocations": []map[string]interface{}{
+						{
+							"name": bypass.Endpoint,
+							"kind": "endpoint",
+						},
+					},
+				},
+			},
+			"properties": map[string]interface{}{
+				"payload":     bypass.Payload,
+				"statusCode":  bypass.StatusCode,
+				"method":      bypass.Method,
+				"curlCommand": bypass.CurlCommand,
+			},
+		})
+	}
+
+	return sarifResults
+}
+
+// severityToScore converts severity string to CVSS-like score
+func severityToScore(severity string) string {
+	switch strings.ToLower(severity) {
+	case "critical":
+		return "9.5"
+	case "high":
+		return "8.0"
+	case "medium":
+		return "5.5"
+	case "low":
+		return "3.0"
+	default:
+		return "1.0"
+	}
 }

@@ -5,6 +5,63 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.4] - 2026-02-05
+
+### Added
+
+- **Enhanced Auto Mode Intelligence**:
+  - **Auto-Resume**: Interrupted auto scans can now be resumed from the last checkpoint using `--resume` flag
+  - **Auto-Report Multi-Format**: Generates multiple report formats using `--report-formats` flag (supports json, md, html, sarif)
+  - **Auto-Escalation**: Automatically reduces rate and concurrency when connection drops, silent bans, or HTTP 429 responses are detected
+  - **Auto-Rate Adjustment**: Integrates adaptive rate limiting from `pkg/ratelimit` to dynamically adjust request rate based on WAF response
+
+- **SARIF Report Generation**:
+  - New SARIF 2.1.0 format output for CI/CD integration (GitHub Code Scanning, Azure DevOps)
+  - Use `--report-formats sarif` or `--report-formats json,md,html,sarif` for multi-format output
+  - SARIF reports include bypass severity scores, endpoint locations, and reproducible curl commands
+
+- **New Auto Mode Flags**:
+  - `--resume`: Resume a previously interrupted auto scan from checkpoint
+  - `--checkpoint <file>`: Custom checkpoint file path (default: `<workspace>/checkpoint.json`)
+  - `--report-formats <list>`: Comma-separated output formats (default: json,md,html)
+  - `--adaptive-rate`: Enable dynamic rate adjustment based on WAF response (default: true)
+
+- **Auto Mode Checkpoint Integration** (`pkg/checkpoint/`):
+  - Auto mode now saves progress after each phase completion
+  - Checkpoint file stored in workspace directory as `checkpoint.json`
+  - Supports resumption from discovery, JS analysis, parameter discovery, and WAF testing phases
+
+- **Detection-Triggered Auto-Escalation**:
+  - Registers callbacks with `pkg/detection` to automatically respond to:
+    - Connection drops (3+ consecutive drops trigger escalation)
+    - Silent bans (WAF behavioral changes trigger escalation)
+    - HTTP 429 Too Many Requests responses
+  - Escalation reduces rate by 50% and concurrency by 50% (floors: rate=10, concurrency=5)
+  - Maximum 5 escalation events per scan to prevent stalling
+
+### Changed
+
+- **Documentation Overhaul**:
+  - Complete README.md rewrite with enterprise-grade structure and professional presentation
+  - Reorganized content following industry best practices (Nuclei, Trivy, httpx patterns)
+  - Added problem/solution narrative explaining WAFtester's value proposition
+  - Enhanced comparison tables with detailed feature breakdowns
+  - Removed all emojis for enterprise consistency
+
+- **Examples Guide Enhancement** (`docs/EXAMPLES.md`):
+  - Added detailed "When to Use" guidance for all core commands
+  - Expanded command descriptions with business context and value propositions
+  - Added interpretation guidance for assessment metrics
+  - Included expected output descriptions for each command category
+  - Structured examples by use case with recommendation tables
+
+### Fixed
+
+- Auto mode progress display correctly updates phase count during multi-format report generation
+- Executor uses current adaptive rate values instead of initial flag values
+
+---
+
 ## [2.6.3] - 2026-02-04
 
 ### Added
