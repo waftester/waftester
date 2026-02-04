@@ -680,6 +680,11 @@ func isAllowedExternalCommand(cmd string) bool {
 		"tr":     true,
 		"cut":    true,
 		"base64": true,
+		"sleep":  true,
+		"ping":   true, // Used for timeout simulation on Windows
+		// Windows shell (needed for cross-platform workflows)
+		"cmd":     true,
+		"cmd.exe": true,
 		// Nuclei integration
 		"nuclei": true,
 		// Python for scripting
