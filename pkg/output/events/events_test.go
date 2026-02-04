@@ -3,6 +3,7 @@ package events
 import (
 	"encoding/json"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -1057,4 +1058,427 @@ func TestJSONRoundTripNewEvents(t *testing.T) {
 // containsField checks if JSON contains a specific field name
 func containsField(jsonStr, field string) bool {
 	return strings.Contains(jsonStr, `"`+field+`"`)
+}
+
+// =============================================================================
+// Concurrent Access Tests
+// =============================================================================
+
+// TestEvent_ConcurrentJSON_Race tests concurrent JSON marshaling of the same event.
+// This verifies that events are safe to marshal from multiple goroutines.
+func TestEvent_ConcurrentJSON_Race(t *testing.T) {
+	now := time.Now()
+	event := &ResultEvent{
+		BaseEvent: BaseEvent{
+			Type: EventTypeResult,
+			Time: now,
+			Scan: "scan-concurrent-123",
+		},
+		Test: TestInfo{
+			ID:       "sqli-001",
+			Name:     "SQL Injection Test",
+			Category: "sqli",
+			Severity: SeverityCritical,
+			OWASP:    []string{"A03:2021"},
+			CWE:      []int{89},
+		},
+		Target: TargetInfo{
+			URL:       "https://example.com/api",
+			Method:    "POST",
+			Endpoint:  "/api/login",
+			Parameter: "username",
+		},
+		Result: ResultInfo{
+			Outcome:       OutcomeBypass,
+			StatusCode:    200,
+			LatencyMs:     42.5,
+			ContentLength: 1024,
+		},
+		Evidence: &Evidence{
+			Payload:         "' OR 1=1--",
+			EncodedPayload:  "%27%20OR%201%3D1--",
+			CurlCommand:     "curl -X POST https://example.com/api",
+			RequestHeaders:  map[string]string{"Content-Type": "application/json"},
+			ResponsePreview: "<html>...",
+		},
+		Context: &ContextInfo{
+			Phase:            "scanning",
+			Tamper:           "space2comment",
+			Encoding:         "url",
+			EvasionTechnique: "case-switching",
+		},
+	}
+
+	const numGoroutines = 100
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines)
+
+	errors := make(chan error, numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			defer wg.Done()
+			data, err := json.Marshal(event)
+			if err != nil {
+				errors <- err
+				return
+			}
+			// Verify the JSON is valid and contains expected fields
+			if !containsField(string(data), "type") {
+				errors <- json.Unmarshal([]byte("invalid"), nil) // Force an error
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(errors)
+
+	for err := range errors {
+		t.Errorf("concurrent JSON marshaling failed: %v", err)
+	}
+}
+
+// TestResultEvent_ConcurrentAccess tests concurrent field reads on ResultEvent.
+// This verifies that reading event fields from multiple goroutines is safe.
+func TestResultEvent_ConcurrentAccess(t *testing.T) {
+	now := time.Now()
+	event := &ResultEvent{
+		BaseEvent: BaseEvent{
+			Type: EventTypeResult,
+			Time: now,
+			Scan: "scan-result-concurrent",
+		},
+		Test: TestInfo{
+			ID:       "xss-042",
+			Name:     "XSS Detection Test",
+			Category: "xss",
+			Severity: SeverityHigh,
+			OWASP:    []string{"A03:2021", "A07:2021"},
+			CWE:      []int{79, 80},
+			Tags:     []string{"browser", "dom"},
+		},
+		Target: TargetInfo{
+			URL:       "https://example.com/search",
+			Method:    "GET",
+			Endpoint:  "/search",
+			Parameter: "q",
+		},
+		Result: ResultInfo{
+			Outcome:       OutcomeBlocked,
+			StatusCode:    403,
+			LatencyMs:     15.2,
+			ContentLength: 512,
+			WAFSignature:  "cloudflare-block",
+		},
+		Evidence: &Evidence{
+			Payload:        "<script>alert(1)</script>",
+			EncodedPayload: "%3Cscript%3Ealert(1)%3C/script%3E",
+			CurlCommand:    "curl -X GET 'https://example.com/search?q=<script>alert(1)</script>'",
+		},
+		Context: &ContextInfo{
+			Phase:    "testing",
+			Encoding: "url",
+		},
+	}
+
+	const numGoroutines = 100
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func(idx int) {
+			defer wg.Done()
+
+			// Read BaseEvent fields via interface methods
+			_ = event.EventType()
+			_ = event.ScanID()
+			_ = event.Timestamp()
+
+			// Read embedded BaseEvent fields directly
+			_ = event.Type
+			_ = event.Time
+			_ = event.Scan
+
+			// Read Test fields
+			_ = event.Test.ID
+			_ = event.Test.Name
+			_ = event.Test.Category
+			_ = event.Test.Severity
+			_ = len(event.Test.OWASP)
+			_ = len(event.Test.CWE)
+			_ = len(event.Test.Tags)
+
+			// Read Target fields
+			_ = event.Target.URL
+			_ = event.Target.Method
+			_ = event.Target.Endpoint
+			_ = event.Target.Parameter
+
+			// Read Result fields
+			_ = event.Result.Outcome
+			_ = event.Result.StatusCode
+			_ = event.Result.LatencyMs
+			_ = event.Result.ContentLength
+			_ = event.Result.WAFSignature
+
+			// Read Evidence fields (pointer)
+			if event.Evidence != nil {
+				_ = event.Evidence.Payload
+				_ = event.Evidence.EncodedPayload
+				_ = event.Evidence.CurlCommand
+			}
+
+			// Read Context fields (pointer)
+			if event.Context != nil {
+				_ = event.Context.Phase
+				_ = event.Context.Encoding
+			}
+		}(i)
+	}
+
+	wg.Wait()
+}
+
+// TestBypassEvent_ConcurrentAccess tests concurrent field reads on BypassEvent.
+// This verifies that reading bypass event fields from multiple goroutines is safe.
+func TestBypassEvent_ConcurrentAccess(t *testing.T) {
+	now := time.Now()
+	event := &BypassEvent{
+		BaseEvent: BaseEvent{
+			Type: EventTypeBypass,
+			Time: now,
+			Scan: "scan-bypass-concurrent",
+		},
+		Priority: "critical",
+		Alert: AlertInfo{
+			Title:          "WAF BYPASS DETECTED",
+			Description:    "SQL injection bypassed WAF protection",
+			ActionRequired: "Immediate review and remediation required",
+		},
+		Details: BypassDetail{
+			TestID:     "sqli-042",
+			Category:   "SQL Injection",
+			Severity:   SeverityCritical,
+			OWASP:      []string{"A03:2021"},
+			CWE:        []int{89},
+			Endpoint:   "/api/login",
+			Method:     "POST",
+			StatusCode: 200,
+			Payload:    "' OR 1=1--",
+			Curl:       "curl -X POST https://example.com/api/login -d 'username=' OR 1=1--'",
+			Encoding:   "url",
+			Tamper:     "space2comment",
+		},
+		Context: AlertContext{
+			WAFDetected:   "Cloudflare",
+			TestsSoFar:    1500,
+			BypassesSoFar: 3,
+		},
+	}
+
+	const numGoroutines = 100
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func(idx int) {
+			defer wg.Done()
+
+			// Read BaseEvent fields via interface methods
+			_ = event.EventType()
+			_ = event.ScanID()
+			_ = event.Timestamp()
+
+			// Read embedded BaseEvent fields directly
+			_ = event.Type
+			_ = event.Time
+			_ = event.Scan
+
+			// Read Priority
+			_ = event.Priority
+
+			// Read Alert fields
+			_ = event.Alert.Title
+			_ = event.Alert.Description
+			_ = event.Alert.ActionRequired
+
+			// Read Details fields
+			_ = event.Details.TestID
+			_ = event.Details.Category
+			_ = event.Details.Severity
+			_ = len(event.Details.OWASP)
+			_ = len(event.Details.CWE)
+			_ = event.Details.Endpoint
+			_ = event.Details.Method
+			_ = event.Details.StatusCode
+			_ = event.Details.Payload
+			_ = event.Details.Curl
+			_ = event.Details.Encoding
+			_ = event.Details.Tamper
+
+			// Read Context fields
+			_ = event.Context.WAFDetected
+			_ = event.Context.TestsSoFar
+			_ = event.Context.BypassesSoFar
+		}(i)
+	}
+
+	wg.Wait()
+}
+
+// TestSummaryEvent_ConcurrentAccess tests concurrent field reads on SummaryEvent.
+// This verifies that reading summary event fields from multiple goroutines is safe.
+func TestSummaryEvent_ConcurrentAccess(t *testing.T) {
+	startedAt := time.Now().Add(-5 * time.Minute)
+	completedAt := time.Now()
+	event := &SummaryEvent{
+		BaseEvent: BaseEvent{
+			Type: EventTypeSummary,
+			Time: completedAt,
+			Scan: "scan-summary-concurrent",
+		},
+		Version: "2.5.0",
+		Target: SummaryTarget{
+			URL:           "https://example.com",
+			WAFDetected:   "Cloudflare",
+			WAFConfidence: 0.95,
+		},
+		Totals: SummaryTotals{
+			Tests:    2800,
+			Bypasses: 12,
+			Blocked:  2750,
+			Errors:   5,
+			Passes:   30,
+			Timeouts: 3,
+		},
+		Effectiveness: EffectivenessInfo{
+			BlockRatePct:   99.6,
+			Grade:          "A+",
+			Recommendation: "WAF is performing excellently",
+		},
+		Breakdown: BreakdownInfo{
+			BySeverity: map[string]CategoryStats{
+				"critical": {Total: 100, Bypasses: 5, BlockRate: 95.0},
+				"high":     {Total: 200, Bypasses: 4, BlockRate: 98.0},
+				"medium":   {Total: 300, Bypasses: 2, BlockRate: 99.3},
+				"low":      {Total: 400, Bypasses: 1, BlockRate: 99.75},
+			},
+			ByCategory: map[string]CategoryStats{
+				"sqli": {Total: 500, Bypasses: 3, BlockRate: 99.4},
+				"xss":  {Total: 600, Bypasses: 5, BlockRate: 99.2},
+				"lfi":  {Total: 400, Bypasses: 2, BlockRate: 99.5},
+			},
+			ByOWASP: map[string]OWASPStats{
+				"A03:2021": {Name: "Injection", Total: 600, Bypasses: 4},
+				"A07:2021": {Name: "XSS", Total: 500, Bypasses: 5},
+			},
+			ByEncoding: map[string]CategoryStats{
+				"url":    {Total: 1000, Bypasses: 2, BlockRate: 99.8},
+				"base64": {Total: 500, Bypasses: 3, BlockRate: 99.4},
+			},
+		},
+		TopBypasses: []BypassInfo{
+			{ID: "sqli-042", Severity: "critical", Category: "SQL Injection", Encoding: "url"},
+			{ID: "xss-015", Severity: "high", Category: "XSS", Encoding: "html"},
+			{ID: "lfi-008", Severity: "high", Category: "LFI", Encoding: "double-url"},
+		},
+		Latency: LatencyInfo{
+			MinMs: 10,
+			MaxMs: 500,
+			AvgMs: 50,
+			P50Ms: 45,
+			P95Ms: 150,
+			P99Ms: 300,
+		},
+		Timing: SummaryTiming{
+			StartedAt:      startedAt,
+			CompletedAt:    completedAt,
+			DurationSec:    300.0,
+			RequestsPerSec: 9.33,
+		},
+		ExitCode:   1,
+		ExitReason: "bypasses_detected",
+	}
+
+	const numGoroutines = 100
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func(idx int) {
+			defer wg.Done()
+
+			// Read BaseEvent fields via interface methods
+			_ = event.EventType()
+			_ = event.ScanID()
+			_ = event.Timestamp()
+
+			// Read embedded BaseEvent fields directly
+			_ = event.Type
+			_ = event.Time
+			_ = event.Scan
+
+			// Read Version
+			_ = event.Version
+
+			// Read Target fields
+			_ = event.Target.URL
+			_ = event.Target.WAFDetected
+			_ = event.Target.WAFConfidence
+
+			// Read Totals fields
+			_ = event.Totals.Tests
+			_ = event.Totals.Bypasses
+			_ = event.Totals.Blocked
+			_ = event.Totals.Errors
+			_ = event.Totals.Passes
+			_ = event.Totals.Timeouts
+
+			// Read Effectiveness fields
+			_ = event.Effectiveness.BlockRatePct
+			_ = event.Effectiveness.Grade
+			_ = event.Effectiveness.Recommendation
+
+			// Read Breakdown fields (maps - concurrent read is safe)
+			_ = len(event.Breakdown.BySeverity)
+			_ = len(event.Breakdown.ByCategory)
+			_ = len(event.Breakdown.ByOWASP)
+			_ = len(event.Breakdown.ByEncoding)
+
+			// Read individual map entries (concurrent read is safe if no writes)
+			if stats, ok := event.Breakdown.BySeverity["critical"]; ok {
+				_ = stats.Total
+				_ = stats.Bypasses
+				_ = stats.BlockRate
+			}
+
+			// Read TopBypasses slice
+			_ = len(event.TopBypasses)
+			if len(event.TopBypasses) > 0 {
+				_ = event.TopBypasses[0].ID
+				_ = event.TopBypasses[0].Severity
+				_ = event.TopBypasses[0].Category
+			}
+
+			// Read Latency fields
+			_ = event.Latency.MinMs
+			_ = event.Latency.MaxMs
+			_ = event.Latency.AvgMs
+			_ = event.Latency.P50Ms
+			_ = event.Latency.P95Ms
+			_ = event.Latency.P99Ms
+
+			// Read Timing fields
+			_ = event.Timing.StartedAt
+			_ = event.Timing.CompletedAt
+			_ = event.Timing.DurationSec
+			_ = event.Timing.RequestsPerSec
+
+			// Read exit fields
+			_ = event.ExitCode
+			_ = event.ExitReason
+		}(i)
+	}
+
+	wg.Wait()
 }

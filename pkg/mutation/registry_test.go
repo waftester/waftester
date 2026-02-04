@@ -1,6 +1,8 @@
 package mutation
 
 import (
+	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -214,4 +216,185 @@ func (m *mockMutator) Mutate(payload string) []MutatedPayload {
 		Mutated:     payload,
 		MutatorName: m.name,
 	}}
+}
+
+// TestRegistry_ConcurrentMutateWithAll tests that 50 goroutines can call MutateWithAll simultaneously
+// without race conditions or data corruption.
+func TestRegistry_ConcurrentMutateWithAll(t *testing.T) {
+	r := NewRegistry()
+
+	// Register several mutators
+	for i := 0; i < 10; i++ {
+		idx := i // capture for closure
+		r.Register(&mockMutator{
+			name:     "mutator_" + string(rune('a'+idx)),
+			category: "encoder",
+			mutateFunc: func(p string) []MutatedPayload {
+				return []MutatedPayload{{
+					Original:    p,
+					Mutated:     p + "_mutated",
+					MutatorName: "mutator_" + string(rune('a'+idx)),
+				}}
+			},
+		})
+	}
+
+	const numGoroutines = 50
+	var wg sync.WaitGroup
+	var successCount atomic.Int64
+
+	wg.Add(numGoroutines)
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
+			defer wg.Done()
+			results := r.MutateWithAll("payload")
+			if len(results) == 10 {
+				successCount.Add(1)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	if successCount.Load() != numGoroutines {
+		t.Errorf("Expected %d successful calls, got %d", numGoroutines, successCount.Load())
+	}
+}
+
+// TestRegistry_ConcurrentRegisterAndMutate tests concurrent registration and mutation
+// to ensure thread safety when one goroutine registers while another mutates.
+func TestRegistry_ConcurrentRegisterAndMutate(t *testing.T) {
+	r := NewRegistry()
+
+	// Pre-register some mutators
+	for i := 0; i < 5; i++ {
+		idx := i
+		r.Register(&mockMutator{
+			name:     "initial_" + string(rune('a'+idx)),
+			category: "encoder",
+			mutateFunc: func(p string) []MutatedPayload {
+				return []MutatedPayload{{
+					Original:    p,
+					Mutated:     p + "_init",
+					MutatorName: "initial_" + string(rune('a'+idx)),
+				}}
+			},
+		})
+	}
+
+	var wg sync.WaitGroup
+	var mutateCount atomic.Int64
+	var registerCount atomic.Int64
+
+	// Goroutine that registers new mutators
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 20; i++ {
+			idx := i
+			r.Register(&mockMutator{
+				name:     "dynamic_" + string(rune('a'+idx%26)),
+				category: "encoder",
+				mutateFunc: func(p string) []MutatedPayload {
+					return []MutatedPayload{{
+						Original:    p,
+						Mutated:     p + "_dyn",
+						MutatorName: "dynamic_" + string(rune('a'+idx%26)),
+					}}
+				},
+			})
+			registerCount.Add(1)
+		}
+	}()
+
+	// Goroutine that mutates
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 50; i++ {
+			results := r.MutateWithAll("test_payload")
+			if len(results) > 0 {
+				mutateCount.Add(1)
+			}
+		}
+	}()
+
+	wg.Wait()
+
+	if registerCount.Load() != 20 {
+		t.Errorf("Expected 20 registrations, got %d", registerCount.Load())
+	}
+	if mutateCount.Load() != 50 {
+		t.Errorf("Expected 50 mutation calls, got %d", mutateCount.Load())
+	}
+}
+
+// TestChainMutate_ConcurrentChains tests parallel chain execution
+// to ensure ChainMutate is thread-safe under concurrent access.
+func TestChainMutate_ConcurrentChains(t *testing.T) {
+	r := NewRegistry()
+
+	// Register mutators for chaining
+	r.Register(&mockMutator{
+		name:     "chain_prefix",
+		category: "encoder",
+		mutateFunc: func(p string) []MutatedPayload {
+			return []MutatedPayload{{
+				Original:    p,
+				Mutated:     "PREFIX_" + p,
+				MutatorName: "chain_prefix",
+			}}
+		},
+	})
+	r.Register(&mockMutator{
+		name:     "chain_suffix",
+		category: "encoder",
+		mutateFunc: func(p string) []MutatedPayload {
+			return []MutatedPayload{{
+				Original:    p,
+				Mutated:     p + "_SUFFIX",
+				MutatorName: "chain_suffix",
+			}}
+		},
+	})
+	r.Register(&mockMutator{
+		name:     "chain_wrap",
+		category: "encoder",
+		mutateFunc: func(p string) []MutatedPayload {
+			return []MutatedPayload{{
+				Original:    p,
+				Mutated:     "[" + p + "]",
+				MutatorName: "chain_wrap",
+			}}
+		},
+	})
+
+	const numGoroutines = 30
+	var wg sync.WaitGroup
+	var successCount atomic.Int64
+
+	chains := [][]string{
+		{"chain_prefix", "chain_suffix"},
+		{"chain_wrap", "chain_prefix"},
+		{"chain_suffix", "chain_wrap"},
+		{"chain_prefix", "chain_suffix", "chain_wrap"},
+	}
+
+	wg.Add(numGoroutines)
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
+			defer wg.Done()
+			chain := chains[id%len(chains)]
+			results := r.ChainMutate("payload", chain)
+			if len(results) > 0 && results[0].Mutated != "" {
+				successCount.Add(1)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	if successCount.Load() != numGoroutines {
+		t.Errorf("Expected %d successful chain mutations, got %d", numGoroutines, successCount.Load())
+	}
 }
