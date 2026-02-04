@@ -2,6 +2,7 @@ package events
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -1125,7 +1126,7 @@ func TestEvent_ConcurrentJSON_Race(t *testing.T) {
 			}
 			// Verify the JSON is valid and contains expected fields
 			if !containsField(string(data), "type") {
-				errors <- json.Unmarshal([]byte("invalid"), nil) // Force an error
+				errors <- fmt.Errorf("JSON missing 'type' field")
 			}
 		}()
 	}
