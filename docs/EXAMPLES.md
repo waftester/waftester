@@ -73,6 +73,14 @@ Complete usage examples for WAFtester commands and features.
 - [Multiple Targets](#multiple-targets)
 - [Utility Commands](#utility-commands)
   - [Enterprise Report Generation](#enterprise-report-generation-report)
+- [API & Protocol Commands (v2.6.2)](#api--protocol-commands-v262)
+  - [Template Scanner (template)](#template-scanner-template)
+  - [gRPC Testing (grpc)](#grpc-testing-grpc)
+  - [SOAP/WSDL Testing (soap)](#soapwsdl-testing-soap)
+  - [OpenAPI Fuzzing (openapi)](#openapi-fuzzing-openapi)
+  - [CI/CD Generator (cicd)](#cicd-generator-cicd)
+  - [Plugin Manager (plugin)](#plugin-manager-plugin)
+  - [Cloud Discovery (cloud)](#cloud-discovery-cloud)
 - [Attack Categories Reference](#attack-categories-reference)
 - [Real-World Scenarios](#real-world-scenarios)
 
@@ -3224,6 +3232,193 @@ waf-tester validate-templates
 ```bash
 waf-tester tampers --list
 waf-tester tampers --category encoding
+```
+
+---
+
+## API & Protocol Commands (v2.6.2)
+
+New dedicated commands for API and protocol testing, providing deeper integration than the generic `scan -types` approach.
+
+### Template Scanner (template)
+
+Run Nuclei-compatible YAML templates for custom vulnerability detection.
+
+```bash
+# Scan with templates from a directory
+waf-tester template -u https://target.com -t templates/
+
+# Scan with a single template file
+waf-tester template -u https://target.com -t sqli-detection.yaml
+
+# Filter by severity
+waf-tester template -u https://target.com -t templates/ --severity critical,high
+
+# Filter by tags
+waf-tester template -u https://target.com -t templates/ --tags waf,bypass
+
+# Validate templates without running
+waf-tester template -t templates/ --validate
+
+# Multiple targets from file
+waf-tester template -l targets.txt -t templates/ -o results.json
+```
+
+### gRPC Testing (grpc)
+
+Test gRPC services using server reflection.
+
+```bash
+# List available services via reflection
+waf-tester grpc -u localhost:50051 --list
+
+# Describe a specific service
+waf-tester grpc -u localhost:50051 --describe grpc.health.v1.Health
+
+# Call a specific method
+waf-tester grpc -u localhost:50051 --call myservice.MyMethod \
+  -d '{"field": "value"}'
+
+# Call with metadata headers
+waf-tester grpc -u localhost:50051 --call myservice.MyMethod \
+  -d '{"id": 1}' \
+  --metadata "authorization:Bearer token123"
+
+# Fuzz all methods with injection payloads
+waf-tester grpc -u localhost:50051 --fuzz --category sqli
+
+# Fuzz with specific category
+waf-tester grpc -u localhost:50051 --fuzz --category xss -o grpc-results.json
+```
+
+### SOAP/WSDL Testing (soap)
+
+Test SOAP services and parse WSDL definitions.
+
+```bash
+# List operations from WSDL
+waf-tester soap --wsdl https://api.example.com/service?wsdl --list
+
+# Call a specific operation
+waf-tester soap -u https://api.example.com/service \
+  --operation GetUser \
+  -d '<GetUser><id>1</id></GetUser>'
+
+# Fuzz SOAP service with XXE payloads
+waf-tester soap -u https://api.example.com/service --fuzz --category xxe
+
+# Fuzz with SQL injection payloads
+waf-tester soap -u https://api.example.com/service --fuzz --category sqli
+
+# Save results
+waf-tester soap --wsdl https://api.example.com?wsdl --list -o wsdl-operations.json
+```
+
+### OpenAPI Fuzzing (openapi)
+
+Security test APIs using their OpenAPI/Swagger specification.
+
+```bash
+# List all endpoints from spec
+waf-tester openapi -spec openapi.yaml --list
+
+# List from URL
+waf-tester openapi --spec-url https://api.example.com/openapi.json --list
+
+# Fuzz all endpoints
+waf-tester openapi -spec openapi.yaml --fuzz -u https://api.example.com
+
+# Fuzz with specific attack type
+waf-tester openapi -spec openapi.yaml --fuzz --scan-type sqli
+
+# Filter to specific path
+waf-tester openapi -spec openapi.yaml --fuzz --path /api/users
+
+# With authentication
+waf-tester openapi -spec openapi.yaml --fuzz \
+  --bearer "eyJhbGc..." \
+  -u https://api.example.com
+
+# With API key
+waf-tester openapi -spec openapi.yaml --fuzz \
+  --api-key "my-secret-key" \
+  --api-key-header "X-API-Key"
+```
+
+### CI/CD Generator (cicd)
+
+Generate CI/CD pipeline configurations for WAF testing.
+
+```bash
+# List supported platforms
+waf-tester cicd --list
+
+# Generate GitHub Actions workflow
+waf-tester cicd -p github-actions -u https://target.com -o .github/workflows/waf-test.yml
+
+# Generate GitLab CI
+waf-tester cicd -p gitlab-ci -u '$TARGET_URL' -o gitlab-waf.yml
+
+# Generate Jenkins pipeline
+waf-tester cicd -p jenkins -u https://target.com
+
+# With Slack notifications
+waf-tester cicd -p github-actions -u https://target.com --slack
+
+# Custom scanners and fail conditions
+waf-tester cicd -p github-actions -u https://target.com \
+  --scanners sqli,xss \
+  --fail-high \
+  --fail-medium
+```
+
+### Plugin Manager (plugin)
+
+Manage custom scanner plugins.
+
+```bash
+# List installed plugins
+waf-tester plugin --list
+
+# Load a plugin
+waf-tester plugin --load ./my-scanner.so
+
+# Get plugin info
+waf-tester plugin --info my-scanner
+
+# Run a specific plugin
+waf-tester plugin --run my-scanner -u https://target.com
+
+# Run with custom config
+waf-tester plugin --run my-scanner -u https://target.com \
+  --config-json '{"depth": 3}'
+```
+
+### Cloud Discovery (cloud)
+
+Discover cloud resources (S3, Azure Blob, GCP Storage, etc.).
+
+```bash
+# Discover cloud resources for a domain
+waf-tester cloud -d example.com
+
+# Specific providers only
+waf-tester cloud -d example.com --providers aws,azure
+
+# Specific resource types
+waf-tester cloud -d example.com --types storage,cdn
+
+# Organization-based discovery
+waf-tester cloud --org mycompany --types storage
+
+# Passive only (no active requests)
+waf-tester cloud -d example.com --passive
+
+# With custom wordlist
+waf-tester cloud -d example.com -w buckets.txt
+
+# Save results
+waf-tester cloud -d example.com -o cloud-resources.json
 ```
 
 ---
