@@ -71,8 +71,14 @@ type Config struct {
 
 	// Advanced settings
 	Headers    map[string]string // Custom headers
-	Proxy      string            // Proxy URL
+	Proxy      string            // Proxy URL (http/https/socks4/socks5/socks5h)
+	ReplayProxy string           // Secondary proxy for matched requests (Burp integration)
+	SNI        string            // TLS SNI override for testing hosts via IP
 	SkipVerify bool              // Skip TLS verification
+
+	// Proxy shortcuts (feroxbuster-style)
+	UseBurp bool // Shortcut for --proxy http://127.0.0.1:8080 --skip-verify
+	UseZAP  bool // Shortcut for --proxy http://127.0.0.1:8081 --skip-verify
 
 	// Input settings
 	StdinInput bool // Read targets from stdin
@@ -176,8 +182,13 @@ func ParseFlags() (*Config, error) {
 	flag.BoolVar(&cfg.NonInteractive, "ni", false, "Disable interactive (alias)")
 
 	// === NETWORK ===
-	flag.StringVar(&cfg.Proxy, "proxy", "", "HTTP/SOCKS5 proxy URL")
+	flag.StringVar(&cfg.Proxy, "proxy", "", "Proxy URL (http/https/socks4/socks5/socks5h)")
 	flag.StringVar(&cfg.Proxy, "x", "", "Proxy (alias)")
+	flag.StringVar(&cfg.ReplayProxy, "replay-proxy", "", "Secondary proxy for matched requests (Burp/ZAP integration)")
+	flag.StringVar(&cfg.ReplayProxy, "rp", "", "Replay proxy (alias)")
+	flag.StringVar(&cfg.SNI, "sni", "", "TLS SNI hostname override (for testing via IP or CDN bypass)")
+	flag.BoolVar(&cfg.UseBurp, "burp", false, "Shortcut: --proxy http://127.0.0.1:8080 --skip-verify")
+	flag.BoolVar(&cfg.UseZAP, "zap", false, "Shortcut: --proxy http://127.0.0.1:8081 --skip-verify")
 	flag.BoolVar(&cfg.SkipVerify, "skip-verify", false, "Skip TLS verification")
 	flag.BoolVar(&cfg.SkipVerify, "k", false, "Skip TLS (alias)")
 
@@ -198,6 +209,20 @@ func ParseFlags() (*Config, error) {
 	// Handle JSONL format shortcut
 	if cfg.JSONLines {
 		cfg.OutputFormat = "jsonl"
+	}
+
+	// Handle Burp/ZAP proxy shortcuts (feroxbuster-style)
+	if cfg.UseBurp {
+		if cfg.Proxy == "" {
+			cfg.Proxy = "http://127.0.0.1:8080"
+		}
+		cfg.SkipVerify = true
+	}
+	if cfg.UseZAP {
+		if cfg.Proxy == "" {
+			cfg.Proxy = "http://127.0.0.1:8081"
+		}
+		cfg.SkipVerify = true
 	}
 
 	// Auto-enable silent mode for JSON/JSONL output formats to avoid contaminating stdout
