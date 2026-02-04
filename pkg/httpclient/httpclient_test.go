@@ -273,6 +273,8 @@ func findRawHTTPClients(t *testing.T) []string {
 		"ja3.go",             // JA3 fingerprinting needs custom transport
 		"client.go",          // browser/client.go needs cookie jar + custom redirect
 		"main.go",            // CLI needs custom transport/redirect for flags
+		"cmd_scan.go",        // CLI scan needs custom redirect policy based on flags
+		"cmd_probe.go",       // CLI probe needs custom resolver/transport/redirect
 		"transport.go",       // detection/transport.go wraps existing transports
 	}
 
