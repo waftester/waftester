@@ -76,7 +76,7 @@ type Executor struct {
 	httpClient *http.Client
 	limiter    *rate.Limiter
 	enhancer   *realistic.ExecutorEnhancer // Realistic mode enhancer
-	detector   *detection.Detector          // Connection drop and silent ban detection
+	detector   *detection.Detector         // Connection drop and silent ban detection
 }
 
 // NewExecutor creates a new parallel executor

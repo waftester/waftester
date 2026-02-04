@@ -40,6 +40,150 @@ type Resource struct {
 	Tags         map[string]string `json:"tags,omitempty"`
 	Metadata     map[string]string `json:"metadata,omitempty"`
 	DiscoveredAt time.Time         `json:"discovered_at"`
+	Accessible   bool              `json:"accessible,omitempty"`   // Whether resource is publicly accessible
+	URL          string            `json:"url,omitempty"`          // Primary URL for the resource
+	Details      map[string]string `json:"details,omitempty"`      // Additional resource details
+}
+
+// ResourceType represents a type of cloud resource
+type ResourceType string
+
+const (
+	TypeStorage      ResourceType = "storage"
+	TypeCompute      ResourceType = "compute"
+	TypeDatabase     ResourceType = "database"
+	TypeLoadBalancer ResourceType = "load_balancer"
+	TypeCDN          ResourceType = "cdn"
+	TypeFunction     ResourceType = "function"
+	TypeFunctions    ResourceType = "functions"
+	TypeContainer    ResourceType = "container"
+	TypeAPIGateway   ResourceType = "api_gateway"
+	TypeAPI          ResourceType = "api"
+	TypeDNS          ResourceType = "dns"
+	TypeVPC          ResourceType = "vpc"
+)
+
+// DiscovererConfig configures a cloud resource discoverer
+type DiscovererConfig struct {
+	Providers    []Provider        // Which cloud providers to scan
+	Regions      []string          // Specific regions to scan
+	Credentials  map[string]string // Provider credentials
+	Timeout      time.Duration     // Discovery timeout
+	MaxResults   int               // Maximum resources per type
+	PublicOnly   bool              // Only discover publicly accessible resources
+	Concurrency  int               // Number of concurrent requests
+	RateLimit    float64           // Requests per second
+	PassiveOnly  bool              // Only use passive discovery techniques
+	UseCT        bool              // Use Certificate Transparency logs
+	UseDNS       bool              // Use DNS enumeration
+	WordlistPath string            // Path to wordlist for brute forcing
+}
+
+// DiscoveryRequest represents a request for cloud resource discovery
+type DiscoveryRequest struct {
+	Types     []ResourceType // Resource types to discover
+	Regions   []string       // Regions to scan
+	Tags      map[string]string
+	Domain    string           // Target domain
+	OrgName   string           // Organization name
+	Providers []Provider       // Cloud providers to scan
+}
+
+// DiscoveryResults holds the results of a cloud discovery
+type DiscoveryResults struct {
+	Resources []*Resource `json:"resources"`
+	Targets   []string    `json:"targets"`
+	Stats     *DiscoveryStats
+}
+
+// Discoverer provides cloud resource discovery functionality
+type Discoverer struct {
+	config  DiscovererConfig
+	manager *Manager
+}
+
+// NewDiscoverer creates a new cloud discoverer
+func NewDiscoverer(config DiscovererConfig) *Discoverer {
+	d := &Discoverer{
+		config:  config,
+		manager: NewManager(),
+	}
+	return d
+}
+
+// Discover finds cloud resources matching the request
+func (d *Discoverer) Discover(ctx context.Context, req DiscoveryRequest) (*DiscoveryResults, error) {
+	// Use providers from request if specified, otherwise use config
+	providers := req.Providers
+	if len(providers) == 0 {
+		providers = d.config.Providers
+	}
+
+	// Register clients based on available credentials
+	for _, provider := range providers {
+		if _, exists := d.manager.GetClient(provider); !exists {
+			switch provider {
+			case ProviderAWS:
+				if d.config.Credentials != nil {
+					if accessKey, ok := d.config.Credentials["aws_access_key"]; ok {
+						secretKey := d.config.Credentials["aws_secret_key"]
+						regions := d.config.Regions
+						if len(regions) == 0 {
+							regions = []string{"us-east-1"}
+						}
+						client := NewAWSClient(accessKey, secretKey, regions[0])
+						d.manager.RegisterClient(client)
+					}
+				}
+			case ProviderAzure:
+				if d.config.Credentials != nil {
+					if tenantID, ok := d.config.Credentials["azure_tenant_id"]; ok {
+						clientID := d.config.Credentials["azure_client_id"]
+						clientSecret := d.config.Credentials["azure_client_secret"]
+						subID := d.config.Credentials["azure_subscription_id"]
+						client := NewAzureClient(tenantID, clientID, clientSecret, subID)
+						d.manager.RegisterClient(client)
+					}
+				}
+			case ProviderGCP:
+				if d.config.Credentials != nil {
+					if projectID, ok := d.config.Credentials["gcp_project_id"]; ok {
+						client := NewGCPClient(projectID, d.config.Credentials["gcp_credentials_file"])
+						d.manager.RegisterClient(client)
+					}
+				}
+			}
+		}
+	}
+
+	filter := &Filter{
+		Regions:    req.Regions,
+		Types:      resourceTypesToStrings(req.Types),
+		Tags:       req.Tags,
+		PublicOnly: d.config.PublicOnly,
+		MaxResults: d.config.MaxResults,
+	}
+
+	resources, err := d.manager.DiscoverAll(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	targets := d.manager.ExtractTargets(resources)
+
+	return &DiscoveryResults{
+		Resources: resources,
+		Targets:   targets,
+	}, nil
+}
+
+// resourceTypesToStrings converts ResourceType slice to string slice
+func resourceTypesToStrings(types []ResourceType) []string {
+	result := make([]string, len(types))
+	for i, t := range types {
+		result[i] = string(t)
+	}
+	return result
 }
 
 // CloudClient is the interface for cloud provider clients

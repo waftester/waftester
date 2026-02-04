@@ -632,7 +632,7 @@ func TestFilterTemplates_BySeverity(t *testing.T) {
 		{ID: "t3", Info: Info{Name: "T3", Severity: "low"}},
 	}
 
-	filtered := FilterTemplates(templates, nil, []string{"critical", "high"})
+	filtered := FilterTemplates(templates, FilterOptions{Severity: "critical,high"})
 
 	if len(filtered) != 2 {
 		t.Errorf("expected 2 templates, got %d", len(filtered))
@@ -646,7 +646,7 @@ func TestFilterTemplates_ByTags(t *testing.T) {
 		{ID: "t3", Info: Info{Name: "T3", Tags: "misc"}},
 	}
 
-	filtered := FilterTemplates(templates, []string{"sqli"}, nil)
+	filtered := FilterTemplates(templates, FilterOptions{Tags: "sqli"})
 
 	if len(filtered) != 1 {
 		t.Errorf("expected 1 template, got %d", len(filtered))

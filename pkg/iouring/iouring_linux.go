@@ -83,22 +83,22 @@ type cqe struct {
 
 // io_uring syscall numbers (Linux 5.1+)
 const (
-	SYS_IO_URING_SETUP   = 425
-	SYS_IO_URING_ENTER   = 426
+	SYS_IO_URING_SETUP    = 425
+	SYS_IO_URING_ENTER    = 426
 	SYS_IO_URING_REGISTER = 427
 )
 
 // io_uring operations
 const (
-	IORING_OP_NOP      = 0
-	IORING_OP_READV    = 1
-	IORING_OP_WRITEV   = 2
-	IORING_OP_READ     = 22
-	IORING_OP_WRITE    = 23
-	IORING_OP_SEND     = 26
-	IORING_OP_RECV     = 27
-	IORING_OP_CONNECT  = 16
-	IORING_OP_ACCEPT   = 19
+	IORING_OP_NOP     = 0
+	IORING_OP_READV   = 1
+	IORING_OP_WRITEV  = 2
+	IORING_OP_READ    = 22
+	IORING_OP_WRITE   = 23
+	IORING_OP_SEND    = 26
+	IORING_OP_RECV    = 27
+	IORING_OP_CONNECT = 16
+	IORING_OP_ACCEPT  = 19
 )
 
 // io_uring flags
@@ -296,8 +296,8 @@ func (r *Ring) submitAndWait(minComplete uint32) error {
 	_, _, errno := syscall.Syscall6(
 		SYS_IO_URING_ENTER,
 		uintptr(r.fd),
-		1,                         // submit 1
-		uintptr(minComplete),      // wait for completions
+		1,                    // submit 1
+		uintptr(minComplete), // wait for completions
 		IORING_ENTER_GETEVENTS,
 		0, 0,
 	)

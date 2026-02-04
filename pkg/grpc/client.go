@@ -3,6 +3,7 @@ package grpc
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -214,6 +215,7 @@ type InvokeRequest struct {
 // InvokeResponse contains the invocation result
 type InvokeResponse struct {
 	Data       map[string]any // Response data
+	Response   []byte         // Raw response as bytes (for JSON serialization)
 	Status     string         // gRPC status
 	StatusCode int            // gRPC status code
 	Metadata   map[string]string
@@ -295,6 +297,11 @@ func (c *Client) Invoke(ctx context.Context, req *InvokeRequest) (*InvokeRespons
 	resp.Status = "OK"
 	resp.StatusCode = 0
 	resp.Data = dynamicMessageToMap(outputMsg)
+
+	// Serialize response to JSON for the Response field
+	if respBytes, err := json.Marshal(resp.Data); err == nil {
+		resp.Response = respBytes
+	}
 
 	return resp, nil
 }
@@ -639,4 +646,45 @@ func (g *Generator) generateForMethod(service string, method MethodDescriptor) [
 	}
 
 	return testCases
+}
+
+// InvokeMethod invokes a gRPC method with raw data
+// callSpec format: "service/method" or "service.method"
+func (c *Client) InvokeMethod(ctx context.Context, callSpec string, data []byte, metadata map[string]string) (*InvokeResponse, error) {
+	// Parse the call spec
+	var service, method string
+	if strings.Contains(callSpec, "/") {
+		parts := strings.SplitN(callSpec, "/", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid call spec format: %s", callSpec)
+		}
+		service = parts[0]
+		method = parts[1]
+	} else if strings.Contains(callSpec, ".") {
+		// Handle service.method format
+		lastDot := strings.LastIndex(callSpec, ".")
+		if lastDot == -1 || lastDot == len(callSpec)-1 {
+			return nil, fmt.Errorf("invalid call spec format: %s", callSpec)
+		}
+		service = callSpec[:lastDot]
+		method = callSpec[lastDot+1:]
+	} else {
+		return nil, fmt.Errorf("invalid call spec format, expected service/method or service.method: %s", callSpec)
+	}
+
+	// Parse JSON data into map
+	var dataMap map[string]any
+	if len(data) > 0 {
+		if err := json.Unmarshal(data, &dataMap); err != nil {
+			// If not JSON, treat as raw value
+			dataMap = map[string]any{"data": string(data)}
+		}
+	}
+
+	return c.Invoke(ctx, &InvokeRequest{
+		Service:  service,
+		Method:   method,
+		Data:     dataMap,
+		Metadata: metadata,
+	})
 }

@@ -3,8 +3,10 @@ package soap
 
 import (
 	"bytes"
+	"context"
 	"encoding/xml"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -534,4 +536,34 @@ func (g *Generator) GenerateForOperation(opName string) []TestCase {
 	}
 
 	return testCases
+}
+
+// FetchAndParseWSDL fetches a WSDL from a URL and parses it
+func FetchAndParseWSDL(ctx context.Context, url string) (*WSDLDefinition, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	client := &http.Client{Timeout: duration.HTTPFuzzing}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch WSDL: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read WSDL: %w", err)
+	}
+
+	return ParseWSDL(body)
+}
+
+// OperationsList is a convenience wrapper for operations
+type OperationsList []OperationInfo
+
+// GetOperations returns all operations from a WSDL
+func (def *WSDLDefinition) GetOperations() OperationsList {
+	return def.Operations
 }
