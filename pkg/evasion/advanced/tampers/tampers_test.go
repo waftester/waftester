@@ -302,40 +302,35 @@ func TestTamperChain_AppliesInOrder(t *testing.T) {
 
 // TestChainByPriority_RespectsOrder verifies priority-based chaining
 func TestChainByPriority_RespectsOrder(t *testing.T) {
-	// Get tampers with known different priorities
-	allTampers := All()
-	if len(allTampers) < 2 {
-		t.Skip("need at least 2 tampers for priority test")
-	}
+	// Use specific DETERMINISTIC tampers with known different priorities
+	// - base64encode: PriorityLowest (0) - deterministic base64 encoding
+	// - unmagicquotes: PriorityHighest (100) - deterministic quote replacement
+	// NOTE: We avoid tampers that use rand.Intn (like modsecurityversioned)
+	// because they produce different outputs on each call
 
-	// Find tampers with different priorities
-	var lowPriority, highPriority Tamper
-	for _, tp := range allTampers {
-		if tp.Priority() == PriorityLow && lowPriority == nil {
-			lowPriority = tp
-		}
-		if tp.Priority() == PriorityHigh && highPriority == nil {
-			highPriority = tp
-		}
-		if tp.Priority() == PriorityHighest && highPriority == nil {
-			highPriority = tp
-		}
-	}
+	lowPriority := Get("base64encode")   // Priority 0
+	highPriority := Get("unmagicquotes") // Priority 100
 
 	if lowPriority == nil || highPriority == nil {
-		t.Skip("could not find tampers with different priorities")
+		t.Skip("required tampers not registered")
+	}
+
+	// Verify priorities are different
+	if lowPriority.Priority() >= highPriority.Priority() {
+		t.Skipf("priority assumption invalid: low=%d, high=%d",
+			lowPriority.Priority(), highPriority.Priority())
 	}
 
 	t.Logf("Using low priority: %s (%d)", lowPriority.Name(), lowPriority.Priority())
 	t.Logf("Using high priority: %s (%d)", highPriority.Name(), highPriority.Priority())
 
 	// ChainByPriority should execute high priority first regardless of argument order
-	payload := "test payload"
+	payload := "test 'payload'"
 
 	// Pass low first, but high should execute first
 	result := ChainByPriority(payload, lowPriority.Name(), highPriority.Name())
 
-	// Verify by manually applying in priority order
+	// Verify by manually applying in priority order (high first, then low)
 	highFirst := highPriority.Transform(payload)
 	expected := lowPriority.Transform(highFirst)
 

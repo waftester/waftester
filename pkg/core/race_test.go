@@ -65,7 +65,7 @@ func TestExecutor_ConcurrentExecuteTest(t *testing.T) {
 			defer wg.Done()
 			ctx := context.Background()
 			result := executor.executeTest(ctx, testPayloads[idx])
-			
+
 			resultsMu.Lock()
 			results[idx] = result
 			resultsMu.Unlock()
@@ -128,7 +128,7 @@ func TestExecutor_SharedHTTPClient_Race(t *testing.T) {
 	// Create executor - shared httpClient will be used by all goroutines
 	executor := NewExecutor(ExecutorConfig{
 		TargetURL:   server.URL,
-		Concurrency: 100, // High concurrency to stress test
+		Concurrency: 100,   // High concurrency to stress test
 		RateLimit:   10000, // Very high rate limit
 		Timeout:     10 * time.Second,
 	})
@@ -145,7 +145,7 @@ func TestExecutor_SharedHTTPClient_Race(t *testing.T) {
 		wg.Add(1)
 		go func(goroutineID int) {
 			defer wg.Done()
-			
+
 			for r := 0; r < requestsPerGoroutine; r++ {
 				payload := payloads.Payload{
 					ID:       fmt.Sprintf("http-race-%d-%d", goroutineID, r),
@@ -173,7 +173,7 @@ func TestExecutor_SharedHTTPClient_Race(t *testing.T) {
 	fails := atomic.LoadInt64(&failCount)
 	serverReqs := atomic.LoadInt64(&requestCount)
 
-	t.Logf("Total: %d, Success: %d, Fails: %d, Server received: %d", 
+	t.Logf("Total: %d, Success: %d, Fails: %d, Server received: %d",
 		totalRequests, success, fails, serverReqs)
 
 	// Should have processed all requests
@@ -220,16 +220,16 @@ func TestExecutor_RateLimiter_Race(t *testing.T) {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			
+
 			ctx := context.Background()
-			
+
 			// Wait for rate limiter (this is where race conditions could occur)
 			err := executor.limiter.Wait(ctx)
 			if err != nil {
 				t.Errorf("goroutine %d: rate limiter wait failed: %v", id, err)
 				return
 			}
-			
+
 			atomic.AddInt64(&waitCount, 1)
 		}(i)
 	}
@@ -238,7 +238,7 @@ func TestExecutor_RateLimiter_Race(t *testing.T) {
 	elapsed := time.Since(startTime)
 
 	completed := atomic.LoadInt64(&waitCount)
-	
+
 	// All goroutines should complete
 	if completed != numGoroutines {
 		t.Errorf("expected %d completions, got %d", numGoroutines, completed)
@@ -247,9 +247,9 @@ func TestExecutor_RateLimiter_Race(t *testing.T) {
 	// With rate limit of 50/s and 50 requests, it should take roughly 1 second
 	// Allow some margin for burst capacity
 	minExpectedDuration := time.Duration(float64(numGoroutines-rateLimit) / float64(rateLimit) * float64(time.Second))
-	
+
 	if elapsed < minExpectedDuration/2 {
-		t.Logf("Rate limiting may not be working correctly. Elapsed: %v, Expected at least: %v", 
+		t.Logf("Rate limiting may not be working correctly. Elapsed: %v, Expected at least: %v",
 			elapsed, minExpectedDuration/2)
 	}
 
@@ -321,7 +321,7 @@ func TestExecutor_ConcurrentExecute_Race(t *testing.T) {
 	}
 
 	hits := atomic.LoadInt64(&serverHits)
-	t.Logf("Execute race test: %d payloads, %d server hits, %d processed", 
+	t.Logf("Execute race test: %d payloads, %d server hits, %d processed",
 		numPayloads, hits, totalProcessed)
 }
 
@@ -347,7 +347,7 @@ func TestExecutor_OnResultCallback_Race(t *testing.T) {
 		OnResult: func(result *output.TestResult) {
 			// This callback must be thread-safe
 			atomic.AddInt64(&callbackCount, 1)
-			
+
 			callbackMu.Lock()
 			callbackResults = append(callbackResults, result)
 			callbackMu.Unlock()
@@ -371,7 +371,7 @@ func TestExecutor_OnResultCallback_Race(t *testing.T) {
 	executor.Execute(ctx, testPayloads, writer)
 
 	callbacks := atomic.LoadInt64(&callbackCount)
-	
+
 	callbackMu.Lock()
 	resultCount := len(callbackResults)
 	callbackMu.Unlock()
