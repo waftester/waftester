@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/bufpool"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/hosterrors"
@@ -471,13 +472,15 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 	}
 
 	// Read response body for filtering (limited to 1MB)
-	bodyBytes := make([]byte, 0, defaults.BufferHuge)
-	buf := make([]byte, defaults.BufferMedium)
+	bodyBuf := bufpool.GetSized(defaults.BufferHuge)
+	defer bufpool.Put(bodyBuf)
+	buf := bufpool.GetSlice(defaults.BufferMedium)
+	defer bufpool.PutSlice(buf)
 	for {
 		n, readErr := resp.Body.Read(buf)
 		if n > 0 {
-			bodyBytes = append(bodyBytes, buf[:n]...)
-			if len(bodyBytes) >= 1024*1024 {
+			bodyBuf.Write(buf[:n])
+			if bodyBuf.Len() >= 1024*1024 {
 				break // Limit to 1MB
 			}
 		}
@@ -485,7 +488,7 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 			break
 		}
 	}
-	bodyStr := string(bodyBytes)
+	bodyStr := bodyBuf.String()
 
 	// Calculate word and line counts for filtering
 	result.WordCount = len(strings.Fields(bodyStr))
@@ -493,7 +496,7 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 	if len(bodyStr) == 0 {
 		result.LineCount = 0
 	}
-	result.ContentLength = len(bodyBytes)
+	result.ContentLength = bodyBuf.Len()
 
 	result.StatusCode = resp.StatusCode
 
@@ -547,7 +550,7 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 			result.CurlCommand = generateCurlCommand(req)
 
 			// Capture response evidence for bypass analysis
-			captureResponseEvidence(result, bodyStr, bodyBytes)
+			captureResponseEvidence(result, bodyStr, bodyBuf.Bytes())
 		} else {
 			result.Outcome = "Pass"
 		}

@@ -4,12 +4,15 @@
 package httpclient
 
 import (
+	"context"
 	"crypto/tls"
 	"net"
 	"net/http"
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/sockopt"
 )
 
 // ============================================================================
@@ -69,6 +72,10 @@ type Config struct {
 
 	// TLSHandshakeTimeout is the timeout for TLS handshake (default: 10s)
 	TLSHandshakeTimeout time.Duration
+
+	// UseDNSCache enables DNS caching for improved performance (default: false)
+	// Enable this for high-throughput scanning of the same hosts
+	UseDNSCache bool
 }
 
 // DefaultConfig returns sensible defaults optimized for security scanning workloads.
@@ -84,6 +91,7 @@ func DefaultConfig() Config {
 		DisableKeepAlives:   false,
 		DialTimeout:         10 * time.Second,
 		TLSHandshakeTimeout: 10 * time.Second,
+		UseDNSCache:         true, // Enable DNS caching for scanning
 	}
 }
 
@@ -191,9 +199,30 @@ func New(cfg Config) *http.Client {
 		cfg.TLSHandshakeTimeout = 10 * time.Second
 	}
 
-	dialer := &net.Dialer{
-		Timeout:   cfg.DialTimeout,
-		KeepAlive: 30 * time.Second,
+	// Create dialer - use caching dialer if DNS caching is enabled
+	// Also apply platform-specific socket optimizations (TCP_NODELAY, larger buffers, etc.)
+	var dialContext func(ctx context.Context, network, address string) (net.Conn, error)
+
+	if cfg.UseDNSCache {
+		cachingDialer := NewCachingDialer(GetDNSCache(), cfg.DialTimeout)
+		// Wrap with socket optimization
+		dialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+			conn, err := cachingDialer.DialContext(ctx, network, address)
+			if err != nil {
+				return nil, err
+			}
+			// Apply platform-specific optimizations (TCP_NODELAY, buffers, etc.)
+			// Errors are non-fatal - continue with unoptimized connection
+			_ = sockopt.OptimizeConn(conn)
+			return conn, nil
+		}
+	} else {
+		dialer := &net.Dialer{
+			Timeout:   cfg.DialTimeout,
+			KeepAlive: 30 * time.Second,
+			Control:   sockopt.DialControl(), // Apply socket opts at dial time (Linux only)
+		}
+		dialContext = dialer.DialContext
 	}
 
 	transport := &http.Transport{
@@ -209,8 +238,13 @@ func New(cfg Config) *http.Client {
 		ExpectContinueTimeout: 1 * time.Second,
 		TLSHandshakeTimeout:   cfg.TLSHandshakeTimeout,
 
-		// Dialer with timeouts
-		DialContext: dialer.DialContext,
+		// Buffer sizes for improved throughput (matches fasthttp/gnet patterns)
+		// These reduce syscall overhead for larger payloads
+		WriteBufferSize: 32 * 1024, // 32KB write buffer
+		ReadBufferSize:  32 * 1024, // 32KB read buffer
+
+		// Dialer with timeouts (uses DNS caching if enabled)
+		DialContext: dialContext,
 
 		// TLS configuration
 		TLSClientConfig: &tls.Config{
