@@ -4,8 +4,9 @@ package ssrf
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"net"
 	"net/http"
 	"net/url"
@@ -619,7 +620,12 @@ func generateRandomID() string {
 	const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
 	b := make([]byte, 12)
 	for i := range b {
-		b[i] = chars[rand.Intn(len(chars))]
+		// Use crypto/rand for unpredictable IDs
+		if n, err := rand.Int(rand.Reader, big.NewInt(int64(len(chars)))); err == nil {
+			b[i] = chars[n.Int64()]
+		} else {
+			b[i] = chars[0] // Fallback on error (extremely unlikely)
+		}
 	}
 	return string(b)
 }
