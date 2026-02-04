@@ -591,3 +591,197 @@ func TestAllCategoriesHaveValidOutput(t *testing.T) {
 	testutil.ValidateJSONArray(t, content)
 	testutil.AssertResultCount(t, content, "json", len(categories))
 }
+
+// ============================================================================
+// MULTI-WRITER INTEGRATION TESTS
+// ============================================================================
+//
+// These tests verify that multiple writers can work simultaneously,
+// which is a common scenario when users want multiple output formats at once.
+// ============================================================================
+
+// TestMultiWriterScenario_JSONAndSARIF verifies writing to JSON and SARIF simultaneously.
+// This simulates: waf-tester scan -u target.com -format json,sarif -o results
+func TestMultiWriterScenario_JSONAndSARIF(t *testing.T) {
+	results := testfixtures.MakeRealisticScan(50)
+
+	tmpDir := t.TempDir()
+	jsonPath := filepath.Join(tmpDir, "results.json")
+	sarifPath := filepath.Join(tmpDir, "results.sarif")
+
+	// Create both writers
+	jsonWriter, err := output.NewWriter(jsonPath, "json")
+	if err != nil {
+		t.Fatalf("failed to create JSON writer: %v", err)
+	}
+
+	sarifWriter, err := output.NewWriter(sarifPath, "sarif")
+	if err != nil {
+		t.Fatalf("failed to create SARIF writer: %v", err)
+	}
+
+	// Write to both simultaneously
+	for _, result := range results {
+		if err := jsonWriter.Write(result); err != nil {
+			t.Fatalf("failed to write to JSON: %v", err)
+		}
+		if err := sarifWriter.Write(result); err != nil {
+			t.Fatalf("failed to write to SARIF: %v", err)
+		}
+	}
+
+	// Close both writers
+	if err := jsonWriter.Close(); err != nil {
+		t.Fatalf("failed to close JSON writer: %v", err)
+	}
+	if err := sarifWriter.Close(); err != nil {
+		t.Fatalf("failed to close SARIF writer: %v", err)
+	}
+
+	// Verify JSON output
+	jsonContent, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("failed to read JSON output: %v", err)
+	}
+	testutil.ValidateJSONArray(t, jsonContent)
+	testutil.AssertResultCount(t, jsonContent, "json", 50)
+
+	// Verify SARIF output
+	sarifContent, err := os.ReadFile(sarifPath)
+	if err != nil {
+		t.Fatalf("failed to read SARIF output: %v", err)
+	}
+	testutil.ValidateSARIF(t, sarifContent)
+
+	// Verify file sizes are reasonable
+	jsonInfo, _ := os.Stat(jsonPath)
+	sarifInfo, _ := os.Stat(sarifPath)
+
+	if jsonInfo.Size() == 0 {
+		t.Error("JSON output file is empty")
+	}
+	if sarifInfo.Size() == 0 {
+		t.Error("SARIF output file is empty")
+	}
+
+	t.Logf("JSON output: %s, SARIF output: %s",
+		testutil.FormatBytes(jsonInfo.Size()),
+		testutil.FormatBytes(sarifInfo.Size()))
+}
+
+// TestMultiWriterScenario_AllFormats verifies writing to all formats simultaneously.
+// This simulates: waf-tester scan -u target.com -format json,sarif,csv,md,html -o results
+func TestMultiWriterScenario_AllFormats(t *testing.T) {
+	results := testfixtures.MakeRealisticScan(50)
+
+	tmpDir := t.TempDir()
+
+	// Define all formats to test
+	formats := []struct {
+		format   string
+		ext      string
+		validate func(t *testing.T, content []byte)
+	}{
+		{
+			format: "json",
+			ext:    "json",
+			validate: func(t *testing.T, content []byte) {
+				testutil.ValidateJSONArray(t, content)
+				testutil.AssertResultCount(t, content, "json", 50)
+			},
+		},
+		{
+			format: "sarif",
+			ext:    "sarif",
+			validate: func(t *testing.T, content []byte) {
+				testutil.ValidateSARIF(t, content)
+			},
+		},
+		{
+			format: "csv",
+			ext:    "csv",
+			validate: func(t *testing.T, content []byte) {
+				testutil.ValidateCSV(t, content)
+				testutil.AssertResultCount(t, content, "csv", 50)
+			},
+		},
+		{
+			format: "md",
+			ext:    "md",
+			validate: func(t *testing.T, content []byte) {
+				testutil.ValidateMarkdown(t, content)
+				testutil.AssertContains(t, content, []string{
+					"# WAF Security Test Report",
+					"## Summary",
+				})
+			},
+		},
+		{
+			format: "html",
+			ext:    "html",
+			validate: func(t *testing.T, content []byte) {
+				testutil.ValidateHTML(t, content)
+				testutil.AssertContains(t, content, []string{
+					"WAF Security Test Report",
+				})
+			},
+		},
+	}
+
+	// Create all writers
+	writers := make(map[string]output.Writer)
+	paths := make(map[string]string)
+
+	for _, f := range formats {
+		path := filepath.Join(tmpDir, "results."+f.ext)
+		paths[f.format] = path
+
+		w, err := output.NewWriter(path, f.format)
+		if err != nil {
+			t.Fatalf("failed to create %s writer: %v", f.format, err)
+		}
+		writers[f.format] = w
+	}
+
+	// Write to all writers simultaneously
+	for _, result := range results {
+		for format, w := range writers {
+			if err := w.Write(result); err != nil {
+				t.Fatalf("failed to write to %s: %v", format, err)
+			}
+		}
+	}
+
+	// Close all writers
+	for format, w := range writers {
+		if err := w.Close(); err != nil {
+			t.Fatalf("failed to close %s writer: %v", format, err)
+		}
+	}
+
+	// Verify each output
+	for _, f := range formats {
+		t.Run(f.format+" output valid", func(t *testing.T) {
+			path := paths[f.format]
+
+			// Verify file exists and has content
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Fatalf("%s output file does not exist: %v", f.format, err)
+			}
+			if info.Size() == 0 {
+				t.Fatalf("%s output file is empty", f.format)
+			}
+
+			// Read and validate content
+			content, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("failed to read %s output: %v", f.format, err)
+			}
+
+			f.validate(t, content)
+
+			t.Logf("%s output: %s", f.format, testutil.FormatBytes(info.Size()))
+		})
+	}
+}

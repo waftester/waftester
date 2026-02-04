@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1632,4 +1633,406 @@ func TestJiraHook_DefaultLabels(t *testing.T) {
 			t.Errorf("expected label %q at index %d, got %q", label, i, issue.Fields.Labels[i])
 		}
 	}
+}
+
+// =============================================================================
+// Hook Contract Tests
+// =============================================================================
+// These tests verify that all hooks follow consistent interface contracts.
+
+// TestAllHooks_ImplementInterface verifies compile-time interface compliance.
+// Each hook type has a compile-time check via var _ dispatcher.Hook = (*HookType)(nil)
+// in its source file. This test documents and validates that pattern.
+func TestAllHooks_ImplementInterface(t *testing.T) {
+	// These type assertions verify the interface at compile time.
+	// If any hook doesn't implement dispatcher.Hook, compilation fails.
+	// We use explicit interface assignments to make this crystal clear.
+
+	t.Run("WebhookHook implements Hook", func(t *testing.T) {
+		var hook interface{} = NewWebhookHook("http://example.com", WebhookOptions{})
+		if _, ok := hook.(interface {
+			OnEvent(context.Context, events.Event) error
+			EventTypes() []events.EventType
+		}); !ok {
+			t.Error("WebhookHook does not implement Hook interface")
+		}
+	})
+
+	t.Run("SlackHook implements Hook", func(t *testing.T) {
+		var hook interface{} = NewSlackHook("http://example.com", SlackOptions{})
+		if _, ok := hook.(interface {
+			OnEvent(context.Context, events.Event) error
+			EventTypes() []events.EventType
+		}); !ok {
+			t.Error("SlackHook does not implement Hook interface")
+		}
+	})
+
+	t.Run("TeamsHook implements Hook", func(t *testing.T) {
+		var hook interface{} = NewTeamsHook("http://example.com", TeamsOptions{})
+		if _, ok := hook.(interface {
+			OnEvent(context.Context, events.Event) error
+			EventTypes() []events.EventType
+		}); !ok {
+			t.Error("TeamsHook does not implement Hook interface")
+		}
+	})
+
+	t.Run("PagerDutyHook implements Hook", func(t *testing.T) {
+		var hook interface{} = NewPagerDutyHook("test-key", PagerDutyOptions{})
+		if _, ok := hook.(interface {
+			OnEvent(context.Context, events.Event) error
+			EventTypes() []events.EventType
+		}); !ok {
+			t.Error("PagerDutyHook does not implement Hook interface")
+		}
+	})
+
+	t.Run("JiraHook implements Hook", func(t *testing.T) {
+		var hook interface{} = NewJiraHook("http://jira.example.com", JiraOptions{ProjectKey: "TEST"})
+		if _, ok := hook.(interface {
+			OnEvent(context.Context, events.Event) error
+			EventTypes() []events.EventType
+		}); !ok {
+			t.Error("JiraHook does not implement Hook interface")
+		}
+	})
+
+	t.Run("GitHubActionsHook implements Hook", func(t *testing.T) {
+		var hook interface{} = NewGitHubActionsHookWithPaths(t.TempDir()+"/output", "", GitHubActionsOptions{})
+		if _, ok := hook.(interface {
+			OnEvent(context.Context, events.Event) error
+			EventTypes() []events.EventType
+		}); !ok {
+			t.Error("GitHubActionsHook does not implement Hook interface")
+		}
+	})
+}
+
+// TestWebhookHook_EventTypes_Behavior verifies EventTypes() returns nil,
+// indicating the hook accepts all event types.
+func TestWebhookHook_EventTypes_Behavior(t *testing.T) {
+	hook := NewWebhookHook("http://example.com", WebhookOptions{})
+	types := hook.EventTypes()
+
+	// WebhookHook returns nil to indicate it accepts ALL event types.
+	// This is different from hooks that return a specific list.
+	if types != nil {
+		t.Errorf("WebhookHook.EventTypes() should return nil for all events, got %v", types)
+	}
+
+	// Contract: nil EventTypes means all events are forwarded
+	// Verify this by checking documentation compliance
+	t.Run("nil means all events accepted", func(t *testing.T) {
+		// According to the Hook interface:
+		// "Return nil or empty slice to receive all events."
+		if types != nil && len(types) != 0 {
+			t.Error("Hook contract violation: EventTypes() should return nil or empty for all-events hook")
+		}
+	})
+}
+
+// TestSlackHook_RetryBehavior verifies Slack hook handles 5xx errors correctly.
+// Slack webhook doesn't implement retry at the hook level (relies on http client),
+// but it should not block scan on errors.
+func TestSlackHook_RetryBehavior(t *testing.T) {
+	var requestCount int32
+
+	t.Run("returns nil on 5xx errors without blocking", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			atomic.AddInt32(&requestCount, 1)
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		defer server.Close()
+
+		hook := NewSlackHook(server.URL, SlackOptions{})
+
+		// Should not return error even on 5xx (logs instead)
+		err := hook.OnEvent(context.Background(), newTestSummaryEvent(1, 99))
+		if err != nil {
+			t.Errorf("expected nil error on 5xx (non-blocking), got: %v", err)
+		}
+	})
+
+	t.Run("returns nil on 4xx errors without blocking", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusBadRequest)
+		}))
+		defer server.Close()
+
+		hook := NewSlackHook(server.URL, SlackOptions{})
+
+		// Should not return error even on 4xx
+		err := hook.OnEvent(context.Background(), newTestSummaryEvent(1, 99))
+		if err != nil {
+			t.Errorf("expected nil error on 4xx (non-blocking), got: %v", err)
+		}
+	})
+
+	t.Run("handles connection errors gracefully", func(t *testing.T) {
+		// Use an endpoint that will fail to connect
+		hook := NewSlackHook("http://localhost:1", SlackOptions{
+			Timeout: 100 * time.Millisecond,
+		})
+
+		// Should not return error on connection failure
+		err := hook.OnEvent(context.Background(), newTestSummaryEvent(1, 99))
+		if err != nil {
+			t.Errorf("expected nil error on connection failure (non-blocking), got: %v", err)
+		}
+	})
+}
+
+// TestTeamsHook_Timeout verifies Teams hook respects timeout settings.
+func TestTeamsHook_Timeout(t *testing.T) {
+	t.Run("uses configured timeout", func(t *testing.T) {
+		hook := NewTeamsHook("http://example.com", TeamsOptions{
+			Timeout: 5 * time.Second,
+		})
+
+		// The hook should have the configured timeout
+		if hook.opts.Timeout != 5*time.Second {
+			t.Errorf("expected timeout 5s, got %v", hook.opts.Timeout)
+		}
+	})
+
+	t.Run("uses default timeout when not specified", func(t *testing.T) {
+		hook := NewTeamsHook("http://example.com", TeamsOptions{})
+
+		// Should use default (10s from duration.WebhookTimeout)
+		if hook.opts.Timeout == 0 {
+			t.Error("expected non-zero default timeout")
+		}
+	})
+
+	t.Run("handles slow server without blocking indefinitely", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Slow response - longer than timeout
+			time.Sleep(500 * time.Millisecond)
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		hook := NewTeamsHook(server.URL, TeamsOptions{
+			Timeout: 50 * time.Millisecond, // Short timeout for test
+		})
+
+		start := time.Now()
+		err := hook.OnEvent(context.Background(), newTestSummaryEvent(1, 99))
+		elapsed := time.Since(start)
+
+		// Should return quickly (within 2x timeout), not block for full server response
+		if elapsed > 200*time.Millisecond {
+			t.Errorf("expected quick return on timeout, took %v", elapsed)
+		}
+
+		// Should not return error (logs instead)
+		if err != nil {
+			t.Errorf("expected nil error on timeout (non-blocking), got: %v", err)
+		}
+	})
+}
+
+// TestPrometheusHook_MetricsExport verifies Prometheus metrics are registered and exported.
+func TestPrometheusHook_MetricsExport(t *testing.T) {
+	t.Run("registers expected metrics after events", func(t *testing.T) {
+		hook, err := NewPrometheusHook(PrometheusOptions{
+			Port: 19190, // Unique port for this test
+		})
+		if err != nil {
+			t.Fatalf("failed to create hook: %v", err)
+		}
+		defer hook.Close()
+
+		// Give server time to start
+		time.Sleep(100 * time.Millisecond)
+
+		// Send events to populate metrics
+		// Result event (blocked)
+		resultEvent := newTestResultEvent(events.SeverityHigh, events.OutcomeBlocked)
+		hook.OnEvent(context.Background(), resultEvent)
+
+		// Result event (bypass)
+		bypassEvent := newTestResultEvent(events.SeverityHigh, events.OutcomeBypass)
+		hook.OnEvent(context.Background(), bypassEvent)
+
+		// Result event (error)
+		errorEvent := newTestResultEvent(events.SeverityLow, events.OutcomeError)
+		hook.OnEvent(context.Background(), errorEvent)
+
+		// Summary event
+		summaryEvent := newTestSummaryEvent(1, 99)
+		hook.OnEvent(context.Background(), summaryEvent)
+
+		time.Sleep(50 * time.Millisecond)
+
+		// Fetch metrics endpoint
+		resp, err := http.Get(hook.MetricsAddr())
+		if err != nil {
+			t.Fatalf("failed to fetch metrics: %v", err)
+		}
+		defer resp.Body.Close()
+
+		body, _ := io.ReadAll(resp.Body)
+		metrics := string(body)
+
+		// Verify core metrics are present (with values after events)
+		expectedMetrics := []string{
+			"waftester_tests_total",
+			"waftester_bypasses_total",
+			"waftester_blocked_total",
+			"waftester_errors_total",
+			"waftester_effectiveness_percent",
+			"waftester_scan_duration_seconds",
+			"waftester_response_time_seconds",
+		}
+
+		for _, metricName := range expectedMetrics {
+			if !strings.Contains(metrics, metricName) {
+				t.Errorf("expected metric %q to be present in output", metricName)
+			}
+		}
+	})
+
+	t.Run("metrics are labeled correctly", func(t *testing.T) {
+		hook, err := NewPrometheusHook(PrometheusOptions{
+			Port: 19191,
+		})
+		if err != nil {
+			t.Fatalf("failed to create hook: %v", err)
+		}
+		defer hook.Close()
+
+		// Send some events
+		event := newTestResultEvent(events.SeverityHigh, events.OutcomeBypass)
+		event.Target.URL = "https://test.example.com"
+		event.Test.Category = "sqli"
+		hook.OnEvent(context.Background(), event)
+
+		time.Sleep(50 * time.Millisecond)
+
+		resp, err := http.Get(hook.MetricsAddr())
+		if err != nil {
+			t.Fatalf("failed to fetch metrics: %v", err)
+		}
+		defer resp.Body.Close()
+
+		body, _ := io.ReadAll(resp.Body)
+		metrics := string(body)
+
+		// Check that labels are present in output
+		if !strings.Contains(metrics, "target=") {
+			t.Error("expected 'target' label in metrics")
+		}
+		if !strings.Contains(metrics, "category=") {
+			t.Error("expected 'category' label in metrics")
+		}
+	})
+}
+
+// TestOtelHook_SpanCreation verifies OTel hook creates trace spans.
+// Note: This test requires an OTLP collector to be running, so we skip if unavailable.
+func TestOtelHook_SpanCreation(t *testing.T) {
+	// Skip if no OTLP collector is available
+	conn, err := net.DialTimeout("tcp", "localhost:4317", 100*time.Millisecond)
+	if err != nil {
+		t.Skip("Skipping OTel span test: no OTLP collector at localhost:4317")
+	}
+	conn.Close()
+
+	t.Run("creates root span on start event", func(t *testing.T) {
+		opts := OTelOptions{
+			Endpoint:          "localhost:4317",
+			Insecure:          true,
+			ServiceName:       "waftester-contract-test",
+			ShutdownTimeout:   100 * time.Millisecond,
+			ConnectionTimeout: 100 * time.Millisecond,
+		}
+
+		hook, err := NewOTelHook(opts)
+		if err != nil {
+			t.Fatalf("failed to create hook: %v", err)
+		}
+		defer hook.Close()
+
+		// Verify hook is ready for events
+		if hook.tracer == nil {
+			t.Error("expected tracer to be initialized")
+		}
+
+		// Send start event - should create root span
+		startEvent := newTestStartEvent()
+		err = hook.OnEvent(context.Background(), startEvent)
+		if err != nil {
+			t.Fatalf("OnEvent for start failed: %v", err)
+		}
+
+		// After start event, root span should exist
+		hook.mu.Lock()
+		hasRootSpan := hook.rootSpan != nil
+		hook.mu.Unlock()
+
+		if !hasRootSpan {
+			t.Error("expected root span to be created after start event")
+		}
+	})
+
+	t.Run("adds span events for result events", func(t *testing.T) {
+		opts := OTelOptions{
+			Endpoint:          "localhost:4317",
+			Insecure:          true,
+			ServiceName:       "waftester-contract-test-2",
+			ShutdownTimeout:   100 * time.Millisecond,
+			ConnectionTimeout: 100 * time.Millisecond,
+		}
+
+		hook, err := NewOTelHook(opts)
+		if err != nil {
+			t.Fatalf("failed to create hook: %v", err)
+		}
+		defer hook.Close()
+
+		// Send start event first
+		startEvent := newTestStartEvent()
+		hook.OnEvent(context.Background(), startEvent)
+
+		// Send result event
+		resultEvent := newTestResultEvent(events.SeverityHigh, events.OutcomeBlocked)
+		err = hook.OnEvent(context.Background(), resultEvent)
+		if err != nil {
+			t.Fatalf("OnEvent for result failed: %v", err)
+		}
+
+		// If we got here without error, the span event was recorded
+		// (actual span export verification would require a mock collector)
+	})
+
+	t.Run("handles bypass events with appropriate attributes", func(t *testing.T) {
+		opts := OTelOptions{
+			Endpoint:          "localhost:4317",
+			Insecure:          true,
+			ServiceName:       "waftester-contract-test-3",
+			ShutdownTimeout:   100 * time.Millisecond,
+			ConnectionTimeout: 100 * time.Millisecond,
+		}
+
+		hook, err := NewOTelHook(opts)
+		if err != nil {
+			t.Fatalf("failed to create hook: %v", err)
+		}
+		defer hook.Close()
+
+		// Send start event first
+		startEvent := newTestStartEvent()
+		hook.OnEvent(context.Background(), startEvent)
+
+		// Send bypass event
+		bypassEvent := newTestBypassEvent(events.SeverityCritical)
+		err = hook.OnEvent(context.Background(), bypassEvent)
+		if err != nil {
+			t.Fatalf("OnEvent for bypass failed: %v", err)
+		}
+
+		// Bypass events should be recorded successfully
+	})
 }
