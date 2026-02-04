@@ -33,6 +33,11 @@ type ExecutionMetadata struct {
 	Version       string            `json:"version"`
 	TotalRequests int               `json:"total_requests"`
 	Config        map[string]string `json:"config,omitempty"`
+	
+	// Network configuration (v2.6.3)
+	Proxy       string `json:"proxy,omitempty"`
+	ReplayProxy string `json:"replay_proxy,omitempty"`
+	SNI         string `json:"sni,omitempty"`
 }
 
 // EJSONOutput represents the enhanced JSON output structure

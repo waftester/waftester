@@ -5,6 +5,63 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.3] - 2026-02-04
+
+### Added
+
+- **Comprehensive Proxy & SNI Support** (`pkg/httpclient/`):
+  - **SOCKS4/SOCKS5/SOCKS5h Proxy Support**: Full compatibility with all major SOCKS proxy protocols
+  - **SNI Override** (`--sni`): Override TLS ServerName for CDN bypass and origin testing
+  - **Replay Proxy** (`--replay-proxy`/`-rp`): Duplicate traffic to security tools like Burp Suite
+  - **Burp Suite Shortcut** (`--burp`): Automatically configures proxy to 127.0.0.1:8080
+  - **ZAP Shortcut** (`--zap`): Automatically configures proxy to 127.0.0.1:8081
+  - **DNS-over-Proxy** (`socks5h://`): Route DNS lookups through SOCKS5 proxy for enhanced anonymity
+  - **Timeout Dialer**: Configurable connection timeouts for SOCKS proxies (matches fastdialer pattern)
+
+- **New CLI Flags**:
+  - `--sni <hostname>`: Override TLS SNI for origin server testing behind CDN/WAF
+  - `--replay-proxy <url>` / `-rp <url>`: Send duplicate requests to security proxy
+  - `--burp`: Shortcut for `--proxy http://127.0.0.1:8080` (Burp Suite default)
+  - `--zap`: Shortcut for `--proxy http://127.0.0.1:8081` (OWASP ZAP default)
+
+- **HTTP Client Enhancements** (`pkg/httpclient/`):
+  - `proxy.go`: New module for proxy URL parsing, validation, and SOCKS dialer creation
+  - `ParseProxyURL()`: Parse and validate proxy URLs with scheme-aware default ports
+  - `CreateSOCKSDialer()`: Create SOCKS4/5/5h dialers with authentication support
+  - `ValidateProxyURL()`: Validate proxy URLs support (http, https, socks4, socks5, socks5h)
+  - `TimeoutDialer`: Wrapper for proxied connections with configurable timeouts
+  - `WithSNI()`, `WithProxyAndSNI()`, `WithBurp()`, `WithZAP()`: Convenience functions
+
+- **Output Enhancements**:
+  - Proxy, ReplayProxy, and SNI fields added to JSON output metadata
+  - Streaming events include proxy/SNI configuration in scan config
+  - Enhanced JSON output includes full execution metadata with proxy settings
+
+- **Competitive Parity**: Feature matching with industry-leading tools
+  - Matches nuclei: HTTP/SOCKS5 proxy, proxy-all, SNI passthrough
+  - Matches ffuf: replay-proxy for Burp integration
+  - Matches feroxbuster: --burp shortcut convenience
+  - Matches httpx: sni parameter for TLS override
+  - Exceeds many competitors: socks5h DNS-over-proxy support
+
+### Changed
+
+- Updated `pkg/httpclient/httpclient.go` Config struct with SNI, ReplayProxy, ProxyDNS fields
+- Updated `pkg/config/config.go` with new proxy/SNI CLI flag definitions
+- Updated `pkg/output/events/start.go` ScanConfig with proxy metadata
+- Updated `pkg/output/enhanced.go` ExecutionMetadata with proxy/SNI fields
+
+### Tests
+
+- Added comprehensive proxy test suite (`pkg/httpclient/proxy_test.go`):
+  - ParseProxyURL: 12 test cases covering all supported schemes and edge cases
+  - ProxyConfigAddress, ProxyConfigAuth, ProxyConfigDNSRemote tests
+  - ValidateProxyURL tests for scheme validation
+  - TimeoutDialer context timeout behavior tests
+  - BurpProxyURL and ZAPProxyURL constant validation
+
+---
+
 ## [2.6.2] - 2026-02-04
 
 ### Added
