@@ -125,9 +125,9 @@ func runAutoScan() {
 	// NEW v2.6.4: Adaptive rate limiting
 	adaptiveRate := autoFlags.Bool("adaptive-rate", true, "Enable adaptive rate limiting (auto-adjust on WAF response)")
 
-	// NEW v2.6.4: Intelligence Engine - adaptive learning brain
-	enableIntelligence := autoFlags.Bool("intelligence", true, "Enable Intelligence Engine (adaptive learning, attack chains, smart prioritization)")
-	intelligenceVerbose := autoFlags.Bool("intelligence-verbose", false, "Show detailed intelligence insights during scan")
+	// NEW v2.6.4: Brain Mode - adaptive learning engine
+	enableBrain := autoFlags.Bool("brain", true, "Enable Brain Mode (adaptive learning, attack chains, smart prioritization)")
+	brainVerbose := autoFlags.Bool("brain-verbose", false, "Show detailed brain insights during scan")
 
 	autoFlags.Parse(os.Args[2:])
 
@@ -290,27 +290,27 @@ func runAutoScan() {
 	_ = checkpointFile
 
 	// ═══════════════════════════════════════════════════════════════════════════
-	// INTELLIGENCE ENGINE INITIALIZATION (v2.6.4)
-	// The brain of auto mode - learns, adapts, builds attack chains
+	// BRAIN MODE INITIALIZATION (v2.6.4)
+	// Learns, adapts, builds attack chains
 	// ═══════════════════════════════════════════════════════════════════════════
 	var brain *intelligence.Engine
 	var insightCount int32
 	var chainCount int32
 
-	if *enableIntelligence {
+	if *enableBrain {
 		brain = intelligence.NewEngine(&intelligence.Config{
 			LearningSensitivity: 0.7,
 			MinConfidence:       0.6,
 			EnableChains:        true,
 			EnableWAFModel:      true,
 			MaxChains:           50,
-			Verbose:             *intelligenceVerbose,
+			Verbose:             *brainVerbose,
 		})
 
-		// Register insight callback for real-time intelligence
+		// Register insight callback for real-time brain insights
 		brain.OnInsight(func(insight *intelligence.Insight) {
 			atomic.AddInt32(&insightCount, 1)
-			if *intelligenceVerbose && !quietMode {
+			if *brainVerbose && !quietMode {
 				priorityStyle := ui.PassStyle
 				switch insight.Priority {
 				case 1:
@@ -341,13 +341,13 @@ func runAutoScan() {
 		})
 
 		if !quietMode {
-			ui.PrintInfo("🧠 Intelligence Engine enabled (adaptive learning, attack chains)")
+			ui.PrintInfo("🧠 Brain Mode enabled (adaptive learning, attack chains)")
 		}
 	}
 
 	// Silence unused variable warnings
-	_ = enableIntelligence
-	_ = intelligenceVerbose
+	_ = enableBrain
+	_ = brainVerbose
 	_ = insightCount
 	_ = chainCount
 
@@ -563,7 +563,7 @@ func runAutoScan() {
 	// Mark discovery phase complete for resume
 	markPhaseCompleted("discovery")
 
-	// Feed discovery findings to Intelligence Engine
+	// Feed discovery findings to Brain
 	if brain != nil {
 		brain.StartPhase(ctx, "discovery")
 		for _, ep := range discResult.Endpoints {
@@ -1008,7 +1008,7 @@ func runAutoScan() {
 		fmt.Fprintln(os.Stderr)
 	}
 
-	// Feed JS analysis findings to Intelligence Engine
+	// Feed JS analysis findings to Brain
 	if brain != nil {
 		brain.StartPhase(ctx, "js-analysis")
 		// Secrets - highest priority
@@ -1731,7 +1731,7 @@ func runAutoScan() {
 				_ = autoDispCtx.EmitBypass(ctx, result.Category, result.Severity, target, result.Payload, result.StatusCode)
 			}
 
-			// Feed test result to Intelligence Engine for real-time learning
+			// Feed test result to Brain for real-time learning
 			if brain != nil {
 				brain.LearnFromFinding(&intelligence.Finding{
 					Phase:      "waf-testing",
@@ -1853,13 +1853,13 @@ func runAutoScan() {
 	}
 	printStatusLn()
 
-	// End WAF testing phase for Intelligence Engine
+	// End WAF testing phase for Brain
 	if brain != nil {
 		brain.EndPhase("waf-testing")
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
-	// INTELLIGENCE SUMMARY (v2.6.4)
+	// BRAIN SUMMARY (v2.6.4)
 	// Display attack chains, insights, and learned patterns
 	// ═══════════════════════════════════════════════════════════════════════════
 	if brain != nil && !quietMode {
@@ -1867,7 +1867,7 @@ func runAutoScan() {
 
 		if summary.AttackChains > 0 || len(summary.WAFWeaknesses) > 0 || len(summary.TechStack) > 0 {
 			printStatusLn()
-			printStatusLn(ui.SectionStyle.Render("🧠 INTELLIGENCE SUMMARY"))
+			printStatusLn(ui.SectionStyle.Render("🧠 BRAIN SUMMARY"))
 			printStatusLn()
 
 			// Attack Chains - the crown jewel
