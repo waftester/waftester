@@ -28,6 +28,7 @@ import (
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/input"
+	"github.com/waftester/waftester/pkg/intelligence"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/js"
 	"github.com/waftester/waftester/pkg/leakypaths"
@@ -123,6 +124,10 @@ func runAutoScan() {
 
 	// NEW v2.6.4: Adaptive rate limiting
 	adaptiveRate := autoFlags.Bool("adaptive-rate", true, "Enable adaptive rate limiting (auto-adjust on WAF response)")
+
+	// NEW v2.6.4: Intelligence Engine - adaptive learning brain
+	enableIntelligence := autoFlags.Bool("intelligence", true, "Enable Intelligence Engine (adaptive learning, attack chains, smart prioritization)")
+	intelligenceVerbose := autoFlags.Bool("intelligence-verbose", false, "Show detailed intelligence insights during scan")
 
 	autoFlags.Parse(os.Args[2:])
 
@@ -283,6 +288,68 @@ func runAutoScan() {
 	_ = markPhaseCompleted
 	_ = resumeScan
 	_ = checkpointFile
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// INTELLIGENCE ENGINE INITIALIZATION (v2.6.4)
+	// The brain of auto mode - learns, adapts, builds attack chains
+	// ═══════════════════════════════════════════════════════════════════════════
+	var brain *intelligence.Engine
+	var insightCount int32
+	var chainCount int32
+
+	if *enableIntelligence {
+		brain = intelligence.NewEngine(&intelligence.Config{
+			LearningSensitivity: 0.7,
+			MinConfidence:       0.6,
+			EnableChains:        true,
+			EnableWAFModel:      true,
+			MaxChains:           50,
+			Verbose:             *intelligenceVerbose,
+		})
+
+		// Register insight callback for real-time intelligence
+		brain.OnInsight(func(insight *intelligence.Insight) {
+			atomic.AddInt32(&insightCount, 1)
+			if *intelligenceVerbose && !quietMode {
+				priorityStyle := ui.PassStyle
+				switch insight.Priority {
+				case 1:
+					priorityStyle = ui.SeverityStyle("Critical")
+				case 2:
+					priorityStyle = ui.SeverityStyle("High")
+				case 3:
+					priorityStyle = ui.SeverityStyle("Medium")
+				}
+				fmt.Fprintf(os.Stderr, "  🧠 %s: %s\n", priorityStyle.Render(string(insight.Type)), insight.Title)
+			}
+		})
+
+		// Register attack chain callback
+		brain.OnChain(func(chain *intelligence.AttackChain) {
+			atomic.AddInt32(&chainCount, 1)
+			if !quietMode {
+				impactStyle := ui.SeverityStyle("Critical")
+				switch chain.Impact {
+				case "high":
+					impactStyle = ui.SeverityStyle("High")
+				case "medium":
+					impactStyle = ui.SeverityStyle("Medium")
+				}
+				fmt.Fprintf(os.Stderr, "  ⛓️  %s: %s (CVSS %.1f)\n",
+					impactStyle.Render("ATTACK CHAIN"), chain.Name, chain.CVSS)
+			}
+		})
+
+		if !quietMode {
+			ui.PrintInfo("🧠 Intelligence Engine enabled (adaptive learning, attack chains)")
+		}
+	}
+
+	// Silence unused variable warnings
+	_ = enableIntelligence
+	_ = intelligenceVerbose
+	_ = insightCount
+	_ = chainCount
 
 	fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("Configuration"))
 	ui.PrintConfigLine("Target", target)
@@ -495,6 +562,35 @@ func runAutoScan() {
 
 	// Mark discovery phase complete for resume
 	markPhaseCompleted("discovery")
+
+	// Feed discovery findings to Intelligence Engine
+	if brain != nil {
+		brain.StartPhase(ctx, "discovery")
+		for _, ep := range discResult.Endpoints {
+			brain.LearnFromFinding(&intelligence.Finding{
+				Phase:      "discovery",
+				Category:   "endpoint",
+				Severity:   "info",
+				Path:       ep.Path,
+				Evidence:   ep.Method + " " + ep.Path,
+				Confidence: 0.8,
+				Metadata: map[string]interface{}{
+					"method":   ep.Method,
+					"category": ep.Category,
+				},
+			})
+		}
+		if discResult.WAFDetected {
+			brain.LearnFromFinding(&intelligence.Finding{
+				Phase:      "discovery",
+				Category:   "waf",
+				Severity:   "info",
+				Evidence:   discResult.WAFFingerprint,
+				Confidence: 0.9,
+			})
+		}
+		brain.EndPhase("discovery")
+	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 1.5: LEAKY PATHS SCANNING (NEW - competitive feature from leaky-paths)
@@ -910,6 +1006,55 @@ func runAutoScan() {
 	}
 	if !quietMode {
 		fmt.Fprintln(os.Stderr)
+	}
+
+	// Feed JS analysis findings to Intelligence Engine
+	if brain != nil {
+		brain.StartPhase(ctx, "js-analysis")
+		// Secrets - highest priority
+		for _, secret := range allJSData.Secrets {
+			brain.LearnFromFinding(&intelligence.Finding{
+				Phase:      "js-analysis",
+				Category:   "secret",
+				Severity:   "high",
+				Evidence:   secret.Type + ": " + secret.Value[:min(30, len(secret.Value))],
+				Confidence: 0.9,
+				Metadata:   map[string]interface{}{"type": secret.Type},
+			})
+		}
+		// Endpoints
+		for _, ep := range allJSData.Endpoints {
+			brain.LearnFromFinding(&intelligence.Finding{
+				Phase:      "js-analysis",
+				Category:   "endpoint",
+				Severity:   "info",
+				Path:       ep.Path,
+				Evidence:   ep.Method + " " + ep.Path,
+				Confidence: 0.7,
+			})
+		}
+		// DOM sinks
+		for _, sink := range allJSData.DOMSinks {
+			brain.LearnFromFinding(&intelligence.Finding{
+				Phase:      "js-analysis",
+				Category:   "dom-sink",
+				Severity:   sink.Severity,
+				Evidence:   sink.Sink + " in " + sink.Context,
+				Confidence: 0.8,
+			})
+		}
+		// Cloud URLs
+		for _, cloud := range allJSData.CloudURLs {
+			brain.LearnFromFinding(&intelligence.Finding{
+				Phase:      "js-analysis",
+				Category:   "cloud-url",
+				Severity:   "medium",
+				Path:       cloud.URL,
+				Evidence:   cloud.Service,
+				Confidence: 0.85,
+			})
+		}
+		brain.EndPhase("js-analysis")
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -1585,6 +1730,25 @@ func runAutoScan() {
 			if autoDispCtx != nil && result.Outcome != "Blocked" && result.Outcome != "Error" {
 				_ = autoDispCtx.EmitBypass(ctx, result.Category, result.Severity, target, result.Payload, result.StatusCode)
 			}
+
+			// Feed test result to Intelligence Engine for real-time learning
+			if brain != nil {
+				brain.LearnFromFinding(&intelligence.Finding{
+					Phase:      "waf-testing",
+					Category:   result.Category,
+					Severity:   result.Severity,
+					Path:       result.TargetPath,
+					Payload:    result.Payload,
+					StatusCode: result.StatusCode,
+					Latency:    time.Duration(result.LatencyMs) * time.Millisecond,
+					Blocked:    result.Outcome == "Blocked",
+					Confidence: 0.95,
+					Metadata: map[string]interface{}{
+						"outcome": result.Outcome,
+						"method":  result.Method,
+					},
+				})
+			}
 		},
 	})
 
@@ -1688,6 +1852,94 @@ func runAutoScan() {
 		ui.PrintInfo("  No specific WAF vendor detected - using default configuration")
 	}
 	printStatusLn()
+
+	// End WAF testing phase for Intelligence Engine
+	if brain != nil {
+		brain.EndPhase("waf-testing")
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// INTELLIGENCE SUMMARY (v2.6.4)
+	// Display attack chains, insights, and learned patterns
+	// ═══════════════════════════════════════════════════════════════════════════
+	if brain != nil && !quietMode {
+		summary := brain.GetSummary()
+
+		if summary.AttackChains > 0 || len(summary.WAFWeaknesses) > 0 || len(summary.TechStack) > 0 {
+			printStatusLn()
+			printStatusLn(ui.SectionStyle.Render("🧠 INTELLIGENCE SUMMARY"))
+			printStatusLn()
+
+			// Attack Chains - the crown jewel
+			if summary.AttackChains > 0 {
+				fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("⛓️  Attack Chains Built:"))
+				for i, chain := range summary.TopChains {
+					if i >= 5 {
+						fmt.Fprintf(os.Stderr, "    ... and %d more chains\n", summary.AttackChains-5)
+						break
+					}
+					impactStyle := ui.SeverityStyle("Critical")
+					switch chain.Impact {
+					case "high":
+						impactStyle = ui.SeverityStyle("High")
+					case "medium":
+						impactStyle = ui.SeverityStyle("Medium")
+					}
+					fmt.Fprintf(os.Stderr, "    %s [%s] %s (CVSS %.1f)\n",
+						ui.StatValueStyle.Render(fmt.Sprintf("%d.", i+1)),
+						impactStyle.Render(chain.Impact),
+						chain.Name,
+						chain.CVSS)
+					for _, step := range chain.Steps[:min(3, len(chain.Steps))] {
+						fmt.Fprintf(os.Stderr, "       %s\n", ui.SubtitleStyle.Render(step))
+					}
+				}
+				fmt.Fprintln(os.Stderr)
+			}
+
+			// WAF Behavioral Analysis
+			if len(summary.WAFWeaknesses) > 0 {
+				fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("📊 WAF Behavioral Analysis:"))
+				fmt.Fprintf(os.Stderr, "    Strengths: %s\n", ui.PassStyle.Render(strings.Join(summary.WAFStrengths[:min(3, len(summary.WAFStrengths))], ", ")))
+				fmt.Fprintf(os.Stderr, "    Weaknesses: %s\n", ui.ErrorStyle.Render(strings.Join(summary.WAFWeaknesses[:min(3, len(summary.WAFWeaknesses))], ", ")))
+				fmt.Fprintln(os.Stderr)
+			}
+
+			// Technology Detection
+			if len(summary.TechStack) > 0 {
+				fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("🔧 Technology Stack Detected:"))
+				for _, tech := range summary.TechStack[:min(5, len(summary.TechStack))] {
+					fmt.Fprintf(os.Stderr, "    • %s\n", tech)
+				}
+				fmt.Fprintln(os.Stderr)
+			}
+
+			// Payload Recommendations
+			recs := brain.RecommendPayloads()
+			if len(recs) > 0 {
+				fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("🎯 Smart Payload Recommendations:"))
+				for _, rec := range recs[:min(5, len(recs))] {
+					priorityStyle := ui.PassStyle
+					if rec.Priority == 1 {
+						priorityStyle = ui.ErrorStyle
+					} else if rec.Priority == 2 {
+						priorityStyle = ui.SeverityStyle("Medium")
+					}
+					fmt.Fprintf(os.Stderr, "    [%s] %s - %s\n",
+						priorityStyle.Render(fmt.Sprintf("P%d", rec.Priority)),
+						ui.StatValueStyle.Render(rec.Category),
+						rec.Reason)
+				}
+				fmt.Fprintln(os.Stderr)
+			}
+
+			// Stats summary
+			fmt.Fprintf(os.Stderr, "  %s Total findings: %d | Bypasses: %d | Attack chains: %d | Insights: %d\n",
+				ui.BracketStyle.Render("📈"),
+				summary.TotalFindings, summary.Bypasses, summary.AttackChains, atomic.LoadInt32(&insightCount))
+			printStatusLn()
+		}
+	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 5: COMPREHENSIVE REPORT
@@ -1844,6 +2096,35 @@ func runAutoScan() {
 		summary["ci_exit_code"] = 1
 		summary["bypass_details"] = results.BypassDetails
 	}
+
+	// Add Intelligence Engine data to summary
+	if brain != nil {
+		intSummary := brain.GetSummary()
+		chainData := make([]map[string]interface{}, 0)
+		for _, chain := range intSummary.TopChains {
+			chainData = append(chainData, map[string]interface{}{
+				"name":        chain.Name,
+				"impact":      chain.Impact,
+				"cvss":        chain.CVSS,
+				"description": chain.Description,
+				"steps":       chain.Steps,
+				"confidence":  chain.Confidence,
+			})
+		}
+		summary["intelligence"] = map[string]interface{}{
+			"enabled":        true,
+			"total_findings": intSummary.TotalFindings,
+			"bypasses":       intSummary.Bypasses,
+			"blocked":        intSummary.Blocked,
+			"attack_chains":  chainData,
+			"waf_strengths":  intSummary.WAFStrengths,
+			"waf_weaknesses": intSummary.WAFWeaknesses,
+			"tech_stack":     intSummary.TechStack,
+			"insights_count": atomic.LoadInt32(&insightCount),
+			"chains_count":   atomic.LoadInt32(&chainCount),
+		}
+	}
+
 	summaryData, _ := json.MarshalIndent(summary, "", "  ")
 	os.WriteFile(summaryFile, summaryData, 0644)
 
