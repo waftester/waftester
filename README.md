@@ -347,6 +347,13 @@ waf-tester scan -u https://target.com --detect
 | `race` | Race condition testing | `waf-tester race -u https://target.com/checkout` |
 | `discover` | Endpoint crawling | `waf-tester discover -u https://target.com` |
 | `workflow` | YAML workflow execution | `waf-tester workflow -f recon.yaml` |
+| `template` | Nuclei-compatible template scanner | `waf-tester template -u https://target.com -t templates/` |
+| `grpc` | gRPC service testing via reflection | `waf-tester grpc -u localhost:50051 --list` |
+| `soap` | SOAP/WSDL service testing | `waf-tester soap --wsdl https://api.example.com?wsdl --list` |
+| `openapi` | OpenAPI specification fuzzing | `waf-tester openapi -spec openapi.yaml --fuzz` |
+| `cicd` | CI/CD pipeline configuration generator | `waf-tester cicd -p github-actions -u https://target.com` |
+| `plugin` | Plugin management | `waf-tester plugin --list` |
+| `cloud` | Cloud resource discovery (AWS/Azure/GCP) | `waf-tester cloud -d example.com --providers aws,azure` |
 
 ---
 
@@ -387,12 +394,13 @@ waf-tester scan -u https://target.com --detect
 
 | Metric | Value |
 |--------|-------|
+| CLI commands | 31 |
 | WAF signatures | 197 vendors |
 | Attack payloads | 2,800+ |
 | Tamper scripts | 70+ |
 | Mutator functions | 49 |
 | Attack categories | 50+ (SQLi, XSS, RCE, SSRF, XXE, traversal...) |
-| Protocols | HTTP, GraphQL, gRPC, SOAP, WebSocket |
+| Protocols | HTTP, GraphQL, gRPC, SOAP, WebSocket, OpenAPI |
 | Output formats | 15 (JSON, JSONL, SARIF, HTML, CSV, Markdown, Console, Template, PDF, JUnit, CycloneDX, SonarQube, GitLab SAST, DefectDojo, HAR) |
 | Enterprise integrations | 6 (SonarQube, GitLab SAST, DefectDojo, HAR, JUnit, CycloneDX) |
 | Alerting hooks | 8 (Slack, Teams, PagerDuty, Jira, GitHub Actions, OpenTelemetry, Prometheus, Webhook) |

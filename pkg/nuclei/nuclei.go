@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"text/template"
@@ -716,9 +717,28 @@ func LoadTemplatesFromDir(dir string) ([]*Template, error) {
 	return templates, nil
 }
 
-// FilterTemplates filters templates by tags, severity, etc.
-func FilterTemplates(templates []*Template, tags []string, severities []string) []*Template {
-	if len(tags) == 0 && len(severities) == 0 {
+// FilterOptions provides filtering options for templates
+type FilterOptions struct {
+	Tags        string // Comma-separated tags to include
+	Severity    string // Comma-separated severities
+	ExcludeTags string // Comma-separated tags to exclude
+}
+
+// FilterTemplates filters templates using FilterOptions
+func FilterTemplates(templates []*Template, opts FilterOptions) []*Template {
+	var includeTags, excludeTags, severities []string
+
+	if opts.Tags != "" {
+		includeTags = strings.Split(opts.Tags, ",")
+	}
+	if opts.ExcludeTags != "" {
+		excludeTags = strings.Split(opts.ExcludeTags, ",")
+	}
+	if opts.Severity != "" {
+		severities = strings.Split(opts.Severity, ",")
+	}
+
+	if len(includeTags) == 0 && len(excludeTags) == 0 && len(severities) == 0 {
 		return templates
 	}
 
@@ -728,7 +748,7 @@ func FilterTemplates(templates []*Template, tags []string, severities []string) 
 		if len(severities) > 0 {
 			found := false
 			for _, s := range severities {
-				if strings.EqualFold(tmpl.Info.Severity, s) {
+				if strings.EqualFold(tmpl.Info.Severity, strings.TrimSpace(s)) {
 					found = true
 					break
 				}
@@ -738,11 +758,29 @@ func FilterTemplates(templates []*Template, tags []string, severities []string) 
 			}
 		}
 
-		// Check tags
-		if len(tags) > 0 {
-			tmplTags := strings.Split(tmpl.Info.Tags, ",")
+		tmplTags := strings.Split(tmpl.Info.Tags, ",")
+
+		// Check exclude tags
+		excluded := false
+		for _, et := range excludeTags {
+			for _, tt := range tmplTags {
+				if strings.EqualFold(strings.TrimSpace(et), strings.TrimSpace(tt)) {
+					excluded = true
+					break
+				}
+			}
+			if excluded {
+				break
+			}
+		}
+		if excluded {
+			continue
+		}
+
+		// Check include tags
+		if len(includeTags) > 0 {
 			found := false
-			for _, t := range tags {
+			for _, t := range includeTags {
 				for _, tt := range tmplTags {
 					if strings.EqualFold(strings.TrimSpace(t), strings.TrimSpace(tt)) {
 						found = true
@@ -762,4 +800,37 @@ func FilterTemplates(templates []*Template, tags []string, severities []string) 
 	}
 
 	return result
+}
+
+// LoadDirectory loads all templates from a directory recursively
+func LoadDirectory(dir string) ([]*Template, error) {
+	var templates []*Template
+
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext != ".yaml" && ext != ".yml" {
+			return nil
+		}
+
+		tmpl, err := LoadTemplate(path)
+		if err != nil {
+			// Log but don't fail on individual template errors
+			return nil
+		}
+		templates = append(templates, tmpl)
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to walk directory: %w", err)
+	}
+
+	return templates, nil
 }

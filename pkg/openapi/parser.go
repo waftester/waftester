@@ -317,3 +317,15 @@ func (p *Parser) GetBaseURL(spec *Spec) string {
 	}
 	return ""
 }
+
+// ParseFromFile is a convenience function to parse an OpenAPI spec from a file
+func ParseFromFile(path string) (*Spec, error) {
+	p := NewParser()
+	return p.ParseFile(path)
+}
+
+// ParseFromURL is a convenience function to parse an OpenAPI spec from a URL
+func ParseFromURL(url string) (*Spec, error) {
+	p := NewParser()
+	return p.ParseURL(url)
+}

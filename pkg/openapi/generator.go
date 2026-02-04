@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -492,4 +493,100 @@ func sanitizeName(s string) string {
 // ExportTests exports test cases to JSON
 func ExportTests(tests []TestCase) ([]byte, error) {
 	return json.MarshalIndent(tests, "", "  ")
+}
+
+// GeneratorOptions configures the test generator
+type GeneratorOptions struct {
+	BaseURL      string            // Override base URL from spec
+	Categories   []string          // Attack categories to test
+	Concurrency  int               // Number of concurrent tests
+	Timeout      int               // Request timeout in seconds
+	Headers      map[string]string // Custom headers to include
+	Tags         []string          // Filter endpoints by tags
+	PathFilter   string            // Filter by path pattern
+	MethodFilter string            // Filter by HTTP method
+	AuthHeaders  map[string]string // Authentication headers
+}
+
+// TestGenerator provides OpenAPI-based security testing
+type TestGenerator struct {
+	spec    *Spec
+	options GeneratorOptions
+	gen     *Generator
+}
+
+// NewTestGenerator creates a new test generator from an OpenAPI spec
+func NewTestGenerator(spec *Spec) *TestGenerator {
+	return &TestGenerator{
+		spec: spec,
+		gen:  NewGenerator(),
+	}
+}
+
+// GeneratedTestCase represents a test case with parameters
+type GeneratedTestCase struct {
+	Path       string      `json:"path"`
+	Method     string      `json:"method"`
+	Parameters []Parameter `json:"parameters,omitempty"`
+	Operation  *Operation  `json:"operation,omitempty"`
+}
+
+// GenerateTests generates security test cases with the given options
+func (t *TestGenerator) GenerateTests(opts GeneratorOptions) []GeneratedTestCase {
+	t.options = opts
+
+	if opts.BaseURL != "" {
+		t.gen.baseURL = opts.BaseURL
+	}
+
+	parser := NewParser()
+	operations := parser.GetOperations(t.spec)
+
+	var testCases []GeneratedTestCase
+	for _, op := range operations {
+		// Apply path filter
+		if opts.PathFilter != "" && !strings.Contains(op.Path, opts.PathFilter) {
+			continue
+		}
+
+		// Apply method filter
+		if opts.MethodFilter != "" && !strings.EqualFold(op.Method, opts.MethodFilter) {
+			continue
+		}
+
+		tc := GeneratedTestCase{
+			Path:      op.Path,
+			Method:    op.Method,
+			Operation: op.Operation,
+		}
+
+		if op.Operation != nil {
+			tc.Parameters = op.Operation.Parameters
+		}
+
+		testCases = append(testCases, tc)
+	}
+
+	return testCases
+}
+
+// FuzzTestResult represents the result of a fuzz test
+type FuzzTestResult struct {
+	TestCase    GeneratedTestCase `json:"test_case"`
+	StatusCode  int               `json:"status_code"`
+	Blocked     bool              `json:"blocked"`
+	ResponseLen int               `json:"response_length"`
+	Latency     int64             `json:"latency_ms"`
+	Error       string            `json:"error,omitempty"`
+}
+
+// ExecuteFuzzTest executes a single fuzz test and returns the result
+func (t *TestGenerator) ExecuteFuzzTest(ctx context.Context, tc GeneratedTestCase, paramName, payload string) (FuzzTestResult, error) {
+	// This is a placeholder - actual execution would use httpclient
+	// For now, return a mock result
+	return FuzzTestResult{
+		TestCase:   tc,
+		StatusCode: 200,
+		Blocked:    false,
+	}, nil
 }

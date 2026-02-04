@@ -314,3 +314,59 @@ func (m *Manager) Info() []PluginInfo {
 	}
 	return info
 }
+
+// LoadBuiltins loads all built-in scanner plugins
+func (m *Manager) LoadBuiltins() error {
+	// Built-in scanners are registered directly, not loaded from files
+	// This method is a no-op if no built-ins are configured
+	return nil
+}
+
+// LoadFromDirectory loads all plugins from a specific directory
+func (m *Manager) LoadFromDirectory(dir string) error {
+	if dir == "" {
+		dir = m.PluginDir
+	}
+
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return nil // Directory doesn't exist, not an error
+	}
+
+	files, err := filepath.Glob(filepath.Join(dir, "*.so"))
+	if err != nil {
+		return fmt.Errorf("failed to glob plugins: %w", err)
+	}
+
+	var loadErr error
+	for _, file := range files {
+		if err := m.LoadPlugin(file); err != nil {
+			loadErr = err
+		}
+	}
+
+	return loadErr
+}
+
+// IsBuiltin returns whether a plugin is built-in or external
+func (m *Manager) IsBuiltin(name string) bool {
+	// For now, all plugins are external (loaded from .so files)
+	// Built-in plugins would be registered differently
+	return false
+}
+
+// GetPluginInfo returns info about a specific plugin
+func (m *Manager) GetPluginInfo(name string) (*PluginInfo, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	scanner, ok := m.Plugins[name]
+	if !ok {
+		return nil, false
+	}
+
+	return &PluginInfo{
+		Name:        scanner.Name(),
+		Description: scanner.Description(),
+		Version:     scanner.Version(),
+	}, true
+}
