@@ -1546,9 +1546,9 @@ func runProbe() {
 	_ = statsStart
 	_ = seenResponses
 	_ = filteredErrorPages
-	_ = filteredErrorPagesMu
+	// Note: can't use _ = filteredErrorPagesMu - copylocks violation
 	_ = visionClusters
-	_ = visionClustersMu
+	// Note: can't use _ = visionClustersMu - copylocks violation
 	_ = screenshotClusterID
 	_ = showDetails
 	_ = forceHTTP2
