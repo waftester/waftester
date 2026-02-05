@@ -9,10 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-#### 🔴 Critical Security Fixes
+#### Critical Security Fixes
 - **OAuth Predictable Tokens**: `GenerateState()`, `GenerateNonce()`, `GeneratePKCEPair()` now use `crypto/rand` instead of deterministic patterns - prevents CSRF and token hijacking attacks
 
-#### 🟠 High Priority Fixes
+#### High Priority Fixes
 - **Checkpoint Double-Counting**: Fixed `MarkCompleted()` counting same target multiple times
 - **Checkpoint Data Race**: Added mutex lock in `GetProgress()` before reading `CompletedTargets`
 - **Checkpoint State Leak**: `GetState()` now returns defensive copy with deep-copied maps
@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **OpenAPI http.Get Timeout**: `ParseURL()` now uses context with 30s timeout - prevents hanging on slow servers
 - **SOAP Client No Context**: Added `CallWithContext()` with timeout/cancellation support
 
-#### 🟡 Medium Priority Fixes
+#### Medium Priority Fixes
 - **TOCTOU Race**: Fixed race condition in `hosterrors.MarkError()` - all state modifications now under single lock
 - **Detector.Clear Incomplete**: Now also calls `connMon.Clear()` to prevent stale connection data
 - **WorkerPool Map/Filter Hang**: Added `wg.Done()` compensation when `Submit()` fails
@@ -44,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **NoSQL Body Close**: Use defer for response body close - panic-safe cleanup
 - **TLS Redundant Mutex**: Removed unnecessary lock/unlock for already-captured profile variable
 
-#### 🟢 Low Priority Fixes
+#### Low Priority Fixes
 - **Runner Zero Burst**: Added `if burst < 1 { burst = 1 }` to prevent division by zero
 - **apiabuse String Bug**: Fixed `string(rune(requests))` to `fmt.Sprintf("%d", requests)`
 - **DNS Loop Variable Capture**: Capture resolver variable explicitly in closure
@@ -73,7 +73,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Advanced Cognitive Modules** (`pkg/intelligence/`): 🧠 5 new learning subsystems for intelligent WAF analysis
+- **Advanced Cognitive Modules** (`pkg/intelligence/`): 5 new learning subsystems for intelligent WAF analysis
   - **Bypass Predictor**: Predicts bypass probability before testing using learned patterns from:
     - Category success rates (SQLi, XSS, CMDI, etc.)
     - Encoding effectiveness (URL, Unicode, Hex, HTML entity)
