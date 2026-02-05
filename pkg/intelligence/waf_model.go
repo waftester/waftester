@@ -1,10 +1,20 @@
-// WAF Behavioral Model learns WAF patterns from responses
+// Package intelligence provides adaptive learning capabilities for WAFtester.
+// WAFBehaviorModel learns WAF patterns from responses to identify weaknesses and strengths.
 package intelligence
 
 import (
 	"strings"
 	"sync"
 	"time"
+)
+
+// WAF model constants.
+const (
+	// MinObservationsForInsight is the minimum observations before generating insights.
+	MinObservationsForInsight = 5
+
+	// MinPatternsForWeakness is the minimum pattern occurrences to flag as weakness.
+	MinPatternsForWeakness = 3
 )
 
 // WAFBehaviorModel learns and tracks WAF behavioral patterns
@@ -64,8 +74,12 @@ func NewWAFBehaviorModel() *WAFBehaviorModel {
 	}
 }
 
-// Learn updates the model from a finding
+// Learn updates the model from a finding.
+// Safe to call with nil finding (no-op).
 func (w *WAFBehaviorModel) Learn(f *Finding) {
+	if f == nil {
+		return
+	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -74,13 +88,23 @@ func (w *WAFBehaviorModel) Learn(f *Finding) {
 		w.categoryBlock[f.Category]++
 		w.blockedCount++
 		if f.Latency > 0 {
-			w.avgBlockedLatency = (w.avgBlockedLatency*time.Duration(w.blockedCount-1) + f.Latency) / time.Duration(w.blockedCount)
+			// Use EMA to avoid integer overflow with large counts
+			if w.avgBlockedLatency == 0 {
+				w.avgBlockedLatency = f.Latency
+			} else {
+				w.avgBlockedLatency = time.Duration(float64(w.avgBlockedLatency)*0.9 + float64(f.Latency)*0.1)
+			}
 		}
 	} else {
 		w.categoryBypass[f.Category]++
 		w.bypassCount++
 		if f.Latency > 0 {
-			w.avgBypassLatency = (w.avgBypassLatency*time.Duration(w.bypassCount-1) + f.Latency) / time.Duration(w.bypassCount)
+			// Use EMA to avoid integer overflow with large counts
+			if w.avgBypassLatency == 0 {
+				w.avgBypassLatency = f.Latency
+			} else {
+				w.avgBypassLatency = time.Duration(float64(w.avgBypassLatency)*0.9 + float64(f.Latency)*0.1)
+			}
 		}
 	}
 
@@ -105,8 +129,12 @@ func (w *WAFBehaviorModel) Learn(f *Finding) {
 	w.updateAssessments()
 }
 
-// DetectPattern checks if a finding matches a known pattern
+// DetectPattern checks if a finding matches a known pattern.
+// Returns nil if f is nil or no pattern detected.
 func (w *WAFBehaviorModel) DetectPattern(f *Finding) *WAFPattern {
+	if f == nil {
+		return nil
+	}
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
@@ -202,24 +230,24 @@ func (w *WAFBehaviorModel) updateAssessments() {
 		rate := w.getCategoryBypassRate(category)
 		total := w.categoryBlock[category] + w.categoryBypass[category]
 
-		if total < 5 {
+		if total < MinObservationsForInsight {
 			continue // Not enough data
 		}
 
-		if rate > 0.5 {
+		if rate > WeakCategoryBypassThreshold {
 			w.weaknesses = append(w.weaknesses, Weakness{
 				Category:    category,
 				Description: category + " rules are weak (>50% bypass rate)",
 				Confidence:  rate,
 			})
-		} else if rate < 0.1 {
+		} else if rate < (1 - StrongCategoryBlockThreshold) {
 			w.strengths = append(w.strengths, category+" rules are strong (<10% bypass rate)")
 		}
 	}
 
 	// Check for bypass patterns
 	for pattern, count := range w.bypassPatterns {
-		if count >= 3 {
+		if count >= MinPatternsForWeakness {
 			blockCount := w.blockPatterns[pattern]
 			if count > blockCount {
 				w.weaknesses = append(w.weaknesses, Weakness{
@@ -266,4 +294,36 @@ func extractPatterns(payload string) []string {
 	}
 
 	return patterns
+}
+
+// GetVendor attempts to identify the WAF vendor based on observed behavior
+func (w *WAFBehaviorModel) GetVendor() string {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	// Analyze status codes and patterns to identify vendor
+	// This is a heuristic based on common WAF behaviors
+
+	// Check status code patterns
+	if w.statusCodes[403] > w.statusCodes[406] && w.statusCodes[403] > w.statusCodes[429] {
+		// 403 dominant - could be many WAFs
+		if w.avgBlockedLatency > 100*time.Millisecond {
+			return "cloudflare" // Cloudflare tends to have consistent latency
+		}
+	}
+
+	if w.statusCodes[406] > 0 && w.statusCodes[406] > w.statusCodes[403]/2 {
+		return "modsecurity" // ModSecurity often uses 406
+	}
+
+	if w.statusCodes[999] > 0 {
+		return "custom" // Custom status codes
+	}
+
+	// Default to unknown
+	if w.blockedCount > 10 {
+		return "unknown"
+	}
+
+	return ""
 }

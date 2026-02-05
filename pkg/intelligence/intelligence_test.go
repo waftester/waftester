@@ -323,7 +323,7 @@ func TestTechProfileDetection(t *testing.T) {
 
 	// Detect from a finding with Django indicators
 	profile.Detect(&Finding{
-		Path: "/django/admin",
+		Path:    "/django/admin",
 		Payload: "csrfmiddlewaretoken",
 	})
 

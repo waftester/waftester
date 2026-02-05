@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,8 +15,8 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/corpus"
-	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/metrics"
@@ -540,8 +539,8 @@ func (a *Assessment) executeAttackTest(ctx context.Context, payload AttackPayloa
 	}
 	defer iohelper.DrainAndClose(resp.Body)
 
-	// Read body for detection analysis
-	body, _ := io.ReadAll(resp.Body)
+	// Read body for detection analysis (bounded to prevent memory exhaustion)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	if a.detector != nil {
 		a.detector.RecordResponse(a.config.TargetURL, resp, result.Latency, len(body))
 	}
