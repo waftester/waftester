@@ -128,10 +128,15 @@ func (r *Runner[T]) Run(ctx context.Context, targets []string, task TaskFunc[T])
 
 	// Initialize rate limiter if needed
 	if r.RateLimit > 0 && r.limiter == nil {
+		// Ensure minimum burst of 1 to avoid blocking when RateLimit is 1-4
+		burst := r.RateLimit / 5
+		if burst < 1 {
+			burst = 1
+		}
 		r.limiter = ratelimit.New(&ratelimit.Config{
 			RequestsPerSecond: r.RateLimit,
 			PerHost:           r.RateLimitPerHost,
-			Burst:             r.RateLimit / 5, // 20% burst capacity
+			Burst:             burst,
 		})
 	}
 
@@ -282,10 +287,15 @@ func (r *Runner[T]) RunWithCallback(ctx context.Context, targets []string, task 
 
 	// Initialize rate limiter if needed
 	if r.RateLimit > 0 && r.limiter == nil {
+		// Ensure minimum burst of 1 to avoid blocking when RateLimit is 1-4
+		burst := r.RateLimit / 5
+		if burst < 1 {
+			burst = 1
+		}
 		r.limiter = ratelimit.New(&ratelimit.Config{
 			RequestsPerSecond: r.RateLimit,
 			PerHost:           r.RateLimitPerHost,
-			Burst:             r.RateLimit / 5, // 20% burst capacity
+			Burst:             burst,
 		})
 	}
 
@@ -383,8 +393,24 @@ func (r *Runner[T]) RunWithCallback(ctx context.Context, targets []string, task 
 	wg.Wait()
 }
 
-// extractHost extracts the hostname from a URL or target string
+// extractHost extracts the hostname from a URL or target string.
+// Results are cached to avoid repeated parsing in hot paths.
 func extractHost(target string) string {
+	// Check cache first
+	if cached, ok := hostCache.Load(target); ok {
+		return cached.(string)
+	}
+
+	host := extractHostUncached(target)
+	hostCache.Store(target, host)
+	return host
+}
+
+// hostCache caches extracted hostnames to avoid repeated URL parsing
+var hostCache sync.Map
+
+// extractHostUncached performs the actual host extraction
+func extractHostUncached(target string) string {
 	// Try to parse as URL first
 	if u, err := url.Parse(target); err == nil && u.Host != "" {
 		host := u.Hostname()

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/waftester/waftester/internal/hexutil"
@@ -250,15 +251,24 @@ func (e *JSHexEncoder) Encode(payload string) (string, error) {
 	return result.String(), nil
 }
 func (e *JSHexEncoder) Decode(encoded string) (string, error) {
-	result := encoded
-	for i := 0; i < len(result)-3; i++ {
-		if result[i] == '\\' && result[i+1] == 'x' {
-			var b byte
-			fmt.Sscanf(result[i+2:i+4], "%02x", &b)
-			result = result[:i] + string(b) + result[i+4:]
+	// Use strings.Builder for O(n) instead of O(n²) string concatenation
+	sb := bufpool.GetString()
+	defer bufpool.PutString(sb)
+	sb.Grow(len(encoded))
+
+	for i := 0; i < len(encoded); {
+		if i < len(encoded)-3 && encoded[i] == '\\' && encoded[i+1] == 'x' {
+			// Parse hex byte using strconv (faster than fmt.Sscanf)
+			if b, err := strconv.ParseUint(encoded[i+2:i+4], 16, 8); err == nil {
+				sb.WriteByte(byte(b))
+				i += 4
+				continue
+			}
 		}
+		sb.WriteByte(encoded[i])
+		i++
 	}
-	return result, nil
+	return sb.String(), nil
 }
 
 // UTF7Encoder applies UTF-7 encoding for bypasses

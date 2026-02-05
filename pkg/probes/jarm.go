@@ -173,11 +173,21 @@ func (p *JARMProber) sendProbe(ctx context.Context, addr string, probe jarmProbe
 func buildClientHello(probe jarmProbe) []byte {
 	// Random bytes
 	random := make([]byte, 32)
-	rand.Read(random)
+	if _, err := rand.Read(random); err != nil {
+		// Fallback: use deterministic pattern if rand fails
+		for i := range random {
+			random[i] = byte(i ^ 0xAB)
+		}
+	}
 
 	// Session ID (32 random bytes)
 	sessionID := make([]byte, 32)
-	rand.Read(sessionID)
+	if _, err := rand.Read(sessionID); err != nil {
+		// Fallback: deterministic pattern
+		for i := range sessionID {
+			sessionID[i] = byte(i ^ 0xCD)
+		}
+	}
 
 	// Build ClientHello
 	hello := []byte{

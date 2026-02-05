@@ -50,10 +50,13 @@ func NewActiveDiscoverer(target string, timeout time.Duration, skipVerify bool) 
 	}
 
 	return &ActiveDiscoverer{
-		client:    client,
-		target:    strings.TrimRight(target, "/"),
-		userAgent: defaults.UAChrome,
-		results:   make([]Endpoint, 0),
+		client:               client,
+		target:               strings.TrimRight(target, "/"),
+		userAgent:            defaults.UAChrome,
+		results:              make([]Endpoint, 0),
+		discoveredSecrets:    make(map[string][]Secret),
+		discoveredS3Buckets:  make(map[string]bool),
+		discoveredSubdomains: make(map[string]bool),
 	}
 }
 
@@ -532,7 +535,9 @@ func (ad *ActiveDiscoverer) detectWildcardBaseline(ctx context.Context) {
 			iohelper.DrainAndClose(resp.Body)
 
 			fp := CalculateFingerprint(resp.StatusCode, body, resp.Header.Get("Content-Type"))
-			ad.wildcardDetector.AddBaseline(method, fp)
+			if ad.wildcardDetector != nil {
+				ad.wildcardDetector.AddBaseline(method, fp)
+			}
 			break // One successful baseline per method is enough
 		}
 	}

@@ -75,27 +75,28 @@ func (c *Cache) MarkError(host string) bool {
 	var state *hostState
 	if v, ok := c.hosts.Load(host); ok {
 		state = v.(*hostState)
-		// Check if expired and reset if so
-		state.mu.Lock()
-		if !state.permanent && !state.markedAt.IsZero() && time.Since(state.markedAt) > c.expiry {
-			atomic.StoreInt32(&state.count, 0)
-			state.markedAt = time.Time{}
-		}
-		state.mu.Unlock()
 	} else {
 		state = &hostState{}
 		actual, _ := c.hosts.LoadOrStore(host, state)
 		state = actual.(*hostState)
 	}
 
-	newCount := atomic.AddInt32(&state.count, 1)
-	if newCount >= c.maxErrors {
+	// All state modifications under lock to prevent TOCTOU race
+	state.mu.Lock()
+	defer state.mu.Unlock()
+
+	// Check if expired and reset if so
+	if !state.permanent && !state.markedAt.IsZero() && time.Since(state.markedAt) > c.expiry {
+		state.count = 0
+		state.markedAt = time.Time{}
+	}
+
+	state.count++
+	if state.count >= c.maxErrors {
 		// Only set markedAt on first time reaching threshold
-		state.mu.Lock()
 		if state.markedAt.IsZero() {
 			state.markedAt = time.Now()
 		}
-		state.mu.Unlock()
 		return true
 	}
 	return false
@@ -131,26 +132,27 @@ func (c *Cache) Check(host string) bool {
 
 	state := v.(*hostState)
 
-	// Check if exceeded threshold
-	if atomic.LoadInt32(&state.count) >= c.maxErrors {
-		// Check expiry for non-permanent entries
-		state.mu.RLock()
-		permanent := state.permanent
-		markedAt := state.markedAt
-		state.mu.RUnlock()
+	// Check if exceeded threshold - read all state under lock for consistency
+	state.mu.Lock()
+	count := state.count
+	permanent := state.permanent
+	markedAt := state.markedAt
 
+	if count >= c.maxErrors {
+		// Check expiry for non-permanent entries
 		if !permanent && time.Since(markedAt) > c.expiry {
 			// Expired, reset the state
-			state.mu.Lock()
-			atomic.StoreInt32(&state.count, 0)
+			state.count = 0
 			state.markedAt = time.Time{}
 			state.mu.Unlock()
 			c.misses.Add(1)
 			return false
 		}
+		state.mu.Unlock()
 		c.hits.Add(1)
 		return true
 	}
+	state.mu.Unlock()
 
 	c.misses.Add(1)
 	return false

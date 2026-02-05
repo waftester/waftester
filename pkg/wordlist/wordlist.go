@@ -355,6 +355,14 @@ type MutationRule struct {
 
 // generateNumeric creates numeric wordlist
 func generateNumeric(min, max, padding int) []string {
+	// Bounds validation to prevent OOM
+	if max < min {
+		return nil
+	}
+	if max-min > 10000000 {
+		max = min + 10000000 // Cap at 10 million entries
+	}
+
 	words := make([]string, 0, max-min+1)
 	format := fmt.Sprintf("%%0%dd", padding)
 

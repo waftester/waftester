@@ -3,6 +3,7 @@
 package fuzz
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"math/rand"
@@ -15,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/bufpool"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/httpclient"
@@ -343,9 +345,11 @@ func (f *Fuzzer) fuzz(ctx context.Context, word string) *Result {
 
 	result.StatusCode = resp.StatusCode
 
-	// Read body (limited)
-	bodyBytes := make([]byte, 0, 1024*1024)
-	buf := make([]byte, 32*1024)
+	// Read body using pooled buffers for better performance
+	buf := bufpool.GetSlice(32 * 1024)
+	defer bufpool.PutSlice(buf)
+
+	bodyBytes := make([]byte, 0, 64*1024) // Start smaller, grow as needed
 	for {
 		n, readErr := resp.Body.Read(buf)
 		if n > 0 {
@@ -359,12 +363,18 @@ func (f *Fuzzer) fuzz(ctx context.Context, word string) *Result {
 		}
 	}
 
-	bodyStr := string(bodyBytes)
 	result.ContentLength = len(bodyBytes)
-	result.WordCount = len(strings.Fields(bodyStr))
-	result.LineCount = strings.Count(bodyStr, "\n") + 1
-	if len(bodyStr) == 0 {
+	// Count words and lines directly from bytes to avoid string allocation
+	result.WordCount = countWords(bodyBytes)
+	result.LineCount = bytes.Count(bodyBytes, []byte{'\n'}) + 1
+	if len(bodyBytes) == 0 {
 		result.LineCount = 0
+	}
+
+	// Convert to string only when needed for filtering
+	var bodyStr string
+	if f.needsBodyString() {
+		bodyStr = string(bodyBytes)
 	}
 
 	// Record response for detection (v2.5.2)
@@ -576,4 +586,27 @@ func abs(x int) int {
 		return -x
 	}
 	return x
+}
+
+// countWords counts words in a byte slice without allocating a string.
+// A word is a sequence of non-whitespace characters.
+func countWords(b []byte) int {
+	count := 0
+	inWord := false
+	for _, c := range b {
+		isSpace := c == ' ' || c == '\t' || c == '\n' || c == '\r'
+		if isSpace {
+			inWord = false
+		} else if !inWord {
+			count++
+			inWord = true
+		}
+	}
+	return count
+}
+
+// needsBodyString returns true if filtering requires the body as a string.
+func (f *Fuzzer) needsBodyString() bool {
+	cfg := f.config
+	return cfg.MatchRegex != nil || cfg.FilterRegex != nil
 }

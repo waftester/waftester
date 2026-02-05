@@ -436,9 +436,9 @@ func (d *Detector) sendRawRequest(ctx context.Context, host, port string, useTLS
 		return time.Since(start), "", fmt.Errorf("write failed: %w", err)
 	}
 
-	// Read response
+	// Read response with size limit to prevent memory exhaustion
 	var buf bytes.Buffer
-	_, err = io.Copy(&buf, conn)
+	_, err = io.Copy(&buf, io.LimitReader(conn, 10*1024*1024)) // 10MB limit
 	duration := time.Since(start)
 
 	if err != nil && !isTimeout(err) && err != io.EOF {

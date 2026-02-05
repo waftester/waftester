@@ -153,24 +153,33 @@ func (t *TimeoutDialer) DialContext(ctx context.Context, network, address string
 	errCh := make(chan error, 1)
 
 	go func() {
+		var conn net.Conn
+		var err error
+
 		// Check if dialer supports context
 		if ctxDialer, ok := t.dialer.(proxy.ContextDialer); ok {
-			conn, err := ctxDialer.DialContext(ctx, network, address)
-			if err != nil {
-				errCh <- err
-				return
-			}
-			connCh <- conn
-			return
+			conn, err = ctxDialer.DialContext(ctx, network, address)
+		} else {
+			// Fallback: use non-context dial
+			conn, err = t.dialer.Dial(network, address)
 		}
 
-		// Fallback: use non-context dial
-		conn, err := t.dialer.Dial(network, address)
+		// Check if context was cancelled while dialing
+		// If so, close the connection to prevent leak
+		select {
+		case <-ctx.Done():
+			if conn != nil {
+				conn.Close()
+			}
+			return
+		default:
+		}
+
 		if err != nil {
 			errCh <- err
-			return
+		} else {
+			connCh <- conn
 		}
-		connCh <- conn
 	}()
 
 	select {

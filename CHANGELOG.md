@@ -5,6 +5,70 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.6] - 2026-02-05
+
+### Fixed
+
+#### 🔴 Critical Security Fixes
+- **OAuth Predictable Tokens**: `GenerateState()`, `GenerateNonce()`, `GeneratePKCEPair()` now use `crypto/rand` instead of deterministic patterns - prevents CSRF and token hijacking attacks
+
+#### 🟠 High Priority Fixes
+- **Checkpoint Double-Counting**: Fixed `MarkCompleted()` counting same target multiple times
+- **Checkpoint Data Race**: Added mutex lock in `GetProgress()` before reading `CompletedTargets`
+- **Checkpoint State Leak**: `GetState()` now returns defensive copy with deep-copied maps
+- **Goroutine/Connection Leak**: Fixed `TimeoutDialer.DialContext()` in proxy.go - now checks context cancellation after dial
+- **SSTI rand.Int Nil Panic**: Added error check with fallback values in `randomMathValues()`
+- **SSTI Defer in Loop**: Replaced defer with immediate close to prevent connection exhaustion
+- **OpenAPI http.Get Timeout**: `ParseURL()` now uses context with 30s timeout - prevents hanging on slow servers
+- **SOAP Client No Context**: Added `CallWithContext()` with timeout/cancellation support
+
+#### 🟡 Medium Priority Fixes
+- **TOCTOU Race**: Fixed race condition in `hosterrors.MarkError()` - all state modifications now under single lock
+- **Detector.Clear Incomplete**: Now also calls `connMon.Clear()` to prevent stale connection data
+- **WorkerPool Map/Filter Hang**: Added `wg.Done()` compensation when `Submit()` fails
+- **WorkerPool Panic Respawn**: Worker now respawns after panic recovery
+- **WorkerPool CAS Race**: Emergency worker spawning uses atomic CAS instead of check-then-increment
+- **RateLimiter Missing Clear**: Added `ClearHost()` and `ClearAllHosts()` methods
+- **WAF Strategy Cache Leak**: Added TTL-based eviction and max size limit (1000 entries, 30min TTL)
+- **SSRF Callbacks Leak**: Added `ClearCallbacks()` and `CleanupExpiredCallbacks(maxAge)` methods
+- **OOB Payloads Leak**: Added `ClearPayloads()` and `CleanupExpiredPayloads(maxAge)` methods
+- **BatchCapturer Goroutine Leak**: `Stop()` now drains channels to unblock workers
+- **Recursive Fuzzer Leak**: Added `ClearVisited()` and `Reset()` methods for memory management
+- **Discovery Maps Nil Panic**: Initialize `discoveredSecrets`, `discoveredS3Buckets`, `discoveredSubdomains` in constructor
+- **WildcardDetector Nil Check**: Added nil check before calling `AddBaseline()`
+- **AI Context Cancellation**: `generateWithMutationsCtx()` now respects context cancellation
+- **Gzip Reader Defer**: Use defer for gzip reader close - panic-safe resource cleanup
+- **Wordlist Bounds Check**: `generateNumeric()` validates max > min and caps at 10M entries
+- **Smuggling Unbounded Copy**: Added 10MB limit to `io.Copy` from network socket
+- **DNS Context Leak**: Added `defer cancel()` after `context.WithCancel()`
+- **NoSQL Body Close**: Use defer for response body close - panic-safe cleanup
+- **TLS Redundant Mutex**: Removed unnecessary lock/unlock for already-captured profile variable
+
+#### 🟢 Low Priority Fixes
+- **Runner Zero Burst**: Added `if burst < 1 { burst = 1 }` to prevent division by zero
+- **apiabuse String Bug**: Fixed `string(rune(requests))` to `fmt.Sprintf("%d", requests)`
+- **DNS Loop Variable Capture**: Capture resolver variable explicitly in closure
+
+### Performance Improvements
+
+- **Fuzzer Buffer Pooling**: Use `bufpool.GetSlice()` for body read buffers - reduces GC pressure
+- **Fuzzer Byte-Based Counting**: `countWords()` and line counting operate on bytes, not strings
+- **Fuzzer needsBodyString()**: Avoid string conversion when not needed
+- **Runner Host Cache**: Added `sync.Map` cache for URL host extraction - eliminates repeated parsing
+- **RateLimiter Atomic Time**: Changed `lastRequest` from `time.Time` to atomic `int64` nanoseconds
+- **RateLimiter Reusable Timer**: Replaced `time.After()` allocations with reusable timer pattern
+- **SQLi Quick-Check Filter**: `containsSQLKeyword()` fast-path avoids regex on non-SQL responses
+- **JSHexEncoder O(n)**: Fixed O(n²) decode loop using `strconv.ParseUint` and `strings.Builder`
+
+### Improved Error Handling
+
+- **rand.Read Fallbacks**: All `rand.Read()` calls now check errors and provide time-based fallbacks:
+  - `pkg/websocket/websocket.go`: `generateWebSocketKey()`
+  - `pkg/cache/cache.go`: `generateCacheBuster()`
+  - `pkg/realistic/calibration.go`: `randomHex()`
+  - `pkg/jwt/jwt.go`: Random signature generation
+  - `pkg/probes/jarm.go`: JARM probe random bytes
+
 ## [2.6.5] - 2026-02-06
 
 ### Added

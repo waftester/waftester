@@ -94,11 +94,18 @@ func (p *Pool) Submit(task func()) bool {
 	case p.tasks <- task:
 		return true
 	default:
-		// Queue is full, try to spawn emergency worker
-		if atomic.LoadInt32(&p.running) < p.workers*2 {
-			atomic.AddInt32(&p.running, 1)
-			p.wg.Add(1)
-			go p.worker()
+		// Queue is full, try to spawn emergency worker using atomic CAS
+		// to prevent spawning more than workers*2
+		for {
+			running := atomic.LoadInt32(&p.running)
+			if running >= p.workers*2 {
+				break // Already at max capacity
+			}
+			if atomic.CompareAndSwapInt32(&p.running, running, running+1) {
+				p.wg.Add(1)
+				go p.worker()
+				break
+			}
 		}
 		p.tasks <- task // Block until space available
 		return true
@@ -113,12 +120,17 @@ func (p *Pool) Go(task func()) bool {
 // worker is the goroutine that processes tasks.
 func (p *Pool) worker() {
 	defer func() {
-		atomic.AddInt32(&p.running, -1)
-		p.wg.Done()
 		// Recover from panics in tasks
 		if r := recover(); r != nil {
-			// Log panic but continue - don't crash the pool
+			// Respawn worker to maintain pool capacity
+			if atomic.LoadInt32(&p.closed) == 0 {
+				// Keep running count and wg.Add since we're replacing ourselves
+				go p.worker()
+				return // Don't decrement running since replacement is spawned
+			}
 		}
+		atomic.AddInt32(&p.running, -1)
+		p.wg.Done()
 	}()
 
 	for task := range p.tasks {
@@ -203,6 +215,7 @@ func (p *Pool) ParallelFor(n int, fn func(i int)) {
 }
 
 // Map applies fn to each item in parallel and returns results in order.
+// Returns partial results if the pool is closed during execution.
 func Map[T, R any](p *Pool, items []T, fn func(T) R) []R {
 	results := make([]R, len(items))
 	var wg sync.WaitGroup
@@ -211,10 +224,13 @@ func Map[T, R any](p *Pool, items []T, fn func(T) R) []R {
 	for i, item := range items {
 		idx := i
 		val := item
-		p.Submit(func() {
+		if !p.Submit(func() {
 			defer wg.Done()
 			results[idx] = fn(val)
-		})
+		}) {
+			// Submit failed (pool closed), compensate for wg.Add
+			wg.Done()
+		}
 	}
 
 	wg.Wait()
@@ -222,6 +238,7 @@ func Map[T, R any](p *Pool, items []T, fn func(T) R) []R {
 }
 
 // Filter applies fn to each item in parallel and returns items where fn returns true.
+// Returns partial results if the pool is closed during execution.
 func Filter[T any](p *Pool, items []T, fn func(T) bool) []T {
 	keep := make([]bool, len(items))
 	var wg sync.WaitGroup
@@ -230,10 +247,13 @@ func Filter[T any](p *Pool, items []T, fn func(T) bool) []T {
 	for i, item := range items {
 		idx := i
 		val := item
-		p.Submit(func() {
+		if !p.Submit(func() {
 			defer wg.Done()
 			keep[idx] = fn(val)
-		})
+		}) {
+			// Submit failed (pool closed), compensate for wg.Add
+			wg.Done()
+		}
 	}
 
 	wg.Wait()

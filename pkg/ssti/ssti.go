@@ -201,8 +201,15 @@ func (d *Detector) generatePayloads() []*Payload {
 
 func randomMathValues() (int, int) {
 	// Generate random values between 1000-9999 to avoid false positives
-	aVal, _ := rand.Int(rand.Reader, big.NewInt(9000))
-	bVal, _ := rand.Int(rand.Reader, big.NewInt(9000))
+	aVal, err := rand.Int(rand.Reader, big.NewInt(9000))
+	if err != nil {
+		// Fallback to deterministic but varied values on rand failure
+		return 7919, 8731
+	}
+	bVal, err := rand.Int(rand.Reader, big.NewInt(9000))
+	if err != nil {
+		return int(aVal.Int64()) + 1000, 8731
+	}
 	return int(aVal.Int64()) + 1000, int(bVal.Int64()) + 1000
 }
 
@@ -1233,9 +1240,10 @@ func (d *Detector) FingerprintEngine(ctx context.Context, targetURL string, para
 		if err != nil {
 			continue
 		}
-		defer iohelper.DrainAndClose(resp.Body)
 
 		body, err := iohelper.ReadBodyDefault(resp.Body)
+		iohelper.DrainAndClose(resp.Body) // Close immediately, not defer in loop
+
 		if err != nil {
 			continue
 		}

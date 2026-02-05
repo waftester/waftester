@@ -278,9 +278,9 @@ func (t *Tester) testQueryParam(ctx context.Context, u *url.URL, param string, p
 	if err != nil {
 		return nil, err
 	}
+	defer iohelper.DrainAndClose(resp.Body) // Ensure cleanup even on panic
 
 	body := readBodyLimit(resp, 100*1024)
-	iohelper.DrainAndClose(resp.Body)
 
 	// Check for evidence of successful injection
 	evidence := t.detectEvidence(body, resp.StatusCode, payload.Database)

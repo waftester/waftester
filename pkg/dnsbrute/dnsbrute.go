@@ -105,11 +105,12 @@ func NewBruteforcer(config Config) *Bruteforcer {
 
 	resolvers := make([]*net.Resolver, len(config.Resolvers))
 	for i, r := range config.Resolvers {
+		resolver := r // Capture loop variable for closure
 		resolvers[i] = &net.Resolver{
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 				d := net.Dialer{Timeout: config.Timeout}
-				return d.DialContext(ctx, "udp", r)
+				return d.DialContext(ctx, "udp", resolver)
 			},
 		}
 	}
@@ -126,6 +127,7 @@ func NewBruteforcer(config Config) *Bruteforcer {
 func (b *Bruteforcer) Run(ctx context.Context, domain string, words []string) ([]Result, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	b.cancel = cancel
+	defer cancel() // Ensure context is cancelled when function returns
 	b.startTime = time.Now()
 	atomic.StoreInt64(&b.stats.Total, int64(len(words)))
 

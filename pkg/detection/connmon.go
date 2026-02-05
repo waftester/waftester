@@ -16,13 +16,13 @@ import (
 
 // dropState tracks connection drop state for a single host with atomic counters.
 type dropState struct {
-	consecutiveDrops   atomic.Int64
-	totalDrops         atomic.Int64
-	lastDropType       atomic.Int32
-	lastDropTime       atomic.Int64 // Unix nano
-	recoverySuccesses  atomic.Int64
-	inRecovery         atomic.Bool
-	recoveryStartTime  atomic.Int64 // Unix nano
+	consecutiveDrops  atomic.Int64
+	totalDrops        atomic.Int64
+	lastDropType      atomic.Int32
+	lastDropTime      atomic.Int64 // Unix nano
+	recoverySuccesses atomic.Int64
+	inRecovery        atomic.Bool
+	recoveryStartTime atomic.Int64 // Unix nano
 }
 
 // ConnectionMonitor tracks connection drops and recovery across multiple hosts.
@@ -46,6 +46,14 @@ func (m *ConnectionMonitor) ClearAll() {
 	defer m.mu.Unlock()
 	m.hostDrops = make(map[string]*dropState)
 	m.baselineLatency = make(map[string]time.Duration)
+}
+
+// Clear removes tracking data for a specific host.
+func (m *ConnectionMonitor) Clear(host string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.hostDrops, host)
+	delete(m.baselineLatency, host)
 }
 
 // ClassifyError determines the type of connection drop from an error.

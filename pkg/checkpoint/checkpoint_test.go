@@ -226,9 +226,10 @@ func TestConcurrentMarkCompleted(t *testing.T) {
 	m := NewManager(filePath)
 	m.AutoSave = false // Disable to avoid file I/O race
 
+	// Create 100 UNIQUE targets (not duplicates)
 	targets := make([]string, 100)
 	for i := 0; i < 100; i++ {
-		targets[i] = "target" + string(rune('0'+i%10)) + ".com"
+		targets[i] = fmt.Sprintf("target%d.com", i)
 	}
 
 	m.Init("probe", targets, nil)
@@ -247,10 +248,57 @@ func TestConcurrentMarkCompleted(t *testing.T) {
 		<-done
 	}
 
-	// Verify state
+	// Verify state - should be exactly 100 unique targets
 	state := m.GetState()
 	if state.CompletedTargets != 100 {
 		t.Errorf("expected 100 completed, got %d", state.CompletedTargets)
+	}
+
+	// Also verify the Completed map has 100 entries
+	if len(state.Completed) != 100 {
+		t.Errorf("expected 100 completed map entries, got %d", len(state.Completed))
+	}
+}
+
+// TestMarkCompleted_NoDuplicateCounting verifies that marking the same target
+// multiple times doesn't increment CompletedTargets multiple times
+func TestMarkCompleted_NoDuplicateCounting(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "no-dup.cfg")
+
+	m := NewManager(filePath)
+	m.AutoSave = false
+
+	targets := []string{"target1.com", "target2.com", "target3.com"}
+	m.Init("probe", targets, nil)
+
+	// Mark the same target multiple times
+	for i := 0; i < 10; i++ {
+		m.MarkCompleted("target1.com")
+	}
+
+	state := m.GetState()
+	if state.CompletedTargets != 1 {
+		t.Errorf("expected 1 completed (no duplicate counting), got %d", state.CompletedTargets)
+	}
+
+	// Now mark all targets
+	m.MarkCompleted("target2.com")
+	m.MarkCompleted("target3.com")
+
+	state = m.GetState()
+	if state.CompletedTargets != 3 {
+		t.Errorf("expected 3 completed, got %d", state.CompletedTargets)
+	}
+
+	// Mark them all again - count shouldn't change
+	for _, target := range targets {
+		m.MarkCompleted(target)
+	}
+
+	state = m.GetState()
+	if state.CompletedTargets != 3 {
+		t.Errorf("expected 3 completed (still, no duplicates), got %d", state.CompletedTargets)
 	}
 }
 

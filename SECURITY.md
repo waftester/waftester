@@ -12,7 +12,7 @@
 | 1.x.x   | :x:                |
 | < 1.0   | :x:                |
 
-**Current stable release: 2.6.4**
+**Current stable release: 2.6.6**
 
 ## Reporting a Vulnerability
 

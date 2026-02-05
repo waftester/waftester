@@ -822,3 +822,25 @@ func (d *Detector) Detect(ctx context.Context, target, param string) (*Result, e
 	result.Duration = time.Since(start)
 	return result, nil
 }
+
+// ClearCallbacks removes all registered callbacks
+func (d *Detector) ClearCallbacks() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.callbacks = make(map[string]time.Time)
+}
+
+// CleanupExpiredCallbacks removes callbacks older than maxAge
+func (d *Detector) CleanupExpiredCallbacks(maxAge time.Duration) int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	cutoff := time.Now().Add(-maxAge)
+	removed := 0
+	for id, registered := range d.callbacks {
+		if registered.Before(cutoff) {
+			delete(d.callbacks, id)
+			removed++
+		}
+	}
+	return removed
+}
