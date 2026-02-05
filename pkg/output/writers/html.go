@@ -2,7 +2,6 @@
 package writers
 
 import (
-	"encoding/json"
 	"fmt"
 	"html"
 	"html/template"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/jsonutil"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
 )
@@ -599,7 +599,7 @@ func (hw *HTMLWriter) prepareTemplateData() *templateData {
 		}
 
 		if hw.config.IncludeJSON {
-			jsonBytes, _ := json.MarshalIndent(r, "", "  ")
+			jsonBytes, _ := jsonutil.MarshalIndent(r, "", "  ")
 			finding.JSONData = html.EscapeString(string(jsonBytes))
 		}
 

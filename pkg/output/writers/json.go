@@ -2,11 +2,11 @@
 package writers
 
 import (
-	"encoding/json"
 	"io"
 	"strings"
 	"sync"
 
+	"github.com/waftester/waftester/pkg/jsonutil"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
 )
@@ -75,7 +75,7 @@ func (jw *JSONWriter) Close() error {
 	jw.mu.Lock()
 	defer jw.mu.Unlock()
 
-	encoder := json.NewEncoder(jw.w)
+	encoder := jsonutil.NewStreamEncoder(jw.w)
 	if jw.opts.Pretty {
 		indent := strings.Repeat(" ", jw.opts.IndentSize)
 		encoder.SetIndent("", indent)
