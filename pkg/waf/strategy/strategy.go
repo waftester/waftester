@@ -46,11 +46,19 @@ type Strategy struct {
 
 // StrategyEngine creates optimized testing strategies based on WAF detection
 type StrategyEngine struct {
-	detector *vendors.VendorDetector
-	cache    map[string]*Strategy
-	mu       sync.RWMutex
-	timeout  time.Duration
+	detector     *vendors.VendorDetector
+	cache        map[string]*Strategy
+	cacheExpiry  map[string]time.Time
+	mu           sync.RWMutex
+	timeout      time.Duration
+	cacheTTL     time.Duration
+	maxCacheSize int
 }
+
+const (
+	defaultCacheTTL  = 30 * time.Minute
+	defaultCacheSize = 1000
+)
 
 // NewStrategyEngine creates a new strategy engine
 func NewStrategyEngine(timeout time.Duration) *StrategyEngine {
@@ -58,9 +66,33 @@ func NewStrategyEngine(timeout time.Duration) *StrategyEngine {
 		timeout = httpclient.TimeoutScanning
 	}
 	return &StrategyEngine{
-		detector: vendors.NewVendorDetector(timeout),
-		cache:    make(map[string]*Strategy),
-		timeout:  timeout,
+		detector:     vendors.NewVendorDetector(timeout),
+		cache:        make(map[string]*Strategy),
+		cacheExpiry:  make(map[string]time.Time),
+		timeout:      timeout,
+		cacheTTL:     defaultCacheTTL,
+		maxCacheSize: defaultCacheSize,
+	}
+}
+
+// ClearCache removes all cached strategies
+func (e *StrategyEngine) ClearCache() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.cache = make(map[string]*Strategy)
+	e.cacheExpiry = make(map[string]time.Time)
+}
+
+// ClearExpiredCache removes expired cache entries
+func (e *StrategyEngine) ClearExpiredCache() {
+	now := time.Now()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for target, expiry := range e.cacheExpiry {
+		if now.After(expiry) {
+			delete(e.cache, target)
+			delete(e.cacheExpiry, target)
+		}
 	}
 }
 
@@ -84,9 +116,23 @@ func (e *StrategyEngine) GetStrategy(ctx context.Context, target string) (*Strat
 	// Build strategy from detection result
 	strategy := e.buildStrategy(result)
 
-	// Cache it
+	// Enforce cache size limit before adding
 	e.mu.Lock()
+	if len(e.cache) >= e.maxCacheSize {
+		// Evict oldest entries (approximately half)
+		now := time.Now()
+		for t, expiry := range e.cacheExpiry {
+			if now.After(expiry) || len(e.cache) >= e.maxCacheSize {
+				delete(e.cache, t)
+				delete(e.cacheExpiry, t)
+			}
+			if len(e.cache) < e.maxCacheSize/2 {
+				break
+			}
+		}
+	}
 	e.cache[target] = strategy
+	e.cacheExpiry[target] = time.Now().Add(e.cacheTTL)
 	e.mu.Unlock()
 
 	return strategy, nil

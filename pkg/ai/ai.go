@@ -210,7 +210,7 @@ func (c *OpenAIClient) GeneratePayloads(ctx context.Context, req *PayloadRequest
 
 	// In real implementation, would call OpenAI API
 	// For now, use built-in mutation engine
-	return c.generateWithMutations(req), nil
+	return c.generateWithMutationsCtx(ctx, req), nil
 }
 
 func (c *OpenAIClient) buildPayloadPrompt(req *PayloadRequest) string {
@@ -230,7 +230,7 @@ func (c *OpenAIClient) buildPayloadPrompt(req *PayloadRequest) string {
 	return sb.String()
 }
 
-func (c *OpenAIClient) generateWithMutations(req *PayloadRequest) []*GeneratedPayload {
+func (c *OpenAIClient) generateWithMutationsCtx(ctx context.Context, req *PayloadRequest) []*GeneratedPayload {
 	// Use built-in mutation engine for local generation
 	engine := NewMutationEngine()
 
@@ -240,6 +240,12 @@ func (c *OpenAIClient) generateWithMutations(req *PayloadRequest) []*GeneratedPa
 	for _, base := range basePayloads {
 		if len(results) >= req.Count {
 			break
+		}
+		// Check context cancellation
+		select {
+		case <-ctx.Done():
+			return results // Return early on cancellation
+		default:
 		}
 
 		mutated := engine.Mutate(base, req.Type, req.EvasionLevel, req.Encoding)

@@ -114,7 +114,13 @@ func NewTester(config *TesterConfig) *Tester {
 // generateWebSocketKey generates a random WebSocket key
 func generateWebSocketKey() string {
 	key := make([]byte, 16)
-	rand.Read(key)
+	if _, err := rand.Read(key); err != nil {
+		// Fallback: use time-based seed for key generation
+		// This maintains functionality even if crypto/rand fails
+		for i := range key {
+			key[i] = byte(i ^ int(time.Now().UnixNano()))
+		}
+	}
 	return base64.StdEncoding.EncodeToString(key)
 }
 

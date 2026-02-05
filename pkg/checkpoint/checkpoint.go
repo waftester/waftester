@@ -134,8 +134,11 @@ func (m *Manager) MarkCompleted(target string) error {
 		return nil
 	}
 	m.state.mu.Lock()
-	m.state.Completed[target] = true
-	m.state.CompletedTargets++
+	// Only increment if not already completed (prevent double-counting)
+	if !m.state.Completed[target] {
+		m.state.Completed[target] = true
+		m.state.CompletedTargets++
+	}
 	count := m.state.CompletedTargets
 	m.state.mu.Unlock()
 	m.mu.Unlock()
@@ -190,11 +193,40 @@ func (m *Manager) GetPendingTargets(allTargets []string) []string {
 	return pending
 }
 
-// GetState returns the current checkpoint state
+// GetState returns a copy of the current checkpoint state.
+// The returned state is safe to read but modifications will not affect the manager.
 func (m *Manager) GetState() *State {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.state
+
+	if m.state == nil {
+		return nil
+	}
+
+	// Return a defensive copy to prevent external modification
+	m.state.mu.Lock()
+	defer m.state.mu.Unlock()
+
+	completedCopy := make(map[string]bool, len(m.state.Completed))
+	for k, v := range m.state.Completed {
+		completedCopy[k] = v
+	}
+
+	flagsCopy := make(map[string]interface{}, len(m.state.Flags))
+	for k, v := range m.state.Flags {
+		flagsCopy[k] = v
+	}
+
+	return &State{
+		Version:          m.state.Version,
+		Command:          m.state.Command,
+		StartTime:        m.state.StartTime,
+		LastUpdate:       m.state.LastUpdate,
+		TotalTargets:     m.state.TotalTargets,
+		CompletedTargets: m.state.CompletedTargets,
+		Completed:        completedCopy,
+		Flags:            flagsCopy,
+	}
 }
 
 // Delete removes the checkpoint file
@@ -213,11 +245,21 @@ func (m *Manager) GetProgress() float64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.state == nil || m.state.TotalTargets == 0 {
+	if m.state == nil {
 		return 0
 	}
 
-	return float64(m.state.CompletedTargets) / float64(m.state.TotalTargets) * 100
+	// Acquire state lock to safely read CompletedTargets (written under state.mu)
+	m.state.mu.Lock()
+	completed := m.state.CompletedTargets
+	total := m.state.TotalTargets
+	m.state.mu.Unlock()
+
+	if total == 0 {
+		return 0
+	}
+
+	return float64(completed) / float64(total) * 100
 }
 
 // SaveCompletedToFile appends completed targets to a simple text file (legacy format)

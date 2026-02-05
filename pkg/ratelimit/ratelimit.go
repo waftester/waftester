@@ -6,6 +6,7 @@ import (
 	"context"
 	"math/rand"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/waftester/waftester/pkg/duration"
@@ -62,8 +63,8 @@ type Limiter struct {
 	config *Config
 	mu     sync.Mutex
 
-	// Global rate limiting state
-	lastRequest time.Time
+	// Global rate limiting state - use atomic for lock-free access
+	lastRequestNano int64 // Unix nano timestamp, atomic
 
 	// Per-second rate limiting (token bucket)
 	secondBucket *tokenBucket
@@ -193,10 +194,10 @@ func New(cfg *Config) *Limiter {
 	}
 
 	l := &Limiter{
-		config:       cfg,
-		lastRequest:  time.Now(),
-		currentDelay: cfg.Delay,
-		hostLimiters: make(map[string]*Limiter),
+		config:          cfg,
+		lastRequestNano: time.Now().UnixNano(),
+		currentDelay:    cfg.Delay,
+		hostLimiters:    make(map[string]*Limiter),
 	}
 
 	// Set up token bucket for per-second limiting
@@ -262,15 +263,32 @@ func (l *Limiter) getOrCreateHostLimiter(host string) *Limiter {
 }
 
 func (l *Limiter) waitInternal(ctx context.Context) error {
+	// Use a reusable timer to avoid allocations on each wait
+	var timer *time.Timer
+
+	// Helper to wait with reusable timer
+	waitWithTimer := func(d time.Duration) error {
+		if timer == nil {
+			timer = time.NewTimer(d)
+			defer timer.Stop()
+		} else {
+			timer.Reset(d)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			return nil
+		}
+	}
+
 	// Check per-second bucket
 	if l.secondBucket != nil {
 		for !l.secondBucket.take() {
 			waitTime := l.secondBucket.waitTime()
 			if waitTime > 0 {
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-time.After(waitTime):
+				if err := waitWithTimer(waitTime); err != nil {
+					return err
 				}
 			}
 		}
@@ -281,10 +299,8 @@ func (l *Limiter) waitInternal(ctx context.Context) error {
 		for !l.minuteWindow.canProceed() {
 			waitTime := l.minuteWindow.waitTime()
 			if waitTime > 0 {
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-time.After(waitTime):
+				if err := waitWithTimer(waitTime); err != nil {
+					return err
 				}
 			}
 		}
@@ -294,17 +310,13 @@ func (l *Limiter) waitInternal(ctx context.Context) error {
 	// Apply fixed/random delay
 	delay := l.calculateDelay()
 	if delay > 0 {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(delay):
+		if err := waitWithTimer(delay); err != nil {
+			return err
 		}
 	}
 
-	// Record last request time
-	l.mu.Lock()
-	l.lastRequest = time.Now()
-	l.mu.Unlock()
+	// Record last request time atomically (no lock needed)
+	atomic.StoreInt64(&l.lastRequestNano, time.Now().UnixNano())
 
 	return nil
 }
@@ -403,6 +415,22 @@ func (l *Limiter) Stats() Stats {
 	}
 
 	return stats
+}
+
+// ClearHost removes the per-host rate limiter for a specific host.
+// This helps prevent unbounded memory growth during long-running scans.
+func (l *Limiter) ClearHost(host string) {
+	l.hostLimitersMu.Lock()
+	defer l.hostLimitersMu.Unlock()
+	delete(l.hostLimiters, host)
+}
+
+// ClearAllHosts removes all per-host rate limiters.
+// Use this periodically during long-running scans to free memory.
+func (l *Limiter) ClearAllHosts() {
+	l.hostLimitersMu.Lock()
+	defer l.hostLimitersMu.Unlock()
+	l.hostLimiters = make(map[string]*Limiter)
 }
 
 // MultiLimiter combines multiple rate limiters (e.g., global + per-host)

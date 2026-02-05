@@ -240,19 +240,22 @@ func GenerateThumbnail(result Result, config ThumbnailConfig) ([]byte, error) {
 
 // BatchCapturer handles batch screenshot operations
 type BatchCapturer struct {
-	capturer *Capturer
-	queue    chan string
-	results  chan Result
-	done     chan struct{}
+	capturer  *Capturer
+	queue     chan string
+	results   chan Result
+	done      chan struct{}
+	stopOnce  sync.Once
+	drainDone chan struct{}
 }
 
 // NewBatchCapturer creates a batch capturer
 func NewBatchCapturer(config Config) *BatchCapturer {
 	return &BatchCapturer{
-		capturer: NewCapturer(config),
-		queue:    make(chan string, 1000),
-		results:  make(chan Result, 1000),
-		done:     make(chan struct{}),
+		capturer:  NewCapturer(config),
+		queue:     make(chan string, 1000),
+		results:   make(chan Result, 1000),
+		done:      make(chan struct{}),
+		drainDone: make(chan struct{}),
 	}
 }
 
@@ -285,9 +288,21 @@ func (b *BatchCapturer) Results() <-chan Result {
 	return b.results
 }
 
-// Stop stops the batch capturer
+// Stop stops the batch capturer and drains channels to prevent goroutine leaks
 func (b *BatchCapturer) Stop() {
-	close(b.done)
+	b.stopOnce.Do(func() {
+		close(b.done)
+		// Drain channels in background to unblock any workers
+		go func() {
+			for range b.queue {
+			}
+		}()
+		go func() {
+			for range b.results {
+			}
+			close(b.drainDone)
+		}()
+	})
 }
 
 // ComparisonResult represents a visual comparison result

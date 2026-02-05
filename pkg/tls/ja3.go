@@ -117,10 +117,8 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	t.mu.Unlock()
 
-	// Store current profile for dialTLS to use
-	t.mu.Lock()
+	// profile is already a local copy - no additional lock needed
 	currentProfile := profile
-	t.mu.Unlock()
 
 	// Create custom TLS dialer with the profile's fingerprint
 	transport := &http.Transport{

@@ -177,7 +177,10 @@ func NewTester(config *TesterConfig) *Tester {
 // generateCacheBuster creates a unique cache buster value
 func generateCacheBuster() string {
 	b := make([]byte, 8)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback: use time-based value
+		return fmt.Sprintf("%x", time.Now().UnixNano())
+	}
 	return hex.EncodeToString(b)
 }
 
