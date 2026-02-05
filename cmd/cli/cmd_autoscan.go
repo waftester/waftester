@@ -2885,7 +2885,7 @@ func generateSARIFReport(filename, target string, results output.ExecutionResult
 						"rules":           buildSARIFRules(results),
 					},
 				},
-				"results":    buildSARIFResults(target, results),
+				"results": buildSARIFResults(target, results),
 				"invocations": []map[string]interface{}{
 					{
 						"executionSuccessful": true,
