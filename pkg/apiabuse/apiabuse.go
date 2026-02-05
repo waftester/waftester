@@ -4,6 +4,7 @@ package apiabuse
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -127,7 +128,7 @@ func (s *Scanner) TestRateLimiting(ctx context.Context, targetURL string, reques
 
 	if !result.RateLimited && successCount == requests {
 		result.Vulnerable = true
-		result.Evidence = "No rate limiting detected after " + string(rune(requests)) + " requests"
+		result.Evidence = fmt.Sprintf("No rate limiting detected after %d requests", requests)
 		result.Severity = "MEDIUM"
 	}
 

@@ -218,7 +218,12 @@ func (c *Calibrator) GetBuilder() *Builder {
 
 func randomHex(n int) string {
 	bytes := make([]byte, n)
-	rand.Read(bytes)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback: use time-based value
+		for i := range bytes {
+			bytes[i] = byte(i ^ int(time.Now().UnixNano()>>(i%8)))
+		}
+	}
 	return hex.EncodeToString(bytes)
 }
 

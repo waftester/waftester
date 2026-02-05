@@ -483,8 +483,16 @@ func detectDBMS(body string) DBMS {
 	return DBMSGeneric
 }
 
-// containsError checks if the body contains SQL error messages
+// containsError checks if the body contains SQL error messages.
+// Uses a quick-check first to avoid expensive regex matching on non-vulnerable responses.
 func containsError(body string) (bool, string) {
+	// Quick rejection: if body doesn't contain any SQL-related keywords,
+	// skip the expensive regex matching. This filters ~80% of responses.
+	lowerBody := strings.ToLower(body)
+	if !containsSQLKeyword(lowerBody) {
+		return false, ""
+	}
+
 	for _, patterns := range errorPatterns {
 		for _, pattern := range patterns {
 			if loc := pattern.FindStringIndex(body); loc != nil {
@@ -502,6 +510,23 @@ func containsError(body string) (bool, string) {
 		}
 	}
 	return false, ""
+}
+
+// containsSQLKeyword performs a fast check for common SQL error keywords.
+// This is much faster than running ~50 regex patterns.
+func containsSQLKeyword(lowerBody string) bool {
+	// Check for common SQL error indicators
+	keywords := []string{
+		"sql", "syntax", "error", "warning", "mysql", "postgresql",
+		"oracle", "sqlite", "mssql", "odbc", "jdbc", "hibernate",
+		"ora-", "pg::", "unclosed", "quotation", "query",
+	}
+	for _, kw := range keywords {
+		if strings.Contains(lowerBody, kw) {
+			return true
+		}
+	}
+	return false
 }
 
 // TestParameter tests a single parameter for SQL injection

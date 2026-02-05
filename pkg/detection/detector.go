@@ -161,6 +161,7 @@ func (d *Detector) ShouldSkipHost(targetURL string) (skip bool, reason string) {
 func (d *Detector) Clear(targetURL string) {
 	host := extractHost(targetURL)
 	d.banDetect.Clear(host)
+	d.connMon.Clear(host) // Also clear connection monitor state
 }
 
 // ClearAll removes all tracking data for all hosts.

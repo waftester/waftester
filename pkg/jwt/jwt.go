@@ -427,7 +427,10 @@ func (a *Attacker) SignatureStripAttack(token *Token) ([]*Vulnerability, error) 
 
 	// Random short signature
 	randomSig := make([]byte, 4)
-	rand.Read(randomSig)
+	if _, err := rand.Read(randomSig); err != nil {
+		// Fallback: use fixed bytes if rand fails (still useful for testing)
+		randomSig = []byte{0xDE, 0xAD, 0xBE, 0xEF}
+	}
 	vulns = append(vulns, &Vulnerability{
 		Type:        AttackSignatureStrip,
 		Description: "Token with shortened random signature",

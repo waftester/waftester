@@ -5,6 +5,7 @@ package oauth
 import (
 	"context"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -513,9 +514,11 @@ func GenerateReport(vulns []Vulnerability) map[string]interface{} {
 // GenerateState generates a secure random state value.
 func GenerateState() string {
 	b := make([]byte, 32)
-	// In production, use crypto/rand
-	for i := range b {
-		b[i] = byte(i * 7 % 256)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback: time-based (not cryptographically secure but better than deterministic)
+		for i := range b {
+			b[i] = byte(i ^ int(time.Now().UnixNano()>>(i%8)))
+		}
 	}
 	return base64.URLEncoding.EncodeToString(b)
 }
@@ -523,8 +526,11 @@ func GenerateState() string {
 // GenerateNonce generates a secure random nonce.
 func GenerateNonce() string {
 	b := make([]byte, 32)
-	for i := range b {
-		b[i] = byte(i * 11 % 256)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback: time-based
+		for i := range b {
+			b[i] = byte((i * 11) ^ int(time.Now().UnixNano()>>(i%8)))
+		}
 	}
 	return base64.URLEncoding.EncodeToString(b)
 }
@@ -532,8 +538,11 @@ func GenerateNonce() string {
 // GeneratePKCEPair generates code_verifier and code_challenge.
 func GeneratePKCEPair() (verifier, challenge string) {
 	b := make([]byte, 32)
-	for i := range b {
-		b[i] = byte(i * 13 % 256)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback: time-based
+		for i := range b {
+			b[i] = byte((i * 13) ^ int(time.Now().UnixNano()>>(i%8)))
+		}
 	}
 	verifier = base64.RawURLEncoding.EncodeToString(b)
 

@@ -115,13 +115,25 @@ type Response struct {
 	Blocked    bool
 }
 
-// Call makes a SOAP call
+// Call makes a SOAP call (convenience wrapper)
 func (c *Client) Call(req *Request) (*Response, error) {
+	return c.CallWithContext(context.Background(), req)
+}
+
+// CallWithContext makes a SOAP call with context for cancellation/timeout support
+func (c *Client) CallWithContext(ctx context.Context, req *Request) (*Response, error) {
+	// Apply timeout from client config if not already set in context
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline && c.timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, c.timeout)
+		defer cancel()
+	}
+
 	// Build SOAP envelope
 	envelope := c.buildEnvelope(req)
 
-	// Create HTTP request
-	httpReq, err := http.NewRequest("POST", c.endpoint, bytes.NewReader(envelope))
+	// Create HTTP request with context
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.endpoint, bytes.NewReader(envelope))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}

@@ -544,3 +544,25 @@ func (m *MockClient) AddInteraction(interaction Interaction) {
 	defer m.mu.Unlock()
 	m.interactions = append(m.interactions, interaction)
 }
+
+// ClearPayloads removes all registered payloads from the OOB detector
+func (d *OOBDetector) ClearPayloads() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.payloads = make(map[string]PayloadInfo)
+}
+
+// CleanupExpiredPayloads removes payloads older than maxAge
+func (d *OOBDetector) CleanupExpiredPayloads(maxAge time.Duration) int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	cutoff := time.Now().Add(-maxAge)
+	removed := 0
+	for id, info := range d.payloads {
+		if info.InjectedAt.Before(cutoff) {
+			delete(d.payloads, id)
+			removed++
+		}
+	}
+	return removed
+}

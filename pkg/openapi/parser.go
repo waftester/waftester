@@ -2,13 +2,16 @@
 package openapi
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 	"gopkg.in/yaml.v3"
@@ -161,8 +164,17 @@ func (p *Parser) ParseFile(path string) (*Spec, error) {
 }
 
 // ParseURL fetches and parses an OpenAPI spec from a URL
-func (p *Parser) ParseURL(url string) (*Spec, error) {
-	resp, err := http.Get(url)
+func (p *Parser) ParseURL(targetURL string) (*Spec, error) {
+	// Use context with 30 second timeout to prevent hanging on slow servers
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", targetURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := httpclient.Default().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch URL: %w", err)
 	}

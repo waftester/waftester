@@ -603,3 +603,19 @@ func (a *ResultAnalyzer) Filter(predicate func(Result) bool) []Result {
 	}
 	return filtered
 }
+
+// ClearVisited clears the visited URL map to free memory
+func (f *Fuzzer) ClearVisited() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.visited = make(map[string]bool)
+}
+
+// Reset clears all state from the fuzzer for reuse
+func (f *Fuzzer) Reset() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.visited = make(map[string]bool)
+	f.results = make([]Result, 0)
+	f.stats = Stats{}
+}
