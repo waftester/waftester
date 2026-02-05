@@ -1,6 +1,11 @@
 # WAFtester Examples Guide
 
-Complete usage examples for WAFtester commands and features.
+This guide provides comprehensive usage examples for WAFtester, organized by use case and command category. Each example includes context on when to use the command, what value it provides, and expected output formats.
+
+**Document Version:** 2.6.5  
+**Last Updated:** February 2026
+
+---
 
 ## Table of Contents
 
@@ -22,9 +27,9 @@ Complete usage examples for WAFtester commands and features.
   - [JavaScript Analysis (analyze)](#javascript-analysis-analyze)
   - [Headless Browser Testing (headless)](#headless-browser-testing-headless)
 - [Workflow Commands](#workflow-commands)
-  - [Discovery and Planning](#discovery-and-planning)
+  - [Discovery and Planning (discover / learn)](#discovery-and-planning-discover--learn)
   - [Test Execution (run)](#test-execution-run)
-  - [Workflow Orchestration](#workflow-orchestration)
+  - [Workflow Orchestration (workflow)](#workflow-orchestration-workflow)
 - [Protocol Testing](#protocol-testing)
   - [GraphQL Security Testing](#graphql-security-testing)
   - [gRPC Security Testing](#grpc-security-testing)
@@ -88,34 +93,226 @@ Complete usage examples for WAFtester commands and features.
 
 ## Quick Start
 
-### One Command
+This section provides the fastest path to running a WAF security assessment. These commands are designed for immediate value with minimal configuration.
+
+### Prerequisites
+
+Before running any WAFtester command, ensure:
+
+| Requirement | Details |
+|-------------|---------|
+| **Network Access** | Outbound HTTPS to target (ports 80/443). Verify with `curl -I https://target.com` |
+| **Permissions** | Written authorization to test the target. WAFtester sends attack payloads. |
+| **Resources** | ~500MB RAM, stable internet connection (50+ req/sec capability) |
+| **Target State** | Target must be accessible and responding. Test with `waf-tester probe -u URL` first. |
+
+### One-Command Assessment
+
+Execute a complete security assessment with a single command. This is the recommended starting point for most assessments.
+
+**TL;DR:** `waf-tester auto -u https://example.com` — Complete WAF assessment in ~5 minutes
 
 ```bash
 waf-tester auto -u https://example.com
 ```
 
-This discovers endpoints, generates a test plan, runs tests, and creates reports.
+#### What Happens (Detailed)
+
+| Phase | Duration | Actions | Network Impact |
+|-------|----------|---------|----------------|
+| **1. Connection** | 2-5 sec | TLS handshake, HTTP/2 negotiation, initial response analysis | 3-5 requests |
+| **2. WAF Detection** | 5-10 sec | Sends probe requests, matches against 197 vendor signatures, identifies block patterns | 10-20 requests |
+| **3. Discovery** | 30-90 sec | Crawls site (3 levels deep), parses robots.txt/sitemap.xml, extracts forms, analyzes JavaScript for API endpoints | 100-500 requests |
+| **4. Planning** | 2-5 sec | Generates optimized test plan based on discovered endpoints and WAF type | 0 requests (local) |
+| **5. Testing** | 2-8 min | Executes 2,800+ attack payloads across 50+ categories, records WAF responses | 2,800-10,000 requests |
+| **6. Analysis** | 5-15 sec | Correlates responses, calculates bypass rates, ranks findings by severity | 0 requests (local) |
+| **7. Reporting** | 2-5 sec | Generates HTML/JSON reports in workspace directory | 0 requests (local) |
+
+**Total Duration:** 3-10 minutes depending on target size and response times
+
+#### Sample Output
+
+```
+$ waf-tester auto -u https://example.com
+
+WAFtester v2.6.5 - WAF Security Assessment Tool
+
+🔍 Phase 1: WAF Detection
+   ├─ Probing target...
+   ├─ Detected: Cloudflare (confidence: 94%)
+   ├─ Block patterns: 403 Forbidden, "cf-ray" header
+   └─ Strategy: Adaptive with challenge detection
+
+📡 Phase 2: Discovery
+   ├─ Crawling https://example.com (depth: 3)
+   ├─ Parsing robots.txt, sitemap.xml
+   ├─ Analyzing 23 JavaScript files
+   ├─ Endpoints found: 847
+   ├─ Parameters discovered: 2,341
+   └─ Forms extracted: 12
+
+📋 Phase 3: Test Planning
+   ├─ Generated test plan: 8,234 test cases
+   ├─ Categories: sqli, xss, traversal, rce, ssrf (+45 more)
+   └─ Estimated time: 4-6 minutes
+
+🧪 Phase 4: Testing
+   [████████████████████████████████████████] 100% (8,234/8,234)
+   ├─ Duration: 4m 32s
+   ├─ Requests sent: 8,234
+   ├─ Rate: 30.2 req/sec
+   ├─ Blocked: 7,891 (95.8%)
+   └─ Bypassed: 343 (4.2%)
+
+📊 Phase 5: Results Summary
+   ┌─────────────┬───────┬─────────────────────────────────────┐
+   │ Severity    │ Count │ Categories                          │
+   ├─────────────┼───────┼─────────────────────────────────────┤
+   │ 🔴 Critical │     3 │ rce (2), sqli (1)                   │
+   │ 🟠 High     │    12 │ sqli (5), xss (4), ssrf (3)         │
+   │ 🟡 Medium   │    41 │ traversal (15), redirect (12), ...  │
+   │ 🔵 Low      │   110 │ info-disclosure (45), headers (35)  │
+   │ ⚪ Info     │   177 │ tech-detect (89), misc (88)         │
+   └─────────────┴───────┴─────────────────────────────────────┘
+
+📁 Workspace: ./waf-assessment-20260205-143022/
+   ├─ discovery.json      (endpoint data)
+   ├─ testplan.json       (test configuration)
+   ├─ results.json        (raw findings)
+   ├─ report.html         (formatted report)
+   └─ summary.txt         (executive summary)
+
+✅ Assessment complete. Open report.html for detailed findings.
+```
+
+#### Decision Guide
+
+| Your Scenario | Recommended Command | Why |
+|---------------|---------------------|-----|
+| First-time assessment of new target | `waf-tester auto -u URL` | Comprehensive baseline with zero config |
+| Testing application behind WAF | `waf-tester auto -u URL --smart` | Optimizes for specific WAF vendor |
+| Red team / bypass hunting | `waf-tester auto -u URL --smart --tamper-auto` | Maximum evasion techniques |
+| CI/CD pipeline integration | `waf-tester auto -u URL --stream -format json` | Machine-readable streaming output |
+| Production with rate limits | `waf-tester auto -u URL -rl 10 -c 5` | Reduced request rate |
+| Quick validation after WAF change | `waf-tester scan -u URL -category sqli,xss` | Faster targeted test (use `scan` not `auto`) |
+
+#### Common Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| `connection refused` | Target unreachable | Check firewall, VPN, DNS. Test with `curl -I URL` |
+| `0 endpoints found` | JavaScript SPA without crawlable links | Add `--browser` flag for headless browser discovery |
+| `rate limited` or scan stalls at ~10% | WAF blocking scanner | Reduce rate with `-rl 20 -c 5`, add `--smart` |
+| `SSL certificate error` | Self-signed or expired cert | Add `-k` flag to skip verification |
+| `403 on all requests` | IP blocked or auth required | Use `-H "Authorization: Bearer TOKEN"` or `--browser` |
+| Scan takes >30 minutes | Large target or slow network | Increase parallelism `-c 100`, or use `scan` for specific categories |
+| `workspace already exists` | Previous scan same day | Delete old workspace or use `-workspace-dir custom-name` |
+
+---
 
 ### Three-Step Workflow
 
+For assessments requiring manual review between phases, use the three-step workflow. This approach provides control points for scope validation and test plan customization.
+
+**TL;DR:** Discover → Review → Test — For regulated environments or large applications
+
 ```bash
-# 1. Discover endpoints
+# Step 1: Discover endpoints and attack surface (~1-2 min)
 waf-tester discover -u https://example.com
 
-# 2. Generate test plan
+# Step 2: Generate test plan from discovered endpoints (~5 sec)
 waf-tester learn -discovery discovery.json
 
-# 3. Run tests
+# Step 3: Execute tests and generate report (~3-8 min)
 waf-tester run -plan testplan.json -format html -o report.html
 ```
+
+#### What Happens at Each Step
+
+| Step | Command | Duration | Output | What You Can Review |
+|------|---------|----------|--------|---------------------|
+| **1. Discover** | `discover` | 1-2 min | `discovery.json` | Endpoints, parameters, forms — remove out-of-scope items |
+| **2. Plan** | `learn` | 5 sec | `testplan.json` | Test cases, categories — adjust severity filters, add custom payloads |
+| **3. Execute** | `run` | 3-8 min | `report.html` | Final report — analyze findings, export to ticketing systems |
+
+#### Sample Discovery Output
+
+```json
+{
+  "target": "https://example.com",
+  "discovered_at": "2026-02-05T14:30:22Z",
+  "endpoints": [
+    {"path": "/api/users", "methods": ["GET", "POST"], "params": ["id", "name"]},
+    {"path": "/search", "methods": ["GET"], "params": ["q", "page", "sort"]},
+    {"path": "/admin/login", "methods": ["GET", "POST"], "params": ["username", "password"]}
+  ],
+  "forms": [
+    {"action": "/contact", "method": "POST", "fields": ["email", "message"]}
+  ],
+  "javascript_files": 23,
+  "api_endpoints_from_js": 47
+}
+```
+
+#### When to Use Three-Step Workflow
+
+| Scenario | Why Three-Step Works Better |
+|----------|----------------------------|
+| Regulated environments (PCI, HIPAA) | Explicit approval of test scope before execution |
+| Large applications (1000+ endpoints) | Filter discovery results to reduce test time |
+| Custom payload requirements | Edit testplan.json to add organization-specific tests |
+| Network constraints | Run discovery from one location, tests from another |
+| Team collaboration | Security lead reviews plan before junior executes |
+| Incremental testing | Reuse discovery, generate new plans for different categories |
 
 ---
 
 ## Core Commands
 
+This section covers the primary commands for WAF security testing. Each command serves a specific purpose in the assessment lifecycle.
+
+**Command Selection Guide:**
+
+| Goal | Command | Time | Output |
+|------|---------|------|--------|
+| Complete automated assessment | `auto` | 5-15 min | Full report with all findings |
+| Quantitative WAF metrics | `assess` | 3-10 min | Statistical scores (TPR, FPR, F1) |
+| Targeted vulnerability scan | `scan` | 2-8 min | Findings for specific categories |
+| Identify WAF vendor | `vendor` | 10-30 sec | Vendor name, confidence, bypass hints |
+| Find WAF bypasses | `bypass` | 5-20 min | Confirmed bypass payloads |
+| Test false positive rate | `fp` | 2-5 min | FPR percentage and blocked benign requests |
+
+---
+
 ### Automated Scanning (auto)
 
-Full automated workflow: discover → analyze JS → learn → run → report.
+**Purpose:** Execute a complete end-to-end WAF security assessment with zero manual configuration.
+
+**TL;DR:** `waf-tester auto -u https://example.com --smart` — Full assessment in 5-15 minutes
+
+The `auto` command chains discovery, JavaScript analysis, test planning, execution, and reporting phases automatically. It's the recommended starting point for most assessments.
+
+#### Prerequisites
+
+| Requirement | Details |
+|-------------|---------|
+| **Network** | HTTPS access to target on ports 80/443 |
+| **Authorization** | Written permission to test (sends 2,800+ attack payloads) |
+| **Memory** | ~500MB RAM for large targets |
+| **Disk** | ~50MB for workspace (discovery data, reports) |
+| **Time** | 5-15 minutes depending on target size |
+
+#### Execution Phases
+
+| Phase | Duration | What Happens | Requests |
+|-------|----------|--------------|----------|
+| **Connection** | 2-5s | TLS handshake, detect HTTP/2, measure latency | 3-5 |
+| **WAF Detection** | 5-10s | Send probe payloads, match 197 vendor signatures | 10-20 |
+| **Discovery** | 30-90s | Crawl site, parse JS, extract endpoints/params | 100-500 |
+| **Planning** | 2-5s | Generate optimized test plan (local, no requests) | 0 |
+| **Testing** | 2-8min | Execute 2,800+ payloads across all categories | 2,800-10,000 |
+| **Analysis** | 5-15s | Calculate bypass rates, rank by severity (local) | 0 |
+| **Reporting** | 2-5s | Generate HTML/JSON/Markdown reports (local) | 0 |
 
 #### Basic Usage
 
@@ -123,15 +320,23 @@ Full automated workflow: discover → analyze JS → learn → run → report.
 waf-tester auto -u https://example.com
 ```
 
-#### With Smart Mode
+#### With Smart Mode (Recommended for WAFs)
 
-Smart mode detects the WAF vendor and optimizes testing:
+Smart mode identifies the WAF vendor before testing and optimizes the assessment strategy. This significantly improves bypass discovery rates.
 
 ```bash
 waf-tester auto -u https://example.com --smart
 ```
 
-#### With Automatic Tamper Selection (v2.4.2+)
+**What `--smart` does:**
+1. Detects WAF vendor from 197 signatures (Cloudflare, AWS WAF, Akamai, etc.)
+2. Selects tamper techniques proven effective against that specific WAF
+3. Adjusts timing to avoid rate limiting
+4. Uses WAF-specific block detection patterns
+
+#### With Automatic Tamper Selection
+
+Tamper scripts transform payloads to evade WAF detection. Auto-selection chooses tampers based on detected WAF.
 
 ```bash
 # Auto-select optimal tampers based on detected WAF
@@ -141,10 +346,19 @@ waf-tester auto -u https://example.com --smart --tamper-auto
 waf-tester auto -u https://example.com --tamper-profile=aggressive
 
 # Combine manual tampers with auto-selection
-waf-tester auto -u https://example.com --tamper=nullbyte --tamper-auto
+waf-tester auto -u https://example.com --tamper=nullbyte,space2comment --tamper-auto
 ```
 
-#### Full Options
+**Tamper Profiles:**
+
+| Profile | Techniques | Use Case |
+|---------|------------|----------|
+| `stealth` | Minimal, low-risk transformations | Production systems, avoid detection |
+| `standard` | Balanced set of common evasions | General testing (default) |
+| `aggressive` | All applicable techniques, chained | Red team, maximum bypass attempts |
+| `bypass` | Heavy encoding, protocol tricks | WAF tuning, finding edge cases |
+
+#### Full Options Reference
 
 ```bash
 waf-tester auto -u https://example.com \
@@ -156,18 +370,88 @@ waf-tester auto -u https://example.com \
   --browser
 ```
 
-| Option | Description |
-|--------|-------------|
-| `--smart` | Enable WAF-aware testing |
-| `--smart-mode=MODE` | Optimization level: `quick`, `standard`, `full`, `bypass`, `stealth` |
-| `--tamper=LIST` | Comma-separated tampers to apply (v2.4.2+) |
-| `--tamper-auto` | Auto-select tampers based on WAF (v2.4.2+) |
-| `--tamper-profile=PROFILE` | Use preset: stealth, standard, aggressive, bypass (v2.4.2+) |
-| `-c N` | Parallel workers (default: 25) |
-| `-rl N` | Requests per second (default: 150) |
-| `--browser` | Enable authenticated browser scanning |
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--smart` | off | Enable WAF-aware testing with vendor detection |
+| `--smart-mode=MODE` | standard | `quick` (fast), `standard`, `full` (comprehensive), `bypass`, `stealth` |
+| `--tamper=LIST` | none | Comma-separated tamper names (see [Tamper Scripts](#tamper-scripts)) |
+| `--tamper-auto` | off | Auto-select tampers based on detected WAF |
+| `--tamper-profile=P` | standard | Preset: `stealth`, `standard`, `aggressive`, `bypass` |
+| `-c N` | 25 | Parallel workers (increase for speed, decrease for stealth) |
+| `-rl N` | 150 | Max requests per second (reduce if rate limited) |
+| `--browser` | off | Use headless Chrome for JS-heavy SPAs and authenticated areas |
+| `-service NAME` | auto | Framework preset: `wordpress`, `django`, `rails`, etc. |
+| `-format F` | html | Report format: `json`, `html`, `markdown`, `csv`, `sarif` |
+| `-o FILE` | auto | Output file path (default: workspace/report.FORMAT) |
+
+#### Sample Output
+
+```
+$ waf-tester auto -u https://api.example.com --smart --tamper-auto
+
+WAFtester v2.6.5 — Comprehensive WAF Security Assessment
+
+Target: https://api.example.com
+Mode: Smart (WAF-aware) with auto-tamper
+
+──────────────────────────────────────────────────────────────────────
+ PHASE 1: WAF DETECTION                                         [2s]
+──────────────────────────────────────────────────────────────────────
+ ✓ Vendor: AWS WAF (confidence: 91%)
+ ✓ Block response: 403 Forbidden
+ ✓ Block indicators: x-amzn-requestid header, "Request blocked" body
+ ✓ Auto-selected tampers: unicode_normalize, multipart_boundary, chunk_transfer
+
+──────────────────────────────────────────────────────────────────────
+ PHASE 2: DISCOVERY                                             [47s]
+──────────────────────────────────────────────────────────────────────
+ ✓ Crawled 156 pages (depth: 3)
+ ✓ Parsed 34 JavaScript files
+ ✓ Extracted 892 endpoints
+ ✓ Discovered 2,847 parameters
+ ✓ Found 18 forms, 12 file upload points
+
+──────────────────────────────────────────────────────────────────────
+ PHASE 3: TESTING                                             [4m12s]
+──────────────────────────────────────────────────────────────────────
+ [████████████████████████████████████████] 100% (9,234/9,234)
+
+ Category Breakdown:
+ ├─ SQLi:       1,247 tests | 1,198 blocked (96.1%) | 49 bypassed
+ ├─ XSS:        1,089 tests | 1,034 blocked (95.0%) | 55 bypassed
+ ├─ Traversal:    456 tests |   412 blocked (90.4%) | 44 bypassed
+ ├─ RCE:          234 tests |   231 blocked (98.7%) | 3 bypassed
+ ├─ SSRF:         189 tests |   178 blocked (94.2%) | 11 bypassed
+ └─ [+45 more categories...]
+
+──────────────────────────────────────────────────────────────────────
+ RESULTS SUMMARY
+──────────────────────────────────────────────────────────────────────
+ 🔴 Critical:    5 findings (RCE bypass, SQLi auth bypass)
+ 🟠 High:       23 findings (SQLi, XSS, SSRF bypasses)
+ 🟡 Medium:     67 findings (Path traversal, redirects)
+ 🔵 Low:       134 findings (Info disclosure, headers)
+ ⚪ Info:      201 findings (Tech detection, fingerprints)
+
+ Overall WAF Effectiveness: 94.2% blocked
+ Bypass Rate: 5.8% (430 payloads evaded detection)
+
+──────────────────────────────────────────────────────────────────────
+ OUTPUT FILES
+──────────────────────────────────────────────────────────────────────
+ 📁 ./waf-assessment-20260205-143022/
+    ├─ report.html          Executive report with findings
+    ├─ results.json         Machine-readable results
+    ├─ discovery.json       Endpoint inventory
+    ├─ bypasses.json        Confirmed bypass payloads
+    └─ summary.txt          One-page executive summary
+
+✅ Assessment complete in 5m03s
+```
 
 #### Service-Specific Scanning
+
+When you know the target framework, use service presets for optimized testing:
 
 ```bash
 waf-tester auto -u https://myblog.com -service wordpress
@@ -175,25 +459,73 @@ waf-tester auto -u https://myapp.com -service django
 waf-tester auto -u https://store.com -service nextjs
 ```
 
-Available services: `wordpress`, `drupal`, `nextjs`, `flask`, `django`, `rails`, `laravel`, `spring`
+| Service | Optimizations Applied |
+|---------|----------------------|
+| `wordpress` | WP-specific paths, plugin vulns, xmlrpc, wp-admin |
+| `drupal` | Drupal paths, node access, views exploits |
+| `django` | Debug pages, admin paths, template injection |
+| `rails` | Rails routes, asset pipeline, mass assignment |
+| `laravel` | Laravel paths, debug mode, Blade injection |
+| `spring` | Actuator endpoints, SpEL injection, mass assignment |
+| `nextjs` | API routes, _next paths, SSR injection points |
+| `flask` | Debug mode, Jinja2 SSTI, Flask-specific paths |
 
-#### Stealth Mode
+#### Decision Guide
 
-Low and slow scanning to avoid detection:
+| Your Situation | Command Variation | Why |
+|----------------|-------------------|-----|
+| First assessment, unknown WAF | `auto -u URL --smart` | Auto-detect and optimize |
+| Known WAF, need bypasses | `auto -u URL --smart --tamper-auto` | Maximum evasion |
+| Red team, stealth required | `auto -u URL --smart-mode=stealth -rl 10` | Low and slow |
+| CI/CD pipeline | `auto -u URL --stream -format sarif` | Machine-readable output |
+| JS-heavy SPA | `auto -u URL --browser` | Headless browser for discovery |
+| Rate-limited target | `auto -u URL -rl 20 -c 5` | Reduced request rate |
+| Large target (>1000 pages) | `auto -u URL -c 100` | Parallel for speed |
+| Specific framework | `auto -u URL -service wordpress` | Framework-optimized |
 
-```bash
-waf-tester auto -u https://example.com \
-  --smart \
-  --smart-mode=stealth \
-  -c 5 \
-  -rl 10
-```
+#### Common Issues
+
+| Symptom | Likely Cause | Solution |
+|---------|--------------|----------|
+| `connection refused` | Target unreachable | Check firewall, VPN. Test: `curl -I URL` |
+| `0 endpoints found` | SPA without crawlable links | Add `--browser` for headless Chrome |
+| Scan stalls at ~10% | WAF rate limiting | Reduce: `-rl 20 -c 5` |
+| All requests blocked | IP banned or auth required | Use VPN, add auth headers |
+| `SSL certificate error` | Self-signed/expired cert | Add `-k` to skip verification |
+| `workspace exists` error | Previous scan same day | Use `-workspace-dir newname` |
+| Very slow (>30 min) | Large target or slow network | Increase `-c 100`, or use `scan` for specific categories |
+| Low bypass rate (0%) | WAF not in path, or very strict | Verify WAF presence with `vendor` command |
 
 ---
 
 ### Enterprise Assessment (assess)
 
-Professional WAF assessment with quantitative metrics.
+**Purpose:** Generate quantitative WAF effectiveness metrics for compliance reporting and vendor comparisons.
+
+**TL;DR:** `waf-tester assess -u https://example.com -fp` — Statistical WAF scores with false positive testing
+
+The `assess` command produces objective, reproducible metrics (detection rate, false positive rate, F1 score) that enable data-driven decisions about WAF configuration and vendor selection.
+
+#### Prerequisites
+
+| Requirement | Details |
+|-------------|---------|
+| **Network** | HTTPS access to target |
+| **Authorization** | Written permission (sends attack payloads + benign traffic) |
+| **Memory** | ~300MB RAM |
+| **Time** | 3-10 minutes |
+| **Corpus** | Built-in or custom benign traffic corpus for FP testing |
+
+#### What Gets Measured
+
+| Metric | Formula | Interpretation |
+|--------|---------|----------------|
+| **Detection Rate (TPR)** | Attacks Blocked / Total Attacks | Higher = better protection (target: >90%) |
+| **False Positive Rate (FPR)** | Legitimate Blocked / Total Legitimate | Lower = less business disruption (target: <1%) |
+| **Precision** | True Blocks / All Blocks | Higher = fewer false alarms |
+| **Recall** | Same as TPR | Higher = fewer missed attacks |
+| **F1 Score** | 2 × (Precision × Recall) / (Precision + Recall) | Balanced measure (target: >0.9) |
+| **MCC** | Matthews Correlation Coefficient | Best single metric (-1 to +1, target: >0.8) |
 
 #### Basic Assessment
 
@@ -201,7 +533,9 @@ Professional WAF assessment with quantitative metrics.
 waf-tester assess -u https://example.com
 ```
 
-#### Full Assessment with Output
+**What happens:** Sends ~2,800 attack payloads, records block/allow decisions, calculates detection metrics.
+
+#### Full Assessment with False Positive Testing
 
 ```bash
 waf-tester assess -u https://example.com \
@@ -211,36 +545,157 @@ waf-tester assess -u https://example.com \
   -o assessment.json
 ```
 
-#### Metrics Produced
+**What happens:** Same as basic, plus sends ~5,000 benign requests from corpora to measure false positive rate.
 
-| Metric | Description |
-|--------|-------------|
-| **Detection Rate (TPR)** | Percentage of attacks blocked |
-| **False Positive Rate (FPR)** | Percentage of legitimate traffic blocked |
-| **Precision** | Percentage of blocks that were real attacks |
-| **Recall** | Percentage of real attacks that were blocked |
-| **F1 Score** | Harmonic mean of precision and recall |
-| **MCC** | Matthews Correlation Coefficient |
+#### Sample Output
+
+```
+$ waf-tester assess -u https://secure.example.com -fp -corpus builtin
+
+WAFtester v2.6.5 — Enterprise WAF Assessment
+
+Target: https://secure.example.com
+Mode: Full assessment with false positive testing
+
+═══════════════════════════════════════════════════════════════════════
+ ATTACK DETECTION TESTING                                       [3m24s]
+═══════════════════════════════════════════════════════════════════════
+
+ Category          │ Total │ Blocked │ Bypassed │ Detection Rate
+ ──────────────────┼───────┼─────────┼──────────┼───────────────
+ SQL Injection     │  1247 │    1198 │       49 │  96.1%
+ Cross-Site Script │  1089 │    1067 │       22 │  98.0%
+ Remote Code Exec  │   234 │     232 │        2 │  99.1%
+ Path Traversal    │   456 │     398 │       58 │  87.3%
+ Server-Side RF    │   189 │     183 │        6 │  96.8%
+ Command Injection │   178 │     175 │        3 │  98.3%
+ XML External Ent  │    89 │      87 │        2 │  97.8%
+ Template Inject   │   112 │      98 │       14 │  87.5%
+ [+42 categories]  │   ...  │     ...  │      ...  │  ...
+ ──────────────────┴───────┴─────────┴──────────┴───────────────
+ TOTAL             │  2834 │    2712 │      122 │  95.7%
+
+═══════════════════════════════════════════════════════════════════════
+ FALSE POSITIVE TESTING                                          [1m47s]
+═══════════════════════════════════════════════════════════════════════
+
+ Corpus            │ Total │ Blocked │ Allowed  │ False Positive Rate
+ ──────────────────┼───────┼─────────┼──────────┼────────────────────
+ Built-in benign   │  2500 │      12 │     2488 │  0.48%
+ Leipzig English   │  1500 │       4 │     1496 │  0.27%
+ Leipzig German    │  1000 │       2 │      998 │  0.20%
+ ──────────────────┴───────┴─────────┴──────────┴────────────────────
+ TOTAL             │  5000 │      18 │     4982 │  0.36%
+
+═══════════════════════════════════════════════════════════════════════
+ ASSESSMENT METRICS
+═══════════════════════════════════════════════════════════════════════
+
+ Metric                    │ Score   │ Rating     │ Industry Target
+ ──────────────────────────┼─────────┼────────────┼────────────────
+ Detection Rate (TPR)      │ 95.7%   │ ★★★★☆     │ >90%
+ False Positive Rate (FPR) │  0.36%  │ ★★★★★     │ <1%
+ Precision                 │ 99.3%   │ ★★★★★     │ >95%
+ Recall                    │ 95.7%   │ ★★★★☆     │ >90%
+ F1 Score                  │ 0.975   │ ★★★★★     │ >0.90
+ Matthews Correlation (MCC)│ 0.951   │ ★★★★★     │ >0.80
+ ──────────────────────────┴─────────┴────────────┴────────────────
+
+ Overall Grade: A (Excellent)
+
+ Recommendations:
+ • Path traversal detection (87.3%) below target - review traversal rules
+ • Template injection (87.5%) below target - add SSTI signatures
+ • 18 false positives detected - review for overly aggressive rules
+
+═══════════════════════════════════════════════════════════════════════
+ OUTPUT FILES
+═══════════════════════════════════════════════════════════════════════
+ 📄 assessment.json        Full metrics in machine-readable format
+ 📄 assessment.html        Formatted report for stakeholders
+ 📄 false-positives.txt    List of blocked benign requests
+ 📄 bypasses.txt           List of unblocked attack payloads
+
+✅ Assessment complete in 5m11s
+```
 
 #### Custom Categories
 
-```bash
-waf-tester assess -u https://example.com \
-  -categories sqli,xss,rce \
-  -o assessment.json
-```
-
-#### With Streaming Output for CI
+Focus on specific vulnerability categories for compliance:
 
 ```bash
-waf-tester assess -u https://example.com --stream -format json -o report.json
+# OWASP Top 10 focused
+waf-tester assess -u https://example.com -categories sqli,xss,rce,xxe,ssrf
+
+# PCI-DSS relevant
+waf-tester assess -u https://example.com -categories sqli,xss,traversal
+
+# API-focused
+waf-tester assess -u https://example.com -categories sqli,nosqli,jwt,graphql
 ```
+
+#### Available Corpora for False Positive Testing
+
+| Corpus | Description | Size |
+|--------|-------------|------|
+| `builtin` | Curated benign traffic samples | 2,500 |
+| `leipzig` | Natural language sentences (multiple languages) | 5,000+ |
+| `/path/to/file.txt` | Custom corpus (one request per line) | Variable |
+
+```bash
+# Multiple corpora
+waf-tester assess -u https://example.com -fp -corpus "builtin,leipzig"
+
+# Custom corpus
+waf-tester assess -u https://example.com -fp -corpus /path/to/benign-requests.txt
+```
+
+#### Decision Guide
+
+| Your Goal | Command | Why |
+|-----------|---------|-----|
+| Baseline WAF effectiveness | `assess -u URL` | Quick detection rate check |
+| Full compliance report | `assess -u URL -fp -corpus builtin,leipzig` | Detection + false positives |
+| Vendor comparison | `assess -u URL -fp -format json` | Export for comparison dashboard |
+| After rule changes | `assess -u URL -categories sqli` | Check specific rule category |
+| CI/CD quality gate | `assess -u URL --stream -threshold 90` | Fail if detection <90% |
+
+#### Common Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| FPR = 0% exactly | Corpus not reaching backend | Verify requests reach app, not cached |
+| Detection = 100% | WAF blocking all traffic | May be blocking scanner, not payloads |
+| Metrics fluctuating | Inconsistent WAF responses | Increase `-retries 5`, reduce `-rl` |
+| Long runtime (>20 min) | Large corpus or slow target | Use smaller corpus, increase `-c` |
 
 ---
 
 ### Vulnerability Scanning (scan)
 
-Deep vulnerability scanning with 50+ attack categories.
+**Purpose:** Targeted vulnerability testing with granular control over categories, severity, and scope.
+
+**TL;DR:** `waf-tester scan -u https://target.com -category sqli,xss` — Focused testing in 2-5 minutes
+
+Unlike `auto`, the `scan` command offers surgical precision for testing specific vulnerability classes, making it ideal for follow-up testing, regression validation, and category-specific compliance.
+
+#### Prerequisites
+
+| Requirement | Details |
+|-------------|---------|
+| **Network** | HTTPS access to target |
+| **Authorization** | Written permission to test |
+| **Memory** | ~200MB RAM |
+| **Time** | 1-10 minutes (depends on categories) |
+
+#### Category Selection
+
+| Scan Type | Categories Tested | Approx. Time |
+|-----------|-------------------|--------------|
+| Default (no flag) | sqli, xss, traversal, rce | 3-5 min |
+| `-category sqli` | SQL injection only | 1-2 min |
+| `-category sqli,xss,rce` | Specified categories | 2-4 min |
+| `-types all` | All 50+ categories | 10-15 min |
 
 #### Basic Scan
 
@@ -248,7 +703,236 @@ Deep vulnerability scanning with 50+ attack categories.
 waf-tester scan -u https://target.com
 ```
 
-#### With Smart Mode and Tampers (v2.4.2+)
+#### Category-Specific Scan
+
+```bash
+# Single category
+waf-tester scan -u https://target.com -category sqli
+
+# Multiple categories
+waf-tester scan -u https://target.com -category sqli,xss,traversal
+
+# All categories
+waf-tester scan -u https://target.com -types all
+```
+
+#### With Smart Mode and Tampers
+
+```bash
+# Smart mode with auto-tamper
+waf-tester scan -u https://target.com --smart --tamper-auto
+
+# Aggressive bypass hunting
+waf-tester scan -u https://target.com --tamper-profile=aggressive
+
+# Stealth mode for production
+waf-tester scan -u https://target.com --tamper-profile=stealth -rl 10
+```
+
+#### Sample Output
+
+```
+$ waf-tester scan -u https://api.example.com -category sqli,xss --smart
+
+WAFtester v2.6.5 — Targeted Vulnerability Scan
+
+Target: https://api.example.com
+Categories: sqli, xss
+Mode: Smart (AWS WAF detected)
+
+Scanning [████████████████████████████████████████] 100% (2,336/2,336)
+
+──────────────────────────────────────────────────────────────────────
+ FINDINGS
+──────────────────────────────────────────────────────────────────────
+
+ 🔴 CRITICAL: SQL Injection Authentication Bypass
+    Endpoint: POST /api/login
+    Parameter: username
+    Payload: admin'--
+    Evidence: HTTP 200, "Welcome admin" in response
+    WAF Status: BYPASSED
+
+ 🟠 HIGH: Reflected XSS in Search
+    Endpoint: GET /search?q=
+    Parameter: q
+    Payload: <script>alert(1)</script>
+    Evidence: Payload reflected unencoded in response
+    WAF Status: BYPASSED
+
+ 🟠 HIGH: SQL Injection in User Lookup
+    Endpoint: GET /api/users?id=
+    Parameter: id
+    Payload: 1 OR 1=1
+    Evidence: Multiple user records returned
+    WAF Status: BYPASSED
+
+ [... 23 more findings ...]
+
+──────────────────────────────────────────────────────────────────────
+ SUMMARY
+──────────────────────────────────────────────────────────────────────
+
+ Requests: 2,336 | Duration: 2m14s | Rate: 17.4 req/sec
+
+ Findings by Severity:
+ • Critical: 1
+ • High: 8
+ • Medium: 15
+ • Low: 42
+ • Info: 67
+
+ WAF Effectiveness (sqli,xss): 94.3% blocked
+
+✅ Scan complete. Results saved to scan-results.json
+```
+
+#### Severity and Category Filtering
+
+```bash
+# Only show critical and high findings
+waf-tester scan -u https://target.com -msev critical,high
+
+# Exclude low-severity noise
+waf-tester scan -u https://target.com -fsev low,info
+
+# Match specific categories in output
+waf-tester scan -u https://target.com -mcat sqli,xss
+
+# Filter out informational findings
+waf-tester scan -u https://target.com -fcat info
+```
+
+#### Scope Control
+
+```bash
+# Exclude certain URL patterns
+waf-tester scan -u https://target.com -ep "logout|signout|admin"
+
+# Include only matching patterns
+waf-tester scan -u https://target.com -ip "api/v2"
+
+# Exclude certain test types
+waf-tester scan -u https://target.com -et info,techdetect
+```
+
+#### Multiple Targets
+
+```bash
+# From file
+waf-tester scan -l targets.txt -c 50
+
+# With same options for all
+waf-tester scan -l targets.txt -category sqli --smart -o results.json
+```
+
+#### Decision Guide
+
+| Your Goal | Command | Why |
+|-----------|---------|-----|
+| Quick SQLi check | `scan -u URL -category sqli` | Fast, focused |
+| OWASP Top 10 | `scan -u URL -types all -msev critical,high` | Comprehensive with severity filter |
+| Regression test after fix | `scan -u URL -category sqli -ip "/api/users"` | Target specific endpoint |
+| Production (no noise) | `scan -u URL -fsev low,info` | Only actionable findings |
+| Compare before/after | `scan -u URL -format json -o before.json` | Export for diff |
+
+#### Common Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| 0 findings | WAF blocking all, or no vulns | Check with `--smart` to verify WAF detection |
+| Too many findings | Info-level noise | Use `-fsev info,low` to filter |
+| Slow scan | Large category set | Use specific `-category` instead of `all` |
+| Same finding repeated | Multiple parameters vulnerable | Expected - each is unique finding |
+- WAF vendor evaluation and selection
+- Configuration effectiveness validation
+- Compliance reporting requiring quantitative metrics
+- Before/after comparisons for WAF tuning
+
+**Value Proposition:** Provides objective, reproducible metrics that enable data-driven decisions about WAF configuration and vendor selection.
+
+#### Basic Assessment
+
+```bash
+waf-tester assess -u https://example.com
+```
+
+**What Happens:** Tests the WAF against attack payloads and measures detection rates.
+
+#### Full Assessment with False Positive Testing
+
+False positive testing validates that the WAF does not block legitimate traffic. This is critical for production WAF deployments.
+
+```bash
+waf-tester assess -u https://example.com \
+  -fp \
+  -corpus "builtin,leipzig" \
+  -format json \
+  -o assessment.json
+```
+
+**When to Use:** Production WAF validation. False positive testing uses benign traffic corpora to measure how often legitimate requests are incorrectly blocked.
+
+#### Metrics Produced
+
+| Metric | Description | Interpretation |
+|--------|-------------|----------------|
+| **Detection Rate (TPR)** | Percentage of attacks blocked | Higher is better; target >90% |
+| **False Positive Rate (FPR)** | Percentage of legitimate traffic blocked | Lower is better; target <1% |
+| **Precision** | Percentage of blocks that were real attacks | Higher indicates fewer false positives |
+| **Recall** | Percentage of real attacks that were blocked | Same as TPR |
+| **F1 Score** | Harmonic mean of precision and recall | Balanced measure; target >0.9 |
+| **MCC** | Matthews Correlation Coefficient | Best single metric; ranges -1 to 1 |
+
+#### Custom Categories
+
+Focus assessment on specific vulnerability categories relevant to your application or compliance requirements.
+
+```bash
+waf-tester assess -u https://example.com \
+  -categories sqli,xss,rce \
+  -o assessment.json
+```
+
+**When to Use:** Compliance-focused assessments where specific vulnerability classes are mandated, or when validating WAF rules for particular attack types.
+
+#### With Streaming Output for CI
+
+Stream results in real-time for CI/CD pipeline integration. Enables early failure detection without waiting for complete assessment.
+
+```bash
+waf-tester assess -u https://example.com --stream -format json -o report.json
+```
+
+**When to Use:** CI/CD pipelines requiring immediate feedback, or when monitoring assessment progress in real-time.
+
+---
+
+### Vulnerability Scanning (scan)
+
+The `scan` command provides targeted vulnerability testing across 50+ attack categories. Unlike `auto`, it offers granular control over test selection and execution parameters.
+
+**Primary Use Cases:**
+- Focused testing of specific vulnerability classes
+- Follow-up testing after initial assessment findings
+- Regression testing for specific vulnerability fixes
+- Category-specific compliance validation
+
+**Value Proposition:** Enables surgical precision in vulnerability testing, reducing noise and focusing on relevant attack vectors for the target application.
+
+#### Basic Scan
+
+Execute a standard vulnerability scan against a target.
+
+```bash
+waf-tester scan -u https://target.com
+```
+
+**What Happens:** Tests the target against the default set of attack payloads and reports findings with severity classifications.
+
+#### With Smart Mode and Tampers
+
+Enable WAF-aware testing with automatic tamper selection for improved bypass discovery.
 
 ```bash
 # Smart mode with auto-tamper selection
@@ -257,60 +941,83 @@ waf-tester scan -u https://target.com --smart --tamper-auto
 # Specific tampers for known WAF
 waf-tester scan -u https://target.com --tamper=space2comment,randomcase
 
-# Aggressive tamper profile
+# Aggressive tamper profile for maximum bypass attempts
 waf-tester scan -u https://target.com --tamper-profile=aggressive
 
 # Stealth profile for low detection risk
 waf-tester scan -u https://target.com --tamper-profile=stealth
 ```
 
+**When to Use:**
+- `--smart --tamper-auto`: General WAF bypass testing
+- `--tamper-profile=aggressive`: Red team exercises, bypass hunting
+- `--tamper-profile=stealth`: Production systems, evading detection
+
 #### Specific Categories
+
+Focus scanning on particular vulnerability types. Reduces scan time and findings noise.
 
 ```bash
 waf-tester scan -u https://target.com -category sqli,xss,traversal
 waf-tester scan -u https://target.com -types sqli,xss,traversal  # alias
 ```
 
+**When to Use:** When you know the application stack and want to focus on relevant vulnerabilities, or when validating specific WAF rule categories.
+
 #### Multiple Targets
+
+Scan a list of targets from a file. Useful for bulk assessments and subdomain scanning.
 
 ```bash
 waf-tester scan -l targets.txt -c 50
 ```
 
+**When to Use:** Scanning multiple hosts in a single operation, subdomain enumeration follow-up, or scope-wide assessments.
+
 #### All Available Categories
+
+Test against all 50+ attack categories for comprehensive coverage.
 
 ```bash
 waf-tester scan -u https://target.com -types all
 ```
 
-See [Attack Categories Reference](#attack-categories-reference) for full list.
+**When to Use:** Comprehensive security assessments where complete coverage is required. See [Attack Categories Reference](#attack-categories-reference) for the full list.
 
 #### Severity Filtering
+
+Filter findings by severity to focus on critical issues or reduce noise.
 
 ```bash
 # Match only critical and high severity findings
 waf-tester scan -u https://target.com -msev critical,high
 
-# Filter out low severity
+# Filter out low severity findings
 waf-tester scan -u https://target.com -fsev low
 
-# Match specific category
+# Match specific vulnerability category
 waf-tester scan -u https://target.com -mcat sqli,xss
 
-# Filter specific category
+# Filter out informational findings
 waf-tester scan -u https://target.com -fcat info
 ```
 
+**When to Use:** Production assessments where only actionable findings are needed, or when triaging large result sets.
+
 #### OAuth Testing
 
+Specialized testing for OAuth 2.0 implementations including authorization flow vulnerabilities.
+
 ```bash
-# Scan OAuth endpoints
+# Scan OAuth endpoints for common vulnerabilities
 waf-tester scan -u https://auth.example.com -types oauth \
   -oauth-client-id "client123" \
   -oauth-auth-endpoint "https://auth.example.com/authorize" \
   -oauth-token-endpoint "https://auth.example.com/token" \
   -oauth-redirect-uri "https://app.example.com/callback"
 ```
+
+**When to Use:** Testing OAuth/OIDC implementations for authorization bypass, token leakage, and redirect vulnerabilities.
 
 #### Debug Options
 
@@ -364,50 +1071,288 @@ waf-tester scan -u https://target.com -ip "api/v2"
 
 ### WAF Detection (vendor)
 
-Detect WAF vendor from 197+ signatures.
+**Purpose:** Identify WAF vendor, version, and configuration from 197+ signatures before testing.
 
-#### Detect WAF Vendor
+**TL;DR:** `waf-tester vendor -u https://target.com` — Instant WAF identification in 10-30 seconds
+
+Knowing the WAF vendor before testing enables targeted bypass techniques and helps interpret test results. This command should be your first step for any protected target.
+
+#### Prerequisites
+
+| Requirement | Details |
+|-------------|---------|
+| **Network** | HTTPS access to target |
+| **Authorization** | Minimal (sends ~20 benign + ~5 trigger requests) |
+| **Time** | 10-30 seconds |
+
+#### Detection Methods
+
+| Method | How It Works | Accuracy |
+|--------|--------------|----------|
+| **Header Analysis** | Looks for WAF-specific headers (cf-ray, x-amzn-requestid, x-sucuri-id) | High |
+| **Cookie Detection** | Identifies WAF cookies (__cfduid, incap_ses_*, etc.) | High |
+| **Block Page Analysis** | Matches block page patterns against 197 vendor signatures | Medium-High |
+| **Error Fingerprinting** | Analyzes error responses for WAF-specific patterns | Medium |
+| **Timing Analysis** | Measures response time patterns indicative of WAF processing | Low-Medium |
+
+#### Basic Detection
 
 ```bash
 waf-tester vendor -u https://target.com
 ```
 
-#### JSON Output
+#### Sample Output
+
+```
+$ waf-tester vendor -u https://secure.example.com
+
+WAFtester v2.6.5 — WAF Vendor Detection
+
+Target: https://secure.example.com
+
+Probing target...
+├─ Sending baseline requests (5)
+├─ Sending trigger payloads (15)
+└─ Analyzing response patterns
+
+══════════════════════════════════════════════════════════════════════
+ WAF DETECTED
+══════════════════════════════════════════════════════════════════════
+
+ Vendor:        Cloudflare
+ Confidence:    94%
+ Detection:     Header (cf-ray), Cookie (__cfduid), Block page pattern
+
+ Block Behavior:
+ ├─ Status Code:     403 Forbidden
+ ├─ Block Header:    cf-ray: 7a8b9c0d1e2f3g4h
+ ├─ Block Body:      "Attention Required! | Cloudflare"
+ └─ Challenge Type:  JavaScript challenge (5s delay)
+
+══════════════════════════════════════════════════════════════════════
+ BYPASS HINTS
+══════════════════════════════════════════════════════════════════════
+
+ Cloudflare-specific evasion techniques:
+
+ 1. Unicode Normalization
+    Cloudflare normalizes Unicode inconsistently.
+    Try: %EF%BC%87 instead of ' for SQL injection
+
+ 2. Chunked Transfer Encoding
+    Split payloads across chunks to bypass pattern matching.
+    Use: --tamper=chunk_transfer
+
+ 3. HTTP/2 Pseudo-headers
+    Cloudflare's HTTP/2 parsing differs from origin.
+    Use: --tamper=http2_pseudo
+
+ 4. WebSocket Upgrade
+    WebSocket traffic bypasses some WAF rules.
+    Use: waf-tester websocket -u URL
+
+ 5. Multipart Boundary Manipulation
+    Non-standard boundaries may bypass parsers.
+    Use: --tamper=multipart_boundary
+
+══════════════════════════════════════════════════════════════════════
+ RECOMMENDED NEXT STEPS
+══════════════════════════════════════════════════════════════════════
+
+ # Run smart scan with auto-selected tampers:
+ waf-tester scan -u https://secure.example.com --smart --tamper-auto
+
+ # Run bypass hunting for this WAF:
+ waf-tester bypass -u https://secure.example.com --smart
+
+✅ Detection complete in 12s
+```
+
+#### Output Options
 
 ```bash
+# JSON output for automation
 waf-tester vendor -u https://target.com -output waf-info.json
+
+# Verbose output with all detection details
+waf-tester vendor -u https://target.com -v
+
+# Quiet mode (vendor name only)
+waf-tester vendor -u https://target.com -q
 ```
 
-#### With Bypass Hints
-
-The vendor command shows WAF-specific bypass techniques:
+#### Multiple Targets
 
 ```bash
-waf-tester vendor -u https://target.com -v
+waf-tester vendor -l targets.txt -o vendors.json
 ```
+
+#### Supported WAF Vendors (197+)
+
+| Category | Examples |
+|----------|----------|
+| **Cloud WAFs** | Cloudflare, AWS WAF, Azure WAF, Google Cloud Armor, Fastly |
+| **CDN WAFs** | Akamai, Imperva/Incapsula, Sucuri, StackPath, KeyCDN |
+| **Enterprise** | F5 BIG-IP, Fortinet FortiWeb, Barracuda, Citrix NetScaler |
+| **Open Source** | ModSecurity, Coraza, NAXSI, Shadow Daemon |
+| **Appliances** | Palo Alto, Check Point, Juniper, SonicWall |
+| **Hosting** | Wordfence (WordPress), SiteLock, GoDaddy |
+
+#### Decision Guide
+
+| Scenario | Command | Next Action |
+|----------|---------|-------------|
+| Unknown if WAF exists | `vendor -u URL` | If no WAF, use `scan` directly |
+| WAF detected, need bypasses | `vendor -u URL -v` | Note bypass hints, use `--smart --tamper-auto` |
+| Multiple targets to check | `vendor -l targets.txt` | Filter list for WAF-protected only |
+| CI/CD WAF verification | `vendor -u URL -output json` | Parse JSON in pipeline |
+
+#### Common Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| "No WAF detected" but you know there is | WAF in transparent mode | Try `vendor -u URL -v` for deeper analysis |
+| Low confidence (50-70%) | WAF using minimal fingerprints | Use `--smart` anyway, it will adapt |
+| "Multiple WAFs detected" | CDN + WAF stack (common) | Both are real, test both bypass sets |
+| Slow detection (>1 min) | Rate limiting or challenge | Reduce probes with `-probes 10` |
 
 ---
 
 ### Protocol Detection (protocol)
 
-Enterprise protocol detection (gRPC, SOAP, GraphQL, WCF).
+**Purpose:** Detect enterprise protocols (GraphQL, gRPC, SOAP, WCF) for specialized testing.
+
+**TL;DR:** `waf-tester protocol -u https://target.com` — Find API protocols in 20-60 seconds
+
+Modern applications use diverse protocols. This command identifies which protocols are in use so you can apply appropriate security tests.
+
+#### Prerequisites
+
+| Requirement | Details |
+|-------------|---------|
+| **Network** | HTTPS access to target |
+| **Authorization** | Low impact (sends protocol-specific probes) |
+| **Time** | 20-60 seconds |
+
+#### Basic Detection
 
 ```bash
 waf-tester protocol -u https://target.com
 ```
 
-Detects:
-- GraphQL endpoints
-- gRPC services
-- SOAP/WSDL services
-- WCF endpoints
-- REST API patterns
+#### Sample Output
+
+```
+$ waf-tester protocol -u https://api.example.com
+
+WAFtester v2.6.5 — Protocol Detection
+
+Target: https://api.example.com
+
+Probing for enterprise protocols...
+
+══════════════════════════════════════════════════════════════════════
+ DETECTED PROTOCOLS
+══════════════════════════════════════════════════════════════════════
+
+ ✓ GraphQL
+   Endpoint:    /graphql
+   Evidence:    Introspection query returned schema
+   Operations:  Query, Mutation, Subscription
+   Schema Size: 847 types, 2,341 fields
+   → Run: waf-tester scan -u URL/graphql -types graphql
+
+ ✓ REST API
+   Endpoints:   /api/v1/*, /api/v2/*
+   Evidence:    JSON responses, RESTful patterns
+   Methods:     GET, POST, PUT, DELETE, PATCH
+   Auth:        Bearer token (Authorization header)
+   → Run: waf-tester scan -u URL -types api
+
+ ✗ gRPC
+   Status:      Not detected
+   Attempted:   gRPC-Web, gRPC over HTTP/2
+
+ ✗ SOAP/WSDL
+   Status:      Not detected
+   Attempted:   ?wsdl, /wsdl, /service.asmx
+
+ ✗ WCF
+   Status:      Not detected
+   Attempted:   /mex, ?disco, .svc endpoints
+
+══════════════════════════════════════════════════════════════════════
+ RECOMMENDATIONS
+══════════════════════════════════════════════════════════════════════
+
+ # Test GraphQL for security issues:
+ waf-tester scan -u https://api.example.com/graphql -types graphql
+
+ # Full API security assessment:
+ waf-tester auto -u https://api.example.com --smart
+
+✅ Detection complete in 34s
+```
+
+#### Protocol-Specific Testing
+
+```bash
+# GraphQL testing
+waf-tester scan -u https://api.example.com/graphql -types graphql
+
+# gRPC testing
+waf-tester grpc -u https://api.example.com:443
+
+# SOAP/WSDL testing
+waf-tester soap -u https://api.example.com/service.asmx?wsdl
+```
+
+#### What Each Protocol Detection Checks
+
+| Protocol | Detection Method | Endpoints Probed |
+|----------|------------------|------------------|
+| **GraphQL** | Introspection query, __schema query | /graphql, /gql, /query, /api/graphql |
+| **gRPC** | gRPC-Web headers, HTTP/2 SETTINGS | /, /grpc.*, application/grpc headers |
+| **SOAP** | WSDL fetch, envelope detection | ?wsdl, /*.wsdl, /services, /*.asmx |
+| **WCF** | MEX endpoint, .svc detection | /mex, ?disco, /*.svc |
+| **REST** | JSON responses, HTTP method support | /api/*, /v1/*, /v2/* |
+
+#### Common Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| GraphQL not detected | Introspection disabled | Use `scan -types graphql` anyway with field fuzzing |
+| gRPC not detected | gRPC over TCP not HTTP | Use `waf-tester grpc` with proper port |
+| All protocols "not detected" | Custom paths | Use `-paths /custom/api,/myservice` |
 
 ---
 
 ### Bypass Hunting (bypass)
 
-WAF bypass finder using full mutation matrix.
+**Purpose:** Systematically find WAF bypass payloads using mutation matrix and chaining.
+
+**TL;DR:** `waf-tester bypass -u https://target.com --smart --tamper-auto` — Find bypasses in 5-20 minutes
+
+The `bypass` command is specifically designed to find payloads that evade WAF detection. It uses a full mutation matrix with encoding combinations, location variations, and chainable evasion techniques.
+
+#### Prerequisites
+
+| Requirement | Details |
+|-------------|---------|
+| **Network** | HTTPS access to target |
+| **Authorization** | Required (sends thousands of attack payload variants) |
+| **Memory** | ~500MB RAM (mutation matrix is large) |
+| **Time** | 5-20 minutes (full mutation), 2-5 minutes (targeted) |
+
+#### How Bypass Hunting Works
+
+| Phase | Actions | Payload Count |
+|-------|---------|---------------|
+| **Base Payloads** | Load category-specific attack payloads | ~500 |
+| **Encoding Matrix** | Apply 15+ encoding schemes (URL, Unicode, Base64, etc.) | ×15 = ~7,500 |
+| **Location Variants** | Test in different HTTP locations (path, query, header, body) | ×4 = ~30,000 |
+| **Chaining** | Combine multiple techniques (if `-chain` enabled) | ×N = variable |
+| **WAF-Specific** | Apply vendor-specific evasions (if `--smart`) | +targeted |
 
 #### Basic Bypass Search
 
@@ -415,49 +1360,164 @@ WAF bypass finder using full mutation matrix.
 waf-tester bypass -u https://target.com
 ```
 
-#### Smart Bypass with Chaining
+#### Smart Bypass with Vendor Detection
+
+```bash
+waf-tester bypass -u https://target.com --smart --tamper-auto
+```
+
+**What `--smart` does for bypass hunting:**
+1. Detects WAF vendor
+2. Selects tampers with proven bypass history for that vendor
+3. Prioritizes techniques known to work against that WAF
+4. Adjusts timing to avoid triggering rate limits
+
+#### Category-Specific Bypass
+
+```bash
+# SQL injection bypasses only
+waf-tester bypass -u https://target.com -category sqli
+
+# XSS bypasses
+waf-tester bypass -u https://target.com -category xss
+
+# Multiple categories
+waf-tester bypass -u https://target.com -category sqli,xss,rce
+```
+
+#### Full Mutation Matrix with Chaining
 
 ```bash
 waf-tester bypass -u https://target.com \
   --smart \
-  --smart-mode=full \
+  -mutation full \
   -chain \
+  -max-chain 3 \
   -o bypasses.json
 ```
 
-#### Category-Specific
+| Option | Effect | Trade-off |
+|--------|--------|-----------|
+| `-mutation full` | All encoding combinations | 10x more payloads, 10x longer |
+| `-chain` | Combine multiple techniques | Finds complex bypasses, slower |
+| `-max-chain 3` | Max 3 techniques per payload | Higher = more combinations |
 
-```bash
-waf-tester bypass -u https://target.com -category injection
-waf-tester bypass -u https://target.com -category sqli -mutation full
+#### Sample Output
+
+```
+$ waf-tester bypass -u https://secure.example.com --smart --tamper-auto -category sqli
+
+WAFtester v2.6.5 — WAF Bypass Hunter
+
+Target: https://secure.example.com
+Category: sqli
+Mode: Smart (Cloudflare detected)
+Auto-tampers: unicode_normalize, chunk_transfer, multipart_boundary
+
+══════════════════════════════════════════════════════════════════════
+ BYPASS HUNTING PROGRESS
+══════════════════════════════════════════════════════════════════════
+
+ [████████████████████████████████████████] 100% (12,847/12,847)
+
+ Phase 1: Base payloads           ✓ 423 payloads tested
+ Phase 2: Encoding matrix         ✓ 6,345 variants generated
+ Phase 3: Location testing        ✓ 4,128 location variants
+ Phase 4: WAF-specific tampers    ✓ 1,951 Cloudflare-specific
+
+══════════════════════════════════════════════════════════════════════
+ CONFIRMED BYPASSES
+══════════════════════════════════════════════════════════════════════
+
+ 🔴 BYPASS #1: SQL Injection Authentication Bypass
+    Original:    ' OR 1=1--
+    Bypass:      %EF%BC%87%20OR%201%EF%BC%9D1--
+    Technique:   Unicode fullwidth apostrophe + equals
+    Endpoint:    POST /api/login
+    Parameter:   username
+    Confidence:  HIGH (payload executed, auth bypassed)
+
+ 🔴 BYPASS #2: SQL Injection Data Extraction
+    Original:    ' UNION SELECT * FROM users--
+    Bypass:      '/**/UNION/**/SELECT/**/*/**/FROM/**/users--
+    Technique:   Comment injection (space replacement)
+    Endpoint:    GET /api/users?id=
+    Parameter:   id
+    Confidence:  HIGH (returned extra user data)
+
+ 🟠 BYPASS #3: SQL Injection (Blind)
+    Original:    ' AND SLEEP(5)--
+    Bypass:      '%20AND%20(SELECT%20SLEEP(5))--
+    Technique:   URL encoding + subquery
+    Endpoint:    GET /search?q=
+    Parameter:   q
+    Confidence:  MEDIUM (5s delay observed)
+
+ [... 7 more bypasses found ...]
+
+══════════════════════════════════════════════════════════════════════
+ BYPASS STATISTICS
+══════════════════════════════════════════════════════════════════════
+
+ Total Payloads Tested:  12,847
+ Blocked by WAF:         12,837 (99.9%)
+ Confirmed Bypasses:     10 (0.08%)
+
+ Bypasses by Technique:
+ ├─ Unicode normalization:     4 bypasses
+ ├─ Comment injection:         3 bypasses
+ ├─ Chunk transfer:            2 bypasses
+ └─ HTTP parameter pollution:  1 bypass
+
+══════════════════════════════════════════════════════════════════════
+ OUTPUT
+══════════════════════════════════════════════════════════════════════
+
+ 📄 bypasses.json        All confirmed bypasses with evidence
+ 📄 bypass-report.html   Formatted report for remediation
+
+✅ Bypass hunting complete in 8m34s
 ```
 
-#### With Tamper Scripts
+#### Decision Guide
 
-```bash
-# Manual tamper selection
-waf-tester bypass -u https://target.com \
-  --smart \
-  --tamper=space2comment,randomcase
+| Your Goal | Command | Why |
+|-----------|---------|-----|
+| Quick bypass check | `bypass -u URL -category sqli` | Single category, faster |
+| Maximum bypass discovery | `bypass -u URL --smart -mutation full -chain` | All techniques |
+| Red team engagement | `bypass -u URL --smart --tamper-profile=aggressive` | Aggressive evasion |
+| Stealth bypass testing | `bypass -u URL --smart-mode=stealth -rl 10` | Low and slow |
+| Specific endpoint | `bypass -u URL -category sqli -ep "/api/login"` | Focused testing |
 
-# Auto-select tampers based on detected WAF (v2.4.2+)
-waf-tester bypass -u https://target.com \
-  --smart \
-  --tamper-auto
+#### Common Issues
 
-# Use aggressive profile for maximum bypass attempts
-waf-tester bypass -u https://target.com \
-  --smart \
-  --tamper-profile=aggressive
-```
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| 0 bypasses found | WAF is very strict or no vulns | Expected for well-tuned WAFs |
+| All payloads blocked | IP banned | Rotate IP, reduce rate |
+| Too many false positives | Backend error = "bypass" | Use `--smart` for better detection |
+| Very slow (>1 hour) | Full mutation matrix | Use `-mutation standard`, specific category |
 
 ---
 
 ### Mutation Testing (mutate)
 
-Test payloads with all encoding/location/evasion combinations.
+**Purpose:** Test payloads with systematic encoding and location variations to understand WAF parsing.
 
-#### Basic Mutation
+**TL;DR:** `waf-tester mutate -u https://target.com -encoders url,unicode` — Encoding analysis in 3-10 minutes
+
+The `mutate` command helps understand how a WAF parses and normalizes input. Unlike `bypass`, it focuses on understanding WAF behavior rather than finding exploitable bypasses.
+
+#### Prerequisites
+
+| Requirement | Details |
+|-------------|---------|
+| **Network** | HTTPS access to target |
+| **Authorization** | Required (sends attack payload variants) |
+| **Memory** | ~300MB RAM |
+| **Time** | 3-15 minutes |
+
+#### Basic Mutation Testing
 
 ```bash
 waf-tester mutate -u https://target.com
@@ -467,8 +1527,23 @@ waf-tester mutate -u https://target.com
 
 ```bash
 waf-tester mutate -u https://target.com \
-  -encoders url,double_url,unicode,html
+  -encoders url,double_url,unicode,html,base64
 ```
+
+#### Available Encoders
+
+| Encoder | Description | Example |
+|---------|-------------|---------|
+| `url` | Standard URL encoding | `'` → `%27` |
+| `double_url` | Double URL encoding | `'` → `%2527` |
+| `unicode` | Unicode encoding | `'` → `%u0027` |
+| `unicode_full` | Fullwidth Unicode | `'` → `%EF%BC%87` |
+| `html` | HTML entity encoding | `'` → `&#39;` |
+| `html_hex` | HTML hexadecimal | `'` → `&#x27;` |
+| `base64` | Base64 encoding | `'` → `Jw==` |
+| `hex` | Hexadecimal | `'` → `0x27` |
+| `octal` | Octal encoding | `'` → `\047` |
+| `utf7` | UTF-7 encoding | `'` → `+ACc-` |
 
 #### Full Mutation Matrix
 
@@ -479,19 +1554,168 @@ waf-tester mutate -u https://target.com \
   -max-chain 3
 ```
 
-See [Mutation Engine](#mutation-engine) for all available mutators.
+#### Sample Output
+
+```
+$ waf-tester mutate -u https://target.com -encoders url,unicode,double_url
+
+WAFtester v2.6.5 — Mutation Testing
+
+Target: https://target.com
+Encoders: url, unicode, double_url
+
+══════════════════════════════════════════════════════════════════════
+ MUTATION ANALYSIS
+══════════════════════════════════════════════════════════════════════
+
+ Payload: ' OR 1=1--
+
+ Encoding          │ Variant                          │ WAF Result
+ ──────────────────┼──────────────────────────────────┼───────────
+ none              │ ' OR 1=1--                       │ BLOCKED
+ url               │ %27%20OR%201%3D1--               │ BLOCKED
+ double_url        │ %2527%2520OR%25201%253D1--       │ BLOCKED
+ unicode           │ %u0027 OR 1=1--                  │ BLOCKED
+ unicode_full      │ %EF%BC%87 OR 1=1--               │ ALLOWED ⚠️
+
+ WAF Behavior Analysis:
+ ├─ URL decoding:        Yes (handles %27)
+ ├─ Double URL decoding: Yes (handles %2527)
+ ├─ Unicode normalization: PARTIAL (misses fullwidth)
+ └─ Recommendation:      Test fullwidth chars for bypasses
+
+✅ Mutation testing complete
+```
+
+#### Common Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| All mutations blocked | Strong WAF | Expected - use for analysis, not bypass |
+| All mutations allowed | No WAF or disabled | Verify using `vendor` command |
+| Very slow | Too many encoders | Use specific `-encoders` list |
 
 ---
 
 ### False Positive Testing (fp)
 
-Test WAF with legitimate traffic to measure false positive rate.
+**Purpose:** Measure false positive rate by sending benign traffic through the WAF.
+
+**TL;DR:** `waf-tester fp -u https://target.com -corpus builtin` — FPR measurement in 2-5 minutes
+
+False positives (legitimate traffic blocked) hurt business more than missed attacks. This command quantifies the problem using curated benign traffic corpora.
+
+#### Prerequisites
+
+| Requirement | Details |
+|-------------|---------|
+| **Network** | HTTPS access to target |
+| **Authorization** | Minimal (sends benign traffic only) |
+| **Time** | 2-5 minutes |
 
 #### Basic FP Test
 
 ```bash
 waf-tester fp -u https://target.com
 ```
+
+#### With Leipzig Corpus
+
+The Leipzig corpus contains millions of natural language sentences in multiple languages.
+
+```bash
+waf-tester fp -u https://target.com -corpus leipzig
+```
+
+#### Custom Corpus
+
+Use your own benign traffic samples:
+
+```bash
+waf-tester fp -u https://target.com -corpus /path/to/benign-requests.txt
+```
+
+#### Sample Output
+
+```
+$ waf-tester fp -u https://secure.example.com -corpus builtin,leipzig
+
+WAFtester v2.6.5 — False Positive Testing
+
+Target: https://secure.example.com
+Corpora: builtin (2,500), leipzig (5,000)
+
+Sending benign traffic...
+[████████████████████████████████████████] 100% (7,500/7,500)
+
+══════════════════════════════════════════════════════════════════════
+ FALSE POSITIVE RESULTS
+══════════════════════════════════════════════════════════════════════
+
+ Corpus            │ Total │ Blocked │ Allowed  │ FP Rate
+ ──────────────────┼───────┼─────────┼──────────┼────────
+ builtin           │ 2,500 │      12 │    2,488 │ 0.48%
+ leipzig-english   │ 2,500 │       4 │    2,496 │ 0.16%
+ leipzig-german    │ 2,500 │       2 │    2,498 │ 0.08%
+ ──────────────────┴───────┴─────────┴──────────┴────────
+ TOTAL             │ 7,500 │      18 │    7,482 │ 0.24%
+
+══════════════════════════════════════════════════════════════════════
+ BLOCKED BENIGN REQUESTS (False Positives)
+══════════════════════════════════════════════════════════════════════
+
+ 1. "The SELECT committee reviewed the union's proposal"
+    Blocked: SQL keyword pattern (SELECT, UNION)
+
+ 2. "Please <update> your profile information"
+    Blocked: HTML tag pattern
+
+ 3. "See the script attached for details"
+    Blocked: Script keyword pattern
+
+ [... 15 more false positives ...]
+
+══════════════════════════════════════════════════════════════════════
+ ASSESSMENT
+══════════════════════════════════════════════════════════════════════
+
+ False Positive Rate: 0.24%
+ Rating: ★★★★★ Excellent (target: <1%)
+
+ Impact: At 10,000 daily requests, expect ~24 legitimate blocks
+
+ Recommendations:
+ • Review blocking rules for "SELECT" and "UNION" without SQL context
+ • Consider whitelisting common HTML-like patterns in user content
+ • Rule #3 (script keyword) may be too aggressive
+
+✅ FP testing complete in 2m47s
+```
+
+#### Available Corpora
+
+| Corpus | Description | Requests |
+|--------|-------------|----------|
+| `builtin` | Curated benign traffic (forms, searches, user content) | 2,500 |
+| `leipzig` | Natural language sentences (English, German, French, Spanish) | 5,000+ |
+| Custom | Your own benign request file (one per line) | Variable |
+
+#### Decision Guide
+
+| Scenario | Command | Why |
+|----------|---------|-----|
+| Quick check | `fp -u URL` | Built-in corpus only |
+| Full multilingual | `fp -u URL -corpus builtin,leipzig` | Comprehensive |
+| Domain-specific | `fp -u URL -corpus /path/to/mytraffic.txt` | Your real traffic |
+| CI/CD gate | `fp -u URL -threshold 1.0` | Fail if FPR > 1% |
+
+#### Common Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| FPR = 0% | Requests not reaching WAF | Verify WAF is inline |
+| FPR > 5% | Very aggressive rules | Review blocked requests, tune WAF |
+| Inconsistent results | Caching | Bust cache with `?nocache=rand` |
 
 #### With Leipzig Corpus
 
@@ -1040,7 +2264,31 @@ waf-tester probe -im burp -l burp-export.xml
 
 ### HTTP Smuggling (smuggle)
 
-HTTP request smuggling testing.
+**Purpose:** Detect HTTP request smuggling vulnerabilities used to bypass WAF rules completely.
+
+**TL;DR:** `waf-tester smuggle -u https://target.com` — Find critical smuggling vulns in 1-5 minutes
+
+HTTP smuggling exploits differences between how front-end (CDN/WAF) and back-end servers parse HTTP requests. A successful smuggle lets attackers bypass ALL WAF rules by hiding payload in the "smuggled" portion.
+
+#### Prerequisites
+
+| Requirement | Details |
+|-------------|---------|
+| **Network** | HTTPS access to target with CDN/proxy/WAF in front |
+| **Authorization** | Required (full mode is invasive) |
+| **Time** | 1-5 minutes |
+
+#### How Smuggling Works
+
+```
+Normal Request Flow:
+  Client → WAF → Backend
+  [WAF sees same request as backend - protects properly]
+
+Smuggling Attack:
+  Client → WAF → Backend
+  [WAF sees 1 request, backend sees 2 - second bypasses WAF]
+```
 
 #### Basic Smuggling Test
 
@@ -1058,39 +2306,133 @@ waf-tester smuggle -u https://target.com -safe
 waf-tester smuggle -u https://target.com -safe=false
 ```
 
+| Mode | Risk Level | Detection Method | Use When |
+|------|------------|------------------|----------|
+| `safe` | Low | Timing/delay analysis | Initial reconnaissance |
+| `full` | High | Actual smuggled payloads | Confirmed testing with auth |
+
+#### Sample Output
+
+```
+$ waf-tester smuggle -u https://app.example.com
+
+WAFtester v2.6.5 — HTTP Smuggling Detection
+
+Target: https://app.example.com
+Mode: Safe (timing-based)
+
+Probing for HTTP smuggling vulnerabilities...
+
+══════════════════════════════════════════════════════════════════════
+ SMUGGLING TEST RESULTS
+══════════════════════════════════════════════════════════════════════
+
+ Technique: CL.TE (Content-Length.Transfer-Encoding)
+ ├─ Baseline response time:  45ms
+ ├─ Smuggled response time:  10,043ms (10s delay detected!)
+ └─ Status: 🔴 LIKELY VULNERABLE
+
+ Technique: TE.CL (Transfer-Encoding.Content-Length)
+ ├─ Baseline response time:  42ms
+ ├─ Smuggled response time:  51ms
+ └─ Status: ✅ Not vulnerable
+
+ Technique: TE.TE (Transfer-Encoding obfuscation)
+ ├─ Baseline response time:  48ms
+ ├─ Variants tested:         12
+ └─ Status: ✅ Not vulnerable
+
+══════════════════════════════════════════════════════════════════════
+ VULNERABILITY DETECTED
+══════════════════════════════════════════════════════════════════════
+
+ 🔴 CL.TE Smuggling Confirmed
+
+ Severity:    CRITICAL
+ Impact:      Complete WAF bypass, request hijacking, cache poisoning
+
+ What this means:
+ The front-end proxy (Cloudflare) uses Content-Length.
+ The back-end server uses Transfer-Encoding.
+ Attackers can smuggle requests that bypass ALL WAF rules.
+
+ Proof of concept (run with -safe=false for full test):
+ waf-tester smuggle -u https://app.example.com -safe=false -v
+
+══════════════════════════════════════════════════════════════════════
+ RECOMMENDATIONS
+══════════════════════════════════════════════════════════════════════
+
+ Immediate:
+ • Configure both servers to reject ambiguous requests
+ • Disable HTTP/1.1 keep-alive if not needed
+
+ Long-term:
+ • Upgrade to HTTP/2 end-to-end (not vulnerable to classic smuggling)
+ • Configure WAF to normalize and re-serialize requests
+
+✅ Smuggling test complete in 1m23s
+```
+
 #### Multiple Targets
 
 ```bash
 waf-tester smuggle -l targets.txt -o smuggle-results.json
 ```
 
-#### Detection Options
+#### Detection Techniques
 
-```bash
-# Custom timeout
-waf-tester smuggle -u https://target.com -timeout 15
+| Technique | Description | Common Scenario |
+|-----------|-------------|-----------------|
+| `clte` | Content-Length.Transfer-Encoding | CDN uses CL, backend uses TE |
+| `tecl` | Transfer-Encoding.Content-Length | CDN uses TE, backend uses CL |
+| `tete` | Transfer-Encoding.Transfer-Encoding | Both use TE but parse differently |
 
-# Delay between requests (milliseconds)
-waf-tester smuggle -u https://target.com -delay 2000
+#### Decision Guide
 
-# Retries per technique
-waf-tester smuggle -u https://target.com -retries 5
+| Scenario | Command | Why |
+|----------|---------|-----|
+| Initial recon | `smuggle -u URL` | Safe mode first |
+| Confirm vulnerability | `smuggle -u URL -safe=false -v` | Full payload testing |
+| Bulk scanning | `smuggle -l targets.txt` | Multiple targets |
+| Stealth testing | `smuggle -u URL -delay 5000` | Slow and careful |
 
-# Verbose output
-waf-tester smuggle -u https://target.com -v
-```
+#### Common Issues
 
-| Technique | Description |
-|-----------|-------------|
-| `clte` | Content-Length.Transfer-Encoding |
-| `tecl` | Transfer-Encoding.Content-Length |
-| `tete` | Transfer-Encoding.Transfer-Encoding |
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| "Not vulnerable" but you suspect | HTTP/2 masking HTTP/1.1 | Force HTTP/1.1 with origin |
+| Timeout on every test | Very slow backend | Increase `-timeout 30` |
+| Inconsistent results | Load balancer rotating | Increase `-retries 5` |
+| False positives | Slow backend responds after expected | Use `-delay 2000` between tests |
 
 ---
 
 ### Race Condition Testing (race)
 
-Test for race conditions in web applications.
+**Purpose:** Exploit race conditions for double-spending, limit bypasses, and TOCTOU vulnerabilities.
+
+**TL;DR:** `waf-tester race -u https://target.com/action -c 50` — Race condition check in seconds
+
+Race conditions occur when an application doesn't properly handle concurrent requests. Results include double voucher redemption, overdrafts, limit bypasses, and authentication issues.
+
+#### Prerequisites
+
+| Requirement | Details |
+|-------------|---------|
+| **Network** | HTTPS access to target |
+| **Authorization** | Required (actively exploits) |
+| **Auth Token** | Usually needed for testing protected endpoints |
+| **Time** | 10-60 seconds per test |
+
+#### How Race Conditions Work
+
+```
+Normal Flow (sequential):                Race Attack (concurrent):
+────────────────────────                  ─────────────────────────
+Request 1 → Check balance → Deduct       50 Requests → All see $100 → All deduct
+Result: $100 - $50 = $50                 Result: $100 - (50×$50) = -$2,400 🔴
+```
 
 #### Basic Race Test
 
@@ -1104,7 +2446,7 @@ waf-tester race -u https://target.com/checkout -c 50
 # Double submit attack
 waf-tester race -u https://target.com/submit -attack double_submit
 
-# Token reuse attack
+# Token reuse attack  
 waf-tester race -u https://target.com/action -attack token_reuse
 
 # Rate limit bypass
@@ -1114,12 +2456,69 @@ waf-tester race -u https://target.com/api -attack limit_bypass
 waf-tester race -u https://target.com/process -attack toctou
 ```
 
-| Attack Type | Description |
-|-------------|-------------|
-| `double_submit` | Submit same request twice simultaneously |
-| `token_reuse` | Reuse single-use tokens concurrently |
-| `limit_bypass` | Bypass rate limits with concurrent requests |
-| `toctou` | Time-of-check to time-of-use vulnerabilities |
+| Attack Type | Description | Example Scenario |
+|-------------|-------------|------------------|
+| `double_submit` | Submit same request simultaneously | Redeem voucher twice |
+| `token_reuse` | Reuse single-use tokens concurrently | Transfer money with same auth |
+| `limit_bypass` | Bypass rate limits with burst | Send 1000 emails instantly |
+| `toctou` | Check happens before use | Download paid file free |
+
+#### Sample Output
+
+```
+$ waf-tester race -u https://shop.example.com/apply-coupon -c 50 \
+    -method POST -body '{"code":"SAVE50"}' -H "Authorization: Bearer xxx"
+
+WAFtester v2.6.5 — Race Condition Testing
+
+Target: https://shop.example.com/apply-coupon
+Attack: double_submit
+Concurrency: 50
+
+Sending 50 concurrent identical requests...
+
+══════════════════════════════════════════════════════════════════════
+ RACE CONDITION RESULTS
+══════════════════════════════════════════════════════════════════════
+
+ Requests Sent:    50
+ Response Time:    127ms - 4,231ms (spread: 4,104ms)
+
+ Response Analysis:
+ ├─ 200 OK:         47 responses
+ ├─ 409 Conflict:    3 responses (coupon already used)
+ └─ Distinct bodies: 2
+
+ 🔴 RACE CONDITION DETECTED
+
+ Evidence:
+ - 47 of 50 requests succeeded
+ - Expected: 1 success, 49 conflicts
+ - Coupon applied 47 times instead of 1
+
+══════════════════════════════════════════════════════════════════════
+ EXPLOITATION DETAILS
+══════════════════════════════════════════════════════════════════════
+
+ Successful responses (sample):
+ 
+ Response #1:  {"status":"success","discount":"$50.00"}
+ Response #14: {"status":"success","discount":"$50.00"}
+ Response #29: {"status":"success","discount":"$50.00"}
+
+ Total discount applied: $2,350 (should be $50)
+
+══════════════════════════════════════════════════════════════════════
+ RECOMMENDATIONS
+══════════════════════════════════════════════════════════════════════
+
+ • Implement database-level locking (SELECT FOR UPDATE)
+ • Use atomic operations for critical state changes
+ • Add idempotency keys for payment/discount endpoints
+ • Consider pessimistic vs optimistic locking strategy
+
+✅ Race test complete in 4.2s
+```
 
 #### Race Options
 
@@ -1143,11 +2542,41 @@ waf-tester race -u https://target.com/action -n 5
 waf-tester race -u https://target.com/action -timeout 60
 ```
 
+#### Decision Guide
+
+| Target Endpoint | Command | Expected Result |
+|-----------------|---------|-----------------|
+| Coupon/voucher | `race -u URL/apply -c 50 -method POST` | Should see 1 success, 49 failures |
+| Money transfer | `race -u URL/transfer -c 20 -body '...'` | Balance should not go negative |
+| Rate-limited API | `race -u URL -c 200` | Should get 429 after limit |
+| File download | `race -u URL/download -c 30` | Purchased files only |
+
+#### Common Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| All 50 get "success" | No locking at all | Definite vulnerability |
+| All 50 get "conflict" | Good locking exists | Not vulnerable (expected) |
+| Mixed results (unstable) | Partial locking | Try higher concurrency |
+| Connection errors | Server rate limiting | Lower concurrency with `-c 20` |
+
 ---
 
 ### Web Crawling (crawl)
 
-Advanced web crawler with scope control.
+**Purpose:** Discover all endpoints, forms, and resources across a web application.
+
+**TL;DR:** `waf-tester crawl -u https://target.com -depth 5` — Full site crawl in 5-30 minutes
+
+Crawling discovers the attack surface before testing. It finds hidden pages, forms, API endpoints, and JavaScript files that contain additional URLs.
+
+#### Prerequisites
+
+| Requirement | Details |
+|-------------|---------|
+| **Network** | HTTPS access to target |
+| **Authorization** | Low (follows links, no attacks) |
+| **Time** | 5-30 minutes (depends on site size) |
 
 #### Basic Crawl
 
@@ -1159,6 +2588,84 @@ waf-tester crawl -u https://target.com
 
 ```bash
 waf-tester crawl -u https://target.com -depth 5 -max-pages 500
+```
+
+#### Sample Output
+
+```
+$ waf-tester crawl -u https://shop.example.com -depth 4 -max-pages 200
+
+WAFtester v2.6.5 — Web Crawler
+
+Target: https://shop.example.com
+Depth: 4 | Max Pages: 200
+
+Crawling...
+[████████████████████████████████████████] 200/200 pages
+
+══════════════════════════════════════════════════════════════════════
+ CRAWL RESULTS
+══════════════════════════════════════════════════════════════════════
+
+ Pages Discovered:    200 (max reached)
+ Links Found:         847
+ Unique Endpoints:    156
+
+ By Content Type:
+ ├─ HTML pages:       134
+ ├─ JavaScript:        42
+ ├─ JSON responses:    18
+ └─ Other:              6
+
+══════════════════════════════════════════════════════════════════════
+ FORMS DISCOVERED (12)
+══════════════════════════════════════════════════════════════════════
+
+ 1. /login
+    Method: POST | Fields: username, password, csrf_token
+
+ 2. /search
+    Method: GET | Fields: q, category, sort
+
+ 3. /checkout
+    Method: POST | Fields: cc_number, cvv, expiry, address
+    ⚠️  Contains payment fields
+
+ 4. /contact
+    Method: POST | Fields: name, email, message
+    
+ [... 8 more forms ...]
+
+══════════════════════════════════════════════════════════════════════
+ API ENDPOINTS (24)
+══════════════════════════════════════════════════════════════════════
+
+ /api/v1/products     GET
+ /api/v1/cart         GET, POST, DELETE
+ /api/v1/user         GET, PATCH
+ /api/v1/orders       GET, POST
+ /api/v1/payment      POST
+
+ [... 19 more endpoints ...]
+
+══════════════════════════════════════════════════════════════════════
+ INTERESTING FINDINGS
+══════════════════════════════════════════════════════════════════════
+
+ ⚠️  /admin (403 Forbidden - exists but protected)
+ ⚠️  /api/v1/debug (returned stack trace)
+ ⚠️  /.git/config (200 OK - git exposed!)
+ ⚠️  /backup.sql.bak (200 OK - database backup!)
+
+══════════════════════════════════════════════════════════════════════
+ OUTPUT
+══════════════════════════════════════════════════════════════════════
+
+ 📄 crawl-results.json   Full crawl data
+ 📄 endpoints.txt        All endpoints (for fuzzing)
+ 📄 forms.txt            All forms discovered
+
+✅ Crawl complete in 3m47s | 200 pages | 12 forms | 24 API endpoints
 ```
 
 #### Scope Control
@@ -1199,24 +2706,41 @@ waf-tester crawl -u https://target.com -comments
 waf-tester crawl -u https://target.com -endpoints
 ```
 
-#### Rate Control
+#### Decision Guide
 
-```bash
-# Concurrent crawlers
-waf-tester crawl -u https://target.com -concurrency 10
+| Goal | Command | Output |
+|------|---------|--------|
+| Quick surface mapping | `crawl -u URL -depth 2` | Top-level pages |
+| Full site discovery | `crawl -u URL -depth 5 -max-pages 1000` | Complete map |
+| API discovery focus | `crawl -u URL -endpoints -scripts` | API endpoints from JS |
+| Pre-scan recon | `crawl -u URL -o endpoints.txt` | Feed to scanner |
 
-# Delay between requests (milliseconds)
-waf-tester crawl -u https://target.com -delay 100
+#### Common Issues
 
-# Request timeout
-waf-tester crawl -u https://target.com -timeout 15
-```
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| Crawl stuck at login | Auth required | Use `-cookie "session=X"` |
+| Missing dynamic content | JavaScript rendering | Use `headless` command instead |
+| Blocked after few pages | Rate limiting | Lower `-concurrency 5`, add `-delay 500` |
+| Infinite loop | Query param variations | Use `-exclude "page=|offset="` |
 
 ---
 
 ### JavaScript Analysis (analyze)
 
-JavaScript analysis for URLs, methods, secrets, and DOM sinks.
+**Purpose:** Extract endpoints, secrets, and DOM XSS sinks from JavaScript files.
+
+**TL;DR:** `waf-tester analyze -u https://target.com` — Find hidden APIs and secrets in JS files
+
+Modern SPAs hide their entire API structure in JavaScript. This command extracts URLs, methods, API keys, and identifies potential DOM XSS sinks.
+
+#### Prerequisites
+
+| Requirement | Details |
+|-------------|---------|
+| **Network** | Access to target's JavaScript files |
+| **Authorization** | None (reads public JS) |
+| **Time** | 30 seconds - 5 minutes |
 
 #### Basic Analysis
 
@@ -1230,11 +2754,106 @@ waf-tester analyze -u https://target.com
 waf-tester analyze -file ./app.js
 ```
 
-#### Multiple Targets
+#### Sample Output
 
-```bash
-waf-tester analyze -l js-urls.txt -o analysis.json
 ```
+$ waf-tester analyze -u https://app.example.com
+
+WAFtester v2.6.5 — JavaScript Analysis
+
+Target: https://app.example.com
+JavaScript files: 12
+
+Analyzing JavaScript for security-relevant content...
+
+══════════════════════════════════════════════════════════════════════
+ API ENDPOINTS DISCOVERED (47)
+══════════════════════════════════════════════════════════════════════
+
+ Source: main.bundle.js
+
+ GET  /api/v1/users
+ GET  /api/v1/users/:id
+ POST /api/v1/users
+ PUT  /api/v1/users/:id
+ DELETE /api/v1/users/:id
+
+ GET  /api/v1/admin/users          ⚠️ Admin endpoint!
+ POST /api/v1/admin/settings       ⚠️ Admin endpoint!
+
+ Source: vendor.js
+
+ GET  /api/internal/debug          ⚠️ Debug endpoint!
+ POST /api/internal/eval           ⚠️ Eval endpoint!
+
+ [... 39 more endpoints ...]
+
+══════════════════════════════════════════════════════════════════════
+ 🔴 SECRETS DETECTED (3)
+══════════════════════════════════════════════════════════════════════
+
+ 1. AWS Access Key
+    File:     config.js (line 47)
+    Pattern:  AKIAIOSFODNN7EXAMPLE
+    Context:  aws_access_key_id = "AKIA..."
+    Risk:     CRITICAL - Full AWS access
+
+ 2. Google Maps API Key
+    File:     maps.js (line 12)
+    Pattern:  AIzaSyB...
+    Context:  key: "AIzaSyB..."
+    Risk:     LOW - Public API, limited scope
+
+ 3. Stripe Test Key
+    File:     checkout.js (line 203)
+    Pattern:  sk_test_...
+    Context:  Stripe("sk_test_...")
+    Risk:     MEDIUM - Test key, verify not production
+
+══════════════════════════════════════════════════════════════════════
+ DOM XSS SINKS (8)
+══════════════════════════════════════════════════════════════════════
+
+ 1. innerHTML assignment
+    File:     app.js (line 892)
+    Code:     element.innerHTML = userInput;
+    Risk:     HIGH - Direct XSS if userInput not sanitized
+
+ 2. document.write
+    File:     legacy.js (line 45)
+    Code:     document.write("<div>" + data + "</div>");
+    Risk:     HIGH - Classic DOM XSS
+
+ 3. eval
+    File:     utils.js (line 234)
+    Code:     eval(jsonData.callback);
+    Risk:     CRITICAL - Code execution
+
+ [... 5 more sinks ...]
+
+══════════════════════════════════════════════════════════════════════
+ RECOMMENDATIONS
+══════════════════════════════════════════════════════════════════════
+
+ Immediate:
+ • Rotate AWS key AKIAIOSFODNN7EXAMPLE immediately
+ • Review admin endpoints for authorization
+ • Fix DOM XSS sinks (use textContent instead of innerHTML)
+
+ Test these endpoints:
+ waf-tester scan -u https://app.example.com -endpoints-file api-endpoints.txt
+
+✅ Analysis complete in 47s | 47 endpoints | 3 secrets | 8 sinks
+```
+
+#### What It Finds
+
+| Category | Examples | Risk |
+|----------|----------|------|
+| **API Endpoints** | fetch(), axios(), XMLHttpRequest URLs | Attack surface expansion |
+| **HTTP Methods** | GET, POST, PUT, DELETE from code | API testing targets |
+| **Secrets** | AWS, Google, Stripe, GitHub, Slack keys | Credential exposure |
+| **DOM XSS Sinks** | innerHTML, document.write, eval | XSS vulnerabilities |
 
 #### Extraction Options
 
@@ -1252,30 +2871,111 @@ waf-tester analyze -u https://target.com -secrets
 waf-tester analyze -u https://target.com -sinks
 ```
 
-#### What It Finds
+#### Decision Guide
 
-- **API Endpoints**: fetch(), axios(), jQuery.ajax(), XMLHttpRequest
-- **HTTP Methods**: Inferred from URL patterns and code context
-- **Secrets**: API keys, tokens, credentials (AWS, Google, GitHub, Stripe, etc.)
-- **DOM XSS Sinks**: innerHTML, document.write, eval, etc.
+| Goal | Command | What You Get |
+|------|---------|--------------|
+| API discovery | `analyze -u URL -endpoints` | All API endpoints from JS |
+| Secret hunting | `analyze -u URL -secrets` | API keys, tokens |
+| XSS research | `analyze -u URL -sinks` | DOM XSS candidates |
+| Full analysis | `analyze -u URL` | Everything |
+
+#### Common Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| No endpoints found | Minified/obfuscated JS | Still works, may miss some |
+| False positive secrets | Placeholder values | Verify before reporting |
+| Missing dynamic JS | Loaded after interaction | Use `headless` for SPA |
 
 ---
 
 ### Headless Browser Testing (headless)
 
-Browser-based security testing with real Chrome/Chromium.
+**Purpose:** Security testing with real browser rendering for JavaScript-heavy applications.
+
+**TL;DR:** `waf-tester headless -u https://target.com` — Browser-based testing with screenshots
+
+Single Page Applications (SPAs) require JavaScript execution to discover content. This command uses real Chrome/Chromium to render pages and extract security-relevant data.
+
+#### Prerequisites
+
+| Requirement | Details |
+|-------------|---------|
+| **Chrome/Chromium** | Installed locally (or uses embedded version) |
+| **Memory** | ~500MB RAM per browser instance |
+| **Time** | 30 seconds - 10 minutes |
 
 #### Basic Headless Testing
 
 ```bash
 waf-tester headless -u https://target.com
-waf-tester headless -u https://target.com --stream
 ```
 
-#### Multiple Targets
+#### Multiple Targets with Streaming
 
 ```bash
-waf-tester headless -l targets.txt -o results.json
+waf-tester headless -l targets.txt --stream
+```
+
+#### Sample Output
+
+```
+$ waf-tester headless -u https://spa.example.com -screenshot -v
+
+WAFtester v2.6.5 — Headless Browser Testing
+
+Target: https://spa.example.com
+Browser: Chromium (embedded)
+
+Launching headless browser...
+
+══════════════════════════════════════════════════════════════════════
+ PAGE ANALYSIS
+══════════════════════════════════════════════════════════════════════
+
+ URL:           https://spa.example.com
+ Title:         Example SPA Dashboard
+ Final URL:     https://spa.example.com/dashboard (redirected)
+ Load Time:     2,341ms
+
+ Content:
+ ├─ DOM Elements:     1,247
+ ├─ JavaScript Files: 8
+ ├─ CSS Files:        4
+ └─ Images:           23
+
+══════════════════════════════════════════════════════════════════════
+ EXTRACTED URLs (34)
+══════════════════════════════════════════════════════════════════════
+
+ Internal:
+ /api/v2/users
+ /api/v2/settings
+ /api/v2/dashboard/metrics
+ /admin/users              ⚠️ Admin path
+ /debug/logs               ⚠️ Debug path
+
+ External:
+ https://cdn.example.com/assets/*
+ https://analytics.google.com/...
+
+══════════════════════════════════════════════════════════════════════
+ SCREENSHOT
+══════════════════════════════════════════════════════════════════════
+
+ 📸 Saved: screenshots/spa.example.com.png
+ Size: 1920x3400 (full page)
+
+══════════════════════════════════════════════════════════════════════
+ CONSOLE MESSAGES
+══════════════════════════════════════════════════════════════════════
+
+ ⚠️  WARNING: API key exposed in localStorage
+ ⚠️  WARNING: Mixed content (HTTP resource on HTTPS page)
+ 🔴 ERROR: Uncaught TypeError: Cannot read property of null
+
+✅ Headless test complete in 4.7s
 ```
 
 #### Screenshots
@@ -1302,28 +3002,30 @@ waf-tester headless -u https://target.com \
 # Custom Chrome path
 waf-tester headless -u https://target.com -chrome /path/to/chrome
 
-# Show browser (non-headless)
+# Show browser (non-headless for debugging)
 waf-tester headless -u https://target.com -headless=false
 
 # Custom timeout and wait
 waf-tester headless -u https://target.com -timeout 60 -wait 5
 ```
 
-#### URL Extraction
+#### Decision Guide
 
-```bash
-# Extract URLs from pages (default enabled)
-waf-tester headless -l targets.txt -extract-urls -o urls.json -v
-```
+| Scenario | Command | Why |
+|----------|---------|-----|
+| SPA endpoint discovery | `headless -u URL -extract-urls` | JS renders all routes |
+| Visual audit | `headless -l targets.txt -screenshot` | See what users see |
+| JavaScript debugging | `headless -u URL -headless=false` | Watch in real browser |
+| Pre-scan recon for SPA | `headless -u URL -o urls.txt` | Feed discovered URLs to scanner |
 
-| Flag | Description |
-|------|-------------|
-| `-screenshot` | Take screenshots |
-| `-screenshot-dir` | Screenshot output directory |
-| `-js` | JavaScript to execute after load |
-| `-chrome` | Path to Chrome executable |
-| `-headless` | Run in headless mode (default: true) |
-| `-timeout` | Page load timeout (seconds) |
+#### Common Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| "Chrome not found" | Chrome not installed | Install Chrome or use `-chrome /path` |
+| Page doesn't load | JavaScript error | Check console messages, try `-wait 10` |
+| Slow performance | Many browser instances | Lower concurrency in target list |
+| Missing content | Content loaded on scroll | Use `-js "window.scrollTo(0, document.body.scrollHeight)"` |
 | `-wait` | Wait time after page load (seconds) |
 | `-extract-urls` | Extract URLs from page (default: true) |
 
@@ -1331,7 +3033,23 @@ waf-tester headless -l targets.txt -extract-urls -o urls.json -v
 
 ## Workflow Commands
 
-### Discovery and Planning
+Workflow commands orchestrate multi-step security assessments with planning, execution, and reporting phases.
+
+### Discovery and Planning (discover / learn)
+
+**Purpose:** Map attack surface and create data-driven test plans.
+
+**TL;DR:** `waf-tester discover -u URL && waf-tester learn -discovery discovery.json` — Discovery + plan in 2-5 minutes
+
+The discovery→learn→run workflow enables systematic testing based on actual application structure rather than generic payloads.
+
+#### Prerequisites
+
+| Requirement | Details |
+|-------------|---------|
+| **Network** | HTTPS access to target |
+| **Authorization** | Minimal (passive discovery) |
+| **Time** | 2-5 minutes total |
 
 #### Endpoint Discovery
 
@@ -1340,13 +3058,49 @@ waf-tester discover -u https://example.com
 waf-tester discover -u https://example.com -output custom-discovery.json
 ```
 
-Discovery sources:
-- robots.txt
-- sitemap.xml (9 locations)
-- JavaScript analysis
-- Wayback Machine
-- HTML forms
-- Service presets
+#### Discovery Sources
+
+| Source | Description | What It Finds |
+|--------|-------------|---------------|
+| `robots.txt` | Crawler directives | Hidden paths, disallowed areas |
+| `sitemap.xml` | 9 standard locations | All indexed URLs |
+| JavaScript | Inline and external | API endpoints, internal URLs |
+| Wayback Machine | Archive.org | Historical endpoints, old versions |
+| HTML forms | All pages | Input fields, actions |
+| Service presets | Known patterns | Admin panels, API docs |
+
+#### Sample Discovery Output
+
+```
+$ waf-tester discover -u https://shop.example.com
+
+WAFtester v2.6.5 — Endpoint Discovery
+
+Target: https://shop.example.com
+
+══════════════════════════════════════════════════════════════════════
+ DISCOVERY RESULTS
+══════════════════════════════════════════════════════════════════════
+
+ Source              │ Endpoints │ Time
+ ────────────────────┼───────────┼──────
+ robots.txt          │        12 │ 0.3s
+ sitemap.xml         │        87 │ 1.2s
+ JavaScript (8 files)│        34 │ 2.1s
+ HTML forms          │         9 │ 0.8s
+ Service presets     │         6 │ 0.1s
+ ────────────────────┴───────────┴──────
+ TOTAL               │       148 │ 4.5s
+
+ Notable findings:
+ ⚠️  /admin (from robots.txt disallow)
+ ⚠️  /api/internal (from JavaScript)
+ ⚠️  /debug (from service presets)
+
+ 📄 Output: discovery.json
+
+✅ Discovery complete
+```
 
 #### Generate Test Plan
 
@@ -1355,11 +3109,29 @@ waf-tester learn -discovery discovery.json
 waf-tester learn -discovery discovery.json -output custom-plan.json
 ```
 
+The `learn` command analyzes discovery data and creates a prioritized test plan based on:
+- Endpoint type (API, form, page)
+- Input types detected (query, body, header)
+- Risk indicators (admin, debug, internal)
+
 ---
 
 ### Test Execution (run)
 
-Execute tests from a plan or standalone.
+**Purpose:** Execute security tests from a plan or standalone with granular control.
+
+**TL;DR:** `waf-tester run -plan testplan.json` — Execute test plan with progress tracking
+
+The `run` command executes tests with control over concurrency, rate limiting, filtering, and output format.
+
+#### Prerequisites
+
+| Requirement | Details |
+|-------------|---------|
+| **Network** | HTTPS access to all targets in plan |
+| **Authorization** | Required (sends attack payloads) |
+| **Test Plan** | Optional (generated by `learn` or manual) |
+| **Time** | 5-60 minutes depending on plan size |
 
 #### With Test Plan
 
@@ -1368,10 +3140,53 @@ waf-tester run -plan testplan.json
 waf-tester run -plan testplan.json -format html -o report.html
 ```
 
-#### Standalone
+#### Standalone Execution
 
 ```bash
 waf-tester run -u https://example.com -c 50 -rl 200
+```
+
+#### Sample Plan Execution
+
+```
+$ waf-tester run -plan testplan.json
+
+WAFtester v2.6.5 — Test Execution
+
+Plan: testplan.json
+Endpoints: 148
+Tests: 24,560
+
+══════════════════════════════════════════════════════════════════════
+ EXECUTION PROGRESS
+══════════════════════════════════════════════════════════════════════
+
+ [████████████████████████████████████████] 100% (24,560/24,560)
+
+ Phase   │ Status     │ Findings
+ ────────┼────────────┼──────────
+ sqli    │ ✓ Complete │ 3 potential
+ xss     │ ✓ Complete │ 7 confirmed
+ rce     │ ✓ Complete │ 0
+ lfi     │ ✓ Complete │ 2 potential
+
+══════════════════════════════════════════════════════════════════════
+ RESULTS SUMMARY
+══════════════════════════════════════════════════════════════════════
+
+ Total Tests:      24,560
+ Blocked by WAF:   23,891 (97.3%)
+ Allowed/Vuln:        669 (2.7%)
+
+ By Severity:
+ ├─ Critical:   2
+ ├─ High:       8
+ ├─ Medium:    21
+ └─ Low:       45
+
+ 📄 Output: results.json
+
+✅ Execution complete in 12m34s
 ```
 
 #### All Run Options
@@ -1388,11 +3203,34 @@ waf-tester run -u https://example.com \
   -o results.json            # Output file
 ```
 
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-c` | Concurrent workers | 25 |
+| `-rl` | Max requests per second | 100 |
+| `-timeout` | HTTP timeout (seconds) | 10 |
+| `-retries` | Retry failed requests | 2 |
+| `-category` | Filter test categories | all |
+| `-severity` | Filter result severity | all |
+| `-format` | Output format (json/html/csv) | json |
+
 ---
 
-### Workflow Orchestration
+### Workflow Orchestration (workflow)
 
-Execute multi-step security workflows from YAML/JSON files.
+**Purpose:** Execute multi-step security workflows from YAML/JSON configuration files.
+
+**TL;DR:** `waf-tester workflow -f security-workflow.yaml` — Automated multi-step assessment
+
+The `workflow` command chains multiple commands together with variable substitution, enabling repeatable automated assessments.
+
+#### Prerequisites
+
+| Requirement | Details |
+|-------------|---------|
+| **Workflow File** | YAML or JSON workflow definition |
+| **Network** | Access to all targets referenced |
+| **Authorization** | Varies by workflow steps |
+| **Time** | Depends on workflow complexity |
 
 #### Basic Workflow Execution
 
@@ -1413,20 +3251,54 @@ waf-tester workflow -f workflow.yaml -var "target=https://example.com,token=abc1
 waf-tester workflow -f workflow.yaml -dry-run
 ```
 
-#### Workflow Options
+#### Sample Workflow Execution
 
-```bash
-# Custom timeout (seconds)
-waf-tester workflow -f workflow.yaml -timeout 600
+```
+$ waf-tester workflow -f full-assessment.yaml -var "target=https://shop.example.com"
 
-# Verbose output
-waf-tester workflow -f workflow.yaml -v
+WAFtester v2.6.5 — Workflow Orchestration
 
-# JSON output
-waf-tester workflow -f workflow.yaml -json
+Workflow: Full Security Assessment
+Steps: 4
 
-# Save results to file
-waf-tester workflow -f workflow.yaml -o workflow-results.json
+══════════════════════════════════════════════════════════════════════
+ WORKFLOW EXECUTION
+══════════════════════════════════════════════════════════════════════
+
+ Step 1: discover
+ ├─ Command: waf-tester discover -u https://shop.example.com
+ ├─ Duration: 4.5s
+ └─ Status: ✓ Complete (148 endpoints)
+
+ Step 2: learn
+ ├─ Command: waf-tester learn -discovery discovery.json
+ ├─ Duration: 1.2s
+ └─ Status: ✓ Complete (24,560 tests planned)
+
+ Step 3: scan
+ ├─ Command: waf-tester run -plan testplan.json
+ ├─ Duration: 12m34s
+ └─ Status: ✓ Complete (12 findings)
+
+ Step 4: report
+ ├─ Command: waf-tester report -workspace .
+ ├─ Duration: 3.2s
+ └─ Status: ✓ Complete (report.html generated)
+
+══════════════════════════════════════════════════════════════════════
+ WORKFLOW COMPLETE
+══════════════════════════════════════════════════════════════════════
+
+ Total Duration: 12m43s
+ Steps Passed:   4/4
+
+ Outputs:
+ ├─ discovery.json    Discovered endpoints
+ ├─ testplan.json     Generated test plan
+ ├─ results.json      Test results
+ └─ report.html       Final report
+
+✅ Workflow complete
 ```
 
 #### Example Workflow File
@@ -1449,15 +3321,35 @@ steps:
     command: waf-tester report -workspace . -target "{{target}}"
 ```
 
-| Flag | Description |
-|------|-------------|
-| `-f`, `-file` | Workflow file (YAML or JSON) |
-| `-var` | Input variables (name=value, comma-separated) |
-| `-dry-run` | Preview without executing |
-| `-timeout` | Workflow timeout in seconds (default: 300) |
-| `-v` | Verbose output |
-| `-json` | JSON output to stdout |
-| `-o` | Output file for results |
+#### Workflow Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-f`, `-file` | Workflow file (YAML or JSON) | required |
+| `-var` | Input variables (name=value, comma-separated) | none |
+| `-dry-run` | Preview without executing | false |
+| `-timeout` | Workflow timeout in seconds | 300 |
+| `-v` | Verbose output | false |
+| `-json` | JSON output to stdout | false |
+| `-o` | Output file for results | none |
+
+#### Decision Guide
+
+| Scenario | Approach | Why |
+|----------|----------|-----|
+| Quick one-time test | `auto` command | Simpler |
+| Repeatable assessment | Create workflow YAML | Automate and document |
+| CI/CD integration | Workflow + `-json` + `-o` | Parse results in pipeline |
+| Custom multi-target | Use `-var` for each target | Same workflow, different targets |
+
+#### Common Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| "Variable not found" | Missing `-var` | Check variable names in workflow |
+| Step fails mid-workflow | Previous output missing | Check step dependencies |
+| Timeout exceeded | Workflow takes too long | Increase `-timeout 1800` |
+| File already exists | Re-running workflow | Delete previous outputs or use unique names |
 
 ---
 
@@ -1791,6 +3683,115 @@ waf-tester auto -u https://target.com --smart --smart-verbose
 3. **Encoder Priority** - Prioritizes encoders known to bypass that WAF
 4. **Evasion Selection** - Enables effective evasion techniques
 5. **Bypass Hints** - Shows specific bypass tips for the detected WAF
+
+---
+
+## Intelligence Engine (v2.6.5)
+
+The Intelligence Engine transforms auto mode from "automated sequencing" to "adaptive reasoning" through advanced cognitive modules that learn and adapt during scans.
+
+### Enabling Brain Mode
+
+```bash
+# Brain mode is enabled by default in auto scans
+waf-tester auto -u https://target.com
+
+# Verbose brain output showing learning insights
+waf-tester auto -u https://target.com --brain-verbose
+
+# Disable brain mode for deterministic testing
+waf-tester auto -u https://target.com --brain=false
+```
+
+### Advanced Cognitive Modules
+
+| Module | Purpose | Value |
+|--------|---------|-------|
+| **Bypass Predictor** | Predicts bypass probability before testing | Reduces wasted requests by 40%+ |
+| **Mutation Strategist** | Suggests specific mutations when blocked | Improves bypass discovery rate |
+| **Endpoint Clusterer** | Groups similar endpoints | Reduces redundant testing |
+| **Anomaly Detector** | Detects honeypots, silent bans | Protects scan integrity |
+| **Attack Path Optimizer** | Finds optimal paths through vulnerabilities | Prioritizes high-value chains |
+
+### Persistence: Save and Resume Brain State
+
+The Intelligence Engine can save learned patterns for future scans:
+
+```bash
+# Auto mode automatically saves state to workspace
+waf-tester auto -u https://target.com --workspace ./assessment
+
+# Resume a previous scan with learned state
+waf-tester auto -u https://target.com --resume --workspace ./assessment
+```
+
+### Programmatic Usage
+
+For developers integrating the intelligence package:
+
+```go
+import "github.com/waftester/waftester/pkg/intelligence"
+
+// Create engine with default config
+engine := intelligence.NewEngine(nil)
+
+// Feed findings to the engine
+engine.LearnFromFinding(&intelligence.Finding{
+    Phase:    "waf-testing",
+    Category: "sqli",
+    Payload:  "' OR '1'='1",
+    Blocked:  true,
+})
+
+// Get bypass predictions
+predictions := engine.Predictor().PredictBatch(categories)
+
+// Get mutation suggestions when blocked
+suggestions := engine.MutationStrategist().SuggestMutations("sqli", payload, "cloudflare")
+
+// Save brain state for future scans
+engine.Save("/path/to/brain-state.json")
+
+// Load previous brain state
+engine.Load("/path/to/brain-state.json")
+```
+
+### WAF Profiler
+
+The WAF Profiler learns WAF behavior patterns during testing:
+
+```go
+// Access the profiler
+profiler := engine.WAFProfiler()
+
+// Set detected WAF fingerprint from pkg/waf
+profiler.SetFingerprint(fingerprint)
+
+// Get category bypass effectiveness
+sqliBypassRate := profiler.GetCategoryEffectiveness("sqli")
+
+// Get best encoding techniques
+encodings := profiler.GetBestEncodings(5)
+
+// Generate summary report
+summary := profiler.GenerateSummary()
+fmt.Printf("Overall bypass rate: %.1f%%\n", summary.OverallBypassRate*100)
+fmt.Printf("Weak categories: %v\n", summary.WeakCategories)
+```
+
+### Metrics and Observability
+
+Track intelligence engine performance:
+
+```go
+metrics := engine.Metrics()
+
+// After scan completes
+snapshot := metrics.Snapshot()
+fmt.Printf("Findings processed: %d\n", snapshot.FindingsProcessed)
+fmt.Printf("Predictions accurate: %.1f%%\n", 
+    float64(snapshot.PredictionsAccurate)/float64(snapshot.PredictionsRequested)*100)
+```
 
 ---
 

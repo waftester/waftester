@@ -33,13 +33,13 @@ var supportedProxySchemes = map[string]bool{
 
 // ProxyConfig holds parsed proxy configuration
 type ProxyConfig struct {
-	URL      *url.URL
-	Scheme   string
-	Host     string
-	Port     string
-	Username string
-	Password string
-	IsSOCKS  bool
+	URL         *url.URL
+	Scheme      string
+	Host        string
+	Port        string
+	Username    string
+	Password    string
+	IsSOCKS     bool
 	IsDNSRemote bool // For socks5h - resolve DNS on proxy side
 }
 

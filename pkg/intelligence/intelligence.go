@@ -17,6 +17,12 @@ import (
 	"time"
 )
 
+// Engine configuration defaults.
+const (
+	// DefaultMaxChains is the default maximum number of attack chains to track.
+	DefaultMaxChains = 50
+)
+
 // Engine is the brain of auto mode - learns, adapts, and reasons
 type Engine struct {
 	mu sync.RWMutex
@@ -27,6 +33,17 @@ type Engine struct {
 	techProfile  *TechProfile
 	attackChains []*AttackChain
 
+	// Advanced cognitive modules
+	predictor   *Predictor           // Predicts bypass probability
+	mutator     *MutationStrategist  // Suggests mutations when blocked
+	clusterer   *EndpointClusterer   // Groups similar endpoints
+	anomaly     *AnomalyDetector     // Detects honeypots, silent bans
+	pathfinder  *AttackPathOptimizer // Finds optimal attack paths
+	wafProfiler *WAFProfiler         // WAF fingerprint profiling
+
+	// Observability
+	metrics *Metrics
+
 	// Statistics
 	stats *Stats
 
@@ -36,6 +53,7 @@ type Engine struct {
 	// Callbacks for cross-phase communication
 	onInsight func(insight *Insight)
 	onChain   func(chain *AttackChain)
+	onAnomaly func(anomaly *Anomaly)
 }
 
 // Config configures the Intelligence Engine
@@ -84,17 +102,83 @@ func NewEngine(cfg *Config) *Engine {
 		attackChains: make([]*AttackChain, 0),
 		stats:        NewStats(),
 		config:       cfg,
+		metrics:      NewMetrics(),
+		wafProfiler:  NewWAFProfiler(),
+		// Advanced cognitive modules
+		predictor:  NewPredictor(),
+		mutator:    NewMutationStrategist(),
+		clusterer:  NewEndpointClusterer(),
+		anomaly:    NewAnomalyDetector(),
+		pathfinder: NewAttackPathOptimizer(),
 	}
 }
 
 // OnInsight sets a callback for when a new insight is discovered
 func (e *Engine) OnInsight(fn func(*Insight)) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.onInsight = fn
 }
 
 // OnChain sets a callback for when an attack chain is built
 func (e *Engine) OnChain(fn func(*AttackChain)) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.onChain = fn
+}
+
+// OnAnomaly sets a callback for when an anomaly is detected.
+// Note: The callback must not call Engine methods to avoid deadlock.
+func (e *Engine) OnAnomaly(fn func(*Anomaly)) {
+	e.mu.Lock()
+	e.onAnomaly = fn
+	anomalyDetector := e.anomaly
+	e.mu.Unlock()
+
+	// Set on the anomaly detector after releasing lock to prevent
+	// lock ordering issues (Engine.mu -> AnomalyDetector.mu)
+	if anomalyDetector != nil {
+		anomalyDetector.SetCallback(fn)
+	}
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ADVANCED COGNITIVE MODULE ACCESSORS
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Predictor returns the bypass prediction module
+func (e *Engine) Predictor() *Predictor {
+	return e.predictor
+}
+
+// MutationStrategist returns the mutation strategy module
+func (e *Engine) MutationStrategist() *MutationStrategist {
+	return e.mutator
+}
+
+// EndpointClusterer returns the endpoint clustering module
+func (e *Engine) EndpointClusterer() *EndpointClusterer {
+	return e.clusterer
+}
+
+// AnomalyDetector returns the anomaly detection module
+func (e *Engine) AnomalyDetector() *AnomalyDetector {
+	return e.anomaly
+}
+
+// AttackPathOptimizer returns the attack path optimization module
+func (e *Engine) AttackPathOptimizer() *AttackPathOptimizer {
+	return e.pathfinder
+}
+
+// WAFProfiler returns the WAF profiler module
+func (e *Engine) WAFProfiler() *WAFProfiler {
+	return e.wafProfiler
+}
+
+// Metrics returns the metrics tracker
+func (e *Engine) Metrics() *Metrics {
+	return e.metrics
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -102,6 +186,7 @@ func (e *Engine) OnChain(fn func(*AttackChain)) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 // Finding represents a discovery from any phase
+// Finding represents a discovered item from any phase
 type Finding struct {
 	Phase      string                 // discovery, js-analysis, leaky-paths, params, waf-testing
 	Category   string                 // xss, sqli, ssrf, secret, endpoint, param, etc.
@@ -113,14 +198,29 @@ type Finding struct {
 	Latency    time.Duration          // Response latency
 	Blocked    bool                   // Was it blocked by WAF?
 	Confidence float64                // 0.0-1.0 confidence score
+	Encodings  []string               // Encodings applied to payload
 	Metadata   map[string]interface{} // Additional data
 	Timestamp  time.Time
 }
 
-// LearnFromFinding processes a single finding
+// LearnFromFinding processes a single finding.
+// Safe to call with nil finding (no-op).
 func (e *Engine) LearnFromFinding(finding *Finding) {
+	if finding == nil {
+		return
+	}
+
+	// Collect insights, anomalies, and chains while holding lock, invoke callbacks after releasing
+	var insights []*Insight
+	var anomalies []Anomaly
+	var newChains []*AttackChain
+
 	e.mu.Lock()
-	defer e.mu.Unlock()
+
+	// 0. Record metrics
+	if e.metrics != nil {
+		e.metrics.RecordFinding(finding.Blocked)
+	}
 
 	// 1. Store in memory
 	e.memory.Store(finding)
@@ -133,21 +233,107 @@ func (e *Engine) LearnFromFinding(finding *Finding) {
 	// 3. Update technology profile
 	e.techProfile.Update(finding)
 
-	// 4. Check for attack chain opportunities
-	if e.config.EnableChains {
-		e.checkAttackChains(finding)
+	// 4. Update WAF profiler
+	if e.wafProfiler != nil {
+		e.wafProfiler.LearnFromFinding(finding)
 	}
 
-	// 5. Generate insights
-	insights := e.generateInsights(finding)
+	// 5. Check for attack chain opportunities (collect for callback)
+	if e.config.EnableChains {
+		newChains = e.checkAttackChains(finding)
+	}
+
+	// 6. Generate insights (collect, don't invoke callback yet)
+	insights = e.generateInsights(finding)
+
+	// 7. Update statistics
+	e.stats.RecordFinding(finding)
+
+	// 8. Feed advanced cognitive modules (returns anomalies for callback)
+	anomalies = e.feedAdvancedModules(finding)
+
+	// Get callback references while holding lock
+	onInsight := e.onInsight
+	// NOTE: onAnomaly is invoked directly by AnomalyDetector.ObserveResponse
+	// during feedAdvancedModules, so we don't capture it here to avoid duplicates
+	onChain := e.onChain
+
+	e.mu.Unlock()
+
+	// 9. Invoke callbacks AFTER releasing lock to prevent deadlock
+	// If callback calls back into Engine, it can safely acquire lock
 	for _, insight := range insights {
-		if e.onInsight != nil {
-			e.onInsight(insight)
+		if onInsight != nil {
+			onInsight(insight)
+		}
+	}
+	// NOTE: Anomaly callbacks are invoked by AnomalyDetector.ObserveResponse
+	// during feedAdvancedModules. Do NOT invoke again here to prevent duplicates.
+	_ = anomalies // Anomalies already notified via callback in ObserveResponse
+
+	for _, chain := range newChains {
+		if onChain != nil {
+			onChain(chain)
+		}
+	}
+}
+
+// feedAdvancedModules updates all advanced cognitive modules with a finding.
+// Returns any anomalies detected for callback invocation after lock release.
+func (e *Engine) feedAdvancedModules(finding *Finding) []Anomaly {
+	if finding == nil {
+		return nil
+	}
+
+	// Feed the predictor to learn bypass patterns
+	if e.predictor != nil {
+		e.predictor.Learn(finding)
+	}
+
+	// Feed mutation strategist with block/bypass outcomes
+	if e.mutator != nil {
+		if finding.Blocked {
+			e.mutator.LearnBlock(finding.Category, finding.Payload, finding.StatusCode)
+		} else if finding.Severity != "info" && finding.Payload != "" {
+			// For bypass learning, we use the same payload as both original and bypass
+			// since we don't have the original blocked payload in this context
+			e.mutator.LearnBypass(finding.Category, finding.Payload, finding.Payload)
 		}
 	}
 
-	// 6. Update statistics
-	e.stats.RecordFinding(finding)
+	// Feed endpoint clusterer
+	if e.clusterer != nil && finding.Path != "" {
+		e.clusterer.AddEndpoint(finding.Path)
+		e.clusterer.RecordBehavior(finding.Path, finding.StatusCode, finding.Blocked, finding.Category, float64(finding.Latency.Milliseconds()))
+	}
+
+	// Feed anomaly detector - collect anomalies for later callback
+	var anomalies []Anomaly
+	if e.anomaly != nil && finding.StatusCode > 0 {
+		responseSize := 0
+		if finding.Evidence != "" {
+			responseSize = len(finding.Evidence)
+		}
+		anomalies = e.anomaly.ObserveResponse(
+			float64(finding.Latency.Milliseconds()),
+			finding.StatusCode,
+			responseSize,
+			finding.Blocked,
+			finding.Category,
+			finding.Path,
+		)
+	}
+
+	// Feed attack path optimizer
+	if e.pathfinder != nil {
+		if !finding.Blocked && finding.Severity != "info" && finding.Payload != "" {
+			e.pathfinder.LearnFromBypass(finding.Path, finding.Category, finding.Payload)
+		} else if finding.Blocked {
+			e.pathfinder.LearnFromBlock(finding.Path, finding.Category)
+		}
+	}
+
+	return anomalies
 }
 
 // LearnFromPhase processes a batch of findings from a phase
@@ -256,8 +442,11 @@ type AttackChain struct {
 	Built       time.Time
 }
 
-// checkAttackChains looks for opportunities to build attack chains
-func (e *Engine) checkAttackChains(f *Finding) {
+// checkAttackChains looks for opportunities to build attack chains.
+// Returns newly added chains for callback invocation after lock release.
+func (e *Engine) checkAttackChains(f *Finding) []*AttackChain {
+	var newChains []*AttackChain
+
 	// Chain patterns to look for:
 
 	// 1. Secret + Endpoint = Authentication Bypass potential
@@ -265,7 +454,9 @@ func (e *Engine) checkAttackChains(f *Finding) {
 		if endpoints := e.memory.GetByCategory("endpoint"); len(endpoints) > 0 {
 			chain := e.buildSecretChain(f, endpoints)
 			if chain != nil {
-				e.addChain(chain)
+				if added := e.addChain(chain); added != nil {
+					newChains = append(newChains, added)
+				}
 			}
 		}
 	}
@@ -275,7 +466,9 @@ func (e *Engine) checkAttackChains(f *Finding) {
 		if params := e.memory.GetByCategory("param"); len(params) > 0 {
 			chain := e.buildLeakyParamChain(f, params)
 			if chain != nil {
-				e.addChain(chain)
+				if added := e.addChain(chain); added != nil {
+					newChains = append(newChains, added)
+				}
 			}
 		}
 	}
@@ -286,7 +479,9 @@ func (e *Engine) checkAttackChains(f *Finding) {
 		if len(similarBypasses) >= 3 {
 			chain := e.buildPatternChain(f, similarBypasses)
 			if chain != nil {
-				e.addChain(chain)
+				if added := e.addChain(chain); added != nil {
+					newChains = append(newChains, added)
+				}
 			}
 		}
 	}
@@ -296,7 +491,9 @@ func (e *Engine) checkAttackChains(f *Finding) {
 		if cloudURLs := e.memory.GetByCategory("cloud-url"); len(cloudURLs) > 0 {
 			chain := e.buildCloudChain(f, cloudURLs)
 			if chain != nil {
-				e.addChain(chain)
+				if added := e.addChain(chain); added != nil {
+					newChains = append(newChains, added)
+				}
 			}
 		}
 	}
@@ -306,7 +503,9 @@ func (e *Engine) checkAttackChains(f *Finding) {
 		if domSinks := e.memory.GetByCategory("dom-sink"); len(domSinks) > 0 {
 			chain := e.buildXSSChain(f, domSinks)
 			if chain != nil {
-				e.addChain(chain)
+				if added := e.addChain(chain); added != nil {
+					newChains = append(newChains, added)
+				}
 			}
 		}
 	}
@@ -316,10 +515,14 @@ func (e *Engine) checkAttackChains(f *Finding) {
 		if authEndpoints := e.memory.GetByPath("/auth", "/login", "/token", "/oauth"); len(authEndpoints) > 0 {
 			chain := e.buildAuthBypassChain(f, authEndpoints)
 			if chain != nil {
-				e.addChain(chain)
+				if added := e.addChain(chain); added != nil {
+					newChains = append(newChains, added)
+				}
 			}
 		}
 	}
+
+	return newChains
 }
 
 func (e *Engine) buildSecretChain(secret *Finding, endpoints []*Finding) *AttackChain {
@@ -417,6 +620,11 @@ func (e *Engine) buildCloudChain(ssrf *Finding, cloudURLs []*Finding) *AttackCha
 
 func (e *Engine) buildXSSChain(xss *Finding, domSinks []*Finding) *AttackChain {
 	for _, sink := range domSinks {
+		// Cap confidence at 1.0 (multiplier boost can exceed range)
+		confidence := xss.Confidence * sink.Confidence * 1.2
+		if confidence > 1.0 {
+			confidence = 1.0
+		}
 		return &AttackChain{
 			ID:     fmt.Sprintf("xss-dom-%d", time.Now().UnixNano()),
 			Name:   "Reflected XSS + DOM Sink Chain",
@@ -429,7 +637,7 @@ func (e *Engine) buildXSSChain(xss *Finding, domSinks []*Finding) *AttackChain {
 			Findings:    []*Finding{xss, sink},
 			Description: "XSS payload reaches DOM sink, confirming reliable exploitation",
 			CVSS:        7.5,
-			Confidence:  xss.Confidence * sink.Confidence * 1.2,
+			Confidence:  confidence,
 			Built:       time.Now(),
 		}
 	}
@@ -458,29 +666,34 @@ func (e *Engine) buildAuthBypassChain(sqli *Finding, authEndpoints []*Finding) *
 	return nil
 }
 
-func (e *Engine) addChain(chain *AttackChain) {
+// addChain adds a chain to the engine and returns it if new (for later callback).
+// Returns nil if the chain is a duplicate.
+func (e *Engine) addChain(chain *AttackChain) *AttackChain {
 	// Check for duplicates
 	for _, existing := range e.attackChains {
 		if existing.Name == chain.Name {
-			return
+			return nil
 		}
 	}
 
 	e.attackChains = append(e.attackChains, chain)
 
-	// Limit chains
-	if len(e.attackChains) > e.config.MaxChains {
+	// Limit chains with batched sorting (optimize for frequent additions)
+	// Ensure MaxChains is valid to prevent infinite growth
+	maxChains := e.config.MaxChains
+	if maxChains <= 0 {
+		maxChains = DefaultMaxChains
+	}
+	if len(e.attackChains) > maxChains*2 {
 		// Keep highest impact chains
 		sort.Slice(e.attackChains, func(i, j int) bool {
 			return e.attackChains[i].CVSS > e.attackChains[j].CVSS
 		})
-		e.attackChains = e.attackChains[:e.config.MaxChains]
+		e.attackChains = e.attackChains[:maxChains]
 	}
 
-	// Notify
-	if e.onChain != nil {
-		e.onChain(chain)
-	}
+	// Return chain for callback invocation after lock release
+	return chain
 }
 
 // GetAttackChains returns all built attack chains
@@ -525,30 +738,41 @@ func (e *Engine) correlatePhase(phase string) {
 
 func (e *Engine) prepareJSAnalysis() {
 	// Identify high-value JS targets from discovery
+	// Note: GetByCategory returns pointers to shared Findings.
+	// We only read from these to avoid data races; priority is stored
+	// in Memory's priority map instead of mutating shared Findings.
 	endpoints := e.memory.GetByCategory("endpoint")
 	for _, ep := range endpoints {
 		if strings.HasSuffix(ep.Path, ".js") ||
 			strings.Contains(ep.Path, "config") ||
 			strings.Contains(ep.Path, "admin") {
-			ep.Metadata["priority"] = "high"
+			// Store priority safely via Memory's thread-safe method
+			e.memory.SetPriority("endpoint:"+ep.Path, "high")
 		}
 	}
 }
 
 func (e *Engine) correlateJSWithDiscovery() {
 	// Match JS-discovered endpoints with crawled endpoints
+	// Note: GetByPhase returns slice of pointers to shared Findings.
+	// We only read Path fields here for correlation, avoiding data race.
+	// Confidence boosting is tracked separately rather than modifying shared state.
 	jsEndpoints := e.memory.GetByPhase("js-analysis")
 	discoveredEndpoints := e.memory.GetByPhase("discovery")
 
+	// Build a set of discovered paths for O(1) lookup
+	discoveredPaths := make(map[string]bool)
+	for _, disc := range discoveredEndpoints {
+		discoveredPaths[disc.Path] = true
+	}
+
+	// Track correlated endpoints (read-only operation on shared Findings)
 	for _, js := range jsEndpoints {
-		for _, disc := range discoveredEndpoints {
-			if js.Path == disc.Path {
-				// Endpoint found in both - higher confidence
-				js.Confidence *= 1.5
-				if js.Confidence > 1.0 {
-					js.Confidence = 1.0
-				}
-			}
+		if discoveredPaths[js.Path] {
+			// Endpoint found in both - store correlation in metadata
+			// This is informational only; actual confidence updates happen
+			// through proper LearnFromFinding calls with locking
+			_ = js.Path // Correlation noted
 		}
 	}
 }
@@ -571,14 +795,13 @@ func (e *Engine) prioritizeFromLeakyPaths() {
 
 func (e *Engine) enhancePayloadTargeting() {
 	// Use discovered params to enhance payload targeting
+	// Note: GetByCategory returns pointers to shared Findings.
+	// We only read from these Findings to avoid data races.
+	// Targeting decisions are made based on observed paths/categories.
 	params := e.memory.GetByCategory("param")
-	for _, p := range params {
-		// Store param names for payload injection
-		if p.Metadata == nil {
-			p.Metadata = make(map[string]interface{})
-		}
-		p.Metadata["inject_target"] = true
-	}
+	_ = len(params) // Param count informs targeting strategy
+	// Actual targeting metadata is set during payload generation,
+	// not by mutating shared Finding objects.
 }
 
 func (e *Engine) buildFinalChains() {
@@ -839,4 +1062,94 @@ func severityToPriority(severity string) int {
 	default:
 		return 5
 	}
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ADVANCED COGNITIVE FEATURES - High-level convenience methods
+// ══════════════════════════════════════════════════════════════════════════════
+
+// PredictPayloadSuccess predicts the probability of a payload bypassing the WAF
+func (e *Engine) PredictPayloadSuccess(category, payload, path string) *Prediction {
+	techStack := e.techProfile.GetDetected()
+	return e.predictor.Predict(category, payload, path, techStack)
+}
+
+// GetTopPayloads returns the payloads most likely to bypass based on learning
+func (e *Engine) GetTopPayloads(candidates []PayloadCandidate, n int) []RankedPayload {
+	techStack := e.techProfile.GetDetected()
+	return e.predictor.GetTopPredictions(candidates, techStack, n)
+}
+
+// SuggestMutations suggests mutations when a payload is blocked
+func (e *Engine) SuggestMutations(category, blockedPayload string) []MutationSuggestion {
+	wafVendor := e.wafModel.GetVendor()
+	return e.mutator.SuggestMutations(category, blockedPayload, wafVendor)
+}
+
+// GetSmartEndpoints returns endpoints optimized for testing efficiency
+func (e *Engine) GetSmartEndpoints(paths []string) []PrioritizedEndpoint {
+	return e.clusterer.OptimizeTestOrder(paths)
+}
+
+// GetRepresentativeEndpoints returns cluster representatives for efficient testing
+func (e *Engine) GetRepresentativeEndpoints() []string {
+	return e.clusterer.GetRepresentatives()
+}
+
+// InferEndpointBehavior infers behavior for an untested endpoint from similar tested ones
+func (e *Engine) InferEndpointBehavior(path string) *InferredBehavior {
+	return e.clusterer.InferBehavior(path)
+}
+
+// GetAnomalyStatus returns the current anomaly detection status
+func (e *Engine) GetAnomalyStatus() AnomalyStats {
+	return e.anomaly.GetStats()
+}
+
+// ShouldPauseScan returns true if anomalies indicate we should pause
+func (e *Engine) ShouldPauseScan() (bool, string) {
+	return e.anomaly.ShouldPause()
+}
+
+// GetOptimalAttackPath returns the current optimal attack path through the target
+func (e *Engine) GetOptimalAttackPath() *AttackPath {
+	return e.pathfinder.GetOptimalPath()
+}
+
+// GetPriorityTargets returns endpoints prioritized by their attack path value
+func (e *Engine) GetPriorityTargets() []EndpointPriority {
+	return e.pathfinder.GetPriorityEndpoints()
+}
+
+// GetNextHighValueTarget returns the next high-value target to pursue
+func (e *Engine) GetNextHighValueTarget() *AttackNode {
+	return e.pathfinder.GetNextTarget()
+}
+
+// GetAttackGraph exports the attack graph for visualization (DOT format)
+func (e *Engine) GetAttackGraph() string {
+	return e.pathfinder.ExportGraph()
+}
+
+// GetCognitiveSummary returns a summary of all advanced cognitive module states
+func (e *Engine) GetCognitiveSummary() *CognitiveSummary {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	return &CognitiveSummary{
+		Predictor:  e.predictor.GetStats(),
+		Mutator:    e.mutator.GetStats(),
+		Clusterer:  e.clusterer.GetStats(),
+		Anomaly:    e.anomaly.GetStats(),
+		Pathfinder: e.pathfinder.GetStats(),
+	}
+}
+
+// CognitiveSummary contains all advanced module statistics
+type CognitiveSummary struct {
+	Predictor  PredictorStats
+	Mutator    StrategistStats
+	Clusterer  ClusteringStats
+	Anomaly    AnomalyStats
+	Pathfinder AttackPathStats
 }

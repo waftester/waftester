@@ -1,4 +1,5 @@
-// Stats tracks intelligence engine statistics
+// Package intelligence provides adaptive learning capabilities for WAFtester.
+// Stats tracks engine statistics including phase timing, finding counts, and bypass rates.
 package intelligence
 
 import (
@@ -25,9 +26,9 @@ type Stats struct {
 	blocksByCategory   map[string]int
 
 	// Timing
-	startTime   time.Time
-	totalTime   time.Duration
-	phaseOrder  []string
+	startTime  time.Time
+	totalTime  time.Duration
+	phaseOrder []string
 }
 
 // NewStats creates a new statistics tracker
@@ -49,8 +50,12 @@ func NewStats() *Stats {
 func (s *Stats) StartPhase(phase string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	// Check if phase already exists to prevent duplicates in phaseOrder
+	if _, exists := s.phaseStart[phase]; !exists {
+		s.phaseOrder = append(s.phaseOrder, phase)
+	}
 	s.phaseStart[phase] = time.Now()
-	s.phaseOrder = append(s.phaseOrder, phase)
 }
 
 // EndPhase records phase end time
@@ -62,8 +67,12 @@ func (s *Stats) EndPhase(phase string) {
 	}
 }
 
-// RecordFinding records a finding in statistics
+// RecordFinding records a finding in statistics.
+// Safe to call with nil finding (no-op).
 func (s *Stats) RecordFinding(f *Finding) {
+	if f == nil {
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

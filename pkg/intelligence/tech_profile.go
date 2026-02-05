@@ -1,4 +1,5 @@
-// TechProfile detects and tracks technology stack
+// Package intelligence provides adaptive learning capabilities for WAFtester.
+// TechProfile detects and tracks the target's technology stack for vulnerability correlation.
 package intelligence
 
 import (
@@ -40,8 +41,12 @@ func NewTechProfile() *TechProfile {
 	}
 }
 
-// Update processes a finding for technology indicators
+// Update processes a finding for technology indicators.
+// Safe to call with nil finding (no-op).
 func (t *TechProfile) Update(f *Finding) {
+	if f == nil {
+		return
+	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -60,8 +65,12 @@ func (t *TechProfile) Update(f *Finding) {
 	t.detectLanguages(content)
 }
 
-// Detect checks if a finding indicates a specific technology
+// Detect checks if a finding indicates a specific technology.
+// Returns nil if f is nil or no technology detected.
 func (t *TechProfile) Detect(f *Finding) *TechInfo {
+	if f == nil {
+		return nil
+	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -252,45 +261,45 @@ func (t *TechProfile) getScore(name string) float64 {
 // Technology indicators
 
 var frameworkIndicators = map[string][]string{
-	"django":   {"django", "csrfmiddlewaretoken", "wsgi", "__debug__"},
-	"flask":    {"flask", "werkzeug", "jinja2"},
-	"express":  {"express", "x-powered-by: express"},
-	"node":     {"node", "nodejs", "__dirname"},
-	"rails":    {"rails", "ruby on rails", "x-rails"},
-	"laravel":  {"laravel", "x-powered-by: php", "csrf_token"},
-	"spring":   {"spring", "springframework", "jsessionid"},
-	"asp.net":  {"asp.net", "__viewstate", ".aspx"},
-	"react":    {"react", "_reactroot", "data-reactid"},
-	"angular":  {"angular", "ng-app", "ng-"},
-	"vue":      {"vue", "v-for", "v-if", "v-model"},
-	"nextjs":   {"next.js", "_next/", "__next"},
-	"nuxt":     {"nuxt", "_nuxt/"},
-	"fastapi":  {"fastapi", "starlette"},
-	"graphql":  {"graphql", "__schema", "__typename"},
+	"django":    {"django", "csrfmiddlewaretoken", "wsgi", "__debug__"},
+	"flask":     {"flask", "werkzeug", "jinja2"},
+	"express":   {"express", "x-powered-by: express"},
+	"node":      {"node", "nodejs", "__dirname"},
+	"rails":     {"rails", "ruby on rails", "x-rails"},
+	"laravel":   {"laravel", "x-powered-by: php", "csrf_token"},
+	"spring":    {"spring", "springframework", "jsessionid"},
+	"asp.net":   {"asp.net", "__viewstate", ".aspx"},
+	"react":     {"react", "_reactroot", "data-reactid"},
+	"angular":   {"angular", "ng-app", "ng-"},
+	"vue":       {"vue", "v-for", "v-if", "v-model"},
+	"nextjs":    {"next.js", "_next/", "__next"},
+	"nuxt":      {"nuxt", "_nuxt/"},
+	"fastapi":   {"fastapi", "starlette"},
+	"graphql":   {"graphql", "__schema", "__typename"},
 	"wordpress": {"wp-content", "wp-includes", "wordpress"},
-	"drupal":   {"drupal", "sites/default"},
+	"drupal":    {"drupal", "sites/default"},
 }
 
 var databaseIndicators = map[string][]string{
-	"mysql":      {"mysql", "mysqld", "maria"},
-	"postgresql": {"postgresql", "postgres", "pgsql"},
-	"mongodb":    {"mongodb", "mongoose", "_id", "objectid"},
-	"redis":      {"redis", "redisdb"},
-	"sqlite":     {"sqlite", ".sqlite"},
-	"oracle":     {"oracle", "ora-"},
-	"mssql":      {"mssql", "sqlserver", "microsoft sql"},
+	"mysql":         {"mysql", "mysqld", "maria"},
+	"postgresql":    {"postgresql", "postgres", "pgsql"},
+	"mongodb":       {"mongodb", "mongoose", "_id", "objectid"},
+	"redis":         {"redis", "redisdb"},
+	"sqlite":        {"sqlite", ".sqlite"},
+	"oracle":        {"oracle", "ora-"},
+	"mssql":         {"mssql", "sqlserver", "microsoft sql"},
 	"elasticsearch": {"elasticsearch", "elastic", "_search"},
-	"dynamodb":   {"dynamodb", "aws.dynamodb"},
-	"firebase":   {"firebase", "firestore"},
+	"dynamodb":      {"dynamodb", "aws.dynamodb"},
+	"firebase":      {"firebase", "firestore"},
 }
 
 var serverIndicators = map[string][]string{
-	"nginx":   {"nginx"},
-	"apache":  {"apache", "httpd"},
-	"iis":     {"iis", "microsoft-iis"},
-	"tomcat":  {"tomcat", "catalina"},
+	"nginx":    {"nginx"},
+	"apache":   {"apache", "httpd"},
+	"iis":      {"iis", "microsoft-iis"},
+	"tomcat":   {"tomcat", "catalina"},
 	"gunicorn": {"gunicorn"},
-	"caddy":   {"caddy"},
+	"caddy":    {"caddy"},
 	"lighttpd": {"lighttpd"},
 }
 
@@ -306,14 +315,14 @@ var languageIndicators = map[string][]string{
 
 func getFrameworkRecommendation(name string) string {
 	recommendations := map[string]string{
-		"django":   "Test for SSTI in Jinja2, Django debug pages, admin bypass",
-		"flask":    "Test for SSTI, debug mode, Werkzeug debugger RCE",
-		"express":  "Test for prototype pollution, path traversal, SSRF",
-		"node":     "Test for prototype pollution, command injection",
-		"rails":    "Test for mass assignment, deserialization, SSTI",
-		"laravel":  "Test for insecure deserialization, debug mode info leak",
-		"spring":   "Test for Spring4Shell, SpEL injection, actuator exposure",
-		"graphql":  "Test for introspection, batching attacks, deeply nested queries",
+		"django":    "Test for SSTI in Jinja2, Django debug pages, admin bypass",
+		"flask":     "Test for SSTI, debug mode, Werkzeug debugger RCE",
+		"express":   "Test for prototype pollution, path traversal, SSRF",
+		"node":      "Test for prototype pollution, command injection",
+		"rails":     "Test for mass assignment, deserialization, SSTI",
+		"laravel":   "Test for insecure deserialization, debug mode info leak",
+		"spring":    "Test for Spring4Shell, SpEL injection, actuator exposure",
+		"graphql":   "Test for introspection, batching attacks, deeply nested queries",
 		"wordpress": "Test for plugin vulnerabilities, xmlrpc, user enumeration",
 	}
 	if rec, ok := recommendations[name]; ok {

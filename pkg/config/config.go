@@ -70,11 +70,11 @@ type Config struct {
 	NonInteractive bool // Disable interactive console (ENTER to pause)
 
 	// Advanced settings
-	Headers    map[string]string // Custom headers
-	Proxy      string            // Proxy URL (http/https/socks4/socks5/socks5h)
-	ReplayProxy string           // Secondary proxy for matched requests (Burp integration)
-	SNI        string            // TLS SNI override for testing hosts via IP
-	SkipVerify bool              // Skip TLS verification
+	Headers     map[string]string // Custom headers
+	Proxy       string            // Proxy URL (http/https/socks4/socks5/socks5h)
+	ReplayProxy string            // Secondary proxy for matched requests (Burp integration)
+	SNI         string            // TLS SNI override for testing hosts via IP
+	SkipVerify  bool              // Skip TLS verification
 
 	// Proxy shortcuts (feroxbuster-style)
 	UseBurp bool // Shortcut for --proxy http://127.0.0.1:8080 --skip-verify

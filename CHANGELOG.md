@@ -5,6 +5,85 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.5] - 2026-02-06
+
+### Added
+
+- **Advanced Cognitive Modules** (`pkg/intelligence/`): 🧠 5 new learning subsystems for intelligent WAF analysis
+  - **Bypass Predictor**: Predicts bypass probability before testing using learned patterns from:
+    - Category success rates (SQLi, XSS, CMDI, etc.)
+    - Encoding effectiveness (URL, Unicode, Hex, HTML entity)
+    - Endpoint pattern recognition
+    - Technology-specific vulnerabilities
+  - **Mutation Strategist**: Suggests specific mutations when blocked, learns which bypass techniques work for specific WAF patterns
+    - Built-in knowledge for Cloudflare, AWS WAF, Akamai, ModSecurity, Imperva, F5
+    - Tracks encoding effectiveness and category-specific mutations
+  - **Endpoint Clusterer**: Groups similar endpoints to optimize testing order
+    - Reduces redundant testing on similar endpoints
+    - Infers behavior from cluster representatives
+    - Suggests optimal testing order based on cluster analysis
+  - **Anomaly Detector**: Detects honeypots, silent bans, behavior shifts
+    - Baseline calibration for normal server behavior
+    - Rate limiting detection with automatic backoff
+    - Honeypot detection (too-good-to-be-true bypass rates)
+    - Silent ban detection (sudden behavior changes)
+  - **Attack Path Optimizer**: Finds optimal paths through vulnerability chains
+    - Graph-based attack modeling with escalation paths
+    - Prioritizes high-value targets (RCE > SQLi > XSS)
+    - Node pruning for memory-efficient large scans
+
+- **WAF Profiler Integration**: Enhanced WAF fingerprinting with behavioral learning
+  - Tracks bypass effectiveness by attack category
+  - Records encoding success rates for targeted mutations
+  - Latency analysis for blocked vs. bypassed requests
+  - Automatic weakness/strength detection
+  - Integrated with Engine for real-time profiling
+
+- **Persistence Layer**: Save and resume brain state across sessions
+  - `Engine.Save(path)` / `Engine.Load(path)` for file-based persistence
+  - `Engine.ExportJSON()` / `Engine.ImportJSON()` for programmatic access
+  - `Engine.Reset()` clears all learned state
+  - Per-module Export/Import/Reset for granular control
+
+- **Observability Metrics**: Performance tracking for intelligence operations
+  - Findings processed/blocked/bypassed counters
+  - Prediction accuracy tracking
+  - Mutation success rate monitoring
+  - Memory eviction tracking
+  - Save/Load operation counters
+
+- **Configuration System**: Centralized configuration for all modules
+  - `PredictorConfig`, `MutatorConfig`, `ClustererConfig`, `AnomalyConfig`
+  - `PathfinderConfig` with BFS depth limits and category values
+  - `MemoryConfig` with eviction policies
+  - `DefaultXxxConfig()` factory functions for sensible defaults
+
+### Changed
+
+- **Memory Management**: LRU eviction prevents unbounded memory growth
+  - Default limit: 10,000 findings
+  - Evicts oldest 10% when capacity reached
+  - Configurable via `Memory.SetMaxFindings()`
+  
+- **BFS Pathfinding**: Added safety limits to prevent resource exhaustion
+  - Configurable depth limit (default: 10)
+  - Queue size limit (10,000 items) prevents memory exhaustion
+  - Node pruning removes low-value paths
+
+- **Empty Slice Returns**: Methods now return empty slices instead of nil
+  - `Memory.GetByCategory()`, `Memory.GetByPhase()` return `[]` not `nil`
+  - Safer for callers, no nil checks required
+
+### Fixed
+
+- **Data Loss Bug**: Memory.Import() now preserves category priorities
+- **StatusCode Bug**: Fixed `extractBlockSignature()` using incorrect string conversion
+  - Was: `string(rune(statusCode))` → garbage output
+  - Now: `fmt.Sprintf("%d", statusCode)` → correct "403" output
+- **Thread Safety**: Added mutex locks to callback setters (OnInsight, OnChain, OnAnomaly)
+- **Nil Pointer**: Added nil checks in `feedAdvancedModules()` and `AddNode()`
+- **formatPct**: Simplified overly complex percentage formatting function
+
 ## [2.6.4] - 2026-02-05
 
 ### Added

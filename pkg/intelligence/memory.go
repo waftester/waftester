@@ -1,9 +1,19 @@
-// Memory provides learning memory for the Intelligence Engine
+// Package intelligence provides adaptive learning capabilities for WAFtester.
+// Memory provides finding storage with efficient indexing for the Intelligence Engine.
 package intelligence
 
 import (
 	"strings"
 	"sync"
+)
+
+// Memory capacity constants.
+const (
+	// DefaultMaxFindings is the default maximum number of findings to store.
+	DefaultMaxFindings = 10000
+
+	// DefaultEvictionPercent is the percentage of oldest findings to evict when at capacity.
+	DefaultEvictionPercent = 0.10
 )
 
 // Memory stores and retrieves findings efficiently
@@ -17,10 +27,14 @@ type Memory struct {
 	byCategory map[string][]*Finding
 	byPhase    map[string][]*Finding
 	byPath     map[string][]*Finding
+	bySeverity map[string][]*Finding
 	bypasses   []*Finding
 
 	// Priority overrides
 	categoryPriority map[string]string
+
+	// Capacity limits
+	maxFindings int
 }
 
 // NewMemory creates a new memory store
@@ -30,15 +44,36 @@ func NewMemory() *Memory {
 		byCategory:       make(map[string][]*Finding),
 		byPhase:          make(map[string][]*Finding),
 		byPath:           make(map[string][]*Finding),
+		bySeverity:       make(map[string][]*Finding),
 		bypasses:         make([]*Finding, 0),
 		categoryPriority: make(map[string]string),
+		maxFindings:      DefaultMaxFindings,
 	}
+}
+
+// SetMaxFindings sets the maximum number of findings to store.
+// Values <= 0 disable the limit.
+func (m *Memory) SetMaxFindings(max int) {
+	if max < 0 {
+		max = 0 // Treat negative as "no limit"
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.maxFindings = max
 }
 
 // Store adds a finding to memory
 func (m *Memory) Store(f *Finding) {
+	if f == nil {
+		return
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	// Evict oldest if at capacity
+	if m.maxFindings > 0 && len(m.findings) >= m.maxFindings {
+		m.evictOldest()
+	}
 
 	m.findings = append(m.findings, f)
 
@@ -51,13 +86,50 @@ func (m *Memory) Store(f *Finding) {
 	// Index by path
 	m.byPath[f.Path] = append(m.byPath[f.Path], f)
 
+	// Index by severity
+	m.bySeverity[f.Severity] = append(m.bySeverity[f.Severity], f)
+
 	// Track bypasses
 	if !f.Blocked {
 		m.bypasses = append(m.bypasses, f)
 	}
 }
 
-// GetByCategory returns findings by category
+// evictOldest removes the oldest DefaultEvictionPercent of findings (must hold lock).
+// This implements a simple LRU-style eviction to prevent unbounded memory growth.
+func (m *Memory) evictOldest() {
+	evictCount := int(float64(len(m.findings)) * DefaultEvictionPercent)
+	if evictCount < 1 {
+		evictCount = 1
+	}
+
+	// Get findings to evict
+	toEvict := m.findings[:evictCount]
+	m.findings = m.findings[evictCount:]
+
+	// Remove from indexes
+	for _, f := range toEvict {
+		m.byCategory[f.Category] = m.removeFromFindingSlice(m.byCategory[f.Category], f)
+		m.byPhase[f.Phase] = m.removeFromFindingSlice(m.byPhase[f.Phase], f)
+		m.byPath[f.Path] = m.removeFromFindingSlice(m.byPath[f.Path], f)
+		m.bySeverity[f.Severity] = m.removeFromFindingSlice(m.bySeverity[f.Severity], f)
+		if !f.Blocked {
+			m.bypasses = m.removeFromFindingSlice(m.bypasses, f)
+		}
+	}
+}
+
+// removeFromFindingSlice removes a finding from a slice and returns the new slice
+func (m *Memory) removeFromFindingSlice(slice []*Finding, f *Finding) []*Finding {
+	for i, item := range slice {
+		if item == f {
+			return append(slice[:i], slice[i+1:]...)
+		}
+	}
+	return slice
+}
+
+// GetByCategory returns findings by category (returns empty slice if none found)
 func (m *Memory) GetByCategory(category string) []*Finding {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -67,10 +139,10 @@ func (m *Memory) GetByCategory(category string) []*Finding {
 		copy(result, findings)
 		return result
 	}
-	return nil
+	return make([]*Finding, 0)
 }
 
-// GetByPhase returns findings by phase
+// GetByPhase returns findings by phase (returns empty slice if none found)
 func (m *Memory) GetByPhase(phase string) []*Finding {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -80,7 +152,7 @@ func (m *Memory) GetByPhase(phase string) []*Finding {
 		copy(result, findings)
 		return result
 	}
-	return nil
+	return make([]*Finding, 0)
 }
 
 // GetByPath returns findings matching any of the path patterns
@@ -110,8 +182,12 @@ func (m *Memory) GetBypasses() []*Finding {
 	return result
 }
 
-// GetSimilarBypasses returns bypasses similar to the given finding
+// GetSimilarBypasses returns bypasses similar to the given finding.
+// Returns nil if f is nil. Returns at most minCount results (0 = unlimited).
 func (m *Memory) GetSimilarBypasses(f *Finding, minCount int) []*Finding {
+	if f == nil {
+		return nil
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -123,6 +199,10 @@ func (m *Memory) GetSimilarBypasses(f *Finding, minCount int) []*Finding {
 		// Same category counts as similar
 		if b.Category == f.Category {
 			similar = append(similar, b)
+			// Limit results if minCount specified
+			if minCount > 0 && len(similar) >= minCount {
+				break
+			}
 		}
 	}
 	return similar

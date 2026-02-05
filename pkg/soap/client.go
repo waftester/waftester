@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
-	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -550,9 +549,10 @@ func FetchAndParseWSDL(ctx context.Context, url string) (*WSDLDefinition, error)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch WSDL: %w", err)
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
-	body, err := io.ReadAll(resp.Body)
+	// Use bounded read to prevent memory exhaustion from malicious servers (5MB limit for WSDL)
+	body, err := iohelper.ReadBody(resp.Body, 5*1024*1024)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read WSDL: %w", err)
 	}

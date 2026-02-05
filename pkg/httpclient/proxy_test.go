@@ -20,10 +20,10 @@ func TestParseProxyURL(t *testing.T) {
 		wantIsSOCKS bool
 	}{
 		{
-			name:        "empty URL returns nil",
-			input:       "",
-			wantErr:     false,
-			wantScheme:  "",
+			name:       "empty URL returns nil",
+			input:      "",
+			wantErr:    false,
+			wantScheme: "",
 		},
 		{
 			name:        "HTTP proxy",
@@ -187,7 +187,7 @@ func TestProxyConfigAuth(t *testing.T) {
 
 func TestProxyConfigDNSRemote(t *testing.T) {
 	tests := []struct {
-		input       string
+		input         string
 		wantDNSRemote bool
 	}{
 		{"socks5://proxy:1080", false},
