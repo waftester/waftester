@@ -3,10 +3,11 @@ package payloads
 
 import (
 	"embed"
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/jsonutil"
 )
 
 // Database holds all payloads organized by category
@@ -285,7 +286,7 @@ func (f *PayloadFilter) matches(p Payload) bool {
 // LoadFromJSON loads payloads from JSON data
 func (db *Database) LoadFromJSON(data []byte) error {
 	var payloads []Payload
-	if err := json.Unmarshal(data, &payloads); err != nil {
+	if err := jsonutil.Unmarshal(data, &payloads); err != nil {
 		return fmt.Errorf("failed to parse JSON: %w", err)
 	}
 
@@ -295,7 +296,7 @@ func (db *Database) LoadFromJSON(data []byte) error {
 
 // ExportJSON exports the database to JSON
 func (db *Database) ExportJSON() ([]byte, error) {
-	return json.MarshalIndent(db.payloads, "", "  ")
+	return jsonutil.MarshalIndent(db.payloads, "", "  ")
 }
 
 // loadBuiltinPayloads loads the curated payload database

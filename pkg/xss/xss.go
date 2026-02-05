@@ -131,7 +131,8 @@ func NewTester(config *TesterConfig) *Tester {
 
 // generatePayloads generates XSS payloads for all contexts
 func (t *Tester) generatePayloads() []Payload {
-	var payloads []Payload
+	// Pre-allocate for ~100 payloads
+	payloads := make([]Payload, 0, 100)
 
 	// Basic HTML context payloads
 	htmlPayloads := []struct {
@@ -342,7 +343,7 @@ func (t *Tester) generatePayloads() []Payload {
 
 	// Filter by bypass only if configured
 	if t.config.IncludeBypassOnly {
-		var filtered []Payload
+		filtered := make([]Payload, 0, len(payloads)/4)
 		for _, p := range payloads {
 			if p.BypassType != "" {
 				filtered = append(filtered, p)
@@ -360,7 +361,7 @@ func (t *Tester) GetPayloads(ctx InjectionContext) []Payload {
 		return t.payloads
 	}
 
-	var filtered []Payload
+	filtered := make([]Payload, 0, len(t.payloads)/4)
 	for _, p := range t.payloads {
 		if p.Context == ctx {
 			filtered = append(filtered, p)
@@ -371,7 +372,7 @@ func (t *Tester) GetPayloads(ctx InjectionContext) []Payload {
 
 // GetBypassPayloads returns only WAF bypass payloads
 func (t *Tester) GetBypassPayloads() []Payload {
-	var filtered []Payload
+	filtered := make([]Payload, 0, len(t.payloads)/4)
 	for _, p := range t.payloads {
 		if p.BypassType != "" {
 			filtered = append(filtered, p)
@@ -499,7 +500,8 @@ func DetectContext(body, payload string) InjectionContext {
 
 // TestParameter tests a single parameter for XSS
 func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method string) ([]Vulnerability, error) {
-	var vulns []Vulnerability
+	// Pre-allocate for typical vulnerability count
+	vulns := make([]Vulnerability, 0, 8)
 
 	for _, payload := range t.payloads {
 		select {
@@ -554,7 +556,7 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 
 // checkDOMXSS checks for DOM-based XSS patterns in the page
 func (t *Tester) checkDOMXSS(ctx context.Context, targetURL string) []Vulnerability {
-	var vulns []Vulnerability
+	vulns := make([]Vulnerability, 0, 4)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", targetURL, nil)
 	if err != nil {

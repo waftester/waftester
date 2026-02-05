@@ -1,11 +1,12 @@
 package payloads
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/jsonutil"
 )
 
 // Loader handles loading payloads from JSON files
@@ -20,7 +21,8 @@ func NewLoader(baseDir string) *Loader {
 
 // LoadAll loads all payloads from the directory structure
 func (l *Loader) LoadAll() ([]Payload, error) {
-	var allPayloads []Payload
+	// Pre-allocate for typical payload count (~2048)
+	allPayloads := make([]Payload, 0, 2048)
 
 	// Walk through directory structure
 	err := filepath.Walk(l.baseDir, func(path string, info os.FileInfo, err error) error {
@@ -89,7 +91,7 @@ func (l *Loader) loadFile(path string) ([]Payload, error) {
 	}
 
 	var payloads []Payload
-	if err := json.Unmarshal(data, &payloads); err != nil {
+	if err := jsonutil.Unmarshal(data, &payloads); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", path, err)
 	}
 

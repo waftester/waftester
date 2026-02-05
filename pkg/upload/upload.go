@@ -4,10 +4,8 @@
 package upload
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"mime/multipart"
 	"net/http"
@@ -17,10 +15,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/bufpool"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/jsonutil"
 )
 
 // VulnerabilityType represents the type of upload vulnerability.
@@ -123,7 +123,8 @@ func NewTester(config *TesterConfig) *Tester {
 
 // TestUpload tests a single upload payload.
 func (t *Tester) TestUpload(ctx context.Context, targetURL string, payload UploadPayload) (*Vulnerability, error) {
-	body := &bytes.Buffer{}
+	body := bufpool.Get()
+	defer bufpool.Put(body)
 	writer := multipart.NewWriter(body)
 
 	h := make(textproto.MIMEHeader)
@@ -477,7 +478,7 @@ func AllVulnerabilityTypes() []VulnerabilityType {
 
 // VulnerabilityToJSON converts a vulnerability to JSON.
 func VulnerabilityToJSON(v Vulnerability) (string, error) {
-	data, err := json.MarshalIndent(v, "", "  ")
+	data, err := jsonutil.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return "", err
 	}

@@ -387,3 +387,222 @@ func TestGoModConsistency(t *testing.T) {
 		t.Error("could not find Go version in go.mod")
 	}
 }
+
+// =============================================================================
+// PERFORMANCE ENFORCEMENT TESTS
+// =============================================================================
+//
+// These tests enforce usage of high-performance packages in hot paths:
+// - jsonutil instead of encoding/json
+// - bufpool instead of bytes.Buffer{}
+
+// TestHotPathsUseJsonutil verifies hot path packages use jsonutil instead of encoding/json.
+// This ensures 2-3x faster JSON operations in performance-critical code paths.
+func TestHotPathsUseJsonutil(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+
+	// Hot path packages that MUST use jsonutil, not encoding/json
+	hotPathPackages := []struct {
+		path   string
+		reason string
+	}{
+		{"pkg/payloads/loader.go", "loads 2800+ payloads on startup"},
+		{"pkg/payloads/database.go", "in-memory payload database operations"},
+		{"pkg/output/writers/json.go", "JSON output serialization"},
+		{"pkg/output/writers/jsonl.go", "JSONL streaming output"},
+		{"pkg/output/writers/sarif.go", "SARIF report generation"},
+		{"pkg/output/writers/html.go", "HTML report JSON embedding"},
+		{"pkg/output/builder.go", "multi-format export operations"},
+		{"pkg/upload/upload.go", "upload testing with JSON serialization"},
+	}
+
+	// Pattern that indicates encoding/json is imported (but not in comments)
+	encodingJsonImport := regexp.MustCompile(`^\s*"encoding/json"\s*$`)
+
+	var violations []string
+
+	for _, pkg := range hotPathPackages {
+		t.Run(pkg.path, func(t *testing.T) {
+			filePath := filepath.Join(repoRoot, pkg.path)
+
+			content, err := os.ReadFile(filePath)
+			if err != nil {
+				t.Fatalf("failed to read %s: %v", pkg.path, err)
+			}
+
+			lines := strings.Split(string(content), "\n")
+			inImportBlock := false
+
+			for i, line := range lines {
+				// Track import block
+				if strings.Contains(line, "import (") {
+					inImportBlock = true
+					continue
+				}
+				if inImportBlock && strings.TrimSpace(line) == ")" {
+					inImportBlock = false
+					continue
+				}
+
+				// Check for encoding/json import in import block
+				if inImportBlock && encodingJsonImport.MatchString(line) {
+					violation := pkg.path + " uses encoding/json instead of jsonutil (" + pkg.reason + ")"
+					violations = append(violations, violation)
+					t.Errorf("line %d: found 'encoding/json' import - use pkg/jsonutil for performance", i+1)
+				}
+
+				// Also check for single-line import
+				if strings.Contains(line, `import "encoding/json"`) {
+					violation := pkg.path + " uses encoding/json instead of jsonutil (" + pkg.reason + ")"
+					violations = append(violations, violation)
+					t.Errorf("line %d: found 'encoding/json' import - use pkg/jsonutil for performance", i+1)
+				}
+			}
+		})
+	}
+
+	if len(violations) > 0 {
+		t.Logf("\nPerformance violations (encoding/json in hot paths):")
+		for _, v := range violations {
+			t.Logf("  - %s", v)
+		}
+		t.Logf("\nFix: Replace 'encoding/json' with 'github.com/waftester/waftester/pkg/jsonutil'")
+	}
+}
+
+// TestUploadUsesBufferPool verifies upload package uses bufpool for buffer allocation.
+// This reduces GC pressure for multipart file uploads.
+func TestUploadUsesBufferPool(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	uploadPath := filepath.Join(repoRoot, "pkg", "upload", "upload.go")
+
+	content, err := os.ReadFile(uploadPath)
+	if err != nil {
+		t.Fatalf("failed to read upload.go: %v", err)
+	}
+
+	sourceCode := string(content)
+
+	// Check bufpool is imported
+	if !strings.Contains(sourceCode, `"github.com/waftester/waftester/pkg/bufpool"`) {
+		t.Error("upload.go must import pkg/bufpool for buffer pooling")
+	}
+
+	// Check bufpool.Get() is used
+	if !strings.Contains(sourceCode, "bufpool.Get()") {
+		t.Error("upload.go must use bufpool.Get() for buffer allocation")
+	}
+
+	// Check bufpool.Put() is used (for returning buffers)
+	if !strings.Contains(sourceCode, "bufpool.Put(") {
+		t.Error("upload.go must use bufpool.Put() to return buffers to pool")
+	}
+
+	// Verify no direct bytes.Buffer{} allocation in TestUpload function
+	// This pattern indicates bypassing the buffer pool
+	testUploadPattern := regexp.MustCompile(`func \(t \*Tester\) TestUpload[^}]+body\s*:=\s*&bytes\.Buffer\{\}`)
+	if testUploadPattern.MatchString(sourceCode) {
+		t.Error("TestUpload should use bufpool.Get() instead of &bytes.Buffer{}")
+	}
+
+	t.Log("upload.go correctly uses bufpool for buffer management")
+}
+
+// TestJsonutilPackageExists verifies the jsonutil package exists and is properly implemented.
+func TestJsonutilPackageExists(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	jsonutilPath := filepath.Join(repoRoot, "pkg", "jsonutil", "jsonutil.go")
+
+	content, err := os.ReadFile(jsonutilPath)
+	if err != nil {
+		t.Fatalf("pkg/jsonutil/jsonutil.go not found: %v", err)
+	}
+
+	sourceCode := string(content)
+
+	// Required functions for drop-in encoding/json replacement
+	requiredFunctions := []struct {
+		name    string
+		pattern string
+		desc    string
+	}{
+		{"Unmarshal", "func Unmarshal(", "JSON decoding"},
+		{"Marshal", "func Marshal(", "JSON encoding"},
+		{"MarshalIndent", "func MarshalIndent(", "pretty JSON encoding"},
+		{"NewStreamEncoder", "func NewStreamEncoder(", "streaming encoder creation"},
+		{"SetIndent", "func (e *Encoder) SetIndent(", "encoder indentation"},
+		{"Encode", "func (e *Encoder) Encode(", "streaming encode"},
+	}
+
+	for _, fn := range requiredFunctions {
+		t.Run(fn.name, func(t *testing.T) {
+			if !strings.Contains(sourceCode, fn.pattern) {
+				t.Errorf("jsonutil missing %s function for %s", fn.name, fn.desc)
+			}
+		})
+	}
+
+	// Verify it uses go-json-experiment
+	if !strings.Contains(sourceCode, "github.com/go-json-experiment/json") {
+		t.Error("jsonutil should use github.com/go-json-experiment/json for 2-3x performance")
+	}
+
+	t.Log("jsonutil package is properly implemented with all required functions")
+}
+
+// TestSlicePreallocationInHotPaths verifies hot path packages pre-allocate slices.
+// This reduces allocations and GC pressure during scanning.
+func TestSlicePreallocationInHotPaths(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+
+	// Files that should have pre-allocation patterns
+	hotPathFiles := []struct {
+		path          string
+		minMakeSlices int // minimum number of make([]..., 0, ...) patterns expected
+		reason        string
+	}{
+		{"pkg/payloads/loader.go", 1, "payload aggregation"},
+		{"pkg/xss/xss.go", 3, "XSS payload generation and filtering"},
+		{"pkg/xxe/xxe.go", 2, "XXE payload generation"},
+	}
+
+	// Pattern for pre-allocated slices: make([]Type, 0, capacity)
+	preallocPattern := regexp.MustCompile(`make\(\[\][^,]+,\s*0,\s*[^)]+\)`)
+
+	for _, file := range hotPathFiles {
+		t.Run(file.path, func(t *testing.T) {
+			filePath := filepath.Join(repoRoot, file.path)
+
+			content, err := os.ReadFile(filePath)
+			if err != nil {
+				t.Fatalf("failed to read %s: %v", file.path, err)
+			}
+
+			matches := preallocPattern.FindAllString(string(content), -1)
+			if len(matches) < file.minMakeSlices {
+				t.Errorf("%s has only %d pre-allocated slices, expected at least %d for %s",
+					file.path, len(matches), file.minMakeSlices, file.reason)
+			} else {
+				t.Logf("%s has %d pre-allocated slices (required: %d)",
+					file.path, len(matches), file.minMakeSlices)
+			}
+		})
+	}
+}
+
+// TestGoreleaserHasTrimpath verifies goreleaser builds with -trimpath for smaller binaries.
+func TestGoreleaserHasTrimpath(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	goreleaserPath := filepath.Join(repoRoot, ".goreleaser.yaml")
+
+	content, err := os.ReadFile(goreleaserPath)
+	if err != nil {
+		t.Fatalf("failed to read .goreleaser.yaml: %v", err)
+	}
+
+	if !strings.Contains(string(content), "-trimpath") {
+		t.Error(".goreleaser.yaml should include -trimpath flag for smaller, reproducible binaries")
+	}
+
+	t.Log(".goreleaser.yaml correctly includes -trimpath flag")
+}

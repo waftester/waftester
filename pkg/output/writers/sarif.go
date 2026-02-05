@@ -4,13 +4,13 @@ package writers
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
 	"sync"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/jsonutil"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
 )
@@ -447,7 +447,7 @@ func (sw *SARIFWriter) Close() error {
 		},
 	}
 
-	encoder := json.NewEncoder(sw.w)
+	encoder := jsonutil.NewStreamEncoder(sw.w)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(doc); err != nil {
 		return err

@@ -2,11 +2,11 @@
 package output
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/jsonutil"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/hooks"
 	"github.com/waftester/waftester/pkg/output/writers"
@@ -521,7 +521,7 @@ func writeResultsJSON(path string, results ExecutionResults, omitRaw bool) error
 	}
 	defer f.Close()
 
-	encoder := json.NewEncoder(f)
+	encoder := jsonutil.NewStreamEncoder(f)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(results)
 }
@@ -534,7 +534,7 @@ func writeResultsJSONL(path string, results ExecutionResults) error {
 	}
 	defer f.Close()
 
-	encoder := json.NewEncoder(f)
+	encoder := jsonutil.NewStreamEncoder(f)
 	return encoder.Encode(results)
 }
 
@@ -564,7 +564,7 @@ func writeResultsSARIF(path string, results ExecutionResults, version string) er
 		},
 	}
 
-	encoder := json.NewEncoder(f)
+	encoder := jsonutil.NewStreamEncoder(f)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(sarif)
 }
@@ -719,7 +719,7 @@ func writeResultsSonarQube(path string, results ExecutionResults) error {
 		"issues": convertToSonarQubeIssues(results),
 	}
 
-	encoder := json.NewEncoder(f)
+	encoder := jsonutil.NewStreamEncoder(f)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(sonarReport)
 }
@@ -771,7 +771,7 @@ func writeResultsGitLabSAST(path string, results ExecutionResults) error {
 		"vulnerabilities": convertToGitLabVulns(results),
 	}
 
-	encoder := json.NewEncoder(f)
+	encoder := jsonutil.NewStreamEncoder(f)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(report)
 }
@@ -815,7 +815,7 @@ func writeResultsDefectDojo(path string, results ExecutionResults) error {
 		"findings": convertToDefectDojoFindings(results),
 	}
 
-	encoder := json.NewEncoder(f)
+	encoder := jsonutil.NewStreamEncoder(f)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(report)
 }
@@ -847,7 +847,7 @@ func writeResultsCycloneDX(path string, results ExecutionResults) error {
 		"vulnerabilities": convertToCycloneDXVulns(results),
 	}
 
-	encoder := json.NewEncoder(f)
+	encoder := jsonutil.NewStreamEncoder(f)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(report)
 }
