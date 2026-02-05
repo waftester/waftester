@@ -167,7 +167,8 @@ func (d *Detector) fileDisclosurePayloads() []*Payload {
 		},
 	}
 
-	var payloads []*Payload
+	// Pre-allocate slice for typical payload count (~40 payloads)
+	payloads := make([]*Payload, 0, 40)
 
 	for _, file := range files {
 		// Basic XXE file read
@@ -244,7 +245,8 @@ func (d *Detector) ssrfPayloads() []*Payload {
 		"http://[::1]/",
 	}
 
-	var payloads []*Payload
+	// Pre-allocate for SSRF payloads
+	payloads := make([]*Payload, 0, len(targets))
 
 	for _, target := range targets {
 		payloads = append(payloads, &Payload{
@@ -453,7 +455,8 @@ func (d *Detector) GetPayloads(attackType AttackType) []*Payload {
 		return d.payloads
 	}
 
-	var filtered []*Payload
+	// Pre-allocate filtered slice with reasonable capacity
+	filtered := make([]*Payload, 0, len(d.payloads)/4)
 	for _, p := range d.payloads {
 		if p.Type == attackType {
 			filtered = append(filtered, p)
@@ -464,7 +467,8 @@ func (d *Detector) GetPayloads(attackType AttackType) []*Payload {
 
 // Detect tests a URL for XXE vulnerabilities
 func (d *Detector) Detect(ctx context.Context, targetURL string, method string) ([]*Vulnerability, error) {
-	var vulns []*Vulnerability
+	// Pre-allocate for potential vulnerabilities
+	vulns := make([]*Vulnerability, 0, 8)
 
 	for _, payload := range d.payloads {
 		select {

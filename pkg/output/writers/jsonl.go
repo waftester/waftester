@@ -6,10 +6,10 @@
 package writers
 
 import (
-	"encoding/json"
 	"io"
 	"sync"
 
+	"github.com/waftester/waftester/pkg/jsonutil"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
 )
@@ -27,7 +27,7 @@ type JSONLWriter struct {
 	w       io.Writer
 	mu      sync.Mutex
 	opts    JSONLOptions
-	encoder *json.Encoder
+	encoder *jsonutil.Encoder
 }
 
 // JSONLOptions configures the JSONL writer behavior.
@@ -51,7 +51,7 @@ type JSONLOptions struct {
 // NewJSONLWriter creates a new JSONL writer that writes to w.
 // The writer is safe for concurrent use.
 func NewJSONLWriter(w io.Writer, opts JSONLOptions) *JSONLWriter {
-	encoder := json.NewEncoder(w)
+	encoder := jsonutil.NewStreamEncoder(w)
 	if opts.Pretty {
 		encoder.SetIndent("", "  ")
 	}
