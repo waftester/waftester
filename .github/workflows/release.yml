@@ -35,13 +35,14 @@ jobs:
       - name: Get tag name if present
         id: get_tag
         run: |
-          # Check if the commit has a tag
+          # Check if the commit has a tag — only tagged commits get released
           TAG=$(git describe --tags --exact-match "$HEAD_SHA" 2>/dev/null || echo "")
           if [ -n "$TAG" ]; then
             echo "tag=$TAG" >> $GITHUB_OUTPUT
             echo "is_tag=true" >> $GITHUB_OUTPUT
           else
             echo "is_tag=false" >> $GITHUB_OUTPUT
+            echo "⏭️ No tag on commit $HEAD_SHA — skipping release"
           fi
 
       - name: Check if release already published
@@ -76,17 +77,11 @@ jobs:
           echo "✅ Tag verified: commit $HEAD_SHA is on main branch"
 
       - name: Set up Go
+        if: steps.get_tag.outputs.is_tag == 'true' && steps.check_release.outputs.skip != 'true'
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
           go-version-file: go.mod
           cache: true
-
-      - name: Delete previous dev release
-        if: steps.get_tag.outputs.is_tag != 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release delete dev --yes --cleanup-tag 2>/dev/null || true
 
       - name: Preserve manual release notes
         if: steps.get_tag.outputs.is_tag == 'true' && steps.check_release.outputs.skip != 'true'
@@ -130,45 +125,3 @@ jobs:
           MERGED=$(printf '%s\n\n---\n\n### Previous Release Notes\n\n%s' "$CURRENT_BODY" "$PREV_BODY")
           gh release edit "$TAG" --notes "$MERGED"
           echo "✅ Merged preserved release notes into $TAG"
-
-      - name: Check for tag on commit (dev build guard)
-        if: steps.get_tag.outputs.is_tag != 'true'
-        id: dev_guard
-        run: |
-          # Double-check: skip dev build if ANY version tag exists on this commit
-          # Handles race condition where tag push event arrives after branch push
-          ALL_TAGS=$(git tag --points-at "$HEAD_SHA" 2>/dev/null || echo "")
-          if echo "$ALL_TAGS" | grep -qE '^v[0-9]'; then
-            echo "⏭️ Commit has version tag(s): $ALL_TAGS — skipping dev build"
-            echo "skip_dev=true" >> $GITHUB_OUTPUT
-          else
-            echo "No version tags found — proceeding with dev build"
-            echo "skip_dev=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Run GoReleaser (dev release)
-        if: steps.get_tag.outputs.is_tag != 'true' && steps.dev_guard.outputs.skip_dev != 'true'
-        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
-        with:
-          distribution: goreleaser
-          version: latest
-          args: release --clean --snapshot
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload dev release
-        if: steps.get_tag.outputs.is_tag != 'true' && steps.dev_guard.outputs.skip_dev != 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create dev \
-            --title "Development Build (latest)" \
-            --notes "⚠️ **Automated development build from main branch**
-
-          **Commit:** \`$HEAD_SHA\`
-          **Built:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')
-
-          These binaries are built from the latest code and may be unstable.
-          For stable releases, use a tagged version (e.g., v2.5.1)." \
-            --prerelease \
-            dist/*.tar.gz dist/*.zip dist/checksums.txt
