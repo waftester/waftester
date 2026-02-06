@@ -41,6 +41,9 @@ jobs:
       - name: Test (with race detection)
         run: go test -race -coverprofile=coverage.txt -timeout 10m ./...
 
+      - name: Structural tests
+        run: cd test && go test -v -timeout 5m ./...
+
       # Hardcode enforcement runs as part of normal test suite
       # See pkg/defaults/defaults_test.go for TestNoHardcoded* tests
 
