@@ -50,11 +50,14 @@ func (s *Server) addVersionResource() {
 				},
 				"supported_waf_vendors": []string{
 					"ModSecurity", "Coraza", "Cloudflare", "AWS WAF", "Azure WAF",
-					"Akamai", "Imperva", "F5 BIG-IP", "Fortinet FortiWeb", "Barracuda",
-					"Sucuri", "Google Cloud Armor", "Wallarm", "Signal Sciences",
-					"Citrix ADC", "DenyAll", "SonicWall", "Radware AppWall",
-					"AWS Shield", "Fastly", "StackPath", "Reblaze", "Edgecast",
-					"KeyCDN", "Comodo WAF",
+					"Akamai Kona", "Imperva Incapsula", "F5 BIG-IP ASM", "FortiWeb", "Barracuda WAF",
+					"Sucuri", "Google Cloud Armor", "StackPath", "Wordfence", "NGINX App Protect",
+					"DenyAll", "Citrix NetScaler", "Radware AppWall", "SafeDog", "360 WAF",
+					"Wallarm", "Reblaze", "Comodo WAF", "USP Secure Entry", "TrafficShield", "Varnish",
+				},
+				"supported_cdn_vendors": []string{
+					"Cloudflare", "AWS CloudFront", "Fastly", "Akamai", "KeyCDN",
+					"StackPath", "Azure CDN", "Google Cloud CDN", "Bunny CDN",
 				},
 				"attack_categories": []string{
 					"sqli", "xss", "traversal", "auth", "ssrf", "ssti",
@@ -62,7 +65,10 @@ func (s *Server) addVersionResource() {
 					"redirect", "upload", "jwt", "oauth", "prototype", "deserialize",
 				},
 			}
-			data, _ := json.MarshalIndent(info, "", "  ")
+			data, err := json.MarshalIndent(info, "", "  ")
+			if err != nil {
+				return nil, fmt.Errorf("marshaling version info: %w", err)
+			}
 			return &mcp.ReadResourceResult{
 				Contents: []*mcp.ResourceContents{
 					{URI: "waftester://version", MIMEType: "application/json", Text: string(data)},
@@ -107,7 +113,10 @@ func (s *Server) addPayloadsResource() {
 				"by_severity":    bySeverity,
 				"payload_dir":    s.config.PayloadDir,
 			}
-			data, _ := json.MarshalIndent(catalog, "", "  ")
+			data, err := json.MarshalIndent(catalog, "", "  ")
+			if err != nil {
+				return nil, fmt.Errorf("marshaling payload catalog: %w", err)
+			}
 			return &mcp.ReadResourceResult{
 				Contents: []*mcp.ResourceContents{
 					{URI: "waftester://payloads", MIMEType: "application/json", Text: string(data)},
@@ -175,7 +184,10 @@ func (s *Server) addPayloadsByCategoryResource() {
 				"count":    len(filtered),
 				"payloads": entries,
 			}
-			data, _ := json.MarshalIndent(result, "", "  ")
+			data, err := json.MarshalIndent(result, "", "  ")
+			if err != nil {
+				return nil, fmt.Errorf("marshaling payloads: %w", err)
+			}
 			return &mcp.ReadResourceResult{
 				Contents: []*mcp.ResourceContents{
 					{URI: uri, MIMEType: "application/json", Text: string(data)},
@@ -587,7 +599,10 @@ func (s *Server) addOWASPMappingsResource() {
 				"entries":           entries,
 				"category_to_owasp": defaults.OWASPCategoryMapping,
 			}
-			data, _ := json.MarshalIndent(result, "", "  ")
+			data, err := json.MarshalIndent(result, "", "  ")
+			if err != nil {
+				return nil, fmt.Errorf("marshaling OWASP mappings: %w", err)
+			}
 			return &mcp.ReadResourceResult{
 				Contents: []*mcp.ResourceContents{
 					{URI: "waftester://owasp-mappings", MIMEType: "application/json", Text: string(data)},
@@ -640,7 +655,10 @@ func (s *Server) addConfigResource() {
 				},
 				"payload_dir": s.config.PayloadDir,
 			}
-			data, _ := json.MarshalIndent(config, "", "  ")
+			data, err := json.MarshalIndent(config, "", "  ")
+			if err != nil {
+				return nil, fmt.Errorf("marshaling config: %w", err)
+			}
 			return &mcp.ReadResourceResult{
 				Contents: []*mcp.ResourceContents{
 					{URI: "waftester://config", MIMEType: "application/json", Text: string(data)},
