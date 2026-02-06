@@ -1,4 +1,0 @@
-# Remap all author/committer identities to the project identity.
-# This is a safety net — if a commit slips through with personal info,
-# GitHub and git log will still display the canonical project identity.
-WAFtester <dev@waftester.com> REDACTED <REDACTED@example.com>
