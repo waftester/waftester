@@ -189,6 +189,8 @@ func notifyProgress(ctx context.Context, req *mcp.CallToolRequest, progress, tot
 	if token == nil || req.Session == nil {
 		return
 	}
+	// Best-effort: progress notifications are advisory; failure does not
+	// affect tool execution and there is no meaningful recovery action.
 	_ = req.Session.NotifyProgress(ctx, &mcp.ProgressNotificationParams{
 		ProgressToken: token,
 		Progress:      progress,
@@ -202,6 +204,8 @@ func logToSession(ctx context.Context, req *mcp.CallToolRequest, level mcp.Loggi
 	if req.Session == nil {
 		return
 	}
+	// Best-effort: log delivery is advisory; failure does not affect
+	// tool execution and there is no meaningful recovery action.
 	_ = req.Session.Log(ctx, &mcp.LoggingMessageParams{
 		Level:  level,
 		Logger: "waf-tester",
@@ -246,7 +250,10 @@ func parseArgs(req *mcp.CallToolRequest, dst any) error {
 	if len(req.Params.Arguments) == 0 {
 		return nil
 	}
-	return json.Unmarshal(req.Params.Arguments, dst)
+	if err := json.Unmarshal(req.Params.Arguments, dst); err != nil {
+		return fmt.Errorf("parsing tool arguments: %w", err)
+	}
+	return nil
 }
 
 // validateTargetURL checks that target is a valid URL with http(s) scheme.

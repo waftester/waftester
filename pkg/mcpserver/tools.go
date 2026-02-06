@@ -404,6 +404,13 @@ func (s *Server) handleDiscover(ctx context.Context, req *mcp.CallToolRequest) (
 		timeout = 10 * time.Second
 	}
 
+	if args.MaxDepth <= 0 {
+		args.MaxDepth = defaults.DepthMedium
+	}
+	if args.Concurrency <= 0 {
+		args.Concurrency = defaults.ConcurrencyMedium
+	}
+
 	cfg := discovery.DiscoveryConfig{
 		Target:        args.Target,
 		Timeout:       timeout,
@@ -765,10 +772,9 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		OnResult: func(r *output.TestResult) {
 			n := received.Add(1)
 			if r.Outcome == "Fail" {
-				b := bypasses.Add(1)
+				bypasses.Add(1)
 				logToSession(ctx, req, logWarning,
 					fmt.Sprintf("BYPASS: %s [%s] → %d", r.ID, r.Category, r.StatusCode))
-				_ = b // used only in the progress message below
 			}
 			if n%10 == 0 || n == int64(total) {
 				pct := float64(n) / float64(total) * 80
