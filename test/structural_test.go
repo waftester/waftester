@@ -742,36 +742,35 @@ func TestPrivateGuardWorkflowExists(t *testing.T) {
 		}
 	}
 
-	// Verify it checks for personal identity in commits
-	if !strings.Contains(string(content), "personal identity") {
-		t.Error("private-guard.yml must check for personal identity in commits")
+	// Verify it checks for unauthorized identity in commits
+	if !strings.Contains(string(content), "author identity") {
+		t.Error("private-guard.yml must check for unauthorized author identity in commits")
 	}
 
 	t.Logf("✅ private-guard.yml exists and checks all required private paths (%d bytes)", info.Size())
 }
 
-// TestMailmapExists verifies .mailmap remaps personal identity to project identity.
-func TestMailmapExists(t *testing.T) {
+// TestLocalGitIdentity verifies the repo-local git identity is the project identity.
+func TestLocalGitIdentity(t *testing.T) {
 	repoRoot := getRepoRoot(t)
-	mailmapPath := filepath.Join(repoRoot, ".mailmap")
+	gitConfigPath := filepath.Join(repoRoot, ".git", "config")
 
-	content, err := os.ReadFile(mailmapPath)
+	content, err := os.ReadFile(gitConfigPath)
 	if err != nil {
-		t.Fatal("SECURITY: .mailmap is missing — this file remaps personal identity " +
-			"to project identity as a safety net against contributor name leaks")
+		t.Fatalf("failed to read .git/config: %v", err)
 	}
 
-	mailmap := string(content)
+	config := string(content)
 
-	// Verify it maps to the project identity
-	if !strings.Contains(mailmap, "WAFtester <dev@waftester.com>") {
-		t.Error(".mailmap must map to project identity: WAFtester <dev@waftester.com>")
+	if !strings.Contains(config, "dev@waftester.com") {
+		t.Error("SECURITY: local git config must have user.email = dev@waftester.com")
+		t.Error("Fix: git config user.email 'dev@waftester.com'")
 	}
 
-	t.Log("✅ .mailmap exists with project identity remapping")
+	t.Log("✅ local git identity is set to project identity")
 }
 
-// TestPreCommitHookChecksIdentity verifies the pre-commit hook blocks personal identity.
+// TestPreCommitHookChecksIdentity verifies the pre-commit hook blocks unauthorized identity.
 func TestPreCommitHookChecksIdentity(t *testing.T) {
 	repoRoot := getRepoRoot(t)
 	hookPath := filepath.Join(repoRoot, "scripts", "hooks", "pre-commit")
@@ -783,14 +782,14 @@ func TestPreCommitHookChecksIdentity(t *testing.T) {
 
 	hook := string(content)
 
-	// Verify it checks author identity, not just private files
-	if !strings.Contains(hook, "BLOCKED_EMAILS") {
-		t.Error("pre-commit hook must check for blocked email addresses")
+	// Verify it checks author identity via allowlist, not a blocklist
+	if !strings.Contains(hook, "ALLOWED_EMAIL") {
+		t.Error("pre-commit hook must use an ALLOWED_EMAIL allowlist for identity checks")
 	}
 
 	if !strings.Contains(hook, "user.email") {
 		t.Error("pre-commit hook must check git config user.email")
 	}
 
-	t.Log("✅ pre-commit hook checks for personal identity before committing")
+	t.Log("✅ pre-commit hook checks for authorized identity before committing")
 }
