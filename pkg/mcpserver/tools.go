@@ -201,7 +201,7 @@ DO NOT USE THIS TOOL WHEN:
 • You want TLS/header/infra details without WAF focus — use 'probe' instead
 
 Sends ~20 benign probes + ~5 trigger requests. Very low impact. Takes 10-30 seconds.
-Covers 25+ WAF vendors with header analysis, behavioral probing, and TLS fingerprinting.
+Covers 26+ WAF vendors with header analysis, behavioral probing, and TLS fingerprinting.
 
 EXAMPLE INPUTS:
 • Basic detection: {"target": "https://example.com"}
@@ -1263,7 +1263,7 @@ func (s *Server) handleBypass(ctx context.Context, req *mcp.CallToolRequest) (*m
 	}
 
 	if args.Target == "" {
-		return errorResult("target URL is required."), nil
+		return errorResult("target URL is required. Example: {\"target\": \"https://example.com\", \"payloads\": [\"' OR 1=1--\"]}"), nil
 	}
 	if err := validateTargetURL(args.Target); err != nil {
 		return errorResult(err.Error()), nil
