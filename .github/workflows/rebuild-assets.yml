@@ -1,0 +1,74 @@
+name: Rebuild Release Assets
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to rebuild (leave empty for all tags missing assets)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  find-tags:
+    runs-on: ubuntu-latest
+    outputs:
+      tags: ${{ steps.tags.outputs.tags }}
+    steps:
+      - name: Determine tags needing assets
+        id: tags
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo 'tags=["${{ inputs.tag }}"]' >> $GITHUB_OUTPUT
+            echo "Targeting single tag: ${{ inputs.tag }}"
+          else
+            TAGS=$(gh api repos/${{ github.repository }}/releases --paginate \
+              --jq '[.[] | select(.assets | length == 0) | .tag_name]')
+            echo "tags=$TAGS" >> $GITHUB_OUTPUT
+            echo "Tags missing assets: $TAGS"
+          fi
+
+  rebuild:
+    needs: find-tags
+    if: needs.find-tags.outputs.tags != '[]' && needs.find-tags.outputs.tags != ''
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        tag: ${{ fromJson(needs.find-tags.outputs.tags) }}
+      max-parallel: 2
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ matrix.tag }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build with GoReleaser (skip publish)
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean --skip=publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ matrix.tag }}
+
+      - name: Upload assets to existing release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Uploading assets for ${{ matrix.tag }}..."
+          gh release upload "${{ matrix.tag }}" \
+            dist/*.tar.gz dist/*.zip dist/checksums.txt \
+            --clobber
+          ASSET_COUNT=$(gh release view "${{ matrix.tag }}" --json assets -q '.assets | length')
+          echo "✅ ${{ matrix.tag }}: $ASSET_COUNT assets uploaded"
