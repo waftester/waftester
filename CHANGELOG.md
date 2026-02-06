@@ -5,6 +5,103 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.0] - 2026-02-07
+
+### Added
+
+#### MCP Server — AI-Native WAF Testing Interface
+
+- **Enterprise MCP Server** (`pkg/mcpserver/`): Model Context Protocol server enabling AI agents (Claude, GPT, Copilot) and automation platforms (n8n, Langflow) to control WAFtester programmatically
+  - Full [MCP 2025-03-26 specification](https://modelcontextprotocol.io/) compliance via Go SDK v1.2.0
+  - **Dual transport**: Stdio for IDE integrations (VS Code, Claude Desktop, Cursor) + HTTP for remote/Docker deployments
+  - **Dual HTTP protocol**: Streamable HTTP (`/mcp`) for modern clients + legacy SSE (`/sse`) for n8n and older MCP clients
+  - CORS middleware for browser-based and cross-origin MCP clients
+  - Health endpoint (`/health`) for Kubernetes/Docker readiness probes
+
+- **10 MCP Tools** with opinionated descriptions optimized for LLM tool selection:
+
+  | Tool | Purpose |
+  |------|---------|
+  | `list_payloads` | Browse attack payload catalog with category/severity filtering |
+  | `detect_waf` | Fingerprint WAF vendor, version, and CDN layers |
+  | `discover` | Map attack surface from robots.txt, sitemap, JS, Wayback Machine |
+  | `learn` | Generate intelligent test plans from discovery results |
+  | `scan` | Execute WAF bypass tests with curated payloads |
+  | `assess` | Enterprise assessment with F1, precision, MCC, FPR metrics |
+  | `mutate` | Apply encoding/evasion transformations to payloads |
+  | `bypass` | Systematic bypass testing with mutation matrix |
+  | `probe` | TLS, HTTP/2, and technology fingerprinting |
+  | `generate_cicd` | Generate CI/CD pipeline YAML (GitHub Actions, GitLab, Jenkins, Azure DevOps, CircleCI, Bitbucket) |
+
+- **8 MCP Resources** providing domain knowledge without network calls:
+  - `waftester://version` — Server capabilities and tool inventory
+  - `waftester://payloads` — Full payload catalog with category breakdown
+  - `waftester://payloads/{category}` — Per-category payload listing (template)
+  - `waftester://guide` — Comprehensive WAF testing methodology guide
+  - `waftester://waf-signatures` — 12 WAF vendor signatures with bypass tips
+  - `waftester://evasion-techniques` — Evasion encoding catalog with effectiveness ratings
+  - `waftester://owasp-mappings` — OWASP Top 10 2021 category mappings with CWE references
+  - `waftester://config` — Default configuration values and bounds
+
+- **5 MCP Prompts** for guided workflow templates:
+  - `security_audit` — Full security assessment workflow
+  - `waf_bypass` — Targeted bypass hunting with stealth options
+  - `full_assessment` — Enterprise assessment with statistical metrics
+  - `discovery_workflow` — Attack surface mapping workflow
+  - `evasion_research` — Payload evasion research and encoding
+
+- **Comprehensive Server Instructions**: 300+ line operating manual embedded in server that guides AI agents through tool selection, workflow orchestration, result interpretation, rate limiting, and error recovery
+
+- **n8n Integration**: Validated compatibility with n8n's MCP Client node
+  - SSE transport endpoint at `/sse` (2024-11-05 spec)
+  - Bearer, Header, and OAuth2 authentication support via CORS headers
+  - Tool filtering (All/Selected/All Except) works with tool annotations
+
+#### MCP Server Infrastructure
+
+- **CORS Middleware**: Permissive cross-origin headers for browser-based clients
+  - Origin echo (reflects request origin) with `*` fallback
+  - Exposes `Mcp-Session-Id` header for session tracking
+  - Allows `Authorization`, `Mcp-Session-Id`, `Last-Event-ID` headers
+  - OPTIONS preflight with 24-hour cache (`Max-Age: 86400`)
+
+- **Health Endpoint**: `/health` returns `{"status":"ok","service":"waf-tester-mcp"}` for container orchestrators
+  - Method-restricted to GET/HEAD (returns 405 for other methods)
+  - JSON content type with proper CORS headers
+
+- **Progress Notifications**: Tools report `notifyProgress()` with percentage and status messages during long-running operations (scan, assess, bypass)
+
+- **Structured Logging**: Tools emit `logToSession()` events with typed `mcp.LoggingLevel` constants for real-time operation visibility
+
+### Fixed
+
+- **P0 Data Race in Scan Tool**: `received` and `bypasses` counters in `handleScan` were bare `int` accessed from concurrent goroutines in the `OnResult` callback — replaced with `sync/atomic.Int64`
+- **Logging Level Type Safety**: The MCP SDK defines `LoggingLevel` as `type string` with no exported constants — defined typed `logInfo`/`logWarning` constants to prevent raw string errors
+- **Scan Tool Missing Annotations**: Added `ReadOnlyHint` and `IdempotentHint` to scan tool annotations (both `false`)
+- **WAF Signatures Count Mismatch**: `total_signatures` was 25 but only 12 entries defined — corrected to 12
+
+### Removed
+
+- **Unused `SessionTimeout` Config Field**: Removed from `Config` struct along with unused `time` import
+
+### Tests
+
+- **42 tests** covering full MCP protocol surface:
+  - Server creation (2): nil safety, default config
+  - Tool registration (3): count, descriptions, annotations
+  - Resource registration (2): static resources, template resources
+  - Resource content (8): version, guide, WAF signatures, evasion techniques, OWASP mappings, config, payloads, payloads-by-category
+  - Prompt registration (2): count, arguments
+  - Prompt invocation (4): security_audit, waf_bypass, evasion_research, missing target
+  - Tool invocation (5): list_payloads, list_payloads with filter, mutate, generate_cicd, generate_cicd all platforms
+  - Hook tests (2): event bridge, nil callback
+  - Server capabilities (1): initialization result validation
+  - Edge cases (3): nonexistent tool/resource/prompt
+  - HTTP transport (2): HTTPHandler, SSEHandler return non-nil
+  - Health endpoint (2): 200 OK with JSON, 405 for invalid methods
+  - CORS (4): headers on request, preflight OPTIONS, default origin, origin echo
+  - Data consistency (2): WAF signatures count matches entries, scan annotations complete
+
 ## [2.6.8] - 2026-02-06
 
 ### Added

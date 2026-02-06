@@ -2,21 +2,16 @@
 
 This guide provides comprehensive usage examples for WAFtester, organized by use case and command category. Each example includes context on when to use the command, what value it provides, and expected output formats.
 
-**Document Version:** 2.6.8  
+**Document Version:** 2.7.0  
 **Last Updated:** February 2026
 
 ---
 
-> **🆕 What's New in v2.6.8**
+> **What's New in v2.7.0**
 >
-> - **XML Export** — Legacy XML output with WASC/CWE compliance mapping ([details](#xml-export-v268))
-> - **Elasticsearch SIEM** — Stream results to Elasticsearch for centralized monitoring ([details](#elasticsearch-siem-integration-v268))
-> - **GitHub Issues** — Auto-create issues from WAF bypasses ([details](#github-issues-integration-v268))
-> - **Azure DevOps** — Auto-create work items with severity mapping ([details](#azure-devops-integration-v268))
-> - **Historical Trend Analysis** — Track WAF effectiveness over time with scan history ([details](#historical-trend-analysis-v268))
-> - **Template Configuration** — YAML-based report customization with branding ([details](#template-configuration-v268))
-> - **Intelligence Engine** — AI-powered bypass prediction with cognitive modules ([details](#intelligence-engine-v265))
-> - **10 Real-World Playbooks** — Complete assessment workflows ([jump to playbooks](#real-world-playbooks))
+> - **MCP Server** — AI-native interface for Claude, GPT, n8n, and automation platforms ([details](#mcp-server-integration))
+> - **SSE Transport** — Legacy SSE support for n8n compatibility ([details](#n8n-workflow-automation))
+> - **Health Endpoint** — Container readiness probes for Docker/Kubernetes ([details](#docker-deployment))
 
 ## Table of Contents
 
@@ -99,6 +94,13 @@ This guide provides comprehensive usage examples for WAFtester, organized by use
 - [Browser Scanning](#browser-scanning)
 - [Multiple Targets](#multiple-targets)
 - [Utility Commands](#utility-commands)
+- [MCP Server Integration](#mcp-server-integration)
+  - [Stdio Mode (IDE)](#stdio-mode-ide)
+  - [HTTP Mode (Remote)](#http-mode-remote)
+  - [Claude Desktop Setup](#claude-desktop-setup)
+  - [n8n Workflow Automation](#n8n-workflow-automation)
+  - [Docker Deployment](#docker-deployment)
+  - [MCP Resources and Prompts](#mcp-resources-and-prompts)
   - [Enterprise Report Generation](#enterprise-report-generation-report)
 - [API & Protocol Commands (v2.6.2)](#api--protocol-commands-v262)
   - [Template Scanner (template)](#template-scanner-template)
@@ -6955,6 +6957,282 @@ echo "╚═══════════════════════�
 - Different WAF vendors per region (configuration drift)
 - Significant TPR variance (>5% between regions)
 - Higher FPR in specific regions (locale-specific rules)
+
+---
+
+## MCP Server Integration
+
+WAFtester v2.7.0 includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that enables AI agents and automation platforms to control WAFtester through a structured, typed interface.
+
+### Stdio Mode (IDE)
+
+Use stdio transport for IDE integrations where the editor manages the process lifecycle.
+
+```bash
+# Start MCP server in stdio mode (default)
+waf-tester mcp
+
+# With custom payload directory
+waf-tester mcp --payload-dir /path/to/payloads
+```
+
+Supported IDEs:
+- **VS Code** with GitHub Copilot or Cline
+- **Claude Desktop** (see [configuration below](#claude-desktop-setup))
+- **Cursor** with MCP support enabled
+
+### HTTP Mode (Remote)
+
+Use HTTP transport for remote deployments, Docker containers, and browser-based clients.
+
+```bash
+# Start HTTP server on port 8080
+waf-tester mcp --http :8080
+
+# Custom bind address
+waf-tester mcp --http 0.0.0.0:9090
+```
+
+The HTTP server exposes three endpoints:
+
+| Endpoint | Protocol | Use Case |
+|----------|----------|----------|
+| `/mcp` | Streamable HTTP | Modern MCP clients (2025-03-26 spec) |
+| `/sse` | Server-Sent Events | n8n, older MCP clients (2024-11-05 spec) |
+| `/health` | GET | Container readiness/liveness probes |
+
+All endpoints include CORS headers for cross-origin requests.
+
+#### Health Check
+
+```bash
+$ curl http://localhost:8080/health
+{"status":"ok","service":"waf-tester-mcp"}
+```
+
+### Claude Desktop Setup
+
+Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "waf-tester": {
+      "command": "waf-tester",
+      "args": ["mcp"],
+      "env": {
+        "WAF_PAYLOAD_DIR": "/path/to/payloads"
+      }
+    }
+  }
+}
+```
+
+Then ask Claude:
+
+> "Detect what WAF is protecting https://example.com, then run a security scan focusing on SQL injection and XSS"
+
+Claude will automatically call `detect_waf` followed by `scan` with the appropriate parameters, showing progress notifications as the scan runs.
+
+### n8n Workflow Automation
+
+n8n's MCP Client node connects to WAFtester's SSE endpoint for automated security workflows.
+
+#### Setup
+
+1. Start the MCP server in HTTP mode:
+
+```bash
+waf-tester mcp --http :8080
+```
+
+2. In n8n, add an **MCP Client** node:
+   - **Transport**: SSE Endpoint
+   - **URL**: `http://your-server:8080/sse`
+   - **Authentication**: Bearer Token (if configured)
+
+3. Connect to an **AI Agent** node (Claude, GPT, etc.)
+
+4. All 10 WAFtester tools appear automatically for the AI agent
+
+#### Example n8n Workflow
+
+```
+Trigger (Schedule/Webhook)
+  → AI Agent (Claude)
+    → MCP Client (waf-tester @ /sse)
+      → detect_waf → scan → assess
+    → Slack Notification (results summary)
+```
+
+The AI agent orchestrates the full workflow: WAF detection, targeted scanning based on the detected vendor, enterprise assessment, and notification delivery.
+
+#### n8n with Authentication
+
+```bash
+# Start with bearer token auth
+waf-tester mcp --http :8080 --auth-token $MCP_TOKEN
+```
+
+In n8n MCP Client node, set authentication to **Header Auth** with:
+- **Header Name**: `Authorization`
+- **Header Value**: `Bearer your-token-here`
+
+### Docker Deployment
+
+```dockerfile
+FROM ghcr.io/waftester/waftester:latest
+
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=3s \
+  CMD curl -f http://localhost:8080/health || exit 1
+
+ENTRYPOINT ["waf-tester", "mcp", "--http", ":8080"]
+```
+
+#### Docker Compose with n8n
+
+```yaml
+services:
+  waf-tester-mcp:
+    image: ghcr.io/waftester/waftester:latest
+    command: ["mcp", "--http", ":8080"]
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - ./payloads:/payloads
+
+  n8n:
+    image: n8nio/n8n
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_AI_ENABLED=true
+    depends_on:
+      waf-tester-mcp:
+        condition: service_healthy
+```
+
+Connect n8n to `http://waf-tester-mcp:8080/sse` using Docker's internal network.
+
+#### Kubernetes
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: waf-tester-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: waf-tester-mcp
+  template:
+    metadata:
+      labels:
+        app: waf-tester-mcp
+    spec:
+      containers:
+        - name: waf-tester-mcp
+          image: ghcr.io/waftester/waftester:latest
+          args: ["mcp", "--http", ":8080"]
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: waf-tester-mcp
+spec:
+  selector:
+    app: waf-tester-mcp
+  ports:
+    - port: 8080
+      targetPort: 8080
+```
+
+### MCP Resources and Prompts
+
+#### Reading Resources
+
+AI agents can access domain knowledge resources without making network requests:
+
+```
+# In a conversation with Claude/GPT via MCP:
+
+"Read the WAF testing guide"
+→ Agent reads waftester://guide (comprehensive methodology)
+
+"What evasion techniques are available?"
+→ Agent reads waftester://evasion-techniques (encoders + evasion catalog)
+
+"Show WAF signatures for Cloudflare"
+→ Agent reads waftester://waf-signatures (vendor signatures + bypass tips)
+
+"What OWASP categories does SQL injection map to?"
+→ Agent reads waftester://owasp-mappings (OWASP Top 10 2021 mappings)
+```
+
+#### Using Prompt Templates
+
+Prompt templates provide guided workflows that the AI agent follows step-by-step:
+
+```
+# Full security audit workflow
+Prompt: security_audit
+Args: target=https://example.com
+
+# Targeted WAF bypass hunting
+Prompt: waf_bypass
+Args: target=https://example.com, category=sqli, stealth=true
+
+# Enterprise assessment with metrics
+Prompt: full_assessment
+Args: target=https://example.com
+
+# Attack surface discovery
+Prompt: discovery_workflow
+Args: target=https://example.com, service_type=webapp
+
+# Evasion research for a specific payload
+Prompt: evasion_research
+Args: target=https://example.com, payload=<script>alert(1)</script>
+```
+
+#### Tool Chaining Patterns
+
+The MCP server instructions guide AI agents through optimal tool chains:
+
+```
+# Workflow A: Full Security Assessment (Recommended)
+detect_waf → discover → learn → scan → assess
+
+# Workflow B: Quick WAF Bypass Hunt
+detect_waf → scan → mutate → bypass
+
+# Workflow C: WAF Effectiveness Audit
+detect_waf → assess → (review grade, F1, FPR, recommendations)
+
+# Workflow D: CI/CD Pipeline Generation
+detect_waf → generate_cicd (with WAF-specific thresholds)
+```
 
 ---
 
