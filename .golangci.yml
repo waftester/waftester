@@ -19,3 +19,8 @@ linters:
       - path: _test\.go
         linters:
           - all
+      # io_uring uses legitimate unsafe.Pointer arithmetic for mmap'd ring buffers
+      - path: pkg/iouring/
+        text: "unsafeptr"
+        linters:
+          - govet
