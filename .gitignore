@@ -4,8 +4,13 @@
 ################################################################################
 
 #===============================================================================
-# Private Configuration (via junction to waftester-private)
-# These files exist locally but should NOT be committed to public repo
+# ⚠️  PRIVATE CONFIGURATION — DO NOT REMOVE THESE RULES  ⚠️
+#
+# These paths contain sensitive AI/IDE configuration synced from
+# waftester-private via junctions. They must NEVER appear in the
+# public repository. Removing any line below is a security incident.
+#
+# Protected by: pre-commit hook, CI workflow, structural test, CODEOWNERS
 #===============================================================================
 .github/copilot-instructions.md
 .github/memory-seed.json
