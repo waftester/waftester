@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
+	"sync/atomic"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/waftester/waftester/pkg/defaults"
@@ -36,10 +38,18 @@ type Config struct {
 type Server struct {
 	mcp    *mcp.Server
 	config *Config
+	ready  atomic.Bool // tracks whether startup validation passed
 }
 
 // MCPServer returns the underlying MCP server for direct access (e.g., testing).
 func (s *Server) MCPServer() *mcp.Server { return s.mcp }
+
+// MarkReady signals that startup validation (payload loading, etc.) passed.
+// Until MarkReady is called, the /health endpoint returns 503 Service Unavailable.
+func (s *Server) MarkReady() { s.ready.Store(true) }
+
+// IsReady returns true if the server has completed startup validation.
+func (s *Server) IsReady() bool { return s.ready.Load() }
 
 // New creates a new MCP server with all tools, resources, and prompts registered.
 func New(cfg *Config) *Server {
@@ -99,7 +109,7 @@ func (s *Server) HTTPHandler() http.Handler {
 	)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/health", handleHealth)
+	mux.HandleFunc("/health", s.handleHealth)
 	mux.Handle("/sse", sse)
 	mux.Handle("/mcp", streamable)
 	mux.Handle("/", streamable)
@@ -117,14 +127,21 @@ func (s *Server) SSEHandler() http.Handler {
 	)
 }
 
-// handleHealth serves a minimal readiness/liveness probe.
-func handleHealth(w http.ResponseWriter, r *http.Request) {
+// handleHealth serves a readiness/liveness probe.
+// Returns 200 when the server is ready (payload directory validated),
+// 503 Service Unavailable before MarkReady() is called.
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		w.Header().Set("Allow", "GET, HEAD")
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
+	if !s.IsReady() {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"status":"starting","service":"waf-tester-mcp"}`))
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"status":"ok","service":"waf-tester-mcp"}`))
 }
@@ -232,11 +249,30 @@ func parseArgs(req *mcp.CallToolRequest, dst any) error {
 	return json.Unmarshal(req.Params.Arguments, dst)
 }
 
+// validateTargetURL checks that target is a valid URL with http(s) scheme.
+// Returns a clear error message if the URL is malformed or missing a scheme.
+func validateTargetURL(target string) error {
+	if target == "" {
+		return fmt.Errorf("target URL is required (e.g. https://example.com)")
+	}
+	u, err := url.Parse(target)
+	if err != nil {
+		return fmt.Errorf("invalid URL %q: %w", target, err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("target URL must start with http:// or https:// (got %q)", target)
+	}
+	if u.Host == "" {
+		return fmt.Errorf("target URL is missing a host (got %q)", target)
+	}
+	return nil
+}
+
 // ---------------------------------------------------------------------------
 // Server Instructions — the AI's comprehensive operating manual
 // ---------------------------------------------------------------------------
 
-const serverInstructions = `You are operating WAF Tester — a comprehensive Web Application Firewall security testing platform with 17 commands, 1,172+ attack payloads, 197+ WAF signatures, and enterprise-grade assessment capabilities.
+const serverInstructions = `You are operating WAF Tester — a comprehensive Web Application Firewall security testing platform with 17 commands, 2,800+ attack payloads, 26 WAF + 9 CDN detection signatures, and enterprise-grade assessment capabilities.
 
 ## YOUR IDENTITY
 
@@ -333,7 +369,7 @@ Before testing, you can read domain knowledge resources to understand:
 - waftester://payloads — Full payload catalog with categories
 - waftester://payloads/{category} — Payloads for a specific category
 - waftester://guide — Comprehensive WAF testing methodology guide
-- waftester://waf-signatures — All 25+ WAF vendor signatures and bypass tips
+- waftester://waf-signatures — All 26 WAF vendor signatures and bypass tips
 - waftester://evasion-techniques — Available evasion and encoding techniques
 - waftester://owasp-mappings — OWASP Top 10 2021 category mappings
 - waftester://config — Default configuration values and bounds
