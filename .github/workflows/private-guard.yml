@@ -71,20 +71,20 @@ jobs:
 
           echo "✅ No private files found — repository is clean"
 
-      - name: Check for personal identity in commits
+      - name: Check commit author identity
         run: |
           echo "Checking commit author identities..."
 
-          # Blocked personal identifiers (case-insensitive)
-          BLOCKED_PATTERNS="REDACTED|REDACTED"
+          # Only these identities are allowed in commits
+          ALLOWED_EMAILS="dev@waftester.com|noreply@github.com|dependabot\[bot\]"
 
-          # Check author and committer fields in the pushed commits
-          VIOLATIONS=$(git log --format="%H %an <%ae> | %cn <%ce>" HEAD~5..HEAD 2>/dev/null \
-            | grep -iE "$BLOCKED_PATTERNS" || true)
+          # Check author emails in recent commits
+          VIOLATIONS=$(git log --format="%H %ae" HEAD~5..HEAD 2>/dev/null \
+            | grep -ivE "$ALLOWED_EMAILS" || true)
 
           if [ -n "$VIOLATIONS" ]; then
             echo ""
-            echo "::error::Personal identity found in recent commits!"
+            echo "::error::Unauthorized author identity found in recent commits!"
             echo ""
             echo "$VIOLATIONS" | while read -r line; do
               echo "  ✗ $line"
@@ -95,7 +95,7 @@ jobs:
             exit 1
           fi
 
-          echo "✅ No personal identity found in recent commits"
+          echo "✅ All recent commits use authorized identities"
 
       - name: Verify .gitignore protections
         run: |
