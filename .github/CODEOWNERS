@@ -1,0 +1,4 @@
+# Protect CI/CD workflows — require review for changes
+.github/workflows/ @waftester/core
+.github/dependabot.yml @waftester/core
+.goreleaser.yaml @waftester/core

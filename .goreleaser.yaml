@@ -13,6 +13,7 @@ builds:
       - CGO_ENABLED=0
     flags:
       - -trimpath
+    mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - linux
       - darwin
@@ -72,6 +73,22 @@ snapshot:
 
 changelog:
   sort: asc
+  use: github
+  groups:
+    - title: "New Features"
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 100
+    - title: "Security"
+      regexp: '^.*?security(\(.+\))??!?:.+$'
+      order: 150
+    - title: "Bug Fixes"
+      regexp: '^.*?(fix|refactor)(\(.+\))??!?:.+$'
+      order: 200
+    - title: "Performance"
+      regexp: '^.*?perf(\(.+\))??!?:.+$'
+      order: 300
+    - title: "Other"
+      order: 9999
   filters:
     exclude:
       - '^docs:'
