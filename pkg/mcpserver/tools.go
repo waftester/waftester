@@ -43,18 +43,31 @@ func (s *Server) addListPayloadsTool() {
 		&mcp.Tool{
 			Name:  "list_payloads",
 			Title: "List Attack Payloads",
-			Description: `Browse and explore the curated WAF attack payload catalog.
+			Description: `Inventory tool — browse the local attack payload catalog WITHOUT sending any traffic.
 
-**When to use:** Before running scans, to understand what test coverage is available.
-**When NOT to use:** This does not execute any tests — use 'scan' for that.
+USE THIS TOOL WHEN:
+• The user asks "what payloads/categories/attacks do you support?"
+• You need to check how many payloads exist for a category before running 'scan'
+• You want to show the user sample payloads for a specific attack type
+• Planning which categories to include in a scan or assessment
 
-Returns category names, payload counts, severity distribution, and sample payloads.
-Filter by category (e.g. "sqli", "xss") or minimum severity to narrow results.
+DO NOT USE THIS TOOL WHEN:
+• You want to actually TEST a target — use 'scan' instead
+• You want WAF bypass testing — use 'bypass' instead
+• You want to encode/mutate a specific payload — use 'mutate' instead
 
-**Available categories:** sqli, xss, traversal, auth, ssrf, ssti, cmdi, xxe, nosqli,
-graphql, cors, crlf, redirect, upload, jwt, oauth, prototype, deserialize
+This is a READ-ONLY local operation. Zero network requests. Instant results.
 
-**Severity levels (descending):** Critical → High → Medium → Low`,
+EXAMPLE INPUTS:
+• See everything: {} (no arguments)
+• Browse SQL injection payloads: {"category": "sqli"}
+• Only critical XSS payloads: {"category": "xss", "severity": "Critical"}
+• High+ severity across all categories: {"severity": "High"}
+
+CATEGORIES: sqli, xss, traversal, auth, ssrf, ssti, cmdi, xxe, nosqli, graphql, cors, crlf, redirect, upload, jwt, oauth, prototype, deserialize
+SEVERITY (descending): Critical > High > Medium > Low
+
+Returns: total count, per-category breakdown, severity distribution, 5 sample payloads.`,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -171,25 +184,30 @@ func (s *Server) addDetectWAFTool() {
 		&mcp.Tool{
 			Name:  "detect_waf",
 			Title: "Detect WAF/CDN",
-			Description: `Detect the Web Application Firewall (WAF) and CDN protecting a target URL.
+			Description: `Fingerprint the WAF/CDN vendor protecting a target. This is step 1 of any engagement — run it FIRST.
 
-**When to use:** ALWAYS run this as the first step before any scanning or testing.
-Understanding the WAF helps you choose effective payloads and techniques.
+USE THIS TOOL WHEN:
+• Starting any new target — ALWAYS detect the WAF before scanning or bypassing
+• The user asks "what WAF is protecting this site?"
+• You need vendor-specific bypass hints before running 'bypass' or 'scan'
+• Verifying whether a target even has a WAF in front of it
 
-**When NOT to use:** If you already know the WAF vendor (user told you).
+DO NOT USE THIS TOOL WHEN:
+• The user already told you the WAF vendor (skip straight to 'scan' or 'bypass')
+• You want full attack surface mapping — use 'discover' instead
+• You want TLS/header/infra details without WAF focus — use 'probe' instead
 
-**Detection methods:**
-- Passive header analysis (Server, X-Powered-By, Via, etc.)
-- Active behavioral probing (sends benign trigger requests)
-- TLS fingerprinting and JARM analysis
-- CDN detection (Cloudflare, Akamai, Fastly, etc.)
+Sends ~20 benign probes + ~5 trigger requests. Very low impact. Takes 10-30 seconds.
+Covers 25+ WAF vendors with header analysis, behavioral probing, and TLS fingerprinting.
 
-**Supports 25+ WAF vendors:** ModSecurity, Coraza, Cloudflare, AWS WAF, Azure WAF,
-Akamai, Imperva, F5 BIG-IP, Fortinet, Barracuda, Sucuri, Google Cloud Armor,
-Wallarm, Signal Sciences, and more.
+EXAMPLE INPUTS:
+• Basic detection: {"target": "https://example.com"}
+• With custom timeout: {"target": "https://slow-site.com", "timeout": 30}
 
-Returns: WAF vendor, type (cloud/appliance/software), confidence level,
-CDN information, and specific bypass tips for the detected WAF.`,
+Returns: vendor name, confidence %, detection method, CDN info, and bypass tips.
+Known vendors: Cloudflare, AWS WAF, Azure WAF, Akamai, Imperva, ModSecurity, Coraza, F5 BIG-IP, Fortinet, Barracuda, Sucuri, Google Cloud Armor, Wallarm, and more.
+
+TYPICAL WORKFLOW: detect_waf → discover → learn → scan → bypass`,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -267,28 +285,33 @@ func (s *Server) addDiscoverTool() {
 		&mcp.Tool{
 			Name:  "discover",
 			Title: "Discover Attack Surface",
-			Description: `Crawl and map a target's attack surface by gathering endpoints from multiple sources.
+			Description: `Map the full attack surface of a target — endpoints, parameters, technologies, secrets. This is the deep recon tool.
 
-**When to use:** After detect_waf, before generating a test plan with 'learn'.
-This is the foundation for intelligent, targeted testing.
+USE THIS TOOL WHEN:
+• Starting a comprehensive assessment — run after 'detect_waf', before 'learn'
+• The user says "find all endpoints" or "map the attack surface" or "discover what's there"
+• You need to feed endpoint data into 'learn' to generate a targeted test plan
+• Testing a complex app with APIs, forms, JS files, and multiple paths
 
-**When NOT to use:** When the user already has a specific endpoint to test.
+DO NOT USE THIS TOOL WHEN:
+• The user already has a specific URL endpoint to test — use 'scan' directly
+• You only need quick infra info (TLS, headers) — use 'probe' instead
+• You only need to identify the WAF vendor — use 'detect_waf' instead
 
-**Discovery phases:**
-1. WAF/CDN detection
-2. Active path brute-forcing (common paths like /api, /admin, /login)
-3. External sources (robots.txt, sitemap.xml, Wayback Machine)
-4. Service-specific probing (if service preset specified)
-5. JavaScript analysis (API endpoints, secrets, DOM XSS sinks)
-6. API spec parsing (OpenAPI/Swagger, GraphQL introspection)
-7. HTML form extraction
-8. Link crawling with depth control
-9. Attack surface analysis and categorization
+Crawls the target using 9 discovery sources: robots.txt, sitemap.xml, JavaScript analysis, Wayback Machine, HTML forms, active path brute-forcing, service presets, API spec parsing, and link following. Takes 1-5 minutes.
 
-**Service presets:** authentik, n8n, immich, webapp, intranet
-Using a preset adds known endpoint patterns for that application type.
+EXAMPLE INPUTS:
+• Basic discovery: {"target": "https://app.example.com"}
+• Known service: {"target": "https://auth.example.com", "service": "authentik"}
+• Deep crawl: {"target": "https://big-app.com", "max_depth": 5, "concurrency": 20}
+• Self-signed cert: {"target": "https://internal.local", "skip_verify": true}
+• Passive only: {"target": "https://prod.com", "disable_active": true}
 
-Returns: discovered endpoints, parameters, technologies, secrets, attack surface analysis, and statistics.`,
+SERVICE PRESETS: authentik, n8n, immich, webapp, intranet — adds known endpoint patterns.
+
+Returns: endpoint list with methods/params, technologies, secrets found, WAF status, attack surface analysis.
+
+TYPICAL WORKFLOW: detect_waf → discover → learn → scan`,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -464,23 +487,28 @@ func (s *Server) addLearnTool() {
 		&mcp.Tool{
 			Name:  "learn",
 			Title: "Generate Test Plan",
-			Description: `Analyze discovery results and generate a prioritized, intelligent test plan.
+			Description: `Turn discovery results into a prioritized test plan. This is the brain between 'discover' and 'scan'.
 
-**When to use:** After 'discover', to create a targeted test plan for 'scan'.
-This bridges discovery and execution by mapping endpoints to attacks.
+USE THIS TOOL WHEN:
+• You just ran 'discover' and need to generate a smart test plan
+• The user wants an intelligent, endpoint-aware scan (not just blind payload spraying)
+• You want to prioritize which endpoints to test first based on risk
 
-**When NOT to use:** If you want to scan a single URL with manual category selection — use 'scan' directly.
+DO NOT USE THIS TOOL WHEN:
+• You want to scan a single known URL — use 'scan' directly with a category
+• You haven't run 'discover' yet — run that first to get the input JSON
+• You want WAF metrics/grades — use 'assess' instead
 
-**What it does:**
-1. Classifies endpoints by type (auth, API, admin, file upload, etc.)
-2. Maps each endpoint to relevant attack categories
-3. Assigns priorities: P1 (auth/injection) through P5 (fuzzing)
-4. Identifies injection points (query params, POST body, headers, cookies)
-5. Generates custom payloads for discovered parameters
-6. Calculates optimal concurrency and rate limit settings
+Takes raw discovery JSON and produces: endpoint-to-attack mappings, priority rankings (P1 auth/injection through P5 fuzzing), injection point identification (query, body, headers, cookies), custom payload selection per endpoint, and optimal concurrency settings.
 
-**Input:** Discovery results JSON (output of 'discover' tool).
-**Output:** Prioritized test plan with groups, endpoint mappings, and recommendations.`,
+EXAMPLE INPUTS:
+• From discovery output: {"discovery_json": "<paste raw JSON from discover tool>"}
+
+The input MUST be the raw JSON string output from the 'discover' tool. Pass it as a string, not an object.
+
+Returns: test groups, endpoint tests, priorities, category mappings, recommendations.
+
+TYPICAL WORKFLOW: detect_waf → discover → learn → scan`,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -544,34 +572,38 @@ func (s *Server) addScanTool() {
 		&mcp.Tool{
 			Name:  "scan",
 			Title: "WAF Security Scan",
-			Description: `Execute WAF security tests against a target URL using curated attack payloads.
+			Description: `Fire attack payloads at a target and see what the WAF blocks vs. lets through. This is the core scanning tool.
 
-**When to use:** To test whether a WAF correctly blocks known attack patterns and identify bypasses.
+USE THIS TOOL WHEN:
+• The user says "scan this", "test this URL", or "check if the WAF blocks SQLi"
+• You want to test specific attack categories against a known URL
+• You need a detection rate (% of attacks blocked) for a specific endpoint
+• Running targeted tests after 'discover' + 'learn' identified interesting endpoints
+• Quick validation: "does the WAF block XSS on /search?q=" — yes, use this
 
-**When NOT to use:**
-- For quantitative WAF assessment with metrics — use 'assess' instead.
-- For bypass-specific hunting with mutation matrix — use 'bypass' instead.
-- To just explore payloads — use 'list_payloads' instead.
+DO NOT USE THIS TOOL WHEN:
+• You need formal WAF grades/metrics (F1, MCC, FPR) — use 'assess' instead
+• You want to find bypass VARIANTS via encoding/mutation — use 'bypass' instead
+• You want to just encode a payload without testing it — use 'mutate' instead
+• You want to browse available payloads — use 'list_payloads' instead
 
-**How it works:**
-1. Loads attack payloads (optionally filtered by category/severity)
-2. Sends each payload to the target URL
-3. Classifies each response as Blocked/Fail/Error based on status code
-4. Streams progress notifications throughout execution
-5. Returns comprehensive summary with bypass details
+'scan' vs 'assess': scan gives you a detection rate and bypass list. assess gives you enterprise metrics (F1 score, false positive rate, MCC, letter grade). Use scan for quick checks, assess for formal reports.
+'scan' vs 'bypass': scan tests known payloads as-is. bypass applies the full mutation matrix (encoders x locations x evasions) to find WAF-evading variants.
 
-**Result outcomes:**
-- "Blocked": WAF correctly blocked the attack (good for WAF)
-- "Fail": Attack payload reached the application (bypass — security gap)
-- "Error": Network/connection issue (investigate)
-- "Pass": Benign payload was allowed through (expected)
+EXAMPLE INPUTS:
+• Quick SQLi scan: {"target": "https://example.com/search?q=test", "categories": ["sqli"]}
+• SQLi + XSS: {"target": "https://app.example.com", "categories": ["sqli", "xss"]}
+• All categories: {"target": "https://example.com"}
+• Critical only: {"target": "https://prod.com", "severity": "Critical", "rate_limit": 20}
+• Through Burp proxy: {"target": "https://example.com", "proxy": "http://127.0.0.1:8080"}
+• Production-safe: {"target": "https://prod.com", "concurrency": 5, "rate_limit": 10}
 
-**Results include:**
-- Per-payload status (via BypassDetails for failures)
-- Status code distribution and latency statistics
-- Bypass details with curl commands for reproduction
-- Category and severity breakdowns
-- Overall statistics and detection rate`,
+RESULT MEANINGS:
+• "Blocked" = WAF stopped the attack (good)
+• "Fail" = attack reached the app (BAD — this is a bypass)
+• "Error" = network issue (investigate connectivity)
+
+Returns: detection rate, total/blocked/failed counts, bypass details with reproduction info, latency stats.`,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -772,34 +804,32 @@ func (s *Server) addAssessTool() {
 		&mcp.Tool{
 			Name:  "assess",
 			Title: "Enterprise WAF Assessment",
-			Description: `Run a comprehensive WAF effectiveness assessment with quantitative security metrics.
+			Description: `Enterprise-grade WAF scoring with letter grades, F1/MCC metrics, and false positive measurement. The formal assessment tool.
 
-**When to use:** For formal WAF evaluation with grades, F1 scores, and compliance metrics.
-This is the gold standard for WAF assessment used in enterprise audits.
+USE THIS TOOL WHEN:
+• The user asks for a "WAF assessment", "WAF grade", or "WAF score"
+• You need quantitative metrics: F1 score, MCC, false positive rate, detection rate
+• Producing a formal report or compliance artifact
+• Comparing WAF vendors or configurations side-by-side
+• The user wants a letter grade (A through F) for their WAF
 
-**When NOT to use:**
-- For basic bypass testing — use 'scan' instead.
-- For quick WAF identification — use 'detect_waf' instead.
+DO NOT USE THIS TOOL WHEN:
+• Quick check on a single category — use 'scan' instead (much faster)
+• Looking for bypass variants via encoding — use 'bypass' instead
+• Just need to identify the WAF vendor — use 'detect_waf' instead
 
-**Assessment phases:**
-1. WAF vendor detection (if enabled)
-2. Load curated attack payloads (45+ built-in across 10 categories)
-3. Load false-positive corpus (benign traffic for FPR measurement)
-4. Execute attack tests — measure WAF blocking rate
-5. Execute FP tests — measure false positive rate
-6. Calculate enterprise metrics
+'assess' vs 'scan': assess runs a full rubric across all categories, measures false positives using a benign corpus, computes F1/MCC/FPR, and assigns a letter grade. scan just fires payloads and reports pass/fail. Use assess for formal evaluations, scan for targeted checks.
 
-**Metrics produced:**
-- Detection Rate (TPR/Recall): %% of attacks blocked
-- False Positive Rate (FPR): %% of legitimate traffic blocked
-- Precision: %% of blocks that were real attacks
-- F1 Score: Harmonic mean of precision & recall
-- F2 Score: Recall-weighted F-measure
-- MCC: Matthews Correlation Coefficient (-1 to +1)
-- Bypass Resistance: Detection rate under evasion techniques
-- Block Consistency: Variance across attack categories
+EXAMPLE INPUTS:
+• Standard assessment: {"target": "https://example.com"}
+• Specific categories: {"target": "https://example.com", "categories": ["sqli", "xss", "cmdi"]}
+• Skip false-positive testing (faster): {"target": "https://example.com", "enable_fp_testing": false}
+• Conservative (production): {"target": "https://prod.com", "rate_limit": 10, "concurrency": 3}
 
-**Grading scale:** A+ (exceptional) → F (failing)`,
+GRADING RUBRIC: A+ (>97%) → A (>93%) → B (>85%) → C (>70%) → D (>50%) → F (<50%)
+METRICS: Detection Rate, F1 Score (precision×recall balance), MCC (Matthews Correlation), FPR (false positive rate)
+
+Returns: letter grade, category scores, F1/MCC/FPR metrics, bypass list, per-category breakdown, improvement recommendations.`,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -941,25 +971,31 @@ func (s *Server) addMutateTool() {
 		&mcp.Tool{
 			Name:  "mutate",
 			Title: "Mutate Payloads",
-			Description: `Apply encoding and evasion mutations to attack payloads for WAF bypass testing.
+			Description: `Encode a payload string into WAF-evasion variants — URL, double-URL, Unicode, HTML hex. Offline encoding, no network traffic.
 
-**When to use:** When a payload is blocked by the WAF and you want to find an
-encoded variant that bypasses the rules. Use after 'scan' reveals blocked payloads.
+USE THIS TOOL WHEN:
+• A payload was blocked and the user wants to see how it looks in different encodings
+• The user says "encode this", "mutate this payload", or "show me evasion variants"
+• Inspecting what the mutation matrix would produce before testing live with 'bypass'
+• Preparing payloads for manual testing in Burp Suite or curl
 
-**When NOT to use:** For systematic bypass testing across the full mutation matrix
-— use 'bypass' instead (it tests mutations against the target automatically).
+DO NOT USE THIS TOOL WHEN:
+• You want to also TEST the mutations against a WAF — use 'bypass' instead (it mutates AND tests)
+• You want to scan a target — use 'scan' instead
+• You want to browse the payload catalog — use 'list_payloads' instead
 
-**Available encoders:**
-- url: Standard URL encoding (%%27, %%20, etc.)
-- double_url: Double URL encoding (%%2527, %%2520)
-- unicode: Unicode escapes (\u0027, \u0020)
-- html_hex: HTML hex entities (&#x27;, &#x20;)
+'mutate' vs 'bypass': mutate is offline — it shows you what the encodings look like. bypass is online — it encodes AND fires them at a target to find what passes. mutate = preview, bypass = execute.
 
-**Why these work:**
-- URL encoding: bypasses WAFs that inspect decoded values but allow encoded forms
-- Double encoding: bypasses WAFs that decode once but backends decode twice
-- Unicode: bypasses WAFs with ASCII-only rule matching
-- HTML hex: works in browser-rendered contexts when WAFs miss hex entities`,
+EXAMPLE INPUTS:
+• URL-encode a SQLi payload: {"payload": "' OR 1=1--", "encoders": ["url"]}
+• Try multiple encodings: {"payload": "<script>alert(1)</script>", "encoders": ["url", "double_url", "unicode", "html_hex"]}
+• All available encoders: {"payload": "{{7*7}}"}
+• HTML hex encoding: {"payload": "<img src=x onerror=alert(1)>", "encoders": ["html_hex"]}
+
+AVAILABLE ENCODERS: url, double_url, unicode, html_hex
+If encoders is omitted, ALL are applied.
+
+Returns: list of {encoder, encoded_payload} pairs ready for copy-paste testing.`,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -1116,27 +1152,31 @@ func (s *Server) addBypassTool() {
 		&mcp.Tool{
 			Name:  "bypass",
 			Title: "WAF Bypass Finder",
-			Description: `Systematically test payload mutations against a target to discover WAF bypasses.
+			Description: `Hunt for WAF bypasses by testing payload mutations against a live target. The mutation matrix engine.
 
-**When to use:** When you know payloads are blocked and want to find encoding/evasion
-combinations that bypass the WAF rules. This is the advanced bypass hunting tool.
+USE THIS TOOL WHEN:
+• A 'scan' found blocks and now you want encoding/mutation variants that evade the WAF
+• The user says "find bypasses", "evade the WAF", or "can we get past the rules?"
+• Red team engagement — you need to prove exploitability, not just detect coverage
+• Testing a specific rule: "bypass the SQLi detection"
 
-**When NOT to use:**
-- For initial scanning — use 'scan' first.
-- For manual encoding inspection — use 'mutate' instead.
+DO NOT USE THIS TOOL WHEN:
+• You haven't scanned yet — use 'scan' first to establish a baseline
+• You just want to SEE encoded variants without testing — use 'mutate' instead
+• You want a WAF grade — use 'assess' instead
 
-**How it works:**
-1. Takes a list of raw attack payloads
-2. Applies all encoder × location × evasion combinations (mutation matrix)
-3. Tests each mutation against the target
-4. Reports which mutations bypass the WAF and which are blocked
+'bypass' vs 'scan': scan fires known payloads as-is. bypass takes payloads, generates mutations (encoder x location x evasion), and tests each one to find what the WAF misses. bypass is heavier, slower, and more thorough.
+'bypass' vs 'mutate': mutate shows you the encodings offline. bypass encodes AND fires them at the target to find actual bypasses.
 
-**Mutation matrix components:**
-- Encoders: url, double_url, html_hex, unicode, hex, and more
-- Locations: query_param, post_form, post_json, header, cookie, path
-- Evasions: case_swap, sql_comment, null_byte, whitespace, concat
+Mutation Matrix: For each payload, bypass tries multiple encoders (url, double_url, html_hex, unicode, hex) x injection locations (query_param, post_form, post_json, header, cookie, path) x evasion techniques (case_swap, sql_comment, null_byte, whitespace, concat). This exponential combination is what finds bypasses.
 
-Returns: Found bypasses with the specific encoding chain, bypass rate, and reproduction details.`,
+EXAMPLE INPUTS:
+• Hunt SQLi bypasses: {"target": "https://example.com/search?q=test", "payloads": ["' OR 1=1--", "1 UNION SELECT null--"]}
+• XSS bypass: {"target": "https://example.com", "payloads": ["<script>alert(1)</script>", "<img src=x onerror=alert(1)>"]}
+• Stealth mode: {"target": "https://example.com", "payloads": ["' OR 1=1--"], "rate_limit": 5, "concurrency": 2}
+• Self-signed cert: {"target": "https://internal.app", "payloads": ["{{7*7}}"], "skip_verify": true}
+
+Returns: successful bypasses with exact payload + encoding + location, total mutations tested, bypass rate, reproduction details.`,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -1251,21 +1291,29 @@ func (s *Server) addProbeTool() {
 		&mcp.Tool{
 			Name:  "probe",
 			Title: "Probe Infrastructure",
-			Description: `Perform lightweight infrastructure probing on a target URL.
+			Description: `Quick infra check — TLS config, security headers, server fingerprinting. No attack traffic. Read-only recon.
 
-**When to use:** For quick reconnaissance — TLS configuration, technology
-fingerprinting, and security headers. Does not send attack traffic.
+USE THIS TOOL WHEN:
+• The user asks "is this site up?" or "what TLS version?" or "check security headers"
+• You need to verify a target is reachable before scanning
+• Fingerprinting the server (Apache, Nginx, IIS, etc.) or technology stack
+• Checking HSTS, CSP, X-Frame-Options, or other security headers
+• Quick tech recon without any invasive testing
 
-**When NOT to use:** For comprehensive discovery — use 'discover' instead.
+DO NOT USE THIS TOOL WHEN:
+• You need full attack surface mapping — use 'discover' instead (probe just reads headers)
+• You need to identify the WAF vendor — use 'detect_waf' instead (probe doesn't do WAF fingerprinting)
+• You want to test for vulnerabilities — use 'scan' or 'assess' instead
 
-**Probe capabilities:**
-- HTTP availability and status code
-- TLS version and cipher suite analysis
-- Server technology fingerprinting (Server header, X-Powered-By)
-- Security header check (HSTS, CSP, X-Frame-Options, etc.)
-- Redirect chain analysis
+'probe' vs 'detect_waf': probe gives you TLS, headers, server info. detect_waf sends trigger requests to identify the WAF product. They are complementary but distinct.
+'probe' vs 'discover': probe makes 1-2 requests and reads headers. discover crawls the entire site with 9 discovery sources. Scope difference: single page vs entire app.
 
-Returns a structured probe report with all findings.`,
+EXAMPLE INPUTS:
+• Basic probe: {"target": "https://example.com"}
+• Self-signed cert: {"target": "https://internal.dev", "skip_verify": true}
+• Slow target: {"target": "https://slow-site.com", "timeout": 30}
+
+Returns: HTTP status, server header, TLS version + cipher suite, security headers (HSTS, CSP, etc.), response time, redirect chain, technology hints.`,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -1473,20 +1521,32 @@ func (s *Server) addGenerateCICDTool() {
 		&mcp.Tool{
 			Name:  "generate_cicd",
 			Title: "Generate CI/CD Pipeline",
-			Description: `Generate a CI/CD pipeline configuration for automated WAF security testing.
+			Description: `Generate a ready-to-use CI/CD pipeline config for automated WAF testing. Copy-paste output into your repo.
 
-**When to use:** When the user wants to integrate WAF testing into their CI/CD workflow.
-Creates ready-to-use pipeline configurations.
+USE THIS TOOL WHEN:
+• The user says "set up CI/CD for WAF testing" or "GitHub Actions for WAF" or "automate this"
+• Creating recurring WAF regression tests that run on push/schedule
+• Integrating WAF checks into an existing deployment pipeline
 
-**Supported platforms:**
-- GitHub Actions
-- GitLab CI
-- Jenkins (Jenkinsfile)
-- Azure DevOps
-- CircleCI
-- Bitbucket Pipelines
+DO NOT USE THIS TOOL WHEN:
+• You want to run a scan right now — use 'scan' or 'assess' instead
+• You want to detect the WAF — use 'detect_waf' instead
+• You need discovery or recon — use 'discover' instead
 
-Returns: Complete pipeline configuration YAML/script as a string.`,
+This is OFFLINE code generation. No network requests to any target. Produces a complete, ready-to-commit YAML/Groovy pipeline file for the chosen platform.
+
+EXAMPLE INPUTS:
+• GitHub Actions: {"platform": "github", "target": "https://staging.example.com", "scan_types": ["sqli", "xss"]}
+• GitLab CI: {"platform": "gitlab", "target": "https://app.example.com"}
+• Jenkins: {"platform": "jenkins", "target": "https://internal.app"}
+• Azure DevOps: {"platform": "azure-devops", "target": "https://myapp.azurewebsites.net"}
+• CircleCI: {"platform": "circleci", "target": "https://api.example.com", "scan_types": ["sqli"]}
+• Bitbucket: {"platform": "bitbucket", "target": "https://example.com"}
+• With schedule: {"platform": "github", "target": "https://example.com", "schedule": "0 2 * * 1"}
+
+PLATFORMS: github, gitlab, jenkins, azure-devops, circleci, bitbucket
+
+Returns: complete pipeline YAML/Groovy, ready to paste into your repo and commit.`,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
