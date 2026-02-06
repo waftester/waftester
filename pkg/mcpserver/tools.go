@@ -13,6 +13,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/waftester/waftester/pkg/assessment"
 	"github.com/waftester/waftester/pkg/core"
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/discovery"
 	"github.com/waftester/waftester/pkg/learning"
 	"github.com/waftester/waftester/pkg/mutation"
@@ -697,7 +698,7 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	}
 
 	if args.Concurrency <= 0 {
-		args.Concurrency = 10
+		args.Concurrency = defaults.ConcurrencyMedium
 	}
 	if args.RateLimit <= 0 {
 		args.RateLimit = 50
@@ -1256,7 +1257,7 @@ func (s *Server) handleBypass(ctx context.Context, req *mcp.CallToolRequest) (*m
 	}
 
 	if args.Concurrency <= 0 {
-		args.Concurrency = 5
+		args.Concurrency = defaults.ConcurrencyLow
 	}
 	if args.RateLimit <= 0 {
 		args.RateLimit = 10
