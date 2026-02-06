@@ -2,14 +2,28 @@
 
 This guide provides comprehensive usage examples for WAFtester, organized by use case and command category. Each example includes context on when to use the command, what value it provides, and expected output formats.
 
-**Document Version:** 2.6.5  
+**Document Version:** 2.6.8  
 **Last Updated:** February 2026
 
 ---
 
+> **🆕 What's New in v2.6.8**
+>
+> - **XML Export** — Legacy XML output with WASC/CWE compliance mapping ([details](#xml-export-v268))
+> - **Elasticsearch SIEM** — Stream results to Elasticsearch for centralized monitoring ([details](#elasticsearch-siem-integration-v268))
+> - **GitHub Issues** — Auto-create issues from WAF bypasses ([details](#github-issues-integration-v268))
+> - **Azure DevOps** — Auto-create work items with severity mapping ([details](#azure-devops-integration-v268))
+> - **Historical Trend Analysis** — Track WAF effectiveness over time with scan history ([details](#historical-trend-analysis-v268))
+> - **Template Configuration** — YAML-based report customization with branding ([details](#template-configuration-v268))
+> - **Intelligence Engine** — AI-powered bypass prediction with cognitive modules ([details](#intelligence-engine-v265))
+> - **10 Real-World Playbooks** — Complete assessment workflows ([jump to playbooks](#real-world-playbooks))
+
 ## Table of Contents
 
 - [Quick Start](#quick-start)
+  - [Choose Your Path](#choose-your-path)
+- [Why WAFtester?](#why-waftester)
+  - [Coming from Another Tool?](#coming-from-another-tool)
 - [Core Commands](#core-commands)
   - [Automated Scanning (auto)](#automated-scanning-auto)
   - [Enterprise Assessment (assess)](#enterprise-assessment-assess)
@@ -41,6 +55,8 @@ This guide provides comprehensive usage examples for WAFtester, organized by use
   - [Injection Locations](#injection-locations)
   - [Protocol Mutations](#protocol-mutations)
 - [Smart Mode](#smart-mode)
+- [Intelligence Engine (v2.6.5)](#intelligence-engine-v265)
+- [Integration Overview (v2.5.0+)](#integration-overview-v250)
 - [Output Formats](#output-formats)
   - [HTML Reports with Themes](#html-reports-with-themes-v250)
   - [Markdown with Enhanced Features](#markdown-with-enhanced-features-v250)
@@ -50,6 +66,12 @@ This guide provides comprehensive usage examples for WAFtester, organized by use
   - [Enterprise Integrations](#enterprise-integrations-v250)
   - [JUnit XML Reports](#junit-xml-reports-v250)
   - [CycloneDX VEX Reports](#cyclonedx-vex-reports-v250)
+  - [XML Export](#xml-export-v268)
+  - [Elasticsearch SIEM Integration](#elasticsearch-siem-integration-v268)
+  - [GitHub Issues Integration](#github-issues-integration-v268)
+  - [Azure DevOps Integration](#azure-devops-integration-v268)
+  - [Historical Trend Analysis](#historical-trend-analysis-v268)
+  - [Template Configuration](#template-configuration-v268)
   - [Real-time Alerting Hooks](#real-time-alerting-hooks-v250)
   - [GitHub Actions Integration](#github-actions-integration-v250)
   - [OpenTelemetry Tracing](#opentelemetry-tracing-v250)
@@ -86,8 +108,20 @@ This guide provides comprehensive usage examples for WAFtester, organized by use
   - [CI/CD Generator (cicd)](#cicd-generator-cicd)
   - [Plugin Manager (plugin)](#plugin-manager-plugin)
   - [Cloud Discovery (cloud)](#cloud-discovery-cloud)
+- [Troubleshooting](#troubleshooting)
 - [Attack Categories Reference](#attack-categories-reference)
-- [Real-World Scenarios](#real-world-scenarios)
+- [Real-World Playbooks](#real-world-playbooks)
+  - [Playbook 1: New Client Assessment](#playbook-1-new-client--first-waf-assessment)
+  - [Playbook 2: CI/CD Pipeline](#playbook-2-cicd-pipeline--block-deploys-on-waf-regression)
+  - [Playbook 3: WAF Vendor Comparison](#playbook-3-waf-vendor-comparison--cloudflare-vs-aws-waf)
+  - [Playbook 4: WordPress Site](#playbook-4-wordpress-site-behind-waf)
+  - [Playbook 5: API-First Application](#playbook-5-api-first-application-graphql--rest)
+  - [Playbook 6: Post-Incident Verification](#playbook-6-post-incident--verify-waf-rule-fix)
+  - [Playbook 7: Bug Bounty](#playbook-7-bug-bounty--quick-waf-bypass-discovery)
+  - [Playbook 8: Production Monitoring](#playbook-8-production-monitoring--continuous-waf-health)
+  - [Playbook 9: Compliance Audit](#playbook-9-compliance-audit--pci-dss--soc-2)
+  - [Playbook 10: Multi-Region Assessment](#playbook-10-multi-region--multi-cdn-assessment)
+- [Getting Help](#getting-help)
 
 ---
 
@@ -105,6 +139,76 @@ Before running any WAFtester command, ensure:
 | **Permissions** | Written authorization to test the target. WAFtester sends attack payloads. |
 | **Resources** | ~500MB RAM, stable internet connection (50+ req/sec capability) |
 | **Target State** | Target must be accessible and responding. Test with `waf-tester probe -u URL` first. |
+
+### Choose Your Path
+
+Not sure where to start? Pick your role for a curated workflow.
+
+<details>
+<summary><strong>🔧 DevSecOps / CI/CD Engineer</strong> — Integrate WAF testing into pipelines</summary>
+
+| Step | Command | Time | Purpose |
+|------|---------|------|---------|
+| 1 | `waf-tester probe -u $TARGET` | 10s | Verify target is reachable |
+| 2 | `waf-tester scan -u $TARGET -category sqli,xss --stream -format sarif -o results.sarif` | 3-5m | SARIF output for GitHub/GitLab Security tab |
+| 3 | Check exit code: non-zero = bypasses found | — | Gate deployment on WAF effectiveness |
+
+**Jump to:** [CI/CD Integration](#cicd-integration) · [Output Formats](#output-formats) · [Playbook: CI/CD Pipeline](#playbook-2-cicd-pipeline--block-deploys-on-waf-regression)
+
+</details>
+
+<details>
+<summary><strong>🔴 Penetration Tester / Red Team</strong> — Find WAF bypasses and prove exploitability</summary>
+
+| Step | Command | Time | Purpose |
+|------|---------|------|---------|
+| 1 | `waf-tester vendor -u $TARGET` | 15s | Identify WAF vendor + bypass hints |
+| 2 | `waf-tester bypass -u $TARGET --smart --tamper-auto` | 10-20m | Automated bypass discovery |
+| 3 | `waf-tester mutate -u $TARGET -mutation full -chain` | 15-30m | Full mutation matrix for manual deepdive |
+| 4 | `waf-tester scan -u $TARGET --smart -format html -ie -ir` | 5m | Evidence collection for report |
+
+**Jump to:** [Bypass Hunting](#bypass-hunting-bypass) · [Mutation Engine](#mutation-engine) · [Tamper Scripts](#tamper-scripts) · [Playbook: Bug Bounty](#playbook-7-bug-bounty--quick-waf-bypass-discovery)
+
+</details>
+
+<details>
+<summary><strong>🏢 Security Architect / CISO</strong> — Vendor comparison and compliance metrics</summary>
+
+| Step | Command | Time | Purpose |
+|------|---------|------|---------|
+| 1 | `waf-tester assess -u $TARGET -fp -corpus builtin,leipzig` | 5-10m | Quantitative WAF metrics (TPR, FPR, F1, MCC) |
+| 2 | `waf-tester report -workspace ./workspace -format pdf` | 1m | Board-ready PDF report |
+| 3 | Schedule with `--metrics-port=9090` + Grafana | Ongoing | Track WAF effectiveness trends |
+
+**Jump to:** [Enterprise Assessment](#enterprise-assessment-assess) · [Prometheus Metrics](#prometheus-metrics-integration-v250) · [Playbook: Vendor Comparison](#playbook-3-waf-vendor-comparison--cloudflare-vs-aws-waf)
+
+</details>
+
+<details>
+<summary><strong>🧪 QA / AppSec Engineer</strong> — Validate WAF rules, measure false positives, regression test</summary>
+
+| Step | Command | Time | Purpose |
+|------|---------|------|---------|
+| 1 | `waf-tester fp -u $TARGET -corpus builtin` | 2-3m | Baseline false positive rate |
+| 2 | `waf-tester scan -u $TARGET -category sqli -ip "/api/v2"` | 2m | Targeted regression test |
+| 3 | Compare JSON outputs with `jq` | — | Quantify WAF rule change impact |
+
+**Jump to:** [False Positive Testing](#false-positive-testing-fp) · [Vulnerability Scanning](#vulnerability-scanning-scan) · [Playbook: Post-Incident Verify](#playbook-6-post-incident--verify-waf-rule-fix)
+
+</details>
+
+<details>
+<summary><strong>🔍 Bug Bounty Hunter</strong> — Quick recon and WAF evasion for finding bypasses fast</summary>
+
+| Step | Command | Time | Purpose |
+|------|---------|------|---------|
+| 1 | `waf-tester auto -u $TARGET --smart -c 50 -rl 100` | 5-15m | Full automated assessment |
+| 2 | `waf-tester analyze -u $TARGET` | 1-2m | Find hidden endpoints and secrets in JS |
+| 3 | `waf-tester bypass -u $TARGET --smart --tamper-auto -category sqli,xss` | 10m | Focused bypass hunting |
+
+**Jump to:** [Automated Scanning](#automated-scanning-auto) · [JavaScript Analysis](#javascript-analysis-analyze) · [Playbook: Bug Bounty](#playbook-7-bug-bounty--quick-waf-bypass-discovery)
+
+</details>
 
 ### One-Command Assessment
 
@@ -267,9 +371,147 @@ waf-tester run -plan testplan.json -format html -o report.html
 
 ---
 
+## Why WAFtester?
+
+| Capability | WAFtester | Nuclei | FFUF | sqlmap | Burp Suite |
+|-----------|:---------:|:------:|:----:|:------:|:----------:|
+| WAF Detection (197+ vendors) | ✅ | ❌ | ❌ | ❌ | Partial |
+| Smart Mode (WAF-aware testing) | ✅ | ❌ | ❌ | Partial | ✅ |
+| Mutation Matrix (16×13×10 = 2,080 variants) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| False Positive Measurement | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Quantitative Metrics (TPR/FPR/F1/MCC) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Bypass Hunting with Chaining | ✅ | ❌ | ❌ | Partial | ✅ |
+| Intelligence Engine / Brain Mode | ✅ | Partial | ❌ | ❌ | ❌ |
+| Tamper Scripts (75+) | ✅ | ❌ | ❌ | ✅ | Partial |
+| CI/CD Integration (10+ platforms) | ✅ | ✅ | ❌ | ❌ | ✅ |
+| Protocol Testing (GraphQL/gRPC/SOAP) | ✅ | ✅ | ❌ | ❌ | ✅ |
+| Enterprise Reporting (PDF/HTML/SARIF) | ✅ | Partial | ❌ | ❌ | ✅ |
+| Open Source / CLI-first | ✅ | ✅ | ✅ | ✅ | ❌ |
+| One-command full assessment | ✅ | ❌ | ❌ | ❌ | ❌ |
+
+### Coming from Another Tool?
+
+<details>
+<summary><strong>Coming from sqlmap?</strong></summary>
+
+sqlmap focuses on SQL injection exploitation. WAFtester focuses on WAF testing across all attack categories.
+
+| sqlmap Command | WAFtester Equivalent | What's Different |
+|---------------|---------------------|-----------------|
+| `sqlmap -u URL` | `waf-tester scan -u URL -category sqli` | Tests WAF detection, not DB exploitation |
+| `sqlmap --tamper=space2comment` | `waf-tester scan --tamper=space2comment` | Same syntax! Plus 75+ tamper scripts |
+| `sqlmap --level 5 --risk 3` | `waf-tester bypass --smart -mutation full` | Full mutation matrix (2,080 variants) |
+| `sqlmap --batch --crawl=3` | `waf-tester auto -u URL --smart` | Full pipeline: crawl + scan + report |
+| `sqlmap --dbs --dump` | N/A | WAFtester tests the WAF, not the database |
+
+**Key difference:** sqlmap exploits SQL injection through WAFs. WAFtester measures WAF effectiveness across 50+ attack categories and finds bypasses in all of them.
+
+</details>
+
+<details>
+<summary><strong>Coming from Nuclei?</strong></summary>
+
+Nuclei focuses on known vulnerability detection via templates. WAFtester focuses on WAF bypass and effectiveness.
+
+| Nuclei Command | WAFtester Equivalent | What's Different |
+|---------------|---------------------|-----------------|
+| `nuclei -u URL` | `waf-tester auto -u URL --smart` | WAF-aware, adapts to detected WAF |
+| `nuclei -t cves/` | `waf-tester template -t templates/` | Compatible YAML template format |
+| `nuclei -severity critical,high` | `waf-tester scan -msev critical,high` | Same severity filtering |
+| `nuclei -rate-limit 100` | `waf-tester scan -rl 100` | Same rate limiting concept |
+| `nuclei -cloud` | `waf-tester scan --metrics-port=9090` | Prometheus/Grafana instead of SaaS |
+
+**Key difference:** Nuclei finds **vulnerabilities**. WAFtester finds **WAF bypasses** and measures WAF effectiveness. Use both: Nuclei for vuln scanning, WAFtester for WAF assessment.
+
+</details>
+
+<details>
+<summary><strong>Coming from FFUF?</strong></summary>
+
+FFUF focuses on web fuzzing. WAFtester has a compatible `fuzz` command plus full security assessment.
+
+| FFUF Command | WAFtester Equivalent | What's Different |
+|-------------|---------------------|-----------------|
+| `ffuf -w wordlist -u URL/FUZZ` | `waf-tester fuzz -u URL/FUZZ -w wordlist` | Same concept, WAF-aware |
+| `ffuf -mc 200 -fc 404` | `waf-tester fuzz -mc 200 -fc 404` | Identical syntax |
+| `ffuf -mode clusterbomb` | `waf-tester fuzz -mode clusterbomb` | Same fuzzing modes |
+| `ffuf -ac` | `waf-tester fuzz -ac` | Same auto-calibration |
+
+**Key difference:** WAFtester's `fuzz` works like FFUF but adds WAF detection and evasion. If fuzzing through a WAF, WAFtester auto-applies tampers to avoid false 403s.
+
+**Bonus:** WAFtester has 40+ other commands FFUF doesn't have — assessment, bypass hunting, mutation testing, protocol testing, and more.
+
+</details>
+
+<details>
+<summary><strong>Coming from Burp Suite?</strong></summary>
+
+Burp Suite is GUI-first with proxy intercept. WAFtester is CLI-first with automation focus.
+
+| Burp Suite Feature | WAFtester Equivalent | Notes |
+|-------------------|---------------------|-------|
+| Spider/Crawler | `waf-tester crawl -u URL --browser` | Automated, no manual browsing |
+| Scanner | `waf-tester auto -u URL --smart` | Full pipeline, CLI-native |
+| Intruder (payload sets) | `waf-tester fuzz` + `mutate` | 2,800+ built-in attack payloads |
+| Extensions | `waf-tester plugin install NAME` | Plugin ecosystem |
+| Repeater | N/A (use `curl`) | WAFtester focuses on automation |
+| SARIF export | `waf-tester scan -format sarif` | Native CI/CD integration |
+
+**Key difference:** Burp Suite requires manual interaction and a GUI. WAFtester runs fully automated from CLI, making it ideal for CI/CD, batch testing, and scriptable workflows.
+
+</details>
+
+---
+
 ## Core Commands
 
 This section covers the primary commands for WAF security testing. Each command serves a specific purpose in the assessment lifecycle.
+
+### Which Command Do I Need?
+
+```mermaid
+flowchart TD
+    A["🎯 What's your goal?"] --> B{"Full assessment?"}
+    B -->|"Yes, automated"| C["<strong>auto</strong><br/>Full pipeline: detect → discover → scan → report"]
+    B -->|"Yes, with metrics"| D["<strong>assess</strong><br/>Quantitative WAF scores: TPR/FPR/F1"]
+    B -->|"No, targeted"| E{"What specifically?"}
+
+    E --> F{"Find vulnerabilities?"}
+    F -->|"Specific categories"| G["<strong>scan -category X</strong><br/>Surgical testing: sqli, xss, rce, etc."]
+    F -->|"All categories"| H["<strong>scan -types all</strong><br/>Full coverage: 50+ categories"]
+
+    E --> I{"Find WAF bypasses?"}
+    I -->|"Automated"| J["<strong>bypass --smart</strong><br/>Smart bypass with auto-tampers"]
+    I -->|"Manual mutation"| K["<strong>mutate -mutation full</strong><br/>16 encoders × 13 locations × 10 evasions"]
+
+    E --> L{"Identify WAF vendor?"}
+    L --> M["<strong>vendor</strong><br/>197+ WAF signatures + bypass hints"]
+
+    E --> N{"Measure false positives?"}
+    N --> O["<strong>fp -corpus builtin</strong><br/>Benign traffic → FPR calculation"]
+
+    E --> P{"Fuzz paths/params?"}
+    P --> Q["<strong>fuzz -u URL/FUZZ</strong><br/>FFUF-compatible directory/param fuzzing"]
+
+    E --> R{"API protocol testing?"}
+    R --> S{"Which protocol?"}
+    S -->|GraphQL| T["<strong>scan -types graphql</strong>"]
+    S -->|gRPC| U["<strong>grpc --fuzz</strong>"]
+    S -->|SOAP| V["<strong>soap --fuzz</strong>"]
+    S -->|REST/OpenAPI| W["<strong>openapi --fuzz</strong>"]
+
+    style C fill:#e8f5e9
+    style D fill:#e8f5e9
+    style G fill:#e3f2fd
+    style H fill:#e3f2fd
+    style J fill:#fce4ec
+    style K fill:#fce4ec
+    style M fill:#fff3e0
+    style O fill:#f3e5f5
+    style Q fill:#e0f2f1
+```
+
+> **Still not sure?** Start with `waf-tester auto -u https://YOUR_TARGET --smart` — it runs the full pipeline automatically.
 
 **Command Selection Guide:**
 
@@ -291,6 +533,46 @@ This section covers the primary commands for WAF security testing. Each command 
 **TL;DR:** `waf-tester auto -u https://example.com --smart` — Full assessment in 5-15 minutes
 
 The `auto` command chains discovery, JavaScript analysis, test planning, execution, and reporting phases automatically. It's the recommended starting point for most assessments.
+
+#### Complexity Tiers
+
+> **📋 Copy-Paste Ready** — 90% of users need exactly this:
+> ```bash
+> waf-tester auto -u https://YOUR_TARGET --smart
+> ```
+
+##### 🟢 Beginner — Just works, zero configuration
+```bash
+# "I just want to test this site"
+waf-tester auto -u https://target.com
+```
+*Runs full pipeline: WAF detect → crawl → scan → report. Output in ./waf-assessment-*/*
+
+##### 🟡 Intermediate — Smart mode with output control
+```bash
+# "I want smart WAF evasion and JSON output"
+waf-tester auto -u https://target.com \
+  --smart \
+  -format json,html \
+  -o results.json
+```
+*Smart mode auto-detects WAF and selects optimal bypass strategies*
+
+##### 🔴 Advanced — Full control over every parameter
+```bash
+# "I'm a pro — give me everything"
+waf-tester auto -u https://target.com \
+  --smart --smart-mode=full \
+  --browser \
+  --tamper-auto \
+  -c 100 -rl 500 \
+  -service wordpress \
+  -format html,json,sarif \
+  -o ./full-assessment \
+  --slack-webhook=$SLACK_URL \
+  --metrics-port=9090
+```
+*Full-power scan with browser rendering, parallel workers, multi-format output, and real-time alerts*
 
 #### Prerequisites
 
@@ -496,6 +778,8 @@ waf-tester auto -u https://store.com -service nextjs
 | Very slow (>30 min) | Large target or slow network | Increase `-c 100`, or use `scan` for specific categories |
 | Low bypass rate (0%) | WAF not in path, or very strict | Verify WAF presence with `vendor` command |
 
+> **See Also:** [Smart Mode](#smart-mode) · [Tamper Scripts](#tamper-scripts) · [Intelligence Engine](#intelligence-engine-v265) · [Playbook: New Client](#playbook-1-new-client--first-waf-assessment)
+
 ---
 
 ### Enterprise Assessment (assess)
@@ -505,6 +789,40 @@ waf-tester auto -u https://store.com -service nextjs
 **TL;DR:** `waf-tester assess -u https://example.com -fp` — Statistical WAF scores with false positive testing
 
 The `assess` command produces objective, reproducible metrics (detection rate, false positive rate, F1 score) that enable data-driven decisions about WAF configuration and vendor selection.
+
+#### Complexity Tiers
+
+> **📋 Copy-Paste Ready:**
+> ```bash
+> waf-tester assess -u https://YOUR_TARGET -fp -corpus builtin
+> ```
+
+##### 🟢 Beginner — Quick detection rate check
+```bash
+waf-tester assess -u https://target.com
+```
+*Quick detection rate check — sends ~2,800 attack payloads, shows TPR.*
+
+##### 🟡 Intermediate — Full assessment with JSON export
+```bash
+waf-tester assess -u https://target.com \
+  -fp -corpus builtin \
+  -format json -o assessment.json
+```
+*Full assessment with false positive measurement and JSON export for tracking.*
+
+##### 🔴 Advanced — Compliance-grade multi-format reports
+```bash
+waf-tester assess -u https://target.com \
+  -fp -corpus "builtin,leipzig" \
+  -categories sqli,xss,rce,ssrf,ssti \
+  --smart \
+  -format html,json,pdf \
+  -o ./compliance-report \
+  --threshold 90 \
+  --metrics-port=9090
+```
+*Compliance-grade assessment with custom categories, multi-format reports, quality thresholds, and Prometheus metrics.*
 
 #### Prerequisites
 
@@ -650,6 +968,16 @@ waf-tester assess -u https://example.com -fp -corpus "builtin,leipzig"
 waf-tester assess -u https://example.com -fp -corpus /path/to/benign-requests.txt
 ```
 
+#### With Streaming Output
+
+Stream results in real-time for CI/CD pipeline integration:
+
+```bash
+waf-tester assess -u https://example.com --stream -format json -o report.json
+```
+
+*Enables early failure detection without waiting for complete assessment.*
+
 #### Decision Guide
 
 | Your Goal | Command | Why |
@@ -669,6 +997,8 @@ waf-tester assess -u https://example.com -fp -corpus /path/to/benign-requests.tx
 | Metrics fluctuating | Inconsistent WAF responses | Increase `-retries 5`, reduce `-rl` |
 | Long runtime (>20 min) | Large corpus or slow target | Use smaller corpus, increase `-c` |
 
+> **See Also:** [False Positive Testing](#false-positive-testing-fp) · [Output Formats](#output-formats) · [Playbook: Vendor Comparison](#playbook-3-waf-vendor-comparison--cloudflare-vs-aws-waf) · [Playbook: Compliance Audit](#playbook-9-compliance-audit--pci-dss--soc-2)
+
 ---
 
 ### Vulnerability Scanning (scan)
@@ -678,6 +1008,42 @@ waf-tester assess -u https://example.com -fp -corpus /path/to/benign-requests.tx
 **TL;DR:** `waf-tester scan -u https://target.com -category sqli,xss` — Focused testing in 2-5 minutes
 
 Unlike `auto`, the `scan` command offers surgical precision for testing specific vulnerability classes, making it ideal for follow-up testing, regression validation, and category-specific compliance.
+
+#### Complexity Tiers
+
+> **📋 Copy-Paste Ready:**
+> ```bash
+> waf-tester scan -u https://YOUR_TARGET -category sqli,xss --smart
+> ```
+
+##### 🟢 Beginner — Default categories, instant results
+```bash
+waf-tester scan -u https://target.com
+```
+*Tests default categories (sqli, xss, traversal, rce). Results printed to console.*
+
+##### 🟡 Intermediate — Targeted categories with JSON export
+```bash
+waf-tester scan -u https://target.com \
+  -category sqli,xss,rce \
+  --smart \
+  -format json \
+  -o scan-results.json
+```
+*Targeted categories with WAF-aware testing and JSON export.*
+
+##### 🔴 Advanced — Full control with evasion and alerting
+```bash
+waf-tester scan -u https://target.com \
+  -category sqli,xss,rce,ssrf,ssti \
+  --smart --tamper-auto --tamper-profile=aggressive \
+  -c 50 -rl 200 \
+  -msev critical,high \
+  -ip "/api/" -ep "logout|health" \
+  -format sarif -o results.sarif \
+  --slack-webhook=$SLACK_URL
+```
+*Full control: categories, evasion, concurrency, severity filter, path scope, SARIF output, and alerts.*
 
 #### Prerequisites
 
@@ -816,194 +1182,6 @@ waf-tester scan -u https://target.com -ip "api/v2"
 waf-tester scan -u https://target.com -et info,techdetect
 ```
 
-#### Multiple Targets
-
-```bash
-# From file
-waf-tester scan -l targets.txt -c 50
-
-# With same options for all
-waf-tester scan -l targets.txt -category sqli --smart -o results.json
-```
-
-#### Decision Guide
-
-| Your Goal | Command | Why |
-|-----------|---------|-----|
-| Quick SQLi check | `scan -u URL -category sqli` | Fast, focused |
-| OWASP Top 10 | `scan -u URL -types all -msev critical,high` | Comprehensive with severity filter |
-| Regression test after fix | `scan -u URL -category sqli -ip "/api/users"` | Target specific endpoint |
-| Production (no noise) | `scan -u URL -fsev low,info` | Only actionable findings |
-| Compare before/after | `scan -u URL -format json -o before.json` | Export for diff |
-
-#### Common Issues
-
-| Symptom | Cause | Solution |
-|---------|-------|----------|
-| 0 findings | WAF blocking all, or no vulns | Check with `--smart` to verify WAF detection |
-| Too many findings | Info-level noise | Use `-fsev info,low` to filter |
-| Slow scan | Large category set | Use specific `-category` instead of `all` |
-| Same finding repeated | Multiple parameters vulnerable | Expected - each is unique finding |
-- WAF vendor evaluation and selection
-- Configuration effectiveness validation
-- Compliance reporting requiring quantitative metrics
-- Before/after comparisons for WAF tuning
-
-**Value Proposition:** Provides objective, reproducible metrics that enable data-driven decisions about WAF configuration and vendor selection.
-
-#### Basic Assessment
-
-```bash
-waf-tester assess -u https://example.com
-```
-
-**What Happens:** Tests the WAF against attack payloads and measures detection rates.
-
-#### Full Assessment with False Positive Testing
-
-False positive testing validates that the WAF does not block legitimate traffic. This is critical for production WAF deployments.
-
-```bash
-waf-tester assess -u https://example.com \
-  -fp \
-  -corpus "builtin,leipzig" \
-  -format json \
-  -o assessment.json
-```
-
-**When to Use:** Production WAF validation. False positive testing uses benign traffic corpora to measure how often legitimate requests are incorrectly blocked.
-
-#### Metrics Produced
-
-| Metric | Description | Interpretation |
-|--------|-------------|----------------|
-| **Detection Rate (TPR)** | Percentage of attacks blocked | Higher is better; target >90% |
-| **False Positive Rate (FPR)** | Percentage of legitimate traffic blocked | Lower is better; target <1% |
-| **Precision** | Percentage of blocks that were real attacks | Higher indicates fewer false positives |
-| **Recall** | Percentage of real attacks that were blocked | Same as TPR |
-| **F1 Score** | Harmonic mean of precision and recall | Balanced measure; target >0.9 |
-| **MCC** | Matthews Correlation Coefficient | Best single metric; ranges -1 to 1 |
-
-#### Custom Categories
-
-Focus assessment on specific vulnerability categories relevant to your application or compliance requirements.
-
-```bash
-waf-tester assess -u https://example.com \
-  -categories sqli,xss,rce \
-  -o assessment.json
-```
-
-**When to Use:** Compliance-focused assessments where specific vulnerability classes are mandated, or when validating WAF rules for particular attack types.
-
-#### With Streaming Output for CI
-
-Stream results in real-time for CI/CD pipeline integration. Enables early failure detection without waiting for complete assessment.
-
-```bash
-waf-tester assess -u https://example.com --stream -format json -o report.json
-```
-
-**When to Use:** CI/CD pipelines requiring immediate feedback, or when monitoring assessment progress in real-time.
-
----
-
-### Vulnerability Scanning (scan)
-
-The `scan` command provides targeted vulnerability testing across 50+ attack categories. Unlike `auto`, it offers granular control over test selection and execution parameters.
-
-**Primary Use Cases:**
-- Focused testing of specific vulnerability classes
-- Follow-up testing after initial assessment findings
-- Regression testing for specific vulnerability fixes
-- Category-specific compliance validation
-
-**Value Proposition:** Enables surgical precision in vulnerability testing, reducing noise and focusing on relevant attack vectors for the target application.
-
-#### Basic Scan
-
-Execute a standard vulnerability scan against a target.
-
-```bash
-waf-tester scan -u https://target.com
-```
-
-**What Happens:** Tests the target against the default set of attack payloads and reports findings with severity classifications.
-
-#### With Smart Mode and Tampers
-
-Enable WAF-aware testing with automatic tamper selection for improved bypass discovery.
-
-```bash
-# Smart mode with auto-tamper selection
-waf-tester scan -u https://target.com --smart --tamper-auto
-
-# Specific tampers for known WAF
-waf-tester scan -u https://target.com --tamper=space2comment,randomcase
-
-# Aggressive tamper profile for maximum bypass attempts
-waf-tester scan -u https://target.com --tamper-profile=aggressive
-
-# Stealth profile for low detection risk
-waf-tester scan -u https://target.com --tamper-profile=stealth
-```
-
-**When to Use:**
-- `--smart --tamper-auto`: General WAF bypass testing
-- `--tamper-profile=aggressive`: Red team exercises, bypass hunting
-- `--tamper-profile=stealth`: Production systems, evading detection
-
-#### Specific Categories
-
-Focus scanning on particular vulnerability types. Reduces scan time and findings noise.
-
-```bash
-waf-tester scan -u https://target.com -category sqli,xss,traversal
-waf-tester scan -u https://target.com -types sqli,xss,traversal  # alias
-```
-
-**When to Use:** When you know the application stack and want to focus on relevant vulnerabilities, or when validating specific WAF rule categories.
-
-#### Multiple Targets
-
-Scan a list of targets from a file. Useful for bulk assessments and subdomain scanning.
-
-```bash
-waf-tester scan -l targets.txt -c 50
-```
-
-**When to Use:** Scanning multiple hosts in a single operation, subdomain enumeration follow-up, or scope-wide assessments.
-
-#### All Available Categories
-
-Test against all 50+ attack categories for comprehensive coverage.
-
-```bash
-waf-tester scan -u https://target.com -types all
-```
-
-**When to Use:** Comprehensive security assessments where complete coverage is required. See [Attack Categories Reference](#attack-categories-reference) for the full list.
-
-#### Severity Filtering
-
-Filter findings by severity to focus on critical issues or reduce noise.
-
-```bash
-# Match only critical and high severity findings
-waf-tester scan -u https://target.com -msev critical,high
-
-# Filter out low severity findings
-waf-tester scan -u https://target.com -fsev low
-
-# Match specific vulnerability category
-waf-tester scan -u https://target.com -mcat sqli,xss
-
-# Filter out informational findings
-waf-tester scan -u https://target.com -fcat info
-```
-
-**When to Use:** Production assessments where only actionable findings are needed, or when triaging large result sets.
-
 #### OAuth Testing
 
 Specialized testing for OAuth 2.0 implementations including authorization flow vulnerabilities.
@@ -1016,8 +1194,6 @@ waf-tester scan -u https://auth.example.com -types oauth \
   -oauth-token-endpoint "https://auth.example.com/token" \
   -oauth-redirect-uri "https://app.example.com/callback"
 ```
-
-**When to Use:** Testing OAuth/OIDC implementations for authorization bypass, token leakage, and redirect vulnerabilities.
 
 #### Debug Options
 
@@ -1054,18 +1230,36 @@ waf-tester scan -u https://target.com \
 waf-tester scan -u https://target.com -ie=false -ir=false
 ```
 
-#### Scope Control
+#### Multiple Targets
 
 ```bash
-# Exclude scan types
-waf-tester scan -u https://target.com -et info,techdetect
+# From file
+waf-tester scan -l targets.txt -c 50
 
-# Exclude URL patterns
-waf-tester scan -u https://target.com -ep "logout|signout"
-
-# Include only matching patterns
-waf-tester scan -u https://target.com -ip "api/v2"
+# With same options for all
+waf-tester scan -l targets.txt -category sqli --smart -o results.json
 ```
+
+#### Decision Guide
+
+| Your Goal | Command | Why |
+|-----------|---------|-----|
+| Quick SQLi check | `scan -u URL -category sqli` | Fast, focused |
+| OWASP Top 10 | `scan -u URL -types all -msev critical,high` | Comprehensive with severity filter |
+| Regression test after fix | `scan -u URL -category sqli -ip "/api/users"` | Target specific endpoint |
+| Production (no noise) | `scan -u URL -fsev low,info` | Only actionable findings |
+| Compare before/after | `scan -u URL -format json -o before.json` | Export for diff |
+
+#### Common Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| 0 findings | WAF blocking all, or no vulns | Check with `--smart` to verify WAF detection |
+| Too many findings | Info-level noise | Use `-fsev info,low` to filter |
+| Slow scan | Large category set | Use specific `-category` instead of `all` |
+| Same finding repeated | Multiple parameters vulnerable | Expected - each is unique finding |
+
+> **See Also:** [Smart Mode](#smart-mode) · [Output Formats](#output-formats) · [CI/CD Integration](#cicd-integration) · [Playbook: CI/CD Pipeline](#playbook-2-cicd-pipeline--block-deploys-on-waf-regression)
 
 ---
 
@@ -1216,6 +1410,8 @@ waf-tester vendor -l targets.txt -o vendors.json
 | "Multiple WAFs detected" | CDN + WAF stack (common) | Both are real, test both bypass sets |
 | Slow detection (>1 min) | Rate limiting or challenge | Reduce probes with `-probes 10` |
 
+> **See Also:** [Smart Mode](#smart-mode) · [Bypass Hunting](#bypass-hunting-bypass) · [Playbook: New Client](#playbook-1-new-client--first-waf-assessment)
+
 ---
 
 ### Protocol Detection (protocol)
@@ -1334,6 +1530,40 @@ waf-tester soap -u https://api.example.com/service.asmx?wsdl
 **TL;DR:** `waf-tester bypass -u https://target.com --smart --tamper-auto` — Find bypasses in 5-20 minutes
 
 The `bypass` command is specifically designed to find payloads that evade WAF detection. It uses a full mutation matrix with encoding combinations, location variations, and chainable evasion techniques.
+
+#### Complexity Tiers
+
+> **📋 Copy-Paste Ready:**
+> ```bash
+> waf-tester bypass -u https://YOUR_TARGET --smart --tamper-auto
+> ```
+
+##### 🟢 Beginner — Smart auto-detection, zero config
+```bash
+waf-tester bypass -u https://target.com --smart
+```
+*Auto-detects WAF, selects optimal bypass strategies. Shows confirmed bypasses.*
+
+##### 🟡 Intermediate — Focused categories with exports
+```bash
+waf-tester bypass -u https://target.com \
+  --smart --tamper-auto \
+  -category sqli,xss \
+  -format json -o bypasses.json
+```
+*Focused categories with auto-selected tamper scripts and JSON export.*
+
+##### 🔴 Advanced — Full mutation matrix with chaining
+```bash
+waf-tester bypass -u https://target.com \
+  --smart --smart-mode=bypass \
+  -category sqli,xss,rce \
+  -mutation full -chain -max-chain 3 \
+  --tamper=space2comment,randomcase,charencode,unmagicquotes \
+  -c 25 -rl 100 \
+  -format html,json -o ./bypass-campaign
+```
+*Full mutation matrix with chaining, specific tamper scripts, and multi-format reporting.*
 
 #### Prerequisites
 
@@ -1497,6 +1727,8 @@ Auto-tampers: unicode_normalize, chunk_transfer, multipart_boundary
 | All payloads blocked | IP banned | Rotate IP, reduce rate |
 | Too many false positives | Backend error = "bypass" | Use `--smart` for better detection |
 | Very slow (>1 hour) | Full mutation matrix | Use `-mutation standard`, specific category |
+
+> **See Also:** [Mutation Engine](#mutation-engine) · [Tamper Scripts](#tamper-scripts) · [Smart Mode](#smart-mode) · [Playbook: Bug Bounty](#playbook-7-bug-bounty--quick-waf-bypass-discovery)
 
 ---
 
@@ -1717,31 +1949,49 @@ Sending benign traffic...
 | FPR > 5% | Very aggressive rules | Review blocked requests, tune WAF |
 | Inconsistent results | Caching | Bust cache with `?nocache=rand` |
 
-#### With Leipzig Corpus
-
-```bash
-waf-tester fp -u https://target.com -corpus leipzig
-```
-
-#### Custom Corpus
-
-```bash
-waf-tester fp -u https://target.com -corpus /path/to/corpus.txt
-```
-
-#### Available Corpora
-
-| Corpus | Description |
-|--------|-------------|
-| `builtin` | Built-in legitimate traffic samples |
-| `leipzig` | Leipzig corpora for natural language |
-| Custom path | Your own legitimate request corpus |
-
 ---
 
 ### Content Fuzzing (fuzz)
 
 Directory and content fuzzing with FUZZ keyword.
+
+#### Complexity Tiers
+
+> **📋 Copy-Paste Ready:**
+> ```bash
+> waf-tester fuzz -u https://YOUR_TARGET/FUZZ -w common
+> ```
+
+##### 🟢 Beginner — Built-in wordlist, instant results
+```bash
+waf-tester fuzz -u https://target.com/FUZZ -w common
+```
+*Uses built-in "common" wordlist. Shows discovered paths with status codes.*
+
+##### 🟡 Intermediate — Custom wordlist with filtering
+```bash
+waf-tester fuzz -u https://target.com/FUZZ \
+  -w wordlist.txt \
+  -fc 404,403 \
+  -mc 200,301,302 \
+  -ac \
+  -o fuzz-results.json
+```
+*Custom wordlist with status filtering, auto-calibration, and JSON output.*
+
+##### 🔴 Advanced — Multi-keyword recursive deep fuzzing
+```bash
+waf-tester fuzz -u "https://target.com/FUZZ1/FUZZ2" \
+  -w dirs.txt:files.txt \
+  -fc 404 -fs 0 \
+  -ac \
+  -recursion -rd 3 \
+  -er "api[_-]?key[=:][a-zA-Z0-9]+" \
+  -sr -srd ./responses \
+  -c 50 -rl 200 \
+  -o deep-fuzz.json
+```
+*Multi-keyword fuzzing with recursion, regex extraction, response storage, and high concurrency.*
 
 #### Directory Fuzzing
 
@@ -3808,20 +4058,21 @@ WAFtester provides comprehensive integration options for enterprise environments
 │                                                                             │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐             │
 │  │  FILE OUTPUTS   │  │  REAL-TIME      │  │  OBSERVABILITY  │             │
-│  │                 │  │  ALERTING       │  │                 │             │
+│  │                 │  │  ALERTING       │  │  & HISTORY      │             │
 │  └───────┬─────────┘  └───────┬─────────┘  └───────┬─────────┘             │
 │          │                    │                    │                        │
 │          ▼                    ▼                    ▼                        │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐             │
 │  │ • SARIF (CI/CD) │  │ • Slack         │  │ • OpenTelemetry │             │
 │  │ • JUnit (tests) │  │ • Teams         │  │ • Prometheus    │             │
-│  │ • JSON/JSONL    │  │ • PagerDuty     │  │                 │             │
-│  │ • SonarQube     │  │ • Jira          │  │                 │             │
-│  │ • GitLab SAST   │  │ • Webhook       │  │                 │             │
-│  │ • CycloneDX VEX │  │ • GitHub Actions│  │                 │             │
-│  │ • DefectDojo    │  │                 │  │                 │             │
-│  │ • HAR           │  │                 │  │                 │             │
-│  └─────────────────┘  └─────────────────┘  └─────────────────┘             │
+│  │ • JSON/JSONL    │  │ • PagerDuty     │  │ • History Store │             │
+│  │ • SonarQube     │  │ • Jira          │  └─────────────────┘             │
+│  │ • GitLab SAST   │  │ • Webhook       │                                  │
+│  │ • CycloneDX VEX │  │ • GitHub Issues │                                  │
+│  │ • DefectDojo    │  │ • Azure DevOps  │                                  │
+│  │ • HAR           │  │ • Elasticsearch │                                  │
+│  │ • XML (legacy)  │  │ • GitHub Actions│                                  │
+│  └─────────────────┘  └─────────────────┘                                  │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -3845,6 +4096,7 @@ WAFtester provides comprehensive integration options for enterprise environments
 | `-format cyclonedx` | CycloneDX VEX | SBOM integration |
 | `-format defectdojo` | DefectDojo | Findings import |
 | `-format har` | HAR | HTTP Archive for replay |
+| `--xml-export=FILE` | XML | Legacy XML with WASC/CWE compliance mapping (v2.6.8+) |
 
 #### Real-time Alerting Flags
 
@@ -3861,10 +4113,13 @@ WAFtester provides comprehensive integration options for enterprise environments
 | `--jira-issue-type=TYPE` | Jira | Issue type (Bug, Task, Story - default: Bug) |
 | `--jira-labels=LABELS` | Jira | Comma-separated labels |
 | `--jira-assignee=ID` | Jira | Assignee account ID |
-| `--github-issues-token=TOKEN` | GitHub Issues | Create issues from bypasses |
+| `--github-issues-token=TOKEN` | GitHub Issues | Create issues from bypasses (v2.6.8+) |
 | `--github-issues-owner=ORG` | GitHub Issues | Repository owner |
 | `--github-issues-repo=REPO` | GitHub Issues | Repository name |
-| `--ado-org=ORG` | Azure DevOps | Organization name |
+| `--github-issues-url=URL` | GitHub Issues | GitHub Enterprise API URL |
+| `--github-issues-labels=LABELS` | GitHub Issues | Comma-separated labels |
+| `--github-issues-assignees=USERS` | GitHub Issues | Comma-separated assignees |
+| `--ado-org=ORG` | Azure DevOps | Organization name (v2.6.8+) |
 | `--ado-project=PROJECT` | Azure DevOps | Project name |
 | `--ado-pat=TOKEN` | Azure DevOps | Personal Access Token |
 | `--ado-work-item-type=TYPE` | Azure DevOps | Bug, Task, Issue (default: Bug) |
@@ -3872,8 +4127,11 @@ WAFtester provides comprehensive integration options for enterprise environments
 | `--ado-iteration-path=PATH` | Azure DevOps | Optional iteration/sprint path |
 | `--ado-tags=TAGS` | Azure DevOps | Semicolon-separated tags |
 | `--ado-assigned-to=USER` | Azure DevOps | Assigned user email/name |
-| `--elasticsearch-url=URL` | Elasticsearch | SIEM integration |
+| `--elasticsearch-url=URL` | Elasticsearch | SIEM integration (v2.6.8+) |
 | `--elasticsearch-api-key=KEY` | Elasticsearch | API key auth |
+| `--elasticsearch-username=USER` | Elasticsearch | Basic auth username |
+| `--elasticsearch-password=PASS` | Elasticsearch | Basic auth password |
+| `--elasticsearch-index=NAME` | Elasticsearch | Index name (default: waftester-YYYY.MM.DD) |
 | `--elasticsearch-insecure` | Elasticsearch | Skip TLS verify |
 
 #### Observability Flags
@@ -3883,6 +4141,8 @@ WAFtester provides comprehensive integration options for enterprise environments
 | `--otel-endpoint=HOST:PORT` | OpenTelemetry | Distributed tracing |
 | `--otel-insecure` | OpenTelemetry | Skip TLS verification |
 | `--metrics-port=PORT` | Prometheus | Metrics scraping |
+| `--history-path=DIR` | History Store | Scan result storage (v2.6.8+) |
+| `--history-tags=TAGS` | History Store | Tag scans for filtering (v2.6.8+) |
 
 #### CI/CD-Specific Flags
 
@@ -4023,7 +4283,7 @@ waf-tester scan -u $TARGET_URL \
 # Use with scheduled scans to build historical data
 ```
 
-#### 9. Custom Report Templates (v2.6.8+)
+#### 10. Custom Report Templates (v2.6.8+)
 
 **Goal:** Customize report branding and sections
 
@@ -4064,7 +4324,15 @@ All flags can be set via environment variables:
 | `WAFTESTER_ADO_ITERATION_PATH` | `--ado-iteration-path` |
 | `WAFTESTER_ELASTICSEARCH_URL` | `--elasticsearch-url` |
 | `WAFTESTER_ELASTICSEARCH_API_KEY` | `--elasticsearch-api-key` |
+| `WAFTESTER_ELASTICSEARCH_USERNAME` | `--elasticsearch-username` |
+| `WAFTESTER_ELASTICSEARCH_PASSWORD` | `--elasticsearch-password` |
+| `WAFTESTER_ELASTICSEARCH_INDEX` | `--elasticsearch-index` |
+| `WAFTESTER_ADO_TAGS` | `--ado-tags` |
+| `WAFTESTER_ADO_ASSIGNED_TO` | `--ado-assigned-to` |
 | `WAFTESTER_HISTORY_PATH` | `--history-path` |
+| `WAFTESTER_HISTORY_TAGS` | `--history-tags` |
+| `WAFTESTER_TEMPLATE_CONFIG` | `--template-config` |
+| `WAFTESTER_XML_EXPORT` | `--xml-export` |
 | `WAFTESTER_OTEL_ENDPOINT` | `--otel-endpoint` |
 | `WAFTESTER_METRICS_PORT` | `--metrics-port` |
 
@@ -4087,9 +4355,20 @@ waf-tester scan -u https://target.com \
 
 ## Output Formats
 
+**In this section:**
+[HTML Reports](#html-reports-with-themes-v250) · [Markdown](#markdown-with-enhanced-features-v250) ·
+[Console](#colorized-console-output-v250) · [Custom Templates](#custom-templates-v250) ·
+[PDF Reports](#pdf-reports-v250) · [Enterprise](#enterprise-integrations-v250) ·
+[JUnit XML](#junit-xml-reports-v250) · [CycloneDX VEX](#cyclonedx-vex-reports-v250) ·
+[XML Export](#xml-export-v268) · [Elasticsearch](#elasticsearch-siem-integration-v268) ·
+[GitHub Issues](#github-issues-integration-v268) · [Azure DevOps](#azure-devops-integration-v268) ·
+[History](#historical-trend-analysis-v268) · [Templates](#template-configuration-v268) ·
+[Alerting Hooks](#real-time-alerting-hooks-v250) · [GitHub Actions](#github-actions-integration-v250) ·
+[OpenTelemetry](#opentelemetry-tracing-v250)
+
 ### Available Formats
 
-| Format | Flag | Use Case | v2.5.0 Enhancements |
+| Format | Flag | Use Case | Enhancements |
 |--------|------|----------|---------------------|
 | JSON | `-format json` | Programmatic processing | Full scan events |
 | JSONL | `-format jsonl` | Streaming, large datasets | Event types: scan_start, vulnerability, scan_complete |
@@ -4106,6 +4385,7 @@ waf-tester scan -u https://target.com \
 | GitLab SAST | `-format gitlab-sast` | GitLab Security Dashboard | gl-sast-report.json |
 | DefectDojo | `-format defectdojo` | DefectDojo import | Findings format |
 | HAR | `-format har` | HTTP Archive | Traffic replay |
+| XML | `--xml-export=FILE` | Legacy SIEM/vulnerability platforms | WASC/CWE compliance mapping (v2.6.8+) |
 
 ### Basic Examples
 
@@ -4357,7 +4637,7 @@ waf-tester scan -u https://target.com -format cyclonedx -o waf-findings.vex.json
       {
         "vendor": "WAFtester",
         "name": "waf-tester",
-        "version": "2.5.0"
+        "version": "2.6.8"
       }
     ],
     "component": {
@@ -4400,6 +4680,480 @@ waf-tester scan -u https://target.com -format cyclonedx -o waf-findings.vex.json
   ]
 }
 ```
+
+### XML Export (v2.6.8+)
+
+XML output for legacy SIEM platforms, GRC tools, and vulnerability management systems that require structured XML data with WASC/CWE compliance mapping.
+
+```bash
+# Basic XML export
+waf-tester scan -u https://target.com --xml-export=results.xml
+
+# XML with evidence (request/response data)
+waf-tester scan -u https://target.com --xml-export=results.xml \
+  --xml-evidence
+
+# XML alongside other formats
+waf-tester scan -u https://target.com \
+  --xml-export=waf-audit.xml \
+  -format html -o report.html \
+  -format sarif -o results.sarif
+```
+
+**Key Features:**
+- DTD-style `<waftester-report>` root element with schema versioning
+- Full compliance mapping: CWE IDs, WASC threat classifications, CVE references
+- Aggregate summary statistics (detection rate, bypass count, latency)
+- Evidence support with payload data and WAF signature details
+- 49 WASC threat classifications with 60+ category aliases
+
+**Sample XML Output:**
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<waftester-report version="2.6.8" generatedAt="2026-02-03T14:30:00Z">
+  <generator>
+    <name>WAFtester</name>
+    <version>2.6.8</version>
+  </generator>
+  <target>
+    <url>https://target.com</url>
+    <wafVendor>Cloudflare</wafVendor>
+  </target>
+  <summary>
+    <totalTests>2847</totalTests>
+    <blockedTests>2695</blockedTests>
+    <passedTests>152</passedTests>
+    <errorTests>0</errorTests>
+    <detectionRate>94.66</detectionRate>
+    <bypassCount>152</bypassCount>
+    <totalLatencyMs>45230</totalLatencyMs>
+  </summary>
+  <results>
+    <result id="sqli-001">
+      <category>sqli</category>
+      <severity>Critical</severity>
+      <outcome>bypass</outcome>
+      <confidence>High</confidence>
+      <statusCode>200</statusCode>
+      <latencyMs>23.5</latencyMs>
+      <target>
+        <url>https://target.com/api/users</url>
+        <method>GET</method>
+      </target>
+      <evidence>
+        <payload>1' UNION SELECT * FROM users--</payload>
+        <responsePreview>200 OK - data returned</responsePreview>
+      </evidence>
+      <compliance>
+        <cwe>CWE-89</cwe>
+        <wasc>WASC-19</wasc>
+      </compliance>
+    </result>
+  </results>
+</waftester-report>
+```
+
+### Elasticsearch SIEM Integration (v2.6.8+)
+
+Stream WAF test results directly into Elasticsearch for real-time security analytics, Kibana dashboards, and SIEM correlation.
+
+```bash
+# Basic Elasticsearch output
+waf-tester scan -u https://target.com \
+  --elasticsearch-url=http://localhost:9200
+
+# Elasticsearch with authentication
+waf-tester scan -u https://target.com \
+  --elasticsearch-url=https://es.company.com:9200 \
+  --elasticsearch-username=waftester \
+  --elasticsearch-password=$ES_PASSWORD
+
+# Elasticsearch with API key auth and custom index
+waf-tester scan -u https://target.com \
+  --elasticsearch-url=https://es.company.com:9200 \
+  --elasticsearch-api-key=$ES_API_KEY \
+  --elasticsearch-index=security-waf-tests
+
+# Full configuration with all options
+waf-tester scan -u https://target.com \
+  --elasticsearch-url=https://es.company.com:9200 \
+  --elasticsearch-api-key=$ES_API_KEY \
+  --elasticsearch-index=waftester-prod \
+  --elasticsearch-insecure  # Skip TLS verification (dev only)
+```
+
+**Key Features:**
+- Bulk API indexing for efficient high-volume writes (NDJSON format)
+- Configurable batch size (default: 100 events per bulk request)
+- Two authentication methods: Basic Auth or API Key
+- Auto-generated daily indices (`waftester-YYYY.MM.DD`) or custom index names
+- Optional ingest pipeline support
+- TLS verification control
+
+**Environment Variables:**
+
+```bash
+export WAFTESTER_ELASTICSEARCH_URL=https://es.company.com:9200
+export WAFTESTER_ELASTICSEARCH_USERNAME=waftester
+export WAFTESTER_ELASTICSEARCH_PASSWORD=secret
+export WAFTESTER_ELASTICSEARCH_API_KEY=base64-encoded-key
+export WAFTESTER_ELASTICSEARCH_INDEX=security-waf
+```
+
+**Sample Elasticsearch Document:**
+
+```json
+{
+  "_index": "waftester-2026.02.03",
+  "_source": {
+    "@timestamp": "2026-02-03T14:30:00Z",
+    "tool": "waftester",
+    "version": "2.6.8",
+    "target": "https://target.com",
+    "waf_vendor": "Cloudflare",
+    "category": "sqli",
+    "severity": "Critical",
+    "outcome": "bypass",
+    "status_code": 200,
+    "latency_ms": 23.5,
+    "payload": "1' UNION SELECT * FROM users--",
+    "cwe": "CWE-89",
+    "request_method": "GET",
+    "request_url": "https://target.com/api/users"
+  }
+}
+```
+
+**Kibana Query Examples:**
+
+```
+# Find all bypasses
+outcome: "bypass"
+
+# Critical SQL injection bypasses
+category: "sqli" AND severity: "Critical" AND outcome: "bypass"
+
+# Bypasses in the last 24 hours
+outcome: "bypass" AND @timestamp >= now-24h
+
+# Group by WAF vendor
+waf_vendor: * | stats count by waf_vendor, outcome
+```
+
+### GitHub Issues Integration (v2.6.8+)
+
+Automatically create GitHub Issues for WAF bypasses, integrating security findings into your development workflow.
+
+```bash
+# Basic GitHub Issues integration
+waf-tester scan -u https://target.com \
+  --github-issues-token=$GITHUB_TOKEN \
+  --github-issues-owner=myorg \
+  --github-issues-repo=waf-findings
+
+# With custom labels and assignees
+waf-tester scan -u https://target.com \
+  --github-issues-token=$GITHUB_TOKEN \
+  --github-issues-owner=myorg \
+  --github-issues-repo=waf-findings \
+  --github-issues-labels="security,waf-bypass,p1" \
+  --github-issues-assignees="securitylead,devops-team"
+
+# GitHub Enterprise Server
+waf-tester scan -u https://target.com \
+  --github-issues-token=$GITHUB_TOKEN \
+  --github-issues-url=https://github.company.com/api/v3 \
+  --github-issues-owner=security \
+  --github-issues-repo=waf-audits
+
+# Only create issues for critical/high bypasses (default behavior)
+# Issues are created for bypass events with High+ severity
+```
+
+**Key Features:**
+- Automatic issue creation for bypass events (High severity minimum by default)
+- Rich markdown issue body with CWE links, severity labels, and reproduction steps
+- Payload included as code blocks for easy copy-paste testing
+- Configurable labels, assignees, and repository targeting
+- GitHub Enterprise Server support via custom base URL
+- Prevents duplicate issues through event filtering
+
+**Sample Created Issue:**
+
+```markdown
+## 🔴 WAF Bypass Detected: SQL Injection
+
+**Severity:** Critical
+**Category:** sqli
+**CWE:** [CWE-89](https://cwe.mitre.org/data/definitions/89.html)
+
+### Details
+
+A WAF bypass was detected during security testing.
+
+**Target:** `https://target.com/api/users`
+**Method:** GET
+**Status Code:** 200
+
+### Payload
+
+\```
+1' UNION SELECT * FROM users--
+\```
+
+### Recommendations
+
+- Review and update WAF rules for this attack category
+- Consider adding virtual patching rules
+- Test with additional evasion techniques
+
+---
+*Created by WAFtester v2.6.8*
+```
+
+### Azure DevOps Integration (v2.6.8+)
+
+Create Azure DevOps Work Items for WAF bypasses, integrating security findings into your Azure Boards workflow with proper severity/priority mapping.
+
+```bash
+# Basic Azure DevOps integration
+waf-tester scan -u https://target.com \
+  --ado-org=myorg \
+  --ado-project=SecurityTesting \
+  --ado-pat=$ADO_PAT
+
+# With custom work item type and area path
+waf-tester scan -u https://target.com \
+  --ado-org=myorg \
+  --ado-project=SecurityTesting \
+  --ado-pat=$ADO_PAT \
+  --ado-work-item-type=Bug \
+  --ado-area-path="SecurityTesting\\WAF" \
+  --ado-iteration-path="SecurityTesting\\Sprint 42"
+
+# With tags and assignee
+waf-tester scan -u https://target.com \
+  --ado-org=myorg \
+  --ado-project=SecurityTesting \
+  --ado-pat=$ADO_PAT \
+  --ado-tags="security,waf-bypass,critical" \
+  --ado-assigned-to="security-lead@company.com"
+```
+
+**Key Features:**
+- Work item creation via Azure DevOps REST API v7.1 (JSON Patch)
+- Severity mapping: Critical→1, High→2, Medium→3, Low→4
+- Priority mapping: Critical→1, High→1, Medium→2, Low→3
+- HTML description with reproduction steps and curl commands
+- Configurable work item type, area path, iteration path, and tags
+- Input sanitization via `html.EscapeString()` (Go stdlib)
+
+**Severity and Priority Mapping:**
+
+| WAFtester Severity | ADO Severity | ADO Priority |
+|-------------------|-------------|-------------|
+| Critical | 1 - Critical | 1 |
+| High | 2 - High | 1 |
+| Medium | 3 - Medium | 2 |
+| Low | 4 - Low | 3 |
+
+**Environment Variables:**
+
+```bash
+export WAFTESTER_ADO_ORG=myorg
+export WAFTESTER_ADO_PROJECT=SecurityTesting
+export WAFTESTER_ADO_PAT=your-personal-access-token
+export WAFTESTER_ADO_WORK_ITEM_TYPE=Bug
+export WAFTESTER_ADO_AREA_PATH="SecurityTesting\\WAF"
+export WAFTESTER_ADO_ITERATION_PATH="SecurityTesting\\Sprint 42"
+export WAFTESTER_ADO_TAGS="security,waf-bypass"
+export WAFTESTER_ADO_ASSIGNED_TO="security-lead@company.com"
+```
+
+### Historical Trend Analysis (v2.6.8+)
+
+Store scan results locally for trend analysis, regression detection, and historical comparison. The history store uses file-based JSON storage for portability.
+
+```bash
+# Enable scan history storage
+waf-tester scan -u https://target.com \
+  --history-path=./waf-history
+
+# Tag scans for filtering
+waf-tester scan -u https://target.com \
+  --history-path=./waf-history \
+  --history-tags="production,weekly,cloudflare"
+
+# Compare two scans (by scan ID)
+waf-tester history compare \
+  --history-path=./waf-history \
+  --base=scan-2026-01-01 \
+  --compare=scan-2026-02-01
+
+# View trend data for a target
+waf-tester history trend \
+  --history-path=./waf-history \
+  --target=https://target.com
+
+# List all stored scans
+waf-tester history list \
+  --history-path=./waf-history
+
+# Get storage statistics
+waf-tester history stats \
+  --history-path=./waf-history
+```
+
+**Key Features:**
+- File-based JSON storage — no database required, fully portable
+- Atomic writes via temp file + `os.Rename` to prevent corruption
+- Automatic scan record creation from `SummaryEvent`
+- Trend analysis with `TrendPoint` data series (timestamp, grade, detection rate, bypass count)
+- Per-category trend tracking via `CategoryTrend`
+- Scan comparison with `ComparisonResult` (grade change, rate delta, bypass delta)
+- Store statistics: total scans, unique targets, storage size, date range
+
+**Stored Scan Record Fields:**
+- Target URL, WAF vendor, overall grade (A+ to F)
+- Detection rate, bypass count, false positive count
+- Total/blocked/passed tests, scan duration
+- Average and P95 latency metrics
+- Per-category detection scores
+- WAFtester version, user-defined tags, notes
+
+**Sample Comparison Output:**
+
+```json
+{
+  "base_id": "scan-2026-01-01",
+  "compare_id": "scan-2026-02-01",
+  "grade_change": 1,
+  "detection_rate_delta": 2.3,
+  "bypass_count_delta": -15,
+  "false_positive_delta": -2,
+  "category_deltas": {
+    "sqli": 3.5,
+    "xss": -1.2,
+    "cmdi": 5.0
+  },
+  "improved": true
+}
+```
+
+**Scheduled Scanning with History:**
+
+```bash
+# Cron job for weekly trend tracking
+0 2 * * 0 waf-tester scan -u https://target.com \
+  --history-path=/var/lib/waftester/history \
+  --history-tags="weekly,production" \
+  -format json -o /var/log/waftester/latest.json
+```
+
+### Template Configuration (v2.6.8+)
+
+Customize HTML report branding, layout, sections, and styling using YAML configuration files. Built-in templates for minimal and enterprise reports.
+
+```bash
+# Minimal executive summary
+waf-tester scan -u https://target.com \
+  -format html -o report.html \
+  --template-config=pkg/report/templates/configs/minimal.yaml
+
+# Full enterprise audit report
+waf-tester scan -u https://target.com \
+  -format html -o report.html \
+  --template-config=pkg/report/templates/configs/enterprise.yaml
+
+# Custom branding config
+waf-tester scan -u https://target.com \
+  -format html -o report.html \
+  --template-config=my-company-config.yaml
+```
+
+**Built-in Templates:**
+
+| Template | Sections | Use Case |
+|----------|----------|----------|
+| `enterprise.yaml` | All sections, charts, TOC, compliance | Full audit, compliance review |
+| `minimal.yaml` | Summary, grade, bypasses, recommendations | Quick assessment, executive brief |
+
+**Custom Configuration Example:**
+
+```yaml
+# my-company-config.yaml
+name: acme-security
+version: "1.0"
+
+branding:
+  company_name: "ACME Corp Security Assessment"
+  logo_url: "https://cdn.acme.com/logo.png"
+  logo_position: left
+  accent_color: "#1a5276"
+  secondary_color: "#2e86c1"
+  footer_text: "Confidential - ACME Internal"
+  copyright: "© 2026 ACME Corp"
+  contact_email: "security@acme.com"
+  show_powered_by: true
+
+layout:
+  theme: light       # light, dark, auto
+  page_width: wide   # full, wide (1400px), standard (1200px)
+  show_table_of_contents: true
+  compact_mode: false
+  print_optimized: false
+
+sections:
+  executive_summary: true
+  overall_grade: true
+  enterprise_metrics: true
+  category_breakdown: true
+  confusion_matrix: false
+  radar_chart: true
+  bypasses: true
+  false_positives: true
+  all_results: false      # Omit large results table
+  recommendations: true
+  compliance_mapping: true
+  latency_metrics: true
+  browser_findings: false
+  technical_details: false
+  timeline: true
+
+styling:
+  font_family: "Inter, system-ui, sans-serif"
+  font_size_base: "16px"
+  border_radius: "8px"
+  custom_css: ""
+
+charts:
+  show_radar: true
+  show_bar: true
+  show_line: true
+  animation_duration: 400
+  color_palette:
+    - "#3b82f6"
+    - "#ef4444"
+    - "#22c55e"
+    - "#f59e0b"
+
+export:
+  default_format: html
+  include_raw_data: true
+  export_buttons: true
+  allowed_formats: [html, json, pdf]
+```
+
+**Key Features:**
+- YAML-based configuration — version-controlled and shareable
+- `LoadTemplateConfig()` reads YAML, `MergeConfig()` merges overrides
+- `ValidateConfig()` returns errors for invalid settings
+- 15+ toggleable report sections
+- Full CSS/branding customization (accent colors, logo, fonts)
+- Chart configuration (radar, bar, line charts with color palettes)
+- Export controls (allowed formats, raw data embedding, export buttons)
+- Print/PDF optimization mode
 
 ### Real-time Alerting Hooks (v2.5.0+)
 
@@ -4474,7 +5228,7 @@ waf-tester scan -u https://target.com \
     {
       "type": "context",
       "elements": [
-        { "type": "mrkdwn", "text": "WAFtester v2.5.0 | Scan ID: a1b2c3d4 | 2026-02-03T14:30:00Z" }
+        { "type": "mrkdwn", "text": "WAFtester v2.6.8 | Scan ID: a1b2c3d4 | 2026-02-03T14:30:00Z" }
       ]
     }
   ]
@@ -4625,7 +5379,7 @@ waf-tester scan -u https://target.com \
       "resource": {
         "attributes": [
           { "key": "service.name", "value": { "stringValue": "waf-tester" } },
-          { "key": "service.version", "value": { "stringValue": "2.5.0" } }
+          { "key": "service.version", "value": { "stringValue": "2.6.8" } }
         ]
       },
       "scopeSpans": [
@@ -4700,12 +5454,19 @@ workspaces/<domain>/<timestamp>/
 ├── results.html
 ├── results.sarif
 ├── results.pdf          # v2.5.0+
-└── results.md           # v2.5.0+
+├── results.md           # v2.5.0+
+└── results.xml          # v2.6.8+ (--xml-export)
 ```
 
 ---
 
 ## CI/CD Integration
+
+**In this section:**
+[GitHub Actions](#github-actions) · [GitLab CI](#gitlab-ci) · [Azure DevOps](#azure-devops) ·
+[Jenkins](#jenkins-pipeline-v250) · [CircleCI](#circleci-v250) · [Drone CI](#drone-ci-v250) ·
+[Tekton](#tekton-pipeline-v250) · [ArgoCD](#argocd-pre-sync-hook-v250) · [Harness CI](#harness-ci-v250) ·
+[AWS CodePipeline](#aws-codepipeline-v250) · [Prometheus](#prometheus-metrics-integration-v250)
 
 Use `--stream` flag to disable animated progress for clean CI logs.
 
@@ -5074,6 +5835,12 @@ histogram_quantile(0.95, waftester_response_time_seconds_bucket)
 ---
 
 ## Advanced Options
+
+**In this section:**
+[Headers & Auth](#headers-and-authentication) · [Proxies](#proxies) · [Rate Limiting](#rate-limiting) ·
+[Response Filtering](#response-filtering) · [Realistic Mode](#realistic-mode) ·
+[Resume & Checkpoints](#resume-and-checkpoints) · [JA3 Rotation](#ja3-fingerprint-rotation) ·
+[Silent Ban Detection](#connection-drop--silent-ban-detection-v252)
 
 ### Headers and Authentication
 
@@ -5584,6 +6351,68 @@ waf-tester cloud -d example.com -o cloud-resources.json
 
 ---
 
+## Troubleshooting
+
+### Quick Diagnostic
+
+Run this first when anything goes wrong:
+
+```bash
+# Health check — verify target is reachable
+waf-tester probe -u https://target.com -v
+
+# Connectivity test
+curl -sI https://target.com | head -5
+
+# Version check
+waf-tester --version
+```
+
+### Common Errors Reference
+
+| Error / Symptom | Cause | Solution | Affected Commands |
+|----------------|-------|----------|-------------------|
+| `connection refused` | Target unreachable | Check firewall, VPN, DNS. Test: `curl -I URL` | All |
+| `0 endpoints found` | SPA without crawlable links | Add `--browser` for headless Chrome rendering | auto, discover |
+| `SSL certificate error` | Self-signed or expired cert | Add `-k` to skip TLS verification | All |
+| Scan stalls at ~10% | WAF rate limiting the scanner | Reduce: `-rl 20 -c 5 --smart` | scan, auto, bypass |
+| `403 on all requests` | IP blocked or auth required | VPN/proxy, or add auth: `-H "Authorization: Bearer $TOKEN"` | All |
+| `workspace already exists` | Previous scan same day | Use `-workspace-dir newname` | auto |
+| `no WAF detected` | WAF in transparent mode | Try `vendor -u URL -v` for deeper analysis | vendor |
+| `Too many open files` | OS file descriptor limit | Run: `ulimit -n 10240` (Linux/Mac) | scan with high `-c` |
+| `context deadline exceeded` | Target too slow | Increase: `-timeout 30` | All |
+| `DNS resolution failed` | DNS misconfiguration | Try: `-dns-resolver 8.8.8.8` | All |
+| 0 findings, 100% blocked | Scanner IP is banned | Smart mode detects this. Use VPN/proxy | scan, bypass |
+| Inconsistent metrics | Caching or WAF inconsistency | Add cache bust: `?nocache=rand`, increase `-retries 5` | assess, fp |
+
+### Performance Tuning
+
+| Symptom | Current Setting | Better Setting | Why |
+|---------|----------------|----------------|-----|
+| Scan too slow | `-c 25` (default) | `-c 100 -rl 500` | More parallelism with controlled rate |
+| Target dropping connections | `-c 100` | `-c 10 -rl 20` | Less aggressive, respect WAF limits |
+| High memory usage | Default buffering | `-c 25 --stream` | Stream results instead of buffering |
+| Scan taking >30 min | `-types all` (50+ cats) | `-category sqli,xss,rce` | Focus on critical categories first |
+| Results too noisy | No severity filter | `-msev critical,high` | Only actionable findings |
+| False positive concerns | No FP testing | Add `-fp -corpus builtin` to assess | Quantify false positives |
+
+### WAF-Specific Troubleshooting
+
+| WAF Vendor | Common Issue | Solution |
+|------------|-------------|----------|
+| **Cloudflare** | JS challenge blocks all requests | `--browser` or `--smart` (auto-handles challenges) |
+| **Cloudflare** | Under Attack Mode enabled | Wait 5s or use `--browser -browser-timeout 10` |
+| **AWS WAF** | Rate limiting at 100 req/s | `-rl 50 -c 10` to stay under limit |
+| **AWS WAF** | Custom rules blocking scanner UA | `-H "User-Agent: Mozilla/5.0..."` |
+| **Akamai** | Bot Manager triggered | `--realistic -ja3-rotate` for browser-like behavior |
+| **Imperva** | CAPTCHA on repeated requests | `--browser` with manual CAPTCHA solve at start |
+| **ModSecurity** | Paranoia level 4 blocks everything | Expected — use `--tamper-profile=aggressive` for bypass testing |
+| **Azure WAF** | Custom rules with geo-blocking | Test from allowed region or add `X-Forwarded-For` |
+| **F5 BIG-IP** | ASM session-based blocking | `--browser` to maintain session state |
+| **Fortinet FortiWeb** | IP reputation blocking | Use fresh IP or proxy chain |
+
+---
+
 ## Attack Categories Reference
 
 ### Full Category List
@@ -5640,120 +6469,492 @@ waf-tester scan -u https://target.com -types all        # All categories
 
 ---
 
-## Real-World Scenarios
+## Real-World Playbooks
 
-### Bug Bounty Quick Check
+Complete end-to-end walkthroughs for the most common assessment scenarios. Each playbook includes the full command sequence, expected output summary, and what to do with results.
 
-```bash
-waf-tester auto -u https://target.com --smart -c 50 -rl 100
+> **Playbook Selection:**
+> | Your Situation | Best Playbook |
+> |---------------|---------------|
+> | First time assessing a WAF | [Playbook 1: New Client](#playbook-1-new-client--first-waf-assessment) |
+> | Adding to CI/CD pipeline | [Playbook 2: CI/CD Pipeline](#playbook-2-cicd-pipeline--block-deploys-on-waf-regression) |
+> | Evaluating WAF vendors | [Playbook 3: Vendor Comparison](#playbook-3-waf-vendor-comparison--cloudflare-vs-aws-waf) |
+> | Testing WordPress/CMS | [Playbook 4: WordPress](#playbook-4-wordpress-site-behind-waf) |
+> | API security testing | [Playbook 5: API-First App](#playbook-5-api-first-application-graphql--rest) |
+> | After WAF rule changes | [Playbook 6: Post-Incident](#playbook-6-post-incident--verify-waf-rule-fix) |
+> | Bug bounty target | [Playbook 7: Bug Bounty](#playbook-7-bug-bounty--quick-waf-bypass-discovery) |
+> | Ongoing monitoring | [Playbook 8: Production Monitoring](#playbook-8-production-monitoring--continuous-waf-health) |
+> | Compliance audit | [Playbook 9: Compliance Audit](#playbook-9-compliance-audit--pci-dss--soc-2) |
+> | Multi-region/CDN | [Playbook 10: Multi-Region](#playbook-10-multi-region--multi-cdn-assessment) |
+
+---
+
+### Playbook 1: New Client — First WAF Assessment
+
+**Scenario:** You've been hired to assess a client's WAF. You have a target URL and written authorization. You need to deliver a report within 2 hours.
+
+**Time budget:** 90 minutes active + 30 minutes reporting
+
+| Phase | Time | Command | What You Get |
+|-------|------|---------|--------------|
+| **1. Recon** | 5 min | `waf-tester vendor -u $TARGET -v` | WAF type, confidence score, bypass hints |
+| **2. Discovery** | 10 min | `waf-tester discover -u $TARGET --browser` | Endpoints, parameters, JavaScript APIs |
+| **3. Assessment** | 30 min | `waf-tester assess -u $TARGET -fp -corpus builtin --smart -format json -o assessment.json` | TPR, FPR, F1 Score, MCC |
+| **4. Bypass Hunt** | 30 min | `waf-tester bypass -u $TARGET --smart --tamper-auto -category sqli,xss,rce -format json -o bypasses.json` | Confirmed bypass payloads |
+| **5. Evidence** | 15 min | `waf-tester scan -u $TARGET --smart -ie -ir -format html -o report.html` | Client-facing HTML report |
+
+**Deliverables checklist:**
+- [ ] `report.html` — Executive HTML report with severity ratings and remediation advice
+- [ ] `assessment.json` — Machine-readable metrics for baseline tracking
+- [ ] `bypasses.json` — Confirmed bypass payloads (for WAF rule improvement)
+- [ ] Key metrics: Overall WAF effectiveness %, top 3 bypassed categories, FPR
+
+**What to tell the client:**
+> "Your WAF shows a {TPR}% detection rate with {FPR}% false positive rate (F1: {F1}).
+> We found {N} confirmed bypasses, primarily in {categories}. See attached report
+> for remediation priorities."
+
+---
+
+### Playbook 2: CI/CD Pipeline — Block Deploys on WAF Regression
+
+**Scenario:** Engineering team deploys weekly. New code shouldn't reduce WAF effectiveness. Need a pipeline stage that fails on critical bypasses.
+
+**GitHub Actions:**
+
+```yaml
+# .github/workflows/waf-test.yml
+name: WAF Security Gate
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly Monday 6am
+
+jobs:
+  waf-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install WAFtester
+        run: |
+          curl -sSL https://get.waftester.com | sh
+          waf-tester --version
+
+      - name: WAF Assessment
+        run: |
+          waf-tester scan -u ${{ secrets.STAGING_URL }} \
+            -category sqli,xss,rce \
+            --smart --stream \
+            -msev critical,high \
+            -format sarif -o results.sarif \
+            -format json -o results.json
+
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: results.sarif
+
+      - name: Quality Gate — Block on Critical Bypasses
+        run: |
+          CRITICAL=$(jq '[.results[] | select(.severity == "critical")] | length' results.json)
+          HIGH=$(jq '[.results[] | select(.severity == "high")] | length' results.json)
+          echo "::notice::Critical: $CRITICAL, High: $HIGH"
+          if [ "$CRITICAL" -gt 0 ]; then
+            echo "::error::❌ $CRITICAL critical WAF bypasses — deployment blocked"
+            exit 1
+          fi
+          echo "✅ No critical WAF bypasses found"
 ```
 
-### Penetration Test
+**GitLab CI:**
 
-```bash
-waf-tester auto -u https://client-site.com \
-  --smart \
-  --smart-mode=full \
-  --browser \
-  -output-dir ./pentest-results
+```yaml
+# .gitlab-ci.yml
+waf-security-gate:
+  stage: security
+  image: waftester/waftester:latest
+  script:
+    - waf-tester scan -u $STAGING_URL
+        -category sqli,xss,rce
+        --smart --stream
+        -format json -o results.json
+    - |
+      CRITICAL=$(jq '[.results[] | select(.severity == "critical")] | length' results.json)
+      if [ "$CRITICAL" -gt 0 ]; then exit 1; fi
+  artifacts:
+    reports:
+      sast: results.json
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
 ```
 
-### WAF Validation (Blue Team)
+**Expected outcome:** PRs with WAF regressions show a red check. SARIF results appear in GitHub Security tab.
+
+---
+
+### Playbook 3: WAF Vendor Comparison — Cloudflare vs AWS WAF
+
+**Scenario:** Evaluating two WAF vendors. Need objective metrics for leadership decision.
 
 ```bash
-waf-tester assess -u https://your-app.com \
-  -fp \
-  -corpus "builtin,leipzig" \
-  -o waf-assessment.json
+#!/bin/bash
+# vendor-comparison.sh — Run this with: bash vendor-comparison.sh
+
+TARGETS=("https://cf-protected.example.com" "https://aws-protected.example.com")
+LABELS=("Cloudflare" "AWS_WAF")
+
+for i in "${!TARGETS[@]}"; do
+  echo "=== Testing ${LABELS[$i]} ==="
+  waf-tester assess -u "${TARGETS[$i]}" \
+    -fp -corpus "builtin,leipzig" \
+    --smart \
+    -format json -o "${LABELS[$i],,}-results.json"
+done
+
+# Side-by-side comparison
+echo ""
+echo "╔══════════════════════════════════════════════════════╗"
+echo "║           WAF VENDOR COMPARISON REPORT               ║"
+echo "╠══════════════════════════════════════════════════════╣"
+for i in "${!LABELS[@]}"; do
+  echo "║ ${LABELS[$i]}:"
+  jq -r '"║   Detection Rate: \(.metrics.tpr)%\n║   False Positive:  \(.metrics.fpr)%\n║   F1 Score:        \(.metrics.f1)\n║   MCC:             \(.metrics.mcc)"' "${LABELS[$i],,}-results.json"
+  echo "║"
+done
+echo "╚══════════════════════════════════════════════════════╝"
 ```
 
-### Find WAF Bypasses
+**What to present to leadership:**
+
+| Metric | Target | Cloudflare | AWS WAF | Winner |
+|--------|--------|-----------|---------|--------|
+| Detection Rate (TPR) | >90% | {from output} | {from output} | Highest |
+| False Positive Rate | <1% | {from output} | {from output} | Lowest |
+| F1 Score | >0.90 | {from output} | {from output} | Highest |
+| MCC | >0.80 | {from output} | {from output} | Highest |
+
+---
+
+### Playbook 4: WordPress Site Behind WAF
+
+**Scenario:** Client has a WordPress site behind a WAF. Need to test WordPress-specific attacks and measure WAF coverage.
 
 ```bash
-waf-tester bypass -u https://target.com \
-  --smart \
-  --smart-mode=bypass \
-  -category injection \
-  --tamper=space2comment,randomcase \
-  -o bypasses.json
-```
+# Step 1: Identify WAF
+waf-tester vendor -u https://myblog.com -v
 
-### CI/CD Security Gate
-
-```bash
-waf-tester scan -u https://staging.example.com \
-  --stream \
-  -types sqli,xss,rce \
-  -sarif -o security-results.sarif
-```
-
-### API Security Testing
-
-```bash
-waf-tester scan -u https://api.example.com \
-  -types sqli,nosqli,ssrf,jwt \
-  -H "Authorization: Bearer $TOKEN" \
-  -json -o api-security.json
-```
-
-### GraphQL API Testing
-
-```bash
-waf-tester scan -u https://api.example.com/graphql \
-  -types graphql \
-  -H "Authorization: Bearer $TOKEN" \
-  --json
-```
-
-### WordPress Audit
-
-```bash
+# Step 2: WordPress-optimized assessment
+# -service wordpress enables: WP-specific paths, plugin vulns, xmlrpc, wp-admin
 waf-tester auto -u https://myblog.com \
   -service wordpress \
   --smart \
-  -format html -o wordpress-audit.html
-```
+  --browser \
+  -format html,json \
+  -o ./wordpress-audit
 
-### Authenticated Testing
-
-```bash
-# Opens browser for manual login
-waf-tester auto -u https://app.example.com --browser
-
-# With custom timeout
-waf-tester auto -u https://app.example.com --browser -browser-timeout 5m
-```
-
-### Stealth Reconnaissance
-
-```bash
-waf-tester discover -u https://target.com \
-  -c 3 \
-  -rl 5 \
-  -delay 2s \
-  -o recon.json
-```
-
-### Parameter Discovery
-
-```bash
-waf-tester fuzz -u "https://target.com/api?FUZZ=test" \
-  -w params.txt \
-  -mc 200 \
-  -o fuzz-results.json
-```
-
-### Full Bypass Campaign
-
-```bash
-waf-tester bypass -u https://target.com \
+# Step 3: Focus on WP-specific attack paths
+waf-tester scan -u https://myblog.com \
+  -category sqli,xss,traversal,rce,upload \
   --smart \
-  --smart-mode=full \
-  -mutation full \
-  -chain \
-  --tamper=space2comment,charencode,randomcase \
-  -o full-bypass-results.json
+  -ip "wp-admin|wp-content|wp-includes|xmlrpc|wp-login" \
+  -format json -o wp-specific.json
+
+# Step 4: Test file upload bypass (critical for WP)
+waf-tester scan -u https://myblog.com \
+  -category upload \
+  --smart --tamper-auto \
+  -format json -o upload-bypass.json
 ```
+
+**Key findings to look for:**
+- `xmlrpc.php` accessible (brute force vector)
+- `wp-admin` path traversal
+- Plugin upload bypass
+- Theme editor code injection
+- REST API information disclosure
+
+---
+
+### Playbook 5: API-First Application (GraphQL + REST)
+
+**Scenario:** Modern application with GraphQL API and REST endpoints. Need to test both protocol types.
+
+```bash
+# Step 1: Detect protocols
+waf-tester protocol -u https://api.example.com
+
+# Step 2: GraphQL-specific testing
+waf-tester scan -u https://api.example.com/graphql \
+  -types graphql \
+  -H "Authorization: Bearer $TOKEN" \
+  --smart \
+  -format json -o graphql-results.json
+
+# Step 3: REST API testing
+waf-tester scan -u https://api.example.com \
+  -category sqli,nosqli,ssrf,jwt,idor \
+  -H "Authorization: Bearer $TOKEN" \
+  --smart \
+  -format json -o rest-results.json
+
+# Step 4: JavaScript analysis (find hidden endpoints)
+waf-tester analyze -u https://app.example.com -endpoints -secrets
+
+# Step 5: OpenAPI spec fuzzing (if available)
+waf-tester openapi -u https://api.example.com/openapi.json \
+  --fuzz \
+  -H "Authorization: Bearer $TOKEN" \
+  -format json -o openapi-fuzz.json
+```
+
+**GraphQL-specific checks:**
+- Introspection enabled? (information disclosure)
+- Query depth limits? (DoS via nested queries)
+- Batch query abuse?
+- Field-level authorization gaps?
+
+---
+
+### Playbook 6: Post-Incident — Verify WAF Rule Fix
+
+**Scenario:** WAF bypass was discovered in production. Team deployed rule fix. Need to verify the fix works without introducing false positives.
+
+```bash
+# BEFORE fix: capture baseline (you should already have this)
+# waf-tester assess -u https://target.com -fp -corpus builtin -format json -o before-fix.json
+
+# AFTER fix: run identical assessment
+waf-tester assess -u https://target.com \
+  -fp -corpus builtin \
+  -format json -o after-fix.json
+
+# Compare metrics
+echo "=== BEFORE FIX ==="
+jq '{tpr: .metrics.tpr, fpr: .metrics.fpr, f1: .metrics.f1}' before-fix.json
+
+echo "=== AFTER FIX ==="
+jq '{tpr: .metrics.tpr, fpr: .metrics.fpr, f1: .metrics.f1}' after-fix.json
+
+# Specifically verify the reported bypass is now blocked
+waf-tester scan -u https://target.com \
+  -category sqli \
+  -ip "/api/login" \
+  --smart \
+  -format json -o fix-verification.json
+
+# Check false positives didn't increase
+jq '.metrics.fpr' after-fix.json  # Should be <= before-fix FPR
+```
+
+**Verification criteria:**
+- [ ] Specific bypass payload is now blocked
+- [ ] Overall detection rate increased or stayed same
+- [ ] False positive rate didn't increase
+- [ ] No new categories with decreased detection
+
+---
+
+### Playbook 7: Bug Bounty — Quick WAF Bypass Discovery
+
+**Scenario:** You have a bug bounty target. Time is limited. Need to find WAF bypasses quickly and document proof.
+
+```bash
+# Step 1: Quick vendor check (15 seconds)
+waf-tester vendor -u $TARGET -q
+# Output: "Cloudflare (94%)" — now you know what you're fighting
+
+# Step 2: Full auto with smart mode (5-15 minutes)
+waf-tester auto -u $TARGET \
+  --smart \
+  -c 50 -rl 100 \
+  -format json -o quick-results.json
+
+# Step 3: Focus on high-value bypasses
+waf-tester bypass -u $TARGET \
+  --smart --tamper-auto \
+  -category sqli,xss,rce,ssrf \
+  -msev critical,high \
+  -format json -o bypasses.json
+
+# Step 4: If bypasses found, generate evidence
+BYPASSES=$(jq '[.results[] | select(.bypassed == true)] | length' bypasses.json)
+if [ "$BYPASSES" -gt 0 ]; then
+  echo "🎯 $BYPASSES bypasses found! Generating evidence..."
+  waf-tester scan -u $TARGET \
+    --smart \
+    -ie -ir \
+    -format html -o bug-bounty-report.html
+fi
+
+# Step 5: JavaScript analysis for bonus findings
+waf-tester analyze -u $TARGET -secrets -endpoints
+```
+
+**Writing the bug bounty report:**
+1. WAF vendor + version detected
+2. Bypass payload (from `bypasses.json`)
+3. HTTP request/response evidence (from `-ie -ir` flags)
+4. Impact assessment (what the bypass enables)
+5. Remediation recommendation
+
+---
+
+### Playbook 8: Production Monitoring — Continuous WAF Health
+
+**Scenario:** Run scheduled WAF health checks and alert on degradation.
+
+```bash
+#!/bin/bash
+# waf-health-check.sh — Run via cron: 0 */6 * * * /path/to/waf-health-check.sh
+
+TARGET="https://production.example.com"
+THRESHOLD_TPR=90
+THRESHOLD_FPR=2
+SLACK_WEBHOOK="$SLACK_WEBHOOK_URL"
+
+# Run assessment
+waf-tester assess -u $TARGET \
+  -fp -corpus builtin \
+  --smart -rl 20 \
+  --history-path=/var/lib/waftester/history \
+  --history-tags="production,scheduled" \
+  -format json -o /tmp/waf-health.json 2>/dev/null
+
+# Extract metrics
+TPR=$(jq '.metrics.tpr' /tmp/waf-health.json)
+FPR=$(jq '.metrics.fpr' /tmp/waf-health.json)
+F1=$(jq '.metrics.f1' /tmp/waf-health.json)
+
+# Alert on degradation
+if (( $(echo "$TPR < $THRESHOLD_TPR" | bc -l) )); then
+  curl -X POST "$SLACK_WEBHOOK" -H 'Content-type: application/json' \
+    -d "{\"text\":\"🚨 WAF Alert: Detection rate dropped to ${TPR}% (threshold: ${THRESHOLD_TPR}%)\"}"
+fi
+
+if (( $(echo "$FPR > $THRESHOLD_FPR" | bc -l) )); then
+  curl -X POST "$SLACK_WEBHOOK" -H 'Content-type: application/json' \
+    -d "{\"text\":\"⚠️ WAF Alert: False positive rate is ${FPR}% (threshold: ${THRESHOLD_FPR}%)\"}"
+fi
+
+echo "[$(date)] TPR=${TPR}% FPR=${FPR}% F1=${F1}" >> /var/log/waf-health.log
+```
+
+**Historical Trend Tracking (v2.6.8+):**
+
+With `--history-path` enabled, scan results are automatically stored for trend analysis:
+
+```bash
+# View detection rate trend over time
+waf-tester history trend \
+  --history-path=/var/lib/waftester/history \
+  --target=https://production.example.com
+
+# Compare latest scan against previous baseline
+waf-tester history compare \
+  --history-path=/var/lib/waftester/history \
+  --base=last-2 --compare=last-1
+```
+
+**Prometheus + Grafana integration:**
+
+```bash
+# Start with metrics endpoint
+waf-tester assess -u $TARGET --metrics-port=9090
+
+# In prometheus.yml:
+# scrape_configs:
+#   - job_name: 'waftester'
+#     static_configs:
+#       - targets: ['localhost:9090']
+```
+
+---
+
+### Playbook 9: Compliance Audit — PCI DSS / SOC 2
+
+**Scenario:** Auditor needs evidence that WAF is properly configured. Need quantitative metrics and formal report.
+
+```bash
+# Step 1: Full assessment with all corpora
+waf-tester assess -u https://payment.example.com \
+  -fp -corpus "builtin,leipzig" \
+  --smart \
+  -categories sqli,xss,traversal,rce,xxe,ssrf,cmdi \
+  -format json,pdf,html \
+  -o ./compliance-audit
+
+# Step 2: Specific PCI DSS requirement validation
+# Req 6.6: WAF in front of public-facing web applications
+waf-tester vendor -u https://payment.example.com -output compliance-audit/waf-verification.json
+
+# Step 3: False positive validation (business impact)
+waf-tester fp -u https://payment.example.com \
+  -corpus builtin,leipzig \
+  -format json -o compliance-audit/false-positives.json
+
+# Step 4: Generate compliance summary
+echo "=== PCI DSS WAF Compliance Summary ==="
+echo "Requirement 6.6 - Web Application Firewall:"
+echo "  WAF Present: $(jq -r '.vendor' compliance-audit/waf-verification.json)"
+echo "  Detection Rate: $(jq '.metrics.tpr' compliance-audit/assessment.json)%"
+echo "  False Positive Rate: $(jq '.metrics.fpr' compliance-audit/false-positives.json)%"
+echo "  OWASP Top 10 Coverage: $(jq '.metrics.owasp_coverage' compliance-audit/assessment.json)%"
+```
+
+**Auditor deliverables:**
+- [ ] WAF vendor verification (JSON + PDF)
+- [ ] Detection rate per OWASP Top 10 category
+- [ ] False positive rate with benign traffic evidence
+- [ ] Historical trend (if running Playbook 8)
+
+---
+
+### Playbook 10: Multi-Region / Multi-CDN Assessment
+
+**Scenario:** Application deployed across multiple regions with different CDN/WAF configurations. Need to verify consistent protection.
+
+```bash
+#!/bin/bash
+# multi-region-test.sh
+
+declare -A REGIONS=(
+  ["us-east"]="https://us-east.example.com"
+  ["eu-west"]="https://eu-west.example.com"
+  ["ap-south"]="https://ap-south.example.com"
+)
+
+for region in "${!REGIONS[@]}"; do
+  echo "=== Testing $region ==="
+
+  # WAF vendor check (may differ per region)
+  waf-tester vendor -u "${REGIONS[$region]}" -output "${region}-vendor.json"
+
+  # Full assessment
+  waf-tester assess -u "${REGIONS[$region]}" \
+    -fp -corpus builtin \
+    --smart \
+    -format json -o "${region}-results.json"
+done
+
+# Compare regions
+echo ""
+echo "╔══════════════════════════════════════════════════════╗"
+echo "║           MULTI-REGION COMPARISON                    ║"
+echo "╠══════════════════════════════════════════════════════╣"
+for region in "${!REGIONS[@]}"; do
+  TPR=$(jq '.metrics.tpr' "${region}-results.json")
+  FPR=$(jq '.metrics.fpr' "${region}-results.json")
+  WAF=$(jq -r '.vendor' "${region}-vendor.json")
+  echo "║ $region: WAF=$WAF TPR=${TPR}% FPR=${FPR}%"
+done
+echo "╚══════════════════════════════════════════════════════╝"
+```
+
+**Red flags to watch for:**
+- Different WAF vendors per region (configuration drift)
+- Significant TPR variance (>5% between regions)
+- Higher FPR in specific regions (locale-specific rules)
 
 ---
 
