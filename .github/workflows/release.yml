@@ -3,6 +3,7 @@ name: Release
 on:
   workflow_run:
     workflows: ["CI"]
+    branches: [main]
     types:
       - completed
 
@@ -45,8 +46,8 @@ jobs:
         id: check_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.get_tag.outputs.tag }}
         run: |
-          TAG=${{ steps.get_tag.outputs.tag }}
           # Check if release exists AND has assets (meaning another run already published)
           ASSET_COUNT=$(gh release view "$TAG" --json assets -q '.assets | length' 2>/dev/null || echo "0")
           if [ "$ASSET_COUNT" -gt "0" ]; then
@@ -91,8 +92,8 @@ jobs:
         id: prev_notes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.get_tag.outputs.tag }}
         run: |
-          TAG=${{ steps.get_tag.outputs.tag }}
           # Save any manually-written release notes before GoReleaser replaces them.
           # These may have been added via GitHub UI before CI ran.
           PREV_BODY=$(gh release view "$TAG" --json body -q '.body' 2>/dev/null || echo "")
@@ -120,8 +121,8 @@ jobs:
         if: steps.get_tag.outputs.is_tag == 'true' && steps.prev_notes.outputs.has_prev == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.get_tag.outputs.tag }}
         run: |
-          TAG=${{ steps.get_tag.outputs.tag }}
           # Append the previously-written manual notes below the GoReleaser output
           CURRENT_BODY=$(gh release view "$TAG" --json body -q '.body' 2>/dev/null || echo "")
           PREV_BODY=$(cat /tmp/prev_notes.md)
