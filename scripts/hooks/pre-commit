@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Pre-commit hook: block private/sensitive files from being committed.
+# This is a SAFETY NET — .gitignore should already exclude these,
+# but this hook catches cases where .gitignore is misconfigured.
+
+set -euo pipefail
+
+# ============================================================================
+# PRIVATE PATHS — NEVER COMMIT THESE TO THE PUBLIC REPO
+# ============================================================================
+# Add new private paths here as patterns (matched against staged file paths).
+# Patterns are matched using grep -E (extended regex).
+PRIVATE_PATTERNS=(
+    '^\\.github/agents/'
+    '^\\.github/instructions/'
+    '^\\.github/prompts/'
+    '^\\.github/skills/'
+    '^\\.github/workspace/'
+    '^\\.github/copilot-instructions\\.md'
+    '^\\.github/memory-seed\\.json'
+    '^\\.claude/'
+    '^\\.mcp\\.json'
+    '^\\.vscode/'
+    '^docs/plans/'
+    '^docs/research/'
+)
+
+# Build combined regex
+COMBINED_PATTERN=$(IFS='|'; echo "${PRIVATE_PATTERNS[*]}")
+
+# Get list of staged files
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null || true)
+
+if [ -z "$STAGED_FILES" ]; then
+    exit 0
+fi
+
+# Check for private files in staging area
+VIOLATIONS=$(echo "$STAGED_FILES" | grep -E "$COMBINED_PATTERN" || true)
+
+if [ -n "$VIOLATIONS" ]; then
+    echo ""
+    echo "╔══════════════════════════════════════════════════════════════════╗"
+    echo "║  BLOCKED: Private files detected in commit                     ║"
+    echo "╚══════════════════════════════════════════════════════════════════╝"
+    echo ""
+    echo "The following files must NOT be committed to the public repo:"
+    echo ""
+    echo "$VIOLATIONS" | while read -r file; do
+        echo "  ✗ $file"
+    done
+    echo ""
+    echo "These files should be in .gitignore. If you see this error,"
+    echo "check that .gitignore has not been modified incorrectly."
+    echo ""
+    echo "To unstage these files:"
+    echo "  git reset HEAD <file>"
+    echo ""
+    echo "To force commit (NOT RECOMMENDED):"
+    echo "  git commit --no-verify"
+    echo ""
+    exit 1
+fi

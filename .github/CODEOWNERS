@@ -2,3 +2,7 @@
 .github/workflows/ @waftester/core
 .github/dependabot.yml @waftester/core
 .goreleaser.yaml @waftester/core
+
+# Protect security-critical files — changes here can leak private files
+.gitignore @waftester/core
+.github/CODEOWNERS @waftester/core
