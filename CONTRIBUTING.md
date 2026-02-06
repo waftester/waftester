@@ -120,6 +120,44 @@ The CI will **fail** if hardcoded values are detected. The tests in `pkg/default
 - Write tests for new functionality
 - **Use `pkg/defaults` and `pkg/duration` for all configuration values**
 
+## MCP Server Development
+
+The MCP server lives in `pkg/mcpserver/` and follows specific patterns:
+
+### Adding a New Tool
+
+1. Add the tool registration in `tools.go` following existing patterns
+2. Write an opinionated description that helps LLMs choose the right tool
+3. Include complete `Annotations` (`ReadOnlyHint`, `IdempotentHint`, `OpenWorldHint`, `DestructiveHint`, `Title`)
+4. Define a typed args struct with JSON tags
+5. Use `parseArgs()`, `notifyProgress()`, `logToSession()`, `textResult()`/`jsonResult()`/`errorResult()` helpers
+6. Use typed logging constants (`logInfo`, `logWarning`) instead of raw strings
+7. Protect concurrent state with `sync/atomic` or `sync.Mutex`
+
+### Adding a New Resource
+
+1. Add the resource in `resources.go`
+2. Static resources use `AddResource()`, parameterized resources use `AddResourceTemplate()`
+3. For static JSON content, use a `const` string to avoid runtime allocation
+4. Verify `total_*` counts match actual entries
+
+### Running MCP Tests
+
+```bash
+# Run all MCP tests (42 tests)
+go test -v ./pkg/mcpserver/...
+
+# With race detector (requires CGO_ENABLED=1)
+CGO_ENABLED=1 go test -race ./pkg/mcpserver/...
+```
+
+### Testing with Claude Desktop
+
+1. Build: `go build -o waf-tester ./cmd/cli`
+2. Add to `claude_desktop_config.json` (see README)
+3. Restart Claude Desktop
+4. Ask Claude to list tools to verify the connection
+
 ## Reporting Issues
 
 - Check existing issues first
