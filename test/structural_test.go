@@ -742,5 +742,55 @@ func TestPrivateGuardWorkflowExists(t *testing.T) {
 		}
 	}
 
+	// Verify it checks for personal identity in commits
+	if !strings.Contains(string(content), "personal identity") {
+		t.Error("private-guard.yml must check for personal identity in commits")
+	}
+
 	t.Logf("✅ private-guard.yml exists and checks all required private paths (%d bytes)", info.Size())
+}
+
+// TestMailmapExists verifies .mailmap remaps personal identity to project identity.
+func TestMailmapExists(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	mailmapPath := filepath.Join(repoRoot, ".mailmap")
+
+	content, err := os.ReadFile(mailmapPath)
+	if err != nil {
+		t.Fatal("SECURITY: .mailmap is missing — this file remaps personal identity " +
+			"to project identity as a safety net against contributor name leaks")
+	}
+
+	mailmap := string(content)
+
+	// Verify it maps to the project identity
+	if !strings.Contains(mailmap, "WAFtester <dev@waftester.com>") {
+		t.Error(".mailmap must map to project identity: WAFtester <dev@waftester.com>")
+	}
+
+	t.Log("✅ .mailmap exists with project identity remapping")
+}
+
+// TestPreCommitHookChecksIdentity verifies the pre-commit hook blocks personal identity.
+func TestPreCommitHookChecksIdentity(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	hookPath := filepath.Join(repoRoot, "scripts", "hooks", "pre-commit")
+
+	content, err := os.ReadFile(hookPath)
+	if err != nil {
+		t.Fatal("SECURITY: scripts/hooks/pre-commit is missing")
+	}
+
+	hook := string(content)
+
+	// Verify it checks author identity, not just private files
+	if !strings.Contains(hook, "BLOCKED_EMAILS") {
+		t.Error("pre-commit hook must check for blocked email addresses")
+	}
+
+	if !strings.Contains(hook, "user.email") {
+		t.Error("pre-commit hook must check git config user.email")
+	}
+
+	t.Log("✅ pre-commit hook checks for personal identity before committing")
 }
