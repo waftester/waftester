@@ -20,6 +20,8 @@ jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
     # Only run if CI workflow succeeded
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
@@ -28,12 +30,13 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
 
       - name: Get tag name if present
         id: get_tag
         run: |
           # Check if the commit has a tag
-          TAG=$(git describe --tags --exact-match ${{ github.event.workflow_run.head_sha }} 2>/dev/null || echo "")
+          TAG=$(git describe --tags --exact-match "$HEAD_SHA" 2>/dev/null || echo "")
           if [ -n "$TAG" ]; then
             echo "tag=$TAG" >> $GITHUB_OUTPUT
             echo "is_tag=true" >> $GITHUB_OUTPUT
@@ -61,18 +64,16 @@ jobs:
       - name: Verify tag is on main branch
         if: steps.get_tag.outputs.is_tag == 'true' && steps.check_release.outputs.skip != 'true'
         run: |
-          TAG_SHA=${{ github.event.workflow_run.head_sha }}
-          
           # Check if this commit exists on main branch
-          if ! git branch -r --contains "$TAG_SHA" | grep -q "origin/main"; then
+          if ! git branch -r --contains "$HEAD_SHA" | grep -q "origin/main"; then
             echo "::error::Tag must be created from main branch. This tag points to a commit not on main."
-            echo "Tagged commit: $TAG_SHA"
+            echo "Tagged commit: $HEAD_SHA"
             echo "Branches containing this commit:"
-            git branch -r --contains "$TAG_SHA"
+            git branch -r --contains "$HEAD_SHA"
             exit 1
           fi
           
-          echo "✅ Tag verified: commit $TAG_SHA is on main branch"
+          echo "✅ Tag verified: commit $HEAD_SHA is on main branch"
 
       - name: Set up Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
@@ -136,7 +137,7 @@ jobs:
         run: |
           # Double-check: skip dev build if ANY version tag exists on this commit
           # Handles race condition where tag push event arrives after branch push
-          ALL_TAGS=$(git tag --points-at ${{ github.event.workflow_run.head_sha }} 2>/dev/null || echo "")
+          ALL_TAGS=$(git tag --points-at "$HEAD_SHA" 2>/dev/null || echo "")
           if echo "$ALL_TAGS" | grep -qE '^v[0-9]'; then
             echo "⏭️ Commit has version tag(s): $ALL_TAGS — skipping dev build"
             echo "skip_dev=true" >> $GITHUB_OUTPUT
@@ -164,7 +165,7 @@ jobs:
             --title "Development Build (latest)" \
             --notes "⚠️ **Automated development build from main branch**
 
-          **Commit:** \`${{ github.event.workflow_run.head_sha }}\`
+          **Commit:** \`$HEAD_SHA\`
           **Built:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')
 
           These binaries are built from the latest code and may be unstable.
