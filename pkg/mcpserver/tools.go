@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -253,6 +254,9 @@ func (s *Server) handleDetectWAF(ctx context.Context, req *mcp.CallToolRequest) 
 	if args.Target == "" {
 		return errorResult("target URL is required. Example: {\"target\": \"https://example.com\"}"), nil
 	}
+	if err := validateTargetURL(args.Target); err != nil {
+		return errorResult(err.Error()), nil
+	}
 
 	timeout := time.Duration(args.Timeout) * time.Second
 	if timeout <= 0 {
@@ -390,6 +394,9 @@ func (s *Server) handleDiscover(ctx context.Context, req *mcp.CallToolRequest) (
 
 	if args.Target == "" {
 		return errorResult("target URL is required. Example: {\"target\": \"https://app.example.com\"}"), nil
+	}
+	if err := validateTargetURL(args.Target); err != nil {
+		return errorResult(err.Error()), nil
 	}
 
 	timeout := time.Duration(args.Timeout) * time.Second
@@ -696,6 +703,9 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	if args.Target == "" {
 		return errorResult("target URL is required. Example: {\"target\": \"https://example.com\"}"), nil
 	}
+	if err := validateTargetURL(args.Target); err != nil {
+		return errorResult(err.Error()), nil
+	}
 
 	if args.Concurrency <= 0 {
 		args.Concurrency = defaults.ConcurrencyMedium
@@ -916,6 +926,9 @@ func (s *Server) handleAssess(ctx context.Context, req *mcp.CallToolRequest) (*m
 
 	if args.Target == "" {
 		return errorResult("target URL is required. Example: {\"target\": \"https://example.com\"}"), nil
+	}
+	if err := validateTargetURL(args.Target); err != nil {
+		return errorResult(err.Error()), nil
 	}
 
 	cfg := assessment.DefaultConfig()
@@ -1252,6 +1265,9 @@ func (s *Server) handleBypass(ctx context.Context, req *mcp.CallToolRequest) (*m
 	if args.Target == "" {
 		return errorResult("target URL is required."), nil
 	}
+	if err := validateTargetURL(args.Target); err != nil {
+		return errorResult(err.Error()), nil
+	}
 	if len(args.Payloads) == 0 {
 		return errorResult("at least one payload is required. Example: {\"payloads\": [\"' OR 1=1--\"]}"), nil
 	}
@@ -1394,6 +1410,9 @@ func (s *Server) handleProbe(ctx context.Context, req *mcp.CallToolRequest) (*mc
 	if args.Target == "" {
 		return errorResult("target URL is required. Example: {\"target\": \"https://example.com\"}"), nil
 	}
+	if err := validateTargetURL(args.Target); err != nil {
+		return errorResult(err.Error()), nil
+	}
 
 	timeout := time.Duration(args.Timeout) * time.Second
 	if timeout <= 0 {
@@ -1438,14 +1457,18 @@ func probeTarget(ctx context.Context, target string, timeout time.Duration, skip
 		report.Error = fmt.Sprintf("invalid URL: %v", err)
 		return report
 	}
-	httpReq.Header.Set("User-Agent", "waf-tester/probe")
+	httpReq.Header.Set("User-Agent", defaults.UserAgent("probe"))
 
 	resp, err := client.Do(httpReq)
 	if err != nil {
 		report.Error = fmt.Sprintf("request failed: %v", err)
 		return report
 	}
-	defer resp.Body.Close()
+	defer func() {
+		// Drain up to 4KB so the connection can be reused.
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+		resp.Body.Close()
+	}()
 
 	report.Reachable = true
 	report.StatusCode = resp.StatusCode

@@ -648,6 +648,67 @@ func TestCallGenerateCICDAllPlatforms(t *testing.T) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Target URL validation tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+func TestToolRejectsEmptyTarget(t *testing.T) {
+	// All network tools must reject empty target with a clear error.
+	tools := []string{"detect_waf", "discover", "scan", "assess", "bypass", "probe"}
+	for _, tool := range tools {
+		t.Run(tool, func(t *testing.T) {
+			cs := newTestSession(t)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+				Name:      tool,
+				Arguments: json.RawMessage(`{}`),
+			})
+			if err != nil {
+				t.Fatalf("CallTool(%s): %v", tool, err)
+			}
+			if !result.IsError {
+				t.Fatalf("%s accepted empty target — expected error", tool)
+			}
+		})
+	}
+}
+
+func TestToolRejectsInvalidURLScheme(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "detect_waf",
+		Arguments: json.RawMessage(`{"target": "ftp://example.com"}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool(detect_waf): %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("detect_waf accepted ftp:// scheme — expected error")
+	}
+}
+
+func TestToolRejectsMissingScheme(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "detect_waf",
+		Arguments: json.RawMessage(`{"target": "example.com"}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool(detect_waf): %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("detect_waf accepted URL without scheme — expected error")
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Hook tests
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -775,6 +836,7 @@ func TestSSEHandler(t *testing.T) {
 
 func TestHealthEndpoint(t *testing.T) {
 	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	srv.MarkReady()
 	handler := srv.HTTPHandler()
 	ts := httptest.NewServer(handler)
 	defer ts.Close()
@@ -803,6 +865,32 @@ func TestHealthEndpoint(t *testing.T) {
 	}
 	if body["service"] != "waf-tester-mcp" {
 		t.Errorf("GET /health: got service %q, want %q", body["service"], "waf-tester-mcp")
+	}
+}
+
+func TestHealthEndpointNotReady(t *testing.T) {
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	// Do NOT call srv.MarkReady() — server should return 503.
+	handler := srv.HTTPHandler()
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/health")
+	if err != nil {
+		t.Fatalf("GET /health: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("GET /health (not ready): got status %d, want %d", resp.StatusCode, http.StatusServiceUnavailable)
+	}
+
+	var body map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("GET /health: failed to decode JSON: %v", err)
+	}
+	if body["status"] != "starting" {
+		t.Errorf("GET /health (not ready): got status %q, want %q", body["status"], "starting")
 	}
 }
 
