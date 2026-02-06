@@ -18,6 +18,7 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     # Only run if CI workflow succeeded
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
@@ -75,7 +76,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version-file: go.mod
+          cache: true
 
       - name: Delete previous dev release
         if: steps.get_tag.outputs.is_tag != 'true'
@@ -83,24 +85,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release delete dev --yes --cleanup-tag 2>/dev/null || true
-
-      - name: Preserve and merge previous release notes
-        if: steps.get_tag.outputs.is_tag == 'true' && steps.check_release.outputs.skip != 'true'
-        id: prev_notes
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG=${{ steps.get_tag.outputs.tag }}
-          # Fetch previous release notes if they exist
-          PREV_NOTES=$(gh release view "$TAG" --json body -q '.body' 2>/dev/null || echo "")
-          if [ -n "$PREV_NOTES" ]; then
-            echo "Found previous release notes for $TAG"
-            echo "$PREV_NOTES" > /tmp/prev_notes.md
-            echo "has_prev=true" >> $GITHUB_OUTPUT
-          else
-            echo "No previous release found for $TAG"
-            echo "has_prev=false" >> $GITHUB_OUTPUT
-          fi
 
       - name: Delete existing release if tag exists
         if: steps.get_tag.outputs.is_tag == 'true' && steps.check_release.outputs.skip != 'true'

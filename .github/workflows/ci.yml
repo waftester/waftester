@@ -5,39 +5,48 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch:  # Allow manual runs
+  workflow_dispatch:
+
+# Cancel in-progress runs for the same branch/PR — newest push wins
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version-file: go.mod
+          cache: true
 
       - name: Build
         run: go build -v ./...
 
-      - name: Test
-        run: go test -v -race -coverprofile=coverage.txt ./...
+      - name: Test (with race detection)
+        run: go test -race -coverprofile=coverage.txt -timeout 10m ./...
 
       # Hardcode enforcement runs as part of normal test suite
       # See pkg/defaults/defaults_test.go for TestNoHardcoded* tests
 
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version-file: go.mod
+          cache: true
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v4
+        uses: golangci/golangci-lint-action@v7
         with:
           version: latest
