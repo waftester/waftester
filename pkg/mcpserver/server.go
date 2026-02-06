@@ -369,7 +369,7 @@ Before testing, you can read domain knowledge resources to understand:
 - waftester://payloads — Full payload catalog with categories
 - waftester://payloads/{category} — Payloads for a specific category
 - waftester://guide — Comprehensive WAF testing methodology guide
-- waftester://waf-signatures — All 26 WAF vendor signatures and bypass tips
+- waftester://waf-signatures — 12 WAF vendor signatures with detailed bypass tips
 - waftester://evasion-techniques — Available evasion and encoding techniques
 - waftester://owasp-mappings — OWASP Top 10 2021 category mappings
 - waftester://config — Default configuration values and bounds
