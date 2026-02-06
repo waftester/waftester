@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -258,7 +259,7 @@ func (s *Server) handleDetectWAF(ctx context.Context, req *mcp.CallToolRequest) 
 	}
 
 	notifyProgress(ctx, req, 0, 100, "Starting WAF detection on "+args.Target)
-	logToSession(ctx, req, "info", "Initiating WAF/CDN detection for "+args.Target)
+	logToSession(ctx, req, logInfo, "Initiating WAF/CDN detection for "+args.Target)
 
 	detector := waf.NewDetector(timeout)
 
@@ -271,7 +272,7 @@ func (s *Server) handleDetectWAF(ctx context.Context, req *mcp.CallToolRequest) 
 	}
 
 	notifyProgress(ctx, req, 100, 100, "Detection complete")
-	logToSession(ctx, req, "info", fmt.Sprintf("WAF detection complete for %s", args.Target))
+	logToSession(ctx, req, logInfo, fmt.Sprintf("WAF detection complete for %s", args.Target))
 
 	return jsonResult(result)
 }
@@ -406,7 +407,7 @@ func (s *Server) handleDiscover(ctx context.Context, req *mcp.CallToolRequest) (
 	}
 
 	notifyProgress(ctx, req, 0, 100, "Starting discovery on "+args.Target)
-	logToSession(ctx, req, "info", "Initiating attack surface discovery for "+args.Target)
+	logToSession(ctx, req, logInfo, "Initiating attack surface discovery for "+args.Target)
 
 	discoverer := discovery.NewDiscoverer(cfg)
 
@@ -418,22 +419,22 @@ func (s *Server) handleDiscover(ctx context.Context, req *mcp.CallToolRequest) (
 	}
 
 	notifyProgress(ctx, req, 100, 100, "Discovery complete")
-	logToSession(ctx, req, "info", fmt.Sprintf("Discovered %d endpoints for %s", len(result.Endpoints), args.Target))
+	logToSession(ctx, req, logInfo, fmt.Sprintf("Discovered %d endpoints for %s", len(result.Endpoints), args.Target))
 
 	summary := buildDiscoverySummary(result)
 	return jsonResult(summary)
 }
 
 type discoverySummary struct {
-	Target         string                        `json:"target"`
-	EndpointCount  int                           `json:"endpoint_count"`
-	WAFDetected    bool                          `json:"waf_detected"`
-	WAFFingerprint string                        `json:"waf_fingerprint,omitempty"`
-	Technologies   []string                      `json:"technologies,omitempty"`
+	Target         string                         `json:"target"`
+	EndpointCount  int                            `json:"endpoint_count"`
+	WAFDetected    bool                           `json:"waf_detected"`
+	WAFFingerprint string                         `json:"waf_fingerprint,omitempty"`
+	Technologies   []string                       `json:"technologies,omitempty"`
 	AttackSurface  *discovery.AttackSurface       `json:"attack_surface,omitempty"`
 	Statistics     *discovery.DiscoveryStatistics `json:"statistics,omitempty"`
-	TopEndpoints   []endpointPreview             `json:"top_endpoints,omitempty"`
-	SecretsFound   int                           `json:"secrets_found"`
+	TopEndpoints   []endpointPreview              `json:"top_endpoints,omitempty"`
+	SecretsFound   int                            `json:"secrets_found"`
 }
 
 type endpointPreview struct {
@@ -549,7 +550,7 @@ func (s *Server) handleLearn(ctx context.Context, req *mcp.CallToolRequest) (*mc
 	}
 
 	notifyProgress(ctx, req, 0, 100, "Analyzing discovery results…")
-	logToSession(ctx, req, "info", fmt.Sprintf("Generating test plan for %s (%d endpoints)", disc.Target, len(disc.Endpoints)))
+	logToSession(ctx, req, logInfo, fmt.Sprintf("Generating test plan for %s (%d endpoints)", disc.Target, len(disc.Endpoints)))
 
 	learner := learning.NewLearner(&disc, s.config.PayloadDir)
 
@@ -558,7 +559,7 @@ func (s *Server) handleLearn(ctx context.Context, req *mcp.CallToolRequest) (*mc
 	plan := learner.GenerateTestPlan()
 
 	notifyProgress(ctx, req, 100, 100, "Test plan generated")
-	logToSession(ctx, req, "info", fmt.Sprintf("Test plan ready: %d groups, %d endpoint tests", len(plan.TestGroups), len(plan.EndpointTests)))
+	logToSession(ctx, req, logInfo, fmt.Sprintf("Test plan ready: %d groups, %d endpoint tests", len(plan.TestGroups), len(plan.EndpointTests)))
 
 	return jsonResult(plan)
 }
@@ -613,8 +614,8 @@ Returns: detection rate, total/blocked/failed counts, bypass details with reprod
 						"format":      "uri",
 					},
 					"categories": map[string]any{
-						"type":  "array",
-						"items": map[string]any{"type": "string"},
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
 						"description": "Payload categories to test. Empty means all. Examples: [\"sqli\", \"xss\", \"traversal\"].",
 					},
 					"severity": map[string]any{
@@ -657,6 +658,8 @@ Returns: detection rate, total/blocked/failed counts, bypass details with reprod
 				"required": []string{"target"},
 			},
 			Annotations: &mcp.ToolAnnotations{
+				ReadOnlyHint:    false,
+				IdempotentHint:  false,
 				OpenWorldHint:   boolPtr(true),
 				DestructiveHint: boolPtr(false),
 				Title:           "WAF Security Scan",
@@ -704,7 +707,7 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	}
 
 	notifyProgress(ctx, req, 0, 100, "Loading payloads…")
-	logToSession(ctx, req, "info", fmt.Sprintf("Starting scan on %s (concurrency=%d, rate=%d/s)", args.Target, args.Concurrency, args.RateLimit))
+	logToSession(ctx, req, logInfo, fmt.Sprintf("Starting scan on %s (concurrency=%d, rate=%d/s)", args.Target, args.Concurrency, args.RateLimit))
 
 	loader := payloads.NewLoader(s.config.PayloadDir)
 	all, err := loader.LoadAll()
@@ -738,8 +741,8 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	notifyProgress(ctx, req, 10, 100, fmt.Sprintf("Loaded %d payloads, scanning…", len(filtered)))
 
 	total := len(filtered)
-	received := 0
-	bypasses := 0
+	var received atomic.Int64
+	var bypasses atomic.Int64
 
 	executor := core.NewExecutor(core.ExecutorConfig{
 		TargetURL:   args.Target,
@@ -749,16 +752,17 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		SkipVerify:  args.SkipVerify,
 		Proxy:       args.Proxy,
 		OnResult: func(r *output.TestResult) {
-			received++
+			n := received.Add(1)
 			if r.Outcome == "Fail" {
-				bypasses++
-				logToSession(ctx, req, "warning",
+				b := bypasses.Add(1)
+				logToSession(ctx, req, logWarning,
 					fmt.Sprintf("BYPASS: %s [%s] → %d", r.ID, r.Category, r.StatusCode))
+				_ = b // used only in the progress message below
 			}
-			if received%10 == 0 || received == total {
-				pct := float64(received) / float64(total) * 80
+			if n%10 == 0 || n == int64(total) {
+				pct := float64(n) / float64(total) * 80
 				notifyProgress(ctx, req, 10+pct, 100,
-					fmt.Sprintf("Tested %d/%d (bypasses: %d)…", received, total, bypasses))
+					fmt.Sprintf("Tested %d/%d (bypasses: %d)…", n, total, bypasses.Load()))
 			}
 		},
 	})
@@ -782,7 +786,7 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	}
 
 	notifyProgress(ctx, req, 100, 100, fmt.Sprintf("Scan complete — %d bypasses found", execResults.FailedTests))
-	logToSession(ctx, req, "info", fmt.Sprintf("Scan finished: %d tested, %d blocked, %d bypassed, detection rate: %s",
+	logToSession(ctx, req, logInfo, fmt.Sprintf("Scan finished: %d tested, %d blocked, %d bypassed, detection rate: %s",
 		execResults.TotalTests, execResults.BlockedTests, execResults.FailedTests, detectionRate))
 
 	return jsonResult(summary)
@@ -860,8 +864,8 @@ Returns: letter grade, category scores, F1/MCC/FPR metrics, bypass list, per-cat
 						"maximum":     60,
 					},
 					"categories": map[string]any{
-						"type":  "array",
-						"items": map[string]any{"type": "string"},
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
 						"description": "Attack categories to test. Empty means all.",
 					},
 					"enable_fp_testing": map[string]any{
@@ -939,7 +943,7 @@ func (s *Server) handleAssess(ctx context.Context, req *mcp.CallToolRequest) (*m
 	}
 
 	notifyProgress(ctx, req, 0, 100, "Starting enterprise assessment on "+args.Target)
-	logToSession(ctx, req, "info", "Enterprise WAF assessment initiated for "+args.Target)
+	logToSession(ctx, req, logInfo, "Enterprise WAF assessment initiated for "+args.Target)
 
 	a := assessment.New(cfg)
 
@@ -956,7 +960,7 @@ func (s *Server) handleAssess(ctx context.Context, req *mcp.CallToolRequest) (*m
 	}
 
 	notifyProgress(ctx, req, 100, 100, fmt.Sprintf("Assessment complete — Grade: %s", metrics.Grade))
-	logToSession(ctx, req, "info", fmt.Sprintf("Assessment complete: Grade=%s, F1=%.3f, FPR=%.3f",
+	logToSession(ctx, req, logInfo, fmt.Sprintf("Assessment complete: Grade=%s, F1=%.3f, FPR=%.3f",
 		metrics.Grade, metrics.F1Score, metrics.FalsePositiveRate))
 
 	return jsonResult(metrics)
@@ -1186,8 +1190,8 @@ Returns: successful bypasses with exact payload + encoding + location, total mut
 						"format":      "uri",
 					},
 					"payloads": map[string]any{
-						"type":  "array",
-						"items": map[string]any{"type": "string"},
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
 						"description": "Attack payload strings to mutate and test. Example: [\"' OR 1=1--\", \"<script>alert(1)</script>\"].",
 					},
 					"concurrency": map[string]any{
@@ -1262,7 +1266,7 @@ func (s *Server) handleBypass(ctx context.Context, req *mcp.CallToolRequest) (*m
 	}
 
 	notifyProgress(ctx, req, 0, 100, fmt.Sprintf("Preparing bypass matrix for %d payloads…", len(args.Payloads)))
-	logToSession(ctx, req, "info", fmt.Sprintf("Bypass testing %d payloads against %s", len(args.Payloads), args.Target))
+	logToSession(ctx, req, logInfo, fmt.Sprintf("Bypass testing %d payloads against %s", len(args.Payloads), args.Target))
 
 	executor := mutation.NewExecutor(&mutation.ExecutorConfig{
 		TargetURL:   args.Target,
@@ -1277,7 +1281,7 @@ func (s *Server) handleBypass(ctx context.Context, req *mcp.CallToolRequest) (*m
 	result := executor.FindBypasses(ctx, args.Payloads)
 
 	notifyProgress(ctx, req, 100, 100, fmt.Sprintf("Bypass testing complete — %d bypasses found", len(result.BypassPayloads)))
-	logToSession(ctx, req, "info", fmt.Sprintf("Bypass results: %d/%d found bypasses", len(result.BypassPayloads), result.TotalTested))
+	logToSession(ctx, req, logInfo, fmt.Sprintf("Bypass results: %d/%d found bypasses", len(result.BypassPayloads), result.TotalTested))
 
 	return jsonResult(result)
 }
@@ -1560,8 +1564,8 @@ Returns: complete pipeline YAML/Groovy, ready to paste into your repo and commit
 						"description": "Target URL for WAF testing (can use environment variable like $TARGET_URL).",
 					},
 					"scan_types": map[string]any{
-						"type":  "array",
-						"items": map[string]any{"type": "string"},
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
 						"description": "Vulnerability scan types to include. Example: [\"sqli\", \"xss\"].",
 					},
 					"schedule": map[string]any{
