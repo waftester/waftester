@@ -6,6 +6,37 @@
 set -euo pipefail
 
 # ============================================================================
+# IDENTITY CHECK — BLOCK COMMITS WITH PERSONAL NAME/EMAIL
+# ============================================================================
+# The public repo must only have commits from the project identity.
+# This catches cases where the local git config was reset or overridden.
+BLOCKED_EMAILS=(
+    "REDACTED@example.com"
+    "REDACTED"
+)
+
+AUTHOR_NAME=$(git config user.name 2>/dev/null || echo "")
+AUTHOR_EMAIL=$(git config user.email 2>/dev/null || echo "")
+
+for blocked in "${BLOCKED_EMAILS[@]}"; do
+    if echo "$AUTHOR_EMAIL" | grep -qi "$blocked"; then
+        echo ""
+        echo "╔══════════════════════════════════════════════════════════════════╗"
+        echo "║  BLOCKED: Personal identity detected in git config             ║"
+        echo "╚══════════════════════════════════════════════════════════════════╝"
+        echo ""
+        echo "  Current:  $AUTHOR_NAME <$AUTHOR_EMAIL>"
+        echo "  Expected: WAFtester <dev@waftester.com>"
+        echo ""
+        echo "Fix with:"
+        echo "  git config user.name 'WAFtester'"
+        echo "  git config user.email 'dev@waftester.com'"
+        echo ""
+        exit 1
+    fi
+done
+
+# ============================================================================
 # PRIVATE PATHS — NEVER COMMIT THESE TO THE PUBLIC REPO
 # ============================================================================
 # Add new private paths here as patterns (matched against staged file paths).
