@@ -23,7 +23,7 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}
@@ -74,7 +74,7 @@ jobs:
           echo "✅ Tag verified: commit $TAG_SHA is on main branch"
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
           cache: true
@@ -93,7 +93,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG=${{ steps.get_tag.outputs.tag }}
-          # Save any manually-written release notes before we delete the release.
+          # Save any manually-written release notes before GoReleaser replaces them.
           # These may have been added via GitHub UI before CI ran.
           PREV_BODY=$(gh release view "$TAG" --json body -q '.body' 2>/dev/null || echo "")
           if [ -n "$PREV_BODY" ]; then
@@ -105,17 +105,9 @@ jobs:
             echo "has_prev=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Delete existing release if tag exists
-        if: steps.get_tag.outputs.is_tag == 'true' && steps.check_release.outputs.skip != 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG=${{ steps.get_tag.outputs.tag }}
-          gh release delete "$TAG" --yes 2>/dev/null || true
-
       - name: Run GoReleaser (tagged release)
         if: steps.get_tag.outputs.is_tag == 'true' && steps.check_release.outputs.skip != 'true'
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
         with:
           distribution: goreleaser
           version: latest
@@ -154,7 +146,7 @@ jobs:
 
       - name: Run GoReleaser (dev release)
         if: steps.get_tag.outputs.is_tag != 'true' && steps.dev_guard.outputs.skip_dev != 'true'
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
         with:
           distribution: goreleaser
           version: latest
