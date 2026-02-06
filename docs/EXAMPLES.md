@@ -4639,7 +4639,7 @@ waf-tester scan -u https://target.com -format cyclonedx -o waf-findings.vex.json
       {
         "vendor": "WAFtester",
         "name": "waf-tester",
-        "version": "2.6.8"
+        "version": "2.7.0"
       }
     ],
     "component": {
@@ -4713,10 +4713,10 @@ waf-tester scan -u https://target.com \
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<waftester-report version="2.6.8" generatedAt="2026-02-03T14:30:00Z">
+<waftester-report version="2.7.0" generatedAt="2026-02-03T14:30:00Z">
   <generator>
     <name>WAFtester</name>
-    <version>2.6.8</version>
+    <version>2.7.0</version>
   </generator>
   <target>
     <url>https://target.com</url>
@@ -4811,7 +4811,7 @@ export WAFTESTER_ELASTICSEARCH_INDEX=security-waf
   "_source": {
     "@timestamp": "2026-02-03T14:30:00Z",
     "tool": "waftester",
-    "version": "2.6.8",
+    "version": "2.7.0",
     "target": "https://target.com",
     "waf_vendor": "Cloudflare",
     "category": "sqli",
@@ -4911,7 +4911,7 @@ A WAF bypass was detected during security testing.
 - Test with additional evasion techniques
 
 ---
-*Created by WAFtester v2.6.8*
+*Created by WAFtester v2.7.0*
 ```
 
 ### Azure DevOps Integration (v2.6.8+)
@@ -5230,7 +5230,7 @@ waf-tester scan -u https://target.com \
     {
       "type": "context",
       "elements": [
-        { "type": "mrkdwn", "text": "WAFtester v2.6.8 | Scan ID: a1b2c3d4 | 2026-02-03T14:30:00Z" }
+        { "type": "mrkdwn", "text": "WAFtester v2.7.0 | Scan ID: a1b2c3d4 | 2026-02-03T14:30:00Z" }
       ]
     }
   ]
@@ -5381,7 +5381,7 @@ waf-tester scan -u https://target.com \
       "resource": {
         "attributes": [
           { "key": "service.name", "value": { "stringValue": "waf-tester" } },
-          { "key": "service.version", "value": { "stringValue": "2.6.8" } }
+          { "key": "service.version", "value": { "stringValue": "2.7.0" } }
         ]
       },
       "scopeSpans": [
