@@ -101,7 +101,7 @@ func (s *Server) addPayloadsResource() {
 			}
 
 			catalog := map[string]any{
-				"total_payloads":  stats.TotalPayloads,
+				"total_payloads": stats.TotalPayloads,
 				"categories":     stats.CategoriesUsed,
 				"by_category":    stats.ByCategory,
 				"by_severity":    bySeverity,
@@ -338,7 +338,7 @@ func (s *Server) addWAFSignaturesResource() {
 }
 
 const wafSignaturesJSON = `{
-  "total_signatures": 25,
+  "total_signatures": 12,
   "signatures": [
     {
       "name": "ModSecurity",
@@ -583,8 +583,8 @@ func (s *Server) addOWASPMappingsResource() {
 			}
 
 			result := map[string]any{
-				"standard": "OWASP Top 10 2021",
-				"entries":  entries,
+				"standard":          "OWASP Top 10 2021",
+				"entries":           entries,
 				"category_to_owasp": defaults.OWASPCategoryMapping,
 			}
 			data, _ := json.MarshalIndent(result, "", "  ")
@@ -612,17 +612,17 @@ func (s *Server) addConfigResource() {
 		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 			config := map[string]any{
 				"scan": map[string]any{
-					"concurrency":        map[string]any{"default": 10, "min": 1, "max": 100, "recommended": "5-10 for production, 20-30 for staging"},
-					"rate_limit":         map[string]any{"default": 50, "min": 1, "max": 1000, "recommended": "10-20 for production, 50-100 for staging"},
-					"timeout_seconds":    map[string]any{"default": 5, "min": 1, "max": 60},
+					"concurrency":          map[string]any{"default": 10, "min": 1, "max": 100, "recommended": "5-10 for production, 20-30 for staging"},
+					"rate_limit":           map[string]any{"default": 50, "min": 1, "max": 1000, "recommended": "10-20 for production, 50-100 for staging"},
+					"timeout_seconds":      map[string]any{"default": 5, "min": 1, "max": 60},
 					"blocked_status_codes": []int{403, 406, 429, 444, 503},
 				},
 				"assessment": map[string]any{
 					"concurrency":     map[string]any{"default": 25, "min": 1, "max": 100},
 					"rate_limit":      map[string]any{"default": 100, "min": 1, "max": 500},
 					"timeout_seconds": map[string]any{"default": 10, "min": 1, "max": 60},
-					"metrics": []string{"detection_rate", "false_positive_rate", "precision", "f1_score", "f2_score", "mcc", "bypass_resistance", "block_consistency"},
-					"grades":  []string{"A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D", "F"},
+					"metrics":         []string{"detection_rate", "false_positive_rate", "precision", "f1_score", "f2_score", "mcc", "bypass_resistance", "block_consistency"},
+					"grades":          []string{"A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D", "F"},
 				},
 				"bypass": map[string]any{
 					"concurrency":     map[string]any{"default": 5, "min": 1, "max": 50, "recommended": "3-5 for stealth"},
@@ -630,10 +630,10 @@ func (s *Server) addConfigResource() {
 					"timeout_seconds": map[string]any{"default": 10, "min": 1, "max": 60},
 				},
 				"discovery": map[string]any{
-					"max_depth":        map[string]any{"default": 3, "min": 1, "max": 10},
+					"max_depth":       map[string]any{"default": 3, "min": 1, "max": 10},
 					"concurrency":     map[string]any{"default": 10, "min": 1, "max": 50},
 					"timeout_seconds": map[string]any{"default": 10, "min": 1, "max": 60},
-					"service_presets":  []string{"authentik", "n8n", "immich", "webapp", "intranet"},
+					"service_presets": []string{"authentik", "n8n", "immich", "webapp", "intranet"},
 				},
 				"detect_waf": map[string]any{
 					"timeout_seconds": map[string]any{"default": 10, "min": 1, "max": 60},

@@ -3,6 +3,8 @@ package mcpserver_test
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -749,4 +751,239 @@ func TestGetNonexistentPrompt(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for nonexistent prompt")
 	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HTTP transport tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+func TestHTTPHandler(t *testing.T) {
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	h := srv.HTTPHandler()
+	if h == nil {
+		t.Fatal("HTTPHandler() returned nil")
+	}
+}
+
+func TestSSEHandler(t *testing.T) {
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	h := srv.SSEHandler()
+	if h == nil {
+		t.Fatal("SSEHandler() returned nil")
+	}
+}
+
+func TestHealthEndpoint(t *testing.T) {
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	handler := srv.HTTPHandler()
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/health")
+	if err != nil {
+		t.Fatalf("GET /health: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("GET /health: got status %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	ct := resp.Header.Get("Content-Type")
+	if ct != "application/json" {
+		t.Errorf("GET /health: got Content-Type %q, want application/json", ct)
+	}
+
+	var body map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("GET /health: failed to decode JSON: %v", err)
+	}
+	if body["status"] != "ok" {
+		t.Errorf("GET /health: got status %q, want %q", body["status"], "ok")
+	}
+	if body["service"] != "waf-tester-mcp" {
+		t.Errorf("GET /health: got service %q, want %q", body["service"], "waf-tester-mcp")
+	}
+}
+
+func TestHealthEndpointMethodNotAllowed(t *testing.T) {
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	handler := srv.HTTPHandler()
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+
+	req, err := http.NewRequest(http.MethodDelete, ts.URL+"/health", nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("DELETE /health: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("DELETE /health: got status %d, want %d", resp.StatusCode, http.StatusMethodNotAllowed)
+	}
+}
+
+func TestCORSHeaders(t *testing.T) {
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	handler := srv.HTTPHandler()
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+
+	req, err := http.NewRequest(http.MethodGet, ts.URL+"/health", nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	req.Header.Set("Origin", "https://n8n.example.com")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET /health with Origin: %v", err)
+	}
+	defer resp.Body.Close()
+
+	tests := []struct {
+		header string
+		want   string
+	}{
+		{"Access-Control-Allow-Origin", "https://n8n.example.com"},
+		{"Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS"},
+		{"Access-Control-Allow-Credentials", "true"},
+		{"Access-Control-Expose-Headers", "Mcp-Session-Id"},
+	}
+
+	for _, tt := range tests {
+		got := resp.Header.Get(tt.header)
+		if got != tt.want {
+			t.Errorf("CORS header %q = %q, want %q", tt.header, got, tt.want)
+		}
+	}
+
+	// Verify required headers are in Allow-Headers
+	allowHeaders := resp.Header.Get("Access-Control-Allow-Headers")
+	for _, required := range []string{"Content-Type", "Authorization", "Mcp-Session-Id", "Last-Event-ID"} {
+		if !strings.Contains(allowHeaders, required) {
+			t.Errorf("Access-Control-Allow-Headers missing %q: %s", required, allowHeaders)
+		}
+	}
+}
+
+func TestCORSPreflight(t *testing.T) {
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	handler := srv.HTTPHandler()
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+
+	req, err := http.NewRequest(http.MethodOptions, ts.URL+"/mcp", nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	req.Header.Set("Origin", "https://n8n.example.com")
+	req.Header.Set("Access-Control-Request-Method", "POST")
+	req.Header.Set("Access-Control-Request-Headers", "Content-Type, Mcp-Session-Id")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("OPTIONS /mcp: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		t.Errorf("OPTIONS /mcp: got status %d, want %d", resp.StatusCode, http.StatusNoContent)
+	}
+
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "https://n8n.example.com" {
+		t.Errorf("preflight Allow-Origin = %q, want %q", got, "https://n8n.example.com")
+	}
+
+	maxAge := resp.Header.Get("Access-Control-Max-Age")
+	if maxAge != "86400" {
+		t.Errorf("preflight Max-Age = %q, want %q", maxAge, "86400")
+	}
+}
+
+func TestCORSDefaultOrigin(t *testing.T) {
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	handler := srv.HTTPHandler()
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+
+	// Request without Origin header should get "*"
+	resp, err := http.Get(ts.URL + "/health")
+	if err != nil {
+		t.Fatalf("GET /health: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Errorf("no-origin Allow-Origin = %q, want %q", got, "*")
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Data consistency tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+func TestWAFSignaturesCountMatchesEntries(t *testing.T) {
+	cs := newTestSession(t)
+	ctx := context.Background()
+
+	result, err := cs.ReadResource(ctx, &mcp.ReadResourceParams{URI: "waftester://waf-signatures"})
+	if err != nil {
+		t.Fatalf("ReadResource(waf-signatures): %v", err)
+	}
+
+	var sigs struct {
+		Total      int `json:"total_signatures"`
+		Signatures []struct {
+			Name string `json:"name"`
+		} `json:"signatures"`
+	}
+	if err := json.Unmarshal([]byte(result.Contents[0].Text), &sigs); err != nil {
+		t.Fatalf("failed to parse waf-signatures JSON: %v", err)
+	}
+
+	if sigs.Total != len(sigs.Signatures) {
+		t.Errorf("total_signatures (%d) does not match actual entries (%d)", sigs.Total, len(sigs.Signatures))
+	}
+}
+
+func TestScanToolAnnotationsComplete(t *testing.T) {
+	cs := newTestSession(t)
+	ctx := context.Background()
+
+	result, err := cs.ListTools(ctx, &mcp.ListToolsParams{})
+	if err != nil {
+		t.Fatalf("ListTools: %v", err)
+	}
+
+	for _, tool := range result.Tools {
+		if tool.Name != "scan" {
+			continue
+		}
+
+		if tool.Annotations == nil {
+			t.Fatal("scan tool has nil annotations")
+		}
+		// ReadOnlyHint and IdempotentHint are bool (not *bool) — false is the
+		// correct zero value for a tool that writes and is non-idempotent.
+		if tool.Annotations.ReadOnlyHint {
+			t.Error("scan tool ReadOnlyHint should be false")
+		}
+		if tool.Annotations.IdempotentHint {
+			t.Error("scan tool IdempotentHint should be false")
+		}
+		if tool.Annotations.OpenWorldHint == nil {
+			t.Error("scan tool missing OpenWorldHint annotation")
+		}
+		if tool.Annotations.DestructiveHint == nil {
+			t.Error("scan tool missing DestructiveHint annotation")
+		}
+		return
+	}
+	t.Fatal("scan tool not found")
 }
