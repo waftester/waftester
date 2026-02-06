@@ -1,15 +1,44 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WAF Security Assessment Report - {{.TargetName}}</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- DataTables CSS for styling -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css">
     <style>
-        :root {
+        /* Light theme (default) */
+        :root, [data-theme="light"] {
             --black: #0f172a;
             --white: #ffffff;
             --grey: #f1f5f9;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f1f5f9;
+            --bg-gradient-start: #0f172a;
+            --bg-gradient-end: #1e293b;
+            --text-primary: #0f172a;
+            --text-secondary: #64748b;
+            --border-color: #e2e8f0;
+        }
+
+        /* Dark theme */
+        [data-theme="dark"] {
+            --black: #e2e8f0;
+            --white: #1e293b;
+            --grey: #334155;
+            --bg-primary: #1e293b;
+            --bg-secondary: #334155;
+            --bg-gradient-start: #0f172a;
+            --bg-gradient-end: #020617;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --border-color: #475569;
+            --dark-grey: #475569;
+        }
+
+        :root, [data-theme="light"] {
             --dark-grey: #e2e8f0;
             --blue: #3b82f6;
             --green: #22c55e;
@@ -26,6 +55,36 @@
             --br-large: 12px;
         }
 
+        /* Theme Toggle */
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 50px;
+            padding: 8px 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .theme-toggle:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateY(-1px);
+        }
+        
+        .theme-toggle__icon {
+            font-size: 16px;
+        }
+
         * {
             box-sizing: border-box;
             margin: 0;
@@ -34,9 +93,9 @@
 
         body {
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
             min-height: 100vh;
-            color: var(--black);
+            color: var(--text-primary);
             line-height: 1.6;
         }
 
@@ -48,7 +107,7 @@
 
         /* Header */
         .header {
-            background: var(--white);
+            background: var(--bg-primary);
             border-radius: var(--br-large);
             padding: 30px;
             margin-bottom: 24px;
@@ -531,6 +590,26 @@
         .results-count {
             font-size: 13px;
             color: #64748b;
+        }
+        .export-buttons {
+            display: flex;
+            gap: 8px;
+            margin-left: auto;
+        }
+        .export-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--dark-grey);
+            border-radius: var(--br-small);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+        .export-btn:hover {
+            background: var(--blue);
+            color: white;
+            border-color: var(--blue);
         }
         .results-table {
             width: 100%;
@@ -1147,6 +1226,12 @@
     </style>
 </head>
 <body>
+    <!-- Theme Toggle Button -->
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark/light mode">
+        <span class="theme-toggle__icon" id="themeIcon">🌙</span>
+        <span id="themeLabel">Dark</span>
+    </button>
+
     <div class="container">
         <!-- Header -->
         <header class="header">
@@ -1728,6 +1813,11 @@
                 <button class="results-filter" onclick="filterByOutcome('Pass')" data-outcome="Pass">⚠️ Bypassed ({{.PassedRequests}})</button>
                 <button class="results-filter" onclick="filterByOutcome('Error')" data-outcome="Error">Errors ({{.ErrorRequests}})</button>
                 <span class="results-count" id="resultsCount">Showing {{len .AllResults}} results</span>
+                <div class="export-buttons">
+                    <button class="export-btn" onclick="exportTableToCSV('waftester-results.csv')" title="Export to CSV">📄 CSV</button>
+                    <button class="export-btn" onclick="exportTableToJSON('waftester-results.json')" title="Export to JSON">📋 JSON</button>
+                    <button class="export-btn" onclick="printReport()" title="Print Report">🖨️ Print</button>
+                </div>
             </div>
             
             <div class="results-table-wrapper">
@@ -1998,5 +2088,97 @@
         });
     </script>
     {{end}}
+
+    <!-- Theme Toggle and Export Scripts -->
+    <script>
+        // Theme Management with localStorage persistence
+        function initTheme() {
+            const savedTheme = localStorage.getItem('waftester-report-theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeToggle(savedTheme);
+        }
+        
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('waftester-report-theme', newTheme);
+            updateThemeToggle(newTheme);
+        }
+        
+        function updateThemeToggle(theme) {
+            const icon = document.getElementById('themeIcon');
+            const label = document.getElementById('themeLabel');
+            if (theme === 'dark') {
+                icon.textContent = '☀️';
+                label.textContent = 'Light';
+            } else {
+                icon.textContent = '🌙';
+                label.textContent = 'Dark';
+            }
+        }
+        
+        // Initialize theme on load
+        initTheme();
+        
+        // Table Export Functions
+        function exportTableToCSV(filename) {
+            const table = document.getElementById('resultsTable');
+            const rows = table.querySelectorAll('tr');
+            let csv = [];
+            
+            rows.forEach(row => {
+                if (row.style.display !== 'none') {
+                    const cols = row.querySelectorAll('th, td');
+                    const rowData = Array.from(cols).map(col => {
+                        let text = col.textContent.trim().replace(/"/g, '""');
+                        return '"' + text + '"';
+                    });
+                    csv.push(rowData.join(','));
+                }
+            });
+            
+            downloadFile(csv.join('\n'), filename, 'text/csv');
+        }
+        
+        function exportTableToJSON(filename) {
+            const tbody = document.getElementById('resultsBody');
+            const rows = tbody.querySelectorAll('tr');
+            const data = [];
+            
+            rows.forEach(row => {
+                if (row.style.display !== 'none') {
+                    const cells = row.querySelectorAll('td');
+                    data.push({
+                        id: cells[0]?.textContent.trim() || '',
+                        category: cells[1]?.textContent.trim() || '',
+                        severity: cells[2]?.textContent.trim() || '',
+                        outcome: cells[3]?.textContent.trim() || '',
+                        status: cells[4]?.textContent.trim() || '',
+                        latency: cells[5]?.textContent.trim() || '',
+                        payload: cells[6]?.textContent.trim() || '',
+                        endpoint: cells[7]?.textContent.trim() || ''
+                    });
+                }
+            });
+            
+            downloadFile(JSON.stringify(data, null, 2), filename, 'application/json');
+        }
+        
+        function downloadFile(content, filename, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+        }
+        
+        function printReport() {
+            window.print();
+        }
+    </script>
 </body>
 </html>

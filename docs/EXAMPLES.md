@@ -3858,6 +3858,23 @@ WAFtester provides comprehensive integration options for enterprise environments
 | `--jira-project=KEY` | Jira | Project for issues |
 | `--jira-email=EMAIL` | Jira | Authentication |
 | `--jira-token=TOKEN` | Jira | API token |
+| `--jira-issue-type=TYPE` | Jira | Issue type (Bug, Task, Story - default: Bug) |
+| `--jira-labels=LABELS` | Jira | Comma-separated labels |
+| `--jira-assignee=ID` | Jira | Assignee account ID |
+| `--github-issues-token=TOKEN` | GitHub Issues | Create issues from bypasses |
+| `--github-issues-owner=ORG` | GitHub Issues | Repository owner |
+| `--github-issues-repo=REPO` | GitHub Issues | Repository name |
+| `--ado-org=ORG` | Azure DevOps | Organization name |
+| `--ado-project=PROJECT` | Azure DevOps | Project name |
+| `--ado-pat=TOKEN` | Azure DevOps | Personal Access Token |
+| `--ado-work-item-type=TYPE` | Azure DevOps | Bug, Task, Issue (default: Bug) |
+| `--ado-area-path=PATH` | Azure DevOps | Optional area path |
+| `--ado-iteration-path=PATH` | Azure DevOps | Optional iteration/sprint path |
+| `--ado-tags=TAGS` | Azure DevOps | Semicolon-separated tags |
+| `--ado-assigned-to=USER` | Azure DevOps | Assigned user email/name |
+| `--elasticsearch-url=URL` | Elasticsearch | SIEM integration |
+| `--elasticsearch-api-key=KEY` | Elasticsearch | API key auth |
+| `--elasticsearch-insecure` | Elasticsearch | Skip TLS verify |
 
 #### Observability Flags
 
@@ -3936,6 +3953,92 @@ waf-tester scan -u $TARGET_URL \
   -format cyclonedx -o vulnerability-sbom.json
 ```
 
+#### 6. SIEM Integration (v2.6.8+)
+
+**Goal:** Stream results to Elasticsearch for centralized security monitoring
+
+```bash
+# Elasticsearch with API key auth
+waf-tester scan -u $TARGET_URL \
+  --elasticsearch-url=https://elastic.company.com:9200 \
+  --elasticsearch-api-key=$ES_API_KEY \
+  --elasticsearch-index=waftester-findings
+
+# Self-signed certificates
+waf-tester scan -u $TARGET_URL \
+  --elasticsearch-url=https://localhost:9200 \
+  --elasticsearch-username=elastic \
+  --elasticsearch-password=$ES_PASSWORD \
+  --elasticsearch-insecure
+```
+
+#### 7. GitHub Issues Integration (v2.6.8+)
+
+**Goal:** Auto-create GitHub issues for each WAF bypass
+
+```bash
+waf-tester scan -u $TARGET_URL \
+  --github-issues-token=$GITHUB_TOKEN \
+  --github-issues-owner=myorg \
+  --github-issues-repo=security-findings
+```
+
+#### 8. Azure DevOps Integration (v2.6.8+)
+
+**Goal:** Auto-create Azure DevOps work items for each WAF bypass
+
+```bash
+# Basic work item creation
+waf-tester scan -u $TARGET_URL \
+  --ado-org=myorganization \
+  --ado-project=SecurityTests \
+  --ado-pat=$ADO_PAT
+
+# With custom work item type and path
+waf-tester scan -u $TARGET_URL \
+  --ado-org=myorganization \
+  --ado-project=SecurityTests \
+  --ado-pat=$ADO_PAT \
+  --ado-work-item-type=Task \
+  --ado-area-path="SecurityTests\\Vulnerabilities" \
+  --ado-iteration-path="SecurityTests\\Sprint 42"
+```
+
+Work items include:
+- Formatted HTML description with severity and priority
+- Repro steps with curl commands
+- CWE links for remediation guidance
+- Auto-assigned tags (waf-tester, security, waf-bypass)
+
+#### 9. Historical Trend Analysis (v2.6.8+)
+
+**Goal:** Track WAF effectiveness over time
+
+```bash
+# Store scan results for trend analysis
+waf-tester scan -u $TARGET_URL \
+  --history-path=./waftester-history \
+  --history-tags=production,weekly
+
+# Use with scheduled scans to build historical data
+```
+
+#### 9. Custom Report Templates (v2.6.8+)
+
+**Goal:** Customize report branding and sections
+
+```bash
+# Minimal executive summary
+waf-tester scan -u $TARGET_URL \
+  --html report.html \
+  --template-config pkg/report/templates/configs/minimal.yaml
+
+# Full enterprise audit
+waf-tester scan -u $TARGET_URL \
+  --html report.html \
+  --template-config pkg/report/templates/configs/enterprise.yaml
+```
+
 ### Environment Variables
 
 All flags can be set via environment variables:
@@ -3950,6 +4053,18 @@ All flags can be set via environment variables:
 | `WAFTESTER_JIRA_PROJECT` | `--jira-project` |
 | `WAFTESTER_JIRA_EMAIL` | `--jira-email` |
 | `WAFTESTER_JIRA_TOKEN` | `--jira-token` |
+| `WAFTESTER_GITHUB_ISSUES_TOKEN` | `--github-issues-token` |
+| `WAFTESTER_GITHUB_ISSUES_OWNER` | `--github-issues-owner` |
+| `WAFTESTER_GITHUB_ISSUES_REPO` | `--github-issues-repo` |
+| `WAFTESTER_ADO_ORG` | `--ado-org` |
+| `WAFTESTER_ADO_PROJECT` | `--ado-project` |
+| `WAFTESTER_ADO_PAT` | `--ado-pat` |
+| `WAFTESTER_ADO_WORK_ITEM_TYPE` | `--ado-work-item-type` |
+| `WAFTESTER_ADO_AREA_PATH` | `--ado-area-path` |
+| `WAFTESTER_ADO_ITERATION_PATH` | `--ado-iteration-path` |
+| `WAFTESTER_ELASTICSEARCH_URL` | `--elasticsearch-url` |
+| `WAFTESTER_ELASTICSEARCH_API_KEY` | `--elasticsearch-api-key` |
+| `WAFTESTER_HISTORY_PATH` | `--history-path` |
 | `WAFTESTER_OTEL_ENDPOINT` | `--otel-endpoint` |
 | `WAFTESTER_METRICS_PORT` | `--metrics-port` |
 
