@@ -65,9 +65,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Allows `Authorization`, `Mcp-Session-Id`, `Last-Event-ID` headers
   - OPTIONS preflight with 24-hour cache (`Max-Age: 86400`)
 
-- **Health Endpoint**: `/health` returns `{"status":"ok","service":"waf-tester-mcp"}` for container orchestrators
+- **Health Endpoint with Readiness**: `/health` endpoint for container orchestrators
+  - Returns 503 `{"status":"starting"}` during startup validation
+  - Transitions to 200 `{"status":"ok"}` after `MarkReady()` (payload dir validated)
   - Method-restricted to GET/HEAD (returns 405 for other methods)
   - JSON content type with proper CORS headers
+
+- **Startup Payload Validation**: Server validates payload directory at startup before accepting connections
+  - Checks directory exists, loads all payloads via `payloads.NewLoader()`
+  - Logs payload count on success; exits with hint on failure
+  - Prevents silent operation with missing/corrupted payload data
+
+- **Environment Variable Support**: Docker/Kubernetes-friendly configuration
+  - `WAF_TESTER_PAYLOAD_DIR` — override payload directory path
+  - `WAF_TESTER_HTTP_ADDR` — set HTTP listen address (alternative to `--http` flag)
+
+- **HTTP Server Hardening**: Production-grade HTTP server configuration
+  - `ReadHeaderTimeout: 10s` — prevents slowloris attacks
+  - `ReadTimeout: 30s`, `WriteTimeout: 60s`, `IdleTimeout: 120s`
+  - `MaxHeaderBytes: 1MB` — limits header memory allocation
+
+- **Graceful Shutdown**: Clean shutdown on SIGINT/SIGTERM
+  - 15-second drain period for in-flight requests before forceful close
+  - Logs shutdown progress to stderr
 
 - **Progress Notifications**: Tools report `notifyProgress()` with percentage and status messages during long-running operations (scan, assess, bypass)
 
@@ -79,6 +99,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Logging Level Type Safety**: The MCP SDK defines `LoggingLevel` as `type string` with no exported constants — defined typed `logInfo`/`logWarning` constants to prevent raw string errors
 - **Scan Tool Missing Annotations**: Added `ReadOnlyHint` and `IdempotentHint` to scan tool annotations (both `false`)
 - **WAF Signatures Count Mismatch**: `total_signatures` was 25 but only 12 entries defined — corrected to 12
+- **Target URL Validation**: All 6 network tools (`detect_waf`, `discover`, `scan`, `assess`, `bypass`, `probe`) now validate URL scheme (http/https only) and host before making requests — prevents confusing errors from malformed URLs
+- **`json.MarshalIndent` Error Handling**: 5 resource handlers silently discarded marshal errors (`data, _ :=`) — all now use `data, err :=` and return `fmt.Errorf(...)` on failure
+- **User-Agent Hardcoded String**: Replaced hardcoded `"waf-tester/probe"` in probe tool with `defaults.UserAgent("probe")` to match centralized UA management
+- **Response Body Drain**: Probe tool now drains up to 4KB before closing response body (`io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))`) to allow HTTP connection reuse
+- **WAF Vendor List Accuracy**: Version resource updated from 25 inaccurate vendor names to 26 actual WAF vendors matching the detection code; added `supported_cdn_vendors` field with 9 CDN entries
+- **Server Instructions Accuracy**: Corrected payload count to "2,800+" and signature count to "26 WAF + 9 CDN detection signatures"; fixed waf-signatures resource reference from 26 to 12 entries
+- **Bypass Tool Error Messages**: Empty target error now includes example JSON with both `target` and `payloads` fields, matching other tool error patterns
 
 ### Removed
 
@@ -86,20 +113,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
-- **42 tests** covering full MCP protocol surface:
+- **44 tests** covering full MCP protocol surface:
   - Server creation (2): nil safety, default config
   - Tool registration (3): count, descriptions, annotations
   - Resource registration (2): static resources, template resources
-  - Resource content (8): version, guide, WAF signatures, evasion techniques, OWASP mappings, config, payloads, payloads-by-category
+  - Resource content (7): version, guide, WAF signatures, evasion techniques, OWASP mappings, config, payloads
   - Prompt registration (2): count, arguments
   - Prompt invocation (4): security_audit, waf_bypass, evasion_research, missing target
-  - Tool invocation (5): list_payloads, list_payloads with filter, mutate, generate_cicd, generate_cicd all platforms
+  - Tool invocation (5): list_payloads, list_payloads with filter, mutate, generate_cicd, generate_cicd all platforms (6 subtests)
+  - Target URL validation (3): empty target rejection across all 6 network tools (6 subtests), invalid scheme rejection (ftp://), missing scheme rejection (bare hostname)
   - Hook tests (2): event bridge, nil callback
   - Server capabilities (1): initialization result validation
   - Edge cases (3): nonexistent tool/resource/prompt
   - HTTP transport (2): HTTPHandler, SSEHandler return non-nil
-  - Health endpoint (2): 200 OK with JSON, 405 for invalid methods
-  - CORS (4): headers on request, preflight OPTIONS, default origin, origin echo
+  - Health endpoint (3): 200 OK when ready, 503 Service Unavailable when not ready, 405 for invalid methods
+  - CORS (3): headers with origin echo, preflight OPTIONS, default origin fallback
   - Data consistency (2): WAF signatures count matches entries, scan annotations complete
 
 ## [2.6.8] - 2026-02-06
