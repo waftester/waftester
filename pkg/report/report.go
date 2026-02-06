@@ -34,25 +34,39 @@ const (
 	FormatText     ReportFormat = "text"
 )
 
+// Confidence represents the detection confidence level.
+type Confidence string
+
+const (
+	ConfidenceCertain   Confidence = "certain"
+	ConfidenceHigh      Confidence = "high"
+	ConfidenceMedium    Confidence = "medium"
+	ConfidenceLow       Confidence = "low"
+	ConfidenceTentative Confidence = "tentative"
+)
+
 // Finding represents a security finding for reporting
 type Finding struct {
-	ID          string            `json:"id"`
-	Title       string            `json:"title"`
-	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
-	Type        string            `json:"type"`
-	Target      string            `json:"target"`
-	Endpoint    string            `json:"endpoint"`
-	Evidence    string            `json:"evidence,omitempty"`
-	Remediation string            `json:"remediation,omitempty"`
-	CWE         string            `json:"cwe,omitempty"`
-	CVE         string            `json:"cve,omitempty"`
-	CVSS        float64           `json:"cvss,omitempty"`
-	Risk        string            `json:"risk,omitempty"`
-	Impact      string            `json:"impact,omitempty"`
-	References  []string          `json:"references,omitempty"`
-	Tags        []string          `json:"tags,omitempty"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
+	ID             string            `json:"id"`
+	Title          string            `json:"title"`
+	Description    string            `json:"description"`
+	Severity       Severity          `json:"severity"`
+	Confidence     Confidence        `json:"confidence,omitempty"`
+	ConfidenceNote string            `json:"confidence_note,omitempty"`
+	Type           string            `json:"type"`
+	Target         string            `json:"target"`
+	Endpoint       string            `json:"endpoint"`
+	Evidence       string            `json:"evidence,omitempty"`
+	Remediation    string            `json:"remediation,omitempty"`
+	CWE            string            `json:"cwe,omitempty"`
+	CVE            string            `json:"cve,omitempty"`
+	CVSS           float64           `json:"cvss,omitempty"`
+	WASC           string            `json:"wasc,omitempty"`
+	Risk           string            `json:"risk,omitempty"`
+	Impact         string            `json:"impact,omitempty"`
+	References     []string          `json:"references,omitempty"`
+	Tags           []string          `json:"tags,omitempty"`
+	Metadata       map[string]string `json:"metadata,omitempty"`
 }
 
 // ExecutiveSummary contains high-level summary for executives
@@ -142,10 +156,10 @@ type ReportBuilder struct {
 
 // DetectionStats holds connection drop and silent ban detection data
 type DetectionStats struct {
-	DropsDetected  int
-	BansDetected   int
-	HostsSkipped   int
-	Details        map[string]int
+	DropsDetected int
+	BansDetected  int
+	HostsSkipped  int
+	Details       map[string]int
 }
 
 // ReportConfig configures report generation

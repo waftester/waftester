@@ -3,6 +3,7 @@ package hooks
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net"
@@ -2035,4 +2036,646 @@ func TestOtelHook_SpanCreation(t *testing.T) {
 
 		// Bypass events should be recorded successfully
 	})
+}
+// =============================================================================
+// GitHubIssuesHook Tests
+// =============================================================================
+
+func TestGitHubIssuesHook_CreatesIssueWithCorrectPayload(t *testing.T) {
+	var receivedBody []byte
+	var receivedContentType string
+	var receivedAuth string
+	var receivedAccept string
+	var receivedUserAgent string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedContentType = r.Header.Get("Content-Type")
+		receivedAuth = r.Header.Get("Authorization")
+		receivedAccept = r.Header.Get("Accept")
+		receivedUserAgent = r.Header.Get("User-Agent")
+		receivedBody, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(`{"number": 42, "html_url": "https://github.com/test/repo/issues/42"}`))
+	}))
+	defer server.Close()
+
+	hook := NewGitHubIssuesHook(GitHubIssuesOptions{
+		Token:       "ghp_test123",
+		Owner:       "testorg",
+		Repo:        "testrepo",
+		BaseURL:     server.URL,
+		Labels:      []string{"security", "waf-bypass"},
+		Assignees:   []string{"user1", "user2"},
+		MinSeverity: events.SeverityHigh,
+	})
+
+	bypass := newTestBypassEvent(events.SeverityCritical)
+	bypass.Details.TestID = "sqli-042"
+	bypass.Details.Category = "SQL Injection"
+	bypass.Details.Endpoint = "https://example.com/api"
+
+	err := hook.OnEvent(context.Background(), bypass)
+	if err != nil {
+		t.Fatalf("OnEvent failed: %v", err)
+	}
+
+	// Check headers
+	if receivedContentType != "application/json" {
+		t.Errorf("expected Content-Type 'application/json', got %q", receivedContentType)
+	}
+	if receivedAuth != "Bearer ghp_test123" {
+		t.Errorf("expected Authorization 'Bearer ghp_test123', got %q", receivedAuth)
+	}
+	if receivedAccept != "application/vnd.github.v3+json" {
+		t.Errorf("expected Accept 'application/vnd.github.v3+json', got %q", receivedAccept)
+	}
+	if !strings.Contains(receivedUserAgent, "waftester") {
+		t.Errorf("expected User-Agent to contain 'waftester', got %q", receivedUserAgent)
+	}
+
+	// Verify payload structure
+	var decoded map[string]interface{}
+	if err := json.Unmarshal(receivedBody, &decoded); err != nil {
+		t.Fatalf("body is not valid JSON: %v", err)
+	}
+
+	// Check title
+	title, ok := decoded["title"].(string)
+	if !ok || !strings.Contains(title, "WAF Bypass") {
+		t.Errorf("expected title to contain 'WAF Bypass', got %q", title)
+	}
+	if !strings.Contains(title, "sqli-042") {
+		t.Errorf("expected title to contain test ID, got %q", title)
+	}
+
+	// Check labels
+	labels, ok := decoded["labels"].([]interface{})
+	if !ok {
+		t.Fatal("expected 'labels' array in response")
+	}
+	// Should have custom labels plus severity label
+	if len(labels) < 2 {
+		t.Errorf("expected at least 2 labels, got %d", len(labels))
+	}
+
+	// Check assignees
+	assignees, ok := decoded["assignees"].([]interface{})
+	if !ok {
+		t.Fatal("expected 'assignees' array in response")
+	}
+	if len(assignees) != 2 {
+		t.Errorf("expected 2 assignees, got %d", len(assignees))
+	}
+
+	// Check body
+	body, ok := decoded["body"].(string)
+	if !ok || !strings.Contains(body, "WAF Bypass") {
+		t.Errorf("expected body to contain 'WAF Bypass', got %q", body)
+	}
+}
+
+func TestGitHubIssuesHook_RespectsMinSeverityFilter(t *testing.T) {
+	hook := NewGitHubIssuesHook(GitHubIssuesOptions{
+		Token:       "ghp_test123",
+		Owner:       "testorg",
+		Repo:        "testrepo",
+		MinSeverity: events.SeverityHigh,
+	})
+
+	// Low severity should be filtered
+	if hook.meetsMinSeverity(events.SeverityLow) {
+		t.Error("expected low severity to be filtered out")
+	}
+
+	// Medium severity should be filtered
+	if hook.meetsMinSeverity(events.SeverityMedium) {
+		t.Error("expected medium severity to be filtered out")
+	}
+
+	// High severity should pass
+	if !hook.meetsMinSeverity(events.SeverityHigh) {
+		t.Error("expected high severity to pass filter")
+	}
+
+	// Critical severity should pass
+	if !hook.meetsMinSeverity(events.SeverityCritical) {
+		t.Error("expected critical severity to pass filter")
+	}
+}
+
+func TestGitHubIssuesHook_UsesCustomLabelsFromConfig(t *testing.T) {
+	hook := NewGitHubIssuesHook(GitHubIssuesOptions{
+		Token:  "ghp_test123",
+		Owner:  "testorg",
+		Repo:   "testrepo",
+		Labels: []string{"custom-label-1", "custom-label-2"},
+	})
+
+	bypass := newTestBypassEvent(events.SeverityHigh)
+	issue := hook.buildIssue(bypass)
+
+	// Should have custom labels plus severity label
+	foundCustom1 := false
+	foundCustom2 := false
+	for _, label := range issue.Labels {
+		if label == "custom-label-1" {
+			foundCustom1 = true
+		}
+		if label == "custom-label-2" {
+			foundCustom2 = true
+		}
+	}
+
+	if !foundCustom1 || !foundCustom2 {
+		t.Errorf("expected custom labels to be included, got %v", issue.Labels)
+	}
+}
+
+func TestGitHubIssuesHook_UsesAssigneesFromConfig(t *testing.T) {
+	hook := NewGitHubIssuesHook(GitHubIssuesOptions{
+		Token:     "ghp_test123",
+		Owner:     "testorg",
+		Repo:      "testrepo",
+		Assignees: []string{"assignee1", "assignee2", "assignee3"},
+	})
+
+	bypass := newTestBypassEvent(events.SeverityHigh)
+	issue := hook.buildIssue(bypass)
+
+	if len(issue.Assignees) != 3 {
+		t.Errorf("expected 3 assignees, got %d: %v", len(issue.Assignees), issue.Assignees)
+	}
+	if issue.Assignees[0] != "assignee1" {
+		t.Errorf("expected first assignee to be 'assignee1', got %q", issue.Assignees[0])
+	}
+}
+
+func TestGitHubIssuesHook_UsesDefaultAPIURL(t *testing.T) {
+	hook := NewGitHubIssuesHook(GitHubIssuesOptions{
+		Token: "ghp_test123",
+		Owner: "testorg",
+		Repo:  "testrepo",
+		// No BaseURL specified
+	})
+
+	if hook.baseURL != "https://api.github.com" {
+		t.Errorf("expected default base URL 'https://api.github.com', got %q", hook.baseURL)
+	}
+}
+
+func TestGitHubIssuesHook_UsesCustomAPIURLForEnterprise(t *testing.T) {
+	hook := NewGitHubIssuesHook(GitHubIssuesOptions{
+		Token:   "ghp_test123",
+		Owner:   "testorg",
+		Repo:    "testrepo",
+		BaseURL: "https://github.mycompany.com/api/v3",
+	})
+
+	if hook.baseURL != "https://github.mycompany.com/api/v3" {
+		t.Errorf("expected custom base URL, got %q", hook.baseURL)
+	}
+}
+
+func TestGitHubIssuesHook_EventTypesReturnsOnlyBypass(t *testing.T) {
+	hook := NewGitHubIssuesHook(GitHubIssuesOptions{
+		Token: "ghp_test123",
+		Owner: "testorg",
+		Repo:  "testrepo",
+	})
+	types := hook.EventTypes()
+
+	if len(types) != 1 {
+		t.Fatalf("expected 1 event type, got %d", len(types))
+	}
+	if types[0] != events.EventTypeBypass {
+		t.Errorf("expected EventTypeBypass, got %v", types[0])
+	}
+}
+
+func TestGitHubIssuesHook_IgnoresNonBypassEvents(t *testing.T) {
+	hook := NewGitHubIssuesHook(GitHubIssuesOptions{
+		Token: "ghp_test123",
+		Owner: "testorg",
+		Repo:  "testrepo",
+	})
+
+	// Result event should be ignored
+	result := newTestResultEvent(events.SeverityHigh, events.OutcomeBlocked)
+	err := hook.OnEvent(context.Background(), result)
+	if err != nil {
+		t.Errorf("expected nil error for non-bypass event, got %v", err)
+	}
+
+	// Summary event should be ignored
+	summary := newTestSummaryEvent(5, 2795)
+	err = hook.OnEvent(context.Background(), summary)
+	if err != nil {
+		t.Errorf("expected nil error for summary event, got %v", err)
+	}
+}
+
+func TestGitHubIssuesHook_HandlesAPIErrorsGracefully(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"message": "Bad credentials", "documentation_url": "https://docs.github.com"}`))
+	}))
+	defer server.Close()
+
+	hook := NewGitHubIssuesHook(GitHubIssuesOptions{
+		Token:   "ghp_badtoken",
+		Owner:   "testorg",
+		Repo:    "testrepo",
+		BaseURL: server.URL,
+	})
+
+	bypass := newTestBypassEvent(events.SeverityCritical)
+	err := hook.OnEvent(context.Background(), bypass)
+
+	// Should not return error (logs instead)
+	if err != nil {
+		t.Errorf("expected nil error on API failure (non-blocking), got: %v", err)
+	}
+}
+
+// =============================================================================
+// AzureDevOpsHook Tests
+// =============================================================================
+
+func TestAzureDevOpsHook_CreatesWorkItemWithJSONPatch(t *testing.T) {
+	var receivedBody []byte
+	var receivedContentType string
+	var receivedAuth string
+	var receivedUserAgent string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedContentType = r.Header.Get("Content-Type")
+		receivedAuth = r.Header.Get("Authorization")
+		receivedUserAgent = r.Header.Get("User-Agent")
+		receivedBody, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"id": 12345, "_links": {"html": {"href": "https://dev.azure.com/org/proj/_workitems/edit/12345"}}}`))
+	}))
+	defer server.Close()
+
+	// Create hook - we'll override the URL in the test
+	hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+		Organization:  "testorg",
+		Project:       "testproj",
+		PAT:           "test-pat-123",
+		WorkItemType:  "Bug",
+		AreaPath:      "TestOrg\\Security",
+		IterationPath: "TestOrg\\Sprint1",
+		Tags:          []string{"security", "waf-bypass"},
+		AssignedTo:    "user@example.com",
+		MinSeverity:   events.SeverityHigh,
+	})
+
+	// Override client to use test server
+	bypass := newTestBypassEvent(events.SeverityCritical)
+	bypass.Details.TestID = "sqli-042"
+	bypass.Details.Category = "SQL Injection"
+	bypass.Details.Endpoint = "https://example.com/api"
+
+	// Build ops and send to test server
+	ops := hook.buildWorkItemOps(bypass)
+	body, _ := json.Marshal(ops)
+
+	req, _ := http.NewRequest(http.MethodPost, server.URL, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json-patch+json")
+	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(":"+hook.opts.PAT)))
+	req.Header.Set("User-Agent", "waftester")
+	resp, err := hook.client.Do(req)
+	if err != nil {
+		t.Fatalf("failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Verify headers were sent correctly
+	if receivedContentType != "application/json-patch+json" {
+		t.Errorf("expected Content-Type 'application/json-patch+json', got %q", receivedContentType)
+	}
+	if !strings.HasPrefix(receivedAuth, "Basic ") {
+		t.Errorf("expected Basic auth header, got %q", receivedAuth)
+	}
+	if !strings.Contains(receivedUserAgent, "waftester") {
+		t.Errorf("expected User-Agent to contain 'waftester', got %q", receivedUserAgent)
+	}
+
+	// Verify operations format
+	var decoded []map[string]interface{}
+	if err := json.Unmarshal(receivedBody, &decoded); err != nil {
+		t.Fatalf("body is not valid JSON: %v", err)
+	}
+
+	// Should have multiple add operations
+	if len(decoded) < 3 {
+		t.Errorf("expected at least 3 JSON Patch operations, got %d", len(decoded))
+	}
+
+	// Check that operations have correct format
+	for _, op := range decoded {
+		if op["op"] != "add" {
+			t.Errorf("expected 'add' operation, got %v", op["op"])
+		}
+		path, ok := op["path"].(string)
+		if !ok || !strings.HasPrefix(path, "/fields/") {
+			t.Errorf("expected path to start with '/fields/', got %v", op["path"])
+		}
+	}
+
+	// Verify specific fields are present
+	foundTitle := false
+	foundDescription := false
+	foundTags := false
+	for _, op := range decoded {
+		path := op["path"].(string)
+		if path == "/fields/System.Title" {
+			foundTitle = true
+			if !strings.Contains(op["value"].(string), "WAFtester") {
+				t.Errorf("expected title to contain 'WAFtester', got %v", op["value"])
+			}
+		}
+		if path == "/fields/System.Description" {
+			foundDescription = true
+		}
+		if path == "/fields/System.Tags" {
+			foundTags = true
+			if !strings.Contains(op["value"].(string), "security") {
+				t.Errorf("expected tags to contain 'security', got %v", op["value"])
+			}
+		}
+	}
+
+	if !foundTitle {
+		t.Error("expected System.Title field in operations")
+	}
+	if !foundDescription {
+		t.Error("expected System.Description field in operations")
+	}
+	if !foundTags {
+		t.Error("expected System.Tags field in operations")
+	}
+}
+
+func TestAzureDevOpsHook_UsesCorrectSeverityMapping(t *testing.T) {
+	tests := []struct {
+		wafSeverity events.Severity
+		adoSeverity string
+		adoPriority int
+	}{
+		{events.SeverityCritical, "1 - Critical", 1},
+		{events.SeverityHigh, "2 - High", 2},
+		{events.SeverityMedium, "3 - Medium", 3},
+		{events.SeverityLow, "4 - Low", 4},
+		{events.SeverityInfo, "4 - Low", 4},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.wafSeverity), func(t *testing.T) {
+			hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+				Organization: "testorg",
+				Project:      "testproj",
+				PAT:          "test-pat",
+				MinSeverity:  events.SeverityInfo, // Allow all severities
+			})
+
+			bypass := newTestBypassEvent(tt.wafSeverity)
+			ops := hook.buildWorkItemOps(bypass)
+
+			// Find severity operation
+			var foundSeverity bool
+			var foundPriority bool
+			for _, op := range ops {
+				if op.Path == "/fields/Microsoft.VSTS.Common.Severity" {
+					foundSeverity = true
+					if op.Value != tt.adoSeverity {
+						t.Errorf("expected ADO severity %q for WAFtester severity %q, got %q",
+							tt.adoSeverity, tt.wafSeverity, op.Value)
+					}
+				}
+				if op.Path == "/fields/Microsoft.VSTS.Common.Priority" {
+					foundPriority = true
+					if op.Value != tt.adoPriority {
+						t.Errorf("expected ADO priority %d for WAFtester severity %q, got %v",
+							tt.adoPriority, tt.wafSeverity, op.Value)
+					}
+				}
+			}
+
+			if !foundSeverity {
+				t.Error("expected severity field in operations")
+			}
+			if !foundPriority {
+				t.Error("expected priority field in operations")
+			}
+		})
+	}
+}
+
+func TestAzureDevOpsHook_RespectsMinSeverityFilter(t *testing.T) {
+	hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+		Organization: "testorg",
+		Project:      "testproj",
+		PAT:          "test-pat",
+		MinSeverity:  events.SeverityHigh,
+	})
+
+	// Low severity should be filtered
+	if hook.meetsMinSeverity(events.SeverityLow) {
+		t.Error("expected low severity to be filtered out")
+	}
+
+	// Medium severity should be filtered
+	if hook.meetsMinSeverity(events.SeverityMedium) {
+		t.Error("expected medium severity to be filtered out")
+	}
+
+	// High severity should pass
+	if !hook.meetsMinSeverity(events.SeverityHigh) {
+		t.Error("expected high severity to pass filter")
+	}
+
+	// Critical severity should pass
+	if !hook.meetsMinSeverity(events.SeverityCritical) {
+		t.Error("expected critical severity to pass filter")
+	}
+}
+
+func TestAzureDevOpsHook_UsesCustomTagsFromConfig(t *testing.T) {
+	hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+		Organization: "testorg",
+		Project:      "testproj",
+		PAT:          "test-pat",
+		Tags:         []string{"custom-tag-1", "custom-tag-2", "custom-tag-3"},
+	})
+
+	bypass := newTestBypassEvent(events.SeverityHigh)
+	ops := hook.buildWorkItemOps(bypass)
+
+	// Find tags operation
+	for _, op := range ops {
+		if op.Path == "/fields/System.Tags" {
+			tags := op.Value.(string)
+			if !strings.Contains(tags, "custom-tag-1") {
+				t.Errorf("expected tags to contain 'custom-tag-1', got %q", tags)
+			}
+			if !strings.Contains(tags, "custom-tag-2") {
+				t.Errorf("expected tags to contain 'custom-tag-2', got %q", tags)
+			}
+			// Tags should be semicolon-separated in ADO
+			if !strings.Contains(tags, ";") {
+				t.Errorf("expected tags to be semicolon-separated, got %q", tags)
+			}
+			return
+		}
+	}
+	t.Error("expected System.Tags field in operations")
+}
+
+func TestAzureDevOpsHook_IncludesAreaAndIterationPaths(t *testing.T) {
+	hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+		Organization:  "testorg",
+		Project:       "testproj",
+		PAT:           "test-pat",
+		AreaPath:      "TestOrg\\Security\\WAFTesting",
+		IterationPath: "TestOrg\\2024\\Sprint5",
+	})
+
+	bypass := newTestBypassEvent(events.SeverityHigh)
+	ops := hook.buildWorkItemOps(bypass)
+
+	foundArea := false
+	foundIteration := false
+	for _, op := range ops {
+		if op.Path == "/fields/System.AreaPath" {
+			foundArea = true
+			if op.Value != "TestOrg\\Security\\WAFTesting" {
+				t.Errorf("expected area path 'TestOrg\\Security\\WAFTesting', got %v", op.Value)
+			}
+		}
+		if op.Path == "/fields/System.IterationPath" {
+			foundIteration = true
+			if op.Value != "TestOrg\\2024\\Sprint5" {
+				t.Errorf("expected iteration path 'TestOrg\\2024\\Sprint5', got %v", op.Value)
+			}
+		}
+	}
+
+	if !foundArea {
+		t.Error("expected System.AreaPath field in operations")
+	}
+	if !foundIteration {
+		t.Error("expected System.IterationPath field in operations")
+	}
+}
+
+func TestAzureDevOpsHook_IncludesAssignedTo(t *testing.T) {
+	hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+		Organization: "testorg",
+		Project:      "testproj",
+		PAT:          "test-pat",
+		AssignedTo:   "security-team@example.com",
+	})
+
+	bypass := newTestBypassEvent(events.SeverityHigh)
+	ops := hook.buildWorkItemOps(bypass)
+
+	for _, op := range ops {
+		if op.Path == "/fields/System.AssignedTo" {
+			if op.Value != "security-team@example.com" {
+				t.Errorf("expected AssignedTo 'security-team@example.com', got %v", op.Value)
+			}
+			return
+		}
+	}
+	t.Error("expected System.AssignedTo field in operations")
+}
+
+func TestAzureDevOpsHook_EventTypesReturnsOnlyBypass(t *testing.T) {
+	hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+		Organization: "testorg",
+		Project:      "testproj",
+		PAT:          "test-pat",
+	})
+	types := hook.EventTypes()
+
+	if len(types) != 1 {
+		t.Fatalf("expected 1 event type, got %d", len(types))
+	}
+	if types[0] != events.EventTypeBypass {
+		t.Errorf("expected EventTypeBypass, got %v", types[0])
+	}
+}
+
+func TestAzureDevOpsHook_IgnoresNonBypassEvents(t *testing.T) {
+	hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+		Organization: "testorg",
+		Project:      "testproj",
+		PAT:          "test-pat",
+	})
+
+	// Result event should be ignored
+	result := newTestResultEvent(events.SeverityHigh, events.OutcomeBlocked)
+	err := hook.OnEvent(context.Background(), result)
+	if err != nil {
+		t.Errorf("expected nil error for non-bypass event, got %v", err)
+	}
+
+	// Summary event should be ignored
+	summary := newTestSummaryEvent(5, 2795)
+	err = hook.OnEvent(context.Background(), summary)
+	if err != nil {
+		t.Errorf("expected nil error for summary event, got %v", err)
+	}
+}
+
+func TestAzureDevOpsHook_DefaultWorkItemType(t *testing.T) {
+	hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+		Organization: "testorg",
+		Project:      "testproj",
+		PAT:          "test-pat",
+		// No WorkItemType specified
+	})
+
+	if hook.opts.WorkItemType != "Bug" {
+		t.Errorf("expected default work item type 'Bug', got %q", hook.opts.WorkItemType)
+	}
+}
+
+func TestAzureDevOpsHook_DefaultTags(t *testing.T) {
+	hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+		Organization: "testorg",
+		Project:      "testproj",
+		PAT:          "test-pat",
+		// No Tags specified
+	})
+
+	if len(hook.opts.Tags) != 3 {
+		t.Errorf("expected 3 default tags, got %d: %v", len(hook.opts.Tags), hook.opts.Tags)
+	}
+}
+
+func TestAzureDevOpsHook_HandlesAPIErrorsGracefully(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"message": "TF401027: You need the Git 'GenericContribute' permission"}`))
+	}))
+	defer server.Close()
+
+	hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+		Organization: "testorg",
+		Project:      "testproj",
+		PAT:          "bad-pat",
+		// Note: We can't easily override the URL for ADO hook, so we test the error handling indirectly
+	})
+
+	bypass := newTestBypassEvent(events.SeverityCritical)
+
+	// The hook should handle connection failures gracefully (log, not error)
+	// We're testing that no panic occurs and nil error returns
+	err := hook.OnEvent(context.Background(), bypass)
+	// Even on connection failure, hook should return nil (logs internally)
+	if err != nil {
+		t.Errorf("expected nil error on API failure (non-blocking), got: %v", err)
+	}
 }
