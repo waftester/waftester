@@ -34,6 +34,8 @@ func newTestSession(t *testing.T) *mcp.ClientSession {
 
 	// Run server in background
 	go func() {
+		// Best-effort: server errors are not actionable in tests;
+		// the client-side assertions surface any real failures.
 		_ = srv.MCPServer().Run(ctx, serverTransport)
 	}()
 
@@ -442,10 +444,6 @@ func TestPromptsHaveArguments(t *testing.T) {
 				}
 			}
 		}
-		// evasion_research has both target and payload
-		if !hasTarget && p.Name != "evasion_research" {
-			// evasion_research also has target so this check is redundant but safe
-		}
 		if !hasTarget {
 			t.Errorf("prompt %q: missing 'target' argument", p.Name)
 		}
@@ -712,7 +710,7 @@ func TestToolRejectsMissingScheme(t *testing.T) {
 // Hook tests
 // ═══════════════════════════════════════════════════════════════════════════
 
-func TestHookReceivesEvents(t *testing.T) {
+func TestNewHookCreation(t *testing.T) {
 	received := make(chan bool, 1)
 	hook := mcpserver.NewHook(func(e events.Event) {
 		received <- true
