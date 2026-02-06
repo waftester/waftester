@@ -225,7 +225,7 @@ func (r *Ring) mapQueues(params *ioUringParams) error {
 		0x8000000, // IORING_OFF_CQ_RING
 	)
 	if errno != 0 {
-		syscall.Munmap(unsafe.Slice((*byte)(unsafe.Pointer(sqRingPtr)), sqRingSize))
+		syscall.Munmap(unsafe.Slice((*byte)(unsafe.Pointer(sqRingPtr)), sqRingSize)) //nolint:govet // sqRingPtr is a valid mmap pointer from syscall
 		return errno
 	}
 
@@ -240,8 +240,8 @@ func (r *Ring) mapQueues(params *ioUringParams) error {
 		0x10000000, // IORING_OFF_SQES
 	)
 	if errno != 0 {
-		syscall.Munmap(unsafe.Slice((*byte)(unsafe.Pointer(sqRingPtr)), sqRingSize))
-		syscall.Munmap(unsafe.Slice((*byte)(unsafe.Pointer(cqRingPtr)), cqRingSize))
+		syscall.Munmap(unsafe.Slice((*byte)(unsafe.Pointer(sqRingPtr)), sqRingSize)) //nolint:govet // sqRingPtr is a valid mmap pointer from syscall
+		syscall.Munmap(unsafe.Slice((*byte)(unsafe.Pointer(cqRingPtr)), cqRingSize)) //nolint:govet // cqRingPtr is a valid mmap pointer from syscall
 		return errno
 	}
 
