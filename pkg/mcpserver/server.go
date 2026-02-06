@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/waftester/waftester/pkg/defaults"
@@ -15,14 +15,17 @@ import (
 // Configuration
 // ---------------------------------------------------------------------------
 
+// Typed logging level constants — the MCP SDK defines LoggingLevel as a raw
+// string type without exported constants. We define them here for type safety.
+const (
+	logInfo    mcp.LoggingLevel = "info"
+	logWarning mcp.LoggingLevel = "warning"
+)
+
 // Config holds MCP server configuration.
 type Config struct {
 	// PayloadDir is the directory containing payload JSON files.
 	PayloadDir string
-
-	// SessionTimeout is the maximum duration for an MCP session.
-	// Zero means no timeout.
-	SessionTimeout time.Duration
 }
 
 // ---------------------------------------------------------------------------
@@ -73,13 +76,89 @@ func (s *Server) RunStdio(ctx context.Context) error {
 	return s.mcp.Run(ctx, &mcp.StdioTransport{})
 }
 
-// HTTPHandler returns an http.Handler for the streamable HTTP transport.
-// Use this for remote/Docker deployments with session management.
+// HTTPHandler returns an http.Handler for the streamable HTTP transport with
+// CORS support and a /health endpoint. This is the primary handler for remote
+// and Docker deployments.
+//
+// The handler mounts:
+//   - /health      → readiness/liveness probe (GET only)
+//   - /sse         → legacy SSE transport for n8n and older MCP clients
+//   - /mcp         → streamable HTTP transport (2025-03-26 spec)
+//   - /             → streamable HTTP transport (default mount)
+//
+// All endpoints include CORS headers for browser and cross-origin MCP clients.
 func (s *Server) HTTPHandler() http.Handler {
-	return mcp.NewStreamableHTTPHandler(
+	streamable := mcp.NewStreamableHTTPHandler(
 		func(_ *http.Request) *mcp.Server { return s.mcp },
 		&mcp.StreamableHTTPOptions{Stateless: false},
 	)
+
+	sse := mcp.NewSSEHandler(
+		func(_ *http.Request) *mcp.Server { return s.mcp },
+		nil, // default SSE options
+	)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", handleHealth)
+	mux.Handle("/sse", sse)
+	mux.Handle("/mcp", streamable)
+	mux.Handle("/", streamable)
+
+	return corsMiddleware(mux)
+}
+
+// SSEHandler returns an http.Handler for the legacy SSE transport only.
+// Use this when you need a standalone SSE endpoint, e.g. for n8n integration
+// behind a reverse proxy that handles its own CORS and health checks.
+func (s *Server) SSEHandler() http.Handler {
+	return mcp.NewSSEHandler(
+		func(_ *http.Request) *mcp.Server { return s.mcp },
+		nil,
+	)
+}
+
+// handleHealth serves a minimal readiness/liveness probe.
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		w.Header().Set("Allow", "GET, HEAD")
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"status":"ok","service":"waf-tester-mcp"}`))
+}
+
+// corsMiddleware wraps an http.Handler with permissive CORS headers required
+// by browser-based MCP clients (n8n, web UIs) and cross-origin integrations.
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			origin = "*"
+		}
+
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers",
+			strings.Join([]string{
+				"Content-Type",
+				"Authorization",
+				"Mcp-Session-Id",
+				"Last-Event-ID",
+				"Accept",
+			}, ", "))
+		w.Header().Set("Access-Control-Expose-Headers", "Mcp-Session-Id")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Max-Age", "86400")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 // ---------------------------------------------------------------------------
