@@ -1,0 +1,103 @@
+name: Private File Guard
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check-private-files:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Scan for private files
+        run: |
+          echo "Scanning repository for private/sensitive files..."
+
+          # Define private paths that must NEVER exist in the repo
+          PRIVATE_PATHS=(
+            ".github/agents"
+            ".github/instructions"
+            ".github/prompts"
+            ".github/skills"
+            ".github/workspace"
+            ".github/copilot-instructions.md"
+            ".github/memory-seed.json"
+            ".claude"
+            ".mcp.json"
+            ".vscode"
+            "docs/plans"
+            "docs/research"
+          )
+
+          FOUND=0
+
+          for path in "${PRIVATE_PATHS[@]}"; do
+            if [ -e "$path" ]; then
+              echo "::error::PRIVATE FILE LEAKED: $path exists in repository"
+              FOUND=$((FOUND + 1))
+            fi
+          done
+
+          # Also check git history for the current commit's tree
+          # (catches files added via git update-index or other tricks)
+          TREE_FILES=$(git ls-tree -r --name-only HEAD 2>/dev/null || true)
+          for path in "${PRIVATE_PATHS[@]}"; do
+            MATCHES=$(echo "$TREE_FILES" | grep -E "^${path}(/|$)" || true)
+            if [ -n "$MATCHES" ]; then
+              echo "::error::PRIVATE FILE IN GIT TREE: $MATCHES"
+              FOUND=$((FOUND + 1))
+            fi
+          done
+
+          if [ "$FOUND" -gt 0 ]; then
+            echo ""
+            echo "╔══════════════════════════════════════════════════════════════════╗"
+            echo "║  FATAL: $FOUND private file(s) detected in repository            ║"
+            echo "╚══════════════════════════════════════════════════════════════════╝"
+            echo ""
+            echo "These files contain sensitive configuration and must not be public."
+            echo "Remove them and update .gitignore before merging."
+            exit 1
+          fi
+
+          echo "✅ No private files found — repository is clean"
+
+      - name: Verify .gitignore protections
+        run: |
+          echo "Verifying .gitignore has required private path exclusions..."
+
+          REQUIRED_IGNORES=(
+            ".github/agents/"
+            ".github/instructions/"
+            ".github/prompts/"
+            ".github/skills/"
+            ".github/workspace/"
+            ".claude/"
+          )
+
+          MISSING=0
+
+          for pattern in "${REQUIRED_IGNORES[@]}"; do
+            if ! grep -qF "$pattern" .gitignore; then
+              echo "::error::MISSING .gitignore rule: $pattern"
+              MISSING=$((MISSING + 1))
+            fi
+          done
+
+          if [ "$MISSING" -gt 0 ]; then
+            echo ""
+            echo "::error::$MISSING required .gitignore rules are missing!"
+            echo "This means private files could be accidentally committed."
+            exit 1
+          fi
+
+          echo "✅ All required .gitignore protections are in place"
