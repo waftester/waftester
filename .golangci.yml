@@ -1,20 +1,21 @@
-# golangci-lint configuration
+# golangci-lint configuration (v2 format)
 # v2.3.1 baseline: govet only
 # v2.4.3+ roadmap: gradually enable revive, staticcheck, gosimple, gocritic
 # Magic number enforcement is done via AST-based tests in pkg/defaults/defaults_test.go
 
+version: "2"
+
 linters:
-  disable-all: true
+  default: none
   enable:
     - govet
     # TODO: Enable these gradually as codebase is cleaned up
     # - revive
     # - staticcheck
-    # - gosimple
     # - gocritic
-
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - all
+  exclusions:
+    generated: strict
+    rules:
+      - path: _test\.go
+        linters:
+          - all
