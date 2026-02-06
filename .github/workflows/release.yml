@@ -86,6 +86,25 @@ jobs:
         run: |
           gh release delete dev --yes --cleanup-tag 2>/dev/null || true
 
+      - name: Preserve manual release notes
+        if: steps.get_tag.outputs.is_tag == 'true' && steps.check_release.outputs.skip != 'true'
+        id: prev_notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=${{ steps.get_tag.outputs.tag }}
+          # Save any manually-written release notes before we delete the release.
+          # These may have been added via GitHub UI before CI ran.
+          PREV_BODY=$(gh release view "$TAG" --json body -q '.body' 2>/dev/null || echo "")
+          if [ -n "$PREV_BODY" ]; then
+            echo "📝 Found existing release notes for $TAG — preserving"
+            echo "$PREV_BODY" > /tmp/prev_notes.md
+            echo "has_prev=true" >> $GITHUB_OUTPUT
+          else
+            echo "No existing release notes to preserve"
+            echo "has_prev=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Delete existing release if tag exists
         if: steps.get_tag.outputs.is_tag == 'true' && steps.check_release.outputs.skip != 'true'
         env:
@@ -104,6 +123,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ steps.get_tag.outputs.tag }}
+
+      - name: Merge preserved notes into release
+        if: steps.get_tag.outputs.is_tag == 'true' && steps.prev_notes.outputs.has_prev == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=${{ steps.get_tag.outputs.tag }}
+          # Append the previously-written manual notes below the GoReleaser output
+          CURRENT_BODY=$(gh release view "$TAG" --json body -q '.body' 2>/dev/null || echo "")
+          PREV_BODY=$(cat /tmp/prev_notes.md)
+          MERGED=$(printf '%s\n\n---\n\n### Previous Release Notes\n\n%s' "$CURRENT_BODY" "$PREV_BODY")
+          gh release edit "$TAG" --notes "$MERGED"
+          echo "✅ Merged preserved release notes into $TAG"
 
       - name: Check for tag on commit (dev build guard)
         if: steps.get_tag.outputs.is_tag != 'true'
