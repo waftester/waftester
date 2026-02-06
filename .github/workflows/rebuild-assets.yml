@@ -14,6 +14,7 @@ permissions:
 jobs:
   find-tags:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       tags: ${{ steps.tags.outputs.tags }}
     steps:
@@ -21,10 +22,16 @@ jobs:
         id: tags
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
-          if [ -n "${{ inputs.tag }}" ]; then
-            echo 'tags=["${{ inputs.tag }}"]' >> $GITHUB_OUTPUT
-            echo "Targeting single tag: ${{ inputs.tag }}"
+          if [ -n "$INPUT_TAG" ]; then
+            # Validate tag format (vN.N.N only)
+            if ! echo "$INPUT_TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error::Invalid tag format: $INPUT_TAG (expected vN.N.N)"
+              exit 1
+            fi
+            echo "tags=[\"$INPUT_TAG\"]" >> $GITHUB_OUTPUT
+            echo "Targeting single tag: $INPUT_TAG"
           else
             TAGS=$(gh api repos/${{ github.repository }}/releases --paginate \
               --jq '[.[] | select(.assets | length == 0) | .tag_name]')
@@ -36,24 +43,27 @@ jobs:
     needs: find-tags
     if: needs.find-tags.outputs.tags != '[]' && needs.find-tags.outputs.tags != ''
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       matrix:
         tag: ${{ fromJson(needs.find-tags.outputs.tags) }}
       max-parallel: 2
     steps:
       - name: Checkout tag
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           ref: ${{ matrix.tag }}
+          persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
-          go-version: '1.22'
+          go-version-file: go.mod
+          cache: true
 
       - name: Build with GoReleaser (skip publish)
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
         with:
           distribution: goreleaser
           version: latest
@@ -65,10 +75,11 @@ jobs:
       - name: Upload assets to existing release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ matrix.tag }}
         run: |
-          echo "Uploading assets for ${{ matrix.tag }}..."
-          gh release upload "${{ matrix.tag }}" \
+          echo "Uploading assets for $TAG..."
+          gh release upload "$TAG" \
             dist/*.tar.gz dist/*.zip dist/checksums.txt \
             --clobber
-          ASSET_COUNT=$(gh release view "${{ matrix.tag }}" --json assets -q '.assets | length')
-          echo "✅ ${{ matrix.tag }}: $ASSET_COUNT assets uploaded"
+          ASSET_COUNT=$(gh release view "$TAG" --json assets -q '.assets | length')
+          echo "✅ $TAG: $ASSET_COUNT assets uploaded"
