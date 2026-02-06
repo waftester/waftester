@@ -121,8 +121,23 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ steps.get_tag.outputs.tag }}
 
-      - name: Run GoReleaser (dev release)
+      - name: Check for tag on commit (dev build guard)
         if: steps.get_tag.outputs.is_tag != 'true'
+        id: dev_guard
+        run: |
+          # Double-check: skip dev build if ANY version tag exists on this commit
+          # Handles race condition where tag push event arrives after branch push
+          ALL_TAGS=$(git tag --points-at ${{ github.event.workflow_run.head_sha }} 2>/dev/null || echo "")
+          if echo "$ALL_TAGS" | grep -qE '^v[0-9]'; then
+            echo "⏭️ Commit has version tag(s): $ALL_TAGS — skipping dev build"
+            echo "skip_dev=true" >> $GITHUB_OUTPUT
+          else
+            echo "No version tags found — proceeding with dev build"
+            echo "skip_dev=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run GoReleaser (dev release)
+        if: steps.get_tag.outputs.is_tag != 'true' && steps.dev_guard.outputs.skip_dev != 'true'
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
@@ -132,7 +147,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload dev release
-        if: steps.get_tag.outputs.is_tag != 'true'
+        if: steps.get_tag.outputs.is_tag != 'true' && steps.dev_guard.outputs.skip_dev != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
