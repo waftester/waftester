@@ -166,6 +166,7 @@ func (h *PagerDutyHook) sendEvent(ctx context.Context, bypass *events.BypassEven
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", defaults.ToolName+"/"+defaults.Version)
 
 	resp, err := h.client.Do(req)
 	if err != nil {

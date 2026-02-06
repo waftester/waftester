@@ -237,6 +237,7 @@ WAFtester supports multiple output formats for integration with security workflo
 | PDF | Executive reports | `-format pdf` |
 | JUnit | CI/CD test frameworks | `-format junit` |
 | CycloneDX | SBOM vulnerability exchange | `-format cyclonedx` |
+| XML | Legacy SIEM/vulnerability platforms | `--xml` |
 
 ### Enterprise Integrations
 
@@ -245,24 +246,33 @@ WAFtester supports multiple output formats for integration with security workflo
 | SonarQube | Generic Issue Import | `-format sonarqube` |
 | GitLab SAST | gl-sast-report.json | `-format gitlab-sast` |
 | DefectDojo | Findings import | `-format defectdojo` |
+| Elasticsearch | SIEM streaming | `--elasticsearch-url` |
+| GitHub Issues | Auto-create issues | `--github-issues-token` |
+| Azure DevOps | Work item creation | `--ado-org`, `--ado-project`, `--ado-pat` |
 
 ### Real-time Alerting
 
 ```bash
 # Slack notifications
-waf-tester scan -u $TARGET --hook-slack=$WEBHOOK_URL
+waf-tester scan -u $TARGET --slack-webhook=$WEBHOOK_URL
 
 # Microsoft Teams notifications  
-waf-tester scan -u $TARGET --hook-teams=$WEBHOOK_URL
+waf-tester scan -u $TARGET --teams-webhook=$WEBHOOK_URL
 
 # PagerDuty escalation
-waf-tester scan -u $TARGET --hook-pagerduty=$ROUTING_KEY
+waf-tester scan -u $TARGET --pagerduty-key=$ROUTING_KEY
 
 # Jira ticket creation
-waf-tester scan -u $TARGET --hook-jira=$JIRA_URL --jira-project=SEC
+waf-tester scan -u $TARGET --jira-url=$JIRA_URL --jira-project=SEC --jira-email=$EMAIL --jira-token=$TOKEN
+
+# GitHub Issues integration
+waf-tester scan -u $TARGET --github-issues-token=$TOKEN --github-issues-owner=myorg --github-issues-repo=security-issues
+
+# Azure DevOps work item creation
+waf-tester scan -u $TARGET --ado-org=myorg --ado-project=SecurityTests --ado-pat=$ADO_PAT
 
 # OpenTelemetry tracing
-waf-tester scan -u $TARGET --hook-otel=$OTEL_ENDPOINT
+waf-tester scan -u $TARGET --otel-endpoint=$OTEL_ENDPOINT
 ```
 
 ---
@@ -356,7 +366,7 @@ For additional CI/CD examples (GitLab, Azure DevOps, Jenkins, CircleCI, Tekton),
 | Mutator Functions | 49 |
 | Attack Categories | 50+ |
 | Protocols | HTTP, GraphQL, gRPC, SOAP, WebSocket, OpenAPI |
-| Output Formats | 15 |
+| Output Formats | 16 |
 | CI/CD Platforms | 9 |
 
 ---

@@ -163,6 +163,7 @@ func (h *WebhookHook) sendWithRetry(ctx context.Context, eventType events.EventT
 
 		// Set headers
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", defaults.ToolName+"/"+defaults.Version)
 		req.Header.Set("X-WAFtester-Event-Type", string(eventType))
 
 		for key, value := range h.opts.Headers {

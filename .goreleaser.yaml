@@ -44,6 +44,7 @@ archives:
       - LICENSE
       - LICENSE-COMMUNITY
       - payloads/**/*
+      - pkg/report/templates/configs/**/*
 
 checksum:
   name_template: 'checksums.txt'

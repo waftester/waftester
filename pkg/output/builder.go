@@ -4,12 +4,14 @@ package output
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/jsonutil"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/hooks"
 	"github.com/waftester/waftester/pkg/output/writers"
+	"github.com/waftester/waftester/pkg/report"
 )
 
 // Config configures the output dispatcher based on CLI flags.
@@ -26,12 +28,24 @@ type Config struct {
 	MDExport    string
 	PDFExport   string
 
+	// Template configuration path for HTML reports
+	TemplateConfigPath string
+
 	// Enterprise exports
 	SonarQubeExport  string
 	GitLabSASTExport string
 	DefectDojoExport string
 	HARExport        string
 	CycloneDXExport  string
+	XMLExport        string
+
+	// Elasticsearch streaming
+	ElasticsearchURL      string
+	ElasticsearchAPIKey   string
+	ElasticsearchUsername string
+	ElasticsearchPassword string
+	ElasticsearchIndex    string
+	ElasticsearchInsecure bool
 
 	// Streaming
 	JSONMode   bool
@@ -61,14 +75,39 @@ type Config struct {
 	MetricsPort   int
 
 	// Jira
-	JiraURL     string
-	JiraProject string
-	JiraEmail   string
-	JiraToken   string
+	JiraURL       string
+	JiraProject   string
+	JiraEmail     string
+	JiraToken     string
+	JiraIssueType string
+	JiraLabels    string
+	JiraAssignee  string
+
+	// GitHub Issues
+	GitHubIssuesToken     string
+	GitHubIssuesOwner     string
+	GitHubIssuesRepo      string
+	GitHubIssuesURL       string
+	GitHubIssuesLabels    string
+	GitHubIssuesAssignees string
+
+	// Azure DevOps
+	ADOOrganization  string
+	ADOProject       string
+	ADOPAT           string
+	ADOWorkItemType  string
+	ADOAreaPath      string
+	ADOIterationPath string
+	ADOAssignedTo    string
+	ADOTags          string
 
 	// OpenTelemetry
 	OTelEndpoint string
 	OTelInsecure bool
+
+	// History storage
+	HistoryPath string
+	HistoryTags []string
 
 	// Version for reports
 	Version string
@@ -187,12 +226,27 @@ func BuildDispatcher(cfg Config) (*dispatcher.Dispatcher, error) {
 			cleanup()
 			return nil, err
 		}
-		writer := writers.NewHTMLWriter(f, writers.HTMLConfig{
+
+		// Build HTMLConfig with optional template customization
+		htmlCfg := writers.HTMLConfig{
 			Title:           "WAFtester Security Report",
 			Theme:           "auto",
 			IncludeEvidence: !cfg.OmitEvidence,
 			IncludeJSON:     true,
-		})
+		}
+
+		// Load template config if provided
+		if cfg.TemplateConfigPath != "" {
+			templateCfg, err := report.LoadTemplateConfig(cfg.TemplateConfigPath)
+			if err != nil {
+				cleanup()
+				return nil, fmt.Errorf("failed to load template config: %w", err)
+			}
+			// Apply template settings to HTML config
+			applyTemplateToHTMLConfig(&htmlCfg, templateCfg)
+		}
+
+		writer := writers.NewHTMLWriter(f, htmlCfg)
 		d.RegisterWriter(writer)
 	}
 
@@ -305,6 +359,35 @@ func BuildDispatcher(cfg Config) (*dispatcher.Dispatcher, error) {
 		d.RegisterWriter(writer)
 	}
 
+	// XML export
+	if cfg.XMLExport != "" {
+		f, err := openFile(cfg.XMLExport)
+		if err != nil {
+			cleanup()
+			return nil, err
+		}
+		writer := writers.NewXMLWriter(f, writers.XMLOptions{
+			CreatorName:     defaults.ToolName,
+			CreatorVersion:  cfg.Version,
+			IncludeEvidence: !cfg.OmitEvidence,
+			PrettyPrint:     true,
+		})
+		d.RegisterWriter(writer)
+	}
+
+	// Elasticsearch streaming
+	if cfg.ElasticsearchURL != "" {
+		writer := writers.NewElasticsearchWriter(writers.ElasticsearchConfig{
+			URL:                cfg.ElasticsearchURL,
+			APIKey:             cfg.ElasticsearchAPIKey,
+			Username:           cfg.ElasticsearchUsername,
+			Password:           cfg.ElasticsearchPassword,
+			Index:              cfg.ElasticsearchIndex,
+			InsecureSkipVerify: cfg.ElasticsearchInsecure,
+		})
+		d.RegisterWriter(writer)
+	}
+
 	// === CONSOLE OUTPUT ===
 
 	// Table writer for console output (unless silent or JSON mode)
@@ -396,12 +479,67 @@ func BuildDispatcher(cfg Config) (*dispatcher.Dispatcher, error) {
 
 	// Jira
 	if cfg.JiraURL != "" && cfg.JiraProject != "" {
+		issueType := cfg.JiraIssueType
+		if issueType == "" {
+			issueType = "Bug"
+		}
+		// Parse labels - use custom if provided, otherwise defaults
+		labels := []string{defaults.ToolName, "security"}
+		if cfg.JiraLabels != "" {
+			labels = parseCSV(cfg.JiraLabels)
+		}
 		hook := hooks.NewJiraHook(cfg.JiraURL, hooks.JiraOptions{
 			ProjectKey: cfg.JiraProject,
 			Username:   cfg.JiraEmail,
 			APIToken:   cfg.JiraToken,
-			IssueType:  "Bug",
-			Labels:     []string{defaults.ToolName, "security"},
+			IssueType:  issueType,
+			Labels:     labels,
+			AssigneeID: cfg.JiraAssignee,
+		})
+		d.RegisterHook(hook)
+	}
+
+	// GitHub Issues
+	if cfg.GitHubIssuesToken != "" && cfg.GitHubIssuesOwner != "" && cfg.GitHubIssuesRepo != "" {
+		// Parse labels - use custom if provided, otherwise defaults
+		labels := []string{defaults.ToolName, "security", "waf-bypass"}
+		if cfg.GitHubIssuesLabels != "" {
+			labels = parseCSV(cfg.GitHubIssuesLabels)
+		}
+
+		// Parse assignees
+		var assignees []string
+		if cfg.GitHubIssuesAssignees != "" {
+			assignees = parseCSV(cfg.GitHubIssuesAssignees)
+		}
+
+		hook := hooks.NewGitHubIssuesHook(hooks.GitHubIssuesOptions{
+			Token:     cfg.GitHubIssuesToken,
+			Owner:     cfg.GitHubIssuesOwner,
+			Repo:      cfg.GitHubIssuesRepo,
+			BaseURL:   cfg.GitHubIssuesURL,
+			Labels:    labels,
+			Assignees: assignees,
+		})
+		d.RegisterHook(hook)
+	}
+
+	// Azure DevOps
+	if cfg.ADOOrganization != "" && cfg.ADOProject != "" && cfg.ADOPAT != "" {
+		// Parse tags - use custom if provided, otherwise defaults (semicolon-separated for ADO)
+		tags := []string{defaults.ToolName, "security", "waf-bypass"}
+		if cfg.ADOTags != "" {
+			tags = parseSemicolonSeparated(cfg.ADOTags)
+		}
+		hook := hooks.NewAzureDevOpsHook(hooks.AzureDevOpsOptions{
+			Organization:  cfg.ADOOrganization,
+			Project:       cfg.ADOProject,
+			PAT:           cfg.ADOPAT,
+			WorkItemType:  cfg.ADOWorkItemType,
+			AreaPath:      cfg.ADOAreaPath,
+			IterationPath: cfg.ADOIterationPath,
+			Tags:          tags,
+			AssignedTo:    cfg.ADOAssignedTo,
 		})
 		d.RegisterHook(hook)
 	}
@@ -416,6 +554,19 @@ func BuildDispatcher(cfg Config) (*dispatcher.Dispatcher, error) {
 		if err != nil {
 			cleanup()
 			return nil, fmt.Errorf("failed to create OpenTelemetry hook: %w", err)
+		}
+		d.RegisterHook(hook)
+	}
+
+	// History storage
+	if cfg.HistoryPath != "" {
+		hook, err := hooks.NewHistoryHook(hooks.HistoryHookOptions{
+			StorePath: cfg.HistoryPath,
+			Tags:      cfg.HistoryTags,
+		})
+		if err != nil {
+			cleanup()
+			return nil, fmt.Errorf("failed to create history hook: %w", err)
 		}
 		d.RegisterHook(hook)
 	}
@@ -864,4 +1015,61 @@ func convertToCycloneDXVulns(results ExecutionResults) []map[string]interface{} 
 		})
 	}
 	return vulns
+}
+
+// applyTemplateToHTMLConfig applies template configuration settings to HTML writer config.
+func applyTemplateToHTMLConfig(htmlCfg *writers.HTMLConfig, templateCfg *report.TemplateConfig) {
+	// Branding
+	if templateCfg.Branding.CompanyName != "" {
+		htmlCfg.CompanyName = templateCfg.Branding.CompanyName
+	}
+	if templateCfg.Branding.LogoURL != "" {
+		htmlCfg.CompanyLogo = templateCfg.Branding.LogoURL
+	}
+
+	// Layout
+	if templateCfg.Layout.Theme != "" {
+		htmlCfg.Theme = templateCfg.Layout.Theme
+	}
+	if templateCfg.Layout.PrintOptimized {
+		htmlCfg.PrintOptimized = true
+	}
+
+	// Sections
+	htmlCfg.ShowExecutiveSummary = templateCfg.Sections.ExecutiveSummary
+	htmlCfg.ShowRiskChart = templateCfg.Sections.CategoryBreakdown || templateCfg.Sections.RadarChart
+}
+
+// parseCSV splits a comma-separated string into a slice of trimmed strings.
+// Empty strings are filtered out.
+func parseCSV(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
+// parseSemicolonSeparated splits a semicolon-separated string into a slice of trimmed strings.
+// Azure DevOps uses semicolons for tag separation.
+func parseSemicolonSeparated(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ";")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
 }

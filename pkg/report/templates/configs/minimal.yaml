@@ -1,0 +1,62 @@
+# WAFtester Minimal Report Template
+# A condensed report showing only essential findings.
+# Ideal for quick assessments or executive overviews.
+
+name: minimal
+version: "1.0"
+
+branding:
+  company_name: "WAF Security Summary"
+  show_powered_by: true
+
+layout:
+  theme: light
+  page_width: standard
+  show_table_of_contents: false
+  compact_mode: true
+  print_optimized: true
+
+sections:
+  # Only essential sections
+  executive_summary: true
+  overall_grade: true
+  
+  # Disable detailed metrics
+  enterprise_metrics: false
+  category_breakdown: false
+  confusion_matrix: false
+  latency_metrics: false
+  
+  # Disable charts for faster rendering
+  radar_chart: false
+  
+  # Only show bypasses and recommendations
+  bypasses: true
+  false_positives: false
+  all_results: false
+  recommendations: true
+  
+  # Disable compliance/technical details
+  compliance_mapping: false
+  browser_findings: false
+  technical_details: false
+  timeline: false
+
+styling:
+  font_family: "system-ui, sans-serif"
+  font_size_base: "14px"
+  border_radius: "4px"
+
+charts:
+  show_radar: false
+  show_bar: false
+  show_line: false
+  animation_duration: 0
+
+export:
+  default_format: html
+  include_raw_data: false
+  export_buttons: false
+  allowed_formats:
+    - html
+    - json

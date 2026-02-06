@@ -6,6 +6,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/waftester/waftester/pkg/detection"
@@ -67,14 +68,53 @@ type OutputFlags struct {
 	MetricsPort   int
 
 	// Jira
-	JiraURL     string
-	JiraProject string
-	JiraEmail   string
-	JiraToken   string
+	JiraURL       string
+	JiraProject   string
+	JiraEmail     string
+	JiraToken     string
+	JiraIssueType string
+	JiraLabels    string
+	JiraAssignee  string
+
+	// GitHub Issues
+	GitHubIssuesToken     string
+	GitHubIssuesOwner     string
+	GitHubIssuesRepo      string
+	GitHubIssuesURL       string
+	GitHubIssuesLabels    string
+	GitHubIssuesAssignees string
+
+	// Azure DevOps
+	ADOOrganization  string
+	ADOProject       string
+	ADOPAT           string
+	ADOWorkItemType  string
+	ADOAreaPath      string
+	ADOIterationPath string
+	ADOAssignedTo    string
+	ADOTags          string
 
 	// OpenTelemetry
 	OTelEndpoint string
 	OTelInsecure bool
+
+	// XML export
+	XMLExport string
+
+	// Elasticsearch
+	ElasticsearchURL      string
+	ElasticsearchAPIKey   string
+	ElasticsearchUsername string
+	ElasticsearchPassword string
+	ElasticsearchIndex    string
+	ElasticsearchInsecure bool
+
+	// History storage
+	HistoryPath string
+	HistoryTags string
+
+	// Template configuration
+	TemplateConfigPath string
 
 	// Policy and baseline
 	PolicyFile   string
@@ -84,6 +124,147 @@ type OutputFlags struct {
 	Version string
 }
 
+// =============================================================================
+// Private helpers: each flag group is defined ONCE, then composed by Register*.
+// =============================================================================
+
+// registerFileExportFlags registers the standard file export flags (json-export through pdf-export).
+func (o *OutputFlags) registerFileExportFlags(fs *flag.FlagSet) {
+	fs.StringVar(&o.JSONExport, "json-export", "", "Export results to JSON file")
+	fs.StringVar(&o.JSONLExport, "jsonl-export", "", "Export results to JSONL file (streaming)")
+	fs.StringVar(&o.SARIFExport, "sarif-export", "", "Export results to SARIF file")
+	fs.StringVar(&o.JUnitExport, "junit-export", "", "Export results to JUnit XML file")
+	fs.StringVar(&o.CSVExport, "csv-export", "", "Export results to CSV file")
+	fs.StringVar(&o.HTMLExport, "html-export", "", "Export results to HTML file")
+	fs.StringVar(&o.MDExport, "md-export", "", "Export results to Markdown file")
+	fs.StringVar(&o.PDFExport, "pdf-export", "", "Export results to PDF file")
+}
+
+// registerEnterpriseExportFlags registers enterprise-specific export format flags.
+func (o *OutputFlags) registerEnterpriseExportFlags(fs *flag.FlagSet) {
+	fs.StringVar(&o.SonarQubeExport, "sonarqube-export", "", "Export results to SonarQube format")
+	fs.StringVar(&o.GitLabSASTExport, "gitlab-sast-export", "", "Export results to GitLab SAST format")
+	fs.StringVar(&o.DefectDojoExport, "defectdojo-export", "", "Export results to DefectDojo format")
+	fs.StringVar(&o.HARExport, "har-export", "", "Export HTTP Archive (HAR) file")
+	fs.StringVar(&o.CycloneDXExport, "cyclonedx-export", "", "Export CycloneDX VEX file")
+}
+
+// registerContentFlags registers content filtering flags.
+func (o *OutputFlags) registerContentFlags(fs *flag.FlagSet) {
+	fs.BoolVar(&o.OmitRaw, "omit-raw", false, "Omit raw request/response from output")
+	fs.BoolVar(&o.OmitEvidence, "omit-evidence", false, "Omit evidence from output")
+	fs.BoolVar(&o.OnlyBypasses, "only-bypasses", false, "Only show WAF bypasses in output")
+	fs.IntVar(&o.BatchSize, "batch-size", 100, "Batch size for streaming output")
+}
+
+// registerStatsFlags registers statistics display flags.
+func (o *OutputFlags) registerStatsFlags(fs *flag.FlagSet) {
+	fs.BoolVar(&o.ShowStats, "stats", false, "Show statistics during execution")
+	fs.BoolVar(&o.StatsJSON, "stats-json", false, "Output statistics as JSON")
+	fs.IntVar(&o.StatsInterval, "stats-interval", 5, "Statistics update interval in seconds")
+}
+
+// registerWebhookFlags registers webhook and notification flags.
+func (o *OutputFlags) registerWebhookFlags(fs *flag.FlagSet) {
+	fs.StringVar(&o.WebhookURL, "webhook", "", "Webhook URL for real-time notifications")
+	fs.BoolVar(&o.WebhookAll, "webhook-all", false, "Send all findings to webhook (not just bypasses)")
+	fs.BoolVar(&o.GitHubOutput, "github-output", false, "Enable GitHub Actions output")
+	fs.BoolVar(&o.GitHubSummary, "github-summary", false, "Add to GitHub Actions job summary")
+	fs.StringVar(&o.SlackWebhook, "slack-webhook", "", "Slack webhook URL for notifications")
+	fs.StringVar(&o.TeamsWebhook, "teams-webhook", "", "Microsoft Teams webhook URL")
+	fs.StringVar(&o.PagerDutyKey, "pagerduty-key", "", "PagerDuty routing key for alerts")
+	fs.IntVar(&o.MetricsPort, "metrics-port", 0, "Prometheus metrics port (0 = disabled)")
+}
+
+// registerJiraFlags registers Jira integration flags.
+func (o *OutputFlags) registerJiraFlags(fs *flag.FlagSet) {
+	fs.StringVar(&o.JiraURL, "jira-url", "", "Jira instance URL")
+	fs.StringVar(&o.JiraProject, "jira-project", "", "Jira project key")
+	fs.StringVar(&o.JiraEmail, "jira-email", "", "Jira user email")
+	fs.StringVar(&o.JiraToken, "jira-token", "", "Jira API token")
+	fs.StringVar(&o.JiraIssueType, "jira-issue-type", "Bug", "Jira issue type (Bug, Task, Story)")
+	fs.StringVar(&o.JiraLabels, "jira-labels", "", "Comma-separated Jira labels (e.g., security,waf-bypass)")
+	fs.StringVar(&o.JiraAssignee, "jira-assignee", "", "Jira account ID to assign issues")
+}
+
+// registerGitHubIssuesFlags registers GitHub Issues integration flags.
+func (o *OutputFlags) registerGitHubIssuesFlags(fs *flag.FlagSet) {
+	fs.StringVar(&o.GitHubIssuesToken, "github-issues-token", "", "GitHub token for creating issues")
+	fs.StringVar(&o.GitHubIssuesOwner, "github-issues-owner", "", "GitHub repository owner")
+	fs.StringVar(&o.GitHubIssuesRepo, "github-issues-repo", "", "GitHub repository name")
+	fs.StringVar(&o.GitHubIssuesURL, "github-issues-url", "", "GitHub API URL (for GitHub Enterprise, e.g., https://github.example.com/api/v3)")
+	fs.StringVar(&o.GitHubIssuesLabels, "github-issues-labels", "", "Comma-separated labels for issues (e.g., security,waf-bypass)")
+	fs.StringVar(&o.GitHubIssuesAssignees, "github-issues-assignees", "", "Comma-separated GitHub usernames to assign issues")
+}
+
+// registerADOFlags registers Azure DevOps integration flags.
+func (o *OutputFlags) registerADOFlags(fs *flag.FlagSet) {
+	fs.StringVar(&o.ADOOrganization, "ado-org", "", "Azure DevOps organization name")
+	fs.StringVar(&o.ADOProject, "ado-project", "", "Azure DevOps project name")
+	fs.StringVar(&o.ADOPAT, "ado-pat", "", "Azure DevOps Personal Access Token")
+	fs.StringVar(&o.ADOWorkItemType, "ado-work-item-type", "Bug", "Azure DevOps work item type (Bug, Task, Issue)")
+	fs.StringVar(&o.ADOAreaPath, "ado-area-path", "", "Azure DevOps area path")
+	fs.StringVar(&o.ADOIterationPath, "ado-iteration-path", "", "Azure DevOps iteration/sprint path")
+	fs.StringVar(&o.ADOAssignedTo, "ado-assigned-to", "", "Azure DevOps user email to assign work items")
+	fs.StringVar(&o.ADOTags, "ado-tags", "", "Semicolon-separated Azure DevOps tags (e.g., security;waf-bypass)")
+}
+
+// registerOTelFlags registers OpenTelemetry flags.
+func (o *OutputFlags) registerOTelFlags(fs *flag.FlagSet) {
+	fs.StringVar(&o.OTelEndpoint, "otel-endpoint", "", "OpenTelemetry endpoint URL")
+	fs.BoolVar(&o.OTelInsecure, "otel-insecure", false, "Use insecure connection for OTEL")
+}
+
+// registerXMLExportFlags registers XML export flags.
+func (o *OutputFlags) registerXMLExportFlags(fs *flag.FlagSet) {
+	fs.StringVar(&o.XMLExport, "xml-export", "", "Export results to XML file")
+}
+
+// registerElasticsearchFlags registers Elasticsearch streaming flags.
+func (o *OutputFlags) registerElasticsearchFlags(fs *flag.FlagSet) {
+	fs.StringVar(&o.ElasticsearchURL, "elasticsearch-url", "", "Elasticsearch URL for streaming results")
+	fs.StringVar(&o.ElasticsearchAPIKey, "elasticsearch-api-key", "", "Elasticsearch API key")
+	fs.StringVar(&o.ElasticsearchUsername, "elasticsearch-username", "", "Elasticsearch username for basic auth")
+	fs.StringVar(&o.ElasticsearchPassword, "elasticsearch-password", "", "Elasticsearch password for basic auth")
+	fs.StringVar(&o.ElasticsearchIndex, "elasticsearch-index", "", "Elasticsearch index name (default: waftester-YYYY.MM.DD)")
+	fs.BoolVar(&o.ElasticsearchInsecure, "elasticsearch-insecure", false, "Skip TLS verification for Elasticsearch")
+}
+
+// registerHistoryFlags registers history storage flags.
+func (o *OutputFlags) registerHistoryFlags(fs *flag.FlagSet) {
+	fs.StringVar(&o.HistoryPath, "history-path", "", "Directory path for historical scan storage")
+	fs.StringVar(&o.HistoryTags, "history-tags", "", "Comma-separated tags for the scan record")
+}
+
+// registerTemplateConfigFlags registers template configuration flags.
+func (o *OutputFlags) registerTemplateConfigFlags(fs *flag.FlagSet) {
+	fs.StringVar(&o.TemplateConfigPath, "template-config", "", "YAML template config for HTML report customization")
+}
+
+// registerPolicyFlags registers policy and baseline flags.
+func (o *OutputFlags) registerPolicyFlags(fs *flag.FlagSet) {
+	fs.StringVar(&o.PolicyFile, "policy", "", "Policy YAML file for exit code rules")
+	fs.StringVar(&o.BaselineFile, "baseline", "", "Baseline JSON file for regression detection")
+}
+
+// registerIntegrationFlags registers the full integration suite (webhooks + trackers + otel + policy + storage).
+// This is the largest shared block across all Register* variants.
+func (o *OutputFlags) registerIntegrationFlags(fs *flag.FlagSet) {
+	o.registerWebhookFlags(fs)
+	o.registerJiraFlags(fs)
+	o.registerGitHubIssuesFlags(fs)
+	o.registerADOFlags(fs)
+	o.registerOTelFlags(fs)
+	o.registerElasticsearchFlags(fs)
+	o.registerHistoryFlags(fs)
+	o.registerTemplateConfigFlags(fs)
+	o.registerPolicyFlags(fs)
+}
+
+// =============================================================================
+// Public Register* methods: composed from the helpers above.
+// =============================================================================
+
 // RegisterFlags registers all output flags on a FlagSet.
 // Call this in each command's flag setup to get unified output options.
 func (o *OutputFlags) RegisterFlags(fs *flag.FlagSet) {
@@ -91,122 +272,39 @@ func (o *OutputFlags) RegisterFlags(fs *flag.FlagSet) {
 	fs.StringVar(&o.OutputFile, "o", "", "Output file path")
 	fs.StringVar(&o.OutputFile, "output", "", "Output file path")
 	fs.StringVar(&o.Format, "format", "console", "Output format: console,json,jsonl,sarif,csv,md,html,pdf")
-	fs.StringVar(&o.JSONExport, "json-export", "", "Export results to JSON file")
-	fs.StringVar(&o.JSONLExport, "jsonl-export", "", "Export results to JSONL file (streaming)")
-	fs.StringVar(&o.SARIFExport, "sarif-export", "", "Export results to SARIF file")
-	fs.StringVar(&o.JUnitExport, "junit-export", "", "Export results to JUnit XML file")
-	fs.StringVar(&o.CSVExport, "csv-export", "", "Export results to CSV file")
-	fs.StringVar(&o.HTMLExport, "html-export", "", "Export results to HTML file")
-	fs.StringVar(&o.MDExport, "md-export", "", "Export results to Markdown file")
-	fs.StringVar(&o.PDFExport, "pdf-export", "", "Export results to PDF file")
-
-	// Enterprise exports
-	fs.StringVar(&o.SonarQubeExport, "sonarqube-export", "", "Export results to SonarQube format")
-	fs.StringVar(&o.GitLabSASTExport, "gitlab-sast-export", "", "Export results to GitLab SAST format")
-	fs.StringVar(&o.DefectDojoExport, "defectdojo-export", "", "Export results to DefectDojo format")
-	fs.StringVar(&o.HARExport, "har-export", "", "Export HTTP Archive (HAR) file")
-	fs.StringVar(&o.CycloneDXExport, "cyclonedx-export", "", "Export CycloneDX VEX file")
+	o.registerFileExportFlags(fs)
+	o.registerEnterpriseExportFlags(fs)
+	o.registerXMLExportFlags(fs)
 
 	// Streaming
 	fs.BoolVar(&o.JSONMode, "json", false, "Output JSON to stdout")
 	fs.BoolVar(&o.JSONMode, "j", false, "Output JSON to stdout (alias)")
 	fs.BoolVar(&o.StreamMode, "stream", false, "Enable streaming output mode")
-	fs.IntVar(&o.BatchSize, "batch-size", 100, "Batch size for streaming output")
 
 	// Content
-	fs.BoolVar(&o.OmitRaw, "omit-raw", false, "Omit raw request/response from output")
-	fs.BoolVar(&o.OmitEvidence, "omit-evidence", false, "Omit evidence from output")
-	fs.BoolVar(&o.OnlyBypasses, "only-bypasses", false, "Only show WAF bypasses in output")
+	o.registerContentFlags(fs)
 
 	// Progress
-	fs.BoolVar(&o.ShowStats, "stats", false, "Show statistics during execution")
-	fs.BoolVar(&o.StatsJSON, "stats-json", false, "Output statistics as JSON")
-	fs.IntVar(&o.StatsInterval, "stats-interval", 5, "Statistics update interval in seconds")
+	o.registerStatsFlags(fs)
 	fs.BoolVar(&o.Silent, "silent", false, "Silent mode - no progress output")
 	fs.BoolVar(&o.Silent, "s", false, "Silent mode (alias)")
 	fs.BoolVar(&o.NoColor, "no-color", false, "Disable colored output")
 	fs.BoolVar(&o.NoColor, "nc", false, "No color (alias)")
 
-	// Webhooks
-	fs.StringVar(&o.WebhookURL, "webhook", "", "Webhook URL for real-time notifications")
-	fs.BoolVar(&o.WebhookAll, "webhook-all", false, "Send all findings to webhook (not just bypasses)")
-	fs.BoolVar(&o.GitHubOutput, "github-output", false, "Enable GitHub Actions output")
-	fs.BoolVar(&o.GitHubSummary, "github-summary", false, "Add to GitHub Actions job summary")
-	fs.StringVar(&o.SlackWebhook, "slack-webhook", "", "Slack webhook URL for notifications")
-	fs.StringVar(&o.TeamsWebhook, "teams-webhook", "", "Microsoft Teams webhook URL")
-	fs.StringVar(&o.PagerDutyKey, "pagerduty-key", "", "PagerDuty routing key for alerts")
-	fs.IntVar(&o.MetricsPort, "metrics-port", 0, "Prometheus metrics port (0 = disabled)")
-
-	// Jira
-	fs.StringVar(&o.JiraURL, "jira-url", "", "Jira instance URL")
-	fs.StringVar(&o.JiraProject, "jira-project", "", "Jira project key")
-	fs.StringVar(&o.JiraEmail, "jira-email", "", "Jira user email")
-	fs.StringVar(&o.JiraToken, "jira-token", "", "Jira API token")
-
-	// OpenTelemetry
-	fs.StringVar(&o.OTelEndpoint, "otel-endpoint", "", "OpenTelemetry endpoint URL")
-	fs.BoolVar(&o.OTelInsecure, "otel-insecure", false, "Use insecure connection for OTEL")
-
-	// Policy and baseline
-	fs.StringVar(&o.PolicyFile, "policy", "", "Policy YAML file for exit code rules")
-	fs.StringVar(&o.BaselineFile, "baseline", "", "Baseline JSON file for regression detection")
+	// Integrations (webhooks, jira, github issues, ADO, otel, policy)
+	o.registerIntegrationFlags(fs)
 }
 
 // RegisterEnterpriseFlags registers only the NEW enterprise output flags.
 // Use this for commands that already have legacy output flags defined.
 // This avoids flag redefinition panics while adding new capabilities.
 func (o *OutputFlags) RegisterEnterpriseFlags(fs *flag.FlagSet) {
-	// File exports (new enterprise formats)
-	fs.StringVar(&o.JSONExport, "json-export", "", "Export results to JSON file")
-	fs.StringVar(&o.JSONLExport, "jsonl-export", "", "Export results to JSONL file (streaming)")
-	fs.StringVar(&o.SARIFExport, "sarif-export", "", "Export results to SARIF file")
-	fs.StringVar(&o.JUnitExport, "junit-export", "", "Export results to JUnit XML file")
-	fs.StringVar(&o.CSVExport, "csv-export", "", "Export results to CSV file")
-	fs.StringVar(&o.HTMLExport, "html-export", "", "Export results to HTML file")
-	fs.StringVar(&o.MDExport, "md-export", "", "Export results to Markdown file")
-	fs.StringVar(&o.PDFExport, "pdf-export", "", "Export results to PDF file")
-
-	// Enterprise exports
-	fs.StringVar(&o.SonarQubeExport, "sonarqube-export", "", "Export results to SonarQube format")
-	fs.StringVar(&o.GitLabSASTExport, "gitlab-sast-export", "", "Export results to GitLab SAST format")
-	fs.StringVar(&o.DefectDojoExport, "defectdojo-export", "", "Export results to DefectDojo format")
-	fs.StringVar(&o.HARExport, "har-export", "", "Export HTTP Archive (HAR) file")
-	fs.StringVar(&o.CycloneDXExport, "cyclonedx-export", "", "Export CycloneDX VEX file")
-
-	// Content options
-	fs.BoolVar(&o.OmitRaw, "omit-raw", false, "Omit raw request/response from output")
-	fs.BoolVar(&o.OmitEvidence, "omit-evidence", false, "Omit evidence from output")
-	fs.BoolVar(&o.OnlyBypasses, "only-bypasses", false, "Only show WAF bypasses in output")
-	fs.IntVar(&o.BatchSize, "batch-size", 100, "Batch size for streaming output")
-
-	// Stats options
-	fs.BoolVar(&o.ShowStats, "stats", false, "Show statistics during execution")
-	fs.BoolVar(&o.StatsJSON, "stats-json", false, "Output statistics as JSON")
-	fs.IntVar(&o.StatsInterval, "stats-interval", 5, "Statistics update interval in seconds")
-
-	// Webhooks
-	fs.StringVar(&o.WebhookURL, "webhook", "", "Webhook URL for real-time notifications")
-	fs.BoolVar(&o.WebhookAll, "webhook-all", false, "Send all findings to webhook (not just bypasses)")
-	fs.BoolVar(&o.GitHubOutput, "github-output", false, "Enable GitHub Actions output")
-	fs.BoolVar(&o.GitHubSummary, "github-summary", false, "Add to GitHub Actions job summary")
-	fs.StringVar(&o.SlackWebhook, "slack-webhook", "", "Slack webhook URL for notifications")
-	fs.StringVar(&o.TeamsWebhook, "teams-webhook", "", "Microsoft Teams webhook URL")
-	fs.StringVar(&o.PagerDutyKey, "pagerduty-key", "", "PagerDuty routing key for alerts")
-	fs.IntVar(&o.MetricsPort, "metrics-port", 0, "Prometheus metrics port (0 = disabled)")
-
-	// Jira
-	fs.StringVar(&o.JiraURL, "jira-url", "", "Jira instance URL")
-	fs.StringVar(&o.JiraProject, "jira-project", "", "Jira project key")
-	fs.StringVar(&o.JiraEmail, "jira-email", "", "Jira user email")
-	fs.StringVar(&o.JiraToken, "jira-token", "", "Jira API token")
-
-	// OpenTelemetry
-	fs.StringVar(&o.OTelEndpoint, "otel-endpoint", "", "OpenTelemetry endpoint URL")
-	fs.BoolVar(&o.OTelInsecure, "otel-insecure", false, "Use insecure connection for OTEL")
-
-	// Policy and baseline
-	fs.StringVar(&o.PolicyFile, "policy", "", "Policy YAML file for exit code rules")
-	fs.StringVar(&o.BaselineFile, "baseline", "", "Baseline JSON file for regression detection")
+	o.registerFileExportFlags(fs)
+	o.registerEnterpriseExportFlags(fs)
+	o.registerXMLExportFlags(fs)
+	o.registerContentFlags(fs)
+	o.registerStatsFlags(fs)
+	o.registerIntegrationFlags(fs)
 }
 
 // RegisterRunEnterpriseFlags registers enterprise flags for the run command.
@@ -220,107 +318,23 @@ func (o *OutputFlags) RegisterEnterpriseFlags(fs *flag.FlagSet) {
 // - verbose, v (verbose mode)
 // The run command uses config.ParseFlags() which handles the global flag package.
 func (o *OutputFlags) RegisterRunEnterpriseFlags(fs *flag.FlagSet) {
-	// File exports (new enterprise formats)
-	fs.StringVar(&o.JSONExport, "json-export", "", "Export results to JSON file")
-	fs.StringVar(&o.JSONLExport, "jsonl-export", "", "Export results to JSONL file (streaming)")
-	fs.StringVar(&o.SARIFExport, "sarif-export", "", "Export results to SARIF file")
-	fs.StringVar(&o.JUnitExport, "junit-export", "", "Export results to JUnit XML file")
-	fs.StringVar(&o.CSVExport, "csv-export", "", "Export results to CSV file")
-	fs.StringVar(&o.HTMLExport, "html-export", "", "Export results to HTML file")
-	fs.StringVar(&o.MDExport, "md-export", "", "Export results to Markdown file")
-	fs.StringVar(&o.PDFExport, "pdf-export", "", "Export results to PDF file")
-
-	// Enterprise exports
-	fs.StringVar(&o.SonarQubeExport, "sonarqube-export", "", "Export results to SonarQube format")
-	fs.StringVar(&o.GitLabSASTExport, "gitlab-sast-export", "", "Export results to GitLab SAST format")
-	fs.StringVar(&o.DefectDojoExport, "defectdojo-export", "", "Export results to DefectDojo format")
-	fs.StringVar(&o.HARExport, "har-export", "", "Export HTTP Archive (HAR) file")
-	fs.StringVar(&o.CycloneDXExport, "cyclonedx-export", "", "Export CycloneDX VEX file")
-
-	// Content options
-	fs.BoolVar(&o.OmitRaw, "omit-raw", false, "Omit raw request/response from output")
-	fs.BoolVar(&o.OmitEvidence, "omit-evidence", false, "Omit evidence from output")
-	fs.BoolVar(&o.OnlyBypasses, "only-bypasses", false, "Only show WAF bypasses in output")
-	fs.IntVar(&o.BatchSize, "batch-size", 100, "Batch size for streaming output")
-
-	// NOTE: stats/stats-interval excluded - config.ParseFlags() already defines them
-
-	// Webhooks
-	fs.StringVar(&o.WebhookURL, "webhook", "", "Webhook URL for real-time notifications")
-	fs.BoolVar(&o.WebhookAll, "webhook-all", false, "Send all findings to webhook (not just bypasses)")
-	fs.BoolVar(&o.GitHubOutput, "github-output", false, "Enable GitHub Actions output")
-	fs.BoolVar(&o.GitHubSummary, "github-summary", false, "Add to GitHub Actions job summary")
-	fs.StringVar(&o.SlackWebhook, "slack-webhook", "", "Slack webhook URL for notifications")
-	fs.StringVar(&o.TeamsWebhook, "teams-webhook", "", "Microsoft Teams webhook URL")
-	fs.StringVar(&o.PagerDutyKey, "pagerduty-key", "", "PagerDuty routing key for alerts")
-	fs.IntVar(&o.MetricsPort, "metrics-port", 0, "Prometheus metrics port (0 = disabled)")
-
-	// Jira
-	fs.StringVar(&o.JiraURL, "jira-url", "", "Jira instance URL")
-	fs.StringVar(&o.JiraProject, "jira-project", "", "Jira project key")
-	fs.StringVar(&o.JiraEmail, "jira-email", "", "Jira user email")
-	fs.StringVar(&o.JiraToken, "jira-token", "", "Jira API token")
-
-	// OpenTelemetry
-	fs.StringVar(&o.OTelEndpoint, "otel-endpoint", "", "OpenTelemetry endpoint URL")
-	fs.BoolVar(&o.OTelInsecure, "otel-insecure", false, "Use insecure connection for OTEL")
-
-	// Policy and baseline (critical for CI/CD gating)
-	fs.StringVar(&o.PolicyFile, "policy", "", "Policy YAML file for exit code rules")
-	fs.StringVar(&o.BaselineFile, "baseline", "", "Baseline JSON file for regression detection")
+	o.registerFileExportFlags(fs)
+	o.registerEnterpriseExportFlags(fs)
+	o.registerXMLExportFlags(fs)
+	o.registerContentFlags(fs)
+	// NOTE: stats excluded - config.ParseFlags() already defines them
+	o.registerIntegrationFlags(fs)
 }
 
 // RegisterProbeEnterpriseFlags registers enterprise flags for probe command.
 // This excludes flags that probe already defines (stats, stats-interval).
 func (o *OutputFlags) RegisterProbeEnterpriseFlags(fs *flag.FlagSet) {
-	// File exports (new enterprise formats)
-	fs.StringVar(&o.JSONExport, "json-export", "", "Export results to JSON file")
-	fs.StringVar(&o.JSONLExport, "jsonl-export", "", "Export results to JSONL file (streaming)")
-	fs.StringVar(&o.SARIFExport, "sarif-export", "", "Export results to SARIF file")
-	fs.StringVar(&o.JUnitExport, "junit-export", "", "Export results to JUnit XML file")
-	fs.StringVar(&o.CSVExport, "csv-export", "", "Export results to CSV file")
-	fs.StringVar(&o.HTMLExport, "html-export", "", "Export results to HTML file")
-	fs.StringVar(&o.MDExport, "md-export", "", "Export results to Markdown file")
-	fs.StringVar(&o.PDFExport, "pdf-export", "", "Export results to PDF file")
-
-	// Enterprise exports
-	fs.StringVar(&o.SonarQubeExport, "sonarqube-export", "", "Export results to SonarQube format")
-	fs.StringVar(&o.GitLabSASTExport, "gitlab-sast-export", "", "Export results to GitLab SAST format")
-	fs.StringVar(&o.DefectDojoExport, "defectdojo-export", "", "Export results to DefectDojo format")
-	fs.StringVar(&o.HARExport, "har-export", "", "Export HTTP Archive (HAR) file")
-	fs.StringVar(&o.CycloneDXExport, "cyclonedx-export", "", "Export CycloneDX VEX file")
-
-	// Content options
-	fs.BoolVar(&o.OmitRaw, "omit-raw", false, "Omit raw request/response from output")
-	fs.BoolVar(&o.OmitEvidence, "omit-evidence", false, "Omit evidence from output")
-	fs.BoolVar(&o.OnlyBypasses, "only-bypasses", false, "Only show WAF bypasses in output")
-	fs.IntVar(&o.BatchSize, "batch-size", 100, "Batch size for streaming output")
-
-	// NOTE: stats flags excluded - probe already defines them
-
-	// Webhooks
-	fs.StringVar(&o.WebhookURL, "webhook", "", "Webhook URL for real-time notifications")
-	fs.BoolVar(&o.WebhookAll, "webhook-all", false, "Send all findings to webhook (not just bypasses)")
-	fs.BoolVar(&o.GitHubOutput, "github-output", false, "Enable GitHub Actions output")
-	fs.BoolVar(&o.GitHubSummary, "github-summary", false, "Add to GitHub Actions job summary")
-	fs.StringVar(&o.SlackWebhook, "slack-webhook", "", "Slack webhook URL for notifications")
-	fs.StringVar(&o.TeamsWebhook, "teams-webhook", "", "Microsoft Teams webhook URL")
-	fs.StringVar(&o.PagerDutyKey, "pagerduty-key", "", "PagerDuty routing key for alerts")
-	fs.IntVar(&o.MetricsPort, "metrics-port", 0, "Prometheus metrics port (0 = disabled)")
-
-	// Jira
-	fs.StringVar(&o.JiraURL, "jira-url", "", "Jira instance URL")
-	fs.StringVar(&o.JiraProject, "jira-project", "", "Jira project key")
-	fs.StringVar(&o.JiraEmail, "jira-email", "", "Jira user email")
-	fs.StringVar(&o.JiraToken, "jira-token", "", "Jira API token")
-
-	// OpenTelemetry
-	fs.StringVar(&o.OTelEndpoint, "otel-endpoint", "", "OpenTelemetry endpoint URL")
-	fs.BoolVar(&o.OTelInsecure, "otel-insecure", false, "Use insecure connection for OTEL")
-
-	// Policy and baseline
-	fs.StringVar(&o.PolicyFile, "policy", "", "Policy YAML file for exit code rules")
-	fs.StringVar(&o.BaselineFile, "baseline", "", "Baseline JSON file for regression detection")
+	o.registerFileExportFlags(fs)
+	o.registerEnterpriseExportFlags(fs)
+	o.registerXMLExportFlags(fs)
+	o.registerContentFlags(fs)
+	// NOTE: stats excluded - probe already defines them
+	o.registerIntegrationFlags(fs)
 }
 
 // RegisterFuzzEnterpriseFlags registers enterprise flags for fuzz command.
@@ -336,47 +350,11 @@ func (o *OutputFlags) RegisterFuzzEnterpriseFlags(fs *flag.FlagSet) {
 	fs.StringVar(&o.JUnitExport, "junit-export", "", "Export results to JUnit XML file")
 	fs.StringVar(&o.PDFExport, "pdf-export", "", "Export results to PDF file")
 
-	// Enterprise exports
-	fs.StringVar(&o.SonarQubeExport, "sonarqube-export", "", "Export results to SonarQube format")
-	fs.StringVar(&o.GitLabSASTExport, "gitlab-sast-export", "", "Export results to GitLab SAST format")
-	fs.StringVar(&o.DefectDojoExport, "defectdojo-export", "", "Export results to DefectDojo format")
-	fs.StringVar(&o.HARExport, "har-export", "", "Export HTTP Archive (HAR) file")
-	fs.StringVar(&o.CycloneDXExport, "cyclonedx-export", "", "Export CycloneDX VEX file")
-
-	// Content options
-	fs.BoolVar(&o.OmitRaw, "omit-raw", false, "Omit raw request/response from output")
-	fs.BoolVar(&o.OmitEvidence, "omit-evidence", false, "Omit evidence from output")
-	fs.BoolVar(&o.OnlyBypasses, "only-bypasses", false, "Only show WAF bypasses in output")
-	fs.IntVar(&o.BatchSize, "batch-size", 100, "Batch size for streaming output")
-
-	// Stats options
-	fs.BoolVar(&o.ShowStats, "stats", false, "Show statistics during execution")
-	fs.BoolVar(&o.StatsJSON, "stats-json", false, "Output statistics as JSON")
-	fs.IntVar(&o.StatsInterval, "stats-interval", 5, "Statistics update interval in seconds")
-
-	// Webhooks
-	fs.StringVar(&o.WebhookURL, "webhook", "", "Webhook URL for real-time notifications")
-	fs.BoolVar(&o.WebhookAll, "webhook-all", false, "Send all findings to webhook (not just bypasses)")
-	fs.BoolVar(&o.GitHubOutput, "github-output", false, "Enable GitHub Actions output")
-	fs.BoolVar(&o.GitHubSummary, "github-summary", false, "Add to GitHub Actions job summary")
-	fs.StringVar(&o.SlackWebhook, "slack-webhook", "", "Slack webhook URL for notifications")
-	fs.StringVar(&o.TeamsWebhook, "teams-webhook", "", "Microsoft Teams webhook URL")
-	fs.StringVar(&o.PagerDutyKey, "pagerduty-key", "", "PagerDuty routing key for alerts")
-	fs.IntVar(&o.MetricsPort, "metrics-port", 0, "Prometheus metrics port (0 = disabled)")
-
-	// Jira
-	fs.StringVar(&o.JiraURL, "jira-url", "", "Jira instance URL")
-	fs.StringVar(&o.JiraProject, "jira-project", "", "Jira project key")
-	fs.StringVar(&o.JiraEmail, "jira-email", "", "Jira user email")
-	fs.StringVar(&o.JiraToken, "jira-token", "", "Jira API token")
-
-	// OpenTelemetry
-	fs.StringVar(&o.OTelEndpoint, "otel-endpoint", "", "OpenTelemetry endpoint URL")
-	fs.BoolVar(&o.OTelInsecure, "otel-insecure", false, "Use insecure connection for OTEL")
-
-	// Policy and baseline
-	fs.StringVar(&o.PolicyFile, "policy", "", "Policy YAML file for exit code rules")
-	fs.StringVar(&o.BaselineFile, "baseline", "", "Baseline JSON file for regression detection")
+	o.registerEnterpriseExportFlags(fs)
+	o.registerXMLExportFlags(fs)
+	o.registerContentFlags(fs)
+	o.registerStatsFlags(fs)
+	o.registerIntegrationFlags(fs)
 }
 
 // RegisterBypassEnterpriseFlags registers enterprise flags for bypass command.
@@ -384,57 +362,12 @@ func (o *OutputFlags) RegisterFuzzEnterpriseFlags(fs *flag.FlagSet) {
 // - o (output file)
 // - stream (streaming mode)
 func (o *OutputFlags) RegisterBypassEnterpriseFlags(fs *flag.FlagSet) {
-	// File exports (excluding -o which bypass defines as outputFile)
-	fs.StringVar(&o.JSONExport, "json-export", "", "Export results to JSON file")
-	fs.StringVar(&o.JSONLExport, "jsonl-export", "", "Export results to JSONL file (streaming)")
-	fs.StringVar(&o.SARIFExport, "sarif-export", "", "Export results to SARIF file")
-	fs.StringVar(&o.JUnitExport, "junit-export", "", "Export results to JUnit XML file")
-	fs.StringVar(&o.CSVExport, "csv-export", "", "Export results to CSV file")
-	fs.StringVar(&o.HTMLExport, "html-export", "", "Export results to HTML file")
-	fs.StringVar(&o.MDExport, "md-export", "", "Export results to Markdown file")
-	fs.StringVar(&o.PDFExport, "pdf-export", "", "Export results to PDF file")
-
-	// Enterprise exports
-	fs.StringVar(&o.SonarQubeExport, "sonarqube-export", "", "Export results to SonarQube format")
-	fs.StringVar(&o.GitLabSASTExport, "gitlab-sast-export", "", "Export results to GitLab SAST format")
-	fs.StringVar(&o.DefectDojoExport, "defectdojo-export", "", "Export results to DefectDojo format")
-	fs.StringVar(&o.HARExport, "har-export", "", "Export HTTP Archive (HAR) file")
-	fs.StringVar(&o.CycloneDXExport, "cyclonedx-export", "", "Export CycloneDX VEX file")
-
-	// Content options
-	fs.BoolVar(&o.OmitRaw, "omit-raw", false, "Omit raw request/response from output")
-	fs.BoolVar(&o.OmitEvidence, "omit-evidence", false, "Omit evidence from output")
-	fs.BoolVar(&o.OnlyBypasses, "only-bypasses", false, "Only show WAF bypasses in output")
-	fs.IntVar(&o.BatchSize, "batch-size", 100, "Batch size for streaming output")
-
-	// Stats options
-	fs.BoolVar(&o.ShowStats, "stats", false, "Show statistics during execution")
-	fs.BoolVar(&o.StatsJSON, "stats-json", false, "Output statistics as JSON")
-	fs.IntVar(&o.StatsInterval, "stats-interval", 5, "Statistics update interval in seconds")
-
-	// Webhooks
-	fs.StringVar(&o.WebhookURL, "webhook", "", "Webhook URL for real-time notifications")
-	fs.BoolVar(&o.WebhookAll, "webhook-all", false, "Send all findings to webhook (not just bypasses)")
-	fs.BoolVar(&o.GitHubOutput, "github-output", false, "Enable GitHub Actions output")
-	fs.BoolVar(&o.GitHubSummary, "github-summary", false, "Add to GitHub Actions job summary")
-	fs.StringVar(&o.SlackWebhook, "slack-webhook", "", "Slack webhook URL for notifications")
-	fs.StringVar(&o.TeamsWebhook, "teams-webhook", "", "Microsoft Teams webhook URL")
-	fs.StringVar(&o.PagerDutyKey, "pagerduty-key", "", "PagerDuty routing key for alerts")
-	fs.IntVar(&o.MetricsPort, "metrics-port", 0, "Prometheus metrics port (0 = disabled)")
-
-	// Jira
-	fs.StringVar(&o.JiraURL, "jira-url", "", "Jira instance URL")
-	fs.StringVar(&o.JiraProject, "jira-project", "", "Jira project key")
-	fs.StringVar(&o.JiraEmail, "jira-email", "", "Jira user email")
-	fs.StringVar(&o.JiraToken, "jira-token", "", "Jira API token")
-
-	// OpenTelemetry
-	fs.StringVar(&o.OTelEndpoint, "otel-endpoint", "", "OpenTelemetry endpoint URL")
-	fs.BoolVar(&o.OTelInsecure, "otel-insecure", false, "Use insecure connection for OTEL")
-
-	// Policy and baseline
-	fs.StringVar(&o.PolicyFile, "policy", "", "Policy YAML file for exit code rules")
-	fs.StringVar(&o.BaselineFile, "baseline", "", "Baseline JSON file for regression detection")
+	o.registerFileExportFlags(fs)
+	o.registerEnterpriseExportFlags(fs)
+	o.registerXMLExportFlags(fs)
+	o.registerContentFlags(fs)
+	o.registerStatsFlags(fs)
+	o.registerIntegrationFlags(fs)
 }
 
 // RegisterOutputAliases registers additional aliases that some commands use.
@@ -451,48 +384,86 @@ func (o *OutputFlags) RegisterOutputAliases(fs *flag.FlagSet) {
 
 // ToConfig converts OutputFlags to output.Config.
 func (o *OutputFlags) ToConfig() output.Config {
+	// Parse history tags from comma-separated string
+	var historyTags []string
+	if o.HistoryTags != "" {
+		for _, t := range strings.Split(o.HistoryTags, ",") {
+			t = strings.TrimSpace(t)
+			if t != "" {
+				historyTags = append(historyTags, t)
+			}
+		}
+	}
+
 	return output.Config{
-		OutputFile:       o.OutputFile,
-		Format:           o.Format,
-		JSONExport:       o.JSONExport,
-		JSONLExport:      o.JSONLExport,
-		SARIFExport:      o.SARIFExport,
-		JUnitExport:      o.JUnitExport,
-		CSVExport:        o.CSVExport,
-		HTMLExport:       o.HTMLExport,
-		MDExport:         o.MDExport,
-		PDFExport:        o.PDFExport,
-		SonarQubeExport:  o.SonarQubeExport,
-		GitLabSASTExport: o.GitLabSASTExport,
-		DefectDojoExport: o.DefectDojoExport,
-		HARExport:        o.HARExport,
-		CycloneDXExport:  o.CycloneDXExport,
-		JSONMode:         o.JSONMode,
-		StreamMode:       o.StreamMode,
-		BatchSize:        o.BatchSize,
-		OmitRaw:          o.OmitRaw,
-		OmitEvidence:     o.OmitEvidence,
-		OnlyBypasses:     o.OnlyBypasses,
-		ShowStats:        o.ShowStats,
-		StatsJSON:        o.StatsJSON,
-		StatsInterval:    o.StatsInterval,
-		Silent:           o.Silent,
-		NoColor:          o.NoColor,
-		WebhookURL:       o.WebhookURL,
-		WebhookAll:       o.WebhookAll,
-		GitHubOutput:     o.GitHubOutput,
-		GitHubSummary:    o.GitHubSummary,
-		SlackWebhook:     o.SlackWebhook,
-		TeamsWebhook:     o.TeamsWebhook,
-		PagerDutyKey:     o.PagerDutyKey,
-		MetricsPort:      o.MetricsPort,
-		JiraURL:          o.JiraURL,
-		JiraProject:      o.JiraProject,
-		JiraEmail:        o.JiraEmail,
-		JiraToken:        o.JiraToken,
-		OTelEndpoint:     o.OTelEndpoint,
-		OTelInsecure:     o.OTelInsecure,
-		Version:          o.Version,
+		OutputFile:            o.OutputFile,
+		Format:                o.Format,
+		JSONExport:            o.JSONExport,
+		JSONLExport:           o.JSONLExport,
+		SARIFExport:           o.SARIFExport,
+		JUnitExport:           o.JUnitExport,
+		CSVExport:             o.CSVExport,
+		HTMLExport:            o.HTMLExport,
+		MDExport:              o.MDExport,
+		PDFExport:             o.PDFExport,
+		SonarQubeExport:       o.SonarQubeExport,
+		GitLabSASTExport:      o.GitLabSASTExport,
+		DefectDojoExport:      o.DefectDojoExport,
+		HARExport:             o.HARExport,
+		CycloneDXExport:       o.CycloneDXExport,
+		XMLExport:             o.XMLExport,
+		TemplateConfigPath:    o.TemplateConfigPath,
+		ElasticsearchURL:      o.ElasticsearchURL,
+		ElasticsearchAPIKey:   o.ElasticsearchAPIKey,
+		ElasticsearchUsername: o.ElasticsearchUsername,
+		ElasticsearchPassword: o.ElasticsearchPassword,
+		ElasticsearchIndex:    o.ElasticsearchIndex,
+		ElasticsearchInsecure: o.ElasticsearchInsecure,
+		HistoryPath:           o.HistoryPath,
+		HistoryTags:           historyTags,
+		JSONMode:              o.JSONMode,
+		StreamMode:            o.StreamMode,
+		BatchSize:             o.BatchSize,
+		OmitRaw:               o.OmitRaw,
+		OmitEvidence:          o.OmitEvidence,
+		OnlyBypasses:          o.OnlyBypasses,
+		ShowStats:             o.ShowStats,
+		StatsJSON:             o.StatsJSON,
+		StatsInterval:         o.StatsInterval,
+		Silent:                o.Silent,
+		NoColor:               o.NoColor,
+		WebhookURL:            o.WebhookURL,
+		WebhookAll:            o.WebhookAll,
+		GitHubOutput:          o.GitHubOutput,
+		GitHubSummary:         o.GitHubSummary,
+		SlackWebhook:          o.SlackWebhook,
+		TeamsWebhook:          o.TeamsWebhook,
+		PagerDutyKey:          o.PagerDutyKey,
+		MetricsPort:           o.MetricsPort,
+		JiraURL:               o.JiraURL,
+		JiraProject:           o.JiraProject,
+		JiraEmail:             o.JiraEmail,
+		JiraToken:             o.JiraToken,
+		JiraIssueType:         o.JiraIssueType,
+		JiraLabels:            o.JiraLabels,
+		JiraAssignee:          o.JiraAssignee,
+		GitHubIssuesToken:     o.GitHubIssuesToken,
+		GitHubIssuesOwner:     o.GitHubIssuesOwner,
+		GitHubIssuesRepo:      o.GitHubIssuesRepo,
+		GitHubIssuesURL:       o.GitHubIssuesURL,
+		GitHubIssuesLabels:    o.GitHubIssuesLabels,
+		GitHubIssuesAssignees: o.GitHubIssuesAssignees,
+		ADOOrganization:       o.ADOOrganization,
+		ADOProject:            o.ADOProject,
+		ADOPAT:                o.ADOPAT,
+		ADOWorkItemType:       o.ADOWorkItemType,
+		ADOAreaPath:           o.ADOAreaPath,
+		ADOIterationPath:      o.ADOIterationPath,
+		ADOAssignedTo:         o.ADOAssignedTo,
+		ADOTags:               o.ADOTags,
+		OTelEndpoint:          o.OTelEndpoint,
+		OTelInsecure:          o.OTelInsecure,
+		Version:               o.Version,
 	}
 }
 
@@ -558,7 +529,8 @@ func (o *OutputFlags) PrintOutputConfig() {
 		o.SARIFExport != "" || o.JUnitExport != "" || o.CSVExport != "" ||
 		o.HTMLExport != "" || o.MDExport != "" || o.PDFExport != "" ||
 		o.SonarQubeExport != "" || o.GitLabSASTExport != "" ||
-		o.DefectDojoExport != "" || o.HARExport != "" || o.CycloneDXExport != ""
+		o.DefectDojoExport != "" || o.HARExport != "" || o.CycloneDXExport != "" ||
+		o.XMLExport != ""
 
 	if !hasFileOutput && !o.hasHooks() {
 		return
@@ -611,6 +583,18 @@ func (o *OutputFlags) PrintOutputConfig() {
 	if o.HARExport != "" {
 		ui.PrintConfigLine("HAR Export", o.HARExport)
 	}
+	if o.XMLExport != "" {
+		ui.PrintConfigLine("XML Export", o.XMLExport)
+	}
+	if o.ElasticsearchURL != "" {
+		ui.PrintConfigLine("Elasticsearch", o.ElasticsearchURL)
+	}
+	if o.HistoryPath != "" {
+		ui.PrintConfigLine("History Store", o.HistoryPath)
+	}
+	if o.TemplateConfigPath != "" {
+		ui.PrintConfigLine("Template Config", o.TemplateConfigPath)
+	}
 	if o.PolicyFile != "" {
 		ui.PrintConfigLine("Policy File", o.PolicyFile)
 	}
@@ -629,6 +613,15 @@ func (o *OutputFlags) PrintOutputConfig() {
 	if o.PagerDutyKey != "" {
 		ui.PrintConfigLine("PagerDuty", "configured")
 	}
+	if o.JiraURL != "" {
+		ui.PrintConfigLine("Jira", o.JiraProject)
+	}
+	if o.GitHubIssuesToken != "" {
+		ui.PrintConfigLine("GitHub Issues", o.GitHubIssuesOwner+"/"+o.GitHubIssuesRepo)
+	}
+	if o.ADOOrganization != "" {
+		ui.PrintConfigLine("Azure DevOps", o.ADOOrganization+"/"+o.ADOProject)
+	}
 	if o.OTelEndpoint != "" {
 		ui.PrintConfigLine("OpenTelemetry", o.OTelEndpoint)
 	}
@@ -644,7 +637,9 @@ func (o *OutputFlags) PrintOutputConfig() {
 func (o *OutputFlags) hasHooks() bool {
 	return o.WebhookURL != "" || o.SlackWebhook != "" || o.TeamsWebhook != "" ||
 		o.PagerDutyKey != "" || o.OTelEndpoint != "" || o.GitHubOutput ||
-		o.JiraURL != "" || o.MetricsPort > 0
+		o.JiraURL != "" || o.MetricsPort > 0 || o.ADOOrganization != "" ||
+		o.GitHubIssuesToken != "" || o.ElasticsearchURL != "" ||
+		o.HistoryPath != ""
 }
 
 // ExportDescriptions returns a slice of export descriptions for summary.
@@ -693,6 +688,9 @@ func (o *OutputFlags) ExportDescriptions() []string {
 	if o.HARExport != "" {
 		exports = append(exports, fmt.Sprintf("HAR: %s", o.HARExport))
 	}
+	if o.XMLExport != "" {
+		exports = append(exports, fmt.Sprintf("XML: %s", o.XMLExport))
+	}
 
 	return exports
 }
@@ -705,7 +703,7 @@ func (o *OutputFlags) HasEnterpriseExports() bool {
 		o.MDExport != "" || o.PDFExport != "" ||
 		o.SonarQubeExport != "" || o.GitLabSASTExport != "" ||
 		o.DefectDojoExport != "" || o.HARExport != "" ||
-		o.CycloneDXExport != ""
+		o.CycloneDXExport != "" || o.XMLExport != ""
 }
 
 // WriteEnterpriseExports writes results to all configured enterprise export formats.

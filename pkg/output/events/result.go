@@ -37,11 +37,13 @@ type TargetInfo struct {
 // ResultInfo contains the test outcome including
 // the result status, HTTP response details, and WAF detection info.
 type ResultInfo struct {
-	Outcome       Outcome `json:"outcome"`
-	StatusCode    int     `json:"status_code"`
-	LatencyMs     float64 `json:"latency_ms"`
-	ContentLength int     `json:"content_length,omitempty"`
-	WAFSignature  string  `json:"waf_signature,omitempty"`
+	Outcome        Outcome    `json:"outcome"`
+	StatusCode     int        `json:"status_code"`
+	LatencyMs      float64    `json:"latency_ms"`
+	ContentLength  int        `json:"content_length,omitempty"`
+	WAFSignature   string     `json:"waf_signature,omitempty"`
+	Confidence     Confidence `json:"confidence,omitempty"`
+	ConfidenceNote string     `json:"confidence_note,omitempty"`
 }
 
 // Evidence contains proof of the test result including

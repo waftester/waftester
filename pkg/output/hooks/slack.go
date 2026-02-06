@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
@@ -282,6 +283,7 @@ func (h *SlackHook) send(ctx context.Context, payload interface{}) error {
 		return nil
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", defaults.ToolName+"/"+defaults.Version)
 
 	resp, err := h.client.Do(req)
 	if err != nil {
@@ -298,11 +300,18 @@ func (h *SlackHook) send(ctx context.Context, payload interface{}) error {
 }
 
 // capitalize returns the string with the first letter uppercase.
+// Handles empty strings, uppercase letters, numbers, and Unicode safely.
 func capitalize(s string) string {
 	if s == "" {
 		return s
 	}
-	return string(s[0]-32) + s[1:]
+	// Get first rune and uppercase it safely
+	for i, r := range s {
+		if i == 0 {
+			return string(unicode.ToUpper(r)) + s[1:]
+		}
+	}
+	return s
 }
 
 // Slack message types for JSON serialization.

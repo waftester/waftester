@@ -16,6 +16,7 @@
 .mcp.json
 .vscode/
 docs/plans/
+docs/research/
 
 # WAFtester test artifacts
 testplan.json

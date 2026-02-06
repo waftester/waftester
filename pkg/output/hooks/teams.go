@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
@@ -240,6 +241,7 @@ func (h *TeamsHook) send(ctx context.Context, card teamsMessageCard) error {
 		return nil
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", defaults.ToolName+"/"+defaults.Version)
 
 	resp, err := h.client.Do(req)
 	if err != nil {

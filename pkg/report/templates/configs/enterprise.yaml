@@ -1,0 +1,93 @@
+# WAFtester Enterprise Report Template Configuration
+# This is the default full-featured enterprise report configuration.
+# Copy this file and customize for your organization.
+
+name: enterprise
+version: "1.0"
+
+branding:
+  company_name: "Security Assessment Report"
+  logo_url: ""  # URL or base64 encoded image
+  logo_position: left  # left, center, right
+  accent_color: "#0066cc"
+  secondary_color: "#1e40af"
+  footer_text: "Confidential - For Internal Use Only"
+  copyright: ""  # Auto-generated if empty
+  contact_email: ""
+  show_powered_by: true
+
+layout:
+  theme: light  # light, dark, auto
+  page_width: wide  # full, wide (1400px), standard (1200px)
+  show_table_of_contents: true
+  compact_mode: false
+  print_optimized: false
+
+sections:
+  # Executive Summary
+  executive_summary: true
+  overall_grade: true
+  
+  # Enterprise Metrics
+  enterprise_metrics: true
+  category_breakdown: true
+  confusion_matrix: true
+  latency_metrics: true
+  
+  # Visualizations
+  radar_chart: true
+  
+  # Detailed Findings
+  bypasses: true
+  false_positives: true
+  all_results: true
+  recommendations: true
+  
+  # Compliance & Technical
+  compliance_mapping: true
+  browser_findings: true
+  technical_details: true
+  timeline: true  # Requires historical data
+
+styling:
+  font_family: "Inter, system-ui, sans-serif"
+  font_size_base: "16px"
+  header_background: ""
+  card_background: ""
+  text_color: ""
+  border_radius: "8px"
+  
+  # Grade/Severity Colors
+  grade_critical_color: "#dc2626"
+  grade_high_color: "#ea580c"
+  grade_medium_color: "#ca8a04"
+  grade_low_color: "#65a30d"
+  grade_info_color: "#0284c7"
+  
+  # Additional CSS (injected at end of <style>)
+  custom_css: ""
+
+charts:
+  show_radar: true
+  show_bar: true
+  show_line: true
+  animation_duration: 400  # milliseconds, 0 to disable
+  color_palette:
+    - "#3b82f6"
+    - "#ef4444"
+    - "#22c55e"
+    - "#f59e0b"
+    - "#8b5cf6"
+    - "#ec4899"
+    - "#06b6d4"
+    - "#84cc16"
+
+export:
+  default_format: html
+  include_raw_data: true  # Embeds JSON for data extraction
+  export_buttons: true
+  allowed_formats:
+    - html
+    - json
+    - csv
+    - pdf

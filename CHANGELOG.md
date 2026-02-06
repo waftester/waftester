@@ -5,6 +5,64 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.8] - 2026-02-06
+
+### Added
+
+#### New Output Formats
+- **XML Export** (`--xml`): Legacy XML format for enterprise SIEM/vulnerability management platforms
+  - DTD-style structure with full compliance mapping (CWE, OWASP, WASC)
+  - Auto-populated WASC IDs via `defaults.GetWASCID()` mapping
+
+#### New Integrations
+- **Elasticsearch SIEM Integration** (`--elasticsearch-url`): Stream results to Elasticsearch
+  - Bulk API support for high-throughput indexing
+  - API key and basic auth support (`--elasticsearch-api-key`, `--elasticsearch-username`)
+  - TLS skip verify option (`--elasticsearch-insecure`) for self-signed certs
+
+- **GitHub Issues Integration** (`--github-issues-token`): Auto-create issues from bypasses
+  - Creates formatted markdown issues with CWE links and severity labels
+  - Configurable via `--github-issues-owner` and `--github-issues-repo`
+
+- **Azure DevOps Integration** (`--ado-org`, `--ado-project`, `--ado-pat`): Auto-create work items from bypasses
+  - Creates formatted HTML work items with severity/priority mapping
+  - Supports Bug, Task, Issue work item types via `--ado-work-item-type`
+  - Optional area path (`--ado-area-path`) and iteration path (`--ado-iteration-path`)
+  - Includes repro steps with curl commands when available
+
+- **Historical Scan Storage** (`--history-path`): JSON-based scan history for trend analysis
+  - Stores detection rates, grades, category scores, latency metrics
+  - Enables scan comparison and regression detection
+  - Tag scans with `--history-tags` for organization
+
+#### Report Customization
+- **Template Configuration** (`--template-config`): YAML-based report customization
+  - Pre-built templates: `minimal.yaml` (executive summary), `enterprise.yaml` (full audit)
+  - Customize branding (logo, colors, company name)
+  - Enable/disable sections (charts, metrics, compliance mapping)
+  - Theme selection (light/dark/auto), print optimization
+
+### Fixed
+- **Missing CLI Wiring**: XML export, Elasticsearch, History, and Template Config flags were defined in `output.Config`/`BuildDispatcher` but never exposed via CLI flags — all 4 features are now fully wired into all 6 `Register*` variants with `ToConfig()` mapping
+- **Elasticsearch Unbounded Read**: `io.ReadAll(resp.Body)` on error paths replaced with `io.LimitReader(resp.Body, 4096)` to prevent memory exhaustion from malicious servers
+- **Elasticsearch Double-Flush Race**: `Write()` now drains buffer inside the lock before calling `bulkInsert()`, eliminating concurrent redundant HTTP calls
+- **Template Config OR-Logic Bug**: `mergeSectionConfig()` used OR logic (`base || override`), making it impossible for minimal template to disable sections — now uses override values directly
+- **Template ValidateConfig Silent Fix**: `ValidateConfig()` silently corrected invalid values instead of returning errors — now returns descriptive validation errors
+- **History Store Crash Corruption**: `saveIndex()` now uses atomic write (temp file + `os.Rename`) to prevent data loss if process crashes mid-write
+- **History ListAll Time Bound**: `ListAll()`/`GetLatest()` used `time.Now().Add(24h)` as upper bound — replaced with `time.Date(9999,...)` sentinel to handle clock drift
+- **Raw http.Client Usage**: Elasticsearch and GitHub Issues now use `httpclient.New()` for proper timeouts and TLS config
+- **WASC Mapping Unused**: XML writer now populates WASC field from category mapping
+
+### Changed
+- **Custom `itoa()` Removed**: Replaced hand-rolled 22-line `itoa()` in XML writer with `strconv.Itoa`
+- **Custom `escapeHTML()` Removed**: Replaced custom HTML escaping in Azure DevOps hook with stdlib `html.EscapeString`
+- **`WASCOrdered` Immutable**: Converted from mutable `var []string` to function returning a defensive copy
+- **MergeConfig Expanded**: Template config merging now handles all fields including Sections, Styling, and Export settings
+- **Release Packaging**: Template configs now included in release archives
+
+### Removed
+- **Duplicate Code**: Deleted ~800 lines of dead code in `pkg/integrations/` (duplicated hooks/jira.go and hooks/slack.go)
+
 ## [2.6.7] - 2026-02-05
 
 ### Added
@@ -794,14 +852,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enhanced existing writers: HTML (themes), Markdown (TOC, OWASP sections), PDF (branding), CSV (OWASP columns)
 
 - **8 Real-time Alerting Hooks**:
-  - **Slack** (`--hook-slack`): Rich message formatting with severity colors, field blocks
-  - **Microsoft Teams** (`--hook-teams`): Adaptive Cards with action buttons
-  - **PagerDuty** (`--hook-pagerduty`): Incident creation with severity routing
-  - **Jira** (`--hook-jira`): Automatic issue creation with configurable project/type
-  - **GitHub Actions** (`--hook-github`): Step summary and outputs for workflow integration
-  - **OpenTelemetry** (`--hook-otel`): Distributed tracing with scan spans and finding events
-  - **Prometheus** (`--hook-prometheus`): Metrics exposition endpoint for monitoring
-  - **Generic Webhook** (`--hook-webhook`): Custom HTTP POST for any integration
+  - **Slack** (`--slack-webhook`): Rich message formatting with severity colors, field blocks
+  - **Microsoft Teams** (`--teams-webhook`): Adaptive Cards with action buttons
+  - **PagerDuty** (`--pagerduty-key`): Incident creation with severity routing
+  - **Jira** (`--jira-url`, `--jira-project`): Automatic issue creation with configurable project/type
+  - **GitHub Issues** (`--github-issues-token`, `--github-issues-owner`, `--github-issues-repo`): Auto-create issues for bypasses
+  - **Azure DevOps** (`--ado-org`, `--ado-project`, `--ado-pat`): Work item creation with severity mapping
+  - **OpenTelemetry** (`--otel-endpoint`): Distributed tracing with scan spans and finding events
+  - **Prometheus** (`--metrics-port`): Metrics exposition endpoint for monitoring
+  - **Generic Webhook** (`--webhook`): Custom HTTP POST for any integration
 
 - **Exit Code Policy Engine**: Configurable pipeline failure conditions
   - New `pkg/output/policy` package for declarative exit code rules

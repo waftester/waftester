@@ -195,6 +195,7 @@ func (h *JiraHook) createIssue(ctx context.Context, bypass *events.BypassEvent) 
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", defaults.ToolName+"/"+defaults.Version)
 
 	// Add basic auth if credentials provided
 	if h.opts.Username != "" && h.opts.APIToken != "" {
@@ -210,8 +211,32 @@ func (h *JiraHook) createIssue(ctx context.Context, bypass *events.BypassEvent) 
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		log.Printf("jira: received error status %d", resp.StatusCode)
+		// Decode error response for better troubleshooting
+		var errResp struct {
+			ErrorMessages []string          `json:"errorMessages"`
+			Errors        map[string]string `json:"errors"`
+		}
+		if decErr := json.NewDecoder(resp.Body).Decode(&errResp); decErr == nil {
+			if len(errResp.ErrorMessages) > 0 {
+				log.Printf("jira: API error (%d): %v", resp.StatusCode, errResp.ErrorMessages)
+			} else if len(errResp.Errors) > 0 {
+				log.Printf("jira: API error (%d): %v", resp.StatusCode, errResp.Errors)
+			} else {
+				log.Printf("jira: received error status %d", resp.StatusCode)
+			}
+		} else {
+			log.Printf("jira: received error status %d", resp.StatusCode)
+		}
 		return nil
+	}
+
+	// Parse response to log created issue key
+	var result struct {
+		Key  string `json:"key"`
+		Self string `json:"self"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err == nil && result.Key != "" {
+		log.Printf("jira: created issue %s: %s", result.Key, result.Self)
 	}
 
 	return nil
