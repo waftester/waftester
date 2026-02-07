@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"sync"
 	"time"
 )
 
@@ -117,8 +118,10 @@ type BenignResult struct {
 	Location   string        `json:"location"` // query, body, header
 }
 
-// Calculator computes enterprise metrics from test results
+// Calculator computes enterprise metrics from test results.
+// It is safe for concurrent use.
 type Calculator struct {
+	mu            sync.Mutex
 	attackResults []AttackResult
 	benignResults []BenignResult
 	latencies     []float64
@@ -136,6 +139,8 @@ func NewCalculator() *Calculator {
 
 // AddAttackResult records an attack test result
 func (c *Calculator) AddAttackResult(r AttackResult) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.attackResults = append(c.attackResults, r)
 	if r.Latency > 0 {
 		c.latencies = append(c.latencies, float64(r.Latency.Milliseconds()))
@@ -147,6 +152,8 @@ func (c *Calculator) AddAttackResult(r AttackResult) {
 
 // AddBenignResult records a false-positive test result
 func (c *Calculator) AddBenignResult(r BenignResult) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.benignResults = append(c.benignResults, r)
 	if r.Latency > 0 {
 		c.latencies = append(c.latencies, float64(r.Latency.Milliseconds()))
@@ -158,6 +165,9 @@ func (c *Calculator) AddBenignResult(r BenignResult) {
 
 // Calculate computes all metrics from recorded results
 func (c *Calculator) Calculate(targetURL string, wafVendor string, duration time.Duration) *EnterpriseMetrics {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	m := &EnterpriseMetrics{
 		Timestamp:       time.Now(),
 		Duration:        duration.Seconds(),

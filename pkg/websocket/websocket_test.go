@@ -123,8 +123,14 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestGenerateWebSocketKey(t *testing.T) {
-	key1 := generateWebSocketKey()
-	key2 := generateWebSocketKey()
+	key1, err1 := generateWebSocketKey()
+	if err1 != nil {
+		t.Fatalf("generateWebSocketKey failed: %v", err1)
+	}
+	key2, err2 := generateWebSocketKey()
+	if err2 != nil {
+		t.Fatalf("generateWebSocketKey failed: %v", err2)
+	}
 
 	if key1 == "" {
 		t.Error("expected non-empty key")

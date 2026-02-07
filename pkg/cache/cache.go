@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -174,14 +175,14 @@ func NewTester(config *TesterConfig) *Tester {
 	}
 }
 
-// generateCacheBuster creates a unique cache buster value
-func generateCacheBuster() string {
+// generateCacheBuster creates a unique cache buster value.
+// Returns an error if cryptographic randomness is unavailable.
+func generateCacheBuster() (string, error) {
 	b := make([]byte, 8)
 	if _, err := rand.Read(b); err != nil {
-		// Fallback: use time-based value
-		return fmt.Sprintf("%x", time.Now().UnixNano())
+		return "", fmt.Errorf("generating cache buster: %w", err)
 	}
-	return hex.EncodeToString(b)
+	return hex.EncodeToString(b), nil
 }
 
 // addCacheBuster appends a cache buster to the URL
@@ -202,7 +203,10 @@ func addCacheBuster(targetURL, buster string) (string, error) {
 func (t *Tester) DetectCache(ctx context.Context, targetURL string) (bool, map[string]string, error) {
 	cacheHeaders := make(map[string]string)
 
-	buster := generateCacheBuster()
+	buster, err := generateCacheBuster()
+	if err != nil {
+		return false, nil, fmt.Errorf("generating cache buster: %w", err)
+	}
 	bustedURL, err := addCacheBuster(targetURL, buster)
 	if err != nil {
 		return false, nil, err
@@ -260,8 +264,15 @@ func (t *Tester) DetectCache(ctx context.Context, targetURL string) (bool, map[s
 // TestUnkeyedHeader tests if a header is reflected but not included in cache key
 func (t *Tester) TestUnkeyedHeader(ctx context.Context, targetURL string, header string) (*Vulnerability, error) {
 	// Generate unique canary value
-	canary := "waftester" + generateCacheBuster()
-	buster := generateCacheBuster()
+	busterVal, err := generateCacheBuster()
+	if err != nil {
+		return nil, fmt.Errorf("generating cache buster: %w", err)
+	}
+	canary := "waftester" + busterVal
+	buster, err := generateCacheBuster()
+	if err != nil {
+		return nil, fmt.Errorf("generating cache buster: %w", err)
+	}
 
 	bustedURL, err := addCacheBuster(targetURL, buster)
 	if err != nil {
@@ -324,8 +335,15 @@ func (t *Tester) TestUnkeyedHeader(ctx context.Context, targetURL string, header
 
 // TestUnkeyedParameter tests if a parameter is reflected but not included in cache key
 func (t *Tester) TestUnkeyedParameter(ctx context.Context, targetURL string, param string) (*Vulnerability, error) {
-	canary := "waftester" + generateCacheBuster()
-	buster := generateCacheBuster()
+	busterVal, err := generateCacheBuster()
+	if err != nil {
+		return nil, fmt.Errorf("generating cache buster: %w", err)
+	}
+	canary := "waftester" + busterVal
+	buster, err := generateCacheBuster()
+	if err != nil {
+		return nil, fmt.Errorf("generating cache buster: %w", err)
+	}
 
 	// Build URL with cache buster and test param
 	u, err := url.Parse(targetURL)
@@ -440,7 +458,10 @@ func (t *Tester) TestCacheDeception(ctx context.Context, targetURL string) ([]Vu
 	}
 
 	// First, get the original response for comparison
-	buster := generateCacheBuster()
+	buster, err := generateCacheBuster()
+	if err != nil {
+		return nil, fmt.Errorf("generating cache buster: %w", err)
+	}
 	bustedURL, _ := addCacheBuster(targetURL, buster)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", bustedURL, nil)
@@ -463,7 +484,10 @@ func (t *Tester) TestCacheDeception(ctx context.Context, targetURL string) ([]Vu
 			testPath := basePath + delim + ext
 			u.Path = testPath
 
-			newBuster := generateCacheBuster()
+			newBuster, err := generateCacheBuster()
+			if err != nil {
+				continue
+			}
 			q := u.Query()
 			q.Set("cb", newBuster)
 			u.RawQuery = q.Encode()
@@ -540,7 +564,10 @@ func (t *Tester) TestPathNormalization(ctx context.Context, targetURL string) ([
 		testPath := originalPath + variation.pattern + "test"
 		u.Path = testPath
 
-		buster := generateCacheBuster()
+		buster, err := generateCacheBuster()
+		if err != nil {
+			continue
+		}
 		q := u.Query()
 		q.Set("cb", buster)
 		u.RawQuery = q.Encode()
@@ -582,8 +609,15 @@ func (t *Tester) TestPathNormalization(ctx context.Context, targetURL string) ([
 
 // TestFatGET tests for fat GET request vulnerabilities
 func (t *Tester) TestFatGET(ctx context.Context, targetURL string) (*Vulnerability, error) {
-	canary := "waftester" + generateCacheBuster()
-	buster := generateCacheBuster()
+	busterVal, err := generateCacheBuster()
+	if err != nil {
+		return nil, fmt.Errorf("generating cache buster: %w", err)
+	}
+	canary := "waftester" + busterVal
+	buster, err := generateCacheBuster()
+	if err != nil {
+		return nil, fmt.Errorf("generating cache buster: %w", err)
+	}
 
 	bustedURL, err := addCacheBuster(targetURL, buster)
 	if err != nil {
@@ -625,7 +659,11 @@ func (t *Tester) TestFatGET(ctx context.Context, targetURL string) (*Vulnerabili
 func (t *Tester) TestParameterCloaking(ctx context.Context, targetURL string) ([]Vulnerability, error) {
 	var vulns []Vulnerability
 
-	canary := "waftester" + generateCacheBuster()
+	busterVal, err := generateCacheBuster()
+	if err != nil {
+		return nil, fmt.Errorf("generating cache buster: %w", err)
+	}
+	canary := "waftester" + busterVal
 
 	// Different parameter pollution patterns
 	patterns := []struct {
@@ -640,7 +678,10 @@ func (t *Tester) TestParameterCloaking(ctx context.Context, targetURL string) ([
 	}
 
 	for _, pattern := range patterns {
-		buster := generateCacheBuster()
+		buster, err := generateCacheBuster()
+		if err != nil {
+			continue
+		}
 
 		u, err := url.Parse(targetURL)
 		if err != nil {
@@ -758,9 +799,11 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*ScanResult, error
 // Helper functions
 
 func readBodyLimit(resp *http.Response, limit int64) string {
-	buf := make([]byte, limit)
-	n, _ := resp.Body.Read(buf)
-	return string(buf[:n])
+	data, err := io.ReadAll(io.LimitReader(resp.Body, limit))
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
 
 func similarity(a, b string) float64 {

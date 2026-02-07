@@ -244,8 +244,15 @@ func New(cfg Config) *http.Client {
 		socksDialer, err := CreateSOCKSDialer(proxyConfig, cfg.DialTimeout)
 		if err == nil {
 			dialContext = socksDialer.DialContext
+		} else {
+			// SOCKS dialer creation failed — fall through to normal dialer
+			dialer := &net.Dialer{
+				Timeout:   cfg.DialTimeout,
+				KeepAlive: 30 * time.Second,
+				Control:   sockopt.DialControl(),
+			}
+			dialContext = dialer.DialContext
 		}
-		// If SOCKS dialer creation fails, fall through to normal dialer
 	} else if cfg.UseDNSCache {
 		cachingDialer := NewCachingDialer(GetDNSCache(), cfg.DialTimeout)
 		// Wrap with socket optimization

@@ -919,6 +919,9 @@ func (d *Detector) Detect(ctx context.Context, targetURL string, parameter strin
 	// Get payloads to test
 	payloads := d.getFilteredPayloads()
 
+	// Get baseline response for false positive comparison
+	baselineBody := d.getBaselineBody(ctx, parsedURL, parameter)
+
 	// Test each payload
 	for i, payload := range payloads {
 		if d.config.MaxPayloads > 0 && i >= d.config.MaxPayloads {
@@ -931,7 +934,7 @@ func (d *Detector) Detect(ctx context.Context, targetURL string, parameter strin
 		default:
 		}
 
-		vuln, err := d.testPayload(ctx, parsedURL, parameter, payload)
+		vuln, err := d.testPayload(ctx, parsedURL, parameter, payload, baselineBody)
 		if err != nil {
 			continue
 		}
@@ -987,7 +990,7 @@ func (d *Detector) getFilteredPayloads() []*Payload {
 	return filtered
 }
 
-func (d *Detector) testPayload(ctx context.Context, targetURL *url.URL, parameter string, payload *Payload) (*Vulnerability, error) {
+func (d *Detector) testPayload(ctx context.Context, targetURL *url.URL, parameter string, payload *Payload, baselineBody string) (*Vulnerability, error) {
 	// Build the request URL
 	testURL := *targetURL
 	query := testURL.Query()
@@ -1030,12 +1033,12 @@ func (d *Detector) testPayload(ctx context.Context, targetURL *url.URL, paramete
 	bodyStr := string(body)
 
 	// Check for vulnerability
-	vuln := d.analyzeResponse(targetURL.String(), parameter, payload, bodyStr, elapsed)
+	vuln := d.analyzeResponse(targetURL.String(), parameter, payload, bodyStr, elapsed, baselineBody)
 
 	return vuln, nil
 }
 
-func (d *Detector) analyzeResponse(targetURL, parameter string, payload *Payload, body string, elapsed time.Duration) *Vulnerability {
+func (d *Detector) analyzeResponse(targetURL, parameter string, payload *Payload, body string, elapsed time.Duration, baselineBody string) *Vulnerability {
 	var matched bool
 	var evidence string
 	confidence := "low"
@@ -1043,9 +1046,12 @@ func (d *Detector) analyzeResponse(targetURL, parameter string, payload *Payload
 	// Check for expected output (math expression result)
 	if payload.ExpectedOutput != "" {
 		if strings.Contains(body, payload.ExpectedOutput) {
-			matched = true
-			evidence = payload.ExpectedOutput
-			confidence = "high"
+			// Skip if expected output was already in baseline (false positive)
+			if baselineBody == "" || !strings.Contains(baselineBody, payload.ExpectedOutput) {
+				matched = true
+				evidence = payload.ExpectedOutput
+				confidence = "high"
+			}
 		}
 	}
 
@@ -1065,9 +1071,14 @@ func (d *Detector) analyzeResponse(targetURL, parameter string, payload *Payload
 	if payload.Type == PayloadMath && payload.MathResult != 0 {
 		resultStr := fmt.Sprintf("%d", payload.MathResult)
 		if strings.Contains(body, resultStr) {
-			matched = true
-			evidence = fmt.Sprintf("Math result %d found (from %d*%d)", payload.MathResult, payload.MathA, payload.MathB)
-			confidence = "high"
+			// Skip if math result was already in baseline (false positive)
+			if baselineBody != "" && strings.Contains(baselineBody, resultStr) {
+				// Math result naturally appears in page content — likely false positive
+			} else {
+				matched = true
+				evidence = fmt.Sprintf("Math result %d found (from %d*%d)", payload.MathResult, payload.MathA, payload.MathB)
+				confidence = "high"
+			}
 		}
 	}
 
@@ -1199,6 +1210,42 @@ func (d *Detector) measureResponseTime(ctx context.Context, targetURL *url.URL, 
 	defer iohelper.DrainAndClose(resp.Body)
 
 	return time.Since(start), nil
+}
+
+// getBaselineBody fetches a response with a benign parameter value
+// to compare against payload responses and avoid false positives.
+func (d *Detector) getBaselineBody(ctx context.Context, targetURL *url.URL, parameter string) string {
+	testURL := *targetURL
+	query := testURL.Query()
+	query.Set(parameter, "waftester_baseline_probe")
+	testURL.RawQuery = query.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", testURL.String(), nil)
+	if err != nil {
+		return ""
+	}
+
+	req.Header.Set("User-Agent", d.config.UserAgent)
+	for key, values := range d.config.Headers {
+		for _, v := range values {
+			req.Header.Add(key, v)
+		}
+	}
+	for _, cookie := range d.config.Cookies {
+		req.AddCookie(cookie)
+	}
+
+	resp, err := d.client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer iohelper.DrainAndClose(resp.Body)
+
+	body, err := iohelper.ReadBodyDefault(resp.Body)
+	if err != nil {
+		return ""
+	}
+	return string(body)
 }
 
 // FingerprintEngine attempts to identify the template engine being used

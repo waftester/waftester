@@ -149,7 +149,9 @@ func runBypassFinder() {
 	if err != nil {
 		errMsg := fmt.Sprintf("Cannot load payloads: %v", err)
 		ui.PrintError(errMsg)
-		_ = bypassDispCtx.EmitError(ctx, "bypass", errMsg, true)
+		if bypassDispCtx != nil {
+			_ = bypassDispCtx.EmitError(ctx, "bypass", errMsg, true)
+		}
 		os.Exit(1)
 	}
 
@@ -338,7 +340,9 @@ func runBypassFinder() {
 		// Save to file
 		if *outputFile != "" {
 			f, err := os.Create(*outputFile)
-			if err == nil {
+			if err != nil {
+				ui.PrintError(fmt.Sprintf("Cannot create output file %s: %v", *outputFile, err))
+			} else {
 				defer f.Close()
 				enc := json.NewEncoder(f)
 				enc.SetIndent("", "  ")
@@ -349,8 +353,11 @@ func runBypassFinder() {
 					TotalTested:    totalTested,
 					BypassRate:     bypassRate,
 				}
-				enc.Encode(result)
-				ui.PrintSuccess(fmt.Sprintf("Full results saved to %s", *outputFile))
+				if err := enc.Encode(result); err != nil {
+					ui.PrintError(fmt.Sprintf("Error encoding results: %v", err))
+				} else {
+					ui.PrintSuccess(fmt.Sprintf("Full results saved to %s", *outputFile))
+				}
 			}
 		}
 	} else {

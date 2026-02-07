@@ -520,6 +520,7 @@ func (m *Monitor) Start(ctx context.Context) {
 		return
 	}
 	m.running = true
+	m.stopCh = make(chan struct{}) // Recreate channel for reuse after Stop
 	m.mu.Unlock()
 
 	go m.run(ctx)
@@ -554,6 +555,9 @@ func (m *Monitor) run(ctx context.Context) {
 			m.mu.Unlock()
 			return
 		case <-m.stopCh:
+			m.mu.Lock()
+			m.running = false
+			m.mu.Unlock()
 			return
 		case <-ticker.C:
 			results, _ := m.checker.CheckAll(ctx)

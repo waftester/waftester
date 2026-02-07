@@ -218,6 +218,7 @@ func (a *Assessment) detectWAF(ctx context.Context) {
 		}
 		req2.Header.Set("User-Agent", "Mozilla/5.0")
 
+		a.limiter.Wait(ctx)
 		resp2, err := a.httpClient.Do(req2)
 		if err != nil {
 			return

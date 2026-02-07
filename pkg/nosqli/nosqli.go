@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -262,11 +263,14 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL string, param stri
 
 // testQueryParam tests NoSQL injection in query parameters
 func (t *Tester) testQueryParam(ctx context.Context, u *url.URL, param string, payload Payload) (*Vulnerability, error) {
+	// Clone URL to avoid mutating the shared pointer across loop iterations
+	cloned := *u
+
 	// Build URL with injected parameter
-	q := u.Query()
+	q := cloned.Query()
 	q.Set(param+payload.Value, "")
-	u.RawQuery = q.Encode()
-	testURL := u.String()
+	cloned.RawQuery = q.Encode()
+	testURL := cloned.String()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", testURL, nil)
 	if err != nil {
@@ -325,9 +329,9 @@ func (t *Tester) testJSONBody(ctx context.Context, targetURL string, param strin
 	if err != nil {
 		return nil, err
 	}
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body := readBodyLimit(resp, 100*1024)
-	iohelper.DrainAndClose(resp.Body)
 
 	evidence := t.detectEvidence(body, resp.StatusCode, payload.Database)
 	if evidence != "" {
@@ -364,9 +368,9 @@ func (t *Tester) testFormBody(ctx context.Context, targetURL string, param strin
 	if err != nil {
 		return nil, err
 	}
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body := readBodyLimit(resp, 100*1024)
-	iohelper.DrainAndClose(resp.Body)
 
 	evidence := t.detectEvidence(body, resp.StatusCode, payload.Database)
 	if evidence != "" {
@@ -537,9 +541,8 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*ScanResult, error
 // Helper functions
 
 func readBodyLimit(resp *http.Response, limit int64) string {
-	buf := make([]byte, limit)
-	n, _ := resp.Body.Read(buf)
-	return string(buf[:n])
+	data, _ := io.ReadAll(io.LimitReader(resp.Body, limit))
+	return string(data)
 }
 
 func truncate(s string, maxLen int) string {

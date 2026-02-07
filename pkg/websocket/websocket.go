@@ -111,17 +111,14 @@ func NewTester(config *TesterConfig) *Tester {
 	}
 }
 
-// generateWebSocketKey generates a random WebSocket key
-func generateWebSocketKey() string {
+// generateWebSocketKey generates a random WebSocket key.
+// Returns an error if cryptographic randomness is unavailable.
+func generateWebSocketKey() (string, error) {
 	key := make([]byte, 16)
 	if _, err := rand.Read(key); err != nil {
-		// Fallback: use time-based seed for key generation
-		// This maintains functionality even if crypto/rand fails
-		for i := range key {
-			key[i] = byte(i ^ int(time.Now().UnixNano()))
-		}
+		return "", fmt.Errorf("generating WebSocket key: %w", err)
 	}
-	return base64.StdEncoding.EncodeToString(key)
+	return base64.StdEncoding.EncodeToString(key), nil
 }
 
 // computeAcceptKey computes the expected Sec-WebSocket-Accept value
@@ -142,7 +139,10 @@ func (t *Tester) CheckWebSocket(ctx context.Context, targetURL string) (bool, er
 		return false, err
 	}
 
-	key := generateWebSocketKey()
+	key, err := generateWebSocketKey()
+	if err != nil {
+		return false, err
+	}
 
 	req.Header.Set("Upgrade", "websocket")
 	req.Header.Set("Connection", "Upgrade")
@@ -158,6 +158,12 @@ func (t *Tester) CheckWebSocket(ctx context.Context, targetURL string) (bool, er
 
 	// Check for 101 Switching Protocols
 	if resp.StatusCode == http.StatusSwitchingProtocols {
+		// Validate Sec-WebSocket-Accept header per RFC 6455 §4.2.2
+		expectedAccept := computeAcceptKey(key)
+		actualAccept := resp.Header.Get("Sec-WebSocket-Accept")
+		if actualAccept != "" && actualAccept != expectedAccept {
+			return false, nil // Invalid accept key — not a valid WebSocket upgrade
+		}
 		return true, nil
 	}
 
@@ -221,7 +227,10 @@ func (t *Tester) TestOriginValidation(ctx context.Context, targetURL string) ([]
 			continue
 		}
 
-		key := generateWebSocketKey()
+		key, err := generateWebSocketKey()
+		if err != nil {
+			return nil, err
+		}
 
 		req.Header.Set("Upgrade", "websocket")
 		req.Header.Set("Connection", "Upgrade")
@@ -255,8 +264,9 @@ func (t *Tester) TestOriginValidation(ctx context.Context, targetURL string) ([]
 			})
 		}
 
-		// Check if Sec-WebSocket-Accept is returned (upgrade accepted)
-		if secWSAccept != "" {
+		// Check if Sec-WebSocket-Accept matches expected key (upgrade truly accepted)
+		expectedAccept := computeAcceptKey(key)
+		if secWSAccept != "" && secWSAccept == expectedAccept {
 			vulns = append(vulns, Vulnerability{
 				Type:        VulnCSWS,
 				Description: fmt.Sprintf("Cross-site WebSocket hijacking possible with origin: %s", origin),
@@ -294,9 +304,14 @@ func (t *Tester) TestTLS(ctx context.Context, targetURL string) ([]Vulnerability
 			return vulns, err
 		}
 
+		wsKey, err := generateWebSocketKey()
+		if err != nil {
+			return nil, fmt.Errorf("generating WebSocket key: %w", err)
+		}
+
 		req.Header.Set("Upgrade", "websocket")
 		req.Header.Set("Connection", "Upgrade")
-		req.Header.Set("Sec-WebSocket-Key", generateWebSocketKey())
+		req.Header.Set("Sec-WebSocket-Key", wsKey)
 		req.Header.Set("Sec-WebSocket-Version", "13")
 
 		resp, err := t.client.Do(req)

@@ -123,6 +123,12 @@ func NewTester(config *TesterConfig) *Tester {
 
 // TestUpload tests a single upload payload.
 func (t *Tester) TestUpload(ctx context.Context, targetURL string, payload UploadPayload) (*Vulnerability, error) {
+	// Enforce max file size to prevent OOM or excessive bandwidth
+	if t.config.MaxFileSize > 0 && int64(len(payload.Content)) > t.config.MaxFileSize {
+		return nil, fmt.Errorf("payload %q size %d exceeds max file size %d",
+			payload.Filename, len(payload.Content), t.config.MaxFileSize)
+	}
+
 	body := bufpool.Get()
 	defer bufpool.Put(body)
 	writer := multipart.NewWriter(body)

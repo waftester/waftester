@@ -120,7 +120,9 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// profile is already a local copy - no additional lock needed
 	currentProfile := profile
 
-	// Create custom TLS dialer with the profile's fingerprint
+	// Create a single-use transport for this profile's fingerprint.
+	// DisableKeepAlives=true ensures connections are closed after use,
+	// so the transport holds no long-lived resources.
 	transport := &http.Transport{
 		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return t.dialTLSWithProfile(ctx, network, addr, currentProfile)
@@ -133,7 +135,14 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		req.Header.Set("User-Agent", profile.UserAgent)
 	}
 
-	return transport.RoundTrip(req)
+	resp, err := transport.RoundTrip(req)
+
+	// Close idle connections to prevent goroutine/FD leaks.
+	// With DisableKeepAlives=true this is fast (no idle conns to track),
+	// but it ensures internal goroutines are cleaned up.
+	transport.CloseIdleConnections()
+
+	return resp, err
 }
 
 // dialTLSWithProfile establishes a TLS connection with the specified JA3 fingerprint
@@ -403,10 +412,15 @@ func (t *FallbackTransport) RoundTrip(req *http.Request) (*http.Response, error)
 			MinVersion:         tls.VersionTLS12,
 			MaxVersion:         tls.VersionTLS13,
 		},
-		DisableKeepAlives: false,
+		DisableKeepAlives: true, // Prevent idle connection accumulation
 	}
 
-	return transport.RoundTrip(req)
+	resp, err := transport.RoundTrip(req)
+
+	// Close idle connections to prevent goroutine/FD leaks
+	transport.CloseIdleConnections()
+
+	return resp, err
 }
 
 // addBrowserHeaders adds realistic browser headers
