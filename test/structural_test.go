@@ -752,6 +752,11 @@ func TestPrivateGuardWorkflowExists(t *testing.T) {
 
 // TestLocalGitIdentity verifies the repo-local git identity is the project identity.
 func TestLocalGitIdentity(t *testing.T) {
+	// Skip in CI — runners don't have local git identity configured
+	if os.Getenv("CI") != "" || os.Getenv("GITHUB_ACTIONS") != "" {
+		t.Skip("skipping local git identity check in CI environment")
+	}
+
 	repoRoot := getRepoRoot(t)
 	gitConfigPath := filepath.Join(repoRoot, ".git", "config")
 
