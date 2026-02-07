@@ -48,7 +48,7 @@ allowed bool
 {"/usr/bin/curl", true},
 {"/usr/bin/python3", false},
 {"/usr/bin/ruby", false},
-{"C:\\Windows\\System32\\cmd.exe", true},
+
 {"/usr/bin/node", false},
 }
 
