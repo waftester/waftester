@@ -129,6 +129,8 @@ func main() {
 		runPlugin()
 	case "cloud", "cloud-discover":
 		runCloud()
+	case "mcp", "mcp-server":
+		runMCP()
 	case "-h", "--help", "help":
 		printUsage()
 		os.Exit(0)
