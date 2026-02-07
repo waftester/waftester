@@ -3,13 +3,16 @@ package mcpserver_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/mcpserver"
 	"github.com/waftester/waftester/pkg/output/events"
 )
@@ -1395,27 +1398,27 @@ func TestGenerateCICDOutputContent(t *testing.T) {
 		},
 		{
 			name: "gitlab_contains_artifacts", platform: "gitlab",
-			target: "https://app.example.com",
+			target:      "https://app.example.com",
 			mustContain: []string{"https://app.example.com", "artifacts:", "results.json"},
 		},
 		{
 			name: "jenkins_contains_pipeline", platform: "jenkins",
-			target: "https://internal.app",
+			target:      "https://internal.app",
 			mustContain: []string{"pipeline {", "https://internal.app", "archiveArtifacts"},
 		},
 		{
 			name: "azure_devops_contains_publish", platform: "azure-devops",
-			target: "https://myapp.com",
+			target:      "https://myapp.com",
 			mustContain: []string{"https://myapp.com", "publish:", "ArtifactStagingDirectory"},
 		},
 		{
 			name: "circleci_contains_store_artifacts", platform: "circleci",
-			target: "https://api.example.com",
+			target:      "https://api.example.com",
 			mustContain: []string{"https://api.example.com", "store_artifacts", "workflows:"},
 		},
 		{
 			name: "bitbucket_contains_pipelines", platform: "bitbucket",
-			target: "https://example.com",
+			target:      "https://example.com",
 			mustContain: []string{"pipelines:", "https://example.com"},
 		},
 	}
@@ -2092,6 +2095,685 @@ func TestPayloadsByInvalidCategory(t *testing.T) {
 	}
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Gap-closing tests: patterns from top-starred MCP repos
+// ═══════════════════════════════════════════════════════════════════════════
+// These tests close gaps identified by comparing our implementation against
+// the official go-sdk examples and top-starred MCP servers (github/github-mcp-server).
+
+// ---------------------------------------------------------------------------
+// HTTP transport integration: full client↔server over httptest + StreamableHTTPHandler
+// Catches: handler wiring broken, CORS blocks client, session negotiation fails
+// over real HTTP (previously only tested via InMemoryTransport).
+// ---------------------------------------------------------------------------
+
+// newHTTPTestSession creates an MCP client session connected through a real
+// HTTP transport using httptest.Server + StreamableHTTPHandler. This tests the
+// full HTTP path including CORS, session headers, and MCP protocol negotiation.
+func newHTTPTestSession(t *testing.T) (*mcp.ClientSession, *httptest.Server) {
+	t.Helper()
+
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	srv.MarkReady()
+	handler := srv.HTTPHandler()
+	ts := httptest.NewServer(handler)
+
+	client := mcp.NewClient(&mcp.Implementation{
+		Name:    "http-test-client",
+		Version: "0.0.1",
+	}, nil)
+
+	transport := &mcp.StreamableClientTransport{
+		Endpoint:   ts.URL + "/mcp",
+		MaxRetries: -1, // disable retries in tests
+	}
+
+	ctx := context.Background()
+	cs, err := client.Connect(ctx, transport, nil)
+	if err != nil {
+		ts.Close()
+		t.Fatalf("client.Connect via HTTP: %v", err)
+	}
+
+	t.Cleanup(func() {
+		cs.Close()
+		ts.Close()
+	})
+	return cs, ts
+}
+
+func TestHTTPTransportListTools(t *testing.T) {
+	cs, _ := newHTTPTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	result, err := cs.ListTools(ctx, &mcp.ListToolsParams{})
+	if err != nil {
+		t.Fatalf("ListTools over HTTP: %v", err)
+	}
+	if len(result.Tools) != 10 {
+		t.Errorf("got %d tools over HTTP, want 10", len(result.Tools))
+	}
+}
+
+func TestHTTPTransportCallTool(t *testing.T) {
+	cs, _ := newHTTPTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "list_payloads",
+		Arguments: map[string]any{"category": "sqli"},
+	})
+	if err != nil {
+		t.Fatalf("CallTool over HTTP: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("list_payloads over HTTP returned IsError: %s", extractText(t, result))
+	}
+	text := extractText(t, result)
+	if !strings.Contains(text, "total_payloads") {
+		t.Error("HTTP response missing expected payload data")
+	}
+}
+
+func TestHTTPTransportReadResource(t *testing.T) {
+	cs, _ := newHTTPTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	result, err := cs.ReadResource(ctx, &mcp.ReadResourceParams{URI: "waftester://version"})
+	if err != nil {
+		t.Fatalf("ReadResource over HTTP: %v", err)
+	}
+	if len(result.Contents) == 0 {
+		t.Fatal("version resource over HTTP returned no contents")
+	}
+	if !strings.Contains(result.Contents[0].Text, "version") {
+		t.Error("version resource over HTTP missing version field")
+	}
+}
+
+func TestHTTPTransportGetPrompt(t *testing.T) {
+	cs, _ := newHTTPTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	result, err := cs.GetPrompt(ctx, &mcp.GetPromptParams{
+		Name:      "security_audit",
+		Arguments: map[string]string{"target": "https://example.com"},
+	})
+	if err != nil {
+		t.Fatalf("GetPrompt over HTTP: %v", err)
+	}
+	if len(result.Messages) == 0 {
+		t.Fatal("security_audit over HTTP returned no messages")
+	}
+}
+
+func TestHTTPTransportPing(t *testing.T) {
+	cs, _ := newHTTPTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := cs.Ping(ctx, &mcp.PingParams{}); err != nil {
+		t.Fatalf("Ping over HTTP: %v", err)
+	}
+}
+
+func TestHTTPTransportErrorHandling(t *testing.T) {
+	cs, _ := newHTTPTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Nonexistent tool should return protocol error over HTTP transport too
+	_, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "nonexistent_tool",
+		Arguments: map[string]any{},
+	})
+	if err == nil {
+		t.Error("expected error for nonexistent tool over HTTP")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Context cancellation propagation
+// Catches: cancelled context not propagated, tool hangs forever, no error returned.
+// ---------------------------------------------------------------------------
+
+func TestContextCancellationReturnsError(t *testing.T) {
+	cs := newTestSession(t)
+
+	// Pre-cancelled context — tool should return immediately with error
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately
+
+	_, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "list_payloads",
+		Arguments: map[string]any{},
+	})
+	if err == nil {
+		t.Error("expected error for pre-cancelled context")
+	}
+}
+
+func TestContextTimeoutReturnsError(t *testing.T) {
+	cs := newTestSession(t)
+
+	// Already-expired timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+	defer cancel()
+	time.Sleep(1 * time.Millisecond) // ensure it expires
+
+	_, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "list_payloads",
+		Arguments: map[string]any{},
+	})
+	if err == nil {
+		t.Error("expected error for expired context timeout")
+	}
+}
+
+func TestContextCancellationOnReadResource(t *testing.T) {
+	cs := newTestSession(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := cs.ReadResource(ctx, &mcp.ReadResourceParams{URI: "waftester://version"})
+	if err == nil {
+		t.Error("expected error for cancelled ReadResource")
+	}
+}
+
+func TestContextCancellationOnGetPrompt(t *testing.T) {
+	cs := newTestSession(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := cs.GetPrompt(ctx, &mcp.GetPromptParams{
+		Name:      "security_audit",
+		Arguments: map[string]string{"target": "https://example.com"},
+	})
+	if err == nil {
+		t.Error("expected error for cancelled GetPrompt")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Concurrent tool calls: goroutine safety
+// Catches: data races (visible with -race), map concurrent write panics,
+// shared state corruption between sessions.
+// ---------------------------------------------------------------------------
+
+func TestConcurrentToolCalls(t *testing.T) {
+	const goroutines = 10
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, goroutines*2)
+
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			cs := newTestSession(t)
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+
+			// Call two different tools in each goroutine
+			result1, err := cs.CallTool(ctx, &mcp.CallToolParams{
+				Name:      "list_payloads",
+				Arguments: map[string]any{},
+			})
+			if err != nil {
+				errCh <- err
+				return
+			}
+			if result1.IsError {
+				errCh <- fmt.Errorf("list_payloads returned IsError")
+				return
+			}
+
+			result2, err := cs.CallTool(ctx, &mcp.CallToolParams{
+				Name:      "mutate",
+				Arguments: map[string]any{"payload": "<script>alert(1)</script>", "encoders": []string{"url"}},
+			})
+			if err != nil {
+				errCh <- err
+				return
+			}
+			if result2.IsError {
+				errCh <- fmt.Errorf("mutate returned IsError")
+				return
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		t.Errorf("concurrent error: %v", err)
+	}
+}
+
+func TestConcurrentResourceReads(t *testing.T) {
+	const goroutines = 10
+
+	resources := []string{
+		"waftester://version",
+		"waftester://payloads",
+		"waftester://guide",
+		"waftester://waf-signatures",
+		"waftester://evasion-techniques",
+		"waftester://owasp-mappings",
+		"waftester://config",
+	}
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, goroutines*len(resources))
+
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			cs := newTestSession(t)
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+
+			for _, uri := range resources {
+				result, err := cs.ReadResource(ctx, &mcp.ReadResourceParams{URI: uri})
+				if err != nil {
+					errCh <- fmt.Errorf("ReadResource(%s): %w", uri, err)
+					return
+				}
+				if len(result.Contents) == 0 {
+					errCh <- fmt.Errorf("ReadResource(%s): empty contents", uri)
+					return
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		t.Errorf("concurrent error: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Enhanced capabilities negotiation
+// Catches: wrong server name, stale version, missing capability flags,
+// instructions not set.
+// ---------------------------------------------------------------------------
+
+func TestCapabilitiesNegotiationDetails(t *testing.T) {
+	cs := newTestSession(t)
+	initResult := cs.InitializeResult()
+
+	if initResult.ServerInfo.Name != "waf-tester" {
+		t.Errorf("server name = %q, want %q", initResult.ServerInfo.Name, "waf-tester")
+	}
+	if initResult.ServerInfo.Version != defaults.Version {
+		t.Errorf("server version = %q, want %q", initResult.ServerInfo.Version, defaults.Version)
+	}
+	if initResult.Instructions == "" {
+		t.Error("server instructions are empty — LLM has no operating manual")
+	}
+	if !strings.Contains(initResult.Instructions, "WAF") {
+		t.Error("server instructions don't mention WAF — wrong instructions?")
+	}
+}
+
+func TestCapabilitiesListChanged(t *testing.T) {
+	cs := newTestSession(t)
+	initResult := cs.InitializeResult()
+
+	if initResult.Capabilities.Tools != nil && !initResult.Capabilities.Tools.ListChanged {
+		t.Error("tools capability should advertise ListChanged=true")
+	}
+	if initResult.Capabilities.Prompts != nil && !initResult.Capabilities.Prompts.ListChanged {
+		t.Error("prompts capability should advertise ListChanged=true")
+	}
+}
+
+func TestHTTPTransportCapabilities(t *testing.T) {
+	cs, _ := newHTTPTestSession(t)
+	initResult := cs.InitializeResult()
+
+	if initResult.ServerInfo.Name != "waf-tester" {
+		t.Errorf("HTTP: server name = %q, want %q", initResult.ServerInfo.Name, "waf-tester")
+	}
+	if initResult.ServerInfo.Version != defaults.Version {
+		t.Errorf("HTTP: server version = %q, want %q", initResult.ServerInfo.Version, defaults.Version)
+	}
+	if initResult.Capabilities.Tools == nil {
+		t.Error("HTTP: tools capability is nil")
+	}
+	if initResult.Capabilities.Resources == nil {
+		t.Error("HTTP: resources capability is nil")
+	}
+	if initResult.Capabilities.Prompts == nil {
+		t.Error("HTTP: prompts capability is nil")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Graceful shutdown: Close() + subsequent calls fail cleanly
+// Catches: Close() panics, post-close calls hang, resource leak.
+// ---------------------------------------------------------------------------
+
+func TestGracefulShutdown(t *testing.T) {
+	cs := newTestSession(t)
+
+	// First call should succeed
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "list_payloads",
+		Arguments: map[string]any{},
+	})
+	if err != nil {
+		t.Fatalf("pre-close CallTool: %v", err)
+	}
+
+	// Close the session
+	if err := cs.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	// Post-close calls should fail with an error, not hang
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel2()
+	_, err = cs.CallTool(ctx2, &mcp.CallToolParams{
+		Name:      "list_payloads",
+		Arguments: map[string]any{},
+	})
+	if err == nil {
+		t.Error("expected error for post-close CallTool")
+	}
+}
+
+func TestDoubleCloseDoesNotPanic(t *testing.T) {
+	cs := newTestSession(t)
+
+	if err := cs.Close(); err != nil {
+		t.Fatalf("first Close: %v", err)
+	}
+	// Second close should not panic (idempotent)
+	if err := cs.Close(); err != nil {
+		t.Logf("second Close error (acceptable): %v", err)
+	}
+}
+
+func TestHTTPTransportGracefulShutdown(t *testing.T) {
+	cs, _ := newHTTPTestSession(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Verify the session works
+	_, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "list_payloads",
+		Arguments: map[string]any{},
+	})
+	if err != nil {
+		t.Fatalf("pre-close CallTool: %v", err)
+	}
+
+	// Close should succeed
+	if err := cs.Close(); err != nil {
+		t.Fatalf("HTTP Close: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Session isolation: parallel sessions don't leak state
+// Catches: shared mutable state between sessions.
+// ---------------------------------------------------------------------------
+
+func TestSessionIsolation(t *testing.T) {
+	// Two independent sessions should see the same server state
+	// without interfering with each other.
+	cs1 := newTestSession(t)
+	cs2 := newTestSession(t)
+	ctx := context.Background()
+
+	r1, err := cs1.ListTools(ctx, &mcp.ListToolsParams{})
+	if err != nil {
+		t.Fatalf("session1 ListTools: %v", err)
+	}
+	r2, err := cs2.ListTools(ctx, &mcp.ListToolsParams{})
+	if err != nil {
+		t.Fatalf("session2 ListTools: %v", err)
+	}
+
+	if len(r1.Tools) != len(r2.Tools) {
+		t.Errorf("session tool counts differ: %d vs %d", len(r1.Tools), len(r2.Tools))
+	}
+
+	// Closing one session should not affect the other
+	cs1.Close()
+
+	ctx2, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err = cs2.CallTool(ctx2, &mcp.CallToolParams{
+		Name:      "list_payloads",
+		Arguments: map[string]any{},
+	})
+	if err != nil {
+		t.Fatalf("session2 CallTool after session1 close: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Ping: client↔server liveness
+// Catches: Ping handler not wired, connection silently broken.
+// ---------------------------------------------------------------------------
+
+func TestPingInMemory(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := cs.Ping(ctx, &mcp.PingParams{}); err != nil {
+		t.Fatalf("Ping: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Pagination iterators: Tools(), Resources(), Prompts() iterators
+// Catches: iterator broken, yields wrong items, panics mid-iteration.
+// ---------------------------------------------------------------------------
+
+func TestToolsIterator(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	count := 0
+	names := make(map[string]bool)
+	for tool, err := range cs.Tools(ctx, &mcp.ListToolsParams{}) {
+		if err != nil {
+			t.Fatalf("Tools iterator error: %v", err)
+		}
+		names[tool.Name] = true
+		count++
+	}
+
+	if count != 10 {
+		t.Errorf("Tools iterator yielded %d tools, want 10", count)
+	}
+	for _, name := range []string{"list_payloads", "scan", "assess", "detect_waf", "mutate"} {
+		if !names[name] {
+			t.Errorf("Tools iterator missing %q", name)
+		}
+	}
+}
+
+func TestResourcesIterator(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	count := 0
+	for _, err := range cs.Resources(ctx, &mcp.ListResourcesParams{}) {
+		if err != nil {
+			t.Fatalf("Resources iterator error: %v", err)
+		}
+		count++
+	}
+
+	if count < 7 {
+		t.Errorf("Resources iterator yielded %d, want at least 7", count)
+	}
+}
+
+func TestPromptsIterator(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	count := 0
+	for _, err := range cs.Prompts(ctx, &mcp.ListPromptsParams{}) {
+		if err != nil {
+			t.Fatalf("Prompts iterator error: %v", err)
+		}
+		count++
+	}
+
+	if count != 5 {
+		t.Errorf("Prompts iterator yielded %d, want 5", count)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Benchmarks: performance regression tracking
+// Catches: unexpected performance degradation between commits.
+// ---------------------------------------------------------------------------
+
+func BenchmarkListPayloads(b *testing.B) {
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+
+	clientTransport, serverTransport := mcp.NewInMemoryTransports()
+	client := mcp.NewClient(&mcp.Implementation{Name: "bench", Version: "0.0.1"}, nil)
+	ctx := context.Background()
+
+	go func() { _ = srv.MCPServer().Run(ctx, serverTransport) }()
+
+	cs, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		b.Fatalf("Connect: %v", err)
+	}
+	defer cs.Close()
+
+	b.ResetTimer()
+	for b.Loop() {
+		result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "list_payloads",
+			Arguments: map[string]any{},
+		})
+		if err != nil {
+			b.Fatalf("CallTool: %v", err)
+		}
+		if result.IsError {
+			b.Fatal("unexpected error")
+		}
+	}
+}
+
+func BenchmarkMutate(b *testing.B) {
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+
+	clientTransport, serverTransport := mcp.NewInMemoryTransports()
+	client := mcp.NewClient(&mcp.Implementation{Name: "bench", Version: "0.0.1"}, nil)
+	ctx := context.Background()
+
+	go func() { _ = srv.MCPServer().Run(ctx, serverTransport) }()
+
+	cs, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		b.Fatalf("Connect: %v", err)
+	}
+	defer cs.Close()
+
+	b.ResetTimer()
+	for b.Loop() {
+		result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "mutate",
+			Arguments: map[string]any{"payload": "<script>alert(1)</script>", "encoders": []string{"url"}},
+		})
+		if err != nil {
+			b.Fatalf("CallTool: %v", err)
+		}
+		if result.IsError {
+			b.Fatal("unexpected error")
+		}
+	}
+}
+
+func BenchmarkGenerateCICD(b *testing.B) {
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+
+	clientTransport, serverTransport := mcp.NewInMemoryTransports()
+	client := mcp.NewClient(&mcp.Implementation{Name: "bench", Version: "0.0.1"}, nil)
+	ctx := context.Background()
+
+	go func() { _ = srv.MCPServer().Run(ctx, serverTransport) }()
+
+	cs, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		b.Fatalf("Connect: %v", err)
+	}
+	defer cs.Close()
+
+	b.ResetTimer()
+	for b.Loop() {
+		result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "generate_cicd",
+			Arguments: map[string]any{"target": "https://example.com", "platform": "github"},
+		})
+		if err != nil {
+			b.Fatalf("CallTool: %v", err)
+		}
+		if result.IsError {
+			b.Fatal("unexpected error")
+		}
+	}
+}
+
+func BenchmarkReadResource(b *testing.B) {
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+
+	clientTransport, serverTransport := mcp.NewInMemoryTransports()
+	client := mcp.NewClient(&mcp.Implementation{Name: "bench", Version: "0.0.1"}, nil)
+	ctx := context.Background()
+
+	go func() { _ = srv.MCPServer().Run(ctx, serverTransport) }()
+
+	cs, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		b.Fatalf("Connect: %v", err)
+	}
+	defer cs.Close()
+
+	b.ResetTimer()
+	for b.Loop() {
+		result, err := cs.ReadResource(ctx, &mcp.ReadResourceParams{URI: "waftester://version"})
+		if err != nil {
+			b.Fatalf("ReadResource: %v", err)
+		}
+		if len(result.Contents) == 0 {
+			b.Fatal("empty contents")
+		}
+	}
+}
+
 // ---------------------------------------------------------------------------
 // OWASP mappings: structural integrity
 // Catches: nil categories, missing codes, stale reverse mapping.
@@ -2107,8 +2789,8 @@ func TestOWASPMappingsIntegrity(t *testing.T) {
 	}
 
 	var mappings struct {
-		Standard        string `json:"standard"`
-		Entries         []struct {
+		Standard string `json:"standard"`
+		Entries  []struct {
 			Code       string   `json:"code"`
 			Name       string   `json:"name"`
 			URL        string   `json:"url"`
@@ -2174,4 +2856,3 @@ func TestMalformedJSONDoesNotPanic(t *testing.T) {
 		})
 	}
 }
-
