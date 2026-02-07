@@ -136,3 +136,16 @@ jobs:
           cache-to: type=gha,mode=max
           provenance: true
           sbom: true
+
+      # ------------------------------------------------------------------
+      # 8. Ensure package is public (org setting must allow public packages)
+      # ------------------------------------------------------------------
+      - name: Set package visibility to public
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api --method PATCH \
+            /orgs/waftester/packages/container/waftester \
+            -f visibility=public \
+          || echo "::warning::Could not set package visibility to public — check org settings"
