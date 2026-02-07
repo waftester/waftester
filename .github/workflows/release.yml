@@ -55,7 +55,16 @@ jobs:
           # Check if release exists AND has assets (meaning another run already published)
           ASSET_COUNT=$(gh release view "$TAG" --json assets -q '.assets | length' 2>/dev/null || echo "0")
           if [ "$ASSET_COUNT" -gt "0" ]; then
-            echo "✅ Release $TAG already published with $ASSET_COUNT assets - skipping"
+            # Assets exist — but the release may be stuck as a draft (e.g. tag was
+            # deleted and re-created while GoReleaser was mid-run). Publish it if so.
+            IS_DRAFT=$(gh release view "$TAG" --json isDraft -q '.isDraft' 2>/dev/null || echo "false")
+            if [ "$IS_DRAFT" = "true" ]; then
+              echo "⚠️ Release $TAG has $ASSET_COUNT assets but is still a draft — publishing now"
+              gh release edit "$TAG" --draft=false
+              echo "✅ Draft release $TAG published"
+            else
+              echo "✅ Release $TAG already published with $ASSET_COUNT assets"
+            fi
             echo "skip=true" >> $GITHUB_OUTPUT
           else
             echo "Release $TAG not yet published or has no assets - proceeding"

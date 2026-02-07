@@ -37,7 +37,7 @@ func DefaultConfig() Config {
 		Resolvers:      DefaultResolvers(),
 		Retries:        defaults.RetryLow,
 		WildcardFilter: true,
-		RecursionDepth: 0, // No recursion by default
+		RecursionDepth: 0,                     // No recursion by default
 		QueryDelay:     50 * time.Millisecond, // Rate limit to prevent DNS throttling
 	}
 }
