@@ -23,6 +23,175 @@ import (
 	"github.com/waftester/waftester/pkg/waf"
 )
 
+// categoryMeta holds rich metadata for each attack category — used to enrich
+// tool responses so AI agents understand the domain context.
+type categoryMeta struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	OWASPCode   string `json:"owasp_code"`
+	OWASPName   string `json:"owasp_name"`
+	RiskLevel   string `json:"risk_level"`
+	CommonUsage string `json:"common_usage"`
+}
+
+// categoryDescriptions provides domain-expert descriptions for every attack
+// category the payload catalog supports.
+var categoryDescriptions = map[string]categoryMeta{
+	"sqli": {
+		Name:        "SQL Injection",
+		Description: "Payloads that inject SQL syntax into application queries to extract data, bypass authentication, or execute commands on the database server.",
+		OWASPCode:   "A03:2021",
+		OWASPName:   "Injection",
+		RiskLevel:   "Critical",
+		CommonUsage: "Test login forms, search parameters, API query parameters, and any input that feeds into SQL queries.",
+	},
+	"xss": {
+		Name:        "Cross-Site Scripting (XSS)",
+		Description: "Payloads that inject JavaScript or HTML into web pages to steal cookies, redirect users, or execute actions on behalf of victims.",
+		OWASPCode:   "A03:2021",
+		OWASPName:   "Injection",
+		RiskLevel:   "High",
+		CommonUsage: "Test search boxes, comment fields, URL parameters rendered in HTML, and any reflected/stored user input.",
+	},
+	"traversal": {
+		Name:        "Path Traversal / LFI",
+		Description: "Payloads that traverse directory structures (../../etc/passwd) to read sensitive files from the server filesystem.",
+		OWASPCode:   "A01:2021",
+		OWASPName:   "Broken Access Control",
+		RiskLevel:   "High",
+		CommonUsage: "Test file download endpoints, include parameters, template paths, and any input used in filesystem operations.",
+	},
+	"auth": {
+		Name:        "Authentication Bypass",
+		Description: "Payloads targeting authentication mechanisms — default credentials, token manipulation, session fixation, and auth logic flaws.",
+		OWASPCode:   "A07:2021",
+		OWASPName:   "Identification and Authentication Failures",
+		RiskLevel:   "Critical",
+		CommonUsage: "Test login endpoints, password reset flows, MFA implementations, and session management.",
+	},
+	"ssrf": {
+		Name:        "Server-Side Request Forgery (SSRF)",
+		Description: "Payloads that trick the server into making requests to internal resources, cloud metadata endpoints, or other backend services.",
+		OWASPCode:   "A10:2021",
+		OWASPName:   "Server-Side Request Forgery",
+		RiskLevel:   "Critical",
+		CommonUsage: "Test URL input fields, webhook configurations, image/file fetch features, and any server-side URL processing.",
+	},
+	"ssti": {
+		Name:        "Server-Side Template Injection (SSTI)",
+		Description: "Payloads injecting template syntax ({{7*7}}, ${7*7}) into server-side template engines to achieve remote code execution.",
+		OWASPCode:   "A03:2021",
+		OWASPName:   "Injection",
+		RiskLevel:   "Critical",
+		CommonUsage: "Test template rendering endpoints, email templates, PDF generators, and any user-controlled template content.",
+	},
+	"cmdi": {
+		Name:        "OS Command Injection",
+		Description: "Payloads that inject operating system commands (;whoami, |cat /etc/passwd) to execute arbitrary commands on the server.",
+		OWASPCode:   "A03:2021",
+		OWASPName:   "Injection",
+		RiskLevel:   "Critical",
+		CommonUsage: "Test ping/traceroute tools, file processors, system administration interfaces, and any input passed to shell commands.",
+	},
+	"xxe": {
+		Name:        "XML External Entity (XXE)",
+		Description: "Payloads exploiting XML parsers to read local files, perform SSRF, or cause denial of service via entity expansion.",
+		OWASPCode:   "A05:2021",
+		OWASPName:   "Security Misconfiguration",
+		RiskLevel:   "High",
+		CommonUsage: "Test XML/SOAP endpoints, file upload (DOCX/SVG/XML), and any XML processing functionality.",
+	},
+	"nosqli": {
+		Name:        "NoSQL Injection",
+		Description: "Payloads targeting NoSQL databases (MongoDB, CouchDB) with operator injection ({$gt:''}, {$ne:null}) or JavaScript injection.",
+		OWASPCode:   "A03:2021",
+		OWASPName:   "Injection",
+		RiskLevel:   "High",
+		CommonUsage: "Test MongoDB-backed APIs, JSON query parameters, and NoSQL database interfaces.",
+	},
+	"graphql": {
+		Name:        "GraphQL Injection & Abuse",
+		Description: "Payloads targeting GraphQL APIs — introspection queries, query depth attacks, batching abuse, and injection via variables.",
+		OWASPCode:   "A01:2021",
+		OWASPName:   "Broken Access Control",
+		RiskLevel:   "High",
+		CommonUsage: "Test GraphQL endpoints for introspection leaks, authorization bypasses, and resource exhaustion.",
+	},
+	"cors": {
+		Name:        "CORS Misconfiguration",
+		Description: "Payloads testing Cross-Origin Resource Sharing misconfigurations that allow unauthorized cross-origin data access.",
+		OWASPCode:   "A05:2021",
+		OWASPName:   "Security Misconfiguration",
+		RiskLevel:   "Medium",
+		CommonUsage: "Test API endpoints for overly permissive Access-Control-Allow-Origin headers and credential leakage.",
+	},
+	"crlf": {
+		Name:        "CRLF Injection / HTTP Response Splitting",
+		Description: "Payloads injecting carriage return/line feed characters to manipulate HTTP headers, set cookies, or redirect responses.",
+		OWASPCode:   "A03:2021",
+		OWASPName:   "Injection",
+		RiskLevel:   "High",
+		CommonUsage: "Test URL parameters reflected in response headers, redirect endpoints, and cookie-setting flows.",
+	},
+	"redirect": {
+		Name:        "Open Redirect",
+		Description: "Payloads exploiting URL redirect functionality to send users to malicious external sites for phishing or credential theft.",
+		OWASPCode:   "A01:2021",
+		OWASPName:   "Broken Access Control",
+		RiskLevel:   "Medium",
+		CommonUsage: "Test login redirect parameters, OAuth callback URLs, and any URL forwarding functionality.",
+	},
+	"upload": {
+		Name:        "Malicious File Upload",
+		Description: "Payloads testing file upload validation — double extensions, MIME type bypass, path traversal in filenames, and polyglot files.",
+		OWASPCode:   "A04:2021",
+		OWASPName:   "Insecure Design",
+		RiskLevel:   "Critical",
+		CommonUsage: "Test file upload endpoints for web shells, content type bypass, and filename-based attacks.",
+	},
+	"jwt": {
+		Name:        "JWT Token Attacks",
+		Description: "Payloads targeting JSON Web Token implementations — algorithm confusion (none/HS256→RS256), key brute-force, and claim manipulation.",
+		OWASPCode:   "A02:2021",
+		OWASPName:   "Cryptographic Failures",
+		RiskLevel:   "Critical",
+		CommonUsage: "Test JWT-authenticated APIs for algorithm confusion, weak secrets, and token manipulation vulnerabilities.",
+	},
+	"oauth": {
+		Name:        "OAuth/OIDC Attacks",
+		Description: "Payloads targeting OAuth 2.0 and OpenID Connect flows — redirect URI manipulation, CSRF, token leakage, and scope escalation.",
+		OWASPCode:   "A07:2021",
+		OWASPName:   "Identification and Authentication Failures",
+		RiskLevel:   "High",
+		CommonUsage: "Test OAuth authorization endpoints, redirect URI validation, and token exchange flows.",
+	},
+	"prototype": {
+		Name:        "Prototype Pollution",
+		Description: "Payloads injecting properties into JavaScript Object.prototype to modify application behavior, bypass security checks, or achieve RCE.",
+		OWASPCode:   "A03:2021",
+		OWASPName:   "Injection",
+		RiskLevel:   "High",
+		CommonUsage: "Test JSON merge/deep-copy endpoints, configuration APIs, and any server-side JavaScript object manipulation.",
+	},
+	"deserialize": {
+		Name:        "Insecure Deserialization",
+		Description: "Payloads exploiting unsafe deserialization in Java, PHP, Python, .NET, and Ruby to achieve remote code execution or privilege escalation.",
+		OWASPCode:   "A08:2021",
+		OWASPName:   "Software and Data Integrity Failures",
+		RiskLevel:   "Critical",
+		CommonUsage: "Test serialized data inputs (Java ObjectInputStream, PHP unserialize, Python pickle) and session/state storage.",
+	},
+	// Broader category names from payload files
+	"injection": {
+		Name:        "Injection (General)",
+		Description: "General injection payloads covering SQL, LDAP, XPath, and other injection vectors that manipulate backend queries or commands.",
+		OWASPCode:   "A03:2021",
+		OWASPName:   "Injection",
+		RiskLevel:   "Critical",
+		CommonUsage: "Broad injection testing across multiple backend technologies.",
+	},
+}
+
 // registerTools adds all WAF testing tools to the MCP server.
 func (s *Server) registerTools() {
 	s.addListPayloadsTool()
@@ -103,19 +272,25 @@ type listPayloadsArgs struct {
 }
 
 type payloadSummary struct {
-	TotalPayloads  int            `json:"total_payloads"`
-	Categories     int            `json:"categories"`
-	ByCategory     map[string]int `json:"by_category"`
-	BySeverity     map[string]int `json:"by_severity"`
-	FilterApplied  string         `json:"filter_applied,omitempty"`
-	SamplePayloads []sampleEntry  `json:"sample_payloads,omitempty"`
+	Summary        string            `json:"summary"`
+	TotalPayloads  int               `json:"total_payloads"`
+	TotalAvailable int               `json:"total_available"`
+	Categories     int               `json:"categories"`
+	ByCategory     map[string]int    `json:"by_category"`
+	BySeverity     map[string]int    `json:"by_severity"`
+	FilterApplied  string            `json:"filter_applied,omitempty"`
+	CategoryInfo   *categoryMeta     `json:"category_info,omitempty"`
+	SamplePayloads []sampleEntry     `json:"sample_payloads,omitempty"`
+	NextSteps      []string          `json:"next_steps"`
 }
 
 type sampleEntry struct {
-	ID       string `json:"id"`
-	Category string `json:"category"`
-	Severity string `json:"severity"`
-	Snippet  string `json:"snippet"`
+	ID       string   `json:"id"`
+	Category string   `json:"category"`
+	Severity string   `json:"severity"`
+	Snippet  string   `json:"snippet"`
+	Tags     []string `json:"tags,omitempty"`
+	Notes    string   `json:"notes,omitempty"`
 }
 
 func (s *Server) handleListPayloads(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -130,21 +305,26 @@ func (s *Server) handleListPayloads(_ context.Context, req *mcp.CallToolRequest)
 		return errorResult(fmt.Sprintf("failed to load payloads from %s: %v. Verify the payload directory exists and contains JSON files.", s.config.PayloadDir, err)), nil
 	}
 
+	totalAvailable := len(all)
+
 	filtered := payloads.Filter(all, args.Category, args.Severity)
 	stats := payloads.GetStats(filtered)
 
 	bySeverity := make(map[string]int)
 	for _, p := range filtered {
-		if p.SeverityHint != "" {
-			bySeverity[p.SeverityHint]++
+		sev := p.SeverityHint
+		if sev == "" {
+			sev = "Unclassified"
 		}
+		bySeverity[sev]++
 	}
 
 	summary := payloadSummary{
-		TotalPayloads: stats.TotalPayloads,
-		Categories:    stats.CategoriesUsed,
-		ByCategory:    stats.ByCategory,
-		BySeverity:    bySeverity,
+		TotalPayloads:  stats.TotalPayloads,
+		TotalAvailable: totalAvailable,
+		Categories:     stats.CategoriesUsed,
+		ByCategory:     stats.ByCategory,
+		BySeverity:     bySeverity,
 	}
 
 	if args.Category != "" || args.Severity != "" {
@@ -158,24 +338,130 @@ func (s *Server) handleListPayloads(_ context.Context, req *mcp.CallToolRequest)
 		summary.FilterApplied = strings.Join(parts, ", ")
 	}
 
-	limit := 5
+	// Add category metadata when filtering by category
+	if args.Category != "" {
+		if meta, ok := categoryDescriptions[strings.ToLower(args.Category)]; ok {
+			summary.CategoryInfo = &meta
+		}
+	}
+
+	// Include up to 10 sample payloads with rich details
+	limit := 10
 	if len(filtered) < limit {
 		limit = len(filtered)
 	}
 	for _, p := range filtered[:limit] {
 		snippet := p.Payload
-		if len(snippet) > 80 {
-			snippet = snippet[:80] + "…"
+		if len(snippet) > 120 {
+			snippet = snippet[:120] + "…"
+		}
+		sev := p.SeverityHint
+		if sev == "" {
+			sev = "Unclassified"
 		}
 		summary.SamplePayloads = append(summary.SamplePayloads, sampleEntry{
 			ID:       p.ID,
 			Category: p.Category,
-			Severity: p.SeverityHint,
+			Severity: sev,
 			Snippet:  snippet,
+			Tags:     p.Tags,
+			Notes:    p.Notes,
 		})
 	}
 
+	// Build narrative summary
+	summary.Summary = buildListPayloadsSummary(args, stats, totalAvailable, bySeverity)
+
+	// Build actionable next steps
+	summary.NextSteps = buildListPayloadsNextSteps(args, stats)
+
 	return jsonResult(summary)
+}
+
+// buildListPayloadsSummary generates a human/AI-readable narrative of the payload listing.
+func buildListPayloadsSummary(args listPayloadsArgs, stats payloads.LoadStats, totalAvailable int, bySeverity map[string]int) string {
+	var sb strings.Builder
+
+	if stats.TotalPayloads == 0 {
+		if args.Category != "" {
+			fmt.Fprintf(&sb, "No payloads found for category '%s'", args.Category)
+			if args.Severity != "" {
+				fmt.Fprintf(&sb, " at severity '%s' or higher", args.Severity)
+			}
+			sb.WriteString(". ")
+			if meta, ok := categoryDescriptions[strings.ToLower(args.Category)]; ok {
+				fmt.Fprintf(&sb, "The '%s' category (%s) exists but may not have payloads in the current payload directory. ", args.Category, meta.Name)
+			}
+			fmt.Fprintf(&sb, "Total payloads available across all categories: %d. Try removing filters or checking the payload directory.", totalAvailable)
+		} else {
+			sb.WriteString("No payloads found in the payload directory. Verify the payload directory path is correct and contains JSON payload files.")
+		}
+		return sb.String()
+	}
+
+	if args.Category != "" {
+		if meta, ok := categoryDescriptions[strings.ToLower(args.Category)]; ok {
+			fmt.Fprintf(&sb, "Found %d %s (%s) payloads", stats.TotalPayloads, meta.Name, strings.ToUpper(args.Category))
+		} else {
+			fmt.Fprintf(&sb, "Found %d '%s' payloads", stats.TotalPayloads, args.Category)
+		}
+	} else {
+		fmt.Fprintf(&sb, "Found %d total payloads across %d categories", stats.TotalPayloads, stats.CategoriesUsed)
+	}
+
+	if args.Severity != "" {
+		fmt.Fprintf(&sb, " at severity '%s' or higher", args.Severity)
+	}
+	sb.WriteString(". ")
+
+	// Severity breakdown
+	if crit, ok := bySeverity["Critical"]; ok && crit > 0 {
+		fmt.Fprintf(&sb, "%d Critical", crit)
+		if high, ok := bySeverity["High"]; ok && high > 0 {
+			fmt.Fprintf(&sb, ", %d High", high)
+		}
+		sb.WriteString(" severity. ")
+	} else if high, ok := bySeverity["High"]; ok && high > 0 {
+		fmt.Fprintf(&sb, "%d High severity. ", high)
+	}
+
+	fmt.Fprintf(&sb, "Showing %d samples out of %d total (%d available across all categories).",
+		min(10, stats.TotalPayloads), stats.TotalPayloads, totalAvailable)
+
+	return sb.String()
+}
+
+// buildListPayloadsNextSteps generates contextual next-step suggestions.
+func buildListPayloadsNextSteps(args listPayloadsArgs, stats payloads.LoadStats) []string {
+	steps := make([]string, 0, 4)
+
+	if stats.TotalPayloads == 0 {
+		steps = append(steps, "Try 'list_payloads' with no filters to see all available categories and payloads")
+		steps = append(steps, "Check available categories: sqli, xss, traversal, auth, ssrf, ssti, cmdi, xxe, nosqli, graphql, cors, crlf, redirect, upload, jwt, oauth, prototype, deserialize")
+		return steps
+	}
+
+	if args.Category != "" {
+		steps = append(steps,
+			fmt.Sprintf("Use 'scan' with {\"target\": \"https://your-target.com\", \"categories\": [\"%s\"]} to test these %d payloads against a WAF", args.Category, stats.TotalPayloads))
+		steps = append(steps,
+			fmt.Sprintf("Use 'mutate' to generate WAF-evasion variants of any payload above (e.g., URL encoding, Unicode, double-encoding)"))
+		if args.Severity == "" {
+			steps = append(steps,
+				fmt.Sprintf("Filter by severity: {\"category\": \"%s\", \"severity\": \"Critical\"} to focus on the most dangerous payloads", args.Category))
+		}
+	} else {
+		steps = append(steps,
+			"Use 'scan' with {\"target\": \"https://your-target.com\"} to test ALL payloads against a WAF")
+		steps = append(steps,
+			"Filter by category (e.g., {\"category\": \"sqli\"}) to explore a specific attack type")
+		steps = append(steps,
+			"Use 'detect_waf' first to identify the WAF vendor, then run targeted scans")
+	}
+
+	steps = append(steps, "Use 'assess' for a full enterprise assessment with F1 score, false positive rate, and letter grade (A+ through F)")
+
+	return steps
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -279,7 +565,75 @@ func (s *Server) handleDetectWAF(ctx context.Context, req *mcp.CallToolRequest) 
 	notifyProgress(ctx, req, 100, 100, "Detection complete")
 	logToSession(ctx, req, logInfo, fmt.Sprintf("WAF detection complete for %s", args.Target))
 
-	return jsonResult(result)
+	// Wrap result with rich summary and next steps
+	wrapped := buildDetectWAFResponse(result, args.Target)
+	return jsonResult(wrapped)
+}
+
+// detectWAFResponse wraps DetectionResult with narrative context for AI agents.
+type detectWAFResponse struct {
+	Summary   string                `json:"summary"`
+	Result    *waf.DetectionResult  `json:"result"`
+	NextSteps []string              `json:"next_steps"`
+}
+
+func buildDetectWAFResponse(result *waf.DetectionResult, target string) *detectWAFResponse {
+	resp := &detectWAFResponse{Result: result}
+
+	var sb strings.Builder
+	if !result.Detected {
+		fmt.Fprintf(&sb, "No WAF detected on %s (confidence: %.0f%%). ", target, result.Confidence*100)
+		sb.WriteString("The target may be unprotected, or the WAF uses stealth mode (no identifiable signatures).")
+		resp.NextSteps = []string{
+			fmt.Sprintf("Use 'scan' on %s to test if attacks are blocked despite no WAF signature being found.", target),
+			fmt.Sprintf("Use 'discover' to map the full attack surface of %s.", target),
+			"Use 'probe' to check TLS configuration and security headers.",
+		}
+		resp.Summary = sb.String()
+		return resp
+	}
+
+	if len(result.WAFs) > 0 {
+		w := result.WAFs[0]
+		fmt.Fprintf(&sb, "Detected %s WAF (%s) on %s at %.0f%% confidence. ", w.Name, w.Vendor, target, w.Confidence*100)
+		if w.Type != "" {
+			fmt.Fprintf(&sb, "Type: %s. ", w.Type)
+		}
+		if len(w.BypassTips) > 0 {
+			fmt.Fprintf(&sb, "Known bypass approaches: %s. ", strings.Join(w.BypassTips, "; "))
+		}
+		if len(result.WAFs) > 1 {
+			names := make([]string, len(result.WAFs)-1)
+			for i, ww := range result.WAFs[1:] {
+				names[i] = ww.Name
+			}
+			fmt.Fprintf(&sb, "Also detected: %s. ", strings.Join(names, ", "))
+		}
+	} else {
+		fmt.Fprintf(&sb, "WAF detected on %s at %.0f%% confidence but specific vendor could not be identified. ", target, result.Confidence*100)
+	}
+
+	if result.CDN != nil {
+		fmt.Fprintf(&sb, "CDN: %s. ", result.CDN.Name)
+	}
+
+	resp.Summary = sb.String()
+
+	// Build next steps
+	steps := make([]string, 0, 4)
+	steps = append(steps,
+		fmt.Sprintf("Use 'discover' to map the full attack surface of %s.", target))
+	steps = append(steps,
+		fmt.Sprintf("Use 'scan' with specific categories to test WAF blocking against %s.", target))
+	if len(result.WAFs) > 0 && len(result.WAFs[0].BypassTips) > 0 {
+		steps = append(steps,
+			"Use 'bypass' with known-blocked payloads to test the WAF-specific bypass techniques listed above.")
+	}
+	steps = append(steps,
+		fmt.Sprintf("Use 'assess' for a full enterprise WAF grade with F1 score and false positive measurement on %s.", target))
+	resp.NextSteps = steps
+
+	return resp
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -441,6 +795,7 @@ func (s *Server) handleDiscover(ctx context.Context, req *mcp.CallToolRequest) (
 }
 
 type discoverySummary struct {
+	Summary        string                         `json:"summary"`
 	Target         string                         `json:"target"`
 	EndpointCount  int                            `json:"endpoint_count"`
 	WAFDetected    bool                           `json:"waf_detected"`
@@ -450,6 +805,7 @@ type discoverySummary struct {
 	Statistics     *discovery.DiscoveryStatistics `json:"statistics,omitempty"`
 	TopEndpoints   []endpointPreview              `json:"top_endpoints,omitempty"`
 	SecretsFound   int                            `json:"secrets_found"`
+	NextSteps      []string                       `json:"next_steps"`
 }
 
 type endpointPreview struct {
@@ -490,6 +846,48 @@ func buildDiscoverySummary(r *discovery.DiscoveryResult) *discoverySummary {
 			Parameters: len(ep.Parameters),
 		})
 	}
+
+	// Build narrative summary
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Discovered %d endpoints on %s. ", len(r.Endpoints), r.Target)
+	if r.WAFDetected {
+		fmt.Fprintf(&sb, "WAF detected: %s. ", r.WAFFingerprint)
+	} else {
+		sb.WriteString("No WAF detected. ")
+	}
+	if len(r.Technologies) > 0 {
+		fmt.Fprintf(&sb, "Technologies: %s. ", strings.Join(r.Technologies, ", "))
+	}
+	if s.SecretsFound > 0 {
+		fmt.Fprintf(&sb, "WARNING: %d exposed secrets found! ", s.SecretsFound)
+	}
+	paramCount := 0
+	for _, ep := range r.Endpoints {
+		paramCount += len(ep.Parameters)
+	}
+	if paramCount > 0 {
+		fmt.Fprintf(&sb, "Total injectable parameters: %d. ", paramCount)
+	}
+	fmt.Fprintf(&sb, "Showing top %d endpoints.", limit)
+	s.Summary = sb.String()
+
+	// Build next steps
+	steps := make([]string, 0, 4)
+	steps = append(steps,
+		"Use 'learn' with this discovery output to generate a prioritized, endpoint-aware test plan.")
+	steps = append(steps,
+		fmt.Sprintf("Use 'scan' on %s with specific categories to test WAF blocking.", r.Target))
+	if !r.WAFDetected {
+		steps = append(steps,
+			fmt.Sprintf("Use 'detect_waf' on %s for deeper WAF fingerprinting — discovery WAF check is basic.", r.Target))
+	}
+	if s.SecretsFound > 0 {
+		steps = append(steps,
+			fmt.Sprintf("URGENT: %d secrets exposed — investigate and rotate immediately.", s.SecretsFound))
+	}
+	steps = append(steps,
+		"Use 'probe' for detailed TLS and security header analysis.")
+	s.NextSteps = steps
 
 	return s
 }
@@ -576,7 +974,60 @@ func (s *Server) handleLearn(ctx context.Context, req *mcp.CallToolRequest) (*mc
 	notifyProgress(ctx, req, 100, 100, "Test plan generated")
 	logToSession(ctx, req, logInfo, fmt.Sprintf("Test plan ready: %d groups, %d endpoint tests", len(plan.TestGroups), len(plan.EndpointTests)))
 
-	return jsonResult(plan)
+	wrapped := buildLearnResponse(plan)
+	return jsonResult(wrapped)
+}
+
+// learnResponse wraps TestPlan with narrative context for AI agents.
+type learnResponse struct {
+	Summary   string             `json:"summary"`
+	Plan      *learning.TestPlan `json:"plan"`
+	NextSteps []string           `json:"next_steps"`
+}
+
+func buildLearnResponse(plan *learning.TestPlan) *learnResponse {
+	resp := &learnResponse{Plan: plan}
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Generated test plan for %s: %d test groups, %d endpoint-specific tests, ~%d total payloads. ",
+		plan.Target, len(plan.TestGroups), len(plan.EndpointTests), plan.TotalTests)
+	fmt.Fprintf(&sb, "Estimated time: %s. ", plan.EstimatedTime)
+
+	// Highlight high-priority groups
+	var p1Groups []string
+	for _, g := range plan.TestGroups {
+		if g.Priority <= 2 {
+			p1Groups = append(p1Groups, g.Category)
+		}
+	}
+	if len(p1Groups) > 0 {
+		fmt.Fprintf(&sb, "High-priority categories: %s. ", strings.Join(p1Groups, ", "))
+	}
+
+	resp.Summary = sb.String()
+
+	// Build next steps
+	steps := make([]string, 0, 4)
+	if len(plan.RecommendedFlags.Categories) > 0 {
+		steps = append(steps,
+			fmt.Sprintf("Use 'scan' with {\"target\": \"%s\", \"categories\": %v} to execute the test plan.",
+				plan.Target, plan.RecommendedFlags.Categories))
+	} else {
+		steps = append(steps,
+			fmt.Sprintf("Use 'scan' on %s to execute the test plan with all recommended categories.", plan.Target))
+	}
+	steps = append(steps,
+		fmt.Sprintf("Set concurrency=%d, rate_limit=%d, timeout=%ds as recommended by the test plan.",
+			plan.RecommendedFlags.Concurrency, plan.RecommendedFlags.RateLimit, plan.RecommendedFlags.Timeout))
+	steps = append(steps,
+		fmt.Sprintf("Use 'assess' on %s for a full enterprise assessment with formal grading after the scan.", plan.Target))
+	if len(plan.RecommendedFlags.FocusAreas) > 0 {
+		steps = append(steps,
+			fmt.Sprintf("Focus areas identified: %s", strings.Join(plan.RecommendedFlags.FocusAreas, ", ")))
+	}
+	resp.NextSteps = steps
+
+	return resp
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -696,9 +1147,12 @@ type scanArgs struct {
 }
 
 type scanResultSummary struct {
-	Target        string                  `json:"target"`
-	DetectionRate string                  `json:"detection_rate"`
-	Results       output.ExecutionResults `json:"results"`
+	Summary        string                  `json:"summary"`
+	Target         string                  `json:"target"`
+	DetectionRate  string                  `json:"detection_rate"`
+	Interpretation string                  `json:"interpretation"`
+	Results        output.ExecutionResults  `json:"results"`
+	NextSteps      []string                `json:"next_steps"`
 }
 
 func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -802,6 +1256,30 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		Results:       execResults,
 	}
 
+	// Build interpretation based on detection rate
+	if tested > 0 {
+		rate := float64(execResults.BlockedTests) / float64(tested) * 100
+		switch {
+		case rate >= 95:
+			summary.Interpretation = fmt.Sprintf("Excellent WAF coverage (%.1f%%). The WAF blocked %d of %d attack payloads. Very few bypasses detected.", rate, execResults.BlockedTests, tested)
+		case rate >= 85:
+			summary.Interpretation = fmt.Sprintf("Good WAF coverage (%.1f%%), but %d payloads bypassed detection. Review the bypass details below and consider adding custom rules.", rate, execResults.FailedTests)
+		case rate >= 70:
+			summary.Interpretation = fmt.Sprintf("Moderate WAF coverage (%.1f%%). %d payloads bypassed the WAF — significant gaps exist that need rule tuning.", rate, execResults.FailedTests)
+		case rate >= 50:
+			summary.Interpretation = fmt.Sprintf("Weak WAF coverage (%.1f%%). %d of %d payloads bypassed detection. The WAF needs major rule updates or reconfiguration.", rate, execResults.FailedTests, tested)
+		default:
+			summary.Interpretation = fmt.Sprintf("Critical: WAF is largely ineffective (%.1f%% detection). %d of %d payloads bypassed. Consider the WAF misconfigured or disabled for this endpoint.", rate, execResults.FailedTests, tested)
+		}
+	}
+
+	// Build contextual summary
+	summary.Summary = fmt.Sprintf("Scanned %s with %d payloads. Detection rate: %s. Blocked: %d, Bypassed: %d, Errors: %d.",
+		args.Target, execResults.TotalTests, detectionRate, execResults.BlockedTests, execResults.FailedTests, execResults.ErrorTests)
+
+	// Build next steps based on results
+	summary.NextSteps = buildScanNextSteps(execResults, args)
+
 	notifyProgress(ctx, req, 100, 100, fmt.Sprintf("Scan complete — %d bypasses found", execResults.FailedTests))
 	logToSession(ctx, req, logInfo, fmt.Sprintf("Scan finished: %d tested, %d blocked, %d bypassed, detection rate: %s",
 		execResults.TotalTests, execResults.BlockedTests, execResults.FailedTests, detectionRate))
@@ -815,6 +1293,38 @@ type discardWriter struct{}
 
 func (w *discardWriter) Write(_ *output.TestResult) error { return nil }
 func (w *discardWriter) Close() error                     { return nil }
+
+// buildScanNextSteps generates contextual next steps based on scan results.
+func buildScanNextSteps(results output.ExecutionResults, args scanArgs) []string {
+	steps := make([]string, 0, 4)
+
+	if results.FailedTests > 0 {
+		steps = append(steps,
+			fmt.Sprintf("CRITICAL: %d bypasses found. Use 'bypass' tool to test WAF-evasion mutations against %s and discover additional bypass variants.", results.FailedTests, args.Target))
+		steps = append(steps,
+			"Use 'mutate' with the bypassed payloads to generate encoded variants (URL, double-URL, Unicode, HTML hex) for deeper testing.")
+		steps = append(steps,
+			fmt.Sprintf("Use 'assess' on %s for a formal enterprise assessment with F1 score, false positive rate, MCC, and letter grade.", args.Target))
+	} else if results.BlockedTests > 0 {
+		steps = append(steps,
+			fmt.Sprintf("All %d payloads were blocked — excellent WAF coverage for these categories.", results.BlockedTests))
+		steps = append(steps,
+			fmt.Sprintf("Use 'bypass' to test mutation-based evasions (encoding × location × technique) — WAF may miss encoded variants."))
+		if len(args.Categories) > 0 {
+			steps = append(steps,
+				"Run 'scan' with additional categories to broaden coverage (try adding 'ssrf', 'ssti', 'cmdi', 'xxe').")
+		}
+		steps = append(steps,
+			fmt.Sprintf("Use 'assess' on %s for enterprise metrics including false positive measurement.", args.Target))
+	}
+
+	if results.ErrorTests > 0 {
+		steps = append(steps,
+			fmt.Sprintf("%d errors occurred — check network connectivity, reduce rate_limit, or increase timeout.", results.ErrorTests))
+	}
+
+	return steps
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // assess — Enterprise WAF Assessment
@@ -983,7 +1493,81 @@ func (s *Server) handleAssess(ctx context.Context, req *mcp.CallToolRequest) (*m
 	logToSession(ctx, req, logInfo, fmt.Sprintf("Assessment complete: Grade=%s, F1=%.3f, FPR=%.3f",
 		metrics.Grade, metrics.F1Score, metrics.FalsePositiveRate))
 
-	return jsonResult(metrics)
+	wrapped := buildAssessResponse(metrics, args.Target)
+	return jsonResult(wrapped)
+}
+
+// assessResponse wraps EnterpriseMetrics with narrative context for AI agents.
+type assessResponse struct {
+	Summary        string      `json:"summary"`
+	Interpretation string      `json:"interpretation"`
+	Metrics        interface{} `json:"metrics"`
+	NextSteps      []string    `json:"next_steps"`
+}
+
+func buildAssessResponse(metrics interface{}, target string) *assessResponse {
+	resp := &assessResponse{Metrics: metrics}
+
+	// Use type assertion to access metric fields safely
+	type gradedMetrics interface {
+		GetGrade() string
+	}
+
+	// Extract fields from metrics via JSON round-trip for type-safe access
+	data, _ := json.Marshal(metrics)
+	var m map[string]interface{}
+	_ = json.Unmarshal(data, &m)
+
+	grade, _ := m["grade"].(string)
+	gradeReason, _ := m["grade_reason"].(string)
+	f1Score, _ := m["f1_score"].(float64)
+	detectionRate, _ := m["detection_rate"].(float64)
+	falsePositiveRate, _ := m["false_positive_rate"].(float64)
+	mcc, _ := m["mcc"].(float64)
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "WAF Assessment for %s: Grade %s. ", target, grade)
+	fmt.Fprintf(&sb, "Detection Rate: %.1f%%, F1 Score: %.3f, MCC: %.3f, False Positive Rate: %.1f%%. ", detectionRate*100, f1Score, mcc, falsePositiveRate*100)
+	if gradeReason != "" {
+		fmt.Fprintf(&sb, "%s", gradeReason)
+	}
+	resp.Summary = sb.String()
+
+	// Build interpretation based on grade
+	switch {
+	case grade == "A+" || grade == "A":
+		resp.Interpretation = fmt.Sprintf("Excellent WAF performance (Grade %s). The WAF demonstrates strong detection across tested categories with a well-balanced precision-recall tradeoff. F1=%.3f indicates minimal false negatives. FPR=%.1f%% means legitimate traffic is rarely blocked.", grade, f1Score, falsePositiveRate*100)
+	case grade == "B":
+		resp.Interpretation = fmt.Sprintf("Good WAF performance (Grade %s) with room for improvement. Some attack categories may have gaps. Review per-category scores to identify weak areas. F1=%.3f, FPR=%.1f%%.", grade, f1Score, falsePositiveRate*100)
+	case grade == "C":
+		resp.Interpretation = fmt.Sprintf("Moderate WAF performance (Grade %s). Significant gaps in detection exist. Review bypassed payloads and consider rule tuning or switching to a more comprehensive ruleset (e.g., CRS 4.x for ModSecurity/Coraza).", grade)
+	case grade == "D" || grade == "F":
+		resp.Interpretation = fmt.Sprintf("Poor WAF performance (Grade %s). The WAF is failing to block a majority of attacks. This indicates misconfiguration, disabled rules, or an inadequate ruleset. Immediate action required.", grade)
+	default:
+		resp.Interpretation = fmt.Sprintf("WAF Grade: %s. Review the per-category breakdown for detailed analysis.", grade)
+	}
+
+	// Build next steps based on grade
+	steps := make([]string, 0, 5)
+	if grade == "D" || grade == "F" || grade == "C" {
+		steps = append(steps,
+			"PRIORITY: Review bypassed payloads in the per-category breakdown and add custom WAF rules for each bypass pattern.")
+		steps = append(steps,
+			"Use 'bypass' with specific payloads that were blocked to test if encoding variants can still evade the WAF.")
+	}
+	if falsePositiveRate > 0.05 {
+		steps = append(steps,
+			fmt.Sprintf("WARNING: False positive rate is %.1f%% (%.1f%% of legitimate requests blocked). Review and tune WAF rules to reduce false positives.", falsePositiveRate*100, falsePositiveRate*100))
+	}
+	steps = append(steps,
+		fmt.Sprintf("Use 'scan' with specific categories (e.g., {\"target\": \"%s\", \"categories\": [\"sqli\"]}) to drill into weak areas.", target))
+	steps = append(steps,
+		"Use 'generate_cicd' to set up automated regression testing and track WAF grade over time.")
+	steps = append(steps,
+		"Re-run 'assess' after rule changes to measure improvement.")
+	resp.NextSteps = steps
+
+	return resp
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1054,10 +1638,12 @@ type mutateArgs struct {
 }
 
 type mutateResult struct {
-	Original string          `json:"original"`
-	Variants []mutateVariant `json:"variants"`
-	Count    int             `json:"count"`
-	Tip      string          `json:"tip"`
+	Summary   string          `json:"summary"`
+	Original  string          `json:"original"`
+	Variants  []mutateVariant `json:"variants"`
+	Count     int             `json:"count"`
+	Tip       string          `json:"tip"`
+	NextSteps []string        `json:"next_steps"`
 }
 
 type mutateVariant struct {
@@ -1077,11 +1663,23 @@ func (s *Server) handleMutate(_ context.Context, req *mcp.CallToolRequest) (*mcp
 
 	variants := applyBasicEncodings(args.Payload, args.Encoders)
 
+	encoderList := make([]string, len(variants))
+	for i, v := range variants {
+		encoderList[i] = v.Encoder
+	}
+
 	result := mutateResult{
+		Summary:  fmt.Sprintf("Generated %d encoded variants of the payload using: %s. Each variant applies a different encoding to bypass WAF pattern matching.", len(variants), strings.Join(encoderList, ", ")),
 		Original: args.Payload,
 		Variants: variants,
 		Count:    len(variants),
-		Tip:      "Try each variant against the target. If double_url bypasses, the WAF likely decodes only once. Use the 'bypass' tool for automated testing of all mutations.",
+		Tip:      "If double_url bypasses the WAF, it only decodes once. If unicode or html_hex bypasses, the WAF lacks multi-encoding support. Use the 'bypass' tool for automated testing of all mutations against a live target.",
+		NextSteps: []string{
+			fmt.Sprintf("Use 'bypass' with {\"target\": \"https://your-target.com\", \"payloads\": [\"%s\"]} to test all mutations against a live WAF.", args.Payload),
+			"Copy individual variants above into Burp Suite Repeater or curl for manual verification.",
+			"Try combining encodings: URL-encode a Unicode variant, or double-encode HTML hex — WAFs often fail on multi-layer encoding.",
+			"Use 'list_payloads' to find more payloads in the same attack category for broader testing.",
+		},
 	}
 
 	return jsonResult(result)
@@ -1306,7 +1904,59 @@ func (s *Server) handleBypass(ctx context.Context, req *mcp.CallToolRequest) (*m
 	notifyProgress(ctx, req, 100, 100, fmt.Sprintf("Bypass testing complete — %d bypasses found", len(result.BypassPayloads)))
 	logToSession(ctx, req, logInfo, fmt.Sprintf("Bypass results: %d/%d found bypasses", len(result.BypassPayloads), result.TotalTested))
 
-	return jsonResult(result)
+	wrapped := buildBypassResponse(result, args)
+	return jsonResult(wrapped)
+}
+
+// bypassResponse wraps WAFBypassResult with narrative context for AI agents.
+type bypassResponse struct {
+	Summary        string                    `json:"summary"`
+	Interpretation string                    `json:"interpretation"`
+	Result         *mutation.WAFBypassResult `json:"result"`
+	NextSteps      []string                  `json:"next_steps"`
+}
+
+func buildBypassResponse(result *mutation.WAFBypassResult, args bypassArgs) *bypassResponse {
+	resp := &bypassResponse{Result: result}
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Tested %d mutation variants of %d payloads against %s. ", result.TotalTested, len(args.Payloads), args.Target)
+	if result.Found {
+		fmt.Fprintf(&sb, "FOUND %d bypasses (%.1f%% bypass rate). ", len(result.BypassPayloads), result.BypassRate)
+		sb.WriteString("The WAF fails to detect mutated/encoded variants of the input payloads.")
+	} else {
+		sb.WriteString("No bypasses found — all mutation variants were blocked by the WAF.")
+	}
+	resp.Summary = sb.String()
+
+	if result.Found {
+		resp.Interpretation = fmt.Sprintf("The mutation matrix found %d WAF bypasses across %d total variants (%.1f%% bypass rate). Each bypass represents a specific encoder × injection location × evasion technique combination that the WAF fails to detect. These are actionable findings that indicate WAF rule gaps.",
+			len(result.BypassPayloads), result.TotalTested, result.BypassRate)
+	} else {
+		resp.Interpretation = fmt.Sprintf("All %d mutation variants were blocked. The WAF has strong coverage against encoded/mutated variants of these payloads. Consider testing with different base payloads or categories.", result.TotalTested)
+	}
+
+	steps := make([]string, 0, 4)
+	if result.Found {
+		steps = append(steps,
+			"CRITICAL: Report each bypass to the WAF administrator with the exact payload, encoding, and injection location.")
+		steps = append(steps,
+			"Use 'mutate' to inspect the successful bypass encodings in detail and understand why the WAF missed them.")
+		steps = append(steps,
+			fmt.Sprintf("Use 'assess' on %s for a comprehensive WAF grade that factors in these bypasses.", args.Target))
+		steps = append(steps,
+			"Use 'generate_cicd' to set up automated bypass regression testing so fixed rules don't regress.")
+	} else {
+		steps = append(steps,
+			"Try different payload categories — the WAF may be weak against other attack types (e.g., 'ssti', 'ssrf', 'xxe').")
+		steps = append(steps,
+			"Use 'list_payloads' to browse the full catalog and select different attack vectors.")
+		steps = append(steps,
+			fmt.Sprintf("Use 'assess' on %s for an enterprise-grade WAF evaluation with formal metrics.", args.Target))
+	}
+	resp.NextSteps = steps
+
+	return resp
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1429,7 +2079,8 @@ func (s *Server) handleProbe(ctx context.Context, req *mcp.CallToolRequest) (*mc
 	report := probeTarget(ctx, args.Target, timeout, args.SkipVerify)
 	notifyProgress(ctx, req, 100, 100, "Probe complete")
 
-	return jsonResult(report)
+	wrapped := buildProbeResponse(report)
+	return jsonResult(wrapped)
 }
 
 func probeTarget(ctx context.Context, target string, timeout time.Duration, skipVerify bool) *probeReport {
@@ -1546,6 +2197,103 @@ func tlsVersionString(v uint16) string {
 	}
 }
 
+// probeResponse wraps probeReport with narrative context for AI agents.
+type probeResponse struct {
+	Summary        string       `json:"summary"`
+	Interpretation string       `json:"interpretation"`
+	Report         *probeReport `json:"report"`
+	NextSteps      []string     `json:"next_steps"`
+}
+
+func buildProbeResponse(report *probeReport) *probeResponse {
+	resp := &probeResponse{Report: report}
+
+	var sb strings.Builder
+	if !report.Reachable {
+		fmt.Fprintf(&sb, "Target %s is NOT reachable. Error: %s", report.Target, report.Error)
+		resp.Summary = sb.String()
+		resp.Interpretation = "The target is unreachable. This could indicate a network issue, DNS failure, firewall blocking, or the target is offline."
+		resp.NextSteps = []string{
+			"Verify the URL is correct and includes the scheme (https://).",
+			"Check network connectivity and DNS resolution.",
+			"If behind a VPN/firewall, ensure you have access.",
+			"Try with skip_verify=true if the target uses a self-signed certificate.",
+		}
+		return resp
+	}
+
+	fmt.Fprintf(&sb, "Target %s is reachable (HTTP %d). ", report.Target, report.StatusCode)
+	if report.Server != "" {
+		fmt.Fprintf(&sb, "Server: %s. ", report.Server)
+	}
+	if report.TLS != nil {
+		fmt.Fprintf(&sb, "TLS: %s (%s). ", report.TLS.Version, report.TLS.CipherSuite)
+	}
+
+	// Count security headers
+	present := 0
+	missing := 0
+	for _, h := range report.SecurityHeaders {
+		if h.Present {
+			present++
+		} else {
+			missing++
+		}
+	}
+	fmt.Fprintf(&sb, "Security headers: %d/%d present. ", present, present+missing)
+
+	if len(report.RedirectChain) > 0 {
+		fmt.Fprintf(&sb, "Redirects: %d hops. ", len(report.RedirectChain))
+	}
+	resp.Summary = sb.String()
+
+	// Build interpretation
+	var interp strings.Builder
+	if report.TLS != nil {
+		switch report.TLS.Version {
+		case "TLS 1.3":
+			interp.WriteString("TLS 1.3 — excellent, using the latest protocol. ")
+		case "TLS 1.2":
+			interp.WriteString("TLS 1.2 — acceptable, but TLS 1.3 is preferred for better security and performance. ")
+		default:
+			fmt.Fprintf(&interp, "%s — OUTDATED. Upgrade to TLS 1.2+ immediately. ", report.TLS.Version)
+		}
+	}
+
+	if missing > 0 {
+		missingNames := make([]string, 0, missing)
+		for _, h := range report.SecurityHeaders {
+			if !h.Present {
+				missingNames = append(missingNames, h.Header)
+			}
+		}
+		fmt.Fprintf(&interp, "Missing security headers (%d): %s. These should be added to harden the application. ", missing, strings.Join(missingNames, ", "))
+	} else {
+		interp.WriteString("All checked security headers are present — good security posture. ")
+	}
+	resp.Interpretation = interp.String()
+
+	// Build next steps
+	steps := make([]string, 0, 5)
+	steps = append(steps,
+		fmt.Sprintf("Use 'detect_waf' on %s to identify the WAF vendor and get bypass hints.", report.Target))
+	steps = append(steps,
+		fmt.Sprintf("Use 'discover' to map the full attack surface of %s.", report.Target))
+	if missing > 0 {
+		steps = append(steps,
+			fmt.Sprintf("Add missing security headers (%d): configure HSTS, CSP, and X-Content-Type-Options at minimum.", missing))
+	}
+	if report.TLS != nil && report.TLS.Version != "TLS 1.3" && report.TLS.Version != "TLS 1.2" {
+		steps = append(steps,
+			"URGENT: Upgrade TLS to version 1.2 or 1.3. Older versions have known vulnerabilities.")
+	}
+	steps = append(steps,
+		fmt.Sprintf("Use 'scan' on %s to test WAF blocking against attack payloads.", report.Target))
+	resp.NextSteps = steps
+
+	return resp
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // generate_cicd — CI/CD Pipeline Generation
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1636,7 +2384,38 @@ func (s *Server) handleGenerateCICD(_ context.Context, req *mcp.CallToolRequest)
 	}
 
 	pipeline := generateCICDConfig(args)
-	return textResult(pipeline), nil
+
+	// Wrap pipeline with instructions and next steps
+	var sb strings.Builder
+	switch args.Platform {
+	case "github":
+		sb.WriteString("# INSTRUCTIONS: Save this file as .github/workflows/waf-test.yml in your repository.\n")
+		sb.WriteString("# Then commit and push — the workflow will run on the next push to main or on the configured schedule.\n")
+	case "gitlab":
+		sb.WriteString("# INSTRUCTIONS: Add this content to your .gitlab-ci.yml file.\n")
+		sb.WriteString("# The pipeline will run automatically on the next push.\n")
+	case "jenkins":
+		sb.WriteString("// INSTRUCTIONS: Save this as Jenkinsfile in your repository root.\n")
+		sb.WriteString("// Configure a Jenkins job pointing to this file.\n")
+	case "azure-devops":
+		sb.WriteString("# INSTRUCTIONS: Save this as azure-pipelines.yml in your repository root.\n")
+		sb.WriteString("# Link it in Azure DevOps > Pipelines > New Pipeline.\n")
+	case "circleci":
+		sb.WriteString("# INSTRUCTIONS: Save this as .circleci/config.yml in your repository.\n")
+	case "bitbucket":
+		sb.WriteString("# INSTRUCTIONS: Save this as bitbucket-pipelines.yml in your repository root.\n")
+	}
+	sb.WriteString("#\n")
+	sb.WriteString("# SECURITY: Store the target URL as a secret/environment variable instead of hardcoding it.\n")
+	sb.WriteString("# NEXT STEPS:\n")
+	sb.WriteString("#   1. Replace the target URL with a secret/env variable if targeting production\n")
+	sb.WriteString("#   2. Adjust scan_types, concurrency, and rate_limit for your environment\n")
+	sb.WriteString("#   3. Set up notifications (Slack, email) for failed WAF tests\n")
+	sb.WriteString("#   4. Use 'assess' for formal grading instead of 'scan' for compliance reporting\n")
+	sb.WriteString("#\n")
+	sb.WriteString(pipeline)
+
+	return textResult(sb.String()), nil
 }
 
 func generateCICDConfig(args cicdArgs) string {
