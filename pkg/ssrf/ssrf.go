@@ -670,19 +670,33 @@ func isMetadataResponse(body string, headers http.Header) bool {
 }
 
 func isLocalResponse(body string, statusCode int) bool {
-	// A successful response from localhost
-	if statusCode >= 200 && statusCode < 300 {
-		return true
-	}
+	// A 200 status alone is NOT sufficient evidence of SSRF —
+	// the target may simply return its normal page regardless of
+	// the injected URL. Require body content that indicates a
+	// local or internal service actually responded.
 
-	// Check for common local service responses
 	localPatterns := []string{
+		// Web server default pages
+		"welcome to nginx",
+		"apache2 default page",
+		"iis windows server",
+		"it works!",
+		"default web site page",
+		// Web server banner strings (indicate local service)
 		"nginx",
 		"apache",
-		"iis",
-		"express",
-		"welcome to",
-		"default page",
+		// Internal service banners
+		"redis_version",
+		"mysql_native_password",
+		"postgresql",
+		"mongodb",
+		"elasticsearch",
+		// Internal network indicators in response body
+		"127.0.0.1",
+		"10.0.0.",
+		"172.16.",
+		"192.168.",
+		"[::1]",
 	}
 
 	bodyLower := strings.ToLower(body)
@@ -690,6 +704,11 @@ func isLocalResponse(body string, statusCode int) bool {
 		if strings.Contains(bodyLower, pattern) {
 			return true
 		}
+	}
+
+	// Check for internal IP addresses via regex (e.g., 10.x.x.x, 172.16-31.x.x)
+	if matched, _ := regexp.MatchString(`\b(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})\b`, body); matched {
+		return true
 	}
 
 	return false

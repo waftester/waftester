@@ -227,6 +227,41 @@ func DangerousParameters() []DangerousParam {
 		{Name: "created_at", Value: "2020-01-01", Severity: "MEDIUM", Category: "internal"},
 		{Name: "updated_at", Value: "2020-01-01", Severity: "MEDIUM", Category: "internal"},
 		{Name: "_id", Value: "injected", Severity: "HIGH", Category: "internal"},
+
+		// ---- Framework-specific parameters ----
+
+		// Rails nested attribute patterns (user[role], user[admin])
+		{Name: "user[admin]", Value: true, Severity: "CRITICAL", Category: "rails"},
+		{Name: "user[role]", Value: "admin", Severity: "CRITICAL", Category: "rails"},
+		{Name: "user[is_admin]", Value: true, Severity: "CRITICAL", Category: "rails"},
+		{Name: "user[role_id]", Value: 1, Severity: "CRITICAL", Category: "rails"},
+		{Name: "_destroy", Value: true, Severity: "HIGH", Category: "rails"},
+		{Name: "user[_destroy]", Value: true, Severity: "HIGH", Category: "rails"},
+
+		// Django model fields
+		{Name: "is_staff", Value: true, Severity: "CRITICAL", Category: "django"},
+		{Name: "is_superuser", Value: true, Severity: "CRITICAL", Category: "django"},
+		{Name: "groups", Value: []int{1}, Severity: "CRITICAL", Category: "django"},
+		{Name: "user_permissions", Value: []int{1}, Severity: "CRITICAL", Category: "django"},
+		{Name: "is_active", Value: true, Severity: "HIGH", Category: "django"},
+
+		// Spring/Java patterns
+		{Name: "class.module.classLoader", Value: "x", Severity: "CRITICAL", Category: "spring"},
+		{Name: "authorities", Value: []string{"ROLE_ADMIN"}, Severity: "CRITICAL", Category: "spring"},
+		{Name: "authority", Value: "ROLE_ADMIN", Severity: "CRITICAL", Category: "spring"},
+		{Name: "roles", Value: []string{"ADMIN"}, Severity: "CRITICAL", Category: "spring"},
+		{Name: "enabled", Value: true, Severity: "HIGH", Category: "spring"},
+		{Name: "accountNonLocked", Value: true, Severity: "HIGH", Category: "spring"},
+		{Name: "credentialsNonExpired", Value: true, Severity: "HIGH", Category: "spring"},
+
+		// Laravel/PHP patterns
+		{Name: "guard_name", Value: "web", Severity: "HIGH", Category: "laravel"},
+		{Name: "is_admin", Value: 1, Severity: "CRITICAL", Category: "laravel"},
+		{Name: "role_names", Value: []string{"admin"}, Severity: "CRITICAL", Category: "laravel"},
+
+		// Node.js/Express patterns
+		{Name: "__proto__", Value: map[string]interface{}{"isAdmin": true}, Severity: "CRITICAL", Category: "nodejs"},
+		{Name: "constructor", Value: map[string]interface{}{"prototype": map[string]interface{}{"isAdmin": true}}, Severity: "CRITICAL", Category: "nodejs"},
 	}
 }
 
@@ -246,6 +281,17 @@ func FinancialParams() []DangerousParam {
 	var result []DangerousParam
 	for _, p := range DangerousParameters() {
 		if p.Category == "financial" {
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
+// FrameworkParams returns parameters for a specific framework
+func FrameworkParams(framework string) []DangerousParam {
+	var result []DangerousParam
+	for _, p := range DangerousParameters() {
+		if p.Category == framework {
 			result = append(result, p)
 		}
 	}

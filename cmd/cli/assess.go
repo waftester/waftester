@@ -287,15 +287,22 @@ func runAssess() {
 	// Save to file if requested
 	if *output != "" {
 		var data []byte
+		var marshalErr error
 		switch strings.ToLower(*format) {
 		case "json":
-			data, _ = json.MarshalIndent(result, "", "  ")
+			data, marshalErr = json.MarshalIndent(result, "", "  ")
 		default:
 			data = []byte(result.Summary())
 		}
 
+		if marshalErr != nil {
+			fmt.Println(ui.ErrorStyle.Render(fmt.Sprintf("Error encoding output: %v", marshalErr)))
+			os.Exit(1)
+		}
+
 		if err := os.WriteFile(*output, data, 0644); err != nil {
 			fmt.Println(ui.ErrorStyle.Render(fmt.Sprintf("Error saving output: %v", err)))
+			os.Exit(1)
 		} else {
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *output))
 		}

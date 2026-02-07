@@ -48,7 +48,7 @@ docker run -p 8080:8080 \
 | Tag | Description | Example |
 |-----|-------------|---------|
 | `latest` | Latest stable release | `ghcr.io/waftester/waftester:latest` |
-| `2.7.0` | Exact version | `ghcr.io/waftester/waftester:2.7.0` |
+| `2.7.1` | Exact version | `ghcr.io/waftester/waftester:2.7.1` |
 | `2.7` | Latest patch in minor | `ghcr.io/waftester/waftester:2.7` |
 | `2` | Latest in major | `ghcr.io/waftester/waftester:2` |
 | `edge` | Latest `main` build | `ghcr.io/waftester/waftester:edge` |

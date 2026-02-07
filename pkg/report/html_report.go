@@ -359,7 +359,7 @@ func NewEnterpriseHTMLGenerator() (*EnterpriseHTMLGenerator, error) {
 			return template.JS(b)
 		},
 		"safeHTML": func(s string) template.HTML {
-			return template.HTML(s)
+			return template.HTML(template.HTMLEscapeString(s))
 		},
 		"mult": func(a, b float64) float64 {
 			return a * b

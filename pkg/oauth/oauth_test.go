@@ -306,7 +306,10 @@ func TestGenerateReport(t *testing.T) {
 }
 
 func TestGenerateState(t *testing.T) {
-	state := GenerateState()
+	state, err := GenerateState()
+	if err != nil {
+		t.Fatalf("GenerateState() returned error: %v", err)
+	}
 
 	if len(state) == 0 {
 		t.Error("expected non-empty state")
@@ -319,7 +322,10 @@ func TestGenerateState(t *testing.T) {
 }
 
 func TestGenerateNonce(t *testing.T) {
-	nonce := GenerateNonce()
+	nonce, err := GenerateNonce()
+	if err != nil {
+		t.Fatalf("GenerateNonce() returned error: %v", err)
+	}
 
 	if len(nonce) == 0 {
 		t.Error("expected non-empty nonce")
@@ -327,7 +333,10 @@ func TestGenerateNonce(t *testing.T) {
 }
 
 func TestGeneratePKCEPair(t *testing.T) {
-	verifier, challenge := GeneratePKCEPair()
+	verifier, challenge, err := GeneratePKCEPair()
+	if err != nil {
+		t.Fatalf("GeneratePKCEPair() returned error: %v", err)
+	}
 
 	if len(verifier) == 0 {
 		t.Error("expected non-empty verifier")

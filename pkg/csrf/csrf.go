@@ -133,19 +133,29 @@ func (s *Scanner) analyzePage(ctx context.Context, url string) PageAnalysis {
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	bodyStr := string(body)
 
-	// Check for common CSRF token patterns
+	// Check for common CSRF token patterns in forms, meta tags, and headers
 	tokenPatterns := []struct {
 		name     string
 		pattern  string
 		location string
 	}{
+		// Hidden form fields
 		{"csrf_token", `name="csrf_token"`, "form"},
 		{"_token", `name="_token"`, "form"},
 		{"authenticity_token", `name="authenticity_token"`, "form"},
 		{"csrfmiddlewaretoken", `name="csrfmiddlewaretoken"`, "form"},
 		{"__RequestVerificationToken", `name="__RequestVerificationToken"`, "form"},
+		{"_csrf", `name="_csrf"`, "form"},
+		{"nonce", `name="nonce"`, "form"},
+		// Meta tags (Rails, Laravel, generic frameworks)
+		{"csrf-token", `name="csrf-token"`, "meta"},
+		{"csrf-param", `name="csrf-param"`, "meta"},
+		{"_token", `name="_token" content=`, "meta"},
+		{"csrf", `name="csrf" content=`, "meta"},
+		// Header-based tokens
 		{"X-CSRF-TOKEN", "X-CSRF-TOKEN", "header"},
 		{"X-XSRF-TOKEN", "X-XSRF-TOKEN", "header"},
+		{"X-CSRFToken", "X-CSRFToken", "header"},
 	}
 
 	for _, tp := range tokenPatterns {

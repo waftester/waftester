@@ -6,6 +6,7 @@ package traversal
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -636,9 +637,11 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 // Helper functions
 
 func readBodyLimit(resp *http.Response, limit int64) string {
-	buf := make([]byte, limit)
-	n, _ := resp.Body.Read(buf)
-	return string(buf[:n])
+	data, err := io.ReadAll(io.LimitReader(resp.Body, limit))
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
 
 func truncate(s string, maxLen int) string {

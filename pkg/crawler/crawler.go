@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
@@ -153,6 +154,7 @@ type Crawler struct {
 	cancel     context.CancelFunc
 	pageCount  int
 	pageMu     sync.Mutex
+	inFlight   atomic.Int64 // tracks tasks in-flight for graceful shutdown
 }
 
 type crawlTask struct {
@@ -226,6 +228,7 @@ func (c *Crawler) Crawl(ctx context.Context, startURL string) (<-chan *CrawlResu
 	}
 
 	// Add start URL to queue
+	c.inFlight.Add(1)
 	c.queue <- &crawlTask{URL: startURL, Depth: 0}
 
 	// Monitor and close results when done
@@ -260,6 +263,9 @@ func (c *Crawler) worker() {
 			c.pageMu.Lock()
 			if c.pageCount >= c.config.MaxPages {
 				c.pageMu.Unlock()
+				if c.inFlight.Add(-1) == 0 {
+					close(c.queue)
+				}
 				continue
 			}
 			c.pageCount++
@@ -271,6 +277,7 @@ func (c *Crawler) worker() {
 			select {
 			case c.results <- result:
 			case <-c.ctx.Done():
+				c.inFlight.Add(-1)
 				return
 			}
 
@@ -285,13 +292,10 @@ func (c *Crawler) worker() {
 					c.queueURL(link, task.Depth+1)
 				}
 			}
-		default:
-			// No more tasks, check if queue is empty
-			select {
-			case <-time.After(100 * time.Millisecond):
-				// Give other workers time
-			case <-c.ctx.Done():
-				return
+
+			// Mark this task done; if no more in-flight tasks, close queue
+			if c.inFlight.Add(-1) == 0 {
+				close(c.queue)
 			}
 		}
 	}
@@ -421,10 +425,12 @@ func (c *Crawler) queueURL(rawURL string, depth int) {
 	}
 
 	// Add to queue (non-blocking)
+	c.inFlight.Add(1)
 	select {
 	case c.queue <- &crawlTask{URL: normalized, Depth: depth}:
 	default:
-		// Queue full, skip
+		// Queue full, skip — decrement in-flight counter
+		c.inFlight.Add(-1)
 	}
 }
 

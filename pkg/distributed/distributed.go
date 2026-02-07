@@ -235,7 +235,18 @@ func (c *Coordinator) GetNodes() []*Node {
 
 	nodes := make([]*Node, 0, len(c.nodes))
 	for _, node := range c.nodes {
-		nodes = append(nodes, node)
+		nodeCopy := *node
+		if node.Tags != nil {
+			nodeCopy.Tags = make([]string, len(node.Tags))
+			copy(nodeCopy.Tags, node.Tags)
+		}
+		if node.Metadata != nil {
+			nodeCopy.Metadata = make(map[string]string, len(node.Metadata))
+			for k, v := range node.Metadata {
+				nodeCopy.Metadata[k] = v
+			}
+		}
+		nodes = append(nodes, &nodeCopy)
 	}
 	return nodes
 }
@@ -247,7 +258,7 @@ func (c *Coordinator) GetTasks() []*Task {
 
 	tasks := make([]*Task, 0, len(c.tasks))
 	for _, task := range c.tasks {
-		tasks = append(tasks, task)
+		tasks = append(tasks, copyTask(task))
 	}
 	return tasks
 }
@@ -258,7 +269,40 @@ func (c *Coordinator) GetTask(taskID string) (*Task, bool) {
 	defer c.mu.RUnlock()
 
 	task, ok := c.tasks[taskID]
-	return task, ok
+	if !ok {
+		return nil, false
+	}
+	return copyTask(task), true
+}
+
+// copyTask creates a deep copy of a Task.
+func copyTask(t *Task) *Task {
+	taskCopy := *t
+	if t.Config != nil {
+		taskCopy.Config = make(map[string]interface{}, len(t.Config))
+		for k, v := range t.Config {
+			taskCopy.Config[k] = v
+		}
+	}
+	if t.StartedAt != nil {
+		startCopy := *t.StartedAt
+		taskCopy.StartedAt = &startCopy
+	}
+	if t.CompletedAt != nil {
+		completeCopy := *t.CompletedAt
+		taskCopy.CompletedAt = &completeCopy
+	}
+	if t.Result != nil {
+		resultCopy := *t.Result
+		if t.Result.Data != nil {
+			resultCopy.Data = make(map[string]interface{}, len(t.Result.Data))
+			for k, v := range t.Result.Data {
+				resultCopy.Data[k] = v
+			}
+		}
+		taskCopy.Result = &resultCopy
+	}
+	return &taskCopy
 }
 
 // Stats returns coordinator statistics

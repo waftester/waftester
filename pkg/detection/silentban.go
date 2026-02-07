@@ -150,6 +150,7 @@ func (d *SilentBanDetector) RecordSample(host string, resp *http.Response, laten
 		m.consecutiveErrs++
 	} else {
 		m.consecutiveErrs = 0
+		m.headerChanges = 0 // Reset on successful response to avoid monotonic accumulation
 	}
 
 	// Count header changes against baseline

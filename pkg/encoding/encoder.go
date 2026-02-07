@@ -5,6 +5,7 @@ package encoding
 import (
 	"fmt"
 	"strings"
+	"sync"
 )
 
 // Encoder defines the interface for payload encoding
@@ -51,20 +52,29 @@ func (c *ChainEncoder) Decode(encoded string) (string, error) {
 }
 
 // Registry of available encoders
-var registry = make(map[string]Encoder)
+var (
+	registry   = make(map[string]Encoder)
+	registryMu sync.RWMutex
+)
 
 // Register adds an encoder to the registry
 func Register(enc Encoder) {
+	registryMu.Lock()
+	defer registryMu.Unlock()
 	registry[strings.ToLower(enc.Name())] = enc
 }
 
 // Get retrieves an encoder by name
 func Get(name string) Encoder {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
 	return registry[strings.ToLower(name)]
 }
 
 // List returns all registered encoder names
 func List() []string {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
 	names := make([]string, 0, len(registry))
 	for name := range registry {
 		names = append(names, name)
@@ -109,6 +119,8 @@ func EncodeAll(encoderName string, payloads []string) ([]string, error) {
 
 // EncodeWithAll applies all registered encoders to a single payload
 func EncodeWithAll(payload string) map[string]string {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
 	results := make(map[string]string)
 	for name, enc := range registry {
 		if encoded, err := enc.Encode(payload); err == nil {

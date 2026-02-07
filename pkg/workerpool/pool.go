@@ -71,10 +71,17 @@ func New(workers int) *Pool {
 // The task will be executed by an available worker.
 // If all workers are busy, the task waits in the queue.
 // Returns false if the pool is closed.
-func (p *Pool) Submit(task func()) bool {
+func (p *Pool) Submit(task func()) (ok bool) {
 	if atomic.LoadInt32(&p.closed) == 1 {
 		return false
 	}
+
+	// Recover from send on closed channel if Close() races with Submit()
+	defer func() {
+		if recover() != nil {
+			ok = false
+		}
+	}()
 
 	// Try to spawn a new worker if below limit
 	for {
@@ -205,10 +212,12 @@ func (p *Pool) ParallelFor(n int, fn func(i int)) {
 
 	for i := 0; i < n; i++ {
 		idx := i
-		p.Submit(func() {
+		if !p.Submit(func() {
 			defer wg.Done()
 			fn(idx)
-		})
+		}) {
+			wg.Done() // Compensate for failed submit
+		}
 	}
 
 	wg.Wait()

@@ -371,11 +371,15 @@ func (d *OOBDetector) GeneratePayload(testName, targetURL, parameter, vulnType s
 	return payload
 }
 
-// CheckInteractions polls and correlates interactions
+// CheckInteractions polls and correlates interactions.
+// A 30-second timeout is enforced to prevent hanging if the OOB server is unresponsive.
 func (d *OOBDetector) CheckInteractions(ctx context.Context) ([]DetectedVulnerability, error) {
-	interactions, err := d.client.Poll(ctx)
+	pollCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	interactions, err := d.client.Poll(pollCtx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("OOB poll: %w", err)
 	}
 
 	d.mu.Lock()

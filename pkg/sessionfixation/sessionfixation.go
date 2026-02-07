@@ -123,13 +123,26 @@ func (s *Scanner) Scan(ctx context.Context, loginURL string, credentials url.Val
 	postAuthSession := s.extractSession(jar, loginURL)
 	result.PostAuthSession = postAuthSession
 
+	// Check whether the server actually set a session cookie in the login response.
+	// Without this check, we'd false-positive on sites that don't use session cookies
+	// (our injected fixated session would remain unchanged in the jar).
+	serverSetSession := s.responseSetSessionCookie(loginResp)
+
 	// Determine if vulnerable
 	if result.PreAuthSession != "" && result.PostAuthSession != "" {
 		if result.PreAuthSession == result.PostAuthSession {
-			result.Vulnerable = true
-			result.SessionRegenerated = false
-			result.Evidence = "Session not regenerated after authentication"
-			result.Severity = "HIGH"
+			if serverSetSession || preAuthSession != "" {
+				// Session was NOT regenerated after authentication — vulnerable
+				result.Vulnerable = true
+				result.SessionRegenerated = false
+				result.Evidence = "Session not regenerated after authentication"
+				result.Severity = "HIGH"
+			} else {
+				// Server never sent a session cookie; our injected value
+				// stayed in the jar but was never accepted by the server.
+				result.SessionRegenerated = false
+				result.Evidence = "Server did not set a session cookie; cannot confirm fixation"
+			}
 		} else {
 			result.SessionRegenerated = true
 			result.Evidence = "Session properly regenerated"
@@ -205,6 +218,21 @@ func (s *Scanner) isSessionCookie(name string) bool {
 
 	for _, pattern := range sessionPatterns {
 		if strings.Contains(nameLower, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// responseSetSessionCookie checks if the HTTP response included a Set-Cookie header
+// for a session cookie. This distinguishes servers that actually manage sessions
+// from those that never set session cookies (avoiding false positives).
+func (s *Scanner) responseSetSessionCookie(resp *http.Response) bool {
+	if resp == nil {
+		return false
+	}
+	for _, cookie := range resp.Cookies() {
+		if s.isSessionCookie(cookie.Name) {
 			return true
 		}
 	}
