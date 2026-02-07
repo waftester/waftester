@@ -259,13 +259,10 @@ func TestCoordinator_Stats(t *testing.T) {
 	c.RegisterNode(&Node{ID: "w1", Capacity: 5})
 	c.RegisterNode(&Node{ID: "w2", Capacity: 5})
 
-	// Manually mark one node unhealthy (RegisterNode sets all to healthy)
-	nodes := c.GetNodes()
-	for _, n := range nodes {
-		if n.ID == "w2" {
-			n.Status = StatusUnhealthy
-		}
-	}
+	// Manually mark one node unhealthy via internal state (not through GetNodes copy)
+	c.mu.Lock()
+	c.nodes["w2"].Status = StatusUnhealthy
+	c.mu.Unlock()
 
 	// Add tasks
 	c.SubmitTask(&Task{ID: "t1"})

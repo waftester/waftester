@@ -151,7 +151,12 @@ func (p *Predictor) updateRate(rates map[string]float64, counts map[string]int, 
 func (p *Predictor) Predict(category, payload, path string, techStack []string) *Prediction {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+	return p.predictLocked(category, payload, path, techStack)
+}
 
+// predictLocked performs prediction without acquiring the lock.
+// Caller must hold p.mu.RLock() or p.mu.Lock().
+func (p *Predictor) predictLocked(category, payload, path string, techStack []string) *Prediction {
 	pred := &Prediction{
 		Factors: make([]PredictionFactor, 0),
 	}
@@ -256,7 +261,7 @@ func (p *Predictor) PredictBatch(payloads []PayloadCandidate, techStack []string
 	ranked := make([]RankedPayload, len(payloads))
 
 	for i, payload := range payloads {
-		pred := p.Predict(payload.Category, payload.Payload, payload.Path, techStack)
+		pred := p.predictLocked(payload.Category, payload.Payload, payload.Path, techStack)
 		ranked[i] = RankedPayload{
 			Candidate:  payload,
 			Prediction: pred,

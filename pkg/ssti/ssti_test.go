@@ -403,7 +403,7 @@ func TestAnalyzeResponse(t *testing.T) {
 			Severity:       SeverityHigh,
 		}
 
-		vuln := d.analyzeResponse("http://test.com", "q", payload, "The result is 25!", time.Millisecond)
+		vuln := d.analyzeResponse("http://test.com", "q", payload, "The result is 25!", time.Millisecond, "")
 
 		if vuln == nil {
 			t.Fatal("expected vulnerability detection")
@@ -422,7 +422,7 @@ func TestAnalyzeResponse(t *testing.T) {
 			Severity: SeverityMedium,
 		}
 
-		vuln := d.analyzeResponse("http://test.com", "q", payload, "DEBUG=True, SECRET_KEY=abc", time.Millisecond)
+		vuln := d.analyzeResponse("http://test.com", "q", payload, "DEBUG=True, SECRET_KEY=abc", time.Millisecond, "")
 
 		if vuln == nil {
 			t.Fatal("expected vulnerability detection")
@@ -442,7 +442,7 @@ func TestAnalyzeResponse(t *testing.T) {
 			Severity:       SeverityHigh,
 		}
 
-		vuln := d.analyzeResponse("http://test.com", "q", payload, "Nothing to see here", time.Millisecond)
+		vuln := d.analyzeResponse("http://test.com", "q", payload, "Nothing to see here", time.Millisecond, "")
 
 		if vuln != nil {
 			t.Error("expected no vulnerability")
@@ -679,8 +679,9 @@ func TestMaxPayloadsLimit(t *testing.T) {
 		t.Fatalf("detect failed: %v", err)
 	}
 
-	if requestCount > 5 {
-		t.Errorf("expected at most 5 requests, got %d", requestCount)
+	// MaxPayloads limits payload requests; +1 for baseline comparison request
+	if requestCount > 6 {
+		t.Errorf("expected at most 6 requests (5 payloads + 1 baseline), got %d", requestCount)
 	}
 }
 

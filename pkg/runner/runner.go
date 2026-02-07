@@ -307,6 +307,7 @@ func (r *Runner[T]) RunWithCallback(ctx context.Context, targets []string, task 
 		// Check context cancellation
 		select {
 		case <-ctx.Done():
+			wg.Wait()
 			return
 		default:
 		}

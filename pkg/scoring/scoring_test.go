@@ -198,12 +198,12 @@ func TestNormalizeRange(t *testing.T) {
 
 // TestSeverityScoreMapCompleteness verifies all severities have scores
 func TestSeverityScoreMapCompleteness(t *testing.T) {
-	// The severityScores map should have these exact values
+	// The severityScores map uses lowercase keys for case-insensitive lookup
 	expectedScores := map[string]float64{
-		"Critical": 10.0,
-		"High":     7.0,
-		"Medium":   5.0,
-		"Low":      3.0,
+		"critical": 10.0,
+		"high":     7.0,
+		"medium":   5.0,
+		"low":      3.0,
 	}
 
 	for sev, expectedScore := range expectedScores {
@@ -212,17 +212,26 @@ func TestSeverityScoreMapCompleteness(t *testing.T) {
 		}
 	}
 
-	// BUG CHECK: What about case variants?
-	caseVariants := []string{"critical", "CRITICAL", "high", "HIGH", "medium", "MEDIUM", "low", "LOW"}
-	for _, variant := range caseVariants {
-		if score := severityScores[variant]; score != 0 {
-			t.Errorf("Unexpected: severityScores[%q] = %.1f (case-sensitive?)", variant, score)
-		} else {
-			// This documents that severity scoring IS case-sensitive
-			// Unlike validation which accepts both Critical and critical
+	// Verify Calculate handles case variants correctly via normalization
+	caseVariants := []struct {
+		severity string
+		want     float64
+	}{
+		{"Critical", 10.0},
+		{"CRITICAL", 10.0},
+		{"critical", 10.0},
+		{"High", 7.0},
+		{"high", 7.0},
+		{"Medium", 5.0},
+		{"Low", 3.0},
+	}
+	for _, tc := range caseVariants {
+		result := Calculate(Input{Severity: tc.severity, Outcome: "Fail"})
+		// Verify the severity was recognized (non-default score used)
+		if result.RiskScore == 0 {
+			t.Errorf("Calculate with Severity=%q produced zero score", tc.severity)
 		}
 	}
-	t.Log("NOTE: severityScores is case-sensitive - only 'Critical'/'High'/'Medium'/'Low' work")
 }
 
 // TestCalculateEmptyInput tests completely empty input

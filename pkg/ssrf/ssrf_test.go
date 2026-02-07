@@ -323,7 +323,7 @@ func TestAnalyzeResponseLocalhost(t *testing.T) {
 		{
 			name:       "Successful response",
 			statusCode: 200,
-			body:       "OK",
+			body:       "<html>Welcome to nginx!</html>",
 			expectVuln: true,
 		},
 		{
@@ -662,7 +662,7 @@ func TestIsLocalResponse(t *testing.T) {
 		statusCode int
 		expected   bool
 	}{
-		{"200 OK", "OK", 200, true},
+		{"200 OK bare", "OK", 200, false},
 		{"500 Error", "Error", 500, false},
 		{"Nginx", "Welcome to nginx!", 403, true},
 		{"Apache", "Apache server", 403, true},

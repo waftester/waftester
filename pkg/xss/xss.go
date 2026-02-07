@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/text/unicode/norm"
+
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
@@ -441,6 +443,14 @@ func checkReflection(body, payload string) (bool, string) {
 	htmlDecoded = strings.ReplaceAll(htmlDecoded, "&quot;", `"`)
 	if htmlDecoded != payload && strings.Contains(body, htmlDecoded) {
 		return true, htmlDecoded
+	}
+
+	// Check for UTF-8 normalized variants (NFKC normalization maps
+	// fullwidth characters and other compatibility forms to canonical equivalents)
+	normalizedBody := norm.NFKC.String(body)
+	normalizedPayload := norm.NFKC.String(payload)
+	if strings.Contains(normalizedBody, normalizedPayload) {
+		return true, normalizedPayload
 	}
 
 	return false, ""

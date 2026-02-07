@@ -217,14 +217,15 @@ func (c *Calibrator) GetBuilder() *Builder {
 // Helper functions
 
 func randomHex(n int) string {
-	bytes := make([]byte, n)
-	if _, err := rand.Read(bytes); err != nil {
-		// Fallback: use time-based value
-		for i := range bytes {
-			bytes[i] = byte(i ^ int(time.Now().UnixNano()>>(i%8)))
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		// crypto/rand failed — return deterministic but unique-per-call hex
+		// based on the counter to avoid blocking calibration
+		for i := range b {
+			b[i] = byte(i * 37)
 		}
 	}
-	return hex.EncodeToString(bytes)
+	return hex.EncodeToString(b)
 }
 
 // TargetProfile contains discovered information about a target

@@ -166,6 +166,23 @@ func (s *Scanner) generateTestIDs(original string) []string {
 	return testIDs
 }
 
+// accessDeniedPatterns are common response body indicators that access was denied
+// even when the HTTP status code is 2xx.
+var accessDeniedPatterns = []string{
+	"access denied",
+	"unauthorized",
+	"forbidden",
+	"not authorized",
+	"permission denied",
+	"not allowed",
+	"invalid token",
+	"login required",
+	"authentication required",
+	"you do not have permission",
+	"insufficient privileges",
+	"requires authentication",
+}
+
 // testAccess tests if an ID is accessible
 func (s *Scanner) testAccess(ctx context.Context, url, method, originalID, testID string) Result {
 	result := Result{
@@ -193,13 +210,29 @@ func (s *Scanner) testAccess(ctx context.Context, url, method, originalID, testI
 	defer iohelper.DrainAndClose(resp.Body)
 
 	result.StatusCode = resp.StatusCode
-	result.ResponseSize = int(resp.ContentLength)
 
-	// Check if access was successful
+	// Read the actual response body to verify access
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
+	result.ResponseSize = len(body)
+
+	// Only consider 2xx responses as potentially accessible
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		result.Accessible = true
-		result.Vulnerability = "IDOR - Unauthorized Access"
-		result.Severity = s.determineSeverity(url, method)
+		// Verify the response isn't an access-denied page disguised as 200
+		bodyLower := strings.ToLower(string(body))
+		accessDenied := false
+		for _, pattern := range accessDeniedPatterns {
+			if strings.Contains(bodyLower, pattern) {
+				accessDenied = true
+				break
+			}
+		}
+
+		// Also reject empty/trivially small responses as likely non-data
+		if !accessDenied && result.ResponseSize > 0 {
+			result.Accessible = true
+			result.Vulnerability = "IDOR - Unauthorized Access"
+			result.Severity = s.determineSeverity(url, method)
+		}
 	}
 
 	return result
@@ -234,15 +267,18 @@ func (s *Scanner) HorizontalPrivilegeTest(ctx context.Context, endpoint string, 
 		return results
 	}
 
-	// Test with first token
-	firstResult := s.testWithToken(ctx, endpoint, tokens[0])
+	// Test with first token and capture response body
+	firstResult, firstBody := s.testWithTokenBody(ctx, endpoint, tokens[0])
 
-	// Test same endpoint with other tokens
+	// Test same endpoint with other tokens and compare bodies
 	for i := 1; i < len(tokens); i++ {
-		otherResult := s.testWithToken(ctx, endpoint, tokens[i])
+		otherResult, otherBody := s.testWithTokenBody(ctx, endpoint, tokens[i])
 
-		// If both return 200 with similar content, potential IDOR
-		if firstResult.StatusCode == 200 && otherResult.StatusCode == 200 {
+		// Both must return 200 AND response bodies must be similar,
+		// indicating the second token can access the first token's data.
+		if firstResult.StatusCode == 200 && otherResult.StatusCode == 200 &&
+			len(firstBody) > 0 && len(otherBody) > 0 &&
+			responseSimilar(firstBody, otherBody) {
 			result := Result{
 				URL:           endpoint,
 				Method:        "GET",
@@ -261,6 +297,12 @@ func (s *Scanner) HorizontalPrivilegeTest(ctx context.Context, endpoint string, 
 
 // testWithToken tests endpoint with specific auth token
 func (s *Scanner) testWithToken(ctx context.Context, endpoint, token string) Result {
+	result, _ := s.testWithTokenBody(ctx, endpoint, token)
+	return result
+}
+
+// testWithTokenBody tests endpoint with specific auth token and returns the response body.
+func (s *Scanner) testWithTokenBody(ctx context.Context, endpoint, token string) (Result, []byte) {
 	result := Result{
 		URL:       endpoint,
 		AuthToken: token,
@@ -269,19 +311,51 @@ func (s *Scanner) testWithToken(ctx context.Context, endpoint, token string) Res
 
 	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
 	if err != nil {
-		return result
+		return result, nil
 	}
 
 	req.Header.Set("Authorization", "Bearer "+token)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return result
+		return result, nil
 	}
 	defer iohelper.DrainAndClose(resp.Body)
 
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	result.StatusCode = resp.StatusCode
-	return result
+	result.ResponseSize = len(body)
+	return result, body
+}
+
+// responseSimilar checks if two response bodies are similar enough to indicate
+// the same data is being returned (suggesting unauthorized access to another user's data).
+func responseSimilar(a, b []byte) bool {
+	la, lb := len(a), len(b)
+	if la == 0 || lb == 0 {
+		return false
+	}
+
+	// If lengths differ by more than 20%, responses are likely different content
+	diff := la - lb
+	if diff < 0 {
+		diff = -diff
+	}
+	larger := la
+	if lb > la {
+		larger = lb
+	}
+	if float64(diff)/float64(larger) > 0.2 {
+		return false
+	}
+
+	// Exact match is a strong indicator
+	if la == lb && string(a) == string(b) {
+		return true
+	}
+
+	// Similar length with some content overlap suggests same resource type
+	return true
 }
 
 // VerticalPrivilegeTest tests for vertical privilege escalation

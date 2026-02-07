@@ -23,10 +23,10 @@ type Result struct {
 
 // Base severity scores (matching PowerShell logic)
 var severityScores = map[string]float64{
-	"Critical": 10.0,
-	"High":     7.0,
-	"Medium":   5.0,
-	"Low":      3.0,
+	"critical": 10.0,
+	"high":     7.0,
+	"medium":   5.0,
+	"low":      3.0,
 }
 
 // Sensitive patterns for escalation (ported from PowerShell)
@@ -49,8 +49,9 @@ func Calculate(input Input) Result {
 		FinalSeverity: input.Severity,
 	}
 
-	// Get base severity score
-	baseSeverity, ok := severityScores[input.Severity]
+	// Get base severity score (case-insensitive)
+	severity := strings.ToLower(input.Severity)
+	baseSeverity, ok := severityScores[severity]
 	if !ok {
 		baseSeverity = 5.0 // Default to Medium
 	}
@@ -84,9 +85,9 @@ func Calculate(input Input) Result {
 				result.EscalationReason = info.Reason
 
 				// Escalate severity
-				if info.Impact >= 4.0 && result.FinalSeverity != "Critical" {
+				if info.Impact >= 4.0 && strings.ToLower(result.FinalSeverity) != "critical" {
 					result.FinalSeverity = "Critical"
-					baseSeverity = severityScores["Critical"]
+					baseSeverity = severityScores["critical"]
 				}
 				break
 			}
@@ -102,7 +103,7 @@ func Calculate(input Input) Result {
 	}
 
 	// 4. Timing attack detection (blind SQLi, etc.)
-	if input.LatencyMs > 5000 && input.Outcome == "Fail" {
+	if input.LatencyMs > 5000 && outcome == "fail" {
 		exploitabilityMod += 1.5
 		if result.EscalationReason == "" {
 			result.EscalationReason = "Timing differential suggests blind injection"

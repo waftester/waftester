@@ -26,6 +26,7 @@ type Config struct {
 	Retries        int           // Number of retries per query
 	WildcardFilter bool          // Filter wildcard responses
 	RecursionDepth int           // Depth for recursive brute
+	QueryDelay     time.Duration // Delay between queries per worker for rate limiting
 }
 
 // DefaultConfig returns sensible defaults
@@ -37,6 +38,7 @@ func DefaultConfig() Config {
 		Retries:        defaults.RetryLow,
 		WildcardFilter: true,
 		RecursionDepth: 0, // No recursion by default
+		QueryDelay:     50 * time.Millisecond, // Rate limit to prevent DNS throttling
 	}
 }
 
@@ -158,6 +160,9 @@ func (b *Bruteforcer) Run(ctx context.Context, domain string, words []string) ([
 						resultChan <- result
 					}
 					atomic.AddInt64(&b.stats.Tested, 1)
+					if b.config.QueryDelay > 0 {
+						time.Sleep(b.config.QueryDelay)
+					}
 				}
 			}
 		}(i)

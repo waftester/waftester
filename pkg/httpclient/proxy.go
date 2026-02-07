@@ -164,26 +164,22 @@ func (t *TimeoutDialer) DialContext(ctx context.Context, network, address string
 			conn, err = t.dialer.Dial(network, address)
 		}
 
-		// Check if context was cancelled while dialing
-		// If so, close the connection to prevent leak
-		select {
-		case <-ctx.Done():
-			if conn != nil {
-				conn.Close()
-			}
-			return
-		default:
-		}
-
 		if err != nil {
 			errCh <- err
-		} else {
-			connCh <- conn
+			return
+		}
+
+		// Try to send conn; if context already cancelled, close it to prevent leak
+		select {
+		case connCh <- conn:
+		case <-ctx.Done():
+			conn.Close()
 		}
 	}()
 
 	select {
 	case <-ctx.Done():
+		// Goroutine will close conn if it completes after this point
 		return nil, fmt.Errorf("proxy dial timeout: %w", ctx.Err())
 	case conn := <-connCh:
 		return conn, nil

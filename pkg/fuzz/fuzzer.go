@@ -99,6 +99,7 @@ type Result struct {
 	ResponseTime  time.Duration `json:"response_time"`
 	Redirected    bool          `json:"redirected,omitempty"`
 	RedirectURL   string        `json:"redirect_url,omitempty"`
+	Error         string        `json:"error,omitempty"`
 	Filtered      bool          `json:"-"`
 }
 
@@ -210,7 +211,9 @@ func (f *Fuzzer) Run(ctx context.Context, callback ResultCallback) *Stats {
 					result := f.fuzz(ctx, word)
 					atomic.AddInt64(&totalReqs, 1)
 
-					if result.Filtered {
+					if result.Error != "" {
+						atomic.AddInt64(&errors, 1)
+					} else if result.Filtered {
 						atomic.AddInt64(&filtered, 1)
 					} else {
 						atomic.AddInt64(&matches, 1)
@@ -314,6 +317,7 @@ func (f *Fuzzer) fuzz(ctx context.Context, word string) *Result {
 
 	req, err := http.NewRequestWithContext(ctx, f.config.Method, targetURL, body)
 	if err != nil {
+		result.Error = err.Error()
 		result.Filtered = true
 		return result
 	}
@@ -338,6 +342,7 @@ func (f *Fuzzer) fuzz(ctx context.Context, word string) *Result {
 		if f.detector != nil {
 			f.detector.RecordError(targetURL, err)
 		}
+		result.Error = err.Error()
 		result.Filtered = true
 		return result
 	}

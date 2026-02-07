@@ -560,6 +560,7 @@ func runFuzz() {
 		ui.PrintConfigLine("Total Requests", fmt.Sprintf("%d", stats.TotalRequests))
 		ui.PrintConfigLine("Matches", fmt.Sprintf("%d", stats.Matches))
 		ui.PrintConfigLine("Filtered", fmt.Sprintf("%d", stats.Filtered))
+		ui.PrintConfigLine("Errors", fmt.Sprintf("%d", stats.Errors))
 		ui.PrintConfigLine("Duration", duration.Round(time.Millisecond).String())
 		ui.PrintConfigLine("Requests/sec", fmt.Sprintf("%.2f", stats.RequestsPerSec))
 		fmt.Println()
@@ -626,7 +627,9 @@ func runFuzz() {
 		if err != nil {
 			errMsg := fmt.Sprintf("JSON encoding error: %v", err)
 			ui.PrintError(errMsg)
-			_ = fuzzDispCtx.EmitError(context.Background(), "fuzz", errMsg, true)
+			if fuzzDispCtx != nil {
+				_ = fuzzDispCtx.EmitError(context.Background(), "fuzz", errMsg, true)
+			}
 			os.Exit(1)
 		}
 
@@ -634,7 +637,9 @@ func runFuzz() {
 			if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
 				errMsg := fmt.Sprintf("Error writing output: %v", err)
 				ui.PrintError(errMsg)
-				_ = fuzzDispCtx.EmitError(context.Background(), "fuzz", errMsg, true)
+				if fuzzDispCtx != nil {
+					_ = fuzzDispCtx.EmitError(context.Background(), "fuzz", errMsg, true)
+				}
 				os.Exit(1)
 			}
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))

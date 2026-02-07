@@ -682,14 +682,13 @@ func isAllowedExternalCommand(cmd string) bool {
 		"base64": true,
 		"sleep":  true,
 		"ping":   true, // Used for timeout simulation on Windows
-		// Windows shell (needed for cross-platform workflows)
-		"cmd":     true,
-		"cmd.exe": true,
 		// Nuclei integration
 		"nuclei": true,
-		// Python for scripting
-		"python":  true,
-		"python3": true,
+		// Windows shell — required for cross-platform workflows
+		// Security note: cmd execution is sandboxed by the command allowlist check
+		// which validates the inner command when cmd is used as a wrapper
+		"cmd":     true,
+		"cmd.exe": true,
 	}
 
 	// Extract base command name (handle paths like /usr/bin/echo)
