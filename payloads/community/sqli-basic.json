@@ -1,10 +1,182 @@
 [
   {
     "id": "sqli-basic-001",
-    "name": "Basic SQL Injection OR",
     "category": "sqli",
     "payload": "' OR '1'='1",
-    "description": "Classic SQL injection using OR condition",
-    "severity": "high"
+    "tags": ["sqli", "authentication-bypass", "classic"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Classic SQL injection using OR condition to bypass authentication"
+  },
+  {
+    "id": "sqli-basic-002",
+    "category": "sqli",
+    "payload": "1' OR '1'='1' --",
+    "tags": ["sqli", "authentication-bypass", "comment"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "SQL injection with comment terminator to ignore remaining query"
+  },
+  {
+    "id": "sqli-basic-003",
+    "category": "sqli",
+    "payload": "1 UNION SELECT null,null,null--",
+    "tags": ["sqli", "union-based", "column-enumeration"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "UNION-based SQLi to extract data from other tables"
+  },
+  {
+    "id": "sqli-basic-004",
+    "category": "sqli",
+    "payload": "1' AND 1=1--",
+    "tags": ["sqli", "boolean-based", "detection"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Boolean-based blind SQLi detection probe"
+  },
+  {
+    "id": "sqli-basic-005",
+    "category": "sqli",
+    "payload": "1' AND SLEEP(5)--",
+    "tags": ["sqli", "time-based", "blind"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Time-based blind SQLi using MySQL SLEEP function"
+  },
+  {
+    "id": "sqli-basic-006",
+    "category": "sqli",
+    "payload": "admin'--",
+    "tags": ["sqli", "authentication-bypass", "truncation"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Login bypass by commenting out password check"
+  },
+  {
+    "id": "sqli-basic-007",
+    "category": "sqli",
+    "payload": "1'; DROP TABLE users--",
+    "tags": ["sqli", "destructive", "stacked-query"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Stacked query attempting table destruction"
+  },
+  {
+    "id": "sqli-basic-008",
+    "category": "sqli",
+    "payload": "1' ORDER BY 10--",
+    "tags": ["sqli", "enumeration", "column-count"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Column enumeration via ORDER BY for UNION attack preparation"
+  },
+  {
+    "id": "sqli-basic-009",
+    "category": "sqli",
+    "payload": "' UNION SELECT username,password FROM users--",
+    "tags": ["sqli", "union-based", "credential-theft"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Direct credential extraction via UNION query"
+  },
+  {
+    "id": "sqli-basic-010",
+    "category": "sqli",
+    "payload": "1' AND (SELECT COUNT(*) FROM information_schema.tables)>0--",
+    "tags": ["sqli", "information-schema", "enumeration"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Database enumeration via information_schema access"
+  },
+  {
+    "id": "sqli-basic-011",
+    "category": "sqli",
+    "payload": "1' WAITFOR DELAY '0:0:5'--",
+    "tags": ["sqli", "time-based", "mssql"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Time-based blind SQLi for Microsoft SQL Server"
+  },
+  {
+    "id": "sqli-basic-012",
+    "category": "sqli",
+    "payload": "1' AND extractvalue(1,concat(0x7e,(SELECT version())))--",
+    "tags": ["sqli", "error-based", "mysql"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Error-based SQLi to extract MySQL version through XML functions"
+  },
+  {
+    "id": "sqli-basic-013",
+    "category": "sqli",
+    "payload": "1 OR 1=1",
+    "tags": ["sqli", "numeric", "no-quotes"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "Numeric context SQLi without quote characters"
+  },
+  {
+    "id": "sqli-basic-014",
+    "category": "sqli",
+    "payload": "1' UNION ALL SELECT null,table_name FROM information_schema.tables--",
+    "tags": ["sqli", "union-based", "table-enumeration"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Enumerate all database tables via UNION + information_schema"
+  },
+  {
+    "id": "sqli-basic-015",
+    "category": "sqli",
+    "payload": "'; EXEC xp_cmdshell('whoami')--",
+    "tags": ["sqli", "rce", "mssql", "xp_cmdshell"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "MSSQL command execution via xp_cmdshell — remote code execution"
+  },
+  {
+    "id": "sqli-basic-016",
+    "category": "sqli",
+    "payload": "1' AND (SELECT * FROM (SELECT(SLEEP(5)))a)--",
+    "tags": ["sqli", "time-based", "subquery"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Time-based blind SQLi using subquery wrapper to evade simple filters"
+  },
+  {
+    "id": "sqli-basic-017",
+    "category": "sqli",
+    "payload": "-1' UNION SELECT 1,GROUP_CONCAT(table_name),3 FROM information_schema.tables WHERE table_schema=database()--",
+    "tags": ["sqli", "union-based", "database-enum"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "Extract all table names from current database using GROUP_CONCAT"
+  },
+  {
+    "id": "sqli-basic-018",
+    "category": "sqli",
+    "payload": "1' AND 1=CONVERT(int,(SELECT TOP 1 table_name FROM information_schema.tables))--",
+    "tags": ["sqli", "error-based", "mssql"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "MSSQL error-based SQLi via CONVERT type mismatch"
+  },
+  {
+    "id": "sqli-basic-019",
+    "category": "sqli",
+    "payload": "1' OR 1=1 LIMIT 1 OFFSET 0--",
+    "tags": ["sqli", "data-extraction", "pagination"],
+    "expected_block": true,
+    "severity_hint": "High",
+    "notes": "SQLi with pagination to extract records one at a time"
+  },
+  {
+    "id": "sqli-basic-020",
+    "category": "sqli",
+    "payload": "1';SELECT pg_sleep(5)--",
+    "tags": ["sqli", "time-based", "postgresql"],
+    "expected_block": true,
+    "severity_hint": "Critical",
+    "notes": "PostgreSQL time-based blind SQLi via pg_sleep"
   }
 ]
