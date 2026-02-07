@@ -609,6 +609,7 @@ func runScan() {
 
 	// Progress tracking
 	var totalScans int32
+	var scanErrors int32
 	var scanTimings sync.Map // map[string]time.Duration
 
 	// Count total scans first
@@ -740,6 +741,15 @@ func runScan() {
 		}()
 	}
 
+	// scanError is a helper that logs scan errors and increments error counter.
+	// Always emits a warning so the user knows a scanner failed, not only in verbose mode.
+	scanError := func(scanner string, err error) {
+		atomic.AddInt32(&scanErrors, 1)
+		if *verbose {
+			ui.PrintWarning(fmt.Sprintf("%s scan error: %v", scanner, err))
+		}
+	}
+
 	timeoutDur := time.Duration(*timeout) * time.Second
 
 	// SQL Injection Scanner
@@ -760,9 +770,7 @@ func runScan() {
 		tester := sqli.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("SQLi scan error: %v", err))
-			}
+			scanError("SQLi", err)
 			return
 		}
 		mu.Lock()
@@ -801,9 +809,7 @@ func runScan() {
 		tester := xss.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("XSS scan error: %v", err))
-			}
+			scanError("XSS", err)
 			return
 		}
 		mu.Lock()
@@ -840,9 +846,7 @@ func runScan() {
 		tester := traversal.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("Traversal scan error: %v", err))
-			}
+			scanError("Traversal", err)
 			return
 		}
 		mu.Lock()
@@ -878,9 +882,7 @@ func runScan() {
 		tester := cmdi.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("CMDi scan error: %v", err))
-			}
+			scanError("CMDi", err)
 			return
 		}
 		mu.Lock()
@@ -917,9 +919,7 @@ func runScan() {
 		tester := nosqli.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("NoSQLi scan error: %v", err))
-			}
+			scanError("NoSQLi", err)
 			return
 		}
 		mu.Lock()
@@ -956,9 +956,7 @@ func runScan() {
 		tester := hpp.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("HPP scan error: %v", err))
-			}
+			scanError("HPP", err)
 			return
 		}
 		mu.Lock()
@@ -994,9 +992,7 @@ func runScan() {
 		tester := crlf.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("CRLF scan error: %v", err))
-			}
+			scanError("CRLF", err)
 			return
 		}
 		mu.Lock()
@@ -1032,9 +1028,7 @@ func runScan() {
 		tester := prototype.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("Prototype pollution scan error: %v", err))
-			}
+			scanError("Prototype", err)
 			return
 		}
 		mu.Lock()
@@ -1069,9 +1063,7 @@ func runScan() {
 		tester := cors.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("CORS scan error: %v", err))
-			}
+			scanError("CORS", err)
 			return
 		}
 		mu.Lock()
@@ -1107,9 +1099,7 @@ func runScan() {
 		tester := redirect.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("Redirect scan error: %v", err))
-			}
+			scanError("Redirect", err)
 			return
 		}
 		mu.Lock()
@@ -1146,9 +1136,7 @@ func runScan() {
 		tester := hostheader.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("Host header scan error: %v", err))
-			}
+			scanError("HostHeader", err)
 			return
 		}
 		mu.Lock()
@@ -1184,9 +1172,7 @@ func runScan() {
 		tester := websocket.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("WebSocket scan error: %v", err))
-			}
+			scanError("WebSocket", err)
 			return
 		}
 		mu.Lock()
@@ -1222,9 +1208,7 @@ func runScan() {
 		tester := cache.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("Cache poisoning scan error: %v", err))
-			}
+			scanError("Cache", err)
 			return
 		}
 		mu.Lock()
@@ -1264,9 +1248,7 @@ func runScan() {
 		tester := upload.NewTester(cfg)
 		vulns, err := tester.Scan(uploadCtx, target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("Upload scan error: %v", err))
-			}
+			scanError("Upload", err)
 			return
 		}
 		mu.Lock()
@@ -1299,9 +1281,7 @@ func runScan() {
 		tester := deserialize.NewTester(cfg)
 		vulns, err := tester.Scan(ctx, target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("Deserialization scan error: %v", err))
-			}
+			scanError("Deserialization", err)
 			return
 		}
 		mu.Lock()
@@ -1348,9 +1328,7 @@ func runScan() {
 		tester := oauth.NewTester(cfg, endpoints, oauthCfg)
 		vulns, err := tester.Scan(ctx)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("OAuth scan error: %v", err))
-			}
+			scanError("OAuth", err)
 			return
 		}
 		mu.Lock()
@@ -1380,9 +1358,7 @@ func runScan() {
 		detector.Timeout = timeoutDur
 		scanResult, err := detector.Detect(ctx, target, "url")
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("SSRF scan error: %v", err))
-			}
+			scanError("SSRF", err)
 			return
 		}
 		mu.Lock()
@@ -1418,9 +1394,7 @@ func runScan() {
 		detector := ssti.NewDetector(cfg)
 		vulns, err := detector.Detect(ctx, target, "input")
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("SSTI scan error: %v", err))
-			}
+			scanError("SSTI", err)
 			return
 		}
 		mu.Lock()
@@ -1453,9 +1427,7 @@ func runScan() {
 		detector := xxe.NewDetector(cfg)
 		vulns, err := detector.Detect(ctx, target, "POST")
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("XXE scan error: %v", err))
-			}
+			scanError("XXE", err)
 			return
 		}
 		mu.Lock()
@@ -1485,9 +1457,7 @@ func runScan() {
 		detector.Timeout = timeoutDur
 		scanResult, err := detector.Detect(ctx, target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("Smuggling scan error: %v", err))
-			}
+			scanError("Smuggling", err)
 			return
 		}
 		mu.Lock()
@@ -1569,9 +1539,7 @@ func runScan() {
 		testToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IlRlc3QgVXNlciIsImlhdCI6MTUxNjIzOTAyMn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
 		vulns, err := attacker.GenerateMaliciousTokens(testToken)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("JWT scan error: %v", err))
-			}
+			scanError("JWT", err)
 			return
 		}
 		mu.Lock()
@@ -1616,9 +1584,7 @@ func runScan() {
 		}
 		scanResult, err := tester.CheckSubdomain(ctx, u.Host)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("Subtakeover scan error: %v", err))
-			}
+			scanError("Subtakeover", err)
 			return
 		}
 		mu.Lock()
@@ -1654,9 +1620,7 @@ func runScan() {
 		// Test common business logic vulnerabilities
 		vulns, err := tester.Scan(ctx, target, []string{"/", "/api", "/admin", "/user", "/account"})
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("BizLogic scan error: %v", err))
-			}
+			scanError("BizLogic", err)
 			return
 		}
 		mu.Lock()
@@ -1694,9 +1658,7 @@ func runScan() {
 		}
 		scanResult, err := tester.Scan(ctx, reqCfg)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("Race condition scan error: %v", err))
-			}
+			scanError("Race", err)
 			return
 		}
 		mu.Lock()
@@ -1735,9 +1697,7 @@ func runScan() {
 		}
 		vulns, err := tester.FuzzAPI(ctx, target, endpoints)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("API Fuzz scan error: %v", err))
-			}
+			scanError("APIFuzz", err)
 			return
 		}
 		mu.Lock()
@@ -1767,9 +1727,7 @@ func runScan() {
 		detector := waf.NewDetector(timeoutDur)
 		scanResult, err := detector.Detect(ctx, target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("WAF detect error: %v", err))
-			}
+			scanError("WAFDetect", err)
 			return
 		}
 		mu.Lock()
@@ -1792,9 +1750,7 @@ func runScan() {
 		fingerprinter := waf.NewFingerprinter(timeoutDur)
 		fp, err := fingerprinter.CreateFingerprint(ctx, target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("WAF fingerprint error: %v", err))
-			}
+			scanError("WAFFingerprint", err)
 			return
 		}
 		mu.Lock()
@@ -1846,9 +1802,7 @@ func runScan() {
 		}()
 		parsedURL, err := url.Parse(target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("TLS probe error parsing URL: %v", err))
-			}
+			scanError("TLSProbe", err)
 			return
 		}
 		if parsedURL.Scheme != "https" {
@@ -1869,9 +1823,7 @@ func runScan() {
 		prober.Timeout = timeoutDur
 		tlsInfo, err := prober.Probe(ctx, parsedURL.Hostname(), portNum)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("TLS probe error: %v", err))
-			}
+			scanError("TLSProbe", err)
 			return
 		}
 		mu.Lock()
@@ -1907,9 +1859,7 @@ func runScan() {
 		}()
 		parsedURL, err := url.Parse(target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("HTTP probe error parsing URL: %v", err))
-			}
+			scanError("HTTPProbe", err)
 			return
 		}
 		portStr := parsedURL.Port()
@@ -1997,9 +1947,7 @@ func runScan() {
 		client := httpclient.New(httpclient.WithTimeout(timeoutDur))
 		resp, err := client.Get(target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("Security headers probe error: %v", err))
-			}
+			scanError("SecurityHeaders", err)
 			return
 		}
 		defer iohelper.DrainAndClose(resp.Body)
@@ -2054,9 +2002,7 @@ func runScan() {
 		client := httpclient.New(httpclient.WithTimeout(timeoutDur))
 		resp, err := client.Get(target)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("JS analyze error: %v", err))
-			}
+			scanError("JSAnalyze", err)
 			return
 		}
 		defer iohelper.DrainAndClose(resp.Body)
@@ -2126,9 +2072,7 @@ func runScan() {
 		}
 		results, err := depthScanner.ScanRoutes(ctx, target, routes)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("API depth scan error: %v", err))
-			}
+			scanError("APIDepth", err)
 			return
 		}
 		routeCount = len(results)
@@ -2227,9 +2171,7 @@ func runScan() {
 
 		vhosts, err := vhostProber.ProbeVHosts(ctx, host, port, host, wordlist)
 		if err != nil {
-			if *verbose {
-				ui.PrintWarning(fmt.Sprintf("VHost scan error: %v", err))
-			}
+			scanError("VHost", err)
 			return
 		}
 
@@ -2481,6 +2423,9 @@ func runScan() {
 		fmt.Println()
 		ui.PrintSuccess(fmt.Sprintf("✓ Scan complete in %s", result.Duration.Round(time.Millisecond)))
 		fmt.Printf("  📊 Results: %s%d vulnerabilities\033[0m across %d scan types\n", vulnColor, result.TotalVulns, totalScans)
+		if errCount := atomic.LoadInt32(&scanErrors); errCount > 0 {
+			ui.PrintWarning(fmt.Sprintf("  ⚠️  %d scanner(s) encountered errors (use -verbose for details)", errCount))
+		}
 		fmt.Println()
 	}
 

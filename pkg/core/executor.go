@@ -406,6 +406,13 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 	// Execute with retry
 	var resp *http.Response
 	for attempt := 0; attempt <= e.config.Retries; attempt++ {
+		// Re-create body reader for POST requests on retry (readers are consumed after first use)
+		if attempt > 0 && method == "POST" && payload.ContentType != "" {
+			req.Body = io.NopCloser(strings.NewReader(payload.Payload))
+			req.ContentLength = int64(len(payload.Payload))
+		}
+
+		start = time.Now() // Measure latency for this attempt only
 		resp, err = e.httpClient.Do(req)
 		if err == nil {
 			break
@@ -444,11 +451,6 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 		return result
 	}
 	defer iohelper.DrainAndClose(resp.Body)
-
-	// Capture baseline for detection (first few successful responses)
-	if e.detector != nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		e.detector.CaptureBaseline(e.config.TargetURL, resp, time.Duration(result.LatencyMs)*time.Millisecond, int(result.ContentLength))
-	}
 
 	// Capture important response headers (WAF-related)
 	wafHeaders := []string{
@@ -497,6 +499,11 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 		result.LineCount = 0
 	}
 	result.ContentLength = bodyBuf.Len()
+
+	// Capture baseline for detection AFTER body is read so ContentLength is accurate
+	if e.detector != nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		e.detector.CaptureBaseline(e.config.TargetURL, resp, time.Duration(result.LatencyMs)*time.Millisecond, result.ContentLength)
+	}
 
 	result.StatusCode = resp.StatusCode
 

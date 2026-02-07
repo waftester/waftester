@@ -5,6 +5,73 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.1] - 2026-02-07
+
+### Security
+
+- **Removed insecure crypto fallbacks** — `generateCacheBuster()` (cache), `generateWebSocketKey()` (websocket), and `randomHex()` (calibration) no longer fall back to `time.Now().UnixNano()` when `crypto/rand` fails — they now return errors instead of predictable values
+- **Removed `python`/`python3` from workflow command allowlist** — prevented arbitrary code execution via workflow files
+- **HTML report XSS hardening** — `safeHTML` template function now escapes content with `template.HTMLEscapeString` before casting to `template.HTML`
+
+### Fixed
+
+- **Partial body reads** — replaced `resp.Body.Read(buf)` with `io.ReadAll(io.LimitReader(...))` in cache and traversal packages to prevent truncated response data
+- **OAuth/PKCE functions return errors** — `GenerateState()`, `GenerateNonce()`, and `GeneratePKCEPair()` now return `(string, error)` / `(string, string, error)` instead of silently using weak fallbacks
+- **URL mutation in NoSQL injection** — `testQueryParam` now clones the URL via value copy to prevent shared pointer corruption across loop iterations
+- **Case-sensitive severity scoring** — scoring engine now normalizes severity to lowercase before lookup, fixing mismatches with `"critical"` vs `"Critical"`
+- **SSRF false positives** — `isLocalResponse` no longer treats any HTTP 200 as SSRF evidence; requires body content matching internal service patterns
+- **SSTI false positives** — baseline comparison added to `analyzeResponse` to skip math results and expected outputs already present in normal page content
+- **Session fixation false positives** — scanner now checks if server actually set a session cookie before flagging fixation vulnerability
+- **IDOR false positives** — `testAccess` now reads response body and checks for access-denied patterns in 200 responses; horizontal privilege test compares response bodies for similarity
+- **Baseline capture timing** — `executor.go` now captures detection baseline after body is read, ensuring accurate `ContentLength`
+- **Request body replay on retry** — POST request bodies are re-created on retry attempts in executor (readers are consumed after first use)
+- **Silent ban detector** — `headerChanges` counter resets on successful response to prevent monotonic accumulation causing false ban detections
+- **Health monitor restart** — `stopCh` channel recreated on `Start()` to allow proper Stop/Start cycling
+- **Worker pool `Submit` on close** — recover from send-on-closed-channel panic when `Close()` races with `Submit()`; `ParallelFor` compensates `wg.Done()` for failed submits
+- **Crawler shutdown** — replaced polling `default` case with `atomic.Int64` in-flight counter for clean queue closure
+- **DNS brute-force rate limiting** — added `QueryDelay` config (default 50ms) to prevent DNS server throttling
+- **SOCKS proxy fallback** — explicit dialer initialization when SOCKS dialer creation fails (was silently nil)
+- **Proxy dial timeout** — fixed goroutine/connection leak by using channel-send-or-close pattern instead of select-after-send
+- **TLS transport leaks** — `DisableKeepAlives=true` and `CloseIdleConnections()` added to per-request JA3 and fallback transports
+- **Checkpoint defensive copy** — `Load()` returns deep copy of state to prevent external modification from racing with manager
+- **Distributed coordinator** — `GetNodes()`, `GetTasks()`, and `GetTask()` return deep copies to prevent callers from mutating internal state
+- **History store** — `Get()` and `List()` return deep copies of `ScanRecord` to prevent mutation of cached data
+- **OOB detector timeout** — `CheckInteractions` enforces 30-second context timeout to prevent hanging on unresponsive OOB servers
+- **Recon error propagation** — `FullScan` now returns aggregated errors via `errors.Join` instead of silently discarding them
+- **Mutation executor streaming** — `StreamResults` stats channel changed from synchronous return to buffered `<-chan *ExecutionStats` to prevent goroutine hangs
+- **Runner context cancellation** — `RunWithCallback` now waits for in-flight goroutines before returning on context cancellation
+
+### Improved
+
+- **Concurrent map safety** — added `sync.RWMutex` to encoder registry, metrics `Calculator`, evasion engine `rng`, and timing attack `rng`
+- **Deterministic iteration** — evasion engine `List()`, `ListByCategory()`, `GenerateVariants()`, and `generateChains()` now sort technique IDs for stable output
+- **JWT algorithm confusion** — expanded from RS256→HS256 only to all asymmetric algorithms (RS/ES/PS 256/384/512) → all HMAC variants
+- **CSRF token detection** — added `_csrf`, `nonce`, meta tag patterns, and `X-CSRFToken` header
+- **Command injection payloads** — added Windows pipe separator and 5 new output-based payloads (ipconfig, systeminfo, net user, echo pipe, tasklist)
+- **Mass assignment parameters** — added framework-specific parameters for Rails, Django, Spring, Laravel, and Node.js
+- **LFI payloads** — integrated null byte injection and Unicode/double-encoding payloads into main `Payloads()` function
+- **HPP payload encoding** — XSS and path traversal HPP payloads now use `url.QueryEscape` for proper encoding
+- **XSS reflection detection** — added NFKC Unicode normalization check for fullwidth character bypasses
+- **GraphQL introspection retry** — added backoff retry (3 attempts) for rate-limited or temporarily failing introspection queries
+- **Upload size enforcement** — `TestUpload` now checks payload size against `MaxFileSize` before building multipart request
+- **Cloud discovery** — added `ProviderAkamai` and `ProviderOracle` constants; fixed `NewAzureClient` parameter order
+- **Rate limiter in WAF detection** — `detectWAF` now calls `a.limiter.Wait(ctx)` before secondary probe request
+- **WebSocket validation** — `CheckWebSocket` and `TestOriginValidation` now verify `Sec-WebSocket-Accept` header per RFC 6455
+- **Intelligence predictor** — `PredictBatch` uses internal `predictLocked()` to avoid re-entrant RLock deadlock
+
+### Tests
+
+- Added 10 regression test files covering concurrency, URL mutation, crypto fallback, scoring, streaming, body reads, and workflow allowlist
+- Added 7 structural enforcement tests: crypto fallback, template HTML, body reads, math/rand in security paths, workflow allowlist, concurrent map access, HTTP body closure
+- Updated `cache_test.go` and `websocket_test.go` for new `(string, error)` signatures
+- Updated `ssti_test.go` for baseline parameter and adjusted `MaxPayloads` request count
+- Updated `ssrf_test.go` for stricter `isLocalResponse` body matching
+- Updated `scoring_test.go` for lowercase severity map keys and case-insensitive validation
+- Updated `distributed_test.go` to modify internal state directly instead of through defensive-copy getters
+- Cleared all structural test known-violation ratchet lists (17 violations → 0)
+
+---
+
 ## [2.7.0] - 2026-02-07
 
 ### Added
@@ -1404,4 +1471,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.3.3]: https://github.com/waftester/waftester/compare/v2.3.2...v2.3.3
 [2.3.2]: https://github.com/waftester/waftester/compare/v2.3.1...v2.3.2
 [2.3.1]: https://github.com/waftester/waftester/compare/v2.3.0...v2.3.1
+[2.7.1]: https://github.com/waftester/waftester/compare/v2.7.0...v2.7.1
 [2.3.0]: https://github.com/waftester/waftester/releases/tag/v2.3.0

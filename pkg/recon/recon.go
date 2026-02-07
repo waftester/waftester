@@ -6,6 +6,7 @@ package recon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -208,6 +209,10 @@ func (s *Scanner) FullScan(ctx context.Context, targetURL string) (*FullReconRes
 		} else {
 			result.JA3Profile = "rotating"
 		}
+	}
+
+	if len(errs) > 0 {
+		return result, errors.Join(errs...)
 	}
 
 	return result, nil

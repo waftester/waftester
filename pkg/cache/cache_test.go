@@ -64,8 +64,14 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestGenerateCacheBuster(t *testing.T) {
-	buster1 := generateCacheBuster()
-	buster2 := generateCacheBuster()
+	buster1, err1 := generateCacheBuster()
+	if err1 != nil {
+		t.Fatalf("generateCacheBuster failed: %v", err1)
+	}
+	buster2, err2 := generateCacheBuster()
+	if err2 != nil {
+		t.Fatalf("generateCacheBuster failed: %v", err2)
+	}
 
 	if buster1 == "" {
 		t.Error("expected non-empty cache buster")

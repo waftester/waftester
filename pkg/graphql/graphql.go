@@ -306,7 +306,25 @@ func (t *Tester) TestIntrospection(ctx context.Context) (*Vulnerability, *Schema
 	// Full introspection query
 	query := IntrospectionQuery()
 
-	resp, statusCode, err := t.SendQuery(ctx, query, nil)
+	// Retry introspection with backoff for rate limiting / temporary errors
+	var resp *Response
+	var statusCode int
+	var err error
+	const maxRetries = 3
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			backoff := time.Duration(attempt) * time.Second
+			select {
+			case <-ctx.Done():
+				return nil, nil, ctx.Err()
+			case <-time.After(backoff):
+			}
+		}
+		resp, statusCode, err = t.SendQuery(ctx, query, nil)
+		if err == nil && statusCode != http.StatusTooManyRequests && statusCode != http.StatusServiceUnavailable {
+			break
+		}
+	}
 	if err != nil {
 		return nil, nil, err
 	}

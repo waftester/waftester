@@ -512,43 +512,34 @@ func GenerateReport(vulns []Vulnerability) map[string]interface{} {
 }
 
 // GenerateState generates a secure random state value.
-func GenerateState() string {
+func GenerateState() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		// Fallback: time-based (not cryptographically secure but better than deterministic)
-		for i := range b {
-			b[i] = byte(i ^ int(time.Now().UnixNano()>>(i%8)))
-		}
+		return "", fmt.Errorf("failed to generate secure state: %w", err)
 	}
-	return base64.URLEncoding.EncodeToString(b)
+	return base64.URLEncoding.EncodeToString(b), nil
 }
 
 // GenerateNonce generates a secure random nonce.
-func GenerateNonce() string {
+func GenerateNonce() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		// Fallback: time-based
-		for i := range b {
-			b[i] = byte((i * 11) ^ int(time.Now().UnixNano()>>(i%8)))
-		}
+		return "", fmt.Errorf("failed to generate secure nonce: %w", err)
 	}
-	return base64.URLEncoding.EncodeToString(b)
+	return base64.URLEncoding.EncodeToString(b), nil
 }
 
 // GeneratePKCEPair generates code_verifier and code_challenge.
-func GeneratePKCEPair() (verifier, challenge string) {
+func GeneratePKCEPair() (verifier, challenge string, err error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		// Fallback: time-based
-		for i := range b {
-			b[i] = byte((i * 13) ^ int(time.Now().UnixNano()>>(i%8)))
-		}
+		return "", "", fmt.Errorf("failed to generate PKCE pair: %w", err)
 	}
 	verifier = base64.RawURLEncoding.EncodeToString(b)
 
 	h := sha256.Sum256([]byte(verifier))
 	challenge = base64.RawURLEncoding.EncodeToString(h[:])
-	return
+	return verifier, challenge, nil
 }
 
 // ValidateState validates that a state matches expected value.

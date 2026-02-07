@@ -181,6 +181,22 @@ func (s *Store) Save(record *ScanRecord) error {
 	return s.saveIndex()
 }
 
+// copyScanRecord creates a deep copy of a ScanRecord.
+func copyScanRecord(r *ScanRecord) *ScanRecord {
+	c := *r
+	if r.CategoryScores != nil {
+		c.CategoryScores = make(map[string]float64, len(r.CategoryScores))
+		for k, v := range r.CategoryScores {
+			c.CategoryScores[k] = v
+		}
+	}
+	if r.Tags != nil {
+		c.Tags = make([]string, len(r.Tags))
+		copy(c.Tags, r.Tags)
+	}
+	return &c
+}
+
 // Get retrieves a scan record by ID.
 func (s *Store) Get(id string) (*ScanRecord, error) {
 	s.mu.RLock()
@@ -190,7 +206,7 @@ func (s *Store) Get(id string) (*ScanRecord, error) {
 	if !ok {
 		return nil, errors.New("scan not found")
 	}
-	return record, nil
+	return copyScanRecord(record), nil
 }
 
 // List retrieves scan records for a target within a time range.
@@ -206,7 +222,7 @@ func (s *Store) List(targetURL string, since, until time.Time, limit int) ([]*Sc
 		if record.Timestamp.Before(since) || record.Timestamp.After(until) {
 			continue
 		}
-		records = append(records, record)
+		records = append(records, copyScanRecord(record))
 	}
 
 	// Sort by timestamp descending

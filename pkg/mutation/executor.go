@@ -641,22 +641,24 @@ func (e *Executor) FullScan(ctx context.Context, payloads []string, handler Resu
 	return e.Execute(ctx, tasks, handler)
 }
 
-// StreamResults writes results to a channel for streaming output
-func (e *Executor) StreamResults(ctx context.Context, tasks []MutationTask) (<-chan *TestResult, *ExecutionStats) {
+// StreamResults writes results to a channel for streaming output.
+// The returned stats channel receives exactly one value when execution completes.
+func (e *Executor) StreamResults(ctx context.Context, tasks []MutationTask) (<-chan *TestResult, <-chan *ExecutionStats) {
 	resultChan := make(chan *TestResult, 100)
+	statsChan := make(chan *ExecutionStats, 1)
 
-	var stats *ExecutionStats
 	go func() {
 		defer close(resultChan)
-		stats = e.Execute(ctx, tasks, func(r *TestResult) {
+		stats := e.Execute(ctx, tasks, func(r *TestResult) {
 			select {
 			case resultChan <- r:
 			case <-ctx.Done():
 			}
 		})
+		statsChan <- stats
 	}()
 
-	return resultChan, stats
+	return resultChan, statsChan
 }
 
 // CountCombinations returns the expected number of test combinations

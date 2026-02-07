@@ -10,7 +10,9 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -96,6 +98,7 @@ type Engine struct {
 	config     *Config
 	techniques map[string]*Technique
 	rng        *rand.Rand
+	rngMu      sync.Mutex
 }
 
 // NewEngine creates a new evasion engine.
@@ -269,18 +272,30 @@ func (e *Engine) Get(id string) (*Technique, bool) {
 
 // List returns all registered techniques.
 func (e *Engine) List() []*Technique {
-	var result []*Technique
-	for _, t := range e.techniques {
-		result = append(result, t)
+	ids := make([]string, 0, len(e.techniques))
+	for id := range e.techniques {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+
+	result := make([]*Technique, 0, len(e.techniques))
+	for _, id := range ids {
+		result = append(result, e.techniques[id])
 	}
 	return result
 }
 
 // ListByCategory returns techniques in a category.
 func (e *Engine) ListByCategory(cat Category) []*Technique {
+	ids := make([]string, 0, len(e.techniques))
+	for id := range e.techniques {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+
 	var result []*Technique
-	for _, t := range e.techniques {
-		if t.Category == cat {
+	for _, id := range ids {
+		if t := e.techniques[id]; t.Category == cat {
 			result = append(result, t)
 		}
 	}
@@ -335,8 +350,15 @@ func (e *Engine) GenerateVariants(payload string, maxVariants int) []*Variant {
 	})
 	seen[payload] = true
 
-	// Single technique variants
-	for id, t := range e.techniques {
+	// Single technique variants (sorted for deterministic ordering)
+	techniqueIDs := make([]string, 0, len(e.techniques))
+	for id := range e.techniques {
+		techniqueIDs = append(techniqueIDs, id)
+	}
+	sort.Strings(techniqueIDs)
+
+	for _, id := range techniqueIDs {
+		t := e.techniques[id]
 		if !t.Enabled || t.Transform == nil {
 			continue
 		}
@@ -409,10 +431,14 @@ func (e *Engine) generateChains(depth int) [][]string {
 			ids = append(ids, id)
 		}
 	}
+	sort.Strings(ids)
 
 	if len(ids) < depth {
 		return nil
 	}
+
+	e.rngMu.Lock()
+	defer e.rngMu.Unlock()
 
 	var chains [][]string
 	for i := 0; i < 20 && len(chains) < 10; i++ {
@@ -515,6 +541,7 @@ type TimingAttack struct {
 	FinalDelay   time.Duration
 	RandomJitter time.Duration
 	rng          *rand.Rand
+	rngMu        sync.Mutex
 }
 
 // NewTimingAttack creates a new timing attack.
@@ -556,7 +583,10 @@ func (ta *TimingAttack) jitter() time.Duration {
 	if ta.RandomJitter <= 0 {
 		return 0
 	}
-	return time.Duration(ta.rng.Int63n(int64(ta.RandomJitter)))
+	ta.rngMu.Lock()
+	n := ta.rng.Int63n(int64(ta.RandomJitter))
+	ta.rngMu.Unlock()
+	return time.Duration(n)
 }
 
 // HTTPSmuggling implements HTTP request smuggling techniques.

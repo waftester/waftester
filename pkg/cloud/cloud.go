@@ -25,6 +25,8 @@ const (
 	ProviderAzure        Provider = "azure"
 	ProviderDigitalOcean Provider = "digitalocean"
 	ProviderCloudflare   Provider = "cloudflare"
+	ProviderAkamai       Provider = "akamai"
+	ProviderOracle       Provider = "oracle"
 )
 
 // Resource represents a discovered cloud resource
@@ -141,7 +143,7 @@ func (d *Discoverer) Discover(ctx context.Context, req DiscoveryRequest) (*Disco
 						clientID := d.config.Credentials["azure_client_id"]
 						clientSecret := d.config.Credentials["azure_client_secret"]
 						subID := d.config.Credentials["azure_subscription_id"]
-						client := NewAzureClient(tenantID, clientID, clientSecret, subID)
+						client := NewAzureClient(subID, tenantID, clientID, clientSecret)
 						d.manager.RegisterClient(client)
 					}
 				}

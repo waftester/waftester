@@ -798,3 +798,569 @@ func TestPreCommitHookChecksIdentity(t *testing.T) {
 
 	t.Log("✅ pre-commit hook checks for authorized identity before committing")
 }
+
+// =============================================================================
+// BUG-CLASS PREVENTION TESTS
+// =============================================================================
+//
+// These tests scan the codebase for anti-patterns that caused bugs we fixed.
+// They prevent regression by detecting the pattern at the structural level,
+// ensuring the entire codebase stays clean — not just the files we fixed.
+
+// TestNoInsecureCryptoFallback verifies that files importing crypto/rand do not
+// use time.Now().UnixNano() as a fallback RNG seed. We fixed this pattern in
+// the oauth package where a time-based seed was used when crypto/rand failed.
+func TestNoInsecureCryptoFallback(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	pkgDir := filepath.Join(repoRoot, "pkg")
+
+	// Directories that legitimately need timestamps (not for RNG)
+	skipDirs := map[string]bool{
+		"duration":  true,
+		"benchmark": true,
+		"metrics":   true,
+	}
+
+	// Known pre-existing violations tracked for future cleanup.
+	// Removing entries from this list is allowed; adding is NOT.
+	// When a violation is fixed, remove it and the test ensures no regression.
+	knownViolations := map[string]bool{}
+
+	var newViolations []string
+	var knownFound []string
+
+	err := filepath.Walk(pkgDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			rel, _ := filepath.Rel(pkgDir, path)
+			topDir := strings.SplitN(filepath.ToSlash(rel), "/", 2)[0]
+			if skipDirs[topDir] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(info.Name(), ".go") || strings.HasSuffix(info.Name(), "_test.go") {
+			return nil
+		}
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		src := string(content)
+
+		importsCryptoRand := strings.Contains(src, `"crypto/rand"`)
+		hasTimeNano := strings.Contains(src, "time.Now().UnixNano()")
+
+		if importsCryptoRand && hasTimeNano {
+			rel, _ := filepath.Rel(repoRoot, path)
+			relSlash := filepath.ToSlash(rel)
+			if knownViolations[relSlash] {
+				knownFound = append(knownFound, relSlash)
+			} else {
+				newViolations = append(newViolations, relSlash)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("failed to walk pkg/: %v", err)
+	}
+
+	if len(knownFound) > 0 {
+		t.Logf("INFO: %d known pre-existing crypto fallback violation(s) (tracked for future cleanup):", len(knownFound))
+		for _, v := range knownFound {
+			t.Logf("  ⚠ %s", v)
+		}
+	}
+
+	if len(newViolations) > 0 {
+		t.Errorf("SECURITY: %d NEW file(s) import crypto/rand but also use time.Now().UnixNano() as fallback RNG:", len(newViolations))
+		for _, v := range newViolations {
+			t.Errorf("  ✗ %s", v)
+		}
+		t.Error("Fix: Remove time-based fallback. If crypto/rand fails, return an error instead.")
+	} else {
+		t.Log("✅ No new insecure crypto/rand fallback patterns found")
+	}
+}
+
+// TestNoUnsafeTemplateHTML verifies that files using template.HTML() also use
+// proper escaping. We fixed this in report/html_report.go where raw user
+// content was cast to template.HTML without escaping, enabling stored XSS.
+func TestNoUnsafeTemplateHTML(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	pkgDir := filepath.Join(repoRoot, "pkg")
+
+	templateHTMLPattern := regexp.MustCompile(`template\.HTML\(`)
+	escapePattern := regexp.MustCompile(`(?:html\.EscapeString|template\.HTMLEscapeString)`)
+
+	var violations []string
+
+	err := filepath.Walk(pkgDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() || !strings.HasSuffix(info.Name(), ".go") {
+			return nil
+		}
+		if strings.HasSuffix(info.Name(), "_test.go") {
+			return nil
+		}
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		src := string(content)
+
+		// Only check files that import html/template
+		if !strings.Contains(src, `"html/template"`) {
+			return nil
+		}
+
+		// If the file uses template.HTML(), it must also use an escape function
+		if templateHTMLPattern.MatchString(src) && !escapePattern.MatchString(src) {
+			rel, _ := filepath.Rel(repoRoot, path)
+			violations = append(violations, filepath.ToSlash(rel))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("failed to walk pkg/: %v", err)
+	}
+
+	if len(violations) > 0 {
+		t.Errorf("SECURITY: %d file(s) use template.HTML() without html.EscapeString or template.HTMLEscapeString:", len(violations))
+		for _, v := range violations {
+			t.Errorf("  ✗ %s", v)
+		}
+		t.Error("Fix: Wrap user-supplied content with html.EscapeString() before casting to template.HTML()")
+	} else {
+		t.Log("✅ All template.HTML() usages are paired with escape functions")
+	}
+}
+
+// TestNoSingleBodyRead verifies that HTTP response bodies are read completely
+// using io.ReadAll, io.Copy, or iohelper helpers — not partial .Body.Read()
+// calls. Also flags deprecated ioutil.ReadAll usage.
+func TestNoSingleBodyRead(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	pkgDir := filepath.Join(repoRoot, "pkg")
+
+	// Directories that legitimately use raw body reads
+	skipDirs := map[string]bool{
+		"httpclient": true,
+	}
+
+	// Known pre-existing violations tracked for future cleanup.
+	// Removing entries from this list is allowed; adding is NOT.
+	knownBodyReadViolations := map[string]bool{}
+
+	// Files that use .Body.Read() in streaming for-loops (legitimate pattern)
+	streamingReaders := map[string]bool{
+		"pkg/core/executor.go": true, // chunked read into bufpool with size limit
+		"pkg/fuzz/fuzzer.go":   true, // streaming read into bufpool with 1MB limit
+	}
+
+	bodyReadPattern := regexp.MustCompile(`\.Body\.Read\(`)
+	ioutilReadAll := regexp.MustCompile(`ioutil\.ReadAll`)
+
+	var newBodyReadViolations []string
+	var knownBodyReadFound []string
+	var ioutilViolations []string
+
+	err := filepath.Walk(pkgDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			rel, _ := filepath.Rel(pkgDir, path)
+			topDir := strings.SplitN(filepath.ToSlash(rel), "/", 2)[0]
+			if skipDirs[topDir] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(info.Name(), ".go") || strings.HasSuffix(info.Name(), "_test.go") {
+			return nil
+		}
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		src := string(content)
+		rel, _ := filepath.Rel(repoRoot, path)
+		relSlash := filepath.ToSlash(rel)
+
+		if bodyReadPattern.MatchString(src) && !streamingReaders[relSlash] {
+			if knownBodyReadViolations[relSlash] {
+				knownBodyReadFound = append(knownBodyReadFound, relSlash)
+			} else {
+				newBodyReadViolations = append(newBodyReadViolations, relSlash)
+			}
+		}
+		if ioutilReadAll.MatchString(src) {
+			ioutilViolations = append(ioutilViolations, relSlash)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("failed to walk pkg/: %v", err)
+	}
+
+	if len(knownBodyReadFound) > 0 {
+		t.Logf("INFO: %d known pre-existing .Body.Read() violation(s) (tracked for future cleanup):", len(knownBodyReadFound))
+		for _, v := range knownBodyReadFound {
+			t.Logf("  ⚠ %s", v)
+		}
+	}
+
+	if len(newBodyReadViolations) > 0 {
+		t.Errorf("%d NEW file(s) use .Body.Read() (partial read) instead of io.ReadAll/iohelper:", len(newBodyReadViolations))
+		for _, v := range newBodyReadViolations {
+			t.Errorf("  ✗ %s", v)
+		}
+		t.Error("Fix: Use io.ReadAll(resp.Body) or iohelper.ReadBody/DrainAndClose instead of resp.Body.Read()")
+	}
+
+	if len(ioutilViolations) > 0 {
+		t.Errorf("%d file(s) use deprecated ioutil.ReadAll instead of io.ReadAll:", len(ioutilViolations))
+		for _, v := range ioutilViolations {
+			t.Errorf("  ✗ %s", v)
+		}
+		t.Error("Fix: Replace ioutil.ReadAll with io.ReadAll (available since Go 1.16)")
+	}
+
+	if len(newBodyReadViolations) == 0 && len(ioutilViolations) == 0 {
+		t.Log("✅ No new partial body reads or deprecated ioutil usage found")
+	}
+}
+
+// TestNoMathRandInSecurityPaths verifies that security-sensitive packages use
+// crypto/rand instead of math/rand. We fixed this across oauth, jwt, csrf,
+// and other packages that were using predictable random number generation.
+func TestNoMathRandInSecurityPaths(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+
+	securityPackages := []string{
+		"oauth",
+		"jwt",
+		"csrf",
+		"brokenauth",
+		"cryptofailure",
+		"tls",
+		"ssrf",
+	}
+
+	mathRandImport := regexp.MustCompile(`"math/rand(?:/v2)?"`)
+
+	for _, pkg := range securityPackages {
+		t.Run(pkg, func(t *testing.T) {
+			pkgPath := filepath.Join(repoRoot, "pkg", pkg)
+
+			info, err := os.Stat(pkgPath)
+			if err != nil || !info.IsDir() {
+				t.Skipf("pkg/%s does not exist", pkg)
+				return
+			}
+
+			entries, err := os.ReadDir(pkgPath)
+			if err != nil {
+				t.Fatalf("failed to read pkg/%s: %v", pkg, err)
+			}
+
+			var violations []string
+			for _, entry := range entries {
+				if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") {
+					continue
+				}
+				// Test files may use math/rand for test data generation
+				if strings.HasSuffix(entry.Name(), "_test.go") {
+					continue
+				}
+
+				filePath := filepath.Join(pkgPath, entry.Name())
+				content, err := os.ReadFile(filePath)
+				if err != nil {
+					continue
+				}
+
+				if mathRandImport.MatchString(string(content)) {
+					violations = append(violations, entry.Name())
+				}
+			}
+
+			if len(violations) > 0 {
+				t.Errorf("SECURITY: pkg/%s has %d file(s) importing math/rand instead of crypto/rand:", pkg, len(violations))
+				for _, v := range violations {
+					t.Errorf("  ✗ pkg/%s/%s", pkg, v)
+				}
+				t.Error("Fix: Replace math/rand with crypto/rand for security-sensitive operations")
+			} else {
+				t.Logf("✅ pkg/%s uses only crypto/rand", pkg)
+			}
+		})
+	}
+}
+
+// TestWorkflowAllowlistNoScriptingLanguages verifies the workflow command allowlist
+// does not contain scripting language interpreters that could enable arbitrary code
+// execution. We fixed this after python/python3 were found in the allowlist.
+func TestWorkflowAllowlistNoScriptingLanguages(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	workflowPath := filepath.Join(repoRoot, "pkg", "workflow", "workflow.go")
+
+	content, err := os.ReadFile(workflowPath)
+	if err != nil {
+		t.Fatalf("failed to read workflow.go: %v", err)
+	}
+
+	src := string(content)
+
+	// Extract the allowedCommands map block
+	allowlistStart := strings.Index(src, "allowedCommands := map[string]bool{")
+	if allowlistStart == -1 {
+		t.Fatal("could not find allowedCommands map in workflow.go")
+	}
+
+	// Find the closing brace of the map
+	depth := 0
+	allowlistEnd := allowlistStart
+	for i := allowlistStart; i < len(src); i++ {
+		if src[i] == '{' {
+			depth++
+		} else if src[i] == '}' {
+			depth--
+			if depth == 0 {
+				allowlistEnd = i + 1
+				break
+			}
+		}
+	}
+	allowlistBlock := src[allowlistStart:allowlistEnd]
+
+	// Scripting interpreters that MUST NOT be in the allowlist
+	forbiddenCommands := []struct {
+		cmd    string
+		reason string
+	}{
+		{"python", "arbitrary Python code execution"},
+		{"python3", "arbitrary Python code execution"},
+		{"ruby", "arbitrary Ruby code execution"},
+		{"perl", "arbitrary Perl code execution"},
+		{"php", "arbitrary PHP code execution"},
+		{"node", "arbitrary Node.js code execution"},
+		{"lua", "arbitrary Lua code execution"},
+		{"bash", "arbitrary shell script execution"},
+	}
+
+	for _, fc := range forbiddenCommands {
+		// Match exact key entry like: "python": true, or "python":  true,
+		pattern := regexp.MustCompile(`"` + regexp.QuoteMeta(fc.cmd) + `"\s*:`)
+		if pattern.MatchString(allowlistBlock) {
+			t.Errorf("SECURITY: allowedCommands contains %q — enables %s", fc.cmd, fc.reason)
+		}
+	}
+
+	// Safe utilities that MUST be in the allowlist
+	requiredCommands := []string{
+		"echo",
+		"grep",
+		"jq",
+		"curl",
+	}
+
+	for _, rc := range requiredCommands {
+		pattern := regexp.MustCompile(`"` + regexp.QuoteMeta(rc) + `"\s*:`)
+		if !pattern.MatchString(allowlistBlock) {
+			t.Errorf("allowedCommands is missing required safe utility %q", rc)
+		}
+	}
+
+	t.Log("✅ workflow allowedCommands has no scripting language interpreters")
+}
+
+// TestConcurrentAccessHasMutex verifies that files launching goroutines while
+// using maps also include synchronization primitives. We fixed unprotected
+// concurrent map access in encoding (registry), metrics (Calculator fields),
+// and detection (hostMetrics map).
+func TestConcurrentAccessHasMutex(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	pkgDir := filepath.Join(repoRoot, "pkg")
+
+	goroutinePattern := regexp.MustCompile(`go\s+(?:func\s*\(|[a-zA-Z_][a-zA-Z0-9_.]*\()`)
+	mapPattern := regexp.MustCompile(`map\[`)
+	syncPattern := regexp.MustCompile(`sync\.(?:Mutex|RWMutex|Map)`)
+	channelPattern := regexp.MustCompile(`(?:make\(chan\s|<-\s*chan\s|chan\s+[a-zA-Z])`)
+
+	// Files that only use maps for static/immutable data or in init()
+	skipFiles := map[string]bool{
+		"defaults.go": true,
+	}
+
+	// Known pre-existing violations tracked for future cleanup.
+	// Removing entries from this list is allowed; adding is NOT.
+	knownViolations := map[string]bool{}
+
+	var newViolations []string
+	var knownFound []string
+
+	err := filepath.Walk(pkgDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() || !strings.HasSuffix(info.Name(), ".go") {
+			return nil
+		}
+		if strings.HasSuffix(info.Name(), "_test.go") || skipFiles[info.Name()] {
+			return nil
+		}
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		src := string(content)
+
+		hasGoroutines := goroutinePattern.MatchString(src)
+		hasMaps := mapPattern.MatchString(src)
+		hasSync := syncPattern.MatchString(src)
+		hasChannels := channelPattern.MatchString(src)
+
+		if hasGoroutines && hasMaps && !hasSync && !hasChannels {
+			rel, _ := filepath.Rel(repoRoot, path)
+			relSlash := filepath.ToSlash(rel)
+			if knownViolations[relSlash] {
+				knownFound = append(knownFound, relSlash)
+			} else {
+				newViolations = append(newViolations, relSlash)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("failed to walk pkg/: %v", err)
+	}
+
+	if len(knownFound) > 0 {
+		t.Logf("INFO: %d known pre-existing concurrent map violation(s) (tracked for future cleanup):", len(knownFound))
+		for _, v := range knownFound {
+			t.Logf("  ⚠ %s", v)
+		}
+	}
+
+	if len(newViolations) > 0 {
+		t.Errorf("RACE CONDITION RISK: %d NEW file(s) launch goroutines and use maps without sync primitives:", len(newViolations))
+		for _, v := range newViolations {
+			t.Errorf("  ✗ %s", v)
+		}
+		t.Error("Fix: Add sync.Mutex, sync.RWMutex, or sync.Map to protect concurrent map access")
+	} else {
+		t.Log("✅ No new concurrent map access violations found")
+	}
+}
+
+// TestHTTPResponseBodyClosed verifies that files making HTTP requests also close
+// the response body. We fixed resource leaks in httpclient/proxy.go, tls/ja3.go,
+// and other packages that failed to close response bodies.
+func TestHTTPResponseBodyClosed(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	pkgDir := filepath.Join(repoRoot, "pkg")
+
+	// Directories that manage their own HTTP lifecycle
+	skipDirs := map[string]bool{
+		"httpclient": true,
+	}
+
+	// HTTP call detection: exclude sync.Once.Do(func()) which also matches .Do(
+	doPattern := regexp.MustCompile(`\.Do\(`)
+	onceFuncPattern := regexp.MustCompile(`\.Do\(func\(`)
+	otherHTTPPattern := regexp.MustCompile(`http\.(?:Get|Post|PostForm|Head)\(`)
+	// Body closure: iohelper helpers handle close internally (no defer needed)
+	helperClosePattern := regexp.MustCompile(`iohelper\.(?:DrainAndClose|ReadBody)`)
+	manualClosePattern := regexp.MustCompile(`(?:\.Body\.Close\(\)|io\.Copy\(io\.Discard)`)
+	deferPattern := regexp.MustCompile(`defer\s`)
+
+	// Known pre-existing violations tracked for future cleanup.
+	// Removing entries from this list is allowed; adding is NOT.
+	knownViolations := map[string]bool{}
+
+	var newViolations []string
+	var knownFound []string
+
+	err := filepath.Walk(pkgDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			rel, _ := filepath.Rel(pkgDir, path)
+			topDir := strings.SplitN(filepath.ToSlash(rel), "/", 2)[0]
+			if skipDirs[topDir] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(info.Name(), ".go") || strings.HasSuffix(info.Name(), "_test.go") {
+			return nil
+		}
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		src := string(content)
+
+		// Only check files that import net/http
+		if !strings.Contains(src, `"net/http"`) {
+			return nil
+		}
+
+		// Check if file makes real HTTP requests (exclude sync.Once.Do(func()))
+		doCount := len(doPattern.FindAllString(src, -1))
+		onceCount := len(onceFuncPattern.FindAllString(src, -1))
+		if doCount <= onceCount && !otherHTTPPattern.MatchString(src) {
+			return nil
+		}
+
+		// Check body closure: iohelper helpers handle close internally (no defer needed),
+		// manual .Body.Close() requires defer for safety
+		hasHelper := helperClosePattern.MatchString(src)
+		hasManualClose := manualClosePattern.MatchString(src)
+		hasDefer := deferPattern.MatchString(src)
+
+		if !hasHelper && !(hasManualClose && hasDefer) {
+			rel, _ := filepath.Rel(repoRoot, path)
+			relSlash := filepath.ToSlash(rel)
+			if knownViolations[relSlash] {
+				knownFound = append(knownFound, relSlash)
+			} else {
+				newViolations = append(newViolations, relSlash)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("failed to walk pkg/: %v", err)
+	}
+
+	if len(knownFound) > 0 {
+		t.Logf("INFO: %d known pre-existing HTTP body closure violation(s) (tracked for future cleanup):", len(knownFound))
+		for _, v := range knownFound {
+			t.Logf("  ⚠ %s", v)
+		}
+	}
+
+	if len(newViolations) > 0 {
+		t.Errorf("RESOURCE LEAK: %d NEW file(s) make HTTP requests without proper body closure:", len(newViolations))
+		for _, v := range newViolations {
+			t.Errorf("  ✗ %s", v)
+		}
+		t.Error("Fix: Add defer resp.Body.Close() or defer iohelper.DrainAndClose(resp) after HTTP calls")
+	} else {
+		t.Log("✅ No new HTTP response body closure violations found")
+	}
+}

@@ -4,6 +4,7 @@ package checkpoint
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -82,23 +83,51 @@ func (m *Manager) Init(command string, targets []string, flags map[string]interf
 	}
 }
 
-// Load loads checkpoint state from file
+// Load loads checkpoint state from file.
+// The returned State is a defensive copy; callers may read it without
+// synchronization, but modifications will not affect the manager.
 func (m *Manager) Load() (*State, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	data, err := os.ReadFile(m.FilePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading checkpoint %s: %w", m.FilePath, err)
 	}
 
 	var state State
 	if err := json.Unmarshal(data, &state); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parsing checkpoint: %w", err)
+	}
+
+	// Ensure the Completed map is initialized
+	if state.Completed == nil {
+		state.Completed = make(map[string]bool)
 	}
 
 	m.state = &state
-	return &state, nil
+
+	// Return a defensive copy to prevent external modification
+	// from racing with internal manager operations.
+	completedCopy := make(map[string]bool, len(state.Completed))
+	for k, v := range state.Completed {
+		completedCopy[k] = v
+	}
+	flagsCopy := make(map[string]interface{}, len(state.Flags))
+	for k, v := range state.Flags {
+		flagsCopy[k] = v
+	}
+
+	return &State{
+		Version:          state.Version,
+		Command:          state.Command,
+		StartTime:        state.StartTime,
+		LastUpdate:       state.LastUpdate,
+		TotalTargets:     state.TotalTargets,
+		CompletedTargets: state.CompletedTargets,
+		Completed:        completedCopy,
+		Flags:            flagsCopy,
+	}, nil
 }
 
 // Save saves the current checkpoint state to file
