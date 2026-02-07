@@ -1,0 +1,31 @@
+# ===========================================================================
+# docker-compose.yml — WAFtester MCP Server (local development)
+#
+# Usage:
+#   docker compose up --build          # build & start
+#   docker compose up -d               # detached mode
+#   docker compose logs -f waftester   # stream logs
+#   docker compose down                # stop & remove
+# ===========================================================================
+
+services:
+  waftester:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+        COMMIT: ${COMMIT:-local}
+        BUILD_DATE: ${BUILD_DATE:-}
+    image: ghcr.io/waftester/waftester:local
+    container_name: waftester-mcp
+    ports:
+      - "8080:8080"
+    # Health: distroless has no shell/curl — check externally:
+    #   curl -s http://localhost:8080/health
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true

@@ -152,14 +152,41 @@ Requires Go 1.22 or later.
 go install github.com/waftester/waftester/cmd/cli@latest
 ```
 
+### Docker
+
+Multi-architecture images (`linux/amd64`, `linux/arm64`) are published to GitHub Container Registry.
+
+```bash
+# Pull the latest image
+docker pull ghcr.io/waftester/waftester:latest
+
+# Run the MCP server on port 8080
+docker run -p 8080:8080 ghcr.io/waftester/waftester
+
+# Run a scan directly
+docker run --rm ghcr.io/waftester/waftester scan -u https://example.com
+
+# Docker Compose (local build)
+docker compose up --build
+```
+
+Available image tags:
+
+| Tag | Description |
+|-----|-------------|
+| `latest` | Latest stable release |
+| `1.2.3` | Exact version |
+| `1.2`, `1` | Minor/major aliases |
+| `edge` | Latest `main` branch build |
+| `sha-abc1234` | Specific commit |
+
+The image runs as non-root on a read-only distroless base (~5 MB). See [docs/INSTALLATION.md](docs/INSTALLATION.md#docker) for Docker Compose, Kubernetes, and environment variable configuration.
+
 ### Package Managers
 
 ```bash
 # macOS
 brew install waftester
-
-# Docker
-docker pull ghcr.io/waftester/waftester
 ```
 
 ### Binary Releases
@@ -462,6 +489,7 @@ For complete MCP examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md#mcp-server-in
 | MCP Tools | 10 |
 | MCP Resources | 8 |
 | MCP Prompts | 5 |
+| Docker Architectures | linux/amd64, linux/arm64 |
 
 ---
 
@@ -470,8 +498,9 @@ For complete MCP examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md#mcp-server-in
 | Resource | Description |
 |----------|-------------|
 | [Examples Guide](docs/EXAMPLES.md) | Comprehensive usage examples |
-| [Installation](docs/INSTALLATION.md) | Installation methods |
+| [Installation](docs/INSTALLATION.md) | Installation methods (Go, Docker, binary) |
 | [MCP Server](docs/EXAMPLES.md#mcp-server-integration) | AI agent integration guide |
+| [Docker](docs/INSTALLATION.md#docker) | Container deployment guide |
 | [Contributing](CONTRIBUTING.md) | Contribution guidelines |
 | [Changelog](CHANGELOG.md) | Version history |
 | [Security](SECURITY.md) | Security policy |
