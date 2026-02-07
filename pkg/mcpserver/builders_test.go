@@ -300,7 +300,7 @@ func TestBuildBypassResponse_ZeroTested(t *testing.T) {
 	args := bypassArgs{Target: "https://example.com"}
 	resp := buildBypassResponse(result, args)
 
-	// Should not panic with zero tested  
+	// Should not panic with zero tested
 	if resp.Summary == "" {
 		t.Error("summary should not be empty even with zero tests")
 	}
