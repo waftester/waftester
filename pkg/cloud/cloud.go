@@ -42,9 +42,9 @@ type Resource struct {
 	Tags         map[string]string `json:"tags,omitempty"`
 	Metadata     map[string]string `json:"metadata,omitempty"`
 	DiscoveredAt time.Time         `json:"discovered_at"`
-	Accessible   bool              `json:"accessible,omitempty"`   // Whether resource is publicly accessible
-	URL          string            `json:"url,omitempty"`          // Primary URL for the resource
-	Details      map[string]string `json:"details,omitempty"`      // Additional resource details
+	Accessible   bool              `json:"accessible,omitempty"` // Whether resource is publicly accessible
+	URL          string            `json:"url,omitempty"`        // Primary URL for the resource
+	Details      map[string]string `json:"details,omitempty"`    // Additional resource details
 }
 
 // ResourceType represents a type of cloud resource
@@ -86,9 +86,9 @@ type DiscoveryRequest struct {
 	Types     []ResourceType // Resource types to discover
 	Regions   []string       // Regions to scan
 	Tags      map[string]string
-	Domain    string           // Target domain
-	OrgName   string           // Organization name
-	Providers []Provider       // Cloud providers to scan
+	Domain    string     // Target domain
+	OrgName   string     // Organization name
+	Providers []Provider // Cloud providers to scan
 }
 
 // DiscoveryResults holds the results of a cloud discovery
