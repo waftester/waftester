@@ -16,6 +16,7 @@ import (
 	"github.com/waftester/waftester/pkg/core"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/discovery"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/learning"
 	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/mutation"
@@ -1159,12 +1160,12 @@ type scanArgs struct {
 }
 
 type scanResultSummary struct {
-	Summary        string                  `json:"summary"`
-	Target         string                  `json:"target"`
-	DetectionRate  string                  `json:"detection_rate"`
-	Interpretation string                  `json:"interpretation"`
+	Summary        string                   `json:"summary"`
+	Target         string                   `json:"target"`
+	DetectionRate  string                   `json:"detection_rate"`
+	Interpretation string                   `json:"interpretation"`
 	Results        *output.ExecutionResults `json:"results"`
-	NextSteps      []string                `json:"next_steps"`
+	NextSteps      []string                 `json:"next_steps"`
 }
 
 func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -1524,10 +1525,10 @@ func (s *Server) handleAssess(ctx context.Context, req *mcp.CallToolRequest) (*m
 
 // assessResponse wraps EnterpriseMetrics with narrative context for AI agents.
 type assessResponse struct {
-	Summary        string                    `json:"summary"`
-	Interpretation string                    `json:"interpretation"`
+	Summary        string                     `json:"summary"`
+	Interpretation string                     `json:"interpretation"`
 	Metrics        *metrics.EnterpriseMetrics `json:"metrics"`
-	NextSteps      []string                  `json:"next_steps"`
+	NextSteps      []string                   `json:"next_steps"`
 }
 
 func buildAssessResponse(m *metrics.EnterpriseMetrics, target string) *assessResponse {
@@ -2101,24 +2102,18 @@ func probeTarget(ctx context.Context, target string, timeout time.Duration, skip
 		Headers: make(map[string]string),
 	}
 
-	transport := &http.Transport{
-		TLSHandshakeTimeout: timeout,
-	}
-	if skipVerify {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // user-controlled flag
-	}
-
 	var redirectChain []string
-	client := &http.Client{
-		Timeout:   timeout,
-		Transport: transport,
-		CheckRedirect: func(r *http.Request, _ []*http.Request) error {
-			redirectChain = append(redirectChain, r.URL.String())
-			if len(redirectChain) > 10 {
-				return http.ErrUseLastResponse
-			}
-			return nil
-		},
+	client := httpclient.New(httpclient.Config{
+		Timeout:             timeout,
+		InsecureSkipVerify:  skipVerify,
+		TLSHandshakeTimeout: timeout,
+	})
+	client.CheckRedirect = func(r *http.Request, _ []*http.Request) error {
+		redirectChain = append(redirectChain, r.URL.String())
+		if len(redirectChain) > 10 {
+			return http.ErrUseLastResponse
+		}
+		return nil
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
