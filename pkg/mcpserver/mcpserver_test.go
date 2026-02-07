@@ -1301,8 +1301,8 @@ func TestListPayloadsCategoryFilterIntegrity(t *testing.T) {
 			t.Errorf("sample[%d].category = %q, want sqli", i, s.Category)
 		}
 	}
-	if len(summary.Samples) > 5 {
-		t.Errorf("got %d samples, max 5", len(summary.Samples))
+	if len(summary.Samples) > 10 {
+		t.Errorf("got %d samples, max 10", len(summary.Samples))
 	}
 	if summary.TotalPayloads == 0 {
 		t.Error("sqli filter returned 0 payloads — payload dir broken?")
@@ -1333,9 +1333,9 @@ func TestListPayloadsSnippetTruncation(t *testing.T) {
 	}
 
 	for i, s := range summary.Samples {
-		// Code truncates at len(snippet) > 80 bytes, then adds "…" (3 bytes)
-		if len(s.Snippet) > 83 {
-			t.Errorf("sample[%d] snippet is %d bytes (max 83): %q", i, len(s.Snippet), s.Snippet)
+		// Code truncates at len(snippet) > 120 bytes, then adds "…" (3 UTF-8 bytes)
+		if len(s.Snippet) > 123 {
+			t.Errorf("sample[%d] snippet is %d bytes (max 123): %q", i, len(s.Snippet), s.Snippet)
 		}
 	}
 }
@@ -1365,6 +1365,215 @@ func TestListPayloadsNonexistentCategory(t *testing.T) {
 	}
 	if summary.TotalPayloads != 0 {
 		t.Errorf("nonexistent category got %d payloads, want 0", summary.TotalPayloads)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Response enrichment: summary, next_steps, category_info
+// Validates that all tool responses include actionable context for AI agents.
+// ---------------------------------------------------------------------------
+
+func TestListPayloadsHasSummaryAndNextSteps(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "list_payloads",
+		Arguments: json.RawMessage(`{"category": "sqli"}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+
+	text := extractText(t, result)
+	var resp struct {
+		Summary        string       `json:"summary"`
+		TotalAvailable int          `json:"total_available"`
+		NextSteps      []string     `json:"next_steps"`
+		CategoryInfo   *struct {
+			Name        string `json:"name"`
+			OWASPCode   string `json:"owasp_code"`
+			RiskLevel   string `json:"risk_level"`
+			Description string `json:"description"`
+		} `json:"category_info"`
+		SamplePayloads []struct {
+			Tags []string `json:"tags"`
+		} `json:"sample_payloads"`
+	}
+	if err := json.Unmarshal([]byte(text), &resp); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if resp.Summary == "" {
+		t.Error("summary is empty — should contain a narrative description")
+	}
+	if !strings.Contains(resp.Summary, "SQL Injection") {
+		t.Errorf("summary should mention 'SQL Injection' for sqli category, got: %s", resp.Summary)
+	}
+	if len(resp.NextSteps) == 0 {
+		t.Error("next_steps is empty — should suggest follow-up actions")
+	}
+	if resp.TotalAvailable == 0 {
+		t.Error("total_available should include all payloads across categories")
+	}
+	if resp.CategoryInfo == nil {
+		t.Fatal("category_info should be populated for sqli category")
+	}
+	if resp.CategoryInfo.Name != "SQL Injection" {
+		t.Errorf("category_info.name = %q, want 'SQL Injection'", resp.CategoryInfo.Name)
+	}
+	if resp.CategoryInfo.OWASPCode == "" {
+		t.Error("category_info.owasp_code should not be empty")
+	}
+}
+
+func TestListPayloadsNoFilterHasGlobalSummary(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "list_payloads",
+		Arguments: json.RawMessage(`{}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+
+	text := extractText(t, result)
+	var resp struct {
+		Summary   string   `json:"summary"`
+		NextSteps []string `json:"next_steps"`
+	}
+	if err := json.Unmarshal([]byte(text), &resp); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if resp.Summary == "" {
+		t.Error("summary is empty for unfiltered listing")
+	}
+	if !strings.Contains(resp.Summary, "categories") {
+		t.Errorf("unfiltered summary should mention categories, got: %s", resp.Summary)
+	}
+	if len(resp.NextSteps) == 0 {
+		t.Error("next_steps should not be empty")
+	}
+
+	// Verify next_steps mention tool names for actionability
+	joined := strings.Join(resp.NextSteps, " ")
+	for _, tool := range []string{"scan", "detect_waf", "assess"} {
+		if !strings.Contains(joined, tool) {
+			t.Errorf("next_steps should mention '%s' tool", tool)
+		}
+	}
+}
+
+func TestMutateHasSummaryAndNextSteps(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "mutate",
+		Arguments: json.RawMessage(`{"payload": "' OR 1=1--"}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+
+	text := extractText(t, result)
+	var resp struct {
+		Summary   string   `json:"summary"`
+		NextSteps []string `json:"next_steps"`
+		Tip       string   `json:"tip"`
+		Count     int      `json:"count"`
+	}
+	if err := json.Unmarshal([]byte(text), &resp); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if resp.Summary == "" {
+		t.Error("mutate summary is empty")
+	}
+	if !strings.Contains(resp.Summary, "encoded variants") {
+		t.Errorf("mutate summary should describe the variants, got: %s", resp.Summary)
+	}
+	if len(resp.NextSteps) == 0 {
+		t.Error("mutate next_steps is empty")
+	}
+	if resp.Tip == "" {
+		t.Error("mutate tip is empty")
+	}
+}
+
+func TestGenerateCICDHasInstructions(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "generate_cicd",
+		Arguments: json.RawMessage(`{"platform": "github", "target": "https://example.com"}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+
+	text := extractText(t, result)
+
+	// Should have instruction header
+	if !strings.Contains(text, "INSTRUCTIONS") {
+		t.Error("CI/CD output should start with INSTRUCTIONS comment")
+	}
+	if !strings.Contains(text, "SECURITY") {
+		t.Error("CI/CD output should include SECURITY guidance")
+	}
+	if !strings.Contains(text, "NEXT STEPS") {
+		t.Error("CI/CD output should include NEXT STEPS guidance")
+	}
+}
+
+func TestCategoryDescriptionsComplete(t *testing.T) {
+	// Verify all listed enum categories return a category_info in list_payloads
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	expectedCategories := []string{
+		"sqli", "xss", "traversal", "auth", "ssrf", "ssti", "cmdi", "xxe",
+		"nosqli", "graphql", "cors", "crlf", "redirect", "upload", "jwt",
+		"oauth", "prototype", "deserialize",
+	}
+	for _, cat := range expectedCategories {
+		result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "list_payloads",
+			Arguments: json.RawMessage(fmt.Sprintf(`{"category": %q}`, cat)),
+		})
+		if err != nil {
+			t.Fatalf("CallTool(%s): %v", cat, err)
+		}
+
+		text := extractText(t, result)
+		var resp struct {
+			CategoryInfo *struct {
+				Name      string `json:"name"`
+				OWASPCode string `json:"owasp_code"`
+			} `json:"category_info"`
+		}
+		if err := json.Unmarshal([]byte(text), &resp); err != nil {
+			t.Fatalf("parse(%s): %v", cat, err)
+		}
+		if resp.CategoryInfo == nil {
+			t.Errorf("category_info missing for %q", cat)
+			continue
+		}
+		if resp.CategoryInfo.Name == "" {
+			t.Errorf("category_info.name empty for %q", cat)
+		}
+		if resp.CategoryInfo.OWASPCode == "" {
+			t.Errorf("category_info.owasp_code empty for %q", cat)
+		}
 	}
 }
 
