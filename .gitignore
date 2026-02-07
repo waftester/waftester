@@ -143,3 +143,4 @@ credentials/
 
 # VS Code local state
 .vscode/memory.jsonl
+.playwright-mcp/
