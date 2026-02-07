@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Container Packaging — `ghcr.io/waftester/waftester`
+
+- **Multi-architecture Docker image** published to GitHub Container Registry
+  - Multi-stage Dockerfile: `golang:1.24-alpine` build → `distroless/static-debian12:nonroot` runtime (~5 MB)
+  - Native Go cross-compilation via `TARGETARCH`/`TARGETOS` (no QEMU emulation for build)
+  - Multi-arch manifest: `linux/amd64` + `linux/arm64`
+  - BuildKit cache mounts for fast rebuilds (`/go/pkg/mod`, `/root/.cache/go-build`)
+  - Attack payloads bundled in image — self-contained, no volume mounts required
+  - MCP-specific OCI labels: `io.modelcontextprotocol.server=true`
+
+- **Docker Compose** for local development (`docker-compose.yml`)
+  - Environment-substituted build args: `${VERSION:-dev}`, `${COMMIT:-local}`, `${BUILD_DATE:-}`
+  - Security hardening: `read_only: true`, `tmpfs: /tmp:noexec,nosuid,size=64m`, `no-new-privileges:true`
+  - Port 8080 exposed, `restart: unless-stopped`
+
+- **CI/CD workflow** (`.github/workflows/docker-publish.yml`)
+  - Triggered by `workflow_run` from CI (same gate pattern as `release.yml`) + PR direct trigger
+  - Multi-arch build via QEMU + Docker Buildx
+  - Semver tag strategy: `1.2.3`, `1.2`, `1`, `latest` on tagged releases; `edge` on main; `sha-*` always
+  - SBOM + provenance attestation on release images
+  - GitHub Actions cache for layer reuse
+  - All 5 Docker action SHAs pinned and verified: metadata-action v5.10.0, setup-qemu v3.7.0, setup-buildx v3.12.0, login v3.7.0, build-push v6.18.0
+
+- **`.dockerignore`** minimizes build context and prevents sensitive content leaks
+  - Excludes `.git`, `.github`, `.claude`, IDE configs, tests, docs, build artifacts
+  - Excludes `payloads/premium/` and `payloads/.cache/` to prevent licensed content from leaking into public images
+
 #### MCP Server — AI-Native WAF Testing Interface
 
 - **Enterprise MCP Server** (`pkg/mcpserver/`): Model Context Protocol server enabling AI agents (Claude, GPT, Copilot) and automation platforms (n8n, Langflow) to control WAFtester programmatically

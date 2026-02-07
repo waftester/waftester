@@ -1,0 +1,138 @@
+name: Docker Publish
+
+on:
+  # Build + push only after CI passes (same gate as release.yml)
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types: [completed]
+  # Validate Dockerfile on PRs (build-only, no push)
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+# One build per ref — cancel stale runs on the same branch/tag
+concurrency:
+  group: docker-${{ github.event.workflow_run.head_sha || github.sha }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: waftester/waftester
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Only run if CI succeeded (workflow_run) or this is a PR (direct trigger)
+    if: >-
+      github.event_name == 'pull_request' ||
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      # ------------------------------------------------------------------
+      # 1. Checkout
+      # ------------------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.workflow_run.head_sha || '' }}
+
+      # ------------------------------------------------------------------
+      # 2. Compute build metadata (version, commit, date)
+      # ------------------------------------------------------------------
+      - name: Compute version metadata
+        id: meta_version
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          COMMIT=$(git rev-parse --short HEAD)
+          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Check if this commit has a semver tag
+          TAG=$(git describe --tags --exact-match "$HEAD_SHA" 2>/dev/null || echo "")
+          if [[ "$TAG" == v* ]]; then
+            VERSION="${TAG#v}"
+            echo "is_tag=true" >> "$GITHUB_OUTPUT"
+            echo "tag=$TAG"    >> "$GITHUB_OUTPUT"
+          else
+            VERSION="dev-${COMMIT}"
+            echo "is_tag=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "commit=${COMMIT}"   >> "$GITHUB_OUTPUT"
+          echo "date=${BUILD_DATE}" >> "$GITHUB_OUTPUT"
+          echo "📦 VERSION=${VERSION}  COMMIT=${COMMIT}  DATE=${BUILD_DATE}"
+
+      # ------------------------------------------------------------------
+      # 3. Docker metadata — tags & OCI labels
+      # ------------------------------------------------------------------
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # Tagged release: v1.2.3 → 1.2.3, 1.2, 1, latest
+            type=semver,pattern={{version}},value=${{ steps.meta_version.outputs.tag }},enable=${{ steps.meta_version.outputs.is_tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.meta_version.outputs.tag }},enable=${{ steps.meta_version.outputs.is_tag }}
+            type=semver,pattern={{major}},value=${{ steps.meta_version.outputs.tag }},enable=${{ steps.meta_version.outputs.is_tag }}
+            # Main push (no tag): edge
+            type=raw,value=edge,enable=${{ steps.meta_version.outputs.is_tag == 'false' && github.event_name != 'pull_request' }}
+            # Always: sha-abc1234
+            type=sha,prefix=sha-
+          labels: |
+            org.opencontainers.image.title=waf-tester
+            org.opencontainers.image.description=Comprehensive WAF security testing platform with MCP server
+            org.opencontainers.image.vendor=WAFtester
+            org.opencontainers.image.licenses=BUSL-1.1
+
+      # ------------------------------------------------------------------
+      # 4. Set up QEMU (multi-arch emulation for runtime stage)
+      # ------------------------------------------------------------------
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+        with:
+          platforms: arm64
+
+      # ------------------------------------------------------------------
+      # 5. Set up Docker Buildx (multi-arch support)
+      # ------------------------------------------------------------------
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      # ------------------------------------------------------------------
+      # 6. Authenticate to GHCR (skip on PRs — build-only)
+      # ------------------------------------------------------------------
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ------------------------------------------------------------------
+      # 7. Build (and push on non-PR events)
+      # ------------------------------------------------------------------
+      - name: Build and push
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.meta_version.outputs.version }}
+            COMMIT=${{ steps.meta_version.outputs.commit }}
+            BUILD_DATE=${{ steps.meta_version.outputs.date }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
