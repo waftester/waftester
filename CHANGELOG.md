@@ -5,6 +5,158 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.0] - 2026-02-07
+
+### Added
+
+#### Container Packaging — `ghcr.io/waftester/waftester`
+
+- **Multi-architecture Docker image** published to GitHub Container Registry
+  - Multi-stage Dockerfile: `golang:1.24-alpine` build → `distroless/static-debian12:nonroot` runtime (~5 MB)
+  - Native Go cross-compilation via `TARGETARCH`/`TARGETOS` (no QEMU emulation for build)
+  - Multi-arch manifest: `linux/amd64` + `linux/arm64`
+  - BuildKit cache mounts for fast rebuilds (`/go/pkg/mod`, `/root/.cache/go-build`)
+  - Attack payloads bundled in image — self-contained, no volume mounts required
+  - MCP-specific OCI labels: `io.modelcontextprotocol.server=true`
+
+- **Docker Compose** for local development (`docker-compose.yml`)
+  - Environment-substituted build args: `${VERSION:-dev}`, `${COMMIT:-local}`, `${BUILD_DATE:-}`
+  - Security hardening: `read_only: true`, `tmpfs: /tmp:noexec,nosuid,size=64m`, `no-new-privileges:true`
+  - Port 8080 exposed, `restart: unless-stopped`
+
+- **CI/CD workflow** (`.github/workflows/docker-publish.yml`)
+  - Triggered by `workflow_run` from CI (same gate pattern as `release.yml`) + PR direct trigger
+  - Multi-arch build via QEMU + Docker Buildx
+  - Semver tag strategy: `1.2.3`, `1.2`, `1`, `latest` on tagged releases; `edge` on main; `sha-*` always
+  - SBOM + provenance attestation on release images
+  - GitHub Actions cache for layer reuse
+  - All 5 Docker action SHAs pinned and verified: metadata-action v5.10.0, setup-qemu v3.7.0, setup-buildx v3.12.0, login v3.7.0, build-push v6.18.0
+
+- **`.dockerignore`** minimizes build context and prevents sensitive content leaks
+  - Excludes `.git`, `.github`, `.claude`, IDE configs, tests, docs, build artifacts
+  - Excludes `payloads/premium/` and `payloads/.cache/` to prevent licensed content from leaking into public images
+
+#### MCP Server — AI-Native WAF Testing Interface
+
+- **Enterprise MCP Server** (`pkg/mcpserver/`): Model Context Protocol server enabling AI agents (Claude, GPT, Copilot) and automation platforms (n8n, Langflow) to control WAFtester programmatically
+  - Full [MCP 2025-03-26 specification](https://modelcontextprotocol.io/) compliance via Go SDK v1.2.0
+  - **Dual transport**: Stdio for IDE integrations (VS Code, Claude Desktop, Cursor) + HTTP for remote/Docker deployments
+  - **Dual HTTP protocol**: Streamable HTTP (`/mcp`) for modern clients + legacy SSE (`/sse`) for n8n and older MCP clients
+  - CORS middleware for browser-based and cross-origin MCP clients
+  - Health endpoint (`/health`) for Kubernetes/Docker readiness probes
+
+- **10 MCP Tools** with opinionated descriptions optimized for LLM tool selection:
+
+  | Tool | Purpose |
+  |------|---------|
+  | `list_payloads` | Browse attack payload catalog with category/severity filtering |
+  | `detect_waf` | Fingerprint WAF vendor, version, and CDN layers |
+  | `discover` | Map attack surface from robots.txt, sitemap, JS, Wayback Machine |
+  | `learn` | Generate intelligent test plans from discovery results |
+  | `scan` | Execute WAF bypass tests with curated payloads |
+  | `assess` | Enterprise assessment with F1, precision, MCC, FPR metrics |
+  | `mutate` | Apply encoding/evasion transformations to payloads |
+  | `bypass` | Systematic bypass testing with mutation matrix |
+  | `probe` | TLS, HTTP/2, and technology fingerprinting |
+  | `generate_cicd` | Generate CI/CD pipeline YAML (GitHub Actions, GitLab, Jenkins, Azure DevOps, CircleCI, Bitbucket) |
+
+- **8 MCP Resources** providing domain knowledge without network calls:
+  - `waftester://version` — Server capabilities and tool inventory
+  - `waftester://payloads` — Full payload catalog with category breakdown
+  - `waftester://payloads/{category}` — Per-category payload listing (template)
+  - `waftester://guide` — Comprehensive WAF testing methodology guide
+  - `waftester://waf-signatures` — 12 WAF vendor signatures with bypass tips
+  - `waftester://evasion-techniques` — Evasion encoding catalog with effectiveness ratings
+  - `waftester://owasp-mappings` — OWASP Top 10 2021 category mappings with CWE references
+  - `waftester://config` — Default configuration values and bounds
+
+- **5 MCP Prompts** for guided workflow templates:
+  - `security_audit` — Full security assessment workflow
+  - `waf_bypass` — Targeted bypass hunting with stealth options
+  - `full_assessment` — Enterprise assessment with statistical metrics
+  - `discovery_workflow` — Attack surface mapping workflow
+  - `evasion_research` — Payload evasion research and encoding
+
+- **Comprehensive Server Instructions**: 300+ line operating manual embedded in server that guides AI agents through tool selection, workflow orchestration, result interpretation, rate limiting, and error recovery
+
+- **n8n Integration**: Validated compatibility with n8n's MCP Client node
+  - SSE transport endpoint at `/sse` (2024-11-05 spec)
+  - Bearer, Header, and OAuth2 authentication support via CORS headers
+  - Tool filtering (All/Selected/All Except) works with tool annotations
+
+#### MCP Server Infrastructure
+
+- **CORS Middleware**: Permissive cross-origin headers for browser-based clients
+  - Origin echo (reflects request origin) with `*` fallback
+  - Exposes `Mcp-Session-Id` header for session tracking
+  - Allows `Authorization`, `Mcp-Session-Id`, `Last-Event-ID` headers
+  - OPTIONS preflight with 24-hour cache (`Max-Age: 86400`)
+
+- **Health Endpoint with Readiness**: `/health` endpoint for container orchestrators
+  - Returns 503 `{"status":"starting"}` during startup validation
+  - Transitions to 200 `{"status":"ok"}` after `MarkReady()` (payload dir validated)
+  - Method-restricted to GET/HEAD (returns 405 for other methods)
+  - JSON content type with proper CORS headers
+
+- **Startup Payload Validation**: Server validates payload directory at startup before accepting connections
+  - Checks directory exists, loads all payloads via `payloads.NewLoader()`
+  - Logs payload count on success; exits with hint on failure
+  - Prevents silent operation with missing/corrupted payload data
+
+- **Environment Variable Support**: Docker/Kubernetes-friendly configuration
+  - `WAF_TESTER_PAYLOAD_DIR` — override payload directory path
+  - `WAF_TESTER_HTTP_ADDR` — set HTTP listen address (alternative to `--http` flag)
+
+- **HTTP Server Hardening**: Production-grade HTTP server configuration
+  - `ReadHeaderTimeout: 10s` — prevents slowloris attacks
+  - `ReadTimeout: 30s`, `WriteTimeout: 60s`, `IdleTimeout: 120s`
+  - `MaxHeaderBytes: 1MB` — limits header memory allocation
+
+- **Graceful Shutdown**: Clean shutdown on SIGINT/SIGTERM
+  - 15-second drain period for in-flight requests before forceful close
+  - Logs shutdown progress to stderr
+
+- **Progress Notifications**: Tools report `notifyProgress()` with percentage and status messages during long-running operations (scan, assess, bypass)
+
+- **Structured Logging**: Tools emit `logToSession()` events with typed `mcp.LoggingLevel` constants for real-time operation visibility
+
+### Fixed
+
+- **P0 Data Race in Scan Tool**: `received` and `bypasses` counters in `handleScan` were bare `int` accessed from concurrent goroutines in the `OnResult` callback — replaced with `sync/atomic.Int64`
+- **Logging Level Type Safety**: The MCP SDK defines `LoggingLevel` as `type string` with no exported constants — defined typed `logInfo`/`logWarning` constants to prevent raw string errors
+- **Scan Tool Missing Annotations**: Added `ReadOnlyHint` and `IdempotentHint` to scan tool annotations (both `false`)
+- **WAF Signatures Count Mismatch**: `total_signatures` was 25 but only 12 entries defined — corrected to 12
+- **Target URL Validation**: All 6 network tools (`detect_waf`, `discover`, `scan`, `assess`, `bypass`, `probe`) now validate URL scheme (http/https only) and host before making requests — prevents confusing errors from malformed URLs
+- **`json.MarshalIndent` Error Handling**: 5 resource handlers silently discarded marshal errors (`data, _ :=`) — all now use `data, err :=` and return `fmt.Errorf(...)` on failure
+- **User-Agent Hardcoded String**: Replaced hardcoded `"waf-tester/probe"` in probe tool with `defaults.UserAgent("probe")` to match centralized UA management
+- **Response Body Drain**: Probe tool now drains up to 4KB before closing response body (`io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))`) to allow HTTP connection reuse
+- **WAF Vendor List Accuracy**: Version resource updated from 25 inaccurate vendor names to 26 actual WAF vendors matching the detection code; added `supported_cdn_vendors` field with 9 CDN entries
+- **Server Instructions Accuracy**: Corrected payload count to "2,800+" and signature count to "26 WAF + 9 CDN detection signatures"; fixed waf-signatures resource reference from 26 to 12 entries
+- **Bypass Tool Error Messages**: Empty target error now includes example JSON with both `target` and `payloads` fields, matching other tool error patterns
+
+### Removed
+
+- **Unused `SessionTimeout` Config Field**: Removed from `Config` struct along with unused `time` import
+
+### Tests
+
+- **44 tests** covering full MCP protocol surface:
+  - Server creation (2): nil safety, default config
+  - Tool registration (3): count, descriptions, annotations
+  - Resource registration (2): static resources, template resources
+  - Resource content (7): version, guide, WAF signatures, evasion techniques, OWASP mappings, config, payloads
+  - Prompt registration (2): count, arguments
+  - Prompt invocation (4): security_audit, waf_bypass, evasion_research, missing target
+  - Tool invocation (5): list_payloads, list_payloads with filter, mutate, generate_cicd, generate_cicd all platforms (6 subtests)
+  - Target URL validation (3): empty target rejection across all 6 network tools (6 subtests), invalid scheme rejection (ftp://), missing scheme rejection (bare hostname)
+  - Hook tests (2): event bridge, nil callback
+  - Server capabilities (1): initialization result validation
+  - Edge cases (3): nonexistent tool/resource/prompt
+  - HTTP transport (2): HTTPHandler, SSEHandler return non-nil
+  - Health endpoint (3): 200 OK when ready, 503 Service Unavailable when not ready, 405 for invalid methods
+  - CORS (3): headers with origin echo, preflight OPTIONS, default origin fallback
+  - Data consistency (2): WAF signatures count matches entries, scan annotations complete
+
 ## [2.6.8] - 2026-02-06
 
 ### Added

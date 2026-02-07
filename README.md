@@ -152,14 +152,41 @@ Requires Go 1.22 or later.
 go install github.com/waftester/waftester/cmd/cli@latest
 ```
 
+### Docker
+
+Multi-architecture images (`linux/amd64`, `linux/arm64`) are published to GitHub Container Registry.
+
+```bash
+# Pull the latest image
+docker pull ghcr.io/waftester/waftester:latest
+
+# Run the MCP server on port 8080
+docker run -p 8080:8080 ghcr.io/waftester/waftester
+
+# Run a scan directly
+docker run --rm ghcr.io/waftester/waftester scan -u https://example.com
+
+# Docker Compose (local build)
+docker compose up --build
+```
+
+Available image tags:
+
+| Tag | Description |
+|-----|-------------|
+| `latest` | Latest stable release |
+| `1.2.3` | Exact version |
+| `1.2`, `1` | Minor/major aliases |
+| `edge` | Latest `main` branch build |
+| `sha-abc1234` | Specific commit |
+
+The image runs as non-root on a read-only distroless base (~5 MB). See [docs/INSTALLATION.md](docs/INSTALLATION.md#docker) for Docker Compose, Kubernetes, and environment variable configuration.
+
 ### Package Managers
 
 ```bash
 # macOS
 brew install waftester
-
-# Docker
-docker pull ghcr.io/waftester/waftester
 ```
 
 ### Binary Releases
@@ -309,6 +336,96 @@ For additional CI/CD examples (GitLab, Azure DevOps, Jenkins, CircleCI, Tekton),
 
 ---
 
+## MCP Server — AI Agent Integration
+
+WAFtester includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that enables AI assistants (Claude, GPT, Copilot) and automation platforms (n8n, Langflow) to control WAFtester programmatically.
+
+### Why MCP?
+
+Instead of parsing CLI output or building custom integrations, AI agents interact with WAFtester through a structured protocol with typed tool schemas, progress notifications, and domain-knowledge resources. The server guides agents through optimal tool selection and workflow orchestration.
+
+### Transports
+
+| Transport | Use Case | Command |
+|-----------|----------|---------|
+| Stdio | IDE integrations (VS Code, Claude Desktop, Cursor) | `waf-tester mcp` |
+| HTTP | Remote/Docker deployments, n8n, web UIs | `waf-tester mcp --http :8080` |
+
+The HTTP transport exposes:
+- `/mcp` — Streamable HTTP (2025-03-26 spec)
+- `/sse` — Legacy SSE for n8n and older MCP clients
+- `/health` — Readiness probe for container orchestrators
+
+All endpoints include CORS headers for browser-based clients.
+
+### Quick Start
+
+```bash
+# Stdio mode (for Claude Desktop, VS Code, Cursor)
+waf-tester mcp
+
+# HTTP mode (for n8n, Docker, remote access)
+waf-tester mcp --http :8080
+
+# Docker
+docker run -p 8080:8080 ghcr.io/waftester/waftester mcp --http :8080
+```
+
+### Claude Desktop Configuration
+
+Add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "waf-tester": {
+      "command": "waf-tester",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+### n8n Integration
+
+1. Add an **MCP Client** node in n8n
+2. Set transport to **SSE Endpoint**
+3. Enter the URL: `http://your-server:8080/sse`
+4. Connect to an AI Agent node
+5. WAFtester tools appear automatically for the agent to use
+
+### Available Tools
+
+| Tool | What It Does |
+|------|--------------|
+| `list_payloads` | Browse attack payload catalog with filtering |
+| `detect_waf` | Fingerprint WAF vendor, confidence, bypass tips |
+| `discover` | Map attack surface (robots, sitemap, JS, Wayback) |
+| `learn` | Generate intelligent test plans from discovery |
+| `scan` | Execute WAF bypass tests with progress tracking |
+| `assess` | Enterprise assessment with F1, precision, MCC, FPR |
+| `mutate` | Apply encoding/evasion transformations |
+| `bypass` | Systematic bypass with mutation matrix |
+| `probe` | TLS, HTTP/2, technology fingerprinting |
+| `generate_cicd` | Generate CI/CD YAML for 6 platforms |
+
+### Domain Knowledge Resources
+
+AI agents can read these resources for context without making network requests:
+
+| Resource | Content |
+|----------|---------|
+| `waftester://guide` | WAF testing methodology guide |
+| `waftester://waf-signatures` | WAF vendor signatures and bypass tips |
+| `waftester://evasion-techniques` | Evasion encoding catalog |
+| `waftester://owasp-mappings` | OWASP Top 10 2021 mappings |
+| `waftester://payloads` | Full payload catalog |
+| `waftester://config` | Default configuration values |
+
+For complete MCP examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md#mcp-server-integration).
+
+---
+
 ## Command Reference
 
 | Command | Description | Example |
@@ -330,6 +447,7 @@ For additional CI/CD examples (GitLab, Azure DevOps, Jenkins, CircleCI, Tekton),
 | `soap` | SOAP/WSDL service testing | `waf-tester soap --wsdl https://api.example.com?wsdl` |
 | `openapi` | OpenAPI specification fuzzing | `waf-tester openapi -spec openapi.yaml --fuzz` |
 | `cloud` | Cloud resource discovery | `waf-tester cloud -d example.com --providers aws,azure` |
+| `mcp` | MCP server for AI agents | `waf-tester mcp` or `waf-tester mcp --http :8080` |
 
 ---
 
@@ -359,7 +477,7 @@ For additional CI/CD examples (GitLab, Azure DevOps, Jenkins, CircleCI, Tekton),
 
 | Metric | Value |
 |--------|-------|
-| CLI Commands | 31 |
+| CLI Commands | 32 |
 | WAF Signatures | 197 vendors |
 | Attack Payloads | 2,800+ |
 | Tamper Scripts | 70+ |
@@ -368,6 +486,10 @@ For additional CI/CD examples (GitLab, Azure DevOps, Jenkins, CircleCI, Tekton),
 | Protocols | HTTP, GraphQL, gRPC, SOAP, WebSocket, OpenAPI |
 | Output Formats | 16 |
 | CI/CD Platforms | 9 |
+| MCP Tools | 10 |
+| MCP Resources | 8 |
+| MCP Prompts | 5 |
+| Docker Architectures | linux/amd64, linux/arm64 |
 
 ---
 
@@ -376,7 +498,9 @@ For additional CI/CD examples (GitLab, Azure DevOps, Jenkins, CircleCI, Tekton),
 | Resource | Description |
 |----------|-------------|
 | [Examples Guide](docs/EXAMPLES.md) | Comprehensive usage examples |
-| [Installation](docs/INSTALLATION.md) | Installation methods |
+| [Installation](docs/INSTALLATION.md) | Installation methods (Go, Docker, binary) |
+| [MCP Server](docs/EXAMPLES.md#mcp-server-integration) | AI agent integration guide |
+| [Docker](docs/INSTALLATION.md#docker) | Container deployment guide |
 | [Contributing](CONTRIBUTING.md) | Contribution guidelines |
 | [Changelog](CHANGELOG.md) | Version history |
 | [Security](SECURITY.md) | Security policy |

@@ -1,0 +1,59 @@
+# ===========================================================================
+# .dockerignore — minimize Docker build context for faster, safer builds
+# ===========================================================================
+
+# Version control
+.git
+.gitignore
+
+# IDE & editor
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# CI/CD & config
+.github
+.claude
+.goreleaser.yaml
+.golangci.yml
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Tests
+*_test.go
+test/
+mutation-results.json
+
+# Scripts & tooling
+scripts/
+
+# Build artifacts
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker-in-Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Licensed/cached payloads — NEVER bake into public image
+payloads/premium/
+payloads/.cache/
+
+# Workspaces & data
+workspaces/
+
+# Templates
+templates/
