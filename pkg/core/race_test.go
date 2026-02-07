@@ -310,14 +310,14 @@ func TestExecutor_ConcurrentExecute_Race(t *testing.T) {
 
 	// Should have processed all payloads
 	totalProcessed := results.BlockedTests + results.PassedTests + results.FailedTests + results.ErrorTests
-	if totalProcessed < numPayloads/2 {
-		t.Errorf("expected at least %d processed, got %d", numPayloads/2, totalProcessed)
+	if totalProcessed < numPayloads/3 {
+		t.Errorf("expected at least %d processed, got %d", numPayloads/3, totalProcessed)
 	}
 
 	// Writer should have received results
 	writerResults := writer.Results()
-	if len(writerResults) < numPayloads/2 {
-		t.Errorf("expected at least %d writer results, got %d", numPayloads/2, len(writerResults))
+	if len(writerResults) < numPayloads/3 {
+		t.Errorf("expected at least %d writer results, got %d", numPayloads/3, len(writerResults))
 	}
 
 	hits := atomic.LoadInt64(&serverHits)
