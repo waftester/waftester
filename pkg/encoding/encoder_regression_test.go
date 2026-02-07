@@ -10,9 +10,9 @@ import (
 // testEncoder is a minimal Encoder implementation for concurrency testing.
 type testEncoder struct{ n string }
 
-func (e testEncoder) Name() string                        { return e.n }
-func (e testEncoder) Encode(p string) (string, error)     { return p, nil }
-func (e testEncoder) Decode(p string) (string, error)     { return p, nil }
+func (e testEncoder) Name() string                    { return e.n }
+func (e testEncoder) Encode(p string) (string, error) { return p, nil }
+func (e testEncoder) Decode(p string) (string, error) { return p, nil }
 
 // Regression test for bug: concurrent Register and Get could race on the registry map.
 func TestConcurrentRegisterAndGet(t *testing.T) {

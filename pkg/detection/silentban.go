@@ -43,11 +43,11 @@ type metrics struct {
 
 // sample represents a single response observation.
 type sample struct {
-	latency   time.Duration
-	bodySize  int
+	latency    time.Duration
+	bodySize   int
 	statusCode int
-	hasError  bool
-	timestamp time.Time
+	hasError   bool
+	timestamp  time.Time
 }
 
 // SilentBanDetector analyzes response patterns to detect silent bans,
