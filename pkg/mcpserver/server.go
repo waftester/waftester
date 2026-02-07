@@ -242,6 +242,26 @@ func errorResult(msg string) *mcp.CallToolResult {
 	}
 }
 
+// enrichedError creates a structured error response with recovery guidance
+// for AI agents. The JSON envelope matches the enriched success responses so
+// LLMs can use the same parsing logic for both success and error paths.
+func enrichedError(msg string, recoverySteps []string) *mcp.CallToolResult {
+	type errResponse struct {
+		Error         string   `json:"error"`
+		RecoverySteps []string `json:"recovery_steps"`
+	}
+	data, _ := json.MarshalIndent(errResponse{
+		Error:         msg,
+		RecoverySteps: recoverySteps,
+	}, "", "  ")
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(data)},
+		},
+		IsError: true,
+	}
+}
+
 // boolPtr returns a pointer to b. Used for optional bool fields in the SDK.
 func boolPtr(b bool) *bool { return &b }
 
@@ -390,6 +410,18 @@ If a tool returns an error:
 - "rate limited (429)" → Reduce concurrency and rate limit, retry after delay
 - "WAF detection failed" → Target may not have a WAF, proceed with scan anyway
 - "context deadline exceeded" → Increase timeout parameter
+
+Error responses for operational failures include structured JSON with "error" and "recovery_steps" fields. Parse recovery_steps for actionable guidance.
+
+## RESPONSE FORMAT
+
+All tool responses use a consistent enriched JSON envelope for AI agent consumption:
+- "summary": Human/AI-readable narrative of what happened and the key findings
+- "interpretation": Contextual analysis explaining what the results mean (scan, assess, bypass, probe)
+- "next_steps": Array of actionable follow-up suggestions with tool names and example arguments
+- Raw data is preserved alongside the narrative fields (e.g., "result", "metrics", "plan", "report", "pipeline")
+
+Parse "summary" for a quick understanding of the result. Use "next_steps" to determine which tool to call next and with what arguments. Read "interpretation" for domain-expert analysis of the security posture.
 
 ## RESPONSE FORMAT PREFERENCES
 

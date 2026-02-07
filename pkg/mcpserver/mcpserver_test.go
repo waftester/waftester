@@ -1388,9 +1388,9 @@ func TestListPayloadsHasSummaryAndNextSteps(t *testing.T) {
 
 	text := extractText(t, result)
 	var resp struct {
-		Summary        string       `json:"summary"`
-		TotalAvailable int          `json:"total_available"`
-		NextSteps      []string     `json:"next_steps"`
+		Summary        string   `json:"summary"`
+		TotalAvailable int      `json:"total_available"`
+		NextSteps      []string `json:"next_steps"`
 		CategoryInfo   *struct {
 			Name        string `json:"name"`
 			OWASPCode   string `json:"owasp_code"`
@@ -1522,15 +1522,42 @@ func TestGenerateCICDHasInstructions(t *testing.T) {
 
 	text := extractText(t, result)
 
-	// Should have instruction header
-	if !strings.Contains(text, "INSTRUCTIONS") {
-		t.Error("CI/CD output should start with INSTRUCTIONS comment")
+	// Response is now JSON with structured fields
+	var resp struct {
+		Summary   string   `json:"summary"`
+		Platform  string   `json:"platform"`
+		FileName  string   `json:"file_name"`
+		Pipeline  string   `json:"pipeline"`
+		NextSteps []string `json:"next_steps"`
 	}
-	if !strings.Contains(text, "SECURITY") {
-		t.Error("CI/CD output should include SECURITY guidance")
+	if err := json.Unmarshal([]byte(text), &resp); err != nil {
+		t.Fatalf("response should be valid JSON: %v", err)
 	}
-	if !strings.Contains(text, "NEXT STEPS") {
-		t.Error("CI/CD output should include NEXT STEPS guidance")
+	if resp.Summary == "" {
+		t.Error("CI/CD response should have a summary")
+	}
+	if resp.Platform != "github" {
+		t.Errorf("platform = %q, want github", resp.Platform)
+	}
+	if resp.FileName == "" {
+		t.Error("CI/CD response should have a file_name")
+	}
+	if resp.Pipeline == "" {
+		t.Error("CI/CD response should have pipeline content")
+	}
+	if len(resp.NextSteps) == 0 {
+		t.Error("CI/CD response should have next_steps")
+	}
+	// Verify security guidance is in next_steps
+	found := false
+	for _, step := range resp.NextSteps {
+		if strings.Contains(step, "secret") || strings.Contains(step, "SECURITY") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("next_steps should include security guidance about secrets")
 	}
 }
 

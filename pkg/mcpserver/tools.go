@@ -17,6 +17,7 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/discovery"
 	"github.com/waftester/waftester/pkg/learning"
+	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/mutation"
 	"github.com/waftester/waftester/pkg/output"
 	"github.com/waftester/waftester/pkg/payloads"
@@ -272,16 +273,16 @@ type listPayloadsArgs struct {
 }
 
 type payloadSummary struct {
-	Summary        string            `json:"summary"`
-	TotalPayloads  int               `json:"total_payloads"`
-	TotalAvailable int               `json:"total_available"`
-	Categories     int               `json:"categories"`
-	ByCategory     map[string]int    `json:"by_category"`
-	BySeverity     map[string]int    `json:"by_severity"`
-	FilterApplied  string            `json:"filter_applied,omitempty"`
-	CategoryInfo   *categoryMeta     `json:"category_info,omitempty"`
-	SamplePayloads []sampleEntry     `json:"sample_payloads,omitempty"`
-	NextSteps      []string          `json:"next_steps"`
+	Summary        string         `json:"summary"`
+	TotalPayloads  int            `json:"total_payloads"`
+	TotalAvailable int            `json:"total_available"`
+	Categories     int            `json:"categories"`
+	ByCategory     map[string]int `json:"by_category"`
+	BySeverity     map[string]int `json:"by_severity"`
+	FilterApplied  string         `json:"filter_applied,omitempty"`
+	CategoryInfo   *categoryMeta  `json:"category_info,omitempty"`
+	SamplePayloads []sampleEntry  `json:"sample_payloads,omitempty"`
+	NextSteps      []string       `json:"next_steps"`
 }
 
 type sampleEntry struct {
@@ -559,7 +560,14 @@ func (s *Server) handleDetectWAF(ctx context.Context, req *mcp.CallToolRequest) 
 
 	result, err := detector.Detect(ctx, args.Target)
 	if err != nil {
-		return errorResult(fmt.Sprintf("WAF detection failed: %v. Check that the target is reachable and the URL includes the scheme (https://).", err)), nil
+		return enrichedError(
+			fmt.Sprintf("WAF detection failed: %v", err),
+			[]string{
+				"Verify the target URL is reachable and includes the scheme (https://).",
+				"Try with skip_verify=true if the target uses a self-signed certificate.",
+				"Check network connectivity and DNS resolution for the target host.",
+				"Use 'probe' to test basic connectivity before retrying detection.",
+			}), nil
 	}
 
 	notifyProgress(ctx, req, 100, 100, "Detection complete")
@@ -572,9 +580,9 @@ func (s *Server) handleDetectWAF(ctx context.Context, req *mcp.CallToolRequest) 
 
 // detectWAFResponse wraps DetectionResult with narrative context for AI agents.
 type detectWAFResponse struct {
-	Summary   string                `json:"summary"`
-	Result    *waf.DetectionResult  `json:"result"`
-	NextSteps []string              `json:"next_steps"`
+	Summary   string               `json:"summary"`
+	Result    *waf.DetectionResult `json:"result"`
+	NextSteps []string             `json:"next_steps"`
 }
 
 func buildDetectWAFResponse(result *waf.DetectionResult, target string) *detectWAFResponse {
@@ -784,7 +792,14 @@ func (s *Server) handleDiscover(ctx context.Context, req *mcp.CallToolRequest) (
 
 	result, err := discoverer.Discover(ctx)
 	if err != nil {
-		return errorResult(fmt.Sprintf("discovery failed: %v. Check that the target is reachable.", err)), nil
+		return enrichedError(
+			fmt.Sprintf("discovery failed: %v", err),
+			[]string{
+				"Check that the target URL is reachable and returns a valid HTTP response.",
+				"Try increasing the timeout parameter (e.g., timeout=30).",
+				"If the target uses a self-signed cert, set skip_verify=true.",
+				"Use 'detect_waf' first to verify basic connectivity to the target.",
+			}), nil
 	}
 
 	notifyProgress(ctx, req, 100, 100, "Discovery complete")
@@ -816,17 +831,14 @@ type endpointPreview struct {
 }
 
 func buildDiscoverySummary(r *discovery.DiscoveryResult) *discoverySummary {
-	as := r.AttackSurface
-	st := r.Statistics
-
 	s := &discoverySummary{
 		Target:         r.Target,
 		EndpointCount:  len(r.Endpoints),
 		WAFDetected:    r.WAFDetected,
 		WAFFingerprint: r.WAFFingerprint,
 		Technologies:   r.Technologies,
-		AttackSurface:  &as,
-		Statistics:     &st,
+		AttackSurface:  &r.AttackSurface,
+		Statistics:     &r.Statistics,
 	}
 
 	// Count total secrets across all categories
@@ -1151,7 +1163,7 @@ type scanResultSummary struct {
 	Target         string                  `json:"target"`
 	DetectionRate  string                  `json:"detection_rate"`
 	Interpretation string                  `json:"interpretation"`
-	Results        output.ExecutionResults  `json:"results"`
+	Results        *output.ExecutionResults `json:"results"`
 	NextSteps      []string                `json:"next_steps"`
 }
 
@@ -1184,7 +1196,13 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	loader := payloads.NewLoader(s.config.PayloadDir)
 	all, err := loader.LoadAll()
 	if err != nil {
-		return errorResult(fmt.Sprintf("failed to load payloads from %s: %v", s.config.PayloadDir, err)), nil
+		return enrichedError(
+			fmt.Sprintf("failed to load payloads: %v", err),
+			[]string{
+				"Verify the payload directory exists and contains JSON payload files.",
+				"Use 'list_payloads' to check available categories before scanning.",
+				"Check file permissions on the payload directory.",
+			}), nil
 	}
 
 	var filtered []payloads.Payload
@@ -1253,7 +1271,7 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	summary := &scanResultSummary{
 		Target:        args.Target,
 		DetectionRate: detectionRate,
-		Results:       execResults,
+		Results:       &execResults,
 	}
 
 	// Build interpretation based on detection rate
@@ -1486,7 +1504,14 @@ func (s *Server) handleAssess(ctx context.Context, req *mcp.CallToolRequest) (*m
 
 	metrics, err := a.Run(ctx, progressFn)
 	if err != nil {
-		return errorResult(fmt.Sprintf("assessment failed: %v", err)), nil
+		return enrichedError(
+			fmt.Sprintf("assessment failed: %v", err),
+			[]string{
+				"Verify the target is reachable and not aggressively rate-limiting.",
+				"Try reducing concurrency and rate_limit for sensitive targets.",
+				"Use 'scan' first for a lighter test, then 'assess' for full metrics.",
+				"Check if the target requires authentication or specific headers.",
+			}), nil
 	}
 
 	notifyProgress(ctx, req, 100, 100, fmt.Sprintf("Assessment complete — Grade: %s", metrics.Grade))
@@ -1499,65 +1524,52 @@ func (s *Server) handleAssess(ctx context.Context, req *mcp.CallToolRequest) (*m
 
 // assessResponse wraps EnterpriseMetrics with narrative context for AI agents.
 type assessResponse struct {
-	Summary        string      `json:"summary"`
-	Interpretation string      `json:"interpretation"`
-	Metrics        interface{} `json:"metrics"`
-	NextSteps      []string    `json:"next_steps"`
+	Summary        string                    `json:"summary"`
+	Interpretation string                    `json:"interpretation"`
+	Metrics        *metrics.EnterpriseMetrics `json:"metrics"`
+	NextSteps      []string                  `json:"next_steps"`
 }
 
-func buildAssessResponse(metrics interface{}, target string) *assessResponse {
-	resp := &assessResponse{Metrics: metrics}
-
-	// Use type assertion to access metric fields safely
-	type gradedMetrics interface {
-		GetGrade() string
-	}
-
-	// Extract fields from metrics via JSON round-trip for type-safe access
-	data, _ := json.Marshal(metrics)
-	var m map[string]interface{}
-	_ = json.Unmarshal(data, &m)
-
-	grade, _ := m["grade"].(string)
-	gradeReason, _ := m["grade_reason"].(string)
-	f1Score, _ := m["f1_score"].(float64)
-	detectionRate, _ := m["detection_rate"].(float64)
-	falsePositiveRate, _ := m["false_positive_rate"].(float64)
-	mcc, _ := m["mcc"].(float64)
+func buildAssessResponse(m *metrics.EnterpriseMetrics, target string) *assessResponse {
+	resp := &assessResponse{Metrics: m}
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "WAF Assessment for %s: Grade %s. ", target, grade)
-	fmt.Fprintf(&sb, "Detection Rate: %.1f%%, F1 Score: %.3f, MCC: %.3f, False Positive Rate: %.1f%%. ", detectionRate*100, f1Score, mcc, falsePositiveRate*100)
-	if gradeReason != "" {
-		fmt.Fprintf(&sb, "%s", gradeReason)
+	fmt.Fprintf(&sb, "WAF Assessment for %s: Grade %s. ", target, m.Grade)
+	fmt.Fprintf(&sb, "Detection Rate: %.1f%%, F1 Score: %.3f, MCC: %.3f, False Positive Rate: %.1f%%. ",
+		m.DetectionRate*100, m.F1Score, m.MCC, m.FalsePositiveRate*100)
+	if m.GradeReason != "" {
+		sb.WriteString(m.GradeReason)
 	}
 	resp.Summary = sb.String()
 
-	// Build interpretation based on grade
+	// Build interpretation based on grade — direct field access, no JSON round-trip.
 	switch {
-	case grade == "A+" || grade == "A":
-		resp.Interpretation = fmt.Sprintf("Excellent WAF performance (Grade %s). The WAF demonstrates strong detection across tested categories with a well-balanced precision-recall tradeoff. F1=%.3f indicates minimal false negatives. FPR=%.1f%% means legitimate traffic is rarely blocked.", grade, f1Score, falsePositiveRate*100)
-	case grade == "B":
-		resp.Interpretation = fmt.Sprintf("Good WAF performance (Grade %s) with room for improvement. Some attack categories may have gaps. Review per-category scores to identify weak areas. F1=%.3f, FPR=%.1f%%.", grade, f1Score, falsePositiveRate*100)
-	case grade == "C":
-		resp.Interpretation = fmt.Sprintf("Moderate WAF performance (Grade %s). Significant gaps in detection exist. Review bypassed payloads and consider rule tuning or switching to a more comprehensive ruleset (e.g., CRS 4.x for ModSecurity/Coraza).", grade)
-	case grade == "D" || grade == "F":
-		resp.Interpretation = fmt.Sprintf("Poor WAF performance (Grade %s). The WAF is failing to block a majority of attacks. This indicates misconfiguration, disabled rules, or an inadequate ruleset. Immediate action required.", grade)
+	case m.Grade == "A+" || m.Grade == "A":
+		resp.Interpretation = fmt.Sprintf("Excellent WAF performance (Grade %s). The WAF demonstrates strong detection across tested categories with a well-balanced precision-recall tradeoff. F1=%.3f indicates minimal false negatives. FPR=%.1f%% means legitimate traffic is rarely blocked.",
+			m.Grade, m.F1Score, m.FalsePositiveRate*100)
+	case m.Grade == "B":
+		resp.Interpretation = fmt.Sprintf("Good WAF performance (Grade %s) with room for improvement. Some attack categories may have gaps. Review per-category scores to identify weak areas. F1=%.3f, FPR=%.1f%%.",
+			m.Grade, m.F1Score, m.FalsePositiveRate*100)
+	case m.Grade == "C":
+		resp.Interpretation = fmt.Sprintf("Moderate WAF performance (Grade %s). Significant gaps in detection exist. Review bypassed payloads and consider rule tuning or switching to a more comprehensive ruleset (e.g., CRS 4.x for ModSecurity/Coraza).", m.Grade)
+	case m.Grade == "D" || m.Grade == "F":
+		resp.Interpretation = fmt.Sprintf("Poor WAF performance (Grade %s). The WAF is failing to block a majority of attacks. This indicates misconfiguration, disabled rules, or an inadequate ruleset. Immediate action required.", m.Grade)
 	default:
-		resp.Interpretation = fmt.Sprintf("WAF Grade: %s. Review the per-category breakdown for detailed analysis.", grade)
+		resp.Interpretation = fmt.Sprintf("WAF Grade: %s. Review the per-category breakdown for detailed analysis.", m.Grade)
 	}
 
 	// Build next steps based on grade
 	steps := make([]string, 0, 5)
-	if grade == "D" || grade == "F" || grade == "C" {
+	if m.Grade == "D" || m.Grade == "F" || m.Grade == "C" {
 		steps = append(steps,
 			"PRIORITY: Review bypassed payloads in the per-category breakdown and add custom WAF rules for each bypass pattern.")
 		steps = append(steps,
 			"Use 'bypass' with specific payloads that were blocked to test if encoding variants can still evade the WAF.")
 	}
-	if falsePositiveRate > 0.05 {
+	if m.FalsePositiveRate > 0.05 {
 		steps = append(steps,
-			fmt.Sprintf("WARNING: False positive rate is %.1f%% (%.1f%% of legitimate requests blocked). Review and tune WAF rules to reduce false positives.", falsePositiveRate*100, falsePositiveRate*100))
+			fmt.Sprintf("WARNING: False positive rate is %.1f%% (%.1f%% of legitimate requests blocked). Review and tune WAF rules to reduce false positives.",
+				m.FalsePositiveRate*100, m.FalsePositiveRate*100))
 	}
 	steps = append(steps,
 		fmt.Sprintf("Use 'scan' with specific categories (e.g., {\"target\": \"%s\", \"categories\": [\"sqli\"]}) to drill into weak areas.", target))
@@ -2385,37 +2397,63 @@ func (s *Server) handleGenerateCICD(_ context.Context, req *mcp.CallToolRequest)
 
 	pipeline := generateCICDConfig(args)
 
-	// Wrap pipeline with instructions and next steps
-	var sb strings.Builder
-	switch args.Platform {
-	case "github":
-		sb.WriteString("# INSTRUCTIONS: Save this file as .github/workflows/waf-test.yml in your repository.\n")
-		sb.WriteString("# Then commit and push — the workflow will run on the next push to main or on the configured schedule.\n")
-	case "gitlab":
-		sb.WriteString("# INSTRUCTIONS: Add this content to your .gitlab-ci.yml file.\n")
-		sb.WriteString("# The pipeline will run automatically on the next push.\n")
-	case "jenkins":
-		sb.WriteString("// INSTRUCTIONS: Save this as Jenkinsfile in your repository root.\n")
-		sb.WriteString("// Configure a Jenkins job pointing to this file.\n")
-	case "azure-devops":
-		sb.WriteString("# INSTRUCTIONS: Save this as azure-pipelines.yml in your repository root.\n")
-		sb.WriteString("# Link it in Azure DevOps > Pipelines > New Pipeline.\n")
-	case "circleci":
-		sb.WriteString("# INSTRUCTIONS: Save this as .circleci/config.yml in your repository.\n")
-	case "bitbucket":
-		sb.WriteString("# INSTRUCTIONS: Save this as bitbucket-pipelines.yml in your repository root.\n")
-	}
-	sb.WriteString("#\n")
-	sb.WriteString("# SECURITY: Store the target URL as a secret/environment variable instead of hardcoding it.\n")
-	sb.WriteString("# NEXT STEPS:\n")
-	sb.WriteString("#   1. Replace the target URL with a secret/env variable if targeting production\n")
-	sb.WriteString("#   2. Adjust scan_types, concurrency, and rate_limit for your environment\n")
-	sb.WriteString("#   3. Set up notifications (Slack, email) for failed WAF tests\n")
-	sb.WriteString("#   4. Use 'assess' for formal grading instead of 'scan' for compliance reporting\n")
-	sb.WriteString("#\n")
-	sb.WriteString(pipeline)
+	// Build structured response with the same envelope as all other tools.
+	resp := buildCICDResponse(pipeline, args)
+	return jsonResult(resp)
+}
 
-	return textResult(sb.String()), nil
+// cicdResponse wraps generated CI/CD pipeline config with structured metadata
+// and actionable next steps for AI agent consumption.
+type cicdResponse struct {
+	Summary   string   `json:"summary"`
+	Platform  string   `json:"platform"`
+	FileName  string   `json:"file_name"`
+	Pipeline  string   `json:"pipeline"`
+	NextSteps []string `json:"next_steps"`
+}
+
+func buildCICDResponse(pipeline string, args cicdArgs) *cicdResponse {
+	fileNames := map[string]string{
+		"github":       ".github/workflows/waf-test.yml",
+		"gitlab":       ".gitlab-ci.yml",
+		"jenkins":      "Jenkinsfile",
+		"azure-devops": "azure-pipelines.yml",
+		"circleci":     ".circleci/config.yml",
+		"bitbucket":    "bitbucket-pipelines.yml",
+	}
+
+	fileName := fileNames[args.Platform]
+	if fileName == "" {
+		fileName = "pipeline-config"
+	}
+
+	scanTypes := "sqli,xss"
+	if len(args.ScanTypes) > 0 {
+		scanTypes = strings.Join(args.ScanTypes, ",")
+	}
+
+	summary := fmt.Sprintf("Generated %s CI/CD pipeline targeting %s with scan types [%s]. Save as %s in your repository.",
+		args.Platform, args.Target, scanTypes, fileName)
+
+	nextSteps := []string{
+		fmt.Sprintf("Save the 'pipeline' content as %s in your repository and commit.", fileName),
+		"SECURITY: Replace the hardcoded target URL with a secret/environment variable before deploying to production.",
+		"Adjust concurrency and rate_limit values for your target environment (conservative for production, aggressive for staging).",
+		"Set up notifications (Slack, email, PagerDuty) for failed WAF tests so security regressions are caught immediately.",
+		"Use 'assess' instead of 'scan' in the pipeline for formal enterprise grading with F1 score and letter grade.",
+	}
+	if args.Schedule != "" {
+		nextSteps = append(nextSteps,
+			fmt.Sprintf("Scheduled scans configured with cron '%s'. Verify the schedule matches your maintenance window.", args.Schedule))
+	}
+
+	return &cicdResponse{
+		Summary:   summary,
+		Platform:  args.Platform,
+		FileName:  fileName,
+		Pipeline:  pipeline,
+		NextSteps: nextSteps,
+	}
 }
 
 func generateCICDConfig(args cicdArgs) string {
