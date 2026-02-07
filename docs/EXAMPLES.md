@@ -7080,32 +7080,75 @@ In n8n MCP Client node, set authentication to **Header Auth** with:
 
 ### Docker Deployment
 
-```dockerfile
-FROM ghcr.io/waftester/waftester:latest
+The published container image is available at `ghcr.io/waftester/waftester`.
+Multi-architecture (`linux/amd64`, `linux/arm64`), non-root, read-only
+distroless base.
 
-EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=3s \
-  CMD curl -f http://localhost:8080/health || exit 1
+#### Quick Start
 
-ENTRYPOINT ["waf-tester", "mcp", "--http", ":8080"]
+```bash
+# Start MCP server — default command
+docker run -p 8080:8080 ghcr.io/waftester/waftester
+
+# Verify health
+curl http://localhost:8080/health
+# → {"status":"ok","service":"waf-tester-mcp"}
+
+# Run a scan directly (override default MCP command)
+docker run --rm ghcr.io/waftester/waftester \
+  scan -u https://example.com -category sqli,xss
+
+# Use a specific version
+docker run -p 8080:8080 ghcr.io/waftester/waftester:2.7.0
+```
+
+#### Available Image Tags
+
+| Tag | Description |
+|-----|-------------|
+| `latest` | Latest stable release |
+| `2.7.0` | Exact version (semver) |
+| `2.7`, `2` | Minor/major aliases |
+| `edge` | Latest `main` branch build |
+| `sha-abc1234` | Specific commit |
+
+#### Docker Compose (Local Development)
+
+The repository includes a `docker-compose.yml` for local builds:
+
+```bash
+# Build from source and start
+docker compose up --build
+
+# With version metadata
+VERSION=2.7.0 COMMIT=$(git rev-parse --short HEAD) \
+  BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+  docker compose up --build
+
+# Detached
+docker compose up -d
+
+# Logs
+docker compose logs -f waftester
+
+# Stop
+docker compose down
 ```
 
 #### Docker Compose with n8n
 
 ```yaml
 services:
-  waf-tester-mcp:
+  waftester:
     image: ghcr.io/waftester/waftester:latest
-    command: ["mcp", "--http", ":8080"]
     ports:
       - "8080:8080"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-    volumes:
-      - ./payloads:/payloads
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
 
   n8n:
     image: n8nio/n8n
@@ -7114,11 +7157,11 @@ services:
     environment:
       - N8N_AI_ENABLED=true
     depends_on:
-      waf-tester-mcp:
-        condition: service_healthy
+      waftester:
+        condition: service_started
 ```
 
-Connect n8n to `http://waf-tester-mcp:8080/sse` using Docker's internal network.
+Connect n8n to `http://waftester:8080/sse` using Docker's internal network.
 
 #### Kubernetes
 
