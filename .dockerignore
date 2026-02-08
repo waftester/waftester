@@ -55,5 +55,5 @@ payloads/.cache/
 # Workspaces & data
 workspaces/
 
-# Templates
-templates/
+# Templates — allow templates/ for Docker image (Dockerfile COPY)
+# templates/ is NOT ignored; it needs to be baked into the image
