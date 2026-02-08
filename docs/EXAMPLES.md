@@ -2,15 +2,23 @@
 
 This guide provides comprehensive usage examples for WAFtester, organized by use case and command category. Each example includes context on when to use the command, what value it provides, and expected output formats.
 
-**Document Version:** 2.7.2  
+**Document Version:** 2.7.3  
 **Last Updated:** February 2026
 
 ---
 
+> **What's New in v2.7.3**
+>
+> - **Async Task Pattern** — long-running MCP tools (scan, assess, bypass, discover) now return a `task_id` immediately; poll with `get_task_status` for results — eliminates timeout errors
+> - **3 New MCP Tools** — `get_task_status`, `cancel_task`, `list_tasks` for async task management
+> - **HTTP Middleware Stack** — recovery middleware, security headers, SSE keep-alive for production hardening
+> - **CORS Spec Compliance** — no CORS headers without Origin; `Vary: Origin` always set
+> - **WriteTimeout Fix** — removed 60s WriteTimeout that killed SSE connections
+
 > **What's New in v2.7.2**
 >
 > - **Unified Payload Provider** — bridges 2,800+ JSON payloads with Nuclei templates via `--enrich` flag ([details](#unified-payload-provider))
-> - **Template Library** — 39 pre-built templates shipped in releases and Docker images ([details](#template-library-v272))
+> - **Template Library** — 39 pre-built templates shipped in releases and Docker images ([details](#template-library-v273))
 > - **Template Validation Tests** — 11 structural tests enforce template quality in CI
 > - **Report Config Consolidation** — all report configs now in `templates/report-configs/`
 > - **CLI Flag Consistency** — `--payloads` / `--template-dir` flags unified across scan, grpc, soap, openapi, and assess commands
@@ -121,7 +129,7 @@ This guide provides comprehensive usage examples for WAFtester, organized by use
 - [Unified Payload Provider](#unified-payload-provider)
   - [Template Enrichment with `--enrich`](#template-enrichment-with---enrich)
   - [MCP Server: Unified Resource](#mcp-server-unified-resource)
-- [Template Library (v2.7.2)](#template-library-v272)
+- [Template Library (v2.7.3)](#template-library-v273)
   - [Why Templates?](#why-templates)
   - [Nuclei Templates](#nuclei-templates)
   - [Workflow Templates](#workflow-templates)
@@ -7009,7 +7017,7 @@ echo "╚═══════════════════════�
 
 ## MCP Server Integration
 
-WAFtester v2.7.2 includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that enables AI agents and automation platforms to control WAFtester through a structured, typed interface.
+WAFtester v2.7.3 includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that enables AI agents and automation platforms to control WAFtester through a structured, typed interface.
 
 ### Stdio Mode (IDE)
 
@@ -7110,7 +7118,7 @@ waf-tester mcp --http :8080
 
 3. Connect to an **AI Agent** node (Claude, GPT, etc.)
 
-4. All 10 WAFtester tools appear automatically for the AI agent
+4. All 13 WAFtester tools appear automatically for the AI agent
 
 #### Example n8n Workflow
 
@@ -7334,6 +7342,43 @@ detect_waf → assess → (review grade, F1, FPR, recommendations)
 detect_waf → generate_cicd (with WAF-specific thresholds)
 ```
 
+#### Async Task Pattern (v2.7.3)
+
+Long-running tools (`scan`, `assess`, `bypass`, `discover`) return a `task_id` immediately instead of blocking. This prevents `MCP error -32001: Request timed out` errors that occurred when operations exceeded client timeout limits (60s for n8n, 30-120s for other clients).
+
+**Polling workflow:**
+
+```
+1. Call scan with target and parameters
+   → Returns: {"task_id": "task_a1b2c3d4", "status": "running", "estimated_duration": "30-120s"}
+
+2. Wait 5-10 seconds
+
+3. Call get_task_status with {"task_id": "task_a1b2c3d4"}
+   → Returns: {"status": "running", "progress": 45, "total": 100, "message": "Tested 150/330..."}
+
+4. Repeat step 2-3 until status is "completed"
+   → Returns: {"status": "completed", "result": { ...full scan results... }}
+```
+
+**Tool classification:**
+
+| Type | Tools | Behavior |
+|------|-------|----------|
+| **Fast** | `detect_waf`, `list_payloads`, `learn`, `mutate`, `probe`, `generate_cicd` | Returns result directly |
+| **Async** | `scan`, `assess`, `bypass`, `discover` | Returns `task_id`, poll for results |
+| **Task management** | `get_task_status`, `cancel_task`, `list_tasks` | Manage async tasks |
+
+**Cancellation:**
+
+```
+# Cancel a running task
+Call cancel_task with {"task_id": "task_a1b2c3d4"}
+
+# List all tasks to find lost task IDs
+Call list_tasks with {} or {"status": "running"}
+```
+
 ---
 
 ## Unified Payload Provider
@@ -7422,7 +7467,7 @@ waf-tester mcp \
 
 ---
 
-## Template Library (v2.7.2)
+## Template Library (v2.7.3)
 
 WAFtester ships a complete `templates/` directory in every release archive and Docker image. Templates are pre-built configurations that eliminate repetitive setup and encode security best practices.
 

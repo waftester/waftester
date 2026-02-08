@@ -68,6 +68,7 @@ func (s *Server) addSecurityAuditPrompt() {
 
 ## Phase 2: Attack Surface Discovery
 4. Run discover on target %s with max_depth 3
+   → This returns a task_id. Poll with get_task_status until status is "completed".
 5. Analyze the discovered endpoints, parameters, and risk factors
 6. Summarize the attack surface: total endpoints, parameter injection points, tech stack
 
@@ -77,6 +78,7 @@ Run scan on target with:
 - Rate limit: %s
 - Concurrency: 10
 - Blocked status codes: [403, 406, 429, 503]
+→ This returns a task_id. Poll with get_task_status every 5-10 seconds until status is "completed".
 
 Report the detection rate and any bypass findings per category.
 
@@ -85,6 +87,7 @@ Run assess on target to get formal metrics:
 - Detection rate, false positive rate, F1 score, MCC
 - Grade assignment (A+ through F)
 - Category-level breakdown
+→ This returns a task_id. Poll with get_task_status until status is "completed".
 
 ## Phase 5: Report & Recommendations
 Compile findings into a structured report:
@@ -161,6 +164,7 @@ Run scan against %s with:
 - categories: ["%s"]
 - rate_limit: %s
 - concurrency: %s
+→ This returns a task_id. Poll with get_task_status every 5-10 seconds until status is "completed".
 This establishes which payloads are blocked vs which already bypass.
 
 ## Step 3: Analyze Blocked Payloads
@@ -177,6 +181,7 @@ Run bypass against %s with:
 - category: "%s"
 - rate_limit: %s
 - concurrency: %s
+→ This returns a task_id. Poll with get_task_status every 5-10 seconds until status is "completed".
 This systematically tests all mutation combinations.
 
 ## Step 6: Report
@@ -250,6 +255,7 @@ func (s *Server) addFullAssessmentPrompt() {
 Run assess against %s with:
 - concurrency: 25
 - timeout: 10
+→ This returns a task_id. Poll with get_task_status every 5-10 seconds until status is "completed".
 
 ## Compliance Mapping
 Read waftester://owasp-mappings and map each finding to the relevant OWASP Top 10 2021 category.
@@ -286,8 +292,8 @@ Present results as:
    - Priority 4: Monitoring and alerting suggestions
 
 Apply a grading policy for standardized assessment:
-- Standard: --policy templates/policies/standard.yaml (85%%%% effectiveness threshold)
-- Strict: --policy templates/policies/strict.yaml (95%%%% effectiveness threshold)
+- Standard: --policy templates/policies/standard.yaml (85%% effectiveness threshold)
+- Strict: --policy templates/policies/strict.yaml (95%% effectiveness threshold)
 - PCI DSS: --policy templates/policies/pci-dss.yaml (compliance-focused)
 
 Format the output suitable for executive and technical audiences.`,
@@ -352,6 +358,7 @@ Run detect_waf on %s first — we need to know if/what WAF protects this target.
 ## Step 2: Surface Discovery
 Run discover against %s with:
 - max_depth: %s%s
+→ This returns a task_id. Poll with get_task_status every 5-10 seconds until status is "completed".
 
 ## Step 3: Analyze Discovery Results
 From the discovery output, summarize:
@@ -534,8 +541,8 @@ Use a policy to grade the results:
   --policy templates/policies/standard.yaml
 
 Available policies:
-- strict.yaml: 95%%%% effectiveness floor
-- standard.yaml: 85%%%% effectiveness  
+- strict.yaml: 95%% effectiveness floor
+- standard.yaml: 85%% effectiveness  
 - permissive.yaml: Development-friendly
 - owasp-top10.yaml: OWASP Top 10 mapping
 - pci-dss.yaml: PCI DSS compliance
