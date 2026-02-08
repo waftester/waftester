@@ -141,6 +141,7 @@ type Summary struct {
 	PassedTests    int
 	FailedTests    int
 	ErrorTests     int
+	HostsSkipped   int
 	Duration       time.Duration
 	RequestsPerSec float64
 	TargetURL      string
@@ -225,6 +226,9 @@ func PrintSummary(s Summary) {
 	printRow("Passed:", fmt.Sprintf("[--] %d", s.PassedTests), PassStyle)
 	printRow("Failed (Bypass):", fmt.Sprintf("[!!] %d", s.FailedTests), FailStyle)
 	printRow("Errors:", fmt.Sprintf("[??] %d", s.ErrorTests), ErrorStyle)
+	if s.HostsSkipped > 0 {
+		printRow("Skipped:", fmt.Sprintf("[>>] %d", s.HostsSkipped), StatValueStyle)
+	}
 
 	// Separator
 	fmt.Fprintln(os.Stderr, BracketStyle.Render("  "+separator))

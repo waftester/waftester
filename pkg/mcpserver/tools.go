@@ -16,7 +16,9 @@ import (
 	"github.com/waftester/waftester/pkg/assessment"
 	"github.com/waftester/waftester/pkg/core"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/discovery"
+	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/learning"
 	"github.com/waftester/waftester/pkg/metrics"
@@ -849,6 +851,9 @@ func (s *Server) handleDiscover(ctx context.Context, req *mcp.CallToolRequest) (
 	}
 
 	return s.launchAsync(ctx, "discover", "15-120s depending on site size", func(taskCtx context.Context, task *Task) {
+		hosterrors.Clear(args.Target)
+		detection.Default().Clear(args.Target)
+
 		task.SetProgress(0, 100, "Starting discovery on "+args.Target)
 
 		cfg := discovery.DiscoveryConfig{
@@ -1351,11 +1356,19 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	estimatedDuration := estimateScanDuration(len(filtered), args.Concurrency, args.RateLimit)
 
 	return s.launchAsync(ctx, "scan", estimatedDuration, func(taskCtx context.Context, task *Task) {
+		// Clear stale host state from previous scans to prevent poisoned cache.
+		// The global hosterrors + detection singletons persist across MCP sessions;
+		// without this, 3 transient network errors permanently skip the host
+		// for all subsequent scans until the 5-minute cache expires.
+		hosterrors.Clear(args.Target)
+		detection.Default().Clear(args.Target)
+
 		task.SetProgress(10, 100, fmt.Sprintf("Loaded %d payloads, scanning…", len(filtered)))
 
 		total := len(filtered)
 		var received atomic.Int64
 		var bypasses atomic.Int64
+		var skippedCount atomic.Int64
 
 		executor := core.NewExecutor(core.ExecutorConfig{
 			TargetURL:   args.Target,
@@ -1369,10 +1382,19 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 				if r.Outcome == "Fail" {
 					bypasses.Add(1)
 				}
+				if r.Outcome == "Skipped" {
+					skippedCount.Add(1)
+				}
 				if n%10 == 0 || n == int64(total) {
 					pct := float64(n) / float64(total) * 80
-					task.SetProgress(10+pct, 100,
-						fmt.Sprintf("Tested %d/%d (bypasses: %d)…", n, total, bypasses.Load()))
+					skip := skippedCount.Load()
+					if skip > 0 {
+						task.SetProgress(10+pct, 100,
+							fmt.Sprintf("Tested %d/%d (bypasses: %d, skipped: %d)…", n, total, bypasses.Load(), skip))
+					} else {
+						task.SetProgress(10+pct, 100,
+							fmt.Sprintf("Tested %d/%d (bypasses: %d)…", n, total, bypasses.Load()))
+					}
 				}
 			},
 		})
@@ -1414,10 +1436,21 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 			default:
 				summary.Interpretation = fmt.Sprintf("Critical: WAF is largely ineffective (%.1f%% detection). %d of %d payloads bypassed. Consider the WAF misconfigured or disabled for this endpoint.", rate, execResults.FailedTests, tested)
 			}
+		} else if execResults.HostsSkipped > 0 {
+			// No real tests ran — everything was skipped
+			summary.Interpretation = fmt.Sprintf("WARNING: %d of %d payloads were skipped because the target host became unreachable. "+
+				"The WAF or CDN may be rate-limiting or IP-blocking the scanner. "+
+				"Try again later, use a proxy, reduce concurrency/rate_limit, or test from a different IP.",
+				execResults.HostsSkipped, execResults.TotalTests)
 		}
 
-		summary.Summary = fmt.Sprintf("Scanned %s with %d payloads. Detection rate: %s. Blocked: %d, Bypassed: %d, Errors: %d.",
-			args.Target, execResults.TotalTests, detectionRate, execResults.BlockedTests, execResults.FailedTests, execResults.ErrorTests)
+		if execResults.HostsSkipped > 0 {
+			summary.Summary = fmt.Sprintf("Scanned %s with %d payloads. Detection rate: %s. Blocked: %d, Bypassed: %d, Errors: %d, Skipped: %d (host unreachable).",
+				args.Target, execResults.TotalTests, detectionRate, execResults.BlockedTests, execResults.FailedTests, execResults.ErrorTests, execResults.HostsSkipped)
+		} else {
+			summary.Summary = fmt.Sprintf("Scanned %s with %d payloads. Detection rate: %s. Blocked: %d, Bypassed: %d, Errors: %d.",
+				args.Target, execResults.TotalTests, detectionRate, execResults.BlockedTests, execResults.FailedTests, execResults.ErrorTests)
+		}
 
 		summary.NextSteps = buildScanNextSteps(execResults, args)
 
@@ -1493,6 +1526,13 @@ func buildScanNextSteps(results output.ExecutionResults, args scanArgs) []string
 	if results.ErrorTests > 0 {
 		steps = append(steps,
 			fmt.Sprintf("%d errors occurred — check network connectivity, reduce rate_limit, or increase timeout.", results.ErrorTests))
+	}
+
+	if results.HostsSkipped > 0 {
+		steps = append(steps,
+			fmt.Sprintf("WARNING: %d payloads were skipped because the host became unreachable during scanning. "+
+				"The target WAF/CDN may be rate-limiting or IP-blocking the scanner. Recommended actions: "+
+				"1) Wait 5-10 minutes and retry, 2) Reduce concurrency and rate_limit, 3) Use a proxy.", results.HostsSkipped))
 	}
 
 	return steps
@@ -1647,6 +1687,9 @@ func (s *Server) handleAssess(ctx context.Context, req *mcp.CallToolRequest) (*m
 	}
 
 	return s.launchAsync(ctx, "assess", "30-300s depending on payload count and target response time", func(taskCtx context.Context, task *Task) {
+		hosterrors.Clear(args.Target)
+		detection.Default().Clear(args.Target)
+
 		task.SetProgress(0, 100, "Starting enterprise assessment on "+args.Target)
 
 		a := assessment.New(cfg)
@@ -2060,6 +2103,9 @@ func (s *Server) handleBypass(ctx context.Context, req *mcp.CallToolRequest) (*m
 	}
 
 	return s.launchAsync(ctx, "bypass", "30-300s depending on payload count and mutation matrix size", func(taskCtx context.Context, task *Task) {
+		hosterrors.Clear(args.Target)
+		detection.Default().Clear(args.Target)
+
 		task.SetProgress(0, 100, fmt.Sprintf("Preparing bypass matrix for %d payloads…", len(args.Payloads)))
 
 		executor := mutation.NewExecutor(&mutation.ExecutorConfig{

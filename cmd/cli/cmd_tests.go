@@ -423,7 +423,8 @@ func runTests() {
 					_ = runDispCtx.EmitResult(ctx, result.Category, result.Severity, blocked, result.StatusCode, float64(result.LatencyMs))
 				}
 				// Additionally emit bypass event for non-blocked results
-				if runDispCtx != nil && result.Outcome != "Blocked" && result.Outcome != "Error" {
+				// Skip "Skipped" payloads — they're host-unreachable, not bypasses
+				if runDispCtx != nil && result.Outcome != "Blocked" && result.Outcome != "Error" && result.Outcome != "Skipped" {
 					_ = runDispCtx.EmitBypass(ctx, result.Category, result.Severity, result.RequestURL, result.Payload, result.StatusCode)
 				}
 			},
@@ -449,6 +450,7 @@ func runTests() {
 				PassedTests:    results.PassedTests,
 				FailedTests:    results.FailedTests,
 				ErrorTests:     results.ErrorTests,
+				HostsSkipped:   results.HostsSkipped,
 				Duration:       results.Duration,
 				RequestsPerSec: results.RequestsPerSec,
 				TargetURL:      currentTarget,
@@ -474,6 +476,7 @@ func runTests() {
 		aggregatedResults.PassedTests += results.PassedTests
 		aggregatedResults.FailedTests += results.FailedTests
 		aggregatedResults.ErrorTests += results.ErrorTests
+		aggregatedResults.HostsSkipped += results.HostsSkipped
 		aggregatedResults.Duration += results.Duration
 
 		// Add spacing between targets
@@ -493,6 +496,7 @@ func runTests() {
 			PassedTests:    aggregatedResults.PassedTests,
 			FailedTests:    aggregatedResults.FailedTests,
 			ErrorTests:     aggregatedResults.ErrorTests,
+			HostsSkipped:   aggregatedResults.HostsSkipped,
 			Duration:       aggregatedResults.Duration,
 			RequestsPerSec: aggregatedResults.RequestsPerSec,
 			TargetURL:      fmt.Sprintf("%d targets", totalTargets),

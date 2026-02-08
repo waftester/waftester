@@ -155,6 +155,27 @@ func (e *Executor) Execute(ctx context.Context, allPayloads []payloads.Payload, 
 	var blocked, passed, failed, errored int64
 	var skipped, drops, bans int64
 
+	// Death spiral detection: if >80% of the first batch are skipped,
+	// the host is unreachable and continuing wastes time.
+	const deathSpiralThreshold = 50 // Check after this many completions
+	var deathSpiralOnce sync.Once
+	deathSpiralCtx, deathSpiralCancel := context.WithCancel(ctx)
+	defer deathSpiralCancel()
+
+	checkDeathSpiral := func() {
+		done := atomic.LoadInt64(&completed)
+		if done < deathSpiralThreshold {
+			return
+		}
+		skip := atomic.LoadInt64(&skipped)
+		if float64(skip)/float64(done) > 0.8 {
+			deathSpiralOnce.Do(func() {
+				fmt.Printf("\n[!] Scan death spiral detected: %d/%d payloads skipped (host unreachable). Aborting.\n", skip, done)
+				deathSpiralCancel()
+			})
+		}
+	}
+
 	// Start worker pool
 	var wg sync.WaitGroup
 	for i := 0; i < e.config.Concurrency; i++ {
@@ -163,11 +184,32 @@ func (e *Executor) Execute(ctx context.Context, allPayloads []payloads.Payload, 
 			defer wg.Done()
 			for payload := range tasks {
 				select {
-				case <-ctx.Done():
+				case <-deathSpiralCtx.Done():
 					return
 				default:
+					// Check skip conditions BEFORE rate limiter to avoid
+					// wasting rate-limit tokens on payloads that will be skipped.
+					if hosterrors.Check(e.config.TargetURL) {
+						result := e.buildSkippedResult(payload, "[HOST_FAILED] Host has exceeded error threshold")
+						resultsChan <- result
+						atomic.AddInt64(&completed, 1)
+						atomic.AddInt64(&skipped, 1)
+						checkDeathSpiral()
+						continue
+					}
+					if e.detector != nil {
+						if skip, reason := e.detector.ShouldSkipHost(e.config.TargetURL); skip {
+							result := e.buildSkippedResult(payload, fmt.Sprintf("[DETECTION] %s", reason))
+							resultsChan <- result
+							atomic.AddInt64(&completed, 1)
+							atomic.AddInt64(&skipped, 1)
+							checkDeathSpiral()
+							continue
+						}
+					}
+
 					// Rate limit
-					e.limiter.Wait(ctx)
+					e.limiter.Wait(deathSpiralCtx)
 
 					// Execute test
 					result := e.executeTest(ctx, payload)
@@ -241,7 +283,7 @@ func (e *Executor) Execute(ctx context.Context, allPayloads []payloads.Payload, 
 sendLoop:
 	for _, payload := range allPayloads {
 		select {
-		case <-ctx.Done():
+		case <-deathSpiralCtx.Done():
 			break sendLoop
 		case tasks <- payload:
 		}
@@ -282,6 +324,28 @@ sendLoop:
 
 	fmt.Println() // New line after progress
 	return results
+}
+
+// buildSkippedResult creates a TestResult for a payload that was skipped
+// due to host errors or detection system recommendations. Used by the
+// worker pool to skip payloads without going through the rate limiter.
+func (e *Executor) buildSkippedResult(payload payloads.Payload, reason string) *output.TestResult {
+	method := payload.Method
+	if method == "" {
+		method = "GET"
+	}
+	return &output.TestResult{
+		ID:              payload.ID,
+		Category:        payload.Category,
+		Severity:        payload.SeverityHint,
+		Payload:         payload.Payload,
+		Timestamp:       time.Now().Format("15:04:05"),
+		Method:          method,
+		Outcome:         "Skipped",
+		ErrorMessage:    reason,
+		ResponseHeaders: make(map[string]string),
+		RiskScore:       scoring.Result{RiskScore: 0},
+	}
 }
 
 // executeTest runs a single payload test
@@ -717,7 +781,27 @@ func (e *Executor) ExecuteWithProgress(ctx context.Context, allPayloads []payloa
 	resultsChan := make(chan *output.TestResult, e.config.Concurrency*2)
 
 	// Atomic counters
-	var blocked, passed, failed, errored int64
+	var blocked, passed, failed, errored, skipped int64
+
+	// Death spiral detection: if >80% of the first batch are skipped,
+	// the host is unreachable and continuing wastes time.
+	const deathSpiralThreshold2 = 50
+	var deathSpiralOnce2 sync.Once
+	deathSpiralCtx2, deathSpiralCancel2 := context.WithCancel(ctx)
+	defer deathSpiralCancel2()
+
+	checkDeathSpiral2 := func() {
+		done := atomic.LoadInt64(&blocked) + atomic.LoadInt64(&passed) + atomic.LoadInt64(&failed) + atomic.LoadInt64(&errored) + atomic.LoadInt64(&skipped)
+		if done < deathSpiralThreshold2 {
+			return
+		}
+		skip := atomic.LoadInt64(&skipped)
+		if float64(skip)/float64(done) > 0.8 {
+			deathSpiralOnce2.Do(func() {
+				deathSpiralCancel2()
+			})
+		}
+	}
 
 	// Start worker pool
 	var wg sync.WaitGroup
@@ -727,11 +811,32 @@ func (e *Executor) ExecuteWithProgress(ctx context.Context, allPayloads []payloa
 			defer wg.Done()
 			for payload := range tasks {
 				select {
-				case <-ctx.Done():
+				case <-deathSpiralCtx2.Done():
 					return
 				default:
+					// Check skip conditions BEFORE rate limiter to avoid
+					// wasting rate-limit tokens on payloads that will be skipped.
+					if hosterrors.Check(e.config.TargetURL) {
+						result := e.buildSkippedResult(payload, "[HOST_FAILED] Host has exceeded error threshold")
+						resultsChan <- result
+						progress.Increment(result.Outcome)
+						atomic.AddInt64(&skipped, 1)
+						checkDeathSpiral2()
+						continue
+					}
+					if e.detector != nil {
+						if skip, reason := e.detector.ShouldSkipHost(e.config.TargetURL); skip {
+							result := e.buildSkippedResult(payload, fmt.Sprintf("[DETECTION] %s", reason))
+							resultsChan <- result
+							progress.Increment(result.Outcome)
+							atomic.AddInt64(&skipped, 1)
+							checkDeathSpiral2()
+							continue
+						}
+					}
+
 					// Rate limit
-					e.limiter.Wait(ctx)
+					e.limiter.Wait(deathSpiralCtx2)
 
 					// Execute test
 					result := e.executeTest(ctx, payload)
@@ -750,6 +855,8 @@ func (e *Executor) ExecuteWithProgress(ctx context.Context, allPayloads []payloa
 						atomic.AddInt64(&failed, 1)
 					case "Error":
 						atomic.AddInt64(&errored, 1)
+					case "Skipped":
+						atomic.AddInt64(&skipped, 1)
 					}
 				}
 			}
@@ -833,7 +940,7 @@ func (e *Executor) ExecuteWithProgress(ctx context.Context, allPayloads []payloa
 sendLoop2:
 	for _, payload := range allPayloads {
 		select {
-		case <-ctx.Done():
+		case <-deathSpiralCtx2.Done():
 			break sendLoop2
 		case tasks <- payload:
 		}
@@ -897,6 +1004,7 @@ sendLoop2:
 	results.PassedTests = int(atomic.LoadInt64(&passed))
 	results.FailedTests = int(atomic.LoadInt64(&failed))
 	results.ErrorTests = int(atomic.LoadInt64(&errored))
+	results.HostsSkipped = int(atomic.LoadInt64(&skipped))
 	if results.Duration.Seconds() > 0 {
 		results.RequestsPerSec = float64(results.TotalTests) / results.Duration.Seconds()
 	}
