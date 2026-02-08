@@ -131,6 +131,9 @@ func NewExecutor(cfg ExecutorConfig) *Executor {
 
 	// Wire the same detector into the transport wrapper so the transport
 	// layer and executor layer share one consistent view.
+	// If the transport isn't a detection.Transport (e.g., user-provided
+	// HTTPClient or transport wrapper not registered), detection still
+	// works via executor.detector.ShouldSkipHost in the worker loop.
 	if dt, ok := client.Transport.(*detection.Transport); ok {
 		dt.Detector = executor.detector
 	}

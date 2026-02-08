@@ -89,20 +89,20 @@ while read -r local_ref local_sha remote_ref remote_sha; do
         continue
     fi
 
-    # For new branches, diff against the merge-base with main
+    # Determine files changed in the commits being pushed
     if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+        # New branch — diff against merge-base with main
         merge_base=$(git merge-base "$local_sha" origin/main 2>/dev/null || echo "")
         if [ -z "$merge_base" ]; then
-            range="$local_sha"
+            # No merge-base (orphan branch or no origin/main) — check all commits
+            PLAN_FILES=$(git log --diff-filter=ACMR --name-only --pretty=format: "$local_sha" 2>/dev/null | grep -E '^docs/plans/.*\.md$' | sort -u || true)
         else
-            range="${merge_base}..${local_sha}"
+            PLAN_FILES=$(git diff --name-only "${merge_base}..${local_sha}" 2>/dev/null | grep -E '^docs/plans/.*\.md$' || true)
         fi
     else
-        range="${remote_sha}..${local_sha}"
+        PLAN_FILES=$(git diff --name-only "${remote_sha}..${local_sha}" 2>/dev/null | grep -E '^docs/plans/.*\.md$' || true)
     fi
 
-    # Check for plan files in the commits being pushed
-    PLAN_FILES=$(git diff --name-only "$range" 2>/dev/null | grep -E '^docs/plans/.*\.md$' || true)
     if [ -n "$PLAN_FILES" ]; then
         echo ""
         echo "╔══════════════════════════════════════════════════════════════════╗"
