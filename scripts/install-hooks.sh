@@ -14,4 +14,9 @@ cp "$REPO_ROOT/scripts/hooks/pre-commit" "$HOOKS_DIR/pre-commit"
 chmod +x "$HOOKS_DIR/pre-commit"
 echo "  ✓ pre-commit hook installed"
 
+# Install pre-push hook
+cp "$REPO_ROOT/scripts/hooks/pre-push" "$HOOKS_DIR/pre-push"
+chmod +x "$HOOKS_DIR/pre-push"
+echo "  ✓ pre-push hook installed"
+
 echo "Done. Hooks are active."
