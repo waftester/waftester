@@ -76,7 +76,7 @@ EXAMPLE: {"task_id": "task_a1b2c3d4", "wait_seconds": 30}`,
 				Title:          "Get Task Status",
 			},
 		},
-		s.handleGetTaskStatus,
+		loggedTool("get_task_status", s.handleGetTaskStatus),
 	)
 }
 
@@ -161,7 +161,7 @@ EXAMPLE: {"task_id": "task_a1b2c3d4"}`,
 				Title:          "Cancel Task",
 			},
 		},
-		s.handleCancelTask,
+		loggedTool("cancel_task", s.handleCancelTask),
 	)
 }
 
@@ -242,7 +242,7 @@ EXAMPLE: {} or {"status": "running"}`,
 				Title:          "List Tasks",
 			},
 		},
-		s.handleListTasks,
+		loggedTool("list_tasks", s.handleListTasks),
 	)
 }
 
