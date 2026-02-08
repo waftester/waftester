@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	// Note: time is used for timestamps (CreatedAt/UpdatedAt), not for RNG.
 )
 
 // ---------------------------------------------------------------------------
@@ -253,7 +255,10 @@ func (tm *TaskManager) Create(parent context.Context, tool string) (*Task, conte
 		return nil, nil, fmt.Errorf("too many active tasks (%d/%d) — wait for existing tasks to complete or cancel them", active, maxActiveTasks)
 	}
 
-	id := generateTaskID()
+	id, err := generateTaskID()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate task ID: %w", err)
+	}
 	// Wrap context with a hard timeout so no task can run indefinitely.
 	timeoutCtx, timeoutCancel := context.WithTimeout(parent, maxTaskDuration)
 	ctx, cancel := context.WithCancel(timeoutCtx)
@@ -385,11 +390,10 @@ func (tm *TaskManager) cancelAll() {
 // generateTaskID produces a short, unique, URL-safe task identifier.
 // Format: "task_" + 16 hex chars (8 random bytes = 2^64 values).
 // With 2^64 possibilities, birthday-paradox collision requires ~4 billion IDs.
-func generateTaskID() string {
+func generateTaskID() (string, error) {
 	b := make([]byte, 8)
 	if _, err := rand.Read(b); err != nil {
-		// Fallback to timestamp-based ID if crypto/rand fails (shouldn't happen).
-		return fmt.Sprintf("task_%x", time.Now().UnixNano())
+		return "", fmt.Errorf("crypto/rand failed: %w", err)
 	}
-	return "task_" + hex.EncodeToString(b)
+	return "task_" + hex.EncodeToString(b), nil
 }
