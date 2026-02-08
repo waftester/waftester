@@ -528,14 +528,19 @@ func runTests() {
 	// Policy evaluation takes precedence
 	if pol != nil {
 		// Build SummaryData from aggregated results
+		var effectiveness, errorRate float64
+		if aggregatedResults.TotalTests > 0 {
+			effectiveness = float64(aggregatedResults.BlockedTests) / float64(aggregatedResults.TotalTests) * 100
+			errorRate = float64(aggregatedResults.ErrorTests) / float64(aggregatedResults.TotalTests) * 100
+		}
 		summaryData := policy.SummaryData{
 			TotalBypasses:      aggregatedResults.PassedTests, // Bypasses = passed tests (WAF didn't block)
 			TotalTests:         aggregatedResults.TotalTests,
 			TotalErrors:        aggregatedResults.ErrorTests,
 			BypassesBySeverity: aggregatedResults.SeverityBreakdown,
 			BypassesByCategory: aggregatedResults.CategoryBreakdown,
-			Effectiveness:      float64(aggregatedResults.BlockedTests) / float64(aggregatedResults.TotalTests) * 100,
-			ErrorRate:          float64(aggregatedResults.ErrorTests) / float64(aggregatedResults.TotalTests) * 100,
+			Effectiveness:      effectiveness,
+			ErrorRate:          errorRate,
 		}
 		policyResult := pol.Evaluate(summaryData)
 		if !policyResult.Pass {

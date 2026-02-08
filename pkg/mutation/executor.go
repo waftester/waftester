@@ -156,6 +156,15 @@ func NewExecutor(config *ExecutorConfig) *Executor {
 	return exec
 }
 
+// Close releases resources held by the executor.
+// Currently a no-op since the executor uses the shared httpclient.Default(),
+// but provided for interface consistency with core.Executor.
+func (e *Executor) Close() {
+	// The mutation executor uses httpclient.Default() (shared singleton).
+	// We don't close its idle connections because that would affect other users.
+	// If the executor is changed to create its own client, add CloseIdleConnections here.
+}
+
 // MutationTask represents a single test to execute
 type MutationTask struct {
 	OriginalPayload string

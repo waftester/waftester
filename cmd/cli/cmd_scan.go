@@ -615,6 +615,10 @@ func runScan() {
 	var wg sync.WaitGroup
 	semaphore := make(chan struct{}, *concurrency)
 
+	// Clamp rate limit to minimum of 1 (0 or negative would block forever)
+	if *rateLimit < 1 {
+		*rateLimit = 1
+	}
 	// Create rate limiter from -rl flag (token bucket algorithm)
 	// This is the same pattern as pkg/core/executor.go uses.
 	scanLimiter := rate.NewLimiter(rate.Limit(*rateLimit), *rateLimit)
@@ -2510,10 +2514,6 @@ func runScan() {
 		}
 		fmt.Println()
 	}
-
-	// Apply delay/jitter for rate limiting (used in scanner loops)
-	_ = delay  // Used for rate limiting in future iterations
-	_ = jitter // Used for rate limiting in future iterations
 
 	// Apply report metadata
 	if *reportTitle != "" {

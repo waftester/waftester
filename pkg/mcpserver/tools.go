@@ -873,15 +873,14 @@ func (s *Server) handleDiscover(ctx context.Context, req *mcp.CallToolRequest) (
 			return
 		}
 
-		// Check if cancelled.
-		if taskCtx.Err() != nil {
-			task.Fail("discovery cancelled")
-			return
-		}
+		cancelled := taskCtx.Err() != nil
 
 		task.SetProgress(90, 100, fmt.Sprintf("Discovered %d endpoints, building summary…", len(result.Endpoints)))
 
 		summary := buildDiscoverySummary(result)
+		if cancelled {
+			summary.Summary = "PARTIAL RESULTS (discovery was cancelled): " + summary.Summary
+		}
 		data, err := json.Marshal(summary)
 		if err != nil {
 			task.Fail(fmt.Sprintf("marshaling result: %v", err))
@@ -1395,9 +1394,9 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 				}
 			},
 		})
+		defer executor.Close()
 
 		execResults := executor.Execute(taskCtx, filtered, &discardWriter{})
-		defer executor.Close()
 
 		// Calculate detection rate
 		detectionRate := ""
@@ -1706,13 +1705,12 @@ func (s *Server) handleAssess(ctx context.Context, req *mcp.CallToolRequest) (*m
 			return
 		}
 
-		// Check if cancelled.
-		if taskCtx.Err() != nil {
-			task.Fail("assessment cancelled")
-			return
-		}
+		cancelled := taskCtx.Err() != nil
 
 		wrapped := buildAssessResponse(m, args.Target)
+		if cancelled {
+			wrapped.Summary = "PARTIAL RESULTS (assessment was cancelled): " + wrapped.Summary
+		}
 		data, err := json.Marshal(wrapped)
 		if err != nil {
 			task.Fail(fmt.Sprintf("marshaling result: %v", err))
@@ -2127,20 +2125,20 @@ func (s *Server) handleBypass(ctx context.Context, req *mcp.CallToolRequest) (*m
 			SkipVerify:  args.SkipVerify,
 			Pipeline:    mutation.DefaultPipelineConfig(),
 		})
+		defer executor.Close()
 
 		task.SetProgress(10, 100, "Running mutation matrix…")
 
 		result := executor.FindBypasses(taskCtx, args.Payloads)
 
-		// Check if cancelled.
-		if taskCtx.Err() != nil {
-			task.Fail("bypass testing cancelled")
-			return
-		}
+		cancelled := taskCtx.Err() != nil
 
 		task.SetProgress(90, 100, fmt.Sprintf("Bypass testing complete — %d bypasses found, building report…", len(result.BypassPayloads)))
 
 		wrapped := buildBypassResponse(result, args)
+		if cancelled {
+			wrapped.Summary = "PARTIAL RESULTS (bypass testing was cancelled): " + wrapped.Summary
+		}
 		data, err := json.Marshal(wrapped)
 		if err != nil {
 			task.Fail(fmt.Sprintf("marshaling result: %v", err))
