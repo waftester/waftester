@@ -12,7 +12,9 @@ ERRORS=0
 # GO VET — catch vet issues locally before CI discovers them
 # ============================================================================
 echo "Running go vet..."
-if ! go vet ./... 2>&1; then
+# Exclude iouring (intentional unsafe.Pointer for mmap'd kernel ring buffers)
+PACKAGES=$(go list ./... | grep -v '/iouring$')
+if ! go vet $PACKAGES 2>&1; then
     echo ""
     echo "╔══════════════════════════════════════════════════════════════════╗"
     echo "║  BLOCKED: go vet found issues                                  ║"
