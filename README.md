@@ -5,6 +5,7 @@ The most comprehensive Web Application Firewall testing platform for security pr
 [![License](https://img.shields.io/badge/License-BSL%201.1-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.24+-00ADD8.svg)](https://go.dev/)
 [![Release](https://img.shields.io/github/v/release/waftester/waftester)](https://github.com/waftester/waftester/releases)
+[![npm](https://img.shields.io/npm/v/@waftester/cli)](https://www.npmjs.com/package/@waftester/cli)
 
 ---
 
@@ -144,9 +145,24 @@ waf-tester scan -u wss://api.example.com/socket -types websocket
 
 ## Installation
 
-### Go Install (Recommended)
+### npm / npx (Recommended)
 
-Requires Go 1.22 or later.
+Zero-dependency install — downloads the correct platform binary automatically.
+
+```bash
+# Run directly (no install needed)
+npx -y @waftester/cli scan -u https://target.com
+
+# Or install globally
+npm install -g @waftester/cli
+waf-tester version
+```
+
+Works on macOS, Linux, and Windows (x64 and arm64). Requires Node.js >= 16.
+
+### Go Install
+
+Requires Go 1.24 or later.
 
 ```bash
 go install github.com/waftester/waftester/cmd/cli@latest
@@ -382,6 +398,19 @@ Add to `claude_desktop_config.json`:
 {
   "mcpServers": {
     "waf-tester": {
+      "command": "npx",
+      "args": ["-y", "@waftester/cli", "mcp"]
+    }
+  }
+}
+```
+
+Alternatively, if installed via Go or binary:
+
+```json
+{
+  "mcpServers": {
+    "waf-tester": {
       "command": "waf-tester",
       "args": ["mcp"]
     }
@@ -503,6 +532,7 @@ For complete MCP examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md#mcp-server-in
 | MCP Tools | 10 |
 | MCP Resources | 10 |
 | MCP Prompts | 6 |
+| npm Platforms | macOS, Linux, Windows (x64 + arm64) |
 | Docker Architectures | linux/amd64, linux/arm64 |
 
 ---

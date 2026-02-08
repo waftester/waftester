@@ -1,0 +1,52 @@
+{
+  "name": "@waftester/cli",
+  "version": "2.8.0",
+  "description": "WAFtester — the most comprehensive WAF testing CLI & MCP server",
+  "license": "BUSL-1.1",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/waftester/waftester.git"
+  },
+  "homepage": "https://github.com/waftester/waftester",
+  "bugs": "https://github.com/waftester/waftester/issues",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "keywords": [
+    "waf",
+    "security",
+    "testing",
+    "firewall",
+    "mcp",
+    "web-application-firewall",
+    "penetration-testing",
+    "owasp",
+    "sqli",
+    "xss",
+    "security-scanner",
+    "model-context-protocol",
+    "ai-security"
+  ],
+  "bin": {
+    "waf-tester": "bin/cli.js"
+  },
+  "files": [
+    "bin/",
+    "payloads/",
+    "templates/",
+    "LICENSE",
+    "LICENSE-COMMUNITY"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "optionalDependencies": {
+    "@waftester/darwin-x64": "2.8.0",
+    "@waftester/darwin-arm64": "2.8.0",
+    "@waftester/linux-x64": "2.8.0",
+    "@waftester/linux-arm64": "2.8.0",
+    "@waftester/win32-x64": "2.8.0",
+    "@waftester/win32-arm64": "2.8.0"
+  }
+}

@@ -1,5 +1,41 @@
 # Installation
 
+## npm / npx (Recommended)
+
+The easiest way to install WAFtester. Downloads the correct platform binary automatically.
+
+```bash
+# Run directly without installing
+npx -y @waftester/cli version
+
+# Or install globally
+npm install -g @waftester/cli
+waf-tester version
+```
+
+Requires Node.js >= 16. Works on macOS, Linux, and Windows (x64 and arm64).
+
+### Platform Packages
+
+npm automatically installs only the binary for your platform via `optionalDependencies`:
+
+| Package | Platform |
+|---------|----------|
+| `@waftester/darwin-x64` | macOS Intel |
+| `@waftester/darwin-arm64` | macOS Apple Silicon |
+| `@waftester/linux-x64` | Linux x64 |
+| `@waftester/linux-arm64` | Linux arm64 |
+| `@waftester/win32-x64` | Windows x64 |
+| `@waftester/win32-arm64` | Windows arm64 |
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `WAF_TESTER_BINARY_PATH` | Override binary path (dev/debug) |
+| `WAF_TESTER_PAYLOAD_DIR` | Override payload directory |
+| `WAF_TESTER_TEMPLATE_DIR` | Override Nuclei template directory |
+
 ## Homebrew (macOS/Linux)
 
 ```bash
@@ -137,6 +173,19 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 {
   "mcpServers": {
     "waf-tester": {
+      "command": "npx",
+      "args": ["-y", "@waftester/cli", "mcp"]
+    }
+  }
+}
+```
+
+Or if installed via Go or binary download:
+
+```json
+{
+  "mcpServers": {
+    "waf-tester": {
       "command": "waf-tester",
       "args": ["mcp"]
     }
@@ -152,8 +201,8 @@ Add to `.vscode/mcp.json` in your workspace:
 {
   "servers": {
     "waf-tester": {
-      "command": "waf-tester",
-      "args": ["mcp"]
+      "command": "npx",
+      "args": ["-y", "@waftester/cli", "mcp"]
     }
   }
 }
