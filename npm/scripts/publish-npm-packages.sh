@@ -195,22 +195,24 @@ fi
 # ============================================================================
 
 if [[ "${DRY_RUN}" != "--dry-run" ]]; then
-  wait_for_pkg "@waftester/cli" "${VERSION}"
+  if wait_for_pkg "@waftester/cli" "${VERSION}"; then
+    log "Running smoke test..."
 
-  log "Running smoke test..."
+    tag_suffix=""
+    if [[ -n "${TAG_ARGS}" ]]; then
+      tag_suffix="@next"
+    else
+      tag_suffix="@${VERSION}"
+    fi
 
-  tag_suffix=""
-  if [[ -n "${TAG_ARGS}" ]]; then
-    tag_suffix="@next"
+    smoke_output=$(npx -y "@waftester/cli${tag_suffix}" version 2>&1) \
+      || err "Smoke test failed: npx @waftester/cli${tag_suffix} version"
+
+    log "Smoke test output: ${smoke_output}"
+    log "Smoke test passed ✓"
   else
-    tag_suffix="@${VERSION}"
+    log "Skipping smoke test — CLI package not yet visible on registry (CDN propagation delay)"
   fi
-
-  smoke_output=$(npx -y "@waftester/cli${tag_suffix}" version 2>&1) \
-    || err "Smoke test failed: npx @waftester/cli${tag_suffix} version"
-
-  log "Smoke test output: ${smoke_output}"
-  log "Smoke test passed ✓"
 fi
 
 # ============================================================================
