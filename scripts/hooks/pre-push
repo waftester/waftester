@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Pre-push hook: catch issues that would fail CI before pushing.
+# Runs go vet (catches printf directives, unreachable code, etc.)
+# and validates Dockerfile COPY sources vs .dockerignore.
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+ERRORS=0
+
+# ============================================================================
+# GO VET — catch vet issues locally before CI discovers them
+# ============================================================================
+echo "Running go vet..."
+if ! go vet ./... 2>&1; then
+    echo ""
+    echo "╔══════════════════════════════════════════════════════════════════╗"
+    echo "║  BLOCKED: go vet found issues                                  ║"
+    echo "╚══════════════════════════════════════════════════════════════════╝"
+    echo ""
+    echo "Fix the vet errors above, then try pushing again."
+    echo ""
+    ERRORS=$((ERRORS + 1))
+fi
+
+# ============================================================================
+# DOCKERFILE vs .DOCKERIGNORE — prevent Docker build failures
+# ============================================================================
+DOCKERFILE="$REPO_ROOT/Dockerfile"
+DOCKERIGNORE="$REPO_ROOT/.dockerignore"
+
+if [ -f "$DOCKERFILE" ] && [ -f "$DOCKERIGNORE" ]; then
+    echo "Checking Dockerfile COPY sources vs .dockerignore..."
+
+    # Extract COPY source paths, skip --from= (multi-stage copies)
+    COPY_PATHS=$(grep -E '^\s*COPY\s' "$DOCKERFILE" | grep -v -- '--from=' \
+        | sed -E 's/^\s*COPY\s+//' | awk '{print $1}' | sed 's|/$||')
+
+    for path in $COPY_PATHS; do
+        if grep -qE "^${path}/?$" "$DOCKERIGNORE" 2>/dev/null; then
+            echo ""
+            echo "  ✗ Dockerfile COPY source '$path' is excluded by .dockerignore"
+            ERRORS=$((ERRORS + 1))
+        fi
+    done
+
+    if [ $ERRORS -eq 0 ]; then
+        echo "  ✓ All Dockerfile COPY sources available in build context"
+    fi
+fi
+
+# ============================================================================
+# RESULT
+# ============================================================================
+if [ $ERRORS -gt 0 ]; then
+    echo ""
+    echo "╔══════════════════════════════════════════════════════════════════╗"
+    echo "║  PUSH BLOCKED: $ERRORS issue(s) found                              ║"
+    echo "╚══════════════════════════════════════════════════════════════════╝"
+    echo ""
+    echo "To force push (NOT RECOMMENDED):"
+    echo "  git push --no-verify"
+    echo ""
+    exit 1
+fi
+
+echo "✓ Pre-push checks passed"
