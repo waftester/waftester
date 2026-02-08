@@ -43,10 +43,11 @@ type Config struct {
 
 // Server wraps the MCP server with waf-tester functionality.
 type Server struct {
-	mcp    *mcp.Server
-	config *Config
-	tasks  *TaskManager  // async task lifecycle manager
-	ready  atomic.Bool   // tracks whether startup validation passed
+	mcp      *mcp.Server
+	config   *Config
+	tasks    *TaskManager  // async task lifecycle manager
+	ready    atomic.Bool   // tracks whether startup validation passed
+	syncMode atomic.Bool   // stdio transport runs tools synchronously
 }
 
 // MCPServer returns the underlying MCP server for direct access (e.g., testing).
@@ -54,6 +55,9 @@ func (s *Server) MCPServer() *mcp.Server { return s.mcp }
 
 // Tasks returns the task manager for inspecting async task state (e.g., testing).
 func (s *Server) Tasks() *TaskManager { return s.tasks }
+
+// IsSyncMode returns true if the server runs tools synchronously (stdio transport).
+func (s *Server) IsSyncMode() bool { return s.syncMode.Load() }
 
 // Stop shuts down background goroutines, cancels all running tasks, and
 // waits for task goroutines to finish (with a 10s timeout to avoid
@@ -106,7 +110,12 @@ func New(cfg *Config) *Server {
 
 // RunStdio runs the MCP server over stdio transport.
 // This is the primary mode for IDE integrations (VS Code, Claude Desktop, Cursor).
+// In stdio mode, long-running tools execute synchronously because each
+// client connection maps to a single process — async task state would be
+// lost when the process exits between invocations.
 func (s *Server) RunStdio(ctx context.Context) error {
+	s.syncMode.Store(true)
+	log.Println("[mcp] stdio transport: sync mode enabled (long-running tools will block)")
 	return s.mcp.Run(ctx, &mcp.StdioTransport{})
 }
 
@@ -498,14 +507,22 @@ Choose the right tool for each situation:
 Long-running tools (scan, assess, bypass, discover) return a task_id immediately instead of blocking. Use the polling pattern to retrieve results:
 
 1. Call the tool (e.g., scan) → receive {"task_id": "task_abc123", "status": "running", "estimated_duration": "30-120s"}
-2. Wait 5-10 seconds
-3. Call get_task_status with {"task_id": "task_abc123"}
-4. If status is "running" → note progress percentage, wait 5-10s, poll again
-5. If status is "completed" → full result is in the "result" field
-6. If status is "failed" → check "error" field
-7. If status is "cancelled" → task was stopped
+2. IMMEDIATELY call get_task_status with {"task_id": "task_abc123", "wait_seconds": 30}
+3. If status is "running" → call get_task_status AGAIN with wait_seconds=30 (KEEP POLLING IN A LOOP)
+4. If status is "completed" → full result is in the "result" field — NOW return to user
+5. If status is "failed" → check "error" field
+6. If status is "cancelled" → task was stopped
+
+CRITICAL RULES:
+- ALWAYS use wait_seconds=30 in get_task_status to avoid rapid polling
+- NEVER tell the user "check back later" or "I'll keep checking" — poll until completion NOW
+- NEVER return to the user while a task is still "running" — keep calling get_task_status in a loop
+- The wait_seconds parameter makes the server wait up to 30s for completion, so you only need 2-4 polls for most operations
+- If you lose connection to the task (task not found), re-run the original tool immediately
 
 This pattern prevents timeout errors (e.g., MCP error -32001) that occur when long-running operations exceed client timeout limits (typically 60s for n8n, 30-120s for other clients).
+
+NOTE: In stdio transport mode, long-running tools run synchronously and return complete results directly — no polling needed.
 
 FAST TOOLS (return immediately): detect_waf, list_payloads, learn, mutate, probe, generate_cicd, get_task_status, cancel_task, list_tasks
 ASYNC TOOLS (return task_id): scan, assess, bypass, discover
