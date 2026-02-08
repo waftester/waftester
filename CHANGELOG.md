@@ -5,6 +5,61 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.3] - 2026-02-08
+
+### Added
+
+#### Async Task Pattern — Timeout-Proof MCP Operations
+
+Long-running MCP tools (scan, assess, bypass, discover) now return a `task_id` immediately instead of blocking. This prevents `MCP error -32001: Request timed out` errors that occurred when operations exceeded client timeout limits (60s for n8n, 30-120s for other clients).
+
+- **`TaskManager`** (`pkg/mcpserver/taskmanager.go`) — concurrent-safe async task lifecycle manager with automatic cleanup (30min TTL), max 100 active tasks, 30min hard timeout per task, and graceful shutdown with goroutine drain
+- **3 new MCP tools**: `get_task_status` (poll for results), `cancel_task` (stop running tasks), `list_tasks` (view all task states)
+- **`launchAsync` helper** — shared goroutine launcher with panic recovery, WaitGroup tracking, and immediate `task_id` response
+- **Polling pattern**: call async tool → receive `task_id` → poll `get_task_status` every 5-10s → get full result when completed
+- **Progress tracking**: tasks report percentage, current step, and estimated duration
+- **Terminal state guards**: prevent race conditions between Cancel→Fail, Complete→Fail, and Fail→Complete transitions
+- **Server instructions**: updated with ASYNC TOOL PATTERN section, tool table marks async tools, fast vs async tool classification
+- **Prompt updates**: all 6 guided workflow prompts include async polling instructions for long-running steps
+
+#### HTTP Middleware Stack — Production Hardening
+
+- **`recoveryMiddleware`** — catches panics in HTTP handlers, returns 500 JSON error instead of killing the connection
+- **`securityHeaders`** — adds `X-Content-Type-Options: nosniff` and `X-Frame-Options: DENY` to all responses
+- **SSE keep-alive** — sends `:keepalive` comments every 15s to prevent reverse proxy idle timeouts (nginx, AWS ALB, Cloudflare, Docker)
+- **`keepAliveWriter`** — thread-safe ResponseWriter wrapper with mutex-serialized writes, `Flush()` for SSE streaming, and `Unwrap()` for Go 1.20+ ResponseController discovery
+- **SSE handler chain** — SSEHandler now includes `recoveryMiddleware → securityHeaders → sseKeepAlive → sse`
+
+### Fixed
+
+#### MCP Server Fixes
+
+- **WriteTimeout removed** — `WriteTimeout: 60s` set an absolute deadline that killed SSE connections; removed so SSE streams survive indefinitely (ReadHeaderTimeout + ReadTimeout still protect against slowloris)
+- **CORS spec compliance** — no CORS headers when `Origin` is absent (setting `*` with `Allow-Credentials` violates the Fetch specification); `Vary: Origin` always set for cache correctness
+- **CORS headers expanded** — `MCP-Protocol-Version` added to `Access-Control-Allow-Headers` and `Access-Control-Expose-Headers`
+- **Silent exit on no transport** — `waf-tester mcp` with `--stdio=false` and no `--http` now prints an error and exits with code 1 instead of silently exiting
+- **Server.Stop()** — properly cancels all running tasks, waits for goroutine drain (10s timeout), and stops the cleanup goroutine
+- **`SetProgress` terminal guard** — no longer overwrites progress messages on cancelled/completed/failed tasks
+- **Grade table** — fixed `B+` → `B` and added missing `D` grade in server instructions
+- **WAF signatures description** — clarified "12 WAF vendor signatures" → "12 of 26 WAF vendors with detailed bypass tips"
+- **Server instructions** — corrected "17 commands" → "13 tools"; resource list now includes `waftester://templates` and `waftester://payloads/unified`
+- **Template count** — corrected 41 → 40 in version resource, templates resource description, and `total_templates` field
+- **`scanArgs` schema** — added missing `Policy` and `Overrides` fields to match InputSchema
+- **`detect_waf` error hint** — changed "Try with skip_verify=true" → "Use 'probe' with skip_verify=true" (detect_waf has no skip_verify parameter)
+- **`generate_cicd` platform validation** — explicit `validPlatforms` map check before generating YAML; rejects unsupported platforms with clear error
+- **Prompt format strings** — fixed `%%%%` → `%%` in `full_assessment` and `template_scan` prompts (4 instances)
+
+### Tests
+
+- **Goroutine leak prevention** — added `defer srv.Stop()` / `t.Cleanup(func() { srv.Stop() })` to all 23 test and benchmark functions that create `mcpserver.New()`, preventing TaskManager goroutine leaks (~60+ per test run)
+- **TestCORSDefaultOrigin** — updated to assert absence of CORS headers when no Origin is present (per Fetch spec), plus `Vary: Origin` always present
+- **TestCORSHeaders** — added `Vary: Origin` and `MCP-Protocol-Version` assertions
+- **Async tool tests** — 15 new tests covering task lifecycle, polling, cancellation, list filtering, sync validation errors, and all 4 async tools returning `task_id`
+- **TaskManager tests** — 20 new tests covering ID generation, lifecycle transitions, concurrent access, max capacity, cleanup, terminal state guards, context deadlines, and WaitGroup drain
+- **Tool count assertions** — updated from 10 to 13 in `TestListTools`, `TestHTTPTransportListTools`, `TestToolsIterator`
+
+---
+
 ## [2.7.2] - 2026-02-07
 
 ### Added

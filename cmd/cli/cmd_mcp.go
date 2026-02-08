@@ -72,6 +72,7 @@ func runMCP() {
 		TemplateDir: *templateDir,
 	})
 	srv.MarkReady() // Signal that startup validation passed
+	defer srv.Stop() // Cancel running tasks and wait for goroutine drain
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -86,9 +87,13 @@ func runMCP() {
 			Handler:           handler,
 			ReadHeaderTimeout: 10 * time.Second,
 			ReadTimeout:       30 * time.Second,
-			WriteTimeout:      60 * time.Second,
-			IdleTimeout:       120 * time.Second,
-			MaxHeaderBytes:    1 << 20, // 1 MB
+			// WriteTimeout intentionally 0: SSE streams are long-lived and
+			// any non-zero value sets an absolute deadline that kills SSE
+			// connections. Async tools return task_id immediately so non-SSE
+			// endpoints don't need a write timeout either.
+			// ReadHeaderTimeout + ReadTimeout protect against slowloris.
+			IdleTimeout:    120 * time.Second,
+			MaxHeaderBytes: 1 << 20, // 1 MB
 		}
 
 		go func() {
@@ -118,7 +123,11 @@ func runMCP() {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
+		return
 	}
+
+	fmt.Fprintf(os.Stderr, "error: no transport selected — use --stdio or --http <addr>\n")
+	os.Exit(1)
 }
 
 // envOrDefault returns the environment variable value if set, otherwise the default.

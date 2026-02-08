@@ -403,14 +403,19 @@ Add to `claude_desktop_config.json`:
 |------|--------------|
 | `list_payloads` | Browse attack payload catalog with filtering |
 | `detect_waf` | Fingerprint WAF vendor, confidence, bypass tips |
-| `discover` | Map attack surface (robots, sitemap, JS, Wayback) |
+| `discover` | Map attack surface (robots, sitemap, JS, Wayback) — **async** |
 | `learn` | Generate intelligent test plans from discovery |
-| `scan` | Execute WAF bypass tests with progress tracking |
-| `assess` | Enterprise assessment with F1, precision, MCC, FPR |
+| `scan` | Execute WAF bypass tests with progress tracking — **async** |
+| `assess` | Enterprise assessment with F1, precision, MCC, FPR — **async** |
 | `mutate` | Apply encoding/evasion transformations |
-| `bypass` | Systematic bypass with mutation matrix |
+| `bypass` | Systematic bypass with mutation matrix — **async** |
 | `probe` | TLS, HTTP/2, technology fingerprinting |
 | `generate_cicd` | Generate CI/CD YAML for 6 platforms |
+| `get_task_status` | Poll async task progress and retrieve results |
+| `cancel_task` | Stop a running async task |
+| `list_tasks` | View all running/completed/failed tasks |
+
+> **Async tools** return a `task_id` immediately. Poll with `get_task_status` to retrieve results. This prevents timeout errors with n8n and other MCP clients.
 
 ### Domain Knowledge Resources
 
