@@ -180,13 +180,24 @@ cp "${NPM_DIR}/cli/README.md" "${cli_dir}/"
 # Generate package.json with version and pinned optionalDependencies.
 # Extract the source version dynamically so the script survives version bumps.
 SOURCE_VERSION=$(grep -oP '"version":\s*"\K[^"]+' "${NPM_DIR}/cli/package.json" | head -1)
-log "  Replacing version ${SOURCE_VERSION} → ${VERSION}"
-sed "s/\"${SOURCE_VERSION}\"/\"${VERSION}\"/g" "${NPM_DIR}/cli/package.json" \
-  > "${cli_dir}/package.json"
+if [[ "${SOURCE_VERSION}" == "${VERSION}" ]]; then
+  log "  Source version matches target (${VERSION}) — copying as-is"
+  cp "${NPM_DIR}/cli/package.json" "${cli_dir}/package.json"
+else
+  log "  Replacing version ${SOURCE_VERSION} → ${VERSION}"
+  sed "s/\"${SOURCE_VERSION}\"/\"${VERSION}\"/g" "${NPM_DIR}/cli/package.json" \
+    > "${cli_dir}/package.json"
 
-# Sanity check: verify substitution worked
-if grep -q "\"${SOURCE_VERSION}\"" "${cli_dir}/package.json" 2>/dev/null; then
-  err "Version substitution failed — source version ${SOURCE_VERSION} still present in output"
+  # Sanity check: verify substitution worked
+  if grep -q "\"${SOURCE_VERSION}\"" "${cli_dir}/package.json" 2>/dev/null; then
+    err "Version substitution failed — source version ${SOURCE_VERSION} still present in output"
+  fi
+fi
+
+# Verify target version appears at least 7 times (version + 6 optionalDeps)
+target_count=$(grep -c "\"${VERSION}\"" "${cli_dir}/package.json" || true)
+if (( target_count < 7 )); then
+  err "Version check failed — expected at least 7 occurrences of ${VERSION}, found ${target_count}"
 fi
 
 log "  @waftester/cli ready"
