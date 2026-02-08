@@ -45,6 +45,8 @@ func TestGetTaskStatus_MissingTaskID(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// With no tasks in the system, omitting task_id triggers auto-discovery
+	// which finds nothing and returns a helpful "no tasks found" error.
 	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
 		Name:      "get_task_status",
 		Arguments: json.RawMessage(`{}`),
@@ -53,11 +55,11 @@ func TestGetTaskStatus_MissingTaskID(t *testing.T) {
 		t.Fatalf("CallTool: %v", err)
 	}
 	if !result.IsError {
-		t.Fatal("expected error for missing task_id")
+		t.Fatal("expected error when no tasks exist and no task_id provided")
 	}
 	text := extractText(t, result)
-	if !strings.Contains(strings.ToLower(text), "task_id") {
-		t.Errorf("error should mention task_id, got: %s", text)
+	if !strings.Contains(strings.ToLower(text), "no tasks found") {
+		t.Errorf("error should mention 'no tasks found', got: %s", text)
 	}
 }
 
@@ -80,6 +82,174 @@ func TestGetTaskStatus_NonexistentTask(t *testing.T) {
 	text := extractText(t, result)
 	if !strings.Contains(strings.ToLower(text), "not found") {
 		t.Errorf("error should mention 'not found', got: %s", text)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// get_task_status auto-discovery (cross-session recovery)
+// ---------------------------------------------------------------------------
+
+func TestGetTaskStatus_AutoDiscovery_FindsActiveTask(t *testing.T) {
+	t.Parallel()
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	defer srv.Stop()
+
+	// Create a running task.
+	task, _, _ := srv.Tasks().Create(context.Background(), "assess")
+
+	cs := newTestSessionFrom(t, srv)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Call get_task_status without task_id → should auto-discover the running task.
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "get_task_status",
+		Arguments: json.RawMessage(`{"wait_seconds": 0}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("unexpected error: %s", extractText(t, result))
+	}
+	text := extractText(t, result)
+	if !strings.Contains(text, task.ID) {
+		t.Errorf("auto-discovery should return task %s, got: %s", task.ID, text)
+	}
+	if !strings.Contains(text, "running") {
+		t.Errorf("task should be running, got: %s", text)
+	}
+}
+
+func TestGetTaskStatus_AutoDiscovery_FindsCompletedTask(t *testing.T) {
+	t.Parallel()
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	defer srv.Stop()
+
+	// Create and complete a task.
+	task, _, _ := srv.Tasks().Create(context.Background(), "scan")
+	task.Complete(json.RawMessage(`{"bypasses":3}`))
+
+	cs := newTestSessionFrom(t, srv)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// No active tasks → should fall back to the most recent completed task.
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "get_task_status",
+		Arguments: json.RawMessage(`{"wait_seconds": 0}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("unexpected error: %s", extractText(t, result))
+	}
+	text := extractText(t, result)
+	if !strings.Contains(text, task.ID) {
+		t.Errorf("auto-discovery should return completed task %s, got: %s", task.ID, text)
+	}
+	if !strings.Contains(text, "completed") {
+		t.Errorf("task should be completed, got: %s", text)
+	}
+}
+
+func TestGetTaskStatus_AutoDiscovery_PrefersActiveOverCompleted(t *testing.T) {
+	t.Parallel()
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	defer srv.Stop()
+
+	// Create a completed task first.
+	completed, _, _ := srv.Tasks().Create(context.Background(), "scan")
+	completed.Complete(json.RawMessage(`{"ok":true}`))
+
+	// Then create a running task.
+	running, _, _ := srv.Tasks().Create(context.Background(), "assess")
+
+	cs := newTestSessionFrom(t, srv)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "get_task_status",
+		Arguments: json.RawMessage(`{"wait_seconds": 0}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("unexpected error: %s", extractText(t, result))
+	}
+	text := extractText(t, result)
+	// Should prefer the running task over the completed one.
+	if !strings.Contains(text, running.ID) {
+		t.Errorf("auto-discovery should prefer active task %s, got: %s", running.ID, text)
+	}
+	if strings.Contains(text, completed.ID) {
+		t.Errorf("should NOT return completed task %s when active task exists", completed.ID)
+	}
+}
+
+func TestGetTaskStatus_AutoDiscovery_ByToolName(t *testing.T) {
+	t.Parallel()
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	defer srv.Stop()
+
+	// Create two running tasks for different tools.
+	scanTask, _, _ := srv.Tasks().Create(context.Background(), "scan")
+	assessTask, _, _ := srv.Tasks().Create(context.Background(), "assess")
+
+	cs := newTestSessionFrom(t, srv)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Filter by tool_name=assess → should find the assess task.
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "get_task_status",
+		Arguments: json.RawMessage(`{"tool_name": "assess", "wait_seconds": 0}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("unexpected error: %s", extractText(t, result))
+	}
+	text := extractText(t, result)
+	if !strings.Contains(text, assessTask.ID) {
+		t.Errorf("tool_name filter should find assess task %s, got: %s", assessTask.ID, text)
+	}
+	// scanTask should not appear.
+	if strings.Contains(text, scanTask.ID) {
+		t.Errorf("tool_name filter should NOT return scan task %s", scanTask.ID)
+	}
+}
+
+func TestGetTaskStatus_AutoDiscovery_NoMatchingTool(t *testing.T) {
+	t.Parallel()
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	defer srv.Stop()
+
+	// Create a scan task only.
+	srv.Tasks().Create(context.Background(), "scan")
+
+	cs := newTestSessionFrom(t, srv)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Filter by tool_name=assess → no match → error.
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "get_task_status",
+		Arguments: json.RawMessage(`{"tool_name": "assess", "wait_seconds": 0}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected error when no tasks match tool_name filter")
+	}
+	text := extractText(t, result)
+	if !strings.Contains(strings.ToLower(text), "no tasks found") {
+		t.Errorf("error should mention 'no tasks found', got: %s", text)
 	}
 }
 
@@ -497,6 +667,73 @@ func TestListTasks_WithStatusFilter(t *testing.T) {
 	}
 	if parsed.Total != 1 {
 		t.Errorf("total = %d, want 1 (only running task)", parsed.Total)
+	}
+}
+
+func TestListTasks_WithToolNameFilter(t *testing.T) {
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	defer srv.Stop()
+
+	_, _, _ = srv.Tasks().Create(context.Background(), "scan")
+	_, _, _ = srv.Tasks().Create(context.Background(), "scan")
+	_, _, _ = srv.Tasks().Create(context.Background(), "assess")
+
+	cs := newTestSessionFrom(t, srv)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Filter by tool_name=scan → should find 2 tasks.
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "list_tasks",
+		Arguments: json.RawMessage(`{"tool_name": "scan"}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+
+	text := extractText(t, result)
+	var parsed struct {
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal([]byte(text), &parsed); err != nil {
+		t.Fatalf("parsing result: %v", err)
+	}
+	if parsed.Total != 2 {
+		t.Errorf("total = %d, want 2 (only scan tasks)", parsed.Total)
+	}
+}
+
+func TestListTasks_WithToolNameAndStatusFilter(t *testing.T) {
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	defer srv.Stop()
+
+	t1, _, _ := srv.Tasks().Create(context.Background(), "scan")
+	_, _, _ = srv.Tasks().Create(context.Background(), "scan")
+	_, _, _ = srv.Tasks().Create(context.Background(), "assess")
+	t1.Complete(json.RawMessage(`{}`))
+
+	cs := newTestSessionFrom(t, srv)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Filter by tool_name=scan AND status=running → should find 1 task.
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "list_tasks",
+		Arguments: json.RawMessage(`{"tool_name": "scan", "status": "running"}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+
+	text := extractText(t, result)
+	var parsed struct {
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal([]byte(text), &parsed); err != nil {
+		t.Fatalf("parsing result: %v", err)
+	}
+	if parsed.Total != 1 {
+		t.Errorf("total = %d, want 1 (only running scan task)", parsed.Total)
 	}
 }
 

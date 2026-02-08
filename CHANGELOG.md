@@ -5,6 +5,55 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.7] - 2026-02-08
+
+### Added
+
+#### Cross-Session Task Recovery
+
+MCP clients like n8n create a new session (full `initialize` handshake) for every AI agent turn. When `assess` returns a `task_id` in turn 1 and the AI needs to poll with `get_task_status` in turn 2, the new session means the AI often loses or hallucinates the `task_id`. This release makes task recovery automatic and session-independent.
+
+- **`task_id` now optional in `get_task_status`**: When omitted, the server auto-discovers the most recent active task. Prefers running/pending tasks over completed ones — exactly what a reconnecting client needs.
+- **`tool_name` parameter in `get_task_status`**: When `task_id` is omitted, filter auto-discovery by which tool started the task (e.g., `"assess"`, `"scan"`). Eliminates ambiguity when multiple tasks exist.
+- **`GetLatest()` method on `TaskManager`**: Returns the most recently created non-terminal task, falling back to the most recently updated terminal task. Accepts optional tool name filter. Thread-safe with proper lock ordering.
+- **`tool_name` filter in `list_tasks`**: Filter task listings by tool name (e.g., `{"tool_name": "scan"}`). Can combine with existing `status` filter.
+- **Cross-session recovery workflow in `serverInstructions`**: Explicit instructions telling AI agents: "If you lost the task_id, call `get_task_status` without parameters or use `list_tasks` to discover tasks."
+
+#### Auto-Discovery Examples
+
+```
+# Recover latest task (any tool):
+get_task_status {"wait_seconds": 30}
+
+# Recover latest assess task specifically:
+get_task_status {"tool_name": "assess", "wait_seconds": 30}
+
+# List all running tasks to pick one:
+list_tasks {"status": "running"}
+
+# Filter by tool and status:
+list_tasks {"tool_name": "scan", "status": "running"}
+```
+
+### Tests
+
+- Added `TestGetTaskStatus_AutoDiscovery_FindsActiveTask` — auto-discovers running task when task_id omitted.
+- Added `TestGetTaskStatus_AutoDiscovery_FindsCompletedTask` — falls back to completed task when no active tasks.
+- Added `TestGetTaskStatus_AutoDiscovery_PrefersActiveOverCompleted` — running tasks preferred over completed.
+- Added `TestGetTaskStatus_AutoDiscovery_ByToolName` — tool_name filter finds correct task.
+- Added `TestGetTaskStatus_AutoDiscovery_NoMatchingTool` — returns error when no tasks match filter.
+- Added `TestListTasks_WithToolNameFilter` — filters task list by tool name.
+- Added `TestListTasks_WithToolNameAndStatusFilter` — combined tool_name + status filtering.
+- Added `TestGetLatest_EmptyManager` — nil on empty TaskManager.
+- Added `TestGetLatest_SingleActiveTask` — finds the only active task.
+- Added `TestGetLatest_PrefersActiveOverTerminal` — prefers running over completed.
+- Added `TestGetLatest_FallsBackToTerminal` — returns completed when no active tasks.
+- Added `TestGetLatest_MostRecentActive` — returns most recently created active task.
+- Added `TestGetLatest_WithToolFilter` — tool filter works correctly.
+- Added `TestGetLatest_ToolFilterNoMatch` — nil when filter doesn't match.
+- Updated `TestGetTaskStatus_MissingTaskID` — now tests auto-discovery "no tasks found" path.
+- **257 tests total, all passing.**
+
 ## [2.7.6] - 2026-02-08
 
 ### Fixed
