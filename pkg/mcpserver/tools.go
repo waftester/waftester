@@ -16,7 +16,6 @@ import (
 	"github.com/waftester/waftester/pkg/assessment"
 	"github.com/waftester/waftester/pkg/core"
 	"github.com/waftester/waftester/pkg/defaults"
-	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/discovery"
 	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/httpclient"
@@ -852,7 +851,6 @@ func (s *Server) handleDiscover(ctx context.Context, req *mcp.CallToolRequest) (
 
 	return s.launchAsync(ctx, "discover", "15-120s depending on site size", func(taskCtx context.Context, task *Task) {
 		hosterrors.Clear(args.Target)
-		detection.Default().Clear(args.Target)
 
 		task.SetProgress(0, 100, "Starting discovery on "+args.Target)
 
@@ -1361,7 +1359,6 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		// without this, 3 transient network errors permanently skip the host
 		// for all subsequent scans until the 5-minute cache expires.
 		hosterrors.Clear(args.Target)
-		detection.Default().Clear(args.Target)
 
 		task.SetProgress(10, 100, fmt.Sprintf("Loaded %d payloads, scanning…", len(filtered)))
 
@@ -1691,7 +1688,6 @@ func (s *Server) handleAssess(ctx context.Context, req *mcp.CallToolRequest) (*m
 
 	return s.launchAsync(ctx, "assess", "30-300s depending on payload count and target response time", func(taskCtx context.Context, task *Task) {
 		hosterrors.Clear(args.Target)
-		detection.Default().Clear(args.Target)
 
 		task.SetProgress(0, 100, "Starting enterprise assessment on "+args.Target)
 
@@ -2107,7 +2103,6 @@ func (s *Server) handleBypass(ctx context.Context, req *mcp.CallToolRequest) (*m
 
 	return s.launchAsync(ctx, "bypass", "30-300s depending on payload count and mutation matrix size", func(taskCtx context.Context, task *Task) {
 		hosterrors.Clear(args.Target)
-		detection.Default().Clear(args.Target)
 
 		task.SetProgress(0, 100, fmt.Sprintf("Preparing bypass matrix for %d payloads…", len(args.Payloads)))
 
