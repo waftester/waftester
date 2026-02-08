@@ -5,6 +5,30 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.0] - 2026-02-08
+
+### Added
+
+#### npm Distribution (`@waftester/cli`)
+
+WAFtester is now available on npm for zero-dependency installs. Enables one-liner MCP server setup for Claude Desktop, VS Code, and Cursor.
+
+- **`npx -y @waftester/cli` one-liner**: Run WAFtester without installing Go or downloading binaries. Downloads the correct platform binary automatically via `optionalDependencies`.
+- **6 platform packages**: `@waftester/darwin-x64`, `@waftester/darwin-arm64`, `@waftester/linux-x64`, `@waftester/linux-arm64`, `@waftester/win32-x64`, `@waftester/win32-arm64`.
+- **MCP server via npx**: `npx -y @waftester/cli mcp` starts the MCP server with bundled payloads and templates. Claude Desktop, VS Code, and Cursor configs now use `npx` as the command.
+- **ARM64 emulation fallback**: On macOS arm64 with missing native package, falls back to x64 binary under Rosetta 2. Same for Windows ARM.
+- **Yarn PnP detection**: Detects `.zip/` paths from Yarn PnP and directs users to set `preferUnplugged: true`.
+- **Environment variable override**: `WAF_TESTER_BINARY_PATH` for development/debugging.
+- **Provenance attestation**: All npm packages published with `--provenance` for supply chain verification (`npm audit signatures`).
+- **Automated CI/CD**: `npm-publish.yml` workflow chains after GoReleaser release, extracts archives, builds 7 packages, publishes with idempotency checks, and verifies provenance.
+- **Stdout purity**: Node.js bin shim uses only `console.error` (0 `console.log` calls), ensuring clean `stdio` transport for MCP.
+
+### Changed
+
+- README: Added npm badge, npm/npx install section as recommended method, MCP configs updated to use `npx`
+- INSTALLATION.md: Added npm/npx section with platform table and environment variables
+- SECURITY.md: Updated supported versions table for 2.8.x
+
 ## [2.7.8] - 2026-02-09
 
 ### Fixed
