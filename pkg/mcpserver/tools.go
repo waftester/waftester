@@ -207,6 +207,7 @@ func (s *Server) registerTools() {
 	s.addBypassTool()
 	s.addProbeTool()
 	s.addGenerateCICDTool()
+	s.registerAsyncTools() // get_task_status, cancel_task, list_tasks
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -601,7 +602,7 @@ func (s *Server) handleDetectWAF(ctx context.Context, req *mcp.CallToolRequest) 
 			fmt.Sprintf("WAF detection failed: %v", err),
 			[]string{
 				"Verify the target URL is reachable and includes the scheme (https://).",
-				"Try with skip_verify=true if the target uses a self-signed certificate.",
+				"Use 'probe' with skip_verify=true to test connectivity first.",
 				"Check network connectivity and DNS resolution for the target host.",
 				"Use 'probe' to test basic connectivity before retrying detection.",
 			}), nil
@@ -716,6 +717,8 @@ SERVICE PRESETS: authentik, n8n, immich, webapp, intranet — adds known endpoin
 
 Returns: endpoint list with methods/params, technologies, secrets found, WAF status, attack surface analysis.
 
+ASYNC TOOL: This tool returns a task_id immediately and runs in the background (15-120s). Poll with get_task_status to retrieve results.
+
 TYPICAL WORKFLOW: detect_waf → discover → learn → scan`,
 			InputSchema: map[string]any{
 				"type": "object",
@@ -810,40 +813,45 @@ func (s *Server) handleDiscover(ctx context.Context, req *mcp.CallToolRequest) (
 		args.Concurrency = defaults.ConcurrencyMedium
 	}
 
-	cfg := discovery.DiscoveryConfig{
-		Target:        args.Target,
-		Timeout:       timeout,
-		MaxDepth:      args.MaxDepth,
-		Concurrency:   args.Concurrency,
-		SkipVerify:    args.SkipVerify,
-		Service:       args.Service,
-		DisableActive: args.DisableActive,
-	}
+	return s.launchAsync(ctx, "discover", "15-120s depending on site size", func(taskCtx context.Context, task *Task) {
+		task.SetProgress(0, 100, "Starting discovery on "+args.Target)
 
-	notifyProgress(ctx, req, 0, 100, "Starting discovery on "+args.Target)
-	logToSession(ctx, req, logInfo, "Initiating attack surface discovery for "+args.Target)
+		cfg := discovery.DiscoveryConfig{
+			Target:        args.Target,
+			Timeout:       timeout,
+			MaxDepth:      args.MaxDepth,
+			Concurrency:   args.Concurrency,
+			SkipVerify:    args.SkipVerify,
+			Service:       args.Service,
+			DisableActive: args.DisableActive,
+		}
 
-	discoverer := discovery.NewDiscoverer(cfg)
+		discoverer := discovery.NewDiscoverer(cfg)
+		task.SetProgress(10, 100, "Probing target and checking WAF…")
 
-	notifyProgress(ctx, req, 10, 100, "Probing target and checking WAF…")
+		result, err := discoverer.Discover(taskCtx)
+		if err != nil {
+			task.Fail(fmt.Sprintf("discovery failed: %v", err))
+			return
+		}
 
-	result, err := discoverer.Discover(ctx)
-	if err != nil {
-		return enrichedError(
-			fmt.Sprintf("discovery failed: %v", err),
-			[]string{
-				"Check that the target URL is reachable and returns a valid HTTP response.",
-				"Try increasing the timeout parameter (e.g., timeout=30).",
-				"If the target uses a self-signed cert, set skip_verify=true.",
-				"Use 'detect_waf' first to verify basic connectivity to the target.",
-			}), nil
-	}
+		// Check if cancelled.
+		if taskCtx.Err() != nil {
+			task.Fail("discovery cancelled")
+			return
+		}
 
-	notifyProgress(ctx, req, 100, 100, "Discovery complete")
-	logToSession(ctx, req, logInfo, fmt.Sprintf("Discovered %d endpoints for %s", len(result.Endpoints), args.Target))
+		task.SetProgress(90, 100, fmt.Sprintf("Discovered %d endpoints, building summary…", len(result.Endpoints)))
 
-	summary := buildDiscoverySummary(result)
-	return jsonResult(summary)
+		summary := buildDiscoverySummary(result)
+		data, err := json.Marshal(summary)
+		if err != nil {
+			task.Fail(fmt.Sprintf("marshaling result: %v", err))
+			return
+		}
+
+		task.Complete(data)
+	})
 }
 
 type discoverySummary struct {
@@ -1121,7 +1129,9 @@ RESULT MEANINGS:
 • "Fail" = attack reached the app (BAD — this is a bypass)
 • "Error" = network issue (investigate connectivity)
 
-Returns: detection rate, total/blocked/failed counts, bypass details with reproduction info, latency stats.`,
+Returns: detection rate, total/blocked/failed counts, bypass details with reproduction info, latency stats.
+
+ASYNC TOOL: This tool returns a task_id immediately and runs in the background. Duration depends on payload count and target speed. Poll with get_task_status to retrieve results.`,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -1203,6 +1213,8 @@ type scanArgs struct {
 	Timeout     int      `json:"timeout"`
 	SkipVerify  bool     `json:"skip_verify"`
 	Proxy       string   `json:"proxy"`
+	Policy      string   `json:"policy"`
+	Overrides   string   `json:"overrides"`
 }
 
 type scanResultSummary struct {
@@ -1237,10 +1249,7 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		args.Timeout = 5
 	}
 
-	notifyProgress(ctx, req, 0, 100, "Loading payloads…")
-	logToSession(ctx, req, logInfo, fmt.Sprintf("Starting scan on %s (concurrency=%d, rate=%d/s)", args.Target, args.Concurrency, args.RateLimit))
-
-	// Load from unified engine (JSON + Nuclei templates)
+	// Load payloads synchronously so validation errors return immediately.
 	provider := payloadprovider.NewProvider(s.config.PayloadDir, s.config.TemplateDir)
 	if err := provider.Load(); err != nil {
 		return enrichedError(
@@ -1304,81 +1313,115 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		return errorResult("no payloads match the specified filters. Try broadening the category or severity, or check that the payload directory contains files."), nil
 	}
 
-	notifyProgress(ctx, req, 10, 100, fmt.Sprintf("Loaded %d payloads, scanning…", len(filtered)))
+	estimatedDuration := estimateScanDuration(len(filtered), args.Concurrency, args.RateLimit)
 
-	total := len(filtered)
-	var received atomic.Int64
-	var bypasses atomic.Int64
+	return s.launchAsync(ctx, "scan", estimatedDuration, func(taskCtx context.Context, task *Task) {
+		task.SetProgress(10, 100, fmt.Sprintf("Loaded %d payloads, scanning…", len(filtered)))
 
-	executor := core.NewExecutor(core.ExecutorConfig{
-		TargetURL:   args.Target,
-		Concurrency: args.Concurrency,
-		RateLimit:   args.RateLimit,
-		Timeout:     time.Duration(args.Timeout) * time.Second,
-		SkipVerify:  args.SkipVerify,
-		Proxy:       args.Proxy,
-		OnResult: func(r *output.TestResult) {
-			n := received.Add(1)
-			if r.Outcome == "Fail" {
-				bypasses.Add(1)
-				logToSession(ctx, req, logWarning,
-					fmt.Sprintf("BYPASS: %s [%s] → %d", r.ID, r.Category, r.StatusCode))
-			}
-			if n%10 == 0 || n == int64(total) {
-				pct := float64(n) / float64(total) * 80
-				notifyProgress(ctx, req, 10+pct, 100,
-					fmt.Sprintf("Tested %d/%d (bypasses: %d)…", n, total, bypasses.Load()))
-			}
-		},
-	})
+		total := len(filtered)
+		var received atomic.Int64
+		var bypasses atomic.Int64
 
-	execResults := executor.Execute(ctx, filtered, &discardWriter{})
+		executor := core.NewExecutor(core.ExecutorConfig{
+			TargetURL:   args.Target,
+			Concurrency: args.Concurrency,
+			RateLimit:   args.RateLimit,
+			Timeout:     time.Duration(args.Timeout) * time.Second,
+			SkipVerify:  args.SkipVerify,
+			Proxy:       args.Proxy,
+			OnResult: func(r *output.TestResult) {
+				n := received.Add(1)
+				if r.Outcome == "Fail" {
+					bypasses.Add(1)
+				}
+				if n%10 == 0 || n == int64(total) {
+					pct := float64(n) / float64(total) * 80
+					task.SetProgress(10+pct, 100,
+						fmt.Sprintf("Tested %d/%d (bypasses: %d)…", n, total, bypasses.Load()))
+				}
+			},
+		})
 
-	notifyProgress(ctx, req, 95, 100, "Generating summary…")
+		execResults := executor.Execute(taskCtx, filtered, &discardWriter{})
 
-	// Calculate detection rate
-	detectionRate := ""
-	tested := execResults.BlockedTests + execResults.FailedTests
-	if tested > 0 {
-		rate := float64(execResults.BlockedTests) / float64(tested) * 100
-		detectionRate = fmt.Sprintf("%.1f%%", rate)
-	}
-
-	summary := &scanResultSummary{
-		Target:        args.Target,
-		DetectionRate: detectionRate,
-		Results:       &execResults,
-	}
-
-	// Build interpretation based on detection rate
-	if tested > 0 {
-		rate := float64(execResults.BlockedTests) / float64(tested) * 100
-		switch {
-		case rate >= 95:
-			summary.Interpretation = fmt.Sprintf("Excellent WAF coverage (%.1f%%). The WAF blocked %d of %d attack payloads. Very few bypasses detected.", rate, execResults.BlockedTests, tested)
-		case rate >= 85:
-			summary.Interpretation = fmt.Sprintf("Good WAF coverage (%.1f%%), but %d payloads bypassed detection. Review the bypass details below and consider adding custom rules.", rate, execResults.FailedTests)
-		case rate >= 70:
-			summary.Interpretation = fmt.Sprintf("Moderate WAF coverage (%.1f%%). %d payloads bypassed the WAF — significant gaps exist that need rule tuning.", rate, execResults.FailedTests)
-		case rate >= 50:
-			summary.Interpretation = fmt.Sprintf("Weak WAF coverage (%.1f%%). %d of %d payloads bypassed detection. The WAF needs major rule updates or reconfiguration.", rate, execResults.FailedTests, tested)
-		default:
-			summary.Interpretation = fmt.Sprintf("Critical: WAF is largely ineffective (%.1f%% detection). %d of %d payloads bypassed. Consider the WAF misconfigured or disabled for this endpoint.", rate, execResults.FailedTests, tested)
+		// Check if cancelled.
+		if taskCtx.Err() != nil {
+			task.Fail("scan cancelled")
+			return
 		}
+
+		// Calculate detection rate
+		detectionRate := ""
+		tested := execResults.BlockedTests + execResults.FailedTests
+		if tested > 0 {
+			rate := float64(execResults.BlockedTests) / float64(tested) * 100
+			detectionRate = fmt.Sprintf("%.1f%%", rate)
+		}
+
+		summary := &scanResultSummary{
+			Target:        args.Target,
+			DetectionRate: detectionRate,
+			Results:       &execResults,
+		}
+
+		// Build interpretation based on detection rate
+		if tested > 0 {
+			rate := float64(execResults.BlockedTests) / float64(tested) * 100
+			switch {
+			case rate >= 95:
+				summary.Interpretation = fmt.Sprintf("Excellent WAF coverage (%.1f%%). The WAF blocked %d of %d attack payloads. Very few bypasses detected.", rate, execResults.BlockedTests, tested)
+			case rate >= 85:
+				summary.Interpretation = fmt.Sprintf("Good WAF coverage (%.1f%%), but %d payloads bypassed detection. Review the bypass details below and consider adding custom rules.", rate, execResults.FailedTests)
+			case rate >= 70:
+				summary.Interpretation = fmt.Sprintf("Moderate WAF coverage (%.1f%%). %d payloads bypassed the WAF — significant gaps exist that need rule tuning.", rate, execResults.FailedTests)
+			case rate >= 50:
+				summary.Interpretation = fmt.Sprintf("Weak WAF coverage (%.1f%%). %d of %d payloads bypassed detection. The WAF needs major rule updates or reconfiguration.", rate, execResults.FailedTests, tested)
+			default:
+				summary.Interpretation = fmt.Sprintf("Critical: WAF is largely ineffective (%.1f%% detection). %d of %d payloads bypassed. Consider the WAF misconfigured or disabled for this endpoint.", rate, execResults.FailedTests, tested)
+			}
+		}
+
+		summary.Summary = fmt.Sprintf("Scanned %s with %d payloads. Detection rate: %s. Blocked: %d, Bypassed: %d, Errors: %d.",
+			args.Target, execResults.TotalTests, detectionRate, execResults.BlockedTests, execResults.FailedTests, execResults.ErrorTests)
+
+		summary.NextSteps = buildScanNextSteps(execResults, args)
+
+		data, err := json.Marshal(summary)
+		if err != nil {
+			task.Fail(fmt.Sprintf("marshaling result: %v", err))
+			return
+		}
+		task.Complete(data)
+	})
+}
+
+// estimateScanDuration produces a human-readable time estimate for async
+// task responses so the MCP client knows how long to poll.
+func estimateScanDuration(payloadCount, concurrency, rateLimit int) string {
+	if concurrency <= 0 {
+		concurrency = 10
+	}
+	if rateLimit <= 0 {
+		rateLimit = 50
 	}
 
-	// Build contextual summary
-	summary.Summary = fmt.Sprintf("Scanned %s with %d payloads. Detection rate: %s. Blocked: %d, Bypassed: %d, Errors: %d.",
-		args.Target, execResults.TotalTests, detectionRate, execResults.BlockedTests, execResults.FailedTests, execResults.ErrorTests)
+	// Bottleneck is min(concurrency throughput, rate limit).
+	effectiveRPS := rateLimit
+	if concurrency < rateLimit {
+		effectiveRPS = concurrency
+	}
 
-	// Build next steps based on results
-	summary.NextSteps = buildScanNextSteps(execResults, args)
-
-	notifyProgress(ctx, req, 100, 100, fmt.Sprintf("Scan complete — %d bypasses found", execResults.FailedTests))
-	logToSession(ctx, req, logInfo, fmt.Sprintf("Scan finished: %d tested, %d blocked, %d bypassed, detection rate: %s",
-		execResults.TotalTests, execResults.BlockedTests, execResults.FailedTests, detectionRate))
-
-	return jsonResult(summary)
+	seconds := payloadCount / effectiveRPS
+	if seconds < 10 {
+		return "5-15s"
+	}
+	if seconds < 30 {
+		return "10-30s"
+	}
+	if seconds < 120 {
+		return fmt.Sprintf("%d-%ds", seconds/2, seconds*2)
+	}
+	return fmt.Sprintf("%d-%ds (consider narrowing categories for faster results)", seconds/2, seconds*2)
 }
 
 // discardWriter implements output.Writer and discards all results.
@@ -1454,7 +1497,9 @@ EXAMPLE INPUTS:
 GRADING RUBRIC: A+ (>97%) → A (>93%) → B (>85%) → C (>70%) → D (>50%) → F (<50%)
 METRICS: Detection Rate, F1 Score (precision×recall balance), MCC (Matthews Correlation), FPR (false positive rate)
 
-Returns: letter grade, category scores, F1/MCC/FPR metrics, bypass list, per-category breakdown, improvement recommendations.`,
+Returns: letter grade, category scores, F1/MCC/FPR metrics, bypass list, per-category breakdown, improvement recommendations.
+
+ASYNC TOOL: This tool returns a task_id immediately and runs in the background (30-300s). Poll with get_task_status to retrieve results.`,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -1566,36 +1611,39 @@ func (s *Server) handleAssess(ctx context.Context, req *mcp.CallToolRequest) (*m
 		cfg.DetectWAF = *args.DetectWAF
 	}
 
-	notifyProgress(ctx, req, 0, 100, "Starting enterprise assessment on "+args.Target)
-	logToSession(ctx, req, logInfo, "Enterprise WAF assessment initiated for "+args.Target)
+	return s.launchAsync(ctx, "assess", "30-300s depending on payload count and target response time", func(taskCtx context.Context, task *Task) {
+		task.SetProgress(0, 100, "Starting enterprise assessment on "+args.Target)
 
-	a := assessment.New(cfg)
+		a := assessment.New(cfg)
 
-	progressFn := func(completed, total int64, phase string) {
-		if total > 0 {
-			pct := float64(completed) / float64(total) * 90
-			notifyProgress(ctx, req, pct, 100, fmt.Sprintf("[%s] %d/%d", phase, completed, total))
+		progressFn := func(completed, total int64, phase string) {
+			if total > 0 {
+				pct := float64(completed) / float64(total) * 90
+				task.SetProgress(pct, 100, fmt.Sprintf("[%s] %d/%d", phase, completed, total))
+			}
 		}
-	}
 
-	metrics, err := a.Run(ctx, progressFn)
-	if err != nil {
-		return enrichedError(
-			fmt.Sprintf("assessment failed: %v", err),
-			[]string{
-				"Verify the target is reachable and not aggressively rate-limiting.",
-				"Try reducing concurrency and rate_limit for sensitive targets.",
-				"Use 'scan' first for a lighter test, then 'assess' for full metrics.",
-				"Check if the target requires authentication or specific headers.",
-			}), nil
-	}
+		m, err := a.Run(taskCtx, progressFn)
+		if err != nil {
+			task.Fail(fmt.Sprintf("assessment failed: %v", err))
+			return
+		}
 
-	notifyProgress(ctx, req, 100, 100, fmt.Sprintf("Assessment complete — Grade: %s", metrics.Grade))
-	logToSession(ctx, req, logInfo, fmt.Sprintf("Assessment complete: Grade=%s, F1=%.3f, FPR=%.3f",
-		metrics.Grade, metrics.F1Score, metrics.FalsePositiveRate))
+		// Check if cancelled.
+		if taskCtx.Err() != nil {
+			task.Fail("assessment cancelled")
+			return
+		}
 
-	wrapped := buildAssessResponse(metrics, args.Target)
-	return jsonResult(wrapped)
+		wrapped := buildAssessResponse(m, args.Target)
+		data, err := json.Marshal(wrapped)
+		if err != nil {
+			task.Fail(fmt.Sprintf("marshaling result: %v", err))
+			return
+		}
+
+		task.Complete(data)
+	})
 }
 
 // assessResponse wraps EnterpriseMetrics with narrative context for AI agents.
@@ -1886,7 +1934,9 @@ EXAMPLE INPUTS:
 • Stealth mode: {"target": "https://example.com", "payloads": ["' OR 1=1--"], "rate_limit": 5, "concurrency": 2}
 • Self-signed cert: {"target": "https://internal.app", "payloads": ["{{7*7}}"], "skip_verify": true}
 
-Returns: successful bypasses with exact payload + encoding + location, total mutations tested, bypass rate, reproduction details.`,
+Returns: successful bypasses with exact payload + encoding + location, total mutations tested, bypass rate, reproduction details.
+
+ASYNC TOOL: This tool returns a task_id immediately and runs in the background (30-300s). Poll with get_task_status to retrieve results.`,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -1974,26 +2024,39 @@ func (s *Server) handleBypass(ctx context.Context, req *mcp.CallToolRequest) (*m
 		args.Timeout = 10
 	}
 
-	notifyProgress(ctx, req, 0, 100, fmt.Sprintf("Preparing bypass matrix for %d payloads…", len(args.Payloads)))
-	logToSession(ctx, req, logInfo, fmt.Sprintf("Bypass testing %d payloads against %s", len(args.Payloads), args.Target))
+	return s.launchAsync(ctx, "bypass", "30-300s depending on payload count and mutation matrix size", func(taskCtx context.Context, task *Task) {
+		task.SetProgress(0, 100, fmt.Sprintf("Preparing bypass matrix for %d payloads…", len(args.Payloads)))
 
-	executor := mutation.NewExecutor(&mutation.ExecutorConfig{
-		TargetURL:   args.Target,
-		Concurrency: args.Concurrency,
-		RateLimit:   float64(args.RateLimit),
-		Timeout:     time.Duration(args.Timeout) * time.Second,
-		SkipVerify:  args.SkipVerify,
+		executor := mutation.NewExecutor(&mutation.ExecutorConfig{
+			TargetURL:   args.Target,
+			Concurrency: args.Concurrency,
+			RateLimit:   float64(args.RateLimit),
+			Timeout:     time.Duration(args.Timeout) * time.Second,
+			SkipVerify:  args.SkipVerify,
+			Pipeline:    mutation.DefaultPipelineConfig(),
+		})
+
+		task.SetProgress(10, 100, "Running mutation matrix…")
+
+		result := executor.FindBypasses(taskCtx, args.Payloads)
+
+		// Check if cancelled.
+		if taskCtx.Err() != nil {
+			task.Fail("bypass testing cancelled")
+			return
+		}
+
+		task.SetProgress(90, 100, fmt.Sprintf("Bypass testing complete — %d bypasses found, building report…", len(result.BypassPayloads)))
+
+		wrapped := buildBypassResponse(result, args)
+		data, err := json.Marshal(wrapped)
+		if err != nil {
+			task.Fail(fmt.Sprintf("marshaling result: %v", err))
+			return
+		}
+
+		task.Complete(data)
 	})
-
-	notifyProgress(ctx, req, 10, 100, "Running mutation matrix…")
-
-	result := executor.FindBypasses(ctx, args.Payloads)
-
-	notifyProgress(ctx, req, 100, 100, fmt.Sprintf("Bypass testing complete — %d bypasses found", len(result.BypassPayloads)))
-	logToSession(ctx, req, logInfo, fmt.Sprintf("Bypass results: %d/%d found bypasses", len(result.BypassPayloads), result.TotalTested))
-
-	wrapped := buildBypassResponse(result, args)
-	return jsonResult(wrapped)
 }
 
 // bypassResponse wraps WAFBypassResult with narrative context for AI agents.
@@ -2460,6 +2523,13 @@ func (s *Server) handleGenerateCICD(_ context.Context, req *mcp.CallToolRequest)
 
 	if args.Platform == "" {
 		return errorResult("platform is required. Supported: github, gitlab, jenkins, azure-devops, circleci, bitbucket"), nil
+	}
+	validPlatforms := map[string]bool{
+		"github": true, "gitlab": true, "jenkins": true,
+		"azure-devops": true, "circleci": true, "bitbucket": true,
+	}
+	if !validPlatforms[args.Platform] {
+		return errorResult(fmt.Sprintf("unsupported platform %q. Supported: github, gitlab, jenkins, azure-devops, circleci, bitbucket", args.Platform)), nil
 	}
 	if args.Target == "" {
 		return errorResult("target URL is required."), nil

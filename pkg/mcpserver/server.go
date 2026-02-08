@@ -4,10 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
+	"runtime/debug"
 	"strings"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/waftester/waftester/pkg/defaults"
@@ -41,11 +45,22 @@ type Config struct {
 type Server struct {
 	mcp    *mcp.Server
 	config *Config
-	ready  atomic.Bool // tracks whether startup validation passed
+	tasks  *TaskManager  // async task lifecycle manager
+	ready  atomic.Bool   // tracks whether startup validation passed
 }
 
 // MCPServer returns the underlying MCP server for direct access (e.g., testing).
 func (s *Server) MCPServer() *mcp.Server { return s.mcp }
+
+// Tasks returns the task manager for inspecting async task state (e.g., testing).
+func (s *Server) Tasks() *TaskManager { return s.tasks }
+
+// Stop shuts down background goroutines, cancels all running tasks, and
+// waits for task goroutines to finish (with a 10s timeout to avoid
+// blocking indefinitely on hung tasks).
+func (s *Server) Stop() {
+	s.tasks.Stop()
+}
 
 // MarkReady signals that startup validation (payload loading, etc.) passed.
 // Until MarkReady is called, the /health endpoint returns 503 Service Unavailable.
@@ -66,7 +81,10 @@ func New(cfg *Config) *Server {
 		cfg.TemplateDir = "./templates/nuclei"
 	}
 
-	s := &Server{config: cfg}
+	s := &Server{
+		config: cfg,
+		tasks:  NewTaskManager(),
+	}
 
 	s.mcp = mcp.NewServer(
 		&mcp.Implementation{
@@ -116,21 +134,23 @@ func (s *Server) HTTPHandler() http.Handler {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.handleHealth)
-	mux.Handle("/sse", sse)
+	mux.Handle("/sse", sseKeepAlive(sse))
 	mux.Handle("/mcp", streamable)
 	mux.Handle("/", streamable)
 
-	return corsMiddleware(mux)
+	return corsMiddleware(recoveryMiddleware(securityHeaders(mux)))
 }
 
 // SSEHandler returns an http.Handler for the legacy SSE transport only.
 // Use this when you need a standalone SSE endpoint, e.g. for n8n integration
 // behind a reverse proxy that handles its own CORS and health checks.
+// Includes SSE keep-alive to prevent proxy idle timeouts.
 func (s *Server) SSEHandler() http.Handler {
-	return mcp.NewSSEHandler(
+	sse := mcp.NewSSEHandler(
 		func(_ *http.Request) *mcp.Server { return s.mcp },
 		nil,
 	)
+	return recoveryMiddleware(securityHeaders(sseKeepAlive(sse)))
 }
 
 // handleHealth serves a readiness/liveness probe.
@@ -157,8 +177,16 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
+
+		// Always set Vary: Origin so caches don't serve a CORS-enabled response
+		// to a non-browser client or vice versa.
+		w.Header().Add("Vary", "Origin")
+
 		if origin == "" {
-			origin = "*"
+			// No Origin header = non-browser client; skip CORS headers entirely.
+			// Setting "*" with Allow-Credentials violates the Fetch specification.
+			next.ServeHTTP(w, r)
+			return
 		}
 
 		w.Header().Set("Access-Control-Allow-Origin", origin)
@@ -168,10 +196,11 @@ func corsMiddleware(next http.Handler) http.Handler {
 				"Content-Type",
 				"Authorization",
 				"Mcp-Session-Id",
+				"MCP-Protocol-Version",
 				"Last-Event-ID",
 				"Accept",
 			}, ", "))
-		w.Header().Set("Access-Control-Expose-Headers", "Mcp-Session-Id")
+		w.Header().Set("Access-Control-Expose-Headers", "Mcp-Session-Id, MCP-Protocol-Version")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Max-Age", "86400")
 
@@ -182,6 +211,129 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// sseKeepAlive wraps an SSE handler to send periodic keep-alive comments.
+// This prevents reverse proxies (nginx, AWS ALB, Cloudflare, Docker) from
+// closing idle SSE connections. The keep-alive interval (15s) is well within
+// the typical 60s idle timeout of most proxies.
+const sseKeepAliveInterval = 15 * time.Second
+
+// recoveryMiddleware catches panics in HTTP handlers and returns a 500 error
+// instead of killing the connection. Every production MCP server (Mattermost,
+// gomcp, go-sdk tests) includes this.
+func recoveryMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				log.Printf("panic in HTTP handler: %v\n%s", err, debug.Stack())
+
+				// Best-effort error response: if headers were already sent
+				// (e.g., during SSE streaming), WriteHeader is a no-op.
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = w.Write([]byte(`{"error":"internal server error"}`))
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
+// securityHeaders adds standard defense-in-depth headers. These prevent
+// MIME-sniffing, clickjacking, and cross-domain policy abuse — standard
+// practice in production MCP servers (Mattermost, gomcp).
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		next.ServeHTTP(w, r)
+	})
+}
+
+func sseKeepAlive(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Only apply keep-alive to SSE streams (text/event-stream).
+		// Check if the client accepts SSE.
+		accept := r.Header.Get("Accept")
+		if !strings.Contains(accept, "text/event-stream") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Wrap the ResponseWriter to intercept SSE streaming.
+		kw := &keepAliveWriter{
+			ResponseWriter: w,
+			flusher:        flusher,
+			done:           make(chan struct{}),
+		}
+
+		// Start keep-alive goroutine.
+		go kw.keepAliveLoop()
+		defer close(kw.done)
+
+		next.ServeHTTP(kw, r)
+	})
+}
+
+// keepAliveWriter wraps http.ResponseWriter to send SSE keep-alive comments.
+// All writes are serialized through a mutex to prevent data races between
+// the keep-alive goroutine and the SSE handler's event writes.
+type keepAliveWriter struct {
+	mu sync.Mutex
+	http.ResponseWriter
+	flusher http.Flusher
+	done    chan struct{}
+}
+
+// Write serializes access to the underlying ResponseWriter.
+func (kw *keepAliveWriter) Write(p []byte) (int, error) {
+	kw.mu.Lock()
+	defer kw.mu.Unlock()
+	return kw.ResponseWriter.Write(p)
+}
+
+// Flush implements http.Flusher. Without this, the SSE SDK handler's
+// w.(http.Flusher) type assertion fails on the wrapper, causing SSE events
+// to buffer indefinitely and never reach the client.
+func (kw *keepAliveWriter) Flush() {
+	kw.mu.Lock()
+	defer kw.mu.Unlock()
+	kw.flusher.Flush()
+}
+
+// Unwrap returns the underlying ResponseWriter. This enables Go 1.20+
+// http.ResponseController to discover capabilities (Flusher, Hijacker)
+// through wrapped writers — standard practice for ResponseWriter middleware.
+func (kw *keepAliveWriter) Unwrap() http.ResponseWriter {
+	return kw.ResponseWriter
+}
+
+func (kw *keepAliveWriter) keepAliveLoop() {
+	ticker := time.NewTicker(sseKeepAliveInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-kw.done:
+			return
+		case <-ticker.C:
+			// SSE comment line — ignored by clients, keeps connection alive.
+			kw.mu.Lock()
+			_, err := kw.ResponseWriter.Write([]byte(": keepalive\n\n"))
+			if err != nil {
+				kw.mu.Unlock()
+				return // Connection closed.
+			}
+			kw.flusher.Flush()
+			kw.mu.Unlock()
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -305,7 +457,7 @@ func validateTargetURL(target string) error {
 // Server Instructions — the AI's comprehensive operating manual
 // ---------------------------------------------------------------------------
 
-const serverInstructions = `You are operating WAF Tester — a comprehensive Web Application Firewall security testing platform with 17 commands, 2,800+ attack payloads, 26 WAF + 9 CDN detection signatures, and enterprise-grade assessment capabilities.
+const serverInstructions = `You are operating WAF Tester — a comprehensive Web Application Firewall security testing platform with 13 tools, 2,800+ attack payloads, 26 WAF + 9 CDN detection signatures, and enterprise-grade assessment capabilities.
 
 ## YOUR IDENTITY
 
@@ -327,16 +479,36 @@ Choose the right tool for each situation:
 |---|---|---|
 | "What WAF is protecting this?" | detect_waf | Lightweight fingerprinting, no attack traffic |
 | "What payloads do you have?" | list_payloads | Browse catalog without touching the target |
-| "Find the attack surface" | discover | Crawls target, finds endpoints from robots/sitemap/JS/Wayback |
+| "Find the attack surface" | discover | Crawls target, finds endpoints from robots/sitemap/JS/Wayback (ASYNC) |
 | "Generate a test plan" | learn | Creates prioritized test plan from discovery results |
-| "Run security tests" | scan | Executes WAF bypass tests with curated payloads |
-| "Test WAF effectiveness" | assess | Enterprise assessment with F1, precision, MCC, FPR metrics |
-| "Find WAF bypasses" | bypass | Systematic bypass testing with mutation matrix |
+| "Run security tests" | scan | Executes WAF bypass tests with curated payloads (ASYNC) |
+| "Test WAF effectiveness" | assess | Enterprise assessment with F1, precision, MCC, FPR metrics (ASYNC) |
+| "Find WAF bypasses" | bypass | Systematic bypass testing with mutation matrix (ASYNC) |
 | "Encode this payload" | mutate | Apply encoding/evasion transformations |
 | "Probe the infrastructure" | probe | TLS, HTTP/2, technology fingerprinting |
 | "Generate CI/CD config" | generate_cicd | Create pipeline YAML for automated testing |
+| "Check task progress" | get_task_status | Poll for async task results |
+| "Cancel a task" | cancel_task | Stop a running async task |
+| "List all tasks" | list_tasks | See all running/completed/failed tasks |
 
 ## RECOMMENDED WORKFLOWS
+
+### ASYNC TOOL PATTERN (CRITICAL)
+
+Long-running tools (scan, assess, bypass, discover) return a task_id immediately instead of blocking. Use the polling pattern to retrieve results:
+
+1. Call the tool (e.g., scan) → receive {"task_id": "task_abc123", "status": "running", "estimated_duration": "30-120s"}
+2. Wait 5-10 seconds
+3. Call get_task_status with {"task_id": "task_abc123"}
+4. If status is "running" → note progress percentage, wait 5-10s, poll again
+5. If status is "completed" → full result is in the "result" field
+6. If status is "failed" → check "error" field
+7. If status is "cancelled" → task was stopped
+
+This pattern prevents timeout errors (e.g., MCP error -32001) that occur when long-running operations exceed client timeout limits (typically 60s for n8n, 30-120s for other clients).
+
+FAST TOOLS (return immediately): detect_waf, list_payloads, learn, mutate, probe, generate_cicd, get_task_status, cancel_task, list_tasks
+ASYNC TOOLS (return task_id): scan, assess, bypass, discover
 
 ### Workflow A: Full Security Assessment (Recommended)
 1. detect_waf → Understand the WAF protecting the target
@@ -367,8 +539,9 @@ Choose the right tool for each situation:
 ### Assessment Grades
 - A+ (F1 ≥ 0.95, FPR < 0.01): Enterprise ready
 - A  (F1 ≥ 0.90, FPR < 0.02): Production quality
-- B+ (F1 ≥ 0.85, FPR < 0.05): Good, minor tuning needed
+- B  (F1 ≥ 0.80, FPR < 0.05): Good, minor tuning needed
 - C  (F1 ≥ 0.70, FPR < 0.10): Significant gaps
+- D  (F1 ≥ 0.50, FPR < 0.15): Major weaknesses
 - F  (F1 < 0.50 or FPR ≥ 0.15): Not production ready
 
 ### WAF Detection Confidence
@@ -401,10 +574,12 @@ Before testing, you can read domain knowledge resources to understand:
 - waftester://version — Server capabilities and version
 - waftester://payloads — Full payload catalog with categories
 - waftester://payloads/{category} — Payloads for a specific category
+- waftester://payloads/unified — Combined payload inventory (JSON + Nuclei templates)
 - waftester://guide — Comprehensive WAF testing methodology guide
-- waftester://waf-signatures — 12 WAF vendor signatures with detailed bypass tips
+- waftester://waf-signatures — 12 of 26 WAF vendors with detailed bypass tips
 - waftester://evasion-techniques — Available evasion and encoding techniques
 - waftester://owasp-mappings — OWASP Top 10 2021 category mappings
+- waftester://templates — Nuclei template catalog with bypass/detection categories
 - waftester://config — Default configuration values and bounds
 
 ## ERROR RECOVERY
