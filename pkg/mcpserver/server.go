@@ -45,9 +45,9 @@ type Config struct {
 type Server struct {
 	mcp      *mcp.Server
 	config   *Config
-	tasks    *TaskManager  // async task lifecycle manager
-	ready    atomic.Bool   // tracks whether startup validation passed
-	syncMode atomic.Bool   // stdio transport runs tools synchronously
+	tasks    *TaskManager // async task lifecycle manager
+	ready    atomic.Bool  // tracks whether startup validation passed
+	syncMode atomic.Bool  // stdio transport runs tools synchronously
 }
 
 // MCPServer returns the underlying MCP server for direct access (e.g., testing).
@@ -557,8 +557,8 @@ Choose the right tool for each situation:
 
 Long-running tools (scan, assess, bypass, discover) return a task_id immediately instead of blocking. Use the polling pattern to retrieve results:
 
-1. Call the tool (e.g., scan) → receive {"task_id": "task_abc123", "status": "running", "estimated_duration": "30-120s"}
-2. IMMEDIATELY call get_task_status with {"task_id": "task_abc123", "wait_seconds": 30}
+1. Call the tool (e.g., scan) → receive {"task_id": "task_a1b2c3d4e5f6g7h8", "status": "running", "estimated_duration": "30-120s"}
+2. IMMEDIATELY call get_task_status with {"task_id": "task_a1b2c3d4e5f6g7h8", "wait_seconds": 30}
 3. If status is "running" → call get_task_status AGAIN with wait_seconds=30 (KEEP POLLING IN A LOOP)
 4. If status is "completed" → full result is in the "result" field — NOW return to user
 5. If status is "failed" → check "error" field
@@ -570,6 +570,8 @@ CRITICAL RULES:
 - NEVER return to the user while a task is still "running" — keep calling get_task_status in a loop
 - The wait_seconds parameter makes the server wait up to 30s for completion, so you only need 2-4 polls for most operations
 - If you lose connection to the task (task not found), re-run the original tool immediately
+- TASK ID FORMAT: task_ prefix + exactly 16 hex characters. Example: task_a1b2c3d4e5f6g7h8. NEVER use UUIDs or dashes.
+- ALWAYS use the EXACT task_id string returned by the tool — do NOT modify it or generate your own
 
 This pattern prevents timeout errors (e.g., MCP error -32001) that occur when long-running operations exceed client timeout limits (typically 60s for n8n, 30-120s for other clients).
 

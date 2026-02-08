@@ -2,11 +2,19 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+// defaultWaitSeconds is used when the AI agent omits wait_seconds from
+// get_task_status. The JSON schema declares "default": 30, but that's only
+// a hint for the AI — Go unmarshaling leaves int fields at zero when absent.
+// Using a pointer (*int) lets us distinguish "not provided" from "explicitly 0".
+const defaultWaitSeconds = 30
 
 // ---------------------------------------------------------------------------
 // Async tool infrastructure — get_task_status, cancel_task, list_tasks
@@ -52,13 +60,15 @@ RETURNS:
 • result — present when status is "completed" (contains the full tool output)
 • error — present when status is "failed"
 
-EXAMPLE: {"task_id": "task_a1b2c3d4", "wait_seconds": 30}`,
+EXAMPLE: {"task_id": "task_a1b2c3d4e5f6g7h8", "wait_seconds": 30}
+
+TASK ID FORMAT: task_ prefix + exactly 16 hex characters (e.g., task_a1b2c3d4e5f6g7h8). NO dashes, NO UUIDs.`,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"task_id": map[string]any{
 						"type":        "string",
-						"description": "The task ID returned by a long-running tool (e.g., \"task_a1b2c3d4\").",
+						"description": "The task ID returned by a long-running tool (e.g., \"task_a1b2c3d4e5f6g7h8\"). Format: task_ + 16 hex chars, NO dashes.",
 					},
 					"wait_seconds": map[string]any{
 						"type":        "integer",
@@ -83,21 +93,43 @@ EXAMPLE: {"task_id": "task_a1b2c3d4", "wait_seconds": 30}`,
 func (s *Server) handleGetTaskStatus(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var args struct {
 		TaskID      string `json:"task_id"`
-		WaitSeconds int    `json:"wait_seconds"`
+		WaitSeconds *int   `json:"wait_seconds"` // pointer to distinguish absent from explicit 0
 	}
 	if err := parseArgs(req, &args); err != nil {
 		return errorResult(fmt.Sprintf("invalid arguments: %v", err)), nil
 	}
 	if args.TaskID == "" {
-		return errorResult("task_id is required. Example: {\"task_id\": \"task_a1b2c3d4\", \"wait_seconds\": 30}"), nil
+		return errorResult("task_id is required. Example: {\"task_id\": \"task_a1b2c3d4e5f6g7h8\", \"wait_seconds\": 30}"), nil
 	}
 
-	// Clamp wait_seconds to [0, 120].
-	if args.WaitSeconds < 0 {
-		args.WaitSeconds = 0
+	// Validate task ID format before map lookup. Our IDs are "task_" + 16
+	// hex chars (e.g., "task_a1b2c3d4e5f6g7h8"). AI agents sometimes
+	// hallucinate UUIDs (dashes) or wrong-length IDs — catch that early
+	// with a specific error message so the agent can self-correct.
+	if reason := ValidateTaskID(args.TaskID); reason != "" {
+		log.Printf("[mcp] get_task_status: invalid task_id format: %s (got %q)", reason, args.TaskID)
+		return enrichedError(
+			fmt.Sprintf("invalid task_id format: %s", reason),
+			[]string{
+				fmt.Sprintf("You provided: %q", args.TaskID),
+				"Valid task IDs look like: task_a1b2c3d4e5f6g7h8 (task_ prefix + exactly 16 hex characters, NO dashes).",
+				"Copy the exact task_id from the response of the tool that started the task (scan, assess, bypass, discover).",
+				"Use 'list_tasks' to see all active tasks with their correct task_id values.",
+			},
+		), nil
 	}
-	if args.WaitSeconds > 120 {
-		args.WaitSeconds = 120
+
+	// Resolve wait_seconds: use default 30 when omitted, respect explicit 0.
+	waitSeconds := defaultWaitSeconds
+	if args.WaitSeconds != nil {
+		waitSeconds = *args.WaitSeconds
+	}
+	// Clamp to [0, 120].
+	if waitSeconds < 0 {
+		waitSeconds = 0
+	}
+	if waitSeconds > 120 {
+		waitSeconds = 120
 	}
 
 	task := s.tasks.Get(args.TaskID)
@@ -106,7 +138,7 @@ func (s *Server) handleGetTaskStatus(ctx context.Context, req *mcp.CallToolReque
 		return enrichedError(
 			fmt.Sprintf("task %q not found — it may have expired (tasks are kept for 30 minutes after completion)", args.TaskID),
 			[]string{
-				"Verify the task_id is correct (it should start with 'task_').",
+				"Verify the task_id is correct (it should start with 'task_' followed by 16 hex characters).",
 				"Completed tasks expire after 30 minutes — re-run the original tool if needed.",
 				"Use 'list_tasks' to see all active and recent tasks.",
 				"If running via stdio transport, tasks do not persist between sessions — the server runs tools synchronously instead.",
@@ -116,15 +148,32 @@ func (s *Server) handleGetTaskStatus(ctx context.Context, req *mcp.CallToolReque
 
 	// Long-poll: if the task is still running and wait_seconds > 0,
 	// wait for completion or timeout before responding.
-	if args.WaitSeconds > 0 {
+	if waitSeconds > 0 {
 		snap := task.Snapshot()
 		if !snap.Status.isTerminal() {
-			task.WaitFor(ctx, args.WaitSeconds)
+			task.WaitFor(ctx, waitSeconds)
 		}
 	}
 
 	snap := task.Snapshot()
 	return jsonResult(snap)
+}
+
+// ValidateTaskID checks that a task ID matches our expected format:
+// "task_" + exactly 16 lowercase hex characters (no dashes, no other chars).
+// Returns an empty string if valid, or a human-readable reason if invalid.
+func ValidateTaskID(id string) string {
+	if !strings.HasPrefix(id, "task_") {
+		return fmt.Sprintf("task_id must start with 'task_' (got %q)", id)
+	}
+	hexPart := id[5:] // strip "task_" prefix
+	if len(hexPart) != 16 {
+		return fmt.Sprintf("task_id must be exactly 21 characters (task_ + 16 hex chars), got %d characters", len(id))
+	}
+	if _, err := hex.DecodeString(hexPart); err != nil {
+		return fmt.Sprintf("task_id contains non-hex characters after 'task_' prefix: %v", err)
+	}
+	return ""
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -145,7 +194,8 @@ USE THIS TOOL WHEN:
 
 Only running/pending tasks can be cancelled. Completed or failed tasks cannot be cancelled.
 
-EXAMPLE: {"task_id": "task_a1b2c3d4"}`,
+EXAMPLE: {"task_id": "task_a1b2c3d4e5f6g7h8"}`,
+
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -173,7 +223,17 @@ func (s *Server) handleCancelTask(_ context.Context, req *mcp.CallToolRequest) (
 		return errorResult(fmt.Sprintf("invalid arguments: %v", err)), nil
 	}
 	if args.TaskID == "" {
-		return errorResult("task_id is required. Example: {\"task_id\": \"task_a1b2c3d4\"}"), nil
+		return errorResult("task_id is required. Example: {\"task_id\": \"task_a1b2c3d4e5f6g7h8\"}"), nil
+	}
+
+	if reason := ValidateTaskID(args.TaskID); reason != "" {
+		return enrichedError(
+			fmt.Sprintf("invalid task_id format: %s", reason),
+			[]string{
+				"Valid task IDs look like: task_a1b2c3d4e5f6g7h8 (task_ prefix + exactly 16 hex characters, NO dashes).",
+				"Use 'list_tasks' to see all active tasks with their correct task_id values.",
+			},
+		), nil
 	}
 
 	task := s.tasks.Get(args.TaskID)
