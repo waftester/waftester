@@ -2,18 +2,22 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
+
+	"golang.org/x/time/rate"
 
 	"github.com/waftester/waftester/pkg/api"
 	"github.com/waftester/waftester/pkg/apifuzz"
@@ -358,8 +362,19 @@ func runScan() {
 	}
 
 	// Setup context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(*timeout*60)*time.Second)
+	// Overall scan deadline: 60× per-request timeout (e.g., -timeout 30 → 30min scan deadline)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(*timeout)*time.Minute)
 	defer cancel()
+
+	// Graceful shutdown on SIGINT/SIGTERM
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		fmt.Fprintln(os.Stderr)
+		ui.PrintWarning("Interrupt received, stopping scan gracefully...")
+		cancel()
+	}()
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// DISPATCHER INITIALIZATION (Hooks: Slack, Teams, PagerDuty, OTEL, Prometheus)
@@ -538,21 +553,16 @@ func runScan() {
 		os.Exit(0)
 	}
 
-	// Build HTTP transport with proxy support
-	transport := &http.Transport{
-		TLSClientConfig:     &tls.Config{InsecureSkipVerify: *skipVerify},
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 10,
-		IdleConnTimeout:     duration.IdleConnTimeout,
-	}
-
-	// Configure proxy if specified
+	// Build HTTP client using shared factory (DNS cache, HTTP/2, sockopt, detection wrapper)
+	httpCfg := httpclient.FuzzingConfig()
+	httpCfg.InsecureSkipVerify = *skipVerify
+	httpCfg.MaxConnsPerHost = *concurrency
+	httpCfg.MaxIdleConns = *concurrency * 2
 	if *proxy != "" {
-		proxyURL, err := url.Parse(*proxy)
-		if err == nil {
-			transport.Proxy = http.ProxyURL(proxyURL)
-		}
+		httpCfg.Proxy = *proxy
 	}
+	httpClient := httpclient.New(httpCfg)
+	httpClient.Timeout = time.Duration(*timeout) * time.Second
 
 	// Determine user agent
 	effectiveUserAgent := *userAgent
@@ -592,16 +602,7 @@ func runScan() {
 		}
 		return http.ErrUseLastResponse
 	}
-
-	// Setup HTTP client
-	httpClient := &http.Client{
-		Timeout:       time.Duration(*timeout) * time.Second,
-		Transport:     transport,
-		CheckRedirect: redirectPolicy,
-	}
-
-	// Wrap with detection transport for connection drop/silent ban detection
-	httpClient = detection.WrapClient(httpClient)
+	httpClient.CheckRedirect = redirectPolicy
 
 	result := &ScanResult{
 		Target:     target,
@@ -614,9 +615,14 @@ func runScan() {
 	var wg sync.WaitGroup
 	semaphore := make(chan struct{}, *concurrency)
 
+	// Create rate limiter from -rl flag (token bucket algorithm)
+	// This is the same pattern as pkg/core/executor.go uses.
+	scanLimiter := rate.NewLimiter(rate.Limit(*rateLimit), *rateLimit)
+
 	// Progress tracking
 	var totalScans int32
 	var scanErrors int32
+	scanMaxErrors := int32(*maxErrors)
 	var scanTimings sync.Map // map[string]time.Duration
 
 	// Count total scans first
@@ -728,6 +734,26 @@ func runScan() {
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
+			// Enforce rate limit before any network call
+			if err := scanLimiter.Wait(ctx); err != nil {
+				progress.Increment()
+				return // Context cancelled
+			}
+
+			// Apply inter-request delay + jitter if configured
+			if *delay > 0 {
+				d := *delay
+				if *jitter > 0 {
+					d += time.Duration(rand.Int63n(int64(*jitter)))
+				}
+				select {
+				case <-ctx.Done():
+					progress.Increment()
+					return
+				case <-time.After(d):
+				}
+			}
+
 			// Check if host is blocked due to drops/bans or connectivity failures
 			if skip, reason := detection.Default().ShouldSkipHost(targetHost); skip {
 				emitEvent("scanner_skipped", map[string]interface{}{
@@ -757,11 +783,18 @@ func runScan() {
 	}
 
 	// scanError is a helper that logs scan errors and increments error counter.
-	// Always emits a warning so the user knows a scanner failed, not only in verbose mode.
+	// Death-spiral protection: if too many scanners error, cancel remaining.
 	scanError := func(scanner string, err error) {
-		atomic.AddInt32(&scanErrors, 1)
+		n := atomic.AddInt32(&scanErrors, 1)
 		if *verbose {
 			ui.PrintWarning(fmt.Sprintf("%s scan error: %v", scanner, err))
+		}
+		if n >= scanMaxErrors {
+			emitEvent("scan_aborted", map[string]interface{}{
+				"reason":      fmt.Sprintf("max errors exceeded (%d/%d)", n, scanMaxErrors),
+				"errors_seen": n,
+			})
+			cancel()
 		}
 	}
 
@@ -2679,7 +2712,9 @@ func runScan() {
 		if err != nil {
 			errMsg := fmt.Sprintf("JSON encoding error: %v", err)
 			ui.PrintError(errMsg)
-			_ = dispCtx.EmitError(ctx, "scan", errMsg, true)
+			if dispCtx != nil {
+				_ = dispCtx.EmitError(ctx, "scan", errMsg, true)
+			}
 			os.Exit(1)
 		}
 
@@ -2687,7 +2722,9 @@ func runScan() {
 			if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
 				errMsg := fmt.Sprintf("Error writing output: %v", err)
 				ui.PrintError(errMsg)
-				_ = dispCtx.EmitError(ctx, "scan", errMsg, true)
+				if dispCtx != nil {
+					_ = dispCtx.EmitError(ctx, "scan", errMsg, true)
+				}
 				os.Exit(1)
 			}
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
@@ -2704,7 +2741,9 @@ func runScan() {
 		if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
 			errMsg := fmt.Sprintf("Error writing output: %v", err)
 			fmt.Fprintf(os.Stderr, "[ERROR] %s\n", errMsg)
-			_ = dispCtx.EmitError(ctx, "scan", errMsg, true)
+			if dispCtx != nil {
+				_ = dispCtx.EmitError(ctx, "scan", errMsg, true)
+			}
 		}
 	}
 
@@ -2713,13 +2752,11 @@ func runScan() {
 	}
 }
 
-// Silence unused variable warnings for variables that are used for future
-// expansion or configuration that may not be fully implemented yet
-var (
-	_ = (*bool)(nil)   // rateLimitPerHost
-	_ = (*string)(nil) // matchSeverity, filterSeverity, matchCategory, filterCategory
-	_ = (*string)(nil) // excludeTypes, excludePatterns, includePatterns
-	_ = (*bool)(nil)   // includeEvidence, includeRemediation
-	_ = (*int)(nil)    // maxDepth, retries, maxErrors
-	_ = (*bool)(nil)   // stopOnFirstVuln, respectRobots, timestamp
-)
+// Flags registered but not yet wired into scan logic:
+// TODO(v2.9.0): rateLimitPerHost — apply per-host rate limiting for multi-target scans
+// TODO(v2.9.0): matchSeverity, filterSeverity, matchCategory, filterCategory — result filtering
+// TODO(v2.9.0): excludeTypes, excludePatterns, includePatterns — scan type filtering
+// TODO(v2.9.0): includeEvidence, includeRemediation — output enrichment
+// TODO(v2.9.0): retries — scanner-level retry logic
+// TODO(v2.9.0): stopOnFirstVuln — early exit on first finding
+// TODO(future): respectRobots — robots.txt compliance
