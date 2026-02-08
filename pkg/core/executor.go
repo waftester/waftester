@@ -125,8 +125,18 @@ func NewExecutor(cfg ExecutorConfig) *Executor {
 		executor.enhancer = realistic.NewExecutorEnhancer(cfg.TargetURL)
 	}
 
-	// Initialize detection system for connection drops and silent bans
-	executor.detector = detection.Default()
+	// Each executor gets its own detector so concurrent scans don't
+	// cross-contaminate detection state (drops, bans, baselines).
+	executor.detector = detection.New()
+
+	// Wire the same detector into the transport wrapper so the transport
+	// layer and executor layer share one consistent view.
+	// If the transport isn't a detection.Transport (e.g., user-provided
+	// HTTPClient or transport wrapper not registered), detection still
+	// works via executor.detector.ShouldSkipHost in the worker loop.
+	if dt, ok := client.Transport.(*detection.Transport); ok {
+		dt.Detector = executor.detector
+	}
 
 	return executor
 }
@@ -324,6 +334,23 @@ sendLoop:
 
 	fmt.Println() // New line after progress
 	return results
+}
+
+// Close releases resources held by the executor, including idle HTTP
+// connections and detection state for the target URL.
+func (e *Executor) Close() {
+	if e.detector != nil {
+		e.detector.ClearAll()
+	}
+	if e.httpClient == nil {
+		return
+	}
+	type idleCloser interface {
+		CloseIdleConnections()
+	}
+	if ic, ok := e.httpClient.Transport.(idleCloser); ok {
+		ic.CloseIdleConnections()
+	}
 }
 
 // buildSkippedResult creates a TestResult for a payload that was skipped

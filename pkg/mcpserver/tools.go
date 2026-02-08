@@ -16,7 +16,6 @@ import (
 	"github.com/waftester/waftester/pkg/assessment"
 	"github.com/waftester/waftester/pkg/core"
 	"github.com/waftester/waftester/pkg/defaults"
-	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/discovery"
 	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/httpclient"
@@ -592,7 +591,7 @@ TYPICAL WORKFLOW: detect_waf → discover → learn → scan → bypass`,
 				"required": []string{"target"},
 			},
 			Annotations: &mcp.ToolAnnotations{
-				ReadOnlyHint:   true,
+				ReadOnlyHint:   false, // Sends HTTP probes to target
 				IdempotentHint: true,
 				OpenWorldHint:  boolPtr(true),
 				Title:          "Detect WAF/CDN",
@@ -805,7 +804,7 @@ TYPICAL WORKFLOW: detect_waf → discover → learn → scan`,
 				"required": []string{"target"},
 			},
 			Annotations: &mcp.ToolAnnotations{
-				ReadOnlyHint:   true,
+				ReadOnlyHint:   false, // Sends HTTP probes and brute-forces paths
 				IdempotentHint: true,
 				OpenWorldHint:  boolPtr(true),
 				Title:          "Discover Attack Surface",
@@ -852,7 +851,6 @@ func (s *Server) handleDiscover(ctx context.Context, req *mcp.CallToolRequest) (
 
 	return s.launchAsync(ctx, "discover", "15-120s depending on site size", func(taskCtx context.Context, task *Task) {
 		hosterrors.Clear(args.Target)
-		detection.Default().Clear(args.Target)
 
 		task.SetProgress(0, 100, "Starting discovery on "+args.Target)
 
@@ -875,15 +873,14 @@ func (s *Server) handleDiscover(ctx context.Context, req *mcp.CallToolRequest) (
 			return
 		}
 
-		// Check if cancelled.
-		if taskCtx.Err() != nil {
-			task.Fail("discovery cancelled")
-			return
-		}
+		cancelled := taskCtx.Err() != nil
 
 		task.SetProgress(90, 100, fmt.Sprintf("Discovered %d endpoints, building summary…", len(result.Endpoints)))
 
 		summary := buildDiscoverySummary(result)
+		if cancelled {
+			summary.Summary = "PARTIAL RESULTS (discovery was cancelled): " + summary.Summary
+		}
 		data, err := json.Marshal(summary)
 		if err != nil {
 			task.Fail(fmt.Sprintf("marshaling result: %v", err))
@@ -1361,7 +1358,6 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		// without this, 3 transient network errors permanently skip the host
 		// for all subsequent scans until the 5-minute cache expires.
 		hosterrors.Clear(args.Target)
-		detection.Default().Clear(args.Target)
 
 		task.SetProgress(10, 100, fmt.Sprintf("Loaded %d payloads, scanning…", len(filtered)))
 
@@ -1398,21 +1394,20 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 				}
 			},
 		})
+		defer executor.Close()
 
 		execResults := executor.Execute(taskCtx, filtered, &discardWriter{})
-
-		// Check if cancelled.
-		if taskCtx.Err() != nil {
-			task.Fail("scan cancelled")
-			return
-		}
 
 		// Calculate detection rate
 		detectionRate := ""
 		tested := execResults.BlockedTests + execResults.FailedTests
 		if tested > 0 {
 			rate := float64(execResults.BlockedTests) / float64(tested) * 100
-			detectionRate = fmt.Sprintf("%.1f%%", rate)
+			if execResults.HostsSkipped > 0 {
+				detectionRate = fmt.Sprintf("%.1f%% (%d skipped)", rate, execResults.HostsSkipped)
+			} else {
+				detectionRate = fmt.Sprintf("%.1f%%", rate)
+			}
 		}
 
 		summary := &scanResultSummary{
@@ -1422,6 +1417,7 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		}
 
 		// Build interpretation based on detection rate
+		cancelled := taskCtx.Err() != nil
 		if tested > 0 {
 			rate := float64(execResults.BlockedTests) / float64(tested) * 100
 			switch {
@@ -1435,6 +1431,9 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 				summary.Interpretation = fmt.Sprintf("Weak WAF coverage (%.1f%%). %d of %d payloads bypassed detection. The WAF needs major rule updates or reconfiguration.", rate, execResults.FailedTests, tested)
 			default:
 				summary.Interpretation = fmt.Sprintf("Critical: WAF is largely ineffective (%.1f%% detection). %d of %d payloads bypassed. Consider the WAF misconfigured or disabled for this endpoint.", rate, execResults.FailedTests, tested)
+			}
+			if cancelled {
+				summary.Interpretation = "PARTIAL RESULTS (scan was cancelled): " + summary.Interpretation
 			}
 		} else if execResults.HostsSkipped > 0 {
 			// No real tests ran — everything was skipped
@@ -1688,7 +1687,6 @@ func (s *Server) handleAssess(ctx context.Context, req *mcp.CallToolRequest) (*m
 
 	return s.launchAsync(ctx, "assess", "30-300s depending on payload count and target response time", func(taskCtx context.Context, task *Task) {
 		hosterrors.Clear(args.Target)
-		detection.Default().Clear(args.Target)
 
 		task.SetProgress(0, 100, "Starting enterprise assessment on "+args.Target)
 
@@ -1707,13 +1705,12 @@ func (s *Server) handleAssess(ctx context.Context, req *mcp.CallToolRequest) (*m
 			return
 		}
 
-		// Check if cancelled.
-		if taskCtx.Err() != nil {
-			task.Fail("assessment cancelled")
-			return
-		}
+		cancelled := taskCtx.Err() != nil
 
 		wrapped := buildAssessResponse(m, args.Target)
+		if cancelled {
+			wrapped.Summary = "PARTIAL RESULTS (assessment was cancelled): " + wrapped.Summary
+		}
 		data, err := json.Marshal(wrapped)
 		if err != nil {
 			task.Fail(fmt.Sprintf("marshaling result: %v", err))
@@ -2104,9 +2101,21 @@ func (s *Server) handleBypass(ctx context.Context, req *mcp.CallToolRequest) (*m
 
 	return s.launchAsync(ctx, "bypass", "30-300s depending on payload count and mutation matrix size", func(taskCtx context.Context, task *Task) {
 		hosterrors.Clear(args.Target)
-		detection.Default().Clear(args.Target)
 
 		task.SetProgress(0, 100, fmt.Sprintf("Preparing bypass matrix for %d payloads…", len(args.Payloads)))
+
+		// Guard against mutation explosion — payloads × encoders × locations
+		// can generate thousands of requests unexpectedly.
+		const maxBypassPayloads = 50
+		if len(args.Payloads) > maxBypassPayloads {
+			task.Fail(fmt.Sprintf(
+				"Too many payloads for bypass testing (%d). Each payload is tested with "+
+					"multiple mutation techniques, generating thousands of requests. "+
+					"Reduce to ≤%d payloads. Tip: use the most promising 5-10 payloads from a scan.",
+				len(args.Payloads), maxBypassPayloads,
+			))
+			return
+		}
 
 		executor := mutation.NewExecutor(&mutation.ExecutorConfig{
 			TargetURL:   args.Target,
@@ -2116,20 +2125,20 @@ func (s *Server) handleBypass(ctx context.Context, req *mcp.CallToolRequest) (*m
 			SkipVerify:  args.SkipVerify,
 			Pipeline:    mutation.DefaultPipelineConfig(),
 		})
+		defer executor.Close()
 
 		task.SetProgress(10, 100, "Running mutation matrix…")
 
 		result := executor.FindBypasses(taskCtx, args.Payloads)
 
-		// Check if cancelled.
-		if taskCtx.Err() != nil {
-			task.Fail("bypass testing cancelled")
-			return
-		}
+		cancelled := taskCtx.Err() != nil
 
 		task.SetProgress(90, 100, fmt.Sprintf("Bypass testing complete — %d bypasses found, building report…", len(result.BypassPayloads)))
 
 		wrapped := buildBypassResponse(result, args)
+		if cancelled {
+			wrapped.Summary = "PARTIAL RESULTS (bypass testing was cancelled): " + wrapped.Summary
+		}
 		data, err := json.Marshal(wrapped)
 		if err != nil {
 			task.Fail(fmt.Sprintf("marshaling result: %v", err))
@@ -2247,7 +2256,7 @@ Returns: HTTP status, server header, TLS version + cipher suite, security header
 				"required": []string{"target"},
 			},
 			Annotations: &mcp.ToolAnnotations{
-				ReadOnlyHint:   true,
+				ReadOnlyHint:   false, // Sends HTTP and TLS probes to target
 				IdempotentHint: true,
 				OpenWorldHint:  boolPtr(true),
 				Title:          "Probe Infrastructure",
