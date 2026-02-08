@@ -66,9 +66,10 @@ func TestGetTaskStatus_NonexistentTask(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// Use a valid-format task ID (task_ + 16 hex chars) that doesn't exist.
 	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
 		Name:      "get_task_status",
-		Arguments: json.RawMessage(`{"task_id": "task_nonexistent"}`),
+		Arguments: json.RawMessage(`{"task_id": "task_0000000000000000"}`),
 	})
 	if err != nil {
 		t.Fatalf("CallTool: %v", err)
@@ -108,9 +109,10 @@ func TestCancelTask_NonexistentTask(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// Use a valid-format task ID that doesn't exist.
 	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
 		Name:      "cancel_task",
-		Arguments: json.RawMessage(`{"task_id": "task_nonexistent"}`),
+		Arguments: json.RawMessage(`{"task_id": "task_0000000000000000"}`),
 	})
 	if err != nil {
 		t.Fatalf("CallTool: %v", err)
@@ -641,5 +643,173 @@ func TestGetTaskStatusWaitSeconds(t *testing.T) {
 	}
 	if !strings.Contains(text, "bypasses") {
 		t.Errorf("expected result to contain bypasses, got: %s", text)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// validateTaskID — format enforcement
+// ---------------------------------------------------------------------------
+
+func TestValidateTaskID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		id      string
+		wantErr bool
+		errHint string // substring expected in the reason
+	}{
+		{"valid", "task_a1b2c3d4e5f6a7b8", false, ""},
+		{"valid_all_hex", "task_0123456789abcdef", false, ""},
+		{"missing_prefix", "a1b2c3d4e5f6a7b8", true, "must start with"},
+		{"uuid_format", "task_1aa12202-cf2a-45c6-9531-9d017b1df30a", true, "exactly 21 characters"},
+		{"too_short", "task_abc123", true, "exactly 21 characters"},
+		{"too_long", "task_a1b2c3d4e5f6a7b8ff", true, "exactly 21 characters"},
+		{"non_hex_chars", "task_zzzzzzzzzzzzzzzz", true, "non-hex characters"},
+		{"dashes_in_hex", "task_a1b2-c3d4-e5f6", true, "exactly 21 characters"},
+		{"empty_after_prefix", "task_", true, "exactly 21 characters"},
+		{"wrong_prefix", "job_a1b2c3d4e5f6a7b8", true, "must start with"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reason := mcpserver.ValidateTaskID(tt.id)
+			if tt.wantErr && reason == "" {
+				t.Errorf("expected validation error for %q, got none", tt.id)
+			}
+			if !tt.wantErr && reason != "" {
+				t.Errorf("unexpected validation error for %q: %s", tt.id, reason)
+			}
+			if tt.wantErr && tt.errHint != "" && !strings.Contains(reason, tt.errHint) {
+				t.Errorf("expected error containing %q, got: %s", tt.errHint, reason)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Task ID format validation via MCP (integration test)
+// ---------------------------------------------------------------------------
+
+func TestGetTaskStatus_InvalidFormat_UUID(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Simulate what n8n's AI agent does: hallucinate a UUID-format task ID.
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "get_task_status",
+		Arguments: json.RawMessage(`{"task_id": "task_1aa12202-cf2a-45c6-9531-9d017b1df30a"}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected error for UUID-format task_id")
+	}
+	text := extractText(t, result)
+	if !strings.Contains(text, "invalid task_id format") {
+		t.Errorf("error should mention format issue, got: %s", text)
+	}
+	if !strings.Contains(text, "NO dashes") {
+		t.Errorf("error should mention 'NO dashes', got: %s", text)
+	}
+}
+
+func TestGetTaskStatus_InvalidFormat_TooShort(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "get_task_status",
+		Arguments: json.RawMessage(`{"task_id": "task_abc123"}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected error for short task_id")
+	}
+	text := extractText(t, result)
+	if !strings.Contains(text, "invalid task_id format") {
+		t.Errorf("error should mention format issue, got: %s", text)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// wait_seconds default behavior — omitted vs explicit 0
+// ---------------------------------------------------------------------------
+
+func TestGetTaskStatus_WaitSecondsDefault(t *testing.T) {
+	t.Parallel()
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	defer srv.Stop()
+
+	task, _, _ := srv.Tasks().Create(context.Background(), "scan")
+
+	// Complete after 200ms — if default wait_seconds works (30s), response
+	// should arrive quickly with "completed" rather than "running".
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		task.Complete(json.RawMessage(`{"ok":true}`))
+	}()
+
+	cs := newTestSessionFrom(t, srv)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	// Omit wait_seconds entirely — should default to 30, not 0.
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "get_task_status",
+		Arguments: json.RawMessage(`{"task_id":"` + task.ID + `"}`),
+	})
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+
+	text := extractText(t, result)
+	if !strings.Contains(text, "completed") {
+		t.Errorf("expected completed status (default wait should have waited), got: %s", text)
+	}
+	// Should return in ~200ms (task completion), not 0ms (no wait).
+	if elapsed > 3*time.Second {
+		t.Errorf("took %v, expected ~200ms", elapsed)
+	}
+}
+
+func TestGetTaskStatus_WaitSecondsExplicitZero(t *testing.T) {
+	t.Parallel()
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	defer srv.Stop()
+
+	task, _, _ := srv.Tasks().Create(context.Background(), "scan")
+
+	// Don't complete the task — with wait_seconds=0, should return immediately
+	// with "running" status.
+
+	cs := newTestSessionFrom(t, srv)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "get_task_status",
+		Arguments: json.RawMessage(`{"task_id":"` + task.ID + `","wait_seconds":0}`),
+	})
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+
+	text := extractText(t, result)
+	if !strings.Contains(text, "running") {
+		t.Errorf("expected running status with wait_seconds=0, got: %s", text)
+	}
+	// Should return nearly instantly with no blocking.
+	if elapsed > 2*time.Second {
+		t.Errorf("wait_seconds=0 took %v, expected near-instant", elapsed)
 	}
 }

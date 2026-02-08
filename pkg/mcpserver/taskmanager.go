@@ -9,7 +9,6 @@ import (
 	"log"
 	"sync"
 	"time"
-
 	// Note: time is used for timestamps (CreatedAt/UpdatedAt), not for RNG.
 )
 
@@ -51,14 +50,14 @@ type Task struct {
 
 	// Mutable fields (updated by the running goroutine).
 	Status    TaskStatus `json:"status"`
-	Progress  float64    `json:"progress"`    // 0–100
-	Total     float64    `json:"total"`       // expected total work units
-	Message   string     `json:"message"`     // human-readable progress message
+	Progress  float64    `json:"progress"` // 0–100
+	Total     float64    `json:"total"`    // expected total work units
+	Message   string     `json:"message"`  // human-readable progress message
 	UpdatedAt time.Time  `json:"updated_at"`
 
 	// Terminal fields (set once when complete/failed/cancelled).
-	Result    json.RawMessage `json:"result,omitempty"`
-	Error     string          `json:"error,omitempty"`
+	Result json.RawMessage `json:"result,omitempty"`
+	Error  string          `json:"error,omitempty"`
 
 	// Cancellation support.
 	cancel context.CancelFunc `json:"-"`
