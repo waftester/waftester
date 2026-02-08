@@ -1,6 +1,7 @@
 package defaults_test
 
 import (
+	"encoding/json"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -148,6 +149,106 @@ func checkMarkdownVersions(t *testing.T, root string) []string {
 	}
 
 	return violations
+}
+
+// TestNpmVersionConsistency ensures npm package.json versions match defaults.Version.
+// This catches version drift between Go and npm distributions.
+func TestNpmVersionConsistency(t *testing.T) {
+	root := findProjectRoot(t)
+
+	// npmPackageJSON represents the fields we care about
+	type npmPackageJSON struct {
+		Name                 string            `json:"name"`
+		Version              string            `json:"version"`
+		OptionalDependencies map[string]string `json:"optionalDependencies"`
+	}
+
+	// --- Main package: npm/cli/package.json ---
+	mainPkgPath := filepath.Join(root, "npm", "cli", "package.json")
+	mainData, err := os.ReadFile(mainPkgPath)
+	if err != nil {
+		t.Fatalf("Failed to read %s: %v", mainPkgPath, err)
+	}
+
+	var mainPkg npmPackageJSON
+	if err := json.Unmarshal(mainData, &mainPkg); err != nil {
+		t.Fatalf("Failed to parse %s: %v", mainPkgPath, err)
+	}
+
+	if mainPkg.Version != defaults.Version {
+		t.Errorf("npm/cli/package.json version (%s) != defaults.Version (%s)",
+			mainPkg.Version, defaults.Version)
+	}
+
+	// --- optionalDependencies must all match ---
+	expectedPlatforms := []string{
+		"@waftester/darwin-x64",
+		"@waftester/darwin-arm64",
+		"@waftester/linux-x64",
+		"@waftester/linux-arm64",
+		"@waftester/win32-x64",
+		"@waftester/win32-arm64",
+	}
+
+	if len(mainPkg.OptionalDependencies) != len(expectedPlatforms) {
+		t.Errorf("npm/cli/package.json has %d optionalDependencies, expected %d",
+			len(mainPkg.OptionalDependencies), len(expectedPlatforms))
+	}
+
+	for _, pkg := range expectedPlatforms {
+		ver, ok := mainPkg.OptionalDependencies[pkg]
+		if !ok {
+			t.Errorf("npm/cli/package.json missing optionalDependency %s", pkg)
+			continue
+		}
+		if ver != defaults.Version {
+			t.Errorf("npm/cli/package.json optionalDependencies[%s] = %s, want %s",
+				pkg, ver, defaults.Version)
+		}
+	}
+
+	// --- Platform template: npm/platform-template/package.json.tmpl ---
+	// Template uses {{VERSION}} placeholder that build script replaces.
+	// Verify the placeholder exists (not a hardcoded version).
+	templatePath := filepath.Join(root, "npm", "platform-template", "package.json.tmpl")
+	templateData, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Logf("Skipping platform template check: %v", err)
+	} else {
+		tmplContent := string(templateData)
+		if !strings.Contains(tmplContent, `"version": "{{VERSION}}"`) {
+			t.Error("npm/platform-template/package.json.tmpl missing {{VERSION}} placeholder in version field")
+		}
+		// Ensure no hardcoded version leaked into the template
+		hardcodedVersion := regexp.MustCompile(`"version":\s*"\d+\.\d+\.\d+"`)
+		if hardcodedVersion.MatchString(tmplContent) {
+			t.Error("npm/platform-template/package.json.tmpl has hardcoded version — must use {{VERSION}} placeholder")
+		}
+	}
+
+	// --- Verify cli.js has no console.log (stdout purity for MCP) ---
+	cliJSPath := filepath.Join(root, "npm", "cli", "bin", "cli.js")
+	cliJS, err := os.ReadFile(cliJSPath)
+	if err != nil {
+		t.Fatalf("Failed to read %s: %v", cliJSPath, err)
+	}
+
+	cliJSContent := string(cliJS)
+	consoleLogPattern := regexp.MustCompile(`\bconsole\.log\b`)
+	if matches := consoleLogPattern.FindAllString(cliJSContent, -1); len(matches) > 0 {
+		t.Errorf("npm/cli/bin/cli.js contains %d console.log calls — must use console.error for MCP stdout purity",
+			len(matches))
+	}
+
+	// --- Verify cli.js shebang ---
+	if !strings.HasPrefix(cliJSContent, "#!/usr/bin/env node") {
+		t.Error("npm/cli/bin/cli.js missing shebang: #!/usr/bin/env node")
+	}
+
+	// --- Verify no CRLF line endings in cli.js ---
+	if strings.Contains(cliJSContent, "\r\n") {
+		t.Error("npm/cli/bin/cli.js contains CRLF line endings — must use LF for cross-platform #!/usr/bin/env node")
+	}
 }
 
 // TestNoHardcodedConcurrency ensures all concurrency values use defaults.Concurrency* constants
