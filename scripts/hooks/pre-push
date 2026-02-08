@@ -52,6 +52,28 @@ if [ -f "$DOCKERFILE" ] && [ -f "$DOCKERIGNORE" ]; then
 fi
 
 # ============================================================================
+# VERSION CONSISTENCY — catch stale version references before CI does
+# ============================================================================
+echo "Running version consistency check..."
+if ! go test -run TestVersionConsistency -count=1 ./pkg/defaults/ > /dev/null 2>&1; then
+    echo ""
+    echo "╔══════════════════════════════════════════════════════════════════╗"
+    echo "║  BLOCKED: Version inconsistency detected                       ║"
+    echo "╚══════════════════════════════════════════════════════════════════╝"
+    echo ""
+    # Re-run with verbose output to show exactly what's wrong
+    go test -v -run TestVersionConsistency -count=1 ./pkg/defaults/ 2>&1 | grep -E 'FAIL|found|expected|hardcoded' || true
+    echo ""
+    echo "After bumping defaults.Version, also update:"
+    echo "  - SECURITY.md  (Current stable release)"
+    echo "  - CHANGELOG.md (version header)"
+    echo ""
+    ERRORS=$((ERRORS + 1))
+else
+    echo "  ✓ All version references consistent"
+fi
+
+# ============================================================================
 # RESULT
 # ============================================================================
 if [ $ERRORS -gt 0 ]; then
