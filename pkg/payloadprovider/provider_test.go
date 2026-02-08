@@ -805,7 +805,7 @@ http:
 		}
 	}
 	if !found {
-		t.Error("enriched path should contain URL-encoded payload (admin%26password%3D1), got raw '&' and '='")
+		t.Errorf("enriched path should contain URL-encoded payload (admin%%26password%%3D1), got raw '&' and '='")
 		for _, path := range tmpls[0].HTTP[0].Path {
 			t.Logf("  path: %s", path)
 		}
