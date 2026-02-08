@@ -1,0 +1,129 @@
+# WAFtester CI/CD Gate Workflow
+# Automated security gate for CI/CD pipelines with pass/fail verdict
+# Outputs SARIF for GitHub Advanced Security and JUnit for CI integration
+#
+# Usage:
+#   waf-tester workflow run templates/workflows/ci-gate.yaml \
+#     --input target=https://staging.example.com \
+#     --input policy=templates/policies/strict.yaml
+
+name: ci-gate
+description: "CI/CD security gate with dual SARIF+JUnit output, policy enforcement, and pass/fail exit code"
+version: "2.0.0"
+tags:
+  - ci
+  - cd
+  - pipeline
+  - gate
+  - automation
+  - sarif
+  - junit
+
+inputs:
+  - name: target
+    description: Target URL to test (typically a staging environment)
+    required: true
+  - name: policy
+    description: Security policy to enforce
+    default: "templates/policies/standard.yaml"
+  - name: output_dir
+    description: Output directory for reports
+    default: "./security-results"
+  - name: output_format
+    description: Primary output format (sarif, junit, json)
+    default: "sarif"
+  - name: concurrency
+    description: Number of concurrent workers
+    default: "20"
+  - name: rate_limit
+    description: Requests per second limit
+    default: "50"
+  - name: scan_types
+    description: Security scan categories
+    default: "sqli,xss,rce,ssrf,lfi,ssti"
+  - name: fail_on_bypass
+    description: Fail pipeline on any bypass found
+    default: "true"
+  - name: severity_threshold
+    description: Minimum severity to trigger failure (critical, high, medium, low)
+    default: "high"
+
+steps:
+  - id: detect
+    name: Detect WAF presence
+    command: wafdetect
+    args:
+      - "-u"
+      - "{{.target}}"
+      - "-o"
+      - "{{.output_dir}}/waf-detection.json"
+      - "--json"
+
+  - id: calibrate
+    name: Calibrate scanner
+    command: calibrate
+    args:
+      - "-u"
+      - "{{.target}}"
+      - "-o"
+      - "{{.output_dir}}/calibration.json"
+    condition: "steps.detect.success"
+
+  - id: scan
+    name: Run security scan
+    command: run
+    args:
+      - "-u"
+      - "{{.target}}"
+      - "-s"
+      - "{{.scan_types}}"
+      - "-c"
+      - "{{.concurrency}}"
+      - "--rate-limit"
+      - "{{.rate_limit}}"
+      - "--policy"
+      - "{{.policy}}"
+      - "--severity"
+      - "{{.severity_threshold}}"
+      - "-o"
+      - "json"
+      - "--output-file"
+      - "{{.output_dir}}/scan-results.json"
+    condition: "steps.detect.success"
+
+  - id: report_sarif
+    name: Generate SARIF report for GitHub Advanced Security
+    command: report
+    args:
+      - "-i"
+      - "{{.output_dir}}/scan-results.json"
+      - "-o"
+      - "{{.output_dir}}/results.sarif"
+      - "-f"
+      - "sarif"
+
+  - id: report_junit
+    name: Generate JUnit report for CI dashboard
+    command: report
+    args:
+      - "-i"
+      - "{{.output_dir}}/scan-results.json"
+      - "-o"
+      - "{{.output_dir}}/results.xml"
+      - "-f"
+      - "junit"
+
+  - id: gate
+    name: Evaluate security policy pass/fail
+    command: evaluate
+    args:
+      - "-i"
+      - "{{.output_dir}}/scan-results.json"
+      - "--policy"
+      - "{{.policy}}"
+      - "--fail-on-bypass"
+      - "{{.fail_on_bypass}}"
+      - "--severity"
+      - "{{.severity_threshold}}"
+      - "--exit-code"
+    condition: "steps.scan.success"

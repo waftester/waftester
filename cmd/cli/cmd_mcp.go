@@ -10,8 +10,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/mcpserver"
-	"github.com/waftester/waftester/pkg/payloads"
+	"github.com/waftester/waftester/pkg/payloadprovider"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -24,7 +25,8 @@ func runMCP() {
 
 	stdio := fs.Bool("stdio", true, "Use stdio transport (default, for IDE integration)")
 	httpAddr := fs.String("http", "", "HTTP address to listen on (e.g. :8080). Disables stdio.")
-	payloadDir := fs.String("payloads", envOrDefault("WAF_TESTER_PAYLOAD_DIR", "./payloads"), "Payload directory")
+	payloadDir := fs.String("payloads", envOrDefault("WAF_TESTER_PAYLOAD_DIR", defaults.PayloadDir), "Payload directory")
+	templateDir := fs.String("templates", envOrDefault("WAF_TESTER_TEMPLATE_DIR", defaults.TemplateDir), "Nuclei template directory")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: waf-tester mcp [flags]\n\n")
@@ -34,6 +36,7 @@ func runMCP() {
 		fmt.Fprintf(os.Stderr, "  --http <addr>    Streamable HTTP transport for remote/Docker\n\n")
 		fmt.Fprintf(os.Stderr, "Environment variables:\n")
 		fmt.Fprintf(os.Stderr, "  WAF_TESTER_PAYLOAD_DIR   Payload directory (default: ./payloads)\n")
+		fmt.Fprintf(os.Stderr, "  WAF_TESTER_TEMPLATE_DIR  Nuclei template directory (default: ./templates/nuclei)\n")
 		fmt.Fprintf(os.Stderr, "  WAF_TESTER_HTTP_ADDR     HTTP listen address (same as --http)\n\n")
 		fmt.Fprintf(os.Stderr, "Examples:\n")
 		fmt.Fprintf(os.Stderr, "  waf-tester mcp --stdio\n")
@@ -56,7 +59,7 @@ func runMCP() {
 	}
 
 	// --- Startup validation: payload directory ---
-	payloadCount, err := validatePayloadDir(*payloadDir)
+	payloadCount, err := validatePayloadDir(*payloadDir, *templateDir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: payload directory %q: %v\n", *payloadDir, err)
 		fmt.Fprintf(os.Stderr, "hint: set --payloads or WAF_TESTER_PAYLOAD_DIR to the directory containing payload JSON files\n")
@@ -65,7 +68,8 @@ func runMCP() {
 	fmt.Fprintf(os.Stderr, "%s payload directory: %s (%d payloads loaded)\n", ui.UserAgent(), *payloadDir, payloadCount)
 
 	srv := mcpserver.New(&mcpserver.Config{
-		PayloadDir: *payloadDir,
+		PayloadDir:  *payloadDir,
+		TemplateDir: *templateDir,
 	})
 	srv.MarkReady() // Signal that startup validation passed
 
@@ -126,8 +130,9 @@ func envOrDefault(key, defaultValue string) string {
 }
 
 // validatePayloadDir checks that the payload directory exists, contains JSON
-// files, and that payloads can be loaded. Returns the total payload count.
-func validatePayloadDir(dir string) (int, error) {
+// files, and that payloads can be loaded. Returns the total unified payload count.
+// templateDir is the Nuclei template directory to include in unified counts.
+func validatePayloadDir(dir, templateDir string) (int, error) {
 	info, err := os.Stat(dir)
 	if err != nil {
 		return 0, fmt.Errorf("not found: %w", err)
@@ -136,14 +141,18 @@ func validatePayloadDir(dir string) (int, error) {
 		return 0, fmt.Errorf("not a directory")
 	}
 
-	loader := payloads.NewLoader(dir)
-	all, err := loader.LoadAll()
-	if err != nil {
+	provider := payloadprovider.NewProvider(dir, templateDir)
+	if err := provider.Load(); err != nil {
 		return 0, fmt.Errorf("failed to load payloads: %w", err)
 	}
-	if len(all) == 0 {
-		return 0, fmt.Errorf("no payloads found (directory exists but contains no payload JSON files)")
+
+	stats, err := provider.GetStats()
+	if err != nil {
+		return 0, fmt.Errorf("failed to compute stats: %w", err)
+	}
+	if stats.TotalPayloads == 0 {
+		return 0, fmt.Errorf("no payloads found (directory exists but contains no payload files)")
 	}
 
-	return len(all), nil
+	return stats.TotalPayloads, nil
 }

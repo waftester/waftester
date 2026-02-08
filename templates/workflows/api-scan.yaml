@@ -1,0 +1,132 @@
+# WAFtester API Security Scan Workflow
+# Comprehensive API security testing with OpenAPI/Swagger support
+#
+# Usage:
+#   waf-tester workflow run templates/workflows/api-scan.yaml \
+#     --input target=https://api.example.com \
+#     --input openapi_spec=./openapi.yaml \
+#     --input auth_header="Bearer eyJ..."
+
+name: api-scan
+description: "API-focused security assessment with OpenAPI schema discovery and auth-aware scanning"
+version: "2.0.0"
+tags:
+  - api
+  - openapi
+  - swagger
+  - rest
+  - security
+
+inputs:
+  - name: target
+    description: API base URL
+    required: true
+  - name: openapi_spec
+    description: Path to OpenAPI/Swagger specification
+    required: false
+  - name: auth_header
+    description: Authorization header value (e.g., Bearer token)
+    required: false
+  - name: output_dir
+    description: Output directory
+    default: "./results"
+  - name: rate_limit
+    description: Requests per second limit
+    default: "20"
+  - name: concurrency
+    description: Number of concurrent workers
+    default: "10"
+  - name: scan_types
+    description: Security categories to test
+    default: "sqli,nosqli,xss,ssrf,idor,massassignment,bola,bfla"
+
+steps:
+  - id: detect
+    name: Detect WAF on API endpoint
+    command: wafdetect
+    args:
+      - "-u"
+      - "{{.target}}"
+      - "-o"
+      - "{{.output_dir}}/api-waf-detection.json"
+      - "--json"
+
+  - id: fingerprint
+    name: Fingerprint WAF and API gateway
+    command: waffprint
+    args:
+      - "-u"
+      - "{{.target}}"
+      - "-o"
+      - "{{.output_dir}}/api-fingerprint.json"
+      - "--json"
+
+  - id: discover
+    name: Discover API endpoints
+    command: discover
+    args:
+      - "-u"
+      - "{{.target}}"
+      - "--openapi"
+      - "{{.openapi_spec}}"
+      - "-o"
+      - "{{.output_dir}}/api-endpoints.json"
+
+  - id: calibrate
+    name: Calibrate scanner to API responses
+    command: calibrate
+    args:
+      - "-u"
+      - "{{.target}}"
+      - "-o"
+      - "{{.output_dir}}/api-calibration.json"
+    condition: "steps.detect.success"
+
+  - id: scan
+    name: Run API security tests
+    command: run
+    args:
+      - "-u"
+      - "{{.target}}"
+      - "-s"
+      - "{{.scan_types}}"
+      - "-c"
+      - "{{.concurrency}}"
+      - "--rate-limit"
+      - "{{.rate_limit}}"
+      - "--header"
+      - "Authorization: {{.auth_header}}"
+      - "--header"
+      - "Content-Type: application/json"
+      - "--overrides"
+      - "templates/overrides/api-only.yaml"
+      - "-o"
+      - "json"
+      - "--output-file"
+      - "{{.output_dir}}/api-results.json"
+    condition: "steps.detect.success"
+
+  - id: report_json
+    name: Generate JSON report
+    command: report
+    args:
+      - "-i"
+      - "{{.output_dir}}/api-results.json"
+      - "-o"
+      - "{{.output_dir}}/api-report.json"
+      - "-f"
+      - "json"
+
+  - id: report_html
+    name: Generate HTML report
+    command: report
+    args:
+      - "-i"
+      - "{{.output_dir}}/api-results.json"
+      - "-o"
+      - "{{.output_dir}}/api-report.html"
+      - "-f"
+      - "html"
+      - "--template-config"
+      - "templates/report-configs/enterprise.yaml"
+    condition: "steps.scan.success"

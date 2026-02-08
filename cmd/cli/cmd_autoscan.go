@@ -188,7 +188,7 @@ func runAutoScan() {
 			}
 		}
 		if payloadDir == "" {
-			payloadDir = "../payloads" // Fallback
+			payloadDir = defaults.PayloadDir // Fallback
 		}
 	}
 
@@ -1404,8 +1404,8 @@ func runAutoScan() {
 	printStatusLn()
 
 	// Load payloads
-	loader := payloads.NewLoader(payloadDir)
-	allPayloads, err := loader.LoadAll()
+	// Load payloads from unified engine (JSON + Nuclei templates)
+	allPayloads, _, err := loadUnifiedPayloads(payloadDir, defaults.TemplateDir, *verbose)
 	if err != nil {
 		errMsg := fmt.Sprintf("Error loading payloads: %v", err)
 		ui.PrintError(errMsg)

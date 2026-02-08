@@ -1,0 +1,124 @@
+# WAFtester PCI DSS Policy
+# Aligned with PCI DSS v4.0 requirements for web application firewalls
+# Requirement 6.4.2: Automated technical solution for public-facing web applications
+
+name: pci-dss
+description: "PCI DSS v4.0 compliance policy — validates WAF protection for cardholder data environments"
+version: "2.0.0"
+
+severity_threshold: medium
+
+compliance:
+  framework: "PCI DSS"
+  version: "4.0"
+  requirements:
+    - id: "6.4.1"
+      description: "Public-facing web applications are protected against attacks"
+    - id: "6.4.2"
+      description: "Automated technical solution that detects and prevents web-based attacks"
+    - id: "6.2.4"
+      description: "Software engineering techniques prevent injection attacks"
+    - id: "11.6.1"
+      description: "Unauthorized changes to HTTP headers and payment page content are detected"
+
+pci_controls:
+  injection_protection:
+    description: "Req 6.2.4 — Prevent common injection attacks"
+    scan_types:
+      - sqli
+      - nosqli
+      - xss
+      - cmdi
+      - ldap
+      - xpath
+      - ssti
+      - xxe
+    effectiveness_below: 90.0
+
+  authentication_protection:
+    description: "Req 8 — Identify and authenticate access"
+    scan_types:
+      - broken-auth
+      - brute-force
+      - credential-stuffing
+      - session-fixation
+      - jwt
+    effectiveness_below: 90.0
+
+  data_protection:
+    description: "Req 3+4 — Protect stored and transmitted data"
+    scan_types:
+      - sensitive-data
+      - lfi
+      - ssrf
+      - tls
+    effectiveness_below: 85.0
+
+  access_control:
+    description: "Req 7 — Restrict access by business need-to-know"
+    scan_types:
+      - idor
+      - cors
+      - csrf
+      - path-traversal
+    effectiveness_below: 85.0
+
+  change_detection:
+    description: "Req 11.6.1 — Detect unauthorized content/header changes"
+    scan_types:
+      - crlf
+      - host-header
+      - cache-poisoning
+      - request-smuggling
+    effectiveness_below: 85.0
+
+fail_on:
+  bypasses:
+    - sqli
+    - xss
+    - rce
+    - ssrf
+    - lfi
+    - rfi
+    - ssti
+    - xxe
+    - cmdi
+    - deserialization
+    - nosqli
+    - crlf
+    - ldap
+    - xpath
+    - upload
+    - broken-auth
+    - session-fixation
+    - idor
+    - request-smuggling
+
+  categories:
+    - injection
+    - broken-auth
+    - sensitive-data
+    - xxe
+    - broken-access
+    - xss
+    - deserialization
+    - ssrf
+
+  effectiveness_below: 85.0
+
+  error_rate_above: 3.0
+
+  false_positive_rate_above: 3.0
+
+  min_tests_required: 40
+
+  max_response_time_ms: 10000
+
+  require_waf_detected: true
+
+ignore:
+  ids: []
+  tags:
+    - informational
+    - recon
+  severity_below: low

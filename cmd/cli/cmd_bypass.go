@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/mutation"
@@ -30,7 +31,7 @@ func runBypassFinder() {
 
 	target := bypassFlags.String("target", "", "Target URL")
 	targetShort := bypassFlags.String("u", "", "Target URL (shorthand)")
-	payloadDir := bypassFlags.String("payloads", "../payloads", "Payload directory")
+	payloadDir := bypassFlags.String("payloads", defaults.PayloadDir, "Payload directory")
 	category := bypassFlags.String("category", "injection", "Payload category to test")
 	concurrency := bypassFlags.Int("c", 10, "Concurrency")
 	rateLimit := bypassFlags.Float64("rl", 30, "Rate limit")
@@ -143,9 +144,8 @@ func runBypassFinder() {
 		}
 	}
 
-	// Load payloads
-	loader := payloads.NewLoader(*payloadDir)
-	allPayloads, err := loader.LoadAll()
+	// Load payloads from unified engine (JSON + Nuclei templates)
+	allPayloads, _, err := loadUnifiedPayloads(*payloadDir, defaults.TemplateDir, *smartVerbose)
 	if err != nil {
 		errMsg := fmt.Sprintf("Cannot load payloads: %v", err)
 		ui.PrintError(errMsg)

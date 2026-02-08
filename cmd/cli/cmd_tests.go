@@ -15,6 +15,7 @@ import (
 	"github.com/waftester/waftester/pkg/calibration"
 	"github.com/waftester/waftester/pkg/config"
 	"github.com/waftester/waftester/pkg/core"
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/input"
 	"github.com/waftester/waftester/pkg/interactive"
@@ -259,12 +260,11 @@ func runTests() {
 	}
 	_ = interactiveHandler // Handler provides pause/resume during execution via background goroutine
 
-	// Load payloads from JSON files
+	// Load payloads from unified engine (JSON + Nuclei templates)
 	if !cfg.Silent {
 		ui.PrintInfo("Loading payloads...")
 	}
-	loader := payloads.NewLoader(cfg.PayloadDir)
-	allPayloads, err := loader.LoadAll()
+	allPayloads, _, err := loadUnifiedPayloads(cfg.PayloadDir, defaults.TemplateDir, cfg.Verbose)
 	if err != nil {
 		errMsg := fmt.Sprintf("Error loading payloads: %v", err)
 		ui.PrintError(errMsg)

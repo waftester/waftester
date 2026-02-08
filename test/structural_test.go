@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"text/template"
 )
 
 // =============================================================================
@@ -1362,5 +1363,409 @@ func TestHTTPResponseBodyClosed(t *testing.T) {
 		t.Error("Fix: Add defer resp.Body.Close() or defer iohelper.DrainAndClose(resp) after HTTP calls")
 	} else {
 		t.Log("✅ No new HTTP response body closure violations found")
+	}
+}
+
+// =============================================================================
+// TEMPLATE VALIDATION TESTS
+// =============================================================================
+//
+// These tests verify that all shipped template files are well-formed:
+// - Nuclei YAML templates have required fields (id, info.name, info.severity)
+// - Workflow YAML templates parse correctly
+// - Policy YAML templates parse correctly
+// - Override YAML templates parse correctly
+// - Output .tmpl files contain valid Go template syntax
+// - Report config YAML files parse correctly
+// - No orphan directories or unexpected files
+
+// TestTemplatesDirectoryExists verifies the templates/ directory is present at repo root.
+func TestTemplatesDirectoryExists(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	templatesDir := filepath.Join(repoRoot, "templates")
+
+	info, err := os.Stat(templatesDir)
+	if err != nil {
+		t.Fatalf("templates/ directory missing: %v", err)
+	}
+	if !info.IsDir() {
+		t.Fatal("templates/ exists but is not a directory")
+	}
+}
+
+// TestTemplatesShippedInRelease verifies goreleaser includes templates in archives.
+func TestTemplatesShippedInRelease(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	goreleaserPath := filepath.Join(repoRoot, ".goreleaser.yaml")
+
+	content, err := os.ReadFile(goreleaserPath)
+	if err != nil {
+		t.Skipf("no .goreleaser.yaml found: %v", err)
+	}
+
+	if !strings.Contains(string(content), "templates/**/*") {
+		t.Error(".goreleaser.yaml does not include templates/**/* in archive files")
+		t.Error("Fix: Add '- templates/**/*' to archives.files in .goreleaser.yaml")
+	}
+}
+
+// TestTemplatesShippedInDocker verifies Dockerfile copies templates.
+func TestTemplatesShippedInDocker(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	dockerfilePath := filepath.Join(repoRoot, "Dockerfile")
+
+	content, err := os.ReadFile(dockerfilePath)
+	if err != nil {
+		t.Skipf("no Dockerfile found: %v", err)
+	}
+
+	if !strings.Contains(string(content), "COPY templates/") {
+		t.Error("Dockerfile does not COPY templates/ directory")
+		t.Error("Fix: Add 'COPY templates/ ./templates/' to Dockerfile")
+	}
+}
+
+// TestNucleiTemplatesValid validates all Nuclei YAML templates have required fields.
+func TestNucleiTemplatesValid(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	nucleiDir := filepath.Join(repoRoot, "templates", "nuclei")
+
+	if _, err := os.Stat(nucleiDir); os.IsNotExist(err) {
+		t.Skip("templates/nuclei/ not found")
+	}
+
+	idPattern := regexp.MustCompile(`(?m)^id:\s*\S+`)
+	namePattern := regexp.MustCompile(`(?m)^\s+name:\s*.+`)
+	severityPattern := regexp.MustCompile(`(?m)^\s+severity:\s*(critical|high|medium|low|info|unknown)`)
+	authorPattern := regexp.MustCompile(`(?m)^\s+author:\s*.+`)
+	// Workflow templates use a different structure (no severity required)
+	workflowPattern := regexp.MustCompile(`(?m)^workflows?:`)
+
+	var validCount, invalidCount int
+	err := filepath.Walk(nucleiDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return err
+		}
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext != ".yaml" && ext != ".yml" {
+			return nil
+		}
+
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			t.Errorf("cannot read %s: %v", path, readErr)
+			invalidCount++
+			return nil
+		}
+
+		content := string(data)
+		rel, _ := filepath.Rel(repoRoot, path)
+		relSlash := filepath.ToSlash(rel)
+		isWorkflow := workflowPattern.MatchString(content)
+		var errs []string
+
+		if !idPattern.MatchString(content) {
+			errs = append(errs, "missing id")
+		}
+		if !namePattern.MatchString(content) {
+			errs = append(errs, "missing info.name")
+		}
+		// Workflow templates don't require severity
+		if !isWorkflow && !severityPattern.MatchString(content) {
+			errs = append(errs, "missing or invalid info.severity")
+		}
+		if !authorPattern.MatchString(content) {
+			errs = append(errs, "missing info.author")
+		}
+
+		if len(errs) > 0 {
+			t.Errorf("nuclei template %s: %s", relSlash, strings.Join(errs, ", "))
+			invalidCount++
+		} else {
+			validCount++
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("failed to walk nuclei templates: %v", err)
+	}
+
+	t.Logf("Nuclei templates: %d valid, %d invalid", validCount, invalidCount)
+	if invalidCount > 0 {
+		t.Errorf("%d Nuclei template(s) have validation errors", invalidCount)
+	}
+}
+
+// TestWorkflowTemplatesValid validates workflow YAML templates have required fields.
+func TestWorkflowTemplatesValid(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	workflowDir := filepath.Join(repoRoot, "templates", "workflows")
+
+	if _, err := os.Stat(workflowDir); os.IsNotExist(err) {
+		t.Skip("templates/workflows/ not found")
+	}
+
+	namePattern := regexp.MustCompile(`(?m)^name:\s*.+`)
+	stepsPattern := regexp.MustCompile(`(?m)^steps:`)
+
+	entries, err := os.ReadDir(workflowDir)
+	if err != nil {
+		t.Fatalf("cannot read workflows dir: %v", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
+			continue
+		}
+
+		data, readErr := os.ReadFile(filepath.Join(workflowDir, entry.Name()))
+		if readErr != nil {
+			t.Errorf("cannot read %s: %v", entry.Name(), readErr)
+			continue
+		}
+
+		content := string(data)
+		if !namePattern.MatchString(content) {
+			t.Errorf("workflows/%s: missing name field", entry.Name())
+		}
+		if !stepsPattern.MatchString(content) {
+			t.Errorf("workflows/%s: no steps defined", entry.Name())
+		}
+
+		t.Logf("✓ workflows/%s", entry.Name())
+	}
+}
+
+// TestPolicyTemplatesValid validates policy YAML templates have required fields.
+func TestPolicyTemplatesValid(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	policyDir := filepath.Join(repoRoot, "templates", "policies")
+
+	if _, err := os.Stat(policyDir); os.IsNotExist(err) {
+		t.Skip("templates/policies/ not found")
+	}
+
+	namePattern := regexp.MustCompile(`(?m)^name:\s*.+`)
+
+	entries, err := os.ReadDir(policyDir)
+	if err != nil {
+		t.Fatalf("cannot read policies dir: %v", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
+			continue
+		}
+
+		data, readErr := os.ReadFile(filepath.Join(policyDir, entry.Name()))
+		if readErr != nil {
+			t.Errorf("cannot read %s: %v", entry.Name(), readErr)
+			continue
+		}
+
+		if !namePattern.MatchString(string(data)) {
+			t.Errorf("policies/%s: missing name field", entry.Name())
+		}
+
+		t.Logf("✓ policies/%s", entry.Name())
+	}
+}
+
+// TestOverrideTemplatesValid validates override YAML templates are well-formed.
+func TestOverrideTemplatesValid(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	overrideDir := filepath.Join(repoRoot, "templates", "overrides")
+
+	if _, err := os.Stat(overrideDir); os.IsNotExist(err) {
+		t.Skip("templates/overrides/ not found")
+	}
+
+	entries, err := os.ReadDir(overrideDir)
+	if err != nil {
+		t.Fatalf("cannot read overrides dir: %v", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
+			continue
+		}
+
+		data, readErr := os.ReadFile(filepath.Join(overrideDir, entry.Name()))
+		if readErr != nil {
+			t.Errorf("cannot read %s: %v", entry.Name(), readErr)
+			continue
+		}
+
+		content := string(data)
+		// Overrides must have either matchers or rules
+		if !strings.Contains(content, "matchers:") && !strings.Contains(content, "rules:") && !strings.Contains(content, "overrides:") {
+			t.Errorf("overrides/%s: missing matchers, rules, or overrides section", entry.Name())
+		}
+
+		t.Logf("✓ overrides/%s", entry.Name())
+	}
+}
+
+// TestOutputTemplatesValid validates output .tmpl files have valid Go template syntax.
+func TestOutputTemplatesValid(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	outputDir := filepath.Join(repoRoot, "templates", "output")
+
+	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
+		t.Skip("templates/output/ not found")
+	}
+
+	entries, err := os.ReadDir(outputDir)
+	if err != nil {
+		t.Fatalf("cannot read output dir: %v", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".tmpl") {
+			continue
+		}
+
+		data, readErr := os.ReadFile(filepath.Join(outputDir, entry.Name()))
+		if readErr != nil {
+			t.Errorf("cannot read %s: %v", entry.Name(), readErr)
+			continue
+		}
+
+		// Verify Go template parses (with a permissive FuncMap for custom functions)
+		dummyFuncs := map[string]interface{}{
+			"escapeCSV":    func(s string) string { return s },
+			"escapeXML":    func(s string) string { return s },
+			"severityIcon": func(s string) string { return s },
+			"json":         func(v interface{}) string { return "" },
+			"prettyJSON":   func(v interface{}) string { return "" },
+			"owaspLink":    func(s string) string { return s },
+			"cweLink":      func(s string) string { return s },
+			"toString":     func(v interface{}) string { return "" },
+			"upper":        func(s string) string { return s },
+			"lower":        func(s string) string { return s },
+			"title":        func(s string) string { return s },
+			"default":      func(d, v interface{}) interface{} { return v },
+			"sub":          func(a, b int) int { return a - b },
+			"add":          func(a, b int) int { return a + b },
+			"mul":          func(a, b int) int { return a * b },
+			"div":          func(a, b int) int { return a },
+			"mod":          func(a, b int) int { return a },
+			"lt":           func(a, b int) bool { return a < b },
+			"gt":           func(a, b int) bool { return a > b },
+			"repeat":       func(n int, s string) string { return s },
+			// Sprig functions commonly used in templates
+			"trunc":        func(n int, s string) string { return s },
+			"trimAll":      func(a, b string) string { return b },
+			"contains":     func(a, b string) bool { return false },
+			"hasPrefix":    func(a, b string) bool { return false },
+			"hasSuffix":    func(a, b string) bool { return false },
+			"replace":      func(a, b, c string) string { return c },
+			"indent":       func(n int, s string) string { return s },
+			"nindent":      func(n int, s string) string { return s },
+			"join":         func(sep string, v interface{}) string { return "" },
+			"list":         func(v ...interface{}) []interface{} { return v },
+			"dict":         func(v ...interface{}) map[string]interface{} { return nil },
+			"ternary":      func(a, b interface{}, c bool) interface{} { return a },
+			"empty":        func(v interface{}) bool { return false },
+			"coalesce":     func(v ...interface{}) interface{} { return nil },
+			"toJson":       func(v interface{}) string { return "" },
+			"toPrettyJson": func(v interface{}) string { return "" },
+			"date":         func(fmt string, t interface{}) string { return "" },
+			"now":          func() interface{} { return nil },
+		}
+
+		tmplName := strings.TrimSuffix(entry.Name(), ".tmpl")
+		_, parseErr := template.New(tmplName).Funcs(dummyFuncs).Parse(string(data))
+		if parseErr != nil {
+			t.Errorf("invalid Go template in output/%s: %v", entry.Name(), parseErr)
+			continue
+		}
+
+		t.Logf("✓ output/%s (%d bytes)", entry.Name(), len(data))
+	}
+}
+
+// TestReportConfigTemplatesValid validates report config YAML files have required fields.
+func TestReportConfigTemplatesValid(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	configDir := filepath.Join(repoRoot, "templates", "report-configs")
+
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		t.Skip("templates/report-configs/ not found")
+	}
+
+	namePattern := regexp.MustCompile(`(?m)^name:\s*.+`)
+
+	entries, err := os.ReadDir(configDir)
+	if err != nil {
+		t.Fatalf("cannot read report-configs dir: %v", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
+			continue
+		}
+
+		data, readErr := os.ReadFile(filepath.Join(configDir, entry.Name()))
+		if readErr != nil {
+			t.Errorf("cannot read %s: %v", entry.Name(), readErr)
+			continue
+		}
+
+		if !namePattern.MatchString(string(data)) {
+			t.Errorf("report-configs/%s: missing name field", entry.Name())
+		}
+
+		t.Logf("✓ report-configs/%s", entry.Name())
+	}
+}
+
+// TestTemplatesNoEmptyDirectories verifies no subdirectory is empty.
+func TestTemplatesNoEmptyDirectories(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	templatesDir := filepath.Join(repoRoot, "templates")
+
+	err := filepath.Walk(templatesDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || !info.IsDir() || path == templatesDir {
+			return err
+		}
+
+		entries, readErr := os.ReadDir(path)
+		if readErr != nil {
+			t.Errorf("cannot read %s: %v", path, readErr)
+			return nil
+		}
+
+		hasFiles := false
+		for _, e := range entries {
+			if !e.IsDir() {
+				hasFiles = true
+				break
+			}
+		}
+
+		if !hasFiles {
+			// Check if subdirectories have files
+			hasNestedFiles := false
+			filepath.Walk(path, func(p string, i os.FileInfo, e error) error {
+				if e != nil || p == path {
+					return e
+				}
+				if !i.IsDir() {
+					hasNestedFiles = true
+				}
+				return nil
+			})
+
+			if !hasNestedFiles {
+				rel, _ := filepath.Rel(repoRoot, path)
+				t.Errorf("empty template directory: %s", filepath.ToSlash(rel))
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("failed to walk templates/: %v", err)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/input"
 )
 
@@ -113,8 +114,8 @@ func ParseFlags() (*Config, error) {
 	flag.IntVar(&cfg.Retries, "retries", 1, "Retry count on failure")
 
 	// === PAYLOADS ===
-	flag.StringVar(&cfg.PayloadDir, "payloads", "../payloads", "Payload directory")
-	flag.StringVar(&cfg.PayloadDir, "p", "../payloads", "Payload dir (alias)")
+	flag.StringVar(&cfg.PayloadDir, "payloads", defaults.PayloadDir, "Payload directory")
+	flag.StringVar(&cfg.PayloadDir, "p", defaults.PayloadDir, "Payload dir (alias)")
 	flag.StringVar(&cfg.Category, "category", "", "Filter by category")
 	flag.StringVar(&cfg.Severity, "severity", "", "Filter by min severity (Critical,High,Medium,Low)")
 	flag.BoolVar(&cfg.DryRun, "dry-run", false, "List tests without executing")

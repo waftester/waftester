@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/waftester/waftester/pkg/duration"
@@ -166,6 +167,16 @@ func PrintSmartModeInfo(result *SmartModeResult, verbose bool) {
 				fmt.Fprintf(os.Stderr, "     → %s\n", hint)
 			}
 		}
+
+		// Show template recommendations
+		recommendations := GetTemplateRecommendations(result)
+		if len(recommendations) > 0 {
+			fmt.Fprintln(os.Stderr)
+			ui.PrintInfo("   📋 Recommended Templates:")
+			for _, rec := range recommendations {
+				fmt.Fprintf(os.Stderr, "     → %s\n", rec)
+			}
+		}
 	} else {
 		ui.PrintInfo("🔍 No specific WAF detected - using generic testing configuration")
 		if verbose {
@@ -232,3 +243,49 @@ Examples:
 }
 
 // Note: min() function is defined in main.go, no need to redeclare here
+
+// GetTemplateRecommendations returns recommended template paths based on detected WAF vendor.
+func GetTemplateRecommendations(result *SmartModeResult) []string {
+	if result == nil || !result.WAFDetected {
+		return []string{
+			"templates/nuclei/http/waf-bypass/   (all bypass templates)",
+			"templates/policies/standard.yaml    (standard grading policy)",
+			"payloads/community/waf-bypass/      (133 bypass payloads from JSON DB)",
+		}
+	}
+
+	recommendations := make([]string, 0, 8)
+
+	vendorLower := strings.ToLower(result.VendorName)
+
+	// WAF-specific detection templates
+	switch {
+	case strings.Contains(vendorLower, "cloudflare"):
+		recommendations = append(recommendations,
+			"templates/nuclei/http/waf-detection/cloudflare-detect.yaml",
+			"payloads/community/waf-bypass/cloudflare-bypass.json (20 vendor-specific bypasses)",
+		)
+	case strings.Contains(vendorLower, "aws"), strings.Contains(vendorLower, "amazon"):
+		recommendations = append(recommendations, "templates/nuclei/http/waf-detection/aws-waf-detect.yaml")
+	case strings.Contains(vendorLower, "akamai"):
+		recommendations = append(recommendations, "templates/nuclei/http/waf-detection/akamai-detect.yaml")
+	case strings.Contains(vendorLower, "azure"), strings.Contains(vendorLower, "microsoft"):
+		recommendations = append(recommendations, "templates/nuclei/http/waf-detection/azure-waf-detect.yaml")
+	case strings.Contains(vendorLower, "modsecurity"), strings.Contains(vendorLower, "coraza"):
+		recommendations = append(recommendations,
+			"templates/nuclei/http/waf-detection/modsecurity-detect.yaml",
+			"templates/overrides/crs-tuning.yaml  (CRS paranoia level tuning)",
+			"payloads/community/waf-bypass/modsecurity-crs.json (20 CRS-specific bypasses)",
+		)
+	}
+
+	// Always recommend bypass templates + unified payload access
+	recommendations = append(recommendations,
+		"templates/nuclei/http/waf-bypass/   (all bypass templates)",
+		"templates/policies/standard.yaml    (standard grading policy)",
+		"templates/overrides/false-positive-suppression.yaml (reduce noise)",
+		"Use --enrich flag with template command to inject 2800+ JSON payloads into Nuclei templates",
+	)
+
+	return recommendations
+}

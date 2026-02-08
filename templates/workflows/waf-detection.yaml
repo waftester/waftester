@@ -1,0 +1,89 @@
+# WAFtester WAF Detection Workflow
+# Comprehensive WAF identification, fingerprinting, and behavior profiling
+#
+# Usage:
+#   waf-tester workflow run templates/workflows/waf-detection.yaml --input target=https://example.com
+
+name: waf-detection
+description: "Detect, fingerprint, and profile WAF technology stack"
+version: "2.0.0"
+tags:
+  - waf
+  - detection
+  - fingerprint
+  - recon
+  - profiling
+
+inputs:
+  - name: target
+    description: Target URL
+    required: true
+  - name: output_dir
+    description: Output directory
+    default: "./results"
+  - name: rate_limit
+    description: Requests per second limit
+    default: "3"
+
+steps:
+  - id: detect
+    name: Detect WAF presence
+    command: wafdetect
+    args:
+      - "-u"
+      - "{{.target}}"
+      - "-o"
+      - "{{.output_dir}}/waf-detection.json"
+      - "--json"
+
+  - id: fingerprint
+    name: Fingerprint WAF vendor and version
+    command: waffprint
+    args:
+      - "-u"
+      - "{{.target}}"
+      - "-o"
+      - "{{.output_dir}}/waf-fingerprint.json"
+      - "--json"
+
+  - id: probe_behavior
+    name: Probe WAF blocking behavior with common attacks
+    command: run
+    args:
+      - "-u"
+      - "{{.target}}"
+      - "-s"
+      - "sqli,xss,rce,lfi"
+      - "-c"
+      - "5"
+      - "--rate-limit"
+      - "{{.rate_limit}}"
+      - "-o"
+      - "json"
+      - "--output-file"
+      - "{{.output_dir}}/probe-results.json"
+    condition: "steps.detect.success"
+
+  - id: learn
+    name: Learn WAF response patterns
+    command: learn
+    args:
+      - "-u"
+      - "{{.target}}"
+      - "-o"
+      - "{{.output_dir}}/waf-profile.json"
+    condition: "steps.detect.success"
+
+  - id: report
+    name: Generate WAF detection report
+    command: report
+    args:
+      - "-i"
+      - "{{.output_dir}}/probe-results.json"
+      - "-o"
+      - "{{.output_dir}}/waf-report.html"
+      - "-f"
+      - "html"
+      - "--template-config"
+      - "templates/report-configs/minimal.yaml"
+    condition: "steps.probe_behavior.success"

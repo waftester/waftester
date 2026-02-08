@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/mutation"
@@ -33,7 +34,7 @@ func runMutate() {
 	targetShort := mutateFlags.String("u", "", "Target URL (shorthand)")
 
 	// Payload source
-	payloadDir := mutateFlags.String("payloads", "../payloads", "Payload directory")
+	payloadDir := mutateFlags.String("payloads", defaults.PayloadDir, "Payload directory")
 	category := mutateFlags.String("category", "", "Filter payload category (sqli, xss, etc.)")
 	payloadFile := mutateFlags.String("payload-file", "", "Single payload file to use")
 	rawPayload := mutateFlags.String("payload", "", "Single raw payload to test")
@@ -233,9 +234,8 @@ func runMutate() {
 		ui.PrintConfigLine("Payload File", *payloadFile)
 		ui.PrintConfigLine("Payloads Loaded", fmt.Sprintf("%d", len(testPayloads)))
 	} else {
-		// Load from payload directory
-		loader := payloads.NewLoader(*payloadDir)
-		allPayloads, err := loader.LoadAll()
+		// Load from unified payload engine (JSON + Nuclei templates)
+		allPayloads, _, err := loadUnifiedPayloads(*payloadDir, defaults.TemplateDir, *verbose)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Cannot load payloads: %v", err))
 			os.Exit(1)

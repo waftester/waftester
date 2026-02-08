@@ -1,0 +1,105 @@
+id: waf-detect-akamai
+info:
+  name: Akamai WAF Detection
+  author: waftester
+  severity: info
+  description: |
+    Detects Akamai Kona Site Defender, Akamai WAF, and Akamai CDN presence
+    via response headers, Server header patterns, error page signatures,
+    and AkamaiGHost identification. Extracts edge server location and
+    request reference IDs.
+  reference:
+    - https://www.akamai.com/products/app-and-api-protector
+    - https://github.com/0xInfection/Awesome-WAF
+  tags: waf,detection,akamai,kona,fingerprint,cdn,waftester
+  classification:
+    cwe-id:
+      - CWE-200
+  metadata:
+    verified: true
+    max-request: 2
+    shodan-query: "http.headers.server:AkamaiGHost"
+    fofa-query: "server=\"AkamaiGHost\""
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/"
+
+    stop-at-first-match: true
+    matchers-condition: or
+    matchers:
+      - type: word
+        part: header
+        words:
+          - "AkamaiGHost"
+          - "X-Akamai"
+          - "x-akamai-transformed"
+          - "x-akamai-request-id"
+          - "x-akamai-session-info"
+          - "akamai-origin-hop"
+          - "x-akamai-config-log-detail"
+          - "x-akamai-ssl-client-sid"
+          - "x-akamai-edgescape"
+        condition: or
+        case-insensitive: true
+
+      - type: regex
+        part: header
+        regex:
+          - "(?i)server:\\s*AkamaiGHost"
+          - "(?i)server:\\s*AkamaiNetStorage"
+          - "(?i)x-akamai-transformed:\\s*\\d+"
+          - "(?i)x-check-cacheable:\\s*(YES|NO)"
+
+      - type: word
+        part: body
+        words:
+          - "Access Denied"
+          - "AkamaiGHost"
+          - "Reference&#32;&#35;"
+          - "akamai"
+          - "You don't have permission to access"
+          - "from Akamai"
+        condition: or
+        case-insensitive: true
+
+      - type: dsl
+        dsl:
+          - "status_code == 403 && contains(tolower(body), 'reference')"
+
+    extractors:
+      - type: kval
+        kval:
+          - server
+          - x-akamai-transformed
+          - x-akamai-request-id
+
+      - type: regex
+        part: body
+        group: 1
+        regex:
+          - "Reference&#32;&#35;([0-9]+\\.[0-9a-f]+)"
+          - "Reference\\s+#([0-9]+\\.[0-9a-f]+)"
+
+  # Trigger WAF block to confirm Kona Site Defender
+  - method: GET
+    path:
+      - "{{BaseURL}}/?<script>alert(1)</script>"
+
+    matchers-condition: or
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "Access Denied"
+          - "Reference&#32;&#35;"
+          - "You don't have permission"
+          - "AkamaiGHost"
+          - "Akamai"
+        condition: or
+        case-insensitive: true
+
+      - type: dsl
+        dsl:
+          - "status_code == 403 && contains(tolower(body), 'access denied')"

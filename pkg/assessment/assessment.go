@@ -20,6 +20,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/metrics"
+	"github.com/waftester/waftester/pkg/payloadprovider"
 	"github.com/waftester/waftester/pkg/ui"
 	"golang.org/x/time/rate"
 )
@@ -329,11 +330,14 @@ type AttackPayload struct {
 	Encoder  string
 }
 
-// loadAttackPayloads loads attack payloads from files or generates them
+// loadAttackPayloads loads attack payloads from the unified engine (JSON + Nuclei).
+// Falls back to the built-in payload set if the database is unavailable.
 func (a *Assessment) loadAttackPayloads() ([]AttackPayload, error) {
-	// For now, use a comprehensive built-in set
-	// In full implementation, this would load from payloads directory
-	payloads := getBuiltinAttackPayloads()
+	payloads := a.loadUnifiedAttackPayloads()
+	if len(payloads) == 0 {
+		// Fallback to built-in set
+		payloads = getBuiltinAttackPayloads()
+	}
 
 	// Filter by category if specified
 	if len(a.config.Categories) > 0 {
@@ -351,6 +355,67 @@ func (a *Assessment) loadAttackPayloads() ([]AttackPayload, error) {
 	}
 
 	return payloads, nil
+}
+
+// loadUnifiedAttackPayloads attempts to load payloads from the unified bridge
+// (JSON database + Nuclei templates). Returns nil if loading fails.
+func (a *Assessment) loadUnifiedAttackPayloads() []AttackPayload {
+	payloadDir := a.config.PayloadDir
+	if payloadDir == "" {
+		payloadDir = defaults.PayloadDir
+	}
+
+	provider := payloadprovider.NewProvider(payloadDir, defaults.TemplateDir)
+	if err := provider.Load(); err != nil {
+		if a.config.Verbose {
+			fmt.Printf("Unified payload loading failed, using built-in set: %v\n", err)
+		}
+		return nil
+	}
+
+	unified, err := provider.GetAll()
+	if err != nil || len(unified) == 0 {
+		return nil
+	}
+
+	result := make([]AttackPayload, 0, len(unified))
+	for i, up := range unified {
+		severity := up.Severity
+		if severity == "" {
+			severity = "Medium"
+		}
+		location := "query"
+		lc := strings.ToLower(up.Category)
+		if lc == "xxe" || lc == "xml-injection" {
+			location = "body"
+		} else if lc == "header" || lc == "crlf" || lc == "host-header" {
+			location = "header"
+		}
+
+		result = append(result, AttackPayload{
+			ID:       up.ID,
+			Category: up.Category,
+			Severity: severity,
+			Payload:  up.Payload,
+			Method:   up.Method,
+			Location: location,
+		})
+
+		// Cap at a sensible maximum to avoid very long assessments
+		if i >= 999 {
+			break
+		}
+	}
+
+	if a.config.Verbose {
+		stats, _ := provider.GetStats()
+		if stats.NucleiPayloads > 0 {
+			fmt.Printf("Unified payload engine: %d JSON + %d Nuclei = %d total (using %d)\n",
+				stats.JSONPayloads, stats.NucleiPayloads, stats.TotalPayloads, len(result))
+		}
+	}
+
+	return result
 }
 
 // loadFPCorpus loads the false positive testing corpus

@@ -1,0 +1,121 @@
+id: waf-detect-cloudflare
+info:
+  name: Cloudflare WAF Detection
+  author: waftester
+  severity: info
+  description: |
+    Detects Cloudflare WAF and CDN presence via response headers, cookies,
+    error pages, and Server header patterns. Identifies cf-ray IDs, challenge
+    pages, and Cloudflare-specific error codes (1000-series).
+  reference:
+    - https://developers.cloudflare.com/fundamentals/get-started/reference/http-request-headers/
+    - https://github.com/0xInfection/Awesome-WAF
+  tags: waf,detection,cloudflare,fingerprint,cdn,waftester
+  classification:
+    cwe-id:
+      - CWE-200
+  metadata:
+    verified: true
+    max-request: 2
+    shodan-query: "http.headers.server:cloudflare"
+    fofa-query: "server=\"cloudflare\""
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/"
+
+    stop-at-first-match: true
+    matchers-condition: or
+    matchers:
+      - type: word
+        part: header
+        words:
+          - "cf-ray"
+          - "cf-cache-status"
+          - "cf-request-id"
+          - "cf-connecting-ip"
+          - "cf-worker"
+          - "server: cloudflare"
+          - "__cfduid"
+          - "cf-apo-via"
+          - "cf-edge-cache"
+        condition: or
+        case-insensitive: true
+
+      - type: word
+        part: body
+        words:
+          - "Attention Required! | Cloudflare"
+          - "cf-error-details"
+          - "cloudflare-nginx"
+          - "Cloudflare Ray ID"
+          - "Performance &amp; security by Cloudflare"
+          - "Enable JavaScript and cookies to continue"
+          - "error code: 10"
+          - "cf-browser-verification"
+          - "cf.challenge.platform"
+          - "_cf_chl_opt"
+        condition: or
+        case-insensitive: true
+
+      - type: regex
+        part: header
+        regex:
+          - "(?i)server:\\s*cloudflare"
+          - "(?i)set-cookie:.*__cfduid="
+          - "(?i)set-cookie:.*__cf_bm="
+          - "(?i)cf-ray:\\s*[0-9a-f]+-[A-Z]{3}"
+
+      - type: word
+        part: header
+        words:
+          - "__cf_bm"
+          - "cf_clearance"
+          - "cf_ob_info"
+          - "cf_use_ob"
+        condition: or
+        case-insensitive: true
+
+    extractors:
+      - type: kval
+        kval:
+          - cf-ray
+          - server
+          - cf-cache-status
+
+      - type: regex
+        part: header
+        group: 1
+        regex:
+          - "cf-ray:\\s*([0-9a-f]+-[A-Z]{3})"
+
+  # Trigger WAF block page to confirm active protection
+  - method: GET
+    path:
+      - "{{BaseURL}}/?<script>alert(1)</script>"
+
+    matchers-condition: or
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "Attention Required!"
+          - "Cloudflare"
+          - "cf-error-details"
+          - "Why have I been blocked?"
+          - "This website is using a security service"
+          - "Ray ID:"
+        condition: or
+        case-insensitive: true
+
+      - type: dsl
+        dsl:
+          - "status_code == 403 && contains(tolower(body), 'cloudflare')"
+
+    extractors:
+      - type: regex
+        part: body
+        group: 1
+        regex:
+          - "Ray ID:\\s*<[^>]+>([0-9a-f]+)</[^>]+>"
