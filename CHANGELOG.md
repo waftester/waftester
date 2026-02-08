@@ -5,6 +5,19 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.5] - 2026-02-08
+
+### Added
+
+#### MCP Observability Logging
+
+Production-grade request and tool invocation logging for diagnosing MCP client integration issues (n8n, Claude Desktop, etc.).
+
+- **HTTP request logger**: Every incoming HTTP request is logged with method, path, `Mcp-Session-Id`, content-type, content-length, remote address, response status, and duration. Inserted as the outermost middleware layer.
+- **Tool call logger**: Every MCP tool invocation is logged on entry (with truncated arguments) and exit (with success/error status and duration). Uses a `loggedTool` wrapper applied to all 13 tools.
+- **Task lifecycle logging**: `TaskManager.Create`, `Complete`, `Fail`, `Cancel`, `Get` (miss), and `cleanup` all log structured events with `[mcp-task]` prefix including task IDs and counts.
+- **Log prefixes**: `[mcp-http]` for HTTP layer, `[mcp-tool]` for tool invocations, `[mcp-task]` for task lifecycle — enables easy grep-based filtering in container logs.
+
 ## [2.7.4] - 2026-02-08
 
 ### Fixed
