@@ -193,16 +193,23 @@ func (w *JSONWriter) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
+	var closeErr error
+	if w.file != os.Stdout {
+		defer func() {
+			if err := w.file.Close(); err != nil && closeErr == nil {
+				closeErr = err
+			}
+		}()
+	}
+
 	encoder := json.NewEncoder(w.file)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(w.results); err != nil {
+		closeErr = err
 		return err
 	}
 
-	if w.file != os.Stdout {
-		return w.file.Close()
-	}
-	return nil
+	return closeErr
 }
 
 func newJSONLWriter(path string) (*JSONLWriter, error) {
@@ -431,17 +438,24 @@ func (w *SARIFWriter) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
+	var closeErr error
+	if w.file != os.Stdout {
+		defer func() {
+			if err := w.file.Close(); err != nil && closeErr == nil {
+				closeErr = err
+			}
+		}()
+	}
+
 	sarif := w.buildSARIF()
 	encoder := json.NewEncoder(w.file)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(sarif); err != nil {
+		closeErr = err
 		return err
 	}
 
-	if w.file != os.Stdout {
-		return w.file.Close()
-	}
-	return nil
+	return closeErr
 }
 
 // SARIF structures
