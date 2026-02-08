@@ -326,6 +326,14 @@ sendLoop:
 	return results
 }
 
+// Close releases resources held by the executor, including idle HTTP
+// connections and detection state for the target URL.
+func (e *Executor) Close() {
+	if t, ok := e.httpClient.Transport.(*http.Transport); ok {
+		t.CloseIdleConnections()
+	}
+}
+
 // buildSkippedResult creates a TestResult for a payload that was skipped
 // due to host errors or detection system recommendations. Used by the
 // worker pool to skip payloads without going through the rate limiter.
