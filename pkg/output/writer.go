@@ -310,6 +310,11 @@ func PrintSummary(results ExecutionResults) {
 		color.Yellow("  ! Errors:        %d", results.ErrorTests)
 	}
 
+	// Skipped (host unreachable / death spiral)
+	if results.HostsSkipped > 0 {
+		color.Cyan("  ⏭ Skipped:       %d (host unreachable)", results.HostsSkipped)
+	}
+
 	fmt.Printf("\n  Duration:        %s\n", results.Duration.Round(time.Millisecond))
 	fmt.Printf("  Throughput:      %.1f req/sec\n", results.RequestsPerSec)
 
