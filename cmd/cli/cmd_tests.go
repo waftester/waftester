@@ -134,7 +134,9 @@ func runTests() {
 			errMsg := fmt.Sprintf("Error loading test plan: %v", err)
 			ui.PrintError(errMsg)
 			ui.PrintHelp("Run 'waf-tester learn -discovery <file>' first to generate a test plan")
-			_ = runDispCtx.EmitError(ctx, "run", errMsg, true)
+			if runDispCtx != nil {
+				_ = runDispCtx.EmitError(ctx, "run", errMsg, true)
+			}
 			os.Exit(1)
 		}
 
@@ -268,7 +270,9 @@ func runTests() {
 	if err != nil {
 		errMsg := fmt.Sprintf("Error loading payloads: %v", err)
 		ui.PrintError(errMsg)
-		_ = runDispCtx.EmitError(ctx, "run", errMsg, true)
+		if runDispCtx != nil {
+			_ = runDispCtx.EmitError(ctx, "run", errMsg, true)
+		}
 		os.Exit(1)
 	}
 
@@ -489,7 +493,9 @@ func runTests() {
 	if totalTargets > 1 && !cfg.Silent {
 		fmt.Fprintln(os.Stderr)
 		ui.PrintSection("Aggregated Results (All Targets)")
-		aggregatedResults.RequestsPerSec = float64(aggregatedResults.TotalTests) / aggregatedResults.Duration.Seconds()
+		if secs := aggregatedResults.Duration.Seconds(); secs > 0 {
+			aggregatedResults.RequestsPerSec = float64(aggregatedResults.TotalTests) / secs
+		}
 		ui.PrintSummary(ui.Summary{
 			TotalTests:     aggregatedResults.TotalTests,
 			BlockedTests:   aggregatedResults.BlockedTests,
