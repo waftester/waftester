@@ -5,6 +5,63 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.2] - 2026-02-07
+
+### Added
+
+#### Unified Payload Provider (`pkg/payloadprovider`)
+
+Bridges the JSON payload database (2,800+ payloads) and Nuclei template system (~226 vectors) into a single unified provider:
+
+- **`payloadprovider.Provider`** — loads both sources, merges with deduplication, provides category-aware queries (`GetByCategory`, `GetByTags`, `GetStats`)
+- **`payloadprovider.CategoryMapper`** — bidirectional mapping for 20+ categories (e.g. `sqli` ↔ `SQL-Injection`, `lfi` ↔ `Path-Traversal`)
+- **Template enrichment** — `--enrich` flag on `template` command injects JSON payloads into Nuclei templates for maximum bypass coverage
+- **Scan enrichment** — `scan` command WAF evasion scanner now pulls payloads from the unified provider instead of 3 hardcoded strings
+- **MCP integration** — new `waftester://payloads/unified` resource; `list_payloads` tool reports unified stats; prompts reference the bridge
+- **Smart mode** — `GetTemplateRecommendations` suggests vendor-specific JSON payload files and the `--enrich` flag
+- **Default constants** — `defaults.PayloadDir` and `defaults.TemplateDir` replace all hardcoded path strings
+- **23 unit tests** — table-driven tests for provider, mapper, edge cases
+
+#### Pre-Built Template Library
+
+WAFtester now ships a complete `templates/` directory in release archives and Docker images, providing ready-to-use configurations for every template system:
+
+- **17 Nuclei templates** — WAF bypass (SQLi, XSS, RCE, LFI, SSRF, SSTI, CRLF, XXE, NoSQLi) and vendor detection (Cloudflare, AWS WAF, Akamai, ModSecurity, Azure WAF), plus a full assessment workflow
+- **5 workflow templates** — Full scan, quick probe, CI gate, WAF detection, API scan
+- **5 policy templates** — Permissive, standard, strict, OWASP Top 10, PCI-DSS compliance gates
+- **3 override templates** — False positive suppression, API-only mode, CRS tuning
+- **6 output templates** — CSV, ASFF (AWS Security Hub), JUnit XML, Markdown, Slack notification, text summary
+- **5 report config templates** — Minimal, enterprise, dark theme, compliance, print/PDF
+
+#### Template Validation Tests
+
+- 11 structural tests validate all shipped templates: Nuclei YAML fields, workflow steps, policy names, override structure, Go template syntax, report config format, directory integrity
+- CI enforcement ensures templates ship in release archives (goreleaser) and Docker images
+
+#### CLI Flag Consistency Audit
+
+Comprehensive audit and fix of all 33 CLI commands for unified payload flag consistency:
+
+- **`scan` command** — added `--payloads` and `--template-dir` flags; WAF evasion scanner now uses configurable directories instead of hardcoded defaults
+- **`grpc` / `soap` / `openapi`** — added `--payloads` and `--template-dir` flags; unified fuzz payloads now respect custom directories
+- **`assess` command** — added `--payloads` flag wired to `assessment.Config.PayloadDir`
+- **`template` command** — renamed `--payload-dir` to `--payloads` for cross-command consistency
+- **`validate-templates`** — fixed default from `"../templates"` to `defaults.TemplateDir`
+- **`unified_payloads.go`** — all shared helpers now accept `templateDir` parameter instead of hardcoding `defaults.TemplateDir`
+- **MCP server** — `validatePayloadDir` now uses user-supplied `--templates` directory for unified payload counts
+
+### Fixed
+
+- **Templates included in releases** — `templates/**/*` added to `.goreleaser.yaml` archive files (previously only `payloads/` and source-internal configs shipped)
+- **Templates included in Docker** — `COPY templates/ ./templates/` added to Dockerfile
+- **Report config paths** — Examples and workflows reference canonical `templates/report-configs/` instead of source-internal `pkg/report/templates/configs/`
+- **MCP resource count** — version resource correctly reports 10 resources (was 9)
+- **CLI flag naming** — `template --payload-dir` renamed to `--payloads` to match all other commands
+- **MCP startup validation** — `validatePayloadDir` now uses user-supplied `--templates` value instead of hardcoded default
+- **`validate-templates` default path** — changed from `"../templates"` to `defaults.TemplateDir` (`./templates/nuclei`)
+
+---
+
 ## [2.7.1] - 2026-02-07
 
 ### Security

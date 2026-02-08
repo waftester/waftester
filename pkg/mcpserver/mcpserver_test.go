@@ -401,7 +401,7 @@ func TestListPrompts(t *testing.T) {
 
 	expectedPrompts := []string{
 		"security_audit", "waf_bypass", "full_assessment",
-		"discovery_workflow", "evasion_research",
+		"discovery_workflow", "evasion_research", "template_scan",
 	}
 
 	if len(result.Prompts) != len(expectedPrompts) {
@@ -2883,8 +2883,8 @@ func TestPromptsIterator(t *testing.T) {
 		count++
 	}
 
-	if count != 5 {
-		t.Errorf("Prompts iterator yielded %d, want 5", count)
+	if count != 6 {
+		t.Errorf("Prompts iterator yielded %d, want 6", count)
 	}
 }
 

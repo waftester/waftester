@@ -1,0 +1,71 @@
+id: waf-full-assessment-workflow
+info:
+  name: WAF Full Assessment Workflow
+  author: waftester
+  description: |
+    Complete WAF assessment workflow. First detects the WAF vendor (Cloudflare,
+    AWS, Akamai, Azure, ModSecurity), then runs all relevant bypass templates
+    matched by tags. Detection runs in parallel, bypass tests run conditionally
+    based on detected WAF vendor for vendor-specific evasion tuning.
+
+workflows:
+  - template: nuclei/http/waf-detection/cloudflare-detect.yaml
+    subtemplates:
+      - tags: waf,bypass,sqli
+      - tags: waf,bypass,xss
+      - tags: waf,bypass,rce
+      - tags: waf,bypass,ssrf
+      - tags: waf,bypass,lfi
+      - tags: waf,bypass,ssti
+      - tags: waf,bypass,xxe
+      - tags: waf,bypass,crlf
+      - tags: waf,bypass,nosqli
+
+  - template: nuclei/http/waf-detection/aws-waf-detect.yaml
+    subtemplates:
+      - tags: waf,bypass,sqli
+      - tags: waf,bypass,xss
+      - tags: waf,bypass,rce
+      - tags: waf,bypass,ssrf
+      - tags: waf,bypass,lfi
+      - tags: waf,bypass,ssti
+      - tags: waf,bypass,xxe
+      - tags: waf,bypass,crlf
+      - tags: waf,bypass,nosqli
+
+  - template: nuclei/http/waf-detection/modsecurity-detect.yaml
+    subtemplates:
+      - tags: waf,bypass,evasion
+      - tags: waf,bypass,sqli
+      - tags: waf,bypass,xss
+      - tags: waf,bypass,rce
+      - tags: waf,bypass,ssrf
+      - tags: waf,bypass,lfi
+      - tags: waf,bypass,ssti
+      - tags: waf,bypass,xxe
+      - tags: waf,bypass,crlf
+      - tags: waf,bypass,nosqli
+
+  - template: nuclei/http/waf-detection/akamai-detect.yaml
+    subtemplates:
+      - tags: waf,bypass,sqli
+      - tags: waf,bypass,xss
+      - tags: waf,bypass,rce
+      - tags: waf,bypass,ssrf
+      - tags: waf,bypass,lfi
+      - tags: waf,bypass,ssti
+      - tags: waf,bypass,xxe
+      - tags: waf,bypass,crlf
+      - tags: waf,bypass,nosqli
+
+  - template: nuclei/http/waf-detection/azure-waf-detect.yaml
+    subtemplates:
+      - tags: waf,bypass,sqli
+      - tags: waf,bypass,xss
+      - tags: waf,bypass,rce
+      - tags: waf,bypass,ssrf
+      - tags: waf,bypass,lfi
+      - tags: waf,bypass,ssti
+      - tags: waf,bypass,xxe
+      - tags: waf,bypass,crlf
+      - tags: waf,bypass,nosqli

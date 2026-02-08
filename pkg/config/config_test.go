@@ -5,6 +5,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/defaults"
 )
 
 // resetFlags resets the flag package for each test
@@ -40,8 +42,8 @@ func TestConfigDefaults(t *testing.T) {
 	if cfg.Retries != 1 {
 		t.Errorf("Retries default: got %d, want 1", cfg.Retries)
 	}
-	if cfg.PayloadDir != "../payloads" {
-		t.Errorf("PayloadDir default: got %q, want '../payloads'", cfg.PayloadDir)
+	if cfg.PayloadDir != defaults.PayloadDir {
+		t.Errorf("PayloadDir default: got %q, want %q", cfg.PayloadDir, defaults.PayloadDir)
 	}
 	if cfg.OutputFormat != "console" {
 		t.Errorf("OutputFormat default: got %q, want 'console'", cfg.OutputFormat)

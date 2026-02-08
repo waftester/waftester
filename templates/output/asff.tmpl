@@ -1,0 +1,61 @@
+{
+  "SchemaVersion": "2018-10-08",
+  "Id": "waftester-{{ default "scan" .ScanID }}-{{ .Timestamp }}",
+  "ProductArn": "arn:aws:securityhub:{{ default "us-east-1" .Region }}:{{ default "000000000000" .AWSAccountID }}:product/waftester/waftester",
+  "GeneratorId": "waftester",
+  "AwsAccountId": "{{ default "000000000000" .AWSAccountID }}",
+  "CreatedAt": "{{ .Timestamp }}",
+  "UpdatedAt": "{{ .Timestamp }}",
+  "Title": "WAF Security Assessment - {{ .Target }}",
+  "Description": "WAFtester scan of {{ .Target }}: {{ .TotalTests }} tests, {{ .BypassCount }} bypasses, {{ .Effectiveness }}% effectiveness (Grade: {{ .Grade }})",
+  "Severity": {
+    "Label": "{{ upper .HighestSeverity }}",
+    "Original": "{{ .HighestSeverity }}"
+  },
+  "Types": [
+    "Software and Configuration Checks/AWS Security Best Practices"
+  ],
+  "Resources": [
+    {
+      "Type": "Other",
+      "Id": "{{ .Target }}",
+      "Details": {
+        "Other": {
+          "TotalTests": "{{ toString .TotalTests }}",
+          "Blocked": "{{ toString .Blocked }}",
+          "Bypassed": "{{ toString .BypassCount }}",
+          "Effectiveness": "{{ .Effectiveness }}",
+          "Grade": "{{ .Grade }}"
+        }
+      }
+    }
+  ],
+  "Compliance": {
+    "Status": "{{ ternary "PASSED" "FAILED" (eq .BypassCount 0) }}"
+  },
+  "Findings": [
+    {{- range $idx, $bypass := .Bypasses }}
+    {{- if $idx }},{{ end }}
+    {
+      "Id": "{{ $bypass.Test.ID }}",
+      "Title": "{{ $bypass.Test.Name }}",
+      "Description": "WAF bypass via {{ $bypass.Test.Category }} at {{ $bypass.Target.URL }}",
+      "Severity": {
+        "Label": "{{ upper $bypass.Test.Severity }}"
+      },
+      "Types": ["Software and Configuration Checks"],
+      "Resources": [
+        {
+          "Type": "Other",
+          "Id": "{{ $bypass.Target.URL }}"
+        }
+      ],
+      "Remediation": {
+        "Recommendation": {
+          "Text": "Review WAF rules for {{ $bypass.Test.Category }} coverage. See {{ owaspLink $bypass.Test.Category }}"
+        }
+      }
+    }
+    {{- end }}
+  ]
+}

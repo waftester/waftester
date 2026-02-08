@@ -1,0 +1,114 @@
+id: waf-detect-azure-front-door
+info:
+  name: Azure Front Door / Azure WAF Detection
+  author: waftester
+  severity: info
+  description: |
+    Detects Azure Front Door, Azure Application Gateway WAF, and Azure CDN
+    presence via response headers, error pages, and blocking behavior.
+    Identifies x-azure-ref tracking IDs, Front Door health probes, and
+    Azure-specific error response patterns.
+  reference:
+    - https://learn.microsoft.com/en-us/azure/web-application-firewall/
+    - https://github.com/0xInfection/Awesome-WAF
+  tags: waf,detection,azure,frontdoor,appgateway,fingerprint,waftester
+  classification:
+    cwe-id:
+      - CWE-200
+  metadata:
+    verified: true
+    max-request: 2
+    shodan-query: "http.headers.x-azure-ref"
+    fofa-query: "header=\"x-azure-ref\""
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/"
+
+    stop-at-first-match: true
+    matchers-condition: or
+    matchers:
+      - type: word
+        part: header
+        words:
+          - "x-azure-ref"
+          - "x-fd-healthprobe"
+          - "x-ms-ref"
+          - "x-ms-request-id"
+          - "x-msedge-ref"
+          - "x-azure-requestchain"
+          - "x-azure-socketip"
+          - "x-azure-fdid"
+          - "x-azure-externalerror"
+          - "x-ms-gateway-requestid"
+        condition: or
+        case-insensitive: true
+
+      - type: regex
+        part: header
+        regex:
+          - "(?i)x-azure-ref:\\s*[A-Za-z0-9+/=]+"
+          - "(?i)server:\\s*Microsoft-Azure-Application-Gateway"
+          - "(?i)server:\\s*Microsoft-IIS"
+          - "(?i)x-cache:\\s*.*afd"
+
+      - type: word
+        part: body
+        words:
+          - "Azure Front Door"
+          - "The request is blocked"
+          - "Ref A:"
+          - "Ref B:"
+          - "Ref C:"
+          - "Microsoft Azure"
+          - "Azure Application Gateway"
+          - "WAFV2"
+          - "BlockedByIPAddress"
+          - "This page is temporarily unavailable"
+        condition: or
+        case-insensitive: true
+
+      - type: word
+        part: header
+        words:
+          - "afd-"
+          - "ARRAffinity"
+          - "ARRAffinitySameSite"
+        condition: or
+        case-insensitive: true
+
+    extractors:
+      - type: kval
+        kval:
+          - x-azure-ref
+          - server
+          - x-ms-request-id
+
+      - type: regex
+        part: body
+        group: 1
+        regex:
+          - "Ref A:\\s*([A-F0-9]+)"
+
+  # Trigger WAF block to confirm active protection
+  - method: GET
+    path:
+      - "{{BaseURL}}/?<script>alert(1)</script>"
+
+    matchers-condition: or
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "The request is blocked"
+          - "Azure Front Door"
+          - "Azure Application Gateway"
+          - "This page is temporarily unavailable"
+          - "Our services are not available right now"
+        condition: or
+        case-insensitive: true
+
+      - type: dsl
+        dsl:
+          - "status_code == 403 && contains(tolower(body), 'azure')"

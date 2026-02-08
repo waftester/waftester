@@ -1,0 +1,173 @@
+# WAFtester Compliance Report Configuration
+# Structured for regulatory compliance evidence and audit trails
+# Maps findings to OWASP, PCI DSS, NIST, and CIS frameworks
+
+name: compliance
+description: "Compliance-focused report mapping findings to regulatory frameworks with audit evidence"
+version: "2.0.0"
+
+branding:
+  title: "WAF Compliance Assessment Report"
+  subtitle: "Regulatory Compliance Evidence"
+  logo: ""
+  company: ""
+  footer: "Confidential — Compliance Documentation"
+  classification: "RESTRICTED"
+
+layout:
+  max_width: 1100
+  orientation: portrait
+  page_size: A4
+  compact: false
+  table_of_contents: true
+  page_numbers: true
+
+sections:
+  - id: executive_summary
+    title: "Compliance Executive Summary"
+    enabled: true
+    fields:
+      - target
+      - timestamp
+      - duration
+      - total_tests
+      - effectiveness
+      - grade
+      - compliance_status
+
+  - id: compliance_mapping
+    title: "Regulatory Framework Mapping"
+    enabled: true
+    frameworks:
+      - id: owasp_top10
+        name: "OWASP Top 10 (2021)"
+        version: "2021"
+        show_gaps: true
+        categories:
+          - A01_Broken_Access_Control
+          - A02_Cryptographic_Failures
+          - A03_Injection
+          - A04_Insecure_Design
+          - A05_Security_Misconfiguration
+          - A06_Vulnerable_Components
+          - A07_Auth_Failures
+          - A08_Software_Data_Integrity
+          - A09_Logging_Monitoring
+          - A10_SSRF
+
+      - id: pci_dss
+        name: "PCI DSS v4.0"
+        version: "4.0"
+        show_gaps: true
+        requirements:
+          - "6.2.4"
+          - "6.4.1"
+          - "6.4.2"
+          - "11.6.1"
+
+      - id: nist_800_53
+        name: "NIST SP 800-53 Rev 5"
+        version: "Rev 5"
+        show_gaps: true
+        controls:
+          - "SI-10"
+          - "SC-7"
+          - "AC-4"
+
+      - id: cis_controls
+        name: "CIS Controls v8"
+        version: "8"
+        show_gaps: true
+        controls:
+          - "13.10"
+
+  - id: severity_chart
+    title: "Finding Severity Distribution"
+    enabled: true
+    chart_type: "donut"
+
+  - id: category_breakdown
+    title: "Vulnerability Category Analysis"
+    enabled: true
+    chart_type: "bar"
+
+  - id: bypasses
+    title: "Non-Compliant Findings (Bypasses)"
+    enabled: true
+    max_items: 100
+    sort_by: "severity"
+    sort_order: "desc"
+    fields:
+      - id
+      - category
+      - severity
+      - name
+      - url
+      - status_code
+      - payload
+      - owasp_link
+      - cwe_link
+      - remediation
+      - compliance_impact
+
+  - id: recommendations
+    title: "Remediation Plan"
+    enabled: true
+    priority_order: true
+    include_timeline: true
+    include_effort_estimate: true
+
+  - id: attestation
+    title: "Assessment Attestation"
+    enabled: true
+    fields:
+      - assessor_name
+      - assessment_date
+      - scope
+      - limitations
+      - methodology
+
+  - id: appendix
+    title: "Supporting Evidence"
+    enabled: true
+    include_raw_payloads: true
+    include_response_samples: false
+
+styling:
+  theme: "light"
+  font_family: "'Times New Roman', 'Georgia', serif"
+  font_size: "12px"
+  heading_font: "'Arial', 'Helvetica', sans-serif"
+  code_font: "'Courier New', monospace"
+  colors:
+    primary: "#1e3a5f"
+    secondary: "#4a6fa5"
+    success: "#2d6a4f"
+    warning: "#b45309"
+    danger: "#9b1b30"
+    critical: "#7f1d1d"
+    info: "#1e40af"
+    background: "#ffffff"
+    surface: "#f5f5f5"
+    text: "#1a1a1a"
+    border: "#cccccc"
+
+charts:
+  enabled: true
+  renderer: "svg"
+  width: 500
+  height: 350
+  types:
+    - severity_donut
+    - compliance_matrix
+    - category_bar
+
+export:
+  formats:
+    - pdf
+    - html
+    - json
+  include_raw_data: true
+  compress: false
+  embed_images: true
+  redact_payloads: false

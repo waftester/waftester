@@ -1,0 +1,40 @@
+# WAFtester Permissive Security Policy
+# Relaxed policy for development and initial WAF tuning
+# Only fails on critical, actively exploitable bypasses
+
+name: permissive
+description: "Relaxed development policy — only fails on critical, actively exploitable WAF bypasses"
+version: "2.0.0"
+
+severity_threshold: high
+
+fail_on:
+  bypasses:
+    - sqli
+    - rce
+    - deserialization
+    - request-smuggling
+
+  categories:
+    - injection
+
+  effectiveness_below: 50.0
+
+  error_rate_above: 15.0
+
+  false_positive_rate_above: 10.0
+
+  min_tests_required: 5
+
+  max_response_time_ms: 30000
+
+  require_waf_detected: false
+
+ignore:
+  ids: []
+  tags:
+    - informational
+    - recon
+    - evasion
+    - low-confidence
+  severity_below: medium

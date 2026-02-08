@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/discovery"
 	"github.com/waftester/waftester/pkg/input"
 	"github.com/waftester/waftester/pkg/learning"
@@ -24,7 +25,7 @@ func runLearn() {
 	listFile := learnFlags.String("l", "", "File containing target URLs")
 	stdinInput := learnFlags.Bool("stdin", false, "Read targets from stdin")
 	discoveryFile := learnFlags.String("discovery", "discovery.json", "Discovery results file")
-	payloadDir := learnFlags.String("payloads", "../payloads", "Payload directory")
+	payloadDir := learnFlags.String("payloads", defaults.PayloadDir, "Payload directory")
 	outputPlan := learnFlags.String("output", "testplan.json", "Output test plan file")
 	outputPayloads := learnFlags.String("custom-payloads", "", "Output file for generated custom payloads")
 	verbose := learnFlags.Bool("verbose", false, "Show detailed test plan")

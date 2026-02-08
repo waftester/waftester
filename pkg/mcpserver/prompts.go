@@ -14,6 +14,7 @@ func (s *Server) registerPrompts() {
 	s.addFullAssessmentPrompt()
 	s.addDiscoveryWorkflowPrompt()
 	s.addEvasionResearchPrompt()
+	s.addTemplateScanPrompt()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -94,6 +95,16 @@ Compile findings into a structured report:
 5. Critical Bypasses (with curl commands for reproduction)
 6. Remediation Recommendations (prioritized)
 7. Read waftester://owasp-mappings to map findings to compliance frameworks
+
+## Available Templates
+Read waftester://templates to see all available templates including:
+- Policies: Use --policy templates/policies/standard.yaml for grading criteria
+- Report configs: Use templates/report-configs/enterprise.yaml for formatted output
+- Overrides: Use templates/overrides/false-positive-suppression.yaml to reduce noise
+
+## Unified Payload Database
+Read waftester://payloads/unified to see the combined payload inventory spanning both JSON database and Nuclei templates.
+Use 'waf-tester template --enrich' to inject the full JSON payload database into Nuclei templates for maximum bypass coverage.
 
 Be thorough but respect the rate limit guidance for a %s environment.`,
 								target, target, target, scope, rateAdvice, env),
@@ -177,6 +188,15 @@ For each bypass found:
 5. Severity assessment
 6. Remediation recommendation (specific WAF rule to add)
 
+## Nuclei Templates
+For automated bypass testing, suggest running the bundled Nuclei templates:
+- SQL Injection: templates/nuclei/http/waf-bypass/sqli-basic.yaml, sqli-evasion.yaml
+- XSS: templates/nuclei/http/waf-bypass/xss-basic.yaml, xss-evasion.yaml
+- Full suite: waf-tester template -t templates/nuclei/http/waf-bypass/ -u TARGET
+- Enriched: waf-tester template -t templates/nuclei/http/waf-bypass/ -u TARGET --enrich (injects 2800+ JSON payloads)
+Read waftester://templates for the complete template catalog.
+Read waftester://payloads/unified for the combined payload inventory across both engines.
+
 Focus on critical and high severity bypasses first.`,
 								category, target, target, target, category, rateLimit, concurrency,
 								target, category, rateLimit, concurrency),
@@ -224,6 +244,7 @@ func (s *Server) addFullAssessmentPrompt() {
 1. Run detect_waf to identify the WAF and verify the target is protected
 2. Run probe to analyze TLS configuration, security headers, and server fingerprint
 3. Read waftester://config to understand recommended settings
+4. Read waftester://payloads to review the unified payload catalog (JSON + Nuclei templates)
 
 ## Assessment Execution
 Run assess against %s with:
@@ -263,6 +284,11 @@ Present results as:
    - Priority 2: Rule tuning recommendations  
    - Priority 3: Configuration improvements
    - Priority 4: Monitoring and alerting suggestions
+
+Apply a grading policy for standardized assessment:
+- Standard: --policy templates/policies/standard.yaml (85%%%% effectiveness threshold)
+- Strict: --policy templates/policies/strict.yaml (95%%%% effectiveness threshold)
+- PCI DSS: --policy templates/policies/pci-dss.yaml (compliance-focused)
 
 Format the output suitable for executive and technical audiences.`,
 								target, compliance, target),
@@ -423,6 +449,101 @@ For each variant, explain WHY it might bypass the specific WAF vendor:
 3. Alternative injection locations to try (headers, cookies, path)
 4. Suggestions for chaining with the bypass tool for automated testing`,
 								target, payload, target, target),
+						},
+					},
+				},
+			}, nil
+		},
+	)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// template_scan — Template-based WAF testing workflow
+// ═══════════════════════════════════════════════════════════════════════════
+
+func (s *Server) addTemplateScanPrompt() {
+	s.mcp.AddPrompt(
+		&mcp.Prompt{
+			Name:        "template_scan",
+			Description: "Run bundled Nuclei templates for systematic WAF bypass and detection testing.",
+			Arguments: []*mcp.PromptArgument{
+				{Name: "target", Description: "Target URL", Required: true},
+				{Name: "focus", Description: "Focus area: 'bypass', 'detection', or 'all'", Required: false},
+			},
+		},
+		func(_ context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+			target := req.Params.Arguments["target"]
+			if target == "" {
+				return nil, fmt.Errorf("'target' argument is required")
+			}
+			focus := req.Params.Arguments["focus"]
+			if focus == "" {
+				focus = "all"
+			}
+
+			// Build template path suggestions based on focus
+			templatePaths := ""
+			switch focus {
+			case "bypass":
+				templatePaths = `Run bypass templates:
+  waf-tester template -t templates/nuclei/http/waf-bypass/ -u ` + target + `
+  
+This tests 11 bypass categories: SQLi (basic+evasion), XSS (basic+evasion), SSRF, LFI, RCE, SSTI, XXE, CRLF, NoSQLi.`
+			case "detection":
+				templatePaths = `Run detection templates:
+  waf-tester template -t templates/nuclei/http/waf-detection/ -u ` + target + `
+
+This detects: Cloudflare, AWS WAF, Akamai, Azure WAF, ModSecurity.`
+			default:
+				templatePaths = `Run all templates:
+  waf-tester template -t templates/nuclei/ -u ` + target + `
+
+Or run specific categories:
+  waf-tester template -t templates/nuclei/http/waf-bypass/ -u ` + target + ` --tags sqli
+  waf-tester template -t templates/nuclei/http/waf-detection/ -u ` + target + `
+  
+For workflow-based scanning:
+  waf-tester workflow -f templates/workflows/full-scan.yaml -var target=` + target
+			}
+
+			return &mcp.GetPromptResult{
+				Description: fmt.Sprintf("Template Scan: %s (%s)", target, focus),
+				Messages: []*mcp.PromptMessage{
+					{
+						Role: "user",
+						Content: &mcp.TextContent{
+							Text: fmt.Sprintf(`Run WAF security templates against %s.
+
+## Step 1: Detect WAF
+Run detect_waf on %s first to know what templates will be most effective.
+
+## Step 2: Read Template Catalog
+Read waftester://templates to see all available templates and their descriptions.
+
+## Step 3: Execute Templates
+%s
+
+## Step 3b: Enrich with Unified Payloads
+Use --enrich flag to merge JSON payload database with Nuclei template vectors:
+  waf-tester template -t templates/nuclei/http/waf-bypass/ -u %s --enrich
+
+Read waftester://payloads/unified for the complete unified payload catalog.
+
+## Step 4: Apply Policy
+Use a policy to grade the results:
+  --policy templates/policies/standard.yaml
+
+Available policies:
+- strict.yaml: 95%%%% effectiveness floor
+- standard.yaml: 85%%%% effectiveness  
+- permissive.yaml: Development-friendly
+- owasp-top10.yaml: OWASP Top 10 mapping
+- pci-dss.yaml: PCI DSS compliance
+
+## Step 5: Report
+Summarize findings by severity, category, and provide remediation guidance.
+Read waftester://owasp-mappings to map findings to compliance frameworks.`,
+								target, target, templatePaths, target),
 						},
 					},
 				},

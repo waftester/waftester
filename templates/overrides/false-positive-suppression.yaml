@@ -1,0 +1,159 @@
+# WAFtester False Positive Suppression Override Configuration
+# Rules to suppress known false positives and reduce noise in scan results
+# Use this to tune results after initial baseline assessment
+
+overrides:
+  - id: suppress-static-assets
+    description: "Skip testing on static asset paths (CSS, JS, images, fonts)"
+    match:
+      path: "\\.(css|js|png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|map)$"
+    action:
+      skip: true
+    enabled: true
+    priority: 100
+
+  - id: suppress-favicon
+    description: "Skip favicon.ico — most WAFs do not inspect this"
+    match:
+      path: "/favicon\\.ico$"
+    action:
+      skip: true
+    enabled: true
+    priority: 100
+
+  - id: suppress-robots-txt
+    description: "Skip robots.txt probing — not an attack surface"
+    match:
+      path: "/robots\\.txt$"
+    action:
+      skip: true
+    enabled: true
+    priority: 100
+
+  - id: suppress-healthcheck
+    description: "Skip health check and status endpoints"
+    match:
+      path: "/(health|healthz|health-check|status|ping|readyz|livez|ready|alive)$"
+    action:
+      skip: true
+    enabled: true
+    priority: 95
+
+  - id: suppress-metrics
+    description: "Skip metrics and monitoring endpoints"
+    match:
+      path: "/(metrics|prometheus|_monitoring|debug/vars|debug/pprof)$"
+    action:
+      skip: true
+    enabled: true
+    priority: 95
+
+  - id: suppress-common-fp-sqli
+    description: "Suppress SQLi false positives from natural language with SQL-like words"
+    match:
+      category: "sqli"
+      false_positive_indicators:
+        - body_contains: "select your"
+        - body_contains: "union of"
+        - body_contains: "drop us a line"
+        - body_contains: "order now"
+        - body_contains: "insert your"
+        - body_contains: "update your"
+        - body_contains: "delete your account"
+        - body_contains: "from our"
+        - body_contains: "where we"
+    action:
+      mark_false_positive: true
+      confidence_reduction: 0.5
+    enabled: true
+    priority: 80
+
+  - id: suppress-common-fp-xss
+    description: "Suppress XSS false positives from legitimate HTML-like content"
+    match:
+      category: "xss"
+      false_positive_indicators:
+        - body_contains: "<script src="
+        - body_contains: "onclick="
+        - body_contains: "onload="
+        - header_contains: "text/html"
+    action:
+      mark_false_positive: true
+      confidence_reduction: 0.3
+    enabled: true
+    priority: 80
+
+  - id: suppress-404-as-block
+    description: "Do not count 404 Not Found as WAF blocking unless confirmed"
+    match:
+      response_code: 404
+    action:
+      reclassify: "not_found"
+      block_confidence: 0.1
+    enabled: true
+    priority: 75
+
+  - id: suppress-redirect-as-block
+    description: "Do not count 301/302 redirects as WAF blocking"
+    match:
+      response_code:
+        - 301
+        - 302
+        - 307
+        - 308
+    action:
+      reclassify: "redirect"
+      block_confidence: 0.05
+    enabled: true
+    priority: 75
+
+  - id: suppress-rate-limit-as-block
+    description: "Distinguish rate limiting (429) from WAF blocking"
+    match:
+      response_code: 429
+    action:
+      reclassify: "rate_limited"
+      block_confidence: 0.3
+    enabled: true
+    priority: 70
+
+  - id: suppress-cdn-errors
+    description: "Filter out CDN-level errors that are not WAF blocks"
+    match:
+      response_code:
+        - 502
+        - 504
+      body_patterns:
+        - "Bad Gateway"
+        - "Gateway Timeout"
+        - "upstream connect error"
+    action:
+      reclassify: "infrastructure_error"
+      block_confidence: 0.0
+    enabled: true
+    priority: 70
+
+  - id: suppress-captcha-soft-block
+    description: "Treat CAPTCHA challenges as soft blocks, not hard blocks"
+    match:
+      body_patterns:
+        - "captcha"
+        - "recaptcha"
+        - "hCaptcha"
+        - "challenge-platform"
+        - "turnstile"
+    action:
+      reclassify: "captcha_challenge"
+      block_confidence: 0.7
+    enabled: true
+    priority: 65
+
+  - id: suppress-timeout-false-positive
+    description: "Do not count request timeouts as bypasses"
+    match:
+      timeout: true
+    action:
+      reclassify: "timeout"
+      bypass_confidence: 0.0
+    enabled: true
+    priority: 90

@@ -8,6 +8,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/payloadprovider"
 	"github.com/waftester/waftester/pkg/payloads"
 )
 
@@ -16,11 +17,13 @@ func (s *Server) registerResources() {
 	s.addVersionResource()
 	s.addPayloadsResource()
 	s.addPayloadsByCategoryResource()
+	s.addUnifiedPayloadsResource()
 	s.addGuideResource()
 	s.addWAFSignaturesResource()
 	s.addEvasionTechniquesResource()
 	s.addOWASPMappingsResource()
 	s.addConfigResource()
+	s.addTemplatesResource()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -41,8 +44,12 @@ func (s *Server) addVersionResource() {
 				"version": defaults.Version,
 				"capabilities": map[string]any{
 					"tools":     10,
-					"resources": 8,
-					"prompts":   5,
+					"resources": 10,
+					"prompts":   6,
+					"templates": 41,
+				},
+				"template_categories": []string{
+					"nuclei/bypass", "nuclei/detection", "workflows", "policies", "overrides", "output", "report-configs",
 				},
 				"tools": []string{
 					"list_payloads", "detect_waf", "discover", "learn", "scan",
@@ -87,17 +94,24 @@ func (s *Server) addPayloadsResource() {
 		&mcp.Resource{
 			URI:         "waftester://payloads",
 			Name:        "Payload Catalog",
-			Description: "Complete index of attack payload categories with counts, severities, and samples.",
+			Description: "Complete index of attack payload categories with counts, severities, and samples — includes both JSON payloads and Nuclei template vectors.",
 			MIMEType:    "application/json",
 		},
 		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-			loader := payloads.NewLoader(s.config.PayloadDir)
-			all, err := loader.LoadAll()
-			if err != nil {
+			// Load from unified engine (JSON + Nuclei templates)
+			provider := payloadprovider.NewProvider(s.config.PayloadDir, s.config.TemplateDir)
+			if err := provider.Load(); err != nil {
 				return nil, fmt.Errorf("loading payloads: %w", err)
 			}
 
-			stats := payloads.GetStats(all)
+			uStats, err := provider.GetStats()
+			if err != nil {
+				return nil, fmt.Errorf("computing stats: %w", err)
+			}
+
+			// Also get JSON-level stats for backward compat
+			all, _ := provider.JSONPayloads()
+			jsonStats := payloads.GetStats(all)
 
 			bySeverity := make(map[string]int)
 			for _, p := range all {
@@ -107,11 +121,15 @@ func (s *Server) addPayloadsResource() {
 			}
 
 			catalog := map[string]any{
-				"total_payloads": stats.TotalPayloads,
-				"categories":     stats.CategoriesUsed,
-				"by_category":    stats.ByCategory,
-				"by_severity":    bySeverity,
-				"payload_dir":    s.config.PayloadDir,
+				"total_payloads":  uStats.TotalPayloads,
+				"json_payloads":   uStats.JSONPayloads,
+				"nuclei_payloads": uStats.NucleiPayloads,
+				"categories":      jsonStats.CategoriesUsed,
+				"by_category":     uStats.ByCategory,
+				"by_severity":     bySeverity,
+				"by_source":       uStats.BySource,
+				"payload_dir":     s.config.PayloadDir,
+				"template_dir":    s.config.TemplateDir,
 			}
 			data, err := json.MarshalIndent(catalog, "", "  ")
 			if err != nil {
@@ -135,7 +153,7 @@ func (s *Server) addPayloadsByCategoryResource() {
 		&mcp.ResourceTemplate{
 			URITemplate: "waftester://payloads/{category}",
 			Name:        "Payloads by Category",
-			Description: "Attack payloads for a specific category (e.g. sqli, xss, traversal).",
+			Description: "Attack payloads for a specific category (e.g. sqli, xss, traversal) — includes Nuclei template vectors.",
 			MIMEType:    "application/json",
 		},
 		func(_ context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
@@ -149,40 +167,60 @@ func (s *Server) addPayloadsByCategoryResource() {
 				return nil, fmt.Errorf("category is required in URI (e.g. waftester://payloads/sqli)")
 			}
 
-			loader := payloads.NewLoader(s.config.PayloadDir)
-			all, err := loader.LoadAll()
-			if err != nil {
+			// Load from unified engine with alias resolution
+			provider := payloadprovider.NewProvider(s.config.PayloadDir, s.config.TemplateDir)
+			if err := provider.Load(); err != nil {
 				return nil, fmt.Errorf("loading payloads: %w", err)
 			}
 
-			filtered := payloads.Filter(all, category, "")
-			if len(filtered) == 0 {
+			unified, err := provider.GetByCategory(category)
+			if err != nil || len(unified) == 0 {
 				return nil, fmt.Errorf("no payloads found for category %q", category)
 			}
 
 			type payloadEntry struct {
-				ID       string `json:"id"`
-				Severity string `json:"severity"`
-				Payload  string `json:"payload"`
+				ID       string   `json:"id"`
+				Severity string   `json:"severity"`
+				Payload  string   `json:"payload"`
+				Source   string   `json:"source"`
+				Tags     []string `json:"tags,omitempty"`
 			}
 
-			entries := make([]payloadEntry, 0, len(filtered))
-			for _, p := range filtered {
-				payload := p.Payload
+			entries := make([]payloadEntry, 0, len(unified))
+			for _, up := range unified {
+				payload := up.Payload
 				if len(payload) > 120 {
 					payload = payload[:120] + "…"
 				}
+				sev := up.Severity
+				if sev == "" {
+					sev = "Unclassified"
+				}
 				entries = append(entries, payloadEntry{
-					ID:       p.ID,
-					Severity: p.SeverityHint,
+					ID:       up.ID,
+					Severity: sev,
 					Payload:  payload,
+					Source:   string(up.Source),
+					Tags:     up.Tags,
 				})
 			}
 
+			jsonCount := 0
+			nucleiCount := 0
+			for _, up := range unified {
+				if up.Source == payloadprovider.SourceNuclei {
+					nucleiCount++
+				} else {
+					jsonCount++
+				}
+			}
+
 			result := map[string]any{
-				"category": category,
-				"count":    len(filtered),
-				"payloads": entries,
+				"category":        category,
+				"count":           len(unified),
+				"json_payloads":   jsonCount,
+				"nuclei_payloads": nucleiCount,
+				"payloads":        entries,
 			}
 			data, err := json.MarshalIndent(result, "", "  ")
 			if err != nil {
@@ -654,6 +692,22 @@ func (s *Server) addConfigResource() {
 					"timeout_seconds": map[string]any{"default": 10, "min": 1, "max": 60},
 				},
 				"payload_dir": s.config.PayloadDir,
+				"templates": map[string]any{
+					"nuclei_bypass":    "templates/nuclei/http/waf-bypass/",
+					"nuclei_detection": "templates/nuclei/http/waf-detection/",
+					"workflows":        "templates/workflows/",
+					"policies":         "templates/policies/",
+					"overrides":        "templates/overrides/",
+					"output":           "templates/output/",
+					"report_configs":   "templates/report-configs/",
+					"usage": map[string]string{
+						"policy":    "--policy templates/policies/standard.yaml",
+						"overrides": "--overrides templates/overrides/api-only.yaml",
+						"template":  "waf-tester template -t templates/nuclei/http/waf-bypass/ -u TARGET",
+						"workflow":  "waf-tester workflow -f templates/workflows/full-scan.yaml -var target=TARGET",
+						"report":    "--template-config templates/report-configs/enterprise.yaml",
+					},
+				},
 			}
 			data, err := json.MarshalIndent(config, "", "  ")
 			if err != nil {
@@ -662,6 +716,197 @@ func (s *Server) addConfigResource() {
 			return &mcp.ReadResourceResult{
 				Contents: []*mcp.ResourceContents{
 					{URI: "waftester://config", MIMEType: "application/json", Text: string(data)},
+				},
+			}, nil
+		},
+	)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// waftester://templates — Template catalog resource
+// ═══════════════════════════════════════════════════════════════════════════
+
+func (s *Server) addTemplatesResource() {
+	s.mcp.AddResource(
+		&mcp.Resource{
+			URI:         "waftester://templates",
+			Name:        "Template Library",
+			Description: "Complete catalog of bundled templates: Nuclei bypass/detection, workflows, policies, overrides, output, and report configs (41 templates).",
+			MIMEType:    "application/json",
+		},
+		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			catalog := map[string]any{
+				"total_templates": 41,
+				"template_categories": map[string]any{
+					"nuclei_bypass": map[string]any{
+						"path":  "templates/nuclei/http/waf-bypass/",
+						"count": 11,
+						"usage": "waf-tester template -t templates/nuclei/http/waf-bypass/ -u TARGET",
+						"templates": []map[string]string{
+							{"name": "sqli-basic", "file": "sqli-basic.yaml", "description": "SQL injection (UNION, error, blind, time-based)"},
+							{"name": "sqli-evasion", "file": "sqli-evasion.yaml", "description": "SQLi WAF evasion (comments, encoding, HPP)"},
+							{"name": "xss-basic", "file": "xss-basic.yaml", "description": "Cross-site scripting (script tags, events, SVG)"},
+							{"name": "xss-evasion", "file": "xss-evasion.yaml", "description": "XSS WAF evasion (entity encoding, bracket notation)"},
+							{"name": "ssrf-bypass", "file": "ssrf-bypass.yaml", "description": "SSRF cloud metadata and IP tricks"},
+							{"name": "lfi-bypass", "file": "lfi-bypass.yaml", "description": "LFI with UTF-8, PHP wrappers, glob patterns"},
+							{"name": "rce-bypass", "file": "rce-bypass.yaml", "description": "RCE with IFS, wildcards, newline injection"},
+							{"name": "ssti-bypass", "file": "ssti-bypass.yaml", "description": "SSTI multi-engine (Jinja2, Twig, ERB, Velocity)"},
+							{"name": "xxe-bypass", "file": "xxe-bypass.yaml", "description": "XXE with OOB, XInclude, SVG injection"},
+							{"name": "crlf-bypass", "file": "crlf-bypass.yaml", "description": "CRLF with Unicode, response splitting"},
+							{"name": "nosqli-bypass", "file": "nosqli-bypass.yaml", "description": "NoSQL injection (MongoDB operators, $where)"},
+						},
+					},
+					"nuclei_detection": map[string]any{
+						"path":  "templates/nuclei/http/waf-detection/",
+						"count": 5,
+						"usage": "waf-tester template -t templates/nuclei/http/waf-detection/ -u TARGET",
+						"templates": []map[string]string{
+							{"name": "cloudflare-detect", "file": "cloudflare-detect.yaml", "description": "Cloudflare WAF (CF-Ray, headers, cookies)"},
+							{"name": "aws-waf-detect", "file": "aws-waf-detect.yaml", "description": "AWS WAF/CloudFront (x-amzn headers)"},
+							{"name": "akamai-detect", "file": "akamai-detect.yaml", "description": "Akamai Kona (GHost, Reference ID)"},
+							{"name": "azure-waf-detect", "file": "azure-waf-detect.yaml", "description": "Azure WAF/Application Gateway"},
+							{"name": "modsecurity-detect", "file": "modsecurity-detect.yaml", "description": "ModSecurity/CRS (version + rule extractors)"},
+						},
+					},
+					"workflows": map[string]any{
+						"path":  "templates/workflows/",
+						"count": 5,
+						"usage": "waf-tester workflow -f templates/workflows/full-scan.yaml -var target=TARGET",
+						"templates": []map[string]string{
+							{"name": "full-scan", "file": "full-scan.yaml", "description": "Complete scan with fingerprinting, calibration, and triple report output."},
+							{"name": "quick-probe", "file": "quick-probe.yaml", "description": "Fast probe for critical+high severity only."},
+							{"name": "waf-detection", "file": "waf-detection.yaml", "description": "WAF fingerprinting workflow."},
+							{"name": "api-scan", "file": "api-scan.yaml", "description": "API-focused scan with OpenAPI spec support."},
+							{"name": "ci-gate", "file": "ci-gate.yaml", "description": "CI/CD gate with SARIF+JUnit output and policy enforcement."},
+						},
+					},
+					"policies": map[string]any{
+						"path":  "templates/policies/",
+						"count": 5,
+						"usage": "--policy templates/policies/standard.yaml",
+						"templates": []map[string]string{
+							{"name": "strict", "file": "strict.yaml", "description": "Maximum security - blocks any bypass. 95% effectiveness floor."},
+							{"name": "standard", "file": "standard.yaml", "description": "Balanced policy for production. 85% effectiveness."},
+							{"name": "permissive", "file": "permissive.yaml", "description": "Development-friendly, critical-only blocking."},
+							{"name": "owasp-top10", "file": "owasp-top10.yaml", "description": "Maps to OWASP Top 10 2021 categories."},
+							{"name": "pci-dss", "file": "pci-dss.yaml", "description": "PCI DSS v4.0 compliance requirements."},
+						},
+					},
+					"overrides": map[string]any{
+						"path":  "templates/overrides/",
+						"count": 3,
+						"usage": "--overrides templates/overrides/api-only.yaml",
+						"templates": []map[string]string{
+							{"name": "api-only", "file": "api-only.yaml", "description": "API-focused testing - JSON bodies, no browser attacks."},
+							{"name": "crs-tuning", "file": "crs-tuning.yaml", "description": "ModSecurity CRS paranoia level tuning."},
+							{"name": "false-positive-suppression", "file": "false-positive-suppression.yaml", "description": "Suppresses known false positives (static assets, healthchecks)."},
+						},
+					},
+					"output": map[string]any{
+						"path":  "templates/output/",
+						"count": 6,
+						"usage": "Used internally by output formatters",
+						"templates": []map[string]string{
+							{"name": "markdown-report", "file": "markdown-report.tmpl", "description": "Executive summary with severity distribution."},
+							{"name": "text-summary", "file": "text-summary.tmpl", "description": "ASCII console-friendly report."},
+							{"name": "slack-notification", "file": "slack-notification.tmpl", "description": "Slack Block Kit JSON notification."},
+							{"name": "junit", "file": "junit.tmpl", "description": "JUnit XML for CI/CD integration."},
+							{"name": "csv", "file": "csv.tmpl", "description": "CSV with 12 columns, OWASP/CWE links."},
+							{"name": "asff", "file": "asff.tmpl", "description": "AWS Security Finding Format."},
+						},
+					},
+					"report_configs": map[string]any{
+						"path":  "templates/report-configs/",
+						"count": 5,
+						"usage": "--template-config templates/report-configs/enterprise.yaml",
+						"templates": []map[string]string{
+							{"name": "minimal", "file": "minimal.yaml", "description": "Compact 6-section report."},
+							{"name": "enterprise", "file": "enterprise.yaml", "description": "11 sections with OWASP/PCI/NIST mapping."},
+							{"name": "compliance", "file": "compliance.yaml", "description": "Regulatory attestation format."},
+							{"name": "dark", "file": "dark.yaml", "description": "Modern dark theme, filterable results."},
+							{"name": "print", "file": "print.yaml", "description": "Print-optimized with grayscale charts."},
+						},
+					},
+				},
+			}
+			data, err := json.MarshalIndent(catalog, "", "  ")
+			if err != nil {
+				return nil, fmt.Errorf("marshaling template catalog: %w", err)
+			}
+			return &mcp.ReadResourceResult{
+				Contents: []*mcp.ResourceContents{
+					{URI: "waftester://templates", MIMEType: "application/json", Text: string(data)},
+				},
+			}, nil
+		},
+	)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// waftester://payloads/unified — Unified payload statistics (JSON + Nuclei)
+// ═══════════════════════════════════════════════════════════════════════════
+
+func (s *Server) addUnifiedPayloadsResource() {
+	s.mcp.AddResource(
+		&mcp.Resource{
+			URI:         "waftester://payloads/unified",
+			Name:        "Unified Payload Statistics",
+			Description: "Combined payload statistics from JSON database and Nuclei templates, showing category coverage, overlap, and source distribution.",
+			MIMEType:    "application/json",
+		},
+		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			provider := payloadprovider.NewProvider(s.config.PayloadDir, s.config.TemplateDir)
+			if err := provider.Load(); err != nil {
+				return nil, fmt.Errorf("loading unified payloads: %w", err)
+			}
+
+			stats, err := provider.GetStats()
+			if err != nil {
+				return nil, fmt.Errorf("getting unified stats: %w", err)
+			}
+
+			cats, err := provider.GetCategories()
+			if err != nil {
+				return nil, fmt.Errorf("getting categories: %w", err)
+			}
+
+			// Build category coverage report
+			type catCoverage struct {
+				Name          string `json:"name"`
+				JSONPayloads  int    `json:"json_payloads"`
+				NucleiVectors int    `json:"nuclei_vectors"`
+				Total         int    `json:"total"`
+				HasJSON       bool   `json:"has_json"`
+				HasNuclei     bool   `json:"has_nuclei"`
+			}
+			coverage := make([]catCoverage, 0, len(cats))
+			for _, c := range cats {
+				coverage = append(coverage, catCoverage{
+					Name:          c.Name,
+					JSONPayloads:  c.JSONCount,
+					NucleiVectors: c.NucleiCount,
+					Total:         c.TotalCount,
+					HasJSON:       c.HasJSONSource,
+					HasNuclei:     c.HasNucleiTempl,
+				})
+			}
+
+			result := map[string]any{
+				"total_payloads":    stats.TotalPayloads,
+				"json_payloads":     stats.JSONPayloads,
+				"nuclei_payloads":   stats.NucleiPayloads,
+				"categories":        stats.Categories,
+				"overlap_estimate":  stats.OverlapEstimate,
+				"category_coverage": coverage,
+				"by_source":         stats.BySource,
+			}
+			data, err := json.MarshalIndent(result, "", "  ")
+			if err != nil {
+				return nil, fmt.Errorf("marshaling unified stats: %w", err)
+			}
+			return &mcp.ReadResourceResult{
+				Contents: []*mcp.ResourceContents{
+					{URI: "waftester://payloads/unified", MIMEType: "application/json", Text: string(data)},
 				},
 			}, nil
 		},

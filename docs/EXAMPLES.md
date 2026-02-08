@@ -2,10 +2,18 @@
 
 This guide provides comprehensive usage examples for WAFtester, organized by use case and command category. Each example includes context on when to use the command, what value it provides, and expected output formats.
 
-**Document Version:** 2.7.1  
+**Document Version:** 2.7.2  
 **Last Updated:** February 2026
 
 ---
+
+> **What's New in v2.7.2**
+>
+> - **Unified Payload Provider** — bridges 2,800+ JSON payloads with Nuclei templates via `--enrich` flag ([details](#unified-payload-provider))
+> - **Template Library** — 39 pre-built templates shipped in releases and Docker images ([details](#template-library-v272))
+> - **Template Validation Tests** — 11 structural tests enforce template quality in CI
+> - **Report Config Consolidation** — all report configs now in `templates/report-configs/`
+> - **CLI Flag Consistency** — `--payloads` / `--template-dir` flags unified across scan, grpc, soap, openapi, and assess commands
 
 > **What's New in v2.7.0**
 >
@@ -110,6 +118,17 @@ This guide provides comprehensive usage examples for WAFtester, organized by use
   - [CI/CD Generator (cicd)](#cicd-generator-cicd)
   - [Plugin Manager (plugin)](#plugin-manager-plugin)
   - [Cloud Discovery (cloud)](#cloud-discovery-cloud)
+- [Unified Payload Provider](#unified-payload-provider)
+  - [Template Enrichment with `--enrich`](#template-enrichment-with---enrich)
+  - [MCP Server: Unified Resource](#mcp-server-unified-resource)
+- [Template Library (v2.7.2)](#template-library-v272)
+  - [Why Templates?](#why-templates)
+  - [Nuclei Templates](#nuclei-templates)
+  - [Workflow Templates](#workflow-templates)
+  - [Policy Templates](#policy-templates)
+  - [Override Templates](#override-templates)
+  - [Output Format Templates](#output-format-templates)
+  - [Report Config Templates](#report-config-templates)
 - [Troubleshooting](#troubleshooting)
 - [Attack Categories Reference](#attack-categories-reference)
 - [Real-World Playbooks](#real-world-playbooks)
@@ -855,6 +874,13 @@ waf-tester assess -u https://example.com
 
 **What happens:** Sends ~2,800 attack payloads, records block/allow decisions, calculates detection metrics.
 
+#### Custom Payload Directory
+
+```bash
+# Use a custom payload directory for assessment
+waf-tester assess -u https://example.com --payloads ./custom-payloads
+```
+
 #### Full Assessment with False Positive Testing
 
 ```bash
@@ -1079,6 +1105,11 @@ waf-tester scan -u https://target.com -category sqli
 
 # Multiple categories
 waf-tester scan -u https://target.com -category sqli,xss,traversal
+
+# Custom payload and template directories
+waf-tester scan -u https://target.com \
+  --payloads ./custom-payloads \
+  --template-dir ./my-templates
 
 # All categories
 waf-tester scan -u https://target.com -types all
@@ -4293,12 +4324,12 @@ waf-tester scan -u $TARGET_URL \
 # Minimal executive summary
 waf-tester scan -u $TARGET_URL \
   --html report.html \
-  --template-config pkg/report/templates/configs/minimal.yaml
+  --template-config templates/report-configs/minimal.yaml
 
 # Full enterprise audit
 waf-tester scan -u $TARGET_URL \
   --html report.html \
-  --template-config pkg/report/templates/configs/enterprise.yaml
+  --template-config templates/report-configs/enterprise.yaml
 ```
 
 ### Environment Variables
@@ -5061,12 +5092,12 @@ Customize HTML report branding, layout, sections, and styling using YAML configu
 # Minimal executive summary
 waf-tester scan -u https://target.com \
   -format html -o report.html \
-  --template-config=pkg/report/templates/configs/minimal.yaml
+  --template-config=templates/report-configs/minimal.yaml
 
 # Full enterprise audit report
 waf-tester scan -u https://target.com \
   -format html -o report.html \
-  --template-config=pkg/report/templates/configs/enterprise.yaml
+  --template-config=templates/report-configs/enterprise.yaml
 
 # Custom branding config
 waf-tester scan -u https://target.com \
@@ -6219,6 +6250,11 @@ waf-tester grpc -u localhost:50051 --fuzz --category sqli
 
 # Fuzz with specific category
 waf-tester grpc -u localhost:50051 --fuzz --category xss -o grpc-results.json
+
+# Use custom payload directory
+waf-tester grpc -u localhost:50051 --fuzz \
+  --payloads ./custom-payloads \
+  --template-dir ./my-templates
 ```
 
 ### SOAP/WSDL Testing (soap)
@@ -6242,6 +6278,11 @@ waf-tester soap -u https://api.example.com/service --fuzz --category sqli
 
 # Save results
 waf-tester soap --wsdl https://api.example.com?wsdl --list -o wsdl-operations.json
+
+# Use custom payload directory
+waf-tester soap -u https://api.example.com/service --fuzz \
+  --payloads ./custom-payloads \
+  --template-dir ./my-templates
 ```
 
 ### OpenAPI Fuzzing (openapi)
@@ -6273,6 +6314,12 @@ waf-tester openapi -spec openapi.yaml --fuzz \
 waf-tester openapi -spec openapi.yaml --fuzz \
   --api-key "my-secret-key" \
   --api-key-header "X-API-Key"
+
+# Custom payload and template directories
+waf-tester openapi -spec openapi.yaml --fuzz \
+  --payloads ./custom-payloads \
+  --template-dir ./my-templates \
+  -u https://api.example.com
 ```
 
 ### CI/CD Generator (cicd)
@@ -6962,7 +7009,7 @@ echo "╚═══════════════════════�
 
 ## MCP Server Integration
 
-WAFtester v2.7.0 includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that enables AI agents and automation platforms to control WAFtester through a structured, typed interface.
+WAFtester v2.7.2 includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that enables AI agents and automation platforms to control WAFtester through a structured, typed interface.
 
 ### Stdio Mode (IDE)
 
@@ -6973,7 +7020,11 @@ Use stdio transport for IDE integrations where the editor manages the process li
 waf-tester mcp
 
 # With custom payload directory
-waf-tester mcp --payload-dir /path/to/payloads
+waf-tester mcp --payloads /path/to/payloads
+
+# With custom payload and template directories
+waf-tester mcp --payloads /path/to/payloads \
+  --templates /path/to/templates/nuclei
 ```
 
 Supported IDEs:
@@ -6991,6 +7042,11 @@ waf-tester mcp --http :8080
 
 # Custom bind address
 waf-tester mcp --http 0.0.0.0:9090
+
+# With custom payload and template directories
+waf-tester mcp --http :8080 \
+  --payloads ./custom-payloads \
+  --templates ./custom-templates
 ```
 
 The HTTP server exposes three endpoints:
@@ -7021,7 +7077,8 @@ Add to your `claude_desktop_config.json`:
       "command": "waf-tester",
       "args": ["mcp"],
       "env": {
-        "WAF_PAYLOAD_DIR": "/path/to/payloads"
+        "WAF_TESTER_PAYLOAD_DIR": "/path/to/payloads",
+        "WAF_TESTER_TEMPLATE_DIR": "/path/to/templates/nuclei"
       }
     }
   }
@@ -7275,6 +7332,286 @@ detect_waf → assess → (review grade, F1, FPR, recommendations)
 
 # Workflow D: CI/CD Pipeline Generation
 detect_waf → generate_cicd (with WAF-specific thresholds)
+```
+
+---
+
+## Unified Payload Provider
+
+WAFtester bridges its two payload systems — the JSON database (2,800+ payloads across 20+ categories) and Nuclei template vectors (~226 inline attack paths) — into a single unified provider.
+
+### Template Enrichment with `--enrich`
+
+Inject the full JSON payload database into Nuclei templates at scan time:
+
+```bash
+# Run bypass templates enriched with all matching JSON payloads
+waf-tester template -u https://target.com \
+  -t templates/nuclei/http/waf-bypass/ --enrich
+
+# Specify a custom payload directory
+waf-tester template -u https://target.com \
+  -t templates/nuclei/http/waf-bypass/ --enrich --payloads ./custom-payloads
+
+# Run just XSS templates with enrichment
+waf-tester template -u https://target.com \
+  -t templates/nuclei/http/waf-bypass/xss-basic.yaml --enrich
+```
+
+Without `--enrich`, a template like `xss-basic.yaml` tests ~15 inline vectors. With `--enrich`, it tests those 15 plus every XSS payload from the JSON database — potentially hundreds of additional attack patterns.
+
+### MCP Server: Unified Resource
+
+```bash
+# Start MCP server with both template and payload directories
+waf-tester mcp --payloads ./payloads --templates ./templates/nuclei
+
+# The unified resource is accessible at:
+# waftester://payloads/unified
+```
+
+The `list_payloads` tool also reports unified stats including Nuclei template payload counts alongside JSON payload counts. Environment variables `WAF_TESTER_PAYLOAD_DIR` and `WAF_TESTER_TEMPLATE_DIR` configure both sources.
+
+### Custom Payload Directories Across Commands
+
+All commands that use payloads support the `--payloads` flag for custom payload directories. Commands that also use Nuclei templates accept `--template-dir`.
+
+```bash
+# Scan with custom directories
+waf-tester scan -u https://target.com \
+  --payloads ./custom-payloads \
+  --template-dir ./custom-templates
+
+# gRPC fuzzing with custom payloads
+waf-tester grpc -u localhost:50051 --fuzz \
+  --payloads ./custom-payloads
+
+# SOAP fuzzing with custom payloads
+waf-tester soap -u https://api.example.com/service --fuzz \
+  --payloads ./custom-payloads
+
+# OpenAPI fuzzing with custom directories
+waf-tester openapi -spec openapi.yaml --fuzz \
+  --payloads ./custom-payloads \
+  --template-dir ./custom-templates \
+  -u https://api.example.com
+
+# Assessment with custom payloads
+waf-tester assess -u https://target.com \
+  --payloads ./custom-payloads -fp
+
+# MCP server with custom directories
+waf-tester mcp \
+  --payloads ./custom-payloads \
+  --templates ./custom-templates
+```
+
+| Command | Payload Flag | Template Flag |
+|---------|-------------|---------------|
+| `scan` | `--payloads` | `--template-dir` |
+| `grpc` | `--payloads` | `--template-dir` |
+| `soap` | `--payloads` | `--template-dir` |
+| `openapi` | `--payloads` | `--template-dir` |
+| `assess` | `--payloads` | — |
+| `template` | `--payloads` | `-t` / `--templates` |
+| `mcp` | `--payloads` | `--templates` |
+| `run` | `-p` / `--payloads` | — |
+| `auto` | `--payloads` | — |
+| `bypass` | `--payloads` | — |
+| `mutate` | `--payloads` | — |
+
+---
+
+## Template Library (v2.7.2)
+
+WAFtester ships a complete `templates/` directory in every release archive and Docker image. Templates are pre-built configurations that eliminate repetitive setup and encode security best practices.
+
+### Why Templates?
+
+Without templates, every WAF assessment requires manual configuration: writing YAML for scan patterns, defining pass/fail thresholds for CI pipelines, configuring output formats, and tuning overrides for false positives. This means:
+
+- **Inconsistent assessments** — each team member configures scans differently
+- **Slow onboarding** — new users must learn every configuration option before productive testing
+- **No institutional knowledge** — best practices live in individual scripts, not shared configurations
+- **CI/CD friction** — pipeline integration requires custom YAML every time
+
+Templates solve this by providing tested, ready-to-use configurations for every WAFtester subsystem. Copy a template, customize it for your environment, and share it across your team.
+
+### Nuclei Templates
+
+WAF bypass detection and vendor fingerprinting using Nuclei-compatible YAML format.
+
+**Bypass Templates** test whether a WAF blocks attack payloads across 11 categories (SQLi, XSS, RCE, LFI, SSRF, SSTI, CRLF, XXE, NoSQL injection). Each template includes evasion techniques specific to its attack class.
+
+**Detection Templates** fingerprint 5 major WAF vendors (Cloudflare, AWS WAF, Akamai, ModSecurity, Azure WAF) by probing for vendor-specific response headers, error pages, and behavioral patterns.
+
+```bash
+# Run all WAF bypass templates against a target
+waf-tester template -u https://target.com -t templates/nuclei/http/waf-bypass/
+
+# Run WAF detection templates to identify the vendor
+waf-tester template -u https://target.com -t templates/nuclei/http/waf-detection/
+
+# Run the full assessment workflow (detect vendor → run all bypasses)
+waf-tester template -u https://target.com \
+  -t templates/nuclei/workflows/waf-assessment-workflow.yaml
+
+# Validate all templates without scanning
+waf-tester template -t templates/nuclei/ --validate
+
+# Filter by severity
+waf-tester template -u https://target.com \
+  -t templates/nuclei/http/waf-bypass/ --severity critical,high
+```
+
+### Workflow Templates
+
+Multi-step scan orchestration that chains WAFtester commands into repeatable assessment sequences.
+
+| Template | Steps | Use Case |
+|----------|-------|----------|
+| `full-scan.yaml` | discover → learn → scan → report | Complete WAF assessment |
+| `quick-probe.yaml` | probe | Fast target enumeration |
+| `ci-gate.yaml` | scan → evaluate policy → report | CI/CD security gate |
+| `waf-detection.yaml` | detect → fingerprint → probe | WAF identification |
+| `api-scan.yaml` | scan (SQLi, NoSQLi, SSRF, JWT, GraphQL) | API-focused testing |
+
+```bash
+# Full security assessment with HTML + SARIF output
+waf-tester workflow run templates/workflows/full-scan.yaml \
+  --input target=https://example.com \
+  --input output_dir=./results
+
+# CI/CD gate with strict policy
+waf-tester workflow run templates/workflows/ci-gate.yaml \
+  --input target=https://staging.example.com \
+  --input policy=templates/policies/strict.yaml
+
+# API-focused scan
+waf-tester workflow run templates/workflows/api-scan.yaml \
+  --input target=https://api.example.com \
+  --input openapi_spec=./openapi.yaml
+```
+
+### Policy Templates
+
+CI/CD pass/fail gate policies that define bypass thresholds and WAF effectiveness requirements. Use policies to fail builds when WAF security degrades.
+
+| Policy | Min Effectiveness | Fail On | Use Case |
+|--------|------------------|---------|----------|
+| `permissive.yaml` | 50% | Critical only | Development, early testing |
+| `standard.yaml` | 75% | Critical + High | Production default |
+| `strict.yaml` | 90% | Any bypass | High-security environments |
+| `owasp-top10.yaml` | 80% | OWASP categories | Compliance validation |
+| `pci-dss.yaml` | 95% | SQLi, XSS, auth | PCI-DSS compliance |
+
+```bash
+# Apply a policy to fail on WAF regression
+waf-tester run -u https://example.com \
+  --policy templates/policies/strict.yaml
+
+# PCI-DSS compliance gate
+waf-tester run -u https://payment.example.com \
+  --policy templates/policies/pci-dss.yaml \
+  -format sarif -o compliance.sarif
+```
+
+### Override Templates
+
+Test configuration overrides for tuning scan behavior without modifying global settings.
+
+| Override | Purpose |
+|----------|---------|
+| `false-positive-suppression.yaml` | Suppress known false positives by URL pattern, response code, or category |
+| `api-only.yaml` | Restrict testing to API-relevant attack categories (SQLi, NoSQLi, SSRF, JWT) |
+| `crs-tuning.yaml` | Adjust settings for OWASP CRS-protected targets (paranoia level awareness) |
+
+```bash
+# Suppress known false positives
+waf-tester run -u https://example.com \
+  --overrides templates/overrides/false-positive-suppression.yaml
+
+# API-only testing (skip browser-specific attacks)
+waf-tester run -u https://api.example.com \
+  --overrides templates/overrides/api-only.yaml
+
+# CRS-aware tuning
+waf-tester run -u https://example.com \
+  --overrides templates/overrides/crs-tuning.yaml
+```
+
+### Output Format Templates
+
+Go `text/template` files for custom output formatting. These extend the built-in formats (JSON, SARIF, HTML) with specialized layouts.
+
+| Template | Format | Use Case |
+|----------|--------|----------|
+| `csv.tmpl` | CSV | Spreadsheet import, data analysis |
+| `asff.tmpl` | JSON (ASFF) | AWS Security Hub integration |
+| `junit.tmpl` | XML | CI/CD test runners (Jenkins, GitHub Actions) |
+| `markdown-report.tmpl` | Markdown | Pull request comments, wiki pages |
+| `slack-notification.tmpl` | JSON | Slack webhook alerts |
+| `text-summary.tmpl` | Plain text | Terminal output, email reports |
+
+```bash
+# CSV export for spreadsheet analysis
+waf-tester run -u https://example.com \
+  --template templates/output/csv.tmpl -o results.csv
+
+# JUnit XML for CI test runners
+waf-tester run -u https://example.com \
+  --template templates/output/junit.tmpl -o test-results.xml
+
+# Slack notification via webhook
+waf-tester run -u https://example.com \
+  --template templates/output/slack-notification.tmpl \
+  | curl -X POST -H 'Content-type: application/json' -d @- $SLACK_WEBHOOK
+
+# Markdown for PR comments
+waf-tester run -u https://example.com \
+  --template templates/output/markdown-report.tmpl -o waf-report.md
+```
+
+**Custom templates** use Go `text/template` syntax with [Sprig](http://masterminds.github.io/sprig/) functions plus WAFtester helpers (`escapeCSV`, `escapeXML`, `severityIcon`, `owaspLink`, `cweLink`). Available data fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `.Target` | string | Scanned URL |
+| `.ScanID` | string | Unique scan identifier |
+| `.Timestamp` | string | ISO 8601 timestamp |
+| `.Duration` | float64 | Scan duration in seconds |
+| `.TotalTests` | int | Total tests executed |
+| `.Blocked` | int | Requests blocked by WAF |
+| `.BypassCount` | int | Bypasses detected |
+| `.Effectiveness` | float64 | WAF effectiveness (%) |
+| `.Grade` | string | Letter grade (A+ through F) |
+| `.Results[]` | array | All test results |
+| `.Bypasses[]` | array | Only bypasses |
+
+### Report Config Templates
+
+HTML report theme and layout configurations for `--template-config`.
+
+| Config | Description |
+|--------|-------------|
+| `minimal.yaml` | Condensed executive summary |
+| `enterprise.yaml` | Full-featured audit report with all sections |
+| `dark.yaml` | Dark theme for presentations |
+| `compliance.yaml` | Compliance-focused with evidence sections |
+| `print.yaml` | Print/PDF optimized, grayscale |
+
+```bash
+# Dark theme for presentation
+waf-tester scan -u https://example.com --html report.html \
+  --template-config templates/report-configs/dark.yaml
+
+# Compliance report with all evidence
+waf-tester scan -u https://example.com --html report.html \
+  --template-config templates/report-configs/compliance.yaml
+
+# Print-ready PDF
+waf-tester scan -u https://example.com --html report.html \
+  --template-config templates/report-configs/print.yaml
 ```
 
 ---
