@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/report"
 	"github.com/waftester/waftester/pkg/templatevalidator"
 	"github.com/waftester/waftester/pkg/ui"
@@ -21,7 +22,7 @@ func runValidate() {
 	ui.PrintSection("Payload Validation")
 
 	validateFlags := flag.NewFlagSet("validate", flag.ExitOnError)
-	payloadDir := validateFlags.String("payloads", "../payloads", "Directory containing payload JSON files")
+	payloadDir := validateFlags.String("payloads", defaults.PayloadDir, "Directory containing payload JSON files")
 	failFast := validateFlags.Bool("fail-fast", false, "Abort on first error")
 	verbose := validateFlags.Bool("verbose", false, "Show detailed validation output")
 	outputJSON := validateFlags.String("output", "", "Output results to JSON file")
@@ -109,7 +110,7 @@ func runValidateTemplates() {
 	ui.PrintSection("Template Validation")
 
 	validateFlags := flag.NewFlagSet("validate-templates", flag.ExitOnError)
-	templateDir := validateFlags.String("templates", "../templates", "Directory containing nuclei template YAML files")
+	templateDir := validateFlags.String("templates", defaults.TemplateDir, "Directory containing nuclei template YAML files")
 	strict := validateFlags.Bool("strict", false, "Enable strict validation mode (warnings become errors)")
 	verbose := validateFlags.Bool("verbose", false, "Show detailed validation output")
 	outputJSON := validateFlags.String("output", "", "Output results to JSON file")
@@ -353,7 +354,7 @@ func runUpdate() {
 	ui.PrintSection("Payload Update")
 
 	updateFlags := flag.NewFlagSet("update", flag.ExitOnError)
-	payloadDir := updateFlags.String("payloads", "../payloads", "Directory containing payload JSON files")
+	payloadDir := updateFlags.String("payloads", defaults.PayloadDir, "Directory containing payload JSON files")
 	source := updateFlags.String("source", "OWASP", "Payload source: OWASP, GitHub, Manual")
 	dryRun := updateFlags.Bool("dry-run", false, "Preview changes without modifying files")
 	autoApply := updateFlags.Bool("auto-apply", false, "Automatically apply non-destructive updates")

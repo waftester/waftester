@@ -1,0 +1,130 @@
+# WAFtester API-Only Override Configuration
+# Tailors scanning behavior for API endpoints (no browser-based attacks)
+# Focuses on JSON/XML payloads and API-specific vulnerabilities
+
+overrides:
+  - id: api-content-type
+    description: "Force JSON Content-Type for all API requests"
+    match:
+      path: ".*"
+    action:
+      set_headers:
+        Content-Type: "application/json"
+        Accept: "application/json"
+    enabled: true
+    priority: 100
+
+  - id: disable-browser-xss
+    description: "Disable browser-specific XSS payloads (no DOM, no HTML context)"
+    match:
+      category: "xss"
+      tags:
+        - "dom"
+        - "browser"
+        - "html-context"
+        - "document-write"
+    action:
+      skip: true
+    enabled: true
+    priority: 90
+
+  - id: disable-clickjacking
+    description: "Skip clickjacking tests — not applicable to APIs"
+    match:
+      category: "clickjacking"
+    action:
+      skip: true
+    enabled: true
+    priority: 90
+
+  - id: disable-csrf
+    description: "Skip CSRF tests — APIs use token-based auth"
+    match:
+      category: "csrf"
+    action:
+      skip: true
+    enabled: true
+    priority: 90
+
+  - id: disable-cookie-attacks
+    description: "Skip cookie-based session attacks for token-auth APIs"
+    match:
+      category: "session-fixation"
+      tags:
+        - "cookie"
+        - "session-cookie"
+    action:
+      skip: true
+    enabled: true
+    priority: 80
+
+  - id: enable-json-injection
+    description: "Enable all JSON-specific injection tests"
+    match:
+      tags:
+        - "json-injection"
+        - "json-body"
+        - "api-injection"
+    action:
+      skip: false
+      priority_boost: 10
+    enabled: true
+    priority: 70
+
+  - id: enable-graphql
+    description: "Enable GraphQL-specific attack vectors"
+    match:
+      category: "graphql"
+    action:
+      skip: false
+      priority_boost: 10
+    enabled: true
+    priority: 70
+
+  - id: enable-mass-assignment
+    description: "Enable mass assignment and BOLA/BFLA tests"
+    match:
+      category:
+        - "mass-assignment"
+        - "idor"
+        - "bola"
+        - "bfla"
+    action:
+      skip: false
+      priority_boost: 15
+    enabled: true
+    priority: 70
+
+  - id: api-rate-limit
+    description: "Enforce conservative rate limiting for API scanning"
+    match:
+      path: ".*"
+    action:
+      rate_limit: 20
+      delay_ms: 100
+    enabled: true
+    priority: 50
+
+  - id: json-body-sqli
+    description: "Use JSON body format for SQLi payloads"
+    match:
+      category: "sqli"
+    action:
+      body_format: "json"
+      inject_in:
+        - "json-value"
+        - "json-key"
+    enabled: true
+    priority: 60
+
+  - id: remove-html-payloads
+    description: "Skip payloads that rely on HTML rendering"
+    match:
+      tags:
+        - "html-render"
+        - "browser-render"
+        - "document-context"
+    action:
+      skip: true
+    enabled: true
+    priority: 85

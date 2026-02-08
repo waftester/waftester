@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/openapi"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -46,6 +47,10 @@ func runOpenAPI() {
 	apiKey := openapiFlags.String("api-key", "", "API key value")
 	apiKeyHeader := openapiFlags.String("api-key-header", "X-API-Key", "API key header name")
 	bearerToken := openapiFlags.String("bearer", "", "Bearer token")
+
+	// Payload and template directories
+	payloadDir := openapiFlags.String("payloads", defaults.PayloadDir, "Payload directory")
+	templateDir := openapiFlags.String("template-dir", defaults.TemplateDir, "Nuclei template directory")
 
 	// Execution options
 	concurrency := openapiFlags.Int("c", 10, "Concurrency level")
@@ -152,7 +157,7 @@ func runOpenAPI() {
 		runOpenAPIList(spec, targetBaseURL, *jsonOutput)
 
 	case *fuzz:
-		runOpenAPIFuzz(ctx, spec, targetBaseURL, *scanType, *path, *method, authHeaders,
+		runOpenAPIFuzz(ctx, spec, targetBaseURL, *payloadDir, *templateDir, *scanType, *path, *method, authHeaders,
 			*concurrency, *rateLimit, *timeout, *outputFile, *jsonOutput, *verbose)
 
 	default:
@@ -235,7 +240,7 @@ func runOpenAPIList(spec *openapi.Spec, baseURL string, jsonOutput bool) {
 	ui.PrintSuccess(fmt.Sprintf("Found %d endpoints", len(endpoints)))
 }
 
-func runOpenAPIFuzz(ctx context.Context, spec *openapi.Spec, baseURL, scanType, filterPath, filterMethod string,
+func runOpenAPIFuzz(ctx context.Context, spec *openapi.Spec, baseURL, payloadDir, templateDir, scanType, filterPath, filterMethod string,
 	authHeaders map[string]string, concurrency int, rateLimit float64, timeout int, outputFile string, jsonOutput, verbose bool) {
 
 	type fuzzResult struct {
@@ -251,7 +256,31 @@ func runOpenAPIFuzz(ctx context.Context, spec *openapi.Spec, baseURL, scanType, 
 	}
 
 	var results []fuzzResult
-	payloads := getOpenAPIPayloads(scanType)
+
+	// Map OpenAPI scan types to unified payload categories
+	categoryMap := map[string]string{
+		"sqli": "SQL-Injection",
+		"xss":  "XSS",
+		"idor": "idor",
+		"auth": "Authentication",
+		"all":  "",
+	}
+	unifiedCat := categoryMap[scanType]
+	if unifiedCat == "" && scanType != "all" {
+		unifiedCat = scanType
+	}
+
+	// Load payloads from unified engine (replaces hardcoded lists)
+	var fuzzPayloads []string
+	if scanType == "all" {
+		// For "all" scan type, get a mix of categories
+		for _, cat := range []string{"SQL-Injection", "XSS", "Command-Injection", "Path-Traversal", "SSTI"} {
+			fuzzPayloads = append(fuzzPayloads, getUnifiedFuzzPayloads(payloadDir, templateDir, cat, 5, verbose)...)
+		}
+	} else {
+		fuzzPayloads = getUnifiedFuzzPayloads(payloadDir, templateDir, unifiedCat, 50, verbose)
+	}
+	payloads := fuzzPayloads
 
 	// Generate test cases
 	generator := openapi.NewTestGenerator(spec)
@@ -352,54 +381,6 @@ done:
 		if len(results) > 0 {
 			blockRate := float64(blocked) / float64(len(results)) * 100
 			ui.PrintConfigLine("Block Rate", fmt.Sprintf("%.1f%%", blockRate))
-		}
-	}
-}
-
-func getOpenAPIPayloads(scanType string) []string {
-	switch scanType {
-	case "sqli":
-		return []string{
-			"' OR '1'='1",
-			"1; DROP TABLE users--",
-			"admin'--",
-			"1 UNION SELECT * FROM users",
-			"1' AND '1'='1",
-		}
-	case "xss":
-		return []string{
-			"<script>alert(1)</script>",
-			"<img src=x onerror=alert(1)>",
-			"javascript:alert(1)",
-			"<svg onload=alert(1)>",
-			"'\"><script>alert(1)</script>",
-		}
-	case "idor":
-		return []string{
-			"1",
-			"0",
-			"-1",
-			"999999",
-			"../1",
-			"1/**/",
-		}
-	case "auth":
-		return []string{
-			"admin",
-			"root",
-			"null",
-			"undefined",
-			"",
-			"{{admin}}",
-		}
-	default: // all
-		return []string{
-			"' OR '1'='1",
-			"<script>alert(1)</script>",
-			"; cat /etc/passwd",
-			"../../../etc/passwd",
-			"{{7*7}}",
-			"${7*7}",
 		}
 	}
 }

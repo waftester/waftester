@@ -21,6 +21,7 @@ import (
 	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/mutation"
 	"github.com/waftester/waftester/pkg/output"
+	"github.com/waftester/waftester/pkg/payloadprovider"
 	"github.com/waftester/waftester/pkg/payloads"
 	"github.com/waftester/waftester/pkg/waf"
 )
@@ -283,6 +284,8 @@ type payloadSummary struct {
 	FilterApplied  string         `json:"filter_applied,omitempty"`
 	CategoryInfo   *categoryMeta  `json:"category_info,omitempty"`
 	SamplePayloads []sampleEntry  `json:"sample_payloads,omitempty"`
+	UnifiedTotal   int            `json:"unified_total,omitempty"`
+	NucleiExtra    int            `json:"nuclei_extra,omitempty"`
 	NextSteps      []string       `json:"next_steps"`
 }
 
@@ -301,10 +304,35 @@ func (s *Server) handleListPayloads(_ context.Context, req *mcp.CallToolRequest)
 		return errorResult(fmt.Sprintf("invalid arguments: %v. Expected optional 'category' (string) and 'severity' (string).", err)), nil
 	}
 
-	loader := payloads.NewLoader(s.config.PayloadDir)
-	all, err := loader.LoadAll()
-	if err != nil {
+	// Load from unified engine (JSON + Nuclei templates)
+	provider := payloadprovider.NewProvider(s.config.PayloadDir, s.config.TemplateDir)
+	if err := provider.Load(); err != nil {
 		return errorResult(fmt.Sprintf("failed to load payloads from %s: %v. Verify the payload directory exists and contains JSON files.", s.config.PayloadDir, err)), nil
+	}
+
+	all, err := provider.JSONPayloads()
+	if err != nil {
+		return errorResult(fmt.Sprintf("failed to extract payloads: %v", err)), nil
+	}
+
+	// Enrich with Nuclei template payloads
+	unified, _ := provider.GetAll()
+	for _, up := range unified {
+		if up.Source == payloadprovider.SourceNuclei {
+			sev := up.Severity
+			if sev == "" {
+				sev = "Medium"
+			}
+			all = append(all, payloads.Payload{
+				ID:            up.ID,
+				Payload:       up.Payload,
+				Category:      up.Category,
+				Method:        up.Method,
+				SeverityHint:  sev,
+				ExpectedBlock: true,
+				Tags:          up.Tags,
+			})
+		}
 	}
 
 	totalAvailable := len(all)
@@ -373,6 +401,12 @@ func (s *Server) handleListPayloads(_ context.Context, req *mcp.CallToolRequest)
 
 	// Build narrative summary
 	summary.Summary = buildListPayloadsSummary(args, stats, totalAvailable, bySeverity)
+
+	// Report unified stats (payloads already include Nuclei)
+	if uStats, err := provider.GetStats(); err == nil && uStats.NucleiPayloads > 0 {
+		summary.UnifiedTotal = uStats.TotalPayloads
+		summary.NucleiExtra = uStats.NucleiPayloads
+	}
 
 	// Build actionable next steps
 	summary.NextSteps = buildListPayloadsNextSteps(args, stats)
@@ -462,6 +496,8 @@ func buildListPayloadsNextSteps(args listPayloadsArgs, stats payloads.LoadStats)
 	}
 
 	steps = append(steps, "Use 'assess' for a full enterprise assessment with F1 score, false positive rate, and letter grade (A+ through F)")
+	steps = append(steps, "Read 'waftester://payloads/unified' to see combined stats from JSON + Nuclei template sources")
+	steps = append(steps, "Use 'waf-tester template --enrich' to inject JSON payloads into Nuclei templates for maximum coverage")
 
 	return steps
 }
@@ -1054,6 +1090,8 @@ func (s *Server) addScanTool() {
 			Title: "WAF Security Scan",
 			Description: `Fire attack payloads at a target and see what the WAF blocks vs. lets through. This is the core scanning tool.
 
+Bundled templates are available in templates/policies/ and templates/overrides/. Read waftester://templates to see all options.
+
 USE THIS TOOL WHEN:
 • The user says "scan this", "test this URL", or "check if the WAF blocks SQLi"
 • You want to test specific attack categories against a known URL
@@ -1133,6 +1171,14 @@ Returns: detection rate, total/blocked/failed counts, bypass details with reprod
 						"description": "Proxy URL for requests (e.g. http://127.0.0.1:8080 for Burp Suite).",
 						"format":      "uri",
 					},
+					"policy": map[string]any{
+						"type":        "string",
+						"description": "Path to a policy YAML file (e.g. templates/policies/standard.yaml). Controls exit code and grading threshold.",
+					},
+					"overrides": map[string]any{
+						"type":        "string",
+						"description": "Path to an overrides YAML file (e.g. templates/overrides/api-only.yaml). Customizes scan behavior for specific targets.",
+					},
 				},
 				"required": []string{"target"},
 			},
@@ -1194,9 +1240,9 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	notifyProgress(ctx, req, 0, 100, "Loading payloads…")
 	logToSession(ctx, req, logInfo, fmt.Sprintf("Starting scan on %s (concurrency=%d, rate=%d/s)", args.Target, args.Concurrency, args.RateLimit))
 
-	loader := payloads.NewLoader(s.config.PayloadDir)
-	all, err := loader.LoadAll()
-	if err != nil {
+	// Load from unified engine (JSON + Nuclei templates)
+	provider := payloadprovider.NewProvider(s.config.PayloadDir, s.config.TemplateDir)
+	if err := provider.Load(); err != nil {
 		return enrichedError(
 			fmt.Sprintf("failed to load payloads: %v", err),
 			[]string{
@@ -1204,6 +1250,35 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 				"Use 'list_payloads' to check available categories before scanning.",
 				"Check file permissions on the payload directory.",
 			}), nil
+	}
+
+	all, err := provider.JSONPayloads()
+	if err != nil {
+		return enrichedError(
+			fmt.Sprintf("failed to extract payloads: %v", err),
+			[]string{
+				"Verify the payload directory contains valid JSON payload files.",
+			}), nil
+	}
+
+	// Enrich with Nuclei template payloads converted to payloads.Payload format
+	unified, _ := provider.GetAll()
+	for _, up := range unified {
+		if up.Source == payloadprovider.SourceNuclei {
+			sev := up.Severity
+			if sev == "" {
+				sev = "Medium"
+			}
+			all = append(all, payloads.Payload{
+				ID:            up.ID,
+				Payload:       up.Payload,
+				Category:      up.Category,
+				Method:        up.Method,
+				SeverityHint:  sev,
+				ExpectedBlock: true,
+				Tags:          up.Tags,
+			})
+		}
 	}
 
 	var filtered []payloads.Payload

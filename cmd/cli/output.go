@@ -120,6 +120,9 @@ type OutputFlags struct {
 	PolicyFile   string
 	BaselineFile string
 
+	// Overrides configuration
+	OverridesFile string
+
 	// Version for reports
 	Version string
 }
@@ -245,6 +248,7 @@ func (o *OutputFlags) registerTemplateConfigFlags(fs *flag.FlagSet) {
 func (o *OutputFlags) registerPolicyFlags(fs *flag.FlagSet) {
 	fs.StringVar(&o.PolicyFile, "policy", "", "Policy YAML file for exit code rules")
 	fs.StringVar(&o.BaselineFile, "baseline", "", "Baseline JSON file for regression detection")
+	fs.StringVar(&o.OverridesFile, "overrides", "", "Overrides YAML file for scan customization (e.g. templates/overrides/api-only.yaml)")
 }
 
 // registerIntegrationFlags registers the full integration suite (webhooks + trackers + otel + policy + storage).

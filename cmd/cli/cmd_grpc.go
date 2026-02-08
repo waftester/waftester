@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/grpc"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -41,6 +42,8 @@ func runGRPC() {
 
 	// Fuzzing options
 	payloadCategory := grpcFlags.String("category", "injection", "Payload category for fuzzing")
+	payloadDir := grpcFlags.String("payloads", defaults.PayloadDir, "Payload directory")
+	templateDir := grpcFlags.String("template-dir", defaults.TemplateDir, "Nuclei template directory")
 	concurrency := grpcFlags.Int("c", 10, "Concurrency level")
 	rateLimit := grpcFlags.Float64("rl", 50, "Requests per second")
 
@@ -123,7 +126,7 @@ func runGRPC() {
 		runGRPCCall(ctx, client, *call, *data, *metadata, *jsonOutput, *verbose)
 
 	case *fuzz:
-		runGRPCFuzz(ctx, client, *payloadCategory, *concurrency, *rateLimit, *outputFile, *jsonOutput)
+		runGRPCFuzz(ctx, client, *payloadDir, *templateDir, *payloadCategory, *concurrency, *rateLimit, *outputFile, *jsonOutput)
 
 	default:
 		// Default to listing services
@@ -240,7 +243,7 @@ func runGRPCCall(ctx context.Context, client *grpc.Client, callSpec, data, metad
 	}
 }
 
-func runGRPCFuzz(ctx context.Context, client *grpc.Client, category string, concurrency int, rateLimit float64, outputFile string, jsonOutput bool) {
+func runGRPCFuzz(ctx context.Context, client *grpc.Client, payloadDir, templateDir, category string, concurrency int, rateLimit float64, outputFile string, jsonOutput bool) {
 	// First, discover services and methods
 	services, err := client.ListServices(ctx)
 	if err != nil {
@@ -262,9 +265,8 @@ func runGRPCFuzz(ctx context.Context, client *grpc.Client, category string, conc
 	_ = concurrency
 	_ = rateLimit
 
-	// Get attack payloads for the category
-	// For now, use some basic injection payloads
-	payloads := getGRPCFuzzPayloads(category)
+	// Get attack payloads from unified engine (JSON + Nuclei templates)
+	payloads := getUnifiedFuzzPayloads(payloadDir, templateDir, category, 50, false)
 
 	if !jsonOutput {
 		ui.PrintConfigLine("Services", fmt.Sprintf("%d", len(services)))
@@ -342,45 +344,6 @@ func runGRPCFuzz(ctx context.Context, client *grpc.Client, category string, conc
 		ui.PrintConfigLine("Total Tests", fmt.Sprintf("%d", len(results)))
 		ui.PrintConfigLine("Blocked", fmt.Sprintf("%d", blocked))
 		ui.PrintConfigLine("Passed", fmt.Sprintf("%d", len(results)-blocked))
-	}
-}
-
-func getGRPCFuzzPayloads(category string) []string {
-	// Basic injection payloads for gRPC fuzzing
-	switch category {
-	case "sqli":
-		return []string{
-			"' OR '1'='1",
-			"1; DROP TABLE users--",
-			"admin'--",
-			"1 UNION SELECT * FROM users",
-			"'; EXEC xp_cmdshell('dir')--",
-		}
-	case "xss":
-		return []string{
-			"<script>alert(1)</script>",
-			"<img src=x onerror=alert(1)>",
-			"javascript:alert(1)",
-			"<svg onload=alert(1)>",
-		}
-	case "cmdi":
-		return []string{
-			"; cat /etc/passwd",
-			"| whoami",
-			"`id`",
-			"$(cat /etc/passwd)",
-			"; ping -c 3 127.0.0.1",
-		}
-	default:
-		// General injection payloads
-		return []string{
-			"' OR '1'='1",
-			"<script>alert(1)</script>",
-			"; cat /etc/passwd",
-			"../../../etc/passwd",
-			"${7*7}",
-			"{{7*7}}",
-		}
 	}
 }
 

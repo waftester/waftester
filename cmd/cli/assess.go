@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/assessment"
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/metrics"
@@ -39,6 +40,7 @@ func runAssess() {
 
 	// Attack testing
 	categories := assessFlags.String("categories", "", "Attack categories to test (comma-separated, empty=all)")
+	payloadDir := assessFlags.String("payloads", defaults.PayloadDir, "Payload directory")
 
 	// FP testing
 	enableFP := assessFlags.Bool("fp", true, "Enable false positive testing")
@@ -142,6 +144,7 @@ func runAssess() {
 		DetectWAF:        *detectWAF,
 		OutputFormat:     *format,
 		OutputFile:       *output,
+		PayloadDir:       *payloadDir,
 	}
 
 	if *categories != "" {

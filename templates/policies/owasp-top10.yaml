@@ -1,0 +1,152 @@
+# WAFtester OWASP Top 10 Policy
+# Maps directly to OWASP Top 10 2021 categories
+# Ensures WAF coverage for each OWASP category
+
+name: owasp-top10
+description: "OWASP Top 10 (2021) compliance policy — validates WAF coverage for all ten risk categories"
+version: "2.0.0"
+
+severity_threshold: medium
+
+owasp_mapping:
+  A01_Broken_Access_Control:
+    scan_types:
+      - idor
+      - cors
+      - open-redirect
+      - path-traversal
+      - csrf
+      - forced-browsing
+      - privilege-escalation
+    effectiveness_below: 85.0
+
+  A02_Cryptographic_Failures:
+    scan_types:
+      - sensitive-data
+      - tls
+      - insecure-cookies
+      - cleartext-credentials
+    effectiveness_below: 80.0
+
+  A03_Injection:
+    scan_types:
+      - sqli
+      - nosqli
+      - cmdi
+      - ldap
+      - xpath
+      - ssti
+      - crlf
+      - hpp
+      - xss
+      - xxe
+    effectiveness_below: 90.0
+
+  A04_Insecure_Design:
+    scan_types:
+      - bizlogic
+      - race-condition
+      - mass-assignment
+      - api-abuse
+    effectiveness_below: 70.0
+
+  A05_Security_Misconfiguration:
+    scan_types:
+      - misconfig
+      - default-creds
+      - directory-listing
+      - verbose-errors
+      - unnecessary-features
+    effectiveness_below: 80.0
+
+  A06_Vulnerable_Components:
+    scan_types:
+      - cve
+      - outdated-software
+      - known-exploit
+    effectiveness_below: 75.0
+
+  A07_Auth_Failures:
+    scan_types:
+      - broken-auth
+      - brute-force
+      - credential-stuffing
+      - session-fixation
+      - jwt
+      - oauth
+    effectiveness_below: 85.0
+
+  A08_Software_Data_Integrity:
+    scan_types:
+      - deserialization
+      - upload
+      - ci-cd
+    effectiveness_below: 85.0
+
+  A09_Logging_Monitoring:
+    scan_types:
+      - log-injection
+      - monitoring-bypass
+    effectiveness_below: 60.0
+
+  A10_SSRF:
+    scan_types:
+      - ssrf
+      - dns-rebinding
+      - cloud-metadata
+    effectiveness_below: 90.0
+
+fail_on:
+  bypasses:
+    - sqli
+    - xss
+    - rce
+    - ssrf
+    - lfi
+    - rfi
+    - ssti
+    - xxe
+    - cmdi
+    - deserialization
+    - nosqli
+    - crlf
+    - ldap
+    - xpath
+    - upload
+    - idor
+    - cors
+    - csrf
+    - broken-auth
+    - jwt
+    - oauth
+
+  categories:
+    - injection
+    - broken-auth
+    - sensitive-data
+    - xxe
+    - broken-access
+    - misconfig
+    - xss
+    - deserialization
+    - components
+    - logging
+    - ssrf
+
+  effectiveness_below: 80.0
+
+  error_rate_above: 5.0
+
+  false_positive_rate_above: 5.0
+
+  min_tests_required: 30
+
+  max_response_time_ms: 15000
+
+  require_waf_detected: false
+
+ignore:
+  ids: []
+  tags:
+    - informational
+  severity_below: low

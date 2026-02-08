@@ -1,0 +1,204 @@
+# WAFtester CRS Tuning Override Configuration
+# Fine-tunes scanning for environments running ModSecurity with OWASP CRS
+# Adjusts payloads and expectations based on CRS paranoia levels
+
+overrides:
+  - id: crs-pl1-baseline
+    description: "Adjust expectations for CRS Paranoia Level 1 (baseline rules)"
+    match:
+      waf: "modsecurity"
+      paranoia_level: 1
+    action:
+      expected_block_rate: 60.0
+      skip_tags:
+        - "evasion-advanced"
+        - "encoding-multi"
+        - "unicode-bypass"
+    enabled: true
+    priority: 100
+
+  - id: crs-pl2-standard
+    description: "Adjust expectations for CRS Paranoia Level 2 (additional rules)"
+    match:
+      waf: "modsecurity"
+      paranoia_level: 2
+    action:
+      expected_block_rate: 80.0
+      skip_tags:
+        - "evasion-exotic"
+    enabled: true
+    priority: 100
+
+  - id: crs-pl3-strict
+    description: "Adjust expectations for CRS Paranoia Level 3 (more rules, more FPs)"
+    match:
+      waf: "modsecurity"
+      paranoia_level: 3
+    action:
+      expected_block_rate: 92.0
+      false_positive_tolerance: 8.0
+    enabled: true
+    priority: 100
+
+  - id: crs-pl4-paranoid
+    description: "Adjust expectations for CRS Paranoia Level 4 (maximum protection)"
+    match:
+      waf: "modsecurity"
+      paranoia_level: 4
+    action:
+      expected_block_rate: 98.0
+      false_positive_tolerance: 15.0
+    enabled: true
+    priority: 100
+
+  - id: crs-sqli-rules
+    description: "Tune SQLi testing for CRS rule IDs 942xxx"
+    match:
+      waf: "modsecurity"
+      category: "sqli"
+    action:
+      expect_rule_ids:
+        - "942100"
+        - "942110"
+        - "942120"
+        - "942130"
+        - "942140"
+        - "942150"
+        - "942160"
+        - "942170"
+        - "942180"
+        - "942190"
+        - "942200"
+        - "942210"
+        - "942220"
+        - "942230"
+        - "942240"
+        - "942250"
+        - "942260"
+        - "942270"
+        - "942280"
+        - "942290"
+        - "942300"
+        - "942310"
+        - "942320"
+        - "942330"
+        - "942340"
+        - "942350"
+        - "942360"
+        - "942370"
+        - "942380"
+        - "942390"
+        - "942400"
+        - "942410"
+        - "942420"
+        - "942430"
+        - "942440"
+        - "942450"
+        - "942460"
+        - "942470"
+        - "942480"
+        - "942490"
+        - "942500"
+        - "942510"
+      match_header: "x-modsecurity-rule-id"
+    enabled: true
+    priority: 80
+
+  - id: crs-xss-rules
+    description: "Tune XSS testing for CRS rule IDs 941xxx"
+    match:
+      waf: "modsecurity"
+      category: "xss"
+    action:
+      expect_rule_ids:
+        - "941100"
+        - "941110"
+        - "941120"
+        - "941130"
+        - "941140"
+        - "941150"
+        - "941160"
+        - "941170"
+        - "941180"
+        - "941190"
+        - "941200"
+        - "941210"
+        - "941220"
+        - "941230"
+        - "941240"
+        - "941250"
+        - "941260"
+        - "941270"
+        - "941280"
+        - "941290"
+        - "941300"
+        - "941310"
+        - "941320"
+        - "941330"
+        - "941340"
+        - "941350"
+        - "941360"
+        - "941370"
+        - "941380"
+      match_header: "x-modsecurity-rule-id"
+    enabled: true
+    priority: 80
+
+  - id: crs-rce-rules
+    description: "Tune RCE testing for CRS rule IDs 932xxx"
+    match:
+      waf: "modsecurity"
+      category: "rce"
+    action:
+      expect_rule_ids:
+        - "932100"
+        - "932105"
+        - "932110"
+        - "932115"
+        - "932120"
+        - "932130"
+        - "932140"
+        - "932150"
+        - "932160"
+        - "932170"
+        - "932171"
+        - "932180"
+        - "932190"
+        - "932200"
+      match_header: "x-modsecurity-rule-id"
+    enabled: true
+    priority: 80
+
+  - id: crs-anomaly-scoring
+    description: "Account for CRS anomaly scoring mode vs traditional mode"
+    match:
+      waf: "modsecurity"
+    action:
+      anomaly_threshold: 5
+      check_anomaly_score: true
+      anomaly_header: "x-modsecurity-anomaly-score"
+    enabled: true
+    priority: 70
+
+  - id: crs-block-indicators
+    description: "Recognize CRS-specific block response patterns"
+    match:
+      waf: "modsecurity"
+    action:
+      block_indicators:
+        status_codes:
+          - 403
+          - 406
+          - 418
+          - 429
+          - 503
+        body_patterns:
+          - "ModSecurity"
+          - "Access Denied"
+          - "Not Acceptable"
+          - "SecRule"
+        headers:
+          - "mod_security"
+          - "OWASP_CRS"
+    enabled: true
+    priority: 60

@@ -3,7 +3,7 @@
 The most comprehensive Web Application Firewall testing platform for security professionals and enterprise teams. Detect, fingerprint, and assess WAF security posture with quantitative metrics.
 
 [![License](https://img.shields.io/badge/License-BSL%201.1-blue.svg)](LICENSE)
-[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8.svg)](https://go.dev/)
+[![Go](https://img.shields.io/badge/Go-1.24+-00ADD8.svg)](https://go.dev/)
 [![Release](https://img.shields.io/github/v/release/waftester/waftester)](https://github.com/waftester/waftester/releases)
 
 ---
@@ -227,6 +227,9 @@ waf-tester scan -u https://target.com -types all
 
 # With WAF-aware tamper selection
 waf-tester scan -u https://target.com --smart --tamper-auto
+
+# With custom payload and template directories
+waf-tester scan -u https://target.com --payloads ./custom-payloads --template-dir ./my-templates
 ```
 
 ### WAF Intelligence
@@ -420,6 +423,10 @@ AI agents can read these resources for context without making network requests:
 | `waftester://evasion-techniques` | Evasion encoding catalog |
 | `waftester://owasp-mappings` | OWASP Top 10 2021 mappings |
 | `waftester://payloads` | Full payload catalog |
+| `waftester://payloads/unified` | Unified view (JSON + Nuclei template payloads) |
+| `waftester://payloads/{category}` | Category-filtered payloads |
+| `waftester://templates` | Nuclei template library listing |
+| `waftester://version` | Server version, capabilities, and resource counts |
 | `waftester://config` | Default configuration values |
 
 For complete MCP examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md#mcp-server-integration).
@@ -469,6 +476,8 @@ For complete MCP examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md#mcp-server-in
 | `--sni` | Override TLS SNI for CDN bypass | - |
 | `--burp` | Burp Suite proxy shortcut | false |
 | `--zap` | OWASP ZAP proxy shortcut | false |
+| `--payloads` | Custom payload directory | `./payloads` |
+| `--template-dir` | Custom Nuclei template directory | `./templates/nuclei` |
 | `--stream` | Real-time streaming output | false |
 
 ---
@@ -477,7 +486,7 @@ For complete MCP examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md#mcp-server-in
 
 | Metric | Value |
 |--------|-------|
-| CLI Commands | 32 |
+| CLI Commands | 33 |
 | WAF Signatures | 197 vendors |
 | Attack Payloads | 2,800+ |
 | Tamper Scripts | 70+ |
@@ -487,8 +496,8 @@ For complete MCP examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md#mcp-server-in
 | Output Formats | 16 |
 | CI/CD Platforms | 9 |
 | MCP Tools | 10 |
-| MCP Resources | 8 |
-| MCP Prompts | 5 |
+| MCP Resources | 10 |
+| MCP Prompts | 6 |
 | Docker Architectures | linux/amd64, linux/arm64 |
 
 ---

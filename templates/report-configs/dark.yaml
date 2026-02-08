@@ -1,0 +1,136 @@
+# WAFtester Dark Theme Report Configuration
+# Modern dark-mode report for developer-facing dashboards and presentations
+# High contrast with syntax-highlighted payloads
+
+name: dark
+description: "Dark-themed developer report with syntax highlighting and modern aesthetics"
+version: "2.0.0"
+
+branding:
+  title: "WAF Security Report"
+  subtitle: ""
+  logo: ""
+  footer: "WAFtester"
+
+layout:
+  max_width: 1100
+  orientation: landscape
+  page_size: A4
+  compact: false
+  table_of_contents: false
+  page_numbers: false
+
+sections:
+  - id: executive_summary
+    title: "Overview"
+    enabled: true
+    fields:
+      - target
+      - timestamp
+      - duration
+      - total_tests
+      - blocked
+      - bypassed
+      - errors
+      - effectiveness
+      - grade
+      - highest_severity
+
+  - id: severity_chart
+    title: "Severity Distribution"
+    enabled: true
+    chart_type: "donut"
+
+  - id: category_breakdown
+    title: "Category Breakdown"
+    enabled: true
+    chart_type: "horizontal_bar"
+
+  - id: bypasses
+    title: "Bypasses"
+    enabled: true
+    max_items: 50
+    sort_by: "severity"
+    sort_order: "desc"
+    fields:
+      - id
+      - category
+      - severity
+      - name
+      - url
+      - method
+      - status_code
+      - outcome
+      - latency
+      - payload
+    syntax_highlight: true
+    show_payload_raw: true
+
+  - id: detailed_results
+    title: "All Results"
+    enabled: true
+    paginate: true
+    page_size: 100
+    filterable: true
+    sortable: true
+
+  - id: recommendations
+    title: "Recommendations"
+    enabled: false
+
+styling:
+  theme: "dark"
+  font_family: "'Inter', 'SF Pro Display', system-ui, sans-serif"
+  font_size: "14px"
+  heading_font: "'Inter', system-ui, sans-serif"
+  code_font: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace"
+  colors:
+    primary: "#60a5fa"
+    secondary: "#a78bfa"
+    success: "#34d399"
+    warning: "#fbbf24"
+    danger: "#f87171"
+    critical: "#ef4444"
+    info: "#38bdf8"
+    background: "#0f172a"
+    surface: "#1e293b"
+    surface_hover: "#334155"
+    text: "#f1f5f9"
+    text_secondary: "#94a3b8"
+    text_muted: "#64748b"
+    border: "#334155"
+    code_background: "#1e293b"
+    code_text: "#e2e8f0"
+  severity_colors:
+    critical: "#ef4444"
+    high: "#f97316"
+    medium: "#eab308"
+    low: "#3b82f6"
+    info: "#6b7280"
+  syntax_highlighting:
+    keyword: "#c084fc"
+    string: "#34d399"
+    number: "#fb923c"
+    comment: "#64748b"
+    operator: "#38bdf8"
+
+charts:
+  enabled: true
+  renderer: "svg"
+  width: 600
+  height: 400
+  dark_mode: true
+  types:
+    - severity_donut
+    - category_bar
+    - effectiveness_gauge
+    - timeline
+
+export:
+  formats:
+    - html
+    - json
+    - markdown
+  include_raw_data: true
+  compress: false
+  embed_images: true

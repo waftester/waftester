@@ -11,7 +11,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/nuclei"
+	"github.com/waftester/waftester/pkg/payloadprovider"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -51,6 +53,10 @@ func runTemplate() {
 
 	// Validation only
 	validateOnly := templateFlags.Bool("validate", false, "Only validate templates, don't run")
+
+	// Payload bridge options
+	enrichPayloads := templateFlags.Bool("enrich", false, "Enrich templates with JSON payload database")
+	payloadDir := templateFlags.String("payloads", defaults.PayloadDir, "Directory containing JSON payloads")
 
 	templateFlags.Parse(os.Args[2:])
 
@@ -161,6 +167,33 @@ func runTemplate() {
 	if !*silent {
 		ui.PrintSuccess(fmt.Sprintf("Loaded %d templates", len(templates)))
 		fmt.Println()
+	}
+
+	// Enrich templates with JSON payload database
+	if *enrichPayloads {
+		// Enrichment only needs JSON payloads, not a second load of nuclei templates.
+		provider := payloadprovider.NewProvider(*payloadDir, "")
+		if err := provider.Load(); err != nil {
+			if !*silent {
+				ui.PrintWarning(fmt.Sprintf("Could not load payload database for enrichment: %v", err))
+			}
+		} else {
+			totalAdded := 0
+			for i, tmpl := range templates {
+				enriched, added, err := provider.EnrichTemplate(tmpl)
+				if err != nil {
+					if *verbose {
+						ui.PrintWarning(fmt.Sprintf("Could not enrich %s: %v", tmpl.ID, err))
+					}
+					continue
+				}
+				templates[i] = enriched
+				totalAdded += added
+			}
+			if !*silent && totalAdded > 0 {
+				ui.PrintSuccess(fmt.Sprintf("Enriched templates with %d additional payloads from JSON database", totalAdded))
+			}
+		}
 	}
 
 	if len(templates) == 0 {

