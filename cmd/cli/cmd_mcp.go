@@ -71,7 +71,7 @@ func runMCP() {
 		PayloadDir:  *payloadDir,
 		TemplateDir: *templateDir,
 	})
-	srv.MarkReady() // Signal that startup validation passed
+	srv.MarkReady()  // Signal that startup validation passed
 	defer srv.Stop() // Cancel running tasks and wait for goroutine drain
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

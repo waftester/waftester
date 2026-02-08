@@ -5,6 +5,37 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.6] - 2026-02-08
+
+### Fixed
+
+#### MCP Task ID Format Validation
+
+AI agents (particularly via n8n) were hallucinating UUID-format task IDs instead of using the exact `task_id` returned by async tools. The server now validates task ID format before map lookup and returns specific, actionable error messages.
+
+- **`ValidateTaskID` function**: Validates that task IDs match the expected format (`task_` prefix + exactly 16 hex characters, no dashes). Returns human-readable reason on failure with correction instructions.
+- **Format validation in `get_task_status` and `cancel_task`**: Both tools validate task ID format before lookup, preventing generic "not found" errors for malformed IDs.
+- **Actionable error messages**: Invalid format errors include the submitted ID, correct format example, and pointers to `list_tasks` — enabling AI agents to self-correct.
+- **Server instructions updated**: `serverInstructions` now explicitly documents task ID format (`task_a1b2c3d4e5f6g7h8`) and warns against UUIDs or modified IDs.
+- **Tool descriptions updated**: `get_task_status` description now includes `TASK ID FORMAT` documentation line.
+
+#### `wait_seconds` Default Fix
+
+The `wait_seconds` parameter in `get_task_status` now correctly defaults to 30 seconds when omitted, instead of Go's zero-value (0). Changed from `int` to `*int` pointer type to distinguish "not provided" from "explicitly 0".
+
+- **`*int` pointer type**: `WaitSeconds` field uses pointer semantics — `nil` means "use default 30s", explicit `0` means "no waiting".
+- **`defaultWaitSeconds` constant**: Centralized default value (30) with clear documentation explaining the JSON schema vs Go unmarshaling mismatch.
+
+### Tests
+
+- Added `TestValidateTaskID` — table-driven test covering valid IDs, UUID format, too-short, too-long, non-hex chars, wrong prefix, and other edge cases.
+- Added `TestGetTaskStatus_InvalidFormat_UUID` — integration test simulating n8n's AI agent hallucinating UUID task IDs.
+- Added `TestGetTaskStatus_InvalidFormat_TooShort` — integration test for truncated task IDs.
+- Added `TestGetTaskStatus_WaitSecondsDefault` — verifies omitted `wait_seconds` defaults to 30s (waits for completion).
+- Added `TestGetTaskStatus_WaitSecondsExplicitZero` — verifies explicit `wait_seconds=0` returns immediately without blocking.
+- Updated `TestGetTaskStatus_NonexistentTask` — uses valid-format but nonexistent task ID.
+- Updated `TestCancelTask_NonexistentTask` — uses valid-format but nonexistent task ID.
+
 ## [2.7.5] - 2026-02-08
 
 ### Added
