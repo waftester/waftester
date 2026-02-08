@@ -13,7 +13,10 @@ import (
 func TestGenerateTaskID(t *testing.T) {
 	seen := make(map[string]bool, 1000)
 	for i := 0; i < 1000; i++ {
-		id := generateTaskID()
+		id, err := generateTaskID()
+		if err != nil {
+			t.Fatalf("generateTaskID() returned error: %v", err)
+		}
 		if !hasPrefix(id, "task_") {
 			t.Fatalf("task ID %q missing 'task_' prefix", id)
 		}

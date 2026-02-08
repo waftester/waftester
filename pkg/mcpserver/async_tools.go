@@ -254,6 +254,10 @@ type asyncTaskResponse struct {
 // Returns the immediate acknowledgment response with task_id for the client.
 // The workFn receives the task and a cancellable context — it should call
 // task.SetProgress during execution and task.Complete or task.Fail when done.
+//
+// Goroutine synchronization: all shared state is protected by the TaskManager's
+// sync.RWMutex (tm.mu) and per-task sync.RWMutex (task.mu) in taskmanager.go.
+// Map literals in this file are local-scope JSON schemas, not shared state.
 func (s *Server) launchAsync(
 	ctx context.Context,
 	toolName string,
