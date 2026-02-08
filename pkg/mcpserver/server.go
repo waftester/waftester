@@ -564,12 +564,18 @@ Long-running tools (scan, assess, bypass, discover) return a task_id immediately
 5. If status is "failed" → check "error" field
 6. If status is "cancelled" → task was stopped
 
+CROSS-SESSION RECOVERY: If you lost the task_id (e.g., new connection, session reset, reconnection):
+- Call get_task_status WITHOUT task_id: {"wait_seconds": 30} → auto-discovers the latest active task
+- Or filter by tool: {"tool_name": "assess", "wait_seconds": 30} → finds the latest task from that tool
+- Or call list_tasks first to see all tasks: {} or {"status": "running"} → pick the correct task_id
+- The server remembers ALL tasks across sessions for 30 minutes — only the task_id needs recovery
+
 CRITICAL RULES:
 - ALWAYS use wait_seconds=30 in get_task_status to avoid rapid polling
 - NEVER tell the user "check back later" or "I'll keep checking" — poll until completion NOW
 - NEVER return to the user while a task is still "running" — keep calling get_task_status in a loop
 - The wait_seconds parameter makes the server wait up to 30s for completion, so you only need 2-4 polls for most operations
-- If you lose connection to the task (task not found), re-run the original tool immediately
+- If you lose connection to the task (task not found), call get_task_status without task_id to auto-discover, or re-run the original tool
 - TASK ID FORMAT: task_ prefix + exactly 16 hex characters. Example: task_a1b2c3d4e5f6g7h8. NEVER use UUIDs or dashes.
 - ALWAYS use the EXACT task_id string returned by the tool — do NOT modify it or generate your own
 

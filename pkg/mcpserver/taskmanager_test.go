@@ -567,3 +567,110 @@ func contains(s, substr string) bool {
 	}
 	return false
 }
+
+// ---------------------------------------------------------------------------
+// GetLatest — cross-session task discovery
+// ---------------------------------------------------------------------------
+
+func TestGetLatest_EmptyManager(t *testing.T) {
+	tm := NewTaskManager()
+	defer tm.Stop()
+
+	if got := tm.GetLatest(); got != nil {
+		t.Errorf("GetLatest on empty manager should return nil, got task %s", got.ID)
+	}
+}
+
+func TestGetLatest_SingleActiveTask(t *testing.T) {
+	tm := NewTaskManager()
+	defer tm.Stop()
+
+	task, _, _ := tm.Create(context.Background(), "scan")
+	got := tm.GetLatest()
+	if got == nil {
+		t.Fatal("GetLatest should return the active task")
+	}
+	if got.ID != task.ID {
+		t.Errorf("GetLatest returned %s, want %s", got.ID, task.ID)
+	}
+}
+
+func TestGetLatest_PrefersActiveOverTerminal(t *testing.T) {
+	tm := NewTaskManager()
+	defer tm.Stop()
+
+	completed, _, _ := tm.Create(context.Background(), "scan")
+	completed.Complete(json.RawMessage(`{}`))
+
+	active, _, _ := tm.Create(context.Background(), "assess")
+
+	got := tm.GetLatest()
+	if got == nil {
+		t.Fatal("GetLatest should return a task")
+	}
+	if got.ID != active.ID {
+		t.Errorf("GetLatest should prefer active task %s, got %s", active.ID, got.ID)
+	}
+}
+
+func TestGetLatest_FallsBackToTerminal(t *testing.T) {
+	tm := NewTaskManager()
+	defer tm.Stop()
+
+	task, _, _ := tm.Create(context.Background(), "scan")
+	task.Complete(json.RawMessage(`{"result":"done"}`))
+
+	got := tm.GetLatest()
+	if got == nil {
+		t.Fatal("GetLatest should fall back to the completed task")
+	}
+	if got.ID != task.ID {
+		t.Errorf("GetLatest returned %s, want %s", got.ID, task.ID)
+	}
+}
+
+func TestGetLatest_MostRecentActive(t *testing.T) {
+	tm := NewTaskManager()
+	defer tm.Stop()
+
+	_, _, _ = tm.Create(context.Background(), "scan")
+	// Small sleep to ensure CreatedAt ordering is deterministic.
+	time.Sleep(10 * time.Millisecond)
+	newer, _, _ := tm.Create(context.Background(), "assess")
+
+	got := tm.GetLatest()
+	if got == nil {
+		t.Fatal("GetLatest should return a task")
+	}
+	if got.ID != newer.ID {
+		t.Errorf("GetLatest should return most recent active task %s, got %s", newer.ID, got.ID)
+	}
+}
+
+func TestGetLatest_WithToolFilter(t *testing.T) {
+	tm := NewTaskManager()
+	defer tm.Stop()
+
+	scanTask, _, _ := tm.Create(context.Background(), "scan")
+	_, _, _ = tm.Create(context.Background(), "assess")
+
+	got := tm.GetLatest("scan")
+	if got == nil {
+		t.Fatal("GetLatest with tool filter should return the scan task")
+	}
+	if got.ID != scanTask.ID {
+		t.Errorf("GetLatest(\"scan\") returned %s, want %s", got.ID, scanTask.ID)
+	}
+}
+
+func TestGetLatest_ToolFilterNoMatch(t *testing.T) {
+	tm := NewTaskManager()
+	defer tm.Stop()
+
+	_, _, _ = tm.Create(context.Background(), "scan")
+
+	got := tm.GetLatest("bypass")
+	if got != nil {
+		t.Errorf("GetLatest with non-matching filter should return nil, got %s", got.ID)
+	}
+}

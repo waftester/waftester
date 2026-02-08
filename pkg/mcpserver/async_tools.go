@@ -42,6 +42,7 @@ USE THIS TOOL WHEN:
 • You received a task_id from scan, assess, bypass, or discover
 • You need to check if an async task has completed
 • You want to see progress (percentage, current step) of a running task
+• You lost the task_id (new session, reconnect) — omit task_id to auto-discover the latest task
 
 POLLING PATTERN (YOU MUST FOLLOW THIS — DO NOT RETURN EARLY TO THE USER):
 1. Call the long-running tool (e.g., scan) → receive {"task_id": "task_abc123", "status": "running"}
@@ -50,6 +51,10 @@ POLLING PATTERN (YOU MUST FOLLOW THIS — DO NOT RETURN EARLY TO THE USER):
 4. If status is "completed" → the full result is in the "result" field — NOW return to user
 5. If status is "failed" → check "error" field for what went wrong
 6. NEVER tell the user to "check back later" — always poll until completion within the same execution
+
+CROSS-SESSION RECOVERY: If you don't have a task_id (e.g., after reconnecting), simply call
+get_task_status with NO task_id or with just {"wait_seconds": 30}. The server will automatically
+find the most recent active task. You can also pass "tool_name" to filter by which tool started it.
 
 CRITICAL: Use wait_seconds to avoid rapid polling. Setting wait_seconds=30 makes the server
 wait up to 30 seconds for the task to complete before responding. This is more efficient than
@@ -60,7 +65,10 @@ RETURNS:
 • result — present when status is "completed" (contains the full tool output)
 • error — present when status is "failed"
 
-EXAMPLE: {"task_id": "task_a1b2c3d4e5f6g7h8", "wait_seconds": 30}
+EXAMPLES:
+  With task_id:   {"task_id": "task_a1b2c3d4e5f6g7h8", "wait_seconds": 30}
+  Auto-discover:  {"wait_seconds": 30}
+  Filter by tool: {"tool_name": "assess", "wait_seconds": 30}
 
 TASK ID FORMAT: task_ prefix + exactly 16 hex characters (e.g., task_a1b2c3d4e5f6g7h8). NO dashes, NO UUIDs.`,
 			InputSchema: map[string]any{
@@ -68,7 +76,12 @@ TASK ID FORMAT: task_ prefix + exactly 16 hex characters (e.g., task_a1b2c3d4e5f
 				"properties": map[string]any{
 					"task_id": map[string]any{
 						"type":        "string",
-						"description": "The task ID returned by a long-running tool (e.g., \"task_a1b2c3d4e5f6g7h8\"). Format: task_ + 16 hex chars, NO dashes.",
+						"description": "The task ID returned by a long-running tool (e.g., \"task_a1b2c3d4e5f6g7h8\"). If omitted, auto-discovers the most recent active task.",
+					},
+					"tool_name": map[string]any{
+						"type":        "string",
+						"description": "When task_id is omitted, filter auto-discovery by the tool that started the task (e.g., \"assess\", \"scan\", \"bypass\", \"discover\").",
+						"enum":        []string{"scan", "assess", "bypass", "discover"},
 					},
 					"wait_seconds": map[string]any{
 						"type":        "integer",
@@ -78,7 +91,6 @@ TASK ID FORMAT: task_ prefix + exactly 16 hex characters (e.g., task_a1b2c3d4e5f
 						"maximum":     120,
 					},
 				},
-				"required": []string{"task_id"},
 			},
 			Annotations: &mcp.ToolAnnotations{
 				ReadOnlyHint:   true,
@@ -93,13 +105,35 @@ TASK ID FORMAT: task_ prefix + exactly 16 hex characters (e.g., task_a1b2c3d4e5f
 func (s *Server) handleGetTaskStatus(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var args struct {
 		TaskID      string `json:"task_id"`
+		ToolName    string `json:"tool_name"`
 		WaitSeconds *int   `json:"wait_seconds"` // pointer to distinguish absent from explicit 0
 	}
 	if err := parseArgs(req, &args); err != nil {
 		return errorResult(fmt.Sprintf("invalid arguments: %v", err)), nil
 	}
+
+	// ─── Auto-discovery: task_id omitted → find the most recent task ────
 	if args.TaskID == "" {
-		return errorResult("task_id is required. Example: {\"task_id\": \"task_a1b2c3d4e5f6g7h8\", \"wait_seconds\": 30}"), nil
+		var task *Task
+		if args.ToolName != "" {
+			task = s.tasks.GetLatest(args.ToolName)
+			log.Printf("[mcp] get_task_status: auto-discovery by tool_name=%q", args.ToolName)
+		} else {
+			task = s.tasks.GetLatest()
+			log.Printf("[mcp] get_task_status: auto-discovery (no task_id, no tool_name)")
+		}
+		if task == nil {
+			return enrichedError(
+				"no tasks found — nothing to poll",
+				[]string{
+					"No async tasks exist. Start one first using scan, assess, bypass, or discover.",
+					"If you recently started a task, it may have expired (tasks are kept for 30 minutes).",
+					"Use 'list_tasks' to see all tasks with their correct task_id values.",
+				},
+			), nil
+		}
+		args.TaskID = task.ID
+		log.Printf("[mcp] get_task_status: auto-discovered task %s (tool=%s)", task.ID, task.Tool)
 	}
 
 	// Validate task ID format before map lookup. Our IDs are "task_" + 16
@@ -278,14 +312,16 @@ func (s *Server) addListTasksTool() {
 
 USE THIS TOOL WHEN:
 • You want to see all running tasks
-• You lost track of a task_id
+• You lost track of a task_id (e.g., after reconnecting or session reset)
 • You want to check if any tasks are still running before starting new ones
+• You need to recover a task_id from a previous session
 
 OPTIONAL FILTERS:
 • status: filter by task status ("running", "completed", "failed", "cancelled")
+• tool_name: filter by which tool started the task ("scan", "assess", "bypass", "discover")
 • If omitted, returns all tasks
 
-EXAMPLE: {} or {"status": "running"}`,
+EXAMPLES: {} or {"status": "running"} or {"tool_name": "assess"} or {"status": "running", "tool_name": "scan"}`,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -293,6 +329,11 @@ EXAMPLE: {} or {"status": "running"}`,
 						"type":        "string",
 						"description": "Filter by task status.",
 						"enum":        []string{"pending", "running", "completed", "failed", "cancelled"},
+					},
+					"tool_name": map[string]any{
+						"type":        "string",
+						"description": "Filter by which tool started the task.",
+						"enum":        []string{"scan", "assess", "bypass", "discover"},
 					},
 				},
 			},
@@ -308,7 +349,8 @@ EXAMPLE: {} or {"status": "running"}`,
 
 func (s *Server) handleListTasks(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var args struct {
-		Status string `json:"status"`
+		Status   string `json:"status"`
+		ToolName string `json:"tool_name"`
 	}
 	_ = parseArgs(req, &args) // Optional args — ignore parse errors.
 
@@ -317,6 +359,17 @@ func (s *Server) handleListTasks(_ context.Context, req *mcp.CallToolRequest) (*
 		snapshots = s.tasks.List(TaskStatus(args.Status))
 	} else {
 		snapshots = s.tasks.List()
+	}
+
+	// Apply tool_name filter client-side (List only supports status filtering).
+	if args.ToolName != "" {
+		filtered := make([]TaskSnapshot, 0, len(snapshots))
+		for _, snap := range snapshots {
+			if snap.Tool == args.ToolName {
+				filtered = append(filtered, snap)
+			}
+		}
+		snapshots = filtered
 	}
 
 	result := map[string]any{
