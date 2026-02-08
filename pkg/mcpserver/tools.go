@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -25,6 +26,40 @@ import (
 	"github.com/waftester/waftester/pkg/payloads"
 	"github.com/waftester/waftester/pkg/waf"
 )
+
+// toolHandler is the function signature for MCP tool handlers.
+type toolHandler = func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error)
+
+// loggedTool wraps a tool handler with structured logging. Every tool
+// invocation is logged on entry (with arguments) and on exit (with
+// success/error status and duration). This is critical for diagnosing
+// MCP client integration issues where requests silently vanish.
+func loggedTool(name string, fn toolHandler) toolHandler {
+	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		// Marshal arguments for the log line — truncate to avoid flooding.
+		argBytes, _ := json.Marshal(req.Params.Arguments)
+		argStr := string(argBytes)
+		const maxArgLog = 200
+		if len(argStr) > maxArgLog {
+			argStr = argStr[:maxArgLog] + "..."
+		}
+		log.Printf("[mcp-tool] --> %s  args=%s", name, argStr)
+
+		start := time.Now()
+		result, err := fn(ctx, req)
+		elapsed := time.Since(start).Round(time.Millisecond)
+
+		if err != nil {
+			log.Printf("[mcp-tool] <-- %s  ERROR  duration=%s  err=%v", name, elapsed, err)
+		} else if result != nil && result.IsError {
+			// Tool returned an error result (not a Go error).
+			log.Printf("[mcp-tool] <-- %s  TOOL_ERROR  duration=%s", name, elapsed)
+		} else {
+			log.Printf("[mcp-tool] <-- %s  OK  duration=%s", name, elapsed)
+		}
+		return result, err
+	}
+}
 
 // categoryMeta holds rich metadata for each attack category — used to enrich
 // tool responses so AI agents understand the domain context.
@@ -266,7 +301,7 @@ Returns: total count, per-category breakdown, severity distribution, 5 sample pa
 				Title:          "List Attack Payloads",
 			},
 		},
-		s.handleListPayloads,
+		loggedTool("list_payloads", s.handleListPayloads),
 	)
 }
 
@@ -561,7 +596,7 @@ TYPICAL WORKFLOW: detect_waf → discover → learn → scan → bypass`,
 				Title:          "Detect WAF/CDN",
 			},
 		},
-		s.handleDetectWAF,
+		loggedTool("detect_waf", s.handleDetectWAF),
 	)
 }
 
@@ -774,7 +809,7 @@ TYPICAL WORKFLOW: detect_waf → discover → learn → scan`,
 				Title:          "Discover Attack Surface",
 			},
 		},
-		s.handleDiscover,
+		loggedTool("discover", s.handleDiscover),
 	)
 }
 
@@ -996,7 +1031,7 @@ TYPICAL WORKFLOW: detect_waf → discover → learn → scan`,
 				Title:          "Generate Test Plan",
 			},
 		},
-		s.handleLearn,
+		loggedTool("learn", s.handleLearn),
 	)
 }
 
@@ -1200,7 +1235,7 @@ ASYNC TOOL: This tool returns a task_id immediately and runs in the background. 
 				Title:           "WAF Security Scan",
 			},
 		},
-		s.handleScan,
+		loggedTool("scan", s.handleScan),
 	)
 }
 
@@ -1558,7 +1593,7 @@ ASYNC TOOL: This tool returns a task_id immediately and runs in the background (
 				Title:           "Enterprise WAF Assessment",
 			},
 		},
-		s.handleAssess,
+		loggedTool("assess", s.handleAssess),
 	)
 }
 
@@ -1764,7 +1799,7 @@ Returns: list of {encoder, encoded_payload} pairs ready for copy-paste testing.`
 				Title:          "Mutate Payloads",
 			},
 		},
-		s.handleMutate,
+		loggedTool("mutate", s.handleMutate),
 	)
 }
 
@@ -1985,7 +2020,7 @@ ASYNC TOOL: This tool returns a task_id immediately and runs in the background (
 				Title:           "WAF Bypass Finder",
 			},
 		},
-		s.handleBypass,
+		loggedTool("bypass", s.handleBypass),
 	)
 }
 
@@ -2172,7 +2207,7 @@ Returns: HTTP status, server header, TLS version + cipher suite, security header
 				Title:          "Probe Infrastructure",
 			},
 		},
-		s.handleProbe,
+		loggedTool("probe", s.handleProbe),
 	)
 }
 
@@ -2504,7 +2539,7 @@ Returns: complete pipeline YAML/Groovy, ready to paste into your repo and commit
 				Title:          "Generate CI/CD Pipeline",
 			},
 		},
-		s.handleGenerateCICD,
+		loggedTool("generate_cicd", s.handleGenerateCICD),
 	)
 }
 
