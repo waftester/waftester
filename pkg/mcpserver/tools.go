@@ -1400,19 +1400,18 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		})
 
 		execResults := executor.Execute(taskCtx, filtered, &discardWriter{})
-
-		// Check if cancelled.
-		if taskCtx.Err() != nil {
-			task.Fail("scan cancelled")
-			return
-		}
+		defer executor.Close()
 
 		// Calculate detection rate
 		detectionRate := ""
 		tested := execResults.BlockedTests + execResults.FailedTests
 		if tested > 0 {
 			rate := float64(execResults.BlockedTests) / float64(tested) * 100
-			detectionRate = fmt.Sprintf("%.1f%%", rate)
+			if execResults.HostsSkipped > 0 {
+				detectionRate = fmt.Sprintf("%.1f%% (%d skipped)", rate, execResults.HostsSkipped)
+			} else {
+				detectionRate = fmt.Sprintf("%.1f%%", rate)
+			}
 		}
 
 		summary := &scanResultSummary{
@@ -1422,6 +1421,7 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		}
 
 		// Build interpretation based on detection rate
+		cancelled := taskCtx.Err() != nil
 		if tested > 0 {
 			rate := float64(execResults.BlockedTests) / float64(tested) * 100
 			switch {
@@ -1435,6 +1435,9 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 				summary.Interpretation = fmt.Sprintf("Weak WAF coverage (%.1f%%). %d of %d payloads bypassed detection. The WAF needs major rule updates or reconfiguration.", rate, execResults.FailedTests, tested)
 			default:
 				summary.Interpretation = fmt.Sprintf("Critical: WAF is largely ineffective (%.1f%% detection). %d of %d payloads bypassed. Consider the WAF misconfigured or disabled for this endpoint.", rate, execResults.FailedTests, tested)
+			}
+			if cancelled {
+				summary.Interpretation = "PARTIAL RESULTS (scan was cancelled): " + summary.Interpretation
 			}
 		} else if execResults.HostsSkipped > 0 {
 			// No real tests ran — everything was skipped
