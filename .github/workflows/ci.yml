@@ -38,6 +38,27 @@ jobs:
       - name: Build
         run: go build -v ./...
 
+      - name: Vet
+        run: go vet ./...
+
+      - name: Dockerfile vs .dockerignore consistency
+        run: |
+          # Extract COPY source paths from Dockerfile (exclude --from= copies)
+          COPY_PATHS=$(grep -E '^\s*COPY\s' Dockerfile | grep -v -- '--from=' | sed -E 's/^\s*COPY\s+//' | awk '{print $1}' | sed 's|/$||')
+          ERRORS=0
+          for path in $COPY_PATHS; do
+            # Check if path is ignored by .dockerignore (exact match or with trailing slash)
+            if grep -qE "^${path}/?$" .dockerignore 2>/dev/null; then
+              echo "::error::Dockerfile COPY source '${path}' is excluded by .dockerignore"
+              ERRORS=$((ERRORS + 1))
+            fi
+          done
+          if [ $ERRORS -gt 0 ]; then
+            echo "::error::${ERRORS} Dockerfile COPY source(s) excluded by .dockerignore — Docker build will fail"
+            exit 1
+          fi
+          echo "✓ All Dockerfile COPY sources are available in build context"
+
       - name: Test (with race detection)
         run: go test -race -coverprofile=coverage.txt -timeout 10m ./...
 
