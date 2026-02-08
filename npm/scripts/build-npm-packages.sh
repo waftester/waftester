@@ -34,17 +34,17 @@ NPM_DIR="${REPO_ROOT}/npm"
 # ============================================================================
 # Platform mapping: npm-name → GoReleaser archive info
 # ============================================================================
-# Format: NPM_NAME|OS|CPU|PLATFORM_LABEL|ARCHIVE_NAME|BINARY_NAME|NESTED_DIR
+# Format: NPM_NAME|OS|CPU|PLATFORM_LABEL|ARCHIVE_NAME|BINARY_NAME
 #
-# NESTED_DIR is the directory inside the archive (GoReleaser wraps contents)
+# GoReleaser archives are flat (no wrapper directory) — binary is at root.
 
 PLATFORMS=(
-  "darwin-x64|darwin|x64|macOS x64|waftester_Darwin_x86_64.tar.gz|waf-tester|waftester_Darwin_x86_64"
-  "darwin-arm64|darwin|arm64|macOS arm64|waftester_Darwin_arm64.tar.gz|waf-tester|waftester_Darwin_arm64"
-  "linux-x64|linux|x64|Linux x64|waftester_Linux_x86_64.tar.gz|waf-tester|waftester_Linux_x86_64"
-  "linux-arm64|linux|arm64|Linux arm64|waftester_Linux_arm64.tar.gz|waf-tester|waftester_Linux_arm64"
-  "win32-x64|win32|x64|Windows x64|waftester_Windows_x86_64.zip|waf-tester.exe|waftester_Windows_x86_64"
-  "win32-arm64|win32|arm64|Windows arm64|waftester_Windows_arm64.zip|waf-tester.exe|waftester_Windows_arm64"
+  "darwin-x64|darwin|x64|macOS x64|waftester_Darwin_x86_64.tar.gz|waf-tester"
+  "darwin-arm64|darwin|arm64|macOS arm64|waftester_Darwin_arm64.tar.gz|waf-tester"
+  "linux-x64|linux|x64|Linux x64|waftester_Linux_x86_64.tar.gz|waf-tester"
+  "linux-arm64|linux|arm64|Linux arm64|waftester_Linux_arm64.tar.gz|waf-tester"
+  "win32-x64|win32|x64|Windows x64|waftester_Windows_x86_64.zip|waf-tester.exe"
+  "win32-arm64|win32|arm64|Windows arm64|waftester_Windows_arm64.zip|waf-tester.exe"
 )
 
 # ============================================================================
@@ -99,7 +99,7 @@ mkdir -p "${OUTPUT_DIR}"
 # ============================================================================
 
 for entry in "${PLATFORMS[@]}"; do
-  IFS='|' read -r npm_name os cpu label archive binary nested_dir <<< "${entry}"
+  IFS='|' read -r npm_name os cpu label archive binary <<< "${entry}"
   pkg_name="@waftester/${npm_name}"
   pkg_dir="${OUTPUT_DIR}/@waftester/${npm_name}"
   archive_path="${ARCHIVES_DIR}/${archive}"
@@ -112,13 +112,12 @@ for entry in "${PLATFORMS[@]}"; do
 
   mkdir -p "${pkg_dir}/bin"
 
-  # Extract binary from nested directory (GoReleaser wraps in directory)
+  # Extract binary from archive (GoReleaser archives are flat — binary at root)
   if [[ "${archive}" == *.zip ]]; then
-    unzip -j -o "${archive_path}" "${nested_dir}/${binary}" -d "${pkg_dir}/bin/" \
+    unzip -j -o "${archive_path}" "${binary}" -d "${pkg_dir}/bin/" \
       || err "Failed to extract ${binary} from ${archive}"
   else
-    tar xzf "${archive_path}" -C "${pkg_dir}/bin/" \
-      --strip-components=1 "${nested_dir}/${binary}" \
+    tar xzf "${archive_path}" -C "${pkg_dir}/bin/" "${binary}" \
       || err "Failed to extract ${binary} from ${archive}"
   fi
 
