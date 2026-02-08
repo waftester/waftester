@@ -43,10 +43,10 @@ func (s *Server) addVersionResource() {
 				"name":    defaults.ToolNameDisplay,
 				"version": defaults.Version,
 				"capabilities": map[string]any{
-					"tools":     10,
+					"tools":     13,
 					"resources": 10,
 					"prompts":   6,
-					"templates": 41,
+					"templates": 40,
 				},
 				"template_categories": []string{
 					"nuclei/bypass", "nuclei/detection", "workflows", "policies", "overrides", "output", "report-configs",
@@ -54,6 +54,7 @@ func (s *Server) addVersionResource() {
 				"tools": []string{
 					"list_payloads", "detect_waf", "discover", "learn", "scan",
 					"assess", "mutate", "bypass", "probe", "generate_cicd",
+					"get_task_status", "cancel_task", "list_tasks",
 				},
 				"supported_waf_vendors": []string{
 					"ModSecurity", "Coraza", "Cloudflare", "AWS WAF", "Azure WAF",
@@ -731,12 +732,12 @@ func (s *Server) addTemplatesResource() {
 		&mcp.Resource{
 			URI:         "waftester://templates",
 			Name:        "Template Library",
-			Description: "Complete catalog of bundled templates: Nuclei bypass/detection, workflows, policies, overrides, output, and report configs (41 templates).",
+			Description: "Complete catalog of bundled templates: Nuclei bypass/detection, workflows, policies, overrides, output, and report configs (40 templates).",
 			MIMEType:    "application/json",
 		},
 		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 			catalog := map[string]any{
-				"total_templates": 41,
+				"total_templates": 40,
 				"template_categories": map[string]any{
 					"nuclei_bypass": map[string]any{
 						"path":  "templates/nuclei/http/waf-bypass/",
