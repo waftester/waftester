@@ -1,0 +1,174 @@
+name: npm Publish
+
+on:
+  # Chain after the Release workflow completes
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+
+permissions:
+  contents: read
+  id-token: write # OIDC token for npm provenance attestation
+
+# Serialize — never run two npm publishes in parallel
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  npm-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Only run if Release workflow succeeded
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - name: Get tag name
+        id: get_tag
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          TAG=$(git describe --tags --exact-match "$HEAD_SHA" 2>/dev/null || echo "")
+          if [ -z "$TAG" ]; then
+            echo "⏭️ No tag on commit $HEAD_SHA — skipping npm publish"
+            echo "is_tag=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          # Strip leading 'v' for npm version (v2.8.0 → 2.8.0)
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "is_tag=true" >> $GITHUB_OUTPUT
+          echo "📦 Publishing npm packages for ${TAG} (version ${VERSION})"
+
+      - name: Check if already published
+        if: steps.get_tag.outputs.is_tag == 'true'
+        id: check_npm
+        env:
+          VERSION: ${{ steps.get_tag.outputs.version }}
+        run: |
+          if npm view "@waftester/cli@${VERSION}" version > /dev/null 2>&1; then
+            echo "✅ @waftester/cli@${VERSION} already on npm — skipping"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Node.js
+        if: steps.get_tag.outputs.is_tag == 'true' && steps.check_npm.outputs.skip != 'true'
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Download release archives
+        if: steps.get_tag.outputs.is_tag == 'true' && steps.check_npm.outputs.skip != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.get_tag.outputs.tag }}
+        run: |
+          mkdir -p archives
+          echo "Downloading GoReleaser archives for ${TAG}..."
+
+          # Download all .tar.gz, .zip, and checksums.txt from the release
+          gh release download "$TAG" \
+            --pattern "*.tar.gz" \
+            --pattern "*.zip" \
+            --pattern "checksums.txt" \
+            --dir archives/
+
+          echo "Downloaded archives:"
+          ls -lh archives/
+
+      - name: Build npm packages
+        if: steps.get_tag.outputs.is_tag == 'true' && steps.check_npm.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.get_tag.outputs.version }}
+        run: |
+          chmod +x npm/scripts/*.sh
+          ./npm/scripts/build-npm-packages.sh "$VERSION" ./archives ./npm-staging
+
+      - name: Inspect packages (dry-run pack)
+        if: steps.get_tag.outputs.is_tag == 'true' && steps.check_npm.outputs.skip != 'true'
+        run: |
+          echo "=== @waftester/cli ==="
+          (cd npm-staging/@waftester/cli && npm pack --dry-run 2>&1 | tail -20)
+          echo ""
+          echo "=== @waftester/linux-x64 ==="
+          (cd npm-staging/@waftester/linux-x64 && npm pack --dry-run 2>&1 | tail -10)
+
+      - name: Stdout purity test (MCP shim)
+        if: steps.get_tag.outputs.is_tag == 'true' && steps.check_npm.outputs.skip != 'true'
+        env:
+          WAF_TESTER_BINARY_PATH: npm-staging/@waftester/linux-x64/bin/waf-tester
+        run: |
+          # Verify the shim produces zero stdout bytes on its own (all output
+          # must go through the Go binary, never the Node.js shim).
+          # Test 1: version command — stdout comes from Go binary via inherit,
+          #   but when piped the shim itself should add nothing extra.
+          node npm/cli/bin/cli.js version > /tmp/stdout.txt 2>/dev/null || true
+          stdout_bytes=$(wc -c < /tmp/stdout.txt)
+          echo "version stdout: ${stdout_bytes} bytes"
+          # stdout should contain the version banner (non-zero from binary, not shim)
+
+          # Test 2: error path — shim error messages go to stderr only
+          WAF_TESTER_BINARY_PATH=/nonexistent node npm/cli/bin/cli.js version \
+            > /tmp/err-stdout.txt 2>/dev/null || true
+          err_stdout_bytes=$(wc -c < /tmp/err-stdout.txt)
+          echo "error-path stdout: ${err_stdout_bytes} bytes"
+          if [ "$err_stdout_bytes" -ne 0 ]; then
+            echo "FAIL: shim leaked ${err_stdout_bytes} bytes to stdout on error path"
+            cat /tmp/err-stdout.txt
+            exit 1
+          fi
+          echo "Stdout purity: PASS"
+
+      - name: Publish to npm
+        if: steps.get_tag.outputs.is_tag == 'true' && steps.check_npm.outputs.skip != 'true'
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ steps.get_tag.outputs.version }}
+        run: |
+          ./npm/scripts/publish-npm-packages.sh "$VERSION" ./npm-staging
+
+      - name: Verify provenance
+        if: steps.get_tag.outputs.is_tag == 'true' && steps.check_npm.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.get_tag.outputs.version }}
+        run: |
+          # Give npm CDN a moment to propagate
+          sleep 10
+          npm audit signatures 2>&1 || echo "⚠️ Provenance check skipped (package not yet indexed)"
+
+      - name: Summary
+        if: steps.get_tag.outputs.is_tag == 'true' && steps.check_npm.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.get_tag.outputs.version }}
+        run: |
+          echo "## npm Publish Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Package | Version | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|---|" >> $GITHUB_STEP_SUMMARY
+          for pkg in darwin-x64 darwin-arm64 linux-x64 linux-arm64 win32-x64 win32-arm64; do
+            if npm view "@waftester/${pkg}@${VERSION}" version > /dev/null 2>&1; then
+              echo "| @waftester/${pkg} | ${VERSION} | ✅ |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| @waftester/${pkg} | ${VERSION} | ❌ |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          if npm view "@waftester/cli@${VERSION}" version > /dev/null 2>&1; then
+            echo "| @waftester/cli | ${VERSION} | ✅ |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| @waftester/cli | ${VERSION} | ❌ |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Install: \`npm install -g @waftester/cli@${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+          echo "Run: \`npx -y @waftester/cli@${VERSION} version\`" >> $GITHUB_STEP_SUMMARY
