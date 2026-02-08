@@ -29,6 +29,7 @@ import (
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
 	"github.com/waftester/waftester/pkg/graphql"
+	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/hostheader"
 	"github.com/waftester/waftester/pkg/hpp"
 	"github.com/waftester/waftester/pkg/httpclient"
@@ -727,11 +728,19 @@ func runScan() {
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
-			// Check if host is blocked due to drops/bans before running
+			// Check if host is blocked due to drops/bans or connectivity failures
 			if skip, reason := detection.Default().ShouldSkipHost(targetHost); skip {
 				emitEvent("scanner_skipped", map[string]interface{}{
 					"scanner": name,
 					"reason":  reason,
+				})
+				progress.Increment()
+				return
+			}
+			if hosterrors.Check(target) {
+				emitEvent("scanner_skipped", map[string]interface{}{
+					"scanner": name,
+					"reason":  "host error threshold exceeded",
 				})
 				progress.Increment()
 				return
