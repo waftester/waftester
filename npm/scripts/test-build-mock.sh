@@ -4,7 +4,7 @@
 # Usage:
 #   bash npm/scripts/test-build-mock.sh
 #
-# Creates fake archives mimicking GoReleaser's layout (nested directory),
+# Creates fake archives mimicking GoReleaser's flat layout (binary at root),
 # runs build-npm-packages.sh, and validates the output structure.
 
 set -euo pipefail
@@ -34,7 +34,7 @@ log "Creating mock GoReleaser archives..."
 rm -rf "${MOCK_DIR}"
 mkdir -p "${ARCHIVES_DIR}"
 
-# GoReleaser wraps files in a directory: waftester_Os_Arch/waf-tester
+# GoReleaser produces flat archives — binary and files at root, no wrapper directory
 PLATFORMS=(
   "waftester_Darwin_x86_64|tar.gz|waf-tester"
   "waftester_Darwin_arm64|tar.gz|waf-tester"
@@ -66,13 +66,13 @@ MOCKEOF
   echo "Mock LICENSE" > "${tmpdir}/LICENSE"
   echo "Mock LICENSE-COMMUNITY" > "${tmpdir}/LICENSE-COMMUNITY"
 
-  # Create the archive
+  # Create the archive (flat — files at root, matching GoReleaser)
   archive_name="${dirname}"
   if [[ "${fmt}" == "tar.gz" ]]; then
-    (cd "${MOCK_DIR}/tmp" && tar czf "${ARCHIVES_DIR}/${archive_name}.tar.gz" "${dirname}/")
+    (cd "${tmpdir}" && tar czf "${ARCHIVES_DIR}/${archive_name}.tar.gz" *)
   else
     # Use PowerShell's Compress-Archive since zip may not be in Git Bash
-    win_src="$(cygpath -w "${MOCK_DIR}/tmp/${dirname}")"
+    win_src="$(cygpath -w "${tmpdir}")\\*"
     win_dst="$(cygpath -w "${ARCHIVES_DIR}/${archive_name}.zip")"
     powershell.exe -NoProfile -Command "Compress-Archive -Path '${win_src}' -DestinationPath '${win_dst}' -Force" \
       || err "Failed to create zip: ${archive_name}.zip"
