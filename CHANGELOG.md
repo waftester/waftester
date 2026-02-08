@@ -5,6 +5,41 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.8] - 2026-02-09
+
+### Fixed
+
+#### Silent Scan Death Spiral (4-Bug Chain)
+
+Production scans were returning `Blocked: 0, Bypassed: 0, Errors: 12` with 3340/3352 payloads silently vanishing. Root cause: a chain of 4 interacting bugs that created a "death spiral" — once a host started failing, errors cascaded faster than they could be reported.
+
+- **Bug A — Stale global state across MCP scans**: `hosterrors` and `detection` singletons were never cleared between MCP scan invocations. A host marked as failing in scan 1 would be pre-poisoned for scan 2, causing immediate skip of all payloads. Fixed by adding `hosterrors.Clear()` + `detection.Default().Clear()` at the start of all 4 MCP async handlers (`scan`, `assess`, `bypass`, `discover`).
+
+- **Bug B — Rate limiter before skip check**: Skipped payloads were waiting for a rate-limit token before being discarded. With 3340 skipped payloads × 20ms rate limit = 66 seconds wasted on payloads that would never be sent. Fixed by moving `hosterrors.Check()` and `ShouldSkipHost()` before `limiter.Wait()` in both `Execute()` and `ExecuteWithProgress()`.
+
+- **Bug C — No death spiral detection**: When a host went down, all remaining payloads would be individually checked, skipped, and rate-limited — no early abort. Fixed by adding death spiral detection: after 50 completions, if >80% are skipped, the scan context is cancelled and remaining payloads are abandoned.
+
+- **Bug D — Skipped payloads invisible in results**: The `Skipped` outcome was never tracked or reported. Users and AI agents saw `Blocked: 0, Bypassed: 0, Errors: 12` with no indication that 3340 payloads were silently dropped. Fixed by adding `HostsSkipped` counter to both execution paths, progress callbacks, summary output, and interpretation text.
+
+#### CLI Audit Fixes
+
+- **False bypass alerts for skipped payloads**: `OnResult` callback in CLI `test` command was emitting skipped payloads as bypass events to Slack, Teams, PagerDuty, OTEL, and Prometheus. Fixed by filtering `Outcome != "Skipped"`.
+- **Multi-target aggregation missing `HostsSkipped`**: When running `test` against multiple targets, skipped count was not aggregated in the combined summary.
+- **`ui.PrintSummary` box missing skipped row**: The pretty summary box showed Total/Blocked/Pass/Fail/Errors but not Skipped. Added `[>>] N` row when skipped > 0.
+- **`output.PrintSummary` missing skipped line**: The WAF Security Test Summary printed Total/Blocked/Pass/Fail/Errors without Skipped, causing the math to not balance. Added `⏭ Skipped: N (host unreachable)` line.
+- **`scan` command missing `hosterrors` check**: The `runScanner` helper checked `detection.ShouldSkipHost()` but not `hosterrors.Check()`, allowing scanners to run against hosts known to be failing from previous scanners.
+
+### Added
+
+- `buildSkippedResult()` helper on `Executor` — creates proper `TestResult` with `Outcome: "Skipped"`, zero risk score, and descriptive error message
+- Death spiral detection in both `Execute()` and `ExecuteWithProgress()` — aborts scan when >80% of first 50 completions are skipped
+- `HostsSkipped` field now populated in `ExecuteWithProgress()` (was defined but never set)
+- Skipped-aware interpretation and next-steps in MCP `scan` tool response
+
+### Changed
+
+- `TestRateLimiting` threshold relaxed from 2.0s to 1.8s to prevent flaky CI failures from timing jitter
+
 ## [2.7.7] - 2026-02-08
 
 ### Added

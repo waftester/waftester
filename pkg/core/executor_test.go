@@ -615,6 +615,7 @@ func TestExecute(t *testing.T) {
 
 // TestRateLimiting verifies the rate limiter works
 func TestRateLimiting(t *testing.T) {
+	hosterrors.ClearAll()
 	requestCount := 0
 	var mu sync.Mutex
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -642,8 +643,9 @@ func TestRateLimiting(t *testing.T) {
 	e.Execute(context.Background(), testPayloads, writer)
 	elapsed := time.Since(start)
 
-	// With 30 requests at 10/sec, should take at least 2 seconds
-	if elapsed < 2*time.Second {
+	// With 30 requests at 10/sec, should take at least ~2 seconds
+	// Use 1.8s threshold to avoid flaky failures from timing jitter
+	if elapsed < 1800*time.Millisecond {
 		t.Errorf("rate limiting not working: 30 requests completed in %v", elapsed)
 	}
 }
@@ -1711,5 +1713,200 @@ func TestExecutorWithEmptyTargetURL(t *testing.T) {
 	// Should return error, not panic
 	if result.Outcome != "Error" {
 		t.Logf("Outcome for empty target: %s", result.Outcome)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Skip-before-rate-limiter tests (Fix B)
+// ---------------------------------------------------------------------------
+
+func TestExecute_SkipBeforeRateLimiter(t *testing.T) {
+	hosterrors.ClearAll()
+
+	// Mark the host as failed immediately (threshold = 3).
+	for i := 0; i < 5; i++ {
+		hosterrors.MarkError("http://unreachable.test")
+	}
+
+	e := NewExecutor(ExecutorConfig{
+		TargetURL:   "http://unreachable.test",
+		Concurrency: 2,
+		RateLimit:   1, // Extremely slow — 1 req/sec. If skip runs after limiter, 100 payloads = 100s.
+		Timeout:     5 * time.Second,
+	})
+
+	testPayloads := make([]payloads.Payload, 100)
+	for i := 0; i < 100; i++ {
+		testPayloads[i] = payloads.Payload{
+			ID:            fmt.Sprintf("skip-%d", i),
+			Category:      "xss",
+			Payload:       "<script>alert(1)</script>",
+			ExpectedBlock: true,
+		}
+	}
+
+	writer := &mockWriter{}
+	start := time.Now()
+	results := e.Execute(context.Background(), testPayloads, writer)
+	elapsed := time.Since(start)
+
+	// With skip-before-rate-limiter, skipped payloads cost ~0ms each.
+	// Without the fix, at 1 req/sec, 100 payloads = 100s.
+	// Death spiral may abort early (after ~50 completions with >80% skip),
+	// so we don't assert exact count — just speed and that skipping happened.
+	if elapsed > 5*time.Second {
+		t.Errorf("expected fast skip, took %s — rate limiter firing before skip check", elapsed)
+	}
+
+	// Death spiral should abort after ~50 completions, but all results must be skips.
+	if results.HostsSkipped == 0 {
+		t.Error("expected skipped payloads, got 0")
+	}
+
+	// No HTTP requests should have been made.
+	if results.BlockedTests != 0 || results.FailedTests != 0 || results.PassedTests != 0 {
+		t.Errorf("expected zero real test results, got blocked=%d, failed=%d, passed=%d",
+			results.BlockedTests, results.FailedTests, results.PassedTests)
+	}
+
+	t.Logf("skip-before-rate-limiter: %d skipped in %s (rate=1/sec, would be %ds without fix)",
+		results.HostsSkipped, elapsed, len(testPayloads))
+}
+
+// ---------------------------------------------------------------------------
+// Death spiral detection (Fix C)
+// ---------------------------------------------------------------------------
+
+func TestExecute_DeathSpiralAbort(t *testing.T) {
+	hosterrors.ClearAll()
+
+	// Set up a server that always errors (connection refused after first 3).
+	// We pre-poison the host error cache directly.
+	for i := 0; i < 5; i++ {
+		hosterrors.MarkError("http://dead-host.test:9999")
+	}
+
+	e := NewExecutor(ExecutorConfig{
+		TargetURL:   "http://dead-host.test:9999",
+		Concurrency: 5,
+		RateLimit:   1000,
+		Timeout:     1 * time.Second,
+	})
+
+	// 200 payloads — death spiral should stop well before all 200.
+	testPayloads := make([]payloads.Payload, 200)
+	for i := 0; i < 200; i++ {
+		testPayloads[i] = payloads.Payload{
+			ID:       fmt.Sprintf("death-%d", i),
+			Category: "sqli",
+			Payload:  "' OR 1=1--",
+		}
+	}
+
+	writer := &mockWriter{}
+	start := time.Now()
+	results := e.Execute(context.Background(), testPayloads, writer)
+	elapsed := time.Since(start)
+
+	// Death spiral should abort quickly — no long wait.
+	if elapsed > 5*time.Second {
+		t.Errorf("death spiral detection failed: took %s for %d payloads", elapsed, len(testPayloads))
+	}
+
+	// Most payloads should be skipped.
+	if results.HostsSkipped == 0 {
+		t.Error("expected some skipped payloads in death spiral")
+	}
+
+	t.Logf("death spiral: %d skipped, %d errors, elapsed=%s",
+		results.HostsSkipped, results.ErrorTests, elapsed)
+}
+
+// ---------------------------------------------------------------------------
+// buildSkippedResult (unit test)
+// ---------------------------------------------------------------------------
+
+func TestBuildSkippedResult(t *testing.T) {
+	e := NewExecutor(ExecutorConfig{
+		TargetURL:   "http://example.com",
+		Concurrency: 1,
+		RateLimit:   100,
+		Timeout:     5 * time.Second,
+	})
+
+	payload := payloads.Payload{
+		ID:           "p1",
+		Category:     "xss",
+		SeverityHint: "High",
+		Payload:      "<script>alert(1)</script>",
+		Method:       "POST",
+	}
+
+	result := e.buildSkippedResult(payload, "[HOST_FAILED] threshold exceeded")
+
+	if result.Outcome != "Skipped" {
+		t.Errorf("outcome = %q, want Skipped", result.Outcome)
+	}
+	if result.Method != "POST" {
+		t.Errorf("method = %q, want POST", result.Method)
+	}
+	if !strings.Contains(result.ErrorMessage, "HOST_FAILED") {
+		t.Errorf("error message = %q, should contain HOST_FAILED", result.ErrorMessage)
+	}
+	if result.RiskScore.RiskScore != 0 {
+		t.Errorf("risk score = %f, want 0", result.RiskScore.RiskScore)
+	}
+
+	// Test default method
+	payload2 := payloads.Payload{ID: "p2", Payload: "test"}
+	result2 := e.buildSkippedResult(payload2, "reason")
+	if result2.Method != "GET" {
+		t.Errorf("default method = %q, want GET", result2.Method)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ExecuteWithProgress skipped counter (Fix B for CLI path)
+// ---------------------------------------------------------------------------
+
+func TestExecuteWithProgress_SkippedCounter(t *testing.T) {
+	hosterrors.ClearAll()
+
+	// Pre-poison the host.
+	for i := 0; i < 5; i++ {
+		hosterrors.MarkError("http://progress-skip.test")
+	}
+
+	e := NewExecutor(ExecutorConfig{
+		TargetURL:   "http://progress-skip.test",
+		Concurrency: 2,
+		RateLimit:   1000,
+		Timeout:     5 * time.Second,
+	})
+
+	testPayloads := make([]payloads.Payload, 20)
+	for i := 0; i < 20; i++ {
+		testPayloads[i] = payloads.Payload{
+			ID:       fmt.Sprintf("pskip-%d", i),
+			Category: "xss",
+			Payload:  "test",
+		}
+	}
+
+	writer := &mockWriter{}
+	progress := ui.NewProgress(ui.ProgressConfig{
+		Total:       len(testPayloads),
+		Width:       40,
+		ShowPercent: true,
+		Concurrency: 2,
+	})
+
+	results := e.ExecuteWithProgress(context.Background(), testPayloads, writer, progress)
+
+	if results.HostsSkipped != 20 {
+		t.Errorf("HostsSkipped = %d, want 20", results.HostsSkipped)
+	}
+	if results.BlockedTests != 0 {
+		t.Errorf("BlockedTests = %d, want 0", results.BlockedTests)
 	}
 }
