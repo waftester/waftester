@@ -5,6 +5,39 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.1] - 2026-02-09
+
+### Fixed
+
+#### Master Audit — 14 Bug Fixes
+
+Comprehensive audit identified and fixed 14 bugs across CLI, MCP server, core executor, detection, and output subsystems.
+
+**Critical & High Priority:**
+- **Rate limiting not wired** (CRIT-1): `scanLimiter` was created but never called in `runScanner()`. Now uses `golang.org/x/time/rate` with `scanLimiter.Wait(ctx)` before every request.
+- **maxErrors death-spiral** (CRIT-2): `maxErrors` flag was declared but never enforced. Now calls `cancel()` when error count exceeds threshold.
+- **Nil dispatcher panics** (HIGH-2): 5 `dispCtx.EmitError()` / `runDispCtx.EmitError()` calls could panic when dispatcher is nil. All guarded with nil checks.
+- **Raw HTTP transport** (HIGH-4): `cmd_scan.go` built a manual `&http.Transport{}` instead of using `httpclient.New()` factory. Missed DNS cache, HTTP/2, sockopt, and detection wrapper. Replaced with `httpclient.FuzzingConfig()` + `httpclient.New()`.
+- **Detection singleton cross-contamination** (HIGH-6): All executors shared `detection.Default()` singleton. Concurrent MCP scans to the same host corrupted each other's drop/ban state. Each executor now creates `detection.New()` and wires it into its transport wrapper.
+- **No signal handler** (HIGH-7): Ctrl+C during CLI scan leaked goroutines and connections. Added SIGINT/SIGTERM handler that calls `cancel()` for graceful shutdown.
+- **Scan cancellation discards results** (HIGH-1): MCP `task.Fail("scan cancelled")` threw away all partial results. Now returns whatever was collected with "PARTIAL RESULTS" annotation.
+
+**Medium Priority:**
+- **Timeout flag misleading** (MED-2): `-timeout 30` means 30s per-request but 30-minute scan deadline. Clarified flag description and changed `*timeout*60*time.Second` to `time.Minute`.
+- **Mutation explosion** (MED-3): Bypass tool accepted unlimited payloads — 100 payloads × encoders could silently generate 15K+ requests. Added guard rejecting >50 payloads with helpful guidance.
+- **ReadOnlyHint wrong** (MED-4): `detect_waf`, `discover`, and `probe` tools marked `ReadOnlyHint: true` despite sending HTTP probes to targets. Fixed to `false` so MCP clients prompt user confirmation.
+- **Division by zero** (HIGH-3): `cmd_tests.go` divided by `Duration.Seconds()` for `RequestsPerSec` without checking for zero duration. Guarded with `secs > 0` check.
+
+**Resource Leaks:**
+- **Transport leak** (HIGH-5): `Executor` had no `Close()` method — idle HTTP connections accumulated. Added `Close()` with `CloseIdleConnections()` and `detector.ClearAll()`.
+- **File handle leak** (MED-5): `JSONWriter.Close()` and `SARIFWriter.Close()` leaked file handles when `json.Encode()` failed — early return skipped `file.Close()`. Fixed with deferred close.
+- **Detection state leak** (HIGH-6b): Removed `detection.Default().Clear()` from 4 MCP handlers — no longer needed with per-executor detector lifecycle.
+
+### Changed
+- `cmd/cli/cmd_scan.go`: Delay+jitter support wired into `runScanner()` with context cancellation check
+- `pkg/mcpserver/tools.go`: Detection rate now annotated with skipped count when hosts unreachable
+- Replaced misleading silence block at end of `cmd_scan.go` with explicit TODO(v2.9.0) comments
+
 ## [2.8.0] - 2026-02-08
 
 ### Added

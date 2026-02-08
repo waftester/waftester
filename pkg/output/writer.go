@@ -189,9 +189,17 @@ func (w *JSONWriter) Write(result *TestResult) error {
 	return nil
 }
 
-func (w *JSONWriter) Close() error {
+func (w *JSONWriter) Close() (retErr error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+
+	if w.file != os.Stdout {
+		defer func() {
+			if err := w.file.Close(); err != nil && retErr == nil {
+				retErr = err
+			}
+		}()
+	}
 
 	encoder := json.NewEncoder(w.file)
 	encoder.SetIndent("", "  ")
@@ -199,9 +207,6 @@ func (w *JSONWriter) Close() error {
 		return err
 	}
 
-	if w.file != os.Stdout {
-		return w.file.Close()
-	}
 	return nil
 }
 
@@ -427,9 +432,17 @@ func (w *SARIFWriter) Write(result *TestResult) error {
 	return nil
 }
 
-func (w *SARIFWriter) Close() error {
+func (w *SARIFWriter) Close() (retErr error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+
+	if w.file != os.Stdout {
+		defer func() {
+			if err := w.file.Close(); err != nil && retErr == nil {
+				retErr = err
+			}
+		}()
+	}
 
 	sarif := w.buildSARIF()
 	encoder := json.NewEncoder(w.file)
@@ -438,9 +451,6 @@ func (w *SARIFWriter) Close() error {
 		return err
 	}
 
-	if w.file != os.Stdout {
-		return w.file.Close()
-	}
 	return nil
 }
 
@@ -712,12 +722,16 @@ func (w *CSVWriter) Write(result *TestResult) error {
 	return w.writer.Error()
 }
 
-func (w *CSVWriter) Close() error {
-	w.writer.Flush()
+func (w *CSVWriter) Close() (retErr error) {
 	if w.file != os.Stdout {
-		return w.file.Close()
+		defer func() {
+			if err := w.file.Close(); err != nil && retErr == nil {
+				retErr = err
+			}
+		}()
 	}
-	return nil
+	w.writer.Flush()
+	return w.writer.Error()
 }
 
 // ============================================================================
@@ -742,9 +756,17 @@ func (w *MarkdownWriter) Write(result *TestResult) error {
 	return nil
 }
 
-func (w *MarkdownWriter) Close() error {
+func (w *MarkdownWriter) Close() (retErr error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+
+	if w.file != os.Stdout {
+		defer func() {
+			if err := w.file.Close(); err != nil && retErr == nil {
+				retErr = err
+			}
+		}()
+	}
 
 	// Build markdown content
 	var sb strings.Builder
@@ -831,9 +853,6 @@ func (w *MarkdownWriter) Close() error {
 		return err
 	}
 
-	if w.file != os.Stdout {
-		return w.file.Close()
-	}
 	return nil
 }
 
@@ -859,9 +878,17 @@ func (w *HTMLWriter) Write(result *TestResult) error {
 	return nil
 }
 
-func (w *HTMLWriter) Close() error {
+func (w *HTMLWriter) Close() (retErr error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+
+	if w.file != os.Stdout {
+		defer func() {
+			if err := w.file.Close(); err != nil && retErr == nil {
+				retErr = err
+			}
+		}()
+	}
 
 	// Calculate stats
 	var blocked, passed, failed, errored int
@@ -1006,8 +1033,5 @@ func (w *HTMLWriter) Close() error {
 		return err
 	}
 
-	if w.file != os.Stdout {
-		return w.file.Close()
-	}
 	return nil
 }

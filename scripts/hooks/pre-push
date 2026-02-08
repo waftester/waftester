@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # Pre-push hook: catch issues that would fail CI before pushing.
-# Runs go vet (catches printf directives, unreachable code, etc.)
-# and validates Dockerfile COPY sources vs .dockerignore.
+# Runs go vet, validates Dockerfile COPY sources vs .dockerignore,
+# checks version consistency, and blocks private plan files.
 
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 ERRORS=0
+
+# Capture stdin (pushed refs) — git provides this and it can only be read once
+PUSH_REFS=$(cat)
 
 # ============================================================================
 # GO VET — catch vet issues locally before CI discovers them
@@ -71,6 +74,56 @@ if ! go test -run TestVersionConsistency -count=1 ./pkg/defaults/ > /dev/null 2>
     ERRORS=$((ERRORS + 1))
 else
     echo "  ✓ All version references consistent"
+fi
+
+# ============================================================================
+# PRIVATE PLANS — never push docs/plans/ markdown files
+# ============================================================================
+echo "Checking for private plan files..."
+
+PLAN_FOUND=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+    # Skip empty lines or delete pushes
+    [ -z "$local_sha" ] && continue
+    if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+        continue
+    fi
+
+    # Determine files changed in the commits being pushed
+    if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+        # New branch — diff against merge-base with main
+        merge_base=$(git merge-base "$local_sha" origin/main 2>/dev/null || echo "")
+        if [ -z "$merge_base" ]; then
+            # No merge-base (orphan branch or no origin/main) — check all commits
+            PLAN_FILES=$(git log --diff-filter=ACMR --name-only --pretty=format: "$local_sha" 2>/dev/null | grep -E '^docs/plans/.*\.md$' | sort -u || true)
+        else
+            PLAN_FILES=$(git diff --name-only "${merge_base}..${local_sha}" 2>/dev/null | grep -E '^docs/plans/.*\.md$' || true)
+        fi
+    else
+        PLAN_FILES=$(git diff --name-only "${remote_sha}..${local_sha}" 2>/dev/null | grep -E '^docs/plans/.*\.md$' || true)
+    fi
+
+    if [ -n "$PLAN_FILES" ]; then
+        echo ""
+        echo "╔══════════════════════════════════════════════════════════════════╗"
+        echo "║  BLOCKED: Private plan files detected in push                  ║"
+        echo "╚══════════════════════════════════════════════════════════════════╝"
+        echo ""
+        echo "  The following plan files must not be pushed:"
+        echo "$PLAN_FILES" | sed 's/^/    ✗ /'
+        echo ""
+        echo "  These files are local-only (gitignored). If they appear in"
+        echo "  commits, remove them with: git rm --cached <file>"
+        echo ""
+        PLAN_FOUND=1
+        break
+    fi
+done < <(echo "$PUSH_REFS")
+
+if [ $PLAN_FOUND -eq 1 ]; then
+    ERRORS=$((ERRORS + 1))
+else
+    echo "  ✓ No private plan files in push"
 fi
 
 # ============================================================================
