@@ -5,6 +5,27 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.4] - 2026-02-08
+
+### Fixed
+
+#### MCP Async Task Reliability (n8n Integration)
+
+- **Stdio sync mode**: Long-running tools now execute synchronously when connected via stdio transport. Each stdio invocation is a separate process, so in-memory async task state was lost between calls — causing "task not found" errors. Stdio has no HTTP timeout, so synchronous execution is safe.
+- **Long-poll `wait_seconds`**: `get_task_status` now accepts `wait_seconds` (0–120, default 30) to block until the task completes or the timeout elapses. Reduces polling overhead from many rapid calls to 2–4 efficient long-polls per operation.
+- **Task completion signaling**: Tasks now use a `done` channel closed on terminal state transitions (`Complete`, `Fail`, `Cancel`), enabling efficient blocking in `WaitFor` instead of busy-polling.
+- **Stronger agent instructions**: Server instructions now explicitly forbid agents from returning "check back later" messages — agents must poll in a loop with `wait_seconds=30` until the task reaches a terminal state within the same execution context.
+- **Diagnostic logging**: Task lifecycle events (create, complete, fail, panic) are now logged with `[mcp]` prefix for production debugging of task state issues.
+
+### Tests
+
+- Added `TestWaitForCompletesImmediatelyWhenDone` — verifies WaitFor returns instantly for completed tasks.
+- Added `TestWaitForTimesOut` — verifies WaitFor respects timeout parameter.
+- Added `TestWaitForUnblocksOnCompletion` — verifies WaitFor unblocks when task completes during wait.
+- Added `TestWaitForUnblocksOnContextCancel` — verifies WaitFor respects context cancellation.
+- Added `TestSyncModeDefault` — verifies sync mode is off by default (HTTP/SSE transport).
+- Added `TestGetTaskStatusWaitSeconds` — end-to-end test of long-poll via MCP tool call.
+
 ## [2.7.3] - 2026-02-08
 
 ### Added
