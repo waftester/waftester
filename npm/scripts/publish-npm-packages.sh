@@ -97,7 +97,7 @@ publish_pkg() {
 # Wait for a package version to appear on the registry (npm CDN propagation)
 wait_for_pkg() {
   local pkg="$1" ver="$2"
-  local max_wait=120 interval=5 elapsed=0
+  local max_wait=300 interval=10 elapsed=0
 
   log "  Waiting for ${pkg}@${ver} on registry..."
   while (( elapsed < max_wait )); do
@@ -108,7 +108,8 @@ wait_for_pkg() {
     sleep "${interval}"
     elapsed=$((elapsed + interval))
   done
-  err "${pkg}@${ver} not found on registry after ${max_wait}s"
+  log "  WARNING: ${pkg}@${ver} not found on registry after ${max_wait}s (CDN propagation may be slow)"
+  return 1
 }
 
 # ============================================================================
@@ -165,10 +166,16 @@ log "Platform packages: ${published} published, ${skipped} skipped"
 
 if [[ "${DRY_RUN}" != "--dry-run" ]]; then
   log "Waiting for platform packages on registry..."
+  wait_failures=0
   for pkg in "${PLATFORM_PACKAGES[@]}"; do
-    wait_for_pkg "${pkg}" "${VERSION}"
+    wait_for_pkg "${pkg}" "${VERSION}" || wait_failures=$((wait_failures + 1))
   done
-  log "All 6 platform packages available on registry ✓"
+  if (( wait_failures > 0 )); then
+    log "WARNING: ${wait_failures} package(s) not yet visible — CDN propagation can be slow for new packages"
+    log "Proceeding with main package publish (platform packages were published successfully)"
+  else
+    log "All 6 platform packages available on registry ✓"
+  fi
 fi
 
 # ============================================================================
