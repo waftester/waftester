@@ -1,0 +1,80 @@
+# WAFtester Quick Probe Workflow
+# Fast target enumeration and WAF detection with minimal footprint
+#
+# Usage:
+#   waf-tester workflow run templates/workflows/quick-probe.yaml --input target=https://example.com
+
+name: quick-probe
+description: "Quick WAF detection, fingerprinting, and critical-only vulnerability probe"
+version: "2.0.0"
+tags:
+  - probe
+  - quick
+  - assessment
+  - recon
+
+inputs:
+  - name: target
+    description: Target URL to probe
+    required: true
+  - name: output_dir
+    description: Output directory
+    default: "./results"
+  - name: rate_limit
+    description: Requests per second limit (low for stealth)
+    default: "5"
+
+steps:
+  - id: detect
+    name: Detect WAF presence
+    command: wafdetect
+    args:
+      - "-u"
+      - "{{.target}}"
+      - "-o"
+      - "{{.output_dir}}/waf-detection.json"
+      - "--json"
+
+  - id: fingerprint
+    name: Fingerprint WAF technology
+    command: waffprint
+    args:
+      - "-u"
+      - "{{.target}}"
+      - "-o"
+      - "{{.output_dir}}/waf-fingerprint.json"
+      - "--json"
+
+  - id: quick_scan
+    name: Run quick scan (critical + high only)
+    command: run
+    args:
+      - "-u"
+      - "{{.target}}"
+      - "-s"
+      - "sqli,xss,rce,ssrf"
+      - "-c"
+      - "10"
+      - "--rate-limit"
+      - "{{.rate_limit}}"
+      - "--severity"
+      - "critical,high"
+      - "-o"
+      - "json"
+      - "--output-file"
+      - "{{.output_dir}}/quick-results.json"
+    condition: "steps.detect.success"
+
+  - id: report
+    name: Generate quick summary
+    command: report
+    args:
+      - "-i"
+      - "{{.output_dir}}/quick-results.json"
+      - "-o"
+      - "{{.output_dir}}/quick-report.html"
+      - "-f"
+      - "html"
+      - "--template-config"
+      - "templates/report-configs/minimal.yaml"
+    condition: "steps.quick_scan.success"

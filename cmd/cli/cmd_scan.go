@@ -22,6 +22,7 @@ import (
 	"github.com/waftester/waftester/pkg/cmdi"
 	"github.com/waftester/waftester/pkg/cors"
 	"github.com/waftester/waftester/pkg/crlf"
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/deserialize"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/discovery"
@@ -37,6 +38,7 @@ import (
 	"github.com/waftester/waftester/pkg/jwt"
 	"github.com/waftester/waftester/pkg/nosqli"
 	"github.com/waftester/waftester/pkg/oauth"
+	"github.com/waftester/waftester/pkg/payloadprovider"
 	"github.com/waftester/waftester/pkg/probes"
 	"github.com/waftester/waftester/pkg/prototype"
 	"github.com/waftester/waftester/pkg/race"
@@ -158,6 +160,10 @@ func runScan() {
 	// Rate limiting and throttling
 	rateLimit := scanFlags.Int("rate-limit", 50, "Max requests per second")
 	scanFlags.IntVar(rateLimit, "rl", 50, "Max requests per second (alias)")
+
+	// Payload and template directories
+	payloadDir := scanFlags.String("payloads", defaults.PayloadDir, "Payload directory")
+	templateDir := scanFlags.String("template-dir", defaults.TemplateDir, "Nuclei template directory")
 	rateLimitPerHost := scanFlags.Bool("rate-limit-per-host", false, "Apply rate limit per host")
 	scanFlags.BoolVar(rateLimitPerHost, "rlph", false, "Rate limit per host (alias)")
 	delay := scanFlags.Duration("delay", 0, "Delay between requests (e.g., 100ms, 1s)")
@@ -1769,11 +1775,45 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "wafevasion", "techniques": techniqueCount})
 		}()
 		evasion := waf.NewEvasion()
-		// Test with common attack payloads
+		// Load payloads from unified provider (JSON + Nuclei)
 		testPayloads := []string{
 			"<script>alert(1)</script>",
 			"' OR '1'='1",
 			"../../../etc/passwd",
+		}
+		// Attempt to enrich with JSON payload database
+		provider := payloadprovider.NewProvider(*payloadDir, *templateDir)
+		if err := provider.Load(); err != nil {
+			if *verbose {
+				ui.PrintInfo(fmt.Sprintf("Payload provider: using fallback payloads (load error: %v)", err))
+			}
+		} else {
+			for _, cat := range []string{"XSS", "SQL-Injection", "Path-Traversal"} {
+				catPayloads, catErr := provider.GetByCategory(cat)
+				if catErr != nil {
+					if *verbose {
+						ui.PrintInfo(fmt.Sprintf("Payload provider: skipping %s category: %v", cat, catErr))
+					}
+					continue
+				}
+				limit := 5
+				if len(catPayloads) < limit {
+					limit = len(catPayloads)
+				}
+				for _, up := range catPayloads[:limit] {
+					testPayloads = append(testPayloads, up.Payload)
+				}
+			}
+			// Deduplicate payloads (enrichment may include the hardcoded fallbacks)
+			seen := make(map[string]bool, len(testPayloads))
+			deduped := make([]string, 0, len(testPayloads))
+			for _, p := range testPayloads {
+				if !seen[p] {
+					seen[p] = true
+					deduped = append(deduped, p)
+				}
+			}
+			testPayloads = deduped
 		}
 		var allTransformed []waf.TransformedPayload
 		for _, payload := range testPayloads {

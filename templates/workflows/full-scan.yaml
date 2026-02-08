@@ -1,0 +1,133 @@
+# WAFtester Full Security Scan Workflow
+# Complete security assessment: detect > learn > calibrate > scan > report
+#
+# Usage:
+#   waf-tester workflow run templates/workflows/full-scan.yaml --input target=https://example.com
+
+name: full-scan
+description: "Complete security scan: discover > learn > calibrate > scan > report"
+version: "2.0.0"
+tags:
+  - security
+  - complete
+  - production
+  - enterprise
+
+inputs:
+  - name: target
+    description: Target URL to scan
+    required: true
+  - name: output_dir
+    description: Output directory for results
+    default: "./results"
+  - name: concurrency
+    description: Number of concurrent requests
+    default: "50"
+  - name: rate_limit
+    description: Requests per second limit
+    default: "10"
+  - name: policy
+    description: Policy file for pass/fail evaluation
+    default: "templates/policies/standard.yaml"
+  - name: scan_types
+    description: "Comma-separated scan types (sqli,xss,rce,ssrf,lfi,ssti,xxe,cmdi,nosqli,crlf or all)"
+    default: "all"
+
+steps:
+  - id: detect
+    name: Detect WAF presence and vendor
+    command: wafdetect
+    args:
+      - "-u"
+      - "{{.target}}"
+      - "-o"
+      - "{{.output_dir}}/waf-detection.json"
+      - "--json"
+
+  - id: fingerprint
+    name: Fingerprint WAF technology stack
+    command: waffprint
+    args:
+      - "-u"
+      - "{{.target}}"
+      - "-o"
+      - "{{.output_dir}}/waf-fingerprint.json"
+      - "--json"
+
+  - id: learn
+    name: Learn WAF behavior patterns
+    command: learn
+    args:
+      - "-u"
+      - "{{.target}}"
+      - "-o"
+      - "{{.output_dir}}/waf-profile.json"
+    condition: "steps.detect.success"
+
+  - id: calibrate
+    name: Calibrate scan for WAF thresholds
+    command: calibrate
+    args:
+      - "-u"
+      - "{{.target}}"
+      - "--profile"
+      - "{{.output_dir}}/waf-profile.json"
+    condition: "steps.learn.success"
+
+  - id: scan
+    name: Run full security scan
+    command: run
+    args:
+      - "-u"
+      - "{{.target}}"
+      - "-s"
+      - "{{.scan_types}}"
+      - "-c"
+      - "{{.concurrency}}"
+      - "--rate-limit"
+      - "{{.rate_limit}}"
+      - "-o"
+      - "json"
+      - "--output-file"
+      - "{{.output_dir}}/scan-results.json"
+      - "--policy"
+      - "{{.policy}}"
+    condition: "steps.detect.success"
+
+  - id: report_html
+    name: Generate HTML enterprise report
+    command: report
+    args:
+      - "-i"
+      - "{{.output_dir}}/scan-results.json"
+      - "-o"
+      - "{{.output_dir}}/report.html"
+      - "-f"
+      - "html"
+      - "--template-config"
+      - "templates/report-configs/enterprise.yaml"
+    condition: "steps.scan.success"
+
+  - id: report_sarif
+    name: Generate SARIF report for IDE integration
+    command: report
+    args:
+      - "-i"
+      - "{{.output_dir}}/scan-results.json"
+      - "-o"
+      - "{{.output_dir}}/report.sarif"
+      - "-f"
+      - "sarif"
+    condition: "steps.scan.success"
+
+  - id: report_json
+    name: Generate JSON summary report
+    command: report
+    args:
+      - "-i"
+      - "{{.output_dir}}/scan-results.json"
+      - "-o"
+      - "{{.output_dir}}/summary.json"
+      - "-f"
+      - "json"
+    condition: "steps.scan.success"

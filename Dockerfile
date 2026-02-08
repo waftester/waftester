@@ -63,6 +63,9 @@ COPY --from=build /bin/waf-tester .
 # Attack payload files — self-contained image
 COPY payloads/ ./payloads/
 
+# Pre-built templates (workflows, policies, overrides, output formats, report configs)
+COPY templates/ ./templates/
+
 # MCP server listens on 8080 by default
 EXPOSE 8080
 

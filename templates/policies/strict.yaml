@@ -1,0 +1,72 @@
+# WAFtester Strict Security Policy
+# Zero-tolerance policy for production-grade WAF validation
+# Fails on ANY bypass regardless of severity
+
+name: strict
+description: "Zero-tolerance security policy — fails on any WAF bypass or anomaly"
+version: "2.0.0"
+
+severity_threshold: low
+
+fail_on:
+  bypasses:
+    # Fail on any bypass in these critical categories
+    - sqli
+    - xss
+    - rce
+    - ssrf
+    - lfi
+    - rfi
+    - ssti
+    - xxe
+    - cmdi
+    - deserialization
+    - nosqli
+    - crlf
+    - ldap
+    - xpath
+    - upload
+    - prototype-pollution
+    - request-smuggling
+    - cors
+    - csrf
+    - open-redirect
+    - idor
+    - jwt
+    - oauth
+    - graphql
+    - websocket
+    - cache-poisoning
+    - host-header
+    - hpp
+
+  categories:
+    - injection
+    - broken-auth
+    - sensitive-data
+    - xxe
+    - broken-access
+    - misconfig
+    - xss
+    - deserialization
+    - components
+    - logging
+    - ssrf
+
+  effectiveness_below: 95.0
+
+  error_rate_above: 2.0
+
+  false_positive_rate_above: 1.0
+
+  min_tests_required: 50
+
+  max_response_time_ms: 5000
+
+  require_waf_detected: true
+
+ignore:
+  # No exclusions — strict means strict
+  ids: []
+  tags: []
+  severity_below: ""

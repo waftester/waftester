@@ -1,0 +1,4 @@
+"Test ID","Category","Severity","Name","URL","Method","Status Code","Outcome","Latency (ms)","Payload","OWASP","CWE"
+{{- range $result := .Results }}
+{{ escapeCSV $result.Test.ID }},{{ escapeCSV $result.Test.Category }},{{ escapeCSV (upper $result.Test.Severity) }},{{ escapeCSV $result.Test.Name }},{{ escapeCSV $result.Target.URL }},{{ escapeCSV $result.Target.Method }},{{ escapeCSV (toString $result.Result.StatusCode) }},{{ escapeCSV $result.Result.Outcome }},{{ escapeCSV (toString $result.Result.LatencyMs) }},{{ escapeCSV $result.Payload }},{{ escapeCSV (owaspLink $result.Test.Category) }},{{ escapeCSV (cweLink $result.Test.Category) }}
+{{- end }}

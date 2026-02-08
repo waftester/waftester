@@ -17,13 +17,19 @@ import (
 )
 
 // Version is the current WAFtester version
-const Version = "2.7.1"
+const Version = "2.7.2"
 
 // ToolName is the canonical tool name for output formats and integrations
 const ToolName = "waftester"
 
 // ToolNameDisplay is the display name for user-facing output
 const ToolNameDisplay = "WAFtester"
+
+// PayloadDir is the default directory for JSON payload files.
+const PayloadDir = "./payloads"
+
+// TemplateDir is the default directory for Nuclei template files.
+const TemplateDir = "./templates/nuclei"
 
 // ============================================================================
 // CONCURRENCY SETTINGS
