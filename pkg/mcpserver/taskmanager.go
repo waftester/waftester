@@ -344,6 +344,60 @@ func (tm *TaskManager) Get(id string) *Task {
 	return t
 }
 
+// GetLatest returns the most recently created task, preferring non-terminal
+// (running/pending) tasks. When all tasks are terminal, returns the most
+// recently updated one. If toolFilter is provided, only tasks matching one
+// of the given tool names are considered. Returns nil when no tasks match.
+//
+// This enables cross-session task recovery: when an AI agent creates a new
+// MCP session (e.g., n8n reconnects per turn) and has lost the task_id from
+// the previous session, it can call get_task_status without a task_id and
+// the server auto-discovers the latest relevant task.
+func (tm *TaskManager) GetLatest(toolFilter ...string) *Task {
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+
+	toolSet := make(map[string]bool, len(toolFilter))
+	for _, t := range toolFilter {
+		toolSet[t] = true
+	}
+
+	var bestActive, bestTerminal *Task
+	var bestActiveTime, bestTerminalTime time.Time
+
+	for _, t := range tm.tasks {
+		t.mu.RLock()
+		tool := t.Tool
+		status := t.Status
+		created := t.CreatedAt
+		updated := t.UpdatedAt
+		t.mu.RUnlock()
+
+		if len(toolSet) > 0 && !toolSet[tool] {
+			continue
+		}
+
+		if !status.isTerminal() {
+			if bestActive == nil || created.After(bestActiveTime) {
+				bestActive = t
+				bestActiveTime = created
+			}
+		} else {
+			if bestTerminal == nil || updated.After(bestTerminalTime) {
+				bestTerminal = t
+				bestTerminalTime = updated
+			}
+		}
+	}
+
+	// Prefer active (running/pending) tasks — those are what the client
+	// most likely wants to poll. Fall back to the most recent terminal task.
+	if bestActive != nil {
+		return bestActive
+	}
+	return bestTerminal
+}
+
 // List returns snapshots of all tasks, optionally filtered by status.
 func (tm *TaskManager) List(statusFilter ...TaskStatus) []TaskSnapshot {
 	tm.mu.RLock()
