@@ -147,7 +147,7 @@ func (s *Server) HTTPHandler() http.Handler {
 	mux.Handle("/mcp", streamable)
 	mux.Handle("/", streamable)
 
-	return corsMiddleware(recoveryMiddleware(securityHeaders(mux)))
+	return corsMiddleware(requestLogger(recoveryMiddleware(securityHeaders(mux))))
 }
 
 // SSEHandler returns an http.Handler for the legacy SSE transport only.
@@ -179,6 +179,57 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"status":"ok","service":"waf-tester-mcp"}`))
+}
+
+// requestLogger logs every incoming HTTP request with method, path, content
+// type, session id, and remote address.  This is essential for diagnosing
+// connectivity problems between MCP clients (n8n, Claude Desktop, etc.) and
+// the server.
+func requestLogger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		sessionID := r.Header.Get("Mcp-Session-Id")
+		contentType := r.Header.Get("Content-Type")
+
+		log.Printf("[mcp-http] --> %s %s  session=%q  content-type=%q  content-length=%d  remote=%s",
+			r.Method, r.URL.Path, sessionID, contentType, r.ContentLength, r.RemoteAddr)
+
+		// Wrap the ResponseWriter to capture the status code.
+		lw := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		next.ServeHTTP(lw, r)
+
+		log.Printf("[mcp-http] <-- %s %s  status=%d  duration=%s",
+			r.Method, r.URL.Path, lw.statusCode, time.Since(start).Round(time.Millisecond))
+	})
+}
+
+// loggingResponseWriter captures the HTTP status code written by downstream
+// handlers so the request logger can include it in the response log line.
+type loggingResponseWriter struct {
+	http.ResponseWriter
+	statusCode  int
+	wroteHeader bool
+}
+
+func (lw *loggingResponseWriter) WriteHeader(code int) {
+	if !lw.wroteHeader {
+		lw.statusCode = code
+		lw.wroteHeader = true
+	}
+	lw.ResponseWriter.WriteHeader(code)
+}
+
+func (lw *loggingResponseWriter) Unwrap() http.ResponseWriter {
+	return lw.ResponseWriter
+}
+
+// Flush implements http.Flusher. Required for SSE streaming — without this,
+// the MCP SDK's streamable HTTP transport cannot flush events to the client
+// and the connection hangs.
+func (lw *loggingResponseWriter) Flush() {
+	if f, ok := lw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 // corsMiddleware wraps an http.Handler with permissive CORS headers required
