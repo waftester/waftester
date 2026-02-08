@@ -501,3 +501,145 @@ func TestListTasks_WithStatusFilter(t *testing.T) {
 // ---------------------------------------------------------------------------
 // Estimated duration — covered via scan response containing a message field
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// WaitFor — long-poll support for get_task_status
+// ---------------------------------------------------------------------------
+
+func TestWaitForCompletesImmediatelyWhenDone(t *testing.T) {
+	t.Parallel()
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	defer srv.Stop()
+
+	task, _, _ := srv.Tasks().Create(context.Background(), "scan")
+	task.Complete(json.RawMessage(`{"result":"ok"}`))
+
+	// WaitFor should return immediately since the task is already done.
+	start := time.Now()
+	task.WaitFor(context.Background(), 10)
+	elapsed := time.Since(start)
+
+	if elapsed > 1*time.Second {
+		t.Errorf("WaitFor blocked for %v, expected immediate return", elapsed)
+	}
+}
+
+func TestWaitForTimesOut(t *testing.T) {
+	t.Parallel()
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	defer srv.Stop()
+
+	task, _, _ := srv.Tasks().Create(context.Background(), "scan")
+
+	start := time.Now()
+	task.WaitFor(context.Background(), 1) // wait 1 second
+	elapsed := time.Since(start)
+
+	if elapsed < 900*time.Millisecond || elapsed > 3*time.Second {
+		t.Errorf("WaitFor elapsed = %v, expected ~1s", elapsed)
+	}
+}
+
+func TestWaitForUnblocksOnCompletion(t *testing.T) {
+	t.Parallel()
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	defer srv.Stop()
+
+	task, _, _ := srv.Tasks().Create(context.Background(), "scan")
+
+	// Complete the task after 200ms.
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		task.Complete(json.RawMessage(`{"done":true}`))
+	}()
+
+	start := time.Now()
+	task.WaitFor(context.Background(), 10) // wait up to 10s
+	elapsed := time.Since(start)
+
+	// Should unblock quickly after 200ms, not wait 10s.
+	if elapsed > 2*time.Second {
+		t.Errorf("WaitFor blocked for %v, expected ~200ms", elapsed)
+	}
+}
+
+func TestWaitForUnblocksOnContextCancel(t *testing.T) {
+	t.Parallel()
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	defer srv.Stop()
+
+	task, _, _ := srv.Tasks().Create(context.Background(), "scan")
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Cancel context after 200ms.
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		cancel()
+	}()
+
+	start := time.Now()
+	task.WaitFor(ctx, 10) // wait up to 10s
+	elapsed := time.Since(start)
+
+	if elapsed > 2*time.Second {
+		t.Errorf("WaitFor blocked for %v, expected ~200ms", elapsed)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Sync mode — stdio transport runs tools synchronously
+// ---------------------------------------------------------------------------
+
+func TestSyncModeDefault(t *testing.T) {
+	t.Parallel()
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	defer srv.Stop()
+
+	if srv.IsSyncMode() {
+		t.Error("new server should not be in sync mode by default")
+	}
+}
+
+// TestGetTaskStatusWaitSeconds verifies the wait_seconds parameter.
+func TestGetTaskStatusWaitSeconds(t *testing.T) {
+	t.Parallel()
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	defer srv.Stop()
+
+	task, _, _ := srv.Tasks().Create(context.Background(), "scan")
+
+	// Complete after 300ms.
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		task.Complete(json.RawMessage(`{"bypasses":5}`))
+	}()
+
+	cs := newTestSessionFrom(t, srv)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "get_task_status",
+		Arguments: json.RawMessage(`{"task_id":"` + task.ID + `","wait_seconds":10}`),
+	})
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+
+	// Should return quickly after task completes (~300ms), not wait 10s.
+	if elapsed > 3*time.Second {
+		t.Errorf("get_task_status with wait_seconds blocked for %v, expected ~300ms", elapsed)
+	}
+
+	text := extractText(t, result)
+	if !strings.Contains(text, "completed") {
+		t.Errorf("expected completed status, got: %s", text)
+	}
+	if !strings.Contains(text, "bypasses") {
+		t.Errorf("expected result to contain bypasses, got: %s", text)
+	}
+}

@@ -61,6 +61,10 @@ type Task struct {
 
 	// Cancellation support.
 	cancel context.CancelFunc `json:"-"`
+
+	// done is closed when the task reaches a terminal state.
+	// Used by WaitFor for long-poll support.
+	done chan struct{} `json:"-"`
 }
 
 // SetProgress updates the task's progress counters. Thread-safe.
@@ -93,6 +97,7 @@ func (t *Task) Complete(result json.RawMessage) {
 	if t.cancel != nil {
 		t.cancel()
 	}
+	closeDone(t.done)
 }
 
 // Fail marks the task as failed with an error message and releases
@@ -112,6 +117,7 @@ func (t *Task) Fail(errMsg string) {
 	if t.cancel != nil {
 		t.cancel()
 	}
+	closeDone(t.done)
 }
 
 // Cancel marks the task as cancelled and fires the context cancellation.
@@ -126,6 +132,37 @@ func (t *Task) Cancel() {
 		if t.cancel != nil {
 			t.cancel()
 		}
+		closeDone(t.done)
+	}
+}
+
+// closeDone safely closes a done channel. Must be called under t.mu.Lock().
+func closeDone(ch chan struct{}) {
+	select {
+	case <-ch:
+		// Already closed.
+	default:
+		close(ch)
+	}
+}
+
+// WaitFor blocks until the task reaches a terminal state, the context is
+// cancelled, or waitSeconds elapses — whichever comes first. Used by
+// get_task_status for long-poll support to reduce polling frequency and
+// eliminate timing-dependent "task not found" errors.
+func (t *Task) WaitFor(ctx context.Context, waitSeconds int) {
+	if waitSeconds <= 0 {
+		return
+	}
+	timer := time.NewTimer(time.Duration(waitSeconds) * time.Second)
+	defer timer.Stop()
+	select {
+	case <-t.done:
+		// Task completed/failed/cancelled.
+	case <-ctx.Done():
+		// Client disconnected or context cancelled.
+	case <-timer.C:
+		// Timeout — return current status.
 	}
 }
 
@@ -280,6 +317,7 @@ func (tm *TaskManager) Create(parent context.Context, tool string) (*Task, conte
 			cancel()
 			timeoutCancel()
 		},
+		done: make(chan struct{}),
 	}
 
 	tm.tasks[id] = task

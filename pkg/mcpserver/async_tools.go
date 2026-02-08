@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -34,27 +35,37 @@ USE THIS TOOL WHEN:
 • You need to check if an async task has completed
 • You want to see progress (percentage, current step) of a running task
 
-POLLING PATTERN:
+POLLING PATTERN (YOU MUST FOLLOW THIS — DO NOT RETURN EARLY TO THE USER):
 1. Call the long-running tool (e.g., scan) → receive {"task_id": "task_abc123", "status": "running"}
-2. Wait 5-10 seconds
-3. Call get_task_status with {"task_id": "task_abc123"}
-4. If status is "running" → note the progress percentage, wait and poll again
-5. If status is "completed" → the full result is in the "result" field
-6. If status is "failed" → check "error" field for what went wrong
-7. If status is "cancelled" → task was cancelled by user
+2. Call get_task_status with {"task_id": "task_abc123", "wait_seconds": 30}
+3. If status is "running" → call get_task_status AGAIN with wait_seconds (KEEP POLLING)
+4. If status is "completed" → the full result is in the "result" field — NOW return to user
+5. If status is "failed" → check "error" field for what went wrong
+6. NEVER tell the user to "check back later" — always poll until completion within the same execution
+
+CRITICAL: Use wait_seconds to avoid rapid polling. Setting wait_seconds=30 makes the server
+wait up to 30 seconds for the task to complete before responding. This is more efficient than
+polling every few seconds and prevents "task not found" errors from connection resets.
 
 RETURNS:
 • task_id, tool, status, progress (0-100), message — always present
 • result — present when status is "completed" (contains the full tool output)
 • error — present when status is "failed"
 
-EXAMPLE: {"task_id": "task_a1b2c3d4"}`,
+EXAMPLE: {"task_id": "task_a1b2c3d4", "wait_seconds": 30}`,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"task_id": map[string]any{
 						"type":        "string",
 						"description": "The task ID returned by a long-running tool (e.g., \"task_a1b2c3d4\").",
+					},
+					"wait_seconds": map[string]any{
+						"type":        "integer",
+						"description": "Wait up to this many seconds for the task to complete before responding. Use 30 for most cases. Max 120.",
+						"default":     30,
+						"minimum":     0,
+						"maximum":     120,
 					},
 				},
 				"required": []string{"task_id"},
@@ -69,27 +80,47 @@ EXAMPLE: {"task_id": "task_a1b2c3d4"}`,
 	)
 }
 
-func (s *Server) handleGetTaskStatus(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *Server) handleGetTaskStatus(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var args struct {
-		TaskID string `json:"task_id"`
+		TaskID      string `json:"task_id"`
+		WaitSeconds int    `json:"wait_seconds"`
 	}
 	if err := parseArgs(req, &args); err != nil {
 		return errorResult(fmt.Sprintf("invalid arguments: %v", err)), nil
 	}
 	if args.TaskID == "" {
-		return errorResult("task_id is required. Example: {\"task_id\": \"task_a1b2c3d4\"}"), nil
+		return errorResult("task_id is required. Example: {\"task_id\": \"task_a1b2c3d4\", \"wait_seconds\": 30}"), nil
+	}
+
+	// Clamp wait_seconds to [0, 120].
+	if args.WaitSeconds < 0 {
+		args.WaitSeconds = 0
+	}
+	if args.WaitSeconds > 120 {
+		args.WaitSeconds = 120
 	}
 
 	task := s.tasks.Get(args.TaskID)
 	if task == nil {
+		log.Printf("[mcp] get_task_status: task %s not found (active tasks: %d)", args.TaskID, s.tasks.ActiveCount())
 		return enrichedError(
 			fmt.Sprintf("task %q not found — it may have expired (tasks are kept for 30 minutes after completion)", args.TaskID),
 			[]string{
 				"Verify the task_id is correct (it should start with 'task_').",
 				"Completed tasks expire after 30 minutes — re-run the original tool if needed.",
 				"Use 'list_tasks' to see all active and recent tasks.",
+				"If running via stdio transport, tasks do not persist between sessions — the server runs tools synchronously instead.",
 			},
 		), nil
+	}
+
+	// Long-poll: if the task is still running and wait_seconds > 0,
+	// wait for completion or timeout before responding.
+	if args.WaitSeconds > 0 {
+		snap := task.Snapshot()
+		if !snap.Status.isTerminal() {
+			task.WaitFor(ctx, args.WaitSeconds)
+		}
 	}
 
 	snap := task.Snapshot()
@@ -255,6 +286,10 @@ type asyncTaskResponse struct {
 // The workFn receives the task and a cancellable context — it should call
 // task.SetProgress during execution and task.Complete or task.Fail when done.
 //
+// In sync mode (stdio transport), the work function runs inline and the
+// complete result is returned directly — no polling required. This prevents
+// "task not found" errors when each stdio invocation is a new process.
+//
 // Goroutine synchronization: all shared state is protected by the TaskManager's
 // sync.RWMutex (tm.mu) and per-task sync.RWMutex (task.mu) in taskmanager.go.
 // Map literals in this file are local-scope JSON schemas, not shared state.
@@ -264,8 +299,16 @@ func (s *Server) launchAsync(
 	estimatedDuration string,
 	workFn func(ctx context.Context, task *Task),
 ) (*mcp.CallToolResult, error) {
-	// Use context.Background() as parent so the task outlives the HTTP request.
-	// The tool's own cancellation context is managed by the TaskManager.
+	// Sync mode (stdio): run inline and return the complete result.
+	// Stdio connections are per-process, so async state would be lost
+	// between invocations. Blocking is safe because stdio has no HTTP
+	// timeout and the client waits for the response.
+	if s.syncMode.Load() {
+		log.Printf("[mcp] sync mode: running %s inline (no async)", toolName)
+		return s.runSync(ctx, toolName, workFn)
+	}
+
+	// Async mode (HTTP/SSE): create task and return task_id immediately.
 	task, taskCtx, err := s.tasks.Create(context.Background(), toolName)
 	if err != nil {
 		return enrichedError(
@@ -278,6 +321,8 @@ func (s *Server) launchAsync(
 		), nil
 	}
 
+	log.Printf("[mcp] async: created task %s for %s", task.ID, toolName)
+
 	// Fire and forget — the goroutine runs independently of the request.
 	// Panic recovery ensures the task transitions to "failed" instead of
 	// leaving it permanently stuck in "running" status.
@@ -287,10 +332,13 @@ func (s *Server) launchAsync(
 		defer s.tasks.wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
+				log.Printf("[mcp] task %s panicked: %v", task.ID, r)
 				task.Fail(fmt.Sprintf("internal panic: %v", r))
 			}
 		}()
 		workFn(taskCtx, task)
+		snap := task.Snapshot()
+		log.Printf("[mcp] task %s finished: status=%s", task.ID, snap.Status)
 	}()
 
 	resp := asyncTaskResponse{
@@ -302,4 +350,58 @@ func (s *Server) launchAsync(
 		NextStep:          fmt.Sprintf("Call get_task_status with {\"task_id\": \"%s\"} to check progress and retrieve results when complete.", task.ID),
 	}
 	return jsonResult(resp)
+}
+
+// runSync executes a long-running tool inline and returns the complete result.
+// Used in stdio mode where async state cannot persist between invocations.
+func (s *Server) runSync(
+	ctx context.Context,
+	toolName string,
+	workFn func(ctx context.Context, task *Task),
+) (*mcp.CallToolResult, error) {
+	// Create a task for lifecycle tracking (progress, completion, failure)
+	// even in sync mode, so workFn can use the same Task API.
+	task, taskCtx, err := s.tasks.Create(ctx, toolName)
+	if err != nil {
+		return enrichedError(
+			fmt.Sprintf("cannot start task: %v", err),
+			[]string{
+				"Too many concurrent tasks are running.",
+				"Cancel unnecessary tasks or wait for them to complete.",
+			},
+		), nil
+	}
+
+	// Run inline — blocks until complete.
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[mcp] sync task %s panicked: %v", task.ID, r)
+				task.Fail(fmt.Sprintf("internal panic: %v", r))
+			}
+		}()
+		workFn(taskCtx, task)
+	}()
+
+	snap := task.Snapshot()
+	log.Printf("[mcp] sync task %s completed: status=%s", task.ID, snap.Status)
+
+	switch snap.Status {
+	case TaskStatusCompleted:
+		// Return the raw result directly — no task_id wrapper.
+		if len(snap.Result) > 0 {
+			return textResult(string(snap.Result)), nil
+		}
+		return textResult(fmt.Sprintf("%s completed successfully", toolName)), nil
+	case TaskStatusFailed:
+		return enrichedError(
+			fmt.Sprintf("%s failed: %s", toolName, snap.Error),
+			[]string{"Check the error details and retry with adjusted parameters."},
+		), nil
+	case TaskStatusCancelled:
+		return errorResult(fmt.Sprintf("%s was cancelled", toolName)), nil
+	default:
+		// Shouldn't happen — workFn should call Complete or Fail.
+		return errorResult(fmt.Sprintf("%s ended in unexpected state: %s", toolName, snap.Status)), nil
+	}
 }
