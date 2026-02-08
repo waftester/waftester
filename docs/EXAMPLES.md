@@ -2,7 +2,7 @@
 
 This guide provides comprehensive usage examples for WAFtester, organized by use case and command category. Each example includes context on when to use the command, what value it provides, and expected output formats.
 
-**Document Version:** 2.7.3  
+**Document Version:** 2.8.1  
 **Last Updated:** February 2026
 
 ---
