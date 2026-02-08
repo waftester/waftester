@@ -137,7 +137,7 @@ func runScan() {
 	listFile := scanFlags.String("l", "", "File containing target URLs")
 	stdinInput := scanFlags.Bool("stdin", false, "Read targets from stdin")
 	types := scanFlags.String("types", "all", "Scan types: all, or comma-separated (sqli,xss,traversal,cmdi,nosqli,hpp,crlf,prototype,cors,redirect,hostheader,websocket,cache,upload,deserialize,oauth,ssrf,ssti,xxe,smuggling,graphql,jwt,subtakeover,bizlogic,race,apifuzz,wafdetect,waffprint,wafevasion,tlsprobe,httpprobe,secheaders,jsanalyze,apidepth,osint,vhost,techdetect,dnsrecon)")
-	timeout := scanFlags.Int("timeout", 30, "Request timeout in seconds")
+	timeout := scanFlags.Int("timeout", 30, "Per-request timeout in seconds (overall scan deadline = value × 60)")
 	concurrency := scanFlags.Int("concurrency", 5, "Concurrent scanners")
 	outputFile := scanFlags.String("output", "", "Output results to JSON file")
 	jsonOutput := scanFlags.Bool("json", false, "Output in JSON format")

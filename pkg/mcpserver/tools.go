@@ -591,7 +591,7 @@ TYPICAL WORKFLOW: detect_waf → discover → learn → scan → bypass`,
 				"required": []string{"target"},
 			},
 			Annotations: &mcp.ToolAnnotations{
-				ReadOnlyHint:   true,
+				ReadOnlyHint:   false, // Sends HTTP probes to target
 				IdempotentHint: true,
 				OpenWorldHint:  boolPtr(true),
 				Title:          "Detect WAF/CDN",
@@ -804,7 +804,7 @@ TYPICAL WORKFLOW: detect_waf → discover → learn → scan`,
 				"required": []string{"target"},
 			},
 			Annotations: &mcp.ToolAnnotations{
-				ReadOnlyHint:   true,
+				ReadOnlyHint:   false, // Sends HTTP probes and brute-forces paths
 				IdempotentHint: true,
 				OpenWorldHint:  boolPtr(true),
 				Title:          "Discover Attack Surface",
@@ -2106,6 +2106,19 @@ func (s *Server) handleBypass(ctx context.Context, req *mcp.CallToolRequest) (*m
 
 		task.SetProgress(0, 100, fmt.Sprintf("Preparing bypass matrix for %d payloads…", len(args.Payloads)))
 
+		// Guard against mutation explosion — payloads × encoders × locations
+		// can generate thousands of requests unexpectedly.
+		const maxBypassPayloads = 50
+		if len(args.Payloads) > maxBypassPayloads {
+			task.Fail(fmt.Sprintf(
+				"Too many payloads for bypass testing (%d). Each payload is tested with "+
+					"multiple mutation techniques, generating thousands of requests. "+
+					"Reduce to ≤%d payloads. Tip: use the most promising 5-10 payloads from a scan.",
+				len(args.Payloads), maxBypassPayloads,
+			))
+			return
+		}
+
 		executor := mutation.NewExecutor(&mutation.ExecutorConfig{
 			TargetURL:   args.Target,
 			Concurrency: args.Concurrency,
@@ -2245,7 +2258,7 @@ Returns: HTTP status, server header, TLS version + cipher suite, security header
 				"required": []string{"target"},
 			},
 			Annotations: &mcp.ToolAnnotations{
-				ReadOnlyHint:   true,
+				ReadOnlyHint:   false, // Sends HTTP and TLS probes to target
 				IdempotentHint: true,
 				OpenWorldHint:  boolPtr(true),
 				Title:          "Probe Infrastructure",
