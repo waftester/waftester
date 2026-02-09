@@ -134,3 +134,24 @@ jobs:
           MERGED=$(printf '%s\n\n---\n\n### Previous Release Notes\n\n%s' "$CURRENT_BODY" "$PREV_BODY")
           gh release edit "$TAG" --notes "$MERGED"
           echo "✅ Merged preserved release notes into $TAG"
+
+      # Notify waftester-action repo to auto-update Marketplace listing.
+      # Requires ACTION_SYNC_TOKEN secret — a fine-grained PAT with
+      # Contents: write scope on waftester/waftester-action.
+      - name: Notify waftester-action
+        if: >-
+          steps.get_tag.outputs.is_tag == 'true' &&
+          steps.check_release.outputs.skip != 'true' &&
+          secrets.ACTION_SYNC_TOKEN != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.ACTION_SYNC_TOKEN }}
+          TAG: ${{ steps.get_tag.outputs.tag }}
+        run: |
+          VERSION="${TAG#v}"
+          echo "📡 Dispatching cli-release event to waftester-action (version: ${VERSION})"
+          gh api repos/waftester/waftester-action/dispatches \
+            -f event_type="cli-release" \
+            -f "client_payload[version]=${VERSION}" \
+            -f "client_payload[tag]=${TAG}" \
+            --silent
+          echo "✅ Dispatch sent"
