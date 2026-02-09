@@ -3,7 +3,6 @@ name: Release
 on:
   workflow_run:
     workflows: ["CI"]
-    branches: [main]
     types:
       - completed
 
@@ -22,8 +21,12 @@ jobs:
     timeout-minutes: 20
     env:
       HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-    # Only run if CI workflow succeeded
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # Only run if CI succeeded for a push event (not PRs).
+    # Without this filter, fork PRs passing CI trigger Release (which skips
+    # at the tag check, but wastes Actions minutes).
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -116,7 +119,7 @@ jobs:
         uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
         with:
           distribution: goreleaser
-          version: latest
+          version: '~> v2'
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -131,8 +134,8 @@ jobs:
           # Append the previously-written manual notes below the GoReleaser output
           CURRENT_BODY=$(gh release view "$TAG" --json body -q '.body' 2>/dev/null || echo "")
           PREV_BODY=$(cat /tmp/prev_notes.md)
-          MERGED=$(printf '%s\n\n---\n\n### Previous Release Notes\n\n%s' "$CURRENT_BODY" "$PREV_BODY")
-          gh release edit "$TAG" --notes "$MERGED"
+          printf '%s\n\n---\n\n### Previous Release Notes\n\n%s' "$CURRENT_BODY" "$PREV_BODY" > /tmp/merged_notes.md
+          gh release edit "$TAG" --notes-file /tmp/merged_notes.md
           echo "✅ Merged preserved release notes into $TAG"
 
       # Notify waftester-action repo to auto-update Marketplace listing.

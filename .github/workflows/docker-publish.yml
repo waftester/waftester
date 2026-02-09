@@ -4,7 +4,6 @@ on:
   # Build + push only after CI passes (same gate as release.yml)
   workflow_run:
     workflows: ["CI"]
-    branches: [main]
     types: [completed]
   # Validate Dockerfile on PRs (build-only, no push)
   pull_request:
@@ -14,10 +13,20 @@ permissions:
   contents: read
   packages: write
 
-# One build per ref — cancel stale runs on the same branch/tag
+# Concurrency: cancel stale branch builds, but serialize tag releases
+# to prevent races on floating tags (latest, 2, 2.9).
+# Tag pushes share a single group so they queue instead of racing.
+# NOTE: workflow_run.head_branch is the branch/tag NAME (e.g. "v2.9.0"),
+# not the full ref (e.g. "refs/tags/v2.9.0").
 concurrency:
-  group: docker-${{ github.event.workflow_run.head_sha || github.sha }}
-  cancel-in-progress: true
+  group: >-
+    ${{
+      (github.event.workflow_run.head_branch != '' &&
+       startsWith(github.event.workflow_run.head_branch, 'v'))
+      && 'docker-release'
+      || format('docker-{0}', github.event.workflow_run.head_sha || github.sha)
+    }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   REGISTRY: ghcr.io
@@ -27,10 +36,16 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Only run if CI succeeded (workflow_run) or this is a PR (direct trigger)
+    # Only run if:
+    #   - This is a direct PR trigger (build-only, no push), OR
+    #   - CI succeeded AND was triggered by a push (not a PR).
+    # Without the event==push filter, fork PRs passing CI would trigger
+    # a Docker push to GHCR — a supply-chain attack vector (workflow_run
+    # runs with base repo secrets regardless of trigger source).
     if: >-
       github.event_name == 'pull_request' ||
-      github.event.workflow_run.conclusion == 'success'
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
     steps:
       # ------------------------------------------------------------------
       # 1. Checkout
@@ -57,11 +72,24 @@ jobs:
           TAG=$(git describe --tags --exact-match "$HEAD_SHA" 2>/dev/null || echo "")
           if [[ "$TAG" == v* ]]; then
             VERSION="${TAG#v}"
-            echo "is_tag=true" >> "$GITHUB_OUTPUT"
-            echo "tag=$TAG"    >> "$GITHUB_OUTPUT"
+            # Guard: prerelease tags (e.g., v2.9.0-rc1, v3.0.0-beta.2) must NOT
+            # push floating Docker tags (latest, 2, 2.9). Only stable releases do.
+            if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "is_tag=true" >> "$GITHUB_OUTPUT"
+              echo "tag=$TAG"    >> "$GITHUB_OUTPUT"
+            else
+              echo "::warning::Prerelease tag '$TAG' — building Docker image but not pushing floating semver tags"
+              echo "is_tag=false" >> "$GITHUB_OUTPUT"
+              echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+            fi
           else
             VERSION="dev-${COMMIT}"
             echo "is_tag=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Default is_prerelease to false if not set above
+          if ! grep -q '^is_prerelease=' "$GITHUB_OUTPUT"; then
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
           fi
 
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
@@ -82,8 +110,8 @@ jobs:
             type=semver,pattern={{version}},value=${{ steps.meta_version.outputs.tag }},enable=${{ steps.meta_version.outputs.is_tag }}
             type=semver,pattern={{major}}.{{minor}},value=${{ steps.meta_version.outputs.tag }},enable=${{ steps.meta_version.outputs.is_tag }}
             type=semver,pattern={{major}},value=${{ steps.meta_version.outputs.tag }},enable=${{ steps.meta_version.outputs.is_tag }}
-            # Main push (no tag): edge
-            type=raw,value=edge,enable=${{ steps.meta_version.outputs.is_tag == 'false' && github.event_name != 'pull_request' }}
+            # Main push (no tag): edge — excludes prereleases which set is_tag=false
+            type=raw,value=edge,enable=${{ steps.meta_version.outputs.is_tag == 'false' && steps.meta_version.outputs.is_prerelease != 'true' && github.event_name != 'pull_request' }}
             # Always: sha-abc1234
             type=sha,prefix=sha-
           labels: |
