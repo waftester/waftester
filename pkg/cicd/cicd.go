@@ -126,6 +126,13 @@ func (g *Generator) HasPlatform(platform Platform) bool {
 // GitHub Actions template
 const githubActionsTemplate = `# WAF Security Testing with waf-tester
 # Auto-generated CI/CD template
+#
+# Recommended: Use the official GitHub Action for simpler setup:
+#   - uses: waftester/waftester-action@v1
+#     with:
+#       target: https://app.example.com
+#
+# This template uses direct CLI install for advanced customization.
 
 name: WAF Security Scan
 

@@ -163,15 +163,28 @@ Add to Cursor MCP settings:
 
 ## CI/CD Integration
 
+### GitHub Actions (Recommended)
+
+Use the official [WAFtester Action](https://github.com/marketplace/actions/waftester-waf-security-testing) for zero-install CI/CD:
+
 ```yaml
-# GitHub Actions
+- uses: waftester/waftester-action@v1
+  with:
+    target: ${{ env.TARGET_URL }}
+    scan-type: scan
+    format: sarif
+```
+
+### Alternative: npx in GitHub Actions
+
+```yaml
 - name: WAF Security Assessment
   run: |
     npx -y @waftester/cli scan -u ${{ env.TARGET_URL }} \
       -format sarif -o results.sarif
 
 - name: Upload SARIF
-  uses: github/codeql-action/upload-sarif@v2
+  uses: github/codeql-action/upload-sarif@v3
   with:
     sarif_file: results.sarif
 ```
