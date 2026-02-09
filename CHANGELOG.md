@@ -5,6 +5,14 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.2] - 2026-02-10
+
+### Fixed
+
+- **Progress bar overflow** — `allScanTypes` progress tracking list had only 25 entries but 38 `runScanner()` calls existed, causing progress to display 140% (e.g., 35/25) and spinner to hang after scan completion
+- **Dry-run list out of sync** — Dry-run mode `allScanTypes` list was missing `graphql`, `subtakeover`, `apifuzz`, `wafevasion`, and `tlsprobe` scan types, causing `--dry-run` to undercount available scans
+- Both `allScanTypes` lists now include all 38 scan types matching every `runScanner()` call: `sqli`, `xss`, `traversal`, `cmdi`, `nosqli`, `hpp`, `crlf`, `prototype`, `cors`, `redirect`, `hostheader`, `websocket`, `cache`, `upload`, `deserialize`, `oauth`, `ssrf`, `ssti`, `xxe`, `smuggling`, `graphql`, `jwt`, `subtakeover`, `bizlogic`, `race`, `apifuzz`, `wafdetect`, `waffprint`, `wafevasion`, `tlsprobe`, `httpprobe`, `secheaders`, `jsanalyze`, `apidepth`, `osint`, `vhost`, `techdetect`, `dnsrecon`
+
 ## [2.8.1] - 2026-02-09
 
 ### Added
