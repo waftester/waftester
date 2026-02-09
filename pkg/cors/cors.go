@@ -58,6 +58,7 @@ type Vulnerability struct {
 	Evidence     string            `json:"evidence"`
 	URL          string            `json:"url"`
 	Remediation  string            `json:"remediation"`
+	ConfirmedBy  int               `json:"confirmed_by,omitempty"`
 }
 
 // TesterConfig configures the CORS tester

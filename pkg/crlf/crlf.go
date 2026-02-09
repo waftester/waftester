@@ -52,6 +52,7 @@ type Vulnerability struct {
 	Evidence    string            `json:"evidence"`
 	Remediation string            `json:"remediation"`
 	CVSS        float64           `json:"cvss"`
+	ConfirmedBy int               `json:"confirmed_by,omitempty"`
 }
 
 // Payload represents a CRLF injection payload

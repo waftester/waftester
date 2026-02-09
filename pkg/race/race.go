@@ -70,6 +70,7 @@ type Vulnerability struct {
 	URL         string      `json:"url"`
 	Remediation string      `json:"remediation"`
 	Responses   []*Response `json:"responses"`
+	ConfirmedBy int         `json:"confirmed_by,omitempty"`
 }
 
 // TesterConfig configures the race condition tester

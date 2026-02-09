@@ -64,6 +64,7 @@ type Vulnerability struct {
 	Evidence    string            `json:"evidence,omitempty"`
 	Remediation string            `json:"remediation,omitempty"`
 	CVSS        float64           `json:"cvss,omitempty"`
+	ConfirmedBy int               `json:"confirmed_by,omitempty"`
 }
 
 // UploadPayload represents a file upload payload.

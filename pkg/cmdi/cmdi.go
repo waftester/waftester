@@ -73,6 +73,7 @@ type Vulnerability struct {
 	Platform     Platform      `json:"platform"`
 	ResponseTime time.Duration `json:"response_time"`
 	Remediation  string        `json:"remediation"`
+	ConfirmedBy  int           `json:"confirmed_by,omitempty"`
 }
 
 // TesterConfig configures the command injection tester

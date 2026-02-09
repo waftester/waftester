@@ -149,6 +149,7 @@ type Vulnerability struct {
 	Query       string     `json:"query"`
 	Evidence    string     `json:"evidence"`
 	Remediation string     `json:"remediation"`
+	ConfirmedBy int        `json:"confirmed_by,omitempty"`
 }
 
 // TesterConfig configures the GraphQL tester

@@ -67,6 +67,7 @@ type Vulnerability struct {
 	Remediation string            `json:"remediation"`
 	CVSS        float64           `json:"cvss"`
 	FileFound   string            `json:"file_found,omitempty"`
+	ConfirmedBy int               `json:"confirmed_by,omitempty"`
 }
 
 // Payload represents a traversal payload
