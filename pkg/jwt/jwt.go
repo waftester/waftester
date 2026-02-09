@@ -108,6 +108,7 @@ type Vulnerability struct {
 	Token       string     `json:"token"`    // The crafted malicious token
 	Original    string     `json:"original"` // Original token
 	Remediation string     `json:"remediation"`
+	ConfirmedBy int        `json:"confirmed_by,omitempty"`
 }
 
 // Attacker performs JWT attacks

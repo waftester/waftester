@@ -60,6 +60,7 @@ type Vulnerability struct {
 	Remediation string            `json:"remediation,omitempty"`
 	CVSS        float64           `json:"cvss,omitempty"`
 	GadgetChain string            `json:"gadget_chain,omitempty"`
+	ConfirmedBy int               `json:"confirmed_by,omitempty"`
 }
 
 // Payload represents a deserialization test payload.

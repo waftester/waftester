@@ -126,6 +126,7 @@ type Vulnerability struct {
 	Evidence    string  `json:"evidence"`
 	Confidence  float64 `json:"confidence"`
 	Remediation string  `json:"remediation"`
+	ConfirmedBy int     `json:"confirmed_by,omitempty"`
 }
 
 // GeneratePayloads generates SSRF test payloads
