@@ -538,7 +538,7 @@ func runScan() {
 
 	// Dry run mode - list what would be scanned and exit
 	if *dryRun {
-		allScanTypes := []string{"sqli", "xss", "traversal", "cmdi", "nosqli", "hpp", "crlf", "prototype", "cors", "redirect", "hostheader", "websocket", "cache", "upload", "deserialize", "oauth", "ssrf", "ssti", "xxe", "jwt", "smuggling", "bizlogic", "race", "httpprobe", "secheaders", "jsanalyze", "apidepth", "osint", "vhost", "techdetect", "dnsrecon", "wafdetect", "waffprint"}
+		allScanTypes := []string{"sqli", "xss", "traversal", "cmdi", "nosqli", "hpp", "crlf", "prototype", "cors", "redirect", "hostheader", "websocket", "cache", "upload", "deserialize", "oauth", "ssrf", "ssti", "xxe", "smuggling", "graphql", "jwt", "subtakeover", "bizlogic", "race", "apifuzz", "wafdetect", "waffprint", "wafevasion", "tlsprobe", "httpprobe", "secheaders", "jsanalyze", "apidepth", "osint", "vhost", "techdetect", "dnsrecon"}
 
 		var selectedScans []string
 		for _, t := range allScanTypes {
@@ -634,8 +634,8 @@ func runScan() {
 	scanMaxErrors := int32(*maxErrors)
 	var scanTimings sync.Map // map[string]time.Duration
 
-	// Count total scans first
-	allScanTypes := []string{"sqli", "xss", "traversal", "cmdi", "nosqli", "ssrf", "ssti", "xxe", "smuggling", "oauth", "jwt", "cors", "redirect", "hostheader", "cache", "upload", "deserialize", "bizlogic", "race", "secheaders", "wafdetect", "waffprint", "wafevasion", "techdetect", "jsanalyze"}
+	// Count total scans first — must match every runScanner() call below
+	allScanTypes := []string{"sqli", "xss", "traversal", "cmdi", "nosqli", "hpp", "crlf", "prototype", "cors", "redirect", "hostheader", "websocket", "cache", "upload", "deserialize", "oauth", "ssrf", "ssti", "xxe", "smuggling", "graphql", "jwt", "subtakeover", "bizlogic", "race", "apifuzz", "wafdetect", "waffprint", "wafevasion", "tlsprobe", "httpprobe", "secheaders", "jsanalyze", "apidepth", "osint", "vhost", "techdetect", "dnsrecon"}
 	for _, t := range allScanTypes {
 		if shouldScan(t) {
 			atomic.AddInt32(&totalScans, 1)
