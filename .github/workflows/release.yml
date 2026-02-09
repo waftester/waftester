@@ -141,15 +141,18 @@ jobs:
       - name: Notify waftester-action
         if: >-
           steps.get_tag.outputs.is_tag == 'true' &&
-          steps.check_release.outputs.skip != 'true' &&
-          secrets.ACTION_SYNC_TOKEN != ''
+          steps.check_release.outputs.skip != 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.ACTION_SYNC_TOKEN }}
+          ACTION_SYNC_TOKEN: ${{ secrets.ACTION_SYNC_TOKEN }}
           TAG: ${{ steps.get_tag.outputs.tag }}
         run: |
+          if [ -z "$ACTION_SYNC_TOKEN" ]; then
+            echo "⏭️ ACTION_SYNC_TOKEN not set — skipping waftester-action notification"
+            exit 0
+          fi
           VERSION="${TAG#v}"
           echo "📡 Dispatching cli-release event to waftester-action (version: ${VERSION})"
-          gh api repos/waftester/waftester-action/dispatches \
+          GITHUB_TOKEN="$ACTION_SYNC_TOKEN" gh api repos/waftester/waftester-action/dispatches \
             -f event_type="cli-release" \
             -f "client_payload[version]=${VERSION}" \
             -f "client_payload[tag]=${TAG}" \
