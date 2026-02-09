@@ -58,18 +58,19 @@ fi
 # VERSION CONSISTENCY — catch stale version references before CI does
 # ============================================================================
 echo "Running version consistency check..."
-if ! go test -run TestVersionConsistency -count=1 ./pkg/defaults/ > /dev/null 2>&1; then
+if ! go test -run "TestVersionConsistency|TestNpmVersionConsistency" -count=1 ./pkg/defaults/ > /dev/null 2>&1; then
     echo ""
     echo "╔══════════════════════════════════════════════════════════════════╗"
     echo "║  BLOCKED: Version inconsistency detected                       ║"
     echo "╚══════════════════════════════════════════════════════════════════╝"
     echo ""
     # Re-run with verbose output to show exactly what's wrong
-    go test -v -run TestVersionConsistency -count=1 ./pkg/defaults/ 2>&1 | grep -E 'FAIL|found|expected|hardcoded' || true
+    go test -v -run "TestVersionConsistency|TestNpmVersionConsistency" -count=1 ./pkg/defaults/ 2>&1 | grep -E 'FAIL|found|expected|hardcoded|npm|package.json' || true
     echo ""
     echo "After bumping defaults.Version, also update:"
-    echo "  - SECURITY.md  (Current stable release)"
-    echo "  - CHANGELOG.md (version header)"
+    echo "  - SECURITY.md          (Current stable release)"
+    echo "  - CHANGELOG.md         (version header)"
+    echo "  - npm/cli/package.json (version + optionalDependencies)"
     echo ""
     ERRORS=$((ERRORS + 1))
 else
