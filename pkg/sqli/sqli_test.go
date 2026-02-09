@@ -720,3 +720,65 @@ func BenchmarkTestParameter(b *testing.B) {
 		tester.TestParameter(ctx, server.URL, "id", "GET")
 	}
 }
+
+func TestMaxPayloadsLimit(t *testing.T) {
+	var requestCount int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	config := &TesterConfig{
+		Timeout:       5 * time.Second,
+		MaxPayloads:   3,
+		TimeThreshold: 1 * time.Second,
+	}
+	tester := NewTester(config)
+	ctx := context.Background()
+
+	requestCount = 0
+	_, err := tester.TestParameter(ctx, server.URL, "id", "GET")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// MaxPayloads=3 means 3 payload requests + 1 baseline = 4 total
+	expectedRequests := 4
+	if requestCount != expectedRequests {
+		t.Errorf("expected %d requests (1 baseline + 3 payloads), got %d", expectedRequests, requestCount)
+	}
+}
+
+func TestMaxParamsLimit(t *testing.T) {
+	var requestCount int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	config := &TesterConfig{
+		Timeout:       5 * time.Second,
+		MaxParams:     2,
+		MaxPayloads:   1,
+		TimeThreshold: 1 * time.Second,
+	}
+	tester := NewTester(config)
+	ctx := context.Background()
+
+	requestCount = 0
+	result, err := tester.Scan(ctx, server.URL)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// MaxParams=2, MaxPayloads=1: 2 params × (1 baseline + 1 payload) = 4 requests
+	expectedRequests := 4
+	if requestCount != expectedRequests {
+		t.Errorf("expected %d requests (2 params × 2 requests), got %d", expectedRequests, requestCount)
+	}
+	if result.TestedParams != 2 {
+		t.Errorf("expected 2 tested params, got %d", result.TestedParams)
+	}
+}
