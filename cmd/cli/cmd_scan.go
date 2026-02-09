@@ -249,6 +249,11 @@ func runScan() {
 	dryRun := scanFlags.Bool("dry-run", false, "Show what would be scanned without scanning")
 	scanFlags.BoolVar(dryRun, "dr", false, "Dry run (alias)")
 
+	// Payload limits (useful for CI/CD and quick validation)
+	maxPayloads := scanFlags.Int("max-payloads", 0, "Max payloads per parameter per scan type (0 = unlimited)")
+	scanFlags.IntVar(maxPayloads, "mp", 0, "Max payloads (alias)")
+	maxParams := scanFlags.Int("max-params", 0, "Max parameters to test per scan type (0 = unlimited)")
+
 	// Debug and diagnostics
 	debug := scanFlags.Bool("debug", false, "Enable debug output")
 	debugRequest := scanFlags.Bool("debug-request", false, "Show request details")
@@ -815,9 +820,11 @@ func runScan() {
 		}()
 
 		cfg := &sqli.TesterConfig{
-			Timeout:   timeoutDur,
-			UserAgent: ui.UserAgent(),
-			Client:    httpClient,
+			Timeout:     timeoutDur,
+			UserAgent:   ui.UserAgent(),
+			Client:      httpClient,
+			MaxPayloads: *maxPayloads,
+			MaxParams:   *maxParams,
 		}
 		tester := sqli.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
