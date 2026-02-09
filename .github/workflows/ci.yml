@@ -48,8 +48,14 @@ jobs:
 
       - name: Dockerfile vs .dockerignore consistency
         run: |
-          # Extract COPY source paths from Dockerfile (exclude --from= copies)
-          COPY_PATHS=$(grep -E '^\s*COPY\s' Dockerfile | grep -v -- '--from=' | sed -E 's/^\s*COPY\s+//' | awk '{print $1}' | sed 's|/$||')
+          # Extract ALL COPY source paths from Dockerfile (exclude --from= copies)
+          # Handles multi-source COPY instructions (e.g., "COPY go.mod go.sum ./")
+          COPY_PATHS=$(grep -E '^\s*COPY\s' Dockerfile | grep -v -- '--from=' \
+            | sed -E 's/^\s*COPY\s+//' \
+            | while read -r line; do
+                set -- $line
+                while [ $# -gt 1 ]; do echo "$1" | sed 's|/$||'; shift; done
+              done)
           ERRORS=0
           for path in $COPY_PATHS; do
             # Check if path is ignored by .dockerignore (exact match or with trailing slash)

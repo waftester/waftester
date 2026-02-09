@@ -684,8 +684,10 @@ func TestNoPrivateFilesInRepo(t *testing.T) {
 		{".github/skills/", "AI skill definitions"},
 		{".github/workspace/", "workspace configuration"},
 		{".github/copilot-instructions.md", "Copilot global instructions"},
+		{".github/memory-seed.json", "memory seed data"},
 		{".claude/", "Claude AI configuration"},
 		{".mcp.json", "MCP server configuration"},
+		{".vscode/", "VS Code workspace config"},
 		{"docs/plans/", "internal planning documents"},
 		{"docs/research/", "internal research documents"},
 	}
