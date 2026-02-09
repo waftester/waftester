@@ -5593,6 +5593,18 @@ waf-tester scan -u $TARGET -stream -json | \
 
 ### GitHub Actions
 
+**Recommended: Use the official [WAFtester Action](https://github.com/marketplace/actions/waftester-waf-security-testing):**
+
+```yaml
+- uses: waftester/waftester-action@v1
+  with:
+    target: https://app.example.com
+    scan-type: auto
+    fail-on-bypass: true
+```
+
+**Alternative: Direct CLI install:**
+
 ```yaml
 - name: WAF Security Scan
   run: |
@@ -5602,7 +5614,7 @@ waf-tester scan -u $TARGET -stream -json | \
       -sarif -o results.sarif
 
 - name: Upload SARIF
-  uses: github/codeql-action/upload-sarif@v2
+  uses: github/codeql-action/upload-sarif@v3
   with:
     sarif_file: results.sarif
 ```

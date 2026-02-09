@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.8.1] - 2026-02-09
 
+### Added
+
+- **GitHub Actions Marketplace** — Official [`waftester-action`](https://github.com/waftester/waftester-action) published. Zero-install CI/CD integration with `uses: waftester/waftester-action@v1`. Supports all scan types, SARIF upload, version pinning, and SHA-256 verified binary downloads.
+
 ### Fixed
 
 #### Master Audit — 14 Bug Fixes

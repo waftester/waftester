@@ -325,7 +325,17 @@ waf-tester scan -u $TARGET --otel-endpoint=$OTEL_ENDPOINT
 
 ## CI/CD Integration
 
-### GitHub Actions
+### GitHub Actions (Recommended)
+
+```yaml
+- uses: waftester/waftester-action@v1
+  with:
+    target: https://app.example.com
+```
+
+Results appear in **Security → Code scanning**. See [WAFtester Action](https://github.com/marketplace/actions/waftester-waf-security-testing) for all options.
+
+### Alternative: CLI in GitHub Actions
 
 ```yaml
 - name: WAF Security Assessment
@@ -334,7 +344,7 @@ waf-tester scan -u $TARGET --otel-endpoint=$OTEL_ENDPOINT
       -format sarif -o results.sarif
     
 - name: Upload SARIF
-  uses: github/codeql-action/upload-sarif@v2
+  uses: github/codeql-action/upload-sarif@v3
   with:
     sarif_file: results.sarif
 ```
