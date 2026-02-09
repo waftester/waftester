@@ -76,6 +76,7 @@ type Vulnerability struct {
 	TestedID    string            `json:"tested_id,omitempty"`
 	Remediation string            `json:"remediation,omitempty"`
 	CVSS        float64           `json:"cvss,omitempty"`
+	ConfirmedBy int               `json:"confirmed_by,omitempty"`
 }
 
 // TestCase represents a business logic test case.

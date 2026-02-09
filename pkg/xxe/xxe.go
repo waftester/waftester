@@ -63,6 +63,7 @@ type Vulnerability struct {
 	URL          string        `json:"url"`
 	ResponseTime time.Duration `json:"response_time"`
 	Remediation  string        `json:"remediation"`
+	ConfirmedBy  int           `json:"confirmed_by,omitempty"`
 }
 
 // DetectorConfig configures the XXE detector

@@ -56,6 +56,7 @@ type Vulnerability struct {
 	Evidence      string
 	Remediation   string
 	CVSS          float64
+	ConfirmedBy   int
 }
 
 // ScanResult represents the result of a scan

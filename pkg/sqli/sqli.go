@@ -76,6 +76,7 @@ type Vulnerability struct {
 	Remediation  string
 	ResponseTime time.Duration
 	CVSS         float64
+	ConfirmedBy  int
 }
 
 // ScanResult represents the result of a scan

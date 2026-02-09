@@ -62,6 +62,7 @@ type Vulnerability struct {
 	URL         string            `json:"url"`
 	RedirectURL string            `json:"redirect_url"`
 	Remediation string            `json:"remediation"`
+	ConfirmedBy int               `json:"confirmed_by,omitempty"`
 }
 
 // TesterConfig configures the open redirect tester

@@ -93,6 +93,7 @@ type Vulnerability struct {
 	ResponseTime   time.Duration  // Response time
 	CanExecuteCode bool           // Whether RCE is possible
 	RCEPayload     string         // Example RCE payload
+	ConfirmedBy    int            // Number of confirming payloads
 }
 
 // DetectorConfig configures the SSTI detector

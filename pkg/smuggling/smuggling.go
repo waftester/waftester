@@ -28,6 +28,7 @@ type Vulnerability struct {
 	Exploitable bool       `json:"exploitable"`
 	FrontEnd    string     `json:"front_end,omitempty"`
 	BackEnd     string     `json:"back_end,omitempty"`
+	ConfirmedBy int        `json:"confirmed_by,omitempty"`
 }
 
 // VulnType defines the smuggling vulnerability type

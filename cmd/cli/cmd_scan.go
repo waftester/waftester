@@ -2488,6 +2488,9 @@ func runScan() {
 	wg.Wait()
 	result.Duration = time.Since(result.StartTime)
 
+	// Deduplicate findings — group by (parameter, type, technique) and count confirming payloads
+	deduplicateAllFindings(result)
+
 	// Emit summary to all hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
 	if dispCtx != nil {
 		_ = dispCtx.EmitSummary(ctx, int(totalScans), 0, result.TotalVulns, result.Duration)
@@ -2690,7 +2693,11 @@ func runScan() {
 			if result.SQLi != nil && len(result.SQLi.Vulnerabilities) > 0 {
 				ui.PrintSection("SQLi Findings")
 				for _, v := range result.SQLi.Vulnerabilities[:min(5, len(result.SQLi.Vulnerabilities))] {
-					ui.PrintError(fmt.Sprintf("  [%s] %s - %s", v.Severity, v.Parameter, v.Type))
+					if v.ConfirmedBy > 1 {
+						ui.PrintError(fmt.Sprintf("  [%s] %s - %s (%d payloads)", v.Severity, v.Parameter, v.Type, v.ConfirmedBy))
+					} else {
+						ui.PrintError(fmt.Sprintf("  [%s] %s - %s", v.Severity, v.Parameter, v.Type))
+					}
 				}
 				if len(result.SQLi.Vulnerabilities) > 5 {
 					ui.PrintInfo(fmt.Sprintf("  ... and %d more", len(result.SQLi.Vulnerabilities)-5))
@@ -2701,7 +2708,11 @@ func runScan() {
 			if result.XSS != nil && len(result.XSS.Vulnerabilities) > 0 {
 				ui.PrintSection("XSS Findings")
 				for _, v := range result.XSS.Vulnerabilities[:min(5, len(result.XSS.Vulnerabilities))] {
-					ui.PrintError(fmt.Sprintf("  [%s] %s - %s", v.Severity, v.Parameter, v.Type))
+					if v.ConfirmedBy > 1 {
+						ui.PrintError(fmt.Sprintf("  [%s] %s - %s (%d payloads)", v.Severity, v.Parameter, v.Type, v.ConfirmedBy))
+					} else {
+						ui.PrintError(fmt.Sprintf("  [%s] %s - %s", v.Severity, v.Parameter, v.Type))
+					}
 				}
 				if len(result.XSS.Vulnerabilities) > 5 {
 					ui.PrintInfo(fmt.Sprintf("  ... and %d more", len(result.XSS.Vulnerabilities)-5))

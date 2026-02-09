@@ -55,6 +55,7 @@ type Vulnerability struct {
 	Gadget      string            `json:"gadget,omitempty"`
 	Remediation string            `json:"remediation"`
 	CVSS        float64           `json:"cvss"`
+	ConfirmedBy int               `json:"confirmed_by,omitempty"`
 }
 
 // Payload represents a prototype pollution payload
