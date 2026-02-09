@@ -5,6 +5,32 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.3] - 2026-02-09
+
+### Security
+
+- **Fork PR supply-chain hardening** — `docker-publish.yml` and `release.yml` now filter `workflow_run.event == 'push'` to prevent fork PRs from triggering Docker pushes or releases via `workflow_run` (which runs with base repo secrets regardless of trigger source)
+- **SHA-pinned all GitHub Actions** — All workflow actions across CI, Docker, Release, npm-publish, rebuild-assets, and private-guard now use immutable commit SHAs instead of floating tags
+- **Removed `eval` in entrypoint.sh** — Replaced `eval "CMD+=(${INPUT_ARGS})"` with `xargs`-based argument parsing to eliminate shell injection risk from `args` input
+- **Heredoc output injection prevention** — GitHub outputs now use PID-unique heredoc delimiters to prevent output injection from malicious target URLs
+- **Markdown table sanitization** — Finding category names are now stripped of `|`, backtick, and backslash characters to prevent Markdown injection in job summaries
+
+### Fixed
+
+- **`workflow_run.branches` filter blocking tag releases** — Removed `branches: [main]` from `docker-publish.yml` and `release.yml` which silently prevented tag-triggered workflow_run events from firing
+- **Docker concurrency group always miss** — `startsWith(github.event.workflow_run.head_branch, 'refs/tags/')` was always false because `head_branch` is the tag NAME (e.g. `v2.9.0`), not the full ref; changed to `startsWith(..., 'v')`
+- **Prerelease tags pushing floating Docker tags** — Prerelease tags (e.g. `v2.9.0-rc1`) now only get `sha-` Docker tag, not `latest`/`edge`/semver floats
+- **Shallow clone defeating author identity check** — `private-guard.yml` now uses `fetch-depth: 6` so `git log HEAD~5..HEAD` doesn't fail silently
+- **GoReleaser version pinning** — Changed from `version: latest` to `version: '~> v2'` in release and rebuild-assets workflows to prevent breaking changes
+- **Release notes handling** — Uses `--notes-file` instead of `--notes` for release note merging to avoid shell escaping issues with multiline content
+
+### Changed
+
+- **Private file guard expanded** — `REQUIRED_IGNORES` list expanded from 6 to 12 paths (added `.github/copilot-instructions.md`, `.github/memory-seed.json`, `.claude/`, `.mcp.json`, `.vscode/`, `docs/plans/`, `docs/research/`)
+- **npm-publish chain filter** — Added `event != 'pull_request'` filter with documentation explaining chained `workflow_run.event` semantics
+- **Dockerfile consistency check** — Now handles multi-source COPY instructions (e.g. `COPY go.mod go.sum ./`)
+- **Structural test coverage** — `TestNoPrivateFilesInRepo` gitignore check expanded from 10 to 12 rules
+
 ## [2.8.2] - 2026-02-10
 
 ### Fixed
