@@ -98,6 +98,7 @@ type Vulnerability struct {
 	Response    FuzzResponse      `json:"response,omitempty"`
 	Evidence    string            `json:"evidence,omitempty"`
 	CVSS        float64           `json:"cvss,omitempty"`
+	ConfirmedBy int               `json:"confirmed_by,omitempty"`
 }
 
 // FuzzResponse represents a response from a fuzz request.

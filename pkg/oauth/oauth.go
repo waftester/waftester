@@ -63,6 +63,7 @@ type Vulnerability struct {
 	Evidence    string            `json:"evidence,omitempty"`
 	Remediation string            `json:"remediation,omitempty"`
 	CVSS        float64           `json:"cvss,omitempty"`
+	ConfirmedBy int               `json:"confirmed_by,omitempty"`
 }
 
 // OAuthEndpoint represents OAuth endpoints.

@@ -59,6 +59,7 @@ type Vulnerability struct {
 	Header      string            `json:"header,omitempty"`
 	Parameter   string            `json:"parameter,omitempty"`
 	CacheBuster string            `json:"cache_buster,omitempty"`
+	ConfirmedBy int               `json:"confirmed_by,omitempty"`
 }
 
 // ScanResult contains the results of a cache security scan

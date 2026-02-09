@@ -68,6 +68,7 @@ type Vulnerability struct {
 	Evidence    string            `json:"evidence"`
 	Technology  Technology        `json:"technology,omitempty"`
 	Remediation string            `json:"remediation"`
+	ConfirmedBy int               `json:"confirmed_by,omitempty"`
 }
 
 // Payload represents an HPP test payload

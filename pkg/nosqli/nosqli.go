@@ -69,6 +69,7 @@ type Vulnerability struct {
 	Database    Database          `json:"database"`
 	Remediation string            `json:"remediation"`
 	CVSS        float64           `json:"cvss"`
+	ConfirmedBy int               `json:"confirmed_by,omitempty"`
 }
 
 // Payload represents a NoSQL injection payload
