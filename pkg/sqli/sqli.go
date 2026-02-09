@@ -94,6 +94,8 @@ type TesterConfig struct {
 	TimeThreshold time.Duration
 	UserAgent     string
 	Client        *http.Client
+	MaxPayloads   int // Maximum payloads per parameter (0 = unlimited)
+	MaxParams     int // Maximum parameters to test (0 = unlimited)
 }
 
 // Tester provides SQL injection testing capabilities
@@ -544,7 +546,12 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 	iohelper.DrainAndClose(baseResp.Body)
 	baseLen := len(baseBody)
 
-	for _, payload := range t.payloads {
+	for i, payload := range t.payloads {
+		// MaxPayloads limit: skip remaining payloads once threshold reached
+		if t.config.MaxPayloads > 0 && i >= t.config.MaxPayloads {
+			break
+		}
+
 		select {
 		case <-ctx.Done():
 			return vulns, ctx.Err()
@@ -678,6 +685,11 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*ScanResult, error
 	}
 
 	params := CommonSQLiParams()
+
+	// MaxParams limit: test only a subset of parameters
+	if t.config.MaxParams > 0 && len(params) > t.config.MaxParams {
+		params = params[:t.config.MaxParams]
+	}
 
 	for _, param := range params {
 		select {
