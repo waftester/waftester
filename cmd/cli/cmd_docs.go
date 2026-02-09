@@ -9,8 +9,14 @@ import (
 )
 
 func printUsage() {
+	// Direct all output to stderr (same stream as banner) to prevent
+	// interleaving. fmt.Println uses os.Stdout internally, so redirecting
+	// it ensures banner art and help text don't race on the terminal.
+	origStdout := os.Stdout
+	os.Stdout = os.Stderr
+	defer func() { os.Stdout = origStdout }()
+
 	ui.PrintBanner()
-	os.Stderr.Sync() // Sync stderr before switching to stdout
 
 	// Adaptive workflow overview
 	fmt.Println(ui.SectionStyle.Render("ADAPTIVE WAF TESTING"))
@@ -237,8 +243,12 @@ func printUsage() {
 
 // printDetailedDocs prints comprehensive documentation for all features
 func printDetailedDocs() {
+	// Direct all output to stderr (same stream as banner) to prevent interleaving
+	origStdout := os.Stdout
+	os.Stdout = os.Stderr
+	defer func() { os.Stdout = origStdout }()
+
 	ui.PrintBanner()
-	os.Stderr.Sync()
 
 	// Check if a specific topic was requested
 	topic := ""
