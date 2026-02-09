@@ -17,6 +17,9 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
+          # fetch-depth: 6 is needed for the author identity check (HEAD~5..HEAD)
+          # Default depth of 1 would make git log range fail silently
+          fetch-depth: 6
 
       - name: Scan for private files
         run: |
@@ -107,7 +110,13 @@ jobs:
             ".github/prompts/"
             ".github/skills/"
             ".github/workspace/"
+            ".github/copilot-instructions.md"
+            ".github/memory-seed.json"
             ".claude/"
+            ".mcp.json"
+            ".vscode/"
+            "docs/plans/"
+            "docs/research/"
           )
 
           MISSING=0

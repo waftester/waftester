@@ -19,8 +19,18 @@ jobs:
   npm-publish:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Only run if Release workflow succeeded
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # Only run if Release workflow succeeded and was triggered by a push (not PRs).
+    #
+    # IMPORTANT: workflow_run.event semantics for chained workflows:
+    # CI (push) → Release (workflow_run) → npm-publish (workflow_run).
+    # In this chain, npm-publish sees workflow_run.event == 'workflow_run'
+    # (the event that triggered Release), NOT the original 'push' event.
+    # Using != 'pull_request' (negative match) is intentional — it correctly
+    # allows both 'push' and 'workflow_run' values while blocking PRs.
+    # A non-tag push will run but exit early at the version-extraction step.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event != 'pull_request'
 
     steps:
       - name: Checkout
