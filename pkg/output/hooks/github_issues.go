@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -26,6 +26,7 @@ type GitHubIssuesHook struct {
 	baseURL string
 	client  *http.Client
 	opts    GitHubIssuesOptions
+	logger  *slog.Logger
 }
 
 // GitHubIssuesOptions configures the GitHub Issues hook behavior.
@@ -55,6 +56,9 @@ type GitHubIssuesOptions struct {
 
 	// Timeout for HTTP requests (default: 30s).
 	Timeout time.Duration
+
+	// Logger for structured logging (default: slog.Default()).
+	Logger *slog.Logger
 }
 
 // githubIssueRequest is the GitHub API issue create request.
@@ -98,6 +102,7 @@ func NewGitHubIssuesHook(opts GitHubIssuesOptions) *GitHubIssuesHook {
 			Timeout:            opts.Timeout,
 			InsecureSkipVerify: false, // GitHub uses valid certs
 		}),
+		logger: orDefault(opts.Logger),
 	}
 }
 
@@ -145,14 +150,14 @@ func (h *GitHubIssuesHook) createIssue(ctx context.Context, bypass *events.Bypas
 
 	body, err := json.Marshal(issue)
 	if err != nil {
-		log.Printf("github-issues: failed to marshal issue: %v", err)
+		h.logger.Warn("failed to marshal issue", slog.String("error", err.Error()))
 		return nil
 	}
 
 	endpoint := fmt.Sprintf("%s/repos/%s/%s/issues", h.baseURL, h.opts.Owner, h.opts.Repo)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
-		log.Printf("github-issues: failed to create request: %v", err)
+		h.logger.Warn("failed to create request", slog.String("error", err.Error()))
 		return nil
 	}
 
@@ -163,7 +168,7 @@ func (h *GitHubIssuesHook) createIssue(ctx context.Context, bypass *events.Bypas
 
 	resp, err := h.client.Do(req)
 	if err != nil {
-		log.Printf("github-issues: request failed: %v", err)
+		h.logger.Warn("request failed", slog.String("error", err.Error()))
 		return nil
 	}
 	defer resp.Body.Close()
@@ -171,20 +176,20 @@ func (h *GitHubIssuesHook) createIssue(ctx context.Context, bypass *events.Bypas
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		var errResp githubErrorResponse
 		if err := json.NewDecoder(resp.Body).Decode(&errResp); err == nil {
-			log.Printf("github-issues: API error (%d): %s", resp.StatusCode, errResp.Message)
+			h.logger.Warn("API error", slog.Int("status", resp.StatusCode), slog.String("error", errResp.Message))
 		} else {
-			log.Printf("github-issues: API error (%d)", resp.StatusCode)
+			h.logger.Warn("API error", slog.Int("status", resp.StatusCode))
 		}
 		return nil
 	}
 
 	var issueResp githubIssueResponse
 	if err := json.NewDecoder(resp.Body).Decode(&issueResp); err != nil {
-		log.Printf("github-issues: failed to decode response: %v", err)
+		h.logger.Warn("failed to decode response", slog.String("error", err.Error()))
 		return nil
 	}
 
-	log.Printf("github-issues: created issue #%d: %s", issueResp.Number, issueResp.HTMLURL)
+	h.logger.Info("created issue", slog.Int("number", issueResp.Number), slog.String("url", issueResp.HTMLURL))
 	return nil
 }
 
