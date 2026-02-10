@@ -14,6 +14,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
@@ -36,16 +37,7 @@ const (
 	AttackIDOR              AttackType = "idor"               // Insecure Direct Object Reference
 )
 
-// Severity represents the severity of a finding
-type Severity string
 
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
 
 // Request represents a GraphQL request
 type Request struct {
@@ -143,10 +135,10 @@ type Directive struct {
 
 // Vulnerability represents a detected GraphQL vulnerability
 type Vulnerability struct {
-	Type        AttackType `json:"type"`
-	Description string     `json:"description"`
-	Severity    Severity   `json:"severity"`
-	Query       string     `json:"query"`
+	Type        AttackType       `json:"type"`
+	Description string           `json:"description"`
+	Severity    finding.Severity `json:"severity"`
+	Query       string           `json:"query"`
 	Evidence    string     `json:"evidence"`
 	Remediation string     `json:"remediation"`
 	ConfirmedBy int        `json:"confirmed_by,omitempty"`
@@ -362,7 +354,7 @@ func (t *Tester) TestIntrospection(ctx context.Context) (*Vulnerability, *Schema
 	vuln := &Vulnerability{
 		Type:        AttackIntrospection,
 		Description: "GraphQL introspection is enabled, exposing the entire schema",
-		Severity:    SeverityMedium,
+		Severity:    finding.Medium,
 		Query:       query,
 		Evidence:    fmt.Sprintf("Schema contains %d types", len(result.Schema.Types)),
 		Remediation: "Disable introspection in production. Use schema masking or access control.",
@@ -444,7 +436,7 @@ func (t *Tester) TestDepthAttack(ctx context.Context, fieldName string, depth in
 			return &Vulnerability{
 				Type:        AttackDepth,
 				Description: fmt.Sprintf("Server timed out on query with depth %d (potential DoS)", depth),
-				Severity:    SeverityHigh,
+				Severity:    finding.High,
 				Query:       query,
 				Evidence:    fmt.Sprintf("Request timed out after %v", elapsed),
 				Remediation: "Implement query depth limiting and query cost analysis.",
@@ -458,7 +450,7 @@ func (t *Tester) TestDepthAttack(ctx context.Context, fieldName string, depth in
 		return &Vulnerability{
 			Type:        AttackDepth,
 			Description: fmt.Sprintf("Server accepted query with depth %d without rate limiting", depth),
-			Severity:    SeverityMedium,
+			Severity:    finding.Medium,
 			Query:       query,
 			Evidence:    fmt.Sprintf("Query executed in %v", elapsed),
 			Remediation: "Implement query depth limiting. Reject queries exceeding maximum depth.",
@@ -524,7 +516,7 @@ func (t *Tester) TestBatchAttack(ctx context.Context, batchSize int) (*Vulnerabi
 			return &Vulnerability{
 				Type:        AttackBatch,
 				Description: fmt.Sprintf("Server timed out on batch of %d queries (potential DoS)", batchSize),
-				Severity:    SeverityHigh,
+				Severity:    finding.High,
 				Query:       fmt.Sprintf("[%d queries]", batchSize),
 				Evidence:    fmt.Sprintf("Request timed out after %v", elapsed),
 				Remediation: "Implement batch query limiting. Reject batches exceeding maximum size.",
@@ -538,7 +530,7 @@ func (t *Tester) TestBatchAttack(ctx context.Context, batchSize int) (*Vulnerabi
 		return &Vulnerability{
 			Type:        AttackBatch,
 			Description: fmt.Sprintf("Server accepted batch of %d queries without limiting", batchSize),
-			Severity:    SeverityMedium,
+			Severity:    finding.Medium,
 			Query:       fmt.Sprintf("[%d queries]", batchSize),
 			Evidence:    fmt.Sprintf("All %d queries executed in %v", batchSize, elapsed),
 			Remediation: "Implement batch query limiting and rate limiting.",
@@ -561,7 +553,7 @@ func (t *Tester) TestAliasAbuse(ctx context.Context, fieldName string, aliasCoun
 			return &Vulnerability{
 				Type:        AttackAlias,
 				Description: fmt.Sprintf("Server timed out with %d field aliases (potential DoS)", aliasCount),
-				Severity:    SeverityHigh,
+				Severity:    finding.High,
 				Query:       query,
 				Evidence:    fmt.Sprintf("Request timed out after %v", elapsed),
 				Remediation: "Implement query complexity analysis that accounts for aliases.",
@@ -574,7 +566,7 @@ func (t *Tester) TestAliasAbuse(ctx context.Context, fieldName string, aliasCoun
 		return &Vulnerability{
 			Type:        AttackAlias,
 			Description: fmt.Sprintf("Server executed query with %d aliases without limiting", aliasCount),
-			Severity:    SeverityMedium,
+			Severity:    finding.Medium,
 			Query:       query,
 			Evidence:    fmt.Sprintf("Query executed in %v", elapsed),
 			Remediation: "Include alias count in query cost calculation.",
@@ -636,7 +628,7 @@ func (t *Tester) TestFieldSuggestion(ctx context.Context) (*Vulnerability, []str
 		return &Vulnerability{
 			Type:        AttackFieldSuggestion,
 			Description: "GraphQL error messages reveal valid field names via suggestions",
-			Severity:    SeverityLow,
+			Severity:    finding.Low,
 			Query:       testQueries[0],
 			Evidence:    fmt.Sprintf("Discovered fields: %v", suggestions),
 			Remediation: "Disable field suggestions in production. Use generic error messages.",
@@ -667,7 +659,7 @@ func (t *Tester) TestInjection(ctx context.Context, queryTemplate string, variab
 			vulns = append(vulns, &Vulnerability{
 				Type:        AttackInjection,
 				Description: fmt.Sprintf("Potential %s injection via GraphQL variable", payload.Type),
-				Severity:    SeverityHigh,
+				Severity:    finding.High,
 				Query:       queryTemplate,
 				Evidence:    fmt.Sprintf("Payload: %s, Response indicates injection", payload.Value),
 				Remediation: "Sanitize and validate all input. Use parameterized queries for database operations.",
@@ -789,7 +781,7 @@ func (t *Tester) TestIDOR(ctx context.Context, queryTemplate string, idParam str
 			vulns = append(vulns, &Vulnerability{
 				Type:        AttackIDOR,
 				Description: fmt.Sprintf("Potential IDOR - able to access object with ID: %s", id),
-				Severity:    SeverityHigh,
+				Severity:    finding.High,
 				Query:       queryTemplate,
 				Evidence:    fmt.Sprintf("Successfully retrieved data for ID: %s", id),
 				Remediation: "Implement proper authorization checks. Verify object ownership before returning data.",
@@ -813,7 +805,7 @@ func (t *Tester) TestDirectiveOverload(ctx context.Context, directiveCount int) 
 			return &Vulnerability{
 				Type:        AttackDirectiveOverload,
 				Description: fmt.Sprintf("Server timed out with %d directives (potential DoS)", directiveCount),
-				Severity:    SeverityHigh,
+				Severity:    finding.High,
 				Query:       query,
 				Evidence:    fmt.Sprintf("Request timed out after %v", elapsed),
 				Remediation: "Limit directive usage per query. Implement query cost analysis.",
@@ -826,7 +818,7 @@ func (t *Tester) TestDirectiveOverload(ctx context.Context, directiveCount int) 
 		return &Vulnerability{
 			Type:        AttackDirectiveOverload,
 			Description: fmt.Sprintf("Server accepted query with %d directives", directiveCount),
-			Severity:    SeverityLow,
+			Severity:    finding.Low,
 			Query:       query,
 			Evidence:    fmt.Sprintf("Query executed in %v", elapsed),
 			Remediation: "Limit directive usage in queries.",

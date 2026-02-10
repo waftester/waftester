@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewTester(t *testing.T) {
@@ -420,14 +422,14 @@ func TestSanitizeForMongoDB(t *testing.T) {
 func TestGetSeverity(t *testing.T) {
 	tests := []struct {
 		vulnType VulnerabilityType
-		expected Severity
+		expected finding.Severity
 	}{
-		{VulnAuthBypass, SeverityCritical},
-		{VulnDataExfiltration, SeverityCritical},
-		{VulnOperatorInjection, SeverityHigh},
-		{VulnJSInjection, SeverityHigh},
-		{VulnBlindInjection, SeverityMedium},
-		{VulnArrayInjection, SeverityHigh},
+		{VulnAuthBypass, finding.Critical},
+		{VulnDataExfiltration, finding.Critical},
+		{VulnOperatorInjection, finding.High},
+		{VulnJSInjection, finding.High},
+		{VulnBlindInjection, finding.Medium},
+		{VulnArrayInjection, finding.High},
 	}
 
 	for _, tt := range tests {
@@ -555,7 +557,7 @@ func TestVulnerability(t *testing.T) {
 	vuln := Vulnerability{
 		Type:        VulnOperatorInjection,
 		Description: "Test vulnerability",
-		Severity:    SeverityHigh,
+		Severity:    finding.High,
 		URL:         "http://example.com",
 		Parameter:   "username",
 		Payload:     `{"$gt": ""}`,
