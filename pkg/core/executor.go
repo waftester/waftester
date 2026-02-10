@@ -31,6 +31,22 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// evidencePatterns contains pre-compiled regexes for detecting vulnerability evidence in responses.
+var evidencePatterns = []struct {
+	name    string
+	pattern *regexp.Regexp
+}{
+	{"sql_error", regexp.MustCompile(`(?i)(mysql|postgresql|oracle|sqlite|sql syntax|query failed|ORA-\d+)`)},
+	{"stack_trace", regexp.MustCompile(`(?i)(stack trace|at line \d+|exception|Traceback|panic:)`)},
+	{"debug_info", regexp.MustCompile(`(?i)(debug|internal error|undefined variable|Notice:)`)},
+	{"path_disclosure", regexp.MustCompile(`[A-Z]:\\|/var/www/|/home/\w+|/usr/local/`)},
+	{"version_disclosure", regexp.MustCompile(`(?i)(version|v\d+\.\d+\.\d+|PHP/|Apache/|nginx/)`)},
+	{"sensitive_data", regexp.MustCompile(`(?i)(password|secret|api.?key|token|credential)`)},
+	{"command_output", regexp.MustCompile(`(?i)(uid=\d+|root:|/bin/bash|command not found)`)},
+	{"xml_error", regexp.MustCompile(`(?i)(xml parsing|entity|DTD|<!ENTITY)`)},
+	{"template_injection", regexp.MustCompile(`(?i)(\{\{.*\}\}|\$\{.*\}|<%.*%>)`)},
+}
+
 // FilterConfig holds match/filter settings (ffuf-style)
 type FilterConfig struct {
 	// Match criteria (show ONLY responses matching these)
@@ -740,21 +756,6 @@ func captureResponseEvidence(result *output.TestResult, bodyStr string, bodyByte
 	result.ResponseBodyHash = hex.EncodeToString(hash[:8])
 
 	// Look for evidence markers indicating vulnerability exploitation
-	evidencePatterns := []struct {
-		name    string
-		pattern *regexp.Regexp
-	}{
-		{"sql_error", regexp.MustCompile(`(?i)(mysql|postgresql|oracle|sqlite|sql syntax|query failed|ORA-\d+)`)},
-		{"stack_trace", regexp.MustCompile(`(?i)(stack trace|at line \d+|exception|Traceback|panic:)`)},
-		{"debug_info", regexp.MustCompile(`(?i)(debug|internal error|undefined variable|Notice:)`)},
-		{"path_disclosure", regexp.MustCompile(`[A-Z]:\\|/var/www/|/home/\w+|/usr/local/`)},
-		{"version_disclosure", regexp.MustCompile(`(?i)(version|v\d+\.\d+\.\d+|PHP/|Apache/|nginx/)`)},
-		{"sensitive_data", regexp.MustCompile(`(?i)(password|secret|api.?key|token|credential)`)},
-		{"command_output", regexp.MustCompile(`(?i)(uid=\d+|root:|/bin/bash|command not found)`)},
-		{"xml_error", regexp.MustCompile(`(?i)(xml parsing|entity|DTD|<!ENTITY)`)},
-		{"template_injection", regexp.MustCompile(`(?i)(\{\{.*\}\}|\$\{.*\}|<%.*%>)`)},
-	}
-
 	for _, ep := range evidencePatterns {
 		if ep.pattern.MatchString(bodyStr) {
 			result.EvidenceMarkers = append(result.EvidenceMarkers, ep.name)
