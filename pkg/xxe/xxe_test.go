@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewDetector(t *testing.T) {
@@ -121,7 +123,7 @@ func TestDetect(t *testing.T) {
 		for _, v := range vulns {
 			if v.Type == AttackFileDisclosure {
 				found = true
-				if v.Severity != SeverityCritical {
+				if v.Severity != finding.Critical {
 					t.Errorf("expected critical severity")
 				}
 			}
@@ -410,7 +412,7 @@ func TestPayloadTypes(t *testing.T) {
 				// Some payloads can have neither if they're for testing edge cases
 				continue
 			}
-			if p.Severity != SeverityCritical {
+			if p.Severity != finding.Critical {
 				t.Errorf("file disclosure should be critical severity")
 			}
 		}

