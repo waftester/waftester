@@ -28,6 +28,7 @@ import (
 
 	"github.com/spaolacci/murmur3"
 	"github.com/waftester/waftester/pkg/checkpoint"
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/dsl"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/fp"
@@ -415,6 +416,10 @@ func runProbe() {
 	// Apply unified output settings
 	outFlags.ApplyUISettings()
 
+	// Graceful shutdown on SIGINT/SIGTERM
+	ctx, cancel := cli.SignalContext(30 * time.Second)
+	defer cancel()
+
 	// ═══════════════════════════════════════════════════════════════════════════
 	// DISPATCHER INITIALIZATION (Hooks: Slack, Teams, PagerDuty, OTEL, Prometheus)
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -427,7 +432,7 @@ func runProbe() {
 	}
 	if probeDispCtx != nil {
 		defer probeDispCtx.Close()
-		_ = probeDispCtx.EmitStart(context.Background(), "multi-target", 0, *threads, nil)
+		_ = probeDispCtx.EmitStart(ctx, "multi-target", 0, *threads, nil)
 	}
 	probeStartTime := time.Now()
 
@@ -2059,7 +2064,7 @@ func runProbe() {
 	}
 
 	// Run probes in parallel with streaming output using callback
-	probeRunner.RunWithCallback(context.Background(), targets, probeTask, func(result runner.Result[*ProbeResults]) {
+	probeRunner.RunWithCallback(ctx, targets, probeTask, func(result runner.Result[*ProbeResults]) {
 		if result.Error != nil {
 			// Handle error output
 			atomic.AddInt64(&statsTotal, 1)

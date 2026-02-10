@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/crawler"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
@@ -247,7 +248,10 @@ func runCrawl() {
 
 	c := crawler.NewCrawler(cfg)
 
-	ctx, cancel := context.WithTimeout(context.Background(), duration.ContextExtended)
+	sigCtx, sigCancel := cli.SignalContext(30 * time.Second)
+	defer sigCancel()
+
+	ctx, cancel := context.WithTimeout(sigCtx, duration.ContextExtended)
 	defer cancel()
 
 	// ═══════════════════════════════════════════════════════════════════════════
