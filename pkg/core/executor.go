@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -77,10 +78,19 @@ type Executor struct {
 	limiter    *rate.Limiter
 	enhancer   *realistic.ExecutorEnhancer // Realistic mode enhancer
 	detector   *detection.Detector         // Connection drop and silent ban detection
+	logger     *slog.Logger
+}
+
+// ExecutorOption configures an Executor.
+type ExecutorOption func(*Executor)
+
+// WithLogger sets a custom structured logger for the executor.
+func WithLogger(l *slog.Logger) ExecutorOption {
+	return func(e *Executor) { e.logger = l }
 }
 
 // NewExecutor creates a new parallel executor
-func NewExecutor(cfg ExecutorConfig) *Executor {
+func NewExecutor(cfg ExecutorConfig, opts ...ExecutorOption) *Executor {
 	// Validate and apply defaults for invalid config values
 	if cfg.Concurrency <= 0 {
 		cfg.Concurrency = defaults.ConcurrencyMinimal // Default to 1 worker
@@ -118,6 +128,10 @@ func NewExecutor(cfg ExecutorConfig) *Executor {
 		config:     cfg,
 		httpClient: client,
 		limiter:    limiter,
+		logger:     slog.Default(),
+	}
+	for _, opt := range opts {
+		opt(executor)
 	}
 
 	// Initialize realistic mode enhancer if enabled
@@ -152,7 +166,7 @@ func (e *Executor) Execute(ctx context.Context, allPayloads []payloads.Payload, 
 	if e.enhancer != nil && e.config.AutoCalibrate {
 		if err := e.enhancer.Calibrate(ctx); err != nil {
 			// Log calibration failure but continue
-			fmt.Printf("Warning: Auto-calibration failed: %v\n", err)
+			e.logger.Warn("auto-calibration failed", slog.String("error", err.Error()))
 		}
 	}
 
@@ -180,7 +194,9 @@ func (e *Executor) Execute(ctx context.Context, allPayloads []payloads.Payload, 
 		skip := atomic.LoadInt64(&skipped)
 		if float64(skip)/float64(done) > 0.8 {
 			deathSpiralOnce.Do(func() {
-				fmt.Printf("\n[!] Scan death spiral detected: %d/%d payloads skipped (host unreachable). Aborting.\n", skip, done)
+				e.logger.Error("scan death spiral detected, aborting",
+					slog.Int64("skipped", skip),
+					slog.Int64("completed", done))
 				deathSpiralCancel()
 			})
 		}
