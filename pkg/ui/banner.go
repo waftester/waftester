@@ -17,7 +17,7 @@ import (
 // Version comes from defaults.Version (single source of truth)
 var (
 	Version   = defaults.Version
-	BuildDate = "2026-02-02"
+	BuildDate = "2026-02-10"
 	Commit    = "dev"
 )
 
