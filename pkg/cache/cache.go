@@ -17,6 +17,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
@@ -36,22 +37,11 @@ const (
 	VulnResponseSplitting VulnerabilityType = "response-splitting"
 )
 
-// Severity levels for vulnerabilities
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
-
 // Vulnerability represents a detected cache poisoning vulnerability
 type Vulnerability struct {
 	Type        VulnerabilityType `json:"type"`
 	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
+	Severity    finding.Severity  `json:"severity"`
 	URL         string            `json:"url"`
 	Evidence    string            `json:"evidence"`
 	Remediation string            `json:"remediation"`
@@ -321,7 +311,7 @@ func (t *Tester) TestUnkeyedHeader(ctx context.Context, targetURL string, header
 		return &Vulnerability{
 			Type:        VulnUnkeyedHeader,
 			Description: fmt.Sprintf("Header '%s' is reflected but not keyed in cache", header),
-			Severity:    SeverityHigh,
+			Severity:    finding.High,
 			URL:         targetURL,
 			Evidence:    fmt.Sprintf("Canary '%s' appeared in cached response", canary),
 			Remediation: GetUnkeyedHeaderRemediation(),
@@ -403,7 +393,7 @@ func (t *Tester) TestUnkeyedParameter(ctx context.Context, targetURL string, par
 		return &Vulnerability{
 			Type:        VulnUnkeyedParameter,
 			Description: fmt.Sprintf("Parameter '%s' is reflected but not keyed in cache", param),
-			Severity:    SeverityHigh,
+			Severity:    finding.High,
 			URL:         targetURL,
 			Evidence:    fmt.Sprintf("Canary '%s' appeared in cached response without param", canary),
 			Remediation: GetUnkeyedParamRemediation(),
@@ -519,7 +509,7 @@ func (t *Tester) TestCacheDeception(ctx context.Context, targetURL string) ([]Vu
 				vulns = append(vulns, Vulnerability{
 					Type:        VulnCacheDeception,
 					Description: fmt.Sprintf("Cache deception via path: %s%s", delim, ext),
-					Severity:    SeverityHigh,
+					Severity:    finding.High,
 					URL:         testURL,
 					Evidence:    fmt.Sprintf("Response cached with static extension, Cache-Status: %s%s", cacheStatus, cfCache),
 					Remediation: GetCacheDeceptionRemediation(),
@@ -596,7 +586,7 @@ func (t *Tester) TestPathNormalization(ctx context.Context, targetURL string) ([
 			vulns = append(vulns, Vulnerability{
 				Type:        VulnPathNormalization,
 				Description: fmt.Sprintf("Path normalization issue with %s", variation.desc),
-				Severity:    SeverityMedium,
+				Severity:    finding.Medium,
 				URL:         testURL,
 				Evidence:    fmt.Sprintf("Cache hit on path with %s: %s", variation.desc, variation.pattern),
 				Remediation: GetPathNormalizationRemediation(),
@@ -645,7 +635,7 @@ func (t *Tester) TestFatGET(ctx context.Context, targetURL string) (*Vulnerabili
 		return &Vulnerability{
 			Type:        VulnFatGET,
 			Description: "Server processes body in GET requests (Fat GET)",
-			Severity:    SeverityMedium,
+			Severity:    finding.Medium,
 			URL:         targetURL,
 			Evidence:    fmt.Sprintf("GET request body was processed, canary reflected: %s", canary),
 			Remediation: GetFatGETRemediation(),
@@ -713,7 +703,7 @@ func (t *Tester) TestParameterCloaking(ctx context.Context, targetURL string) ([
 			vulns = append(vulns, Vulnerability{
 				Type:        VulnParameterCloaking,
 				Description: fmt.Sprintf("Parameter cloaking via %s", pattern.desc),
-				Severity:    SeverityMedium,
+				Severity:    finding.Medium,
 				URL:         testURL,
 				Evidence:    fmt.Sprintf("Hidden parameter processed: %s", pattern.desc),
 				Remediation: GetParameterCloakingRemediation(),
