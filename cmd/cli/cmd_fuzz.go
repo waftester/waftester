@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -281,20 +280,6 @@ func runFuzz() {
 		if len(parts) == 2 {
 			headers[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
 		}
-	}
-
-	// Parse integer lists
-	parseIntList := func(s string) []int {
-		if s == "" {
-			return nil
-		}
-		var result []int
-		for _, part := range strings.Split(s, ",") {
-			if n, err := strconv.Atoi(strings.TrimSpace(part)); err == nil {
-				result = append(result, n)
-			}
-		}
-		return result
 	}
 
 	// Parse regexes
