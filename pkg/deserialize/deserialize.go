@@ -16,6 +16,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
@@ -37,22 +38,11 @@ const (
 	VulnJSONDeserial   VulnerabilityType = "json-deserialization"
 )
 
-// Severity represents the severity level.
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
-
 // Vulnerability represents a detected deserialization vulnerability.
 type Vulnerability struct {
 	Type        VulnerabilityType `json:"type"`
 	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
+	Severity    finding.Severity   `json:"severity"`
 	URL         string            `json:"url"`
 	Parameter   string            `json:"parameter,omitempty"`
 	Payload     string            `json:"payload,omitempty"`
@@ -153,7 +143,7 @@ func (t *Tester) TestPayload(ctx context.Context, targetURL string, param string
 		return &Vulnerability{
 			Type:        payload.VulnType,
 			Description: payload.Description,
-			Severity:    SeverityCritical,
+			Severity:    finding.Critical,
 			URL:         targetURL,
 			Parameter:   param,
 			Payload:     truncate(payloadData, 200),
@@ -195,7 +185,7 @@ func (t *Tester) TestPOST(ctx context.Context, targetURL string, payload Payload
 		return &Vulnerability{
 			Type:        payload.VulnType,
 			Description: payload.Description,
-			Severity:    SeverityCritical,
+			Severity:    finding.Critical,
 			URL:         targetURL,
 			Payload:     truncate(payloadData, 200),
 			Evidence:    fmt.Sprintf("Status: %d, Response indicates deserialization", resp.StatusCode),

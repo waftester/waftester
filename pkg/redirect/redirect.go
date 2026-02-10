@@ -14,6 +14,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
@@ -31,17 +32,6 @@ const (
 	VulnJavascriptRedirect VulnerabilityType = "javascript_redirect" // JavaScript-based redirect
 )
 
-// Severity represents the severity of a finding
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
-
 // Payload represents a redirect test payload
 type Payload struct {
 	Name        string            // Payload name
@@ -55,7 +45,7 @@ type Payload struct {
 type Vulnerability struct {
 	Type        VulnerabilityType `json:"type"`
 	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
+	Severity    finding.Severity  `json:"severity"`
 	Payload     *Payload          `json:"payload"`
 	Parameter   string            `json:"parameter"`
 	Evidence    string            `json:"evidence"`
@@ -366,7 +356,7 @@ func (t *Tester) analyzeResponse(testURL, param string, payload *Payload, resp *
 			return &Vulnerability{
 				Type:        payload.Type,
 				Description: fmt.Sprintf("Open redirect via %s parameter", param),
-				Severity:    SeverityMedium,
+				Severity:    finding.Medium,
 				Payload:     payload,
 				Parameter:   param,
 				Evidence:    fmt.Sprintf("Location header redirects to: %s", location),
@@ -384,7 +374,7 @@ func (t *Tester) analyzeResponse(testURL, param string, payload *Payload, resp *
 			return &Vulnerability{
 				Type:        VulnMetaRefresh,
 				Description: fmt.Sprintf("Meta refresh redirect via %s parameter", param),
-				Severity:    SeverityMedium,
+				Severity:    finding.Medium,
 				Payload:     payload,
 				Parameter:   param,
 				Evidence:    fmt.Sprintf("Meta refresh URL: %s", matches[1]),
@@ -410,7 +400,7 @@ func (t *Tester) analyzeResponse(testURL, param string, payload *Payload, resp *
 				return &Vulnerability{
 					Type:        VulnJavascriptRedirect,
 					Description: fmt.Sprintf("JavaScript redirect via %s parameter", param),
-					Severity:    SeverityMedium,
+					Severity:    finding.Medium,
 					Payload:     payload,
 					Parameter:   param,
 					Evidence:    fmt.Sprintf("JavaScript redirect to: %s", matches[1]),

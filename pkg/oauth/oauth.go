@@ -18,6 +18,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
@@ -41,22 +42,11 @@ const (
 	VulnWeakSecret          VulnerabilityType = "weak-client-secret"
 )
 
-// Severity represents the severity level.
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
-
 // Vulnerability represents a detected OAuth vulnerability.
 type Vulnerability struct {
 	Type        VulnerabilityType `json:"type"`
 	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
+	Severity    finding.Severity  `json:"severity"`
 	URL         string            `json:"url"`
 	Parameter   string            `json:"parameter,omitempty"`
 	Payload     string            `json:"payload,omitempty"`
@@ -171,7 +161,7 @@ func (t *Tester) TestOpenRedirect(ctx context.Context) ([]Vulnerability, error) 
 				vulns = append(vulns, Vulnerability{
 					Type:        VulnOpenRedirect,
 					Description: "Open redirect via redirect_uri manipulation",
-					Severity:    SeverityHigh,
+					Severity:    finding.High,
 					URL:         authURL.String(),
 					Parameter:   "redirect_uri",
 					Payload:     payload,
@@ -226,7 +216,7 @@ func (t *Tester) TestCSRFAuthorization(ctx context.Context) ([]Vulnerability, er
 		vulns = append(vulns, Vulnerability{
 			Type:        VulnCSRFAuth,
 			Description: "Authorization request accepted without state parameter",
-			Severity:    SeverityHigh,
+			Severity:    finding.High,
 			URL:         authURL.String(),
 			Parameter:   "state",
 			Evidence:    fmt.Sprintf("Status: %d without state parameter", resp.StatusCode),
@@ -280,7 +270,7 @@ func (t *Tester) TestStateBypass(ctx context.Context) ([]Vulnerability, error) {
 			vulns = append(vulns, Vulnerability{
 				Type:        VulnStateBypass,
 				Description: fmt.Sprintf("State parameter bypass with value: %q", stateVal),
-				Severity:    SeverityMedium,
+				Severity:    finding.Medium,
 				URL:         authURL.String(),
 				Parameter:   "state",
 				Payload:     stateVal,
@@ -336,7 +326,7 @@ func (t *Tester) TestScopeManipulation(ctx context.Context) ([]Vulnerability, er
 			vulns = append(vulns, Vulnerability{
 				Type:        VulnScopeManipulation,
 				Description: "Elevated scope accepted",
-				Severity:    SeverityHigh,
+				Severity:    finding.High,
 				URL:         authURL.String(),
 				Parameter:   "scope",
 				Payload:     scope,
@@ -390,7 +380,7 @@ func (t *Tester) TestPKCEBypass(ctx context.Context) ([]Vulnerability, error) {
 		vulns = append(vulns, Vulnerability{
 			Type:        VulnPKCEBypass,
 			Description: "Authorization succeeds without PKCE (code_challenge)",
-			Severity:    SeverityMedium,
+			Severity:    finding.Medium,
 			URL:         authURL.String(),
 			Parameter:   "code_challenge",
 			Evidence:    fmt.Sprintf("Status: %d without PKCE", resp.StatusCode),
