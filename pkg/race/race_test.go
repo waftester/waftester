@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewTester(t *testing.T) {
@@ -146,7 +148,7 @@ func TestTestDoubleSubmit(t *testing.T) {
 		if vuln.Type != AttackDoubleSubmit {
 			t.Errorf("expected double submit type, got %s", vuln.Type)
 		}
-		if vuln.Severity != SeverityCritical {
+		if vuln.Severity != finding.Critical {
 			t.Errorf("expected critical severity")
 		}
 	})

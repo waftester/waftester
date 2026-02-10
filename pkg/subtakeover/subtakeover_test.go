@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewTester(t *testing.T) {
@@ -170,14 +172,14 @@ func TestBatchCheck(t *testing.T) {
 func TestGetSeverity(t *testing.T) {
 	tests := []struct {
 		vulnType VulnerabilityType
-		expected Severity
+		expected finding.Severity
 	}{
-		{VulnNS, SeverityCritical},
-		{VulnCNAME, SeverityHigh},
-		{VulnS3Bucket, SeverityHigh},
-		{VulnAzureBlob, SeverityHigh},
-		{VulnGitHubPages, SeverityHigh},
-		{VulnMX, SeverityMedium},
+		{VulnNS, finding.Critical},
+		{VulnCNAME, finding.High},
+		{VulnS3Bucket, finding.High},
+		{VulnAzureBlob, finding.High},
+		{VulnGitHubPages, finding.High},
+		{VulnMX, finding.Medium},
 	}
 
 	for _, tt := range tests {
@@ -249,14 +251,16 @@ func TestGetProviders(t *testing.T) {
 
 func TestVulnerabilityToJSON(t *testing.T) {
 	vuln := Vulnerability{
-		Type:        VulnS3Bucket,
-		Description: "S3 bucket takeover",
-		Severity:    SeverityHigh,
-		Subdomain:   "static.example.com",
-		Target:      "static.example.com.s3.amazonaws.com",
-		Provider:    "Amazon AWS",
-		Evidence:    "NoSuchBucket error",
-		CVSS:        8.6,
+		Vulnerability: finding.Vulnerability{
+			Description: "S3 bucket takeover",
+			Severity:    finding.High,
+			Evidence:    "NoSuchBucket error",
+			CVSS:        8.6,
+		},
+		Type:      VulnS3Bucket,
+		Subdomain: "static.example.com",
+		Target:    "static.example.com.s3.amazonaws.com",
+		Provider:  "Amazon AWS",
 	}
 
 	jsonStr, err := VulnerabilityToJSON(vuln)
@@ -271,15 +275,17 @@ func TestVulnerabilityToJSON(t *testing.T) {
 
 func TestVulnerability(t *testing.T) {
 	vuln := Vulnerability{
-		Type:        VulnGitHubPages,
-		Description: "GitHub Pages takeover",
-		Severity:    SeverityHigh,
-		Subdomain:   "docs.example.com",
-		Target:      "example.github.io",
-		Provider:    "GitHub",
-		Evidence:    "No GitHub Pages site",
-		Remediation: "Remove DNS record",
-		CVSS:        8.6,
+		Vulnerability: finding.Vulnerability{
+			Description: "GitHub Pages takeover",
+			Severity:    finding.High,
+			Evidence:    "No GitHub Pages site",
+			Remediation: "Remove DNS record",
+			CVSS:        8.6,
+		},
+		Type:      VulnGitHubPages,
+		Subdomain: "docs.example.com",
+		Target:    "example.github.io",
+		Provider:  "GitHub",
 	}
 
 	data, err := json.Marshal(vuln)

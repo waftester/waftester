@@ -239,7 +239,7 @@ func deduplicateAllFindings(r *ScanResult) {
 		)
 		addCounts(r, "ssrf", len(r.SSRF.Vulnerabilities))
 		for _, v := range r.SSRF.Vulnerabilities {
-			r.BySeverity[v.Severity]++ // Severity is string, not typed
+			r.BySeverity[string(v.Severity)]++ // Severity is finding.Severity, cast to string
 		}
 	}
 
