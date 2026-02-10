@@ -6,11 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
@@ -91,7 +90,7 @@ func runBypassFinder() {
 	fmt.Println()
 
 	// Setup context
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := cli.SignalContext(30 * time.Second)
 	defer cancel()
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -187,13 +186,6 @@ func runBypassFinder() {
 	expectedTests := executor.CountCombinations(len(testPayloads))
 	ui.PrintConfigLine("Expected Tests", fmt.Sprintf("%d", expectedTests))
 	fmt.Fprintln(os.Stderr)
-
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigChan
-		cancel()
-	}()
 
 	// Generate tasks for progress tracking
 	tasks := executor.GenerateTasks(testPayloads, nil)

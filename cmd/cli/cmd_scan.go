@@ -9,11 +9,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/signal"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -23,6 +21,7 @@ import (
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/bizlogic"
 	"github.com/waftester/waftester/pkg/cache"
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/cmdi"
 	"github.com/waftester/waftester/pkg/cors"
 	"github.com/waftester/waftester/pkg/crlf"
@@ -297,18 +296,11 @@ func runScan() {
 
 	// Setup context with timeout
 	// Overall scan deadline: 60× per-request timeout (e.g., -timeout 30 → 30min scan deadline)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cf.Timeout)*time.Minute)
+	ctx, cancel := cli.SignalContext(30 * time.Second)
 	defer cancel()
 
-	// Graceful shutdown on SIGINT/SIGTERM
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigChan
-		fmt.Fprintln(os.Stderr)
-		ui.PrintWarning("Interrupt received, stopping scan gracefully...")
-		cancel()
-	}()
+	ctx, tCancel := context.WithTimeout(ctx, time.Duration(cf.Timeout)*time.Minute)
+	defer tCancel()
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// DISPATCHER INITIALIZATION (Hooks: Slack, Teams, PagerDuty, OTEL, Prometheus)
