@@ -30,6 +30,7 @@ import (
 
 	"github.com/spaolacci/murmur3"
 	"github.com/waftester/waftester/pkg/checkpoint"
+	"github.com/waftester/waftester/pkg/dsl"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/headless"
 	"github.com/waftester/waftester/pkg/httpclient"
@@ -1045,237 +1046,6 @@ func runProbe() {
 		return true
 	}
 
-	// DSL Expression Evaluator for -mdc and -fdc flags (httpx-compatible)
-	// Supports: status_code, content_length, content_type, body, header, title, host, path
-	// Operators: ==, !=, <, >, <=, >=, &&, ||, !
-	// Functions: contains(str, substr), matches(str, regex), len(str), hasPrefix(str, prefix), hasSuffix(str, suffix)
-	// Note: This function is defined here but called after ProbeResults is populated
-	var evaluateDSL func(expr string, statusCode int, contentLength int64, body, contentType, title, host, server, location string) bool
-	evaluateDSL = func(expr string, statusCode int, contentLength int64, body, contentType, title, host, server, location string) bool {
-		if expr == "" {
-			return true
-		}
-
-		// Replace variables with their values for evaluation
-		variables := map[string]interface{}{
-			"status_code":    statusCode,
-			"content_length": contentLength,
-			"content_type":   contentType,
-			"body":           body,
-			"title":          title,
-			"host":           host,
-			"server":         server,
-			"location":       location,
-		}
-
-		// Simple expression parser
-		// Handle contains(body, "string")
-		containsRe := regexcache.MustGet(`contains\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
-		expr = containsRe.ReplaceAllStringFunc(expr, func(match string) string {
-			parts := containsRe.FindStringSubmatch(match)
-			if len(parts) == 3 {
-				varName := parts[1]
-				substr := parts[2]
-				if val, ok := variables[varName]; ok {
-					if strVal, ok := val.(string); ok {
-						if strings.Contains(strVal, substr) {
-							return "true"
-						}
-						return "false"
-					}
-				}
-			}
-			return "false"
-		})
-
-		// Handle !contains(body, "string")
-		notContainsRe := regexcache.MustGet(`!\s*contains\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
-		expr = notContainsRe.ReplaceAllStringFunc(expr, func(match string) string {
-			parts := notContainsRe.FindStringSubmatch(match)
-			if len(parts) == 3 {
-				varName := parts[1]
-				substr := parts[2]
-				if val, ok := variables[varName]; ok {
-					if strVal, ok := val.(string); ok {
-						if !strings.Contains(strVal, substr) {
-							return "true"
-						}
-						return "false"
-					}
-				}
-			}
-			return "true"
-		})
-
-		// Handle matches(body, "regex")
-		matchesRe := regexcache.MustGet(`matches\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
-		expr = matchesRe.ReplaceAllStringFunc(expr, func(match string) string {
-			parts := matchesRe.FindStringSubmatch(match)
-			if len(parts) == 3 {
-				varName := parts[1]
-				pattern := parts[2]
-				if val, ok := variables[varName]; ok {
-					if strVal, ok := val.(string); ok {
-						re, err := regexcache.Get(pattern)
-						if err == nil && re.MatchString(strVal) {
-							return "true"
-						}
-						return "false"
-					}
-				}
-			}
-			return "false"
-		})
-
-		// Handle hasPrefix(str, "prefix")
-		hasPrefixRe := regexcache.MustGet(`hasPrefix\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
-		expr = hasPrefixRe.ReplaceAllStringFunc(expr, func(match string) string {
-			parts := hasPrefixRe.FindStringSubmatch(match)
-			if len(parts) == 3 {
-				varName := parts[1]
-				prefix := parts[2]
-				if val, ok := variables[varName]; ok {
-					if strVal, ok := val.(string); ok {
-						if strings.HasPrefix(strVal, prefix) {
-							return "true"
-						}
-						return "false"
-					}
-				}
-			}
-			return "false"
-		})
-
-		// Handle hasSuffix(str, "suffix")
-		hasSuffixRe := regexcache.MustGet(`hasSuffix\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
-		expr = hasSuffixRe.ReplaceAllStringFunc(expr, func(match string) string {
-			parts := hasSuffixRe.FindStringSubmatch(match)
-			if len(parts) == 3 {
-				varName := parts[1]
-				suffix := parts[2]
-				if val, ok := variables[varName]; ok {
-					if strVal, ok := val.(string); ok {
-						if strings.HasSuffix(strVal, suffix) {
-							return "true"
-						}
-						return "false"
-					}
-				}
-			}
-			return "false"
-		})
-
-		// Handle len(var) - replace with actual length
-		lenRe := regexcache.MustGet(`len\s*\(\s*(\w+)\s*\)`)
-		expr = lenRe.ReplaceAllStringFunc(expr, func(match string) string {
-			parts := lenRe.FindStringSubmatch(match)
-			if len(parts) == 2 {
-				varName := parts[1]
-				if val, ok := variables[varName]; ok {
-					if strVal, ok := val.(string); ok {
-						return strconv.Itoa(len(strVal))
-					}
-				}
-			}
-			return "0"
-		})
-
-		// Replace numeric variable comparisons: status_code == 200
-		numericRe := regexcache.MustGet(`(status_code|content_length)\s*(==|!=|<=|>=|<|>)\s*(\d+)`)
-		expr = numericRe.ReplaceAllStringFunc(expr, func(match string) string {
-			parts := numericRe.FindStringSubmatch(match)
-			if len(parts) == 4 {
-				varName := parts[1]
-				op := parts[2]
-				expected, _ := strconv.Atoi(parts[3])
-				var actual int
-				if varName == "status_code" {
-					actual = statusCode
-				} else if varName == "content_length" {
-					actual = int(contentLength)
-				}
-				var result bool
-				switch op {
-				case "==":
-					result = actual == expected
-				case "!=":
-					result = actual != expected
-				case "<":
-					result = actual < expected
-				case ">":
-					result = actual > expected
-				case "<=":
-					result = actual <= expected
-				case ">=":
-					result = actual >= expected
-				}
-				if result {
-					return "true"
-				}
-				return "false"
-			}
-			return "false"
-		})
-
-		// Replace string variable comparisons: content_type == "text/html"
-		stringRe := regexcache.MustGet(`(content_type|title|host|path|method|scheme|server|location)\s*(==|!=)\s*"([^"]+)"`)
-		expr = stringRe.ReplaceAllStringFunc(expr, func(match string) string {
-			parts := stringRe.FindStringSubmatch(match)
-			if len(parts) == 4 {
-				varName := parts[1]
-				op := parts[2]
-				expected := parts[3]
-				actual := ""
-				if val, ok := variables[varName]; ok {
-					if strVal, ok := val.(string); ok {
-						actual = strVal
-					}
-				}
-				var result bool
-				switch op {
-				case "==":
-					result = actual == expected
-				case "!=":
-					result = actual != expected
-				}
-				if result {
-					return "true"
-				}
-				return "false"
-			}
-			return "false"
-		})
-
-		// Now evaluate the boolean expression (true, false, &&, ||, !)
-		// Simplify: replace && with & and || with | for easier parsing
-		expr = strings.ReplaceAll(expr, "&&", "&")
-		expr = strings.ReplaceAll(expr, "||", "|")
-
-		// Split by | (OR) first, then by & (AND)
-		orParts := strings.Split(expr, "|")
-		for _, orPart := range orParts {
-			orPart = strings.TrimSpace(orPart)
-			andParts := strings.Split(orPart, "&")
-			allTrue := true
-			for _, andPart := range andParts {
-				andPart = strings.TrimSpace(andPart)
-				if andPart == "false" || andPart == "" {
-					allTrue = false
-					break
-				}
-				if andPart != "true" {
-					// Unrecognized expression, treat as false
-					allTrue = false
-					break
-				}
-			}
-			if allTrue {
-				return true
-			}
-		}
-		return false
-	}
-
 	// Simhash implementation for near-duplicate detection
 	simhash := func(text string) uint64 {
 		var v [64]int
@@ -1534,7 +1304,6 @@ func runProbe() {
 	_ = excludedHosts
 	_ = matchRange
 	_ = matchTimeCondition
-	_ = evaluateDSL
 	_ = simhash
 	_ = hammingDistance
 	_ = seenSimhashes
@@ -2716,7 +2485,16 @@ func runProbe() {
 			if titleMatch := titleRe.FindStringSubmatch(results.rawBody); len(titleMatch) > 1 {
 				titleStr = titleMatch[1]
 			}
-			if !evaluateDSL(*matchCondition, results.StatusCode, results.ContentLength, results.rawBody, results.ContentType, titleStr, results.Target, results.Server, results.Location) {
+			if !dsl.Evaluate(*matchCondition, &dsl.ResponseData{
+				StatusCode:    results.StatusCode,
+				ContentLength: results.ContentLength,
+				Body:          results.rawBody,
+				ContentType:   results.ContentType,
+				Title:         titleStr,
+				Host:          results.Target,
+				Server:        results.Server,
+				Location:      results.Location,
+			}) {
 				skipOutput = true
 			}
 		}
@@ -2728,7 +2506,16 @@ func runProbe() {
 			if titleMatch := titleRe.FindStringSubmatch(results.rawBody); len(titleMatch) > 1 {
 				titleStr = titleMatch[1]
 			}
-			if evaluateDSL(*filterCondition, results.StatusCode, results.ContentLength, results.rawBody, results.ContentType, titleStr, results.Target, results.Server, results.Location) {
+			if dsl.Evaluate(*filterCondition, &dsl.ResponseData{
+				StatusCode:    results.StatusCode,
+				ContentLength: results.ContentLength,
+				Body:          results.rawBody,
+				ContentType:   results.ContentType,
+				Title:         titleStr,
+				Host:          results.Target,
+				Server:        results.Server,
+				Location:      results.Location,
+			}) {
 				skipOutput = true
 			}
 		}
