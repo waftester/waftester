@@ -729,7 +729,7 @@ func TestMultiWriterScenario_AllFormats(t *testing.T) {
 	}
 
 	// Create all writers
-	writers := make(map[string]output.Writer)
+	writers := make(map[string]output.ResultWriter)
 	paths := make(map[string]string)
 
 	for _, f := range formats {
