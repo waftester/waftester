@@ -18,6 +18,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
@@ -46,22 +47,13 @@ const (
 	DBUnknown  Database = "unknown"
 )
 
-// Severity levels for vulnerabilities
-type Severity string
 
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
 
 // Vulnerability represents a detected NoSQL injection vulnerability
 type Vulnerability struct {
 	Type        VulnerabilityType `json:"type"`
 	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
+	Severity    finding.Severity  `json:"severity"`
 	URL         string            `json:"url"`
 	Parameter   string            `json:"parameter,omitempty"`
 	Payload     string            `json:"payload"`
@@ -553,16 +545,16 @@ func truncate(s string, maxLen int) string {
 	return s[:maxLen] + "..."
 }
 
-func getSeverity(vulnType VulnerabilityType) Severity {
+func getSeverity(vulnType VulnerabilityType) finding.Severity {
 	switch vulnType {
 	case VulnAuthBypass, VulnDataExfiltration:
-		return SeverityCritical
+		return finding.Critical
 	case VulnOperatorInjection, VulnJSInjection:
-		return SeverityHigh
+		return finding.High
 	case VulnBlindInjection:
-		return SeverityMedium
+		return finding.Medium
 	default:
-		return SeverityHigh
+		return finding.High
 	}
 }
 
