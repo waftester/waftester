@@ -2,6 +2,7 @@
 package update
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -202,7 +203,16 @@ func updateFromOWASP(cfg *UpdateConfig, report *UpdateReport) error {
 		// Use a closure to ensure resp.Body is closed after each iteration
 		// Avoids defer-in-loop resource leak bug
 		func() {
-			resp, err := http.Get(url)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+			if err != nil {
+				fmt.Printf("%s (request error: %v)\n", red("failed"), err)
+				return
+			}
+
+			resp, err := httpclient.Default().Do(req)
 			if err != nil {
 				fmt.Printf("%s (fetch error: %v)\n", red("failed"), err)
 				return
@@ -354,26 +364,39 @@ func updateFromGitHubRepo(cfg *UpdateConfig, report *UpdateReport, tag string) e
 		rawURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/payloads/%s.json",
 			defaultGitHubOwner, defaultGitHubRepo, tag, category)
 
-		resp, err := http.Get(rawURL)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 		if err != nil {
+			cancel()
+			fmt.Printf("%s (request error)\n", yellow("skipped"))
+			continue
+		}
+
+		resp, err := httpclient.Default().Do(req)
+		if err != nil {
+			cancel()
 			fmt.Printf("%s (fetch error)\n", yellow("skipped"))
 			continue
 		}
 
 		if resp.StatusCode == 404 {
 			iohelper.DrainAndClose(resp.Body)
+			cancel()
 			fmt.Printf("%s (not found)\n", yellow("skipped"))
 			continue
 		}
 
 		if resp.StatusCode != 200 {
 			iohelper.DrainAndClose(resp.Body)
+			cancel()
 			fmt.Printf("%s (HTTP %d)\n", yellow("skipped"), resp.StatusCode)
 			continue
 		}
 
 		body, err := iohelper.ReadBodyDefault(resp.Body)
 		iohelper.DrainAndClose(resp.Body)
+		cancel()
 		if err != nil {
 			fmt.Printf("%s (read error)\n", red("failed"))
 			continue
@@ -407,7 +430,15 @@ func updateFromGitHubRepo(cfg *UpdateConfig, report *UpdateReport, tag string) e
 
 // downloadAndMergePayload downloads a payload file and merges with existing
 func downloadAndMergePayload(cfg *UpdateConfig, url, filename string) (int, error) {
-	resp, err := http.Get(url)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return 0, fmt.Errorf("creating request: %w", err)
+	}
+
+	resp, err := httpclient.Default().Do(req)
 	if err != nil {
 		return 0, err
 	}
