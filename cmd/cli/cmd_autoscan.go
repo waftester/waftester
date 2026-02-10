@@ -8,12 +8,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/waftester/waftester/pkg/assessment"
@@ -21,6 +19,7 @@ import (
 	"github.com/waftester/waftester/pkg/browser"
 	"github.com/waftester/waftester/pkg/calibration"
 	"github.com/waftester/waftester/pkg/checkpoint"
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/core"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
@@ -377,7 +376,7 @@ func runAutoScan() {
 	}
 
 	// Setup graceful shutdown
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := cli.SignalContext(30 * time.Second)
 	defer cancel()
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -397,15 +396,6 @@ func runAutoScan() {
 		// Emit scan start event to hooks
 		_ = autoDispCtx.EmitStart(ctx, target, 0, *concurrency, nil)
 	}
-
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigChan
-		fmt.Fprintln(os.Stderr)
-		ui.PrintWarning("Interrupt received, shutting down gracefully...")
-		cancel()
-	}()
 
 	// Determine output mode for LiveProgress
 	autoOutputMode := ui.OutputModeInteractive

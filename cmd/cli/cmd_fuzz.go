@@ -8,15 +8,14 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/signal"
 	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/waftester/waftester/pkg/attackconfig"
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/fuzz"
@@ -390,7 +389,7 @@ func runFuzz() {
 	fuzzer := fuzz.NewFuzzer(cfg)
 
 	// Set up context with cancellation
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := cli.SignalContext(30 * time.Second)
 	defer cancel()
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -421,15 +420,6 @@ func runFuzz() {
 			fmt.Println()
 		}
 	}
-
-	// Handle Ctrl+C
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigChan
-		ui.PrintWarning("\nInterrupted, stopping...")
-		cancel()
-	}()
 
 	// Collect results
 	var results []*fuzz.Result
