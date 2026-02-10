@@ -10,6 +10,8 @@ import (
 
 	"github.com/waftester/waftester/internal/hexutil"
 	"github.com/waftester/waftester/pkg/bufpool"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // Pre-compiled replacers for performance (avoid creating in hot loops)
@@ -263,7 +265,7 @@ func (e *Evasion) initTechniques() {
 				results = append(results, alt.String())
 
 				// First letter upper of each word
-				results = append(results, strings.Title(strings.ToLower(payload)))
+				results = append(results, cases.Title(language.English).String(strings.ToLower(payload)))
 
 				// Random-like pattern
 				random := bufpool.GetString()

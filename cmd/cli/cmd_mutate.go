@@ -15,6 +15,8 @@ import (
 	"github.com/waftester/waftester/pkg/mutation"
 	"github.com/waftester/waftester/pkg/payloads"
 	"github.com/waftester/waftester/pkg/ui"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // =============================================================================
@@ -543,7 +545,7 @@ func printMutationStats() {
 	categories := reg.Categories()
 
 	for _, cat := range categories {
-		ui.PrintSection(strings.Title(cat) + " Mutators")
+		ui.PrintSection(cases.Title(language.English).String(cat) + " Mutators")
 		mutators := reg.GetByCategory(cat)
 		for _, m := range mutators {
 			fmt.Printf("  %-25s %s\n", m.Name(), m.Description())

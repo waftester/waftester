@@ -13,6 +13,8 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // Compile-time interface check.
@@ -402,7 +404,7 @@ func (pw *PDFWriter) addExecutiveSummary(pdf *gofpdf.Fpdf) {
 
 			color := pdfSeverityColors[sev]
 			pdf.SetTextColor(color[0], color[1], color[2])
-			pdf.CellFormat(50, 7, strings.Title(sev), "1", 0, "L", false, 0, "")
+			pdf.CellFormat(50, 7, cases.Title(language.English).String(sev), "1", 0, "L", false, 0, "")
 
 			bypassCount := severityCounts[sev]
 			pdf.SetTextColor(60, 60, 60)
@@ -910,7 +912,7 @@ func (pw *PDFWriter) addSeverityBarChart(pdf *gofpdf.Fpdf, severityCounts map[st
 		// Label
 		pdf.SetFont("Helvetica", "", 10)
 		pdf.SetTextColor(80, 80, 80)
-		pdf.CellFormat(25, 7, strings.Title(sev), "", 0, "R", false, 0, "")
+		pdf.CellFormat(25, 7, cases.Title(language.English).String(sev), "", 0, "R", false, 0, "")
 
 		// Bar
 		pdf.SetFillColor(color[0], color[1], color[2])

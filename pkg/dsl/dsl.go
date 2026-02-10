@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/regexcache"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // Formatter handles DSL template-based output formatting
@@ -106,7 +108,7 @@ var templateFuncs = template.FuncMap{
 	// String functions
 	"lower":      strings.ToLower,
 	"upper":      strings.ToUpper,
-	"title":      strings.Title,
+	"title":      cases.Title(language.English).String,
 	"trim":       strings.TrimSpace,
 	"replace":    strings.ReplaceAll,
 	"contains":   strings.Contains,
