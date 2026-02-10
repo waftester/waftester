@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/attackconfig"
 )
 
 func TestNewTester(t *testing.T) {
@@ -22,10 +24,12 @@ func TestNewTester(t *testing.T) {
 
 	t.Run("custom config", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout:   60 * time.Second,
-			UserAgent: "custom-agent",
-			Platform:  PlatformLinux,
-			MaxDepth:  5,
+			Base: attackconfig.Base{
+				Timeout:   60 * time.Second,
+				UserAgent: "custom-agent",
+			},
+			Platform: PlatformLinux,
+			MaxDepth: 5,
 		}
 		tester := NewTester(config)
 
@@ -342,8 +346,10 @@ func TestScan(t *testing.T) {
 	defer server.Close()
 
 	config := &TesterConfig{
-		Timeout:    10 * time.Second,
-		UserAgent:  "test-agent",
+		Base: attackconfig.Base{
+			Timeout:   10 * time.Second,
+			UserAgent: "test-agent",
+		},
 		TestParams: []string{"file"},
 		MaxDepth:   2,
 	}

@@ -864,9 +864,11 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "xss", "vulns": vulnCount})
 		}()
 		cfg := &xss.TesterConfig{
-			Timeout:   timeoutDur,
-			UserAgent: ui.UserAgent(),
-			Client:    httpClient,
+			Base: attackconfig.Base{
+				Timeout:   timeoutDur,
+				UserAgent: ui.UserAgent(),
+				Client:    httpClient,
+			},
 		}
 		tester := xss.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -901,9 +903,11 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "traversal", "vulns": vulnCount})
 		}()
 		cfg := &traversal.TesterConfig{
-			Timeout:   timeoutDur,
-			UserAgent: ui.UserAgent(),
-			Client:    httpClient,
+			Base: attackconfig.Base{
+				Timeout:   timeoutDur,
+				UserAgent: ui.UserAgent(),
+				Client:    httpClient,
+			},
 		}
 		tester := traversal.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -938,8 +942,10 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "cmdi", "vulns": vulnCount})
 		}()
 		cfg := &cmdi.TesterConfig{
-			Timeout:   timeoutDur,
-			UserAgent: ui.UserAgent(),
+			Base: attackconfig.Base{
+				Timeout:   timeoutDur,
+				UserAgent: ui.UserAgent(),
+			},
 		}
 		tester := cmdi.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -974,9 +980,11 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "nosqli", "vulns": vulnCount})
 		}()
 		cfg := &nosqli.TesterConfig{
-			Timeout:   timeoutDur,
-			UserAgent: ui.UserAgent(),
-			Client:    httpClient,
+			Base: attackconfig.Base{
+				Timeout:   timeoutDur,
+				UserAgent: ui.UserAgent(),
+				Client:    httpClient,
+			},
 		}
 		tester := nosqli.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -1011,9 +1019,11 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "hpp", "vulns": vulnCount})
 		}()
 		cfg := &hpp.TesterConfig{
-			Timeout:   timeoutDur,
-			UserAgent: ui.UserAgent(),
-			Client:    httpClient,
+			Base: attackconfig.Base{
+				Timeout:   timeoutDur,
+				UserAgent: ui.UserAgent(),
+				Client:    httpClient,
+			},
 		}
 		tester := hpp.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -1047,9 +1057,11 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "crlf", "vulns": vulnCount})
 		}()
 		cfg := &crlf.TesterConfig{
-			Timeout:   timeoutDur,
-			UserAgent: ui.UserAgent(),
-			Client:    httpClient,
+			Base: attackconfig.Base{
+				Timeout:   timeoutDur,
+				UserAgent: ui.UserAgent(),
+				Client:    httpClient,
+			},
 		}
 		tester := crlf.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -1083,9 +1095,11 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "prototype", "vulns": vulnCount})
 		}()
 		cfg := &prototype.TesterConfig{
-			Timeout:   timeoutDur,
-			UserAgent: ui.UserAgent(),
-			Client:    httpClient,
+			Base: attackconfig.Base{
+				Timeout:   timeoutDur,
+				UserAgent: ui.UserAgent(),
+				Client:    httpClient,
+			},
 		}
 		tester := prototype.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -1119,8 +1133,10 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "cors", "vulns": vulnCount})
 		}()
 		cfg := &cors.TesterConfig{
-			Timeout:   timeoutDur,
-			UserAgent: ui.UserAgent(),
+			Base: attackconfig.Base{
+				Timeout:   timeoutDur,
+				UserAgent: ui.UserAgent(),
+			},
 		}
 		tester := cors.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
