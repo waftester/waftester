@@ -8,7 +8,6 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
-	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
@@ -487,84 +486,10 @@ func runProbe() {
 	// Port expansion: if -ports flag is set, expand targets with those ports
 	// Supports NMAP-style syntax: http:80,https:443,8080-8090,http:8000-8010
 	if *probePorts != "" {
-		// Parse NMAP-style port specifications
-		parsePorts := func(spec string) []struct {
-			scheme string
-			port   int
-		} {
-			var result []struct {
-				scheme string
-				port   int
-			}
-			parts := strings.Split(spec, ",")
-			for _, part := range parts {
-				part = strings.TrimSpace(part)
-				if part == "" {
-					continue
-				}
-
-				scheme := "" // empty means use original URL scheme
-				portPart := part
-
-				// Check for scheme prefix (http:80 or https:443)
-				if strings.Contains(part, ":") {
-					colonIdx := strings.Index(part, ":")
-					possibleScheme := strings.ToLower(part[:colonIdx])
-					if possibleScheme == "http" || possibleScheme == "https" {
-						scheme = possibleScheme
-						portPart = part[colonIdx+1:]
-					}
-				}
-
-				// Check for port range (8080-8090)
-				if strings.Contains(portPart, "-") && !strings.HasPrefix(portPart, "-") {
-					rangeParts := strings.Split(portPart, "-")
-					if len(rangeParts) == 2 {
-						startPort, err1 := strconv.Atoi(rangeParts[0])
-						endPort, err2 := strconv.Atoi(rangeParts[1])
-						if err1 == nil && err2 == nil && startPort <= endPort {
-							for p := startPort; p <= endPort; p++ {
-								result = append(result, struct {
-									scheme string
-									port   int
-								}{scheme, p})
-							}
-						}
-					}
-				} else {
-					// Single port
-					p, err := strconv.Atoi(portPart)
-					if err == nil {
-						result = append(result, struct {
-							scheme string
-							port   int
-						}{scheme, p})
-					}
-				}
-			}
-			return result
-		}
-
-		portSpecs := parsePorts(*probePorts)
-		var portExpandedTargets []string
-		for _, t := range targets {
-			parsedURL, err := url.Parse(t)
-			if err != nil {
-				portExpandedTargets = append(portExpandedTargets, t)
-				continue
-			}
-			baseHost := parsedURL.Hostname()
-			for _, ps := range portSpecs {
-				scheme := parsedURL.Scheme
-				if ps.scheme != "" {
-					scheme = ps.scheme
-				}
-				newURL := fmt.Sprintf("%s://%s:%d%s", scheme, baseHost, ps.port, parsedURL.Path)
-				portExpandedTargets = append(portExpandedTargets, newURL)
-			}
-		}
-		if len(portExpandedTargets) > 0 {
-			targets = portExpandedTargets
+		portSpecs := parseProbePorts(*probePorts)
+		expanded := expandProbeTargetPorts(targets, portSpecs)
+		if len(expanded) > 0 {
+			targets = expanded
 			if *verbose {
 				ui.PrintInfo(fmt.Sprintf("Port expansion: %d targets across %d port specs", len(targets), len(portSpecs)))
 			}
@@ -777,38 +702,6 @@ func runProbe() {
 	// Note: The runner.Runner is created below after all helper functions are defined
 
 	// CPE (Common Platform Enumeration) generation helper
-	generateCPE := func(tech *probes.TechResult) []string {
-		if tech == nil {
-			return nil
-		}
-		cpes := []string{}
-		for _, t := range tech.Technologies {
-			// CPE format: cpe:2.3:a:vendor:product:version:*:*:*:*:*:*:*
-			vendor := strings.ToLower(strings.ReplaceAll(t.Name, " ", "_"))
-			product := vendor
-			version := t.Version
-			if version == "" {
-				version = "*"
-			}
-			cpe := fmt.Sprintf("cpe:2.3:a:%s:%s:%s:*:*:*:*:*:*:*", vendor, product, version)
-			cpes = append(cpes, cpe)
-		}
-		// Add server CPE if present
-		if tech.Generator != "" {
-			parts := strings.Fields(tech.Generator)
-			if len(parts) > 0 {
-				product := strings.ToLower(strings.ReplaceAll(parts[0], "/", "_"))
-				version := "*"
-				if len(parts) > 1 {
-					version = parts[len(parts)-1]
-				}
-				cpe := fmt.Sprintf("cpe:2.3:a:*:%s:%s:*:*:*:*:*:*:*", product, version)
-				cpes = append(cpes, cpe)
-			}
-		}
-		return cpes
-	}
-
 	// Rate limiting is handled via rateLimit flag (requests per second)
 	// rateLimitMinute can be converted: rps = rlm / 60
 	if *rateLimitMinute > 0 && *rateLimit == 0 {
@@ -831,22 +724,6 @@ func runProbe() {
 	}
 
 	// Batch 5: Filter flag suppressions (implemented)
-
-	// Helper function to strip HTML/XML tags from content
-	stripHTMLTags := func(content string) string {
-		// Remove script and style elements entirely
-		scriptRe := regexcache.MustGet(`(?is)<script[^>]*>.*?</script>`)
-		content = scriptRe.ReplaceAllString(content, "")
-		styleRe := regexcache.MustGet(`(?is)<style[^>]*>.*?</style>`)
-		content = styleRe.ReplaceAllString(content, "")
-		// Remove all HTML tags
-		tagRe := regexcache.MustGet(`<[^>]+>`)
-		content = tagRe.ReplaceAllString(content, " ")
-		// Collapse multiple whitespace
-		spaceRe := regexcache.MustGet(`\s+`)
-		content = spaceRe.ReplaceAllString(content, " ")
-		return strings.TrimSpace(content)
-	}
 
 	// Config flags - stored for later use
 	// These are applied during request processing below
@@ -911,117 +788,8 @@ func runProbe() {
 		}
 	}
 
-	// Helper function to check if value matches a range like "100,200-500"
-	matchRange := func(value int, rangeSpec string) bool {
-		if rangeSpec == "" {
-			return true
-		}
-		parts := strings.Split(rangeSpec, ",")
-		for _, part := range parts {
-			part = strings.TrimSpace(part)
-			if strings.Contains(part, "-") {
-				bounds := strings.Split(part, "-")
-				if len(bounds) == 2 {
-					low, _ := strconv.Atoi(strings.TrimSpace(bounds[0]))
-					high, _ := strconv.Atoi(strings.TrimSpace(bounds[1]))
-					if value >= low && value <= high {
-						return true
-					}
-				}
-			} else {
-				match, _ := strconv.Atoi(part)
-				if value == match {
-					return true
-				}
-			}
-		}
-		return false
-	}
-
-	// Helper function to check time condition like "<1s" or ">500ms"
-	matchTimeCondition := func(responseTime time.Duration, condition string) bool {
-		if condition == "" {
-			return true
-		}
-		condition = strings.TrimSpace(condition)
-		var op string
-		var threshold string
-		if strings.HasPrefix(condition, "<=") {
-			op = "<="
-			threshold = condition[2:]
-		} else if strings.HasPrefix(condition, ">=") {
-			op = ">="
-			threshold = condition[2:]
-		} else if strings.HasPrefix(condition, "<") {
-			op = "<"
-			threshold = condition[1:]
-		} else if strings.HasPrefix(condition, ">") {
-			op = ">"
-			threshold = condition[1:]
-		} else {
-			return true // no operator, ignore
-		}
-		dur, err := time.ParseDuration(threshold)
-		if err != nil {
-			return true
-		}
-		switch op {
-		case "<":
-			return responseTime < dur
-		case "<=":
-			return responseTime <= dur
-		case ">":
-			return responseTime > dur
-		case ">=":
-			return responseTime >= dur
-		}
-		return true
-	}
-
 	// Simhash deduplication tracking
 	seenSimhashes := make([]uint64, 0)
-
-	type ProbeResults struct {
-		Target          string                  `json:"target"`
-		Scheme          string                  `json:"scheme,omitempty"`
-		Method          string                  `json:"method,omitempty"`
-		DNS             *probes.DNSResult       `json:"dns,omitempty"`
-		TLS             *probes.TLSInfo         `json:"tls,omitempty"`
-		JARM            *probes.JARMResult      `json:"jarm,omitempty"`
-		Headers         *probes.SecurityHeaders `json:"headers,omitempty"`
-		Tech            *probes.TechResult      `json:"tech,omitempty"`
-		HTTP            *probes.HTTPProbeResult `json:"http,omitempty"`
-		Favicon         *probes.FaviconResult   `json:"favicon,omitempty"`
-		WAF             *waf.DetectionResult    `json:"waf,omitempty"`
-		ResponseTime    string                  `json:"response_time,omitempty"`
-		StatusCode      int                     `json:"status_code,omitempty"`
-		ContentLength   int64                   `json:"content_length,omitempty"`
-		ContentType     string                  `json:"content_type,omitempty"`
-		Server          string                  `json:"server,omitempty"`
-		Location        string                  `json:"location,omitempty"`
-		WordCount       int                     `json:"word_count,omitempty"`
-		LineCount       int                     `json:"line_count,omitempty"`
-		FinalURL        string                  `json:"final_url,omitempty"`
-		BodyHash        string                  `json:"body_hash,omitempty"`
-		HeaderHash      string                  `json:"header_hash,omitempty"`
-		BodyPreview     string                  `json:"body_preview,omitempty"`
-		WebSocket       bool                    `json:"websocket,omitempty"`
-		HTTP2           bool                    `json:"http2,omitempty"`
-		Pipeline        bool                    `json:"pipeline,omitempty"`
-		WordPress       bool                    `json:"wordpress,omitempty"`
-		WPPlugins       []string                `json:"wp_plugins,omitempty"`
-		WPThemes        []string                `json:"wp_themes,omitempty"`
-		CPEs            []string                `json:"cpes,omitempty"`
-		RedirectChain   []string                `json:"redirect_chain,omitempty"`
-		Extracted       []string                `json:"extracted,omitempty"`
-		ResponseHeaders map[string][]string     `json:"response_headers,omitempty"`
-		ResponseBody    string                  `json:"response_body,omitempty"`
-		ScreenshotFile  string                  `json:"screenshot_file,omitempty"`
-		ScreenshotBytes string                  `json:"screenshot_bytes,omitempty"` // base64 encoded PNG
-		Alive           bool                    `json:"alive"`
-		ProbeAt         time.Time               `json:"probed_at"`
-		rawBody         string                  // internal, not exported to JSON
-	}
 
 	// Scan statistics - atomic for safe access from HTTP API goroutine
 	var statsTotal, statsSuccess, statsFailed int64
@@ -1035,12 +803,6 @@ func runProbe() {
 	var filteredErrorPagesMu sync.Mutex
 
 	// Vision recon cluster collection for -svrc flag
-	type ScreenshotCluster struct {
-		Target  string `json:"target"`
-		File    string `json:"file"`
-		Cluster int    `json:"cluster"`
-		Simhash uint64 `json:"simhash"`
-	}
 	var visionClusters []ScreenshotCluster
 	var visionClustersMu sync.Mutex
 	var screenshotClusterID int
@@ -1173,9 +935,7 @@ func runProbe() {
 	_ = storeRedirectChain
 	_ = extractTLSDomains
 	_ = workerCount
-	_ = generateCPE
 	_ = csvEnc
-	_ = stripHTMLTags
 	_ = allowedHosts
 	_ = deniedHosts
 	_ = customSNI
@@ -1197,8 +957,6 @@ func runProbe() {
 	_ = maxReadSize
 	_ = hostErrors
 	_ = excludedHosts
-	_ = matchRange
-	_ = matchTimeCondition
 	_ = seenSimhashes
 	_ = statsTotal
 	_ = statsSuccess
@@ -3056,206 +2814,4 @@ func runProbe() {
 	if probeDispCtx != nil {
 		_ = probeDispCtx.EmitSummary(context.Background(), int(statsTotal), int(statsSuccess), int(statsFailed), time.Since(probeStartTime))
 	}
-}
-
-// makeProbeHTTPRequest performs a simple HTTP GET request for probe command
-func makeProbeHTTPRequest(ctx context.Context, target string, timeout time.Duration) (*http.Response, error) {
-	client := httpclient.New(httpclient.WithTimeout(timeout))
-	req, err := http.NewRequestWithContext(ctx, "GET", target, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", ui.UserAgent())
-	return client.Do(req)
-}
-
-
-
-// ProbeHTTPOptions contains options for probe HTTP requests
-type ProbeHTTPOptions struct {
-	Method           string
-	FollowRedirects  bool
-	MaxRedirects     int
-	RandomAgent      bool
-	CustomHeaders    string
-	RequestBody      string
-	ProxyURL         string
-	Retries          int
-	SkipVerify       bool
-	Delay            time.Duration
-	SNI              string            // Custom SNI hostname
-	AutoReferer      bool              // Automatically set Referer header
-	UnsafeMode       bool              // Disable security checks
-	FollowHostOnly   bool              // Only follow same-host redirects
-	RespectHSTS      bool              // Respect HSTS headers
-	StreamMode       bool              // Stream response body
-	NoDedupe         bool              // Don't deduplicate results
-	LeaveDefaultPort bool              // Keep :80 or :443 in URLs
-	UseZTLS          bool              // Use ZTLS library
-	NoDecode         bool              // Don't decode response
-	TLSImpersonate   bool              // Impersonate browser TLS
-	NoFallback       bool              // Don't fall back to HTTP
-	NoFallbackScheme bool              // Don't try alternate scheme
-	MaxHostErrors    int               // Skip host after N errors
-	MaxResponseRead  int               // Max bytes to read from response
-	MaxResponseSave  int               // Max bytes to save from response
-	VHostHeader      string            // Override Host header for vhost probing
-	TrackRedirects   bool              // Track redirect chain
-	RedirectChain    *[]string         // Pointer to redirect chain slice
-	ForceHTTP2       bool              // Force HTTP/2 protocol
-	ForceHTTP11      bool              // Force HTTP/1.1 protocol
-	AuthSecrets      map[string]string // Authentication secrets (key=value)
-	ExcludeFields    map[string]bool   // Fields to exclude from output
-	CustomResolvers  []string          // Custom DNS resolvers
-}
-
-// makeProbeHTTPRequestWithOptions performs HTTP request with full options
-func makeProbeHTTPRequestWithOptions(ctx context.Context, target string, timeout time.Duration, opts ProbeHTTPOptions) (*http.Response, error) {
-	maxRedirects := opts.MaxRedirects
-	if maxRedirects <= 0 {
-		maxRedirects = 10
-	}
-
-	checkRedirect := func(req *http.Request, via []*http.Request) error {
-		if !opts.FollowRedirects {
-			return http.ErrUseLastResponse
-		}
-		if len(via) >= maxRedirects {
-			return fmt.Errorf("too many redirects")
-		}
-		// Follow same-host redirects only
-		if opts.FollowHostOnly && len(via) > 0 {
-			originalHost := via[0].URL.Host
-			if req.URL.Host != originalHost {
-				return http.ErrUseLastResponse
-			}
-		}
-		// Respect HSTS - upgrade http to https
-		if opts.RespectHSTS && req.URL.Scheme == "http" {
-			// Check if response had Strict-Transport-Security header
-			if len(via) > 0 {
-				lastResp := via[len(via)-1].Response
-				if lastResp != nil && lastResp.Header.Get("Strict-Transport-Security") != "" {
-					req.URL.Scheme = "https"
-				}
-			}
-		}
-		// Track redirect chain if enabled
-		if opts.TrackRedirects && opts.RedirectChain != nil {
-			*opts.RedirectChain = append(*opts.RedirectChain, req.URL.String())
-		}
-		return nil
-	}
-
-	// Build HTTP version for httpclient.Config
-	var httpVersion string
-	if opts.ForceHTTP2 {
-		httpVersion = "2"
-	} else if opts.ForceHTTP11 {
-		httpVersion = "1.1"
-	}
-
-	// Build cipher suites for TLS impersonation
-	var cipherSuites []uint16
-	if opts.TLSImpersonate {
-		cipherSuites = []uint16{
-			tls.TLS_AES_128_GCM_SHA256,
-			tls.TLS_AES_256_GCM_SHA384,
-			tls.TLS_CHACHA20_POLY1305_SHA256,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-		}
-	}
-
-	// Use httpclient.Config for transport, retries, and UA
-	cfg := httpclient.Config{
-		Timeout:            timeout,
-		InsecureSkipVerify: opts.SkipVerify,
-		SNI:                opts.SNI,
-		Proxy:              opts.ProxyURL,
-		CustomResolvers:    opts.CustomResolvers,
-		ForceHTTPVersion:   httpVersion,
-		CipherSuites:       cipherSuites,
-		RetryCount:         opts.Retries,
-		RetryDelay:         opts.Delay,
-		RandomUserAgent:    opts.RandomAgent,
-		UserAgent:          ui.UserAgent(),
-	}
-	// UseZTLS forces TLS 1.3 only
-	if opts.UseZTLS {
-		cfg.MinTLSVersion = tls.VersionTLS13
-		cfg.MaxTLSVersion = tls.VersionTLS13
-	}
-	client := httpclient.New(cfg)
-	// Override redirect policy with probe-specific handling
-	client.CheckRedirect = checkRedirect
-
-	// Prepare request body if provided
-	var bodyReader io.Reader
-	if opts.RequestBody != "" {
-		bodyReader = strings.NewReader(opts.RequestBody)
-	}
-
-	method := opts.Method
-	if method == "" {
-		method = "GET"
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, target, bodyReader)
-	if err != nil {
-		return nil, err
-	}
-
-	// Parse and set custom headers
-	if opts.CustomHeaders != "" {
-		headers := strings.Split(opts.CustomHeaders, ";")
-		for _, h := range headers {
-			parts := strings.SplitN(strings.TrimSpace(h), ":", 2)
-			if len(parts) == 2 {
-				req.Header.Set(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
-			}
-		}
-	}
-
-	// VHost header override
-	if opts.VHostHeader != "" {
-		req.Host = opts.VHostHeader
-	}
-
-	// Auto Referer header
-	if opts.AutoReferer {
-		parsedURL, err := url.Parse(target)
-		if err == nil {
-			req.Header.Set("Referer", fmt.Sprintf("%s://%s/", parsedURL.Scheme, parsedURL.Host))
-		}
-	}
-
-	// Apply auth secrets as headers
-	if opts.AuthSecrets != nil {
-		for key, value := range opts.AuthSecrets {
-			// Common auth secret keys
-			switch strings.ToLower(key) {
-			case "authorization", "auth":
-				req.Header.Set("Authorization", value)
-			case "bearer", "token":
-				req.Header.Set("Authorization", "Bearer "+value)
-			case "api_key", "apikey", "x-api-key":
-				req.Header.Set("X-API-Key", value)
-			case "cookie":
-				req.Header.Set("Cookie", value)
-			default:
-				// Set as custom header
-				req.Header.Set(key, value)
-			}
-		}
-	}
-
-	// Content-Type for POST/PUT with body
-	if opts.RequestBody != "" && (method == "POST" || method == "PUT") {
-		if req.Header.Get("Content-Type") == "" {
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		}
-	}
-
-	return client.Do(req)
 }
