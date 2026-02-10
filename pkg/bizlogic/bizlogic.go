@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
@@ -103,9 +104,7 @@ type TestVariation struct {
 
 // TesterConfig holds configuration for business logic testing.
 type TesterConfig struct {
-	Timeout       time.Duration
-	UserAgent     string
-	Concurrency   int
+	attackconfig.Base
 	RetryCount    int
 	EnableRace    bool
 	RaceCount     int
@@ -124,10 +123,12 @@ type Tester struct {
 // DefaultConfig returns default configuration.
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:     duration.HTTPFuzzing,
-		UserAgent:   ui.UserAgentWithContext("BizLogic Tester"),
-		Concurrency: defaults.ConcurrencyMedium,
-		RetryCount:  defaults.RetryLow,
+		Base: attackconfig.Base{
+			Timeout:     duration.HTTPFuzzing,
+			UserAgent:   ui.UserAgentWithContext("BizLogic Tester"),
+			Concurrency: defaults.ConcurrencyMedium,
+		},
+		RetryCount: defaults.RetryLow,
 		EnableRace:  true,
 		RaceCount:   10,
 		Cookies:     make(map[string]string),

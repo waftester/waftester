@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/finding"
 )
 
@@ -28,7 +29,7 @@ func TestNewTester(t *testing.T) {
 
 	t.Run("custom config", func(t *testing.T) {
 		cfg := &TesterConfig{
-			Timeout:      5 * time.Second,
+			Base:         attackconfig.Base{Timeout: 5 * time.Second},
 			MaxDepth:     10,
 			MaxBatchSize: 50,
 		}
@@ -476,7 +477,7 @@ func TestFullScan(t *testing.T) {
 	defer server.Close()
 
 	tester := NewTester(server.URL, &TesterConfig{
-		Timeout:      5 * time.Second,
+		Base:         attackconfig.Base{Timeout: 5 * time.Second},
 		MaxDepth:     5,
 		MaxBatchSize: 10,
 	})
