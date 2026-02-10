@@ -8,6 +8,8 @@ package events
 
 import (
 	"time"
+
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 // EventType represents the type of output event.
@@ -47,19 +49,20 @@ const (
 )
 
 // Severity represents the severity level of an event or finding.
-type Severity string
+// This is a type alias for finding.Severity to maintain backward compatibility.
+type Severity = finding.Severity
 
 const (
 	// SeverityCritical indicates a critical severity finding.
-	SeverityCritical Severity = "critical"
+	SeverityCritical = finding.Critical
 	// SeverityHigh indicates a high severity finding.
-	SeverityHigh Severity = "high"
+	SeverityHigh = finding.High
 	// SeverityMedium indicates a medium severity finding.
-	SeverityMedium Severity = "medium"
+	SeverityMedium = finding.Medium
 	// SeverityLow indicates a low severity finding.
-	SeverityLow Severity = "low"
+	SeverityLow = finding.Low
 	// SeverityInfo indicates an informational finding.
-	SeverityInfo Severity = "info"
+	SeverityInfo = finding.Info
 )
 
 // Confidence represents the detection confidence level of a finding.

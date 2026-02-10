@@ -10,17 +10,8 @@ import (
 	"sort"
 	"strings"
 	"time"
-)
 
-// Severity levels
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 // ReportFormat defines output format
@@ -50,7 +41,7 @@ type Finding struct {
 	ID             string            `json:"id"`
 	Title          string            `json:"title"`
 	Description    string            `json:"description"`
-	Severity       Severity          `json:"severity"`
+	Severity       finding.Severity  `json:"severity"`
 	Confidence     Confidence        `json:"confidence,omitempty"`
 	ConfidenceNote string            `json:"confidence_note,omitempty"`
 	Type           string            `json:"type"`
@@ -79,7 +70,7 @@ type ExecutiveSummary struct {
 	OverallRisk     string           `json:"overall_risk"` // Critical, High, Medium, Low
 	RiskScore       float64          `json:"risk_score"`   // 0-100
 	TotalFindings   int              `json:"total_findings"`
-	FindingsByRisk  map[Severity]int `json:"findings_by_risk"`
+	FindingsByRisk  map[finding.Severity]int `json:"findings_by_risk"`
 	KeyFindings     []string         `json:"key_findings"`
 	Recommendations []string         `json:"recommendations"`
 	Conclusion      string           `json:"conclusion"`
@@ -251,7 +242,7 @@ func (b *ReportBuilder) buildExecutiveSummary() ExecutiveSummary {
 		AssessmentType:  b.config.AssessmentType,
 		Scope:           b.config.Scope,
 		TotalFindings:   len(b.findings),
-		FindingsByRisk:  make(map[Severity]int),
+		FindingsByRisk:  make(map[finding.Severity]int),
 		KeyFindings:     make([]string, 0),
 		Recommendations: make([]string, 0),
 	}
@@ -270,7 +261,7 @@ func (b *ReportBuilder) buildExecutiveSummary() ExecutiveSummary {
 		if count >= 5 {
 			break
 		}
-		if f.Severity == SeverityCritical || f.Severity == SeverityHigh {
+		if f.Severity == finding.Critical || f.Severity == finding.High {
 			summary.KeyFindings = append(summary.KeyFindings, f.Title)
 			count++
 		}
@@ -300,11 +291,11 @@ func (b *ReportBuilder) buildTechnicalDetails() TechnicalDetails {
 	return details
 }
 
-func (b *ReportBuilder) calculateOverallRisk(byRisk map[Severity]int) (string, float64) {
-	criticalCount := byRisk[SeverityCritical]
-	highCount := byRisk[SeverityHigh]
-	mediumCount := byRisk[SeverityMedium]
-	lowCount := byRisk[SeverityLow]
+func (b *ReportBuilder) calculateOverallRisk(byRisk map[finding.Severity]int) (string, float64) {
+	criticalCount := byRisk[finding.Critical]
+	highCount := byRisk[finding.High]
+	mediumCount := byRisk[finding.Medium]
+	lowCount := byRisk[finding.Low]
 
 	// Calculate weighted score
 	score := float64(criticalCount*40 + highCount*20 + mediumCount*10 + lowCount*5)
@@ -679,17 +670,17 @@ func (g *ReportGenerator) GetTemplate(format ReportFormat) *template.Template {
 }
 
 // Helper functions
-func severityOrder(s Severity) int {
+func severityOrder(s finding.Severity) int {
 	switch s {
-	case SeverityCritical:
+	case finding.Critical:
 		return 5
-	case SeverityHigh:
+	case finding.High:
 		return 4
-	case SeverityMedium:
+	case finding.Medium:
 		return 3
-	case SeverityLow:
+	case finding.Low:
 		return 2
-	case SeverityInfo:
+	case finding.Info:
 		return 1
 	default:
 		return 0
