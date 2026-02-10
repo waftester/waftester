@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 )
@@ -24,15 +25,14 @@ var (
 
 // Config configures screenshot capture
 type Config struct {
-	Width       int           // Viewport width
-	Height      int           // Viewport height
-	FullPage    bool          // Capture full page
-	Quality     int           // JPEG quality (1-100)
-	Format      Format        // Output format
-	Timeout     time.Duration // Page load timeout
-	WaitFor     time.Duration // Wait after page load
-	OutputDir   string        // Output directory
-	Concurrency int           // Max concurrent captures
+	attackconfig.Base
+	Width    int           // Viewport width
+	Height   int           // Viewport height
+	FullPage bool          // Capture full page
+	Quality  int           // JPEG quality (1-100)
+	Format   Format        // Output format
+	WaitFor  time.Duration // Wait after page load
+	OutputDir string       // Output directory
 }
 
 // Format represents output format
@@ -47,15 +47,17 @@ const (
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Width:       1920,
-		Height:      1080,
-		FullPage:    false,
-		Quality:     80,
-		Format:      FormatPNG,
-		Timeout:     TimeoutFuzzing,
-		WaitFor:     duration.BrowserIdle,
-		OutputDir:   "screenshots",
-		Concurrency: defaults.ConcurrencyLow,
+		Base: attackconfig.Base{
+			Concurrency: defaults.ConcurrencyLow,
+			Timeout:     TimeoutFuzzing,
+		},
+		Width:    1920,
+		Height:   1080,
+		FullPage: false,
+		Quality:  80,
+		Format:   FormatPNG,
+		WaitFor:  duration.BrowserIdle,
+		OutputDir: "screenshots",
 	}
 }
 

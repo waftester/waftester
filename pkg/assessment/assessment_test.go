@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/metrics"
 )
 
@@ -47,10 +48,12 @@ func TestNew(t *testing.T) {
 
 func TestNewWithConfig(t *testing.T) {
 	cfg := &Config{
-		TargetURL:     "https://example.com",
-		Concurrency:   10,
+		TargetURL: "https://example.com",
+		Base: attackconfig.Base{
+			Concurrency: 10,
+			Timeout:     5 * time.Second,
+		},
 		RateLimit:     50,
-		Timeout:       5 * time.Second,
 		SkipTLSVerify: true,
 		Verbose:       true,
 	}
@@ -303,10 +306,12 @@ func TestRunWithMockServer(t *testing.T) {
 	defer server.Close()
 
 	cfg := &Config{
-		TargetURL:       server.URL,
-		Concurrency:     5,
+		TargetURL: server.URL,
+		Base: attackconfig.Base{
+			Concurrency: 5,
+			Timeout:     5 * time.Second,
+		},
 		RateLimit:       100,
-		Timeout:         5 * time.Second,
 		EnableFPTesting: true,
 		CorpusSources:   []string{"builtin"},
 		Categories:      []string{"xss", "traversal"}, // Limit for faster test

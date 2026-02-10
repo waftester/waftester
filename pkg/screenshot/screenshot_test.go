@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/attackconfig"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -61,11 +63,11 @@ func TestNewCapturer_Defaults(t *testing.T) {
 
 func TestNewCapturer_CustomValues(t *testing.T) {
 	config := Config{
-		Width:       1280,
-		Height:      720,
-		Quality:     50,
-		Format:      FormatJPEG,
-		Concurrency: 10,
+		Width:   1280,
+		Height:  720,
+		Quality: 50,
+		Format:  FormatJPEG,
+		Base:    attackconfig.Base{Concurrency: 10},
 	}
 	capturer := NewCapturer(config)
 

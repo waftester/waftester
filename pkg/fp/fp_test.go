@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/attackconfig"
 )
 
 func TestNewTester(t *testing.T) {
@@ -25,10 +27,12 @@ func TestNewTester(t *testing.T) {
 
 func TestNewTesterWithConfig(t *testing.T) {
 	cfg := &Config{
-		TargetURL:     "https://example.com",
-		Concurrency:   10,
+		TargetURL: "https://example.com",
+		Base: attackconfig.Base{
+			Concurrency: 10,
+			Timeout:     30 * time.Second,
+		},
 		RateLimit:     50.0,
-		Timeout:       30 * time.Second,
 		ParanoiaLevel: 3,
 		CorpusSources: []string{"leipzig", "forms"},
 		Verbose:       true,

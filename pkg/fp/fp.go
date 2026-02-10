@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
@@ -26,10 +27,9 @@ import (
 
 // Config holds false positive testing configuration
 type Config struct {
+	attackconfig.Base
 	TargetURL     string
-	Concurrency   int
 	RateLimit     float64
-	Timeout       time.Duration
 	SkipVerify    bool
 	Verbose       bool
 	ParanoiaLevel int      // CRS paranoia level 1-4 (for local testing)
@@ -39,9 +39,11 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() *Config {
 	return &Config{
-		Concurrency:   defaults.ConcurrencyHigh,
+		Base: attackconfig.Base{
+			Concurrency: defaults.ConcurrencyHigh,
+			Timeout:     duration.DialTimeout,
+		},
 		RateLimit:     50,
-		Timeout:       duration.DialTimeout,
 		ParanoiaLevel: 2,
 		CorpusSources: []string{"leipzig", "edgecases", "forms", "api"},
 	}
