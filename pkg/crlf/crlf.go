@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
@@ -67,12 +68,9 @@ type ScanResult struct {
 
 // TesterConfig configures the CRLF tester
 type TesterConfig struct {
-	Timeout     time.Duration
-	UserAgent   string
-	Concurrency int
+	attackconfig.Base
 	TestParams  []string
 	TestHeaders []string
-	Client      *http.Client
 }
 
 // Tester performs CRLF injection tests
@@ -84,9 +82,11 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:     httpclient.TimeoutFuzzing,
-		UserAgent:   ui.UserAgent(),
-		Concurrency: defaults.ConcurrencyLow,
+		Base: attackconfig.Base{
+			Timeout:     httpclient.TimeoutFuzzing,
+			UserAgent:   ui.UserAgent(),
+			Concurrency: defaults.ConcurrencyLow,
+		},
 		TestParams: []string{
 			"redirect",
 			"url",

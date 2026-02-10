@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/finding"
 )
 
@@ -25,9 +26,11 @@ func TestNewTester(t *testing.T) {
 
 	t.Run("with custom config", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout:     60 * time.Second,
-			Concurrency: 10,
-			Database:    DBMongoDB,
+			Base: attackconfig.Base{
+				Timeout:     60 * time.Second,
+				Concurrency: 10,
+			},
+			Database: DBMongoDB,
 		}
 		tester := NewTester(config)
 		if tester.config.Concurrency != 10 {
@@ -344,9 +347,11 @@ func TestScan(t *testing.T) {
 	defer server.Close()
 
 	config := &TesterConfig{
-		Timeout:     5 * time.Second,
-		TestParams:  []string{"username"},
-		Concurrency: 1,
+		Base: attackconfig.Base{
+			Timeout:     5 * time.Second,
+			Concurrency: 1,
+		},
+		TestParams: []string{"username"},
 	}
 
 	tester := NewTester(config)

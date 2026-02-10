@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
@@ -53,8 +54,7 @@ type Vulnerability struct {
 
 // TesterConfig configures the CORS tester
 type TesterConfig struct {
-	Timeout         time.Duration
-	UserAgent       string
+	attackconfig.Base
 	Headers         http.Header
 	Cookies         []*http.Cookie
 	FollowRedirects bool
@@ -63,8 +63,10 @@ type TesterConfig struct {
 // DefaultConfig returns a default tester configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:         httpclient.TimeoutProbing,
-		UserAgent:       defaults.UAChrome,
+		Base: attackconfig.Base{
+			Timeout:   httpclient.TimeoutProbing,
+			UserAgent: defaults.UAChrome,
+		},
 		FollowRedirects: false,
 	}
 }

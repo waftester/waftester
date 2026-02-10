@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/finding"
 )
 
@@ -27,11 +28,14 @@ func TestNewTester(t *testing.T) {
 
 	t.Run("custom config", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout:       60 * time.Second,
+			Base: attackconfig.Base{
+				Timeout: 60 * time.Second,
+			},
 			Platform:      PlatformUnix,
 			TimeThreshold: 10 * time.Second,
 		}
 		tester := NewTester(config)
+
 
 		if tester.config.Platform != PlatformUnix {
 			t.Errorf("expected Unix platform")
@@ -87,7 +91,9 @@ func TestGetPayloads(t *testing.T) {
 func TestPlatformFiltering(t *testing.T) {
 	t.Run("Unix only", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout:       10 * time.Second,
+			Base: attackconfig.Base{
+				Timeout: 10 * time.Second,
+			},
 			Platform:      PlatformUnix,
 			TimeThreshold: 5 * time.Second,
 		}
@@ -102,7 +108,9 @@ func TestPlatformFiltering(t *testing.T) {
 
 	t.Run("Windows only", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout:       10 * time.Second,
+			Base: attackconfig.Base{
+				Timeout: 10 * time.Second,
+			},
 			Platform:      PlatformWindows,
 			TimeThreshold: 5 * time.Second,
 		}
@@ -117,7 +125,9 @@ func TestPlatformFiltering(t *testing.T) {
 
 	t.Run("Both platforms", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout:       10 * time.Second,
+			Base: attackconfig.Base{
+				Timeout: 10 * time.Second,
+			},
 			Platform:      PlatformBoth,
 			TimeThreshold: 5 * time.Second,
 		}
@@ -455,7 +465,9 @@ func TestPayloadContent(t *testing.T) {
 func TestOOBPayloads(t *testing.T) {
 	t.Run("no callback - no OOB payloads", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout:       10 * time.Second,
+			Base: attackconfig.Base{
+				Timeout: 10 * time.Second,
+			},
 			Platform:      PlatformBoth,
 			TimeThreshold: 5 * time.Second,
 			CallbackURL:   "",
@@ -470,7 +482,9 @@ func TestOOBPayloads(t *testing.T) {
 
 	t.Run("with callback - has OOB payloads", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout:       10 * time.Second,
+			Base: attackconfig.Base{
+				Timeout: 10 * time.Second,
+			},
 			Platform:      PlatformBoth,
 			TimeThreshold: 5 * time.Second,
 			CallbackURL:   "http://callback.example.com",
@@ -514,7 +528,9 @@ func BenchmarkTestParameter(b *testing.B) {
 	defer server.Close()
 
 	config := &TesterConfig{
-		Timeout:       10 * time.Second,
+		Base: attackconfig.Base{
+			Timeout: 10 * time.Second,
+		},
 		Platform:      PlatformUnix,
 		TimeThreshold: 1 * time.Second,
 	}
