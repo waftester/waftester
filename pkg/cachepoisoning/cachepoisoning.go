@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -17,8 +18,7 @@ import (
 
 // Config configures cache poisoning testing
 type Config struct {
-	Concurrency    int
-	Timeout        time.Duration
+	attackconfig.Base
 	Headers        map[string]string
 	CallbackDomain string
 }
@@ -26,8 +26,10 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Concurrency: defaults.ConcurrencyLow,
-		Timeout:     httpclient.TimeoutScanning,
+		Base: attackconfig.Base{
+			Concurrency: defaults.ConcurrencyLow,
+			Timeout:     httpclient.TimeoutScanning,
+		},
 	}
 }
 
