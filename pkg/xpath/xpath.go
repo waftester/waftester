@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -16,16 +17,17 @@ import (
 
 // Config configures XPath injection testing
 type Config struct {
-	Concurrency int
-	Timeout     time.Duration
-	Headers     map[string]string
+	attackconfig.Base
+	Headers map[string]string
 }
 
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Concurrency: defaults.ConcurrencyMedium,
-		Timeout:     httpclient.TimeoutProbing,
+		Base: attackconfig.Base{
+			Concurrency: defaults.ConcurrencyMedium,
+			Timeout:     httpclient.TimeoutProbing,
+		},
 	}
 }
 
