@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewTester(t *testing.T) {
@@ -291,7 +293,7 @@ func TestVulnerabilityToJSON(t *testing.T) {
 	vuln := Vulnerability{
 		Type:        VulnJavaDeserial,
 		Description: "Java deserialization",
-		Severity:    SeverityCritical,
+		Severity:    finding.Critical,
 		CVSS:        9.8,
 	}
 
@@ -307,9 +309,9 @@ func TestVulnerabilityToJSON(t *testing.T) {
 
 func TestGenerateReport(t *testing.T) {
 	vulns := []Vulnerability{
-		{Type: VulnJavaDeserial, Severity: SeverityCritical},
-		{Type: VulnPHPDeserial, Severity: SeverityCritical},
-		{Type: VulnJavaDeserial, Severity: SeverityCritical},
+		{Type: VulnJavaDeserial, Severity: finding.Critical},
+		{Type: VulnPHPDeserial, Severity: finding.Critical},
+		{Type: VulnJavaDeserial, Severity: finding.Critical},
 	}
 
 	report := GenerateReport(vulns)
@@ -451,7 +453,7 @@ func TestVulnerabilityStruct(t *testing.T) {
 	vuln := Vulnerability{
 		Type:        VulnPythonDeserial,
 		Description: "Python pickle deserialization",
-		Severity:    SeverityCritical,
+		Severity:    finding.Critical,
 		URL:         "https://example.com/api",
 		Parameter:   "data",
 		Payload:     "pickle payload",
@@ -464,7 +466,7 @@ func TestVulnerabilityStruct(t *testing.T) {
 	if vuln.Type != VulnPythonDeserial {
 		t.Error("type mismatch")
 	}
-	if vuln.Severity != SeverityCritical {
+	if vuln.Severity != finding.Critical {
 		t.Error("severity mismatch")
 	}
 	if vuln.CVSS != 9.8 {
