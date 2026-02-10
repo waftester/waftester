@@ -26,8 +26,11 @@ const (
 	VulnCachePoisoning   VulnerabilityType = "cache-poisoning"
 	VulnSSRF             VulnerabilityType = "ssrf"
 	VulnOpenRedirect     VulnerabilityType = "open-redirect"
-	VulnWebCachePoisonng VulnerabilityType = "web-cache-poisoning"
-	VulnHostOverride     VulnerabilityType = "host-override"
+	VulnWebCachePoisoning VulnerabilityType = "web-cache-poisoning"
+	VulnHostOverride      VulnerabilityType = "host-override"
+
+	// Deprecated: Use VulnWebCachePoisoning instead.
+	VulnWebCachePoisonng = VulnWebCachePoisoning
 )
 
 
@@ -422,7 +425,7 @@ func AllVulnerabilityTypes() []VulnerabilityType {
 		VulnCachePoisoning,
 		VulnSSRF,
 		VulnOpenRedirect,
-		VulnWebCachePoisonng,
+		VulnWebCachePoisoning,
 		VulnHostOverride,
 	}
 }

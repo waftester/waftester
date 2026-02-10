@@ -399,7 +399,9 @@ func (r *Runner[T]) RunWithCallback(ctx context.Context, targets []string, task 
 func extractHost(target string) string {
 	// Check cache first
 	if cached, ok := hostCache.Load(target); ok {
-		return cached.(string)
+		if s, ok := cached.(string); ok {
+			return s
+		}
 	}
 
 	host := extractHostUncached(target)
