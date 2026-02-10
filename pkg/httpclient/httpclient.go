@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -90,6 +91,55 @@ type Config struct {
 	// UseDNSCache enables DNS caching for improved performance (default: false)
 	// Enable this for high-throughput scanning of the same hosts
 	UseDNSCache bool
+
+	// CustomResolvers is a list of DNS resolver addresses (e.g., "8.8.8.8:53").
+	// When set, DNS resolution uses these resolvers instead of system defaults.
+	// Useful for split-horizon DNS bypass in WAF testing.
+	CustomResolvers []string
+
+	// AuthHeaders are HTTP headers added to every request (e.g., Authorization).
+	// These headers are NOT forwarded on cross-origin redirects to prevent
+	// credential leakage.
+	AuthHeaders http.Header
+
+	// ForceHTTPVersion forces a specific HTTP protocol version.
+	// "1.1" disables HTTP/2, "2" forces HTTP/2, "" uses default negotiation.
+	// Useful for bypassing WAFs that only inspect one protocol version.
+	ForceHTTPVersion string
+
+	// RetryCount is the number of retry attempts after the initial request (default: 0).
+	// Retries on transport errors and HTTP 429/503 responses.
+	RetryCount int
+
+	// RetryDelay is the delay between retry attempts (default: 0).
+	RetryDelay time.Duration
+
+	// RandomUserAgent rotates User-Agent headers across requests using
+	// realistic browser fingerprints to evade UA-based WAF detection.
+	RandomUserAgent bool
+
+	// UserAgent sets a fixed User-Agent header on all requests.
+	// Ignored if RandomUserAgent is true.
+	UserAgent string
+
+	// CipherSuites specifies TLS cipher suites for JA3 fingerprint control.
+	// When empty, Go's default cipher suite selection is used.
+	CipherSuites []uint16
+
+	// MinTLSVersion sets the minimum TLS version (e.g., tls.VersionTLS12).
+	// When zero, the Go default minimum is used.
+	MinTLSVersion uint16
+
+	// MaxTLSVersion sets the maximum TLS version (e.g., tls.VersionTLS13).
+	// When zero, the Go default maximum is used.
+	// Set both Min and Max to tls.VersionTLS13 to force TLS 1.3 only.
+	MaxTLSVersion uint16
+
+	// TLSConfig provides a complete TLS configuration.
+	// When set, this replaces the auto-built TLS config entirely —
+	// InsecureSkipVerify, SNI, CipherSuites, MinTLSVersion, and MaxTLSVersion
+	// are ignored. Use this for browser-profile TLS fingerprinting.
+	TLSConfig *tls.Config
 }
 
 // DefaultConfig returns sensible defaults optimized for security scanning workloads.
@@ -217,13 +267,30 @@ func New(cfg Config) *http.Client {
 	// Also apply platform-specific socket optimizations (TCP_NODELAY, larger buffers, etc.)
 	var dialContext func(ctx context.Context, network, address string) (net.Conn, error)
 
-	// Build TLS configuration with SNI support
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: cfg.InsecureSkipVerify,
-	}
-	// Apply SNI override if configured
-	if cfg.SNI != "" {
-		tlsConfig.ServerName = cfg.SNI
+	// Build TLS configuration
+	var tlsConfig *tls.Config
+	if cfg.TLSConfig != nil {
+		// Use caller-provided TLS config directly (e.g., browser profile fingerprinting)
+		tlsConfig = cfg.TLSConfig
+	} else {
+		tlsConfig = &tls.Config{
+			InsecureSkipVerify: cfg.InsecureSkipVerify,
+		}
+		// Apply SNI override if configured
+		if cfg.SNI != "" {
+			tlsConfig.ServerName = cfg.SNI
+		}
+		// Apply custom cipher suites for JA3 fingerprint control
+		if len(cfg.CipherSuites) > 0 {
+			tlsConfig.CipherSuites = cfg.CipherSuites
+		}
+		// Apply TLS version constraints
+		if cfg.MinTLSVersion != 0 {
+			tlsConfig.MinVersion = cfg.MinTLSVersion
+		}
+		if cfg.MaxTLSVersion != 0 {
+			tlsConfig.MaxVersion = cfg.MaxTLSVersion
+		}
 	}
 
 	// Parse proxy configuration if provided
@@ -253,6 +320,35 @@ func New(cfg Config) *http.Client {
 			}
 			dialContext = dialer.DialContext
 		}
+	} else if len(cfg.CustomResolvers) > 0 {
+		// Custom DNS resolvers for split-horizon DNS bypass
+		resolver := cfg.CustomResolvers[0]
+		if !containsPort(resolver) {
+			resolver = resolver + ":53"
+		}
+		baseDialer := &net.Dialer{
+			Timeout:   cfg.DialTimeout,
+			KeepAlive: 30 * time.Second,
+			Control:   sockopt.DialControl(),
+		}
+		dialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(address)
+			if err != nil {
+				return baseDialer.DialContext(ctx, network, address)
+			}
+			customResolver := &net.Resolver{
+				PreferGo: true,
+				Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
+					d := net.Dialer{Timeout: cfg.DialTimeout}
+					return d.DialContext(ctx, "udp", resolver)
+				},
+			}
+			ips, err := customResolver.LookupIPAddr(ctx, host)
+			if err != nil || len(ips) == 0 {
+				return baseDialer.DialContext(ctx, network, address)
+			}
+			return baseDialer.DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
+		}
 	} else if cfg.UseDNSCache {
 		cachingDialer := NewCachingDialer(GetDNSCache(), cfg.DialTimeout)
 		// Wrap with socket optimization
@@ -275,6 +371,18 @@ func New(cfg Config) *http.Client {
 		dialContext = dialer.DialContext
 	}
 
+	// Determine HTTP/2 settings based on ForceHTTPVersion
+	forceHTTP2 := true // default: allow HTTP/2
+	var tlsNextProto map[string]func(authority string, c *tls.Conn) http.RoundTripper
+	switch cfg.ForceHTTPVersion {
+	case "1.1":
+		forceHTTP2 = false
+		// Empty map disables HTTP/2 via ALPN
+		tlsNextProto = make(map[string]func(authority string, c *tls.Conn) http.RoundTripper)
+	case "2":
+		forceHTTP2 = true
+	}
+
 	transport := &http.Transport{
 		// Connection pooling - key for performance
 		MaxIdleConns:        cfg.MaxIdleConns,
@@ -284,9 +392,10 @@ func New(cfg Config) *http.Client {
 		DisableKeepAlives:   cfg.DisableKeepAlives,
 
 		// Performance tuning
-		ForceAttemptHTTP2:     true,
+		ForceAttemptHTTP2:     forceHTTP2,
 		ExpectContinueTimeout: 1 * time.Second,
 		TLSHandshakeTimeout:   cfg.TLSHandshakeTimeout,
+		TLSNextProto:          tlsNextProto,
 
 		// Buffer sizes for improved throughput (matches fasthttp/gnet patterns)
 		// These reduce syscall overhead for larger payloads
@@ -306,16 +415,38 @@ func New(cfg Config) *http.Client {
 	}
 
 	// Apply registered transport wrapper (e.g., detection)
-	wrappedTransport := wrapTransport(transport)
+	var finalTransport http.RoundTripper = wrapTransport(transport)
+
+	// Wrap with middleware transport for UA, auth headers, and retries
+	if needsMiddleware(cfg) {
+		finalTransport = &middlewareTransport{
+			base:        finalTransport,
+			userAgent:   cfg.UserAgent,
+			randomUA:    cfg.RandomUserAgent,
+			authHeaders: cfg.AuthHeaders,
+			retryCount:  cfg.RetryCount,
+			retryDelay:  cfg.RetryDelay,
+		}
+	}
+
+	// Determine redirect policy
+	checkRedirect := func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	if len(cfg.AuthHeaders) > 0 {
+		checkRedirect = redirectPolicyWithAuthStrip(cfg.AuthHeaders)
+	}
 
 	return &http.Client{
-		Transport: wrappedTransport,
-		Timeout:   cfg.Timeout,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			// Don't follow redirects - security scanners need to see the redirect response
-			return http.ErrUseLastResponse
-		},
+		Transport:     finalTransport,
+		Timeout:       cfg.Timeout,
+		CheckRedirect: checkRedirect,
 	}
+}
+
+// containsPort reports whether the address string contains a port suffix.
+func containsPort(addr string) bool {
+	return strings.Contains(addr, ":")
 }
 
 // WithTimeout returns a new Config based on DefaultConfig with the specified timeout.
