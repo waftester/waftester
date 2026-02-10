@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 )
 
@@ -121,7 +122,7 @@ func TestTestOrigin(t *testing.T) {
 		if vuln.Type != VulnOriginReflection {
 			t.Errorf("expected origin reflection type")
 		}
-		if vuln.Severity != SeverityCritical {
+		if vuln.Severity != finding.Critical {
 			t.Errorf("expected critical severity with credentials")
 		}
 		if !vuln.Credentials {
@@ -210,7 +211,7 @@ func TestTestOrigin(t *testing.T) {
 		if vuln.Type != VulnWildcardCredentials {
 			t.Errorf("expected wildcard credentials type, got %s", vuln.Type)
 		}
-		if vuln.Severity != SeverityCritical {
+		if vuln.Severity != finding.Critical {
 			t.Error("expected critical severity")
 		}
 	})

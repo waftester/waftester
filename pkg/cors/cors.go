@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
@@ -29,17 +30,6 @@ const (
 	VulnPreflight           VulnerabilityType = "preflight_bypass"     // Preflight bypass possible
 )
 
-// Severity represents the severity of a finding
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
-
 // TestOrigin represents an origin to test
 type TestOrigin struct {
 	Origin      string            // The Origin header value
@@ -51,7 +41,7 @@ type TestOrigin struct {
 type Vulnerability struct {
 	Type         VulnerabilityType `json:"type"`
 	Description  string            `json:"description"`
-	Severity     Severity          `json:"severity"`
+	Severity     finding.Severity  `json:"severity"`
 	TestedOrigin string            `json:"tested_origin"`
 	AllowOrigin  string            `json:"allow_origin"`
 	Credentials  bool              `json:"credentials"`
@@ -255,9 +245,9 @@ func (t *Tester) TestPreflight(ctx context.Context, targetURL string, origin str
 			strings.Contains(strings.ToLower(allowMethods), "delete") ||
 			strings.Contains(strings.ToLower(allowMethods), "*") {
 
-			severity := SeverityMedium
+			severity := finding.Medium
 			if allowCreds == "true" {
-				severity = SeverityHigh
+				severity = finding.High
 			}
 
 			return &Vulnerability{
@@ -294,7 +284,7 @@ func (t *Tester) analyzeResponse(targetURL string, origin *TestOrigin, resp *htt
 		vuln = &Vulnerability{
 			Type:         VulnWildcardCredentials,
 			Description:  "Wildcard origin with credentials enabled",
-			Severity:     SeverityCritical,
+			Severity:     finding.Critical,
 			TestedOrigin: origin.Origin,
 			AllowOrigin:  allowOrigin,
 			Credentials:  true,
@@ -305,9 +295,9 @@ func (t *Tester) analyzeResponse(targetURL string, origin *TestOrigin, resp *htt
 
 	// Origin reflected back
 	case allowOrigin == origin.Origin:
-		severity := SeverityHigh
+		severity := finding.High
 		if allowCreds == "true" {
-			severity = SeverityCritical
+			severity = finding.Critical
 		}
 
 		vuln = &Vulnerability{
@@ -327,7 +317,7 @@ func (t *Tester) analyzeResponse(targetURL string, origin *TestOrigin, resp *htt
 		vuln = &Vulnerability{
 			Type:         VulnNullOrigin,
 			Description:  "Null origin is trusted",
-			Severity:     SeverityHigh,
+			Severity:     finding.High,
 			TestedOrigin: origin.Origin,
 			AllowOrigin:  allowOrigin,
 			Credentials:  allowCreds == "true",

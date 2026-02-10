@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewTester(t *testing.T) {
@@ -272,7 +274,7 @@ func TestVulnerabilityToJSON(t *testing.T) {
 	vuln := Vulnerability{
 		Type:        VulnOpenRedirect,
 		Description: "Open redirect via redirect_uri",
-		Severity:    SeverityHigh,
+		Severity:    finding.High,
 		CVSS:        7.4,
 	}
 
@@ -288,9 +290,9 @@ func TestVulnerabilityToJSON(t *testing.T) {
 
 func TestGenerateReport(t *testing.T) {
 	vulns := []Vulnerability{
-		{Type: VulnOpenRedirect, Severity: SeverityHigh},
-		{Type: VulnCSRFAuth, Severity: SeverityHigh},
-		{Type: VulnOpenRedirect, Severity: SeverityHigh},
+		{Type: VulnOpenRedirect, Severity: finding.High},
+		{Type: VulnCSRFAuth, Severity: finding.High},
+		{Type: VulnOpenRedirect, Severity: finding.High},
 	}
 
 	report := GenerateReport(vulns)
@@ -528,7 +530,7 @@ func TestVulnerabilityStruct(t *testing.T) {
 	vuln := Vulnerability{
 		Type:        VulnTokenLeakage,
 		Description: "Token exposed in URL",
-		Severity:    SeverityCritical,
+		Severity:    finding.Critical,
 		URL:         "https://app.com/callback",
 		Parameter:   "access_token",
 		Payload:     "token_value",
@@ -540,7 +542,7 @@ func TestVulnerabilityStruct(t *testing.T) {
 	if vuln.Type != VulnTokenLeakage {
 		t.Error("type mismatch")
 	}
-	if vuln.Severity != SeverityCritical {
+	if vuln.Severity != finding.Critical {
 		t.Error("severity mismatch")
 	}
 }
