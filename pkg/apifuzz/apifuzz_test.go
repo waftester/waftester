@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewTester(t *testing.T) {
@@ -556,7 +558,7 @@ func TestVulnerabilityToJSON(t *testing.T) {
 	vuln := Vulnerability{
 		Type:        VulnInjection,
 		Description: "SQL injection detected",
-		Severity:    SeverityHigh,
+		Severity:    finding.High,
 		Endpoint:    "/api/users",
 		Method:      "GET",
 		Parameter:   "id",
@@ -576,9 +578,9 @@ func TestVulnerabilityToJSON(t *testing.T) {
 
 func TestGenerateFuzzReport(t *testing.T) {
 	vulns := []Vulnerability{
-		{Type: VulnInjection, Severity: SeverityHigh},
-		{Type: VulnInjection, Severity: SeverityHigh},
-		{Type: VulnDoS, Severity: SeverityMedium},
+		{Type: VulnInjection, Severity: finding.High},
+		{Type: VulnInjection, Severity: finding.High},
+		{Type: VulnDoS, Severity: finding.Medium},
 	}
 
 	report := GenerateFuzzReport(vulns)
@@ -602,7 +604,7 @@ func TestVulnerability(t *testing.T) {
 	vuln := Vulnerability{
 		Type:        VulnBoundaryError,
 		Description: "Boundary error",
-		Severity:    SeverityMedium,
+		Severity:    finding.Medium,
 		Endpoint:    "/test",
 		Method:      "POST",
 		CVSS:        5.5,

@@ -20,6 +20,7 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
@@ -75,22 +76,11 @@ const (
 	VulnAuthBypass      VulnerabilityType = "auth-bypass"
 )
 
-// Severity represents the severity level.
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
-
 // Vulnerability represents a detected API vulnerability.
 type Vulnerability struct {
 	Type        VulnerabilityType `json:"type"`
 	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
+	Severity    finding.Severity  `json:"severity"`
 	Endpoint    string            `json:"endpoint"`
 	Method      string            `json:"method"`
 	Parameter   string            `json:"parameter,omitempty"`
@@ -755,7 +745,7 @@ func (t *Tester) analyzeResponse(endpoint Endpoint, param Parameter, payload str
 		return &Vulnerability{
 			Type:        VulnInputValidation,
 			Description: "Server error triggered by fuzz input",
-			Severity:    SeverityMedium,
+			Severity:    finding.Medium,
 			Endpoint:    endpoint.Path,
 			Method:      endpoint.Method,
 			Parameter:   param.Name,
@@ -770,7 +760,7 @@ func (t *Tester) analyzeResponse(endpoint Endpoint, param Parameter, payload str
 		return &Vulnerability{
 			Type:        VulnInjection,
 			Description: "Potential injection vulnerability",
-			Severity:    SeverityHigh,
+			Severity:    finding.High,
 			Endpoint:    endpoint.Path,
 			Method:      endpoint.Method,
 			Parameter:   param.Name,
@@ -786,7 +776,7 @@ func (t *Tester) analyzeResponse(endpoint Endpoint, param Parameter, payload str
 		return &Vulnerability{
 			Type:        VulnInfoDisclosure,
 			Description: "Information disclosure in error response",
-			Severity:    SeverityMedium,
+			Severity:    finding.Medium,
 			Endpoint:    endpoint.Path,
 			Method:      endpoint.Method,
 			Parameter:   param.Name,
@@ -802,7 +792,7 @@ func (t *Tester) analyzeResponse(endpoint Endpoint, param Parameter, payload str
 		return &Vulnerability{
 			Type:        VulnDoS,
 			Description: fmt.Sprintf("Slow response (%v) may indicate DoS vulnerability", resp.ResponseTime),
-			Severity:    SeverityMedium,
+			Severity:    finding.Medium,
 			Endpoint:    endpoint.Path,
 			Method:      endpoint.Method,
 			Parameter:   param.Name,
