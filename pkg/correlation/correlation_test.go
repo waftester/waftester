@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestFindingTypes(t *testing.T) {
@@ -24,9 +26,9 @@ func TestFindingTypes(t *testing.T) {
 }
 
 func TestSeverityLevels(t *testing.T) {
-	severities := []Severity{
-		SeverityCritical, SeverityHigh, SeverityMedium,
-		SeverityLow, SeverityInfo,
+	severities := []finding.Severity{
+		finding.Critical, finding.High, finding.Medium,
+		finding.Low, finding.Info,
 	}
 
 	if len(severities) != 5 {
@@ -34,7 +36,7 @@ func TestSeverityLevels(t *testing.T) {
 	}
 
 	// Test ordering
-	if severityOrder(SeverityCritical) <= severityOrder(SeverityHigh) {
+	if severityOrder(finding.Critical) <= severityOrder(finding.High) {
 		t.Error("Critical should be higher than High")
 	}
 }
@@ -115,7 +117,7 @@ func TestCorrelator_AddScanResult(t *testing.T) {
 			{
 				ID:           "f1",
 				Type:         FindingSQLi,
-				Severity:     SeverityHigh,
+				Severity:     finding.High,
 				Target:       "https://example.com",
 				Endpoint:     "/api",
 				DiscoveredAt: time.Now(),
@@ -148,7 +150,7 @@ func TestCorrelator_RecurringFindings(t *testing.T) {
 			{
 				ID:           "f1",
 				Type:         FindingSQLi,
-				Severity:     SeverityHigh,
+				Severity:     finding.High,
 				Target:       "https://example.com",
 				Endpoint:     "/api",
 				Method:       "GET",
@@ -169,7 +171,7 @@ func TestCorrelator_RecurringFindings(t *testing.T) {
 			{
 				ID:           "f2",
 				Type:         FindingSQLi,
-				Severity:     SeverityHigh,
+				Severity:     finding.High,
 				Target:       "https://example.com",
 				Endpoint:     "/api",
 				Method:       "GET",
@@ -246,24 +248,24 @@ func TestCorrelator_GetFindingsBySeverity(t *testing.T) {
 	result := &ScanResult{
 		ScanID: "scan-1",
 		Findings: []*Finding{
-			{Type: FindingSQLi, Severity: SeverityCritical, Target: "https://a.com", Endpoint: "/a", Method: "GET"},
-			{Type: FindingXSS, Severity: SeverityMedium, Target: "https://a.com", Endpoint: "/b", Method: "GET"},
-			{Type: FindingInfoLeak, Severity: SeverityLow, Target: "https://a.com", Endpoint: "/c", Method: "GET"},
+			{Type: FindingSQLi, Severity: finding.Critical, Target: "https://a.com", Endpoint: "/a", Method: "GET"},
+			{Type: FindingXSS, Severity: finding.Medium, Target: "https://a.com", Endpoint: "/b", Method: "GET"},
+			{Type: FindingInfoLeak, Severity: finding.Low, Target: "https://a.com", Endpoint: "/c", Method: "GET"},
 		},
 	}
 	c.AddScanResult(context.Background(), result)
 
-	critical := c.GetFindingsBySeverity(SeverityCritical)
+	critical := c.GetFindingsBySeverity(finding.Critical)
 	if len(critical) != 1 {
 		t.Errorf("Expected 1 critical finding, got %d", len(critical))
 	}
 
-	high := c.GetFindingsBySeverity(SeverityHigh)
+	high := c.GetFindingsBySeverity(finding.High)
 	if len(high) != 1 { // Only critical meets >= high
 		t.Errorf("Expected 1 high+ finding, got %d", len(high))
 	}
 
-	low := c.GetFindingsBySeverity(SeverityLow)
+	low := c.GetFindingsBySeverity(finding.Low)
 	if len(low) != 3 {
 		t.Errorf("Expected 3 low+ findings, got %d", len(low))
 	}
@@ -581,15 +583,15 @@ func TestNotFoundError(t *testing.T) {
 
 func TestSeverityOrder(t *testing.T) {
 	tests := []struct {
-		severity Severity
+		severity finding.Severity
 		expected int
 	}{
-		{SeverityCritical, 5},
-		{SeverityHigh, 4},
-		{SeverityMedium, 3},
-		{SeverityLow, 2},
-		{SeverityInfo, 1},
-		{Severity("unknown"), 0},
+		{finding.Critical, 5},
+		{finding.High, 4},
+		{finding.Medium, 3},
+		{finding.Low, 2},
+		{finding.Info, 1},
+		{finding.Severity("unknown"), 0},
 	}
 
 	for _, tc := range tests {
@@ -616,7 +618,7 @@ func TestFinding_Struct(t *testing.T) {
 		ID:           "f1",
 		Hash:         "abc123",
 		Type:         FindingSQLi,
-		Severity:     SeverityHigh,
+		Severity:     finding.High,
 		Title:        "SQL Injection",
 		Description:  "Found SQL injection",
 		Target:       "https://example.com",
