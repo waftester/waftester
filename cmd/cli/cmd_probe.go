@@ -809,74 +809,6 @@ func runProbe() {
 		return cpes
 	}
 
-	// WordPress detection helper
-	detectWordPress := func(body, url string) (isWP bool, plugins, themes []string) {
-		// Check for WordPress indicators
-		wpIndicators := []string{
-			"/wp-content/",
-			"/wp-includes/",
-			"/wp-admin/",
-			"wp-json",
-			"wordpress",
-			"<meta name=\"generator\" content=\"WordPress",
-		}
-		bodyLower := strings.ToLower(body)
-		for _, ind := range wpIndicators {
-			if strings.Contains(bodyLower, strings.ToLower(ind)) {
-				isWP = true
-				break
-			}
-		}
-		if !isWP {
-			return
-		}
-		// Extract plugins
-		pluginRe := regexcache.MustGet(`/wp-content/plugins/([^/'"]+)`)
-		pluginMatches := pluginRe.FindAllStringSubmatch(body, 50)
-		pluginSet := make(map[string]bool)
-		for _, m := range pluginMatches {
-			if len(m) > 1 {
-				pluginSet[m[1]] = true
-			}
-		}
-		for p := range pluginSet {
-			plugins = append(plugins, p)
-		}
-		// Extract themes
-		themeRe := regexcache.MustGet(`/wp-content/themes/([^/'"]+)`)
-		themeMatches := themeRe.FindAllStringSubmatch(body, 50)
-		themeSet := make(map[string]bool)
-		for _, m := range themeMatches {
-			if len(m) > 1 {
-				themeSet[m[1]] = true
-			}
-		}
-		for t := range themeSet {
-			themes = append(themes, t)
-		}
-		return
-	}
-
-	// CSP domain extraction helper
-	extractDomainsFromCSP := func(csp string) []string {
-		domainRe := regexcache.MustGet(`(?:https?://)?([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+)`)
-		matches := domainRe.FindAllStringSubmatch(csp, 100)
-		domains := make(map[string]bool)
-		for _, m := range matches {
-			if len(m) > 1 {
-				// Filter out CSP keywords
-				if m[1] != "self" && m[1] != "none" && m[1] != "unsafe-inline" && m[1] != "unsafe-eval" {
-					domains[strings.ToLower(m[1])] = true
-				}
-			}
-		}
-		result := make([]string, 0, len(domains))
-		for d := range domains {
-			result = append(result, d)
-		}
-		return result
-	}
-
 	// Rate limiting is handled via rateLimit flag (requests per second)
 	// rateLimitMinute can be converted: rps = rlm / 60
 	if *rateLimitMinute > 0 && *rateLimit == 0 {
@@ -1242,8 +1174,6 @@ func runProbe() {
 	_ = extractTLSDomains
 	_ = workerCount
 	_ = generateCPE
-	_ = detectWordPress
-	_ = extractDomainsFromCSP
 	_ = csvEnc
 	_ = stripHTMLTags
 	_ = allowedHosts
@@ -1820,10 +1750,10 @@ func runProbe() {
 
 			// WordPress detection
 			if *showWordPress {
-				isWP, plugins, themes := detectWordPress(bodyStr, currentTarget)
-				results.WordPress = isWP
-				results.WPPlugins = plugins
-				results.WPThemes = themes
+				wpResult := probes.DetectWordPress(bodyStr)
+				results.WordPress = wpResult.Detected
+				results.WPPlugins = wpResult.Plugins
+				results.WPThemes = wpResult.Themes
 			}
 
 			if showDetails && len(targets) == 1 {
@@ -2006,7 +1936,7 @@ func runProbe() {
 
 		// CSP Probe - extract and display domains from CSP
 		if *cspProbe && results.Headers != nil && results.Headers.ContentSecurityPolicy != "" {
-			cspDomains := extractDomainsFromCSP(results.Headers.ContentSecurityPolicy)
+			cspDomains := probes.ExtractDomainsFromCSP(results.Headers.ContentSecurityPolicy)
 			if len(cspDomains) > 0 {
 				results.Extracted = append(results.Extracted, cspDomains...)
 				if showDetails {
