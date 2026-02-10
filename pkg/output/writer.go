@@ -140,12 +140,12 @@ type WriterOptions struct {
 }
 
 // NewWriter creates the appropriate writer based on format
-func NewWriter(outputFile, format string) (Writer, error) {
+func NewWriter(outputFile, format string) (ResultWriter, error) {
 	return NewWriterWithOptions(outputFile, format, WriterOptions{Verbose: false, ShowTimestamp: false})
 }
 
 // NewWriterWithOptions creates a writer with custom options
-func NewWriterWithOptions(outputFile, format string, opts WriterOptions) (Writer, error) {
+func NewWriterWithOptions(outputFile, format string, opts WriterOptions) (ResultWriter, error) {
 	// Validate that md/html formats require an output file (they look bad in terminal)
 	if (format == "md" || format == "markdown" || format == "html") && outputFile == "" {
 		return nil, fmt.Errorf("%s format requires an output file (-o filename.%s)", format, format)
