@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/finding"
 )
 
@@ -29,9 +30,8 @@ func TestNewDetector(t *testing.T) {
 
 	t.Run("custom config", func(t *testing.T) {
 		cfg := &DetectorConfig{
-			Timeout:   5 * time.Second,
-			SafeMode:  false,
-			UserAgent: "CustomAgent/1.0",
+			Base:     attackconfig.Base{Timeout: 5 * time.Second, UserAgent: "CustomAgent/1.0"},
+			SafeMode: false,
 		}
 		d := NewDetector(cfg)
 		if d.config.Timeout != 5*time.Second {
@@ -204,8 +204,8 @@ func TestDetect(t *testing.T) {
 	defer server.Close()
 
 	d := NewDetector(&DetectorConfig{
-		SafeMode:    true,
-		MaxPayloads: 20,
+		Base:     attackconfig.Base{MaxPayloads: 20},
+		SafeMode: true,
 	})
 
 	ctx := context.Background()
@@ -242,8 +242,8 @@ func TestDetectNoVulnerability(t *testing.T) {
 	defer server.Close()
 
 	d := NewDetector(&DetectorConfig{
-		SafeMode:    true,
-		MaxPayloads: 10,
+		Base:     attackconfig.Base{MaxPayloads: 10},
+		SafeMode: true,
 	})
 
 	ctx := context.Background()
@@ -460,8 +460,7 @@ func TestContextCancellation(t *testing.T) {
 	defer server.Close()
 
 	d := NewDetector(&DetectorConfig{
-		Timeout:     5 * time.Second,
-		MaxPayloads: 100,
+		Base: attackconfig.Base{Timeout: 5 * time.Second, MaxPayloads: 100},
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -500,8 +499,8 @@ func TestScanURL(t *testing.T) {
 	defer server.Close()
 
 	d := NewDetector(&DetectorConfig{
-		SafeMode:    true,
-		MaxPayloads: 10,
+		Base:     attackconfig.Base{MaxPayloads: 10},
+		SafeMode: true,
 	})
 
 	result, err := d.ScanURL(context.Background(), server.URL, []string{"name", "id"})
@@ -674,8 +673,8 @@ func TestMaxPayloadsLimit(t *testing.T) {
 	defer countServer.Close()
 
 	d := NewDetector(&DetectorConfig{
-		SafeMode:    true,
-		MaxPayloads: 5,
+		Base:     attackconfig.Base{MaxPayloads: 5},
+		SafeMode: true,
 	})
 
 	_, err := d.Detect(context.Background(), countServer.URL, "test")

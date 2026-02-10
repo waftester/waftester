@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/finding"
 )
 
@@ -27,7 +28,7 @@ func TestNewTester(t *testing.T) {
 
 	t.Run("custom config", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout:        60 * time.Second,
+			Base:           attackconfig.Base{Timeout: 60 * time.Second},
 			MaxConcurrency: 100,
 		}
 		tester := NewTester(config)
@@ -574,7 +575,7 @@ func TestConcurrencyLimit(t *testing.T) {
 	defer server.Close()
 
 	config := &TesterConfig{
-		Timeout:        30 * time.Second,
+		Base:           attackconfig.Base{Timeout: 30 * time.Second},
 		MaxConcurrency: 100,
 	}
 	tester := NewTester(config)

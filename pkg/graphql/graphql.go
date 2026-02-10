@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
@@ -146,10 +147,9 @@ type Vulnerability struct {
 
 // TesterConfig configures the GraphQL tester
 type TesterConfig struct {
-	Timeout         time.Duration
+	attackconfig.Base
 	Headers         http.Header
 	Cookies         []*http.Cookie
-	UserAgent       string
 	MaxDepth        int  // Maximum query depth to test
 	MaxBatchSize    int  // Maximum batch size to test
 	SafeMode        bool // Only use safe detection methods
@@ -160,8 +160,10 @@ type TesterConfig struct {
 // DefaultConfig returns a default tester configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:         duration.HTTPFuzzing,
-		UserAgent:       ui.UserAgentWithContext("GraphQL Tester"),
+		Base: attackconfig.Base{
+			Timeout:   duration.HTTPFuzzing,
+			UserAgent: ui.UserAgentWithContext("GraphQL Tester"),
+		},
 		MaxDepth:        defaults.DepthGraphQL,
 		MaxBatchSize:    100,
 		SafeMode:        true,

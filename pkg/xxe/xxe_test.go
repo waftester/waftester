@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/finding"
 )
 
@@ -28,8 +29,7 @@ func TestNewDetector(t *testing.T) {
 
 	t.Run("custom config", func(t *testing.T) {
 		config := &DetectorConfig{
-			Timeout:     30 * time.Second,
-			UserAgent:   "Custom Agent",
+			Base:        attackconfig.Base{Timeout: 30 * time.Second, UserAgent: "Custom Agent"},
 			SafeMode:    false,
 			CallbackURL: "http://callback.example.com",
 		}

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/finding"
 )
 
@@ -24,8 +25,7 @@ func TestNewTester(t *testing.T) {
 
 	t.Run("with custom config", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout:     60 * time.Second,
-			Concurrency: 20,
+			Base:        attackconfig.Base{Timeout: 60 * time.Second, Concurrency: 20},
 		}
 		tester := NewTester(config)
 		if tester.config.Concurrency != 20 {
@@ -128,7 +128,7 @@ func TestIsKnownVulnerableService(t *testing.T) {
 func TestCheckSubdomain(t *testing.T) {
 	// Note: This test requires DNS resolution, so we use a known domain
 	tester := NewTester(&TesterConfig{
-		Timeout:   5 * time.Second,
+		Base:      attackconfig.Base{Timeout: 5 * time.Second},
 		CheckHTTP: false, // Skip HTTP check for faster test
 	})
 
@@ -151,9 +151,8 @@ func TestCheckSubdomain(t *testing.T) {
 
 func TestBatchCheck(t *testing.T) {
 	tester := NewTester(&TesterConfig{
-		Timeout:     5 * time.Second,
-		Concurrency: 5,
-		CheckHTTP:   false,
+		Base:      attackconfig.Base{Timeout: 5 * time.Second, Concurrency: 5},
+		CheckHTTP: false,
 	})
 
 	ctx := context.Background()
@@ -396,9 +395,7 @@ func TestFingerprintPatterns(t *testing.T) {
 
 func TestTesterConfig(t *testing.T) {
 	config := &TesterConfig{
-		Timeout:     10 * time.Second,
-		UserAgent:   "custom-agent/1.0",
-		Concurrency: 5,
+		Base:        attackconfig.Base{Timeout: 10 * time.Second, UserAgent: "custom-agent/1.0", Concurrency: 5},
 		DNSResolver: "8.8.8.8:53",
 		CheckHTTP:   true,
 		FollowCNAME: true,

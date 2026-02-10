@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
@@ -52,8 +53,7 @@ type Vulnerability struct {
 
 // DetectorConfig configures the XXE detector
 type DetectorConfig struct {
-	Timeout         time.Duration
-	UserAgent       string
+	attackconfig.Base
 	Headers         http.Header
 	Cookies         []*http.Cookie
 	SafeMode        bool   // Avoid destructive payloads
@@ -65,8 +65,10 @@ type DetectorConfig struct {
 // DefaultConfig returns a default detector configuration
 func DefaultConfig() *DetectorConfig {
 	return &DetectorConfig{
-		Timeout:         duration.HTTPScanning,
-		UserAgent:       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+		Base: attackconfig.Base{
+			Timeout:   duration.HTTPScanning,
+			UserAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+		},
 		SafeMode:        true,
 		FollowRedirects: false,
 		ContentType:     defaults.ContentTypeXML,

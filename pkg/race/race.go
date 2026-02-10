@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
@@ -60,8 +61,7 @@ type Vulnerability struct {
 
 // TesterConfig configures the race condition tester
 type TesterConfig struct {
-	Timeout        time.Duration
-	UserAgent      string
+	attackconfig.Base
 	MaxConcurrency int           // Maximum concurrent requests
 	Iterations     int           // Number of iterations
 	DelayBetween   time.Duration // Delay between request batches
@@ -70,8 +70,10 @@ type TesterConfig struct {
 // DefaultConfig returns a default tester configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:        duration.HTTPFuzzing,
-		UserAgent:      defaults.UAChrome,
+		Base: attackconfig.Base{
+			Timeout:   duration.HTTPFuzzing,
+			UserAgent: defaults.UAChrome,
+		},
 		MaxConcurrency: 50,
 		Iterations:     1,
 		DelayBetween:   0,
