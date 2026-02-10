@@ -634,14 +634,6 @@ func (t *Tester) RunAllTests(ctx context.Context) ([]TestResult, error) {
 	return allResults, nil
 }
 
-// min returns the minimum of two integers
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // SummarizeResults summarizes test results
 func SummarizeResults(results []TestResult) map[string]int {
 	summary := map[string]int{

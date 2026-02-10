@@ -801,13 +801,6 @@ func isUUID(s string) bool {
 	return uuidPattern.MatchString(strings.ToLower(s))
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // ParseURL parses a URL string into components for testing.
 func ParseURL(rawURL string) (*url.URL, error) {
 	return url.Parse(rawURL)
