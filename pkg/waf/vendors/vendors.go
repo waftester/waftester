@@ -803,12 +803,5 @@ func minFloat(a, b float64) float64 {
 	return b
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // Ensure regexp is used (for pattern compilation in signatures)
 var _ = regexp.MustCompile
