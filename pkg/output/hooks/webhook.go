@@ -9,11 +9,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math"
 	"net/http"
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/retry"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
@@ -143,22 +143,17 @@ func (h *WebhookHook) meetsMinSeverity(event events.Event) bool {
 
 // sendWithRetry sends the request with exponential backoff retries.
 func (h *WebhookHook) sendWithRetry(ctx context.Context, eventType events.EventType, body []byte) error {
-	var lastErr error
+	cfg := retry.Config{
+		MaxAttempts: h.opts.RetryCount,
+		InitDelay:   1 * time.Second,
+		MaxDelay:    30 * time.Second,
+		Strategy:    retry.Exponential,
+	}
 
-	for attempt := 0; attempt < h.opts.RetryCount; attempt++ {
-		if attempt > 0 {
-			// Exponential backoff: 1s, 2s, 4s, ...
-			backoff := time.Duration(math.Pow(2, float64(attempt-1))) * time.Second
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(backoff):
-			}
-		}
-
+	return retry.Do(ctx, cfg, func() error {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, h.endpoint, bytes.NewReader(body))
 		if err != nil {
-			return fmt.Errorf("failed to create request: %w", err)
+			return retry.Stop(fmt.Errorf("failed to create request: %w", err))
 		}
 
 		// Set headers
@@ -172,8 +167,7 @@ func (h *WebhookHook) sendWithRetry(ctx context.Context, eventType events.EventT
 
 		resp, err := h.client.Do(req)
 		if err != nil {
-			lastErr = fmt.Errorf("request failed: %w", err)
-			continue
+			return fmt.Errorf("request failed: %w", err)
 		}
 		defer resp.Body.Close()
 
@@ -184,13 +178,10 @@ func (h *WebhookHook) sendWithRetry(ctx context.Context, eventType events.EventT
 
 		// Retry on 5xx errors
 		if resp.StatusCode >= 500 {
-			lastErr = fmt.Errorf("server error: %d", resp.StatusCode)
-			continue
+			return fmt.Errorf("server error: %d", resp.StatusCode)
 		}
 
 		// Don't retry on 4xx errors
-		return fmt.Errorf("client error: %d", resp.StatusCode)
-	}
-
-	return lastErr
+		return retry.Stop(fmt.Errorf("client error: %d", resp.StatusCode))
+	})
 }
