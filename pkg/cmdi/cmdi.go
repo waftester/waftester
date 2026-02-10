@@ -106,7 +106,7 @@ func NewTester(config *TesterConfig) *Tester {
 }
 
 func (t *Tester) generatePayloads() []*Payload {
-	var payloads []*Payload
+	payloads := make([]*Payload, 0, 40)
 
 	// Time-based payloads (Unix)
 	if t.config.Platform == PlatformUnix || t.config.Platform == PlatformBoth {
@@ -295,7 +295,7 @@ func (t *Tester) GetPayloads(injType InjectionType) []*Payload {
 		return t.payloads
 	}
 
-	var filtered []*Payload
+	filtered := make([]*Payload, 0, len(t.payloads))
 	for _, p := range t.payloads {
 		if p.Type == injType {
 			filtered = append(filtered, p)

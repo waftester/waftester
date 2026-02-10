@@ -119,7 +119,7 @@ func NewTester(config *TesterConfig) *Tester {
 
 // generatePayloads generates SQL injection payloads for all DBMS types
 func (t *Tester) generatePayloads() []Payload {
-	var payloads []Payload
+	payloads := make([]Payload, 0, 75)
 
 	// Generic error-based payloads
 	errorPayloads := []struct {
@@ -362,7 +362,7 @@ func (t *Tester) generatePayloads() []Payload {
 
 	// Filter by DBMS if specified
 	if t.config.DBMS != DBMSGeneric {
-		var filtered []Payload
+		filtered := make([]Payload, 0, len(payloads))
 		for _, p := range payloads {
 			if p.DBMS == t.config.DBMS || p.DBMS == DBMSGeneric {
 				filtered = append(filtered, p)
@@ -380,7 +380,7 @@ func (t *Tester) GetPayloads(injectionType InjectionType) []Payload {
 		return t.payloads
 	}
 
-	var filtered []Payload
+	filtered := make([]Payload, 0, len(t.payloads))
 	for _, p := range t.payloads {
 		if p.Type == injectionType {
 			filtered = append(filtered, p)
@@ -785,7 +785,7 @@ func IsSQLEndpoint(urlStr string) bool {
 
 // GetDBMSPayloads returns payloads specific to a DBMS
 func (t *Tester) GetDBMSPayloads(dbms DBMS) []Payload {
-	var filtered []Payload
+	filtered := make([]Payload, 0, len(t.payloads))
 	for _, p := range t.payloads {
 		if p.DBMS == dbms || p.DBMS == DBMSGeneric {
 			filtered = append(filtered, p)
@@ -796,7 +796,7 @@ func (t *Tester) GetDBMSPayloads(dbms DBMS) []Payload {
 
 // GenerateUnionPayloads generates UNION-based payloads for column enumeration
 func GenerateUnionPayloads(maxColumns int) []string {
-	var payloads []string
+	payloads := make([]string, 0, 3*maxColumns)
 
 	for i := 1; i <= maxColumns; i++ {
 		nulls := make([]string, i)

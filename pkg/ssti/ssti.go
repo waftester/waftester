@@ -135,7 +135,7 @@ func NewDetector(config *DetectorConfig) *Detector {
 
 // generatePayloads creates all SSTI payloads
 func (d *Detector) generatePayloads() []*Payload {
-	var payloads []*Payload
+	payloads := make([]*Payload, 0, 64)
 
 	// Generate random numbers for math probes (harder to false positive)
 	a, b := randomMathValues()
@@ -878,7 +878,7 @@ func (d *Detector) universalPayloads(a, b, result int) []*Payload {
 
 // GetPayloads returns all payloads, optionally filtered
 func (d *Detector) GetPayloads(engine TemplateEngine, payloadType PayloadType) []*Payload {
-	var filtered []*Payload
+	filtered := make([]*Payload, 0, len(d.payloads))
 
 	for _, p := range d.payloads {
 		if engine != "" && engine != EngineUnknown && p.Engine != engine && p.Engine != EngineUnknown {
@@ -935,7 +935,7 @@ func (d *Detector) Detect(ctx context.Context, targetURL string, parameter strin
 }
 
 func (d *Detector) getFilteredPayloads() []*Payload {
-	var filtered []*Payload
+	filtered := make([]*Payload, 0, len(d.payloads))
 
 	for _, p := range d.payloads {
 		// Check engine filter
