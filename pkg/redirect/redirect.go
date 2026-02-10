@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
@@ -57,8 +58,7 @@ type Vulnerability struct {
 
 // TesterConfig configures the open redirect tester
 type TesterConfig struct {
-	Timeout        time.Duration
-	UserAgent      string
+	attackconfig.Base
 	Headers        http.Header
 	Cookies        []*http.Cookie
 	MaxRedirects   int
@@ -68,8 +68,10 @@ type TesterConfig struct {
 // DefaultConfig returns a default tester configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:        duration.DialTimeout,
-		UserAgent:      defaults.UAChrome,
+		Base: attackconfig.Base{
+			Timeout:   duration.DialTimeout,
+			UserAgent: defaults.UAChrome,
+		},
 		MaxRedirects:   defaults.MaxRedirects,
 		AttackerDomain: "evil.com",
 	}
