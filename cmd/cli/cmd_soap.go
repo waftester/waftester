@@ -46,13 +46,9 @@ func runSOAP() {
 	payloadCategory := soapFlags.String("category", "xxe", "Payload category for fuzzing: xxe, sqli, xss")
 	payloadDir := soapFlags.String("payloads", defaults.PayloadDir, "Payload directory")
 	templateDir := soapFlags.String("template-dir", defaults.TemplateDir, "Nuclei template directory")
-	concurrency := soapFlags.Int("c", 10, "Concurrency level")
-	rateLimit := soapFlags.Float64("rl", 30, "Requests per second")
 
 	// Connection options
 	timeout := soapFlags.Int("timeout", 30, "Request timeout in seconds")
-	skipVerify := soapFlags.Bool("k", false, "Skip TLS verification")
-	_ = skipVerify // TLS options to be added
 
 	// Output options
 	outputFile := soapFlags.String("o", "", "Output file (JSON)")
@@ -121,7 +117,7 @@ func runSOAP() {
 	// Execute requested operation
 	switch {
 	case *fuzz:
-		runSOAPFuzz(ctx, client, endpointURL, *payloadDir, *templateDir, *payloadCategory, *concurrency, *rateLimit, *outputFile, *jsonOutput)
+		runSOAPFuzz(ctx, client, endpointURL, *payloadDir, *templateDir, *payloadCategory, *outputFile, *jsonOutput)
 
 	case *operation != "" || *data != "" || *dataFile != "":
 		runSOAPCall(ctx, client, *operation, *action, *data, *dataFile, *headers, *jsonOutput, *verbose)
@@ -243,7 +239,7 @@ func runSOAPCall(ctx context.Context, client *soap.Client, operation, action, da
 	}
 }
 
-func runSOAPFuzz(ctx context.Context, client *soap.Client, endpoint, payloadDir, templateDir, category string, concurrency int, rateLimit float64, outputFile string, jsonOutput bool) {
+func runSOAPFuzz(ctx context.Context, client *soap.Client, endpoint, payloadDir, templateDir, category string, outputFile string, jsonOutput bool) {
 	type fuzzResult struct {
 		Payload    string `json:"payload"`
 		Category   string `json:"category"`
@@ -254,9 +250,6 @@ func runSOAPFuzz(ctx context.Context, client *soap.Client, endpoint, payloadDir,
 	}
 
 	var results []fuzzResult
-
-	_ = concurrency
-	_ = rateLimit
 
 	// Get attack payloads from unified engine (JSON + Nuclei templates)
 	payloads := getUnifiedFuzzPayloads(payloadDir, templateDir, category, 50, false)

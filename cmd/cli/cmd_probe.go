@@ -453,7 +453,7 @@ func runProbe() {
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to load targets: %v", err)
 		ui.PrintError(errMsg)
-		_ = probeDispCtx.EmitError(context.Background(), "probe", errMsg, true)
+		_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
 		os.Exit(1)
 	}
 
@@ -622,7 +622,7 @@ func runProbe() {
 		if err != nil {
 			errMsg := fmt.Sprintf("Cannot read config file: %v", err)
 			ui.PrintError(errMsg)
-			_ = probeDispCtx.EmitError(context.Background(), "probe", errMsg, true)
+			_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
 			os.Exit(1)
 		}
 		// Parse config file (JSON format)
@@ -2096,21 +2096,21 @@ func runProbe() {
 				if results.WAF != nil && results.WAF.Detected && len(results.WAF.WAFs) > 0 {
 					for _, wafInfo := range results.WAF.WAFs {
 						wafDesc := fmt.Sprintf("WAF detected: %s (confidence: %.0f%%)", wafInfo.Name, wafInfo.Confidence*100)
-						_ = probeDispCtx.EmitBypass(context.Background(), "probe-waf-detected", "info", currentTarget, wafDesc, results.StatusCode)
+						_ = probeDispCtx.EmitBypass(ctx, "probe-waf-detected", "info", currentTarget, wafDesc, results.StatusCode)
 					}
 				}
 				// Emit security header findings (missing important headers)
 				if results.Headers != nil && len(results.Headers.MissingHeaders) > 3 {
 					headerDesc := fmt.Sprintf("Missing security headers: %s", strings.Join(results.Headers.MissingHeaders, ", "))
-					_ = probeDispCtx.EmitBypass(context.Background(), "probe-weak-headers", "medium", currentTarget, headerDesc, results.StatusCode)
+					_ = probeDispCtx.EmitBypass(ctx, "probe-weak-headers", "medium", currentTarget, headerDesc, results.StatusCode)
 				}
 				// Emit TLS issues (expired, self-signed, weak cipher)
 				if results.TLS != nil {
 					if results.TLS.Expired {
-						_ = probeDispCtx.EmitBypass(context.Background(), "probe-tls-expired", "critical", currentTarget, "TLS certificate is expired", results.StatusCode)
+						_ = probeDispCtx.EmitBypass(ctx, "probe-tls-expired", "critical", currentTarget, "TLS certificate is expired", results.StatusCode)
 					}
 					if results.TLS.SelfSigned {
-						_ = probeDispCtx.EmitBypass(context.Background(), "probe-tls-self-signed", "high", currentTarget, "TLS certificate is self-signed", results.StatusCode)
+						_ = probeDispCtx.EmitBypass(ctx, "probe-tls-self-signed", "high", currentTarget, "TLS certificate is self-signed", results.StatusCode)
 					}
 				}
 				// Emit technology detection with CPEs
@@ -2118,7 +2118,7 @@ func runProbe() {
 					for _, tech := range results.Tech.Technologies {
 						if tech.Confidence > 90 && tech.Version != "" {
 							techDesc := fmt.Sprintf("Technology: %s v%s", tech.Name, tech.Version)
-							_ = probeDispCtx.EmitBypass(context.Background(), "probe-tech-detected", "info", currentTarget, techDesc, results.StatusCode)
+							_ = probeDispCtx.EmitBypass(ctx, "probe-tech-detected", "info", currentTarget, techDesc, results.StatusCode)
 						}
 					}
 				}
@@ -2354,7 +2354,7 @@ func runProbe() {
 			if err != nil {
 				errMsg := fmt.Sprintf("JSON encoding error: %v", err)
 				ui.PrintError(errMsg)
-				_ = probeDispCtx.EmitError(context.Background(), "probe", errMsg, true)
+				_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
 				os.Exit(1)
 			}
 
@@ -2362,7 +2362,7 @@ func runProbe() {
 				if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
 					errMsg := fmt.Sprintf("Error writing output: %v", err)
 					ui.PrintError(errMsg)
-					_ = probeDispCtx.EmitError(context.Background(), "probe", errMsg, true)
+					_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
 					os.Exit(1)
 				}
 				ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
@@ -2645,6 +2645,6 @@ func runProbe() {
 	// ═══════════════════════════════════════════════════════════════════════════
 	// Notify all hooks that probe is complete (probed targets, alive count)
 	if probeDispCtx != nil {
-		_ = probeDispCtx.EmitSummary(context.Background(), int(statsTotal), int(statsSuccess), int(statsFailed), time.Since(probeStartTime))
+		_ = probeDispCtx.EmitSummary(ctx, int(statsTotal), int(statsSuccess), int(statsFailed), time.Since(probeStartTime))
 	}
 }
