@@ -6,11 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/cloud"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -102,16 +101,11 @@ func runCloud() {
 	}
 
 	// Setup context
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := cli.SignalContext(30 * time.Second)
 	defer cancel()
 
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigCh
-		ui.PrintWarning("Interrupt received, shutting down...")
-		cancel()
-	}()
+	ctx, tCancel := context.WithTimeout(ctx, 30*time.Minute)
+	defer tCancel()
 
 	// Create discoverer
 	discoverer := cloud.NewDiscoverer(cloud.DiscovererConfig{
