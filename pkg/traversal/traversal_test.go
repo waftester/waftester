@@ -540,27 +540,6 @@ func TestGetRemediations(t *testing.T) {
 	})
 }
 
-func TestTruncate(t *testing.T) {
-	tests := []struct {
-		input    string
-		maxLen   int
-		expected string
-	}{
-		{"short", 10, "short"},
-		{"this is a long string", 10, "this is a ..."},
-		{"exact", 5, "exact"},
-		{"", 5, ""},
-	}
-
-	for _, test := range tests {
-		result := truncate(test.input, test.maxLen)
-		if result != test.expected {
-			t.Errorf("truncate(%s, %d) = %s, expected %s",
-				test.input, test.maxLen, result, test.expected)
-		}
-	}
-}
-
 func TestContextCancellation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(100 * time.Millisecond)

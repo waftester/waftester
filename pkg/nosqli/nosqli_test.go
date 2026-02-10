@@ -623,28 +623,6 @@ func TestScanResult(t *testing.T) {
 	}
 }
 
-func TestTruncate(t *testing.T) {
-	tests := []struct {
-		input    string
-		maxLen   int
-		expected string
-	}{
-		{"short", 10, "short"},
-		{"exactly10!", 10, "exactly10!"},
-		{"this is too long", 10, "this is to..."},
-		{"", 10, ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			result := truncate(tt.input, tt.maxLen)
-			if result != tt.expected {
-				t.Errorf("truncate(%q, %d) = %q, want %q", tt.input, tt.maxLen, result, tt.expected)
-			}
-		})
-	}
-}
-
 func TestPayloadContentTypes(t *testing.T) {
 	tester := NewTester(nil)
 	payloads := tester.GetPayloads(DBMongoDB)

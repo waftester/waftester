@@ -22,6 +22,7 @@ import (
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -438,7 +439,7 @@ func (t *Tester) detectEvidence(body string, statusCode int, db Database) string
 
 	for _, p := range patterns {
 		if match := p.FindString(body); match != "" {
-			return fmt.Sprintf("Pattern matched: %s", truncate(match, 100))
+			return fmt.Sprintf("Pattern matched: %s", strutil.Truncate(match, 100))
 		}
 	}
 
@@ -538,12 +539,7 @@ func readBodyLimit(resp *http.Response, limit int64) string {
 	return string(data)
 }
 
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
-}
+
 
 func getSeverity(vulnType VulnerabilityType) finding.Severity {
 	switch vulnType {

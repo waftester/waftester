@@ -13,6 +13,7 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // Config configures sensitive data testing
@@ -152,7 +153,7 @@ func (s *Scanner) scanContent(url, content, location string) []Result {
 					URL:        url,
 					DataType:   pattern.Name,
 					Location:   location,
-					Match:      truncate(match, 50),
+					Match:      strutil.Truncate(match, 50),
 					Vulnerable: true,
 					Evidence:   pattern.Name + " found in " + location,
 					Severity:   pattern.Severity,
@@ -166,12 +167,7 @@ func (s *Scanner) scanContent(url, content, location string) []Result {
 	return results
 }
 
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "..."
-}
+
 
 // GetResults returns all results
 func (s *Scanner) GetResults() []Result {
