@@ -21,6 +21,7 @@ import (
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
 	"golang.org/x/time/rate"
 )
@@ -173,7 +174,7 @@ func (t *Tester) Run(ctx context.Context) (*Result, error) {
 						Corpus:       task.Corpus,
 						Location:     task.Location,
 						StatusCode:   statusCode,
-						ResponseBody: truncate(respBody, 200),
+						ResponseBody: strutil.Truncate(respBody, 200),
 					})
 					result.ByCorpus[task.Corpus]++
 					result.ByLocation[task.Location]++
@@ -296,10 +297,4 @@ func (r *Result) SaveResult(filepath string) error {
 	return os.WriteFile(filepath, data, 0644)
 }
 
-// truncate limits string length
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
-}
+

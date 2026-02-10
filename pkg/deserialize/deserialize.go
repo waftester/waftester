@@ -20,6 +20,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -146,7 +147,7 @@ func (t *Tester) TestPayload(ctx context.Context, targetURL string, param string
 			Severity:    finding.Critical,
 			URL:         targetURL,
 			Parameter:   param,
-			Payload:     truncate(payloadData, 200),
+			Payload:     strutil.Truncate(payloadData, 200),
 			Evidence:    fmt.Sprintf("Status: %d, Body contains deserialization indicators", resp.StatusCode),
 			Remediation: getRemediation(payload.VulnType),
 			CVSS:        9.8,
@@ -187,7 +188,7 @@ func (t *Tester) TestPOST(ctx context.Context, targetURL string, payload Payload
 			Description: payload.Description,
 			Severity:    finding.Critical,
 			URL:         targetURL,
-			Payload:     truncate(payloadData, 200),
+			Payload:     strutil.Truncate(payloadData, 200),
 			Evidence:    fmt.Sprintf("Status: %d, Response indicates deserialization", resp.StatusCode),
 			Remediation: getRemediation(payload.VulnType),
 			CVSS:        9.8,
@@ -475,12 +476,7 @@ func getRemediation(vt VulnerabilityType) string {
 	return "Avoid deserializing untrusted data"
 }
 
-func truncate(s string, maxLen int) string {
-	if len(s) > maxLen {
-		return s[:maxLen] + "..."
-	}
-	return s
-}
+
 
 // AllVulnerabilityTypes returns all deserialization vulnerability types.
 func AllVulnerabilityTypes() []VulnerabilityType {
