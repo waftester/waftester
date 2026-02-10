@@ -77,15 +77,18 @@ func (h *Handler) IsPaused() bool {
 	return h.state.Paused
 }
 
-// WaitIfPaused blocks until resumed if currently paused
+// WaitIfPaused blocks until resumed if currently paused.
+// Uses close(chan) broadcast pattern so ALL waiting goroutines wake on resume.
 func (h *Handler) WaitIfPaused() {
 	h.state.mu.Lock()
 	if !h.state.Paused {
 		h.state.mu.Unlock()
 		return
 	}
+	// Capture current resume channel before releasing lock
+	ch := h.state.resumeChan
 	h.state.mu.Unlock()
-	<-h.state.resumeChan
+	<-ch // Wakes when close(ch) is called on resume
 }
 
 // inputLoop reads user input from stdin
@@ -166,11 +169,10 @@ func (h *Handler) togglePause() {
 		h.state.Paused = false
 		fmt.Println()
 		ui.PrintInfo("Resuming execution...")
-		// Signal resume
-		select {
-		case h.state.resumeChan <- struct{}{}:
-		default:
-		}
+		// Broadcast resume to ALL waiting goroutines by closing the channel
+		close(h.state.resumeChan)
+		// Create a fresh channel for the next pause cycle
+		h.state.resumeChan = make(chan struct{})
 	} else {
 		h.state.Paused = true
 		fmt.Println()
@@ -185,13 +187,13 @@ func (h *Handler) resume() {
 		return
 	}
 	h.state.Paused = false
+	// Broadcast resume to ALL waiting goroutines by closing the channel
+	close(h.state.resumeChan)
+	// Create a fresh channel for the next pause cycle
+	h.state.resumeChan = make(chan struct{})
 	h.state.mu.Unlock()
 
 	ui.PrintInfo("Resuming execution...")
-	select {
-	case h.state.resumeChan <- struct{}{}:
-	default:
-	}
 }
 
 func (h *Handler) printBanner() {

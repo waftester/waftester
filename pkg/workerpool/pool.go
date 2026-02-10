@@ -131,9 +131,10 @@ func (p *Pool) worker() {
 		if r := recover(); r != nil {
 			// Respawn worker to maintain pool capacity
 			if atomic.LoadInt32(&p.closed) == 0 {
-				// Keep running count and wg.Add since we're replacing ourselves
+				// Add to WaitGroup before spawning replacement
+				p.wg.Add(1)
 				go p.worker()
-				return // Don't decrement running since replacement is spawned
+				// Fall through to wg.Done() + running-- for the current worker
 			}
 		}
 		atomic.AddInt32(&p.running, -1)
