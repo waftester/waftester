@@ -3,6 +3,7 @@ package csrf
 
 import (
 	"context"
+	"html"
 	"net/http"
 	"strings"
 	"sync"
@@ -237,17 +238,17 @@ func GeneratePOC(targetURL, method string, params map[string]string) string {
 <body>
 <h1>CSRF Proof of Concept</h1>
 <form id="csrf-form" action="`)
-	sb.WriteString(targetURL)
+	sb.WriteString(html.EscapeString(targetURL))
 	sb.WriteString(`" method="`)
-	sb.WriteString(method)
+	sb.WriteString(html.EscapeString(method))
 	sb.WriteString(`">
 `)
 
 	for name, value := range params {
 		sb.WriteString(`  <input type="hidden" name="`)
-		sb.WriteString(name)
+		sb.WriteString(html.EscapeString(name))
 		sb.WriteString(`" value="`)
-		sb.WriteString(value)
+		sb.WriteString(html.EscapeString(value))
 		sb.WriteString(`" />
 `)
 	}
