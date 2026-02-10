@@ -24,6 +24,9 @@ import (
 	"github.com/waftester/waftester/pkg/ui"
 )
 
+// canaryPatternRe matches waftester canary values in responses.
+var canaryPatternRe = regexp.MustCompile(`waftester[a-f0-9]{16}`)
+
 // VulnerabilityType represents the type of cache vulnerability
 type VulnerabilityType string
 
@@ -978,5 +981,5 @@ func IsCacheable(resp *http.Response) bool {
 
 // ExtractCanaryPattern returns a regex for finding canary values
 func ExtractCanaryPattern() *regexp.Regexp {
-	return regexp.MustCompile(`waftester[a-f0-9]{16}`)
+	return canaryPatternRe
 }

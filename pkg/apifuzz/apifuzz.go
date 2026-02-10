@@ -28,6 +28,16 @@ import (
 	"github.com/waftester/waftester/pkg/ui"
 )
 
+// infoDisclosurePatterns contains pre-compiled regexes for detecting information disclosure.
+var infoDisclosurePatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)stack\s*trace`),
+	regexp.MustCompile(`(?i)at\s+[\w.]+\([\w.]+:\d+\)`),
+	regexp.MustCompile(`(?i)file\s+"[^"]+"\s*,\s*line\s+\d+`),
+	regexp.MustCompile(`(?i)(password|api.?key|secret|token)\s*[:=]`),
+	regexp.MustCompile(`(?i)/(?:home|var|usr|etc)/[\w/]+`),
+	regexp.MustCompile(`(?i)[A-Za-z]:\\[\w\\]+`),
+}
+
 // FuzzType represents the type of fuzzing to perform.
 type FuzzType string
 
@@ -864,16 +874,7 @@ func hasInjectionIndicator(body, payload string) bool {
 }
 
 func hasInfoDisclosure(body string) bool {
-	patterns := []*regexp.Regexp{
-		regexp.MustCompile(`(?i)stack\s*trace`),
-		regexp.MustCompile(`(?i)at\s+[\w.]+\([\w.]+:\d+\)`),
-		regexp.MustCompile(`(?i)file\s+"[^"]+"\s*,\s*line\s+\d+`),
-		regexp.MustCompile(`(?i)(password|api.?key|secret|token)\s*[:=]`),
-		regexp.MustCompile(`(?i)/(?:home|var|usr|etc)/[\w/]+`),
-		regexp.MustCompile(`(?i)[A-Za-z]:\\[\w\\]+`),
-	}
-
-	for _, p := range patterns {
+	for _, p := range infoDisclosurePatterns {
 		if p.MatchString(body) {
 			return true
 		}

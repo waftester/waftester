@@ -21,6 +21,20 @@ import (
 	"github.com/waftester/waftester/pkg/ui"
 )
 
+// crlfSanitizePatterns contains pre-compiled regexes for removing encoded CRLF sequences.
+var crlfSanitizePatterns = []*regexp.Regexp{
+	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%0d")),
+	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%0D")),
+	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%0a")),
+	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%0A")),
+	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%0d%0a")),
+	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%0D%0A")),
+	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%250d")),
+	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%250a")),
+	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%250D")),
+	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%250A")),
+}
+
 // VulnerabilityType represents the type of CRLF vulnerability
 type VulnerabilityType string
 
@@ -553,17 +567,8 @@ func SanitizeCRLF(input string) string {
 
 // SanitizeCRLFEncoded removes encoded CRLF patterns
 func SanitizeCRLFEncoded(input string) string {
-	// Common URL-encoded patterns
-	patterns := []string{
-		"%0d", "%0D", "%0a", "%0A",
-		"%0d%0a", "%0D%0A",
-		"%250d", "%250a", "%250D", "%250A",
-	}
-
 	result := input
-	for _, p := range patterns {
-		// Case-insensitive replacement
-		re := regexp.MustCompile("(?i)" + regexp.QuoteMeta(p))
+	for _, re := range crlfSanitizePatterns {
 		result = re.ReplaceAllString(result, "")
 	}
 
