@@ -184,7 +184,7 @@ func NewBrowser(config *Config) (*Browser, error) {
 	}, nil
 }
 
-// Close closes the browser and releases resources
+// Close is a no-op — browser lifecycle is managed per-operation.
 func (b *Browser) Close() error {
 	return nil
 }

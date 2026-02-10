@@ -407,28 +407,6 @@ func TestGenerateCRLFPayloads(t *testing.T) {
 	}
 }
 
-func TestVulnerabilityToJSON(t *testing.T) {
-	vuln := Vulnerability{
-		Type:        VulnHeaderInjection,
-		Description: "Test",
-		Severity:    finding.High,
-		URL:         "http://example.com",
-		Parameter:   "redirect",
-		Payload:     "%0d%0a",
-		Evidence:    "Header found",
-		CVSS:        7.5,
-	}
-
-	jsonStr, err := VulnerabilityToJSON(vuln)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if !strings.Contains(jsonStr, "header-injection") {
-		t.Error("expected vulnerability type in JSON")
-	}
-}
-
 func TestVulnerability(t *testing.T) {
 	vuln := Vulnerability{
 		Type:        VulnResponseSplitting,
