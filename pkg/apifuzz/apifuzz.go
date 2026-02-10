@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
@@ -142,9 +143,7 @@ type Response struct {
 
 // TesterConfig holds configuration for the API fuzzer.
 type TesterConfig struct {
-	Timeout       time.Duration
-	UserAgent     string
-	Concurrency   int
+	attackconfig.Base
 	MaxIterations int
 	FuzzTypes     []FuzzType
 	Dictionary    []string
@@ -166,9 +165,11 @@ type Tester struct {
 // DefaultConfig returns default configuration.
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:       duration.HTTPFuzzing,
-		UserAgent:     ui.UserAgentWithContext("API Fuzzer"),
-		Concurrency:   defaults.ConcurrencyMedium,
+		Base: attackconfig.Base{
+			Timeout:     duration.HTTPFuzzing,
+			UserAgent:   ui.UserAgentWithContext("API Fuzzer"),
+			Concurrency: defaults.ConcurrencyMedium,
+		},
 		MaxIterations: 100,
 		FuzzTypes:     []FuzzType{FuzzMutation, FuzzSmart},
 		SkipCodes:     []int{404},

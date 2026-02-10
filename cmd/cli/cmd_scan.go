@@ -1480,8 +1480,10 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "ssti", "vulns": vulnCount})
 		}()
 		cfg := &ssti.DetectorConfig{
-			Timeout:   timeoutDur,
-			UserAgent: ui.UserAgent(),
+			Base: attackconfig.Base{
+				Timeout:   timeoutDur,
+				UserAgent: ui.UserAgent(),
+			},
 		}
 		detector := ssti.NewDetector(cfg)
 		vulns, err := detector.Detect(ctx, target, "input")
@@ -1658,12 +1660,14 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "subtakeover", "vulns": vulnCount})
 		}()
 		cfg := &subtakeover.TesterConfig{
-			Timeout:     timeoutDur,
-			UserAgent:   ui.UserAgent(),
-			Concurrency: *concurrency,
+			Base: attackconfig.Base{
+				Timeout:     timeoutDur,
+				UserAgent:   ui.UserAgent(),
+				Concurrency: *concurrency,
+				Client:      httpClient,
+			},
 			CheckHTTP:   true,
 			FollowCNAME: true,
-			Client:      httpClient,
 		}
 		tester := subtakeover.NewTester(cfg)
 		// Extract domain from target URL

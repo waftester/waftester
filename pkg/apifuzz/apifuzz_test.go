@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/finding"
 )
 
@@ -25,8 +26,7 @@ func TestNewTester(t *testing.T) {
 
 	t.Run("with custom config", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout:       60 * time.Second,
-			Concurrency:   20,
+			Base:          attackconfig.Base{Timeout: 60 * time.Second, Concurrency: 20},
 			MaxIterations: 500,
 		}
 		tester := NewTester(config)
@@ -239,7 +239,7 @@ func TestFuzzEndpoint(t *testing.T) {
 	defer server.Close()
 
 	tester := NewTester(&TesterConfig{
-		Timeout:       5 * time.Second,
+		Base:          attackconfig.Base{Timeout: 5 * time.Second},
 		MaxIterations: 10,
 		Dictionary:    []string{"test", "'", "1=1"},
 	})
@@ -272,8 +272,7 @@ func TestFuzzAPI(t *testing.T) {
 	defer server.Close()
 
 	tester := NewTester(&TesterConfig{
-		Timeout:       5 * time.Second,
-		Concurrency:   2,
+		Base:          attackconfig.Base{Timeout: 5 * time.Second, Concurrency: 2},
 		MaxIterations: 5,
 		Dictionary:    []string{"test"},
 	})
@@ -299,7 +298,7 @@ func TestSendFuzzRequest(t *testing.T) {
 	defer server.Close()
 
 	tester := NewTester(&TesterConfig{
-		Timeout: 5 * time.Second,
+		Base: attackconfig.Base{Timeout: 5 * time.Second},
 	})
 
 	endpoint := Endpoint{
@@ -336,7 +335,7 @@ func TestSendBodyFuzzRequest(t *testing.T) {
 	defer server.Close()
 
 	tester := NewTester(&TesterConfig{
-		Timeout: 5 * time.Second,
+		Base: attackconfig.Base{Timeout: 5 * time.Second},
 	})
 
 	endpoint := Endpoint{
