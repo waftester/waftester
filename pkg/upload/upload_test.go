@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/finding"
 )
 
@@ -26,9 +27,11 @@ func TestNewTester(t *testing.T) {
 
 	t.Run("with custom config", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout:     60 * time.Second,
-			Concurrency: 10,
-			FileField:   "upload",
+			Base: attackconfig.Base{
+				Timeout:     60 * time.Second,
+				Concurrency: 10,
+			},
+			FileField: "upload",
 		}
 		tester := NewTester(config)
 		if tester.config.Concurrency != 10 {
@@ -89,7 +92,9 @@ func TestTestUpload(t *testing.T) {
 	defer server.Close()
 
 	tester := NewTester(&TesterConfig{
-		Timeout:   5 * time.Second,
+		Base: attackconfig.Base{
+			Timeout: 5 * time.Second,
+		},
 		FileField: "file",
 	})
 
@@ -140,9 +145,11 @@ func TestScan(t *testing.T) {
 	defer server.Close()
 
 	tester := NewTester(&TesterConfig{
-		Timeout:     5 * time.Second,
-		Concurrency: 2,
-		FileField:   "file",
+		Base: attackconfig.Base{
+			Timeout:     5 * time.Second,
+			Concurrency: 2,
+		},
+		FileField: "file",
 	})
 
 	ctx := context.Background()
@@ -624,9 +631,11 @@ func TestUploadPayload(t *testing.T) {
 
 func TestTesterConfig(t *testing.T) {
 	config := &TesterConfig{
-		Timeout:        10 * time.Second,
-		UserAgent:      "custom-agent",
-		Concurrency:    5,
+		Base: attackconfig.Base{
+			Timeout:     10 * time.Second,
+			UserAgent:   "custom-agent",
+			Concurrency: 5,
+		},
 		FileField:      "upload",
 		ExtraFields:    map[string]string{"token": "abc123"},
 		AuthHeader:     "Bearer token",

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
@@ -67,13 +68,10 @@ type ScanResult struct {
 
 // TesterConfig configures the cache poisoning tester
 type TesterConfig struct {
-	Timeout      time.Duration
-	UserAgent    string
-	Concurrency  int
+	attackconfig.Base
 	CacheBusters []string // Custom cache busters
 	TestHeaders  []string // Headers to test for unkeyed behavior
 	TestParams   []string // Parameters to test
-	Client       *http.Client
 	VerifyCache  bool // Whether to verify caching behavior
 }
 
@@ -86,9 +84,11 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:     duration.HTTPFuzzing,
-		UserAgent:   ui.UserAgent(),
-		Concurrency: defaults.ConcurrencyLow,
+		Base: attackconfig.Base{
+			Timeout:     duration.HTTPFuzzing,
+			UserAgent:   ui.UserAgent(),
+			Concurrency: defaults.ConcurrencyLow,
+		},
 		VerifyCache: true,
 		TestHeaders: []string{
 			// Standard headers

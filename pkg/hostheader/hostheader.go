@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
@@ -63,9 +64,7 @@ type ScanResult struct {
 
 // TesterConfig holds configuration for the Host header tester
 type TesterConfig struct {
-	Timeout     time.Duration
-	UserAgent   string
-	Client      *http.Client
+	attackconfig.Base
 	CallbackURL string // For OOB testing
 }
 
@@ -79,8 +78,10 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:   duration.HTTPFuzzing,
-		UserAgent: ui.UserAgent(),
+		Base: attackconfig.Base{
+			Timeout:   duration.HTTPFuzzing,
+			UserAgent: ui.UserAgent(),
+		},
 	}
 }
 

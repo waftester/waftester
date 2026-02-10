@@ -1171,8 +1171,10 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "redirect", "vulns": vulnCount})
 		}()
 		cfg := &redirect.TesterConfig{
-			Timeout:   timeoutDur,
-			UserAgent: ui.UserAgent(),
+			Base: attackconfig.Base{
+				Timeout:   timeoutDur,
+				UserAgent: ui.UserAgent(),
+			},
 		}
 		tester := redirect.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -1207,9 +1209,11 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "hostheader", "vulns": vulnCount})
 		}()
 		cfg := &hostheader.TesterConfig{
-			Timeout:   timeoutDur,
-			UserAgent: ui.UserAgent(),
-			Client:    httpClient,
+			Base: attackconfig.Base{
+				Timeout:   timeoutDur,
+				UserAgent: ui.UserAgent(),
+				Client:    httpClient,
+			},
 		}
 		tester := hostheader.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -1244,8 +1248,10 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "websocket", "vulns": vulnCount})
 		}()
 		cfg := &websocket.TesterConfig{
-			Timeout:   timeoutDur,
-			UserAgent: ui.UserAgent(),
+			Base: attackconfig.Base{
+				Timeout:   timeoutDur,
+				UserAgent: ui.UserAgent(),
+			},
 		}
 		tester := websocket.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -1279,9 +1285,11 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "cache", "vulns": vulnCount})
 		}()
 		cfg := &cache.TesterConfig{
-			Timeout:   timeoutDur,
-			UserAgent: ui.UserAgent(),
-			Client:    httpClient,
+			Base: attackconfig.Base{
+				Timeout:   timeoutDur,
+				UserAgent: ui.UserAgent(),
+				Client:    httpClient,
+			},
 		}
 		tester := cache.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -1320,8 +1328,10 @@ func runScan() {
 		defer uploadCancel()
 
 		cfg := &upload.TesterConfig{
-			Timeout:   timeoutDur,
-			UserAgent: ui.UserAgent(),
+			Base: attackconfig.Base{
+				Timeout:   timeoutDur,
+				UserAgent: ui.UserAgent(),
+			},
 		}
 		tester := upload.NewTester(cfg)
 		vulns, err := tester.Scan(uploadCtx, target)
@@ -1353,8 +1363,10 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "deserialize", "vulns": vulnCount})
 		}()
 		cfg := &deserialize.TesterConfig{
-			Timeout:   timeoutDur,
-			UserAgent: ui.UserAgent(),
+			Base: attackconfig.Base{
+				Timeout:   timeoutDur,
+				UserAgent: ui.UserAgent(),
+			},
 		}
 		tester := deserialize.NewTester(cfg)
 		vulns, err := tester.Scan(ctx, target)
@@ -1392,8 +1404,10 @@ func runScan() {
 			return
 		}
 		cfg := &oauth.TesterConfig{
-			Timeout:   timeoutDur,
-			UserAgent: ui.UserAgent(),
+			Base: attackconfig.Base{
+				Timeout:   timeoutDur,
+				UserAgent: ui.UserAgent(),
+			},
 		}
 		endpoints := &oauth.OAuthEndpoint{
 			AuthorizationURL: *oauthAuthEndpoint,

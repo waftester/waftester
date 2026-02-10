@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/attackconfig"
 )
 
 // mockWebSocketHandler simulates a WebSocket upgrade using hijacker
@@ -95,7 +97,9 @@ func TestNewTester(t *testing.T) {
 
 	t.Run("custom config", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout: 60 * time.Second,
+			Base: attackconfig.Base{
+				Timeout: 60 * time.Second,
+			},
 			TestOrigins: []string{
 				"https://custom-attacker.com",
 			},

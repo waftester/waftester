@@ -14,8 +14,8 @@ import (
 	"net/url"
 	"strings"
 	"sync"
-	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
@@ -78,9 +78,7 @@ type OAuthConfig struct {
 
 // TesterConfig holds configuration for OAuth testing.
 type TesterConfig struct {
-	Timeout        time.Duration
-	UserAgent      string
-	Concurrency    int
+	attackconfig.Base
 	AuthHeader     string
 	Cookies        map[string]string
 	FollowRedirect bool
@@ -97,9 +95,11 @@ type Tester struct {
 // DefaultTesterConfig returns default configuration.
 func DefaultTesterConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:        duration.HTTPFuzzing,
-		UserAgent:      ui.UserAgentWithContext("OAuth Tester"),
-		Concurrency:    defaults.ConcurrencyLow,
+		Base: attackconfig.Base{
+			Timeout:     duration.HTTPFuzzing,
+			UserAgent:   ui.UserAgentWithContext("OAuth Tester"),
+			Concurrency: defaults.ConcurrencyLow,
+		},
 		Cookies:        make(map[string]string),
 		FollowRedirect: false,
 	}
