@@ -17,6 +17,7 @@ import (
 
 	"github.com/waftester/waftester/internal/hexutil"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 // Detector detects SSRF vulnerabilities
@@ -119,8 +120,8 @@ type ResponseInfo struct {
 
 // Vulnerability represents a detected SSRF vulnerability
 type Vulnerability struct {
-	Type        string  `json:"type"`
-	Severity    string  `json:"severity"`
+	Type        string           `json:"type"`
+	Severity    finding.Severity `json:"severity"`
 	Parameter   string  `json:"parameter"`
 	Payload     string  `json:"payload"`
 	Evidence    string  `json:"evidence"`
@@ -530,7 +531,7 @@ func (d *Detector) AnalyzeResponse(payload Payload, statusCode int, body string,
 		if isMetadataResponse(body, headers) {
 			return &Vulnerability{
 				Type:        "Cloud Metadata Access",
-				Severity:    "critical",
+				Severity:    finding.Critical,
 				Payload:     payload.URL,
 				Evidence:    truncateBody(body, 200),
 				Confidence:  0.95,
@@ -544,7 +545,7 @@ func (d *Detector) AnalyzeResponse(payload Payload, statusCode int, body string,
 		if isLocalResponse(body, statusCode) {
 			return &Vulnerability{
 				Type:        "Localhost Access",
-				Severity:    "high",
+				Severity:    finding.High,
 				Payload:     payload.URL,
 				Evidence:    fmt.Sprintf("Status: %d, Body preview: %s", statusCode, truncateBody(body, 100)),
 				Confidence:  0.8,
@@ -558,7 +559,7 @@ func (d *Detector) AnalyzeResponse(payload Payload, statusCode int, body string,
 		if isFileContent(body) {
 			return &Vulnerability{
 				Type:        "Local File Read via SSRF",
-				Severity:    "critical",
+				Severity:    finding.Critical,
 				Payload:     payload.URL,
 				Evidence:    truncateBody(body, 200),
 				Confidence:  0.9,
