@@ -14,6 +14,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
@@ -38,17 +39,6 @@ const (
 	PlatformBoth    Platform = "both"
 )
 
-// Severity represents the severity of a finding
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
-
 // Payload represents a command injection payload
 type Payload struct {
 	Name          string         // Payload name
@@ -63,17 +53,10 @@ type Payload struct {
 
 // Vulnerability represents a detected command injection vulnerability
 type Vulnerability struct {
-	Type         InjectionType `json:"type"`
-	Description  string        `json:"description"`
-	Severity     Severity      `json:"severity"`
-	Payload      *Payload      `json:"payload"`
-	Parameter    string        `json:"parameter"`
-	Evidence     string        `json:"evidence"`
-	URL          string        `json:"url"`
-	Platform     Platform      `json:"platform"`
-	ResponseTime time.Duration `json:"response_time"`
-	Remediation  string        `json:"remediation"`
-	ConfirmedBy  int           `json:"confirmed_by,omitempty"`
+	finding.Vulnerability
+	Type     InjectionType `json:"type"`
+	Payload  *Payload      `json:"payload"`
+	Platform Platform      `json:"platform"`
 }
 
 // TesterConfig configures the command injection tester
@@ -450,16 +433,18 @@ func (t *Tester) analyzeResponse(testURL, param string, payload *Payload, body s
 	}
 
 	return &Vulnerability{
-		Type:         payload.Type,
-		Description:  payload.Description,
-		Severity:     SeverityCritical,
-		Payload:      payload,
-		Parameter:    param,
-		Evidence:     evidence,
-		URL:          testURL,
-		Platform:     payload.Platform,
-		ResponseTime: elapsed,
-		Remediation:  "Never pass user input to system commands. Use parameterized APIs, input validation, and allowlists.",
+		Vulnerability: finding.Vulnerability{
+			Description:  payload.Description,
+			Severity:     finding.Critical,
+			Parameter:    param,
+			Evidence:     evidence,
+			URL:          testURL,
+			ResponseTime: elapsed,
+			Remediation:  "Never pass user input to system commands. Use parameterized APIs, input validation, and allowlists.",
+		},
+		Type:     payload.Type,
+		Payload:  payload,
+		Platform: payload.Platform,
 	}, nil
 }
 

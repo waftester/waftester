@@ -16,6 +16,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
@@ -35,17 +36,6 @@ const (
 	VulnWrapperAbuse   VulnerabilityType = "php-wrapper-abuse"
 )
 
-// Severity levels for vulnerabilities
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
-
 // Platform represents the target platform
 type Platform string
 
@@ -57,17 +47,9 @@ const (
 
 // Vulnerability represents a detected traversal vulnerability
 type Vulnerability struct {
-	Type        VulnerabilityType `json:"type"`
-	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
-	URL         string            `json:"url"`
-	Parameter   string            `json:"parameter"`
-	Payload     string            `json:"payload"`
-	Evidence    string            `json:"evidence"`
-	Remediation string            `json:"remediation"`
-	CVSS        float64           `json:"cvss"`
-	FileFound   string            `json:"file_found,omitempty"`
-	ConfirmedBy int               `json:"confirmed_by,omitempty"`
+	finding.Vulnerability
+	Type      VulnerabilityType `json:"type"`
+	FileFound string            `json:"file_found,omitempty"`
 }
 
 // Payload represents a traversal payload
@@ -420,16 +402,18 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL string, param stri
 		evidence := t.detectEvidence(body, payload.Platform)
 		if evidence != "" {
 			vulns = append(vulns, Vulnerability{
-				Type:        getVulnType(payload),
-				Description: fmt.Sprintf("Path traversal via parameter '%s' using %s", param, payload.Description),
-				Severity:    SeverityHigh,
-				URL:         testURL,
-				Parameter:   param,
-				Payload:     payload.Value,
-				Evidence:    evidence,
-				Remediation: GetTraversalRemediation(),
-				CVSS:        7.5,
-				FileFound:   identifyFile(evidence),
+				Vulnerability: finding.Vulnerability{
+					Description: fmt.Sprintf("Path traversal via parameter '%s' using %s", param, payload.Description),
+					Severity:    finding.High,
+					URL:         testURL,
+					Parameter:   param,
+					Payload:     payload.Value,
+					Evidence:    evidence,
+					Remediation: GetTraversalRemediation(),
+					CVSS:        7.5,
+				},
+				Type:      getVulnType(payload),
+				FileFound: identifyFile(evidence),
 			})
 		}
 	}
@@ -620,14 +604,16 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 		evidence := t.detectEvidence(body, PlatformUnknown)
 		if evidence != "" {
 			vulns = append(vulns, Vulnerability{
-				Type:        VulnPathTraversal,
-				Description: "Path traversal in URL path",
-				Severity:    SeverityHigh,
-				URL:         testURL,
-				Payload:     payload,
-				Evidence:    evidence,
-				Remediation: GetTraversalRemediation(),
-				CVSS:        7.5,
+				Vulnerability: finding.Vulnerability{
+					Description: "Path traversal in URL path",
+					Severity:    finding.High,
+					URL:         testURL,
+					Payload:     payload,
+					Evidence:    evidence,
+					Remediation: GetTraversalRemediation(),
+					CVSS:        7.5,
+				},
+				Type: VulnPathTraversal,
 			})
 		}
 	}
