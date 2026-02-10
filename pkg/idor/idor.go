@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -17,9 +18,8 @@ import (
 
 // Config configures IDOR testing
 type Config struct {
+	attackconfig.Base
 	BaseURL      string
-	Concurrency  int
-	Timeout      time.Duration
 	Headers      map[string]string
 	AuthTokens   []string // Multiple auth tokens for comparison
 	IDPatterns   []string // Patterns to identify IDs in responses
@@ -30,8 +30,10 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Concurrency:  defaults.ConcurrencyMedium,
-		Timeout:      httpclient.TimeoutProbing,
+		Base: attackconfig.Base{
+			Concurrency: defaults.ConcurrencyMedium,
+			Timeout:     httpclient.TimeoutProbing,
+		},
 		NumericRange: [2]int{1, 100},
 		IDPatterns: []string{
 			`"id"\s*:\s*(\d+)`,
