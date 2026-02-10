@@ -16,6 +16,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
@@ -52,22 +53,11 @@ const (
 	VulnInsecureState VulnerabilityType = "insecure-state"
 )
 
-// Severity represents the severity level of a vulnerability.
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
-
 // Vulnerability represents a detected business logic vulnerability.
 type Vulnerability struct {
 	Type        VulnerabilityType `json:"type"`
 	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
+	Severity    finding.Severity  `json:"severity"`
 	URL         string            `json:"url"`
 	Method      string            `json:"method"`
 	Parameter   string            `json:"parameter,omitempty"`
@@ -210,7 +200,7 @@ func (t *Tester) TestIDOR(ctx context.Context, baseURL, path string, originalID,
 			return &Vulnerability{
 				Type:        VulnIDOR,
 				Description: "Possible IDOR vulnerability - accessed resource with different ID",
-				Severity:    SeverityHigh,
+				Severity:    finding.High,
 				URL:         modifiedURL,
 				Method:      "GET",
 				OriginalID:  originalID,
@@ -269,7 +259,7 @@ func (t *Tester) TestAuthBypass(ctx context.Context, targetURL string) ([]Vulner
 			vulns = append(vulns, Vulnerability{
 				Type:        VulnAuthBypass,
 				Description: fmt.Sprintf("Authentication bypass via %s header", bypass.name),
-				Severity:    SeverityCritical,
+				Severity:    finding.Critical,
 				URL:         targetURL,
 				Method:      "GET",
 				Parameter:   bypass.name,
@@ -308,7 +298,7 @@ func (t *Tester) TestPrivilegeEscalation(ctx context.Context, targetURL string, 
 		return &Vulnerability{
 			Type:        VulnPrivEsc,
 			Description: "Privilege escalation - low privilege user accessed admin endpoint",
-			Severity:    SeverityCritical,
+			Severity:    finding.Critical,
 			URL:         targetURL + highPrivPath,
 			Method:      "GET",
 			Evidence:    fmt.Sprintf("Status: %d, Response length: %d", resp.StatusCode, len(body)),
@@ -363,7 +353,7 @@ func (t *Tester) TestMassAssignment(ctx context.Context, targetURL string, norma
 			return &Vulnerability{
 				Type:        VulnMassAssign,
 				Description: "Mass assignment vulnerability - privileged fields accepted",
-				Severity:    SeverityHigh,
+				Severity:    finding.High,
 				URL:         targetURL,
 				Method:      "POST",
 				Evidence:    fmt.Sprintf("Server accepted payload with admin/role fields: %s", string(malBody)[:min(200, len(malBody))]),
@@ -445,7 +435,7 @@ func (t *Tester) TestRaceCondition(ctx context.Context, targetURL, method, body 
 		vulns = append(vulns, Vulnerability{
 			Type:        VulnRaceCondition,
 			Description: fmt.Sprintf("Possible race condition - %d successful responses for concurrent requests", successCount),
-			Severity:    SeverityHigh,
+			Severity:    finding.High,
 			URL:         targetURL,
 			Method:      method,
 			Evidence:    fmt.Sprintf("Sent %d concurrent requests, %d succeeded", t.config.RaceCount, successCount),
@@ -491,7 +481,7 @@ func (t *Tester) TestPriceManipulation(ctx context.Context, targetURL string, or
 			return &Vulnerability{
 				Type:        VulnPriceManip,
 				Description: fmt.Sprintf("Price manipulation accepted - changed from %s to %s", originalPrice, manipulatedPrice),
-				Severity:    SeverityHigh,
+				Severity:    finding.High,
 				URL:         targetURL,
 				Method:      "POST",
 				Parameter:   "price",
@@ -527,7 +517,7 @@ func (t *Tester) TestWorkflowBypass(ctx context.Context, finalStepURL string, re
 		return &Vulnerability{
 			Type:        VulnWorkflowBypass,
 			Description: fmt.Sprintf("Workflow bypass - accessed final step without completing required steps: %v", requiredSteps),
-			Severity:    SeverityMedium,
+			Severity:    finding.Medium,
 			URL:         finalStepURL,
 			Method:      "GET",
 			Evidence:    fmt.Sprintf("Accessed %s without completing workflow", finalStepURL),
@@ -576,7 +566,7 @@ func (t *Tester) TestEnumeration(ctx context.Context, targetURL string, validID,
 		return &Vulnerability{
 			Type:        VulnEnumeration,
 			Description: "Resource enumeration possible - different responses for valid/invalid IDs",
-			Severity:    SeverityMedium,
+			Severity:    finding.Medium,
 			URL:         targetURL,
 			Method:      "GET",
 			Evidence:    fmt.Sprintf("Valid ID: status %d, len %d; Invalid ID: status %d, len %d", validResp.StatusCode, len(validBody), invalidResp.StatusCode, len(invalidBody)),

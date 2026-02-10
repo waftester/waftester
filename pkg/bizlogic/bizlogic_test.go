@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewTester(t *testing.T) {
@@ -367,7 +369,7 @@ func TestVulnerabilityToJSON(t *testing.T) {
 	vuln := Vulnerability{
 		Type:        VulnIDOR,
 		Description: "IDOR vulnerability found",
-		Severity:    SeverityHigh,
+		Severity:    finding.High,
 		URL:         "https://example.com/users/123",
 		Method:      "GET",
 		OriginalID:  "1",
@@ -390,7 +392,7 @@ func TestVulnerability(t *testing.T) {
 	vuln := Vulnerability{
 		Type:        VulnPrivEsc,
 		Description: "Privilege escalation detected",
-		Severity:    SeverityCritical,
+		Severity:    finding.Critical,
 		URL:         "https://example.com/admin",
 		Method:      "GET",
 		Evidence:    "Admin panel accessed with low-priv token",
