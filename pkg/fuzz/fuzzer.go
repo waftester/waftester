@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/bufpool"
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/httpclient"
@@ -27,6 +28,8 @@ import (
 
 // Config holds fuzzing configuration
 type Config struct {
+	attackconfig.Base
+
 	// Target
 	TargetURL string // URL with FUZZ keyword
 
@@ -34,10 +37,8 @@ type Config struct {
 	Words []string // Words to fuzz
 
 	// Execution
-	Concurrency int           // Parallel workers
-	RateLimit   int           // Requests per second
-	Timeout     time.Duration // HTTP timeout
-	SkipVerify  bool          // Skip TLS verification
+	RateLimit  int  // Requests per second
+	SkipVerify bool // Skip TLS verification
 
 	// HTTP
 	Method      string            // HTTP method (default: GET)

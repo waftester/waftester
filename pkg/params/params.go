@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
@@ -60,9 +61,7 @@ type DiscoveryResult struct {
 
 // Config configures the discoverer
 type Config struct {
-	Concurrency   int
-	Timeout       time.Duration
-	UserAgent     string
+	attackconfig.Base
 	Verbose       bool
 	ChunkSize     int      // Number of params to test per request (Arjun-style)
 	Methods       []string // HTTP methods to test
@@ -75,10 +74,12 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() *Config {
 	return &Config{
-		Concurrency: defaults.ConcurrencyMedium,
-		Timeout:     duration.DialTimeout,
-		UserAgent:   defaults.UAChrome,
-		ChunkSize:   256, // Arjun default is 256
+		Base: attackconfig.Base{
+			Concurrency: defaults.ConcurrencyMedium,
+			Timeout:     duration.DialTimeout,
+			UserAgent:   defaults.UAChrome,
+		},
+		ChunkSize: 256, // Arjun default is 256
 		Methods:     []string{"GET", "POST"},
 	}
 }
