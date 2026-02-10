@@ -11,6 +11,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
@@ -28,15 +29,7 @@ const (
 	VulnHostOverride     VulnerabilityType = "host-override"
 )
 
-// Severity levels for vulnerabilities
-type Severity string
 
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-)
 
 // Payload represents a Host header injection payload
 type Payload struct {
@@ -49,7 +42,7 @@ type Payload struct {
 type Vulnerability struct {
 	Type          VulnerabilityType
 	Description   string
-	Severity      Severity
+	Severity      finding.Severity
 	URL           string
 	Header        string
 	InjectedValue string
@@ -281,7 +274,7 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 			vulns = append(vulns, Vulnerability{
 				Type:          VulnHostOverride,
 				Description:   fmt.Sprintf("Host header reflected via %s", payload.Description),
-				Severity:      SeverityHigh,
+				Severity:      finding.High,
 				URL:           targetURL,
 				Header:        payload.Header,
 				InjectedValue: payload.Value,
@@ -296,7 +289,7 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 			vulns = append(vulns, Vulnerability{
 				Type:          VulnOpenRedirect,
 				Description:   fmt.Sprintf("Host header reflected in redirect via %s", payload.Description),
-				Severity:      SeverityHigh,
+				Severity:      finding.High,
 				URL:           targetURL,
 				Header:        payload.Header,
 				InjectedValue: payload.Value,
@@ -315,7 +308,7 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 					vulns = append(vulns, Vulnerability{
 						Type:          VulnCachePoisoning,
 						Description:   fmt.Sprintf("Potential cache poisoning via %s (cache headers present)", payload.Header),
-						Severity:      SeverityCritical,
+						Severity:      finding.Critical,
 						URL:           targetURL,
 						Header:        payload.Header,
 						InjectedValue: payload.Value,
@@ -387,7 +380,7 @@ func (t *Tester) TestPasswordReset(ctx context.Context, targetURL string, email 
 		vulns = append(vulns, Vulnerability{
 			Type:          VulnPasswordReset,
 			Description:   "Password reset link may be poisoned via X-Forwarded-Host",
-			Severity:      SeverityCritical,
+			Severity:      finding.Critical,
 			URL:           targetURL,
 			Header:        "X-Forwarded-Host",
 			InjectedValue: attackDomain,

@@ -15,6 +15,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
@@ -33,15 +34,7 @@ const (
 	VulnParameterOverwrite VulnerabilityType = "parameter-overwrite"
 )
 
-// Severity levels for vulnerabilities
-type Severity string
 
-const (
-	SeverityHigh   Severity = "high"
-	SeverityMedium Severity = "medium"
-	SeverityLow    Severity = "low"
-	SeverityInfo   Severity = "info"
-)
 
 // Technology represents the backend technology
 type Technology string
@@ -61,7 +54,7 @@ const (
 type Vulnerability struct {
 	Type        VulnerabilityType `json:"type"`
 	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
+	Severity    finding.Severity  `json:"severity"`
 	URL         string            `json:"url"`
 	Parameter   string            `json:"parameter"`
 	Payload     string            `json:"payload"`
@@ -515,16 +508,16 @@ func (t *Tester) TestPOST(ctx context.Context, targetURL string, param string) (
 
 // Helper functions
 
-func getSeverity(vulnType VulnerabilityType) Severity {
+func getSeverity(vulnType VulnerabilityType) finding.Severity {
 	switch vulnType {
 	case VulnWAFBypass:
-		return SeverityHigh
+		return finding.High
 	case VulnServerSideHPP, VulnParameterOverwrite:
-		return SeverityMedium
+		return finding.Medium
 	case VulnParameterPriority, VulnArrayInjection, VulnDelimiterConfusion:
-		return SeverityLow
+		return finding.Low
 	default:
-		return SeverityInfo
+		return finding.Info
 	}
 }
 
