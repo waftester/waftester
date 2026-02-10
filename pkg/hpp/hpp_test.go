@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewTester(t *testing.T) {
@@ -328,15 +330,15 @@ func TestTestPOST(t *testing.T) {
 func TestGetSeverity(t *testing.T) {
 	tests := []struct {
 		vulnType VulnerabilityType
-		expected Severity
+		expected finding.Severity
 	}{
-		{VulnWAFBypass, SeverityHigh},
-		{VulnServerSideHPP, SeverityMedium},
-		{VulnParameterOverwrite, SeverityMedium},
-		{VulnParameterPriority, SeverityLow},
-		{VulnArrayInjection, SeverityLow},
-		{VulnDelimiterConfusion, SeverityLow},
-		{VulnClientSideHPP, SeverityInfo},
+		{VulnWAFBypass, finding.High},
+		{VulnServerSideHPP, finding.Medium},
+		{VulnParameterOverwrite, finding.Medium},
+		{VulnParameterPriority, finding.Low},
+		{VulnArrayInjection, finding.Low},
+		{VulnDelimiterConfusion, finding.Low},
+		{VulnClientSideHPP, finding.Info},
 	}
 
 	for _, tt := range tests {
@@ -456,7 +458,7 @@ func TestVulnerabilityToJSON(t *testing.T) {
 	vuln := Vulnerability{
 		Type:        VulnWAFBypass,
 		Description: "Test",
-		Severity:    SeverityHigh,
+		Severity:    finding.High,
 		URL:         "http://example.com",
 		Parameter:   "q",
 		Payload:     "test",
@@ -477,7 +479,7 @@ func TestVulnerability(t *testing.T) {
 	vuln := Vulnerability{
 		Type:        VulnParameterPriority,
 		Description: "Test vulnerability",
-		Severity:    SeverityMedium,
+		Severity:    finding.Medium,
 		URL:         "http://example.com?a=1&a=2",
 		Parameter:   "a",
 		Payload:     "a=1&a=2",

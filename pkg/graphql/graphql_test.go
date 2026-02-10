@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewTester(t *testing.T) {
@@ -173,7 +175,7 @@ func TestTestIntrospection(t *testing.T) {
 			if vuln.Type != AttackIntrospection {
 				t.Errorf("expected AttackIntrospection, got %s", vuln.Type)
 			}
-			if vuln.Severity != SeverityMedium {
+			if vuln.Severity != finding.Medium {
 				t.Errorf("expected medium severity, got %s", vuln.Severity)
 			}
 		}
@@ -696,7 +698,7 @@ func TestIsScalarType(t *testing.T) {
 }
 
 func TestVulnerabilitySeverities(t *testing.T) {
-	severities := []Severity{SeverityCritical, SeverityHigh, SeverityMedium, SeverityLow, SeverityInfo}
+	severities := []finding.Severity{finding.Critical, finding.High, finding.Medium, finding.Low, finding.Info}
 
 	for _, s := range severities {
 		if s == "" {
