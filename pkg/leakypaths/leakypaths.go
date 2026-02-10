@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
@@ -57,9 +58,7 @@ type ScanSummary struct {
 
 // Config configures the scanner behavior
 type Config struct {
-	Concurrency   int
-	Timeout       time.Duration
-	UserAgent     string
+	attackconfig.Base
 	Verbose       bool
 	SkipTLSVerify bool
 	Categories    []string     // Filter by category: "config", "debug", "backup", etc.
@@ -69,10 +68,12 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() *Config {
 	return &Config{
-		Concurrency: defaults.ConcurrencyHigh,
-		Timeout:     duration.DialTimeout,
-		UserAgent:   defaults.UAChrome,
-		Verbose:     false,
+		Base: attackconfig.Base{
+			Concurrency: defaults.ConcurrencyHigh,
+			Timeout:     duration.DialTimeout,
+			UserAgent:   defaults.UAChrome,
+		},
+		Verbose: false,
 	}
 }
 
