@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
@@ -83,9 +84,8 @@ type Vulnerability struct {
 
 // DetectorConfig configures the SSTI detector
 type DetectorConfig struct {
-	Timeout        time.Duration    // Request timeout
+	attackconfig.Base
 	FollowRedirect bool             // Follow HTTP redirects
-	UserAgent      string           // User agent for requests
 	Headers        http.Header      // Additional headers
 	Cookies        []*http.Cookie   // Cookies to include
 	Proxy          string           // HTTP proxy URL
@@ -93,19 +93,20 @@ type DetectorConfig struct {
 	BlindDelay     time.Duration    // Delay for blind SSTI
 	Engines        []TemplateEngine // Only test these engines (empty = all)
 	PayloadTypes   []PayloadType    // Only use these payload types
-	MaxPayloads    int              // Maximum payloads per parameter
 	Verbose        bool             // Verbose output
 }
 
 // DefaultConfig returns a default detector configuration
 func DefaultConfig() *DetectorConfig {
 	return &DetectorConfig{
-		Timeout:        duration.DialTimeout,
+		Base: attackconfig.Base{
+			Timeout:     duration.DialTimeout,
+			UserAgent:   defaults.UAChrome,
+			MaxPayloads: 50,
+		},
 		FollowRedirect: false,
-		UserAgent:      defaults.UAChrome,
 		SafeMode:       true,
 		BlindDelay:     duration.HTTPProbing,
-		MaxPayloads:    50,
 	}
 }
 
