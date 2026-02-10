@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // Result represents the outcome of a single test
@@ -430,7 +432,7 @@ func (b *Benchmark) Report() string {
 	for _, cat := range categories {
 		score := b.Categories[cat]
 		sb.WriteString(fmt.Sprintf("  %-15s %6d %6d %8d %7.1f%% %5s\n",
-			truncate(cat, 15),
+			strutil.Truncate(cat, 15),
 			score.TotalTests,
 			score.Blocked,
 			score.Bypassed,
@@ -444,13 +446,7 @@ func (b *Benchmark) Report() string {
 	return sb.String()
 }
 
-// truncate truncates a string to the given length
-func truncate(s string, length int) string {
-	if len(s) <= length {
-		return s
-	}
-	return s[:length-3] + "..."
-}
+
 
 // GradeFromScore converts a numeric score to a letter grade
 func GradeFromScore(score float64) string {

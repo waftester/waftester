@@ -22,6 +22,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/jsonutil"
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // VulnerabilityType represents the type of upload vulnerability.
@@ -168,7 +169,7 @@ func (t *Tester) TestUpload(ctx context.Context, targetURL string, payload Uploa
 				Description: payload.Description,
 				Severity:    getSeverity(payload.VulnType),
 				URL:         targetURL,
-				Evidence:    fmt.Sprintf("Status: %d, Response: %s", resp.StatusCode, truncate(string(respBody), 500)),
+				Evidence:    fmt.Sprintf("Status: %d, Response: %s", resp.StatusCode, strutil.Truncate(string(respBody), 500)),
 				Remediation: getRemediation(payload.VulnType),
 				CVSS:        getCVSS(payload.VulnType),
 			},
@@ -430,12 +431,7 @@ func getRemediation(vt VulnerabilityType) string {
 	return "Implement comprehensive file upload validation"
 }
 
-func truncate(s string, maxLen int) string {
-	if len(s) > maxLen {
-		return s[:maxLen] + "..."
-	}
-	return s
-}
+
 
 func createJPEGPolyglot() []byte {
 	// JPEG header bytes

@@ -12,6 +12,7 @@ import (
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/fp"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -228,7 +229,7 @@ func runFP() {
 			// Emit individual FP details
 			for _, fpDetail := range result.FalsePositiveDetails {
 				detailDesc := fmt.Sprintf("False positive: %s blocked at %s (rule %d)",
-					truncate(fpDetail.Payload, 80), fpDetail.Location, fpDetail.RuleID)
+					strutil.Truncate(fpDetail.Payload, 80), fpDetail.Location, fpDetail.RuleID)
 				_ = fpDispCtx.EmitBypass(fpCtx, "false-positive-detail", "medium", *target, detailDesc, fpDetail.StatusCode)
 			}
 		}
@@ -372,7 +373,7 @@ func displayFPResults(result *fp.Result) {
 		}
 		for i := 0; i < maxItems; i++ {
 			fpDetail := result.FalsePositiveDetails[i]
-			fmt.Printf("  [%d] Payload: %.60s...\n", i+1, truncate(fpDetail.Payload, 60))
+			fmt.Printf("  [%d] Payload: %.60s...\n", i+1, strutil.Truncate(fpDetail.Payload, 60))
 			fmt.Printf("      Location: %s | Status: %d | Rule: %d\n",
 				fpDetail.Location, fpDetail.StatusCode, fpDetail.RuleID)
 		}
@@ -383,12 +384,7 @@ func displayFPResults(result *fp.Result) {
 	}
 }
 
-func truncate(s string, max int) string {
-	if len(s) <= max {
-		return s
-	}
-	return s[:max]
-}
+
 
 func runLocalFPTest(paranoiaLevel int, verbose bool) {
 	ui.PrintInfo("Running local WAF FP simulation...")

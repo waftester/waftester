@@ -16,6 +16,7 @@ import (
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // DetectionResult contains comprehensive WAF/CDN detection results
@@ -495,7 +496,7 @@ func (d *Detector) checkWAFSignature(sig WAFSignature, resp *http.Response, body
 				evidence = append(evidence, Evidence{
 					Type:       "body",
 					Source:     "response_body",
-					Value:      truncate(pattern.FindString(body), 100),
+					Value:      strutil.Truncate(pattern.FindString(body), 100),
 					Indicates:  sig.Name,
 					Confidence: 0.7,
 				})
@@ -1042,9 +1043,4 @@ func averageDuration(durations []time.Duration) time.Duration {
 	return total / time.Duration(len(durations))
 }
 
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
-}
+
