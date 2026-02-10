@@ -136,9 +136,6 @@ func runMutate() {
 		PrintSmartModeInfo(smartResult, *smartVerbose)
 		effectiveMode = "smart:" + smartModeValue
 	}
-	// Silence unused variable warnings
-	_ = smartVerbose
-	_ = smartModeType
 
 	// Configure executor
 	cfg := mutation.DefaultExecutorConfig()
