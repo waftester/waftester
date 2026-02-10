@@ -43,13 +43,9 @@ func runGRPC() {
 	payloadCategory := grpcFlags.String("category", "injection", "Payload category for fuzzing")
 	payloadDir := grpcFlags.String("payloads", defaults.PayloadDir, "Payload directory")
 	templateDir := grpcFlags.String("template-dir", defaults.TemplateDir, "Nuclei template directory")
-	concurrency := grpcFlags.Int("c", 10, "Concurrency level")
-	rateLimit := grpcFlags.Float64("rl", 50, "Requests per second")
 
 	// Connection options
 	timeout := grpcFlags.Int("timeout", 30, "Connection timeout in seconds")
-	insecure := grpcFlags.Bool("insecure", true, "Use insecure connection (no TLS)")
-	_ = insecure // TLS support to be added
 
 	// Output options
 	outputFile := grpcFlags.String("o", "", "Output file (JSON)")
@@ -121,7 +117,7 @@ func runGRPC() {
 		runGRPCCall(ctx, client, *call, *data, *metadata, *jsonOutput, *verbose)
 
 	case *fuzz:
-		runGRPCFuzz(ctx, client, *payloadDir, *templateDir, *payloadCategory, *concurrency, *rateLimit, *outputFile, *jsonOutput)
+		runGRPCFuzz(ctx, client, *payloadDir, *templateDir, *payloadCategory, *outputFile, *jsonOutput)
 
 	default:
 		// Default to listing services
@@ -238,7 +234,7 @@ func runGRPCCall(ctx context.Context, client *grpc.Client, callSpec, data, metad
 	}
 }
 
-func runGRPCFuzz(ctx context.Context, client *grpc.Client, payloadDir, templateDir, category string, concurrency int, rateLimit float64, outputFile string, jsonOutput bool) {
+func runGRPCFuzz(ctx context.Context, client *grpc.Client, payloadDir, templateDir, category string, outputFile string, jsonOutput bool) {
 	// First, discover services and methods
 	services, err := client.ListServices(ctx)
 	if err != nil {
@@ -256,9 +252,6 @@ func runGRPCFuzz(ctx context.Context, client *grpc.Client, payloadDir, templateD
 	}
 
 	var results []fuzzResult
-
-	_ = concurrency
-	_ = rateLimit
 
 	// Get attack payloads from unified engine (JSON + Nuclei templates)
 	payloads := getUnifiedFuzzPayloads(payloadDir, templateDir, category, 50, false)
