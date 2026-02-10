@@ -1,15 +1,14 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
+	"time"
 
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/plugin"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -226,15 +225,8 @@ func runPluginRun(manager *plugin.Manager, name, targetURL, configFile, configJS
 	defer scanner.Cleanup()
 
 	// Setup context
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := cli.SignalContext(30 * time.Second)
 	defer cancel()
-
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigCh
-		cancel()
-	}()
 
 	// Create target
 	target := &plugin.Target{

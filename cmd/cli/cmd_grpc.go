@@ -6,11 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/grpc"
 	"github.com/waftester/waftester/pkg/ui"
@@ -93,15 +92,11 @@ func runGRPC() {
 	}
 
 	// Setup context
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(*timeout)*time.Second)
+	ctx, cancel := cli.SignalContext(30 * time.Second)
 	defer cancel()
 
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigCh
-		cancel()
-	}()
+	ctx, tCancel := context.WithTimeout(ctx, time.Duration(*timeout)*time.Second)
+	defer tCancel()
 
 	// Create gRPC client
 	client, err := grpc.NewClient(targetAddr, grpc.WithTimeout(time.Duration(*timeout)*time.Second))

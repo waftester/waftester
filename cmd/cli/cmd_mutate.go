@@ -1,16 +1,14 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
@@ -106,7 +104,7 @@ func runMutate() {
 	}
 
 	// Setup context for smart mode detection
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := cli.SignalContext(30 * time.Second)
 	defer cancel()
 
 	// Smart Mode: Detect WAF and optimize configuration
@@ -287,17 +285,6 @@ func runMutate() {
 		}
 		return
 	}
-
-	// Context already created for smart mode detection above
-
-	// Handle Ctrl+C
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigChan
-		fmt.Fprintln(os.Stderr, "\n\nInterrupted, shutting down...")
-		cancel()
-	}()
 
 	// Output writer
 	var writer *json.Encoder
