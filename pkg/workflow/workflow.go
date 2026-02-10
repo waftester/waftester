@@ -13,6 +13,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/waftester/waftester/pkg/retry"
 	"gopkg.in/yaml.v3"
 )
 
@@ -452,15 +453,16 @@ func (e *Engine) executeStep(ctx context.Context, step *Step, vars map[string]st
 		maxAttempts = 1
 	}
 
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		output, err = cmd.CombinedOutput()
-		if err == nil {
-			break
-		}
-		if attempt < maxAttempts {
-			time.Sleep(time.Second * time.Duration(attempt))
-		}
-	}
+	err = retry.Do(ctx, retry.Config{
+		MaxAttempts: maxAttempts,
+		InitDelay:   1 * time.Second,
+		MaxDelay:    30 * time.Second,
+		Strategy:    retry.Linear,
+	}, func() error {
+		var cmdErr error
+		output, cmdErr = cmd.CombinedOutput()
+		return cmdErr
+	})
 
 	result.EndTime = time.Now()
 	result.Duration = result.EndTime.Sub(result.StartTime)
