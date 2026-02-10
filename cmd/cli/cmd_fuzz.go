@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/fuzz"
@@ -317,11 +318,13 @@ func runFuzz() {
 
 	// Build fuzz config
 	cfg := &fuzz.Config{
-		TargetURL:      targetURL,
-		Words:          words,
-		Concurrency:    *concurrency,
+		TargetURL: targetURL,
+		Words:     words,
+		Base: attackconfig.Base{
+			Concurrency: *concurrency,
+			Timeout:     time.Duration(*timeout) * time.Second,
+		},
 		RateLimit:      *rateLimit,
-		Timeout:        time.Duration(*timeout) * time.Second,
 		SkipVerify:     *skipVerify,
 		Method:         *method,
 		Headers:        headers,

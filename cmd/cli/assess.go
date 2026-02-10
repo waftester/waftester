@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/assessment"
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
@@ -132,10 +133,12 @@ func runAssess() {
 
 	// Build configuration
 	config := &assessment.Config{
+		Base: attackconfig.Base{
+			Concurrency: *concurrency,
+			Timeout:     time.Duration(*timeout) * time.Second,
+		},
 		TargetURL:        *target,
-		Concurrency:      *concurrency,
 		RateLimit:        *rateLimit,
-		Timeout:          time.Duration(*timeout) * time.Second,
 		SkipTLSVerify:    *skipVerify,
 		Verbose:          *verbose,
 		EnableFPTesting:  *enableFP,

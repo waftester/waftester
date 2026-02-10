@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/corpus"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
@@ -27,10 +28,9 @@ import (
 
 // Config holds assessment configuration
 type Config struct {
+	attackconfig.Base
 	TargetURL     string
-	Concurrency   int
 	RateLimit     float64
-	Timeout       time.Duration
 	SkipTLSVerify bool
 	Verbose       bool
 	HTTPClient    *http.Client // Optional custom HTTP client (e.g., JA3-aware)
@@ -59,9 +59,11 @@ type Config struct {
 // DefaultConfig returns sensible defaults for assessment
 func DefaultConfig() *Config {
 	return &Config{
-		Concurrency:     defaults.ConcurrencyHigh,
+		Base: attackconfig.Base{
+			Concurrency: defaults.ConcurrencyHigh,
+			Timeout:     httpclient.TimeoutProbing,
+		},
 		RateLimit:       100,
-		Timeout:         httpclient.TimeoutProbing,
 		EnableFPTesting: true,
 		CorpusSources:   []string{"builtin"},
 		LeipzigLanguage: "eng",
