@@ -37,7 +37,6 @@ import (
 	"github.com/waftester/waftester/pkg/hostheader"
 	"github.com/waftester/waftester/pkg/hpp"
 	"github.com/waftester/waftester/pkg/httpclient"
-	"github.com/waftester/waftester/pkg/input"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/js"
 	"github.com/waftester/waftester/pkg/jwt"
@@ -71,18 +70,12 @@ func runScan() {
 	outFlags.RegisterEnterpriseFlags(scanFlags)
 	outFlags.Version = ui.Version
 
-	var targetURLs input.StringSliceFlag
-	scanFlags.Var(&targetURLs, "u", "Target URL(s) - comma-separated or repeated")
-	scanFlags.Var(&targetURLs, "target", "Target URL(s)")
-	listFile := scanFlags.String("l", "", "File containing target URLs")
-	stdinInput := scanFlags.Bool("stdin", false, "Read targets from stdin")
+	var cf CommonFlags
+	cf.Register(scanFlags, 30)
 	types := scanFlags.String("types", "all", "Scan types: all, or comma-separated (sqli,xss,traversal,cmdi,nosqli,hpp,crlf,prototype,cors,redirect,hostheader,websocket,cache,upload,deserialize,oauth,ssrf,ssti,xxe,smuggling,graphql,jwt,subtakeover,bizlogic,race,apifuzz,wafdetect,waffprint,wafevasion,tlsprobe,httpprobe,secheaders,jsanalyze,apidepth,osint,vhost,techdetect,dnsrecon)")
-	timeout := scanFlags.Int("timeout", 30, "Per-request timeout in seconds (overall scan deadline = value × 60)")
 	concurrency := scanFlags.Int("concurrency", 5, "Concurrent scanners")
 	outputFile := scanFlags.String("output", "", "Output results to JSON file")
 	jsonOutput := scanFlags.Bool("json", false, "Output in JSON format")
-	skipVerify := scanFlags.Bool("skip-verify", false, "Skip TLS verification")
-	verbose := scanFlags.Bool("verbose", false, "Verbose output")
 
 	// Smart mode (WAF-aware testing with 197+ vendor signatures)
 	smartMode := scanFlags.Bool("smart", false, "Enable WAF-aware testing (auto-detect WAF and optimize)")
@@ -263,7 +256,7 @@ func runScan() {
 
 	// Apply debug mode
 	if *debug || *debugRequest || *debugResponse {
-		*verbose = true // Debug implies verbose
+		cf.Verbose = true // Debug implies verbose
 	}
 
 	// Handle CPU profiling
@@ -295,11 +288,7 @@ func runScan() {
 	}
 
 	// Collect targets using shared TargetSource
-	ts := &input.TargetSource{
-		URLs:     targetURLs,
-		ListFile: *listFile,
-		Stdin:    *stdinInput,
-	}
+	ts := cf.TargetSource()
 	target, err := ts.GetSingleTarget()
 	if err != nil {
 		ui.PrintError("Target URL is required. Use -u https://example.com, -l file.txt, or -stdin")
@@ -308,7 +297,7 @@ func runScan() {
 
 	// Setup context with timeout
 	// Overall scan deadline: 60× per-request timeout (e.g., -timeout 30 → 30min scan deadline)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(*timeout)*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cf.Timeout)*time.Minute)
 	defer cancel()
 
 	// Graceful shutdown on SIGINT/SIGTERM
@@ -346,7 +335,7 @@ func runScan() {
 		fmt.Fprintln(os.Stderr)
 
 		smartConfig := &SmartModeConfig{
-			DetectionTimeout: time.Duration(*timeout) * time.Second,
+			DetectionTimeout: time.Duration(cf.Timeout) * time.Second,
 			Verbose:          *smartVerbose,
 			Mode:             *smartModeType,
 		}
@@ -439,7 +428,7 @@ func runScan() {
 	if !streamJSON {
 		ui.PrintConfigLine("Target", target)
 		ui.PrintConfigLine("Scan Types", *types)
-		ui.PrintConfigLine("Timeout", fmt.Sprintf("%ds", *timeout))
+		ui.PrintConfigLine("Timeout", fmt.Sprintf("%ds", cf.Timeout))
 		ui.PrintConfigLine("Concurrency", fmt.Sprintf("%d", *concurrency))
 		if *smartMode {
 			ui.PrintConfigLine("Rate Limit", fmt.Sprintf("%d req/sec (WAF-optimized)", *rateLimit))
@@ -447,7 +436,7 @@ func runScan() {
 		fmt.Fprintln(os.Stderr)
 
 		// Print output configuration if verbose
-		if *verbose {
+		if cf.Verbose {
 			outFlags.PrintOutputConfig()
 		}
 	}
@@ -489,14 +478,14 @@ func runScan() {
 
 	// Build HTTP client using shared factory (DNS cache, HTTP/2, sockopt, detection wrapper)
 	httpCfg := httpclient.FuzzingConfig()
-	httpCfg.InsecureSkipVerify = *skipVerify
+	httpCfg.InsecureSkipVerify = cf.SkipVerify
 	httpCfg.MaxConnsPerHost = *concurrency
 	httpCfg.MaxIdleConns = *concurrency * 2
 	if *proxy != "" {
 		httpCfg.Proxy = *proxy
 	}
 	httpClient := httpclient.New(httpCfg)
-	httpClient.Timeout = time.Duration(*timeout) * time.Second
+	httpClient.Timeout = time.Duration(cf.Timeout) * time.Second
 
 	// Determine user agent
 	effectiveUserAgent := *userAgent
@@ -724,7 +713,7 @@ func runScan() {
 	// Death-spiral protection: if too many scanners error, cancel remaining.
 	scanError := func(scanner string, err error) {
 		n := atomic.AddInt32(&scanErrors, 1)
-		if *verbose {
+		if cf.Verbose {
 			ui.PrintWarning(fmt.Sprintf("%s scan error: %v", scanner, err))
 		}
 		if n >= scanMaxErrors {
@@ -736,7 +725,7 @@ func runScan() {
 		}
 	}
 
-	timeoutDur := time.Duration(*timeout) * time.Second
+	timeoutDur := time.Duration(cf.Timeout) * time.Second
 
 	// SQL Injection Scanner
 	runScanner("sqli", func() {
@@ -1326,7 +1315,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "oauth", "vulns": vulnCount})
 		}()
 		if *oauthAuthEndpoint == "" {
-			if *verbose {
+			if cf.Verbose {
 				ui.PrintInfo("OAuth scan skipped: no -oauth-auth-endpoint provided")
 			}
 			return
@@ -1545,7 +1534,7 @@ func runScan() {
 				return
 			}
 		}
-		if *verbose {
+		if cf.Verbose {
 			ui.PrintInfo("No GraphQL endpoint found or no vulnerabilities detected")
 		}
 	})
@@ -1601,7 +1590,7 @@ func runScan() {
 		// Extract domain from target URL
 		u, err := url.Parse(target)
 		if err != nil {
-			if *verbose {
+			if cf.Verbose {
 				ui.PrintWarning(fmt.Sprintf("Subtakeover: invalid URL: %v", err))
 			}
 			return
@@ -1802,14 +1791,14 @@ func runScan() {
 		// Attempt to enrich with JSON payload database
 		provider := payloadprovider.NewProvider(*payloadDir, *templateDir)
 		if err := provider.Load(); err != nil {
-			if *verbose {
+			if cf.Verbose {
 				ui.PrintInfo(fmt.Sprintf("Payload provider: using fallback payloads (load error: %v)", err))
 			}
 		} else {
 			for _, cat := range []string{"XSS", "SQL-Injection", "Path-Traversal"} {
 				catPayloads, catErr := provider.GetByCategory(cat)
 				if catErr != nil {
-					if *verbose {
+					if cf.Verbose {
 						ui.PrintInfo(fmt.Sprintf("Payload provider: skipping %s category: %v", cat, catErr))
 					}
 					continue
@@ -1864,7 +1853,7 @@ func runScan() {
 			return
 		}
 		if parsedURL.Scheme != "https" {
-			if *verbose {
+			if cf.Verbose {
 				ui.PrintInfo("Skipping TLS probe for non-HTTPS target")
 			}
 			return
@@ -2156,7 +2145,7 @@ func runScan() {
 		// Extract domain from target
 		parsedURL, err := url.Parse(target)
 		if err != nil {
-			if *verbose {
+			if cf.Verbose {
 				ui.PrintWarning(fmt.Sprintf("OSINT: Failed to parse target URL: %v", err))
 			}
 			return
@@ -2189,7 +2178,7 @@ func runScan() {
 			}
 			mu.Unlock()
 
-			if *verbose {
+			if cf.Verbose {
 				ui.PrintInfo(fmt.Sprintf("OSINT: Found %d unique endpoints from external sources", endpointCount))
 			}
 		}
@@ -2259,7 +2248,7 @@ func runScan() {
 			}
 			mu.Unlock()
 
-			if *verbose {
+			if cf.Verbose {
 				ui.PrintInfo(fmt.Sprintf("VHost: Found %d virtual hosts", vhostCount))
 			}
 		}
@@ -2295,7 +2284,7 @@ func runScan() {
 			result.ByCategory["techdetect"] = len(uniqueTech)
 			mu.Unlock()
 
-			if *verbose {
+			if cf.Verbose {
 				ui.PrintInfo(fmt.Sprintf("TechDetect: Identified %d technologies: %v", len(uniqueTech), uniqueTech))
 			}
 		}
@@ -2322,7 +2311,7 @@ func runScan() {
 			result.ByCategory["dnsrecon"] = totalRecords
 			mu.Unlock()
 
-			if *verbose {
+			if cf.Verbose {
 				ui.PrintInfo(fmt.Sprintf("DNSRecon: Found %d DNS records", totalRecords))
 			}
 		}
