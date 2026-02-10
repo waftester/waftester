@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
@@ -54,9 +55,7 @@ type ScanResult struct {
 
 // TesterConfig holds configuration for the WebSocket tester
 type TesterConfig struct {
-	Timeout     time.Duration
-	UserAgent   string
-	Client      *http.Client
+	attackconfig.Base
 	TestOrigins []string // Origins to test for bypass
 }
 
@@ -69,8 +68,10 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:   duration.HTTPFuzzing,
-		UserAgent: ui.UserAgent(),
+		Base: attackconfig.Base{
+			Timeout:   duration.HTTPFuzzing,
+			UserAgent: ui.UserAgent(),
+		},
 		TestOrigins: []string{
 			"https://evil.com",
 			"https://attacker.com",

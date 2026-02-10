@@ -12,8 +12,8 @@ import (
 	"net/url"
 	"strings"
 	"sync"
-	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
@@ -66,9 +66,7 @@ type Payload struct {
 
 // TesterConfig holds configuration for deserialization testing.
 type TesterConfig struct {
-	Timeout        time.Duration
-	UserAgent      string
-	Concurrency    int
+	attackconfig.Base
 	Parameters     []string
 	AuthHeader     string
 	Cookies        map[string]string
@@ -85,9 +83,11 @@ type Tester struct {
 // DefaultConfig returns default configuration.
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:        duration.HTTPFuzzing,
-		UserAgent:      ui.UserAgentWithContext("Deserialize Tester"),
-		Concurrency:    defaults.ConcurrencyLow,
+		Base: attackconfig.Base{
+			Timeout:     duration.HTTPFuzzing,
+			UserAgent:   ui.UserAgentWithContext("Deserialize Tester"),
+			Concurrency: defaults.ConcurrencyLow,
+		},
 		Parameters:     []string{"data", "object", "session", "token", "state", "viewstate"},
 		Cookies:        make(map[string]string),
 		FollowRedirect: false,

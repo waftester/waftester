@@ -13,8 +13,8 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/bufpool"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
@@ -63,9 +63,7 @@ type UploadPayload struct {
 
 // TesterConfig holds configuration for upload testing.
 type TesterConfig struct {
-	Timeout        time.Duration
-	UserAgent      string
-	Concurrency    int
+	attackconfig.Base
 	FileField      string
 	ExtraFields    map[string]string
 	AuthHeader     string
@@ -83,9 +81,11 @@ type Tester struct {
 // DefaultConfig returns default configuration.
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:        duration.HTTPFuzzing,
-		UserAgent:      "Upload-Tester/1.0",
-		Concurrency:    defaults.ConcurrencyLow,
+		Base: attackconfig.Base{
+			Timeout:     duration.HTTPFuzzing,
+			UserAgent:   "Upload-Tester/1.0",
+			Concurrency: defaults.ConcurrencyLow,
+		},
 		FileField:      "file",
 		ExtraFields:    make(map[string]string),
 		Cookies:        make(map[string]string),

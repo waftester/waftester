@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 )
 
@@ -26,7 +27,9 @@ func TestNewTester(t *testing.T) {
 
 	t.Run("custom config", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout:        30 * time.Second,
+			Base: attackconfig.Base{
+				Timeout: 30 * time.Second,
+			},
 			AttackerDomain: "attacker.com",
 		}
 		tester := NewTester(config)
