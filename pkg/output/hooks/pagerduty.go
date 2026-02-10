@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -27,6 +27,7 @@ type PagerDutyHook struct {
 	routingKey string
 	client     *http.Client
 	opts       PagerDutyOptions
+	logger     *slog.Logger
 }
 
 // PagerDutyOptions configures the PagerDuty hook behavior.
@@ -42,6 +43,9 @@ type PagerDutyOptions struct {
 
 	// Timeout for HTTP requests (default: 10s).
 	Timeout time.Duration
+
+	// Logger for structured logging (default: slog.Default()).
+	Logger *slog.Logger
 }
 
 // pagerDutyEvent represents the PagerDuty Events API v2 payload.
@@ -108,6 +112,7 @@ func NewPagerDutyHook(routingKey string, opts PagerDutyOptions) *PagerDutyHook {
 		routingKey: routingKey,
 		client:     httpclient.New(httpclient.Config{Timeout: opts.Timeout}),
 		opts:       opts,
+		logger:     orDefault(opts.Logger),
 	}
 }
 
@@ -155,13 +160,13 @@ func (h *PagerDutyHook) sendEvent(ctx context.Context, bypass *events.BypassEven
 
 	body, err := json.Marshal(pdEvent)
 	if err != nil {
-		log.Printf("pagerduty: failed to marshal event: %v", err)
+		h.logger.Warn("failed to marshal event", slog.String("error", err.Error()))
 		return nil
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://events.pagerduty.com/v2/enqueue", bytes.NewReader(body))
 	if err != nil {
-		log.Printf("pagerduty: failed to create request: %v", err)
+		h.logger.Warn("failed to create request", slog.String("error", err.Error()))
 		return nil
 	}
 
@@ -170,13 +175,13 @@ func (h *PagerDutyHook) sendEvent(ctx context.Context, bypass *events.BypassEven
 
 	resp, err := h.client.Do(req)
 	if err != nil {
-		log.Printf("pagerduty: failed to send event: %v", err)
+		h.logger.Warn("failed to send event", slog.String("error", err.Error()))
 		return nil
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		log.Printf("pagerduty: received error status %d", resp.StatusCode)
+		h.logger.Warn("error response", slog.Int("status", resp.StatusCode))
 		return nil
 	}
 
