@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/waftester/waftester/pkg/defaults"
 	detectionoutput "github.com/waftester/waftester/pkg/output/detection"
 	"github.com/waftester/waftester/pkg/ui"
@@ -263,9 +262,9 @@ func (w *ConsoleWriter) Write(result *TestResult) error {
 
 	switch result.Outcome {
 	case "Fail":
-		color.Red("[FAIL] %s - %s (Status: %d)", result.ID, result.Category, result.StatusCode)
+		fmt.Fprintf(os.Stderr, "\033[31m[FAIL] %s - %s (Status: %d)\033[0m\n", result.ID, result.Category, result.StatusCode)
 	case "Error":
-		color.Yellow("[ERR]  %s - %s: %s", result.ID, result.Category, result.ErrorMessage)
+		fmt.Fprintf(os.Stderr, "\033[33m[ERR]  %s - %s: %s\033[0m\n", result.ID, result.Category, result.ErrorMessage)
 	}
 	return nil
 }
@@ -292,18 +291,18 @@ func PrintSummary(results ExecutionResults) {
 	}
 
 	// Blocked = good (WAF working)
-	color.Green("  ✓ Blocked:       %d (%.1f%%)",
+	fmt.Printf("\033[32m  ✓ Blocked:       %d (%.1f%%)\033[0m\n",
 		results.BlockedTests,
 		pct(results.BlockedTests, results.TotalTests))
 
 	// Pass = safe endpoints
-	color.Cyan("  ○ Pass:          %d (%.1f%%)",
+	fmt.Printf("\033[36m  ○ Pass:          %d (%.1f%%)\033[0m\n",
 		results.PassedTests,
 		pct(results.PassedTests, results.TotalTests))
 
 	// Fail = vulnerabilities!
 	if results.FailedTests > 0 {
-		color.Red("  ✗ FAIL:          %d (%.1f%%)",
+		fmt.Printf("\033[31m  ✗ FAIL:          %d (%.1f%%)\033[0m\n",
 			results.FailedTests,
 			pct(results.FailedTests, results.TotalTests))
 	} else {
@@ -312,12 +311,12 @@ func PrintSummary(results ExecutionResults) {
 
 	// Errors
 	if results.ErrorTests > 0 {
-		color.Yellow("  ! Errors:        %d", results.ErrorTests)
+		fmt.Printf("\033[33m  ! Errors:        %d\033[0m\n", results.ErrorTests)
 	}
 
 	// Skipped (host unreachable / death spiral)
 	if results.HostsSkipped > 0 {
-		color.Cyan("  ⏭ Skipped:       %d (host unreachable)", results.HostsSkipped)
+		fmt.Printf("\033[36m  ⏭ Skipped:       %d (host unreachable)\033[0m\n", results.HostsSkipped)
 	}
 
 	fmt.Printf("\n  Duration:        %s\n", results.Duration.Round(time.Millisecond))
@@ -326,48 +325,48 @@ func PrintSummary(results ExecutionResults) {
 	// Nuclei-style: Top Status Codes
 	if len(results.StatusCodes) > 0 {
 		fmt.Println("\n" + strings.Repeat("─", 40))
-		color.New(color.Bold, color.FgBlue).Println("  Top Status Codes:")
+		fmt.Println("\033[1;34m  Top Status Codes:\033[0m")
 		for code, count := range results.StatusCodes {
-			var codeColor *color.Color
+			var codeANSI string
 			switch {
 			case code >= 200 && code < 300:
-				codeColor = color.New(color.FgGreen)
+				codeANSI = "\033[32m"
 			case code >= 300 && code < 400:
-				codeColor = color.New(color.FgBlue)
+				codeANSI = "\033[34m"
 			case code >= 400 && code < 500:
-				codeColor = color.New(color.FgYellow)
+				codeANSI = "\033[33m"
 			case code >= 500:
-				codeColor = color.New(color.FgRed)
+				codeANSI = "\033[31m"
 			default:
-				codeColor = color.New(color.FgWhite)
+				codeANSI = "\033[37m"
 			}
-			codeColor.Printf("    %d: %d\n", code, count)
+			fmt.Printf("%s    %d: %d\033[0m\n", codeANSI, code, count)
 		}
 	}
 
 	// Severity breakdown
 	if len(results.SeverityBreakdown) > 0 {
 		fmt.Println("\n" + strings.Repeat("─", 40))
-		color.New(color.Bold, color.FgMagenta).Println("  Severity Breakdown:")
+		fmt.Println("\033[1;35m  Severity Breakdown:\033[0m")
 		severityOrder := []string{"Critical", "High", "Medium", "Low", "Info"}
 		for _, sev := range severityOrder {
 			if count, ok := results.SeverityBreakdown[sev]; ok && count > 0 {
-				var sevColor *color.Color
+				var sevANSI string
 				switch sev {
 				case "Critical":
-					sevColor = color.New(color.FgRed, color.Bold)
+					sevANSI = "\033[1;31m"
 				case "High":
-					sevColor = color.New(color.FgHiRed)
+					sevANSI = "\033[91m"
 				case "Medium":
-					sevColor = color.New(color.FgYellow)
+					sevANSI = "\033[33m"
 				case "Low":
-					sevColor = color.New(color.FgGreen)
+					sevANSI = "\033[32m"
 				case "Info":
-					sevColor = color.New(color.FgCyan)
+					sevANSI = "\033[36m"
 				default:
-					sevColor = color.New(color.FgWhite)
+					sevANSI = "\033[37m"
 				}
-				sevColor.Printf("    %s: %d\n", sev, count)
+				fmt.Printf("%s    %s: %d\033[0m\n", sevANSI, sev, count)
 			}
 		}
 	}
@@ -375,12 +374,12 @@ func PrintSummary(results ExecutionResults) {
 	// Top Errors (if any)
 	if len(results.TopErrors) > 0 {
 		fmt.Println("\n" + strings.Repeat("─", 40))
-		color.New(color.Bold, color.FgRed).Println("  Top Errors:")
+		fmt.Println("\033[1;31m  Top Errors:\033[0m")
 		for i, err := range results.TopErrors {
 			if i >= 5 {
 				break
 			}
-			color.Yellow("    • %s", err)
+			fmt.Printf("\033[33m    • %s\033[0m\n", err)
 		}
 	}
 
@@ -402,11 +401,11 @@ func PrintSummary(results ExecutionResults) {
 	if attackTests > 0 {
 		blockRate := float64(results.BlockedTests) / float64(attackTests) * 100
 		if blockRate >= 95 {
-			color.Green("  WAF Effectiveness: %.1f%% - EXCELLENT", blockRate)
+			fmt.Printf("\033[32m  WAF Effectiveness: %.1f%% - EXCELLENT\033[0m\n", blockRate)
 		} else if blockRate >= 80 {
-			color.Yellow("  WAF Effectiveness: %.1f%% - GOOD", blockRate)
+			fmt.Printf("\033[33m  WAF Effectiveness: %.1f%% - GOOD\033[0m\n", blockRate)
 		} else {
-			color.Red("  WAF Effectiveness: %.1f%% - NEEDS ATTENTION", blockRate)
+			fmt.Printf("\033[31m  WAF Effectiveness: %.1f%% - NEEDS ATTENTION\033[0m\n", blockRate)
 		}
 	}
 	fmt.Println()
