@@ -16,7 +16,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/waftester/waftester/internal/hexutil"
+	"github.com/waftester/waftester/pkg/hexutil"
 )
 
 // Category represents the category of evasion technique.
