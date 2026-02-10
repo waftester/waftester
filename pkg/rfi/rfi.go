@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -16,8 +17,7 @@ import (
 
 // Config configures RFI testing
 type Config struct {
-	Concurrency int
-	Timeout     time.Duration
+	attackconfig.Base
 	Headers     map[string]string
 	CallbackURL string // OOB callback URL
 }
@@ -25,8 +25,10 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Concurrency: defaults.ConcurrencyMedium,
-		Timeout:     httpclient.TimeoutScanning,
+		Base: attackconfig.Base{
+			Concurrency: defaults.ConcurrencyMedium,
+			Timeout:     httpclient.TimeoutScanning,
+		},
 	}
 }
 
