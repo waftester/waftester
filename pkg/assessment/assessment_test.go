@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -203,7 +204,7 @@ func TestIsBlockedResponse(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(string(rune(tt.statusCode)), func(t *testing.T) {
+		t.Run(strconv.Itoa(tt.statusCode), func(t *testing.T) {
 			if got := isBlockedResponse(tt.statusCode); got != tt.expected {
 				t.Errorf("isBlockedResponse(%d) = %v, want %v", tt.statusCode, got, tt.expected)
 			}
