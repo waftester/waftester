@@ -3,6 +3,9 @@ package attackconfig
 import (
 	"net/http"
 	"time"
+
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 // Base contains configuration fields shared across all
@@ -20,8 +23,8 @@ type Base struct {
 // DefaultBase returns a Base with production defaults.
 func DefaultBase() Base {
 	return Base{
-		Timeout:     15 * time.Second,
-		Concurrency: 10,
+		Timeout:     httpclient.TimeoutScanning,
+		Concurrency: defaults.ConcurrencyMedium,
 	}
 }
 
@@ -29,9 +32,9 @@ func DefaultBase() Base {
 // Call this in NewTester constructors to ensure sane values.
 func (b *Base) Validate() {
 	if b.Timeout <= 0 {
-		b.Timeout = 15 * time.Second
+		b.Timeout = httpclient.TimeoutScanning
 	}
 	if b.Concurrency <= 0 {
-		b.Concurrency = 10
+		b.Concurrency = defaults.ConcurrencyMedium
 	}
 }

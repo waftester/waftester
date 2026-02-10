@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/assessment"
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/browser"
 	"github.com/waftester/waftester/pkg/calibration"
 	"github.com/waftester/waftester/pkg/checkpoint"
@@ -617,10 +618,12 @@ func runAutoScan() {
 		printStatusLn()
 
 		leakyScanner := leakypaths.NewScanner(&leakypaths.Config{
-			Timeout:     time.Duration(*timeout) * time.Second,
-			Concurrency: *concurrency,
-			Verbose:     *verbose,
-			HTTPClient:  ja3Client, // JA3 TLS fingerprint rotation
+			Base: attackconfig.Base{
+				Timeout:     time.Duration(*timeout) * time.Second,
+				Concurrency: *concurrency,
+			},
+			Verbose:    *verbose,
+			HTTPClient: ja3Client, // JA3 TLS fingerprint rotation
 		})
 
 		var err error
@@ -1074,11 +1077,13 @@ func runAutoScan() {
 		printStatusLn()
 
 		paramDiscoverer := params.NewDiscoverer(&params.Config{
-			Timeout:     time.Duration(*timeout) * time.Second,
-			Concurrency: *concurrency,
-			Verbose:     *verbose,
-			ChunkSize:   256, // Test 256 params per request for efficiency
-			HTTPClient:  ja3Client,
+			Base: attackconfig.Base{
+				Timeout:     time.Duration(*timeout) * time.Second,
+				Concurrency: *concurrency,
+			},
+			Verbose:    *verbose,
+			ChunkSize:  256, // Test 256 params per request for efficiency
+			HTTPClient: ja3Client,
 		})
 
 		// Test discovered endpoints for hidden params
@@ -1295,8 +1300,10 @@ func runAutoScan() {
 		}
 
 		reconScanner := recon.NewScanner(&recon.Config{
-			Timeout:              time.Duration(*timeout) * time.Second,
-			Concurrency:          *concurrency,
+			Base: attackconfig.Base{
+				Timeout:     time.Duration(*timeout) * time.Second,
+				Concurrency: *concurrency,
+			},
 			Verbose:              *verbose,
 			SkipTLSVerify:        *skipVerify,
 			HTTPClient:           ja3Client, // JA3 TLS fingerprint rotation
@@ -2165,10 +2172,12 @@ func runAutoScan() {
 		printStatusLn()
 
 		assessConfig := &assessment.Config{
+			Base: attackconfig.Base{
+				Concurrency: *concurrency,
+				Timeout:     time.Duration(*timeout) * time.Second,
+			},
 			TargetURL:       target,
-			Concurrency:     *concurrency,
 			RateLimit:       float64(*rateLimit),
-			Timeout:         time.Duration(*timeout) * time.Second,
 			SkipTLSVerify:   *skipVerify,
 			Verbose:         *verbose,
 			HTTPClient:      ja3Client, // JA3 TLS fingerprint rotation

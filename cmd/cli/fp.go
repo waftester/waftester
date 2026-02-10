@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/fp"
 	"github.com/waftester/waftester/pkg/ui"
@@ -86,10 +87,12 @@ func runFP() {
 
 	// Build configuration
 	config := &fp.Config{
+		Base: attackconfig.Base{
+			Concurrency: *concurrency,
+			Timeout:     time.Duration(*timeout) * time.Second,
+		},
 		TargetURL:     *target,
-		Concurrency:   *concurrency,
 		RateLimit:     *rateLimit,
-		Timeout:       time.Duration(*timeout) * time.Second,
 		ParanoiaLevel: *paranoiaLevel,
 		CorpusSources: parseCorpusSources(*corpusSources),
 		Verbose:       *verbose,
