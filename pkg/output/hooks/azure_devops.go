@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -27,6 +27,7 @@ var _ dispatcher.Hook = (*AzureDevOpsHook)(nil)
 type AzureDevOpsHook struct {
 	client *http.Client
 	opts   AzureDevOpsOptions
+	logger *slog.Logger
 }
 
 // AzureDevOpsOptions configures the Azure DevOps hook behavior.
@@ -62,6 +63,9 @@ type AzureDevOpsOptions struct {
 
 	// Timeout for HTTP requests (default: 30s).
 	Timeout time.Duration
+
+	// Logger for structured logging (default: slog.Default()).
+	Logger *slog.Logger
 }
 
 // adoWorkItemOp represents a JSON Patch operation for work item creation.
@@ -128,7 +132,8 @@ func NewAzureDevOpsHook(opts AzureDevOpsOptions) *AzureDevOpsHook {
 			Timeout:            opts.Timeout,
 			InsecureSkipVerify: false, // Use valid certs
 		}),
-		opts: opts,
+		opts:   opts,
+		logger: orDefault(opts.Logger),
 	}
 }
 
@@ -176,7 +181,7 @@ func (h *AzureDevOpsHook) createWorkItem(ctx context.Context, bypass *events.Byp
 
 	body, err := json.Marshal(ops)
 	if err != nil {
-		log.Printf("azure-devops: failed to marshal work item: %v", err)
+		h.logger.Warn("failed to marshal work item", slog.String("error", err.Error()))
 		return nil
 	}
 
@@ -190,7 +195,7 @@ func (h *AzureDevOpsHook) createWorkItem(ctx context.Context, bypass *events.Byp
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
-		log.Printf("azure-devops: failed to create request: %v", err)
+		h.logger.Warn("failed to create request", slog.String("error", err.Error()))
 		return nil
 	}
 
@@ -203,7 +208,7 @@ func (h *AzureDevOpsHook) createWorkItem(ctx context.Context, bypass *events.Byp
 
 	resp, err := h.client.Do(req)
 	if err != nil {
-		log.Printf("azure-devops: request failed: %v", err)
+		h.logger.Warn("request failed", slog.String("error", err.Error()))
 		return nil
 	}
 	defer resp.Body.Close()
@@ -211,16 +216,16 @@ func (h *AzureDevOpsHook) createWorkItem(ctx context.Context, bypass *events.Byp
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		var errResp adoErrorResponse
 		if err := json.NewDecoder(resp.Body).Decode(&errResp); err == nil && errResp.Message != "" {
-			log.Printf("azure-devops: API error (%d): %s", resp.StatusCode, errResp.Message)
+			h.logger.Warn("API error", slog.Int("status", resp.StatusCode), slog.String("error", errResp.Message))
 		} else {
-			log.Printf("azure-devops: API error (%d)", resp.StatusCode)
+			h.logger.Warn("API error", slog.Int("status", resp.StatusCode))
 		}
 		return nil
 	}
 
 	var workItemResp adoWorkItemResponse
 	if err := json.NewDecoder(resp.Body).Decode(&workItemResp); err != nil {
-		log.Printf("azure-devops: failed to decode response: %v", err)
+		h.logger.Warn("failed to decode response", slog.String("error", err.Error()))
 		return nil
 	}
 
@@ -228,7 +233,7 @@ func (h *AzureDevOpsHook) createWorkItem(ctx context.Context, bypass *events.Byp
 	if htmlURL == "" {
 		htmlURL = workItemResp.URL
 	}
-	log.Printf("azure-devops: created work item #%d: %s", workItemResp.ID, htmlURL)
+	h.logger.Info("created work item", slog.Int("id", workItemResp.ID), slog.String("url", htmlURL))
 	return nil
 }
 

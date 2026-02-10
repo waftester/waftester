@@ -6,7 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -26,6 +26,7 @@ type JiraHook struct {
 	baseURL string
 	client  *http.Client
 	opts    JiraOptions
+	logger  *slog.Logger
 }
 
 // JiraOptions configures the Jira hook behavior.
@@ -53,6 +54,9 @@ type JiraOptions struct {
 
 	// Timeout for HTTP requests (default: 10s).
 	Timeout time.Duration
+
+	// Logger for structured logging (default: slog.Default()).
+	Logger *slog.Logger
 }
 
 // jiraIssue represents the Jira REST API v3 issue creation payload.
@@ -135,6 +139,7 @@ func NewJiraHook(baseURL string, opts JiraOptions) *JiraHook {
 		baseURL: baseURL,
 		client:  httpclient.New(httpclient.Config{Timeout: opts.Timeout}),
 		opts:    opts,
+		logger:  orDefault(opts.Logger),
 	}
 }
 
@@ -182,14 +187,14 @@ func (h *JiraHook) createIssue(ctx context.Context, bypass *events.BypassEvent) 
 
 	body, err := json.Marshal(issue)
 	if err != nil {
-		log.Printf("jira: failed to marshal issue: %v", err)
+		h.logger.Warn("failed to marshal issue", slog.String("error", err.Error()))
 		return nil
 	}
 
 	endpoint := fmt.Sprintf("%s/rest/api/3/issue", h.baseURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
-		log.Printf("jira: failed to create request: %v", err)
+		h.logger.Warn("failed to create request", slog.String("error", err.Error()))
 		return nil
 	}
 
@@ -205,7 +210,7 @@ func (h *JiraHook) createIssue(ctx context.Context, bypass *events.BypassEvent) 
 
 	resp, err := h.client.Do(req)
 	if err != nil {
-		log.Printf("jira: failed to create issue: %v", err)
+		h.logger.Warn("failed to create issue", slog.String("error", err.Error()))
 		return nil
 	}
 	defer resp.Body.Close()
@@ -218,14 +223,14 @@ func (h *JiraHook) createIssue(ctx context.Context, bypass *events.BypassEvent) 
 		}
 		if decErr := json.NewDecoder(resp.Body).Decode(&errResp); decErr == nil {
 			if len(errResp.ErrorMessages) > 0 {
-				log.Printf("jira: API error (%d): %v", resp.StatusCode, errResp.ErrorMessages)
+				h.logger.Warn("API error", slog.Int("status", resp.StatusCode), slog.Any("errors", errResp.ErrorMessages))
 			} else if len(errResp.Errors) > 0 {
-				log.Printf("jira: API error (%d): %v", resp.StatusCode, errResp.Errors)
+				h.logger.Warn("API error", slog.Int("status", resp.StatusCode), slog.Any("errors", errResp.Errors))
 			} else {
-				log.Printf("jira: received error status %d", resp.StatusCode)
+				h.logger.Warn("error response", slog.Int("status", resp.StatusCode))
 			}
 		} else {
-			log.Printf("jira: received error status %d", resp.StatusCode)
+			h.logger.Warn("error response", slog.Int("status", resp.StatusCode))
 		}
 		return nil
 	}
@@ -236,7 +241,7 @@ func (h *JiraHook) createIssue(ctx context.Context, bypass *events.BypassEvent) 
 		Self string `json:"self"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err == nil && result.Key != "" {
-		log.Printf("jira: created issue %s: %s", result.Key, result.Self)
+		h.logger.Info("created issue", slog.String("key", result.Key), slog.String("url", result.Self))
 	}
 
 	return nil

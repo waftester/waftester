@@ -8,7 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -30,6 +30,7 @@ type WebhookHook struct {
 	endpoint string
 	client   *http.Client
 	opts     WebhookOptions
+	logger   *slog.Logger
 }
 
 // WebhookOptions configures the webhook hook behavior.
@@ -49,6 +50,9 @@ type WebhookOptions struct {
 	// MinSeverity filters events below this severity.
 	// Events with severity less severe than this will be skipped.
 	MinSeverity events.Severity
+
+	// Logger for structured logging (default: slog.Default()).
+	Logger *slog.Logger
 }
 
 // severityOrder maps severity to numeric order for comparison.
@@ -76,6 +80,7 @@ func NewWebhookHook(endpoint string, opts WebhookOptions) *WebhookHook {
 		endpoint: endpoint,
 		client:   httpclient.New(httpclient.Config{Timeout: opts.Timeout}),
 		opts:     opts,
+		logger:   orDefault(opts.Logger),
 	}
 }
 
@@ -96,13 +101,13 @@ func (h *WebhookHook) OnEvent(ctx context.Context, event events.Event) error {
 	// Serialize event to JSON
 	body, err := json.Marshal(event)
 	if err != nil {
-		log.Printf("webhook: failed to marshal event: %v", err)
+		h.logger.Warn("failed to marshal event", slog.String("error", err.Error()))
 		return nil // Don't block scan on serialization errors
 	}
 
 	// Send with retries
 	if err := h.sendWithRetry(ctx, event.EventType(), body); err != nil {
-		log.Printf("webhook: failed to send event after retries: %v", err)
+		h.logger.Warn("failed to send event after retries", slog.String("error", err.Error()))
 		return nil // Don't block scan on webhook failures
 	}
 
