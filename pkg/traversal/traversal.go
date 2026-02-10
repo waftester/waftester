@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
@@ -75,13 +76,10 @@ type ScanResult struct {
 
 // TesterConfig configures the traversal tester
 type TesterConfig struct {
-	Timeout         time.Duration
-	UserAgent       string
-	Concurrency     int
+	attackconfig.Base
 	Platform        Platform // Target platform
 	MaxDepth        int      // Maximum traversal depth
 	TestParams      []string // Parameters to test
-	Client          *http.Client
 	CustomFiles     []string // Custom files to look for
 	FollowRedirects bool
 }
@@ -97,9 +95,11 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:         duration.HTTPFuzzing,
-		UserAgent:       ui.UserAgent(),
-		Concurrency:     defaults.ConcurrencyLow,
+		Base: attackconfig.Base{
+			Timeout:     duration.HTTPFuzzing,
+			UserAgent:   ui.UserAgent(),
+			Concurrency: defaults.ConcurrencyLow,
+		},
 		Platform:        PlatformUnknown,
 		MaxDepth:        defaults.DepthMax,
 		FollowRedirects: false,

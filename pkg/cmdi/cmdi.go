@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
@@ -61,8 +62,7 @@ type Vulnerability struct {
 
 // TesterConfig configures the command injection tester
 type TesterConfig struct {
-	Timeout       time.Duration
-	UserAgent     string
+	attackconfig.Base
 	Headers       http.Header
 	Cookies       []*http.Cookie
 	Platform      Platform      // Target platform (unix, windows, both)
@@ -73,8 +73,10 @@ type TesterConfig struct {
 // DefaultConfig returns a default tester configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:       duration.HTTPFuzzing,
-		UserAgent:     defaults.UAChrome,
+		Base: attackconfig.Base{
+			Timeout:   duration.HTTPFuzzing,
+			UserAgent: defaults.UAChrome,
+		},
 		Platform:      PlatformBoth,
 		TimeThreshold: duration.CMDIThreshold,
 	}

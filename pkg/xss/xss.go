@@ -14,6 +14,7 @@ import (
 
 	"golang.org/x/text/unicode/norm"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
@@ -71,9 +72,7 @@ type ScanResult struct {
 
 // TesterConfig holds configuration for the XSS tester
 type TesterConfig struct {
-	Timeout           time.Duration
-	UserAgent         string
-	Client            *http.Client
+	attackconfig.Base
 	IncludeBypassOnly bool // Only test WAF bypass payloads
 	TestDOMXSS        bool // Test for DOM-based XSS
 }
@@ -88,8 +87,10 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:           duration.HTTPFuzzing,
-		UserAgent:         ui.UserAgent(),
+		Base: attackconfig.Base{
+			Timeout:   duration.HTTPFuzzing,
+			UserAgent: ui.UserAgent(),
+		},
 		IncludeBypassOnly: false,
 		TestDOMXSS:        true,
 	}

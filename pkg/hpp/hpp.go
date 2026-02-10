@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
@@ -85,12 +86,9 @@ type ScanResult struct {
 
 // TesterConfig configures the HPP tester
 type TesterConfig struct {
-	Timeout       time.Duration
-	UserAgent     string
-	Concurrency   int
+	attackconfig.Base
 	TestParams    []string
 	Technology    Technology
-	Client        *http.Client
 	BaselineFirst bool
 }
 
@@ -103,9 +101,11 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:     duration.HTTPFuzzing,
-		UserAgent:   ui.UserAgent(),
-		Concurrency: defaults.ConcurrencyLow,
+		Base: attackconfig.Base{
+			Timeout:     duration.HTTPFuzzing,
+			UserAgent:   ui.UserAgent(),
+			Concurrency: defaults.ConcurrencyLow,
+		},
 		Technology:  TechUnknown,
 		TestParams: []string{
 			"id",

@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
@@ -86,12 +87,9 @@ type ScanResult struct {
 
 // TesterConfig configures the NoSQL injection tester
 type TesterConfig struct {
-	Timeout     time.Duration
-	UserAgent   string
-	Concurrency int
-	Database    Database // Target database type
-	TestParams  []string // Parameters to test
-	Client      *http.Client
+	attackconfig.Base
+	Database   Database // Target database type
+	TestParams []string // Parameters to test
 }
 
 // Tester performs NoSQL injection tests
@@ -103,10 +101,12 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:     duration.HTTPFuzzing,
-		UserAgent:   ui.UserAgent(),
-		Concurrency: defaults.ConcurrencyLow,
-		Database:    DBUnknown,
+		Base: attackconfig.Base{
+			Timeout:     duration.HTTPFuzzing,
+			UserAgent:   ui.UserAgent(),
+			Concurrency: defaults.ConcurrencyLow,
+		},
+		Database: DBUnknown,
 		TestParams: []string{
 			"username",
 			"password",
