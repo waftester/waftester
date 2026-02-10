@@ -698,14 +698,6 @@ func (a *Assessment) GetBenignResults() []metrics.BenignResult {
 	return results
 }
 
-// Helper function
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // getBuiltinAttackPayloads returns a comprehensive set of attack payloads
 func getBuiltinAttackPayloads() []AttackPayload {
 	payloads := []AttackPayload{

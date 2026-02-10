@@ -755,10 +755,3 @@ func TestParameter(t *testing.T) {
 		t.Error("maximum mismatch")
 	}
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
