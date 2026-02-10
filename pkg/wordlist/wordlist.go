@@ -21,6 +21,8 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // Wordlist represents a loaded wordlist
@@ -492,7 +494,7 @@ func generateMutations(base string, rules []MutationRule) []string {
 		variations = append(variations, word)
 		variations = append(variations, strings.ToLower(word))
 		variations = append(variations, strings.ToUpper(word))
-		variations = append(variations, strings.Title(strings.ToLower(word)))
+		variations = append(variations, cases.Title(language.English).String(strings.ToLower(word)))
 
 		// Add numbers
 		for i := 0; i <= 9; i++ {
@@ -662,7 +664,7 @@ func applyTransform(word string, t Transform) []string {
 	case TransformCase:
 		results = append(results, strings.ToLower(word))
 		results = append(results, strings.ToUpper(word))
-		results = append(results, strings.Title(strings.ToLower(word)))
+		results = append(results, cases.Title(language.English).String(strings.ToLower(word)))
 		results = append(results, toggleCase(word))
 	case TransformLeet:
 		results = append(results, leetSpeak(word))
