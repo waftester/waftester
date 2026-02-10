@@ -5,6 +5,17 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.4] - 2026-02-10
+
+### Changed
+
+- **Version bump** — Baseline release before enterprise refactoring
+
+### Internal
+
+- Established v2.8.4 as pre-refactoring baseline tag
+- All refactoring (Phases 1-25) will build on this release
+
 ## [2.8.3] - 2026-02-09
 
 ### Security
