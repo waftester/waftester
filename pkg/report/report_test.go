@@ -6,20 +6,22 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestSeverityLevels(t *testing.T) {
-	severities := []Severity{
-		SeverityCritical, SeverityHigh, SeverityMedium,
-		SeverityLow, SeverityInfo,
+	severities := []finding.Severity{
+		finding.Critical, finding.High, finding.Medium,
+		finding.Low, finding.Info,
 	}
 
 	if len(severities) != 5 {
 		t.Errorf("Expected 5 severity levels, got %d", len(severities))
 	}
 
-	if string(SeverityCritical) != "critical" {
-		t.Error("SeverityCritical should be 'critical'")
+	if string(finding.Critical) != "critical" {
+		t.Error("finding.Critical should be 'critical'")
 	}
 }
 
@@ -59,7 +61,7 @@ func TestReportBuilder_AddFinding(t *testing.T) {
 	finding := &Finding{
 		ID:       "f1",
 		Title:    "SQL Injection",
-		Severity: SeverityHigh,
+		Severity: finding.High,
 	}
 
 	builder.AddFinding(finding)
@@ -74,9 +76,9 @@ func TestReportBuilder_AddFindings(t *testing.T) {
 	builder := NewReportBuilder(ReportConfig{})
 
 	findings := []*Finding{
-		{ID: "f1", Title: "SQLi", Severity: SeverityHigh},
-		{ID: "f2", Title: "XSS", Severity: SeverityMedium},
-		{ID: "f3", Title: "Info Leak", Severity: SeverityLow},
+		{ID: "f1", Title: "SQLi", Severity: finding.High},
+		{ID: "f2", Title: "XSS", Severity: finding.Medium},
+		{ID: "f3", Title: "Info Leak", Severity: finding.Low},
 	}
 
 	builder.AddFindings(findings)
@@ -113,8 +115,8 @@ func TestReportBuilder_Build(t *testing.T) {
 
 	builder := NewReportBuilder(config)
 	builder.AddFindings([]*Finding{
-		{ID: "f1", Title: "Critical SQLi", Severity: SeverityCritical, Type: "sqli"},
-		{ID: "f2", Title: "XSS", Severity: SeverityMedium, Type: "xss"},
+		{ID: "f1", Title: "Critical SQLi", Severity: finding.Critical, Type: "sqli"},
+		{ID: "f2", Title: "XSS", Severity: finding.Medium, Type: "xss"},
 	})
 
 	report := builder.Build()
@@ -145,9 +147,9 @@ func TestReportBuilder_Build(t *testing.T) {
 func TestReportBuilder_SortBySeverity(t *testing.T) {
 	builder := NewReportBuilder(ReportConfig{})
 	builder.AddFindings([]*Finding{
-		{ID: "low", Severity: SeverityLow},
-		{ID: "critical", Severity: SeverityCritical},
-		{ID: "medium", Severity: SeverityMedium},
+		{ID: "low", Severity: finding.Low},
+		{ID: "critical", Severity: finding.Critical},
+		{ID: "medium", Severity: finding.Medium},
 	})
 
 	report := builder.Build()
@@ -161,8 +163,8 @@ func TestReportBuilder_SortBySeverity(t *testing.T) {
 func TestReportBuilder_OverallRisk_High(t *testing.T) {
 	builder := NewReportBuilder(ReportConfig{})
 	builder.AddFindings([]*Finding{
-		{ID: "f1", Severity: SeverityHigh},
-		{ID: "f2", Severity: SeverityMedium},
+		{ID: "f1", Severity: finding.High},
+		{ID: "f2", Severity: finding.Medium},
 	})
 
 	report := builder.Build()
@@ -175,8 +177,8 @@ func TestReportBuilder_OverallRisk_High(t *testing.T) {
 func TestReportBuilder_OverallRisk_Medium(t *testing.T) {
 	builder := NewReportBuilder(ReportConfig{})
 	builder.AddFindings([]*Finding{
-		{ID: "f1", Severity: SeverityMedium},
-		{ID: "f2", Severity: SeverityLow},
+		{ID: "f1", Severity: finding.Medium},
+		{ID: "f2", Severity: finding.Low},
 	})
 
 	report := builder.Build()
@@ -189,8 +191,8 @@ func TestReportBuilder_OverallRisk_Medium(t *testing.T) {
 func TestReportBuilder_OverallRisk_Low(t *testing.T) {
 	builder := NewReportBuilder(ReportConfig{})
 	builder.AddFindings([]*Finding{
-		{ID: "f1", Severity: SeverityLow},
-		{ID: "f2", Severity: SeverityInfo},
+		{ID: "f1", Severity: finding.Low},
+		{ID: "f2", Severity: finding.Info},
 	})
 
 	report := builder.Build()
@@ -206,7 +208,7 @@ func TestReportBuilder_KeyFindings(t *testing.T) {
 		builder.AddFinding(&Finding{
 			ID:       string(rune('a' + i)),
 			Title:    "Critical Finding " + string(rune('0'+i)),
-			Severity: SeverityCritical,
+			Severity: finding.Critical,
 		})
 	}
 
@@ -221,8 +223,8 @@ func TestReportBuilder_KeyFindings(t *testing.T) {
 func TestReportBuilder_Recommendations(t *testing.T) {
 	builder := NewReportBuilder(ReportConfig{})
 	builder.AddFindings([]*Finding{
-		{Type: "sqli", Severity: SeverityHigh},
-		{Type: "xss", Severity: SeverityMedium},
+		{Type: "sqli", Severity: finding.High},
+		{Type: "xss", Severity: finding.Medium},
 	})
 
 	report := builder.Build()
@@ -295,7 +297,7 @@ func TestReportGenerator_GenerateJSON(t *testing.T) {
 		Title:  "JSON Test",
 		Format: FormatJSON,
 	})
-	builder.AddFinding(&Finding{ID: "f1", Title: "Test", Severity: SeverityHigh})
+	builder.AddFinding(&Finding{ID: "f1", Title: "Test", Severity: finding.High})
 	report := builder.Build()
 
 	var buf bytes.Buffer
@@ -317,7 +319,7 @@ func TestReportGenerator_GenerateHTML(t *testing.T) {
 		Title:  "HTML Test",
 		Format: FormatHTML,
 	})
-	builder.AddFinding(&Finding{ID: "f1", Title: "Test Finding", Severity: SeverityHigh})
+	builder.AddFinding(&Finding{ID: "f1", Title: "Test Finding", Severity: finding.High})
 	report := builder.Build()
 
 	var buf bytes.Buffer
@@ -344,7 +346,7 @@ func TestReportGenerator_GenerateMarkdown(t *testing.T) {
 		Title:  "MD Test",
 		Format: FormatMarkdown,
 	})
-	builder.AddFinding(&Finding{ID: "f1", Title: "Test", Severity: SeverityHigh})
+	builder.AddFinding(&Finding{ID: "f1", Title: "Test", Severity: finding.High})
 	report := builder.Build()
 
 	var buf bytes.Buffer
@@ -370,7 +372,7 @@ func TestReportGenerator_GenerateText(t *testing.T) {
 	builder.AddFinding(&Finding{
 		ID:          "f1",
 		Title:       "Test Finding",
-		Severity:    SeverityHigh,
+		Severity:    finding.High,
 		Target:      "https://example.com",
 		Endpoint:    "/api",
 		Description: "A test vulnerability",
@@ -511,15 +513,15 @@ func TestCompareReports_Stable(t *testing.T) {
 
 func TestSeverityOrder(t *testing.T) {
 	tests := []struct {
-		severity Severity
+		severity finding.Severity
 		expected int
 	}{
-		{SeverityCritical, 5},
-		{SeverityHigh, 4},
-		{SeverityMedium, 3},
-		{SeverityLow, 2},
-		{SeverityInfo, 1},
-		{Severity("unknown"), 0},
+		{finding.Critical, 5},
+		{finding.High, 4},
+		{finding.Medium, 3},
+		{finding.Low, 2},
+		{finding.Info, 1},
+		{finding.Severity("unknown"), 0},
 	}
 
 	for _, tc := range tests {
@@ -535,7 +537,7 @@ func TestFinding_Struct(t *testing.T) {
 		ID:          "f1",
 		Title:       "SQL Injection",
 		Description: "Found SQL injection",
-		Severity:    SeverityHigh,
+		Severity:    finding.High,
 		Type:        "sqli",
 		Target:      "https://example.com",
 		Endpoint:    "/api",
@@ -569,7 +571,7 @@ func TestExecutiveSummary_Struct(t *testing.T) {
 		OverallRisk:     "High",
 		RiskScore:       75.0,
 		TotalFindings:   10,
-		FindingsByRisk:  map[Severity]int{SeverityHigh: 5},
+		FindingsByRisk:  map[finding.Severity]int{finding.High: 5},
 		KeyFindings:     []string{"Finding 1"},
 		Recommendations: []string{"Fix it"},
 		Conclusion:      "Needs work",
