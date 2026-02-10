@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -31,7 +30,6 @@ import (
 
 	"github.com/spaolacci/murmur3"
 	"github.com/waftester/waftester/pkg/checkpoint"
-	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/headless"
 	"github.com/waftester/waftester/pkg/httpclient"
@@ -2387,7 +2385,7 @@ func runProbe() {
 						for _, w := range wafResult.WAFs {
 							ui.PrintConfigLine("WAF", fmt.Sprintf("%s (%s) - %.0f%% confidence", w.Name, w.Type, w.Confidence*100))
 							if len(w.BypassTips) > 0 {
-								ui.PrintInfo(fmt.Sprintf("  Bypass tips: %v", w.BypassTips[:probeMin(3, len(w.BypassTips))]))
+								ui.PrintInfo(fmt.Sprintf("  Bypass tips: %v", w.BypassTips[:min(3, len(w.BypassTips))]))
 							}
 						}
 						if wafResult.CDN != nil {
@@ -3391,17 +3389,7 @@ func makeProbeHTTPRequest(ctx context.Context, target string, timeout time.Durat
 	return client.Do(req)
 }
 
-// Random User-Agents for rotating
-var probeRandomUserAgents = []string{
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
-	"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/120.0.0.0",
-	"Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1",
-	"Mozilla/5.0 (Linux; Android 14; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-}
+
 
 // ProbeHTTPOptions contains options for probe HTTP requests
 type ProbeHTTPOptions struct {
@@ -3479,22 +3467,18 @@ func makeProbeHTTPRequestWithOptions(ctx context.Context, target string, timeout
 		return nil
 	}
 
-	// Build TLS config with all options
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: opts.SkipVerify,
+	// Build HTTP version for httpclient.Config
+	var httpVersion string
+	if opts.ForceHTTP2 {
+		httpVersion = "2"
+	} else if opts.ForceHTTP11 {
+		httpVersion = "1.1"
 	}
 
-	// Custom SNI hostname
-	if opts.SNI != "" {
-		tlsConfig.ServerName = opts.SNI
-	}
-
-	// TLS impersonation - randomize client hello
+	// Build cipher suites for TLS impersonation
+	var cipherSuites []uint16
 	if opts.TLSImpersonate {
-		// Mimic browser TLS fingerprint
-		tlsConfig.MinVersion = tls.VersionTLS12
-		tlsConfig.MaxVersion = tls.VersionTLS13
-		tlsConfig.CipherSuites = []uint16{
+		cipherSuites = []uint16{
 			tls.TLS_AES_128_GCM_SHA256,
 			tls.TLS_AES_256_GCM_SHA384,
 			tls.TLS_CHACHA20_POLY1305_SHA256,
@@ -3503,76 +3487,28 @@ func makeProbeHTTPRequestWithOptions(ctx context.Context, target string, timeout
 		}
 	}
 
-	// UseZTLS: force TLS 1.3 only (ztls-like behavior)
+	// Use httpclient.Config for transport, retries, and UA
+	cfg := httpclient.Config{
+		Timeout:            timeout,
+		InsecureSkipVerify: opts.SkipVerify,
+		SNI:                opts.SNI,
+		Proxy:              opts.ProxyURL,
+		CustomResolvers:    opts.CustomResolvers,
+		ForceHTTPVersion:   httpVersion,
+		CipherSuites:       cipherSuites,
+		RetryCount:         opts.Retries,
+		RetryDelay:         opts.Delay,
+		RandomUserAgent:    opts.RandomAgent,
+		UserAgent:          ui.UserAgent(),
+	}
+	// UseZTLS forces TLS 1.3 only
 	if opts.UseZTLS {
-		tlsConfig.MinVersion = tls.VersionTLS13
-		tlsConfig.MaxVersion = tls.VersionTLS13
+		cfg.MinTLSVersion = tls.VersionTLS13
+		cfg.MaxTLSVersion = tls.VersionTLS13
 	}
-
-	transport := &http.Transport{
-		TLSClientConfig: tlsConfig,
-	}
-
-	// Force HTTP/2 or HTTP/1.1 if requested
-	if opts.ForceHTTP2 {
-		transport.ForceAttemptHTTP2 = true
-	} else if opts.ForceHTTP11 {
-		transport.ForceAttemptHTTP2 = false
-		// Disable HTTP/2 by not configuring TLSNextProto
-		transport.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) http.RoundTripper)
-	}
-
-	// Configure custom DNS resolvers
-	if len(opts.CustomResolvers) > 0 {
-		dialer := &net.Dialer{
-			Timeout:   duration.HTTPFuzzing,
-			KeepAlive: duration.KeepAlive,
-		}
-		// Create custom resolver using the first resolver
-		resolver := opts.CustomResolvers[0]
-		if !strings.Contains(resolver, ":") {
-			resolver = resolver + ":53"
-		}
-		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			// Extract host and port from addr
-			host, port, err := net.SplitHostPort(addr)
-			if err != nil {
-				return dialer.DialContext(ctx, network, addr)
-			}
-			// Resolve using custom resolver
-			customResolver := &net.Resolver{
-				PreferGo: true,
-				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-					d := net.Dialer{Timeout: duration.DialTimeout}
-					return d.DialContext(ctx, "udp", resolver)
-				},
-			}
-			ips, err := customResolver.LookupIPAddr(ctx, host)
-			if err != nil || len(ips) == 0 {
-				return dialer.DialContext(ctx, network, addr)
-			}
-			// Use first resolved IP
-			resolvedAddr := net.JoinHostPort(ips[0].IP.String(), port)
-			return dialer.DialContext(ctx, network, resolvedAddr)
-		}
-	}
-
-	// Configure proxy if provided
-	if opts.ProxyURL != "" {
-		proxyURL, err := url.Parse(opts.ProxyURL)
-		if err == nil {
-			transport.Proxy = http.ProxyURL(proxyURL)
-		}
-	}
-
-	client := &http.Client{
-		Timeout:       timeout,
-		CheckRedirect: checkRedirect,
-		Transport:     transport,
-	}
-
-	// Wrap with detection transport for connection drop/silent ban detection
-	client = detection.WrapClient(client)
+	client := httpclient.New(cfg)
+	// Override redirect policy with probe-specific handling
+	client.CheckRedirect = checkRedirect
 
 	// Prepare request body if provided
 	var bodyReader io.Reader
@@ -3588,13 +3524,6 @@ func makeProbeHTTPRequestWithOptions(ctx context.Context, target string, timeout
 	req, err := http.NewRequestWithContext(ctx, method, target, bodyReader)
 	if err != nil {
 		return nil, err
-	}
-
-	// Set User-Agent
-	if opts.RandomAgent {
-		req.Header.Set("User-Agent", probeRandomUserAgents[time.Now().UnixNano()%int64(len(probeRandomUserAgents))])
-	} else {
-		req.Header.Set("User-Agent", ui.UserAgent())
 	}
 
 	// Parse and set custom headers
@@ -3648,31 +3577,5 @@ func makeProbeHTTPRequestWithOptions(ctx context.Context, target string, timeout
 		}
 	}
 
-	// Retry logic
-	var resp *http.Response
-	var lastErr error
-	maxAttempts := opts.Retries + 1
-	if maxAttempts < 1 {
-		maxAttempts = 1
-	}
-
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		if attempt > 0 && opts.Delay > 0 {
-			time.Sleep(opts.Delay)
-		}
-		resp, lastErr = client.Do(req)
-		if lastErr == nil {
-			return resp, nil
-		}
-	}
-
-	return resp, lastErr
-}
-
-// probeMin returns the smaller of a or b (probe-local helper)
-func probeMin(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
+	return client.Do(req)
 }
