@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewTester(t *testing.T) {
@@ -222,13 +224,13 @@ func TestTestJSONBody(t *testing.T) {
 func TestGetSeverity(t *testing.T) {
 	tests := []struct {
 		vulnType VulnerabilityType
-		expected Severity
+		expected finding.Severity
 	}{
-		{VulnRCE, SeverityCritical},
-		{VulnServerSide, SeverityHigh},
-		{VulnClientSide, SeverityMedium},
-		{VulnJSONBody, SeverityMedium},
-		{VulnQueryParam, SeverityMedium},
+		{VulnRCE, finding.Critical},
+		{VulnServerSide, finding.High},
+		{VulnClientSide, finding.Medium},
+		{VulnJSONBody, finding.Medium},
+		{VulnQueryParam, finding.Medium},
 	}
 
 	for _, tt := range tests {
@@ -372,13 +374,15 @@ func TestKnownGadgets(t *testing.T) {
 
 func TestVulnerabilityToJSON(t *testing.T) {
 	vuln := Vulnerability{
-		Type:        VulnJSONBody,
-		Description: "Test",
-		Severity:    SeverityHigh,
-		URL:         "http://example.com",
-		Payload:     `{"__proto__":{}}`,
-		Evidence:    "Pollution detected",
-		CVSS:        7.5,
+		Vulnerability: finding.Vulnerability{
+			Description: "Test",
+			Severity:    finding.High,
+			URL:         "http://example.com",
+			Payload:     `{"__proto__":{}}`,
+			Evidence:    "Pollution detected",
+			CVSS:        7.5,
+		},
+		Type: VulnJSONBody,
 	}
 
 	jsonStr, err := VulnerabilityToJSON(vuln)
@@ -393,16 +397,18 @@ func TestVulnerabilityToJSON(t *testing.T) {
 
 func TestVulnerability(t *testing.T) {
 	vuln := Vulnerability{
-		Type:        VulnRCE,
-		Description: "Test vulnerability",
-		Severity:    SeverityCritical,
-		URL:         "http://example.com",
-		Parameter:   "data",
-		Payload:     `{"__proto__":{"shell":"node"}}`,
-		Evidence:    "RCE detected",
-		Gadget:      "shell",
-		Remediation: "Fix it",
-		CVSS:        9.8,
+		Vulnerability: finding.Vulnerability{
+			Description: "Test vulnerability",
+			Severity:    finding.Critical,
+			URL:         "http://example.com",
+			Parameter:   "data",
+			Payload:     `{"__proto__":{"shell":"node"}}`,
+			Evidence:    "RCE detected",
+			Remediation: "Fix it",
+			CVSS:        9.8,
+		},
+		Type:   VulnRCE,
+		Gadget: "shell",
 	}
 
 	data, err := json.Marshal(vuln)

@@ -1428,7 +1428,7 @@ func runScan() {
 			result.TotalVulns += vulnCount
 			progress.AddMetricBy("vulns", vulnCount)
 			for _, v := range scanResult.Vulnerabilities {
-				result.BySeverity[v.Severity]++
+				result.BySeverity[string(v.Severity)]++
 				emitEvent("vulnerability", map[string]interface{}{
 					"category":  "ssrf",
 					"severity":  v.Severity,
