@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -89,7 +90,7 @@ func (p *Pattern) Matches(result *TestResult) bool {
 	}
 
 	// Check method match
-	if len(p.Methods) > 0 && !contains(p.Methods, result.Method) {
+	if len(p.Methods) > 0 && !slices.Contains(p.Methods, result.Method) {
 		return false
 	}
 
@@ -511,15 +512,6 @@ func GenerateReport(db *Database) *Report {
 }
 
 // Helper functions
-
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
-}
 
 func containsPattern(patterns []string, item string) bool {
 	for _, p := range patterns {

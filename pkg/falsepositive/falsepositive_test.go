@@ -455,12 +455,6 @@ func TestGetCommonFPInfo(t *testing.T) {
 	assert.Empty(t, info2)
 }
 
-func TestContains(t *testing.T) {
-	slice := []string{"a", "b", "c"}
-	assert.True(t, contains(slice, "a"))
-	assert.False(t, contains(slice, "d"))
-}
-
 func TestContainsPattern(t *testing.T) {
 	patterns := []string{"/api", "^/admin"}
 	assert.True(t, containsPattern(patterns, "/api/users"))

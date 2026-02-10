@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -1555,7 +1556,7 @@ func (d *Discoverer) analyzeAttackSurface(result *DiscoveryResult) {
 	// Always include these baseline categories
 	baseline := []string{"xss", "waf-validation", "protocol"}
 	for _, b := range baseline {
-		if !contains(surface.RelevantCategories, b) {
+		if !slices.Contains(surface.RelevantCategories, b) {
 			surface.RelevantCategories = append(surface.RelevantCategories, b)
 		}
 	}
@@ -2033,15 +2034,6 @@ func extractPath(link string) string {
 		return ""
 	}
 	return parsed.Path
-}
-
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
 }
 
 // File I/O helpers (platform-independent)
