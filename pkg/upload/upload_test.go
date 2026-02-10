@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewTester(t *testing.T) {
@@ -310,13 +312,13 @@ func TestIsUploadSuccessful(t *testing.T) {
 func TestGetSeverity(t *testing.T) {
 	tests := []struct {
 		vulnType VulnerabilityType
-		expected Severity
+		expected finding.Severity
 	}{
-		{VulnWebShell, SeverityCritical},
-		{VulnUnrestrictedUpload, SeverityCritical},
-		{VulnPathTraversal, SeverityHigh},
-		{VulnPolyglot, SeverityHigh},
-		{VulnMaliciousContent, SeverityMedium},
+		{VulnWebShell, finding.Critical},
+		{VulnUnrestrictedUpload, finding.Critical},
+		{VulnPathTraversal, finding.High},
+		{VulnPolyglot, finding.High},
+		{VulnMaliciousContent, finding.Medium},
 	}
 
 	for _, tt := range tests {
@@ -361,14 +363,16 @@ func TestAllVulnerabilityTypes(t *testing.T) {
 
 func TestVulnerabilityToJSON(t *testing.T) {
 	vuln := Vulnerability{
+		Vulnerability: finding.Vulnerability{
+			Description: "Web shell uploaded",
+			Severity:    finding.Critical,
+			URL:         "https://example.com/upload",
+			CVSS:        9.8,
+		},
 		Type:        VulnWebShell,
-		Description: "Web shell uploaded",
-		Severity:    SeverityCritical,
-		URL:         "https://example.com/upload",
 		Filename:    "shell.php",
 		ContentType: "application/x-php",
 		FileSize:    100,
-		CVSS:        9.8,
 	}
 
 	jsonStr, err := VulnerabilityToJSON(vuln)
@@ -383,9 +387,9 @@ func TestVulnerabilityToJSON(t *testing.T) {
 
 func TestGenerateReport(t *testing.T) {
 	vulns := []Vulnerability{
-		{Type: VulnWebShell, Severity: SeverityCritical},
-		{Type: VulnPathTraversal, Severity: SeverityHigh},
-		{Type: VulnWebShell, Severity: SeverityCritical},
+		{Vulnerability: finding.Vulnerability{Severity: finding.Critical}, Type: VulnWebShell},
+		{Vulnerability: finding.Vulnerability{Severity: finding.High}, Type: VulnPathTraversal},
+		{Vulnerability: finding.Vulnerability{Severity: finding.Critical}, Type: VulnWebShell},
 	}
 
 	report := GenerateReport(vulns)
@@ -561,16 +565,18 @@ func TestContainsExecutableCode(t *testing.T) {
 
 func TestVulnerability(t *testing.T) {
 	vuln := Vulnerability{
+		Vulnerability: finding.Vulnerability{
+			Description: "Polyglot file upload",
+			Severity:    finding.High,
+			URL:         "https://example.com/upload",
+			Evidence:    "File accepted",
+			Remediation: "Validate file content",
+			CVSS:        8.1,
+		},
 		Type:        VulnPolyglot,
-		Description: "Polyglot file upload",
-		Severity:    SeverityHigh,
-		URL:         "https://example.com/upload",
 		Filename:    "polyglot.gif",
 		ContentType: "image/gif",
 		FileSize:    500,
-		Evidence:    "File accepted",
-		Remediation: "Validate file content",
-		CVSS:        8.1,
 	}
 
 	data, err := json.Marshal(vuln)

@@ -14,6 +14,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
@@ -33,29 +34,11 @@ const (
 	VulnRCE           VulnerabilityType = "prototype-pollution-rce"
 )
 
-// Severity levels
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-)
-
 // Vulnerability represents a detected prototype pollution vulnerability
 type Vulnerability struct {
-	Type        VulnerabilityType `json:"type"`
-	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
-	URL         string            `json:"url"`
-	Parameter   string            `json:"parameter,omitempty"`
-	Payload     string            `json:"payload"`
-	Evidence    string            `json:"evidence"`
-	Gadget      string            `json:"gadget,omitempty"`
-	Remediation string            `json:"remediation"`
-	CVSS        float64           `json:"cvss"`
-	ConfirmedBy int               `json:"confirmed_by,omitempty"`
+	finding.Vulnerability
+	Type   VulnerabilityType `json:"type"`
+	Gadget string            `json:"gadget,omitempty"`
 }
 
 // Payload represents a prototype pollution payload
@@ -276,15 +259,16 @@ func (t *Tester) testQueryParam(ctx context.Context, baseURL string, payload Pay
 	evidence := t.detectPollution(string(body), resp.Header)
 	if evidence != "" {
 		return &Vulnerability{
-			Type:        payload.Type,
-			Description: payload.Description,
-			Severity:    getSeverity(payload.Type),
-			URL:         testURL,
-			Parameter:   "",
-			Payload:     payload.Value,
-			Evidence:    evidence,
-			Remediation: GetPrototypePollutionRemediation(),
-			CVSS:        getCVSS(payload.Type),
+			Vulnerability: finding.Vulnerability{
+				Description: payload.Description,
+				Severity:    getSeverity(payload.Type),
+				URL:         testURL,
+				Payload:     payload.Value,
+				Evidence:    evidence,
+				Remediation: GetPrototypePollutionRemediation(),
+				CVSS:        getCVSS(payload.Type),
+			},
+			Type: payload.Type,
 		}, nil
 	}
 
@@ -312,15 +296,17 @@ func (t *Tester) testJSONBody(ctx context.Context, targetURL string, param strin
 	evidence := t.detectPollution(string(body), resp.Header)
 	if evidence != "" {
 		return &Vulnerability{
-			Type:        payload.Type,
-			Description: payload.Description,
-			Severity:    getSeverity(payload.Type),
-			URL:         targetURL,
-			Parameter:   param,
-			Payload:     payload.Value,
-			Evidence:    evidence,
-			Remediation: GetPrototypePollutionRemediation(),
-			CVSS:        getCVSS(payload.Type),
+			Vulnerability: finding.Vulnerability{
+				Description: payload.Description,
+				Severity:    getSeverity(payload.Type),
+				URL:         targetURL,
+				Parameter:   param,
+				Payload:     payload.Value,
+				Evidence:    evidence,
+				Remediation: GetPrototypePollutionRemediation(),
+				CVSS:        getCVSS(payload.Type),
+			},
+			Type: payload.Type,
 		}, nil
 	}
 
@@ -390,18 +376,18 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*ScanResult, error
 
 // Helper functions
 
-func getSeverity(vulnType VulnerabilityType) Severity {
+func getSeverity(vulnType VulnerabilityType) finding.Severity {
 	switch vulnType {
 	case VulnRCE:
-		return SeverityCritical
+		return finding.Critical
 	case VulnServerSide:
-		return SeverityHigh
+		return finding.High
 	case VulnClientSide, VulnJSONBody:
-		return SeverityMedium
+		return finding.Medium
 	case VulnQueryParam:
-		return SeverityMedium
+		return finding.Medium
 	default:
-		return SeverityMedium
+		return finding.Medium
 	}
 }
 

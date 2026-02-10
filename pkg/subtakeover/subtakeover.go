@@ -16,6 +16,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
@@ -39,28 +40,13 @@ const (
 	VulnMX           VulnerabilityType = "dangling-mx"
 )
 
-// Severity levels
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-)
-
 // Vulnerability represents a detected subdomain takeover vulnerability
 type Vulnerability struct {
-	Type        VulnerabilityType `json:"type"`
-	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
-	Subdomain   string            `json:"subdomain"`
-	Target      string            `json:"target"`
-	Provider    string            `json:"provider"`
-	Evidence    string            `json:"evidence"`
-	Remediation string            `json:"remediation"`
-	CVSS        float64           `json:"cvss"`
-	ConfirmedBy int               `json:"confirmed_by,omitempty"`
+	finding.Vulnerability
+	Type      VulnerabilityType `json:"type"`
+	Subdomain string            `json:"subdomain"`
+	Target    string            `json:"target"`
+	Provider  string            `json:"provider"`
 }
 
 // Fingerprint represents a service fingerprint for detection
@@ -273,13 +259,15 @@ func (t *Tester) CheckSubdomain(ctx context.Context, subdomain string) (*ScanRes
 		// NXDOMAIN might indicate vulnerability
 		if strings.Contains(err.Error(), "no such host") || strings.Contains(err.Error(), "NXDOMAIN") {
 			result.Vulnerabilities = append(result.Vulnerabilities, Vulnerability{
-				Type:        VulnCNAME,
-				Description: "Subdomain has dangling CNAME record",
-				Severity:    SeverityHigh,
-				Subdomain:   subdomain,
-				Evidence:    fmt.Sprintf("DNS error: %v", err),
-				Remediation: GetSubdomainTakeoverRemediation(),
-				CVSS:        8.6,
+				Vulnerability: finding.Vulnerability{
+					Description: "Subdomain has dangling CNAME record",
+					Severity:    finding.High,
+					Evidence:    fmt.Sprintf("DNS error: %v", err),
+					Remediation: GetSubdomainTakeoverRemediation(),
+					CVSS:        8.6,
+				},
+				Type:      VulnCNAME,
+				Subdomain: subdomain,
 			})
 			result.IsVulnerable = true
 		}
@@ -381,15 +369,17 @@ func (t *Tester) checkHTTPFingerprint(ctx context.Context, subdomain string, fp 
 		for _, pattern := range fp.Patterns {
 			if pattern.MatchString(bodyStr) {
 				return &Vulnerability{
-					Type:        fp.VulnType,
-					Description: fmt.Sprintf("%s subdomain takeover possible", fp.Name),
-					Severity:    SeverityHigh,
-					Subdomain:   subdomain,
-					Target:      targetURL,
-					Provider:    fp.Provider,
-					Evidence:    fmt.Sprintf("Pattern matched: %s", pattern.String()),
-					Remediation: GetSubdomainTakeoverRemediation(),
-					CVSS:        8.6,
+					Vulnerability: finding.Vulnerability{
+						Description: fmt.Sprintf("%s subdomain takeover possible", fp.Name),
+						Severity:    finding.High,
+						Evidence:    fmt.Sprintf("Pattern matched: %s", pattern.String()),
+						Remediation: GetSubdomainTakeoverRemediation(),
+						CVSS:        8.6,
+					},
+					Type:      fp.VulnType,
+					Subdomain: subdomain,
+					Target:    targetURL,
+					Provider:  fp.Provider,
 				}
 			}
 		}
@@ -411,14 +401,16 @@ func (t *Tester) CheckNS(domain string) (*Vulnerability, error) {
 		_, err := net.LookupHost(record.Host)
 		if err != nil { //nolint:nilerr // intentional: DNS resolution failure IS the vulnerability
 			return &Vulnerability{
-				Type:        VulnNS,
-				Description: "Dangling NS record detected",
-				Severity:    SeverityCritical,
-				Subdomain:   domain,
-				Target:      record.Host,
-				Evidence:    fmt.Sprintf("NS %s is not resolvable", record.Host),
-				Remediation: GetSubdomainTakeoverRemediation(),
-				CVSS:        9.8,
+				Vulnerability: finding.Vulnerability{
+					Description: "Dangling NS record detected",
+					Severity:    finding.Critical,
+					Evidence:    fmt.Sprintf("NS %s is not resolvable", record.Host),
+					Remediation: GetSubdomainTakeoverRemediation(),
+					CVSS:        9.8,
+				},
+				Type:      VulnNS,
+				Subdomain: domain,
+				Target:    record.Host,
 			}, nil
 		}
 	}
@@ -438,14 +430,16 @@ func (t *Tester) CheckMX(domain string) (*Vulnerability, error) {
 		_, err := net.LookupHost(record.Host)
 		if err != nil { //nolint:nilerr // intentional: DNS resolution failure IS the vulnerability
 			return &Vulnerability{
-				Type:        VulnMX,
-				Description: "Dangling MX record detected",
-				Severity:    SeverityMedium,
-				Subdomain:   domain,
-				Target:      record.Host,
-				Evidence:    fmt.Sprintf("MX %s is not resolvable", record.Host),
-				Remediation: GetSubdomainTakeoverRemediation(),
-				CVSS:        5.3,
+				Vulnerability: finding.Vulnerability{
+					Description: "Dangling MX record detected",
+					Severity:    finding.Medium,
+					Evidence:    fmt.Sprintf("MX %s is not resolvable", record.Host),
+					Remediation: GetSubdomainTakeoverRemediation(),
+					CVSS:        5.3,
+				},
+				Type:      VulnMX,
+				Subdomain: domain,
+				Target:    record.Host,
 			}, nil
 		}
 	}
@@ -486,18 +480,18 @@ func (t *Tester) BatchCheck(ctx context.Context, subdomains []string) ([]ScanRes
 
 // Helper functions
 
-func getSeverity(vulnType VulnerabilityType) Severity {
+func getSeverity(vulnType VulnerabilityType) finding.Severity {
 	switch vulnType {
 	case VulnNS:
-		return SeverityCritical
+		return finding.Critical
 	case VulnCNAME, VulnS3Bucket, VulnAzureBlob, VulnGitHubPages:
-		return SeverityHigh
+		return finding.High
 	case VulnMX:
-		return SeverityMedium
+		return finding.Medium
 	case VulnCloudService, VulnHeroku, VulnShopify, VulnFastly, VulnPantheon, VulnNetlify:
-		return SeverityHigh
+		return finding.High
 	}
-	return SeverityHigh // default for unknown types
+	return finding.High // default for unknown types
 }
 
 // Remediation guidance

@@ -18,6 +18,7 @@ import (
 	"github.com/waftester/waftester/pkg/bufpool"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/jsonutil"
@@ -41,30 +42,13 @@ const (
 	VulnXMLXXE             VulnerabilityType = "xml-xxe"
 )
 
-// Severity represents the severity level.
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
-
 // Vulnerability represents a detected upload vulnerability.
 type Vulnerability struct {
+	finding.Vulnerability
 	Type        VulnerabilityType `json:"type"`
-	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
-	URL         string            `json:"url"`
 	Filename    string            `json:"filename"`
 	ContentType string            `json:"content_type,omitempty"`
 	FileSize    int               `json:"file_size,omitempty"`
-	Evidence    string            `json:"evidence,omitempty"`
-	Remediation string            `json:"remediation,omitempty"`
-	CVSS        float64           `json:"cvss,omitempty"`
-	ConfirmedBy int               `json:"confirmed_by,omitempty"`
 }
 
 // UploadPayload represents a file upload payload.
@@ -180,16 +164,18 @@ func (t *Tester) TestUpload(ctx context.Context, targetURL string, payload Uploa
 
 	if t.isUploadSuccessful(resp.StatusCode, string(respBody)) {
 		return &Vulnerability{
+			Vulnerability: finding.Vulnerability{
+				Description: payload.Description,
+				Severity:    getSeverity(payload.VulnType),
+				URL:         targetURL,
+				Evidence:    fmt.Sprintf("Status: %d, Response: %s", resp.StatusCode, truncate(string(respBody), 500)),
+				Remediation: getRemediation(payload.VulnType),
+				CVSS:        getCVSS(payload.VulnType),
+			},
 			Type:        payload.VulnType,
-			Description: payload.Description,
-			Severity:    getSeverity(payload.VulnType),
-			URL:         targetURL,
 			Filename:    payload.Filename,
 			ContentType: payload.ContentType,
 			FileSize:    len(payload.Content),
-			Evidence:    fmt.Sprintf("Status: %d, Response: %s", resp.StatusCode, truncate(string(respBody), 500)),
-			Remediation: getRemediation(payload.VulnType),
-			CVSS:        getCVSS(payload.VulnType),
 		}, nil
 	}
 
@@ -391,18 +377,18 @@ func (t *Tester) isUploadSuccessful(statusCode int, body string) bool {
 	return false
 }
 
-func getSeverity(vt VulnerabilityType) Severity {
+func getSeverity(vt VulnerabilityType) finding.Severity {
 	switch vt {
 	case VulnWebShell, VulnUnrestrictedUpload:
-		return SeverityCritical
+		return finding.Critical
 	case VulnPathTraversal, VulnPolyglot, VulnXMLXXE:
-		return SeverityHigh
+		return finding.High
 	case VulnExtensionBypass, VulnContentTypeBypass, VulnDoubleExtension, VulnNullByte, VulnSVGXSS:
-		return SeverityHigh
+		return finding.High
 	case VulnMaliciousContent, VulnSizeBypass:
-		return SeverityMedium
+		return finding.Medium
 	default:
-		return SeverityMedium
+		return finding.Medium
 	}
 }
 
