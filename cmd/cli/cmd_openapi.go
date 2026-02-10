@@ -51,11 +51,6 @@ func runOpenAPI() {
 	payloadDir := openapiFlags.String("payloads", defaults.PayloadDir, "Payload directory")
 	templateDir := openapiFlags.String("template-dir", defaults.TemplateDir, "Nuclei template directory")
 
-	// Execution options
-	concurrency := openapiFlags.Int("c", 10, "Concurrency level")
-	rateLimit := openapiFlags.Float64("rl", 50, "Requests per second")
-	timeout := openapiFlags.Int("timeout", 30, "Request timeout in seconds")
-
 	// Output options
 	outputFile := openapiFlags.String("o", "", "Output file (JSON)")
 	jsonOutput := openapiFlags.Bool("json", false, "Output in JSON format")
@@ -153,7 +148,7 @@ func runOpenAPI() {
 
 	case *fuzz:
 		runOpenAPIFuzz(ctx, spec, targetBaseURL, *payloadDir, *templateDir, *scanType, *path, *method, authHeaders,
-			*concurrency, *rateLimit, *timeout, *outputFile, *jsonOutput, *verbose)
+			*outputFile, *jsonOutput, *verbose)
 
 	default:
 		// Default to listing endpoints
@@ -236,7 +231,7 @@ func runOpenAPIList(spec *openapi.Spec, baseURL string, jsonOutput bool) {
 }
 
 func runOpenAPIFuzz(ctx context.Context, spec *openapi.Spec, baseURL, payloadDir, templateDir, scanType, filterPath, filterMethod string,
-	authHeaders map[string]string, concurrency int, rateLimit float64, timeout int, outputFile string, jsonOutput, verbose bool) {
+	authHeaders map[string]string, outputFile string, jsonOutput, verbose bool) {
 
 	type fuzzResult struct {
 		Path       string `json:"path"`
@@ -291,10 +286,6 @@ func runOpenAPIFuzz(ctx context.Context, spec *openapi.Spec, baseURL, payloadDir
 		ui.PrintConfigLine("Payloads", fmt.Sprintf("%d per location", len(payloads)))
 		fmt.Println()
 	}
-
-	_ = concurrency
-	_ = rateLimit
-	_ = timeout
 
 	for _, tc := range testCases {
 		select {
