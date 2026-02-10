@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
@@ -72,13 +73,9 @@ type ScanResult struct {
 
 // TesterConfig holds configuration for the SQL injection tester
 type TesterConfig struct {
-	Timeout       time.Duration
+	attackconfig.Base
 	DBMS          DBMS
 	TimeThreshold time.Duration
-	UserAgent     string
-	Client        *http.Client
-	MaxPayloads   int // Maximum payloads per parameter (0 = unlimited)
-	MaxParams     int // Maximum parameters to test (0 = unlimited)
 }
 
 // Tester provides SQL injection testing capabilities
@@ -91,10 +88,12 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:       duration.HTTPFuzzing,
+		Base: attackconfig.Base{
+			Timeout:   duration.HTTPFuzzing,
+			UserAgent: ui.UserAgent(),
+		},
 		DBMS:          DBMSGeneric,
 		TimeThreshold: duration.CMDIThreshold,
-		UserAgent:     ui.UserAgent(),
 	}
 }
 
