@@ -24,6 +24,7 @@ import (
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -750,7 +751,7 @@ func (t *Tester) analyzeResponse(endpoint Endpoint, param Parameter, payload str
 			Endpoint:    endpoint.Path,
 			Method:      endpoint.Method,
 			Parameter:   param.Name,
-			Payload:     truncate(payload, 200),
+			Payload:     strutil.Truncate(payload, 200),
 			Response:    *resp,
 			Evidence:    extractEvidence(resp.Body),
 		}
@@ -765,7 +766,7 @@ func (t *Tester) analyzeResponse(endpoint Endpoint, param Parameter, payload str
 			Endpoint:    endpoint.Path,
 			Method:      endpoint.Method,
 			Parameter:   param.Name,
-			Payload:     truncate(payload, 200),
+			Payload:     strutil.Truncate(payload, 200),
 			Response:    *resp,
 			Evidence:    extractEvidence(resp.Body),
 			CVSS:        8.6,
@@ -781,7 +782,7 @@ func (t *Tester) analyzeResponse(endpoint Endpoint, param Parameter, payload str
 			Endpoint:    endpoint.Path,
 			Method:      endpoint.Method,
 			Parameter:   param.Name,
-			Payload:     truncate(payload, 200),
+			Payload:     strutil.Truncate(payload, 200),
 			Response:    *resp,
 			Evidence:    extractEvidence(resp.Body),
 			CVSS:        5.3,
@@ -797,7 +798,7 @@ func (t *Tester) analyzeResponse(endpoint Endpoint, param Parameter, payload str
 			Endpoint:    endpoint.Path,
 			Method:      endpoint.Method,
 			Parameter:   param.Name,
-			Payload:     truncate(payload, 200),
+			Payload:     strutil.Truncate(payload, 200),
 			Response:    *resp,
 			CVSS:        6.5,
 		}
@@ -888,12 +889,7 @@ func extractEvidence(body string) string {
 	return body
 }
 
-func truncate(s string, maxLen int) string {
-	if len(s) > maxLen {
-		return s[:maxLen] + "..."
-	}
-	return s
-}
+
 
 // DefaultDictionary returns default fuzzing dictionary.
 func DefaultDictionary() []string {

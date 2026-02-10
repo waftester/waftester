@@ -196,22 +196,3 @@ func TestResult_Fields(t *testing.T) {
 		t.Error("Severity not set correctly")
 	}
 }
-
-func TestTruncate(t *testing.T) {
-	tests := []struct {
-		input    string
-		n        int
-		expected string
-	}{
-		{"short", 10, "short"},
-		{"this is a long string", 10, "this is a ..."},
-		{"exact", 5, "exact"},
-	}
-
-	for _, tt := range tests {
-		result := truncate(tt.input, tt.n)
-		if result != tt.expected {
-			t.Errorf("truncate(%q, %d) = %q, want %q", tt.input, tt.n, result, tt.expected)
-		}
-	}
-}

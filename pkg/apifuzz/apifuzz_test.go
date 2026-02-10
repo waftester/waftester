@@ -701,15 +701,6 @@ func TestHelperFunctions(t *testing.T) {
 		}
 	})
 
-	t.Run("truncate", func(t *testing.T) {
-		if truncate("hello", 3) != "hel..." {
-			t.Error("truncate failed")
-		}
-		if truncate("hi", 10) != "hi" {
-			t.Error("truncate should not modify short strings")
-		}
-	})
-
 	t.Run("extractEvidence", func(t *testing.T) {
 		long := strings.Repeat("a", 1000)
 		result := extractEvidence(long)
