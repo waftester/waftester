@@ -13,6 +13,7 @@ package defaults
 
 import (
 	"fmt"
+	"sync/atomic"
 	"time"
 )
 
@@ -354,11 +355,22 @@ const (
 	DropDetectRecoveryProbes = 2
 )
 
-var (
-	// DropDetectRecoveryWindow is the time window to wait before
-	// attempting recovery probes after a connection drop
-	DropDetectRecoveryWindow = 30 * time.Second
-)
+var dropDetectRecoveryWindow atomic.Value
+
+func init() {
+	dropDetectRecoveryWindow.Store(30 * time.Second)
+}
+
+// DropDetectRecoveryWindow returns the time window to wait before
+// attempting recovery probes after a connection drop.
+func DropDetectRecoveryWindow() time.Duration {
+	return dropDetectRecoveryWindow.Load().(time.Duration)
+}
+
+// SetDropDetectRecoveryWindow sets the recovery window duration.
+func SetDropDetectRecoveryWindow(d time.Duration) {
+	dropDetectRecoveryWindow.Store(d)
+}
 
 // ============================================================================
 // SILENT BAN DETECTION
@@ -391,8 +403,19 @@ const (
 	SilentBanHeaderChangeThreshold = 3
 )
 
-var (
-	// SilentBanCooldownPeriod is the time to wait after detecting a
-	// silent ban before resuming normal testing
-	SilentBanCooldownPeriod = 60 * time.Second
-)
+var silentBanCooldownPeriod atomic.Value
+
+func init() {
+	silentBanCooldownPeriod.Store(60 * time.Second)
+}
+
+// SilentBanCooldownPeriod returns the time to wait after detecting a
+// silent ban before resuming normal testing.
+func SilentBanCooldownPeriod() time.Duration {
+	return silentBanCooldownPeriod.Load().(time.Duration)
+}
+
+// SetSilentBanCooldownPeriod sets the cooldown period duration.
+func SetSilentBanCooldownPeriod(d time.Duration) {
+	silentBanCooldownPeriod.Store(d)
+}

@@ -167,7 +167,7 @@ func (d *SilentBanDetector) RecordSample(host string, resp *http.Response, laten
 			Type:            BanTypeRateLimit,
 			Confidence:      0.6,
 			Evidence:        []string{"consecutive errors threshold exceeded"},
-			RecommendedWait: defaults.SilentBanCooldownPeriod,
+			RecommendedWait: defaults.SilentBanCooldownPeriod(),
 		}
 	}
 
@@ -259,7 +259,7 @@ func (d *SilentBanDetector) Analyze(host string) *BanResult {
 	}
 
 	if banned {
-		result.RecommendedWait = defaults.SilentBanCooldownPeriod
+		result.RecommendedWait = defaults.SilentBanCooldownPeriod()
 	}
 
 	return result

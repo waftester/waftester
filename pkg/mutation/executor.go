@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
@@ -315,11 +314,11 @@ func (e *Executor) Execute(ctx context.Context, tasks []MutationTask, handler Re
 				// Update stats
 				statsMu.Lock()
 				if result.Blocked {
-					atomic.AddInt64(&stats.Blocked, 1)
+					stats.Blocked++
 				} else if result.ErrorMessage != "" {
-					atomic.AddInt64(&stats.Errors, 1)
+					stats.Errors++
 				} else {
-					atomic.AddInt64(&stats.Passed, 1)
+					stats.Passed++
 				}
 				stats.ByEncoder[result.EncoderUsed]++
 				stats.ByLocation[result.LocationUsed]++
