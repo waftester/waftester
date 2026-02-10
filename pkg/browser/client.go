@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -216,37 +216,19 @@ func NewClient(opts ...Option) (*Client, error) {
 		opt(c)
 	}
 
-	// Build transport
-	transport := &http.Transport{
-		DialContext: (&net.Dialer{
-			Timeout:   c.timeout,
-			KeepAlive: duration.KeepAlive,
-		}).DialContext,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       duration.IdleConnTimeout,
-		TLSHandshakeTimeout:   duration.TLSHandshake,
-		ExpectContinueTimeout: duration.RetryFast,
-		ForceAttemptHTTP2:     true,
+	// Build client via httpclient.Config for centralized transport management
+	cfg := httpclient.Config{
+		Timeout:             c.timeout,
+		MaxIdleConns:        100,
+		IdleConnTimeout:     duration.IdleConnTimeout,
+		TLSHandshakeTimeout: duration.TLSHandshake,
+		Proxy:               c.proxy,
 	}
-
 	if c.profile.TLSConfig != nil {
-		transport.TLSClientConfig = c.profile.TLSConfig
+		cfg.TLSConfig = c.profile.TLSConfig
 	}
-
-	if c.proxy != "" {
-		proxyURL, err := url.Parse(c.proxy)
-		if err != nil {
-			return nil, fmt.Errorf("invalid proxy URL: %w", err)
-		}
-		transport.Proxy = http.ProxyURL(proxyURL)
-	}
-
-	// Build client
-	c.http = &http.Client{
-		Jar:       jar,
-		Transport: transport,
-		Timeout:   c.timeout,
-	}
+	c.http = httpclient.New(cfg)
+	c.http.Jar = jar
 
 	if c.followRedir {
 		c.http.CheckRedirect = func(req *http.Request, via []*http.Request) error {
