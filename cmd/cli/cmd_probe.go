@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"hash/fnv"
 	"io"
 	"net/http"
 	"net/url"
@@ -32,6 +31,7 @@ import (
 	"github.com/waftester/waftester/pkg/checkpoint"
 	"github.com/waftester/waftester/pkg/dsl"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/fp"
 	"github.com/waftester/waftester/pkg/headless"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/input"
@@ -1046,41 +1046,6 @@ func runProbe() {
 		return true
 	}
 
-	// Simhash implementation for near-duplicate detection
-	simhash := func(text string) uint64 {
-		var v [64]int
-		words := strings.Fields(strings.ToLower(text))
-		for _, word := range words {
-			h := fnv.New64a()
-			h.Write([]byte(word))
-			hash := h.Sum64()
-			for i := 0; i < 64; i++ {
-				if (hash>>i)&1 == 1 {
-					v[i]++
-				} else {
-					v[i]--
-				}
-			}
-		}
-		var fingerprint uint64
-		for i := 0; i < 64; i++ {
-			if v[i] > 0 {
-				fingerprint |= 1 << i
-			}
-		}
-		return fingerprint
-	}
-
-	hammingDistance := func(a, b uint64) int {
-		xor := a ^ b
-		count := 0
-		for xor != 0 {
-			count++
-			xor &= xor - 1
-		}
-		return count
-	}
-
 	// Simhash deduplication tracking
 	seenSimhashes := make([]uint64, 0)
 
@@ -1304,8 +1269,6 @@ func runProbe() {
 	_ = excludedHosts
 	_ = matchRange
 	_ = matchTimeCondition
-	_ = simhash
-	_ = hammingDistance
 	_ = seenSimhashes
 	_ = statsTotal
 	_ = statsSuccess
@@ -1640,7 +1603,7 @@ func runProbe() {
 					results.BodyHash = fmt.Sprintf("mmh3:%d", int32(h))
 				case "simhash":
 					// Simhash for near-duplicate detection
-					bodyHash := simhash(bodyStr)
+					bodyHash := fp.Simhash(bodyStr)
 					results.BodyHash = fmt.Sprintf("simhash:%d", bodyHash)
 				}
 			}
@@ -1718,12 +1681,12 @@ func runProbe() {
 
 				// Vision recon clustering - group similar screenshots
 				if *storeVisionRecon {
-					bodyHash := simhash(results.rawBody)
+					bodyHash := fp.Simhash(results.rawBody)
 					visionClustersMu.Lock()
 					clusterID := screenshotClusterID
 					// Check if this hash is similar to an existing cluster
 					for _, existing := range visionClusters {
-						if hammingDistance(bodyHash, existing.Simhash) <= 8 {
+						if fp.HammingDistance(bodyHash, existing.Simhash) <= 8 {
 							clusterID = existing.Cluster
 							break
 						}
@@ -2522,11 +2485,11 @@ func runProbe() {
 
 		// Simhash near-duplicate detection
 		if *simhashThreshold > 0 && !skipOutput {
-			bodyHash := simhash(results.rawBody)
+			bodyHash := fp.Simhash(results.rawBody)
 			isDuplicate := false
 			seenSimhashesMu.Lock()
 			for _, seen := range seenSimhashes {
-				if hammingDistance(bodyHash, seen) <= *simhashThreshold {
+				if fp.HammingDistance(bodyHash, seen) <= *simhashThreshold {
 					isDuplicate = true
 					break
 				}
