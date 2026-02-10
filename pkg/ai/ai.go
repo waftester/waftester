@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/waftester/waftester/internal/hexutil"
+	"github.com/waftester/waftester/pkg/hexutil"
 	"github.com/waftester/waftester/pkg/httpclient"
 )
 

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode/utf16"
 
-	"github.com/waftester/waftester/internal/hexutil"
+	"github.com/waftester/waftester/pkg/hexutil"
 	"github.com/waftester/waftester/pkg/bufpool"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
