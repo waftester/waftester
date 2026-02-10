@@ -156,7 +156,7 @@ func NewExecutor(cfg ExecutorConfig, opts ...ExecutorOption) *Executor {
 }
 
 // Execute runs all payloads with worker pool pattern
-func (e *Executor) Execute(ctx context.Context, allPayloads []payloads.Payload, writer output.Writer) output.ExecutionResults {
+func (e *Executor) Execute(ctx context.Context, allPayloads []payloads.Payload, writer output.ResultWriter) output.ExecutionResults {
 	results := output.ExecutionResults{
 		TotalTests: len(allPayloads),
 		StartTime:  time.Now(),
@@ -803,7 +803,7 @@ func categorizeError(err error) string {
 }
 
 // ExecuteWithProgress runs all payloads with UI progress display
-func (e *Executor) ExecuteWithProgress(ctx context.Context, allPayloads []payloads.Payload, writer output.Writer, progress *ui.Progress) output.ExecutionResults {
+func (e *Executor) ExecuteWithProgress(ctx context.Context, allPayloads []payloads.Payload, writer output.ResultWriter, progress *ui.Progress) output.ExecutionResults {
 	results := output.ExecutionResults{
 		TotalTests:        len(allPayloads),
 		StartTime:         time.Now(),

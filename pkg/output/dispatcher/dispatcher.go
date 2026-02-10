@@ -14,9 +14,10 @@ import (
 	"github.com/waftester/waftester/pkg/output/events"
 )
 
-// Writer is the interface for all output writers.
+// Writer is the canonical interface for all event-based output writers.
 // Writers are responsible for persisting events to various output formats
 // such as JSON, SARIF, CSV, or console output.
+// For legacy TestResult-based writing, see output.ResultWriter.
 type Writer interface {
 	// Write writes an event to the output.
 	Write(event events.Event) error

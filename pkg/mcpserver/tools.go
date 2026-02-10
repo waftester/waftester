@@ -1491,7 +1491,7 @@ func estimateScanDuration(payloadCount, concurrency, rateLimit int) string {
 	return fmt.Sprintf("%d-%ds (consider narrowing categories for faster results)", seconds/2, seconds*2)
 }
 
-// discardWriter implements output.Writer and discards all results.
+// discardWriter implements output.ResultWriter and discards all results.
 // Used when results are collected via the OnResult callback instead.
 type discardWriter struct{}
 

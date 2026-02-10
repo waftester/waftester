@@ -208,12 +208,12 @@ func (w *ECSVWriter) Close() error {
 
 // TaggedWriter wraps another writer and adds source tags (gospider-style)
 type TaggedWriter struct {
-	inner  Writer
+	inner  ResultWriter
 	source string
 }
 
 // NewTaggedWriter creates a writer that prefixes output with source tags
-func NewTaggedWriter(inner Writer, source string) *TaggedWriter {
+func NewTaggedWriter(inner ResultWriter, source string) *TaggedWriter {
 	return &TaggedWriter{
 		inner:  inner,
 		source: source,
@@ -281,11 +281,11 @@ func (w *TemplateWriter) Close() error {
 
 // MultiWriter writes to multiple outputs simultaneously
 type MultiWriter struct {
-	writers []Writer
+	writers []ResultWriter
 }
 
 // NewMultiWriter creates a writer that outputs to all formats
-func NewMultiWriter(writers ...Writer) *MultiWriter {
+func NewMultiWriter(writers ...ResultWriter) *MultiWriter {
 	return &MultiWriter{writers: writers}
 }
 
@@ -321,7 +321,7 @@ func NewAllFormatsWriter(basePath string, metadata *ExecutionMetadata) (*MultiWr
 	basePath = strings.TrimSuffix(basePath, ".html")
 	basePath = strings.TrimSuffix(basePath, ".md")
 
-	writers := make([]Writer, 0)
+	writers := make([]ResultWriter, 0)
 
 	// JSON
 	if w, err := newJSONWriter(basePath + ".json"); err == nil {
