@@ -25,7 +25,9 @@ var cache sync.Map
 func Get(pattern string) (*regexp.Regexp, error) {
 	// Fast path: check if already cached
 	if cached, ok := cache.Load(pattern); ok {
-		return cached.(*regexp.Regexp), nil
+		if re, ok := cached.(*regexp.Regexp); ok {
+			return re, nil
+		}
 	}
 
 	// Slow path: compile and cache

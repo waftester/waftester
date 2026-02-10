@@ -202,8 +202,12 @@ func (p *Parser) parseSwagger2Paths(paths map[string]interface{}) []Route {
 
 // parseOpenAPI3 parses OpenAPI 3.0+ format
 func (p *Parser) parseOpenAPI3(raw map[string]interface{}) (*OpenAPISpec, error) {
+	version, ok := raw["openapi"].(string)
+	if !ok {
+		return nil, fmt.Errorf("openapi: missing or invalid version field")
+	}
 	spec := &OpenAPISpec{
-		Version: raw["openapi"].(string),
+		Version: version,
 	}
 
 	// Extract basic info

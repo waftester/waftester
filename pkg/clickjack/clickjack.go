@@ -3,6 +3,7 @@ package clickjack
 
 import (
 	"context"
+	"html"
 	"net/http"
 	"strings"
 	"sync"
@@ -192,7 +193,7 @@ func GeneratePOC(targetURL string) string {
         <h1>Win a Prize!</h1>
         <button>Click Here!</button>
     </div>
-    <iframe src="` + targetURL + `"></iframe>
+    <iframe src="` + html.EscapeString(targetURL) + `"></iframe>
 </body>
 </html>`
 }

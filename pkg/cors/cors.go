@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/publicsuffix"
+
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/finding"
@@ -180,12 +182,17 @@ func extractBaseDomain(host string) string {
 		host = host[:idx]
 	}
 
-	// Simple extraction - get last two parts
-	parts := strings.Split(host, ".")
-	if len(parts) >= 2 {
-		return strings.Join(parts[len(parts)-2:], ".")
+	// Use publicsuffix for correct multi-part TLD handling (e.g., .co.uk, .com.au)
+	domain, err := publicsuffix.EffectiveTLDPlusOne(host)
+	if err != nil {
+		// Fallback: get last two parts
+		parts := strings.Split(host, ".")
+		if len(parts) >= 2 {
+			return strings.Join(parts[len(parts)-2:], ".")
+		}
+		return host
 	}
-	return host
+	return domain
 }
 
 // TestOrigin tests a specific origin against the target

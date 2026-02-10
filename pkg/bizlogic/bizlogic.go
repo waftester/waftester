@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -790,9 +791,9 @@ func isNumeric(s string) bool {
 }
 
 func parseInt(s string) int {
-	var n int
-	for _, c := range s {
-		n = n*10 + int(c-'0')
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return 0
 	}
 	return n
 }
