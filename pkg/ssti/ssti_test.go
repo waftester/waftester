@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewDetector(t *testing.T) {
@@ -301,7 +303,7 @@ func TestPayloadGenerator(t *testing.T) {
 			t.Errorf("expected RCE type, got %s", payload.Type)
 		}
 
-		if payload.Severity != SeverityCritical {
+		if payload.Severity != finding.Critical {
 			t.Errorf("expected critical severity, got %s", payload.Severity)
 		}
 
@@ -400,7 +402,7 @@ func TestAnalyzeResponse(t *testing.T) {
 			MathB:          5,
 			MathResult:     25,
 			ExpectedOutput: "25",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 		}
 
 		vuln := d.analyzeResponse("http://test.com", "q", payload, "The result is 25!", time.Millisecond, "")
@@ -419,7 +421,7 @@ func TestAnalyzeResponse(t *testing.T) {
 			Type:     PayloadInfoDisclosure,
 			Engine:   EngineJinja2,
 			Regex:    regexp.MustCompile(`(?i)secret|debug`),
-			Severity: SeverityMedium,
+			Severity: finding.Medium,
 		}
 
 		vuln := d.analyzeResponse("http://test.com", "q", payload, "DEBUG=True, SECRET_KEY=abc", time.Millisecond, "")
@@ -439,7 +441,7 @@ func TestAnalyzeResponse(t *testing.T) {
 			Engine:         EngineJinja2,
 			MathResult:     9801,
 			ExpectedOutput: "9801",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 		}
 
 		vuln := d.analyzeResponse("http://test.com", "q", payload, "Nothing to see here", time.Millisecond, "")
@@ -582,13 +584,15 @@ func TestPayloadDescriptions(t *testing.T) {
 
 func TestVulnerabilityFields(t *testing.T) {
 	vuln := &Vulnerability{
-		URL:            "http://example.com/test",
-		Parameter:      "q",
+		Vulnerability: finding.Vulnerability{
+			URL:          "http://example.com/test",
+			Parameter:    "q",
+			Severity:     finding.High,
+			Evidence:     "7777777",
+			ResponseTime: 100 * time.Millisecond,
+		},
 		Engine:         EngineJinja2,
-		Evidence:       "7777777",
 		Confidence:     "high",
-		Severity:       SeverityHigh,
-		ResponseTime:   100 * time.Millisecond,
 		CanExecuteCode: true,
 		RCEPayload:     "{{lipsum.__globals__['os'].popen('id').read()}}",
 	}

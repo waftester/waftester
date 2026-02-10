@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewDetector(t *testing.T) {
@@ -577,7 +579,7 @@ func TestDetectContextCancellation(t *testing.T) {
 func TestVulnerabilityFields(t *testing.T) {
 	v := Vulnerability{
 		Type:        "SSRF",
-		Severity:    "critical",
+		Severity:    finding.Critical,
 		Parameter:   "url",
 		Payload:     "http://169.254.169.254/",
 		Evidence:    "AWS metadata response",
