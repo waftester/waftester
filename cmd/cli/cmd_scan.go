@@ -21,6 +21,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/api"
 	"github.com/waftester/waftester/pkg/apifuzz"
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/bizlogic"
 	"github.com/waftester/waftester/pkg/cache"
 	"github.com/waftester/waftester/pkg/cmdi"
@@ -820,11 +821,13 @@ func runScan() {
 		}()
 
 		cfg := &sqli.TesterConfig{
-			Timeout:     timeoutDur,
-			UserAgent:   ui.UserAgent(),
-			Client:      httpClient,
-			MaxPayloads: *maxPayloads,
-			MaxParams:   *maxParams,
+			Base: attackconfig.Base{
+				Timeout:     timeoutDur,
+				UserAgent:   ui.UserAgent(),
+				Client:      httpClient,
+				MaxPayloads: *maxPayloads,
+				MaxParams:   *maxParams,
+			},
 		}
 		tester := sqli.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
