@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/js"
@@ -75,9 +76,8 @@ type ReconStats struct {
 
 // Config configures the full reconnaissance scan
 type Config struct {
+	attackconfig.Base
 	// General settings
-	Timeout       time.Duration
-	Concurrency   int
 	Verbose       bool
 	SkipTLSVerify bool
 	HTTPClient    *http.Client // Optional custom HTTP client (e.g., JA3-aware)
@@ -105,8 +105,10 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() *Config {
 	return &Config{
-		Timeout:              duration.HTTPFuzzing,
-		Concurrency:          defaults.ConcurrencyHigh,
+		Base: attackconfig.Base{
+			Timeout:     duration.HTTPFuzzing,
+			Concurrency: defaults.ConcurrencyHigh,
+		},
 		Verbose:              false,
 		EnableLeakyPaths:     true,
 		EnableParamDiscovery: true,
@@ -221,10 +223,9 @@ func (s *Scanner) FullScan(ctx context.Context, targetURL string) (*FullReconRes
 // scanLeakyPaths scans for leaky paths
 func (s *Scanner) scanLeakyPaths(ctx context.Context, targetURL string) (*leakypaths.ScanSummary, error) {
 	scanner := leakypaths.NewScanner(&leakypaths.Config{
-		Concurrency: s.config.Concurrency,
-		Timeout:     s.config.Timeout,
-		Verbose:     s.config.Verbose,
-		HTTPClient:  s.config.HTTPClient, // JA3 TLS fingerprint rotation
+		Base:       attackconfig.Base{Concurrency: s.config.Concurrency, Timeout: s.config.Timeout},
+		Verbose:    s.config.Verbose,
+		HTTPClient: s.config.HTTPClient, // JA3 TLS fingerprint rotation
 	})
 
 	return scanner.Scan(ctx, targetURL, s.config.LeakyPathCategories...)
@@ -233,8 +234,7 @@ func (s *Scanner) scanLeakyPaths(ctx context.Context, targetURL string) (*leakyp
 // discoverParams discovers hidden parameters
 func (s *Scanner) discoverParams(ctx context.Context, targetURL string) (*params.DiscoveryResult, error) {
 	discoverer := params.NewDiscoverer(&params.Config{
-		Concurrency:  s.config.Concurrency,
-		Timeout:      s.config.Timeout,
+		Base:         attackconfig.Base{Concurrency: s.config.Concurrency, Timeout: s.config.Timeout},
 		Verbose:      s.config.Verbose,
 		WordlistFile: s.config.ParamWordlist,
 		HTTPClient:   s.config.HTTPClient, // JA3 TLS fingerprint rotation
