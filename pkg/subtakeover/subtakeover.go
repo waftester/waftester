@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/waftester/waftester/pkg/attackconfig"
@@ -20,6 +19,7 @@ import (
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/runner"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -447,35 +447,26 @@ func (t *Tester) CheckMX(domain string) (*Vulnerability, error) {
 	return nil, nil
 }
 
-// BatchCheck checks multiple subdomains concurrently
+// BatchCheck checks multiple subdomains concurrently using runner.Runner[T].
 func (t *Tester) BatchCheck(ctx context.Context, subdomains []string) ([]ScanResult, error) {
-	var results []ScanResult
-	var mu sync.Mutex
-	var wg sync.WaitGroup
+	r := runner.NewRunner[ScanResult]()
+	r.Concurrency = t.config.Concurrency
 
-	sem := make(chan struct{}, t.config.Concurrency)
+	results := r.Run(ctx, subdomains, func(ctx context.Context, target string) (ScanResult, error) {
+		result, err := t.CheckSubdomain(ctx, target)
+		if err != nil {
+			return ScanResult{}, err
+		}
+		return *result, nil
+	})
 
-	for _, subdomain := range subdomains {
-		wg.Add(1)
-		go func(sd string) {
-			defer wg.Done()
-
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			result, err := t.CheckSubdomain(ctx, sd)
-			if err != nil {
-				return
-			}
-
-			mu.Lock()
-			results = append(results, *result)
-			mu.Unlock()
-		}(subdomain)
+	out := make([]ScanResult, 0, len(results))
+	for _, res := range results {
+		if res.Error == nil {
+			out = append(out, res.Data)
+		}
 	}
-
-	wg.Wait()
-	return results, nil
+	return out, nil
 }
 
 // Helper functions
