@@ -1,10 +1,15 @@
 package test
 
 import (
+	"bufio"
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"text/template"
@@ -1769,5 +1774,752 @@ func TestTemplatesNoEmptyDirectories(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("failed to walk templates/: %v", err)
+	}
+}
+
+// =============================================================================
+// PHASE 17 — PREVENTIVE STRUCTURAL TESTS
+// =============================================================================
+
+// walkFunc is the callback signature for walkGoFiles.
+type walkFunc func(t *testing.T, fset *token.FileSet, f *ast.File, path string)
+
+// walkGoFiles parses every .go file under root and calls fn for each.
+func walkGoFiles(t *testing.T, root string, fn walkFunc) {
+	t.Helper()
+	fset := token.NewFileSet()
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		f, parseErr := parser.ParseFile(fset, path, nil, parser.ParseComments)
+		if parseErr != nil {
+			return nil
+		}
+		fn(t, fset, f, path)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// exprName returns a dotted name for an AST expression (e.g. "http.Client").
+func exprName(expr ast.Expr) string {
+	switch e := expr.(type) {
+	case *ast.SelectorExpr:
+		return exprName(e.X) + "." + e.Sel.Name
+	case *ast.Ident:
+		return e.Name
+	case *ast.StarExpr:
+		return exprName(e.X)
+	default:
+		return ""
+	}
+}
+
+// TestNoLocalVulnerabilityStruct ensures no package outside finding declares
+// "type Vulnerability struct". Type aliases are allowed.
+func TestNoLocalVulnerabilityStruct(t *testing.T) {
+	t.Parallel()
+	repoRoot := getRepoRoot(t)
+	pkgDir := filepath.Join(repoRoot, "pkg")
+
+	// Known pre-existing attack packages that define their own Vulnerability struct.
+	// Removing entries is allowed; adding is NOT.
+	knownViolations := map[string]bool{
+		"apifuzz": true, "bizlogic": true, "cache": true, "cmdi": true,
+		"cors": true, "crlf": true, "deserialize": true, "exploit": true,
+		"graphql": true, "hostheader": true, "hpp": true, "jwt": true,
+		"nosqli": true, "oauth": true, "prototype": true, "race": true,
+		"redirect": true, "smuggling": true, "sqli": true, "ssrf": true,
+		"ssti": true, "subtakeover": true, "traversal": true, "upload": true,
+		"websocket": true, "xss": true, "xxe": true,
+	}
+
+	var newViolations []string
+	var knownFound []string
+
+	walkGoFiles(t, pkgDir, func(t *testing.T, fset *token.FileSet, f *ast.File, path string) {
+		if strings.HasSuffix(path, "_test.go") {
+			return
+		}
+		for _, decl := range f.Decls {
+			genDecl, ok := decl.(*ast.GenDecl)
+			if !ok || genDecl.Tok != token.TYPE {
+				continue
+			}
+			for _, spec := range genDecl.Specs {
+				ts, ok := spec.(*ast.TypeSpec)
+				if !ok || ts.Name.Name != "Vulnerability" {
+					continue
+				}
+				// Allow finding package itself
+				if f.Name.Name == "finding" {
+					continue
+				}
+				// Allow type aliases (type Vulnerability = finding.Vulnerability)
+				if ts.Assign.IsValid() {
+					continue
+				}
+				// Only flag struct declarations
+				if _, isStruct := ts.Type.(*ast.StructType); !isStruct {
+					continue
+				}
+				rel, _ := filepath.Rel(repoRoot, path)
+				relSlash := filepath.ToSlash(rel)
+				if knownViolations[f.Name.Name] {
+					knownFound = append(knownFound, relSlash)
+				} else {
+					newViolations = append(newViolations, relSlash)
+				}
+			}
+		}
+	})
+
+	if len(knownFound) > 0 {
+		t.Logf("INFO: %d known pre-existing Vulnerability struct(s) (tracked for future migration):", len(knownFound))
+		for _, v := range knownFound {
+			t.Logf("  ⚠ %s", v)
+		}
+	}
+
+	if len(newViolations) > 0 {
+		t.Errorf("found NEW local 'type Vulnerability struct' declarations that should use finding.Vulnerability:")
+		for _, v := range newViolations {
+			t.Errorf("  - %s", v)
+		}
+	}
+}
+
+// TestNoRawHTTPClient ensures production code creates HTTP clients through
+// the httpclient package, not with raw http.Client{} or http.Transport{} literals.
+func TestNoRawHTTPClient(t *testing.T) {
+	t.Parallel()
+	repoRoot := getRepoRoot(t)
+	pkgDir := filepath.Join(repoRoot, "pkg")
+
+	allowlist := map[string]bool{
+		"httpclient":  true,
+		"tls":         true,
+		"detection":   true,
+		"health":      true,
+		"distributed": true,
+	}
+
+	var violations []string
+
+	walkGoFiles(t, pkgDir, func(t *testing.T, fset *token.FileSet, f *ast.File, path string) {
+		if strings.HasSuffix(path, "_test.go") {
+			return
+		}
+		if allowlist[f.Name.Name] {
+			return
+		}
+
+		ast.Inspect(f, func(n ast.Node) bool {
+			lit, ok := n.(*ast.CompositeLit)
+			if !ok {
+				return true
+			}
+			name := exprName(lit.Type)
+			if name == "http.Client" || name == "http.Transport" {
+				rel, _ := filepath.Rel(repoRoot, path)
+				pos := fset.Position(lit.Pos())
+				violations = append(violations, filepath.ToSlash(rel)+":"+strings.TrimPrefix(filepath.ToSlash(pos.String()), filepath.ToSlash(rel)+":"))
+			}
+			return true
+		})
+	})
+
+	if len(violations) > 0 {
+		t.Errorf("found raw http.Client{}/http.Transport{} outside httpclient package:")
+		for _, v := range violations {
+			t.Errorf("  - %s", v)
+		}
+		t.Error("Fix: Use httpclient.New() or httpclient.NewTransport() instead")
+	}
+}
+
+// TestNoDirectPrintInPkg ensures production code under pkg/ does not use
+// direct print/log functions. Output should go through the ui package.
+func TestNoDirectPrintInPkg(t *testing.T) {
+	t.Parallel()
+	repoRoot := getRepoRoot(t)
+	pkgDir := filepath.Join(repoRoot, "pkg")
+
+	// Packages that legitimately produce console output.
+	allowlist := map[string]bool{
+		"ui":          true,
+		"interactive": true,
+		"mcpserver":   true,
+		"output":      true,
+		"discovery":   true,
+		"fp":          true,
+		"core":        true,
+		"corpus":      true,
+		"params":      true,
+		"report":      true,
+		"update":      true,
+		"validate":    true,
+		"input":       true,
+		"hooks":       true,
+	}
+
+	// Patterns that indicate direct stdout/stderr output.
+	// We do NOT ban fmt.Sprintf (string formatting), fmt.Errorf (error wrapping),
+	// or fmt.Fprintf to arbitrary writers.
+	bannedPatterns := []string{
+		"fmt.Printf(",
+		"fmt.Println(",
+		"fmt.Print(",
+		"log.Printf(",
+		"log.Println(",
+		"log.Print(",
+		"log.Fatalf(",
+		"log.Fatal(",
+		"fmt.Fprintf(os.Stdout",
+		"fmt.Fprintf(os.Stderr",
+	}
+
+	var violations []string
+
+	err := filepath.Walk(pkgDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+
+		content, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return nil
+		}
+
+		// Determine package name from directory
+		dir := filepath.Base(filepath.Dir(path))
+		if allowlist[dir] {
+			return nil
+		}
+
+		lines := strings.Split(string(content), "\n")
+		rel, _ := filepath.Rel(repoRoot, path)
+		relSlash := filepath.ToSlash(rel)
+
+		for lineNum, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			// Skip comments
+			if strings.HasPrefix(trimmed, "//") {
+				continue
+			}
+			for _, pattern := range bannedPatterns {
+				if strings.Contains(line, pattern) {
+					violations = append(violations, relSlash+":"+strconv.Itoa(lineNum+1)+": "+trimmed)
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("failed to walk pkg/: %v", err)
+	}
+
+	if len(violations) > 0 {
+		t.Errorf("found direct print/log calls in pkg/ (use ui package instead):")
+		for _, v := range violations {
+			t.Errorf("  - %s", v)
+		}
+	}
+}
+
+// TestNoCopyPastedSignalHandler ensures signal.Notify is only called from
+// pkg/cli/, not duplicated in cmd/ or other packages.
+func TestNoCopyPastedSignalHandler(t *testing.T) {
+	t.Parallel()
+	repoRoot := getRepoRoot(t)
+
+	var violations []string
+
+	// Check cmd/ directory for signal.Notify (allow cmd/cli/ as the canonical CLI location)
+	cmdDir := filepath.Join(repoRoot, "cmd")
+	cliDir := filepath.Join(cmdDir, "cli")
+	err := filepath.Walk(cmdDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+
+		// cmd/cli/ is the canonical CLI entry point — signal handling there is expected
+		if strings.HasPrefix(path, cliDir) {
+			return nil
+		}
+
+		content, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return nil
+		}
+
+		if strings.Contains(string(content), "signal.Notify") {
+			rel, _ := filepath.Rel(repoRoot, path)
+			violations = append(violations, filepath.ToSlash(rel))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("failed to walk cmd/: %v", err)
+	}
+
+	if len(violations) > 0 {
+		t.Errorf("found signal.Notify outside pkg/cli/ (signal handling should be centralized):")
+		for _, v := range violations {
+			t.Errorf("  - %s", v)
+		}
+		t.Error("Fix: Use the centralized signal handler in pkg/cli/")
+	}
+}
+
+// TestNoDuplicateHelperFunctions ensures hand-rolled min/max functions
+// don't appear in production code — they are Go builtins since Go 1.21.
+func TestNoDuplicateHelperFunctions(t *testing.T) {
+	t.Parallel()
+	repoRoot := getRepoRoot(t)
+
+	allowlist := map[string]bool{
+		"strutil": true,
+	}
+
+	minMaxPattern := regexp.MustCompile(`^func\s+(min|max)\(`)
+
+	var violations []string
+
+	for _, dir := range []string{"pkg", "cmd"} {
+		root := filepath.Join(repoRoot, dir)
+		err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil
+			}
+			if info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+
+			parentDir := filepath.Base(filepath.Dir(path))
+			if allowlist[parentDir] {
+				return nil
+			}
+
+			content, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return nil
+			}
+
+			lines := strings.Split(string(content), "\n")
+			rel, _ := filepath.Rel(repoRoot, path)
+			relSlash := filepath.ToSlash(rel)
+
+			for lineNum, line := range lines {
+				if minMaxPattern.MatchString(strings.TrimSpace(line)) {
+					violations = append(violations, relSlash+":"+strconv.Itoa(lineNum+1)+": "+strings.TrimSpace(line))
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("failed to walk %s/: %v", dir, err)
+		}
+	}
+
+	if len(violations) > 0 {
+		t.Errorf("found hand-rolled min/max functions (use Go builtins instead):")
+		for _, v := range violations {
+			t.Errorf("  - %s", v)
+		}
+		t.Error("Fix: Remove local min/max and use the Go 1.21+ builtins")
+	}
+}
+
+// TestNoPkgImportsInternal ensures pkg/ does not import internal/ packages.
+// Since Phase 16 moved hexutil to pkg/, there should be zero such imports.
+func TestNoPkgImportsInternal(t *testing.T) {
+	t.Parallel()
+	repoRoot := getRepoRoot(t)
+	pkgDir := filepath.Join(repoRoot, "pkg")
+
+	var violations []string
+
+	walkGoFiles(t, pkgDir, func(t *testing.T, fset *token.FileSet, f *ast.File, path string) {
+		for _, imp := range f.Imports {
+			importPath := strings.Trim(imp.Path.Value, `"`)
+			if strings.Contains(importPath, "/internal/") {
+				rel, _ := filepath.Rel(repoRoot, path)
+				violations = append(violations, filepath.ToSlash(rel)+": imports "+importPath)
+			}
+		}
+	})
+
+	if len(violations) > 0 {
+		t.Errorf("found pkg/ files importing internal/ packages:")
+		for _, v := range violations {
+			t.Errorf("  - %s", v)
+		}
+		t.Error("Fix: Use the pkg/ equivalent (e.g., pkg/hexutil instead of internal/hexutil)")
+	}
+}
+
+// TestNoBareHTTPConvenienceFunctions ensures production code does not use
+// http.Get/Post/Head/PostForm convenience functions, which lack timeouts
+// and proper error handling.
+func TestNoBareHTTPConvenienceFunctions(t *testing.T) {
+	t.Parallel()
+	repoRoot := getRepoRoot(t)
+	pkgDir := filepath.Join(repoRoot, "pkg")
+
+	// Packages that legitimately make direct HTTP calls
+	allowlist := map[string]bool{
+		"cloud": true,
+	}
+
+	bannedCalls := []string{
+		"http.Get(",
+		"http.Post(",
+		"http.Head(",
+		"http.PostForm(",
+	}
+
+	var violations []string
+
+	err := filepath.Walk(pkgDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+
+		parentDir := filepath.Base(filepath.Dir(path))
+		if allowlist[parentDir] {
+			return nil
+		}
+
+		content, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return nil
+		}
+
+		lines := strings.Split(string(content), "\n")
+		rel, _ := filepath.Rel(repoRoot, path)
+		relSlash := filepath.ToSlash(rel)
+
+		for lineNum, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "//") {
+				continue
+			}
+			for _, pattern := range bannedCalls {
+				if strings.Contains(line, pattern) {
+					violations = append(violations, relSlash+":"+strconv.Itoa(lineNum+1)+": "+trimmed)
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("failed to walk pkg/: %v", err)
+	}
+
+	if len(violations) > 0 {
+		t.Errorf("found bare http convenience functions (use httpclient package instead):")
+		for _, v := range violations {
+			t.Errorf("  - %s", v)
+		}
+		t.Error("Fix: Use httpclient.New() to create a client with proper timeouts")
+	}
+}
+
+// TestNoHandRolledRetry detects hand-rolled retry loops that should use the
+// retry package. Looks for time.Sleep near retry/attempt keywords.
+func TestNoHandRolledRetry(t *testing.T) {
+	t.Parallel()
+	repoRoot := getRepoRoot(t)
+	pkgDir := filepath.Join(repoRoot, "pkg")
+
+	allowlist := map[string]bool{
+		"retry":       true,
+		"ratelimit":   true,
+		"distributed":  true,
+		"workerpool":  true,
+		"browser":     true,
+		"core":        true,
+		"httpclient":  true,
+	}
+
+	retryKeywords := regexp.MustCompile(`(?i)(retry|attempt)`)
+
+	var violations []string
+
+	err := filepath.Walk(pkgDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+
+		parentDir := filepath.Base(filepath.Dir(path))
+		if allowlist[parentDir] {
+			return nil
+		}
+
+		content, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return nil
+		}
+
+		lines := strings.Split(string(content), "\n")
+		rel, _ := filepath.Rel(repoRoot, path)
+		relSlash := filepath.ToSlash(rel)
+
+		for i, line := range lines {
+			if !strings.Contains(line, "time.Sleep") {
+				continue
+			}
+			// Check within ±10 lines for retry/attempt keywords
+			start := i - 10
+			if start < 0 {
+				start = 0
+			}
+			end := i + 10
+			if end >= len(lines) {
+				end = len(lines) - 1
+			}
+			for j := start; j <= end; j++ {
+				if retryKeywords.MatchString(lines[j]) {
+					violations = append(violations, relSlash+":"+strconv.Itoa(i+1)+": time.Sleep near retry/attempt pattern")
+					break
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("failed to walk pkg/: %v", err)
+	}
+
+	if len(violations) > 0 {
+		t.Errorf("found hand-rolled retry loops (use retry package instead):")
+		for _, v := range violations {
+			t.Errorf("  - %s", v)
+		}
+		t.Error("Fix: Use pkg/retry for retry logic instead of manual time.Sleep loops")
+	}
+}
+
+// TestNoUnsyncedMutableGlobals detects package-level var declarations of
+// mutable types (slices, maps) that could cause data races. Sync primitives,
+// regexp, and simple value types are allowed.
+func TestNoUnsyncedMutableGlobals(t *testing.T) {
+	t.Parallel()
+	repoRoot := getRepoRoot(t)
+	pkgDir := filepath.Join(repoRoot, "pkg")
+
+	allowlist := map[string]bool{
+		"defaults":   true,
+		"regexcache": true,
+	}
+
+	var violations []string
+
+	walkGoFiles(t, pkgDir, func(t *testing.T, fset *token.FileSet, f *ast.File, path string) {
+		if strings.HasSuffix(path, "_test.go") {
+			return
+		}
+		if allowlist[f.Name.Name] {
+			return
+		}
+
+		for _, decl := range f.Decls {
+			genDecl, ok := decl.(*ast.GenDecl)
+			if !ok || genDecl.Tok != token.VAR {
+				continue
+			}
+
+			for _, spec := range genDecl.Specs {
+				vs, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+
+				// Check if this is a regexp.MustCompile initialization (immutable)
+				for _, val := range vs.Values {
+					call, isCall := val.(*ast.CallExpr)
+					if isCall {
+						name := exprName(call.Fun)
+						if name == "regexp.MustCompile" || name == "regexp.Compile" {
+							goto nextSpec
+						}
+					}
+				}
+
+				// Check the type
+				if vs.Type != nil {
+					typeName := exprName(vs.Type)
+					// Allow safe types
+					switch {
+					case strings.HasPrefix(typeName, "sync."):
+						continue
+					case strings.HasPrefix(typeName, "atomic."):
+						continue
+					case strings.Contains(typeName, "regexp.Regexp"):
+						continue
+					}
+
+					typeStr := nodeString(fset, vs.Type)
+					// Only flag map[] and [] typed vars
+					if strings.HasPrefix(typeStr, "map[") || (strings.HasPrefix(typeStr, "[]") && !strings.Contains(typeStr, "regexp.Regexp")) {
+						rel, _ := filepath.Rel(repoRoot, path)
+						pos := fset.Position(vs.Pos())
+						for _, name := range vs.Names {
+							violations = append(violations, filepath.ToSlash(rel)+":"+strconv.Itoa(pos.Line)+": var "+name.Name+" "+typeStr)
+						}
+					}
+				} else if len(vs.Values) > 0 {
+					// Infer type from value for untyped vars
+					typeStr := nodeString(fset, vs.Values[0])
+					if strings.HasPrefix(typeStr, "map[") || strings.HasPrefix(typeStr, "[]") {
+						// Check if it's a []*regexp.Regexp
+						if strings.Contains(typeStr, "regexp.Regexp") {
+							continue
+						}
+						rel, _ := filepath.Rel(repoRoot, path)
+						pos := fset.Position(vs.Pos())
+						for _, name := range vs.Names {
+							violations = append(violations, filepath.ToSlash(rel)+":"+strconv.Itoa(pos.Line)+": var "+name.Name+" (inferred mutable collection)")
+						}
+					}
+				}
+			nextSpec:
+			}
+		}
+	})
+
+	if len(violations) > 0 {
+		t.Errorf("found unsynced mutable package-level variables (consider sync.Mutex or atomic types):")
+		for _, v := range violations {
+			t.Errorf("  - %s", v)
+		}
+	}
+}
+
+// nodeString renders an AST node back to a Go source string.
+func nodeString(fset *token.FileSet, node ast.Node) string {
+	var buf strings.Builder
+	if err := ast.Fprint(&buf, fset, node, nil); err != nil {
+		return ""
+	}
+	return buf.String()
+}
+
+// TestNoDeadCodeSuppressions finds "_ = expr" patterns that aren't ignoring
+// errors (like _ = f.Close()). Dead code suppressions mask unused variables.
+func TestNoDeadCodeSuppressions(t *testing.T) {
+	t.Parallel()
+	repoRoot := getRepoRoot(t)
+
+	// Match "_ = something" but not "_ = err" or "_ = someFunc()" (close patterns)
+	deadCodePattern := regexp.MustCompile(`_\s*=\s*(\w+)\s*$`)
+
+	// Known pre-existing dead code suppressions tracked for future cleanup.
+	// Removing entries is allowed; adding is NOT.
+	knownViolations := map[string]bool{
+		"pkg/probes/jarm.go":        true,
+		"cmd/cli/cmd_crawl.go":      true,
+		"cmd/cli/cmd_grpc.go":       true,
+		"cmd/cli/cmd_mutate.go":     true,
+		"cmd/cli/cmd_openapi.go":    true,
+		"cmd/cli/cmd_soap.go":       true,
+	}
+
+	var newViolations []string
+	var knownFound []string
+
+	for _, dir := range []string{"pkg", "cmd"} {
+		root := filepath.Join(repoRoot, dir)
+		err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil
+			}
+			if info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+
+			file, openErr := os.Open(path)
+			if openErr != nil {
+				return nil
+			}
+			defer file.Close()
+
+			rel, _ := filepath.Rel(repoRoot, path)
+			relSlash := filepath.ToSlash(rel)
+			scanner := bufio.NewScanner(file)
+			lineNum := 0
+
+			for scanner.Scan() {
+				lineNum++
+				line := scanner.Text()
+				trimmed := strings.TrimSpace(line)
+
+				// Skip comments
+				if strings.HasPrefix(trimmed, "//") {
+					continue
+				}
+
+				// Skip lines with intentional comment
+				if strings.Contains(line, "// intentional") || strings.Contains(line, "//nolint") {
+					continue
+				}
+
+				matches := deadCodePattern.FindStringSubmatch(trimmed)
+				if matches == nil {
+					continue
+				}
+
+				varName := matches[1]
+
+				// Skip error ignoring patterns (legitimate)
+				if varName == "err" || strings.HasSuffix(varName, "Err") || strings.HasSuffix(varName, "Error") {
+					continue
+				}
+
+				if knownViolations[relSlash] {
+					knownFound = append(knownFound, relSlash+":"+strconv.Itoa(lineNum)+": "+trimmed)
+				} else {
+					newViolations = append(newViolations, relSlash+":"+strconv.Itoa(lineNum)+": "+trimmed)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("failed to walk %s/: %v", dir, err)
+		}
+	}
+
+	if len(knownFound) > 0 {
+		t.Logf("INFO: %d known pre-existing dead code suppression(s) (tracked for future cleanup):", len(knownFound))
+		for _, v := range knownFound {
+			t.Logf("  ⚠ %s", v)
+		}
+	}
+
+	if len(newViolations) > 0 {
+		t.Errorf("found NEW dead code suppressions ('_ = var' that aren't error ignoring):")
+		for _, v := range newViolations {
+			t.Errorf("  - %s", v)
+		}
+		t.Error("Fix: Remove unused variables instead of suppressing with '_ = var'")
 	}
 }
