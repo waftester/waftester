@@ -2546,16 +2546,6 @@ func runProbe() {
 	if *headlessOptions != "" {
 		fmt.Printf("[*] Headless options: %s\n", *headlessOptions)
 	}
-	if *excludeScreenshotBytes {
-		// Applied in screenshot capture section - bytes excluded from JSON
-	}
-	if *noScreenshotFullPage {
-		// Applied in screenshot capture section - browserCfg.ScreenshotFull set
-	}
-	if *excludeHeadlessBody {
-		// This flag is respected in the response body capture section
-		// When headless browser is used, body will be filtered from JSON output
-	}
 	if *screenshotIdle > 1 {
 		fmt.Printf("[*] Screenshot idle time: %d seconds\n", *screenshotIdle)
 	}

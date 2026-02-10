@@ -156,20 +156,6 @@ func normalize(raw float64) float64 {
 	return normalized
 }
 
-// containsPattern checks if text contains a pattern (substring match)
-func containsPattern(text, pattern string) bool {
-	if len(text) == 0 || len(pattern) == 0 {
-		return false
-	}
-	// Use simple sliding window for substring search
-	for i := 0; i <= len(text)-len(pattern); i++ {
-		if text[i:i+len(pattern)] == pattern {
-			return true
-		}
-	}
-	return false
-}
-
 // containsSecurityPattern checks for pattern with word boundary awareness
 // to avoid false positives like "notroot:x:0:0" matching "root:x:0:0"
 func containsSecurityPattern(text, pattern string) bool {
