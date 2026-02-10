@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
@@ -104,10 +103,10 @@ const (
 )
 
 var (
-	green  = color.New(color.FgGreen).SprintFunc()
-	red    = color.New(color.FgRed).SprintFunc()
-	yellow = color.New(color.FgYellow).SprintFunc()
-	cyan   = color.New(color.FgCyan).SprintFunc()
+	green  = func(a ...interface{}) string { return "\033[32m" + fmt.Sprint(a...) + "\033[0m" }
+	red    = func(a ...interface{}) string { return "\033[31m" + fmt.Sprint(a...) + "\033[0m" }
+	yellow = func(a ...interface{}) string { return "\033[33m" + fmt.Sprint(a...) + "\033[0m" }
+	cyan   = func(a ...interface{}) string { return "\033[36m" + fmt.Sprint(a...) + "\033[0m" }
 )
 
 // UpdatePayloads performs the payload update operation
