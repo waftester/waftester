@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/waftester/waftester/internal/hexutil"
+	"github.com/waftester/waftester/pkg/hexutil"
 	"github.com/waftester/waftester/pkg/bufpool"
 )
 
