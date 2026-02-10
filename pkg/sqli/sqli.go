@@ -14,6 +14,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
@@ -43,16 +44,6 @@ const (
 	InjectionStacked      InjectionType = "stacked"
 )
 
-// Severity levels for vulnerabilities
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-)
-
 // Payload represents an SQL injection payload
 type Payload struct {
 	Value       string
@@ -64,19 +55,10 @@ type Payload struct {
 
 // Vulnerability represents a detected SQL injection vulnerability
 type Vulnerability struct {
-	Type         InjectionType
-	DBMS         DBMS
-	Description  string
-	Severity     Severity
-	URL          string
-	Parameter    string
-	Method       string
-	Payload      *Payload
-	Evidence     string
-	Remediation  string
-	ResponseTime time.Duration
-	CVSS         float64
-	ConfirmedBy  int
+	finding.Vulnerability
+	Type    InjectionType `json:"type"`
+	DBMS    DBMS          `json:"dbms,omitempty"`
+	Payload *Payload      `json:"payload,omitempty"`
 }
 
 // ScanResult represents the result of a scan
@@ -573,18 +555,20 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 		if hasError, evidence := containsError(string(body)); hasError {
 			detectedDBMS := detectDBMS(string(body))
 			vulns = append(vulns, Vulnerability{
-				Type:         InjectionErrorBased,
-				DBMS:         detectedDBMS,
-				Description:  fmt.Sprintf("SQL injection via %s", payload.Description),
-				Severity:     SeverityCritical,
-				URL:          targetURL,
-				Parameter:    param,
-				Method:       method,
-				Payload:      &payload,
-				Evidence:     evidence,
-				ResponseTime: responseTime,
-				Remediation:  GetRemediation(),
-				CVSS:         9.8,
+				Vulnerability: finding.Vulnerability{
+					Description:  fmt.Sprintf("SQL injection via %s", payload.Description),
+					Severity:     finding.Critical,
+					URL:          targetURL,
+					Parameter:    param,
+					Method:       method,
+					Evidence:     evidence,
+					ResponseTime: responseTime,
+					Remediation:  GetRemediation(),
+					CVSS:         9.8,
+				},
+				Type:    InjectionErrorBased,
+				DBMS:    detectedDBMS,
+				Payload: &payload,
 			})
 			continue
 		}
@@ -599,18 +583,20 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 			// Check if response took significantly longer than baseline
 			if responseTime > baselineTime+expectedDelay-time.Second {
 				vulns = append(vulns, Vulnerability{
-					Type:         InjectionTimeBased,
-					DBMS:         payload.DBMS,
-					Description:  fmt.Sprintf("Time-based blind SQL injection via %s", payload.Description),
-					Severity:     SeverityCritical,
-					URL:          targetURL,
-					Parameter:    param,
-					Method:       method,
-					Payload:      &payload,
-					ResponseTime: responseTime,
-					Evidence:     fmt.Sprintf("Response delayed by %v (baseline: %v)", responseTime, baselineTime),
-					Remediation:  GetRemediation(),
-					CVSS:         9.8,
+					Vulnerability: finding.Vulnerability{
+						Description:  fmt.Sprintf("Time-based blind SQL injection via %s", payload.Description),
+						Severity:     finding.Critical,
+						URL:          targetURL,
+						Parameter:    param,
+						Method:       method,
+						ResponseTime: responseTime,
+						Evidence:     fmt.Sprintf("Response delayed by %v (baseline: %v)", responseTime, baselineTime),
+						Remediation:  GetRemediation(),
+						CVSS:         9.8,
+					},
+					Type:    InjectionTimeBased,
+					DBMS:    payload.DBMS,
+					Payload: &payload,
 				})
 			}
 			continue
@@ -626,17 +612,19 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 			// Significant length difference might indicate boolean-based
 			if lenDiff > 100 && strings.Contains(payload.Description, "true") {
 				vulns = append(vulns, Vulnerability{
-					Type:        InjectionBooleanBased,
-					DBMS:        DBMSGeneric,
-					Description: fmt.Sprintf("Boolean-based blind SQL injection (length diff: %d)", lenDiff),
-					Severity:    SeverityHigh,
-					URL:         targetURL,
-					Parameter:   param,
-					Method:      method,
-					Payload:     &payload,
-					Evidence:    fmt.Sprintf("Baseline length: %d, Current length: %d", baseLen, len(body)),
-					Remediation: GetRemediation(),
-					CVSS:        8.6,
+					Vulnerability: finding.Vulnerability{
+						Description: fmt.Sprintf("Boolean-based blind SQL injection (length diff: %d)", lenDiff),
+						Severity:    finding.High,
+						URL:         targetURL,
+						Parameter:   param,
+						Method:      method,
+						Evidence:    fmt.Sprintf("Baseline length: %d, Current length: %d", baseLen, len(body)),
+						Remediation: GetRemediation(),
+						CVSS:        8.6,
+					},
+					Type:    InjectionBooleanBased,
+					DBMS:    DBMSGeneric,
+					Payload: &payload,
 				})
 			}
 		}

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewTester(t *testing.T) {
@@ -578,7 +580,7 @@ func TestVulnerabilityFields(t *testing.T) {
 		if v.Description == "" {
 			t.Error("vulnerability should have description")
 		}
-		if v.Severity != SeverityCritical {
+		if v.Severity != finding.Critical {
 			t.Error("vulnerability should be critical severity")
 		}
 		if v.URL == "" {
