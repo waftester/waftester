@@ -132,8 +132,8 @@ func (c *Cache) Check(host string) bool {
 
 	state := v.(*hostState)
 
-	// Check if exceeded threshold - read all state under lock for consistency
-	state.mu.Lock()
+	// Fast read path - use RLock for the common case
+	state.mu.RLock()
 	count := state.count
 	permanent := state.permanent
 	markedAt := state.markedAt
@@ -141,18 +141,23 @@ func (c *Cache) Check(host string) bool {
 	if count >= c.maxErrors {
 		// Check expiry for non-permanent entries
 		if !permanent && time.Since(markedAt) > c.expiry {
-			// Expired, reset the state
-			state.count = 0
-			state.markedAt = time.Time{}
+			// Need write lock for expiry reset - upgrade lock
+			state.mu.RUnlock()
+			state.mu.Lock()
+			// Double-check under write lock (another goroutine may have reset)
+			if state.count >= c.maxErrors && !state.permanent && time.Since(state.markedAt) > c.expiry {
+				state.count = 0
+				state.markedAt = time.Time{}
+			}
 			state.mu.Unlock()
 			c.misses.Add(1)
 			return false
 		}
-		state.mu.Unlock()
+		state.mu.RUnlock()
 		c.hits.Add(1)
 		return true
 	}
-	state.mu.Unlock()
+	state.mu.RUnlock()
 
 	c.misses.Add(1)
 	return false

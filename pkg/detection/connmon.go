@@ -158,8 +158,8 @@ func calculateRecoveryWait(consecutiveDrops int64) time.Duration {
 	wait := time.Duration(int64(baseWait) * multiplier)
 
 	// Cap at recovery window
-	if wait > defaults.DropDetectRecoveryWindow {
-		return defaults.DropDetectRecoveryWindow
+	if wait > defaults.DropDetectRecoveryWindow() {
+		return defaults.DropDetectRecoveryWindow()
 	}
 	return wait
 }

@@ -7,6 +7,7 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,7 +15,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 	"unicode"
 
@@ -894,22 +894,11 @@ func sanitizeFilename(url string) string {
 	return safe
 }
 
-var prng uint32 = uint32(time.Now().UnixNano())
-
 func randomInt(max int) int {
 	if max <= 0 {
 		return 0
 	}
-	// Use atomic operations for thread safety
-	for {
-		old := atomic.LoadUint32(&prng)
-		new := old ^ (old << 13)
-		new = new ^ (new >> 17)
-		new = new ^ (new << 5)
-		if atomic.CompareAndSwapUint32(&prng, old, new) {
-			return int(new % uint32(max))
-		}
-	}
+	return rand.IntN(max)
 }
 
 // initBuiltInLists initializes built-in wordlists
