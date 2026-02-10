@@ -160,12 +160,10 @@ func TestAWSClient_Discover(t *testing.T) {
 	client := NewAWSClient("key", "secret", "us-east-1")
 	ctx := context.Background()
 
-	resources, err := client.Discover(ctx, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	_, err := client.Discover(ctx, nil)
+	if err == nil {
+		t.Fatal("expected ErrNotImplemented from stub discovery")
 	}
-	// Empty/nil result is expected for mock implementation
-	_ = resources
 }
 
 func TestNewGCPClient(t *testing.T) {
@@ -210,12 +208,10 @@ func TestGCPClient_Discover(t *testing.T) {
 	client := NewGCPClient("project", "")
 	ctx := context.Background()
 
-	resources, err := client.Discover(ctx, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	_, err := client.Discover(ctx, nil)
+	if err == nil {
+		t.Fatal("expected ErrNotImplemented from stub discovery")
 	}
-	// Empty/nil result is expected for mock implementation
-	_ = resources
 }
 
 func TestNewAzureClient(t *testing.T) {
@@ -260,12 +256,10 @@ func TestAzureClient_Discover(t *testing.T) {
 	client := NewAzureClient("sub", "tenant", "client", "secret")
 	ctx := context.Background()
 
-	resources, err := client.Discover(ctx, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	_, err := client.Discover(ctx, nil)
+	if err == nil {
+		t.Fatal("expected ErrNotImplemented from stub discovery")
 	}
-	// Empty/nil result is expected for mock implementation
-	_ = resources
 }
 
 func TestManager_DiscoverAll(t *testing.T) {
@@ -274,12 +268,10 @@ func TestManager_DiscoverAll(t *testing.T) {
 	m.RegisterClient(NewGCPClient("project", ""))
 
 	ctx := context.Background()
-	resources, err := m.DiscoverAll(ctx, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	_, err := m.DiscoverAll(ctx, nil)
+	if err == nil {
+		t.Fatal("expected ErrNotImplemented from stub discovery")
 	}
-	// Empty/nil result is acceptable for mock implementation
-	_ = resources
 }
 
 func TestNewIPRangeChecker(t *testing.T) {

@@ -5,7 +5,6 @@ package crlf
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -591,13 +590,4 @@ func GenerateCRLFPayloads(headerName, headerValue string) []string {
 		// LF only
 		"%0a" + headerName + ":%20" + url.QueryEscape(headerValue),
 	}
-}
-
-// VulnerabilityToJSON converts vulnerability to JSON
-func VulnerabilityToJSON(v Vulnerability) (string, error) {
-	data, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
 }
