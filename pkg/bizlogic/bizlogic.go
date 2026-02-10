@@ -24,6 +24,18 @@ import (
 	"github.com/waftester/waftester/pkg/ui"
 )
 
+// idorPatterns contains pre-compiled regexes for extracting IDs from URLs.
+var idorPatterns = []struct {
+	name    string
+	pattern *regexp.Regexp
+}{
+	{"numeric", regexp.MustCompile(`/(\d+)(?:/|$|\?)`)},
+	{"uuid", regexp.MustCompile(`/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(?:/|$|\?)`)},
+	{"alphanumeric", regexp.MustCompile(`/([a-zA-Z0-9]{20,})(?:/|$|\?)`)},
+	{"query_numeric", regexp.MustCompile(`[?&](?:id|user_id|userId|ID)=(\d+)`)},
+	{"query_uuid", regexp.MustCompile(`[?&](?:id|user_id|userId|ID)=([a-f0-9-]{36})`)},
+}
+
 // VulnerabilityType represents the type of business logic vulnerability.
 type VulnerabilityType string
 
@@ -583,18 +595,7 @@ func (t *Tester) TestEnumeration(ctx context.Context, targetURL string, validID,
 func ExtractIDs(urlStr string) []ExtractedID {
 	var ids []ExtractedID
 
-	patterns := []struct {
-		name    string
-		pattern *regexp.Regexp
-	}{
-		{"numeric", regexp.MustCompile(`/(\d+)(?:/|$|\?)`)},
-		{"uuid", regexp.MustCompile(`/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(?:/|$|\?)`)},
-		{"alphanumeric", regexp.MustCompile(`/([a-zA-Z0-9]{20,})(?:/|$|\?)`)},
-		{"query_numeric", regexp.MustCompile(`[?&](?:id|user_id|userId|ID)=(\d+)`)},
-		{"query_uuid", regexp.MustCompile(`[?&](?:id|user_id|userId|ID)=([a-f0-9-]{36})`)},
-	}
-
-	for _, p := range patterns {
+	for _, p := range idorPatterns {
 		matches := p.pattern.FindAllStringSubmatch(urlStr, -1)
 		for _, match := range matches {
 			if len(match) > 1 {
