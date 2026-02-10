@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -368,7 +369,7 @@ func (c *AWSClient) Discover(ctx context.Context, filter *Filter) ([]*Resource, 
 	var resources []*Resource
 
 	// Discover EC2 instances
-	if filter == nil || len(filter.Types) == 0 || contains(filter.Types, "instance") {
+	if filter == nil || len(filter.Types) == 0 || slices.Contains(filter.Types, "instance") {
 		instances, err := c.discoverEC2(ctx, filter)
 		if err != nil {
 			return nil, fmt.Errorf("EC2 discovery: %w", err)
@@ -377,7 +378,7 @@ func (c *AWSClient) Discover(ctx context.Context, filter *Filter) ([]*Resource, 
 	}
 
 	// Discover Load Balancers
-	if filter == nil || len(filter.Types) == 0 || contains(filter.Types, "load_balancer") {
+	if filter == nil || len(filter.Types) == 0 || slices.Contains(filter.Types, "load_balancer") {
 		lbs, err := c.discoverELB(ctx, filter)
 		if err != nil {
 			return nil, fmt.Errorf("ELB discovery: %w", err)
@@ -386,7 +387,7 @@ func (c *AWSClient) Discover(ctx context.Context, filter *Filter) ([]*Resource, 
 	}
 
 	// Discover CloudFront distributions
-	if filter == nil || len(filter.Types) == 0 || contains(filter.Types, "cdn") {
+	if filter == nil || len(filter.Types) == 0 || slices.Contains(filter.Types, "cdn") {
 		cdns, err := c.discoverCloudFront(ctx, filter)
 		if err != nil {
 			return nil, fmt.Errorf("CloudFront discovery: %w", err)
@@ -395,7 +396,7 @@ func (c *AWSClient) Discover(ctx context.Context, filter *Filter) ([]*Resource, 
 	}
 
 	// Discover API Gateway
-	if filter == nil || len(filter.Types) == 0 || contains(filter.Types, "api_gateway") {
+	if filter == nil || len(filter.Types) == 0 || slices.Contains(filter.Types, "api_gateway") {
 		apis, err := c.discoverAPIGateway(ctx, filter)
 		if err != nil {
 			return nil, fmt.Errorf("API Gateway discovery: %w", err)
@@ -539,7 +540,7 @@ func (c *GCPClient) Discover(ctx context.Context, filter *Filter) ([]*Resource, 
 	var resources []*Resource
 
 	// Discover Compute Engine instances
-	if filter == nil || len(filter.Types) == 0 || contains(filter.Types, "instance") {
+	if filter == nil || len(filter.Types) == 0 || slices.Contains(filter.Types, "instance") {
 		instances, err := c.discoverCompute(ctx, filter)
 		if err != nil {
 			return nil, fmt.Errorf("Compute discovery: %w", err)
@@ -548,7 +549,7 @@ func (c *GCPClient) Discover(ctx context.Context, filter *Filter) ([]*Resource, 
 	}
 
 	// Discover Load Balancers
-	if filter == nil || len(filter.Types) == 0 || contains(filter.Types, "load_balancer") {
+	if filter == nil || len(filter.Types) == 0 || slices.Contains(filter.Types, "load_balancer") {
 		lbs, err := c.discoverLoadBalancers(ctx, filter)
 		if err != nil {
 			return nil, fmt.Errorf("LB discovery: %w", err)
@@ -557,7 +558,7 @@ func (c *GCPClient) Discover(ctx context.Context, filter *Filter) ([]*Resource, 
 	}
 
 	// Discover Cloud Run services
-	if filter == nil || len(filter.Types) == 0 || contains(filter.Types, "serverless") {
+	if filter == nil || len(filter.Types) == 0 || slices.Contains(filter.Types, "serverless") {
 		runs, err := c.discoverCloudRun(ctx, filter)
 		if err != nil {
 			return nil, fmt.Errorf("Cloud Run discovery: %w", err)
@@ -680,7 +681,7 @@ func (c *AzureClient) Discover(ctx context.Context, filter *Filter) ([]*Resource
 	var resources []*Resource
 
 	// Discover VMs
-	if filter == nil || len(filter.Types) == 0 || contains(filter.Types, "instance") {
+	if filter == nil || len(filter.Types) == 0 || slices.Contains(filter.Types, "instance") {
 		vms, err := c.discoverVMs(ctx, filter)
 		if err != nil {
 			return nil, fmt.Errorf("VM discovery: %w", err)
@@ -689,7 +690,7 @@ func (c *AzureClient) Discover(ctx context.Context, filter *Filter) ([]*Resource
 	}
 
 	// Discover App Services
-	if filter == nil || len(filter.Types) == 0 || contains(filter.Types, "app_service") {
+	if filter == nil || len(filter.Types) == 0 || slices.Contains(filter.Types, "app_service") {
 		apps, err := c.discoverAppServices(ctx, filter)
 		if err != nil {
 			return nil, fmt.Errorf("App Service discovery: %w", err)
@@ -698,7 +699,7 @@ func (c *AzureClient) Discover(ctx context.Context, filter *Filter) ([]*Resource
 	}
 
 	// Discover Front Door / CDN
-	if filter == nil || len(filter.Types) == 0 || contains(filter.Types, "cdn") {
+	if filter == nil || len(filter.Types) == 0 || slices.Contains(filter.Types, "cdn") {
 		cdns, err := c.discoverFrontDoor(ctx, filter)
 		if err != nil {
 			return nil, fmt.Errorf("Front Door discovery: %w", err)
@@ -934,12 +935,3 @@ func (d *Discovery) Fail(err error) {
 	d.Stats.Duration = now.Sub(d.StartedAt)
 }
 
-// helper function
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
-}

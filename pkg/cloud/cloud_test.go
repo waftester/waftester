@@ -430,20 +430,3 @@ func TestNormalizeEndpoint(t *testing.T) {
 		}
 	}
 }
-
-func TestContains(t *testing.T) {
-	slice := []string{"a", "b", "c"}
-
-	if !contains(slice, "a") {
-		t.Error("expected contains to return true for 'a'")
-	}
-	if !contains(slice, "b") {
-		t.Error("expected contains to return true for 'b'")
-	}
-	if contains(slice, "d") {
-		t.Error("expected contains to return false for 'd'")
-	}
-	if contains(nil, "a") {
-		t.Error("expected contains to return false for nil slice")
-	}
-}
