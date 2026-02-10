@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"math/rand"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -62,66 +61,6 @@ import (
 	"github.com/waftester/waftester/pkg/xss"
 	"github.com/waftester/waftester/pkg/xxe"
 )
-
-// ScanResult holds comprehensive vulnerability scan results
-type ScanResult struct {
-	Target       string                      `json:"target"`
-	StartTime    time.Time                   `json:"start_time"`
-	Duration     time.Duration               `json:"duration"`
-	TotalVulns   int                         `json:"total_vulnerabilities"`
-	BySeverity   map[string]int              `json:"by_severity"`
-	ByCategory   map[string]int              `json:"by_category"`
-	ReportTitle  string                      `json:"report_title,omitempty"`
-	ReportAuthor string                      `json:"report_author,omitempty"`
-	SQLi         *sqli.ScanResult            `json:"sqli,omitempty"`
-	XSS          *xss.ScanResult             `json:"xss,omitempty"`
-	Traversal    *traversal.ScanResult       `json:"traversal,omitempty"`
-	CMDI         *cmdi.Result                `json:"cmdi,omitempty"`
-	NoSQLi       *nosqli.ScanResult          `json:"nosqli,omitempty"`
-	HPP          *hpp.ScanResult             `json:"hpp,omitempty"`
-	CRLF         *crlf.ScanResult            `json:"crlf,omitempty"`
-	Prototype    *prototype.ScanResult       `json:"prototype,omitempty"`
-	CORS         *cors.Result                `json:"cors,omitempty"`
-	Redirect     *redirect.Result            `json:"redirect,omitempty"`
-	HostHeader   *hostheader.ScanResult      `json:"hostheader,omitempty"`
-	WebSocket    *websocket.ScanResult       `json:"websocket,omitempty"`
-	Cache        *cache.ScanResult           `json:"cache,omitempty"`
-	Upload       []upload.Vulnerability      `json:"upload,omitempty"`
-	Deserialize  []deserialize.Vulnerability `json:"deserialize,omitempty"`
-	OAuth        []oauth.Vulnerability       `json:"oauth,omitempty"`
-	SSRF         *ssrf.Result                `json:"ssrf,omitempty"`
-	SSTI         []*ssti.Vulnerability       `json:"ssti,omitempty"`
-	XXE          []*xxe.Vulnerability        `json:"xxe,omitempty"`
-	Smuggling    *smuggling.Result           `json:"smuggling,omitempty"`
-	GraphQL      *graphql.ScanResult         `json:"graphql,omitempty"`
-	JWT          []*jwt.Vulnerability        `json:"jwt,omitempty"`
-	Subtakeover  []subtakeover.ScanResult    `json:"subtakeover,omitempty"`
-	BizLogic     []bizlogic.Vulnerability    `json:"bizlogic,omitempty"`
-	Race         *race.Result                `json:"race,omitempty"`
-	APIFuzz      []apifuzz.Vulnerability     `json:"apifuzz,omitempty"`
-	WAFDetect    *waf.DetectionResult        `json:"waf_detect,omitempty"`
-	WAFFprint    *waf.Fingerprint            `json:"waf_fingerprint,omitempty"`
-	WAFEvasion   []waf.TransformedPayload    `json:"waf_evasion,omitempty"`
-	TLSInfo      *probes.TLSInfo             `json:"tls_info,omitempty"`
-	HTTPInfo     *probes.HTTPProbeResult     `json:"http_info,omitempty"`
-	SecHeaders   *probes.SecurityHeaders     `json:"security_headers,omitempty"`
-	JSAnalysis   *js.ExtractedData           `json:"js_analysis,omitempty"`
-	APIRoutes    []api.ScanResult            `json:"api_routes,omitempty"`
-	// New advanced reconnaissance scanners
-	OSINT     *discovery.AllSourcesResult `json:"osint,omitempty"`
-	VHosts    []probes.VHostProbeResult   `json:"vhosts,omitempty"`
-	TechStack []string                    `json:"tech_stack,omitempty"`
-	DNSInfo   *DNSReconResult             `json:"dns_info,omitempty"`
-}
-
-// DNSReconResult holds DNS reconnaissance findings
-type DNSReconResult struct {
-	CNAMEs     []string `json:"cnames,omitempty"`
-	Subdomains []string `json:"subdomains,omitempty"`
-	MXRecords  []string `json:"mx_records,omitempty"`
-	TXTRecords []string `json:"txt_records,omitempty"`
-	NSRecords  []string `json:"ns_records,omitempty"`
-}
 
 func runScan() {
 	scanFlags := flag.NewFlagSet("scan", flag.ExitOnError)
@@ -446,10 +385,6 @@ func runScan() {
 		}
 		fmt.Fprintln(os.Stderr)
 	}
-	// Silence unused variable warnings
-	_ = smartVerbose
-	_ = smartModeType
-
 	// ═══════════════════════════════════════════════════════════════════════════
 	// TAMPER ENGINE INITIALIZATION (Scan Command)
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -500,13 +435,6 @@ func runScan() {
 				len(selectedTampers), wafVendor, strings.Join(selectedTampers, ", ")))
 		}
 	}
-	// Silence unused variable warning
-	_ = tamperList
-	_ = tamperAuto
-	_ = tamperProfile
-	_ = tamperEngine
-	_ = smartResult
-
 	// Only print config to stdout if not in streaming JSON mode
 	if !streamJSON {
 		ui.PrintConfigLine("Target", target)
@@ -2343,10 +2271,6 @@ func runScan() {
 		defer func() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "techdetect", "technologies": uniqueTech})
 		}()
-		// Use active discoverer for tech fingerprinting
-		ad := discovery.NewActiveDiscoverer(target, timeoutDur, *skipVerify)
-
-		// Manually extract technology stack
 		req, err := http.NewRequestWithContext(ctx, "GET", target, nil)
 		if err != nil {
 			return
@@ -2363,94 +2287,7 @@ func runScan() {
 
 		body, _ := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
 
-		var techStack []string
-
-		// Analyze headers
-		server := strings.ToLower(resp.Header.Get("Server"))
-		powered := strings.ToLower(resp.Header.Get("X-Powered-By"))
-		generator := strings.ToLower(resp.Header.Get("X-Generator"))
-
-		if strings.Contains(server, "nginx") {
-			techStack = append(techStack, "nginx")
-		}
-		if strings.Contains(server, "apache") {
-			techStack = append(techStack, "apache")
-		}
-		if strings.Contains(server, "iis") {
-			techStack = append(techStack, "iis")
-		}
-		if strings.Contains(powered, "php") {
-			techStack = append(techStack, "php")
-		}
-		if strings.Contains(powered, "asp") || strings.Contains(powered, ".net") {
-			techStack = append(techStack, "asp.net")
-		}
-		if strings.Contains(powered, "express") {
-			techStack = append(techStack, "express")
-		}
-		if generator != "" {
-			techStack = append(techStack, generator)
-		}
-
-		// Analyze cookies
-		for _, cookie := range resp.Cookies() {
-			name := strings.ToLower(cookie.Name)
-			if strings.Contains(name, "phpsessid") {
-				techStack = append(techStack, "php")
-			}
-			if strings.Contains(name, "jsessionid") {
-				techStack = append(techStack, "java")
-			}
-			if strings.Contains(name, "asp.net") || strings.Contains(name, "aspxauth") {
-				techStack = append(techStack, "asp.net")
-			}
-			if strings.Contains(name, "csrftoken") {
-				techStack = append(techStack, "django")
-			}
-			if strings.Contains(name, "_rails") {
-				techStack = append(techStack, "rails")
-			}
-		}
-
-		// Analyze body
-		bodyStr := strings.ToLower(string(body))
-		if strings.Contains(bodyStr, "wp-content") || strings.Contains(bodyStr, "wordpress") {
-			techStack = append(techStack, "wordpress")
-		}
-		if strings.Contains(bodyStr, "__next") || strings.Contains(bodyStr, "next.js") {
-			techStack = append(techStack, "next.js")
-		}
-		if strings.Contains(bodyStr, "react") && strings.Contains(bodyStr, "reactdom") {
-			techStack = append(techStack, "react")
-		}
-		if strings.Contains(bodyStr, "angular") || strings.Contains(bodyStr, "ng-app") {
-			techStack = append(techStack, "angular")
-		}
-		if strings.Contains(bodyStr, "vue.js") || strings.Contains(bodyStr, "v-bind") {
-			techStack = append(techStack, "vue.js")
-		}
-		if strings.Contains(bodyStr, "laravel") {
-			techStack = append(techStack, "laravel")
-		}
-		if strings.Contains(bodyStr, "drupal") {
-			techStack = append(techStack, "drupal")
-		}
-		if strings.Contains(bodyStr, "joomla") {
-			techStack = append(techStack, "joomla")
-		}
-
-		// Deduplicate
-		seen := make(map[string]bool)
-		for _, t := range techStack {
-			if !seen[t] {
-				seen[t] = true
-				uniqueTech = append(uniqueTech, t)
-			}
-		}
-
-		// Skip slow active discovery fallback - only use header/body analysis
-		// The ad.DiscoverAll call can hang for extended periods
-		_ = ad // Suppress unused variable warning
+		uniqueTech = detectTechStack(resp, body)
 
 		if len(uniqueTech) > 0 {
 			mu.Lock()
@@ -2476,38 +2313,8 @@ func runScan() {
 		}
 		domain := parsedURL.Hostname()
 
-		dnsResult := &DNSReconResult{}
-
-		// Resolve CNAME chain (reusing subtakeover's logic)
-		cnames, err := net.LookupCNAME(domain)
-		if err == nil && cnames != "" && cnames != domain+"." {
-			dnsResult.CNAMEs = []string{strings.TrimSuffix(cnames, ".")}
-		}
-
-		// MX Records
-		mxRecords, err := net.LookupMX(domain)
-		if err == nil {
-			for _, mx := range mxRecords {
-				dnsResult.MXRecords = append(dnsResult.MXRecords, mx.Host)
-			}
-		}
-
-		// TXT Records
-		txtRecords, err := net.LookupTXT(domain)
-		if err == nil {
-			dnsResult.TXTRecords = txtRecords
-		}
-
-		// NS Records
-		nsRecords, err := net.LookupNS(domain)
-		if err == nil {
-			for _, ns := range nsRecords {
-				dnsResult.NSRecords = append(dnsResult.NSRecords, ns.Host)
-			}
-		}
-
-		totalRecords = len(dnsResult.CNAMEs) + len(dnsResult.MXRecords) +
-			len(dnsResult.TXTRecords) + len(dnsResult.NSRecords)
+		dnsResult := performDNSRecon(domain)
+		totalRecords = dnsReconTotalRecords(dnsResult)
 
 		if totalRecords > 0 {
 			mu.Lock()
@@ -2572,112 +2379,25 @@ func runScan() {
 
 	// CSV output format
 	if *csvOutput {
-		fmt.Println("target,category,severity,count")
-		for cat, count := range result.ByCategory {
-			fmt.Printf("%s,%s,various,%d\n", target, cat, count)
-		}
+		printScanCSV(os.Stdout, target, result)
 		return
 	}
 
 	// Markdown output format
 	if *markdownOutput {
-		fmt.Println("# Vulnerability Scan Report")
-		fmt.Println()
-		if *reportTitle != "" {
-			fmt.Printf("**Report:** %s\n", *reportTitle)
-		}
-		if *reportAuthor != "" {
-			fmt.Printf("**Author:** %s\n", *reportAuthor)
-		}
-		fmt.Printf("**Target:** %s\n", target)
-		fmt.Printf("**Date:** %s\n", result.StartTime.Format("2006-01-02 15:04:05"))
-		fmt.Printf("**Duration:** %s\n", result.Duration.Round(time.Millisecond))
-		fmt.Printf("**Total Vulnerabilities:** %d\n", result.TotalVulns)
-		fmt.Println()
-		fmt.Println("## By Severity")
-		fmt.Println()
-		fmt.Println("| Severity | Count |")
-		fmt.Println("|----------|-------|")
-		for sev, count := range result.BySeverity {
-			fmt.Printf("| %s | %d |\n", sev, count)
-		}
-		fmt.Println()
-		fmt.Println("## By Category")
-		fmt.Println()
-		fmt.Println("| Category | Count |")
-		fmt.Println("|----------|-------|")
-		for cat, count := range result.ByCategory {
-			if count > 0 {
-				fmt.Printf("| %s | %d |\n", cat, count)
-			}
-		}
+		printScanMarkdown(os.Stdout, result)
 		return
 	}
 
 	// HTML output format
 	if *htmlOutput {
-		fmt.Println("<!DOCTYPE html><html><head><title>Scan Report</title>")
-		fmt.Println("<style>body{font-family:Arial,sans-serif;margin:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#4CAF50;color:white}.critical{color:#d32f2f}.high{color:#f57c00}.medium{color:#ffc107}.low{color:#4caf50}</style></head><body>")
-		if *reportTitle != "" {
-			fmt.Printf("<h1>%s</h1>\n", *reportTitle)
-		} else {
-			fmt.Println("<h1>Vulnerability Scan Report</h1>")
-		}
-		if *reportAuthor != "" {
-			fmt.Printf("<p><strong>Author:</strong> %s</p>\n", *reportAuthor)
-		}
-		fmt.Printf("<p><strong>Target:</strong> %s</p>\n", target)
-		fmt.Printf("<p><strong>Date:</strong> %s</p>\n", result.StartTime.Format("2006-01-02 15:04:05"))
-		fmt.Printf("<p><strong>Total Vulnerabilities:</strong> %d</p>\n", result.TotalVulns)
-		fmt.Println("<h2>By Severity</h2><table><tr><th>Severity</th><th>Count</th></tr>")
-		for sev, count := range result.BySeverity {
-			fmt.Printf("<tr><td class='%s'>%s</td><td>%d</td></tr>\n", strings.ToLower(sev), sev, count)
-		}
-		fmt.Println("</table><h2>By Category</h2><table><tr><th>Category</th><th>Count</th></tr>")
-		for cat, count := range result.ByCategory {
-			if count > 0 {
-				fmt.Printf("<tr><td>%s</td><td>%d</td></tr>\n", cat, count)
-			}
-		}
-		fmt.Println("</table></body></html>")
+		printScanHTML(os.Stdout, result)
 		return
 	}
 
 	// SARIF output format (for CI/CD integration)
 	if *sarifOutput {
-		sarif := map[string]interface{}{
-			"$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
-			"version": "2.1.0",
-			"runs": []map[string]interface{}{
-				{
-					"tool": map[string]interface{}{
-						"driver": map[string]interface{}{
-							"name":           "waf-tester",
-							"version":        ui.Version,
-							"informationUri": "https://github.com/waftester/waftester",
-						},
-					},
-					"results": func() []map[string]interface{} {
-						var results []map[string]interface{}
-						for cat, count := range result.ByCategory {
-							if count > 0 {
-								results = append(results, map[string]interface{}{
-									"ruleId":  cat,
-									"level":   "warning",
-									"message": map[string]string{"text": fmt.Sprintf("Found %d %s issues", count, cat)},
-									"locations": []map[string]interface{}{
-										{"physicalLocation": map[string]interface{}{"artifactLocation": map[string]string{"uri": target}}},
-									},
-								})
-							}
-						}
-						return results
-					}(),
-				},
-			},
-		}
-		jsonData, _ := json.MarshalIndent(sarif, "", "  ")
-		fmt.Println(string(jsonData))
+		printScanSARIF(os.Stdout, target, result)
 		return
 	}
 
@@ -2685,80 +2405,14 @@ func runScan() {
 	if *formatType != "" && *formatType != "console" {
 		switch *formatType {
 		case "jsonl":
-			// JSON Lines format
-			for cat, count := range result.ByCategory {
-				line, _ := json.Marshal(map[string]interface{}{"category": cat, "count": count, "target": target})
-				fmt.Println(string(line))
-			}
+			printScanJSONL(os.Stdout, target, result)
 			return
 		}
 	}
 
 	// Print summary (skip in stream+json mode - we already emitted events)
 	if !*jsonOutput && !streamJSON {
-		fmt.Println()
-		ui.PrintSection("Scan Results")
-		ui.PrintConfigLine("Duration", result.Duration.Round(time.Millisecond).String())
-		ui.PrintConfigLine("Total Vulnerabilities", fmt.Sprintf("%d", result.TotalVulns))
-		fmt.Println()
-
-		if result.TotalVulns > 0 {
-			ui.PrintSection("By Severity")
-			for sev, count := range result.BySeverity {
-				switch sev {
-				case "Critical":
-					ui.PrintError(fmt.Sprintf("  %s: %d", sev, count))
-				case "High":
-					ui.PrintError(fmt.Sprintf("  %s: %d", sev, count))
-				case "Medium":
-					ui.PrintWarning(fmt.Sprintf("  %s: %d", sev, count))
-				default:
-					ui.PrintInfo(fmt.Sprintf("  %s: %d", sev, count))
-				}
-			}
-			fmt.Println()
-
-			ui.PrintSection("By Category")
-			for cat, count := range result.ByCategory {
-				if count > 0 {
-					ui.PrintConfigLine(cat, fmt.Sprintf("%d vulnerabilities", count))
-				}
-			}
-			fmt.Println()
-
-			// Print detailed findings
-			if result.SQLi != nil && len(result.SQLi.Vulnerabilities) > 0 {
-				ui.PrintSection("SQLi Findings")
-				for _, v := range result.SQLi.Vulnerabilities[:min(5, len(result.SQLi.Vulnerabilities))] {
-					if v.ConfirmedBy > 1 {
-						ui.PrintError(fmt.Sprintf("  [%s] %s - %s (%d payloads)", v.Severity, v.Parameter, v.Type, v.ConfirmedBy))
-					} else {
-						ui.PrintError(fmt.Sprintf("  [%s] %s - %s", v.Severity, v.Parameter, v.Type))
-					}
-				}
-				if len(result.SQLi.Vulnerabilities) > 5 {
-					ui.PrintInfo(fmt.Sprintf("  ... and %d more", len(result.SQLi.Vulnerabilities)-5))
-				}
-				fmt.Println()
-			}
-
-			if result.XSS != nil && len(result.XSS.Vulnerabilities) > 0 {
-				ui.PrintSection("XSS Findings")
-				for _, v := range result.XSS.Vulnerabilities[:min(5, len(result.XSS.Vulnerabilities))] {
-					if v.ConfirmedBy > 1 {
-						ui.PrintError(fmt.Sprintf("  [%s] %s - %s (%d payloads)", v.Severity, v.Parameter, v.Type, v.ConfirmedBy))
-					} else {
-						ui.PrintError(fmt.Sprintf("  [%s] %s - %s", v.Severity, v.Parameter, v.Type))
-					}
-				}
-				if len(result.XSS.Vulnerabilities) > 5 {
-					ui.PrintInfo(fmt.Sprintf("  ... and %d more", len(result.XSS.Vulnerabilities)-5))
-				}
-				fmt.Println()
-			}
-		} else {
-			ui.PrintSuccess("No vulnerabilities found!")
-		}
+		printScanConsoleSummary(result)
 	}
 
 	// Output JSON (skip final blob in stream+json mode - we already emitted events)
