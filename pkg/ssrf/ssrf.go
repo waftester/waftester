@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/waftester/waftester/pkg/hexutil"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
+	"github.com/waftester/waftester/pkg/hexutil"
 )
 
 // Detector detects SSRF vulnerabilities

@@ -35,8 +35,6 @@ const (
 	VulnParameterOverwrite VulnerabilityType = "parameter-overwrite"
 )
 
-
-
 // Technology represents the backend technology
 type Technology string
 
@@ -106,7 +104,7 @@ func DefaultConfig() *TesterConfig {
 			UserAgent:   ui.UserAgent(),
 			Concurrency: defaults.ConcurrencyLow,
 		},
-		Technology:  TechUnknown,
+		Technology: TechUnknown,
 		TestParams: []string{
 			"id",
 			"page",

@@ -26,7 +26,7 @@ type middlewareTransport struct {
 // retryableStatusCodes are HTTP status codes that trigger automatic retry.
 // 429 = Too Many Requests (rate limiting), 503 = Service Unavailable (WAF DDoS protection).
 var retryableStatusCodes = map[int]bool{
-	http.StatusTooManyRequests:     true,
+	http.StatusTooManyRequests:    true,
 	http.StatusServiceUnavailable: true,
 }
 

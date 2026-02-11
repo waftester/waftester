@@ -36,7 +36,6 @@ func TestNewTester(t *testing.T) {
 		}
 		tester := NewTester(config)
 
-
 		if tester.config.Platform != PlatformUnix {
 			t.Errorf("expected Unix platform")
 		}

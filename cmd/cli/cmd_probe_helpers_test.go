@@ -91,9 +91,9 @@ func TestGenerateCPE(t *testing.T) {
 
 func TestStripHTMLTags(t *testing.T) {
 	tests := []struct {
-		name    string
-		input   string
-		want    string
+		name  string
+		input string
+		want  string
 	}{
 		{
 			name:  "plain text",
