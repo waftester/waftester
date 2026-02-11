@@ -504,15 +504,19 @@ func runAutoScan() {
 	if err != nil {
 		errMsg := fmt.Sprintf("Discovery failed: %v", err)
 		ui.PrintError(errMsg)
-		_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
-		os.Exit(1)
+		if autoDispCtx != nil {
+			_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
+		}
+		os.Exit(1) // intentional: CLI early exit on fatal error
 	}
 
 	if err := discResult.SaveResult(discoveryFile); err != nil {
 		errMsg := fmt.Sprintf("Error saving discovery: %v", err)
 		ui.PrintError(errMsg)
-		_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
-		os.Exit(1)
+		if autoDispCtx != nil {
+			_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
+		}
+		os.Exit(1) // intentional: CLI early exit on fatal error
 	}
 
 	ui.PrintSuccess(fmt.Sprintf("✓ Discovered %d endpoints", len(discResult.Endpoints)))
@@ -598,7 +602,9 @@ func runAutoScan() {
 		} else {
 			// Save results
 			leakyData, _ := json.MarshalIndent(leakyResult, "", "  ")
-			os.WriteFile(leakyPathsFile, leakyData, 0644)
+			if err := os.WriteFile(leakyPathsFile, leakyData, 0644); err != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to write leaky paths: %v", err))
+			}
 
 			// Summary with timing
 			ui.PrintSuccess(fmt.Sprintf("✓ Scanned %d paths in %s", leakyResult.TotalPaths, leakyResult.Duration.Round(time.Millisecond)))
@@ -722,7 +728,7 @@ func runAutoScan() {
 		client = httpclient.New(httpclient.WithTimeout(time.Duration(*timeout) * time.Second))
 	}
 
-	jsAnalyzed := 0
+	var jsAnalyzed int32
 	totalJSFiles := len(jsFiles)
 	var secretsFound, endpointsFound int32
 
@@ -740,8 +746,10 @@ func runAutoScan() {
 				select {
 				case <-jsProgressDone:
 					return
+				case <-ctx.Done():
+					return
 				case <-ticker.C:
-					analyzed := jsAnalyzed
+					analyzed := int(atomic.LoadInt32(&jsAnalyzed))
 					secrets := atomic.LoadInt32(&secretsFound)
 					endpoints := atomic.LoadInt32(&endpointsFound)
 					elapsed := time.Since(jsStartTime)
@@ -814,7 +822,7 @@ func runAutoScan() {
 		allJSData.DOMSinks = append(allJSData.DOMSinks, result.DOMSinks...)
 		allJSData.CloudURLs = append(allJSData.CloudURLs, result.CloudURLs...)
 		allJSData.Subdomains = append(allJSData.Subdomains, result.Subdomains...)
-		jsAnalyzed++
+		atomic.AddInt32(&jsAnalyzed, 1)
 
 		// Update atomic counters for progress display
 		atomic.AddInt32(&secretsFound, int32(len(result.Secrets)))
@@ -847,9 +855,11 @@ func runAutoScan() {
 
 	// Save JS analysis
 	jsDataBytes, _ := json.MarshalIndent(allJSData, "", "  ")
-	os.WriteFile(jsAnalysisFile, jsDataBytes, 0644)
+	if err := os.WriteFile(jsAnalysisFile, jsDataBytes, 0644); err != nil {
+		ui.PrintWarning(fmt.Sprintf("Failed to write JS analysis: %v", err))
+	}
 
-	ui.PrintSuccess(fmt.Sprintf("✓ Analyzed %d JavaScript files", jsAnalyzed))
+	ui.PrintSuccess(fmt.Sprintf("✓ Analyzed %d JavaScript files", atomic.LoadInt32(&jsAnalyzed)))
 	ui.PrintInfo(fmt.Sprintf("  Found: %d URLs, %d endpoints, %d secrets, %d DOM sinks",
 		len(allJSData.URLs), len(allJSData.Endpoints), len(allJSData.Secrets), len(allJSData.DOMSinks)))
 
@@ -1087,6 +1097,8 @@ func runAutoScan() {
 						select {
 						case <-paramProgressDone:
 							return
+						case <-ctx.Done():
+							return
 						case <-ticker.C:
 							done := atomic.LoadInt32(&paramCompleted)
 							found := atomic.LoadInt32(&paramsFoundCount)
@@ -1159,7 +1171,9 @@ func runAutoScan() {
 
 			// Save results
 			paramData, _ := json.MarshalIndent(paramResult, "", "  ")
-			os.WriteFile(paramsFile, paramData, 0644)
+			if err := os.WriteFile(paramsFile, paramData, 0644); err != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to write params: %v", err))
+			}
 
 			ui.PrintSuccess(fmt.Sprintf("✓ Scanned %d endpoints in %s", len(testEndpoints), duration.Round(time.Millisecond)))
 
@@ -1286,7 +1300,9 @@ func runAutoScan() {
 			// Save recon results
 			reconFile := filepath.Join(workspaceDir, "full-recon.json")
 			reconData, _ := json.MarshalIndent(fullReconResult, "", "  ")
-			os.WriteFile(reconFile, reconData, 0644)
+			if err := os.WriteFile(reconFile, reconData, 0644); err != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to write recon: %v", err))
+			}
 
 			ui.PrintSuccess(fmt.Sprintf("✓ Full reconnaissance completed in %s", fullReconResult.Duration.Round(time.Millisecond)))
 
@@ -1341,7 +1357,9 @@ func runAutoScan() {
 
 	// Save test plan
 	planData, _ := json.MarshalIndent(testPlan, "", "  ")
-	os.WriteFile(testPlanFile, planData, 0644)
+	if err := os.WriteFile(testPlanFile, planData, 0644); err != nil {
+		ui.PrintWarning(fmt.Sprintf("Failed to write test plan: %v", err))
+	}
 
 	ui.PrintSuccess(fmt.Sprintf("✓ Generated test plan with %d tests", testPlan.TotalTests))
 	ui.PrintInfo(fmt.Sprintf("  Estimated time: %s", testPlan.EstimatedTime))
@@ -1501,8 +1519,8 @@ func runAutoScan() {
 		}
 
 		// Get WAF vendor for intelligent selection
-		wafVendor := ""
-		if smartResult != nil && smartResult.WAFDetected {
+		wafVendor := "unknown"
+		if smartResult != nil && smartResult.WAFDetected && smartResult.VendorName != "" {
 			wafVendor = smartResult.VendorName
 		}
 
@@ -1649,17 +1667,23 @@ func runAutoScan() {
 	if err != nil {
 		errMsg := fmt.Sprintf("Error creating output writer: %v", err)
 		ui.PrintError(errMsg)
-		_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
-		os.Exit(1)
+		if autoDispCtx != nil {
+			_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
+		}
+		os.Exit(1) // intentional: CLI early exit on fatal error
 	}
 
 	// Print section header
 	ui.PrintSection("Executing Tests")
 	if !quietMode {
+		rateMu.Lock()
+		rl := currentRateLimit
+		cc := currentConcurrency
+		rateMu.Unlock()
 		fmt.Fprintf(os.Stderr, "\n  %s Running with %s parallel workers @ %s req/sec max\n\n",
 			ui.SpinnerStyle.Render(">>>"),
-			ui.StatValueStyle.Render(fmt.Sprintf("%d", currentConcurrency)),
-			ui.StatValueStyle.Render(fmt.Sprintf("%d", currentRateLimit)),
+			ui.StatValueStyle.Render(fmt.Sprintf("%d", cc)),
+			ui.StatValueStyle.Render(fmt.Sprintf("%d", rl)),
 		)
 	}
 
@@ -1928,7 +1952,7 @@ func runAutoScan() {
 
 		fmt.Fprintf(os.Stderr, "  +------------------------------------------------+\n")
 		fmt.Fprintf(os.Stderr, "  |  Total Endpoints:    %-26d |\n", len(discResult.Endpoints))
-		fmt.Fprintf(os.Stderr, "  |  JS Files Analyzed:  %-26d |\n", jsAnalyzed)
+		fmt.Fprintf(os.Stderr, "  |  JS Files Analyzed:  %-26d |\n", atomic.LoadInt32(&jsAnalyzed))
 		fmt.Fprintf(os.Stderr, "  |  Secrets Found:      %-26d |\n", len(allJSData.Secrets))
 		fmt.Fprintf(os.Stderr, "  |  Subdomains Found:   %-26d |\n", len(allJSData.Subdomains))
 		// Recon findings from new competitive features
@@ -2022,7 +2046,7 @@ func runAutoScan() {
 			"errors":        results.ErrorTests,
 			"requests_sec":  results.RequestsPerSec,
 			"endpoints":     len(discResult.Endpoints),
-			"js_files":      jsAnalyzed,
+			"js_files":      atomic.LoadInt32(&jsAnalyzed),
 			"secrets_found": len(allJSData.Secrets),
 		},
 		"latency": map[string]interface{}{
@@ -2081,7 +2105,9 @@ func runAutoScan() {
 	}
 
 	summaryData, _ := json.MarshalIndent(summary, "", "  ")
-	os.WriteFile(summaryFile, summaryData, 0644)
+	if err := os.WriteFile(summaryFile, summaryData, 0644); err != nil {
+		ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
+	}
 
 	if !quietMode {
 		fmt.Fprintln(os.Stderr)
@@ -2185,7 +2211,9 @@ func runAutoScan() {
 			// Save assessment results
 			assessFile := filepath.Join(workspaceDir, "assessment.json")
 			assessData, _ := json.MarshalIndent(assessResult, "", "  ")
-			os.WriteFile(assessFile, assessData, 0644)
+			if err := os.WriteFile(assessFile, assessData, 0644); err != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to write assessment: %v", err))
+			}
 			ui.PrintSuccess(fmt.Sprintf("📊 Assessment saved to: %s", assessFile))
 
 			// Generate Enterprise HTML Report now that assessment.json exists
@@ -2212,7 +2240,9 @@ func runAutoScan() {
 				"bypass_resistance":   assessResult.BypassResistance,
 			}
 			summaryData, _ = json.MarshalIndent(summary, "", "  ")
-			os.WriteFile(summaryFile, summaryData, 0644)
+			if err := os.WriteFile(summaryFile, summaryData, 0644); err != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
+			}
 		}
 		printStatusLn()
 	}
@@ -2447,7 +2477,9 @@ func runAutoScan() {
 
 			// Save updated summary
 			summaryData, _ = json.MarshalIndent(summary, "", "  ")
-			os.WriteFile(summaryFile, summaryData, 0644)
+			if err := os.WriteFile(summaryFile, summaryData, 0644); err != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
+			}
 
 			// Regenerate enterprise report to include browser findings
 			htmlReportFile := filepath.Join(workspaceDir, "enterprise-report.html")
@@ -2490,7 +2522,7 @@ func runAutoScan() {
 				"waf_vendor":   discResult.WAFFingerprint,
 			},
 			"js_analysis": map[string]interface{}{
-				"files_analyzed": jsAnalyzed,
+				"files_analyzed": atomic.LoadInt32(&jsAnalyzed),
 				"secrets_found":  len(allJSData.Secrets),
 				"endpoints":      len(allJSData.Endpoints),
 				"dom_sinks":      len(allJSData.DOMSinks),

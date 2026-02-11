@@ -138,7 +138,14 @@ func CalcDelay(cfg Config, attempt int) time.Duration {
 	var delay time.Duration
 	switch cfg.Strategy {
 	case Exponential:
-		delay = cfg.InitDelay * time.Duration(math.Pow(2, float64(attempt)))
+		// Compute in float64 to detect overflow before converting to Duration.
+		// math.Pow(2, 63) exceeds int64 range, so we cap at MaxDelay.
+		raw := float64(cfg.InitDelay) * math.Pow(2, float64(attempt))
+		if raw > float64(cfg.MaxDelay) || raw > float64(math.MaxInt64) || math.IsInf(raw, 1) {
+			delay = cfg.MaxDelay
+		} else {
+			delay = time.Duration(raw)
+		}
 	case Linear:
 		delay = cfg.InitDelay * time.Duration(attempt+1)
 	case Constant:
@@ -157,6 +164,10 @@ func CalcDelay(cfg Config, attempt int) time.Duration {
 				delay -= j
 			}
 		}
+	}
+	// Re-cap after jitter: positive jitter can push delay above MaxDelay.
+	if delay > cfg.MaxDelay {
+		delay = cfg.MaxDelay
 	}
 	return delay
 }

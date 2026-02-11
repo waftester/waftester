@@ -712,6 +712,9 @@ func TripleURLEncode(s string) string {
 }
 
 // MixedCaseURLEncode uses mixed case hex in URL encoding.
+// Non-deterministic by design: random case variation is an evasion technique
+// that makes each encoded payload unique to evade signature-based WAF rules.
+// The global rand functions are thread-safe since Go 1.20+.
 func MixedCaseURLEncode(s string) string {
 	var buf bytes.Buffer
 	buf.Grow(len(s) * 3)

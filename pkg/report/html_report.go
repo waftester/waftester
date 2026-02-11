@@ -351,6 +351,10 @@ func NewEnterpriseHTMLGenerator() (*EnterpriseHTMLGenerator, error) {
 			}
 			return s[:maxLen] + "..."
 		},
+		// SAFETY: json.Marshal produces valid JSON and Go's json.Marshal escapes
+		// <, >, and & in strings by default, making the output safe to embed in
+		// HTML <script> tags. Using template.JS here is intentional to prevent
+		// double-escaping of the JSON output.
 		"json": func(v interface{}) template.JS {
 			b, _ := json.Marshal(v)
 			return template.JS(b)

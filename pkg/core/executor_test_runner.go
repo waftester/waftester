@@ -163,9 +163,15 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 	var resp *http.Response
 	for attempt := 0; attempt <= e.config.Retries; attempt++ {
 		// Re-create body reader for POST requests on retry (readers are consumed after first use)
-		if attempt > 0 && method == "POST" && payload.ContentType != "" {
-			req.Body = io.NopCloser(strings.NewReader(payload.Payload))
-			req.ContentLength = int64(len(payload.Payload))
+		if attempt > 0 && method == "POST" {
+			if payload.ContentType != "" {
+				req.Body = io.NopCloser(strings.NewReader(payload.Payload))
+				req.ContentLength = int64(len(payload.Payload))
+			} else if e.config.RealisticMode {
+				// Realistic mode may have set a POST body without ContentType
+				req.Body = io.NopCloser(strings.NewReader(payload.Payload))
+				req.ContentLength = int64(len(payload.Payload))
+			}
 		}
 
 		start = time.Now() // Measure latency for this attempt only

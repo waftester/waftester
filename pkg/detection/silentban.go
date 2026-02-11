@@ -12,13 +12,12 @@ import (
 )
 
 // keyHeaders are headers tracked for baseline comparison.
+// Excludes per-request headers (CF-Ray, X-Request-ID, Set-Cookie) that
+// change on every request and would cause false positive ban detection.
 var keyHeaders = []string{
 	"Server",
 	"X-Cache",
 	"X-CDN",
-	"CF-Ray",
-	"X-Request-ID",
-	"Set-Cookie",
 	"Content-Type",
 	"X-Frame-Options",
 }
@@ -95,6 +94,8 @@ func (d *SilentBanDetector) CaptureBaseline(host string, resp *http.Response, la
 	} else {
 		// EMA: new_avg = alpha * new_value + (1 - alpha) * old_avg
 		b.avgLatency = time.Duration(defaults.EMAAlpha*float64(latency) + (1-defaults.EMAAlpha)*float64(b.avgLatency))
+		// Truncation to int is acceptable for body sizes (byte counts);
+		// sub-byte precision is not meaningful for drift detection.
 		b.avgBodySize = int(defaults.EMAAlpha*float64(bodySize) + (1-defaults.EMAAlpha)*float64(b.avgBodySize))
 	}
 

@@ -285,7 +285,7 @@ func (e *UTF7Encoder) Encode(payload string) (string, error) {
 		case '>':
 			result.WriteString("+AD4-")
 		case '"':
-			result.WriteString("+ACIi-")
+			result.WriteString("+ACI-")
 		case '\'':
 			result.WriteString("+ACc-")
 		case '&':
@@ -303,7 +303,7 @@ func (e *UTF7Encoder) Encode(payload string) (string, error) {
 func (e *UTF7Encoder) Decode(encoded string) (string, error) {
 	result := strings.ReplaceAll(encoded, "+ADw-", "<")
 	result = strings.ReplaceAll(result, "+AD4-", ">")
-	result = strings.ReplaceAll(result, "+ACIi-", "\"")
+	result = strings.ReplaceAll(result, "+ACI-", "\"")
 	result = strings.ReplaceAll(result, "+ACc-", "'")
 	result = strings.ReplaceAll(result, "+ACY-", "&")
 	result = strings.ReplaceAll(result, "+ACg-", "(")

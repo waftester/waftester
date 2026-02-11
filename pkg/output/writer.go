@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	htmlpkg "html"
 	"os"
 	"strings"
 	"sync"
@@ -57,6 +58,7 @@ type ExecutionResults struct {
 	BansDetected   int            `json:"bans_detected,omitempty"`
 	HostsSkipped   int            `json:"hosts_skipped,omitempty"`
 	DetectionStats map[string]int `json:"detection_stats,omitempty"`
+	FilteredTests  int            `json:"filtered_tests,omitempty"` // Tests hidden by match/filter rules
 }
 
 // EncodingEffectiveness tracks how well each encoding evades the WAF
@@ -123,7 +125,9 @@ type MarkdownWriter struct {
 	mu      sync.Mutex
 }
 
-// HTMLWriter writes results as interactive HTML report (ffuf-style DataTables)
+// HTMLWriter writes results as interactive HTML report (ffuf-style DataTables).
+// NOTE: results are accumulated in memory without bound. For very large scans,
+// consider using streaming writers (JSONL, CSV) instead.
 type HTMLWriter struct {
 	file    *os.File
 	results []*TestResult
@@ -999,6 +1003,7 @@ func (w *HTMLWriter) Close() (retErr error) {
 			path = "/"
 		}
 
+		// Escape all user-controlled data to prevent XSS
 		html += fmt.Sprintf(`                <tr>
                     <td>%s</td>
                     <td>%s</td>
@@ -1009,7 +1014,7 @@ func (w *HTMLWriter) Close() (retErr error) {
                     <td>%d</td>
                     <td>%dms</td>
                 </tr>
-`, r.ID, r.Category, severityClass, r.Severity, outcomeClass, r.Outcome, method, path, r.StatusCode, r.LatencyMs)
+`, htmlpkg.EscapeString(r.ID), htmlpkg.EscapeString(r.Category), htmlpkg.EscapeString(severityClass), htmlpkg.EscapeString(r.Severity), htmlpkg.EscapeString(outcomeClass), htmlpkg.EscapeString(r.Outcome), htmlpkg.EscapeString(method), htmlpkg.EscapeString(path), r.StatusCode, r.LatencyMs)
 	}
 
 	html += `            </tbody>

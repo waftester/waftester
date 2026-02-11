@@ -22,8 +22,19 @@ type toolHandler = func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.Cal
 // MCP client integration issues where requests silently vanish.
 func loggedTool(name string, fn toolHandler) toolHandler {
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		// Marshal arguments for the log line — truncate to avoid flooding.
-		argBytes, _ := json.Marshal(req.Params.Arguments)
+		// Redact sensitive argument fields before logging to prevent key/token leakage
+		var rawArgs map[string]interface{}
+		argBytes := []byte(req.Params.Arguments)
+		if json.Unmarshal(argBytes, &rawArgs) == nil {
+			for k := range rawArgs {
+				switch strings.ToLower(k) {
+				case "api_key", "apikey", "api_secret", "apisecret", "token",
+					"password", "secret", "license", "credentials", "key":
+					rawArgs[k] = "[REDACTED]"
+				}
+			}
+			argBytes, _ = json.Marshal(rawArgs)
+		}
 		argStr := string(argBytes)
 		const maxArgLog = 200
 		if len(argStr) > maxArgLog {

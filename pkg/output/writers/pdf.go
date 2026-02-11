@@ -97,11 +97,6 @@ func NewPDFWriter(w io.Writer, config PDFConfig) *PDFWriter {
 	if config.Orientation == "" {
 		config.Orientation = "P"
 	}
-	// Default to include evidence
-	if !config.IncludeEvidence {
-		config.IncludeEvidence = true
-	}
-
 	return &PDFWriter{
 		w:       w,
 		config:  config,

@@ -22,11 +22,14 @@ func GenerateCurlCommand(finding *BypassFinding) string {
 		method = "GET"
 	}
 
+	// Escape single quotes in the endpoint URL for safe shell embedding
+	escapedEndpoint := strings.ReplaceAll(finding.Endpoint, "'", "'\\''")
+
 	var cmd strings.Builder
 	cmd.WriteString("curl -X ")
 	cmd.WriteString(method)
 	cmd.WriteString(" '")
-	cmd.WriteString(finding.Endpoint)
+	cmd.WriteString(escapedEndpoint)
 	cmd.WriteString("'")
 
 	// Add payload as appropriate for method
@@ -258,10 +261,14 @@ func GeneratePythonCode(finding *BypassFinding) string {
 		method = "get"
 	}
 
+	// Escape backslashes and double quotes in the endpoint URL for safe Python string embedding
+	escapedEndpoint := strings.ReplaceAll(finding.Endpoint, "\\", "\\\\")
+	escapedEndpoint = strings.ReplaceAll(escapedEndpoint, "\"", "\\\"")
+
 	var code strings.Builder
 	code.WriteString("import requests\n\n")
 	code.WriteString("url = \"")
-	code.WriteString(finding.Endpoint)
+	code.WriteString(escapedEndpoint)
 	code.WriteString("\"\n")
 	code.WriteString("payload = \"")
 	code.WriteString(escapedPayload)

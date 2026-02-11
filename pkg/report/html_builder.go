@@ -176,7 +176,7 @@ func BuildFromMetrics(m interface{}, targetName string, scanDuration time.Durati
 				cr.Bypassed = int(bp)
 			}
 			// If grade is directly provided in the metrics
-			if g, ok := catMap["grade"].(string); ok {
+			if g, ok := catMap["grade"].(string); ok && len(g) > 0 {
 				cr.Grade = Grade{
 					Mark:           g,
 					Percentage:     cr.DetectionRate * 100,

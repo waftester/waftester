@@ -230,7 +230,7 @@ func (d *Detector) activeDetection(ctx context.Context, target string, result *D
 		}
 
 		body, _ := iohelper.ReadBody(resp.Body, 8192)
-		iohelper.DrainAndClose(resp.Body)
+		iohelper.DrainAndClose(resp.Body) // Drain remainder after ReadBody; defer not needed here — no early returns
 
 		// Check for WAF block indicators
 		if resp.StatusCode == 403 || resp.StatusCode == 406 || resp.StatusCode == 418 ||
@@ -555,7 +555,10 @@ func (d *Detector) consolidateResults(result *DetectionResult) {
 			continue
 		}
 
-		// Calculate total confidence
+		// Calculate total confidence using simple sum-and-cap.
+		// This is intentionally simpler than complementary probability
+		// (1 - (1-c1)*(1-c2)*...) because detection evidence is not
+		// statistically independent, and the cap provides a clear ceiling.
 		totalConfidence := 0.0
 		evidenceStrings := make([]string, 0)
 		for _, ev := range evidence {

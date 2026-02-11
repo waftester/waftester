@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/waftester/waftester/pkg/ratelimit"
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // handleAdaptiveRate processes adaptive rate limiting based on response.
@@ -73,11 +74,9 @@ func inferHTTPMethod(path, source string) string {
 }
 
 // truncateString truncates a string to max length with ellipsis.
+// Delegates to strutil.Truncate for proper UTF-8 rune handling.
 func truncateString(s string, max int) string {
-	if len(s) <= max {
-		return s
-	}
-	return s[:max] + "..."
+	return strutil.Truncate(s, max)
 }
 
 // severityToScore converts severity string to CVSS-like score string.
