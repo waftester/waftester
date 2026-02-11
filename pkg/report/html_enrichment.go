@@ -230,7 +230,9 @@ func GeneratePowerShellCommand(finding *BypassFinding) string {
 
 	var cmd strings.Builder
 	cmd.WriteString("Invoke-WebRequest -Uri '")
-	cmd.WriteString(finding.Endpoint)
+	// Escape single quotes for PowerShell (double them)
+	escapedEndpoint := strings.ReplaceAll(finding.Endpoint, "'", "''")
+	cmd.WriteString(escapedEndpoint)
 	cmd.WriteString("' -Method ")
 	cmd.WriteString(method)
 

@@ -352,38 +352,47 @@ func (t *Tester) checkHTTPFingerprint(ctx context.Context, subdomain string, fp 
 	}
 
 	for _, targetURL := range urls {
-		req, err := http.NewRequestWithContext(ctx, "GET", targetURL, nil)
-		if err != nil {
-			continue
+		if vuln := t.checkSingleURL(ctx, subdomain, targetURL, fp); vuln != nil {
+			return vuln
 		}
-		req.Header.Set("User-Agent", t.config.UserAgent)
+	}
 
-		resp, err := t.client.Do(req)
-		if err != nil {
-			continue
-		}
-		defer iohelper.DrainAndClose(resp.Body)
+	return nil
+}
 
-		body, _ := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
+// checkSingleURL checks a single URL against a fingerprint, properly scoping defer.
+func (t *Tester) checkSingleURL(ctx context.Context, subdomain, targetURL string, fp Fingerprint) *Vulnerability {
+	req, err := http.NewRequestWithContext(ctx, "GET", targetURL, nil)
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("User-Agent", t.config.UserAgent)
 
-		bodyStr := string(body)
+	resp, err := t.client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer iohelper.DrainAndClose(resp.Body)
 
-		// Check for fingerprint patterns
-		for _, pattern := range fp.Patterns {
-			if pattern.MatchString(bodyStr) {
-				return &Vulnerability{
-					Vulnerability: finding.Vulnerability{
-						Description: fmt.Sprintf("%s subdomain takeover possible", fp.Name),
-						Severity:    finding.High,
-						Evidence:    fmt.Sprintf("Pattern matched: %s", pattern.String()),
-						Remediation: GetSubdomainTakeoverRemediation(),
-						CVSS:        8.6,
-					},
-					Type:      fp.VulnType,
-					Subdomain: subdomain,
-					Target:    targetURL,
-					Provider:  fp.Provider,
-				}
+	body, _ := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
+
+	bodyStr := string(body)
+
+	// Check for fingerprint patterns
+	for _, pattern := range fp.Patterns {
+		if pattern.MatchString(bodyStr) {
+			return &Vulnerability{
+				Vulnerability: finding.Vulnerability{
+					Description: fmt.Sprintf("%s subdomain takeover possible", fp.Name),
+					Severity:    finding.High,
+					Evidence:    fmt.Sprintf("Pattern matched: %s", pattern.String()),
+					Remediation: GetSubdomainTakeoverRemediation(),
+					CVSS:        8.6,
+				},
+				Type:      fp.VulnType,
+				Subdomain: subdomain,
+				Target:    targetURL,
+				Provider:  fp.Provider,
 			}
 		}
 	}
