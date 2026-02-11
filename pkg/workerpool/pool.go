@@ -9,6 +9,17 @@ import (
 	"sync/atomic"
 )
 
+const (
+	// MinPoolSize is the minimum number of workers in the default pool
+	MinPoolSize = 16
+
+	// MaxPoolSize is the maximum number of workers in the default pool
+	MaxPoolSize = 256
+
+	// BufferMultiplier is the channel buffer size multiplier per worker
+	BufferMultiplier = 16
+)
+
 // Pool manages a fixed pool of worker goroutines.
 // It prevents goroutine explosion and reduces stack allocation overhead
 // by reusing workers for multiple tasks.
@@ -41,11 +52,11 @@ func Default() *Pool {
 	defaultOnce.Do(func() {
 		// I/O bound work benefits from more goroutines than CPU cores
 		workers := runtime.GOMAXPROCS(0) * 4
-		if workers < 16 {
-			workers = 16
+		if workers < MinPoolSize {
+			workers = MinPoolSize
 		}
-		if workers > 256 {
-			workers = 256
+		if workers > MaxPoolSize {
+			workers = MaxPoolSize
 		}
 		defaultPool = New(workers)
 	})
@@ -61,7 +72,7 @@ func New(workers int) *Pool {
 
 	p := &Pool{
 		workers: int32(workers),
-		tasks:   make(chan func(), workers*16), // Buffered for burst handling
+		tasks:   make(chan func(), workers*BufferMultiplier), // Buffered for burst handling
 	}
 
 	return p
