@@ -1,6 +1,10 @@
 package scoring
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/waftester/waftester/pkg/defaults"
+)
 
 // Input contains all data needed for risk calculation
 type Input struct {
@@ -103,7 +107,7 @@ func Calculate(input Input) Result {
 	}
 
 	// 4. Timing attack detection (blind SQLi, etc.)
-	if input.LatencyMs > 5000 && outcome == "fail" {
+	if input.LatencyMs > defaults.TimingThresholdMs && outcome == "fail" {
 		exploitabilityMod += 1.5
 		if result.EscalationReason == "" {
 			result.EscalationReason = "Timing differential suggests blind injection"
@@ -146,11 +150,11 @@ func normalize(raw float64) float64 {
 	// Max possible: 1.5 * 10 + 4 + 0 = 19
 	// Min possible: 0.1 * 3 + 0 - 3 = -2.7
 	// Scale to 0-100
-	normalized := ((raw + 3) / 22) * 100
+	normalized := ((raw + 3) / 22) * defaults.NormalizationScale
 	if normalized < 0 {
 		return 0
 	}
-	if normalized > 100 {
+	if normalized > defaults.NormalizationScale {
 		return 100
 	}
 	return normalized
