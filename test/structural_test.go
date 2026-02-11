@@ -2251,7 +2251,7 @@ func TestNoHandRolledRetry(t *testing.T) {
 	allowlist := map[string]bool{
 		"retry":       true,
 		"ratelimit":   true,
-		"distributed":  true,
+		"distributed": true,
 		"workerpool":  true,
 		"browser":     true,
 		"core":        true,
@@ -2436,12 +2436,12 @@ func TestNoDeadCodeSuppressions(t *testing.T) {
 	// Known pre-existing dead code suppressions tracked for future cleanup.
 	// Removing entries is allowed; adding is NOT.
 	knownViolations := map[string]bool{
-		"pkg/probes/jarm.go":        true,
-		"cmd/cli/cmd_crawl.go":      true,
-		"cmd/cli/cmd_grpc.go":       true,
-		"cmd/cli/cmd_mutate.go":     true,
-		"cmd/cli/cmd_openapi.go":    true,
-		"cmd/cli/cmd_soap.go":       true,
+		"pkg/probes/jarm.go":     true,
+		"cmd/cli/cmd_crawl.go":   true,
+		"cmd/cli/cmd_grpc.go":    true,
+		"cmd/cli/cmd_mutate.go":  true,
+		"cmd/cli/cmd_openapi.go": true,
+		"cmd/cli/cmd_soap.go":    true,
 	}
 
 	var newViolations []string
@@ -2546,7 +2546,7 @@ func TestNoRawSeverityStrings(t *testing.T) {
 
 	// Known pre-existing violations. Removing entries is allowed; adding is NOT.
 	knownViolations := map[string]bool{
-		"accesscontrol":    true,
+		"accesscontrol":   true,
 		"assessment":      true,
 		"browser":         true,
 		"cli":             true,

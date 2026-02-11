@@ -456,5 +456,3 @@ func getEnvWithDefault(key, defaultVal string) string {
 	}
 	return defaultVal
 }
-
-

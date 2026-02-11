@@ -54,25 +54,25 @@ const (
 
 // Payload represents an SSTI payload
 type Payload struct {
-	Template       string         // The template injection payload
-	Engine         TemplateEngine // Target template engine
-	Type           PayloadType    // Payload type
-	ExpectedOutput string         // Expected output if vulnerable
-	Regex          *regexp.Regexp // Regex pattern to match in response
-	Description    string         // Description of what this payload does
+	Template       string           // The template injection payload
+	Engine         TemplateEngine   // Target template engine
+	Type           PayloadType      // Payload type
+	ExpectedOutput string           // Expected output if vulnerable
+	Regex          *regexp.Regexp   // Regex pattern to match in response
+	Description    string           // Description of what this payload does
 	Severity       finding.Severity // Severity if successful
-	MathA          int            // First number for math probes
-	MathB          int            // Second number for math probes
-	MathResult     int            // Expected result for math probes
+	MathA          int              // First number for math probes
+	MathB          int              // Second number for math probes
+	MathResult     int              // Expected result for math probes
 }
 
 // Vulnerability represents a detected SSTI vulnerability
 type Vulnerability struct {
 	finding.Vulnerability
-	Engine         TemplateEngine `json:"engine"`          // Detected template engine
-	Payload        *Payload       `json:"payload,omitempty"` // Payload that triggered the vuln
-	Confidence     string         `json:"confidence"`      // high, medium, low
-	CanExecuteCode bool           `json:"can_execute_code"` // Whether RCE is possible
+	Engine         TemplateEngine `json:"engine"`                // Detected template engine
+	Payload        *Payload       `json:"payload,omitempty"`     // Payload that triggered the vuln
+	Confidence     string         `json:"confidence"`            // high, medium, low
+	CanExecuteCode bool           `json:"can_execute_code"`      // Whether RCE is possible
 	RCEPayload     string         `json:"rce_payload,omitempty"` // Example RCE payload
 }
 
