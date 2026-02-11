@@ -152,14 +152,21 @@ func calculateRecoveryWait(consecutiveDrops int64) time.Duration {
 		return 0
 	}
 
+	cap := defaults.DropDetectRecoveryWindow()
+
+	// Prevent shift overflow: 1<<63 overflows int64
+	if consecutiveDrops > 62 {
+		return cap
+	}
+
 	// Exponential backoff: 5s * 2^(drops-1)
 	baseWait := 5 * time.Second
 	multiplier := int64(1) << (consecutiveDrops - 1) // 2^(drops-1)
 	wait := time.Duration(int64(baseWait) * multiplier)
 
 	// Cap at recovery window
-	if wait > defaults.DropDetectRecoveryWindow() {
-		return defaults.DropDetectRecoveryWindow()
+	if wait > cap || wait < 0 { // negative means overflow
+		return cap
 	}
 	return wait
 }

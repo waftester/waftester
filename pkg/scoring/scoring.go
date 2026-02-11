@@ -83,17 +83,22 @@ func Calculate(input Input) Result {
 
 	// 2. Check for sensitive patterns (if response provided)
 	if input.ResponseContains != "" {
+		var bestImpact float64
+		var bestReason string
 		for pattern, info := range sensitivePatterns {
 			if containsSecurityPattern(input.ResponseContains, pattern) {
-				exploitabilityMod += info.Impact
-				result.EscalationReason = info.Reason
-
-				// Escalate severity
-				if info.Impact >= 4.0 && strings.ToLower(result.FinalSeverity) != "critical" {
-					result.FinalSeverity = "Critical"
-					baseSeverity = severityScores["critical"]
+				if info.Impact > bestImpact {
+					bestImpact = info.Impact
+					bestReason = info.Reason
 				}
-				break
+			}
+		}
+		if bestImpact > 0 {
+			exploitabilityMod += bestImpact
+			result.EscalationReason = bestReason
+			if bestImpact >= 4.0 && strings.ToLower(result.FinalSeverity) != "critical" {
+				result.FinalSeverity = "Critical"
+				baseSeverity = severityScores["critical"]
 			}
 		}
 	}

@@ -216,20 +216,21 @@ func (s *Scorer) Score(results []Result) *Benchmark {
 	}
 
 	// Calculate precision and F1 score
-	truePositives := benchmark.TotalBlocked - benchmark.FalsePositives
-	if truePositives < 0 {
-		truePositives = 0
+	// TotalBlocked is true positives (TP), FalsePositives is FP
+	// Precision = TP / (TP + FP)
+	allBlocked := benchmark.TotalBlocked + benchmark.FalsePositives
+	if allBlocked > 0 {
+		benchmark.Precision = float64(benchmark.TotalBlocked) / float64(allBlocked) * 100
 	}
 
-	if benchmark.TotalBlocked > 0 {
-		benchmark.Precision = float64(truePositives) / float64(benchmark.TotalBlocked) * 100
+	// Recall = TP / (TP + FN)
+	attackTests := benchmark.TotalBlocked + benchmark.FalseNegatives
+	recall := 0.0
+	if attackTests > 0 {
+		recall = float64(benchmark.TotalBlocked) / float64(attackTests) * 100
 	}
 
 	// F1 = 2 * (precision * recall) / (precision + recall)
-	// Both Precision and BlockRate are percentages (0-100), so F1 is also 0-100.
-	// The formula produces identical results whether inputs are percentages or
-	// ratios since the scaling factor cancels out.
-	recall := benchmark.BlockRate
 	if benchmark.Precision+recall > 0 {
 		benchmark.F1Score = 2 * (benchmark.Precision * recall) / (benchmark.Precision + recall)
 	}
