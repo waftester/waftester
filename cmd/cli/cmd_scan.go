@@ -60,6 +60,17 @@ import (
 	"github.com/waftester/waftester/pkg/xxe"
 )
 
+// headerSlice implements flag.Value for repeated -H flags.
+// Does not split on commas since header values may contain them.
+type headerSlice []string
+
+func (h *headerSlice) String() string { return strings.Join(*h, "; ") }
+
+func (h *headerSlice) Set(value string) error {
+	*h = append(*h, value)
+	return nil
+}
+
 func runScan() {
 	scanFlags := flag.NewFlagSet("scan", flag.ExitOnError)
 
@@ -136,8 +147,9 @@ func runScan() {
 	scanFlags.StringVar(userAgent, "ua", "", "User-Agent (alias)")
 	randomAgent := scanFlags.Bool("random-agent", false, "Use random User-Agent")
 	scanFlags.BoolVar(randomAgent, "ra", false, "Random agent (alias)")
-	headers := scanFlags.String("header", "", "Custom header (Name: Value)")
-	scanFlags.StringVar(headers, "H", "", "Custom header (alias)")
+	var headerFlags headerSlice
+	scanFlags.Var(&headerFlags, "header", "Custom header (Name: Value) — repeatable")
+	scanFlags.Var(&headerFlags, "H", "Custom header (alias)")
 	cookies := scanFlags.String("cookie", "", "Cookies to send")
 	scanFlags.StringVar(cookies, "b", "", "Cookie (alias)")
 
@@ -496,8 +508,8 @@ func runScan() {
 
 	// Build custom headers map
 	customHeaders := make(map[string]string)
-	if *headers != "" {
-		parts := strings.SplitN(*headers, ":", 2)
+	for _, h := range headerFlags {
+		parts := strings.SplitN(h, ":", 2)
 		if len(parts) == 2 {
 			customHeaders[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
 		}

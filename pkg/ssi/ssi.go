@@ -4,6 +4,7 @@ package ssi
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -130,11 +131,11 @@ func (s *Scanner) testPayload(ctx context.Context, targetURL, param, payload str
 }
 
 func buildQuery(params map[string]string) string {
-	parts := make([]string, 0, len(params))
+	vals := make(url.Values, len(params))
 	for k, v := range params {
-		parts = append(parts, k+"="+v)
+		vals.Set(k, v)
 	}
-	return strings.Join(parts, "&")
+	return vals.Encode()
 }
 
 // detectVulnerability checks if SSI was executed

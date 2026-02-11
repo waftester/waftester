@@ -186,6 +186,11 @@ func runFuzz() {
 	// Load wordlist
 	var words []string
 	if *wordlist != "" {
+		// Reject non-HTTP URL schemes (SSRF protection)
+		if strings.Contains(*wordlist, "://") && !strings.HasPrefix(*wordlist, "http://") && !strings.HasPrefix(*wordlist, "https://") {
+			ui.PrintError("Wordlist URL must use http:// or https:// scheme")
+			os.Exit(1)
+		}
 		if strings.HasPrefix(*wordlist, "http://") || strings.HasPrefix(*wordlist, "https://") {
 			// Download wordlist
 			resp, err := http.Get(*wordlist)

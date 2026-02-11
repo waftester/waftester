@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -19,6 +20,9 @@ import (
 
 // Compile-time interface check.
 var _ dispatcher.Hook = (*GitHubIssuesHook)(nil)
+
+// validGitHubName matches valid GitHub owner and repo names (alphanumeric, hyphen, underscore, dot).
+var validGitHubName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 // GitHubIssuesHook creates issues in GitHub via the REST API v3.
 // It creates issues for WAF bypasses that meet the severity threshold.
@@ -82,7 +86,15 @@ type githubErrorResponse struct {
 }
 
 // NewGitHubIssuesHook creates a new GitHub Issues hook.
-func NewGitHubIssuesHook(opts GitHubIssuesOptions) *GitHubIssuesHook {
+// Returns an error if Owner or Repo contain invalid characters.
+func NewGitHubIssuesHook(opts GitHubIssuesOptions) (*GitHubIssuesHook, error) {
+	if !validGitHubName.MatchString(opts.Owner) {
+		return nil, fmt.Errorf("invalid GitHub owner: %q", opts.Owner)
+	}
+	if !validGitHubName.MatchString(opts.Repo) {
+		return nil, fmt.Errorf("invalid GitHub repo: %q", opts.Repo)
+	}
+
 	if opts.Timeout == 0 {
 		opts.Timeout = duration.WebhookTimeout
 	}
@@ -103,7 +115,7 @@ func NewGitHubIssuesHook(opts GitHubIssuesOptions) *GitHubIssuesHook {
 			InsecureSkipVerify: false, // GitHub uses valid certs
 		}),
 		logger: orDefault(opts.Logger),
-	}
+	}, nil
 }
 
 // OnEvent processes events and creates issues in GitHub.

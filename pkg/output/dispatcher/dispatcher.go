@@ -9,6 +9,7 @@ package dispatcher
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 
 	"github.com/waftester/waftester/pkg/output/events"
@@ -50,6 +51,7 @@ type Dispatcher struct {
 	writers []Writer
 	hooks   []Hook
 	mu      sync.RWMutex
+	hookWg  sync.WaitGroup
 
 	// Options
 	batchSize int
@@ -111,7 +113,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event events.Event) error {
 	for _, w := range d.writers {
 		if w.SupportsEvent(event.EventType()) {
 			if err := w.Write(event); err != nil {
-				// Log but don't fail - other writers should still receive
+				slog.Warn("writer failed", slog.String("event", string(event.EventType())), slog.String("error", err.Error()))
 				continue
 			}
 		}
@@ -121,12 +123,16 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event events.Event) error {
 	for _, h := range d.hooks {
 		if d.hookSupportsEvent(h, event.EventType()) {
 			if d.async {
+				d.hookWg.Add(1)
 				go func(hook Hook) {
-					_ = hook.OnEvent(ctx, event)
+					defer d.hookWg.Done()
+					if err := hook.OnEvent(ctx, event); err != nil {
+						slog.Warn("async hook failed", slog.String("event", string(event.EventType())), slog.String("error", err.Error()))
+					}
 				}(h)
 			} else {
 				if err := h.OnEvent(ctx, event); err != nil {
-					// Log but don't fail
+					slog.Warn("hook failed", slog.String("event", string(event.EventType())), slog.String("error", err.Error()))
 					continue
 				}
 			}
@@ -163,9 +169,12 @@ func (d *Dispatcher) Flush() error {
 	return nil
 }
 
-// Close flushes and closes all writers.
+// Close flushes and closes all writers, and waits for async hooks to complete.
 // After Close is called, the dispatcher should not be used.
 func (d *Dispatcher) Close() error {
+	// Wait for all async hooks to complete before closing writers
+	d.hookWg.Wait()
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
 

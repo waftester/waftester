@@ -316,6 +316,14 @@ func (d *VendorDetector) detectCloudflare(resp *http.Response, body string) (flo
 	return minFloat(confidence, 1.0), evidence
 }
 
+// Pre-compiled regexps for hot-path detection functions.
+// Avoids recompiling on every call to detect* methods.
+var (
+	awsWAFBodyRegex = regexp.MustCompile(`(?i)aws\s*waf`)
+	akamaiBodyRegex = regexp.MustCompile(`(?i)akamai|ghost`)
+	f5SupportIDRegex = regexp.MustCompile(`support ID: \d+`)
+)
+
 func (d *VendorDetector) detectAWSWAF(resp *http.Response, body string) (float64, []string) {
 	var evidence []string
 	confidence := 0.0
@@ -335,7 +343,7 @@ func (d *VendorDetector) detectAWSWAF(resp *http.Response, body string) (float64
 		confidence += 0.4
 		evidence = append(evidence, "AWS WAF block page")
 	}
-	if matched, _ := regexp.MatchString(`(?i)aws\s*waf`, body); matched {
+	if awsWAFBodyRegex.MatchString(body) {
 		confidence += 0.3
 		evidence = append(evidence, "AWS WAF reference in body")
 	}
@@ -385,7 +393,7 @@ func (d *VendorDetector) detectAkamai(resp *http.Response, body string) (float64
 	}
 
 	// Akamai Ghost reference
-	if matched, _ := regexp.MatchString(`(?i)akamai|ghost`, body); matched {
+	if akamaiBodyRegex.MatchString(body) {
 		confidence += 0.2
 		evidence = append(evidence, "Akamai reference in body")
 	}
@@ -469,7 +477,7 @@ func (d *VendorDetector) detectF5BigIP(resp *http.Response, body string) (float6
 		confidence += 0.3
 		evidence = append(evidence, "F5 ASM block message")
 	}
-	if matched, _ := regexp.MatchString(`support ID: \d+`, body); matched {
+	if f5SupportIDRegex.MatchString(body) {
 		confidence += 0.3
 		evidence = append(evidence, "F5 support ID in response")
 	}

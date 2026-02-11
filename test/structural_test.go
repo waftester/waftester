@@ -60,47 +60,60 @@ func getRepoRoot(t *testing.T) string {
 	return ""
 }
 
-// TestAllPackagesHaveTests walks pkg/ and verifies each package has *_test.go files.
+// TestAllPackagesHaveTests walks pkg/ recursively and verifies each Go
+// package (directory containing .go source files) has *_test.go files.
 func TestAllPackagesHaveTests(t *testing.T) {
 	repoRoot := getRepoRoot(t)
 	pkgDir := filepath.Join(repoRoot, "pkg")
 
-	entries, err := os.ReadDir(pkgDir)
+	// Collect all Go package directories and whether they have tests.
+	type pkgInfo struct {
+		hasSource bool
+		hasTests  bool
+	}
+	packages := make(map[string]*pkgInfo)
+
+	err := filepath.WalkDir(pkgDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		if filepath.Ext(path) != ".go" {
+			return nil
+		}
+
+		dir := filepath.Dir(path)
+		rel, _ := filepath.Rel(pkgDir, dir)
+
+		info, ok := packages[rel]
+		if !ok {
+			info = &pkgInfo{}
+			packages[rel] = info
+		}
+
+		if strings.HasSuffix(d.Name(), "_test.go") {
+			info.hasTests = true
+		} else {
+			info.hasSource = true
+		}
+		return nil
+	})
 	if err != nil {
-		t.Fatalf("failed to read pkg/ directory: %v", err)
+		t.Fatalf("failed to walk pkg/ directory: %v", err)
 	}
 
 	var packagesWithoutTests []string
 	var packagesWithTests int
 	var totalPackages int
 
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
+	for rel, info := range packages {
+		if !info.hasSource {
+			continue // test-only packages don't count
 		}
-
 		totalPackages++
-		packagePath := filepath.Join(pkgDir, entry.Name())
-
-		// Check for *_test.go files
-		hasTests := false
-		files, err := os.ReadDir(packagePath)
-		if err != nil {
-			t.Logf("WARNING: could not read package %s: %v", entry.Name(), err)
-			continue
-		}
-
-		for _, file := range files {
-			if !file.IsDir() && strings.HasSuffix(file.Name(), "_test.go") {
-				hasTests = true
-				break
-			}
-		}
-
-		if hasTests {
+		if info.hasTests {
 			packagesWithTests++
 		} else {
-			packagesWithoutTests = append(packagesWithoutTests, entry.Name())
+			packagesWithoutTests = append(packagesWithoutTests, rel)
 		}
 	}
 
@@ -345,7 +358,7 @@ func TestVersion_Consistent(t *testing.T) {
 		t.Logf("INFO: CHANGELOG.md not found: %v", err)
 	} else {
 		if !strings.Contains(string(changelogContent), defaultsVersion) {
-			t.Logf("INFO: CHANGELOG.md does not contain current version %s", defaultsVersion)
+			t.Errorf("CHANGELOG.md does not contain current version %s", defaultsVersion)
 		}
 	}
 }

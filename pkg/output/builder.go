@@ -513,7 +513,7 @@ func BuildDispatcher(cfg Config) (*dispatcher.Dispatcher, error) {
 			assignees = parseCSV(cfg.GitHubIssuesAssignees)
 		}
 
-		hook := hooks.NewGitHubIssuesHook(hooks.GitHubIssuesOptions{
+		hook, err := hooks.NewGitHubIssuesHook(hooks.GitHubIssuesOptions{
 			Token:     cfg.GitHubIssuesToken,
 			Owner:     cfg.GitHubIssuesOwner,
 			Repo:      cfg.GitHubIssuesRepo,
@@ -521,6 +521,9 @@ func BuildDispatcher(cfg Config) (*dispatcher.Dispatcher, error) {
 			Labels:    labels,
 			Assignees: assignees,
 		})
+		if err != nil {
+			return nil, fmt.Errorf("github issues hook: %w", err)
+		}
 		d.RegisterHook(hook)
 	}
 

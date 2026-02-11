@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/waftester/waftester/pkg/httpclient"
@@ -36,6 +37,14 @@ func (c *ShodanClient) Validate() error {
 	return nil
 }
 
+// redactAPIKey removes the API key from error messages to prevent leakage in logs.
+func redactAPIKey(err error, key string) error {
+	if err == nil || key == "" {
+		return err
+	}
+	return fmt.Errorf("%s", strings.ReplaceAll(err.Error(), key, "[REDACTED]"))
+}
+
 func (c *ShodanClient) FetchSubdomains(ctx context.Context, domain string) ([]Result, error) {
 	url := fmt.Sprintf("%s/dns/domain/%s?key=%s", c.baseURL, domain, c.apiKey)
 
@@ -46,7 +55,7 @@ func (c *ShodanClient) FetchSubdomains(ctx context.Context, domain string) ([]Re
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, redactAPIKey(err, c.apiKey)
 	}
 	defer iohelper.DrainAndClose(resp.Body)
 
@@ -84,7 +93,7 @@ func (c *ShodanClient) FetchIPs(ctx context.Context, domain string) ([]Result, e
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, redactAPIKey(err, c.apiKey)
 	}
 	defer iohelper.DrainAndClose(resp.Body)
 
@@ -117,7 +126,7 @@ func (c *ShodanClient) FetchPorts(ctx context.Context, ip string) ([]Result, err
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, redactAPIKey(err, c.apiKey)
 	}
 	defer iohelper.DrainAndClose(resp.Body)
 

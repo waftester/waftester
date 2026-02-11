@@ -97,6 +97,11 @@ func needsMiddleware(cfg Config) bool {
 
 // redirectPolicyWithAuthStrip returns a CheckRedirect function that strips
 // auth headers on cross-origin redirects to prevent credential leakage.
+//
+// Note: Since ErrUseLastResponse is always returned, redirects are never
+// followed and the stripped request is never sent. This is defense-in-depth:
+// if the policy is ever changed to follow redirects, auth headers will not
+// leak to different origins.
 func redirectPolicyWithAuthStrip(authHeaders http.Header) func(*http.Request, []*http.Request) error {
 	return func(req *http.Request, via []*http.Request) error {
 		if len(via) == 0 {

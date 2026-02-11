@@ -201,7 +201,8 @@ func ParseFlags() (*Config, error) {
 	flag.BoolVar(&cfg.EnableDetection, "detect", true, "Enable connection drop and silent ban detection")
 	flag.BoolVar(&cfg.EnableDetection, "detection", true, "Enable detection (alias)")
 
-	// Parse
+	// Parse — uses global flag.CommandLine intentionally.
+	// This is the CLI entry point; subcommands use flag.NewFlagSet.
 	flag.Parse()
 
 	// Convert timeout

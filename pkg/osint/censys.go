@@ -1,6 +1,7 @@
 package osint
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -44,8 +45,17 @@ func (c *CensysClient) FetchSubdomains(ctx context.Context, domain string) ([]Re
 	endpoint := fmt.Sprintf("%s/hosts/search", c.baseURL)
 	query := fmt.Sprintf("names: %s", domain)
 
-	body := fmt.Sprintf(`{"q": "%s", "per_page": 100}`, query)
-	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(body))
+	// Use json.Marshal to safely escape the query value and prevent JSON injection
+	bodyData := struct {
+		Q       string `json:"q"`
+		PerPage int    `json:"per_page"`
+	}{Q: query, PerPage: 100}
+	bodyBytes, err := json.Marshal(bodyData)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling request body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return nil, err
 	}
@@ -94,8 +104,17 @@ func (c *CensysClient) FetchIPs(ctx context.Context, domain string) ([]Result, e
 	endpoint := fmt.Sprintf("%s/hosts/search", c.baseURL)
 	query := fmt.Sprintf("names: %s", domain)
 
-	body := fmt.Sprintf(`{"q": "%s", "per_page": 100}`, query)
-	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(body))
+	// Use json.Marshal to safely escape the query value and prevent JSON injection
+	bodyData := struct {
+		Q       string `json:"q"`
+		PerPage int    `json:"per_page"`
+	}{Q: query, PerPage: 100}
+	bodyBytes, err := json.Marshal(bodyData)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling request body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return nil, err
 	}

@@ -415,11 +415,14 @@ func (d *Detector) sendRawRequest(ctx context.Context, host, port string, useTLS
 	start := time.Now()
 
 	if useTLS {
-		tlsConfig := &tls.Config{
-			InsecureSkipVerify: true,
-			ServerName:         host,
+		tlsDialer := &tls.Dialer{
+			NetDialer: dialer,
+			Config: &tls.Config{
+				InsecureSkipVerify: true,
+				ServerName:         host,
+			},
 		}
-		conn, err = tls.DialWithDialer(dialer, "tcp", addr, tlsConfig)
+		conn, err = tlsDialer.DialContext(ctx, "tcp", addr)
 	} else {
 		conn, err = dialer.DialContext(ctx, "tcp", addr)
 	}

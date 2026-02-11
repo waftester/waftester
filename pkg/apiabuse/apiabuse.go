@@ -110,7 +110,6 @@ func (s *Scanner) TestRateLimiting(ctx context.Context, targetURL string, reques
 		if err != nil {
 			continue
 		}
-		iohelper.ReadBodyDefault(resp.Body)
 		iohelper.DrainAndClose(resp.Body)
 
 		totalTime += time.Since(start)
@@ -126,7 +125,9 @@ func (s *Scanner) TestRateLimiting(ctx context.Context, targetURL string, reques
 	}
 
 	result.StatusCode = lastStatusCode
-	result.ResponseTime = totalTime / time.Duration(requests)
+	if requests > 0 {
+		result.ResponseTime = totalTime / time.Duration(requests)
+	}
 
 	if !result.RateLimited && successCount == requests {
 		result.Vulnerable = true

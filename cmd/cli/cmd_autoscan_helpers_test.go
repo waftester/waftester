@@ -68,11 +68,11 @@ func TestTruncateString(t *testing.T) {
 	}{
 		{"short string unchanged", "hello", 10, "hello"},
 		{"exact length unchanged", "hello", 5, "hello"},
-		{"truncated with ellipsis", "hello world", 5, "hello..."},
+		{"truncated with ellipsis", "hello world", 5, "he..."},
 		{"empty string", "", 5, ""},
-		{"single char truncate", "abcdef", 1, "a..."},
-		{"zero max", "hello", 0, "..."},
-		{"long URL truncated", "https://example.com/very/long/path/to/resource?param=value", 30, "https://example.com/very/long/..."},
+		{"single char truncate", "abcdef", 1, "a"},
+		{"zero max", "hello", 0, ""},
+		{"long URL truncated", "https://example.com/very/long/path/to/resource?param=value", 30, "https://example.com/very/lo..."},
 	}
 
 	for _, tt := range tests {

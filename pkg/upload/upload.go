@@ -212,18 +212,11 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) ([]Vulnerability, e
 	payloads := GetAllPayloads()
 	sem := make(chan struct{}, t.config.Concurrency)
 
-	// Use a done channel to signal early termination
-	done := make(chan struct{})
-	go func() {
-		<-ctx.Done()
-		close(done)
-	}()
-
 payloadLoop:
 	for _, payload := range payloads {
 		// Check context before spawning goroutine
 		select {
-		case <-done:
+		case <-ctx.Done():
 			break payloadLoop
 		default:
 		}
@@ -234,7 +227,7 @@ payloadLoop:
 
 			// Check context before acquiring semaphore with timeout
 			select {
-			case <-done:
+			case <-ctx.Done():
 				return
 			case sem <- struct{}{}:
 				defer func() { <-sem }()
@@ -242,7 +235,7 @@ payloadLoop:
 
 			// Double-check context before making request
 			select {
-			case <-done:
+			case <-ctx.Done():
 				return
 			default:
 			}
@@ -595,20 +588,21 @@ func IsMagicBytesValid(content []byte, expectedType string) bool {
 	return true
 }
 
+// Pre-compiled patterns for executable code detection (avoid per-call regexp.MustCompile).
+var executableCodePatterns = []*regexp.Regexp{
+	regexp.MustCompile(`<\?[a-z]`),            // Script tag pattern
+	regexp.MustCompile(`<%[=\s]`),             // ASP tag pattern
+	regexp.MustCompile(`function\s+\w+\s*\(`), // Function definition
+	regexp.MustCompile(`\bimport\s+\w`),       // Import statement
+	regexp.MustCompile(`require\s*\(`),        // Require call
+	regexp.MustCompile(`WEBSHELL_MARKER`),     // Our test markers
+	regexp.MustCompile(`PLACEHOLDER_SCRIPT`),  // Our test markers
+}
+
 // ContainsExecutableCode checks if content contains executable code patterns.
 func ContainsExecutableCode(content []byte) bool {
-	// Use patterns that won't trigger AV
-	patterns := []*regexp.Regexp{
-		regexp.MustCompile(`<\?[a-z]`),            // Script tag pattern
-		regexp.MustCompile(`<%[=\s]`),             // ASP tag pattern
-		regexp.MustCompile(`function\s+\w+\s*\(`), // Function definition
-		regexp.MustCompile(`\bimport\s+\w`),       // Import statement
-		regexp.MustCompile(`require\s*\(`),        // Require call
-		regexp.MustCompile(`WEBSHELL_MARKER`),     // Our test markers
-		regexp.MustCompile(`PLACEHOLDER_SCRIPT`),  // Our test markers
-	}
 	contentStr := string(content)
-	for _, p := range patterns {
+	for _, p := range executableCodePatterns {
 		if p.MatchString(contentStr) {
 			return true
 		}

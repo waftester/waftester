@@ -70,7 +70,9 @@ func NewScanner(config Config) *Scanner {
 	}
 }
 
-// Scan tests a URL for mass assignment vulnerability
+// Scan tests a URL for mass assignment vulnerability.
+// Parameters are tested sequentially to avoid overwhelming the target
+// and to simplify correlation of responses to individual parameters.
 func (s *Scanner) Scan(ctx context.Context, targetURL string, originalData map[string]interface{}) ([]Result, error) {
 	results := make([]Result, 0)
 
@@ -139,15 +141,19 @@ func (s *Scanner) testParameter(ctx context.Context, targetURL string, param Dan
 	return result
 }
 
-// detectVulnerability checks if mass assignment succeeded
+// detectVulnerability checks if mass assignment succeeded.
+// Note: Detection uses JSON field name matching which may produce false positives
+// for very short parameter names that appear as substrings of other JSON keys.
 func (s *Scanner) detectVulnerability(statusCode int, body string, param DangerousParam) (bool, string) {
 	// If request succeeded (2xx or 3xx) and response contains parameter or its value
 	if statusCode >= 200 && statusCode < 400 {
 		bodyLower := strings.ToLower(body)
 		paramLower := strings.ToLower(param.Name)
 
-		// Check if parameter appears in response
-		if strings.Contains(bodyLower, paramLower) {
+		// Check if parameter appears as a JSON field in response
+		// Use quoted check to reduce false positives (e.g., "id" won't match "valid")
+		quotedParam := `"` + paramLower + `"`
+		if strings.Contains(bodyLower, quotedParam) {
 			return true, "Parameter " + param.Name + " accepted in response"
 		}
 

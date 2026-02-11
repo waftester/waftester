@@ -270,6 +270,9 @@ func (t *Tester) CheckSubdomain(ctx context.Context, subdomain string) (*ScanRes
 				Subdomain: subdomain,
 			})
 			result.IsVulnerable = true
+		} else {
+			// Non-NXDOMAIN DNS errors should not be silently swallowed
+			return result, fmt.Errorf("DNS resolution for %s: %w", subdomain, err)
 		}
 	}
 	result.CNAMEChain = cnameChain
@@ -359,9 +362,9 @@ func (t *Tester) checkHTTPFingerprint(ctx context.Context, subdomain string, fp 
 		if err != nil {
 			continue
 		}
+		defer iohelper.DrainAndClose(resp.Body)
 
 		body, _ := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
-		iohelper.DrainAndClose(resp.Body)
 
 		bodyStr := string(body)
 
