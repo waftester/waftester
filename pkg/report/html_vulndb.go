@@ -3,6 +3,8 @@ package report
 import (
 	"fmt"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/defaults"
 )
 
 // CategoryDisplayNames maps internal names to display names
@@ -218,8 +220,8 @@ var VulnerabilityDatabase = map[string]VulnerabilityInfo{
 		Impact:        "Exposure of configuration files, source code, credentials, and sensitive system information.",
 		CWE:           "CWE-98",
 		CWEURL:        "https://cwe.mitre.org/data/definitions/98.html",
-		OWASPCategory: "A01:2021 - Broken Access Control",
-		OWASPURL:      "https://owasp.org/Top10/A01_2021-Broken_Access_Control/",
+		OWASPCategory: defaults.OWASPTop10["A01:2021"].FullName,
+		OWASPURL:      defaults.OWASPTop10["A01:2021"].URL,
 		Remediation:   "Avoid file operations with user-supplied input. Use allowlists for permitted files. Implement chroot jails. Configure WAF to block path traversal patterns.",
 		References: []string{
 			"https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/11.1-Testing_for_Local_File_Inclusion",
@@ -246,8 +248,8 @@ var VulnerabilityDatabase = map[string]VulnerabilityInfo{
 		Impact:        "Unauthorized file access, configuration disclosure, source code exposure, and potential system compromise.",
 		CWE:           "CWE-22",
 		CWEURL:        "https://cwe.mitre.org/data/definitions/22.html",
-		OWASPCategory: "A01:2021 - Broken Access Control",
-		OWASPURL:      "https://owasp.org/Top10/A01_2021-Broken_Access_Control/",
+		OWASPCategory: defaults.OWASPTop10["A01:2021"].FullName,
+		OWASPURL:      defaults.OWASPTop10["A01:2021"].URL,
 		Remediation:   "Validate and canonicalize all file paths. Use allowlists for permitted files. Implement proper access controls. Block path traversal sequences (../) in WAF.",
 		References: []string{
 			"https://owasp.org/www-community/attacks/Path_Traversal",
@@ -274,8 +276,8 @@ var VulnerabilityDatabase = map[string]VulnerabilityInfo{
 		Impact:        "Access to internal services, cloud metadata exploitation, port scanning, and potential RCE through internal services.",
 		CWE:           "CWE-918",
 		CWEURL:        "https://cwe.mitre.org/data/definitions/918.html",
-		OWASPCategory: "A10:2021 - Server-Side Request Forgery",
-		OWASPURL:      "https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_%28SSRF%29/",
+		OWASPCategory: defaults.OWASPTop10["A10:2021"].FullName,
+		OWASPURL:      defaults.OWASPTop10["A10:2021"].URL,
 		Remediation:   "Validate and sanitize all URLs. Use allowlists for permitted domains. Block requests to private IP ranges. Disable unnecessary URL schemas.",
 		References: []string{
 			"https://owasp.org/www-community/attacks/Server_Side_Request_Forgery",
@@ -330,8 +332,8 @@ var VulnerabilityDatabase = map[string]VulnerabilityInfo{
 		Impact:        "File disclosure, SSRF, denial of service, and potential remote code execution.",
 		CWE:           "CWE-611",
 		CWEURL:        "https://cwe.mitre.org/data/definitions/611.html",
-		OWASPCategory: "A05:2021 - Security Misconfiguration",
-		OWASPURL:      "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/",
+		OWASPCategory: defaults.OWASPTop10["A05:2021"].FullName,
+		OWASPURL:      defaults.OWASPTop10["A05:2021"].URL,
 		Remediation:   "Disable DTD processing and external entities. Use less complex data formats (JSON). Validate and sanitize all XML input. Keep XML parsers updated.",
 		References: []string{
 			"https://owasp.org/www-community/vulnerabilities/XML_External_Entity_(XXE)_Processing",
@@ -463,8 +465,8 @@ var VulnerabilityDatabase = map[string]VulnerabilityInfo{
 		Impact:        "XSS delivery to all cached users, defacement, credential theft, and widespread malware distribution.",
 		CWE:           "CWE-444",
 		CWEURL:        "https://cwe.mitre.org/data/definitions/444.html",
-		OWASPCategory: "A05:2021 - Security Misconfiguration",
-		OWASPURL:      "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/",
+		OWASPCategory: defaults.OWASPTop10["A05:2021"].FullName,
+		OWASPURL:      defaults.OWASPTop10["A05:2021"].URL,
 		Remediation:   "Include all relevant headers in cache keys. Validate Host and X-Forwarded headers. Implement cache key normalization. Use signed cache keys.",
 		References: []string{
 			"https://portswigger.net/research/practical-web-cache-poisoning",
@@ -489,8 +491,8 @@ var VulnerabilityDatabase = map[string]VulnerabilityInfo{
 		Impact:        "Successful bypass of security controls, enabling exploitation of underlying vulnerabilities.",
 		CWE:           "CWE-693",
 		CWEURL:        "https://cwe.mitre.org/data/definitions/693.html",
-		OWASPCategory: "A05:2021 - Security Misconfiguration",
-		OWASPURL:      "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/",
+		OWASPCategory: defaults.OWASPTop10["A05:2021"].FullName,
+		OWASPURL:      defaults.OWASPTop10["A05:2021"].URL,
 		Remediation:   "Normalize and decode input before inspection. Implement multiple WAF rules for common evasions. Use request body inspection. Keep WAF signatures updated.",
 		References: []string{
 			"https://owasp.org/www-community/attacks/",
@@ -515,8 +517,8 @@ var VulnerabilityDatabase = map[string]VulnerabilityInfo{
 		Impact:        "Unauthorized access to accounts, privilege escalation, and data exposure.",
 		CWE:           "CWE-287",
 		CWEURL:        "https://cwe.mitre.org/data/definitions/287.html",
-		OWASPCategory: "A07:2021 - Identification and Authentication Failures",
-		OWASPURL:      "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/",
+		OWASPCategory: defaults.OWASPTop10["A07:2021"].FullName,
+		OWASPURL:      defaults.OWASPTop10["A07:2021"].URL,
 		Remediation:   "Implement proper authentication checks. Use secure session management. Implement MFA. Validate all authentication tokens server-side.",
 		References: []string{
 			"https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html",
@@ -541,8 +543,8 @@ var VulnerabilityDatabase = map[string]VulnerabilityInfo{
 		Impact:              "Access to restricted functionality, privilege escalation, and exploitation of protected endpoints.",
 		CWE:                 "CWE-284",
 		CWEURL:              "https://cwe.mitre.org/data/definitions/284.html",
-		OWASPCategory:       "A01:2021 - Broken Access Control",
-		OWASPURL:            "https://owasp.org/Top10/A01_2021-Broken_Access_Control/",
+		OWASPCategory:       defaults.OWASPTop10["A01:2021"].FullName,
+		OWASPURL:            defaults.OWASPTop10["A01:2021"].URL,
 		Remediation:         "Implement defense in depth. Validate access controls at multiple layers. Use allowlists for permitted actions. Audit all security bypasses.",
 		References:          []string{},
 		RiskScore:           7.5,
