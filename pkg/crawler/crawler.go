@@ -234,6 +234,7 @@ func (c *Crawler) Crawl(ctx context.Context, startURL string) (<-chan *CrawlResu
 	// Monitor and close results when done
 	go func() {
 		c.wg.Wait()
+		c.cancel() // Release context resources on normal completion
 		close(c.results)
 	}()
 
