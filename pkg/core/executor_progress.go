@@ -39,20 +39,23 @@ func (e *Executor) ExecuteWithProgress(ctx context.Context, allPayloads []payloa
 	// Atomic counters
 	var blocked, passed, failed, errored, skipped int64
 
-	// Death spiral detection: if >80% of the first batch are skipped,
-	// the host is unreachable and continuing wastes time.
-	const deathSpiralThreshold2 = 50
+	// Death spiral detection: if >deathSpiralRatioThreshold2 of the first
+	// batch are skipped, the host is unreachable and continuing wastes time.
+	const (
+		deathSpiralMinSamples2     = 50  // Check after this many completions
+		deathSpiralRatioThreshold2 = 0.8 // Abort if skip ratio exceeds this
+	)
 	var deathSpiralOnce2 sync.Once
 	deathSpiralCtx2, deathSpiralCancel2 := context.WithCancel(ctx)
 	defer deathSpiralCancel2()
 
 	checkDeathSpiral2 := func() {
 		done := atomic.LoadInt64(&blocked) + atomic.LoadInt64(&passed) + atomic.LoadInt64(&failed) + atomic.LoadInt64(&errored) + atomic.LoadInt64(&skipped)
-		if done < deathSpiralThreshold2 {
+		if done < deathSpiralMinSamples2 {
 			return
 		}
 		skip := atomic.LoadInt64(&skipped)
-		if float64(skip)/float64(done) > 0.8 {
+		if float64(skip)/float64(done) > deathSpiralRatioThreshold2 {
 			deathSpiralOnce2.Do(func() {
 				deathSpiralCancel2()
 			})
