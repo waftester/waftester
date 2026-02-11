@@ -281,8 +281,9 @@ func TestConfig_UserAgent_Fixed(t *testing.T) {
 	}))
 	defer server.Close()
 
+	wantUA := "CustomAgent/test"
 	cfg := Config{
-		UserAgent: "WAFtester/2.8.4",
+		UserAgent: wantUA,
 	}
 	client := New(cfg)
 
@@ -292,8 +293,8 @@ func TestConfig_UserAgent_Fixed(t *testing.T) {
 	}
 	resp.Body.Close()
 
-	if ua != "WAFtester/2.8.4" {
-		t.Errorf("User-Agent = %q, want %q", ua, "WAFtester/2.8.4")
+	if ua != wantUA {
+		t.Errorf("User-Agent = %q, want %q", ua, wantUA)
 	}
 }
 
