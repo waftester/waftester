@@ -10,9 +10,9 @@ import (
 )
 
 // TestNoLocalSeverityType walks pkg/ and ensures no package outside
-// pkg/finding re-declares "type Severity string". This prevents
-// accidental regression — the canonical definition lives in
-// pkg/finding/severity.go.
+// pkg/finding declares a new type named Severity (as opposed to a
+// type alias). This prevents accidental regression — the canonical
+// definition lives in pkg/finding/severity.go.
 func TestNoLocalSeverityType(t *testing.T) {
 	t.Parallel()
 

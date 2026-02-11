@@ -445,7 +445,12 @@ func New(cfg Config) *http.Client {
 }
 
 // containsPort reports whether the address string contains a port suffix.
+// Handles both IPv4 ("1.2.3.4:53") and IPv6 ("[::1]:53") addresses.
 func containsPort(addr string) bool {
+	// IPv6 addresses in bracket notation use "]:" before the port.
+	if strings.Contains(addr, "[") {
+		return strings.Contains(addr, "]:")
+	}
 	return strings.Contains(addr, ":")
 }
 

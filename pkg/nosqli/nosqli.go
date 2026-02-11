@@ -385,10 +385,9 @@ func (t *Tester) testFormBody(ctx context.Context, targetURL string, param strin
 	return nil, nil
 }
 
-// detectEvidence checks response for signs of NoSQL injection
-func (t *Tester) detectEvidence(body string, statusCode int, db Database) string {
-	// MongoDB error patterns
-	mongoPatterns := []*regexp.Regexp{
+// Pre-compiled NoSQL error patterns (avoid per-call regexp.MustCompile).
+var (
+	mongoPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)MongoError`),
 		regexp.MustCompile(`(?i)MongoDB`),
 		regexp.MustCompile(`(?i)\$where.*not allowed`),
@@ -399,34 +398,31 @@ func (t *Tester) detectEvidence(body string, statusCode int, db Database) string
 		regexp.MustCompile(`(?i)_id.*ObjectId`),
 		regexp.MustCompile(`(?i)operator.*not.*supported`),
 	}
-
-	// CouchDB error patterns
-	couchPatterns := []*regexp.Regexp{
+	couchPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)CouchDB`),
 		regexp.MustCompile(`(?i)couchdb\.org`),
 		regexp.MustCompile(`(?i)"error":\s*"not_found"`),
 		regexp.MustCompile(`(?i)_design/`),
 		regexp.MustCompile(`(?i)"views":`),
 	}
-
-	// Redis error patterns
-	redisPatterns := []*regexp.Regexp{
+	redisPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)REDIS`),
 		regexp.MustCompile(`(?i)redis_version`),
 		regexp.MustCompile(`(?i)ERR.*wrong.*number.*arguments`),
 		regexp.MustCompile(`(?i)WRONGTYPE`),
 	}
-
-	// Generic NoSQL patterns
-	genericPatterns := []*regexp.Regexp{
+	genericNoSQLPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)Query.*error`),
 		regexp.MustCompile(`(?i)SyntaxError.*JSON`),
 		regexp.MustCompile(`(?i)unexpected.*token`),
 		regexp.MustCompile(`(?i)invalid.*operator`),
 	}
+)
 
+// detectEvidence checks response for signs of NoSQL injection
+func (t *Tester) detectEvidence(body string, statusCode int, db Database) string {
 	// Check based on database type
-	patterns := genericPatterns
+	patterns := genericNoSQLPatterns
 	if db == DBMongoDB || db == DBUnknown {
 		patterns = append(patterns, mongoPatterns...)
 	}

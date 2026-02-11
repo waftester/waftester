@@ -268,7 +268,10 @@ func updateFromGitHub(cfg *UpdateConfig, report *UpdateReport) error {
 	releaseURL := fmt.Sprintf("%s/repos/%s/%s/releases/latest",
 		gitHubAPIBase, defaultGitHubOwner, defaultGitHubRepo)
 
-	req, err := http.NewRequest("GET", releaseURL, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, releaseURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}

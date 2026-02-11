@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -174,7 +175,11 @@ func (h *WebhookHook) sendWithRetry(ctx context.Context, eventType events.EventT
 		if err != nil {
 			return fmt.Errorf("request failed: %w", err)
 		}
-		defer resp.Body.Close()
+		// Drain body before close for HTTP keepalive reuse
+		defer func() {
+			_, _ = io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+		}()
 
 		// Success
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {

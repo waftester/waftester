@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"strings"
 	"time"
@@ -57,24 +58,24 @@ func printScanHTML(w io.Writer, result *ScanResult) {
 	fmt.Fprintln(w, "<!DOCTYPE html><html><head><title>Scan Report</title>")
 	fmt.Fprintln(w, "<style>body{font-family:Arial,sans-serif;margin:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#4CAF50;color:white}.critical{color:#d32f2f}.high{color:#f57c00}.medium{color:#ffc107}.low{color:#4caf50}</style></head><body>")
 	if result.ReportTitle != "" {
-		fmt.Fprintf(w, "<h1>%s</h1>\n", result.ReportTitle)
+		fmt.Fprintf(w, "<h1>%s</h1>\n", html.EscapeString(result.ReportTitle))
 	} else {
 		fmt.Fprintln(w, "<h1>Vulnerability Scan Report</h1>")
 	}
 	if result.ReportAuthor != "" {
-		fmt.Fprintf(w, "<p><strong>Author:</strong> %s</p>\n", result.ReportAuthor)
+		fmt.Fprintf(w, "<p><strong>Author:</strong> %s</p>\n", html.EscapeString(result.ReportAuthor))
 	}
-	fmt.Fprintf(w, "<p><strong>Target:</strong> %s</p>\n", result.Target)
+	fmt.Fprintf(w, "<p><strong>Target:</strong> %s</p>\n", html.EscapeString(result.Target))
 	fmt.Fprintf(w, "<p><strong>Date:</strong> %s</p>\n", result.StartTime.Format("2006-01-02 15:04:05"))
 	fmt.Fprintf(w, "<p><strong>Total Vulnerabilities:</strong> %d</p>\n", result.TotalVulns)
 	fmt.Fprintln(w, "<h2>By Severity</h2><table><tr><th>Severity</th><th>Count</th></tr>")
 	for sev, count := range result.BySeverity {
-		fmt.Fprintf(w, "<tr><td class='%s'>%s</td><td>%d</td></tr>\n", strings.ToLower(sev), sev, count)
+		fmt.Fprintf(w, "<tr><td class='%s'>%s</td><td>%d</td></tr>\n", strings.ToLower(html.EscapeString(sev)), html.EscapeString(sev), count)
 	}
 	fmt.Fprintln(w, "</table><h2>By Category</h2><table><tr><th>Category</th><th>Count</th></tr>")
 	for cat, count := range result.ByCategory {
 		if count > 0 {
-			fmt.Fprintf(w, "<tr><td>%s</td><td>%d</td></tr>\n", cat, count)
+			fmt.Fprintf(w, "<tr><td>%s</td><td>%d</td></tr>\n", html.EscapeString(cat), count)
 		}
 	}
 	fmt.Fprintln(w, "</table></body></html>")

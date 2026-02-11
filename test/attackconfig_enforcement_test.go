@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -131,7 +132,7 @@ func TestNoRedundantBaseFields(t *testing.T) {
 
 				if !hasBase && overlap >= 3 {
 					violations = append(violations, rel+": "+name+
-						" has "+string(rune('0'+overlap))+" base fields without embedding attackconfig.Base")
+						" has "+strconv.Itoa(overlap)+" base fields without embedding attackconfig.Base")
 				}
 			}
 		}

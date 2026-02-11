@@ -169,7 +169,6 @@ type TesterConfig struct {
 type Tester struct {
 	config   *TesterConfig
 	client   *http.Client
-	rng      *rand.Rand
 	detector *detection.Detector
 }
 
@@ -200,7 +199,6 @@ func NewTester(config *TesterConfig) *Tester {
 	return &Tester{
 		config:   config,
 		client:   httpclient.Fuzzing(),
-		rng:      rand.New(rand.NewSource(time.Now().UnixNano())),
 		detector: detection.Default(),
 	}
 }
@@ -547,32 +545,32 @@ func (t *Tester) randomMutation() string {
 	mutations := []func() string{
 		// Random bytes
 		func() string {
-			b := make([]byte, t.rng.Intn(100)+1)
+			b := make([]byte, rand.Intn(100)+1)
 			for i := range b {
-				b[i] = byte(t.rng.Intn(256))
+				b[i] = byte(rand.Intn(256))
 			}
 			return string(b)
 		},
 		// Random unicode
 		func() string {
-			runes := make([]rune, t.rng.Intn(50)+1)
+			runes := make([]rune, rand.Intn(50)+1)
 			for i := range runes {
-				runes[i] = rune(t.rng.Intn(0x10000))
+				runes[i] = rune(rand.Intn(0x10000))
 			}
 			return string(runes)
 		},
 		// Format string
 		func() string {
 			formats := []string{"%s", "%x", "%n", "%p", "%.9999999s", "%s%s%s%s%s"}
-			return formats[t.rng.Intn(len(formats))]
+			return formats[rand.Intn(len(formats))]
 		},
 		// Long string
 		func() string {
-			return strings.Repeat("A", t.rng.Intn(10000)+1000)
+			return strings.Repeat("A", rand.Intn(10000)+1000)
 		},
 	}
 
-	return mutations[t.rng.Intn(len(mutations))]()
+	return mutations[rand.Intn(len(mutations))]()
 }
 
 // sendFuzzRequest sends a fuzz request.

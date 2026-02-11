@@ -178,13 +178,19 @@ func (m *Matrix) Tests() []Test {
 	return tests
 }
 
-// TestsChan returns a channel for concurrent iteration
+// TestsChan returns a channel for concurrent iteration.
+// Data is copied under the lock and then sent lock-free to avoid
+// deadlock if the receiver acquires a write lock.
 func (m *Matrix) TestsChan() <-chan Test {
+	// Copy under lock to avoid holding RLock during channel sends.
+	m.mu.RLock()
+	snapshot := make([]Test, len(m.tests))
+	copy(snapshot, m.tests)
+	m.mu.RUnlock()
+
 	ch := make(chan Test)
 	go func() {
-		m.mu.RLock()
-		defer m.mu.RUnlock()
-		for _, test := range m.tests {
+		for _, test := range snapshot {
 			ch <- test
 		}
 		close(ch)

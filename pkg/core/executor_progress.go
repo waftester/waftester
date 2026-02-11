@@ -95,7 +95,9 @@ func (e *Executor) ExecuteWithProgress(ctx context.Context, allPayloads []payloa
 					}
 
 					// Rate limit
-					e.limiter.Wait(deathSpiralCtx2)
+					if err := e.limiter.Wait(deathSpiralCtx2); err != nil {
+						return // context cancelled
+					}
 
 					// Execute test
 					result := e.executeTest(ctx, payload)
@@ -264,6 +266,7 @@ sendLoop2:
 	results.FailedTests = int(atomic.LoadInt64(&failed))
 	results.ErrorTests = int(atomic.LoadInt64(&errored))
 	results.HostsSkipped = int(atomic.LoadInt64(&skipped))
+	results.FilteredTests = int(atomic.LoadInt64(&filteredCount))
 	if results.Duration.Seconds() > 0 {
 		results.RequestsPerSec = float64(results.TotalTests) / results.Duration.Seconds()
 	}

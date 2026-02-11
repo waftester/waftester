@@ -226,6 +226,9 @@ func (s *Scorer) Score(results []Result) *Benchmark {
 	}
 
 	// F1 = 2 * (precision * recall) / (precision + recall)
+	// Both Precision and BlockRate are percentages (0-100), so F1 is also 0-100.
+	// The formula produces identical results whether inputs are percentages or
+	// ratios since the scaling factor cancels out.
 	recall := benchmark.BlockRate
 	if benchmark.Precision+recall > 0 {
 		benchmark.F1Score = 2 * (benchmark.Precision * recall) / (benchmark.Precision + recall)
