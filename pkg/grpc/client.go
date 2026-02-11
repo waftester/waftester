@@ -40,8 +40,8 @@ func WithTimeout(d time.Duration) ClientOption {
 	}
 }
 
-// NewClient creates a new gRPC client
-func NewClient(target string, opts ...ClientOption) (*Client, error) {
+// NewClient creates a new gRPC client using the provided context for connection.
+func NewClient(ctx context.Context, target string, opts ...ClientOption) (*Client, error) {
 	c := &Client{
 		target:  target,
 		timeout: duration.HTTPFuzzing,
@@ -53,7 +53,7 @@ func NewClient(target string, opts ...ClientOption) (*Client, error) {
 	}
 
 	// Connect to the gRPC server
-	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
 	conn, err := grpc.DialContext(ctx, target,

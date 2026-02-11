@@ -95,7 +95,7 @@ func runGRPC() {
 	defer tCancel()
 
 	// Create gRPC client
-	client, err := grpc.NewClient(targetAddr, grpc.WithTimeout(time.Duration(*timeout)*time.Second))
+	client, err := grpc.NewClient(ctx, targetAddr, grpc.WithTimeout(time.Duration(*timeout)*time.Second))
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Failed to connect: %v", err))
 		os.Exit(1)

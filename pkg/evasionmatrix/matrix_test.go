@@ -1,6 +1,7 @@
 package evasionmatrix
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -159,7 +160,7 @@ func TestExecutableTests(t *testing.T) {
 	require.Len(t, execs, 1)
 	assert.Equal(t, "https://example.com/", execs[0].TargetURL)
 
-	req, err := execs[0].ToRequest()
+	req, err := execs[0].ToRequest(context.Background())
 	require.NoError(t, err)
 	// The encoded payload is URL-encoded, and the placeholder may URL-encode again
 	assert.Contains(t, req.URL.String(), "script")
@@ -174,7 +175,7 @@ func TestExecutableTestInvalidPlaceholder(t *testing.T) {
 		TargetURL: "https://example.com/",
 	}
 
-	_, err := exec.ToRequest()
+	_, err := exec.ToRequest(context.Background())
 	assert.Error(t, err)
 }
 
