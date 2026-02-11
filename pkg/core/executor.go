@@ -172,7 +172,7 @@ func (e *Executor) Execute(ctx context.Context, allPayloads []payloads.Payload, 
 	// Death spiral detection: if >deathSpiralRatioThreshold of the first
 	// batch are skipped, the host is unreachable and continuing wastes time.
 	const (
-		deathSpiralMinSamples    = 50  // Check after this many completions
+		deathSpiralMinSamples     = 50  // Check after this many completions
 		deathSpiralRatioThreshold = 0.8 // Abort if skip ratio exceeds this
 	)
 	var deathSpiralOnce sync.Once

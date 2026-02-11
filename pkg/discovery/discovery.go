@@ -641,5 +641,3 @@ func writeFile(filename string, data []byte) error {
 func readFile(filename string) ([]byte, error) {
 	return os.ReadFile(filename)
 }
-
-
