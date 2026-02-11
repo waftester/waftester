@@ -80,7 +80,7 @@ func DefaultConfig() *Config {
 			UserAgent:   defaults.UAChrome,
 		},
 		ChunkSize: 256, // Arjun default is 256
-		Methods:     []string{"GET", "POST"},
+		Methods:   []string{"GET", "POST"},
 	}
 }
 

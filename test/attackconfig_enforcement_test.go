@@ -24,35 +24,35 @@ var baseFieldNames = map[string]bool{
 // define their own Config without embedding attackconfig.Base.
 // Infrastructure packages, not attack packages.
 var attackConfigAllowlist = map[string]bool{
-	"attackconfig": true, // the canonical definition itself
-	"cli":          true, // top-level CLI config
-	"config":       true, // configuration management
-	"output":       true, // output formatter config
-	"httpclient":   true, // HTTP client factory
-	"tls":          true, // JA3 TLS config
-	"mcpserver":    true, // MCP server config
-	"health":       true, // health check config
-	"overrides":    true, // override config
-	"override":     true, // override config
-	"filter":       true, // filter config
-	"wordlist":     true, // wordlist config
-	"paranoia":     true, // paranoia level config
-	"intelligence": true, // intelligence config
-	"crawler":      true, // crawler config
-	"headless":     true, // headless browser config
-	"runner":       true, // runner config
-	"placeholder":  true, // placeholder config
-	"ratelimit":    true, // rate limiter config
-	"workflow":     true, // workflow config
-	"ui":           true, // UI config
-	"cloud":        true, // cloud config
-	"distributed":  true, // distributed config
-	"benchmark":    true, // benchmark config
-	"cicd":         true, // CI/CD config
-	"discovery":    true, // discovery config
-	"openapi":      true, // OpenAPI config
-	"learning":     true, // learning config
-	"exploit":      true, // exploit config (special structure)
+	"attackconfig":  true, // the canonical definition itself
+	"cli":           true, // top-level CLI config
+	"config":        true, // configuration management
+	"output":        true, // output formatter config
+	"httpclient":    true, // HTTP client factory
+	"tls":           true, // JA3 TLS config
+	"mcpserver":     true, // MCP server config
+	"health":        true, // health check config
+	"overrides":     true, // override config
+	"override":      true, // override config
+	"filter":        true, // filter config
+	"wordlist":      true, // wordlist config
+	"paranoia":      true, // paranoia level config
+	"intelligence":  true, // intelligence config
+	"crawler":       true, // crawler config
+	"headless":      true, // headless browser config
+	"runner":        true, // runner config
+	"placeholder":   true, // placeholder config
+	"ratelimit":     true, // rate limiter config
+	"workflow":      true, // workflow config
+	"ui":            true, // UI config
+	"cloud":         true, // cloud config
+	"distributed":   true, // distributed config
+	"benchmark":     true, // benchmark config
+	"cicd":          true, // CI/CD config
+	"discovery":     true, // discovery config
+	"openapi":       true, // OpenAPI config
+	"learning":      true, // learning config
+	"exploit":       true, // exploit config (special structure)
 	"falsepositive": true, // false positive config (special structure)
 }
 

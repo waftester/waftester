@@ -214,7 +214,12 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) ([]Vulnerability, e
 			go func(p Payload, par string) {
 				defer wg.Done()
 
-				sem <- struct{}{}
+				// Check context before acquiring semaphore to avoid goroutine leak
+				select {
+				case sem <- struct{}{}:
+				case <-ctx.Done():
+					return
+				}
 				defer func() { <-sem }()
 
 				vuln, err := t.TestPayload(ctx, targetURL, par, p)
