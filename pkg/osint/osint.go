@@ -243,7 +243,20 @@ func (r *RateLimiter) Wait() {
 		r.mu.Unlock()
 		time.Sleep(sleepDuration)
 		r.mu.Lock()
-		r.tokens = 1
+		// Recalculate tokens from elapsed time instead of blindly setting to 1
+		// to prevent thundering herd when multiple goroutines wake simultaneously
+		elapsed := time.Since(r.lastRefill)
+		refillCount := int(elapsed / r.refillRate)
+		if refillCount > 0 {
+			r.tokens += refillCount
+			if r.tokens > r.maxTokens {
+				r.tokens = r.maxTokens
+			}
+			r.lastRefill = time.Now()
+		}
+		if r.tokens <= 0 {
+			r.tokens = 1
+		}
 	}
 
 	r.tokens--

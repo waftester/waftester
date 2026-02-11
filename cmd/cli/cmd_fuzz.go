@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html"
 	"net/http"
 	"os"
 	"regexp"
@@ -578,11 +579,11 @@ func runFuzz() {
 	if *htmlFuzz {
 		fmt.Println("<!DOCTYPE html><html><head><title>Fuzz Results</title>")
 		fmt.Println("<style>table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#4CAF50;color:white}</style></head><body>")
-		fmt.Printf("<h1>Fuzz Results</h1><p>Target: %s</p>\n", targetURL)
+		fmt.Printf("<h1>Fuzz Results</h1><p>Target: %s</p>\n", html.EscapeString(targetURL))
 		fmt.Printf("<p>Total: %d | Matches: %d</p>\n", stats.TotalRequests, stats.Matches)
 		fmt.Println("<table><tr><th>URL</th><th>Status</th><th>Size</th><th>Words</th><th>Lines</th></tr>")
 		for _, r := range results {
-			fmt.Printf("<tr><td>%s</td><td>%d</td><td>%d</td><td>%d</td><td>%d</td></tr>\n", r.URL, r.StatusCode, r.ContentLength, r.WordCount, r.LineCount)
+			fmt.Printf("<tr><td>%s</td><td>%d</td><td>%d</td><td>%d</td><td>%d</td></tr>\n", html.EscapeString(r.URL), r.StatusCode, r.ContentLength, r.WordCount, r.LineCount)
 		}
 		fmt.Println("</table></body></html>")
 		return
