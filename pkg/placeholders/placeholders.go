@@ -2,6 +2,7 @@ package placeholders
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"mime/multipart"
@@ -37,7 +38,7 @@ type URLParamPlaceholder struct{}
 
 func (p *URLParamPlaceholder) Name() string        { return "url-param" }
 func (p *URLParamPlaceholder) Description() string { return "URL query parameter" }
-func (p *URLParamPlaceholder) Apply(targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
+func (p *URLParamPlaceholder) Apply(ctx context.Context, targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
 	u, err := url.Parse(targetURL)
 	if err != nil {
 		return nil, err
@@ -48,7 +49,7 @@ func (p *URLParamPlaceholder) Apply(targetURL, payload string, config *Placehold
 	q.Set(cfg.ParamName, payload)
 	u.RawQuery = q.Encode()
 
-	return http.NewRequest(http.MethodGet, u.String(), nil)
+	return http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 }
 
 // URLPathPlaceholder injects payload into URL path
@@ -56,7 +57,7 @@ type URLPathPlaceholder struct{}
 
 func (p *URLPathPlaceholder) Name() string        { return "url-path" }
 func (p *URLPathPlaceholder) Description() string { return "URL path segment" }
-func (p *URLPathPlaceholder) Apply(targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
+func (p *URLPathPlaceholder) Apply(ctx context.Context, targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
 	u, err := url.Parse(targetURL)
 	if err != nil {
 		return nil, err
@@ -67,7 +68,7 @@ func (p *URLPathPlaceholder) Apply(targetURL, payload string, config *Placeholde
 	}
 	u.Path += payload
 
-	return http.NewRequest(http.MethodGet, u.String(), nil)
+	return http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 }
 
 // URLFragmentPlaceholder injects payload into URL fragment
@@ -75,13 +76,13 @@ type URLFragmentPlaceholder struct{}
 
 func (p *URLFragmentPlaceholder) Name() string        { return "url-fragment" }
 func (p *URLFragmentPlaceholder) Description() string { return "URL fragment (#)" }
-func (p *URLFragmentPlaceholder) Apply(targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
+func (p *URLFragmentPlaceholder) Apply(ctx context.Context, targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
 	u, err := url.Parse(targetURL)
 	if err != nil {
 		return nil, err
 	}
 	u.Fragment = payload
-	return http.NewRequest(http.MethodGet, u.String(), nil)
+	return http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 }
 
 // HeaderPlaceholder injects payload into custom header
@@ -89,8 +90,8 @@ type HeaderPlaceholder struct{}
 
 func (p *HeaderPlaceholder) Name() string        { return "header" }
 func (p *HeaderPlaceholder) Description() string { return "Custom HTTP header" }
-func (p *HeaderPlaceholder) Apply(targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
-	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
+func (p *HeaderPlaceholder) Apply(ctx context.Context, targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -105,8 +106,8 @@ type UserAgentPlaceholder struct{}
 
 func (p *UserAgentPlaceholder) Name() string        { return "user-agent" }
 func (p *UserAgentPlaceholder) Description() string { return "User-Agent header" }
-func (p *UserAgentPlaceholder) Apply(targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
-	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
+func (p *UserAgentPlaceholder) Apply(ctx context.Context, targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -119,8 +120,8 @@ type RefererPlaceholder struct{}
 
 func (p *RefererPlaceholder) Name() string        { return "referer" }
 func (p *RefererPlaceholder) Description() string { return "Referer header" }
-func (p *RefererPlaceholder) Apply(targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
-	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
+func (p *RefererPlaceholder) Apply(ctx context.Context, targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -133,8 +134,8 @@ type CookiePlaceholder struct{}
 
 func (p *CookiePlaceholder) Name() string        { return "cookie" }
 func (p *CookiePlaceholder) Description() string { return "Cookie header" }
-func (p *CookiePlaceholder) Apply(targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
-	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
+func (p *CookiePlaceholder) Apply(ctx context.Context, targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +150,7 @@ type BodyJSONPlaceholder struct{}
 
 func (p *BodyJSONPlaceholder) Name() string        { return "body-json" }
 func (p *BodyJSONPlaceholder) Description() string { return "JSON request body" }
-func (p *BodyJSONPlaceholder) Apply(targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
+func (p *BodyJSONPlaceholder) Apply(ctx context.Context, targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
 	cfg := MergeConfig(config)
 
 	body := map[string]string{cfg.FieldName: payload}
@@ -158,7 +159,7 @@ func (p *BodyJSONPlaceholder) Apply(targetURL, payload string, config *Placehold
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, targetURL, bytes.NewReader(jsonBytes))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(jsonBytes))
 	if err != nil {
 		return nil, err
 	}
@@ -171,13 +172,13 @@ type BodyFormPlaceholder struct{}
 
 func (p *BodyFormPlaceholder) Name() string        { return "body-form" }
 func (p *BodyFormPlaceholder) Description() string { return "Form URL-encoded body" }
-func (p *BodyFormPlaceholder) Apply(targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
+func (p *BodyFormPlaceholder) Apply(ctx context.Context, targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
 	cfg := MergeConfig(config)
 
 	form := url.Values{}
 	form.Set(cfg.FieldName, payload)
 
-	req, err := http.NewRequest(http.MethodPost, targetURL, strings.NewReader(form.Encode()))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, strings.NewReader(form.Encode()))
 	if err != nil {
 		return nil, err
 	}
@@ -190,12 +191,12 @@ type BodyXMLPlaceholder struct{}
 
 func (p *BodyXMLPlaceholder) Name() string        { return "body-xml" }
 func (p *BodyXMLPlaceholder) Description() string { return "XML request body" }
-func (p *BodyXMLPlaceholder) Apply(targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
+func (p *BodyXMLPlaceholder) Apply(ctx context.Context, targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
 	cfg := MergeConfig(config)
 
 	xmlBody := fmt.Sprintf("<?xml version=\"1.0\"?><root><%s>%s</%s></root>", cfg.FieldName, payload, cfg.FieldName)
 
-	req, err := http.NewRequest(http.MethodPost, targetURL, strings.NewReader(xmlBody))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, strings.NewReader(xmlBody))
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +209,7 @@ type BodyMultipartPlaceholder struct{}
 
 func (p *BodyMultipartPlaceholder) Name() string        { return "body-multipart" }
 func (p *BodyMultipartPlaceholder) Description() string { return "Multipart form body" }
-func (p *BodyMultipartPlaceholder) Apply(targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
+func (p *BodyMultipartPlaceholder) Apply(ctx context.Context, targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
 	cfg := MergeConfig(config)
 
 	var buf bytes.Buffer
@@ -218,7 +219,7 @@ func (p *BodyMultipartPlaceholder) Apply(targetURL, payload string, config *Plac
 	}
 	writer.Close()
 
-	req, err := http.NewRequest(http.MethodPost, targetURL, &buf)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, &buf)
 	if err != nil {
 		return nil, err
 	}
@@ -231,14 +232,14 @@ type BodyRawPlaceholder struct{}
 
 func (p *BodyRawPlaceholder) Name() string        { return "body-raw" }
 func (p *BodyRawPlaceholder) Description() string { return "Raw request body" }
-func (p *BodyRawPlaceholder) Apply(targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
+func (p *BodyRawPlaceholder) Apply(ctx context.Context, targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
 	cfg := MergeConfig(config)
 	contentType := "text/plain"
 	if cfg.ContentType != "" {
 		contentType = cfg.ContentType
 	}
 
-	req, err := http.NewRequest(http.MethodPost, targetURL, strings.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, strings.NewReader(payload))
 	if err != nil {
 		return nil, err
 	}
@@ -251,8 +252,8 @@ type HostHeaderPlaceholder struct{}
 
 func (p *HostHeaderPlaceholder) Name() string        { return "host-header" }
 func (p *HostHeaderPlaceholder) Description() string { return "Host header injection" }
-func (p *HostHeaderPlaceholder) Apply(targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
-	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
+func (p *HostHeaderPlaceholder) Apply(ctx context.Context, targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -265,8 +266,8 @@ type XForwardedForPlaceholder struct{}
 
 func (p *XForwardedForPlaceholder) Name() string        { return "x-forwarded-for" }
 func (p *XForwardedForPlaceholder) Description() string { return "X-Forwarded-For header" }
-func (p *XForwardedForPlaceholder) Apply(targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
-	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
+func (p *XForwardedForPlaceholder) Apply(ctx context.Context, targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -279,8 +280,8 @@ type ContentTypePlaceholder struct{}
 
 func (p *ContentTypePlaceholder) Name() string        { return "content-type" }
 func (p *ContentTypePlaceholder) Description() string { return "Content-Type header injection" }
-func (p *ContentTypePlaceholder) Apply(targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
-	req, err := http.NewRequest(http.MethodPost, targetURL, strings.NewReader("test"))
+func (p *ContentTypePlaceholder) Apply(ctx context.Context, targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, strings.NewReader("test"))
 	if err != nil {
 		return nil, err
 	}
@@ -293,8 +294,8 @@ type AcceptPlaceholder struct{}
 
 func (p *AcceptPlaceholder) Name() string        { return "accept" }
 func (p *AcceptPlaceholder) Description() string { return "Accept header injection" }
-func (p *AcceptPlaceholder) Apply(targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
-	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
+func (p *AcceptPlaceholder) Apply(ctx context.Context, targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -307,8 +308,8 @@ type AuthorizationPlaceholder struct{}
 
 func (p *AuthorizationPlaceholder) Name() string        { return "authorization" }
 func (p *AuthorizationPlaceholder) Description() string { return "Authorization header injection" }
-func (p *AuthorizationPlaceholder) Apply(targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
-	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
+func (p *AuthorizationPlaceholder) Apply(ctx context.Context, targetURL, payload string, config *PlaceholderConfig) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	if err != nil {
 		return nil, err
 	}
