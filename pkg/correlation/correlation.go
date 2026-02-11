@@ -109,12 +109,12 @@ type ScanResult struct {
 
 // ScanSummary provides scan statistics
 type ScanSummary struct {
-	TotalFindings     int                 `json:"total_findings"`
-	BySeverity        map[finding.Severity]int    `json:"by_severity"`
-	ByType            map[FindingType]int `json:"by_type"`
-	NewFindings       int                 `json:"new_findings"`
-	RecurringFindings int                 `json:"recurring_findings"`
-	FixedFindings     int                 `json:"fixed_findings"`
+	TotalFindings     int                      `json:"total_findings"`
+	BySeverity        map[finding.Severity]int `json:"by_severity"`
+	ByType            map[FindingType]int      `json:"by_type"`
+	NewFindings       int                      `json:"new_findings"`
+	RecurringFindings int                      `json:"recurring_findings"`
+	FixedFindings     int                      `json:"fixed_findings"`
 }
 
 // Correlator manages finding correlation
@@ -470,13 +470,13 @@ func (c *Correlator) DetectFixedFindings(currentScanID string) []*CorrelatedFind
 
 // TrendAnalysis analyzes trends across scans
 type TrendAnalysis struct {
-	TimeRange      TimeRange           `json:"time_range"`
-	TotalScans     int                 `json:"total_scans"`
-	FindingTrend   []FindingTrendPoint `json:"finding_trend"`
-	SeverityTrend  map[finding.Severity][]int  `json:"severity_trend"`
-	NewVsRecurring []NewRecurringPoint `json:"new_vs_recurring"`
-	TopEndpoints   []EndpointStats     `json:"top_endpoints"`
-	TopVulnTypes   []TypeStats         `json:"top_vuln_types"`
+	TimeRange      TimeRange                  `json:"time_range"`
+	TotalScans     int                        `json:"total_scans"`
+	FindingTrend   []FindingTrendPoint        `json:"finding_trend"`
+	SeverityTrend  map[finding.Severity][]int `json:"severity_trend"`
+	NewVsRecurring []NewRecurringPoint        `json:"new_vs_recurring"`
+	TopEndpoints   []EndpointStats            `json:"top_endpoints"`
+	TopVulnTypes   []TypeStats                `json:"top_vuln_types"`
 }
 
 // TimeRange represents a time range

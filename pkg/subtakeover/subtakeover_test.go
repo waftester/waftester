@@ -25,7 +25,7 @@ func TestNewTester(t *testing.T) {
 
 	t.Run("with custom config", func(t *testing.T) {
 		config := &TesterConfig{
-			Base:        attackconfig.Base{Timeout: 60 * time.Second, Concurrency: 20},
+			Base: attackconfig.Base{Timeout: 60 * time.Second, Concurrency: 20},
 		}
 		tester := NewTester(config)
 		if tester.config.Concurrency != 20 {

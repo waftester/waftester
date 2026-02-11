@@ -26,13 +26,13 @@ var (
 // Config configures screenshot capture
 type Config struct {
 	attackconfig.Base
-	Width    int           // Viewport width
-	Height   int           // Viewport height
-	FullPage bool          // Capture full page
-	Quality  int           // JPEG quality (1-100)
-	Format   Format        // Output format
-	WaitFor  time.Duration // Wait after page load
-	OutputDir string       // Output directory
+	Width     int           // Viewport width
+	Height    int           // Viewport height
+	FullPage  bool          // Capture full page
+	Quality   int           // JPEG quality (1-100)
+	Format    Format        // Output format
+	WaitFor   time.Duration // Wait after page load
+	OutputDir string        // Output directory
 }
 
 // Format represents output format
@@ -51,12 +51,12 @@ func DefaultConfig() Config {
 			Concurrency: defaults.ConcurrencyLow,
 			Timeout:     TimeoutFuzzing,
 		},
-		Width:    1920,
-		Height:   1080,
-		FullPage: false,
-		Quality:  80,
-		Format:   FormatPNG,
-		WaitFor:  duration.BrowserIdle,
+		Width:     1920,
+		Height:    1080,
+		FullPage:  false,
+		Quality:   80,
+		Format:    FormatPNG,
+		WaitFor:   duration.BrowserIdle,
 		OutputDir: "screenshots",
 	}
 }

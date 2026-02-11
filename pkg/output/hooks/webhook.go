@@ -13,11 +13,11 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
-	"github.com/waftester/waftester/pkg/retry"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
+	"github.com/waftester/waftester/pkg/retry"
 )
 
 // Compile-time interface check.

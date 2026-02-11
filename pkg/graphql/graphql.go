@@ -38,8 +38,6 @@ const (
 	AttackIDOR              AttackType = "idor"               // Insecure Direct Object Reference
 )
 
-
-
 // Request represents a GraphQL request
 type Request struct {
 	Query         string                 `json:"query"`
@@ -140,9 +138,9 @@ type Vulnerability struct {
 	Description string           `json:"description"`
 	Severity    finding.Severity `json:"severity"`
 	Query       string           `json:"query"`
-	Evidence    string     `json:"evidence"`
-	Remediation string     `json:"remediation"`
-	ConfirmedBy int        `json:"confirmed_by,omitempty"`
+	Evidence    string           `json:"evidence"`
+	Remediation string           `json:"remediation"`
+	ConfirmedBy int              `json:"confirmed_by,omitempty"`
 }
 
 // TesterConfig configures the GraphQL tester
