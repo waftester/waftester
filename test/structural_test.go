@@ -969,8 +969,8 @@ func TestNoSingleBodyRead(t *testing.T) {
 
 	// Files that use .Body.Read() in streaming for-loops (legitimate pattern)
 	streamingReaders := map[string]bool{
-		"pkg/core/executor.go": true, // chunked read into bufpool with size limit
-		"pkg/fuzz/fuzzer.go":   true, // streaming read into bufpool with 1MB limit
+		"pkg/core/executor_test_runner.go": true, // streaming bufpool read with 1MB limit (split from executor.go)
+		"pkg/fuzz/fuzzer.go":               true, // streaming read into bufpool with 1MB limit
 	}
 
 	bodyReadPattern := regexp.MustCompile(`\.Body\.Read\(`)
