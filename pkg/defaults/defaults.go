@@ -403,6 +403,53 @@ const (
 	SilentBanHeaderChangeThreshold = 3
 )
 
+// ============================================================================
+// CONFIG DEFAULTS
+// ============================================================================
+//
+// Default values for the main test command configuration.
+// ============================================================================
+
+const (
+	// DefaultConfigConcurrency is the default concurrent workers for the test command
+	DefaultConfigConcurrency = 25
+
+	// DefaultConfigRateLimit is the default requests per second for the test command
+	DefaultConfigRateLimit = 150
+
+	// DefaultConfigTimeoutSec is the default HTTP timeout in seconds for the test command
+	DefaultConfigTimeoutSec = 5
+)
+
+// ============================================================================
+// SCORING
+// ============================================================================
+//
+// Thresholds for risk scoring calculations.
+// ============================================================================
+
+const (
+	// TimingThresholdMs is the latency threshold (in ms) above which a failed
+	// test is flagged as a potential blind injection (timing attack)
+	TimingThresholdMs = 5000
+
+	// NormalizationScale is the scale factor for normalizing risk scores to 0-100
+	NormalizationScale = 100.0
+)
+
+// ============================================================================
+// DETECTION
+// ============================================================================
+//
+// Constants for silent ban and anomaly detection algorithms.
+// ============================================================================
+
+const (
+	// EMAAlpha is the exponential moving average smoothing factor
+	// used for baseline adaptation in silent ban detection (0.3 = 30% weight to new value)
+	EMAAlpha = 0.3
+)
+
 var silentBanCooldownPeriod atomic.Value
 
 func init() {

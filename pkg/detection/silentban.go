@@ -75,12 +75,10 @@ func (d *SilentBanDetector) ClearAll() {
 }
 
 // CaptureBaseline records baseline response characteristics for a host.
-// Uses exponential moving average with alpha=0.3 for smooth adaptation.
+// Uses exponential moving average with alpha=defaults.EMAAlpha for smooth adaptation.
 func (d *SilentBanDetector) CaptureBaseline(host string, resp *http.Response, latency time.Duration, bodySize int) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-
-	const alpha = 0.3
 
 	b, exists := d.hostBaselines[host]
 	if !exists {
@@ -96,8 +94,8 @@ func (d *SilentBanDetector) CaptureBaseline(host string, resp *http.Response, la
 		b.avgBodySize = bodySize
 	} else {
 		// EMA: new_avg = alpha * new_value + (1 - alpha) * old_avg
-		b.avgLatency = time.Duration(alpha*float64(latency) + (1-alpha)*float64(b.avgLatency))
-		b.avgBodySize = int(alpha*float64(bodySize) + (1-alpha)*float64(b.avgBodySize))
+		b.avgLatency = time.Duration(defaults.EMAAlpha*float64(latency) + (1-defaults.EMAAlpha)*float64(b.avgLatency))
+		b.avgBodySize = int(defaults.EMAAlpha*float64(bodySize) + (1-defaults.EMAAlpha)*float64(b.avgBodySize))
 	}
 
 	if resp != nil {

@@ -133,10 +133,10 @@ func runTests() {
 		if cfg.TargetURL == "" {
 			cfg.TargetURL = plan.Target
 		}
-		if cfg.Concurrency == 25 { // default value
+		if cfg.Concurrency == defaults.DefaultConfigConcurrency { // default value
 			cfg.Concurrency = plan.RecommendedFlags.Concurrency
 		}
-		if cfg.RateLimit == 150 { // default value
+		if cfg.RateLimit == defaults.DefaultConfigRateLimit { // default value
 			cfg.RateLimit = plan.RecommendedFlags.RateLimit
 		}
 		if cfg.Category == "" && len(plan.RecommendedFlags.Categories) > 0 {
