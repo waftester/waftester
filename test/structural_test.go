@@ -2523,3 +2523,207 @@ func TestNoDeadCodeSuppressions(t *testing.T) {
 		t.Error("Fix: Remove unused variables instead of suppressing with '_ = var'")
 	}
 }
+
+// =============================================================================
+// PHASE 25 — REGRESSION GUARD TESTS
+// =============================================================================
+
+// TestNoRawSeverityStrings ensures no code outside the finding package assigns
+// raw severity string literals to Severity fields. Use finding.Critical,
+// finding.High, etc. instead of "critical", "high", etc.
+func TestNoRawSeverityStrings(t *testing.T) {
+	t.Parallel()
+	repoRoot := getRepoRoot(t)
+
+	// Patterns matching actual Severity field assignments with raw string literals.
+	// \bSeverity: naturally excludes compound names (SeverityHint, BySeverity, etc.)
+	// because \b only matches at word boundaries.
+	assignPatterns := []*regexp.Regexp{
+		regexp.MustCompile(`\bSeverity:\s*"(?:critical|Critical|high|High|medium|Medium|low|Low|info|Info)"`),
+		regexp.MustCompile(`\bseverity:\s*"(?:critical|Critical|high|High|medium|Medium|low|Low|info|Info)"`),
+		regexp.MustCompile(`\.Severity\s*=\s*"(?:critical|Critical|high|High|medium|Medium|low|Low|info|Info)"`),
+	}
+
+	// Known pre-existing violations. Removing entries is allowed; adding is NOT.
+	knownViolations := map[string]bool{
+		"accesscontrol":    true,
+		"assessment":      true,
+		"browser":         true,
+		"cli":             true,
+		"cryptofailure":   true,
+		"inputvalidation": true,
+		"intelligence":    true,
+		"jwt":             true,
+		"leakypaths":      true,
+		"plugin":          true,
+		"report":          true,
+		"requestforgery":  true,
+		"smuggling":       true,
+	}
+
+	var newViolations []string
+	var knownFound []string
+
+	dirs := []string{
+		filepath.Join(repoRoot, "pkg"),
+		filepath.Join(repoRoot, "cmd"),
+	}
+
+	for _, dir := range dirs {
+		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil
+			}
+			if info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+
+			// Skip the finding package itself — it defines these constants.
+			parentDir := filepath.Base(filepath.Dir(path))
+			if parentDir == "finding" {
+				return nil
+			}
+
+			content, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return nil
+			}
+
+			lines := strings.Split(string(content), "\n")
+			rel, _ := filepath.Rel(repoRoot, path)
+			relSlash := filepath.ToSlash(rel)
+
+			for lineNum, line := range lines {
+				trimmed := strings.TrimSpace(line)
+
+				// Skip comments.
+				if strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "/*") {
+					continue
+				}
+
+				// Skip map/JSON key patterns where severity is a quoted string key.
+				if strings.Contains(line, `"severity":`) || strings.Contains(line, `"Severity":`) {
+					continue
+				}
+
+				matched := false
+				for _, pat := range assignPatterns {
+					if pat.MatchString(line) {
+						matched = true
+						break
+					}
+				}
+				if !matched {
+					continue
+				}
+
+				if knownViolations[parentDir] {
+					knownFound = append(knownFound, relSlash+":"+strconv.Itoa(lineNum+1)+": "+trimmed)
+				} else {
+					newViolations = append(newViolations, relSlash+":"+strconv.Itoa(lineNum+1)+": "+trimmed)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("failed to walk %s: %v", dir, err)
+		}
+	}
+
+	if len(knownFound) > 0 {
+		t.Logf("INFO: %d known pre-existing raw severity string(s) (tracked for future cleanup):", len(knownFound))
+		for _, v := range knownFound {
+			t.Logf("  ⚠ %s", v)
+		}
+	}
+
+	if len(newViolations) > 0 {
+		t.Errorf("found NEW raw severity string literals assigned to Severity fields:")
+		for _, v := range newViolations {
+			t.Errorf("  - %s", v)
+		}
+		t.Error("Fix: Use finding.Critical, finding.High, finding.Medium, finding.Low, or finding.Info instead")
+	}
+}
+
+// TestNoStringRuneInt detects the string(rune(variable)) anti-pattern which
+// converts an integer to a Unicode codepoint instead of its decimal string.
+// Use strconv.Itoa() or fmt.Sprintf("%d", x) instead.
+func TestNoStringRuneInt(t *testing.T) {
+	t.Parallel()
+	repoRoot := getRepoRoot(t)
+
+	// Pattern: string(rune(someVariable...
+	stringRunePattern := regexp.MustCompile(`string\(rune\([a-zA-Z]`)
+
+	// Known pre-existing violations. Removing entries is allowed; adding is NOT.
+	knownViolations := map[string]bool{
+		"realistic": true,
+	}
+
+	var newViolations []string
+	var knownFound []string
+
+	dirs := []string{
+		filepath.Join(repoRoot, "pkg"),
+		filepath.Join(repoRoot, "cmd"),
+	}
+
+	for _, dir := range dirs {
+		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil
+			}
+			if info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+
+			parentDir := filepath.Base(filepath.Dir(path))
+
+			content, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return nil
+			}
+
+			lines := strings.Split(string(content), "\n")
+			rel, _ := filepath.Rel(repoRoot, path)
+			relSlash := filepath.ToSlash(rel)
+
+			for lineNum, line := range lines {
+				trimmed := strings.TrimSpace(line)
+
+				// Skip comments.
+				if strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "/*") {
+					continue
+				}
+
+				if stringRunePattern.MatchString(line) {
+					if knownViolations[parentDir] {
+						knownFound = append(knownFound, relSlash+":"+strconv.Itoa(lineNum+1)+": "+trimmed)
+					} else {
+						newViolations = append(newViolations, relSlash+":"+strconv.Itoa(lineNum+1)+": "+trimmed)
+					}
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("failed to walk %s: %v", dir, err)
+		}
+	}
+
+	if len(knownFound) > 0 {
+		t.Logf("INFO: %d known pre-existing string(rune()) violation(s) (tracked for future cleanup):", len(knownFound))
+		for _, v := range knownFound {
+			t.Logf("  ⚠ %s", v)
+		}
+	}
+
+	if len(newViolations) > 0 {
+		t.Errorf("found NEW string(rune(variable)) anti-pattern (converts int to Unicode codepoint, not decimal):")
+		for _, v := range newViolations {
+			t.Errorf("  - %s", v)
+		}
+		t.Error("Fix: Use strconv.Itoa(x) or fmt.Sprintf to convert int to string instead")
+	}
+}
