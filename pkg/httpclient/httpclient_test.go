@@ -267,10 +267,10 @@ func findRawHTTPClients(t *testing.T) []string {
 
 	// Files that legitimately need custom http.Client configuration
 	excludePatterns := []string{
-		"httpclient.go",  // The factory itself
-		"_test.go",       // All tests can create clients for testing
-		"ja3.go",         // JA3 fingerprinting needs custom transport
-		"transport.go",   // detection/transport.go wraps existing transports
+		"httpclient.go", // The factory itself
+		"_test.go",      // All tests can create clients for testing
+		"ja3.go",        // JA3 fingerprinting needs custom transport
+		"transport.go",  // detection/transport.go wraps existing transports
 	}
 
 	for _, dir := range []string{"pkg", "cmd"} {
@@ -349,10 +349,10 @@ func findRawHTTPTransports(t *testing.T) []string {
 
 	// Files that legitimately need custom http.Transport
 	excludePatterns := []string{
-		"httpclient.go",  // The factory itself builds transports
-		"_test.go",       // Tests can create transports for testing
-		"ja3.go",         // JA3 fingerprinting needs custom transport config
-		"transport.go",   // detection/transport.go wraps transports
+		"httpclient.go", // The factory itself builds transports
+		"_test.go",      // Tests can create transports for testing
+		"ja3.go",        // JA3 fingerprinting needs custom transport config
+		"transport.go",  // detection/transport.go wraps transports
 	}
 
 	for _, dir := range []string{"pkg", "cmd"} {

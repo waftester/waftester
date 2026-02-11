@@ -16,8 +16,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/waftester/waftester/pkg/bufpool"
 	"github.com/waftester/waftester/pkg/attackconfig"
+	"github.com/waftester/waftester/pkg/bufpool"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/httpclient"

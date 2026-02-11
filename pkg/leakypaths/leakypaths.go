@@ -145,7 +145,8 @@ func (s *Scanner) Scan(ctx context.Context, targetURL string, categories ...stri
 		for _, path := range paths {
 			select {
 			case <-ctx.Done():
-				break
+				close(pathsChan)
+				return
 			case pathsChan <- path:
 			}
 		}

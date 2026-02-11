@@ -698,7 +698,11 @@ func NewIPRangeChecker() *IPRangeChecker {
 // LoadAWSRanges loads AWS IP ranges from the published JSON
 func (c *IPRangeChecker) LoadAWSRanges(ctx context.Context) error {
 	// AWS publishes IP ranges at https://ip-ranges.amazonaws.com/ip-ranges.json
-	resp, err := http.Get("https://ip-ranges.amazonaws.com/ip-ranges.json")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://ip-ranges.amazonaws.com/ip-ranges.json", nil)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}

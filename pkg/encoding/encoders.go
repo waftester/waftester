@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/waftester/waftester/pkg/hexutil"
 	"github.com/waftester/waftester/pkg/bufpool"
+	"github.com/waftester/waftester/pkg/hexutil"
 )
 
 func init() {

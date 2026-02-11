@@ -310,15 +310,15 @@ func (t *Tester) TestTLS(ctx context.Context, targetURL string) ([]Vulnerability
 			iohelper.DrainAndClose(resp.Body)
 			if resp.StatusCode == http.StatusSwitchingProtocols {
 				vulns = append(vulns, Vulnerability{
-				Vulnerability: finding.Vulnerability{
-					Description: "WebSocket connection without TLS encryption",
-					Severity:    finding.Medium,
-					URL:         targetURL,
-					Evidence:    "Server accepts ws:// connections",
-					Remediation: GetTLSRemediation(),
-					CVSS:        5.3,
-				},
-				Type: VulnNoTLS,
+					Vulnerability: finding.Vulnerability{
+						Description: "WebSocket connection without TLS encryption",
+						Severity:    finding.Medium,
+						URL:         targetURL,
+						Evidence:    "Server accepts ws:// connections",
+						Remediation: GetTLSRemediation(),
+						CVSS:        5.3,
+					},
+					Type: VulnNoTLS,
 				})
 			}
 		}

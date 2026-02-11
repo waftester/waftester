@@ -62,18 +62,18 @@ type Finding struct {
 
 // ExecutiveSummary contains high-level summary for executives
 type ExecutiveSummary struct {
-	Title           string           `json:"title"`
-	Organization    string           `json:"organization"`
-	ReportDate      time.Time        `json:"report_date"`
-	AssessmentType  string           `json:"assessment_type"` // pentest, vuln-scan, waf-test
-	Scope           []string         `json:"scope"`
-	OverallRisk     string           `json:"overall_risk"` // Critical, High, Medium, Low
-	RiskScore       float64          `json:"risk_score"`   // 0-100
-	TotalFindings   int              `json:"total_findings"`
+	Title           string                   `json:"title"`
+	Organization    string                   `json:"organization"`
+	ReportDate      time.Time                `json:"report_date"`
+	AssessmentType  string                   `json:"assessment_type"` // pentest, vuln-scan, waf-test
+	Scope           []string                 `json:"scope"`
+	OverallRisk     string                   `json:"overall_risk"` // Critical, High, Medium, Low
+	RiskScore       float64                  `json:"risk_score"`   // 0-100
+	TotalFindings   int                      `json:"total_findings"`
 	FindingsByRisk  map[finding.Severity]int `json:"findings_by_risk"`
-	KeyFindings     []string         `json:"key_findings"`
-	Recommendations []string         `json:"recommendations"`
-	Conclusion      string           `json:"conclusion"`
+	KeyFindings     []string                 `json:"key_findings"`
+	Recommendations []string                 `json:"recommendations"`
+	Conclusion      string                   `json:"conclusion"`
 }
 
 // TechnicalDetails contains detailed technical information
