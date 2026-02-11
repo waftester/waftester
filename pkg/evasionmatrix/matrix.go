@@ -3,6 +3,7 @@
 package evasionmatrix
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -30,13 +31,13 @@ type ExecutableTest struct {
 	Config    *placeholders.PlaceholderConfig
 }
 
-// ToRequest generates an HTTP request for this test
-func (t *ExecutableTest) ToRequest() (*http.Request, error) {
+// ToRequest generates an HTTP request for this test using the given context.
+func (t *ExecutableTest) ToRequest(ctx context.Context) (*http.Request, error) {
 	p := placeholders.Get(t.PlaceholderName)
 	if p == nil {
 		return nil, fmt.Errorf("placeholder not found: %s", t.PlaceholderName)
 	}
-	return p.Apply(t.TargetURL, t.EncodedPayload, t.Config)
+	return p.Apply(ctx, t.TargetURL, t.EncodedPayload, t.Config)
 }
 
 // Matrix holds the combinatorial test configuration
