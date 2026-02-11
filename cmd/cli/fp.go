@@ -212,8 +212,10 @@ func runFP() {
 
 	// Save to file if requested
 	if *output != "" {
-		data, _ := json.MarshalIndent(result, "", "  ")
-		if err := os.WriteFile(*output, data, 0644); err != nil {
+		data, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			fmt.Println(ui.ErrorStyle.Render(fmt.Sprintf("Error marshaling results: %v", err)))
+		} else if err := os.WriteFile(*output, data, 0644); err != nil {
 			fmt.Println(ui.ErrorStyle.Render(fmt.Sprintf("Error saving output: %v", err)))
 		} else {
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *output))
@@ -266,6 +268,9 @@ func splitAndTrim(s string, sep string) []string {
 }
 
 func splitString(s, sep string) []string {
+	if s == "" {
+		return nil
+	}
 	result := make([]string, 0)
 	start := 0
 	for i := 0; i < len(s); i++ {

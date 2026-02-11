@@ -120,7 +120,10 @@ func (s *Scanner) extractIDs(url string) []string {
 	seen := make(map[string]bool)
 
 	for _, pattern := range s.config.IDPatterns {
-		re := regexp.MustCompile(pattern)
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			continue // Skip invalid patterns
+		}
 		matches := re.FindAllStringSubmatch(url, -1)
 		for _, match := range matches {
 			if len(match) > 1 && !seen[match[1]] {
@@ -356,8 +359,23 @@ func responseSimilar(a, b []byte) bool {
 		return true
 	}
 
-	// Similar length with some content overlap suggests same resource type
-	return true
+	// Compare a sample of content to detect actual overlap
+	// Check prefix and suffix regions for similarity
+	checkLen := la
+	if lb < checkLen {
+		checkLen = lb
+	}
+	if checkLen > 256 {
+		checkLen = 256
+	}
+	matching := 0
+	for i := 0; i < checkLen; i++ {
+		if a[i] == b[i] {
+			matching++
+		}
+	}
+	// Require at least 80% byte-level similarity in the sample
+	return float64(matching)/float64(checkLen) >= 0.8
 }
 
 // VerticalPrivilegeTest tests for vertical privilege escalation

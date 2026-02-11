@@ -138,8 +138,18 @@ func NewExecutor(cfg ExecutorConfig, opts ...ExecutorOption) *Executor {
 	// If the transport isn't a detection.Transport (e.g., user-provided
 	// HTTPClient or transport wrapper not registered), detection still
 	// works via executor.detector.ShouldSkipHost in the worker loop.
+	// When using a user-provided HTTPClient, shallow-copy the transport to
+	// avoid mutating shared state across concurrent executors.
 	if dt, ok := client.Transport.(*detection.Transport); ok {
-		dt.Detector = executor.detector
+		if cfg.HTTPClient != nil {
+			// User-provided client — shallow copy the transport wrapper
+			// so we don't mutate their transport's Detector field.
+			dtCopy := *dt
+			dtCopy.Detector = executor.detector
+			client.Transport = &dtCopy
+		} else {
+			dt.Detector = executor.detector
+		}
 	}
 
 	return executor
@@ -228,7 +238,9 @@ func (e *Executor) Execute(ctx context.Context, allPayloads []payloads.Payload, 
 					}
 
 					// Rate limit
-					e.limiter.Wait(deathSpiralCtx)
+					if err := e.limiter.Wait(deathSpiralCtx); err != nil {
+						return // context cancelled
+					}
 
 					// Execute test
 					result := e.executeTest(ctx, payload)

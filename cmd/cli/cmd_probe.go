@@ -453,7 +453,9 @@ func runProbe() {
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to load targets: %v", err)
 		ui.PrintError(errMsg)
-		_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
+		if probeDispCtx != nil {
+			_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
+		}
 		os.Exit(1)
 	}
 
@@ -622,7 +624,9 @@ func runProbe() {
 		if err != nil {
 			errMsg := fmt.Sprintf("Cannot read config file: %v", err)
 			ui.PrintError(errMsg)
-			_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
+			if probeDispCtx != nil {
+				_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
+			}
 			os.Exit(1)
 		}
 		// Parse config file (JSON format)
@@ -816,6 +820,11 @@ func runProbe() {
 
 	// HTTP API endpoint - start server if specified
 	if *httpAPIEndpoint != "" {
+		// Security: ensure the endpoint binds to localhost if no host is specified
+		apiAddr := *httpAPIEndpoint
+		if strings.HasPrefix(apiAddr, ":") {
+			apiAddr = "127.0.0.1" + apiAddr
+		}
 		go func() {
 			mux := http.NewServeMux()
 			mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -835,8 +844,8 @@ func runProbe() {
 					"elapsed": time.Since(statsStart).String(),
 				})
 			})
-			fmt.Printf("[*] HTTP API server started at %s (endpoints: /health, /stats)\n", *httpAPIEndpoint)
-			if err := http.ListenAndServe(*httpAPIEndpoint, mux); err != nil {
+			fmt.Printf("[*] HTTP API server started at %s (endpoints: /health, /stats)\n", apiAddr)
+			if err := http.ListenAndServe(apiAddr, mux); err != nil {
 				fmt.Fprintf(os.Stderr, "[!] HTTP API server error: %v\n", err)
 			}
 		}()

@@ -175,7 +175,7 @@ func (d *Discoverer) Discover(ctx context.Context) (*DiscoveryResult, error) {
 				case <-done:
 					return
 				default:
-					fmt.Printf("\r  [%d/9] %s %s ", phaseNum, spinnerFrames[frame%len(spinnerFrames)], phaseName)
+					fmt.Fprintf(os.Stderr, "\r  [%d/9] %s %s ", phaseNum, spinnerFrames[frame%len(spinnerFrames)], phaseName)
 					frame++
 					time.Sleep(100 * time.Millisecond)
 				}
@@ -186,26 +186,26 @@ func (d *Discoverer) Discover(ctx context.Context) (*DiscoveryResult, error) {
 		close(done)
 
 		added := len(d.endpoints) - beforeCount
-		fmt.Printf("\r  [%d/9] ✅ %s +%d\033[K\n", phaseNum, phaseName, added)
+		fmt.Fprintf(os.Stderr, "\r  [%d/9] ✅ %s +%d\033[K\n", phaseNum, phaseName, added)
 		return added
 	}
 
 	// Phase 1: Detect WAF
-	fmt.Print("  [1/9] ⠋ Detecting WAF... ")
+	fmt.Fprint(os.Stderr, "  [1/9] ⠋ Detecting WAF... ")
 	d.detectWAF(ctx, result)
 	if result.WAFDetected {
-		fmt.Printf("\r  [1/9] ✅ WAF detected: %s\033[K\n", result.WAFFingerprint)
+		fmt.Fprintf(os.Stderr, "\r  [1/9] ✅ WAF detected: %s\033[K\n", result.WAFFingerprint)
 	} else {
-		fmt.Print("\r  [1/9] ✅ No WAF detected\033[K\n")
+		fmt.Fprint(os.Stderr, "\r  [1/9] ✅ No WAF detected\033[K\n")
 	}
 
 	// Phase 2: ACTIVE DISCOVERY - Comprehensive path brute-forcing with tech fingerprinting
 	// This is the primary discovery method - doesn't rely on robots.txt/sitemap
 	// Skip if DisableActive is set (useful for testing)
 	if !d.config.DisableActive {
-		fmt.Print("  [2/9] ⠋ Active discovery (path brute-force)... ")
+		fmt.Fprint(os.Stderr, "  [2/9] ⠋ Active discovery (path brute-force)... ")
 		d.discoverActiveEndpoints(ctx, result)
-		fmt.Printf("\r  [2/9] ✅ Active discovery: %d endpoints\033[K\n", len(d.endpoints))
+		fmt.Fprintf(os.Stderr, "\r  [2/9] ✅ Active discovery: %d endpoints\033[K\n", len(d.endpoints))
 	}
 
 	// Phase 3: External Sources
@@ -239,9 +239,9 @@ func (d *Discoverer) Discover(ctx context.Context) (*DiscoveryResult, error) {
 	})
 
 	// Phase 9: Analyze and categorize
-	fmt.Print("  [9/9] ⠋ Analyzing attack surface... ")
+	fmt.Fprint(os.Stderr, "  [9/9] ⠋ Analyzing attack surface... ")
 	d.analyzeAttackSurface(result)
-	fmt.Print("\r  [9/9] ✅ Attack surface analyzed\033[K\n")
+	fmt.Fprint(os.Stderr, "\r  [9/9] ✅ Attack surface analyzed\033[K\n")
 
 	result.Duration = time.Since(start)
 	result.Endpoints = d.endpoints
@@ -275,15 +275,15 @@ func (d *Discoverer) discoverActiveEndpoints(ctx context.Context, result *Discov
 		if phaseChanged || percent%10 == 0 || p.Done == p.Total {
 			switch phaseName {
 			case "fingerprint":
-				fmt.Printf("\r  [2/9] Active discovery: fingerprinting... ")
+				fmt.Fprintf(os.Stderr, "\r  [2/9] Active discovery: fingerprinting... ")
 			case "path-bruteforce":
-				fmt.Printf("\r  [2/9] Active discovery: path brute-force %d%%   ", percent)
+				fmt.Fprintf(os.Stderr, "\r  [2/9] Active discovery: path brute-force %d%%   ", percent)
 			case "link-extraction":
-				fmt.Printf("\r  [2/9] Active discovery: extracting links %d%%   ", percent)
+				fmt.Fprintf(os.Stderr, "\r  [2/9] Active discovery: extracting links %d%%   ", percent)
 			case "param-discovery":
-				fmt.Printf("\r  [2/9] Active discovery: finding params %d%%    ", percent)
+				fmt.Fprintf(os.Stderr, "\r  [2/9] Active discovery: finding params %d%%    ", percent)
 			case "method-enum":
-				fmt.Printf("\r  [2/9] Active discovery: testing methods %d%%   ", percent)
+				fmt.Fprintf(os.Stderr, "\r  [2/9] Active discovery: testing methods %d%%   ", percent)
 			case "dedupe":
 				// silent
 			}
@@ -428,7 +428,7 @@ func (d *Discoverer) discoverFromExternalSources(ctx context.Context, result *Di
 
 	// Log source counts for debugging/observability
 	if len(allSources.SourceCounts) > 0 && d.config.Verbose {
-		fmt.Printf("  External sources: robots=%d sitemap=%d wayback=%d commoncrawl=%d otx=%d virustotal=%d (total unique: %d)\n",
+		fmt.Fprintf(os.Stderr, "  External sources: robots=%d sitemap=%d wayback=%d commoncrawl=%d otx=%d virustotal=%d (total unique: %d)\n",
 			allSources.SourceCounts["robots.txt"],
 			allSources.SourceCounts["sitemap.xml"],
 			allSources.SourceCounts["wayback"],
@@ -468,6 +468,13 @@ func (d *Discoverer) crawlEndpoints(ctx context.Context, result *DiscoveryResult
 	}
 
 	for _, endpoint := range d.endpoints {
+		// Check for context cancellation before each iteration
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
 		if endpoint.StatusCode != 200 {
 			continue
 		}

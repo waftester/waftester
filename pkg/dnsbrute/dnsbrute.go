@@ -4,6 +4,8 @@ package dnsbrute
 import (
 	"bufio"
 	"context"
+	cryptorand "crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"os"
@@ -284,7 +286,9 @@ func (b *Bruteforcer) bruteforce(ctx context.Context, domain, word string, resol
 // detectWildcard detects wildcard DNS
 func (b *Bruteforcer) detectWildcard(ctx context.Context, domain string) error {
 	// Generate random subdomain for wildcard detection
-	randomSub := fmt.Sprintf("wc%d%d%d", time.Now().UnixNano()%1000, time.Now().UnixNano()%100, time.Now().UnixNano()%10)
+	randBytes := make([]byte, 8)
+	cryptorand.Read(randBytes)
+	randomSub := "wc" + hex.EncodeToString(randBytes)
 	fqdn := fmt.Sprintf("%s.%s", randomSub, domain)
 
 	for _, resolver := range b.resolvers {

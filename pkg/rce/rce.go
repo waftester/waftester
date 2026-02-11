@@ -4,6 +4,7 @@ package rce
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -143,11 +144,11 @@ func (s *Scanner) testPayload(ctx context.Context, targetURL, param string, payl
 
 // buildFormData builds URL-encoded form data
 func buildFormData(params map[string]string) string {
-	parts := make([]string, 0, len(params))
+	vals := make(url.Values, len(params))
 	for k, v := range params {
-		parts = append(parts, k+"="+v)
+		vals.Set(k, v)
 	}
-	return strings.Join(parts, "&")
+	return vals.Encode()
 }
 
 // detectVulnerability checks response for RCE indicators

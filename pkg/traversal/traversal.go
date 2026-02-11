@@ -422,13 +422,14 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL string, param stri
 	return vulns, nil
 }
 
-// detectEvidence checks response body for signs of successful traversal
-func (t *Tester) detectEvidence(body string, platform Platform) string {
-	// Linux file signatures
-	linuxPatterns := []struct {
-		pattern *regexp.Regexp
-		desc    string
-	}{
+// Pre-compiled traversal evidence patterns (avoid per-call regexp.MustCompile).
+type evidencePattern struct {
+	pattern *regexp.Regexp
+	desc    string
+}
+
+var (
+	linuxTraversalPatterns = []evidencePattern{
 		{regexp.MustCompile(`root:.*:0:0:`), "passwd file content"},
 		{regexp.MustCompile(`daemon:.*:1:1:`), "passwd file content"},
 		{regexp.MustCompile(`nobody:.*:65534:`), "passwd file content"},
@@ -439,12 +440,7 @@ func (t *Tester) detectEvidence(body string, platform Platform) string {
 		{regexp.MustCompile(`HOME=/`), "environment variable"},
 		{regexp.MustCompile(`SHELL=/`), "environment variable"},
 	}
-
-	// Windows file signatures
-	windowsPatterns := []struct {
-		pattern *regexp.Regexp
-		desc    string
-	}{
+	windowsTraversalPatterns = []evidencePattern{
 		{regexp.MustCompile(`\[fonts\]`), "win.ini content"},
 		{regexp.MustCompile(`\[extensions\]`), "win.ini content"},
 		{regexp.MustCompile(`\[mci extensions\]`), "win.ini content"},
@@ -453,10 +449,18 @@ func (t *Tester) detectEvidence(body string, platform Platform) string {
 		{regexp.MustCompile(`default=multi`), "boot.ini content"},
 		{regexp.MustCompile(`127\.0\.0\.1\s+localhost`), "hosts file content"},
 	}
+	phpTraversalPatterns = []evidencePattern{
+		{regexp.MustCompile(`<\?php`), "PHP source code"},
+		{regexp.MustCompile(`<\?=`), "PHP short tag"},
+		{regexp.MustCompile(`PHBocA==`), "Base64 PHP tag"},
+	}
+)
 
+// detectEvidence checks response body for signs of successful traversal
+func (t *Tester) detectEvidence(body string, platform Platform) string {
 	// Check based on platform
 	if platform == PlatformLinux || platform == PlatformUnknown {
-		for _, p := range linuxPatterns {
+		for _, p := range linuxTraversalPatterns {
 			if match := p.pattern.FindString(body); match != "" {
 				return fmt.Sprintf("%s: %s", p.desc, strutil.Truncate(match, 100))
 			}
@@ -464,7 +468,7 @@ func (t *Tester) detectEvidence(body string, platform Platform) string {
 	}
 
 	if platform == PlatformWindows || platform == PlatformUnknown {
-		for _, p := range windowsPatterns {
+		for _, p := range windowsTraversalPatterns {
 			if match := p.pattern.FindString(body); match != "" {
 				return fmt.Sprintf("%s: %s", p.desc, strutil.Truncate(match, 100))
 			}
@@ -472,16 +476,7 @@ func (t *Tester) detectEvidence(body string, platform Platform) string {
 	}
 
 	// PHP wrapper evidence
-	phpPatterns := []struct {
-		pattern *regexp.Regexp
-		desc    string
-	}{
-		{regexp.MustCompile(`<\?php`), "PHP source code"},
-		{regexp.MustCompile(`<\?=`), "PHP short tag"},
-		{regexp.MustCompile(`PHBocA==`), "Base64 PHP tag"}, // <?php base64 encoded
-	}
-
-	for _, p := range phpPatterns {
+	for _, p := range phpTraversalPatterns {
 		if match := p.pattern.FindString(body); match != "" {
 			return fmt.Sprintf("%s: %s", p.desc, strutil.Truncate(match, 100))
 		}

@@ -107,14 +107,14 @@ func (c *CrtshClient) FetchIPs(ctx context.Context, domain string) ([]Result, er
 	seen := make(map[string]bool)
 
 	for _, sub := range subdomains {
-		// Resolve each subdomain to IPs
-		ips, err := net.LookupIP(sub.Value)
+		// Resolve each subdomain to IPs using context for timeout/cancellation
+		ips, err := net.DefaultResolver.LookupIPAddr(ctx, sub.Value)
 		if err != nil {
 			continue // Skip unresolvable domains
 		}
 
 		for _, ip := range ips {
-			ipStr := ip.String()
+			ipStr := ip.IP.String()
 			if !seen[ipStr] {
 				seen[ipStr] = true
 				results = append(results, Result{

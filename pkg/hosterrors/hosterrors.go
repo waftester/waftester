@@ -17,6 +17,7 @@
 package hosterrors
 
 import (
+	"errors"
 	"net"
 	"net/url"
 	"strings"
@@ -295,7 +296,7 @@ func IsNetworkError(err error) bool {
 	return false
 }
 
-// errorAs is a helper to check error types (avoids import errors package)
+// errorAs is a helper to check error types using errors.As for proper unwrapping.
 func errorAs(err error, target interface{}) bool {
 	if err == nil {
 		return false
@@ -303,10 +304,7 @@ func errorAs(err error, target interface{}) bool {
 
 	switch t := target.(type) {
 	case *net.Error:
-		if netErr, ok := err.(net.Error); ok {
-			*t = netErr
-			return true
-		}
+		return errors.As(err, t)
 	}
 
 	return false

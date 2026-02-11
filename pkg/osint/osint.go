@@ -3,6 +3,7 @@ package osint
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -133,14 +134,19 @@ func (m *Manager) GetSources() []Source {
 
 // FetchSubdomains queries all sources for subdomains
 func (m *Manager) FetchSubdomains(ctx context.Context, domain string) ([]Result, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	// Copy clients under read lock, then release before network calls
+	m.mu.RLock()
+	clients := make([]Client, 0, len(m.clients))
+	for _, c := range m.clients {
+		clients = append(clients, c)
+	}
+	m.mu.RUnlock()
 
 	var wg sync.WaitGroup
-	resultChan := make(chan []Result, len(m.clients))
-	errChan := make(chan error, len(m.clients))
+	resultChan := make(chan []Result, len(clients))
+	errChan := make(chan error, len(clients))
 
-	for _, client := range m.clients {
+	for _, client := range clients {
 		wg.Add(1)
 		go func(c Client) {
 			defer wg.Done()
@@ -167,11 +173,20 @@ func (m *Manager) FetchSubdomains(ctx context.Context, domain string) ([]Result,
 		allResults = append(allResults, results...)
 	}
 
+	// Collect errors from all sources
+	var errs []error
+	for err := range errChan {
+		errs = append(errs, err)
+	}
+
 	// Deduplicate
 	allResults = deduplicateResults(allResults)
-	m.results = append(m.results, allResults...)
 
-	return allResults, nil
+	m.mu.Lock()
+	m.results = append(m.results, allResults...)
+	m.mu.Unlock()
+
+	return allResults, errors.Join(errs...)
 }
 
 // GetResults returns all collected results
@@ -210,7 +225,6 @@ func NewRateLimiter(requestsPerMinute int) *RateLimiter {
 // Wait blocks until a request token is available
 func (r *RateLimiter) Wait() {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 
 	// Refill tokens based on elapsed time
 	elapsed := time.Since(r.lastRefill)
@@ -223,13 +237,17 @@ func (r *RateLimiter) Wait() {
 		r.lastRefill = time.Now()
 	}
 
-	// Wait if no tokens available
+	// Release lock before sleeping to avoid blocking other goroutines
 	if r.tokens <= 0 {
-		time.Sleep(r.refillRate)
+		sleepDuration := r.refillRate
+		r.mu.Unlock()
+		time.Sleep(sleepDuration)
+		r.mu.Lock()
 		r.tokens = 1
 	}
 
 	r.tokens--
+	r.mu.Unlock()
 }
 
 // Helper functions
@@ -237,7 +255,7 @@ func deduplicateResults(results []Result) []Result {
 	seen := make(map[string]bool)
 	var unique []Result
 	for _, r := range results {
-		key := fmt.Sprintf("%s:%s:%s", r.Source, r.Type, r.Value)
+		key := fmt.Sprintf("%s:%s", r.Type, r.Value)
 		if !seen[key] {
 			seen[key] = true
 			unique = append(unique, r)

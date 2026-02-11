@@ -17,6 +17,10 @@ import (
 
 // cache holds compiled regular expressions keyed by pattern string.
 // Using sync.Map for concurrent access without explicit locking.
+//
+// The cache is unbounded but effectively limited by the finite set of
+// unique regex patterns in payload definitions and WAF signatures.
+// In practice this is a few hundred entries at most.
 var cache sync.Map
 
 // Get returns a compiled regexp for the given pattern.

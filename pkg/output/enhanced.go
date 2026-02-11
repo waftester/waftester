@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -88,9 +89,17 @@ func (w *EJSONWriter) Write(result *TestResult) error {
 	return nil
 }
 
-func (w *EJSONWriter) Close() error {
+func (w *EJSONWriter) Close() (retErr error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+
+	if w.file != os.Stdout {
+		defer func() {
+			if err := w.file.Close(); err != nil && retErr == nil {
+				retErr = err
+			}
+		}()
+	}
 
 	w.metadata.EndTime = time.Now()
 	w.metadata.Duration = w.metadata.EndTime.Sub(w.metadata.StartTime)
@@ -108,9 +117,6 @@ func (w *EJSONWriter) Close() error {
 		return err
 	}
 
-	if w.file != os.Stdout {
-		return w.file.Close()
-	}
 	return nil
 }
 
@@ -198,12 +204,17 @@ func (w *ECSVWriter) Write(result *TestResult) error {
 	return w.writer.Write(record)
 }
 
-func (w *ECSVWriter) Close() error {
+func (w *ECSVWriter) Close() (retErr error) {
 	w.writer.Flush()
-	if w.file != os.Stdout {
-		return w.file.Close()
+	if err := w.writer.Error(); err != nil {
+		retErr = err
 	}
-	return nil
+	if w.file != os.Stdout {
+		if err := w.file.Close(); err != nil && retErr == nil {
+			retErr = err
+		}
+	}
+	return retErr
 }
 
 // TaggedWriter wraps another writer and adds source tags (gospider-style)
@@ -221,11 +232,13 @@ func NewTaggedWriter(inner ResultWriter, source string) *TaggedWriter {
 }
 
 func (w *TaggedWriter) Write(result *TestResult) error {
-	// Add source prefix to payload or ID
+	// Shallow-copy to avoid mutating the shared *TestResult pointer,
+	// which would cause data races when multiple writers receive the same result.
+	tagged := *result
 	if w.source != "" {
-		result.ID = fmt.Sprintf("[%s] %s", w.source, result.ID)
+		tagged.ID = fmt.Sprintf("[%s] %s", w.source, tagged.ID)
 	}
-	return w.inner.Write(result)
+	return w.inner.Write(&tagged)
 }
 
 func (w *TaggedWriter) Close() error {
@@ -290,23 +303,23 @@ func NewMultiWriter(writers ...ResultWriter) *MultiWriter {
 }
 
 func (w *MultiWriter) Write(result *TestResult) error {
-	var lastErr error
+	var errs []error
 	for _, writer := range w.writers {
 		if err := writer.Write(result); err != nil {
-			lastErr = err
+			errs = append(errs, err)
 		}
 	}
-	return lastErr
+	return errors.Join(errs...)
 }
 
 func (w *MultiWriter) Close() error {
-	var lastErr error
+	var errs []error
 	for _, writer := range w.writers {
 		if err := writer.Close(); err != nil {
-			lastErr = err
+			errs = append(errs, err)
 		}
 	}
-	return lastErr
+	return errors.Join(errs...)
 }
 
 // NewAllFormatsWriter creates writers for all supported formats
