@@ -1,7 +1,9 @@
 // Regression test for bug: PDFWriter constructor overrode IncludeEvidence=false.
 //
 // Before the fix, NewPDFWriter had:
-//   if !config.IncludeEvidence { config.IncludeEvidence = true }
+//
+//	if !config.IncludeEvidence { config.IncludeEvidence = true }
+//
 // This forced IncludeEvidence to true regardless of what the user set,
 // making it impossible to exclude evidence from PDF reports.
 // The fix removes this override so the user's config is respected.

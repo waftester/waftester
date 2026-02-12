@@ -18,10 +18,10 @@ func TestRedactMap_SensitiveFieldsRedacted(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		input      string
-		wantAbsent []string // values that must NOT appear in output
-		wantContain string  // must appear
+		name        string
+		input       string
+		wantAbsent  []string // values that must NOT appear in output
+		wantContain string   // must appear
 	}{
 		{
 			name:        "api_key",

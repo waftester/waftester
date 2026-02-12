@@ -1,11 +1,15 @@
 // Regression tests for output writer bugs (from 85-fix adversarial review).
 //
 // Bug 1: TaggedWriter.Write() mutated the shared *TestResult pointer directly,
-//         causing data races when multiple writers received the same result.
+//
+//	causing data races when multiple writers received the same result.
+//
 // Fix 1: Shallow-copy the TestResult before modifying ID.
 //
 // Bug 2: MultiWriter.Write() only kept the last error, silently swallowing
-//         earlier failures.
+//
+//	earlier failures.
+//
 // Fix 2: Collect all errors and return errors.Join(errs...).
 //
 // Bug 3: ECSVWriter.Close() didn't flush the csv.Writer or propagate file close errors.
