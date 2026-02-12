@@ -549,6 +549,7 @@ func (w *SARIFWriter) buildSARIF() sarifDocument {
 		"High":     "error",
 		"Medium":   "warning",
 		"Low":      "note",
+		"Info":     "note",
 	}
 
 	securityScore := map[string]string{
@@ -556,6 +557,7 @@ func (w *SARIFWriter) buildSARIF() sarifDocument {
 		"High":     "7.5",
 		"Medium":   "5.0",
 		"Low":      "2.5",
+		"Info":     "1.0",
 	}
 
 	rules := make(map[string]sarifRule)

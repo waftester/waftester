@@ -111,6 +111,12 @@ func EnrichBypassFinding(finding *BypassFinding) {
 	if finding.OtherInfo == "" && vulnInfo.OtherInfo != "" {
 		finding.OtherInfo = vulnInfo.OtherInfo
 	}
+	// Set Confidence default BEFORE computing RiskConfidence,
+	// otherwise RiskConfidence would show "critical ()" instead of "critical (High)".
+	if finding.Confidence == "" {
+		// Default confidence based on bypass success
+		finding.Confidence = "High"
+	}
 	if finding.RiskConfidence == "" {
 		// Generate ZAP-style "High (Medium)" format
 		finding.RiskConfidence = fmt.Sprintf("%s (%s)", finding.Severity, finding.Confidence)
@@ -120,10 +126,6 @@ func EnrichBypassFinding(finding *BypassFinding) {
 	if finding.WASCID == "" && vulnInfo.WASCID != "" {
 		finding.WASCID = vulnInfo.WASCID
 		finding.WASCURL = vulnInfo.WASCURL
-	}
-	if finding.Confidence == "" {
-		// Default confidence based on bypass success
-		finding.Confidence = "High"
 	}
 	if finding.InputVector == "" {
 		// Detect input vector from payload/endpoint
