@@ -4,6 +4,8 @@ package dnsbrute
 import (
 	"bufio"
 	"context"
+	cryptorand "crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"os"
@@ -13,15 +15,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 )
 
 // Config configures DNS bruteforce
 type Config struct {
+	attackconfig.Base
 	Wordlist       string        // Path to wordlist file
-	Concurrency    int           // Number of concurrent workers
-	Timeout        time.Duration // DNS query timeout
 	Resolvers      []string      // Custom resolvers
 	Retries        int           // Number of retries per query
 	WildcardFilter bool          // Filter wildcard responses
@@ -32,8 +34,10 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Concurrency:    defaults.ConcurrencyDNS,
-		Timeout:        duration.DNSTimeout,
+		Base: attackconfig.Base{
+			Concurrency: defaults.ConcurrencyDNS,
+			Timeout:     duration.DNSTimeout,
+		},
 		Resolvers:      DefaultResolvers(),
 		Retries:        defaults.RetryLow,
 		WildcardFilter: true,
@@ -282,7 +286,9 @@ func (b *Bruteforcer) bruteforce(ctx context.Context, domain, word string, resol
 // detectWildcard detects wildcard DNS
 func (b *Bruteforcer) detectWildcard(ctx context.Context, domain string) error {
 	// Generate random subdomain for wildcard detection
-	randomSub := fmt.Sprintf("wc%d%d%d", time.Now().UnixNano()%1000, time.Now().UnixNano()%100, time.Now().UnixNano()%10)
+	randBytes := make([]byte, 8)
+	cryptorand.Read(randBytes)
+	randomSub := "wc" + hex.EncodeToString(randBytes)
 	fqdn := fmt.Sprintf("%s.%s", randomSub, domain)
 
 	for _, resolver := range b.resolvers {

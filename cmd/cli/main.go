@@ -154,13 +154,6 @@ func main() {
 
 // runAnalyze is in cmd_analyze.go
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // applyMutations expands payloads using the mutation engine based on config
 func applyMutations(cfg *config.Config, originalPayloads []payloads.Payload) []payloads.Payload {
 	var pipelineCfg *mutation.PipelineConfig

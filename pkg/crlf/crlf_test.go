@@ -9,7 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 )
 
@@ -26,8 +28,10 @@ func TestNewTester(t *testing.T) {
 
 	t.Run("with custom config", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout:     60 * time.Second,
-			Concurrency: 10,
+			Base: attackconfig.Base{
+				Timeout:     60 * time.Second,
+				Concurrency: 10,
+			},
 		}
 		tester := NewTester(config)
 		if tester.config.Concurrency != 10 {
@@ -238,14 +242,14 @@ func TestTestHeader(t *testing.T) {
 func TestGetSeverity(t *testing.T) {
 	tests := []struct {
 		vulnType VulnerabilityType
-		expected Severity
+		expected finding.Severity
 	}{
-		{VulnResponseSplitting, SeverityCritical},
-		{VulnXSSViaCRLF, SeverityCritical},
-		{VulnHeaderInjection, SeverityHigh},
-		{VulnSetCookie, SeverityHigh},
-		{VulnCachePoison, SeverityHigh},
-		{VulnLogInjection, SeverityMedium},
+		{VulnResponseSplitting, finding.Critical},
+		{VulnXSSViaCRLF, finding.Critical},
+		{VulnHeaderInjection, finding.High},
+		{VulnSetCookie, finding.High},
+		{VulnCachePoison, finding.High},
+		{VulnLogInjection, finding.Medium},
 	}
 
 	for _, tt := range tests {
@@ -403,33 +407,11 @@ func TestGenerateCRLFPayloads(t *testing.T) {
 	}
 }
 
-func TestVulnerabilityToJSON(t *testing.T) {
-	vuln := Vulnerability{
-		Type:        VulnHeaderInjection,
-		Description: "Test",
-		Severity:    SeverityHigh,
-		URL:         "http://example.com",
-		Parameter:   "redirect",
-		Payload:     "%0d%0a",
-		Evidence:    "Header found",
-		CVSS:        7.5,
-	}
-
-	jsonStr, err := VulnerabilityToJSON(vuln)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if !strings.Contains(jsonStr, "header-injection") {
-		t.Error("expected vulnerability type in JSON")
-	}
-}
-
 func TestVulnerability(t *testing.T) {
 	vuln := Vulnerability{
 		Type:        VulnResponseSplitting,
 		Description: "Test vulnerability",
-		Severity:    SeverityCritical,
+		Severity:    finding.Critical,
 		URL:         "http://example.com",
 		Parameter:   "redirect",
 		Payload:     "%0d%0a%0d%0a<html>",

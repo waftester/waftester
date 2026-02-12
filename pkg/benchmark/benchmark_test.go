@@ -331,12 +331,6 @@ func TestScorerCategoryCoverage(t *testing.T) {
 	assert.Equal(t, 50.0, sqliScore.Coverage)
 }
 
-func TestTruncate(t *testing.T) {
-	assert.Equal(t, "short", truncate("short", 10))
-	assert.Equal(t, "long...", truncate("longstring", 7))
-	assert.Equal(t, "exactly", truncate("exactly", 7))
-}
-
 func TestPercentileLatencyEdgeCases(t *testing.T) {
 	scorer := NewScorer()
 

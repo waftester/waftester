@@ -7,6 +7,7 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,13 +15,14 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 	"unicode"
 
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // Wordlist represents a loaded wordlist
@@ -492,7 +494,7 @@ func generateMutations(base string, rules []MutationRule) []string {
 		variations = append(variations, word)
 		variations = append(variations, strings.ToLower(word))
 		variations = append(variations, strings.ToUpper(word))
-		variations = append(variations, strings.Title(strings.ToLower(word)))
+		variations = append(variations, cases.Title(language.English).String(strings.ToLower(word)))
 
 		// Add numbers
 		for i := 0; i <= 9; i++ {
@@ -662,7 +664,7 @@ func applyTransform(word string, t Transform) []string {
 	case TransformCase:
 		results = append(results, strings.ToLower(word))
 		results = append(results, strings.ToUpper(word))
-		results = append(results, strings.Title(strings.ToLower(word)))
+		results = append(results, cases.Title(language.English).String(strings.ToLower(word)))
 		results = append(results, toggleCase(word))
 	case TransformLeet:
 		results = append(results, leetSpeak(word))
@@ -894,22 +896,11 @@ func sanitizeFilename(url string) string {
 	return safe
 }
 
-var prng uint32 = uint32(time.Now().UnixNano())
-
 func randomInt(max int) int {
 	if max <= 0 {
 		return 0
 	}
-	// Use atomic operations for thread safety
-	for {
-		old := atomic.LoadUint32(&prng)
-		new := old ^ (old << 13)
-		new = new ^ (new >> 17)
-		new = new ^ (new << 5)
-		if atomic.CompareAndSwapUint32(&prng, old, new) {
-			return int(new % uint32(max))
-		}
-	}
+	return rand.IntN(max)
 }
 
 // initBuiltInLists initializes built-in wordlists

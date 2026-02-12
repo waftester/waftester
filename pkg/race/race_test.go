@@ -7,6 +7,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/attackconfig"
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewTester(t *testing.T) {
@@ -25,7 +28,7 @@ func TestNewTester(t *testing.T) {
 
 	t.Run("custom config", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout:        60 * time.Second,
+			Base:           attackconfig.Base{Timeout: 60 * time.Second},
 			MaxConcurrency: 100,
 		}
 		tester := NewTester(config)
@@ -146,7 +149,7 @@ func TestTestDoubleSubmit(t *testing.T) {
 		if vuln.Type != AttackDoubleSubmit {
 			t.Errorf("expected double submit type, got %s", vuln.Type)
 		}
-		if vuln.Severity != SeverityCritical {
+		if vuln.Severity != finding.Critical {
 			t.Errorf("expected critical severity")
 		}
 	})
@@ -572,7 +575,7 @@ func TestConcurrencyLimit(t *testing.T) {
 	defer server.Close()
 
 	config := &TesterConfig{
-		Timeout:        30 * time.Second,
+		Base:           attackconfig.Base{Timeout: 30 * time.Second},
 		MaxConcurrency: 100,
 	}
 	tester := NewTester(config)

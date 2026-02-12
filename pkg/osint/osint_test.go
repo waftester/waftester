@@ -358,13 +358,14 @@ func TestDeduplicateResults(t *testing.T) {
 	results := []Result{
 		{Source: SourceCrtsh, Type: "subdomain", Value: "api.example.com"},
 		{Source: SourceCrtsh, Type: "subdomain", Value: "api.example.com"},  // Duplicate
-		{Source: SourceShodan, Type: "subdomain", Value: "api.example.com"}, // Different source
+		{Source: SourceShodan, Type: "subdomain", Value: "api.example.com"}, // Same value, different source — still deduped
 		{Source: SourceCrtsh, Type: "subdomain", Value: "www.example.com"},
 	}
 
 	unique := deduplicateResults(results)
-	if len(unique) != 3 {
-		t.Errorf("expected 3 unique results, got %d", len(unique))
+	// Dedup key is type:value (source excluded) so api.example.com appears once regardless of source
+	if len(unique) != 2 {
+		t.Errorf("expected 2 unique results, got %d", len(unique))
 	}
 }
 

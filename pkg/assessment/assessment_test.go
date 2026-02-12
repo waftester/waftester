@@ -4,9 +4,11 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/metrics"
 )
 
@@ -47,10 +49,12 @@ func TestNew(t *testing.T) {
 
 func TestNewWithConfig(t *testing.T) {
 	cfg := &Config{
-		TargetURL:     "https://example.com",
-		Concurrency:   10,
+		TargetURL: "https://example.com",
+		Base: attackconfig.Base{
+			Concurrency: 10,
+			Timeout:     5 * time.Second,
+		},
 		RateLimit:     50,
-		Timeout:       5 * time.Second,
 		SkipTLSVerify: true,
 		Verbose:       true,
 	}
@@ -200,7 +204,7 @@ func TestIsBlockedResponse(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(string(rune(tt.statusCode)), func(t *testing.T) {
+		t.Run(strconv.Itoa(tt.statusCode), func(t *testing.T) {
 			if got := isBlockedResponse(tt.statusCode); got != tt.expected {
 				t.Errorf("isBlockedResponse(%d) = %v, want %v", tt.statusCode, got, tt.expected)
 			}
@@ -303,10 +307,12 @@ func TestRunWithMockServer(t *testing.T) {
 	defer server.Close()
 
 	cfg := &Config{
-		TargetURL:       server.URL,
-		Concurrency:     5,
+		TargetURL: server.URL,
+		Base: attackconfig.Base{
+			Concurrency: 5,
+			Timeout:     5 * time.Second,
+		},
 		RateLimit:       100,
-		Timeout:         5 * time.Second,
 		EnableFPTesting: true,
 		CorpusSources:   []string{"builtin"},
 		Categories:      []string{"xss", "traversal"}, // Limit for faster test

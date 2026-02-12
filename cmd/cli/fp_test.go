@@ -101,30 +101,6 @@ func TestTrimString(t *testing.T) {
 	}
 }
 
-func TestTruncate(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		max      int
-		expected string
-	}{
-		{"short string", "hello", 10, "hello"},
-		{"exact length", "hello", 5, "hello"},
-		{"needs truncation", "hello world", 8, "hello wo"}, // no ellipsis
-		{"very short max", "hello", 3, "hel"},
-		{"empty", "", 5, ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := truncate(tt.input, tt.max)
-			if result != tt.expected {
-				t.Errorf("truncate(%q, %d) = %q, expected %q", tt.input, tt.max, result, tt.expected)
-			}
-		})
-	}
-}
-
 func TestCorpusSourcesAllExpands(t *testing.T) {
 	result := parseCorpusSources("all")
 	expected := []string{"leipzig", "edge", "forms", "api", "tech", "intl"}

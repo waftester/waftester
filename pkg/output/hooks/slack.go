@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -30,6 +30,7 @@ type SlackHook struct {
 	opts       SlackOptions
 	bypasses   []*events.BypassEvent
 	mu         sync.Mutex
+	logger     *slog.Logger
 }
 
 // SlackOptions configures the Slack hook behavior.
@@ -51,6 +52,9 @@ type SlackOptions struct {
 
 	// Timeout for HTTP requests (default: 10s).
 	Timeout time.Duration
+
+	// Logger for structured logging (default: slog.Default()).
+	Logger *slog.Logger
 }
 
 // NewSlackHook creates a new Slack hook that sends messages to the given webhook URL.
@@ -71,6 +75,7 @@ func NewSlackHook(webhookURL string, opts SlackOptions) *SlackHook {
 		client:     httpclient.New(httpclient.Config{Timeout: opts.Timeout}),
 		opts:       opts,
 		bypasses:   make([]*events.BypassEvent, 0),
+		logger:     orDefault(opts.Logger),
 	}
 }
 
@@ -273,13 +278,13 @@ func (h *SlackHook) wafDisplayName(waf string) string {
 func (h *SlackHook) send(ctx context.Context, payload interface{}) error {
 	body, err := json.Marshal(payload)
 	if err != nil {
-		log.Printf("slack: failed to marshal message: %v", err)
+		h.logger.Warn("failed to marshal message", slog.String("error", err.Error()))
 		return nil // Don't block scan
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, h.webhookURL, bytes.NewReader(body))
 	if err != nil {
-		log.Printf("slack: failed to create request: %v", err)
+		h.logger.Warn("failed to create request", slog.String("error", err.Error()))
 		return nil
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -287,13 +292,13 @@ func (h *SlackHook) send(ctx context.Context, payload interface{}) error {
 
 	resp, err := h.client.Do(req)
 	if err != nil {
-		log.Printf("slack: failed to send message: %v", err)
+		h.logger.Warn("failed to send message", slog.String("error", err.Error()))
 		return nil // Don't block scan
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		log.Printf("slack: received error response: %d", resp.StatusCode)
+		h.logger.Warn("error response", slog.Int("status", resp.StatusCode))
 	}
 
 	return nil

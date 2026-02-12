@@ -4,9 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strings"
-
-	"github.com/fatih/color"
 )
 
 // Format represents an output format for detection stats.
@@ -42,7 +41,7 @@ func (s Stats) WriteTo(w io.Writer, format Format) error {
 // PrintConsole prints colored stats to stderr.
 // This is a convenience method for the most common use case.
 func (s Stats) PrintConsole() {
-	s.WriteTo(color.Error, FormatConsole)
+	s.WriteTo(os.Stderr, FormatConsole)
 }
 
 // writeConsole writes colored console output
@@ -57,16 +56,13 @@ func (s Stats) writeConsole(w io.Writer) error {
 	fmt.Fprintln(w)
 
 	if s.DropsDetected > 0 {
-		yellow := color.New(color.FgYellow)
-		yellow.Fprintf(w, "    ⚠ Connection Drops: %d\n", s.DropsDetected)
+		fmt.Fprintf(w, "\033[33m    ⚠ Connection Drops: %d\033[0m\n", s.DropsDetected)
 	}
 	if s.BansDetected > 0 {
-		red := color.New(color.FgRed)
-		red.Fprintf(w, "    🚫 Silent Bans:      %d\n", s.BansDetected)
+		fmt.Fprintf(w, "\033[31m    🚫 Silent Bans:      %d\033[0m\n", s.BansDetected)
 	}
 	if s.HostsSkipped > 0 {
-		cyan := color.New(color.FgCyan)
-		cyan.Fprintf(w, "    ⏭ Hosts Skipped:     %d\n", s.HostsSkipped)
+		fmt.Fprintf(w, "\033[36m    ⏭ Hosts Skipped:     %d\033[0m\n", s.HostsSkipped)
 	}
 
 	// Show recommendations if any

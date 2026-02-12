@@ -7,6 +7,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/attackconfig"
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewTester(t *testing.T) {
@@ -25,7 +28,7 @@ func TestNewTester(t *testing.T) {
 
 	t.Run("custom config", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout:       60 * time.Second,
+			Base:          attackconfig.Base{Timeout: 60 * time.Second},
 			DBMS:          DBMSMySQL,
 			TimeThreshold: 10 * time.Second,
 		}
@@ -578,7 +581,7 @@ func TestVulnerabilityFields(t *testing.T) {
 		if v.Description == "" {
 			t.Error("vulnerability should have description")
 		}
-		if v.Severity != SeverityCritical {
+		if v.Severity != finding.Critical {
 			t.Error("vulnerability should be critical severity")
 		}
 		if v.URL == "" {
@@ -708,7 +711,7 @@ func BenchmarkTestParameter(b *testing.B) {
 	defer server.Close()
 
 	config := &TesterConfig{
-		Timeout:       10 * time.Second,
+		Base:          attackconfig.Base{Timeout: 10 * time.Second},
 		DBMS:          DBMSMySQL,
 		TimeThreshold: 1 * time.Second,
 	}
@@ -730,8 +733,7 @@ func TestMaxPayloadsLimit(t *testing.T) {
 	defer server.Close()
 
 	config := &TesterConfig{
-		Timeout:       5 * time.Second,
-		MaxPayloads:   3,
+		Base:          attackconfig.Base{Timeout: 5 * time.Second, MaxPayloads: 3},
 		TimeThreshold: 1 * time.Second,
 	}
 	tester := NewTester(config)
@@ -759,9 +761,7 @@ func TestMaxParamsLimit(t *testing.T) {
 	defer server.Close()
 
 	config := &TesterConfig{
-		Timeout:       5 * time.Second,
-		MaxParams:     2,
-		MaxPayloads:   1,
+		Base:          attackconfig.Base{Timeout: 5 * time.Second, MaxParams: 2, MaxPayloads: 1},
 		TimeThreshold: 1 * time.Second,
 	}
 	tester := NewTester(config)

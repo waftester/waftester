@@ -341,13 +341,6 @@ func padRight(s string, width int) string {
 	return s + strings.Repeat(" ", padding)
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 // PrintLiveResult prints a single result during execution (for verbose mode)
 func PrintLiveResult(outcome, id, category, severity string, statusCode int) {
 	if IsSilent() {

@@ -2059,7 +2059,7 @@ func TestGitHubIssuesHook_CreatesIssueWithCorrectPayload(t *testing.T) {
 	}))
 	defer server.Close()
 
-	hook := NewGitHubIssuesHook(GitHubIssuesOptions{
+	hook, err := NewGitHubIssuesHook(GitHubIssuesOptions{
 		Token:       "ghp_test123",
 		Owner:       "testorg",
 		Repo:        "testrepo",
@@ -2068,13 +2068,16 @@ func TestGitHubIssuesHook_CreatesIssueWithCorrectPayload(t *testing.T) {
 		Assignees:   []string{"user1", "user2"},
 		MinSeverity: events.SeverityHigh,
 	})
+	if err != nil {
+		t.Fatalf("NewGitHubIssuesHook failed: %v", err)
+	}
 
 	bypass := newTestBypassEvent(events.SeverityCritical)
 	bypass.Details.TestID = "sqli-042"
 	bypass.Details.Category = "SQL Injection"
 	bypass.Details.Endpoint = "https://example.com/api"
 
-	err := hook.OnEvent(context.Background(), bypass)
+	err = hook.OnEvent(context.Background(), bypass)
 	if err != nil {
 		t.Fatalf("OnEvent failed: %v", err)
 	}
@@ -2135,12 +2138,15 @@ func TestGitHubIssuesHook_CreatesIssueWithCorrectPayload(t *testing.T) {
 }
 
 func TestGitHubIssuesHook_RespectsMinSeverityFilter(t *testing.T) {
-	hook := NewGitHubIssuesHook(GitHubIssuesOptions{
+	hook, err := NewGitHubIssuesHook(GitHubIssuesOptions{
 		Token:       "ghp_test123",
 		Owner:       "testorg",
 		Repo:        "testrepo",
 		MinSeverity: events.SeverityHigh,
 	})
+	if err != nil {
+		t.Fatalf("NewGitHubIssuesHook failed: %v", err)
+	}
 
 	// Low severity should be filtered
 	if hook.meetsMinSeverity(events.SeverityLow) {
@@ -2164,12 +2170,15 @@ func TestGitHubIssuesHook_RespectsMinSeverityFilter(t *testing.T) {
 }
 
 func TestGitHubIssuesHook_UsesCustomLabelsFromConfig(t *testing.T) {
-	hook := NewGitHubIssuesHook(GitHubIssuesOptions{
+	hook, err := NewGitHubIssuesHook(GitHubIssuesOptions{
 		Token:  "ghp_test123",
 		Owner:  "testorg",
 		Repo:   "testrepo",
 		Labels: []string{"custom-label-1", "custom-label-2"},
 	})
+	if err != nil {
+		t.Fatalf("NewGitHubIssuesHook failed: %v", err)
+	}
 
 	bypass := newTestBypassEvent(events.SeverityHigh)
 	issue := hook.buildIssue(bypass)
@@ -2192,12 +2201,15 @@ func TestGitHubIssuesHook_UsesCustomLabelsFromConfig(t *testing.T) {
 }
 
 func TestGitHubIssuesHook_UsesAssigneesFromConfig(t *testing.T) {
-	hook := NewGitHubIssuesHook(GitHubIssuesOptions{
+	hook, err := NewGitHubIssuesHook(GitHubIssuesOptions{
 		Token:     "ghp_test123",
 		Owner:     "testorg",
 		Repo:      "testrepo",
 		Assignees: []string{"assignee1", "assignee2", "assignee3"},
 	})
+	if err != nil {
+		t.Fatalf("NewGitHubIssuesHook failed: %v", err)
+	}
 
 	bypass := newTestBypassEvent(events.SeverityHigh)
 	issue := hook.buildIssue(bypass)
@@ -2211,12 +2223,15 @@ func TestGitHubIssuesHook_UsesAssigneesFromConfig(t *testing.T) {
 }
 
 func TestGitHubIssuesHook_UsesDefaultAPIURL(t *testing.T) {
-	hook := NewGitHubIssuesHook(GitHubIssuesOptions{
+	hook, err := NewGitHubIssuesHook(GitHubIssuesOptions{
 		Token: "ghp_test123",
 		Owner: "testorg",
 		Repo:  "testrepo",
 		// No BaseURL specified
 	})
+	if err != nil {
+		t.Fatalf("NewGitHubIssuesHook failed: %v", err)
+	}
 
 	if hook.baseURL != "https://api.github.com" {
 		t.Errorf("expected default base URL 'https://api.github.com', got %q", hook.baseURL)
@@ -2224,12 +2239,15 @@ func TestGitHubIssuesHook_UsesDefaultAPIURL(t *testing.T) {
 }
 
 func TestGitHubIssuesHook_UsesCustomAPIURLForEnterprise(t *testing.T) {
-	hook := NewGitHubIssuesHook(GitHubIssuesOptions{
+	hook, err := NewGitHubIssuesHook(GitHubIssuesOptions{
 		Token:   "ghp_test123",
 		Owner:   "testorg",
 		Repo:    "testrepo",
 		BaseURL: "https://github.mycompany.com/api/v3",
 	})
+	if err != nil {
+		t.Fatalf("NewGitHubIssuesHook failed: %v", err)
+	}
 
 	if hook.baseURL != "https://github.mycompany.com/api/v3" {
 		t.Errorf("expected custom base URL, got %q", hook.baseURL)
@@ -2237,11 +2255,14 @@ func TestGitHubIssuesHook_UsesCustomAPIURLForEnterprise(t *testing.T) {
 }
 
 func TestGitHubIssuesHook_EventTypesReturnsOnlyBypass(t *testing.T) {
-	hook := NewGitHubIssuesHook(GitHubIssuesOptions{
+	hook, err := NewGitHubIssuesHook(GitHubIssuesOptions{
 		Token: "ghp_test123",
 		Owner: "testorg",
 		Repo:  "testrepo",
 	})
+	if err != nil {
+		t.Fatalf("NewGitHubIssuesHook failed: %v", err)
+	}
 	types := hook.EventTypes()
 
 	if len(types) != 1 {
@@ -2253,15 +2274,18 @@ func TestGitHubIssuesHook_EventTypesReturnsOnlyBypass(t *testing.T) {
 }
 
 func TestGitHubIssuesHook_IgnoresNonBypassEvents(t *testing.T) {
-	hook := NewGitHubIssuesHook(GitHubIssuesOptions{
+	hook, err := NewGitHubIssuesHook(GitHubIssuesOptions{
 		Token: "ghp_test123",
 		Owner: "testorg",
 		Repo:  "testrepo",
 	})
+	if err != nil {
+		t.Fatalf("NewGitHubIssuesHook failed: %v", err)
+	}
 
 	// Result event should be ignored
 	result := newTestResultEvent(events.SeverityHigh, events.OutcomeBlocked)
-	err := hook.OnEvent(context.Background(), result)
+	err = hook.OnEvent(context.Background(), result)
 	if err != nil {
 		t.Errorf("expected nil error for non-bypass event, got %v", err)
 	}
@@ -2281,15 +2305,18 @@ func TestGitHubIssuesHook_HandlesAPIErrorsGracefully(t *testing.T) {
 	}))
 	defer server.Close()
 
-	hook := NewGitHubIssuesHook(GitHubIssuesOptions{
+	hook, err := NewGitHubIssuesHook(GitHubIssuesOptions{
 		Token:   "ghp_badtoken",
 		Owner:   "testorg",
 		Repo:    "testrepo",
 		BaseURL: server.URL,
 	})
+	if err != nil {
+		t.Fatalf("NewGitHubIssuesHook failed: %v", err)
+	}
 
 	bypass := newTestBypassEvent(events.SeverityCritical)
-	err := hook.OnEvent(context.Background(), bypass)
+	err = hook.OnEvent(context.Background(), bypass)
 
 	// Should not return error (logs instead)
 	if err != nil {

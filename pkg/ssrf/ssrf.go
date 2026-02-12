@@ -15,8 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/waftester/waftester/internal/hexutil"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
+	"github.com/waftester/waftester/pkg/hexutil"
 )
 
 // Detector detects SSRF vulnerabilities
@@ -119,8 +120,8 @@ type ResponseInfo struct {
 
 // Vulnerability represents a detected SSRF vulnerability
 type Vulnerability struct {
-	Type        string  `json:"type"`
-	Severity    string  `json:"severity"`
+	Type        string           `json:"type"`
+	Severity    finding.Severity `json:"severity"`
 	Parameter   string  `json:"parameter"`
 	Payload     string  `json:"payload"`
 	Evidence    string  `json:"evidence"`
@@ -131,7 +132,7 @@ type Vulnerability struct {
 
 // GeneratePayloads generates SSRF test payloads
 func (d *Detector) GeneratePayloads() []Payload {
-	var payloads []Payload
+	payloads := make([]Payload, 0, 64)
 
 	// Localhost payloads
 	payloads = append(payloads, d.generateLocalhostPayloads()...)
@@ -155,7 +156,7 @@ func (d *Detector) GeneratePayloads() []Payload {
 
 // generateLocalhostPayloads creates localhost access payloads
 func (d *Detector) generateLocalhostPayloads() []Payload {
-	var payloads []Payload
+	payloads := make([]Payload, 0, 20)
 
 	// Basic localhost variations
 	localhostVars := []string{
@@ -196,7 +197,7 @@ func (d *Detector) generateLocalhostPayloads() []Payload {
 
 // generateMetadataPayloads creates cloud metadata access payloads
 func (d *Detector) generateMetadataPayloads() []Payload {
-	var payloads []Payload
+	payloads := make([]Payload, 0, 19)
 
 	// AWS metadata
 	awsPayloads := []struct {
@@ -352,7 +353,7 @@ func (d *Detector) generateProtocolPayloads() []Payload {
 
 // generateBypassPayloads creates filter bypass payloads
 func (d *Detector) generateBypassPayloads() []Payload {
-	var payloads []Payload
+	payloads := make([]Payload, 0, 19)
 
 	bypassPayloads := []struct {
 		name   string
@@ -488,7 +489,7 @@ func defaultBypassTechniques() []BypassTechnique {
 
 // ApplyBypass applies bypass techniques to a URL
 func (d *Detector) ApplyBypass(targetURL string) []string {
-	var bypassed []string
+	bypassed := make([]string, 0, len(d.BypassTechniques))
 
 	u, err := url.Parse(targetURL)
 	if err != nil {
@@ -530,7 +531,7 @@ func (d *Detector) AnalyzeResponse(payload Payload, statusCode int, body string,
 		if isMetadataResponse(body, headers) {
 			return &Vulnerability{
 				Type:        "Cloud Metadata Access",
-				Severity:    "critical",
+				Severity:    finding.Critical,
 				Payload:     payload.URL,
 				Evidence:    truncateBody(body, 200),
 				Confidence:  0.95,
@@ -544,7 +545,7 @@ func (d *Detector) AnalyzeResponse(payload Payload, statusCode int, body string,
 		if isLocalResponse(body, statusCode) {
 			return &Vulnerability{
 				Type:        "Localhost Access",
-				Severity:    "high",
+				Severity:    finding.High,
 				Payload:     payload.URL,
 				Evidence:    fmt.Sprintf("Status: %d, Body preview: %s", statusCode, truncateBody(body, 100)),
 				Confidence:  0.8,
@@ -558,7 +559,7 @@ func (d *Detector) AnalyzeResponse(payload Payload, statusCode int, body string,
 		if isFileContent(body) {
 			return &Vulnerability{
 				Type:        "Local File Read via SSRF",
-				Severity:    "critical",
+				Severity:    finding.Critical,
 				Payload:     payload.URL,
 				Evidence:    truncateBody(body, 200),
 				Confidence:  0.9,
@@ -774,8 +775,6 @@ func NewInternalNetworkScanner() *InternalNetworkScanner {
 
 // GenerateInternalPayloads generates payloads for internal network scanning
 func (s *InternalNetworkScanner) GenerateInternalPayloads(subnet string, ports []int) []Payload {
-	var payloads []Payload
-
 	// Common internal hostnames
 	hostnames := []string{
 		"localhost",
@@ -795,6 +794,8 @@ func (s *InternalNetworkScanner) GenerateInternalPayloads(subnet string, ports [
 		"jira",
 		"confluence",
 	}
+
+	payloads := make([]Payload, 0, len(hostnames)*len(ports))
 
 	for _, host := range hostnames {
 		for _, port := range ports {

@@ -320,7 +320,7 @@ func (lp *LiveProgress) renderInteractive(spinner Spinner) {
 	completed := atomic.LoadInt64(&lp.completed)
 	total := atomic.LoadInt64(&lp.total)
 	elapsed := time.Since(lp.startTime)
-	status := lp.status.Load().(string)
+	status, _ := lp.status.Load().(string)
 
 	// Calculate progress
 	percent := float64(0)
@@ -398,7 +398,7 @@ func (lp *LiveProgress) renderStreaming() {
 	completed := atomic.LoadInt64(&lp.completed)
 	total := atomic.LoadInt64(&lp.total)
 	elapsed := time.Since(lp.startTime)
-	status := lp.status.Load().(string)
+	status, _ := lp.status.Load().(string)
 
 	percent := float64(0)
 	if total > 0 {

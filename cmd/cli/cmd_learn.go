@@ -1,12 +1,12 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"os"
 	"time"
 
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/discovery"
 	"github.com/waftester/waftester/pkg/input"
@@ -74,7 +74,8 @@ func runLearn() {
 		defer learnDispCtx.Close()
 	}
 	learnStartTime := time.Now()
-	learnCtx := context.Background()
+	learnCtx, learnCancel := cli.SignalContext(30 * time.Second)
+	defer learnCancel()
 
 	// Emit start event for scan lifecycle hooks
 	if learnDispCtx != nil {

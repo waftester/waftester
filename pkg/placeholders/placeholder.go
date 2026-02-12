@@ -3,6 +3,7 @@
 package placeholders
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -25,8 +26,9 @@ type Placeholder interface {
 	Name() string
 	// Description returns human-readable description
 	Description() string
-	// Apply creates an HTTP request with payload injected
-	Apply(targetURL, payload string, config *PlaceholderConfig) (*http.Request, error)
+	// Apply creates an HTTP request with payload injected at the appropriate location.
+	// The context is attached to the created request for cancellation support.
+	Apply(ctx context.Context, targetURL, payload string, config *PlaceholderConfig) (*http.Request, error)
 }
 
 // Registry of available placeholders
@@ -101,10 +103,10 @@ func MergeConfig(custom *PlaceholderConfig) *PlaceholderConfig {
 }
 
 // ApplyAll applies payload using all placeholders
-func ApplyAll(targetURL, payload string, config *PlaceholderConfig) ([]*http.Request, error) {
+func ApplyAll(ctx context.Context, targetURL, payload string, config *PlaceholderConfig) ([]*http.Request, error) {
 	var requests []*http.Request
 	for _, p := range registry {
-		req, err := p.Apply(targetURL, payload, config)
+		req, err := p.Apply(ctx, targetURL, payload, config)
 		if err != nil {
 			return nil, fmt.Errorf("placeholder %s: %w", p.Name(), err)
 		}

@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/attackconfig"
 )
 
 // TestDefaultConfig_NotEmpty verifies DefaultConfig returns usable defaults
@@ -51,10 +53,12 @@ func TestNewScanner_NilConfig(t *testing.T) {
 // TestNewScanner_CustomConfig verifies NewScanner respects custom config
 func TestNewScanner_CustomConfig(t *testing.T) {
 	cfg := &Config{
-		Concurrency: 5,
-		Timeout:     10 * time.Second,
-		UserAgent:   "TestAgent/1.0",
-		Verbose:     true,
+		Base: attackconfig.Base{
+			Concurrency: 5,
+			Timeout:     10 * time.Second,
+			UserAgent:   "TestAgent/1.0",
+		},
+		Verbose: true,
 	}
 
 	scanner := NewScanner(cfg)
@@ -181,8 +185,10 @@ func TestScanner_Scan_BasicFunctionality(t *testing.T) {
 	defer ts.Close()
 
 	cfg := &Config{
-		Concurrency: 2,
-		Timeout:     5 * time.Second,
+		Base: attackconfig.Base{
+			Concurrency: 2,
+			Timeout:     5 * time.Second,
+		},
 	}
 	scanner := NewScanner(cfg)
 
@@ -216,7 +222,7 @@ func TestScanner_Scan_ContextCancellation(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	scanner := NewScanner(&Config{Concurrency: 1, Timeout: time.Second})
+	scanner := NewScanner(&Config{Base: attackconfig.Base{Concurrency: 1, Timeout: time.Second}})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately

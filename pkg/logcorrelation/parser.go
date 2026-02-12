@@ -27,10 +27,6 @@ type LogEntry struct {
 type LogParser interface {
 	// FindByMarker finds log entries matching the correlation marker
 	FindByMarker(marker string) ([]LogEntry, error)
-	// FindByTimeRange finds entries in a time window
-	FindByTimeRange(start, end time.Time) ([]LogEntry, error)
-	// Tail watches for new entries
-	Tail() <-chan LogEntry
 	// Close releases resources
 	Close() error
 }

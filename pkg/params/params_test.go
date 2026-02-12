@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/attackconfig"
 )
 
 // TestDefaultConfig_NotEmpty verifies DefaultConfig returns usable defaults
@@ -54,11 +56,13 @@ func TestNewDiscoverer_NilConfig(t *testing.T) {
 // TestNewDiscoverer_CustomConfig verifies NewDiscoverer respects custom config
 func TestNewDiscoverer_CustomConfig(t *testing.T) {
 	cfg := &Config{
-		Concurrency: 3,
-		Timeout:     15 * time.Second,
-		UserAgent:   "ParamTester/1.0",
-		ChunkSize:   128,
-		Verbose:     true,
+		Base: attackconfig.Base{
+			Concurrency: 3,
+			Timeout:     15 * time.Second,
+			UserAgent:   "ParamTester/1.0",
+		},
+		ChunkSize: 128,
+		Verbose:   true,
 	}
 
 	discoverer := NewDiscoverer(cfg)
@@ -227,9 +231,11 @@ func TestDiscover_BasicFunctionality(t *testing.T) {
 	defer ts.Close()
 
 	cfg := &Config{
-		Concurrency: 1,
-		Timeout:     5 * time.Second,
-		ChunkSize:   10,
+		Base: attackconfig.Base{
+			Concurrency: 1,
+			Timeout:     5 * time.Second,
+		},
+		ChunkSize: 10,
 	}
 	discoverer := NewDiscoverer(cfg)
 
@@ -264,7 +270,7 @@ func TestDiscover_ContextCancellation(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	discoverer := NewDiscoverer(&Config{Concurrency: 1, Timeout: time.Second, ChunkSize: 5})
+	discoverer := NewDiscoverer(&Config{Base: attackconfig.Base{Concurrency: 1, Timeout: time.Second}, ChunkSize: 5})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately

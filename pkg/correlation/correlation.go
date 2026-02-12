@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 // FindingType represents the type of security finding
@@ -31,23 +33,12 @@ const (
 	FindingBrokenAccess     FindingType = "broken-access"
 )
 
-// Severity levels
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
-
 // Finding represents a security finding from a scan
 type Finding struct {
 	ID           string            `json:"id"`
 	Hash         string            `json:"hash"` // Unique identifier for correlation
 	Type         FindingType       `json:"type"`
-	Severity     Severity          `json:"severity"`
+	Severity     finding.Severity  `json:"severity"`
 	Title        string            `json:"title"`
 	Description  string            `json:"description"`
 	Target       string            `json:"target"`
@@ -118,12 +109,12 @@ type ScanResult struct {
 
 // ScanSummary provides scan statistics
 type ScanSummary struct {
-	TotalFindings     int                 `json:"total_findings"`
-	BySeverity        map[Severity]int    `json:"by_severity"`
-	ByType            map[FindingType]int `json:"by_type"`
-	NewFindings       int                 `json:"new_findings"`
-	RecurringFindings int                 `json:"recurring_findings"`
-	FixedFindings     int                 `json:"fixed_findings"`
+	TotalFindings     int                      `json:"total_findings"`
+	BySeverity        map[finding.Severity]int `json:"by_severity"`
+	ByType            map[FindingType]int      `json:"by_type"`
+	NewFindings       int                      `json:"new_findings"`
+	RecurringFindings int                      `json:"recurring_findings"`
+	FixedFindings     int                      `json:"fixed_findings"`
 }
 
 // Correlator manages finding correlation
@@ -258,7 +249,7 @@ func (c *Correlator) AddScanResult(ctx context.Context, result *ScanResult) erro
 func (c *Correlator) computeSummary(findings []*Finding) ScanSummary {
 	summary := ScanSummary{
 		TotalFindings: len(findings),
-		BySeverity:    make(map[Severity]int),
+		BySeverity:    make(map[finding.Severity]int),
 		ByType:        make(map[FindingType]int),
 	}
 
@@ -324,7 +315,7 @@ func (c *Correlator) GetRecurringFindings() []*CorrelatedFinding {
 }
 
 // GetFindingsBySeverity returns findings with minimum severity
-func (c *Correlator) GetFindingsBySeverity(minSeverity Severity) []*CorrelatedFinding {
+func (c *Correlator) GetFindingsBySeverity(minSeverity finding.Severity) []*CorrelatedFinding {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -479,13 +470,13 @@ func (c *Correlator) DetectFixedFindings(currentScanID string) []*CorrelatedFind
 
 // TrendAnalysis analyzes trends across scans
 type TrendAnalysis struct {
-	TimeRange      TimeRange           `json:"time_range"`
-	TotalScans     int                 `json:"total_scans"`
-	FindingTrend   []FindingTrendPoint `json:"finding_trend"`
-	SeverityTrend  map[Severity][]int  `json:"severity_trend"`
-	NewVsRecurring []NewRecurringPoint `json:"new_vs_recurring"`
-	TopEndpoints   []EndpointStats     `json:"top_endpoints"`
-	TopVulnTypes   []TypeStats         `json:"top_vuln_types"`
+	TimeRange      TimeRange                  `json:"time_range"`
+	TotalScans     int                        `json:"total_scans"`
+	FindingTrend   []FindingTrendPoint        `json:"finding_trend"`
+	SeverityTrend  map[finding.Severity][]int `json:"severity_trend"`
+	NewVsRecurring []NewRecurringPoint        `json:"new_vs_recurring"`
+	TopEndpoints   []EndpointStats            `json:"top_endpoints"`
+	TopVulnTypes   []TypeStats                `json:"top_vuln_types"`
 }
 
 // TimeRange represents a time range
@@ -532,7 +523,7 @@ func (c *Correlator) AnalyzeTrends() *TrendAnalysis {
 	analysis := &TrendAnalysis{
 		TotalScans:     len(c.scanHistory),
 		FindingTrend:   make([]FindingTrendPoint, 0),
-		SeverityTrend:  make(map[Severity][]int),
+		SeverityTrend:  make(map[finding.Severity][]int),
 		NewVsRecurring: make([]NewRecurringPoint, 0),
 	}
 
@@ -647,17 +638,17 @@ type CorrelatorStats struct {
 }
 
 // Helper functions
-func severityOrder(s Severity) int {
+func severityOrder(s finding.Severity) int {
 	switch s {
-	case SeverityCritical:
+	case finding.Critical:
 		return 5
-	case SeverityHigh:
+	case finding.High:
 		return 4
-	case SeverityMedium:
+	case finding.Medium:
 		return 3
-	case SeverityLow:
+	case finding.Low:
 		return 2
-	case SeverityInfo:
+	case finding.Info:
 		return 1
 	default:
 		return 0

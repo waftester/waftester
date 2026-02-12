@@ -4,6 +4,8 @@ package vendors
 import (
 	"fmt"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // AutoTuneConfig represents auto-tuning configuration for a specific vendor
@@ -459,7 +461,7 @@ func FormatAutoTuneReport(detection *DetectionResult, config *AutoTuneConfig) st
 		if len(detection.Evidence) > 0 {
 			sb.WriteString("║  Evidence:                                                   ║\n")
 			for _, e := range detection.Evidence[:minInt(len(detection.Evidence), 3)] {
-				sb.WriteString(fmt.Sprintf("║    • %-56s ║\n", truncate(e, 56)))
+				sb.WriteString(fmt.Sprintf("║    • %-56s ║\n", strutil.Truncate(e, 56)))
 			}
 		}
 	} else {
@@ -477,7 +479,7 @@ func FormatAutoTuneReport(detection *DetectionResult, config *AutoTuneConfig) st
 
 	if len(config.PreferredEncodings) > 0 {
 		sb.WriteString(fmt.Sprintf("║  Encodings:     %-44s ║\n",
-			truncate(strings.Join(config.PreferredEncodings, ", "), 44)))
+			strutil.Truncate(strings.Join(config.PreferredEncodings, ", "), 44)))
 	}
 
 	if len(config.EnabledMutations) > 0 {
@@ -522,12 +524,7 @@ func FormatAutoTuneReport(detection *DetectionResult, config *AutoTuneConfig) st
 	return sb.String()
 }
 
-func truncate(s string, max int) string {
-	if len(s) <= max {
-		return s
-	}
-	return s[:max-3] + "..."
-}
+
 
 func wrapText(s string, max int) []string {
 	if len(s) <= max {

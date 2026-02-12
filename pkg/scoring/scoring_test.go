@@ -490,34 +490,6 @@ func TestCalculateTimingOnlyOnFail(t *testing.T) {
 	}
 }
 
-// TestContainsPatternEdgeCases tests the containsPattern helper
-func TestContainsPatternEdgeCases(t *testing.T) {
-	tests := []struct {
-		text    string
-		pattern string
-		want    bool
-	}{
-		{"hello world", "world", true},
-		{"hello world", "hello", true},
-		{"hello world", "lo wo", true},
-		{"hello world", "", false},     // Empty pattern
-		{"", "world", false},           // Empty text
-		{"", "", false},                // Both empty
-		{"ab", "abc", false},           // Pattern longer than text
-		{"abc", "abc", true},           // Exact match
-		{"aaa", "aa", true},            // Overlapping matches
-		{"abc\x00def", "c\x00d", true}, // Null byte in middle
-	}
-
-	for _, tt := range tests {
-		got := containsPattern(tt.text, tt.pattern)
-		if got != tt.want {
-			t.Errorf("containsPattern(%q, %q) = %v, want %v",
-				tt.text, tt.pattern, got, tt.want)
-		}
-	}
-}
-
 // TestNormalizeBoundaries tests normalize function edge cases
 func TestNormalizeBoundaries(t *testing.T) {
 	tests := []struct {

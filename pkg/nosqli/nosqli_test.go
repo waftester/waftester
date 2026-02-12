@@ -8,6 +8,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/attackconfig"
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewTester(t *testing.T) {
@@ -23,9 +26,11 @@ func TestNewTester(t *testing.T) {
 
 	t.Run("with custom config", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout:     60 * time.Second,
-			Concurrency: 10,
-			Database:    DBMongoDB,
+			Base: attackconfig.Base{
+				Timeout:     60 * time.Second,
+				Concurrency: 10,
+			},
+			Database: DBMongoDB,
 		}
 		tester := NewTester(config)
 		if tester.config.Concurrency != 10 {
@@ -342,9 +347,11 @@ func TestScan(t *testing.T) {
 	defer server.Close()
 
 	config := &TesterConfig{
-		Timeout:     5 * time.Second,
-		TestParams:  []string{"username"},
-		Concurrency: 1,
+		Base: attackconfig.Base{
+			Timeout:     5 * time.Second,
+			Concurrency: 1,
+		},
+		TestParams: []string{"username"},
 	}
 
 	tester := NewTester(config)
@@ -420,14 +427,14 @@ func TestSanitizeForMongoDB(t *testing.T) {
 func TestGetSeverity(t *testing.T) {
 	tests := []struct {
 		vulnType VulnerabilityType
-		expected Severity
+		expected finding.Severity
 	}{
-		{VulnAuthBypass, SeverityCritical},
-		{VulnDataExfiltration, SeverityCritical},
-		{VulnOperatorInjection, SeverityHigh},
-		{VulnJSInjection, SeverityHigh},
-		{VulnBlindInjection, SeverityMedium},
-		{VulnArrayInjection, SeverityHigh},
+		{VulnAuthBypass, finding.Critical},
+		{VulnDataExfiltration, finding.Critical},
+		{VulnOperatorInjection, finding.High},
+		{VulnJSInjection, finding.High},
+		{VulnBlindInjection, finding.Medium},
+		{VulnArrayInjection, finding.High},
 	}
 
 	for _, tt := range tests {
@@ -555,7 +562,7 @@ func TestVulnerability(t *testing.T) {
 	vuln := Vulnerability{
 		Type:        VulnOperatorInjection,
 		Description: "Test vulnerability",
-		Severity:    SeverityHigh,
+		Severity:    finding.High,
 		URL:         "http://example.com",
 		Parameter:   "username",
 		Payload:     `{"$gt": ""}`,
@@ -613,28 +620,6 @@ func TestScanResult(t *testing.T) {
 	}
 	if len(decoded.Vulnerabilities) != 1 {
 		t.Errorf("expected 1 vulnerability, got %d", len(decoded.Vulnerabilities))
-	}
-}
-
-func TestTruncate(t *testing.T) {
-	tests := []struct {
-		input    string
-		maxLen   int
-		expected string
-	}{
-		{"short", 10, "short"},
-		{"exactly10!", 10, "exactly10!"},
-		{"this is too long", 10, "this is to..."},
-		{"", 10, ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			result := truncate(tt.input, tt.maxLen)
-			if result != tt.expected {
-				t.Errorf("truncate(%q, %d) = %q, want %q", tt.input, tt.maxLen, result, tt.expected)
-			}
-		})
 	}
 }
 

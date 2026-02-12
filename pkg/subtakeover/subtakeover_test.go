@@ -7,6 +7,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/attackconfig"
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewTester(t *testing.T) {
@@ -22,8 +25,7 @@ func TestNewTester(t *testing.T) {
 
 	t.Run("with custom config", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout:     60 * time.Second,
-			Concurrency: 20,
+			Base: attackconfig.Base{Timeout: 60 * time.Second, Concurrency: 20},
 		}
 		tester := NewTester(config)
 		if tester.config.Concurrency != 20 {
@@ -126,7 +128,7 @@ func TestIsKnownVulnerableService(t *testing.T) {
 func TestCheckSubdomain(t *testing.T) {
 	// Note: This test requires DNS resolution, so we use a known domain
 	tester := NewTester(&TesterConfig{
-		Timeout:   5 * time.Second,
+		Base:      attackconfig.Base{Timeout: 5 * time.Second},
 		CheckHTTP: false, // Skip HTTP check for faster test
 	})
 
@@ -149,9 +151,8 @@ func TestCheckSubdomain(t *testing.T) {
 
 func TestBatchCheck(t *testing.T) {
 	tester := NewTester(&TesterConfig{
-		Timeout:     5 * time.Second,
-		Concurrency: 5,
-		CheckHTTP:   false,
+		Base:      attackconfig.Base{Timeout: 5 * time.Second, Concurrency: 5},
+		CheckHTTP: false,
 	})
 
 	ctx := context.Background()
@@ -170,14 +171,14 @@ func TestBatchCheck(t *testing.T) {
 func TestGetSeverity(t *testing.T) {
 	tests := []struct {
 		vulnType VulnerabilityType
-		expected Severity
+		expected finding.Severity
 	}{
-		{VulnNS, SeverityCritical},
-		{VulnCNAME, SeverityHigh},
-		{VulnS3Bucket, SeverityHigh},
-		{VulnAzureBlob, SeverityHigh},
-		{VulnGitHubPages, SeverityHigh},
-		{VulnMX, SeverityMedium},
+		{VulnNS, finding.Critical},
+		{VulnCNAME, finding.High},
+		{VulnS3Bucket, finding.High},
+		{VulnAzureBlob, finding.High},
+		{VulnGitHubPages, finding.High},
+		{VulnMX, finding.Medium},
 	}
 
 	for _, tt := range tests {
@@ -249,14 +250,16 @@ func TestGetProviders(t *testing.T) {
 
 func TestVulnerabilityToJSON(t *testing.T) {
 	vuln := Vulnerability{
-		Type:        VulnS3Bucket,
-		Description: "S3 bucket takeover",
-		Severity:    SeverityHigh,
-		Subdomain:   "static.example.com",
-		Target:      "static.example.com.s3.amazonaws.com",
-		Provider:    "Amazon AWS",
-		Evidence:    "NoSuchBucket error",
-		CVSS:        8.6,
+		Vulnerability: finding.Vulnerability{
+			Description: "S3 bucket takeover",
+			Severity:    finding.High,
+			Evidence:    "NoSuchBucket error",
+			CVSS:        8.6,
+		},
+		Type:      VulnS3Bucket,
+		Subdomain: "static.example.com",
+		Target:    "static.example.com.s3.amazonaws.com",
+		Provider:  "Amazon AWS",
 	}
 
 	jsonStr, err := VulnerabilityToJSON(vuln)
@@ -271,15 +274,17 @@ func TestVulnerabilityToJSON(t *testing.T) {
 
 func TestVulnerability(t *testing.T) {
 	vuln := Vulnerability{
-		Type:        VulnGitHubPages,
-		Description: "GitHub Pages takeover",
-		Severity:    SeverityHigh,
-		Subdomain:   "docs.example.com",
-		Target:      "example.github.io",
-		Provider:    "GitHub",
-		Evidence:    "No GitHub Pages site",
-		Remediation: "Remove DNS record",
-		CVSS:        8.6,
+		Vulnerability: finding.Vulnerability{
+			Description: "GitHub Pages takeover",
+			Severity:    finding.High,
+			Evidence:    "No GitHub Pages site",
+			Remediation: "Remove DNS record",
+			CVSS:        8.6,
+		},
+		Type:      VulnGitHubPages,
+		Subdomain: "docs.example.com",
+		Target:    "example.github.io",
+		Provider:  "GitHub",
 	}
 
 	data, err := json.Marshal(vuln)
@@ -390,9 +395,7 @@ func TestFingerprintPatterns(t *testing.T) {
 
 func TestTesterConfig(t *testing.T) {
 	config := &TesterConfig{
-		Timeout:     10 * time.Second,
-		UserAgent:   "custom-agent/1.0",
-		Concurrency: 5,
+		Base:        attackconfig.Base{Timeout: 10 * time.Second, UserAgent: "custom-agent/1.0", Concurrency: 5},
 		DNSResolver: "8.8.8.8:53",
 		CheckHTTP:   true,
 		FollowCNAME: true,

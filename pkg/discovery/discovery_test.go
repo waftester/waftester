@@ -907,21 +907,6 @@ func TestExtractPath(t *testing.T) {
 	}
 }
 
-// TestContains tests contains helper
-func TestContains(t *testing.T) {
-	slice := []string{"a", "b", "c"}
-
-	if !contains(slice, "b") {
-		t.Error("expected 'b' to be found")
-	}
-	if contains(slice, "d") {
-		t.Error("expected 'd' not to be found")
-	}
-	if contains(nil, "a") {
-		t.Error("expected nil slice to not contain anything")
-	}
-}
-
 // TestSaveAndLoadResult tests result persistence
 func TestSaveAndLoadResult(t *testing.T) {
 	tmpDir := t.TempDir()

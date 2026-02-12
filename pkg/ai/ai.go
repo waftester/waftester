@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/waftester/waftester/internal/hexutil"
+	"github.com/waftester/waftester/pkg/hexutil"
 	"github.com/waftester/waftester/pkg/httpclient"
 )
 
@@ -24,6 +24,9 @@ const (
 	ProviderLocal     Provider = "local"
 	ProviderOllama    Provider = "ollama"
 )
+
+// sqlKeywordsRe matches SQL keywords for comment insertion evasion.
+var sqlKeywordsRe = regexp.MustCompile(`(?i)(select|union|from|where|and|or)`)
 
 // PayloadType represents a category of attack payloads
 type PayloadType string
@@ -718,8 +721,7 @@ func (m *CommentMutator) Name() string { return "comment" }
 
 func (m *CommentMutator) Mutate(payload string) []string {
 	// Insert SQL comments between keywords
-	sqlKeywords := regexp.MustCompile(`(?i)(select|union|from|where|and|or)`)
-	commented := sqlKeywords.ReplaceAllString(payload, "/**/$1/**/")
+	commented := sqlKeywordsRe.ReplaceAllString(payload, "/**/$1/**/")
 	return []string{commented}
 }
 

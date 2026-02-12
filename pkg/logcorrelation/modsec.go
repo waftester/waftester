@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
 // ModSecParser parses ModSecurity audit logs
@@ -163,20 +162,6 @@ func (p *ModSecParser) extractRuleIDs(line string) []uint {
 		}
 	}
 	return ids
-}
-
-// FindByTimeRange finds entries in a time window
-func (p *ModSecParser) FindByTimeRange(start, end time.Time) ([]LogEntry, error) {
-	// TODO: Implement time-based search
-	return nil, nil
-}
-
-// Tail watches for new entries
-func (p *ModSecParser) Tail() <-chan LogEntry {
-	ch := make(chan LogEntry)
-	// TODO: Implement tail -f functionality
-	close(ch)
-	return ch
 }
 
 // Close releases resources

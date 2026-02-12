@@ -8,14 +8,11 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
-	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"hash/fnv"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -31,8 +28,10 @@ import (
 
 	"github.com/spaolacci/murmur3"
 	"github.com/waftester/waftester/pkg/checkpoint"
-	"github.com/waftester/waftester/pkg/detection"
+	"github.com/waftester/waftester/pkg/cli"
+	"github.com/waftester/waftester/pkg/dsl"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/fp"
 	"github.com/waftester/waftester/pkg/headless"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/input"
@@ -67,7 +66,7 @@ func runProbe() {
 	stdinInput := probeFlags.Bool("stdin", false, "Read targets from stdin")
 	silent := probeFlags.Bool("silent", false, "Only output results, no banner")
 	oneliner := probeFlags.Bool("1", false, "One-liner output (single line per result)")
-	concurrency := probeFlags.Int("c", 10, "Concurrency for multiple targets")
+	concurrency := probeFlags.Int("c", 0, "Concurrency for multiple targets (overrides -t)")
 
 	// httpx-style output flags
 	showContentLength := probeFlags.Bool("cl", false, "Show content-length in output")
@@ -417,6 +416,10 @@ func runProbe() {
 	// Apply unified output settings
 	outFlags.ApplyUISettings()
 
+	// Graceful shutdown on SIGINT/SIGTERM
+	ctx, cancel := cli.SignalContext(30 * time.Second)
+	defer cancel()
+
 	// ═══════════════════════════════════════════════════════════════════════════
 	// DISPATCHER INITIALIZATION (Hooks: Slack, Teams, PagerDuty, OTEL, Prometheus)
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -429,7 +432,7 @@ func runProbe() {
 	}
 	if probeDispCtx != nil {
 		defer probeDispCtx.Close()
-		_ = probeDispCtx.EmitStart(context.Background(), "multi-target", 0, *threads, nil)
+		_ = probeDispCtx.EmitStart(ctx, "multi-target", 0, *threads, nil)
 	}
 	probeStartTime := time.Now()
 
@@ -450,7 +453,9 @@ func runProbe() {
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to load targets: %v", err)
 		ui.PrintError(errMsg)
-		_ = probeDispCtx.EmitError(context.Background(), "probe", errMsg, true)
+		if probeDispCtx != nil {
+			_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
+		}
 		os.Exit(1)
 	}
 
@@ -488,84 +493,10 @@ func runProbe() {
 	// Port expansion: if -ports flag is set, expand targets with those ports
 	// Supports NMAP-style syntax: http:80,https:443,8080-8090,http:8000-8010
 	if *probePorts != "" {
-		// Parse NMAP-style port specifications
-		parsePorts := func(spec string) []struct {
-			scheme string
-			port   int
-		} {
-			var result []struct {
-				scheme string
-				port   int
-			}
-			parts := strings.Split(spec, ",")
-			for _, part := range parts {
-				part = strings.TrimSpace(part)
-				if part == "" {
-					continue
-				}
-
-				scheme := "" // empty means use original URL scheme
-				portPart := part
-
-				// Check for scheme prefix (http:80 or https:443)
-				if strings.Contains(part, ":") {
-					colonIdx := strings.Index(part, ":")
-					possibleScheme := strings.ToLower(part[:colonIdx])
-					if possibleScheme == "http" || possibleScheme == "https" {
-						scheme = possibleScheme
-						portPart = part[colonIdx+1:]
-					}
-				}
-
-				// Check for port range (8080-8090)
-				if strings.Contains(portPart, "-") && !strings.HasPrefix(portPart, "-") {
-					rangeParts := strings.Split(portPart, "-")
-					if len(rangeParts) == 2 {
-						startPort, err1 := strconv.Atoi(rangeParts[0])
-						endPort, err2 := strconv.Atoi(rangeParts[1])
-						if err1 == nil && err2 == nil && startPort <= endPort {
-							for p := startPort; p <= endPort; p++ {
-								result = append(result, struct {
-									scheme string
-									port   int
-								}{scheme, p})
-							}
-						}
-					}
-				} else {
-					// Single port
-					p, err := strconv.Atoi(portPart)
-					if err == nil {
-						result = append(result, struct {
-							scheme string
-							port   int
-						}{scheme, p})
-					}
-				}
-			}
-			return result
-		}
-
-		portSpecs := parsePorts(*probePorts)
-		var portExpandedTargets []string
-		for _, t := range targets {
-			parsedURL, err := url.Parse(t)
-			if err != nil {
-				portExpandedTargets = append(portExpandedTargets, t)
-				continue
-			}
-			baseHost := parsedURL.Hostname()
-			for _, ps := range portSpecs {
-				scheme := parsedURL.Scheme
-				if ps.scheme != "" {
-					scheme = ps.scheme
-				}
-				newURL := fmt.Sprintf("%s://%s:%d%s", scheme, baseHost, ps.port, parsedURL.Path)
-				portExpandedTargets = append(portExpandedTargets, newURL)
-			}
-		}
-		if len(portExpandedTargets) > 0 {
-			targets = portExpandedTargets
+		portSpecs := parseProbePorts(*probePorts)
+		expanded := expandProbeTargetPorts(targets, portSpecs)
+		if len(expanded) > 0 {
+			targets = expanded
 			if *verbose {
 				ui.PrintInfo(fmt.Sprintf("Port expansion: %d targets across %d port specs", len(targets), len(portSpecs)))
 			}
@@ -693,7 +624,9 @@ func runProbe() {
 		if err != nil {
 			errMsg := fmt.Sprintf("Cannot read config file: %v", err)
 			ui.PrintError(errMsg)
-			_ = probeDispCtx.EmitError(context.Background(), "probe", errMsg, true)
+			if probeDispCtx != nil {
+				_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
+			}
 			os.Exit(1)
 		}
 		// Parse config file (JSON format)
@@ -708,7 +641,7 @@ func runProbe() {
 			if loadedConfig.Timeout > 0 && *timeout == 10 {
 				*timeout = loadedConfig.Timeout
 			}
-			if loadedConfig.Threads > 0 && *threads == 25 {
+			if loadedConfig.Threads > 0 && *threads == 10 {
 				*threads = loadedConfig.Threads
 			}
 			if loadedConfig.RateLimit > 0 && *rateLimit == 0 {
@@ -778,106 +711,6 @@ func runProbe() {
 	// Note: The runner.Runner is created below after all helper functions are defined
 
 	// CPE (Common Platform Enumeration) generation helper
-	generateCPE := func(tech *probes.TechResult) []string {
-		if tech == nil {
-			return nil
-		}
-		cpes := []string{}
-		for _, t := range tech.Technologies {
-			// CPE format: cpe:2.3:a:vendor:product:version:*:*:*:*:*:*:*
-			vendor := strings.ToLower(strings.ReplaceAll(t.Name, " ", "_"))
-			product := vendor
-			version := t.Version
-			if version == "" {
-				version = "*"
-			}
-			cpe := fmt.Sprintf("cpe:2.3:a:%s:%s:%s:*:*:*:*:*:*:*", vendor, product, version)
-			cpes = append(cpes, cpe)
-		}
-		// Add server CPE if present
-		if tech.Generator != "" {
-			parts := strings.Fields(tech.Generator)
-			if len(parts) > 0 {
-				product := strings.ToLower(strings.ReplaceAll(parts[0], "/", "_"))
-				version := "*"
-				if len(parts) > 1 {
-					version = parts[len(parts)-1]
-				}
-				cpe := fmt.Sprintf("cpe:2.3:a:*:%s:%s:*:*:*:*:*:*:*", product, version)
-				cpes = append(cpes, cpe)
-			}
-		}
-		return cpes
-	}
-
-	// WordPress detection helper
-	detectWordPress := func(body, url string) (isWP bool, plugins, themes []string) {
-		// Check for WordPress indicators
-		wpIndicators := []string{
-			"/wp-content/",
-			"/wp-includes/",
-			"/wp-admin/",
-			"wp-json",
-			"wordpress",
-			"<meta name=\"generator\" content=\"WordPress",
-		}
-		bodyLower := strings.ToLower(body)
-		for _, ind := range wpIndicators {
-			if strings.Contains(bodyLower, strings.ToLower(ind)) {
-				isWP = true
-				break
-			}
-		}
-		if !isWP {
-			return
-		}
-		// Extract plugins
-		pluginRe := regexcache.MustGet(`/wp-content/plugins/([^/'"]+)`)
-		pluginMatches := pluginRe.FindAllStringSubmatch(body, 50)
-		pluginSet := make(map[string]bool)
-		for _, m := range pluginMatches {
-			if len(m) > 1 {
-				pluginSet[m[1]] = true
-			}
-		}
-		for p := range pluginSet {
-			plugins = append(plugins, p)
-		}
-		// Extract themes
-		themeRe := regexcache.MustGet(`/wp-content/themes/([^/'"]+)`)
-		themeMatches := themeRe.FindAllStringSubmatch(body, 50)
-		themeSet := make(map[string]bool)
-		for _, m := range themeMatches {
-			if len(m) > 1 {
-				themeSet[m[1]] = true
-			}
-		}
-		for t := range themeSet {
-			themes = append(themes, t)
-		}
-		return
-	}
-
-	// CSP domain extraction helper
-	extractDomainsFromCSP := func(csp string) []string {
-		domainRe := regexcache.MustGet(`(?:https?://)?([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+)`)
-		matches := domainRe.FindAllStringSubmatch(csp, 100)
-		domains := make(map[string]bool)
-		for _, m := range matches {
-			if len(m) > 1 {
-				// Filter out CSP keywords
-				if m[1] != "self" && m[1] != "none" && m[1] != "unsafe-inline" && m[1] != "unsafe-eval" {
-					domains[strings.ToLower(m[1])] = true
-				}
-			}
-		}
-		result := make([]string, 0, len(domains))
-		for d := range domains {
-			result = append(result, d)
-		}
-		return result
-	}
-
 	// Rate limiting is handled via rateLimit flag (requests per second)
 	// rateLimitMinute can be converted: rps = rlm / 60
 	if *rateLimitMinute > 0 && *rateLimit == 0 {
@@ -900,22 +733,6 @@ func runProbe() {
 	}
 
 	// Batch 5: Filter flag suppressions (implemented)
-
-	// Helper function to strip HTML/XML tags from content
-	stripHTMLTags := func(content string) string {
-		// Remove script and style elements entirely
-		scriptRe := regexcache.MustGet(`(?is)<script[^>]*>.*?</script>`)
-		content = scriptRe.ReplaceAllString(content, "")
-		styleRe := regexcache.MustGet(`(?is)<style[^>]*>.*?</style>`)
-		content = styleRe.ReplaceAllString(content, "")
-		// Remove all HTML tags
-		tagRe := regexcache.MustGet(`<[^>]+>`)
-		content = tagRe.ReplaceAllString(content, " ")
-		// Collapse multiple whitespace
-		spaceRe := regexcache.MustGet(`\s+`)
-		content = spaceRe.ReplaceAllString(content, " ")
-		return strings.TrimSpace(content)
-	}
 
 	// Config flags - stored for later use
 	// These are applied during request processing below
@@ -959,7 +776,6 @@ func runProbe() {
 	}
 
 	// Debug options
-	_ = time.Duration(*statsInterval) * time.Second // statsIntervalDur - not used in parallel mode
 	isTraceMode := *traceMode
 
 	// Optimization options - used in ProbeHTTPOptions
@@ -980,383 +796,8 @@ func runProbe() {
 		}
 	}
 
-	// Helper function to check if value matches a range like "100,200-500"
-	matchRange := func(value int, rangeSpec string) bool {
-		if rangeSpec == "" {
-			return true
-		}
-		parts := strings.Split(rangeSpec, ",")
-		for _, part := range parts {
-			part = strings.TrimSpace(part)
-			if strings.Contains(part, "-") {
-				bounds := strings.Split(part, "-")
-				if len(bounds) == 2 {
-					low, _ := strconv.Atoi(strings.TrimSpace(bounds[0]))
-					high, _ := strconv.Atoi(strings.TrimSpace(bounds[1]))
-					if value >= low && value <= high {
-						return true
-					}
-				}
-			} else {
-				match, _ := strconv.Atoi(part)
-				if value == match {
-					return true
-				}
-			}
-		}
-		return false
-	}
-
-	// Helper function to check time condition like "<1s" or ">500ms"
-	matchTimeCondition := func(responseTime time.Duration, condition string) bool {
-		if condition == "" {
-			return true
-		}
-		condition = strings.TrimSpace(condition)
-		var op string
-		var threshold string
-		if strings.HasPrefix(condition, "<=") {
-			op = "<="
-			threshold = condition[2:]
-		} else if strings.HasPrefix(condition, ">=") {
-			op = ">="
-			threshold = condition[2:]
-		} else if strings.HasPrefix(condition, "<") {
-			op = "<"
-			threshold = condition[1:]
-		} else if strings.HasPrefix(condition, ">") {
-			op = ">"
-			threshold = condition[1:]
-		} else {
-			return true // no operator, ignore
-		}
-		dur, err := time.ParseDuration(threshold)
-		if err != nil {
-			return true
-		}
-		switch op {
-		case "<":
-			return responseTime < dur
-		case "<=":
-			return responseTime <= dur
-		case ">":
-			return responseTime > dur
-		case ">=":
-			return responseTime >= dur
-		}
-		return true
-	}
-
-	// DSL Expression Evaluator for -mdc and -fdc flags (httpx-compatible)
-	// Supports: status_code, content_length, content_type, body, header, title, host, path
-	// Operators: ==, !=, <, >, <=, >=, &&, ||, !
-	// Functions: contains(str, substr), matches(str, regex), len(str), hasPrefix(str, prefix), hasSuffix(str, suffix)
-	// Note: This function is defined here but called after ProbeResults is populated
-	var evaluateDSL func(expr string, statusCode int, contentLength int64, body, contentType, title, host, server, location string) bool
-	evaluateDSL = func(expr string, statusCode int, contentLength int64, body, contentType, title, host, server, location string) bool {
-		if expr == "" {
-			return true
-		}
-
-		// Replace variables with their values for evaluation
-		variables := map[string]interface{}{
-			"status_code":    statusCode,
-			"content_length": contentLength,
-			"content_type":   contentType,
-			"body":           body,
-			"title":          title,
-			"host":           host,
-			"server":         server,
-			"location":       location,
-		}
-
-		// Simple expression parser
-		// Handle contains(body, "string")
-		containsRe := regexcache.MustGet(`contains\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
-		expr = containsRe.ReplaceAllStringFunc(expr, func(match string) string {
-			parts := containsRe.FindStringSubmatch(match)
-			if len(parts) == 3 {
-				varName := parts[1]
-				substr := parts[2]
-				if val, ok := variables[varName]; ok {
-					if strVal, ok := val.(string); ok {
-						if strings.Contains(strVal, substr) {
-							return "true"
-						}
-						return "false"
-					}
-				}
-			}
-			return "false"
-		})
-
-		// Handle !contains(body, "string")
-		notContainsRe := regexcache.MustGet(`!\s*contains\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
-		expr = notContainsRe.ReplaceAllStringFunc(expr, func(match string) string {
-			parts := notContainsRe.FindStringSubmatch(match)
-			if len(parts) == 3 {
-				varName := parts[1]
-				substr := parts[2]
-				if val, ok := variables[varName]; ok {
-					if strVal, ok := val.(string); ok {
-						if !strings.Contains(strVal, substr) {
-							return "true"
-						}
-						return "false"
-					}
-				}
-			}
-			return "true"
-		})
-
-		// Handle matches(body, "regex")
-		matchesRe := regexcache.MustGet(`matches\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
-		expr = matchesRe.ReplaceAllStringFunc(expr, func(match string) string {
-			parts := matchesRe.FindStringSubmatch(match)
-			if len(parts) == 3 {
-				varName := parts[1]
-				pattern := parts[2]
-				if val, ok := variables[varName]; ok {
-					if strVal, ok := val.(string); ok {
-						re, err := regexcache.Get(pattern)
-						if err == nil && re.MatchString(strVal) {
-							return "true"
-						}
-						return "false"
-					}
-				}
-			}
-			return "false"
-		})
-
-		// Handle hasPrefix(str, "prefix")
-		hasPrefixRe := regexcache.MustGet(`hasPrefix\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
-		expr = hasPrefixRe.ReplaceAllStringFunc(expr, func(match string) string {
-			parts := hasPrefixRe.FindStringSubmatch(match)
-			if len(parts) == 3 {
-				varName := parts[1]
-				prefix := parts[2]
-				if val, ok := variables[varName]; ok {
-					if strVal, ok := val.(string); ok {
-						if strings.HasPrefix(strVal, prefix) {
-							return "true"
-						}
-						return "false"
-					}
-				}
-			}
-			return "false"
-		})
-
-		// Handle hasSuffix(str, "suffix")
-		hasSuffixRe := regexcache.MustGet(`hasSuffix\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
-		expr = hasSuffixRe.ReplaceAllStringFunc(expr, func(match string) string {
-			parts := hasSuffixRe.FindStringSubmatch(match)
-			if len(parts) == 3 {
-				varName := parts[1]
-				suffix := parts[2]
-				if val, ok := variables[varName]; ok {
-					if strVal, ok := val.(string); ok {
-						if strings.HasSuffix(strVal, suffix) {
-							return "true"
-						}
-						return "false"
-					}
-				}
-			}
-			return "false"
-		})
-
-		// Handle len(var) - replace with actual length
-		lenRe := regexcache.MustGet(`len\s*\(\s*(\w+)\s*\)`)
-		expr = lenRe.ReplaceAllStringFunc(expr, func(match string) string {
-			parts := lenRe.FindStringSubmatch(match)
-			if len(parts) == 2 {
-				varName := parts[1]
-				if val, ok := variables[varName]; ok {
-					if strVal, ok := val.(string); ok {
-						return strconv.Itoa(len(strVal))
-					}
-				}
-			}
-			return "0"
-		})
-
-		// Replace numeric variable comparisons: status_code == 200
-		numericRe := regexcache.MustGet(`(status_code|content_length)\s*(==|!=|<=|>=|<|>)\s*(\d+)`)
-		expr = numericRe.ReplaceAllStringFunc(expr, func(match string) string {
-			parts := numericRe.FindStringSubmatch(match)
-			if len(parts) == 4 {
-				varName := parts[1]
-				op := parts[2]
-				expected, _ := strconv.Atoi(parts[3])
-				var actual int
-				if varName == "status_code" {
-					actual = statusCode
-				} else if varName == "content_length" {
-					actual = int(contentLength)
-				}
-				var result bool
-				switch op {
-				case "==":
-					result = actual == expected
-				case "!=":
-					result = actual != expected
-				case "<":
-					result = actual < expected
-				case ">":
-					result = actual > expected
-				case "<=":
-					result = actual <= expected
-				case ">=":
-					result = actual >= expected
-				}
-				if result {
-					return "true"
-				}
-				return "false"
-			}
-			return "false"
-		})
-
-		// Replace string variable comparisons: content_type == "text/html"
-		stringRe := regexcache.MustGet(`(content_type|title|host|path|method|scheme|server|location)\s*(==|!=)\s*"([^"]+)"`)
-		expr = stringRe.ReplaceAllStringFunc(expr, func(match string) string {
-			parts := stringRe.FindStringSubmatch(match)
-			if len(parts) == 4 {
-				varName := parts[1]
-				op := parts[2]
-				expected := parts[3]
-				actual := ""
-				if val, ok := variables[varName]; ok {
-					if strVal, ok := val.(string); ok {
-						actual = strVal
-					}
-				}
-				var result bool
-				switch op {
-				case "==":
-					result = actual == expected
-				case "!=":
-					result = actual != expected
-				}
-				if result {
-					return "true"
-				}
-				return "false"
-			}
-			return "false"
-		})
-
-		// Now evaluate the boolean expression (true, false, &&, ||, !)
-		// Simplify: replace && with & and || with | for easier parsing
-		expr = strings.ReplaceAll(expr, "&&", "&")
-		expr = strings.ReplaceAll(expr, "||", "|")
-
-		// Split by | (OR) first, then by & (AND)
-		orParts := strings.Split(expr, "|")
-		for _, orPart := range orParts {
-			orPart = strings.TrimSpace(orPart)
-			andParts := strings.Split(orPart, "&")
-			allTrue := true
-			for _, andPart := range andParts {
-				andPart = strings.TrimSpace(andPart)
-				if andPart == "false" || andPart == "" {
-					allTrue = false
-					break
-				}
-				if andPart != "true" {
-					// Unrecognized expression, treat as false
-					allTrue = false
-					break
-				}
-			}
-			if allTrue {
-				return true
-			}
-		}
-		return false
-	}
-
-	// Simhash implementation for near-duplicate detection
-	simhash := func(text string) uint64 {
-		var v [64]int
-		words := strings.Fields(strings.ToLower(text))
-		for _, word := range words {
-			h := fnv.New64a()
-			h.Write([]byte(word))
-			hash := h.Sum64()
-			for i := 0; i < 64; i++ {
-				if (hash>>i)&1 == 1 {
-					v[i]++
-				} else {
-					v[i]--
-				}
-			}
-		}
-		var fingerprint uint64
-		for i := 0; i < 64; i++ {
-			if v[i] > 0 {
-				fingerprint |= 1 << i
-			}
-		}
-		return fingerprint
-	}
-
-	hammingDistance := func(a, b uint64) int {
-		xor := a ^ b
-		count := 0
-		for xor != 0 {
-			count++
-			xor &= xor - 1
-		}
-		return count
-	}
-
 	// Simhash deduplication tracking
 	seenSimhashes := make([]uint64, 0)
-
-	type ProbeResults struct {
-		Target          string                  `json:"target"`
-		Scheme          string                  `json:"scheme,omitempty"`
-		Method          string                  `json:"method,omitempty"`
-		DNS             *probes.DNSResult       `json:"dns,omitempty"`
-		TLS             *probes.TLSInfo         `json:"tls,omitempty"`
-		JARM            *probes.JARMResult      `json:"jarm,omitempty"`
-		Headers         *probes.SecurityHeaders `json:"headers,omitempty"`
-		Tech            *probes.TechResult      `json:"tech,omitempty"`
-		HTTP            *probes.HTTPProbeResult `json:"http,omitempty"`
-		Favicon         *probes.FaviconResult   `json:"favicon,omitempty"`
-		WAF             *waf.DetectionResult    `json:"waf,omitempty"`
-		ResponseTime    string                  `json:"response_time,omitempty"`
-		StatusCode      int                     `json:"status_code,omitempty"`
-		ContentLength   int64                   `json:"content_length,omitempty"`
-		ContentType     string                  `json:"content_type,omitempty"`
-		Server          string                  `json:"server,omitempty"`
-		Location        string                  `json:"location,omitempty"`
-		WordCount       int                     `json:"word_count,omitempty"`
-		LineCount       int                     `json:"line_count,omitempty"`
-		FinalURL        string                  `json:"final_url,omitempty"`
-		BodyHash        string                  `json:"body_hash,omitempty"`
-		HeaderHash      string                  `json:"header_hash,omitempty"`
-		BodyPreview     string                  `json:"body_preview,omitempty"`
-		WebSocket       bool                    `json:"websocket,omitempty"`
-		HTTP2           bool                    `json:"http2,omitempty"`
-		Pipeline        bool                    `json:"pipeline,omitempty"`
-		WordPress       bool                    `json:"wordpress,omitempty"`
-		WPPlugins       []string                `json:"wp_plugins,omitempty"`
-		WPThemes        []string                `json:"wp_themes,omitempty"`
-		CPEs            []string                `json:"cpes,omitempty"`
-		RedirectChain   []string                `json:"redirect_chain,omitempty"`
-		Extracted       []string                `json:"extracted,omitempty"`
-		ResponseHeaders map[string][]string     `json:"response_headers,omitempty"`
-		ResponseBody    string                  `json:"response_body,omitempty"`
-		ScreenshotFile  string                  `json:"screenshot_file,omitempty"`
-		ScreenshotBytes string                  `json:"screenshot_bytes,omitempty"` // base64 encoded PNG
-		Alive           bool                    `json:"alive"`
-		ProbeAt         time.Time               `json:"probed_at"`
-		rawBody         string                  // internal, not exported to JSON
-	}
 
 	// Scan statistics - atomic for safe access from HTTP API goroutine
 	var statsTotal, statsSuccess, statsFailed int64
@@ -1370,12 +811,6 @@ func runProbe() {
 	var filteredErrorPagesMu sync.Mutex
 
 	// Vision recon cluster collection for -svrc flag
-	type ScreenshotCluster struct {
-		Target  string `json:"target"`
-		File    string `json:"file"`
-		Cluster int    `json:"cluster"`
-		Simhash uint64 `json:"simhash"`
-	}
 	var visionClusters []ScreenshotCluster
 	var visionClustersMu sync.Mutex
 	var screenshotClusterID int
@@ -1383,188 +818,13 @@ func runProbe() {
 	// Helper for verbose output (not in silent/oneliner/jsonl/json mode)
 	showDetails := !*silent && !*oneliner && !*jsonl && !*jsonOutput
 
-	// Suppress unused variable warnings for variables used in Part 2
-	// These will be used when the rest of the probing logic is added
-	_ = outputFile
-	_ = timeout
-	_ = tlsProbe
-	_ = headerProbe
-	_ = httpProbe
-	_ = wafProbe
-	_ = faviconProbe
-	_ = jarmProbe
-	_ = techProbe
-	_ = dnsProbe
-	_ = jsonOutput
-	_ = jsonl
-	_ = silent
-	_ = oneliner
-	_ = concurrency
-	_ = showContentLength
-	_ = showContentType
-	_ = showWordCount
-	_ = showLineCount
-	_ = showServer
-	_ = showMethod
-	_ = showLocation
-	_ = followRedirects
-	_ = maxRedirects
-	_ = customHeaders
-	_ = httpMethod
-	_ = requestBody
-	_ = randomAgent
-	_ = probeStatus
-	_ = skipVerify
-	_ = retries
-	_ = delay
-	_ = rateLimit
-	_ = rateLimitPerHost
-	_ = proxyURL
-	_ = storeResponse
-	_ = storeResponseDir
-	_ = csvOutput
-	_ = hashType
-	_ = debug
-	_ = showTitle
-	_ = showIP
-	_ = showASN
-	_ = showCDN
-	_ = showTech
-	_ = bodyPreview
-	_ = showWebSocket
-	_ = showCNAME
-	_ = extractRegex
-	_ = extractPreset
-	_ = showHTTP2
-	_ = showPipeline
-	_ = showStats
-	_ = noColor
-	_ = verbose
-	_ = threads
-	_ = headerHash
-	_ = showFaviconHash
-	_ = showScheme
-	_ = matchCode
-	_ = filterCode
-	_ = matchString
-	_ = filterString
-	_ = matchLength
-	_ = matchLineCount
-	_ = matchWordCount
-	_ = matchRegex
-	_ = matchFavicon
-	_ = matchCDN
-	_ = matchRespTime
-	_ = filterLength
-	_ = filterLineCount
-	_ = filterWordCount
-	_ = filterRegex
-	_ = filterFavicon
-	_ = filterCDN
-	_ = filterRespTime
-	_ = extractFQDN
-	_ = showCPE
-	_ = showWordPress
-	_ = probeAllIPs
-	_ = cspProbe
-	_ = tlsGrab
-	_ = vhostProbe
-	_ = outputAll
-	_ = omitBody
-	_ = includeRespHeader
-	_ = includeResponse
-	_ = includeRespBase64
-	_ = filterErrorPage
-	_ = stripTags
-	_ = screenshot
-	_ = screenshotTimeout
-	_ = simhashThreshold
-	_ = customFingerprintFile
-	_ = htmlOutput
-	_ = memProfile
-	_ = updateCheck
-	_ = disableUpdateCheck
-	_ = systemChrome
-	_ = headlessOptions
-	_ = excludeScreenshotBytes
-	_ = noScreenshotFullPage
-	_ = excludeHeadlessBody
-	_ = screenshotIdle
-	_ = javascriptCode
-	_ = storeVisionRecon
-	_ = filterErrorPagePath
-	_ = httpAPIEndpoint
-	_ = pdAuth
-	_ = pdAuthConfig
-	_ = pdDashboard
-	_ = pdTeamID
-	_ = pdAssetID
-	_ = pdAssetName
-	_ = pdDashboardUpload
-	_ = probeDispCtx
-	_ = probeStartTime
-	_ = checkpointMgr
-	_ = trackRedirectChain
-	_ = storeRedirectChain
-	_ = extractTLSDomains
-	_ = workerCount
-	_ = generateCPE
-	_ = detectWordPress
-	_ = extractDomainsFromCSP
-	_ = csvEnc
-	_ = stripHTMLTags
-	_ = allowedHosts
-	_ = deniedHosts
-	_ = customSNI
-	_ = useAutoReferer
-	_ = isUnsafeMode
-	_ = followSameHost
-	_ = hstsRespect
-	_ = isStreamMode
-	_ = noDedup
-	_ = keepDefaultPorts
-	_ = zTLS
-	_ = skipDecode
-	_ = useTLSImpersonate
-	_ = isTraceMode
-	_ = skipFallback
-	_ = skipSchemeSwitch
-	_ = hostErrorLimit
-	_ = maxSaveSize
-	_ = maxReadSize
-	_ = hostErrors
-	_ = excludedHosts
-	_ = matchRange
-	_ = matchTimeCondition
-	_ = evaluateDSL
-	_ = simhash
-	_ = hammingDistance
-	_ = seenSimhashes
-	_ = statsTotal
-	_ = statsSuccess
-	_ = statsFailed
-	_ = statsStart
-	_ = seenResponses
-	_ = filteredErrorPages
-	// Note: can't use _ = filteredErrorPagesMu - copylocks violation
-	_ = visionClusters
-	// Note: can't use _ = visionClustersMu - copylocks violation
-	_ = screenshotClusterID
-	_ = showDetails
-	_ = forceHTTP2
-	_ = forceHTTP11
-	_ = customResolvers
-	_ = authSecrets
-	_ = excludedOutputFields
-	_ = vhostMode
-	_ = vhostHeaders
-	_ = debugReq
-	_ = debugResp
-	_ = rawRequestFile
-	_ = inputMode
-	_ = matchCondition
 	// HTTP API endpoint - start server if specified
 	if *httpAPIEndpoint != "" {
+		// Security: ensure the endpoint binds to localhost if no host is specified
+		apiAddr := *httpAPIEndpoint
+		if strings.HasPrefix(apiAddr, ":") {
+			apiAddr = "127.0.0.1" + apiAddr
+		}
 		go func() {
 			mux := http.NewServeMux()
 			mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -1584,8 +844,8 @@ func runProbe() {
 					"elapsed": time.Since(statsStart).String(),
 				})
 			})
-			fmt.Printf("[*] HTTP API server started at %s (endpoints: /health, /stats)\n", *httpAPIEndpoint)
-			if err := http.ListenAndServe(*httpAPIEndpoint, mux); err != nil {
+			fmt.Printf("[*] HTTP API server started at %s (endpoints: /health, /stats)\n", apiAddr)
+			if err := http.ListenAndServe(apiAddr, mux); err != nil {
 				fmt.Fprintf(os.Stderr, "[!] HTTP API server error: %v\n", err)
 			}
 		}()
@@ -1873,7 +1133,7 @@ func runProbe() {
 					results.BodyHash = fmt.Sprintf("mmh3:%d", int32(h))
 				case "simhash":
 					// Simhash for near-duplicate detection
-					bodyHash := simhash(bodyStr)
+					bodyHash := fp.Simhash(bodyStr)
 					results.BodyHash = fmt.Sprintf("simhash:%d", bodyHash)
 				}
 			}
@@ -1951,12 +1211,12 @@ func runProbe() {
 
 				// Vision recon clustering - group similar screenshots
 				if *storeVisionRecon {
-					bodyHash := simhash(results.rawBody)
+					bodyHash := fp.Simhash(results.rawBody)
 					visionClustersMu.Lock()
 					clusterID := screenshotClusterID
 					// Check if this hash is similar to an existing cluster
 					for _, existing := range visionClusters {
-						if hammingDistance(bodyHash, existing.Simhash) <= 8 {
+						if fp.HammingDistance(bodyHash, existing.Simhash) <= 8 {
 							clusterID = existing.Cluster
 							break
 						}
@@ -2090,10 +1350,10 @@ func runProbe() {
 
 			// WordPress detection
 			if *showWordPress {
-				isWP, plugins, themes := detectWordPress(bodyStr, currentTarget)
-				results.WordPress = isWP
-				results.WPPlugins = plugins
-				results.WPThemes = themes
+				wpResult := probes.DetectWordPress(bodyStr)
+				results.WordPress = wpResult.Detected
+				results.WPPlugins = wpResult.Plugins
+				results.WPThemes = wpResult.Themes
 			}
 
 			if showDetails && len(targets) == 1 {
@@ -2276,7 +1536,7 @@ func runProbe() {
 
 		// CSP Probe - extract and display domains from CSP
 		if *cspProbe && results.Headers != nil && results.Headers.ContentSecurityPolicy != "" {
-			cspDomains := extractDomainsFromCSP(results.Headers.ContentSecurityPolicy)
+			cspDomains := probes.ExtractDomainsFromCSP(results.Headers.ContentSecurityPolicy)
 			if len(cspDomains) > 0 {
 				results.Extracted = append(results.Extracted, cspDomains...)
 				if showDetails {
@@ -2387,7 +1647,7 @@ func runProbe() {
 						for _, w := range wafResult.WAFs {
 							ui.PrintConfigLine("WAF", fmt.Sprintf("%s (%s) - %.0f%% confidence", w.Name, w.Type, w.Confidence*100))
 							if len(w.BypassTips) > 0 {
-								ui.PrintInfo(fmt.Sprintf("  Bypass tips: %v", w.BypassTips[:probeMin(3, len(w.BypassTips))]))
+								ui.PrintInfo(fmt.Sprintf("  Bypass tips: %v", w.BypassTips[:min(3, len(w.BypassTips))]))
 							}
 						}
 						if wafResult.CDN != nil {
@@ -2718,7 +1978,16 @@ func runProbe() {
 			if titleMatch := titleRe.FindStringSubmatch(results.rawBody); len(titleMatch) > 1 {
 				titleStr = titleMatch[1]
 			}
-			if !evaluateDSL(*matchCondition, results.StatusCode, results.ContentLength, results.rawBody, results.ContentType, titleStr, results.Target, results.Server, results.Location) {
+			if !dsl.Evaluate(*matchCondition, &dsl.ResponseData{
+				StatusCode:    results.StatusCode,
+				ContentLength: results.ContentLength,
+				Body:          results.rawBody,
+				ContentType:   results.ContentType,
+				Title:         titleStr,
+				Host:          results.Target,
+				Server:        results.Server,
+				Location:      results.Location,
+			}) {
 				skipOutput = true
 			}
 		}
@@ -2730,18 +1999,27 @@ func runProbe() {
 			if titleMatch := titleRe.FindStringSubmatch(results.rawBody); len(titleMatch) > 1 {
 				titleStr = titleMatch[1]
 			}
-			if evaluateDSL(*filterCondition, results.StatusCode, results.ContentLength, results.rawBody, results.ContentType, titleStr, results.Target, results.Server, results.Location) {
+			if dsl.Evaluate(*filterCondition, &dsl.ResponseData{
+				StatusCode:    results.StatusCode,
+				ContentLength: results.ContentLength,
+				Body:          results.rawBody,
+				ContentType:   results.ContentType,
+				Title:         titleStr,
+				Host:          results.Target,
+				Server:        results.Server,
+				Location:      results.Location,
+			}) {
 				skipOutput = true
 			}
 		}
 
 		// Simhash near-duplicate detection
 		if *simhashThreshold > 0 && !skipOutput {
-			bodyHash := simhash(results.rawBody)
+			bodyHash := fp.Simhash(results.rawBody)
 			isDuplicate := false
 			seenSimhashesMu.Lock()
 			for _, seen := range seenSimhashes {
-				if hammingDistance(bodyHash, seen) <= *simhashThreshold {
+				if fp.HammingDistance(bodyHash, seen) <= *simhashThreshold {
 					isDuplicate = true
 					break
 				}
@@ -2795,7 +2073,7 @@ func runProbe() {
 	}
 
 	// Run probes in parallel with streaming output using callback
-	probeRunner.RunWithCallback(context.Background(), targets, probeTask, func(result runner.Result[*ProbeResults]) {
+	probeRunner.RunWithCallback(ctx, targets, probeTask, func(result runner.Result[*ProbeResults]) {
 		if result.Error != nil {
 			// Handle error output
 			atomic.AddInt64(&statsTotal, 1)
@@ -2827,21 +2105,21 @@ func runProbe() {
 				if results.WAF != nil && results.WAF.Detected && len(results.WAF.WAFs) > 0 {
 					for _, wafInfo := range results.WAF.WAFs {
 						wafDesc := fmt.Sprintf("WAF detected: %s (confidence: %.0f%%)", wafInfo.Name, wafInfo.Confidence*100)
-						_ = probeDispCtx.EmitBypass(context.Background(), "probe-waf-detected", "info", currentTarget, wafDesc, results.StatusCode)
+						_ = probeDispCtx.EmitBypass(ctx, "probe-waf-detected", "info", currentTarget, wafDesc, results.StatusCode)
 					}
 				}
 				// Emit security header findings (missing important headers)
 				if results.Headers != nil && len(results.Headers.MissingHeaders) > 3 {
 					headerDesc := fmt.Sprintf("Missing security headers: %s", strings.Join(results.Headers.MissingHeaders, ", "))
-					_ = probeDispCtx.EmitBypass(context.Background(), "probe-weak-headers", "medium", currentTarget, headerDesc, results.StatusCode)
+					_ = probeDispCtx.EmitBypass(ctx, "probe-weak-headers", "medium", currentTarget, headerDesc, results.StatusCode)
 				}
 				// Emit TLS issues (expired, self-signed, weak cipher)
 				if results.TLS != nil {
 					if results.TLS.Expired {
-						_ = probeDispCtx.EmitBypass(context.Background(), "probe-tls-expired", "critical", currentTarget, "TLS certificate is expired", results.StatusCode)
+						_ = probeDispCtx.EmitBypass(ctx, "probe-tls-expired", "critical", currentTarget, "TLS certificate is expired", results.StatusCode)
 					}
 					if results.TLS.SelfSigned {
-						_ = probeDispCtx.EmitBypass(context.Background(), "probe-tls-self-signed", "high", currentTarget, "TLS certificate is self-signed", results.StatusCode)
+						_ = probeDispCtx.EmitBypass(ctx, "probe-tls-self-signed", "high", currentTarget, "TLS certificate is self-signed", results.StatusCode)
 					}
 				}
 				// Emit technology detection with CPEs
@@ -2849,7 +2127,7 @@ func runProbe() {
 					for _, tech := range results.Tech.Technologies {
 						if tech.Confidence > 90 && tech.Version != "" {
 							techDesc := fmt.Sprintf("Technology: %s v%s", tech.Name, tech.Version)
-							_ = probeDispCtx.EmitBypass(context.Background(), "probe-tech-detected", "info", currentTarget, techDesc, results.StatusCode)
+							_ = probeDispCtx.EmitBypass(ctx, "probe-tech-detected", "info", currentTarget, techDesc, results.StatusCode)
 						}
 					}
 				}
@@ -3085,7 +2363,7 @@ func runProbe() {
 			if err != nil {
 				errMsg := fmt.Sprintf("JSON encoding error: %v", err)
 				ui.PrintError(errMsg)
-				_ = probeDispCtx.EmitError(context.Background(), "probe", errMsg, true)
+				_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
 				os.Exit(1)
 			}
 
@@ -3093,7 +2371,7 @@ func runProbe() {
 				if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
 					errMsg := fmt.Sprintf("Error writing output: %v", err)
 					ui.PrintError(errMsg)
-					_ = probeDispCtx.EmitError(context.Background(), "probe", errMsg, true)
+					_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
 					os.Exit(1)
 				}
 				ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
@@ -3277,16 +2555,6 @@ func runProbe() {
 	if *headlessOptions != "" {
 		fmt.Printf("[*] Headless options: %s\n", *headlessOptions)
 	}
-	if *excludeScreenshotBytes {
-		// Applied in screenshot capture section - bytes excluded from JSON
-	}
-	if *noScreenshotFullPage {
-		// Applied in screenshot capture section - browserCfg.ScreenshotFull set
-	}
-	if *excludeHeadlessBody {
-		// This flag is respected in the response body capture section
-		// When headless browser is used, body will be filtered from JSON output
-	}
 	if *screenshotIdle > 1 {
 		fmt.Printf("[*] Screenshot idle time: %d seconds\n", *screenshotIdle)
 	}
@@ -3376,303 +2644,6 @@ func runProbe() {
 	// ═══════════════════════════════════════════════════════════════════════════
 	// Notify all hooks that probe is complete (probed targets, alive count)
 	if probeDispCtx != nil {
-		_ = probeDispCtx.EmitSummary(context.Background(), int(statsTotal), int(statsSuccess), int(statsFailed), time.Since(probeStartTime))
+		_ = probeDispCtx.EmitSummary(ctx, int(statsTotal), int(statsSuccess), int(statsFailed), time.Since(probeStartTime))
 	}
-}
-
-// makeProbeHTTPRequest performs a simple HTTP GET request for probe command
-func makeProbeHTTPRequest(ctx context.Context, target string, timeout time.Duration) (*http.Response, error) {
-	client := httpclient.New(httpclient.WithTimeout(timeout))
-	req, err := http.NewRequestWithContext(ctx, "GET", target, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", ui.UserAgent())
-	return client.Do(req)
-}
-
-// Random User-Agents for rotating
-var probeRandomUserAgents = []string{
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
-	"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/120.0.0.0",
-	"Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1",
-	"Mozilla/5.0 (Linux; Android 14; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-}
-
-// ProbeHTTPOptions contains options for probe HTTP requests
-type ProbeHTTPOptions struct {
-	Method           string
-	FollowRedirects  bool
-	MaxRedirects     int
-	RandomAgent      bool
-	CustomHeaders    string
-	RequestBody      string
-	ProxyURL         string
-	Retries          int
-	SkipVerify       bool
-	Delay            time.Duration
-	SNI              string            // Custom SNI hostname
-	AutoReferer      bool              // Automatically set Referer header
-	UnsafeMode       bool              // Disable security checks
-	FollowHostOnly   bool              // Only follow same-host redirects
-	RespectHSTS      bool              // Respect HSTS headers
-	StreamMode       bool              // Stream response body
-	NoDedupe         bool              // Don't deduplicate results
-	LeaveDefaultPort bool              // Keep :80 or :443 in URLs
-	UseZTLS          bool              // Use ZTLS library
-	NoDecode         bool              // Don't decode response
-	TLSImpersonate   bool              // Impersonate browser TLS
-	NoFallback       bool              // Don't fall back to HTTP
-	NoFallbackScheme bool              // Don't try alternate scheme
-	MaxHostErrors    int               // Skip host after N errors
-	MaxResponseRead  int               // Max bytes to read from response
-	MaxResponseSave  int               // Max bytes to save from response
-	VHostHeader      string            // Override Host header for vhost probing
-	TrackRedirects   bool              // Track redirect chain
-	RedirectChain    *[]string         // Pointer to redirect chain slice
-	ForceHTTP2       bool              // Force HTTP/2 protocol
-	ForceHTTP11      bool              // Force HTTP/1.1 protocol
-	AuthSecrets      map[string]string // Authentication secrets (key=value)
-	ExcludeFields    map[string]bool   // Fields to exclude from output
-	CustomResolvers  []string          // Custom DNS resolvers
-}
-
-// makeProbeHTTPRequestWithOptions performs HTTP request with full options
-func makeProbeHTTPRequestWithOptions(ctx context.Context, target string, timeout time.Duration, opts ProbeHTTPOptions) (*http.Response, error) {
-	maxRedirects := opts.MaxRedirects
-	if maxRedirects <= 0 {
-		maxRedirects = 10
-	}
-
-	checkRedirect := func(req *http.Request, via []*http.Request) error {
-		if !opts.FollowRedirects {
-			return http.ErrUseLastResponse
-		}
-		if len(via) >= maxRedirects {
-			return fmt.Errorf("too many redirects")
-		}
-		// Follow same-host redirects only
-		if opts.FollowHostOnly && len(via) > 0 {
-			originalHost := via[0].URL.Host
-			if req.URL.Host != originalHost {
-				return http.ErrUseLastResponse
-			}
-		}
-		// Respect HSTS - upgrade http to https
-		if opts.RespectHSTS && req.URL.Scheme == "http" {
-			// Check if response had Strict-Transport-Security header
-			if len(via) > 0 {
-				lastResp := via[len(via)-1].Response
-				if lastResp != nil && lastResp.Header.Get("Strict-Transport-Security") != "" {
-					req.URL.Scheme = "https"
-				}
-			}
-		}
-		// Track redirect chain if enabled
-		if opts.TrackRedirects && opts.RedirectChain != nil {
-			*opts.RedirectChain = append(*opts.RedirectChain, req.URL.String())
-		}
-		return nil
-	}
-
-	// Build TLS config with all options
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: opts.SkipVerify,
-	}
-
-	// Custom SNI hostname
-	if opts.SNI != "" {
-		tlsConfig.ServerName = opts.SNI
-	}
-
-	// TLS impersonation - randomize client hello
-	if opts.TLSImpersonate {
-		// Mimic browser TLS fingerprint
-		tlsConfig.MinVersion = tls.VersionTLS12
-		tlsConfig.MaxVersion = tls.VersionTLS13
-		tlsConfig.CipherSuites = []uint16{
-			tls.TLS_AES_128_GCM_SHA256,
-			tls.TLS_AES_256_GCM_SHA384,
-			tls.TLS_CHACHA20_POLY1305_SHA256,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-		}
-	}
-
-	// UseZTLS: force TLS 1.3 only (ztls-like behavior)
-	if opts.UseZTLS {
-		tlsConfig.MinVersion = tls.VersionTLS13
-		tlsConfig.MaxVersion = tls.VersionTLS13
-	}
-
-	transport := &http.Transport{
-		TLSClientConfig: tlsConfig,
-	}
-
-	// Force HTTP/2 or HTTP/1.1 if requested
-	if opts.ForceHTTP2 {
-		transport.ForceAttemptHTTP2 = true
-	} else if opts.ForceHTTP11 {
-		transport.ForceAttemptHTTP2 = false
-		// Disable HTTP/2 by not configuring TLSNextProto
-		transport.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) http.RoundTripper)
-	}
-
-	// Configure custom DNS resolvers
-	if len(opts.CustomResolvers) > 0 {
-		dialer := &net.Dialer{
-			Timeout:   duration.HTTPFuzzing,
-			KeepAlive: duration.KeepAlive,
-		}
-		// Create custom resolver using the first resolver
-		resolver := opts.CustomResolvers[0]
-		if !strings.Contains(resolver, ":") {
-			resolver = resolver + ":53"
-		}
-		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			// Extract host and port from addr
-			host, port, err := net.SplitHostPort(addr)
-			if err != nil {
-				return dialer.DialContext(ctx, network, addr)
-			}
-			// Resolve using custom resolver
-			customResolver := &net.Resolver{
-				PreferGo: true,
-				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-					d := net.Dialer{Timeout: duration.DialTimeout}
-					return d.DialContext(ctx, "udp", resolver)
-				},
-			}
-			ips, err := customResolver.LookupIPAddr(ctx, host)
-			if err != nil || len(ips) == 0 {
-				return dialer.DialContext(ctx, network, addr)
-			}
-			// Use first resolved IP
-			resolvedAddr := net.JoinHostPort(ips[0].IP.String(), port)
-			return dialer.DialContext(ctx, network, resolvedAddr)
-		}
-	}
-
-	// Configure proxy if provided
-	if opts.ProxyURL != "" {
-		proxyURL, err := url.Parse(opts.ProxyURL)
-		if err == nil {
-			transport.Proxy = http.ProxyURL(proxyURL)
-		}
-	}
-
-	client := &http.Client{
-		Timeout:       timeout,
-		CheckRedirect: checkRedirect,
-		Transport:     transport,
-	}
-
-	// Wrap with detection transport for connection drop/silent ban detection
-	client = detection.WrapClient(client)
-
-	// Prepare request body if provided
-	var bodyReader io.Reader
-	if opts.RequestBody != "" {
-		bodyReader = strings.NewReader(opts.RequestBody)
-	}
-
-	method := opts.Method
-	if method == "" {
-		method = "GET"
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, target, bodyReader)
-	if err != nil {
-		return nil, err
-	}
-
-	// Set User-Agent
-	if opts.RandomAgent {
-		req.Header.Set("User-Agent", probeRandomUserAgents[time.Now().UnixNano()%int64(len(probeRandomUserAgents))])
-	} else {
-		req.Header.Set("User-Agent", ui.UserAgent())
-	}
-
-	// Parse and set custom headers
-	if opts.CustomHeaders != "" {
-		headers := strings.Split(opts.CustomHeaders, ";")
-		for _, h := range headers {
-			parts := strings.SplitN(strings.TrimSpace(h), ":", 2)
-			if len(parts) == 2 {
-				req.Header.Set(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
-			}
-		}
-	}
-
-	// VHost header override
-	if opts.VHostHeader != "" {
-		req.Host = opts.VHostHeader
-	}
-
-	// Auto Referer header
-	if opts.AutoReferer {
-		parsedURL, err := url.Parse(target)
-		if err == nil {
-			req.Header.Set("Referer", fmt.Sprintf("%s://%s/", parsedURL.Scheme, parsedURL.Host))
-		}
-	}
-
-	// Apply auth secrets as headers
-	if opts.AuthSecrets != nil {
-		for key, value := range opts.AuthSecrets {
-			// Common auth secret keys
-			switch strings.ToLower(key) {
-			case "authorization", "auth":
-				req.Header.Set("Authorization", value)
-			case "bearer", "token":
-				req.Header.Set("Authorization", "Bearer "+value)
-			case "api_key", "apikey", "x-api-key":
-				req.Header.Set("X-API-Key", value)
-			case "cookie":
-				req.Header.Set("Cookie", value)
-			default:
-				// Set as custom header
-				req.Header.Set(key, value)
-			}
-		}
-	}
-
-	// Content-Type for POST/PUT with body
-	if opts.RequestBody != "" && (method == "POST" || method == "PUT") {
-		if req.Header.Get("Content-Type") == "" {
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		}
-	}
-
-	// Retry logic
-	var resp *http.Response
-	var lastErr error
-	maxAttempts := opts.Retries + 1
-	if maxAttempts < 1 {
-		maxAttempts = 1
-	}
-
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		if attempt > 0 && opts.Delay > 0 {
-			time.Sleep(opts.Delay)
-		}
-		resp, lastErr = client.Do(req)
-		if lastErr == nil {
-			return resp, nil
-		}
-	}
-
-	return resp, lastErr
-}
-
-// probeMin returns the smaller of a or b (probe-local helper)
-func probeMin(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

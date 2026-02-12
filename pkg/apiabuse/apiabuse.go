@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
@@ -19,18 +20,19 @@ import (
 
 // Config configures API abuse testing
 type Config struct {
-	Concurrency int
-	Timeout     time.Duration
-	Headers     map[string]string
-	RateLimit   int // requests per second limit to test
+	attackconfig.Base
+	Headers   map[string]string
+	RateLimit int // requests per second limit to test
 }
 
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Concurrency: defaults.ConcurrencyLow,
-		Timeout:     httpclient.TimeoutProbing,
-		RateLimit:   100,
+		Base: attackconfig.Base{
+			Concurrency: defaults.ConcurrencyLow,
+			Timeout:     httpclient.TimeoutProbing,
+		},
+		RateLimit: 100,
 	}
 }
 
@@ -108,7 +110,6 @@ func (s *Scanner) TestRateLimiting(ctx context.Context, targetURL string, reques
 		if err != nil {
 			continue
 		}
-		iohelper.ReadBodyDefault(resp.Body)
 		iohelper.DrainAndClose(resp.Body)
 
 		totalTime += time.Since(start)
@@ -124,7 +125,9 @@ func (s *Scanner) TestRateLimiting(ctx context.Context, targetURL string, reques
 	}
 
 	result.StatusCode = lastStatusCode
-	result.ResponseTime = totalTime / time.Duration(requests)
+	if requests > 0 {
+		result.ResponseTime = totalTime / time.Duration(requests)
+	}
 
 	if !result.RateLimited && successCount == requests {
 		result.Vulnerable = true

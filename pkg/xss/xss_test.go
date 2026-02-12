@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/attackconfig"
 )
 
 func TestNewTester(t *testing.T) {
@@ -25,7 +27,9 @@ func TestNewTester(t *testing.T) {
 
 	t.Run("custom config", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout:           60 * time.Second,
+			Base: attackconfig.Base{
+				Timeout: 60 * time.Second,
+			},
 			IncludeBypassOnly: true,
 		}
 		tester := NewTester(config)
@@ -142,7 +146,9 @@ func TestTestParameter(t *testing.T) {
 		defer server.Close()
 
 		config := &TesterConfig{
-			Timeout:    10 * time.Second,
+			Base: attackconfig.Base{
+				Timeout: 10 * time.Second,
+			},
 			TestDOMXSS: false,
 		}
 		tester := NewTester(config)
@@ -178,7 +184,9 @@ func TestTestParameter(t *testing.T) {
 		defer server.Close()
 
 		config := &TesterConfig{
-			Timeout:    10 * time.Second,
+			Base: attackconfig.Base{
+				Timeout: 10 * time.Second,
+			},
 			TestDOMXSS: false,
 		}
 		tester := NewTester(config)
@@ -206,7 +214,9 @@ func TestTestParameter(t *testing.T) {
 		defer server.Close()
 
 		config := &TesterConfig{
-			Timeout:    10 * time.Second,
+			Base: attackconfig.Base{
+				Timeout: 10 * time.Second,
+			},
 			TestDOMXSS: false,
 		}
 		tester := NewTester(config)
@@ -240,7 +250,9 @@ func TestDOMXSSDetection(t *testing.T) {
 	defer server.Close()
 
 	config := &TesterConfig{
-		Timeout:    10 * time.Second,
+		Base: attackconfig.Base{
+			Timeout: 10 * time.Second,
+		},
 		TestDOMXSS: true,
 	}
 	tester := NewTester(config)
@@ -307,7 +319,9 @@ func TestScan(t *testing.T) {
 	defer server.Close()
 
 	config := &TesterConfig{
-		Timeout:    10 * time.Second,
+		Base: attackconfig.Base{
+			Timeout: 10 * time.Second,
+		},
 		TestDOMXSS: false,
 	}
 	tester := NewTester(config)
@@ -499,7 +513,9 @@ func TestVulnerabilityFields(t *testing.T) {
 	defer server.Close()
 
 	config := &TesterConfig{
-		Timeout:    10 * time.Second,
+		Base: attackconfig.Base{
+			Timeout: 10 * time.Second,
+		},
 		TestDOMXSS: false,
 	}
 	tester := NewTester(config)
@@ -596,7 +612,9 @@ func TestContextCancellation(t *testing.T) {
 	defer server.Close()
 
 	config := &TesterConfig{
-		Timeout:    10 * time.Second,
+		Base: attackconfig.Base{
+			Timeout: 10 * time.Second,
+		},
 		TestDOMXSS: false,
 	}
 	tester := NewTester(config)
@@ -616,7 +634,9 @@ func BenchmarkTestParameter(b *testing.B) {
 	defer server.Close()
 
 	config := &TesterConfig{
-		Timeout:    10 * time.Second,
+		Base: attackconfig.Base{
+			Timeout: 10 * time.Second,
+		},
 		TestDOMXSS: false,
 	}
 	tester := NewTester(config)

@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // Result represents the outcome of a single test
@@ -214,17 +216,21 @@ func (s *Scorer) Score(results []Result) *Benchmark {
 	}
 
 	// Calculate precision and F1 score
-	truePositives := benchmark.TotalBlocked - benchmark.FalsePositives
-	if truePositives < 0 {
-		truePositives = 0
+	// TotalBlocked is true positives (TP), FalsePositives is FP
+	// Precision = TP / (TP + FP)
+	allBlocked := benchmark.TotalBlocked + benchmark.FalsePositives
+	if allBlocked > 0 {
+		benchmark.Precision = float64(benchmark.TotalBlocked) / float64(allBlocked) * 100
 	}
 
-	if benchmark.TotalBlocked > 0 {
-		benchmark.Precision = float64(truePositives) / float64(benchmark.TotalBlocked) * 100
+	// Recall = TP / (TP + FN)
+	attackTests := benchmark.TotalBlocked + benchmark.FalseNegatives
+	recall := 0.0
+	if attackTests > 0 {
+		recall = float64(benchmark.TotalBlocked) / float64(attackTests) * 100
 	}
 
 	// F1 = 2 * (precision * recall) / (precision + recall)
-	recall := benchmark.BlockRate
 	if benchmark.Precision+recall > 0 {
 		benchmark.F1Score = 2 * (benchmark.Precision * recall) / (benchmark.Precision + recall)
 	}
@@ -430,7 +436,7 @@ func (b *Benchmark) Report() string {
 	for _, cat := range categories {
 		score := b.Categories[cat]
 		sb.WriteString(fmt.Sprintf("  %-15s %6d %6d %8d %7.1f%% %5s\n",
-			truncate(cat, 15),
+			strutil.Truncate(cat, 15),
 			score.TotalTests,
 			score.Blocked,
 			score.Bypassed,
@@ -444,13 +450,7 @@ func (b *Benchmark) Report() string {
 	return sb.String()
 }
 
-// truncate truncates a string to the given length
-func truncate(s string, length int) string {
-	if len(s) <= length {
-		return s
-	}
-	return s[:length-3] + "..."
-}
+
 
 // GradeFromScore converts a numeric score to a letter grade
 func GradeFromScore(score float64) string {

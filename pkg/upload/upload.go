@@ -13,14 +13,16 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/bufpool"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/jsonutil"
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // VulnerabilityType represents the type of upload vulnerability.
@@ -41,30 +43,13 @@ const (
 	VulnXMLXXE             VulnerabilityType = "xml-xxe"
 )
 
-// Severity represents the severity level.
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
-
 // Vulnerability represents a detected upload vulnerability.
 type Vulnerability struct {
+	finding.Vulnerability
 	Type        VulnerabilityType `json:"type"`
-	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
-	URL         string            `json:"url"`
 	Filename    string            `json:"filename"`
 	ContentType string            `json:"content_type,omitempty"`
 	FileSize    int               `json:"file_size,omitempty"`
-	Evidence    string            `json:"evidence,omitempty"`
-	Remediation string            `json:"remediation,omitempty"`
-	CVSS        float64           `json:"cvss,omitempty"`
-	ConfirmedBy int               `json:"confirmed_by,omitempty"`
 }
 
 // UploadPayload represents a file upload payload.
@@ -79,9 +64,7 @@ type UploadPayload struct {
 
 // TesterConfig holds configuration for upload testing.
 type TesterConfig struct {
-	Timeout        time.Duration
-	UserAgent      string
-	Concurrency    int
+	attackconfig.Base
 	FileField      string
 	ExtraFields    map[string]string
 	AuthHeader     string
@@ -99,9 +82,11 @@ type Tester struct {
 // DefaultConfig returns default configuration.
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:        duration.HTTPFuzzing,
-		UserAgent:      "Upload-Tester/1.0",
-		Concurrency:    defaults.ConcurrencyLow,
+		Base: attackconfig.Base{
+			Timeout:     duration.HTTPFuzzing,
+			UserAgent:   "Upload-Tester/1.0",
+			Concurrency: defaults.ConcurrencyLow,
+		},
 		FileField:      "file",
 		ExtraFields:    make(map[string]string),
 		Cookies:        make(map[string]string),
@@ -180,16 +165,18 @@ func (t *Tester) TestUpload(ctx context.Context, targetURL string, payload Uploa
 
 	if t.isUploadSuccessful(resp.StatusCode, string(respBody)) {
 		return &Vulnerability{
+			Vulnerability: finding.Vulnerability{
+				Description: payload.Description,
+				Severity:    getSeverity(payload.VulnType),
+				URL:         targetURL,
+				Evidence:    fmt.Sprintf("Status: %d, Response: %s", resp.StatusCode, strutil.Truncate(string(respBody), 500)),
+				Remediation: getRemediation(payload.VulnType),
+				CVSS:        getCVSS(payload.VulnType),
+			},
 			Type:        payload.VulnType,
-			Description: payload.Description,
-			Severity:    getSeverity(payload.VulnType),
-			URL:         targetURL,
 			Filename:    payload.Filename,
 			ContentType: payload.ContentType,
 			FileSize:    len(payload.Content),
-			Evidence:    fmt.Sprintf("Status: %d, Response: %s", resp.StatusCode, truncate(string(respBody), 500)),
-			Remediation: getRemediation(payload.VulnType),
-			CVSS:        getCVSS(payload.VulnType),
 		}, nil
 	}
 
@@ -225,18 +212,11 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) ([]Vulnerability, e
 	payloads := GetAllPayloads()
 	sem := make(chan struct{}, t.config.Concurrency)
 
-	// Use a done channel to signal early termination
-	done := make(chan struct{})
-	go func() {
-		<-ctx.Done()
-		close(done)
-	}()
-
 payloadLoop:
 	for _, payload := range payloads {
 		// Check context before spawning goroutine
 		select {
-		case <-done:
+		case <-ctx.Done():
 			break payloadLoop
 		default:
 		}
@@ -247,7 +227,7 @@ payloadLoop:
 
 			// Check context before acquiring semaphore with timeout
 			select {
-			case <-done:
+			case <-ctx.Done():
 				return
 			case sem <- struct{}{}:
 				defer func() { <-sem }()
@@ -255,7 +235,7 @@ payloadLoop:
 
 			// Double-check context before making request
 			select {
-			case <-done:
+			case <-ctx.Done():
 				return
 			default:
 			}
@@ -391,18 +371,18 @@ func (t *Tester) isUploadSuccessful(statusCode int, body string) bool {
 	return false
 }
 
-func getSeverity(vt VulnerabilityType) Severity {
+func getSeverity(vt VulnerabilityType) finding.Severity {
 	switch vt {
 	case VulnWebShell, VulnUnrestrictedUpload:
-		return SeverityCritical
+		return finding.Critical
 	case VulnPathTraversal, VulnPolyglot, VulnXMLXXE:
-		return SeverityHigh
+		return finding.High
 	case VulnExtensionBypass, VulnContentTypeBypass, VulnDoubleExtension, VulnNullByte, VulnSVGXSS:
-		return SeverityHigh
+		return finding.High
 	case VulnMaliciousContent, VulnSizeBypass:
-		return SeverityMedium
+		return finding.Medium
 	default:
-		return SeverityMedium
+		return finding.Medium
 	}
 }
 
@@ -444,12 +424,7 @@ func getRemediation(vt VulnerabilityType) string {
 	return "Implement comprehensive file upload validation"
 }
 
-func truncate(s string, maxLen int) string {
-	if len(s) > maxLen {
-		return s[:maxLen] + "..."
-	}
-	return s
-}
+
 
 func createJPEGPolyglot() []byte {
 	// JPEG header bytes
@@ -613,20 +588,21 @@ func IsMagicBytesValid(content []byte, expectedType string) bool {
 	return true
 }
 
+// Pre-compiled patterns for executable code detection (avoid per-call regexp.MustCompile).
+var executableCodePatterns = []*regexp.Regexp{
+	regexp.MustCompile(`<\?[a-z]`),            // Script tag pattern
+	regexp.MustCompile(`<%[=\s]`),             // ASP tag pattern
+	regexp.MustCompile(`function\s+\w+\s*\(`), // Function definition
+	regexp.MustCompile(`\bimport\s+\w`),       // Import statement
+	regexp.MustCompile(`require\s*\(`),        // Require call
+	regexp.MustCompile(`WEBSHELL_MARKER`),     // Our test markers
+	regexp.MustCompile(`PLACEHOLDER_SCRIPT`),  // Our test markers
+}
+
 // ContainsExecutableCode checks if content contains executable code patterns.
 func ContainsExecutableCode(content []byte) bool {
-	// Use patterns that won't trigger AV
-	patterns := []*regexp.Regexp{
-		regexp.MustCompile(`<\?[a-z]`),            // Script tag pattern
-		regexp.MustCompile(`<%[=\s]`),             // ASP tag pattern
-		regexp.MustCompile(`function\s+\w+\s*\(`), // Function definition
-		regexp.MustCompile(`\bimport\s+\w`),       // Import statement
-		regexp.MustCompile(`require\s*\(`),        // Require call
-		regexp.MustCompile(`WEBSHELL_MARKER`),     // Our test markers
-		regexp.MustCompile(`PLACEHOLDER_SCRIPT`),  // Our test markers
-	}
 	contentStr := string(content)
-	for _, p := range patterns {
+	for _, p := range executableCodePatterns {
 		if p.MatchString(contentStr) {
 			return true
 		}

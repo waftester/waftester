@@ -8,10 +8,13 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 // Category defines the type of false positive
@@ -24,16 +27,6 @@ const (
 	CategoryDismissed Category = "dismissed" // Dismissed as actual threat
 )
 
-// Severity defines false positive severity
-type Severity string
-
-const (
-	SeverityLow      Severity = "low"
-	SeverityMedium   Severity = "medium"
-	SeverityHigh     Severity = "high"
-	SeverityCritical Severity = "critical"
-)
-
 // FalsePositive represents a detected false positive
 type FalsePositive struct {
 	ID          string            `json:"id" yaml:"id"`
@@ -43,7 +36,7 @@ type FalsePositive struct {
 	Endpoint    string            `json:"endpoint" yaml:"endpoint"`
 	Method      string            `json:"method" yaml:"method"`
 	Category    Category          `json:"category" yaml:"category"`
-	Severity    Severity          `json:"severity" yaml:"severity"`
+	Severity    finding.Severity  `json:"severity" yaml:"severity"`
 	Description string            `json:"description" yaml:"description"`
 	Reason      string            `json:"reason" yaml:"reason"`
 	Evidence    string            `json:"evidence,omitempty" yaml:"evidence,omitempty"`
@@ -97,7 +90,7 @@ func (p *Pattern) Matches(result *TestResult) bool {
 	}
 
 	// Check method match
-	if len(p.Methods) > 0 && !contains(p.Methods, result.Method) {
+	if len(p.Methods) > 0 && !slices.Contains(p.Methods, result.Method) {
 		return false
 	}
 
@@ -214,7 +207,7 @@ func (d *Detector) detectFP(result *TestResult) *FalsePositive {
 		Endpoint:  result.Endpoint,
 		Method:    result.Method,
 		Category:  CategorySuspected,
-		Severity:  SeverityMedium,
+		Severity:  finding.Medium,
 		FirstSeen: time.Now(),
 		LastSeen:  time.Now(),
 		Count:     1,
@@ -258,13 +251,13 @@ func (d *Detector) applyHeuristics(fp *FalsePositive, result *TestResult) {
 	// Static files often trigger false positives
 	if isStaticFile(result.Endpoint) {
 		fp.Reason = "Static file request - likely false positive"
-		fp.Severity = SeverityLow
+		fp.Severity = finding.Low
 	}
 
 	// API health endpoints
 	if isHealthEndpoint(result.Endpoint) {
 		fp.Reason = "Health check endpoint - likely false positive"
-		fp.Severity = SeverityLow
+		fp.Severity = finding.Low
 	}
 
 	// Common WAF rule false positives
@@ -284,7 +277,7 @@ func (d *Detector) GetStats() *Stats {
 		TotalPatterns: len(d.patterns),
 		KnownFPs:      len(d.knownFPs),
 		ByCategory:    make(map[Category]int),
-		BySeverity:    make(map[Severity]int),
+		BySeverity:    make(map[finding.Severity]int),
 	}
 
 	for _, fp := range d.knownFPs {
@@ -300,7 +293,7 @@ type Stats struct {
 	TotalPatterns int              `json:"total_patterns"`
 	KnownFPs      int              `json:"known_fps"`
 	ByCategory    map[Category]int `json:"by_category"`
-	BySeverity    map[Severity]int `json:"by_severity"`
+	BySeverity    map[finding.Severity]int `json:"by_severity"`
 }
 
 // Database stores and manages false positives
@@ -449,7 +442,7 @@ type Report struct {
 	GeneratedAt     time.Time        `json:"generated_at"`
 	TotalFPs        int              `json:"total_fps"`
 	ByCategory      map[Category]int `json:"by_category"`
-	BySeverity      map[Severity]int `json:"by_severity"`
+	BySeverity      map[finding.Severity]int `json:"by_severity"`
 	ByRule          map[string]int   `json:"by_rule"`
 	TopEndpoints    []EndpointStats  `json:"top_endpoints"`
 	RecentFPs       []*FalsePositive `json:"recent_fps"`
@@ -470,7 +463,7 @@ func GenerateReport(db *Database) *Report {
 		GeneratedAt:     time.Now(),
 		TotalFPs:        len(fps),
 		ByCategory:      make(map[Category]int),
-		BySeverity:      make(map[Severity]int),
+		BySeverity:      make(map[finding.Severity]int),
 		ByRule:          make(map[string]int),
 		Recommendations: make([]string, 0),
 	}
@@ -519,15 +512,6 @@ func GenerateReport(db *Database) *Report {
 }
 
 // Helper functions
-
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
-}
 
 func containsPattern(patterns []string, item string) bool {
 	for _, p := range patterns {
@@ -602,14 +586,14 @@ func (a *Analyzer) GetAnalysis(ruleID string) *RuleAnalysis {
 	analysis := &RuleAnalysis{
 		RuleID:   ruleID,
 		FPCount:  0,
-		Severity: SeverityLow,
+		Severity: finding.Low,
 	}
 
 	for _, fp := range fps {
 		if fp.RuleID == ruleID {
 			analysis.FPCount++
 			analysis.Endpoints = append(analysis.Endpoints, fp.Endpoint)
-			if fp.Severity == SeverityCritical || fp.Severity == SeverityHigh {
+			if fp.Severity == finding.Critical || fp.Severity == finding.High {
 				analysis.Severity = fp.Severity
 			}
 		}
@@ -629,6 +613,6 @@ type RuleAnalysis struct {
 	RuleID         string   `json:"rule_id"`
 	FPCount        int      `json:"fp_count"`
 	Endpoints      []string `json:"endpoints"`
-	Severity       Severity `json:"severity"`
+	Severity       finding.Severity `json:"severity"`
 	Recommendation string   `json:"recommendation"`
 }
