@@ -14,8 +14,10 @@ import (
 
 	"golang.org/x/text/unicode/norm"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
@@ -43,16 +45,6 @@ const (
 	ContextUnknown    InjectionContext = "unknown"
 )
 
-// Severity levels for vulnerabilities
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-)
-
 // Payload represents an XSS payload
 type Payload struct {
 	Value       string
@@ -63,18 +55,10 @@ type Payload struct {
 
 // Vulnerability represents a detected XSS vulnerability
 type Vulnerability struct {
-	Type        XSSType
-	Context     InjectionContext
-	Description string
-	Severity    Severity
-	URL         string
-	Parameter   string
-	Method      string
-	Payload     *Payload
-	Evidence    string
-	Remediation string
-	CVSS        float64
-	ConfirmedBy int
+	finding.Vulnerability
+	Type    XSSType          `json:"type"`
+	Context InjectionContext `json:"context"`
+	Payload *Payload         `json:"payload,omitempty"`
 }
 
 // ScanResult represents the result of a scan
@@ -88,9 +72,7 @@ type ScanResult struct {
 
 // TesterConfig holds configuration for the XSS tester
 type TesterConfig struct {
-	Timeout           time.Duration
-	UserAgent         string
-	Client            *http.Client
+	attackconfig.Base
 	IncludeBypassOnly bool // Only test WAF bypass payloads
 	TestDOMXSS        bool // Test for DOM-based XSS
 }
@@ -105,8 +87,10 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:           duration.HTTPFuzzing,
-		UserAgent:         ui.UserAgent(),
+		Base: attackconfig.Base{
+			Timeout:   duration.HTTPFuzzing,
+			UserAgent: ui.UserAgent(),
+		},
 		IncludeBypassOnly: false,
 		TestDOMXSS:        true,
 	}
@@ -541,17 +525,19 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 			injCtx := DetectContext(bodyStr, evidence)
 
 			vulns = append(vulns, Vulnerability{
-				Type:        XSSReflected,
-				Context:     injCtx,
-				Description: fmt.Sprintf("Reflected XSS via %s (%s)", payload.Description, injCtx),
-				Severity:    SeverityHigh,
-				URL:         targetURL,
-				Parameter:   param,
-				Method:      method,
-				Payload:     &payload,
-				Evidence:    evidence,
-				Remediation: GetRemediation(),
-				CVSS:        6.1,
+				Vulnerability: finding.Vulnerability{
+					Severity:    finding.High,
+					URL:         targetURL,
+					Parameter:   param,
+					Method:      method,
+					Description: fmt.Sprintf("Reflected XSS via %s (%s)", payload.Description, injCtx),
+					Evidence:    evidence,
+					Remediation: GetRemediation(),
+					CVSS:        6.1,
+				},
+				Type:    XSSReflected,
+				Context: injCtx,
+				Payload: &payload,
 			})
 		}
 	}
@@ -606,14 +592,16 @@ func (t *Tester) checkDOMXSS(ctx context.Context, targetURL string) []Vulnerabil
 
 	if hasSink && hasSource {
 		vulns = append(vulns, Vulnerability{
-			Type:        XSSDOMBased,
-			Context:     ContextJavaScript,
-			Description: "Potential DOM-based XSS: source flows to sink",
-			Severity:    SeverityMedium,
-			URL:         targetURL,
-			Evidence:    fmt.Sprintf("Source: %s, Sink: %s", sourceEvidence, sinkEvidence),
-			Remediation: GetDOMRemediation(),
-			CVSS:        5.4,
+			Vulnerability: finding.Vulnerability{
+				Severity:    finding.Medium,
+				URL:         targetURL,
+				Description: "Potential DOM-based XSS: source flows to sink",
+				Evidence:    fmt.Sprintf("Source: %s, Sink: %s", sourceEvidence, sinkEvidence),
+				Remediation: GetDOMRemediation(),
+				CVSS:        5.4,
+			},
+			Type:    XSSDOMBased,
+			Context: ContextJavaScript,
 		})
 	}
 

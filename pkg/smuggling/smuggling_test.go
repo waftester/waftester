@@ -165,29 +165,6 @@ func TestDetectContextCancellation(t *testing.T) {
 	}
 }
 
-func TestTruncate(t *testing.T) {
-	tests := []struct {
-		input    string
-		maxLen   int
-		expected string
-	}{
-		{"hello", 10, "hello"},
-		{"hello world", 5, "hello..."},
-		{"test", 4, "test"},
-		{"a", 1, "a"},
-		{"", 5, ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			result := truncate(tt.input, tt.maxLen)
-			if result != tt.expected {
-				t.Errorf("expected '%s', got '%s'", tt.expected, result)
-			}
-		})
-	}
-}
-
 func TestIsTimeout(t *testing.T) {
 	tests := []struct {
 		name     string

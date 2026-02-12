@@ -106,11 +106,11 @@ func ParseFlags() (*Config, error) {
 	flag.BoolVar(&cfg.StdinInput, "stdin", false, "Read targets from stdin")
 
 	// === EXECUTION ===
-	flag.IntVar(&cfg.Concurrency, "concurrency", 25, "Concurrent workers")
-	flag.IntVar(&cfg.Concurrency, "c", 25, "Concurrent workers (alias)")
-	flag.IntVar(&cfg.RateLimit, "rate-limit", 150, "Max requests per second")
-	flag.IntVar(&cfg.RateLimit, "rl", 150, "Rate limit (alias)")
-	timeout := flag.Int("timeout", 5, "HTTP timeout in seconds")
+	flag.IntVar(&cfg.Concurrency, "concurrency", defaults.DefaultConfigConcurrency, "Concurrent workers")
+	flag.IntVar(&cfg.Concurrency, "c", defaults.DefaultConfigConcurrency, "Concurrent workers (alias)")
+	flag.IntVar(&cfg.RateLimit, "rate-limit", defaults.DefaultConfigRateLimit, "Max requests per second")
+	flag.IntVar(&cfg.RateLimit, "rl", defaults.DefaultConfigRateLimit, "Rate limit (alias)")
+	timeout := flag.Int("timeout", defaults.DefaultConfigTimeoutSec, "HTTP timeout in seconds")
 	flag.IntVar(&cfg.Retries, "retries", 1, "Retry count on failure")
 
 	// === PAYLOADS ===
@@ -201,7 +201,8 @@ func ParseFlags() (*Config, error) {
 	flag.BoolVar(&cfg.EnableDetection, "detect", true, "Enable connection drop and silent ban detection")
 	flag.BoolVar(&cfg.EnableDetection, "detection", true, "Enable detection (alias)")
 
-	// Parse
+	// Parse — uses global flag.CommandLine intentionally.
+	// This is the CLI entry point; subcommands use flag.NewFlagSet.
 	flag.Parse()
 
 	// Convert timeout

@@ -121,8 +121,9 @@ const (
 	ErrorUnknown      ErrorCategory = "unknown"
 )
 
-// Writer interface for different output formats
-type Writer interface {
+// ResultWriter is the legacy interface for writing TestResult values.
+// For event-based output, use dispatcher.Writer instead.
+type ResultWriter interface {
 	Write(result *TestResult) error
 	Close() error
 }

@@ -30,14 +30,14 @@ func TestConfigDefaults(t *testing.T) {
 	}
 
 	// Check defaults
-	if cfg.Concurrency != 25 {
-		t.Errorf("Concurrency default: got %d, want 25", cfg.Concurrency)
+	if cfg.Concurrency != defaults.DefaultConfigConcurrency {
+		t.Errorf("Concurrency default: got %d, want %d", cfg.Concurrency, defaults.DefaultConfigConcurrency)
 	}
-	if cfg.RateLimit != 150 {
-		t.Errorf("RateLimit default: got %d, want 150", cfg.RateLimit)
+	if cfg.RateLimit != defaults.DefaultConfigRateLimit {
+		t.Errorf("RateLimit default: got %d, want %d", cfg.RateLimit, defaults.DefaultConfigRateLimit)
 	}
-	if cfg.Timeout != 5*time.Second {
-		t.Errorf("Timeout default: got %v, want 5s", cfg.Timeout)
+	if cfg.Timeout != time.Duration(defaults.DefaultConfigTimeoutSec)*time.Second {
+		t.Errorf("Timeout default: got %v, want %ds", cfg.Timeout, defaults.DefaultConfigTimeoutSec)
 	}
 	if cfg.Retries != 1 {
 		t.Errorf("Retries default: got %d, want 1", cfg.Retries)

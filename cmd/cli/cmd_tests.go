@@ -1,18 +1,16 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"net/url"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/waftester/waftester/pkg/calibration"
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/config"
 	"github.com/waftester/waftester/pkg/core"
 	"github.com/waftester/waftester/pkg/defaults"
@@ -94,7 +92,7 @@ func runTests() {
 	}
 
 	// Setup graceful shutdown
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := cli.SignalContext(30 * time.Second)
 	defer cancel()
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -113,15 +111,6 @@ func runTests() {
 		// Emit scan start event to hooks
 		_ = runDispCtx.EmitStart(ctx, cfg.TargetURL, 0, cfg.Concurrency, cfg.Categories)
 	}
-
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigChan
-		fmt.Fprintln(os.Stderr)
-		ui.PrintWarning("Interrupt received, shutting down gracefully...")
-		cancel()
-	}()
 
 	// Check if using a test plan from 'learn' command
 	var plan *learning.TestPlan
@@ -144,10 +133,10 @@ func runTests() {
 		if cfg.TargetURL == "" {
 			cfg.TargetURL = plan.Target
 		}
-		if cfg.Concurrency == 25 { // default value
+		if cfg.Concurrency == defaults.DefaultConfigConcurrency { // default value
 			cfg.Concurrency = plan.RecommendedFlags.Concurrency
 		}
-		if cfg.RateLimit == 150 { // default value
+		if cfg.RateLimit == defaults.DefaultConfigRateLimit { // default value
 			cfg.RateLimit = plan.RecommendedFlags.RateLimit
 		}
 		if cfg.Category == "" && len(plan.RecommendedFlags.Categories) > 0 {

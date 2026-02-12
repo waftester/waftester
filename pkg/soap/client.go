@@ -556,7 +556,7 @@ func FetchAndParseWSDL(ctx context.Context, url string) (*WSDLDefinition, error)
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	client := &http.Client{Timeout: duration.HTTPFuzzing}
+	client := httpclient.New(httpclient.Config{Timeout: duration.HTTPFuzzing})
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch WSDL: %w", err)

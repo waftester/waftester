@@ -390,10 +390,3 @@ func TestCaptureBaseline(t *testing.T) {
 		t.Errorf("Expected response time 100ms, got %v", detector.Baseline.ResponseTime)
 	}
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/httpclient"
 )
 
@@ -31,12 +32,14 @@ func TestNewFuzzer(t *testing.T) {
 
 	t.Run("with custom config", func(t *testing.T) {
 		cfg := &Config{
-			TargetURL:   "http://example.com/FUZZ",
-			Words:       []string{"admin"},
-			Concurrency: 10,
-			RateLimit:   50,
-			Timeout:     5 * time.Second,
-			Method:      "POST",
+			TargetURL: "http://example.com/FUZZ",
+			Words:     []string{"admin"},
+			Base: attackconfig.Base{
+				Concurrency: 10,
+				Timeout:     5 * time.Second,
+			},
+			RateLimit: 50,
+			Method:    "POST",
 		}
 		f := NewFuzzer(cfg)
 		require.NotNil(t, f)
@@ -70,11 +73,13 @@ func TestNewFuzzer(t *testing.T) {
 
 func TestConfigStruct(t *testing.T) {
 	cfg := Config{
-		TargetURL:      "http://example.com/FUZZ",
-		Words:          []string{"admin", "test", "login"},
-		Concurrency:    20,
+		TargetURL: "http://example.com/FUZZ",
+		Words:     []string{"admin", "test", "login"},
+		Base: attackconfig.Base{
+			Concurrency: 20,
+			Timeout:     5 * time.Second,
+		},
 		RateLimit:      100,
-		Timeout:        5 * time.Second,
 		Method:         "POST",
 		Headers:        map[string]string{"X-Custom": "value"},
 		Data:           "user=FUZZ",
@@ -149,11 +154,13 @@ func TestFuzzerRun(t *testing.T) {
 	defer server.Close()
 
 	cfg := &Config{
-		TargetURL:   server.URL + "/FUZZ",
-		Words:       []string{"admin", "login", "unknown"},
-		Concurrency: 2,
+		TargetURL: server.URL + "/FUZZ",
+		Words:     []string{"admin", "login", "unknown"},
+		Base: attackconfig.Base{
+			Concurrency: 2,
+			Timeout:     5 * time.Second,
+		},
 		RateLimit:   100,
-		Timeout:     5 * time.Second,
 		MatchStatus: []int{200},
 	}
 
@@ -180,10 +187,10 @@ func TestFuzzerRunWithContext(t *testing.T) {
 	defer server.Close()
 
 	cfg := &Config{
-		TargetURL:   server.URL + "/FUZZ",
-		Words:       []string{"a", "b", "c", "d", "e"},
-		Concurrency: 1,
-		RateLimit:   10,
+		TargetURL: server.URL + "/FUZZ",
+		Words:     []string{"a", "b", "c", "d", "e"},
+		Base:      attackconfig.Base{Concurrency: 1},
+		RateLimit: 10,
 	}
 
 	f := NewFuzzer(cfg)
@@ -235,7 +242,7 @@ func TestFuzzerFilters(t *testing.T) {
 		cfg := &Config{
 			TargetURL:    server.URL + "/FUZZ",
 			Words:        []string{"ok", "notfound", "forbidden"},
-			Concurrency:  1,
+			Base:         attackconfig.Base{Concurrency: 1},
 			FilterStatus: []int{404, 403},
 		}
 
@@ -252,7 +259,7 @@ func TestFuzzerFilters(t *testing.T) {
 		cfg := &Config{
 			TargetURL:   server.URL + "/FUZZ",
 			Words:       []string{"ok", "notfound", "forbidden"},
-			Concurrency: 1,
+			Base:        attackconfig.Base{Concurrency: 1},
 			MatchStatus: []int{200},
 		}
 
@@ -275,9 +282,9 @@ func TestFuzzerWithHeaders(t *testing.T) {
 	defer server.Close()
 
 	cfg := &Config{
-		TargetURL:   server.URL + "/FUZZ",
-		Words:       []string{"test"},
-		Concurrency: 1,
+		TargetURL: server.URL + "/FUZZ",
+		Words:     []string{"test"},
+		Base:      attackconfig.Base{Concurrency: 1},
 		Headers: map[string]string{
 			"X-Custom-Header": "custom-value",
 			"Authorization":   "Bearer token123",
@@ -303,11 +310,11 @@ func TestFuzzerWithPostData(t *testing.T) {
 	defer server.Close()
 
 	cfg := &Config{
-		TargetURL:   server.URL + "/api",
-		Words:       []string{"admin"},
-		Concurrency: 1,
-		Method:      "POST",
-		Data:        "username=FUZZ&password=test",
+		TargetURL: server.URL + "/api",
+		Words:     []string{"admin"},
+		Base:      attackconfig.Base{Concurrency: 1},
+		Method:    "POST",
+		Data:      "username=FUZZ&password=test",
 	}
 
 	f := NewFuzzer(cfg)
@@ -332,7 +339,7 @@ func TestFuzzerRedirects(t *testing.T) {
 		cfg := &Config{
 			TargetURL:   server.URL + "/FUZZ",
 			Words:       []string{"redirect"},
-			Concurrency: 1,
+			Base:        attackconfig.Base{Concurrency: 1},
 			FollowRedir: true,
 		}
 
@@ -350,7 +357,7 @@ func TestFuzzerRedirects(t *testing.T) {
 		cfg := &Config{
 			TargetURL:   server.URL + "/FUZZ",
 			Words:       []string{"redirect"},
-			Concurrency: 1,
+			Base:        attackconfig.Base{Concurrency: 1},
 			FollowRedir: false,
 		}
 
@@ -403,10 +410,10 @@ func TestFuzzerMatchRegex(t *testing.T) {
 	defer server.Close()
 
 	cfg := &Config{
-		TargetURL:   server.URL + "/FUZZ",
-		Words:       []string{"secret", "public"},
-		Concurrency: 1,
-		MatchRegex:  regexp.MustCompile(`API_KEY=\w+`),
+		TargetURL:  server.URL + "/FUZZ",
+		Words:      []string{"secret", "public"},
+		Base:       attackconfig.Base{Concurrency: 1},
+		MatchRegex: regexp.MustCompile(`API_KEY=\w+`),
 	}
 
 	f := NewFuzzer(cfg)
@@ -427,9 +434,9 @@ func TestCalibration(t *testing.T) {
 	defer server.Close()
 
 	cfg := &Config{
-		TargetURL:   server.URL + "/FUZZ",
-		Words:       []string{"test"},
-		Concurrency: 1,
+		TargetURL: server.URL + "/FUZZ",
+		Words:     []string{"test"},
+		Base:      attackconfig.Base{Concurrency: 1},
 	}
 
 	f := NewFuzzer(cfg)
@@ -509,9 +516,9 @@ func TestFuzzerMultipleFUZZKeywords(t *testing.T) {
 	defer server.Close()
 
 	cfg := &Config{
-		TargetURL:   server.URL + "/api/FUZZ/action",
-		Words:       []string{"users"},
-		Concurrency: 1,
+		TargetURL: server.URL + "/api/FUZZ/action",
+		Words:     []string{"users"},
+		Base:      attackconfig.Base{Concurrency: 1},
 	}
 
 	f := NewFuzzer(cfg)
@@ -529,10 +536,10 @@ func TestFuzzerWithCookies(t *testing.T) {
 	defer server.Close()
 
 	cfg := &Config{
-		TargetURL:   server.URL + "/FUZZ",
-		Words:       []string{"test"},
-		Concurrency: 1,
-		Cookies:     "session=abc123; auth=token",
+		TargetURL: server.URL + "/FUZZ",
+		Words:     []string{"test"},
+		Base:      attackconfig.Base{Concurrency: 1},
+		Cookies:   "session=abc123; auth=token",
 	}
 
 	f := NewFuzzer(cfg)
@@ -548,9 +555,9 @@ func TestFuzzerNilCallback(t *testing.T) {
 	defer server.Close()
 
 	cfg := &Config{
-		TargetURL:   server.URL + "/FUZZ",
-		Words:       []string{"test"},
-		Concurrency: 1,
+		TargetURL: server.URL + "/FUZZ",
+		Words:     []string{"test"},
+		Base:      attackconfig.Base{Concurrency: 1},
 	}
 
 	f := NewFuzzer(cfg)
@@ -562,9 +569,9 @@ func TestFuzzerNilCallback(t *testing.T) {
 
 func TestFuzzerEmptyWords(t *testing.T) {
 	cfg := &Config{
-		TargetURL:   "http://example.com/FUZZ",
-		Words:       []string{},
-		Concurrency: 1,
+		TargetURL: "http://example.com/FUZZ",
+		Words:     []string{},
+		Base:      attackconfig.Base{Concurrency: 1},
 	}
 
 	f := NewFuzzer(cfg)

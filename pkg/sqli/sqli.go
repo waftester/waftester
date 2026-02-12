@@ -12,8 +12,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
@@ -43,16 +45,6 @@ const (
 	InjectionStacked      InjectionType = "stacked"
 )
 
-// Severity levels for vulnerabilities
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-)
-
 // Payload represents an SQL injection payload
 type Payload struct {
 	Value       string
@@ -64,19 +56,10 @@ type Payload struct {
 
 // Vulnerability represents a detected SQL injection vulnerability
 type Vulnerability struct {
-	Type         InjectionType
-	DBMS         DBMS
-	Description  string
-	Severity     Severity
-	URL          string
-	Parameter    string
-	Method       string
-	Payload      *Payload
-	Evidence     string
-	Remediation  string
-	ResponseTime time.Duration
-	CVSS         float64
-	ConfirmedBy  int
+	finding.Vulnerability
+	Type    InjectionType `json:"type"`
+	DBMS    DBMS          `json:"dbms,omitempty"`
+	Payload *Payload      `json:"payload,omitempty"`
 }
 
 // ScanResult represents the result of a scan
@@ -90,13 +73,9 @@ type ScanResult struct {
 
 // TesterConfig holds configuration for the SQL injection tester
 type TesterConfig struct {
-	Timeout       time.Duration
+	attackconfig.Base
 	DBMS          DBMS
 	TimeThreshold time.Duration
-	UserAgent     string
-	Client        *http.Client
-	MaxPayloads   int // Maximum payloads per parameter (0 = unlimited)
-	MaxParams     int // Maximum parameters to test (0 = unlimited)
 }
 
 // Tester provides SQL injection testing capabilities
@@ -109,10 +88,12 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:       duration.HTTPFuzzing,
+		Base: attackconfig.Base{
+			Timeout:   duration.HTTPFuzzing,
+			UserAgent: ui.UserAgent(),
+		},
 		DBMS:          DBMSGeneric,
 		TimeThreshold: duration.CMDIThreshold,
-		UserAgent:     ui.UserAgent(),
 	}
 }
 
@@ -138,7 +119,7 @@ func NewTester(config *TesterConfig) *Tester {
 
 // generatePayloads generates SQL injection payloads for all DBMS types
 func (t *Tester) generatePayloads() []Payload {
-	var payloads []Payload
+	payloads := make([]Payload, 0, 75)
 
 	// Generic error-based payloads
 	errorPayloads := []struct {
@@ -381,7 +362,7 @@ func (t *Tester) generatePayloads() []Payload {
 
 	// Filter by DBMS if specified
 	if t.config.DBMS != DBMSGeneric {
-		var filtered []Payload
+		filtered := make([]Payload, 0, len(payloads))
 		for _, p := range payloads {
 			if p.DBMS == t.config.DBMS || p.DBMS == DBMSGeneric {
 				filtered = append(filtered, p)
@@ -399,7 +380,7 @@ func (t *Tester) GetPayloads(injectionType InjectionType) []Payload {
 		return t.payloads
 	}
 
-	var filtered []Payload
+	filtered := make([]Payload, 0, len(t.payloads))
 	for _, p := range t.payloads {
 		if p.Type == injectionType {
 			filtered = append(filtered, p)
@@ -573,18 +554,20 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 		if hasError, evidence := containsError(string(body)); hasError {
 			detectedDBMS := detectDBMS(string(body))
 			vulns = append(vulns, Vulnerability{
-				Type:         InjectionErrorBased,
-				DBMS:         detectedDBMS,
-				Description:  fmt.Sprintf("SQL injection via %s", payload.Description),
-				Severity:     SeverityCritical,
-				URL:          targetURL,
-				Parameter:    param,
-				Method:       method,
-				Payload:      &payload,
-				Evidence:     evidence,
-				ResponseTime: responseTime,
-				Remediation:  GetRemediation(),
-				CVSS:         9.8,
+				Vulnerability: finding.Vulnerability{
+					Description:  fmt.Sprintf("SQL injection via %s", payload.Description),
+					Severity:     finding.Critical,
+					URL:          targetURL,
+					Parameter:    param,
+					Method:       method,
+					Evidence:     evidence,
+					ResponseTime: responseTime,
+					Remediation:  GetRemediation(),
+					CVSS:         9.8,
+				},
+				Type:    InjectionErrorBased,
+				DBMS:    detectedDBMS,
+				Payload: &payload,
 			})
 			continue
 		}
@@ -599,18 +582,20 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 			// Check if response took significantly longer than baseline
 			if responseTime > baselineTime+expectedDelay-time.Second {
 				vulns = append(vulns, Vulnerability{
-					Type:         InjectionTimeBased,
-					DBMS:         payload.DBMS,
-					Description:  fmt.Sprintf("Time-based blind SQL injection via %s", payload.Description),
-					Severity:     SeverityCritical,
-					URL:          targetURL,
-					Parameter:    param,
-					Method:       method,
-					Payload:      &payload,
-					ResponseTime: responseTime,
-					Evidence:     fmt.Sprintf("Response delayed by %v (baseline: %v)", responseTime, baselineTime),
-					Remediation:  GetRemediation(),
-					CVSS:         9.8,
+					Vulnerability: finding.Vulnerability{
+						Description:  fmt.Sprintf("Time-based blind SQL injection via %s", payload.Description),
+						Severity:     finding.Critical,
+						URL:          targetURL,
+						Parameter:    param,
+						Method:       method,
+						ResponseTime: responseTime,
+						Evidence:     fmt.Sprintf("Response delayed by %v (baseline: %v)", responseTime, baselineTime),
+						Remediation:  GetRemediation(),
+						CVSS:         9.8,
+					},
+					Type:    InjectionTimeBased,
+					DBMS:    payload.DBMS,
+					Payload: &payload,
 				})
 			}
 			continue
@@ -626,17 +611,19 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 			// Significant length difference might indicate boolean-based
 			if lenDiff > 100 && strings.Contains(payload.Description, "true") {
 				vulns = append(vulns, Vulnerability{
-					Type:        InjectionBooleanBased,
-					DBMS:        DBMSGeneric,
-					Description: fmt.Sprintf("Boolean-based blind SQL injection (length diff: %d)", lenDiff),
-					Severity:    SeverityHigh,
-					URL:         targetURL,
-					Parameter:   param,
-					Method:      method,
-					Payload:     &payload,
-					Evidence:    fmt.Sprintf("Baseline length: %d, Current length: %d", baseLen, len(body)),
-					Remediation: GetRemediation(),
-					CVSS:        8.6,
+					Vulnerability: finding.Vulnerability{
+						Description: fmt.Sprintf("Boolean-based blind SQL injection (length diff: %d)", lenDiff),
+						Severity:    finding.High,
+						URL:         targetURL,
+						Parameter:   param,
+						Method:      method,
+						Evidence:    fmt.Sprintf("Baseline length: %d, Current length: %d", baseLen, len(body)),
+						Remediation: GetRemediation(),
+						CVSS:        8.6,
+					},
+					Type:    InjectionBooleanBased,
+					DBMS:    DBMSGeneric,
+					Payload: &payload,
 				})
 			}
 		}
@@ -798,7 +785,7 @@ func IsSQLEndpoint(urlStr string) bool {
 
 // GetDBMSPayloads returns payloads specific to a DBMS
 func (t *Tester) GetDBMSPayloads(dbms DBMS) []Payload {
-	var filtered []Payload
+	filtered := make([]Payload, 0, len(t.payloads))
 	for _, p := range t.payloads {
 		if p.DBMS == dbms || p.DBMS == DBMSGeneric {
 			filtered = append(filtered, p)
@@ -809,7 +796,7 @@ func (t *Tester) GetDBMSPayloads(dbms DBMS) []Payload {
 
 // GenerateUnionPayloads generates UNION-based payloads for column enumeration
 func GenerateUnionPayloads(maxColumns int) []string {
-	var payloads []string
+	payloads := make([]string, 0, 3*maxColumns)
 
 	for i := 1; i <= maxColumns; i++ {
 		nulls := make([]string, i)

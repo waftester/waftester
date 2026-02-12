@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
@@ -57,9 +58,7 @@ type ScanSummary struct {
 
 // Config configures the scanner behavior
 type Config struct {
-	Concurrency   int
-	Timeout       time.Duration
-	UserAgent     string
+	attackconfig.Base
 	Verbose       bool
 	SkipTLSVerify bool
 	Categories    []string     // Filter by category: "config", "debug", "backup", etc.
@@ -69,10 +68,12 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() *Config {
 	return &Config{
-		Concurrency: defaults.ConcurrencyHigh,
-		Timeout:     duration.DialTimeout,
-		UserAgent:   defaults.UAChrome,
-		Verbose:     false,
+		Base: attackconfig.Base{
+			Concurrency: defaults.ConcurrencyHigh,
+			Timeout:     duration.DialTimeout,
+			UserAgent:   defaults.UAChrome,
+		},
+		Verbose: false,
 	}
 }
 
@@ -144,7 +145,8 @@ func (s *Scanner) Scan(ctx context.Context, targetURL string, categories ...stri
 		for _, path := range paths {
 			select {
 			case <-ctx.Done():
-				break
+				close(pathsChan)
+				return
 			case pathsChan <- path:
 			}
 		}
@@ -278,24 +280,25 @@ func (s *Scanner) isInteresting(resp *http.Response, path PathEntry) bool {
 	return false
 }
 
+// Pre-compiled patterns for extractEvidence (avoid per-call regexp.MustCompile).
+var evidencePatterns = map[string]*regexp.Regexp{
+	"aws_key":     regexp.MustCompile(`AKIA[0-9A-Z]{16}`),
+	"private_key": regexp.MustCompile(`-----BEGIN [A-Z ]+ PRIVATE KEY-----`),
+	"db_url":      regexp.MustCompile(`(?:mysql|postgres|mongodb)://[^\s<>"']+`),
+	"api_key":     regexp.MustCompile(`(?i)api[_-]?key['":\s]*[=:]\s*['"]?([a-zA-Z0-9_-]{20,})`),
+	"jwt":         regexp.MustCompile(`eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*`),
+	"password":    regexp.MustCompile(`(?i)password['":\s]*[=:]\s*['"]?([^'"<>\s]+)`),
+	"secret":      regexp.MustCompile(`(?i)secret['":\s]*[=:]\s*['"]?([^'"<>\s]+)`),
+	"token":       regexp.MustCompile(`(?i)token['":\s]*[=:]\s*['"]?([a-zA-Z0-9_-]{20,})`),
+	"debug_mode":  regexp.MustCompile(`(?i)debug['":\s]*[=:]\s*['"]?(true|1|yes)`),
+	"stack_trace": regexp.MustCompile(`at\s+[\w.]+\([^)]*:\d+:\d+\)`),
+	"internal_ip": regexp.MustCompile(`(?:10\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])|192\.168)\.\d{1,3}\.\d{1,3}`),
+}
+
 // extractEvidence finds specific sensitive data in responses
 func (s *Scanner) extractEvidence(body string, path PathEntry) string {
-	patterns := map[string]*regexp.Regexp{
-		"aws_key":     regexp.MustCompile(`AKIA[0-9A-Z]{16}`),
-		"private_key": regexp.MustCompile(`-----BEGIN [A-Z ]+ PRIVATE KEY-----`),
-		"db_url":      regexp.MustCompile(`(?:mysql|postgres|mongodb)://[^\s<>"']+`),
-		"api_key":     regexp.MustCompile(`(?i)api[_-]?key['":\s]*[=:]\s*['"]?([a-zA-Z0-9_-]{20,})`),
-		"jwt":         regexp.MustCompile(`eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*`),
-		"password":    regexp.MustCompile(`(?i)password['":\s]*[=:]\s*['"]?([^'"<>\s]+)`),
-		"secret":      regexp.MustCompile(`(?i)secret['":\s]*[=:]\s*['"]?([^'"<>\s]+)`),
-		"token":       regexp.MustCompile(`(?i)token['":\s]*[=:]\s*['"]?([a-zA-Z0-9_-]{20,})`),
-		"debug_mode":  regexp.MustCompile(`(?i)debug['":\s]*[=:]\s*['"]?(true|1|yes)`),
-		"stack_trace": regexp.MustCompile(`at\s+[\w.]+\([^)]*:\d+:\d+\)`),
-		"internal_ip": regexp.MustCompile(`(?:10\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])|192\.168)\.\d{1,3}\.\d{1,3}`),
-	}
-
 	var evidence []string
-	for name, re := range patterns {
+	for name, re := range evidencePatterns {
 		if matches := re.FindStringSubmatch(body); len(matches) > 0 {
 			evidence = append(evidence, fmt.Sprintf("%s found", name))
 		}

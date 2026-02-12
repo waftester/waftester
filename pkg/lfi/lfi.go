@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -16,18 +17,19 @@ import (
 
 // Config configures LFI testing
 type Config struct {
-	Concurrency int
-	Timeout     time.Duration
-	Headers     map[string]string
-	OS          string // "linux", "windows", or "both"
+	attackconfig.Base
+	Headers map[string]string
+	OS      string // "linux", "windows", or "both"
 }
 
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Concurrency: defaults.ConcurrencyMedium,
-		Timeout:     httpclient.TimeoutProbing,
-		OS:          "both",
+		Base: attackconfig.Base{
+			Concurrency: defaults.ConcurrencyMedium,
+			Timeout:     httpclient.TimeoutProbing,
+		},
+		OS: "both",
 	}
 }
 

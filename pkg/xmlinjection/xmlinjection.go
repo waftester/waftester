@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -15,17 +16,18 @@ import (
 
 // Config configures XML injection testing
 type Config struct {
-	Concurrency int
-	Timeout     time.Duration
-	Headers     map[string]string
-	OOBDomain   string
+	attackconfig.Base
+	Headers   map[string]string
+	OOBDomain string
 }
 
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Concurrency: defaults.ConcurrencyMedium,
-		Timeout:     httpclient.TimeoutScanning,
+		Base: attackconfig.Base{
+			Concurrency: defaults.ConcurrencyMedium,
+			Timeout:     httpclient.TimeoutScanning,
+		},
 	}
 }
 

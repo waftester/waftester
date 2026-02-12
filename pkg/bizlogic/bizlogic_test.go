@@ -10,6 +10,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/attackconfig"
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewTester(t *testing.T) {
@@ -28,9 +31,8 @@ func TestNewTester(t *testing.T) {
 
 	t.Run("with custom config", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout:     60 * time.Second,
-			Concurrency: 20,
-			RaceCount:   5,
+			Base:      attackconfig.Base{Timeout: 60 * time.Second, Concurrency: 20},
+			RaceCount: 5,
 		}
 		tester := NewTester(config)
 		if tester.config.Concurrency != 20 {
@@ -77,7 +79,7 @@ func TestTestIDOR(t *testing.T) {
 	defer server.Close()
 
 	tester := NewTester(&TesterConfig{
-		Timeout: 5 * time.Second,
+		Base: attackconfig.Base{Timeout: 5 * time.Second},
 	})
 
 	ctx := context.Background()
@@ -110,7 +112,7 @@ func TestTestAuthBypass(t *testing.T) {
 	defer server.Close()
 
 	tester := NewTester(&TesterConfig{
-		Timeout: 5 * time.Second,
+		Base: attackconfig.Base{Timeout: 5 * time.Second},
 	})
 
 	ctx := context.Background()
@@ -152,7 +154,7 @@ func TestTestMassAssignment(t *testing.T) {
 	defer server.Close()
 
 	tester := NewTester(&TesterConfig{
-		Timeout: 5 * time.Second,
+		Base: attackconfig.Base{Timeout: 5 * time.Second},
 	})
 
 	ctx := context.Background()
@@ -187,7 +189,7 @@ func TestTestRaceCondition(t *testing.T) {
 	defer server.Close()
 
 	tester := NewTester(&TesterConfig{
-		Timeout:   5 * time.Second,
+		Base:      attackconfig.Base{Timeout: 5 * time.Second},
 		RaceCount: 5,
 	})
 
@@ -218,7 +220,7 @@ func TestTestEnumeration(t *testing.T) {
 	defer server.Close()
 
 	tester := NewTester(&TesterConfig{
-		Timeout: 5 * time.Second,
+		Base: attackconfig.Base{Timeout: 5 * time.Second},
 	})
 
 	ctx := context.Background()
@@ -250,7 +252,7 @@ func TestTestWorkflowBypass(t *testing.T) {
 	defer server.Close()
 
 	tester := NewTester(&TesterConfig{
-		Timeout: 5 * time.Second,
+		Base: attackconfig.Base{Timeout: 5 * time.Second},
 	})
 
 	ctx := context.Background()
@@ -367,7 +369,7 @@ func TestVulnerabilityToJSON(t *testing.T) {
 	vuln := Vulnerability{
 		Type:        VulnIDOR,
 		Description: "IDOR vulnerability found",
-		Severity:    SeverityHigh,
+		Severity:    finding.High,
 		URL:         "https://example.com/users/123",
 		Method:      "GET",
 		OriginalID:  "1",
@@ -390,7 +392,7 @@ func TestVulnerability(t *testing.T) {
 	vuln := Vulnerability{
 		Type:        VulnPrivEsc,
 		Description: "Privilege escalation detected",
-		Severity:    SeverityCritical,
+		Severity:    finding.Critical,
 		URL:         "https://example.com/admin",
 		Method:      "GET",
 		Evidence:    "Admin panel accessed with low-priv token",
@@ -418,9 +420,7 @@ func TestVulnerability(t *testing.T) {
 
 func TestTesterConfig(t *testing.T) {
 	config := &TesterConfig{
-		Timeout:       10 * time.Second,
-		UserAgent:     "custom-agent/1.0",
-		Concurrency:   5,
+		Base:          attackconfig.Base{Timeout: 10 * time.Second, UserAgent: "custom-agent/1.0", Concurrency: 5},
 		EnableRace:    true,
 		RaceCount:     20,
 		AuthHeader:    "Bearer token123",
@@ -490,8 +490,7 @@ func TestScan(t *testing.T) {
 	defer server.Close()
 
 	tester := NewTester(&TesterConfig{
-		Timeout:     5 * time.Second,
-		Concurrency: 2,
+		Base: attackconfig.Base{Timeout: 5 * time.Second, Concurrency: 2},
 	})
 
 	ctx := context.Background()

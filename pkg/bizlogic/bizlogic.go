@@ -10,17 +10,32 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/ui"
 )
+
+// idorPatterns contains pre-compiled regexes for extracting IDs from URLs.
+var idorPatterns = []struct {
+	name    string
+	pattern *regexp.Regexp
+}{
+	{"numeric", regexp.MustCompile(`/(\d+)(?:/|$|\?)`)},
+	{"uuid", regexp.MustCompile(`/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(?:/|$|\?)`)},
+	{"alphanumeric", regexp.MustCompile(`/([a-zA-Z0-9]{20,})(?:/|$|\?)`)},
+	{"query_numeric", regexp.MustCompile(`[?&](?:id|user_id|userId|ID)=(\d+)`)},
+	{"query_uuid", regexp.MustCompile(`[?&](?:id|user_id|userId|ID)=([a-f0-9-]{36})`)},
+}
 
 // VulnerabilityType represents the type of business logic vulnerability.
 type VulnerabilityType string
@@ -52,22 +67,11 @@ const (
 	VulnInsecureState VulnerabilityType = "insecure-state"
 )
 
-// Severity represents the severity level of a vulnerability.
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
-
 // Vulnerability represents a detected business logic vulnerability.
 type Vulnerability struct {
 	Type        VulnerabilityType `json:"type"`
 	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
+	Severity    finding.Severity  `json:"severity"`
 	URL         string            `json:"url"`
 	Method      string            `json:"method"`
 	Parameter   string            `json:"parameter,omitempty"`
@@ -113,9 +117,7 @@ type TestVariation struct {
 
 // TesterConfig holds configuration for business logic testing.
 type TesterConfig struct {
-	Timeout       time.Duration
-	UserAgent     string
-	Concurrency   int
+	attackconfig.Base
 	RetryCount    int
 	EnableRace    bool
 	RaceCount     int
@@ -134,10 +136,12 @@ type Tester struct {
 // DefaultConfig returns default configuration.
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:     duration.HTTPFuzzing,
-		UserAgent:   ui.UserAgentWithContext("BizLogic Tester"),
-		Concurrency: defaults.ConcurrencyMedium,
-		RetryCount:  defaults.RetryLow,
+		Base: attackconfig.Base{
+			Timeout:     duration.HTTPFuzzing,
+			UserAgent:   ui.UserAgentWithContext("BizLogic Tester"),
+			Concurrency: defaults.ConcurrencyMedium,
+		},
+		RetryCount: defaults.RetryLow,
 		EnableRace:  true,
 		RaceCount:   10,
 		Cookies:     make(map[string]string),
@@ -210,7 +214,7 @@ func (t *Tester) TestIDOR(ctx context.Context, baseURL, path string, originalID,
 			return &Vulnerability{
 				Type:        VulnIDOR,
 				Description: "Possible IDOR vulnerability - accessed resource with different ID",
-				Severity:    SeverityHigh,
+				Severity:    finding.High,
 				URL:         modifiedURL,
 				Method:      "GET",
 				OriginalID:  originalID,
@@ -269,7 +273,7 @@ func (t *Tester) TestAuthBypass(ctx context.Context, targetURL string) ([]Vulner
 			vulns = append(vulns, Vulnerability{
 				Type:        VulnAuthBypass,
 				Description: fmt.Sprintf("Authentication bypass via %s header", bypass.name),
-				Severity:    SeverityCritical,
+				Severity:    finding.Critical,
 				URL:         targetURL,
 				Method:      "GET",
 				Parameter:   bypass.name,
@@ -308,7 +312,7 @@ func (t *Tester) TestPrivilegeEscalation(ctx context.Context, targetURL string, 
 		return &Vulnerability{
 			Type:        VulnPrivEsc,
 			Description: "Privilege escalation - low privilege user accessed admin endpoint",
-			Severity:    SeverityCritical,
+			Severity:    finding.Critical,
 			URL:         targetURL + highPrivPath,
 			Method:      "GET",
 			Evidence:    fmt.Sprintf("Status: %d, Response length: %d", resp.StatusCode, len(body)),
@@ -363,7 +367,7 @@ func (t *Tester) TestMassAssignment(ctx context.Context, targetURL string, norma
 			return &Vulnerability{
 				Type:        VulnMassAssign,
 				Description: "Mass assignment vulnerability - privileged fields accepted",
-				Severity:    SeverityHigh,
+				Severity:    finding.High,
 				URL:         targetURL,
 				Method:      "POST",
 				Evidence:    fmt.Sprintf("Server accepted payload with admin/role fields: %s", string(malBody)[:min(200, len(malBody))]),
@@ -445,7 +449,7 @@ func (t *Tester) TestRaceCondition(ctx context.Context, targetURL, method, body 
 		vulns = append(vulns, Vulnerability{
 			Type:        VulnRaceCondition,
 			Description: fmt.Sprintf("Possible race condition - %d successful responses for concurrent requests", successCount),
-			Severity:    SeverityHigh,
+			Severity:    finding.High,
 			URL:         targetURL,
 			Method:      method,
 			Evidence:    fmt.Sprintf("Sent %d concurrent requests, %d succeeded", t.config.RaceCount, successCount),
@@ -491,7 +495,7 @@ func (t *Tester) TestPriceManipulation(ctx context.Context, targetURL string, or
 			return &Vulnerability{
 				Type:        VulnPriceManip,
 				Description: fmt.Sprintf("Price manipulation accepted - changed from %s to %s", originalPrice, manipulatedPrice),
-				Severity:    SeverityHigh,
+				Severity:    finding.High,
 				URL:         targetURL,
 				Method:      "POST",
 				Parameter:   "price",
@@ -527,7 +531,7 @@ func (t *Tester) TestWorkflowBypass(ctx context.Context, finalStepURL string, re
 		return &Vulnerability{
 			Type:        VulnWorkflowBypass,
 			Description: fmt.Sprintf("Workflow bypass - accessed final step without completing required steps: %v", requiredSteps),
-			Severity:    SeverityMedium,
+			Severity:    finding.Medium,
 			URL:         finalStepURL,
 			Method:      "GET",
 			Evidence:    fmt.Sprintf("Accessed %s without completing workflow", finalStepURL),
@@ -576,7 +580,7 @@ func (t *Tester) TestEnumeration(ctx context.Context, targetURL string, validID,
 		return &Vulnerability{
 			Type:        VulnEnumeration,
 			Description: "Resource enumeration possible - different responses for valid/invalid IDs",
-			Severity:    SeverityMedium,
+			Severity:    finding.Medium,
 			URL:         targetURL,
 			Method:      "GET",
 			Evidence:    fmt.Sprintf("Valid ID: status %d, len %d; Invalid ID: status %d, len %d", validResp.StatusCode, len(validBody), invalidResp.StatusCode, len(invalidBody)),
@@ -592,18 +596,7 @@ func (t *Tester) TestEnumeration(ctx context.Context, targetURL string, validID,
 func ExtractIDs(urlStr string) []ExtractedID {
 	var ids []ExtractedID
 
-	patterns := []struct {
-		name    string
-		pattern *regexp.Regexp
-	}{
-		{"numeric", regexp.MustCompile(`/(\d+)(?:/|$|\?)`)},
-		{"uuid", regexp.MustCompile(`/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(?:/|$|\?)`)},
-		{"alphanumeric", regexp.MustCompile(`/([a-zA-Z0-9]{20,})(?:/|$|\?)`)},
-		{"query_numeric", regexp.MustCompile(`[?&](?:id|user_id|userId|ID)=(\d+)`)},
-		{"query_uuid", regexp.MustCompile(`[?&](?:id|user_id|userId|ID)=([a-f0-9-]{36})`)},
-	}
-
-	for _, p := range patterns {
+	for _, p := range idorPatterns {
 		matches := p.pattern.FindAllStringSubmatch(urlStr, -1)
 		for _, match := range matches {
 			if len(match) > 1 {
@@ -798,9 +791,9 @@ func isNumeric(s string) bool {
 }
 
 func parseInt(s string) int {
-	var n int
-	for _, c := range s {
-		n = n*10 + int(c-'0')
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return 0
 	}
 	return n
 }
@@ -808,13 +801,6 @@ func parseInt(s string) int {
 func isUUID(s string) bool {
 	uuidPattern := regexcache.MustGet(`^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$`)
 	return uuidPattern.MatchString(strings.ToLower(s))
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // ParseURL parses a URL string into components for testing.

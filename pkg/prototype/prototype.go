@@ -12,8 +12,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
@@ -33,29 +35,11 @@ const (
 	VulnRCE           VulnerabilityType = "prototype-pollution-rce"
 )
 
-// Severity levels
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-)
-
 // Vulnerability represents a detected prototype pollution vulnerability
 type Vulnerability struct {
-	Type        VulnerabilityType `json:"type"`
-	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
-	URL         string            `json:"url"`
-	Parameter   string            `json:"parameter,omitempty"`
-	Payload     string            `json:"payload"`
-	Evidence    string            `json:"evidence"`
-	Gadget      string            `json:"gadget,omitempty"`
-	Remediation string            `json:"remediation"`
-	CVSS        float64           `json:"cvss"`
-	ConfirmedBy int               `json:"confirmed_by,omitempty"`
+	finding.Vulnerability
+	Type   VulnerabilityType `json:"type"`
+	Gadget string            `json:"gadget,omitempty"`
 }
 
 // Payload represents a prototype pollution payload
@@ -78,11 +62,8 @@ type ScanResult struct {
 
 // TesterConfig configures the prototype pollution tester
 type TesterConfig struct {
-	Timeout     time.Duration
-	UserAgent   string
-	Concurrency int
-	TestParams  []string
-	Client      *http.Client
+	attackconfig.Base
+	TestParams []string
 }
 
 // Tester performs prototype pollution tests
@@ -94,9 +75,11 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:     duration.HTTPFuzzing,
-		UserAgent:   ui.UserAgent(),
-		Concurrency: defaults.ConcurrencyLow,
+		Base: attackconfig.Base{
+			Timeout:     duration.HTTPFuzzing,
+			UserAgent:   ui.UserAgent(),
+			Concurrency: defaults.ConcurrencyLow,
+		},
 		TestParams: []string{
 			"config",
 			"data",
@@ -276,15 +259,16 @@ func (t *Tester) testQueryParam(ctx context.Context, baseURL string, payload Pay
 	evidence := t.detectPollution(string(body), resp.Header)
 	if evidence != "" {
 		return &Vulnerability{
-			Type:        payload.Type,
-			Description: payload.Description,
-			Severity:    getSeverity(payload.Type),
-			URL:         testURL,
-			Parameter:   "",
-			Payload:     payload.Value,
-			Evidence:    evidence,
-			Remediation: GetPrototypePollutionRemediation(),
-			CVSS:        getCVSS(payload.Type),
+			Vulnerability: finding.Vulnerability{
+				Description: payload.Description,
+				Severity:    getSeverity(payload.Type),
+				URL:         testURL,
+				Payload:     payload.Value,
+				Evidence:    evidence,
+				Remediation: GetPrototypePollutionRemediation(),
+				CVSS:        getCVSS(payload.Type),
+			},
+			Type: payload.Type,
 		}, nil
 	}
 
@@ -312,15 +296,17 @@ func (t *Tester) testJSONBody(ctx context.Context, targetURL string, param strin
 	evidence := t.detectPollution(string(body), resp.Header)
 	if evidence != "" {
 		return &Vulnerability{
-			Type:        payload.Type,
-			Description: payload.Description,
-			Severity:    getSeverity(payload.Type),
-			URL:         targetURL,
-			Parameter:   param,
-			Payload:     payload.Value,
-			Evidence:    evidence,
-			Remediation: GetPrototypePollutionRemediation(),
-			CVSS:        getCVSS(payload.Type),
+			Vulnerability: finding.Vulnerability{
+				Description: payload.Description,
+				Severity:    getSeverity(payload.Type),
+				URL:         targetURL,
+				Parameter:   param,
+				Payload:     payload.Value,
+				Evidence:    evidence,
+				Remediation: GetPrototypePollutionRemediation(),
+				CVSS:        getCVSS(payload.Type),
+			},
+			Type: payload.Type,
 		}, nil
 	}
 
@@ -329,7 +315,14 @@ func (t *Tester) testJSONBody(ctx context.Context, targetURL string, param strin
 
 // detectPollution checks if the response indicates prototype pollution
 func (t *Tester) detectPollution(body string, headers http.Header) string {
-	// Check for our marker in response
+	// Check for polluted property appearing in JSON response (more specific).
+	// This must come before the general ppmarker check so we can distinguish
+	// between a generic marker echo and actual property pollution.
+	if strings.Contains(body, `"test":`) && strings.Contains(body, "ppmarker") {
+		return "Polluted property appeared in response"
+	}
+
+	// Check for our marker in response (general case)
 	if strings.Contains(body, "ppmarker") {
 		return "Marker found in response - pollution successful"
 	}
@@ -349,12 +342,6 @@ func (t *Tester) detectPollution(body string, headers http.Header) string {
 		if match := re.FindString(body); match != "" {
 			return fmt.Sprintf("Pollution pattern in response: %s", match)
 		}
-	}
-
-	// Check for behavior changes indicating pollution
-	// (e.g., unexpected properties in JSON response)
-	if strings.Contains(body, `"test":`) && strings.Contains(body, "ppmarker") {
-		return "Polluted property appeared in response"
 	}
 
 	return ""
@@ -390,18 +377,18 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*ScanResult, error
 
 // Helper functions
 
-func getSeverity(vulnType VulnerabilityType) Severity {
+func getSeverity(vulnType VulnerabilityType) finding.Severity {
 	switch vulnType {
 	case VulnRCE:
-		return SeverityCritical
+		return finding.Critical
 	case VulnServerSide:
-		return SeverityHigh
+		return finding.High
 	case VulnClientSide, VulnJSONBody:
-		return SeverityMedium
+		return finding.Medium
 	case VulnQueryParam:
-		return SeverityMedium
+		return finding.Medium
 	default:
-		return SeverityMedium
+		return finding.Medium
 	}
 }
 
@@ -478,9 +465,18 @@ func SanitizePrototypePollution(input string) string {
 		"prototype",
 	}
 
+	// Loop until stable to prevent bypass via nested payloads.
+	// e.g. "__pro__proto__to__" → single pass removes inner "__proto__"
+	// leaving "__proto__" — the loop catches the residual.
 	result := input
-	for _, d := range dangerous {
-		result = strings.ReplaceAll(result, d, "")
+	for {
+		prev := result
+		for _, d := range dangerous {
+			result = strings.ReplaceAll(result, d, "")
+		}
+		if result == prev {
+			break
+		}
 	}
 
 	return result

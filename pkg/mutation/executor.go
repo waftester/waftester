@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
@@ -19,6 +18,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/realistic"
+	"github.com/waftester/waftester/pkg/retry"
 	"github.com/waftester/waftester/pkg/ui"
 	"github.com/waftester/waftester/pkg/waf"
 	"golang.org/x/time/rate"
@@ -314,11 +314,11 @@ func (e *Executor) Execute(ctx context.Context, tasks []MutationTask, handler Re
 				// Update stats
 				statsMu.Lock()
 				if result.Blocked {
-					atomic.AddInt64(&stats.Blocked, 1)
+					stats.Blocked++
 				} else if result.ErrorMessage != "" {
-					atomic.AddInt64(&stats.Errors, 1)
+					stats.Errors++
 				} else {
-					atomic.AddInt64(&stats.Passed, 1)
+					stats.Passed++
 				}
 				stats.ByEncoder[result.EncoderUsed]++
 				stats.ByLocation[result.LocationUsed]++
@@ -406,15 +406,16 @@ func (e *Executor) executeTask(ctx context.Context, task MutationTask) *TestResu
 	// Execute with retries
 	start := time.Now()
 	var resp *http.Response
-	for attempt := 0; attempt <= e.config.Retries; attempt++ {
-		resp, err = e.httpClient.Do(req)
-		if err == nil {
-			break
-		}
-		if attempt < e.config.Retries {
-			time.Sleep(100 * time.Millisecond)
-		}
-	}
+	err = retry.Do(ctx, retry.Config{
+		MaxAttempts: e.config.Retries + 1,
+		InitDelay:   100 * time.Millisecond,
+		MaxDelay:    100 * time.Millisecond,
+		Strategy:    retry.Constant,
+	}, func() error {
+		var doErr error
+		resp, doErr = e.httpClient.Do(req)
+		return doErr
+	})
 	result.LatencyMs = time.Since(start).Milliseconds()
 
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/corpus"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
@@ -27,10 +29,9 @@ import (
 
 // Config holds assessment configuration
 type Config struct {
+	attackconfig.Base
 	TargetURL     string
-	Concurrency   int
 	RateLimit     float64
-	Timeout       time.Duration
 	SkipTLSVerify bool
 	Verbose       bool
 	HTTPClient    *http.Client // Optional custom HTTP client (e.g., JA3-aware)
@@ -59,9 +60,11 @@ type Config struct {
 // DefaultConfig returns sensible defaults for assessment
 func DefaultConfig() *Config {
 	return &Config{
-		Concurrency:     defaults.ConcurrencyHigh,
+		Base: attackconfig.Base{
+			Concurrency: defaults.ConcurrencyHigh,
+			Timeout:     httpclient.TimeoutProbing,
+		},
 		RateLimit:       100,
-		Timeout:         httpclient.TimeoutProbing,
 		EnableFPTesting: true,
 		CorpusSources:   []string{"builtin"},
 		LeipzigLanguage: "eng",
@@ -77,6 +80,7 @@ type Assessment struct {
 	limiter       *rate.Limiter
 	corpusManager *corpus.Manager
 	calculator    *metrics.Calculator
+	logger        *slog.Logger
 
 	// Progress tracking
 	totalTests     int64
@@ -95,8 +99,16 @@ type Assessment struct {
 	detector *detection.Detector
 }
 
+// Option configures an Assessment.
+type Option func(*Assessment)
+
+// WithLogger sets a custom structured logger.
+func WithLogger(l *slog.Logger) Option {
+	return func(a *Assessment) { a.logger = l }
+}
+
 // New creates a new Assessment
-func New(cfg *Config) *Assessment {
+func New(cfg *Config, opts ...Option) *Assessment {
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
@@ -109,7 +121,7 @@ func New(cfg *Config) *Assessment {
 		httpClient = httpclient.Default()
 	}
 
-	return &Assessment{
+	a := &Assessment{
 		config:        cfg,
 		httpClient:    httpClient,
 		limiter:       rate.NewLimiter(rate.Limit(cfg.RateLimit), int(cfg.RateLimit)),
@@ -118,7 +130,12 @@ func New(cfg *Config) *Assessment {
 		attackResults: make([]metrics.AttackResult, 0),
 		benignResults: make([]metrics.BenignResult, 0),
 		detector:      detection.Default(),
+		logger:        slog.Default(),
 	}
+	for _, opt := range opts {
+		opt(a)
+	}
+	return a
 }
 
 // ProgressCallback is called periodically with progress updates
@@ -151,9 +168,7 @@ func (a *Assessment) Run(ctx context.Context, progressFn ProgressCallback) (*met
 		fpPayloads, err = a.loadFPCorpus(ctx)
 		if err != nil {
 			// Non-fatal, continue without FP testing
-			if a.config.Verbose {
-				fmt.Printf("Warning: FP corpus load failed: %v\n", err)
-			}
+			a.logger.Warn("FP corpus load failed", slog.String("error", err.Error()))
 		}
 	}
 
@@ -367,9 +382,7 @@ func (a *Assessment) loadUnifiedAttackPayloads() []AttackPayload {
 
 	provider := payloadprovider.NewProvider(payloadDir, defaults.TemplateDir)
 	if err := provider.Load(); err != nil {
-		if a.config.Verbose {
-			fmt.Printf("Unified payload loading failed, using built-in set: %v\n", err)
-		}
+		a.logger.Warn("unified payload loading failed, using built-in set", slog.String("error", err.Error()))
 		return nil
 	}
 
@@ -410,8 +423,11 @@ func (a *Assessment) loadUnifiedAttackPayloads() []AttackPayload {
 	if a.config.Verbose {
 		stats, _ := provider.GetStats()
 		if stats.NucleiPayloads > 0 {
-			fmt.Printf("Unified payload engine: %d JSON + %d Nuclei = %d total (using %d)\n",
-				stats.JSONPayloads, stats.NucleiPayloads, stats.TotalPayloads, len(result))
+			a.logger.Info("unified payload engine",
+				slog.Int("json_payloads", stats.JSONPayloads),
+				slog.Int("nuclei_payloads", stats.NucleiPayloads),
+				slog.Int("total_payloads", stats.TotalPayloads),
+				slog.Int("using", len(result)))
 		}
 	}
 
@@ -431,9 +447,7 @@ func (a *Assessment) loadFPCorpus(ctx context.Context) ([]corpus.Payload, error)
 		case "leipzig":
 			c, err := a.corpusManager.DownloadLeipzigCorpus(ctx, a.config.LeipzigLanguage, nil)
 			if err != nil {
-				if a.config.Verbose {
-					fmt.Printf("Leipzig download failed, using extended builtin: %v\n", err)
-				}
+				a.logger.Warn("Leipzig download failed, using extended builtin", slog.String("error", err.Error()))
 				// Fall back to extended builtin
 				c = a.corpusManager.GetBuiltinCorpus()
 			}
@@ -694,14 +708,6 @@ func (a *Assessment) GetBenignResults() []metrics.BenignResult {
 	results := make([]metrics.BenignResult, len(a.benignResults))
 	copy(results, a.benignResults)
 	return results
-}
-
-// Helper function
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // getBuiltinAttackPayloads returns a comprehensive set of attack payloads

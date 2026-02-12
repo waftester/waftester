@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
@@ -23,9 +24,8 @@ import (
 
 // Config configures recursive fuzzing
 type Config struct {
+	attackconfig.Base
 	MaxDepth     int           // Maximum recursion depth
-	Concurrency  int           // Worker count
-	Timeout      time.Duration // Request timeout
 	MaxResults   int           // Max results per level
 	Wordlist     []string      // Words to fuzz
 	Extensions   []string      // File extensions to try
@@ -33,7 +33,6 @@ type Config struct {
 	IncludeRegex string        // Only include URLs matching regex
 	FollowLinks  bool          // Extract and follow links
 	Delay        time.Duration // Delay between requests
-	UserAgent    string        // Custom user agent
 	Headers      http.Header   // Custom headers
 	SuccessCodes []int         // Status codes to consider success
 }
@@ -41,14 +40,16 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
+		Base: attackconfig.Base{
+			Concurrency: defaults.ConcurrencyMedium,
+			Timeout:     httpclient.TimeoutProbing,
+			UserAgent:   ui.UserAgentWithContext("Recursive Fuzzer"),
+		},
 		MaxDepth:     defaults.DepthMedium,
-		Concurrency:  defaults.ConcurrencyMedium,
-		Timeout:      httpclient.TimeoutProbing,
 		MaxResults:   1000,
 		Extensions:   []string{"", ".html", ".php", ".asp", ".aspx", ".jsp", ".json", ".xml"},
 		FollowLinks:  true,
 		Delay:        duration.CrawlDelay,
-		UserAgent:    ui.UserAgentWithContext("Recursive Fuzzer"),
 		SuccessCodes: []int{200, 201, 204, 301, 302, 307, 308, 401, 403},
 	}
 }

@@ -9,6 +9,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/attackconfig"
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewDetector(t *testing.T) {
@@ -27,9 +30,8 @@ func TestNewDetector(t *testing.T) {
 
 	t.Run("custom config", func(t *testing.T) {
 		cfg := &DetectorConfig{
-			Timeout:   5 * time.Second,
-			SafeMode:  false,
-			UserAgent: "CustomAgent/1.0",
+			Base:     attackconfig.Base{Timeout: 5 * time.Second, UserAgent: "CustomAgent/1.0"},
+			SafeMode: false,
 		}
 		d := NewDetector(cfg)
 		if d.config.Timeout != 5*time.Second {
@@ -202,8 +204,8 @@ func TestDetect(t *testing.T) {
 	defer server.Close()
 
 	d := NewDetector(&DetectorConfig{
-		SafeMode:    true,
-		MaxPayloads: 20,
+		Base:     attackconfig.Base{MaxPayloads: 20},
+		SafeMode: true,
 	})
 
 	ctx := context.Background()
@@ -240,8 +242,8 @@ func TestDetectNoVulnerability(t *testing.T) {
 	defer server.Close()
 
 	d := NewDetector(&DetectorConfig{
-		SafeMode:    true,
-		MaxPayloads: 10,
+		Base:     attackconfig.Base{MaxPayloads: 10},
+		SafeMode: true,
 	})
 
 	ctx := context.Background()
@@ -301,7 +303,7 @@ func TestPayloadGenerator(t *testing.T) {
 			t.Errorf("expected RCE type, got %s", payload.Type)
 		}
 
-		if payload.Severity != SeverityCritical {
+		if payload.Severity != finding.Critical {
 			t.Errorf("expected critical severity, got %s", payload.Severity)
 		}
 
@@ -400,7 +402,7 @@ func TestAnalyzeResponse(t *testing.T) {
 			MathB:          5,
 			MathResult:     25,
 			ExpectedOutput: "25",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 		}
 
 		vuln := d.analyzeResponse("http://test.com", "q", payload, "The result is 25!", time.Millisecond, "")
@@ -419,7 +421,7 @@ func TestAnalyzeResponse(t *testing.T) {
 			Type:     PayloadInfoDisclosure,
 			Engine:   EngineJinja2,
 			Regex:    regexp.MustCompile(`(?i)secret|debug`),
-			Severity: SeverityMedium,
+			Severity: finding.Medium,
 		}
 
 		vuln := d.analyzeResponse("http://test.com", "q", payload, "DEBUG=True, SECRET_KEY=abc", time.Millisecond, "")
@@ -439,7 +441,7 @@ func TestAnalyzeResponse(t *testing.T) {
 			Engine:         EngineJinja2,
 			MathResult:     9801,
 			ExpectedOutput: "9801",
-			Severity:       SeverityHigh,
+			Severity:       finding.High,
 		}
 
 		vuln := d.analyzeResponse("http://test.com", "q", payload, "Nothing to see here", time.Millisecond, "")
@@ -458,8 +460,7 @@ func TestContextCancellation(t *testing.T) {
 	defer server.Close()
 
 	d := NewDetector(&DetectorConfig{
-		Timeout:     5 * time.Second,
-		MaxPayloads: 100,
+		Base: attackconfig.Base{Timeout: 5 * time.Second, MaxPayloads: 100},
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -498,8 +499,8 @@ func TestScanURL(t *testing.T) {
 	defer server.Close()
 
 	d := NewDetector(&DetectorConfig{
-		SafeMode:    true,
-		MaxPayloads: 10,
+		Base:     attackconfig.Base{MaxPayloads: 10},
+		SafeMode: true,
 	})
 
 	result, err := d.ScanURL(context.Background(), server.URL, []string{"name", "id"})
@@ -582,13 +583,15 @@ func TestPayloadDescriptions(t *testing.T) {
 
 func TestVulnerabilityFields(t *testing.T) {
 	vuln := &Vulnerability{
-		URL:            "http://example.com/test",
-		Parameter:      "q",
+		Vulnerability: finding.Vulnerability{
+			URL:          "http://example.com/test",
+			Parameter:    "q",
+			Severity:     finding.High,
+			Evidence:     "7777777",
+			ResponseTime: 100 * time.Millisecond,
+		},
 		Engine:         EngineJinja2,
-		Evidence:       "7777777",
 		Confidence:     "high",
-		Severity:       SeverityHigh,
-		ResponseTime:   100 * time.Millisecond,
 		CanExecuteCode: true,
 		RCEPayload:     "{{lipsum.__globals__['os'].popen('id').read()}}",
 	}
@@ -670,8 +673,8 @@ func TestMaxPayloadsLimit(t *testing.T) {
 	defer countServer.Close()
 
 	d := NewDetector(&DetectorConfig{
-		SafeMode:    true,
-		MaxPayloads: 5,
+		Base:     attackconfig.Base{MaxPayloads: 5},
+		SafeMode: true,
 	})
 
 	_, err := d.Detect(context.Background(), countServer.URL, "test")

@@ -202,7 +202,8 @@ func TestClientClose(t *testing.T) {
 
 func TestNewClientFails(t *testing.T) {
 	// Attempting to connect to non-existent server should fail
-	_, err := NewClient("localhost:99999", WithTimeout(100*time.Millisecond))
+	ctx := context.Background()
+	_, err := NewClient(ctx, "localhost:99999", WithTimeout(100*time.Millisecond))
 	assert.Error(t, err, "Should fail to connect to non-existent server")
 }
 
@@ -282,7 +283,7 @@ func TestIntegrationListServices(t *testing.T) {
 	t.Skip("Requires running gRPC server with reflection")
 
 	ctx := context.Background()
-	client, err := NewClient("localhost:50051")
+	client, err := NewClient(ctx, "localhost:50051")
 	require.NoError(t, err)
 	defer client.Close()
 
@@ -295,7 +296,7 @@ func TestIntegrationDescribeService(t *testing.T) {
 	t.Skip("Requires running gRPC server with reflection")
 
 	ctx := context.Background()
-	client, err := NewClient("localhost:50051")
+	client, err := NewClient(ctx, "localhost:50051")
 	require.NoError(t, err)
 	defer client.Close()
 
@@ -308,7 +309,7 @@ func TestIntegrationInvoke(t *testing.T) {
 	t.Skip("Requires running gRPC server with reflection")
 
 	ctx := context.Background()
-	client, err := NewClient("localhost:50051")
+	client, err := NewClient(ctx, "localhost:50051")
 	require.NoError(t, err)
 	defer client.Close()
 
@@ -326,7 +327,7 @@ func TestIntegrationGenerate(t *testing.T) {
 	t.Skip("Requires running gRPC server with reflection")
 
 	ctx := context.Background()
-	client, err := NewClient("localhost:50051")
+	client, err := NewClient(ctx, "localhost:50051")
 	require.NoError(t, err)
 	defer client.Close()
 
