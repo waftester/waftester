@@ -17,6 +17,7 @@
 package hosterrors
 
 import (
+	"errors"
 	"net"
 	"net/url"
 	"strings"
@@ -132,8 +133,8 @@ func (c *Cache) Check(host string) bool {
 
 	state := v.(*hostState)
 
-	// Check if exceeded threshold - read all state under lock for consistency
-	state.mu.Lock()
+	// Fast read path - use RLock for the common case
+	state.mu.RLock()
 	count := state.count
 	permanent := state.permanent
 	markedAt := state.markedAt
@@ -141,18 +142,23 @@ func (c *Cache) Check(host string) bool {
 	if count >= c.maxErrors {
 		// Check expiry for non-permanent entries
 		if !permanent && time.Since(markedAt) > c.expiry {
-			// Expired, reset the state
-			state.count = 0
-			state.markedAt = time.Time{}
+			// Need write lock for expiry reset - upgrade lock
+			state.mu.RUnlock()
+			state.mu.Lock()
+			// Double-check under write lock (another goroutine may have reset)
+			if state.count >= c.maxErrors && !state.permanent && time.Since(state.markedAt) > c.expiry {
+				state.count = 0
+				state.markedAt = time.Time{}
+			}
 			state.mu.Unlock()
 			c.misses.Add(1)
 			return false
 		}
-		state.mu.Unlock()
+		state.mu.RUnlock()
 		c.hits.Add(1)
 		return true
 	}
-	state.mu.Unlock()
+	state.mu.RUnlock()
 
 	c.misses.Add(1)
 	return false
@@ -290,7 +296,7 @@ func IsNetworkError(err error) bool {
 	return false
 }
 
-// errorAs is a helper to check error types (avoids import errors package)
+// errorAs is a helper to check error types using errors.As for proper unwrapping.
 func errorAs(err error, target interface{}) bool {
 	if err == nil {
 		return false
@@ -298,10 +304,7 @@ func errorAs(err error, target interface{}) bool {
 
 	switch t := target.(type) {
 	case *net.Error:
-		if netErr, ok := err.(net.Error); ok {
-			*t = netErr
-			return true
-		}
+		return errors.As(err, t)
 	}
 
 	return false

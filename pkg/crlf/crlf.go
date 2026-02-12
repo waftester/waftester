@@ -5,7 +5,6 @@ package crlf
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -13,11 +12,27 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
+
+// crlfSanitizePatterns contains pre-compiled regexes for removing encoded CRLF sequences.
+var crlfSanitizePatterns = []*regexp.Regexp{
+	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%0d")),
+	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%0D")),
+	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%0a")),
+	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%0A")),
+	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%0d%0a")),
+	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%0D%0A")),
+	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%250d")),
+	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%250a")),
+	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%250D")),
+	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%250A")),
+}
 
 // VulnerabilityType represents the type of CRLF vulnerability
 type VulnerabilityType string
@@ -31,21 +46,11 @@ const (
 	VulnSetCookie         VulnerabilityType = "set-cookie-injection"
 )
 
-// Severity levels
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-)
-
 // Vulnerability represents a detected CRLF vulnerability
 type Vulnerability struct {
 	Type        VulnerabilityType `json:"type"`
 	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
+	Severity    finding.Severity  `json:"severity"`
 	URL         string            `json:"url"`
 	Parameter   string            `json:"parameter,omitempty"`
 	Payload     string            `json:"payload"`
@@ -76,12 +81,9 @@ type ScanResult struct {
 
 // TesterConfig configures the CRLF tester
 type TesterConfig struct {
-	Timeout     time.Duration
-	UserAgent   string
-	Concurrency int
+	attackconfig.Base
 	TestParams  []string
 	TestHeaders []string
-	Client      *http.Client
 }
 
 // Tester performs CRLF injection tests
@@ -93,9 +95,11 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:     httpclient.TimeoutFuzzing,
-		UserAgent:   ui.UserAgent(),
-		Concurrency: defaults.ConcurrencyLow,
+		Base: attackconfig.Base{
+			Timeout:     httpclient.TimeoutFuzzing,
+			UserAgent:   ui.UserAgent(),
+			Concurrency: defaults.ConcurrencyLow,
+		},
 		TestParams: []string{
 			"redirect",
 			"url",
@@ -470,16 +474,16 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*ScanResult, error
 
 // Helper functions
 
-func getSeverity(vulnType VulnerabilityType) Severity {
+func getSeverity(vulnType VulnerabilityType) finding.Severity {
 	switch vulnType {
 	case VulnResponseSplitting, VulnXSSViaCRLF:
-		return SeverityCritical
+		return finding.Critical
 	case VulnHeaderInjection, VulnSetCookie, VulnCachePoison:
-		return SeverityHigh
+		return finding.High
 	case VulnLogInjection:
-		return SeverityMedium
+		return finding.Medium
 	default:
-		return SeverityMedium
+		return finding.Medium
 	}
 }
 
@@ -562,17 +566,8 @@ func SanitizeCRLF(input string) string {
 
 // SanitizeCRLFEncoded removes encoded CRLF patterns
 func SanitizeCRLFEncoded(input string) string {
-	// Common URL-encoded patterns
-	patterns := []string{
-		"%0d", "%0D", "%0a", "%0A",
-		"%0d%0a", "%0D%0A",
-		"%250d", "%250a", "%250D", "%250A",
-	}
-
 	result := input
-	for _, p := range patterns {
-		// Case-insensitive replacement
-		re := regexp.MustCompile("(?i)" + regexp.QuoteMeta(p))
+	for _, re := range crlfSanitizePatterns {
 		result = re.ReplaceAllString(result, "")
 	}
 
@@ -595,13 +590,4 @@ func GenerateCRLFPayloads(headerName, headerValue string) []string {
 		// LF only
 		"%0a" + headerName + ":%20" + url.QueryEscape(headerValue),
 	}
-}
-
-// VulnerabilityToJSON converts vulnerability to JSON
-func VulnerabilityToJSON(v Vulnerability) (string, error) {
-	data, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
 }

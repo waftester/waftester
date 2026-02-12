@@ -6,17 +6,17 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html"
 	"net/http"
 	"os"
-	"os/signal"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/fuzz"
@@ -187,6 +187,11 @@ func runFuzz() {
 	// Load wordlist
 	var words []string
 	if *wordlist != "" {
+		// Reject non-HTTP URL schemes (SSRF protection)
+		if strings.Contains(*wordlist, "://") && !strings.HasPrefix(*wordlist, "http://") && !strings.HasPrefix(*wordlist, "https://") {
+			ui.PrintError("Wordlist URL must use http:// or https:// scheme")
+			os.Exit(1)
+		}
 		if strings.HasPrefix(*wordlist, "http://") || strings.HasPrefix(*wordlist, "https://") {
 			// Download wordlist
 			resp, err := http.Get(*wordlist)
@@ -282,20 +287,6 @@ func runFuzz() {
 		}
 	}
 
-	// Parse integer lists
-	parseIntList := func(s string) []int {
-		if s == "" {
-			return nil
-		}
-		var result []int
-		for _, part := range strings.Split(s, ",") {
-			if n, err := strconv.Atoi(strings.TrimSpace(part)); err == nil {
-				result = append(result, n)
-			}
-		}
-		return result
-	}
-
 	// Parse regexes
 	var matchRe, filterRe *regexp.Regexp
 	if *matchRegex != "" {
@@ -317,11 +308,13 @@ func runFuzz() {
 
 	// Build fuzz config
 	cfg := &fuzz.Config{
-		TargetURL:      targetURL,
-		Words:          words,
-		Concurrency:    *concurrency,
+		TargetURL: targetURL,
+		Words:     words,
+		Base: attackconfig.Base{
+			Concurrency: *concurrency,
+			Timeout:     time.Duration(*timeout) * time.Second,
+		},
 		RateLimit:      *rateLimit,
-		Timeout:        time.Duration(*timeout) * time.Second,
 		SkipVerify:     *skipVerify,
 		Method:         *method,
 		Headers:        headers,
@@ -402,7 +395,7 @@ func runFuzz() {
 	fuzzer := fuzz.NewFuzzer(cfg)
 
 	// Set up context with cancellation
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := cli.SignalContext(30 * time.Second)
 	defer cancel()
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -433,15 +426,6 @@ func runFuzz() {
 			fmt.Println()
 		}
 	}
-
-	// Handle Ctrl+C
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigChan
-		ui.PrintWarning("\nInterrupted, stopping...")
-		cancel()
-	}()
 
 	// Collect results
 	var results []*fuzz.Result
@@ -595,11 +579,11 @@ func runFuzz() {
 	if *htmlFuzz {
 		fmt.Println("<!DOCTYPE html><html><head><title>Fuzz Results</title>")
 		fmt.Println("<style>table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#4CAF50;color:white}</style></head><body>")
-		fmt.Printf("<h1>Fuzz Results</h1><p>Target: %s</p>\n", targetURL)
+		fmt.Printf("<h1>Fuzz Results</h1><p>Target: %s</p>\n", html.EscapeString(targetURL))
 		fmt.Printf("<p>Total: %d | Matches: %d</p>\n", stats.TotalRequests, stats.Matches)
 		fmt.Println("<table><tr><th>URL</th><th>Status</th><th>Size</th><th>Words</th><th>Lines</th></tr>")
 		for _, r := range results {
-			fmt.Printf("<tr><td>%s</td><td>%d</td><td>%d</td><td>%d</td><td>%d</td></tr>\n", r.URL, r.StatusCode, r.ContentLength, r.WordCount, r.LineCount)
+			fmt.Printf("<tr><td>%s</td><td>%d</td><td>%d</td><td>%d</td><td>%d</td></tr>\n", html.EscapeString(r.URL), r.StatusCode, r.ContentLength, r.WordCount, r.LineCount)
 		}
 		fmt.Println("</table></body></html>")
 		return

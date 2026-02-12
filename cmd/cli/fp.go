@@ -9,8 +9,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/fp"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -86,10 +88,12 @@ func runFP() {
 
 	// Build configuration
 	config := &fp.Config{
+		Base: attackconfig.Base{
+			Concurrency: *concurrency,
+			Timeout:     time.Duration(*timeout) * time.Second,
+		},
 		TargetURL:     *target,
-		Concurrency:   *concurrency,
 		RateLimit:     *rateLimit,
-		Timeout:       time.Duration(*timeout) * time.Second,
 		ParanoiaLevel: *paranoiaLevel,
 		CorpusSources: parseCorpusSources(*corpusSources),
 		Verbose:       *verbose,
@@ -208,8 +212,10 @@ func runFP() {
 
 	// Save to file if requested
 	if *output != "" {
-		data, _ := json.MarshalIndent(result, "", "  ")
-		if err := os.WriteFile(*output, data, 0644); err != nil {
+		data, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			fmt.Println(ui.ErrorStyle.Render(fmt.Sprintf("Error marshaling results: %v", err)))
+		} else if err := os.WriteFile(*output, data, 0644); err != nil {
 			fmt.Println(ui.ErrorStyle.Render(fmt.Sprintf("Error saving output: %v", err)))
 		} else {
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *output))
@@ -225,7 +231,7 @@ func runFP() {
 			// Emit individual FP details
 			for _, fpDetail := range result.FalsePositiveDetails {
 				detailDesc := fmt.Sprintf("False positive: %s blocked at %s (rule %d)",
-					truncate(fpDetail.Payload, 80), fpDetail.Location, fpDetail.RuleID)
+					strutil.Truncate(fpDetail.Payload, 80), fpDetail.Location, fpDetail.RuleID)
 				_ = fpDispCtx.EmitBypass(fpCtx, "false-positive-detail", "medium", *target, detailDesc, fpDetail.StatusCode)
 			}
 		}
@@ -262,6 +268,9 @@ func splitAndTrim(s string, sep string) []string {
 }
 
 func splitString(s, sep string) []string {
+	if s == "" {
+		return nil
+	}
 	result := make([]string, 0)
 	start := 0
 	for i := 0; i < len(s); i++ {
@@ -369,7 +378,7 @@ func displayFPResults(result *fp.Result) {
 		}
 		for i := 0; i < maxItems; i++ {
 			fpDetail := result.FalsePositiveDetails[i]
-			fmt.Printf("  [%d] Payload: %.60s...\n", i+1, truncate(fpDetail.Payload, 60))
+			fmt.Printf("  [%d] Payload: %.60s...\n", i+1, strutil.Truncate(fpDetail.Payload, 60))
 			fmt.Printf("      Location: %s | Status: %d | Rule: %d\n",
 				fpDetail.Location, fpDetail.StatusCode, fpDetail.RuleID)
 		}
@@ -380,12 +389,7 @@ func displayFPResults(result *fp.Result) {
 	}
 }
 
-func truncate(s string, max int) string {
-	if len(s) <= max {
-		return s
-	}
-	return s[:max]
-}
+
 
 func runLocalFPTest(paranoiaLevel int, verbose bool) {
 	ui.PrintInfo("Running local WAF FP simulation...")

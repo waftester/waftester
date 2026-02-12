@@ -17,6 +17,10 @@ import (
 
 // cache holds compiled regular expressions keyed by pattern string.
 // Using sync.Map for concurrent access without explicit locking.
+//
+// The cache is unbounded but effectively limited by the finite set of
+// unique regex patterns in payload definitions and WAF signatures.
+// In practice this is a few hundred entries at most.
 var cache sync.Map
 
 // Get returns a compiled regexp for the given pattern.
@@ -25,7 +29,9 @@ var cache sync.Map
 func Get(pattern string) (*regexp.Regexp, error) {
 	// Fast path: check if already cached
 	if cached, ok := cache.Load(pattern); ok {
-		return cached.(*regexp.Regexp), nil
+		if re, ok := cached.(*regexp.Regexp); ok {
+			return re, nil
+		}
 	}
 
 	// Slow path: compile and cache

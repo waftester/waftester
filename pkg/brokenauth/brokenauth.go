@@ -6,10 +6,12 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -17,16 +19,17 @@ import (
 
 // Config configures broken authentication testing
 type Config struct {
-	Concurrency int
-	Timeout     time.Duration
-	Headers     map[string]string
+	attackconfig.Base
+	Headers map[string]string
 }
 
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Concurrency: defaults.ConcurrencyLow,
-		Timeout:     httpclient.TimeoutScanning,
+		Base: attackconfig.Base{
+			Concurrency: defaults.ConcurrencyLow,
+			Timeout:     httpclient.TimeoutScanning,
+		},
 	}
 }
 
@@ -210,7 +213,7 @@ func (s *Scanner) TestAccountLockout(ctx context.Context, loginURL string, usern
 	result := Result{
 		URL:         loginURL,
 		TestType:    "account_lockout",
-		Description: "Testing account lockout after " + string(rune(attempts)) + " failed attempts",
+		Description: "Testing account lockout after " + strconv.Itoa(attempts) + " failed attempts",
 		Timestamp:   time.Now(),
 	}
 
@@ -243,14 +246,14 @@ func (s *Scanner) TestAccountLockout(ctx context.Context, loginURL string, usern
 		// Check if locked out
 		if resp.StatusCode == 423 || resp.StatusCode == 429 {
 			// Account lockout detected - good!
-			result.Evidence = "Account lockout after " + string(rune(i+1)) + " attempts"
+			result.Evidence = "Account lockout after " + strconv.Itoa(i+1) + " attempts"
 			return result, nil
 		}
 	}
 
 	// No lockout detected after all attempts
 	result.Vulnerable = true
-	result.Evidence = "No account lockout after " + string(rune(attempts)) + " failed attempts"
+	result.Evidence = "No account lockout after " + strconv.Itoa(attempts) + " failed attempts"
 	result.Severity = "HIGH"
 
 	s.mu.Lock()

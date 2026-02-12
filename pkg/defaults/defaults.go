@@ -13,11 +13,12 @@ package defaults
 
 import (
 	"fmt"
+	"sync/atomic"
 	"time"
 )
 
 // Version is the current WAFtester version
-const Version = "2.8.4"
+const Version = "2.8.5"
 
 // ToolName is the canonical tool name for output formats and integrations
 const ToolName = "waftester"
@@ -354,11 +355,22 @@ const (
 	DropDetectRecoveryProbes = 2
 )
 
-var (
-	// DropDetectRecoveryWindow is the time window to wait before
-	// attempting recovery probes after a connection drop
-	DropDetectRecoveryWindow = 30 * time.Second
-)
+var dropDetectRecoveryWindow atomic.Value
+
+func init() {
+	dropDetectRecoveryWindow.Store(30 * time.Second)
+}
+
+// DropDetectRecoveryWindow returns the time window to wait before
+// attempting recovery probes after a connection drop.
+func DropDetectRecoveryWindow() time.Duration {
+	return dropDetectRecoveryWindow.Load().(time.Duration)
+}
+
+// SetDropDetectRecoveryWindow sets the recovery window duration.
+func SetDropDetectRecoveryWindow(d time.Duration) {
+	dropDetectRecoveryWindow.Store(d)
+}
 
 // ============================================================================
 // SILENT BAN DETECTION
@@ -391,8 +403,66 @@ const (
 	SilentBanHeaderChangeThreshold = 3
 )
 
-var (
-	// SilentBanCooldownPeriod is the time to wait after detecting a
-	// silent ban before resuming normal testing
-	SilentBanCooldownPeriod = 60 * time.Second
+// ============================================================================
+// CONFIG DEFAULTS
+// ============================================================================
+//
+// Default values for the main test command configuration.
+// ============================================================================
+
+const (
+	// DefaultConfigConcurrency is the default concurrent workers for the test command
+	DefaultConfigConcurrency = 25
+
+	// DefaultConfigRateLimit is the default requests per second for the test command
+	DefaultConfigRateLimit = 150
+
+	// DefaultConfigTimeoutSec is the default HTTP timeout in seconds for the test command
+	DefaultConfigTimeoutSec = 5
 )
+
+// ============================================================================
+// SCORING
+// ============================================================================
+//
+// Thresholds for risk scoring calculations.
+// ============================================================================
+
+const (
+	// TimingThresholdMs is the latency threshold (in ms) above which a failed
+	// test is flagged as a potential blind injection (timing attack)
+	TimingThresholdMs = 5000
+
+	// NormalizationScale is the scale factor for normalizing risk scores to 0-100
+	NormalizationScale = 100.0
+)
+
+// ============================================================================
+// DETECTION
+// ============================================================================
+//
+// Constants for silent ban and anomaly detection algorithms.
+// ============================================================================
+
+const (
+	// EMAAlpha is the exponential moving average smoothing factor
+	// used for baseline adaptation in silent ban detection (0.3 = 30% weight to new value)
+	EMAAlpha = 0.3
+)
+
+var silentBanCooldownPeriod atomic.Value
+
+func init() {
+	silentBanCooldownPeriod.Store(60 * time.Second)
+}
+
+// SilentBanCooldownPeriod returns the time to wait after detecting a
+// silent ban before resuming normal testing.
+func SilentBanCooldownPeriod() time.Duration {
+	return silentBanCooldownPeriod.Load().(time.Duration)
+}
+
+// SetSilentBanCooldownPeriod sets the cooldown period duration.
+func SetSilentBanCooldownPeriod(d time.Duration) {
+	silentBanCooldownPeriod.Store(d)
+}

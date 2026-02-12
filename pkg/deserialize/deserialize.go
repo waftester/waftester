@@ -12,13 +12,15 @@ import (
 	"net/url"
 	"strings"
 	"sync"
-	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -37,22 +39,11 @@ const (
 	VulnJSONDeserial   VulnerabilityType = "json-deserialization"
 )
 
-// Severity represents the severity level.
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
-
 // Vulnerability represents a detected deserialization vulnerability.
 type Vulnerability struct {
 	Type        VulnerabilityType `json:"type"`
 	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
+	Severity    finding.Severity   `json:"severity"`
 	URL         string            `json:"url"`
 	Parameter   string            `json:"parameter,omitempty"`
 	Payload     string            `json:"payload,omitempty"`
@@ -76,9 +67,7 @@ type Payload struct {
 
 // TesterConfig holds configuration for deserialization testing.
 type TesterConfig struct {
-	Timeout        time.Duration
-	UserAgent      string
-	Concurrency    int
+	attackconfig.Base
 	Parameters     []string
 	AuthHeader     string
 	Cookies        map[string]string
@@ -95,9 +84,11 @@ type Tester struct {
 // DefaultConfig returns default configuration.
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:        duration.HTTPFuzzing,
-		UserAgent:      ui.UserAgentWithContext("Deserialize Tester"),
-		Concurrency:    defaults.ConcurrencyLow,
+		Base: attackconfig.Base{
+			Timeout:     duration.HTTPFuzzing,
+			UserAgent:   ui.UserAgentWithContext("Deserialize Tester"),
+			Concurrency: defaults.ConcurrencyLow,
+		},
 		Parameters:     []string{"data", "object", "session", "token", "state", "viewstate"},
 		Cookies:        make(map[string]string),
 		FollowRedirect: false,
@@ -153,10 +144,10 @@ func (t *Tester) TestPayload(ctx context.Context, targetURL string, param string
 		return &Vulnerability{
 			Type:        payload.VulnType,
 			Description: payload.Description,
-			Severity:    SeverityCritical,
+			Severity:    finding.Critical,
 			URL:         targetURL,
 			Parameter:   param,
-			Payload:     truncate(payloadData, 200),
+			Payload:     strutil.Truncate(payloadData, 200),
 			Evidence:    fmt.Sprintf("Status: %d, Body contains deserialization indicators", resp.StatusCode),
 			Remediation: getRemediation(payload.VulnType),
 			CVSS:        9.8,
@@ -195,9 +186,9 @@ func (t *Tester) TestPOST(ctx context.Context, targetURL string, payload Payload
 		return &Vulnerability{
 			Type:        payload.VulnType,
 			Description: payload.Description,
-			Severity:    SeverityCritical,
+			Severity:    finding.Critical,
 			URL:         targetURL,
-			Payload:     truncate(payloadData, 200),
+			Payload:     strutil.Truncate(payloadData, 200),
 			Evidence:    fmt.Sprintf("Status: %d, Response indicates deserialization", resp.StatusCode),
 			Remediation: getRemediation(payload.VulnType),
 			CVSS:        9.8,
@@ -223,7 +214,12 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) ([]Vulnerability, e
 			go func(p Payload, par string) {
 				defer wg.Done()
 
-				sem <- struct{}{}
+				// Check context before acquiring semaphore to avoid goroutine leak
+				select {
+				case sem <- struct{}{}:
+				case <-ctx.Done():
+					return
+				}
 				defer func() { <-sem }()
 
 				vuln, err := t.TestPayload(ctx, targetURL, par, p)
@@ -485,12 +481,7 @@ func getRemediation(vt VulnerabilityType) string {
 	return "Avoid deserializing untrusted data"
 }
 
-func truncate(s string, maxLen int) string {
-	if len(s) > maxLen {
-		return s[:maxLen] + "..."
-	}
-	return s
-}
+
 
 // AllVulnerabilityTypes returns all deserialization vulnerability types.
 func AllVulnerabilityTypes() []VulnerabilityType {

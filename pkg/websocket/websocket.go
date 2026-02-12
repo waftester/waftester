@@ -14,7 +14,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
@@ -34,26 +36,10 @@ const (
 	VulnDenialOfService  VulnerabilityType = "denial-of-service"
 )
 
-// Severity levels
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-)
-
 // Vulnerability represents a detected WebSocket vulnerability
 type Vulnerability struct {
-	Type        VulnerabilityType
-	Description string
-	Severity    Severity
-	URL         string
-	Evidence    string
-	Remediation string
-	CVSS        float64
-	ConfirmedBy int
+	finding.Vulnerability
+	Type VulnerabilityType
 }
 
 // ScanResult represents the result of a WebSocket scan
@@ -69,9 +55,7 @@ type ScanResult struct {
 
 // TesterConfig holds configuration for the WebSocket tester
 type TesterConfig struct {
-	Timeout     time.Duration
-	UserAgent   string
-	Client      *http.Client
+	attackconfig.Base
 	TestOrigins []string // Origins to test for bypass
 }
 
@@ -84,8 +68,10 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:   duration.HTTPFuzzing,
-		UserAgent: ui.UserAgent(),
+		Base: attackconfig.Base{
+			Timeout:   duration.HTTPFuzzing,
+			UserAgent: ui.UserAgent(),
+		},
 		TestOrigins: []string{
 			"https://evil.com",
 			"https://attacker.com",
@@ -255,13 +241,15 @@ func (t *Tester) TestOriginValidation(ctx context.Context, targetURL string) ([]
 		// If we get 101 with evil origin, it's vulnerable
 		if statusCode == http.StatusSwitchingProtocols {
 			vulns = append(vulns, Vulnerability{
-				Type:        VulnOriginValidation,
-				Description: fmt.Sprintf("WebSocket accepts connection from origin: %s", origin),
-				Severity:    SeverityHigh,
-				URL:         targetURL,
-				Evidence:    fmt.Sprintf("Status: %d, Origin: %s", statusCode, origin),
-				Remediation: GetOriginRemediation(),
-				CVSS:        7.4,
+				Vulnerability: finding.Vulnerability{
+					Description: fmt.Sprintf("WebSocket accepts connection from origin: %s", origin),
+					Severity:    finding.High,
+					URL:         targetURL,
+					Evidence:    fmt.Sprintf("Status: %d, Origin: %s", statusCode, origin),
+					Remediation: GetOriginRemediation(),
+					CVSS:        7.4,
+				},
+				Type: VulnOriginValidation,
 			})
 		}
 
@@ -269,13 +257,15 @@ func (t *Tester) TestOriginValidation(ctx context.Context, targetURL string) ([]
 		expectedAccept := computeAcceptKey(key)
 		if secWSAccept != "" && secWSAccept == expectedAccept {
 			vulns = append(vulns, Vulnerability{
-				Type:        VulnCSWS,
-				Description: fmt.Sprintf("Cross-site WebSocket hijacking possible with origin: %s", origin),
-				Severity:    SeverityCritical,
-				URL:         targetURL,
-				Evidence:    fmt.Sprintf("Sec-WebSocket-Accept: %s", secWSAccept),
-				Remediation: GetCSWSRemediation(),
-				CVSS:        8.1,
+				Vulnerability: finding.Vulnerability{
+					Description: fmt.Sprintf("Cross-site WebSocket hijacking possible with origin: %s", origin),
+					Severity:    finding.Critical,
+					URL:         targetURL,
+					Evidence:    fmt.Sprintf("Sec-WebSocket-Accept: %s", secWSAccept),
+					Remediation: GetCSWSRemediation(),
+					CVSS:        8.1,
+				},
+				Type: VulnCSWS,
 			})
 		}
 	}
@@ -320,13 +310,15 @@ func (t *Tester) TestTLS(ctx context.Context, targetURL string) ([]Vulnerability
 			iohelper.DrainAndClose(resp.Body)
 			if resp.StatusCode == http.StatusSwitchingProtocols {
 				vulns = append(vulns, Vulnerability{
-					Type:        VulnNoTLS,
-					Description: "WebSocket connection without TLS encryption",
-					Severity:    SeverityMedium,
-					URL:         targetURL,
-					Evidence:    "Server accepts ws:// connections",
-					Remediation: GetTLSRemediation(),
-					CVSS:        5.3,
+					Vulnerability: finding.Vulnerability{
+						Description: "WebSocket connection without TLS encryption",
+						Severity:    finding.Medium,
+						URL:         targetURL,
+						Evidence:    "Server accepts ws:// connections",
+						Remediation: GetTLSRemediation(),
+						CVSS:        5.3,
+					},
+					Type: VulnNoTLS,
 				})
 			}
 		}
@@ -357,13 +349,15 @@ func (t *Tester) TestTokenInURL(ctx context.Context, targetURL string) ([]Vulner
 		re := regexcache.MustGet(pattern)
 		if match := re.FindString(queryStr); match != "" {
 			vulns = append(vulns, Vulnerability{
-				Type:        VulnTokenExposure,
-				Description: "Sensitive token exposed in WebSocket URL",
-				Severity:    SeverityMedium,
-				URL:         targetURL,
-				Evidence:    fmt.Sprintf("Found: %s", match),
-				Remediation: GetTokenRemediation(),
-				CVSS:        5.3,
+				Vulnerability: finding.Vulnerability{
+					Description: "Sensitive token exposed in WebSocket URL",
+					Severity:    finding.Medium,
+					URL:         targetURL,
+					Evidence:    fmt.Sprintf("Found: %s", match),
+					Remediation: GetTokenRemediation(),
+					CVSS:        5.3,
+				},
+				Type: VulnTokenExposure,
 			})
 		}
 	}

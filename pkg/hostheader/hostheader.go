@@ -9,8 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
@@ -24,19 +26,14 @@ const (
 	VulnCachePoisoning   VulnerabilityType = "cache-poisoning"
 	VulnSSRF             VulnerabilityType = "ssrf"
 	VulnOpenRedirect     VulnerabilityType = "open-redirect"
-	VulnWebCachePoisonng VulnerabilityType = "web-cache-poisoning"
-	VulnHostOverride     VulnerabilityType = "host-override"
+	VulnWebCachePoisoning VulnerabilityType = "web-cache-poisoning"
+	VulnHostOverride      VulnerabilityType = "host-override"
+
+	// Deprecated: Use VulnWebCachePoisoning instead.
+	VulnWebCachePoisonng = VulnWebCachePoisoning
 )
 
-// Severity levels for vulnerabilities
-type Severity string
 
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-)
 
 // Payload represents a Host header injection payload
 type Payload struct {
@@ -49,7 +46,7 @@ type Payload struct {
 type Vulnerability struct {
 	Type          VulnerabilityType
 	Description   string
-	Severity      Severity
+	Severity      finding.Severity
 	URL           string
 	Header        string
 	InjectedValue string
@@ -70,9 +67,7 @@ type ScanResult struct {
 
 // TesterConfig holds configuration for the Host header tester
 type TesterConfig struct {
-	Timeout     time.Duration
-	UserAgent   string
-	Client      *http.Client
+	attackconfig.Base
 	CallbackURL string // For OOB testing
 }
 
@@ -86,8 +81,10 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:   duration.HTTPFuzzing,
-		UserAgent: ui.UserAgent(),
+		Base: attackconfig.Base{
+			Timeout:   duration.HTTPFuzzing,
+			UserAgent: ui.UserAgent(),
+		},
 	}
 }
 
@@ -281,7 +278,7 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 			vulns = append(vulns, Vulnerability{
 				Type:          VulnHostOverride,
 				Description:   fmt.Sprintf("Host header reflected via %s", payload.Description),
-				Severity:      SeverityHigh,
+				Severity:      finding.High,
 				URL:           targetURL,
 				Header:        payload.Header,
 				InjectedValue: payload.Value,
@@ -296,7 +293,7 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 			vulns = append(vulns, Vulnerability{
 				Type:          VulnOpenRedirect,
 				Description:   fmt.Sprintf("Host header reflected in redirect via %s", payload.Description),
-				Severity:      SeverityHigh,
+				Severity:      finding.High,
 				URL:           targetURL,
 				Header:        payload.Header,
 				InjectedValue: payload.Value,
@@ -315,7 +312,7 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 					vulns = append(vulns, Vulnerability{
 						Type:          VulnCachePoisoning,
 						Description:   fmt.Sprintf("Potential cache poisoning via %s (cache headers present)", payload.Header),
-						Severity:      SeverityCritical,
+						Severity:      finding.Critical,
 						URL:           targetURL,
 						Header:        payload.Header,
 						InjectedValue: payload.Value,
@@ -387,7 +384,7 @@ func (t *Tester) TestPasswordReset(ctx context.Context, targetURL string, email 
 		vulns = append(vulns, Vulnerability{
 			Type:          VulnPasswordReset,
 			Description:   "Password reset link may be poisoned via X-Forwarded-Host",
-			Severity:      SeverityCritical,
+			Severity:      finding.Critical,
 			URL:           targetURL,
 			Header:        "X-Forwarded-Host",
 			InjectedValue: attackDomain,
@@ -428,7 +425,7 @@ func AllVulnerabilityTypes() []VulnerabilityType {
 		VulnCachePoisoning,
 		VulnSSRF,
 		VulnOpenRedirect,
-		VulnWebCachePoisonng,
+		VulnWebCachePoisoning,
 		VulnHostOverride,
 	}
 }

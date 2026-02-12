@@ -4,10 +4,12 @@ package rce
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -15,17 +17,18 @@ import (
 
 // Config configures RCE testing
 type Config struct {
-	Concurrency int
-	Timeout     time.Duration
-	Headers     map[string]string
-	OOBDomain   string // Out-of-band domain for blind RCE
+	attackconfig.Base
+	Headers   map[string]string
+	OOBDomain string // Out-of-band domain for blind RCE
 }
 
 // DefaultConfig returns sensible defaults
 func DefaultConfig() Config {
 	return Config{
-		Concurrency: defaults.ConcurrencyLow,
-		Timeout:     httpclient.TimeoutScanning,
+		Base: attackconfig.Base{
+			Concurrency: defaults.ConcurrencyLow,
+			Timeout:     httpclient.TimeoutScanning,
+		},
 	}
 }
 
@@ -141,11 +144,11 @@ func (s *Scanner) testPayload(ctx context.Context, targetURL, param string, payl
 
 // buildFormData builds URL-encoded form data
 func buildFormData(params map[string]string) string {
-	parts := make([]string, 0, len(params))
+	vals := make(url.Values, len(params))
 	for k, v := range params {
-		parts = append(parts, k+"="+v)
+		vals.Set(k, v)
 	}
-	return strings.Join(parts, "&")
+	return vals.Encode()
 }
 
 // detectVulnerability checks response for RCE indicators

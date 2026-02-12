@@ -25,7 +25,7 @@ import (
 // AuthenticatedScanner provides authenticated browser-based discovery
 type AuthenticatedScanner struct {
 	config *AuthConfig
-	mu     sync.Mutex // Use regular Mutex since we only use Lock/Unlock
+	mu     sync.RWMutex // RWMutex: RLock for read-only paths, Lock for writes
 
 	// Compiled ignore patterns for performance
 	ignorePatterns []*regexp.Regexp
@@ -1247,8 +1247,8 @@ func (s *AuthenticatedScanner) isAuthenticationComplete(currentURL string, resul
 	// Instead, we require actual authentication evidence: tokens in storage or auth cookies
 
 	// Check if we've captured any authentication tokens (with lock for concurrent safety)
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	// Check for real auth tokens
 	if len(result.ExposedTokens) > 0 {

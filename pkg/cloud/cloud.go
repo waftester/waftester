@@ -4,9 +4,11 @@ package cloud
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +17,9 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
+
+// ErrNotImplemented is returned by cloud provider stubs that require SDK integration.
+var ErrNotImplemented = errors.New("cloud: not yet implemented")
 
 // Provider represents a cloud service provider
 type Provider string
@@ -368,7 +373,7 @@ func (c *AWSClient) Discover(ctx context.Context, filter *Filter) ([]*Resource, 
 	var resources []*Resource
 
 	// Discover EC2 instances
-	if filter == nil || len(filter.Types) == 0 || contains(filter.Types, "instance") {
+	if filter == nil || len(filter.Types) == 0 || slices.Contains(filter.Types, "instance") {
 		instances, err := c.discoverEC2(ctx, filter)
 		if err != nil {
 			return nil, fmt.Errorf("EC2 discovery: %w", err)
@@ -377,7 +382,7 @@ func (c *AWSClient) Discover(ctx context.Context, filter *Filter) ([]*Resource, 
 	}
 
 	// Discover Load Balancers
-	if filter == nil || len(filter.Types) == 0 || contains(filter.Types, "load_balancer") {
+	if filter == nil || len(filter.Types) == 0 || slices.Contains(filter.Types, "load_balancer") {
 		lbs, err := c.discoverELB(ctx, filter)
 		if err != nil {
 			return nil, fmt.Errorf("ELB discovery: %w", err)
@@ -386,7 +391,7 @@ func (c *AWSClient) Discover(ctx context.Context, filter *Filter) ([]*Resource, 
 	}
 
 	// Discover CloudFront distributions
-	if filter == nil || len(filter.Types) == 0 || contains(filter.Types, "cdn") {
+	if filter == nil || len(filter.Types) == 0 || slices.Contains(filter.Types, "cdn") {
 		cdns, err := c.discoverCloudFront(ctx, filter)
 		if err != nil {
 			return nil, fmt.Errorf("CloudFront discovery: %w", err)
@@ -395,7 +400,7 @@ func (c *AWSClient) Discover(ctx context.Context, filter *Filter) ([]*Resource, 
 	}
 
 	// Discover API Gateway
-	if filter == nil || len(filter.Types) == 0 || contains(filter.Types, "api_gateway") {
+	if filter == nil || len(filter.Types) == 0 || slices.Contains(filter.Types, "api_gateway") {
 		apis, err := c.discoverAPIGateway(ctx, filter)
 		if err != nil {
 			return nil, fmt.Errorf("API Gateway discovery: %w", err)
@@ -406,70 +411,20 @@ func (c *AWSClient) Discover(ctx context.Context, filter *Filter) ([]*Resource, 
 	return resources, nil
 }
 
-func (c *AWSClient) discoverEC2(ctx context.Context, filter *Filter) ([]*Resource, error) {
-	// AWS SDK integration requires: go get github.com/aws/aws-sdk-go-v2
-	// This is OSINT-based discovery without SDK - uses public metadata endpoints
-	// In production, integrate with EC2 API: ec2.DescribeInstances
-
-	if c.AccessKeyID == "" || c.SecretAccessKey == "" {
-		// Without credentials, we can only do OSINT-based discovery
-		return nil, fmt.Errorf("AWS credentials required for EC2 discovery; use OSINT sources for credential-less discovery")
-	}
-
-	// Placeholder: Real implementation would use AWS SDK
-	// Example AWS SDK v2 pattern:
-	// cfg, _ := config.LoadDefaultConfig(ctx, config.WithCredentialsProvider(
-	//     credentials.NewStaticCredentialsProvider(c.AccessKeyID, c.SecretAccessKey, c.SessionToken),
-	// ))
-	// client := ec2.NewFromConfig(cfg)
-	// result, _ := client.DescribeInstances(ctx, &ec2.DescribeInstancesInput{})
-
-	return nil, nil
+func (c *AWSClient) discoverEC2(ctx context.Context, _ *Filter) ([]*Resource, error) {
+	return nil, ErrNotImplemented
 }
 
-func (c *AWSClient) discoverELB(ctx context.Context, filter *Filter) ([]*Resource, error) {
-	// AWS SDK integration for ELB discovery
-	// Real implementation would use elasticloadbalancing.DescribeLoadBalancers
-
-	if c.AccessKeyID == "" || c.SecretAccessKey == "" {
-		return nil, fmt.Errorf("AWS credentials required for ELB discovery")
-	}
-
-	// Placeholder: Real implementation would use AWS SDK
-	// client := elbv2.NewFromConfig(cfg)
-	// result, _ := client.DescribeLoadBalancers(ctx, &elbv2.DescribeLoadBalancersInput{})
-
-	return nil, nil
+func (c *AWSClient) discoverELB(ctx context.Context, _ *Filter) ([]*Resource, error) {
+	return nil, ErrNotImplemented
 }
 
-func (c *AWSClient) discoverCloudFront(ctx context.Context, filter *Filter) ([]*Resource, error) {
-	// AWS SDK integration for CloudFront discovery
-	// Real implementation would use cloudfront.ListDistributions
-
-	if c.AccessKeyID == "" || c.SecretAccessKey == "" {
-		return nil, fmt.Errorf("AWS credentials required for CloudFront discovery")
-	}
-
-	// Placeholder: Real implementation would use AWS SDK
-	// client := cloudfront.NewFromConfig(cfg)
-	// result, _ := client.ListDistributions(ctx, &cloudfront.ListDistributionsInput{})
-
-	return nil, nil
+func (c *AWSClient) discoverCloudFront(ctx context.Context, _ *Filter) ([]*Resource, error) {
+	return nil, ErrNotImplemented
 }
 
-func (c *AWSClient) discoverAPIGateway(ctx context.Context, filter *Filter) ([]*Resource, error) {
-	// AWS SDK integration for API Gateway discovery
-	// Real implementation would use apigateway.GetRestApis
-
-	if c.AccessKeyID == "" || c.SecretAccessKey == "" {
-		return nil, fmt.Errorf("AWS credentials required for API Gateway discovery")
-	}
-
-	// Placeholder: Real implementation would use AWS SDK
-	// client := apigateway.NewFromConfig(cfg)
-	// result, _ := client.GetRestApis(ctx, &apigateway.GetRestApisInput{})
-
-	return nil, nil
+func (c *AWSClient) discoverAPIGateway(ctx context.Context, _ *Filter) ([]*Resource, error) {
+	return nil, ErrNotImplemented
 }
 
 func (c *AWSClient) GetResource(ctx context.Context, resourceType, id string) (*Resource, error) {
@@ -539,7 +494,7 @@ func (c *GCPClient) Discover(ctx context.Context, filter *Filter) ([]*Resource, 
 	var resources []*Resource
 
 	// Discover Compute Engine instances
-	if filter == nil || len(filter.Types) == 0 || contains(filter.Types, "instance") {
+	if filter == nil || len(filter.Types) == 0 || slices.Contains(filter.Types, "instance") {
 		instances, err := c.discoverCompute(ctx, filter)
 		if err != nil {
 			return nil, fmt.Errorf("Compute discovery: %w", err)
@@ -548,7 +503,7 @@ func (c *GCPClient) Discover(ctx context.Context, filter *Filter) ([]*Resource, 
 	}
 
 	// Discover Load Balancers
-	if filter == nil || len(filter.Types) == 0 || contains(filter.Types, "load_balancer") {
+	if filter == nil || len(filter.Types) == 0 || slices.Contains(filter.Types, "load_balancer") {
 		lbs, err := c.discoverLoadBalancers(ctx, filter)
 		if err != nil {
 			return nil, fmt.Errorf("LB discovery: %w", err)
@@ -557,7 +512,7 @@ func (c *GCPClient) Discover(ctx context.Context, filter *Filter) ([]*Resource, 
 	}
 
 	// Discover Cloud Run services
-	if filter == nil || len(filter.Types) == 0 || contains(filter.Types, "serverless") {
+	if filter == nil || len(filter.Types) == 0 || slices.Contains(filter.Types, "serverless") {
 		runs, err := c.discoverCloudRun(ctx, filter)
 		if err != nil {
 			return nil, fmt.Errorf("Cloud Run discovery: %w", err)
@@ -568,49 +523,16 @@ func (c *GCPClient) Discover(ctx context.Context, filter *Filter) ([]*Resource, 
 	return resources, nil
 }
 
-func (c *GCPClient) discoverCompute(ctx context.Context, filter *Filter) ([]*Resource, error) {
-	// GCP SDK integration requires: go get cloud.google.com/go/compute
-	// Real implementation would use compute.InstancesClient.List
-
-	if c.ProjectID == "" {
-		return nil, fmt.Errorf("GCP project ID required for Compute Engine discovery")
-	}
-
-	// Placeholder: Real implementation would use GCP SDK
-	// client, _ := compute.NewInstancesRESTClient(ctx)
-	// it := client.List(ctx, &computepb.ListInstancesRequest{Project: c.ProjectID, Zone: zone})
-
-	return nil, nil
+func (c *GCPClient) discoverCompute(ctx context.Context, _ *Filter) ([]*Resource, error) {
+	return nil, ErrNotImplemented
 }
 
-func (c *GCPClient) discoverLoadBalancers(ctx context.Context, filter *Filter) ([]*Resource, error) {
-	// GCP SDK integration for load balancer discovery
-	// Real implementation would use compute.ForwardingRulesClient
-
-	if c.ProjectID == "" {
-		return nil, fmt.Errorf("GCP project ID required for load balancer discovery")
-	}
-
-	// Placeholder: Real implementation would use GCP SDK
-	// client, _ := compute.NewForwardingRulesRESTClient(ctx)
-	// it := client.AggregatedList(ctx, &computepb.AggregatedListForwardingRulesRequest{Project: c.ProjectID})
-
-	return nil, nil
+func (c *GCPClient) discoverLoadBalancers(ctx context.Context, _ *Filter) ([]*Resource, error) {
+	return nil, ErrNotImplemented
 }
 
-func (c *GCPClient) discoverCloudRun(ctx context.Context, filter *Filter) ([]*Resource, error) {
-	// GCP SDK integration for Cloud Run discovery
-	// Real implementation would use run.ServicesClient
-
-	if c.ProjectID == "" {
-		return nil, fmt.Errorf("GCP project ID required for Cloud Run discovery")
-	}
-
-	// Placeholder: Real implementation would use GCP SDK
-	// client, _ := run.NewServicesClient(ctx)
-	// it := client.ListServices(ctx, &runpb.ListServicesRequest{Parent: "projects/" + c.ProjectID + "/locations/-"})
-
-	return nil, nil
+func (c *GCPClient) discoverCloudRun(ctx context.Context, _ *Filter) ([]*Resource, error) {
+	return nil, ErrNotImplemented
 }
 
 func (c *GCPClient) GetResource(ctx context.Context, resourceType, id string) (*Resource, error) {
@@ -680,7 +602,7 @@ func (c *AzureClient) Discover(ctx context.Context, filter *Filter) ([]*Resource
 	var resources []*Resource
 
 	// Discover VMs
-	if filter == nil || len(filter.Types) == 0 || contains(filter.Types, "instance") {
+	if filter == nil || len(filter.Types) == 0 || slices.Contains(filter.Types, "instance") {
 		vms, err := c.discoverVMs(ctx, filter)
 		if err != nil {
 			return nil, fmt.Errorf("VM discovery: %w", err)
@@ -689,7 +611,7 @@ func (c *AzureClient) Discover(ctx context.Context, filter *Filter) ([]*Resource
 	}
 
 	// Discover App Services
-	if filter == nil || len(filter.Types) == 0 || contains(filter.Types, "app_service") {
+	if filter == nil || len(filter.Types) == 0 || slices.Contains(filter.Types, "app_service") {
 		apps, err := c.discoverAppServices(ctx, filter)
 		if err != nil {
 			return nil, fmt.Errorf("App Service discovery: %w", err)
@@ -698,7 +620,7 @@ func (c *AzureClient) Discover(ctx context.Context, filter *Filter) ([]*Resource
 	}
 
 	// Discover Front Door / CDN
-	if filter == nil || len(filter.Types) == 0 || contains(filter.Types, "cdn") {
+	if filter == nil || len(filter.Types) == 0 || slices.Contains(filter.Types, "cdn") {
 		cdns, err := c.discoverFrontDoor(ctx, filter)
 		if err != nil {
 			return nil, fmt.Errorf("Front Door discovery: %w", err)
@@ -709,50 +631,16 @@ func (c *AzureClient) Discover(ctx context.Context, filter *Filter) ([]*Resource
 	return resources, nil
 }
 
-func (c *AzureClient) discoverVMs(ctx context.Context, filter *Filter) ([]*Resource, error) {
-	// Azure SDK integration requires: go get github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute
-	// Real implementation would use armcompute.VirtualMachinesClient
-
-	if c.SubscriptionID == "" {
-		return nil, fmt.Errorf("Azure subscription ID required for VM discovery")
-	}
-
-	// Placeholder: Real implementation would use Azure SDK
-	// cred, _ := azidentity.NewClientSecretCredential(c.TenantID, c.ClientID, c.ClientSecret, nil)
-	// client, _ := armcompute.NewVirtualMachinesClient(c.SubscriptionID, cred, nil)
-	// pager := client.NewListAllPager(nil)
-
-	return nil, nil
+func (c *AzureClient) discoverVMs(ctx context.Context, _ *Filter) ([]*Resource, error) {
+	return nil, ErrNotImplemented
 }
 
-func (c *AzureClient) discoverAppServices(ctx context.Context, filter *Filter) ([]*Resource, error) {
-	// Azure SDK integration for App Service discovery
-	// Real implementation would use armappservice.WebAppsClient
-
-	if c.SubscriptionID == "" {
-		return nil, fmt.Errorf("Azure subscription ID required for App Service discovery")
-	}
-
-	// Placeholder: Real implementation would use Azure SDK
-	// client, _ := armappservice.NewWebAppsClient(c.SubscriptionID, cred, nil)
-	// pager := client.NewListPager(nil)
-
-	return nil, nil
+func (c *AzureClient) discoverAppServices(ctx context.Context, _ *Filter) ([]*Resource, error) {
+	return nil, ErrNotImplemented
 }
 
-func (c *AzureClient) discoverFrontDoor(ctx context.Context, filter *Filter) ([]*Resource, error) {
-	// Azure SDK integration for Front Door / CDN discovery
-	// Real implementation would use armfrontdoor.FrontDoorsClient
-
-	if c.SubscriptionID == "" {
-		return nil, fmt.Errorf("Azure subscription ID required for Front Door discovery")
-	}
-
-	// Placeholder: Real implementation would use Azure SDK
-	// client, _ := armfrontdoor.NewFrontDoorsClient(c.SubscriptionID, cred, nil)
-	// pager := client.NewListPager(nil)
-
-	return nil, nil
+func (c *AzureClient) discoverFrontDoor(ctx context.Context, _ *Filter) ([]*Resource, error) {
+	return nil, ErrNotImplemented
 }
 
 func (c *AzureClient) GetResource(ctx context.Context, resourceType, id string) (*Resource, error) {
@@ -810,7 +698,11 @@ func NewIPRangeChecker() *IPRangeChecker {
 // LoadAWSRanges loads AWS IP ranges from the published JSON
 func (c *IPRangeChecker) LoadAWSRanges(ctx context.Context) error {
 	// AWS publishes IP ranges at https://ip-ranges.amazonaws.com/ip-ranges.json
-	resp, err := http.Get("https://ip-ranges.amazonaws.com/ip-ranges.json")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://ip-ranges.amazonaws.com/ip-ranges.json", nil)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -934,12 +826,3 @@ func (d *Discovery) Fail(err error) {
 	d.Stats.Duration = now.Sub(d.StartedAt)
 }
 
-// helper function
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
-}

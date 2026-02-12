@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -28,6 +28,7 @@ type TeamsHook struct {
 	opts       TeamsOptions
 	bypasses   []*events.BypassEvent
 	mu         sync.Mutex
+	logger     *slog.Logger
 }
 
 // TeamsOptions configures the Teams hook behavior.
@@ -40,6 +41,9 @@ type TeamsOptions struct {
 
 	// Timeout for HTTP requests (default: 10s).
 	Timeout time.Duration
+
+	// Logger for structured logging (default: slog.Default()).
+	Logger *slog.Logger
 }
 
 // Teams theme colors based on severity.
@@ -62,6 +66,7 @@ func NewTeamsHook(webhookURL string, opts TeamsOptions) *TeamsHook {
 		client:     httpclient.New(httpclient.Config{Timeout: opts.Timeout}),
 		opts:       opts,
 		bypasses:   make([]*events.BypassEvent, 0),
+		logger:     orDefault(opts.Logger),
 	}
 }
 
@@ -231,13 +236,13 @@ func (h *TeamsHook) wafDisplayName(waf string) string {
 func (h *TeamsHook) send(ctx context.Context, card teamsMessageCard) error {
 	body, err := json.Marshal(card)
 	if err != nil {
-		log.Printf("teams: failed to marshal message card: %v", err)
+		h.logger.Warn("failed to marshal message card", slog.String("error", err.Error()))
 		return nil // Don't block scan
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, h.webhookURL, bytes.NewReader(body))
 	if err != nil {
-		log.Printf("teams: failed to create request: %v", err)
+		h.logger.Warn("failed to create request", slog.String("error", err.Error()))
 		return nil
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -245,13 +250,13 @@ func (h *TeamsHook) send(ctx context.Context, card teamsMessageCard) error {
 
 	resp, err := h.client.Do(req)
 	if err != nil {
-		log.Printf("teams: failed to send message: %v", err)
+		h.logger.Warn("failed to send message", slog.String("error", err.Error()))
 		return nil // Don't block scan
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		log.Printf("teams: received error response: %d", resp.StatusCode)
+		h.logger.Warn("error response", slog.Int("status", resp.StatusCode))
 	}
 
 	return nil

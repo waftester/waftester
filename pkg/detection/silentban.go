@@ -12,13 +12,12 @@ import (
 )
 
 // keyHeaders are headers tracked for baseline comparison.
+// Excludes per-request headers (CF-Ray, X-Request-ID, Set-Cookie) that
+// change on every request and would cause false positive ban detection.
 var keyHeaders = []string{
 	"Server",
 	"X-Cache",
 	"X-CDN",
-	"CF-Ray",
-	"X-Request-ID",
-	"Set-Cookie",
 	"Content-Type",
 	"X-Frame-Options",
 }
@@ -75,12 +74,10 @@ func (d *SilentBanDetector) ClearAll() {
 }
 
 // CaptureBaseline records baseline response characteristics for a host.
-// Uses exponential moving average with alpha=0.3 for smooth adaptation.
+// Uses exponential moving average with alpha=defaults.EMAAlpha for smooth adaptation.
 func (d *SilentBanDetector) CaptureBaseline(host string, resp *http.Response, latency time.Duration, bodySize int) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-
-	const alpha = 0.3
 
 	b, exists := d.hostBaselines[host]
 	if !exists {
@@ -96,8 +93,10 @@ func (d *SilentBanDetector) CaptureBaseline(host string, resp *http.Response, la
 		b.avgBodySize = bodySize
 	} else {
 		// EMA: new_avg = alpha * new_value + (1 - alpha) * old_avg
-		b.avgLatency = time.Duration(alpha*float64(latency) + (1-alpha)*float64(b.avgLatency))
-		b.avgBodySize = int(alpha*float64(bodySize) + (1-alpha)*float64(b.avgBodySize))
+		b.avgLatency = time.Duration(defaults.EMAAlpha*float64(latency) + (1-defaults.EMAAlpha)*float64(b.avgLatency))
+		// Truncation to int is acceptable for body sizes (byte counts);
+		// sub-byte precision is not meaningful for drift detection.
+		b.avgBodySize = int(defaults.EMAAlpha*float64(bodySize) + (1-defaults.EMAAlpha)*float64(b.avgBodySize))
 	}
 
 	if resp != nil {
@@ -167,7 +166,7 @@ func (d *SilentBanDetector) RecordSample(host string, resp *http.Response, laten
 			Type:            BanTypeRateLimit,
 			Confidence:      0.6,
 			Evidence:        []string{"consecutive errors threshold exceeded"},
-			RecommendedWait: defaults.SilentBanCooldownPeriod,
+			RecommendedWait: defaults.SilentBanCooldownPeriod(),
 		}
 	}
 
@@ -259,7 +258,7 @@ func (d *SilentBanDetector) Analyze(host string) *BanResult {
 	}
 
 	if banned {
-		result.RecommendedWait = defaults.SilentBanCooldownPeriod
+		result.RecommendedWait = defaults.SilentBanCooldownPeriod()
 	}
 
 	return result

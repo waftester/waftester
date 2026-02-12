@@ -188,8 +188,12 @@ func (r *Runner[T]) Run(ctx context.Context, targets []string, task TaskFunc[T])
 			_ = r.limiter.WaitForHost(ctx, host)
 		}
 
-		// Acquire semaphore slot
-		sem <- struct{}{}
+		// Acquire semaphore slot (respect context cancellation)
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			goto cleanup
+		}
 		wg.Add(1)
 
 		go func(t string) {
@@ -344,8 +348,13 @@ func (r *Runner[T]) RunWithCallback(ctx context.Context, targets []string, task 
 			_ = r.limiter.WaitForHost(ctx, host)
 		}
 
-		// Acquire semaphore slot
-		sem <- struct{}{}
+		// Acquire semaphore slot (respect context cancellation)
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			wg.Wait()
+			return
+		}
 		wg.Add(1)
 
 		go func(t string) {
@@ -399,7 +408,9 @@ func (r *Runner[T]) RunWithCallback(ctx context.Context, targets []string, task 
 func extractHost(target string) string {
 	// Check cache first
 	if cached, ok := hostCache.Load(target); ok {
-		return cached.(string)
+		if s, ok := cached.(string); ok {
+			return s
+		}
 	}
 
 	host := extractHostUncached(target)
