@@ -98,6 +98,23 @@ func TestBuildQuery_SpecialCharsEncoded(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:   "special_chars_in_key",
+			params: map[string]string{"a&b=c": "safe"},
+			check: func(t *testing.T, result string) {
+				vals, err := url.ParseQuery(result)
+				if err != nil {
+					t.Fatalf("ParseQuery failed: %v", err)
+				}
+				if got := vals.Get("a&b=c"); got != "safe" {
+					t.Errorf("key with special chars: got %q; want %q", got, "safe")
+				}
+				// Must not split into separate params
+				if vals.Get("b") != "" {
+					t.Error("key injection: 'b' parsed as separate param from key")
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
