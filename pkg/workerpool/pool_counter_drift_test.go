@@ -26,8 +26,7 @@ func TestWorkerPanicRecovery_RunningCountStable(t *testing.T) {
 	p := New(poolSize)
 	defer p.Close()
 
-	// Let workers fully start.
-	time.Sleep(20 * time.Millisecond)
+	// New() does not start workers (they're lazy), so no sleep needed.
 
 	// Submit many panicking tasks. Each panic kills a worker and triggers
 	// a respawn — the running counter must stay accurate through all of it.
@@ -43,8 +42,14 @@ func TestWorkerPanicRecovery_RunningCountStable(t *testing.T) {
 	}
 
 	done.Wait()
-	// Give workers time to respawn and stabilise.
-	time.Sleep(50 * time.Millisecond)
+	// Poll until Running() stabilizes, instead of a fragile hard-coded sleep.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if p.Running() == poolSize {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 
 	running := p.Running()
 	if running != poolSize {
@@ -60,8 +65,6 @@ func TestWorkerPanicRecovery_CounterNeverNegative(t *testing.T) {
 	const poolSize = 4
 	p := New(poolSize)
 	defer p.Close()
-
-	time.Sleep(20 * time.Millisecond)
 
 	var wg sync.WaitGroup
 	var sawNegative int32
@@ -122,7 +125,15 @@ func TestWorkerPanicRecovery_TasksStillProcess(t *testing.T) {
 		})
 	}
 	panicWg.Wait()
-	time.Sleep(20 * time.Millisecond)
+
+	// Poll until workers are respawned and pool is ready.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if p.Running() == poolSize {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 
 	// Now submit normal tasks — they must all complete.
 	const normalTasks = 50

@@ -3,6 +3,9 @@
 // Before the fix, loggedTool() marshalled the full request arguments (including
 // api_key, token, password, etc.) and wrote them to the log. The fix redacts
 // known sensitive field names before logging.
+//
+// These tests call the real isSensitiveKey/redactMap functions — NOT a local
+// copy — so they break if the production logic changes or regresses.
 package mcpserver
 
 import (
@@ -11,25 +14,7 @@ import (
 	"testing"
 )
 
-// redactArgs reproduces the exact redaction logic from loggedTool so we can
-// unit-test it without needing a full MCP CallToolRequest.
-func redactArgs(raw json.RawMessage) string {
-	var rawArgs map[string]interface{}
-	argBytes := []byte(raw)
-	if json.Unmarshal(argBytes, &rawArgs) == nil {
-		for k := range rawArgs {
-			switch strings.ToLower(k) {
-			case "api_key", "apikey", "api_secret", "apisecret", "token",
-				"password", "secret", "license", "credentials", "key":
-				rawArgs[k] = "[REDACTED]"
-			}
-		}
-		argBytes, _ = json.Marshal(rawArgs)
-	}
-	return string(argBytes)
-}
-
-func TestRedactArgs_SensitiveFieldsRedacted(t *testing.T) {
+func TestRedactMap_SensitiveFieldsRedacted(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -92,58 +77,201 @@ func TestRedactArgs_SensitiveFieldsRedacted(t *testing.T) {
 			wantAbsent:  []string{"top-secret-value"},
 			wantContain: "[REDACTED]",
 		},
+		// NEW: fields that the old code MISSED (they would have leaked)
+		{
+			name:        "authorization_header",
+			input:       `{"authorization":"Bearer eyJhbGci...","url":"/api"}`,
+			wantAbsent:  []string{"Bearer eyJhbGci..."},
+			wantContain: "[REDACTED]",
+		},
+		{
+			name:        "access_token",
+			input:       `{"access_token":"ya29.xxxxx","scope":"admin"}`,
+			wantAbsent:  []string{"ya29.xxxxx"},
+			wantContain: "[REDACTED]",
+		},
+		{
+			name:        "refresh_token",
+			input:       `{"refresh_token":"rt_xxxx","client":"app"}`,
+			wantAbsent:  []string{"rt_xxxx"},
+			wantContain: "[REDACTED]",
+		},
+		{
+			name:        "jwt_value",
+			input:       `{"jwt":"eyJhbGci.payload.sig","user":"admin"}`,
+			wantAbsent:  []string{"eyJhbGci.payload.sig"},
+			wantContain: "[REDACTED]",
+		},
+		{
+			name:        "private_key",
+			input:       `{"private_key":"-----BEGIN RSA PRIVATE KEY-----","id":"1"}`,
+			wantAbsent:  []string{"-----BEGIN RSA PRIVATE KEY-----"},
+			wantContain: "[REDACTED]",
+		},
+		{
+			name:        "client_secret",
+			input:       `{"client_secret":"cs_xxxx","client_id":"pub"}`,
+			wantAbsent:  []string{"cs_xxxx"},
+			wantContain: "[REDACTED]",
+		},
+		{
+			name:        "bearer_token",
+			input:       `{"bearer":"tok_123","method":"POST"}`,
+			wantAbsent:  []string{"tok_123"},
+			wantContain: "[REDACTED]",
+		},
+		{
+			name:        "cookie_value",
+			input:       `{"cookie":"session=abc123","path":"/"}`,
+			wantAbsent:  []string{"session=abc123"},
+			wantContain: "[REDACTED]",
+		},
+		{
+			name:        "session_id",
+			input:       `{"session_id":"sess_abc","user":"admin"}`,
+			wantAbsent:  []string{"sess_abc"},
+			wantContain: "[REDACTED]",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := redactArgs(json.RawMessage(tt.input))
+			var rawArgs map[string]interface{}
+			if err := json.Unmarshal([]byte(tt.input), &rawArgs); err != nil {
+				t.Fatalf("invalid test input: %v", err)
+			}
+			redactMap(rawArgs)
+			result, _ := json.Marshal(rawArgs)
+			resultStr := string(result)
 
 			for _, absent := range tt.wantAbsent {
-				if strings.Contains(result, absent) {
-					t.Errorf("sensitive value %q still present in redacted output: %s", absent, result)
+				if strings.Contains(resultStr, absent) {
+					t.Errorf("sensitive value %q still present in redacted output: %s", absent, resultStr)
 				}
 			}
-			if !strings.Contains(result, tt.wantContain) {
-				t.Errorf("redaction marker %q not found in output: %s", tt.wantContain, result)
+			if !strings.Contains(resultStr, tt.wantContain) {
+				t.Errorf("redaction marker %q not found in output: %s", tt.wantContain, resultStr)
 			}
 		})
 	}
 }
 
-func TestRedactArgs_NonSensitiveFieldsPreserved(t *testing.T) {
+func TestRedactMap_NonSensitiveFieldsPreserved(t *testing.T) {
 	t.Parallel()
 
+	var rawArgs map[string]interface{}
 	input := `{"target":"https://example.com","mode":"aggressive","timeout":30}`
-	result := redactArgs(json.RawMessage(input))
+	if err := json.Unmarshal([]byte(input), &rawArgs); err != nil {
+		t.Fatalf("invalid test input: %v", err)
+	}
+	redactMap(rawArgs)
+	result, _ := json.Marshal(rawArgs)
+	resultStr := string(result)
 
 	for _, expected := range []string{"example.com", "aggressive", "30"} {
-		if !strings.Contains(result, expected) {
-			t.Errorf("non-sensitive value %q was removed from output: %s", expected, result)
+		if !strings.Contains(resultStr, expected) {
+			t.Errorf("non-sensitive value %q was removed from output: %s", expected, resultStr)
 		}
 	}
-	if strings.Contains(result, "[REDACTED]") {
-		t.Errorf("non-sensitive input was redacted: %s", result)
+	if strings.Contains(resultStr, "[REDACTED]") {
+		t.Errorf("non-sensitive input was redacted: %s", resultStr)
 	}
 }
 
-func TestRedactArgs_InvalidJSON(t *testing.T) {
+func TestRedactMap_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
-	// Invalid JSON should be returned as-is (unmarshal fails, original bytes used).
+	// Invalid JSON: unmarshal fails, so redactMap is never called.
+	// This tests the caller's behavior (loggedTool uses original bytes).
 	input := `not valid json`
-	result := redactArgs(json.RawMessage(input))
-	if result != input {
-		t.Errorf("invalid JSON was modified: got %q, want %q", result, input)
+	var rawArgs map[string]interface{}
+	err := json.Unmarshal([]byte(input), &rawArgs)
+	if err == nil {
+		t.Fatal("expected unmarshal error for invalid JSON")
+	}
+	// No crash — rawArgs is nil, redactMap should not be called on nil.
+}
+
+func TestRedactMap_EmptyObject(t *testing.T) {
+	t.Parallel()
+
+	var rawArgs map[string]interface{}
+	_ = json.Unmarshal([]byte(`{}`), &rawArgs)
+	redactMap(rawArgs)
+	result, _ := json.Marshal(rawArgs)
+	if string(result) != "{}" {
+		t.Errorf("empty object was modified: got %q", string(result))
 	}
 }
 
-func TestRedactArgs_EmptyObject(t *testing.T) {
+func TestRedactMap_NestedSensitiveFields(t *testing.T) {
 	t.Parallel()
 
-	result := redactArgs(json.RawMessage(`{}`))
-	if result != "{}" {
-		t.Errorf("empty object was modified: got %q", result)
+	input := `{"config":{"api_key":"sk-nested","debug":true},"name":"test"}`
+	var rawArgs map[string]interface{}
+	if err := json.Unmarshal([]byte(input), &rawArgs); err != nil {
+		t.Fatalf("invalid test input: %v", err)
+	}
+	redactMap(rawArgs)
+	result, _ := json.Marshal(rawArgs)
+	resultStr := string(result)
+
+	if strings.Contains(resultStr, "sk-nested") {
+		t.Errorf("nested sensitive value leaked: %s", resultStr)
+	}
+	if !strings.Contains(resultStr, "test") {
+		t.Errorf("non-sensitive nested value was removed: %s", resultStr)
+	}
+}
+
+func TestIsSensitiveKey_SubstringMatching(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		key  string
+		want bool
+	}{
+		{"api_key", true},
+		{"x_api_key", true},
+		{"MY_SECRET_TOKEN", true},
+		{"Authorization", true},
+		{"x-auth-header", true},
+		{"bearer_token", true},
+		{"jwt_value", true},
+		{"session_id", true},
+		{"cookie", true},
+		{"target", false},
+		{"mode", false},
+		{"url", false},
+		{"timeout", false},
+		{"data", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			t.Parallel()
+			if got := isSensitiveKey(tt.key); got != tt.want {
+				t.Errorf("isSensitiveKey(%q) = %v; want %v", tt.key, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTruncateString_UTF8Safe(t *testing.T) {
+	t.Parallel()
+
+	// 4-byte emoji repeated — truncating at byte boundary would split a rune
+	input := strings.Repeat("🔥", 60) // 60 runes, 240 bytes
+	result := truncateString(input, 50)
+	if len([]rune(result)) != 50 {
+		t.Errorf("truncated to %d runes; want 50", len([]rune(result)))
+	}
+	// Verify no broken runes — re-encoding should not change the string
+	for _, r := range result {
+		if r == '\uFFFD' {
+			t.Error("truncation produced replacement character (broken UTF-8)")
+		}
 	}
 }

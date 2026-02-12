@@ -11,6 +11,7 @@ import (
 	"context"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 
 	"github.com/waftester/waftester/pkg/output/events"
 )
@@ -52,6 +53,7 @@ type Dispatcher struct {
 	hooks   []Hook
 	mu      sync.RWMutex
 	hookWg  sync.WaitGroup
+	closed  atomic.Bool
 
 	// Options
 	batchSize int
@@ -105,9 +107,20 @@ func (d *Dispatcher) RegisterHook(h Hook) {
 // Dispatch sends an event to all registered writers and hooks.
 // It returns nil even if individual writers or hooks fail, to ensure
 // all consumers have a chance to receive the event.
+// After Close() has been called, Dispatch returns nil without processing.
 func (d *Dispatcher) Dispatch(ctx context.Context, event events.Event) error {
+	// Fast path: reject dispatches after Close() has started.
+	if d.closed.Load() {
+		return nil
+	}
+
 	d.mu.RLock()
 	defer d.mu.RUnlock()
+
+	// Double-check after acquiring lock to avoid race with Close().
+	if d.closed.Load() {
+		return nil
+	}
 
 	// Send to all writers that support this event type
 	for _, w := range d.writers {
@@ -172,6 +185,9 @@ func (d *Dispatcher) Flush() error {
 // Close flushes and closes all writers, and waits for async hooks to complete.
 // After Close is called, the dispatcher should not be used.
 func (d *Dispatcher) Close() error {
+	// Signal no more dispatches should start before waiting for hooks.
+	d.closed.Store(true)
+
 	// Wait for all async hooks to complete before closing writers
 	d.hookWg.Wait()
 

@@ -24,6 +24,11 @@ func TestContainsPort_IPv6(t *testing.T) {
 		{"ipv6_bracket_no_port", "[::1]", false},
 		{"ipv6_full_no_port", "[2001:db8::1]", false},
 
+		// Bare IPv6 without brackets — must be false (no port).
+		{"bare_ipv6_loopback", "::1", false},
+		{"bare_ipv6_full", "2001:db8::1", false},
+		{"bare_ipv6_link_local", "fe80::1", false},
+
 		// IPv4 — unchanged behavior.
 		{"ipv4_with_port", "1.2.3.4:53", true},
 		{"ipv4_no_port", "1.2.3.4", false},
