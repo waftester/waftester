@@ -1,11 +1,15 @@
 // Regression tests for OSINT security bugs (from 85-fix adversarial review).
 //
 // Bug 1: Censys FetchSubdomains used fmt.Sprintf to construct JSON body,
-//         allowing JSON injection via the query parameter.
+//
+//	allowing JSON injection via the query parameter.
+//
 // Fix 1: Use json.Marshal with a typed struct.
 //
 // Bug 2: Shodan error messages included the raw API key,
-//         which would leak to logs.
+//
+//	which would leak to logs.
+//
 // Fix 2: redactAPIKey() strips the key from error messages.
 package osint
 

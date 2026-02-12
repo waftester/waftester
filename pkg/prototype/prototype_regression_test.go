@@ -1,10 +1,12 @@
 // Regression tests for SanitizePrototypePollution and detectPollution bugs.
 //
 // Bug #7: SanitizePrototypePollution used single-pass replacement, allowing
-//         nested payloads like "__pro__proto__to__" to survive as "__proto__".
+//
+//	nested payloads like "__pro__proto__to__" to survive as "__proto__".
 //
 // Bug #9: detectPollution had a dead branch — the general ppmarker check at
-//         line 320 returned before the specific (test: + ppmarker) check.
+//
+//	line 320 returned before the specific (test: + ppmarker) check.
 package prototype
 
 import (
