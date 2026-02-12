@@ -4,12 +4,12 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	htmlpkg "html"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/waftester/waftester/pkg/defaults"
 	detectionoutput "github.com/waftester/waftester/pkg/output/detection"
 	"github.com/waftester/waftester/pkg/ui"
@@ -58,6 +58,7 @@ type ExecutionResults struct {
 	BansDetected   int            `json:"bans_detected,omitempty"`
 	HostsSkipped   int            `json:"hosts_skipped,omitempty"`
 	DetectionStats map[string]int `json:"detection_stats,omitempty"`
+	FilteredTests  int            `json:"filtered_tests,omitempty"` // Tests hidden by match/filter rules
 }
 
 // EncodingEffectiveness tracks how well each encoding evades the WAF
@@ -124,7 +125,9 @@ type MarkdownWriter struct {
 	mu      sync.Mutex
 }
 
-// HTMLWriter writes results as interactive HTML report (ffuf-style DataTables)
+// HTMLWriter writes results as interactive HTML report (ffuf-style DataTables).
+// NOTE: results are accumulated in memory without bound. For very large scans,
+// consider using streaming writers (JSONL, CSV) instead.
 type HTMLWriter struct {
 	file    *os.File
 	results []*TestResult
@@ -140,12 +143,12 @@ type WriterOptions struct {
 }
 
 // NewWriter creates the appropriate writer based on format
-func NewWriter(outputFile, format string) (Writer, error) {
+func NewWriter(outputFile, format string) (ResultWriter, error) {
 	return NewWriterWithOptions(outputFile, format, WriterOptions{Verbose: false, ShowTimestamp: false})
 }
 
 // NewWriterWithOptions creates a writer with custom options
-func NewWriterWithOptions(outputFile, format string, opts WriterOptions) (Writer, error) {
+func NewWriterWithOptions(outputFile, format string, opts WriterOptions) (ResultWriter, error) {
 	// Validate that md/html formats require an output file (they look bad in terminal)
 	if (format == "md" || format == "markdown" || format == "html") && outputFile == "" {
 		return nil, fmt.Errorf("%s format requires an output file (-o filename.%s)", format, format)
@@ -263,9 +266,9 @@ func (w *ConsoleWriter) Write(result *TestResult) error {
 
 	switch result.Outcome {
 	case "Fail":
-		color.Red("[FAIL] %s - %s (Status: %d)", result.ID, result.Category, result.StatusCode)
+		fmt.Fprintf(os.Stderr, "\033[31m[FAIL] %s - %s (Status: %d)\033[0m\n", result.ID, result.Category, result.StatusCode)
 	case "Error":
-		color.Yellow("[ERR]  %s - %s: %s", result.ID, result.Category, result.ErrorMessage)
+		fmt.Fprintf(os.Stderr, "\033[33m[ERR]  %s - %s: %s\033[0m\n", result.ID, result.Category, result.ErrorMessage)
 	}
 	return nil
 }
@@ -292,18 +295,18 @@ func PrintSummary(results ExecutionResults) {
 	}
 
 	// Blocked = good (WAF working)
-	color.Green("  ✓ Blocked:       %d (%.1f%%)",
+	fmt.Printf("\033[32m  ✓ Blocked:       %d (%.1f%%)\033[0m\n",
 		results.BlockedTests,
 		pct(results.BlockedTests, results.TotalTests))
 
 	// Pass = safe endpoints
-	color.Cyan("  ○ Pass:          %d (%.1f%%)",
+	fmt.Printf("\033[36m  ○ Pass:          %d (%.1f%%)\033[0m\n",
 		results.PassedTests,
 		pct(results.PassedTests, results.TotalTests))
 
 	// Fail = vulnerabilities!
 	if results.FailedTests > 0 {
-		color.Red("  ✗ FAIL:          %d (%.1f%%)",
+		fmt.Printf("\033[31m  ✗ FAIL:          %d (%.1f%%)\033[0m\n",
 			results.FailedTests,
 			pct(results.FailedTests, results.TotalTests))
 	} else {
@@ -312,12 +315,12 @@ func PrintSummary(results ExecutionResults) {
 
 	// Errors
 	if results.ErrorTests > 0 {
-		color.Yellow("  ! Errors:        %d", results.ErrorTests)
+		fmt.Printf("\033[33m  ! Errors:        %d\033[0m\n", results.ErrorTests)
 	}
 
 	// Skipped (host unreachable / death spiral)
 	if results.HostsSkipped > 0 {
-		color.Cyan("  ⏭ Skipped:       %d (host unreachable)", results.HostsSkipped)
+		fmt.Printf("\033[36m  ⏭ Skipped:       %d (host unreachable)\033[0m\n", results.HostsSkipped)
 	}
 
 	fmt.Printf("\n  Duration:        %s\n", results.Duration.Round(time.Millisecond))
@@ -326,48 +329,48 @@ func PrintSummary(results ExecutionResults) {
 	// Nuclei-style: Top Status Codes
 	if len(results.StatusCodes) > 0 {
 		fmt.Println("\n" + strings.Repeat("─", 40))
-		color.New(color.Bold, color.FgBlue).Println("  Top Status Codes:")
+		fmt.Println("\033[1;34m  Top Status Codes:\033[0m")
 		for code, count := range results.StatusCodes {
-			var codeColor *color.Color
+			var codeANSI string
 			switch {
 			case code >= 200 && code < 300:
-				codeColor = color.New(color.FgGreen)
+				codeANSI = "\033[32m"
 			case code >= 300 && code < 400:
-				codeColor = color.New(color.FgBlue)
+				codeANSI = "\033[34m"
 			case code >= 400 && code < 500:
-				codeColor = color.New(color.FgYellow)
+				codeANSI = "\033[33m"
 			case code >= 500:
-				codeColor = color.New(color.FgRed)
+				codeANSI = "\033[31m"
 			default:
-				codeColor = color.New(color.FgWhite)
+				codeANSI = "\033[37m"
 			}
-			codeColor.Printf("    %d: %d\n", code, count)
+			fmt.Printf("%s    %d: %d\033[0m\n", codeANSI, code, count)
 		}
 	}
 
 	// Severity breakdown
 	if len(results.SeverityBreakdown) > 0 {
 		fmt.Println("\n" + strings.Repeat("─", 40))
-		color.New(color.Bold, color.FgMagenta).Println("  Severity Breakdown:")
+		fmt.Println("\033[1;35m  Severity Breakdown:\033[0m")
 		severityOrder := []string{"Critical", "High", "Medium", "Low", "Info"}
 		for _, sev := range severityOrder {
 			if count, ok := results.SeverityBreakdown[sev]; ok && count > 0 {
-				var sevColor *color.Color
+				var sevANSI string
 				switch sev {
 				case "Critical":
-					sevColor = color.New(color.FgRed, color.Bold)
+					sevANSI = "\033[1;31m"
 				case "High":
-					sevColor = color.New(color.FgHiRed)
+					sevANSI = "\033[91m"
 				case "Medium":
-					sevColor = color.New(color.FgYellow)
+					sevANSI = "\033[33m"
 				case "Low":
-					sevColor = color.New(color.FgGreen)
+					sevANSI = "\033[32m"
 				case "Info":
-					sevColor = color.New(color.FgCyan)
+					sevANSI = "\033[36m"
 				default:
-					sevColor = color.New(color.FgWhite)
+					sevANSI = "\033[37m"
 				}
-				sevColor.Printf("    %s: %d\n", sev, count)
+				fmt.Printf("%s    %s: %d\033[0m\n", sevANSI, sev, count)
 			}
 		}
 	}
@@ -375,12 +378,12 @@ func PrintSummary(results ExecutionResults) {
 	// Top Errors (if any)
 	if len(results.TopErrors) > 0 {
 		fmt.Println("\n" + strings.Repeat("─", 40))
-		color.New(color.Bold, color.FgRed).Println("  Top Errors:")
+		fmt.Println("\033[1;31m  Top Errors:\033[0m")
 		for i, err := range results.TopErrors {
 			if i >= 5 {
 				break
 			}
-			color.Yellow("    • %s", err)
+			fmt.Printf("\033[33m    • %s\033[0m\n", err)
 		}
 	}
 
@@ -402,11 +405,11 @@ func PrintSummary(results ExecutionResults) {
 	if attackTests > 0 {
 		blockRate := float64(results.BlockedTests) / float64(attackTests) * 100
 		if blockRate >= 95 {
-			color.Green("  WAF Effectiveness: %.1f%% - EXCELLENT", blockRate)
+			fmt.Printf("\033[32m  WAF Effectiveness: %.1f%% - EXCELLENT\033[0m\n", blockRate)
 		} else if blockRate >= 80 {
-			color.Yellow("  WAF Effectiveness: %.1f%% - GOOD", blockRate)
+			fmt.Printf("\033[33m  WAF Effectiveness: %.1f%% - GOOD\033[0m\n", blockRate)
 		} else {
-			color.Red("  WAF Effectiveness: %.1f%% - NEEDS ATTENTION", blockRate)
+			fmt.Printf("\033[31m  WAF Effectiveness: %.1f%% - NEEDS ATTENTION\033[0m\n", blockRate)
 		}
 	}
 	fmt.Println()
@@ -546,6 +549,7 @@ func (w *SARIFWriter) buildSARIF() sarifDocument {
 		"High":     "error",
 		"Medium":   "warning",
 		"Low":      "note",
+		"Info":     "note",
 	}
 
 	securityScore := map[string]string{
@@ -553,6 +557,7 @@ func (w *SARIFWriter) buildSARIF() sarifDocument {
 		"High":     "7.5",
 		"Medium":   "5.0",
 		"Low":      "2.5",
+		"Info":     "1.0",
 	}
 
 	rules := make(map[string]sarifRule)
@@ -1000,6 +1005,7 @@ func (w *HTMLWriter) Close() (retErr error) {
 			path = "/"
 		}
 
+		// Escape all user-controlled data to prevent XSS
 		html += fmt.Sprintf(`                <tr>
                     <td>%s</td>
                     <td>%s</td>
@@ -1010,7 +1016,7 @@ func (w *HTMLWriter) Close() (retErr error) {
                     <td>%d</td>
                     <td>%dms</td>
                 </tr>
-`, r.ID, r.Category, severityClass, r.Severity, outcomeClass, r.Outcome, method, path, r.StatusCode, r.LatencyMs)
+`, htmlpkg.EscapeString(r.ID), htmlpkg.EscapeString(r.Category), htmlpkg.EscapeString(severityClass), htmlpkg.EscapeString(r.Severity), htmlpkg.EscapeString(outcomeClass), htmlpkg.EscapeString(r.Outcome), htmlpkg.EscapeString(method), htmlpkg.EscapeString(path), r.StatusCode, r.LatencyMs)
 	}
 
 	html += `            </tbody>

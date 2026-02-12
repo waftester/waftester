@@ -17,13 +17,26 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
 )
+
+// infoDisclosurePatterns contains pre-compiled regexes for detecting information disclosure.
+var infoDisclosurePatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)stack\s*trace`),
+	regexp.MustCompile(`(?i)at\s+[\w.]+\([\w.]+:\d+\)`),
+	regexp.MustCompile(`(?i)file\s+"[^"]+"\s*,\s*line\s+\d+`),
+	regexp.MustCompile(`(?i)(password|api.?key|secret|token)\s*[:=]`),
+	regexp.MustCompile(`(?i)/(?:home|var|usr|etc)/[\w/]+`),
+	regexp.MustCompile(`(?i)[A-Za-z]:\\[\w\\]+`),
+}
 
 // FuzzType represents the type of fuzzing to perform.
 type FuzzType string
@@ -75,22 +88,11 @@ const (
 	VulnAuthBypass      VulnerabilityType = "auth-bypass"
 )
 
-// Severity represents the severity level.
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
-
 // Vulnerability represents a detected API vulnerability.
 type Vulnerability struct {
 	Type        VulnerabilityType `json:"type"`
 	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
+	Severity    finding.Severity  `json:"severity"`
 	Endpoint    string            `json:"endpoint"`
 	Method      string            `json:"method"`
 	Parameter   string            `json:"parameter,omitempty"`
@@ -152,9 +154,7 @@ type Response struct {
 
 // TesterConfig holds configuration for the API fuzzer.
 type TesterConfig struct {
-	Timeout       time.Duration
-	UserAgent     string
-	Concurrency   int
+	attackconfig.Base
 	MaxIterations int
 	FuzzTypes     []FuzzType
 	Dictionary    []string
@@ -169,16 +169,17 @@ type TesterConfig struct {
 type Tester struct {
 	config   *TesterConfig
 	client   *http.Client
-	rng      *rand.Rand
 	detector *detection.Detector
 }
 
 // DefaultConfig returns default configuration.
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:       duration.HTTPFuzzing,
-		UserAgent:     ui.UserAgentWithContext("API Fuzzer"),
-		Concurrency:   defaults.ConcurrencyMedium,
+		Base: attackconfig.Base{
+			Timeout:     duration.HTTPFuzzing,
+			UserAgent:   ui.UserAgentWithContext("API Fuzzer"),
+			Concurrency: defaults.ConcurrencyMedium,
+		},
 		MaxIterations: 100,
 		FuzzTypes:     []FuzzType{FuzzMutation, FuzzSmart},
 		SkipCodes:     []int{404},
@@ -198,7 +199,6 @@ func NewTester(config *TesterConfig) *Tester {
 	return &Tester{
 		config:   config,
 		client:   httpclient.Fuzzing(),
-		rng:      rand.New(rand.NewSource(time.Now().UnixNano())),
 		detector: detection.Default(),
 	}
 }
@@ -545,32 +545,32 @@ func (t *Tester) randomMutation() string {
 	mutations := []func() string{
 		// Random bytes
 		func() string {
-			b := make([]byte, t.rng.Intn(100)+1)
+			b := make([]byte, rand.Intn(100)+1)
 			for i := range b {
-				b[i] = byte(t.rng.Intn(256))
+				b[i] = byte(rand.Intn(256))
 			}
 			return string(b)
 		},
 		// Random unicode
 		func() string {
-			runes := make([]rune, t.rng.Intn(50)+1)
+			runes := make([]rune, rand.Intn(50)+1)
 			for i := range runes {
-				runes[i] = rune(t.rng.Intn(0x10000))
+				runes[i] = rune(rand.Intn(0x10000))
 			}
 			return string(runes)
 		},
 		// Format string
 		func() string {
 			formats := []string{"%s", "%x", "%n", "%p", "%.9999999s", "%s%s%s%s%s"}
-			return formats[t.rng.Intn(len(formats))]
+			return formats[rand.Intn(len(formats))]
 		},
 		// Long string
 		func() string {
-			return strings.Repeat("A", t.rng.Intn(10000)+1000)
+			return strings.Repeat("A", rand.Intn(10000)+1000)
 		},
 	}
 
-	return mutations[t.rng.Intn(len(mutations))]()
+	return mutations[rand.Intn(len(mutations))]()
 }
 
 // sendFuzzRequest sends a fuzz request.
@@ -755,11 +755,11 @@ func (t *Tester) analyzeResponse(endpoint Endpoint, param Parameter, payload str
 		return &Vulnerability{
 			Type:        VulnInputValidation,
 			Description: "Server error triggered by fuzz input",
-			Severity:    SeverityMedium,
+			Severity:    finding.Medium,
 			Endpoint:    endpoint.Path,
 			Method:      endpoint.Method,
 			Parameter:   param.Name,
-			Payload:     truncate(payload, 200),
+			Payload:     strutil.Truncate(payload, 200),
 			Response:    *resp,
 			Evidence:    extractEvidence(resp.Body),
 		}
@@ -770,11 +770,11 @@ func (t *Tester) analyzeResponse(endpoint Endpoint, param Parameter, payload str
 		return &Vulnerability{
 			Type:        VulnInjection,
 			Description: "Potential injection vulnerability",
-			Severity:    SeverityHigh,
+			Severity:    finding.High,
 			Endpoint:    endpoint.Path,
 			Method:      endpoint.Method,
 			Parameter:   param.Name,
-			Payload:     truncate(payload, 200),
+			Payload:     strutil.Truncate(payload, 200),
 			Response:    *resp,
 			Evidence:    extractEvidence(resp.Body),
 			CVSS:        8.6,
@@ -786,11 +786,11 @@ func (t *Tester) analyzeResponse(endpoint Endpoint, param Parameter, payload str
 		return &Vulnerability{
 			Type:        VulnInfoDisclosure,
 			Description: "Information disclosure in error response",
-			Severity:    SeverityMedium,
+			Severity:    finding.Medium,
 			Endpoint:    endpoint.Path,
 			Method:      endpoint.Method,
 			Parameter:   param.Name,
-			Payload:     truncate(payload, 200),
+			Payload:     strutil.Truncate(payload, 200),
 			Response:    *resp,
 			Evidence:    extractEvidence(resp.Body),
 			CVSS:        5.3,
@@ -802,11 +802,11 @@ func (t *Tester) analyzeResponse(endpoint Endpoint, param Parameter, payload str
 		return &Vulnerability{
 			Type:        VulnDoS,
 			Description: fmt.Sprintf("Slow response (%v) may indicate DoS vulnerability", resp.ResponseTime),
-			Severity:    SeverityMedium,
+			Severity:    finding.Medium,
 			Endpoint:    endpoint.Path,
 			Method:      endpoint.Method,
 			Parameter:   param.Name,
-			Payload:     truncate(payload, 200),
+			Payload:     strutil.Truncate(payload, 200),
 			Response:    *resp,
 			CVSS:        6.5,
 		}
@@ -872,16 +872,7 @@ func hasInjectionIndicator(body, payload string) bool {
 }
 
 func hasInfoDisclosure(body string) bool {
-	patterns := []*regexp.Regexp{
-		regexp.MustCompile(`(?i)stack\s*trace`),
-		regexp.MustCompile(`(?i)at\s+[\w.]+\([\w.]+:\d+\)`),
-		regexp.MustCompile(`(?i)file\s+"[^"]+"\s*,\s*line\s+\d+`),
-		regexp.MustCompile(`(?i)(password|api.?key|secret|token)\s*[:=]`),
-		regexp.MustCompile(`(?i)/(?:home|var|usr|etc)/[\w/]+`),
-		regexp.MustCompile(`(?i)[A-Za-z]:\\[\w\\]+`),
-	}
-
-	for _, p := range patterns {
+	for _, p := range infoDisclosurePatterns {
 		if p.MatchString(body) {
 			return true
 		}
@@ -897,12 +888,7 @@ func extractEvidence(body string) string {
 	return body
 }
 
-func truncate(s string, maxLen int) string {
-	if len(s) > maxLen {
-		return s[:maxLen] + "..."
-	}
-	return s
-}
+
 
 // DefaultDictionary returns default fuzzing dictionary.
 func DefaultDictionary() []string {

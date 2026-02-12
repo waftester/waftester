@@ -393,13 +393,6 @@ func StandardWriterTests(format string, validateFn func(t *testing.T, content []
 // UTILITY FUNCTIONS
 // ============================================================================
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // FormatBytes returns a human-readable byte size.
 func FormatBytes(b int64) string {
 	const unit = 1024

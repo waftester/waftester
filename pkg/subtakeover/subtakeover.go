@@ -11,13 +11,15 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/runner"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -39,28 +41,13 @@ const (
 	VulnMX           VulnerabilityType = "dangling-mx"
 )
 
-// Severity levels
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-)
-
 // Vulnerability represents a detected subdomain takeover vulnerability
 type Vulnerability struct {
-	Type        VulnerabilityType `json:"type"`
-	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
-	Subdomain   string            `json:"subdomain"`
-	Target      string            `json:"target"`
-	Provider    string            `json:"provider"`
-	Evidence    string            `json:"evidence"`
-	Remediation string            `json:"remediation"`
-	CVSS        float64           `json:"cvss"`
-	ConfirmedBy int               `json:"confirmed_by,omitempty"`
+	finding.Vulnerability
+	Type      VulnerabilityType `json:"type"`
+	Subdomain string            `json:"subdomain"`
+	Target    string            `json:"target"`
+	Provider  string            `json:"provider"`
 }
 
 // Fingerprint represents a service fingerprint for detection
@@ -87,13 +74,10 @@ type ScanResult struct {
 
 // TesterConfig configures the subdomain takeover tester
 type TesterConfig struct {
-	Timeout     time.Duration
-	UserAgent   string
-	Concurrency int
+	attackconfig.Base
 	DNSResolver string
 	CheckHTTP   bool
 	FollowCNAME bool
-	Client      *http.Client
 }
 
 // Tester performs subdomain takeover tests
@@ -106,9 +90,11 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:     duration.HTTPFuzzing,
-		UserAgent:   ui.UserAgent(),
-		Concurrency: defaults.ConcurrencyMedium,
+		Base: attackconfig.Base{
+			Timeout:     duration.HTTPFuzzing,
+			UserAgent:   ui.UserAgent(),
+			Concurrency: defaults.ConcurrencyMedium,
+		},
 		DNSResolver: "",
 		CheckHTTP:   true,
 		FollowCNAME: true,
@@ -273,15 +259,20 @@ func (t *Tester) CheckSubdomain(ctx context.Context, subdomain string) (*ScanRes
 		// NXDOMAIN might indicate vulnerability
 		if strings.Contains(err.Error(), "no such host") || strings.Contains(err.Error(), "NXDOMAIN") {
 			result.Vulnerabilities = append(result.Vulnerabilities, Vulnerability{
-				Type:        VulnCNAME,
-				Description: "Subdomain has dangling CNAME record",
-				Severity:    SeverityHigh,
-				Subdomain:   subdomain,
-				Evidence:    fmt.Sprintf("DNS error: %v", err),
-				Remediation: GetSubdomainTakeoverRemediation(),
-				CVSS:        8.6,
+				Vulnerability: finding.Vulnerability{
+					Description: "Subdomain has dangling CNAME record",
+					Severity:    finding.High,
+					Evidence:    fmt.Sprintf("DNS error: %v", err),
+					Remediation: GetSubdomainTakeoverRemediation(),
+					CVSS:        8.6,
+				},
+				Type:      VulnCNAME,
+				Subdomain: subdomain,
 			})
 			result.IsVulnerable = true
+		} else {
+			// Non-NXDOMAIN DNS errors should not be silently swallowed
+			return result, fmt.Errorf("DNS resolution for %s: %w", subdomain, err)
 		}
 	}
 	result.CNAMEChain = cnameChain
@@ -361,36 +352,47 @@ func (t *Tester) checkHTTPFingerprint(ctx context.Context, subdomain string, fp 
 	}
 
 	for _, targetURL := range urls {
-		req, err := http.NewRequestWithContext(ctx, "GET", targetURL, nil)
-		if err != nil {
-			continue
+		if vuln := t.checkSingleURL(ctx, subdomain, targetURL, fp); vuln != nil {
+			return vuln
 		}
-		req.Header.Set("User-Agent", t.config.UserAgent)
+	}
 
-		resp, err := t.client.Do(req)
-		if err != nil {
-			continue
-		}
+	return nil
+}
 
-		body, _ := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
-		iohelper.DrainAndClose(resp.Body)
+// checkSingleURL checks a single URL against a fingerprint, properly scoping defer.
+func (t *Tester) checkSingleURL(ctx context.Context, subdomain, targetURL string, fp Fingerprint) *Vulnerability {
+	req, err := http.NewRequestWithContext(ctx, "GET", targetURL, nil)
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("User-Agent", t.config.UserAgent)
 
-		bodyStr := string(body)
+	resp, err := t.client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer iohelper.DrainAndClose(resp.Body)
 
-		// Check for fingerprint patterns
-		for _, pattern := range fp.Patterns {
-			if pattern.MatchString(bodyStr) {
-				return &Vulnerability{
-					Type:        fp.VulnType,
+	body, _ := iohelper.ReadBody(resp.Body, iohelper.MediumMaxBodySize)
+
+	bodyStr := string(body)
+
+	// Check for fingerprint patterns
+	for _, pattern := range fp.Patterns {
+		if pattern.MatchString(bodyStr) {
+			return &Vulnerability{
+				Vulnerability: finding.Vulnerability{
 					Description: fmt.Sprintf("%s subdomain takeover possible", fp.Name),
-					Severity:    SeverityHigh,
-					Subdomain:   subdomain,
-					Target:      targetURL,
-					Provider:    fp.Provider,
+					Severity:    finding.High,
 					Evidence:    fmt.Sprintf("Pattern matched: %s", pattern.String()),
 					Remediation: GetSubdomainTakeoverRemediation(),
 					CVSS:        8.6,
-				}
+				},
+				Type:      fp.VulnType,
+				Subdomain: subdomain,
+				Target:    targetURL,
+				Provider:  fp.Provider,
 			}
 		}
 	}
@@ -411,14 +413,16 @@ func (t *Tester) CheckNS(domain string) (*Vulnerability, error) {
 		_, err := net.LookupHost(record.Host)
 		if err != nil { //nolint:nilerr // intentional: DNS resolution failure IS the vulnerability
 			return &Vulnerability{
-				Type:        VulnNS,
-				Description: "Dangling NS record detected",
-				Severity:    SeverityCritical,
-				Subdomain:   domain,
-				Target:      record.Host,
-				Evidence:    fmt.Sprintf("NS %s is not resolvable", record.Host),
-				Remediation: GetSubdomainTakeoverRemediation(),
-				CVSS:        9.8,
+				Vulnerability: finding.Vulnerability{
+					Description: "Dangling NS record detected",
+					Severity:    finding.Critical,
+					Evidence:    fmt.Sprintf("NS %s is not resolvable", record.Host),
+					Remediation: GetSubdomainTakeoverRemediation(),
+					CVSS:        9.8,
+				},
+				Type:      VulnNS,
+				Subdomain: domain,
+				Target:    record.Host,
 			}, nil
 		}
 	}
@@ -438,14 +442,16 @@ func (t *Tester) CheckMX(domain string) (*Vulnerability, error) {
 		_, err := net.LookupHost(record.Host)
 		if err != nil { //nolint:nilerr // intentional: DNS resolution failure IS the vulnerability
 			return &Vulnerability{
-				Type:        VulnMX,
-				Description: "Dangling MX record detected",
-				Severity:    SeverityMedium,
-				Subdomain:   domain,
-				Target:      record.Host,
-				Evidence:    fmt.Sprintf("MX %s is not resolvable", record.Host),
-				Remediation: GetSubdomainTakeoverRemediation(),
-				CVSS:        5.3,
+				Vulnerability: finding.Vulnerability{
+					Description: "Dangling MX record detected",
+					Severity:    finding.Medium,
+					Evidence:    fmt.Sprintf("MX %s is not resolvable", record.Host),
+					Remediation: GetSubdomainTakeoverRemediation(),
+					CVSS:        5.3,
+				},
+				Type:      VulnMX,
+				Subdomain: domain,
+				Target:    record.Host,
 			}, nil
 		}
 	}
@@ -453,51 +459,42 @@ func (t *Tester) CheckMX(domain string) (*Vulnerability, error) {
 	return nil, nil
 }
 
-// BatchCheck checks multiple subdomains concurrently
+// BatchCheck checks multiple subdomains concurrently using runner.Runner[T].
 func (t *Tester) BatchCheck(ctx context.Context, subdomains []string) ([]ScanResult, error) {
-	var results []ScanResult
-	var mu sync.Mutex
-	var wg sync.WaitGroup
+	r := runner.NewRunner[ScanResult]()
+	r.Concurrency = t.config.Concurrency
 
-	sem := make(chan struct{}, t.config.Concurrency)
+	results := r.Run(ctx, subdomains, func(ctx context.Context, target string) (ScanResult, error) {
+		result, err := t.CheckSubdomain(ctx, target)
+		if err != nil {
+			return ScanResult{}, err
+		}
+		return *result, nil
+	})
 
-	for _, subdomain := range subdomains {
-		wg.Add(1)
-		go func(sd string) {
-			defer wg.Done()
-
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			result, err := t.CheckSubdomain(ctx, sd)
-			if err != nil {
-				return
-			}
-
-			mu.Lock()
-			results = append(results, *result)
-			mu.Unlock()
-		}(subdomain)
+	out := make([]ScanResult, 0, len(results))
+	for _, res := range results {
+		if res.Error == nil {
+			out = append(out, res.Data)
+		}
 	}
-
-	wg.Wait()
-	return results, nil
+	return out, nil
 }
 
 // Helper functions
 
-func getSeverity(vulnType VulnerabilityType) Severity {
+func getSeverity(vulnType VulnerabilityType) finding.Severity {
 	switch vulnType {
 	case VulnNS:
-		return SeverityCritical
+		return finding.Critical
 	case VulnCNAME, VulnS3Bucket, VulnAzureBlob, VulnGitHubPages:
-		return SeverityHigh
+		return finding.High
 	case VulnMX:
-		return SeverityMedium
+		return finding.Medium
 	case VulnCloudService, VulnHeroku, VulnShopify, VulnFastly, VulnPantheon, VulnNetlify:
-		return SeverityHigh
+		return finding.High
 	}
-	return SeverityHigh // default for unknown types
+	return finding.High // default for unknown types
 }
 
 // Remediation guidance

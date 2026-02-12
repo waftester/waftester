@@ -8,6 +8,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/attackconfig"
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewTester(t *testing.T) {
@@ -23,8 +26,7 @@ func TestNewTester(t *testing.T) {
 
 	t.Run("with custom config", func(t *testing.T) {
 		config := &TesterConfig{
-			Timeout:       60 * time.Second,
-			Concurrency:   20,
+			Base:          attackconfig.Base{Timeout: 60 * time.Second, Concurrency: 20},
 			MaxIterations: 500,
 		}
 		tester := NewTester(config)
@@ -237,7 +239,7 @@ func TestFuzzEndpoint(t *testing.T) {
 	defer server.Close()
 
 	tester := NewTester(&TesterConfig{
-		Timeout:       5 * time.Second,
+		Base:          attackconfig.Base{Timeout: 5 * time.Second},
 		MaxIterations: 10,
 		Dictionary:    []string{"test", "'", "1=1"},
 	})
@@ -270,8 +272,7 @@ func TestFuzzAPI(t *testing.T) {
 	defer server.Close()
 
 	tester := NewTester(&TesterConfig{
-		Timeout:       5 * time.Second,
-		Concurrency:   2,
+		Base:          attackconfig.Base{Timeout: 5 * time.Second, Concurrency: 2},
 		MaxIterations: 5,
 		Dictionary:    []string{"test"},
 	})
@@ -297,7 +298,7 @@ func TestSendFuzzRequest(t *testing.T) {
 	defer server.Close()
 
 	tester := NewTester(&TesterConfig{
-		Timeout: 5 * time.Second,
+		Base: attackconfig.Base{Timeout: 5 * time.Second},
 	})
 
 	endpoint := Endpoint{
@@ -334,7 +335,7 @@ func TestSendBodyFuzzRequest(t *testing.T) {
 	defer server.Close()
 
 	tester := NewTester(&TesterConfig{
-		Timeout: 5 * time.Second,
+		Base: attackconfig.Base{Timeout: 5 * time.Second},
 	})
 
 	endpoint := Endpoint{
@@ -556,7 +557,7 @@ func TestVulnerabilityToJSON(t *testing.T) {
 	vuln := Vulnerability{
 		Type:        VulnInjection,
 		Description: "SQL injection detected",
-		Severity:    SeverityHigh,
+		Severity:    finding.High,
 		Endpoint:    "/api/users",
 		Method:      "GET",
 		Parameter:   "id",
@@ -576,9 +577,9 @@ func TestVulnerabilityToJSON(t *testing.T) {
 
 func TestGenerateFuzzReport(t *testing.T) {
 	vulns := []Vulnerability{
-		{Type: VulnInjection, Severity: SeverityHigh},
-		{Type: VulnInjection, Severity: SeverityHigh},
-		{Type: VulnDoS, Severity: SeverityMedium},
+		{Type: VulnInjection, Severity: finding.High},
+		{Type: VulnInjection, Severity: finding.High},
+		{Type: VulnDoS, Severity: finding.Medium},
 	}
 
 	report := GenerateFuzzReport(vulns)
@@ -602,7 +603,7 @@ func TestVulnerability(t *testing.T) {
 	vuln := Vulnerability{
 		Type:        VulnBoundaryError,
 		Description: "Boundary error",
-		Severity:    SeverityMedium,
+		Severity:    finding.Medium,
 		Endpoint:    "/test",
 		Method:      "POST",
 		CVSS:        5.5,
@@ -700,15 +701,6 @@ func TestHelperFunctions(t *testing.T) {
 		}
 	})
 
-	t.Run("truncate", func(t *testing.T) {
-		if truncate("hello", 3) != "hel..." {
-			t.Error("truncate failed")
-		}
-		if truncate("hi", 10) != "hi" {
-			t.Error("truncate should not modify short strings")
-		}
-	})
-
 	t.Run("extractEvidence", func(t *testing.T) {
 		long := strings.Repeat("a", 1000)
 		result := extractEvidence(long)
@@ -753,11 +745,4 @@ func TestParameter(t *testing.T) {
 	if *decoded.Maximum != 100.0 {
 		t.Error("maximum mismatch")
 	}
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

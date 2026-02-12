@@ -7,10 +7,9 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/chromedp/cdproto v0.0.0-20250803210736-d308e07a266d
 	github.com/chromedp/chromedp v0.14.2
-	github.com/fatih/color v1.18.0
 	github.com/go-json-experiment/json v0.0.0-20250725192818-e39067aee2d2
+	github.com/go-pdf/fpdf v0.9.0
 	github.com/google/uuid v1.6.0
-	github.com/jung-kurt/gofpdf v1.16.2
 	github.com/modelcontextprotocol/go-sdk v1.2.0
 	github.com/muesli/termenv v0.16.0
 	github.com/prometheus/client_golang v1.23.2
@@ -56,7 +55,6 @@ require (
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
-	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect

@@ -5,6 +5,28 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.5] - 2026-02-11
+
+### Changed
+
+- **Enterprise refactoring complete** — 26-phase structural overhaul (166/173 tasks): shared finding types, shared attack config, centralized errors, CLI decomposition, utility deduplication, context propagation, god file decomposition, magic number extraction, extended test coverage
+- **Context propagation** — All long-running operations now accept `context.Context` for clean cancellation and goroutine safety
+- **God file decomposition** — Split 6 oversized files (`mcpserver/tools.go`, `report/html_report.go`, `ssti/ssti.go`, `osint/osint.go`, `discovery/` god files, `core/executor.go`) into focused modules
+
+### Fixed
+
+- **OWASP DRY violation** — Replaced 8 hardcoded OWASP category strings in `pkg/report/html_vulndb.go` with `defaults.OWASPTop10` map references
+- **Goroutine leaks** — Fixed resource leaks in `interactive.inputLoop`, `distributed.StartDistributor`, `leakypaths` work sender, and `deserialize.Scan`
+- **Race conditions** — Fixed 7 data races across `scoring`, `waf`, `detection`, `workerpool`, `runner`, `oob`, and `calibration` packages
+- **Dead code cleanup** — Removed ~235 LOC of confirmed dead code (nil/nil stubs, unused functions)
+
+### Internal
+
+- 44 structural enforcement tests preventing regression
+- All attack packages use shared `finding.Vulnerability` and `attackconfig.Base` types
+- Shared retry engine, signal handling, and structured logging across CLI
+- Performance: buffer pooling, JSON streaming, slice preallocation in hot paths
+
 ## [2.8.4] - 2026-02-10
 
 ### Changed

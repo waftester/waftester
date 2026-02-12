@@ -13,8 +13,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
@@ -29,17 +31,6 @@ const (
 	AttackTokenReuse      AttackType = "token_reuse"      // Nonce/token reuse
 	AttackResourceExhaust AttackType = "resource_exhaust" // Resource exhaustion via concurrency
 	AttackLimitBypass     AttackType = "limit_bypass"     // Rate limit bypass via race
-)
-
-// Severity represents the severity of a finding
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
 )
 
 // RequestConfig represents a request to be sent in a race
@@ -63,20 +54,14 @@ type Response struct {
 
 // Vulnerability represents a detected race condition vulnerability
 type Vulnerability struct {
-	Type        AttackType  `json:"type"`
-	Description string      `json:"description"`
-	Severity    Severity    `json:"severity"`
-	Evidence    string      `json:"evidence"`
-	URL         string      `json:"url"`
-	Remediation string      `json:"remediation"`
-	Responses   []*Response `json:"responses"`
-	ConfirmedBy int         `json:"confirmed_by,omitempty"`
+	finding.Vulnerability
+	Type      AttackType  `json:"type"`
+	Responses []*Response `json:"responses"`
 }
 
 // TesterConfig configures the race condition tester
 type TesterConfig struct {
-	Timeout        time.Duration
-	UserAgent      string
+	attackconfig.Base
 	MaxConcurrency int           // Maximum concurrent requests
 	Iterations     int           // Number of iterations
 	DelayBetween   time.Duration // Delay between request batches
@@ -85,8 +70,10 @@ type TesterConfig struct {
 // DefaultConfig returns a default tester configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:        duration.HTTPFuzzing,
-		UserAgent:      defaults.UAChrome,
+		Base: attackconfig.Base{
+			Timeout:   duration.HTTPFuzzing,
+			UserAgent: defaults.UAChrome,
+		},
 		MaxConcurrency: 50,
 		Iterations:     1,
 		DelayBetween:   0,
@@ -209,13 +196,15 @@ func (t *Tester) TestDoubleSubmit(ctx context.Context, request *RequestConfig, n
 	// If more than one request succeeded, potential vulnerability
 	if successCount > 1 {
 		return &Vulnerability{
-			Type:        AttackDoubleSubmit,
-			Description: fmt.Sprintf("Double-submit vulnerability: %d out of %d concurrent requests succeeded", successCount, numRequests),
-			Severity:    SeverityCritical,
-			Evidence:    fmt.Sprintf("Multiple successful responses from concurrent identical requests"),
-			URL:         request.URL,
-			Remediation: "Implement idempotency tokens, database locks, or optimistic locking to prevent duplicate submissions",
-			Responses:   successResponses,
+			Vulnerability: finding.Vulnerability{
+				Description: fmt.Sprintf("Double-submit vulnerability: %d out of %d concurrent requests succeeded", successCount, numRequests),
+				Severity:    finding.Critical,
+				Evidence:    fmt.Sprintf("Multiple successful responses from concurrent identical requests"),
+				URL:         request.URL,
+				Remediation: "Implement idempotency tokens, database locks, or optimistic locking to prevent duplicate submissions",
+			},
+			Type:      AttackDoubleSubmit,
+			Responses: successResponses,
 		}, nil
 	}
 
@@ -246,13 +235,15 @@ func (t *Tester) TestTokenReuse(ctx context.Context, request *RequestConfig, num
 	// If multiple requests succeed with same token, vulnerability exists
 	if successCount > 1 {
 		return &Vulnerability{
-			Type:        AttackTokenReuse,
-			Description: fmt.Sprintf("Token reuse vulnerability: same token accepted %d times", successCount),
-			Severity:    SeverityHigh,
-			Evidence:    "Token/nonce accepted multiple times in concurrent requests",
-			URL:         request.URL,
-			Remediation: "Implement atomic token validation and invalidation using database transactions",
-			Responses:   responses,
+			Vulnerability: finding.Vulnerability{
+				Description: fmt.Sprintf("Token reuse vulnerability: same token accepted %d times", successCount),
+				Severity:    finding.High,
+				Evidence:    "Token/nonce accepted multiple times in concurrent requests",
+				URL:         request.URL,
+				Remediation: "Implement atomic token validation and invalidation using database transactions",
+			},
+			Type:      AttackTokenReuse,
+			Responses: responses,
 		}, nil
 	}
 
@@ -282,13 +273,15 @@ func (t *Tester) TestLimitBypass(ctx context.Context, request *RequestConfig, nu
 	// If we got more successes than the limit allows, bypass detected
 	if successCount > expectedLimit {
 		return &Vulnerability{
-			Type:        AttackLimitBypass,
-			Description: fmt.Sprintf("Rate limit bypass: %d requests succeeded, expected limit was %d", successCount, expectedLimit),
-			Severity:    SeverityMedium,
-			Evidence:    fmt.Sprintf("Concurrent requests bypassed rate limit: %d succeeded vs %d limit", successCount, expectedLimit),
-			URL:         request.URL,
-			Remediation: "Use atomic counters with database transactions or distributed locks for rate limiting",
-			Responses:   responses,
+			Vulnerability: finding.Vulnerability{
+				Description: fmt.Sprintf("Rate limit bypass: %d requests succeeded, expected limit was %d", successCount, expectedLimit),
+				Severity:    finding.Medium,
+				Evidence:    fmt.Sprintf("Concurrent requests bypassed rate limit: %d succeeded vs %d limit", successCount, expectedLimit),
+				URL:         request.URL,
+				Remediation: "Use atomic counters with database transactions or distributed locks for rate limiting",
+			},
+			Type:      AttackLimitBypass,
+			Responses: responses,
 		}, nil
 	}
 
@@ -332,12 +325,14 @@ func (t *Tester) TestSequential(ctx context.Context, checkRequest *RequestConfig
 	// If use succeeded multiple times while checks were happening, TOCTOU may exist
 	if successCount > int32(numAttempts/2) {
 		return &Vulnerability{
-			Type:        AttackTOCTOU,
-			Description: fmt.Sprintf("Potential TOCTOU: %d uses succeeded during concurrent checks", successCount),
-			Severity:    SeverityHigh,
-			Evidence:    "Multiple 'use' operations succeeded while 'check' was in progress",
-			URL:         useRequest.URL,
-			Remediation: "Use atomic operations or database transactions to combine check and use into single atomic operation",
+			Vulnerability: finding.Vulnerability{
+				Description: fmt.Sprintf("Potential TOCTOU: %d uses succeeded during concurrent checks", successCount),
+				Severity:    finding.High,
+				Evidence:    "Multiple 'use' operations succeeded while 'check' was in progress",
+				URL:         useRequest.URL,
+				Remediation: "Use atomic operations or database transactions to combine check and use into single atomic operation",
+			},
+			Type: AttackTOCTOU,
 		}, nil
 	}
 

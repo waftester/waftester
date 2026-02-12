@@ -16,20 +16,21 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
 	"golang.org/x/time/rate"
 )
 
 // Config holds false positive testing configuration
 type Config struct {
+	attackconfig.Base
 	TargetURL     string
-	Concurrency   int
 	RateLimit     float64
-	Timeout       time.Duration
 	SkipVerify    bool
 	Verbose       bool
 	ParanoiaLevel int      // CRS paranoia level 1-4 (for local testing)
@@ -39,9 +40,11 @@ type Config struct {
 // DefaultConfig returns sensible defaults
 func DefaultConfig() *Config {
 	return &Config{
-		Concurrency:   defaults.ConcurrencyHigh,
+		Base: attackconfig.Base{
+			Concurrency: defaults.ConcurrencyHigh,
+			Timeout:     duration.DialTimeout,
+		},
 		RateLimit:     50,
-		Timeout:       duration.DialTimeout,
 		ParanoiaLevel: 2,
 		CorpusSources: []string{"leipzig", "edgecases", "forms", "api"},
 	}
@@ -171,7 +174,7 @@ func (t *Tester) Run(ctx context.Context) (*Result, error) {
 						Corpus:       task.Corpus,
 						Location:     task.Location,
 						StatusCode:   statusCode,
-						ResponseBody: truncate(respBody, 200),
+						ResponseBody: strutil.Truncate(respBody, 200),
 					})
 					result.ByCorpus[task.Corpus]++
 					result.ByLocation[task.Location]++
@@ -294,10 +297,4 @@ func (r *Result) SaveResult(filepath string) error {
 	return os.WriteFile(filepath, data, 0644)
 }
 
-// truncate limits string length
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
-}
+

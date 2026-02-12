@@ -574,26 +574,6 @@ func TestAverageDurationEmpty(t *testing.T) {
 	}
 }
 
-func TestTruncate(t *testing.T) {
-	tests := []struct {
-		input    string
-		maxLen   int
-		expected string
-	}{
-		{"short", 10, "short"},
-		{"long string here", 4, "long..."},
-		{"exact", 5, "exact"},
-		{"", 5, ""},
-	}
-
-	for _, tc := range tests {
-		result := truncate(tc.input, tc.maxLen)
-		if result != tc.expected {
-			t.Errorf("truncate(%q, %d) = %q, want %q", tc.input, tc.maxLen, result, tc.expected)
-		}
-	}
-}
-
 func TestConsolidateResults(t *testing.T) {
 	d := NewDetector(5 * time.Second)
 

@@ -8,6 +8,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/attackconfig"
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestNewTester(t *testing.T) {
@@ -26,7 +29,7 @@ func TestNewTester(t *testing.T) {
 
 	t.Run("custom config", func(t *testing.T) {
 		cfg := &TesterConfig{
-			Timeout:      5 * time.Second,
+			Base:         attackconfig.Base{Timeout: 5 * time.Second},
 			MaxDepth:     10,
 			MaxBatchSize: 50,
 		}
@@ -173,7 +176,7 @@ func TestTestIntrospection(t *testing.T) {
 			if vuln.Type != AttackIntrospection {
 				t.Errorf("expected AttackIntrospection, got %s", vuln.Type)
 			}
-			if vuln.Severity != SeverityMedium {
+			if vuln.Severity != finding.Medium {
 				t.Errorf("expected medium severity, got %s", vuln.Severity)
 			}
 		}
@@ -474,7 +477,7 @@ func TestFullScan(t *testing.T) {
 	defer server.Close()
 
 	tester := NewTester(server.URL, &TesterConfig{
-		Timeout:      5 * time.Second,
+		Base:         attackconfig.Base{Timeout: 5 * time.Second},
 		MaxDepth:     5,
 		MaxBatchSize: 10,
 	})
@@ -696,7 +699,7 @@ func TestIsScalarType(t *testing.T) {
 }
 
 func TestVulnerabilitySeverities(t *testing.T) {
-	severities := []Severity{SeverityCritical, SeverityHigh, SeverityMedium, SeverityLow, SeverityInfo}
+	severities := []finding.Severity{finding.Critical, finding.High, finding.Medium, finding.Low, finding.Info}
 
 	for _, s := range severities {
 		if s == "" {

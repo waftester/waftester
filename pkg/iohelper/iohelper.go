@@ -4,6 +4,7 @@ package iohelper
 
 import (
 	"io"
+	"log/slog"
 )
 
 // Standard body size limits for different use cases
@@ -46,6 +47,16 @@ func ReadBodyDefault(r io.Reader) ([]byte, error) {
 // Suitable for headers, error pages, status responses.
 func ReadBodySmall(r io.Reader) ([]byte, error) {
 	return ReadBody(r, SmallMaxBodySize)
+}
+
+// ReadBodyOrLog reads the response body using ReadBodyDefault and logs any errors.
+// It returns the body bytes (which may be nil on error).
+func ReadBodyOrLog(r io.Reader, logger *slog.Logger) []byte {
+	data, err := ReadBodyDefault(r)
+	if err != nil && logger != nil {
+		logger.Warn("body read failed", slog.String("error", err.Error()))
+	}
+	return data
 }
 
 // DrainAndClose reads any remaining data from r and closes it if it's a ReadCloser.

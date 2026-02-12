@@ -267,15 +267,10 @@ func findRawHTTPClients(t *testing.T) []string {
 
 	// Files that legitimately need custom http.Client configuration
 	excludePatterns := []string{
-		"httpclient.go",      // The factory itself
-		"httpclient_test.go", // Tests for the factory
-		"_test.go",           // All tests can create clients for testing
-		"ja3.go",             // JA3 fingerprinting needs custom transport
-		"client.go",          // browser/client.go needs cookie jar + custom redirect
-		"main.go",            // CLI needs custom transport/redirect for flags
-		"cmd_scan.go",        // CLI scan needs custom redirect policy based on flags
-		"cmd_probe.go",       // CLI probe needs custom resolver/transport/redirect
-		"transport.go",       // detection/transport.go wraps existing transports
+		"httpclient.go", // The factory itself
+		"_test.go",      // All tests can create clients for testing
+		"ja3.go",        // JA3 fingerprinting needs custom transport
+		"transport.go",  // detection/transport.go wraps existing transports
 	}
 
 	for _, dir := range []string{"pkg", "cmd"} {
@@ -327,6 +322,87 @@ func isHTTPClientType(expr ast.Expr) bool {
 	if sel, ok := expr.(*ast.SelectorExpr); ok {
 		if ident, ok := sel.X.(*ast.Ident); ok {
 			return ident.Name == "http" && sel.Sel.Name == "Client"
+		}
+	}
+	return false
+}
+
+// TestNoRawHTTPTransport ensures code uses httpclient.New() instead of raw &http.Transport{}.
+// Raw transports bypass centralized middleware (UA rotation, retries, auth headers)
+// and detection wrapping.
+func TestNoRawHTTPTransport(t *testing.T) {
+	violations := findRawHTTPTransports(t)
+
+	if len(violations) > 0 {
+		t.Errorf("Found %d raw &http.Transport{} literals. Use httpclient.New() instead:", len(violations))
+		for _, v := range violations {
+			t.Errorf("  %s", v)
+		}
+	}
+}
+
+func findRawHTTPTransports(t *testing.T) []string {
+	t.Helper()
+
+	var violations []string
+	root := findProjectRoot(t)
+
+	// Files that legitimately need custom http.Transport
+	excludePatterns := []string{
+		"httpclient.go", // The factory itself builds transports
+		"_test.go",      // Tests can create transports for testing
+		"ja3.go",        // JA3 fingerprinting needs custom transport config
+		"transport.go",  // detection/transport.go wraps transports
+	}
+
+	for _, dir := range []string{"pkg", "cmd"} {
+		dirPath := filepath.Join(root, dir)
+		if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+			continue
+		}
+
+		_ = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") {
+				return nil
+			}
+
+			for _, pattern := range excludePatterns {
+				if strings.Contains(path, pattern) {
+					return nil
+				}
+			}
+
+			fset := token.NewFileSet()
+			node, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+			if err != nil {
+				return nil
+			}
+
+			ast.Inspect(node, func(n ast.Node) bool {
+				if unary, ok := n.(*ast.UnaryExpr); ok {
+					if comp, ok := unary.X.(*ast.CompositeLit); ok {
+						if isHTTPTransportType(comp.Type) {
+							pos := fset.Position(comp.Pos())
+							relPath, _ := filepath.Rel(root, pos.Filename)
+							violations = append(violations,
+								relPath+":"+strconv.Itoa(pos.Line)+": &http.Transport{}")
+						}
+					}
+				}
+				return true
+			})
+
+			return nil
+		})
+	}
+
+	return violations
+}
+
+func isHTTPTransportType(expr ast.Expr) bool {
+	if sel, ok := expr.(*ast.SelectorExpr); ok {
+		if ident, ok := sel.X.(*ast.Ident); ok {
+			return ident.Name == "http" && sel.Sel.Name == "Transport"
 		}
 	}
 	return false

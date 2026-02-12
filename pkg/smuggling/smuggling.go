@@ -15,6 +15,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // Vulnerability represents a detected smuggling vulnerability
@@ -203,8 +204,8 @@ func (d *Detector) detectCLTE(ctx context.Context, host, port string, useTLS boo
 			Severity:    "high",
 			Confidence:  0.6,
 			Evidence: []Evidence{
-				{Request: probeRequest, Response: truncate(probeResp, 500), Timing: probeTime},
-				{Request: baselineRequest, Response: truncate(baselineResp, 500), Timing: baselineTime, Notes: "Baseline"},
+				{Request: probeRequest, Response: strutil.Truncate(probeResp, 500), Timing: probeTime},
+				{Request: baselineRequest, Response: strutil.Truncate(baselineResp, 500), Timing: baselineTime, Notes: "Baseline"},
 			},
 		}, nil
 	}
@@ -262,7 +263,7 @@ func (d *Detector) detectTECL(ctx context.Context, host, port string, useTLS boo
 			Severity:    "high",
 			Confidence:  0.65,
 			Evidence: []Evidence{
-				{Request: probeRequest, Response: truncate(probeResp, 500), Timing: probeTime},
+				{Request: probeRequest, Response: strutil.Truncate(probeResp, 500), Timing: probeTime},
 			},
 		}, nil
 	}
@@ -276,7 +277,7 @@ func (d *Detector) detectTECL(ctx context.Context, host, port string, useTLS boo
 			Severity:    "medium",
 			Confidence:  0.5,
 			Evidence: []Evidence{
-				{Request: probeRequest, Response: truncate(probeResp, 500), Timing: probeTime},
+				{Request: probeRequest, Response: strutil.Truncate(probeResp, 500), Timing: probeTime},
 			},
 		}, nil
 	}
@@ -355,7 +356,7 @@ func (d *Detector) detectTETE(ctx context.Context, host, port string, useTLS boo
 				Severity:    "high",
 				Confidence:  0.6,
 				Evidence: []Evidence{
-					{Request: probeRequest, Response: truncate(probeResp, 500), Timing: probeTime},
+					{Request: probeRequest, Response: strutil.Truncate(probeResp, 500), Timing: probeTime},
 				},
 			}, nil
 		}
@@ -391,7 +392,7 @@ func (d *Detector) detectCL0(ctx context.Context, host, port string, useTLS bool
 			Severity:    "high",
 			Confidence:  0.8,
 			Evidence: []Evidence{
-				{Request: probeRequest, Response: truncate(resp, 1000), Notes: "Multiple responses received"},
+				{Request: probeRequest, Response: strutil.Truncate(resp, 1000), Notes: "Multiple responses received"},
 			},
 			Exploitable: true,
 		}, nil
@@ -414,11 +415,14 @@ func (d *Detector) sendRawRequest(ctx context.Context, host, port string, useTLS
 	start := time.Now()
 
 	if useTLS {
-		tlsConfig := &tls.Config{
-			InsecureSkipVerify: true,
-			ServerName:         host,
+		tlsDialer := &tls.Dialer{
+			NetDialer: dialer,
+			Config: &tls.Config{
+				InsecureSkipVerify: true,
+				ServerName:         host,
+			},
 		}
-		conn, err = tls.DialWithDialer(dialer, "tcp", addr, tlsConfig)
+		conn, err = tlsDialer.DialContext(ctx, "tcp", addr)
 	} else {
 		conn, err = dialer.DialContext(ctx, "tcp", addr)
 	}
@@ -563,12 +567,7 @@ func containsDesyncIndicator(resp string) bool {
 	return false
 }
 
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
-}
+
 
 // HTTP2Detector detects HTTP/2 specific smuggling
 type HTTP2Detector struct {

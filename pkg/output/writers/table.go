@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
 	"golang.org/x/term"
@@ -30,25 +29,37 @@ const (
 	colorDim    = "\033[2m"
 )
 
-// Color functions using fatih/color for robust ANSI colorization.
+// colorEnabled controls whether ANSI color codes are emitted.
+var colorEnabled = true
+
+// ansiSprint wraps text in an ANSI escape code, respecting colorEnabled.
+func ansiSprint(code string, a ...interface{}) string {
+	s := fmt.Sprint(a...)
+	if !colorEnabled {
+		return s
+	}
+	return code + s + "\033[0m"
+}
+
+// Color functions using ANSI escape codes for terminal colorization.
 var (
 	// Severity colors
-	fmtCritical = color.New(color.FgHiRed, color.Bold).SprintFunc()
-	fmtHigh     = color.New(color.FgRed).SprintFunc()
-	fmtMedium   = color.New(color.FgYellow).SprintFunc()
-	fmtLow      = color.New(color.FgBlue).SprintFunc()
-	fmtInfo     = color.New(color.FgCyan).SprintFunc()
+	fmtCritical = func(a ...interface{}) string { return ansiSprint("\033[1;91m", a...) }
+	fmtHigh     = func(a ...interface{}) string { return ansiSprint("\033[31m", a...) }
+	fmtMedium   = func(a ...interface{}) string { return ansiSprint("\033[33m", a...) }
+	fmtLow      = func(a ...interface{}) string { return ansiSprint("\033[34m", a...) }
+	fmtInfo     = func(a ...interface{}) string { return ansiSprint("\033[36m", a...) }
 
 	// Outcome colors
-	fmtBlocked = color.New(color.FgGreen).SprintFunc()
-	fmtBypass  = color.New(color.FgHiRed, color.Bold).SprintFunc()
-	fmtError   = color.New(color.FgMagenta).SprintFunc()
-	fmtTimeout = color.New(color.FgYellow).SprintFunc()
-	fmtPass    = color.New(color.FgGreen).SprintFunc()
+	fmtBlocked = func(a ...interface{}) string { return ansiSprint("\033[32m", a...) }
+	fmtBypass  = func(a ...interface{}) string { return ansiSprint("\033[1;91m", a...) }
+	fmtError   = func(a ...interface{}) string { return ansiSprint("\033[35m", a...) }
+	fmtTimeout = func(a ...interface{}) string { return ansiSprint("\033[33m", a...) }
+	fmtPass    = func(a ...interface{}) string { return ansiSprint("\033[32m", a...) }
 
 	// Formatting helpers
-	fmtBold = color.New(color.Bold).SprintFunc()
-	fmtDim  = color.New(color.Faint).SprintFunc()
+	fmtBold = func(a ...interface{}) string { return ansiSprint("\033[1m", a...) }
+	fmtDim  = func(a ...interface{}) string { return ansiSprint("\033[2m", a...) }
 )
 
 // colorSeverity returns a colorized severity string.
@@ -196,9 +207,8 @@ func NewTableWriter(w io.Writer, config TableConfig) *TableWriter {
 		config.ColorEnabled = detectColorSupport(w)
 	}
 
-	// Configure fatih/color based on our color detection
-	// Note: This sets a global flag, which affects all color output
-	color.NoColor = !config.ColorEnabled
+	// Configure color output based on our color detection
+	colorEnabled = config.ColorEnabled
 
 	// Default mode to summary
 	if config.Mode == "" {

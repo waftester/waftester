@@ -8,8 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/fatih/color"
 )
 
 // ValidationResult holds the results of payload validation
@@ -84,10 +82,10 @@ var (
 	// Validation constants
 	maxIDLength = 256
 
-	green  = color.New(color.FgGreen).SprintFunc()
-	red    = color.New(color.FgRed).SprintFunc()
-	yellow = color.New(color.FgYellow).SprintFunc()
-	cyan   = color.New(color.FgCyan).SprintFunc()
+	green  = func(a ...interface{}) string { return "\033[32m" + fmt.Sprint(a...) + "\033[0m" }
+	red    = func(a ...interface{}) string { return "\033[31m" + fmt.Sprint(a...) + "\033[0m" }
+	yellow = func(a ...interface{}) string { return "\033[33m" + fmt.Sprint(a...) + "\033[0m" }
+	cyan   = func(a ...interface{}) string { return "\033[36m" + fmt.Sprint(a...) + "\033[0m" }
 )
 
 // ValidatePayloads validates all payload files in the given directory

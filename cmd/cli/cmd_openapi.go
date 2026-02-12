@@ -6,11 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/openapi"
 	"github.com/waftester/waftester/pkg/ui"
@@ -51,11 +50,6 @@ func runOpenAPI() {
 	// Payload and template directories
 	payloadDir := openapiFlags.String("payloads", defaults.PayloadDir, "Payload directory")
 	templateDir := openapiFlags.String("template-dir", defaults.TemplateDir, "Nuclei template directory")
-
-	// Execution options
-	concurrency := openapiFlags.Int("c", 10, "Concurrency level")
-	rateLimit := openapiFlags.Float64("rl", 50, "Requests per second")
-	timeout := openapiFlags.Int("timeout", 30, "Request timeout in seconds")
 
 	// Output options
 	outputFile := openapiFlags.String("o", "", "Output file (JSON)")
@@ -130,15 +124,11 @@ func runOpenAPI() {
 	}
 
 	// Setup context
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := cli.SignalContext(30 * time.Second)
 	defer cancel()
 
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigCh
-		cancel()
-	}()
+	ctx, tCancel := context.WithTimeout(ctx, 30*time.Minute)
+	defer tCancel()
 
 	// Build auth headers
 	authHeaders := make(map[string]string)
@@ -158,7 +148,7 @@ func runOpenAPI() {
 
 	case *fuzz:
 		runOpenAPIFuzz(ctx, spec, targetBaseURL, *payloadDir, *templateDir, *scanType, *path, *method, authHeaders,
-			*concurrency, *rateLimit, *timeout, *outputFile, *jsonOutput, *verbose)
+			*outputFile, *jsonOutput, *verbose)
 
 	default:
 		// Default to listing endpoints
@@ -241,7 +231,7 @@ func runOpenAPIList(spec *openapi.Spec, baseURL string, jsonOutput bool) {
 }
 
 func runOpenAPIFuzz(ctx context.Context, spec *openapi.Spec, baseURL, payloadDir, templateDir, scanType, filterPath, filterMethod string,
-	authHeaders map[string]string, concurrency int, rateLimit float64, timeout int, outputFile string, jsonOutput, verbose bool) {
+	authHeaders map[string]string, outputFile string, jsonOutput, verbose bool) {
 
 	type fuzzResult struct {
 		Path       string `json:"path"`
@@ -296,10 +286,6 @@ func runOpenAPIFuzz(ctx context.Context, spec *openapi.Spec, baseURL, payloadDir
 		ui.PrintConfigLine("Payloads", fmt.Sprintf("%d per location", len(payloads)))
 		fmt.Println()
 	}
-
-	_ = concurrency
-	_ = rateLimit
-	_ = timeout
 
 	for _, tc := range testCases {
 		select {

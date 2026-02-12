@@ -16,10 +16,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -46,22 +49,13 @@ const (
 	DBUnknown  Database = "unknown"
 )
 
-// Severity levels for vulnerabilities
-type Severity string
 
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
 
 // Vulnerability represents a detected NoSQL injection vulnerability
 type Vulnerability struct {
 	Type        VulnerabilityType `json:"type"`
 	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
+	Severity    finding.Severity  `json:"severity"`
 	URL         string            `json:"url"`
 	Parameter   string            `json:"parameter,omitempty"`
 	Payload     string            `json:"payload"`
@@ -94,12 +88,9 @@ type ScanResult struct {
 
 // TesterConfig configures the NoSQL injection tester
 type TesterConfig struct {
-	Timeout     time.Duration
-	UserAgent   string
-	Concurrency int
-	Database    Database // Target database type
-	TestParams  []string // Parameters to test
-	Client      *http.Client
+	attackconfig.Base
+	Database   Database // Target database type
+	TestParams []string // Parameters to test
 }
 
 // Tester performs NoSQL injection tests
@@ -111,10 +102,12 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:     duration.HTTPFuzzing,
-		UserAgent:   ui.UserAgent(),
-		Concurrency: defaults.ConcurrencyLow,
-		Database:    DBUnknown,
+		Base: attackconfig.Base{
+			Timeout:     duration.HTTPFuzzing,
+			UserAgent:   ui.UserAgent(),
+			Concurrency: defaults.ConcurrencyLow,
+		},
+		Database: DBUnknown,
 		TestParams: []string{
 			"username",
 			"password",
@@ -392,10 +385,9 @@ func (t *Tester) testFormBody(ctx context.Context, targetURL string, param strin
 	return nil, nil
 }
 
-// detectEvidence checks response for signs of NoSQL injection
-func (t *Tester) detectEvidence(body string, statusCode int, db Database) string {
-	// MongoDB error patterns
-	mongoPatterns := []*regexp.Regexp{
+// Pre-compiled NoSQL error patterns (avoid per-call regexp.MustCompile).
+var (
+	mongoPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)MongoError`),
 		regexp.MustCompile(`(?i)MongoDB`),
 		regexp.MustCompile(`(?i)\$where.*not allowed`),
@@ -406,34 +398,31 @@ func (t *Tester) detectEvidence(body string, statusCode int, db Database) string
 		regexp.MustCompile(`(?i)_id.*ObjectId`),
 		regexp.MustCompile(`(?i)operator.*not.*supported`),
 	}
-
-	// CouchDB error patterns
-	couchPatterns := []*regexp.Regexp{
+	couchPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)CouchDB`),
 		regexp.MustCompile(`(?i)couchdb\.org`),
 		regexp.MustCompile(`(?i)"error":\s*"not_found"`),
 		regexp.MustCompile(`(?i)_design/`),
 		regexp.MustCompile(`(?i)"views":`),
 	}
-
-	// Redis error patterns
-	redisPatterns := []*regexp.Regexp{
+	redisPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)REDIS`),
 		regexp.MustCompile(`(?i)redis_version`),
 		regexp.MustCompile(`(?i)ERR.*wrong.*number.*arguments`),
 		regexp.MustCompile(`(?i)WRONGTYPE`),
 	}
-
-	// Generic NoSQL patterns
-	genericPatterns := []*regexp.Regexp{
+	genericNoSQLPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)Query.*error`),
 		regexp.MustCompile(`(?i)SyntaxError.*JSON`),
 		regexp.MustCompile(`(?i)unexpected.*token`),
 		regexp.MustCompile(`(?i)invalid.*operator`),
 	}
+)
 
+// detectEvidence checks response for signs of NoSQL injection
+func (t *Tester) detectEvidence(body string, statusCode int, db Database) string {
 	// Check based on database type
-	patterns := genericPatterns
+	patterns := genericNoSQLPatterns
 	if db == DBMongoDB || db == DBUnknown {
 		patterns = append(patterns, mongoPatterns...)
 	}
@@ -446,7 +435,7 @@ func (t *Tester) detectEvidence(body string, statusCode int, db Database) string
 
 	for _, p := range patterns {
 		if match := p.FindString(body); match != "" {
-			return fmt.Sprintf("Pattern matched: %s", truncate(match, 100))
+			return fmt.Sprintf("Pattern matched: %s", strutil.Truncate(match, 100))
 		}
 	}
 
@@ -546,23 +535,18 @@ func readBodyLimit(resp *http.Response, limit int64) string {
 	return string(data)
 }
 
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
-}
 
-func getSeverity(vulnType VulnerabilityType) Severity {
+
+func getSeverity(vulnType VulnerabilityType) finding.Severity {
 	switch vulnType {
 	case VulnAuthBypass, VulnDataExfiltration:
-		return SeverityCritical
+		return finding.Critical
 	case VulnOperatorInjection, VulnJSInjection:
-		return SeverityHigh
+		return finding.High
 	case VulnBlindInjection:
-		return SeverityMedium
+		return finding.Medium
 	default:
-		return SeverityHigh
+		return finding.High
 	}
 }
 

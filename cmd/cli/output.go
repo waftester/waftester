@@ -891,7 +891,7 @@ func (dc *DispatcherContext) EmitError(ctx context.Context, command, errorMsg st
 
 	event := &events.BypassEvent{
 		BaseEvent: events.BaseEvent{
-			Type: events.EventTypeBypass,
+			Type: events.EventTypeError,
 			Time: time.Now(),
 			Scan: dc.ScanID,
 		},

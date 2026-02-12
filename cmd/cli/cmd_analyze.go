@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/input"
@@ -114,7 +115,8 @@ func runAnalyze() {
 	}
 
 	// Emit security findings to hooks in real-time
-	ctx := context.Background()
+	ctx, ctxCancel := cli.SignalContext(30 * time.Second)
+	defer ctxCancel()
 
 	// Emit start event for scan lifecycle hooks
 	if analyzeDispCtx != nil {

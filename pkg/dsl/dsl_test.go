@@ -427,3 +427,414 @@ func TestFormat_ColorFunctions(t *testing.T) {
 		t.Errorf("Expected red ANSI code in output")
 	}
 }
+
+func TestCoalesce(t *testing.T) {
+	tests := []struct {
+		name     string
+		template string
+		result   *Result
+		expected string
+	}{
+		{
+			name:     "returns first non-empty value",
+			template: `{{coalesce .Title .Host "fallback"}}`,
+			result:   &Result{Title: "My Page", Host: "example.com"},
+			expected: "My Page",
+		},
+		{
+			name:     "skips empty returns second",
+			template: `{{coalesce .Title .Host "fallback"}}`,
+			result:   &Result{Title: "", Host: "example.com"},
+			expected: "example.com",
+		},
+		{
+			name:     "all empty returns fallback",
+			template: `{{coalesce .Title .Host "fallback"}}`,
+			result:   &Result{Title: "", Host: ""},
+			expected: "fallback",
+		},
+		{
+			name:     "all nil returns empty string",
+			template: `{{coalesce .Title .Host}}`,
+			result:   &Result{},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, err := New(tt.template)
+			if err != nil {
+				t.Fatalf("Failed to create formatter: %v", err)
+			}
+			output, err := f.Format(tt.result)
+			if err != nil {
+				t.Fatalf("Failed to format: %v", err)
+			}
+			if output != tt.expected {
+				t.Errorf("Expected %q, got %q", tt.expected, output)
+			}
+		})
+	}
+}
+
+func TestToJSON(t *testing.T) {
+	f, err := New(`{{toJson .Headers}}`)
+	if err != nil {
+		t.Fatalf("Failed to create formatter: %v", err)
+	}
+	result := &Result{
+		Headers: map[string]string{"Content-Type": "text/html", "Server": "nginx"},
+	}
+	output, err := f.Format(result)
+	if err != nil {
+		t.Fatalf("Failed to format: %v", err)
+	}
+	if !strings.Contains(output, `"Content-Type":"text/html"`) {
+		t.Errorf("Expected JSON with Content-Type, got %q", output)
+	}
+	if !strings.Contains(output, `"Server":"nginx"`) {
+		t.Errorf("Expected JSON with Server, got %q", output)
+	}
+}
+
+func TestToJSON_NilMap(t *testing.T) {
+	f, err := New(`{{toJson .Headers}}`)
+	if err != nil {
+		t.Fatalf("Failed to create formatter: %v", err)
+	}
+	result := &Result{}
+	output, err := f.Format(result)
+	if err != nil {
+		t.Fatalf("Failed to format: %v", err)
+	}
+	if output != "null" {
+		t.Errorf("Expected \"null\" for nil map, got %q", output)
+	}
+}
+
+func TestToPrettyJSON(t *testing.T) {
+	f, err := New(`{{toPrettyJson .Custom}}`)
+	if err != nil {
+		t.Fatalf("Failed to create formatter: %v", err)
+	}
+	result := &Result{
+		Custom: map[string]interface{}{"key": "value"},
+	}
+	output, err := f.Format(result)
+	if err != nil {
+		t.Fatalf("Failed to format: %v", err)
+	}
+	if !strings.Contains(output, "  ") {
+		t.Errorf("Expected indented JSON, got %q", output)
+	}
+	if !strings.Contains(output, `"key": "value"`) {
+		t.Errorf("Expected key field in pretty JSON, got %q", output)
+	}
+}
+
+func TestFormatTime(t *testing.T) {
+	tests := []struct {
+		name     string
+		template string
+		ts       time.Time
+		expected string
+	}{
+		{
+			name:     "date format",
+			template: `{{formatTime .Timestamp "2006-01-02"}}`,
+			ts:       time.Date(2025, 6, 15, 10, 30, 0, 0, time.UTC),
+			expected: "2025-06-15",
+		},
+		{
+			name:     "datetime format",
+			template: `{{formatTime .Timestamp "2006-01-02 15:04:05"}}`,
+			ts:       time.Date(2025, 6, 15, 10, 30, 45, 0, time.UTC),
+			expected: "2025-06-15 10:30:45",
+		},
+		{
+			name:     "time only",
+			template: `{{formatTime .Timestamp "15:04"}}`,
+			ts:       time.Date(2025, 1, 1, 14, 5, 0, 0, time.UTC),
+			expected: "14:05",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, err := New(tt.template)
+			if err != nil {
+				t.Fatalf("Failed to create formatter: %v", err)
+			}
+			result := &Result{Timestamp: tt.ts}
+			output, err := f.Format(result)
+			if err != nil {
+				t.Fatalf("Failed to format: %v", err)
+			}
+			if output != tt.expected {
+				t.Errorf("Expected %q, got %q", tt.expected, output)
+			}
+		})
+	}
+}
+
+func TestSeverityColor(t *testing.T) {
+	tests := []struct {
+		name      string
+		severity  string
+		ansiCode  string
+		wantPlain bool
+	}{
+		{"critical", "critical", "\033[1;31m", false},
+		{"high", "high", "\033[31m", false},
+		{"medium", "medium", "\033[33m", false},
+		{"low", "low", "\033[34m", false},
+		{"info", "info", "\033[36m", false},
+		{"unknown returns plain", "unknown", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, err := New(`{{severityColor .Severity}}`)
+			if err != nil {
+				t.Fatalf("Failed to create formatter: %v", err)
+			}
+			result := &Result{Severity: tt.severity}
+			output, err := f.Format(result)
+			if err != nil {
+				t.Fatalf("Failed to format: %v", err)
+			}
+			if tt.wantPlain {
+				if output != tt.severity {
+					t.Errorf("Expected plain %q, got %q", tt.severity, output)
+				}
+			} else {
+				if !strings.Contains(output, tt.ansiCode) {
+					t.Errorf("Expected ANSI code %q in output %q", tt.ansiCode, output)
+				}
+				if !strings.Contains(output, tt.severity) {
+					t.Errorf("Expected severity text %q in output %q", tt.severity, output)
+				}
+				if !strings.Contains(output, "\033[0m") {
+					t.Errorf("Expected ANSI reset code in output %q", output)
+				}
+			}
+		})
+	}
+}
+
+func TestFormatMap_JSON(t *testing.T) {
+	f, err := New("json")
+	if err != nil {
+		t.Fatalf("Failed to create formatter: %v", err)
+	}
+	data := map[string]interface{}{"url": "https://example.com", "status": 200}
+	output, err := f.FormatMap(data)
+	if err != nil {
+		t.Fatalf("Failed to format: %v", err)
+	}
+	if !strings.Contains(output, `"url": "https://example.com"`) {
+		t.Errorf("Expected JSON url field, got %q", output)
+	}
+	// Should be indented (pretty JSON)
+	if !strings.Contains(output, "\n") {
+		t.Errorf("JSON output should be multi-line")
+	}
+}
+
+func TestFormatMap_JSONL(t *testing.T) {
+	f, err := New("jsonl")
+	if err != nil {
+		t.Fatalf("Failed to create formatter: %v", err)
+	}
+	data := map[string]interface{}{"url": "https://example.com"}
+	output, err := f.FormatMap(data)
+	if err != nil {
+		t.Fatalf("Failed to format: %v", err)
+	}
+	if strings.Contains(output, "\n") {
+		t.Errorf("JSONL output should be single line, got %q", output)
+	}
+	if !strings.Contains(output, `"url":"https://example.com"`) {
+		t.Errorf("Expected JSONL url field, got %q", output)
+	}
+}
+
+func TestFormatMap_StrictModeError(t *testing.T) {
+	// Accessing a sub-field on a string value triggers a template execution error
+	f, err := New("{{.name.subfield}}")
+	if err != nil {
+		t.Fatalf("Failed to create formatter: %v", err)
+	}
+	f.StrictMode = true
+	data := map[string]interface{}{"name": "test"}
+	_, err = f.FormatMap(data)
+	if err == nil {
+		t.Error("Expected error in strict mode for invalid field access")
+	}
+}
+
+func TestEvaluateContains_Fields(t *testing.T) {
+	tests := []struct {
+		name     string
+		expr     string
+		result   *Result
+		expected bool
+	}{
+		{
+			name:     "body contains match",
+			expr:     `contains(body, "forbidden")`,
+			result:   &Result{BodyPreview: "403 Forbidden"},
+			expected: true,
+		},
+		{
+			name:     "body_preview contains match",
+			expr:     `contains(body_preview, "error")`,
+			result:   &Result{BodyPreview: "Internal Server Error"},
+			expected: true,
+		},
+		{
+			name:     "server contains match",
+			expr:     `contains(server, "nginx")`,
+			result:   &Result{Server: "nginx/1.24.0"},
+			expected: true,
+		},
+		{
+			name:     "server no match",
+			expr:     `contains(server, "apache")`,
+			result:   &Result{Server: "nginx/1.24.0"},
+			expected: false,
+		},
+		{
+			name:     "tech contains match",
+			expr:     `contains(tech, "php")`,
+			result:   &Result{Tech: "PHP, MySQL"},
+			expected: true,
+		},
+		{
+			name:     "content_type match",
+			expr:     `contains(content_type, "json")`,
+			result:   &Result{ContentType: "application/json"},
+			expected: true,
+		},
+		{
+			name:     "content_type no match",
+			expr:     `contains(content_type, "xml")`,
+			result:   &Result{ContentType: "application/json"},
+			expected: false,
+		},
+		{
+			name:     "unknown field returns false",
+			expr:     `contains(unknown_field, "test")`,
+			result:   &Result{Title: "test"},
+			expected: false,
+		},
+		{
+			name:     "malformed expression returns false",
+			expr:     `contains(broken`,
+			result:   &Result{},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e, err := ParseExpression(tt.expr)
+			if err != nil {
+				t.Fatalf("Failed to parse: %v", err)
+			}
+			if got := e.Match(tt.result); got != tt.expected {
+				t.Errorf("Match() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestEvaluateStatusCode_Operators(t *testing.T) {
+	tests := []struct {
+		expr     string
+		code     int
+		expected bool
+	}{
+		{"status_code <= 299", 200, true},
+		{"status_code <= 299", 299, true},
+		{"status_code <= 299", 300, false},
+		{"status_code > 399", 400, true},
+		{"status_code > 399", 500, true},
+		{"status_code > 399", 399, false},
+		{"status_code > 399", 200, false},
+		{"status_code == invalid", 200, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expr, func(t *testing.T) {
+			e, err := ParseExpression(tt.expr)
+			if err != nil {
+				t.Fatalf("Failed to parse: %v", err)
+			}
+			result := &Result{StatusCode: tt.code}
+			if got := e.Match(result); got != tt.expected {
+				t.Errorf("Match() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestFormatDuration_Ranges(t *testing.T) {
+	tests := []struct {
+		name     string
+		template string
+		dur      time.Duration
+		expected string
+	}{
+		{
+			name:     "microseconds",
+			template: "{{duration .ResponseTime}}",
+			dur:      500 * time.Microsecond,
+			expected: "500µs",
+		},
+		{
+			name:     "milliseconds",
+			template: "{{duration .ResponseTime}}",
+			dur:      250 * time.Millisecond,
+			expected: "250ms",
+		},
+		{
+			name:     "seconds",
+			template: "{{duration .ResponseTime}}",
+			dur:      2500 * time.Millisecond,
+			expected: "2.50s",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, err := New(tt.template)
+			if err != nil {
+				t.Fatalf("Failed to create formatter: %v", err)
+			}
+			result := &Result{ResponseTime: tt.dur}
+			output, err := f.Format(result)
+			if err != nil {
+				t.Fatalf("Failed to format: %v", err)
+			}
+			if output != tt.expected {
+				t.Errorf("Expected %q, got %q", tt.expected, output)
+			}
+		})
+	}
+}
+
+func TestFormat_StrictModeError(t *testing.T) {
+	f, err := New("{{.NonExistentField}}")
+	if err != nil {
+		t.Fatalf("Failed to create formatter: %v", err)
+	}
+	f.StrictMode = true
+	result := &Result{}
+	_, err = f.Format(result)
+	// NonExistentField doesn't exist on the struct, strict mode should error
+	if err == nil {
+		t.Error("Expected error in strict mode for non-existent field")
+	}
+}

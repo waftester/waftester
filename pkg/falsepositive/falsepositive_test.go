@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 func TestCategoryConstants(t *testing.T) {
@@ -18,10 +19,10 @@ func TestCategoryConstants(t *testing.T) {
 }
 
 func TestSeverityConstants(t *testing.T) {
-	assert.Equal(t, Severity("low"), SeverityLow)
-	assert.Equal(t, Severity("medium"), SeverityMedium)
-	assert.Equal(t, Severity("high"), SeverityHigh)
-	assert.Equal(t, Severity("critical"), SeverityCritical)
+	assert.Equal(t, finding.Severity("low"), finding.Low)
+	assert.Equal(t, finding.Severity("medium"), finding.Medium)
+	assert.Equal(t, finding.Severity("high"), finding.High)
+	assert.Equal(t, finding.Severity("critical"), finding.Critical)
 }
 
 func TestFalsePositiveFingerprint(t *testing.T) {
@@ -194,7 +195,7 @@ func TestDetectorWithKnownFP(t *testing.T) {
 		Endpoint:    "/api/search",
 		Method:      "GET",
 		Category:    CategoryConfirmed,
-		Severity:    SeverityLow,
+		Severity:    finding.Low,
 		Description: "Known false positive",
 		Count:       5,
 		FirstSeen:   time.Now().Add(-48 * time.Hour),
@@ -254,15 +255,15 @@ func TestDetectorWithPattern(t *testing.T) {
 func TestDetectorGetStats(t *testing.T) {
 	detector := NewDetector(nil)
 
-	fp1 := &FalsePositive{RuleID: "1", Payload: "a", Endpoint: "/a", Method: "GET", Category: CategoryKnown, Severity: SeverityLow}
-	fp2 := &FalsePositive{RuleID: "2", Payload: "b", Endpoint: "/b", Method: "GET", Category: CategoryConfirmed, Severity: SeverityHigh}
+	fp1 := &FalsePositive{RuleID: "1", Payload: "a", Endpoint: "/a", Method: "GET", Category: CategoryKnown, Severity: finding.Low}
+	fp2 := &FalsePositive{RuleID: "2", Payload: "b", Endpoint: "/b", Method: "GET", Category: CategoryConfirmed, Severity: finding.High}
 	detector.AddKnownFP(fp1)
 	detector.AddKnownFP(fp2)
 
 	stats := detector.GetStats()
 	assert.Equal(t, 2, stats.KnownFPs)
 	assert.Equal(t, 1, stats.ByCategory[CategoryKnown])
-	assert.Equal(t, 1, stats.BySeverity[SeverityHigh])
+	assert.Equal(t, 1, stats.BySeverity[finding.High])
 }
 
 func TestNewDatabase(t *testing.T) {
@@ -412,7 +413,7 @@ func TestGenerateReport(t *testing.T) {
 		Endpoint: "/api",
 		Method:   "GET",
 		Category: CategoryKnown,
-		Severity: SeverityLow,
+		Severity: finding.Low,
 		LastSeen: time.Now(),
 	}
 	fp2 := &FalsePositive{
@@ -421,7 +422,7 @@ func TestGenerateReport(t *testing.T) {
 		Endpoint: "/api",
 		Method:   "GET",
 		Category: CategorySuspected,
-		Severity: SeverityMedium,
+		Severity: finding.Medium,
 		LastSeen: time.Now().Add(-48 * time.Hour),
 	}
 
@@ -452,12 +453,6 @@ func TestGetCommonFPInfo(t *testing.T) {
 
 	info2 := getCommonFPInfo("unknown")
 	assert.Empty(t, info2)
-}
-
-func TestContains(t *testing.T) {
-	slice := []string{"a", "b", "c"}
-	assert.True(t, contains(slice, "a"))
-	assert.False(t, contains(slice, "d"))
 }
 
 func TestContainsPattern(t *testing.T) {
@@ -533,7 +528,7 @@ func TestHeuristicsStaticFile(t *testing.T) {
 
 	fps := detector.Analyze(results)
 	require.Len(t, fps, 1)
-	assert.Equal(t, SeverityLow, fps[0].Severity)
+	assert.Equal(t, finding.Low, fps[0].Severity)
 	assert.Contains(t, fps[0].Reason, "Static file")
 }
 
@@ -554,7 +549,7 @@ func TestHeuristicsHealthEndpoint(t *testing.T) {
 
 	fps := detector.Analyze(results)
 	require.Len(t, fps, 1)
-	assert.Equal(t, SeverityLow, fps[0].Severity)
+	assert.Equal(t, finding.Low, fps[0].Severity)
 	assert.Contains(t, fps[0].Reason, "Health check")
 }
 

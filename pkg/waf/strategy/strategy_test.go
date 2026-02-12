@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/waf/vendors"
 )
 
@@ -592,7 +593,7 @@ func TestStrategy_IsBlocked(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := strategy.IsBlocked(tt.statusCode, tt.body)
 			if got != tt.want {
-				t.Errorf("IsBlocked(%d, %q) = %v, want %v", tt.statusCode, truncate(tt.body, 50), got, tt.want)
+				t.Errorf("IsBlocked(%d, %q) = %v, want %v", tt.statusCode, strutil.Truncate(tt.body, 50), got, tt.want)
 			}
 		})
 	}
@@ -1659,12 +1660,7 @@ func TestSortByFrequency_Empty(t *testing.T) {
 // Test Helpers
 // =============================================================================
 
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
-}
+
 
 func indexOf(slice []string, item string) int {
 	for i, s := range slice {

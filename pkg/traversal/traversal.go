@@ -14,10 +14,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -35,17 +38,6 @@ const (
 	VulnWrapperAbuse   VulnerabilityType = "php-wrapper-abuse"
 )
 
-// Severity levels for vulnerabilities
-type Severity string
-
-const (
-	SeverityCritical Severity = "critical"
-	SeverityHigh     Severity = "high"
-	SeverityMedium   Severity = "medium"
-	SeverityLow      Severity = "low"
-	SeverityInfo     Severity = "info"
-)
-
 // Platform represents the target platform
 type Platform string
 
@@ -57,17 +49,9 @@ const (
 
 // Vulnerability represents a detected traversal vulnerability
 type Vulnerability struct {
-	Type        VulnerabilityType `json:"type"`
-	Description string            `json:"description"`
-	Severity    Severity          `json:"severity"`
-	URL         string            `json:"url"`
-	Parameter   string            `json:"parameter"`
-	Payload     string            `json:"payload"`
-	Evidence    string            `json:"evidence"`
-	Remediation string            `json:"remediation"`
-	CVSS        float64           `json:"cvss"`
-	FileFound   string            `json:"file_found,omitempty"`
-	ConfirmedBy int               `json:"confirmed_by,omitempty"`
+	finding.Vulnerability
+	Type      VulnerabilityType `json:"type"`
+	FileFound string            `json:"file_found,omitempty"`
 }
 
 // Payload represents a traversal payload
@@ -93,13 +77,10 @@ type ScanResult struct {
 
 // TesterConfig configures the traversal tester
 type TesterConfig struct {
-	Timeout         time.Duration
-	UserAgent       string
-	Concurrency     int
+	attackconfig.Base
 	Platform        Platform // Target platform
 	MaxDepth        int      // Maximum traversal depth
 	TestParams      []string // Parameters to test
-	Client          *http.Client
 	CustomFiles     []string // Custom files to look for
 	FollowRedirects bool
 }
@@ -115,9 +96,11 @@ type Tester struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *TesterConfig {
 	return &TesterConfig{
-		Timeout:         duration.HTTPFuzzing,
-		UserAgent:       ui.UserAgent(),
-		Concurrency:     defaults.ConcurrencyLow,
+		Base: attackconfig.Base{
+			Timeout:     duration.HTTPFuzzing,
+			UserAgent:   ui.UserAgent(),
+			Concurrency: defaults.ConcurrencyLow,
+		},
 		Platform:        PlatformUnknown,
 		MaxDepth:        defaults.DepthMax,
 		FollowRedirects: false,
@@ -420,16 +403,18 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL string, param stri
 		evidence := t.detectEvidence(body, payload.Platform)
 		if evidence != "" {
 			vulns = append(vulns, Vulnerability{
-				Type:        getVulnType(payload),
-				Description: fmt.Sprintf("Path traversal via parameter '%s' using %s", param, payload.Description),
-				Severity:    SeverityHigh,
-				URL:         testURL,
-				Parameter:   param,
-				Payload:     payload.Value,
-				Evidence:    evidence,
-				Remediation: GetTraversalRemediation(),
-				CVSS:        7.5,
-				FileFound:   identifyFile(evidence),
+				Vulnerability: finding.Vulnerability{
+					Description: fmt.Sprintf("Path traversal via parameter '%s' using %s", param, payload.Description),
+					Severity:    finding.High,
+					URL:         testURL,
+					Parameter:   param,
+					Payload:     payload.Value,
+					Evidence:    evidence,
+					Remediation: GetTraversalRemediation(),
+					CVSS:        7.5,
+				},
+				Type:      getVulnType(payload),
+				FileFound: identifyFile(evidence),
 			})
 		}
 	}
@@ -437,13 +422,14 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL string, param stri
 	return vulns, nil
 }
 
-// detectEvidence checks response body for signs of successful traversal
-func (t *Tester) detectEvidence(body string, platform Platform) string {
-	// Linux file signatures
-	linuxPatterns := []struct {
-		pattern *regexp.Regexp
-		desc    string
-	}{
+// Pre-compiled traversal evidence patterns (avoid per-call regexp.MustCompile).
+type evidencePattern struct {
+	pattern *regexp.Regexp
+	desc    string
+}
+
+var (
+	linuxTraversalPatterns = []evidencePattern{
 		{regexp.MustCompile(`root:.*:0:0:`), "passwd file content"},
 		{regexp.MustCompile(`daemon:.*:1:1:`), "passwd file content"},
 		{regexp.MustCompile(`nobody:.*:65534:`), "passwd file content"},
@@ -454,12 +440,7 @@ func (t *Tester) detectEvidence(body string, platform Platform) string {
 		{regexp.MustCompile(`HOME=/`), "environment variable"},
 		{regexp.MustCompile(`SHELL=/`), "environment variable"},
 	}
-
-	// Windows file signatures
-	windowsPatterns := []struct {
-		pattern *regexp.Regexp
-		desc    string
-	}{
+	windowsTraversalPatterns = []evidencePattern{
 		{regexp.MustCompile(`\[fonts\]`), "win.ini content"},
 		{regexp.MustCompile(`\[extensions\]`), "win.ini content"},
 		{regexp.MustCompile(`\[mci extensions\]`), "win.ini content"},
@@ -468,37 +449,36 @@ func (t *Tester) detectEvidence(body string, platform Platform) string {
 		{regexp.MustCompile(`default=multi`), "boot.ini content"},
 		{regexp.MustCompile(`127\.0\.0\.1\s+localhost`), "hosts file content"},
 	}
+	phpTraversalPatterns = []evidencePattern{
+		{regexp.MustCompile(`<\?php`), "PHP source code"},
+		{regexp.MustCompile(`<\?=`), "PHP short tag"},
+		{regexp.MustCompile(`PHBocA==`), "Base64 PHP tag"},
+	}
+)
 
+// detectEvidence checks response body for signs of successful traversal
+func (t *Tester) detectEvidence(body string, platform Platform) string {
 	// Check based on platform
 	if platform == PlatformLinux || platform == PlatformUnknown {
-		for _, p := range linuxPatterns {
+		for _, p := range linuxTraversalPatterns {
 			if match := p.pattern.FindString(body); match != "" {
-				return fmt.Sprintf("%s: %s", p.desc, truncate(match, 100))
+				return fmt.Sprintf("%s: %s", p.desc, strutil.Truncate(match, 100))
 			}
 		}
 	}
 
 	if platform == PlatformWindows || platform == PlatformUnknown {
-		for _, p := range windowsPatterns {
+		for _, p := range windowsTraversalPatterns {
 			if match := p.pattern.FindString(body); match != "" {
-				return fmt.Sprintf("%s: %s", p.desc, truncate(match, 100))
+				return fmt.Sprintf("%s: %s", p.desc, strutil.Truncate(match, 100))
 			}
 		}
 	}
 
 	// PHP wrapper evidence
-	phpPatterns := []struct {
-		pattern *regexp.Regexp
-		desc    string
-	}{
-		{regexp.MustCompile(`<\?php`), "PHP source code"},
-		{regexp.MustCompile(`<\?=`), "PHP short tag"},
-		{regexp.MustCompile(`PHBocA==`), "Base64 PHP tag"}, // <?php base64 encoded
-	}
-
-	for _, p := range phpPatterns {
+	for _, p := range phpTraversalPatterns {
 		if match := p.pattern.FindString(body); match != "" {
-			return fmt.Sprintf("%s: %s", p.desc, truncate(match, 100))
+			return fmt.Sprintf("%s: %s", p.desc, strutil.Truncate(match, 100))
 		}
 	}
 
@@ -620,14 +600,16 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 		evidence := t.detectEvidence(body, PlatformUnknown)
 		if evidence != "" {
 			vulns = append(vulns, Vulnerability{
-				Type:        VulnPathTraversal,
-				Description: "Path traversal in URL path",
-				Severity:    SeverityHigh,
-				URL:         testURL,
-				Payload:     payload,
-				Evidence:    evidence,
-				Remediation: GetTraversalRemediation(),
-				CVSS:        7.5,
+				Vulnerability: finding.Vulnerability{
+					Description: "Path traversal in URL path",
+					Severity:    finding.High,
+					URL:         testURL,
+					Payload:     payload,
+					Evidence:    evidence,
+					Remediation: GetTraversalRemediation(),
+					CVSS:        7.5,
+				},
+				Type: VulnPathTraversal,
 			})
 		}
 	}
@@ -645,12 +627,7 @@ func readBodyLimit(resp *http.Response, limit int64) string {
 	return string(data)
 }
 
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
-}
+
 
 // Remediation guidance
 

@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/attackconfig"
 )
 
 // TestDefaultConfig_NotEmpty verifies DefaultConfig returns usable defaults
@@ -63,8 +65,10 @@ func TestNewScanner_NilConfig(t *testing.T) {
 // TestNewScanner_CustomConfig verifies NewScanner respects custom config
 func TestNewScanner_CustomConfig(t *testing.T) {
 	cfg := &Config{
-		Concurrency:          5,
-		Timeout:              20 * time.Second,
+		Base: attackconfig.Base{
+			Concurrency: 5,
+			Timeout:     20 * time.Second,
+		},
 		Verbose:              true,
 		EnableLeakyPaths:     false,
 		EnableParamDiscovery: false,
@@ -210,8 +214,10 @@ func TestFullScan_BasicFunctionality(t *testing.T) {
 	defer ts.Close()
 
 	cfg := &Config{
-		Concurrency:          2,
-		Timeout:              5 * time.Second,
+		Base: attackconfig.Base{
+			Concurrency: 2,
+			Timeout:     5 * time.Second,
+		},
 		EnableLeakyPaths:     false, // Disable to speed up test
 		EnableParamDiscovery: false, // Disable to speed up test
 		EnableJSAnalysis:     false, // Disable to speed up test
@@ -248,8 +254,10 @@ func TestQuickScan_FasterThanFullScan(t *testing.T) {
 	defer ts.Close()
 
 	cfg := &Config{
-		Concurrency:          1,
-		Timeout:              5 * time.Second,
+		Base: attackconfig.Base{
+			Concurrency: 1,
+			Timeout:     5 * time.Second,
+		},
 		EnableLeakyPaths:     true,
 		EnableParamDiscovery: false,
 		EnableJSAnalysis:     false,
@@ -282,8 +290,10 @@ func TestFullScan_ContextCancellation(t *testing.T) {
 	defer ts.Close()
 
 	cfg := &Config{
-		Concurrency:          1,
-		Timeout:              time.Second,
+		Base: attackconfig.Base{
+			Concurrency: 1,
+			Timeout:     time.Second,
+		},
 		EnableLeakyPaths:     false,
 		EnableParamDiscovery: false,
 		EnableJSAnalysis:     false,
