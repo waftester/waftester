@@ -85,11 +85,13 @@ func Calculate(input Input) Result {
 	if input.ResponseContains != "" {
 		var bestImpact float64
 		var bestReason string
+		var bestPattern string
 		for pattern, info := range sensitivePatterns {
 			if containsSecurityPattern(input.ResponseContains, pattern) {
-				if info.Impact > bestImpact {
+				if info.Impact > bestImpact || (info.Impact == bestImpact && pattern < bestPattern) {
 					bestImpact = info.Impact
 					bestReason = info.Reason
+					bestPattern = pattern
 				}
 			}
 		}
