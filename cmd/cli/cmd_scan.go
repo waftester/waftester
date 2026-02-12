@@ -605,7 +605,10 @@ func runScan() {
 			dataMap, ok := data.(map[string]interface{})
 			if ok && eventType == "vulnerability" {
 				category, _ := dataMap["category"].(string)
-				severity, _ := dataMap["severity"].(string)
+				// Use fmt.Sprintf instead of .(string) type assertion because
+				// the map value is finding.Severity (a named string type),
+				// and Go type assertions distinguish named types from string.
+				severity := fmt.Sprintf("%v", dataMap["severity"])
 				// Try payload first, then fallback to type, parameter, or endpoint for description
 				payload, _ := dataMap["payload"].(string)
 				if payload == "" {

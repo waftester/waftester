@@ -66,7 +66,7 @@ func runProbe() {
 	stdinInput := probeFlags.Bool("stdin", false, "Read targets from stdin")
 	silent := probeFlags.Bool("silent", false, "Only output results, no banner")
 	oneliner := probeFlags.Bool("1", false, "One-liner output (single line per result)")
-	concurrency := probeFlags.Int("c", 10, "Concurrency for multiple targets")
+	concurrency := probeFlags.Int("c", 0, "Concurrency for multiple targets (overrides -t)")
 
 	// httpx-style output flags
 	showContentLength := probeFlags.Bool("cl", false, "Show content-length in output")
@@ -641,7 +641,7 @@ func runProbe() {
 			if loadedConfig.Timeout > 0 && *timeout == 10 {
 				*timeout = loadedConfig.Timeout
 			}
-			if loadedConfig.Threads > 0 && *threads == 25 {
+			if loadedConfig.Threads > 0 && *threads == 10 {
 				*threads = loadedConfig.Threads
 			}
 			if loadedConfig.RateLimit > 0 && *rateLimit == 0 {

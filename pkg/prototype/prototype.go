@@ -315,7 +315,14 @@ func (t *Tester) testJSONBody(ctx context.Context, targetURL string, param strin
 
 // detectPollution checks if the response indicates prototype pollution
 func (t *Tester) detectPollution(body string, headers http.Header) string {
-	// Check for our marker in response
+	// Check for polluted property appearing in JSON response (more specific).
+	// This must come before the general ppmarker check so we can distinguish
+	// between a generic marker echo and actual property pollution.
+	if strings.Contains(body, `"test":`) && strings.Contains(body, "ppmarker") {
+		return "Polluted property appeared in response"
+	}
+
+	// Check for our marker in response (general case)
 	if strings.Contains(body, "ppmarker") {
 		return "Marker found in response - pollution successful"
 	}
@@ -335,12 +342,6 @@ func (t *Tester) detectPollution(body string, headers http.Header) string {
 		if match := re.FindString(body); match != "" {
 			return fmt.Sprintf("Pollution pattern in response: %s", match)
 		}
-	}
-
-	// Check for behavior changes indicating pollution
-	// (e.g., unexpected properties in JSON response)
-	if strings.Contains(body, `"test":`) && strings.Contains(body, "ppmarker") {
-		return "Polluted property appeared in response"
 	}
 
 	return ""
@@ -464,9 +465,18 @@ func SanitizePrototypePollution(input string) string {
 		"prototype",
 	}
 
+	// Loop until stable to prevent bypass via nested payloads.
+	// e.g. "__pro__proto__to__" → single pass removes inner "__proto__"
+	// leaving "__proto__" — the loop catches the residual.
 	result := input
-	for _, d := range dangerous {
-		result = strings.ReplaceAll(result, d, "")
+	for {
+		prev := result
+		for _, d := range dangerous {
+			result = strings.ReplaceAll(result, d, "")
+		}
+		if result == prev {
+			break
+		}
 	}
 
 	return result
