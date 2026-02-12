@@ -324,7 +324,12 @@ func New(cfg Config) *http.Client {
 		// Custom DNS resolvers for split-horizon DNS bypass
 		resolver := cfg.CustomResolvers[0]
 		if !containsPort(resolver) {
-			resolver = resolver + ":53"
+			// Bare IPv6 needs brackets: "::1" → "[::1]:53"
+			if strings.Count(resolver, ":") > 1 && !strings.Contains(resolver, "[") {
+				resolver = "[" + resolver + "]:53"
+			} else {
+				resolver = resolver + ":53"
+			}
 		}
 		baseDialer := &net.Dialer{
 			Timeout:   cfg.DialTimeout,
@@ -445,11 +450,16 @@ func New(cfg Config) *http.Client {
 }
 
 // containsPort reports whether the address string contains a port suffix.
-// Handles both IPv4 ("1.2.3.4:53") and IPv6 ("[::1]:53") addresses.
+// Handles IPv4 ("1.2.3.4:53"), bracketed IPv6 ("[::1]:53"), and bare IPv6 ("::1").
 func containsPort(addr string) bool {
-	// IPv6 addresses in bracket notation use "]:" before the port.
+	// IPv6 with brackets: "[::1]:53" has port, "[::1]" does not
 	if strings.Contains(addr, "[") {
 		return strings.Contains(addr, "]:")
+	}
+	// Bare IPv6 without brackets (contains multiple colons): never has a port.
+	// A host:port pair has exactly one colon for IPv4/hostname.
+	if strings.Count(addr, ":") > 1 {
+		return false
 	}
 	return strings.Contains(addr, ":")
 }
