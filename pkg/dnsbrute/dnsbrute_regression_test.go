@@ -2,7 +2,9 @@
 // (from 85-fix adversarial review).
 //
 // Bug: Wildcard detection used time.Now().UnixNano() as seed, making the
-//      random subdomain predictable and vulnerable to timing attacks.
+//
+//	random subdomain predictable and vulnerable to timing attacks.
+//
 // Fix: Use crypto/rand.Read for unpredictable random bytes.
 package dnsbrute
 
@@ -71,9 +73,9 @@ func TestBruteforcer_NewDoesNotPanic(t *testing.T) {
 
 	configs := []Config{
 		DefaultConfig(),
-		{},                                    // zero-value config
-		{Wordlist: "nonexistent"},             // missing wordlist
-		{WildcardFilter: true, Retries: 0},    // zero retries
+		{},                                 // zero-value config
+		{Wordlist: "nonexistent"},          // missing wordlist
+		{WildcardFilter: true, Retries: 0}, // zero retries
 	}
 
 	for i, cfg := range configs {

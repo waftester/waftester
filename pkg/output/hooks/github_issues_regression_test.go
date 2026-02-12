@@ -1,7 +1,9 @@
 // Regression tests for GitHub Issues hook input validation (from 85-fix adversarial review).
 //
 // Bug: NewGitHubIssuesHook accepted any string for Owner/Repo, allowing
-//      path traversal or API URL manipulation (e.g., "../../admin").
+//
+//	path traversal or API URL manipulation (e.g., "../../admin").
+//
 // Fix: Validate with regex ^[a-zA-Z0-9._-]+$ and return an error.
 package hooks
 
@@ -19,15 +21,15 @@ func TestNewGitHubIssuesHook_RejectsInvalidOwner(t *testing.T) {
 	t.Parallel()
 
 	invalidOwners := []string{
-		"",                  // empty
-		"../../admin",       // path traversal
-		"owner/repo",        // slash in owner
-		"owner name",        // space
-		"owner\tname",       // tab
-		"<script>",          // XSS attempt
-		"owner%00",          // null byte in encoding
-		"a b",               // whitespace
-		"user\n",            // newline
+		"",            // empty
+		"../../admin", // path traversal
+		"owner/repo",  // slash in owner
+		"owner name",  // space
+		"owner\tname", // tab
+		"<script>",    // XSS attempt
+		"owner%00",    // null byte in encoding
+		"a b",         // whitespace
+		"user\n",      // newline
 	}
 
 	for _, owner := range invalidOwners {
@@ -48,10 +50,10 @@ func TestNewGitHubIssuesHook_RejectsInvalidRepo(t *testing.T) {
 	t.Parallel()
 
 	invalidRepos := []string{
-		"",                  // empty
-		"../../etc/passwd",  // traversal
-		"repo name",         // space
-		"repo/sub",          // slash
+		"",                 // empty
+		"../../etc/passwd", // traversal
+		"repo name",        // space
+		"repo/sub",         // slash
 		"<script>alert(1)</script>",
 	}
 

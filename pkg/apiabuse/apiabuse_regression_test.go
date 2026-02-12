@@ -1,7 +1,9 @@
 // Regression tests for API abuse division by zero (from 85-fix adversarial review).
 //
 // Bug: TestRateLimiting computed avgTime = totalTime / time.Duration(requests)
-//      without checking requests > 0, causing a divide-by-zero panic.
+//
+//	without checking requests > 0, causing a divide-by-zero panic.
+//
 // Fix: Guard with `if requests > 0` before division.
 package apiabuse
 

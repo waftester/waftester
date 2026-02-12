@@ -1,7 +1,9 @@
 // Regression tests for rune-aware string truncation (from 85-fix adversarial review).
 //
 // Bug: Truncate() was byte-based, so it could split multi-byte UTF-8 runes,
-//      producing invalid UTF-8 output.
+//
+//	producing invalid UTF-8 output.
+//
 // Fix: Use utf8.RuneCountInString and []rune conversion.
 package strutil
 

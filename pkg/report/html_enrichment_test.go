@@ -147,7 +147,7 @@ func TestGeneratePowerShellCommand_EndpointEscaping(t *testing.T) {
 
 // TestGeneratePowerShellCommand_SingleQuoteNotRaw verifies the critical regression:
 // a single quote in the endpoint must not appear as a raw unescaped single quote.
-// In PowerShell, ' inside '...' is escaped by doubling: ''
+// In PowerShell, ' inside '...' is escaped by doubling: ”
 func TestGeneratePowerShellCommand_SingleQuoteNotRaw(t *testing.T) {
 	t.Parallel()
 
