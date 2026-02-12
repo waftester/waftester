@@ -38,6 +38,10 @@ type Pool struct {
 
 	// WaitGroup for graceful shutdown
 	wg sync.WaitGroup
+
+	// mu protects the tasks channel from concurrent send (Submit) and close (Close).
+	// Submit acquires RLock; Close acquires Lock.
+	mu sync.RWMutex
 }
 
 // DefaultPool is a shared pool sized to GOMAXPROCS.
@@ -82,17 +86,13 @@ func New(workers int) *Pool {
 // The task will be executed by an available worker.
 // If all workers are busy, the task waits in the queue.
 // Returns false if the pool is closed.
-func (p *Pool) Submit(task func()) (ok bool) {
+func (p *Pool) Submit(task func()) bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
 	if atomic.LoadInt32(&p.closed) == 1 {
 		return false
 	}
-
-	// Recover from send on closed channel if Close() races with Submit()
-	defer func() {
-		if recover() != nil {
-			ok = false
-		}
-	}()
 
 	// Try to spawn a new worker if below limit
 	for {
@@ -180,7 +180,9 @@ func (p *Pool) Close() {
 	if !atomic.CompareAndSwapInt32(&p.closed, 0, 1) {
 		return // Already closed
 	}
+	p.mu.Lock()
 	close(p.tasks)
+	p.mu.Unlock()
 	p.wg.Wait()
 }
 
