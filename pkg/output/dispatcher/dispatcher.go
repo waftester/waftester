@@ -188,16 +188,18 @@ func (d *Dispatcher) Close() error {
 	// Signal no more dispatches should start before waiting for hooks.
 	d.closed.Store(true)
 
-	// Wait for all async hooks to complete before closing writers
-	d.hookWg.Wait()
-
+	// Acquire the write lock BEFORE waiting for hooks. This ensures
+	// no Dispatch() is mid-execution (holding RLock) when we call
+	// hookWg.Wait(), preventing a WaitGroup misuse panic from a
+	// concurrent hookWg.Add(1) during or after Wait().
 	d.mu.Lock()
-	defer d.mu.Unlock()
+	d.hookWg.Wait()
 
 	for _, w := range d.writers {
 		_ = w.Flush()
 		_ = w.Close()
 	}
+	d.mu.Unlock()
 
 	return nil
 }
