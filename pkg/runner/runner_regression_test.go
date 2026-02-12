@@ -1,7 +1,9 @@
 // Regression tests for runner semaphore context handling (from 85-fix adversarial review).
 //
 // Bug: sem <- struct{}{} blocked forever when context was cancelled and
-//      the semaphore was full. The goroutine would never exit.
+//
+//	the semaphore was full. The goroutine would never exit.
+//
 // Fix: select { case sem <- struct{}{}: case <-ctx.Done(): goto cleanup }
 package runner
 

@@ -1,11 +1,15 @@
 // Regression tests for IDOR bugs (from 85-fix adversarial review).
 //
 // Bug 1: responseSimilar() always returned true for same-length responses,
-//         regardless of actual content. This caused false positives.
+//
+//	regardless of actual content. This caused false positives.
+//
 // Fix 1: 80% byte-level similarity check in 256-byte prefix sample.
 //
 // Bug 2: extractIDs() used regexp.MustCompile on user-supplied patterns,
-//         which panicked on invalid regex.
+//
+//	which panicked on invalid regex.
+//
 // Fix 2: Changed to regexp.Compile + continue on error.
 package idor
 
@@ -94,11 +98,11 @@ func TestExtractIDs_InvalidRegexDoesNotPanic(t *testing.T) {
 
 	s := NewScanner(Config{
 		IDPatterns: []string{
-			`[invalid(`,             // unclosed bracket
-			`(?P<broken`,            // unclosed group
-			`/users/(\d+)`,          // valid pattern
-			`***`,                   // invalid quantifier
-			`"id"\s*:\s*(\d+)`,      // valid pattern
+			`[invalid(`,        // unclosed bracket
+			`(?P<broken`,       // unclosed group
+			`/users/(\d+)`,     // valid pattern
+			`***`,              // invalid quantifier
+			`"id"\s*:\s*(\d+)`, // valid pattern
 		},
 	})
 
