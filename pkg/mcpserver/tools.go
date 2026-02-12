@@ -23,22 +23,17 @@ type toolHandler = func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.Cal
 func loggedTool(name string, fn toolHandler) toolHandler {
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		// Redact sensitive argument fields before logging to prevent key/token leakage
-		var rawArgs map[string]interface{}
 		argBytes := []byte(req.Params.Arguments)
+		var rawArgs map[string]interface{}
 		if json.Unmarshal(argBytes, &rawArgs) == nil {
-			for k := range rawArgs {
-				switch strings.ToLower(k) {
-				case "api_key", "apikey", "api_secret", "apisecret", "token",
-					"password", "secret", "license", "credentials", "key":
-					rawArgs[k] = "[REDACTED]"
-				}
-			}
+			redactMap(rawArgs)
 			argBytes, _ = json.Marshal(rawArgs)
 		}
 		argStr := string(argBytes)
 		const maxArgLog = 200
 		if len(argStr) > maxArgLog {
-			argStr = argStr[:maxArgLog] + "..."
+			// Truncate at rune boundary to avoid splitting multi-byte UTF-8
+			argStr = truncateString(argStr, maxArgLog) + "..."
 		}
 		log.Printf("[mcp-tool] --> %s  args=%s", name, argStr)
 
@@ -56,6 +51,49 @@ func loggedTool(name string, fn toolHandler) toolHandler {
 		}
 		return result, err
 	}
+}
+
+// sensitiveSubstrings are substrings that, if found in a lowercased JSON key,
+// trigger redaction. This is intentionally broad to catch variations like
+// "x_api_key", "my_secret_token", "auth_header", etc.
+var sensitiveSubstrings = []string{
+	"secret", "password", "token", "credential", "key", "license",
+	"auth", "bearer", "jwt", "cookie", "session",
+}
+
+// isSensitiveKey returns true if the lowercased key contains any sensitive substring.
+func isSensitiveKey(key string) bool {
+	lower := strings.ToLower(key)
+	for _, sub := range sensitiveSubstrings {
+		if strings.Contains(lower, sub) {
+			return true
+		}
+	}
+	return false
+}
+
+// redactMap recursively redacts sensitive fields in a JSON-like map.
+// It traverses nested maps so payloads like {"config":{"api_key":"..."}} are caught.
+func redactMap(m map[string]interface{}) {
+	for k, v := range m {
+		if isSensitiveKey(k) {
+			m[k] = "[REDACTED]"
+			continue
+		}
+		// Recurse into nested objects
+		if nested, ok := v.(map[string]interface{}); ok {
+			redactMap(nested)
+		}
+	}
+}
+
+// truncateString truncates s to at most maxLen runes, avoiding mid-rune byte splits.
+func truncateString(s string, maxLen int) string {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
+		return s
+	}
+	return string(runes[:maxLen])
 }
 
 // categoryMeta holds rich metadata for each attack category — used to enrich

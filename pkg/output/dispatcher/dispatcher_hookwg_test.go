@@ -9,6 +9,7 @@ package dispatcher
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -130,11 +131,58 @@ func TestDispatchAfterClose_NoHookPanic(t *testing.T) {
 
 	_ = d.Close()
 
-	// Dispatch after close — may or may not process, but must not panic.
+	// Dispatch after close — must not panic and must not process.
 	_ = d.Dispatch(context.Background(), newMockEvent(events.EventTypeResult))
 
 	// Give any spawned goroutine time to run.
 	time.Sleep(50 * time.Millisecond)
+
+	if atomic.LoadInt32(&hookCalled) != 0 {
+		t.Error("hook was called after Close() — closed flag not checked")
+	}
+}
+
+// TestConcurrentDispatchAndClose verifies that calling Dispatch() concurrently
+// with Close() does not panic (no WaitGroup Add-after-Wait race).
+func TestConcurrentDispatchAndClose(t *testing.T) {
+	t.Parallel()
+
+	d := New(Config{Async: true})
+
+	var eventCount int64
+	h := &simpleHook{
+		onEvent: func(_ context.Context, _ events.Event) error {
+			atomic.AddInt64(&eventCount, 1)
+			time.Sleep(time.Millisecond)
+			return nil
+		},
+		eventTypes: nil,
+	}
+	d.RegisterHook(h)
+
+	// Launch many concurrent dispatchers.
+	const goroutines = 20
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 50; j++ {
+				_ = d.Dispatch(context.Background(), newMockEvent(events.EventTypeResult))
+			}
+		}()
+	}
+
+	// Let some dispatches occur, then close mid-flight.
+	time.Sleep(5 * time.Millisecond)
+	_ = d.Close()
+
+	wg.Wait()
+
+	// Verify: no panic occurred, and at least some events were processed.
+	if atomic.LoadInt64(&eventCount) == 0 {
+		t.Error("no events processed — expected at least some before close")
+	}
 }
 
 // simpleHook is a minimal Hook implementation for focused tests.
