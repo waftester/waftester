@@ -1024,19 +1024,18 @@ func VulnerabilityToJSON(v Vulnerability) (string, error) {
 
 // GenerateFuzzReport generates a report of fuzz results.
 func GenerateFuzzReport(vulns []Vulnerability) map[string]interface{} {
-	report := map[string]interface{}{
+	bySeverity := make(map[string]int)
+	byType := make(map[string]int)
+	for _, v := range vulns {
+		bySeverity[string(v.Severity)]++
+		byType[string(v.Type)]++
+	}
+	return map[string]interface{}{
 		"total_vulnerabilities": len(vulns),
-		"by_severity":           make(map[string]int),
-		"by_type":               make(map[string]int),
+		"by_severity":           bySeverity,
+		"by_type":               byType,
 		"vulnerabilities":       vulns,
 	}
-
-	for _, v := range vulns {
-		report["by_severity"].(map[string]int)[string(v.Severity)]++
-		report["by_type"].(map[string]int)[string(v.Type)]++
-	}
-
-	return report
 }
 
 // IntPtr returns a pointer to an int.

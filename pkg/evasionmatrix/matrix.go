@@ -42,13 +42,14 @@ func (t *ExecutableTest) ToRequest(ctx context.Context) (*http.Request, error) {
 
 // Matrix holds the combinatorial test configuration
 type Matrix struct {
-	payloads     []string
-	encoderNames []string
-	phNames      []string
-	categories   []string
-	tests        []Test
-	built        bool
-	mu           sync.RWMutex
+	payloads          []string
+	payloadCategories map[string]string // payload -> category
+	encoderNames      []string
+	phNames           []string
+	categories        []string
+	tests             []Test
+	built             bool
+	mu                sync.RWMutex
 }
 
 // Builder for creating matrices
@@ -60,10 +61,11 @@ type Builder struct {
 func New() *Builder {
 	return &Builder{
 		matrix: &Matrix{
-			payloads:     []string{},
-			encoderNames: []string{},
-			phNames:      []string{},
-			categories:   []string{},
+			payloads:          []string{},
+			payloadCategories: make(map[string]string),
+			encoderNames:      []string{},
+			phNames:           []string{},
+			categories:        []string{},
 		},
 	}
 }
@@ -137,9 +139,11 @@ func (b *Builder) Build() *Matrix {
 				// Generate unique ID
 				id := generateTestID(payload, encName, phName)
 
-				// Determine category
+				// Determine category from per-payload mapping, fall back to first category
 				category := ""
-				if len(b.matrix.categories) > 0 {
+				if cat, ok := b.matrix.payloadCategories[payload]; ok {
+					category = cat
+				} else if len(b.matrix.categories) > 0 {
 					category = b.matrix.categories[0]
 				}
 
@@ -235,9 +239,12 @@ func (m *Matrix) Filter(fn func(Test) bool) *Matrix {
 func NewFromCategories(categories []string) *Matrix {
 	builder := New()
 
-	// Load payloads from categories
+	// Load payloads from categories, tracking which category each belongs to
 	for _, cat := range categories {
 		payloads := GetCategoryPayloads(cat)
+		for _, p := range payloads {
+			builder.matrix.payloadCategories[p] = cat
+		}
 		builder.Payloads(payloads...)
 	}
 

@@ -6,12 +6,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // GetPayloads returns all payloads, optionally filtered
@@ -431,7 +431,7 @@ func (d *Detector) FingerprintEngine(ctx context.Context, targetURL string, para
 				return EngineJinja2, nil
 			}
 		case EngineSmarty:
-			if regexp.MustCompile(`Smarty[_\-]?[0-9]`).MatchString(string(body)) {
+			if regexcache.MustGet(`Smarty[_\-]?[0-9]`).MatchString(string(body)) {
 				return EngineSmarty, nil
 			}
 		}

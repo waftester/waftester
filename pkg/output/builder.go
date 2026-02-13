@@ -2,6 +2,8 @@
 package output
 
 import (
+	"encoding/csv"
+	"encoding/xml"
 	"fmt"
 	"os"
 	"strings"
@@ -522,6 +524,7 @@ func BuildDispatcher(cfg Config) (*dispatcher.Dispatcher, error) {
 			Assignees: assignees,
 		})
 		if err != nil {
+			cleanup()
 			return nil, fmt.Errorf("github issues hook: %w", err)
 		}
 		d.RegisterHook(hook)
@@ -667,13 +670,21 @@ func WriteEnterpriseExports(cfg Config, results ExecutionResults) error {
 	return nil
 }
 
+// closeFile captures file close errors into a named error return.
+// Use with named returns: defer closeFile(f, &err)
+func closeFile(f *os.File, errp *error) {
+	if cerr := f.Close(); cerr != nil && *errp == nil {
+		*errp = cerr
+	}
+}
+
 // writeResultsJSON writes ExecutionResults as a JSON file.
-func writeResultsJSON(path string, results ExecutionResults, omitRaw bool) error {
+func writeResultsJSON(path string, results ExecutionResults, omitRaw bool) (err error) {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer closeFile(f, &err)
 
 	encoder := jsonutil.NewStreamEncoder(f)
 	encoder.SetIndent("", "  ")
@@ -681,24 +692,24 @@ func writeResultsJSON(path string, results ExecutionResults, omitRaw bool) error
 }
 
 // writeResultsJSONL writes ExecutionResults as a single-line JSON.
-func writeResultsJSONL(path string, results ExecutionResults) error {
+func writeResultsJSONL(path string, results ExecutionResults) (err error) {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer closeFile(f, &err)
 
 	encoder := jsonutil.NewStreamEncoder(f)
 	return encoder.Encode(results)
 }
 
 // writeResultsSARIF writes ExecutionResults in SARIF format.
-func writeResultsSARIF(path string, results ExecutionResults, version string) error {
+func writeResultsSARIF(path string, results ExecutionResults, version string) (err error) {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer closeFile(f, &err)
 
 	// Generate minimal SARIF structure
 	sarif := map[string]interface{}{
@@ -760,62 +771,73 @@ func severityToSARIFLevel(severity string) string {
 }
 
 // writeResultsJUnit writes ExecutionResults in JUnit XML format.
-func writeResultsJUnit(path string, results ExecutionResults) error {
+func writeResultsJUnit(path string, results ExecutionResults) (err error) {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer closeFile(f, &err)
 
 	// Generate JUnit XML
-	fmt.Fprintf(f, `<?xml version="1.0" encoding="UTF-8"?>
+	if _, err = fmt.Fprintf(f, `<?xml version="1.0" encoding="UTF-8"?>
 <testsuites tests="%d" failures="%d" errors="%d" time="%.2f">
   <testsuite name="`+defaults.ToolNameDisplay+`" tests="%d" failures="%d" errors="%d" time="%.2f">
 `,
 		results.TotalTests, results.PassedTests, results.ErrorTests, results.Duration.Seconds(),
-		results.TotalTests, results.PassedTests, results.ErrorTests, results.Duration.Seconds())
-
-	for _, bypass := range results.BypassDetails {
-		fmt.Fprintf(f, `    <testcase name="%s" classname="%s">
-      <failure message="WAF bypass detected">%s</failure>
-    </testcase>
-`, bypass.PayloadID, bypass.Category, bypass.Payload)
+		results.TotalTests, results.PassedTests, results.ErrorTests, results.Duration.Seconds()); err != nil {
+		return err
 	}
 
-	fmt.Fprintf(f, "  </testsuite>\n</testsuites>\n")
-	return nil
+	for _, bypass := range results.BypassDetails {
+		if _, err = fmt.Fprintf(f, `    <testcase name="%s" classname="%s">
+      <failure message="WAF bypass detected">`, xmlEscape(bypass.PayloadID), xmlEscape(bypass.Category)); err != nil {
+			return err
+		}
+		if err = xml.EscapeText(f, []byte(bypass.Payload)); err != nil {
+			return err
+		}
+		if _, err = fmt.Fprint(f, "</failure>\n    </testcase>\n"); err != nil {
+			return err
+		}
+	}
+
+	_, err = fmt.Fprintf(f, "  </testsuite>\n</testsuites>\n")
+	return err
 }
 
 // writeResultsCSV writes ExecutionResults in CSV format.
-func writeResultsCSV(path string, results ExecutionResults) error {
+func writeResultsCSV(path string, results ExecutionResults) (err error) {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer closeFile(f, &err)
 
 	// Write header
-	fmt.Fprintln(f, "PayloadID,Category,Severity,Endpoint,Method,StatusCode")
+	w := csv.NewWriter(f)
+	w.Write([]string{"PayloadID", "Category", "Severity", "Endpoint", "Method", "StatusCode"})
 
 	// Write bypass details
 	for _, bypass := range results.BypassDetails {
-		fmt.Fprintf(f, "%s,%s,%s,%s,%s,%d\n",
+		w.Write([]string{
 			bypass.PayloadID, bypass.Category, bypass.Severity,
-			bypass.Endpoint, bypass.Method, bypass.StatusCode)
+			bypass.Endpoint, bypass.Method, fmt.Sprintf("%d", bypass.StatusCode),
+		})
 	}
+	w.Flush()
 
-	return nil
+	return w.Error()
 }
 
 // writeResultsHTML writes ExecutionResults in HTML format.
-func writeResultsHTML(path string, results ExecutionResults) error {
+func writeResultsHTML(path string, results ExecutionResults) (err error) {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer closeFile(f, &err)
 
-	fmt.Fprintf(f, `<!DOCTYPE html>
+	_, err = fmt.Fprintf(f, `<!DOCTYPE html>
 <html>
 <head><title>WAFtester Report</title></head>
 <body>
@@ -833,18 +855,18 @@ func writeResultsHTML(path string, results ExecutionResults) error {
 </html>
 `, results.TotalTests, results.PassedTests, results.BlockedTests, results.FailedTests, results.ErrorTests, results.Duration)
 
-	return nil
+	return err
 }
 
 // writeResultsMarkdown writes ExecutionResults in Markdown format.
-func writeResultsMarkdown(path string, results ExecutionResults) error {
+func writeResultsMarkdown(path string, results ExecutionResults) (err error) {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer closeFile(f, &err)
 
-	fmt.Fprintf(f, `# WAFtester Security Report
+	_, err = fmt.Fprintf(f, `# WAFtester Security Report
 
 ## Summary
 
@@ -858,16 +880,16 @@ func writeResultsMarkdown(path string, results ExecutionResults) error {
 | Duration | %v |
 `, results.TotalTests, results.PassedTests, results.BlockedTests, results.FailedTests, results.ErrorTests, results.Duration)
 
-	return nil
+	return err
 }
 
 // writeResultsSonarQube writes ExecutionResults in SonarQube format.
-func writeResultsSonarQube(path string, results ExecutionResults) error {
+func writeResultsSonarQube(path string, results ExecutionResults) (err error) {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer closeFile(f, &err)
 
 	sonarReport := map[string]interface{}{
 		"issues": convertToSonarQubeIssues(results),
@@ -909,12 +931,12 @@ func severityToSonarQube(severity string) string {
 }
 
 // writeResultsGitLabSAST writes ExecutionResults in GitLab SAST format.
-func writeResultsGitLabSAST(path string, results ExecutionResults) error {
+func writeResultsGitLabSAST(path string, results ExecutionResults) (err error) {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer closeFile(f, &err)
 
 	report := map[string]interface{}{
 		"version": "15.0.0",
@@ -958,12 +980,12 @@ func severityToGitLab(severity string) string {
 }
 
 // writeResultsDefectDojo writes ExecutionResults in DefectDojo format.
-func writeResultsDefectDojo(path string, results ExecutionResults) error {
+func writeResultsDefectDojo(path string, results ExecutionResults) (err error) {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer closeFile(f, &err)
 
 	report := map[string]interface{}{
 		"findings": convertToDefectDojoFindings(results),
@@ -988,12 +1010,12 @@ func convertToDefectDojoFindings(results ExecutionResults) []map[string]interfac
 }
 
 // writeResultsCycloneDX writes ExecutionResults in CycloneDX VEX format.
-func writeResultsCycloneDX(path string, results ExecutionResults) error {
+func writeResultsCycloneDX(path string, results ExecutionResults) (err error) {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer closeFile(f, &err)
 
 	report := map[string]interface{}{
 		"bomFormat":       "CycloneDX",
@@ -1075,4 +1097,11 @@ func parseSemicolonSeparated(s string) []string {
 		}
 	}
 	return result
+}
+
+// xmlEscape escapes a string for use in XML attribute values.
+func xmlEscape(s string) string {
+	var b strings.Builder
+	xml.EscapeText(&b, []byte(s))
+	return b.String()
 }

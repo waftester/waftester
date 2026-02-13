@@ -598,27 +598,71 @@ func NewRunner(config *Config, w io.Writer) *Runner {
 func (r *Runner) Run(cmd Command, opts interface{}) error {
 	switch cmd {
 	case CommandEncode:
-		return RunEncode(opts.(*EncodeOptions), r.writer)
+		o, ok := opts.(*EncodeOptions)
+		if !ok {
+			return fmt.Errorf("cli: CommandEncode requires *EncodeOptions, got %T", opts)
+		}
+		return RunEncode(o, r.writer)
 	case CommandEvade:
-		return RunEvasion(opts.(*EvasionOptions), r.writer)
+		o, ok := opts.(*EvasionOptions)
+		if !ok {
+			return fmt.Errorf("cli: CommandEvade requires *EvasionOptions, got %T", opts)
+		}
+		return RunEvasion(o, r.writer)
 	case CommandBenchmark:
-		return RunBenchmark(opts.(*BenchmarkOptions), r.writer)
+		o, ok := opts.(*BenchmarkOptions)
+		if !ok {
+			return fmt.Errorf("cli: CommandBenchmark requires *BenchmarkOptions, got %T", opts)
+		}
+		return RunBenchmark(o, r.writer)
 	case CommandFP:
-		return RunFP(opts.(*FPOptions), r.writer)
+		o, ok := opts.(*FPOptions)
+		if !ok {
+			return fmt.Errorf("cli: CommandFP requires *FPOptions, got %T", opts)
+		}
+		return RunFP(o, r.writer)
 	case CommandHealth:
-		return RunHealth(opts.(*HealthOptions), r.writer)
+		o, ok := opts.(*HealthOptions)
+		if !ok {
+			return fmt.Errorf("cli: CommandHealth requires *HealthOptions, got %T", opts)
+		}
+		return RunHealth(o, r.writer)
 	case CommandGRPC:
-		return RunGRPC(opts.(*GRPCOptions), r.writer)
+		o, ok := opts.(*GRPCOptions)
+		if !ok {
+			return fmt.Errorf("cli: CommandGRPC requires *GRPCOptions, got %T", opts)
+		}
+		return RunGRPC(o, r.writer)
 	case CommandSOAP:
-		return RunSOAP(opts.(*SOAPOptions), r.writer)
+		o, ok := opts.(*SOAPOptions)
+		if !ok {
+			return fmt.Errorf("cli: CommandSOAP requires *SOAPOptions, got %T", opts)
+		}
+		return RunSOAP(o, r.writer)
 	case CommandFTW:
-		return RunFTW(opts.(*FTWOptions), r.writer)
+		o, ok := opts.(*FTWOptions)
+		if !ok {
+			return fmt.Errorf("cli: CommandFTW requires *FTWOptions, got %T", opts)
+		}
+		return RunFTW(o, r.writer)
 	case CommandReport:
-		return RunReport(opts.(*ReportOptions), r.writer)
+		o, ok := opts.(*ReportOptions)
+		if !ok {
+			return fmt.Errorf("cli: CommandReport requires *ReportOptions, got %T", opts)
+		}
+		return RunReport(o, r.writer)
 	case CommandParanoia:
-		return RunParanoia(opts.(*ParanoiaOptions), r.writer)
+		o, ok := opts.(*ParanoiaOptions)
+		if !ok {
+			return fmt.Errorf("cli: CommandParanoia requires *ParanoiaOptions, got %T", opts)
+		}
+		return RunParanoia(o, r.writer)
 	case CommandPlaceholder:
-		return RunPlaceholder(opts.(*PlaceholderOptions), r.writer)
+		o, ok := opts.(*PlaceholderOptions)
+		if !ok {
+			return fmt.Errorf("cli: CommandPlaceholder requires *PlaceholderOptions, got %T", opts)
+		}
+		return RunPlaceholder(o, r.writer)
 	default:
 		return fmt.Errorf("unknown command: %s", cmd)
 	}

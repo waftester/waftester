@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -72,6 +73,7 @@ type Response struct {
 // Filter evaluates responses against configured criteria
 type Filter struct {
 	config     *Config
+	mu         sync.Mutex
 	seenHashes map[uint64]bool // For duplicate detection
 }
 
@@ -222,10 +224,15 @@ func (f *Filter) matchesFilter(resp *Response) bool {
 
 	// Duplicate detection (check first for efficiency)
 	if c.FilterDuplicates && resp.Simhash > 0 {
-		if f.seenHashes[resp.Simhash] {
+		f.mu.Lock()
+		seen := f.seenHashes[resp.Simhash]
+		if !seen {
+			f.seenHashes[resp.Simhash] = true
+		}
+		f.mu.Unlock()
+		if seen {
 			return true // Already seen, filter out
 		}
-		f.seenHashes[resp.Simhash] = true
 	}
 
 	// Status code filtering
@@ -252,23 +259,27 @@ func (f *Filter) matchesFilter(resp *Response) bool {
 
 	// Regex filtering
 	if len(c.FilterRegex) > 0 {
+		matched := false
 		for _, re := range c.FilterRegex {
 			if re.Match(resp.Body) {
-				results = append(results, true)
+				matched = true
 				break
 			}
 		}
+		results = append(results, matched)
 	}
 
 	// String filtering
 	if len(c.FilterString) > 0 {
+		matched := false
 		bodyStr := string(resp.Body)
 		for _, s := range c.FilterString {
 			if strings.Contains(bodyStr, s) {
-				results = append(results, true)
+				matched = true
 				break
 			}
 		}
+		results = append(results, matched)
 	}
 
 	// Response time filtering
@@ -278,12 +289,14 @@ func (f *Filter) matchesFilter(resp *Response) bool {
 
 	// CDN filtering
 	if len(c.FilterCDN) > 0 {
+		matched := false
 		for _, cdn := range c.FilterCDN {
 			if strings.EqualFold(resp.CDNProvider, cdn) {
-				results = append(results, true)
+				matched = true
 				break
 			}
 		}
+		results = append(results, matched)
 	}
 
 	// Header filtering

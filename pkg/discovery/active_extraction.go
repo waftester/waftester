@@ -24,7 +24,10 @@ func (ad *ActiveDiscoverer) extractFromResponsesWithProgress(ctx context.Context
 	// Collect HTML pages only (skip static assets)
 	var htmlPaths []string
 	ad.found.Range(func(key, value interface{}) bool {
-		path := key.(string)
+		path, _ := key.(string)
+		if path == "" {
+			return true
+		}
 		if !isStaticAsset(path) {
 			htmlPaths = append(htmlPaths, path)
 		}

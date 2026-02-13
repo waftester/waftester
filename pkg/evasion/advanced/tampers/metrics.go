@@ -112,6 +112,9 @@ func (m *MetricsCollector) RecordError(tamperNames []string) {
 
 // RecordLatency records request latency for a tamper chain
 func (m *MetricsCollector) RecordLatency(tamperNames []string, latency time.Duration) {
+	if len(tamperNames) == 0 {
+		return
+	}
 	latencyNs := int64(latency)
 	perTamper := latencyNs / int64(len(tamperNames))
 

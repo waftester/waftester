@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/finding"
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // Category defines the type of false positive
@@ -518,8 +518,8 @@ func containsPattern(patterns []string, item string) bool {
 		if strings.Contains(item, p) {
 			return true
 		}
-		// Try regex
-		if re, err := regexp.Compile(p); err == nil && re.MatchString(item) {
+		// Try regex (uses cache to avoid recompilation)
+		if re, err := regexcache.Get(p); err == nil && re.MatchString(item) {
 			return true
 		}
 	}

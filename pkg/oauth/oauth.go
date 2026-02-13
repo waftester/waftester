@@ -489,17 +489,18 @@ func VulnerabilityToJSON(v Vulnerability) (string, error) {
 
 // GenerateReport generates a scan report.
 func GenerateReport(vulns []Vulnerability) map[string]interface{} {
-	report := map[string]interface{}{
+	byType := make(map[string]int)
+	bySeverity := make(map[string]int)
+	for _, v := range vulns {
+		byType[string(v.Type)]++
+		bySeverity[string(v.Severity)]++
+	}
+	return map[string]interface{}{
 		"total_vulnerabilities": len(vulns),
-		"by_type":               make(map[string]int),
-		"by_severity":           make(map[string]int),
+		"by_type":               byType,
+		"by_severity":           bySeverity,
 		"vulnerabilities":       vulns,
 	}
-	for _, v := range vulns {
-		report["by_type"].(map[string]int)[string(v.Type)]++
-		report["by_severity"].(map[string]int)[string(v.Severity)]++
-	}
-	return report
 }
 
 // GenerateState generates a secure random state value.

@@ -356,7 +356,10 @@ func NewEnterpriseHTMLGenerator() (*EnterpriseHTMLGenerator, error) {
 		// HTML <script> tags. Using template.JS here is intentional to prevent
 		// double-escaping of the JSON output.
 		"json": func(v interface{}) template.JS {
-			b, _ := json.Marshal(v)
+			b, err := json.Marshal(v)
+			if err != nil {
+				return template.JS("null")
+			}
 			return template.JS(b)
 		},
 		"safeHTML": func(s string) template.HTML {
