@@ -124,6 +124,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ steps.get_tag.outputs.tag }}
+          # PAT with Contents:write on homebrew-tap + scoop-waftester repos.
+          # If not set, goreleaser skips brew/scoop publishing.
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
 
       - name: Merge preserved notes into release
         if: steps.get_tag.outputs.is_tag == 'true' && steps.prev_notes.outputs.has_prev == 'true'
