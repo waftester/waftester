@@ -49,7 +49,6 @@ func TestPool_ConcurrentSubmitAndClose(t *testing.T) {
 		done := make(chan struct{})
 		for i := 0; i < 20; i++ {
 			go func() {
-				defer func() { recover() }() // don't fail on close-related panics
 				for {
 					select {
 					case <-done:

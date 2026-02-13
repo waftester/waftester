@@ -44,6 +44,10 @@ type Pool struct {
 	// Submit releases RLock BEFORE any blocking channel send.
 	mu sync.RWMutex
 
+	// senders tracks in-flight blockingSend calls so Close can wait
+	// for them to finish before closing the tasks channel.
+	senders sync.WaitGroup
+
 	// done is closed by Close to unblock any Submit stuck in blockingSend.
 	done chan struct{}
 }
@@ -111,9 +115,13 @@ func (p *Pool) Submit(task func()) bool {
 		// Queue full — spawn emergency worker (still under RLock so
 		// wg.Add is synchronized with Close's wg.Wait)
 		p.trySpawn(atomic.LoadInt32(&p.workers) * 2)
+
+		// Track this sender before releasing lock so Close knows to wait
+		p.senders.Add(1)
 		p.mu.RUnlock()
 
 		// Slow path: block without holding any lock
+		defer p.senders.Done()
 		return p.blockingSend(task)
 	}
 }
@@ -134,14 +142,9 @@ func (p *Pool) trySpawn(limit int32) {
 }
 
 // blockingSend sends a task to the channel, waiting for space or shutdown.
-// Uses the done channel to unblock on Close and recover to handle the
-// narrow race where Close fires between RUnlock and entering select.
-func (p *Pool) blockingSend(task func()) (ok bool) {
-	defer func() {
-		if recover() != nil {
-			ok = false
-		}
-	}()
+// Close waits for all in-flight senders via senders.Wait before closing
+// the tasks channel, so no send-on-closed-channel race is possible.
+func (p *Pool) blockingSend(task func()) bool {
 	select {
 	case p.tasks <- task:
 		return true
@@ -201,11 +204,15 @@ func (p *Pool) Close() {
 		return // Already closed
 	}
 	// Lock ensures all in-flight Submit calls (holding RLock) finish
-	// their worker spawns (wg.Add) before we proceed to wg.Wait.
+	// their worker spawns (wg.Add) and senders.Add before we proceed.
 	p.mu.Lock()
-	close(p.done)  // Unblock any Submit stuck in blockingSend
-	close(p.tasks) // Signal workers to drain and exit
+	close(p.done) // Unblock any Submit stuck in blockingSend
 	p.mu.Unlock()
+
+	// Wait for all in-flight blockingSend calls to return before
+	// closing the tasks channel — prevents send-on-closed-channel race.
+	p.senders.Wait()
+	close(p.tasks) // Now safe — no senders in flight
 	p.wg.Wait()
 }
 
