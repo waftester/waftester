@@ -39,9 +39,13 @@ type Pool struct {
 	// WaitGroup for graceful shutdown
 	wg sync.WaitGroup
 
-	// mu protects the tasks channel from concurrent send (Submit) and close (Close).
-	// Submit acquires RLock; Close acquires Lock.
+	// mu synchronizes Submit (RLock) with Close (Lock) to ensure all
+	// in-flight worker spawns (wg.Add) complete before wg.Wait.
+	// Submit releases RLock BEFORE any blocking channel send.
 	mu sync.RWMutex
+
+	// done is closed by Close to unblock any Submit stuck in blockingSend.
+	done chan struct{}
 }
 
 // DefaultPool is a shared pool sized to GOMAXPROCS.
@@ -77,6 +81,7 @@ func New(workers int) *Pool {
 	p := &Pool{
 		workers: int32(workers),
 		tasks:   make(chan func(), workers*BufferMultiplier), // Buffered for burst handling
+		done:    make(chan struct{}),
 	}
 
 	return p
@@ -88,45 +93,60 @@ func New(workers int) *Pool {
 // Returns false if the pool is closed.
 func (p *Pool) Submit(task func()) bool {
 	p.mu.RLock()
-	defer p.mu.RUnlock()
 
 	if atomic.LoadInt32(&p.closed) == 1 {
+		p.mu.RUnlock()
 		return false
 	}
 
 	// Try to spawn a new worker if below limit
+	p.trySpawn(atomic.LoadInt32(&p.workers))
+
+	// Fast path: non-blocking send while holding RLock
+	select {
+	case p.tasks <- task:
+		p.mu.RUnlock()
+		return true
+	default:
+		// Queue full — spawn emergency worker (still under RLock so
+		// wg.Add is synchronized with Close's wg.Wait)
+		p.trySpawn(atomic.LoadInt32(&p.workers) * 2)
+		p.mu.RUnlock()
+
+		// Slow path: block without holding any lock
+		return p.blockingSend(task)
+	}
+}
+
+// trySpawn attempts to start a worker if running < limit.
+func (p *Pool) trySpawn(limit int32) {
 	for {
 		running := atomic.LoadInt32(&p.running)
-		if running >= p.workers {
-			break
+		if running >= limit {
+			return
 		}
 		if atomic.CompareAndSwapInt32(&p.running, running, running+1) {
 			p.wg.Add(1)
 			go p.worker()
-			break
+			return
 		}
 	}
+}
 
-	// Send task to queue
+// blockingSend sends a task to the channel, waiting for space or shutdown.
+// Uses the done channel to unblock on Close and recover to handle the
+// narrow race where Close fires between RUnlock and entering select.
+func (p *Pool) blockingSend(task func()) (ok bool) {
+	defer func() {
+		if recover() != nil {
+			ok = false
+		}
+	}()
 	select {
 	case p.tasks <- task:
 		return true
-	default:
-		// Queue is full, try to spawn emergency worker using atomic CAS
-		// to prevent spawning more than workers*2
-		for {
-			running := atomic.LoadInt32(&p.running)
-			if running >= p.workers*2 {
-				break // Already at max capacity
-			}
-			if atomic.CompareAndSwapInt32(&p.running, running, running+1) {
-				p.wg.Add(1)
-				go p.worker()
-				break
-			}
-		}
-		p.tasks <- task // Block until space available
-		return true
+	case <-p.done:
+		return false
 	}
 }
 
@@ -180,8 +200,11 @@ func (p *Pool) Close() {
 	if !atomic.CompareAndSwapInt32(&p.closed, 0, 1) {
 		return // Already closed
 	}
+	// Lock ensures all in-flight Submit calls (holding RLock) finish
+	// their worker spawns (wg.Add) before we proceed to wg.Wait.
 	p.mu.Lock()
-	close(p.tasks)
+	close(p.done)  // Unblock any Submit stuck in blockingSend
+	close(p.tasks) // Signal workers to drain and exit
 	p.mu.Unlock()
 	p.wg.Wait()
 }

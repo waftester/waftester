@@ -34,7 +34,7 @@ type ExecutionResults struct {
 	ErrorTests     int
 	StartTime      time.Time
 	EndTime        time.Time
-	Duration       time.Duration
+	Duration       time.Duration `json:"duration,omitzero,format:nano"`
 	RequestsPerSec float64
 	// Enhanced stats (nuclei-style)
 	StatusCodes       map[int]int    // Count by status code
@@ -689,9 +689,13 @@ func (w *SARIFWriter) buildSARIF() sarifDocument {
 func newCSVWriter(path string) (*CSVWriter, error) {
 	if path == "" {
 		writer := csv.NewWriter(os.Stdout)
-		// Write header and flush immediately
-		writer.Write([]string{"id", "category", "severity", "outcome", "status_code", "latency_ms", "method", "target_path", "timestamp"})
+		if err := writer.Write([]string{"id", "category", "severity", "outcome", "status_code", "latency_ms", "method", "target_path", "timestamp"}); err != nil {
+			return nil, fmt.Errorf("csv header write: %w", err)
+		}
 		writer.Flush()
+		if err := writer.Error(); err != nil {
+			return nil, fmt.Errorf("csv header flush: %w", err)
+		}
 		return &CSVWriter{file: os.Stdout, writer: writer}, nil
 	}
 	file, err := os.Create(path)
@@ -699,9 +703,15 @@ func newCSVWriter(path string) (*CSVWriter, error) {
 		return nil, err
 	}
 	writer := csv.NewWriter(file)
-	// Write header and flush immediately
-	writer.Write([]string{"id", "category", "severity", "outcome", "status_code", "latency_ms", "method", "target_path", "timestamp"})
+	if err := writer.Write([]string{"id", "category", "severity", "outcome", "status_code", "latency_ms", "method", "target_path", "timestamp"}); err != nil {
+		file.Close()
+		return nil, fmt.Errorf("csv header write: %w", err)
+	}
 	writer.Flush()
+	if err := writer.Error(); err != nil {
+		file.Close()
+		return nil, fmt.Errorf("csv header flush: %w", err)
+	}
 	return &CSVWriter{file: file, writer: writer}, nil
 }
 

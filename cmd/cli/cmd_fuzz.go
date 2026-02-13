@@ -193,8 +193,15 @@ func runFuzz() {
 			os.Exit(1)
 		}
 		if strings.HasPrefix(*wordlist, "http://") || strings.HasPrefix(*wordlist, "https://") {
-			// Download wordlist
-			resp, err := http.Get(*wordlist)
+			// Download wordlist with timeout
+			dlCtx, dlCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer dlCancel()
+			req, reqErr := http.NewRequestWithContext(dlCtx, http.MethodGet, *wordlist, nil)
+			if reqErr != nil {
+				ui.PrintError(fmt.Sprintf("Invalid wordlist URL: %v", reqErr))
+				os.Exit(1)
+			}
+			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
 				ui.PrintError(fmt.Sprintf("Failed to download wordlist: %v", err))
 				os.Exit(1)

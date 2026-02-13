@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -142,6 +143,10 @@ func (c *Coordinator) UnregisterNode(nodeID string) {
 
 // SubmitTask adds a task to the queue
 func (c *Coordinator) SubmitTask(task *Task) error {
+	if task == nil {
+		return fmt.Errorf("nil task")
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -372,6 +377,10 @@ func (c *Coordinator) StartDistributor(ctx context.Context) {
 					select {
 					case c.taskQueue <- task:
 					default:
+						slog.Warn("distributed: task dropped, queue full", "task_id", task.ID)
+						c.mu.Lock()
+						task.Status = TaskFailed
+						c.mu.Unlock()
 					}
 				}
 			case <-ticker.C:
@@ -389,6 +398,21 @@ func (c *Coordinator) checkNodeHealth() {
 	for _, node := range c.nodes {
 		if node.LastSeen.Before(staleThreshold) && node.Status == StatusHealthy {
 			node.Status = StatusUnhealthy
+		}
+	}
+
+	// Reschedule tasks assigned to unhealthy nodes
+	for _, task := range c.tasks {
+		if task.Status == TaskAssigned || task.Status == TaskRunning {
+			if node, ok := c.nodes[task.AssignedTo]; ok && node.Status == StatusUnhealthy {
+				task.Status = TaskPending
+				task.AssignedTo = ""
+				select {
+				case c.taskQueue <- task:
+				default:
+					slog.Warn("distributed: failed to requeue task from unhealthy node", "task_id", task.ID)
+				}
+			}
 		}
 	}
 }
@@ -416,6 +440,7 @@ type Worker struct {
 	Coordinator string // Coordinator address
 	TaskHandler func(context.Context, *Task) *TaskResult
 	StopChan    chan struct{}
+	stopOnce    sync.Once
 	httpClient  *http.Client
 }
 
@@ -448,7 +473,10 @@ func (w *Worker) Run(ctx context.Context) error {
 	// Start task polling
 	go w.pollTasks(ctx)
 
-	<-ctx.Done()
+	select {
+	case <-ctx.Done():
+	case <-w.StopChan:
+	}
 	return nil
 }
 
@@ -502,7 +530,9 @@ func (w *Worker) fetchAndExecuteTask(ctx context.Context) {
 
 // Stop gracefully stops the worker
 func (w *Worker) Stop() {
-	close(w.StopChan)
+	w.stopOnce.Do(func() {
+		close(w.StopChan)
+	})
 	w.Node.Status = StatusDraining
 }
 
@@ -631,7 +661,9 @@ func (c *Coordinator) Start(ctx context.Context) error {
 	// Start HTTP server
 	go func() {
 		<-ctx.Done()
-		c.httpServer.Shutdown(context.Background())
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		c.httpServer.Shutdown(shutdownCtx)
 	}()
 
 	return c.httpServer.ListenAndServe()

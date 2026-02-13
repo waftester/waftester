@@ -147,6 +147,11 @@ func (t *Concat) Transform(payload string) string {
 		}
 	}
 	
+	// Flush any unterminated string content
+	if inString {
+		result.WriteString(stringContent.String())
+	}
+
 	return result.String()
 }
 

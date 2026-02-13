@@ -106,7 +106,6 @@ func (d *Discoverer) detectWAF(ctx context.Context, result *DiscoveryResult) {
 		if err != nil {
 			continue
 		}
-		defer iohelper.DrainAndClose(resp.Body)
 
 		// Check for WAF signatures
 		if resp.StatusCode == 403 || resp.StatusCode == 406 || resp.StatusCode == 418 {
@@ -121,8 +120,10 @@ func (d *Discoverer) detectWAF(ctx context.Context, result *DiscoveryResult) {
 			} else if resp.Header.Get("X-CDN") != "" {
 				result.WAFFingerprint = "CDN WAF (Cloudflare/AWS WAF)"
 			}
+			iohelper.DrainAndClose(resp.Body)
 			break
 		}
+		iohelper.DrainAndClose(resp.Body)
 	}
 }
 

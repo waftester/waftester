@@ -75,11 +75,17 @@ func (c *Cache) MarkError(host string) bool {
 
 	var state *hostState
 	if v, ok := c.hosts.Load(host); ok {
-		state = v.(*hostState)
+		state, _ = v.(*hostState)
+		if state == nil {
+			state = &hostState{}
+		}
 	} else {
 		state = &hostState{}
 		actual, _ := c.hosts.LoadOrStore(host, state)
-		state = actual.(*hostState)
+		state, _ = actual.(*hostState)
+		if state == nil {
+			state = &hostState{}
+		}
 	}
 
 	// All state modifications under lock to prevent TOCTOU race
@@ -131,7 +137,11 @@ func (c *Cache) Check(host string) bool {
 		return false
 	}
 
-	state := v.(*hostState)
+	state, _ := v.(*hostState)
+	if state == nil {
+		c.misses.Add(1)
+		return false
+	}
 
 	// Fast read path - use RLock for the common case
 	state.mu.RLock()

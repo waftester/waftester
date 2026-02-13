@@ -514,8 +514,7 @@ func (g *ReportGenerator) loadDefaultTemplates() {
 </body>
 </html>`
 
-	t, _ := template.New("html").Parse(htmlTmpl)
-	g.templates[FormatHTML] = t
+	g.templates[FormatHTML] = template.Must(template.New("html").Parse(htmlTmpl))
 
 	// Markdown template
 	mdTmpl := `# {{.Executive.Title}}

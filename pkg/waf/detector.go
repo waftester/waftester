@@ -796,8 +796,8 @@ func (d *Detector) initSignatures() {
 			Vendor: "StackPath",
 			Type:   "cloud",
 			HeaderPatterns: map[string]*regexp.Regexp{
-				"X-SP-":  regexp.MustCompile(`.+`),
-				"Server": regexp.MustCompile(`(?i)stackpath`),
+				"X-SP-URL": regexp.MustCompile(`.+`),
+				"Server":   regexp.MustCompile(`(?i)stackpath`),
 			},
 		},
 		// Wordfence
@@ -1005,7 +1005,7 @@ func (d *Detector) initSignatures() {
 		{
 			Name: "StackPath",
 			HeaderPatterns: map[string]*regexp.Regexp{
-				"X-SP-": regexp.MustCompile(`.+`),
+				"X-SP-URL": regexp.MustCompile(`.+`),
 			},
 			Features: []string{"CDN", "WAF", "Edge compute"},
 		},

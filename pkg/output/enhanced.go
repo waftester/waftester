@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
@@ -339,31 +340,43 @@ func NewAllFormatsWriter(basePath string, metadata *ExecutionMetadata) (*MultiWr
 	// JSON
 	if w, err := newJSONWriter(basePath + ".json"); err == nil {
 		writers = append(writers, w)
+	} else {
+		slog.Warn("output: failed to create JSON writer", "error", err)
 	}
 
 	// EJSON
 	if w, err := NewEJSONWriter(basePath+".ejson.json", metadata); err == nil {
 		writers = append(writers, w)
+	} else {
+		slog.Warn("output: failed to create EJSON writer", "error", err)
 	}
 
 	// CSV
 	if w, err := newCSVWriter(basePath + ".csv"); err == nil {
 		writers = append(writers, w)
+	} else {
+		slog.Warn("output: failed to create CSV writer", "error", err)
 	}
 
 	// ECSV
 	if w, err := NewECSVWriter(basePath + ".ecsv.csv"); err == nil {
 		writers = append(writers, w)
+	} else {
+		slog.Warn("output: failed to create ECSV writer", "error", err)
 	}
 
 	// HTML
 	if w, err := newHTMLWriter(basePath + ".html"); err == nil {
 		writers = append(writers, w)
+	} else {
+		slog.Warn("output: failed to create HTML writer", "error", err)
 	}
 
 	// Markdown
 	if w, err := newMarkdownWriter(basePath + ".md"); err == nil {
 		writers = append(writers, w)
+	} else {
+		slog.Warn("output: failed to create Markdown writer", "error", err)
 	}
 
 	if len(writers) == 0 {
