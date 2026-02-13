@@ -7,8 +7,8 @@
     "type": "git",
     "url": "git+https://github.com/waftester/waftester.git"
   },
-  "author": "WAFtester <hello@waftester.com> (https://github.com/waftester)",
-  "homepage": "https://github.com/waftester/waftester",
+  "author": "WAFtester <hello@waftester.com> (https://waftester.com)",
+  "homepage": "https://waftester.com",
   "bugs": "https://github.com/waftester/waftester/issues",
   "publishConfig": {
     "access": "public",
