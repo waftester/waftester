@@ -441,6 +441,16 @@ func (s *Server) launchAsync(
 	// leaving it permanently stuck in "running" status.
 	// WaitGroup tracking ensures Stop() can drain all goroutines.
 	s.tasks.wg.Add(1)
+	// If Stop() already ran, undo the Add and bail. The small window between
+	// Create() returning and wg.Add(1) is covered by http.Server.Shutdown
+	// draining in-flight handlers, but this makes the contract explicit.
+	select {
+	case <-s.tasks.stop:
+		s.tasks.wg.Done()
+		task.Fail("server is shutting down")
+		return enrichedError("server is shutting down", nil), nil
+	default:
+	}
 	go func() {
 		defer s.tasks.wg.Done()
 		defer func() {
@@ -450,7 +460,14 @@ func (s *Server) launchAsync(
 			}
 		}()
 		workFn(taskCtx, task)
+		// Defensive: if workFn returned without calling Complete/Fail,
+		// force the task to a terminal state so it doesn't permanently
+		// consume an active-task slot.
 		snap := task.Snapshot()
+		if !snap.Status.isTerminal() {
+			task.Fail("tool returned without reporting completion or failure")
+			snap = task.Snapshot()
+		}
 		log.Printf("[mcp] task %s finished: status=%s", task.ID, snap.Status)
 	}()
 

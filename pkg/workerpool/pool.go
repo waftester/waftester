@@ -221,8 +221,9 @@ func (p *Pool) IsClosed() bool {
 	return atomic.LoadInt32(&p.closed) == 1
 }
 
-// Resize changes the pool capacity.
-// If shrinking, excess workers will exit after completing their current task.
+// Resize changes the pool capacity for future spawns. Already-running workers
+// are not terminated; they continue until the pool is closed. To actually
+// reduce running goroutines, close the pool and create a new one.
 func (p *Pool) Resize(workers int) {
 	if workers <= 0 {
 		workers = runtime.GOMAXPROCS(0)

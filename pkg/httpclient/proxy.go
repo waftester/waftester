@@ -179,7 +179,14 @@ func (t *TimeoutDialer) DialContext(ctx context.Context, network, address string
 
 	select {
 	case <-ctx.Done():
-		// Goroutine will close conn if it completes after this point
+		// Drain any connection the goroutine buffered during the race
+		// window between ctx cancellation and the goroutine's select.
+		select {
+		case conn := <-connCh:
+			conn.Close()
+		default:
+			// Goroutine will close via its own ctx.Done branch.
+		}
 		return nil, fmt.Errorf("proxy dial timeout: %w", ctx.Err())
 	case conn := <-connCh:
 		return conn, nil
