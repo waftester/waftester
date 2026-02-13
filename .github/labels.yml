@@ -1,0 +1,75 @@
+# GitHub Labels
+# Apply with: gh label create --force -l labels.yml
+# Or use: https://github.com/marketplace/actions/label-syncer
+
+- name: bug
+  color: "d73a4a"
+  description: "Something isn't working"
+
+- name: enhancement
+  color: "a2eeef"
+  description: "New feature or request"
+
+- name: documentation
+  color: "0075ca"
+  description: "Improvements or additions to documentation"
+
+- name: security
+  color: "e4e669"
+  description: "Security vulnerability or hardening"
+
+- name: dependencies
+  color: "0366d6"
+  description: "Dependency updates"
+
+- name: breaking-change
+  color: "ee0701"
+  description: "Introduces a breaking change"
+
+- name: good-first-issue
+  color: "7057ff"
+  description: "Good for newcomers"
+
+- name: help-wanted
+  color: "008672"
+  description: "Extra attention is needed"
+
+- name: question
+  color: "d876e3"
+  description: "Further information is requested"
+
+- name: duplicate
+  color: "cfd3d7"
+  description: "This issue or pull request already exists"
+
+- name: wontfix
+  color: "ffffff"
+  description: "This will not be worked on"
+
+- name: performance
+  color: "fbca04"
+  description: "Performance improvement"
+
+- name: refactor
+  color: "c5def5"
+  description: "Code restructuring without behavior change"
+
+- name: testing
+  color: "bfd4f2"
+  description: "Test improvements or additions"
+
+- name: waf-detection
+  color: "1d76db"
+  description: "WAF detection and fingerprinting"
+
+- name: evasion
+  color: "b60205"
+  description: "Evasion techniques and bypass engine"
+
+- name: payloads
+  color: "f9d0c4"
+  description: "Payload management and providers"
+
+- name: triage
+  color: "ededed"
+  description: "Needs triage and prioritization"
