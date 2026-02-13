@@ -6608,8 +6608,8 @@ jobs:
     steps:
       - name: Install WAFtester
         run: |
-          curl -sSL https://get.waftester.com | sh
-          waf-tester --version
+          npm install -g @waftester/cli
+          waftester --version
 
       - name: WAF Assessment
         run: |
