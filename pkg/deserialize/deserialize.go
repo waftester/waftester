@@ -43,7 +43,7 @@ const (
 type Vulnerability struct {
 	Type        VulnerabilityType `json:"type"`
 	Description string            `json:"description"`
-	Severity    finding.Severity   `json:"severity"`
+	Severity    finding.Severity  `json:"severity"`
 	URL         string            `json:"url"`
 	Parameter   string            `json:"parameter,omitempty"`
 	Payload     string            `json:"payload,omitempty"`
@@ -480,8 +480,6 @@ func getRemediation(vt VulnerabilityType) string {
 	}
 	return "Avoid deserializing untrusted data"
 }
-
-
 
 // AllVulnerabilityTypes returns all deserialization vulnerability types.
 func AllVulnerabilityTypes() []VulnerabilityType {

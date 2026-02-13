@@ -36,7 +36,7 @@ func TestSeverityLevels(t *testing.T) {
 	}
 
 	// Test ordering
-	if severityOrder(finding.Critical) <= severityOrder(finding.High) {
+	if finding.Critical.Score() <= finding.High.Score() {
 		t.Error("Critical should be higher than High")
 	}
 }
@@ -600,9 +600,9 @@ func TestSeverityOrder(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		result := severityOrder(tc.severity)
+		result := tc.severity.Score()
 		if result != tc.expected {
-			t.Errorf("severityOrder(%s) = %d, want %d", tc.severity, result, tc.expected)
+			t.Errorf("Score(%s) = %d, want %d", tc.severity, result, tc.expected)
 		}
 	}
 }

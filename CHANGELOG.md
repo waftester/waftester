@@ -5,6 +5,20 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.7] - 2026-02-13
+
+### Fixed
+
+- **SonarQube severity mapping divergence** — Batch exports (builder.go) mapped Critical→BLOCKER, High→CRITICAL, Medium→MAJOR, default→MINOR while streaming exports (writers/) mapped Critical→CRITICAL, High→MAJOR, Medium→MINOR, default→INFO; consolidated to single canonical mapping on `finding.Severity.ToSonarQube()`
+- **GitLab SAST severity missing Info level** — Batch export defaulted unknown severity to "Low" instead of "Info"; now matches streaming path via `finding.Severity.ToGitLab()`
+- **Batch export case mismatch** — SARIF/SonarQube/GitLab batch export functions switched on title case ("Critical") but received lowercase ("critical") from payload SeverityHint, causing all severities to fall through to default; now uses `finding.Severity` type which matches lowercase constants
+
+### Refactored
+
+- **Severity mapping consolidation** — 8 duplicate severity mapping functions across `builder.go`, `writers/sonarqube.go`, `writers/gitlab_sast.go`, `writers/sarif.go` replaced with 4 canonical methods on `finding.Severity`: `ToSonarQube()`, `ToGitLab()`, `ToSARIF()`, `ToSARIFScore()`
+- **severityOrder elimination** — 3 identical `severityOrder()` functions in `report/report.go`, `exploit/exploit.go`, `correlation/correlation.go` replaced with existing `finding.Severity.Score()` method
+- **Code cleanup** — Formatting alignment, trailing whitespace, blank line removal across 9 files
+
 ## [2.8.6] - 2026-02-13
 
 ### Security

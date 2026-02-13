@@ -232,15 +232,15 @@ type TamperPerformance struct {
 
 // Summary returns a summary of all metrics
 type MetricsSummary struct {
-	TotalTampers     int              `json:"total_tampers"`
-	TotalAttempts    int64            `json:"total_attempts"`
-	TotalSuccesses   int64            `json:"total_successes"`
-	TotalBlocked     int64            `json:"total_blocked"`
-	TotalErrors      int64            `json:"total_errors"`
-	OverallSuccess   float64          `json:"overall_success_rate"`
-	TopPerformers    []string         `json:"top_performers"`
-	MostUsed         []string         `json:"most_used"`
-	AvgPayloadGrowth float64          `json:"avg_payload_growth_chars"`
+	TotalTampers     int      `json:"total_tampers"`
+	TotalAttempts    int64    `json:"total_attempts"`
+	TotalSuccesses   int64    `json:"total_successes"`
+	TotalBlocked     int64    `json:"total_blocked"`
+	TotalErrors      int64    `json:"total_errors"`
+	OverallSuccess   float64  `json:"overall_success_rate"`
+	TopPerformers    []string `json:"top_performers"`
+	MostUsed         []string `json:"most_used"`
+	AvgPayloadGrowth float64  `json:"avg_payload_growth_chars"`
 }
 
 // GetSummary returns an aggregate summary of all metrics
