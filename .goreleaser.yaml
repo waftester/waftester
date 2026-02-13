@@ -68,6 +68,30 @@ release:
     
     **Upgrading?** Check [CHANGELOG.md](CHANGELOG.md) for breaking changes.
 
+brews:
+  - repository:
+      owner: waftester
+      name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: "https://waftester.com"
+    description: "WAF security testing CLI — detect, benchmark, and bypass web application firewalls"
+    license: "BSL-1.1"
+    install: |
+      bin.install "waf-tester"
+    test: |
+      system "#{bin}/waf-tester", "version"
+
+scoops:
+  - repository:
+      owner: waftester
+      name: scoop-waftester
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    directory: bucket
+    homepage: "https://waftester.com"
+    description: "WAF security testing CLI — detect, benchmark, and bypass web application firewalls"
+    license: "BSL-1.1"
+
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
