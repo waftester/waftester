@@ -112,13 +112,13 @@ func (t *Concat) Transform(payload string) string {
 	if payload == "" || len(payload) < 3 {
 		return payload
 	}
-	
+
 	// Find quoted strings and split them
 	var result strings.Builder
 	inString := false
 	var currentQuote rune
 	var stringContent strings.Builder
-	
+
 	for _, r := range payload {
 		if !inString && (r == '\'' || r == '"') {
 			inString = true
@@ -146,7 +146,7 @@ func (t *Concat) Transform(payload string) string {
 			result.WriteRune(r)
 		}
 	}
-	
+
 	// Flush any unterminated string content
 	if inString {
 		result.WriteString(stringContent.String())

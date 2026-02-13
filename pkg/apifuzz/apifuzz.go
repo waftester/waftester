@@ -888,8 +888,6 @@ func extractEvidence(body string) string {
 	return body
 }
 
-
-
 // DefaultDictionary returns default fuzzing dictionary.
 func DefaultDictionary() []string {
 	return []string{

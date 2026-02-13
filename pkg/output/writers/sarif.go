@@ -169,33 +169,15 @@ func NewSARIFWriter(w io.Writer, opts SARIFOptions) *SARIFWriter {
 }
 
 // severityToLevel maps WAFtester severity to SARIF level.
-// critical/high → error, medium → warning, low/info → note.
+// Delegates to finding.Severity.ToSARIF for canonical mapping.
 func severityToLevel(severity events.Severity) string {
-	switch severity {
-	case events.SeverityCritical, events.SeverityHigh:
-		return "error"
-	case events.SeverityMedium:
-		return "warning"
-	default:
-		return "note"
-	}
+	return severity.ToSARIF()
 }
 
 // severityToScore maps WAFtester severity to GitHub security-severity score.
-// These scores align with GitHub Advanced Security severity thresholds.
+// Delegates to finding.Severity.ToSARIFScore for canonical mapping.
 func severityToScore(severity events.Severity) string {
-	switch severity {
-	case events.SeverityCritical:
-		return "9.5"
-	case events.SeverityHigh:
-		return "8.0"
-	case events.SeverityMedium:
-		return "5.5"
-	case events.SeverityLow:
-		return "2.0"
-	default:
-		return "0.0"
-	}
+	return severity.ToSARIFScore()
 }
 
 // generateFingerprint creates a matchBasedId/v1 fingerprint for result deduplication.

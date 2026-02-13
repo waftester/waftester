@@ -28,11 +28,11 @@ func TestRun_WrongOptionType_NoPanic(t *testing.T) {
 		{CommandFP, true},
 		{CommandHealth, []byte("wrong")},
 		{CommandGRPC, nil},
-		{CommandSOAP, (*EncodeOptions)(nil)},     // wrong pointer type
-		{CommandFTW, &EvasionOptions{}},           // wrong *Options
-		{CommandReport, &BenchmarkOptions{}},      // wrong *Options
-		{CommandParanoia, &FPOptions{}},           // wrong *Options
-		{CommandPlaceholder, &HealthOptions{}},    // wrong *Options
+		{CommandSOAP, (*EncodeOptions)(nil)},   // wrong pointer type
+		{CommandFTW, &EvasionOptions{}},        // wrong *Options
+		{CommandReport, &BenchmarkOptions{}},   // wrong *Options
+		{CommandParanoia, &FPOptions{}},        // wrong *Options
+		{CommandPlaceholder, &HealthOptions{}}, // wrong *Options
 	}
 
 	for _, tc := range cases {

@@ -93,7 +93,7 @@ func runMCP() {
 			// endpoints don't need a write timeout either.
 			// ReadHeaderTimeout + ReadTimeout protect against slowloris.
 			IdleTimeout:    30 * time.Second, // Short to release idle TCP connections quickly (Railway serverless sleep).
-			MaxHeaderBytes: 1 << 20, // 1 MB
+			MaxHeaderBytes: 1 << 20,          // 1 MB
 		}
 
 		go func() {

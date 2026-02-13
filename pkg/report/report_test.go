@@ -525,9 +525,9 @@ func TestSeverityOrder(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		result := severityOrder(tc.severity)
+		result := tc.severity.Score()
 		if result != tc.expected {
-			t.Errorf("severityOrder(%s) = %d, want %d", tc.severity, result, tc.expected)
+			t.Errorf("Score(%s) = %d, want %d", tc.severity, result, tc.expected)
 		}
 	}
 }

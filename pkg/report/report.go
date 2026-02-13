@@ -212,7 +212,7 @@ func (b *ReportBuilder) SetDetectionStats(drops, bans, skipped int, details map[
 func (b *ReportBuilder) Build() *Report {
 	// Sort findings by severity
 	sort.Slice(b.findings, func(i, j int) bool {
-		return severityOrder(b.findings[i].Severity) > severityOrder(b.findings[j].Severity)
+		return b.findings[i].Severity.Score() > b.findings[j].Severity.Score()
 	})
 
 	report := &Report{
@@ -669,22 +669,6 @@ func (g *ReportGenerator) GetTemplate(format ReportFormat) *template.Template {
 }
 
 // Helper functions
-func severityOrder(s finding.Severity) int {
-	switch s {
-	case finding.Critical:
-		return 5
-	case finding.High:
-		return 4
-	case finding.Medium:
-		return 3
-	case finding.Low:
-		return 2
-	case finding.Info:
-		return 1
-	default:
-		return 0
-	}
-}
 
 // ComparisonReport compares findings between two scans
 type ComparisonReport struct {

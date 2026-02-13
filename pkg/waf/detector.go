@@ -1045,5 +1045,3 @@ func averageDuration(durations []time.Duration) time.Duration {
 	}
 	return total / time.Duration(len(durations))
 }
-
-
