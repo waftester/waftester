@@ -1,0 +1,5 @@
+# Last synced state between waftester repo and waftester.com website.
+# Updated after syncing website content. Checked by tests + pre-push.
+# Run: ./scripts/mark-website-synced.sh
+
+changelog_version=2.8.7
