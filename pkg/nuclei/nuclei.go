@@ -707,7 +707,7 @@ func LoadTemplatesFromDir(dir string) ([]*Template, error) {
 			continue
 		}
 
-		tmpl, err := LoadTemplate(dir + "/" + name)
+		tmpl, err := LoadTemplate(filepath.Join(dir, name))
 		if err != nil {
 			continue
 		}

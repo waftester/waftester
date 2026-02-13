@@ -229,3 +229,72 @@ func TestPool_DoubleClosed_NoPanic(t *testing.T) {
 		t.Error("pool should be closed")
 	}
 }
+
+// Regression test for A2: Submit holding RLock during blocking channel send
+// could deadlock Close which needs exclusive Lock. The fix releases RLock
+// before blockingSend and uses a done channel for cancellation.
+func TestPool_BlockingSendCloseDeadlock(t *testing.T) {
+	t.Parallel()
+
+	// Small pool with tiny buffer to force the blocking-send path.
+	const workers = 2
+	p := &Pool{
+		workers: workers,
+		tasks:   make(chan func(), 1), // minimal buffer
+		done:    make(chan struct{}),
+	}
+
+	// Fill the buffer and occupy all workers so Submit must block.
+	blocker := make(chan struct{})
+	for i := 0; i < workers; i++ {
+		p.wg.Add(1)
+		atomic.AddInt32(&p.running, 1)
+		go p.worker()
+	}
+	// Occupy workers
+	for i := 0; i < workers; i++ {
+		p.tasks <- func() { <-blocker }
+	}
+	// Fill remaining buffer
+	p.tasks <- func() { <-blocker }
+
+	// Now Submit must take the blockingSend path because the buffer is full.
+	submitDone := make(chan bool, 1)
+	go func() {
+		ok := p.Submit(func() {})
+		submitDone <- ok
+	}()
+
+	// Give goroutine time to enter blockingSend.
+	time.Sleep(20 * time.Millisecond)
+
+	// Close must complete within a deadline — if it deadlocks, the test fails.
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	closeDone := make(chan struct{})
+	go func() {
+		defer close(closeDone)
+		p.Close()
+	}()
+
+	// Unblock workers so they drain and exit.
+	close(blocker)
+
+	select {
+	case <-closeDone:
+		// Close completed — no deadlock.
+	case <-ctx.Done():
+		t.Fatal("Close deadlocked: timed out after 3s (A2 regression)")
+	}
+
+	// Submit should have returned false (pool closed while blocked).
+	select {
+	case ok := <-submitDone:
+		// ok may be true (task sent before close) or false (done signal).
+		// Either is acceptable — the key property is no deadlock.
+		_ = ok
+	case <-time.After(time.Second):
+		t.Fatal("Submit goroutine hung after Close completed")
+	}
+}

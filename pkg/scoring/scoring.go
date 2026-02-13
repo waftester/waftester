@@ -154,9 +154,9 @@ func Calculate(input Input) Result {
 
 // normalize scales the score to 0-100
 func normalize(raw float64) float64 {
-	// Max possible: 1.5 * 10 + 4 + 0 = 19
+	// Max possible: 1.5 * 10 + 7.5 + 0 = 22.5 (fail + critical + pattern(4) + reflected(2) + timing(1.5))
 	// Min possible: 0.1 * 3 + 0 - 3 = -2.7
-	// Scale to 0-100
+	// Scores above 19 are clamped to 100
 	normalized := ((raw + 3) / 22) * defaults.NormalizationScale
 	if normalized < 0 {
 		return 0

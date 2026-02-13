@@ -292,7 +292,7 @@ func (m *Manager) GetProgress() float64 {
 }
 
 // SaveCompletedToFile appends completed targets to a simple text file (legacy format)
-func SaveCompletedToFile(filePath, target string) error {
+func SaveCompletedToFile(filePath, target string) (err error) {
 	dir := filepath.Dir(filePath)
 	if dir != "." && dir != "" {
 		if err := os.MkdirAll(dir, 0755); err != nil {
@@ -304,7 +304,11 @@ func SaveCompletedToFile(filePath, target string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 
 	_, err = f.WriteString(target + "\n")
 	return err

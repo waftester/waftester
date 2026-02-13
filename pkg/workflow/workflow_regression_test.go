@@ -9,12 +9,13 @@ import (
 // interpreters are NOT in the command allowlist.
 // Regression test for bug: arbitrary command execution from workflow files
 func TestAllowlist_ExcludesScriptingLanguages(t *testing.T) {
+	engine := NewEngine()
 	denied := []string{
 		"python", "python3", "ruby", "perl", "php",
 		"node", "bash", "sh", "lua", "powershell",
 	}
 	for _, cmd := range denied {
-		if isAllowedExternalCommand(cmd) {
+		if engine.isAllowedExternalCommand(cmd) {
 			t.Errorf("SECURITY: %q should NOT be in the command allowlist", cmd)
 		}
 	}
@@ -24,12 +25,13 @@ func TestAllowlist_ExcludesScriptingLanguages(t *testing.T) {
 // ARE allowed in the command allowlist.
 // Regression test for bug: overly restrictive allowlist blocking safe commands
 func TestAllowlist_IncludesSafeUtilities(t *testing.T) {
+	engine := NewEngine()
 	allowed := []string{
 		"echo", "grep", "jq", "curl", "wget",
 		"sort", "uniq", "nuclei",
 	}
 	for _, cmd := range allowed {
-		if !isAllowedExternalCommand(cmd) {
+		if !engine.isAllowedExternalCommand(cmd) {
 			t.Errorf("%q should be in the command allowlist", cmd)
 		}
 	}
@@ -52,9 +54,10 @@ func TestAllowlist_HandlesPathPrefixes(t *testing.T) {
 		{"/usr/bin/node", false},
 	}
 
+	engine := NewEngine()
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			got := isAllowedExternalCommand(tt.path)
+			got := engine.isAllowedExternalCommand(tt.path)
 			if got != tt.allowed {
 				t.Errorf("isAllowedExternalCommand(%q) = %v, want %v", tt.path, got, tt.allowed)
 			}

@@ -161,6 +161,7 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 
 	// Execute with retry
 	var resp *http.Response
+retryLoop:
 	for attempt := 0; attempt <= e.config.Retries; attempt++ {
 		// Re-create body reader for POST requests on retry (readers are consumed after first use)
 		if attempt > 0 && method == "POST" {
@@ -180,7 +181,12 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 			break
 		}
 		if attempt < e.config.Retries {
-			time.Sleep(100 * time.Millisecond)
+			select {
+			case <-ctx.Done():
+				err = ctx.Err()
+				break retryLoop
+			case <-time.After(100 * time.Millisecond):
+			}
 		}
 	}
 

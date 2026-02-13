@@ -163,6 +163,10 @@ type Engine struct {
 	// DryRun mode
 	DryRun bool
 
+	// ExtraAllowedCommands extends the built-in command allowlist.
+	// Use for testing or when a controlled environment needs shell access.
+	ExtraAllowedCommands map[string]bool
+
 	// StepResults from previous steps
 	stepResults map[string]*StepResult
 	stepMu      sync.RWMutex
@@ -417,7 +421,7 @@ func (e *Engine) executeStep(ctx context.Context, step *Step, vars map[string]st
 		cmd = exec.CommandContext(ctx, e.WafTesterPath, cmdArgs...)
 	} else {
 		// External command - validate against allowlist for security
-		if !isAllowedExternalCommand(command) {
+		if !e.isAllowedExternalCommand(command) {
 			result.Status = "failed"
 			result.Error = fmt.Sprintf("security: command %q is not in the allowed command list", command)
 			result.EndTime = time.Now()
@@ -479,7 +483,10 @@ func (e *Engine) executeStep(ctx context.Context, step *Step, vars map[string]st
 
 		// Write output to file if specified
 		if outputPath != "" {
-			if err := os.WriteFile(outputPath, output, 0644); err == nil {
+			if verr := e.validateFilePath(outputPath); verr != nil {
+				result.Status = "failed"
+				result.Error = fmt.Sprintf("security: output path: %v", verr)
+			} else if err := os.WriteFile(outputPath, output, 0644); err == nil {
 				result.OutputFile = outputPath
 			}
 		}
@@ -660,7 +667,7 @@ func isWafTesterCommand(cmd string) bool {
 
 // isAllowedExternalCommand validates external commands against a security allowlist.
 // This prevents arbitrary command execution from user-controlled workflow files.
-func isAllowedExternalCommand(cmd string) bool {
+func (e *Engine) isAllowedExternalCommand(cmd string) bool {
 	// Allowlist of safe external commands that can be executed from workflows
 	allowedCommands := map[string]bool{
 		// Common safe utilities
@@ -686,16 +693,16 @@ func isAllowedExternalCommand(cmd string) bool {
 		"ping":   true, // Used for timeout simulation on Windows
 		// Nuclei integration
 		"nuclei": true,
-		// Windows shell — required for cross-platform workflows
-		// Security note: cmd execution is sandboxed by the command allowlist check
-		// which validates the inner command when cmd is used as a wrapper
-		"cmd":     true,
-		"cmd.exe": true,
+		// Windows shell removed from allowlist — cmd /c allows arbitrary
+		// command execution and inner-command validation is not implemented.
 	}
 
 	// Extract base command name (handle paths like /usr/bin/echo)
 	baseName := filepath.Base(cmd)
-	return allowedCommands[baseName]
+	if allowedCommands[baseName] {
+		return true
+	}
+	return e.ExtraAllowedCommands[baseName]
 }
 
 // validateFilePath checks for path traversal attacks.
@@ -706,15 +713,20 @@ func (e *Engine) validateFilePath(path string) error {
 
 	// Check for absolute paths that try to escape
 	if filepath.IsAbs(cleanPath) {
-		// If we have a working directory, ensure the path is within it
-		if e.WorkDir != "" {
-			absWorkDir, err := filepath.Abs(e.WorkDir)
-			if err != nil {
-				return fmt.Errorf("invalid working directory: %w", err)
+		workDir := e.WorkDir
+		if workDir == "" {
+			var wdErr error
+			workDir, wdErr = os.Getwd()
+			if wdErr != nil {
+				return fmt.Errorf("cannot determine working directory: %w", wdErr)
 			}
-			if !strings.HasPrefix(cleanPath, absWorkDir) {
-				return fmt.Errorf("path %q escapes working directory", path)
-			}
+		}
+		absWorkDir, err := filepath.Abs(workDir)
+		if err != nil {
+			return fmt.Errorf("invalid working directory: %w", err)
+		}
+		if !strings.HasPrefix(cleanPath, absWorkDir) {
+			return fmt.Errorf("path %q escapes working directory", path)
 		}
 		return nil
 	}

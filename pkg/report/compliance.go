@@ -4,6 +4,7 @@ package report
 import (
 	"bytes"
 	"fmt"
+	"html"
 	"strings"
 	"time"
 
@@ -130,6 +131,10 @@ func (m *ComplianceMapper) loadMappings() {
 
 // MapResults maps WAF test results to compliance controls
 func (m *ComplianceMapper) MapResults(stats *Statistics) []ComplianceControl {
+	if stats == nil {
+		return nil
+	}
+
 	controls := make([]ComplianceControl, 0)
 	seenControls := make(map[string]bool)
 
@@ -401,7 +406,12 @@ func FormatComplianceTable(controls []ComplianceControl) string {
 <td class="%s">%s</td>
 <td>%s</td>
 </tr>
-`, c.Framework, c.ControlID, c.ControlName, statusClass, c.Status, c.Evidence))
+`, html.EscapeString(string(c.Framework)),
+			html.EscapeString(c.ControlID),
+			html.EscapeString(c.ControlName),
+			html.EscapeString(statusClass),
+			html.EscapeString(string(c.Status)),
+			html.EscapeString(c.Evidence)))
 	}
 
 	sb.WriteString("</tbody></table>")

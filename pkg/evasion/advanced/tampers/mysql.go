@@ -1,6 +1,7 @@
 package tampers
 
 import (
+	"fmt"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -93,7 +94,12 @@ func (t *CharlongEscape) Transform(payload string) string {
 	return charPattern.ReplaceAllStringFunc(payload, func(match string) string {
 		submatch := charPattern.FindStringSubmatch(match)
 		if len(submatch) == 2 {
-			return "0x" + submatch[1]
+			// submatch[1] is decimal (e.g., "65"), convert to hex (e.g., "0x41")
+			n, err := strconv.Atoi(submatch[1])
+			if err != nil {
+				return match
+			}
+			return fmt.Sprintf("0x%x", n)
 		}
 		return match
 	})

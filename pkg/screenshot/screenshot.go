@@ -248,6 +248,7 @@ type BatchCapturer struct {
 	done      chan struct{}
 	stopOnce  sync.Once
 	drainDone chan struct{}
+	wg        sync.WaitGroup
 }
 
 // NewBatchCapturer creates a batch capturer
@@ -264,7 +265,9 @@ func NewBatchCapturer(config Config) *BatchCapturer {
 // Start begins processing the queue
 func (b *BatchCapturer) Start(ctx context.Context, workers int) {
 	for i := 0; i < workers; i++ {
+		b.wg.Add(1)
 		go func() {
+			defer b.wg.Done()
 			for {
 				select {
 				case <-ctx.Done():
@@ -294,7 +297,11 @@ func (b *BatchCapturer) Results() <-chan Result {
 func (b *BatchCapturer) Stop() {
 	b.stopOnce.Do(func() {
 		close(b.done)
-		// Drain channels in background to unblock any workers
+		// Wait for workers to exit, then close channels so drain goroutines terminate
+		b.wg.Wait()
+		close(b.queue)
+		close(b.results)
+		// Drain remaining items
 		go func() {
 			for range b.queue {
 			}
