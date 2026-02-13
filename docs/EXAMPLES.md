@@ -1,5 +1,7 @@
 # WAFtester Examples Guide
 
+> **Tip:** For a curated version of these docs with better navigation, visit [waftester.com/docs](https://waftester.com/docs).
+
 This guide provides comprehensive usage examples for WAFtester, organized by use case and command category. Each example includes context on when to use the command, what value it provides, and expected output formats.
 
 **Document Version:** 2.8.5  

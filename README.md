@@ -6,6 +6,7 @@ The most comprehensive Web Application Firewall testing platform for security pr
 [![Go](https://img.shields.io/badge/Go-1.24+-00ADD8.svg)](https://go.dev/)
 [![Release](https://img.shields.io/github/v/release/waftester/waftester)](https://github.com/waftester/waftester/releases)
 [![npm](https://img.shields.io/npm/v/@waftester/cli)](https://www.npmjs.com/package/@waftester/cli)
+[![Website](https://img.shields.io/badge/website-waftester.com-3b82f6)](https://waftester.com)
 
 ---
 
