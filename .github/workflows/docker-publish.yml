@@ -29,8 +29,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: waftester/waftester
+  GHCR_REGISTRY: ghcr.io
+  GHCR_IMAGE: waftester/waftester
+  DOCKERHUB_IMAGE: qandil/waftester
 
 jobs:
   docker:
@@ -104,7 +105,9 @@ jobs:
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: |
+            ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE }}
+            docker.io/${{ env.DOCKERHUB_IMAGE }}
           tags: |
             # Tagged release: v1.2.3 → 1.2.3, 1.2, 1, latest
             type=semver,pattern={{version}},value=${{ steps.meta_version.outputs.tag }},enable=${{ steps.meta_version.outputs.is_tag }}
@@ -141,9 +144,16 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ${{ env.GHCR_REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # ------------------------------------------------------------------
       # 7. Build (and push on non-PR events)
@@ -177,3 +187,16 @@ jobs:
             /orgs/waftester/packages/container/waftester \
             -f visibility=public \
           || echo "::warning::Could not set package visibility to public — check org settings"
+
+      # ------------------------------------------------------------------
+      # 9. Push README to Docker Hub (tagged releases only)
+      # ------------------------------------------------------------------
+      - name: Push README to Docker Hub
+        if: steps.meta_version.outputs.is_tag == 'true'
+        uses: peter-evans/dockerhub-description@e98e4d1628a5f3be2be7c231e50981aee98723ae # v4.0.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ env.DOCKERHUB_IMAGE }}
+          readme-filepath: DOCKERHUB_README.md
+          short-description: "WAF security testing with 2800+ payloads — CLI + MCP server in one image"
