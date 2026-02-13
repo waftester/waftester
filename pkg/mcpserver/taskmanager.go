@@ -233,6 +233,7 @@ type TaskManager struct {
 	tasks          map[string]*Task
 	wg             sync.WaitGroup // tracks running task goroutines for clean shutdown
 	stop           chan struct{}
+	stopOnce       sync.Once
 	cleanupRunning bool // true while cleanupLoop goroutine is active; guarded by mu
 }
 
@@ -249,28 +250,24 @@ func NewTaskManager() *TaskManager {
 
 // Stop cancels all running tasks, waits for goroutines to drain (with a
 // 10-second timeout), and shuts down the cleanup goroutine. Safe to call
-// multiple times.
+// concurrently and multiple times.
 func (tm *TaskManager) Stop() {
-	select {
-	case <-tm.stop:
-		return // Already stopped.
-	default:
-	}
+	tm.stopOnce.Do(func() {
+		tm.cancelAll()
 
-	tm.cancelAll()
+		// Wait for goroutines to notice cancellation and exit.
+		done := make(chan struct{})
+		go func() {
+			tm.wg.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+		}
 
-	// Wait for goroutines to notice cancellation and exit.
-	done := make(chan struct{})
-	go func() {
-		tm.wg.Wait()
-		close(done)
-	}()
-	select {
-	case <-done:
-	case <-time.After(10 * time.Second):
-	}
-
-	close(tm.stop)
+		close(tm.stop)
+	})
 }
 
 // Create creates a new task for the given tool and returns it. The caller is
