@@ -5,6 +5,20 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.8] - 2026-02-13
+
+### Added
+
+- **waftester.com website** — Landing page, docs, and changelog at [waftester.com](https://waftester.com) with Cloudflare Pages auto-deploy, security headers, and CI pipeline
+- **Cross-repo references** — README badge, EXAMPLES.md backlink, npm homepage, Dockerfile OCI labels, waftester-action README badge all point to waftester.com
+- **FAQ doc links** — Each FAQ answer links to the relevant docs section
+- **Cloudflare integrations** — Web Analytics, Email Routing (`hello@waftester.com`), www→bare domain redirect
+
+### Fixed
+
+- **EXAMPLES.md install command** — Replaced non-existent `get.waftester.com` curl install with `npm install -g @waftester/cli`
+- **Dockerfile OCI labels** — Added `image.url` label, updated `image.documentation` to point to waftester.com/docs instead of GitHub README
+
 ## [2.8.7] - 2026-02-13
 
 ### Fixed
