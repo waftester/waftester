@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Pre-commit hook: block private/sensitive files from being committed.
-# This is a SAFETY NET — .gitignore should already exclude these,
-# but this hook catches cases where .gitignore is misconfigured.
+# Pre-commit hook: identity check, private file guard, and code quality gates.
+# "Instructions are advisory. Verification is deterministic." (Anthropic)
+# A git hook that runs these checks CANNOT be skipped (without --no-verify).
 
 set -euo pipefail
 
@@ -87,3 +87,50 @@ if [ -n "$VIOLATIONS" ]; then
     echo ""
     exit 1
 fi
+
+# ============================================================================
+# CODE QUALITY — BLOCK DEBUG ARTIFACTS
+# ============================================================================
+# Catch fmt.Println/fmt.Printf left in Go code (use slog instead).
+# Add "// debug:keep" on the same line to suppress.
+for file in $STAGED_FILES; do
+    [ -f "$file" ] || continue
+    case "$file" in
+        *.go)
+            if grep -n 'fmt\.Println\|fmt\.Printf' "$file" 2>/dev/null | grep -v '// debug:keep' | head -1 | grep -q .; then
+                echo "BLOCKED: $file has debug statement (fmt.Print). Use slog or add // debug:keep" >&2
+                exit 1
+            fi
+            ;;
+    esac
+done
+
+# ============================================================================
+# CODE QUALITY — BLOCK ORPHAN TODOs
+# ============================================================================
+# TODOs without issue references (#123) are noise that never gets fixed.
+for file in $STAGED_FILES; do
+    [ -f "$file" ] || continue
+    case "$file" in
+        *.go)
+            if grep -n 'TODO\|FIXME\|HACK\|XXX' "$file" 2>/dev/null | grep -v '#[0-9]' | head -3 | grep -q .; then
+                echo "BLOCKED: $file has TODO/FIXME without issue ref (e.g., TODO #123)" >&2
+                exit 1
+            fi
+            ;;
+    esac
+done
+
+# ============================================================================
+# CODE QUALITY — BLOCK HARDCODED SECRETS
+# ============================================================================
+for file in $STAGED_FILES; do
+    [ -f "$file" ] || continue
+    case "$file" in
+        *.env*|*.pem|*.key) continue ;; # Handled by .gitignore
+    esac
+    if grep -nP '(password|secret|api_key|token|private_key)\s*[:=]\s*["\x27][^"\x27]{8,}' "$file" 2>/dev/null | head -1 | grep -qi .; then
+        echo "BLOCKED: $file may contain hardcoded secret" >&2
+        exit 1
+    fi
+done

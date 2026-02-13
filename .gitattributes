@@ -1,6 +1,38 @@
-# Force LF line endings for files that must be Unix-compatible.
-# Shell scripts break with CRLF on Linux/macOS.
-# The JS shebang (#!/usr/bin/env node) fails with \r on Unix.
+# Auto detect text files and normalize line endings
+* text=auto
 
+# Force LF for files that must be Unix-compatible
 *.sh text eol=lf
+*.bash text eol=lf
 npm/cli/bin/cli.js text eol=lf
+scripts/hooks/* text eol=lf
+
+# Explicit text files
+*.go text diff=golang
+*.mod text
+*.sum text
+*.md text diff=markdown
+*.json text
+*.yaml text
+*.yml text
+*.toml text
+*.xml text
+*.html text diff=html
+*.css text
+*.js text
+*.ts text
+
+# Binary files — do not diff or merge
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.tar binary
