@@ -229,20 +229,22 @@ const (
 
 // TaskManager manages the lifecycle of async MCP tasks.
 type TaskManager struct {
-	mu    sync.RWMutex
-	tasks map[string]*Task
-	wg    sync.WaitGroup // tracks running task goroutines for clean shutdown
-	stop  chan struct{}
+	mu             sync.RWMutex
+	tasks          map[string]*Task
+	wg             sync.WaitGroup // tracks running task goroutines for clean shutdown
+	stop           chan struct{}
+	cleanupRunning bool // true while cleanupLoop goroutine is active; guarded by mu
 }
 
-// NewTaskManager creates a new TaskManager and starts its cleanup goroutine.
+// NewTaskManager creates a new TaskManager. The cleanup goroutine starts
+// lazily on the first Create call and exits when no tasks remain, so an
+// idle server produces zero background activity (needed for Railway
+// serverless sleep).
 func NewTaskManager() *TaskManager {
-	tm := &TaskManager{
+	return &TaskManager{
 		tasks: make(map[string]*Task),
 		stop:  make(chan struct{}),
 	}
-	go tm.cleanupLoop()
-	return tm
 }
 
 // Stop cancels all running tasks, waits for goroutines to drain (with a
@@ -324,6 +326,14 @@ func (tm *TaskManager) Create(parent context.Context, tool string) (*Task, conte
 	}
 
 	tm.tasks[id] = task
+
+	// Start cleanup goroutine on demand. We already hold tm.mu (write lock)
+	// so this is safe from races with cleanupLoop's exit path.
+	if !tm.cleanupRunning {
+		tm.cleanupRunning = true
+		go tm.cleanupLoop()
+	}
+
 	log.Printf("[mcp-task] CREATED  id=%s  tool=%s  active=%d", id, tool, active+1)
 	return task, ctx, nil
 }
@@ -446,6 +456,16 @@ func (tm *TaskManager) cleanupLoop() {
 			return
 		case <-ticker.C:
 			tm.cleanup()
+
+			// Exit when the task map is empty so the server produces
+			// zero background activity and Railway can sleep.
+			tm.mu.Lock()
+			if len(tm.tasks) == 0 {
+				tm.cleanupRunning = false
+				tm.mu.Unlock()
+				return
+			}
+			tm.mu.Unlock()
 		}
 	}
 }

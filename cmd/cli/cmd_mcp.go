@@ -92,7 +92,7 @@ func runMCP() {
 			// connections. Async tools return task_id immediately so non-SSE
 			// endpoints don't need a write timeout either.
 			// ReadHeaderTimeout + ReadTimeout protect against slowloris.
-			IdleTimeout:    120 * time.Second,
+			IdleTimeout:    30 * time.Second, // Short to release idle TCP connections quickly (Railway serverless sleep).
 			MaxHeaderBytes: 1 << 20, // 1 MB
 		}
 
