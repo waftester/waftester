@@ -1,51 +1,63 @@
-# Push README to Docker Hub via REST API
+# Push DOCKERHUB_README.md to Docker Hub via REST API.
+#
+# Retrieves credentials from docker-credential-desktop (no manual input).
+# Uses the /v2/auth/token endpoint (the old /v2/users/login is deprecated).
+#
 # Usage: .\scripts\push-dockerhub-readme.ps1
-# Requires: Docker Hub username and password/PAT
+# Prerequisites: Docker Desktop logged in (`docker login`)
 
 param(
-    [string]$Username = "qandil",
     [string]$Repository = "qandil/waftester"
 )
 
 $ErrorActionPreference = "Stop"
 
-# Read README from file
+# Read README
 $readmePath = Join-Path $PSScriptRoot ".." "DOCKERHUB_README.md"
 if (-not (Test-Path $readmePath)) {
-    Write-Error "README file not found at $readmePath"
+    Write-Error "README not found at $readmePath"
     exit 1
 }
 $readme = Get-Content -Path $readmePath -Raw
+Write-Host "README: $($readme.Length) chars from $readmePath" -ForegroundColor Cyan
 
-# Get credentials
-$password = Read-Host "Enter Docker Hub password or PAT for $Username" -AsSecureString
-$plainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
-    [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($password)
-)
-
-# Login to get JWT token
-Write-Host "Logging in to Docker Hub..." -ForegroundColor Cyan
-$loginBody = @{ username = $Username; password = $plainPassword } | ConvertTo-Json
+# Get credentials from Docker credential store
+Write-Host "Retrieving credentials from docker-credential-desktop..." -ForegroundColor Cyan
 try {
-    $loginResp = Invoke-RestMethod -Uri "https://hub.docker.com/v2/users/login/" `
-        -Method Post -Body $loginBody -ContentType "application/json"
-    $token = $loginResp.token
-    Write-Host "Login successful." -ForegroundColor Green
+    $creds = "https://index.docker.io/v1/" | docker-credential-desktop get 2>$null | ConvertFrom-Json
+    if (-not $creds.Username -or -not $creds.Secret) {
+        Write-Error "No credentials found. Run 'docker login' first."
+        exit 1
+    }
+    Write-Host "Credentials found for user: $($creds.Username)" -ForegroundColor Green
 } catch {
-    Write-Error "Login failed: $_"
+    Write-Error "Failed to retrieve Docker credentials: $_"
     exit 1
 }
 
-# Update repository description
-Write-Host "Updating repository description..." -ForegroundColor Cyan
+# Exchange PAT for bearer token via /v2/auth/token
+Write-Host "Authenticating with Docker Hub..." -ForegroundColor Cyan
+$authBody = @{ identifier = $creds.Username; secret = $creds.Secret } | ConvertTo-Json
+try {
+    $authResp = Invoke-RestMethod -Uri "https://hub.docker.com/v2/auth/token" `
+        -Method Post -Body $authBody -ContentType "application/json"
+    $token = $authResp.access_token
+    Write-Host "Authentication successful." -ForegroundColor Green
+} catch {
+    Write-Error "Authentication failed: $_"
+    exit 1
+}
+
+# Push README to repository
+Write-Host "Pushing README to $Repository..." -ForegroundColor Cyan
 $patchBody = @{ full_description = $readme } | ConvertTo-Json -Depth 10
 try {
     $resp = Invoke-RestMethod -Uri "https://hub.docker.com/v2/repositories/$Repository/" `
         -Method Patch -Body $patchBody -ContentType "application/json" `
-        -Headers @{ Authorization = "JWT $token" }
-    Write-Host "README updated successfully!" -ForegroundColor Green
+        -Headers @{ Authorization = "Bearer $token" }
+    Write-Host "README pushed successfully ($($readme.Length) chars)." -ForegroundColor Green
     Write-Host "View at: https://hub.docker.com/r/$Repository" -ForegroundColor Cyan
 } catch {
-    Write-Error "Failed to update README: $_"
+    Write-Error "Failed to push README: $_"
     exit 1
 }
