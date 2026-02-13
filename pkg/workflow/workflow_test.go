@@ -50,6 +50,15 @@ func sleepYAML(seconds string) string {
       - "` + seconds + `"`
 }
 
+// newTestEngine creates an engine with cmd allowed on Windows for tests.
+func newTestEngine() *Engine {
+	e := NewEngine()
+	if runtime.GOOS == "windows" {
+		e.ExtraAllowedCommands = map[string]bool{"cmd": true, "cmd.exe": true}
+	}
+	return e
+}
+
 func TestParseWorkflow_Basic(t *testing.T) {
 	yaml := `
 name: test-workflow
@@ -215,7 +224,7 @@ steps:
     ` + echoYAML("hello world") + `
 `
 	wf, _ := ParseWorkflow([]byte(yaml))
-	engine := NewEngine()
+	engine := newTestEngine()
 
 	result, err := engine.Execute(context.Background(), wf, nil)
 	if err != nil {
@@ -240,7 +249,7 @@ steps:
     ` + echoYAML("{{.message}}") + `
 `
 	wf, _ := ParseWorkflow([]byte(yaml))
-	engine := NewEngine()
+	engine := newTestEngine()
 
 	result, err := engine.Execute(context.Background(), wf, nil)
 	if err != nil {
@@ -263,7 +272,7 @@ steps:
     ` + echoYAML("{{.msg}}") + `
 `
 	wf, _ := ParseWorkflow([]byte(yaml))
-	engine := NewEngine()
+	engine := newTestEngine()
 
 	// Missing required input
 	_, err := engine.Execute(context.Background(), wf, nil)
@@ -292,7 +301,7 @@ steps:
     ` + echoYAML("{{.msg}}") + `
 `
 	wf, _ := ParseWorkflow([]byte(yaml))
-	engine := NewEngine()
+	engine := newTestEngine()
 
 	result, err := engine.Execute(context.Background(), wf, nil)
 	if err != nil {
@@ -317,7 +326,7 @@ steps:
     if: steps.first.success
 `
 	wf, _ := ParseWorkflow([]byte(yaml))
-	engine := NewEngine()
+	engine := newTestEngine()
 
 	result, err := engine.Execute(context.Background(), wf, nil)
 	if err != nil {
@@ -345,7 +354,7 @@ steps:
     if: steps.first.failure
 `
 	wf, _ := ParseWorkflow([]byte(yaml))
-	engine := NewEngine()
+	engine := newTestEngine()
 
 	result, err := engine.Execute(context.Background(), wf, nil)
 	if err != nil {
@@ -373,7 +382,7 @@ steps:
     ` + echoYAML("running") + `
 `
 	wf, _ := ParseWorkflow([]byte(yaml))
-	engine := NewEngine()
+	engine := newTestEngine()
 
 	result, err := engine.Execute(context.Background(), wf, nil)
 	if err != nil {
@@ -399,7 +408,7 @@ steps:
     ` + echoYAML("hello") + `
 `
 	wf, _ := ParseWorkflow([]byte(yaml))
-	engine := NewEngine()
+	engine := newTestEngine()
 	engine.DryRun = true
 
 	result, err := engine.Execute(context.Background(), wf, nil)
@@ -434,7 +443,7 @@ steps:
 `
 	}
 	wf, _ := ParseWorkflow([]byte(yaml))
-	engine := NewEngine()
+	engine := newTestEngine()
 
 	start := time.Now()
 	result, err := engine.Execute(context.Background(), wf, nil)
@@ -484,7 +493,8 @@ steps:
 `
 	}
 	wf, _ := ParseWorkflow([]byte(yaml))
-	engine := NewEngine()
+	engine := newTestEngine()
+	engine.WorkDir = dir
 
 	result, err := engine.Execute(context.Background(), wf, nil)
 	if err != nil {
@@ -502,7 +512,7 @@ steps:
 }
 
 func TestEngine_Expand(t *testing.T) {
-	engine := NewEngine()
+	engine := newTestEngine()
 	vars := map[string]string{
 		"target": "https://example.com",
 		"port":   "8080",
@@ -526,7 +536,7 @@ func TestEngine_Expand(t *testing.T) {
 }
 
 func TestEngine_EvaluateCondition(t *testing.T) {
-	engine := NewEngine()
+	engine := newTestEngine()
 
 	// Set up step results
 	engine.stepResults["step1"] = &StepResult{Status: "success"}

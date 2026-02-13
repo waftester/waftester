@@ -206,7 +206,9 @@ func (p *HTTPProber) ProbePipeline(ctx context.Context, host string, port int, u
 		if strings.HasPrefix(line, "HTTP/") {
 			responseCount++
 
-			// Read headers until empty line
+			// Read headers until empty line, track body size
+			contentLength := 0
+			chunked := false
 			for {
 				header, err := reader.ReadString('\n')
 				if err != nil {
@@ -214,6 +216,39 @@ func (p *HTTPProber) ProbePipeline(ctx context.Context, host string, port int, u
 				}
 				if header == "\r\n" {
 					break
+				}
+				lower := strings.ToLower(header)
+				if strings.HasPrefix(lower, "content-length:") {
+					fmt.Sscanf(lower, "content-length: %d", &contentLength)
+				}
+				if strings.Contains(lower, "transfer-encoding:") && strings.Contains(lower, "chunked") {
+					chunked = true
+				}
+			}
+
+			// Drain response body before reading next response
+			if contentLength > 0 {
+				io.CopyN(io.Discard, reader, int64(contentLength))
+			} else if chunked {
+				// Read chunked body until terminal 0-length chunk
+				for {
+					sizeLine, err := reader.ReadString('\n')
+					if err != nil {
+						break
+					}
+					sizeLine = strings.TrimSpace(sizeLine)
+					if sizeLine == "0" {
+						// Read trailing CRLF
+						reader.ReadString('\n')
+						break
+					}
+					var chunkSize int64
+					fmt.Sscanf(sizeLine, "%x", &chunkSize)
+					if chunkSize > 0 {
+						io.CopyN(io.Discard, reader, chunkSize)
+					}
+					// Read chunk-terminating CRLF
+					reader.ReadString('\n')
 				}
 			}
 		}
@@ -260,6 +295,7 @@ func (p *HTTPProber) ProbeKeepAlive(ctx context.Context, host string, port int, 
 	conn.SetDeadline(time.Now().Add(p.ReadTimeout))
 
 	successfulRequests := 0
+	reader := bufio.NewReader(conn)
 
 	for i := 0; i < 5; i++ {
 		req := fmt.Sprintf(
@@ -275,7 +311,6 @@ func (p *HTTPProber) ProbeKeepAlive(ctx context.Context, host string, port int, 
 			break
 		}
 
-		reader := bufio.NewReader(conn)
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			break

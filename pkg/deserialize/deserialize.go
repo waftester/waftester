@@ -503,15 +503,15 @@ func VulnerabilityToJSON(v Vulnerability) (string, error) {
 
 // GenerateReport generates a scan report.
 func GenerateReport(vulns []Vulnerability) map[string]interface{} {
-	report := map[string]interface{}{
+	byType := make(map[string]int)
+	for _, v := range vulns {
+		byType[string(v.Type)]++
+	}
+	return map[string]interface{}{
 		"total_vulnerabilities": len(vulns),
-		"by_type":               make(map[string]int),
+		"by_type":               byType,
 		"vulnerabilities":       vulns,
 	}
-	for _, v := range vulns {
-		report["by_type"].(map[string]int)[string(v.Type)]++
-	}
-	return report
 }
 
 // DetectSerializationFormat attempts to identify the serialization format.

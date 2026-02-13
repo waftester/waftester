@@ -413,12 +413,14 @@ func (w *Waiter) Wait(ctx context.Context) *WaitResult {
 		}
 
 		// Wait before next check
+		ticker := time.NewTimer(w.config.CheckInterval)
 		select {
 		case <-ctx.Done():
+			ticker.Stop()
 			result.Duration = time.Since(startTime)
 			result.Error = ctx.Err()
 			return result
-		case <-time.After(w.config.CheckInterval):
+		case <-ticker.C:
 			// Continue to next iteration
 		}
 	}

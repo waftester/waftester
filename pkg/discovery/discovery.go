@@ -182,8 +182,8 @@ func (d *Discoverer) Discover(ctx context.Context) (*DiscoveryResult, error) {
 			}
 		}()
 
+		defer close(done)
 		work()
-		close(done)
 
 		added := len(d.endpoints) - beforeCount
 		fmt.Fprintf(os.Stderr, "\r  [%d/9] ✅ %s +%d\033[K\n", phaseNum, phaseName, added)

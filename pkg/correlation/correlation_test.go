@@ -413,6 +413,7 @@ func TestCorrelator_DetectFixedFindings(t *testing.T) {
 	// First scan with 2 findings
 	result1 := &ScanResult{
 		ScanID: "scan-1",
+		Target: "https://a.com",
 		Findings: []*Finding{
 			{Type: FindingSQLi, Target: "https://a.com", Endpoint: "/a", Method: "GET"},
 			{Type: FindingXSS, Target: "https://a.com", Endpoint: "/b", Method: "GET"},
@@ -420,11 +421,15 @@ func TestCorrelator_DetectFixedFindings(t *testing.T) {
 	}
 	c.AddScanResult(context.Background(), result1)
 
-	// Second scan with only 1 finding (other was fixed)
+	// Second scan tests same target and same categories but only 1 of the 2
+	// original findings appears — the other was fixed.
 	result2 := &ScanResult{
 		ScanID: "scan-2",
+		Target: "https://a.com",
 		Findings: []*Finding{
 			{Type: FindingSQLi, Target: "https://a.com", Endpoint: "/a", Method: "GET"},
+			// XSS type IS tested (different endpoint) — so the missing XSS /b is truly fixed
+			{Type: FindingXSS, Target: "https://a.com", Endpoint: "/c", Method: "GET"},
 		},
 	}
 	c.AddScanResult(context.Background(), result2)

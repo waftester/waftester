@@ -448,17 +448,25 @@ func (m *Manager) loadFromCache(cacheFile, name string) (*Corpus, error) {
 }
 
 // saveToCache saves a corpus to cached file
-func (m *Manager) saveToCache(corpus *Corpus, cacheFile string) error {
+func (m *Manager) saveToCache(corpus *Corpus, cacheFile string) (err error) {
 	f, err := os.Create(cacheFile)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 
 	var writer io.Writer = f
 	if strings.HasSuffix(cacheFile, ".gz") {
 		gzWriter := gzip.NewWriter(f)
-		defer gzWriter.Close()
+		defer func() {
+			if cerr := gzWriter.Close(); cerr != nil && err == nil {
+				err = cerr
+			}
+		}()
 		writer = gzWriter
 	}
 

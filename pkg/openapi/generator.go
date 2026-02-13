@@ -391,7 +391,11 @@ func (g *Generator) generateJSONBody(fieldPath, payload string) string {
 		}
 	}
 
-	data, _ := json.Marshal(result)
+	data, err := json.Marshal(result)
+	if err != nil {
+		// Fall back to the raw payload if we can't build JSON
+		return payload
+	}
 	return string(data)
 }
 

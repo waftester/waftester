@@ -88,6 +88,7 @@ type Fuzzer struct {
 	results      []Result
 	visited      map[string]bool
 	queue        chan fuzzerTask
+	inFlight     int64
 	stats        Stats
 	mu           sync.RWMutex
 	startTime    time.Time
@@ -149,6 +150,7 @@ func NewFuzzer(config Config) (*Fuzzer, error) {
 // Run starts recursive fuzzing
 func (f *Fuzzer) Run(ctx context.Context, baseURL string) ([]Result, error) {
 	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	f.cancel = cancel
 	f.startTime = time.Now()
 
@@ -167,19 +169,24 @@ func (f *Fuzzer) Run(ctx context.Context, baseURL string) ([]Result, error) {
 	// Seed initial tasks
 	f.seedTasks(baseURL, 0)
 
-	// Wait for completion
+	// Monitor for completion: when in-flight count reaches 0, all work is done.
+	// Workers are blocked on the channel; closing it lets them exit.
 	go func() {
-		wg.Wait()
-		close(f.queue)
+		for {
+			if atomic.LoadInt64(&f.inFlight) == 0 {
+				close(f.queue)
+				return
+			}
+			select {
+			case <-ctx.Done():
+				close(f.queue)
+				return
+			case <-time.After(50 * time.Millisecond):
+			}
+		}
 	}()
 
-	// Process queue until empty
-	for task := range f.queue {
-		if ctx.Err() != nil {
-			break
-		}
-		f.processTask(ctx, task)
-	}
+	wg.Wait()
 
 	f.stats.Duration = time.Since(f.startTime)
 	if f.stats.Duration.Seconds() > 0 {
@@ -226,6 +233,7 @@ func (f *Fuzzer) addTask(baseURL, path string, depth int, parentURL string) bool
 		depth:     depth,
 		parentURL: parentURL,
 	}:
+		atomic.AddInt64(&f.inFlight, 1)
 		return true
 	default:
 		return false
@@ -245,6 +253,7 @@ func (f *Fuzzer) worker(ctx context.Context, wg *sync.WaitGroup) {
 				return
 			}
 			f.processTask(ctx, task)
+			atomic.AddInt64(&f.inFlight, -1)
 		}
 	}
 }

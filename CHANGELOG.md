@@ -5,6 +5,70 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.6] - 2026-02-13
+
+### Security
+
+- **HTML injection in compliance reports** — 6 user-controlled values interpolated into HTML without escaping in `pkg/report/compliance.go`; all now wrapped in `html.EscapeString`
+
+### Fixed
+
+- **Nil pointer dereference in compliance report** — `GenerateComplianceReport` panicked when `stats` was nil; added nil guard in `MapResults`
+- **Nil pointer dereference in task submission** — `Coordinator.SubmitTask(nil)` panicked dereferencing nil task; added nil check before lock
+- **Go 1.24 JSON marshal failure** — `ExecutionResults.Duration` (`time.Duration`) had no JSON format tag, breaking `json.Marshal` in Go 1.24+; added `json:"duration,omitzero,format:nano"`
+- **Division by zero in tamper metrics** — `RecordLatency` panics when called with empty tamper chain; added length guard
+- **Decimal-to-hex conversion in MySQL CHAR transform** — `CharlongEscape` emitted `0x65` as `0x101` (string concat instead of integer conversion); now uses `strconv.Atoi` + `fmt.Sprintf`
+- **Data loss in SQL Concat obfuscation** — Unterminated string at end of input silently dropped; now flushed after loop
+- **Filter AND mode false negatives** — Regex, String, and CDN filter criteria only appended `matched=true`, breaking AND mode when criteria didn't match; now always append the boolean result
+- **Concurrent map access in filter** — `seenHashes` map read/written without synchronization under concurrent use; added `sync.Mutex`
+- **Correlator marks unrelated findings as fixed** — `DetectFixedFindings` ignored scan target and tested finding types, marking SQLi as fixed during an XSS-only scan; now scopes to matching target and tested types
+- **Per-payload category lost in evasion matrix** — `Build` fell back to `categories[0]` for all payloads; now tracks per-payload category from `NewFromCategories`
+- **Ignored template parse error** — `report.go` discarded `template.New().Parse()` error with `_ =`; replaced with `template.Must`
+- **Silent JSON marshal failure in HTML report** — Template func returned empty string on error; now returns `"null"`
+- **CSV header write errors ignored** — `newCSVWriter` never checked `writer.Write` or `Flush` errors for the header row; errors now propagated
+- **Silent writer creation failures** — `enhanced.go` silently ignored errors from individual writer creation; now logs each failure with `slog.Warn`
+- **Discarded JSON marshal error in OpenAPI generator** — `generateJSONBody` returned empty bytes on marshal failure; now falls back to raw payload
+- **Checkpoint close error lost** — `SaveCompletedToFile` used bare `defer f.Close()`, discarding close errors; now captured via named return
+- **Scoring formula comment wrong** — Documented max as 19, actual max is 22.5; comment corrected
+- **Retry sleep ignores context cancellation** — `executor_test_runner.go` used `time.Sleep` in retry loop; replaced with `select` on `ctx.Done()` / `time.After`
+- **Regex compiled on every call in SSTI detect** — `regexp.MustCompile` in hot path replaced with `regexcache.MustGet`
+- **Regex compiled on every call in false positive** — `regexp.Compile` in `containsPattern` loop replaced with `regexcache.Get`
+- **Distributed task silently dropped** — Full queue drops tasks with no logging or status update; now logs warning and marks task as failed
+- **Distributed worker goroutine leak** — `Worker.Run` only selected on `ctx.Done()`, ignoring `StopChan`; now selects on both
+- **Distributed double-close panic** — `Worker.Stop()` could panic on double `close(StopChan)`; wrapped with `sync.Once`
+- **Distributed shutdown with no timeout** — `Shutdown(context.Background())` blocks forever; changed to 10-second timeout
+- **Distributed stale tasks on unhealthy nodes** — `checkNodeHealth` detected unhealthy nodes but left their tasks stranded; now reschedules back to queue
+- **npm package version mismatch** — `npm/cli/package.json` still at 2.8.5 after version bump; updated to 2.8.6
+- **Workerpool deadlock** — Redesigned `Submit` locking to split into fast path (non-blocking under RLock) and slow path (`blockingSend` without locks), preventing deadlock when `Close` needs write lock while `Submit` blocks on full channel
+- **Output file close errors** — All 11 export functions (`writeResultsJSON`, `writeResultsJUnit`, `writeResultsCSV`, etc.) now capture `f.Close()` errors via named returns and `closeFile` helper instead of silently discarding them with `defer f.Close()`
+- **JWT marshal errors** — 3 `json.Marshal` calls in `ClaimTamperAttack` now check and return errors with context instead of silently discarding them
+- **Workerpool data race** — `Submit` read `p.workers` non-atomically while `Resize` wrote it with `atomic.StoreInt32`; both reads now use `atomic.LoadInt32`
+- **Output file handle leak** — `BuildDispatcher` missing `cleanup()` call on GitHub Issues hook error, leaking all previously opened file descriptors
+- **Silent write errors in JUnit/HTML/Markdown exports** — `writeResultsJUnit`, `writeResultsHTML`, and `writeResultsMarkdown` discarded `fmt.Fprintf` errors, silently producing corrupt files on disk-full; all write errors now checked and propagated
+- **JWT JKU token corruption** — `JKUSpoofAttack` ignored `json.Marshal` errors on header and claims, producing malformed tokens; errors now checked with descriptive messages
+
+- **Path traversal in workflow output** — `Engine.executeStep` wrote command output to user-controlled path without validation; now calls `validateFilePath` before writing
+- **Command injection via workflow allowlist** — `cmd` and `cmd.exe` were in the allowed command list, permitting arbitrary execution via `cmd /c`; removed from allowlist, added `ExtraAllowedCommands` field for controlled override
+- **Empty WorkDir bypassed path validation** — `validateFilePath` allowed any absolute path when `WorkDir` was empty; now defaults to `os.Getwd()`
+- **Recursive fuzzer deadlock** — `wg.Wait()` in goroutine blocked forever when queue drained naturally; replaced with atomic `inFlight` counter and monitor goroutine that closes queue at zero
+- **Screenshot goroutine leak** — `BatchCapturer.Stop()` closed channels before workers drained, leaving goroutines blocked; added `sync.WaitGroup` tracking so `Stop` waits for workers before closing channels
+- **Context leak in recursive fuzzer** — `context.WithCancel` in `Run` never called cancel on normal completion; added `defer cancel()`
+- **HTTP GET with no timeout in fuzz CLI** — `http.Get(*wordlist)` had no timeout or context; replaced with `http.NewRequestWithContext` using 30-second timeout
+- **Bare type assertions in CLI dispatch** — 11 `opts.(*XOptions)` assertions in `cli.go` panicked on wrong type; converted to comma-ok with descriptive `fmt.Errorf`
+- **Bare type assertions in GenerateReport** — 4 files (`upload.go`, `oauth.go`, `deserialize.go`, `apifuzz.go`) used `interface{}` round-trip in report generation; replaced with typed local variables
+- **Bare sync.Map assertions in DNS cache** — 3 `entry.(*cacheEntry)` assertions in `dnscache.go` panicked on corrupt cache; converted to comma-ok with error returns
+- **Bare sync.Map assertions in host errors** — 3 `v.(*hostState)` assertions in `hosterrors.go` panicked on corrupt state; converted to comma-ok with nil guards
+- **Bare sync.Map assertion in discovery** — `key.(string)` in `active_extraction.go` panicked on non-string key; converted to comma-ok with empty guard
+- **Gzip close error swallowed** — `saveToCache` in `corpus.go` used `defer gzWriter.Close()` discarding flush errors; now uses named return with deferred error capture
+- **Timer leak in health waiter** — `time.After` in loop created uncollectable timers each iteration; replaced with `time.NewTimer` + `Stop`
+- **Non-portable path construction** — `nuclei.go` used string concatenation (`dir + "/" + name`) instead of `filepath.Join`
+
+### Added
+
+- **Gap test suite** — 13 new test files covering 6 structural testing gaps identified across rounds 1-4: type safety (`cli`, `dnscache`, `hosterrors`), error propagation (`output`, `corpus`, `checkpoint`), security boundaries (`compliance` HTML injection), concurrency (`workerpool`, `filter`, `distributed`), goroutine leaks (`screenshot`), and context cancellation (`recursive`)
+- **Shared test helpers** — `pkg/testutil` package with `FailingWriter`, `GoroutineTracker`, `AssertNoPanic`, `AssertTimeout`, `RunConcurrently`, `PoisonSyncMap`
+- **Workerpool regression test** — `TestPool_BlockingSendCloseDeadlock` reproduces the exact deadlock scenario (tiny buffer, blocked workers, concurrent Close) with timeout detection
+
 ## [2.8.5] - 2026-02-11
 
 ### Changed

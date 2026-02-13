@@ -5,6 +5,7 @@ package httpclient
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -66,7 +67,10 @@ func NewDNSCache(ttl, negativeTTL time.Duration) *DNSCache {
 func (d *DNSCache) LookupHost(ctx context.Context, host string) ([]net.IP, error) {
 	// Check cache first
 	if entry, ok := d.cache.Load(host); ok {
-		e := entry.(*cacheEntry)
+		e, eOk := entry.(*cacheEntry)
+		if !eOk {
+			return nil, fmt.Errorf("dnscache: corrupt entry type %T for host %s", entry, host)
+		}
 		e.mu.RLock()
 		if time.Now().Before(e.expiresAt) {
 			ips := e.ips
@@ -85,7 +89,10 @@ func (d *DNSCache) LookupHost(ctx context.Context, host string) ([]net.IP, error
 func (d *DNSCache) refresh(ctx context.Context, host string) ([]net.IP, error) {
 	// Create or get existing entry for synchronization
 	entryI, _ := d.cache.LoadOrStore(host, &cacheEntry{})
-	entry := entryI.(*cacheEntry)
+	entry, ok := entryI.(*cacheEntry)
+	if !ok {
+		return nil, fmt.Errorf("dnscache: corrupt entry type %T for host %s", entryI, host)
+	}
 
 	entry.mu.Lock()
 	defer entry.mu.Unlock()
@@ -157,7 +164,10 @@ func (d *DNSCache) Stats() DNSCacheStats {
 
 	d.cache.Range(func(key, value interface{}) bool {
 		stats.TotalEntries++
-		entry := value.(*cacheEntry)
+		entry, ok := value.(*cacheEntry)
+		if !ok {
+			return true
+		}
 		entry.mu.RLock()
 		if now.Before(entry.expiresAt) {
 			stats.ValidEntries++

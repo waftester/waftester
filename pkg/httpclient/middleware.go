@@ -65,7 +65,13 @@ func (m *middlewareTransport) RoundTrip(req *http.Request) (*http.Response, erro
 			}
 			// Reset body for retry if possible.
 			if r.GetBody != nil {
-				r.Body, _ = r.GetBody()
+				body, bodyErr := r.GetBody()
+				if bodyErr != nil {
+					// Cannot reconstruct request body — stop retrying
+					// to avoid sending empty/nil body.
+					break
+				}
+				r.Body = body
 			}
 		}
 

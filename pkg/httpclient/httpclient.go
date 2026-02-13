@@ -6,6 +6,7 @@ package httpclient
 import (
 	"context"
 	"crypto/tls"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -299,8 +300,7 @@ func New(cfg Config) *http.Client {
 		var err error
 		proxyConfig, err = ParseProxyURL(cfg.Proxy)
 		if err != nil {
-			// Log warning but continue without proxy
-			// This matches the previous behavior of silently ignoring malformed URLs
+			slog.Warn("httpclient: ignoring malformed proxy URL", "proxy", cfg.Proxy, "error", err)
 			proxyConfig = nil
 		}
 	}
@@ -309,16 +309,16 @@ func New(cfg Config) *http.Client {
 	if proxyConfig != nil && proxyConfig.IsSOCKS {
 		// SOCKS proxy requires custom dialer
 		socksDialer, err := CreateSOCKSDialer(proxyConfig, cfg.DialTimeout)
-		if err == nil {
-			dialContext = socksDialer.DialContext
-		} else {
-			// SOCKS dialer creation failed — fall through to normal dialer
+		if err != nil {
+			slog.Warn("httpclient: SOCKS proxy dialer failed, traffic will route directly", "proxy", cfg.Proxy, "error", err)
 			dialer := &net.Dialer{
 				Timeout:   cfg.DialTimeout,
 				KeepAlive: 30 * time.Second,
 				Control:   sockopt.DialControl(),
 			}
 			dialContext = dialer.DialContext
+		} else {
+			dialContext = socksDialer.DialContext
 		}
 	} else if len(cfg.CustomResolvers) > 0 {
 		// Custom DNS resolvers for split-horizon DNS bypass

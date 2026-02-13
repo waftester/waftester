@@ -451,15 +451,28 @@ func (c *Correlator) DetectFixedFindings(currentScanID string) []*CorrelatedFind
 		return fixed
 	}
 
-	// Build set of current finding hashes
+	// Build set of current finding hashes and tested types
 	currentHashes := make(map[string]bool)
+	testedTypes := make(map[FindingType]bool)
 	for _, f := range currentScan.Findings {
 		currentHashes[f.Hash] = true
+		testedTypes[f.Type] = true
 	}
 
-	// Check for findings in previous scans not in current
+	// Only mark findings as fixed if they match the current scan's
+	// target and a finding type that was actually tested. This prevents
+	// partial scans (e.g., SQLi-only) from marking unrelated findings
+	// (e.g., XSS) as fixed.
 	for hash, cf := range c.findings {
 		if !currentHashes[hash] && cf.Status != "fixed" && cf.Status != "false-positive" {
+			// Only mark as fixed if we can confirm the scope was tested
+			if len(cf.Findings) == 0 {
+				continue
+			}
+			f := cf.Findings[0]
+			if f.Target != currentScan.Target || !testedTypes[f.Type] {
+				continue
+			}
 			cf.Status = "fixed"
 			fixed = append(fixed, cf)
 		}
