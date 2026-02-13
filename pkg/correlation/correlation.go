@@ -319,18 +319,18 @@ func (c *Correlator) GetFindingsBySeverity(minSeverity finding.Severity) []*Corr
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	minOrder := severityOrder(minSeverity)
+	minOrder := minSeverity.Score()
 	var result []*CorrelatedFinding
 	for _, cf := range c.findings {
 		if len(cf.Findings) > 0 {
 			// Use highest severity from any finding
 			maxSev := cf.Findings[0].Severity
 			for _, f := range cf.Findings {
-				if severityOrder(f.Severity) > severityOrder(maxSev) {
+				if f.Severity.Score() > maxSev.Score() {
 					maxSev = f.Severity
 				}
 			}
-			if severityOrder(maxSev) >= minOrder {
+			if maxSev.Score() >= minOrder {
 				result = append(result, cf)
 			}
 		}
@@ -651,22 +651,6 @@ type CorrelatorStats struct {
 }
 
 // Helper functions
-func severityOrder(s finding.Severity) int {
-	switch s {
-	case finding.Critical:
-		return 5
-	case finding.High:
-		return 4
-	case finding.Medium:
-		return 3
-	case finding.Low:
-		return 2
-	case finding.Info:
-		return 1
-	default:
-		return 0
-	}
-}
 
 func containsScanner(scanners []string, scanner string) bool {
 	for _, s := range scanners {

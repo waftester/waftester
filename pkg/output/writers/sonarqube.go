@@ -74,18 +74,9 @@ func NewSonarQubeWriter(w io.Writer, opts SonarQubeOptions) *SonarQubeWriter {
 }
 
 // severityToSonarQube maps WAFtester severity to SonarQube severity.
-// critical → CRITICAL, high → MAJOR, medium → MINOR, low/info → INFO.
+// Delegates to finding.Severity.ToSonarQube for canonical mapping.
 func severityToSonarQube(severity events.Severity) string {
-	switch severity {
-	case events.SeverityCritical:
-		return "CRITICAL"
-	case events.SeverityHigh:
-		return "MAJOR"
-	case events.SeverityMedium:
-		return "MINOR"
-	default:
-		return "INFO"
-	}
+	return severity.ToSonarQube()
 }
 
 // Write converts a result event to SonarQube issue format.
