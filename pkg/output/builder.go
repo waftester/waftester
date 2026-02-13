@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/jsonutil"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/hooks"
@@ -740,7 +741,7 @@ func convertToSARIFResults(results ExecutionResults) []map[string]interface{} {
 	for _, bypass := range results.BypassDetails {
 		sarifResults = append(sarifResults, map[string]interface{}{
 			"ruleId": bypass.PayloadID,
-			"level":  severityToSARIFLevel(bypass.Severity),
+			"level":  finding.Severity(bypass.Severity).ToSARIF(),
 			"message": map[string]interface{}{
 				"text": fmt.Sprintf("WAF bypass detected: %s", bypass.Category),
 			},
@@ -756,18 +757,6 @@ func convertToSARIFResults(results ExecutionResults) []map[string]interface{} {
 		})
 	}
 	return sarifResults
-}
-
-// severityToSARIFLevel converts severity to SARIF level.
-func severityToSARIFLevel(severity string) string {
-	switch severity {
-	case "Critical", "High":
-		return "error"
-	case "Medium":
-		return "warning"
-	default:
-		return "note"
-	}
 }
 
 // writeResultsJUnit writes ExecutionResults in JUnit XML format.
@@ -906,7 +895,7 @@ func convertToSonarQubeIssues(results ExecutionResults) []map[string]interface{}
 		issues = append(issues, map[string]interface{}{
 			"engineId": defaults.ToolName,
 			"ruleId":   bypass.PayloadID,
-			"severity": severityToSonarQube(bypass.Severity),
+			"severity": finding.Severity(bypass.Severity).ToSonarQube(),
 			"type":     "VULNERABILITY",
 			"primaryLocation": map[string]interface{}{
 				"message":  fmt.Sprintf("WAF bypass: %s", bypass.Category),
@@ -915,19 +904,6 @@ func convertToSonarQubeIssues(results ExecutionResults) []map[string]interface{}
 		})
 	}
 	return issues
-}
-
-func severityToSonarQube(severity string) string {
-	switch severity {
-	case "Critical":
-		return "BLOCKER"
-	case "High":
-		return "CRITICAL"
-	case "Medium":
-		return "MAJOR"
-	default:
-		return "MINOR"
-	}
 }
 
 // writeResultsGitLabSAST writes ExecutionResults in GitLab SAST format.
@@ -960,23 +936,10 @@ func convertToGitLabVulns(results ExecutionResults) []map[string]interface{} {
 			"category": "sast",
 			"name":     bypass.Category,
 			"message":  fmt.Sprintf("WAF bypass: %s", bypass.Payload),
-			"severity": severityToGitLab(bypass.Severity),
+			"severity": finding.Severity(bypass.Severity).ToGitLab(),
 		})
 	}
 	return vulns
-}
-
-func severityToGitLab(severity string) string {
-	switch severity {
-	case "Critical":
-		return "Critical"
-	case "High":
-		return "High"
-	case "Medium":
-		return "Medium"
-	default:
-		return "Low"
-	}
 }
 
 // writeResultsDefectDojo writes ExecutionResults in DefectDojo format.

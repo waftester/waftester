@@ -104,3 +104,98 @@ func TestSeverityString(t *testing.T) {
 		t.Errorf("got %q, want %q", s, "info")
 	}
 }
+
+func TestSeverityToSonarQube(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		s    Severity
+		want string
+	}{
+		{Critical, "CRITICAL"},
+		{High, "MAJOR"},
+		{Medium, "MINOR"},
+		{Low, "INFO"},
+		{Info, "INFO"},
+		{"unknown", "INFO"},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.s), func(t *testing.T) {
+			t.Parallel()
+			if got := tt.s.ToSonarQube(); got != tt.want {
+				t.Errorf("Severity(%q).ToSonarQube() = %q, want %q", tt.s, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSeverityToGitLab(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		s    Severity
+		want string
+	}{
+		{Critical, "Critical"},
+		{High, "High"},
+		{Medium, "Medium"},
+		{Low, "Low"},
+		{Info, "Info"},
+		{"unknown", "Info"},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.s), func(t *testing.T) {
+			t.Parallel()
+			if got := tt.s.ToGitLab(); got != tt.want {
+				t.Errorf("Severity(%q).ToGitLab() = %q, want %q", tt.s, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSeverityToSARIF(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		s    Severity
+		want string
+	}{
+		{Critical, "error"},
+		{High, "error"},
+		{Medium, "warning"},
+		{Low, "note"},
+		{Info, "note"},
+		{"unknown", "note"},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.s), func(t *testing.T) {
+			t.Parallel()
+			if got := tt.s.ToSARIF(); got != tt.want {
+				t.Errorf("Severity(%q).ToSARIF() = %q, want %q", tt.s, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSeverityToSARIFScore(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		s    Severity
+		want string
+	}{
+		{Critical, "9.5"},
+		{High, "8.0"},
+		{Medium, "5.5"},
+		{Low, "2.0"},
+		{Info, "0.0"},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.s), func(t *testing.T) {
+			t.Parallel()
+			if got := tt.s.ToSARIFScore(); got != tt.want {
+				t.Errorf("Severity(%q).ToSARIFScore() = %q, want %q", tt.s, got, tt.want)
+			}
+		})
+	}
+}

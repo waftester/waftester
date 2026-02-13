@@ -290,9 +290,9 @@ func (d *Detector) GetStats() *Stats {
 
 // Stats contains detection statistics
 type Stats struct {
-	TotalPatterns int              `json:"total_patterns"`
-	KnownFPs      int              `json:"known_fps"`
-	ByCategory    map[Category]int `json:"by_category"`
+	TotalPatterns int                      `json:"total_patterns"`
+	KnownFPs      int                      `json:"known_fps"`
+	ByCategory    map[Category]int         `json:"by_category"`
 	BySeverity    map[finding.Severity]int `json:"by_severity"`
 }
 
@@ -439,14 +439,14 @@ func (db *Database) Count() int {
 
 // Report generates a report of false positives
 type Report struct {
-	GeneratedAt     time.Time        `json:"generated_at"`
-	TotalFPs        int              `json:"total_fps"`
-	ByCategory      map[Category]int `json:"by_category"`
+	GeneratedAt     time.Time                `json:"generated_at"`
+	TotalFPs        int                      `json:"total_fps"`
+	ByCategory      map[Category]int         `json:"by_category"`
 	BySeverity      map[finding.Severity]int `json:"by_severity"`
-	ByRule          map[string]int   `json:"by_rule"`
-	TopEndpoints    []EndpointStats  `json:"top_endpoints"`
-	RecentFPs       []*FalsePositive `json:"recent_fps"`
-	Recommendations []string         `json:"recommendations"`
+	ByRule          map[string]int           `json:"by_rule"`
+	TopEndpoints    []EndpointStats          `json:"top_endpoints"`
+	RecentFPs       []*FalsePositive         `json:"recent_fps"`
+	Recommendations []string                 `json:"recommendations"`
 }
 
 // EndpointStats contains statistics for an endpoint
@@ -610,9 +610,9 @@ func (a *Analyzer) GetAnalysis(ruleID string) *RuleAnalysis {
 
 // RuleAnalysis contains analysis for a specific rule
 type RuleAnalysis struct {
-	RuleID         string   `json:"rule_id"`
-	FPCount        int      `json:"fp_count"`
-	Endpoints      []string `json:"endpoints"`
+	RuleID         string           `json:"rule_id"`
+	FPCount        int              `json:"fp_count"`
+	Endpoints      []string         `json:"endpoints"`
 	Severity       finding.Severity `json:"severity"`
-	Recommendation string   `json:"recommendation"`
+	Recommendation string           `json:"recommendation"`
 }

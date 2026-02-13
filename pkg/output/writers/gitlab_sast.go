@@ -118,20 +118,9 @@ func NewGitLabSASTWriter(w io.Writer, opts GitLabSASTOptions) *GitLabSASTWriter 
 }
 
 // severityToGitLab maps WAFtester severity to GitLab SAST severity.
-// critical → Critical, high → High, medium → Medium, low → Low, info → Info.
+// Delegates to finding.Severity.ToGitLab for canonical mapping.
 func severityToGitLab(severity events.Severity) string {
-	switch severity {
-	case events.SeverityCritical:
-		return "Critical"
-	case events.SeverityHigh:
-		return "High"
-	case events.SeverityMedium:
-		return "Medium"
-	case events.SeverityLow:
-		return "Low"
-	default:
-		return "Info"
-	}
+	return severity.ToGitLab()
 }
 
 // categoryToName converts a test category to a human-readable name.
