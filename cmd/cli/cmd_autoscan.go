@@ -129,6 +129,16 @@ func runAutoScan() {
 	enableBrain := autoFlags.Bool("brain", true, "Enable Brain Mode (adaptive learning, attack chains, smart prioritization)")
 	brainVerbose := autoFlags.Bool("brain-verbose", false, "Show detailed brain insights during scan")
 
+	// API spec-driven scanning
+	specFile := autoFlags.String("spec", "", "API spec file path (OpenAPI, Swagger, Postman, HAR)")
+	specURL := autoFlags.String("spec-url", "", "API spec URL to fetch and parse")
+	specIntensity := autoFlags.String("intensity", "normal", "Spec scan intensity: quick, normal, deep, paranoid")
+	specGroup := autoFlags.String("group", "", "Filter spec endpoints by group/tag")
+	specSkipGroup := autoFlags.String("skip-group", "", "Exclude spec endpoints by group/tag")
+	specDryRun := autoFlags.Bool("dry-run", false, "Show scan plan without executing")
+	specYes := autoFlags.Bool("yes", false, "Skip confirmation prompt for spec scans")
+	scanConfigPath := autoFlags.String("scan-config", "", "Path to .waftester-spec.yaml for per-endpoint overrides")
+
 	autoFlags.Parse(os.Args[2:])
 
 	// Disable detection if requested
@@ -189,25 +199,32 @@ func runAutoScan() {
 		}
 	}
 
-	// Get target
+	// Get target. In spec mode, target is optional — the spec's server
+	// URLs will be used if -u is not provided.
+	specModeActive := *specFile != "" || *specURL != ""
 	ts := &input.TargetSource{
 		URLs:     targetURLs,
 		ListFile: *listFile,
 		Stdin:    *stdinInput,
 	}
 	target, err := ts.GetSingleTarget()
-	if err != nil {
+	if err != nil && !specModeActive {
 		ui.PrintError("Target URL is required. Use: waf-tester auto -u https://example.com")
 		os.Exit(1)
 	}
 
-	// Parse domain from target
-	parsedURL, err := url.Parse(target)
-	if err != nil {
-		ui.PrintError(fmt.Sprintf("Invalid target URL: %v", err))
-		os.Exit(1)
+	// Parse domain from target (may be empty in spec mode).
+	var domain string
+	if target != "" {
+		parsedURL, parseErr := url.Parse(target)
+		if parseErr != nil {
+			ui.PrintError(fmt.Sprintf("Invalid target URL: %v", parseErr))
+			os.Exit(1)
+		}
+		domain = parsedURL.Hostname()
+	} else {
+		domain = "spec-scan"
 	}
-	domain := parsedURL.Hostname()
 
 	// Create output directory structure
 	timestamp := time.Now().Format("2006-01-02_15-04-05")
@@ -422,6 +439,33 @@ func runAutoScan() {
 	})
 	autoProgress.Start()
 	defer autoProgress.Stop()
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// SPEC-DRIVEN PIPELINE: If --spec or --spec-url provided, use intelligence
+	// engine instead of discovery+learning.
+	// ═══════════════════════════════════════════════════════════════════════════
+	if *specFile != "" || *specURL != "" {
+		runSpecPipeline(specPipelineConfig{
+			specFile:       *specFile,
+			specURL:        *specURL,
+			target:         target,
+			intensity:      *specIntensity,
+			group:          *specGroup,
+			skipGroup:      *specSkipGroup,
+			scanConfigPath: *scanConfigPath,
+			dryRun:         *specDryRun,
+			yes:            *specYes,
+			concurrency:    *concurrency,
+			rateLimit:      *rateLimit,
+			timeout:        *timeout,
+			skipVerify:     *skipVerify,
+			verbose:        *verbose,
+			quietMode:      quietMode,
+			outFlags:       &outFlags,
+			printStatus:    printStatus,
+		})
+		return
+	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 0: SMART MODE - WAF DETECTION & STRATEGY OPTIMIZATION (Optional)
@@ -2569,7 +2613,7 @@ func runAutoScan() {
 
 		// Output to stdout
 		jsonBytes, _ := json.MarshalIndent(jsonSummary, "", "  ")
-		fmt.Println(string(jsonBytes))
+		fmt.Println(string(jsonBytes)) // debug:keep
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
