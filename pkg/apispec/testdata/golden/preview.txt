@@ -1,0 +1,17 @@
+
+  Endpoints:   1
+  Attack types: 2
+  Total tests: 6
+  Intensity:   normal
+  Spec format: openapi3
+
+  Priority breakdown:
+
+  Attack categories:
+    sqli                 1 targets
+    xss                  1 targets
+
+  Endpoints:
+    [ MED] GET /users
+      Scans: sqli, xss
+      Tests: 6

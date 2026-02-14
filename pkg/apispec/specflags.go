@@ -2,6 +2,8 @@ package apispec
 
 import (
 	"flag"
+	"fmt"
+	"os"
 	"strings"
 )
 
@@ -112,4 +114,30 @@ func splitCSV(s string) []string {
 		}
 	}
 	return result
+}
+
+// RejectSpecFlags checks os.Args for --spec or --spec-url flags and exits
+// with a clear error if found. Call from commands that do not support spec
+// scanning (bypass, assess, fuzz, etc.).
+func RejectSpecFlags(command string) {
+	if err := CheckSpecFlagsRejected(command, os.Args[2:]); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+// CheckSpecFlagsRejected returns an error if args contain --spec or --spec-url.
+// Extracted for testability.
+func CheckSpecFlagsRejected(command string, args []string) error {
+	for _, arg := range args {
+		if arg == "--spec" || strings.HasPrefix(arg, "--spec=") ||
+			arg == "--spec-url" || strings.HasPrefix(arg, "--spec-url=") {
+			return fmt.Errorf(
+				"Error: the %q command does not support --spec or --spec-url flags.\n"+
+					"Use \"waftester scan --spec <file>\" or \"waftester auto --spec <file>\" instead.",
+				command,
+			)
+		}
+	}
+	return nil
 }
