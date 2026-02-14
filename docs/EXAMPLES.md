@@ -4,7 +4,7 @@
 
 This guide provides comprehensive usage examples for WAFtester, organized by use case and command category. Each example includes context on when to use the command, what value it provides, and expected output formats.
 
-**Document Version:** 2.8.5  
+**Document Version:** 2.8.8  
 **Last Updated:** February 2026
 
 ---
@@ -5821,10 +5821,9 @@ stages:
 version: 0.2
 phases:
   install:
-    runtime-versions:
-      golang: 1.22
     commands:
-      - go install github.com/waftester/waftester/cmd/cli@latest
+      - curl -fsSL https://github.com/waftester/waftester/releases/latest/download/waftester_Linux_x86_64.tar.gz | tar xz
+      - install -m 755 waf-tester /usr/local/bin/
   build:
     commands:
       - waf-tester scan -u $TARGET_URL --stream -format sarif -o results.sarif

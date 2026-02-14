@@ -60,18 +60,6 @@ yay -S waftester-bin
 
 Download the latest release from [GitHub Releases](https://github.com/waftester/waftester/releases).
 
-## Go Install
-
-```bash
-go install github.com/waftester/waftester/cmd/cli@latest
-```
-
-> **Note:** `go install` produces a binary named `cli`
-> (Go uses the last path element). Rename it to `waf-tester`
-> after install, or use one of the other methods for the
-> correct binary name. Build metadata (version, commit) is
-> also not injected — use `go build` with ldflags for that.
-
 ## Docker
 
 Multi-architecture images (`linux/amd64`, `linux/arm64`) are published
@@ -112,7 +100,7 @@ docker run -p 8080:8080 \
 | Tag | Description | Example |
 |-----|-------------|---------|
 | `latest` | Latest stable release | `ghcr.io/waftester/waftester:latest` |
-| `2.8.5` | Exact version | `ghcr.io/waftester/waftester:2.8.5` |
+| `2.8.8` | Exact version | `ghcr.io/waftester/waftester:2.8.8` |
 | `2.7` | Latest patch in minor | `ghcr.io/waftester/waftester:2.7` |
 | `2` | Latest in major | `ghcr.io/waftester/waftester:2` |
 | `edge` | Latest `main` build | `ghcr.io/waftester/waftester:edge` |
@@ -128,7 +116,7 @@ development:
 docker compose up --build
 
 # With version info from your environment
-VERSION=2.8.5 COMMIT=$(git rev-parse --short HEAD) \
+VERSION=2.8.8 COMMIT=$(git rev-parse --short HEAD) \
   docker compose up --build
 
 # Detached mode
@@ -178,7 +166,7 @@ docker inspect ghcr.io/waftester/waftester:latest \
 ```bash
 git clone https://github.com/waftester/waftester.git
 cd waftester
-go build -o waftester ./cmd/cli
+go build -o waf-tester ./cmd/cli
 ```
 
 ## MCP Server Setup
