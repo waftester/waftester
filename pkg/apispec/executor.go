@@ -4,13 +4,16 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"io"
 	"net/http"
+	"net/url"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/waftester/waftester/pkg/hosterrors"
+	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // WAFDetector detects WAF presence and identifies the vendor.
@@ -141,6 +144,7 @@ func (e *AdaptiveExecutor) Execute(ctx context.Context, plan *ScanPlan) (*ScanSe
 	session.TotalTests = result.TotalTests
 	session.TotalFindings = result.TotalFindings()
 	session.SpecSource = plan.SpecSource
+	session.Result = result
 
 	return session, nil
 }
@@ -171,6 +175,13 @@ func (e *AdaptiveExecutor) phaseFingerprint(ctx context.Context, plan *ScanPlan)
 		fpResult.WAFConfidence = wafResult.Confidence
 	}
 
+	// Check host error cache before sending requests.
+	if parsed, parseErr := url.Parse(e.BaseURL); parseErr == nil {
+		if hosterrors.Check(parsed.Hostname()) {
+			return fpResult, fmt.Errorf("host %s is in error cache", parsed.Hostname())
+		}
+	}
+
 	// Capture baseline response by requesting the target.
 	client := e.httpClient()
 	baselineReq, err := http.NewRequestWithContext(ctx, http.MethodGet, e.BaseURL, nil)
@@ -182,7 +193,7 @@ func (e *AdaptiveExecutor) phaseFingerprint(ctx context.Context, plan *ScanPlan)
 	if err != nil {
 		return fpResult, fmt.Errorf("baseline request: %w", err)
 	}
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	resp.Body.Close()
 
 	fpResult.BaselineStatus = resp.StatusCode
@@ -194,7 +205,7 @@ func (e *AdaptiveExecutor) phaseFingerprint(ctx context.Context, plan *ScanPlan)
 	if err == nil {
 		blockResp, blockErr := client.Do(blockReq)
 		if blockErr == nil {
-			blockBody, _ := io.ReadAll(blockResp.Body)
+			blockBody, _ := iohelper.ReadBodyDefault(blockResp.Body)
 			blockResp.Body.Close()
 
 			// If the block response differs from baseline, it's a WAF block signature.
@@ -527,7 +538,7 @@ func (e *AdaptiveExecutor) httpClient() *http.Client {
 	if e.HTTPClient != nil {
 		return e.HTTPClient
 	}
-	return http.DefaultClient
+	return httpclient.Default()
 }
 
 // isRequestBlocked returns true if the probe phase determined that

@@ -11,10 +11,10 @@ import (
 type ComparisonStatus string
 
 const (
-	StatusFixed      ComparisonStatus = "fixed"
-	StatusRegressed  ComparisonStatus = "regressed"
-	StatusNew        ComparisonStatus = "new"
-	StatusUnchanged  ComparisonStatus = "unchanged"
+	StatusFixed     ComparisonStatus = "fixed"
+	StatusRegressed ComparisonStatus = "regressed"
+	StatusNew       ComparisonStatus = "new"
+	StatusUnchanged ComparisonStatus = "unchanged"
 )
 
 // ComparedFinding wraps a finding with its comparison status.
@@ -25,12 +25,12 @@ type ComparedFinding struct {
 
 // ComparisonResult holds the diff between a baseline and current scan.
 type ComparisonResult struct {
-	Fixed      []SpecFinding `json:"fixed"`
-	Regressed  []SpecFinding `json:"regressed"`
-	New        []SpecFinding `json:"new"`
-	Unchanged  []SpecFinding `json:"unchanged"`
-	BaselineCount int        `json:"baseline_count"`
-	CurrentCount  int        `json:"current_count"`
+	Fixed         []SpecFinding `json:"fixed"`
+	Regressed     []SpecFinding `json:"regressed"`
+	New           []SpecFinding `json:"new"`
+	Unchanged     []SpecFinding `json:"unchanged"`
+	BaselineCount int           `json:"baseline_count"`
+	CurrentCount  int           `json:"current_count"`
 }
 
 // Baseline stores findings for later comparison.

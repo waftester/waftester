@@ -1,8 +1,10 @@
 package apispec
 
 import (
+	"fmt"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -404,13 +406,7 @@ func layerAuthContext(ep *Endpoint, authMap map[string][]authPresence, sel map[s
 	if totalSiblings > 0 && authSiblings > 0 {
 		ratio := float64(authSiblings) / float64(totalSiblings)
 		if ratio >= 0.5 {
-			reason := "no auth while " + strings.TrimRight(strings.TrimRight(
-				strings.Replace(
-					strings.Replace(
-						formatPercent(ratio), ".", "", 1,
-					), "0", "", -1,
-				), "0",
-			), ".") + " of sibling endpoints require auth"
+			reason := "no auth while " + formatPercent(ratio) + " of sibling endpoints require auth"
 			addSelection(sel, "accesscontrol", "auth_context", reason)
 			addSelection(sel, "brokenauth", "auth_context", reason)
 
@@ -423,9 +419,10 @@ func layerAuthContext(ep *Endpoint, authMap map[string][]authPresence, sel map[s
 
 func formatPercent(f float64) string {
 	pct := int(f * 100)
-	return strings.TrimRight(strings.TrimRight(
-		strings.Replace(string(rune('0'+pct/100))+string(rune('0'+(pct/10)%10))+string(rune('0'+pct%10)), "0", "", 1),
-		"0"), ".")
+	if pct >= 100 {
+		return "100%"
+	}
+	return fmt.Sprintf("%d%%", pct)
 }
 
 // --- Layer 5: Schema Constraint Analysis ---
@@ -443,7 +440,7 @@ func layerSchemaConstraints(ep *Endpoint, sel map[string]*AttackSelection) {
 
 func checkSchemaConstraints(paramName string, s SchemaInfo, sel map[string]*AttackSelection) {
 	if s.MaxLength != nil {
-		reason := paramName + " has maxLength=" + itoa(*s.MaxLength) + " — overflow + padding attacks"
+		reason := paramName + " has maxLength=" + strconv.Itoa(*s.MaxLength) + " — overflow + padding attacks"
 		addSelection(sel, "inputvalidation", "schema_constraint", reason)
 	}
 	if s.Minimum != nil || s.Maximum != nil {
@@ -674,24 +671,3 @@ func toSet(items []string) map[string]bool {
 	return m
 }
 
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var b [20]byte
-	i := len(b) - 1
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	for n > 0 {
-		b[i] = byte('0' + n%10)
-		i--
-		n /= 10
-	}
-	if neg {
-		b[i] = '-'
-		i--
-	}
-	return string(b[i+1:])
-}
