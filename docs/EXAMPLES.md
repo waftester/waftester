@@ -3797,11 +3797,17 @@ For the full reference, see [docs/API-SPEC-SCANNING.md](API-SPEC-SCANNING.md).
 ### Quick Start
 
 ```bash
-# OpenAPI spec
+# OpenAPI spec from file
 waftester scan --spec openapi.yaml -u https://api.example.com
 
-# Auto mode with Postman collection + environment
-waftester auto --spec collection.json --spec-env environment.json -u https://api.example.com
+# Swagger 2.0 from URL
+waftester scan --spec-url https://api.example.com/swagger.json -u https://api.example.com
+
+# Postman collection with environment
+waftester scan --spec collection.json --env staging.postman_environment.json -u https://api.example.com
+
+# HAR recording from browser DevTools
+waftester scan --spec recording.har -u https://api.example.com
 
 # Preview scan plan without sending requests
 waftester scan --spec openapi.yaml -u https://api.example.com --dry-run
@@ -3809,25 +3815,120 @@ waftester scan --spec openapi.yaml -u https://api.example.com --dry-run
 
 ### Supported Formats
 
+| Format | Extension | Flag Example |
+|--------|-----------|--------------|
+| OpenAPI 3.x | `.yaml`, `.json` | `--spec openapi.yaml` |
+| Swagger 2.0 | `.json`, `.yaml` | `--spec swagger.json` |
+| Postman Collection v2.x | `.json` | `--spec collection.json --env env.json` |
+| HAR v1.2 | `.har` | `--spec recording.har` |
+| AsyncAPI 2.x | `.yaml`, `.json` | `--spec asyncapi.yaml` |
+| GraphQL | introspection | `--spec-url https://api.example.com/graphql` |
+| gRPC | reflection | `-u grpc://service:50051 -types grpc` |
+
+Format is auto-detected from file content, not extension.
+
+### OpenAPI 3.x
+
 ```bash
-# OpenAPI 3.x
+# Local file
 waftester scan --spec openapi.yaml -u https://api.example.com
 
-# Swagger 2.0
+# Remote spec
+waftester scan --spec-url https://api.example.com/openapi.json
+
+# Target is optional when the spec has a servers block
+waftester scan --spec openapi.yaml
+
+# Scan only auth-related endpoints
+waftester scan --spec openapi.yaml -u https://api.example.com --group auth
+
+# Deep intensity (more payloads, slower)
+waftester scan --spec openapi.yaml -u https://api.example.com --intensity deep
+```
+
+### Swagger 2.0
+
+```bash
+# Standard Swagger scan
 waftester scan --spec swagger.json -u https://api.example.com
 
-# Postman Collection v2.x with environment
-waftester auto --spec collection.json --spec-env staging.json -u https://api.example.com
+# Swagger from URL (common for .NET APIs)
+waftester scan --spec-url https://api.example.com/swagger/v1/swagger.json
 
-# HAR recording from browser DevTools
+# Filter to specific path prefix
+waftester scan --spec swagger.json -u https://api.example.com --path "/api/v2/*"
+
+# Skip endpoints tagged as deprecated
+waftester scan --spec swagger.json -u https://api.example.com --skip-group deprecated
+```
+
+### Postman Collections
+
+```bash
+# Basic: collection file only (uses baseUrl from collection)
+waftester scan --spec MyAPI.postman_collection.json
+
+# With environment file for variable substitution
+waftester scan --spec MyAPI.postman_collection.json \
+  --env staging.postman_environment.json \
+  -u https://staging-api.example.com
+
+# Override specific variables
+waftester scan --spec MyAPI.postman_collection.json \
+  --env production.postman_environment.json \
+  --var "api_key=test-key-123" \
+  --var "base_url=https://api.example.com"
+
+# Scan only the "Users" folder from the collection
+waftester scan --spec MyAPI.postman_collection.json \
+  --env staging.postman_environment.json \
+  --group Users
+```
+
+Postman environment files (`.postman_environment.json`) are loaded with `--env`. Variables like `{{base_url}}` in the collection are substituted automatically.
+
+### HAR Recordings
+
+Record browser traffic with DevTools, then scan every captured endpoint:
+
+```bash
+# Export HAR from Chrome DevTools > Network > Export HAR
+# Then scan all captured endpoints
 waftester scan --spec recording.har -u https://api.example.com
 
-# GraphQL introspection
-waftester scan -u https://api.example.com/graphql -types graphql
+# Quick intensity for fast triage
+waftester scan --spec recording.har -u https://api.example.com --intensity quick
 
-# gRPC reflection
-waftester scan -u grpc://service:50051 -types grpc
+# Combine with scope control to skip static assets
+waftester scan --spec recording.har -u https://api.example.com \
+  -ep "\.(css|js|png|jpg|woff)$"
 ```
+
+### AsyncAPI
+
+```bash
+# AsyncAPI 2.x (YAML or JSON)
+waftester scan --spec asyncapi.yaml -u https://api.example.com
+
+# WebSocket channels from AsyncAPI
+waftester scan --spec asyncapi.yaml -u wss://api.example.com/ws
+```
+
+### Spec Flags Reference
+
+| Flag | Alias | Default | Effect |
+|------|-------|---------|--------|
+| `--spec` | | | Path to API spec file |
+| `--spec-url` | | | URL to fetch spec from |
+| `--env` | | | Postman environment file |
+| `--var` | | | Variable override `key=value` (repeatable) |
+| `--group` | | | Scan only endpoints in these tags/groups |
+| `--skip-group` | | | Exclude endpoints in these tags/groups |
+| `--path` | | | Filter endpoints by path glob |
+| `--intensity` | | `normal` | Scan depth: `quick`, `normal`, `deep`, `paranoid` |
+| `--spec-dry-run` | `--dry-run` | `false` | Show scan plan without executing |
+| `--yes` | `-y` | `false` | Skip confirmation prompt |
+| `--scan-config` | | | Path to `.waftester-spec.yaml` overrides |
 
 ### Dry-Run and Planning
 
@@ -3839,17 +3940,54 @@ waftester scan --spec openapi.yaml -u https://api.example.com --dry-run
 waftester scan --spec openapi.yaml -u https://api.example.com --dry-run -format json -o plan.json
 
 # Scan only specific endpoint groups
-waftester scan --spec openapi.yaml -u https://api.example.com --groups users,auth
+waftester scan --spec openapi.yaml -u https://api.example.com --group users,auth
+
+# Skip admin endpoints
+waftester scan --spec openapi.yaml -u https://api.example.com --skip-group admin,internal
 
 # Filter by attack category
 waftester scan --spec openapi.yaml -u https://api.example.com -types sqli,xss
+
+# Paranoid intensity for compliance audits
+waftester scan --spec openapi.yaml -u https://api.example.com --intensity paranoid
+```
+
+### Per-Endpoint Overrides
+
+Create a `.waftester-spec.yaml` in your project root (or pass `--scan-config path`):
+
+```yaml
+# .waftester-spec.yaml
+endpoints:
+  - path: "/api/health"
+    skip: true
+
+  - path: "/api/auth/**"
+    intensity: deep
+    scan_types: [sqli, xss, brokenauth]
+
+  - path: "/api/users/*"
+    max_payloads: 50
+    skip_types: [info, techdetect]
+
+  - path: "/api/admin/**"
+    skip: true       # skip admin endpoints entirely
+```
+
+```bash
+# Auto-loaded from CWD
+waftester scan --spec openapi.yaml -u https://api.example.com
+
+# Explicit path
+waftester scan --spec openapi.yaml -u https://api.example.com \
+  --scan-config ./configs/waftester-spec.yaml
 ```
 
 ### Comparison Mode
 
 ```bash
 # Save a baseline scan
-waftester scan --spec openapi.yaml -u https://api.example.com -o baseline.json
+waftester scan --spec openapi.yaml -u https://api.example.com -format json -o baseline.json
 
 # Compare a new scan against the baseline
 waftester scan --spec openapi.yaml -u https://api.example.com --compare baseline.json
@@ -3877,18 +4015,62 @@ waftester scan --spec openapi.yaml -u https://api.example.com --export-correlati
 # Match these against your WAF logs to verify detection coverage
 ```
 
+### Combining Spec Scanning with Scan Flags
+
+All scan control flags work with spec scanning:
+
+```bash
+# Spec scan with severity filter — only critical/high findings
+waftester scan --spec openapi.yaml -u https://api.example.com \
+  -msev critical,high
+
+# Spec scan with per-host rate limiting
+waftester scan --spec openapi.yaml -u https://api.example.com \
+  -rl 20 -rlph
+
+# Spec scan that stops on first vulnerability
+waftester scan --spec openapi.yaml -u https://api.example.com \
+  -sof
+
+# Full production audit: spec + stealth + filters
+waftester scan --spec openapi.yaml -u https://api.example.com \
+  --intensity deep \
+  -rl 10 -rlph -rr \
+  -msev critical,high \
+  --tamper-profile=stealth \
+  -format sarif -o audit.sarif
+
+# Postman collection with all controls
+waftester scan --spec collection.json \
+  --env staging.postman_environment.json \
+  --var "api_key=test-key" \
+  --group "Users,Orders" \
+  -r 3 -sof -fsev info \
+  -format json -o results.json
+```
+
 ### MCP Tools for Spec Scanning
 
 ```bash
 # Start MCP server
 waftester mcp
 
-# Available spec tools:
-# - validate_spec: Parse and validate without scanning
-# - list_spec_endpoints: Extract endpoint list
-# - plan_spec: Generate scan plan
-# - scan_spec: Execute spec-driven scan
-# - compare_baselines: Diff findings for regressions
+# Available spec tools (9 total):
+#
+# Parsing and validation:
+#   validate_spec        — Parse and validate without scanning
+#   list_spec_endpoints  — Extract endpoint list with group/tag filtering
+#   describe_spec_auth   — Describe authentication schemes in the spec
+#   export_spec          — Export parsed spec as normalized JSON
+#
+# Planning and scanning:
+#   plan_spec            — Generate intelligent scan plan with preview
+#   preview_spec_scan    — Preview scan plan as formatted table
+#   scan_spec            — Execute spec-driven security scan (async)
+#
+# Analysis:
+#   spec_intelligence    — Run 8-layer intelligence analysis
+#   compare_baselines    — Diff findings between two scan results
 ```
 
 ### CI/CD with Spec Scanning
