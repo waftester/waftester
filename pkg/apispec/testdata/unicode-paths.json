@@ -1,0 +1,42 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Unicode Paths API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/users/\u00fcber": {
+      "get": {
+        "operationId": "getUber",
+        "summary": "Get uber users",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/\u65e5\u672c\u8a9e/items": {
+      "get": {
+        "operationId": "getJapanese",
+        "summary": "Japanese path",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/caf\u00e9/menu": {
+      "get": {
+        "operationId": "getCafeMenu",
+        "summary": "Cafe menu",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  }
+}
