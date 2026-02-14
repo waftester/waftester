@@ -117,7 +117,8 @@ func isMetaScan(scanType string) bool {
 	switch scanType {
 	case "cors", "secheaders", "tlsprobe", "httpprobe", "wafdetect",
 		"waffprint", "wafevasion", "hostheader", "techdetect",
-		"jsanalyze", "osint", "vhost", "dnsrecon":
+		"jsanalyze", "osint", "vhost", "dnsrecon",
+		"csrf", "clickjack", "xmlinjection":
 		return true
 	}
 	return false
@@ -182,6 +183,17 @@ func payloadBaseCount(scanType string) int {
 		"vhost":       8,
 		"techdetect":  3,
 		"dnsrecon":    5,
+		"ldap":        20,
+		"ssi":         15,
+		"xpath":       20,
+		"xmlinjection": 15,
+		"rfi":         20,
+		"lfi":         25,
+		"rce":         20,
+		"csrf":        5,
+		"clickjack":   3,
+		"idor":        15,
+		"massassignment": 10,
 	}
 	if n, ok := counts[strings.ToLower(scanType)]; ok {
 		return n
@@ -211,7 +223,9 @@ var allScanCategories = []string{
 	"prototype", "cors", "redirect", "hostheader", "websocket",
 	"cache", "upload", "deserialize", "oauth", "ssrf", "ssti",
 	"xxe", "smuggling", "graphql", "jwt", "subtakeover", "bizlogic",
-	"race", "apifuzz", "wafdetect", "waffprint", "wafevasion",
+	"race", "apifuzz", "ldap", "ssi", "xpath", "xmlinjection",
+	"rfi", "lfi", "rce", "csrf", "clickjack", "idor", "massassignment",
+	"wafdetect", "waffprint", "wafevasion",
 	"tlsprobe", "httpprobe", "secheaders", "jsanalyze", "apidepth",
 	"osint", "vhost", "techdetect", "dnsrecon",
 }
