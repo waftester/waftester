@@ -70,7 +70,13 @@ func (sf *SpecFlags) ToConfig() *SpecConfig {
 		cfg.Confirm = *sf.Confirm
 	}
 	if sf.Intensity != nil {
-		cfg.Intensity = Intensity(*sf.Intensity)
+		switch Intensity(*sf.Intensity) {
+		case IntensityQuick, IntensityNormal, IntensityDeep, IntensityParanoid:
+			cfg.Intensity = Intensity(*sf.Intensity)
+		default:
+			fmt.Fprintf(os.Stderr, "warning: unknown intensity %q, using %q\n", *sf.Intensity, IntensityNormal)
+			cfg.Intensity = IntensityNormal
+		}
 	}
 
 	return cfg

@@ -271,10 +271,11 @@ func (e *AdaptiveExecutor) phaseProbe(
 	perCategory := make(map[string]*catStats)
 
 	var totalBlocked int
+probeLoop:
 	for i, entry := range probeEntries {
 		select {
 		case <-ctx.Done():
-			break
+			break probeLoop
 		default:
 		}
 
@@ -445,7 +446,13 @@ func (e *AdaptiveExecutor) phaseFullScan(
 		}
 
 		wg.Add(1)
-		sem <- struct{}{}
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			wg.Done()
+			result.AddError(fmt.Sprintf("scan cancelled: %v", ctx.Err()))
+			goto done
+		}
 
 		go func() {
 			defer wg.Done()
@@ -527,7 +534,10 @@ func (e *AdaptiveExecutor) phaseFullScan(
 	wg.Wait()
 
 done:
+	wg.Wait()
+	endpointMu.Lock()
 	result.TotalEndpoints = len(endpointSet)
+	endpointMu.Unlock()
 	result.TotalTests = plan.TotalTests
 
 	return nil
