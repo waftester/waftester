@@ -70,7 +70,7 @@ func NewEJSONWriter(path string, metadata *ExecutionMetadata) (*EJSONWriter, err
 		}
 	}
 	if path == "" {
-		return &EJSONWriter{file: os.Stdout, metadata: metadata}, nil
+		return &EJSONWriter{file: os.Stdout, results: make([]*TestResult, 0), metadata: metadata}, nil
 	}
 	file, err := os.Create(path)
 	if err != nil {

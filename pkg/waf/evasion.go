@@ -21,6 +21,7 @@ var (
 	sqlAndReplacer   = strings.NewReplacer(" and ", " && ", " AND ", " && ")
 
 	xssImgReplacer     = strings.NewReplacer("<script>alert(1)</script>", "<img src=x onerror=alert(1)>")
+	xssSvgReplacer     = strings.NewReplacer("<script>", "<svg onload=", "</script>", ">")
 	xssBodyReplacer    = strings.NewReplacer("<script>", "<body onload=", "</script>", ">")
 	xssInputReplacer   = strings.NewReplacer("<script>alert(1)</script>", "<input onfocus=alert(1) autofocus>")
 	xssDetailsReplacer = strings.NewReplacer("<script>alert(1)</script>", "<details open ontoggle=alert(1)>")
@@ -377,9 +378,8 @@ func (e *Evasion) initTechniques() {
 			Transform: func(payload string) []string {
 				results := make([]string, 0, 10)
 
-				// SVG instead of script
-				results = append(results, strings.ReplaceAll(payload, "<script>", "<svg onload="))
-				results = append(results, strings.ReplaceAll(payload, "</script>", ">"))
+				// SVG instead of script (use pre-compiled replacer for both tags)
+				results = append(results, xssSvgReplacer.Replace(payload))
 
 				// IMG tag (use pre-compiled replacer)
 				results = append(results, xssImgReplacer.Replace(payload))

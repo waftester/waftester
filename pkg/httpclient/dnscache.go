@@ -121,6 +121,15 @@ func (d *DNSCache) refresh(ctx context.Context, host string) ([]net.IP, error) {
 		}
 	}
 
+	// All addresses failed to parse — treat as lookup failure
+	if len(ips) == 0 {
+		noIPErr := fmt.Errorf("dnscache: no valid IPs for host %s (%d addresses unparseable)", host, len(addrs))
+		entry.ips = nil
+		entry.err = noIPErr
+		entry.expiresAt = time.Now().Add(d.negativeTTL)
+		return nil, noIPErr
+	}
+
 	entry.ips = ips
 	entry.err = nil
 	entry.expiresAt = time.Now().Add(d.ttl)
@@ -241,5 +250,8 @@ func (d *CachingDialer) DialContext(ctx context.Context, network, address string
 
 	// All IPs failed, invalidate cache entry
 	d.cache.Invalidate(host)
+	if lastErr == nil {
+		lastErr = fmt.Errorf("dnscache: no IPs to dial for host %s", host)
+	}
 	return nil, lastErr
 }
