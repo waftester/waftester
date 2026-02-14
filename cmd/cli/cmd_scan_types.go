@@ -9,9 +9,9 @@ import (
 	"github.com/waftester/waftester/pkg/cache"
 	"github.com/waftester/waftester/pkg/clickjack"
 	"github.com/waftester/waftester/pkg/cmdi"
-	"github.com/waftester/waftester/pkg/csrf"
 	"github.com/waftester/waftester/pkg/cors"
 	"github.com/waftester/waftester/pkg/crlf"
+	"github.com/waftester/waftester/pkg/csrf"
 	"github.com/waftester/waftester/pkg/deserialize"
 	"github.com/waftester/waftester/pkg/discovery"
 	"github.com/waftester/waftester/pkg/graphql"
@@ -86,7 +86,7 @@ type ScanResult struct {
 	LDAP         []ldap.Result               `json:"ldap,omitempty"`
 	SSI          []ssi.Result                `json:"ssi,omitempty"`
 	XPath        []xpath.Result              `json:"xpath,omitempty"`
-	XMLInjection []xmlinjection.Result        `json:"xmlinjection,omitempty"`
+	XMLInjection []xmlinjection.Result       `json:"xmlinjection,omitempty"`
 	RFI          []rfi.Result                `json:"rfi,omitempty"`
 	LFI          []lfi.Result                `json:"lfi,omitempty"`
 	RCE          []rce.Result                `json:"rce,omitempty"`

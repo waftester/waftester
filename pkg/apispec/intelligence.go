@@ -2,7 +2,7 @@ package apispec
 
 import (
 	"fmt"
-	"path/filepath"
+	pathpkg "path"
 	"sort"
 	"strconv"
 	"strings"
@@ -333,6 +333,9 @@ var pathPatterns = []pathPattern{
 
 func layerPathPattern(ep *Endpoint, sel map[string]*AttackSelection) {
 	path := strings.ToLower(ep.Path)
+	if len(path) < 2 {
+		return
+	}
 
 	// Strip version prefix for matching.
 	if idx := strings.Index(path[1:], "/"); idx >= 0 {
@@ -343,7 +346,7 @@ func layerPathPattern(ep *Endpoint, sel map[string]*AttackSelection) {
 	}
 
 	for _, pp := range pathPatterns {
-		matched, err := filepath.Match(pp.Pattern, path)
+		matched, err := pathpkg.Match(pp.Pattern, path)
 		if err != nil {
 			continue
 		}
@@ -352,7 +355,7 @@ func layerPathPattern(ep *Endpoint, sel map[string]*AttackSelection) {
 			segments := strings.SplitN(path, "/", 4) // ["", "segment", "rest", ...]
 			if len(segments) >= 2 {
 				firstSeg := "/" + segments[1]
-				matched, _ = filepath.Match(pp.Pattern, firstSeg)
+				matched, _ = pathpkg.Match(pp.Pattern, firstSeg)
 			}
 		}
 		if !matched {

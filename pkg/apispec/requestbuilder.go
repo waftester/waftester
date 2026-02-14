@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 
 	"github.com/waftester/waftester/pkg/requestpool"
@@ -182,9 +183,17 @@ func buildJSONBody(schema SchemaInfo, payload string) string {
 		return fmt.Sprintf(`{"payload":%q}`, payload)
 	}
 
+	// Sort property names for deterministic output.
+	names := make([]string, 0, len(schema.Properties))
+	for name := range schema.Properties {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
 	var parts []string
 	injected := false
-	for name, prop := range schema.Properties {
+	for _, name := range names {
+		prop := schema.Properties[name]
 		if !injected && (prop.Type == "string" || prop.Type == "") {
 			parts = append(parts, fmt.Sprintf("%q:%q", name, payload))
 			injected = true
@@ -202,7 +211,16 @@ func buildJSONBody(schema SchemaInfo, payload string) string {
 func buildFormBody(schema SchemaInfo, payload string) string {
 	values := url.Values{}
 	injected := false
-	for name, prop := range schema.Properties {
+
+	// Sort property names for deterministic output.
+	names := make([]string, 0, len(schema.Properties))
+	for name := range schema.Properties {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		prop := schema.Properties[name]
 		if !injected && (prop.Type == "string" || prop.Type == "") {
 			values.Set(name, payload)
 			injected = true
