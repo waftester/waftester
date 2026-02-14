@@ -5,6 +5,14 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.1] - 2026-02-14
+
+### Added
+
+- **11 new scan types fully wired into CLI** — LDAP injection, SSI injection, XPath injection, XML injection, RFI, LFI, RCE, CSRF, clickjacking, IDOR, and mass assignment scanners are now dispatched from `--types` flag and spec-driven scanning
+- **Spec-driven scanning support for all 11 types** — Each scanner has a dedicated adapter function with CWE mapping for API spec scanning pipeline
+- **Plan builder coverage** — All 11 scan categories registered in `allScanCategories` with payload base counts for scan estimation
+
 ## [2.9.0] - 2026-02-14
 
 ### Added
@@ -2026,6 +2034,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.1]: https://github.com/waftester/waftester/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/waftester/waftester/compare/v2.8.9...v2.9.0
 [2.8.9]: https://github.com/waftester/waftester/compare/v2.8.8...v2.8.9
 [2.8.8]: https://github.com/waftester/waftester/compare/v2.8.7...v2.8.8
