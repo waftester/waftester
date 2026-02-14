@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -244,9 +245,9 @@ func TestExecutePrivescTest_NoFinding(t *testing.T) {
 }
 
 func TestExecuteRaceTest_MultipleSources(t *testing.T) {
-	var count int
+	var count atomic.Int64
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		count++
+		count.Add(1)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
