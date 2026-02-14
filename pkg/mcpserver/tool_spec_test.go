@@ -3,6 +3,9 @@ package mcpserver
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -226,6 +229,77 @@ func TestScanSpec_NoTargetAndNoSpecServer(t *testing.T) {
 	assert.True(t, result.IsError)
 	text := resultText(t, result)
 	assert.Contains(t, text, "target URL required")
+}
+
+func TestScanSpec_SyncModeReturnsFindings(t *testing.T) {
+	t.Parallel()
+
+	// Start a mock target server.
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, `{"path": %q, "method": %q}`, r.URL.Path, r.Method)
+	}))
+	defer ts.Close()
+
+	// Create server with sync mode and injected ScanFn that produces findings.
+	srv := New(&Config{
+		SpecScanFn: func(_ context.Context, category string, _ string, ep apispec.Endpoint) ([]apispec.SpecFinding, error) {
+			param := "id"
+			for _, p := range ep.Parameters {
+				param = p.Name
+				break
+			}
+			return []apispec.SpecFinding{{
+				Method:    ep.Method,
+				Path:      ep.Path,
+				Category:  category,
+				Parameter: param,
+				Severity:  "high",
+				Title:     fmt.Sprintf("%s in %s %s", category, ep.Method, ep.Path),
+			}}, nil
+		},
+	})
+	srv.syncMode.Store(true)
+	defer srv.Stop()
+
+	result := callTool(t, srv.handleScanSpec, map[string]any{
+		"spec_content": testOpenAPISpec,
+		"target":       ts.URL,
+		"dry_run":      false,
+	})
+
+	require.False(t, result.IsError, "scan_spec should not return an error")
+	text := resultText(t, result)
+
+	// The sync mode returns the full result JSON.
+	assert.Contains(t, text, `"findings"`, "result should contain findings array")
+	assert.Contains(t, text, `"/users"`, "findings should reference /users path")
+	assert.Contains(t, text, `"GET"`, "findings should include GET method")
+	assert.Contains(t, text, `"high"`, "findings should include severity")
+
+	// Parse the full output to verify structure.
+	var output struct {
+		Result struct {
+			Findings []struct {
+				Method    string `json:"method"`
+				Path      string `json:"path"`
+				Category  string `json:"category"`
+				Parameter string `json:"parameter"`
+				Severity  string `json:"severity"`
+			} `json:"findings"`
+			TotalEndpoints int `json:"total_endpoints"`
+		} `json:"result"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(text), &output), "result should be valid JSON")
+	assert.NotEmpty(t, output.Result.Findings, "should have at least one finding")
+
+	// Every finding should have method, path, and category populated.
+	for _, f := range output.Result.Findings {
+		assert.NotEmpty(t, f.Method, "finding method should not be empty")
+		assert.NotEmpty(t, f.Path, "finding path should not be empty")
+		assert.NotEmpty(t, f.Category, "finding category should not be empty")
+	}
 }
 
 func TestSplitCSV(t *testing.T) {

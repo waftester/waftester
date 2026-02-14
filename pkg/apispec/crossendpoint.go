@@ -452,6 +452,7 @@ func executePrivescTest(ctx context.Context, test CrossEndpointTest, cfg CrossEn
 
 	return result
 }
+
 // pathParamRe matches path template parameters like {id}, {userId}, etc.
 var pathParamRe = regexp.MustCompile(`\{([^}]+)\}`)
 
