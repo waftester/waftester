@@ -146,9 +146,72 @@ func checkMarkdownVersions(t *testing.T, root string) []string {
 			violations = append(violations,
 				"CHANGELOG.md: missing entry for version "+defaults.Version)
 		}
+
+		// Check CHANGELOG.md has a footer comparison link for the current version
+		// Keep a Changelog format: [X.Y.Z]: https://github.com/.../compare/vPREV...vX.Y.Z
+		footerLink := regexp.MustCompile(`\[` + regexp.QuoteMeta(defaults.Version) + `\]: https://`)
+		if !footerLink.Match(content) {
+			violations = append(violations,
+				"CHANGELOG.md: missing footer comparison link for version "+defaults.Version+
+					" (add ["+defaults.Version+"]: https://github.com/waftester/waftester/compare/vPREV...v"+defaults.Version+")")
+		}
 	}
 
 	return violations
+}
+
+// TestDocVersionConsistency ensures documentation files reference the current version.
+// This catches stale version examples in docs that no other test validates.
+func TestDocVersionConsistency(t *testing.T) {
+	root := findProjectRoot(t)
+
+	tests := []struct {
+		name    string
+		file    string
+		pattern *regexp.Regexp
+		desc    string
+	}{
+		{
+			name:    "EXAMPLES.md document version",
+			file:    "docs/EXAMPLES.md",
+			pattern: regexp.MustCompile(`\*\*Document Version:\*\*\s*(\d+\.\d+\.\d+)`),
+			desc:    "Document Version header",
+		},
+		{
+			name:    "INSTALLATION.md docker tag example",
+			file:    "docs/INSTALLATION.md",
+			pattern: regexp.MustCompile("`(\\d+\\.\\d+\\.\\d+)` \\| Exact version"),
+			desc:    "Docker exact version tag example",
+		},
+		{
+			name:    "INSTALLATION.md docker compose VERSION",
+			file:    "docs/INSTALLATION.md",
+			pattern: regexp.MustCompile(`VERSION=(\d+\.\d+\.\d+)`),
+			desc:    "Docker compose VERSION example",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(root, tt.file)
+			content, err := os.ReadFile(path)
+			if err != nil {
+				t.Skipf("File not found: %s", tt.file)
+				return
+			}
+
+			matches := tt.pattern.FindSubmatch(content)
+			if len(matches) < 2 {
+				t.Errorf("%s: pattern not found in %s", tt.desc, tt.file)
+				return
+			}
+
+			found := string(matches[1])
+			if found != defaults.Version {
+				t.Errorf("%s: %s has %q, want %q", tt.file, tt.desc, found, defaults.Version)
+			}
+		})
+	}
 }
 
 // TestNpmVersionConsistency ensures npm package.json versions match defaults.Version.
