@@ -94,8 +94,8 @@ function getBinaryPath() {
     console.error(
       `WAFtester: unsupported platform ${platformKey}\n` +
         `Supported: ${Object.keys(PLATFORMS).join(", ")}\n` +
-        `Install from source: ` +
-        `go install github.com/waftester/waftester/cmd/cli@latest`
+        `Download a binary from: ` +
+        `https://github.com/waftester/waftester/releases`
     );
   } else {
     console.error(
@@ -104,8 +104,8 @@ function getBinaryPath() {
         `  npm install @waftester/cli\n\n` +
         `If --no-optional was used:\n` +
         `  npm install @waftester/cli --include=optional\n\n` +
-        `Or install from source:\n` +
-        `  go install github.com/waftester/waftester/cmd/cli@latest`
+        `Or download a binary from:\n` +
+        `  https://github.com/waftester/waftester/releases`
     );
   }
   process.exit(1);

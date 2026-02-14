@@ -209,8 +209,8 @@ jobs:
 
       - name: Install waf-tester
         run: |
-          curl -sL https://github.com/waftester/waftester/releases/latest/download/waf-tester_linux_amd64 -o waf-tester
-          chmod +x waf-tester
+          curl -fsSL https://github.com/waftester/waftester/releases/latest/download/waftester_Linux_x86_64.tar.gz | tar xz
+          install -m 755 waf-tester /usr/local/bin/
 
       - name: Run WAF Security Scan
         run: |
@@ -234,10 +234,11 @@ func generateGitLabCI(target, scanTypes, schedule string) string {
 	return fmt.Sprintf(`%s
 waf-security-test:
   stage: test
-  image: golang:1.24
+  image: alpine:3
   script:
-    - curl -sL https://github.com/waftester/waftester/releases/latest/download/waf-tester_linux_amd64 -o waf-tester
-    - chmod +x waf-tester
+    - apk add --no-cache curl
+    - curl -fsSL https://github.com/waftester/waftester/releases/latest/download/waftester_Linux_x86_64.tar.gz | tar xz
+    - install -m 755 waf-tester /usr/local/bin/
     - ./waf-tester scan -u %s -types %s -format json -o results.json -c 10 -rl 50
   artifacts:
     paths:
@@ -253,8 +254,8 @@ func generateJenkinsfile(target, scanTypes string) string {
         stage('WAF Security Test') {
             steps {
                 sh '''
-                    curl -sL https://github.com/waftester/waftester/releases/latest/download/waf-tester_linux_amd64 -o waf-tester
-                    chmod +x waf-tester
+                    curl -fsSL https://github.com/waftester/waftester/releases/latest/download/waftester_Linux_x86_64.tar.gz | tar xz
+                    install -m 755 waf-tester /usr/local/bin/
                     ./waf-tester scan -u %s -types %s -format json -o results.json -c 10 -rl 50
                 '''
             }
@@ -278,8 +279,8 @@ pool:
 
 steps:
   - script: |
-      curl -sL https://github.com/waftester/waftester/releases/latest/download/waf-tester_linux_amd64 -o waf-tester
-      chmod +x waf-tester
+      curl -fsSL https://github.com/waftester/waftester/releases/latest/download/waftester_Linux_x86_64.tar.gz | tar xz
+      install -m 755 waf-tester /usr/local/bin/
       ./waf-tester scan -u %s -types %s -format json -o $(Build.ArtifactStagingDirectory)/results.json -c 10 -rl 50
     displayName: 'Run WAF Security Scan'
 
@@ -293,14 +294,14 @@ func generateCircleCI(target, scanTypes string) string {
 jobs:
   waf-test:
     docker:
-      - image: cimg/go:1.24
+      - image: cimg/base:stable
     steps:
       - checkout
       - run:
           name: Install waf-tester
           command: |
-            curl -sL https://github.com/waftester/waftester/releases/latest/download/waf-tester_linux_amd64 -o waf-tester
-            chmod +x waf-tester
+            curl -fsSL https://github.com/waftester/waftester/releases/latest/download/waftester_Linux_x86_64.tar.gz | tar xz
+            install -m 755 waf-tester /usr/local/bin/
       - run:
           name: Run WAF Security Scan
           command: ./waf-tester scan -u %s -types %s -format json -o results.json -c 10 -rl 50
@@ -319,10 +320,11 @@ func generateBitbucket(target, scanTypes string) string {
   default:
     - step:
         name: WAF Security Test
-        image: golang:1.24
+        image: alpine:3
         script:
-          - curl -sL https://github.com/waftester/waftester/releases/latest/download/waf-tester_linux_amd64 -o waf-tester
-          - chmod +x waf-tester
+          - apk add --no-cache curl
+          - curl -fsSL https://github.com/waftester/waftester/releases/latest/download/waftester_Linux_x86_64.tar.gz | tar xz
+          - install -m 755 waf-tester /usr/local/bin/
           - ./waf-tester scan -u %s -types %s -format json -o results.json -c 10 -rl 50
         artifacts:
           - results.json
