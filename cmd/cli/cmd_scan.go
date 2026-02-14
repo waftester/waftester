@@ -24,7 +24,9 @@ import (
 	"github.com/waftester/waftester/pkg/bizlogic"
 	"github.com/waftester/waftester/pkg/cache"
 	"github.com/waftester/waftester/pkg/cli"
+	"github.com/waftester/waftester/pkg/clickjack"
 	"github.com/waftester/waftester/pkg/cmdi"
+	"github.com/waftester/waftester/pkg/csrf"
 	"github.com/waftester/waftester/pkg/cors"
 	"github.com/waftester/waftester/pkg/crlf"
 	"github.com/waftester/waftester/pkg/defaults"
@@ -35,12 +37,16 @@ import (
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
 	"github.com/waftester/waftester/pkg/graphql"
 	"github.com/waftester/waftester/pkg/hosterrors"
+	"github.com/waftester/waftester/pkg/idor"
 	"github.com/waftester/waftester/pkg/hostheader"
 	"github.com/waftester/waftester/pkg/hpp"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/js"
 	"github.com/waftester/waftester/pkg/jwt"
+	"github.com/waftester/waftester/pkg/ldap"
+	"github.com/waftester/waftester/pkg/lfi"
+	"github.com/waftester/waftester/pkg/massassignment"
 	"github.com/waftester/waftester/pkg/nosqli"
 	"github.com/waftester/waftester/pkg/oauth"
 	"github.com/waftester/waftester/pkg/payloadprovider"
@@ -48,10 +54,13 @@ import (
 	"github.com/waftester/waftester/pkg/prototype"
 	"github.com/waftester/waftester/pkg/race"
 	"github.com/waftester/waftester/pkg/ratelimit"
+	"github.com/waftester/waftester/pkg/rce"
 	"github.com/waftester/waftester/pkg/redirect"
+	"github.com/waftester/waftester/pkg/rfi"
 	"github.com/waftester/waftester/pkg/retry"
 	"github.com/waftester/waftester/pkg/smuggling"
 	"github.com/waftester/waftester/pkg/sqli"
+	"github.com/waftester/waftester/pkg/ssi"
 	"github.com/waftester/waftester/pkg/ssrf"
 	"github.com/waftester/waftester/pkg/ssti"
 	"github.com/waftester/waftester/pkg/subtakeover"
@@ -60,6 +69,8 @@ import (
 	"github.com/waftester/waftester/pkg/upload"
 	"github.com/waftester/waftester/pkg/waf"
 	"github.com/waftester/waftester/pkg/websocket"
+	"github.com/waftester/waftester/pkg/xmlinjection"
+	"github.com/waftester/waftester/pkg/xpath"
 	"github.com/waftester/waftester/pkg/xss"
 	"github.com/waftester/waftester/pkg/xxe"
 )
@@ -91,7 +102,7 @@ func runScan() {
 	var sf apispec.SpecFlags
 	sf.Register(scanFlags)
 
-	types := scanFlags.String("types", "all", "Scan types: all, or comma-separated (sqli,xss,traversal,cmdi,nosqli,hpp,crlf,prototype,cors,redirect,hostheader,websocket,cache,upload,deserialize,oauth,ssrf,ssti,xxe,smuggling,graphql,jwt,subtakeover,bizlogic,race,apifuzz,wafdetect,waffprint,wafevasion,tlsprobe,httpprobe,secheaders,jsanalyze,apidepth,osint,vhost,techdetect,dnsrecon)")
+	types := scanFlags.String("types", "all", "Scan types: all, or comma-separated (sqli,xss,traversal,cmdi,nosqli,hpp,crlf,prototype,cors,redirect,hostheader,websocket,cache,upload,deserialize,oauth,ssrf,ssti,xxe,smuggling,graphql,jwt,subtakeover,bizlogic,race,apifuzz,ldap,ssi,xpath,xmlinjection,rfi,lfi,rce,csrf,clickjack,idor,massassignment,wafdetect,waffprint,wafevasion,tlsprobe,httpprobe,secheaders,jsanalyze,apidepth,osint,vhost,techdetect,dnsrecon)")
 	concurrency := scanFlags.Int("concurrency", 5, "Concurrent scanners")
 	outputFile := scanFlags.String("output", "", "Output results to JSON file")
 	jsonOutput := scanFlags.Bool("json", false, "Output in JSON format")
@@ -540,7 +551,7 @@ func runScan() {
 
 	// Dry run mode - list what would be scanned and exit
 	if *dryRun {
-		allScanTypes := []string{"sqli", "xss", "traversal", "cmdi", "nosqli", "hpp", "crlf", "prototype", "cors", "redirect", "hostheader", "websocket", "cache", "upload", "deserialize", "oauth", "ssrf", "ssti", "xxe", "smuggling", "graphql", "jwt", "subtakeover", "bizlogic", "race", "apifuzz", "wafdetect", "waffprint", "wafevasion", "tlsprobe", "httpprobe", "secheaders", "jsanalyze", "apidepth", "osint", "vhost", "techdetect", "dnsrecon"}
+		allScanTypes := []string{"sqli", "xss", "traversal", "cmdi", "nosqli", "hpp", "crlf", "prototype", "cors", "redirect", "hostheader", "websocket", "cache", "upload", "deserialize", "oauth", "ssrf", "ssti", "xxe", "smuggling", "graphql", "jwt", "subtakeover", "bizlogic", "race", "apifuzz", "ldap", "ssi", "xpath", "xmlinjection", "rfi", "lfi", "rce", "csrf", "clickjack", "idor", "massassignment", "wafdetect", "waffprint", "wafevasion", "tlsprobe", "httpprobe", "secheaders", "jsanalyze", "apidepth", "osint", "vhost", "techdetect", "dnsrecon"}
 
 		var selectedScans []string
 		for _, t := range allScanTypes {
@@ -681,7 +692,7 @@ func runScan() {
 	var scanTimings sync.Map // map[string]time.Duration
 
 	// Count total scans first — must match every runScanner() call below
-	allScanTypes := []string{"sqli", "xss", "traversal", "cmdi", "nosqli", "hpp", "crlf", "prototype", "cors", "redirect", "hostheader", "websocket", "cache", "upload", "deserialize", "oauth", "ssrf", "ssti", "xxe", "smuggling", "graphql", "jwt", "subtakeover", "bizlogic", "race", "apifuzz", "wafdetect", "waffprint", "wafevasion", "tlsprobe", "httpprobe", "secheaders", "jsanalyze", "apidepth", "osint", "vhost", "techdetect", "dnsrecon"}
+	allScanTypes := []string{"sqli", "xss", "traversal", "cmdi", "nosqli", "hpp", "crlf", "prototype", "cors", "redirect", "hostheader", "websocket", "cache", "upload", "deserialize", "oauth", "ssrf", "ssti", "xxe", "smuggling", "graphql", "jwt", "subtakeover", "bizlogic", "race", "apifuzz", "ldap", "ssi", "xpath", "xmlinjection", "rfi", "lfi", "rce", "csrf", "clickjack", "idor", "massassignment", "wafdetect", "waffprint", "wafevasion", "tlsprobe", "httpprobe", "secheaders", "jsanalyze", "apidepth", "osint", "vhost", "techdetect", "dnsrecon"}
 	for _, t := range allScanTypes {
 		if shouldScan(t) {
 			atomic.AddInt32(&totalScans, 1)
@@ -1907,6 +1918,438 @@ func runScan() {
 				"category": "apifuzz",
 				"severity": v.Severity,
 				"type":     v.Type,
+			})
+		}
+		mu.Unlock()
+	})
+
+	// LDAP Injection Scanner
+	runScanner("ldap", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "ldap", "vulns": vulnCount})
+		}()
+		cfg := ldap.DefaultConfig()
+		cfg.Timeout = timeoutDur
+		cfg.UserAgent = ui.UserAgent()
+		scanner := ldap.NewScanner(cfg)
+		// Synthetic params for bare-URL mode (matching SSRF/SSTI pattern)
+		params := map[string]string{"search": "test", "user": "admin", "filter": "test"}
+		results, err := scanner.Scan(ctx, target, params)
+		if err != nil {
+			scanError("LDAP", err)
+			return
+		}
+		mu.Lock()
+		var vulnResults []ldap.Result
+		for _, r := range results {
+			if r.Vulnerable {
+				vulnResults = append(vulnResults, r)
+			}
+		}
+		result.LDAP = vulnResults
+		vulnCount = len(vulnResults)
+		result.ByCategory["ldap"] = vulnCount
+		result.TotalVulns += vulnCount
+		progress.AddMetricBy("vulns", vulnCount)
+		for _, r := range vulnResults {
+			result.BySeverity[r.Severity]++
+			emitEvent("vulnerability", map[string]interface{}{
+				"category":  "ldap",
+				"severity":  r.Severity,
+				"parameter": r.Parameter,
+				"payload":   r.Payload,
+			})
+		}
+		mu.Unlock()
+	})
+
+	// SSI (Server-Side Include) Injection Scanner
+	runScanner("ssi", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "ssi", "vulns": vulnCount})
+		}()
+		cfg := ssi.DefaultConfig()
+		cfg.Timeout = timeoutDur
+		cfg.UserAgent = ui.UserAgent()
+		scanner := ssi.NewScanner(cfg)
+		params := map[string]string{"input": "test", "page": "index", "file": "test"}
+		results, err := scanner.Scan(ctx, target, params)
+		if err != nil {
+			scanError("SSI", err)
+			return
+		}
+		mu.Lock()
+		var vulnResults []ssi.Result
+		for _, r := range results {
+			if r.Vulnerable {
+				vulnResults = append(vulnResults, r)
+			}
+		}
+		result.SSI = vulnResults
+		vulnCount = len(vulnResults)
+		result.ByCategory["ssi"] = vulnCount
+		result.TotalVulns += vulnCount
+		progress.AddMetricBy("vulns", vulnCount)
+		for _, r := range vulnResults {
+			result.BySeverity[r.Severity]++
+			emitEvent("vulnerability", map[string]interface{}{
+				"category":  "ssi",
+				"severity":  r.Severity,
+				"parameter": r.Parameter,
+				"payload":   r.Payload,
+			})
+		}
+		mu.Unlock()
+	})
+
+	// XPath Injection Scanner
+	runScanner("xpath", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "xpath", "vulns": vulnCount})
+		}()
+		cfg := xpath.DefaultConfig()
+		cfg.Timeout = timeoutDur
+		cfg.UserAgent = ui.UserAgent()
+		scanner := xpath.NewScanner(cfg)
+		params := map[string]string{"search": "test", "query": "test", "id": "1"}
+		results, err := scanner.Scan(ctx, target, params)
+		if err != nil {
+			scanError("XPath", err)
+			return
+		}
+		mu.Lock()
+		var vulnResults []xpath.Result
+		for _, r := range results {
+			if r.Vulnerable {
+				vulnResults = append(vulnResults, r)
+			}
+		}
+		result.XPath = vulnResults
+		vulnCount = len(vulnResults)
+		result.ByCategory["xpath"] = vulnCount
+		result.TotalVulns += vulnCount
+		progress.AddMetricBy("vulns", vulnCount)
+		for _, r := range vulnResults {
+			result.BySeverity[r.Severity]++
+			emitEvent("vulnerability", map[string]interface{}{
+				"category":  "xpath",
+				"severity":  r.Severity,
+				"parameter": r.Parameter,
+				"payload":   r.Payload,
+			})
+		}
+		mu.Unlock()
+	})
+
+	// XML Injection Scanner
+	runScanner("xmlinjection", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "xmlinjection", "vulns": vulnCount})
+		}()
+		cfg := xmlinjection.DefaultConfig()
+		cfg.Timeout = timeoutDur
+		cfg.UserAgent = ui.UserAgent()
+		scanner := xmlinjection.NewScanner(cfg)
+		results, err := scanner.Scan(ctx, target)
+		if err != nil {
+			scanError("XMLInjection", err)
+			return
+		}
+		mu.Lock()
+		var vulnResults []xmlinjection.Result
+		for _, r := range results {
+			if r.Vulnerable {
+				vulnResults = append(vulnResults, r)
+			}
+		}
+		result.XMLInjection = vulnResults
+		vulnCount = len(vulnResults)
+		result.ByCategory["xmlinjection"] = vulnCount
+		result.TotalVulns += vulnCount
+		progress.AddMetricBy("vulns", vulnCount)
+		for _, r := range vulnResults {
+			result.BySeverity[r.Severity]++
+			emitEvent("vulnerability", map[string]interface{}{
+				"category": "xmlinjection",
+				"severity": r.Severity,
+				"type":     r.PayloadType,
+			})
+		}
+		mu.Unlock()
+	})
+
+	// Remote File Inclusion Scanner
+	runScanner("rfi", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "rfi", "vulns": vulnCount})
+		}()
+		cfg := rfi.DefaultConfig()
+		cfg.Timeout = timeoutDur
+		cfg.UserAgent = ui.UserAgent()
+		scanner := rfi.NewScanner(cfg)
+		params := map[string]string{"file": "index", "page": "home", "path": "/tmp/test"}
+		results, err := scanner.Scan(ctx, target, params)
+		if err != nil {
+			scanError("RFI", err)
+			return
+		}
+		mu.Lock()
+		var vulnResults []rfi.Result
+		for _, r := range results {
+			if r.Vulnerable {
+				vulnResults = append(vulnResults, r)
+			}
+		}
+		result.RFI = vulnResults
+		vulnCount = len(vulnResults)
+		result.ByCategory["rfi"] = vulnCount
+		result.TotalVulns += vulnCount
+		progress.AddMetricBy("vulns", vulnCount)
+		for _, r := range vulnResults {
+			result.BySeverity[r.Severity]++
+			emitEvent("vulnerability", map[string]interface{}{
+				"category":  "rfi",
+				"severity":  r.Severity,
+				"parameter": r.Parameter,
+				"payload":   r.Payload,
+			})
+		}
+		mu.Unlock()
+	})
+
+	// Local File Inclusion Scanner
+	runScanner("lfi", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "lfi", "vulns": vulnCount})
+		}()
+		cfg := lfi.DefaultConfig()
+		cfg.Timeout = timeoutDur
+		cfg.UserAgent = ui.UserAgent()
+		scanner := lfi.NewScanner(cfg)
+		params := map[string]string{"file": "index", "page": "home", "path": "/tmp/test"}
+		results, err := scanner.Scan(ctx, target, params)
+		if err != nil {
+			scanError("LFI", err)
+			return
+		}
+		mu.Lock()
+		var vulnResults []lfi.Result
+		for _, r := range results {
+			if r.Vulnerable {
+				vulnResults = append(vulnResults, r)
+			}
+		}
+		result.LFI = vulnResults
+		vulnCount = len(vulnResults)
+		result.ByCategory["lfi"] = vulnCount
+		result.TotalVulns += vulnCount
+		progress.AddMetricBy("vulns", vulnCount)
+		for _, r := range vulnResults {
+			result.BySeverity[r.Severity]++
+			emitEvent("vulnerability", map[string]interface{}{
+				"category":  "lfi",
+				"severity":  r.Severity,
+				"parameter": r.Parameter,
+				"payload":   r.Payload,
+			})
+		}
+		mu.Unlock()
+	})
+
+	// Remote Code Execution Scanner
+	runScanner("rce", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "rce", "vulns": vulnCount})
+		}()
+		cfg := rce.DefaultConfig()
+		cfg.Timeout = timeoutDur
+		cfg.UserAgent = ui.UserAgent()
+		scanner := rce.NewScanner(cfg)
+		params := map[string]string{"cmd": "test", "exec": "test", "input": "test"}
+		results, err := scanner.Scan(ctx, target, params)
+		if err != nil {
+			scanError("RCE", err)
+			return
+		}
+		mu.Lock()
+		var vulnResults []rce.Result
+		for _, r := range results {
+			if r.Vulnerable {
+				vulnResults = append(vulnResults, r)
+			}
+		}
+		result.RCE = vulnResults
+		vulnCount = len(vulnResults)
+		result.ByCategory["rce"] = vulnCount
+		result.TotalVulns += vulnCount
+		progress.AddMetricBy("vulns", vulnCount)
+		for _, r := range vulnResults {
+			result.BySeverity[r.Severity]++
+			emitEvent("vulnerability", map[string]interface{}{
+				"category":  "rce",
+				"severity":  r.Severity,
+				"parameter": r.Parameter,
+				"type":      r.PayloadType,
+			})
+		}
+		mu.Unlock()
+	})
+
+	// CSRF Scanner
+	runScanner("csrf", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "csrf", "vulns": vulnCount})
+		}()
+		cfg := csrf.DefaultConfig()
+		cfg.Timeout = timeoutDur
+		cfg.UserAgent = ui.UserAgent()
+		scanner := csrf.NewScanner(cfg)
+		csrfResult, err := scanner.Scan(ctx, target, "POST")
+		if err != nil {
+			scanError("CSRF", err)
+			return
+		}
+		mu.Lock()
+		if csrfResult.Vulnerable {
+			result.CSRF = &csrfResult
+			vulnCount = 1
+			result.ByCategory["csrf"] = 1
+			result.TotalVulns++
+			progress.AddMetricBy("vulns", 1)
+			result.BySeverity[csrfResult.Severity]++
+			emitEvent("vulnerability", map[string]interface{}{
+				"category": "csrf",
+				"severity": csrfResult.Severity,
+				"evidence": csrfResult.Evidence,
+			})
+		}
+		mu.Unlock()
+	})
+
+	// Clickjacking Scanner
+	runScanner("clickjack", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "clickjack", "vulns": vulnCount})
+		}()
+		cfg := clickjack.DefaultConfig()
+		cfg.Timeout = timeoutDur
+		cfg.UserAgent = ui.UserAgent()
+		scanner := clickjack.NewScanner(cfg)
+		clickResult, err := scanner.Scan(ctx, target)
+		if err != nil {
+			scanError("Clickjack", err)
+			return
+		}
+		mu.Lock()
+		if clickResult.Vulnerable {
+			result.Clickjack = &clickResult
+			vulnCount = 1
+			result.ByCategory["clickjack"] = 1
+			result.TotalVulns++
+			progress.AddMetricBy("vulns", 1)
+			result.BySeverity[clickResult.Severity]++
+			emitEvent("vulnerability", map[string]interface{}{
+				"category":       "clickjack",
+				"severity":       clickResult.Severity,
+				"x_frame_options": clickResult.XFrameOptions,
+			})
+		}
+		mu.Unlock()
+	})
+
+	// IDOR Scanner
+	runScanner("idor", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "idor", "vulns": vulnCount})
+		}()
+		cfg := idor.DefaultConfig()
+		cfg.Timeout = timeoutDur
+		cfg.UserAgent = ui.UserAgent()
+		cfg.BaseURL = target
+		scanner := idor.NewScanner(cfg)
+		// Test common endpoints for IDOR
+		endpoints := []struct{ path, method string }{
+			{"/api/users/1", "GET"},
+			{"/api/accounts/1", "GET"},
+			{"/api/orders/1", "GET"},
+			{"/user/1", "GET"},
+			{"/account/1", "GET"},
+		}
+		var allResults []idor.Result
+		for _, ep := range endpoints {
+			results, err := scanner.ScanEndpoint(ctx, ep.path, ep.method)
+			if err != nil {
+				continue
+			}
+			for _, r := range results {
+				if r.Accessible {
+					allResults = append(allResults, r)
+				}
+			}
+		}
+		mu.Lock()
+		result.IDOR = allResults
+		vulnCount = len(allResults)
+		result.ByCategory["idor"] = vulnCount
+		result.TotalVulns += vulnCount
+		progress.AddMetricBy("vulns", vulnCount)
+		for _, r := range allResults {
+			result.BySeverity[r.Severity]++
+			emitEvent("vulnerability", map[string]interface{}{
+				"category": "idor",
+				"severity": r.Severity,
+				"endpoint": r.URL,
+				"method":   r.Method,
+			})
+		}
+		mu.Unlock()
+	})
+
+	// Mass Assignment Scanner
+	runScanner("massassignment", func() {
+		var vulnCount int
+		defer func() {
+			emitEvent("scan_complete", map[string]interface{}{"scanner": "massassignment", "vulns": vulnCount})
+		}()
+		cfg := massassignment.DefaultConfig()
+		cfg.Timeout = timeoutDur
+		cfg.UserAgent = ui.UserAgent()
+		scanner := massassignment.NewScanner(cfg)
+		// Empty baseline — scanner will test with DangerousParameters() against the endpoint
+		originalData := map[string]interface{}{"name": "test", "email": "test@example.com"}
+		results, err := scanner.Scan(ctx, target, originalData)
+		if err != nil {
+			scanError("MassAssignment", err)
+			return
+		}
+		mu.Lock()
+		var vulnResults []massassignment.Result
+		for _, r := range results {
+			if r.Vulnerable {
+				vulnResults = append(vulnResults, r)
+			}
+		}
+		result.MassAssign = vulnResults
+		vulnCount = len(vulnResults)
+		result.ByCategory["massassignment"] = vulnCount
+		result.TotalVulns += vulnCount
+		progress.AddMetricBy("vulns", vulnCount)
+		for _, r := range vulnResults {
+			result.BySeverity[r.Severity]++
+			emitEvent("vulnerability", map[string]interface{}{
+				"category":  "massassignment",
+				"severity":  r.Severity,
+				"parameter": r.Parameter,
 			})
 		}
 		mu.Unlock()
