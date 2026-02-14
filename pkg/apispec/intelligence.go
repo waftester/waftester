@@ -155,6 +155,23 @@ func BuildIntelligentPlan(spec *Spec, opts IntelligenceOptions) *ScanPlan {
 		return entries[i].Endpoint.Priority > entries[j].Endpoint.Priority
 	})
 
+	// Layer 9: Auth-first ordering — boost auth-related endpoints to scan
+	// first. This ensures auth tokens/cookies are captured early so
+	// downstream scans can use them.
+	layerAuthFirstOrdering(entries)
+
+	// Layer 10: Dependency graph — detect CRUD chains and set DependsOn
+	// links between endpoints (e.g., POST /users before GET /users/{id}).
+	layerDependencyGraph(spec.Endpoints)
+
+	// Layer 11: Business logic detection — identify multi-step flows
+	// (signup → verify → login) and add bizlogic scan type.
+	layerBusinessLogic(spec.Endpoints, entries, &totalTests, intensity, allowSet, blockSet)
+
+	// Layer 12: Composite risk scoring — refine coarse Priority into a
+	// numeric score based on attack surface area and layer count.
+	layerCompositeScoring(entries)
+
 	return &ScanPlan{
 		Entries:    entries,
 		TotalTests: totalTests,
@@ -671,3 +688,234 @@ func toSet(items []string) map[string]bool {
 	return m
 }
 
+// --- Layer 9: Auth-First Ordering ---
+// Moves auth-related endpoints (login, token, OAuth) to the front of the
+// plan. This ensures tokens/cookies are established before testing
+// downstream endpoints that depend on authentication.
+
+func layerAuthFirstOrdering(entries []ScanPlanEntry) {
+	authPaths := []string{"/login", "/auth", "/signin", "/token", "/oauth", "/session"}
+
+	sort.SliceStable(entries, func(i, j int) bool {
+		iAuth := isAuthPath(entries[i].Endpoint.Path, authPaths)
+		jAuth := isAuthPath(entries[j].Endpoint.Path, authPaths)
+		if iAuth != jAuth {
+			return iAuth // auth endpoints first
+		}
+		// Within the same group, preserve priority ordering.
+		return entries[i].Endpoint.Priority > entries[j].Endpoint.Priority
+	})
+}
+
+func isAuthPath(path string, authPaths []string) bool {
+	lower := strings.ToLower(path)
+	for _, ap := range authPaths {
+		if strings.Contains(lower, ap) {
+			return true
+		}
+	}
+	return false
+}
+
+// --- Layer 10: Dependency Graph ---
+// Detects CRUD chains across endpoints and sets DependsOn links.
+// e.g., GET /users/{id} depends on POST /users (create before read).
+
+func layerDependencyGraph(endpoints []Endpoint) {
+	// Group endpoints by normalized base path (without ID params).
+	type pathGroup struct {
+		create *Endpoint // POST without {id}
+		read   *Endpoint // GET with {id}
+		update *Endpoint // PUT/PATCH with {id}
+		del    *Endpoint // DELETE with {id}
+	}
+
+	groups := make(map[string]*pathGroup)
+
+	for i := range endpoints {
+		ep := &endpoints[i]
+		base := crudBasePath(ep.Path)
+		hasID := strings.Contains(ep.Path, "{")
+
+		pg, ok := groups[base]
+		if !ok {
+			pg = &pathGroup{}
+			groups[base] = pg
+		}
+
+		method := strings.ToUpper(ep.Method)
+		switch {
+		case method == "POST" && !hasID:
+			pg.create = ep
+		case method == "GET" && hasID:
+			pg.read = ep
+		case (method == "PUT" || method == "PATCH") && hasID:
+			pg.update = ep
+		case method == "DELETE" && hasID:
+			pg.del = ep
+		}
+	}
+
+	// Set dependencies: read → create, update → create, delete → create.
+	for _, pg := range groups {
+		if pg.create == nil {
+			continue
+		}
+		createRef := Dependency{
+			OperationID: depID(pg.create),
+			Description: pg.create.Method + " " + pg.create.Path,
+		}
+		if pg.read != nil {
+			pg.read.DependsOn = appendDep(pg.read.DependsOn, createRef)
+		}
+		if pg.update != nil {
+			pg.update.DependsOn = appendDep(pg.update.DependsOn, createRef)
+		}
+		if pg.del != nil {
+			pg.del.DependsOn = appendDep(pg.del.DependsOn, createRef)
+		}
+	}
+}
+
+// depID returns the OperationID for dependency linking.
+// Falls back to "METHOD /path" if OperationID is empty.
+func depID(ep *Endpoint) string {
+	if ep.OperationID != "" {
+		return ep.OperationID
+	}
+	return strings.ToUpper(ep.Method) + " " + ep.Path
+}
+
+// crudBasePath strips the trailing {id} segment for CRUD grouping.
+// /users/{id} → /users, /api/v1/items/{itemId} → /api/v1/items
+func crudBasePath(path string) string {
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	var base []string
+	for _, p := range parts {
+		if strings.HasPrefix(p, "{") {
+			break
+		}
+		base = append(base, p)
+	}
+	if len(base) == 0 {
+		return "/"
+	}
+	return "/" + strings.Join(base, "/")
+}
+
+func appendDep(deps []Dependency, d Dependency) []Dependency {
+	for _, existing := range deps {
+		if existing.OperationID == d.OperationID {
+			return deps
+		}
+	}
+	return append(deps, d)
+}
+
+// --- Layer 11: Business Logic Detection ---
+// Identifies multi-step flows (signup → verify → login, create → pay →
+// confirm) and adds the "bizlogic" scan type to participating endpoints.
+
+// bizFlow defines a recognized business logic flow pattern.
+type bizFlow struct {
+	Name  string
+	Steps []string // path substrings that form the flow
+}
+
+var bizFlows = []bizFlow{
+	{"registration", []string{"signup", "register", "verify", "confirm", "login"}},
+	{"password_reset", []string{"forgot", "reset", "verify", "confirm"}},
+	{"checkout", []string{"cart", "checkout", "pay", "confirm", "order"}},
+	{"onboarding", []string{"invite", "accept", "setup", "complete"}},
+	{"two_factor", []string{"login", "2fa", "verify", "totp", "mfa"}},
+}
+
+func layerBusinessLogic(endpoints []Endpoint, entries []ScanPlanEntry, totalTests *int, intensity Intensity, allowSet, blockSet map[string]bool) {
+	// Build a set of path substrings present in the spec.
+	pathSet := make(map[string]bool)
+	for _, ep := range endpoints {
+		lower := strings.ToLower(ep.Path)
+		segments := strings.Split(strings.Trim(lower, "/"), "/")
+		for _, seg := range segments {
+			pathSet[seg] = true
+		}
+	}
+
+	// Check which flows have 2+ matching steps.
+	for _, flow := range bizFlows {
+		matched := 0
+		for _, step := range flow.Steps {
+			if pathSet[step] {
+				matched++
+			}
+		}
+		if matched < 2 {
+			continue
+		}
+
+		// Add bizlogic scan type to endpoints that participate in this flow.
+		for i := range entries {
+			ep := &entries[i].Endpoint
+			lower := strings.ToLower(ep.Path)
+			for _, step := range flow.Steps {
+				if strings.Contains(lower, step) {
+					// Check filters.
+					cat := "bizlogic"
+					if len(allowSet) > 0 && !allowSet[cat] {
+						break
+					}
+					if blockSet[cat] {
+						break
+					}
+					reason := "part of " + flow.Name + " flow (matched '" + step + "')"
+					if entries[i].Attack.Category == "" {
+						entries[i].Attack = AttackSelection{
+							Category: cat,
+							Reason:   reason,
+							Layers:   []string{"business_logic"},
+						}
+						entries[i].Attack.PayloadCount = estimatePayloads(cat, intensity)
+						*totalTests += entries[i].Attack.PayloadCount
+					}
+					break
+				}
+			}
+		}
+	}
+}
+
+// --- Layer 12: Composite Risk Scoring ---
+// Converts coarse Priority (Low/Medium/High/Critical) into an
+// EstimatedDuration-based numeric score. Entries with more attack layers
+// and higher priority get proportionally more test time allocated.
+
+func layerCompositeScoring(entries []ScanPlanEntry) {
+	for i := range entries {
+		e := &entries[i]
+		// Base score from priority.
+		base := 0
+		switch e.Endpoint.Priority {
+		case PriorityCritical:
+			base = 100
+		case PriorityHigh:
+			base = 75
+		case PriorityMedium:
+			base = 50
+		case PriorityLow:
+			base = 25
+		default:
+			base = 50
+		}
+		// Bonus from layer count (each layer adds 5 points).
+		layerBonus := len(e.Attack.Layers) * 5
+		if layerBonus > 25 {
+			layerBonus = 25
+		}
+		e.Attack.RiskScore = base + layerBonus
+	}
+
+	// Re-sort by risk score descending (stable preserves order within same score).
+	sort.SliceStable(entries, func(i, j int) bool {
+		return entries[i].Attack.RiskScore > entries[j].Attack.RiskScore
+	})
+}

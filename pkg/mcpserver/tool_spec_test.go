@@ -253,3 +253,198 @@ func TestEstimateSpecDuration(t *testing.T) {
 	assert.Equal(t, "100s", estimateSpecDuration(&apispec.ScanPlan{TotalTests: 1000}))
 	assert.Equal(t, "600s", estimateSpecDuration(&apispec.ScanPlan{TotalTests: 100000}))
 }
+
+// --- compare_baselines tests ---
+
+func TestCompareBaselines_NewAndFixed(t *testing.T) {
+	t.Parallel()
+	s := &Server{}
+
+	baseline := `[{"method":"GET","path":"/users","category":"sqli","parameter":"q","severity":"high"}]`
+	current := `[{"method":"POST","path":"/users","category":"xss","parameter":"name","severity":"medium"}]`
+
+	result := callTool(t, s.handleCompareBaselines, map[string]string{
+		"baseline_findings": baseline,
+		"current_findings":  current,
+	})
+
+	assert.False(t, result.IsError)
+	text := resultText(t, result)
+	assert.Contains(t, text, `"baseline_count": 1`)
+	assert.Contains(t, text, `"current_count": 1`)
+	assert.Contains(t, text, `"fixed"`)
+	assert.Contains(t, text, `"new"`)
+}
+
+func TestCompareBaselines_EmptyBaseline(t *testing.T) {
+	t.Parallel()
+	s := &Server{}
+	result := callTool(t, s.handleCompareBaselines, map[string]string{
+		"baseline_findings": "",
+		"current_findings":  "[]",
+	})
+	assert.True(t, result.IsError)
+	text := resultText(t, result)
+	assert.Contains(t, text, "baseline_findings is required")
+}
+
+func TestCompareBaselines_InvalidJSON(t *testing.T) {
+	t.Parallel()
+	s := &Server{}
+	result := callTool(t, s.handleCompareBaselines, map[string]string{
+		"baseline_findings": "not json",
+		"current_findings":  "[]",
+	})
+	assert.True(t, result.IsError)
+	text := resultText(t, result)
+	assert.Contains(t, text, "invalid baseline_findings JSON")
+}
+
+// --- preview_spec_scan tests ---
+
+func TestPreviewSpecScan_DefaultIntensity(t *testing.T) {
+	t.Parallel()
+	s := &Server{}
+	result := callTool(t, s.handlePreviewSpecScan, map[string]string{
+		"spec_content": testOpenAPISpec,
+	})
+
+	assert.False(t, result.IsError)
+	text := resultText(t, result)
+	assert.Contains(t, text, `"entries"`)
+	assert.Contains(t, text, `"total_tests"`)
+	assert.Contains(t, text, `"estimated_duration"`)
+	assert.Contains(t, text, `"intensity": "normal"`)
+	assert.Contains(t, text, `"endpoint_count": 3`)
+}
+
+func TestPreviewSpecScan_EmptyContent(t *testing.T) {
+	t.Parallel()
+	s := &Server{}
+	result := callTool(t, s.handlePreviewSpecScan, map[string]string{
+		"spec_content": "",
+	})
+	assert.True(t, result.IsError)
+	text := resultText(t, result)
+	assert.Contains(t, text, "spec_content is required")
+}
+
+// --- spec_intelligence tests ---
+
+func TestSpecIntelligence_AnalyzesSpec(t *testing.T) {
+	t.Parallel()
+	s := &Server{}
+	result := callTool(t, s.handleSpecIntelligence, map[string]string{
+		"spec_content": testOpenAPISpec,
+	})
+
+	assert.False(t, result.IsError)
+	text := resultText(t, result)
+	assert.Contains(t, text, `"attack_surface"`)
+	assert.Contains(t, text, `"total_endpoints": 3`)
+	assert.Contains(t, text, `"recommended_categories"`)
+
+	// Should have param location counts.
+	assert.Contains(t, text, `"parameter_locations"`)
+}
+
+func TestSpecIntelligence_EmptyContent(t *testing.T) {
+	t.Parallel()
+	s := &Server{}
+	result := callTool(t, s.handleSpecIntelligence, map[string]string{
+		"spec_content": "",
+	})
+	assert.True(t, result.IsError)
+	text := resultText(t, result)
+	assert.Contains(t, text, "spec_content is required")
+}
+
+// --- describe_spec_auth tests ---
+
+func TestDescribeSpecAuth_NoAuth(t *testing.T) {
+	t.Parallel()
+	s := &Server{}
+	// testOpenAPISpec has no security schemes.
+	result := callTool(t, s.handleDescribeSpecAuth, map[string]string{
+		"spec_content": testOpenAPISpec,
+	})
+
+	assert.False(t, result.IsError)
+	text := resultText(t, result)
+	assert.Contains(t, text, `"scheme_count": 0`)
+}
+
+func TestDescribeSpecAuth_WithBearerAuth(t *testing.T) {
+	t.Parallel()
+	s := &Server{}
+
+	specWithAuth := `openapi: "3.0.0"
+info:
+  title: Auth API
+  version: "1.0"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+security:
+  - bearerAuth: []
+paths:
+  /protected:
+    get:
+      summary: Protected endpoint
+      security:
+        - bearerAuth: []
+`
+	result := callTool(t, s.handleDescribeSpecAuth, map[string]string{
+		"spec_content": specWithAuth,
+	})
+
+	assert.False(t, result.IsError)
+	text := resultText(t, result)
+	assert.Contains(t, text, `"scheme_count": 1`)
+	assert.Contains(t, text, `"bearer"`)
+	assert.Contains(t, text, `"JWT"`)
+}
+
+func TestDescribeSpecAuth_EmptyContent(t *testing.T) {
+	t.Parallel()
+	s := &Server{}
+	result := callTool(t, s.handleDescribeSpecAuth, map[string]string{
+		"spec_content": "",
+	})
+	assert.True(t, result.IsError)
+	text := resultText(t, result)
+	assert.Contains(t, text, "spec_content is required")
+}
+
+// --- export_spec tests ---
+
+func TestExportSpec_NormalizedOutput(t *testing.T) {
+	t.Parallel()
+	s := &Server{}
+	result := callTool(t, s.handleExportSpec, map[string]any{
+		"spec_content": testOpenAPISpec,
+	})
+
+	assert.False(t, result.IsError)
+	text := resultText(t, result)
+
+	// Should contain normalized endpoint data.
+	assert.Contains(t, text, `"/users"`)
+	assert.Contains(t, text, `"/users/{id}"`)
+	assert.Contains(t, text, `"GET"`)
+	assert.Contains(t, text, `"POST"`)
+}
+
+func TestExportSpec_EmptyContent(t *testing.T) {
+	t.Parallel()
+	s := &Server{}
+	result := callTool(t, s.handleExportSpec, map[string]string{
+		"spec_content": "",
+	})
+	assert.True(t, result.IsError)
+	text := resultText(t, result)
+	assert.Contains(t, text, "spec_content is required")
+}
