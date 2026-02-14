@@ -1,0 +1,76 @@
+{
+  "spec_source": "testdata/petstore.yaml",
+  "started_at": "0001-01-01T00:00:00Z",
+  "completed_at": "0001-01-01T00:00:00Z",
+  "duration": 0,
+  "total_endpoints": 2,
+  "total_tests": 4,
+  "findings": [
+    {
+      "method": "GET",
+      "path": "/users",
+      "correlation_tag": "get-users",
+      "category": "sqli",
+      "parameter": "search",
+      "location": "query",
+      "payload": "' OR 1=1--",
+      "title": "SQL Injection in /users",
+      "severity": "high",
+      "cwe": "CWE-89"
+    },
+    {
+      "method": "POST",
+      "path": "/users",
+      "correlation_tag": "post-users",
+      "category": "xss",
+      "parameter": "name",
+      "location": "body",
+      "payload": "\u003cscript\u003ealert(1)\u003c/script\u003e",
+      "title": "XSS in /users",
+      "severity": "medium",
+      "cwe": "CWE-79"
+    }
+  ],
+  "endpoint_results": [
+    {
+      "method": "GET",
+      "path": "/users",
+      "correlation_tag": "get-users",
+      "findings": [
+        {
+          "method": "GET",
+          "path": "/users",
+          "correlation_tag": "",
+          "category": "sqli",
+          "parameter": "search",
+          "title": "SQL Injection in /users",
+          "severity": "high"
+        }
+      ],
+      "scan_types": [
+        "sqli"
+      ],
+      "duration": 0
+    },
+    {
+      "method": "POST",
+      "path": "/users",
+      "correlation_tag": "post-users",
+      "findings": [
+        {
+          "method": "POST",
+          "path": "/users",
+          "correlation_tag": "",
+          "category": "xss",
+          "parameter": "name",
+          "title": "XSS in /users",
+          "severity": "medium"
+        }
+      ],
+      "scan_types": [
+        "xss"
+      ],
+      "duration": 0
+    }
+  ]
+}

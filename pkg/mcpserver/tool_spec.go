@@ -848,13 +848,13 @@ func (s *Server) handleSpecIntelligence(_ context.Context, req *mcp.CallToolRequ
 
 	result := map[string]any{
 		"attack_surface": map[string]any{
-			"total_endpoints":      len(spec.Endpoints),
-			"total_plan_entries":   len(plan.Entries),
-			"total_tests":          plan.TotalTests,
-			"categories_detected":  len(categoryInfo),
-			"parameter_locations":  paramLocations,
+			"total_endpoints":     len(spec.Endpoints),
+			"total_plan_entries":  len(plan.Entries),
+			"total_tests":         plan.TotalTests,
+			"categories_detected": len(categoryInfo),
+			"parameter_locations": paramLocations,
 		},
-		"auth_analysis":        authSummary,
+		"auth_analysis":          authSummary,
 		"recommended_categories": categoryInfo,
 	}
 
