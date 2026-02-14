@@ -1949,8 +1949,44 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.8.8]: https://github.com/waftester/waftester/compare/v2.8.7...v2.8.8
+[2.8.7]: https://github.com/waftester/waftester/compare/v2.8.6...v2.8.7
+[2.8.6]: https://github.com/waftester/waftester/compare/v2.8.5...v2.8.6
+[2.8.5]: https://github.com/waftester/waftester/compare/v2.8.4...v2.8.5
+[2.8.4]: https://github.com/waftester/waftester/compare/v2.8.3...v2.8.4
+[2.8.3]: https://github.com/waftester/waftester/compare/v2.8.2...v2.8.3
+[2.8.2]: https://github.com/waftester/waftester/compare/v2.8.1...v2.8.2
+[2.8.1]: https://github.com/waftester/waftester/compare/v2.8.0...v2.8.1
+[2.8.0]: https://github.com/waftester/waftester/compare/v2.7.8...v2.8.0
+[2.7.8]: https://github.com/waftester/waftester/compare/v2.7.7...v2.7.8
+[2.7.7]: https://github.com/waftester/waftester/compare/v2.7.6...v2.7.7
+[2.7.6]: https://github.com/waftester/waftester/compare/v2.7.5...v2.7.6
+[2.7.5]: https://github.com/waftester/waftester/compare/v2.7.4...v2.7.5
+[2.7.4]: https://github.com/waftester/waftester/compare/v2.7.3...v2.7.4
+[2.7.3]: https://github.com/waftester/waftester/compare/v2.7.2...v2.7.3
+[2.7.2]: https://github.com/waftester/waftester/compare/v2.7.1...v2.7.2
+[2.7.1]: https://github.com/waftester/waftester/compare/v2.7.0...v2.7.1
+[2.7.0]: https://github.com/waftester/waftester/compare/v2.6.8...v2.7.0
+[2.6.8]: https://github.com/waftester/waftester/compare/v2.6.7...v2.6.8
+[2.6.7]: https://github.com/waftester/waftester/compare/v2.6.6...v2.6.7
+[2.6.6]: https://github.com/waftester/waftester/compare/v2.6.5...v2.6.6
+[2.6.5]: https://github.com/waftester/waftester/compare/v2.6.4...v2.6.5
+[2.6.4]: https://github.com/waftester/waftester/compare/v2.6.3...v2.6.4
+[2.6.3]: https://github.com/waftester/waftester/compare/v2.6.2...v2.6.3
+[2.6.2]: https://github.com/waftester/waftester/compare/v2.6.1...v2.6.2
+[2.6.1]: https://github.com/waftester/waftester/compare/v2.6.0...v2.6.1
+[2.6.0]: https://github.com/waftester/waftester/compare/v2.5.3...v2.6.0
+[2.5.3]: https://github.com/waftester/waftester/compare/v2.5.2...v2.5.3
+[2.5.2]: https://github.com/waftester/waftester/compare/v2.5.1...v2.5.2
+[2.5.1]: https://github.com/waftester/waftester/compare/v2.5.0...v2.5.1
+[2.5.0]: https://github.com/waftester/waftester/compare/v2.4.3...v2.5.0
+[2.4.3]: https://github.com/waftester/waftester/compare/v2.4.2...v2.4.3
+[2.4.2]: https://github.com/waftester/waftester/compare/v2.4.1...v2.4.2
+[2.4.1]: https://github.com/waftester/waftester/compare/v2.4.0...v2.4.1
+[2.4.0]: https://github.com/waftester/waftester/compare/v2.3.5...v2.4.0
+[2.3.5]: https://github.com/waftester/waftester/compare/v2.3.4...v2.3.5
+[2.3.4]: https://github.com/waftester/waftester/compare/v2.3.3...v2.3.4
 [2.3.3]: https://github.com/waftester/waftester/compare/v2.3.2...v2.3.3
 [2.3.2]: https://github.com/waftester/waftester/compare/v2.3.1...v2.3.2
 [2.3.1]: https://github.com/waftester/waftester/compare/v2.3.0...v2.3.1
-[2.7.1]: https://github.com/waftester/waftester/compare/v2.7.0...v2.7.1
 [2.3.0]: https://github.com/waftester/waftester/releases/tag/v2.3.0
