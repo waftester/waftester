@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 // CrossEndpointTestType identifies the kind of cross-endpoint test.
@@ -259,7 +261,7 @@ func executeIDORTest(ctx context.Context, test CrossEndpointTest, cfg CrossEndpo
 
 	client := cfg.HTTPClient
 	if client == nil {
-		client = &http.Client{Timeout: cfg.Timeout}
+		client = httpclient.Default()
 	}
 
 	resp, err := client.Do(req)
@@ -307,7 +309,7 @@ func executeRaceTest(ctx context.Context, test CrossEndpointTest, cfg CrossEndpo
 
 	client := cfg.HTTPClient
 	if client == nil {
-		client = &http.Client{Timeout: cfg.Timeout}
+		client = httpclient.Default()
 	}
 
 	// Build a request body for state-changing methods.
@@ -418,7 +420,7 @@ func executePrivescTest(ctx context.Context, test CrossEndpointTest, cfg CrossEn
 
 	client := cfg.HTTPClient
 	if client == nil {
-		client = &http.Client{Timeout: cfg.Timeout}
+		client = httpclient.Default()
 	}
 
 	resp, err := client.Do(req)
