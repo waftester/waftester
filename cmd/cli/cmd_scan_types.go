@@ -7,7 +7,9 @@ import (
 	"github.com/waftester/waftester/pkg/apifuzz"
 	"github.com/waftester/waftester/pkg/bizlogic"
 	"github.com/waftester/waftester/pkg/cache"
+	"github.com/waftester/waftester/pkg/clickjack"
 	"github.com/waftester/waftester/pkg/cmdi"
+	"github.com/waftester/waftester/pkg/csrf"
 	"github.com/waftester/waftester/pkg/cors"
 	"github.com/waftester/waftester/pkg/crlf"
 	"github.com/waftester/waftester/pkg/deserialize"
@@ -15,16 +17,23 @@ import (
 	"github.com/waftester/waftester/pkg/graphql"
 	"github.com/waftester/waftester/pkg/hostheader"
 	"github.com/waftester/waftester/pkg/hpp"
+	"github.com/waftester/waftester/pkg/idor"
 	"github.com/waftester/waftester/pkg/js"
 	"github.com/waftester/waftester/pkg/jwt"
+	"github.com/waftester/waftester/pkg/ldap"
+	"github.com/waftester/waftester/pkg/lfi"
+	"github.com/waftester/waftester/pkg/massassignment"
 	"github.com/waftester/waftester/pkg/nosqli"
 	"github.com/waftester/waftester/pkg/oauth"
 	"github.com/waftester/waftester/pkg/probes"
 	"github.com/waftester/waftester/pkg/prototype"
 	"github.com/waftester/waftester/pkg/race"
+	"github.com/waftester/waftester/pkg/rce"
 	"github.com/waftester/waftester/pkg/redirect"
+	"github.com/waftester/waftester/pkg/rfi"
 	"github.com/waftester/waftester/pkg/smuggling"
 	"github.com/waftester/waftester/pkg/sqli"
+	"github.com/waftester/waftester/pkg/ssi"
 	"github.com/waftester/waftester/pkg/ssrf"
 	"github.com/waftester/waftester/pkg/ssti"
 	"github.com/waftester/waftester/pkg/subtakeover"
@@ -32,6 +41,8 @@ import (
 	"github.com/waftester/waftester/pkg/upload"
 	"github.com/waftester/waftester/pkg/waf"
 	"github.com/waftester/waftester/pkg/websocket"
+	"github.com/waftester/waftester/pkg/xmlinjection"
+	"github.com/waftester/waftester/pkg/xpath"
 	"github.com/waftester/waftester/pkg/xss"
 	"github.com/waftester/waftester/pkg/xxe"
 )
@@ -72,6 +83,17 @@ type ScanResult struct {
 	BizLogic     []bizlogic.Vulnerability    `json:"bizlogic,omitempty"`
 	Race         *race.Result                `json:"race,omitempty"`
 	APIFuzz      []apifuzz.Vulnerability     `json:"apifuzz,omitempty"`
+	LDAP         []ldap.Result               `json:"ldap,omitempty"`
+	SSI          []ssi.Result                `json:"ssi,omitempty"`
+	XPath        []xpath.Result              `json:"xpath,omitempty"`
+	XMLInjection []xmlinjection.Result        `json:"xmlinjection,omitempty"`
+	RFI          []rfi.Result                `json:"rfi,omitempty"`
+	LFI          []lfi.Result                `json:"lfi,omitempty"`
+	RCE          []rce.Result                `json:"rce,omitempty"`
+	CSRF         *csrf.Result                `json:"csrf,omitempty"`
+	Clickjack    *clickjack.Result           `json:"clickjack,omitempty"`
+	IDOR         []idor.Result               `json:"idor,omitempty"`
+	MassAssign   []massassignment.Result     `json:"massassignment,omitempty"`
 	WAFDetect    *waf.DetectionResult        `json:"waf_detect,omitempty"`
 	WAFFprint    *waf.Fingerprint            `json:"waf_fingerprint,omitempty"`
 	WAFEvasion   []waf.TransformedPayload    `json:"waf_evasion,omitempty"`

@@ -10,22 +10,32 @@ import (
 
 	"github.com/waftester/waftester/pkg/apispec"
 	"github.com/waftester/waftester/pkg/attackconfig"
+	"github.com/waftester/waftester/pkg/clickjack"
 	"github.com/waftester/waftester/pkg/cmdi"
 	"github.com/waftester/waftester/pkg/cors"
 	"github.com/waftester/waftester/pkg/crlf"
+	"github.com/waftester/waftester/pkg/csrf"
 	"github.com/waftester/waftester/pkg/deserialize"
 	"github.com/waftester/waftester/pkg/hpp"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/idor"
+	"github.com/waftester/waftester/pkg/ldap"
 	"github.com/waftester/waftester/pkg/lfi"
+	"github.com/waftester/waftester/pkg/massassignment"
 	"github.com/waftester/waftester/pkg/nosqli"
 	"github.com/waftester/waftester/pkg/output/events"
 	"github.com/waftester/waftester/pkg/redirect"
+	"github.com/waftester/waftester/pkg/rce"
+	"github.com/waftester/waftester/pkg/rfi"
 	"github.com/waftester/waftester/pkg/sqli"
+	"github.com/waftester/waftester/pkg/ssi"
 	"github.com/waftester/waftester/pkg/ssrf"
 	"github.com/waftester/waftester/pkg/ssti"
 	"github.com/waftester/waftester/pkg/traversal"
 	"github.com/waftester/waftester/pkg/ui"
 	"github.com/waftester/waftester/pkg/upload"
+	"github.com/waftester/waftester/pkg/xmlinjection"
+	"github.com/waftester/waftester/pkg/xpath"
 	"github.com/waftester/waftester/pkg/xss"
 	"github.com/waftester/waftester/pkg/xxe"
 )
@@ -380,6 +390,26 @@ func runScannerForSpec(
 		return runHPP(ctx, targetURL, ep, tag, base)
 	case "deserialize", "deserialization":
 		return runDeserialize(ctx, targetURL, ep, tag, base)
+	case "ldap":
+		return runSpecLDAP(ctx, targetURL, ep, tag, base)
+	case "ssi":
+		return runSpecSSI(ctx, targetURL, ep, tag, base)
+	case "xpath":
+		return runSpecXPath(ctx, targetURL, ep, tag, base)
+	case "xmlinjection":
+		return runSpecXMLInjection(ctx, targetURL, ep, tag, base)
+	case "rfi":
+		return runSpecRFI(ctx, targetURL, ep, tag, base)
+	case "rce":
+		return runSpecRCE(ctx, targetURL, ep, tag, base)
+	case "csrf":
+		return runSpecCSRF(ctx, targetURL, ep, tag, base)
+	case "clickjack":
+		return runSpecClickjack(ctx, targetURL, ep, tag, base)
+	case "idor":
+		return runSpecIDOR(ctx, targetURL, ep, tag, base)
+	case "massassignment":
+		return runSpecMassAssignment(ctx, targetURL, ep, tag, base)
 	default:
 		return nil, fmt.Errorf("unsupported scan type: %s", scanType)
 	}
@@ -854,4 +884,303 @@ func writeSpecOutput(result *apispec.SpecScanResult, outFlags *OutputFlags) {
 	}
 
 	ui.PrintInfo(fmt.Sprintf("Results written to %s", outFlags.OutputFile))
+}
+
+func runSpecLDAP(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	params := make(map[string]string)
+	for _, p := range ep.Parameters {
+		if p.In == apispec.LocationQuery || p.In == apispec.LocationBody {
+			params[p.Name] = "test"
+		}
+	}
+	if len(params) == 0 {
+		return nil, nil
+	}
+	results, err := ldap.NewScanner(ldap.Config{Base: base}).Scan(ctx, targetURL, params)
+	if err != nil {
+		return nil, fmt.Errorf("ldap: %w", err)
+	}
+	var findings []apispec.SpecFinding
+	for _, r := range results {
+		if !r.Vulnerable {
+			continue
+		}
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "ldap",
+			Parameter:      r.Parameter,
+			Payload:        r.Payload,
+			Title:          fmt.Sprintf("LDAP Injection via %s", r.Parameter),
+			Severity:       r.Severity,
+			Evidence:       r.Evidence,
+			CWE:            "CWE-90",
+		})
+	}
+	return findings, nil
+}
+
+func runSpecSSI(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	params := make(map[string]string)
+	for _, p := range ep.Parameters {
+		if p.In == apispec.LocationQuery || p.In == apispec.LocationBody {
+			params[p.Name] = "test"
+		}
+	}
+	if len(params) == 0 {
+		return nil, nil
+	}
+	results, err := ssi.NewScanner(ssi.Config{Base: base}).Scan(ctx, targetURL, params)
+	if err != nil {
+		return nil, fmt.Errorf("ssi: %w", err)
+	}
+	var findings []apispec.SpecFinding
+	for _, r := range results {
+		if !r.Vulnerable {
+			continue
+		}
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "ssi",
+			Parameter:      r.Parameter,
+			Payload:        r.Payload,
+			Title:          fmt.Sprintf("SSI Injection via %s", r.Parameter),
+			Severity:       r.Severity,
+			Evidence:       r.Evidence,
+			CWE:            "CWE-97",
+		})
+	}
+	return findings, nil
+}
+
+func runSpecXPath(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	params := make(map[string]string)
+	for _, p := range ep.Parameters {
+		if p.In == apispec.LocationQuery || p.In == apispec.LocationBody {
+			params[p.Name] = "test"
+		}
+	}
+	if len(params) == 0 {
+		return nil, nil
+	}
+	results, err := xpath.NewScanner(xpath.Config{Base: base}).Scan(ctx, targetURL, params)
+	if err != nil {
+		return nil, fmt.Errorf("xpath: %w", err)
+	}
+	var findings []apispec.SpecFinding
+	for _, r := range results {
+		if !r.Vulnerable {
+			continue
+		}
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "xpath",
+			Parameter:      r.Parameter,
+			Payload:        r.Payload,
+			Title:          fmt.Sprintf("XPath Injection via %s", r.Parameter),
+			Severity:       r.Severity,
+			Evidence:       r.Evidence,
+			CWE:            "CWE-643",
+		})
+	}
+	return findings, nil
+}
+
+func runSpecXMLInjection(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	results, err := xmlinjection.NewScanner(xmlinjection.Config{Base: base}).Scan(ctx, targetURL)
+	if err != nil {
+		return nil, fmt.Errorf("xmlinjection: %w", err)
+	}
+	var findings []apispec.SpecFinding
+	for _, r := range results {
+		if !r.Vulnerable {
+			continue
+		}
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "xmlinjection",
+			Payload:        r.Payload,
+			Title:          fmt.Sprintf("XML Injection (%s)", r.PayloadType),
+			Severity:       r.Severity,
+			Evidence:       r.Evidence,
+			CWE:            "CWE-91",
+		})
+	}
+	return findings, nil
+}
+
+func runSpecRFI(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	params := make(map[string]string)
+	for _, p := range ep.Parameters {
+		if p.In == apispec.LocationQuery || p.In == apispec.LocationPath {
+			params[p.Name] = "test"
+		}
+	}
+	if len(params) == 0 {
+		return nil, nil
+	}
+	results, err := rfi.NewScanner(rfi.Config{Base: base}).Scan(ctx, targetURL, params)
+	if err != nil {
+		return nil, fmt.Errorf("rfi: %w", err)
+	}
+	var findings []apispec.SpecFinding
+	for _, r := range results {
+		if !r.Vulnerable {
+			continue
+		}
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "rfi",
+			Parameter:      r.Parameter,
+			Payload:        r.Payload,
+			Title:          fmt.Sprintf("Remote File Inclusion via %s", r.Parameter),
+			Severity:       r.Severity,
+			Evidence:       r.Evidence,
+			CWE:            "CWE-98",
+		})
+	}
+	return findings, nil
+}
+
+func runSpecRCE(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	params := make(map[string]string)
+	for _, p := range ep.Parameters {
+		if p.In == apispec.LocationQuery || p.In == apispec.LocationBody {
+			params[p.Name] = "test"
+		}
+	}
+	if len(params) == 0 {
+		return nil, nil
+	}
+	results, err := rce.NewScanner(rce.Config{Base: base}).Scan(ctx, targetURL, params)
+	if err != nil {
+		return nil, fmt.Errorf("rce: %w", err)
+	}
+	var findings []apispec.SpecFinding
+	for _, r := range results {
+		if !r.Vulnerable {
+			continue
+		}
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "rce",
+			Parameter:      r.Parameter,
+			Payload:        r.Payload,
+			Title:          fmt.Sprintf("Remote Code Execution via %s", r.Parameter),
+			Severity:       r.Severity,
+			Evidence:       r.Evidence,
+			CWE:            "CWE-94",
+		})
+	}
+	return findings, nil
+}
+
+func runSpecCSRF(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	method := ep.Method
+	if method == "" {
+		method = "POST"
+	}
+	result, err := csrf.NewScanner(csrf.Config{Base: base}).Scan(ctx, targetURL, method)
+	if err != nil {
+		return nil, fmt.Errorf("csrf: %w", err)
+	}
+	if !result.Vulnerable {
+		return nil, nil
+	}
+	return []apispec.SpecFinding{{
+		Method:         ep.Method,
+		Path:           ep.Path,
+		CorrelationTag: tag,
+		Category:       "csrf",
+		Title:          "Missing CSRF Protection",
+		Severity:       result.Severity,
+		Evidence:       result.Evidence,
+		CWE:            "CWE-352",
+	}}, nil
+}
+
+func runSpecClickjack(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	result, err := clickjack.NewScanner(clickjack.Config{Base: base}).Scan(ctx, targetURL)
+	if err != nil {
+		return nil, fmt.Errorf("clickjack: %w", err)
+	}
+	if !result.Vulnerable {
+		return nil, nil
+	}
+	return []apispec.SpecFinding{{
+		Method:         ep.Method,
+		Path:           ep.Path,
+		CorrelationTag: tag,
+		Category:       "clickjack",
+		Title:          "Clickjacking: Missing Frame Protection",
+		Severity:       result.Severity,
+		Evidence:       result.Evidence,
+		CWE:            "CWE-1021",
+	}}, nil
+}
+
+func runSpecIDOR(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	cfg := idor.Config{
+		Base:    base,
+		BaseURL: targetURL,
+	}
+	scanner := idor.NewScanner(cfg)
+	results, err := scanner.ScanEndpoint(ctx, ep.Path, ep.Method)
+	if err != nil {
+		return nil, fmt.Errorf("idor: %w", err)
+	}
+	var findings []apispec.SpecFinding
+	for _, r := range results {
+		if !r.Accessible {
+			continue
+		}
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "idor",
+			Title:          fmt.Sprintf("IDOR: %s accessible with ID %s", r.URL, r.TestedID),
+			Severity:       r.Severity,
+			Evidence:       r.Vulnerability,
+			CWE:            "CWE-639",
+		})
+	}
+	return findings, nil
+}
+
+func runSpecMassAssignment(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	originalData := map[string]interface{}{"name": "test", "email": "test@example.com"}
+	results, err := massassignment.NewScanner(massassignment.Config{Base: base}).Scan(ctx, targetURL, originalData)
+	if err != nil {
+		return nil, fmt.Errorf("massassignment: %w", err)
+	}
+	var findings []apispec.SpecFinding
+	for _, r := range results {
+		if !r.Vulnerable {
+			continue
+		}
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "massassignment",
+			Parameter:      r.Parameter,
+			Title:          fmt.Sprintf("Mass Assignment via %s", r.Parameter),
+			Severity:       r.Severity,
+			Evidence:       r.Evidence,
+			CWE:            "CWE-915",
+		})
+	}
+	return findings, nil
 }
