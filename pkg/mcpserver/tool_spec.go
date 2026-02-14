@@ -503,10 +503,7 @@ func (s *Server) handleScanSpec(ctx context.Context, req *mcp.CallToolRequest) (
 		executor := &apispec.SimpleExecutor{
 			BaseURL:     target,
 			Concurrency: 5,
-			ScanFn: func(ctx context.Context, name string, targetURL string, ep apispec.Endpoint) ([]apispec.SpecFinding, error) {
-				// Bridge to existing scanner infrastructure.
-				return nil, nil
-			},
+			ScanFn:      s.specScanFn(),
 			OnEndpointStart: func(ep apispec.Endpoint, scanType string) {
 				log.Printf("[scan_spec] scanning %s %s (%s)", ep.Method, ep.Path, scanType)
 			},
@@ -1042,4 +1039,17 @@ func (s *Server) handleExportSpec(_ context.Context, req *mcp.CallToolRequest) (
 	}
 
 	return jsonResult(spec)
+}
+
+// specScanFn returns the scanner bridge function for spec-driven scanning.
+// If Config.SpecScanFn is set (injected from cmd/cli), it is used.
+// Otherwise returns a no-op that logs a warning.
+func (s *Server) specScanFn() apispec.ScanFunc {
+	if s.config.SpecScanFn != nil {
+		return s.config.SpecScanFn
+	}
+	return func(_ context.Context, name string, _ string, ep apispec.Endpoint) ([]apispec.SpecFinding, error) {
+		log.Printf("[scan_spec] no scanner bridge configured for %s %s (%s)", ep.Method, ep.Path, name)
+		return nil, nil
+	}
 }
