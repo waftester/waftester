@@ -158,6 +158,65 @@ CGO_ENABLED=1 go test -race ./pkg/mcpserver/...
 3. Restart Claude Desktop
 4. Ask Claude to list tools to verify the connection
 
+## API Spec Development (`pkg/apispec/`)
+
+The `pkg/apispec/` package handles parsing API specifications, generating scan plans, and executing spec-driven attacks.
+
+### Directory Layout
+
+| File | Purpose |
+|------|---------|
+| `apispec.go` | Core types: `Spec`, `Endpoint`, `Parameter`, `SchemaInfo` |
+| `parser.go` | `ParseFile()` / `ParseContent()` — format detection + dispatch |
+| `openapi.go` | OpenAPI 3.x parser |
+| `swagger.go` | Swagger 2.0 parser |
+| `postman.go` | Postman Collection v2.x parser |
+| `har.go` | HAR 1.2 parser |
+| `graphql.go` | GraphQL introspection parser |
+| `grpc.go` | gRPC reflection parser |
+| `asyncapi.go` | AsyncAPI 2.x parser |
+| `intelligence.go` | Attack selection engine |
+| `planner.go` | Scan plan generation with priority ordering |
+| `executor.go` | `SpecExecutor` — runs scan plans with adaptive rate limiting |
+| `escalation.go` | WAF detection, rate limiting, escalation levels |
+| `constraints.go` | Schema constraint violation attacks |
+| `mutations.go` | Content-type mutation, method confusion tests |
+| `crossendpoint.go` | IDOR, race condition, privilege escalation tests |
+| `checkpoint.go` | Scan resume with checkpointing |
+| `compare.go` | Baseline comparison for regression detection |
+| `correlation.go` | X-Correlation-ID generation and tracking |
+
+### Adding a New Spec Format
+
+1. Create `pkg/apispec/<format>.go` with a `Parse<Format>(content string) (*Spec, error)` function
+2. Register the format in `detectFormat()` in `parser.go`
+3. Add test fixtures in `pkg/apispec/testdata/<format>/`
+4. Add tests in `<format>_test.go`
+
+All parsers produce the same `*Spec` type. The rest of the pipeline (intelligence, planner, executor) works with `Spec` and is format-agnostic.
+
+### Adding Intelligence Rules
+
+Intelligence rules map spec metadata to attack selections. Add rules in `intelligence.go`:
+
+```go
+// In selectAttacksForParameter():
+if param.Schema.Format == "your-format" {
+    attacks = append(attacks, AttackSelection{
+        Category: "your-category",
+        Priority: PriorityHigh,
+        Reason:   "format 'your-format' is vulnerable to ...",
+    })
+}
+```
+
+### Common Pitfalls
+
+- **Import cycles**: `pkg/apispec/` must not import `pkg/runner/`, `pkg/cli/`, or other high-level packages
+- **Error wrapping**: Always use `fmt.Errorf("context: %w", err)` — never return bare errors
+- **Nil specs**: Parsers must return `nil, error` on failure — never a partially populated `*Spec`
+- **Test fixtures**: Name fixtures `testdata/<format>-valid.<ext>` and `testdata/<format>-invalid.<ext>`
+
 ## Reporting Issues
 
 - Check existing issues first
