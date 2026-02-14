@@ -22,6 +22,7 @@ import (
 func runOpenAPI() {
 	ui.PrintCompactBanner()
 	ui.PrintSection("OpenAPI Security Scanner")
+	ui.PrintWarning("DEPRECATED: 'openapi' command will be removed in a future release. Use 'auto --spec <file>' instead.")
 
 	openapiFlags := flag.NewFlagSet("openapi", flag.ExitOnError)
 

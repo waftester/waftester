@@ -304,10 +304,10 @@ func TestBuildIntelligentPlanSorted(t *testing.T) {
 	t.Parallel()
 	spec := &Spec{
 		Endpoints: []Endpoint{
-			{Method: "GET", Path: "/health", CorrelationTag: "t1"},                   // low
-			{Method: "POST", Path: "/admin/users", CorrelationTag: "t2",             // critical
+			{Method: "GET", Path: "/health", CorrelationTag: "t1"}, // low
+			{Method: "POST", Path: "/admin/users", CorrelationTag: "t2", // critical
 				Parameters: []Parameter{{Name: "q", In: LocationQuery, Schema: SchemaInfo{Type: "string"}}}},
-			{Method: "GET", Path: "/users", CorrelationTag: "t3",                    // medium
+			{Method: "GET", Path: "/users", CorrelationTag: "t3", // medium
 				Parameters: []Parameter{{Name: "id", In: LocationQuery, Schema: SchemaInfo{Type: "integer"}}}},
 		},
 	}

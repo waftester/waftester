@@ -77,8 +77,8 @@ func TestBuildRequestJSONBody(t *testing.T) {
 			"application/json": {
 				Schema: SchemaInfo{
 					Properties: map[string]SchemaInfo{
-						"name":  {Type: "string"},
-						"age":   {Type: "integer"},
+						"name": {Type: "string"},
+						"age":  {Type: "integer"},
 					},
 				},
 			},
@@ -186,8 +186,8 @@ func TestBuildRequestQueryParamDefaults(t *testing.T) {
 
 	q := req.URL.Query()
 	assert.Equal(t, "payload", q.Get("q"))
-	assert.Equal(t, "1", q.Get("limit"))        // default for integer
-	assert.Equal(t, "json", q.Get("format"))     // example value
+	assert.Equal(t, "1", q.Get("limit"))     // default for integer
+	assert.Equal(t, "json", q.Get("format")) // example value
 }
 
 func TestExpandPathParams(t *testing.T) {

@@ -197,9 +197,9 @@ func TestIsStandardHeader(t *testing.T) {
 
 func TestExtractHARPath(t *testing.T) {
 	tests := []struct {
-		url      string
-		path     string
-		host     string
+		url  string
+		path string
+		host string
 	}{
 		{"https://api.com/users/123", "/users/123", "https://api.com"},
 		{"https://api.com/", "/", "https://api.com"},
@@ -253,7 +253,7 @@ func TestHARQueryParamsFromURL(t *testing.T) {
 }
 
 func TestHARNoFileExtensionDetection(t *testing.T) {
-	// HAR format should be detected by content, not just file extension  
+	// HAR format should be detected by content, not just file extension
 	data, err := os.ReadFile("testdata/traffic.har")
 	require.NoError(t, err)
 
