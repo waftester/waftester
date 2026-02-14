@@ -5,6 +5,29 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.9] - 2026-02-14
+
+### Fixed
+
+- **Broken CI templates (go install removal)** — All 14 CI/CD templates across `pkg/cicd/cicd.go` and `pkg/mcpserver/tools_cicd.go` used `go install github.com/waftester/waftester/cmd/cli@latest` which installed a binary named `cli` instead of `waf-tester` and included zero payloads; replaced with `curl` binary download from GitHub Releases
+- **Wrong archive filename in MCP templates** — 6 MCP CI templates used `waf-tester_linux_amd64` (wrong naming convention) producing 404 download URLs; fixed to `waftester_Linux_x86_64.tar.gz` matching GoReleaser output
+- **Docker base image in CI templates** — GitLab, CircleCI, and Bitbucket templates used `golang:1.21` / `cimg/go:1.21` (Go not needed for binary install); switched to `alpine:3` / `cimg/base:stable` with `apk add --no-cache curl`
+- **Binary name mismatch** — CONTRIBUTING.md and INSTALLATION.md referenced `go build -o waftester` (no hyphen) while the actual binary is `waf-tester`; corrected all references
+
+### Removed
+
+- **go install support** — `go install` is fundamentally broken for WAFtester (wrong binary name, no payloads); removed from README, INSTALLATION.md, CONTRIBUTING.md, website docs, and all CI templates
+- **Go installation section from website** — Removed `### Go` tab from waftester.com docs page and waftester-action README "Other Installation Methods" table
+
+### Added
+
+- **CI template install validation tests** — 3 new tests (`TestGenerator_Generate_InstallPattern`, `TestGenerator_Generate_NoGoImages`, `TestGenerator_Generate_VersionedDownload`) verify all generated CI configs use curl-based binary download, contain no Go Docker images, and include versioned download URLs
+- **Version-bump skill** — Automated 8-phase version bump process with 14-location validation, cross-repo sync, and distribution channel verification
+
+### Changed
+
+- **INSTALLATION.md expansion** — Reorganized with all 7 distribution channels (Homebrew, Scoop, npm, Docker, AUR, GitHub Action, binary download) with platform-specific instructions
+
 ## [2.8.8] - 2026-02-13
 
 ### Added
@@ -1949,6 +1972,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.8.9]: https://github.com/waftester/waftester/compare/v2.8.8...v2.8.9
 [2.8.8]: https://github.com/waftester/waftester/compare/v2.8.7...v2.8.8
 [2.8.7]: https://github.com/waftester/waftester/compare/v2.8.6...v2.8.7
 [2.8.6]: https://github.com/waftester/waftester/compare/v2.8.5...v2.8.6

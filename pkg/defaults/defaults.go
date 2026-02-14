@@ -18,7 +18,7 @@ import (
 )
 
 // Version is the current WAFtester version
-const Version = "2.8.8"
+const Version = "2.8.9"
 
 // ToolName is the canonical tool name for output formats and integrations
 const ToolName = "waftester"
