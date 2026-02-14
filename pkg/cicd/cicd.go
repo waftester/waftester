@@ -173,10 +173,11 @@ jobs:
       - name: Install waf-tester
         run: |
           if [ "{{ .WafTesterVersion }}" = "latest" ]; then
-            go install github.com/waftester/waftester/cmd/cli@latest
+            curl -fsSL https://github.com/waftester/waftester/releases/latest/download/waftester_Linux_x86_64.tar.gz | tar xz
           else
-            go install github.com/waftester/waftester/cmd/cli@{{ .WafTesterVersion }}
+            curl -fsSL "https://github.com/waftester/waftester/releases/download/{{ .WafTesterVersion }}/waftester_Linux_x86_64.tar.gz" | tar xz
           fi
+          install -m 755 waf-tester /usr/local/bin/
 
 {{- range .PreCommands }}
       - name: Pre-scan command
@@ -253,7 +254,7 @@ variables:
 
 waf-security-scan:
   stage: security
-  image: golang:1.21
+  image: alpine:3
   timeout: {{ .Timeout }}
 {{- if .OnPush }}
   rules:
@@ -270,7 +271,14 @@ waf-security-scan:
 {{- end }}
   
   before_script:
-    - go install github.com/waftester/waftester/cmd/cli@{{ .WafTesterVersion }}
+    - apk add --no-cache curl
+    - |
+      if [ "{{ .WafTesterVersion }}" = "latest" ]; then
+        curl -fsSL https://github.com/waftester/waftester/releases/latest/download/waftester_Linux_x86_64.tar.gz | tar xz
+      else
+        curl -fsSL "https://github.com/waftester/waftester/releases/download/{{ .WafTesterVersion }}/waftester_Linux_x86_64.tar.gz" | tar xz
+      fi
+      install -m 755 waf-tester /usr/local/bin/
 {{- range .PreCommands }}
     - {{ . }}
 {{- end }}
@@ -336,7 +344,14 @@ pipeline {
     stages {
         stage('Install waf-tester') {
             steps {
-                sh 'go install github.com/waftester/waftester/cmd/cli@${WAF_TESTER_VERSION}'
+                sh '''
+                    if [ "${WAF_TESTER_VERSION}" = "latest" ]; then
+                      curl -fsSL https://github.com/waftester/waftester/releases/latest/download/waftester_Linux_x86_64.tar.gz | tar xz
+                    else
+                      curl -fsSL "https://github.com/waftester/waftester/releases/download/${WAF_TESTER_VERSION}/waftester_Linux_x86_64.tar.gz" | tar xz
+                    fi
+                    install -m 755 waf-tester /usr/local/bin/
+                '''
             }
         }
         
@@ -439,13 +454,13 @@ stages:
         displayName: 'Run waf-tester'
         timeoutInMinutes: {{ .Timeout }}
         steps:
-          - task: GoTool@0
-            displayName: 'Install Go'
-            inputs:
-              version: '1.21'
-
           - script: |
-              go install github.com/waftester/waftester/cmd/cli@$(WAF_TESTER_VERSION)
+              if [ "$(WAF_TESTER_VERSION)" = "latest" ]; then
+                curl -fsSL https://github.com/waftester/waftester/releases/latest/download/waftester_Linux_x86_64.tar.gz | tar xz
+              else
+                curl -fsSL "https://github.com/waftester/waftester/releases/download/$(WAF_TESTER_VERSION)/waftester_Linux_x86_64.tar.gz" | tar xz
+              fi
+              install -m 755 waf-tester /usr/local/bin/
             displayName: 'Install waf-tester'
 
 {{- range .PreCommands }}
@@ -489,19 +504,25 @@ const circleCITemplate = `# WAF Security Testing with waf-tester
 version: 2.1
 
 executors:
-  go-executor:
+  waf-executor:
     docker:
-      - image: cimg/go:1.21
+      - image: cimg/base:stable
 
 jobs:
   waf-security-scan:
-    executor: go-executor
+    executor: waf-executor
     steps:
       - checkout
       
       - run:
           name: Install waf-tester
-          command: go install github.com/waftester/waftester/cmd/cli@{{ .WafTesterVersion }}
+          command: |
+            if [ "{{ .WafTesterVersion }}" = "latest" ]; then
+              curl -fsSL https://github.com/waftester/waftester/releases/latest/download/waftester_Linux_x86_64.tar.gz | tar xz
+            else
+              curl -fsSL "https://github.com/waftester/waftester/releases/download/{{ .WafTesterVersion }}/waftester_Linux_x86_64.tar.gz" | tar xz
+            fi
+            install -m 755 waf-tester /usr/local/bin/
 
 {{- range .PreCommands }}
       - run:
@@ -572,7 +593,7 @@ workflows:
 const bitbucketTemplate = `# WAF Security Testing with waf-tester
 # Auto-generated CI/CD template (bitbucket-pipelines.yml)
 
-image: golang:1.21
+image: alpine:3
 
 pipelines:
 {{- if .OnPush }}
@@ -582,7 +603,14 @@ pipelines:
       - step:
           name: WAF Security Scan
           script:
-            - go install github.com/waftester/waftester/cmd/cli@{{ $.WafTesterVersion }}
+            - apk add --no-cache curl
+            - |
+              if [ "{{ $.WafTesterVersion }}" = "latest" ]; then
+                curl -fsSL https://github.com/waftester/waftester/releases/latest/download/waftester_Linux_x86_64.tar.gz | tar xz
+              else
+                curl -fsSL "https://github.com/waftester/waftester/releases/download/{{ $.WafTesterVersion }}/waftester_Linux_x86_64.tar.gz" | tar xz
+              fi
+              install -m 755 waf-tester /usr/local/bin/
 {{- range $.PreCommands }}
             - {{ . }}
 {{- end }}
@@ -612,7 +640,14 @@ pipelines:
       - step:
           name: WAF Security Scan (PR)
           script:
-            - go install github.com/waftester/waftester/cmd/cli@{{ .WafTesterVersion }}
+            - apk add --no-cache curl
+            - |
+              if [ "{{ .WafTesterVersion }}" = "latest" ]; then
+                curl -fsSL https://github.com/waftester/waftester/releases/latest/download/waftester_Linux_x86_64.tar.gz | tar xz
+              else
+                curl -fsSL "https://github.com/waftester/waftester/releases/download/{{ .WafTesterVersion }}/waftester_Linux_x86_64.tar.gz" | tar xz
+              fi
+              install -m 755 waf-tester /usr/local/bin/
 {{- range .PreCommands }}
             - {{ . }}
 {{- end }}
@@ -641,7 +676,14 @@ pipelines:
       - step:
           name: Scheduled WAF Security Scan
           script:
-            - go install github.com/waftester/waftester/cmd/cli@{{ .WafTesterVersion }}
+            - apk add --no-cache curl
+            - |
+              if [ "{{ .WafTesterVersion }}" = "latest" ]; then
+                curl -fsSL https://github.com/waftester/waftester/releases/latest/download/waftester_Linux_x86_64.tar.gz | tar xz
+              else
+                curl -fsSL "https://github.com/waftester/waftester/releases/download/{{ .WafTesterVersion }}/waftester_Linux_x86_64.tar.gz" | tar xz
+              fi
+              install -m 755 waf-tester /usr/local/bin/
             - |
               TARGET_URL="{{ if .TargetEnvVar }}${{ .TargetEnvVar }}{{ else }}{{ .TargetURL }}{{ end }}"
               waf-tester run \
