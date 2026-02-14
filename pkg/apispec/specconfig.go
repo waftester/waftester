@@ -1,8 +1,12 @@
 package apispec
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // SpecConfig holds all spec-related options shared between CLI and MCP.
@@ -195,4 +199,141 @@ func (c *SpecConfig) ShouldScan(scanType string) bool {
 func (c *AuthConfig) HasAuth() bool {
 	return c.BearerToken != "" || c.APIKey != "" || c.AuthHeader != "" ||
 		c.BasicUser != "" || len(c.CustomHeaders) > 0
+}
+
+// ScanConfigFile represents a .waftester-spec.yaml file with per-endpoint
+// scan overrides. This allows users to customize scanning behavior for
+// specific endpoint paths without modifying the API spec.
+type ScanConfigFile struct {
+	// Overrides is a list of per-endpoint override rules.
+	Overrides []EndpointOverride `yaml:"overrides" json:"overrides"`
+}
+
+// EndpointOverride configures scan behavior for endpoints matching Pattern.
+type EndpointOverride struct {
+	// Pattern is a glob pattern matching endpoint paths (e.g., "/admin/*").
+	Pattern string `yaml:"pattern" json:"pattern"`
+
+	// Skip excludes matching endpoints entirely.
+	Skip bool `yaml:"skip,omitempty" json:"skip,omitempty"`
+
+	// Intensity overrides the global intensity for matching endpoints.
+	Intensity Intensity `yaml:"intensity,omitempty" json:"intensity,omitempty"`
+
+	// ScanTypes restricts attack categories on matching endpoints.
+	ScanTypes []string `yaml:"scan_types,omitempty" json:"scan_types,omitempty"`
+
+	// SkipTypes excludes specific attack categories on matching endpoints.
+	SkipTypes []string `yaml:"skip_types,omitempty" json:"skip_types,omitempty"`
+
+	// MaxPayloads caps the number of payloads per attack on matching endpoints.
+	MaxPayloads int `yaml:"max_payloads,omitempty" json:"max_payloads,omitempty"`
+}
+
+// LoadScanConfigFile loads a .waftester-spec.yaml override file.
+// Returns nil,nil if the file does not exist (auto-load from CWD).
+// Returns an error only when the file exists but is malformed.
+func LoadScanConfigFile(path string) (*ScanConfigFile, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read scan config: %w", err)
+	}
+
+	var cfg ScanConfigFile
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("parse scan config %s: %w", path, err)
+	}
+	return &cfg, nil
+}
+
+// AutoLoadScanConfig attempts to load .waftester-spec.yaml from CWD.
+// Returns nil if the file doesn't exist.
+func AutoLoadScanConfig() (*ScanConfigFile, error) {
+	return LoadScanConfigFile(".waftester-spec.yaml")
+}
+
+// FindOverride returns the first override matching the given endpoint path,
+// or nil if no override matches.
+func (f *ScanConfigFile) FindOverride(path string) *EndpointOverride {
+	if f == nil {
+		return nil
+	}
+	for i := range f.Overrides {
+		if matchPathGlob(f.Overrides[i].Pattern, path) {
+			return &f.Overrides[i]
+		}
+	}
+	return nil
+}
+
+// ApplyToPlan filters a scan plan by removing entries for skipped endpoints
+// and restricting scan types per the override rules.
+func (f *ScanConfigFile) ApplyToPlan(plan *ScanPlan) {
+	if f == nil || plan == nil || len(f.Overrides) == 0 {
+		return
+	}
+
+	var kept []ScanPlanEntry
+	for _, entry := range plan.Entries {
+		override := f.FindOverride(entry.Endpoint.Path)
+		if override == nil {
+			kept = append(kept, entry)
+			continue
+		}
+
+		// Skip entire endpoint.
+		if override.Skip {
+			continue
+		}
+
+		// Filter by scan types.
+		if len(override.ScanTypes) > 0 && !containsStringCI(override.ScanTypes, entry.Attack.Category) {
+			continue
+		}
+		if len(override.SkipTypes) > 0 && containsStringCI(override.SkipTypes, entry.Attack.Category) {
+			continue
+		}
+
+		kept = append(kept, entry)
+	}
+	plan.Entries = kept
+}
+
+// matchPathGlob matches an endpoint path against a glob pattern.
+// Supports standard filepath.Match syntax plus ** for recursive matching.
+func matchPathGlob(pattern, path string) bool {
+	// Handle ** (match any number of path segments).
+	if strings.Contains(pattern, "**") {
+		// Split at ** and check prefix/suffix.
+		parts := strings.SplitN(pattern, "**", 2)
+		prefix := parts[0]
+		suffix := parts[1]
+		if !strings.HasPrefix(path, prefix) {
+			return false
+		}
+		if suffix == "" {
+			return true
+		}
+		return strings.HasSuffix(path, suffix)
+	}
+
+	matched, err := filepath.Match(pattern, path)
+	if err != nil {
+		// Invalid pattern: try prefix match.
+		return strings.HasPrefix(path, strings.TrimSuffix(pattern, "*"))
+	}
+	return matched
+}
+
+// containsStringCI reports whether strs contains s (case-insensitive).
+func containsStringCI(strs []string, s string) bool {
+	for _, v := range strs {
+		if strings.EqualFold(v, s) {
+			return true
+		}
+	}
+	return false
 }

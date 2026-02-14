@@ -137,6 +137,7 @@ func runAutoScan() {
 	specSkipGroup := autoFlags.String("skip-group", "", "Exclude spec endpoints by group/tag")
 	specDryRun := autoFlags.Bool("dry-run", false, "Show scan plan without executing")
 	specYes := autoFlags.Bool("yes", false, "Skip confirmation prompt for spec scans")
+	scanConfigPath := autoFlags.String("scan-config", "", "Path to .waftester-spec.yaml for per-endpoint overrides")
 
 	autoFlags.Parse(os.Args[2:])
 
@@ -438,22 +439,23 @@ func runAutoScan() {
 	// ═══════════════════════════════════════════════════════════════════════════
 	if *specFile != "" || *specURL != "" {
 		runSpecPipeline(specPipelineConfig{
-			specFile:    *specFile,
-			specURL:     *specURL,
-			target:      target,
-			intensity:   *specIntensity,
-			group:       *specGroup,
-			skipGroup:   *specSkipGroup,
-			dryRun:      *specDryRun,
-			yes:         *specYes,
-			concurrency: *concurrency,
-			rateLimit:   *rateLimit,
-			timeout:     *timeout,
-			skipVerify:  *skipVerify,
-			verbose:     *verbose,
-			quietMode:   quietMode,
-			outFlags:    &outFlags,
-			printStatus: printStatus,
+			specFile:       *specFile,
+			specURL:        *specURL,
+			target:         target,
+			intensity:      *specIntensity,
+			group:          *specGroup,
+			skipGroup:      *specSkipGroup,
+			scanConfigPath: *scanConfigPath,
+			dryRun:         *specDryRun,
+			yes:            *specYes,
+			concurrency:    *concurrency,
+			rateLimit:      *rateLimit,
+			timeout:        *timeout,
+			skipVerify:     *skipVerify,
+			verbose:        *verbose,
+			quietMode:      quietMode,
+			outFlags:       &outFlags,
+			printStatus:    printStatus,
 		})
 		return
 	}
