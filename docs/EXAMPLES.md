@@ -4,10 +4,21 @@
 
 This guide provides comprehensive usage examples for WAFtester, organized by use case and command category. Each example includes context on when to use the command, what value it provides, and expected output formats.
 
-**Document Version:** 2.8.9  
+**Document Version:** 2.9.0  
 **Last Updated:** February 2026
 
 ---
+
+> **What's New in v2.9.0**
+>
+> - **API Spec Scanning** — Drive scans from OpenAPI 3.x, Swagger 2.0, Postman, HAR, AsyncAPI, GraphQL, and gRPC specs with `--spec` ([details](#api-spec-scanning))
+> - **8-Layer Intelligence Engine** — Automated scan plan generation with parameter analysis, path patterns, auth context, schema constraints, and cross-endpoint correlation
+> - **Adaptive Executor** — 3-phase scanning with automatic escalation and request budget controls
+> - **13 Scan Flags Wired** — `--match-severity`, `--filter-severity`, `--match-category`, `--filter-category`, `--exclude-types`, `--include-patterns`, `--exclude-patterns`, `--stop-on-first`, `--rate-limit-per-host`, `--retries`, `--respect-robots`, `--include-evidence`, `--include-remediation` ([details](#scan-control-flags-v290))
+> - **Cross-Endpoint Attacks** — IDOR, race condition, and privilege escalation testing across related endpoints
+> - **Checkpointing and Resume** — Resume interrupted spec scans with `--resume` ([details](#checkpointing-and-resume))
+> - **Comparison Mode** — Diff against baseline with `--compare` ([details](#comparison-mode))
+> - **9 MCP Spec Tools** — `validate_spec`, `list_spec_endpoints`, `plan_spec`, `scan_spec`, `compare_baselines`, `preview_spec_scan`, `spec_intelligence`, `describe_spec_auth`, `export_spec`
 
 > **What's New in v2.7.3**
 >
@@ -1199,6 +1210,8 @@ Scanning [███████████████████████�
 
 #### Severity and Category Filtering
 
+Post-scan filters that control which findings appear in the output. Filtering happens after all scanners complete, so it does not reduce scan time.
+
 ```bash
 # Only show critical and high findings
 waf-tester scan -u https://target.com -msev critical,high
@@ -1211,20 +1224,85 @@ waf-tester scan -u https://target.com -mcat sqli,xss
 
 # Filter out informational findings
 waf-tester scan -u https://target.com -fcat info
+
+# Combine: only critical/high SQLi and XSS findings
+waf-tester scan -u https://target.com -msev critical,high -mcat sqli,xss
+
+# Production audit: exclude noise categories and low severity
+waf-tester scan -u https://target.com -fsev low,info -fcat techdetect,info
 ```
+
+| Flag | Alias | Effect |
+|------|-------|--------|
+| `--match-severity` | `-msev` | Keep only findings matching these severities |
+| `--filter-severity` | `-fsev` | Remove findings matching these severities |
+| `--match-category` | `-mcat` | Keep only findings matching these categories |
+| `--filter-category` | `-fcat` | Remove findings matching these categories |
+
+Match and filter are exclusive: if both `--match-severity` and `--filter-severity` are set, match takes precedence.
 
 #### Scope Control
 
+Regex-based URL filtering evaluated before scanners launch. Controls which targets are scanned.
+
 ```bash
-# Exclude certain URL patterns
+# Exclude certain URL patterns (regex)
 waf-tester scan -u https://target.com -ep "logout|signout|admin"
 
-# Include only matching patterns
+# Include only matching patterns (regex)
 waf-tester scan -u https://target.com -ip "api/v2"
+
+# Combine: only /api/ paths, excluding /api/health
+waf-tester scan -u https://target.com -ip "/api/" -ep "/api/health"
 
 # Exclude certain test types
 waf-tester scan -u https://target.com -et info,techdetect
+
+# Exclude multiple scan types
+waf-tester scan -u https://target.com -et "cors,clickjack,techdetect"
 ```
+
+| Flag | Alias | Effect |
+|------|-------|--------|
+| `--include-patterns` | `-ip` | Only scan URLs matching this regex |
+| `--exclude-patterns` | `-ep` | Skip URLs matching this regex |
+| `--exclude-types` | `-et` | Skip these scan categories entirely |
+
+#### Scan Control Flags (v2.9.0)
+
+Fine-grained control over scan behavior, rate limiting, and output.
+
+```bash
+# Stop scanning after the first vulnerability is found
+waf-tester scan -u https://target.com -sof
+
+# Per-host rate limiting (one limiter per target host)
+waf-tester scan -u https://target.com -rl 100 -rlph
+
+# Retry scanners with exponential backoff (3 retries)
+waf-tester scan -u https://target.com -r 3
+
+# Respect robots.txt disallowed paths
+waf-tester scan -u https://target.com -rr
+
+# Strip evidence and remediation from output (smaller reports)
+waf-tester scan -u https://target.com -ie=false -ir=false
+
+# Full stealth scan: low rate, per-host, robots.txt, stop on first
+waf-tester scan -u https://target.com \
+  -rl 5 -rlph -rr -sof \
+  --tamper-profile=stealth \
+  -fsev info
+```
+
+| Flag | Alias | Default | Effect |
+|------|-------|---------|--------|
+| `--stop-on-first` | `-sof` | `false` | Cancel remaining scanners after first finding |
+| `--rate-limit-per-host` | `-rlph` | `false` | Create independent rate limiters per host |
+| `--retries` | `-r` | `2` | Retry failed scanners with exponential backoff + jitter |
+| `--respect-robots` | `-rr` | `false` | Fetch robots.txt and skip disallowed paths |
+| `--include-evidence` | `-ie` | `true` | Include evidence in findings |
+| `--include-remediation` | `-ir` | `true` | Include remediation in findings |
 
 #### OAuth Testing
 
@@ -1269,9 +1347,6 @@ waf-tester scan -u https://target.com -dry-run
 waf-tester scan -u https://target.com \
   -report-title "Security Assessment Q1 2026" \
   -report-author "Security Team"
-
-# Include/exclude evidence and remediation
-waf-tester scan -u https://target.com -ie=false -ir=false
 ```
 
 #### Multiple Targets
@@ -1293,6 +1368,10 @@ waf-tester scan -l targets.txt -category sqli --smart -o results.json
 | Regression test after fix | `scan -u URL -category sqli -ip "/api/users"` | Target specific endpoint |
 | Production (no noise) | `scan -u URL -fsev low,info` | Only actionable findings |
 | Compare before/after | `scan -u URL -format json -o before.json` | Export for diff |
+| Quick triage | `scan -u URL -sof` | Stop on first finding |
+| Multi-host with fairness | `scan -l targets.txt -rl 50 -rlph` | Per-host rate limit |
+| Stealth / polite | `scan -u URL -rl 5 -rr -sof` | Low rate, robots.txt, early exit |
+| Minimal report | `scan -u URL -ie=false -ir=false` | No evidence or remediation |
 
 #### Common Issues
 

@@ -5,6 +5,60 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.0] - 2026-02-14
+
+### Added
+
+- **API spec scanning** — Drive security scans from OpenAPI 3.x, Swagger 2.0, Postman v2.x, HAR v1.2, AsyncAPI, GraphQL introspection, and gRPC reflection specs with `--spec` flag
+- **Unified spec parser** — Auto-detects format from file or URL, returns a unified `Spec` model with endpoints, parameters, auth schemes, and schema constraints
+- **8-layer intelligence engine** — Parameter type analysis, name pattern matching (18 regex rules), path pattern matching (47 patterns), auth context analysis, schema constraint analysis, content-type mutation, method confusion, and cross-endpoint correlation
+- **Adaptive executor** — 3-phase scanning (fingerprint, probe, full scan) with 4 escalation levels (standard, encoded, WAF-specific, multi-vector) and request budget controls
+- **Cross-endpoint attacks** — IDOR detection, race condition testing, and privilege escalation testing across related endpoints
+- **Checkpointing and resume** — Automatically saves scan progress; resume interrupted scans with `--resume`
+- **Comparison mode** — Diff scan results against a baseline with `--compare baseline.json` to track new, fixed, and regressed findings
+- **Correlation IDs** — Every request carries `X-Correlation-ID: waftester-{session}-{endpoint}-{attack}-{param}-{seq}` for WAF log matching; export with `--export-correlations`
+- **Per-endpoint scan config** — `.waftester-spec.yaml` overrides (or `--scan-config`) with glob-based path matching for skip, intensity, scan types, and max payloads per endpoint
+- **5 MCP tools for spec scanning** — `validate_spec`, `list_spec_endpoints`, `plan_spec`, `scan_spec`, `compare_baselines` with async task support
+- **4 MCP intelligence tools** — `preview_spec_scan`, `spec_intelligence`, `describe_spec_auth`, `export_spec` for AI-driven spec analysis
+- **Scan result filters** — `--match-severity` / `--filter-severity` (`-msev` / `-fsev`) and `--match-category` / `--filter-category` (`-mcat` / `-fcat`) for post-scan result filtering
+- **URL scope control** — `--include-patterns` (`-ip`) and `--exclude-patterns` (`-ep`) with regex matching to limit scan scope
+- **Scan type exclusion** — `--exclude-types` (`-et`) to skip specific scan categories
+- **Stop on first vulnerability** — `--stop-on-first` (`-sof`) cancels remaining scanners after the first finding
+- **Per-host rate limiting** — `--rate-limit-per-host` (`-rlph`) creates independent rate limiters per target host
+- **Retry with backoff** — `--retries` (`-r`) wraps scanner execution in exponential backoff with jitter
+- **Robots.txt compliance** — `--respect-robots` (`-rr`) fetches and enforces robots.txt disallowed paths before scanning
+- **Evidence and remediation control** — `--include-evidence` (`-ie`) and `--include-remediation` (`-ir`) strip fields from output when set to `false`
+- **Spec event types** — 5 new event types (`spec_parsed`, `spec_plan_ready`, `spec_endpoint_start`, `spec_endpoint_done`, `spec_scan_complete`) wired through the event dispatcher
+- **OAuth2 client_credentials** — Automatic token acquisition and caching for spec-driven scans
+- **CookieJar support** — `httpclient.Config` accepts a cookie jar for stateful API testing
+- **Pre-commit go vet hook** — `go vet` runs on staged packages before commit
+
+### Fixed
+
+- **Dry-run intercepting spec scans** — `--dry-run` no longer blocks spec-mode scan dispatch
+- **Target optional with spec** — `-u` is no longer required when `--spec` or `--spec-url` provides server URLs
+- **AsyncAPI YAML support** — Parser handles YAML-encoded AsyncAPI specs (was JSON-only)
+- **Circular `$ref` detection** — OpenAPI parser detects and breaks circular references with depth limit and visited set
+- **HAR response capture** — HAR adapter now captures response status, headers, and body size
+- **Raw HTTP client usage** — Replaced 3 instances of `&http.Client{}` in cross-endpoint tests with `httpclient.Default()`
+- **formatPercent corruption** — Fixed digit corruption in intelligence percentage formatting
+- **Path parameter substitution** — Cross-endpoint test URLs now substitute `{id}` path parameters
+- **Race condition request bodies** — POST/PUT/PATCH race tests now include request bodies
+- **Checkpoint concurrency** — Added `sync.Mutex` to `Checkpoint` for goroutine safety
+- **Integer overflow in constraints** — Guarded `maxLengthAttacks` computation against overflow
+- **Windows path matching** — Replaced `filepath.Match` with `path.Match` for API path patterns in spec config
+- **Spec event dispatch** — All 5 spec event types now flow through `EmitEvent` correctly
+- **Validate command spec support** — `validate --spec` and `--spec-url` flags work correctly
+
+### Changed
+
+- **Scan flag aliases** — All 13 previously-registered-but-unused flags are now functional with both long (`--match-severity`) and short (`-msev`) forms
+- **Rate limiter selection** — Scanner uses `pkg/ratelimit` per-host limiter when `--rate-limit-per-host` is set, falls back to stdlib `rate.NewLimiter` otherwise
+
+### Removed
+
+- **Dead code** — Removed unused `itoa` function, dead `http.NoBody` assignment, and 7 orphan TODO comments
+
 ## [2.8.9] - 2026-02-14
 
 ### Fixed
@@ -1972,6 +2026,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.0]: https://github.com/waftester/waftester/compare/v2.8.9...v2.9.0
 [2.8.9]: https://github.com/waftester/waftester/compare/v2.8.8...v2.8.9
 [2.8.8]: https://github.com/waftester/waftester/compare/v2.8.7...v2.8.8
 [2.8.7]: https://github.com/waftester/waftester/compare/v2.8.6...v2.8.7
