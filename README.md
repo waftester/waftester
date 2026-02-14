@@ -478,6 +478,15 @@ Alternatively, if installed via binary download:
 | `bypass` | Systematic bypass with mutation matrix — **async** |
 | `probe` | TLS, HTTP/2, technology fingerprinting |
 | `generate_cicd` | Generate CI/CD YAML for 6 platforms |
+| `validate_spec` | Validate an API spec for correctness and completeness |
+| `list_spec_endpoints` | Parse a spec and list all endpoints, methods, params |
+| `plan_spec` | Generate an intelligent scan plan using 8 analysis layers |
+| `scan_spec` | Spec-driven security scan with auto-selected attacks — **async** |
+| `preview_spec_scan` | Dry-run a spec scan without sending requests |
+| `compare_baselines` | Detect regressions, fixes, and new findings vs baseline |
+| `spec_intelligence` | Analyze a spec for security-relevant patterns |
+| `describe_spec_auth` | Extract and describe all auth schemes from a spec |
+| `export_spec` | Export a parsed spec as normalized JSON |
 | `get_task_status` | Poll async task progress and retrieve results |
 | `cancel_task` | Stop a running async task |
 | `list_tasks` | View all running/completed/failed tasks |
@@ -498,6 +507,8 @@ AI agents can read these resources for context without making network requests:
 | `waftester://payloads/unified` | Unified view (JSON + Nuclei template payloads) |
 | `waftester://payloads/{category}` | Category-filtered payloads |
 | `waftester://templates` | Nuclei template library listing |
+| `waftester://spec-formats` | Supported API spec formats and capabilities |
+| `waftester://intelligence-layers` | 8-layer intelligence engine description |
 | `waftester://version` | Server version, capabilities, and resource counts |
 | `waftester://config` | Default configuration values |
 
@@ -527,6 +538,15 @@ For complete MCP examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md#mcp-server-in
 | `openapi` | OpenAPI specification fuzzing | `waf-tester openapi -spec openapi.yaml --fuzz` |
 | `cloud` | Cloud resource discovery | `waf-tester cloud -d example.com --providers aws,azure` |
 | `mcp` | MCP server for AI agents | `waf-tester mcp` or `waf-tester mcp --http :8080` |
+| `learn` | Generate test plans from discovery data | `waf-tester learn -u https://target.com` |
+| `crawl` | DOM-aware crawling | `waf-tester crawl -u https://target.com` |
+| `headless` | Headless browser testing | `waf-tester headless -u https://target.com` |
+| `validate` | Validate payloads and templates | `waf-tester validate --payloads ./payloads` |
+| `analyze` | Analyze scan results | `waf-tester analyze -f results.json` |
+| `fp` | False positive testing | `waf-tester fp -u https://target.com` |
+| `protocol` | Protocol detection | `waf-tester protocol -u https://target.com` |
+| `plugin` | Plugin management | `waf-tester plugin list` |
+| `run` | Execute scan profiles | `waf-tester run quick -u https://target.com` |
 
 ---
 
@@ -558,7 +578,7 @@ For complete MCP examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md#mcp-server-in
 
 | Metric | Value |
 |--------|-------|
-| CLI Commands | 33 |
+| CLI Commands | 38 |
 | WAF Signatures | 197 vendors |
 | Attack Payloads | 2,800+ |
 | Tamper Scripts | 70+ |
@@ -568,9 +588,9 @@ For complete MCP examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md#mcp-server-in
 | Spec Formats | OpenAPI, Swagger, Postman, HAR, GraphQL, gRPC, AsyncAPI |
 | Output Formats | 16 |
 | CI/CD Platforms | 9 |
-| MCP Tools | 18 |
-| MCP Resources | 10 |
-| MCP Prompts | 6 |
+| MCP Tools | 22 |
+| MCP Resources | 12 |
+| MCP Prompts | 7 |
 | npm Platforms | macOS, Linux, Windows (x64 + arm64) |
 | Docker Architectures | linux/amd64, linux/arm64 |
 
