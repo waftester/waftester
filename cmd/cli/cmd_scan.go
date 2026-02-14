@@ -2492,12 +2492,3 @@ func runScan() {
 		os.Exit(1) // Exit with error if vulnerabilities found
 	}
 }
-
-// Flags registered but not yet wired into scan logic:
-// TODO(v2.9.0): rateLimitPerHost — apply per-host rate limiting for multi-target scans
-// TODO(v2.9.0): matchSeverity, filterSeverity, matchCategory, filterCategory — result filtering
-// TODO(v2.9.0): excludeTypes, excludePatterns, includePatterns — scan type filtering
-// TODO(v2.9.0): includeEvidence, includeRemediation — output enrichment
-// TODO(v2.9.0): retries — scanner-level retry logic
-// TODO(v2.9.0): stopOnFirstVuln — early exit on first finding
-// TODO(future): respectRobots — robots.txt compliance
