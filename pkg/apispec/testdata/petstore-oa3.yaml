@@ -1,0 +1,67 @@
+openapi: "3.0.3"
+info:
+  title: Petstore YAML
+  description: A sample YAML API spec
+  version: "1.0.0"
+servers:
+  - url: https://petstore.example.com/v1
+    description: Production
+paths:
+  /pets:
+    get:
+      operationId: listPets
+      summary: List all pets
+      tags:
+        - pets
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: A list of pets
+    post:
+      operationId: createPet
+      summary: Create a pet
+      tags:
+        - pets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                tag:
+                  type: string
+      responses:
+        "201":
+          description: Pet created
+      security:
+        - bearerAuth: []
+  /pets/{petId}:
+    get:
+      operationId: getPet
+      summary: Get a pet by ID
+      tags:
+        - pets
+      parameters:
+        - name: petId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A single pet
+        "404":
+          description: Not found
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
