@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 )
 
@@ -284,7 +285,7 @@ func executeIDORTest(ctx context.Context, test CrossEndpointTest, cfg CrossEndpo
 			Category:       "idor",
 			Title:          "IDOR: resource accessible with different auth",
 			Description:    test.Purpose,
-			Severity:       "high",
+			Severity:       string(finding.High),
 			CWE:            "CWE-639",
 		}
 	} else {
@@ -395,7 +396,7 @@ func executeRaceTest(ctx context.Context, test CrossEndpointTest, cfg CrossEndpo
 			Category:       "race",
 			Title:          fmt.Sprintf("Race condition: %d/%d concurrent requests succeeded", successes, concurrency),
 			Description:    test.Purpose,
-			Severity:       "high",
+			Severity:       string(finding.High),
 			CWE:            "CWE-362",
 		}
 	} else {
@@ -443,7 +444,7 @@ func executePrivescTest(ctx context.Context, test CrossEndpointTest, cfg CrossEn
 			Category:       "accesscontrol",
 			Title:          "Privilege escalation: admin endpoint accessible with user token",
 			Description:    test.Purpose,
-			Severity:       "critical",
+			Severity:       string(finding.Critical),
 			CWE:            "CWE-269",
 		}
 	} else {

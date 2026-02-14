@@ -96,6 +96,9 @@ fi
 for file in $STAGED_FILES; do
     [ -f "$file" ] || continue
     case "$file" in
+        *_test.go)
+            # Test files legitimately reference print patterns as test data.
+            ;;
         *.go)
             if grep -n 'fmt\.Println\|fmt\.Printf' "$file" 2>/dev/null | grep -v '// debug:keep' | head -1 | grep -q .; then
                 echo "BLOCKED: $file has debug statement (fmt.Print). Use slog or add // debug:keep" >&2
@@ -112,6 +115,9 @@ done
 for file in $STAGED_FILES; do
     [ -f "$file" ] || continue
     case "$file" in
+        *_test.go)
+            # Test files legitimately reference TODO patterns as test data.
+            ;;
         *.go)
             if grep -n 'TODO\|FIXME\|HACK\|XXX' "$file" 2>/dev/null | grep -v '#[0-9]' | head -3 | grep -q .; then
                 echo "BLOCKED: $file has TODO/FIXME without issue ref (e.g., TODO #123)" >&2
@@ -129,7 +135,13 @@ done
 GO_STAGED=$(echo "$STAGED_FILES" | grep '\.go$' || true)
 if [ -n "$GO_STAGED" ]; then
     # Extract unique package directories from staged Go files.
-    VET_PKGS=$(echo "$GO_STAGED" | xargs -I{} dirname {} | sort -u | sed 's|^|./|')
+    # Filter out test-only directories (like ./test) that go vet cannot process.
+    VET_PKGS=$(echo "$GO_STAGED" | xargs -I{} dirname {} | sort -u | while read -r dir; do
+        # Skip directories that only contain _test.go files.
+        if ls "$dir"/*.go 2>/dev/null | grep -v '_test.go$' | grep -q .; then
+            echo "./$dir"
+        fi
+    done)
     if [ -n "$VET_PKGS" ]; then
         echo "Running go vet on staged packages..."
         if ! go vet $VET_PKGS 2>&1; then

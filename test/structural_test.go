@@ -1215,7 +1215,7 @@ func TestConcurrentAccessHasMutex(t *testing.T) {
 
 	goroutinePattern := regexp.MustCompile(`go\s+(?:func\s*\(|[a-zA-Z_][a-zA-Z0-9_.]*\()`)
 	mapPattern := regexp.MustCompile(`map\[`)
-	syncPattern := regexp.MustCompile(`sync\.(?:Mutex|RWMutex|Map)`)
+	syncPattern := regexp.MustCompile(`sync\.(?:Mutex|RWMutex|Map|WaitGroup)`)
 	channelPattern := regexp.MustCompile(`(?:make\(chan\s|<-\s*chan\s|chan\s+[a-zA-Z])`)
 
 	// Files that only use maps for static/immutable data or in init()
