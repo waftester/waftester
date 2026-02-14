@@ -480,6 +480,20 @@ func runScan() {
 		return scanAll || typeSet[name]
 	}
 
+	// ═══════════════════════════════════════════════════════════════════════════
+	// SPEC-DRIVEN SCAN PATH
+	// When --spec is provided, load the spec, build a plan, and run scanners
+	// against each endpoint. This is a separate flow from the normal scan.
+	// Forward generic --dry-run to spec dry-run so both flags work.
+	// ═══════════════════════════════════════════════════════════════════════════
+	if specMode {
+		if *dryRun {
+			specCfg.DryRun = true
+		}
+		runSpecScan(ctx, specCfg, &cf, &outFlags, shouldScan, target, *concurrency, *rateLimit, *proxy, streamJSON, dispCtx)
+		return
+	}
+
 	// Dry run mode - list what would be scanned and exit
 	if *dryRun {
 		allScanTypes := []string{"sqli", "xss", "traversal", "cmdi", "nosqli", "hpp", "crlf", "prototype", "cors", "redirect", "hostheader", "websocket", "cache", "upload", "deserialize", "oauth", "ssrf", "ssti", "xxe", "smuggling", "graphql", "jwt", "subtakeover", "bizlogic", "race", "apifuzz", "wafdetect", "waffprint", "wafevasion", "tlsprobe", "httpprobe", "secheaders", "jsanalyze", "apidepth", "osint", "vhost", "techdetect", "dnsrecon"}
@@ -500,16 +514,6 @@ func runScan() {
 		fmt.Fprintln(os.Stderr)
 		ui.PrintHelp("Remove -dry-run flag to execute scans")
 		os.Exit(0)
-	}
-
-	// ═══════════════════════════════════════════════════════════════════════════
-	// SPEC-DRIVEN SCAN PATH
-	// When --spec is provided, load the spec, build a plan, and run scanners
-	// against each endpoint. This is a separate flow from the normal scan.
-	// ═══════════════════════════════════════════════════════════════════════════
-	if specMode {
-		runSpecScan(ctx, specCfg, &cf, &outFlags, shouldScan, target, *concurrency, *rateLimit, *proxy, streamJSON, dispCtx)
-		return
 	}
 
 	// Build HTTP client using shared factory (DNS cache, HTTP/2, sockopt, detection wrapper)
@@ -675,7 +679,7 @@ func runScan() {
 			"data":      data,
 		}
 		eventData, _ := json.Marshal(event)
-		fmt.Println(string(eventData))
+		fmt.Println(string(eventData)) // debug:keep
 	}
 
 	// Emit scan start event
@@ -2388,13 +2392,13 @@ func runScan() {
 		if result.TotalVulns > 5 {
 			vulnColor = "\033[31m" // Red
 		}
-		fmt.Println()
+		fmt.Println() // debug:keep
 		ui.PrintSuccess(fmt.Sprintf("✓ Scan complete in %s", result.Duration.Round(time.Millisecond)))
-		fmt.Printf("  📊 Results: %s%d vulnerabilities\033[0m across %d scan types\n", vulnColor, result.TotalVulns, totalScans)
+		fmt.Printf("  📊 Results: %s%d vulnerabilities\033[0m across %d scan types\n", vulnColor, result.TotalVulns, totalScans) // debug:keep
 		if errCount := atomic.LoadInt32(&scanErrors); errCount > 0 {
 			ui.PrintWarning(fmt.Sprintf("  ⚠️  %d scanner(s) encountered errors (use -verbose for details)", errCount))
 		}
-		fmt.Println()
+		fmt.Println() // debug:keep
 	}
 
 	// Apply report metadata
@@ -2468,7 +2472,7 @@ func runScan() {
 		}
 
 		if *jsonOutput {
-			fmt.Println(string(jsonData))
+			fmt.Println(string(jsonData)) // debug:keep
 		}
 	}
 
