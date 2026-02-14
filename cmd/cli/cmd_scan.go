@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -31,6 +32,8 @@ import (
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/discovery"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/ratelimit"
+	"github.com/waftester/waftester/pkg/retry"
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
 	"github.com/waftester/waftester/pkg/graphql"
 	"github.com/waftester/waftester/pkg/hosterrors"
@@ -476,8 +479,49 @@ func runScan() {
 		}
 	}
 
+	// Parse excluded scan types
+	excludeSet := make(map[string]bool)
+	if *excludeTypes != "" {
+		for _, t := range strings.Split(*excludeTypes, ",") {
+			excludeSet[strings.TrimSpace(strings.ToLower(t))] = true
+		}
+	}
+
 	shouldScan := func(name string) bool {
+		if excludeSet[name] {
+			return false
+		}
 		return scanAll || typeSet[name]
+	}
+
+	// Compile URL include/exclude patterns for scope control
+	var includeRe, excludeRe *regexp.Regexp
+	if *includePatterns != "" {
+		var err error
+		includeRe, err = regexp.Compile(*includePatterns)
+		if err != nil {
+			ui.PrintError(fmt.Sprintf("Invalid --include-patterns regex: %v", err))
+			os.Exit(1)
+		}
+	}
+	if *excludePatterns != "" {
+		var err error
+		excludeRe, err = regexp.Compile(*excludePatterns)
+		if err != nil {
+			ui.PrintError(fmt.Sprintf("Invalid --exclude-patterns regex: %v", err))
+			os.Exit(1)
+		}
+	}
+
+	// shouldScanURL returns false if the target URL is excluded by pattern flags.
+	shouldScanURL := func(targetURL string) bool {
+		if includeRe != nil && !includeRe.MatchString(targetURL) {
+			return false
+		}
+		if excludeRe != nil && excludeRe.MatchString(targetURL) {
+			return false
+		}
+		return true
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -574,6 +618,37 @@ func runScan() {
 		ByCategory: make(map[string]int),
 	}
 
+	// Respect robots.txt: fetch disallowed paths and block the scan if the
+	// target path is disallowed. We do this once, before launching scanners.
+	if *respectRobots {
+		es := discovery.NewExternalSources(time.Duration(cf.Timeout)*time.Second, effectiveUserAgent)
+		robotsResult, err := es.ParseRobotsTxt(ctx, target)
+		if err == nil && robotsResult != nil {
+			parsedTarget, _ := url.Parse(target)
+			targetPath := "/"
+			if parsedTarget != nil && parsedTarget.Path != "" {
+				targetPath = parsedTarget.Path
+			}
+			for _, disallowed := range robotsResult.DisallowedPaths {
+				if strings.HasPrefix(targetPath, disallowed) {
+					ui.PrintWarning(fmt.Sprintf("Target path %q is disallowed by robots.txt (matched %q) — skipping scan", targetPath, disallowed))
+					os.Exit(0)
+				}
+			}
+			if cf.Verbose {
+				ui.PrintInfo(fmt.Sprintf("robots.txt: %d disallowed paths checked, target path allowed", len(robotsResult.DisallowedPaths)))
+			}
+		} else if err != nil && cf.Verbose {
+			ui.PrintWarning(fmt.Sprintf("Could not fetch robots.txt: %v (continuing scan)", err))
+		}
+	}
+
+	// Check URL include/exclude patterns against the target
+	if !shouldScanURL(target) {
+		ui.PrintWarning("Target URL excluded by --include-patterns / --exclude-patterns")
+		os.Exit(0)
+	}
+
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	semaphore := make(chan struct{}, *concurrency)
@@ -582,9 +657,22 @@ func runScan() {
 	if *rateLimit < 1 {
 		*rateLimit = 1
 	}
-	// Create rate limiter from -rl flag (token bucket algorithm)
-	// This is the same pattern as pkg/core/executor.go uses.
+
+	// Create rate limiter. When --rate-limit-per-host is set, use the
+	// full-featured per-host limiter from pkg/ratelimit. Otherwise use
+	// the simpler stdlib token bucket.
 	scanLimiter := rate.NewLimiter(rate.Limit(*rateLimit), *rateLimit)
+	var perHostLimiter *ratelimit.Limiter
+	if *rateLimitPerHost {
+		perHostLimiter = ratelimit.New(&ratelimit.Config{
+			RequestsPerSecond: *rateLimit,
+			PerHost:           true,
+			Burst:             *rateLimit,
+		})
+	}
+
+	// stopOnFirst: shared flag and sync.Once to cancel context on first vuln
+	var foundVuln int32 // atomic; 1 = at least one vuln found
 
 	// Progress tracking
 	var totalScans int32
@@ -693,6 +781,25 @@ func runScan() {
 	targetURL, _ := url.Parse(target)
 	targetHost := targetURL.Host
 
+	// checkStopOnFirst cancels the scan context when --stop-on-first is set
+	// and vulns have been recorded. Called after each scanner completes.
+	checkStopOnFirst := func() {
+		if !*stopOnFirstVuln {
+			return
+		}
+		mu.Lock()
+		hasVulns := result.TotalVulns > 0
+		mu.Unlock()
+		if hasVulns {
+			if atomic.CompareAndSwapInt32(&foundVuln, 0, 1) {
+				emitEvent("scan_stopped", map[string]interface{}{
+					"reason": "stop-on-first: vulnerability found",
+				})
+				cancel()
+			}
+		}
+	}
+
 	// Helper to run a scanner with progress tracking
 	runScanner := func(name string, fn func()) {
 		if !shouldScan(name) {
@@ -704,8 +811,20 @@ func runScan() {
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
-			// Enforce rate limit before any network call
-			if err := scanLimiter.Wait(ctx); err != nil {
+			// Stop-on-first: skip if a vuln was already found
+			if *stopOnFirstVuln && atomic.LoadInt32(&foundVuln) == 1 {
+				progress.Increment()
+				return
+			}
+
+			// Enforce rate limit before any network call.
+			// Per-host limiter takes precedence when configured.
+			if perHostLimiter != nil {
+				if err := perHostLimiter.WaitForHost(ctx, targetHost); err != nil {
+					progress.Increment()
+					return
+				}
+			} else if err := scanLimiter.Wait(ctx); err != nil {
 				progress.Increment()
 				return // Context cancelled
 			}
@@ -745,7 +864,27 @@ func runScan() {
 			scanStart := time.Now()
 			progress.SetStatus(name)
 
-			fn()
+			// Wrap scanner execution with retry logic when --retries > 0.
+			// Each scanner's fn() is idempotent (creates a fresh tester +
+			// records results), so retrying on transient errors is safe.
+			if *retries > 0 {
+				retryCfg := retry.Config{
+					MaxAttempts: *retries + 1, // retries flag = retry count, +1 for initial attempt
+					InitDelay:   500 * time.Millisecond,
+					MaxDelay:    5 * time.Second,
+					Strategy:    retry.Exponential,
+					Jitter:      true,
+				}
+				_ = retry.Do(ctx, retryCfg, func() error {
+					fn()
+					return nil // scanners report errors via scanError(), not return values
+				})
+			} else {
+				fn()
+			}
+
+			checkStopOnFirst()
+
 			elapsed := time.Since(scanStart)
 			scanTimings.Store(name, elapsed)
 			progress.Increment()
@@ -2366,6 +2505,10 @@ func runScan() {
 
 	// Deduplicate findings — group by (parameter, type, technique) and count confirming payloads
 	deduplicateAllFindings(result)
+
+	// Apply severity/category filters and strip evidence/remediation if configured
+	filters := parseScanFilters(*matchSeverity, *filterSeverity, *matchCategory, *filterCategory, *includeEvidence, *includeRemediation)
+	applyFilters(result, filters)
 
 	// Emit summary to all hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
 	if dispCtx != nil {
