@@ -140,14 +140,15 @@ func (b *RequestBudget) AllowsForEndpoint(sentForEndpoint int) bool {
 // CorrelationRecord tracks a single request in the scan session for
 // post-scan analysis and WAF log correlation.
 type CorrelationRecord struct {
-	SessionID      string   `json:"session_id"`
-	CorrelationID  string   `json:"correlation_id"`
-	EndpointTag    string   `json:"endpoint_tag"`
-	AttackCategory string   `json:"attack_category"`
-	InjectionPoint string   `json:"injection_point"`
-	PayloadHash    string   `json:"payload_hash"` // hash, not full payload
-	Blocked        bool     `json:"blocked"`
-	WAFResponse    string   `json:"waf_response,omitempty"`
+	SessionID      string    `json:"session_id"`
+	CorrelationID  string    `json:"correlation_id"`
+	EndpointTag    string    `json:"endpoint_tag"`
+	AttackCategory string    `json:"attack_category"`
+	InjectionPoint string    `json:"injection_point"`
+	PayloadHash    string    `json:"payload_hash"` // hash, not full payload
+	Timestamp      time.Time `json:"timestamp"`
+	Blocked        bool      `json:"blocked"`
+	WAFResponse    string    `json:"waf_response,omitempty"`
 }
 
 // ScanState holds mutable state shared across the scan session.
