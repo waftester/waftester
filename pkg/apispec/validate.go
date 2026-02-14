@@ -287,7 +287,7 @@ func isBlockedURL(rawURL string) bool {
 
 	// Block localhost variants
 	lower := strings.ToLower(host)
-	if lower == "localhost" || lower == "127.0.0.1" || lower == "::1" || lower == "[::1]" || lower == "0.0.0.0" {
+	if lower == "localhost" || lower == "127.0.0.1" || lower == "::1" || lower == "0.0.0.0" {
 		return true
 	}
 

@@ -1,6 +1,7 @@
 package apispec
 
 import (
+	"strings"
 	"time"
 
 	"github.com/waftester/waftester/pkg/discovery"
@@ -79,12 +80,13 @@ func buildAttackSurface(spec *Spec) discovery.AttackSurface {
 
 		// Content type detection.
 		for _, ct := range ep.ContentTypes {
+			lower := strings.ToLower(ct)
 			switch {
-			case ct == "application/json" || ct == "text/json":
+			case strings.Contains(lower, "json"):
 				as.AcceptsJSON = true
-			case ct == "application/xml" || ct == "text/xml":
+			case strings.Contains(lower, "xml"):
 				as.AcceptsXML = true
-			case ct == "application/x-www-form-urlencoded" || ct == "multipart/form-data":
+			case lower == "application/x-www-form-urlencoded" || lower == "multipart/form-data":
 				as.AcceptsFormData = true
 			}
 		}
