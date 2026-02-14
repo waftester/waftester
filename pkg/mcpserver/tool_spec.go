@@ -11,6 +11,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/waftester/waftester/pkg/apispec"
+	"github.com/waftester/waftester/pkg/defaults"
 )
 
 // registerSpecTools adds spec-related MCP tools.
@@ -562,7 +563,7 @@ func (s *Server) handleScanSpec(ctx context.Context, req *mcp.CallToolRequest) (
 
 		executor := &apispec.SimpleExecutor{
 			BaseURL:     target,
-			Concurrency: 5,
+			Concurrency: defaults.ConcurrencyLow,
 			ScanFn:      s.specScanFn(),
 			OnEndpointStart: func(ep apispec.Endpoint, scanType string) {
 				log.Printf("[scan_spec] scanning %s %s (%s)", ep.Method, ep.Path, scanType)
