@@ -72,6 +72,11 @@ func (m *middlewareTransport) RoundTrip(req *http.Request) (*http.Response, erro
 					break
 				}
 				r.Body = body
+			} else if r.ContentLength != 0 {
+				// Request had a body but GetBody is nil — body was
+				// consumed by the previous attempt and can't be
+				// reconstructed. Stop retrying to avoid silent data loss.
+				break
 			}
 		}
 

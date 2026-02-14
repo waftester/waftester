@@ -288,8 +288,11 @@ func (e *Executor) Execute(ctx context.Context, allPayloads []payloads.Payload, 
 	}()
 
 	// Progress display goroutine
+	var progressWg sync.WaitGroup
 	progressDone := make(chan struct{})
+	progressWg.Add(1)
 	go func() {
+		defer progressWg.Done()
 		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
 		for {
@@ -298,7 +301,7 @@ func (e *Executor) Execute(ctx context.Context, allPayloads []payloads.Payload, 
 				done := atomic.LoadInt64(&completed)
 				elapsed := time.Since(results.StartTime).Seconds()
 				rps := float64(done) / elapsed
-				fmt.Printf("\r[*] Progress: %d/%d (%.1f/sec) | Blocked: %d | Pass: %d | Fail: %d | Error: %d",
+				fmt.Printf("\r[*] Progress: %d/%d (%.1f/sec) | Blocked: %d | Pass: %d | Fail: %d | Error: %d", // debug:keep
 					done, results.TotalTests, rps,
 					atomic.LoadInt64(&blocked),
 					atomic.LoadInt64(&passed),
@@ -328,6 +331,7 @@ sendLoop:
 	// Wait for collector
 	collectorWg.Wait()
 	close(progressDone)
+	progressWg.Wait()
 
 	// Final stats
 	results.EndTime = time.Now()
@@ -353,7 +357,7 @@ sendLoop:
 		}
 	}
 
-	fmt.Println() // New line after progress
+	fmt.Println() // debug:keep — newline after progress
 	return results
 }
 

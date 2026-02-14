@@ -6,6 +6,7 @@ import (
 	"fmt"
 	htmlpkg "html"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -330,7 +331,14 @@ func PrintSummary(results ExecutionResults) {
 	if len(results.StatusCodes) > 0 {
 		fmt.Println("\n" + strings.Repeat("─", 40))
 		fmt.Println("\033[1;34m  Top Status Codes:\033[0m")
-		for code, count := range results.StatusCodes {
+		// Sort status codes for deterministic output
+		codes := make([]int, 0, len(results.StatusCodes))
+		for code := range results.StatusCodes {
+			codes = append(codes, code)
+		}
+		sort.Ints(codes)
+		for _, code := range codes {
+			count := results.StatusCodes[code]
 			var codeANSI string
 			switch {
 			case code >= 200 && code < 300:
@@ -657,11 +665,14 @@ func (w *SARIFWriter) buildSARIF() sarifDocument {
 		results = append(results, result)
 	}
 
-	// Convert rules map to slice
-	var ruleSlice []sarifRule
+	// Convert rules map to sorted slice (deterministic output)
+	ruleSlice := make([]sarifRule, 0, len(rules))
 	for _, rule := range rules {
 		ruleSlice = append(ruleSlice, rule)
 	}
+	sort.Slice(ruleSlice, func(i, j int) bool {
+		return ruleSlice[i].ID < ruleSlice[j].ID
+	})
 
 	return sarifDocument{
 		Version: "2.1.0",
