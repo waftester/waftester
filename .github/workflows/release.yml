@@ -164,3 +164,26 @@ jobs:
             -f "client_payload[tag]=${TAG}" \
             --silent
           echo "✅ Dispatch sent"
+
+      # Notify aur-waftester repo to auto-update PKGBUILD.
+      # Reuses TAP_GITHUB_TOKEN (needs Contents: write on waftester/aur-waftester).
+      - name: Notify aur-waftester
+        if: >-
+          steps.get_tag.outputs.is_tag == 'true' &&
+          steps.check_release.outputs.skip != 'true'
+        env:
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          TAG: ${{ steps.get_tag.outputs.tag }}
+        run: |
+          if [ -z "$TAP_GITHUB_TOKEN" ]; then
+            echo "⏭️ TAP_GITHUB_TOKEN not set — skipping AUR notification"
+            exit 0
+          fi
+          VERSION="${TAG#v}"
+          echo "📡 Dispatching cli-release event to aur-waftester (version: ${VERSION})"
+          GITHUB_TOKEN="$TAP_GITHUB_TOKEN" gh api repos/waftester/aur-waftester/dispatches \
+            -f event_type="cli-release" \
+            -f "client_payload[version]=${VERSION}" \
+            -f "client_payload[tag]=${TAG}" \
+            --silent
+          echo "✅ Dispatch sent"
