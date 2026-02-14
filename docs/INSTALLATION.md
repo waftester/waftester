@@ -43,6 +43,19 @@ brew tap waftester/tap
 brew install waftester
 ```
 
+## Scoop (Windows)
+
+```powershell
+scoop bucket add waftester https://github.com/waftester/scoop-waftester
+scoop install waftester
+```
+
+## AUR (Arch Linux)
+
+```bash
+yay -S waftester-bin
+```
+
 ## Binary Download
 
 Download the latest release from [GitHub Releases](https://github.com/waftester/waftester/releases).
@@ -53,10 +66,25 @@ Download the latest release from [GitHub Releases](https://github.com/waftester/
 go install github.com/waftester/waftester/cmd/cli@latest
 ```
 
+> **Note:** `go install` produces a binary named `cli`
+> (Go uses the last path element). Rename it to `waf-tester`
+> after install, or use one of the other methods for the
+> correct binary name. Build metadata (version, commit) is
+> also not injected — use `go build` with ldflags for that.
+
 ## Docker
 
 Multi-architecture images (`linux/amd64`, `linux/arm64`) are published
-to GitHub Container Registry on every release and `main` branch push.
+to GitHub Container Registry and Docker Hub on every
+release and `main` branch push.
+
+| Registry | Image |
+|----------|-------|
+| GHCR | `ghcr.io/waftester/waftester` |
+| Docker Hub | `docker.io/qandil/waftester` |
+
+Examples below use GHCR; replace with the Docker Hub
+image if preferred.
 
 The image is built on `distroless/static-debian12:nonroot` (~5 MB),
 runs as a non-root user with a read-only filesystem.
