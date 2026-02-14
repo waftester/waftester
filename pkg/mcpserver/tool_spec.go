@@ -26,6 +26,70 @@ func (s *Server) registerSpecTools() {
 	s.addExportSpecTool()
 }
 
+// specInputProperties returns the shared input schema properties for spec
+// tools that accept spec_content, spec_path, or spec_url. Exactly one must be provided.
+func specInputProperties() map[string]any {
+	return map[string]any{
+		"spec_content": map[string]any{
+			"type":        "string",
+			"description": "The full API specification content (YAML or JSON). Provide the entire spec inline.",
+		},
+		"spec_path": map[string]any{
+			"type":        "string",
+			"description": "File path to an API specification. Alternative to spec_content.",
+		},
+		"spec_url": map[string]any{
+			"type":        "string",
+			"description": "URL to fetch an API specification from. Alternative to spec_content.",
+		},
+	}
+}
+
+// resolveSpecInput parses a spec from one of: spec_content (inline), spec_path (file), or spec_url (URL).
+// Returns the parsed spec or an error result. Exactly one source must be provided.
+func resolveSpecInput(ctx context.Context, content, path, url string) (*apispec.Spec, *mcp.CallToolResult) {
+	sources := 0
+	if content != "" {
+		sources++
+	}
+	if path != "" {
+		sources++
+	}
+	if url != "" {
+		sources++
+	}
+
+	if sources == 0 {
+		return nil, enrichedError("one of spec_content, spec_path, or spec_url is required", []string{
+			"Provide the spec inline (spec_content), as a file path (spec_path), or as a URL (spec_url).",
+		})
+	}
+	if sources > 1 {
+		return nil, errorResult("provide only one of spec_content, spec_path, or spec_url")
+	}
+
+	var spec *apispec.Spec
+	var err error
+
+	switch {
+	case content != "":
+		spec, err = apispec.ParseContentContext(ctx, content)
+	case path != "":
+		spec, err = apispec.ParseContext(ctx, path)
+	case url != "":
+		spec, err = apispec.ParseContext(ctx, url)
+	}
+
+	if err != nil {
+		return nil, enrichedError(fmt.Sprintf("failed to parse spec: %v", err), []string{
+			"Check that the spec content is valid YAML or JSON.",
+			"Supported formats: OpenAPI 3.x, Swagger 2.0, Postman, HAR, GraphQL, gRPC, AsyncAPI 2.x.",
+		})
+	}
+
+	return spec, nil
+}
+
 // --- validate_spec ---
 
 func (s *Server) addValidateSpecTool() {
@@ -51,14 +115,8 @@ Example:
 
 Result format: JSON with fields: valid (bool), format (string), endpoint_count (int), warnings ([]string), errors ([]string).`,
 			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"spec_content": map[string]any{
-						"type":        "string",
-						"description": "The full API specification content (YAML or JSON). Provide the entire spec inline.",
-					},
-				},
-				"required": []string{"spec_content"},
+				"type":       "object",
+				"properties": specInputProperties(),
 			},
 			Annotations: &mcp.ToolAnnotations{
 				ReadOnlyHint: true,
@@ -68,21 +126,35 @@ Result format: JSON with fields: valid (bool), format (string), endpoint_count (
 	)
 }
 
-func (s *Server) handleValidateSpec(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *Server) handleValidateSpec(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var args struct {
 		SpecContent string `json:"spec_content"`
+		SpecPath    string `json:"spec_path"`
+		SpecURL     string `json:"spec_url"`
 	}
 	if err := parseArgs(req, &args); err != nil {
 		return errorResult(fmt.Sprintf("invalid arguments: %v", err)), nil
 	}
-	if args.SpecContent == "" {
-		return enrichedError("spec_content is required", []string{
-			"Provide the full API specification content as a string.",
-			"Supported formats: OpenAPI 3.x, Swagger 2.0, Postman, HAR.",
+
+	// Validate that exactly one source is provided.
+	sources := 0
+	if args.SpecContent != "" {
+		sources++
+	}
+	if args.SpecPath != "" {
+		sources++
+	}
+	if args.SpecURL != "" {
+		sources++
+	}
+	if sources == 0 {
+		return enrichedError("one of spec_content, spec_path, or spec_url is required", []string{
+			"Provide the spec inline (spec_content), as a file path (spec_path), or as a URL (spec_url).",
 		}), nil
 	}
-
-	spec, err := apispec.ParseContent(args.SpecContent)
+	if sources > 1 {
+		return errorResult("provide only one of spec_content, spec_path, or spec_url"), nil
+	}
 
 	type validationResult struct {
 		Valid         bool     `json:"valid"`
@@ -94,22 +166,31 @@ func (s *Server) handleValidateSpec(_ context.Context, req *mcp.CallToolRequest)
 		Errors        []string `json:"errors,omitempty"`
 	}
 
-	result := validationResult{}
-
-	if err != nil {
-		result.Valid = false
-		result.Errors = []string{err.Error()}
-		return jsonResult(result)
+	// Parse the spec — failures are validation results, not tool errors.
+	var spec *apispec.Spec
+	var parseErr error
+	switch {
+	case args.SpecContent != "":
+		spec, parseErr = apispec.ParseContentContext(ctx, args.SpecContent)
+	case args.SpecPath != "":
+		spec, parseErr = apispec.ParseContext(ctx, args.SpecPath)
+	case args.SpecURL != "":
+		spec, parseErr = apispec.ParseContext(ctx, args.SpecURL)
+	}
+	if parseErr != nil {
+		return jsonResult(validationResult{
+			Valid:  false,
+			Errors: []string{parseErr.Error()},
+		})
 	}
 
-	result.Valid = true
-	result.Format = string(spec.Format)
-	result.EndpointCount = len(spec.Endpoints)
-	result.Title = spec.Title
-	result.Version = spec.Version
-
-	// Validation of inline content is limited — ValidateSpec expects a file path.
-	// We skip file-based validation here; the parse success is the primary check.
+	result := validationResult{
+		Valid:         true,
+		Format:        string(spec.Format),
+		EndpointCount: len(spec.Endpoints),
+		Title:         spec.Title,
+		Version:       spec.Version,
+	}
 
 	return jsonResult(result)
 }
@@ -140,17 +221,14 @@ Example:
 Result format: JSON array of endpoints with method, path, parameters, auth, tags.`,
 			InputSchema: map[string]any{
 				"type": "object",
-				"properties": map[string]any{
-					"spec_content": map[string]any{
-						"type":        "string",
-						"description": "The full API specification content.",
-					},
-					"group": map[string]any{
+				"properties": func() map[string]any {
+					p := specInputProperties()
+					p["group"] = map[string]any{
 						"type":        "string",
 						"description": "Filter endpoints by group/tag name. Omit to list all.",
-					},
-				},
-				"required": []string{"spec_content"},
+					}
+					return p
+				}(),
 			},
 			Annotations: &mcp.ToolAnnotations{
 				ReadOnlyHint: true,
@@ -160,24 +238,20 @@ Result format: JSON array of endpoints with method, path, parameters, auth, tags
 	)
 }
 
-func (s *Server) handleListSpecEndpoints(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *Server) handleListSpecEndpoints(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var args struct {
 		SpecContent string `json:"spec_content"`
+		SpecPath    string `json:"spec_path"`
+		SpecURL     string `json:"spec_url"`
 		Group       string `json:"group"`
 	}
 	if err := parseArgs(req, &args); err != nil {
 		return errorResult(fmt.Sprintf("invalid arguments: %v", err)), nil
 	}
-	if args.SpecContent == "" {
-		return enrichedError("spec_content is required", nil), nil
-	}
 
-	spec, err := apispec.ParseContent(args.SpecContent)
-	if err != nil {
-		return enrichedError(fmt.Sprintf("failed to parse spec: %v", err), []string{
-			"Check that the spec content is valid YAML or JSON.",
-			"Supported formats: OpenAPI 3.x, Swagger 2.0, Postman, HAR.",
-		}), nil
+	spec, errResult := resolveSpecInput(ctx, args.SpecContent, args.SpecPath, args.SpecURL)
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	endpoints := spec.Endpoints
@@ -237,30 +311,27 @@ Example:
 Result format: JSON with entries (attack plan), total_tests, priority breakdown, and category summary.`,
 			InputSchema: map[string]any{
 				"type": "object",
-				"properties": map[string]any{
-					"spec_content": map[string]any{
-						"type":        "string",
-						"description": "The full API specification content.",
-					},
-					"intensity": map[string]any{
+				"properties": func() map[string]any {
+					p := specInputProperties()
+					p["intensity"] = map[string]any{
 						"type":        "string",
 						"description": "Scanning intensity: quick, normal, deep, paranoid. Default: normal.",
 						"enum":        []string{"quick", "normal", "deep", "paranoid"},
-					},
-					"group": map[string]any{
+					}
+					p["group"] = map[string]any{
 						"type":        "string",
 						"description": "Filter to endpoints in this group/tag.",
-					},
-					"scan_types": map[string]any{
+					}
+					p["scan_types"] = map[string]any{
 						"type":        "string",
 						"description": "Comma-separated list of attack categories to include (e.g., 'sqli,xss'). Omit for auto-selection.",
-					},
-					"skip_types": map[string]any{
+					}
+					p["skip_types"] = map[string]any{
 						"type":        "string",
 						"description": "Comma-separated list of attack categories to exclude.",
-					},
-				},
-				"required": []string{"spec_content"},
+					}
+					return p
+				}(),
 			},
 			Annotations: &mcp.ToolAnnotations{
 				ReadOnlyHint: true,
@@ -270,9 +341,11 @@ Result format: JSON with entries (attack plan), total_tests, priority breakdown,
 	)
 }
 
-func (s *Server) handlePlanSpec(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *Server) handlePlanSpec(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var args struct {
 		SpecContent string `json:"spec_content"`
+		SpecPath    string `json:"spec_path"`
+		SpecURL     string `json:"spec_url"`
 		Intensity   string `json:"intensity"`
 		Group       string `json:"group"`
 		ScanTypes   string `json:"scan_types"`
@@ -281,15 +354,10 @@ func (s *Server) handlePlanSpec(_ context.Context, req *mcp.CallToolRequest) (*m
 	if err := parseArgs(req, &args); err != nil {
 		return errorResult(fmt.Sprintf("invalid arguments: %v", err)), nil
 	}
-	if args.SpecContent == "" {
-		return enrichedError("spec_content is required", nil), nil
-	}
 
-	spec, err := apispec.ParseContent(args.SpecContent)
-	if err != nil {
-		return enrichedError(fmt.Sprintf("failed to parse spec: %v", err), []string{
-			"Check that the spec content is valid YAML or JSON.",
-		}), nil
+	spec, errResult := resolveSpecInput(ctx, args.SpecContent, args.SpecPath, args.SpecURL)
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	// Apply group filter.
@@ -358,46 +426,43 @@ Result format: JSON with findings, endpoint results, attack summary, and scan du
 			},
 			InputSchema: map[string]any{
 				"type": "object",
-				"properties": map[string]any{
-					"spec_content": map[string]any{
-						"type":        "string",
-						"description": "The full API specification content.",
-					},
-					"target": map[string]any{
+				"properties": func() map[string]any {
+					p := specInputProperties()
+					p["target"] = map[string]any{
 						"type":        "string",
 						"description": "Target base URL. Overrides spec server URLs. Required if spec has no server URLs.",
-					},
-					"intensity": map[string]any{
+					}
+					p["intensity"] = map[string]any{
 						"type":        "string",
 						"description": "Scanning intensity: quick, normal, deep, paranoid.",
 						"enum":        []string{"quick", "normal", "deep", "paranoid"},
-					},
-					"group": map[string]any{
+					}
+					p["group"] = map[string]any{
 						"type":        "string",
 						"description": "Filter to endpoints in this group/tag.",
-					},
-					"variables": map[string]any{
+					}
+					p["variables"] = map[string]any{
 						"type":        "string",
 						"description": "Comma-separated key=value pairs for spec variable substitution.",
-					},
-					"env": map[string]any{
+					}
+					p["env"] = map[string]any{
 						"type":        "string",
 						"description": "Path to a Postman environment file for variable resolution.",
-					},
-					"dry_run": map[string]any{
+					}
+					p["dry_run"] = map[string]any{
 						"type":        "boolean",
 						"description": "If true, generate the plan without executing. Returns the scan plan.",
-					},
-					"scan_types": map[string]any{
+					}
+					p["scan_types"] = map[string]any{
 						"type":        "string",
 						"description": "Comma-separated list of attack categories to include.",
-					},
-					"skip_types": map[string]any{
+					}
+					p["skip_types"] = map[string]any{
 						"type":        "string",
 						"description": "Comma-separated list of attack categories to exclude.",
-					},
-				},
-				"required": []string{"spec_content"},
+					}
+					return p
+				}(),
 			},
 		},
 		loggedTool("scan_spec", s.handleScanSpec),
@@ -407,6 +472,8 @@ Result format: JSON with findings, endpoint results, attack summary, and scan du
 func (s *Server) handleScanSpec(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var args struct {
 		SpecContent string `json:"spec_content"`
+		SpecPath    string `json:"spec_path"`
+		SpecURL     string `json:"spec_url"`
 		Target      string `json:"target"`
 		Intensity   string `json:"intensity"`
 		Group       string `json:"group"`
@@ -419,17 +486,10 @@ func (s *Server) handleScanSpec(ctx context.Context, req *mcp.CallToolRequest) (
 	if err := parseArgs(req, &args); err != nil {
 		return errorResult(fmt.Sprintf("invalid arguments: %v", err)), nil
 	}
-	if args.SpecContent == "" {
-		return enrichedError("spec_content is required", []string{
-			"Provide the full API specification content as a string.",
-		}), nil
-	}
 
-	spec, err := apispec.ParseContent(args.SpecContent)
-	if err != nil {
-		return enrichedError(fmt.Sprintf("failed to parse spec: %v", err), []string{
-			"Check that the spec content is valid YAML or JSON.",
-		}), nil
+	spec, errResult := resolveSpecInput(ctx, args.SpecContent, args.SpecPath, args.SpecURL)
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	// Apply group filter.
@@ -646,22 +706,19 @@ USE when:
 Result format: JSON with entries (endpoint, attack category, payload count), total_tests, estimated_duration.`,
 			InputSchema: map[string]any{
 				"type": "object",
-				"properties": map[string]any{
-					"spec_content": map[string]any{
-						"type":        "string",
-						"description": "The full API specification content (YAML or JSON).",
-					},
-					"intensity": map[string]any{
+				"properties": func() map[string]any {
+					p := specInputProperties()
+					p["intensity"] = map[string]any{
 						"type":        "string",
 						"enum":        []string{"quick", "normal", "deep", "paranoid"},
 						"description": "Scanning depth. Default: standard.",
-					},
-					"group": map[string]any{
+					}
+					p["group"] = map[string]any{
 						"type":        "string",
 						"description": "Only include endpoints in this tag/group.",
-					},
-				},
-				"required": []string{"spec_content"},
+					}
+					return p
+				}(),
 			},
 			Annotations: &mcp.ToolAnnotations{
 				ReadOnlyHint: true,
@@ -671,22 +728,21 @@ Result format: JSON with entries (endpoint, attack category, payload count), tot
 	)
 }
 
-func (s *Server) handlePreviewSpecScan(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *Server) handlePreviewSpecScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var args struct {
 		SpecContent string `json:"spec_content"`
+		SpecPath    string `json:"spec_path"`
+		SpecURL     string `json:"spec_url"`
 		Intensity   string `json:"intensity"`
 		Group       string `json:"group"`
 	}
 	if err := parseArgs(req, &args); err != nil {
 		return errorResult(fmt.Sprintf("invalid arguments: %v", err)), nil
 	}
-	if args.SpecContent == "" {
-		return errorResult("spec_content is required"), nil
-	}
 
-	spec, err := apispec.ParseContent(args.SpecContent)
-	if err != nil {
-		return errorResult(fmt.Sprintf("parse error: %v", err)), nil
+	spec, errResult := resolveSpecInput(ctx, args.SpecContent, args.SpecPath, args.SpecURL)
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	intensity := apispec.IntensityNormal
@@ -755,14 +811,8 @@ USE when:
 
 Result format: JSON with attack_surface, auth_analysis, parameter_insights, recommended_scan_types.`,
 			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"spec_content": map[string]any{
-						"type":        "string",
-						"description": "The full API specification content (YAML or JSON).",
-					},
-				},
-				"required": []string{"spec_content"},
+				"type":       "object",
+				"properties": specInputProperties(),
 			},
 			Annotations: &mcp.ToolAnnotations{
 				ReadOnlyHint: true,
@@ -772,20 +822,19 @@ Result format: JSON with attack_surface, auth_analysis, parameter_insights, reco
 	)
 }
 
-func (s *Server) handleSpecIntelligence(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *Server) handleSpecIntelligence(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var args struct {
 		SpecContent string `json:"spec_content"`
+		SpecPath    string `json:"spec_path"`
+		SpecURL     string `json:"spec_url"`
 	}
 	if err := parseArgs(req, &args); err != nil {
 		return errorResult(fmt.Sprintf("invalid arguments: %v", err)), nil
 	}
-	if args.SpecContent == "" {
-		return errorResult("spec_content is required"), nil
-	}
 
-	spec, err := apispec.ParseContent(args.SpecContent)
-	if err != nil {
-		return errorResult(fmt.Sprintf("parse error: %v", err)), nil
+	spec, errResult := resolveSpecInput(ctx, args.SpecContent, args.SpecPath, args.SpecURL)
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	// Build an intelligent plan to extract the intelligence selections.
@@ -877,14 +926,8 @@ USE when:
 
 Result format: JSON with schemes array, each containing name, type, details, and per-endpoint auth requirements.`,
 			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"spec_content": map[string]any{
-						"type":        "string",
-						"description": "The full API specification content (YAML or JSON).",
-					},
-				},
-				"required": []string{"spec_content"},
+				"type":       "object",
+				"properties": specInputProperties(),
 			},
 			Annotations: &mcp.ToolAnnotations{
 				ReadOnlyHint: true,
@@ -894,20 +937,19 @@ Result format: JSON with schemes array, each containing name, type, details, and
 	)
 }
 
-func (s *Server) handleDescribeSpecAuth(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *Server) handleDescribeSpecAuth(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var args struct {
 		SpecContent string `json:"spec_content"`
+		SpecPath    string `json:"spec_path"`
+		SpecURL     string `json:"spec_url"`
 	}
 	if err := parseArgs(req, &args); err != nil {
 		return errorResult(fmt.Sprintf("invalid arguments: %v", err)), nil
 	}
-	if args.SpecContent == "" {
-		return errorResult("spec_content is required"), nil
-	}
 
-	spec, err := apispec.ParseContent(args.SpecContent)
-	if err != nil {
-		return errorResult(fmt.Sprintf("parse error: %v", err)), nil
+	spec, errResult := resolveSpecInput(ctx, args.SpecContent, args.SpecPath, args.SpecURL)
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	var schemes []map[string]any
@@ -992,17 +1034,14 @@ USE when:
 Result format: JSON with the normalized Spec object (endpoints, servers, auth, metadata).`,
 			InputSchema: map[string]any{
 				"type": "object",
-				"properties": map[string]any{
-					"spec_content": map[string]any{
-						"type":        "string",
-						"description": "The full API specification content (YAML or JSON).",
-					},
-					"include_schemas": map[string]any{
+				"properties": func() map[string]any {
+					props := specInputProperties()
+					props["include_schemas"] = map[string]any{
 						"type":        "boolean",
 						"description": "Include full schema definitions in the export. Default: false.",
-					},
-				},
-				"required": []string{"spec_content"},
+					}
+					return props
+				}(),
 			},
 			Annotations: &mcp.ToolAnnotations{
 				ReadOnlyHint: true,
@@ -1012,21 +1051,20 @@ Result format: JSON with the normalized Spec object (endpoints, servers, auth, m
 	)
 }
 
-func (s *Server) handleExportSpec(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *Server) handleExportSpec(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var args struct {
 		SpecContent    string `json:"spec_content"`
+		SpecPath       string `json:"spec_path"`
+		SpecURL        string `json:"spec_url"`
 		IncludeSchemas bool   `json:"include_schemas"`
 	}
 	if err := parseArgs(req, &args); err != nil {
 		return errorResult(fmt.Sprintf("invalid arguments: %v", err)), nil
 	}
-	if args.SpecContent == "" {
-		return errorResult("spec_content is required"), nil
-	}
 
-	spec, err := apispec.ParseContent(args.SpecContent)
-	if err != nil {
-		return errorResult(fmt.Sprintf("parse error: %v", err)), nil
+	spec, errResult := resolveSpecInput(ctx, args.SpecContent, args.SpecPath, args.SpecURL)
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	// Optionally strip schemas to reduce output size.
