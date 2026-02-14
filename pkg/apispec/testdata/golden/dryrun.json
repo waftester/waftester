@@ -1,0 +1,70 @@
+{
+  "session_id": "test-session-001",
+  "entries": [
+    {
+      "endpoint": {
+        "method": "GET",
+        "path": "/users",
+        "operation_id": "listUsers",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "correlation_tag": ""
+      },
+      "attack": {
+        "category": "sqli",
+        "reason": "Query parameter 'search' is injectable (string type)",
+        "payload_count": 3,
+        "layers": [
+          "param_type",
+          "param_name"
+        ],
+        "risk_score": 75
+      },
+      "injection_target": {
+        "parameter": "search",
+        "location": "query"
+      }
+    },
+    {
+      "endpoint": {
+        "method": "GET",
+        "path": "/users",
+        "operation_id": "listUsers",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "correlation_tag": ""
+      },
+      "attack": {
+        "category": "xss",
+        "reason": "Query parameter 'search' may be reflected",
+        "payload_count": 3,
+        "layers": [
+          "param_type"
+        ],
+        "risk_score": 60
+      },
+      "injection_target": {
+        "parameter": "search",
+        "location": "query"
+      }
+    }
+  ],
+  "total_tests": 6,
+  "estimated_duration": 0,
+  "intensity": "normal",
+  "spec_source": "testdata/petstore.yaml"
+}
