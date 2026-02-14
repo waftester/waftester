@@ -111,7 +111,7 @@ func TestValidateSpec_EmptyContent(t *testing.T) {
 
 	assert.True(t, result.IsError)
 	text := resultText(t, result)
-	assert.Contains(t, text, "spec_content is required")
+	assert.Contains(t, text, "one of spec_content, spec_path, or spec_url is required")
 }
 
 func TestListSpecEndpoints_AllEndpoints(t *testing.T) {
@@ -400,7 +400,7 @@ func TestPreviewSpecScan_EmptyContent(t *testing.T) {
 	})
 	assert.True(t, result.IsError)
 	text := resultText(t, result)
-	assert.Contains(t, text, "spec_content is required")
+	assert.Contains(t, text, "one of spec_content, spec_path, or spec_url is required")
 }
 
 // --- spec_intelligence tests ---
@@ -430,7 +430,7 @@ func TestSpecIntelligence_EmptyContent(t *testing.T) {
 	})
 	assert.True(t, result.IsError)
 	text := resultText(t, result)
-	assert.Contains(t, text, "spec_content is required")
+	assert.Contains(t, text, "one of spec_content, spec_path, or spec_url is required")
 }
 
 // --- describe_spec_auth tests ---
@@ -490,7 +490,7 @@ func TestDescribeSpecAuth_EmptyContent(t *testing.T) {
 	})
 	assert.True(t, result.IsError)
 	text := resultText(t, result)
-	assert.Contains(t, text, "spec_content is required")
+	assert.Contains(t, text, "one of spec_content, spec_path, or spec_url is required")
 }
 
 // --- export_spec tests ---
@@ -520,5 +520,5 @@ func TestExportSpec_EmptyContent(t *testing.T) {
 	})
 	assert.True(t, result.IsError)
 	text := resultText(t, result)
-	assert.Contains(t, text, "spec_content is required")
+	assert.Contains(t, text, "one of spec_content, spec_path, or spec_url is required")
 }

@@ -199,25 +199,32 @@ func runAutoScan() {
 		}
 	}
 
-	// Get target
+	// Get target. In spec mode, target is optional — the spec's server
+	// URLs will be used if -u is not provided.
+	specModeActive := *specFile != "" || *specURL != ""
 	ts := &input.TargetSource{
 		URLs:     targetURLs,
 		ListFile: *listFile,
 		Stdin:    *stdinInput,
 	}
 	target, err := ts.GetSingleTarget()
-	if err != nil {
+	if err != nil && !specModeActive {
 		ui.PrintError("Target URL is required. Use: waf-tester auto -u https://example.com")
 		os.Exit(1)
 	}
 
-	// Parse domain from target
-	parsedURL, err := url.Parse(target)
-	if err != nil {
-		ui.PrintError(fmt.Sprintf("Invalid target URL: %v", err))
-		os.Exit(1)
+	// Parse domain from target (may be empty in spec mode).
+	var domain string
+	if target != "" {
+		parsedURL, parseErr := url.Parse(target)
+		if parseErr != nil {
+			ui.PrintError(fmt.Sprintf("Invalid target URL: %v", parseErr))
+			os.Exit(1)
+		}
+		domain = parsedURL.Hostname()
+	} else {
+		domain = "spec-scan"
 	}
-	domain := parsedURL.Hostname()
 
 	// Create output directory structure
 	timestamp := time.Now().Format("2006-01-02_15-04-05")
@@ -2606,7 +2613,7 @@ func runAutoScan() {
 
 		// Output to stdout
 		jsonBytes, _ := json.MarshalIndent(jsonSummary, "", "  ")
-		fmt.Println(string(jsonBytes))
+		fmt.Println(string(jsonBytes)) // debug:keep
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
