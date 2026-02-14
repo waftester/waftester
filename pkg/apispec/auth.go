@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -116,7 +115,7 @@ func oauth2Auth(specAuth []AuthScheme, cli AuthConfig) RequestAuthFunc {
 	return func(req *http.Request) {
 		token, err := cache.getOrRefresh(tokenURL, cli.OAuth2ClientID, cli.OAuth2ClientSecret, cli.OAuth2Scopes)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "warning: OAuth2 token refresh failed: %v (request sent without auth)\n", err)
+			// Token refresh failed — send request without auth rather than blocking.
 			return
 		}
 		req.Header.Set("Authorization", "Bearer "+token)
