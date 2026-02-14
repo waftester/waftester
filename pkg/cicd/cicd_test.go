@@ -186,11 +186,72 @@ func TestGenerator_Generate_Bitbucket(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !strings.Contains(output, "image: golang:1.21") {
+	if !strings.Contains(output, "image: alpine:3") {
 		t.Error("missing image")
 	}
 	if !strings.Contains(output, "pipelines:") {
 		t.Error("missing pipelines")
+	}
+}
+
+func TestGenerator_Generate_InstallPattern(t *testing.T) {
+	g := NewGenerator()
+
+	// Every platform must use the curl binary download pattern with the correct
+	// GoReleaser archive name — NOT go install.
+	for _, platform := range g.ListPlatforms() {
+		config := DefaultConfig(platform, "https://example.com")
+		output, err := g.Generate(config)
+		if err != nil {
+			t.Fatalf("%s: unexpected error: %v", platform, err)
+		}
+
+		if strings.Contains(output, "go install") {
+			t.Errorf("%s: template still contains 'go install' — must use binary download", platform)
+		}
+		if !strings.Contains(output, "waftester_Linux_x86_64.tar.gz") {
+			t.Errorf("%s: missing correct GoReleaser archive name (waftester_Linux_x86_64.tar.gz)", platform)
+		}
+		if !strings.Contains(output, "releases/latest/download/") {
+			t.Errorf("%s: missing GitHub Releases latest download URL", platform)
+		}
+		if !strings.Contains(output, "install -m 755 waf-tester") {
+			t.Errorf("%s: missing 'install -m 755 waf-tester' command", platform)
+		}
+	}
+}
+
+func TestGenerator_Generate_NoGoImages(t *testing.T) {
+	g := NewGenerator()
+
+	// Templates should not reference Go Docker images since Go is no longer needed.
+	for _, platform := range g.ListPlatforms() {
+		config := DefaultConfig(platform, "https://example.com")
+		output, err := g.Generate(config)
+		if err != nil {
+			t.Fatalf("%s: unexpected error: %v", platform, err)
+		}
+
+		for _, img := range []string{"golang:", "cimg/go:"} {
+			if strings.Contains(output, img) {
+				t.Errorf("%s: template still references Go Docker image %q — Go is not needed for binary download", platform, img)
+			}
+		}
+	}
+}
+
+func TestGenerator_Generate_VersionedDownload(t *testing.T) {
+	g := NewGenerator()
+	config := DefaultConfig(PlatformGitHubActions, "https://example.com")
+	config.WafTesterVersion = "v2.8.8"
+
+	output, err := g.Generate(config)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(output, "releases/download/v2.8.8/waftester_Linux_x86_64.tar.gz") {
+		t.Error("versioned download URL not correctly templated")
 	}
 }
 
