@@ -163,7 +163,8 @@ Works on macOS, Linux, and Windows (x64 and arm64). Requires Node.js >= 16.
 
 ### Go Install
 
-Requires Go 1.24 or later.
+Requires Go 1.24 or later. The binary will be named `cli`;
+rename to `waf-tester` after install.
 
 ```bash
 go install github.com/waftester/waftester/cmd/cli@latest
@@ -171,7 +172,8 @@ go install github.com/waftester/waftester/cmd/cli@latest
 
 ### Docker
 
-Multi-architecture images (`linux/amd64`, `linux/arm64`) are published to GitHub Container Registry.
+Multi-architecture images (`linux/amd64`, `linux/arm64`)
+are published to GHCR and Docker Hub.
 
 ```bash
 # Pull the latest image
@@ -202,8 +204,16 @@ The image runs as non-root on a read-only distroless base (~5 MB). See [docs/INS
 ### Package Managers
 
 ```bash
-# macOS
+# macOS / Linux
+brew tap waftester/tap
 brew install waftester
+
+# Windows
+scoop bucket add waftester https://github.com/waftester/scoop-waftester
+scoop install waftester
+
+# Arch Linux (AUR)
+yay -S waftester-bin
 ```
 
 ### Binary Releases
