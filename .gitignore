@@ -132,6 +132,7 @@ license.key
 *.junit.xml
 test-results/
 playwright-report/
+pkg/screenshot/screenshots/
 
 #===============================================================================
 # Build & Release
