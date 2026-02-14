@@ -934,7 +934,11 @@ func compareWithGolden(t *testing.T, name string, actual []byte) {
 			goldenPath, err)
 	}
 
-	if !bytes.Equal(expected, actual) {
+	// Normalize line endings to LF for cross-platform comparison.
+	normalizedExpected := bytes.ReplaceAll(expected, []byte("\r\n"), []byte("\n"))
+	normalizedActual := bytes.ReplaceAll(actual, []byte("\r\n"), []byte("\n"))
+
+	if !bytes.Equal(normalizedExpected, normalizedActual) {
 		t.Errorf("output does not match golden file %s\n--- Expected (len=%d):\n%s\n--- Actual (len=%d):\n%s",
 			goldenPath, len(expected), string(expected), len(actual), string(actual))
 	}
