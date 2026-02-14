@@ -1,0 +1,16 @@
+{
+  "info": {
+    "name": "V2.0 Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.0.0/collection.json",
+    "_postman_id": "test-id-v2"
+  },
+  "item": [
+    {
+      "name": "Simple Request",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/health"
+      }
+    }
+  ]
+}

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/waftester/waftester/pkg/apispec"
 	"github.com/waftester/waftester/pkg/defaults"
 )
 
@@ -35,6 +36,12 @@ type Config struct {
 
 	// TemplateDir is the directory containing Nuclei template files.
 	TemplateDir string
+
+	// SpecScanFn is the scanner bridge for spec-driven scanning.
+	// When set, the scan_spec MCP tool uses this function to dispatch
+	// scan categories (sqli, xss, etc.) against spec endpoints.
+	// Injected from cmd/cli where scanner packages are imported.
+	SpecScanFn apispec.ScanFunc
 }
 
 // ---------------------------------------------------------------------------
@@ -102,6 +109,7 @@ func New(cfg *Config) *Server {
 	)
 
 	s.registerTools()
+	s.registerSpecTools()
 	s.registerResources()
 	s.registerPrompts()
 

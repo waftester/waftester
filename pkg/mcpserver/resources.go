@@ -24,6 +24,8 @@ func (s *Server) registerResources() {
 	s.addOWASPMappingsResource()
 	s.addConfigResource()
 	s.addTemplatesResource()
+	s.addSpecFormatsResource()
+	s.addIntelligenceLayersResource()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -43,9 +45,9 @@ func (s *Server) addVersionResource() {
 				"name":    defaults.ToolNameDisplay,
 				"version": defaults.Version,
 				"capabilities": map[string]any{
-					"tools":     13,
-					"resources": 10,
-					"prompts":   6,
+					"tools":     22,
+					"resources": 12,
+					"prompts":   7,
 					"templates": 40,
 				},
 				"template_categories": []string{
@@ -55,6 +57,9 @@ func (s *Server) addVersionResource() {
 					"list_payloads", "detect_waf", "discover", "learn", "scan",
 					"assess", "mutate", "bypass", "probe", "generate_cicd",
 					"get_task_status", "cancel_task", "list_tasks",
+					"validate_spec", "list_spec_endpoints", "plan_spec", "scan_spec",
+					"compare_baselines",
+					"preview_spec_scan", "spec_intelligence", "describe_spec_auth", "export_spec",
 				},
 				"supported_waf_vendors": []string{
 					"ModSecurity", "Coraza", "Cloudflare", "AWS WAF", "Azure WAF",
@@ -908,6 +913,77 @@ func (s *Server) addUnifiedPayloadsResource() {
 			return &mcp.ReadResourceResult{
 				Contents: []*mcp.ResourceContents{
 					{URI: "waftester://payloads/unified", MIMEType: "application/json", Text: string(data)},
+				},
+			}, nil
+		},
+	)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// waftester://spec-formats — Supported API specification formats
+// ═══════════════════════════════════════════════════════════════════════════
+
+func (s *Server) addSpecFormatsResource() {
+	s.mcp.AddResource(
+		&mcp.Resource{
+			URI:         "waftester://spec-formats",
+			Name:        "Supported Spec Formats",
+			Description: "Matrix of supported API specification formats and their capabilities.",
+			MIMEType:    "application/json",
+		},
+		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			formats := []map[string]any{
+				{"format": "openapi3", "name": "OpenAPI 3.x", "extensions": []string{".yaml", ".yml", ".json"}, "auto_detect": true, "auth_extraction": true, "schema_constraints": true},
+				{"format": "swagger2", "name": "Swagger 2.0", "extensions": []string{".yaml", ".yml", ".json"}, "auto_detect": true, "auth_extraction": true, "schema_constraints": true},
+				{"format": "postman", "name": "Postman Collection v2.x", "extensions": []string{".json"}, "auto_detect": true, "auth_extraction": true, "schema_constraints": false},
+				{"format": "har", "name": "HAR 1.2", "extensions": []string{".har", ".json"}, "auto_detect": true, "auth_extraction": false, "schema_constraints": false},
+				{"format": "graphql", "name": "GraphQL Introspection", "extensions": []string{}, "auto_detect": false, "auth_extraction": false, "schema_constraints": true},
+				{"format": "grpc", "name": "gRPC/Protobuf Reflection", "extensions": []string{}, "auto_detect": false, "auth_extraction": false, "schema_constraints": true},
+				{"format": "asyncapi", "name": "AsyncAPI 2.x (WebSocket)", "extensions": []string{".yaml", ".yml", ".json"}, "auto_detect": true, "auth_extraction": false, "schema_constraints": true},
+			}
+			data, err := json.MarshalIndent(formats, "", "  ")
+			if err != nil {
+				return nil, fmt.Errorf("marshaling spec formats: %w", err)
+			}
+			return &mcp.ReadResourceResult{
+				Contents: []*mcp.ResourceContents{
+					{URI: "waftester://spec-formats", MIMEType: "application/json", Text: string(data)},
+				},
+			}, nil
+		},
+	)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// waftester://intelligence-layers — Intelligence engine analysis layers
+// ═══════════════════════════════════════════════════════════════════════════
+
+func (s *Server) addIntelligenceLayersResource() {
+	s.mcp.AddResource(
+		&mcp.Resource{
+			URI:         "waftester://intelligence-layers",
+			Name:        "Intelligence Engine Layers",
+			Description: "Description of the 8-layer intelligence engine that auto-selects attacks per endpoint.",
+			MIMEType:    "application/json",
+		},
+		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			layers := []map[string]any{
+				{"layer": 1, "name": "Parameter Type Analysis", "description": "Maps parameter data types (string, integer, file) to relevant attack categories."},
+				{"layer": 2, "name": "Parameter Name Matching", "description": "Regex patterns match parameter names (e.g., redirect_url, file_path) to attack types."},
+				{"layer": 3, "name": "Endpoint Path Analysis", "description": "Path segments (e.g., /login, /admin, /upload) trigger context-specific attacks."},
+				{"layer": 4, "name": "Auth Context Analysis", "description": "Detects auth gaps: endpoints without auth when siblings require it."},
+				{"layer": 5, "name": "Schema Constraint Analysis", "description": "Generates attacks from schema constraints: maxLength overflows, enum violations, format exploits."},
+				{"layer": 6, "name": "Content-Type Mutation", "description": "Plans content-type switches (JSON->XML, JSON->form) to bypass type-specific WAF rules."},
+				{"layer": 7, "name": "HTTP Method Confusion", "description": "Tries undocumented methods and X-HTTP-Method-Override for each endpoint."},
+				{"layer": 8, "name": "Cross-Endpoint Correlation", "description": "Identifies IDOR, privilege escalation, and race conditions across related endpoints."},
+			}
+			data, err := json.MarshalIndent(layers, "", "  ")
+			if err != nil {
+				return nil, fmt.Errorf("marshaling intelligence layers: %w", err)
+			}
+			return &mcp.ReadResourceResult{
+				Contents: []*mcp.ResourceContents{
+					{URI: "waftester://intelligence-layers", MIMEType: "application/json", Text: string(data)},
 				},
 			}, nil
 		},
