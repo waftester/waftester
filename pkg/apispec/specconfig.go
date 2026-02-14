@@ -83,6 +83,19 @@ type AuthConfig struct {
 
 	// CustomHeaders are additional auth-related headers.
 	CustomHeaders map[string]string `json:"custom_headers,omitempty"`
+
+	// OAuth2ClientID is the client ID for OAuth2 client_credentials flow.
+	OAuth2ClientID string `json:"oauth2_client_id,omitempty"`
+
+	// OAuth2ClientSecret is the client secret for OAuth2 client_credentials flow.
+	OAuth2ClientSecret string `json:"oauth2_client_secret,omitempty"`
+
+	// OAuth2TokenURL is the token endpoint for OAuth2 client_credentials flow.
+	// If empty, the token URL is inferred from the spec's securitySchemes.
+	OAuth2TokenURL string `json:"oauth2_token_url,omitempty"`
+
+	// OAuth2Scopes is a comma-separated list of scopes to request.
+	OAuth2Scopes string `json:"oauth2_scopes,omitempty"`
 }
 
 // HasSpec returns true if any spec source is configured.
@@ -199,7 +212,8 @@ func (c *SpecConfig) ShouldScan(scanType string) bool {
 // HasAuth reports whether any CLI auth credentials are configured.
 func (c *AuthConfig) HasAuth() bool {
 	return c.BearerToken != "" || c.APIKey != "" || c.AuthHeader != "" ||
-		c.BasicUser != "" || len(c.CustomHeaders) > 0
+		c.BasicUser != "" || len(c.CustomHeaders) > 0 ||
+		c.OAuth2ClientID != ""
 }
 
 // ScanConfigFile represents a .waftester-spec.yaml file with per-endpoint

@@ -9,7 +9,24 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/apispec"
+	"github.com/waftester/waftester/pkg/attackconfig"
+	"github.com/waftester/waftester/pkg/cmdi"
+	"github.com/waftester/waftester/pkg/cors"
+	"github.com/waftester/waftester/pkg/crlf"
+	"github.com/waftester/waftester/pkg/deserialize"
+	"github.com/waftester/waftester/pkg/hpp"
+	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/lfi"
+	"github.com/waftester/waftester/pkg/nosqli"
+	"github.com/waftester/waftester/pkg/redirect"
+	"github.com/waftester/waftester/pkg/sqli"
+	"github.com/waftester/waftester/pkg/ssrf"
+	"github.com/waftester/waftester/pkg/ssti"
+	"github.com/waftester/waftester/pkg/traversal"
 	"github.com/waftester/waftester/pkg/ui"
+	"github.com/waftester/waftester/pkg/upload"
+	"github.com/waftester/waftester/pkg/xss"
+	"github.com/waftester/waftester/pkg/xxe"
 )
 
 // runSpecScan handles the --spec scan path: loads the spec, builds a plan,
@@ -271,25 +288,517 @@ func runScannerForSpec(
 	cf *CommonFlags,
 	proxy string,
 ) ([]apispec.SpecFinding, error) {
-	// Each scanner follows the pattern: NewTester(cfg) → Scan(ctx, target) → result.
-	// We call the appropriate scanner and convert its findings to SpecFinding.
-	// Only the core injection scanners are wired here; meta scanners (cors, etc.)
-	// are handled separately since they don't inject per-parameter.
-
 	tag := ep.CorrelationTag
 	if tag == "" {
 		tag = apispec.CorrelationTag(ep.Method, ep.Path)
 	}
 
-	// For now, return nil — the scanner wiring is implemented incrementally.
-	// Each scanner type will be added as we verify it works with spec endpoints.
-	_ = ctx
-	_ = targetURL
-	_ = cf
-	_ = proxy
-	_ = tag
+	timeout := time.Duration(cf.Timeout) * time.Second
+	if timeout == 0 {
+		timeout = httpclient.TimeoutScanning
+	}
 
-	return nil, nil
+	httpClient := httpclient.New(httpclient.Config{
+		Timeout:            timeout,
+		InsecureSkipVerify: cf.SkipVerify,
+		Proxy:              proxy,
+		CookieJar:          true,
+	})
+
+	base := attackconfig.Base{
+		Timeout: timeout,
+		Client:  httpClient,
+	}
+
+	switch scanType {
+	case "sqli":
+		return runSQLi(ctx, targetURL, ep, tag, base)
+	case "xss":
+		return runXSS(ctx, targetURL, ep, tag, base)
+	case "cmdi":
+		return runCMDi(ctx, targetURL, ep, tag, base)
+	case "traversal", "path-traversal":
+		return runTraversal(ctx, targetURL, ep, tag, base)
+	case "nosqli":
+		return runNoSQLi(ctx, targetURL, ep, tag, base)
+	case "ssrf":
+		return runSSRF(ctx, targetURL, ep, tag)
+	case "ssti":
+		return runSSTI(ctx, targetURL, ep, tag, base)
+	case "xxe":
+		return runXXE(ctx, targetURL, ep, tag, base)
+	case "lfi":
+		return runLFI(ctx, targetURL, ep, tag, base)
+	case "cors":
+		return runCORS(ctx, targetURL, ep, tag, base)
+	case "redirect", "open-redirect":
+		return runRedirect(ctx, targetURL, ep, tag, base)
+	case "upload":
+		return runUpload(ctx, targetURL, ep, tag, base)
+	case "crlf":
+		return runCRLF(ctx, targetURL, ep, tag, base)
+	case "hpp":
+		return runHPP(ctx, targetURL, ep, tag, base)
+	case "deserialize", "deserialization":
+		return runDeserialize(ctx, targetURL, ep, tag, base)
+	default:
+		return nil, fmt.Errorf("unsupported scan type: %s", scanType)
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Scanner adapters — each converts scanner-specific results to []SpecFinding.
+// ──────────────────────────────────────────────────────────────────────────────
+
+func runSQLi(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	result, err := sqli.NewTester(&sqli.TesterConfig{Base: base}).Scan(ctx, targetURL)
+	if err != nil {
+		return nil, fmt.Errorf("sqli: %w", err)
+	}
+	if result == nil {
+		return nil, nil
+	}
+	findings := make([]apispec.SpecFinding, 0, len(result.Vulnerabilities))
+	for _, v := range result.Vulnerabilities {
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "sqli",
+			Parameter:      v.Parameter,
+			Payload:        v.Vulnerability.Payload,
+			Title:          v.Description,
+			Severity:       string(v.Severity),
+			Evidence:       v.Evidence,
+			Remediation:    v.Remediation,
+			CWE:            "CWE-89",
+		})
+	}
+	return findings, nil
+}
+
+func runXSS(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	result, err := xss.NewTester(&xss.TesterConfig{Base: base}).Scan(ctx, targetURL)
+	if err != nil {
+		return nil, fmt.Errorf("xss: %w", err)
+	}
+	if result == nil {
+		return nil, nil
+	}
+	findings := make([]apispec.SpecFinding, 0, len(result.Vulnerabilities))
+	for _, v := range result.Vulnerabilities {
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "xss",
+			Parameter:      v.Parameter,
+			Payload:        v.Vulnerability.Payload,
+			Title:          v.Description,
+			Severity:       string(v.Severity),
+			Evidence:       v.Evidence,
+			Remediation:    v.Remediation,
+			CWE:            "CWE-79",
+		})
+	}
+	return findings, nil
+}
+
+func runCMDi(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	result, err := cmdi.NewTester(&cmdi.TesterConfig{Base: base}).Scan(ctx, targetURL)
+	if err != nil {
+		return nil, fmt.Errorf("cmdi: %w", err)
+	}
+	if result == nil {
+		return nil, nil
+	}
+	findings := make([]apispec.SpecFinding, 0, len(result.Vulnerabilities))
+	for _, v := range result.Vulnerabilities {
+		if v == nil {
+			continue
+		}
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "cmdi",
+			Parameter:      v.Parameter,
+			Payload:        v.Vulnerability.Payload,
+			Title:          v.Description,
+			Severity:       string(v.Severity),
+			Evidence:       v.Evidence,
+			Remediation:    v.Remediation,
+			CWE:            "CWE-78",
+		})
+	}
+	return findings, nil
+}
+
+func runTraversal(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	result, err := traversal.NewTester(&traversal.TesterConfig{Base: base}).Scan(ctx, targetURL)
+	if err != nil {
+		return nil, fmt.Errorf("traversal: %w", err)
+	}
+	if result == nil {
+		return nil, nil
+	}
+	findings := make([]apispec.SpecFinding, 0, len(result.Vulnerabilities))
+	for _, v := range result.Vulnerabilities {
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "traversal",
+			Parameter:      v.Parameter,
+			Payload:        v.Vulnerability.Payload,
+			Title:          v.Description,
+			Severity:       string(v.Severity),
+			Evidence:       v.Evidence,
+			Remediation:    v.Remediation,
+			CWE:            "CWE-22",
+		})
+	}
+	return findings, nil
+}
+
+func runNoSQLi(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	result, err := nosqli.NewTester(&nosqli.TesterConfig{Base: base}).Scan(ctx, targetURL)
+	if err != nil {
+		return nil, fmt.Errorf("nosqli: %w", err)
+	}
+	if result == nil {
+		return nil, nil
+	}
+	findings := make([]apispec.SpecFinding, 0, len(result.Vulnerabilities))
+	for _, v := range result.Vulnerabilities {
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "nosqli",
+			Parameter:      v.Parameter,
+			Payload:        v.Payload,
+			Title:          v.Description,
+			Severity:       string(v.Severity),
+			Evidence:       v.Evidence,
+			Remediation:    v.Remediation,
+			CWE:            "CWE-943",
+		})
+	}
+	return findings, nil
+}
+
+func runSSRF(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string) ([]apispec.SpecFinding, error) {
+	// SSRF detector needs a parameter name. Use the first query/body param.
+	param := firstInjectableParam(ep)
+	if param == "" {
+		return nil, nil
+	}
+	result, err := ssrf.NewDetector().Detect(ctx, targetURL, param)
+	if err != nil {
+		return nil, fmt.Errorf("ssrf: %w", err)
+	}
+	if result == nil {
+		return nil, nil
+	}
+	findings := make([]apispec.SpecFinding, 0, len(result.Vulnerabilities))
+	for _, v := range result.Vulnerabilities {
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "ssrf",
+			Parameter:      v.Parameter,
+			Payload:        v.Payload,
+			Title:          v.Type,
+			Severity:       string(v.Severity),
+			Evidence:       v.Evidence,
+			Remediation:    v.Remediation,
+			CWE:            "CWE-918",
+		})
+	}
+	return findings, nil
+}
+
+func runSSTI(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	params := injectableParamNames(ep)
+	if len(params) == 0 {
+		return nil, nil
+	}
+	result, err := ssti.NewDetector(&ssti.DetectorConfig{Base: base}).ScanURL(ctx, targetURL, params)
+	if err != nil {
+		return nil, fmt.Errorf("ssti: %w", err)
+	}
+	if result == nil {
+		return nil, nil
+	}
+	findings := make([]apispec.SpecFinding, 0, len(result.Vulnerabilities))
+	for _, v := range result.Vulnerabilities {
+		if v == nil {
+			continue
+		}
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "ssti",
+			Parameter:      v.Parameter,
+			Payload:        v.Vulnerability.Payload,
+			Title:          v.Description,
+			Severity:       string(v.Severity),
+			Evidence:       v.Evidence,
+			Remediation:    v.Remediation,
+			CWE:            "CWE-1336",
+		})
+	}
+	return findings, nil
+}
+
+func runXXE(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	vulns, err := xxe.NewDetector(&xxe.DetectorConfig{Base: base}).Detect(ctx, targetURL, ep.Method)
+	if err != nil {
+		return nil, fmt.Errorf("xxe: %w", err)
+	}
+	findings := make([]apispec.SpecFinding, 0, len(vulns))
+	for _, v := range vulns {
+		if v == nil {
+			continue
+		}
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "xxe",
+			Parameter:      v.Parameter,
+			Payload:        v.Vulnerability.Payload,
+			Title:          v.Description,
+			Severity:       string(v.Severity),
+			Evidence:       v.Evidence,
+			Remediation:    v.Remediation,
+			CWE:            "CWE-611",
+		})
+	}
+	return findings, nil
+}
+
+func runLFI(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	params := make(map[string]string)
+	for _, p := range ep.Parameters {
+		if p.In == apispec.LocationQuery || p.In == apispec.LocationPath {
+			params[p.Name] = "test"
+		}
+	}
+	if len(params) == 0 {
+		return nil, nil
+	}
+	results, err := lfi.NewScanner(lfi.Config{Base: base}).Scan(ctx, targetURL, params)
+	if err != nil {
+		return nil, fmt.Errorf("lfi: %w", err)
+	}
+	var findings []apispec.SpecFinding
+	for _, r := range results {
+		if !r.Vulnerable {
+			continue
+		}
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "lfi",
+			Parameter:      r.Parameter,
+			Payload:        r.Payload,
+			Title:          fmt.Sprintf("Local File Inclusion via %s", r.Parameter),
+			Severity:       r.Severity,
+			Evidence:       r.Evidence,
+			CWE:            "CWE-98",
+		})
+	}
+	return findings, nil
+}
+
+func runCORS(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	result, err := cors.NewTester(&cors.TesterConfig{Base: base}).Scan(ctx, targetURL)
+	if err != nil {
+		return nil, fmt.Errorf("cors: %w", err)
+	}
+	if result == nil {
+		return nil, nil
+	}
+	findings := make([]apispec.SpecFinding, 0, len(result.Vulnerabilities))
+	for _, v := range result.Vulnerabilities {
+		if v == nil {
+			continue
+		}
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "cors",
+			Title:          v.Description,
+			Severity:       string(v.Severity),
+			Evidence:       v.Evidence,
+			Remediation:    v.Remediation,
+			CWE:            "CWE-942",
+		})
+	}
+	return findings, nil
+}
+
+func runRedirect(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	result, err := redirect.NewTester(&redirect.TesterConfig{Base: base}).Scan(ctx, targetURL)
+	if err != nil {
+		return nil, fmt.Errorf("redirect: %w", err)
+	}
+	if result == nil {
+		return nil, nil
+	}
+	findings := make([]apispec.SpecFinding, 0, len(result.Vulnerabilities))
+	for _, v := range result.Vulnerabilities {
+		if v == nil {
+			continue
+		}
+		payload := ""
+		if v.Payload != nil {
+			payload = v.Payload.Value
+		}
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "redirect",
+			Parameter:      v.Parameter,
+			Payload:        payload,
+			Title:          v.Description,
+			Severity:       string(v.Severity),
+			Evidence:       v.Evidence,
+			Remediation:    v.Remediation,
+			CWE:            "CWE-601",
+		})
+	}
+	return findings, nil
+}
+
+func runUpload(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	vulns, err := upload.NewTester(&upload.TesterConfig{Base: base}).Scan(ctx, targetURL)
+	if err != nil {
+		return nil, fmt.Errorf("upload: %w", err)
+	}
+	findings := make([]apispec.SpecFinding, 0, len(vulns))
+	for _, v := range vulns {
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "upload",
+			Parameter:      v.Parameter,
+			Payload:        v.Vulnerability.Payload,
+			Title:          v.Description,
+			Severity:       string(v.Severity),
+			Evidence:       v.Evidence,
+			Remediation:    v.Remediation,
+			CWE:            "CWE-434",
+		})
+	}
+	return findings, nil
+}
+
+func runCRLF(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	result, err := crlf.NewTester(&crlf.TesterConfig{Base: base}).Scan(ctx, targetURL)
+	if err != nil {
+		return nil, fmt.Errorf("crlf: %w", err)
+	}
+	if result == nil {
+		return nil, nil
+	}
+	findings := make([]apispec.SpecFinding, 0, len(result.Vulnerabilities))
+	for _, v := range result.Vulnerabilities {
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "crlf",
+			Parameter:      v.Parameter,
+			Payload:        v.Payload,
+			Title:          v.Description,
+			Severity:       string(v.Severity),
+			Evidence:       v.Evidence,
+			Remediation:    v.Remediation,
+			CWE:            "CWE-93",
+		})
+	}
+	return findings, nil
+}
+
+func runHPP(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	result, err := hpp.NewTester(&hpp.TesterConfig{Base: base}).Scan(ctx, targetURL)
+	if err != nil {
+		return nil, fmt.Errorf("hpp: %w", err)
+	}
+	if result == nil {
+		return nil, nil
+	}
+	findings := make([]apispec.SpecFinding, 0, len(result.Vulnerabilities))
+	for _, v := range result.Vulnerabilities {
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "hpp",
+			Parameter:      v.Parameter,
+			Payload:        v.Payload,
+			Title:          v.Description,
+			Severity:       string(v.Severity),
+			Evidence:       v.Evidence,
+			Remediation:    v.Remediation,
+			CWE:            "CWE-235",
+		})
+	}
+	return findings, nil
+}
+
+func runDeserialize(ctx context.Context, targetURL string, ep apispec.Endpoint, tag string, base attackconfig.Base) ([]apispec.SpecFinding, error) {
+	vulns, err := deserialize.NewTester(&deserialize.TesterConfig{Base: base}).Scan(ctx, targetURL)
+	if err != nil {
+		return nil, fmt.Errorf("deserialize: %w", err)
+	}
+	findings := make([]apispec.SpecFinding, 0, len(vulns))
+	for _, v := range vulns {
+		findings = append(findings, apispec.SpecFinding{
+			Method:         ep.Method,
+			Path:           ep.Path,
+			CorrelationTag: tag,
+			Category:       "deserialize",
+			Parameter:      v.Parameter,
+			Payload:        v.Payload,
+			Title:          v.Description,
+			Severity:       string(v.Severity),
+			Evidence:       v.Evidence,
+			Remediation:    v.Remediation,
+			CWE:            "CWE-502",
+		})
+	}
+	return findings, nil
+}
+
+// firstInjectableParam returns the first query or body parameter name, or "".
+func firstInjectableParam(ep apispec.Endpoint) string {
+	for _, p := range ep.Parameters {
+		if p.In == apispec.LocationQuery || p.In == apispec.LocationBody {
+			return p.Name
+		}
+	}
+	return ""
+}
+
+// injectableParamNames returns names of all query/body parameters.
+func injectableParamNames(ep apispec.Endpoint) []string {
+	var names []string
+	for _, p := range ep.Parameters {
+		if p.In == apispec.LocationQuery || p.In == apispec.LocationBody {
+			names = append(names, p.Name)
+		}
+	}
+	return names
 }
 
 // writeSpecOutput writes spec scan results to the configured output file.

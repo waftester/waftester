@@ -225,10 +225,14 @@ func runSpecPipeline(cfg specPipelineConfig) {
 	executor := &apispec.AdaptiveExecutor{
 		BaseURL:     scanTarget,
 		Concurrency: cfg.concurrency,
-		ScanFn: func(_ context.Context, name string, targetURL string, ep apispec.Endpoint) ([]apispec.SpecFinding, error) {
-			// Bridge to existing scanner infrastructure.
-			// Full scan function wiring in P5+.
-			return nil, nil
+		ScanFn: func(ctx context.Context, name string, targetURL string, ep apispec.Endpoint) ([]apispec.SpecFinding, error) {
+			// Bridge to the shared scanner dispatcher in cmd_scan_spec.go.
+			cf := &CommonFlags{
+				Timeout:    cfg.timeout,
+				SkipVerify: cfg.skipVerify,
+				Verbose:    cfg.verbose,
+			}
+			return runScannerForSpec(ctx, name, targetURL, ep, cf, "")
 		},
 		OnPhaseStart: func(phase string) {
 			cfg.printStatus("  Phase: %s\n", phase)
