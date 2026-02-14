@@ -122,6 +122,31 @@ for file in $STAGED_FILES; do
 done
 
 # ============================================================================
+# CODE QUALITY — GO VET ON STAGED PACKAGES
+# ============================================================================
+# Run go vet on packages that have staged .go files. Catches issues like
+# malformed string literals and missing commas that go build/test may miss.
+GO_STAGED=$(echo "$STAGED_FILES" | grep '\.go$' || true)
+if [ -n "$GO_STAGED" ]; then
+    # Extract unique package directories from staged Go files.
+    VET_PKGS=$(echo "$GO_STAGED" | xargs -I{} dirname {} | sort -u | sed 's|^|./|')
+    if [ -n "$VET_PKGS" ]; then
+        echo "Running go vet on staged packages..."
+        if ! go vet $VET_PKGS 2>&1; then
+            echo ""
+            echo "╔══════════════════════════════════════════════════════════════════╗"
+            echo "║  BLOCKED: go vet found issues in staged Go files               ║"
+            echo "╚══════════════════════════════════════════════════════════════════╝"
+            echo ""
+            echo "Fix the vet errors above before committing."
+            echo ""
+            exit 1
+        fi
+        echo "  ✓ go vet passed"
+    fi
+fi
+
+# ============================================================================
 # CODE QUALITY — BLOCK HARDCODED SECRETS
 # ============================================================================
 for file in $STAGED_FILES; do
