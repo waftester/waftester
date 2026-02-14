@@ -4,12 +4,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 // ResolveAuth merges spec-declared auth schemes with CLI-provided credentials.
@@ -105,7 +106,7 @@ func oauth2Auth(specAuth []AuthScheme, cli AuthConfig) RequestAuthFunc {
 		tokenURL = findTokenURL(specAuth)
 	}
 	if tokenURL == "" {
-		log.Printf("[auth] OAuth2 client_credentials: no token URL found in CLI or spec")
+		// No token URL available — cannot perform OAuth2 flow.
 		return noAuth
 	}
 
@@ -114,7 +115,7 @@ func oauth2Auth(specAuth []AuthScheme, cli AuthConfig) RequestAuthFunc {
 	return func(req *http.Request) {
 		token, err := cache.getOrRefresh(tokenURL, cli.OAuth2ClientID, cli.OAuth2ClientSecret, cli.OAuth2Scopes)
 		if err != nil {
-			log.Printf("[auth] OAuth2 token error: %v", err)
+			// Token refresh failed — send request without auth.
 			return
 		}
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -168,7 +169,7 @@ func (c *oauth2TokenCache) getOrRefresh(tokenURL, clientID, clientSecret, scopes
 		form.Set("scope", strings.ReplaceAll(scopes, ",", " "))
 	}
 
-	resp, err := http.PostForm(tokenURL, form) //nolint:gosec // User-provided tokenURL is intentional.
+	resp, err := httpclient.Default().PostForm(tokenURL, form) //nolint:gosec // User-provided tokenURL is intentional.
 	if err != nil {
 		return "", fmt.Errorf("token request: %w", err)
 	}
