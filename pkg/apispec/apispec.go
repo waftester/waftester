@@ -47,9 +47,9 @@ const (
 type Priority int
 
 const (
-	PriorityLow    Priority = 1
-	PriorityMedium Priority = 5
-	PriorityHigh   Priority = 8
+	PriorityLow      Priority = 1
+	PriorityMedium   Priority = 5
+	PriorityHigh     Priority = 8
 	PriorityCritical Priority = 10
 )
 
@@ -209,17 +209,17 @@ type Parameter struct {
 
 // SchemaInfo captures type information for parameters and request bodies.
 type SchemaInfo struct {
-	Type       string       `json:"type,omitempty"`
-	Format     string       `json:"format,omitempty"`
-	Pattern    string       `json:"pattern,omitempty"`
-	MinLength  *int         `json:"min_length,omitempty"`
-	MaxLength  *int         `json:"max_length,omitempty"`
-	Minimum    *float64     `json:"minimum,omitempty"`
-	Maximum    *float64     `json:"maximum,omitempty"`
-	Enum       []string     `json:"enum,omitempty"`
+	Type       string                `json:"type,omitempty"`
+	Format     string                `json:"format,omitempty"`
+	Pattern    string                `json:"pattern,omitempty"`
+	MinLength  *int                  `json:"min_length,omitempty"`
+	MaxLength  *int                  `json:"max_length,omitempty"`
+	Minimum    *float64              `json:"minimum,omitempty"`
+	Maximum    *float64              `json:"maximum,omitempty"`
+	Enum       []string              `json:"enum,omitempty"`
 	Properties map[string]SchemaInfo `json:"properties,omitempty"`
-	Items      *SchemaInfo  `json:"items,omitempty"`
-	Required   []string     `json:"required,omitempty"`
+	Items      *SchemaInfo           `json:"items,omitempty"`
+	Required   []string              `json:"required,omitempty"`
 
 	// Composition (Gap 119).
 	AllOf         []SchemaInfo `json:"all_of,omitempty"`
@@ -243,10 +243,10 @@ type RequestBody struct {
 
 // Response describes an API response for a specific status code.
 type Response struct {
-	Description string               `json:"description,omitempty"`
+	Description string                `json:"description,omitempty"`
 	Content     map[string]SchemaInfo `json:"content,omitempty"`
-	Headers     map[string]Parameter `json:"headers,omitempty"`
-	Links       map[string]Link      `json:"links,omitempty"`
+	Headers     map[string]Parameter  `json:"headers,omitempty"`
+	Links       map[string]Link       `json:"links,omitempty"`
 }
 
 // Link represents an OpenAPI 3.x link object.
@@ -260,11 +260,11 @@ type Link struct {
 type AuthScheme struct {
 	Name         string      `json:"name"`
 	Type         AuthType    `json:"type"`
-	Scheme       string      `json:"scheme,omitempty"`       // "bearer", "basic", etc.
+	Scheme       string      `json:"scheme,omitempty"` // "bearer", "basic", etc.
 	BearerFormat string      `json:"bearer_format,omitempty"`
-	In           Location    `json:"in,omitempty"`           // for apikey: query, header, cookie
-	FieldName    string      `json:"field_name,omitempty"`   // for apikey: header/query param name
-	Flows        []OAuthFlow `json:"flows,omitempty"`        // for oauth2
+	In           Location    `json:"in,omitempty"`         // for apikey: query, header, cookie
+	FieldName    string      `json:"field_name,omitempty"` // for apikey: header/query param name
+	Flows        []OAuthFlow `json:"flows,omitempty"`      // for oauth2
 }
 
 // OAuthFlow describes an OAuth 2.0 flow (Gap 115).
@@ -325,10 +325,10 @@ type ScanPlanEntry struct {
 
 // AttackSelection describes which attack to run and with how many payloads.
 type AttackSelection struct {
-	Category     string   `json:"category"`      // e.g., "sqli", "xss", "ssrf"
-	Reason       string   `json:"reason"`         // why selected (for preview)
+	Category     string   `json:"category"` // e.g., "sqli", "xss", "ssrf"
+	Reason       string   `json:"reason"`   // why selected (for preview)
 	PayloadCount int      `json:"payload_count"`
-	Layers       []string `json:"layers"`         // which intelligence layers selected this
+	Layers       []string `json:"layers"` // which intelligence layers selected this
 }
 
 // InjectionTarget identifies where to inject payloads.
@@ -340,14 +340,14 @@ type InjectionTarget struct {
 
 // ScanSession holds the results of executing a scan plan.
 type ScanSession struct {
-	ID              string        `json:"id"`
-	StartedAt       time.Time     `json:"started_at"`
-	CompletedAt     time.Time     `json:"completed_at"`
-	Duration        time.Duration `json:"duration"`
-	TotalEndpoints  int           `json:"total_endpoints"`
-	TotalTests      int           `json:"total_tests"`
-	TotalFindings   int           `json:"total_findings"`
-	SpecSource      string        `json:"spec_source"`
+	ID             string        `json:"id"`
+	StartedAt      time.Time     `json:"started_at"`
+	CompletedAt    time.Time     `json:"completed_at"`
+	Duration       time.Duration `json:"duration"`
+	TotalEndpoints int           `json:"total_endpoints"`
+	TotalTests     int           `json:"total_tests"`
+	TotalFindings  int           `json:"total_findings"`
+	SpecSource     string        `json:"spec_source"`
 }
 
 // CorrelationTag generates a stable, deterministic identifier for an endpoint.

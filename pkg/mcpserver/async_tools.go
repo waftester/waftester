@@ -80,8 +80,8 @@ TASK ID FORMAT: task_ prefix + exactly 16 hex characters (e.g., task_a1b2c3d4e5f
 					},
 					"tool_name": map[string]any{
 						"type":        "string",
-						"description": "When task_id is omitted, filter auto-discovery by the tool that started the task (e.g., \"assess\", \"scan\", \"bypass\", \"discover\").",
-						"enum":        []string{"scan", "assess", "bypass", "discover"},
+						"description": "When task_id is omitted, filter auto-discovery by the tool that started the task (e.g., \"assess\", \"scan\", \"bypass\", \"discover\", \"scan_spec\").",
+						"enum":        []string{"scan", "assess", "bypass", "discover", "scan_spec"},
 					},
 					"wait_seconds": map[string]any{
 						"type":        "integer",
@@ -318,7 +318,7 @@ USE THIS TOOL WHEN:
 
 OPTIONAL FILTERS:
 • status: filter by task status ("running", "completed", "failed", "cancelled")
-• tool_name: filter by which tool started the task ("scan", "assess", "bypass", "discover")
+• tool_name: filter by which tool started the task ("scan", "assess", "bypass", "discover", "scan_spec")
 • If omitted, returns all tasks
 
 EXAMPLES: {} or {"status": "running"} or {"tool_name": "assess"} or {"status": "running", "tool_name": "scan"}`,
@@ -333,7 +333,7 @@ EXAMPLES: {} or {"status": "running"} or {"tool_name": "assess"} or {"status": "
 					"tool_name": map[string]any{
 						"type":        "string",
 						"description": "Filter by which tool started the task.",
-						"enum":        []string{"scan", "assess", "bypass", "discover"},
+						"enum":        []string{"scan", "assess", "bypass", "discover", "scan_spec"},
 					},
 				},
 			},

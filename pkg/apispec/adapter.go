@@ -34,6 +34,38 @@ func Parse(source string) (*Spec, error) {
 	return ParseContext(ctx, source)
 }
 
+// ParseContent parses inline spec content (YAML or JSON string) without
+// requiring a file on disk. The sourceName is used for error messages and
+// format hints (e.g. "inline.yaml").
+func ParseContent(content string) (*Spec, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), parseTimeout)
+	defer cancel()
+	return ParseContentContext(ctx, content)
+}
+
+// ParseContentContext parses inline spec content with a caller-provided context.
+func ParseContentContext(ctx context.Context, content string) (*Spec, error) {
+	data := []byte(content)
+	format := detectFormat(data, "inline")
+
+	type result struct {
+		spec *Spec
+		err  error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		s, e := parseByFormat(data, "inline", format)
+		ch <- result{s, e}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, ErrParseTimeout
+	case r := <-ch:
+		return r.spec, r.err
+	}
+}
+
 // ParseContext loads and parses with a caller-provided context.
 func ParseContext(ctx context.Context, source string) (*Spec, error) {
 	data, err := loadSource(ctx, source)
