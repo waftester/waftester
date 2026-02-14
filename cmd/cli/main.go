@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/waftester/waftester/pkg/apispec"
 	"github.com/waftester/waftester/pkg/config"
 	"github.com/waftester/waftester/pkg/core"
 	"github.com/waftester/waftester/pkg/detection"
@@ -78,6 +79,7 @@ func main() {
 	case "scan":
 		runScan()
 	case "fuzz":
+		apispec.RejectSpecFlags("fuzz")
 		runFuzz()
 	case "analyze":
 		runAnalyze()
@@ -90,18 +92,24 @@ func main() {
 	case "mutate":
 		runMutate()
 	case "bypass":
+		apispec.RejectSpecFlags("bypass")
 		runBypassFinder()
 	case "smuggle":
+		apispec.RejectSpecFlags("smuggle")
 		runSmuggle()
 	case "race":
+		apispec.RejectSpecFlags("race")
 		runRace()
 	case "workflow":
 		runWorkflow()
 	case "headless":
+		apispec.RejectSpecFlags("headless")
 		runHeadless()
 	case "fp", "falsepositive", "false-positive":
+		apispec.RejectSpecFlags("fp")
 		runFP()
 	case "assess", "assessment", "benchmark":
+		apispec.RejectSpecFlags("assess")
 		runAssess()
 	case "vendor", "waf-detect", "detect-waf":
 		runVendorDetect()
