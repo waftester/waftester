@@ -15,22 +15,23 @@ import (
 
 // specPipelineConfig holds the spec-driven scan configuration.
 type specPipelineConfig struct {
-	specFile    string
-	specURL     string
-	target      string
-	intensity   string
-	group       string
-	skipGroup   string
-	dryRun      bool
-	yes         bool
-	concurrency int
-	rateLimit   int
-	timeout     int
-	skipVerify  bool
-	verbose     bool
-	quietMode   bool
-	outFlags    *OutputFlags
-	printStatus func(format string, args ...interface{})
+	specFile       string
+	specURL        string
+	target         string
+	intensity      string
+	group          string
+	skipGroup      string
+	scanConfigPath string
+	dryRun         bool
+	yes            bool
+	concurrency    int
+	rateLimit      int
+	timeout        int
+	skipVerify     bool
+	verbose        bool
+	quietMode      bool
+	outFlags       *OutputFlags
+	printStatus    func(format string, args ...interface{})
 }
 
 // runSpecPipeline runs the spec-driven scan pipeline:
@@ -124,6 +125,27 @@ func runSpecPipeline(cfg specPipelineConfig) {
 		Intensity: intensity,
 	})
 
+	// Apply scan config overrides (per-endpoint customization).
+	var scanCfg *apispec.ScanConfigFile
+	if cfg.scanConfigPath != "" {
+		var loadErr error
+		scanCfg, loadErr = apispec.LoadScanConfigFile(cfg.scanConfigPath)
+		if loadErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to load scan config: %v", loadErr))
+			os.Exit(1)
+		}
+	} else {
+		// Auto-load .waftester-spec.yaml from CWD if present.
+		scanCfg, _ = apispec.AutoLoadScanConfig()
+	}
+	if scanCfg != nil {
+		before := len(plan.Entries)
+		scanCfg.ApplyToPlan(plan)
+		if len(plan.Entries) != before {
+			ui.PrintInfo(fmt.Sprintf("  Scan config applied: %d -> %d entries", before, len(plan.Entries)))
+		}
+	}
+
 	ui.PrintSuccess(fmt.Sprintf("Generated scan plan: %d tests across %d endpoint-attack pairs",
 		plan.TotalTests, len(plan.Entries)))
 
@@ -189,13 +211,16 @@ func runSpecPipeline(cfg specPipelineConfig) {
 		StartedAt:  time.Now(),
 	}
 
-	executor := &apispec.SimpleExecutor{
+	executor := &apispec.AdaptiveExecutor{
 		BaseURL:     scanTarget,
 		Concurrency: cfg.concurrency,
 		ScanFn: func(_ context.Context, name string, targetURL string, ep apispec.Endpoint) ([]apispec.SpecFinding, error) {
 			// Bridge to existing scanner infrastructure.
-			// Full implementation in P4 (adaptive executor).
+			// Full scan function wiring in P5+.
 			return nil, nil
+		},
+		OnPhaseStart: func(phase string) {
+			cfg.printStatus("  Phase: %s\n", phase)
 		},
 		OnEndpointStart: func(ep apispec.Endpoint, scanType string) {
 			cfg.printStatus("  Testing %s %s (%s)...\n", ep.Method, ep.Path, scanType)
@@ -211,9 +236,12 @@ func runSpecPipeline(cfg specPipelineConfig) {
 					strings.ToUpper(severity), f.Method, f.Path, f.Title)
 			}
 		},
+		OnEscalation: func(from, to apispec.EscalationLevel, reason string) {
+			cfg.printStatus("  Escalating %s -> %s: %s\n", from, to, reason)
+		},
 	}
 
-	if _, execErr := executor.Execute(nil, plan); execErr != nil {
+	if _, execErr := executor.Execute(context.Background(), plan); execErr != nil {
 		result.AddError(fmt.Sprintf("execution error: %v", execErr))
 	}
 

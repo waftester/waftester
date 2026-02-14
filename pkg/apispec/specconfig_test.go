@@ -1,6 +1,7 @@
 package apispec
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -201,4 +202,168 @@ func TestSplitCSV(t *testing.T) {
 	assert.Equal(t, []string{"a", "b"}, splitCSV(" a , b "))
 	assert.Nil(t, splitCSV(""))
 	assert.Equal(t, []string{"single"}, splitCSV("single"))
+}
+
+func TestLoadScanConfigFile_NotFound(t *testing.T) {
+	t.Parallel()
+	cfg, err := LoadScanConfigFile("nonexistent-file.yaml")
+	assert.NoError(t, err)
+	assert.Nil(t, cfg)
+}
+
+func TestLoadScanConfigFile_Invalid(t *testing.T) {
+	// Write a temporary invalid YAML file.
+	tmpDir := t.TempDir()
+	path := tmpDir + "/bad.yaml"
+	require.NoError(t, writeTestFile(path, "{{{{invalid yaml"))
+
+	cfg, err := LoadScanConfigFile(path)
+	assert.Error(t, err)
+	assert.Nil(t, cfg)
+}
+
+func TestLoadScanConfigFile_Valid(t *testing.T) {
+	content := `overrides:
+  - pattern: "/admin/*"
+    skip: true
+  - pattern: "/api/v1/users"
+    intensity: deep
+    scan_types: [sqli, xss]
+  - pattern: "/api/v1/search"
+    skip_types: [lfi]
+    max_payloads: 50
+`
+	tmpDir := t.TempDir()
+	path := tmpDir + "/config.yaml"
+	require.NoError(t, writeTestFile(path, content))
+
+	cfg, err := LoadScanConfigFile(path)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	assert.Len(t, cfg.Overrides, 3)
+
+	assert.Equal(t, "/admin/*", cfg.Overrides[0].Pattern)
+	assert.True(t, cfg.Overrides[0].Skip)
+
+	assert.Equal(t, "/api/v1/users", cfg.Overrides[1].Pattern)
+	assert.Equal(t, IntensityDeep, cfg.Overrides[1].Intensity)
+	assert.Equal(t, []string{"sqli", "xss"}, cfg.Overrides[1].ScanTypes)
+
+	assert.Equal(t, 50, cfg.Overrides[2].MaxPayloads)
+}
+
+func TestScanConfigFile_FindOverride(t *testing.T) {
+	t.Parallel()
+	cfg := &ScanConfigFile{
+		Overrides: []EndpointOverride{
+			{Pattern: "/admin/*", Skip: true},
+			{Pattern: "/api/v1/users", Intensity: IntensityDeep},
+		},
+	}
+
+	t.Run("matches glob", func(t *testing.T) {
+		o := cfg.FindOverride("/admin/settings")
+		require.NotNil(t, o)
+		assert.True(t, o.Skip)
+	})
+
+	t.Run("matches exact", func(t *testing.T) {
+		o := cfg.FindOverride("/api/v1/users")
+		require.NotNil(t, o)
+		assert.Equal(t, IntensityDeep, o.Intensity)
+	})
+
+	t.Run("no match", func(t *testing.T) {
+		o := cfg.FindOverride("/api/v2/products")
+		assert.Nil(t, o)
+	})
+
+	t.Run("nil config", func(t *testing.T) {
+		var nilCfg *ScanConfigFile
+		assert.Nil(t, nilCfg.FindOverride("/anything"))
+	})
+}
+
+func TestScanConfigFile_ApplyToPlan(t *testing.T) {
+	t.Parallel()
+	cfg := &ScanConfigFile{
+		Overrides: []EndpointOverride{
+			{Pattern: "/admin/*", Skip: true},
+			{Pattern: "/api/v1/search", ScanTypes: []string{"sqli", "xss"}},
+			{Pattern: "/api/v1/upload", SkipTypes: []string{"lfi"}},
+		},
+	}
+
+	plan := &ScanPlan{
+		Entries: []ScanPlanEntry{
+			{Endpoint: Endpoint{Path: "/admin/users"}, Attack: AttackSelection{Category: "sqli"}},
+			{Endpoint: Endpoint{Path: "/admin/settings"}, Attack: AttackSelection{Category: "xss"}},
+			{Endpoint: Endpoint{Path: "/api/v1/search"}, Attack: AttackSelection{Category: "sqli"}},
+			{Endpoint: Endpoint{Path: "/api/v1/search"}, Attack: AttackSelection{Category: "ssrf"}},
+			{Endpoint: Endpoint{Path: "/api/v1/upload"}, Attack: AttackSelection{Category: "lfi"}},
+			{Endpoint: Endpoint{Path: "/api/v1/upload"}, Attack: AttackSelection{Category: "xss"}},
+			{Endpoint: Endpoint{Path: "/api/v1/products"}, Attack: AttackSelection{Category: "sqli"}},
+		},
+	}
+
+	cfg.ApplyToPlan(plan)
+
+	// /admin/* entries should be skipped (0 remaining).
+	// /api/v1/search: only sqli allowed (ssrf removed).
+	// /api/v1/upload: lfi skipped, xss kept.
+	// /api/v1/products: no override, kept.
+	assert.Len(t, plan.Entries, 3)
+
+	paths := make([]string, len(plan.Entries))
+	cats := make([]string, len(plan.Entries))
+	for i, e := range plan.Entries {
+		paths[i] = e.Endpoint.Path
+		cats[i] = e.Attack.Category
+	}
+
+	assert.NotContains(t, paths, "/admin/users")
+	assert.NotContains(t, paths, "/admin/settings")
+	assert.Contains(t, cats, "sqli") // from search
+	assert.NotContains(t, cats, "ssrf")
+	assert.NotContains(t, cats, "lfi")
+	assert.Contains(t, cats, "xss") // from upload
+}
+
+func TestScanConfigFile_ApplyToPlan_Nil(t *testing.T) {
+	t.Parallel()
+	// Nil config should be a no-op.
+	var cfg *ScanConfigFile
+	plan := &ScanPlan{
+		Entries: []ScanPlanEntry{
+			{Endpoint: Endpoint{Path: "/test"}, Attack: AttackSelection{Category: "sqli"}},
+		},
+	}
+	cfg.ApplyToPlan(plan)
+	assert.Len(t, plan.Entries, 1)
+}
+
+func TestMatchPathGlob(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		pattern, path string
+		want          bool
+	}{
+		{"/admin/*", "/admin/users", true},
+		{"/admin/*", "/admin/settings", true},
+		{"/admin/*", "/admin", false},
+		{"/api/v1/users", "/api/v1/users", true},
+		{"/api/v1/users", "/api/v1/products", false},
+		{"/api/**/export", "/api/v1/data/export", true},
+		{"/api/**", "/api/v1/anything/deep", true},
+		{"", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.pattern+"_"+tt.path, func(t *testing.T) {
+			assert.Equal(t, tt.want, matchPathGlob(tt.pattern, tt.path))
+		})
+	}
+}
+
+func writeTestFile(path, content string) error {
+	return os.WriteFile(path, []byte(content), 0o644)
 }
