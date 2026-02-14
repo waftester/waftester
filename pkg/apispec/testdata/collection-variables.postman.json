@@ -1,0 +1,50 @@
+{
+  "info": {
+    "name": "Variables Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://api.example.com"
+    },
+    {
+      "key": "apiVersion",
+      "value": "v2"
+    },
+    {
+      "key": "authToken",
+      "value": "default-token"
+    }
+  ],
+  "item": [
+    {
+      "name": "Get Items",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/{{apiVersion}}/items",
+          "host": ["{{baseUrl}}"],
+          "path": ["{{apiVersion}}", "items"]
+        },
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{authToken}}"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Unresolved Variable",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/{{unknownVar}}/data",
+          "host": ["{{baseUrl}}"],
+          "path": ["{{unknownVar}}", "data"]
+        }
+      }
+    }
+  ]
+}

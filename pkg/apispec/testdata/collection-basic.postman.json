@@ -1,0 +1,101 @@
+{
+  "info": {
+    "name": "Basic API Collection",
+    "description": "A basic Postman collection for testing",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://api.example.com"
+    },
+    {
+      "key": "apiVersion",
+      "value": "v1"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{bearerToken}}"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "List Pets",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/{{apiVersion}}/pets?limit=10",
+          "host": ["{{baseUrl}}"],
+          "path": ["{{apiVersion}}", "pets"],
+          "query": [
+            {
+              "key": "limit",
+              "value": "10",
+              "description": "Maximum results"
+            },
+            {
+              "key": "status",
+              "value": "available",
+              "disabled": true
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Create Pet",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{baseUrl}}/{{apiVersion}}/pets",
+          "host": ["{{baseUrl}}"],
+          "path": ["{{apiVersion}}", "pets"]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"name\": \"Fido\", \"tag\": \"dog\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Get Pet",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/{{apiVersion}}/pets/:petId",
+          "host": ["{{baseUrl}}"],
+          "path": ["{{apiVersion}}", "pets", ":petId"],
+          "variable": [
+            {
+              "key": "petId",
+              "value": "123",
+              "description": "The pet ID"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

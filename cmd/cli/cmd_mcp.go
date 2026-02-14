@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/waftester/waftester/pkg/apispec"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/mcpserver"
 	"github.com/waftester/waftester/pkg/payloadprovider"
@@ -70,6 +71,7 @@ func runMCP() {
 	srv := mcpserver.New(&mcpserver.Config{
 		PayloadDir:  *payloadDir,
 		TemplateDir: *templateDir,
+		SpecScanFn:  mcpSpecScanFn(),
 	})
 	srv.MarkReady()  // Signal that startup validation passed
 	defer srv.Stop() // Cancel running tasks and wait for goroutine drain
@@ -164,4 +166,16 @@ func validatePayloadDir(dir, templateDir string) (int, error) {
 	}
 
 	return stats.TotalPayloads, nil
+}
+
+// mcpSpecScanFn returns the ScanFunc bridge for MCP spec scanning.
+// It wraps runScannerForSpec (cmd_scan_spec.go) with reasonable defaults.
+func mcpSpecScanFn() apispec.ScanFunc {
+	return func(ctx context.Context, name string, targetURL string, ep apispec.Endpoint) ([]apispec.SpecFinding, error) {
+		cf := &CommonFlags{
+			Timeout:    30,
+			SkipVerify: true,
+		}
+		return runScannerForSpec(ctx, name, targetURL, ep, cf, "")
+	}
 }
