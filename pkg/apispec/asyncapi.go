@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // AsyncAPI parsing for WebSocket channels only.
@@ -12,10 +14,10 @@ import (
 
 // asyncAPIDoc is the minimal structure needed to parse AsyncAPI specs.
 type asyncAPIDoc struct {
-	AsyncAPI string                   `json:"asyncapi"`
-	Info     asyncAPIInfo             `json:"info"`
-	Servers  map[string]asyncServer   `json:"servers"`
-	Channels map[string]asyncChannel  `json:"channels"`
+	AsyncAPI string                  `json:"asyncapi"`
+	Info     asyncAPIInfo            `json:"info"`
+	Servers  map[string]asyncServer  `json:"servers"`
+	Channels map[string]asyncChannel `json:"channels"`
 }
 
 type asyncAPIInfo struct {
@@ -25,9 +27,9 @@ type asyncAPIInfo struct {
 }
 
 type asyncServer struct {
-	URL         string            `json:"url"`
-	Protocol    string            `json:"protocol"`
-	Description string            `json:"description"`
+	URL         string                   `json:"url"`
+	Protocol    string                   `json:"protocol"`
+	Description string                   `json:"description"`
 	Variables   map[string]asyncVariable `json:"variables"`
 }
 
@@ -45,9 +47,9 @@ type asyncChannel struct {
 }
 
 type asyncOperation struct {
-	OperationID string      `json:"operationId"`
-	Summary     string      `json:"summary"`
-	Description string      `json:"description"`
+	OperationID string       `json:"operationId"`
+	Summary     string       `json:"summary"`
+	Description string       `json:"description"`
 	Message     asyncMessage `json:"message"`
 }
 
@@ -88,8 +90,22 @@ type asyncSchemaObj struct {
 // Only WebSocket channels are extracted; other protocols are skipped.
 func ParseAsyncAPI(content string) (*Spec, error) {
 	var doc asyncAPIDoc
-	if err := json.Unmarshal([]byte(content), &doc); err != nil {
-		return nil, fmt.Errorf("parse asyncapi: %w", err)
+
+	// Try JSON first, fall back to YAML (AsyncAPI specs are commonly YAML).
+	data := []byte(content)
+	if err := json.Unmarshal(data, &doc); err != nil {
+		// YAML: unmarshal to generic map, re-marshal to JSON, then parse.
+		var raw interface{}
+		if yamlErr := yaml.Unmarshal(data, &raw); yamlErr != nil {
+			return nil, fmt.Errorf("parse asyncapi: %w", err)
+		}
+		jsonData, jsonErr := json.Marshal(convertYAMLToJSON(raw))
+		if jsonErr != nil {
+			return nil, fmt.Errorf("parse asyncapi yaml->json: %w", jsonErr)
+		}
+		if err2 := json.Unmarshal(jsonData, &doc); err2 != nil {
+			return nil, fmt.Errorf("parse asyncapi: %w", err2)
+		}
 	}
 
 	if doc.AsyncAPI == "" {
@@ -148,12 +164,14 @@ func ParseAsyncAPI(content string) (*Spec, error) {
 
 // isWebSocketChannel determines if a channel uses WebSocket transport.
 func isWebSocketChannel(ch asyncChannel, servers map[string]asyncServer) bool {
-	// Check channel-level WebSocket binding.
+	// Explicit channel-level WebSocket binding is definitive.
 	if ch.Bindings != nil && ch.Bindings.WS != nil {
 		return true
 	}
 
-	// Check if any server uses WebSocket protocol.
+	// If any server uses WebSocket, include the channel.
+	// In mixed-protocol specs this may over-scan, but for a WAF tester
+	// false negatives are worse than false positives.
 	for _, srv := range servers {
 		protocol := strings.ToLower(srv.Protocol)
 		if protocol == "ws" || protocol == "wss" {
@@ -233,4 +251,31 @@ func asyncSchemaToParams(schema asyncSchemaObj) []Parameter {
 	}
 
 	return params
+}
+
+// convertYAMLToJSON recursively converts YAML-decoded values to JSON-safe types.
+// yaml.v3 produces map[string]interface{} but we normalize defensively.
+func convertYAMLToJSON(v interface{}) interface{} {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		out := make(map[string]interface{}, len(val))
+		for k, v2 := range val {
+			out[k] = convertYAMLToJSON(v2)
+		}
+		return out
+	case map[interface{}]interface{}:
+		out := make(map[string]interface{}, len(val))
+		for k, v2 := range val {
+			out[fmt.Sprintf("%v", k)] = convertYAMLToJSON(v2)
+		}
+		return out
+	case []interface{}:
+		out := make([]interface{}, len(val))
+		for i, v2 := range val {
+			out[i] = convertYAMLToJSON(v2)
+		}
+		return out
+	default:
+		return v
+	}
 }

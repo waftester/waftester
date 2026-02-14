@@ -63,7 +63,6 @@ func BuildRequest(baseURL string, ep Endpoint, target InjectionTarget, payload s
 	if target.Location == LocationBody {
 		body := buildBody(ep, target, payload)
 		if body != "" {
-			req.Body = http.NoBody
 			req.Body = newStringBody(body)
 			req.ContentLength = int64(len(body))
 			ct := target.ContentType

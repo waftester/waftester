@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
 // Checkpoint stores the state of an in-progress scan so it can be resumed.
 type Checkpoint struct {
+	mu sync.Mutex `json:"-"`
+
 	// SessionID uniquely identifies this scan session.
 	SessionID string `json:"session_id"`
 
@@ -78,24 +81,32 @@ func NewCheckpoint(sessionID string, plan *ScanPlan) *Checkpoint {
 
 // MarkCompleted records a plan entry index as completed.
 func (c *Checkpoint) MarkCompleted(entryIndex int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.CompletedEntries = append(c.CompletedEntries, entryIndex)
 	c.UpdatedAt = time.Now()
 }
 
 // AddFinding appends a finding to the checkpoint.
 func (c *Checkpoint) AddFinding(f SpecFinding) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.Findings = append(c.Findings, f)
 	c.UpdatedAt = time.Now()
 }
 
 // AddError appends an error to the checkpoint.
 func (c *Checkpoint) AddError(errMsg string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.Errors = append(c.Errors, errMsg)
 	c.UpdatedAt = time.Now()
 }
 
 // IsCompleted checks if a plan entry index has already been completed.
 func (c *Checkpoint) IsCompleted(entryIndex int) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	for _, idx := range c.CompletedEntries {
 		if idx == entryIndex {
 			return true
@@ -106,6 +117,8 @@ func (c *Checkpoint) IsCompleted(entryIndex int) bool {
 
 // Progress returns the completion fraction (0.0 to 1.0).
 func (c *Checkpoint) Progress() float64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.TotalEntries == 0 {
 		return 1.0
 	}
@@ -114,10 +127,12 @@ func (c *Checkpoint) Progress() float64 {
 
 // RemainingEntries returns the indices of entries that haven't been completed.
 func (c *Checkpoint) RemainingEntries(totalEntries int) []int {
+	c.mu.Lock()
 	completed := make(map[int]bool, len(c.CompletedEntries))
 	for _, idx := range c.CompletedEntries {
 		completed[idx] = true
 	}
+	c.mu.Unlock()
 
 	var remaining []int
 	for i := 0; i < totalEntries; i++ {
@@ -130,19 +145,21 @@ func (c *Checkpoint) RemainingEntries(totalEntries int) []int {
 
 // Save writes the checkpoint to disk.
 func (c *Checkpoint) Save() error {
-	path, err := checkpointPath(c.SessionID)
+	c.mu.Lock()
+	data, err := json.MarshalIndent(c, "", "  ")
+	c.mu.Unlock()
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal checkpoint: %w", err)
+	}
+
+	path, pathErr := checkpointPath(c.SessionID)
+	if pathErr != nil {
+		return pathErr
 	}
 
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create checkpoint dir: %w", err)
-	}
-
-	data, err := json.MarshalIndent(c, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal checkpoint: %w", err)
 	}
 
 	if err := os.WriteFile(path, data, 0o600); err != nil {
