@@ -18,6 +18,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/api"
 	"github.com/waftester/waftester/pkg/apifuzz"
+	"github.com/waftester/waftester/pkg/apispec"
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/bizlogic"
 	"github.com/waftester/waftester/pkg/cache"
@@ -82,6 +83,11 @@ func runScan() {
 
 	var cf CommonFlags
 	cf.Register(scanFlags, 30)
+
+	// API spec scanning flags
+	var sf apispec.SpecFlags
+	sf.Register(scanFlags)
+
 	types := scanFlags.String("types", "all", "Scan types: all, or comma-separated (sqli,xss,traversal,cmdi,nosqli,hpp,crlf,prototype,cors,redirect,hostheader,websocket,cache,upload,deserialize,oauth,ssrf,ssti,xxe,smuggling,graphql,jwt,subtakeover,bizlogic,race,apifuzz,wafdetect,waffprint,wafevasion,tlsprobe,httpprobe,secheaders,jsanalyze,apidepth,osint,vhost,techdetect,dnsrecon)")
 	concurrency := scanFlags.Int("concurrency", 5, "Concurrent scanners")
 	outputFile := scanFlags.String("output", "", "Output results to JSON file")
@@ -299,11 +305,27 @@ func runScan() {
 	}
 
 	// Collect targets using shared TargetSource
-	ts := cf.TargetSource()
-	target, err := ts.GetSingleTarget()
-	if err != nil {
-		ui.PrintError("Target URL is required. Use -u https://example.com, -l file.txt, or -stdin")
-		os.Exit(1)
+	specCfg := sf.ToConfig()
+	specMode := specCfg.HasSpec()
+
+	var target string
+	if specMode {
+		// In spec mode, target comes from spec BaseURL or -u override.
+		ts := cf.TargetSource()
+		t, terr := ts.GetSingleTarget()
+		if terr == nil {
+			target = t
+			specCfg.TargetOverride = t
+		}
+		// Target will be resolved from spec if not provided via -u.
+	} else {
+		ts := cf.TargetSource()
+		var terr error
+		target, terr = ts.GetSingleTarget()
+		if terr != nil {
+			ui.PrintError("Target URL is required. Use -u https://example.com, -l file.txt, or -stdin")
+			os.Exit(1)
+		}
 	}
 
 	// Setup context with timeout
@@ -478,6 +500,16 @@ func runScan() {
 		fmt.Fprintln(os.Stderr)
 		ui.PrintHelp("Remove -dry-run flag to execute scans")
 		os.Exit(0)
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// SPEC-DRIVEN SCAN PATH
+	// When --spec is provided, load the spec, build a plan, and run scanners
+	// against each endpoint. This is a separate flow from the normal scan.
+	// ═══════════════════════════════════════════════════════════════════════════
+	if specMode {
+		runSpecScan(ctx, specCfg, &cf, &outFlags, shouldScan, target, *concurrency, *rateLimit, *proxy, streamJSON, dispCtx)
+		return
 	}
 
 	// Build HTTP client using shared factory (DNS cache, HTTP/2, sockopt, detection wrapper)
