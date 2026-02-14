@@ -26,9 +26,9 @@ import (
 	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/clickjack"
 	"github.com/waftester/waftester/pkg/cmdi"
-	"github.com/waftester/waftester/pkg/csrf"
 	"github.com/waftester/waftester/pkg/cors"
 	"github.com/waftester/waftester/pkg/crlf"
+	"github.com/waftester/waftester/pkg/csrf"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/deserialize"
 	"github.com/waftester/waftester/pkg/detection"
@@ -37,10 +37,10 @@ import (
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
 	"github.com/waftester/waftester/pkg/graphql"
 	"github.com/waftester/waftester/pkg/hosterrors"
-	"github.com/waftester/waftester/pkg/idor"
 	"github.com/waftester/waftester/pkg/hostheader"
 	"github.com/waftester/waftester/pkg/hpp"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/idor"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/js"
 	"github.com/waftester/waftester/pkg/jwt"
@@ -56,8 +56,8 @@ import (
 	"github.com/waftester/waftester/pkg/ratelimit"
 	"github.com/waftester/waftester/pkg/rce"
 	"github.com/waftester/waftester/pkg/redirect"
-	"github.com/waftester/waftester/pkg/rfi"
 	"github.com/waftester/waftester/pkg/retry"
+	"github.com/waftester/waftester/pkg/rfi"
 	"github.com/waftester/waftester/pkg/smuggling"
 	"github.com/waftester/waftester/pkg/sqli"
 	"github.com/waftester/waftester/pkg/ssi"
@@ -2258,8 +2258,8 @@ func runScan() {
 			progress.AddMetricBy("vulns", 1)
 			result.BySeverity[clickResult.Severity]++
 			emitEvent("vulnerability", map[string]interface{}{
-				"category":       "clickjack",
-				"severity":       clickResult.Severity,
+				"category":        "clickjack",
+				"severity":        clickResult.Severity,
 				"x_frame_options": clickResult.XFrameOptions,
 			})
 		}
