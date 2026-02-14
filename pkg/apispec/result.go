@@ -46,10 +46,10 @@ type SpecFinding struct {
 	CorrelationTag string `json:"correlation_tag"`
 
 	// Attack context.
-	Category     string `json:"category"`
-	Parameter    string `json:"parameter,omitempty"`
-	Location     string `json:"location,omitempty"`
-	Payload      string `json:"payload,omitempty"`
+	Category  string `json:"category"`
+	Parameter string `json:"parameter,omitempty"`
+	Location  string `json:"location,omitempty"`
+	Payload   string `json:"payload,omitempty"`
 
 	// Finding details.
 	Title       string   `json:"title"`

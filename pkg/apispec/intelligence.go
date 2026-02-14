@@ -356,7 +356,7 @@ func layerPathPattern(ep *Endpoint, sel map[string]*AttackSelection) {
 // authPresence tracks which endpoints require auth.
 type authPresence struct {
 	HasAuth bool
-	Path    string     // path prefix group
+	Path    string // path prefix group
 }
 
 func buildAuthMap(endpoints []Endpoint) map[string][]authPresence {

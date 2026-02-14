@@ -15,6 +15,7 @@ func (s *Server) registerPrompts() {
 	s.addDiscoveryWorkflowPrompt()
 	s.addEvasionResearchPrompt()
 	s.addTemplateScanPrompt()
+	s.addSpecSecurityAuditPrompt()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -551,6 +552,81 @@ Available policies:
 Summarize findings by severity, category, and provide remediation guidance.
 Read waftester://owasp-mappings to map findings to compliance frameworks.`,
 								target, target, templatePaths, target),
+						},
+					},
+				},
+			}, nil
+		},
+	)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// spec_security_audit — API spec-first security audit workflow
+// ═══════════════════════════════════════════════════════════════════════════
+
+func (s *Server) addSpecSecurityAuditPrompt() {
+	s.mcp.AddPrompt(
+		&mcp.Prompt{
+			Name:        "spec_security_audit",
+			Description: "Spec-first API security audit: validate spec, generate intelligent plan, execute targeted attacks, and report findings.",
+			Arguments: []*mcp.PromptArgument{
+				{Name: "spec_content", Description: "The full API specification content (OpenAPI, Swagger, Postman, HAR YAML/JSON)", Required: true},
+				{Name: "target", Description: "Target base URL (overrides spec server URLs)", Required: false},
+				{Name: "intensity", Description: "Scan intensity: quick, normal, deep, paranoid", Required: false},
+			},
+		},
+		func(_ context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+			specContent := req.Params.Arguments["spec_content"]
+			target := req.Params.Arguments["target"]
+			intensity := req.Params.Arguments["intensity"]
+			if intensity == "" {
+				intensity = "normal"
+			}
+			targetNote := ""
+			if target != "" {
+				targetNote = fmt.Sprintf("\nTarget override: %s", target)
+			}
+
+			return &mcp.GetPromptResult{
+				Description: "API Spec Security Audit Workflow",
+				Messages: []*mcp.PromptMessage{
+					{
+						Role: "user",
+						Content: &mcp.TextContent{
+							Text: fmt.Sprintf(`# API Spec Security Audit
+
+Perform a spec-driven security audit using the API specification below.%s
+Intensity: %s
+
+## Step 1: Validate the Spec
+Call validate_spec with the spec content to check for parsing errors and format detection.
+If validation fails, report the errors and stop.
+
+## Step 2: List Endpoints
+Call list_spec_endpoints to see the full API surface area.
+Note endpoints with sensitive operations (auth, admin, file upload, user data).
+
+## Step 3: Generate Attack Plan
+Call plan_spec with intensity "%s" to run the 8-layer intelligence engine.
+Read waftester://intelligence-layers to understand what each layer analyzes.
+Review the plan: check priority assignments, attack category selections, and test counts.
+
+## Step 4: Execute the Scan
+Call scan_spec with the spec content and target URL to run the attacks.
+Monitor findings as they come in via get_task_status.
+
+## Step 5: Analyze and Report
+Once complete, analyze findings by:
+- Severity distribution (critical > high > medium > low)
+- Category breakdown (sqli, xss, auth, etc.)
+- Endpoint coverage (which endpoints had findings)
+- False positive indicators
+
+Read waftester://owasp-mappings to map findings to OWASP Top 10 categories.
+Provide actionable remediation guidance for each finding category.
+
+## Spec Content
+%s`, targetNote, intensity, intensity, specContent),
 						},
 					},
 				},

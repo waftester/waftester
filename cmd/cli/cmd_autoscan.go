@@ -129,6 +129,15 @@ func runAutoScan() {
 	enableBrain := autoFlags.Bool("brain", true, "Enable Brain Mode (adaptive learning, attack chains, smart prioritization)")
 	brainVerbose := autoFlags.Bool("brain-verbose", false, "Show detailed brain insights during scan")
 
+	// API spec-driven scanning
+	specFile := autoFlags.String("spec", "", "API spec file path (OpenAPI, Swagger, Postman, HAR)")
+	specURL := autoFlags.String("spec-url", "", "API spec URL to fetch and parse")
+	specIntensity := autoFlags.String("intensity", "normal", "Spec scan intensity: quick, normal, deep, paranoid")
+	specGroup := autoFlags.String("group", "", "Filter spec endpoints by group/tag")
+	specSkipGroup := autoFlags.String("skip-group", "", "Exclude spec endpoints by group/tag")
+	specDryRun := autoFlags.Bool("dry-run", false, "Show scan plan without executing")
+	specYes := autoFlags.Bool("yes", false, "Skip confirmation prompt for spec scans")
+
 	autoFlags.Parse(os.Args[2:])
 
 	// Disable detection if requested
@@ -422,6 +431,32 @@ func runAutoScan() {
 	})
 	autoProgress.Start()
 	defer autoProgress.Stop()
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// SPEC-DRIVEN PIPELINE: If --spec or --spec-url provided, use intelligence
+	// engine instead of discovery+learning.
+	// ═══════════════════════════════════════════════════════════════════════════
+	if *specFile != "" || *specURL != "" {
+		runSpecPipeline(specPipelineConfig{
+			specFile:    *specFile,
+			specURL:     *specURL,
+			target:      target,
+			intensity:   *specIntensity,
+			group:       *specGroup,
+			skipGroup:   *specSkipGroup,
+			dryRun:      *specDryRun,
+			yes:         *specYes,
+			concurrency: *concurrency,
+			rateLimit:   *rateLimit,
+			timeout:     *timeout,
+			skipVerify:  *skipVerify,
+			verbose:     *verbose,
+			quietMode:   quietMode,
+			outFlags:    &outFlags,
+			printStatus: printStatus,
+		})
+		return
+	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 0: SMART MODE - WAF DETECTION & STRATEGY OPTIMIZATION (Optional)
