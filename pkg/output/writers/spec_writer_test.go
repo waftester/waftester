@@ -10,11 +10,11 @@ import (
 
 // mockWriter captures calls to verify delegation.
 type mockWriter struct {
-	written    []events.Event
-	flushed    bool
-	closed     bool
-	supported  map[events.EventType]bool
-	writeErr   error
+	written   []events.Event
+	flushed   bool
+	closed    bool
+	supported map[events.EventType]bool
+	writeErr  error
 }
 
 func newMockWriter() *mockWriter {

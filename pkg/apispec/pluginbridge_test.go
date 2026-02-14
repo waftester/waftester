@@ -10,12 +10,12 @@ import (
 func TestEndpointToTargetBasic(t *testing.T) {
 	t.Parallel()
 	ep := Endpoint{
-		Method:      "GET",
-		Path:        "/users",
-		OperationID: "getUsers",
+		Method:         "GET",
+		Path:           "/users",
+		OperationID:    "getUsers",
 		CorrelationTag: "abc123",
-		Group:       "users",
-		Tags:        []string{"users", "v1"},
+		Group:          "users",
+		Tags:           []string{"users", "v1"},
 	}
 
 	target, err := EndpointToTarget("https://api.example.com", ep)

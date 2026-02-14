@@ -26,17 +26,17 @@ type harEntry struct {
 }
 
 type harRequest struct {
-	Method      string          `json:"method"`
-	URL         string          `json:"url"`
-	Headers     []harNameValue  `json:"headers,omitempty"`
-	QueryString []harNameValue  `json:"queryString,omitempty"`
-	PostData    *harPostData    `json:"postData,omitempty"`
+	Method      string         `json:"method"`
+	URL         string         `json:"url"`
+	Headers     []harNameValue `json:"headers,omitempty"`
+	QueryString []harNameValue `json:"queryString,omitempty"`
+	PostData    *harPostData   `json:"postData,omitempty"`
 }
 
 type harResponse struct {
-	Status      int             `json:"status"`
-	StatusText  string          `json:"statusText"`
-	Headers     []harNameValue  `json:"headers,omitempty"`
+	Status     int            `json:"status"`
+	StatusText string         `json:"statusText"`
+	Headers    []harNameValue `json:"headers,omitempty"`
 }
 
 type harNameValue struct {
@@ -246,23 +246,23 @@ func convertHARPostData(pd *harPostData, ep *Endpoint) {
 // isStandardHeader returns true for common HTTP headers that are noise
 // for security testing and should be skipped during HAR import.
 var standardHeaders = map[string]bool{
-	"accept":             true,
-	"accept-encoding":    true,
-	"accept-language":    true,
-	"cache-control":      true,
-	"connection":         true,
-	"content-length":     true,
-	"content-type":       true,
-	"host":               true,
-	"origin":             true,
-	"referer":            true,
-	"sec-ch-ua":          true,
-	"sec-ch-ua-mobile":   true,
-	"sec-ch-ua-platform": true,
-	"sec-fetch-dest":     true,
-	"sec-fetch-mode":     true,
-	"sec-fetch-site":     true,
-	"user-agent":         true,
+	"accept":                    true,
+	"accept-encoding":           true,
+	"accept-language":           true,
+	"cache-control":             true,
+	"connection":                true,
+	"content-length":            true,
+	"content-type":              true,
+	"host":                      true,
+	"origin":                    true,
+	"referer":                   true,
+	"sec-ch-ua":                 true,
+	"sec-ch-ua-mobile":          true,
+	"sec-ch-ua-platform":        true,
+	"sec-fetch-dest":            true,
+	"sec-fetch-mode":            true,
+	"sec-fetch-site":            true,
+	"user-agent":                true,
 	"upgrade-insecure-requests": true,
 }
 
