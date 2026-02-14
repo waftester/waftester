@@ -21,6 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Vendor content types missed** — Exact content-type matching missed `application/vnd.api+json` and similar; now uses substring matching
 - **Infinite loop in replaceAll** — Custom string replacement looped forever when replacement contained search string; replaced with `strings.ReplaceAll`
 - **Dead code in URL blocking** — Removed unreachable `[::1]` check (`url.Hostname()` strips brackets)
+- **Banned stderr prints in apispec** — Removed `fmt.Fprintf(os.Stderr)` calls in `auth.go` and `specflags.go` that violated `TestNoDirectPrintInPkg` structural test
+- **Progress goroutine race** — Added `sync.WaitGroup` to executor progress goroutine to prevent data race on returned results
+- **DNS cache nil,nil return** — Fixed `LookupHost` returning `nil, nil` when resolver returns empty IP list; now returns `ErrEmptyDNSResponse`
+- **Retry with consumed body** — Fixed retry middleware sending empty body on retry when `GetBody` is nil; now clones body before first read
+- **EJSON null vs empty array** — Fixed `EJSONWriter` emitting JSON `null` instead of `[]` for zero-result scans
+- **Non-deterministic SARIF output** — Sorted SARIF rules by ID and status codes by value for reproducible output across runs
+- **NGINX App Protect false positive** — Required `X-Waf-Policy-Status` header alongside body patterns to avoid false WAF detection
+- **SVG XSS evasion broken** — Fixed SVG payload evasion using pre-compiled replacer instead of broken split/ReplaceAll approach
+- **Pre-commit hook false positives** — Added package allowlist to pre-commit debug artifact check, mirroring `TestNoDirectPrintInPkg` structural test allowlist
 
 ## [2.9.1] - 2026-02-14
 
