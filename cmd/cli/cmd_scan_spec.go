@@ -18,6 +18,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/lfi"
 	"github.com/waftester/waftester/pkg/nosqli"
+	"github.com/waftester/waftester/pkg/output/events"
 	"github.com/waftester/waftester/pkg/redirect"
 	"github.com/waftester/waftester/pkg/sqli"
 	"github.com/waftester/waftester/pkg/ssrf"
@@ -133,6 +134,20 @@ func runSpecScan(
 	// Resolve auth.
 	authFn := apispec.ResolveAuth(spec.AuthSchemes, cfg.Auth)
 
+	// Build scan ID for event dispatch.
+	scanID := ""
+	if dispCtx != nil {
+		scanID = dispCtx.ScanID
+	}
+
+	// Emit spec scan started event.
+	if dispCtx != nil {
+		_ = dispCtx.EmitEvent(ctx, events.NewSpecScanStartedEvent(
+			scanID, source, string(spec.Format),
+			len(endpoints), plan.TotalTests, nil, string(cfg.Intensity),
+		))
+	}
+
 	// Execute the plan.
 	result := &apispec.SpecScanResult{
 		SpecSource: source,
@@ -156,10 +171,24 @@ func runSpecScan(
 			if !streamJSON {
 				ui.PrintInfo(fmt.Sprintf("Scanning %s %s [%s]", ep.Method, ep.Path, scanType))
 			}
+			if dispCtx != nil {
+				_ = dispCtx.EmitEvent(ctx, events.NewEndpointScanStartedEvent(
+					scanID, ep.Method, ep.Path, ep.CorrelationTag, scanType,
+				))
+			}
 		},
 		OnEndpointComplete: func(ep apispec.Endpoint, scanType string, findingCount int, err error) {
 			if err != nil && cf.Verbose {
 				ui.PrintWarning(fmt.Sprintf("%s %s [%s]: %v", ep.Method, ep.Path, scanType, err))
+			}
+			if dispCtx != nil {
+				errMsg := ""
+				if err != nil {
+					errMsg = err.Error()
+				}
+				_ = dispCtx.EmitEvent(ctx, events.NewEndpointScanCompletedEvent(
+					scanID, ep.Method, ep.Path, ep.CorrelationTag, scanType, findingCount, 0, errMsg,
+				))
 			}
 		},
 		OnFinding: func(f apispec.SpecFinding) {
@@ -170,10 +199,16 @@ func runSpecScan(
 					"timestamp": time.Now().Format(time.RFC3339),
 					"data":      f,
 				})
-				fmt.Println(string(data))
+				fmt.Println(string(data)) // debug:keep
 			} else {
 				ui.PrintWarning(fmt.Sprintf("[%s] %s %s — %s: %s (param: %s)",
 					strings.ToUpper(f.Severity), f.Method, f.Path, f.Category, f.Title, f.Parameter))
+			}
+			if dispCtx != nil {
+				_ = dispCtx.EmitEvent(ctx, events.NewEndpointFindingEvent(
+					scanID, f.Method, f.Path, f.CorrelationTag,
+					f.Category, f.Parameter, f.Severity, f.Title, f.Evidence,
+				))
 			}
 		},
 	}
@@ -216,6 +251,10 @@ func runSpecScan(
 
 	// Dispatch completion event.
 	if dispCtx != nil {
+		_ = dispCtx.EmitEvent(ctx, events.NewSpecScanCompletedEvent(
+			scanID, source, session.TotalEndpoints, session.TotalTests,
+			result.TotalFindings(), result.Duration, result.BySeverity(), result.ByCategory(),
+		))
 		_ = dispCtx.EmitSummary(ctx, session.TotalEndpoints, result.TotalFindings(), 0, result.Duration)
 	}
 
@@ -229,7 +268,7 @@ func runSpecScan(
 func runSpecDryRun(plan *apispec.ScanPlan, endpoints []apispec.Endpoint, streamJSON bool) {
 	if streamJSON {
 		data, _ := json.Marshal(plan)
-		fmt.Println(string(data))
+		fmt.Println(string(data)) // debug:keep
 		os.Exit(0)
 	}
 

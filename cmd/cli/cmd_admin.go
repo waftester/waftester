@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/waftester/waftester/pkg/apispec"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/report"
 	"github.com/waftester/waftester/pkg/templatevalidator"
@@ -19,9 +20,11 @@ import (
 
 func runValidate() {
 	ui.PrintCompactBanner()
-	ui.PrintSection("Payload Validation")
 
 	validateFlags := flag.NewFlagSet("validate", flag.ExitOnError)
+	specPath := validateFlags.String("spec", "", "API spec file to validate (OpenAPI, Swagger, Postman, HAR)")
+	specURL := validateFlags.String("spec-url", "", "API spec URL to validate")
+	allowInternal := validateFlags.Bool("allow-internal", false, "Allow internal/private server URLs in spec validation")
 	payloadDir := validateFlags.String("payloads", defaults.PayloadDir, "Directory containing payload JSON files")
 	failFast := validateFlags.Bool("fail-fast", false, "Abort on first error")
 	verbose := validateFlags.Bool("verbose", false, "Show detailed validation output")
@@ -36,9 +39,16 @@ func runValidate() {
 
 	validateFlags.Parse(os.Args[2:])
 
+	// Route to spec validation if --spec or --spec-url provided.
+	if *specPath != "" || *specURL != "" {
+		runValidateSpec(*specPath, *specURL, *allowInternal, *verbose, *outputJSON)
+		return
+	}
+
+	ui.PrintSection("Payload Validation")
 	ui.PrintConfigLine("Payload Dir", *payloadDir)
 	ui.PrintConfigLine("Fail Fast", fmt.Sprintf("%v", *failFast))
-	fmt.Println()
+	fmt.Println() // debug:keep
 
 	// Initialize dispatcher for hooks
 	validateOutputFlags := OutputFlags{
@@ -105,6 +115,88 @@ func runValidate() {
 	ui.PrintSuccess("All payloads validated successfully!")
 }
 
+// runValidateSpec validates an API spec file for correctness, security
+// concerns (SSRF, credentials), and completeness.
+func runValidateSpec(specPath, specURL string, allowInternal, verbose bool, outputFile string) {
+	ui.PrintSection("API Spec Validation")
+
+	source := specPath
+	if source == "" {
+		source = specURL
+	}
+	ui.PrintConfigLine("Spec", source)
+	fmt.Println() // debug:keep
+
+	result, err := apispec.ValidateSpec(source, allowInternal)
+	if err != nil {
+		ui.PrintError(fmt.Sprintf("Spec validation error: %v", err))
+		os.Exit(1)
+	}
+
+	// Print errors.
+	for _, issue := range result.Errors {
+		path := ""
+		if issue.Path != "" {
+			path = fmt.Sprintf(" (%s)", issue.Path)
+		}
+		ui.PrintError(fmt.Sprintf("[%s]%s %s", issue.Code, path, issue.Message))
+	}
+
+	// Print warnings.
+	for _, issue := range result.Warnings {
+		path := ""
+		if issue.Path != "" {
+			path = fmt.Sprintf(" (%s)", issue.Path)
+		}
+		ui.PrintWarning(fmt.Sprintf("[%s]%s %s", issue.Code, path, issue.Message))
+	}
+
+	// Print spec summary if parsed successfully.
+	if result.Spec != nil {
+		fmt.Println() // debug:keep
+		ui.PrintConfigLine("Format", string(result.Spec.Format))
+		ui.PrintConfigLine("Title", result.Spec.Title)
+		if result.Spec.Version != "" {
+			ui.PrintConfigLine("Version", result.Spec.Version)
+		}
+		ui.PrintConfigLine("Endpoints", fmt.Sprintf("%d", len(result.Spec.Endpoints)))
+		if len(result.Spec.AuthSchemes) > 0 {
+			ui.PrintConfigLine("Auth Schemes", fmt.Sprintf("%d", len(result.Spec.AuthSchemes)))
+		}
+
+		if verbose {
+			fmt.Println() // debug:keep
+			for _, ep := range result.Spec.Endpoints {
+				fmt.Fprintf(os.Stderr, "  %s %s", ep.Method, ep.Path)
+				if len(ep.Parameters) > 0 {
+					fmt.Fprintf(os.Stderr, " (%d params)", len(ep.Parameters))
+				}
+				fmt.Fprintln(os.Stderr)
+			}
+		}
+	}
+
+	// Write JSON output if requested.
+	if outputFile != "" {
+		data, marshalErr := json.MarshalIndent(result, "", "  ")
+		if marshalErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to marshal results: %v", marshalErr))
+		} else if writeErr := os.WriteFile(outputFile, data, 0o644); writeErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to write output: %v", writeErr))
+		} else {
+			ui.PrintInfo(fmt.Sprintf("Results written to %s", outputFile))
+		}
+	}
+
+	fmt.Println() // debug:keep
+	if result.Valid {
+		ui.PrintSuccess(fmt.Sprintf("Spec validation passed (%d warnings)", len(result.Warnings)))
+	} else {
+		ui.PrintError(fmt.Sprintf("Spec validation failed (%d errors, %d warnings)", len(result.Errors), len(result.Warnings)))
+		os.Exit(1)
+	}
+}
+
 func runValidateTemplates() {
 	ui.PrintCompactBanner()
 	ui.PrintSection("Template Validation")
@@ -126,7 +218,7 @@ func runValidateTemplates() {
 
 	ui.PrintConfigLine("Template Dir", *templateDir)
 	ui.PrintConfigLine("Strict Mode", fmt.Sprintf("%v", *strict))
-	fmt.Println()
+	fmt.Println() // debug:keep
 
 	// Initialize dispatcher for hooks
 	vtOutputFlags := OutputFlags{
@@ -169,13 +261,13 @@ func runValidateTemplates() {
 	ui.PrintConfigLine("Invalid", fmt.Sprintf("%d", summary.InvalidFiles))
 	ui.PrintConfigLine("Total Errors", fmt.Sprintf("%d", summary.TotalErrors))
 	ui.PrintConfigLine("Total Warnings", fmt.Sprintf("%d", summary.TotalWarnings))
-	fmt.Println()
+	fmt.Println() // debug:keep
 
 	// Print detailed results if verbose
 	if *verbose {
 		for _, result := range summary.Results {
 			if !result.Valid || len(result.Warnings) > 0 {
-				fmt.Printf("\n%s\n", result.File)
+				fmt.Printf("\n%s\n", result.File) // debug:keep
 				for _, e := range result.Errors {
 					ui.PrintError(fmt.Sprintf("  ERROR: %s", e))
 				}
@@ -263,13 +355,13 @@ func runEnterpriseReport() {
 	// Validate workspace directory
 	if *workspaceDir == "" {
 		ui.PrintError("Workspace directory is required. Use -workspace <path>")
-		fmt.Println()
-		fmt.Println("Usage: waf-tester report -workspace <path> [-output <file>] [-target <name>]")
-		fmt.Println()
-		fmt.Println("Options:")
-		fmt.Println("  -workspace <path>  Path to workspace directory containing results.json")
-		fmt.Println("  -output <file>     Output HTML file (default: workspace/enterprise-report.html)")
-		fmt.Println("  -target <name>     Target name for report header")
+		fmt.Println() // debug:keep
+		fmt.Println("Usage: waf-tester report -workspace <path> [-output <file>] [-target <name>]") // debug:keep
+		fmt.Println() // debug:keep
+		fmt.Println("Options:") // debug:keep
+		fmt.Println("  -workspace <path>  Path to workspace directory containing results.json") // debug:keep
+		fmt.Println("  -output <file>     Output HTML file (default: workspace/enterprise-report.html) // debug:keep")
+		fmt.Println("  -target <name>     Target name for report header") // debug:keep
 		os.Exit(1)
 	}
 
@@ -305,7 +397,7 @@ func runEnterpriseReport() {
 	ui.PrintConfigLine("Workspace", *workspaceDir)
 	ui.PrintConfigLine("Target", target)
 	ui.PrintConfigLine("Output", output)
-	fmt.Println()
+	fmt.Println() // debug:keep
 
 	// Initialize dispatcher for hooks
 	reportOutputFlags := OutputFlags{
@@ -375,7 +467,7 @@ func runUpdate() {
 	ui.PrintConfigLine("Payload Dir", *payloadDir)
 	ui.PrintConfigLine("Dry Run", fmt.Sprintf("%v", *dryRun))
 	ui.PrintConfigLine("Auto Apply", fmt.Sprintf("%v", *autoApply))
-	fmt.Println()
+	fmt.Println() // debug:keep
 
 	// Initialize dispatcher for hooks
 	updateOutputFlags := OutputFlags{

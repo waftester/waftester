@@ -19,18 +19,26 @@ WAFtester can drive security scans from API specifications instead of blind URL 
 ## Quick Start
 
 ```bash
-# Scan from OpenAPI spec
+# Scan from OpenAPI spec (target derived from spec's servers/host field)
+waftester scan --spec openapi.yaml
+
+# Explicit target overrides spec's server URL
 waftester scan --spec openapi.yaml -u https://api.example.com
 
 # Auto mode with Postman collection + environment
-waftester auto --spec collection.json --spec-env environment.json -u https://api.example.com
+waftester auto --spec collection.json --spec-env environment.json
 
 # Dry-run to preview the scan plan without sending requests
-waftester scan --spec openapi.yaml -u https://api.example.com --dry-run
+waftester scan --spec openapi.yaml --dry-run
+
+# Validate a spec without scanning
+waftester validate --spec openapi.yaml
 
 # Scan specific endpoint groups only
 waftester scan --spec openapi.yaml -u https://api.example.com --groups users,auth
 ```
+
+> **Note:** The `-u` flag is optional when the spec contains server URLs (OpenAPI `servers`, Swagger `host`, Postman `baseUrl`). WAFtester resolves the target from the spec automatically. Use `-u` to override.
 
 ## How It Works
 
@@ -45,10 +53,10 @@ The scan plan is the ordered list of test cases. View it before scanning:
 
 ```bash
 # Show the plan as a table
-waftester scan --spec openapi.yaml -u https://api.example.com --dry-run
+waftester scan --spec openapi.yaml --dry-run
 
 # Export the plan as JSON for CI/CD pipelines
-waftester scan --spec openapi.yaml -u https://api.example.com --dry-run -format json
+waftester scan --spec openapi.yaml --dry-run -format json
 ```
 
 Each plan entry includes:
@@ -112,6 +120,29 @@ For each documented endpoint, WAFtester also tries undocumented HTTP methods:
 # WAFtester also tries: PUT /users, DELETE /users, PATCH /users, OPTIONS /users
 # Plus method override headers: X-HTTP-Method-Override, X-Method-Override
 ```
+
+## Validation
+
+Validate a spec file without running a scan:
+
+```bash
+# Validate from file
+waftester validate --spec openapi.yaml
+
+# Validate from URL
+waftester validate --spec-url https://api.example.com/openapi.yaml
+
+# Allow internal/private network server URLs
+waftester validate --spec openapi.yaml --allow-internal
+
+# JSON output for CI pipelines
+waftester validate --spec openapi.yaml -format json
+
+# Verbose: list all parsed endpoints
+waftester validate --spec openapi.yaml -v
+```
+
+The validator checks for parse errors, schema warnings, endpoint extraction, and server URL reachability.
 
 ## Comparison Mode
 
@@ -219,14 +250,18 @@ gRPC reflection extracts services, methods, and message types.
 
 ## MCP Tools
 
-The MCP server exposes spec scanning tools for AI agent integration:
+The MCP server exposes spec scanning tools for AI agent integration. Tools accept spec input via `spec_content` (inline), `spec_path` (file path), or `spec_url` (HTTP URL) — provide exactly one.
 
 | Tool | Purpose |
-|------|---------|
+|------|--------|
 | `validate_spec` | Parse and validate a spec without scanning |
 | `list_spec_endpoints` | Extract and list all endpoints from a spec |
 | `plan_spec` | Generate a scan plan from a spec |
 | `scan_spec` | Execute a spec-driven scan |
+| `preview_spec_scan` | Preview scan configuration without executing |
+| `spec_intelligence` | Analyze attack surface and recommended scan types |
+| `describe_spec_auth` | Extract authentication schemes and per-endpoint requirements |
+| `export_spec` | Export normalized internal representation |
 | `compare_baselines` | Diff two sets of findings for regressions |
 
 ```bash

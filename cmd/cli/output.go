@@ -976,3 +976,11 @@ func (dc *DispatcherContext) EmitBanDetected(ctx context.Context, host, banType 
 	event := events.NewBanDetectedEvent(dc.ScanID, host, banType, confidence, evidence, latencyDrift, bodySizeDrift, time.Duration(recommendedWaitMs)*time.Millisecond)
 	return dc.Dispatcher.Dispatch(ctx, event)
 }
+
+// EmitEvent dispatches any event to all registered hooks.
+func (dc *DispatcherContext) EmitEvent(ctx context.Context, event events.Event) error {
+	if dc == nil || dc.Dispatcher == nil {
+		return nil
+	}
+	return dc.Dispatcher.Dispatch(ctx, event)
+}
