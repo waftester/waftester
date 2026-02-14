@@ -19,6 +19,7 @@ func (s *Server) registerSpecTools() {
 	s.addListSpecEndpointsTool()
 	s.addPlanSpecTool()
 	s.addScanSpecTool()
+	s.addCompareBaselinesTool()
 }
 
 // --- validate_spec ---
@@ -558,4 +559,70 @@ func splitCSV(s string) []string {
 		}
 	}
 	return result
+}
+
+// --- compare_baselines ---
+
+func (s *Server) addCompareBaselinesTool() {
+	s.mcp.AddTool(
+		&mcp.Tool{
+			Name:  "compare_baselines",
+			Title: "Compare Scan Baselines",
+			Description: `Compare current scan findings against a saved baseline to detect regressions, fixes, and new findings.
+
+USE when:
+- You want to diff two scan results to see what changed
+- You need to detect regressions after making changes
+- You want to verify fixes
+
+Result format: JSON with fixed, regressed, new, unchanged arrays and counts.`,
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"baseline_findings": map[string]any{
+						"type":        "string",
+						"description": "JSON array of baseline findings.",
+					},
+					"current_findings": map[string]any{
+						"type":        "string",
+						"description": "JSON array of current findings.",
+					},
+				},
+				"required": []string{"baseline_findings", "current_findings"},
+			},
+			Annotations: &mcp.ToolAnnotations{
+				ReadOnlyHint: true,
+			},
+		},
+		loggedTool("compare_baselines", s.handleCompareBaselines),
+	)
+}
+
+func (s *Server) handleCompareBaselines(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var args struct {
+		BaselineFindings string `json:"baseline_findings"`
+		CurrentFindings  string `json:"current_findings"`
+	}
+	if err := parseArgs(req, &args); err != nil {
+		return errorResult(fmt.Sprintf("invalid arguments: %v", err)), nil
+	}
+	if args.BaselineFindings == "" {
+		return errorResult("baseline_findings is required"), nil
+	}
+	if args.CurrentFindings == "" {
+		return errorResult("current_findings is required"), nil
+	}
+
+	var baseline []apispec.SpecFinding
+	if err := json.Unmarshal([]byte(args.BaselineFindings), &baseline); err != nil {
+		return errorResult(fmt.Sprintf("invalid baseline_findings JSON: %v", err)), nil
+	}
+
+	var current []apispec.SpecFinding
+	if err := json.Unmarshal([]byte(args.CurrentFindings), &current); err != nil {
+		return errorResult(fmt.Sprintf("invalid current_findings JSON: %v", err)), nil
+	}
+
+	result := apispec.CompareFindings(baseline, current)
+	return jsonResult(result)
 }
