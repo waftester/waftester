@@ -1,6 +1,7 @@
 package apispec
 
 import (
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"strings"
@@ -294,11 +295,14 @@ type Example struct {
 // SpecExecutor is the interface for executing a scan plan against parsed
 // endpoints. P1 implements SimpleExecutor; P4 replaces it with AdaptiveExecutor.
 type SpecExecutor interface {
-	Execute(ctx interface{}, plan *ScanPlan) (*ScanSession, error)
+	Execute(ctx context.Context, plan *ScanPlan) (*ScanSession, error)
 }
 
 // ScanPlan holds the complete test plan generated from a spec.
 type ScanPlan struct {
+	// SessionID links this plan to its execution session.
+	SessionID string `json:"session_id,omitempty"`
+
 	// Entries is the ordered list of scan operations.
 	Entries []ScanPlanEntry `json:"entries"`
 
@@ -321,6 +325,9 @@ type ScanPlanEntry struct {
 	Endpoint        Endpoint        `json:"endpoint"`
 	Attack          AttackSelection `json:"attack"`
 	InjectionTarget InjectionTarget `json:"injection_target"`
+
+	// SkipReason explains why this entry was excluded, if applicable.
+	SkipReason string `json:"skip_reason,omitempty"`
 }
 
 // AttackSelection describes which attack to run and with how many payloads.
@@ -340,14 +347,15 @@ type InjectionTarget struct {
 
 // ScanSession holds the results of executing a scan plan.
 type ScanSession struct {
-	ID             string        `json:"id"`
-	StartedAt      time.Time     `json:"started_at"`
-	CompletedAt    time.Time     `json:"completed_at"`
-	Duration       time.Duration `json:"duration"`
-	TotalEndpoints int           `json:"total_endpoints"`
-	TotalTests     int           `json:"total_tests"`
-	TotalFindings  int           `json:"total_findings"`
-	SpecSource     string        `json:"spec_source"`
+	ID             string          `json:"id"`
+	StartedAt      time.Time       `json:"started_at"`
+	CompletedAt    time.Time       `json:"completed_at"`
+	Duration       time.Duration   `json:"duration"`
+	TotalEndpoints int             `json:"total_endpoints"`
+	TotalTests     int             `json:"total_tests"`
+	TotalFindings  int             `json:"total_findings"`
+	SpecSource     string          `json:"spec_source"`
+	Result         *SpecScanResult `json:"result,omitempty"`
 }
 
 // CorrelationTag generates a stable, deterministic identifier for an endpoint.

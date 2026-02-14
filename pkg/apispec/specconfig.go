@@ -3,7 +3,7 @@ package apispec
 import (
 	"fmt"
 	"os"
-	"path/filepath"
+	pathpkg "path"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -106,11 +106,12 @@ func (c *SpecConfig) Source() string {
 
 // MatchesPath reports whether the given endpoint path matches the path filter.
 // An empty filter matches everything. Supports glob patterns.
+// Uses path.Match (not filepath.Match) because API paths always use forward slashes.
 func (c *SpecConfig) MatchesPath(path string) bool {
 	if c.PathFilter == "" {
 		return true
 	}
-	matched, err := filepath.Match(c.PathFilter, path)
+	matched, err := pathpkg.Match(c.PathFilter, path)
 	if err != nil {
 		// Invalid pattern: fall back to prefix match.
 		return strings.HasPrefix(path, strings.TrimSuffix(c.PathFilter, "*"))
@@ -320,7 +321,7 @@ func matchPathGlob(pattern, path string) bool {
 		return strings.HasSuffix(path, suffix)
 	}
 
-	matched, err := filepath.Match(pattern, path)
+	matched, err := pathpkg.Match(pattern, path)
 	if err != nil {
 		// Invalid pattern: try prefix match.
 		return strings.HasPrefix(path, strings.TrimSuffix(pattern, "*"))

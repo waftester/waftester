@@ -46,17 +46,17 @@ func TestCompareFindings_Mixed(t *testing.T) {
 	}
 
 	current := []SpecFinding{
-		{Method: "GET", Path: "/users", Category: "sqli", Parameter: "id", Severity: "high"},     // unchanged
+		{Method: "GET", Path: "/users", Category: "sqli", Parameter: "id", Severity: "high"},      // unchanged
 		{Method: "POST", Path: "/login", Category: "xss", Parameter: "email", Severity: "high"},   // regressed (medium -> high)
 		{Method: "PUT", Path: "/data", Category: "nosqli", Parameter: "body", Severity: "medium"}, // new
 	}
 
 	result := CompareFindings(baseline, current)
 
-	assert.Len(t, result.Fixed, 1)       // DELETE /admin gone
-	assert.Len(t, result.Regressed, 1)   // POST /login worsened
-	assert.Len(t, result.New, 1)         // PUT /data is new
-	assert.Len(t, result.Unchanged, 1)   // GET /users same
+	assert.Len(t, result.Fixed, 1)     // DELETE /admin gone
+	assert.Len(t, result.Regressed, 1) // POST /login worsened
+	assert.Len(t, result.New, 1)       // PUT /data is new
+	assert.Len(t, result.Unchanged, 1) // GET /users same
 
 	assert.Equal(t, 3, result.BaselineCount)
 	assert.Equal(t, 3, result.CurrentCount)

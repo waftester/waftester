@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/apispec"
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -38,6 +39,16 @@ type specPipelineConfig struct {
 // parse spec -> intelligence engine -> preview -> execute.
 func runSpecPipeline(cfg specPipelineConfig) {
 	startTime := time.Now()
+
+	// Create a cancellable context from OS signals.
+	ctx, cancel := cli.SignalContext(30 * time.Second)
+	defer cancel()
+
+	if cfg.timeout > 0 {
+		var tCancel context.CancelFunc
+		ctx, tCancel = context.WithTimeout(ctx, time.Duration(cfg.timeout)*time.Minute)
+		defer tCancel()
+	}
 
 	// Determine spec source.
 	source := cfg.specFile
@@ -241,7 +252,7 @@ func runSpecPipeline(cfg specPipelineConfig) {
 		},
 	}
 
-	if _, execErr := executor.Execute(context.Background(), plan); execErr != nil {
+	if _, execErr := executor.Execute(ctx, plan); execErr != nil {
 		result.AddError(fmt.Sprintf("execution error: %v", execErr))
 	}
 

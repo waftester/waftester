@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -246,6 +245,12 @@ func parseByFormat(data []byte, source string, format Format) (*Spec, error) {
 		return parsePostman(data, source)
 	case FormatHAR:
 		return parseHAR(data, source)
+	case FormatAsyncAPI:
+		return ParseAsyncAPI(string(data))
+	case FormatGraphQL:
+		return nil, fmt.Errorf("%w: GraphQL specs require introspection — use IntrospectionToSpec(ctx, endpoint) instead of Parse()", ErrUnsupportedFormat)
+	case FormatGRPC:
+		return nil, fmt.Errorf("%w: gRPC specs require reflection — use ReflectionToSpec(ctx, addr) instead of Parse()", ErrUnsupportedFormat)
 	default:
 		return nil, fmt.Errorf("%w: detected %q from %s", ErrUnsupportedFormat, format, source)
 	}
@@ -441,13 +446,28 @@ func convertOA3Parameter(p openapi.Parameter, parser *openapi.Parser, oaSpec *op
 
 // convertOA3Schema converts an OpenAPI 3 Schema to SchemaInfo.
 func convertOA3Schema(s *openapi.Schema, parser *openapi.Parser, oaSpec *openapi.Spec) SchemaInfo {
-	if s == nil {
+	return convertOA3SchemaWithDepth(s, parser, oaSpec, make(map[string]bool), 0)
+}
+
+// maxSchemaDepth prevents stack overflow on deeply nested or circular schemas.
+const maxSchemaDepth = 20
+
+// convertOA3SchemaWithDepth converts with circular reference protection.
+func convertOA3SchemaWithDepth(s *openapi.Schema, parser *openapi.Parser, oaSpec *openapi.Spec, seen map[string]bool, depth int) SchemaInfo {
+	if s == nil || depth > maxSchemaDepth {
 		return SchemaInfo{}
 	}
 
-	// Resolve $ref
+	// Resolve $ref with circular detection.
 	resolved := s
 	if s.Ref != "" {
+		if seen[s.Ref] {
+			// Circular reference — return a placeholder instead of recursing.
+			return SchemaInfo{Type: "object", Format: "circular-ref:" + s.Ref}
+		}
+		seen[s.Ref] = true
+		defer delete(seen, s.Ref)
+
 		if r := parser.ResolveRef(oaSpec, s.Ref); r != nil {
 			resolved = r
 		}
@@ -474,13 +494,13 @@ func convertOA3Schema(s *openapi.Schema, parser *openapi.Parser, oaSpec *openapi
 	if len(resolved.Properties) > 0 {
 		si.Properties = make(map[string]SchemaInfo)
 		for name, prop := range resolved.Properties {
-			si.Properties[name] = convertOA3Schema(prop, parser, oaSpec)
+			si.Properties[name] = convertOA3SchemaWithDepth(prop, parser, oaSpec, seen, depth+1)
 		}
 	}
 
 	// Convert items (array schema)
 	if resolved.Items != nil {
-		items := convertOA3Schema(resolved.Items, parser, oaSpec)
+		items := convertOA3SchemaWithDepth(resolved.Items, parser, oaSpec, seen, depth+1)
 		si.Items = &items
 	}
 
@@ -743,10 +763,4 @@ func (e *Endpoint) FullPath(baseURL string) string {
 		path = "/" + path
 	}
 	return base + path
-}
-
-// parsedURL is a helper that parses a URL ignoring errors (for internal use).
-func parsedURL(rawURL string) *url.URL {
-	u, _ := url.Parse(rawURL)
-	return u
 }

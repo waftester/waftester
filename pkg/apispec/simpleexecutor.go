@@ -141,6 +141,7 @@ done:
 	session.TotalTests = result.TotalTests
 	session.TotalFindings = result.TotalFindings()
 	session.SpecSource = plan.SpecSource
+	session.Result = result
 
 	return session, nil
 }
