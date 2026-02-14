@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/waftester/waftester/pkg/plugin"
 )
@@ -93,7 +94,7 @@ func exampleOrDefault(p Parameter) string {
 
 // isAbsoluteURL checks if the string starts with http:// or https://.
 func isAbsoluteURL(s string) bool {
-	return len(s) > 8 && (s[:7] == "http://" || s[:8] == "https://")
+	return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://")
 }
 
 // joinURL joins a base URL and path, handling slashes.
@@ -109,21 +110,5 @@ func joinURL(base, path string) string {
 
 // replaceAll replaces all occurrences of old with new in s.
 func replaceAll(s, old, new string) string {
-	for {
-		i := indexOf(s, old)
-		if i < 0 {
-			return s
-		}
-		s = s[:i] + new + s[i+len(old):]
-	}
-}
-
-// indexOf returns the index of substr in s, or -1 if not found.
-func indexOf(s, substr string) int {
-	for i := 0; i+len(substr) <= len(s); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
+	return strings.ReplaceAll(s, old, new)
 }
