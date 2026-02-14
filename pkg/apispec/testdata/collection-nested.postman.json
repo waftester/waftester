@@ -1,0 +1,91 @@
+{
+  "info": {
+    "name": "Nested Folders Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Users",
+      "description": "User management endpoints",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "folder-token"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Admin",
+          "description": "Admin-only user endpoints",
+          "auth": {
+            "type": "apikey",
+            "apikey": [
+              {
+                "key": "key",
+                "value": "X-Admin-Key"
+              },
+              {
+                "key": "in",
+                "value": "header"
+              }
+            ]
+          },
+          "item": [
+            {
+              "name": "List All Users",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "https://api.example.com/admin/users",
+                  "protocol": "https",
+                  "host": ["api", "example", "com"],
+                  "path": ["admin", "users"]
+                }
+              }
+            },
+            {
+              "name": "Delete User",
+              "request": {
+                "method": "DELETE",
+                "url": {
+                  "raw": "https://api.example.com/admin/users/:userId",
+                  "protocol": "https",
+                  "host": ["api", "example", "com"],
+                  "path": ["admin", "users", ":userId"],
+                  "variable": [
+                    {
+                      "key": "userId",
+                      "value": "456"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "https://api.example.com/users/me",
+              "protocol": "https",
+              "host": ["api", "example", "com"],
+              "path": ["users", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/health"
+      }
+    }
+  ]
+}
