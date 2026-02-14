@@ -45,7 +45,7 @@ func (s *Server) addVersionResource() {
 				"name":    defaults.ToolNameDisplay,
 				"version": defaults.Version,
 				"capabilities": map[string]any{
-					"tools":     17,
+					"tools":     18,
 					"resources": 12,
 					"prompts":   7,
 					"templates": 40,
@@ -58,6 +58,7 @@ func (s *Server) addVersionResource() {
 					"assess", "mutate", "bypass", "probe", "generate_cicd",
 					"get_task_status", "cancel_task", "list_tasks",
 					"validate_spec", "list_spec_endpoints", "plan_spec", "scan_spec",
+					"compare_baselines",
 				},
 				"supported_waf_vendors": []string{
 					"ModSecurity", "Coraza", "Cloudflare", "AWS WAF", "Azure WAF",
