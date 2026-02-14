@@ -99,6 +99,11 @@ for file in $STAGED_FILES; do
         *_test.go)
             # Test files legitimately reference print patterns as test data.
             ;;
+        */ui/* | */interactive/* | */mcpserver/* | */output/* | */discovery/* | \
+        */fp/* | */core/* | */corpus/* | */params/* | */report/* | */update/* | \
+        */validate/* | */input/* | */hooks/*)
+            # Packages that legitimately produce console output (mirrors structural test allowlist).
+            ;;
         *.go)
             if grep -n 'fmt\.Println\|fmt\.Printf' "$file" 2>/dev/null | grep -v '// debug:keep' | head -1 | grep -q .; then
                 echo "BLOCKED: $file has debug statement (fmt.Print). Use slog or add // debug:keep" >&2
