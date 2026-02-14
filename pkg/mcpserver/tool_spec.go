@@ -20,6 +20,10 @@ func (s *Server) registerSpecTools() {
 	s.addPlanSpecTool()
 	s.addScanSpecTool()
 	s.addCompareBaselinesTool()
+	s.addPreviewSpecScanTool()
+	s.addSpecIntelligenceTool()
+	s.addDescribeSpecAuthTool()
+	s.addExportSpecTool()
 }
 
 // --- validate_spec ---
@@ -625,4 +629,417 @@ func (s *Server) handleCompareBaselines(_ context.Context, req *mcp.CallToolRequ
 
 	result := apispec.CompareFindings(baseline, current)
 	return jsonResult(result)
+}
+
+// --- preview_spec_scan ---
+
+func (s *Server) addPreviewSpecScanTool() {
+	s.mcp.AddTool(
+		&mcp.Tool{
+			Name:  "preview_spec_scan",
+			Title: "Preview Spec Scan Plan",
+			Description: `Preview what a scan would do without sending any requests.
+Shows endpoints to test, attack types per endpoint, estimated payload counts, and total request budget.
+
+USE when:
+- You want to see what will be tested before committing to a scan
+- You need to estimate how long a scan will take
+- You want to filter by group or intensity first
+
+Result format: JSON with entries (endpoint, attack category, payload count), total_tests, estimated_duration.`,
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"spec_content": map[string]any{
+						"type":        "string",
+						"description": "The full API specification content (YAML or JSON).",
+					},
+					"intensity": map[string]any{
+						"type":        "string",
+						"enum":        []string{"quick", "normal", "deep", "paranoid"},
+						"description": "Scanning depth. Default: standard.",
+					},
+					"group": map[string]any{
+						"type":        "string",
+						"description": "Only include endpoints in this tag/group.",
+					},
+				},
+				"required": []string{"spec_content"},
+			},
+			Annotations: &mcp.ToolAnnotations{
+				ReadOnlyHint: true,
+			},
+		},
+		loggedTool("preview_spec_scan", s.handlePreviewSpecScan),
+	)
+}
+
+func (s *Server) handlePreviewSpecScan(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var args struct {
+		SpecContent string `json:"spec_content"`
+		Intensity   string `json:"intensity"`
+		Group       string `json:"group"`
+	}
+	if err := parseArgs(req, &args); err != nil {
+		return errorResult(fmt.Sprintf("invalid arguments: %v", err)), nil
+	}
+	if args.SpecContent == "" {
+		return errorResult("spec_content is required"), nil
+	}
+
+	spec, err := apispec.ParseContent(args.SpecContent)
+	if err != nil {
+		return errorResult(fmt.Sprintf("parse error: %v", err)), nil
+	}
+
+	intensity := apispec.IntensityNormal
+	if args.Intensity != "" {
+		intensity = apispec.Intensity(args.Intensity)
+	}
+
+	var endpoints []apispec.Endpoint
+	if args.Group != "" {
+		endpoints = spec.EndpointsByGroup(args.Group)
+	} else {
+		endpoints = spec.Endpoints
+	}
+
+	filteredSpec := *spec
+	filteredSpec.Endpoints = endpoints
+
+	plan := apispec.BuildIntelligentPlan(&filteredSpec, apispec.IntelligenceOptions{
+		Intensity: intensity,
+	})
+
+	type previewEntry struct {
+		Method       string `json:"method"`
+		Path         string `json:"path"`
+		Category     string `json:"category"`
+		PayloadCount int    `json:"payload_count"`
+		Reason       string `json:"reason"`
+	}
+
+	var entries []previewEntry
+	for _, e := range plan.Entries {
+		entries = append(entries, previewEntry{
+			Method:       e.Endpoint.Method,
+			Path:         e.Endpoint.Path,
+			Category:     e.Attack.Category,
+			PayloadCount: e.Attack.PayloadCount,
+			Reason:       e.Attack.Reason,
+		})
+	}
+
+	result := map[string]any{
+		"entries":            entries,
+		"total_tests":        plan.TotalTests,
+		"estimated_duration": plan.EstimatedDuration.String(),
+		"intensity":          string(intensity),
+		"endpoint_count":     len(endpoints),
+	}
+
+	return jsonResult(result)
+}
+
+// --- spec_intelligence ---
+
+func (s *Server) addSpecIntelligenceTool() {
+	s.mcp.AddTool(
+		&mcp.Tool{
+			Name:  "spec_intelligence",
+			Title: "Spec Intelligence Analysis",
+			Description: `Analyze an API specification to identify security-relevant patterns,
+attack surface, and recommended scan configuration.
+
+USE when:
+- You want to understand what makes this API interesting from a security perspective
+- You need to decide which scan types to focus on
+- You want parameter-level analysis (names that suggest injection, auth patterns, etc.)
+
+Result format: JSON with attack_surface, auth_analysis, parameter_insights, recommended_scan_types.`,
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"spec_content": map[string]any{
+						"type":        "string",
+						"description": "The full API specification content (YAML or JSON).",
+					},
+				},
+				"required": []string{"spec_content"},
+			},
+			Annotations: &mcp.ToolAnnotations{
+				ReadOnlyHint: true,
+			},
+		},
+		loggedTool("spec_intelligence", s.handleSpecIntelligence),
+	)
+}
+
+func (s *Server) handleSpecIntelligence(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var args struct {
+		SpecContent string `json:"spec_content"`
+	}
+	if err := parseArgs(req, &args); err != nil {
+		return errorResult(fmt.Sprintf("invalid arguments: %v", err)), nil
+	}
+	if args.SpecContent == "" {
+		return errorResult("spec_content is required"), nil
+	}
+
+	spec, err := apispec.ParseContent(args.SpecContent)
+	if err != nil {
+		return errorResult(fmt.Sprintf("parse error: %v", err)), nil
+	}
+
+	// Build an intelligent plan to extract the intelligence selections.
+	plan := apispec.BuildIntelligentPlan(spec, apispec.IntelligenceOptions{
+		AllScans: true,
+	})
+
+	// Aggregate attack selections by category.
+	categoryReasons := make(map[string][]string)
+	for _, entry := range plan.Entries {
+		cat := entry.Attack.Category
+		if entry.Attack.Reason != "" {
+			categoryReasons[cat] = append(categoryReasons[cat], entry.Attack.Reason)
+		}
+	}
+
+	// Deduplicate reasons per category.
+	categoryInfo := make(map[string]any)
+	for cat, reasons := range categoryReasons {
+		seen := make(map[string]bool)
+		var unique []string
+		for _, r := range reasons {
+			if !seen[r] {
+				seen[r] = true
+				unique = append(unique, r)
+			}
+		}
+		categoryInfo[cat] = map[string]any{
+			"endpoint_count": len(reasons),
+			"reasons":        unique,
+		}
+	}
+
+	// Auth analysis.
+	var authSummary []map[string]any
+	for _, scheme := range spec.AuthSchemes {
+		info := map[string]any{
+			"name": scheme.Name,
+			"type": string(scheme.Type),
+		}
+		if scheme.Scheme != "" {
+			info["scheme"] = scheme.Scheme
+		}
+		if scheme.FieldName != "" {
+			info["field_name"] = scheme.FieldName
+		}
+		if len(scheme.Flows) > 0 {
+			info["flows"] = len(scheme.Flows)
+		}
+		authSummary = append(authSummary, info)
+	}
+
+	// Count params by location.
+	paramLocations := make(map[string]int)
+	for _, ep := range spec.Endpoints {
+		for _, p := range ep.Parameters {
+			paramLocations[string(p.In)]++
+		}
+	}
+
+	result := map[string]any{
+		"attack_surface": map[string]any{
+			"total_endpoints":      len(spec.Endpoints),
+			"total_plan_entries":   len(plan.Entries),
+			"total_tests":          plan.TotalTests,
+			"categories_detected":  len(categoryInfo),
+			"parameter_locations":  paramLocations,
+		},
+		"auth_analysis":        authSummary,
+		"recommended_categories": categoryInfo,
+	}
+
+	return jsonResult(result)
+}
+
+// --- describe_spec_auth ---
+
+func (s *Server) addDescribeSpecAuthTool() {
+	s.mcp.AddTool(
+		&mcp.Tool{
+			Name:  "describe_spec_auth",
+			Title: "Describe Spec Authentication",
+			Description: `Extract and describe all authentication schemes declared in an API specification.
+
+USE when:
+- You need to understand what auth the API expects
+- You want to configure auth tokens before scanning
+- You need OAuth flow details (token URLs, scopes)
+
+Result format: JSON with schemes array, each containing name, type, details, and per-endpoint auth requirements.`,
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"spec_content": map[string]any{
+						"type":        "string",
+						"description": "The full API specification content (YAML or JSON).",
+					},
+				},
+				"required": []string{"spec_content"},
+			},
+			Annotations: &mcp.ToolAnnotations{
+				ReadOnlyHint: true,
+			},
+		},
+		loggedTool("describe_spec_auth", s.handleDescribeSpecAuth),
+	)
+}
+
+func (s *Server) handleDescribeSpecAuth(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var args struct {
+		SpecContent string `json:"spec_content"`
+	}
+	if err := parseArgs(req, &args); err != nil {
+		return errorResult(fmt.Sprintf("invalid arguments: %v", err)), nil
+	}
+	if args.SpecContent == "" {
+		return errorResult("spec_content is required"), nil
+	}
+
+	spec, err := apispec.ParseContent(args.SpecContent)
+	if err != nil {
+		return errorResult(fmt.Sprintf("parse error: %v", err)), nil
+	}
+
+	var schemes []map[string]any
+	for _, scheme := range spec.AuthSchemes {
+		info := map[string]any{
+			"name": scheme.Name,
+			"type": string(scheme.Type),
+		}
+		if scheme.Scheme != "" {
+			info["scheme"] = scheme.Scheme
+		}
+		if scheme.BearerFormat != "" {
+			info["bearer_format"] = scheme.BearerFormat
+		}
+		if scheme.In != "" {
+			info["in"] = string(scheme.In)
+		}
+		if scheme.FieldName != "" {
+			info["field_name"] = scheme.FieldName
+		}
+		if len(scheme.Flows) > 0 {
+			var flows []map[string]any
+			for _, f := range scheme.Flows {
+				flow := map[string]any{"type": f.Type}
+				if f.AuthURL != "" {
+					flow["auth_url"] = f.AuthURL
+				}
+				if f.TokenURL != "" {
+					flow["token_url"] = f.TokenURL
+				}
+				if len(f.Scopes) > 0 {
+					flow["scopes"] = f.Scopes
+				}
+				flows = append(flows, flow)
+			}
+			info["flows"] = flows
+		}
+		schemes = append(schemes, info)
+	}
+
+	// Per-endpoint auth requirements.
+	type epAuth struct {
+		Method string   `json:"method"`
+		Path   string   `json:"path"`
+		Auth   []string `json:"auth,omitempty"`
+	}
+	var endpointAuth []epAuth
+	for _, ep := range spec.Endpoints {
+		if len(ep.Auth) > 0 {
+			endpointAuth = append(endpointAuth, epAuth{
+				Method: ep.Method,
+				Path:   ep.Path,
+				Auth:   ep.Auth,
+			})
+		}
+	}
+
+	result := map[string]any{
+		"schemes":       schemes,
+		"scheme_count":  len(schemes),
+		"endpoint_auth": endpointAuth,
+	}
+
+	return jsonResult(result)
+}
+
+// --- export_spec ---
+
+func (s *Server) addExportSpecTool() {
+	s.mcp.AddTool(
+		&mcp.Tool{
+			Name:  "export_spec",
+			Title: "Export Parsed Spec",
+			Description: `Parse an API specification and export the normalized internal representation.
+Useful for debugging spec parsing, or for piping into other tools.
+
+USE when:
+- You want to see how WAFtester interprets a spec
+- You need to verify endpoints were parsed correctly
+- You want the spec in WAFtester's normalized format
+
+Result format: JSON with the normalized Spec object (endpoints, servers, auth, metadata).`,
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"spec_content": map[string]any{
+						"type":        "string",
+						"description": "The full API specification content (YAML or JSON).",
+					},
+					"include_schemas": map[string]any{
+						"type":        "boolean",
+						"description": "Include full schema definitions in the export. Default: false.",
+					},
+				},
+				"required": []string{"spec_content"},
+			},
+			Annotations: &mcp.ToolAnnotations{
+				ReadOnlyHint: true,
+			},
+		},
+		loggedTool("export_spec", s.handleExportSpec),
+	)
+}
+
+func (s *Server) handleExportSpec(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var args struct {
+		SpecContent    string `json:"spec_content"`
+		IncludeSchemas bool   `json:"include_schemas"`
+	}
+	if err := parseArgs(req, &args); err != nil {
+		return errorResult(fmt.Sprintf("invalid arguments: %v", err)), nil
+	}
+	if args.SpecContent == "" {
+		return errorResult("spec_content is required"), nil
+	}
+
+	spec, err := apispec.ParseContent(args.SpecContent)
+	if err != nil {
+		return errorResult(fmt.Sprintf("parse error: %v", err)), nil
+	}
+
+	// Optionally strip schemas to reduce output size.
+	if !args.IncludeSchemas {
+		for i := range spec.Endpoints {
+			for j := range spec.Endpoints[i].Parameters {
+				spec.Endpoints[i].Parameters[j].Schema = apispec.SchemaInfo{}
+			}
+		}
+	}
+
+	return jsonResult(spec)
 }

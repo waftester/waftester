@@ -413,3 +413,25 @@ func BenchmarkParseOpenAPI3(b *testing.B) {
 		parseOpenAPI3(data, "bench.json")
 	}
 }
+
+func TestParseByFormat_AsyncAPI(t *testing.T) {
+	content := `{"asyncapi":"2.6.0","info":{"title":"Test","version":"1.0.0"},"servers":{"ws":{"url":"wss://example.com","protocol":"wss"}},"channels":{"/test":{"subscribe":{"operationId":"recv","message":{"payload":{"type":"object"}}}}}}`
+	spec, err := parseByFormat([]byte(content), "test.json", FormatAsyncAPI)
+	require.NoError(t, err)
+	assert.Equal(t, FormatAsyncAPI, spec.Format)
+	assert.Equal(t, "Test", spec.Title)
+}
+
+func TestParseByFormat_GraphQL_ReturnsHint(t *testing.T) {
+	_, err := parseByFormat([]byte(`{"data":{"__schema":{}}}`), "introspection.json", FormatGraphQL)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrUnsupportedFormat)
+	assert.Contains(t, err.Error(), "IntrospectionToSpec")
+}
+
+func TestParseByFormat_GRPC_ReturnsHint(t *testing.T) {
+	_, err := parseByFormat(nil, "service.proto", FormatGRPC)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrUnsupportedFormat)
+	assert.Contains(t, err.Error(), "ReflectionToSpec")
+}
