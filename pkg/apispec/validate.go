@@ -205,10 +205,10 @@ func checkRef(ref, specDir string, result *SpecValidationResult, jsonPath string
 
 // credentialPatterns matches common credential-like values in specs.
 var credentialPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`(?i)Bearer\s+ey[A-Za-z0-9_-]+`),                  // JWT token
+	regexp.MustCompile(`(?i)Bearer\s+ey[A-Za-z0-9_-]+`),                        // JWT token
 	regexp.MustCompile(`(?i)(api[_-]?key|apikey)\s*[:=]\s*[A-Za-z0-9_-]{20,}`), // API key assignment
-	regexp.MustCompile(`(?i)password\s*[:=]\s*[^\s"']{8,}`),              // Password assignment
-	regexp.MustCompile(`(?i)(secret|token)\s*[:=]\s*[A-Za-z0-9_-]{20,}`), // Secret/token assignment
+	regexp.MustCompile(`(?i)password\s*[:=]\s*[^\s"']{8,}`),                    // Password assignment
+	regexp.MustCompile(`(?i)(secret|token)\s*[:=]\s*[A-Za-z0-9_-]{20,}`),       // Secret/token assignment
 }
 
 // detectCredentials scans raw spec data for credential-like patterns.

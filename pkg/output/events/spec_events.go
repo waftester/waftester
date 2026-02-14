@@ -137,11 +137,11 @@ func NewEndpointScanCompletedEvent(scanID, method, path, correlationTag, scanTyp
 // SpecScanCompletedEvent is emitted when a spec-driven scan finishes.
 type SpecScanCompletedEvent struct {
 	BaseEvent
-	SpecSource     string        `json:"spec_source"`
-	TotalEndpoints int           `json:"total_endpoints"`
-	TotalTests     int           `json:"total_tests"`
-	TotalFindings  int           `json:"total_findings"`
-	Duration       time.Duration `json:"duration"`
+	SpecSource     string         `json:"spec_source"`
+	TotalEndpoints int            `json:"total_endpoints"`
+	TotalTests     int            `json:"total_tests"`
+	TotalFindings  int            `json:"total_findings"`
+	Duration       time.Duration  `json:"duration"`
 	BySeverity     map[string]int `json:"by_severity,omitempty"`
 	ByCategory     map[string]int `json:"by_category,omitempty"`
 }

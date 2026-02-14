@@ -41,12 +41,12 @@ type postmanItem struct {
 }
 
 type postmanReq struct {
-	Method      string          `json:"method"`
-	URL         postmanURL      `json:"url"`
-	Header      []postmanKV     `json:"header,omitempty"`
-	Body        *postmanBody    `json:"body,omitempty"`
-	Description string          `json:"description,omitempty"`
-	Auth        *postmanAuth    `json:"auth,omitempty"`
+	Method      string       `json:"method"`
+	URL         postmanURL   `json:"url"`
+	Header      []postmanKV  `json:"header,omitempty"`
+	Body        *postmanBody `json:"body,omitempty"`
+	Description string       `json:"description,omitempty"`
+	Auth        *postmanAuth `json:"auth,omitempty"`
 }
 
 // postmanURL can be a string or an object with path, query, host, etc.
@@ -99,16 +99,16 @@ type postmanBody struct {
 }
 
 type postmanAuth struct {
-	Type   string        `json:"type"`
-	Bearer []postmanKV   `json:"bearer,omitempty"`
-	Basic  []postmanKV   `json:"basic,omitempty"`
-	APIKey []postmanKV   `json:"apikey,omitempty"`
-	OAuth2 []postmanKV   `json:"oauth2,omitempty"`
+	Type   string      `json:"type"`
+	Bearer []postmanKV `json:"bearer,omitempty"`
+	Basic  []postmanKV `json:"basic,omitempty"`
+	APIKey []postmanKV `json:"apikey,omitempty"`
+	OAuth2 []postmanKV `json:"oauth2,omitempty"`
 }
 
 type postmanEvent struct {
-	Listen string         `json:"listen"` // "prerequest" or "test"
-	Script postmanScript  `json:"script"`
+	Listen string        `json:"listen"` // "prerequest" or "test"
+	Script postmanScript `json:"script"`
 }
 
 type postmanScript struct {
@@ -130,10 +130,10 @@ func parsePostman(data []byte, source string) (*Spec, error) {
 	}
 
 	spec := &Spec{
-		Format:   FormatPostman,
-		Title:    coll.Info.Name,
-		Source:   source,
-		ParsedAt: time.Now(),
+		Format:    FormatPostman,
+		Title:     coll.Info.Name,
+		Source:    source,
+		ParsedAt:  time.Now(),
 		Variables: make(map[string]Variable),
 	}
 

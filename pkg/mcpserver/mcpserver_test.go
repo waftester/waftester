@@ -91,6 +91,7 @@ func TestListTools(t *testing.T) {
 		"list_payloads", "detect_waf", "discover", "learn", "scan",
 		"assess", "mutate", "bypass", "probe", "generate_cicd",
 		"get_task_status", "cancel_task", "list_tasks",
+		"validate_spec", "list_spec_endpoints", "plan_spec", "scan_spec",
 	}
 
 	if len(result.Tools) != len(expectedTools) {
@@ -406,6 +407,7 @@ func TestListPrompts(t *testing.T) {
 	expectedPrompts := []string{
 		"security_audit", "waf_bypass", "full_assessment",
 		"discovery_workflow", "evasion_research", "template_scan",
+		"spec_security_audit",
 	}
 
 	if len(result.Prompts) != len(expectedPrompts) {
@@ -441,18 +443,16 @@ func TestPromptsHaveArguments(t *testing.T) {
 			t.Errorf("prompt %q has empty description", p.Name)
 		}
 
-		// Every prompt should have a required "target" argument
-		hasTarget := false
+		// Every prompt should have a required primary argument.
+		// Most prompts use "target"; spec_security_audit uses "spec_content".
+		hasRequired := false
 		for _, arg := range p.Arguments {
-			if arg.Name == "target" {
-				hasTarget = true
-				if !arg.Required {
-					t.Errorf("prompt %q: 'target' argument should be required", p.Name)
-				}
+			if arg.Required {
+				hasRequired = true
 			}
 		}
-		if !hasTarget {
-			t.Errorf("prompt %q: missing 'target' argument", p.Name)
+		if !hasRequired {
+			t.Errorf("prompt %q: missing required argument", p.Name)
 		}
 	}
 }
@@ -2497,8 +2497,8 @@ func TestHTTPTransportListTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTools over HTTP: %v", err)
 	}
-	if len(result.Tools) != 13 {
-		t.Errorf("got %d tools over HTTP, want 13", len(result.Tools))
+	if len(result.Tools) != 17 {
+		t.Errorf("got %d tools over HTTP, want 17", len(result.Tools))
 	}
 }
 
@@ -2952,8 +2952,8 @@ func TestToolsIterator(t *testing.T) {
 		count++
 	}
 
-	if count != 13 {
-		t.Errorf("Tools iterator yielded %d tools, want 13", count)
+	if count != 17 {
+		t.Errorf("Tools iterator yielded %d tools, want 17", count)
 	}
 	for _, name := range []string{"list_payloads", "scan", "assess", "detect_waf", "mutate", "get_task_status", "cancel_task", "list_tasks"} {
 		if !names[name] {
@@ -2993,8 +2993,8 @@ func TestPromptsIterator(t *testing.T) {
 		count++
 	}
 
-	if count != 6 {
-		t.Errorf("Prompts iterator yielded %d, want 6", count)
+	if count != 7 {
+		t.Errorf("Prompts iterator yielded %d, want 7", count)
 	}
 }
 

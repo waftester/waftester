@@ -102,6 +102,7 @@ func New(cfg *Config) *Server {
 	)
 
 	s.registerTools()
+	s.registerSpecTools()
 	s.registerResources()
 	s.registerPrompts()
 
