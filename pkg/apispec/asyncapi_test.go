@@ -278,3 +278,40 @@ func TestAsyncSchemaToParams_Empty(t *testing.T) {
 	params := asyncSchemaToParams(asyncSchemaObj{Type: "object"})
 	assert.Nil(t, params)
 }
+
+func TestParseAsyncAPI_YAML(t *testing.T) {
+	content := `asyncapi: "2.6.0"
+info:
+  title: Chat Service YAML
+  description: Real-time chat
+  version: "1.0.0"
+servers:
+  production:
+    url: wss://chat.example.com
+    protocol: wss
+    description: Production WebSocket
+channels:
+  /chat/messages:
+    subscribe:
+      operationId: receiveMessage
+      summary: Receive chat messages
+      message:
+        contentType: application/json
+        payload:
+          type: object
+          properties:
+            text:
+              type: string
+          required:
+            - text
+`
+
+	spec, err := ParseAsyncAPI(content)
+	require.NoError(t, err)
+	assert.Equal(t, "Chat Service YAML", spec.Title)
+	assert.Equal(t, FormatAsyncAPI, spec.Format)
+	require.Len(t, spec.Servers, 1)
+	assert.Equal(t, "wss://chat.example.com", spec.Servers[0].URL)
+	require.Len(t, spec.Endpoints, 1)
+	assert.Equal(t, "receiveMessage", spec.Endpoints[0].OperationID)
+}

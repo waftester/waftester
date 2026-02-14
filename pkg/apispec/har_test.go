@@ -260,3 +260,19 @@ func TestHARNoFileExtensionDetection(t *testing.T) {
 	format := detectFormat(data, "recording.json") // wrong extension
 	assert.Equal(t, FormatHAR, format)
 }
+
+func TestHARResponseCapture(t *testing.T) {
+	spec, err := Parse("testdata/traffic.har")
+	require.NoError(t, err)
+
+	// First endpoint should have response metadata from the HAR
+	var getUsers *Endpoint
+	for i := range spec.Endpoints {
+		if spec.Endpoints[i].Method == "GET" && spec.Endpoints[i].Path == "/users" {
+			getUsers = &spec.Endpoints[i]
+		}
+	}
+	require.NotNil(t, getUsers, "should find GET /users")
+	require.Contains(t, getUsers.Responses, "200")
+	assert.Equal(t, "OK", getUsers.Responses["200"].Description)
+}

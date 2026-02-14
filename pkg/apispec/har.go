@@ -142,6 +142,28 @@ func parseHAR(data []byte, source string) (*Spec, error) {
 			convertHARPostData(entry.Request.PostData, &ep)
 		}
 
+		// Extract response metadata.
+		if entry.Response.Status > 0 {
+			code := fmt.Sprintf("%d", entry.Response.Status)
+			resp := Response{
+				Description: entry.Response.StatusText,
+			}
+			if len(entry.Response.Headers) > 0 {
+				resp.Headers = make(map[string]Parameter)
+				for _, h := range entry.Response.Headers {
+					if isStandardHeader(h.Name) {
+						continue
+					}
+					resp.Headers[h.Name] = Parameter{
+						Name:    h.Name,
+						In:      LocationHeader,
+						Example: h.Value,
+					}
+				}
+			}
+			ep.Responses[code] = resp
+		}
+
 		seen[key] = len(spec.Endpoints)
 		spec.Endpoints = append(spec.Endpoints, ep)
 	}

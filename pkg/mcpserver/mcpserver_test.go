@@ -93,6 +93,7 @@ func TestListTools(t *testing.T) {
 		"get_task_status", "cancel_task", "list_tasks",
 		"validate_spec", "list_spec_endpoints", "plan_spec", "scan_spec",
 		"compare_baselines",
+		"preview_spec_scan", "spec_intelligence", "describe_spec_auth", "export_spec",
 	}
 
 	if len(result.Tools) != len(expectedTools) {
@@ -2498,8 +2499,8 @@ func TestHTTPTransportListTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTools over HTTP: %v", err)
 	}
-	if len(result.Tools) != 18 {
-		t.Errorf("got %d tools over HTTP, want 18", len(result.Tools))
+	if len(result.Tools) != 22 {
+		t.Errorf("got %d tools over HTTP, want 22", len(result.Tools))
 	}
 }
 
@@ -2953,8 +2954,8 @@ func TestToolsIterator(t *testing.T) {
 		count++
 	}
 
-	if count != 18 {
-		t.Errorf("Tools iterator yielded %d tools, want 18", count)
+	if count != 22 {
+		t.Errorf("Tools iterator yielded %d tools, want 22", count)
 	}
 	for _, name := range []string{"list_payloads", "scan", "assess", "detect_waf", "mutate", "get_task_status", "cancel_task", "list_tasks"} {
 		if !names[name] {

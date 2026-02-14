@@ -383,7 +383,7 @@ func TestAdaptiveExecutor_ScanErrors(t *testing.T) {
 
 	plan := testPlan(5)
 	session, err := e.Execute(context.Background(), plan)
-	require.NoError(t, err)      // Execute itself should not fail
+	require.NoError(t, err)        // Execute itself should not fail
 	assert.NotEmpty(t, session.ID) // Session still created
 }
 

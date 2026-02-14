@@ -69,33 +69,45 @@ func maxLengthAttacks(name string, s SchemaInfo) []ConstraintAttack {
 		return nil
 	}
 
+	// Cap payload sizes to prevent massive allocations from adversarial specs.
+	const maxPayloadLen = 100_000
+	overflowBy1 := max + 1
+	if overflowBy1 > maxPayloadLen {
+		overflowBy1 = maxPayloadLen
+	}
+	overflow10x := max * 10
+	if overflow10x/10 != max || overflow10x > maxPayloadLen {
+		// Integer overflow or exceeds cap.
+		overflow10x = maxPayloadLen
+	}
+
 	return []ConstraintAttack{
 		{
 			ParamName:      name,
 			ConstraintType: "maxLength",
 			Purpose:        fmt.Sprintf("overflow maxLength=%d by 1 character", max),
-			Payload:        strings.Repeat("A", max+1),
+			Payload:        strings.Repeat("A", overflowBy1),
 			Category:       "inputvalidation",
 		},
 		{
 			ParamName:      name,
 			ConstraintType: "maxLength",
 			Purpose:        fmt.Sprintf("overflow maxLength=%d by 10x", max),
-			Payload:        strings.Repeat("A", max*10),
+			Payload:        strings.Repeat("A", overflow10x),
 			Category:       "inputvalidation",
 		},
 		{
 			ParamName:      name,
 			ConstraintType: "maxLength",
 			Purpose:        fmt.Sprintf("SQLi padded to maxLength=%d boundary", max),
-			Payload:        padPayload("' OR 1=1--", max+1),
+			Payload:        padPayload("' OR 1=1--", overflowBy1),
 			Category:       "sqli",
 		},
 		{
 			ParamName:      name,
 			ConstraintType: "maxLength",
 			Purpose:        fmt.Sprintf("XSS padded to maxLength=%d boundary", max),
-			Payload:        padPayload("<script>alert(1)</script>", max+1),
+			Payload:        padPayload("<script>alert(1)</script>", overflowBy1),
 			Category:       "xss",
 		},
 	}

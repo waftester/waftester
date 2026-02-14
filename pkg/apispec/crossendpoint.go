@@ -1,9 +1,11 @@
 package apispec
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -246,7 +248,7 @@ func executeIDORTest(ctx context.Context, test CrossEndpointTest, cfg CrossEndpo
 	}
 
 	reader := test.Endpoints[1]
-	url := cfg.BaseURL + reader.Path
+	url := cfg.BaseURL + substitutePathParams(reader.Path)
 
 	// Try accessing the read endpoint with auth B (should fail if access control works).
 	req, err := http.NewRequestWithContext(ctx, reader.Method, url, nil)
@@ -296,7 +298,7 @@ func executeRaceTest(ctx context.Context, test CrossEndpointTest, cfg CrossEndpo
 	}
 
 	ep := test.Endpoints[0]
-	url := cfg.BaseURL + ep.Path
+	url := cfg.BaseURL + substitutePathParams(ep.Path)
 
 	concurrency := cfg.RaceConcurrency
 	if concurrency <= 0 {
@@ -308,25 +310,48 @@ func executeRaceTest(ctx context.Context, test CrossEndpointTest, cfg CrossEndpo
 		client = &http.Client{Timeout: cfg.Timeout}
 	}
 
+	// Build a request body for state-changing methods.
+	var bodyBytes []byte
+	method := strings.ToUpper(ep.Method)
+	if method == "POST" || method == "PUT" || method == "PATCH" {
+		bodyBytes = []byte(`{"test": true}`)
+	}
+
 	// Fire concurrent requests.
 	var wg sync.WaitGroup
 	statusCodes := make([]int, concurrency)
+	errs := make([]error, concurrency)
 
 	for i := 0; i < concurrency; i++ {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
 
-			req, err := http.NewRequestWithContext(ctx, ep.Method, url, nil)
+			var body *bytes.Reader
+			if bodyBytes != nil {
+				body = bytes.NewReader(bodyBytes)
+			}
+
+			var reqBody interface{ Read([]byte) (int, error) }
+			if body != nil {
+				reqBody = body
+			}
+
+			req, err := http.NewRequestWithContext(ctx, ep.Method, url, reqBody)
 			if err != nil {
+				errs[idx] = err
 				return
 			}
 			if cfg.AuthTokenA != "" {
 				req.Header.Set("Authorization", "Bearer "+cfg.AuthTokenA)
 			}
+			if bodyBytes != nil {
+				req.Header.Set("Content-Type", "application/json")
+			}
 
 			resp, err := client.Do(req)
 			if err != nil {
+				errs[idx] = err
 				return
 			}
 			defer resp.Body.Close()
@@ -334,6 +359,14 @@ func executeRaceTest(ctx context.Context, test CrossEndpointTest, cfg CrossEndpo
 		}(i)
 	}
 	wg.Wait()
+
+	// Collect goroutine errors.
+	var errMsgs []string
+	for _, e := range errs {
+		if e != nil {
+			errMsgs = append(errMsgs, e.Error())
+		}
+	}
 
 	// Count successes — if more than 1 succeeded, possible race condition.
 	successes := 0
@@ -345,6 +378,11 @@ func executeRaceTest(ctx context.Context, test CrossEndpointTest, cfg CrossEndpo
 
 	result := CrossEndpointResult{
 		Test: test,
+	}
+
+	if len(errMsgs) > 0 {
+		result.Error = fmt.Sprintf("%d/%d requests failed: %s",
+			len(errMsgs), concurrency, errMsgs[0])
 	}
 
 	if successes > 1 {
@@ -371,9 +409,7 @@ func executePrivescTest(ctx context.Context, test CrossEndpointTest, cfg CrossEn
 	}
 
 	ep := test.Endpoints[0]
-	url := cfg.BaseURL + ep.Path
-
-	// Access privileged endpoint with the low-priv token (AuthTokenB).
+	url := cfg.BaseURL + substitutePathParams(ep.Path)
 	req, err := http.NewRequestWithContext(ctx, ep.Method, url, nil)
 	if err != nil {
 		return CrossEndpointResult{Test: test, Error: fmt.Sprintf("create request: %v", err)}
@@ -413,4 +449,12 @@ func executePrivescTest(ctx context.Context, test CrossEndpointTest, cfg CrossEn
 	}
 
 	return result
+}
+// pathParamRe matches path template parameters like {id}, {userId}, etc.
+var pathParamRe = regexp.MustCompile(`\{([^}]+)\}`)
+
+// substitutePathParams replaces path template parameters with test values.
+// E.g., /users/{id}/posts/{postId} → /users/1/posts/1
+func substitutePathParams(path string) string {
+	return pathParamRe.ReplaceAllString(path, "1")
 }
