@@ -39,7 +39,7 @@ cd waftester
 go mod download
 
 # Build
-go build -o waftester ./cmd/cli
+go build -o waf-tester ./cmd/cli
 
 # Run tests
 go test ./...

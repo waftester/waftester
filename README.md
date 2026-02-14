@@ -161,15 +161,6 @@ waf-tester version
 
 Works on macOS, Linux, and Windows (x64 and arm64). Requires Node.js >= 16.
 
-### Go Install
-
-Requires Go 1.24 or later. The binary will be named `cli`;
-rename to `waf-tester` after install.
-
-```bash
-go install github.com/waftester/waftester/cmd/cli@latest
-```
-
 ### Docker
 
 Multi-architecture images (`linux/amd64`, `linux/arm64`)
@@ -426,7 +417,7 @@ Add to `claude_desktop_config.json`:
 }
 ```
 
-Alternatively, if installed via Go or binary:
+Alternatively, if installed via binary download:
 
 ```json
 {
@@ -563,7 +554,7 @@ For complete MCP examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md#mcp-server-in
 | Resource | Description |
 |----------|-------------|
 | [Examples Guide](docs/EXAMPLES.md) | Comprehensive usage examples |
-| [Installation](docs/INSTALLATION.md) | Installation methods (Go, Docker, binary) |
+| [Installation](docs/INSTALLATION.md) | Installation methods (Docker, binary, npm) |
 | [MCP Server](docs/EXAMPLES.md#mcp-server-integration) | AI agent integration guide |
 | [Docker](docs/INSTALLATION.md#docker) | Container deployment guide |
 | [Contributing](CONTRIBUTING.md) | Contribution guidelines |
