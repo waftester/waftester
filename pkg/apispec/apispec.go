@@ -335,7 +335,8 @@ type AttackSelection struct {
 	Category     string   `json:"category"` // e.g., "sqli", "xss", "ssrf"
 	Reason       string   `json:"reason"`   // why selected (for preview)
 	PayloadCount int      `json:"payload_count"`
-	Layers       []string `json:"layers"` // which intelligence layers selected this
+	Layers       []string `json:"layers"`     // which intelligence layers selected this
+	RiskScore    int      `json:"risk_score"` // composite risk score (0-125) from Layer 12
 }
 
 // InjectionTarget identifies where to inject payloads.

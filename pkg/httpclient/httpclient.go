@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"strings"
 	"sync"
 	"time"
@@ -141,6 +142,11 @@ type Config struct {
 	// InsecureSkipVerify, SNI, CipherSuites, MinTLSVersion, and MaxTLSVersion
 	// are ignored. Use this for browser-profile TLS fingerprinting.
 	TLSConfig *tls.Config
+
+	// CookieJar enables automatic cookie handling across requests.
+	// When true, a net/http/cookiejar.Jar is attached to the client,
+	// allowing stateful sessions (e.g., OAuth2 flows, authenticated scanning).
+	CookieJar bool
 }
 
 // DefaultConfig returns sensible defaults optimized for security scanning workloads.
@@ -442,10 +448,19 @@ func New(cfg Config) *http.Client {
 		checkRedirect = redirectPolicyWithAuthStrip(cfg.AuthHeaders)
 	}
 
+	// Cookie jar for stateful sessions (OAuth2, authenticated scanning).
+	var jar http.CookieJar
+	if cfg.CookieJar {
+		// cookiejar.New with nil options uses the public suffix list,
+		// which is the safe default for cross-domain cookie handling.
+		jar, _ = cookiejar.New(nil)
+	}
+
 	return &http.Client{
 		Transport:     finalTransport,
 		Timeout:       cfg.Timeout,
 		CheckRedirect: checkRedirect,
+		Jar:           jar,
 	}
 }
 
