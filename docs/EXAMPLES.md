@@ -61,6 +61,7 @@ This guide provides comprehensive usage examples for WAFtester, organized by use
   - [GraphQL Security Testing](#graphql-security-testing)
   - [gRPC Security Testing](#grpc-security-testing)
   - [SOAP/WSDL Security Testing](#soapwsdl-security-testing)
+- [API Spec Scanning](#api-spec-scanning)
 - [Tamper Scripts](#tamper-scripts)
 - [Mutation Engine](#mutation-engine)
   - [Encoders](#encoders)
@@ -3705,6 +3706,148 @@ waf-tester scan -u https://api.example.com/service.wsdl -types soap
 - XXE attacks
 - WS-Security bypass
 - SOAP action manipulation
+
+---
+
+## API Spec Scanning
+
+Drive security scans from API specifications instead of blind URL fuzzing. WAFtester parses your spec, generates a targeted scan plan, and tests every endpoint with schema-aware attacks.
+
+For the full reference, see [docs/API-SPEC-SCANNING.md](API-SPEC-SCANNING.md).
+
+### Quick Start
+
+```bash
+# OpenAPI spec
+waftester scan --spec openapi.yaml -u https://api.example.com
+
+# Auto mode with Postman collection + environment
+waftester auto --spec collection.json --spec-env environment.json -u https://api.example.com
+
+# Preview scan plan without sending requests
+waftester scan --spec openapi.yaml -u https://api.example.com --dry-run
+```
+
+### Supported Formats
+
+```bash
+# OpenAPI 3.x
+waftester scan --spec openapi.yaml -u https://api.example.com
+
+# Swagger 2.0
+waftester scan --spec swagger.json -u https://api.example.com
+
+# Postman Collection v2.x with environment
+waftester auto --spec collection.json --spec-env staging.json -u https://api.example.com
+
+# HAR recording from browser DevTools
+waftester scan --spec recording.har -u https://api.example.com
+
+# GraphQL introspection
+waftester scan -u https://api.example.com/graphql -types graphql
+
+# gRPC reflection
+waftester scan -u grpc://service:50051 -types grpc
+```
+
+### Dry-Run and Planning
+
+```bash
+# See the scan plan as a human-readable table
+waftester scan --spec openapi.yaml -u https://api.example.com --dry-run
+
+# Export plan as JSON for CI/CD review
+waftester scan --spec openapi.yaml -u https://api.example.com --dry-run -format json -o plan.json
+
+# Scan only specific endpoint groups
+waftester scan --spec openapi.yaml -u https://api.example.com --groups users,auth
+
+# Filter by attack category
+waftester scan --spec openapi.yaml -u https://api.example.com -types sqli,xss
+```
+
+### Comparison Mode
+
+```bash
+# Save a baseline scan
+waftester scan --spec openapi.yaml -u https://api.example.com -o baseline.json
+
+# Compare a new scan against the baseline
+waftester scan --spec openapi.yaml -u https://api.example.com --compare baseline.json
+
+# The diff shows: new findings, fixed issues, regressions, unchanged
+```
+
+### Checkpointing and Resume
+
+```bash
+# Start a long scan (checkpoints saved automatically)
+waftester scan --spec large-api.yaml -u https://api.example.com
+
+# Resume after interruption (Ctrl+C, network failure, etc.)
+waftester scan --spec large-api.yaml -u https://api.example.com --resume
+```
+
+### Correlation IDs for Log Matching
+
+```bash
+# Export correlation records for WAF log matching
+waftester scan --spec openapi.yaml -u https://api.example.com --export-correlations correlations.json
+
+# Each request carries: X-Correlation-ID: waftester-{session}-{endpoint}-{attack}-{param}-{seq}
+# Match these against your WAF logs to verify detection coverage
+```
+
+### MCP Tools for Spec Scanning
+
+```bash
+# Start MCP server
+waftester mcp
+
+# Available spec tools:
+# - validate_spec: Parse and validate without scanning
+# - list_spec_endpoints: Extract endpoint list
+# - plan_spec: Generate scan plan
+# - scan_spec: Execute spec-driven scan
+# - compare_baselines: Diff findings for regressions
+```
+
+### CI/CD with Spec Scanning
+
+#### GitHub Actions
+
+```yaml
+- uses: waftester/waftester-action@v1
+  with:
+    target: https://api.staging.example.com
+    spec: openapi.yaml
+    format: sarif
+    output: results.sarif
+
+- uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: results.sarif
+```
+
+#### GitLab CI
+
+```yaml
+spec_scan:
+  image: qandil/waftester:latest
+  script:
+    - waftester scan --spec openapi.yaml -u $API_URL -format junit -o results.xml
+  artifacts:
+    reports:
+      junit: results.xml
+```
+
+#### Azure DevOps
+
+```yaml
+- script: |
+    npx waftester scan --spec openapi.yaml -u $(API_URL) -format sarif -o results.sarif
+  displayName: 'API Spec Security Scan'
+```
 
 ---
 

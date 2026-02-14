@@ -117,6 +117,31 @@ waf-tester scan -u https://api.example.com/service.wsdl -types soap
 waf-tester scan -u wss://api.example.com/socket -types websocket
 ```
 
+### API Spec Scanning
+
+Drive security scans from API specifications. WAFtester parses your spec, generates a targeted scan plan, and tests every endpoint with schema-aware attacks.
+
+```bash
+# Scan from OpenAPI spec
+waf-tester scan --spec openapi.yaml -u https://api.example.com
+
+# Postman collection with environment variables
+waf-tester auto --spec collection.json --spec-env staging.json -u https://api.example.com
+
+# HAR recording from browser DevTools
+waf-tester scan --spec recording.har -u https://api.example.com
+
+# Dry-run to preview scan plan
+waf-tester scan --spec openapi.yaml -u https://api.example.com --dry-run
+
+# Compare against baseline for regression detection
+waf-tester scan --spec openapi.yaml -u https://api.example.com --compare baseline.json
+```
+
+Supported formats: OpenAPI 3.x, Swagger 2.0, Postman Collection v2.x, HAR 1.2, GraphQL (introspection), gRPC (reflection), AsyncAPI 2.x.
+
+See [docs/API-SPEC-SCANNING.md](docs/API-SPEC-SCANNING.md) for the full reference.
+
 ---
 
 ## Comparison with Existing Tools
@@ -139,6 +164,7 @@ waf-tester scan -u wss://api.example.com/socket -types websocket
 | False positive measurement | No | No | Limited | Full (FPR, precision) |
 | Statistical metrics (MCC, F1) | No | No | No | Yes |
 | Multi-protocol (GraphQL, gRPC) | No | Limited | Yes | Native |
+| API spec-driven scanning | No | No | Yes | Native (7 formats) |
 | Mutation engine | 60 tampers | N/A | Intruder | 49 mutators x payloads |
 | CI/CD native (SARIF, streaming) | No | Yes | No | Yes |
 
@@ -539,9 +565,10 @@ For complete MCP examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md#mcp-server-in
 | Mutator Functions | 49 |
 | Attack Categories | 50+ |
 | Protocols | HTTP, GraphQL, gRPC, SOAP, WebSocket, OpenAPI |
+| Spec Formats | OpenAPI, Swagger, Postman, HAR, GraphQL, gRPC, AsyncAPI |
 | Output Formats | 16 |
 | CI/CD Platforms | 9 |
-| MCP Tools | 10 |
+| MCP Tools | 18 |
 | MCP Resources | 10 |
 | MCP Prompts | 6 |
 | npm Platforms | macOS, Linux, Windows (x64 + arm64) |
@@ -554,6 +581,7 @@ For complete MCP examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md#mcp-server-in
 | Resource | Description |
 |----------|-------------|
 | [Examples Guide](docs/EXAMPLES.md) | Comprehensive usage examples |
+| [API Spec Scanning](docs/API-SPEC-SCANNING.md) | Spec-driven scanning reference |
 | [Installation](docs/INSTALLATION.md) | Installation methods (Docker, binary, npm) |
 | [MCP Server](docs/EXAMPLES.md#mcp-server-integration) | AI agent integration guide |
 | [Docker](docs/INSTALLATION.md#docker) | Container deployment guide |
