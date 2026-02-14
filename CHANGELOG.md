@@ -5,6 +5,23 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.2] - 2026-02-14
+
+### Fixed
+
+- **Goroutine leak on context cancellation** — `goto done` in SimpleExecutor and AdaptiveExecutor skipped `wg.Wait()`, causing data races on returned results
+- **Probe phase ignores cancellation** — `break` in select exited the select statement, not the for loop; probe phase continued scanning after context cancellation
+- **Semaphore deadlock on cancellation** — Semaphore acquisition blocked indefinitely when context was cancelled and all slots were occupied
+- **Panic on empty endpoint path** — `layerPathPattern` called `path[1:]` on empty string, causing index out of bounds
+- **Cross-platform path matching** — `filepath.Match` used OS-specific separators for URL path matching; replaced with `path.Match`
+- **Off-by-one in URL detection** — `isAbsoluteURL` rejected valid `http://x` URLs (8 chars) due to `len > 8` check
+- **Non-deterministic request bodies** — Map iteration in `buildJSONBody`/`buildFormBody` injected payloads into random properties across runs
+- **OAuth2 token errors swallowed** — Token refresh failures silently sent unauthenticated requests; now logged to stderr
+- **Invalid intensity accepted** — `--intensity yolo` silently fell through to default; now validates against known values
+- **Vendor content types missed** — Exact content-type matching missed `application/vnd.api+json` and similar; now uses substring matching
+- **Infinite loop in replaceAll** — Custom string replacement looped forever when replacement contained search string; replaced with `strings.ReplaceAll`
+- **Dead code in URL blocking** — Removed unreachable `[::1]` check (`url.Hostname()` strips brackets)
+
 ## [2.9.1] - 2026-02-14
 
 ### Added
@@ -2034,6 +2051,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.2]: https://github.com/waftester/waftester/compare/v2.9.1...v2.9.2
 [2.9.1]: https://github.com/waftester/waftester/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/waftester/waftester/compare/v2.8.9...v2.9.0
 [2.8.9]: https://github.com/waftester/waftester/compare/v2.8.8...v2.8.9
