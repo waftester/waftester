@@ -123,6 +123,12 @@ func (e *AdaptiveExecutor) Execute(ctx context.Context, plan *ScanPlan) (*ScanSe
 		result.AddError(fmt.Sprintf("fingerprint phase: %v", err))
 	}
 
+	// Propagate block signature to scan state so full scan phase can
+	// distinguish "WAF blocked" from "not vulnerable."
+	if fpResult != nil && fpResult.BlockSignature != nil {
+		state.BlockSignature = fpResult.BlockSignature
+	}
+
 	// Phase 2: Probe.
 	probeResult, err := e.phaseProbe(ctx, plan, fpResult, state, result)
 	if err != nil {
@@ -188,6 +194,9 @@ func (e *AdaptiveExecutor) phaseFingerprint(ctx context.Context, plan *ScanPlan)
 	if err != nil {
 		return fpResult, fmt.Errorf("baseline request: %w", err)
 	}
+	if e.AuthFn != nil {
+		e.AuthFn(baselineReq)
+	}
 
 	resp, err := client.Do(baselineReq)
 	if err != nil {
@@ -203,6 +212,9 @@ func (e *AdaptiveExecutor) phaseFingerprint(ctx context.Context, plan *ScanPlan)
 	blockReq, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		e.BaseURL+"?test=<script>alert(1)</script>", nil)
 	if err == nil {
+		if e.AuthFn != nil {
+			e.AuthFn(blockReq)
+		}
 		blockResp, blockErr := client.Do(blockReq)
 		if blockErr == nil {
 			blockBody, _ := iohelper.ReadBodyDefault(blockResp.Body)
@@ -272,7 +284,7 @@ func (e *AdaptiveExecutor) phaseProbe(
 
 	var totalBlocked int
 probeLoop:
-	for i, entry := range probeEntries {
+	for _, entry := range probeEntries {
 		select {
 		case <-ctx.Done():
 			break probeLoop
@@ -285,7 +297,7 @@ probeLoop:
 			}
 		}
 
-		if e.Budget != nil && !e.Budget.Allows(i, time.Since(start)) {
+		if e.Budget != nil && !e.Budget.Allows(int(state.RequestsSent.Load()), time.Since(state.ScanStart)) {
 			break
 		}
 
@@ -294,12 +306,20 @@ probeLoop:
 			continue
 		}
 
+		if e.OnEndpointStart != nil {
+			e.OnEndpointStart(entry.Endpoint, entry.Attack.Category)
+		}
+
+		state.RequestsSent.Add(1)
 		findings, scanErr := e.ScanFn(ctx, entry.Attack.Category, targetURL, entry.Endpoint)
 		if scanErr != nil {
 			result.AddError(fmt.Sprintf("probe %s %s [%s]: %v",
 				entry.Endpoint.Method, entry.Endpoint.Path, entry.Attack.Category, scanErr))
 			if e.Limiter != nil {
 				e.Limiter.OnError()
+			}
+			if e.OnEndpointComplete != nil {
+				e.OnEndpointComplete(entry.Endpoint, entry.Attack.Category, 0, scanErr)
 			}
 			continue
 		}
@@ -309,7 +329,7 @@ probeLoop:
 		}
 
 		// Classify: if the scan found nothing and BP knows about block sig, it's blocked.
-		blocked := len(findings) == 0 && isRequestBlocked(fp, state)
+		blocked := len(findings) == 0 && isRequestBlocked(fp)
 		if blocked {
 			totalBlocked++
 		}
@@ -330,6 +350,10 @@ probeLoop:
 			if e.OnFinding != nil {
 				e.OnFinding(f)
 			}
+		}
+
+		if e.OnEndpointComplete != nil {
+			e.OnEndpointComplete(entry.Endpoint, entry.Attack.Category, len(findings), nil)
 		}
 	}
 
@@ -385,6 +409,17 @@ func (e *AdaptiveExecutor) phaseFullScan(
 
 	remaining := plan.Entries[probeCount:]
 	if len(remaining) == 0 {
+		// All entries were probed; count unique probe endpoints.
+		epSet := make(map[string]bool)
+		for _, entry := range plan.Entries[:probeCount] {
+			tag := entry.Endpoint.CorrelationTag
+			if tag == "" {
+				tag = CorrelationTag(entry.Endpoint.Method, entry.Endpoint.Path)
+			}
+			epSet[tag] = true
+		}
+		result.TotalEndpoints = len(epSet)
+		result.TotalTests = plan.TotalTests
 		return nil
 	}
 
@@ -396,11 +431,20 @@ func (e *AdaptiveExecutor) phaseFullScan(
 	var (
 		sem         = make(chan struct{}, concurrency)
 		wg          sync.WaitGroup
-		sentTotal   atomic.Int64
 		endpointMu  sync.Mutex
 		endpointSet = make(map[string]bool)
 		sentPerEP   = make(map[string]*atomic.Int64)
 	)
+
+	// Pre-populate endpointSet with probe-phase endpoints so TotalEndpoints
+	// includes endpoints that were only scanned during probing.
+	for _, entry := range plan.Entries[:probeCount] {
+		tag := entry.Endpoint.CorrelationTag
+		if tag == "" {
+			tag = CorrelationTag(entry.Endpoint.Method, entry.Endpoint.Path)
+		}
+		endpointSet[tag] = true
+	}
 
 	escalation := probe.EscalationLevel
 	if escalation < EscalationStandard {
@@ -409,6 +453,8 @@ func (e *AdaptiveExecutor) phaseFullScan(
 
 	// Per-category escalation: track block rates and escalate individually.
 	catEscalation := make(map[string]EscalationLevel)
+	type catStats struct{ total, blocked int }
+	catBlockStats := make(map[string]*catStats)
 	var catMu sync.Mutex
 
 	for _, entry := range remaining {
@@ -419,9 +465,10 @@ func (e *AdaptiveExecutor) phaseFullScan(
 		default:
 		}
 
-		// Budget check.
-		elapsed := time.Since(start)
-		if e.Budget != nil && !e.Budget.Allows(int(sentTotal.Load()), elapsed) {
+		// Budget check — uses shared state counters so probe+full scan
+		// share the same request and time budget.
+		elapsed := time.Since(state.ScanStart)
+		if e.Budget != nil && !e.Budget.Allows(int(state.RequestsSent.Load()), elapsed) {
 			result.AddError("request budget exhausted")
 			goto done
 		}
@@ -465,6 +512,9 @@ func (e *AdaptiveExecutor) phaseFullScan(
 			// Rate limiting.
 			if e.Limiter != nil {
 				if err := e.Limiter.Wait(ctx); err != nil {
+					if e.OnEndpointComplete != nil {
+						e.OnEndpointComplete(entry.Endpoint, entry.Attack.Category, 0, err)
+					}
 					return
 				}
 			}
@@ -480,9 +530,9 @@ func (e *AdaptiveExecutor) phaseFullScan(
 			}
 
 			// Execute scan.
-			findings, scanErr := e.ScanFn(ctx, entry.Attack.Category, targetURL, entry.Endpoint)
-			sentTotal.Add(1)
+			state.RequestsSent.Add(1)
 			epCounter.Add(1)
+			findings, scanErr := e.ScanFn(ctx, entry.Attack.Category, targetURL, entry.Endpoint)
 
 			if scanErr != nil {
 				errMsg := fmt.Sprintf("%s %s [%s]: %v",
@@ -496,27 +546,36 @@ func (e *AdaptiveExecutor) phaseFullScan(
 			}
 
 			// Track block rate for per-category escalation.
+			// Only count as "blocked" if a block signature was learned during
+			// fingerprint, and the scan returned no findings. Without a block
+			// signature, zero findings means "not vulnerable", not "blocked."
 			cat := entry.Attack.Category
-			if len(findings) == 0 && scanErr == nil {
-				catMu.Lock()
-				currentLevel, ok := catEscalation[cat]
-				if !ok {
-					currentLevel = escalation
-				}
-				// Count as blocked (no findings from a valid scan).
-				if ShouldEscalate(currentLevel, 1.0) {
-					newLevel := currentLevel + 1
-					if newLevel > EscalationMultiVector {
-						newLevel = EscalationMultiVector
-					}
-					catEscalation[cat] = newLevel
-					if e.OnEscalation != nil {
-						e.OnEscalation(currentLevel, newLevel,
-							fmt.Sprintf("category %s fully blocked at level %s", cat, currentLevel))
-					}
-				}
-				catMu.Unlock()
+			catMu.Lock()
+			if catBlockStats[cat] == nil {
+				catBlockStats[cat] = &catStats{}
 			}
+			stats := catBlockStats[cat]
+			stats.total++
+			if len(findings) == 0 && scanErr == nil && state.BlockSignature != nil {
+				stats.blocked++
+			}
+			blockRate := float64(stats.blocked) / float64(stats.total)
+			currentLevel, ok := catEscalation[cat]
+			if !ok {
+				currentLevel = escalation
+			}
+			if ShouldEscalate(currentLevel, blockRate) {
+				newLevel := currentLevel + 1
+				if newLevel > EscalationMultiVector {
+					newLevel = EscalationMultiVector
+				}
+				catEscalation[cat] = newLevel
+				if e.OnEscalation != nil {
+					e.OnEscalation(currentLevel, newLevel,
+						fmt.Sprintf("category %s blocked at %.0f%% (level %s)", cat, blockRate*100, currentLevel))
+				}
+			}
+			catMu.Unlock()
 
 			for _, f := range findings {
 				result.AddFinding(f)
@@ -530,8 +589,6 @@ func (e *AdaptiveExecutor) phaseFullScan(
 			}
 		}()
 	}
-
-	wg.Wait()
 
 done:
 	wg.Wait()
@@ -551,10 +608,12 @@ func (e *AdaptiveExecutor) httpClient() *http.Client {
 	return httpclient.Default()
 }
 
-// isRequestBlocked returns true if the probe phase determined that
-// requests are being blocked (based on learned block signature).
-func isRequestBlocked(fp *FingerprintResult, _ *ScanState) bool {
-	return fp != nil && fp.BlockSignature != nil
+// isRequestBlocked returns true if the fingerprint phase found a block
+// signature, indicating the WAF is actively blocking malicious requests.
+// When combined with "no findings from ScanFn", this heuristic determines
+// that the request was likely blocked by the WAF.
+func isRequestBlocked(fp *FingerprintResult) bool {
+	return fp != nil && fp.BlockSignature != nil && len(fp.BlockSignature.StatusCodes) > 0
 }
 
 // containsCI checks if s contains substr (case-insensitive).

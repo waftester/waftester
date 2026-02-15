@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -146,7 +147,7 @@ func TestParseUnknownFormat(t *testing.T) {
 func TestParseNonexistentFile(t *testing.T) {
 	_, err := Parse("testdata/does-not-exist.json")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "stat")
+	assert.Contains(t, err.Error(), "spec file")
 }
 
 func TestParseEmptySpec(t *testing.T) {
@@ -434,4 +435,113 @@ func TestParseByFormat_GRPC_ReturnsHint(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrUnsupportedFormat)
 	assert.Contains(t, err.Error(), "ReflectionToSpec")
+}
+
+// TestRegression_CircularRefDoesNotStackOverflow verifies that a schema with
+// a self-referential $ref (Node → children → $ref Node) terminates instead of
+// causing infinite recursion. Without the seen-map + maxSchemaDepth guard in
+// convertOA3SchemaWithDepth, this spec would stack-overflow.
+func TestRegression_CircularRefDoesNotStackOverflow(t *testing.T) {
+	t.Parallel()
+
+	circularSpec := `{
+		"openapi": "3.0.3",
+		"info": {"title": "Circular", "version": "1.0.0"},
+		"paths": {
+			"/nodes": {
+				"post": {
+					"operationId": "createNode",
+					"requestBody": {
+						"content": {
+							"application/json": {
+								"schema": {"$ref": "#/components/schemas/Node"}
+							}
+						}
+					},
+					"responses": {"200": {"description": "ok"}}
+				}
+			}
+		},
+		"components": {
+			"schemas": {
+				"Node": {
+					"type": "object",
+					"properties": {
+						"name": {"type": "string"},
+						"children": {
+							"type": "array",
+							"items": {"$ref": "#/components/schemas/Node"}
+						},
+						"parent": {"$ref": "#/components/schemas/Node"}
+					}
+				}
+			}
+		}
+	}`
+
+	spec, err := parseByFormat([]byte(circularSpec), "circular.json", FormatOpenAPI3)
+	require.NoError(t, err, "circular $ref must not cause error")
+	require.Len(t, spec.Endpoints, 1)
+
+	// The request body schema should be resolved, and circular refs should
+	// produce a placeholder instead of recursing forever.
+	body, ok := spec.Endpoints[0].RequestBodies["application/json"]
+	require.True(t, ok)
+	assert.Equal(t, "object", body.Schema.Type)
+
+	// At least one of the circular paths should have the sentinel format.
+	hasCircularMarker := false
+	var walk func(si SchemaInfo)
+	walk = func(si SchemaInfo) {
+		if strings.Contains(si.Format, "circular-ref:") {
+			hasCircularMarker = true
+			return
+		}
+		for _, p := range si.Properties {
+			walk(p)
+		}
+		if si.Items != nil {
+			walk(*si.Items)
+		}
+	}
+	walk(body.Schema)
+	assert.True(t, hasCircularMarker, "circular $ref should produce a circular-ref sentinel")
+}
+
+// TestRegression_Swagger2SchemaDepthLimit verifies that convertSwagger2Schema
+// doesn't stack overflow on deeply nested inline schemas. Before the fix,
+// there was no depth limit on the Swagger 2 conversion path, while the
+// OA3 path had maxSchemaDepth=20. A malicious spec could cause OOM.
+func TestRegression_Swagger2SchemaDepthLimit(t *testing.T) {
+	t.Parallel()
+
+	// Build a schema nested 30 levels deep (exceeds maxSchemaDepth=20).
+	deepSchema := map[string]interface{}{
+		"type": "string",
+	}
+	for i := 0; i < 30; i++ {
+		deepSchema = map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"nested": deepSchema,
+			},
+		}
+	}
+
+	// Should not panic or stack overflow — result should be truncated.
+	result := convertSwagger2Schema(deepSchema)
+	assert.Equal(t, "object", result.Type)
+
+	// Walk the tree to count actual depth. Should stop at maxSchemaDepth.
+	depth := 0
+	current := result
+	for {
+		nested, ok := current.Properties["nested"]
+		if !ok || nested.Type == "" {
+			break
+		}
+		depth++
+		current = nested
+	}
+	assert.LessOrEqual(t, depth, 21, "schema depth should be capped at maxSchemaDepth")
 }

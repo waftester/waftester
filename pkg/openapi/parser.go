@@ -24,6 +24,7 @@ type Spec struct {
 	Servers    []Server            `json:"servers,omitempty" yaml:"servers,omitempty"`
 	Paths      map[string]PathItem `json:"paths" yaml:"paths"`
 	Components *Components         `json:"components,omitempty" yaml:"components,omitempty"`
+	Security   []SecurityReq       `json:"security,omitempty" yaml:"security,omitempty"`
 }
 
 // Info contains API metadata
@@ -35,19 +36,28 @@ type Info struct {
 
 // Server represents a server definition
 type Server struct {
-	URL         string `json:"url" yaml:"url"`
-	Description string `json:"description,omitempty" yaml:"description,omitempty"`
+	URL         string                    `json:"url" yaml:"url"`
+	Description string                    `json:"description,omitempty" yaml:"description,omitempty"`
+	Variables   map[string]ServerVariable `json:"variables,omitempty" yaml:"variables,omitempty"`
+}
+
+// ServerVariable represents a server variable with default and enum values.
+type ServerVariable struct {
+	Default     string   `json:"default" yaml:"default"`
+	Description string   `json:"description,omitempty" yaml:"description,omitempty"`
+	Enum        []string `json:"enum,omitempty" yaml:"enum,omitempty"`
 }
 
 // PathItem represents all operations for a path
 type PathItem struct {
-	Get     *Operation `json:"get,omitempty" yaml:"get,omitempty"`
-	Post    *Operation `json:"post,omitempty" yaml:"post,omitempty"`
-	Put     *Operation `json:"put,omitempty" yaml:"put,omitempty"`
-	Delete  *Operation `json:"delete,omitempty" yaml:"delete,omitempty"`
-	Patch   *Operation `json:"patch,omitempty" yaml:"patch,omitempty"`
-	Options *Operation `json:"options,omitempty" yaml:"options,omitempty"`
-	Head    *Operation `json:"head,omitempty" yaml:"head,omitempty"`
+	Get        *Operation  `json:"get,omitempty" yaml:"get,omitempty"`
+	Post       *Operation  `json:"post,omitempty" yaml:"post,omitempty"`
+	Put        *Operation  `json:"put,omitempty" yaml:"put,omitempty"`
+	Delete     *Operation  `json:"delete,omitempty" yaml:"delete,omitempty"`
+	Patch      *Operation  `json:"patch,omitempty" yaml:"patch,omitempty"`
+	Options    *Operation  `json:"options,omitempty" yaml:"options,omitempty"`
+	Head       *Operation  `json:"head,omitempty" yaml:"head,omitempty"`
+	Parameters []Parameter `json:"parameters,omitempty" yaml:"parameters,omitempty"`
 }
 
 // Operation represents a single API operation
@@ -64,12 +74,17 @@ type Operation struct {
 
 // Parameter represents an operation parameter
 type Parameter struct {
-	Name        string  `json:"name" yaml:"name"`
-	In          string  `json:"in" yaml:"in"` // query, path, header, cookie
-	Description string  `json:"description,omitempty" yaml:"description,omitempty"`
-	Required    bool    `json:"required,omitempty" yaml:"required,omitempty"`
-	Schema      *Schema `json:"schema,omitempty" yaml:"schema,omitempty"`
-	Example     any     `json:"example,omitempty" yaml:"example,omitempty"`
+	Name          string  `json:"name" yaml:"name"`
+	In            string  `json:"in" yaml:"in"` // query, path, header, cookie
+	Description   string  `json:"description,omitempty" yaml:"description,omitempty"`
+	Required      bool    `json:"required,omitempty" yaml:"required,omitempty"`
+	Schema        *Schema `json:"schema,omitempty" yaml:"schema,omitempty"`
+	Example       any     `json:"example,omitempty" yaml:"example,omitempty"`
+	Style         string  `json:"style,omitempty" yaml:"style,omitempty"`
+	Explode       *bool   `json:"explode,omitempty" yaml:"explode,omitempty"`
+	AllowReserved bool    `json:"allowReserved,omitempty" yaml:"allowReserved,omitempty"`
+	Deprecated    bool    `json:"deprecated,omitempty" yaml:"deprecated,omitempty"`
+	Ref           string  `json:"$ref,omitempty" yaml:"$ref,omitempty"`
 }
 
 // RequestBody represents the request body
@@ -100,6 +115,29 @@ type Schema struct {
 	Minimum    *float64           `json:"minimum,omitempty" yaml:"minimum,omitempty"`
 	Maximum    *float64           `json:"maximum,omitempty" yaml:"maximum,omitempty"`
 	Pattern    string             `json:"pattern,omitempty" yaml:"pattern,omitempty"`
+
+	// Composition keywords.
+	AllOf         []*Schema      `json:"allOf,omitempty" yaml:"allOf,omitempty"`
+	OneOf         []*Schema      `json:"oneOf,omitempty" yaml:"oneOf,omitempty"`
+	AnyOf         []*Schema      `json:"anyOf,omitempty" yaml:"anyOf,omitempty"`
+	Discriminator *Discriminator `json:"discriminator,omitempty" yaml:"discriminator,omitempty"`
+
+	// Read/write hints.
+	Nullable  bool `json:"nullable,omitempty" yaml:"nullable,omitempty"`
+	ReadOnly  bool `json:"readOnly,omitempty" yaml:"readOnly,omitempty"`
+	WriteOnly bool `json:"writeOnly,omitempty" yaml:"writeOnly,omitempty"`
+
+	// Default value.
+	Default any `json:"default,omitempty" yaml:"default,omitempty"`
+
+	// Additional properties for map-like objects.
+	AdditionalProperties *Schema `json:"additionalProperties,omitempty" yaml:"additionalProperties,omitempty"`
+}
+
+// Discriminator supports polymorphism in OpenAPI 3.
+type Discriminator struct {
+	PropertyName string            `json:"propertyName" yaml:"propertyName"`
+	Mapping      map[string]string `json:"mapping,omitempty" yaml:"mapping,omitempty"`
 }
 
 // Response represents an API response
@@ -121,11 +159,29 @@ type Components struct {
 
 // SecurityScheme represents an authentication scheme
 type SecurityScheme struct {
-	Type         string `json:"type" yaml:"type"`
-	Scheme       string `json:"scheme,omitempty" yaml:"scheme,omitempty"`
-	BearerFormat string `json:"bearerFormat,omitempty" yaml:"bearerFormat,omitempty"`
-	Name         string `json:"name,omitempty" yaml:"name,omitempty"`
-	In           string `json:"in,omitempty" yaml:"in,omitempty"`
+	Type             string      `json:"type" yaml:"type"`
+	Scheme           string      `json:"scheme,omitempty" yaml:"scheme,omitempty"`
+	BearerFormat     string      `json:"bearerFormat,omitempty" yaml:"bearerFormat,omitempty"`
+	Name             string      `json:"name,omitempty" yaml:"name,omitempty"`
+	In               string      `json:"in,omitempty" yaml:"in,omitempty"`
+	Flows            *OAuthFlows `json:"flows,omitempty" yaml:"flows,omitempty"`
+	OpenIDConnectURL string      `json:"openIdConnectUrl,omitempty" yaml:"openIdConnectUrl,omitempty"`
+}
+
+// OAuthFlows contains all OAuth2 flow definitions.
+type OAuthFlows struct {
+	Implicit          *OAuthFlow `json:"implicit,omitempty" yaml:"implicit,omitempty"`
+	Password          *OAuthFlow `json:"password,omitempty" yaml:"password,omitempty"`
+	ClientCredentials *OAuthFlow `json:"clientCredentials,omitempty" yaml:"clientCredentials,omitempty"`
+	AuthorizationCode *OAuthFlow `json:"authorizationCode,omitempty" yaml:"authorizationCode,omitempty"`
+}
+
+// OAuthFlow represents a single OAuth2 flow.
+type OAuthFlow struct {
+	AuthorizationURL string            `json:"authorizationUrl,omitempty" yaml:"authorizationUrl,omitempty"`
+	TokenURL         string            `json:"tokenUrl,omitempty" yaml:"tokenUrl,omitempty"`
+	RefreshURL       string            `json:"refreshUrl,omitempty" yaml:"refreshUrl,omitempty"`
+	Scopes           map[string]string `json:"scopes,omitempty" yaml:"scopes,omitempty"`
 }
 
 // Parser parses OpenAPI specifications
@@ -224,36 +280,66 @@ func (p *Parser) ResolveRef(spec *Spec, ref string) *Schema {
 		return nil
 	}
 
-	// Check cache
+	// Check cache (also breaks circular refs since we cache nil as sentinel).
 	if schema, ok := p.resolvedSchemas[ref]; ok {
 		return schema
 	}
 
+	// Mark as in-progress before recursing to break circular $ref chains.
+	p.resolvedSchemas[ref] = nil
+
 	// Parse reference path: #/components/schemas/User
-	refPattern := regexcache.MustGet(`^#/components/schemas/(.+)$`)
-	matches := refPattern.FindStringSubmatch(ref)
+	schemaPattern := regexcache.MustGet(`^#/components/schemas/(.+)$`)
+	matches := schemaPattern.FindStringSubmatch(ref)
+	if len(matches) == 2 {
+		schemaName := matches[1]
+		if spec.Components != nil && spec.Components.Schemas != nil {
+			schema, ok := spec.Components.Schemas[schemaName]
+			if ok && schema != nil {
+				// Recursively resolve if schema has a ref
+				if schema.Ref != "" {
+					schema = p.ResolveRef(spec, schema.Ref)
+				}
+				p.resolvedSchemas[ref] = schema
+				return schema
+			}
+		}
+	}
+
+	return nil
+}
+
+// ResolveParamRef resolves a $ref reference to a Parameter.
+func (p *Parser) ResolveParamRef(spec *Spec, ref string) *Parameter {
+	return p.resolveParamRefSeen(spec, ref, make(map[string]bool))
+}
+
+func (p *Parser) resolveParamRefSeen(spec *Spec, ref string, seen map[string]bool) *Parameter {
+	if ref == "" || spec.Components == nil || spec.Components.Parameters == nil {
+		return nil
+	}
+	if seen[ref] {
+		return nil // break circular $ref
+	}
+	seen[ref] = true
+
+	paramPattern := regexcache.MustGet(`^#/components/parameters/(.+)$`)
+	matches := paramPattern.FindStringSubmatch(ref)
 	if len(matches) != 2 {
 		return nil
 	}
 
-	schemaName := matches[1]
-	if spec.Components == nil || spec.Components.Schemas == nil {
+	param, ok := spec.Components.Parameters[matches[1]]
+	if !ok || param == nil {
 		return nil
 	}
 
-	schema, ok := spec.Components.Schemas[schemaName]
-	if !ok {
-		return nil
+	// Recursively resolve if param has a ref
+	if param.Ref != "" {
+		return p.resolveParamRefSeen(spec, param.Ref, seen)
 	}
 
-	// Recursively resolve if schema has a ref
-	if schema.Ref != "" {
-		schema = p.ResolveRef(spec, schema.Ref)
-	}
-
-	// Cache
-	p.resolvedSchemas[ref] = schema
-	return schema
+	return param
 }
 
 // GetOperations extracts all operations from a spec
@@ -261,58 +347,53 @@ func (p *Parser) GetOperations(spec *Spec) []EndpointOperation {
 	var ops []EndpointOperation
 
 	for path, pathItem := range spec.Paths {
-		if pathItem.Get != nil {
+		addOp := func(method string, op *Operation) {
+			if op == nil {
+				return
+			}
+			// Merge path-level parameters into operation parameters.
+			// Operation params override path params with the same name+in.
+			op.Parameters = mergeOA3Parameters(pathItem.Parameters, op.Parameters)
 			ops = append(ops, EndpointOperation{
 				Path:      path,
-				Method:    "GET",
-				Operation: pathItem.Get,
+				Method:    method,
+				Operation: op,
 			})
 		}
-		if pathItem.Post != nil {
-			ops = append(ops, EndpointOperation{
-				Path:      path,
-				Method:    "POST",
-				Operation: pathItem.Post,
-			})
-		}
-		if pathItem.Put != nil {
-			ops = append(ops, EndpointOperation{
-				Path:      path,
-				Method:    "PUT",
-				Operation: pathItem.Put,
-			})
-		}
-		if pathItem.Delete != nil {
-			ops = append(ops, EndpointOperation{
-				Path:      path,
-				Method:    "DELETE",
-				Operation: pathItem.Delete,
-			})
-		}
-		if pathItem.Patch != nil {
-			ops = append(ops, EndpointOperation{
-				Path:      path,
-				Method:    "PATCH",
-				Operation: pathItem.Patch,
-			})
-		}
-		if pathItem.Options != nil {
-			ops = append(ops, EndpointOperation{
-				Path:      path,
-				Method:    "OPTIONS",
-				Operation: pathItem.Options,
-			})
-		}
-		if pathItem.Head != nil {
-			ops = append(ops, EndpointOperation{
-				Path:      path,
-				Method:    "HEAD",
-				Operation: pathItem.Head,
-			})
-		}
+		addOp("GET", pathItem.Get)
+		addOp("POST", pathItem.Post)
+		addOp("PUT", pathItem.Put)
+		addOp("DELETE", pathItem.Delete)
+		addOp("PATCH", pathItem.Patch)
+		addOp("OPTIONS", pathItem.Options)
+		addOp("HEAD", pathItem.Head)
 	}
 
 	return ops
+}
+
+// mergeOA3Parameters merges path-level and operation-level parameters.
+// Operation params override path params with the same name+in.
+func mergeOA3Parameters(pathParams, opParams []Parameter) []Parameter {
+	if len(pathParams) == 0 {
+		return opParams
+	}
+
+	// Index operation params by name+in.
+	opSet := make(map[string]bool, len(opParams))
+	for _, p := range opParams {
+		opSet[p.In+":"+p.Name] = true
+	}
+
+	// Start with operation params, then add non-overridden path params.
+	merged := make([]Parameter, len(opParams))
+	copy(merged, opParams)
+	for _, p := range pathParams {
+		if !opSet[p.In+":"+p.Name] {
+			merged = append(merged, p)
+		}
+	}
+	return merged
 }
 
 // EndpointOperation represents a single endpoint operation

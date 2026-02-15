@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -30,6 +31,7 @@ type harRequest struct {
 	URL         string         `json:"url"`
 	Headers     []harNameValue `json:"headers,omitempty"`
 	QueryString []harNameValue `json:"queryString,omitempty"`
+	Cookies     []harNameValue `json:"cookies,omitempty"`
 	PostData    *harPostData   `json:"postData,omitempty"`
 }
 
@@ -82,12 +84,20 @@ func parseHAR(data []byte, source string) (*Spec, error) {
 		method := strings.ToUpper(entry.Request.Method)
 		path, host := extractHARPath(entry.Request.URL)
 
+		// Skip static assets — not useful for API security testing.
+		if isStaticAsset(path) {
+			continue
+		}
+
 		// Capture first host as base server
 		if baseHost == "" && host != "" {
 			baseHost = host
 		}
 
-		key := method + " " + path
+		// Convert literal IDs in path to template parameters.
+		tpath, pathParams := templatizeHARPath(path)
+
+		key := method + " " + tpath
 		if idx, exists := seen[key]; exists {
 			// Merge new params into existing endpoint
 			mergeHARParams(&spec.Endpoints[idx], entry)
@@ -96,11 +106,12 @@ func parseHAR(data []byte, source string) (*Spec, error) {
 
 		ep := Endpoint{
 			Method:         method,
-			Path:           path,
-			Summary:        method + " " + path,
-			CorrelationTag: CorrelationTag(method, path),
+			Path:           tpath,
+			Summary:        method + " " + tpath,
+			CorrelationTag: CorrelationTag(method, tpath),
 			RequestBodies:  make(map[string]RequestBody),
 			Responses:      make(map[string]Response),
+			Parameters:     pathParams,
 		}
 
 		// Extract query parameters
@@ -125,10 +136,36 @@ func parseHAR(data []byte, source string) (*Spec, error) {
 			}
 		}
 
-		// Extract headers (skip standard ones that are noise)
+		// Extract cookies as parameters
+		for _, c := range entry.Request.Cookies {
+			ep.Parameters = append(ep.Parameters, Parameter{
+				Name:    c.Name,
+				In:      LocationCookie,
+				Example: c.Value,
+			})
+		}
+
+		// Extract headers — skip standard ones that are noise.
+		// Detect auth from captured headers.
 		for _, h := range entry.Request.Headers {
+			lname := strings.ToLower(h.Name)
 			if isStandardHeader(h.Name) {
 				continue
+			}
+			// Capture auth info from traffic
+			if lname == "authorization" {
+				addHARAuthScheme(spec, AuthScheme{
+					Name:   "bearer",
+					Type:   AuthBearer,
+					Scheme: "bearer",
+				})
+			} else if lname == "x-api-key" {
+				addHARAuthScheme(spec, AuthScheme{
+					Name:      h.Name,
+					Type:      AuthAPIKey,
+					In:        LocationHeader,
+					FieldName: h.Name,
+				})
 			}
 			ep.Parameters = append(ep.Parameters, Parameter{
 				Name:    h.Name,
@@ -194,6 +231,48 @@ func extractHARPath(rawURL string) (string, string) {
 	}
 
 	return path, host
+}
+
+// harIDPatterns detects path segments that look like identifiers.
+var harIDPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`^\d+$`), // numeric: 123
+	regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`), // UUID
+	regexp.MustCompile(`^[0-9a-fA-F]{24}$`), // MongoDB ObjectID
+	regexp.MustCompile(`^[0-9a-fA-F]{32}$`), // 32-char hex
+}
+
+// templatizeHARPath replaces ID-like segments with {id} path parameters.
+// Returns the templatized path and any detected path parameters.
+func templatizeHARPath(path string) (string, []Parameter) {
+	segments := strings.Split(path, "/")
+	var params []Parameter
+	paramIdx := 0
+
+	for i, seg := range segments {
+		if seg == "" {
+			continue
+		}
+		for _, pat := range harIDPatterns {
+			if pat.MatchString(seg) {
+				paramName := fmt.Sprintf("id%d", paramIdx)
+				if paramIdx == 0 {
+					paramName = "id"
+				}
+				paramIdx++
+				params = append(params, Parameter{
+					Name:     paramName,
+					In:       LocationPath,
+					Required: true,
+					Example:  seg,
+					Schema:   SchemaInfo{Type: "string"},
+				})
+				segments[i] = "{" + paramName + "}"
+				break
+			}
+		}
+	}
+
+	return strings.Join(segments, "/"), params
 }
 
 // mergeHARParams adds new parameters from an entry to an existing endpoint,
@@ -290,4 +369,37 @@ var standardHeaders = map[string]bool{
 
 func isStandardHeader(name string) bool {
 	return standardHeaders[strings.ToLower(name)]
+}
+
+// staticExtensions are file extensions to skip during HAR import.
+// These are static assets, not API endpoints.
+var staticExtensions = map[string]bool{
+	".js": true, ".css": true, ".png": true, ".jpg": true, ".jpeg": true,
+	".gif": true, ".svg": true, ".ico": true, ".woff": true, ".woff2": true,
+	".ttf": true, ".eot": true, ".map": true, ".webp": true, ".avif": true,
+}
+
+// isStaticAsset returns true if the path looks like a static file request.
+func isStaticAsset(path string) bool {
+	// Find last dot in the last path segment
+	lastSlash := strings.LastIndex(path, "/")
+	segment := path
+	if lastSlash >= 0 {
+		segment = path[lastSlash:]
+	}
+	dotIdx := strings.LastIndex(segment, ".")
+	if dotIdx < 0 {
+		return false
+	}
+	return staticExtensions[strings.ToLower(segment[dotIdx:])]
+}
+
+// addHARAuthScheme adds a detected auth scheme to the spec, avoiding duplicates.
+func addHARAuthScheme(spec *Spec, scheme AuthScheme) {
+	for _, existing := range spec.AuthSchemes {
+		if existing.Type == scheme.Type && existing.Name == scheme.Name {
+			return
+		}
+	}
+	spec.AuthSchemes = append(spec.AuthSchemes, scheme)
 }

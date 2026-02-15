@@ -68,17 +68,27 @@ func runSpecScan(
 		os.Exit(1)
 	}
 
-	// Apply environment file if specified.
+	// Load environment file if specified.
+	var envVars map[string]string
 	if cfg.EnvFile != "" {
-		envVars, envErr := apispec.LoadPostmanEnvironment(cfg.EnvFile)
+		var envErr error
+		envVars, envErr = apispec.LoadPostmanEnvironment(cfg.EnvFile)
 		if envErr != nil {
 			ui.PrintWarning(fmt.Sprintf("Failed to load environment file: %v", envErr))
-		} else {
-			apispec.ResolveVariables(spec, cfg.Variables, envVars)
 		}
-	} else if len(cfg.Variables) > 0 {
-		// Apply variable overrides from --var flags only.
-		apispec.ResolveVariables(spec, cfg.Variables, nil)
+	}
+
+	// Always resolve variables — spec defaults can embed internal URLs that
+	// bypass SSRF checks if left as {{var}} templates.
+	apispec.ResolveVariables(spec, cfg.Variables, envVars)
+
+	// SSRF blocklist: reject specs targeting internal networks unless allowed.
+	// Must run AFTER variable resolution — variables can inject internal URLs.
+	if !cfg.AllowInternal {
+		if ssrfErr := apispec.CheckServerURLs(spec); ssrfErr != nil {
+			ui.PrintError(ssrfErr.Error())
+			os.Exit(1)
+		}
 	}
 
 	// Resolve base URL: CLI -u overrides spec BaseURL.
@@ -141,7 +151,10 @@ func runSpecScan(
 		return
 	}
 
-	// Resolve auth.
+	// Resolve auth. Wire warning callback to stderr (safe in CLI context).
+	cfg.Auth.WarnFunc = func(msg string) {
+		fmt.Fprintln(os.Stderr, msg)
+	}
 	authFn := apispec.ResolveAuth(spec.AuthSchemes, cfg.Auth)
 
 	// Build scan ID for event dispatch.
@@ -159,11 +172,6 @@ func runSpecScan(
 	}
 
 	// Execute the plan.
-	result := &apispec.SpecScanResult{
-		SpecSource: source,
-		StartedAt:  time.Now(),
-	}
-
 	executor := &apispec.SimpleExecutor{
 		BaseURL:     baseURL,
 		Concurrency: concurrency,
@@ -202,7 +210,6 @@ func runSpecScan(
 			}
 		},
 		OnFinding: func(f apispec.SpecFinding) {
-			result.AddFinding(f)
 			if streamJSON {
 				data, _ := json.Marshal(map[string]interface{}{
 					"type":      "spec_finding",
@@ -228,7 +235,16 @@ func runSpecScan(
 		ui.PrintError(fmt.Sprintf("Spec scan execution error: %v", execErr))
 	}
 
-	result.Finalize()
+	// Use the executor's result directly — it already has all findings,
+	// endpoints, tests, and timing finalized.
+	result := session.Result
+	if result == nil {
+		result = &apispec.SpecScanResult{
+			SpecSource: source,
+			StartedAt:  time.Now(),
+		}
+		result.Finalize()
+	}
 
 	// Print summary.
 	if !streamJSON {
@@ -1184,3 +1200,6 @@ func runSpecMassAssignment(ctx context.Context, targetURL string, ep apispec.End
 	}
 	return findings, nil
 }
+
+
+

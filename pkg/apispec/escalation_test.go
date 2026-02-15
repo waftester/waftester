@@ -173,3 +173,98 @@ func TestProbeResult(t *testing.T) {
 	assert.Equal(t, EscalationEncoded, pr.EscalationLevel)
 	assert.Equal(t, 0.8, pr.PerCategoryBlockRate["sqli"])
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Negative / edge-case tests.
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestSelectEscalationLevelBoundaries(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		blockRate   float64
+		wafDetected bool
+		want        EscalationLevel
+	}{
+		{"negative block rate", -0.1, false, EscalationStandard},
+		{"zero block rate", 0.0, true, EscalationStandard},
+		{"just below 0.5", 0.49, false, EscalationEncoded},
+		{"exactly 0.5", 0.5, false, EscalationEncoded},
+		{"exactly 0.5 with WAF", 0.5, true, EscalationWAFSpecific},
+		{"exactly 0.9", 0.9, false, EscalationWAFSpecific},
+		{"exactly 0.9 with WAF", 0.9, true, EscalationMultiVector},
+		{"exactly 1.0", 1.0, false, EscalationWAFSpecific},
+		{"exactly 1.0 with WAF", 1.0, true, EscalationMultiVector},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := SelectEscalationLevel(tt.blockRate, tt.wafDetected)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestShouldEscalateBoundaries(t *testing.T) {
+	t.Parallel()
+	// At max level, never escalate regardless of block rate.
+	assert.False(t, ShouldEscalate(EscalationMultiVector, 1.0))
+	// Below 0.8, don't escalate.
+	assert.False(t, ShouldEscalate(EscalationStandard, 0.79))
+	// Exactly 0.8, do escalate.
+	assert.True(t, ShouldEscalate(EscalationStandard, 0.8))
+	// Above 0.8.
+	assert.True(t, ShouldEscalate(EscalationEncoded, 0.95))
+}
+
+func TestEscalationLevelStringUnknown(t *testing.T) {
+	t.Parallel()
+	unknown := EscalationLevel(99)
+	s := unknown.String()
+	assert.NotEmpty(t, s)
+}
+
+func TestEscalationLevelEncoders(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, []string{"plain"}, EscalationStandard.Encoders())
+	assert.Greater(t, len(EscalationEncoded.Encoders()), 1)
+	assert.Greater(t, len(EscalationMultiVector.Encoders()), len(EscalationEncoded.Encoders()))
+}
+
+func TestRequestBudgetNil(t *testing.T) {
+	t.Parallel()
+	var b *RequestBudget
+	assert.True(t, b.Allows(100, time.Hour))
+	assert.True(t, b.AllowsForEndpoint(100))
+}
+
+func TestRequestBudgetZeroLimits(t *testing.T) {
+	// Zero limits = unlimited.
+	t.Parallel()
+	b := &RequestBudget{}
+	assert.True(t, b.Allows(1000000, time.Hour))
+	assert.True(t, b.AllowsForEndpoint(1000000))
+}
+
+func TestRequestBudgetMaxTotalExceeded(t *testing.T) {
+	t.Parallel()
+	b := &RequestBudget{MaxTotal: 10}
+	assert.True(t, b.Allows(9, 0))
+	assert.False(t, b.Allows(10, 0))
+	assert.False(t, b.Allows(11, 0))
+}
+
+func TestRequestBudgetTimeLimitExceeded(t *testing.T) {
+	t.Parallel()
+	b := &RequestBudget{TimeLimit: time.Minute}
+	assert.True(t, b.Allows(0, 59*time.Second))
+	assert.False(t, b.Allows(0, time.Minute))
+	assert.False(t, b.Allows(0, 2*time.Minute))
+}
+
+func TestRequestBudgetPerEndpointExceeded(t *testing.T) {
+	t.Parallel()
+	b := &RequestBudget{MaxPerEndpoint: 5}
+	assert.True(t, b.AllowsForEndpoint(4))
+	assert.False(t, b.AllowsForEndpoint(5))
+}

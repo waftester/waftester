@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -101,18 +102,23 @@ func loadSource(ctx context.Context, source string) ([]byte, error) {
 	return loadFile(source)
 }
 
-// loadFile reads a spec from the local filesystem with size validation.
+// loadFile reads a spec from the local filesystem with size enforcement.
+// Uses io.LimitReader to enforce the size limit during read, avoiding
+// a TOCTOU gap between stat and read.
 func loadFile(path string) ([]byte, error) {
-	info, err := os.Stat(path)
+	f, err := os.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to stat spec file: %w", err)
+		return nil, fmt.Errorf("failed to open spec file: %w", err)
 	}
-	if info.Size() > maxSpecSize {
-		return nil, ErrSpecTooLarge
-	}
-	data, err := os.ReadFile(path)
+	defer f.Close()
+
+	// Read up to maxSpecSize+1 so we can detect oversized files.
+	data, err := io.ReadAll(io.LimitReader(f, maxSpecSize+1))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read spec file: %w", err)
+	}
+	if int64(len(data)) > maxSpecSize {
+		return nil, ErrSpecTooLarge
 	}
 	return data, nil
 }
@@ -303,9 +309,30 @@ func parseOpenAPI3(data []byte, source string) (*Spec, error) {
 	tagSet := make(map[string]bool)
 	for _, op := range ops {
 		ep := convertOA3Operation(op, parser, oaSpec)
+
+		// Apply spec-level security as defaults for operations without their own.
+		if len(ep.Auth) == 0 && len(oaSpec.Security) > 0 {
+			for _, secReq := range oaSpec.Security {
+				for schemeName := range secReq {
+					ep.Auth = append(ep.Auth, schemeName)
+				}
+			}
+		}
+
 		spec.Endpoints = append(spec.Endpoints, ep)
 		for _, tag := range op.Operation.Tags {
 			tagSet[tag] = true
+		}
+	}
+
+	// Copy server variables.
+	for _, s := range oaSpec.Servers {
+		for k, v := range s.Variables {
+			spec.Variables[k] = Variable{
+				Default:     v.Default,
+				Description: v.Description,
+				Enum:        v.Enum,
+			}
 		}
 	}
 
@@ -338,11 +365,38 @@ func convertOA3SecurityScheme(name string, ss *openapi.SecurityScheme) AuthSchem
 		as.In = Location(ss.In)
 	case "oauth2":
 		as.Type = AuthOAuth2
+		if ss.Flows != nil {
+			as.Flows = convertOA3OAuthFlows(ss.Flows)
+		}
+	case "openIdConnect":
+		as.Type = AuthOAuth2 // Treat as OAuth2 variant.
 	default:
 		as.Type = AuthCustom
 	}
 
 	return as
+}
+
+// convertOA3OAuthFlows converts OpenAPI 3 OAuth2 flows to unified OAuthFlow.
+func convertOA3OAuthFlows(flows *openapi.OAuthFlows) []OAuthFlow {
+	var result []OAuthFlow
+	addFlow := func(name string, f *openapi.OAuthFlow) {
+		if f == nil {
+			return
+		}
+		result = append(result, OAuthFlow{
+			Type:       name,
+			AuthURL:    f.AuthorizationURL,
+			TokenURL:   f.TokenURL,
+			RefreshURL: f.RefreshURL,
+			Scopes:     f.Scopes,
+		})
+	}
+	addFlow("implicit", flows.Implicit)
+	addFlow("password", flows.Password)
+	addFlow("clientCredentials", flows.ClientCredentials)
+	addFlow("authorizationCode", flows.AuthorizationCode)
+	return result
 }
 
 // convertOA3Operation converts an OpenAPI 3 operation to a unified Endpoint.
@@ -418,24 +472,38 @@ func convertOA3Operation(op openapi.EndpointOperation, parser *openapi.Parser, o
 
 // convertOA3Parameter converts an OpenAPI 3 parameter.
 func convertOA3Parameter(p openapi.Parameter, parser *openapi.Parser, oaSpec *openapi.Spec) Parameter {
-	param := Parameter{
-		Name:        p.Name,
-		In:          Location(p.In),
-		Description: p.Description,
-		Required:    p.Required,
-		Example:     p.Example,
+	// Resolve parameter $ref.
+	resolved := p
+	if p.Ref != "" {
+		if r := parser.ResolveParamRef(oaSpec, p.Ref); r != nil {
+			resolved = *r
+		}
 	}
 
-	if p.Schema != nil {
-		resolved := p.Schema
-		if p.Schema.Ref != "" {
-			if r := parser.ResolveRef(oaSpec, p.Schema.Ref); r != nil {
-				resolved = r
+	param := Parameter{
+		Name:          resolved.Name,
+		In:            Location(resolved.In),
+		Description:   resolved.Description,
+		Required:      resolved.Required,
+		Example:       resolved.Example,
+		Style:         resolved.Style,
+		AllowReserved: resolved.AllowReserved,
+		Deprecated:    resolved.Deprecated,
+	}
+	if resolved.Explode != nil {
+		param.Explode = resolved.Explode
+	}
+
+	if resolved.Schema != nil {
+		schema := resolved.Schema
+		if schema.Ref != "" {
+			if r := parser.ResolveRef(oaSpec, schema.Ref); r != nil {
+				schema = r
 			}
 		}
-		param.Schema = convertOA3Schema(resolved, parser, oaSpec)
-		if resolved.Enum != nil {
-			for _, e := range resolved.Enum {
+		param.Schema = convertOA3Schema(schema, parser, oaSpec)
+		if schema.Enum != nil {
+			for _, e := range schema.Enum {
 				param.Enum = append(param.Enum, fmt.Sprintf("%v", e))
 			}
 		}
@@ -482,6 +550,14 @@ func convertOA3SchemaWithDepth(s *openapi.Schema, parser *openapi.Parser, oaSpec
 		Minimum:   resolved.Minimum,
 		Maximum:   resolved.Maximum,
 		Required:  resolved.Required,
+		Nullable:  resolved.Nullable,
+		ReadOnly:  resolved.ReadOnly,
+		WriteOnly: resolved.WriteOnly,
+	}
+
+	// Discriminator.
+	if resolved.Discriminator != nil {
+		si.Discriminator = resolved.Discriminator.PropertyName
 	}
 
 	if resolved.Enum != nil {
@@ -504,6 +580,17 @@ func convertOA3SchemaWithDepth(s *openapi.Schema, parser *openapi.Parser, oaSpec
 		si.Items = &items
 	}
 
+	// Convert composition keywords.
+	for _, sub := range resolved.AllOf {
+		si.AllOf = append(si.AllOf, convertOA3SchemaWithDepth(sub, parser, oaSpec, seen, depth+1))
+	}
+	for _, sub := range resolved.OneOf {
+		si.OneOf = append(si.OneOf, convertOA3SchemaWithDepth(sub, parser, oaSpec, seen, depth+1))
+	}
+	for _, sub := range resolved.AnyOf {
+		si.AnyOf = append(si.AnyOf, convertOA3SchemaWithDepth(sub, parser, oaSpec, seen, depth+1))
+	}
+
 	return si
 }
 
@@ -524,20 +611,17 @@ func parseSwagger2(data []byte, source string) (*Spec, error) {
 		Variables:   make(map[string]Variable),
 	}
 
-	// Build base URL from host + basePath
-	baseURL := ""
-	if apiSpec.Host != "" {
-		scheme := "https"
-		baseURL = scheme + "://" + apiSpec.Host
-	}
-	if apiSpec.BasePath != "" {
-		baseURL += apiSpec.BasePath
-	}
-	if baseURL != "" {
-		spec.Servers = append(spec.Servers, Server{URL: baseURL})
-	}
+	// Build base URL from host + basePath.
+	// Prefer scheme-qualified servers from the parser when available.
 	for _, s := range apiSpec.Servers {
 		spec.Servers = append(spec.Servers, Server{URL: s})
+	}
+	if len(spec.Servers) == 0 && apiSpec.Host != "" {
+		baseURL := "https://" + apiSpec.Host
+		if apiSpec.BasePath != "" {
+			baseURL += apiSpec.BasePath
+		}
+		spec.Servers = append(spec.Servers, Server{URL: baseURL})
 	}
 
 	// Convert security schemes
@@ -607,17 +691,23 @@ func convertSwagger2Route(route api.Route) Endpoint {
 		ep.Parameters = append(ep.Parameters, convertSwagger2Parameter(p))
 	}
 
-	// Convert request body
+	// Convert request body (from Swagger 2 explicit RequestBody, which was
+	// promoted from body parameters in parseSwagger2Paths).
 	if rb := route.RequestBody; rb != nil {
 		ct := rb.ContentType
 		if ct == "" {
 			ct = "application/json"
 		}
 		ep.ContentTypes = append(ep.ContentTypes, ct)
-		ep.RequestBodies[ct] = RequestBody{
+		body := RequestBody{
 			Required: rb.Required,
 			Example:  rb.Example,
 		}
+		// Extract schema from the Swagger 2 raw schema map.
+		if rb.Schema != nil {
+			body.Schema = convertSwagger2Schema(rb.Schema)
+		}
+		ep.RequestBodies[ct] = body
 	}
 
 	// Convert content types
@@ -658,6 +748,54 @@ func convertSwagger2Parameter(p api.Parameter) Parameter {
 		},
 	}
 	return param
+}
+
+// convertSwagger2Schema converts a raw Swagger 2 schema map to SchemaInfo.
+func convertSwagger2Schema(raw map[string]interface{}) SchemaInfo {
+	return convertSwagger2SchemaDepth(raw, 0)
+}
+
+// convertSwagger2SchemaDepth converts with depth protection against
+// deeply nested or circular inline schemas in Swagger 2.0 specs.
+func convertSwagger2SchemaDepth(raw map[string]interface{}, depth int) SchemaInfo {
+	if depth > maxSchemaDepth {
+		return SchemaInfo{}
+	}
+	si := SchemaInfo{}
+	if t, ok := raw["type"].(string); ok {
+		si.Type = t
+	}
+	if f, ok := raw["format"].(string); ok {
+		si.Format = f
+	}
+	if p, ok := raw["pattern"].(string); ok {
+		si.Pattern = p
+	}
+	if props, ok := raw["properties"].(map[string]interface{}); ok {
+		si.Properties = make(map[string]SchemaInfo, len(props))
+		for name, prop := range props {
+			if propMap, ok := prop.(map[string]interface{}); ok {
+				si.Properties[name] = convertSwagger2SchemaDepth(propMap, depth+1)
+			}
+		}
+	}
+	if items, ok := raw["items"].(map[string]interface{}); ok {
+		itemSchema := convertSwagger2SchemaDepth(items, depth+1)
+		si.Items = &itemSchema
+	}
+	if req, ok := raw["required"].([]interface{}); ok {
+		for _, r := range req {
+			if s, ok := r.(string); ok {
+				si.Required = append(si.Required, s)
+			}
+		}
+	}
+	if enum, ok := raw["enum"].([]interface{}); ok {
+		for _, e := range enum {
+			si.Enum = append(si.Enum, fmt.Sprintf("%v", e))
+		}
+	}
+	return si
 }
 
 // ResolveBaseURL determines the effective base URL considering
