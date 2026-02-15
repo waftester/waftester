@@ -30,7 +30,6 @@ const (
 	logWarning mcp.LoggingLevel = "warning"
 )
 
-// Config holds MCP server configuration.
 // EventCrawlResult holds what was discovered by interacting with one DOM element.
 // Mirrors headless.EventCrawlResult to avoid importing chromedp into this package.
 type EventCrawlResult struct {
