@@ -10,8 +10,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/chromedp/chromedp"
 	"github.com/waftester/waftester/pkg/apispec"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/headless"
 	"github.com/waftester/waftester/pkg/mcpserver"
 	"github.com/waftester/waftester/pkg/payloadprovider"
 	"github.com/waftester/waftester/pkg/ui"
@@ -28,6 +30,7 @@ func runMCP() {
 	httpAddr := fs.String("http", "", "HTTP address to listen on (e.g. :8080). Disables stdio.")
 	payloadDir := fs.String("payloads", envOrDefault("WAF_TESTER_PAYLOAD_DIR", defaults.PayloadDir), "Payload directory")
 	templateDir := fs.String("templates", envOrDefault("WAF_TESTER_TEMPLATE_DIR", defaults.TemplateDir), "Nuclei template directory")
+	tamperDir := fs.String("tamper-dir", "", "Directory of .tengo script tampers to load")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: waf-tester mcp [flags]\n\n")
@@ -69,9 +72,11 @@ func runMCP() {
 	fmt.Fprintf(os.Stderr, "%s payload directory: %s (%d payloads loaded)\n", ui.UserAgent(), *payloadDir, payloadCount)
 
 	srv := mcpserver.New(&mcpserver.Config{
-		PayloadDir:  *payloadDir,
-		TemplateDir: *templateDir,
-		SpecScanFn:  mcpSpecScanFn(),
+		PayloadDir:   *payloadDir,
+		TemplateDir:  *templateDir,
+		TamperDir:    *tamperDir,
+		SpecScanFn:   mcpSpecScanFn(),
+		EventCrawlFn: mcpEventCrawlFn(),
 	})
 	srv.MarkReady()  // Signal that startup validation passed
 	defer srv.Stop() // Cancel running tasks and wait for goroutine drain
@@ -177,5 +182,54 @@ func mcpSpecScanFn() apispec.ScanFunc {
 			SkipVerify: true,
 		}
 		return runScannerForSpec(ctx, name, targetURL, ep, cf, "")
+	}
+}
+
+// mcpEventCrawlFn returns the EventCrawlFn bridge for MCP event crawling.
+// It wraps headless.EventCrawl with chromedp browser lifecycle management.
+func mcpEventCrawlFn() mcpserver.EventCrawlFn {
+	return func(ctx context.Context, targetURL string, maxClicks, clickTimeoutSec int) ([]mcpserver.EventCrawlResult, []string, error) {
+		allocOpts := append(chromedp.DefaultExecAllocatorOptions[:],
+			chromedp.Flag("headless", true),
+			chromedp.Flag("disable-gpu", true),
+			chromedp.Flag("no-sandbox", true),
+		)
+
+		allocCtx, allocCancel := chromedp.NewExecAllocator(ctx, allocOpts...)
+		defer allocCancel()
+
+		browserCtx, browserCancel := chromedp.NewContext(allocCtx)
+		defer browserCancel()
+
+		eventConfig := headless.DefaultEventCrawlConfig()
+		eventConfig.MaxClicks = maxClicks
+		eventConfig.ClickTimeout = time.Duration(clickTimeoutSec) * time.Second
+
+		results, err := headless.EventCrawl(browserCtx, targetURL, eventConfig)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// Convert headless.EventCrawlResult to mcpserver.EventCrawlResult
+		mcpResults := make([]mcpserver.EventCrawlResult, 0, len(results))
+		for _, r := range results {
+			mcpResults = append(mcpResults, mcpserver.EventCrawlResult{
+				Element: map[string]any{
+					"selector": r.Element.Selector,
+					"tag":      r.Element.Tag,
+					"text":     r.Element.Text,
+					"type":     r.Element.Type,
+					"href":     r.Element.Href,
+					"onclick":  r.Element.OnClick,
+				},
+				DiscoveredURLs: r.DiscoveredURLs,
+				XHRRequests:    r.XHRRequests,
+				NavigatedTo:    r.NavigatedTo,
+				DOMChanged:     r.DOMChanged,
+			})
+		}
+
+		discoveredURLs := headless.CollectDiscoveredURLs(results, targetURL, true)
+		return mcpResults, discoveredURLs, nil
 	}
 }
