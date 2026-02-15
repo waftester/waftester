@@ -443,3 +443,23 @@ func TestPathGroup(t *testing.T) {
 	assert.Equal(t, "/", pathGroup("/"))
 	assert.Equal(t, "/api", pathGroup("/api/v1/users"))
 }
+
+// TestRegression_FormatPercent verifies the formatPercent helper produces a
+// percent suffix. The original bug returned bare integers without "%".
+func TestRegression_FormatPercent(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		in   float64
+		want string
+	}{
+		{0.0, "0%"},
+		{0.5, "50%"},
+		{0.75, "75%"},
+		{1.0, "100%"},
+		{1.5, "100%"}, // clamped at 100%
+		{0.999, "99%"},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, formatPercent(tt.in), "formatPercent(%v)", tt.in)
+	}
+}

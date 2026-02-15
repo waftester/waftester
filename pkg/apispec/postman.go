@@ -91,7 +91,14 @@ type postmanBody struct {
 	Raw        string      `json:"raw,omitempty"`
 	URLEncoded []postmanKV `json:"urlencoded,omitempty"`
 	FormData   []postmanKV `json:"formdata,omitempty"`
-	Options    *struct {
+	GraphQL    *struct {
+		Query     string `json:"query,omitempty"`
+		Variables string `json:"variables,omitempty"`
+	} `json:"graphql,omitempty"`
+	File *struct {
+		Src string `json:"src,omitempty"`
+	} `json:"file,omitempty"`
+	Options *struct {
 		Raw *struct {
 			Language string `json:"language,omitempty"`
 		} `json:"raw,omitempty"`
@@ -342,13 +349,21 @@ func convertPostmanBody(body *postmanBody, ep *Endpoint, vars map[string]Variabl
 			Type:       "object",
 			Properties: make(map[string]SchemaInfo),
 		}
+		example := make(map[string]string)
 		for _, kv := range body.URLEncoded {
 			if kv.Disabled {
 				continue
 			}
 			schema.Properties[kv.Key] = SchemaInfo{Type: "string"}
+			if kv.Value != "" {
+				example[kv.Key] = substituteVars(kv.Value, vars)
+			}
 		}
-		ep.RequestBodies[ct] = RequestBody{Schema: schema}
+		rb := RequestBody{Schema: schema}
+		if len(example) > 0 {
+			rb.Example = example
+		}
+		ep.RequestBodies[ct] = rb
 	case "formdata":
 		ct := "multipart/form-data"
 		ep.ContentTypes = append(ep.ContentTypes, ct)
@@ -367,6 +382,25 @@ func convertPostmanBody(body *postmanBody, ep *Endpoint, vars map[string]Variabl
 			schema.Properties[kv.Key] = SchemaInfo{Type: propType}
 		}
 		ep.RequestBodies[ct] = RequestBody{Schema: schema}
+	case "graphql":
+		ct := "application/json"
+		ep.ContentTypes = append(ep.ContentTypes, ct)
+		var example any
+		if body.GraphQL != nil {
+			example = map[string]string{
+				"query":     body.GraphQL.Query,
+				"variables": body.GraphQL.Variables,
+			}
+		}
+		ep.RequestBodies[ct] = RequestBody{
+			Example: example,
+		}
+	case "file":
+		ct := "application/octet-stream"
+		ep.ContentTypes = append(ep.ContentTypes, ct)
+		ep.RequestBodies[ct] = RequestBody{
+			Schema: SchemaInfo{Type: "file"},
+		}
 	}
 }
 
@@ -397,16 +431,14 @@ func resolvePostmanURL(u postmanURL, vars map[string]Variable) string {
 
 // extractPostmanPath extracts the URL path from a raw Postman URL.
 // Strips scheme, host, and port. Preserves path templates like :id as {id}.
-func extractPostmanPath(rawURL string, vars map[string]Variable) string {
-	// Apply variable substitution
-	resolved := substituteVars(rawURL, vars)
-
+// The input rawURL is expected to be already variable-resolved.
+func extractPostmanPath(rawURL string, _ map[string]Variable) string {
 	// Try to parse as URL
-	u, err := url.Parse(resolved)
+	u, err := url.Parse(rawURL)
 	if err != nil || u.Path == "" {
 		// If URL parsing fails, try to extract path from the raw string
 		// Remove protocol and host
-		path := resolved
+		path := rawURL
 		if idx := strings.Index(path, "://"); idx >= 0 {
 			path = path[idx+3:]
 		}

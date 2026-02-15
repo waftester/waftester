@@ -819,8 +819,8 @@ func (d *Detector) initSignatures() {
 				// Plain nginx header alone is insufficient — require
 				// NAP-specific bundle header to avoid false positives
 				// on vanilla nginx, OpenResty, and other nginx forks.
-				"Server":               regexp.MustCompile(`(?i)nginx`),
-				"X-Waf-Policy-Status":  regexp.MustCompile(`.+`),
+				"Server":              regexp.MustCompile(`(?i)nginx`),
+				"X-Waf-Policy-Status": regexp.MustCompile(`.+`),
 			},
 			BodyPatterns: []*regexp.Regexp{
 				regexp.MustCompile(`(?i)the requested url was rejected`),

@@ -134,8 +134,6 @@ func (e *SimpleExecutor) Execute(ctx context.Context, plan *ScanPlan) (*ScanSess
 		}()
 	}
 
-	wg.Wait()
-
 done:
 	wg.Wait()
 	result.Finalize()

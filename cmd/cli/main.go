@@ -22,6 +22,15 @@ import (
 	"github.com/waftester/waftester/pkg/ui"
 )
 
+// rejectSpecFlags exits with an error if os.Args contains --spec or --spec-url.
+// This lives here (not in pkg/) because os.Exit belongs in the CLI entry point.
+func rejectSpecFlags(command string) {
+	if err := apispec.CheckSpecFlagsRejected(command, os.Args[2:]); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
 // getProjectRoot returns the project root directory (coraza-caddy).
 // It navigates up from the executable location (tests/waf-tester) to the project root.
 // Falls back to current working directory if executable path cannot be determined.
@@ -79,7 +88,7 @@ func main() {
 	case "scan":
 		runScan()
 	case "fuzz":
-		apispec.RejectSpecFlags("fuzz")
+		rejectSpecFlags("fuzz")
 		runFuzz()
 	case "analyze":
 		runAnalyze()
@@ -92,24 +101,24 @@ func main() {
 	case "mutate":
 		runMutate()
 	case "bypass":
-		apispec.RejectSpecFlags("bypass")
+		rejectSpecFlags("bypass")
 		runBypassFinder()
 	case "smuggle":
-		apispec.RejectSpecFlags("smuggle")
+		rejectSpecFlags("smuggle")
 		runSmuggle()
 	case "race":
-		apispec.RejectSpecFlags("race")
+		rejectSpecFlags("race")
 		runRace()
 	case "workflow":
 		runWorkflow()
 	case "headless":
-		apispec.RejectSpecFlags("headless")
+		rejectSpecFlags("headless")
 		runHeadless()
 	case "fp", "falsepositive", "false-positive":
-		apispec.RejectSpecFlags("fp")
+		rejectSpecFlags("fp")
 		runFP()
 	case "assess", "assessment", "benchmark":
-		apispec.RejectSpecFlags("assess")
+		rejectSpecFlags("assess")
 		runAssess()
 	case "vendor", "waf-detect", "detect-waf":
 		runVendorDetect()

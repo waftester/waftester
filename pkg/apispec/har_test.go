@@ -34,7 +34,7 @@ func TestHARDeduplication(t *testing.T) {
 	}
 	assert.Equal(t, 1, getUsers, "duplicate GET /users should be deduplicated")
 
-	// Total: GET /users, POST /users, GET /users/123, PUT /users/123, POST /upload
+	// Total: GET /users, POST /users, GET /users/{id}, PUT /users/{id}, POST /upload
 	assert.Len(t, spec.Endpoints, 5)
 }
 
@@ -129,9 +129,10 @@ func TestHARCharsetStripping(t *testing.T) {
 	require.NoError(t, err)
 
 	// PUT /users/123 has mimeType "application/json; charset=utf-8"
+	// After templatization, 123 becomes {id}.
 	var putUser *Endpoint
 	for i := range spec.Endpoints {
-		if spec.Endpoints[i].Method == "PUT" && spec.Endpoints[i].Path == "/users/123" {
+		if spec.Endpoints[i].Method == "PUT" && spec.Endpoints[i].Path == "/users/{id}" {
 			putUser = &spec.Endpoints[i]
 		}
 	}

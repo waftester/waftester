@@ -224,10 +224,10 @@ func TestGenerateTestCases(t *testing.T) {
 				t.Errorf("expected path '/api/users/123', got '%s'", tc.Path)
 			}
 		}
-		if tc.Path == "/api/search" || tc.Method == "GET" {
-			// Should have query params
+		if tc.Path == "/api/search" {
+			// Search endpoint should have query params
 			if !containsString(tc.Path, "q=") {
-				t.Logf("path: %s", tc.Path)
+				t.Errorf("expected query param q= in path %q", tc.Path)
 			}
 		}
 	}
@@ -417,6 +417,406 @@ func TestIsHTTPMethod(t *testing.T) {
 	}
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Regression tests: each catches a specific Round 5 parser bug.
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestRegression_OpenAPI3PathLevelParams(t *testing.T) {
+	// BUG (Round 5): parseOpenAPI3Paths only read operation-level params,
+	// silently dropping path-level params. A spec like GET /users/{userId}
+	// with userId defined at path level would produce a route with 0 path
+	// params → the scanner would send requests to /users/{userId} literally.
+	spec := `{
+		"openapi": "3.0.0",
+		"info": {"title": "Test", "version": "1.0.0"},
+		"paths": {
+			"/users/{userId}": {
+				"parameters": [
+					{
+						"name": "userId",
+						"in": "path",
+						"required": true,
+						"schema": {"type": "integer"}
+					}
+				],
+				"get": {
+					"operationId": "getUser",
+					"parameters": [
+						{
+							"name": "include",
+							"in": "query",
+							"schema": {"type": "string"}
+						}
+					]
+				}
+			}
+		}
+	}`
+
+	parser := NewParser()
+	result, err := parser.Parse([]byte(spec))
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	if len(result.Routes) != 1 {
+		t.Fatalf("expected 1 route, got %d", len(result.Routes))
+	}
+
+	route := result.Routes[0]
+	if len(route.Parameters) != 2 {
+		t.Fatalf("expected 2 params (path-level userId + operation-level include), got %d: %v",
+			len(route.Parameters), route.Parameters)
+	}
+
+	// Verify both params present and have correct locations.
+	paramByName := make(map[string]Parameter)
+	for _, p := range route.Parameters {
+		paramByName[p.Name] = p
+	}
+	if _, ok := paramByName["userId"]; !ok {
+		t.Fatal("missing path-level param 'userId'")
+	}
+	if paramByName["userId"].In != "path" {
+		t.Errorf("userId.In = %q, want 'path'", paramByName["userId"].In)
+	}
+	if _, ok := paramByName["include"]; !ok {
+		t.Fatal("missing operation-level param 'include'")
+	}
+}
+
+func TestRegression_OpenAPI3PathParamsMergedAcrossOperations(t *testing.T) {
+	// Path-level params must be available for EVERY operation under that path.
+	// Previously, only the first operation received them.
+	spec := `{
+		"openapi": "3.0.0",
+		"info": {"title": "Test", "version": "1.0.0"},
+		"paths": {
+			"/users/{userId}": {
+				"parameters": [
+					{
+						"name": "userId",
+						"in": "path",
+						"required": true,
+						"schema": {"type": "integer"}
+					}
+				],
+				"get": {
+					"operationId": "getUser"
+				},
+				"delete": {
+					"operationId": "deleteUser",
+					"parameters": [
+						{
+							"name": "force",
+							"in": "query",
+							"schema": {"type": "boolean"}
+						}
+					]
+				}
+			}
+		}
+	}`
+
+	parser := NewParser()
+	result, err := parser.Parse([]byte(spec))
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	if len(result.Routes) != 2 {
+		t.Fatalf("expected 2 routes (GET + DELETE), got %d", len(result.Routes))
+	}
+
+	for _, route := range result.Routes {
+		hasUserID := false
+		for _, p := range route.Parameters {
+			if p.Name == "userId" {
+				hasUserID = true
+			}
+		}
+		if !hasUserID {
+			t.Errorf("%s %s: missing path-level param 'userId'", route.Method, route.Path)
+		}
+	}
+
+	// DELETE should have userId + force = 2 params.
+	for _, route := range result.Routes {
+		if route.Method == "DELETE" && len(route.Parameters) != 2 {
+			t.Errorf("DELETE expects 2 params (userId + force), got %d", len(route.Parameters))
+		}
+	}
+}
+
+func TestRegression_OpenAPI3OperationOverridesPathParam(t *testing.T) {
+	// Per OpenAPI 3 spec: when same param name+in appears at both path and
+	// operation level, operation-level takes precedence.
+	spec := `{
+		"openapi": "3.0.0",
+		"info": {"title": "Test", "version": "1.0.0"},
+		"paths": {
+			"/items/{itemId}": {
+				"parameters": [
+					{
+						"name": "itemId",
+						"in": "path",
+						"required": true,
+						"schema": {"type": "string"},
+						"description": "path-level"
+					}
+				],
+				"get": {
+					"parameters": [
+						{
+							"name": "itemId",
+							"in": "path",
+							"required": true,
+							"schema": {"type": "integer"},
+							"description": "operation-level"
+						}
+					]
+				}
+			}
+		}
+	}`
+
+	parser := NewParser()
+	result, err := parser.Parse([]byte(spec))
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	route := result.Routes[0]
+	if len(route.Parameters) != 1 {
+		t.Fatalf("expected 1 param (operation overrides path), got %d", len(route.Parameters))
+	}
+	if route.Parameters[0].Type != "integer" {
+		t.Errorf("expected operation-level type 'integer', got '%s'", route.Parameters[0].Type)
+	}
+}
+
+func TestRegression_RealisticMultiEndpointSpec(t *testing.T) {
+	// A realistic spec with multiple paths, shared path params, request bodies,
+	// and mixed param locations. This is what a real scanner processes.
+	spec := `{
+		"openapi": "3.0.0",
+		"info": {"title": "Users API", "version": "2.0.0"},
+		"servers": [{"url": "https://api.example.com/v2"}],
+		"paths": {
+			"/users": {
+				"get": {
+					"parameters": [
+						{"name": "page", "in": "query", "schema": {"type": "integer"}},
+						{"name": "limit", "in": "query", "schema": {"type": "integer"}}
+					]
+				},
+				"post": {
+					"requestBody": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"name": {"type": "string"},
+										"email": {"type": "string"}
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"/users/{userId}": {
+				"parameters": [
+					{
+						"name": "userId",
+						"in": "path",
+						"required": true,
+						"schema": {"type": "integer"}
+					}
+				],
+				"get": {
+					"parameters": [
+						{"name": "fields", "in": "query", "schema": {"type": "string"}}
+					]
+				},
+				"put": {
+					"parameters": [
+						{"name": "X-Request-Id", "in": "header", "schema": {"type": "string"}}
+					],
+					"requestBody": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"name": {"type": "string"}
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"/users/{userId}/posts/{postId}": {
+				"parameters": [
+					{"name": "userId", "in": "path", "required": true, "schema": {"type": "integer"}},
+					{"name": "postId", "in": "path", "required": true, "schema": {"type": "integer"}}
+				],
+				"get": {
+					"operationId": "getUserPost"
+				}
+			}
+		}
+	}`
+
+	parser := NewParser()
+	result, err := parser.Parse([]byte(spec))
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	// 5 operations: GET /users, POST /users, GET /users/{userId},
+	// PUT /users/{userId}, GET /users/{userId}/posts/{postId}
+	if len(result.Routes) != 5 {
+		t.Fatalf("expected 5 routes, got %d", len(result.Routes))
+	}
+
+	// Build a lookup by method+path.
+	type routeKey struct{ method, path string }
+	routeMap := make(map[routeKey]Route)
+	for _, r := range result.Routes {
+		routeMap[routeKey{r.Method, r.Path}] = r
+	}
+
+	// GET /users: 2 query params, no path params.
+	getUsers := routeMap[routeKey{"GET", "/users"}]
+	if len(getUsers.Parameters) != 2 {
+		t.Errorf("GET /users: want 2 params, got %d", len(getUsers.Parameters))
+	}
+
+	// GET /users/{userId}: path-level userId + operation-level fields = 2 params.
+	getUser := routeMap[routeKey{"GET", "/users/{userId}"}]
+	if len(getUser.Parameters) != 2 {
+		t.Errorf("GET /users/{userId}: want 2 params (userId + fields), got %d: %+v",
+			len(getUser.Parameters), getUser.Parameters)
+	}
+
+	// PUT /users/{userId}: path-level userId + header X-Request-Id = 2 params.
+	putUser := routeMap[routeKey{"PUT", "/users/{userId}"}]
+	if len(putUser.Parameters) != 2 {
+		t.Errorf("PUT /users/{userId}: want 2 params (userId + X-Request-Id), got %d: %+v",
+			len(putUser.Parameters), putUser.Parameters)
+	}
+
+	// GET /users/{userId}/posts/{postId}: 2 path-level params, no operation params.
+	getPost := routeMap[routeKey{"GET", "/users/{userId}/posts/{postId}"}]
+	if len(getPost.Parameters) != 2 {
+		t.Errorf("GET /users/{userId}/posts/{postId}: want 2 params, got %d: %+v",
+			len(getPost.Parameters), getPost.Parameters)
+	}
+	// Verify the params are actually path params.
+	for _, p := range getPost.Parameters {
+		if p.In != "path" {
+			t.Errorf("expected path param, got %q for %q", p.In, p.Name)
+		}
+	}
+}
+
+func TestRegression_Swagger2PathLevelParams(t *testing.T) {
+	// Swagger 2 already handled path-level params, but verify the merge logic
+	// didn't break it.
+	spec := `{
+		"swagger": "2.0",
+		"info": {"title": "Test", "version": "1.0.0"},
+		"basePath": "/api",
+		"paths": {
+			"/users/{userId}": {
+				"parameters": [
+					{
+						"name": "userId",
+						"in": "path",
+						"required": true,
+						"type": "string"
+					}
+				],
+				"get": {
+					"parameters": [
+						{
+							"name": "fields",
+							"in": "query",
+							"type": "string"
+						}
+					]
+				}
+			}
+		}
+	}`
+
+	parser := NewParser()
+	result, err := parser.Parse([]byte(spec))
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	if len(result.Routes) != 1 {
+		t.Fatalf("expected 1 route, got %d", len(result.Routes))
+	}
+
+	route := result.Routes[0]
+	if len(route.Parameters) != 2 {
+		t.Fatalf("expected 2 params (path userId + query fields), got %d", len(route.Parameters))
+	}
+
+	paramByName := make(map[string]Parameter)
+	for _, p := range route.Parameters {
+		paramByName[p.Name] = p
+	}
+	if _, ok := paramByName["userId"]; !ok {
+		t.Fatal("missing path-level param 'userId'")
+	}
+	if _, ok := paramByName["fields"]; !ok {
+		t.Fatal("missing operation-level param 'fields'")
+	}
+}
+
+func TestParseEmptySpec(t *testing.T) {
+	parser := NewParser()
+	_, err := parser.Parse([]byte("{}"))
+	// Should not panic on empty spec.
+	_ = err
+}
+
+func TestParseInvalidJSON(t *testing.T) {
+	parser := NewParser()
+	_, err := parser.Parse([]byte("not json"))
+	if err == nil {
+		t.Error("expected error for invalid JSON")
+	}
+}
+
 func containsString(s, substr string) bool {
-	return len(s) >= len(substr) && strings.Contains(s, substr)
+	return strings.Contains(s, substr)
+}
+
+// TestRegression_BuildQueryStringEncoding verifies that query string values
+// are URL-encoded. Before the fix, values were concatenated raw, allowing
+// parameter injection (e.g., "a&admin=true" would split into two params).
+func TestRegression_BuildQueryStringEncoding(t *testing.T) {
+	params := map[string]string{
+		"search": "a&admin=true",
+		"page":   "1",
+	}
+	qs := buildQueryString(params)
+
+	// The "&" in the value must be encoded, not treated as a parameter separator.
+	if strings.Count(qs, "&") != 1 {
+		t.Errorf("expected exactly 1 literal '&' separator, got query string: %s", qs)
+	}
+	if strings.Contains(qs, "admin=true") {
+		t.Errorf("parameter injection: 'admin=true' should be encoded, got: %s", qs)
+	}
+	if !strings.Contains(qs, "a%26admin%3Dtrue") {
+		t.Errorf("expected URL-encoded value 'a%%26admin%%3Dtrue', got: %s", qs)
+	}
 }

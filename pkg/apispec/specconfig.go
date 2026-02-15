@@ -72,6 +72,9 @@ type AuthConfig struct {
 	// APIKeyHeader is the header name for the API key (default: X-API-Key).
 	APIKeyHeader string `json:"api_key_header,omitempty"`
 
+	// APIKeyIn specifies where to send the API key: "header" (default) or "query".
+	APIKeyIn string `json:"api_key_in,omitempty"`
+
 	// AuthHeader is a raw Authorization header value.
 	AuthHeader string `json:"auth_header,omitempty"`
 
@@ -96,6 +99,11 @@ type AuthConfig struct {
 
 	// OAuth2Scopes is a comma-separated list of scopes to request.
 	OAuth2Scopes string `json:"oauth2_scopes,omitempty"`
+
+	// WarnFunc, if set, receives warning messages that would otherwise be
+	// written to stderr. Library code must not write to stderr directly
+	// because in MCP server mode stderr is the JSON-RPC transport.
+	WarnFunc func(msg string) `json:"-"`
 }
 
 // HasSpec returns true if any spec source is configured.
@@ -216,6 +224,28 @@ func (c *AuthConfig) HasAuth() bool {
 		c.OAuth2ClientID != ""
 }
 
+// authMethodCount returns how many auth mechanisms are configured.
+// Useful for warning users about accidental overwrite.
+func (c *AuthConfig) authMethodCount() int {
+	n := 0
+	if c.BearerToken != "" {
+		n++
+	}
+	if c.AuthHeader != "" {
+		n++
+	}
+	if c.BasicUser != "" {
+		n++
+	}
+	if c.APIKey != "" {
+		n++
+	}
+	if c.OAuth2ClientID != "" {
+		n++
+	}
+	return n
+}
+
 // ScanConfigFile represents a .waftester-spec.yaml file with per-endpoint
 // scan overrides. This allows users to customize scanning behavior for
 // specific endpoint paths without modifying the API spec.
@@ -315,6 +345,13 @@ func (f *ScanConfigFile) ApplyToPlan(plan *ScanPlan) {
 		kept = append(kept, entry)
 	}
 	plan.Entries = kept
+
+	// Recalculate total tests after filtering.
+	total := 0
+	for _, e := range kept {
+		total += e.Attack.PayloadCount
+	}
+	plan.TotalTests = total
 }
 
 // matchPathGlob matches an endpoint path against a glob pattern.
