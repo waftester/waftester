@@ -95,8 +95,9 @@ func readStdin() ([]string, error) {
 	return lines, scanner.Err()
 }
 
-// GetSingleTarget returns the first target or an error if none provided
-// Use this for commands that don't yet support multi-target
+// GetSingleTarget returns the first target or an error if none provided.
+// When multiple targets are given, the first is used silently. The caller
+// is responsible for warning the user if needed.
 func (ts *TargetSource) GetSingleTarget() (string, error) {
 	targets, err := ts.GetTargets()
 	if err != nil {
@@ -104,9 +105,6 @@ func (ts *TargetSource) GetSingleTarget() (string, error) {
 	}
 	if len(targets) == 0 {
 		return "", fmt.Errorf("no targets specified")
-	}
-	if len(targets) > 1 {
-		fmt.Fprintf(os.Stderr, "[WARN] Multiple targets provided, using first: %s\n", targets[0])
 	}
 	return targets[0], nil
 }

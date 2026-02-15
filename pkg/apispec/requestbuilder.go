@@ -70,6 +70,24 @@ func BuildRequest(baseURL string, ep Endpoint, target InjectionTarget, payload s
 			if ct == "" {
 				ct = "application/json"
 			}
+			// Multipart bodies require the boundary parameter in Content-Type.
+			if strings.Contains(ct, "multipart") {
+				ct += "; boundary=----WafTesterBoundary"
+			}
+			req.Header.Set("Content-Type", ct)
+		}
+	} else if len(ep.RequestBodies) > 0 && needsBody(ep.Method) {
+		// Non-body injection target on a method that expects a body (POST/PUT/PATCH).
+		// Populate a default body so the server doesn't reject with 400.
+		body := buildDefaultBody(ep)
+		if body != "" {
+			req.Body = newStringBody(body)
+			req.ContentLength = int64(len(body))
+			// Pick content type from request body spec.
+			ct := defaultContentType(ep)
+			if strings.Contains(ct, "multipart") {
+				ct += "; boundary=----WafTesterBoundary"
+			}
 			req.Header.Set("Content-Type", ct)
 		}
 	}
@@ -107,7 +125,9 @@ func BuildRequest(baseURL string, ep Endpoint, target InjectionTarget, payload s
 }
 
 // expandPathParams replaces {param} placeholders in the path template.
-// If the injection target is a path parameter, the payload is injected there.
+// If the injection target is a path parameter, the payload is injected raw
+// (no URL-encoding) because security testing payloads must reach the server
+// unmodified. Non-payload values are URL-encoded for correctness.
 func expandPathParams(pathTemplate string, params []Parameter, payload string, target InjectionTarget) string {
 	result := pathTemplate
 	for _, p := range params {
@@ -121,15 +141,21 @@ func expandPathParams(pathTemplate string, params []Parameter, payload string, t
 
 		var value string
 		if target.Location == LocationPath && target.Parameter == p.Name {
+			// Inject payload raw — no encoding. This is intentional:
+			// security payloads like ../../../etc/passwd or <script> must
+			// not be escaped by the testing tool.
 			value = payload
-		} else if p.Example != nil {
-			value = fmt.Sprintf("%v", p.Example)
-		} else if p.Default != nil {
-			value = fmt.Sprintf("%v", p.Default)
+			result = strings.ReplaceAll(result, placeholder, value)
 		} else {
-			value = defaultValue(p.Schema)
+			if p.Example != nil {
+				value = fmt.Sprintf("%v", p.Example)
+			} else if p.Default != nil {
+				value = fmt.Sprintf("%v", p.Default)
+			} else {
+				value = defaultValue(p.Schema)
+			}
+			result = strings.ReplaceAll(result, placeholder, url.PathEscape(value))
 		}
-		result = strings.ReplaceAll(result, placeholder, url.PathEscape(value))
 	}
 	return result
 }
@@ -157,16 +183,23 @@ func buildBody(ep Endpoint, target InjectionTarget, payload string) string {
 
 	rb, ok := ep.RequestBodies[ct]
 	if !ok {
-		// Fall back to first available content type.
-		for contentType, body := range ep.RequestBodies {
-			rb = body
-			ct = contentType
-			break
+		// Deterministic fallback: sort content types alphabetically.
+		keys := make([]string, 0, len(ep.RequestBodies))
+		for k := range ep.RequestBodies {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		if len(keys) > 0 {
+			ct = keys[0]
+			rb = ep.RequestBodies[ct]
 		}
 	}
 
 	if strings.Contains(ct, "json") {
 		return buildJSONBody(rb.Schema, payload)
+	}
+	if strings.Contains(ct, "multipart") {
+		return buildMultipartBody(rb.Schema, payload)
 	}
 	if strings.Contains(ct, "form") {
 		return buildFormBody(rb.Schema, payload)
@@ -177,10 +210,21 @@ func buildBody(ep Endpoint, target InjectionTarget, payload string) string {
 }
 
 // buildJSONBody creates a JSON object with schema properties, injecting the payload
-// into the first string property.
+// into the first string property. Recurses into nested objects.
 func buildJSONBody(schema SchemaInfo, payload string) string {
 	if len(schema.Properties) == 0 {
 		return fmt.Sprintf(`{"payload":%q}`, payload)
+	}
+	result, _ := buildJSONObject(schema, payload, true)
+	return result
+}
+
+// buildJSONObject recursively builds a JSON object. If injectPayload is true,
+// the payload is injected into the first string field encountered.
+// Returns the JSON string and whether the payload was injected.
+func buildJSONObject(schema SchemaInfo, payload string, injectPayload bool) (string, bool) {
+	if len(schema.Properties) == 0 {
+		return "{}", false
 	}
 
 	// Sort property names for deterministic output.
@@ -194,17 +238,29 @@ func buildJSONBody(schema SchemaInfo, payload string) string {
 	injected := false
 	for _, name := range names {
 		prop := schema.Properties[name]
-		if !injected && (prop.Type == "string" || prop.Type == "") {
+		switch {
+		case !injected && injectPayload && (prop.Type == "string" || prop.Type == ""):
 			parts = append(parts, fmt.Sprintf("%q:%q", name, payload))
 			injected = true
-		} else {
+		case prop.Type == "object" && len(prop.Properties) > 0:
+			// Recurse into nested objects. Only inject payload into the first
+			// nested object if we haven't injected yet.
+			nested, nestedInjected := buildJSONObject(prop, payload, injectPayload && !injected)
+			parts = append(parts, fmt.Sprintf("%q:%s", name, nested))
+			if nestedInjected {
+				injected = true
+			}
+		case prop.Type == "array":
+			parts = append(parts, fmt.Sprintf("%q:%s", name, defaultJSONArray(prop)))
+		default:
 			parts = append(parts, fmt.Sprintf("%q:%s", name, defaultJSONValue(prop)))
 		}
 	}
-	if !injected {
+	if !injected && injectPayload {
 		parts = append(parts, fmt.Sprintf("%q:%q", "payload", payload))
+		injected = true
 	}
-	return "{" + strings.Join(parts, ",") + "}"
+	return "{" + strings.Join(parts, ",") + "}", injected
 }
 
 // buildFormBody creates a URL-encoded form body.
@@ -234,6 +290,52 @@ func buildFormBody(schema SchemaInfo, payload string) string {
 	return values.Encode()
 }
 
+// buildMultipartBody creates a simple multipart/form-data body.
+// Uses a fixed boundary for deterministic output.
+func buildMultipartBody(schema SchemaInfo, payload string) string {
+	const boundary = "----WafTesterBoundary"
+	var b strings.Builder
+
+	names := make([]string, 0, len(schema.Properties))
+	for name := range schema.Properties {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	injected := false
+	for _, name := range names {
+		prop := schema.Properties[name]
+		b.WriteString("--" + boundary + "\r\n")
+		if prop.Format == "binary" || prop.Type == "file" {
+			b.WriteString(fmt.Sprintf("Content-Disposition: form-data; name=%q; filename=\"test.txt\"\r\n", name))
+			b.WriteString("Content-Type: application/octet-stream\r\n\r\n")
+			if !injected {
+				b.WriteString(payload)
+				injected = true
+			} else {
+				b.WriteString("test")
+			}
+		} else {
+			b.WriteString(fmt.Sprintf("Content-Disposition: form-data; name=%q\r\n\r\n", name))
+			if !injected && (prop.Type == "string" || prop.Type == "") {
+				b.WriteString(payload)
+				injected = true
+			} else {
+				b.WriteString(defaultFormValue(prop))
+			}
+		}
+		b.WriteString("\r\n")
+	}
+	if !injected {
+		b.WriteString("--" + boundary + "\r\n")
+		b.WriteString("Content-Disposition: form-data; name=\"payload\"\r\n\r\n")
+		b.WriteString(payload)
+		b.WriteString("\r\n")
+	}
+	b.WriteString("--" + boundary + "--\r\n")
+	return b.String()
+}
+
 // defaultValue returns a reasonable default for a parameter based on its schema type.
 func defaultValue(schema SchemaInfo) string {
 	if len(schema.Enum) > 0 {
@@ -261,12 +363,25 @@ func defaultJSONValue(schema SchemaInfo) string {
 	case "boolean":
 		return "true"
 	case "array":
-		return `["test"]`
+		return defaultJSONArray(schema)
 	case "object":
+		if len(schema.Properties) > 0 {
+			result, _ := buildJSONObject(schema, "test", false)
+			return result
+		}
 		return "{}"
 	default:
 		return `"test"`
 	}
+}
+
+// defaultJSONArray returns a JSON array using the items schema if available.
+func defaultJSONArray(schema SchemaInfo) string {
+	if schema.Items != nil {
+		item := defaultJSONValue(*schema.Items)
+		return "[" + item + "]"
+	}
+	return `["test"]`
 }
 
 // defaultFormValue returns a default string value for form encoding.
@@ -290,4 +405,42 @@ func (stringBody) Close() error { return nil }
 
 func newStringBody(s string) *stringBody {
 	return &stringBody{Reader: strings.NewReader(s)}
+}
+
+// needsBody returns true for HTTP methods that typically carry a request body.
+func needsBody(method string) bool {
+	switch strings.ToUpper(method) {
+	case "POST", "PUT", "PATCH":
+		return true
+	}
+	return false
+}
+
+// defaultContentType returns the first content type from the endpoint's request
+// bodies, falling back to application/json.
+func defaultContentType(ep Endpoint) string {
+	keys := make([]string, 0, len(ep.RequestBodies))
+	for k := range ep.RequestBodies {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	if len(keys) > 0 {
+		return keys[0]
+	}
+	return "application/json"
+}
+
+// buildDefaultBody constructs a body using example/default values from the
+// endpoint's request body schema — no payload injection.
+func buildDefaultBody(ep Endpoint) string {
+	ct := defaultContentType(ep)
+	rb := ep.RequestBodies[ct]
+	if strings.Contains(ct, "json") {
+		result, _ := buildJSONObject(rb.Schema, "", false)
+		return result
+	}
+	if strings.Contains(ct, "form") {
+		return buildFormBody(rb.Schema, "")
+	}
+	return ""
 }

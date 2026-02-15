@@ -73,9 +73,20 @@ func runSpecPipeline(cfg specPipelineConfig) {
 	// Phase 1: Parse spec.
 	cfg.printStatus("  Parsing API specification...\n")
 
-	spec, err := apispec.Parse(source)
+	spec, err := apispec.ParseContext(ctx, source)
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Failed to parse spec: %v", err))
+		os.Exit(1)
+	}
+
+	// Resolve spec-embedded variable defaults so SSRF check sees real URLs.
+	// Without this, a spec with servers: [{url: "{{host}}"}] and
+	// variables: {host: {default: "http://169.254.169.254"}} bypasses the blocklist.
+	apispec.ResolveVariables(spec, nil, nil)
+
+	// SSRF blocklist: reject specs targeting internal networks.
+	if ssrfErr := apispec.CheckServerURLs(spec); ssrfErr != nil {
+		ui.PrintError(ssrfErr.Error())
 		os.Exit(1)
 	}
 
@@ -188,7 +199,7 @@ func runSpecPipeline(cfg specPipelineConfig) {
 			Intensity: cfg.intensity,
 			Plan:      plan,
 		}, "", "  ")
-		fmt.Println(string(data))
+		fmt.Println(string(data)) // debug:keep — JSON dry-run output
 		return
 	}
 
@@ -217,11 +228,6 @@ func runSpecPipeline(cfg specPipelineConfig) {
 	// Phase 4: Execute.
 	cfg.printStatus("  Executing spec-driven scan...\n")
 
-	result := &apispec.SpecScanResult{
-		SpecSource: source,
-		StartedAt:  time.Now(),
-	}
-
 	executor := &apispec.AdaptiveExecutor{
 		BaseURL:     scanTarget,
 		Concurrency: cfg.concurrency,
@@ -241,7 +247,6 @@ func runSpecPipeline(cfg specPipelineConfig) {
 			cfg.printStatus("  Testing %s %s (%s)...\n", ep.Method, ep.Path, scanType)
 		},
 		OnFinding: func(f apispec.SpecFinding) {
-			result.AddFinding(f)
 			if !cfg.quietMode {
 				severity := f.Severity
 				if severity == "" {
@@ -256,11 +261,21 @@ func runSpecPipeline(cfg specPipelineConfig) {
 		},
 	}
 
-	if _, execErr := executor.Execute(ctx, plan); execErr != nil {
-		result.AddError(fmt.Sprintf("execution error: %v", execErr))
+	session, execErr := executor.Execute(ctx, plan)
+	if execErr != nil {
+		ui.PrintWarning(fmt.Sprintf("execution error: %v", execErr))
 	}
 
-	result.Finalize()
+	// Use the executor's result directly — it already has all findings,
+	// endpoints, tests, and timing finalized.
+	result := session.Result
+	if result == nil {
+		result = &apispec.SpecScanResult{
+			SpecSource: source,
+			StartedAt:  time.Now(),
+		}
+		result.Finalize()
+	}
 
 	// Phase 5: Output results.
 	elapsed := time.Since(startTime).Round(time.Millisecond)
@@ -279,7 +294,7 @@ func runSpecPipeline(cfg specPipelineConfig) {
 	}, "", "  ")
 
 	if cfg.outFlags.JSONMode {
-		fmt.Println(string(data))
+		fmt.Println(string(data)) // debug:keep — JSON result output
 	} else {
 		ui.PrintSuccess(fmt.Sprintf("Scan complete in %s", elapsed))
 		totalFindings := result.TotalFindings()
@@ -293,3 +308,5 @@ func runSpecPipeline(cfg specPipelineConfig) {
 		}
 	}
 }
+
+

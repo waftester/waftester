@@ -88,6 +88,14 @@ func resolveSpecInput(ctx context.Context, content, path, url string) (*apispec.
 		})
 	}
 
+	// Resolve spec-embedded variable defaults so SSRF check sees real URLs.
+	apispec.ResolveVariables(spec, nil, nil)
+
+	// SSRF blocklist: reject specs targeting internal/private addresses.
+	if ssrfErr := apispec.CheckServerURLs(spec); ssrfErr != nil {
+		return nil, errorResult(ssrfErr.Error())
+	}
+
 	return spec, nil
 }
 
@@ -182,6 +190,21 @@ func (s *Server) handleValidateSpec(ctx context.Context, req *mcp.CallToolReques
 		return jsonResult(validationResult{
 			Valid:  false,
 			Errors: []string{parseErr.Error()},
+		})
+	}
+
+	// Resolve spec-embedded variable defaults so SSRF check sees real URLs.
+	apispec.ResolveVariables(spec, nil, nil)
+
+	// SSRF blocklist: report blocked server URLs as validation errors.
+	if ssrfErr := apispec.CheckServerURLs(spec); ssrfErr != nil {
+		return jsonResult(validationResult{
+			Valid:         false,
+			Format:        string(spec.Format),
+			EndpointCount: len(spec.Endpoints),
+			Title:         spec.Title,
+			Version:       spec.Version,
+			Errors:        []string{ssrfErr.Error()},
 		})
 	}
 
@@ -1092,3 +1115,8 @@ func (s *Server) specScanFn() apispec.ScanFunc {
 		return nil, nil
 	}
 }
+
+
+
+
+

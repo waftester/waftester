@@ -8,7 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // SpecValidationResult holds the output of ValidateSpec.
@@ -77,6 +80,24 @@ func ValidateSpec(path string, allowInternal bool) (*SpecValidationResult, error
 	return result, nil
 }
 
+// CheckServerURLs validates that no server URL targets an internal/blocked address.
+// Returns an error listing all blocked URLs, or nil if all are safe.
+// This is the lightweight guard for scan entry points — it runs inline
+// without the full ValidateSpec machinery (ref checks, credential detection).
+func CheckServerURLs(spec *Spec) error {
+	var blocked []string
+	for _, server := range spec.Servers {
+		if isBlockedURL(server.URL) {
+			blocked = append(blocked, server.URL)
+		}
+	}
+	if len(blocked) > 0 {
+		return fmt.Errorf("server URLs blocked by SSRF policy (use --allow-internal to override): %s",
+			strings.Join(blocked, ", "))
+	}
+	return nil
+}
+
 // validateServerURLs checks server URLs against the SSRF blocklist.
 func validateServerURLs(spec *Spec, allowInternal bool, result *SpecValidationResult) {
 	if allowInternal {
@@ -104,7 +125,18 @@ func validateRefs(data []byte, specPath string, format Format, result *SpecValid
 
 	var doc map[string]any
 	if err := json.Unmarshal(data, &doc); err != nil {
-		return // YAML specs handled separately
+		// YAML spec — convert to JSON-compatible map via yaml.Unmarshal.
+		var raw interface{}
+		if yamlErr := yaml.Unmarshal(data, &raw); yamlErr != nil {
+			return // Neither valid JSON nor YAML.
+		}
+		jsonData, jsonErr := json.Marshal(convertYAMLToJSON(raw))
+		if jsonErr != nil {
+			return
+		}
+		if err2 := json.Unmarshal(jsonData, &doc); err2 != nil {
+			return
+		}
 	}
 
 	specDir := filepath.Dir(specPath)
@@ -178,9 +210,14 @@ func checkRef(ref, specDir string, result *SpecValidationResult, jsonPath string
 
 		// Reject path traversal
 		if strings.Contains(filePart, "..") {
+			absSpecDir, absErr := filepath.Abs(specDir)
 			resolved := filepath.Join(specDir, filePart)
 			resolved = filepath.Clean(resolved)
-			if !strings.HasPrefix(resolved, specDir) {
+			absResolved, resErr := filepath.Abs(resolved)
+			// Use absolute paths with trailing separator to prevent sibling
+			// directory prefix matches (e.g., /app/specs vs /app/specs-evil).
+			if absErr != nil || resErr != nil ||
+				!strings.HasPrefix(absResolved+string(filepath.Separator), absSpecDir+string(filepath.Separator)) {
 				result.Valid = false
 				result.Errors = append(result.Errors, ValidationIssue{
 					Code:    "path_traversal",
@@ -261,11 +298,30 @@ func validateVariableURLs(spec *Spec, allowInternal bool, result *SpecValidation
 	}
 }
 
+// hasTemplateHost checks if the URL's hostname portion contains template
+// variables ({{ ... }}). We extract the hostname manually because Go's
+// url.Parse rejects {{ in hostnames.
+func hasTemplateHost(rawURL string) bool {
+	// Strip scheme (e.g., "https://")
+	rest := rawURL
+	if idx := strings.Index(rest, "://"); idx >= 0 {
+		rest = rest[idx+3:]
+	}
+	// Everything before the first / is the authority (host:port).
+	if idx := strings.Index(rest, "/"); idx >= 0 {
+		rest = rest[:idx]
+	}
+	return strings.Contains(rest, "{{")
+}
+
 // SSRF blocklist — blocks requests to internal networks, metadata endpoints,
 // and non-HTTP schemes.
 func isBlockedURL(rawURL string) bool {
-	// Skip template URLs that haven't been resolved yet
-	if strings.Contains(rawURL, "{{") {
+	// Check for template variables in the authority (hostname) portion
+	// before url.Parse, because Go's parser rejects {{ in hostnames.
+	// Only skip when the hostname itself is templated — {{ in paths
+	// must NOT bypass the check (e.g., http://169.254.169.254/{{x).
+	if hasTemplateHost(rawURL) {
 		return false
 	}
 
@@ -299,8 +355,85 @@ func isBlockedURL(rawURL string) bool {
 	// Block private IP ranges
 	ip := net.ParseIP(host)
 	if ip == nil {
+		// Try numeric IP notations that net.ParseIP doesn't handle.
+		// These are common SSRF bypass techniques.
+		ip = parseNumericIP(host)
+	}
+	if ip == nil {
 		return false // Non-IP hostnames pass
 	}
 
 	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()
+}
+
+// parseNumericIP handles IP notations that net.ParseIP rejects:
+//   - Decimal: 2130706433 → 127.0.0.1
+//   - Octal:   0177.0.0.01 → 127.0.0.1
+//   - Short:   127.1 → 127.0.0.1
+func parseNumericIP(host string) net.IP {
+	// Hex notation: 0x7f000001 → 127.0.0.1
+	if strings.HasPrefix(host, "0x") || strings.HasPrefix(host, "0X") {
+		if n, err := strconv.ParseUint(host[2:], 16, 32); err == nil {
+			return net.IPv4(byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
+		}
+	}
+
+	// Decimal notation: single integer representing the full 32-bit address.
+	if n, err := strconv.ParseUint(host, 10, 32); err == nil {
+		return net.IPv4(byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
+	}
+
+	// Octal notation: any dotted-quad component starting with '0' is octal.
+	parts := strings.Split(host, ".")
+	if len(parts) < 2 || len(parts) > 4 {
+		return nil
+	}
+	hasOctal := false
+	hasHexOctet := false
+	for _, p := range parts {
+		if len(p) > 2 && (strings.HasPrefix(p, "0x") || strings.HasPrefix(p, "0X")) {
+			hasHexOctet = true
+		} else if len(p) > 1 && p[0] == '0' {
+			hasOctal = true
+		}
+	}
+	// Short notation: 127.1 (2 parts) or 127.0.1 (3 parts).
+	if !hasOctal && !hasHexOctet && len(parts) == 4 {
+		return nil // Standard dotted-quad without octal; net.ParseIP already handles this.
+	}
+
+	// Parse each component, handling octal and hex prefixes.
+	octets := make([]byte, 4)
+	for i, p := range parts {
+		base := 10
+		cleanP := p
+		if len(p) > 2 && (strings.HasPrefix(p, "0x") || strings.HasPrefix(p, "0X")) {
+			base = 16
+			cleanP = p[2:]
+		} else if len(p) > 1 && p[0] == '0' {
+			base = 8
+		}
+		v, err := strconv.ParseUint(cleanP, base, 32)
+		if err != nil {
+			return nil
+		}
+		if i == len(parts)-1 {
+			// Last part absorbs remaining octets (e.g., 127.1 → 127.0.0.1).
+			remaining := 4 - i
+			max := uint64(1) << (uint(remaining) * 8)
+			if v >= max {
+				return nil
+			}
+			for j := remaining - 1; j >= 0; j-- {
+				octets[i+j] = byte(v & 0xFF)
+				v >>= 8
+			}
+		} else {
+			if v > 255 {
+				return nil
+			}
+			octets[i] = byte(v)
+		}
+	}
+	return net.IPv4(octets[0], octets[1], octets[2], octets[3])
 }

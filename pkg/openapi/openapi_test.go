@@ -552,3 +552,38 @@ func TestGetSchemaFieldsArray(t *testing.T) {
 	assert.True(t, paths["[0].id"])
 	assert.True(t, paths["[0].name"])
 }
+
+// TestRegression_ResolveRefNilSchema verifies that ResolveRef doesn't panic
+// when a schema key maps to null in the spec (valid JSON: {"Foo": null}).
+// Before the fix, accessing schema.Ref on a nil *Schema caused a nil deref.
+func TestRegression_ResolveRefNilSchema(t *testing.T) {
+	t.Parallel()
+	parser := NewParser()
+	spec := &Spec{
+		Components: &Components{
+			Schemas: map[string]*Schema{
+				"NullSchema": nil,
+			},
+		},
+	}
+	// Must not panic — should return nil.
+	result := parser.ResolveRef(spec, "#/components/schemas/NullSchema")
+	assert.Nil(t, result)
+}
+
+// TestRegression_ResolveParamRefNilParam verifies that ResolveParamRef doesn't
+// panic when a parameter key maps to null.
+func TestRegression_ResolveParamRefNilParam(t *testing.T) {
+	t.Parallel()
+	parser := NewParser()
+	spec := &Spec{
+		Components: &Components{
+			Parameters: map[string]*Parameter{
+				"NullParam": nil,
+			},
+		},
+	}
+	// Must not panic — should return nil.
+	result := parser.ResolveParamRef(spec, "#/components/parameters/NullParam")
+	assert.Nil(t, result)
+}
