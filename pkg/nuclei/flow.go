@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // Flow is a parsed sequence of execution steps.
@@ -174,7 +176,7 @@ func EvaluateCondition(cond *Condition, vars map[string]string, blockResults map
 		if !exists {
 			return false
 		}
-		re, err := regexp.Compile(cond.Value)
+		re, err := regexcache.Get(cond.Value)
 		if err != nil {
 			return false
 		}
