@@ -897,6 +897,15 @@ func matchStatus(statuses []int, code int, condition string) bool {
 		return true
 	}
 
+	if condition == "and" {
+		for _, status := range statuses {
+			if status != code {
+				return false
+			}
+		}
+		return true
+	}
+
 	for _, status := range statuses {
 		if status == code {
 			return true
@@ -907,6 +916,15 @@ func matchStatus(statuses []int, code int, condition string) bool {
 
 func matchSize(sizes []int, size int, condition string) bool {
 	if len(sizes) == 0 {
+		return true
+	}
+
+	if condition == "and" {
+		for _, s := range sizes {
+			if s != size {
+				return false
+			}
+		}
 		return true
 	}
 

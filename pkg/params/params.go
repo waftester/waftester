@@ -427,8 +427,20 @@ func (d *Discoverer) wordlistDiscovery(ctx context.Context, targetURL string, me
 	return params
 }
 
-// testParamChunk tests a chunk of parameters in a single request
+// testParamChunk tests a chunk of parameters in a single request.
+// Uses binary search to identify which specific parameters cause a response change.
 func (d *Discoverer) testParamChunk(ctx context.Context, targetURL string, method string, chunk []string, baseline *baselineResponse) []DiscoveredParam {
+	return d.testParamChunkR(ctx, targetURL, method, chunk, baseline, 0)
+}
+
+// maxParamRecursionDepth limits binary search depth to prevent stack overflow
+// from adversarial servers that return different responses every time.
+const maxParamRecursionDepth = 20
+
+func (d *Discoverer) testParamChunkR(ctx context.Context, targetURL string, method string, chunk []string, baseline *baselineResponse, depth int) []DiscoveredParam {
+	if depth > maxParamRecursionDepth {
+		return nil
+	}
 	var found []DiscoveredParam
 
 	// Build URL with all params in chunk
@@ -483,8 +495,8 @@ func (d *Discoverer) testParamChunk(ctx context.Context, targetURL string, metho
 	if len(chunk) > 1 {
 		// Split chunk and recursively test
 		mid := len(chunk) / 2
-		left := d.testParamChunk(ctx, targetURL, method, chunk[:mid], baseline)
-		right := d.testParamChunk(ctx, targetURL, method, chunk[mid:], baseline)
+		left := d.testParamChunkR(ctx, targetURL, method, chunk[:mid], baseline, depth+1)
+		right := d.testParamChunkR(ctx, targetURL, method, chunk[mid:], baseline, depth+1)
 		found = append(found, left...)
 		found = append(found, right...)
 	} else if len(chunk) == 1 {
@@ -537,7 +549,7 @@ func (d *Discoverer) testReflection(ctx context.Context, targetURL string, param
 		}
 
 		body, _ := iohelper.ReadBodyDefault(resp.Body)
-		iohelper.DrainAndClose(resp.Body)
+		_ = resp.Body.Close()
 
 		if strings.Contains(string(body), canary) {
 			reflected = append(reflected, param.Name)
