@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/waftester/waftester/pkg/discovery/wordlists"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -136,10 +137,20 @@ func (ad *ActiveDiscoverer) detectWildcardBaseline(ctx context.Context) {
 
 // buildWordlist creates a comprehensive wordlist based on detected technology
 func (ad *ActiveDiscoverer) buildWordlist(tech []string) []string {
-	paths := make([]string, 0, len(commonPaths)+500)
 	seen := make(map[string]bool)
+	var paths []string
 
-	// Add common paths
+	// Load framework-specific wordlists based on detected technologies
+	frameworks := wordlists.DetectFrameworks(tech)
+	fwRoutes, _ := wordlists.LoadMultiple(frameworks)
+	for _, p := range fwRoutes {
+		if !seen[p] {
+			seen[p] = true
+			paths = append(paths, p)
+		}
+	}
+
+	// Add legacy common paths (for routes not in framework wordlists)
 	for _, p := range commonPaths {
 		if !seen[p] {
 			seen[p] = true
@@ -147,7 +158,7 @@ func (ad *ActiveDiscoverer) buildWordlist(tech []string) []string {
 		}
 	}
 
-	// Add technology-specific paths
+	// Add technology-specific paths from inline map
 	for _, t := range tech {
 		if techSpecific, ok := techPaths[t]; ok {
 			for _, p := range techSpecific {
