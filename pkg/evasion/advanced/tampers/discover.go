@@ -285,12 +285,7 @@ func DiscoverBypasses(ctx context.Context, cfg BypassDiscoveryConfig) (*BypassDi
 			successRate = float64(bypassed) / float64(total)
 		}
 
-		confidence := "low"
-		if bypassed >= 3 {
-			confidence = "high"
-		} else if bypassed >= 2 {
-			confidence = "medium"
-		}
+		confidence := confidenceStr(bypassed)
 
 		confirmedBypasses = append(confirmedBypasses, BypassResult{
 			TamperName:    tr.name,
@@ -319,28 +314,18 @@ func DiscoverBypasses(ctx context.Context, cfg BypassDiscoveryConfig) (*BypassDi
 			cat = string(t.Category())
 			desc = t.Description()
 		}
-		bypassed := 0
 		blocked := 1
 		errors := 0
-		if tr.bypassed {
-			bypassed = 1
-			blocked = 0
-		}
 		if tr.errored {
 			blocked = 0
 			errors = 1
-		}
-		total := bypassed + blocked + errors
-		var successRate float64
-		if total > 0 {
-			successRate = float64(bypassed) / float64(total)
 		}
 		result.Results = append(result.Results, BypassResult{
 			TamperName:    tr.name,
 			Category:      cat,
 			Description:   desc,
-			SuccessRate:   successRate,
-			Bypassed:      bypassed,
+			SuccessRate:   0,
+			Bypassed:      0,
 			Blocked:       blocked,
 			Errors:        errors,
 			SamplePayload: referencePayload,
