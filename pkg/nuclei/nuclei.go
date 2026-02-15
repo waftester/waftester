@@ -1055,7 +1055,7 @@ func runExtractor(e *Extractor, resp *ResponseData) []string {
 			}
 			matches := re.FindAllStringSubmatch(content, -1)
 			for _, m := range matches {
-				if e.Group < len(m) {
+				if e.Group >= 0 && e.Group < len(m) {
 					results = append(results, m[e.Group])
 				} else if len(m) > 0 {
 					results = append(results, m[0])
