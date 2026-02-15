@@ -962,3 +962,249 @@ func TestExtractLinksFromPageEnhanced(t *testing.T) {
 		// This is expected behavior - subdomain extraction is domain-scoped
 	})
 }
+
+// TestProbeContentTypes verifies POST+content-type fallback when GET returns 404
+func TestProbeContentTypes(t *testing.T) {
+	t.Run("discovers POST JSON endpoint", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/api/users" && r.Method == "POST" && strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+				w.WriteHeader(200)
+				w.Write([]byte(`{"users":[]}`))
+				return
+			}
+			w.WriteHeader(404)
+		}))
+		defer server.Close()
+
+		ad := NewActiveDiscoverer(server.URL, 5*time.Second, true)
+		ctx := context.Background()
+
+		ad.probeContentTypes(ctx, "/api/users")
+
+		ad.mu.Lock()
+		defer ad.mu.Unlock()
+
+		found := false
+		for _, ep := range ad.results {
+			if ep.Path == "/api/users" && ep.Method == "POST" {
+				found = true
+				if ep.StatusCode != 200 {
+					t.Errorf("expected 200, got %d", ep.StatusCode)
+				}
+				if ep.ContentType != "application/json" {
+					t.Errorf("expected application/json, got %s", ep.ContentType)
+				}
+			}
+		}
+		if !found {
+			t.Error("expected /api/users POST to be discovered via content-type probing")
+		}
+	})
+
+	t.Run("discovers form-encoded endpoint", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/submit" && r.Method == "POST" && strings.HasPrefix(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded") {
+				w.WriteHeader(200)
+				return
+			}
+			w.WriteHeader(404)
+		}))
+		defer server.Close()
+
+		ad := NewActiveDiscoverer(server.URL, 5*time.Second, true)
+		ctx := context.Background()
+
+		ad.probeContentTypes(ctx, "/submit")
+
+		ad.mu.Lock()
+		defer ad.mu.Unlock()
+
+		found := false
+		for _, ep := range ad.results {
+			if ep.Path == "/submit" && ep.Method == "POST" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("expected /submit POST to be discovered via form-encoded probe")
+		}
+	})
+
+	t.Run("stops after first match", func(t *testing.T) {
+		var probeCount int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == "POST" {
+				atomic.AddInt32(&probeCount, 1)
+				// First content-type (JSON) succeeds
+				if strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+					w.WriteHeader(200)
+					return
+				}
+			}
+			w.WriteHeader(404)
+		}))
+		defer server.Close()
+
+		ad := NewActiveDiscoverer(server.URL, 5*time.Second, true)
+		ctx := context.Background()
+
+		ad.probeContentTypes(ctx, "/api/data")
+
+		count := atomic.LoadInt32(&probeCount)
+		if count != 1 {
+			t.Errorf("expected 1 POST probe (stop after first match), got %d", count)
+		}
+	})
+
+	t.Run("no match returns nothing", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(404)
+		}))
+		defer server.Close()
+
+		ad := NewActiveDiscoverer(server.URL, 5*time.Second, true)
+		ctx := context.Background()
+
+		ad.probeContentTypes(ctx, "/nothing")
+
+		ad.mu.Lock()
+		defer ad.mu.Unlock()
+		if len(ad.results) != 0 {
+			t.Errorf("expected 0 results, got %d", len(ad.results))
+		}
+	})
+
+	t.Run("respects context cancellation", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(404)
+		}))
+		defer server.Close()
+
+		ad := NewActiveDiscoverer(server.URL, 5*time.Second, true)
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+
+		ad.probeContentTypes(ctx, "/api/test")
+
+		ad.mu.Lock()
+		defer ad.mu.Unlock()
+		if len(ad.results) != 0 {
+			t.Errorf("expected 0 results with cancelled context, got %d", len(ad.results))
+		}
+	})
+}
+
+// TestProbeOptions verifies OPTIONS method discovery
+func TestProbeOptions(t *testing.T) {
+	t.Run("discovers methods from Allow header", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == "OPTIONS" && r.URL.Path == "/api/resource" {
+				w.Header().Set("Allow", "GET, POST, PUT, DELETE")
+				w.WriteHeader(204)
+				return
+			}
+			w.WriteHeader(404)
+		}))
+		defer server.Close()
+
+		ad := NewActiveDiscoverer(server.URL, 5*time.Second, true)
+		ctx := context.Background()
+
+		ad.probeOptions(ctx, "/api/resource")
+
+		ad.mu.Lock()
+		defer ad.mu.Unlock()
+
+		methods := map[string]bool{}
+		for _, ep := range ad.results {
+			if ep.Path == "/api/resource" {
+				methods[ep.Method] = true
+			}
+		}
+
+		// GET, OPTIONS, HEAD are excluded; POST, PUT, DELETE should be found
+		if !methods["POST"] {
+			t.Error("expected POST from Allow header")
+		}
+		if !methods["PUT"] {
+			t.Error("expected PUT from Allow header")
+		}
+		if !methods["DELETE"] {
+			t.Error("expected DELETE from Allow header")
+		}
+		if methods["GET"] {
+			t.Error("GET should be excluded from OPTIONS results")
+		}
+		if methods["OPTIONS"] {
+			t.Error("OPTIONS should be excluded from OPTIONS results")
+		}
+	})
+
+	t.Run("no Allow header returns nothing", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(200)
+		}))
+		defer server.Close()
+
+		ad := NewActiveDiscoverer(server.URL, 5*time.Second, true)
+		ctx := context.Background()
+
+		ad.probeOptions(ctx, "/no-allow")
+
+		ad.mu.Lock()
+		defer ad.mu.Unlock()
+		if len(ad.results) != 0 {
+			t.Errorf("expected 0 results without Allow header, got %d", len(ad.results))
+		}
+	})
+}
+
+// TestProbeSinglePathContentTypeIntegration tests the full probeSinglePath flow with content-type fallback
+func TestProbeSinglePathContentTypeIntegration(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/users" && r.Method == "GET":
+			w.WriteHeader(404)
+		case r.URL.Path == "/api/users" && r.Method == "POST" && strings.HasPrefix(r.Header.Get("Content-Type"), "application/json"):
+			w.WriteHeader(200)
+			w.Write([]byte(`{"users":[]}`))
+		case r.URL.Path == "/api/users" && r.Method == "OPTIONS":
+			w.Header().Set("Allow", "POST, PUT, DELETE")
+			w.WriteHeader(204)
+		case r.URL.Path == "/health" && r.Method == "GET":
+			w.WriteHeader(200)
+			w.Write([]byte("ok"))
+		default:
+			w.WriteHeader(404)
+		}
+	}))
+	defer server.Close()
+
+	ad := NewActiveDiscoverer(server.URL, 5*time.Second, true)
+	ctx := context.Background()
+
+	// Probe /health (GET 200) and /api/users (GET 404 → POST fallback)
+	ad.probeSinglePath(ctx, "/health")
+	ad.probeSinglePath(ctx, "/api/users")
+
+	ad.mu.Lock()
+	defer ad.mu.Unlock()
+
+	healthFound := false
+	postFound := false
+	for _, ep := range ad.results {
+		if ep.Path == "/health" && ep.Method == "GET" && ep.StatusCode == 200 {
+			healthFound = true
+		}
+		if ep.Path == "/api/users" && ep.Method == "POST" && ep.StatusCode == 200 {
+			postFound = true
+		}
+	}
+
+	if !healthFound {
+		t.Error("expected /health GET 200 to be discovered")
+	}
+	if !postFound {
+		t.Error("expected /api/users POST to be discovered via content-type probing")
+	}
+}
