@@ -275,6 +275,12 @@ func EventCrawl(ctx context.Context, targetURL string, config *EventCrawlConfig)
 	var results []EventCrawlResult
 	clicked := 0
 	for _, el := range elements {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
+
 		if clicked >= config.MaxClicks {
 			break
 		}
