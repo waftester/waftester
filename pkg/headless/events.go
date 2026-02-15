@@ -191,7 +191,11 @@ func ClickAndCapture(ctx context.Context, element ClickableElement, originalURL 
 	}
 
 	// Wait for network activity to settle
-	time.Sleep(waitDuration)
+	select {
+	case <-time.After(waitDuration):
+	case <-ctx.Done():
+		return result, ctx.Err()
+	}
 
 	// Check if page navigated
 	var currentURL string

@@ -108,6 +108,7 @@ __result__ := transform(__input__)
 
 	script := tengo.NewScript([]byte(wrapper))
 	script.SetImports(safeModules)
+	script.SetMaxAllocs(10_000_000) // Prevent infinite loops and runaway allocations
 	_ = script.Add("__input__", payload)
 
 	compiled, err := script.Run()
