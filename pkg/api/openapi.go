@@ -5,12 +5,14 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"gopkg.in/yaml.v3"
 )
 
 // Route represents an API route discovered from OpenAPI specs
@@ -91,11 +93,16 @@ func (p *Parser) ParseFile(path string) (*OpenAPISpec, error) {
 	return p.Parse(data)
 }
 
-// Parse parses OpenAPI/Swagger spec from JSON data
+// Parse parses OpenAPI/Swagger spec from JSON or YAML data.
 func (p *Parser) Parse(data []byte) (*OpenAPISpec, error) {
 	var raw map[string]interface{}
+
+	// Try JSON first (faster).
 	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, fmt.Errorf("invalid JSON: %w", err)
+		// Fall back to YAML.
+		if yamlErr := yaml.Unmarshal(data, &raw); yamlErr != nil {
+			return nil, fmt.Errorf("invalid JSON or YAML: json: %w; yaml: %v", err, yamlErr)
+		}
 	}
 
 	// Detect version
@@ -131,14 +138,58 @@ func (p *Parser) parseSwagger2(raw map[string]interface{}) (*OpenAPISpec, error)
 		spec.Host = host
 	}
 
+	// Parse global consumes (default content types for all operations).
+	var globalConsumes []string
+	if consumes, ok := raw["consumes"].([]interface{}); ok {
+		for _, c := range consumes {
+			if ct, ok := c.(string); ok {
+				globalConsumes = append(globalConsumes, ct)
+			}
+		}
+	}
+
+	// Parse schemes (http, https).
+	if schemes, ok := raw["schemes"].([]interface{}); ok {
+		for _, s := range schemes {
+			if scheme, ok := s.(string); ok {
+				if spec.Host != "" {
+					spec.Servers = append(spec.Servers, scheme+"://"+spec.Host+spec.BasePath)
+				}
+			}
+		}
+	}
+
 	// Parse paths
 	if paths, ok := raw["paths"].(map[string]interface{}); ok {
 		spec.Routes = p.parseSwagger2Paths(paths)
+
+		// Apply global consumes to routes that have no content type.
+		for i := range spec.Routes {
+			if len(spec.Routes[i].ContentType) == 0 && len(globalConsumes) > 0 {
+				spec.Routes[i].ContentType = globalConsumes
+			}
+		}
 	}
 
 	// Parse security definitions
 	if secDefs, ok := raw["securityDefinitions"].(map[string]interface{}); ok {
 		spec.Security = p.parseSwagger2Security(secDefs)
+	}
+
+	// Parse global security requirements (default for all operations).
+	if globalSec, ok := raw["security"].([]interface{}); ok {
+		for _, sec := range globalSec {
+			if secMap, ok := sec.(map[string]interface{}); ok {
+				for schemeName := range secMap {
+					// Apply global security to routes that don't have their own.
+					for i := range spec.Routes {
+						if len(spec.Routes[i].Security) == 0 {
+							spec.Routes[i].Security = append(spec.Routes[i].Security, schemeName)
+						}
+					}
+				}
+			}
+		}
 	}
 
 	return spec, nil
@@ -153,8 +204,14 @@ func (p *Parser) parseSwagger2Paths(paths map[string]interface{}) []Route {
 			continue
 		}
 
+		// Extract path-level parameters (shared by all operations on this path).
+		var pathParams []Parameter
+		if pathParamsRaw, ok := methodsMap["parameters"].([]interface{}); ok {
+			pathParams = p.parseParameters(pathParamsRaw)
+		}
+
 		for method, operation := range methodsMap {
-			// Skip non-HTTP methods (like "parameters")
+			// Skip non-HTTP methods (like "parameters").
 			if !isHTTPMethod(method) {
 				continue
 			}
@@ -181,9 +238,33 @@ func (p *Parser) parseSwagger2Paths(paths map[string]interface{}) []Route {
 				if deprecated, ok := op["deprecated"].(bool); ok {
 					route.Deprecated = deprecated
 				}
+
+				var opParams []Parameter
 				if params, ok := op["parameters"].([]interface{}); ok {
-					route.Parameters = p.parseParameters(params)
+					opParams = p.parseParameters(params)
 				}
+
+				// Merge path-level parameters with operation-level.
+				// Operation params override path-level params with the same name+in.
+				route.Parameters = mergeParameters(pathParams, opParams)
+
+				// Promote "in: body" parameters to RequestBody (Swagger 2 convention).
+				for i := len(route.Parameters) - 1; i >= 0; i-- {
+					param := route.Parameters[i]
+					if param.In == "body" {
+						if route.RequestBody == nil {
+							route.RequestBody = &RequestBody{
+								Required: param.Required,
+							}
+							if param.Example != nil {
+								route.RequestBody.Example = param.Example
+							}
+						}
+						// Remove body param from the parameters list.
+						route.Parameters = append(route.Parameters[:i], route.Parameters[i+1:]...)
+					}
+				}
+
 				if consumes, ok := op["consumes"].([]interface{}); ok {
 					for _, c := range consumes {
 						if ct, ok := c.(string); ok {
@@ -191,6 +272,25 @@ func (p *Parser) parseSwagger2Paths(paths map[string]interface{}) []Route {
 						}
 					}
 				}
+
+				// Parse operation-level security requirements.
+				if secList, ok := op["security"].([]interface{}); ok {
+					for _, sec := range secList {
+						if secMap, ok := sec.(map[string]interface{}); ok {
+							for schemeName := range secMap {
+								route.Security = append(route.Security, schemeName)
+							}
+						}
+					}
+				}
+			}
+
+			// Set content type from request body if not already set.
+			if route.RequestBody != nil && len(route.ContentType) == 0 {
+				route.ContentType = []string{"application/json"}
+				route.RequestBody.ContentType = "application/json"
+			} else if route.RequestBody != nil && len(route.ContentType) > 0 {
+				route.RequestBody.ContentType = route.ContentType[0]
 			}
 
 			routes = append(routes, route)
@@ -198,6 +298,30 @@ func (p *Parser) parseSwagger2Paths(paths map[string]interface{}) []Route {
 	}
 
 	return routes
+}
+
+// mergeParameters merges path-level and operation-level parameters.
+// Operation params override path params with the same name+in combination.
+func mergeParameters(pathParams, opParams []Parameter) []Parameter {
+	if len(pathParams) == 0 {
+		return opParams
+	}
+
+	// Index operation params by name+in for fast lookup.
+	opSet := make(map[string]bool, len(opParams))
+	for _, p := range opParams {
+		opSet[p.In+":"+p.Name] = true
+	}
+
+	// Start with operation params, then add path params that aren't overridden.
+	merged := make([]Parameter, len(opParams))
+	copy(merged, opParams)
+	for _, p := range pathParams {
+		if !opSet[p.In+":"+p.Name] {
+			merged = append(merged, p)
+		}
+	}
+	return merged
 }
 
 // parseOpenAPI3 parses OpenAPI 3.0+ format
@@ -246,10 +370,24 @@ func (p *Parser) parseOpenAPI3(raw map[string]interface{}) (*OpenAPISpec, error)
 func (p *Parser) parseOpenAPI3Paths(paths map[string]interface{}) []Route {
 	var routes []Route
 
-	for path, methods := range paths {
+	// Sort paths for deterministic output order.
+	sortedPaths := make([]string, 0, len(paths))
+	for path := range paths {
+		sortedPaths = append(sortedPaths, path)
+	}
+	sort.Strings(sortedPaths)
+
+	for _, path := range sortedPaths {
+		methods := paths[path]
 		methodsMap, ok := methods.(map[string]interface{})
 		if !ok {
 			continue
+		}
+
+		// Extract path-level parameters (shared by all operations on this path).
+		var pathParams []Parameter
+		if pathParamsRaw, ok := methodsMap["parameters"].([]interface{}); ok {
+			pathParams = p.parseParameters(pathParamsRaw)
 		}
 
 		for method, operation := range methodsMap {
@@ -279,9 +417,15 @@ func (p *Parser) parseOpenAPI3Paths(paths map[string]interface{}) []Route {
 				if deprecated, ok := op["deprecated"].(bool); ok {
 					route.Deprecated = deprecated
 				}
+
+				var opParams []Parameter
 				if params, ok := op["parameters"].([]interface{}); ok {
-					route.Parameters = p.parseParameters(params)
+					opParams = p.parseParameters(params)
 				}
+
+				// Merge path-level parameters with operation-level.
+				// Operation params override path-level params with the same name+in.
+				route.Parameters = mergeParameters(pathParams, opParams)
 
 				// Parse request body (OpenAPI 3.0)
 				if reqBody, ok := op["requestBody"].(map[string]interface{}); ok {
@@ -305,6 +449,11 @@ func (p *Parser) parseParameters(params []interface{}) []Parameter {
 	for _, param := range params {
 		paramMap, ok := param.(map[string]interface{})
 		if !ok {
+			continue
+		}
+
+		// Skip $ref parameters (can't resolve without full spec context).
+		if _, hasRef := paramMap["$ref"]; hasRef {
 			continue
 		}
 
@@ -363,10 +512,24 @@ func (p *Parser) parseRequestBody(reqBody map[string]interface{}) *RequestBody {
 	}
 
 	if content, ok := reqBody["content"].(map[string]interface{}); ok {
-		// Get the first content type
-		for ct, schema := range content {
+		// Prefer application/json; otherwise pick the first content type
+		// alphabetically for deterministic behavior.
+		ct := ""
+		if _, ok := content["application/json"]; ok {
+			ct = "application/json"
+		} else {
+			keys := make([]string, 0, len(content))
+			for k := range content {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			if len(keys) > 0 {
+				ct = keys[0]
+			}
+		}
+		if ct != "" {
 			rb.ContentType = ct
-			if schemaMap, ok := schema.(map[string]interface{}); ok {
+			if schemaMap, ok := content[ct].(map[string]interface{}); ok {
 				if s, ok := schemaMap["schema"].(map[string]interface{}); ok {
 					rb.Schema = s
 				}
@@ -374,7 +537,6 @@ func (p *Parser) parseRequestBody(reqBody map[string]interface{}) *RequestBody {
 					rb.Example = ex
 				}
 			}
-			break // Just get the first content type
 		}
 	}
 
@@ -572,7 +734,7 @@ func buildQueryString(params map[string]string) string {
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		parts = append(parts, k+"="+params[k])
+		parts = append(parts, url.QueryEscape(k)+"="+url.QueryEscape(params[k]))
 	}
 	return strings.Join(parts, "&")
 }

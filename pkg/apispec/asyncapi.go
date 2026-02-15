@@ -97,7 +97,7 @@ func ParseAsyncAPI(content string) (*Spec, error) {
 		// YAML: unmarshal to generic map, re-marshal to JSON, then parse.
 		var raw interface{}
 		if yamlErr := yaml.Unmarshal(data, &raw); yamlErr != nil {
-			return nil, fmt.Errorf("parse asyncapi: %w", err)
+			return nil, fmt.Errorf("parse asyncapi: %w", yamlErr)
 		}
 		jsonData, jsonErr := json.Marshal(convertYAMLToJSON(raw))
 		if jsonErr != nil {

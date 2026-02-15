@@ -1,6 +1,10 @@
 package apispec
 
-import "time"
+import (
+	"sync"
+	"sync/atomic"
+	"time"
+)
 
 // EscalationLevel controls how aggressively payloads are encoded
 // and transformed to bypass WAF detection.
@@ -153,7 +157,10 @@ type CorrelationRecord struct {
 
 // ScanState holds mutable state shared across the scan session.
 // Endpoints in a dependency chain consume and produce state here.
+// Map fields are protected by mu for safe concurrent access.
 type ScanState struct {
+	mu sync.Mutex
+
 	// CSRFTokens maps endpoint tags to extracted CSRF tokens.
 	CSRFTokens map[string]string
 
@@ -167,6 +174,14 @@ type ScanState struct {
 	// BlockSignature is the response pattern that indicates a WAF block.
 	// Learned during the probe phase.
 	BlockSignature *BlockSignature
+
+	// ScanStart is the wall-clock time when the scan began.
+	// Used for budget time limit checks shared across phases.
+	ScanStart time.Time
+
+	// RequestsSent tracks total requests sent across all phases.
+	// Used for budget request count checks shared across phases.
+	RequestsSent atomic.Int64
 }
 
 // NewScanState returns an initialized ScanState.
@@ -175,7 +190,23 @@ func NewScanState() *ScanState {
 		CSRFTokens:    make(map[string]string),
 		AuthTokens:    make(map[string]string),
 		ExtractedVars: make(map[string]string),
+		ScanStart:     time.Now(),
 	}
+}
+
+// SetVar stores a variable extracted from a response for cross-endpoint chaining.
+func (s *ScanState) SetVar(key, value string) {
+	s.mu.Lock()
+	s.ExtractedVars[key] = value
+	s.mu.Unlock()
+}
+
+// GetVar retrieves a variable previously extracted from a response.
+func (s *ScanState) GetVar(key string) (string, bool) {
+	s.mu.Lock()
+	v, ok := s.ExtractedVars[key]
+	s.mu.Unlock()
+	return v, ok
 }
 
 // BlockSignature describes what a WAF block response looks like.

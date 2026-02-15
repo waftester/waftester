@@ -162,11 +162,28 @@ func BuildIntelligentPlan(spec *Spec, opts IntelligenceOptions) *ScanPlan {
 
 	// Layer 10: Dependency graph — detect CRUD chains and set DependsOn
 	// links between endpoints (e.g., POST /users before GET /users/{id}).
+	// Run before entry creation so the DependsOn field is visible in plan entries.
+	// NOTE: layerDependencyGraph mutates spec.Endpoints in-place. The entries
+	// above were copied by value, so we must re-copy DependsOn from spec.
 	layerDependencyGraph(spec.Endpoints)
+	// Propagate DependsOn from mutated spec.Endpoints back into plan entries.
+	epDeps := make(map[string][]Dependency)
+	for _, ep := range spec.Endpoints {
+		if len(ep.DependsOn) > 0 {
+			key := strings.ToUpper(ep.Method) + " " + ep.Path
+			epDeps[key] = ep.DependsOn
+		}
+	}
+	for i := range entries {
+		key := strings.ToUpper(entries[i].Endpoint.Method) + " " + entries[i].Endpoint.Path
+		if deps, ok := epDeps[key]; ok {
+			entries[i].Endpoint.DependsOn = deps
+		}
+	}
 
 	// Layer 11: Business logic detection — identify multi-step flows
 	// (signup → verify → login) and add bizlogic scan type.
-	layerBusinessLogic(spec.Endpoints, entries, &totalTests, intensity, allowSet, blockSet)
+	entries = layerBusinessLogic(spec.Endpoints, entries, &totalTests, intensity, allowSet, blockSet)
 
 	// Layer 12: Composite risk scoring — refine coarse Priority into a
 	// numeric score based on attack surface area and layer count.
@@ -449,16 +466,22 @@ func formatPercent(f float64) string {
 
 func layerSchemaConstraints(ep *Endpoint, sel map[string]*AttackSelection) {
 	for _, p := range ep.Parameters {
-		checkSchemaConstraints(p.Name, p.Schema, sel)
+		checkSchemaConstraints(p.Name, p.Schema, sel, 0)
 	}
 	for _, rb := range ep.RequestBodies {
 		for name, schema := range rb.Schema.Properties {
-			checkSchemaConstraints(name, schema, sel)
+			checkSchemaConstraints(name, schema, sel, 0)
 		}
 	}
 }
 
-func checkSchemaConstraints(paramName string, s SchemaInfo, sel map[string]*AttackSelection) {
+const maxConstraintDepth = 5
+
+func checkSchemaConstraints(paramName string, s SchemaInfo, sel map[string]*AttackSelection, depth int) {
+	if depth > maxConstraintDepth {
+		return
+	}
+
 	if s.MaxLength != nil {
 		reason := paramName + " has maxLength=" + strconv.Itoa(*s.MaxLength) + " — overflow + padding attacks"
 		addSelection(sel, "inputvalidation", "schema_constraint", reason)
@@ -484,6 +507,15 @@ func checkSchemaConstraints(paramName string, s SchemaInfo, sel map[string]*Atta
 		reason := paramName + " is URI format — SSRF payloads"
 		addSelection(sel, "ssrf", "schema_constraint", reason)
 		addSelection(sel, "redirect", "schema_constraint", reason)
+	}
+
+	// Recurse into nested object properties.
+	for name, prop := range s.Properties {
+		checkSchemaConstraints(paramName+"."+name, prop, sel, depth+1)
+	}
+	// Recurse into array items.
+	if s.Items != nil {
+		checkSchemaConstraints(paramName+"[]", *s.Items, sel, depth+1)
 	}
 }
 
@@ -527,11 +559,20 @@ func layerContentTypeMutation(ep *Endpoint, sel map[string]*AttackSelection) {
 func layerMethodConfusion(ep *Endpoint, sel map[string]*AttackSelection) {
 	// Plan to test undocumented methods.
 	method := strings.ToUpper(ep.Method)
-	dangerousMethods := []string{"DELETE", "PUT", "PATCH"}
 
+	// Dangerous methods for data mutation/deletion.
+	dangerousMethods := []string{"DELETE", "PUT", "PATCH"}
 	for _, m := range dangerousMethods {
 		if m != method {
 			addSelection(sel, "httpprobe", "method_confusion", ep.Path+" documents "+method+" — test "+m)
+		}
+	}
+
+	// Diagnostic methods that may leak info or bypass access control.
+	infoMethods := []string{"HEAD", "OPTIONS", "TRACE"}
+	for _, m := range infoMethods {
+		if m != method {
+			addSelection(sel, "httpprobe", "method_confusion", ep.Path+" — test "+m+" for info leak or access bypass")
 		}
 	}
 }
@@ -833,7 +874,7 @@ var bizFlows = []bizFlow{
 	{"two_factor", []string{"login", "2fa", "verify", "totp", "mfa"}},
 }
 
-func layerBusinessLogic(endpoints []Endpoint, entries []ScanPlanEntry, totalTests *int, intensity Intensity, allowSet, blockSet map[string]bool) {
+func layerBusinessLogic(endpoints []Endpoint, entries []ScanPlanEntry, totalTests *int, intensity Intensity, allowSet, blockSet map[string]bool) []ScanPlanEntry {
 	// Build a set of path substrings present in the spec.
 	pathSet := make(map[string]bool)
 	for _, ep := range endpoints {
@@ -871,20 +912,28 @@ func layerBusinessLogic(endpoints []Endpoint, entries []ScanPlanEntry, totalTest
 						break
 					}
 					reason := "part of " + flow.Name + " flow (matched '" + step + "')"
-					if entries[i].Attack.Category == "" {
-						entries[i].Attack = AttackSelection{
-							Category: cat,
-							Reason:   reason,
-							Layers:   []string{"business_logic"},
+					if entries[i].Attack.Category != cat {
+						// Add a new bizlogic entry rather than overwriting the
+						// existing attack category (which was set by layers 1-8).
+						newEntry := ScanPlanEntry{
+							Endpoint:        *ep,
+							InjectionTarget: entries[i].InjectionTarget,
+							Attack: AttackSelection{
+								Category:     cat,
+								Reason:       reason,
+								Layers:       []string{"business_logic"},
+								PayloadCount: estimatePayloads(cat, intensity),
+							},
 						}
-						entries[i].Attack.PayloadCount = estimatePayloads(cat, intensity)
-						*totalTests += entries[i].Attack.PayloadCount
+						entries = append(entries, newEntry)
+						*totalTests += newEntry.Attack.PayloadCount
 					}
 					break
 				}
 			}
 		}
 	}
+	return entries
 }
 
 // --- Layer 12: Composite Risk Scoring ---
@@ -893,6 +942,8 @@ func layerBusinessLogic(endpoints []Endpoint, entries []ScanPlanEntry, totalTest
 // and higher priority get proportionally more test time allocated.
 
 func layerCompositeScoring(entries []ScanPlanEntry) {
+	authPaths := []string{"/login", "/auth", "/signin", "/token", "/oauth", "/session"}
+
 	for i := range entries {
 		e := &entries[i]
 		// Base score from priority.
@@ -917,8 +968,18 @@ func layerCompositeScoring(entries []ScanPlanEntry) {
 		e.Attack.RiskScore = base + layerBonus
 	}
 
-	// Re-sort by risk score descending (stable preserves order within same score).
+	// Re-sort by risk score descending, preserving auth-first ordering
+	// from Layer 9 as a tiebreaker within equal scores.
 	sort.SliceStable(entries, func(i, j int) bool {
-		return entries[i].Attack.RiskScore > entries[j].Attack.RiskScore
+		if entries[i].Attack.RiskScore != entries[j].Attack.RiskScore {
+			return entries[i].Attack.RiskScore > entries[j].Attack.RiskScore
+		}
+		// Preserve auth-first: auth endpoints come before non-auth at equal score.
+		iAuth := isAuthPath(entries[i].Endpoint.Path, authPaths)
+		jAuth := isAuthPath(entries[j].Endpoint.Path, authPaths)
+		if iAuth != jAuth {
+			return iAuth
+		}
+		return false
 	})
 }
