@@ -270,6 +270,12 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		}
 		if args.Tamper != "" {
 			profile = tampers.ProfileCustom
+			// Validate tamper names before proceeding — fail hard in MCP mode
+			// since the caller can't see stderr warnings.
+			_, invalid := tampers.ValidateTamperNames(tampers.ParseTamperList(args.Tamper))
+			if len(invalid) > 0 {
+				return errorResult(fmt.Sprintf("unknown tampers: %s. Use list_tampers to see available tampers.", strings.Join(invalid, ", "))), nil
+			}
 		}
 
 		engine := tampers.NewEngine(&tampers.EngineConfig{
