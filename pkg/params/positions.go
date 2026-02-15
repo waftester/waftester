@@ -190,7 +190,7 @@ func (d *Discoverer) headerDiscovery(ctx context.Context, targetURL string, base
 			continue
 		}
 		body, _ := iohelper.ReadBodyDefault(resp.Body)
-		_ = resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 		newHash := fmt.Sprintf("%x", md5.Sum(body))
 
 		differs := resp.StatusCode != baseline.StatusCode ||
@@ -238,7 +238,7 @@ func (d *Discoverer) binarySearchHeaders(ctx context.Context, targetURL string, 
 			continue
 		}
 		body, _ := iohelper.ReadBodyDefault(resp.Body)
-		_ = resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 		newHash := fmt.Sprintf("%x", md5.Sum(body))
 
 		differs := resp.StatusCode != baseline.StatusCode ||
@@ -287,7 +287,7 @@ func (d *Discoverer) cookieDiscovery(ctx context.Context, targetURL string, base
 			continue
 		}
 		body, _ := iohelper.ReadBodyDefault(resp.Body)
-		_ = resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 		newHash := fmt.Sprintf("%x", md5.Sum(body))
 
 		differs := resp.StatusCode != baseline.StatusCode ||
@@ -334,7 +334,7 @@ func (d *Discoverer) binarySearchCookies(ctx context.Context, targetURL string, 
 			continue
 		}
 		body, _ := iohelper.ReadBodyDefault(resp.Body)
-		_ = resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 		newHash := fmt.Sprintf("%x", md5.Sum(body))
 
 		differs := resp.StatusCode != baseline.StatusCode ||

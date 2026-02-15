@@ -30,13 +30,13 @@ type BypassResult struct {
 	TamperName    string   `json:"tamper_name"`
 	Category      string   `json:"category"`
 	Description   string   `json:"description"`
-	SuccessRate   float64  `json:"success_rate"`   // 0.0 to 1.0
-	Confidence    string   `json:"confidence"`     // "high", "medium", "low"
+	SuccessRate   float64  `json:"success_rate"` // 0.0 to 1.0
+	Confidence    string   `json:"confidence"`   // "high", "medium", "low"
 	Bypassed      int      `json:"bypassed"`
 	Blocked       int      `json:"blocked"`
 	Errors        int      `json:"errors"`
-	SamplePayload string   `json:"sample_payload"` // First payload that bypassed
-	SampleOutput  string   `json:"sample_output"`  // Tampered version of that payload
+	SamplePayload string   `json:"sample_payload"`         // First payload that bypassed
+	SampleOutput  string   `json:"sample_output"`          // Tampered version of that payload
 	TamperNames   []string `json:"tamper_names,omitempty"` // For combinations
 }
 
@@ -70,7 +70,14 @@ func (s responseSignature) resembles(other responseSignature) bool {
 		return s.bodySize == 0
 	}
 	ratio := float64(s.bodySize) / float64(other.bodySize)
-	return ratio > 0.8 && ratio < 1.2
+	if ratio <= 0.8 || ratio >= 1.2 {
+		return false
+	}
+	// Similar size — check content hash when both are available
+	if s.bodyHash != "" && other.bodyHash != "" {
+		return s.bodyHash == other.bodyHash
+	}
+	return true
 }
 
 // defaultBypassPayloads is the reference set when the user doesn't supply payloads.
@@ -87,7 +94,7 @@ func (cfg *BypassDiscoveryConfig) defaults() {
 	if cfg.Concurrency <= 0 {
 		cfg.Concurrency = 5
 	}
-	if cfg.ConfirmCount < 0 {
+	if cfg.ConfirmCount <= 0 {
 		cfg.ConfirmCount = 2
 	}
 	if cfg.TopN <= 0 {
@@ -184,10 +191,10 @@ func DiscoverBypasses(ctx context.Context, cfg BypassDiscoveryConfig) (*BypassDi
 			sig, err := captureSignature(ctx, cfg.HTTPClient, cfg.TargetURL, transformed)
 
 			mu.Lock()
-			defer mu.Unlock()
 
 			if err != nil {
 				tamperResults = append(tamperResults, tamperResult{name: tName, errored: true})
+				mu.Unlock()
 				if cfg.OnProgress != nil {
 					cfg.OnProgress(tName, "error")
 				}
@@ -200,6 +207,7 @@ func DiscoverBypasses(ctx context.Context, cfg BypassDiscoveryConfig) (*BypassDi
 				bypassed: bypassed,
 				output:   transformed,
 			})
+			mu.Unlock()
 
 			if cfg.OnProgress != nil {
 				if bypassed {

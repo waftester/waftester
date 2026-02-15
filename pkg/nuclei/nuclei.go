@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"text/template"
 	"time"
@@ -509,7 +508,7 @@ func (e *Engine) executeHTTPRequest(ctx context.Context, req *HTTPRequest, targe
 	// Check if we have raw requests
 	if len(req.Raw) > 0 {
 		// Parse raw HTTP requests to extract paths
-		paths = []string{""}
+		paths = nil
 		for _, raw := range req.Raw {
 			// Parse raw request for path
 			lines := strings.Split(raw, "\n")
@@ -714,9 +713,9 @@ func matchRegex(patterns []string, content, condition string) bool {
 
 	if condition == "and" {
 		for _, pattern := range patterns {
-			re, err := regexp.Compile(pattern)
+			re, err := regexcache.Get(pattern)
 			if err != nil {
-				continue
+				return false // invalid pattern fails AND
 			}
 			if !re.MatchString(content) {
 				return false
@@ -727,7 +726,7 @@ func matchRegex(patterns []string, content, condition string) bool {
 
 	// Default: or
 	for _, pattern := range patterns {
-		re, err := regexp.Compile(pattern)
+		re, err := regexcache.Get(pattern)
 		if err != nil {
 			continue
 		}
@@ -771,26 +770,35 @@ func matchDSL(expressions []string, resp *ResponseData, condition string) bool {
 
 	// Basic DSL support
 	for _, expr := range expressions {
+		var matched bool
+		var handled bool
+
 		// status_code == X
 		if strings.Contains(expr, "status_code") {
-			if matched := evaluateDSLStatusCode(expr, resp.StatusCode); matched {
-				if condition != "and" {
-					return true
-				}
-			} else if condition == "and" {
-				return false
-			}
+			matched = evaluateDSLStatusCode(expr, resp.StatusCode)
+			handled = true
 		}
 
 		// contains(body, "X")
-		if strings.Contains(expr, "contains") {
-			if matched := evaluateDSLContains(expr, string(resp.Body)); matched {
-				if condition != "and" {
-					return true
-				}
-			} else if condition == "and" {
+		if !handled && strings.Contains(expr, "contains(") {
+			matched = evaluateDSLContains(expr, string(resp.Body))
+			handled = true
+		}
+
+		if !handled {
+			// Unrecognized expression — fail closed
+			if condition == "and" {
 				return false
 			}
+			continue
+		}
+
+		if matched {
+			if condition != "and" {
+				return true
+			}
+		} else if condition == "and" {
+			return false
 		}
 	}
 
@@ -857,7 +865,7 @@ func runExtractor(e *Extractor, resp *ResponseData) []string {
 	switch strings.ToLower(e.Type) {
 	case "regex":
 		for _, pattern := range e.Regex {
-			re, err := regexp.Compile(pattern)
+			re, err := regexcache.Get(pattern)
 			if err != nil {
 				continue
 			}
@@ -895,7 +903,13 @@ func expandVariables(input string, vars map[string]string) string {
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, vars); err != nil {
-		return input
+		// text/template can't resolve bare {{VarName}} (needs {{.VarName}}).
+		// Fall through to simple string replacement.
+		result := input
+		for k, v := range vars {
+			result = strings.ReplaceAll(result, "{{"+k+"}}", v)
+		}
+		return result
 	}
 	return buf.String()
 }
