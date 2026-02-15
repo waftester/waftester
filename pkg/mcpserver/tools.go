@@ -58,7 +58,7 @@ func loggedTool(name string, fn toolHandler) toolHandler {
 // "x_api_key", "my_secret_token", "auth_header", etc.
 var sensitiveSubstrings = []string{
 	"secret", "password", "token", "credential", "key", "license",
-	"auth", "bearer", "jwt", "cookie", "session",
+	"auth", "bearer", "jwt", "cookie", "session", "proxy",
 }
 
 // isSensitiveKey returns true if the lowercased key contains any sensitive substring.
