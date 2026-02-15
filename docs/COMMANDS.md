@@ -4,7 +4,7 @@ The definitive reference for every WAFtester CLI command, flag, environment vari
 
 For usage examples and real-world workflows, see [EXAMPLES.md](EXAMPLES.md). For installation, see [INSTALLATION.md](INSTALLATION.md).
 
-**Document Version:** 2.9.4
+**Document Version:** 2.9.5
 **Last Updated:** February 2026
 
 ---
