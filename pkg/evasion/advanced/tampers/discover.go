@@ -340,7 +340,10 @@ func DiscoverBypasses(ctx context.Context, cfg BypassDiscoveryConfig) (*BypassDi
 
 	// Sort confirmed bypasses by success rate descending
 	sort.Slice(confirmedBypasses, func(i, j int) bool {
-		return confirmedBypasses[i].SuccessRate > confirmedBypasses[j].SuccessRate
+		if confirmedBypasses[i].SuccessRate != confirmedBypasses[j].SuccessRate {
+			return confirmedBypasses[i].SuccessRate > confirmedBypasses[j].SuccessRate
+		}
+		return confirmedBypasses[i].TamperName < confirmedBypasses[j].TamperName
 	})
 
 	result.TopBypasses = confirmedBypasses
@@ -428,7 +431,10 @@ func testCombinations(ctx context.Context, cfg BypassDiscoveryConfig, topTampers
 	}
 
 	sort.Slice(results, func(i, j int) bool {
-		return results[i].SuccessRate > results[j].SuccessRate
+		if results[i].SuccessRate != results[j].SuccessRate {
+			return results[i].SuccessRate > results[j].SuccessRate
+		}
+		return results[i].TamperName < results[j].TamperName
 	})
 	return results
 }
