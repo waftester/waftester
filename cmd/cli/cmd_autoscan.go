@@ -128,6 +128,7 @@ func runAutoScan() {
 	tamperList := autoFlags.String("tamper", "", "Comma-separated tamper scripts: space2comment,randomcase,charencode")
 	tamperAuto := autoFlags.Bool("tamper-auto", false, "Auto-select tampers based on detected WAF")
 	tamperProfile := autoFlags.String("tamper-profile", "standard", "Tamper profile: stealth, standard, aggressive, bypass")
+	tamperDir := autoFlags.String("tamper-dir", "", "Directory of .tengo script tampers to load")
 
 	// Enterprise assessment with quantitative metrics (NOW DEFAULT for superpower mode)
 	enableAssess := autoFlags.Bool("assess", true, "Run enterprise assessment with F1/precision/MCC metrics (default: true)")
@@ -1882,6 +1883,20 @@ func runAutoScan() {
 			}
 
 			// Create tamper engine
+			// Load script tampers from directory if specified
+			if *tamperDir != "" {
+				scripts, errs := tampers.LoadScriptDir(*tamperDir)
+				for _, e := range errs {
+					ui.PrintWarning(fmt.Sprintf("Script tamper: %v", e))
+				}
+				for _, st := range scripts {
+					tampers.Register(st)
+				}
+				if len(scripts) > 0 {
+					ui.PrintInfo(fmt.Sprintf("Loaded %d script tampers from %s", len(scripts), *tamperDir))
+				}
+			}
+
 			tamperEngine = tampers.NewEngine(&tampers.EngineConfig{
 				Profile:       profile,
 				CustomTampers: tampers.ParseTamperList(*tamperList),
