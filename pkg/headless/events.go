@@ -266,7 +266,10 @@ func EventCrawl(ctx context.Context, targetURL string, config *EventCrawlConfig)
 	}
 
 	// Parse target for external URL filtering
-	targetParsed, _ := url.Parse(targetURL)
+	targetParsed, err := url.Parse(targetURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse target URL %s: %w", targetURL, err)
+	}
 
 	// Click each element up to maxClicks
 	var results []EventCrawlResult

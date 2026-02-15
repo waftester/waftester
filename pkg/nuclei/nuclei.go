@@ -441,6 +441,7 @@ func (e *Engine) executeFlow(ctx context.Context, tmpl *Template, target string)
 		// Dispatch to protocol-specific executor
 		var matched bool
 		var extracted map[string][]string
+		err = nil // Reset to avoid stale error from previous iteration
 		switch block.protocol {
 		case "http":
 			matched, extracted, err = e.executeHTTPRequest(ctx, &tmpl.HTTP[block.index], target, vars)
@@ -448,6 +449,8 @@ func (e *Engine) executeFlow(ctx context.Context, tmpl *Template, target string)
 			matched, extracted, err = e.executeDNSRequest(ctx, &tmpl.DNS[block.index], vars)
 		case "network":
 			matched, extracted, err = e.executeNetworkRequest(ctx, &tmpl.Network[block.index], vars)
+		default:
+			err = fmt.Errorf("unknown protocol %q for block %q", block.protocol, blockID)
 		}
 		if err != nil {
 			result.Error = err.Error()
@@ -968,8 +971,10 @@ func evaluateDSLContains(expr string, resp *ResponseData) bool {
 	switch part {
 	case "header":
 		content = buildHeaderString(resp.Headers)
-	default:
+	case "body":
 		content = string(resp.Body)
+	default: // "all" or unrecognized — search headers + body
+		content = buildHeaderString(resp.Headers) + string(resp.Body)
 	}
 
 	return strings.Contains(content, needle)

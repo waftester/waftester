@@ -74,11 +74,14 @@ func ExtractSubdomains(content string, baseDomain string) []string {
 	seen := make(map[string]bool)
 	var subdomains []string
 
-	// Escape dots in domain for regex
-	escapedDomain := strings.ReplaceAll(baseDomain, ".", `\.`)
+	// Escape all regex metacharacters in domain
+	escapedDomain := regexp.QuoteMeta(baseDomain)
 
 	// Pattern to match subdomains
-	subdomainRe := regexcache.MustGet(`(?i)([a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?\.)+` + escapedDomain)
+	subdomainRe, err := regexcache.Get(`(?i)([a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?\.)+` + escapedDomain)
+	if err != nil {
+		return nil
+	}
 
 	matches := subdomainRe.FindAllString(content, -1)
 	for _, match := range matches {
