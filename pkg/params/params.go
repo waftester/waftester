@@ -33,6 +33,7 @@ type Discoverer struct {
 	userAgent    string
 	verbose      bool
 	wordlistFile string
+	positions    []string
 }
 
 // DiscoveredParam represents a discovered parameter
@@ -66,6 +67,7 @@ type Config struct {
 	ChunkSize     int      // Number of params to test per request (Arjun-style)
 	Methods       []string // HTTP methods to test
 	CustomParams  []string // Additional params to test
+	Positions     []string // Discovery positions: "query", "body", "json", "header", "cookie" (default: all)
 	SkipTLSVerify bool
 	WordlistFile  string       // Custom wordlist file path (empty = built-in)
 	HTTPClient    *http.Client // Optional custom HTTP client (e.g., JA3-aware)
@@ -81,6 +83,7 @@ func DefaultConfig() *Config {
 		},
 		ChunkSize: 256, // Arjun default is 256
 		Methods:   []string{"GET", "POST"},
+		Positions: []string{"query", "body", "json", "header", "cookie"},
 	}
 }
 
@@ -98,6 +101,11 @@ func NewDiscoverer(cfg *Config) *Discoverer {
 		client = httpclient.New(httpclient.WithTimeout(cfg.Timeout))
 	}
 
+	positions := cfg.Positions
+	if len(positions) == 0 {
+		positions = []string{"query", "body", "json", "header", "cookie"}
+	}
+
 	return &Discoverer{
 		client:       client,
 		timeout:      cfg.Timeout,
@@ -105,6 +113,7 @@ func NewDiscoverer(cfg *Config) *Discoverer {
 		userAgent:    cfg.UserAgent,
 		verbose:      cfg.Verbose,
 		wordlistFile: cfg.WordlistFile,
+		positions:    positions,
 	}
 }
 
@@ -144,6 +153,36 @@ func (d *Discoverer) Discover(ctx context.Context, targetURL string, methods ...
 		result.Parameters = append(result.Parameters, p)
 		result.BySource[p.Source]++
 		result.ByType[p.Type]++
+	}
+
+	// Phase 2b: JSON body discovery
+	if containsPosition(d.positions, "json") {
+		jsonParams := d.jsonBodyDiscovery(ctx, targetURL, baseline)
+		for _, p := range jsonParams {
+			result.Parameters = append(result.Parameters, p)
+			result.BySource[p.Source]++
+			result.ByType[p.Type]++
+		}
+	}
+
+	// Phase 2c: Header discovery
+	if containsPosition(d.positions, "header") {
+		headerParams := d.headerDiscovery(ctx, targetURL, baseline)
+		for _, p := range headerParams {
+			result.Parameters = append(result.Parameters, p)
+			result.BySource[p.Source]++
+			result.ByType[p.Type]++
+		}
+	}
+
+	// Phase 2d: Cookie discovery
+	if containsPosition(d.positions, "cookie") {
+		cookieParams := d.cookieDiscovery(ctx, targetURL, baseline)
+		for _, p := range cookieParams {
+			result.Parameters = append(result.Parameters, p)
+			result.BySource[p.Source]++
+			result.ByType[p.Type]++
+		}
 	}
 
 	// Phase 3: Reflection testing
