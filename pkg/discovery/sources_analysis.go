@@ -305,8 +305,8 @@ var secretPatterns = []struct {
 	// Square
 	{"square_token", regexcache.MustGet(`sq0[a-z]{3}-[0-9A-Za-z_-]{22,43}`), "high"},
 
-	// Heroku
-	{"heroku_key", regexcache.MustGet(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`), "low"},
+	// Heroku — require "heroku" keyword nearby to avoid matching all UUIDs
+	{"heroku_key", regexcache.MustGet(`(?i)heroku[^\n]{0,30}[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`), "low"},
 }
 
 // DetectSecrets finds secrets in content
