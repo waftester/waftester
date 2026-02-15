@@ -277,6 +277,11 @@ func (s *Server) registerTools() {
 	s.addBypassTool()
 	s.addProbeTool()
 	s.addGenerateCICDTool()
+	s.addListTampersTool()
+	s.addDiscoverBypassesTool()
+	if s.config.EventCrawlFn != nil {
+		s.addEventCrawlTool()
+	}
 	s.registerAsyncTools() // get_task_status, cancel_task, list_tasks
 }
 
