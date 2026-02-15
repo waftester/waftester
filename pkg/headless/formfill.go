@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"regexp"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/regexcache"
 )
 
 // FormFiller handles automatic form detection and filling
@@ -211,7 +212,7 @@ func (f *FormFiller) GetValueForField(field FormField) string {
 
 	// 3. Check patterns
 	for pattern, value := range f.patterns {
-		re, err := regexp.Compile(pattern)
+		re, err := regexcache.Get(pattern)
 		if err != nil {
 			continue
 		}
