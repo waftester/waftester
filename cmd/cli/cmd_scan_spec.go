@@ -1200,6 +1200,3 @@ func runSpecMassAssignment(ctx context.Context, targetURL string, ep apispec.End
 	}
 	return findings, nil
 }
-
-
-
