@@ -940,7 +940,7 @@ func TestCORSHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)
 	}
-	req.Header.Set("Origin", "https://n8n.example.com")
+	req.Header.Set("Origin", "http://localhost:3000")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -952,7 +952,7 @@ func TestCORSHeaders(t *testing.T) {
 		header string
 		want   string
 	}{
-		{"Access-Control-Allow-Origin", "https://n8n.example.com"},
+		{"Access-Control-Allow-Origin", "http://localhost:3000"},
 		{"Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS"},
 		{"Access-Control-Allow-Credentials", "true"},
 		{"Access-Control-Expose-Headers", "Mcp-Session-Id, MCP-Protocol-Version"},
@@ -986,7 +986,7 @@ func TestCORSPreflight(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)
 	}
-	req.Header.Set("Origin", "https://n8n.example.com")
+	req.Header.Set("Origin", "http://127.0.0.1:5173")
 	req.Header.Set("Access-Control-Request-Method", "POST")
 	req.Header.Set("Access-Control-Request-Headers", "Content-Type, Mcp-Session-Id")
 
@@ -1000,8 +1000,8 @@ func TestCORSPreflight(t *testing.T) {
 		t.Errorf("OPTIONS /mcp: got status %d, want %d", resp.StatusCode, http.StatusNoContent)
 	}
 
-	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "https://n8n.example.com" {
-		t.Errorf("preflight Allow-Origin = %q, want %q", got, "https://n8n.example.com")
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "http://127.0.0.1:5173" {
+		t.Errorf("preflight Allow-Origin = %q, want %q", got, "http://127.0.0.1:5173")
 	}
 
 	maxAge := resp.Header.Get("Access-Control-Max-Age")
@@ -1029,6 +1029,38 @@ func TestCORSDefaultOrigin(t *testing.T) {
 	}
 
 	// Vary: Origin should still be present for caching correctness.
+	if got := resp.Header.Get("Vary"); got != "Origin" {
+		t.Errorf("Vary = %q, want %q", got, "Origin")
+	}
+}
+
+func TestCORSRejectsNonLocalhost(t *testing.T) {
+	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
+	defer srv.Stop()
+	handler := srv.HTTPHandler()
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+
+	req, err := http.NewRequest(http.MethodGet, ts.URL+"/health", nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	req.Header.Set("Origin", "https://evil.example.com")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET /health with non-localhost Origin: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "" {
+		t.Errorf("non-localhost Allow-Origin = %q, want empty", got)
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Credentials"); got != "" {
+		t.Errorf("non-localhost Allow-Credentials = %q, want empty", got)
+	}
+
+	// Vary: Origin should still be set for caching correctness.
 	if got := resp.Header.Get("Vary"); got != "Origin" {
 		t.Errorf("Vary = %q, want %q", got, "Origin")
 	}
