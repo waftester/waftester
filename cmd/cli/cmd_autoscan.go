@@ -315,11 +315,13 @@ func runAutoScan() {
 		"leaky-paths",
 		"js-analysis",
 		"param-discovery",
+		"full-recon",
 		"learning",
 		"waf-testing",
 		"brain-feedback",
 		"assessment",
 		"browser-scan",
+		"vendor-detection",
 	}
 
 	// Initialize checkpoint with phase names as targets
@@ -2298,7 +2300,9 @@ func runAutoScan() {
 
 		// Save results summary AFTER feedback merge so resume loads complete data
 		if summaryData, err := json.MarshalIndent(results, "", "  "); err == nil {
-			_ = os.WriteFile(wafResultsFile, summaryData, 0644)
+			if writeErr := os.WriteFile(wafResultsFile, summaryData, 0644); writeErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to save results summary: %v", writeErr))
+			}
 		}
 
 		// End WAF testing phase for Brain (inside guard — only when waf-testing ran fresh)
