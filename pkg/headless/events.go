@@ -228,7 +228,11 @@ func ClickAndCapture(ctx context.Context, element ClickableElement, originalURL 
 	// If page navigated, go back
 	if result.NavigatedTo != "" {
 		_ = chromedp.Run(ctx, chromedp.Navigate(originalURL))
-		time.Sleep(500 * time.Millisecond)
+		select {
+		case <-time.After(500 * time.Millisecond):
+		case <-ctx.Done():
+			return result, ctx.Err()
+		}
 	}
 
 	return result, nil
