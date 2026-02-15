@@ -7523,6 +7523,10 @@ waf-tester mcp --payloads /path/to/payloads
 # With custom payload and template directories
 waf-tester mcp --payloads /path/to/payloads \
   --templates /path/to/templates/nuclei
+
+# With tamper scripts for bypass discovery
+waf-tester mcp --payloads /path/to/payloads \
+  --tamper-dir /path/to/tamper-scripts
 ```
 
 Supported IDEs:
@@ -7545,6 +7549,10 @@ waf-tester mcp --http 0.0.0.0:9090
 waf-tester mcp --http :8080 \
   --payloads ./custom-payloads \
   --templates ./custom-templates
+
+# With tamper scripts for bypass discovery
+waf-tester mcp --http :8080 \
+  --tamper-dir ./tamper-scripts
 ```
 
 The HTTP server exposes three endpoints:
@@ -7608,7 +7616,7 @@ waf-tester mcp --http :8080
 
 3. Connect to an **AI Agent** node (Claude, GPT, etc.)
 
-4. All 22 WAFtester tools appear automatically for the AI agent
+4. All 24 WAFtester tools appear automatically for the AI agent
 
 #### Example n8n Workflow
 
@@ -7847,7 +7855,7 @@ The MCP server instructions guide AI agents through optimal tool chains:
 detect_waf → discover → learn → scan → assess
 
 # Workflow B: Quick WAF Bypass Hunt
-detect_waf → scan → mutate → bypass
+detect_waf → scan → mutate → bypass → discover_bypasses
 
 # Workflow C: WAF Effectiveness Audit
 detect_waf → assess → (review grade, F1, FPR, recommendations)
@@ -7858,7 +7866,7 @@ detect_waf → generate_cicd (with WAF-specific thresholds)
 
 #### Async Task Pattern (v2.7.3)
 
-Long-running tools (`scan`, `assess`, `bypass`, `discover`) return a `task_id` immediately instead of blocking. This prevents `MCP error -32001: Request timed out` errors that occurred when operations exceeded client timeout limits (60s for n8n, 30-120s for other clients).
+Long-running tools (`scan`, `assess`, `bypass`, `discover`, `discover_bypasses`, `event_crawl`) return a `task_id` immediately instead of blocking. This prevents `MCP error -32001: Request timed out` errors that occurred when operations exceeded client timeout limits (60s for n8n, 30-120s for other clients).
 
 **Polling workflow:**
 
@@ -7879,8 +7887,8 @@ Long-running tools (`scan`, `assess`, `bypass`, `discover`) return a `task_id` i
 
 | Type | Tools | Behavior |
 |------|-------|----------|
-| **Fast** | `detect_waf`, `list_payloads`, `learn`, `mutate`, `probe`, `generate_cicd` | Returns result directly |
-| **Async** | `scan`, `assess`, `bypass`, `discover` | Returns `task_id`, poll for results |
+| **Fast** | `detect_waf`, `list_payloads`, `learn`, `mutate`, `probe`, `list_tampers`, `generate_cicd` | Returns result directly |
+| **Async** | `scan`, `assess`, `bypass`, `discover`, `discover_bypasses`, `event_crawl` | Returns `task_id`, poll for results |
 | **Task management** | `get_task_status`, `cancel_task`, `list_tasks` | Manage async tasks |
 
 **Cancellation:**
