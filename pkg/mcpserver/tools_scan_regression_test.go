@@ -1,6 +1,7 @@
 package mcpserver
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -105,8 +106,9 @@ func TestBuildAssessResponse_NextSteps_NoPriorityForHighGrades(t *testing.T) {
 }
 
 // --- Regression: R14 — MCP tamper name validation ---
-// Invalid tamper names in MCP scan tool must return an error, not silently pass.
-// This tests the validation function used by the MCP tool.
+// The R14 fix added ValidateTamperNames + error return in tools_scan.go.
+// This tests the validation function. Regression: removing the call
+// would let invalid names pass silently to the engine.
 
 func TestValidateTamperNames_InvalidReturnsError(t *testing.T) {
 	tests := []struct {
@@ -115,59 +117,74 @@ func TestValidateTamperNames_InvalidReturnsError(t *testing.T) {
 		wantValid   int
 		wantInvalid int
 	}{
-		{
-			"all valid",
-			[]string{"space2comment", "randomcase"},
-			2, 0,
-		},
-		{
-			"all invalid",
-			[]string{"not_a_real_tamper", "also_fake"},
-			0, 2,
-		},
-		{
-			"mixed valid and invalid",
-			[]string{"space2comment", "bogus_tamper", "randomcase"},
-			2, 1,
-		},
-		{
-			"empty input",
-			[]string{},
-			0, 0,
-		},
-		{
-			"path traversal attempt",
-			[]string{"../etc/passwd"},
-			0, 1,
-		},
-		{
-			"SQL injection in tamper name",
-			[]string{"'; DROP TABLE tampers; --"},
-			0, 1,
-		},
+		{"all valid", []string{"space2comment", "randomcase"}, 2, 0},
+		{"all invalid", []string{"not_a_real_tamper", "also_fake"}, 0, 2},
+		{"mixed valid and invalid", []string{"space2comment", "bogus_tamper", "randomcase"}, 2, 1},
+		{"empty input", []string{}, 0, 0},
+		{"path traversal attempt", []string{"../etc/passwd"}, 0, 1},
+		{"SQL injection in tamper name", []string{"'; DROP TABLE tampers; --"}, 0, 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			valid, invalid := tampers.ValidateTamperNames(tt.input)
-			assert.Len(t, valid, tt.wantValid)
-			assert.Len(t, invalid, tt.wantInvalid)
+			assert.Len(t, valid, tt.wantValid,
+				"valid count for input %v", tt.input)
+			assert.Len(t, invalid, tt.wantInvalid,
+				"invalid count for input %v", tt.input)
+
+			// Every invalid name must appear in the invalid slice verbatim
+			// (no silent swallowing)
+			for _, name := range tt.input {
+				isRegistered := false
+				for _, v := range valid {
+					if v == name {
+						isRegistered = true
+						break
+					}
+				}
+				if !isRegistered {
+					found := false
+					for _, inv := range invalid {
+						if inv == name {
+							found = true
+							break
+						}
+					}
+					assert.True(t, found,
+						"unregistered name %q must appear in invalid list", name)
+				}
+			}
 		})
 	}
 }
 
-// --- Regression: R5 — Summary includes target URL ---
+// --- Regression: R8 — FPR warning step at high false-positive rate ---
 
-func TestBuildAssessResponse_SummaryContainsTarget(t *testing.T) {
+func TestBuildAssessResponse_FPRWarning(t *testing.T) {
 	m := &metrics.EnterpriseMetrics{
-		Grade:         "B",
-		DetectionRate: 0.85,
-		F1Score:       0.82,
-		MCC:           0.7,
+		Grade:             "A",
+		DetectionRate:     0.95,
+		F1Score:           0.90,
+		FalsePositiveRate: 0.10, // 10% FPR, above 5% threshold
 	}
 	resp := buildAssessResponse(m, "https://example.com")
-	assert.Contains(t, resp.Summary, "https://example.com",
-		"summary should include the target URL")
-	assert.Contains(t, resp.Summary, "Grade B",
-		"summary should include the grade")
+
+	hasWarning := false
+	for _, step := range resp.NextSteps {
+		if strings.Contains(step, "WARNING") && strings.Contains(step, "False positive") {
+			hasWarning = true
+			break
+		}
+	}
+	assert.True(t, hasWarning,
+		"FPR=10%% should trigger WARNING step, got %v", resp.NextSteps)
+
+	// Low FPR should NOT have the warning
+	m.FalsePositiveRate = 0.01
+	resp2 := buildAssessResponse(m, "https://example.com")
+	for _, step := range resp2.NextSteps {
+		assert.NotContains(t, step, "WARNING",
+			"FPR=1%% should not have WARNING step")
+	}
 }
