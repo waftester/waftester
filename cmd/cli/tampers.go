@@ -27,6 +27,11 @@ func runTampers() {
 	tamperNames := tamperFlags.String("tamper", "", "Comma-separated tampers to apply (for --test)")
 	showMatrix := tamperFlags.Bool("matrix", false, "Show WAF intelligence matrix")
 	jsonOutput := tamperFlags.Bool("json", false, "Output as JSON")
+	discover := tamperFlags.Bool("discover", false, "Auto-discover WAF bypass tampers against a live target")
+	discoverTarget := tamperFlags.String("target", "", "Target URL for bypass discovery (use with --discover)")
+	discoverConcurrency := tamperFlags.Int("concurrency", 5, "Parallel tamper tests for discovery")
+	discoverTopN := tamperFlags.Int("top-n", 5, "Top tampers to combine during discovery")
+	discoverConfirm := tamperFlags.Int("confirm", 2, "Confirmation payloads per potential bypass")
 
 	// Enterprise hook flags
 	tampersSlack := tamperFlags.String("slack-webhook", "", "Slack webhook URL for notifications")
@@ -38,7 +43,7 @@ func runTampers() {
 	tamperFlags.Parse(os.Args[2:])
 
 	// If no flags, show list
-	if !*listAll && *category == "" && *forWAF == "" && *test == "" && !*showMatrix {
+	if !*listAll && *category == "" && *forWAF == "" && *test == "" && !*showMatrix && !*discover {
 		*listAll = true
 	}
 
@@ -98,6 +103,12 @@ func runTampers() {
 	// Show WAF intelligence matrix
 	if *showMatrix {
 		showWAFMatrix(*jsonOutput)
+		return
+	}
+
+	// Bypass discovery mode
+	if *discover {
+		runBypassDiscovery(*discoverTarget, *forWAF, *discoverConcurrency, *discoverTopN, *discoverConfirm, *jsonOutput)
 		return
 	}
 }
@@ -322,4 +333,95 @@ func showWAFMatrix(jsonOut bool) {
 
 	fmt.Println()
 	fmt.Println("For detailed recommendations, use: waf-tester tampers --for-waf=<vendor>")
+}
+
+// runBypassDiscovery runs automated bypass discovery against a live target
+func runBypassDiscovery(targetURL, wafVendor string, concurrency, topN, confirmCount int, jsonOut bool) {
+	if targetURL == "" {
+		ui.PrintError("--target is required with --discover")
+		fmt.Println("Usage: waf-tester tampers --discover --target https://target.com")
+		os.Exit(1)
+	}
+
+	ui.PrintSection("Bypass Discovery")
+	ui.PrintInfo(fmt.Sprintf("Target: %s", targetURL))
+	if wafVendor != "" {
+		ui.PrintInfo(fmt.Sprintf("WAF vendor filter: %s", wafVendor))
+	}
+	fmt.Println()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	cfg := tampers.BypassDiscoveryConfig{
+		TargetURL:    targetURL,
+		WAFVendor:    wafVendor,
+		Concurrency:  concurrency,
+		TopN:         topN,
+		ConfirmCount: confirmCount,
+		OnProgress: func(tamperName, result string) {
+			switch result {
+			case "bypassed":
+				ui.PrintSuccess(fmt.Sprintf("%-30s BYPASS", tamperName))
+			case "blocked":
+				ui.PrintInfo(fmt.Sprintf("%-30s blocked", tamperName))
+			case "error":
+				ui.PrintWarning(fmt.Sprintf("%-30s error", tamperName))
+			}
+		},
+	}
+
+	result, err := tampers.DiscoverBypasses(ctx, cfg)
+	if err != nil {
+		ui.PrintError(fmt.Sprintf("Discovery failed: %v", err))
+		os.Exit(1)
+	}
+
+	if jsonOut {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		enc.Encode(result)
+		return
+	}
+
+	fmt.Println()
+	ui.PrintSection("Discovery Results")
+	fmt.Printf("  Tampers tested: %d\n", result.TotalTampers)
+	fmt.Printf("  Bypasses found: %d\n", result.TotalBypasses)
+	fmt.Printf("  Duration:       %s\n", result.Duration.Round(time.Millisecond))
+	fmt.Println()
+
+	if !result.BaselineBlocked {
+		ui.PrintWarning("Raw payloads were not blocked — target may not have WAF protection")
+		return
+	}
+
+	if len(result.TopBypasses) > 0 {
+		ui.PrintSuccess("Top Bypasses")
+		fmt.Println()
+		for i, b := range result.TopBypasses {
+			fmt.Printf("  %d. %s (%.0f%% success, confidence: %s)\n",
+				i+1, ui.StatValueStyle.Render(b.TamperName),
+				b.SuccessRate*100, b.Confidence)
+			if b.SampleOutput != "" {
+				fmt.Printf("     Sample: %s\n", ui.HelpStyle.Render(b.SampleOutput))
+			}
+		}
+	}
+
+	if len(result.Combinations) > 0 {
+		fmt.Println()
+		ui.PrintSuccess("Effective Combinations")
+		fmt.Println()
+		for i, c := range result.Combinations {
+			fmt.Printf("  %d. %s (%.0f%% success)\n",
+				i+1, ui.StatValueStyle.Render(strings.Join(c.TamperNames, " + ")),
+				c.SuccessRate*100)
+		}
+	}
+
+	if result.TotalBypasses == 0 {
+		fmt.Println()
+		ui.PrintInfo("No bypasses found. The WAF effectively blocks all tested tamper techniques.")
+	}
 }

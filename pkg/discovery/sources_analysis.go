@@ -19,6 +19,23 @@ var (
 	detectSecretsCache sync.Map // map[string][]Secret (hash -> secrets)
 )
 
+// ResetCaches clears all package-level content caches.
+// Safe for concurrent use — uses Range+Delete rather than reassignment.
+func ResetCaches() {
+	s3BucketsCache.Range(func(key, _ any) bool {
+		s3BucketsCache.Delete(key)
+		return true
+	})
+	detectSecretsCache.Range(func(key, _ any) bool {
+		detectSecretsCache.Delete(key)
+		return true
+	})
+	jsURLsCache.Range(func(key, _ any) bool {
+		jsURLsCache.Delete(key)
+		return true
+	})
+}
+
 // ==================== AWS S3 BUCKET EXTRACTION ====================
 // From gospider - finds S3 buckets in responses
 
