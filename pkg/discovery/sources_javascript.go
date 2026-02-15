@@ -17,6 +17,14 @@ var LinkFinderRegex = regexcache.MustGet(`(?:"|')(((?:[a-zA-Z]{1,10}://|//)[^"'/
 
 // FindLinksInJS extracts URLs and paths from JavaScript content
 func FindLinksInJS(content string) []string {
+	// Decode URL-encoded and unicode-escaped content
+	content = decodeJSContent(content)
+	return findLinksInJSDecoded(content)
+}
+
+// findLinksInJSDecoded extracts URLs from already-decoded JavaScript content.
+// Use this when the caller has already called decodeJSContent to avoid double-decoding.
+func findLinksInJSDecoded(content string) []string {
 	var links []string
 	seen := make(map[string]bool)
 
@@ -25,9 +33,6 @@ func FindLinksInJS(content string) []string {
 		content = strings.ReplaceAll(content, ";", ";\n")
 		content = strings.ReplaceAll(content, ",", ",\n")
 	}
-
-	// Decode URL-encoded and unicode-escaped content
-	content = decodeJSContent(content)
 
 	// Standard LinkFinder regex
 	matches := LinkFinderRegex.FindAllStringSubmatch(content, -1)
@@ -333,8 +338,8 @@ func ExtractJSURLsEnhanced(content string) []JSURLMatch {
 		}
 	}
 
-	// Also run the original LinkFinder regex
-	basicLinks := FindLinksInJS(content)
+	// Also run the original LinkFinder regex (content already decoded, skip re-decode)
+	basicLinks := findLinksInJSDecoded(content)
 	for _, link := range basicLinks {
 		key := "link:" + link
 		if !seen[key] {
