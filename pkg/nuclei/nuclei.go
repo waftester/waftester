@@ -1075,12 +1075,18 @@ func runExtractor(e *Extractor, resp *ResponseData) []string {
 }
 
 func expandVariables(input string, vars map[string]string) string {
-	// Sort keys for deterministic expansion order.
+	// Sort keys longest-first to prevent shorter keys from matching inside longer ones
+	// (e.g., "api" replacing within "{{api_key}}").
 	keys := make([]string, 0, len(vars))
 	for k := range vars {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	sort.Slice(keys, func(i, j int) bool {
+		if len(keys[i]) != len(keys[j]) {
+			return len(keys[i]) > len(keys[j])
+		}
+		return keys[i] < keys[j]
+	})
 
 	result := input
 	for _, k := range keys {
