@@ -44,6 +44,9 @@ func (e *Engine) executeNetworkRequest(ctx context.Context, req *NetworkRequest,
 	if readSize <= 0 {
 		readSize = 4096
 	}
+	if readSize > 10*1024*1024 {
+		readSize = 10 * 1024 * 1024 // Cap at 10MB to prevent OOM
+	}
 
 	timeout := 10 * time.Second
 	if req.Timeout != "" {
