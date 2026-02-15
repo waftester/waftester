@@ -417,6 +417,13 @@ type keepAliveWriter struct {
 	done    chan struct{}
 }
 
+// WriteHeader serializes access to the underlying ResponseWriter.
+func (kw *keepAliveWriter) WriteHeader(statusCode int) {
+	kw.mu.Lock()
+	defer kw.mu.Unlock()
+	kw.ResponseWriter.WriteHeader(statusCode)
+}
+
 // Write serializes access to the underlying ResponseWriter.
 func (kw *keepAliveWriter) Write(p []byte) (int, error) {
 	kw.mu.Lock()
