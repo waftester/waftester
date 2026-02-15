@@ -16,6 +16,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/waftester/waftester/pkg/apispec"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
 )
 
 // ---------------------------------------------------------------------------
@@ -30,6 +31,23 @@ const (
 )
 
 // Config holds MCP server configuration.
+// EventCrawlResult holds what was discovered by interacting with one DOM element.
+// Mirrors headless.EventCrawlResult to avoid importing chromedp into this package.
+type EventCrawlResult struct {
+	Element        map[string]any `json:"element"`
+	DiscoveredURLs []string       `json:"discovered_urls"`
+	XHRRequests    []string       `json:"xhr_requests"`
+	NavigatedTo    string         `json:"navigated_to,omitempty"`
+	DOMChanged     bool           `json:"dom_changed"`
+}
+
+// EventCrawlFn runs DOM event crawling on a target URL.
+// Injected from cmd/cli where chromedp is imported.
+// Parameters: ctx, targetURL, maxClicks, clickTimeoutSec.
+// Returns results and discovered same-origin URLs.
+type EventCrawlFn func(ctx context.Context, targetURL string, maxClicks, clickTimeoutSec int) (results []EventCrawlResult, discoveredURLs []string, err error)
+
+// Config holds MCP server configuration.
 type Config struct {
 	// PayloadDir is the directory containing payload JSON files.
 	PayloadDir string
@@ -37,11 +55,20 @@ type Config struct {
 	// TemplateDir is the directory containing Nuclei template files.
 	TemplateDir string
 
+	// TamperDir is the directory containing .tengo script tampers.
+	// When set, script tampers are loaded and registered at startup.
+	TamperDir string
+
 	// SpecScanFn is the scanner bridge for spec-driven scanning.
 	// When set, the scan_spec MCP tool uses this function to dispatch
 	// scan categories (sqli, xss, etc.) against spec endpoints.
 	// Injected from cmd/cli where scanner packages are imported.
 	SpecScanFn apispec.ScanFunc
+
+	// EventCrawlFn runs DOM event crawling via headless Chromium.
+	// When set, the event_crawl MCP tool is available.
+	// Injected from cmd/cli where chromedp is imported.
+	EventCrawlFn EventCrawlFn
 }
 
 // ---------------------------------------------------------------------------
@@ -90,6 +117,20 @@ func New(cfg *Config) *Server {
 	}
 	if cfg.TemplateDir == "" {
 		cfg.TemplateDir = "./templates/nuclei"
+	}
+
+	// Load script tampers from directory if configured.
+	if cfg.TamperDir != "" {
+		scripts, errs := tampers.LoadScriptDir(cfg.TamperDir)
+		for _, e := range errs {
+			log.Printf("[mcp] script tamper warning: %v", e)
+		}
+		for _, st := range scripts {
+			tampers.Register(st)
+		}
+		if len(scripts) > 0 {
+			log.Printf("[mcp] loaded %d script tampers from %s", len(scripts), cfg.TamperDir)
+		}
 	}
 
 	s := &Server{
@@ -525,7 +566,7 @@ func validateTargetURL(target string) error {
 // Server Instructions — the AI's comprehensive operating manual
 // ---------------------------------------------------------------------------
 
-const serverInstructions = `You are operating WAF Tester — a comprehensive Web Application Firewall security testing platform with 13 tools, 2,800+ attack payloads, 26 WAF + 9 CDN detection signatures, and enterprise-grade assessment capabilities.
+const serverInstructions = `You are operating WAF Tester — a comprehensive Web Application Firewall security testing platform with 24 tools, 2,800+ attack payloads, 26 WAF + 9 CDN detection signatures, and enterprise-grade assessment capabilities.
 
 ## YOUR IDENTITY
 
@@ -554,6 +595,9 @@ Choose the right tool for each situation:
 | "Find WAF bypasses" | bypass | Systematic bypass testing with mutation matrix (ASYNC) |
 | "Encode this payload" | mutate | Apply encoding/evasion transformations |
 | "Probe the infrastructure" | probe | TLS, HTTP/2, technology fingerprinting |
+| "What tampers are available?" | list_tampers | Browse tamper technique catalog (offline) |
+| "Find tamper bypasses" | discover_bypasses | Test tamper scripts against live WAF (ASYNC) |
+| "Find hidden JS endpoints" | event_crawl | Click DOM elements via headless browser (ASYNC) |
 | "Generate CI/CD config" | generate_cicd | Create pipeline YAML for automated testing |
 | "Check task progress" | get_task_status | Poll for async task results |
 | "Cancel a task" | cancel_task | Stop a running async task |
@@ -591,8 +635,8 @@ This pattern prevents timeout errors (e.g., MCP error -32001) that occur when lo
 
 NOTE: In stdio transport mode, long-running tools run synchronously and return complete results directly — no polling needed.
 
-FAST TOOLS (return immediately): detect_waf, list_payloads, learn, mutate, probe, generate_cicd, get_task_status, cancel_task, list_tasks
-ASYNC TOOLS (return task_id): scan, assess, bypass, discover
+FAST TOOLS (return immediately): detect_waf, list_payloads, learn, mutate, probe, generate_cicd, list_tampers, get_task_status, cancel_task, list_tasks
+ASYNC TOOLS (return task_id): scan, assess, bypass, discover, discover_bypasses, event_crawl
 
 ### Workflow A: Full Security Assessment (Recommended)
 1. detect_waf → Understand the WAF protecting the target
@@ -606,6 +650,7 @@ ASYNC TOOLS (return task_id): scan, assess, bypass, discover
 2. scan → Run payloads against the target
 3. mutate → Generate encoded variants of blocked payloads
 4. bypass → Systematic bypass testing with mutation matrix
+5. discover_bypasses → Test tamper scripts for additional bypass paths
 
 ### Workflow C: WAF Effectiveness Audit
 1. detect_waf → Identify WAF vendor and version
