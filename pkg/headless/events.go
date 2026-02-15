@@ -155,7 +155,7 @@ func DiscoverClickables(ctx context.Context) ([]ClickableElement, error) {
 
 // ClickAndCapture clicks an element and captures any new URLs or XHR requests triggered.
 // It records the pre-click state, clicks, waits for activity, then restores the page.
-func ClickAndCapture(ctx context.Context, element ClickableElement, originalURL string, waitDuration time.Duration) (*EventCrawlResult, error) {
+func ClickAndCapture(ctx context.Context, element ClickableElement, originalURL string, waitDuration time.Duration, clickTimeout time.Duration) (*EventCrawlResult, error) {
 	result := &EventCrawlResult{
 		Element: element,
 	}
@@ -183,12 +183,16 @@ func ClickAndCapture(ctx context.Context, element ClickableElement, originalURL 
 		}
 	})
 
-	// Click the element
-	if err := chromedp.Run(ctx, chromedp.Click(element.Selector, chromedp.NodeVisible)); err != nil {
-		// Element may have disappeared; not fatal
+	// Click the element with a timeout
+	clickCtx, clickCancel := context.WithTimeout(ctx, clickTimeout)
+	if err := chromedp.Run(clickCtx, chromedp.Click(element.Selector, chromedp.NodeVisible)); err != nil {
+		clickCancel()
+		// Element may have disappeared or timed out; not fatal
 		result.DiscoveredURLs = nil
+		listenerCancel()
 		return result, nil
 	}
+	clickCancel()
 
 	// Wait for network activity to settle
 	select {
@@ -212,6 +216,9 @@ func ClickAndCapture(ctx context.Context, element ClickableElement, originalURL 
 		result.DOMChanged = domHashBefore != domHashAfter
 	}
 
+	// Stop listener before reading collected URLs to prevent race
+	listenerCancel()
+
 	// Collect XHR requests
 	mu.Lock()
 	result.XHRRequests = xhrURLs
@@ -231,7 +238,9 @@ func ClickAndCapture(ctx context.Context, element ClickableElement, originalURL 
 
 	// If page navigated, go back
 	if result.NavigatedTo != "" {
-		_ = chromedp.Run(ctx, chromedp.Navigate(originalURL))
+		if err := chromedp.Run(ctx, chromedp.Navigate(originalURL)); err != nil {
+			return result, fmt.Errorf("navigate back to %s: %w", originalURL, err)
+		}
 		select {
 		case <-time.After(500 * time.Millisecond):
 		case <-ctx.Done():
@@ -292,7 +301,7 @@ func EventCrawl(ctx context.Context, targetURL string, config *EventCrawlConfig)
 			}
 		}
 
-		result, err := ClickAndCapture(ctx, el, targetURL, config.WaitAfterClick)
+		result, err := ClickAndCapture(ctx, el, targetURL, config.WaitAfterClick, config.ClickTimeout)
 		if err != nil {
 			continue
 		}

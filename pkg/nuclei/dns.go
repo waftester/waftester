@@ -42,7 +42,7 @@ func (e *Engine) executeDNSRequest(ctx context.Context, req *DNSRequest, vars ma
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 				d := net.Dialer{Timeout: 10 * time.Second}
-				return d.DialContext(ctx, "udp", resolverAddr)
+				return d.DialContext(ctx, network, resolverAddr)
 			},
 		}
 	}
@@ -113,8 +113,7 @@ func (e *Engine) executeDNSRequest(ctx context.Context, req *DNSRequest, vars ma
 	}
 
 	respData := &ResponseData{
-		StatusCode: len(answers), // Answer count, not HTTP status — status matchers are not meaningful for DNS
-		Body:       []byte(body),
+		Body: []byte(body),
 	}
 
 	condition := "or"
