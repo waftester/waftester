@@ -12,6 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -98,7 +101,7 @@ var defaultBypassPayloads = []string{
 
 func (cfg *BypassDiscoveryConfig) defaults() {
 	if cfg.Concurrency <= 0 {
-		cfg.Concurrency = 5
+		cfg.Concurrency = defaults.ConcurrencyLow
 	}
 	if cfg.ConfirmCount <= 0 {
 		cfg.ConfirmCount = 2
@@ -107,10 +110,10 @@ func (cfg *BypassDiscoveryConfig) defaults() {
 		cfg.TopN = 5
 	}
 	if cfg.Timeout <= 0 {
-		cfg.Timeout = 10 * time.Second
+		cfg.Timeout = duration.DialTimeout
 	}
 	if cfg.HTTPClient == nil {
-		cfg.HTTPClient = &http.Client{Timeout: cfg.Timeout}
+		cfg.HTTPClient = httpclient.New(httpclient.Config{Timeout: cfg.Timeout})
 	}
 	if len(cfg.Payloads) == 0 {
 		cfg.Payloads = defaultBypassPayloads
