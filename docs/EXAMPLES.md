@@ -1,6 +1,8 @@
 # WAFtester Examples Guide
 
 > **Tip:** For a curated version of these docs with better navigation, visit [waftester.com/docs](https://waftester.com/docs).
+>
+> **Looking for flag reference?** See [COMMANDS.md](COMMANDS.md) for the complete flag reference for every command.
 
 This guide provides comprehensive usage examples for WAFtester, organized by use case and command category. Each example includes context on when to use the command, what value it provides, and expected output formats.
 
