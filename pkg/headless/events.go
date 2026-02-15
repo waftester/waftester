@@ -166,12 +166,16 @@ func ClickAndCapture(ctx context.Context, element ClickableElement, originalURL 
 		return nil, fmt.Errorf("pre-click DOM hash: %w", err)
 	}
 
-	// Collect network requests during click
+	// Collect network requests during click.
+	// Use a child context so the listener is removed when this function returns,
+	// preventing listener accumulation across multiple ClickAndCapture calls.
+	listenerCtx, listenerCancel := context.WithCancel(ctx)
+	defer listenerCancel()
+
 	var mu sync.Mutex
 	var xhrURLs []string
 
-	// Listen for network requests
-	chromedp.ListenTarget(ctx, func(ev interface{}) {
+	chromedp.ListenTarget(listenerCtx, func(ev interface{}) {
 		if req, ok := ev.(*network.EventRequestWillBeSent); ok {
 			mu.Lock()
 			xhrURLs = append(xhrURLs, req.Request.URL)

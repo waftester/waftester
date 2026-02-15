@@ -160,10 +160,8 @@ func DiscoverBypasses(ctx context.Context, cfg BypassDiscoveryConfig) (*BypassDi
 	var wg sync.WaitGroup
 
 	for _, name := range tamperNames {
-		select {
-		case <-ctx.Done():
+		if ctx.Err() != nil {
 			break
-		default:
 		}
 
 		wg.Add(1)
@@ -241,10 +239,8 @@ func DiscoverBypasses(ctx context.Context, cfg BypassDiscoveryConfig) (*BypassDi
 		}
 
 		for _, payload := range confirmPayloads {
-			select {
-			case <-ctx.Done():
+			if ctx.Err() != nil {
 				break
-			default:
 			}
 
 			transformed := t.Transform(payload)
