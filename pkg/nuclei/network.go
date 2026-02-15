@@ -121,8 +121,7 @@ func (e *Engine) executeNetworkRequest(ctx context.Context, req *NetworkRequest,
 	}
 
 	respData := &ResponseData{
-		StatusCode: len(responseData), // Byte count, not HTTP status — status matchers are not meaningful for network
-		Body:       responseData,
+		Body: responseData,
 	}
 
 	condition := "or"

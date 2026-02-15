@@ -3,6 +3,7 @@ package discovery
 
 import (
 	"crypto/md5"
+	"encoding/hex"
 	"net/url"
 	"regexp"
 	"strings"
@@ -105,7 +106,7 @@ var jsURLsCache sync.Map // map[string][]JSURLMatch (hash -> matches)
 // contentHash generates a fast hash for cache keys
 func contentHash(content string) string {
 	h := md5.Sum([]byte(content))
-	return string(h[:])
+	return hex.EncodeToString(h[:])
 }
 
 func decodeJSContent(s string) string {

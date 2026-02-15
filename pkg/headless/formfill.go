@@ -2,6 +2,8 @@ package headless
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -338,15 +340,18 @@ func DetectFormType(form FormInfo) string {
 
 // FormToURLEncoded converts form data to URL-encoded string
 func FormToURLEncoded(data map[string]string) string {
-	var parts []string
+	vals := make(url.Values, len(data))
 	for k, v := range data {
-		parts = append(parts, k+"="+v)
+		vals.Set(k, v)
 	}
-	return strings.Join(parts, "&")
+	return vals.Encode()
 }
 
 // FormToJSON converts form data to JSON string
-func FormToJSON(data map[string]string) string {
-	bytes, _ := json.Marshal(data)
-	return string(bytes)
+func FormToJSON(data map[string]string) (string, error) {
+	b, err := json.Marshal(data)
+	if err != nil {
+		return "", fmt.Errorf("marshal form data: %w", err)
+	}
+	return string(b), nil
 }

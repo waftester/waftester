@@ -35,8 +35,8 @@ func TestParseClickablesJSON(t *testing.T) {
 			want: 1,
 		},
 		{
-			name: "invalid JSON",
-			json: `not json`,
+			name:    "invalid JSON",
+			json:    `not json`,
 			wantErr: true,
 		},
 	}
