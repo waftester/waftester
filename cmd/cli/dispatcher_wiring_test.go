@@ -166,17 +166,38 @@ func TestTestBasedCommandsHaveEmitResult(t *testing.T) {
 func TestOnResultCallbacksHaveEmitResult(t *testing.T) {
 	sourceCode := readAllGoSources(t)
 
-	// Find all OnResult callback definitions
-	onResultPattern := regexp.MustCompile(`OnResult:\s*func\(result \*output\.TestResult\)\s*\{([^}]+(?:\{[^}]*\}[^}]*)*)\}`)
-	matches := onResultPattern.FindAllStringSubmatch(sourceCode, -1)
+	// Find all OnResult callback start positions
+	onResultPattern := regexp.MustCompile(`OnResult:\s*func\(result \*output\.TestResult\)\s*\{`)
+	locs := onResultPattern.FindAllStringIndex(sourceCode, -1)
 
-	if len(matches) < 2 {
-		t.Errorf("expected at least 2 OnResult callbacks, found %d", len(matches))
+	if len(locs) < 2 {
+		t.Errorf("expected at least 2 OnResult callbacks, found %d", len(locs))
 		return
 	}
 
-	for i, match := range matches {
-		callbackBody := match[1]
+	for i, loc := range locs {
+		// Find the opening brace of the callback body
+		braceStart := strings.LastIndex(sourceCode[loc[0]:loc[1]], "{")
+		if braceStart < 0 {
+			t.Errorf("OnResult callback #%d: could not find opening brace", i+1)
+			continue
+		}
+		bodyStart := loc[0] + braceStart + 1
+
+		// Walk forward counting braces to find the matching close
+		depth := 1
+		pos := bodyStart
+		for pos < len(sourceCode) && depth > 0 {
+			switch sourceCode[pos] {
+			case '{':
+				depth++
+			case '}':
+				depth--
+			}
+			pos++
+		}
+
+		callbackBody := sourceCode[bodyStart : pos-1]
 		if !strings.Contains(callbackBody, "EmitResult") {
 			t.Errorf("OnResult callback #%d is missing EmitResult call", i+1)
 		}
@@ -299,35 +320,20 @@ func TestNoOrphanedDispatcherContexts(t *testing.T) {
 func readAllGoSources(t *testing.T) string {
 	t.Helper()
 
-	files := []string{
-		"main.go",
-		"cmd_autoscan.go",
-		"cmd_scan.go",
-		"cmd_fuzz.go",
-		"cmd_probe.go",
-		"cmd_crawl.go",
-		"cmd_tests.go",
-		"cmd_mutate.go",
-		"cmd_bypass.go",
-		"cmd_analyze.go",
-		"cmd_discover.go",
-		"cmd_learn.go",
-		"cmd_misc.go",
-		"cmd_admin.go",
-		"cmd_docs.go",
-		"output.go",
-		"assess.go",
-		"fp.go",
-		"vendor.go",
-		"smart_mode.go",
-		"tampers.go",
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("failed to read cmd/cli directory: %v", err)
 	}
 
 	var combined strings.Builder
-	for _, file := range files {
-		content, err := os.ReadFile(file)
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		content, err := os.ReadFile(name)
 		if err != nil {
-			t.Fatalf("failed to read %s: %v", file, err)
+			t.Fatalf("failed to read %s: %v", name, err)
 		}
 		combined.Write(content)
 		combined.WriteByte('\n')
