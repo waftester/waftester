@@ -38,14 +38,12 @@ type Discoverer struct {
 
 // DiscoveredParam represents a discovered parameter
 type DiscoveredParam struct {
-	Name       string            `json:"name"`
-	Type       string            `json:"type"` // query, body, header, cookie
-	Value      string            `json:"value,omitempty"`
-	Confidence float64           `json:"confidence"` // 0.0 - 1.0
-	Source     string            `json:"source"`     // wordlist, heuristic, passive, reflection
-	Evidence   string            `json:"evidence,omitempty"`
-	Methods    []string          `json:"methods,omitempty"`
-	Metadata   map[string]string `json:"metadata,omitempty"`
+	Name       string   `json:"name"`
+	Type       string   `json:"type"` // query, body, header, cookie
+	Value      string   `json:"value,omitempty"`
+	Confidence float64  `json:"confidence"` // 0.0 - 1.0
+	Source     string   `json:"source"`     // wordlist, heuristic, passive, reflection
+	Methods    []string `json:"methods,omitempty"`
 }
 
 // DiscoveryResult contains all discovered parameters
@@ -494,9 +492,15 @@ func (d *Discoverer) testParamChunk(ctx context.Context, targetURL string, metho
 			confidence = 0.95
 		}
 
+		// Map HTTP method to parameter position type
+		paramType := "query"
+		if strings.EqualFold(method, "POST") {
+			paramType = "body"
+		}
+
 		found = append(found, DiscoveredParam{
 			Name:       param,
-			Type:       strings.ToLower(method),
+			Type:       paramType,
 			Confidence: confidence,
 			Source:     "wordlist",
 			Methods:    []string{method},

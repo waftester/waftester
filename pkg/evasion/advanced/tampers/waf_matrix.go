@@ -6,13 +6,11 @@ package tampers
 
 // TamperRecommendation represents a tamper's effectiveness for a specific WAF
 type TamperRecommendation struct {
-	Name          string   // Tamper name (must match registry)
-	Effectiveness float64  // 0.0-1.0 effectiveness score
-	Order         int      // Execution order in chain (lower = first)
-	RequiresHTTP  bool     // Requires HTTP-level transformation
-	ConflictsWith []string // Cannot be chained with these tampers
-	Synergizes    []string // Works better when combined with these
-	Notes         string   // Additional context
+	Name          string  // Tamper name (must match registry)
+	Effectiveness float64 // 0.0-1.0 effectiveness score
+	Order         int     // Execution order in chain (lower = first)
+	RequiresHTTP  bool    // Requires HTTP-level transformation
+	Notes         string  // Additional context
 }
 
 // wafMatrix holds vendor-specific tamper recommendations
