@@ -41,11 +41,24 @@ func (s *Server) addVersionResource() {
 			MIMEType:    "application/json",
 		},
 		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			tools := []string{
+				"list_payloads", "detect_waf", "discover", "learn", "scan",
+				"assess", "mutate", "bypass", "probe", "generate_cicd",
+				"list_tampers", "discover_bypasses",
+				"get_task_status", "cancel_task", "list_tasks",
+				"validate_spec", "list_spec_endpoints", "plan_spec", "scan_spec",
+				"compare_baselines",
+				"preview_spec_scan", "spec_intelligence", "describe_spec_auth", "export_spec",
+			}
+			if s.config.EventCrawlFn != nil {
+				tools = append(tools, "event_crawl")
+			}
+
 			info := map[string]any{
 				"name":    defaults.ToolNameDisplay,
 				"version": defaults.Version,
 				"capabilities": map[string]any{
-					"tools":     24,
+					"tools":     len(tools),
 					"resources": 12,
 					"prompts":   7,
 					"templates": 40,
@@ -53,15 +66,7 @@ func (s *Server) addVersionResource() {
 				"template_categories": []string{
 					"nuclei/bypass", "nuclei/detection", "workflows", "policies", "overrides", "output", "report-configs",
 				},
-				"tools": []string{
-					"list_payloads", "detect_waf", "discover", "learn", "scan",
-					"assess", "mutate", "bypass", "probe", "generate_cicd",
-					"list_tampers", "discover_bypasses",
-					"get_task_status", "cancel_task", "list_tasks",
-					"validate_spec", "list_spec_endpoints", "plan_spec", "scan_spec",
-					"compare_baselines",
-					"preview_spec_scan", "spec_intelligence", "describe_spec_auth", "export_spec",
-				},
+				"tools": tools,
 				"supported_waf_vendors": []string{
 					"ModSecurity", "Coraza", "Cloudflare", "AWS WAF", "Azure WAF",
 					"Akamai Kona", "Imperva Incapsula", "F5 BIG-IP ASM", "FortiWeb", "Barracuda WAF",

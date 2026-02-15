@@ -114,13 +114,14 @@ ASYNC TOOL: This tool returns a task_id immediately and runs in the background. 
 						"description": "Proxy URL for requests (e.g. http://127.0.0.1:8080 for Burp Suite).",
 						"format":      "uri",
 					},
-					"policy": map[string]any{
+					"tamper": map[string]any{
 						"type":        "string",
-						"description": "Path to a policy YAML file (e.g. templates/policies/standard.yaml). Controls exit code and grading threshold.",
+						"description": "Comma-separated tamper techniques to apply (e.g. 'unicode,double_encode'). Use 'list_tampers' to see available tampers.",
 					},
-					"overrides": map[string]any{
+					"tamper_profile": map[string]any{
 						"type":        "string",
-						"description": "Path to an overrides YAML file (e.g. templates/overrides/api-only.yaml). Customizes scan behavior for specific targets.",
+						"description": "Predefined tamper profile to apply. Ignored if 'tamper' is set.",
+						"enum":        []string{"standard", "stealth", "aggressive", "bypass"},
 					},
 				},
 				"required": []string{"target"},
@@ -138,18 +139,16 @@ ASYNC TOOL: This tool returns a task_id immediately and runs in the background. 
 }
 
 type scanArgs struct {
-	Target       string   `json:"target"`
-	Categories   []string `json:"categories"`
-	Severity     string   `json:"severity"`
-	Concurrency  int      `json:"concurrency"`
-	RateLimit    int      `json:"rate_limit"`
-	Timeout      int      `json:"timeout"`
-	SkipVerify   bool     `json:"skip_verify"`
-	Proxy        string   `json:"proxy"`
-	Policy       string   `json:"policy"`
-	Overrides    string   `json:"overrides"`
-	Tamper       string   `json:"tamper"`
-	TamperProfile string  `json:"tamper_profile"`
+	Target        string   `json:"target"`
+	Categories    []string `json:"categories"`
+	Severity      string   `json:"severity"`
+	Concurrency   int      `json:"concurrency"`
+	RateLimit     int      `json:"rate_limit"`
+	Timeout       int      `json:"timeout"`
+	SkipVerify    bool     `json:"skip_verify"`
+	Proxy         string   `json:"proxy"`
+	Tamper        string   `json:"tamper"`
+	TamperProfile string   `json:"tamper_profile"`
 }
 
 type scanResultSummary struct {
@@ -177,11 +176,20 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	if args.Concurrency <= 0 {
 		args.Concurrency = defaults.ConcurrencyMedium
 	}
+	if args.Concurrency > 100 {
+		args.Concurrency = 100
+	}
 	if args.RateLimit <= 0 {
 		args.RateLimit = 50
 	}
+	if args.RateLimit > 1000 {
+		args.RateLimit = 1000
+	}
 	if args.Timeout <= 0 {
 		args.Timeout = 5
+	}
+	if args.Timeout > 60 {
+		args.Timeout = 60
 	}
 
 	// Load payloads synchronously so validation errors return immediately.
@@ -593,11 +601,20 @@ func (s *Server) handleAssess(ctx context.Context, req *mcp.CallToolRequest) (*m
 	if args.Concurrency > 0 {
 		cfg.Concurrency = args.Concurrency
 	}
+	if cfg.Concurrency > 100 {
+		cfg.Concurrency = 100
+	}
 	if args.RateLimit > 0 {
 		cfg.RateLimit = float64(args.RateLimit)
 	}
+	if cfg.RateLimit > 500 {
+		cfg.RateLimit = 500
+	}
 	if args.Timeout > 0 {
 		cfg.Timeout = time.Duration(args.Timeout) * time.Second
+	}
+	if args.Timeout > 60 {
+		cfg.Timeout = 60 * time.Second
 	}
 	if len(args.Categories) > 0 {
 		cfg.Categories = args.Categories

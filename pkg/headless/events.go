@@ -177,9 +177,12 @@ func ClickAndCapture(ctx context.Context, element ClickableElement, originalURL 
 
 	chromedp.ListenTarget(listenerCtx, func(ev interface{}) {
 		if req, ok := ev.(*network.EventRequestWillBeSent); ok {
-			mu.Lock()
-			xhrURLs = append(xhrURLs, req.Request.URL)
-			mu.Unlock()
+			// Only capture XHR and Fetch requests, not static resources (images, CSS, fonts).
+			if req.Type == network.ResourceTypeXHR || req.Type == network.ResourceTypeFetch {
+				mu.Lock()
+				xhrURLs = append(xhrURLs, req.Request.URL)
+				mu.Unlock()
+			}
 		}
 	})
 
