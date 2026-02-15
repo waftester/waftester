@@ -307,8 +307,11 @@ func DiscoverBypasses(ctx context.Context, cfg BypassDiscoveryConfig) (*BypassDi
 		})
 	}
 
-	// Build results for non-bypass tampers too
+	// Build results for non-bypass tampers (bypassed ones are in TopBypasses with confirmed data)
 	for _, tr := range tamperResults {
+		if tr.bypassed {
+			continue
+		}
 		t := Get(tr.name)
 		cat := ""
 		desc := ""

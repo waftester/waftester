@@ -101,7 +101,11 @@ func (d *Discoverer) getJSONBaseline(ctx context.Context, targetURL string) (*ba
 }
 
 func (d *Discoverer) testJSONParamChunk(ctx context.Context, targetURL string, chunk []string, baseline *baselineResponse) []DiscoveredParam {
-	if ctx.Err() != nil {
+	return d.testJSONParamChunkR(ctx, targetURL, chunk, baseline, 0)
+}
+
+func (d *Discoverer) testJSONParamChunkR(ctx context.Context, targetURL string, chunk []string, baseline *baselineResponse, depth int) []DiscoveredParam {
+	if ctx.Err() != nil || depth > maxParamRecursionDepth {
 		return nil
 	}
 	var found []DiscoveredParam
@@ -142,8 +146,8 @@ func (d *Discoverer) testJSONParamChunk(ctx context.Context, targetURL string, c
 	// Binary search to isolate which params caused the change
 	if len(chunk) > 1 {
 		mid := len(chunk) / 2
-		left := d.testJSONParamChunk(ctx, targetURL, chunk[:mid], baseline)
-		right := d.testJSONParamChunk(ctx, targetURL, chunk[mid:], baseline)
+		left := d.testJSONParamChunkR(ctx, targetURL, chunk[:mid], baseline, depth+1)
+		right := d.testJSONParamChunkR(ctx, targetURL, chunk[mid:], baseline, depth+1)
 		found = append(found, left...)
 		found = append(found, right...)
 	} else if len(chunk) == 1 {
@@ -212,7 +216,11 @@ func (d *Discoverer) headerDiscovery(ctx context.Context, targetURL string, base
 }
 
 func (d *Discoverer) binarySearchHeaders(ctx context.Context, targetURL string, baseline *baselineResponse, headers []string, canary string) []DiscoveredParam {
-	if ctx.Err() != nil {
+	return d.binarySearchHeadersR(ctx, targetURL, baseline, headers, canary, 0)
+}
+
+func (d *Discoverer) binarySearchHeadersR(ctx context.Context, targetURL string, baseline *baselineResponse, headers []string, canary string, depth int) []DiscoveredParam {
+	if ctx.Err() != nil || depth > maxParamRecursionDepth {
 		return nil
 	}
 	var found []DiscoveredParam
@@ -311,7 +319,11 @@ func (d *Discoverer) cookieDiscovery(ctx context.Context, targetURL string, base
 }
 
 func (d *Discoverer) binarySearchCookies(ctx context.Context, targetURL string, baseline *baselineResponse, cookies []string, canary string) []DiscoveredParam {
-	if ctx.Err() != nil {
+	return d.binarySearchCookiesR(ctx, targetURL, baseline, cookies, canary, 0)
+}
+
+func (d *Discoverer) binarySearchCookiesR(ctx context.Context, targetURL string, baseline *baselineResponse, cookies []string, canary string, depth int) []DiscoveredParam {
+	if ctx.Err() != nil || depth > maxParamRecursionDepth {
 		return nil
 	}
 	var found []DiscoveredParam
@@ -343,7 +355,7 @@ func (d *Discoverer) binarySearchCookies(ctx context.Context, targetURL string, 
 			continue
 		}
 		body, _ := iohelper.ReadBodyDefault(resp.Body)
-		iohelper.DrainAndClose(resp.Body)
+		_ = resp.Body.Close()
 		newHash := fmt.Sprintf("%x", md5.Sum(body))
 
 		differs := resp.StatusCode != baseline.StatusCode ||
@@ -351,7 +363,7 @@ func (d *Discoverer) binarySearchCookies(ctx context.Context, targetURL string, 
 			newHash != baseline.ContentHash
 
 		if differs {
-			sub := d.binarySearchCookies(ctx, targetURL, baseline, half, canary)
+			sub := d.binarySearchCookiesR(ctx, targetURL, baseline, half, canary, depth+1)
 			found = append(found, sub...)
 		}
 	}
