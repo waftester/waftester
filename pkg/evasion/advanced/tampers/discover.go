@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -72,7 +73,10 @@ func (s responseSignature) resembles(other responseSignature) bool {
 		return s.bodySize == 0
 	}
 	ratio := float64(s.bodySize) / float64(other.bodySize)
-	if ratio <= 0.8 || ratio >= 1.2 {
+	if ratio < 1 {
+		ratio = 1 / ratio
+	}
+	if ratio >= 1.2 {
 		return false
 	}
 	// Similar size — check content hash when both are available
@@ -438,9 +442,17 @@ func captureSignature(ctx context.Context, client *http.Client, targetURL, paylo
 		if err != nil {
 			return responseSignature{}, fmt.Errorf("parse url: %w", err)
 		}
-		q := u.Query()
-		q.Set("test", payload)
-		u.RawQuery = q.Encode()
+		// Build query string manually to preserve percent-encoded sequences
+		// from encoding tampers (e.g., %27 from charencode). Using url.Values.Encode()
+		// would re-encode % as %25, producing double-encoded payloads.
+		escaped := strings.NewReplacer(
+			" ", "%20", "&", "%26", "=", "%3D", "#", "%23",
+		).Replace(payload)
+		if u.RawQuery != "" {
+			u.RawQuery += "&test=" + escaped
+		} else {
+			u.RawQuery = "test=" + escaped
+		}
 		reqURL = u.String()
 	}
 
