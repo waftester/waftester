@@ -125,11 +125,49 @@ func TestTestParamChunk_RecursionDepthLimit(t *testing.T) {
 		"recursion depth guard should prevent excessive requests (got %d)", callCount)
 }
 
-// --- Regression: R6 — maxParamRecursionDepth constant exists ---
+// --- Regression: R6 — maxParamRecursionDepth bounds ---
+// Without this constant, testParamChunkR would recurse until stack overflow.
+// Verify the guard fires by counting actual depth against the constant.
 
-func TestMaxParamRecursionDepth_IsPositive(t *testing.T) {
+func TestMaxParamRecursionDepth_BoundsCallCount(t *testing.T) {
 	assert.Greater(t, maxParamRecursionDepth, 0,
 		"maxParamRecursionDepth must be positive")
 	assert.LessOrEqual(t, maxParamRecursionDepth, 50,
 		"maxParamRecursionDepth should be reasonable (<=50)")
+
+	// With 4 params, worst case binary search depth is log2(4)+1 = 3.
+	// But adversarial server triggers every split, so max depth =
+	// maxParamRecursionDepth. Each level does at most 3 requests:
+	// 1 chunk test + 2 halves. Upper bound: 3 * maxParamRecursionDepth.
+	callCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(strings.Repeat("x", callCount*7)))
+	}))
+	defer srv.Close()
+
+	d := NewDiscoverer(&Config{
+		Base: attackconfig.Base{
+			Concurrency: 1,
+			Timeout:     5 * time.Second,
+		},
+	})
+
+	h := md5.Sum([]byte("baseline"))
+	baseline := &baselineResponse{
+		StatusCode:    200,
+		ContentLength: 42,
+		ContentHash:   fmt.Sprintf("%x", h),
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_ = d.testParamChunk(ctx, srv.URL, "GET", []string{"x"}, baseline)
+
+	// A single param should not binary-search deeper than maxParamRecursionDepth.
+	maxExpected := 3 * maxParamRecursionDepth
+	assert.LessOrEqual(t, callCount, maxExpected,
+		"single param should not exceed %d requests (got %d)", maxExpected, callCount)
 }

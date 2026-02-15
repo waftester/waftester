@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // --- Regression: R9 — expandVariables must sort longest-first ---
@@ -177,7 +178,8 @@ func TestMatchSize_AndCondition(t *testing.T) {
 }
 
 // --- Regression: R10 — runExtractor must guard against negative Group index ---
-// A template with group: -1 must not panic.
+// A template with group: -1 must not panic. Before the fix, accessing m[-1]
+// would panic with index out of range.
 
 func TestRunExtractor_NegativeGroupNoPanic(t *testing.T) {
 	e := Extractor{
@@ -192,11 +194,11 @@ func TestRunExtractor_NegativeGroupNoPanic(t *testing.T) {
 		Body:       []byte("key=value foo=bar"),
 	}
 
-	// Must not panic — should fall through to m[0]
+	// Must not panic — guard `e.Group >= 0` falls through to m[0]
 	results := runExtractor(&e, resp)
-	assert.NotEmpty(t, results, "should extract via fallback m[0]")
-	// With group=-1, the guard `e.Group >= 0` fails, so it uses m[0]
-	assert.Equal(t, "key=value", results[0])
+	require.NotEmpty(t, results, "should extract via fallback m[0]")
+	assert.Equal(t, "key=value", results[0],
+		"with group=-1, should fall back to m[0] (full match)")
 }
 
 func TestRunExtractor_ValidGroup(t *testing.T) {
@@ -213,8 +215,9 @@ func TestRunExtractor_ValidGroup(t *testing.T) {
 	}
 
 	results := runExtractor(&e, resp)
-	assert.NotEmpty(t, results)
-	assert.Equal(t, "value", results[0])
+	require.NotEmpty(t, results)
+	assert.Equal(t, "value", results[0],
+		"group=2 should capture the second submatch")
 }
 
 func TestRunExtractor_GroupExceedsMatchCount(t *testing.T) {
@@ -231,7 +234,41 @@ func TestRunExtractor_GroupExceedsMatchCount(t *testing.T) {
 	}
 
 	results := runExtractor(&e, resp)
-	// Falls through to m[0] since Group > len(m)
-	assert.NotEmpty(t, results)
-	assert.Equal(t, "hello", results[0])
+	// Falls through to m[0] since Group >= len(m)
+	require.NotEmpty(t, results)
+	assert.Equal(t, "hello", results[0],
+		"out-of-bounds group should fall back to m[0]")
+}
+
+// Verify the guard logic handles the full range of edge cases.
+func TestRunExtractor_GroupBoundary(t *testing.T) {
+	tests := []struct {
+		name  string
+		group int
+		want  string
+	}{
+		{"group=-100", -100, "key=value"}, // falls back to m[0]
+		{"group=0", 0, "key=value"},       // m[0] = full match
+		{"group=1", 1, "key"},             // m[1] = first capture
+		{"group=2", 2, "value"},           // m[2] = second capture
+		{"group=3", 3, "key=value"},       // out of range → m[0]
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := Extractor{
+				Type:  "regex",
+				Regex: []string{`(\w+)=(\w+)`},
+				Group: tt.group,
+			}
+			resp := &ResponseData{
+				StatusCode: 200,
+				Headers:    http.Header{},
+				Body:       []byte("key=value"),
+			}
+			results := runExtractor(&e, resp)
+			require.NotEmpty(t, results)
+			assert.Equal(t, tt.want, results[0])
+		})
+	}
 }

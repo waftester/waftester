@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -60,24 +61,35 @@ func TestFindLinksInJS_NoDoubleDecoding(t *testing.T) {
 	}
 }
 
-// ExtractJSURLsEnhanced should not double-decode when calling findLinksInJSDecoded.
+// ExtractJSURLsEnhanced must decode JS content exactly once.
+// The R11 fix calls findLinksInJSDecoded (skip decode) instead of
+// FindLinksInJS (which decodes again). Without the fix, %2520 becomes
+// a space (double decoded) instead of %20 (single decoded).
 
 func TestExtractJSURLsEnhanced_NoDoubleDecoding(t *testing.T) {
-	// Content with a percent-encoded percent sign: %2520 → single decode → %20
-	content := `
-		const apiUrl = "/api/v1/search?q=%2520test";
-		fetch("/api/v2/items");
-	`
+	// %2520 = percent-encoded "%20". Single decode → %20. Double decode → space.
+	content := `const apiUrl = "/api/v1/search?q=%2520test";`
 	matches := ExtractJSURLsEnhanced(content)
 
-	// Check that %2520 was decoded once to %20, not twice to a space
+	found := false
 	for _, m := range matches {
-		assert.NotContains(t, m.URL, "q= test",
-			"URL should not be double-decoded: %q", m.URL)
+		if strings.Contains(m.URL, "search") {
+			found = true
+			// Must contain %20 (single decode of %2520)
+			assert.Contains(t, m.URL, "q=%20test",
+				"single decode should produce %%20, got %q", m.URL)
+			// Must NOT contain a literal space (that would mean double decode)
+			assert.NotContains(t, m.URL, "q= test",
+				"double decode would produce a space, got %q", m.URL)
+		}
 	}
+	assert.True(t, found, "expected to find the search URL in %v", matches)
 }
 
 // --- Regression: R5 — IsSimilar handles zero-value responses ---
+// The R5 fix added explicit zero-value branches:
+//   if f.ContentLength == 0 && other.ContentLength == 0 { score += 0.4 }
+// Without these, two empty responses would score 0 (below any threshold).
 
 func TestIsSimilar_BothZeroValues(t *testing.T) {
 	a := ResponseFingerprint{
@@ -95,14 +107,18 @@ func TestIsSimilar_BothZeroValues(t *testing.T) {
 		ContentType:   "text/html",
 	}
 
-	// Two zero-value responses with same status should be considered similar
-	assert.True(t, a.IsSimilar(b, 0.7), "two zero-value responses should be similar")
+	// Without the fix: score = 0.0, below threshold → false (BUG)
+	// With the fix: score = 0.4 + 0.3 + 0.2 = ~0.9 → true
+	assert.True(t, a.IsSimilar(b, 0.7), "two zero-value responses must be similar")
+	assert.True(t, a.IsSimilar(b, 0.89), "two zero-value responses score ~0.9")
+	// Without the fix these would all fail: score would be 0.0
+	assert.True(t, a.IsSimilar(b, 0.5), "zero-zero must pass 0.5 threshold")
 }
 
-func TestIsSimilar_OneZeroOneNonZero(t *testing.T) {
+func TestIsSimilar_BothZeroContentLength_DifferentWordCount(t *testing.T) {
 	a := ResponseFingerprint{
 		StatusCode:    200,
-		ContentLength: 1000,
+		ContentLength: 0,
 		WordCount:     50,
 		LineCount:     10,
 		ContentType:   "text/html",
@@ -110,15 +126,41 @@ func TestIsSimilar_OneZeroOneNonZero(t *testing.T) {
 	b := ResponseFingerprint{
 		StatusCode:    200,
 		ContentLength: 0,
-		WordCount:     0,
-		LineCount:     0,
+		WordCount:     500,
+		LineCount:     100,
 		ContentType:   "text/html",
 	}
 
-	assert.False(t, a.IsSimilar(b, 0.7), "zero vs non-zero should not be similar")
+	// ContentLength both 0 → +0.4, but word/line counts differ by >10% → no bonus
+	// Score = 0.4, below 0.7 threshold
+	assert.False(t, a.IsSimilar(b, 0.7),
+		"zero content-length but very different word/line counts should not be similar")
 }
 
-func TestIsSimilar_DifferentStatus(t *testing.T) {
+func TestIsSimilar_ScoreArithmetic(t *testing.T) {
+	// Both have matching content-length (+0.4), word count (+0.3),
+	// line count (+0.2), but no title hash (+0). Score = 0.9.
+	a := ResponseFingerprint{
+		StatusCode:    200,
+		ContentLength: 1000,
+		WordCount:     100,
+		LineCount:     20,
+		ContentType:   "text/html",
+	}
+	b := ResponseFingerprint{
+		StatusCode:    200,
+		ContentLength: 1050, // within 10% of 1000
+		WordCount:     105,  // within 10% of 100
+		LineCount:     21,   // within 10% of 20
+		ContentType:   "text/html",
+	}
+
+	assert.True(t, a.IsSimilar(b, 0.7), "score ~0.9 should pass 0.7 threshold")
+	assert.True(t, a.IsSimilar(b, 0.89), "score ~0.9 should pass 0.89 threshold")
+	assert.False(t, a.IsSimilar(b, 0.95), "score ~0.9 should fail 0.95 threshold")
+}
+
+func TestIsSimilar_DifferentStatusAlwaysFalse(t *testing.T) {
 	a := ResponseFingerprint{
 		StatusCode:    200,
 		ContentLength: 1000,
@@ -134,5 +176,6 @@ func TestIsSimilar_DifferentStatus(t *testing.T) {
 		ContentType:   "text/html",
 	}
 
-	assert.False(t, a.IsSimilar(b, 0.7), "different status codes should not be similar")
+	assert.False(t, a.IsSimilar(b, 0.0),
+		"different status codes must fail even at threshold 0")
 }
