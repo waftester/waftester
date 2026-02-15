@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/waftester/waftester/pkg/httpclient"
@@ -19,6 +20,12 @@ import (
 func ResolveAuth(specAuth []AuthScheme, cli AuthConfig) RequestAuthFunc {
 	// CLI credentials always win.
 	if cli.HasAuth() {
+		// Warn if multiple auth methods are configured — easy to do accidentally.
+		methods := cli.authMethodCount()
+		if methods > 1 {
+			authWarn(cli.WarnFunc, fmt.Sprintf("warning: %d auth methods configured, later methods may overwrite earlier ones", methods))
+		}
+
 		// OAuth2 client_credentials flow: acquire token first.
 		if cli.OAuth2ClientID != "" {
 			return oauth2Auth(specAuth, cli)
@@ -38,6 +45,7 @@ type RequestAuthFunc func(req *http.Request)
 func noAuth(_ *http.Request) {}
 
 // cliAuth builds an auth function from CLI-provided credentials.
+// Logs a warning if multiple auth methods are configured (last one wins for each header).
 func cliAuth(cfg AuthConfig) RequestAuthFunc {
 	return func(req *http.Request) {
 		if cfg.BearerToken != "" {
@@ -50,11 +58,21 @@ func cliAuth(cfg AuthConfig) RequestAuthFunc {
 			req.SetBasicAuth(cfg.BasicUser, cfg.BasicPass)
 		}
 		if cfg.APIKey != "" {
-			header := cfg.APIKeyHeader
-			if header == "" {
-				header = "X-API-Key"
+			if strings.EqualFold(cfg.APIKeyIn, "query") {
+				q := req.URL.Query()
+				name := cfg.APIKeyHeader
+				if name == "" {
+					name = "api_key"
+				}
+				q.Set(name, cfg.APIKey)
+				req.URL.RawQuery = q.Encode()
+			} else {
+				header := cfg.APIKeyHeader
+				if header == "" {
+					header = "X-API-Key"
+				}
+				req.Header.Set(header, cfg.APIKey)
 			}
-			req.Header.Set(header, cfg.APIKey)
 		}
 		for k, v := range cfg.CustomHeaders {
 			req.Header.Set(k, v)
@@ -69,7 +87,7 @@ func DescribeSpecAuth(schemes []AuthScheme) []string {
 	for _, s := range schemes {
 		switch s.Type {
 		case AuthBearer:
-			desc := fmt.Sprintf("Bearer token auth (use --bearer <token>)")
+			desc := "Bearer token auth (use --bearer <token>)"
 			if s.BearerFormat != "" {
 				desc = fmt.Sprintf("Bearer token auth [%s] (use --bearer <token>)", s.BearerFormat)
 			}
@@ -107,15 +125,21 @@ func oauth2Auth(specAuth []AuthScheme, cli AuthConfig) RequestAuthFunc {
 	}
 	if tokenURL == "" {
 		// No token URL available — cannot perform OAuth2 flow.
+		authWarn(cli.WarnFunc, "warning: OAuth2 client_id configured but no token URL found (provide --oauth2-token-url or declare flows in spec) — requests will be unauthenticated")
 		return noAuth
 	}
 
+	warn := cli.WarnFunc
 	cache := &oauth2TokenCache{}
 
 	return func(req *http.Request) {
 		token, err := cache.getOrRefresh(tokenURL, cli.OAuth2ClientID, cli.OAuth2ClientSecret, cli.OAuth2Scopes)
 		if err != nil {
-			// Token refresh failed — send request without auth rather than blocking.
+			// Log periodically so users know auth is failing, not just once then silent.
+			n := cache.failCount.Add(1)
+			if n == 1 || n%50 == 0 {
+				authWarn(warn, fmt.Sprintf("warning: OAuth2 token refresh failed (%d failures), requests sent without auth: %v", n, err))
+			}
 			return
 		}
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -145,9 +169,10 @@ func findTokenURL(schemes []AuthScheme) string {
 
 // oauth2TokenCache caches an access token with expiry.
 type oauth2TokenCache struct {
-	mu      sync.Mutex
-	token   string
-	expires time.Time
+	mu        sync.Mutex
+	failCount atomic.Int64
+	token     string
+	expires   time.Time
 }
 
 func (c *oauth2TokenCache) getOrRefresh(tokenURL, clientID, clientSecret, scopes string) (string, error) {
@@ -176,6 +201,14 @@ func (c *oauth2TokenCache) getOrRefresh(tokenURL, clientID, clientSecret, scopes
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		// Read error body for better diagnostics.
+		var errBody struct {
+			Error       string `json:"error"`
+			Description string `json:"error_description"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&errBody); err == nil && errBody.Error != "" {
+			return "", fmt.Errorf("token endpoint returned %d: %s: %s", resp.StatusCode, errBody.Error, errBody.Description)
+		}
 		return "", fmt.Errorf("token endpoint returned %d", resp.StatusCode)
 	}
 
@@ -199,4 +232,11 @@ func (c *oauth2TokenCache) getOrRefresh(tokenURL, clientID, clientSecret, scopes
 	}
 
 	return c.token, nil
+}
+
+// authWarn sends a warning through the provided callback, if non-nil.
+func authWarn(fn func(string), msg string) {
+	if fn != nil {
+		fn(msg)
+	}
 }

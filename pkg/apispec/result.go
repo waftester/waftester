@@ -123,10 +123,14 @@ func (r *SpecScanResult) ByCategory() map[string]int {
 	return m
 }
 
-// Finalize sets completion time and duration. Call once when scanning completes.
+// Finalize sets completion time and duration. Safe to call multiple times;
+// only the first call takes effect.
 func (r *SpecScanResult) Finalize() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if !r.CompletedAt.IsZero() {
+		return
+	}
 	r.CompletedAt = time.Now()
 	r.Duration = r.CompletedAt.Sub(r.StartedAt)
 }

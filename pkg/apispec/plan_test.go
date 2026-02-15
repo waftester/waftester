@@ -2,6 +2,7 @@ package apispec
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -204,4 +205,79 @@ func TestInjectableTargets(t *testing.T) {
 
 	targets := injectableTargets(ep)
 	assert.Len(t, targets, 4) // 3 params + 1 body
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Negative / edge-case tests.
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestInjectableTargetsEmpty(t *testing.T) {
+	t.Parallel()
+	ep := Endpoint{Method: "GET", Path: "/health"}
+	targets := injectableTargets(ep)
+	assert.Empty(t, targets)
+}
+
+func TestBuildSimplePlanNoParams(t *testing.T) {
+	// Endpoints with no parameters should still get meta scans.
+	t.Parallel()
+	spec := &Spec{
+		Endpoints: []Endpoint{
+			{Method: "GET", Path: "/health"},
+		},
+	}
+
+	cfg := &SpecConfig{
+		ScanTypes: []string{"cors"},
+		Intensity: IntensityNormal,
+	}
+
+	plan := BuildSimplePlan(spec, cfg)
+	require.NotNil(t, plan)
+	assert.Len(t, plan.Entries, 1, "meta scan should run even with no params")
+	assert.Equal(t, "cors", plan.Entries[0].Attack.Category)
+}
+
+func TestBuildSimplePlanNoParamsInjectionScan(t *testing.T) {
+	// Injection scan on endpoint with no params → should still generate
+	// an entry with a default injection target.
+	t.Parallel()
+	spec := &Spec{
+		Endpoints: []Endpoint{
+			{Method: "GET", Path: "/test"},
+		},
+	}
+
+	cfg := &SpecConfig{
+		ScanTypes: []string{"sqli"},
+		Intensity: IntensityNormal,
+	}
+
+	plan := BuildSimplePlan(spec, cfg)
+	require.NotNil(t, plan)
+	assert.Greater(t, len(plan.Entries), 0,
+		"injection scan should generate entry even with no params (uses default target)")
+}
+
+func TestEstimatePayloadsUnknownScanType(t *testing.T) {
+	t.Parallel()
+	count := estimatePayloads("unknown-type", IntensityNormal)
+	assert.Greater(t, count, 0, "unknown scan type should return a default payload count")
+}
+
+func TestEstimateDurationZeroTests(t *testing.T) {
+	t.Parallel()
+	d := estimateDuration(0, IntensityNormal)
+	assert.Equal(t, time.Duration(0), d)
+}
+
+func TestPayloadBaseCountKnown(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, 50, payloadBaseCount("sqli"))
+	assert.Equal(t, 40, payloadBaseCount("xss"))
+}
+
+func TestPayloadBaseCountUnknown(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, 10, payloadBaseCount("nonexistent"))
 }

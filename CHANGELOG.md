@@ -5,6 +5,47 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.3] - 2026-02-15
+
+### Security
+
+- **SSRF bypass via spec variable defaults (autoscan)** — `runSpecPipeline` called `ParseContext` then `CheckServerURLs` but never called `ResolveVariables`. A spec with `servers: [{url: "{{host}}"}]` and `variables: {host: {default: "http://169.254.169.254"}}` passed the SSRF blocklist because the raw `{{host}}` template is not an IP address. The variable default was resolved later, hitting internal addresses. Now calls `ResolveVariables` before `CheckServerURLs`.
+- **SSRF bypass via conditional variable resolution (scan spec)** — `runSpecScan` only called `ResolveVariables` when `--var` flags or `--env-file` were provided. When neither was present, spec-embedded variable defaults with internal IPs bypassed the SSRF check. Variable resolution is now unconditional.
+- **SSRF bypass in MCP server spec tools** — Both `resolveSpecInput` and `handleValidateSpec` parsed specs and checked server URLs but never resolved variable defaults first. Same bypass vector as autoscan. Both now call `ResolveVariables` before `CheckServerURLs`.
+
+### Added
+
+- **AST-based security gate contract tests** — Static analysis test (`TestSecurityGateContract`) enforces 5 contract types across 8 package scopes: presence ("if you call A, you must call B"), ordering ("B must come after A"), context propagation ("use the Context variant"), forbidden calls, and forbidden references. Contracts are mutation-tested and catch regressions at compile time.
+- **SSRF variable resolution contract** — New presence contract requires `ResolveVariables` wherever `CheckServerURLs` is called. Prevents future regressions where a new parse site forgets to resolve variable defaults before SSRF validation.
+- **MCP server stdout/stderr protection** — Forbidden reference and call contracts prevent `os.Stdout`, `os.Stderr`, `fmt.Print`, `fmt.Printf`, and `fmt.Println` in `pkg/mcpserver/`. Stdout is the JSON-RPC transport in stdio mode; any stray writes corrupt the protocol.
+- **MCP server context propagation contracts** — Enforces `ParseContext` over `Parse` and `ParseContentContext` over `ParseContent` when a `context.Context` is available, ensuring cancellation and timeouts propagate correctly.
+- **API key query parameter support** — `AuthConfig.APIKeyIn` field supports `"query"` placement in addition to the default header placement for API key authentication.
+- **Auth method conflict warning** — Warns when multiple auth methods are configured simultaneously, since later methods silently overwrite earlier ones for the same header.
+- **HAR path templatization** — Converts literal IDs in HAR request paths to template parameters for better endpoint deduplication and parameter discovery.
+- **HAR static asset filtering** — Skips static assets (images, CSS, JS, fonts) during HAR parsing since they are not useful for API security testing.
+- **Default body population for body-expecting methods** — POST/PUT/PATCH requests with non-body injection targets now get a default body from the spec schema, preventing 400 rejections from servers that require a body.
+- **Multipart boundary in Content-Type** — Multipart form requests now include the boundary parameter in the Content-Type header.
+- **Postman GraphQL body support** — Postman collections with GraphQL request bodies are now parsed into endpoint parameters.
+- **Postman form data examples** — Form-data key/value pairs from Postman collections are extracted as parameter examples.
+
+### Fixed
+
+- **TOCTOU race in spec file loading** — Replaced `os.Stat` size check followed by `os.ReadFile` with `io.LimitReader` to enforce the size limit during read, eliminating the time-of-check/time-of-use gap.
+- **Spec file loading used os.Exit in library code** — Moved `RejectSpecFlags` from `pkg/apispec` to `cmd/cli` as a local helper, keeping `os.Exit` out of library code.
+- **Library code writing to os.Stderr** — Removed direct `fmt.Fprintf(os.Stderr)` calls from `pkg/apispec/auth.go` (3 sites) and `pkg/input/targets.go` (1 site). Auth warnings now use a `WarnFunc` callback on `AuthConfig`; target selection silently uses the first target.
+- **OpenAPI parser rejected YAML specs** — `pkg/api/openapi.go` only tried JSON parsing. Now falls back to YAML when JSON fails.
+- **OpenAPI parser missed global consumes** — Swagger 2.0 global `consumes` field was ignored, causing missing content-type metadata on operations.
+- **OpenAPI parser missing server variables** — Server variables with defaults and enums were not parsed from OpenAPI 3.x specs.
+- **OpenAPI parser missing global security** — Top-level `security` requirements were not parsed, causing auth scheme detection to miss globally applied auth.
+- **AsyncAPI error variable shadowing** — YAML parse error was assigned to a shadowed `err` variable, losing the error context in the returned message.
+- **Dependency graph ordering bug** — `layerDependencyGraph` mutated `spec.Endpoints` in-place after plan entries were copied by value. `DependsOn` is now propagated back to plan entries after mutation.
+- **Result.Finalize double-call corruption** — `Finalize()` could be called multiple times, corrupting timing data. Now uses a guard so only the first call takes effect.
+- **Escalation state not thread-safe** — Added `sync.Mutex` to `EscalationState` map fields and `sync/atomic` for counter fields to prevent data races during concurrent scanning.
+- **Block signature lost between phases** — Fingerprint phase block signatures were not propagated to scan state, causing the full scan phase to miss WAF-identified blocking patterns.
+- **Auth not applied to probe requests** — Baseline and block detection requests in the adaptive executor skipped auth application, causing false negatives on auth-protected endpoints.
+- **Executor budget check used wrong index** — Probe phase budget check used the loop index instead of elapsed time, causing premature budget exhaustion on fast scans.
+- **Intelligence formatPercent division** — Used `Itoa` on a float-derived value instead of `fmt.Sprintf`, producing truncated percentage strings.
+
 ## [2.9.2] - 2026-02-14
 
 ### Fixed
@@ -2060,6 +2101,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.3]: https://github.com/waftester/waftester/compare/v2.9.2...v2.9.3
 [2.9.2]: https://github.com/waftester/waftester/compare/v2.9.1...v2.9.2
 [2.9.1]: https://github.com/waftester/waftester/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/waftester/waftester/compare/v2.8.9...v2.9.0
