@@ -11,11 +11,11 @@ import (
 // DNSRequest represents a DNS query in a template.
 type DNSRequest struct {
 	ID         string      `yaml:"id,omitempty"`
-	Name       string      `yaml:"name"`              // Domain to query (supports {{variables}})
-	Type       string      `yaml:"type"`              // A, AAAA, CNAME, MX, NS, TXT, SOA, PTR
-	Class      string      `yaml:"class,omitempty"`   // IN (default)
+	Name       string      `yaml:"name"`               // Domain to query (supports {{variables}})
+	Type       string      `yaml:"type"`               // A, AAAA, CNAME, MX, NS, TXT, PTR
+	Class      string      `yaml:"class,omitempty"`    // Parsed but unused — stdlib resolver uses IN only
 	Resolver   string      `yaml:"resolver,omitempty"` // Custom DNS resolver address
-	Recursion  bool        `yaml:"recursion"`
+	Recursion  bool        `yaml:"recursion"`          // Parsed but unused — stdlib resolver handles recursion
 	Matchers   []Matcher   `yaml:"matchers,omitempty"`
 	Extractors []Extractor `yaml:"extractors,omitempty"`
 }
@@ -112,7 +112,7 @@ func (e *Engine) executeDNSRequest(ctx context.Context, req *DNSRequest, vars ma
 	}
 
 	respData := &ResponseData{
-		StatusCode: len(answers), // Use answer count as pseudo status
+		StatusCode: len(answers), // Answer count, not HTTP status — status matchers are not meaningful for DNS
 		Body:       []byte(body),
 	}
 

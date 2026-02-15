@@ -287,10 +287,16 @@ func TestResponseSignature_Resembles(t *testing.T) {
 			true,
 		},
 		{
-			"same status within tolerance",
+			"same status within tolerance same hash",
+			responseSignature{200, 1000, "abc"},
+			responseSignature{200, 900, "abc"},
+			true,
+		},
+		{
+			"same status within tolerance different hash",
 			responseSignature{200, 1000, "abc"},
 			responseSignature{200, 900, "def"},
-			true,
+			false,
 		},
 		{
 			"different status family",
