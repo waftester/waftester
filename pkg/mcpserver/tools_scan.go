@@ -12,6 +12,7 @@ import (
 	"github.com/waftester/waftester/pkg/assessment"
 	"github.com/waftester/waftester/pkg/core"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
 	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/output"
@@ -137,16 +138,18 @@ ASYNC TOOL: This tool returns a task_id immediately and runs in the background. 
 }
 
 type scanArgs struct {
-	Target      string   `json:"target"`
-	Categories  []string `json:"categories"`
-	Severity    string   `json:"severity"`
-	Concurrency int      `json:"concurrency"`
-	RateLimit   int      `json:"rate_limit"`
-	Timeout     int      `json:"timeout"`
-	SkipVerify  bool     `json:"skip_verify"`
-	Proxy       string   `json:"proxy"`
-	Policy      string   `json:"policy"`
-	Overrides   string   `json:"overrides"`
+	Target       string   `json:"target"`
+	Categories   []string `json:"categories"`
+	Severity     string   `json:"severity"`
+	Concurrency  int      `json:"concurrency"`
+	RateLimit    int      `json:"rate_limit"`
+	Timeout      int      `json:"timeout"`
+	SkipVerify   bool     `json:"skip_verify"`
+	Proxy        string   `json:"proxy"`
+	Policy       string   `json:"policy"`
+	Overrides    string   `json:"overrides"`
+	Tamper       string   `json:"tamper"`
+	TamperProfile string  `json:"tamper_profile"`
 }
 
 type scanResultSummary struct {
@@ -243,6 +246,32 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 
 	if len(filtered) == 0 {
 		return errorResult("no payloads match the specified filters. Try broadening the category or severity, or check that the payload directory contains files."), nil
+	}
+
+	// Apply tamper transformations if requested
+	if args.Tamper != "" || args.TamperProfile != "" {
+		profile := tampers.ProfileStandard
+		switch args.TamperProfile {
+		case "stealth":
+			profile = tampers.ProfileStealth
+		case "aggressive":
+			profile = tampers.ProfileAggressive
+		case "bypass":
+			profile = tampers.ProfileBypass
+		}
+		if args.Tamper != "" {
+			profile = tampers.ProfileCustom
+		}
+
+		engine := tampers.NewEngine(&tampers.EngineConfig{
+			Profile:       profile,
+			CustomTampers: tampers.ParseTamperList(args.Tamper),
+			EnableMetrics: false,
+		})
+
+		for i := range filtered {
+			filtered[i].Payload = engine.Transform(filtered[i].Payload)
+		}
 	}
 
 	estimatedDuration := estimateScanDuration(len(filtered), args.Concurrency, args.RateLimit)
