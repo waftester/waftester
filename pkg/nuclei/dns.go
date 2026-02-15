@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"time"
+
+	"github.com/waftester/waftester/pkg/duration"
 )
 
 // DNSRequest represents a DNS query in a template.
@@ -41,7 +42,7 @@ func (e *Engine) executeDNSRequest(ctx context.Context, req *DNSRequest, vars ma
 		resolver = &net.Resolver{
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-				d := net.Dialer{Timeout: 10 * time.Second}
+				d := net.Dialer{Timeout: duration.DialTimeout}
 				return d.DialContext(ctx, network, resolverAddr)
 			},
 		}

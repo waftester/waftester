@@ -5,6 +5,47 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.5] - 2026-02-15
+
+### Added
+
+- **Automated bypass discovery engine** — Combination testing of tamper chains against WAF rules to find bypasses automatically with `--discover` flag.
+- **Tengo-based tamper plugin loader** — Custom tamper scripts in Tengo with sandboxed execution via `--tamper-dir`.
+- **DOM event discovery** — Click-and-capture SPA crawling that discovers hidden UI states and dynamic content with `--event-crawl` flag.
+- **Nuclei DNS protocol support** — DNS query templates for multi-protocol security testing.
+- **Nuclei TCP/UDP network protocol** — Raw TCP and UDP protocol support for network-level template testing.
+- **Nuclei flow DSL** — Conditional execution, variable chaining, and block results for multi-step template workflows.
+- **Framework route wordlists** — Auto-detected route wordlists for 11 frameworks (Rails, Django, Express, Flask, FastAPI, Laravel, Spring, Next.js, WordPress, ASP.NET, generic API).
+- **Content-type probing and OPTIONS detection** — Active probing for supported content types and HTTP methods on discovered endpoints.
+- **JSON body, header, and cookie parameter discovery** — Parameter discovery now covers request body (JSON), headers, and cookies in addition to query and path parameters.
+- **MCP tools: discover_bypasses, list_tampers, event_crawl** — Three new MCP server tools for AI-assisted bypass discovery, tamper listing, and event-based crawling.
+- **Comprehensive command reference** — New `COMMANDS.md` with complete flag reference for every CLI command.
+- **42 regression tests** — 30 tests covering audit fix code paths, 12 hardened to catch real regressions on revert.
+
+### Fixed
+
+- **WriteHeader race in test handlers** — Concurrent test handler wrote headers after response body, causing data races under `-race`.
+- **Wildcard content-type detector** — `*/*` accept header treated as application-specific content type.
+- **Matcher AND condition evaluation** — AND conditions short-circuited on first match instead of requiring all matchers to pass.
+- **Regex cache unbounded growth** — Compiled regex patterns accumulated without eviction. Added LRU cache with size limit.
+- **Recursion depth in JSON body positions** — Unbounded recursion on deeply nested JSON bodies could exhaust stack.
+- **Bypass result deduplication** — Identical bypass findings reported multiple times across tamper combinations.
+- **Header depth guard off-by-one** — Maximum header nesting depth check off by one, allowing one extra level.
+- **Grade prefix matching** — Assessment grade comparison used exact match instead of prefix, missing grade variants.
+- **Variable expansion prefix safety** — Template variables with shared prefixes (e.g., `{{host}}` vs `{{hostname}}`) now resolve longest-first.
+- **Body drain consistency** — Response bodies not fully drained before close, preventing HTTP connection reuse.
+- **Confidence score deduplication** — Duplicate confidence entries from multiple detection methods.
+- **Per-method baseline for param discovery** — GET and POST responses used same baseline, causing false positive parameter detection.
+- **Negative regex group guard** — Extractor with negative group index caused panic instead of returning empty result.
+- **Double URL-decode in JS extraction** — JavaScript URL extraction decoded percent-encoded characters twice, corrupting URLs with encoded spaces.
+- **Missing phaseNames for brain-feedback** — Auto mode phase tracking omitted brain-feedback, causing checkpoint validation to fail on resume.
+- **Results-summary write error surfaced** — Silent `os.WriteFile` failure for results-summary.json now logged as warning.
+- **Percent-encoding lost in captureSignature** — WAF signature capture decoded URL-encoded characters, losing original request representation.
+- **Asymmetric resembles ratio** — `Resembles(a, b)` and `Resembles(b, a)` returned different results due to unnormalized ratio.
+- **Tamper name validation in MCP scan** — Invalid tamper names passed to MCP scan tool returned no error. Now validates against registry.
+- **Non-deterministic bypass sort** — Bypass results with equal success rate sorted randomly. Added alphabetical tiebreaker.
+- **Docker build race condition** — Concurrent CI Docker builds for same SHA caused GHCR manifest conflicts. Serialized by SHA.
+
 ## [2.9.4] - 2026-02-15
 
 ### Fixed
@@ -2116,6 +2157,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.5]: https://github.com/waftester/waftester/compare/v2.9.4...v2.9.5
 [2.9.4]: https://github.com/waftester/waftester/compare/v2.9.3...v2.9.4
 [2.9.3]: https://github.com/waftester/waftester/compare/v2.9.2...v2.9.3
 [2.9.2]: https://github.com/waftester/waftester/compare/v2.9.1...v2.9.2
