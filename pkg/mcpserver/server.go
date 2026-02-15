@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"runtime/debug"
@@ -335,7 +336,7 @@ func isLocalhostOrigin(origin string) bool {
 		return false
 	}
 	host := u.Hostname()
-	return host == "localhost" || host == "127.0.0.1" || host == "::1" || host == "[::1]"
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
 // sseKeepAlive wraps an SSE handler to send periodic keep-alive comments.
@@ -586,9 +587,17 @@ func validateTargetURL(target string) error {
 }
 
 // isCloudMetadataHost returns true if the host is a known cloud metadata endpoint.
+// Handles IPv6-mapped IPv4 addresses (e.g., ::ffff:169.254.169.254) to prevent
+// SSRF bypasses.
 func isCloudMetadataHost(host string) bool {
+	// Normalize: if the host is an IPv6-mapped IPv4, extract the IPv4 portion.
+	if ip := net.ParseIP(host); ip != nil {
+		if v4 := ip.To4(); v4 != nil {
+			host = v4.String()
+		}
+	}
 	switch host {
-	case "169.254.169.254",    // AWS, GCP, Azure IMDS
+	case "169.254.169.254",         // AWS, GCP, Azure IMDS
 		"metadata.google.internal", // GCP alternate
 		"100.100.100.200":          // Alibaba Cloud
 		return true
