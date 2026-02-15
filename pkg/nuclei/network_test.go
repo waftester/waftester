@@ -187,6 +187,9 @@ func TestNetworkRequest_VariableExpansion(t *testing.T) {
 			return
 		}
 		defer conn.Close()
+		// Must read client data before closing to avoid RST on Windows
+		buf := make([]byte, 1024)
+		conn.Read(buf) //nolint:errcheck // test helper
 		conn.Write([]byte("OK"))
 	}()
 

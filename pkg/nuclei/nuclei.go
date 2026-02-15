@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/waftester/waftester/pkg/httpclient"
@@ -267,6 +266,13 @@ func (e *Engine) executeSequential(ctx context.Context, tmpl *Template, target s
 	vars := e.mergeVars(tmpl, target)
 
 	for i, req := range tmpl.HTTP {
+		select {
+		case <-ctx.Done():
+			result.Duration = time.Since(start)
+			return result, ctx.Err()
+		default:
+		}
+
 		matched, extracted, err := e.executeHTTPRequest(ctx, &req, target, vars)
 		if err != nil {
 			result.Error = err.Error()
@@ -304,6 +310,13 @@ func (e *Engine) executeSequential(ctx context.Context, tmpl *Template, target s
 
 	// Execute DNS requests sequentially
 	for i, req := range tmpl.DNS {
+		select {
+		case <-ctx.Done():
+			result.Duration = time.Since(start)
+			return result, ctx.Err()
+		default:
+		}
+
 		matched, extracted, err := e.executeDNSRequest(ctx, &req, vars)
 		if err != nil {
 			result.Error = err.Error()
@@ -332,6 +345,13 @@ func (e *Engine) executeSequential(ctx context.Context, tmpl *Template, target s
 
 	// Execute Network requests sequentially
 	for i, req := range tmpl.Network {
+		select {
+		case <-ctx.Done():
+			result.Duration = time.Since(start)
+			return result, ctx.Err()
+		default:
+		}
+
 		matched, extracted, err := e.executeNetworkRequest(ctx, &req, vars)
 		if err != nil {
 			result.Error = err.Error()
@@ -441,7 +461,6 @@ func (e *Engine) executeFlow(ctx context.Context, tmpl *Template, target string)
 		// Dispatch to protocol-specific executor
 		var matched bool
 		var extracted map[string][]string
-		err = nil // Reset to avoid stale error from previous iteration
 		switch block.protocol {
 		case "http":
 			matched, extracted, err = e.executeHTTPRequest(ctx, &tmpl.HTTP[block.index], target, vars)
@@ -584,6 +603,9 @@ func (e *Engine) executeHTTPRequest(ctx context.Context, req *HTTPRequest, targe
 		}
 	}
 
+	if anyMatched {
+		lastErr = nil // A successful match clears intermediate errors
+	}
 	return anyMatched, extracted, lastErr
 }
 
@@ -661,6 +683,9 @@ func (e *Engine) executeRawRequests(ctx context.Context, req *HTTPRequest, targe
 		}
 	}
 
+	if anyMatched {
+		lastErr = nil // A successful match clears intermediate errors
+	}
 	return anyMatched, extracted, lastErr
 }
 
@@ -726,7 +751,7 @@ func buildHeaderString(headers http.Header) string {
 
 func evaluateMatchers(matchers []Matcher, condition string, resp *ResponseData) bool {
 	if len(matchers) == 0 {
-		return true // No matchers = match everything
+		return false // No matchers = no match (consistent with Nuclei behavior)
 	}
 
 	results := make([]bool, len(matchers))
@@ -1022,27 +1047,13 @@ func runExtractor(e *Extractor, resp *ResponseData) []string {
 }
 
 func expandVariables(input string, vars map[string]string) string {
-	tmpl, err := template.New("").Option("missingkey=error").Parse(input)
-	if err != nil {
-		// Fallback: simple replacement
-		result := input
-		for k, v := range vars {
-			result = strings.ReplaceAll(result, "{{"+k+"}}", v)
-		}
-		return result
+	// Support both Nuclei syntax {{VarName}} and Go template syntax {{.VarName}}.
+	result := input
+	for k, v := range vars {
+		result = strings.ReplaceAll(result, "{{"+k+"}}", v)
+		result = strings.ReplaceAll(result, "{{."+k+"}}", v)
 	}
-
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, vars); err != nil {
-		// text/template can't resolve bare {{VarName}} (needs {{.VarName}}).
-		// Fall through to simple string replacement.
-		result := input
-		for k, v := range vars {
-			result = strings.ReplaceAll(result, "{{"+k+"}}", v)
-		}
-		return result
-	}
-	return buf.String()
+	return result
 }
 
 func extractHostname(url string) string {
