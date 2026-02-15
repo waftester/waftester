@@ -987,8 +987,8 @@ func runExtractor(e *Extractor, resp *ResponseData) []string {
 		content = buildHeaderString(resp.Headers)
 	case "body":
 		content = string(resp.Body)
-	default:
-		content = string(resp.Body)
+	default: // "all" or unrecognized — search headers + body
+		content = buildHeaderString(resp.Headers) + string(resp.Body)
 	}
 
 	var results []string
