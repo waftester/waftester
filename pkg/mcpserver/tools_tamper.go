@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
 )
 
@@ -126,10 +128,10 @@ func (s *Server) handleDiscoverBypasses(ctx context.Context, req *mcp.CallToolRe
 	}
 
 	if args.Concurrency <= 0 {
-		args.Concurrency = 5
+		args.Concurrency = defaults.ConcurrencyLow
 	}
-	if args.Concurrency > 20 {
-		args.Concurrency = 20
+	if args.Concurrency > defaults.ConcurrencyHigh {
+		args.Concurrency = defaults.ConcurrencyHigh
 	}
 	if args.TopN <= 0 {
 		args.TopN = 5
@@ -164,7 +166,7 @@ func (s *Server) handleDiscoverBypasses(ctx context.Context, req *mcp.CallToolRe
 				Concurrency:  args.Concurrency,
 				TopN:         args.TopN,
 				ConfirmCount: args.ConfirmCount,
-				Timeout:      10 * time.Second,
+				Timeout:      duration.DialTimeout,
 				OnProgress: func(tamperName, result string) {
 					task.SetProgress(0, 100, fmt.Sprintf("Testing tamper %s: %s", tamperName, result))
 				},

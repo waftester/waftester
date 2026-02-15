@@ -13,6 +13,7 @@ import (
 	"github.com/waftester/waftester/pkg/assessment"
 	"github.com/waftester/waftester/pkg/core"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
 	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/metrics"
@@ -177,8 +178,8 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	if args.Concurrency <= 0 {
 		args.Concurrency = defaults.ConcurrencyMedium
 	}
-	if args.Concurrency > 100 {
-		args.Concurrency = 100
+	if args.Concurrency > defaults.ConcurrencyDNS {
+		args.Concurrency = defaults.ConcurrencyDNS
 	}
 	if args.RateLimit <= 0 {
 		args.RateLimit = 50
@@ -187,7 +188,7 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		args.RateLimit = 1000
 	}
 	if args.Timeout <= 0 {
-		args.Timeout = 5
+		args.Timeout = int(duration.HTTPProbing.Seconds())
 	}
 	if args.Timeout > 60 {
 		args.Timeout = 60
@@ -612,8 +613,8 @@ func (s *Server) handleAssess(ctx context.Context, req *mcp.CallToolRequest) (*m
 	if args.Concurrency > 0 {
 		cfg.Concurrency = args.Concurrency
 	}
-	if cfg.Concurrency > 100 {
-		cfg.Concurrency = 100
+	if cfg.Concurrency > defaults.ConcurrencyDNS {
+		cfg.Concurrency = defaults.ConcurrencyDNS
 	}
 	if args.RateLimit > 0 {
 		cfg.RateLimit = float64(args.RateLimit)
@@ -624,8 +625,8 @@ func (s *Server) handleAssess(ctx context.Context, req *mcp.CallToolRequest) (*m
 	if args.Timeout > 0 {
 		cfg.Timeout = time.Duration(args.Timeout) * time.Second
 	}
-	if args.Timeout > 60 {
-		cfg.Timeout = 60 * time.Second
+	if args.Timeout > int(duration.HTTPAPI.Seconds()) {
+		cfg.Timeout = duration.HTTPAPI
 	}
 	if len(args.Categories) > 0 {
 		cfg.Categories = args.Categories
