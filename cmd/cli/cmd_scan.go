@@ -116,6 +116,7 @@ func runScan() {
 	tamperList := scanFlags.String("tamper", "", "Comma-separated tamper scripts: space2comment,randomcase,charencode")
 	tamperAuto := scanFlags.Bool("tamper-auto", false, "Auto-select tampers based on detected WAF")
 	tamperProfile := scanFlags.String("tamper-profile", "standard", "Tamper profile: stealth, standard, aggressive, bypass")
+	tamperDir := scanFlags.String("tamper-dir", "", "Directory of .tengo script tampers to load")
 
 	// OAuth-specific flags
 	oauthClientID := scanFlags.String("oauth-client-id", "", "OAuth client ID for OAuth testing")
@@ -442,6 +443,20 @@ func runScan() {
 		}
 
 		// Create tamper engine
+		// Load script tampers from directory if specified
+		if *tamperDir != "" {
+			scripts, errs := tampers.LoadScriptDir(*tamperDir)
+			for _, e := range errs {
+				ui.PrintWarning(fmt.Sprintf("Script tamper: %v", e))
+			}
+			for _, st := range scripts {
+				tampers.Register(st)
+			}
+			if len(scripts) > 0 {
+				ui.PrintInfo(fmt.Sprintf("Loaded %d script tampers from %s", len(scripts), *tamperDir))
+			}
+		}
+
 		tamperEngine = tampers.NewEngine(&tampers.EngineConfig{
 			Profile:       profile,
 			CustomTampers: tampers.ParseTamperList(*tamperList),
