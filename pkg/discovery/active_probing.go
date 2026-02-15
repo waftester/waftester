@@ -142,7 +142,12 @@ func (ad *ActiveDiscoverer) buildWordlist(tech []string) []string {
 
 	// Load framework-specific wordlists based on detected technologies
 	frameworks := wordlists.DetectFrameworks(tech)
-	fwRoutes, _ := wordlists.LoadMultiple(frameworks)
+	fwRoutes, err := wordlists.LoadMultiple(frameworks)
+	if err != nil {
+		// DetectFrameworks only returns known names, so this should never happen.
+		// Fall through to common paths below.
+		fwRoutes = nil
+	}
 	for _, p := range fwRoutes {
 		if !seen[p] {
 			seen[p] = true
@@ -421,9 +426,10 @@ func (ad *ActiveDiscoverer) probeOptions(ctx context.Context, path string) {
 		}
 		ad.found.Store(path, true)
 		ep := Endpoint{
-			Path:     path,
-			Method:   method,
-			Category: categorizeByStatus(path, 200),
+			Path:       path,
+			Method:     method,
+			StatusCode: resp.StatusCode,
+			Category:   categorizeByStatus(path, resp.StatusCode),
 		}
 		ad.mu.Lock()
 		ad.results = append(ad.results, ep)
