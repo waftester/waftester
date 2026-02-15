@@ -1096,59 +1096,32 @@ func TestSecurityHeaders(t *testing.T) {
 }
 
 func TestRecoveryMiddleware(t *testing.T) {
-	// Create a handler that panics and verify the middleware returns 500.
-	panicking := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		panic("test panic")
-	})
-
+	// The recovery middleware is unexported, so we test it indirectly by
+	// verifying the full handler chain doesn't crash on various paths.
 	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
 	defer srv.Stop()
-	_ = srv // ensure server creates without error
 
-	// Use the HTTPHandler infrastructure which includes recovery middleware.
-	// We can't easily inject a panic into a real tool, so test the pattern
-	// by exercising /health which goes through the full middleware chain.
-	// Instead, directly test that the full handler chain returns a proper
-	// 500 when a sub-handler panics by wrapping our panicking handler in
-	// the same middleware stack.
-
-	// We test via the exported HTTPHandler; the middleware wraps the mux.
-	// For a focused test we'd need the middleware exported, but we can
-	// verify it indirectly: if the server crashes on panic, this test fails.
 	handler := srv.HTTPHandler()
 	ts := httptest.NewServer(handler)
 	defer ts.Close()
 
-	// The health endpoint is safe — just verify middleware is wired.
+	// Health endpoint goes through the full middleware chain.
 	resp, err := http.Get(ts.URL + "/health")
 	if err != nil {
 		t.Fatalf("GET /health through recovery middleware: %v", err)
 	}
 	defer resp.Body.Close()
 
-	// Verify the middleware chain didn't eat the response.
 	if resp.StatusCode != http.StatusServiceUnavailable && resp.StatusCode != http.StatusOK {
 		t.Errorf("GET /health: unexpected status %d", resp.StatusCode)
 	}
 
-	// Also directly test the recovery middleware function.
+	// Unknown path goes through recovery middleware + streamable handler.
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/panic", nil)
-
-	// Wrap panicking handler with the same recovery pattern used in HTTPHandler.
-	// We can't call the unexported recoveryMiddleware directly from _test package,
-	// but we can verify the behavior via the full handler: send a request to a
-	// path that doesn't exist — it goes through recovery middleware and the
-	// streamable HTTP handler (which won't panic).
-	req2 := httptest.NewRequest(http.MethodGet, "/nonexistent", nil)
-	rec2 := httptest.NewRecorder()
-	handler.ServeHTTP(rec2, req2)
-	// Should not panic; any status is fine (likely 400 or similar from
-	// the streamable handler), the point is no crash.
-	_ = rec2.Result()
-	_ = rec
-	_ = panicking
-	_ = req
+	req := httptest.NewRequest(http.MethodGet, "/nonexistent", nil)
+	handler.ServeHTTP(rec, req)
+	// Any status is fine — the point is no crash.
+	_ = rec.Result()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2494,7 +2467,6 @@ func newHTTPTestSession(t *testing.T) (*mcp.ClientSession, *httptest.Server) {
 	t.Helper()
 
 	srv := mcpserver.New(&mcpserver.Config{PayloadDir: "../../payloads"})
-	defer srv.Stop()
 	srv.MarkReady()
 	handler := srv.HTTPHandler()
 	ts := httptest.NewServer(handler)
@@ -2513,12 +2485,14 @@ func newHTTPTestSession(t *testing.T) (*mcp.ClientSession, *httptest.Server) {
 	cs, err := client.Connect(ctx, transport, nil)
 	if err != nil {
 		ts.Close()
+		srv.Stop()
 		t.Fatalf("client.Connect via HTTP: %v", err)
 	}
 
 	t.Cleanup(func() {
 		cs.Close()
 		ts.Close()
+		srv.Stop()
 	})
 	return cs, ts
 }

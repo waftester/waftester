@@ -404,24 +404,30 @@ func (f ResponseFingerprint) IsSimilar(other ResponseFingerprint, threshold floa
 	// Calculate similarity score (0-1)
 	var score float64
 
-	// Content length similarity
-	if f.ContentLength > 0 && other.ContentLength > 0 {
+	// Content length similarity — two zero-length responses are identical.
+	if f.ContentLength == 0 && other.ContentLength == 0 {
+		score += 0.4
+	} else if f.ContentLength > 0 && other.ContentLength > 0 {
 		lenDiff := float64(abs64(f.ContentLength-other.ContentLength)) / float64(max64(f.ContentLength, other.ContentLength))
 		if lenDiff < 0.1 { // Within 10%
 			score += 0.4
 		}
 	}
 
-	// Word count similarity
-	if f.WordCount > 0 && other.WordCount > 0 {
+	// Word count similarity — two empty responses match.
+	if f.WordCount == 0 && other.WordCount == 0 {
+		score += 0.3
+	} else if f.WordCount > 0 && other.WordCount > 0 {
 		wordDiff := float64(absInt(f.WordCount-other.WordCount)) / float64(maxInt(f.WordCount, other.WordCount))
 		if wordDiff < 0.1 {
 			score += 0.3
 		}
 	}
 
-	// Line count similarity
-	if f.LineCount > 0 && other.LineCount > 0 {
+	// Line count similarity — two zero-line responses match.
+	if f.LineCount == 0 && other.LineCount == 0 {
+		score += 0.2
+	} else if f.LineCount > 0 && other.LineCount > 0 {
 		lineDiff := float64(absInt(f.LineCount-other.LineCount)) / float64(maxInt(f.LineCount, other.LineCount))
 		if lineDiff < 0.1 {
 			score += 0.2
