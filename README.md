@@ -515,6 +515,8 @@ For complete MCP examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md#mcp-server-in
 
 ## Command Reference
 
+> For the complete flag reference with every option, see [docs/COMMANDS.md](docs/COMMANDS.md).
+
 | Command | Description | Example |
 |---------|-------------|---------|
 | `auto` | Complete automated assessment | `waf-tester auto -u https://target.com` |
@@ -600,6 +602,7 @@ For complete MCP examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md#mcp-server-in
 
 | Resource | Description |
 |----------|-------------|
+| [Command Reference](docs/COMMANDS.md) | Complete flag reference for every command |
 | [Examples Guide](docs/EXAMPLES.md) | Comprehensive usage examples |
 | [API Spec Scanning](docs/API-SPEC-SCANNING.md) | Spec-driven scanning reference |
 | [Installation](docs/INSTALLATION.md) | Installation methods (Docker, binary, npm) |
