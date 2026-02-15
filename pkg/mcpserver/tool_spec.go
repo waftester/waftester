@@ -1115,8 +1115,3 @@ func (s *Server) specScanFn() apispec.ScanFunc {
 		return nil, nil
 	}
 }
-
-
-
-
-

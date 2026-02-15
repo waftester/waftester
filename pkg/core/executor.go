@@ -378,6 +378,16 @@ func (e *Executor) Close() {
 	}
 }
 
+// SetRateLimit dynamically updates the rate limiter's throughput.
+// Safe to call concurrently while the executor is running.
+func (e *Executor) SetRateLimit(requestsPerSec int) {
+	if requestsPerSec <= 0 {
+		return
+	}
+	e.limiter.SetLimit(rate.Limit(requestsPerSec))
+	e.limiter.SetBurst(requestsPerSec)
+}
+
 // buildSkippedResult creates a TestResult for a payload that was skipped
 // due to host errors or detection system recommendations. Used by the
 // worker pool to skip payloads without going through the rate limiter.

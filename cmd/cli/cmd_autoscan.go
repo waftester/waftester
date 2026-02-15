@@ -42,8 +42,52 @@ import (
 	"github.com/waftester/waftester/pkg/report"
 	tlsja3 "github.com/waftester/waftester/pkg/tls"
 	"github.com/waftester/waftester/pkg/ui"
+	"github.com/waftester/waftester/pkg/waf/strategy"
 	"github.com/waftester/waftester/pkg/waf/vendors"
 )
+
+// smartModeCache is a JSON-serializable subset of SmartModeResult for resume.
+type smartModeCache struct {
+	WAFDetected   bool     `json:"waf_detected"`
+	VendorName    string   `json:"vendor_name"`
+	Confidence    float64  `json:"confidence"`
+	BypassHints   []string `json:"bypass_hints,omitempty"`
+	RateLimit     float64  `json:"rate_limit"`
+	Concurrency   int      `json:"concurrency"`
+	StratEncoders []string `json:"strategy_encoders,omitempty"`
+	StratEvasions []string `json:"strategy_evasions,omitempty"`
+}
+
+func newSmartModeCache(r *SmartModeResult) smartModeCache {
+	c := smartModeCache{
+		WAFDetected: r.WAFDetected,
+		VendorName:  r.VendorName,
+		Confidence:  r.Confidence,
+		BypassHints: r.BypassHints,
+		RateLimit:   r.RateLimit,
+		Concurrency: r.Concurrency,
+	}
+	if r.Strategy != nil {
+		c.StratEncoders = r.Strategy.Encoders
+		c.StratEvasions = r.Strategy.Evasions
+	}
+	return c
+}
+
+func (c *smartModeCache) toSmartModeResult() *SmartModeResult {
+	return &SmartModeResult{
+		WAFDetected: c.WAFDetected,
+		VendorName:  c.VendorName,
+		Confidence:  c.Confidence,
+		BypassHints: c.BypassHints,
+		RateLimit:   c.RateLimit,
+		Concurrency: c.Concurrency,
+		Strategy: &strategy.Strategy{
+			Encoders: c.StratEncoders,
+			Evasions: c.StratEvasions,
+		},
+	}
+}
 
 // runAutoScan is the SUPERPOWER command - full automated scan in a single command
 // It chains: discover → deep JS analysis → learn → run → comprehensive report
@@ -73,7 +117,7 @@ func runAutoScan() {
 	depth := autoFlags.Int("depth", 3, "Max crawl depth for discovery")
 	outputDir := autoFlags.String("output-dir", "", "Output directory (default: workspaces/<domain>/<timestamp>)")
 	verbose := autoFlags.Bool("v", false, "Verbose output")
-	_ = autoFlags.Bool("no-clean", false, "Don't clean previous workspace files") // Reserved for future use
+	noClean := autoFlags.Bool("no-clean", false, "Don't clean previous workspace files")
 
 	// Smart mode (WAF-aware testing with 197+ vendor signatures)
 	smartMode := autoFlags.Bool("smart", false, "Enable WAF-aware testing (auto-detect WAF and optimize)")
@@ -234,6 +278,14 @@ func runAutoScan() {
 		projectRoot := getProjectRoot()
 		workspaceDir = filepath.Join(projectRoot, "workspaces", domain, timestamp)
 	}
+	// Clean previous workspace files unless --no-clean is set
+	if !*noClean && workspaceDir != "" {
+		if info, err := os.Stat(workspaceDir); err == nil && info.IsDir() {
+			if removeErr := os.RemoveAll(workspaceDir); removeErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to clean workspace: %v", removeErr))
+			}
+		}
+	}
 	if err := os.MkdirAll(workspaceDir, 0755); err != nil {
 		ui.PrintError(fmt.Sprintf("Cannot create workspace: %v", err))
 		os.Exit(1)
@@ -264,6 +316,7 @@ func runAutoScan() {
 		"param-discovery",
 		"learning",
 		"waf-testing",
+		"brain-feedback",
 		"assessment",
 		"browser-scan",
 	}
@@ -279,6 +332,14 @@ func runAutoScan() {
 	// Helper to mark phase as completed and save checkpoint
 	markPhaseCompleted := func(name string) {
 		_ = cpManager.MarkCompleted(name)
+	}
+
+	// Helper to check if phase should be skipped (resume mode)
+	shouldSkipPhase := func(name string) bool {
+		if !*resumeScan {
+			return false
+		}
+		return cpManager.IsCompleted(name)
 	}
 
 	// Check for resume mode
@@ -470,8 +531,21 @@ func runAutoScan() {
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 0: SMART MODE - WAF DETECTION & STRATEGY OPTIMIZATION (Optional)
 	// ═══════════════════════════════════════════════════════════════════════════
+	smartModeFile := filepath.Join(workspaceDir, "smart-mode.json")
 	var smartResult *SmartModeResult
-	if *smartMode {
+
+	if *smartMode && shouldSkipPhase("smart-mode") {
+		ui.PrintInfo("⏭️  Skipping smart mode (already completed)")
+		// Reload cached smart mode results for downstream phases
+		if data, err := os.ReadFile(smartModeFile); err == nil {
+			var cached smartModeCache
+			if err := json.Unmarshal(data, &cached); err == nil {
+				smartResult = cached.toSmartModeResult()
+			}
+		}
+	}
+
+	if *smartMode && smartResult == nil && !shouldSkipPhase("smart-mode") {
 		printStatusLn(ui.SectionStyle.Render("PHASE 0: Smart Mode - WAF Detection & Strategy Optimization"))
 		printStatusLn()
 
@@ -517,6 +591,17 @@ func runAutoScan() {
 				}
 			}
 		}
+		markPhaseCompleted("smart-mode")
+
+		// Persist smart mode results for resume
+		if smartResult != nil {
+			cached := newSmartModeCache(smartResult)
+			if data, err := json.MarshalIndent(cached, "", "  "); err == nil {
+				if werr := os.WriteFile(smartModeFile, data, 0644); werr != nil {
+					ui.PrintWarning(fmt.Sprintf("Failed to save smart mode cache: %v", werr))
+				}
+			}
+		}
 		printStatusLn()
 	}
 
@@ -527,58 +612,76 @@ func runAutoScan() {
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 1: DISCOVERY
 	// ═══════════════════════════════════════════════════════════════════════════
-	printStatusLn(ui.SectionStyle.Render("PHASE 1: Target Discovery & Reconnaissance"))
-	printStatusLn()
+	var discResult *discovery.DiscoveryResult
+	discoveryRanFresh := false
 
-	discoveryCfg := discovery.DiscoveryConfig{
-		Target:      target,
-		Service:     *service,
-		Timeout:     time.Duration(*timeout) * time.Second,
-		Concurrency: *concurrency,
-		MaxDepth:    *depth,
-		SkipVerify:  *skipVerify,
-		Verbose:     *verbose,
-		HTTPClient:  ja3Client, // JA3 TLS fingerprint rotation
-	}
-
-	discoverer := discovery.NewDiscoverer(discoveryCfg)
-
-	ui.PrintInfo("🔍 Starting endpoint discovery...")
-	discResult, err := discoverer.Discover(ctx)
-	if err != nil {
-		errMsg := fmt.Sprintf("Discovery failed: %v", err)
-		ui.PrintError(errMsg)
-		if autoDispCtx != nil {
-			_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
+	if shouldSkipPhase("discovery") {
+		ui.PrintInfo("⏭️  Skipping discovery (already completed)")
+		// Load previous discovery results if available
+		if data, err := os.ReadFile(discoveryFile); err == nil {
+			var loaded discovery.DiscoveryResult
+			if err := json.Unmarshal(data, &loaded); err == nil {
+				discResult = &loaded
+			}
 		}
-		os.Exit(1) // intentional: CLI early exit on fatal error
 	}
 
-	if err := discResult.SaveResult(discoveryFile); err != nil {
-		errMsg := fmt.Sprintf("Error saving discovery: %v", err)
-		ui.PrintError(errMsg)
-		if autoDispCtx != nil {
-			_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
+	if discResult == nil {
+		printStatusLn(ui.SectionStyle.Render("PHASE 1: Target Discovery & Reconnaissance"))
+		printStatusLn()
+
+		discoveryCfg := discovery.DiscoveryConfig{
+			Target:      target,
+			Service:     *service,
+			Timeout:     time.Duration(*timeout) * time.Second,
+			Concurrency: *concurrency,
+			MaxDepth:    *depth,
+			SkipVerify:  *skipVerify,
+			Verbose:     *verbose,
+			HTTPClient:  ja3Client, // JA3 TLS fingerprint rotation
 		}
-		os.Exit(1) // intentional: CLI early exit on fatal error
-	}
 
-	ui.PrintSuccess(fmt.Sprintf("✓ Discovered %d endpoints", len(discResult.Endpoints)))
-	if discResult.WAFDetected {
-		ui.PrintInfo(fmt.Sprintf("  WAF Detected: %s", discResult.WAFFingerprint))
+		discoverer := discovery.NewDiscoverer(discoveryCfg)
+
+		ui.PrintInfo("🔍 Starting endpoint discovery...")
+		var err error
+		discResult, err = discoverer.Discover(ctx)
+		if err != nil {
+			errMsg := fmt.Sprintf("Discovery failed: %v", err)
+			ui.PrintError(errMsg)
+			if autoDispCtx != nil {
+				_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
+			}
+			os.Exit(1) // intentional: CLI early exit on fatal error
+		}
+
+		if err := discResult.SaveResult(discoveryFile); err != nil {
+			errMsg := fmt.Sprintf("Error saving discovery: %v", err)
+			ui.PrintError(errMsg)
+			if autoDispCtx != nil {
+				_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
+			}
+			os.Exit(1) // intentional: CLI early exit on fatal error
+		}
+
+		ui.PrintSuccess(fmt.Sprintf("✓ Discovered %d endpoints", len(discResult.Endpoints)))
+		if discResult.WAFDetected {
+			ui.PrintInfo(fmt.Sprintf("  WAF Detected: %s", discResult.WAFFingerprint))
+		}
+		printStatusLn()
+
+		// Mark discovery phase complete for resume
+		markPhaseCompleted("discovery")
+		discoveryRanFresh = true
 	}
-	printStatusLn()
 
 	// Update progress after discovery
 	autoProgress.SetMetric("endpoints", int64(len(discResult.Endpoints)))
 	autoProgress.SetStatus("Leaky paths")
 	autoProgress.Increment()
 
-	// Mark discovery phase complete for resume
-	markPhaseCompleted("discovery")
-
-	// Feed discovery findings to Brain
-	if brain != nil {
+	// Feed discovery findings to Brain (only on first run, not resume)
+	if brain != nil && discoveryRanFresh {
 		brain.StartPhase(ctx, "discovery")
 		for _, ep := range discResult.Endpoints {
 			brain.LearnFromFinding(&intelligence.Finding{
@@ -612,7 +715,7 @@ func runAutoScan() {
 	leakyPathsFile := filepath.Join(workspaceDir, "leaky-paths.json")
 	var leakyResult *leakypaths.ScanSummary
 
-	if *enableLeakyPaths {
+	if *enableLeakyPaths && !shouldSkipPhase("leaky-paths") {
 		printStatusLn(ui.SectionStyle.Render("PHASE 1.5: Sensitive Path Scanning (leaky-paths)"))
 		printStatusLn()
 
@@ -720,41 +823,77 @@ func runAutoScan() {
 		if !quietMode {
 			fmt.Fprintln(os.Stderr)
 		}
+
+		// G2: Feed leaky path URLs into discovery endpoints for attack pipeline
+		if leakyResult != nil && leakyResult.InterestingHits > 0 {
+			for _, result := range leakyResult.Results {
+				if !result.Interesting {
+					continue
+				}
+				discResult.Endpoints = append(discResult.Endpoints, discovery.Endpoint{
+					Path:     result.Path,
+					Method:   "GET",
+					Category: result.Category,
+					Service:  "leaky-paths",
+				})
+			}
+		}
+
+		// G9: Feed leaky paths findings to Brain
+		if brain != nil && leakyResult != nil && leakyResult.InterestingHits > 0 {
+			brain.StartPhase(ctx, "leaky-paths")
+			for _, result := range leakyResult.Results {
+				if !result.Interesting {
+					continue
+				}
+				brain.LearnFromFinding(&intelligence.Finding{
+					Phase:      "leaky-paths",
+					Category:   result.Category,
+					Severity:   result.Severity,
+					Path:       result.Path,
+					Evidence:   fmt.Sprintf("Exposed: %s (%d)", result.Path, result.StatusCode),
+					Confidence: 0.85,
+					StatusCode: result.StatusCode,
+					Metadata: map[string]interface{}{
+						"category":    result.Category,
+						"status_code": result.StatusCode,
+					},
+				})
+			}
+			brain.EndPhase("leaky-paths")
+		}
+
+		markPhaseCompleted("leaky-paths")
+	} else if *enableLeakyPaths && shouldSkipPhase("leaky-paths") {
+		// Resume: reload leaky-paths results for G2/G9 enrichments
+		ui.PrintInfo("⏭️  Skipping leaky-paths (already completed)")
+		if data, err := os.ReadFile(leakyPathsFile); err == nil {
+			var loaded leakypaths.ScanSummary
+			if err := json.Unmarshal(data, &loaded); err == nil {
+				leakyResult = &loaded
+				// G2: Re-inject leaky path endpoints into discovery
+				if leakyResult.InterestingHits > 0 {
+					for _, result := range leakyResult.Results {
+						if !result.Interesting {
+							continue
+						}
+						discResult.Endpoints = append(discResult.Endpoints, discovery.Endpoint{
+							Path:     result.Path,
+							Method:   "GET",
+							Category: result.Category,
+							Service:  "leaky-paths",
+						})
+					}
+				}
+			}
+		}
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 2: DEEP JAVASCRIPT ANALYSIS
 	// ═══════════════════════════════════════════════════════════════════════════
-	printStatusLn(ui.SectionStyle.Render("PHASE 2: Deep JavaScript Analysis"))
-	printStatusLn()
 
-	ui.PrintInfo("📜 Extracting and analyzing JavaScript files...")
-
-	// Collect all JS files from discovery
-	jsFiles := make([]string, 0)
-	for _, ep := range discResult.Endpoints {
-		if strings.HasSuffix(ep.Path, ".js") {
-			jsFiles = append(jsFiles, ep.Path)
-		}
-	}
-
-	// Also check for common config files
-	configPaths := []string{"/config.js", "/admin/config.js", "/app.config.js", "/env.js", "/settings.js"}
-	for _, p := range configPaths {
-		found := false
-		for _, existing := range jsFiles {
-			if existing == p {
-				found = true
-				break
-			}
-		}
-		if !found {
-			jsFiles = append(jsFiles, p)
-		}
-	}
-
-	// Analyze each JS file
-	jsAnalyzer := js.NewAnalyzer()
+	// Declare JS analysis outputs before skip guard — used in summary and reports
 	allJSData := &js.ExtractedData{
 		URLs:       make([]js.URLInfo, 0),
 		Endpoints:  make([]js.EndpointInfo, 0),
@@ -763,318 +902,366 @@ func runAutoScan() {
 		CloudURLs:  make([]js.CloudURL, 0),
 		Subdomains: make([]string, 0),
 	}
-
-	// Use JA3-aware client if enabled, otherwise standard client
-	var client *http.Client
-	if ja3Client != nil {
-		client = ja3Client
-	} else {
-		client = httpclient.New(httpclient.WithTimeout(time.Duration(*timeout) * time.Second))
-	}
-
 	var jsAnalyzed int32
-	totalJSFiles := len(jsFiles)
-	var secretsFound, endpointsFound int32
 
-	// Animated progress for JS analysis
-	jsProgressDone := make(chan struct{})
-	jsSpinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-	jsFrameIdx := 0
-	jsStartTime := time.Now()
+	if shouldSkipPhase("js-analysis") {
+		ui.PrintInfo("⏭️  Skipping JS analysis (already completed)")
+		// Reload JS data from disk for summary/report usage
+		if data, err := os.ReadFile(jsAnalysisFile); err == nil {
+			var loaded js.ExtractedData
+			if err := json.Unmarshal(data, &loaded); err == nil {
+				allJSData = &loaded
+			}
+		}
+	} else {
+		printStatusLn(ui.SectionStyle.Render("PHASE 2: Deep JavaScript Analysis"))
+		printStatusLn()
 
-	if totalJSFiles > 1 && !outFlags.StreamMode && !quietMode {
-		go func() {
-			ticker := time.NewTicker(100 * time.Millisecond)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-jsProgressDone:
-					return
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					analyzed := int(atomic.LoadInt32(&jsAnalyzed))
-					secrets := atomic.LoadInt32(&secretsFound)
-					endpoints := atomic.LoadInt32(&endpointsFound)
-					elapsed := time.Since(jsStartTime)
+		ui.PrintInfo("📜 Extracting and analyzing JavaScript files...")
 
-					spinner := jsSpinnerFrames[jsFrameIdx%len(jsSpinnerFrames)]
-					jsFrameIdx++
+		// Collect all JS files from discovery
+		jsFiles := make([]string, 0)
+		for _, ep := range discResult.Endpoints {
+			if strings.HasSuffix(ep.Path, ".js") {
+				jsFiles = append(jsFiles, ep.Path)
+			}
+		}
 
-					percent := float64(0)
-					if totalJSFiles > 0 {
-						percent = float64(analyzed) / float64(totalJSFiles) * 100
-					}
-
-					progressWidth := 25
-					fillWidth := int(float64(progressWidth) * percent / 100)
-					bar := fmt.Sprintf("[%s%s]",
-						strings.Repeat("█", fillWidth),
-						strings.Repeat("░", progressWidth-fillWidth))
-
-					secretColor := "\033[32m" // Green
-					if secrets > 0 {
-						secretColor = "\033[31m" // Red - secrets found!
-					}
-
-					fmt.Fprintf(os.Stderr, "\033[2A\033[J")
-					fmt.Fprintf(os.Stderr, "  %s %s %.1f%% (%d/%d files)\n", spinner, bar, percent, analyzed, totalJSFiles)
-					fmt.Fprintf(os.Stderr, "  📊 Endpoints: %d  %s🔑 Secrets: %d\033[0m  ⏱️  %s\n",
-						endpoints, secretColor, secrets, elapsed.Round(time.Second))
+		// Also check for common config files
+		configPaths := []string{"/config.js", "/admin/config.js", "/app.config.js", "/env.js", "/settings.js"}
+		for _, p := range configPaths {
+			found := false
+			for _, existing := range jsFiles {
+				if existing == p {
+					found = true
+					break
 				}
 			}
-		}()
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr)
-	}
+			if !found {
+				jsFiles = append(jsFiles, p)
+			}
+		}
 
-	for _, jsPath := range jsFiles {
-		var jsURL string
-		if !strings.HasPrefix(jsPath, "http") {
-			jsURL = strings.TrimSuffix(target, "/") + jsPath
+		// Analyze each JS file
+		jsAnalyzer := js.NewAnalyzer()
+
+		// Use JA3-aware client if enabled, otherwise standard client
+		var client *http.Client
+		if ja3Client != nil {
+			client = ja3Client
 		} else {
-			jsURL = jsPath
+			client = httpclient.New(httpclient.WithTimeout(time.Duration(*timeout) * time.Second))
 		}
 
-		req, err := http.NewRequest("GET", jsURL, nil)
-		if err != nil {
-			continue
-		}
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+		totalJSFiles := len(jsFiles)
+		var secretsFound, endpointsFound int32
 
-		resp, err := client.Do(req)
-		if err != nil || resp.StatusCode != 200 {
-			if resp != nil {
-				iohelper.DrainAndClose(resp.Body) // Drain for connection reuse
+		// Animated progress for JS analysis
+		jsProgressDone := make(chan struct{})
+		jsSpinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+		jsFrameIdx := 0
+		jsStartTime := time.Now()
+
+		if totalJSFiles > 1 && !outFlags.StreamMode && !quietMode {
+			go func() {
+				ticker := time.NewTicker(100 * time.Millisecond)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-jsProgressDone:
+						return
+					case <-ctx.Done():
+						return
+					case <-ticker.C:
+						analyzed := int(atomic.LoadInt32(&jsAnalyzed))
+						secrets := atomic.LoadInt32(&secretsFound)
+						endpoints := atomic.LoadInt32(&endpointsFound)
+						elapsed := time.Since(jsStartTime)
+
+						spinner := jsSpinnerFrames[jsFrameIdx%len(jsSpinnerFrames)]
+						jsFrameIdx++
+
+						percent := float64(0)
+						if totalJSFiles > 0 {
+							percent = float64(analyzed) / float64(totalJSFiles) * 100
+						}
+
+						progressWidth := 25
+						fillWidth := int(float64(progressWidth) * percent / 100)
+						bar := fmt.Sprintf("[%s%s]",
+							strings.Repeat("█", fillWidth),
+							strings.Repeat("░", progressWidth-fillWidth))
+
+						secretColor := "\033[32m" // Green
+						if secrets > 0 {
+							secretColor = "\033[31m" // Red - secrets found!
+						}
+
+						fmt.Fprintf(os.Stderr, "\033[2A\033[J")
+						fmt.Fprintf(os.Stderr, "  %s %s %.1f%% (%d/%d files)\n", spinner, bar, percent, analyzed, totalJSFiles)
+						fmt.Fprintf(os.Stderr, "  📊 Endpoints: %d  %s🔑 Secrets: %d\033[0m  ⏱️  %s\n",
+							endpoints, secretColor, secrets, elapsed.Round(time.Second))
+					}
+				}
+			}()
+			fmt.Fprintln(os.Stderr)
+			fmt.Fprintln(os.Stderr)
+		}
+
+		for _, jsPath := range jsFiles {
+			// Check for cancellation between files
+			if ctx.Err() != nil {
+				break
 			}
-			continue
-		}
 
-		body, err := iohelper.ReadBody(resp.Body, 5*1024*1024) // 5MB limit
-		iohelper.DrainAndClose(resp.Body)                      // Drain for connection reuse
-		if err != nil {
-			continue
-		}
-
-		jsCode := string(body)
-		result := jsAnalyzer.Analyze(jsCode)
-
-		// Merge results
-		allJSData.URLs = append(allJSData.URLs, result.URLs...)
-		allJSData.Endpoints = append(allJSData.Endpoints, result.Endpoints...)
-		allJSData.Secrets = append(allJSData.Secrets, result.Secrets...)
-		allJSData.DOMSinks = append(allJSData.DOMSinks, result.DOMSinks...)
-		allJSData.CloudURLs = append(allJSData.CloudURLs, result.CloudURLs...)
-		allJSData.Subdomains = append(allJSData.Subdomains, result.Subdomains...)
-		atomic.AddInt32(&jsAnalyzed, 1)
-
-		// Update atomic counters for progress display
-		atomic.AddInt32(&secretsFound, int32(len(result.Secrets)))
-		atomic.AddInt32(&endpointsFound, int32(len(result.Endpoints)))
-
-		if *verbose {
-			ui.PrintInfo(fmt.Sprintf("  Analyzed: %s (%d URLs, %d endpoints, %d secrets)",
-				jsPath, len(result.URLs), len(result.Endpoints), len(result.Secrets)))
-		}
-	}
-
-	// Stop JS analysis progress display
-	if totalJSFiles > 1 {
-		close(jsProgressDone)
-		time.Sleep(50 * time.Millisecond)
-		if !quietMode {
-			fmt.Fprintf(os.Stderr, "\033[2A\033[J")
-		}
-	}
-
-	// Deduplicate subdomains
-	subdomainMap := make(map[string]bool)
-	for _, sub := range allJSData.Subdomains {
-		subdomainMap[sub] = true
-	}
-	allJSData.Subdomains = make([]string, 0, len(subdomainMap))
-	for sub := range subdomainMap {
-		allJSData.Subdomains = append(allJSData.Subdomains, sub)
-	}
-
-	// Save JS analysis
-	jsDataBytes, _ := json.MarshalIndent(allJSData, "", "  ")
-	if err := os.WriteFile(jsAnalysisFile, jsDataBytes, 0644); err != nil {
-		ui.PrintWarning(fmt.Sprintf("Failed to write JS analysis: %v", err))
-	}
-
-	ui.PrintSuccess(fmt.Sprintf("✓ Analyzed %d JavaScript files", atomic.LoadInt32(&jsAnalyzed)))
-	ui.PrintInfo(fmt.Sprintf("  Found: %d URLs, %d endpoints, %d secrets, %d DOM sinks",
-		len(allJSData.URLs), len(allJSData.Endpoints), len(allJSData.Secrets), len(allJSData.DOMSinks)))
-
-	// Update progress after JS analysis
-	autoProgress.AddMetricN("secrets", int64(len(allJSData.Secrets)))
-	autoProgress.SetStatus("Learning")
-	autoProgress.Increment()
-
-	// Add JS-discovered endpoints to discovery result
-	for _, ep := range allJSData.Endpoints {
-		method := ep.Method
-		if method == "" {
-			// Infer method from path/source
-			method = inferHTTPMethod(ep.Path, ep.Source)
-		}
-		discResult.Endpoints = append(discResult.Endpoints, discovery.Endpoint{
-			Path:     ep.Path,
-			Method:   method,
-			Category: "api",
-			Service:  "js-discovery",
-		})
-	}
-
-	// Also add URLs with inferred methods (these may not match endpoint patterns but have method info)
-	seenPaths := make(map[string]bool)
-	for _, ep := range discResult.Endpoints {
-		seenPaths[ep.Method+":"+ep.Path] = true
-	}
-	for _, urlInfo := range allJSData.URLs {
-		// Only process relative paths that look like API endpoints
-		if !strings.HasPrefix(urlInfo.URL, "/") || strings.HasPrefix(urlInfo.URL, "//") {
-			continue
-		}
-		// Skip static files
-		if strings.HasSuffix(urlInfo.URL, ".js") || strings.HasSuffix(urlInfo.URL, ".css") ||
-			strings.HasSuffix(urlInfo.URL, ".png") || strings.HasSuffix(urlInfo.URL, ".jpg") ||
-			strings.HasSuffix(urlInfo.URL, ".svg") || strings.HasSuffix(urlInfo.URL, ".woff") {
-			continue
-		}
-		method := urlInfo.Method
-		if method == "" {
-			method = "GET"
-		}
-		key := method + ":" + urlInfo.URL
-		if seenPaths[key] {
-			continue
-		}
-		seenPaths[key] = true
-		discResult.Endpoints = append(discResult.Endpoints, discovery.Endpoint{
-			Path:     urlInfo.URL,
-			Method:   method,
-			Category: "api",
-			Service:  "js-analysis",
-		})
-	}
-
-	// Print secrets if found
-	if len(allJSData.Secrets) > 0 && !quietMode {
-		fmt.Fprintln(os.Stderr)
-		ui.PrintSection("🔑 Secrets Detected in JavaScript")
-		for _, secret := range allJSData.Secrets {
-			severity := strings.ToUpper(secret.Confidence)
-			if severity == "" {
-				severity = "LOW"
+			var jsURL string
+			if !strings.HasPrefix(jsPath, "http") {
+				jsURL = strings.TrimSuffix(target, "/") + jsPath
+			} else {
+				jsURL = jsPath
 			}
-			truncated := secret.Value
-			if len(truncated) > 50 {
-				truncated = truncated[:50] + "..."
+
+			req, err := http.NewRequestWithContext(ctx, "GET", jsURL, nil)
+			if err != nil {
+				continue
 			}
-			ui.PrintError(fmt.Sprintf("  [%s] %s: %s", severity, secret.Type, truncated))
-		}
-	}
+			req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 
-	// Emit JS secrets to hooks (critical findings)
-	if autoDispCtx != nil && len(allJSData.Secrets) > 0 {
-		for _, secret := range allJSData.Secrets {
-			severity := strings.ToUpper(secret.Confidence)
-			if severity == "" {
-				severity = "medium"
+			resp, err := client.Do(req)
+			if err != nil || resp.StatusCode != 200 {
+				if resp != nil {
+					iohelper.DrainAndClose(resp.Body) // Drain for connection reuse
+				}
+				continue
 			}
-			secretDesc := fmt.Sprintf("JS secret found: %s", secret.Type)
-			_ = autoDispCtx.EmitBypass(ctx, "js-secret-exposure", severity, target, secretDesc, 0)
-		}
-	}
 
-	// Emit DOM XSS sinks to hooks (potential XSS vulnerabilities)
-	if autoDispCtx != nil && len(allJSData.DOMSinks) > 0 {
-		for _, sink := range allJSData.DOMSinks {
-			sinkDesc := fmt.Sprintf("DOM XSS sink: %s in %s", sink.Sink, sink.Context)
-			_ = autoDispCtx.EmitBypass(ctx, "js-dom-xss-sink", sink.Severity, target, sinkDesc, 0)
-		}
-	}
+			body, err := iohelper.ReadBody(resp.Body, 5*1024*1024) // 5MB limit
+			iohelper.DrainAndClose(resp.Body)                      // Drain for connection reuse
+			if err != nil {
+				continue
+			}
 
-	// Emit discovered subdomains to hooks (attack surface expansion)
-	if autoDispCtx != nil && len(allJSData.Subdomains) > 0 {
+			jsCode := string(body)
+			result := jsAnalyzer.Analyze(jsCode)
+
+			// Merge results
+			allJSData.URLs = append(allJSData.URLs, result.URLs...)
+			allJSData.Endpoints = append(allJSData.Endpoints, result.Endpoints...)
+			allJSData.Secrets = append(allJSData.Secrets, result.Secrets...)
+			allJSData.DOMSinks = append(allJSData.DOMSinks, result.DOMSinks...)
+			allJSData.CloudURLs = append(allJSData.CloudURLs, result.CloudURLs...)
+			allJSData.Subdomains = append(allJSData.Subdomains, result.Subdomains...)
+			atomic.AddInt32(&jsAnalyzed, 1)
+
+			// Update atomic counters for progress display
+			atomic.AddInt32(&secretsFound, int32(len(result.Secrets)))
+			atomic.AddInt32(&endpointsFound, int32(len(result.Endpoints)))
+
+			if *verbose {
+				ui.PrintInfo(fmt.Sprintf("  Analyzed: %s (%d URLs, %d endpoints, %d secrets)",
+					jsPath, len(result.URLs), len(result.Endpoints), len(result.Secrets)))
+			}
+		}
+
+		// Stop JS analysis progress display
+		if totalJSFiles > 1 {
+			close(jsProgressDone)
+			time.Sleep(50 * time.Millisecond)
+			if !quietMode {
+				fmt.Fprintf(os.Stderr, "\033[2A\033[J")
+			}
+		}
+
+		// Deduplicate subdomains
+		subdomainMap := make(map[string]bool)
 		for _, sub := range allJSData.Subdomains {
-			subDesc := fmt.Sprintf("Subdomain discovered in JS: %s", sub)
-			_ = autoDispCtx.EmitBypass(ctx, "js-subdomain-discovery", "info", target, subDesc, 0)
+			subdomainMap[sub] = true
 		}
-	}
+		allJSData.Subdomains = make([]string, 0, len(subdomainMap))
+		for sub := range subdomainMap {
+			allJSData.Subdomains = append(allJSData.Subdomains, sub)
+		}
 
-	// Emit cloud URLs to hooks (potential misconfigurations)
-	if autoDispCtx != nil && len(allJSData.CloudURLs) > 0 {
-		for _, cloudURL := range allJSData.CloudURLs {
-			cloudDesc := fmt.Sprintf("Cloud URL in JS: %s (%s)", cloudURL.URL, cloudURL.Service)
-			_ = autoDispCtx.EmitBypass(ctx, "js-cloud-url", "medium", target, cloudDesc, 0)
+		// Save JS analysis
+		jsDataBytes, _ := json.MarshalIndent(allJSData, "", "  ")
+		if err := os.WriteFile(jsAnalysisFile, jsDataBytes, 0644); err != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to write JS analysis: %v", err))
 		}
-	}
 
-	if len(allJSData.Subdomains) > 0 && !quietMode {
-		fmt.Fprintln(os.Stderr)
-		ui.PrintSection("🌐 Subdomains Discovered")
-		for _, sub := range allJSData.Subdomains[:min(10, len(allJSData.Subdomains))] {
-			ui.PrintInfo("  " + sub)
-		}
-		if len(allJSData.Subdomains) > 10 {
-			ui.PrintInfo(fmt.Sprintf("  ... and %d more", len(allJSData.Subdomains)-10))
-		}
-	}
-	if !quietMode {
-		fmt.Fprintln(os.Stderr)
-	}
+		ui.PrintSuccess(fmt.Sprintf("✓ Analyzed %d JavaScript files", atomic.LoadInt32(&jsAnalyzed)))
+		ui.PrintInfo(fmt.Sprintf("  Found: %d URLs, %d endpoints, %d secrets, %d DOM sinks",
+			len(allJSData.URLs), len(allJSData.Endpoints), len(allJSData.Secrets), len(allJSData.DOMSinks)))
 
-	// Feed JS analysis findings to Brain
-	if brain != nil {
-		brain.StartPhase(ctx, "js-analysis")
-		// Secrets - highest priority
-		for _, secret := range allJSData.Secrets {
-			brain.LearnFromFinding(&intelligence.Finding{
-				Phase:      "js-analysis",
-				Category:   "secret",
-				Severity:   "high",
-				Evidence:   secret.Type + ": " + secret.Value[:min(30, len(secret.Value))],
-				Confidence: 0.9,
-				Metadata:   map[string]interface{}{"type": secret.Type},
-			})
-		}
-		// Endpoints
+		// Update progress after JS analysis
+		autoProgress.AddMetricN("secrets", int64(len(allJSData.Secrets)))
+		autoProgress.SetStatus("Learning")
+		autoProgress.Increment()
+
+		// Add JS-discovered endpoints to discovery result
 		for _, ep := range allJSData.Endpoints {
-			brain.LearnFromFinding(&intelligence.Finding{
-				Phase:      "js-analysis",
-				Category:   "endpoint",
-				Severity:   "info",
-				Path:       ep.Path,
-				Evidence:   ep.Method + " " + ep.Path,
-				Confidence: 0.7,
+			method := ep.Method
+			if method == "" {
+				// Infer method from path/source
+				method = inferHTTPMethod(ep.Path, ep.Source)
+			}
+			discResult.Endpoints = append(discResult.Endpoints, discovery.Endpoint{
+				Path:     ep.Path,
+				Method:   method,
+				Category: "api",
+				Service:  "js-discovery",
 			})
 		}
-		// DOM sinks
-		for _, sink := range allJSData.DOMSinks {
-			brain.LearnFromFinding(&intelligence.Finding{
-				Phase:      "js-analysis",
-				Category:   "dom-sink",
-				Severity:   sink.Severity,
-				Evidence:   sink.Sink + " in " + sink.Context,
-				Confidence: 0.8,
+
+		// Also add URLs with inferred methods (these may not match endpoint patterns but have method info)
+		seenPaths := make(map[string]bool)
+		for _, ep := range discResult.Endpoints {
+			seenPaths[ep.Method+":"+ep.Path] = true
+		}
+		for _, urlInfo := range allJSData.URLs {
+			// Only process relative paths that look like API endpoints
+			if !strings.HasPrefix(urlInfo.URL, "/") || strings.HasPrefix(urlInfo.URL, "//") {
+				continue
+			}
+			// Skip static files
+			if strings.HasSuffix(urlInfo.URL, ".js") || strings.HasSuffix(urlInfo.URL, ".css") ||
+				strings.HasSuffix(urlInfo.URL, ".png") || strings.HasSuffix(urlInfo.URL, ".jpg") ||
+				strings.HasSuffix(urlInfo.URL, ".svg") || strings.HasSuffix(urlInfo.URL, ".woff") {
+				continue
+			}
+			method := urlInfo.Method
+			if method == "" {
+				method = "GET"
+			}
+			key := method + ":" + urlInfo.URL
+			if seenPaths[key] {
+				continue
+			}
+			seenPaths[key] = true
+			discResult.Endpoints = append(discResult.Endpoints, discovery.Endpoint{
+				Path:     urlInfo.URL,
+				Method:   method,
+				Category: "api",
+				Service:  "js-analysis",
 			})
 		}
-		// Cloud URLs
-		for _, cloud := range allJSData.CloudURLs {
-			brain.LearnFromFinding(&intelligence.Finding{
-				Phase:      "js-analysis",
-				Category:   "cloud-url",
-				Severity:   "medium",
-				Path:       cloud.URL,
-				Evidence:   cloud.Service,
-				Confidence: 0.85,
-			})
+
+		// Print secrets if found
+		if len(allJSData.Secrets) > 0 && !quietMode {
+			fmt.Fprintln(os.Stderr)
+			ui.PrintSection("🔑 Secrets Detected in JavaScript")
+			for _, secret := range allJSData.Secrets {
+				severity := strings.ToUpper(secret.Confidence)
+				if severity == "" {
+					severity = "LOW"
+				}
+				truncated := secret.Value
+				if len(truncated) > 50 {
+					truncated = truncated[:50] + "..."
+				}
+				ui.PrintError(fmt.Sprintf("  [%s] %s: %s", severity, secret.Type, truncated))
+			}
 		}
-		brain.EndPhase("js-analysis")
-	}
+
+		// Emit JS secrets to hooks (critical findings)
+		if autoDispCtx != nil && len(allJSData.Secrets) > 0 {
+			for _, secret := range allJSData.Secrets {
+				severity := strings.ToUpper(secret.Confidence)
+				if severity == "" {
+					severity = "medium"
+				}
+				secretDesc := fmt.Sprintf("JS secret found: %s", secret.Type)
+				_ = autoDispCtx.EmitBypass(ctx, "js-secret-exposure", severity, target, secretDesc, 0)
+			}
+		}
+
+		// Emit DOM XSS sinks to hooks (potential XSS vulnerabilities)
+		if autoDispCtx != nil && len(allJSData.DOMSinks) > 0 {
+			for _, sink := range allJSData.DOMSinks {
+				sinkDesc := fmt.Sprintf("DOM XSS sink: %s in %s", sink.Sink, sink.Context)
+				_ = autoDispCtx.EmitBypass(ctx, "js-dom-xss-sink", sink.Severity, target, sinkDesc, 0)
+			}
+		}
+
+		// Emit discovered subdomains to hooks (attack surface expansion)
+		if autoDispCtx != nil && len(allJSData.Subdomains) > 0 {
+			for _, sub := range allJSData.Subdomains {
+				subDesc := fmt.Sprintf("Subdomain discovered in JS: %s", sub)
+				_ = autoDispCtx.EmitBypass(ctx, "js-subdomain-discovery", "info", target, subDesc, 0)
+			}
+		}
+
+		// Emit cloud URLs to hooks (potential misconfigurations)
+		if autoDispCtx != nil && len(allJSData.CloudURLs) > 0 {
+			for _, cloudURL := range allJSData.CloudURLs {
+				cloudDesc := fmt.Sprintf("Cloud URL in JS: %s (%s)", cloudURL.URL, cloudURL.Service)
+				_ = autoDispCtx.EmitBypass(ctx, "js-cloud-url", "medium", target, cloudDesc, 0)
+			}
+		}
+
+		if len(allJSData.Subdomains) > 0 && !quietMode {
+			fmt.Fprintln(os.Stderr)
+			ui.PrintSection("🌐 Subdomains Discovered")
+			for _, sub := range allJSData.Subdomains[:min(10, len(allJSData.Subdomains))] {
+				ui.PrintInfo("  " + sub)
+			}
+			if len(allJSData.Subdomains) > 10 {
+				ui.PrintInfo(fmt.Sprintf("  ... and %d more", len(allJSData.Subdomains)-10))
+			}
+		}
+		if !quietMode {
+			fmt.Fprintln(os.Stderr)
+		}
+
+		// Feed JS analysis findings to Brain
+		if brain != nil {
+			brain.StartPhase(ctx, "js-analysis")
+			// Secrets - highest priority
+			for _, secret := range allJSData.Secrets {
+				brain.LearnFromFinding(&intelligence.Finding{
+					Phase:      "js-analysis",
+					Category:   "secret",
+					Severity:   "high",
+					Evidence:   secret.Type + ": " + secret.Value[:min(30, len(secret.Value))],
+					Confidence: 0.9,
+					Metadata:   map[string]interface{}{"type": secret.Type},
+				})
+			}
+			// Endpoints
+			for _, ep := range allJSData.Endpoints {
+				brain.LearnFromFinding(&intelligence.Finding{
+					Phase:      "js-analysis",
+					Category:   "endpoint",
+					Severity:   "info",
+					Path:       ep.Path,
+					Evidence:   ep.Method + " " + ep.Path,
+					Confidence: 0.7,
+				})
+			}
+			// DOM sinks
+			for _, sink := range allJSData.DOMSinks {
+				brain.LearnFromFinding(&intelligence.Finding{
+					Phase:      "js-analysis",
+					Category:   "dom-sink",
+					Severity:   sink.Severity,
+					Evidence:   sink.Sink + " in " + sink.Context,
+					Confidence: 0.8,
+				})
+			}
+			// Cloud URLs
+			for _, cloud := range allJSData.CloudURLs {
+				brain.LearnFromFinding(&intelligence.Finding{
+					Phase:      "js-analysis",
+					Category:   "cloud-url",
+					Severity:   "medium",
+					Path:       cloud.URL,
+					Evidence:   cloud.Service,
+					Confidence: 0.85,
+				})
+			}
+			brain.EndPhase("js-analysis")
+		}
+	} // end else: js-analysis skip guard
+	markPhaseCompleted("js-analysis")
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 2.5: PARAMETER DISCOVERY (NEW - competitive feature from Arjun)
@@ -1082,7 +1269,7 @@ func runAutoScan() {
 	paramsFile := filepath.Join(workspaceDir, "discovered-params.json")
 	var paramResult *params.DiscoveryResult
 
-	if *enableParamDiscovery {
+	if *enableParamDiscovery && !shouldSkipPhase("param-discovery") {
 		printStatusLn(ui.SectionStyle.Render("PHASE 2.5: Parameter Discovery (Arjun-style)"))
 		printStatusLn()
 
@@ -1097,9 +1284,10 @@ func runAutoScan() {
 				Timeout:     time.Duration(*timeout) * time.Second,
 				Concurrency: *concurrency,
 			},
-			Verbose:    *verbose,
-			ChunkSize:  256, // Test 256 params per request for efficiency
-			HTTPClient: ja3Client,
+			Verbose:      *verbose,
+			ChunkSize:    256, // Test 256 params per request for efficiency
+			HTTPClient:   ja3Client,
+			WordlistFile: *paramWordlist,
 		})
 
 		// Test discovered endpoints for hidden params
@@ -1300,10 +1488,42 @@ func runAutoScan() {
 		if !quietMode {
 			fmt.Fprintln(os.Stderr)
 		}
+
+		// G9: Feed discovered params to Brain
+		if brain != nil && paramResult != nil && paramResult.FoundParams > 0 {
+			brain.StartPhase(ctx, "param-discovery")
+			for _, p := range paramResult.Parameters {
+				brain.LearnFromFinding(&intelligence.Finding{
+					Phase:      "param-discovery",
+					Category:   "hidden-parameter",
+					Severity:   "medium",
+					Path:       target,
+					Evidence:   fmt.Sprintf("Hidden param: %s (%s via %s)", p.Name, p.Type, p.Source),
+					Confidence: p.Confidence,
+					Metadata: map[string]interface{}{
+						"param_name": p.Name,
+						"param_type": p.Type,
+						"source":     p.Source,
+					},
+				})
+			}
+			brain.EndPhase("param-discovery")
+		}
+
+		markPhaseCompleted("param-discovery")
+	} else if *enableParamDiscovery && shouldSkipPhase("param-discovery") {
+		// Resume: reload param discovery results for G1 enrichment
+		ui.PrintInfo("⏭️  Skipping param-discovery (already completed)")
+		if data, err := os.ReadFile(paramsFile); err == nil {
+			var loaded params.DiscoveryResult
+			if err := json.Unmarshal(data, &loaded); err == nil {
+				paramResult = &loaded
+			}
+		}
 	}
 	// Full Recon Mode - runs unified reconnaissance if enabled
 	var fullReconResult *recon.FullReconResult
-	if *enableFullRecon {
+	if *enableFullRecon && !shouldSkipPhase("full-recon") {
 		printStatusLn(ui.SectionStyle.Render("PHASE 2.7: Unified Reconnaissance (Full Recon)"))
 		printStatusLn()
 
@@ -1387,419 +1607,694 @@ func runAutoScan() {
 				}
 			}
 		}
+		markPhaseCompleted("full-recon")
+	} else if *enableFullRecon && shouldSkipPhase("full-recon") {
+		ui.PrintInfo("⏭️  Skipping full-recon (already completed)")
+		reconFile := filepath.Join(workspaceDir, "full-recon.json")
+		if data, err := os.ReadFile(reconFile); err == nil {
+			var loaded recon.FullReconResult
+			if err := json.Unmarshal(data, &loaded); err == nil {
+				fullReconResult = &loaded
+			}
+		}
 	}
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 3: INTELLIGENT LEARNING
 	// ═══════════════════════════════════════════════════════════════════════════
-	printStatusLn(ui.SectionStyle.Render("PHASE 3: Intelligent Test Plan Generation"))
-	printStatusLn()
+	var testPlan *learning.TestPlan
 
-	ui.PrintInfo("🧠 Analyzing attack surface and generating test plan...")
-
-	learner := learning.NewLearner(discResult, payloadDir)
-	testPlan := learner.GenerateTestPlan()
-
-	// Save test plan
-	planData, _ := json.MarshalIndent(testPlan, "", "  ")
-	if err := os.WriteFile(testPlanFile, planData, 0644); err != nil {
-		ui.PrintWarning(fmt.Sprintf("Failed to write test plan: %v", err))
-	}
-
-	ui.PrintSuccess(fmt.Sprintf("✓ Generated test plan with %d tests", testPlan.TotalTests))
-	ui.PrintInfo(fmt.Sprintf("  Estimated time: %s", testPlan.EstimatedTime))
-
-	if !quietMode {
-		fmt.Fprintln(os.Stderr)
-
-		// Show test categories
-		fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("Test Categories:"))
-		for _, group := range testPlan.TestGroups {
-			fmt.Fprintf(os.Stderr, "    [P%d] %s - %s\n", group.Priority, group.Category, group.Reason)
+	if shouldSkipPhase("learning") {
+		ui.PrintInfo("⏭️  Skipping learning phase (already completed)")
+		if data, err := os.ReadFile(testPlanFile); err == nil {
+			var loaded learning.TestPlan
+			if err := json.Unmarshal(data, &loaded); err == nil {
+				testPlan = &loaded
+			}
 		}
-		fmt.Fprintln(os.Stderr)
 	}
 
-	// Update progress after learning phase
-	autoProgress.SetStatus("Testing")
-	autoProgress.Increment()
+	if testPlan == nil {
+		printStatusLn(ui.SectionStyle.Render("PHASE 3: Intelligent Test Plan Generation"))
+		printStatusLn()
+
+		ui.PrintInfo("🧠 Analyzing attack surface and generating test plan...")
+
+		learner := learning.NewLearner(discResult, payloadDir)
+		testPlan = learner.GenerateTestPlan()
+
+		// Save test plan
+		planData, _ := json.MarshalIndent(testPlan, "", "  ")
+		if err := os.WriteFile(testPlanFile, planData, 0644); err != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to write test plan: %v", err))
+		}
+
+		ui.PrintSuccess(fmt.Sprintf("✓ Generated test plan with %d tests", testPlan.TotalTests))
+		ui.PrintInfo(fmt.Sprintf("  Estimated time: %s", testPlan.EstimatedTime))
+
+		if !quietMode {
+			fmt.Fprintln(os.Stderr)
+
+			// Show test categories
+			fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("Test Categories:"))
+			for _, group := range testPlan.TestGroups {
+				fmt.Fprintf(os.Stderr, "    [P%d] %s - %s\n", group.Priority, group.Category, group.Reason)
+			}
+			fmt.Fprintln(os.Stderr)
+		}
+
+		// Update progress after learning phase
+		autoProgress.SetStatus("Testing")
+		autoProgress.Increment()
+		markPhaseCompleted("learning")
+	} // end learning skip guard
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 4: WAF SECURITY TESTING
 	// ═══════════════════════════════════════════════════════════════════════════
-	printStatusLn(ui.SectionStyle.Render("PHASE 4: WAF Security Testing"))
-	printStatusLn()
+	wafResultsFile := filepath.Join(workspaceDir, "results-summary.json")
+	var results output.ExecutionResults
 
-	ui.PrintInfo("⚡ Executing security tests with auto-calibration...")
-	printStatusLn()
-
-	// Load payloads
-	// Load payloads from unified engine (JSON + Nuclei templates)
-	allPayloads, _, err := loadUnifiedPayloads(payloadDir, defaults.TemplateDir, *verbose)
-	if err != nil {
-		errMsg := fmt.Sprintf("Error loading payloads: %v", err)
-		ui.PrintError(errMsg)
-		_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
-		os.Exit(1)
-	}
-
-	// Filter payloads based on test plan categories
-	if len(testPlan.RecommendedFlags.Categories) > 0 {
-		var filteredPayloads []payloads.Payload
-		categorySet := make(map[string]bool)
-		for _, cat := range testPlan.RecommendedFlags.Categories {
-			categorySet[strings.ToLower(cat)] = true
-		}
-		for _, p := range allPayloads {
-			if categorySet[strings.ToLower(p.Category)] {
-				filteredPayloads = append(filteredPayloads, p)
+	if shouldSkipPhase("waf-testing") {
+		ui.PrintInfo("⏭️  Skipping WAF testing (already completed)")
+		if data, err := os.ReadFile(wafResultsFile); err == nil {
+			if uerr := json.Unmarshal(data, &results); uerr != nil {
+				ui.PrintWarning(fmt.Sprintf("Corrupt results-summary.json, re-running WAF testing: %v", uerr))
 			}
 		}
-		allPayloads = filteredPayloads
-	}
-
-	// Smart payload→endpoint routing based on category matching
-	// This ensures XSS goes to HTML endpoints, SQLi to API endpoints, etc.
-	if len(discResult.Endpoints) > 0 {
-		ui.PrintInfo(fmt.Sprintf("🎯 Smart-routing payloads to %d discovered endpoints...", len(discResult.Endpoints)))
-
-		// Categorize endpoints by type
-		apiEndpoints := []discovery.Endpoint{}
-		authEndpoints := []discovery.Endpoint{}
-		uploadEndpoints := []discovery.Endpoint{}
-		graphqlEndpoints := []discovery.Endpoint{}
-		otherEndpoints := []discovery.Endpoint{}
-
-		for _, ep := range discResult.Endpoints {
-			pathLower := strings.ToLower(ep.Path)
-			switch {
-			case strings.Contains(pathLower, "graphql"):
-				graphqlEndpoints = append(graphqlEndpoints, ep)
-			case strings.Contains(pathLower, "upload") || strings.Contains(pathLower, "file"):
-				uploadEndpoints = append(uploadEndpoints, ep)
-			case strings.Contains(pathLower, "auth") || strings.Contains(pathLower, "login") ||
-				strings.Contains(pathLower, "token") || strings.Contains(pathLower, "oauth"):
-				authEndpoints = append(authEndpoints, ep)
-			case strings.Contains(pathLower, "/api/") || strings.Contains(pathLower, ".json") ||
-				ep.ContentType == defaults.ContentTypeJSON:
-				apiEndpoints = append(apiEndpoints, ep)
-			case strings.HasSuffix(pathLower, ".js") || strings.HasSuffix(pathLower, ".css") ||
-				strings.HasSuffix(pathLower, ".png") || strings.HasSuffix(pathLower, ".jpg"):
-				// Skip static assets - no security testing needed
-			default:
-				otherEndpoints = append(otherEndpoints, ep)
-			}
-		}
-
-		// Route payloads to appropriate endpoints
-		for i := range allPayloads {
-			var targetEndpoints []discovery.Endpoint
-			catLower := strings.ToLower(allPayloads[i].Category)
-
-			switch {
-			case strings.Contains(catLower, "sql") || strings.Contains(catLower, "injection"):
-				// SQL injection → API endpoints preferentially
-				if len(apiEndpoints) > 0 {
-					targetEndpoints = apiEndpoints
-				}
-			case strings.Contains(catLower, "xss") || strings.Contains(catLower, "script"):
-				// XSS → non-API endpoints (HTML pages)
-				if len(otherEndpoints) > 0 {
-					targetEndpoints = otherEndpoints
-				}
-			case strings.Contains(catLower, "auth") || strings.Contains(catLower, "jwt"):
-				// Auth attacks → auth endpoints
-				if len(authEndpoints) > 0 {
-					targetEndpoints = authEndpoints
-				}
-			case strings.Contains(catLower, "upload") || strings.Contains(catLower, "file"):
-				// File attacks → upload endpoints
-				if len(uploadEndpoints) > 0 {
-					targetEndpoints = uploadEndpoints
-				}
-			case strings.Contains(catLower, "graphql"):
-				// GraphQL → graphql endpoints
-				if len(graphqlEndpoints) > 0 {
-					targetEndpoints = graphqlEndpoints
-				}
-			}
-
-			// Fallback to all endpoints if no specific match
-			if len(targetEndpoints) == 0 {
-				targetEndpoints = discResult.Endpoints
-			}
-
-			// Round-robin within the target category
-			endpoint := targetEndpoints[i%len(targetEndpoints)]
-			allPayloads[i].TargetPath = endpoint.Path
-			// Set method from endpoint if not already specified
-			if allPayloads[i].Method == "" && endpoint.Method != "" {
-				allPayloads[i].Method = endpoint.Method
-			}
-		}
-	}
-
-	ui.PrintInfo(fmt.Sprintf("Loaded %d payloads for testing", len(allPayloads)))
-	printStatusLn()
-
-	// ═══════════════════════════════════════════════════════════════════════════
-	// TAMPER ENGINE INITIALIZATION
-	// ═══════════════════════════════════════════════════════════════════════════
-	var tamperEngine *tampers.Engine
-	if *tamperList != "" || *tamperAuto || (*smartMode && smartResult != nil && smartResult.WAFDetected) {
-		// Determine tamper profile
-		profile := tampers.ProfileStandard
-		switch *tamperProfile {
-		case "stealth":
-			profile = tampers.ProfileStealth
-		case "aggressive":
-			profile = tampers.ProfileAggressive
-		case "bypass":
-			profile = tampers.ProfileBypass
-		}
-
-		// If custom tamper list provided, use custom profile
-		if *tamperList != "" {
-			profile = tampers.ProfileCustom
-		}
-
-		// Get WAF vendor for intelligent selection
-		wafVendor := "unknown"
-		if smartResult != nil && smartResult.WAFDetected && smartResult.VendorName != "" {
-			wafVendor = smartResult.VendorName
-		}
-
-		// Create tamper engine
-		tamperEngine = tampers.NewEngine(&tampers.EngineConfig{
-			Profile:       profile,
-			CustomTampers: tampers.ParseTamperList(*tamperList),
-			WAFVendor:     wafVendor,
-			EnableMetrics: true,
-		})
-
-		// Validate custom tampers if specified
-		if *tamperList != "" {
-			valid, invalid := tampers.ValidateTamperNames(tampers.ParseTamperList(*tamperList))
-			if len(invalid) > 0 {
-				ui.PrintWarning(fmt.Sprintf("Unknown tampers: %s", strings.Join(invalid, ", ")))
-			}
-			if len(valid) > 0 {
-				ui.PrintInfo(fmt.Sprintf("🔧 Using %d custom tampers: %s", len(valid), strings.Join(valid, ", ")))
-			}
-		} else if *tamperAuto || (*smartMode && smartResult != nil && smartResult.WAFDetected) {
-			selectedTampers := tamperEngine.GetSelectedTampers()
-			ui.PrintInfo(fmt.Sprintf("🔧 Auto-selected %d tampers for %s: %s",
-				len(selectedTampers), wafVendor, strings.Join(selectedTampers, ", ")))
-		}
-
-		// Apply tamper transformations to all payloads
-		ui.PrintInfo("⚡ Applying tamper transformations to payloads...")
-		for i := range allPayloads {
-			allPayloads[i].Payload = tamperEngine.Transform(allPayloads[i].Payload)
-		}
-		ui.PrintSuccess(fmt.Sprintf("✓ Transformed %d payloads with tamper chain", len(allPayloads)))
+	} else {
+		printStatusLn(ui.SectionStyle.Render("PHASE 4: WAF Security Testing"))
 		printStatusLn()
-	}
 
-	// Auto-calibration
-	ui.PrintInfo("Running auto-calibration...")
-	cal := calibration.NewCalibratorWithClient(target, time.Duration(*timeout)*time.Second, *skipVerify, ja3Client)
-	calResult, calErr := cal.Calibrate(ctx)
-	var filterCfg core.FilterConfig
-	if calErr == nil && calResult != nil && calResult.Calibrated {
-		filterCfg.FilterStatus = calResult.Suggestions.FilterStatus
-		filterCfg.FilterSize = calResult.Suggestions.FilterSize
-		ui.PrintSuccess(fmt.Sprintf("Calibrated: %s", calResult.Describe()))
-	} else if calErr != nil {
-		ui.PrintWarning(fmt.Sprintf("Calibration warning: %v", calErr))
-	}
-	printStatusLn()
+		ui.PrintInfo("⚡ Executing security tests with auto-calibration...")
+		printStatusLn()
 
-	// ═══════════════════════════════════════════════════════════════════════════
-	// ADAPTIVE RATE LIMITING (v2.6.4)
-	// Auto-adjust rate on WAF detection events (drops, bans, 429s)
-	// ═══════════════════════════════════════════════════════════════════════════
-	currentRateLimit := *rateLimit
-	currentConcurrency := *concurrency
-	rateMu := &sync.Mutex{}
-
-	// Create adaptive rate limiter if enabled
-	var adaptiveLimiter *ratelimit.Limiter
-	if *adaptiveRate {
-		adaptiveLimiter = ratelimit.New(&ratelimit.Config{
-			RequestsPerSecond: *rateLimit,
-			AdaptiveSlowdown:  true,
-			SlowdownFactor:    1.5,
-			SlowdownMaxDelay:  5 * time.Second,
-			RecoveryRate:      0.9,
-			Burst:             *concurrency,
-		})
-		ui.PrintInfo("📊 Adaptive rate limiting enabled (auto-adjusts on WAF response)")
-	}
-
-	// Auto-escalation callback: reduce rate when WAF drops/bans detected
-	escalationCount := int32(0)
-	autoEscalate := func(reason string) {
-		count := atomic.AddInt32(&escalationCount, 1)
-		if count > 5 {
-			// Don't escalate too many times
-			return
-		}
-
-		rateMu.Lock()
-		defer rateMu.Unlock()
-
-		oldRate := currentRateLimit
-		oldConc := currentConcurrency
-
-		// Reduce by 50%
-		currentRateLimit = currentRateLimit / 2
-		if currentRateLimit < 10 {
-			currentRateLimit = 10 // Floor
-		}
-		currentConcurrency = currentConcurrency / 2
-		if currentConcurrency < 5 {
-			currentConcurrency = 5 // Floor
-		}
-
-		ui.PrintWarning(fmt.Sprintf("⚡ Auto-escalation triggered (%s): rate %d→%d, concurrency %d→%d",
-			reason, oldRate, currentRateLimit, oldConc, currentConcurrency))
-
-		// Notify adaptive limiter
-		if adaptiveLimiter != nil {
-			adaptiveLimiter.OnError()
-		}
-
-		// Emit to dispatcher
-		if autoDispCtx != nil {
-			escalateDesc := fmt.Sprintf("Auto-escalation: %s - rate reduced to %d, concurrency to %d",
-				reason, currentRateLimit, currentConcurrency)
-			_ = autoDispCtx.EmitBypass(ctx, "auto-escalation", "warning", target, escalateDesc, 0)
-		}
-	}
-
-	// Register detection callbacks for auto-escalation
-	detector := detection.Default()
-	detector.OnDrop(func(host string, result *detection.DropResult) {
-		if result.Consecutive >= 3 {
-			autoEscalate(fmt.Sprintf("connection drops (%d consecutive)", result.Consecutive))
-		}
-	})
-	detector.OnBan(func(host string, result *detection.BanResult) {
-		if result.Banned {
-			autoEscalate(fmt.Sprintf("silent ban detected (%s)", result.Type))
-		}
-	})
-
-	// Create progress tracker
-	progress := ui.NewProgress(ui.ProgressConfig{
-		Total:       len(allPayloads),
-		Width:       40,
-		ShowPercent: true,
-		ShowETA:     true,
-		ShowRPS:     true,
-		Concurrency: currentConcurrency,
-		TurboMode:   true,
-	})
-
-	// Create output writer for results
-	writer, err := output.NewWriterWithOptions(resultsFile, "json", output.WriterOptions{
-		Verbose:       *verbose,
-		ShowTimestamp: true,
-		Silent:        false,
-		Target:        target,
-	})
-	if err != nil {
-		errMsg := fmt.Sprintf("Error creating output writer: %v", err)
-		ui.PrintError(errMsg)
-		if autoDispCtx != nil {
-			_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
-		}
-		os.Exit(1) // intentional: CLI early exit on fatal error
-	}
-
-	// Print section header
-	ui.PrintSection("Executing Tests")
-	if !quietMode {
-		rateMu.Lock()
-		rl := currentRateLimit
-		cc := currentConcurrency
-		rateMu.Unlock()
-		fmt.Fprintf(os.Stderr, "\n  %s Running with %s parallel workers @ %s req/sec max\n\n",
-			ui.SpinnerStyle.Render(">>>"),
-			ui.StatValueStyle.Render(fmt.Sprintf("%d", cc)),
-			ui.StatValueStyle.Render(fmt.Sprintf("%d", rl)),
-		)
-	}
-
-	// Create and run executor (using current adaptive values)
-	executor := core.NewExecutor(core.ExecutorConfig{
-		TargetURL:     target,
-		Concurrency:   currentConcurrency,
-		RateLimit:     currentRateLimit,
-		Timeout:       time.Duration(*timeout) * time.Second,
-		Retries:       defaults.RetryLow,
-		Filter:        &filterCfg,
-		RealisticMode: true,
-		AutoCalibrate: true,
-		HTTPClient:    ja3Client, // JA3 TLS fingerprint rotation
-		// Real-time streaming to hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
-		OnResult: func(result *output.TestResult) {
-			// Adaptive rate: call OnError for 429, OnSuccess otherwise
-			handleAdaptiveRate(result.StatusCode, result.Outcome, adaptiveLimiter, autoEscalate)
-
-			// Emit every test result for complete telemetry
+		// Load payloads
+		// Load payloads from unified engine (JSON + Nuclei templates)
+		allPayloads, _, err := loadUnifiedPayloads(payloadDir, defaults.TemplateDir, *verbose)
+		if err != nil {
+			errMsg := fmt.Sprintf("Error loading payloads: %v", err)
+			ui.PrintError(errMsg)
 			if autoDispCtx != nil {
-				blocked := result.Outcome == "Blocked"
-				_ = autoDispCtx.EmitResult(ctx, result.Category, result.Severity, blocked, result.StatusCode, float64(result.LatencyMs))
+				_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
 			}
-			// Additionally emit bypass event for non-blocked results
-			if autoDispCtx != nil && result.Outcome != "Blocked" && result.Outcome != "Error" {
-				_ = autoDispCtx.EmitBypass(ctx, result.Category, result.Severity, target, result.Payload, result.StatusCode)
+			os.Exit(1)
+		}
+
+		// Filter payloads based on test plan categories
+		if len(testPlan.RecommendedFlags.Categories) > 0 {
+			var filteredPayloads []payloads.Payload
+			categorySet := make(map[string]bool)
+			for _, cat := range testPlan.RecommendedFlags.Categories {
+				categorySet[strings.ToLower(cat)] = true
+			}
+			for _, p := range allPayloads {
+				if categorySet[strings.ToLower(p.Category)] {
+					filteredPayloads = append(filteredPayloads, p)
+				}
+			}
+			allPayloads = filteredPayloads
+
+			// B4: Guard against empty payload set after filtering
+			if len(allPayloads) == 0 {
+				ui.PrintWarning("No payloads match test plan categories, using full payload set")
+				var reloadErr error
+				allPayloads, _, reloadErr = loadUnifiedPayloads(payloadDir, defaults.TemplateDir, *verbose)
+				if reloadErr != nil {
+					ui.PrintError(fmt.Sprintf("Failed to reload payloads: %v", reloadErr))
+					os.Exit(1)
+				}
+			}
+		}
+
+		// G1: Inject discovered params into payload target paths
+		// Appends hidden params as query strings so payloads test them
+		if paramResult != nil && paramResult.FoundParams > 0 {
+			const maxParamPayloads = 200
+			var paramPayloads []payloads.Payload
+			for _, p := range paramResult.Parameters {
+				if len(paramPayloads) >= maxParamPayloads {
+					break // Cap total additional payloads across all params
+				}
+				if p.Type != "query" {
+					continue
+				}
+				// Generate injection payloads targeting discovered params
+				for _, existing := range allPayloads {
+					if len(paramPayloads) >= maxParamPayloads {
+						break
+					}
+					clone := existing
+					separator := "?"
+					if strings.Contains(clone.TargetPath, "?") {
+						separator = "&"
+					}
+					clone.TargetPath = clone.TargetPath + separator + p.Name + "=" + clone.Payload
+					paramPayloads = append(paramPayloads, clone)
+				}
+			}
+			if len(paramPayloads) > 0 {
+				allPayloads = append(allPayloads, paramPayloads...)
+				ui.PrintInfo(fmt.Sprintf("🔍 Added %d payloads targeting %d discovered parameters", len(paramPayloads), paramResult.FoundParams))
+			}
+		}
+
+		// E6: Merge test plan custom payloads into the payload set
+		// The learner generates endpoint-specific payloads based on discovered injection points
+		for _, set := range testPlan.EndpointTests {
+			if len(set.CustomPayloads) > 0 {
+				allPayloads = append(allPayloads, set.CustomPayloads...)
+			}
+		}
+
+		// Smart payload→endpoint routing based on category matching
+		// This ensures XSS goes to HTML endpoints, SQLi to API endpoints, etc.
+		if len(discResult.Endpoints) > 0 {
+			ui.PrintInfo(fmt.Sprintf("🎯 Smart-routing payloads to %d discovered endpoints...", len(discResult.Endpoints)))
+
+			// Categorize endpoints by type
+			apiEndpoints := []discovery.Endpoint{}
+			authEndpoints := []discovery.Endpoint{}
+			uploadEndpoints := []discovery.Endpoint{}
+			graphqlEndpoints := []discovery.Endpoint{}
+			otherEndpoints := []discovery.Endpoint{}
+
+			for _, ep := range discResult.Endpoints {
+				pathLower := strings.ToLower(ep.Path)
+				switch {
+				case strings.Contains(pathLower, "graphql"):
+					graphqlEndpoints = append(graphqlEndpoints, ep)
+				case strings.Contains(pathLower, "upload") || strings.Contains(pathLower, "file"):
+					uploadEndpoints = append(uploadEndpoints, ep)
+				case strings.Contains(pathLower, "auth") || strings.Contains(pathLower, "login") ||
+					strings.Contains(pathLower, "token") || strings.Contains(pathLower, "oauth"):
+					authEndpoints = append(authEndpoints, ep)
+				case strings.Contains(pathLower, "/api/") || strings.Contains(pathLower, ".json") ||
+					ep.ContentType == defaults.ContentTypeJSON:
+					apiEndpoints = append(apiEndpoints, ep)
+				case strings.HasSuffix(pathLower, ".js") || strings.HasSuffix(pathLower, ".css") ||
+					strings.HasSuffix(pathLower, ".png") || strings.HasSuffix(pathLower, ".jpg"):
+					// Skip static assets - no security testing needed
+				default:
+					otherEndpoints = append(otherEndpoints, ep)
+				}
 			}
 
-			// Feed test result to Brain for real-time learning
-			if brain != nil {
-				brain.LearnFromFinding(&intelligence.Finding{
-					Phase:      "waf-testing",
-					Category:   result.Category,
-					Severity:   result.Severity,
-					Path:       result.TargetPath,
-					Payload:    result.Payload,
-					StatusCode: result.StatusCode,
-					Latency:    time.Duration(result.LatencyMs) * time.Millisecond,
-					Blocked:    result.Outcome == "Blocked",
-					Confidence: 0.95,
-					Metadata: map[string]interface{}{
-						"outcome": result.Outcome,
-						"method":  result.Method,
-					},
-				})
+			// Route payloads to appropriate endpoints
+			for i := range allPayloads {
+				// Skip payloads that already have a TargetPath (e.g., G1 param-injected paths)
+				if allPayloads[i].TargetPath != "" {
+					continue
+				}
+				var targetEndpoints []discovery.Endpoint
+				catLower := strings.ToLower(allPayloads[i].Category)
+
+				switch {
+				case strings.Contains(catLower, "sql") || strings.Contains(catLower, "injection"):
+					// SQL injection → API endpoints preferentially
+					if len(apiEndpoints) > 0 {
+						targetEndpoints = apiEndpoints
+					}
+				case strings.Contains(catLower, "xss") || strings.Contains(catLower, "script"):
+					// XSS → non-API endpoints (HTML pages)
+					if len(otherEndpoints) > 0 {
+						targetEndpoints = otherEndpoints
+					}
+				case strings.Contains(catLower, "auth") || strings.Contains(catLower, "jwt"):
+					// Auth attacks → auth endpoints
+					if len(authEndpoints) > 0 {
+						targetEndpoints = authEndpoints
+					}
+				case strings.Contains(catLower, "upload") || strings.Contains(catLower, "file"):
+					// File attacks → upload endpoints
+					if len(uploadEndpoints) > 0 {
+						targetEndpoints = uploadEndpoints
+					}
+				case strings.Contains(catLower, "graphql"):
+					// GraphQL → graphql endpoints
+					if len(graphqlEndpoints) > 0 {
+						targetEndpoints = graphqlEndpoints
+					}
+				}
+
+				// Fallback to all endpoints if no specific match
+				if len(targetEndpoints) == 0 {
+					targetEndpoints = discResult.Endpoints
+				}
+
+				// Round-robin within the target category
+				endpoint := targetEndpoints[i%len(targetEndpoints)]
+				allPayloads[i].TargetPath = endpoint.Path
+				// Set method from endpoint if not already specified
+				if allPayloads[i].Method == "" && endpoint.Method != "" {
+					allPayloads[i].Method = endpoint.Method
+				}
 			}
-		},
-	})
+		}
 
-	progress.Start()
-	results := executor.ExecuteWithProgress(ctx, allPayloads, writer, progress)
-	progress.Stop()
+		ui.PrintInfo(fmt.Sprintf("Loaded %d payloads for testing", len(allPayloads)))
+		printStatusLn()
 
-	writer.Close()
+		// ═══════════════════════════════════════════════════════════════════════════
+		// TAMPER ENGINE INITIALIZATION
+		// ═══════════════════════════════════════════════════════════════════════════
+		var tamperEngine *tampers.Engine
+		if *tamperList != "" || *tamperAuto || (*smartMode && smartResult != nil && smartResult.WAFDetected) {
+			// Determine tamper profile
+			profile := tampers.ProfileStandard
+			switch *tamperProfile {
+			case "stealth":
+				profile = tampers.ProfileStealth
+			case "aggressive":
+				profile = tampers.ProfileAggressive
+			case "bypass":
+				profile = tampers.ProfileBypass
+			}
 
-	// Update progress after WAF testing
-	autoProgress.AddMetricN("bypasses", int64(results.FailedTests))
-	autoProgress.SetStatus("Analysis")
-	autoProgress.Increment()
+			// If custom tamper list provided, use custom profile
+			if *tamperList != "" {
+				profile = tampers.ProfileCustom
+			}
 
-	// Mark WAF testing phase complete for resume
-	markPhaseCompleted("waf-testing")
+			// Get WAF vendor for intelligent selection
+			wafVendor := "unknown"
+			if smartResult != nil && smartResult.WAFDetected && smartResult.VendorName != "" {
+				wafVendor = smartResult.VendorName
+			}
+
+			// Create tamper engine
+			tamperEngine = tampers.NewEngine(&tampers.EngineConfig{
+				Profile:       profile,
+				CustomTampers: tampers.ParseTamperList(*tamperList),
+				WAFVendor:     wafVendor,
+				EnableMetrics: true,
+			})
+
+			// Validate custom tampers if specified
+			if *tamperList != "" {
+				valid, invalid := tampers.ValidateTamperNames(tampers.ParseTamperList(*tamperList))
+				if len(invalid) > 0 {
+					ui.PrintWarning(fmt.Sprintf("Unknown tampers: %s", strings.Join(invalid, ", ")))
+				}
+				if len(valid) > 0 {
+					ui.PrintInfo(fmt.Sprintf("🔧 Using %d custom tampers: %s", len(valid), strings.Join(valid, ", ")))
+				}
+			} else if *tamperAuto || (*smartMode && smartResult != nil && smartResult.WAFDetected) {
+				selectedTampers := tamperEngine.GetSelectedTampers()
+				ui.PrintInfo(fmt.Sprintf("🔧 Auto-selected %d tampers for %s: %s",
+					len(selectedTampers), wafVendor, strings.Join(selectedTampers, ", ")))
+			}
+
+			// Apply tamper transformations to all payloads
+			ui.PrintInfo("⚡ Applying tamper transformations to payloads...")
+			for i := range allPayloads {
+				allPayloads[i].Payload = tamperEngine.Transform(allPayloads[i].Payload)
+			}
+			ui.PrintSuccess(fmt.Sprintf("✓ Transformed %d payloads with tamper chain", len(allPayloads)))
+			printStatusLn()
+		}
+
+		// Auto-calibration
+		ui.PrintInfo("Running auto-calibration...")
+		cal := calibration.NewCalibratorWithClient(target, time.Duration(*timeout)*time.Second, *skipVerify, ja3Client)
+		calResult, calErr := cal.Calibrate(ctx)
+		var filterCfg core.FilterConfig
+		if calErr == nil && calResult != nil && calResult.Calibrated {
+			filterCfg.FilterStatus = calResult.Suggestions.FilterStatus
+			filterCfg.FilterSize = calResult.Suggestions.FilterSize
+			ui.PrintSuccess(fmt.Sprintf("Calibrated: %s", calResult.Describe()))
+		} else if calErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Calibration warning: %v", calErr))
+		}
+		printStatusLn()
+
+		// ═══════════════════════════════════════════════════════════════════════════
+		// ADAPTIVE RATE LIMITING (v2.6.4)
+		// Auto-adjust rate on WAF detection events (drops, bans, 429s)
+		// ═══════════════════════════════════════════════════════════════════════════
+		currentRateLimit := *rateLimit
+		currentConcurrency := *concurrency
+		rateMu := &sync.Mutex{}
+
+		// Create adaptive rate limiter if enabled
+		var adaptiveLimiter *ratelimit.Limiter
+		if *adaptiveRate {
+			adaptiveLimiter = ratelimit.New(&ratelimit.Config{
+				RequestsPerSecond: *rateLimit,
+				AdaptiveSlowdown:  true,
+				SlowdownFactor:    1.5,
+				SlowdownMaxDelay:  5 * time.Second,
+				RecoveryRate:      0.9,
+				Burst:             *concurrency,
+			})
+			ui.PrintInfo("📊 Adaptive rate limiting enabled (auto-adjusts on WAF response)")
+		}
+
+		// executorRef allows autoEscalate to dynamically adjust the running executor's rate limit.
+		// Set after executor creation below.
+		var executorRef *core.Executor
+
+		// Auto-escalation callback: reduce rate when WAF drops/bans detected
+		escalationCount := int32(0)
+		autoEscalate := func(reason string) {
+			count := atomic.AddInt32(&escalationCount, 1)
+			if count > 5 {
+				// Don't escalate too many times
+				return
+			}
+
+			rateMu.Lock()
+			defer rateMu.Unlock()
+
+			oldRate := currentRateLimit
+			oldConc := currentConcurrency
+
+			// Reduce by 50%
+			currentRateLimit = currentRateLimit / 2
+			if currentRateLimit < 10 {
+				currentRateLimit = 10 // Floor
+			}
+			currentConcurrency = currentConcurrency / 2
+			if currentConcurrency < 5 {
+				currentConcurrency = 5 // Floor
+			}
+
+			ui.PrintWarning(fmt.Sprintf("⚡ Auto-escalation triggered (%s): rate %d→%d, concurrency %d→%d",
+				reason, oldRate, currentRateLimit, oldConc, currentConcurrency))
+
+			// Notify adaptive limiter
+			if adaptiveLimiter != nil {
+				adaptiveLimiter.OnError()
+			}
+
+			// Apply rate change to running executor
+			if executorRef != nil {
+				executorRef.SetRateLimit(currentRateLimit)
+			}
+
+			// Emit to dispatcher
+			if autoDispCtx != nil {
+				escalateDesc := fmt.Sprintf("Auto-escalation: %s - rate reduced to %d, concurrency to %d",
+					reason, currentRateLimit, currentConcurrency)
+				_ = autoDispCtx.EmitBypass(ctx, "auto-escalation", "warning", target, escalateDesc, 0)
+			}
+		}
+
+		// Register detection callbacks for auto-escalation
+		detector := detection.Default()
+		detector.OnDrop(func(host string, result *detection.DropResult) {
+			if result.Consecutive >= 3 {
+				autoEscalate(fmt.Sprintf("connection drops (%d consecutive)", result.Consecutive))
+			}
+		})
+		detector.OnBan(func(host string, result *detection.BanResult) {
+			if result.Banned {
+				autoEscalate(fmt.Sprintf("silent ban detected (%s)", result.Type))
+			}
+		})
+
+		// E5: Wire brain anomaly detection to auto-escalation
+		if brain != nil {
+			brain.OnAnomaly(func(anomaly *intelligence.Anomaly) {
+				autoEscalate(fmt.Sprintf("brain anomaly: %s (confidence %.0f%%)", anomaly.Type, anomaly.Confidence*100))
+			})
+		}
+
+		// Create progress tracker
+		progress := ui.NewProgress(ui.ProgressConfig{
+			Total:       len(allPayloads),
+			Width:       40,
+			ShowPercent: true,
+			ShowETA:     true,
+			ShowRPS:     true,
+			Concurrency: currentConcurrency,
+			TurboMode:   true,
+		})
+
+		// Create output writer for results
+		writer, err := output.NewWriterWithOptions(resultsFile, "json", output.WriterOptions{
+			Verbose:       *verbose,
+			ShowTimestamp: true,
+			Silent:        false,
+			Target:        target,
+		})
+		if err != nil {
+			errMsg := fmt.Sprintf("Error creating output writer: %v", err)
+			ui.PrintError(errMsg)
+			if autoDispCtx != nil {
+				_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
+			}
+			os.Exit(1) // intentional: CLI early exit on fatal error
+		}
+
+		// Print section header
+		ui.PrintSection("Executing Tests")
+		if !quietMode {
+			rateMu.Lock()
+			rl := currentRateLimit
+			cc := currentConcurrency
+			rateMu.Unlock()
+			fmt.Fprintf(os.Stderr, "\n  %s Running with %s parallel workers @ %s req/sec max\n\n",
+				ui.SpinnerStyle.Render(">>>"),
+				ui.StatValueStyle.Render(fmt.Sprintf("%d", cc)),
+				ui.StatValueStyle.Render(fmt.Sprintf("%d", rl)),
+			)
+		}
+
+		// Start waf-testing phase for Brain
+		if brain != nil {
+			brain.StartPhase(ctx, "waf-testing")
+		}
+
+		// Create and run executor (using current adaptive values)
+		executor := core.NewExecutor(core.ExecutorConfig{
+			TargetURL:     target,
+			Concurrency:   currentConcurrency,
+			RateLimit:     currentRateLimit,
+			Timeout:       time.Duration(*timeout) * time.Second,
+			Retries:       defaults.RetryLow,
+			Filter:        &filterCfg,
+			RealisticMode: true,
+			AutoCalibrate: true,
+			HTTPClient:    ja3Client, // JA3 TLS fingerprint rotation
+			// Real-time streaming to hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
+			OnResult: func(result *output.TestResult) {
+				// Adaptive rate: call OnError for 429, OnSuccess otherwise
+				handleAdaptiveRate(result.StatusCode, result.Outcome, adaptiveLimiter, autoEscalate)
+
+				// Emit every test result for complete telemetry
+				if autoDispCtx != nil {
+					blocked := result.Outcome == "Blocked"
+					_ = autoDispCtx.EmitResult(ctx, result.Category, result.Severity, blocked, result.StatusCode, float64(result.LatencyMs))
+				}
+				// Additionally emit bypass event for non-blocked results
+				if autoDispCtx != nil && result.Outcome != "Blocked" && result.Outcome != "Error" {
+					_ = autoDispCtx.EmitBypass(ctx, result.Category, result.Severity, target, result.Payload, result.StatusCode)
+				}
+
+				// Feed test result to Brain for real-time learning
+				if brain != nil {
+					brain.LearnFromFinding(&intelligence.Finding{
+						Phase:      "waf-testing",
+						Category:   result.Category,
+						Severity:   result.Severity,
+						Path:       result.TargetPath,
+						Payload:    result.Payload,
+						StatusCode: result.StatusCode,
+						Latency:    time.Duration(result.LatencyMs) * time.Millisecond,
+						Blocked:    result.Outcome == "Blocked",
+						Confidence: 0.95,
+						Metadata: map[string]interface{}{
+							"outcome": result.Outcome,
+							"method":  result.Method,
+						},
+					})
+				}
+			},
+		})
+		executorRef = executor
+
+		progress.Start()
+		results = executor.ExecuteWithProgress(ctx, allPayloads, writer, progress)
+		progress.Stop()
+
+		writer.Close()
+
+		// Update progress after WAF testing
+		autoProgress.AddMetricN("bypasses", int64(results.FailedTests))
+		autoProgress.SetStatus("Analysis")
+		autoProgress.Increment()
+
+		// Mark WAF testing phase complete for resume
+		markPhaseCompleted("waf-testing")
+
+		// E2: Brain feedback loop — focused second pass on weak categories
+		if brain != nil && !shouldSkipPhase("brain-feedback") {
+			recs := brain.RecommendPayloads()
+			if len(recs) > 0 {
+				// Collect high-priority categories with bypasses
+				focusCategories := make(map[string]bool)
+				for _, r := range recs {
+					if r.Priority <= 2 && r.Confidence >= 0.7 {
+						focusCategories[strings.ToLower(r.Category)] = true
+					}
+				}
+
+				if len(focusCategories) > 0 {
+					var focusPayloads []payloads.Payload
+					for _, p := range allPayloads {
+						if focusCategories[strings.ToLower(p.Category)] {
+							focusPayloads = append(focusPayloads, p)
+						}
+					}
+
+					if len(focusPayloads) > 0 && len(focusPayloads) < len(allPayloads) {
+						catList := make([]string, 0, len(focusCategories))
+						for c := range focusCategories {
+							catList = append(catList, c)
+						}
+						ui.PrintInfo(fmt.Sprintf("🧠 Brain feedback: focused re-test on %d payloads across [%s]",
+							len(focusPayloads), strings.Join(catList, ", ")))
+
+						brain.StartPhase(ctx, "brain-feedback")
+						feedbackResultsFile := filepath.Join(workspaceDir, "results-feedback.json")
+						focusWriter, focusErr := output.NewWriterWithOptions(feedbackResultsFile, "json", output.WriterOptions{
+							Verbose:       *verbose,
+							ShowTimestamp: true,
+							Target:        target,
+						})
+						if focusErr == nil {
+							focusExec := core.NewExecutor(core.ExecutorConfig{
+								TargetURL:     target,
+								Concurrency:   currentConcurrency,
+								RateLimit:     currentRateLimit,
+								Timeout:       time.Duration(*timeout) * time.Second,
+								Retries:       defaults.RetryLow,
+								Filter:        &filterCfg,
+								RealisticMode: true,
+								HTTPClient:    ja3Client,
+								OnResult: func(result *output.TestResult) {
+									// Adaptive rate limiting for feedback pass
+									handleAdaptiveRate(result.StatusCode, result.Outcome, adaptiveLimiter, autoEscalate)
+
+									// Feed feedback results to brain for continued learning
+									if brain != nil {
+										brain.LearnFromFinding(&intelligence.Finding{
+											Phase:      "brain-feedback",
+											Category:   result.Category,
+											Severity:   result.Severity,
+											Path:       result.TargetPath,
+											Payload:    result.Payload,
+											StatusCode: result.StatusCode,
+											Latency:    time.Duration(result.LatencyMs) * time.Millisecond,
+											Blocked:    result.Outcome == "Blocked",
+											Confidence: 0.95,
+											Metadata: map[string]interface{}{
+												"outcome": result.Outcome,
+												"method":  result.Method,
+											},
+										})
+									}
+									// Emit feedback results to hooks
+									if autoDispCtx != nil {
+										blocked := result.Outcome == "Blocked"
+										_ = autoDispCtx.EmitResult(ctx, result.Category, result.Severity, blocked, result.StatusCode, float64(result.LatencyMs))
+									}
+									if autoDispCtx != nil && result.Outcome != "Blocked" && result.Outcome != "Error" {
+										_ = autoDispCtx.EmitBypass(ctx, result.Category, result.Severity, target, result.Payload, result.StatusCode)
+									}
+								},
+							})
+							focusResults := focusExec.ExecuteWithProgress(ctx, focusPayloads, focusWriter, nil)
+							focusWriter.Close()
+
+							// Merge all execution result fields from feedback pass
+							results.TotalTests += focusResults.TotalTests
+							results.PassedTests += focusResults.PassedTests
+							results.FailedTests += focusResults.FailedTests
+							results.BlockedTests += focusResults.BlockedTests
+							results.ErrorTests += focusResults.ErrorTests
+							results.DropsDetected += focusResults.DropsDetected
+							results.BansDetected += focusResults.BansDetected
+							results.BypassPayloads = append(results.BypassPayloads, focusResults.BypassPayloads...)
+							results.BypassDetails = append(results.BypassDetails, focusResults.BypassDetails...)
+							// Merge maps — initialize destination if nil (possible after JSON resume)
+							if results.StatusCodes == nil {
+								results.StatusCodes = make(map[int]int)
+							}
+							for k, v := range focusResults.StatusCodes {
+								results.StatusCodes[k] += v
+							}
+							if results.SeverityBreakdown == nil {
+								results.SeverityBreakdown = make(map[string]int)
+							}
+							for k, v := range focusResults.SeverityBreakdown {
+								results.SeverityBreakdown[k] += v
+							}
+							if results.CategoryBreakdown == nil {
+								results.CategoryBreakdown = make(map[string]int)
+							}
+							for k, v := range focusResults.CategoryBreakdown {
+								results.CategoryBreakdown[k] += v
+							}
+							if results.OWASPBreakdown == nil {
+								results.OWASPBreakdown = make(map[string]int)
+							}
+							for k, v := range focusResults.OWASPBreakdown {
+								results.OWASPBreakdown[k] += v
+							}
+							if results.EndpointStats == nil {
+								results.EndpointStats = make(map[string]int)
+							}
+							for k, v := range focusResults.EndpointStats {
+								results.EndpointStats[k] += v
+							}
+							if results.MethodStats == nil {
+								results.MethodStats = make(map[string]int)
+							}
+							for k, v := range focusResults.MethodStats {
+								results.MethodStats[k] += v
+							}
+							if results.DetectionStats == nil {
+								results.DetectionStats = make(map[string]int)
+							}
+							for k, v := range focusResults.DetectionStats {
+								results.DetectionStats[k] += v
+							}
+							if results.EncodingStats == nil {
+								results.EncodingStats = make(map[string]*output.EncodingEffectiveness)
+							}
+							for k, v := range focusResults.EncodingStats {
+								if results.EncodingStats[k] == nil {
+									results.EncodingStats[k] = v
+								} else {
+									results.EncodingStats[k].TotalTests += v.TotalTests
+									results.EncodingStats[k].Bypasses += v.Bypasses
+									results.EncodingStats[k].BlockedTests += v.BlockedTests
+								}
+							}
+							ui.PrintSuccess(fmt.Sprintf("  ✓ Feedback pass: %d additional bypasses found", focusResults.FailedTests))
+						}
+						brain.EndPhase("brain-feedback")
+					}
+				}
+			}
+			markPhaseCompleted("brain-feedback")
+		}
+
+		// Save results summary AFTER feedback merge so resume loads complete data
+		if summaryData, err := json.MarshalIndent(results, "", "  "); err == nil {
+			_ = os.WriteFile(wafResultsFile, summaryData, 0644)
+		}
+
+		// End WAF testing phase for Brain (inside guard — only when waf-testing ran fresh)
+		if brain != nil {
+			brain.EndPhase("waf-testing")
+		}
+	} // end waf-testing skip guard
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 4.5: VENDOR-SPECIFIC WAF ANALYSIS (NEW)
 	// ═══════════════════════════════════════════════════════════════════════════
-	printStatusLn()
-	printStatusLn(ui.SectionStyle.Render("PHASE 4.5: Vendor-Specific WAF Analysis"))
-	printStatusLn()
-
-	ui.PrintInfo("🔍 Detecting WAF vendor with 150+ signatures...")
 
 	// Vendor detection with comprehensive signature database
 	var vendorName string
@@ -1807,101 +2302,151 @@ func runAutoScan() {
 	var bypassHints []string
 	var recommendedEncoders []string
 	var recommendedEvasions []string
+	vendorDetectionFile := filepath.Join(workspaceDir, "vendor-detection.json")
 
-	// Use the comprehensive vendor detector with 150+ signatures
-	vendorDetector := vendors.NewVendorDetectorWithClient(time.Duration(*timeout)*time.Second, ja3Client)
-	vendorResult, vendorErr := vendorDetector.Detect(ctx, target)
-
-	if vendorErr == nil && vendorResult.Detected {
-		vendorName = vendorResult.VendorName
-		vendorConfidence = vendorResult.Confidence
-		bypassHints = vendorResult.BypassHints
-		recommendedEncoders = vendorResult.RecommendedEncoders
-		recommendedEvasions = vendorResult.RecommendedEvasions
-
-		ui.PrintSuccess(fmt.Sprintf("  WAF Vendor: %s (%.0f%% confidence)", vendorName, vendorConfidence*100))
-
-		if !quietMode {
-			// Show detection evidence
-			if len(vendorResult.Evidence) > 0 {
-				for _, ev := range vendorResult.Evidence[:min(3, len(vendorResult.Evidence))] {
-					fmt.Fprintf(os.Stderr, "    • %s\n", ev)
-				}
+	if shouldSkipPhase("vendor-detection") {
+		ui.PrintInfo("⏭️  Skipping vendor-detection (already completed)")
+		if data, err := os.ReadFile(vendorDetectionFile); err == nil {
+			var cached struct {
+				VendorName          string   `json:"vendor_name"`
+				VendorConfidence    float64  `json:"vendor_confidence"`
+				BypassHints         []string `json:"bypass_hints,omitempty"`
+				RecommendedEncoders []string `json:"recommended_encoders,omitempty"`
+				RecommendedEvasions []string `json:"recommended_evasions,omitempty"`
 			}
-
-			// Show bypass recommendations
-			if len(bypassHints) > 0 {
-				fmt.Fprintln(os.Stderr)
-				ui.PrintInfo("  📋 Bypass Recommendations:")
-				for _, hint := range bypassHints[:min(5, len(bypassHints))] {
-					fmt.Fprintf(os.Stderr, "    → %s\n", hint)
-				}
-			}
-
-			// Show recommended encoders/evasions
-			if len(recommendedEncoders) > 0 || len(recommendedEvasions) > 0 {
-				fmt.Fprintln(os.Stderr)
-				ui.PrintInfo("  🔧 Recommended Techniques:")
-				if len(recommendedEncoders) > 0 {
-					fmt.Fprintf(os.Stderr, "    Encoders: %s\n", strings.Join(recommendedEncoders[:min(4, len(recommendedEncoders))], ", "))
-				}
-				if len(recommendedEvasions) > 0 {
-					fmt.Fprintf(os.Stderr, "    Evasions: %s\n", strings.Join(recommendedEvasions[:min(4, len(recommendedEvasions))], ", "))
-				}
+			if err := json.Unmarshal(data, &cached); err == nil {
+				vendorName = cached.VendorName
+				vendorConfidence = cached.VendorConfidence
+				bypassHints = cached.BypassHints
+				recommendedEncoders = cached.RecommendedEncoders
+				recommendedEvasions = cached.RecommendedEvasions
 			}
 		}
-
-		// Emit vendor detection and bypass recommendations to hooks
-		if autoDispCtx != nil {
-			wafDesc := fmt.Sprintf("WAF vendor detected: %s (%.0f%% confidence)", vendorName, vendorConfidence*100)
-			_ = autoDispCtx.EmitBypass(ctx, "waf-vendor-detection", "info", target, wafDesc, 0)
-			// Emit bypass hints
-			for _, hint := range bypassHints {
-				_ = autoDispCtx.EmitBypass(ctx, "bypass-hint", "info", target, hint, 0)
-			}
-			// Emit recommended techniques
-			if len(recommendedEncoders) > 0 {
-				encDesc := fmt.Sprintf("Recommended encoders: %s", strings.Join(recommendedEncoders, ", "))
-				_ = autoDispCtx.EmitBypass(ctx, "recommended-encoders", "info", target, encDesc, 0)
-			}
-			if len(recommendedEvasions) > 0 {
-				evDesc := fmt.Sprintf("Recommended evasions: %s", strings.Join(recommendedEvasions, ", "))
-				_ = autoDispCtx.EmitBypass(ctx, "recommended-evasions", "info", target, evDesc, 0)
-			}
-		}
-	} else if discResult.WAFDetected && discResult.WAFFingerprint != "" {
-		// Fallback to discovery result
-		vendorName = discResult.WAFFingerprint
-		vendorConfidence = 0.6
-		ui.PrintInfo(fmt.Sprintf("  WAF Vendor: %s (%.0f%% confidence - from discovery)", vendorName, vendorConfidence*100))
 	} else {
-		ui.PrintInfo("  No specific WAF vendor detected - using default configuration")
-	}
-	printStatusLn()
+		printStatusLn()
+		printStatusLn(ui.SectionStyle.Render("PHASE 4.5: Vendor-Specific WAF Analysis"))
+		printStatusLn()
 
-	// End WAF testing phase for Brain
-	if brain != nil {
-		brain.EndPhase("waf-testing")
-	}
+		ui.PrintInfo("🔍 Detecting WAF vendor with 150+ signatures...")
+
+		// B5: Reuse Phase 0 smart mode results if available to avoid redundant detection
+		if smartResult != nil && smartResult.WAFDetected {
+			vendorName = smartResult.VendorName
+			vendorConfidence = smartResult.Confidence
+			bypassHints = smartResult.BypassHints
+			if smartResult.Strategy != nil {
+				recommendedEncoders = smartResult.Strategy.Encoders
+				recommendedEvasions = smartResult.Strategy.Evasions
+			}
+			ui.PrintSuccess(fmt.Sprintf("  WAF Vendor: %s (%.0f%% confidence, from smart mode)", vendorName, vendorConfidence*100))
+		} else {
+			// Use the comprehensive vendor detector with 150+ signatures
+			vendorDetector := vendors.NewVendorDetectorWithClient(time.Duration(*timeout)*time.Second, ja3Client)
+			vendorResult, vendorErr := vendorDetector.Detect(ctx, target)
+
+			if vendorErr == nil && vendorResult.Detected {
+				vendorName = vendorResult.VendorName
+				vendorConfidence = vendorResult.Confidence
+				bypassHints = vendorResult.BypassHints
+				recommendedEncoders = vendorResult.RecommendedEncoders
+				recommendedEvasions = vendorResult.RecommendedEvasions
+
+				ui.PrintSuccess(fmt.Sprintf("  WAF Vendor: %s (%.0f%% confidence)", vendorName, vendorConfidence*100))
+
+				if !quietMode {
+					// Show detection evidence
+					if len(vendorResult.Evidence) > 0 {
+						for _, ev := range vendorResult.Evidence[:min(3, len(vendorResult.Evidence))] {
+							fmt.Fprintf(os.Stderr, "    • %s\n", ev)
+						}
+					}
+
+					// Show bypass recommendations
+					if len(bypassHints) > 0 {
+						fmt.Fprintln(os.Stderr)
+						ui.PrintInfo("  📋 Bypass Recommendations:")
+						for _, hint := range bypassHints[:min(5, len(bypassHints))] {
+							fmt.Fprintf(os.Stderr, "    → %s\n", hint)
+						}
+					}
+
+					// Show recommended encoders/evasions
+					if len(recommendedEncoders) > 0 || len(recommendedEvasions) > 0 {
+						fmt.Fprintln(os.Stderr)
+						ui.PrintInfo("  🔧 Recommended Techniques:")
+						if len(recommendedEncoders) > 0 {
+							fmt.Fprintf(os.Stderr, "    Encoders: %s\n", strings.Join(recommendedEncoders[:min(4, len(recommendedEncoders))], ", "))
+						}
+						if len(recommendedEvasions) > 0 {
+							fmt.Fprintf(os.Stderr, "    Evasions: %s\n", strings.Join(recommendedEvasions[:min(4, len(recommendedEvasions))], ", "))
+						}
+					}
+				}
+
+				// Emit vendor detection and bypass recommendations to hooks
+				if autoDispCtx != nil {
+					wafDesc := fmt.Sprintf("WAF vendor detected: %s (%.0f%% confidence)", vendorName, vendorConfidence*100)
+					_ = autoDispCtx.EmitBypass(ctx, "waf-vendor-detection", "info", target, wafDesc, 0)
+					// Emit bypass hints
+					for _, hint := range bypassHints {
+						_ = autoDispCtx.EmitBypass(ctx, "bypass-hint", "info", target, hint, 0)
+					}
+					// Emit recommended techniques
+					if len(recommendedEncoders) > 0 {
+						encDesc := fmt.Sprintf("Recommended encoders: %s", strings.Join(recommendedEncoders, ", "))
+						_ = autoDispCtx.EmitBypass(ctx, "recommended-encoders", "info", target, encDesc, 0)
+					}
+					if len(recommendedEvasions) > 0 {
+						evDesc := fmt.Sprintf("Recommended evasions: %s", strings.Join(recommendedEvasions, ", "))
+						_ = autoDispCtx.EmitBypass(ctx, "recommended-evasions", "info", target, evDesc, 0)
+					}
+				}
+			} else if discResult.WAFDetected && discResult.WAFFingerprint != "" {
+				// Fallback to discovery result
+				vendorName = discResult.WAFFingerprint
+				vendorConfidence = 0.6
+				ui.PrintInfo(fmt.Sprintf("  WAF Vendor: %s (%.0f%% confidence - from discovery)", vendorName, vendorConfidence*100))
+			} else {
+				ui.PrintInfo("  No specific WAF vendor detected - using default configuration")
+			}
+		}
+		printStatusLn()
+
+		// Save vendor detection results for resume
+		vendorCache, _ := json.MarshalIndent(struct {
+			VendorName          string   `json:"vendor_name"`
+			VendorConfidence    float64  `json:"vendor_confidence"`
+			BypassHints         []string `json:"bypass_hints,omitempty"`
+			RecommendedEncoders []string `json:"recommended_encoders,omitempty"`
+			RecommendedEvasions []string `json:"recommended_evasions,omitempty"`
+		}{vendorName, vendorConfidence, bypassHints, recommendedEncoders, recommendedEvasions}, "", "  ")
+		if err := os.WriteFile(vendorDetectionFile, vendorCache, 0644); err != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to save vendor detection: %v", err))
+		}
+		markPhaseCompleted("vendor-detection")
+	} // end vendor-detection skip guard
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// BRAIN SUMMARY (v2.6.4)
 	// Display attack chains, insights, and learned patterns
 	// ═══════════════════════════════════════════════════════════════════════════
-	if brain != nil && !quietMode {
-		summary := brain.GetSummary()
+	// G3: Capture brain recommendations for summary enrichment
+	var brainRecommendations []*intelligence.PayloadRecommendation
 
-		if summary.AttackChains > 0 || len(summary.WAFWeaknesses) > 0 || len(summary.TechStack) > 0 {
+	if brain != nil && !quietMode {
+		brainSummary := brain.GetSummary()
+
+		if brainSummary.AttackChains > 0 || len(brainSummary.WAFWeaknesses) > 0 || len(brainSummary.TechStack) > 0 {
 			printStatusLn()
 			printStatusLn(ui.SectionStyle.Render("🧠 BRAIN SUMMARY"))
 			printStatusLn()
 
 			// Attack Chains - the crown jewel
-			if summary.AttackChains > 0 {
+			if brainSummary.AttackChains > 0 {
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("⛓️  Attack Chains Built:"))
-				for i, chain := range summary.TopChains {
+				for i, chain := range brainSummary.TopChains {
 					if i >= 5 {
-						fmt.Fprintf(os.Stderr, "    ... and %d more chains\n", summary.AttackChains-5)
+						fmt.Fprintf(os.Stderr, "    ... and %d more chains\n", brainSummary.AttackChains-5)
 						break
 					}
 					impactStyle := ui.SeverityStyle("Critical")
@@ -1924,27 +2469,27 @@ func runAutoScan() {
 			}
 
 			// WAF Behavioral Analysis
-			if len(summary.WAFWeaknesses) > 0 {
+			if len(brainSummary.WAFWeaknesses) > 0 {
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("📊 WAF Behavioral Analysis:"))
-				fmt.Fprintf(os.Stderr, "    Strengths: %s\n", ui.PassStyle.Render(strings.Join(summary.WAFStrengths[:min(3, len(summary.WAFStrengths))], ", ")))
-				fmt.Fprintf(os.Stderr, "    Weaknesses: %s\n", ui.ErrorStyle.Render(strings.Join(summary.WAFWeaknesses[:min(3, len(summary.WAFWeaknesses))], ", ")))
+				fmt.Fprintf(os.Stderr, "    Strengths: %s\n", ui.PassStyle.Render(strings.Join(brainSummary.WAFStrengths[:min(3, len(brainSummary.WAFStrengths))], ", ")))
+				fmt.Fprintf(os.Stderr, "    Weaknesses: %s\n", ui.ErrorStyle.Render(strings.Join(brainSummary.WAFWeaknesses[:min(3, len(brainSummary.WAFWeaknesses))], ", ")))
 				fmt.Fprintln(os.Stderr)
 			}
 
 			// Technology Detection
-			if len(summary.TechStack) > 0 {
+			if len(brainSummary.TechStack) > 0 {
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("🔧 Technology Stack Detected:"))
-				for _, tech := range summary.TechStack[:min(5, len(summary.TechStack))] {
+				for _, tech := range brainSummary.TechStack[:min(5, len(brainSummary.TechStack))] {
 					fmt.Fprintf(os.Stderr, "    • %s\n", tech)
 				}
 				fmt.Fprintln(os.Stderr)
 			}
 
-			// Payload Recommendations
-			recs := brain.RecommendPayloads()
-			if len(recs) > 0 {
+			// Payload Recommendations — captured for summary output (G3)
+			brainRecommendations = brain.RecommendPayloads()
+			if len(brainRecommendations) > 0 {
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("🎯 Smart Payload Recommendations:"))
-				for _, rec := range recs[:min(5, len(recs))] {
+				for _, rec := range brainRecommendations[:min(5, len(brainRecommendations))] {
 					priorityStyle := ui.PassStyle
 					if rec.Priority == 1 {
 						priorityStyle = ui.ErrorStyle
@@ -1962,7 +2507,7 @@ func runAutoScan() {
 			// Stats summary
 			fmt.Fprintf(os.Stderr, "  %s Total findings: %d | Bypasses: %d | Attack chains: %d | Insights: %d\n",
 				ui.BracketStyle.Render("📈"),
-				summary.TotalFindings, summary.Bypasses, summary.AttackChains, atomic.LoadInt32(&insightCount))
+				brainSummary.TotalFindings, brainSummary.Bypasses, brainSummary.AttackChains, atomic.LoadInt32(&insightCount))
 			printStatusLn()
 		}
 	}
@@ -2050,7 +2595,7 @@ func runAutoScan() {
 		switch format {
 		case "md", "markdown":
 			// Generate markdown report
-			generateAutoMarkdownReport(reportFile, target, domain, scanDuration, discResult, allJSData, testPlan, results, wafEffectiveness)
+			generateAutoMarkdownReport(reportFile, target, domain, scanDuration, discResult, allJSData, testPlan, results, wafEffectiveness, leakyResult, paramResult, vendorName, vendorConfidence)
 			generatedReports = append(generatedReports, reportFile)
 		case "json":
 			// JSON is already generated as results.json
@@ -2148,6 +2693,20 @@ func runAutoScan() {
 		}
 	}
 
+	// G3: Add brain recommendations to summary output
+	if len(brainRecommendations) > 0 {
+		recData := make([]map[string]interface{}, 0, len(brainRecommendations))
+		for _, rec := range brainRecommendations {
+			recData = append(recData, map[string]interface{}{
+				"category":   rec.Category,
+				"priority":   rec.Priority,
+				"reason":     rec.Reason,
+				"confidence": rec.Confidence,
+			})
+		}
+		summary["payload_recommendations"] = recData
+	}
+
 	summaryData, _ := json.MarshalIndent(summary, "", "  ")
 	if err := os.WriteFile(summaryFile, summaryData, 0644); err != nil {
 		ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
@@ -2181,7 +2740,7 @@ func runAutoScan() {
 	autoProgress.SetStatus("Assessment")
 	autoProgress.Increment()
 
-	if *enableAssess {
+	if *enableAssess && !shouldSkipPhase("assessment") {
 		printStatusLn()
 		printStatusLn(ui.SectionStyle.Render("PHASE 6: Enterprise Assessment (Quantitative Metrics)"))
 		printStatusLn()
@@ -2288,6 +2847,7 @@ func runAutoScan() {
 				ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
 			}
 		}
+		markPhaseCompleted("assessment")
 		printStatusLn()
 	}
 
@@ -2301,7 +2861,7 @@ func runAutoScan() {
 
 	var browserResult *browser.BrowserScanResult
 
-	if *enableBrowserScan {
+	if *enableBrowserScan && !shouldSkipPhase("browser-scan") {
 		printStatusLn()
 		printStatusLn(ui.SectionStyle.Render("PHASE 7: Authenticated Browser Scanning"))
 		printStatusLn()
@@ -2539,6 +3099,7 @@ func runAutoScan() {
 				fmt.Fprintln(os.Stderr)
 			}
 		}
+		markPhaseCompleted("browser-scan")
 	}
 
 	// Output JSON summary to stdout if requested

@@ -297,15 +297,15 @@ func TestIsBlockedURL(t *testing.T) {
 		{"http://[::ffff:10.0.0.1]", true},  // IPv6-mapped IPv4 private
 		{"http://127.1", true},              // Short notation for 127.0.0.1
 		// Hex IP bypass vectors.
-		{"http://0x7f000001", true},          // Hex IP for 127.0.0.1
-		{"http://0X7F000001", true},          // Hex IP uppercase for 127.0.0.1
-		{"http://0xA9FEA9FE", true},          // Hex IP for 169.254.169.254
-		{"http://0x7f.0.0.1", true},          // Per-octet hex for 127.0.0.1
-		{"http://0x0a.0.0.1", true},          // Per-octet hex for 10.0.0.1
+		{"http://0x7f000001", true}, // Hex IP for 127.0.0.1
+		{"http://0X7F000001", true}, // Hex IP uppercase for 127.0.0.1
+		{"http://0xA9FEA9FE", true}, // Hex IP for 169.254.169.254
+		{"http://0x7f.0.0.1", true}, // Per-octet hex for 127.0.0.1
+		{"http://0x0a.0.0.1", true}, // Per-octet hex for 10.0.0.1
 		// {{ bypass: must check only hostname, not full URL.
 		{"http://169.254.169.254/{{x", true}, // {{ in path must not bypass SSRF check
 		{"http://127.0.0.1/path/{{", true},   // {{ in path must not bypass SSRF check
-		{"https://{{host}}/api", false},       // {{ in hostname is OK (template URL)
+		{"https://{{host}}/api", false},      // {{ in hostname is OK (template URL)
 	}
 
 	for _, tt := range tests {
