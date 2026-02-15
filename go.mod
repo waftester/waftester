@@ -7,6 +7,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/chromedp/cdproto v0.0.0-20250803210736-d308e07a266d
 	github.com/chromedp/chromedp v0.14.2
+	github.com/d5/tengo/v2 v2.17.0
 	github.com/go-json-experiment/json v0.0.0-20250725192818-e39067aee2d2
 	github.com/go-pdf/fpdf v0.9.0
 	github.com/google/uuid v1.6.0
@@ -44,7 +45,6 @@ require (
 	github.com/charmbracelet/x/cellbuf v0.0.13-0.20250311204145-2c3ea96c31dd // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/chromedp/sysutil v1.1.0 // indirect
-	github.com/d5/tengo/v2 v2.17.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
