@@ -374,7 +374,7 @@ func (ad *ActiveDiscoverer) probeContentTypes(ctx context.Context, path string) 
 			continue
 		}
 		body, _ := iohelper.ReadBodyDefault(resp.Body)
-		iohelper.DrainAndClose(resp.Body)
+		_ = resp.Body.Close()
 
 		// Non-404/405 means this endpoint exists for POST with this content type
 		if resp.StatusCode != 404 && resp.StatusCode != 405 {
@@ -538,7 +538,7 @@ func (ad *ActiveDiscoverer) probeMethod(ctx context.Context, ep Endpoint, method
 		return
 	}
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
-	iohelper.DrainAndClose(resp.Body)
+	_ = resp.Body.Close()
 
 	// Method is supported if not 405 Method Not Allowed
 	if resp.StatusCode != 405 && resp.StatusCode != 501 {
