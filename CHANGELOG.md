@@ -5,6 +5,21 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.4] - 2026-02-15
+
+### Fixed
+
+- **Feedback merge missing 17+ fields** — Brain feedback pass only merged TotalTests, PassedTests, and FailedTests into results. BlockedTests, ErrorTests, BypassPayloads, BypassDetails, all breakdown maps (StatusCodes, SeverityBreakdown, CategoryBreakdown, OWASPBreakdown, EndpointStats, MethodStats, DetectionStats, EncodingStats), DropsDetected, and BansDetected were silently lost. The wafEffectiveness formula used Blocked/(Blocked+Failed) resulting in artificially low scores.
+- **Stale results-summary.json on resume** — Results file was saved before the brain feedback merge, so resume loaded pre-feedback data missing bypass findings from the focused second pass. Now saves after all merges complete.
+- **Brain EndPhase called without matching StartPhase** — `brain.EndPhase("waf-testing")` was outside the waf-testing skip guard, firing on every resume without a prior `StartPhase` call. Moved inside the guard.
+- **Assessment phase re-ran on every resume** — Phase 6 (Enterprise Assessment) only checked the `--assess` flag without `shouldSkipPhase`, causing it to re-run after every interrupted scan.
+- **Vendor detection made live HTTP on every resume** — Phase 4.5 had no skip guard or checkpoint. Now saves vendor detection results to `vendor-detection.json` and skips on resume.
+- **Silent unmarshal failure on corrupt resume file** — `json.Unmarshal` error for `results-summary.json` was silently ignored with `_ =`, producing zero-valued results with no indication of data loss. Now logs a warning.
+- **Full recon re-ran on every resume** — Phase 2.7 (Unified Reconnaissance) had no `shouldSkipPhase` check or `markPhaseCompleted`. Now checks and reloads from `full-recon.json` on resume.
+- **Secrets exposed in markdown report** — Secret values were truncated to 40 characters but not redacted. Reports shared or committed to repositories leaked API keys and tokens. Now redacted to first 4 characters plus `****`.
+- **Wiring test missed new command files** — `readAllGoSources` used a hardcoded file list. New command files were not scanned for dispatcher wiring. Now dynamically reads all `.go` files in `cmd/cli/`.
+- **Smart mode cache write error silently ignored** — `os.WriteFile` error for smart mode cache was discarded with `_ =`. Now logs a warning on failure.
+
 ## [2.9.3] - 2026-02-15
 
 ### Security
@@ -2101,6 +2116,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.4]: https://github.com/waftester/waftester/compare/v2.9.3...v2.9.4
 [2.9.3]: https://github.com/waftester/waftester/compare/v2.9.2...v2.9.3
 [2.9.2]: https://github.com/waftester/waftester/compare/v2.9.1...v2.9.2
 [2.9.1]: https://github.com/waftester/waftester/compare/v2.9.0...v2.9.1
