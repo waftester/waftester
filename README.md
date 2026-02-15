@@ -474,6 +474,9 @@ Alternatively, if installed via binary download:
 | `mutate` | Apply encoding/evasion transformations |
 | `bypass` | Systematic bypass with mutation matrix — **async** |
 | `probe` | TLS, HTTP/2, technology fingerprinting |
+| `list_tampers` | Browse tamper technique catalog with filtering |
+| `discover_bypasses` | Test tamper scripts against live WAF — **async** |
+| `event_crawl` | DOM event crawling via headless browser — **async** |
 | `generate_cicd` | Generate CI/CD YAML for 6 platforms |
 | `validate_spec` | Validate an API spec for correctness and completeness |
 | `list_spec_endpoints` | Parse a spec and list all endpoints, methods, params |
