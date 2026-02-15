@@ -35,6 +35,7 @@ func LoadScriptTamper(path string) (*ScriptTamper, error) {
 
 	script := tengo.NewScript(data)
 	script.SetImports(safeModules)
+	script.SetMaxAllocs(10_000_000)
 
 	compiled, err := script.Run()
 	if err != nil {
