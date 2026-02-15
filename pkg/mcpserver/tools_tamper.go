@@ -128,11 +128,20 @@ func (s *Server) handleDiscoverBypasses(ctx context.Context, req *mcp.CallToolRe
 	if args.Concurrency <= 0 {
 		args.Concurrency = 5
 	}
+	if args.Concurrency > 20 {
+		args.Concurrency = 20
+	}
 	if args.TopN <= 0 {
 		args.TopN = 5
 	}
+	if args.TopN > 20 {
+		args.TopN = 20
+	}
 	if args.ConfirmCount <= 0 {
 		args.ConfirmCount = 2
+	}
+	if args.ConfirmCount > 10 {
+		args.ConfirmCount = 10
 	}
 
 	tamperCount := tampers.Count()
@@ -187,7 +196,7 @@ func (s *Server) handleDiscoverBypasses(ctx context.Context, req *mcp.CallToolRe
 type discoverBypassesResponse struct {
 	Summary        string                         `json:"summary"`
 	Interpretation string                         `json:"interpretation"`
-	Result         *tampers.BypassDiscoveryResult  `json:"result"`
+	Result         *tampers.BypassDiscoveryResult `json:"result"`
 	NextSteps      []string                       `json:"next_steps"`
 }
 
@@ -266,7 +275,7 @@ func buildDiscoverBypassesResponse(result *tampers.BypassDiscoveryResult, args d
 		steps = append(steps,
 			"Use 'list_tampers' to review available tamper techniques and their categories.")
 		steps = append(steps,
-			fmt.Sprintf("Use 'scan' with different categories to find attack surfaces the WAF might miss.", ))
+			fmt.Sprintf("Use 'scan' with different categories to find attack surfaces the WAF might miss."))
 	}
 	resp.NextSteps = steps
 
@@ -345,12 +354,12 @@ type tamperInfo struct {
 }
 
 type listTampersResponse struct {
-	Summary           string              `json:"summary"`
-	TotalCount        int                 `json:"total_count"`
-	FilteredCount     int                 `json:"filtered_count"`
-	CategoryBreakdown map[string]int      `json:"category_breakdown"`
-	Tampers           []tamperInfo        `json:"tampers"`
-	NextSteps         []string            `json:"next_steps"`
+	Summary           string         `json:"summary"`
+	TotalCount        int            `json:"total_count"`
+	FilteredCount     int            `json:"filtered_count"`
+	CategoryBreakdown map[string]int `json:"category_breakdown"`
+	Tampers           []tamperInfo   `json:"tampers"`
+	NextSteps         []string       `json:"next_steps"`
 }
 
 func (s *Server) handleListTampers(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {

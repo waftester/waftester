@@ -317,11 +317,16 @@ func DiscoverBypasses(ctx context.Context, cfg BypassDiscoveryConfig) (*BypassDi
 			blocked = 0
 			errors = 1
 		}
+		total := bypassed + blocked + errors
+		var successRate float64
+		if total > 0 {
+			successRate = float64(bypassed) / float64(total)
+		}
 		result.Results = append(result.Results, BypassResult{
 			TamperName:    tr.name,
 			Category:      cat,
 			Description:   desc,
-			SuccessRate:   float64(bypassed),
+			SuccessRate:   successRate,
 			Bypassed:      bypassed,
 			Blocked:       blocked,
 			Errors:        errors,

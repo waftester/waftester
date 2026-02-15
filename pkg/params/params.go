@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/waftester/waftester/pkg/attackconfig"
@@ -89,6 +90,10 @@ func DefaultConfig() *Config {
 func NewDiscoverer(cfg *Config) *Discoverer {
 	if cfg == nil {
 		cfg = DefaultConfig()
+	}
+
+	if cfg.Concurrency <= 0 {
+		cfg.Concurrency = defaults.ConcurrencyMedium
 	}
 
 	// Use provided HTTPClient (e.g., JA3-aware) or create default
@@ -516,7 +521,9 @@ func (d *Discoverer) testReflection(ctx context.Context, targetURL string, param
 
 	for _, param := range params {
 		canary := generateCanary()
-		testURL := fmt.Sprintf("%s?%s=%s", targetURL, param.Name, canary)
+		v := url.Values{}
+		v.Set(param.Name, canary)
+		testURL := fmt.Sprintf("%s?%s", targetURL, v.Encode())
 
 		req, err := http.NewRequestWithContext(ctx, "GET", testURL, nil)
 		if err != nil {
@@ -559,9 +566,12 @@ func (d *Discoverer) deduplicate(params []DiscoveredParam) []DiscoveredParam {
 	return result
 }
 
+// canaryCounter provides unique canary values across concurrent goroutines.
+var canaryCounter uint64
+
 // generateCanary creates a unique string for reflection testing
 func generateCanary() string {
-	return fmt.Sprintf("waft%d", time.Now().UnixNano()%100000)
+	return fmt.Sprintf("waft%d", atomic.AddUint64(&canaryCounter, 1))
 }
 
 // getWordlist returns the wordlist to use - custom file if specified, otherwise built-in
@@ -598,10 +608,10 @@ func loadWordlistFromFile(path string) ([]string, error) {
 	return words, nil
 }
 
-// getParamWordlist returns the parameter discovery wordlist
-// Based on Arjun's params.txt and additional research
+// getParamWordlist returns the deduplicated parameter discovery wordlist.
+// Based on Arjun's params.txt and additional research.
 func getParamWordlist() []string {
-	return []string{
+	raw := []string{
 		// Common authentication/session
 		"id", "user", "username", "userid", "user_id", "uid", "login", "email", "mail",
 		"password", "passwd", "pass", "pwd", "secret", "token", "auth", "key", "apikey",
@@ -730,6 +740,18 @@ func getParamWordlist() []string {
 		"dir", "read", "fetch", "load", "cat", "article", "page", "class",
 		"parser", "php_path", "conf", "menu", "lang", "language", "locale",
 	}
+
+	// Deduplicate: the wordlist is organized by category so entries
+	// intentionally appear in multiple sections for readability.
+	seen := make(map[string]struct{}, len(raw))
+	deduped := make([]string, 0, len(raw))
+	for _, w := range raw {
+		if _, dup := seen[w]; !dup {
+			seen[w] = struct{}{}
+			deduped = append(deduped, w)
+		}
+	}
+	return deduped
 }
 
 // DiscoverFromJSON extracts parameters from a JSON API response
