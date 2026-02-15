@@ -13,12 +13,12 @@ import (
 // NetworkRequest represents a TCP/UDP network request in a template.
 type NetworkRequest struct {
 	ID         string         `yaml:"id,omitempty"`
-	Host       string         `yaml:"host"`                  // host:port (supports {{variables}})
-	Type       string         `yaml:"type,omitempty"`         // tcp (default) or udp
-	Inputs     []NetworkInput `yaml:"inputs,omitempty"`       // Data to send
-	ReadSize   int            `yaml:"read-size,omitempty"`    // Bytes to read (default 4096)
-	ReadAll    bool           `yaml:"read-all,omitempty"`     // Read until EOF
-	Timeout    string         `yaml:"timeout,omitempty"`      // Connection timeout
+	Host       string         `yaml:"host"`                // host:port (supports {{variables}})
+	Type       string         `yaml:"type,omitempty"`      // tcp (default) or udp
+	Inputs     []NetworkInput `yaml:"inputs,omitempty"`    // Data to send
+	ReadSize   int            `yaml:"read-size,omitempty"` // Bytes to read (default 4096)
+	ReadAll    bool           `yaml:"read-all,omitempty"`  // Read until EOF
+	Timeout    string         `yaml:"timeout,omitempty"`   // Connection timeout
 	Matchers   []Matcher      `yaml:"matchers,omitempty"`
 	Extractors []Extractor    `yaml:"extractors,omitempty"`
 }
@@ -117,7 +117,7 @@ func (e *Engine) executeNetworkRequest(ctx context.Context, req *NetworkRequest,
 	}
 
 	respData := &ResponseData{
-		StatusCode: len(responseData),
+		StatusCode: len(responseData), // Byte count, not HTTP status — status matchers are not meaningful for network
 		Body:       responseData,
 	}
 
