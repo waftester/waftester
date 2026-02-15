@@ -286,8 +286,9 @@ func (e *Engine) executeSequential(ctx context.Context, tmpl *Template, target s
 
 		for k, v := range extracted {
 			result.ExtractedData[k] = append(result.ExtractedData[k], v...)
-			// Chain extracted values into vars for subsequent requests
-			if len(v) > 0 {
+			// Chain extracted values into vars for subsequent requests.
+			// Skip reserved keys to prevent server-controlled SSRF.
+			if len(v) > 0 && !reservedVarKeys[k] {
 				vars[k] = v[0]
 			}
 		}
@@ -328,7 +329,7 @@ func (e *Engine) executeSequential(ctx context.Context, tmpl *Template, target s
 		}
 		for k, v := range extracted {
 			result.ExtractedData[k] = append(result.ExtractedData[k], v...)
-			if len(v) > 0 {
+			if len(v) > 0 && !reservedVarKeys[k] {
 				vars[k] = v[0]
 			}
 		}
@@ -363,7 +364,7 @@ func (e *Engine) executeSequential(ctx context.Context, tmpl *Template, target s
 		}
 		for k, v := range extracted {
 			result.ExtractedData[k] = append(result.ExtractedData[k], v...)
-			if len(v) > 0 {
+			if len(v) > 0 && !reservedVarKeys[k] {
 				vars[k] = v[0]
 			}
 		}
@@ -402,6 +403,9 @@ func (e *Engine) executeFlow(ctx context.Context, tmpl *Template, target string)
 		if id == "" {
 			id = fmt.Sprintf("request-%d", i)
 		}
+		if _, exists := blocks[id]; exists {
+			return nil, fmt.Errorf("duplicate block ID %q across protocols", id)
+		}
 		blocks[id] = protocolBlock{protocol: "http", index: i}
 	}
 	for i := range tmpl.DNS {
@@ -409,12 +413,18 @@ func (e *Engine) executeFlow(ctx context.Context, tmpl *Template, target string)
 		if id == "" {
 			id = fmt.Sprintf("dns-%d", i)
 		}
+		if _, exists := blocks[id]; exists {
+			return nil, fmt.Errorf("duplicate block ID %q across protocols", id)
+		}
 		blocks[id] = protocolBlock{protocol: "dns", index: i}
 	}
 	for i := range tmpl.Network {
 		id := tmpl.Network[i].ID
 		if id == "" {
 			id = fmt.Sprintf("network-%d", i)
+		}
+		if _, exists := blocks[id]; exists {
+			return nil, fmt.Errorf("duplicate block ID %q across protocols", id)
 		}
 		blocks[id] = protocolBlock{protocol: "network", index: i}
 	}
@@ -485,7 +495,7 @@ func (e *Engine) executeFlow(ctx context.Context, tmpl *Template, target string)
 
 		for k, v := range extracted {
 			result.ExtractedData[k] = append(result.ExtractedData[k], v...)
-			if len(v) > 0 {
+			if len(v) > 0 && !reservedVarKeys[k] {
 				vars[k] = v[0]
 			}
 		}
@@ -1047,13 +1057,26 @@ func runExtractor(e *Extractor, resp *ResponseData) []string {
 }
 
 func expandVariables(input string, vars map[string]string) string {
-	// Support both Nuclei syntax {{VarName}} and Go template syntax {{.VarName}}.
+	// Sort keys for deterministic expansion order.
+	keys := make([]string, 0, len(vars))
+	for k := range vars {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	result := input
-	for k, v := range vars {
+	for _, k := range keys {
+		v := vars[k]
 		result = strings.ReplaceAll(result, "{{"+k+"}}", v)
 		result = strings.ReplaceAll(result, "{{."+k+"}}", v)
 	}
 	return result
+}
+
+// reservedVarKeys are variable names that must not be overwritten by extractors.
+var reservedVarKeys = map[string]bool{
+	"BaseURL":  true,
+	"Hostname": true,
 }
 
 func extractHostname(url string) string {

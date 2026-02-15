@@ -116,8 +116,14 @@ func (s *Server) handleEventCrawl(ctx context.Context, req *mcp.CallToolRequest)
 	if args.MaxClicks <= 0 {
 		args.MaxClicks = 50
 	}
+	if args.MaxClicks > 200 {
+		args.MaxClicks = 200
+	}
 	if args.ClickTimeout <= 0 {
 		args.ClickTimeout = 5
+	}
+	if args.ClickTimeout > 30 {
+		args.ClickTimeout = 30
 	}
 
 	estimatedDuration := fmt.Sprintf("%d-%ds depending on page complexity", args.MaxClicks/5, args.MaxClicks*args.ClickTimeout)
@@ -213,7 +219,10 @@ func buildEventCrawlResponse(results []EventCrawlResult, discoveredURLs []string
 	// Build next steps
 	steps := make([]string, 0, 5)
 	if len(discoveredURLs) > 0 || len(resp.XHRRequests) > 0 {
-		allEndpoints := append(discoveredURLs, resp.XHRRequests...)
+		// Copy to avoid aliasing the discoveredURLs backing array
+		allEndpoints := make([]string, 0, len(discoveredURLs)+len(resp.XHRRequests))
+		allEndpoints = append(allEndpoints, discoveredURLs...)
+		allEndpoints = append(allEndpoints, resp.XHRRequests...)
 		if len(allEndpoints) > 3 {
 			allEndpoints = allEndpoints[:3]
 		}
@@ -222,7 +231,7 @@ func buildEventCrawlResponse(results []EventCrawlResult, discoveredURLs []string
 		steps = append(steps,
 			"XHR/API endpoints are often less protected by WAF rules — prioritize scanning those.")
 		steps = append(steps,
-			fmt.Sprintf("Use 'detect_waf' on the API endpoints to check if they have the same WAF protection as the main app."))
+			"Use 'detect_waf' on the API endpoints to check if they have the same WAF protection as the main app.")
 	}
 	if len(results) == args.MaxClicks {
 		steps = append(steps,

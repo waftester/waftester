@@ -11,11 +11,11 @@ import (
 // DNSRequest represents a DNS query in a template.
 type DNSRequest struct {
 	ID                string      `yaml:"id,omitempty"`
-	Name              string      `yaml:"name"`                        // Domain to query (supports {{variables}})
-	Type              string      `yaml:"type"`                        // A, AAAA, CNAME, MX, NS, TXT, PTR
-	Class             string      `yaml:"class,omitempty"`             // Parsed but unused — stdlib resolver uses IN only
-	Resolver          string      `yaml:"resolver,omitempty"`          // Custom DNS resolver address
-	Recursion         bool        `yaml:"recursion"`                   // Parsed but unused — stdlib resolver handles recursion
+	Name              string      `yaml:"name"`                         // Domain to query (supports {{variables}})
+	Type              string      `yaml:"type"`                         // A, AAAA, CNAME, MX, NS, TXT, PTR
+	Class             string      `yaml:"class,omitempty"`              // Parsed but unused — stdlib resolver uses IN only
+	Resolver          string      `yaml:"resolver,omitempty"`           // Custom DNS resolver address
+	Recursion         bool        `yaml:"recursion"`                    // Parsed but unused — stdlib resolver handles recursion
 	MatchersCondition string      `yaml:"matchers-condition,omitempty"` // "and" or "or" (default: "or")
 	Matchers          []Matcher   `yaml:"matchers,omitempty"`
 	Extractors        []Extractor `yaml:"extractors,omitempty"`
@@ -107,9 +107,9 @@ func (e *Engine) executeDNSRequest(ctx context.Context, req *DNSRequest, vars ma
 
 	// Build response body from answers for matching
 	body := strings.Join(answers, "\n")
-	if err != nil {
-		// DNS errors are not fatal; the error is part of the response
-		body = err.Error()
+	if err != nil && len(answers) == 0 {
+		// DNS lookup failed with no answers — report as error, not a matchable response
+		return false, extracted, fmt.Errorf("dns lookup: %w", err)
 	}
 
 	respData := &ResponseData{
