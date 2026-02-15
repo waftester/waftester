@@ -214,6 +214,159 @@ func TestDocVersionConsistency(t *testing.T) {
 	}
 }
 
+// TestExamplesVersionConsistency validates ALL version-stamped content in docs/EXAMPLES.md.
+// This catches stale output banners, Docker tag examples, and output format
+// version references that went stale across v2.6.5 → v2.7.0 → v2.9.3.
+func TestExamplesVersionConsistency(t *testing.T) {
+	root := findProjectRoot(t)
+	path := filepath.Join(root, "docs", "EXAMPLES.md")
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Skipf("docs/EXAMPLES.md not found: %v", err)
+		return
+	}
+
+	text := string(content)
+
+	// --- Version strings that must match defaults.Version ---
+
+	// Sample output banners: "WAFtester vX.Y.Z — ..."
+	bannerRe := regexp.MustCompile(`WAFtester v(\d+\.\d+\.\d+)`)
+	bannerMatches := bannerRe.FindAllStringSubmatchIndex(text, -1)
+
+	// "What's New in vX.Y.Z" headers are historical — skip them
+	whatsNewRe := regexp.MustCompile(`What's New in v(\d+\.\d+\.\d+)`)
+	whatsNewPositions := make(map[int]bool)
+	for _, m := range whatsNewRe.FindAllStringSubmatchIndex(text, -1) {
+		whatsNewPositions[m[0]] = true
+	}
+
+	// Feature introduction headers like "Intelligence Engine (v2.6.5)" are historical — skip
+	featureHeaderRe := regexp.MustCompile(`##[^(]*\(v(\d+\.\d+\.\d+)\)`)
+	for _, m := range featureHeaderRe.FindAllStringSubmatchIndex(text, -1) {
+		whatsNewPositions[m[0]] = true
+	}
+
+	// TOC links referencing feature headers like "- [Intelligence Engine (v2.6.5)]" — skip
+	tocFeatureRe := regexp.MustCompile(`- \[[^\]]*\(v\d+\.\d+\.\d+\)\]`)
+	for _, m := range tocFeatureRe.FindAllStringSubmatchIndex(text, -1) {
+		whatsNewPositions[m[0]] = true
+	}
+
+	// MCP intro line "WAFtester includes" should NOT have a version pin.
+	// If it says "WAFtester vX.Y.Z includes", that's a stale pin.
+	// Already checked by banner regex — the pin will be caught if present.
+
+	for _, m := range bannerMatches {
+		// m[0] is the full match start position
+		if whatsNewPositions[m[0]] {
+			continue
+		}
+		// Check if this is inside a TOC or feature header we should skip
+		skip := false
+		for pos := range whatsNewPositions {
+			if m[0] >= pos && m[0] <= pos+100 {
+				skip = true
+				break
+			}
+		}
+		if skip {
+			continue
+		}
+		found := text[m[2]:m[3]]
+		if found != defaults.Version {
+			line := 1 + strings.Count(text[:m[0]], "\n")
+			t.Errorf("docs/EXAMPLES.md:%d: stale banner %q, want %q", line, "WAFtester v"+found, "WAFtester v"+defaults.Version)
+		}
+	}
+
+	// Docker tag examples: "ghcr.io/waftester/waftester:X.Y.Z"
+	dockerTagRe := regexp.MustCompile(`ghcr\.io/waftester/waftester:(\d+\.\d+\.\d+)`)
+	for _, m := range dockerTagRe.FindAllStringSubmatchIndex(text, -1) {
+		found := text[m[2]:m[3]]
+		if found != defaults.Version {
+			line := 1 + strings.Count(text[:m[0]], "\n")
+			t.Errorf("docs/EXAMPLES.md:%d: stale Docker tag %q, want %q", line, found, defaults.Version)
+		}
+	}
+
+	// Docker tag table: "`X.Y.Z` | Exact version"
+	tagTableRe := regexp.MustCompile("`(\\d+\\.\\d+\\.\\d+)` \\| Exact version")
+	for _, m := range tagTableRe.FindAllStringSubmatchIndex(text, -1) {
+		found := text[m[2]:m[3]]
+		if found != defaults.Version {
+			line := 1 + strings.Count(text[:m[0]], "\n")
+			t.Errorf("docs/EXAMPLES.md:%d: stale Docker tag table %q, want %q", line, found, defaults.Version)
+		}
+	}
+
+	// Minor alias: "`X.Y`, `X`" should match current major.minor
+	parts := strings.SplitN(defaults.Version, ".", 3)
+	if len(parts) >= 2 {
+		expectedMinor := parts[0] + "." + parts[1]
+		minorAliasRe := regexp.MustCompile("`(\\d+\\.\\d+)`, `\\d+` \\| Minor/major")
+		for _, m := range minorAliasRe.FindAllStringSubmatchIndex(text, -1) {
+			found := text[m[2]:m[3]]
+			if found != expectedMinor {
+				line := 1 + strings.Count(text[:m[0]], "\n")
+				t.Errorf("docs/EXAMPLES.md:%d: stale minor alias %q, want %q", line, found, expectedMinor)
+			}
+		}
+	}
+
+	// Docker compose VERSION=X.Y.Z
+	composeVersionRe := regexp.MustCompile(`VERSION=(\d+\.\d+\.\d+)`)
+	for _, m := range composeVersionRe.FindAllStringSubmatchIndex(text, -1) {
+		found := text[m[2]:m[3]]
+		if found != defaults.Version {
+			line := 1 + strings.Count(text[:m[0]], "\n")
+			t.Errorf("docs/EXAMPLES.md:%d: stale compose VERSION=%q, want %q", line, found, defaults.Version)
+		}
+	}
+
+	// Output format versions — match specific WAFtester version patterns, not generic "version" fields.
+	// These patterns target the tool/generator version, not component/app/spec versions.
+	outputVersionPatterns := []struct {
+		re   *regexp.Regexp
+		desc string
+	}{
+		// CycloneDX/JSON tool version: "name": "waf-tester",\n        "version": "X.Y.Z"
+		{regexp.MustCompile(`"name":\s*"waf-tester",\s*"version":\s*"(\d+\.\d+\.\d+)"`), "CycloneDX tool version"},
+		// Elasticsearch: "tool": "waftester",\n    "version": "X.Y.Z"
+		{regexp.MustCompile(`"tool":\s*"waftester",\s*"version":\s*"(\d+\.\d+\.\d+)"`), "Elasticsearch version"},
+		// XML generator: <name>WAFtester</name>\n    <version>X.Y.Z</version>
+		{regexp.MustCompile(`<name>WAFtester</name>\s*<version>(\d+\.\d+\.\d+)</version>`), "XML generator version"},
+		// XML root attr: <waftester-report version="X.Y.Z"
+		{regexp.MustCompile(`<waftester-report\s+version="(\d+\.\d+\.\d+)"`), "XML report version attr"},
+		// OpenTelemetry: "service.version".*"stringValue": "X.Y.Z"
+		{regexp.MustCompile(`"service\.version".*?"stringValue":\s*"(\d+\.\d+\.\d+)"`), "OpenTelemetry version"},
+		// Slack message: WAFtester vX.Y.Z |
+		{regexp.MustCompile(`WAFtester v(\d+\.\d+\.\d+) \|`), "Slack message version"},
+		// GitHub issue: WAFtester vX.Y.Z*
+		{regexp.MustCompile(`Created by WAFtester v(\d+\.\d+\.\d+)`), "GitHub issue version"},
+	}
+	for _, p := range outputVersionPatterns {
+		for _, m := range p.re.FindAllStringSubmatchIndex(text, -1) {
+			found := text[m[2]:m[3]]
+			if found != defaults.Version {
+				line := 1 + strings.Count(text[:m[0]], "\n")
+				t.Errorf("docs/EXAMPLES.md:%d: stale %s %q, want %q", line, p.desc, found, defaults.Version)
+			}
+		}
+	}
+
+	// service.version in OpenTelemetry: "stringValue": "X.Y.Z"
+	otelVersionRe := regexp.MustCompile(`"stringValue":\s*"(\d+\.\d+\.\d+)"`)
+	for _, m := range otelVersionRe.FindAllStringSubmatchIndex(text, -1) {
+		found := text[m[2]:m[3]]
+		if found != defaults.Version {
+			line := 1 + strings.Count(text[:m[0]], "\n")
+			t.Errorf("docs/EXAMPLES.md:%d: stale OpenTelemetry version %q, want %q", line, found, defaults.Version)
+		}
+	}
+}
+
 // TestNpmVersionConsistency ensures npm package.json versions match defaults.Version.
 // This catches version drift between Go and npm distributions.
 func TestNpmVersionConsistency(t *testing.T) {
