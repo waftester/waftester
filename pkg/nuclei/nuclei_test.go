@@ -747,16 +747,24 @@ func TestDSLStatusCode(t *testing.T) {
 
 func TestDSLContains(t *testing.T) {
 	tests := []struct {
-		expr    string
-		content string
-		expect  bool
+		expr   string
+		resp   *ResponseData
+		expect bool
 	}{
-		{`contains(body, "hello")`, "hello world", true},
-		{`contains(body, "missing")`, "hello world", false},
+		{`contains(body, "hello")`, &ResponseData{Body: []byte("hello world")}, true},
+		{`contains(body, "missing")`, &ResponseData{Body: []byte("hello world")}, false},
+		{`contains(header, "X-Debug")`, &ResponseData{
+			Body:    []byte("no match here"),
+			Headers: http.Header{"X-Debug": []string{"true"}},
+		}, true},
+		{`contains(header, "X-Debug")`, &ResponseData{
+			Body:    []byte("no match here"),
+			Headers: http.Header{"X-Other": []string{"true"}},
+		}, false},
 	}
 
 	for _, tc := range tests {
-		got := evaluateDSLContains(tc.expr, tc.content)
+		got := evaluateDSLContains(tc.expr, tc.resp)
 		if got != tc.expect {
 			t.Errorf("evaluateDSLContains(%q) = %v, want %v", tc.expr, got, tc.expect)
 		}

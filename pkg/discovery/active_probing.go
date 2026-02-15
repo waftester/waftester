@@ -373,10 +373,18 @@ func (ad *ActiveDiscoverer) probeContentTypes(ctx context.Context, path string) 
 		if err != nil {
 			continue
 		}
+		body, _ := iohelper.ReadBodyDefault(resp.Body)
 		iohelper.DrainAndClose(resp.Body)
 
 		// Non-404/405 means this endpoint exists for POST with this content type
 		if resp.StatusCode != 404 && resp.StatusCode != 405 {
+			// Check for soft-404 / wildcard response
+			if ad.wildcardDetector != nil {
+				fp := CalculateFingerprint(resp.StatusCode, body, resp.Header.Get("Content-Type"))
+				if ad.wildcardDetector.IsWildcard("POST", fp) {
+					continue
+				}
+			}
 			ad.found.Store(path, true)
 			ep := Endpoint{
 				Path:        path,
@@ -529,10 +537,18 @@ func (ad *ActiveDiscoverer) probeMethod(ctx context.Context, ep Endpoint, method
 	if err != nil {
 		return
 	}
+	body, _ := iohelper.ReadBodyDefault(resp.Body)
 	iohelper.DrainAndClose(resp.Body)
 
 	// Method is supported if not 405 Method Not Allowed
 	if resp.StatusCode != 405 && resp.StatusCode != 501 {
+		// Check for soft-404 / wildcard response
+		if ad.wildcardDetector != nil {
+			fp := CalculateFingerprint(resp.StatusCode, body, resp.Header.Get("Content-Type"))
+			if ad.wildcardDetector.IsWildcard(method, fp) {
+				return
+			}
+		}
 		newEp := Endpoint{
 			Path:        ep.Path,
 			Method:      method,
