@@ -278,20 +278,17 @@ waf-tester scan -u https://target.com --payloads ./custom-payloads --template-di
 
 ### WAF Intelligence
 
-The `tampers` command provides vendor-specific bypass recommendations.
+The `tampers` command provides vendor-specific bypass recommendations and automated discovery.
 
 ```bash
 # Show tampers ranked by effectiveness for specific WAF
 waf-tester tampers --for-waf=cloudflare
 
-Tampers Ranked by Effectiveness for Cloudflare
---------------------------------------------------------------------------
-  Rank  Tamper                    Success Rate
-  1     charunicodeencode         85%
-  2     space2morecomment         82%
-  3     randomcase                75%
-  4     between                   68%
-  5     modsecurityversioned      55%
+# Auto-discover which tampers bypass a live WAF
+waf-tester tampers --discover --target https://target.com
+
+# Load custom .tengo script tampers
+waf-tester scan -u https://target.com --tamper-dir=./my-tampers
 ```
 
 ---
@@ -524,7 +521,7 @@ For complete MCP examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md#mcp-server-in
 | `scan` | Vulnerability scanning (50+ categories) | `waf-tester scan -u https://target.com -types sqli,xss` |
 | `bypass` | WAF bypass discovery | `waf-tester bypass -u https://target.com --smart` |
 | `assess` | Enterprise metrics (F1, MCC, FPR) | `waf-tester assess -u https://target.com -fp` |
-| `tampers` | List/test/recommend tampers | `waf-tester tampers --for-waf=cloudflare` |
+| `tampers` | List/test/recommend/discover tampers | `waf-tester tampers --for-waf=cloudflare` |
 | `vendor` | WAF fingerprinting (197 signatures) | `waf-tester vendor -u https://target.com` |
 | `probe` | Protocol detection | `waf-tester probe -l urls.txt` |
 | `fuzz` | Directory/content fuzzing | `waf-tester fuzz -u https://target.com/FUZZ` |
@@ -540,7 +537,7 @@ For complete MCP examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md#mcp-server-in
 | `mcp` | MCP server for AI agents | `waf-tester mcp` or `waf-tester mcp --http :8080` |
 | `learn` | Generate test plans from discovery data | `waf-tester learn -u https://target.com` |
 | `crawl` | DOM-aware crawling | `waf-tester crawl -u https://target.com` |
-| `headless` | Headless browser testing | `waf-tester headless -u https://target.com` |
+| `headless` | Headless browser testing + event crawling | `waf-tester headless -u https://target.com` |
 | `validate` | Validate payloads and templates | `waf-tester validate --payloads ./payloads` |
 | `analyze` | Analyze scan results | `waf-tester analyze -f results.json` |
 | `fp` | False positive testing | `waf-tester fp -u https://target.com` |
@@ -562,6 +559,9 @@ For complete MCP examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md#mcp-server-in
 | `--tamper` | Tamper list (comma-separated) | - |
 | `--tamper-auto` | Auto-select for detected WAF | false |
 | `--tamper-profile` | Preset: stealth, standard, aggressive, bypass | - |
+| `--tamper-dir` | Directory of `.tengo` script tampers | - |
+| `--discover` | Auto-discover WAF bypass tampers (tampers cmd) | false |
+| `--event-crawl` | DOM event crawling (headless cmd) | false |
 | `-format` | Output format | json |
 | `-o` | Output file | - |
 | `-x` | Proxy (HTTP/HTTPS/SOCKS4/SOCKS5) | - |
