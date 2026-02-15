@@ -308,5 +308,3 @@ func runSpecPipeline(cfg specPipelineConfig) {
 		}
 	}
 }
-
-
