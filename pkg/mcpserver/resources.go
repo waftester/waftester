@@ -45,7 +45,7 @@ func (s *Server) addVersionResource() {
 				"name":    defaults.ToolNameDisplay,
 				"version": defaults.Version,
 				"capabilities": map[string]any{
-					"tools":     22,
+					"tools":     24,
 					"resources": 12,
 					"prompts":   7,
 					"templates": 40,
@@ -56,6 +56,7 @@ func (s *Server) addVersionResource() {
 				"tools": []string{
 					"list_payloads", "detect_waf", "discover", "learn", "scan",
 					"assess", "mutate", "bypass", "probe", "generate_cicd",
+					"list_tampers", "discover_bypasses",
 					"get_task_status", "cancel_task", "list_tasks",
 					"validate_spec", "list_spec_endpoints", "plan_spec", "scan_spec",
 					"compare_baselines",
