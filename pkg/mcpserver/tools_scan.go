@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -276,6 +277,10 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 			CustomTampers: tampers.ParseTamperList(args.Tamper),
 			EnableMetrics: false,
 		})
+
+		if profile == tampers.ProfileBypass && args.Tamper == "" {
+			log.Printf("[mcp-tool] WARNING: tamper_profile=bypass without detected WAF vendor — falling back to aggressive tampers. Run detect_waf first for WAF-specific bypass chains.")
+		}
 
 		for i := range filtered {
 			filtered[i].Payload = engine.Transform(filtered[i].Payload)

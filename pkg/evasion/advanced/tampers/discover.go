@@ -167,6 +167,7 @@ func DiscoverBypasses(ctx context.Context, cfg BypassDiscoveryConfig) (*BypassDi
 
 	var mu sync.Mutex
 	var tamperResults []tamperResult
+	var skippedCount int
 
 	sem := make(chan struct{}, cfg.Concurrency)
 	var wg sync.WaitGroup
@@ -184,12 +185,18 @@ func DiscoverBypasses(ctx context.Context, cfg BypassDiscoveryConfig) (*BypassDi
 
 			t := Get(tName)
 			if t == nil {
+				mu.Lock()
+				skippedCount++
+				mu.Unlock()
 				return
 			}
 
 			transformed := t.Transform(referencePayload)
 			// Skip if tamper didn't change anything
 			if transformed == referencePayload {
+				mu.Lock()
+				skippedCount++
+				mu.Unlock()
 				return
 			}
 
@@ -224,6 +231,9 @@ func DiscoverBypasses(ctx context.Context, cfg BypassDiscoveryConfig) (*BypassDi
 		}(name)
 	}
 	wg.Wait()
+
+	// Adjust TotalTampers to exclude no-op tampers (didn't modify payload).
+	result.TotalTampers -= skippedCount
 
 	// Step 4: Confirm bypasses with additional payloads
 	var confirmedBypasses []BypassResult
