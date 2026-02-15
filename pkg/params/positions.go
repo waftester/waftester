@@ -101,6 +101,9 @@ func (d *Discoverer) getJSONBaseline(ctx context.Context, targetURL string) (*ba
 }
 
 func (d *Discoverer) testJSONParamChunk(ctx context.Context, targetURL string, chunk []string, baseline *baselineResponse) []DiscoveredParam {
+	if ctx.Err() != nil {
+		return nil
+	}
 	var found []DiscoveredParam
 	canary := generateCanary()
 
@@ -209,6 +212,9 @@ func (d *Discoverer) headerDiscovery(ctx context.Context, targetURL string, base
 }
 
 func (d *Discoverer) binarySearchHeaders(ctx context.Context, targetURL string, baseline *baselineResponse, headers []string, canary string) []DiscoveredParam {
+	if ctx.Err() != nil {
+		return nil
+	}
 	var found []DiscoveredParam
 
 	if len(headers) == 1 {
@@ -305,6 +311,9 @@ func (d *Discoverer) cookieDiscovery(ctx context.Context, targetURL string, base
 }
 
 func (d *Discoverer) binarySearchCookies(ctx context.Context, targetURL string, baseline *baselineResponse, cookies []string, canary string) []DiscoveredParam {
+	if ctx.Err() != nil {
+		return nil
+	}
 	var found []DiscoveredParam
 
 	if len(cookies) == 1 {
