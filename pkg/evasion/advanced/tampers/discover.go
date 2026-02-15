@@ -10,6 +10,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // BypassDiscoveryConfig configures the automated bypass discovery loop.
@@ -446,7 +448,7 @@ func captureSignature(ctx context.Context, client *http.Client, targetURL, paylo
 	if err != nil {
 		return responseSignature{}, fmt.Errorf("send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
 	if err != nil {

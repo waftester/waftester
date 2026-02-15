@@ -773,15 +773,17 @@ func matchDSL(expressions []string, resp *ResponseData, condition string) bool {
 		var matched bool
 		var handled bool
 
+		trimmed := strings.TrimSpace(expr)
+
 		// status_code == X
-		if strings.Contains(expr, "status_code") {
+		if strings.HasPrefix(trimmed, "status_code") {
 			matched = evaluateDSLStatusCode(expr, resp.StatusCode)
 			handled = true
 		}
 
-		// contains(body, "X")
-		if !handled && strings.Contains(expr, "contains(") {
-			matched = evaluateDSLContains(expr, string(resp.Body))
+		// contains(part, "X")
+		if !handled && strings.HasPrefix(trimmed, "contains(") {
+			matched = evaluateDSLContains(expr, resp)
 			handled = true
 		}
 
@@ -834,15 +836,30 @@ func evaluateDSLStatusCode(expr string, statusCode int) bool {
 	return false
 }
 
-func evaluateDSLContains(expr string, content string) bool {
-	// Parse: contains(body, "string")
-	re := regexcache.MustGet(`contains\s*\(\s*\w+\s*,\s*"([^"]+)"\s*\)`)
+func evaluateDSLContains(expr string, resp *ResponseData) bool {
+	// Parse: contains(part, "string")
+	re := regexcache.MustGet(`contains\s*\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)`)
 	matches := re.FindStringSubmatch(expr)
-	if len(matches) != 2 {
+	if len(matches) != 3 {
 		return false
 	}
 
-	return strings.Contains(content, matches[1])
+	part := strings.ToLower(matches[1])
+	needle := matches[2]
+
+	var content string
+	switch part {
+	case "header":
+		var buf bytes.Buffer
+		for k, v := range resp.Headers {
+			buf.WriteString(fmt.Sprintf("%s: %s\n", k, strings.Join(v, ", ")))
+		}
+		content = buf.String()
+	default:
+		content = string(resp.Body)
+	}
+
+	return strings.Contains(content, needle)
 }
 
 func runExtractor(e *Extractor, resp *ResponseData) []string {
@@ -891,7 +908,7 @@ func runExtractor(e *Extractor, resp *ResponseData) []string {
 }
 
 func expandVariables(input string, vars map[string]string) string {
-	tmpl, err := template.New("").Parse(input)
+	tmpl, err := template.New("").Option("missingkey=error").Parse(input)
 	if err != nil {
 		// Fallback: simple replacement
 		result := input
