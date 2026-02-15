@@ -118,13 +118,21 @@ func (e *Engine) GetSelectedTampers() []string {
 
 // selectStealthTampers returns minimal, low-noise tampers
 func (e *Engine) selectStealthTampers() []string {
-	// If WAF detected, get top 2-3 from matrix
+	// If WAF detected, get top 2-3 from matrix, weighted by adaptive feedback
 	if e.wafVendor != "" && e.wafVendor != "unknown" {
 		recs := GetRecommendations(e.wafVendor)
 		if len(recs) > 0 {
+			sorted := make([]TamperRecommendation, len(recs))
+			copy(sorted, recs)
+			sort.Slice(sorted, func(i, j int) bool {
+				scoreI := sorted[i].Effectiveness + e.adaptiveMap[sorted[i].Name]
+				scoreJ := sorted[j].Effectiveness + e.adaptiveMap[sorted[j].Name]
+				return scoreI > scoreJ
+			})
+
 			result := make([]string, 0, 3)
-			for i, rec := range recs {
-				if i >= 3 {
+			for _, rec := range sorted {
+				if len(result) >= 3 {
 					break
 				}
 				// Skip HTTP-modifying tampers in stealth mode
@@ -142,12 +150,20 @@ func (e *Engine) selectStealthTampers() []string {
 
 // selectStandardTampers returns balanced tamper selection
 func (e *Engine) selectStandardTampers() []string {
-	// If WAF detected, get top 5 from matrix
+	// If WAF detected, get top 5 from matrix, weighted by adaptive feedback
 	if e.wafVendor != "" && e.wafVendor != "unknown" {
 		recs := GetRecommendations(e.wafVendor)
 		if len(recs) > 0 {
+			sorted := make([]TamperRecommendation, len(recs))
+			copy(sorted, recs)
+			sort.Slice(sorted, func(i, j int) bool {
+				scoreI := sorted[i].Effectiveness + e.adaptiveMap[sorted[i].Name]
+				scoreJ := sorted[j].Effectiveness + e.adaptiveMap[sorted[j].Name]
+				return scoreI > scoreJ
+			})
+
 			result := make([]string, 0, 5)
-			for i, rec := range recs {
+			for i, rec := range sorted {
 				if i >= 5 {
 					break
 				}
@@ -207,11 +223,13 @@ func (e *Engine) selectBypassTampers() []string {
 	if e.wafVendor != "" && e.wafVendor != "unknown" {
 		recs := GetRecommendations(e.wafVendor)
 		if len(recs) > 0 {
-			// Get all tampers, sorted by effectiveness
+			// Sort by combined static effectiveness + adaptive feedback scores
 			sorted := make([]TamperRecommendation, len(recs))
 			copy(sorted, recs)
 			sort.Slice(sorted, func(i, j int) bool {
-				return sorted[i].Effectiveness > sorted[j].Effectiveness
+				scoreI := sorted[i].Effectiveness + e.adaptiveMap[sorted[i].Name]
+				scoreJ := sorted[j].Effectiveness + e.adaptiveMap[sorted[j].Name]
+				return scoreI > scoreJ
 			})
 
 			result := make([]string, 0, len(sorted))

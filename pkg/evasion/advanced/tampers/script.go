@@ -18,6 +18,7 @@ import (
 type ScriptTamper struct {
 	BaseTamper
 	scriptBytes []byte
+	compiled    *tengo.Compiled // pre-compiled script for Clone()-based execution
 }
 
 // safeModules are the only Tengo stdlib modules available to scripts.
@@ -79,7 +80,7 @@ func LoadScriptTamper(path string) (*ScriptTamper, error) {
 		}
 	}
 
-	return &ScriptTamper{
+	st := &ScriptTamper{
 		BaseTamper: NewBaseTamper(
 			nameVar.String(),
 			descVar.String(),
@@ -88,36 +89,57 @@ func LoadScriptTamper(path string) (*ScriptTamper, error) {
 			tags...,
 		),
 		scriptBytes: data,
-	}, nil
+	}
+
+	// Pre-compile the transform wrapper so Transform() only needs Clone()
+	if err := st.precompile(); err != nil {
+		return nil, err
+	}
+
+	return st, nil
 }
 
-// Transform applies the script's transform function to the payload.
-// Each call creates a fresh VM to prevent state leaks between invocations.
-func (s *ScriptTamper) Transform(payload string) (result string) {
-	result = payload // default on panic or error
-
-	// Recover from panics in the Tengo VM (e.g., division by zero)
-	defer func() {
-		if r := recover(); r != nil {
-			result = payload
-		}
-	}()
-
+// precompile creates the wrapper script and compiles it once.
+// Uses Compile() (not Run()) so the transform function isn't invoked at load time.
+// The compiled result is cloned per-Transform call, avoiding recompilation.
+func (s *ScriptTamper) precompile() error {
 	wrapper := fmt.Sprintf(`%s
 __result__ := transform(__input__)
 `, string(s.scriptBytes))
 
 	script := tengo.NewScript([]byte(wrapper))
 	script.SetImports(safeModules)
-	script.SetMaxAllocs(10_000_000) // Prevent infinite loops and runaway allocations
-	_ = script.Add("__input__", payload)
+	script.SetMaxAllocs(10_000_000)
+	_ = script.Add("__input__", "")
 
-	compiled, err := script.Run()
+	compiled, err := script.Compile()
 	if err != nil {
-		return payload // On error, return original unchanged
+		return fmt.Errorf("precompile tamper %s: %w", s.Name(), err)
+	}
+	s.compiled = compiled
+	return nil
+}
+
+// Transform applies the script's transform function to the payload.
+// Uses Clone() on the pre-compiled script for thread-safe, zero-recompilation execution.
+func (s *ScriptTamper) Transform(payload string) (result string) {
+	result = payload // default on panic or error
+
+	defer func() {
+		if r := recover(); r != nil {
+			result = payload
+		}
+	}()
+
+	c := s.compiled.Clone()
+	if err := c.Set("__input__", payload); err != nil {
+		return payload
+	}
+	if err := c.Run(); err != nil {
+		return payload
 	}
 
-	scriptResult := compiled.Get("__result__")
+	scriptResult := c.Get("__result__")
 	if scriptResult.IsUndefined() {
 		return payload
 	}
