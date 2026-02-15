@@ -2,7 +2,6 @@ package nuclei
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/waftester/waftester/pkg/regexcache"
@@ -114,8 +113,8 @@ func parseConditional(s string) (FlowStep, error) {
 	return step, nil
 }
 
-var matcherRefRe = regexp.MustCompile(`^(\w+)\.matched$`)
-var varCheckRe = regexp.MustCompile(`^\$(\w+)\s*(==|!=|contains|matches)\s*"([^"]*)"$`)
+var matcherRefRe = regexcache.MustGet(`^(\w+)\.matched$`)
+var varCheckRe = regexcache.MustGet(`^\$(\w+)\s*(==|!=|contains|matches)\s*"([^"]*)"$`)
 
 func parseCondition(s string) (*Condition, error) {
 	s = strings.TrimSpace(s)
