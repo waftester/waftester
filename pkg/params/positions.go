@@ -260,7 +260,7 @@ func (d *Discoverer) binarySearchHeadersR(ctx context.Context, targetURL string,
 			newHash != baseline.ContentHash
 
 		if differs {
-			sub := d.binarySearchHeaders(ctx, targetURL, baseline, half, canary)
+			sub := d.binarySearchHeadersR(ctx, targetURL, baseline, half, canary, depth+1)
 			found = append(found, sub...)
 		}
 	}
