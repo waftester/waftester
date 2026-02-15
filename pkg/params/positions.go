@@ -208,7 +208,6 @@ func (d *Discoverer) headerDiscovery(ctx context.Context, targetURL string, base
 			continue
 		}
 
-		// Binary search within this chunk
 		found := d.binarySearchHeaders(ctx, targetURL, baseline, chunk, canary)
 		params = append(params, found...)
 	}
@@ -355,7 +354,7 @@ func (d *Discoverer) binarySearchCookiesR(ctx context.Context, targetURL string,
 			continue
 		}
 		body, _ := iohelper.ReadBodyDefault(resp.Body)
-		_ = resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 		newHash := fmt.Sprintf("%x", md5.Sum(body))
 
 		differs := resp.StatusCode != baseline.StatusCode ||
