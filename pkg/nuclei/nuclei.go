@@ -28,6 +28,12 @@ type Template struct {
 	// HTTP requests
 	HTTP []HTTPRequest `yaml:"http,omitempty"`
 
+	// DNS queries
+	DNS []DNSRequest `yaml:"dns,omitempty"`
+
+	// Network (TCP/UDP) requests
+	Network []NetworkRequest `yaml:"network,omitempty"`
+
 	// Flow control DSL for conditional execution between blocks
 	Flow string `yaml:"flow,omitempty"`
 
@@ -296,8 +302,70 @@ func (e *Engine) executeSequential(ctx context.Context, tmpl *Template, target s
 		}
 	}
 
+	// Execute DNS requests sequentially
+	for i, req := range tmpl.DNS {
+		matched, extracted, err := e.executeDNSRequest(ctx, &req, vars)
+		if err != nil {
+			result.Error = err.Error()
+			continue
+		}
+		if matched {
+			result.Matched = true
+			result.MatchedAt = target
+		}
+		for k, v := range extracted {
+			result.ExtractedData[k] = append(result.ExtractedData[k], v...)
+			if len(v) > 0 {
+				vars[k] = v[0]
+			}
+		}
+		blockID := req.ID
+		if blockID == "" {
+			blockID = fmt.Sprintf("dns-%d", i)
+		}
+		result.BlockResults[blockID] = &BlockResult{
+			ID:            blockID,
+			Matched:       matched,
+			ExtractedData: extracted,
+		}
+	}
+
+	// Execute Network requests sequentially
+	for i, req := range tmpl.Network {
+		matched, extracted, err := e.executeNetworkRequest(ctx, &req, vars)
+		if err != nil {
+			result.Error = err.Error()
+			continue
+		}
+		if matched {
+			result.Matched = true
+			result.MatchedAt = target
+		}
+		for k, v := range extracted {
+			result.ExtractedData[k] = append(result.ExtractedData[k], v...)
+			if len(v) > 0 {
+				vars[k] = v[0]
+			}
+		}
+		blockID := req.ID
+		if blockID == "" {
+			blockID = fmt.Sprintf("network-%d", i)
+		}
+		result.BlockResults[blockID] = &BlockResult{
+			ID:            blockID,
+			Matched:       matched,
+			ExtractedData: extracted,
+		}
+	}
+
 	result.Duration = time.Since(start)
 	return result, nil
+}
+
+// protocolBlock identifies a block by protocol and index.
+type protocolBlock struct {
+	protocol string // "http", "dns", "network"
+	index    int
 }
 
 // executeFlow runs template blocks according to a flow DSL with conditionals.
@@ -307,14 +375,28 @@ func (e *Engine) executeFlow(ctx context.Context, tmpl *Template, target string)
 		return nil, fmt.Errorf("parse flow: %w", err)
 	}
 
-	// Index HTTP blocks by ID
-	blocks := make(map[string]*HTTPRequest, len(tmpl.HTTP))
+	// Build block index across all protocols
+	blocks := make(map[string]protocolBlock)
 	for i := range tmpl.HTTP {
 		id := tmpl.HTTP[i].ID
 		if id == "" {
 			id = fmt.Sprintf("request-%d", i)
 		}
-		blocks[id] = &tmpl.HTTP[i]
+		blocks[id] = protocolBlock{protocol: "http", index: i}
+	}
+	for i := range tmpl.DNS {
+		id := tmpl.DNS[i].ID
+		if id == "" {
+			id = fmt.Sprintf("dns-%d", i)
+		}
+		blocks[id] = protocolBlock{protocol: "dns", index: i}
+	}
+	for i := range tmpl.Network {
+		id := tmpl.Network[i].ID
+		if id == "" {
+			id = fmt.Sprintf("network-%d", i)
+		}
+		blocks[id] = protocolBlock{protocol: "network", index: i}
 	}
 
 	start := time.Now()
@@ -356,7 +438,17 @@ func (e *Engine) executeFlow(ctx context.Context, tmpl *Template, target string)
 			continue
 		}
 
-		matched, extracted, err := e.executeHTTPRequest(ctx, block, target, vars)
+		// Dispatch to protocol-specific executor
+		var matched bool
+		var extracted map[string][]string
+		switch block.protocol {
+		case "http":
+			matched, extracted, err = e.executeHTTPRequest(ctx, &tmpl.HTTP[block.index], target, vars)
+		case "dns":
+			matched, extracted, err = e.executeDNSRequest(ctx, &tmpl.DNS[block.index], vars)
+		case "network":
+			matched, extracted, err = e.executeNetworkRequest(ctx, &tmpl.Network[block.index], vars)
+		}
 		if err != nil {
 			result.Error = err.Error()
 			continue
