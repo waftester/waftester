@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"text/template"
 	"time"
@@ -507,18 +508,7 @@ func (e *Engine) executeHTTPRequest(ctx context.Context, req *HTTPRequest, targe
 
 	// Check if we have raw requests
 	if len(req.Raw) > 0 {
-		// Parse raw HTTP requests to extract paths
-		paths = nil
-		for _, raw := range req.Raw {
-			// Parse raw request for path
-			lines := strings.Split(raw, "\n")
-			if len(lines) > 0 {
-				parts := strings.Fields(lines[0])
-				if len(parts) >= 2 {
-					paths = append(paths, parts[1])
-				}
-			}
-		}
+		return e.executeRawRequests(ctx, req, target, vars)
 	}
 
 	condition := req.MatchersCondition
@@ -527,6 +517,7 @@ func (e *Engine) executeHTTPRequest(ctx context.Context, req *HTTPRequest, targe
 	}
 
 	anyMatched := false
+	var lastErr error
 
 	for _, path := range paths {
 		// Expand variables in path
@@ -537,6 +528,7 @@ func (e *Engine) executeHTTPRequest(ctx context.Context, req *HTTPRequest, targe
 		body := expandVariables(req.Body, vars)
 		httpReq, err := http.NewRequestWithContext(ctx, method, fullURL, strings.NewReader(body))
 		if err != nil {
+			lastErr = err
 			continue
 		}
 
@@ -553,12 +545,14 @@ func (e *Engine) executeHTTPRequest(ctx context.Context, req *HTTPRequest, targe
 		// Execute request
 		resp, err := e.HTTPClient.Do(httpReq)
 		if err != nil {
+			lastErr = err
 			continue
 		}
 
 		respBody, err := iohelper.ReadBody(resp.Body, 10*1024*1024) // 10MB limit
 		iohelper.DrainAndClose(resp.Body)
 		if err != nil {
+			lastErr = err
 			continue
 		}
 
@@ -587,7 +581,7 @@ func (e *Engine) executeHTTPRequest(ctx context.Context, req *HTTPRequest, targe
 		}
 	}
 
-	return anyMatched, extracted, nil
+	return anyMatched, extracted, lastErr
 }
 
 // ResponseData holds response information for matching
@@ -596,6 +590,135 @@ type ResponseData struct {
 	Headers    http.Header
 	Body       []byte
 	URL        string
+}
+
+// executeRawRequests handles templates with raw HTTP request strings.
+// Parses method, path, headers, and body from each raw request.
+func (e *Engine) executeRawRequests(ctx context.Context, req *HTTPRequest, target string, vars map[string]string) (bool, map[string][]string, error) {
+	extracted := make(map[string][]string)
+	condition := req.MatchersCondition
+	if condition == "" {
+		condition = "or"
+	}
+
+	anyMatched := false
+	var lastErr error
+
+	for _, raw := range req.Raw {
+		expandedRaw := expandVariables(raw, vars)
+		rawMethod, rawPath, rawHeaders, rawBody := parseRawRequest(expandedRaw)
+
+		fullURL := strings.TrimSuffix(target, "/") + rawPath
+
+		httpReq, err := http.NewRequestWithContext(ctx, rawMethod, fullURL, strings.NewReader(rawBody))
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		for k, v := range rawHeaders {
+			httpReq.Header.Set(k, v)
+		}
+		if httpReq.Header.Get("User-Agent") == "" {
+			httpReq.Header.Set("User-Agent", ui.UserAgent())
+		}
+
+		resp, err := e.HTTPClient.Do(httpReq)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		respBody, err := iohelper.ReadBody(resp.Body, 10*1024*1024)
+		iohelper.DrainAndClose(resp.Body)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		respData := &ResponseData{
+			StatusCode: resp.StatusCode,
+			Headers:    resp.Header,
+			Body:       respBody,
+			URL:        fullURL,
+		}
+
+		matched := evaluateMatchers(req.Matchers, condition, respData)
+		if matched {
+			anyMatched = true
+		}
+
+		for _, extractor := range req.Extractors {
+			values := runExtractor(&extractor, respData)
+			name := extractor.Name
+			if name == "" {
+				name = "extracted"
+			}
+			extracted[name] = append(extracted[name], values...)
+		}
+	}
+
+	return anyMatched, extracted, lastErr
+}
+
+// parseRawRequest extracts method, path, headers, and body from a raw HTTP request string.
+func parseRawRequest(raw string) (method, path string, headers map[string]string, body string) {
+	headers = make(map[string]string)
+	method = "GET"
+	path = "/"
+
+	// Normalize line endings
+	raw = strings.ReplaceAll(raw, "\r\n", "\n")
+	parts := strings.SplitN(raw, "\n\n", 2)
+
+	headerSection := parts[0]
+	if len(parts) == 2 {
+		body = parts[1]
+	}
+
+	lines := strings.Split(headerSection, "\n")
+	if len(lines) == 0 {
+		return
+	}
+
+	// Parse request line: METHOD /path HTTP/1.1
+	requestLine := strings.Fields(lines[0])
+	if len(requestLine) >= 2 {
+		method = requestLine[0]
+		path = requestLine[1]
+	}
+
+	// Parse headers
+	for _, line := range lines[1:] {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		idx := strings.IndexByte(line, ':')
+		if idx <= 0 {
+			continue
+		}
+		headers[strings.TrimSpace(line[:idx])] = strings.TrimSpace(line[idx+1:])
+	}
+
+	return
+}
+
+// buildHeaderString produces a deterministic string from HTTP headers by sorting keys.
+func buildHeaderString(headers http.Header) string {
+	if len(headers) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(headers))
+	for k := range headers {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var buf bytes.Buffer
+	for _, k := range keys {
+		buf.WriteString(fmt.Sprintf("%s: %s\n", k, strings.Join(headers[k], ", ")))
+	}
+	return buf.String()
 }
 
 func evaluateMatchers(matchers []Matcher, condition string, resp *ResponseData) bool {
@@ -631,18 +754,12 @@ func evaluateMatcher(m *Matcher, resp *ResponseData) bool {
 	var content string
 	switch strings.ToLower(m.Part) {
 	case "header":
-		var buf bytes.Buffer
-		for k, v := range resp.Headers {
-			buf.WriteString(fmt.Sprintf("%s: %s\n", k, strings.Join(v, ", ")))
-		}
-		content = buf.String()
+		content = buildHeaderString(resp.Headers)
 	case "body":
 		content = string(resp.Body)
 	default: // "all" or empty
 		var buf bytes.Buffer
-		for k, v := range resp.Headers {
-			buf.WriteString(fmt.Sprintf("%s: %s\n", k, strings.Join(v, ", ")))
-		}
+		buf.WriteString(buildHeaderString(resp.Headers))
 		buf.Write(resp.Body)
 		content = buf.String()
 	}
@@ -850,11 +967,7 @@ func evaluateDSLContains(expr string, resp *ResponseData) bool {
 	var content string
 	switch part {
 	case "header":
-		var buf bytes.Buffer
-		for k, v := range resp.Headers {
-			buf.WriteString(fmt.Sprintf("%s: %s\n", k, strings.Join(v, ", ")))
-		}
-		content = buf.String()
+		content = buildHeaderString(resp.Headers)
 	default:
 		content = string(resp.Body)
 	}
@@ -866,11 +979,7 @@ func runExtractor(e *Extractor, resp *ResponseData) []string {
 	var content string
 	switch strings.ToLower(e.Part) {
 	case "header":
-		var buf bytes.Buffer
-		for k, v := range resp.Headers {
-			buf.WriteString(fmt.Sprintf("%s: %s\n", k, strings.Join(v, ", ")))
-		}
-		content = buf.String()
+		content = buildHeaderString(resp.Headers)
 	case "body":
 		content = string(resp.Body)
 	default:

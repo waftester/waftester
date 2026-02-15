@@ -12,15 +12,16 @@ import (
 
 // NetworkRequest represents a TCP/UDP network request in a template.
 type NetworkRequest struct {
-	ID         string         `yaml:"id,omitempty"`
-	Host       string         `yaml:"host"`                // host:port (supports {{variables}})
-	Type       string         `yaml:"type,omitempty"`      // tcp (default) or udp
-	Inputs     []NetworkInput `yaml:"inputs,omitempty"`    // Data to send
-	ReadSize   int            `yaml:"read-size,omitempty"` // Bytes to read (default 4096)
-	ReadAll    bool           `yaml:"read-all,omitempty"`  // Read until EOF
-	Timeout    string         `yaml:"timeout,omitempty"`   // Connection timeout
-	Matchers   []Matcher      `yaml:"matchers,omitempty"`
-	Extractors []Extractor    `yaml:"extractors,omitempty"`
+	ID                string         `yaml:"id,omitempty"`
+	Host              string         `yaml:"host"`                         // host:port (supports {{variables}})
+	Type              string         `yaml:"type,omitempty"`               // tcp (default) or udp
+	Inputs            []NetworkInput `yaml:"inputs,omitempty"`             // Data to send
+	ReadSize          int            `yaml:"read-size,omitempty"`          // Bytes to read (default 4096)
+	ReadAll           bool           `yaml:"read-all,omitempty"`           // Read until EOF
+	Timeout           string         `yaml:"timeout,omitempty"`            // Connection timeout
+	MatchersCondition string         `yaml:"matchers-condition,omitempty"` // "and" or "or" (default: "or")
+	Matchers          []Matcher      `yaml:"matchers,omitempty"`
+	Extractors        []Extractor    `yaml:"extractors,omitempty"`
 }
 
 // NetworkInput represents data to send over a network connection.
@@ -122,8 +123,8 @@ func (e *Engine) executeNetworkRequest(ctx context.Context, req *NetworkRequest,
 	}
 
 	condition := "or"
-	if len(req.Matchers) > 0 && req.Matchers[0].Condition != "" {
-		condition = req.Matchers[0].Condition
+	if req.MatchersCondition != "" {
+		condition = req.MatchersCondition
 	}
 
 	matched := evaluateMatchers(req.Matchers, condition, respData)

@@ -10,14 +10,15 @@ import (
 
 // DNSRequest represents a DNS query in a template.
 type DNSRequest struct {
-	ID         string      `yaml:"id,omitempty"`
-	Name       string      `yaml:"name"`               // Domain to query (supports {{variables}})
-	Type       string      `yaml:"type"`               // A, AAAA, CNAME, MX, NS, TXT, PTR
-	Class      string      `yaml:"class,omitempty"`    // Parsed but unused — stdlib resolver uses IN only
-	Resolver   string      `yaml:"resolver,omitempty"` // Custom DNS resolver address
-	Recursion  bool        `yaml:"recursion"`          // Parsed but unused — stdlib resolver handles recursion
-	Matchers   []Matcher   `yaml:"matchers,omitempty"`
-	Extractors []Extractor `yaml:"extractors,omitempty"`
+	ID                string      `yaml:"id,omitempty"`
+	Name              string      `yaml:"name"`                        // Domain to query (supports {{variables}})
+	Type              string      `yaml:"type"`                        // A, AAAA, CNAME, MX, NS, TXT, PTR
+	Class             string      `yaml:"class,omitempty"`             // Parsed but unused — stdlib resolver uses IN only
+	Resolver          string      `yaml:"resolver,omitempty"`          // Custom DNS resolver address
+	Recursion         bool        `yaml:"recursion"`                   // Parsed but unused — stdlib resolver handles recursion
+	MatchersCondition string      `yaml:"matchers-condition,omitempty"` // "and" or "or" (default: "or")
+	Matchers          []Matcher   `yaml:"matchers,omitempty"`
+	Extractors        []Extractor `yaml:"extractors,omitempty"`
 }
 
 // executeDNSRequest runs a DNS query and evaluates matchers/extractors.
@@ -117,8 +118,8 @@ func (e *Engine) executeDNSRequest(ctx context.Context, req *DNSRequest, vars ma
 	}
 
 	condition := "or"
-	if len(req.Matchers) > 0 && req.Matchers[0].Condition != "" {
-		condition = req.Matchers[0].Condition
+	if req.MatchersCondition != "" {
+		condition = req.MatchersCondition
 	}
 
 	matched := evaluateMatchers(req.Matchers, condition, respData)
