@@ -13,18 +13,14 @@ permissions:
   contents: read
   packages: write
 
-# Concurrency: cancel stale branch builds, but serialize tag releases
-# to prevent races on floating tags (latest, 2, 2.9).
-# Tag pushes share a single group so they queue instead of racing.
-# NOTE: workflow_run.head_branch is the branch/tag NAME (e.g. "v2.9.0"),
-# not the full ref (e.g. "refs/tags/v2.9.0").
+# Concurrency: group by commit SHA so tag-push and main-push Docker builds
+# for the same release commit serialize instead of racing on GHCR writes.
+# PRs get their own group per PR number and cancel stale builds.
 concurrency:
   group: >-
-    ${{
-      (github.event.workflow_run.head_branch != '' &&
-       startsWith(github.event.workflow_run.head_branch, 'v'))
-      && 'docker-release'
-      || format('docker-{0}', github.event.workflow_run.head_sha || github.sha)
+    ${{ github.event_name == 'pull_request'
+        && format('docker-pr-{0}', github.event.pull_request.number)
+        || format('docker-{0}', github.event.workflow_run.head_sha || github.sha)
     }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
