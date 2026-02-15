@@ -22,8 +22,8 @@ type ScriptTamper struct {
 }
 
 // safeModules are the only Tengo stdlib modules available to scripts.
-// No file I/O, no network, no OS access.
-var safeModules = stdlib.GetModuleMap("text", "fmt", "math", "times", "rand")
+// No file I/O, no network, no OS access, no insecure randomness.
+var safeModules = stdlib.GetModuleMap("text", "fmt", "math", "times")
 
 // LoadScriptTamper compiles a .tengo file and extracts metadata.
 // The script must define: name (string), description (string), transform (function).

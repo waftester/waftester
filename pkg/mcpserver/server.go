@@ -280,8 +280,9 @@ func (lw *loggingResponseWriter) Flush() {
 	}
 }
 
-// corsMiddleware wraps an http.Handler with permissive CORS headers required
-// by browser-based MCP clients (n8n, web UIs) and cross-origin integrations.
+// corsMiddleware wraps an http.Handler with CORS headers required
+// by the MCP Streamable HTTP transport.
+// Only localhost origins are allowed by default to prevent cross-site attacks.
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
@@ -293,6 +294,12 @@ func corsMiddleware(next http.Handler) http.Handler {
 		if origin == "" {
 			// No Origin header = non-browser client; skip CORS headers entirely.
 			// Setting "*" with Allow-Credentials violates the Fetch specification.
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Only allow localhost origins to prevent cross-site attacks.
+		if !isLocalhostOrigin(origin) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -319,6 +326,16 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// isLocalhostOrigin checks if the origin is a localhost URL.
+func isLocalhostOrigin(origin string) bool {
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	return host == "localhost" || host == "127.0.0.1" || host == "::1" || host == "[::1]"
 }
 
 // sseKeepAlive wraps an SSE handler to send periodic keep-alive comments.
@@ -543,7 +560,7 @@ func parseArgs(req *mcp.CallToolRequest, dst any) error {
 }
 
 // validateTargetURL checks that target is a valid URL with http(s) scheme.
-// Returns a clear error message if the URL is malformed or missing a scheme.
+// Blocks cloud metadata endpoints to prevent SSRF when running in cloud environments.
 func validateTargetURL(target string) error {
 	if target == "" {
 		return fmt.Errorf("target URL is required (e.g. https://example.com)")
@@ -558,7 +575,25 @@ func validateTargetURL(target string) error {
 	if u.Host == "" {
 		return fmt.Errorf("target URL is missing a host (got %q)", target)
 	}
+
+	// Block cloud metadata endpoints to prevent SSRF credential exfiltration
+	host := u.Hostname()
+	if isCloudMetadataHost(host) {
+		return fmt.Errorf("target URL %q points to a cloud metadata endpoint (SSRF protection)", target)
+	}
+
 	return nil
+}
+
+// isCloudMetadataHost returns true if the host is a known cloud metadata endpoint.
+func isCloudMetadataHost(host string) bool {
+	switch host {
+	case "169.254.169.254",    // AWS, GCP, Azure IMDS
+		"metadata.google.internal", // GCP alternate
+		"100.100.100.200":          // Alibaba Cloud
+		return true
+	}
+	return false
 }
 
 // ---------------------------------------------------------------------------
