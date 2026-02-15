@@ -689,13 +689,13 @@ func buildAssessResponse(m *metrics.EnterpriseMetrics, target string) *assessRes
 
 	// Build interpretation based on grade — direct field access, no JSON round-trip.
 	switch {
-	case m.Grade == "A+" || m.Grade == "A":
+	case strings.HasPrefix(m.Grade, "A"):
 		resp.Interpretation = fmt.Sprintf("Excellent WAF performance (Grade %s). The WAF demonstrates strong detection across tested categories with a well-balanced precision-recall tradeoff. F1=%.3f indicates minimal false negatives. FPR=%.1f%% means legitimate traffic is rarely blocked.",
 			m.Grade, m.F1Score, m.FalsePositiveRate*100)
-	case m.Grade == "B":
+	case strings.HasPrefix(m.Grade, "B"):
 		resp.Interpretation = fmt.Sprintf("Good WAF performance (Grade %s) with room for improvement. Some attack categories may have gaps. Review per-category scores to identify weak areas. F1=%.3f, FPR=%.1f%%.",
 			m.Grade, m.F1Score, m.FalsePositiveRate*100)
-	case m.Grade == "C":
+	case strings.HasPrefix(m.Grade, "C"):
 		resp.Interpretation = fmt.Sprintf("Moderate WAF performance (Grade %s). Significant gaps in detection exist. Review bypassed payloads and consider rule tuning or switching to a more comprehensive ruleset (e.g., CRS 4.x for ModSecurity/Coraza).", m.Grade)
 	case m.Grade == "D" || m.Grade == "F":
 		resp.Interpretation = fmt.Sprintf("Poor WAF performance (Grade %s). The WAF is failing to block a majority of attacks. This indicates misconfiguration, disabled rules, or an inadequate ruleset. Immediate action required.", m.Grade)
@@ -705,7 +705,7 @@ func buildAssessResponse(m *metrics.EnterpriseMetrics, target string) *assessRes
 
 	// Build next steps based on grade
 	steps := make([]string, 0, 5)
-	if m.Grade == "D" || m.Grade == "F" || m.Grade == "C" {
+	if m.Grade == "D" || m.Grade == "F" || strings.HasPrefix(m.Grade, "C") {
 		steps = append(steps,
 			"PRIORITY: Review bypassed payloads in the per-category breakdown and add custom WAF rules for each bypass pattern.")
 		steps = append(steps,
