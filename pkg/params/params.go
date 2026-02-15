@@ -406,20 +406,30 @@ func (d *Discoverer) wordlistDiscovery(ctx context.Context, targetURL string, me
 	semaphore := make(chan struct{}, d.concurrency)
 
 	for _, method := range methods {
+		// Capture a method-specific baseline so POST isn't compared against GET.
+		methodBaseline := baseline
+		if method != methods[0] {
+			mb, err := d.getBaseline(ctx, targetURL, method)
+			if err != nil {
+				continue
+			}
+			methodBaseline = mb
+		}
+
 		for _, chunk := range chunks {
 			wg.Add(1)
-			go func(m string, c []string) {
+			go func(m string, c []string, bl *baselineResponse) {
 				defer wg.Done()
 				semaphore <- struct{}{}
 				defer func() { <-semaphore }()
 
-				found := d.testParamChunk(ctx, targetURL, m, c, baseline)
+				found := d.testParamChunk(ctx, targetURL, m, c, bl)
 				if len(found) > 0 {
 					mu.Lock()
 					params = append(params, found...)
 					mu.Unlock()
 				}
-			}(method, chunk)
+			}(method, chunk, methodBaseline)
 		}
 	}
 
