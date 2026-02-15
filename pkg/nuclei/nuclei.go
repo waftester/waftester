@@ -28,6 +28,9 @@ type Template struct {
 	// HTTP requests
 	HTTP []HTTPRequest `yaml:"http,omitempty"`
 
+	// Flow control DSL for conditional execution between blocks
+	Flow string `yaml:"flow,omitempty"`
+
 	// Variables
 	Variables map[string]string `yaml:"variables,omitempty"`
 }
@@ -59,6 +62,9 @@ type Classification struct {
 
 // HTTPRequest represents an HTTP request in a template
 type HTTPRequest struct {
+	// Block identifier for flow control
+	ID string `yaml:"id,omitempty"`
+
 	// Request method
 	Method string `yaml:"method,omitempty"`
 
@@ -160,17 +166,26 @@ type Extractor struct {
 	Internal bool `yaml:"internal,omitempty"`
 }
 
+// BlockResult holds the outcome of executing a single template block.
+type BlockResult struct {
+	ID            string              `json:"id"`
+	Matched       bool                `json:"matched"`
+	StatusCode    int                 `json:"status_code,omitempty"`
+	ExtractedData map[string][]string `json:"extracted_data,omitempty"`
+}
+
 // Result represents a template execution result
 type Result struct {
-	TemplateID    string              `json:"template_id"`
-	TemplateName  string              `json:"template_name"`
-	Severity      string              `json:"severity"`
-	Matched       bool                `json:"matched"`
-	MatchedAt     string              `json:"matched_at,omitempty"`
-	ExtractedData map[string][]string `json:"extracted,omitempty"`
-	Error         string              `json:"error,omitempty"`
-	Timestamp     time.Time           `json:"timestamp"`
-	Duration      time.Duration       `json:"duration"`
+	TemplateID    string                  `json:"template_id"`
+	TemplateName  string                  `json:"template_name"`
+	Severity      string                  `json:"severity"`
+	Matched       bool                    `json:"matched"`
+	MatchedAt     string                  `json:"matched_at,omitempty"`
+	ExtractedData map[string][]string     `json:"extracted,omitempty"`
+	BlockResults  map[string]*BlockResult `json:"block_results,omitempty"`
+	Error         string                  `json:"error,omitempty"`
+	Timestamp     time.Time               `json:"timestamp"`
+	Duration      time.Duration           `json:"duration"`
 }
 
 // Engine executes Nuclei templates
@@ -221,30 +236,31 @@ func ParseTemplate(data []byte) (*Template, error) {
 	return &tmpl, nil
 }
 
-// Execute runs a template against a target
+// Execute runs a template against a target. If the template has a Flow field,
+// it uses flow-controlled execution with conditionals; otherwise it runs blocks
+// sequentially with variable chaining between them.
 func (e *Engine) Execute(ctx context.Context, tmpl *Template, target string) (*Result, error) {
+	if tmpl.Flow != "" {
+		return e.executeFlow(ctx, tmpl, target)
+	}
+	return e.executeSequential(ctx, tmpl, target)
+}
+
+// executeSequential runs HTTP blocks in order, chaining extracted variables.
+func (e *Engine) executeSequential(ctx context.Context, tmpl *Template, target string) (*Result, error) {
 	start := time.Now()
 	result := &Result{
 		TemplateID:    tmpl.ID,
 		TemplateName:  tmpl.Info.Name,
 		Severity:      tmpl.Info.Severity,
 		ExtractedData: make(map[string][]string),
+		BlockResults:  make(map[string]*BlockResult),
 		Timestamp:     start,
 	}
 
-	// Merge template variables
-	vars := make(map[string]string)
-	for k, v := range e.Variables {
-		vars[k] = v
-	}
-	for k, v := range tmpl.Variables {
-		vars[k] = v
-	}
-	vars["BaseURL"] = target
-	vars["Hostname"] = extractHostname(target)
+	vars := e.mergeVars(tmpl, target)
 
-	// Execute HTTP requests
-	for _, req := range tmpl.HTTP {
+	for i, req := range tmpl.HTTP {
 		matched, extracted, err := e.executeHTTPRequest(ctx, &req, target, vars)
 		if err != nil {
 			result.Error = err.Error()
@@ -258,6 +274,21 @@ func (e *Engine) Execute(ctx context.Context, tmpl *Template, target string) (*R
 
 		for k, v := range extracted {
 			result.ExtractedData[k] = append(result.ExtractedData[k], v...)
+			// Chain extracted values into vars for subsequent requests
+			if len(v) > 0 {
+				vars[k] = v[0]
+			}
+		}
+
+		// Track per-block results
+		blockID := req.ID
+		if blockID == "" {
+			blockID = fmt.Sprintf("request-%d", i)
+		}
+		result.BlockResults[blockID] = &BlockResult{
+			ID:            blockID,
+			Matched:       matched,
+			ExtractedData: extracted,
 		}
 
 		if matched && req.StopAtFirstMatch {
@@ -267,6 +298,106 @@ func (e *Engine) Execute(ctx context.Context, tmpl *Template, target string) (*R
 
 	result.Duration = time.Since(start)
 	return result, nil
+}
+
+// executeFlow runs template blocks according to a flow DSL with conditionals.
+func (e *Engine) executeFlow(ctx context.Context, tmpl *Template, target string) (*Result, error) {
+	flow, err := ParseFlow(tmpl.Flow)
+	if err != nil {
+		return nil, fmt.Errorf("parse flow: %w", err)
+	}
+
+	// Index HTTP blocks by ID
+	blocks := make(map[string]*HTTPRequest, len(tmpl.HTTP))
+	for i := range tmpl.HTTP {
+		id := tmpl.HTTP[i].ID
+		if id == "" {
+			id = fmt.Sprintf("request-%d", i)
+		}
+		blocks[id] = &tmpl.HTTP[i]
+	}
+
+	start := time.Now()
+	vars := e.mergeVars(tmpl, target)
+
+	result := &Result{
+		TemplateID:    tmpl.ID,
+		TemplateName:  tmpl.Info.Name,
+		Severity:      tmpl.Info.Severity,
+		ExtractedData: make(map[string][]string),
+		BlockResults:  make(map[string]*BlockResult),
+		Timestamp:     start,
+	}
+
+	for _, step := range flow.Steps {
+		select {
+		case <-ctx.Done():
+			result.Duration = time.Since(start)
+			return result, ctx.Err()
+		default:
+		}
+
+		blockID := step.BlockID
+
+		// Evaluate condition if present
+		if step.Condition != nil {
+			if !EvaluateCondition(step.Condition, vars, result.BlockResults) {
+				if step.ElseBlock != "" {
+					blockID = step.ElseBlock
+				} else {
+					continue
+				}
+			}
+		}
+
+		block, ok := blocks[blockID]
+		if !ok {
+			result.Error = fmt.Sprintf("flow references unknown block %q", blockID)
+			continue
+		}
+
+		matched, extracted, err := e.executeHTTPRequest(ctx, block, target, vars)
+		if err != nil {
+			result.Error = err.Error()
+			continue
+		}
+
+		br := &BlockResult{
+			ID:            blockID,
+			Matched:       matched,
+			ExtractedData: extracted,
+		}
+		result.BlockResults[blockID] = br
+
+		for k, v := range extracted {
+			result.ExtractedData[k] = append(result.ExtractedData[k], v...)
+			if len(v) > 0 {
+				vars[k] = v[0]
+			}
+		}
+
+		if matched {
+			result.Matched = true
+			result.MatchedAt = target
+		}
+	}
+
+	result.Duration = time.Since(start)
+	return result, nil
+}
+
+// mergeVars creates a variable map from engine defaults, template variables, and target.
+func (e *Engine) mergeVars(tmpl *Template, target string) map[string]string {
+	vars := make(map[string]string)
+	for k, v := range e.Variables {
+		vars[k] = v
+	}
+	for k, v := range tmpl.Variables {
+		vars[k] = v
+	}
+	vars["BaseURL"] = target
+	vars["Hostname"] = extractHostname(target)
+	return vars
 }
 
 func (e *Engine) executeHTTPRequest(ctx context.Context, req *HTTPRequest, target string, vars map[string]string) (bool, map[string][]string, error) {
