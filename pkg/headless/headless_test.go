@@ -415,7 +415,10 @@ func TestFormToJSON(t *testing.T) {
 		"value": "123",
 	}
 
-	jsonStr := FormToJSON(data)
+	jsonStr, err := FormToJSON(data)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if jsonStr == "" {
 		t.Error("expected non-empty JSON")

@@ -123,6 +123,9 @@ func (cfg *BypassDiscoveryConfig) defaults() {
 //  5. Test pairwise combinations of top successful tampers
 //  6. Return ranked results
 func DiscoverBypasses(ctx context.Context, cfg BypassDiscoveryConfig) (*BypassDiscoveryResult, error) {
+	if cfg.TargetURL == "" {
+		return nil, fmt.Errorf("target URL is required")
+	}
 	cfg.defaults()
 
 	start := time.Now()
