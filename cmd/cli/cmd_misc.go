@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chromedp/chromedp"
 	"github.com/waftester/waftester/pkg/headless"
 	"github.com/waftester/waftester/pkg/race"
 	"github.com/waftester/waftester/pkg/smuggling"
@@ -697,6 +698,11 @@ func runHeadless() {
 	verbose := fs.Bool("v", false, "Verbose output")
 	streamMode := fs.Bool("stream", false, "Streaming output mode for CI/scripts")
 
+	// Event crawl options
+	eventCrawl := fs.Bool("event-crawl", false, "Run DOM event crawling to discover hidden endpoints")
+	maxClicks := fs.Int("max-clicks", 50, "Maximum elements to click during event crawl")
+	clickTimeout := fs.Int("click-timeout", 5, "Timeout per click in seconds")
+
 	// Enterprise hook flags (Slack, Teams, PagerDuty, OTEL, etc.)
 	headlessSlack := fs.String("slack-webhook", "", "Slack webhook URL for notifications")
 	headlessTeams := fs.String("teams-webhook", "", "Teams webhook URL for notifications")
@@ -898,6 +904,68 @@ func runHeadless() {
 		progress.Stop()
 	}
 
+	// Event crawl: use chromedp to click interactive elements and discover hidden endpoints
+	var eventCrawlResults []headless.EventCrawlResult
+	if *eventCrawl && len(targets) > 0 {
+		ui.PrintSection("DOM Event Crawling")
+
+		eventConfig := headless.DefaultEventCrawlConfig()
+		eventConfig.MaxClicks = *maxClicks
+		eventConfig.ClickTimeout = time.Duration(*clickTimeout) * time.Second
+
+		// Create a chromedp context for event crawling
+		allocOpts := append(chromedp.DefaultExecAllocatorOptions[:],
+			chromedp.Flag("headless", *headlessMode),
+			chromedp.Flag("disable-gpu", true),
+			chromedp.Flag("no-sandbox", true),
+		)
+		if *chromePath != "" {
+			allocOpts = append(allocOpts, chromedp.ExecPath(*chromePath))
+		}
+
+		allocCtx, allocCancel := chromedp.NewExecAllocator(ctx, allocOpts...)
+		defer allocCancel()
+
+		browserCtx, browserCancel := chromedp.NewContext(allocCtx)
+		defer browserCancel()
+
+		for _, target := range targets {
+			ui.PrintInfo(fmt.Sprintf("Event crawling: %s", target))
+
+			results, err := headless.EventCrawl(browserCtx, target, eventConfig)
+			if err != nil {
+				ui.PrintWarning(fmt.Sprintf("Event crawl failed for %s: %v", target, err))
+				continue
+			}
+
+			eventCrawlResults = append(eventCrawlResults, results...)
+
+			// Collect discovered URLs
+			discoveredURLs := headless.CollectDiscoveredURLs(results, target, true)
+			if len(discoveredURLs) > 0 {
+				ui.PrintSuccess(fmt.Sprintf("Discovered %d hidden endpoints via DOM events", len(discoveredURLs)))
+				if *verbose {
+					for i, u := range discoveredURLs {
+						if i >= 10 {
+							fmt.Printf("    ... and %d more\n", len(discoveredURLs)-10)
+							break
+						}
+						fmt.Printf("    - %s\n", u)
+					}
+				}
+			}
+
+			// Count XHR/API calls found
+			xhrCount := 0
+			for _, r := range results {
+				xhrCount += len(r.XHRRequests)
+			}
+			if xhrCount > 0 {
+				ui.PrintInfo(fmt.Sprintf("Captured %d XHR/API requests", xhrCount))
+			}
+		}
+	}
+
 	// Summary
 	ui.PrintSection("Summary")
 	fmt.Printf("  Pages visited: %d\n", len(allResults))
@@ -906,6 +974,17 @@ func runHeadless() {
 		totalURLs += len(r.FoundURLs)
 	}
 	fmt.Printf("  URLs extracted: %d\n", totalURLs)
+	if len(eventCrawlResults) > 0 {
+		eventURLs := 0
+		eventXHR := 0
+		for _, r := range eventCrawlResults {
+			eventURLs += len(r.DiscoveredURLs)
+			eventXHR += len(r.XHRRequests)
+		}
+		fmt.Printf("  Event crawl clicks: %d\n", len(eventCrawlResults))
+		fmt.Printf("  Event crawl URLs: %d\n", eventURLs)
+		fmt.Printf("  Event crawl XHR: %d\n", eventXHR)
+	}
 
 	// Output
 	if *jsonOutput {
