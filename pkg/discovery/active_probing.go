@@ -310,6 +310,114 @@ func (ad *ActiveDiscoverer) probeSinglePath(ctx context.Context, path string) {
 		ad.results = append(ad.results, ep)
 		ad.mu.Unlock()
 	}
+
+	// Content-type probing: many API endpoints return 404 for GET but accept POST with JSON/form/XML.
+	// Try alternate methods+content-types before giving up on this path.
+	if resp.StatusCode == 404 || resp.StatusCode == 405 {
+		ad.probeContentTypes(ctx, path)
+		ad.probeOptions(ctx, path)
+	}
+}
+
+// contentTypeProbe defines a POST probe with a specific content type.
+type contentTypeProbe struct {
+	contentType string
+	body        string
+}
+
+// defaultContentTypeProbes returns the standard content-type probes for API discovery.
+func defaultContentTypeProbes() []contentTypeProbe {
+	return []contentTypeProbe{
+		{"application/json", "{}"},
+		{"application/x-www-form-urlencoded", "test=1"},
+		{"application/xml", "<root/>"},
+	}
+}
+
+// probeContentTypes tries POST with common content types on paths that returned 404/405 for GET.
+// Many API endpoints only accept specific methods/content types.
+func (ad *ActiveDiscoverer) probeContentTypes(ctx context.Context, path string) {
+	fullURL := ad.target + path
+
+	for _, probe := range defaultContentTypeProbes() {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		req, err := http.NewRequestWithContext(ctx, "POST", fullURL, strings.NewReader(probe.body))
+		if err != nil {
+			continue
+		}
+		req.Header.Set("Content-Type", probe.contentType)
+		req.Header.Set("User-Agent", ad.userAgent)
+
+		resp, err := ad.client.Do(req)
+		if err != nil {
+			continue
+		}
+		iohelper.DrainAndClose(resp.Body)
+
+		// Non-404/405 means this endpoint exists for POST with this content type
+		if resp.StatusCode != 404 && resp.StatusCode != 405 {
+			ad.found.Store(path, true)
+			ep := Endpoint{
+				Path:        path,
+				Method:      "POST",
+				StatusCode:  resp.StatusCode,
+				ContentType: probe.contentType,
+				Category:    categorizeByStatus(path, resp.StatusCode),
+			}
+			ad.mu.Lock()
+			ad.results = append(ad.results, ep)
+			ad.mu.Unlock()
+			return // Found a working content type, stop probing
+		}
+	}
+}
+
+// probeOptions sends an OPTIONS request to discover allowed methods via the Allow header.
+func (ad *ActiveDiscoverer) probeOptions(ctx context.Context, path string) {
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
+
+	fullURL := ad.target + path
+	req, err := http.NewRequestWithContext(ctx, "OPTIONS", fullURL, nil)
+	if err != nil {
+		return
+	}
+	req.Header.Set("User-Agent", ad.userAgent)
+
+	resp, err := ad.client.Do(req)
+	if err != nil {
+		return
+	}
+	iohelper.DrainAndClose(resp.Body)
+
+	allow := resp.Header.Get("Allow")
+	if allow == "" {
+		return
+	}
+
+	for _, method := range strings.Split(allow, ",") {
+		method = strings.TrimSpace(method)
+		if method == "" || method == "GET" || method == "OPTIONS" || method == "HEAD" {
+			continue
+		}
+		ad.found.Store(path, true)
+		ep := Endpoint{
+			Path:     path,
+			Method:   method,
+			Category: categorizeByStatus(path, 200),
+		}
+		ad.mu.Lock()
+		ad.results = append(ad.results, ep)
+		ad.mu.Unlock()
+	}
 }
 
 // enumerateMethods tests HTTP methods on endpoints (legacy wrapper)
