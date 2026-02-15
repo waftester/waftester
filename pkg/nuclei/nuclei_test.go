@@ -7,6 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseTemplate_Basic(t *testing.T) {
@@ -758,4 +761,244 @@ func TestDSLContains(t *testing.T) {
 			t.Errorf("evaluateDSLContains(%q) = %v, want %v", tc.expr, got, tc.expect)
 		}
 	}
+}
+
+func TestEngine_VariableChaining(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/token":
+			w.Write([]byte(`{"access_token":"secret-xyz-123"}`))
+		case "/protected":
+			if r.Header.Get("Authorization") == "Bearer secret-xyz-123" {
+				w.WriteHeader(200)
+				w.Write([]byte("admin_panel"))
+			} else {
+				w.WriteHeader(401)
+			}
+		}
+	}))
+	defer srv.Close()
+
+	tmplData := `
+id: chain-test
+info:
+  name: Variable chain test
+  severity: high
+http:
+  - id: get_token
+    method: GET
+    path: ["/token"]
+    extractors:
+      - type: regex
+        name: token
+        regex: ['"access_token":"([^"]+)"']
+        group: 1
+  - id: use_token
+    method: GET
+    path: ["/protected"]
+    headers:
+      Authorization: "Bearer {{token}}"
+    matchers:
+      - type: word
+        words: ["admin_panel"]
+`
+
+	tmpl, err := ParseTemplate([]byte(tmplData))
+	require.NoError(t, err)
+
+	engine := NewEngine()
+	result, err := engine.Execute(context.Background(), tmpl, srv.URL)
+	require.NoError(t, err)
+
+	assert.True(t, result.Matched)
+	assert.Contains(t, result.ExtractedData["token"], "secret-xyz-123")
+	assert.True(t, result.BlockResults["use_token"].Matched)
+}
+
+func TestEngine_FlowExecution(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/whoami":
+			w.Write([]byte(`{"role":"admin"}`))
+		case "/admin":
+			w.Write([]byte("admin_dashboard"))
+		case "/user":
+			w.Write([]byte("user_dashboard"))
+		}
+	}))
+	defer srv.Close()
+
+	tmplData := `
+id: flow-test
+info:
+  name: Flow Test
+  severity: medium
+flow: check → if ($role == "admin") admin else user
+
+http:
+  - id: check
+    method: GET
+    path: ["/whoami"]
+    extractors:
+      - type: regex
+        name: role
+        regex: ['"role":"([^"]+)"']
+        group: 1
+  - id: admin
+    method: GET
+    path: ["/admin"]
+    matchers:
+      - type: word
+        words: ["admin_dashboard"]
+  - id: user
+    method: GET
+    path: ["/user"]
+    matchers:
+      - type: word
+        words: ["user_dashboard"]
+`
+	tmpl, err := ParseTemplate([]byte(tmplData))
+	require.NoError(t, err)
+
+	engine := NewEngine()
+	result, err := engine.Execute(context.Background(), tmpl, srv.URL)
+	require.NoError(t, err)
+
+	// "admin" block should have executed and matched
+	require.NotNil(t, result.BlockResults["admin"])
+	assert.True(t, result.BlockResults["admin"].Matched)
+
+	// "user" block should NOT have executed (condition chose admin path)
+	_, userRan := result.BlockResults["user"]
+	assert.False(t, userRan)
+
+	assert.True(t, result.Matched)
+}
+
+func TestEngine_FlowExecution_MatcherCondition(t *testing.T) {
+	callCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/probe":
+			w.Write([]byte("vulnerable_endpoint"))
+		case "/exploit":
+			callCount++
+			w.Write([]byte("exploited"))
+		}
+	}))
+	defer srv.Close()
+
+	tmplData := `
+id: matcher-flow
+info:
+  name: Matcher Flow
+  severity: high
+flow: probe → if (probe.matched) exploit
+
+http:
+  - id: probe
+    method: GET
+    path: ["/probe"]
+    matchers:
+      - type: word
+        words: ["vulnerable"]
+  - id: exploit
+    method: GET
+    path: ["/exploit"]
+    matchers:
+      - type: word
+        words: ["exploited"]
+`
+	tmpl, err := ParseTemplate([]byte(tmplData))
+	require.NoError(t, err)
+
+	engine := NewEngine()
+	result, err := engine.Execute(context.Background(), tmpl, srv.URL)
+	require.NoError(t, err)
+
+	assert.True(t, result.Matched)
+	assert.Equal(t, 1, callCount, "exploit should have been called once")
+	assert.True(t, result.BlockResults["exploit"].Matched)
+}
+
+func TestEngine_FlowExecution_SkippedBlock(t *testing.T) {
+	exploitCalled := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/probe":
+			w.Write([]byte("not_vulnerable"))
+		case "/exploit":
+			exploitCalled = true
+			w.Write([]byte("exploited"))
+		}
+	}))
+	defer srv.Close()
+
+	tmplData := `
+id: skip-flow
+info:
+  name: Skip Flow
+  severity: low
+flow: probe → if (probe.matched) exploit
+
+http:
+  - id: probe
+    method: GET
+    path: ["/probe"]
+    matchers:
+      - type: word
+        words: ["VULNERABLE_MARKER"]
+  - id: exploit
+    method: GET
+    path: ["/exploit"]
+`
+	tmpl, err := ParseTemplate([]byte(tmplData))
+	require.NoError(t, err)
+
+	engine := NewEngine()
+	result, err := engine.Execute(context.Background(), tmpl, srv.URL)
+	require.NoError(t, err)
+
+	assert.False(t, exploitCalled, "exploit should not have been called")
+	assert.False(t, result.Matched)
+	_, exploitRan := result.BlockResults["exploit"]
+	assert.False(t, exploitRan)
+}
+
+func TestEngine_BlockResults_Sequential(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("ok"))
+	}))
+	defer srv.Close()
+
+	tmplData := `
+id: block-results
+info:
+  name: Block Results
+  severity: info
+http:
+  - id: first
+    method: GET
+    path: ["/"]
+    matchers:
+      - type: word
+        words: ["ok"]
+  - id: second
+    method: GET
+    path: ["/"]
+    matchers:
+      - type: word
+        words: ["missing"]
+`
+	tmpl, err := ParseTemplate([]byte(tmplData))
+	require.NoError(t, err)
+
+	engine := NewEngine()
+	result, err := engine.Execute(context.Background(), tmpl, srv.URL)
+	require.NoError(t, err)
+
+	require.NotNil(t, result.BlockResults["first"])
+	assert.True(t, result.BlockResults["first"].Matched)
+	require.NotNil(t, result.BlockResults["second"])
+	assert.False(t, result.BlockResults["second"].Matched)
 }
