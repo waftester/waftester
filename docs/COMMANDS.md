@@ -630,7 +630,7 @@ waftester mutate --payload "<script>alert(1)</script>" --encoders base64,url
 
 ### `fuzz`
 
-High-performance directory, file, and parameter fuzzer. Place the `FUZZ` keyword in the URL (or request body, headers) to mark the injection point. WAFtester substitutes each wordlist entry, sends the request, and applies matchermatchers/filters to identify interesting responses.
+High-performance directory, file, and parameter fuzzer. Place the `FUZZ` keyword in the URL (or request body, headers) to mark the injection point. WAFtester substitutes each wordlist entry, sends the request, and applies matchers/filters to identify interesting responses.
 
 Supports recursive directory discovery, file extension brute-forcing, multiple fuzzing modes (sniper, pitchfork, cluster bomb), and response extraction via regex or presets.
 
@@ -698,6 +698,8 @@ Select responses that match criteria. Only matched responses appear in results. 
 
 #### Filters
 
+Exclude responses matching criteria. The inverse of matchers.
+
 | Flag | Short | Type | Description |
 |------|-------|------|-------------|
 | `-fc` | | string | Filter status codes |
@@ -707,6 +709,8 @@ Select responses that match criteria. Only matched responses appear in results. 
 | `-fr` | | string | Filter regex |
 
 #### Output
+
+Control result display format and verbosity.
 
 | Flag | Short | Type | Default | Description |
 |------|-------|------|---------|-------------|
@@ -1820,6 +1824,7 @@ Model Context Protocol (MCP) server for AI agent integration. Exposes WAFtester'
 | `-http` | string | | HTTP listen address (e.g., `:8080`) |
 | `-payloads` | string | `$WAF_TESTER_PAYLOAD_DIR` or `./payloads` | Payload directory |
 | `-templates` | string | `$WAF_TESTER_TEMPLATE_DIR` or `./templates/nuclei` | Template directory |
+| `-tamper-dir` | string | | Directory of custom `.tengo` tamper scripts to load for `discover_bypasses` and `scan` tools |
 
 #### Examples
 
@@ -1829,6 +1834,9 @@ waftester mcp
 
 # HTTP mode for remote access
 waftester mcp --http :8080
+
+# With tamper scripts for bypass discovery
+waftester mcp --tamper-dir ./my-tampers
 
 # Custom payload directory
 WAF_TESTER_PAYLOAD_DIR=/opt/payloads waftester mcp
