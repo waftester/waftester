@@ -702,6 +702,7 @@ waf-tester auto -u https://example.com \
 | `--tamper=LIST` | none | Comma-separated tamper names (see [Tamper Scripts](#tamper-scripts)) |
 | `--tamper-auto` | off | Auto-select tampers based on detected WAF |
 | `--tamper-profile=P` | standard | Preset: `stealth`, `standard`, `aggressive`, `bypass` |
+| `--tamper-dir=DIR` | none | Load custom `.tengo` script tampers from directory |
 | `-c N` | 25 | Parallel workers (increase for speed, decrease for stealth) |
 | `-rl N` | 150 | Max requests per second (reduce if rate limited) |
 | `--browser` | off | Use headless Chrome for JS-heavy SPAs and authenticated areas |
@@ -3382,11 +3383,35 @@ waf-tester headless -u https://target.com -headless=false
 waf-tester headless -u https://target.com -timeout 60 -wait 5
 ```
 
+#### DOM Event Crawling (v2.9.4+)
+
+Discover hidden endpoints by clicking interactive elements (buttons, ARIA roles, framework bindings) and capturing triggered XHR/API requests:
+
+```bash
+# Event crawl a single page
+waf-tester headless -u https://target.com --event-crawl
+
+# Control click behavior
+waf-tester headless -u https://target.com --event-crawl --max-clicks 100 --click-timeout 10
+
+# Verbose output with screenshots
+waf-tester headless -u https://target.com --event-crawl -screenshot -v
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--event-crawl` | off | Run DOM event crawling after page load |
+| `--max-clicks N` | 50 | Maximum elements to click |
+| `--click-timeout N` | 5 | Timeout per click in seconds |
+
+Event crawling finds endpoints that static analysis misses: dynamically loaded routes, XHR/fetch calls triggered by user interaction, and navigation targets hidden behind JavaScript event handlers.
+
 #### Decision Guide
 
 | Scenario | Command | Why |
 |----------|---------|-----|
 | SPA endpoint discovery | `headless -u URL -extract-urls` | JS renders all routes |
+| Hidden API discovery | `headless -u URL --event-crawl -v` | Clicks buttons to find XHR calls |
 | Visual audit | `headless -l targets.txt -screenshot` | See what users see |
 | JavaScript debugging | `headless -u URL -headless=false` | Watch in real browser |
 | Pre-scan recon for SPA | `headless -u URL -o urls.txt` | Feed discovered URLs to scanner |
@@ -4215,6 +4240,51 @@ waf-tester tampers --test "admin'--"
 | `waf` | 4 | WAF-specific bypasses (ModSecurity, etc.) |
 | `http` | 3 | HTTP-level modifications (headers) |
 | `obfuscation` | 6 | General obfuscation techniques |
+
+### Custom Script Tampers (v2.9.4+)
+
+Load custom Tengo script tampers from a directory:
+
+```bash
+# Load script tampers for scan
+waf-tester scan -u https://target.com --tamper-dir=./my-tampers
+
+# Load script tampers for auto mode
+waf-tester auto -u https://target.com --tamper-dir=./my-tampers --tamper-auto
+
+# Combine with built-in tampers
+waf-tester scan -u https://target.com --tamper-dir=./my-tampers --tamper=randomcase
+```
+
+Script tampers are `.tengo` files that define a `transform(input)` function. They are registered alongside built-in tampers and participate in profile-based selection.
+
+### Bypass Discovery (v2.9.4+)
+
+Automatically discover which tamper techniques bypass a target WAF:
+
+```bash
+# Discover bypasses against a live target
+waf-tester tampers --discover --target https://target.com
+
+# Filter to a specific WAF vendor
+waf-tester tampers --discover --target https://target.com --for-waf=cloudflare
+
+# Control concurrency and confirmation
+waf-tester tampers --discover --target https://target.com --concurrency 10 --top-n 10 --confirm 3
+
+# JSON output for automation
+waf-tester tampers --discover --target https://target.com --json
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--discover` | off | Enable automated bypass discovery |
+| `--target URL` | required | Target URL to test against |
+| `--concurrency N` | 5 | Parallel tamper tests |
+| `--top-n N` | 5 | Top tampers to try in combinations |
+| `--confirm N` | 2 | Additional payloads to confirm each bypass |
+
+Discovery tests every registered tamper against the target, confirms potential bypasses with additional payloads, and tests pairwise combinations of the top successful tampers.
 
 ### Popular Tamper Combinations
 
@@ -6618,6 +6688,7 @@ waf-tester validate-templates
 ```bash
 waf-tester tampers --list
 waf-tester tampers --category encoding
+waf-tester tampers --discover --target https://target.com
 ```
 
 ---
