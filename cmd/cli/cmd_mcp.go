@@ -16,6 +16,7 @@ import (
 	"github.com/waftester/waftester/pkg/headless"
 	"github.com/waftester/waftester/pkg/mcpserver"
 	"github.com/waftester/waftester/pkg/payloadprovider"
+	"github.com/waftester/waftester/pkg/templateresolver"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -39,8 +40,8 @@ func runMCP() {
 		fmt.Fprintf(os.Stderr, "  --stdio          Stdio transport for IDE integration (default)\n")
 		fmt.Fprintf(os.Stderr, "  --http <addr>    Streamable HTTP transport for remote/Docker\n\n")
 		fmt.Fprintf(os.Stderr, "Environment variables:\n")
-		fmt.Fprintf(os.Stderr, "  WAF_TESTER_PAYLOAD_DIR   Payload directory (default: ./payloads)\n")
-		fmt.Fprintf(os.Stderr, "  WAF_TESTER_TEMPLATE_DIR  Nuclei template directory (default: ./templates/nuclei)\n")
+		fmt.Fprintf(os.Stderr, "  WAF_TESTER_PAYLOAD_DIR   Payload directory (default: %s)\n", defaults.PayloadDir)
+		fmt.Fprintf(os.Stderr, "  WAF_TESTER_TEMPLATE_DIR  Nuclei template directory (default: %s)\n", defaults.TemplateDir)
 		fmt.Fprintf(os.Stderr, "  WAF_TESTER_HTTP_ADDR     HTTP listen address (same as --http)\n\n")
 		fmt.Fprintf(os.Stderr, "Examples:\n")
 		fmt.Fprintf(os.Stderr, "  waf-tester mcp --stdio\n")
@@ -53,6 +54,11 @@ func runMCP() {
 	if err := fs.Parse(os.Args[2:]); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
+	}
+
+	// Resolve nuclei template directory with embedded fallback.
+	if resolved, resolveErr := templateresolver.ResolveNucleiDir(*templateDir); resolveErr == nil {
+		*templateDir = resolved
 	}
 
 	// Allow env var override for HTTP address (useful in Docker/K8s)

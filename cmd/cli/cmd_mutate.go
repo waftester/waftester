@@ -14,6 +14,7 @@ import (
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/mutation"
 	"github.com/waftester/waftester/pkg/payloads"
+	"github.com/waftester/waftester/pkg/templateresolver"
 	"github.com/waftester/waftester/pkg/ui"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -231,8 +232,15 @@ func runMutate() {
 		ui.PrintConfigLine("Payload File", *payloadFile)
 		ui.PrintConfigLine("Payloads Loaded", fmt.Sprintf("%d", len(testPayloads)))
 	} else {
+		// Resolve nuclei template directory: if the default path doesn't exist
+		// on disk, extract embedded templates to a temp directory.
+		templateDir := defaults.TemplateDir
+		if resolved, resolveErr := templateresolver.ResolveNucleiDir(templateDir); resolveErr == nil {
+			templateDir = resolved
+		}
+
 		// Load from unified payload engine (JSON + Nuclei templates)
-		allPayloads, _, err := loadUnifiedPayloads(*payloadDir, defaults.TemplateDir, *verbose)
+		allPayloads, _, err := loadUnifiedPayloads(*payloadDir, templateDir, *verbose)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Cannot load payloads: %v", err))
 			os.Exit(1)
