@@ -38,6 +38,7 @@ type Config struct {
 
 	// Attack testing options
 	PayloadDir       string
+	TemplateDir      string // Nuclei template directory (falls back to defaults.TemplateDir)
 	Categories       []string
 	MinSeverity      string
 	EnableMutations  bool
@@ -380,7 +381,11 @@ func (a *Assessment) loadUnifiedAttackPayloads() []AttackPayload {
 		payloadDir = defaults.PayloadDir
 	}
 
-	provider := payloadprovider.NewProvider(payloadDir, defaults.TemplateDir)
+	nucleiDir := a.config.TemplateDir
+	if nucleiDir == "" {
+		nucleiDir = defaults.TemplateDir
+	}
+	provider := payloadprovider.NewProvider(payloadDir, nucleiDir)
 	if err := provider.Load(); err != nil {
 		a.logger.Warn("unified payload loading failed, using built-in set", slog.String("error", err.Error()))
 		return nil

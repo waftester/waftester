@@ -12,6 +12,7 @@ import (
 	"github.com/waftester/waftester/pkg/apispec"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/report"
+	"github.com/waftester/waftester/pkg/templateresolver"
 	"github.com/waftester/waftester/pkg/templatevalidator"
 	"github.com/waftester/waftester/pkg/ui"
 	"github.com/waftester/waftester/pkg/update"
@@ -242,6 +243,11 @@ func runValidateTemplates() {
 	// Emit start event for scan lifecycle hooks
 	if vtDispCtx != nil {
 		_ = vtDispCtx.EmitStart(vtCtx, *templateDir, 0, 1, nil)
+	}
+
+	// Resolve template directory (extracts embedded templates if needed)
+	if resolved, resolveErr := templateresolver.ResolveNucleiDir(*templateDir); resolveErr == nil {
+		*templateDir = resolved
 	}
 
 	validator := templatevalidator.NewValidator(*strict)

@@ -15,6 +15,7 @@ import (
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/mutation"
 	"github.com/waftester/waftester/pkg/payloads"
+	"github.com/waftester/waftester/pkg/templateresolver"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -143,8 +144,14 @@ func runBypassFinder() {
 		}
 	}
 
+	// Resolve template directory (extracts embedded templates if needed)
+	templateDir := defaults.TemplateDir
+	if resolved, resolveErr := templateresolver.ResolveNucleiDir(templateDir); resolveErr == nil {
+		templateDir = resolved
+	}
+
 	// Load payloads from unified engine (JSON + Nuclei templates)
-	allPayloads, _, err := loadUnifiedPayloads(*payloadDir, defaults.TemplateDir, *smartVerbose)
+	allPayloads, _, err := loadUnifiedPayloads(*payloadDir, templateDir, *smartVerbose)
 	if err != nil {
 		errMsg := fmt.Sprintf("Cannot load payloads: %v", err)
 		ui.PrintError(errMsg)
