@@ -103,11 +103,12 @@ docker run -d -p 9090:9090 \
 ## Features
 
 - **MCP server** built in — AI agents test WAFs via natural language
-- **2800+ payloads** across 20+ attack categories (SQLi, XSS, SSRF, SSTI, LFI, RCE, and more)
+- **2800+ payloads** across 50+ attack categories (SQLi, XSS, SSRF, SSTI, LFI, RCE, and more)
 - **197 WAF signatures** for automatic detection and fingerprinting
-- **70+ evasion techniques** with encoding chains, case mutation, and bypass strategies
+- **90+ evasion techniques** with encoding chains, case mutation, and bypass strategies
 - **Smart mode** — auto-detects WAF vendor and optimizes payloads, rate limits, and encoders
-- **Output formats**: JSON, SARIF, HTML, CSV, JUnit, SonarQube, GitLab SAST
+- **API spec scanning** — OpenAPI, Swagger, Postman, HAR, AsyncAPI, gRPC, and GraphQL
+- **Output formats**: JSON, JSONL, SARIF, HTML, Markdown, JUnit, CycloneDX, SonarQube, GitLab SAST, CSV
 
 ## Image Details
 
@@ -135,6 +136,8 @@ Multi-platform manifest — Docker pulls the correct image for your architecture
 
 - [Website](https://waftester.com)
 - [Documentation](https://waftester.com/docs)
+- [Command Reference](https://waftester.com/commands)
+- [Cheat Sheet](https://waftester.com/cheat-sheet)
 - [Examples](https://github.com/waftester/waftester/blob/main/docs/EXAMPLES.md)
 - [GitHub](https://github.com/waftester/waftester)
 
