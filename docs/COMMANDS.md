@@ -112,34 +112,34 @@ See the [Installation Guide](https://github.com/waftester/waftester/blob/main/do
 Commands are not isolated — they feed into each other. This diagram shows the most common data flows:
 
 ```
-                        ┌─────────────┐
-                        │   vendor    │ Identify WAF
-                        └──────┬──────┘
-                               │ informs tamper selection
-                               ▼
-┌──────────┐   endpoints   ┌───────┐   test plan   ┌──────┐
-│ discover │──────────────▶│ learn │──────────────▶│ run  │
-└──────────┘               └───────┘               └──────┘
-      │                                                │
-      │ feeds                                          │ results
-      ▼                                                ▼
-┌──────────┐                                    ┌───────────┐
-│  crawl   │                                    │  report   │
-└──────────┘                                    └───────────┘
+                       +-----------+
+                       |  vendor   |  Identify WAF
+                       +-----+-----+
+                             |  informs tamper selection
+                             v
++----------+  endpoints  +-------+  test plan  +------+
+| discover |------------>| learn |------------>| run  |
++----------+             +-------+             +------+
+      |                                           |
+      | feeds                                     | results
+      v                                           v
++----------+                                +---------+
+|  crawl   |                                | report  |
++----------+                                +---------+
 
-┌──────────┐   does all of the above in one pass
-│   auto   │──▶ vendor → discover → scan → assess → report
-└──────────┘
++----------+  does all of the above in one pass
+|   auto   |--> vendor -> discover -> scan -> assess -> report
++----------+
 
-┌──────────┐   bypass payloads    ┌──────────┐
-│  bypass  │◀────────────────────▶│ tampers  │
-└──────────┘   tamper transforms  └──────────┘
-      │
-      │ variants
-      ▼
-┌──────────┐
-│  mutate  │ Expand payload space
-└──────────┘
++----------+  bypass payloads   +----------+
+|  bypass  |<------------------>| tampers  |
++----------+  tamper transforms +----------+
+      |
+      | variants
+      v
++----------+
+|  mutate  |  Expand payload space
++----------+
 ```
 
 **Shortcut:** If you don't know where to start, use `auto`. It runs the entire pipeline.
