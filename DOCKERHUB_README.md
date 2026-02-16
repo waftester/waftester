@@ -106,6 +106,10 @@ docker run -d -p 9090:9090 \
 - **2800+ payloads** across 50+ attack categories (SQLi, XSS, SSRF, SSTI, LFI, RCE, and more)
 - **197 WAF signatures** for automatic detection and fingerprinting
 - **90+ evasion techniques** with encoding chains, case mutation, and bypass strategies
+- **Automated bypass discovery** — test tamper combinations to find WAF bypasses with `--discover`
+- **Custom tamper authoring** — write Tengo-based tamper scripts and load via `--tamper-dir`
+- **SPA event crawling** — DOM event discovery for JavaScript-heavy targets with `--event-crawl`
+- **Multi-protocol templates** — Nuclei-compatible templates support HTTP, DNS, TCP, and UDP
 - **Smart mode** — auto-detects WAF vendor and optimizes payloads, rate limits, and encoders
 - **API spec scanning** — OpenAPI, Swagger, Postman, HAR, AsyncAPI, gRPC, and GraphQL
 - **Output formats**: JSON, JSONL, SARIF, HTML, Markdown, JUnit, CycloneDX, SonarQube, GitLab SAST, CSV
