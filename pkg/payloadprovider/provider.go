@@ -89,7 +89,7 @@ type Provider struct {
 // NewProvider creates a unified payload provider.
 //
 // payloadDir is the root of the JSON payload database (e.g. "payloads/").
-// nucleiDir is the root of the Nuclei template directory (e.g. "templates/nuclei/").
+// nucleiDir is the root of the Nuclei template directory (defaults.TemplateDir).
 func NewProvider(payloadDir, nucleiDir string) *Provider {
 	return &Provider{
 		jsonLoader:  payloads.NewLoader(payloadDir),

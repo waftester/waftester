@@ -133,7 +133,9 @@ func main() {
 	case "report", "html-report", "enterprise-report":
 		runEnterpriseReport()
 	case "template", "templates", "nuclei":
-		runTemplate()
+		if !runTemplateManager() {
+			runTemplate()
+		}
 	case "grpc", "grpc-test":
 		runGRPC()
 	case "soap", "wsdl":

@@ -5,6 +5,21 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.6] - 2026-02-16
+
+### Added
+
+- **Template resolver system** — Unified resolution engine for embedded templates with multi-strategy lookup (exact, extensionless, basename), disk override support via environment variables, and kind-scoped listing.
+- **MCP tools: list_templates, show_template** — Two new MCP server tools for AI-assisted template browsing and content inspection. Dynamic enum and category discovery from the embedded template library.
+- **Dynamic MCP template resource** — `waftester://templates` resource now dynamically generated from embedded FS instead of hardcoded, with per-template descriptions.
+- **Template descriptions map** — 41 human-written descriptions for all bundled templates (nuclei bypass/detection, workflows, policies, overrides, output formats, report configs), guarded by invariant tests.
+
+### Fixed
+
+- **Silent truncation in show_template** — `io.LimitReader` silently dropped content beyond 1MB with no indication. Now detects truncation and appends a warning.
+- **Hardcoded kind enum drift** — `list_templates` tool schema, error messages, and description all hardcoded the list of valid kinds. Now derived dynamically from the resolver.
+- **Version resource template count** — Template count and category names in the version resource were hardcoded. Now computed dynamically from the resolver.
+
 ## [2.9.5] - 2026-02-15
 
 ### Added
@@ -2157,6 +2172,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.6]: https://github.com/waftester/waftester/compare/v2.9.5...v2.9.6
 [2.9.5]: https://github.com/waftester/waftester/compare/v2.9.4...v2.9.5
 [2.9.4]: https://github.com/waftester/waftester/compare/v2.9.3...v2.9.4
 [2.9.3]: https://github.com/waftester/waftester/compare/v2.9.2...v2.9.3

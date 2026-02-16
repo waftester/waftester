@@ -31,7 +31,7 @@
 //
 // # Usage
 //
-//	cfg := &mcpserver.Config{PayloadDir: "./payloads"}
+//	cfg := &mcpserver.Config{PayloadDir: defaults.PayloadDir}
 //	srv := mcpserver.New(cfg)
 //	err := srv.RunStdio(ctx)
 package mcpserver

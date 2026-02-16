@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/nuclei"
 	"github.com/waftester/waftester/pkg/payloadprovider"
 )
@@ -144,7 +145,7 @@ http:
 // ── Provider tests ─────────────────────────────────────────────────────────
 
 func TestNewProvider(t *testing.T) {
-	p := payloadprovider.NewProvider("payloads", "templates/nuclei")
+	p := payloadprovider.NewProvider("payloads", defaults.TemplateDir)
 	if p == nil {
 		t.Fatal("NewProvider returned nil")
 	}

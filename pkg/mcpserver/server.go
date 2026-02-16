@@ -18,6 +18,7 @@ import (
 	"github.com/waftester/waftester/pkg/apispec"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
+	"github.com/waftester/waftester/pkg/templateresolver"
 )
 
 // ---------------------------------------------------------------------------
@@ -113,10 +114,14 @@ func New(cfg *Config) *Server {
 		cfg = &Config{}
 	}
 	if cfg.PayloadDir == "" {
-		cfg.PayloadDir = "./payloads"
+		cfg.PayloadDir = defaults.PayloadDir
 	}
 	if cfg.TemplateDir == "" {
-		cfg.TemplateDir = "./templates/nuclei"
+		cfg.TemplateDir = defaults.TemplateDir
+	}
+	// Resolve template directory: extract embedded templates if path doesn't exist on disk.
+	if resolved, err := templateresolver.ResolveNucleiDir(cfg.TemplateDir); err == nil {
+		cfg.TemplateDir = resolved
 	}
 
 	// Load script tampers from directory if configured.
@@ -604,7 +609,7 @@ func isCloudMetadataHost(host string) bool {
 		}
 	}
 	switch host {
-	case "169.254.169.254",         // AWS, GCP, Azure IMDS
+	case "169.254.169.254", // AWS, GCP, Azure IMDS
 		"metadata.google.internal", // GCP alternate
 		"100.100.100.200":          // Alibaba Cloud
 		return true

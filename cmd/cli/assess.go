@@ -17,6 +17,7 @@ import (
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/metrics"
 	detectionoutput "github.com/waftester/waftester/pkg/output/detection"
+	"github.com/waftester/waftester/pkg/templateresolver"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -131,6 +132,12 @@ func runAssess() {
 	ui.PrintConfigLine("WAF Detection", fmt.Sprintf("%v", *detectWAF))
 	fmt.Println()
 
+	// Resolve template directory (extracts embedded templates if needed)
+	templateDir := defaults.TemplateDir
+	if resolved, resolveErr := templateresolver.ResolveNucleiDir(templateDir); resolveErr == nil {
+		templateDir = resolved
+	}
+
 	// Build configuration
 	config := &assessment.Config{
 		Base: attackconfig.Base{
@@ -148,6 +155,7 @@ func runAssess() {
 		OutputFormat:     *format,
 		OutputFile:       *output,
 		PayloadDir:       *payloadDir,
+		TemplateDir:      templateDir,
 	}
 
 	if *categories != "" {

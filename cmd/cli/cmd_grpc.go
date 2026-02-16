@@ -12,6 +12,7 @@ import (
 	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/grpc"
+	"github.com/waftester/waftester/pkg/templateresolver"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -53,6 +54,11 @@ func runGRPC() {
 	verbose := grpcFlags.Bool("v", false, "Verbose output")
 
 	grpcFlags.Parse(os.Args[2:])
+
+	// Resolve nuclei template directory with embedded fallback.
+	if resolved, err := templateresolver.ResolveNucleiDir(*templateDir); err == nil {
+		*templateDir = resolved
+	}
 
 	// Get target
 	targetAddr := *target

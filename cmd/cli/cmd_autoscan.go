@@ -40,6 +40,7 @@ import (
 	"github.com/waftester/waftester/pkg/ratelimit"
 	"github.com/waftester/waftester/pkg/recon"
 	"github.com/waftester/waftester/pkg/report"
+	"github.com/waftester/waftester/pkg/templateresolver"
 	tlsja3 "github.com/waftester/waftester/pkg/tls"
 	"github.com/waftester/waftester/pkg/ui"
 	"github.com/waftester/waftester/pkg/waf/strategy"
@@ -1691,9 +1692,15 @@ func runAutoScan() {
 		ui.PrintInfo("⚡ Executing security tests with auto-calibration...")
 		printStatusLn()
 
-		// Load payloads
+		// Resolve nuclei template directory: if the default path doesn't exist
+		// on disk, extract embedded templates to a temp directory.
+		templateDir := defaults.TemplateDir
+		if resolved, resolveErr := templateresolver.ResolveNucleiDir(templateDir); resolveErr == nil {
+			templateDir = resolved
+		}
+
 		// Load payloads from unified engine (JSON + Nuclei templates)
-		allPayloads, _, err := loadUnifiedPayloads(payloadDir, defaults.TemplateDir, *verbose)
+		allPayloads, _, err := loadUnifiedPayloads(payloadDir, templateDir, *verbose)
 		if err != nil {
 			errMsg := fmt.Sprintf("Error loading payloads: %v", err)
 			ui.PrintError(errMsg)
@@ -1721,7 +1728,7 @@ func runAutoScan() {
 			if len(allPayloads) == 0 {
 				ui.PrintWarning("No payloads match test plan categories, using full payload set")
 				var reloadErr error
-				allPayloads, _, reloadErr = loadUnifiedPayloads(payloadDir, defaults.TemplateDir, *verbose)
+				allPayloads, _, reloadErr = loadUnifiedPayloads(payloadDir, templateDir, *verbose)
 				if reloadErr != nil {
 					ui.PrintError(fmt.Sprintf("Failed to reload payloads: %v", reloadErr))
 					os.Exit(1)
@@ -2767,6 +2774,12 @@ func runAutoScan() {
 		ui.PrintInfo("Running enterprise WAF assessment with F1/precision/MCC metrics...")
 		printStatusLn()
 
+		// Resolve template directory for assessment payloads.
+		assessTemplateDir := defaults.TemplateDir
+		if resolved, resolveErr := templateresolver.ResolveNucleiDir(assessTemplateDir); resolveErr == nil {
+			assessTemplateDir = resolved
+		}
+
 		assessConfig := &assessment.Config{
 			Base: attackconfig.Base{
 				Concurrency: *concurrency,
@@ -2780,6 +2793,8 @@ func runAutoScan() {
 			EnableFPTesting: true,
 			CorpusSources:   strings.Split(*assessCorpus, ","),
 			DetectWAF:       true,
+			PayloadDir:      payloadDir,
+			TemplateDir:     assessTemplateDir,
 		}
 
 		assess := assessment.New(assessConfig)

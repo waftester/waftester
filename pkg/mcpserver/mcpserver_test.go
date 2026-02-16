@@ -15,6 +15,7 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/mcpserver"
 	"github.com/waftester/waftester/pkg/output/events"
+	"github.com/waftester/waftester/pkg/templateresolver"
 )
 
 // newTestSession creates a connected client↔server session for testing.
@@ -91,6 +92,7 @@ func TestListTools(t *testing.T) {
 		"list_payloads", "detect_waf", "discover", "learn", "scan",
 		"assess", "mutate", "bypass", "probe", "generate_cicd",
 		"list_tampers", "discover_bypasses",
+		"list_templates", "show_template",
 		"get_task_status", "cancel_task", "list_tasks",
 		"validate_spec", "list_spec_endpoints", "plan_spec", "scan_spec",
 		"compare_baselines",
@@ -172,6 +174,7 @@ func TestListResources(t *testing.T) {
 		"waftester://evasion-techniques",
 		"waftester://owasp-mappings",
 		"waftester://config",
+		"waftester://templates",
 	}
 
 	if len(result.Resources) < len(expectedResources) {
@@ -244,6 +247,67 @@ func TestReadVersionResource(t *testing.T) {
 	}
 	if _, ok := versionInfo["capabilities"]; !ok {
 		t.Error("version resource missing 'capabilities' field")
+	}
+}
+
+func TestReadTemplatesResource(t *testing.T) {
+	cs := newTestSession(t)
+	ctx := context.Background()
+
+	result, err := cs.ReadResource(ctx, &mcp.ReadResourceParams{URI: "waftester://templates"})
+	if err != nil {
+		t.Fatalf("ReadResource(templates): %v", err)
+	}
+
+	if len(result.Contents) == 0 {
+		t.Fatal("templates resource returned no contents")
+	}
+
+	var catalog map[string]any
+	if err := json.Unmarshal([]byte(result.Contents[0].Text), &catalog); err != nil {
+		t.Fatalf("failed to parse templates JSON: %v", err)
+	}
+
+	// total_templates must match the actual count from templateresolver.
+	total, ok := catalog["total_templates"].(float64)
+	if !ok {
+		t.Fatal("templates resource missing 'total_templates' field")
+	}
+	var wantTotal int
+	for _, c := range templateresolver.ListAllCategories() {
+		wantTotal += c.Count
+	}
+	if int(total) != wantTotal {
+		t.Errorf("total_templates = %d, want %d", int(total), wantTotal)
+	}
+
+	// categories must exist and match the number of Kind constants.
+	cats, ok := catalog["categories"].([]any)
+	if !ok {
+		t.Fatal("templates resource missing 'categories' array")
+	}
+	wantCats := len(templateresolver.ListAllCategories())
+	if len(cats) != wantCats {
+		t.Errorf("got %d categories, want %d", len(cats), wantCats)
+	}
+
+	// Each category must have templates listed, and templates must have descriptions.
+	for _, raw := range cats {
+		cat, _ := raw.(map[string]any)
+		kind, _ := cat["kind"].(string)
+		tmpls, _ := cat["templates"].([]any)
+		if len(tmpls) == 0 {
+			t.Errorf("category %q has empty templates list", kind)
+			continue
+		}
+		for _, tRaw := range tmpls {
+			tmpl, _ := tRaw.(map[string]any)
+			name, _ := tmpl["name"].(string)
+			desc, _ := tmpl["description"].(string)
+			if desc == "" {
+				t.Errorf("template %s/%s has empty description in resource response", kind, name)
+			}
+		}
 	}
 }
 
@@ -777,6 +841,716 @@ func TestServerCapabilities(t *testing.T) {
 	if initResult.Capabilities.Prompts == nil {
 		t.Error("prompts capability is nil")
 	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Template tool invocation tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+func TestCallListTemplates(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "list_templates",
+		Arguments: json.RawMessage(`{}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool(list_templates): %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("list_templates returned error: %+v", result.Content)
+	}
+	if len(result.Content) == 0 {
+		t.Fatal("list_templates returned no content")
+	}
+
+	// Parse and validate the JSON response.
+	text := result.Content[0].(*mcp.TextContent).Text
+	var resp struct {
+		Summary    string `json:"summary"`
+		TotalCount int    `json:"total_count"`
+		Categories []struct {
+			Kind  string `json:"kind"`
+			Count int    `json:"count"`
+		} `json:"categories"`
+	}
+	if err := json.Unmarshal([]byte(text), &resp); err != nil {
+		t.Fatalf("failed to parse list_templates response: %v", err)
+	}
+
+	// total_count must match templateresolver.
+	var wantTotal int
+	for _, cat := range templateresolver.ListAllCategories() {
+		wantTotal += cat.Count
+	}
+	if resp.TotalCount != wantTotal {
+		t.Errorf("total_count = %d, want %d", resp.TotalCount, wantTotal)
+	}
+
+	// Category count must match.
+	wantCats := len(templateresolver.ListAllCategories())
+	if len(resp.Categories) != wantCats {
+		t.Errorf("got %d categories, want %d", len(resp.Categories), wantCats)
+	}
+}
+
+func TestCallListTemplatesWithKind(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "list_templates",
+		Arguments: json.RawMessage(`{"kind": "policies"}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool(list_templates, policies): %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("list_templates returned error: %+v", result.Content)
+	}
+
+	// Parse JSON and validate count matches templateresolver.
+	text := result.Content[0].(*mcp.TextContent).Text
+	var resp struct {
+		TotalCount int `json:"total_count"`
+		Categories []struct {
+			Kind      string `json:"kind"`
+			Templates []struct {
+				Name string `json:"name"`
+			} `json:"templates"`
+		} `json:"categories"`
+	}
+	if err := json.Unmarshal([]byte(text), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	infos, err := templateresolver.ListCategory(templateresolver.KindPolicy)
+	if err != nil {
+		t.Fatalf("ListCategory(policies): %v", err)
+	}
+	if resp.TotalCount != len(infos) {
+		t.Errorf("total_count = %d, want %d", resp.TotalCount, len(infos))
+	}
+	if len(resp.Categories) != 1 || resp.Categories[0].Kind != "policies" {
+		t.Errorf("expected single category 'policies', got %+v", resp.Categories)
+	}
+}
+
+func TestCallListTemplatesInvalidKind(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "list_templates",
+		Arguments: json.RawMessage(`{"kind": "nonexistent"}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool(list_templates, nonexistent): %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected error for invalid kind")
+	}
+}
+
+func TestCallListTemplatesWithKindNuclei(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "list_templates",
+		Arguments: json.RawMessage(`{"kind": "nuclei"}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool(list_templates, nuclei): %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("list_templates returned error: %+v", result.Content)
+	}
+
+	text := result.Content[0].(*mcp.TextContent).Text
+	var resp struct {
+		TotalCount int `json:"total_count"`
+		Categories []struct {
+			Kind      string `json:"kind"`
+			Templates []struct {
+				Name        string `json:"name"`
+				Path        string `json:"path"`
+				Description string `json:"description"`
+			} `json:"templates"`
+		} `json:"categories"`
+	}
+	if err := json.Unmarshal([]byte(text), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	infos, err := templateresolver.ListCategory(templateresolver.KindNuclei)
+	if err != nil {
+		t.Fatalf("ListCategory(nuclei): %v", err)
+	}
+	if resp.TotalCount != len(infos) {
+		t.Errorf("total_count = %d, want %d", resp.TotalCount, len(infos))
+	}
+	if len(resp.Categories) == 0 {
+		t.Fatal("nuclei listing returned no categories")
+	}
+
+	// Nuclei templates have subdirectory paths — verify at least one contains "/".
+	hasSubdir := false
+	for _, tmpl := range resp.Categories[0].Templates {
+		if strings.Count(tmpl.Path, "/") > 1 {
+			hasSubdir = true
+			break
+		}
+	}
+	if !hasSubdir {
+		t.Error("nuclei templates should have subdirectory paths (e.g. nuclei/http/waf-bypass/sqli-basic.yaml)")
+	}
+}
+
+func TestListThenShowTemplate_RoundTrip(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Step 1: List policies to get template paths.
+	listResult, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "list_templates",
+		Arguments: json.RawMessage(`{"kind": "policies"}`),
+	})
+	if err != nil {
+		t.Fatalf("list_templates: %v", err)
+	}
+	if listResult.IsError {
+		t.Fatalf("list_templates error: %+v", listResult.Content)
+	}
+
+	text := listResult.Content[0].(*mcp.TextContent).Text
+	var listResp struct {
+		Categories []struct {
+			Templates []struct {
+				Path string `json:"path"`
+			} `json:"templates"`
+		} `json:"categories"`
+	}
+	if err := json.Unmarshal([]byte(text), &listResp); err != nil {
+		t.Fatalf("parse list response: %v", err)
+	}
+	if len(listResp.Categories) == 0 || len(listResp.Categories[0].Templates) == 0 {
+		t.Fatal("list_templates returned no templates to round-trip")
+	}
+
+	// Step 2: Use the first path to call show_template.
+	path := listResp.Categories[0].Templates[0].Path
+	showResult, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "show_template",
+		Arguments: json.RawMessage(fmt.Sprintf(`{"path": %q}`, path)),
+	})
+	if err != nil {
+		t.Fatalf("show_template(%s): %v", path, err)
+	}
+	if showResult.IsError {
+		t.Fatalf("show_template(%s) error: %+v", path, showResult.Content)
+	}
+
+	content := showResult.Content[0].(*mcp.TextContent).Text
+	if len(content) < 50 {
+		t.Errorf("show_template(%s) returned suspiciously short content (%d bytes)", path, len(content))
+	}
+}
+
+func TestCallShowTemplate(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "show_template",
+		Arguments: json.RawMessage(`{"path": "policies/strict.yaml"}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool(show_template): %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("show_template returned error: %+v", result.Content)
+	}
+	if len(result.Content) == 0 {
+		t.Fatal("show_template returned no content")
+	}
+
+	// Verify the content is meaningful YAML (not empty/truncated).
+	text := result.Content[0].(*mcp.TextContent).Text
+	if len(text) < 50 {
+		t.Errorf("show_template returned suspiciously short content (%d bytes)", len(text))
+	}
+}
+
+func TestCallShowTemplateNucleiSubdir(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "show_template",
+		Arguments: json.RawMessage(`{"path": "nuclei/http/waf-bypass/sqli-basic.yaml"}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool(show_template, nuclei subdir): %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("show_template returned error: %+v", result.Content)
+	}
+
+	// Nuclei templates must contain an 'id:' field.
+	text := result.Content[0].(*mcp.TextContent).Text
+	if !strings.Contains(text, "id:") {
+		t.Error("nuclei template content missing 'id:' field")
+	}
+}
+
+func TestCallShowTemplateNotFound(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "show_template",
+		Arguments: json.RawMessage(`{"path": "policies/nonexistent.yaml"}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool(show_template, nonexistent): %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected error for nonexistent template")
+	}
+}
+
+func TestCallShowTemplateEmpty(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "show_template",
+		Arguments: json.RawMessage(`{"path": ""}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool(show_template, empty): %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected error for empty path")
+	}
+}
+
+func TestCallShowTemplateDirectoryPath(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// A bare category name is a directory, not a file — should return an error.
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "show_template",
+		Arguments: json.RawMessage(`{"path": "policies"}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool(show_template, directory): %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected error for directory path")
+	}
+}
+
+func TestCallShowTemplateTraversal(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	for _, path := range []string{
+		"../../../etc/passwd",
+		"policies/../../etc/passwd",
+		"..\\..\\..\\etc\\passwd",
+	} {
+		t.Run(path, func(t *testing.T) {
+			result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+				Name:      "show_template",
+				Arguments: json.RawMessage(fmt.Sprintf(`{"path": %q}`, path)),
+			})
+			if err != nil {
+				t.Fatalf("CallTool(show_template, %q): %v", path, err)
+			}
+			if !result.IsError {
+				t.Errorf("expected error for traversal path %q, got success", path)
+			}
+		})
+	}
+}
+
+func TestCallShowTemplateBackslash(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Windows-style backslash path should be normalized and resolve correctly.
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "show_template",
+		Arguments: json.RawMessage(`{"path": "policies\\strict.yaml"}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool(show_template, backslash): %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("show_template rejected backslash path: %+v", result.Content)
+	}
+}
+
+func TestCallShowTemplateShortName(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Should resolve without extension via the 3-step resolution chain.
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "show_template",
+		Arguments: json.RawMessage(`{"path": "policies/strict"}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool(show_template, short name): %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("show_template could not resolve short name: %+v", result.Content)
+	}
+}
+
+func TestReadVersionResource_DynamicTemplateCount(t *testing.T) {
+	cs := newTestSession(t)
+	ctx := context.Background()
+
+	result, err := cs.ReadResource(ctx, &mcp.ReadResourceParams{URI: "waftester://version"})
+	if err != nil {
+		t.Fatalf("ReadResource(version): %v", err)
+	}
+
+	var info map[string]any
+	if err := json.Unmarshal([]byte(result.Contents[0].Text), &info); err != nil {
+		t.Fatalf("parse version JSON: %v", err)
+	}
+
+	caps, ok := info["capabilities"].(map[string]any)
+	if !ok {
+		t.Fatal("version resource missing 'capabilities' map")
+	}
+	count, ok := caps["templates"].(float64)
+	if !ok {
+		t.Fatal("capabilities missing 'templates'")
+	}
+
+	// Compute expected count from templateresolver.
+	var want int
+	for _, cat := range templateresolver.ListAllCategories() {
+		want += cat.Count
+	}
+
+	if int(count) != want {
+		t.Errorf("version resource total_templates = %d, templateresolver says %d", int(count), want)
+	}
+}
+
+// TestCallListTemplates_PerCategoryCounts validates that each category in the
+// no-kind response has a count matching the resolver, not just the total.
+func TestCallListTemplates_PerCategoryCounts(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "list_templates",
+		Arguments: json.RawMessage(`{}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool(list_templates): %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("list_templates returned error: %+v", result.Content)
+	}
+
+	text := result.Content[0].(*mcp.TextContent).Text
+	var resp struct {
+		Categories []struct {
+			Kind  string `json:"kind"`
+			Count int    `json:"count"`
+		} `json:"categories"`
+	}
+	if err := json.Unmarshal([]byte(text), &resp); err != nil {
+		t.Fatalf("parse response: %v", err)
+	}
+
+	// Build a map of expected counts from the resolver.
+	wantCounts := make(map[string]int)
+	for _, cat := range templateresolver.ListAllCategories() {
+		wantCounts[string(cat.Kind)] = cat.Count
+	}
+
+	for _, cat := range resp.Categories {
+		want, ok := wantCounts[cat.Kind]
+		if !ok {
+			t.Errorf("response contains unknown kind %q", cat.Kind)
+			continue
+		}
+		if cat.Count != want {
+			t.Errorf("category %q: count = %d, resolver says %d", cat.Kind, cat.Count, want)
+		}
+		delete(wantCounts, cat.Kind)
+	}
+
+	for kind := range wantCounts {
+		t.Errorf("resolver has kind %q but response is missing it", kind)
+	}
+}
+
+// TestCallListTemplatesWithKind_DescriptionsPopulated validates that every
+// template in a with-kind response has a non-empty description.
+func TestCallListTemplatesWithKind_DescriptionsPopulated(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "list_templates",
+		Arguments: json.RawMessage(`{"kind": "policies"}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("error: %+v", result.Content)
+	}
+
+	text := result.Content[0].(*mcp.TextContent).Text
+	var resp struct {
+		Categories []struct {
+			Templates []struct {
+				Name        string `json:"name"`
+				Description string `json:"description"`
+			} `json:"templates"`
+		} `json:"categories"`
+	}
+	if err := json.Unmarshal([]byte(text), &resp); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(resp.Categories) == 0 {
+		t.Fatal("no categories in response")
+	}
+
+	for _, tmpl := range resp.Categories[0].Templates {
+		if tmpl.Description == "" {
+			t.Errorf("template %q has empty description", tmpl.Name)
+		}
+	}
+}
+
+// TestCallShowTemplate_TmplExtension verifies that .tmpl output templates
+// resolve correctly (different extension from the .yaml templates).
+func TestCallShowTemplate_TmplExtension(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "show_template",
+		Arguments: json.RawMessage(`{"path": "output/csv.tmpl"}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool(show_template, csv.tmpl): %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("show_template rejected .tmpl path: %+v", result.Content)
+	}
+
+	text := result.Content[0].(*mcp.TextContent).Text
+	if len(text) < 20 {
+		t.Errorf("csv.tmpl content suspiciously short (%d bytes)", len(text))
+	}
+}
+
+// TestListThenShowTemplate_NucleiRoundTrip verifies round-trip from list to
+// show for nuclei templates, which have deeper subdirectory paths.
+func TestListThenShowTemplate_NucleiRoundTrip(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Step 1: List nuclei templates.
+	listResult, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "list_templates",
+		Arguments: json.RawMessage(`{"kind": "nuclei"}`),
+	})
+	if err != nil {
+		t.Fatalf("list_templates(nuclei): %v", err)
+	}
+	if listResult.IsError {
+		t.Fatalf("list_templates error: %+v", listResult.Content)
+	}
+
+	text := listResult.Content[0].(*mcp.TextContent).Text
+	var listResp struct {
+		Categories []struct {
+			Templates []struct {
+				Path string `json:"path"`
+			} `json:"templates"`
+		} `json:"categories"`
+	}
+	if err := json.Unmarshal([]byte(text), &listResp); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(listResp.Categories) == 0 || len(listResp.Categories[0].Templates) == 0 {
+		t.Fatal("no nuclei templates returned")
+	}
+
+	// Step 2: Show each listed template — all paths must resolve.
+	for _, tmpl := range listResp.Categories[0].Templates {
+		t.Run(tmpl.Path, func(t *testing.T) {
+			showResult, err := cs.CallTool(ctx, &mcp.CallToolParams{
+				Name:      "show_template",
+				Arguments: json.RawMessage(fmt.Sprintf(`{"path": %q}`, tmpl.Path)),
+			})
+			if err != nil {
+				t.Fatalf("show_template(%s): %v", tmpl.Path, err)
+			}
+			if showResult.IsError {
+				t.Errorf("show_template(%s) returned error: %+v", tmpl.Path, showResult.Content)
+			}
+		})
+	}
+}
+
+// TestCallListTemplates_NextStepsPopulated validates that the next_steps field
+// is non-empty in both the with-kind and no-kind responses.
+func TestCallListTemplates_NextStepsPopulated(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// No-kind response.
+	t.Run("no-kind", func(t *testing.T) {
+		result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "list_templates",
+			Arguments: json.RawMessage(`{}`),
+		})
+		if err != nil {
+			t.Fatalf("CallTool: %v", err)
+		}
+		text := result.Content[0].(*mcp.TextContent).Text
+		var resp struct {
+			NextSteps []string `json:"next_steps"`
+		}
+		if err := json.Unmarshal([]byte(text), &resp); err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+		if len(resp.NextSteps) == 0 {
+			t.Error("next_steps is empty for no-kind response")
+		}
+	})
+
+	// With-kind response.
+	t.Run("with-kind", func(t *testing.T) {
+		result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "list_templates",
+			Arguments: json.RawMessage(`{"kind": "workflows"}`),
+		})
+		if err != nil {
+			t.Fatalf("CallTool: %v", err)
+		}
+		text := result.Content[0].(*mcp.TextContent).Text
+		var resp struct {
+			NextSteps []string `json:"next_steps"`
+		}
+		if err := json.Unmarshal([]byte(text), &resp); err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+		if len(resp.NextSteps) == 0 {
+			t.Error("next_steps is empty for with-kind response")
+		}
+		// With-kind response should include an example path.
+		found := false
+		for _, step := range resp.NextSteps {
+			if strings.Contains(step, "path") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("next_steps for with-kind should include an example path")
+		}
+	})
+}
+
+// TestCallListTemplates_SummaryPopulated validates that the summary field is
+// non-empty and contains the template count.
+func TestCallListTemplates_SummaryPopulated(t *testing.T) {
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// No-kind response.
+	t.Run("no-kind", func(t *testing.T) {
+		result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "list_templates",
+			Arguments: json.RawMessage(`{}`),
+		})
+		if err != nil {
+			t.Fatalf("CallTool: %v", err)
+		}
+		text := result.Content[0].(*mcp.TextContent).Text
+		var resp struct {
+			Summary    string `json:"summary"`
+			TotalCount int    `json:"total_count"`
+		}
+		if err := json.Unmarshal([]byte(text), &resp); err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+		if resp.Summary == "" {
+			t.Error("summary is empty")
+		}
+		// Summary should mention the total count.
+		countStr := fmt.Sprintf("%d", resp.TotalCount)
+		if !strings.Contains(resp.Summary, countStr) {
+			t.Errorf("summary %q does not contain total_count %d", resp.Summary, resp.TotalCount)
+		}
+	})
+
+	// With-kind response.
+	t.Run("with-kind", func(t *testing.T) {
+		result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "list_templates",
+			Arguments: json.RawMessage(`{"kind": "overrides"}`),
+		})
+		if err != nil {
+			t.Fatalf("CallTool: %v", err)
+		}
+		text := result.Content[0].(*mcp.TextContent).Text
+		var resp struct {
+			Summary    string `json:"summary"`
+			TotalCount int    `json:"total_count"`
+		}
+		if err := json.Unmarshal([]byte(text), &resp); err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+		if resp.Summary == "" {
+			t.Error("summary is empty")
+		}
+		// Summary should mention the count and the kind.
+		countStr := fmt.Sprintf("%d", resp.TotalCount)
+		if !strings.Contains(resp.Summary, countStr) {
+			t.Errorf("summary %q does not contain total_count %d", resp.Summary, resp.TotalCount)
+		}
+		if !strings.Contains(resp.Summary, "overrides") {
+			t.Errorf("summary %q does not mention the kind 'overrides'", resp.Summary)
+		}
+	})
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1897,6 +2671,7 @@ func TestVersionResourceDataIntegrity(t *testing.T) {
 			Prompts   int `json:"prompts"`
 		} `json:"capabilities"`
 		Tools               []string `json:"tools"`
+		TemplateCategories  []string `json:"template_categories"`
 		SupportedWAFVendors []string `json:"supported_waf_vendors"`
 		SupportedCDNVendors []string `json:"supported_cdn_vendors"`
 	}
@@ -1950,6 +2725,21 @@ func TestVersionResourceDataIntegrity(t *testing.T) {
 	if vInfo.Capabilities.Prompts != len(pResult.Prompts) {
 		t.Errorf("version says %d prompts, ListPrompts returns %d",
 			vInfo.Capabilities.Prompts, len(pResult.Prompts))
+	}
+
+	// template_categories must match the resolver's known kinds.
+	wantKinds := make(map[string]bool)
+	for _, cat := range templateresolver.ListAllCategories() {
+		wantKinds[string(cat.Kind)] = true
+	}
+	if len(vInfo.TemplateCategories) != len(wantKinds) {
+		t.Errorf("template_categories has %d entries, resolver has %d kinds",
+			len(vInfo.TemplateCategories), len(wantKinds))
+	}
+	for _, kind := range vInfo.TemplateCategories {
+		if !wantKinds[kind] {
+			t.Errorf("template_categories lists %q which is not a resolver kind", kind)
+		}
 	}
 
 	if len(vInfo.SupportedWAFVendors) < 20 {
@@ -2506,8 +3296,8 @@ func TestHTTPTransportListTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTools over HTTP: %v", err)
 	}
-	if len(result.Tools) != 24 {
-		t.Errorf("got %d tools over HTTP, want 24", len(result.Tools))
+	if len(result.Tools) != 26 {
+		t.Errorf("got %d tools over HTTP, want 26", len(result.Tools))
 	}
 }
 
@@ -2961,8 +3751,8 @@ func TestToolsIterator(t *testing.T) {
 		count++
 	}
 
-	if count != 24 {
-		t.Errorf("Tools iterator yielded %d tools, want 24", count)
+	if count != 26 {
+		t.Errorf("Tools iterator yielded %d tools, want 26", count)
 	}
 	for _, name := range []string{"list_payloads", "scan", "assess", "detect_waf", "mutate", "get_task_status", "cancel_task", "list_tasks"} {
 		if !names[name] {

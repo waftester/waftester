@@ -13,6 +13,7 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/nuclei"
 	"github.com/waftester/waftester/pkg/payloadprovider"
+	"github.com/waftester/waftester/pkg/templateresolver"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -95,7 +96,14 @@ func runTemplate() {
 	}
 
 	if templatePath == "" {
-		templatePath = "templates"
+		templatePath = defaults.TemplateBaseDir
+	}
+
+	// Resolve template path: if it doesn't exist on disk, try embedded templates.
+	if info, err := os.Stat(templatePath); err != nil || !info.IsDir() {
+		if resolved, resolveErr := templateresolver.ResolveNucleiDir(templatePath); resolveErr == nil {
+			templatePath = resolved
+		}
 	}
 
 	if !*silent {
@@ -349,8 +357,6 @@ func readTargetsFromFile(path string) ([]string, error) {
 	}
 	return targets, nil
 }
-
-
 
 func getSeverityColor(severity string) string {
 	switch severity {
