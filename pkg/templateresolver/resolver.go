@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -291,14 +290,13 @@ func ListCategory(kind Kind) ([]TemplateInfo, error) {
 }
 
 // ListAllCategories returns a summary of all template categories.
-// Categories that fail to list are logged and skipped.
+// Categories that fail to list are silently skipped.
 func ListAllCategories() []CategoryInfo {
 	kinds := []Kind{KindNuclei, KindWorkflow, KindPolicy, KindOverride, KindOutputFormat, KindReportConfig}
 	categories := make([]CategoryInfo, 0, len(kinds))
 	for _, k := range kinds {
 		infos, err := ListCategory(k)
 		if err != nil {
-			log.Printf("templateresolver: listing %s: %v", k, err)
 			continue
 		}
 		categories = append(categories, CategoryInfo{
