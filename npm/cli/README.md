@@ -71,6 +71,16 @@ Top Bypass Chains:
 
 The mutation engine combines 49 mutator functions with base payloads for comprehensive encoding, evasion, and injection variation coverage.
 
+Automate bypass chain discovery by testing tamper combinations against WAF rules:
+
+```bash
+# Automated bypass discovery — tests tamper combinations systematically
+waf-tester bypass -u https://target.com --discover
+
+# Write custom tamper scripts in Tengo and load from a directory
+waf-tester scan -u https://target.com --tamper-dir ./my-tampers
+```
+
 ### Enterprise Assessment with Metrics
 
 ```
@@ -99,6 +109,16 @@ waf-tester scan -u https://target.com -types all
 waf-tester scan -u https://api.example.com/graphql -types graphql
 waf-tester scan -u grpc://service:50051 -types grpc
 waf-tester scan -u wss://api.example.com/socket -types websocket
+```
+
+### Browser & SPA Testing
+
+```bash
+# DOM event crawling — discovers hidden UI states in single-page apps
+waf-tester headless -u https://spa.example.com --event-crawl
+
+# Browser-based scanning for JavaScript-rendered targets
+waf-tester headless -u https://app.example.com --smart
 ```
 
 ## MCP Server (AI Integration)
@@ -220,11 +240,11 @@ Also integrates with SonarQube, GitLab SAST, DefectDojo, Elasticsearch, Slack, T
 | `bypass` | Bypass discovery with tamper chain optimization |
 | `assess` | Enterprise assessment with statistical metrics |
 | `tampers` | List and rank tamper scripts by WAF vendor effectiveness |
-| `discover` | Full discovery (crawl + JS + sitemap + Wayback) |
+| `discover` | Full discovery (crawl + JS + sitemap + Wayback + event crawl) |
 | `fuzz` | Smart fuzzing with parameter-aware mutation |
 | `mutate` | Mutation matrix testing (49 mutator functions) |
 | `headless` | Browser-based testing for JS-rendered targets |
-| `template` | Run Nuclei-compatible YAML templates |
+| `template` | Run Nuclei-compatible YAML templates (HTTP, DNS, TCP, UDP) |
 | `openapi` | Scan OpenAPI/Swagger spec endpoints |
 | `grpc` | Test gRPC services via reflection |
 | `soap` | Test SOAP/WSDL endpoints |
