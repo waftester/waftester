@@ -5,6 +5,18 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.7] - 2026-02-17
+
+### Added
+
+- **n8n workflow templates** — Three ready-to-import n8n workflow templates for WAFtester MCP integration: AI WAF Security Agent (conversational testing via Chat Trigger + AI Agent + MCP Client), Scheduled WAF Audit (weekly cron with Slack pass/fail routing), and Post-Deploy Security Gate (CI/CD webhook returning HTTP 200/422 based on detection rate threshold). Includes Docker Compose for local setup.
+- **n8n templates Docker Compose** — `n8n-templates/docker-compose.yml` for running WAFtester and n8n side-by-side with pre-configured networking.
+
+### Fixed
+
+- **MCP tool count in README** — Platform Statistics table listed 22 MCP tools, actual count is 27.
+- **n8n section tool count in EXAMPLES.md** — Listed 24 tools, updated to 27.
+
 ## [2.9.6] - 2026-02-16
 
 ### Added
@@ -2172,6 +2184,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.7]: https://github.com/waftester/waftester/compare/v2.9.6...v2.9.7
 [2.9.6]: https://github.com/waftester/waftester/compare/v2.9.5...v2.9.6
 [2.9.5]: https://github.com/waftester/waftester/compare/v2.9.4...v2.9.5
 [2.9.4]: https://github.com/waftester/waftester/compare/v2.9.3...v2.9.4

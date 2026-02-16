@@ -461,6 +461,14 @@ Alternatively, if installed via binary download:
 4. Connect to an AI Agent node
 5. WAFtester tools appear automatically for the agent to use
 
+Three ready-to-import workflow templates are available in [`n8n-templates/`](n8n-templates/):
+
+| Template | Use Case |
+|----------|----------|
+| AI WAF Security Agent | Conversational testing via Chat Trigger + AI Agent + MCP Client |
+| Scheduled WAF Audit | Weekly cron with Slack pass/fail routing |
+| Post-Deploy Security Gate | CI/CD webhook returning HTTP 200/422 based on detection rate |
+
 ### Available Tools
 
 | Tool | What It Does |
@@ -593,7 +601,7 @@ For complete MCP examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md#mcp-server-in
 | Spec Formats | OpenAPI, Swagger, Postman, HAR, GraphQL, gRPC, AsyncAPI |
 | Output Formats | 16 |
 | CI/CD Platforms | 9 |
-| MCP Tools | 22 |
+| MCP Tools | 27 |
 | MCP Resources | 12 |
 | MCP Prompts | 7 |
 | npm Platforms | macOS, Linux, Windows (x64 + arm64) |

@@ -75,7 +75,7 @@ func (s *Server) addVersionResource() {
 					"templates": templateCount,
 				},
 				"template_categories": catNames,
-				"tools": tools,
+				"tools":               tools,
 				"supported_waf_vendors": []string{
 					"ModSecurity", "Coraza", "Cloudflare", "AWS WAF", "Azure WAF",
 					"Akamai Kona", "Imperva Incapsula", "F5 BIG-IP ASM", "FortiWeb", "Barracuda WAF",
