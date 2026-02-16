@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/mutation"
 	"github.com/waftester/waftester/pkg/ui"
@@ -248,9 +249,9 @@ Examples:
 func GetTemplateRecommendations(result *SmartModeResult) []string {
 	if result == nil || !result.WAFDetected {
 		return []string{
-			"templates/nuclei/http/waf-bypass/   (all bypass templates)",
-			"templates/policies/standard.yaml    (standard grading policy)",
-			"payloads/community/waf-bypass/      (133 bypass payloads from JSON DB)",
+			defaults.TemplateDir + "/http/waf-bypass/   (all bypass templates)",
+			defaults.PolicyDir + "/standard.yaml    (standard grading policy)",
+			defaults.PayloadDir + "/community/waf-bypass/      (133 bypass payloads from JSON DB)",
 		}
 	}
 
@@ -262,28 +263,28 @@ func GetTemplateRecommendations(result *SmartModeResult) []string {
 	switch {
 	case strings.Contains(vendorLower, "cloudflare"):
 		recommendations = append(recommendations,
-			"templates/nuclei/http/waf-detection/cloudflare-detect.yaml",
-			"payloads/community/waf-bypass/cloudflare-bypass.json (20 vendor-specific bypasses)",
+			defaults.TemplateDir+"/http/waf-detection/cloudflare-detect.yaml",
+			defaults.PayloadDir+"/community/waf-bypass/cloudflare-bypass.json (20 vendor-specific bypasses)",
 		)
 	case strings.Contains(vendorLower, "aws"), strings.Contains(vendorLower, "amazon"):
-		recommendations = append(recommendations, "templates/nuclei/http/waf-detection/aws-waf-detect.yaml")
+		recommendations = append(recommendations, defaults.TemplateDir+"/http/waf-detection/aws-waf-detect.yaml")
 	case strings.Contains(vendorLower, "akamai"):
-		recommendations = append(recommendations, "templates/nuclei/http/waf-detection/akamai-detect.yaml")
+		recommendations = append(recommendations, defaults.TemplateDir+"/http/waf-detection/akamai-detect.yaml")
 	case strings.Contains(vendorLower, "azure"), strings.Contains(vendorLower, "microsoft"):
-		recommendations = append(recommendations, "templates/nuclei/http/waf-detection/azure-waf-detect.yaml")
+		recommendations = append(recommendations, defaults.TemplateDir+"/http/waf-detection/azure-waf-detect.yaml")
 	case strings.Contains(vendorLower, "modsecurity"), strings.Contains(vendorLower, "coraza"):
 		recommendations = append(recommendations,
-			"templates/nuclei/http/waf-detection/modsecurity-detect.yaml",
-			"templates/overrides/crs-tuning.yaml  (CRS paranoia level tuning)",
-			"payloads/community/waf-bypass/modsecurity-crs.json (20 CRS-specific bypasses)",
+			defaults.TemplateDir+"/http/waf-detection/modsecurity-detect.yaml",
+			defaults.OverrideDir+"/crs-tuning.yaml  (CRS paranoia level tuning)",
+			defaults.PayloadDir+"/community/waf-bypass/modsecurity-crs.json (20 CRS-specific bypasses)",
 		)
 	}
 
 	// Always recommend bypass templates + unified payload access
 	recommendations = append(recommendations,
-		"templates/nuclei/http/waf-bypass/   (all bypass templates)",
-		"templates/policies/standard.yaml    (standard grading policy)",
-		"templates/overrides/false-positive-suppression.yaml (reduce noise)",
+		defaults.TemplateDir+"/http/waf-bypass/   (all bypass templates)",
+		defaults.PolicyDir+"/standard.yaml    (standard grading policy)",
+		defaults.OverrideDir+"/false-positive-suppression.yaml (reduce noise)",
 		"Use --enrich flag with template command to inject 2800+ JSON payloads into Nuclei templates",
 	)
 

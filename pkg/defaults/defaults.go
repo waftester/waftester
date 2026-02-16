@@ -18,7 +18,7 @@ import (
 )
 
 // Version is the current WAFtester version
-const Version = "2.9.5"
+const Version = "2.9.6"
 
 // ToolName is the canonical tool name for output formats and integrations
 const ToolName = "waftester"
@@ -29,8 +29,36 @@ const ToolNameDisplay = "WAFtester"
 // PayloadDir is the default directory for JSON payload files.
 const PayloadDir = "./payloads"
 
-// TemplateDir is the default directory for Nuclei template files.
-const TemplateDir = "./templates/nuclei"
+// ============================================================================
+// TEMPLATE DIRECTORIES
+// ============================================================================
+//
+// These are on-disk paths checked before falling back to embedded templates.
+// The templateresolver package uses these as the first lookup location.
+// ============================================================================
+
+const (
+	// TemplateBaseDir is the root directory for all template subdirectories.
+	TemplateBaseDir = "./templates"
+
+	// TemplateDir is the default directory for Nuclei template files.
+	TemplateDir = TemplateBaseDir + "/nuclei"
+
+	// WorkflowDir is the default directory for workflow template files.
+	WorkflowDir = TemplateBaseDir + "/workflows"
+
+	// PolicyDir is the default directory for policy template files.
+	PolicyDir = TemplateBaseDir + "/policies"
+
+	// OverrideDir is the default directory for override template files.
+	OverrideDir = TemplateBaseDir + "/overrides"
+
+	// OutputTemplateDir is the default directory for output format templates.
+	OutputTemplateDir = TemplateBaseDir + "/output"
+
+	// ReportConfigDir is the default directory for report configuration files.
+	ReportConfigDir = TemplateBaseDir + "/report-configs"
+)
 
 // ============================================================================
 // CONCURRENCY SETTINGS

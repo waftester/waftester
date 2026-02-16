@@ -19,13 +19,13 @@ import (
 // Usage:
 //
 //	// Simple: load all payloads from both sources
-//	payloads, provider, err := loadUnifiedPayloads("./payloads", "./templates/nuclei", verbose)
+//	payloads, provider, err := loadUnifiedPayloads(defaults.PayloadDir, defaults.TemplateDir, verbose)
 //
 //	// Filtered: load by category with alias resolution
-//	payloads, err := loadUnifiedByCategory("./payloads", "./templates/nuclei", "sqli", verbose)
+//	payloads, err := loadUnifiedByCategory(defaults.PayloadDir, defaults.TemplateDir, "sqli", verbose)
 //
 //	// Protocol fuzz: get payload strings for a scan type (replaces hardcoded lists)
-//	payloads := getUnifiedFuzzPayloads("./payloads", "./templates/nuclei", "xss", 50, verbose)
+//	payloads := getUnifiedFuzzPayloads(defaults.PayloadDir, defaults.TemplateDir, "xss", 50, verbose)
 // ─────────────────────────────────────────────────────────────────────────────
 
 // loadUnifiedPayloads loads payloads from both JSON and Nuclei sources.

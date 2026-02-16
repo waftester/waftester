@@ -6,6 +6,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
 	"github.com/waftester/waftester/pkg/output/policy"
+	"github.com/waftester/waftester/pkg/templateresolver"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -125,6 +127,17 @@ type OutputFlags struct {
 
 	// Version for reports
 	Version string
+
+	// templateCleanup removes temp files created by ResolveTemplatePaths.
+	templateCleanup func()
+}
+
+// CleanupTemplates removes any temp files created by embedded template resolution.
+// Safe to call multiple times or on nil.
+func (o *OutputFlags) CleanupTemplates() {
+	if o != nil && o.templateCleanup != nil {
+		o.templateCleanup()
+	}
 }
 
 // =============================================================================
@@ -387,7 +400,13 @@ func (o *OutputFlags) RegisterOutputAliases(fs *flag.FlagSet) {
 }
 
 // ToConfig converts OutputFlags to output.Config.
+// Resolves short template names (e.g. "dark" → embedded report config path).
 func (o *OutputFlags) ToConfig() output.Config {
+	// Resolve short template names before building config.
+	// This allows --template-config dark, --policy strict, --overrides api-only.
+	// Caller should defer o.CleanupTemplates() to remove temp files.
+	o.templateCleanup = o.ResolveTemplatePaths()
+
 	// Parse history tags from comma-separated string
 	var historyTags []string
 	if o.HistoryTags != "" {
@@ -478,16 +497,81 @@ func (o *OutputFlags) BuildDispatcher() (*dispatcher.Dispatcher, error) {
 	return output.BuildDispatcher(cfg)
 }
 
+// ResolveTemplatePaths resolves short names for --policy, --overrides, and
+// --template-config to filesystem paths. Call this before LoadPolicy or
+// any code that reads these files. Returns a cleanup function that removes
+// any temp files created for embedded templates.
+func (o *OutputFlags) ResolveTemplatePaths() (cleanup func()) {
+	var cleanups []func()
+
+	if o.PolicyFile != "" {
+		path, c, err := templateresolver.ResolveToPath(o.PolicyFile, templateresolver.KindPolicy)
+		if err == nil {
+			o.PolicyFile = path
+			cleanups = append(cleanups, c)
+		} else {
+			ui.PrintWarning(fmt.Sprintf("could not resolve policy %q: %v", o.PolicyFile, err))
+		}
+	}
+
+	if o.OverridesFile != "" {
+		path, c, err := templateresolver.ResolveToPath(o.OverridesFile, templateresolver.KindOverride)
+		if err == nil {
+			o.OverridesFile = path
+			cleanups = append(cleanups, c)
+		} else {
+			ui.PrintWarning(fmt.Sprintf("could not resolve override %q: %v", o.OverridesFile, err))
+		}
+	}
+
+	if o.TemplateConfigPath != "" {
+		path, c, err := templateresolver.ResolveToPath(o.TemplateConfigPath, templateresolver.KindReportConfig)
+		if err == nil {
+			o.TemplateConfigPath = path
+			cleanups = append(cleanups, c)
+		} else {
+			ui.PrintWarning(fmt.Sprintf("could not resolve report config %q: %v", o.TemplateConfigPath, err))
+		}
+	}
+
+	return func() {
+		for _, c := range cleanups {
+			c()
+		}
+	}
+}
+
 // LoadPolicy loads policy from file if specified.
+// Supports short names (e.g. "strict") that resolve to bundled templates.
 // Returns nil if no policy file is configured.
+//
+// If ResolveTemplatePaths was called first (recommended), PolicyFile is already
+// a disk path and no additional resolution is needed.
 func (o *OutputFlags) LoadPolicy() (*policy.Policy, error) {
 	if o.PolicyFile == "" {
 		return nil, nil
 	}
 
-	p, err := policy.LoadPolicy(o.PolicyFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load policy: %w", err)
+	path := o.PolicyFile
+
+	// Only resolve if the path doesn't already exist on disk
+	// (ResolveTemplatePaths may have already resolved it).
+	var cleanup func()
+	if _, statErr := os.Stat(path); statErr != nil {
+		resolved, c, err := templateresolver.ResolveToPath(path, templateresolver.KindPolicy)
+		if err != nil {
+			return nil, fmt.Errorf("loading policy: resolving %q: %w", path, err)
+		}
+		path = resolved
+		cleanup = c
+	}
+	if cleanup != nil {
+		defer cleanup()
+	}
+
+	p, loadErr := policy.LoadPolicy(path)
+	if loadErr != nil {
+		return nil, fmt.Errorf("loading policy: %w", loadErr)
 	}
 
 	return p, nil
