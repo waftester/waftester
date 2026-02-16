@@ -279,6 +279,8 @@ func (s *Server) registerTools() {
 	s.addGenerateCICDTool()
 	s.addListTampersTool()
 	s.addDiscoverBypassesTool()
+	s.addListTemplatesTool()
+	s.addShowTemplateTool()
 	if s.config.EventCrawlFn != nil {
 		s.addEventCrawlTool()
 	}

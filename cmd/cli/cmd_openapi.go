@@ -12,6 +12,7 @@ import (
 	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/openapi"
+	"github.com/waftester/waftester/pkg/templateresolver"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -58,6 +59,11 @@ func runOpenAPI() {
 	verbose := openapiFlags.Bool("v", false, "Verbose output")
 
 	openapiFlags.Parse(os.Args[2:])
+
+	// Resolve nuclei template directory with embedded fallback.
+	if resolved, err := templateresolver.ResolveNucleiDir(*templateDir); err == nil {
+		*templateDir = resolved
+	}
 
 	// Get spec path
 	specPath := *specFile

@@ -64,6 +64,7 @@ import (
 	"github.com/waftester/waftester/pkg/ssrf"
 	"github.com/waftester/waftester/pkg/ssti"
 	"github.com/waftester/waftester/pkg/subtakeover"
+	"github.com/waftester/waftester/pkg/templateresolver"
 	"github.com/waftester/waftester/pkg/traversal"
 	"github.com/waftester/waftester/pkg/ui"
 	"github.com/waftester/waftester/pkg/upload"
@@ -235,6 +236,13 @@ func runScan() {
 	noDetect := scanFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
 
 	scanFlags.Parse(os.Args[2:])
+
+	// Resolve nuclei template directory: if the default path doesn't exist
+	// on disk, extract embedded templates to a temp directory.
+	resolvedTemplateDir, resolveErr := templateresolver.ResolveNucleiDir(*templateDir)
+	if resolveErr == nil {
+		*templateDir = resolvedTemplateDir
+	}
 
 	// Disable detection if requested
 	if *noDetect {

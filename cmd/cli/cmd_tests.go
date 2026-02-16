@@ -22,6 +22,7 @@ import (
 	"github.com/waftester/waftester/pkg/output/baseline"
 	"github.com/waftester/waftester/pkg/output/policy"
 	"github.com/waftester/waftester/pkg/payloads"
+	"github.com/waftester/waftester/pkg/templateresolver"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -251,11 +252,18 @@ func runTests() {
 	}
 	_ = interactiveHandler // Handler provides pause/resume during execution via background goroutine
 
+	// Resolve nuclei template directory: if the default path doesn't exist
+	// on disk, extract embedded templates to a temp directory.
+	templateDir := defaults.TemplateDir
+	if resolved, resolveErr := templateresolver.ResolveNucleiDir(templateDir); resolveErr == nil {
+		templateDir = resolved
+	}
+
 	// Load payloads from unified engine (JSON + Nuclei templates)
 	if !cfg.Silent {
 		ui.PrintInfo("Loading payloads...")
 	}
-	allPayloads, _, err := loadUnifiedPayloads(cfg.PayloadDir, defaults.TemplateDir, cfg.Verbose)
+	allPayloads, _, err := loadUnifiedPayloads(cfg.PayloadDir, templateDir, cfg.Verbose)
 	if err != nil {
 		errMsg := fmt.Sprintf("Error loading payloads: %v", err)
 		ui.PrintError(errMsg)
