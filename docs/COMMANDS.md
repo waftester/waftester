@@ -4,8 +4,10 @@ The definitive reference for every WAFtester CLI command, flag, environment vari
 
 For usage examples and real-world workflows, see the [Examples Guide](https://github.com/waftester/waftester/blob/main/docs/EXAMPLES.md). For installation, see the [Installation Guide](https://github.com/waftester/waftester/blob/main/docs/INSTALLATION.md). For a quick task-oriented reference, see the [Cheat Sheet](https://waftester.com/cheat-sheet).
 
-**Document Version:** 2.9.5
+**Document Version:** 2.9.6
 **Last Updated:** February 2026
+
+> **Reading order:** This is the flag reference. For real-world examples, see [EXAMPLES.md](EXAMPLES.md). For a quick copy-paste reference, see the [Cheat Sheet](https://waftester.com/cheat-sheet). For a beginner guide, see [waftester.com/docs](https://waftester.com/docs).
 
 ---
 
@@ -13,34 +15,41 @@ For usage examples and real-world workflows, see the [Examples Guide](https://gi
 
 - [Quick Start](#quick-start)
 - [Which Command Should I Use?](#which-command-should-i-use)
+- [How Commands Relate](#how-commands-relate)
 - [Usage](#usage)
 - [Global Options](#global-options)
 - [Environment Variables](#environment-variables)
-- [Commands](#commands)
+- [Glossary](#glossary)
+- **Core Scanning**
   - [auto](#auto) — Autonomous full-spectrum assessment
   - [scan](#scan) — Targeted vulnerability scanning
   - [run](#run) — Test plan execution
+- **Bypass and Evasion**
   - [bypass](#bypass) — WAF bypass discovery
   - [mutate](#mutate) — Payload mutation engine
-  - [fuzz](#fuzz) — Directory and parameter fuzzing
+  - [tampers](#tampers) — Tamper technique management
+- **Assessment**
+  - [assess](#assess) — WAF assessment and benchmarking
+  - [fp](#fp) — False positive testing
+  - [vendor](#vendor) — WAF vendor detection
+- **Discovery and Recon**
   - [probe](#probe) — HTTP probing and fingerprinting
   - [crawl](#crawl) — Web crawling with JS support
   - [discover](#discover) — Endpoint discovery
   - [learn](#learn) — Test plan generation
   - [analyze](#analyze) — JavaScript analysis
   - [headless](#headless) — Headless browser testing
-  - [assess](#assess) — WAF assessment and benchmarking
-  - [fp](#fp) — False positive testing
-  - [vendor](#vendor) — WAF vendor detection
+- **Protocol Testing**
   - [protocol](#protocol) — Protocol detection
-  - [tampers](#tampers) — Tamper technique management
   - [template](#template) — Nuclei template scanning
   - [smuggle](#smuggle) — HTTP request smuggling
   - [race](#race) — Race condition testing
-  - [workflow](#workflow) — YAML workflow orchestration
   - [openapi](#openapi) — OpenAPI/Swagger testing
   - [grpc](#grpc) — gRPC service testing
   - [soap](#soap) — SOAP/WSDL service testing
+- **Utilities**
+  - [fuzz](#fuzz) — Directory and parameter fuzzing
+  - [workflow](#workflow) — YAML workflow orchestration
   - [cloud](#cloud) — Cloud infrastructure discovery
   - [cicd](#cicd) — CI/CD pipeline generation
   - [plugin](#plugin) — Plugin management
@@ -49,10 +58,15 @@ For usage examples and real-world workflows, see the [Examples Guide](https://gi
   - [validate-templates](#validate-templates) — Template validation
   - [report](#report) — Enterprise HTML report generation
   - [update](#update) — Payload updater
+- [Understanding Matchers and Filters](#understanding-matchers-and-filters)
+- [Recommended Flag Combinations](#recommended-flag-combinations)
+- [Performance and Footprint](#performance-and-footprint)
 - [Shared Flag Groups](#shared-flag-groups)
   - [Output Flags](#output-flags)
   - [Enterprise Integration Flags](#enterprise-integration-flags)
+- [Attack Categories Reference](#attack-categories-reference)
 - [Exit Codes](#exit-codes)
+- [Flag Naming Notes](#flag-naming-notes)
 - [See Also](#see-also)
 
 ---
@@ -93,6 +107,45 @@ See the [Installation Guide](https://github.com/waftester/waftester/blob/main/do
 
 ---
 
+## How Commands Relate
+
+Commands are not isolated — they feed into each other. This diagram shows the most common data flows:
+
+```
+                        ┌─────────────┐
+                        │   vendor    │ Identify WAF
+                        └──────┬──────┘
+                               │ informs tamper selection
+                               ▼
+┌──────────┐   endpoints   ┌───────┐   test plan   ┌──────┐
+│ discover │──────────────▶│ learn │──────────────▶│ run  │
+└──────────┘               └───────┘               └──────┘
+      │                                                │
+      │ feeds                                          │ results
+      ▼                                                ▼
+┌──────────┐                                    ┌───────────┐
+│  crawl   │                                    │  report   │
+└──────────┘                                    └───────────┘
+
+┌──────────┐   does all of the above in one pass
+│   auto   │──▶ vendor → discover → scan → assess → report
+└──────────┘
+
+┌──────────┐   bypass payloads    ┌──────────┐
+│  bypass  │◀────────────────────▶│ tampers  │
+└──────────┘   tamper transforms  └──────────┘
+      │
+      │ variants
+      ▼
+┌──────────┐
+│  mutate  │ Expand payload space
+└──────────┘
+```
+
+**Shortcut:** If you don't know where to start, use `auto`. It runs the entire pipeline.
+
+---
+
 ## Usage
 
 ```
@@ -125,6 +178,31 @@ Environment variables override flag defaults. They are useful for CI/CD or Docke
 
 ---
 
+## Glossary
+
+Key terms used throughout this reference:
+
+| Term | Meaning |
+|------|---------|
+| **Auto-calibrate** | Automatically determines baseline response characteristics (size, word count, status code) and excludes noise from results. Use `-ac` to enable. |
+| **Bypass** | A payload that reaches the application without being blocked by the WAF. This is what you are testing for. |
+| **Chain mode** | Applies multiple mutation transforms sequentially to a single payload, exponentially expanding the payload space. |
+| **Evasion** | A technique that transforms a payload to avoid WAF pattern matching while preserving its attack semantics. |
+| **F1 score** | Harmonic mean of precision and recall. Ranges from 0 to 1. Higher is better. An F1 of 0.95 means the WAF catches most attacks with few false positives. |
+| **False positive (FP)** | A legitimate request that the WAF incorrectly blocks. High FP rates break real users. |
+| **Filter** | Excludes responses matching criteria from results. The inverse of a matcher. |
+| **FUZZ keyword** | A placeholder in URLs, headers, or body. WAFtester substitutes each wordlist entry at this position. |
+| **Matcher** | Selects responses that meet criteria (status code, size, regex). Only matched responses appear in output. |
+| **MCC** | Matthews Correlation Coefficient. A balanced metric that accounts for true/false positives/negatives. Ranges from -1 to +1. Above 0.8 is strong. |
+| **Mutation** | A transformation applied to a payload: encoding (base64, URL, hex), case changes, comment injection, null bytes, etc. |
+| **Paranoia level** | Controls how aggressive the test corpus is, corresponding to ModSecurity CRS paranoia levels (1-4). Higher = more edge cases, more traffic. |
+| **Realistic mode** | Sends browser-like headers (Accept, Accept-Language, Referer, realistic User-Agent) to mimic organic traffic and avoid bot detection. |
+| **Smart mode** | WAF-aware adaptive scanning that detects blocking patterns and adjusts payloads, timing, and evasion techniques automatically. |
+| **Tamper** | A named transformation technique (e.g., `space2comment`, `between`, `urlenc`) that modifies payloads to evade WAF rules. Written as `.tengo` scripts. |
+| **TPR** | True Positive Rate (recall). The percentage of attack payloads correctly blocked by the WAF. |
+
+---
+
 ## Commands
 
 ### `auto`
@@ -136,6 +214,8 @@ The most powerful command in WAFtester. Runs a multi-phase autonomous assessment
 Results are written to a workspace directory containing JSON, Markdown, and HTML reports. Use `--resume` to continue an interrupted scan from the last checkpoint.
 
 **When to use:** You want a single command that does everything. Ideal for first-time assessments, CI/CD pipelines, and hands-off security audits.
+
+**When NOT to use:** On production systems without `--smart-mode=stealth` and a conservative rate limit. The default mode sends 2,800+ payloads at 200 req/s, which can trigger WAF bans, alert SOC teams, or degrade application performance. Use `scan` with a narrow `-types` filter when you only need to test specific categories.
 
 #### Target
 
@@ -277,6 +357,8 @@ Targeted vulnerability scanning across 50+ attack categories including SQL injec
 Unlike `auto`, the `scan` command gives you direct control over which attack types to run, how results are filtered, and how output is formatted. It does not run discovery or assessment phases.
 
 **When to use:** You know what you want to test and need precise control. Ideal for targeted scans, regression testing, and integration into custom scripts.
+
+**When NOT to use:** Against targets you do not own or have written authorization to test. Even with `-types` limiting the scope, every payload is a real attack attempt that will appear in server and WAF logs.
 
 #### Target
 
@@ -585,6 +667,8 @@ With `--smart` mode, the engine adapts in real time: it detects blocking pattern
 
 **When to use:** You know a WAF is present and want to find what gets through. Pair with `tampers --discover` for maximum coverage.
 
+**When NOT to use:** Without explicit authorization. Bypass payloads reach the application behind the WAF. If a payload succeeds, it has executed against the real application, not a sandbox.
+
 **Related:** [`mutate`](#mutate) (payload mutation engine), [`tampers`](#tampers) (tamper technique management), [`vendor`](#vendor) (identify the WAF first)
 
 | Flag | Short | Type | Default | Description |
@@ -679,6 +763,8 @@ High-performance directory, file, and parameter fuzzer. Place the `FUZZ` keyword
 Supports recursive directory discovery, file extension brute-forcing, multiple fuzzing modes (sniper, pitchfork, cluster bomb), and response extraction via regex or presets.
 
 **When to use:** Directory discovery, parameter brute-forcing, virtual host enumeration, or any scenario where you need to iterate a wordlist against a URL pattern.
+
+**When NOT to use:** With large wordlists against rate-limited or shared-hosting targets without throttling (`-rate`). A 100k-entry wordlist at full speed can trigger IP bans and affect other tenants on the same server.
 
 #### Target
 
@@ -1536,6 +1622,8 @@ Safe mode (default) uses non-destructive timing-based probes that do not inject 
 
 **When to use:** Testing reverse proxy and CDN configurations for request smuggling vulnerabilities. Run `protocol` first to understand the target's HTTP stack.
 
+**When NOT to use:** On shared infrastructure (CDNs, shared load balancers) without coordination. Smuggled requests can affect other users behind the same proxy. Keep safe mode enabled (the default) unless you are in an isolated test environment.
+
 | Flag | Short | Type | Default | Description |
 |------|-------|------|---------|-------------|
 | `-target` | `-u` | string | | Target URL |
@@ -1568,6 +1656,8 @@ waftester smuggle -u https://target.com --safe=false --delay 2000
 Race condition testing for TOCTOU (time-of-check-time-of-use), double-submit, and limit-bypass vulnerabilities. Sends concurrent identical requests to detect business logic flaws where the application fails to handle simultaneous access correctly, such as processing a coupon code twice, exceeding account balance limits, or bypassing rate limiters.
 
 **When to use:** Testing checkout flows, coupon redemption, vote/like counters, account balance transfers, or any endpoint where concurrent access could produce unintended results.
+
+**When NOT to use:** Against live production checkout, payment, or financial endpoints without a test account. Race condition exploits can cause real financial transactions: double charges, duplicate orders, or balance manipulation. Always test in staging first.
 
 | Flag | Short | Type | Default | Description |
 |------|-------|------|---------|-------------|
@@ -2185,15 +2275,218 @@ Scan history tracking, policy enforcement, and baseline comparison. History stor
 
 ---
 
+## Understanding Matchers and Filters
+
+Matchers and filters control which responses appear in your results. They exist on `run`, `fuzz`, and `probe` commands, but the flag names differ between commands because each command evolved from different design lineages.
+
+**Core concept:** A matcher _includes_ responses that meet criteria. A filter _excludes_ responses that meet criteria. They are inverses of each other. When both are set, matchers run first, then filters remove from the matched set.
+
+### How it works
+
+1. WAFtester sends a request with each payload or wordlist entry.
+2. The response is checked against matchers. If no matcher matches, the response is discarded.
+3. Remaining responses are checked against filters. If a filter matches, the response is discarded.
+4. Surviving responses appear in your output as findings.
+
+### Auto-calibrate
+
+The `-ac` / `-auto-calibrate` flag sends a few baseline requests (random strings that should not trigger interesting behavior) and learns the "normal" response characteristics (status code, size, word count). It then automatically sets filters to exclude responses matching that baseline. This eliminates noise without manual tuning.
+
+### Flag name differences by command
+
+The same concept uses different flag names depending on the command:
+
+| Concept | `run` / `fuzz` | `probe` |
+|---------|----------------|---------|
+| Match status code | `-mc` | `-match-code` (`-mc`) |
+| Match size | `-ms` | `-match-length` (`-ml`) |
+| Match words | `-mw` | `-match-word-count` (`-mwc`) |
+| Match lines | `-ml` | `-match-line-count` (`-mlc`) |
+| Match regex | `-mr` | `-match-regex` (`-mr`) |
+| Match string | — | `-match-string` (`-ms`) |
+| Filter status code | `-fc` | `-filter-code` (`-fc`) |
+| Filter size | `-fs` | `-filter-length` (`-fl`) |
+| Filter words | `-fw` | `-filter-word-count` (`-fwc`) |
+| Filter lines | `-fl` | `-filter-line-count` (`-flc`) |
+| Filter regex | `-fr` | `-filter-regex` (`-fe`) |
+
+Why the difference? `run` and `fuzz` follow the short-flag convention from `ffuf` (a widely-used fuzzer). `probe` uses self-documenting long names because it runs many probe types and short flags would collide. See [Flag Naming Notes](#flag-naming-notes) for more detail.
+
+### Quick examples
+
+```bash
+# Show only 200 and 403 responses
+waftester fuzz -u https://target.com/FUZZ -w wordlist.txt -mc 200,403
+
+# Exclude 404s and error pages
+waftester fuzz -u https://target.com/FUZZ -w wordlist.txt -fc 404
+
+# Auto-calibrate (recommended for most scans)
+waftester run -u https://target.com -ac
+
+# Match by response size range (probe)
+waftester probe -u https://target.com -match-length "100-5000"
+
+# Combine matchers and filters
+waftester fuzz -u https://target.com/FUZZ -w wordlist.txt -mc 200-399 -fs 0
+```
+
+---
+
+## Recommended Flag Combinations
+
+Common recipes for frequent tasks. Copy-paste and adjust the target URL.
+
+| Task | Command |
+|------|---------|
+| **First scan** (safe, low-noise) | `waftester scan -u URL --smart --smart-mode=stealth -types sqli,xss` |
+| **Full assessment** (everything) | `waftester auto -u URL` |
+| **Stealth mode** (SOC-safe) | `waftester auto -u URL --smart --smart-mode=stealth -rl 20 -c 5` |
+| **Bypass hunt** | `waftester bypass -u URL --smart --tamper-auto` |
+| **Bypass hunt + custom tampers** | `waftester bypass -u URL --tamper-dir=./my-tampers --tamper-auto` |
+| **CI/CD gate** (fail on findings) | `waftester scan -u URL -types sqli,xss -json-export results.json --github-summary` |
+| **API spec testing** | `waftester auto -u URL --spec openapi.yaml` |
+| **Regression test** (specific types) | `waftester scan -u URL -types sqli -mc 200 --baseline prev.json` |
+| **Directory brute-force** | `waftester fuzz -u URL/FUZZ -w wordlist.txt -mc 200,301,403 -ac` |
+| **WAF vendor ID + tailored bypass** | `waftester vendor -u URL && waftester bypass -u URL --tamper-auto` |
+| **Minimal footprint recon** | `waftester probe -l targets.txt -c 5 -rl 10 -title -server -td` |
+| **Full audit with reports** | `waftester auto -u URL -report-formats json,md,html --jira-url JIRA --slack-webhook SLACK` |
+
+---
+
+## Performance and Footprint
+
+Approximate resource usage by command. Actual numbers vary with target response times, network conditions, and payload counts.
+
+| Command | Typical Requests | Peak Memory | Notes |
+|---------|-----------------|-------------|-------|
+| `auto` | 3,000–10,000+ | 200–500 MB | Multi-phase: discovery + scan + assessment + browser |
+| `scan` | 500–5,000 | 100–300 MB | Depends on `-types` selection and payload count |
+| `bypass` | 2,000–5,000 | 150–300 MB | Full payload library against single target |
+| `fuzz` | Wordlist-dependent | 50–200 MB | 100k wordlist ≈ 100k requests |
+| `probe` | 1 per target × modules | 50–150 MB | 8 modules × target count |
+| `assess` | 200–1,000 | 100–200 MB | Payload set + false positive corpus |
+| `race` | `-requests` × `-threads` | 20–50 MB | Burst: all threads fire simultaneously |
+| `smuggle` | 10–50 per technique | 30–50 MB | Low volume, technique-based |
+| `crawl` | Site-dependent | 100–500 MB | Headless browser adds memory |
+
+### Controlling footprint
+
+| Goal | Flags |
+|------|-------|
+| Reduce request rate | `-rl 20` (requests/sec) or `-delay 500ms` |
+| Limit concurrency | `-c 5` (workers) or `-threads 5` |
+| Reduce total requests | `-types sqli,xss` (fewer categories) |
+| Stealth mode | `--smart --smart-mode=stealth` (auto-adapts) |
+| Skip phases in `auto` | `--no-detect`, `--assess=false`, `--browser=false` |
+
+---
+
+## Attack Categories Reference
+
+The `-types` flag on `scan`, `auto`, and `bypass` accepts these category names. Use `all` to run every category, or comma-separate specific ones.
+
+| Category | Description | Aliases |
+|----------|-------------|---------|
+| `sqli` | SQL injection | `sql-injection`, `sql` |
+| `xss` | Cross-site scripting | `cross-site-scripting` |
+| `ssti` | Server-side template injection | `template-injection` |
+| `ssrf` | Server-side request forgery | `request-forgery` |
+| `lfi` | Local file inclusion | `file-inclusion` |
+| `rfi` | Remote file inclusion | |
+| `cmdi` | OS command injection | `command-injection`, `os-injection` |
+| `xxe` | XML external entity injection | |
+| `ldap` | LDAP injection | `ldap-injection` |
+| `nosql` | NoSQL injection | `nosql-injection`, `nosqli` |
+| `prototype` | Prototype pollution | `prototype-pollution` |
+| `crlf` | CRLF injection | `crlf-injection` |
+| `ssi` | Server-side includes | |
+| `deserialization` | Insecure deserialization | `deserialize` |
+| `jwt` | JWT vulnerabilities | |
+| `cors` | CORS misconfiguration | |
+| `csrf` | Cross-site request forgery | |
+| `clickjack` | Clickjacking | `clickjacking` |
+| `redirect` | Open redirect | `open-redirect` |
+| `hpp` | HTTP parameter pollution | |
+| `traversal` | Path traversal | `path-traversal`, `directory-traversal` |
+| `idor` | Insecure direct object reference | |
+| `mass-assign` | Mass assignment | `mass-assignment` |
+| `broken-auth` | Broken authentication | `authentication` |
+| `session-fixation` | Session fixation | |
+| `sensitive-data` | Sensitive data exposure | `data-exposure` |
+| `security-misconfig` | Security misconfiguration | `misconfiguration` |
+| `host-header` | Host header injection | |
+| `response-split` | HTTP response splitting | |
+| `rce` | Remote code execution | `code-execution` |
+| `smuggling` | HTTP request smuggling | `request-smuggling` |
+| `race` | Race conditions | `race-condition` |
+| `graphql` | GraphQL vulnerabilities | |
+| `grpc` | gRPC testing | |
+| `soap` | SOAP/WSDL testing | |
+| `websocket` | WebSocket testing | `ws` |
+| `oauth` | OAuth vulnerabilities | |
+| `crypto` | Cryptographic failures | `cryptographic-failures` |
+| `buffer-overflow` | Buffer overflow | `overflow` |
+| `input-validation` | Input validation bypass | |
+| `cloud` | Cloud misconfigurations | `cloud-misconfig` |
+| `subdomain-takeover` | Subdomain takeover | `takeover` |
+| `dns` | DNS-related attacks | |
+| `api-abuse` | API abuse patterns | |
+| `biz-logic` | Business logic flaws | `business-logic` |
+| `all` | All categories | |
+
+For the full table with payload counts per category, see [EXAMPLES.md: Attack Categories](https://github.com/waftester/waftester/blob/main/docs/EXAMPLES.md#attack-categories-reference).
+
+---
+
 ## Exit Codes
 
 WAFtester uses standard exit codes for CI/CD integration. Scripts and pipelines should check the exit code to determine pass/fail status.
 
 | Code | Meaning |
 |------|---------|
-| 0 | Success (no findings or all tests passed) |
-| 1 | Findings detected or scan errors |
-| 2 | Invalid arguments or configuration |
+| 0 | Success — no findings, or all tests passed |
+| 1 | Findings detected, scan errors, or policy violation |
+| 2 | Invalid arguments or configuration error |
+
+### CI/CD usage
+
+```bash
+waftester scan -u https://target.com -types sqli,xss -json-export results.json
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 0 ]; then
+  echo "No findings — pipeline passes"
+elif [ $EXIT_CODE -eq 1 ]; then
+  echo "Findings detected — review results.json"
+  exit 1
+elif [ $EXIT_CODE -eq 2 ]; then
+  echo "Configuration error — check flags"
+  exit 2
+fi
+```
+
+---
+
+## Flag Naming Notes
+
+WAFtester commands evolved from different design lineages, which is why flag names are not perfectly uniform across all commands.
+
+### Short flags (`run`, `fuzz`, `bypass`, `scan`)
+
+These commands follow the `ffuf` naming convention: short single-character or two-character flags like `-mc`, `-fc`, `-ms`, `-fs`. This is intentional — `run` and `fuzz` are designed to feel familiar to `ffuf` users, and `scan`/`bypass` inherit the same patterns for consistency within the attack-oriented commands.
+
+### Long flags (`probe`, `crawl`, `headless`)
+
+Reconnaisance and discovery commands use self-documenting long flag names like `-match-code`, `-filter-code`, `-match-string`. These commands have many more flags (probe has 60+) and short names would collide or become cryptic.
+
+### Global flags
+
+Global flags use the long form with a `-` prefix: `-target`, `-output`, `-timeout`, `-skip-verify`. These are consistent across all commands.
+
+### Why not unify?
+
+Changing flag names would break existing scripts, CI/CD pipelines, and muscle memory. The current split (short for attack commands, long for recon commands) matches the conventions of the tools that inspired each command family. If you're unsure which flags a command accepts, run `waftester <command> --help`.
 
 ---
 
