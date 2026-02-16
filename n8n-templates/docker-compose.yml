@@ -1,0 +1,39 @@
+# WAFtester + n8n: Docker Compose for local testing
+#
+# Usage:
+#   docker compose up -d
+#   Open http://localhost:5678 → import a template JSON from this directory
+#
+# Environment variables:
+#   WAF_TARGET_URL     - Default scan target (used by scheduled-waf-audit)
+#   WAF_PASS_THRESHOLD - Minimum detection rate to pass gate (default: 80)
+
+services:
+  waftester:
+    image: ghcr.io/waftester/waftester:latest
+    command: ["mcp", "--http", ":8080"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  n8n:
+    image: n8nio/n8n:latest
+    ports:
+      - "5678:5678"
+    environment:
+      - WAFTESTER_SSE_URL=http://waftester:8080/sse
+      - WAFTESTER_MCP_URL=http://waftester:8080/mcp
+      - WAF_TARGET_URL=${WAF_TARGET_URL:-https://example.com}
+      - WAF_PASS_THRESHOLD=${WAF_PASS_THRESHOLD:-80}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      waftester:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  n8n_data:
