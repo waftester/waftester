@@ -2,7 +2,7 @@
 
 The definitive reference for every WAFtester CLI command, flag, environment variable, and output option. Each command section includes its aliases, a description of what it does and when to use it, a complete flag table with types and defaults, and practical examples.
 
-For usage examples and real-world workflows, see [EXAMPLES.md](EXAMPLES.md). For installation, see [INSTALLATION.md](INSTALLATION.md).
+For usage examples and real-world workflows, see the [Examples Guide](https://github.com/waftester/waftester/blob/main/docs/EXAMPLES.md). For installation, see the [Installation Guide](https://github.com/waftester/waftester/blob/main/docs/INSTALLATION.md). For a quick task-oriented reference, see the [Cheat Sheet](https://waftester.com/cheat-sheet).
 
 **Document Version:** 2.9.5
 **Last Updated:** February 2026
@@ -11,6 +11,8 @@ For usage examples and real-world workflows, see [EXAMPLES.md](EXAMPLES.md). For
 
 ## Table of Contents
 
+- [Quick Start](#quick-start)
+- [Which Command Should I Use?](#which-command-should-i-use)
 - [Usage](#usage)
 - [Global Options](#global-options)
 - [Environment Variables](#environment-variables)
@@ -52,6 +54,42 @@ For usage examples and real-world workflows, see [EXAMPLES.md](EXAMPLES.md). For
   - [Enterprise Integration Flags](#enterprise-integration-flags)
 - [Exit Codes](#exit-codes)
 - [See Also](#see-also)
+
+---
+
+## Quick Start
+
+New to WAFtester? Start here.
+
+```bash
+# Install
+npm install -g @waftester/cli
+
+# Full automated audit (recommended for first use)
+waftester auto -u https://target.com
+
+# Quick scan for specific vulnerabilities
+waftester scan -u https://target.com -types sqli,xss --smart
+```
+
+See the [Installation Guide](https://github.com/waftester/waftester/blob/main/docs/INSTALLATION.md) for all installation methods (Go, Homebrew, npm, Scoop, AUR, Docker, binary).
+
+---
+
+## Which Command Should I Use?
+
+| Goal | Command | Description |
+|------|---------|-------------|
+| Full automated audit | [`auto`](#auto) | Runs discovery, scanning, bypass, assessment, and reporting in one pass |
+| Test specific vulnerabilities | [`scan`](#scan) | Targeted scanning with control over attack types and output |
+| Find WAF bypasses | [`bypass`](#bypass) | Discovers payloads that evade WAF rules |
+| Benchmark WAF effectiveness | [`assess`](#assess) | F1 scores, detection rates, and false positive analysis |
+| Discover endpoints first, then scan | [`discover`](#discover) → [`learn`](#learn) → [`run`](#run) | Three-step workflow: map target, generate test plan, execute |
+| Fuzz directories or parameters | [`fuzz`](#fuzz) | ffuf-compatible directory and parameter fuzzing |
+| Identify the WAF vendor | [`vendor`](#vendor) | Detects WAF product from 197+ signatures |
+| Scan an API spec | [`scan --spec`](#scan) | OpenAPI, Swagger, Postman, HAR, AsyncAPI, gRPC, GraphQL |
+| Run in CI/CD | [`cicd`](#cicd) | Generates pipeline configs for GitHub Actions, GitLab CI, Azure DevOps |
+| Connect to AI agents | [`mcp`](#mcp) | MCP server for Claude, Copilot, Cursor, n8n |
 
 ---
 
@@ -418,6 +456,8 @@ waftester scan -u https://target.com -x http://127.0.0.1:8080 -H "Authorization:
 waftester scan -l targets.txt -types all --json -o results.json
 ```
 
+**Related:** [`auto`](#auto) (hands-off automated scanning), [`bypass`](#bypass) (find WAF bypasses), [`assess`](#assess) (WAF effectiveness benchmarking). For API spec scanning, use the `--spec` flag or see the [API Spec Scanning Guide](https://github.com/waftester/waftester/blob/main/docs/API-SPEC-SCANNING.md).
+
 ---
 
 ### `run`
@@ -533,6 +573,8 @@ waftester run -u https://target.com -mc 200,403 -fc 404
 waftester run -u https://target.com -sr -srd ./responses
 ```
 
+**Related:** [`discover`](#discover) → [`learn`](#learn) → `run` (three-step workflow). For simpler scanning, use [`scan`](#scan) instead.
+
 ---
 
 ### `bypass`
@@ -542,6 +584,8 @@ Dedicated WAF bypass finder. Sends the full payload library against a target and
 With `--smart` mode, the engine adapts in real time: it detects blocking patterns, switches tamper techniques, and focuses on the most promising bypass vectors.
 
 **When to use:** You know a WAF is present and want to find what gets through. Pair with `tampers --discover` for maximum coverage.
+
+**Related:** [`mutate`](#mutate) (payload mutation engine), [`tampers`](#tampers) (tamper technique management), [`vendor`](#vendor) (identify the WAF first)
 
 | Flag | Short | Type | Default | Description |
 |------|-------|------|---------|-------------|
@@ -773,6 +817,8 @@ Multi-protocol HTTP probing and fingerprinting engine. For each target, `probe` 
 Designed for processing large target lists efficiently. Pipe the output of subdomain enumeration tools directly into `probe` to quickly fingerprint an entire attack surface.
 
 **When to use:** Asset inventory, technology mapping, WAF detection at scale, or pre-scan reconnaissance.
+
+**Related:** [`vendor`](#vendor) (dedicated WAF detection), [`discover`](#discover) (endpoint discovery)
 
 #### Target
 
@@ -1097,6 +1143,8 @@ waftester discover -u https://target.com -o endpoints.json
 waftester discover -u https://target.com --depth 5 --verbose
 ```
 
+**Related:** [`learn`](#learn) (generate test plan from discovery results) → [`run`](#run) (execute the test plan)
+
 ---
 
 ### `learn`
@@ -1129,6 +1177,8 @@ waftester learn -u https://target.com -o testplan.json
 # Use custom payloads
 waftester learn -u https://target.com --custom-payloads my-payloads.json
 ```
+
+**Related:** [`discover`](#discover) (find endpoints first) → [`run`](#run) (execute the generated test plan)
 
 ---
 
@@ -1452,6 +1502,28 @@ waftester template -u https://target.com --tags cve,sqli --severity critical,hig
 
 # Validate templates
 waftester template --validate -t ./templates/
+```
+
+#### Subcommands
+
+The `template` command also supports positional subcommands for browsing bundled templates:
+
+| Subcommand | Description |
+|------------|-------------|
+| `template list` | List all bundled template categories with counts |
+| `template list <category>` | List templates in a category (e.g., `nuclei`, `policies`, `workflows`, `overrides`, `output`, `report-configs`) |
+| `template show <category>/<name>` | Display template contents (e.g., `policies/strict`, `workflows/full-scan`) |
+
+```bash
+# List template categories
+waftester template list
+
+# List templates in a category
+waftester template list policies
+
+# Show a specific template
+waftester template show policies/strict
+waftester template show nuclei/http/waf-bypass/sqli-basic
 ```
 
 ---
@@ -2127,7 +2199,9 @@ WAFtester uses standard exit codes for CI/CD integration. Scripts and pipelines 
 
 ## See Also
 
-- [Examples Guide](EXAMPLES.md) — Real-world usage examples with annotated output for every command
-- [API Spec Scanning](API-SPEC-SCANNING.md) — Detailed guide for OpenAPI, Swagger, Postman, and HAR-driven scanning
-- [Installation](INSTALLATION.md) — Installation methods (Go, Homebrew, npm, Scoop, AUR, Docker, binary)
-- [Changelog](../CHANGELOG.md) — Version history and breaking changes
+- [Examples Guide](https://github.com/waftester/waftester/blob/main/docs/EXAMPLES.md) — Real-world usage examples with annotated output for every command
+- [API Spec Scanning](https://github.com/waftester/waftester/blob/main/docs/API-SPEC-SCANNING.md) — Detailed guide for OpenAPI, Swagger, Postman, and HAR-driven scanning
+- [Installation Guide](https://github.com/waftester/waftester/blob/main/docs/INSTALLATION.md) — Installation methods (Go, Homebrew, npm, Scoop, AUR, Docker, binary)
+- [Changelog](https://waftester.com/changelog) — Version history and breaking changes
+- [Cheat Sheet](https://waftester.com/cheat-sheet) — Task-oriented quick reference with copy-paste commands
+- [All 49 Scan Types](https://waftester.com/cheat-sheet#all-scan-types) — Complete list of attack categories for the `-types` flag
