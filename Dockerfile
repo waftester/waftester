@@ -7,7 +7,7 @@
 #   docker run -p 8080:8080 ghcr.io/waftester/waftester
 #
 # Override the default MCP server mode:
-#   docker run ghcr.io/waftester/waftester scan --target https://example.com
+#   docker run ghcr.io/waftester/waftester scan -u https://example.com
 # ===========================================================================
 
 # ---------------------------------------------------------------------------

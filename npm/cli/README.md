@@ -5,14 +5,14 @@
 [![license](https://img.shields.io/npm/l/@waftester/cli)](https://github.com/waftester/waftester/blob/main/LICENSE)
 [![platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-blue)](https://npmjs.com/package/@waftester/cli)
 
-The most comprehensive WAF testing CLI & MCP server. Detect, fingerprint, and bypass Web Application Firewalls with **2,800+ payloads**, **70+ tamper scripts**, and quantitative security metrics (FPR, F1, MCC).
+The most comprehensive WAF testing CLI & MCP server. Detect, fingerprint, and bypass Web Application Firewalls with **2,800+ payloads**, **90+ tamper scripts**, and quantitative security metrics (FPR, F1, MCC).
 
 ## Why WAFtester?
 
 | Traditional Approach | WAFtester |
 |---------------------|-----------|
 | Chain 5+ tools (wafw00f, sqlmap, nuclei, scripts) | Single `auto` command — end-to-end |
-| Manually select tampers per WAF vendor | Auto-selects from 70+ tampers based on detected WAF |
+| Manually select tampers per WAF vendor | Auto-selects from 90+ tampers based on detected WAF |
 | Binary pass/fail results | Statistical metrics: FPR, Precision, F1 Score, MCC |
 | HTTP only | Native GraphQL, gRPC, SOAP, WebSocket support |
 | Manual result correlation | Unified JSON, SARIF, HTML, JUnit, CycloneDX output |
@@ -21,11 +21,11 @@ The most comprehensive WAF testing CLI & MCP server. Detect, fingerprint, and by
 
 ```bash
 # Run without installing — downloads correct binary for your platform
-npx -y @waftester/cli scan --target https://example.com
+npx -y @waftester/cli scan -u https://example.com
 
 # Or install globally
 npm install -g @waftester/cli
-waf-tester scan --target https://example.com
+waf-tester scan -u https://example.com
 ```
 
 ## What You Can Do
@@ -103,7 +103,7 @@ waf-tester scan -u wss://api.example.com/socket -types websocket
 
 ## MCP Server (AI Integration)
 
-WAFtester includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/) server for AI-powered security testing from Claude Desktop, VS Code, Cursor, and other MCP clients.
+WAFtester includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/) server with **27 tools**, **7 guided prompts**, and **12 resources** for AI-powered security testing from Claude Desktop, VS Code, Cursor, and other MCP clients.
 
 ### Claude Desktop
 
@@ -150,6 +150,24 @@ Add to Cursor MCP settings:
 }
 ```
 
+## API Spec Scanning
+
+Scan OpenAPI, Swagger, Postman, HAR, AsyncAPI, gRPC, and GraphQL endpoints with one command:
+
+```bash
+# OpenAPI / Swagger spec (auto-detected)
+waf-tester scan --spec openapi.yaml -u https://api.example.com
+
+# Postman Collection with environment variables
+waf-tester scan --spec collection.postman_collection.json --env staging.postman_environment.json
+
+# HAR recording from browser DevTools
+waf-tester scan --spec recording.har -u https://api.example.com
+
+# Preview endpoints without scanning
+waf-tester scan --spec openapi.yaml -u https://api.example.com --dry-run
+```
+
 ## Output Formats
 
 | Format | Use Case | Flag |
@@ -191,26 +209,37 @@ Use the official [WAFtester Action](https://github.com/marketplace/actions/wafte
 
 Also integrates with SonarQube, GitLab SAST, DefectDojo, Elasticsearch, Slack, Teams, PagerDuty, Jira, Azure DevOps, and OpenTelemetry.
 
-## All 33 Commands
+## All 36 Commands
 
 | Command | Description |
 |---------|-------------|
 | `auto` | Full automated assessment (discovery → detection → testing → report) |
 | `scan` | Targeted vulnerability scanning across 50+ categories |
 | `vendor` | WAF vendor detection and fingerprinting (197 signatures) |
+| `probe` | WAF detection + protocol info in one pass |
 | `bypass` | Bypass discovery with tamper chain optimization |
 | `assess` | Enterprise assessment with statistical metrics |
 | `tampers` | List and rank tamper scripts by WAF vendor effectiveness |
-| `run` | Execute specific payload categories against target |
+| `discover` | Full discovery (crawl + JS + sitemap + Wayback) |
 | `fuzz` | Smart fuzzing with parameter-aware mutation |
-| `crawl` | Spider target for endpoint and parameter discovery |
+| `mutate` | Mutation matrix testing (49 mutator functions) |
+| `headless` | Browser-based testing for JS-rendered targets |
+| `template` | Run Nuclei-compatible YAML templates |
+| `openapi` | Scan OpenAPI/Swagger spec endpoints |
+| `grpc` | Test gRPC services via reflection |
+| `soap` | Test SOAP/WSDL endpoints |
 | `mcp` | Start MCP server for AI-powered testing |
-| `nuclei` | Run Nuclei templates with WAF-aware configuration |
+| `cicd` | Generate CI/CD pipeline configs |
+| `crawl` | Spider target for endpoint and parameter discovery |
+| `analyze` | JavaScript analysis for endpoints and secrets |
+| `cloud` | Cloud resource discovery |
+| `report` | Generate reports from saved results |
+| `run` | Execute specific payload categories against target |
 | `benchmark` | Performance benchmarking and rate limit detection |
 | `compare` | Compare assessments across WAF configs or vendors |
-| `report` | Generate reports from saved results |
-| `version` | Show version and build information |
-| ... | 18 more specialized commands |
+| `race` | Race condition testing |
+| `smuggle` | HTTP request smuggling tests |
+| ... | 10 more specialized commands |
 
 ## Platform Support
 
@@ -241,8 +270,12 @@ Community payloads are licensed under [MIT](https://github.com/waftester/waftest
 
 ## Links
 
+- [Website](https://waftester.com)
+- [Documentation](https://waftester.com/docs)
+- [Command Reference](https://waftester.com/commands)
+- [Cheat Sheet](https://waftester.com/cheat-sheet)
 - [GitHub](https://github.com/waftester/waftester)
-- [Documentation](https://github.com/waftester/waftester/blob/main/docs/EXAMPLES.md)
+- [Examples](https://github.com/waftester/waftester/blob/main/docs/EXAMPLES.md)
 - [Installation Guide](https://github.com/waftester/waftester/blob/main/docs/INSTALLATION.md)
 - [Changelog](https://github.com/waftester/waftester/blob/main/CHANGELOG.md)
 - [Issues](https://github.com/waftester/waftester/issues)
