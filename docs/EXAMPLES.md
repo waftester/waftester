@@ -1,48 +1,19 @@
 # WAFtester Examples Guide
 
+> **Only scan systems you own or have written authorization to test.** WAFtester sends real attack payloads. Unauthorized testing is illegal in most jurisdictions regardless of intent.
+
 > **Tip:** For a curated version of these docs with better navigation, visit [waftester.com/docs](https://waftester.com/docs).
 >
 > **Looking for flag reference?** See [COMMANDS.md](COMMANDS.md) for the complete flag reference for every command.
 
 This guide provides comprehensive usage examples for WAFtester, organized by use case and command category. Each example includes context on when to use the command, what value it provides, and expected output formats.
 
+> **Document Map:** [Quick Start](#quick-start) gets you running in 5 minutes. [Core Commands](#core-commands) covers each command with examples. [Real-World Playbooks](#real-world-playbooks) provides end-to-end workflows for common scenarios. [Interpreting Results](#interpreting-results) explains what the output means. [Troubleshooting](#troubleshooting) helps when things go wrong. For the flag reference, see [COMMANDS.md](COMMANDS.md). For a copy-paste cheat sheet, see [waftester.com/cheat-sheet](https://waftester.com/cheat-sheet).
+
 **Document Version:** 2.9.6  
 **Last Updated:** February 2026
 
 ---
-
-> **What's New in v2.9.0**
->
-> - **API Spec Scanning** — Drive scans from OpenAPI 3.x, Swagger 2.0, Postman, HAR, AsyncAPI, GraphQL, and gRPC specs with `--spec` ([details](#api-spec-scanning))
-> - **8-Layer Intelligence Engine** — Automated scan plan generation with parameter analysis, path patterns, auth context, schema constraints, and cross-endpoint correlation
-> - **Adaptive Executor** — 3-phase scanning with automatic escalation and request budget controls
-> - **13 Scan Flags Wired** — `--match-severity`, `--filter-severity`, `--match-category`, `--filter-category`, `--exclude-types`, `--include-patterns`, `--exclude-patterns`, `--stop-on-first`, `--rate-limit-per-host`, `--retries`, `--respect-robots`, `--include-evidence`, `--include-remediation` ([details](#scan-control-flags-v290))
-> - **Cross-Endpoint Attacks** — IDOR, race condition, and privilege escalation testing across related endpoints
-> - **Checkpointing and Resume** — Resume interrupted spec scans with `--resume` ([details](#checkpointing-and-resume))
-> - **Comparison Mode** — Diff against baseline with `--compare` ([details](#comparison-mode))
-> - **9 MCP Spec Tools** — `validate_spec`, `list_spec_endpoints`, `plan_spec`, `scan_spec`, `compare_baselines`, `preview_spec_scan`, `spec_intelligence`, `describe_spec_auth`, `export_spec`
-
-> **What's New in v2.7.3**
->
-> - **Async Task Pattern** — long-running MCP tools (scan, assess, bypass, discover) now return a `task_id` immediately; poll with `get_task_status` for results — eliminates timeout errors
-> - **3 New MCP Tools** — `get_task_status`, `cancel_task`, `list_tasks` for async task management
-> - **HTTP Middleware Stack** — recovery middleware, security headers, SSE keep-alive for production hardening
-> - **CORS Spec Compliance** — no CORS headers without Origin; `Vary: Origin` always set
-> - **WriteTimeout Fix** — removed 60s WriteTimeout that killed SSE connections
-
-> **What's New in v2.7.2**
->
-> - **Unified Payload Provider** — bridges 2,800+ JSON payloads with Nuclei templates via `--enrich` flag ([details](#unified-payload-provider))
-> - **Template Library** — 39 pre-built templates shipped in releases and Docker images ([details](#template-library-v273))
-> - **Template Validation Tests** — 11 structural tests enforce template quality in CI
-> - **Report Config Consolidation** — all report configs now in `templates/report-configs/`
-> - **CLI Flag Consistency** — `--payloads` / `--template-dir` flags unified across scan, grpc, soap, openapi, and assess commands
-
-> **What's New in v2.7.0**
->
-> - **MCP Server** — AI-native interface for Claude, GPT, n8n, and automation platforms ([details](#mcp-server-integration))
-> - **SSE Transport** — Legacy SSE support for n8n compatibility ([details](#n8n-workflow-automation))
-> - **Health Endpoint** — Container readiness probes for Docker/Kubernetes ([details](#docker-deployment))
 
 ## Table of Contents
 
@@ -155,6 +126,10 @@ This guide provides comprehensive usage examples for WAFtester, organized by use
   - [Report Config Templates](#report-config-templates)
 - [Troubleshooting](#troubleshooting)
 - [Attack Categories Reference](#attack-categories-reference)
+- [Interpreting Results](#interpreting-results)
+- [Common Mistakes](#common-mistakes)
+- [What to Do After Finding Bypasses](#what-to-do-after-finding-bypasses)
+- [Before and After: Measuring WAF Improvement](#before-and-after-measuring-waf-improvement)
 - [Real-World Playbooks](#real-world-playbooks)
   - [Playbook 1: New Client Assessment](#playbook-1-new-client--first-waf-assessment)
   - [Playbook 2: CI/CD Pipeline](#playbook-2-cicd-pipeline--block-deploys-on-waf-regression)
@@ -166,6 +141,7 @@ This guide provides comprehensive usage examples for WAFtester, organized by use
   - [Playbook 8: Production Monitoring](#playbook-8-production-monitoring--continuous-waf-health)
   - [Playbook 9: Compliance Audit](#playbook-9-compliance-audit--pci-dss--soc-2)
   - [Playbook 10: Multi-Region Assessment](#playbook-10-multi-region--multi-cdn-assessment)
+- [Version History](#version-history)
 - [Getting Help](#getting-help)
 
 ---
@@ -7016,6 +6992,260 @@ waf-tester scan -u https://target.com -types all        # All categories
 
 ---
 
+## Interpreting Results
+
+WAFtester output includes several metrics. Here's what they mean and what counts as a good score.
+
+### Key metrics
+
+| Metric | What It Measures | Good | Acceptable | Poor |
+|--------|-----------------|------|-----------|------|
+| **TPR** (True Positive Rate) | % of attack payloads correctly blocked by the WAF | >95% | 80-95% | <80% |
+| **FPR** (False Positive Rate) | % of legitimate requests incorrectly blocked | <1% | 1-5% | >5% |
+| **F1 Score** | Harmonic mean of precision and recall (0-1) | >0.95 | 0.80-0.95 | <0.80 |
+| **MCC** | Matthews Correlation Coefficient (-1 to 1). Best single metric for overall WAF quality. | >0.90 | 0.70-0.90 | <0.70 |
+
+### Understanding result status
+
+Each payload test produces one of these outcomes:
+
+| Status | Meaning | What It Tells You |
+|--------|---------|-------------------|
+| **Blocked** | WAF blocked the request (403, drop, redirect) | WAF rule is working |
+| **Bypassed** | Payload reached the application (200, no WAF intervention) | WAF gap — needs a rule |
+| **Error** | Request failed (timeout, connection reset) | Network issue or WAF ban |
+| **Dropped** | Connection silently dropped | WAF may be silently banning |
+
+### What to look at first
+
+1. **Overall bypass rate.** If more than 10% of payloads bypass, the WAF has significant gaps.
+2. **Category breakdown.** Which attack types are getting through? SQLi bypasses are more urgent than CRLF.
+3. **False positive rate.** If FPR is above 5%, the WAF is blocking legitimate users.
+4. **Severity distribution.** Focus on critical and high severity bypasses first.
+
+### Reading the summary output
+
+```text
+WAFtester v2.9.6 — Assessment Complete
+Target:    https://example.com
+WAF:       Cloudflare (94% confidence)
+
+╔══════════════════════════════╗
+║  Payloads Tested:    2,847  ║
+║  Blocked:            2,712  ║
+║  Bypassed:             135  ║
+║  Detection Rate:     95.3%  ║
+║  False Positive Rate: 0.2%  ║
+║  F1 Score:           0.974  ║
+║  MCC:                0.961  ║
+╚══════════════════════════════╝
+```
+
+This WAF is performing well: 95.3% detection with minimal false positives. The 135 bypasses should be reviewed by category to identify which rule sets need improvement.
+
+---
+
+## Common Mistakes
+
+Avoid these pitfalls that trip up new users.
+
+### 1. Running `auto` on production without stealth mode
+
+```bash
+# BAD: sends 2,800+ payloads at 200 req/s
+waftester auto -u https://production.example.com
+
+# GOOD: slow, quiet, adaptive
+waftester auto -u https://production.example.com \
+  --smart --smart-mode=stealth -rl 20 -c 5
+```
+
+The default `auto` settings can trigger WAF bans, SOC alerts, and application performance degradation. Always use stealth mode on production.
+
+### 2. Scanning without authorization
+
+WAFtester sends real attack payloads. Without written authorization, this is illegal in most jurisdictions. A "testing" intent does not protect you.
+
+### 3. Treating all bypasses as critical
+
+Not all bypasses are equal. A CRLF injection bypass on a static content page is not the same as an SQLi bypass on a login form. Prioritize by:
+- Attack type severity (SQLi/RCE > XSS > CRLF)
+- Target endpoint sensitivity (auth, payment, admin > static pages)
+- Exploitability (verified PoC > theoretical)
+
+### 4. Ignoring false positives
+
+A WAF with 99% detection but 10% false positives will block 1 in 10 legitimate users. Always run `assess` with `-fp` to measure false positive rate alongside detection rate.
+
+### 5. Not using auto-calibrate
+
+Auto-calibrate (`-ac`) learns each target's baseline responses and filters noise automatically. Without it, you'll waste time investigating normal 404s and default pages.
+
+```bash
+# Without auto-calibrate: flooded with noise
+waftester fuzz -u https://target.com/FUZZ -w wordlist.txt
+
+# With auto-calibrate: only interesting responses
+waftester fuzz -u https://target.com/FUZZ -w wordlist.txt -ac
+```
+
+### 6. Using the wrong command
+
+| What You Want | Wrong Command | Right Command |
+|--------------|---------------|---------------|
+| Full automated audit | `scan` (missing discovery, assessment) | `auto` |
+| Test specific vuln types | `auto` (overkill) | `scan -types sqli,xss` |
+| Find WAF bypasses | `scan` (tests vulns, not bypasses) | `bypass` |
+| Quick recon | `scan` (too heavy) | `probe` |
+
+---
+
+## What to Do After Finding Bypasses
+
+Finding bypasses is only the first step. Here's a complete post-discovery workflow.
+
+### 1. Triage bypasses by severity
+
+```bash
+# Export bypasses as JSON for analysis
+waftester bypass -u https://target.com --smart --tamper-auto \
+  -json-export bypasses.json
+
+# Filter to critical/high only
+jq '[.[] | select(.severity == "critical" or .severity == "high")]' bypasses.json
+```
+
+### 2. Verify bypasses are not false positives
+
+Re-run specific bypass payloads manually to confirm they actually reach the application:
+
+```bash
+# Test a specific payload
+curl -v "https://target.com/api/search?q=<script>alert(1)</script>"
+
+# Check if the response contains the payload (reflected) or shows WAF block page
+```
+
+### 3. Report to the WAF vendor or team
+
+For each confirmed bypass, document:
+- The exact payload that bypassed
+- The attack category (SQLi, XSS, etc.)
+- The HTTP method and injection point (URL, body, header)
+- The WAF response (status code, headers)
+- Suggested mitigation (custom rule, vendor update)
+
+### 4. Write custom WAF rules
+
+Most WAFs allow custom rules. After identifying bypasses, write rules to block the specific patterns:
+
+```bash
+# After adding custom WAF rules, verify they work
+waftester scan -u https://target.com \
+  -types sqli \
+  --smart \
+  -json-export after-fix.json
+```
+
+### 5. Retest and measure improvement
+
+```bash
+# Compare before and after
+waftester assess -u https://target.com \
+  -fp -corpus builtin \
+  -json-export after-rules.json
+
+# Diff results
+jq '{before_tpr: .before.metrics.tpr, after_tpr: .after.metrics.tpr}' \
+  <(jq -s '.[0]' before.json after-rules.json)
+```
+
+### 6. Set up continuous monitoring
+
+Don't just fix once — monitor for regressions:
+
+```bash
+# Schedule weekly assessment (see Playbook 8)
+waftester auto -u https://target.com \
+  --smart --smart-mode=stealth \
+  --slack-webhook $SLACK_URL \
+  --baseline previous-results.json
+```
+
+---
+
+## Before and After: Measuring WAF Improvement
+
+This section shows a real-world example of measuring WAF improvement after deploying custom rules.
+
+### Scenario
+
+A payment API behind AWS WAF was showing SQLi bypasses. The team deployed custom rules and needed to prove they worked.
+
+### Before fix (baseline)
+
+```bash
+waftester assess -u https://api.example.com \
+  -fp -corpus builtin \
+  --smart \
+  -json-export baseline.json
+```
+
+| Metric | Value |
+|--------|-------|
+| Detection Rate (TPR) | 82.3% |
+| False Positive Rate | 0.4% |
+| F1 Score | 0.899 |
+| MCC | 0.878 |
+| SQLi bypasses | 47 |
+| XSS bypasses | 23 |
+
+### After deploying custom rules
+
+```bash
+waftester assess -u https://api.example.com \
+  -fp -corpus builtin \
+  --smart \
+  -json-export after-fix.json
+```
+
+| Metric | Before | After | Change |
+|--------|--------|-------|--------|
+| Detection Rate (TPR) | 82.3% | 96.1% | +13.8% |
+| False Positive Rate | 0.4% | 0.6% | +0.2% |
+| F1 Score | 0.899 | 0.978 | +0.079 |
+| MCC | 0.878 | 0.968 | +0.090 |
+| SQLi bypasses | 47 | 3 | -44 |
+| XSS bypasses | 23 | 8 | -15 |
+
+### What to verify
+
+1. **TPR increased** — custom rules are blocking previously-bypassed payloads
+2. **FPR stayed flat** — rules are not blocking legitimate traffic
+3. **Remaining bypasses** — the 3 remaining SQLi bypasses need additional rules or vendor escalation
+4. **New regressions** — no new bypasses in categories that worked before
+
+### Automation script
+
+```bash
+#!/bin/bash
+# before-after.sh — Compare WAF effectiveness before and after changes
+BEFORE="$1"
+AFTER="$2"
+
+echo "╔══════════════════════════════════════════════════╗"
+echo "║         WAF IMPROVEMENT COMPARISON               ║"
+echo "╠══════════════════════════════════════════════════╣"
+echo "║ Metric              Before   After   Change"
+echo "║ Detection Rate:     $(jq -r .metrics.tpr $BEFORE)%    $(jq -r .metrics.tpr $AFTER)%"
+echo "║ False Positive:     $(jq -r .metrics.fpr $BEFORE)%    $(jq -r .metrics.fpr $AFTER)%"
+echo "║ F1 Score:           $(jq -r .metrics.f1 $BEFORE)     $(jq -r .metrics.f1 $AFTER)"
+echo "║ MCC:                $(jq -r .metrics.mcc $BEFORE)     $(jq -r .metrics.mcc $AFTER)"
+echo "╚══════════════════════════════════════════════════╝"
+```
+
+---
+
 ## Real-World Playbooks
 
 Complete end-to-end walkthroughs for the most common assessment scenarios. Each playbook includes the full command sequence, expected output summary, and what to do with results.
@@ -7033,6 +7263,14 @@ Complete end-to-end walkthroughs for the most common assessment scenarios. Each 
 > | Ongoing monitoring | [Playbook 8: Production Monitoring](#playbook-8-production-monitoring--continuous-waf-health) |
 > | Compliance audit | [Playbook 9: Compliance Audit](#playbook-9-compliance-audit--pci-dss--soc-2) |
 > | Multi-region/CDN | [Playbook 10: Multi-Region](#playbook-10-multi-region--multi-cdn-assessment) |
+
+> **Playbook Progressions:** These playbooks chain together naturally.
+>
+> - **Assessment workflow:** Playbook 1 (initial assessment) &rarr; Playbook 6 (after fixes) &rarr; Playbook 8 (ongoing monitoring)
+> - **CI/CD workflow:** Playbook 2 (pipeline setup) &rarr; Playbook 8 (continuous monitoring)
+> - **Vendor evaluation:** Playbook 3 (comparison) &rarr; Playbook 9 (compliance evidence)
+> - **Bug bounty:** Playbook 7 (discovery) &rarr; [What to Do After Finding Bypasses](#what-to-do-after-finding-bypasses)
+> - **Enterprise:** Playbook 1 (assess) &rarr; Playbook 9 (compliance) &rarr; Playbook 10 (multi-region)
 
 ---
 
@@ -8180,6 +8418,57 @@ waf-tester scan -u https://example.com --html report.html \
 waf-tester scan -u https://example.com --html report.html \
   --template-config templates/report-configs/print.yaml
 ```
+
+---
+
+## Version History
+
+<details>
+<summary><strong>What's New in v2.9.0</strong></summary>
+
+- **API Spec Scanning** — Drive scans from OpenAPI 3.x, Swagger 2.0, Postman, HAR, AsyncAPI, GraphQL, and gRPC specs with `--spec` ([details](#api-spec-scanning))
+- **8-Layer Intelligence Engine** — Automated scan plan generation with parameter analysis, path patterns, auth context, schema constraints, and cross-endpoint correlation
+- **Adaptive Executor** — 3-phase scanning with automatic escalation and request budget controls
+- **13 Scan Flags Wired** — `--match-severity`, `--filter-severity`, `--match-category`, `--filter-category`, `--exclude-types`, `--include-patterns`, `--exclude-patterns`, `--stop-on-first`, `--rate-limit-per-host`, `--retries`, `--respect-robots`, `--include-evidence`, `--include-remediation` ([details](#scan-control-flags-v290))
+- **Cross-Endpoint Attacks** — IDOR, race condition, and privilege escalation testing across related endpoints
+- **Checkpointing and Resume** — Resume interrupted spec scans with `--resume` ([details](#checkpointing-and-resume))
+- **Comparison Mode** — Diff against baseline with `--compare` ([details](#comparison-mode))
+- **9 MCP Spec Tools** — `validate_spec`, `list_spec_endpoints`, `plan_spec`, `scan_spec`, `compare_baselines`, `preview_spec_scan`, `spec_intelligence`, `describe_spec_auth`, `export_spec`
+
+</details>
+
+<details>
+<summary><strong>What's New in v2.7.3</strong></summary>
+
+- **Async Task Pattern** — long-running MCP tools (scan, assess, bypass, discover) now return a `task_id` immediately; poll with `get_task_status` for results — eliminates timeout errors
+- **3 New MCP Tools** — `get_task_status`, `cancel_task`, `list_tasks` for async task management
+- **HTTP Middleware Stack** — recovery middleware, security headers, SSE keep-alive for production hardening
+- **CORS Spec Compliance** — no CORS headers without Origin; `Vary: Origin` always set
+- **WriteTimeout Fix** — removed 60s WriteTimeout that killed SSE connections
+
+</details>
+
+<details>
+<summary><strong>What's New in v2.7.2</strong></summary>
+
+- **Unified Payload Provider** — bridges 2,800+ JSON payloads with Nuclei templates via `--enrich` flag ([details](#unified-payload-provider))
+- **Template Library** — 39 pre-built templates shipped in releases and Docker images ([details](#template-library-v273))
+- **Template Validation Tests** — 11 structural tests enforce template quality in CI
+- **Report Config Consolidation** — all report configs now in `templates/report-configs/`
+- **CLI Flag Consistency** — `--payloads` / `--template-dir` flags unified across scan, grpc, soap, openapi, and assess commands
+
+</details>
+
+<details>
+<summary><strong>What's New in v2.7.0</strong></summary>
+
+- **MCP Server** — AI-native interface for Claude, GPT, n8n, and automation platforms ([details](#mcp-server-integration))
+- **SSE Transport** — Legacy SSE support for n8n compatibility ([details](#n8n-workflow-automation))
+- **Health Endpoint** — Container readiness probes for Docker/Kubernetes ([details](#docker-deployment))
+
+</details>
+
+For the full version history, see the [Changelog](../CHANGELOG.md).
 
 ---
 
