@@ -869,7 +869,7 @@ func runProbe() {
 		go func() {
 			fmt.Printf("[*] HTTP API server started at %s (endpoints: /health, /stats)\n", apiAddr)
 			if err := apiServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				fmt.Fprintf(os.Stderr, "[!] HTTP API server error: %v\n", err)
+				ui.PrintWarning(fmt.Sprintf("HTTP API server error: %v", err))
 			}
 		}()
 	}
@@ -2532,7 +2532,7 @@ func runProbe() {
 			elapsed.Round(time.Millisecond), float64(statsTotal)/elapsed.Seconds())
 
 		if err := os.WriteFile(*htmlOutput, []byte(htmlContent), 0644); err != nil {
-			fmt.Fprintf(os.Stderr, "Error writing HTML report: %v\n", err)
+			ui.PrintError(fmt.Sprintf("Error writing HTML report: %v", err))
 		} else {
 			fmt.Printf("[*] HTML report saved to: %s\n", *htmlOutput)
 		}
@@ -2542,11 +2542,11 @@ func runProbe() {
 	if *memProfile != "" {
 		f, err := os.Create(*memProfile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "[!] Could not create memory profile: %v\n", err)
+			ui.PrintWarning(fmt.Sprintf("Could not create memory profile: %v", err))
 		} else {
 			runtime.GC() // get up-to-date statistics
 			if err := pprof.WriteHeapProfile(f); err != nil {
-				fmt.Fprintf(os.Stderr, "[!] Could not write memory profile: %v\n", err)
+				ui.PrintWarning(fmt.Sprintf("Could not write memory profile: %v", err))
 			} else {
 				fmt.Printf("[*] Memory profile saved to: %s\n", *memProfile)
 			}
@@ -2559,12 +2559,12 @@ func runProbe() {
 		// Load custom fingerprints for tech detection
 		content, err := os.ReadFile(*customFingerprintFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "[!] Warning: Could not read custom fingerprint file: %v\n", err)
+			ui.PrintWarning(fmt.Sprintf("Could not read custom fingerprint file: %v", err))
 		} else {
 			// Parse as JSON array of fingerprints
 			var fingerprints []probes.CustomFingerprint
 			if err := json.Unmarshal(content, &fingerprints); err != nil {
-				fmt.Fprintf(os.Stderr, "[!] Warning: Could not parse custom fingerprint file: %v\n", err)
+				ui.PrintWarning(fmt.Sprintf("Could not parse custom fingerprint file: %v", err))
 			} else {
 				fmt.Printf("[*] Loaded %d custom fingerprints from: %s\n", len(fingerprints), *customFingerprintFile)
 			}
@@ -2604,7 +2604,7 @@ func runProbe() {
 				fmt.Printf("[*] Saved %d screenshots in %d visual clusters to: %s\n",
 					len(visionClusters), len(uniqueClusters), clusterFile)
 			} else {
-				fmt.Fprintf(os.Stderr, "[!] Failed to write vision clusters: %v\n", err)
+				ui.PrintWarning(fmt.Sprintf("Failed to write vision clusters: %v", err))
 			}
 		}
 	}
@@ -2616,7 +2616,7 @@ func runProbe() {
 			if err := os.WriteFile(*filterErrorPagePath, data, 0644); err == nil {
 				fmt.Printf("[*] Saved %d filtered error pages to: %s\n", len(filteredErrorPages), *filterErrorPagePath)
 			} else {
-				fmt.Fprintf(os.Stderr, "[!] Failed to write filtered error pages: %v\n", err)
+				ui.PrintWarning(fmt.Sprintf("Failed to write filtered error pages: %v", err))
 			}
 		}
 	}

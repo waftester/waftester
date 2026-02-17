@@ -296,5 +296,3 @@ func (r *Result) SaveResult(filepath string) error {
 	}
 	return os.WriteFile(filepath, data, 0644)
 }
-
-

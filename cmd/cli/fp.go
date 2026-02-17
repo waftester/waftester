@@ -55,21 +55,21 @@ func runFP() {
 
 	// Validate required args
 	if *target == "" && !*localTest {
-		fmt.Println(ui.ErrorStyle.Render("Error: Target URL required. Use -u <url> or -local for local testing."))
-		fmt.Println()
-		fmt.Println("Usage: waf-tester fp -u <url> [options]")
-		fmt.Println()
-		fmt.Println("Options:")
-		fmt.Println("  -u <url>        Target URL to test")
-		fmt.Println("  -c <n>          Concurrency (default: 5)")
-		fmt.Println("  -rate <n>       Rate limit requests/sec (default: 10)")
-		fmt.Println("  -pl <1-4>       Paranoia level (default: 2)")
-		fmt.Println("  -corpus <src>   Corpus sources (default: all)")
-		fmt.Println("  -dynamic <file> Dynamic corpus file")
-		fmt.Println("  -output <file>  Output results to JSON")
-		fmt.Println("  -stream         Streaming output (for CI/scripts)")
-		fmt.Println("  -local          Run local WAF simulation only")
-		fmt.Println("  -v              Verbose output")
+		ui.PrintError("Target URL required. Use -u <url> or -local for local testing.")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Usage: waf-tester fp -u <url> [options]")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Options:")
+		fmt.Fprintln(os.Stderr, "  -u <url>        Target URL to test")
+		fmt.Fprintln(os.Stderr, "  -c <n>          Concurrency (default: 5)")
+		fmt.Fprintln(os.Stderr, "  -rate <n>       Rate limit requests/sec (default: 10)")
+		fmt.Fprintln(os.Stderr, "  -pl <1-4>       Paranoia level (default: 2)")
+		fmt.Fprintln(os.Stderr, "  -corpus <src>   Corpus sources (default: all)")
+		fmt.Fprintln(os.Stderr, "  -dynamic <file> Dynamic corpus file")
+		fmt.Fprintln(os.Stderr, "  -output <file>  Output results to JSON")
+		fmt.Fprintln(os.Stderr, "  -stream         Streaming output (for CI/scripts)")
+		fmt.Fprintln(os.Stderr, "  -local          Run local WAF simulation only")
+		fmt.Fprintln(os.Stderr, "  -v              Verbose output")
 		os.Exit(1)
 	}
 
@@ -106,7 +106,7 @@ func runFP() {
 	if *dynamicCorpus != "" {
 		ui.PrintInfo("Loading dynamic corpus from " + *dynamicCorpus)
 		if err := loadDynamicCorpus(tester, *dynamicCorpus); err != nil {
-			fmt.Println(ui.ErrorStyle.Render(fmt.Sprintf("Warning: Could not load dynamic corpus: %v", err)))
+			ui.PrintWarning(fmt.Sprintf("Could not load dynamic corpus: %v", err))
 		}
 	}
 
@@ -189,7 +189,7 @@ func runFP() {
 		if fpDispCtx != nil {
 			_ = fpDispCtx.EmitError(fpCtx, "fp", fmt.Sprintf("FP test error: %v", err), true)
 		}
-		fmt.Println(ui.ErrorStyle.Render(fmt.Sprintf("Error: %v", err)))
+		ui.PrintError(fmt.Sprintf("%v", err))
 		os.Exit(1)
 	}
 
@@ -214,9 +214,9 @@ func runFP() {
 	if *output != "" {
 		data, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
-			fmt.Println(ui.ErrorStyle.Render(fmt.Sprintf("Error marshaling results: %v", err)))
+			ui.PrintError(fmt.Sprintf("Error marshaling results: %v", err))
 		} else if err := os.WriteFile(*output, data, 0644); err != nil {
-			fmt.Println(ui.ErrorStyle.Render(fmt.Sprintf("Error saving output: %v", err)))
+			ui.PrintError(fmt.Sprintf("Error saving output: %v", err))
 		} else {
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *output))
 		}
