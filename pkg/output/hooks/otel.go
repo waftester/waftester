@@ -2,7 +2,7 @@ package hooks
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"sync"
 	"time"
 
@@ -389,8 +389,7 @@ func (h *OTelHook) Close() error {
 		defer cancel()
 
 		if err := h.tracerProvider.Shutdown(ctx); err != nil {
-			log.Printf("otel: failed to shutdown tracer provider: %v", err)
-			return err
+			return fmt.Errorf("otel: shutdown tracer provider: %w", err)
 		}
 	}
 

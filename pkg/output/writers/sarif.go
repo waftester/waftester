@@ -432,7 +432,7 @@ func (sw *SARIFWriter) Close() error {
 	encoder := jsonutil.NewStreamEncoder(sw.w)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(doc); err != nil {
-		return err
+		return fmt.Errorf("sarif: encode: %w", err)
 	}
 
 	if closer, ok := sw.w.(io.Closer); ok {

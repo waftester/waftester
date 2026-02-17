@@ -2136,6 +2136,7 @@ func runAutoScan() {
 			},
 		})
 		executorRef = executor
+		defer executor.Close()
 
 		progress.Start()
 		results = executor.ExecuteWithProgress(ctx, allPayloads, writer, progress)
@@ -2228,6 +2229,7 @@ func runAutoScan() {
 									}
 								},
 							})
+							defer focusExec.Close()
 							focusResults := focusExec.ExecuteWithProgress(ctx, focusPayloads, focusWriter, nil)
 							focusWriter.Close()
 

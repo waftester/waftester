@@ -352,7 +352,9 @@ func (s *Server) handleListTasks(_ context.Context, req *mcp.CallToolRequest) (*
 		Status   string `json:"status"`
 		ToolName string `json:"tool_name"`
 	}
-	_ = parseArgs(req, &args) // Optional args — ignore parse errors.
+	if err := parseArgs(req, &args); err != nil {
+		return errorResult(fmt.Sprintf("invalid arguments: %v", err)), nil
+	}
 
 	var snapshots []TaskSnapshot
 	if args.Status != "" {

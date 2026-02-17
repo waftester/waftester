@@ -103,7 +103,17 @@ func (s *Scanner) testPayload(ctx context.Context, targetURL, param, payload str
 		Timestamp: time.Now(),
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", targetURL+"?"+buildQuery(params), nil)
+	parsedURL, err := url.Parse(targetURL)
+	if err != nil {
+		return result
+	}
+	qs := parsedURL.Query()
+	for k, v := range params {
+		qs.Set(k, v)
+	}
+	parsedURL.RawQuery = qs.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", parsedURL.String(), nil)
 	if err != nil {
 		return result
 	}

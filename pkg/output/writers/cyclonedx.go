@@ -456,7 +456,7 @@ func (cw *CycloneDXWriter) Close() error {
 	encoder := json.NewEncoder(cw.w)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(doc); err != nil {
-		return err
+		return fmt.Errorf("cyclonedx: encode: %w", err)
 	}
 
 	// Close underlying writer if it implements io.Closer

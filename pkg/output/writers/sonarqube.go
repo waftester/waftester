@@ -3,6 +3,7 @@ package writers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"sync"
 
@@ -133,7 +134,7 @@ func (sw *SonarQubeWriter) Close() error {
 	encoder := json.NewEncoder(sw.w)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(doc); err != nil {
-		return err
+		return fmt.Errorf("sonarqube: encode: %w", err)
 	}
 
 	// Close underlying writer if it implements io.Closer

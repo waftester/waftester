@@ -390,11 +390,13 @@ func (c *Client) getMessageDescriptor(ctx context.Context, typeName string) (pro
 
 		fd, err := protodesc.NewFile(fdProto, c.files)
 		if err != nil {
-			// Try to continue if already registered
+			// Already registered or incompatible — skip
 			continue
 		}
 
-		c.files.RegisterFile(fd)
+		if regErr := c.files.RegisterFile(fd); regErr != nil {
+			continue // Already registered under this path
+		}
 	}
 
 	// Find the message in registered files
