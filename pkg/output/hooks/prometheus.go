@@ -175,7 +175,7 @@ func (h *PrometheusHook) initMetrics() error {
 
 	for _, c := range collectors {
 		if err := h.registry.Register(c); err != nil {
-			return err
+			return fmt.Errorf("register prometheus metric: %w", err)
 		}
 	}
 

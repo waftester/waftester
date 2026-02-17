@@ -578,10 +578,13 @@ func writeVersion(payloadDir, version, source string) error {
 
 	data, err := json.MarshalIndent(versionInfo, "", "  ")
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal version info: %w", err)
 	}
 
-	return os.WriteFile(versionPath, data, 0644)
+	if err := os.WriteFile(versionPath, data, 0644); err != nil {
+		return fmt.Errorf("write version %s: %w", versionPath, err)
+	}
+	return nil
 }
 
 func bumpVersion(current, bump string) string {
@@ -623,7 +626,10 @@ func bumpVersion(current, bump string) string {
 func writeReport(path string, report *UpdateReport) error {
 	data, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal update report: %w", err)
 	}
-	return os.WriteFile(path, data, 0644)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("write update report %s: %w", path, err)
+	}
+	return nil
 }

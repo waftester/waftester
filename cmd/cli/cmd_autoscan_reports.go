@@ -294,10 +294,13 @@ func generateSARIFReport(filename, target string, results output.ExecutionResult
 
 	data, err := json.MarshalIndent(sarif, "", "  ")
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal SARIF: %w", err)
 	}
 
-	return os.WriteFile(filename, data, 0644)
+	if err := os.WriteFile(filename, data, 0644); err != nil {
+		return fmt.Errorf("write SARIF %s: %w", filename, err)
+	}
+	return nil
 }
 
 // buildSARIFRules creates rule definitions from categories

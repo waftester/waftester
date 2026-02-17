@@ -74,9 +74,9 @@ func (p *FaviconProber) Probe(ctx context.Context, baseURL string) *FaviconResul
 		if err != nil {
 			continue
 		}
-		defer iohelper.DrainAndClose(resp.Body)
 
 		if resp.StatusCode != 200 {
+			iohelper.DrainAndClose(resp.Body)
 			continue
 		}
 
@@ -85,12 +85,14 @@ func (p *FaviconProber) Probe(ctx context.Context, baseURL string) *FaviconResul
 		if !strings.Contains(contentType, "image") && !strings.Contains(contentType, "icon") {
 			// Allow empty content type for .ico files
 			if path != "/favicon.ico" && contentType != "" {
+				iohelper.DrainAndClose(resp.Body)
 				continue
 			}
 		}
 
 		// Read favicon content
 		data, err := iohelper.ReadBody(resp.Body, p.MaxFileSize)
+		iohelper.DrainAndClose(resp.Body)
 		if err != nil {
 			continue
 		}

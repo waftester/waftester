@@ -268,9 +268,9 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 		if err != nil {
 			continue
 		}
+		defer iohelper.DrainAndClose(resp.Body)
 
 		body, _ := iohelper.ReadBodyDefault(resp.Body)
-		iohelper.DrainAndClose(resp.Body)
 		bodyStr := string(body)
 
 		// Check for reflection in body

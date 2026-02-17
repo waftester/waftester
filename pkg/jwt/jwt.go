@@ -405,9 +405,18 @@ func (a *Attacker) BruteforceSecret(token *Token, customWordlist []string) (stri
 		passwords = a.weakPasswords
 	}
 
+	expectedSigBytes, err := base64.RawURLEncoding.DecodeString(expectedSig)
+	if err != nil {
+		return "", fmt.Errorf("jwt: invalid signature encoding: %w", err)
+	}
+
 	for _, password := range passwords {
 		sig := signHMAC(signingInput, []byte(password), hashFunc)
-		if sig == expectedSig {
+		sigBytes, err := base64.RawURLEncoding.DecodeString(sig)
+		if err != nil {
+			continue
+		}
+		if hmac.Equal(sigBytes, expectedSigBytes) {
 			return password, nil
 		}
 	}

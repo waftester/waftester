@@ -210,14 +210,14 @@ func (jw *JUnitWriter) Close() error {
 
 	// Write XML header
 	if _, err := jw.w.Write([]byte(xml.Header)); err != nil {
-		return err
+		return fmt.Errorf("junit: write header: %w", err)
 	}
 
 	// Encode the document
 	encoder := xml.NewEncoder(jw.w)
 	encoder.Indent("", "  ")
 	if err := encoder.Encode(doc); err != nil {
-		return err
+		return fmt.Errorf("junit: encode: %w", err)
 	}
 
 	if closer, ok := jw.w.(io.Closer); ok {

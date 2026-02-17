@@ -430,6 +430,7 @@ func runTests() {
 				}
 			},
 		})
+		defer executor.Close()
 
 		// Start progress display (skip if silent)
 		if !cfg.Silent {

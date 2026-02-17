@@ -186,7 +186,7 @@ func techExtractMeta(html, name string) string {
 		`(?i)<meta[^>]+content=["']([^"']+)["'][^>]+name=["']?` + regexp.QuoteMeta(name) + `["']?`,
 	}
 	for _, pattern := range patterns {
-		re := regexp.MustCompile(pattern)
+		re := regexcache.MustGet(pattern)
 		matches := re.FindStringSubmatch(html)
 		if len(matches) > 1 {
 			return strings.TrimSpace(matches[1])

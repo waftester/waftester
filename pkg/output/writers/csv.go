@@ -275,7 +275,7 @@ func (cw *CSVWriter) Close() error {
 
 	cw.csvWriter.Flush()
 	if err := cw.csvWriter.Error(); err != nil {
-		return err
+		return fmt.Errorf("csv: flush: %w", err)
 	}
 
 	if closer, ok := cw.w.(io.Closer); ok {

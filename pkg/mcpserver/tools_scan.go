@@ -216,7 +216,10 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	}
 
 	// Enrich with Nuclei template payloads converted to payloads.Payload format
-	unified, _ := provider.GetAll()
+	unified, err := provider.GetAll()
+	if err != nil {
+		log.Printf("[mcp-scan] failed to load unified payloads for Nuclei enrichment: %v", err)
+	}
 	for _, up := range unified {
 		if up.Source == payloadprovider.SourceNuclei {
 			sev := up.Severity

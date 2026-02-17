@@ -172,7 +172,7 @@ func (tw *TemplateWriter) parseTemplate() error {
 	// Parse template with all functions
 	tmpl, err := template.New("waftester").Funcs(funcMap).Parse(templateContent)
 	if err != nil {
-		return err
+		return fmt.Errorf("parse output template: %w", err)
 	}
 
 	tw.tmpl = tmpl

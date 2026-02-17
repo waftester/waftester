@@ -82,7 +82,8 @@ func List() []string {
 	return names
 }
 
-// Chain creates a chained encoder from multiple encoder names
+// Chain creates a chained encoder from multiple encoder names.
+// Returns a passthrough encoder if no names resolve (never nil).
 func Chain(names ...string) Encoder {
 	encoders := make([]Encoder, 0, len(names))
 	for _, name := range names {
@@ -91,7 +92,7 @@ func Chain(names ...string) Encoder {
 		}
 	}
 	if len(encoders) == 0 {
-		return nil
+		return &passthroughEncoder{}
 	}
 	return &ChainEncoder{
 		name:     strings.Join(names, "+"),
@@ -116,6 +117,14 @@ func EncodeAll(encoderName string, payloads []string) ([]string, error) {
 	}
 	return results, nil
 }
+
+// passthroughEncoder returns the input unchanged.
+// Used when Chain() resolves no valid encoder names.
+type passthroughEncoder struct{}
+
+func (p *passthroughEncoder) Name() string                      { return "passthrough" }
+func (p *passthroughEncoder) Encode(s string) (string, error)   { return s, nil }
+func (p *passthroughEncoder) Decode(s string) (string, error)   { return s, nil }
 
 // EncodeWithAll applies all registered encoders to a single payload
 func EncodeWithAll(payload string) map[string]string {
