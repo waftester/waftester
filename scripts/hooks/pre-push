@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Pre-push hook: catch issues that would fail CI before pushing.
-# Runs go vet, validates Dockerfile COPY sources vs .dockerignore,
-# checks version consistency, and blocks private plan files.
+# Runs go vet, structural tests (test/ module), validates Dockerfile COPY
+# sources vs .dockerignore, checks version consistency, and blocks private
+# plan files.
 
 set -euo pipefail
 
@@ -78,6 +79,29 @@ if ! go test -count=1 ./pkg/defaults/ > /dev/null 2>&1; then
     ERRORS=$((ERRORS + 1))
 else
     echo "  ✓ All version references consistent"
+fi
+
+# ============================================================================
+# STRUCTURAL TESTS — catch banned patterns (direct prints, raw severity, etc.)
+# ============================================================================
+# The test/ directory is a separate Go module with structural enforcement tests.
+# These scan pkg/ and cmd/ for banned patterns that go vet doesn't catch.
+echo "Running structural tests..."
+if ! (cd "$REPO_ROOT/test" && go test -count=1 . > /dev/null 2>&1); then
+    echo ""
+    echo "╔══════════════════════════════════════════════════════════════════╗"
+    echo "║  BLOCKED: structural tests failed                              ║"
+    echo "╚══════════════════════════════════════════════════════════════════╝"
+    echo ""
+    (cd "$REPO_ROOT/test" && go test -v -count=1 . 2>&1 | grep -E '--- FAIL|FAIL\s|found|direct print|raw severity|signal\.Notify|string\(rune' || true)
+    echo ""
+    echo "Common fixes:"
+    echo "  Direct print — use slog or ui package instead of fmt.Print/log.Print"
+    echo "  Raw severity — use finding.Critical, finding.High, etc."
+    echo ""
+    ERRORS=$((ERRORS + 1))
+else
+    echo "  ✓ All structural checks passed"
 fi
 
 # ============================================================================
