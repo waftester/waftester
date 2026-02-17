@@ -14,6 +14,7 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
 )
@@ -178,7 +179,7 @@ func (h *PagerDutyHook) sendEvent(ctx context.Context, bypass *events.BypassEven
 		h.logger.Warn("failed to send event", slog.String("error", err.Error()))
 		return nil
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode >= 400 {
 		h.logger.Warn("error response", slog.Int("status", resp.StatusCode))
