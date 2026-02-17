@@ -5,6 +5,25 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.8] - 2026-02-17
+
+### Fixed
+
+- **JWT brute-force timing oracle** — `BruteforceSecret` used string comparison (`==`) for HMAC signatures instead of `hmac.Equal`, enabling timing-based secret extraction. Now uses constant-time comparison.
+- **Temp file cleanup on atomic writes** — Checkpoint and history store left orphaned `.tmp` files when `os.Rename` failed (e.g., cross-device moves). Both now clean up on rename failure.
+- **Payload loader path traversal** — `LoadCategory` accepted unsanitized category names allowing `../../etc` to escape the payload directory. Now validates resolved paths stay within the base directory.
+- **SSI URL construction** — `testPayload` used string concatenation (`targetURL + "?" + query`) which corrupted URLs with existing query strings (double `?`). Now uses `url.Parse` and `url.Values`.
+- **API abuse marshal error** — `testResourcePayload` swallowed `json.Marshal` errors, silently sending empty request bodies. Now returns early with error evidence.
+- **gRPC RegisterFile error** — `getMessageDescriptor` ignored `RegisterFile` return value. Now checks for registration errors.
+- **MCP parseArgs error swallowed** — `handleListTasks` discarded `parseArgs` errors with `_ =`, silently accepting malformed JSON. Now validates and returns errors.
+- **MCP provider.GetAll error swallowed** — `handleScan` discarded unified payload loading errors. Now logs failures for debugging.
+- **MCP missing upper-bound clamps** — `handleBypass` and `handleDiscover` validated lower bounds but not upper bounds on concurrency/rate/timeout/depth. Schema declared maximums that Go code ignored. Now clamps both directions.
+- **Host header response body leak** — `TestURL` read and drained response body inline without `defer`, risking TCP connection leak on panic. Now uses `defer DrainAndClose`.
+- **Browser gzip fallback corruption** — `DoWithContext` checked `respBody == nil` after gzip decode, but `ReadBodyDefault` returns `[]byte{}` (never nil). Empty gzip responses fell through to read the already-consumed raw body. Now checks `len(respBody) == 0`.
+- **Encoding Chain nil return** — `Chain()` returned nil when all encoder names were unknown, causing nil dereference on `Chain("typo").Encode(...)`. Now returns a passthrough encoder.
+- **Mutation/assessment limiter.Wait cancellation** — `limiter.Wait(ctx)` return values ignored in mutation executor and assessment runner. Context cancellation during rate limiting went unnoticed, causing unnecessary work after shutdown. Now checks and returns on error.
+- **Redirect regex per-call compilation** — `checkJSRedirect` called `regexp.MustCompile` on 4 static patterns per invocation. Now uses `regexcache.MustGet` for cached compilation.
+
 ## [2.9.7] - 2026-02-17
 
 ### Added
@@ -2184,6 +2203,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.8]: https://github.com/waftester/waftester/compare/v2.9.7...v2.9.8
 [2.9.7]: https://github.com/waftester/waftester/compare/v2.9.6...v2.9.7
 [2.9.6]: https://github.com/waftester/waftester/compare/v2.9.5...v2.9.6
 [2.9.5]: https://github.com/waftester/waftester/compare/v2.9.4...v2.9.5
