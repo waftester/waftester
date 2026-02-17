@@ -5,6 +5,20 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.11] - 2026-02-17
+
+### Fixed
+
+- **Stderr/stdout output routing** — Error messages and usage output were written to stdout, breaking piped JSON parsing and CI workflows. Routed all errors and usage to stderr.
+- **OSINT rate limiter div-by-zero** — `NewRateLimiter(0)` caused division by zero panic. Clamped to minimum of 1.
+- **OSINT GetResults slice aliasing** — `GetResults()` returned the internal results slice directly, allowing callers to corrupt manager state. Now returns a defensive copy.
+- **HTTP body leak in 6 notification hooks** — PagerDuty, Teams, Slack, Jira, GitHub Issues, and Azure DevOps hooks called `resp.Body.Close()` without draining, leaking TCP connections under keep-alive. Replaced with `iohelper.DrainAndClose`.
+- **Wordlist cache dir error ignored** — `os.MkdirAll` return value was silently discarded. Now logs a warning on failure.
+- **Crawler double-close panic** — Multiple workers could decrement `inFlight` to zero simultaneously, causing a double `close(queue)` panic. Guarded with `sync.Once`.
+- **GraphQL negative batch/depth panic** — `TestBatchAttack` and `TestDepthAttack` panicked on `make([]Request, -1)` with negative input. Added input validation.
+- **Distributed nil node dereference** — `RegisterNode(nil)` caused nil pointer dereference. Added nil guard.
+- **Distributed unbounded HTTP body** — API handlers accepted arbitrarily large request bodies. Limited to 1MB with `http.MaxBytesReader`.
+
 ## [2.9.10] - 2026-02-17
 
 ### Fixed
@@ -2229,6 +2243,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.11]: https://github.com/waftester/waftester/compare/v2.9.10...v2.9.11
 [2.9.10]: https://github.com/waftester/waftester/compare/v2.9.9...v2.9.10
 [2.9.9]: https://github.com/waftester/waftester/compare/v2.9.8...v2.9.9
 [2.9.8]: https://github.com/waftester/waftester/compare/v2.9.7...v2.9.8
