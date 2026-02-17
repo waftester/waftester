@@ -160,7 +160,7 @@ func runSmuggle() {
 			Unit:         "targets",
 			Mode:         outputMode,
 			Metrics: []ui.MetricConfig{
-				{Name: "vulns", Label: "Vulnerabilities", Icon: "🚨", Highlight: true},
+				{Name: "vulns", Label: "Vulnerabilities", Icon: ui.Icon("🚨", "!"), Highlight: true},
 			},
 		})
 		progress.Start()
@@ -849,7 +849,7 @@ func runHeadless() {
 			Unit:         "pages",
 			Mode:         outputMode,
 			Metrics: []ui.MetricConfig{
-				{Name: "urls", Label: "URLs Found", Icon: "🔗"},
+				{Name: "urls", Label: "URLs Found", Icon: ui.Icon("🔗", "~")},
 			},
 		})
 		progress.Start()

@@ -162,13 +162,16 @@ func (d *Discoverer) Discover(ctx context.Context) (*DiscoveryResult, error) {
 		},
 	}
 
-	// Helper for animated phase execution
-	spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-	runPhaseWithSpinner := func(phaseNum int, phaseName string, work func()) int {
-		beforeCount := len(d.endpoints)
+	// spinWhile runs work() while showing an animated spinner on stderr.
+	// The spinner goroutine is fully stopped before this function returns,
+	// so the caller can safely write the completion line without a race.
+	spinnerFrames := ui.DefaultSpinner().Frames
+	spinWhile := func(phaseNum int, phaseName string, work func()) {
 		done := make(chan struct{})
+		stopped := make(chan struct{})
 
 		go func() {
+			defer close(stopped)
 			frame := 0
 			for {
 				select {
@@ -182,66 +185,73 @@ func (d *Discoverer) Discover(ctx context.Context) (*DiscoveryResult, error) {
 			}
 		}()
 
-		defer close(done)
 		work()
+		close(done)
+		<-stopped
+	}
 
+	// runPhase runs a phase with spinner and prints a standard "+N" completion line.
+	runPhase := func(phaseNum int, phaseName string, work func()) int {
+		beforeCount := len(d.endpoints)
+		spinWhile(phaseNum, phaseName, work)
 		added := len(d.endpoints) - beforeCount
-		fmt.Fprintf(os.Stderr, "\r  [%d/9] ✅ %s +%d\033[K\n", phaseNum, phaseName, added)
+		fmt.Fprintf(os.Stderr, "\r  [%d/9] %s %s +%d\033[K\n", phaseNum, ui.Icon("✅", "+"), phaseName, added)
 		return added
 	}
 
 	// Phase 1: Detect WAF
-	fmt.Fprint(os.Stderr, "  [1/9] ⠋ Detecting WAF... ")
-	d.detectWAF(ctx, result)
+	spinWhile(1, "Detecting WAF...", func() {
+		d.detectWAF(ctx, result)
+	})
 	if result.WAFDetected {
-		fmt.Fprintf(os.Stderr, "\r  [1/9] ✅ WAF detected: %s\033[K\n", result.WAFFingerprint)
+		fmt.Fprintf(os.Stderr, "\r  [1/9] %s WAF detected: %s\033[K\n", ui.Icon("✅", "+"), result.WAFFingerprint)
 	} else {
-		fmt.Fprint(os.Stderr, "\r  [1/9] ✅ No WAF detected\033[K\n")
+		fmt.Fprintf(os.Stderr, "\r  [1/9] %s No WAF detected\033[K\n", ui.Icon("✅", "+"))
 	}
 
-	// Phase 2: ACTIVE DISCOVERY - Comprehensive path brute-forcing with tech fingerprinting
-	// This is the primary discovery method - doesn't rely on robots.txt/sitemap
-	// Skip if DisableActive is set (useful for testing)
+	// Phase 2: Active discovery — comprehensive path brute-forcing
 	if !d.config.DisableActive {
-		fmt.Fprint(os.Stderr, "  [2/9] ⠋ Active discovery (path brute-force)... ")
-		d.discoverActiveEndpoints(ctx, result)
-		fmt.Fprintf(os.Stderr, "\r  [2/9] ✅ Active discovery: %d endpoints\033[K\n", len(d.endpoints))
+		spinWhile(2, "Active discovery (path brute-force)...", func() {
+			d.discoverActiveEndpoints(ctx, result)
+		})
+		fmt.Fprintf(os.Stderr, "\r  [2/9] %s Active discovery: %d endpoints\033[K\n", ui.Icon("✅", "+"), len(d.endpoints))
 	}
 
 	// Phase 3: External Sources
-	runPhaseWithSpinner(3, "External sources", func() {
+	runPhase(3, "External sources", func() {
 		d.discoverFromExternalSources(ctx, result)
 	})
 
 	// Phase 4: Service-specific endpoint probing
-	runPhaseWithSpinner(4, "Service-specific probing", func() {
+	runPhase(4, "Service-specific probing", func() {
 		d.probeKnownEndpoints(ctx, result)
 	})
 
 	// Phase 5: JavaScript link extraction
-	runPhaseWithSpinner(5, "JavaScript analysis", func() {
+	runPhase(5, "JavaScript analysis", func() {
 		d.discoverFromJavaScript(ctx, result)
 	})
 
 	// Phase 6: API Spec Parsing (OpenAPI/Swagger/GraphQL introspection)
-	runPhaseWithSpinner(6, "API spec parsing", func() {
+	runPhase(6, "API spec parsing", func() {
 		d.parseAPISpecs(ctx, result)
 	})
 
 	// Phase 7: Form extraction
-	runPhaseWithSpinner(7, "Form extraction", func() {
+	runPhase(7, "Form extraction", func() {
 		d.discoverForms(ctx, result)
 	})
 
 	// Phase 8: Crawl discovered endpoints (recursive link following)
-	runPhaseWithSpinner(8, "Crawling links", func() {
+	runPhase(8, "Crawling links", func() {
 		d.crawlEndpoints(ctx, result)
 	})
 
 	// Phase 9: Analyze and categorize
-	fmt.Fprint(os.Stderr, "  [9/9] ⠋ Analyzing attack surface... ")
-	d.analyzeAttackSurface(result)
-	fmt.Fprint(os.Stderr, "\r  [9/9] ✅ Attack surface analyzed\033[K\n")
+	spinWhile(9, "Analyzing attack surface...", func() {
+		d.analyzeAttackSurface(result)
+	})
+	fmt.Fprintf(os.Stderr, "\r  [9/9] %s Attack surface analyzed\033[K\n", ui.Icon("✅", "+"))
 
 	result.Duration = time.Since(start)
 	result.Endpoints = d.endpoints

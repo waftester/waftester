@@ -84,7 +84,7 @@ var (
 	// Configuration display
 	ConfigLabelStyle = lipgloss.NewStyle().
 				Foreground(Muted).
-				Width(15)
+				Width(22)
 
 	ConfigValueStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#FAFAFA"))

@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // ValidationResult holds the results of payload validation
@@ -94,11 +96,19 @@ func ValidatePayloads(payloadDir string, failFast bool, verbose bool) (*Validati
 		Valid: true,
 	}
 
-	fmt.Println(cyan("╔════════════════════════════════════════════════════════════════╗"))
-	fmt.Println(cyan("║                                                                ║"))
-	fmt.Println(cyan("║    🔍 Security Test Harness Validator                         ║"))
-	fmt.Println(cyan("║                                                                ║"))
-	fmt.Println(cyan("╚════════════════════════════════════════════════════════════════╝"))
+	if ui.UnicodeTerminal() {
+		fmt.Println(cyan("╔════════════════════════════════════════════════════════════════╗"))
+		fmt.Println(cyan("║                                                                ║"))
+		fmt.Println(cyan("║    " + ui.Icon("🔍", ">") + " Security Test Harness Validator                         ║"))
+		fmt.Println(cyan("║                                                                ║"))
+		fmt.Println(cyan("╚════════════════════════════════════════════════════════════════╝"))
+	} else {
+		fmt.Println(cyan("+================================================================+"))
+		fmt.Println(cyan("|                                                                |"))
+		fmt.Println(cyan("|    " + ui.Icon("🔍", ">") + " Security Test Harness Validator                         |"))
+		fmt.Println(cyan("|                                                                |"))
+		fmt.Println(cyan("+================================================================+"))
+	}
 	fmt.Println()
 
 	allTestIDs := make(map[string]string) // ID -> file path
@@ -112,7 +122,7 @@ func ValidatePayloads(payloadDir string, failFast bool, verbose bool) (*Validati
 			return result, fmt.Errorf("ids-map.json not found at %s", idsMapPath)
 		}
 	} else {
-		fmt.Printf("   %s Found ids-map.json\n", green("✓"))
+		fmt.Printf("   %s Found ids-map.json\n", green(ui.Icon("✓", "+")))
 		// Validate it's valid JSON
 		data, err := os.ReadFile(idsMapPath)
 		if err != nil {
@@ -124,7 +134,7 @@ func ValidatePayloads(payloadDir string, failFast bool, verbose bool) (*Validati
 				result.Errors = append(result.Errors, fmt.Sprintf("ids-map.json parse error: %v", err))
 				result.Valid = false
 			} else {
-				fmt.Printf("   %s ids-map.json is valid JSON\n", green("✓"))
+				fmt.Printf("   %s ids-map.json is valid JSON\n", green(ui.Icon("✓", "+")))
 			}
 		}
 	}
@@ -257,56 +267,62 @@ func ValidatePayloads(payloadDir string, failFast bool, verbose bool) (*Validati
 
 	// Print summary
 	fmt.Println()
-	fmt.Println(cyan("════════════════════════════════════════════════════════════════"))
-	fmt.Println(cyan("                     VALIDATION SUMMARY"))
-	fmt.Println(cyan("════════════════════════════════════════════════════════════════"))
+	if ui.UnicodeTerminal() {
+		fmt.Println(cyan("════════════════════════════════════════════════════════════════"))
+		fmt.Println(cyan("                     VALIDATION SUMMARY"))
+		fmt.Println(cyan("════════════════════════════════════════════════════════════════"))
+	} else {
+		fmt.Println(cyan("================================================================"))
+		fmt.Println(cyan("                     VALIDATION SUMMARY"))
+		fmt.Println(cyan("================================================================"))
+	}
 	fmt.Printf("   Files validated:    %d\n", result.TotalFiles)
 	fmt.Printf("   Total payloads:     %d\n", result.TotalPayloads)
 	fmt.Printf("   Unique test IDs:    %d\n", len(allTestIDs))
 	fmt.Println()
 
 	if len(result.Errors) > 0 {
-		fmt.Printf("   %s Errors: %d\n", red("✗"), len(result.Errors))
+		fmt.Printf("   %s Errors: %d\n", red(ui.Icon("✗", "x")), len(result.Errors))
 		for _, e := range result.Errors {
-			fmt.Printf("      %s %s\n", red("•"), e)
+			fmt.Printf("      %s %s\n", red(ui.Icon("•", "-")), e)
 		}
 	}
 
 	if len(result.DuplicateIDs) > 0 {
-		fmt.Printf("   %s Duplicate IDs: %d\n", red("✗"), len(result.DuplicateIDs))
+		fmt.Printf("   %s Duplicate IDs: %d\n", red(ui.Icon("✗", "x")), len(result.DuplicateIDs))
 		for _, d := range result.DuplicateIDs {
-			fmt.Printf("      %s %s\n", red("•"), d)
+			fmt.Printf("      %s %s\n", red(ui.Icon("•", "-")), d)
 		}
 	}
 
 	if len(result.MissingFields) > 0 {
-		fmt.Printf("   %s Missing fields: %d\n", red("✗"), len(result.MissingFields))
+		fmt.Printf("   %s Missing fields: %d\n", red(ui.Icon("✗", "x")), len(result.MissingFields))
 		for _, m := range result.MissingFields {
-			fmt.Printf("      %s %s\n", red("•"), m)
+			fmt.Printf("      %s %s\n", red(ui.Icon("•", "-")), m)
 		}
 	}
 
 	if len(result.InvalidSeverities) > 0 {
-		fmt.Printf("   %s Invalid severities: %d\n", red("✗"), len(result.InvalidSeverities))
+		fmt.Printf("   %s Invalid severities: %d\n", red(ui.Icon("✗", "x")), len(result.InvalidSeverities))
 		for _, s := range result.InvalidSeverities {
-			fmt.Printf("      %s %s\n", red("•"), s)
+			fmt.Printf("      %s %s\n", red(ui.Icon("•", "-")), s)
 		}
 	}
 
 	if len(result.Warnings) > 0 {
-		fmt.Printf("   %s Warnings: %d\n", yellow("⚠"), len(result.Warnings))
+		fmt.Printf("   %s Warnings: %d\n", yellow(ui.Icon("⚠", "!")), len(result.Warnings))
 		if verbose {
 			for _, w := range result.Warnings {
-				fmt.Printf("      %s %s\n", yellow("•"), w)
+				fmt.Printf("      %s %s\n", yellow(ui.Icon("•", "-")), w)
 			}
 		}
 	}
 
 	fmt.Println()
 	if result.Valid {
-		fmt.Printf("   %s All validations passed!\n", green("✓"))
+		fmt.Printf("   %s All validations passed!\n", green(ui.Icon("✓", "+")))
 	} else {
-		fmt.Printf("   %s Validation failed with %d error(s)\n", red("✗"),
+		fmt.Printf("   %s Validation failed with %d error(s)\n", red(ui.Icon("✗", "x")),
 			len(result.Errors)+len(result.DuplicateIDs)+len(result.MissingFields)+len(result.InvalidSeverities))
 	}
 

@@ -296,22 +296,25 @@ func PrintSummary(results ExecutionResults) {
 	}
 
 	// Blocked = good (WAF working)
-	fmt.Printf("\033[32m  ✓ Blocked:       %d (%.1f%%)\033[0m\n",
+	fmt.Printf("\033[32m  %s Blocked:       %d (%.1f%%)\033[0m\n",
+		ui.Icon("✓", "+"),
 		results.BlockedTests,
 		pct(results.BlockedTests, results.TotalTests))
 
 	// Pass = safe endpoints
-	fmt.Printf("\033[36m  ○ Pass:          %d (%.1f%%)\033[0m\n",
+	fmt.Printf("\033[36m  %s Pass:          %d (%.1f%%)\033[0m\n",
+		ui.Icon("○", "o"),
 		results.PassedTests,
 		pct(results.PassedTests, results.TotalTests))
 
 	// Fail = vulnerabilities!
 	if results.FailedTests > 0 {
-		fmt.Printf("\033[31m  ✗ FAIL:          %d (%.1f%%)\033[0m\n",
+		fmt.Printf("\033[31m  %s FAIL:          %d (%.1f%%)\033[0m\n",
+			ui.Icon("✗", "x"),
 			results.FailedTests,
 			pct(results.FailedTests, results.TotalTests))
 	} else {
-		fmt.Printf("  ✗ Fail:          0 (0.0%%)\n")
+		fmt.Printf("  %s Fail:          0 (0.0%%)\n", ui.Icon("✗", "x"))
 	}
 
 	// Errors
@@ -321,7 +324,7 @@ func PrintSummary(results ExecutionResults) {
 
 	// Skipped (host unreachable / death spiral)
 	if results.HostsSkipped > 0 {
-		fmt.Printf("\033[36m  ⏭ Skipped:       %d (host unreachable)\033[0m\n", results.HostsSkipped)
+		fmt.Printf("\033[36m  %s Skipped:       %d (host unreachable)\033[0m\n", ui.Icon("⏭", ">"), results.HostsSkipped)
 	}
 
 	fmt.Printf("\n  Duration:        %s\n", results.Duration.Round(time.Millisecond))
@@ -329,7 +332,7 @@ func PrintSummary(results ExecutionResults) {
 
 	// Nuclei-style: Top Status Codes
 	if len(results.StatusCodes) > 0 {
-		fmt.Println("\n" + strings.Repeat("─", 40))
+		fmt.Println("\n" + strings.Repeat(ui.Icon("─", "-"), 40))
 		fmt.Println("\033[1;34m  Top Status Codes:\033[0m")
 		// Sort status codes for deterministic output
 		codes := make([]int, 0, len(results.StatusCodes))
@@ -358,7 +361,7 @@ func PrintSummary(results ExecutionResults) {
 
 	// Severity breakdown
 	if len(results.SeverityBreakdown) > 0 {
-		fmt.Println("\n" + strings.Repeat("─", 40))
+		fmt.Println("\n" + strings.Repeat(ui.Icon("─", "-"), 40))
 		fmt.Println("\033[1;35m  Severity Breakdown:\033[0m")
 		severityOrder := []string{"Critical", "High", "Medium", "Low", "Info"}
 		for _, sev := range severityOrder {
@@ -385,13 +388,13 @@ func PrintSummary(results ExecutionResults) {
 
 	// Top Errors (if any)
 	if len(results.TopErrors) > 0 {
-		fmt.Println("\n" + strings.Repeat("─", 40))
+		fmt.Println("\n" + strings.Repeat(ui.Icon("─", "-"), 40))
 		fmt.Println("\033[1;31m  Top Errors:\033[0m")
 		for i, err := range results.TopErrors {
 			if i >= 5 {
 				break
 			}
-			fmt.Printf("\033[33m    • %s\033[0m\n", err)
+			fmt.Printf("\033[33m    %s %s\033[0m\n", ui.Icon("•", "-"), err)
 		}
 	}
 
@@ -405,19 +408,24 @@ func PrintSummary(results ExecutionResults) {
 		detStats.PrintConsole()
 	}
 
-	fmt.Println("\n" + strings.Repeat("═", 60))
+	fmt.Println("\n" + strings.Repeat(ui.Icon("═", "="), 60))
 
 	// WAF effectiveness = Blocked / (Blocked + Failed)
 	// This measures what % of attack payloads were stopped by the WAF
 	attackTests := results.BlockedTests + results.FailedTests
 	if attackTests > 0 {
 		blockRate := float64(results.BlockedTests) / float64(attackTests) * 100
-		if blockRate >= 95 {
+		switch {
+		case blockRate >= 99:
 			fmt.Printf("\033[32m  WAF Effectiveness: %.1f%% - EXCELLENT\033[0m\n", blockRate)
-		} else if blockRate >= 80 {
-			fmt.Printf("\033[33m  WAF Effectiveness: %.1f%% - GOOD\033[0m\n", blockRate)
-		} else {
-			fmt.Printf("\033[31m  WAF Effectiveness: %.1f%% - NEEDS ATTENTION\033[0m\n", blockRate)
+		case blockRate >= 95:
+			fmt.Printf("\033[32m  WAF Effectiveness: %.1f%% - GOOD\033[0m\n", blockRate)
+		case blockRate >= 90:
+			fmt.Printf("\033[33m  WAF Effectiveness: %.1f%% - FAIR\033[0m\n", blockRate)
+		case blockRate >= 80:
+			fmt.Printf("\033[33m  WAF Effectiveness: %.1f%% - POOR\033[0m\n", blockRate)
+		default:
+			fmt.Printf("\033[31m  WAF Effectiveness: %.1f%% - CRITICAL\033[0m\n", blockRate)
 		}
 	}
 	fmt.Println()

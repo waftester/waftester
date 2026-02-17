@@ -374,10 +374,10 @@ func runProbe() {
 
 	if *healthCheck {
 		fmt.Println("[+] Running diagnostic check...")
-		fmt.Println("[✓] DNS resolution: OK")
-		fmt.Println("[✓] TLS/SSL support: OK")
-		fmt.Println("[✓] HTTP client: OK")
-		fmt.Println("[✓] Proxy support: OK")
+		fmt.Println("[+] DNS resolution: OK")
+		fmt.Println("[+] TLS/SSL support: OK")
+		fmt.Println("[+] HTTP client: OK")
+		fmt.Println("[+] Proxy support: OK")
 		fmt.Println("[+] All checks passed!")
 		return
 	}
@@ -2080,8 +2080,8 @@ func runProbe() {
 		Unit:         "targets",
 		Mode:         probeOutputMode,
 		Metrics: []ui.MetricConfig{
-			{Name: "alive", Label: "Alive", Icon: "✅", Highlight: true},
-			{Name: "dead", Label: "Dead", Icon: "❌"},
+			{Name: "alive", Label: "Alive", Icon: ui.Icon("✅", "+"), Highlight: true},
+			{Name: "dead", Label: "Dead", Icon: ui.Icon("❌", "x")},
 		},
 		StreamFormat:   "[PROGRESS] {completed}/{total} ({percent}%) | alive: {metric:alive} | dead: {metric:dead} | {elapsed}",
 		StreamInterval: duration.StreamStd,

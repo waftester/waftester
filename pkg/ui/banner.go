@@ -181,7 +181,7 @@ func PrintDivider() {
 // PrintSection prints a section header (to stderr)
 func PrintSection(title string) {
 	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, SectionStyle.Render("> "+title))
+	fmt.Fprintln(os.Stderr, SectionStyle.Render("> "+SanitizeString(title)))
 	PrintDivider()
 }
 
@@ -281,27 +281,27 @@ func MutedBracket(text string) BracketPart {
 
 // PrintHelp prints contextual help (to stderr like ffuf/nuclei)
 func PrintHelp(text string) {
-	fmt.Fprintln(os.Stderr, HelpStyle.Render("  [i] "+text))
+	fmt.Fprintln(os.Stderr, HelpStyle.Render("  [i] "+SanitizeString(text)))
 }
 
 // PrintSuccess prints a success message (to stderr)
 func PrintSuccess(message string) {
-	fmt.Fprintln(os.Stderr, PassStyle.Render("  [+] "+message))
+	fmt.Fprintln(os.Stderr, PassStyle.Render("  [+] "+SanitizeString(message)))
 }
 
 // PrintError prints an error message (to stderr)
 func PrintError(message string) {
-	fmt.Fprintln(os.Stderr, FailStyle.Render("  [X] "+message))
+	fmt.Fprintln(os.Stderr, FailStyle.Render("  [X] "+SanitizeString(message)))
 }
 
 // PrintWarning prints a warning message (to stderr)
 func PrintWarning(message string) {
-	fmt.Fprintln(os.Stderr, ErrorStyle.Render("  [!] "+message))
+	fmt.Fprintln(os.Stderr, ErrorStyle.Render("  [!] "+SanitizeString(message)))
 }
 
 // PrintInfo prints an info message (to stderr)
 func PrintInfo(message string) {
-	fmt.Fprintf(os.Stderr, "  %s %s\n", SpinnerStyle.Render("*"), message)
+	fmt.Fprintf(os.Stderr, "  %s %s\n", SpinnerStyle.Render("*"), SanitizeString(message))
 }
 
 // PrintResult prints a live result line in nuclei/httpx style

@@ -256,7 +256,7 @@ func RunLocalFPTest(corpus *Corpus, paranoiaLevels []int) map[int]*LocalFPStats 
 		}
 
 		if stats.TotalTests > 0 {
-			stats.FPRatio = float64(stats.FalsePositives) / float64(stats.TotalTests) * 100
+			stats.FPRatio = float64(stats.FalsePositives) / float64(stats.TotalTests)
 		}
 
 		// Build top FP rules

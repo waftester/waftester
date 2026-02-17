@@ -111,11 +111,19 @@ var (
 
 // UpdatePayloads performs the payload update operation
 func UpdatePayloads(cfg *UpdateConfig) (*UpdateReport, error) {
-	fmt.Println(cyan("╔════════════════════════════════════════════════════════════════╗"))
-	fmt.Println(cyan("║                                                                ║"))
-	fmt.Println(cyan("║    📦 Payload Update Manager                                  ║"))
-	fmt.Println(cyan("║                                                                ║"))
-	fmt.Println(cyan("╚════════════════════════════════════════════════════════════════╝"))
+	if ui.UnicodeTerminal() {
+		fmt.Println(cyan("╔════════════════════════════════════════════════════════════════╗"))
+		fmt.Println(cyan("║                                                                ║"))
+		fmt.Println(cyan("║    " + ui.Icon("📦", ">") + " Payload Update Manager                                  ║"))
+		fmt.Println(cyan("║                                                                ║"))
+		fmt.Println(cyan("╚════════════════════════════════════════════════════════════════╝"))
+	} else {
+		fmt.Println(cyan("+================================================================+"))
+		fmt.Println(cyan("|                                                                |"))
+		fmt.Println(cyan("|    " + ui.Icon("📦", ">") + " Payload Update Manager                                  |"))
+		fmt.Println(cyan("|                                                                |"))
+		fmt.Println(cyan("+================================================================+"))
+	}
 	fmt.Println()
 
 	report := &UpdateReport{
@@ -128,7 +136,7 @@ func UpdatePayloads(cfg *UpdateConfig) (*UpdateReport, error) {
 	// Get current version
 	currentVersion, err := getCurrentVersion(cfg.PayloadDir)
 	if err != nil {
-		fmt.Printf("   %s Could not read version: %v (using 0.0.0)\n", yellow("⚠"), err)
+		fmt.Printf("   %s Could not read version: %v (using 0.0.0)\n", yellow(ui.Icon("⚠", "!")), err)
 		currentVersion = "0.0.0"
 	}
 	report.PreviousVersion = currentVersion
@@ -158,9 +166,15 @@ func UpdatePayloads(cfg *UpdateConfig) (*UpdateReport, error) {
 
 	// Print summary
 	fmt.Println()
-	fmt.Println(cyan("════════════════════════════════════════════════════════════════"))
-	fmt.Println(cyan("                      UPDATE SUMMARY"))
-	fmt.Println(cyan("════════════════════════════════════════════════════════════════"))
+	if ui.UnicodeTerminal() {
+		fmt.Println(cyan("════════════════════════════════════════════════════════════════"))
+		fmt.Println(cyan("                      UPDATE SUMMARY"))
+		fmt.Println(cyan("════════════════════════════════════════════════════════════════"))
+	} else {
+		fmt.Println(cyan("================================================================"))
+		fmt.Println(cyan("                      UPDATE SUMMARY"))
+		fmt.Println(cyan("================================================================"))
+	}
 	fmt.Printf("   Payloads added:   %s\n", green(fmt.Sprintf("%d", report.PayloadsAdded)))
 	fmt.Printf("   Payloads updated: %s\n", cyan(fmt.Sprintf("%d", report.PayloadsUpdated)))
 	fmt.Printf("   Payloads removed: %s\n", yellow(fmt.Sprintf("%d", report.PayloadsRemoved)))
@@ -170,23 +184,23 @@ func UpdatePayloads(cfg *UpdateConfig) (*UpdateReport, error) {
 	fmt.Println()
 
 	if cfg.DryRun {
-		fmt.Printf("   %s DRY RUN - No changes were made\n", yellow("⚠"))
+		fmt.Printf("   %s DRY RUN - No changes were made\n", yellow(ui.Icon("⚠", "!")))
 	} else {
 		// Write version file
 		if !cfg.DryRun {
 			if err := writeVersion(cfg.PayloadDir, newVersion, cfg.Source); err != nil {
 				return report, fmt.Errorf("failed to update version: %w", err)
 			}
-			fmt.Printf("   %s Version updated to %s\n", green("✓"), newVersion)
+			fmt.Printf("   %s Version updated to %s\n", green(ui.Icon("✓", "+")), newVersion)
 		}
 	}
 
 	// Write report
 	if cfg.OutputFile != "" {
 		if err := writeReport(cfg.OutputFile, report); err != nil {
-			fmt.Printf("   %s Failed to write report: %v\n", yellow("⚠"), err)
+			fmt.Printf("   %s Failed to write report: %v\n", yellow(ui.Icon("⚠", "!")), err)
 		} else {
-			fmt.Printf("   %s Report saved to %s\n", green("✓"), cfg.OutputFile)
+			fmt.Printf("   %s Report saved to %s\n", green(ui.Icon("✓", "+")), cfg.OutputFile)
 		}
 	}
 
@@ -197,7 +211,7 @@ func updateFromOWASP(cfg *UpdateConfig, report *UpdateReport) error {
 	fmt.Println("   Fetching OWASP community payloads...")
 
 	for category, url := range owaspSources {
-		fmt.Printf("   • %s: ", category)
+		fmt.Printf("   %s %s: ", ui.Icon("•", "-"), category)
 
 		// Use a closure to ensure resp.Body is closed after each iteration
 		// Avoids defer-in-loop resource leak bug
@@ -286,7 +300,7 @@ func updateFromGitHub(cfg *UpdateConfig, report *UpdateReport) error {
 	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode == 404 {
-		fmt.Printf("   %s No releases found in repository\n", yellow("⚠"))
+		fmt.Printf("   %s No releases found in repository\n", yellow(ui.Icon("⚠", "!")))
 		return nil
 	}
 
@@ -309,7 +323,7 @@ func updateFromGitHub(cfg *UpdateConfig, report *UpdateReport) error {
 
 	// Check if we already have this version
 	if release.TagName == report.PreviousVersion || "v"+report.PreviousVersion == release.TagName {
-		fmt.Printf("   %s Already up to date\n", green("✓"))
+		fmt.Printf("   %s Already up to date\n", green(ui.Icon("✓", "+")))
 		return nil
 	}
 
@@ -331,7 +345,7 @@ func updateFromGitHub(cfg *UpdateConfig, report *UpdateReport) error {
 
 	// Download and merge each payload file
 	for _, asset := range payloadAssets {
-		fmt.Printf("   • %s: ", asset.Name)
+		fmt.Printf("   %s %s: ", ui.Icon("•", "-"), asset.Name)
 
 		if cfg.DryRun {
 			fmt.Printf("%s (dry run)\n", yellow("skipped"))
@@ -361,7 +375,7 @@ func updateFromGitHubRepo(cfg *UpdateConfig, report *UpdateReport, tag string) e
 	categories := []string{"xss", "sqli", "traversal", "cmdi", "ssrf", "xxe", "ssti", "nosqli", "ldapi"}
 
 	for _, category := range categories {
-		fmt.Printf("   • %s: ", category)
+		fmt.Printf("   %s %s: ", ui.Icon("•", "-"), category)
 
 		rawURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/payloads/%s.json",
 			defaultGitHubOwner, defaultGitHubRepo, tag, category)

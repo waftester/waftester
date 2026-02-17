@@ -135,20 +135,20 @@ func PrintSmartModeInfo(result *SmartModeResult, verbose bool) {
 			if len(result.Evidence) > 0 {
 				fmt.Fprintln(os.Stderr, "   Evidence:")
 				for _, ev := range result.Evidence[:min(3, len(result.Evidence))] {
-					fmt.Fprintf(os.Stderr, "     • %s\n", ev)
+					fmt.Fprintf(os.Stderr, "     %s %s\n", ui.Icon("•", "-"), ev)
 				}
 			}
 
 			// Show optimized config
 			fmt.Fprintln(os.Stderr)
-			fmt.Fprintln(os.Stderr, "   📋 WAF-Optimized Configuration:")
+			fmt.Fprintln(os.Stderr, ui.SanitizeString("   📋 WAF-Optimized Configuration:"))
 			fmt.Fprintf(os.Stderr, "     Rate Limit: %.0f req/sec (safe for %s)\n", result.RateLimit, result.VendorName)
 			fmt.Fprintf(os.Stderr, "     Concurrency: %d workers\n", result.Concurrency)
 
 			if len(result.Pipeline.Encoders) > 0 {
 				fmt.Fprintf(os.Stderr, "     Encoders: %d prioritized\n", len(result.Pipeline.Encoders))
 				if len(result.Pipeline.Encoders) <= 5 {
-					fmt.Fprintf(os.Stderr, "       → %v\n", result.Pipeline.Encoders)
+					fmt.Fprintf(os.Stderr, "       %s %v\n", ui.Icon("→", "->"), result.Pipeline.Encoders)
 				}
 			}
 			if len(result.Pipeline.Evasions) > 0 {
@@ -159,13 +159,13 @@ func PrintSmartModeInfo(result *SmartModeResult, verbose bool) {
 		// Show bypass hints
 		if len(result.BypassHints) > 0 {
 			fmt.Fprintln(os.Stderr)
-			ui.PrintInfo("   💡 Bypass Hints:")
+			ui.PrintInfo(ui.Sanitizef("   %s Bypass Hints:", ui.Icon("💡", "*")))
 			for i, hint := range result.BypassHints {
 				if i >= 3 {
 					fmt.Fprintf(os.Stderr, "     ... and %d more\n", len(result.BypassHints)-3)
 					break
 				}
-				fmt.Fprintf(os.Stderr, "     → %s\n", hint)
+				fmt.Fprintf(os.Stderr, "     %s %s\n", ui.Icon("→", "->"), hint)
 			}
 		}
 
@@ -175,7 +175,7 @@ func PrintSmartModeInfo(result *SmartModeResult, verbose bool) {
 			fmt.Fprintln(os.Stderr)
 			ui.PrintInfo("   📋 Recommended Templates:")
 			for _, rec := range recommendations {
-				fmt.Fprintf(os.Stderr, "     → %s\n", rec)
+				fmt.Fprintf(os.Stderr, "     %s %s\n", ui.Icon("→", "->"), rec)
 			}
 		}
 	} else {
