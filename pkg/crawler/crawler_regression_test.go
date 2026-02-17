@@ -117,3 +117,44 @@ func TestCrawl_StopCancelsContext(t *testing.T) {
 		t.Error("context not cancelled after Stop()")
 	}
 }
+
+// TestCrawl_MaxPagesCloseOnce_NoPanic exercises the closeOnce guard on the
+// queue channel. When MaxPages is low and concurrency is high, multiple
+// workers may hit the page limit and decrement inFlight to zero concurrently.
+// Without closeOnce, this causes a double-close panic.
+// Regression: both close(c.queue) call sites now use c.closeOnce.Do().
+func TestCrawl_MaxPagesCloseOnce_NoPanic(t *testing.T) {
+	t.Parallel()
+
+	// Server returns pages with many links to maximize concurrent worker activity
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`<html><body>
+			<a href="/a">A</a><a href="/b">B</a><a href="/c">C</a>
+			<a href="/d">D</a><a href="/e">E</a><a href="/f">F</a>
+		</body></html>`))
+	}))
+	defer server.Close()
+
+	// Low MaxPages + high concurrency = multiple workers hitting the limit simultaneously
+	config := &Config{
+		MaxDepth:       2,
+		MaxPages:       2,
+		MaxConcurrency: 8,
+		UserAgent:      "test-crawler",
+		Timeout:        5 * time.Second,
+	}
+
+	c := NewCrawler(config)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	results, err := c.Crawl(ctx, server.URL)
+	if err != nil {
+		t.Fatalf("Crawl failed: %v", err)
+	}
+
+	// Drain results — the test passes if no panic occurs
+	for range results {
+	}
+}

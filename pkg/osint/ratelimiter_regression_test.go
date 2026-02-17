@@ -149,3 +149,28 @@ func TestRateLimiter_TokensNeverExceedMax(t *testing.T) {
 		t.Errorf("draining %d tokens should be near-instant, took %v", maxTokens, elapsed)
 	}
 }
+
+// TestRateLimiter_ZeroRequestsPerMinute_NoPanic verifies that NewRateLimiter(0)
+// does not panic with a division-by-zero.
+// Regression: time.Minute / time.Duration(0) caused a panic.
+func TestRateLimiter_ZeroRequestsPerMinute_NoPanic(t *testing.T) {
+	t.Parallel()
+
+	rl := NewRateLimiter(0)
+	if rl == nil {
+		t.Fatal("NewRateLimiter(0) returned nil")
+	}
+	// Should be able to Wait without panic
+	rl.Wait()
+}
+
+// TestRateLimiter_NegativeRequestsPerMinute_NoPanic verifies negative input is clamped.
+func TestRateLimiter_NegativeRequestsPerMinute_NoPanic(t *testing.T) {
+	t.Parallel()
+
+	rl := NewRateLimiter(-5)
+	if rl == nil {
+		t.Fatal("NewRateLimiter(-5) returned nil")
+	}
+	rl.Wait()
+}
