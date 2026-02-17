@@ -55,24 +55,25 @@ if [ -f "$DOCKERFILE" ] && [ -f "$DOCKERIGNORE" ]; then
 fi
 
 # ============================================================================
-# VERSION CONSISTENCY — catch stale version references before CI does
+# DEFAULTS ENFORCEMENT — version consistency + no-hardcoded-values guards
 # ============================================================================
+# Runs ALL tests in pkg/defaults/ which includes:
+#   - Version consistency (defaults.go, npm, docs, EXAMPLES.md)
+#   - No-hardcoded checks (concurrency, retries, depth, redirects, etc.)
+# Adding a new TestNoHardcoded* test automatically enforces it here.
 echo "Running version consistency check..."
-if ! go test -run "TestVersionConsistency|TestNpmVersionConsistency|TestDocVersionConsistency" -count=1 ./pkg/defaults/ > /dev/null 2>&1; then
+if ! go test -count=1 ./pkg/defaults/ > /dev/null 2>&1; then
     echo ""
     echo "╔══════════════════════════════════════════════════════════════════╗"
-    echo "║  BLOCKED: Version inconsistency detected                       ║"
+    echo "║  BLOCKED: defaults enforcement tests failed                    ║"
     echo "╚══════════════════════════════════════════════════════════════════╝"
     echo ""
-    # Re-run with verbose output to show exactly what's wrong
-    go test -v -run "TestVersionConsistency|TestNpmVersionConsistency|TestDocVersionConsistency" -count=1 ./pkg/defaults/ 2>&1 | grep -E 'FAIL|found|expected|hardcoded|npm|package.json|Document Version|Docker|INSTALLATION' || true
+    # Re-run with verbose output to show exactly what failed
+    go test -v -count=1 ./pkg/defaults/ 2>&1 | grep -E '--- FAIL|FAIL\s|found|expected|hardcoded|Hardcoded|npm|package.json|Document Version|Docker|INSTALLATION|Concurrency|MaxDepth|Retries|MaxRedirects|ContentType|UserAgent|ToolName|OWASP' || true
     echo ""
-    echo "After bumping defaults.Version, also update:"
-    echo "  - SECURITY.md          (Current stable release)"
-    echo "  - CHANGELOG.md         (version header)"
-    echo "  - npm/cli/package.json (version + optionalDependencies)"
-    echo "  - docs/EXAMPLES.md     (Document Version)"
-    echo "  - docs/INSTALLATION.md (Docker tag examples)"
+    echo "Common fixes:"
+    echo "  Version mismatch — update all 7 mandatory files (use version-bump skill)"
+    echo "  Hardcoded value  — use defaults.Concurrency*, defaults.Depth*, etc."
     echo ""
     ERRORS=$((ERRORS + 1))
 else
