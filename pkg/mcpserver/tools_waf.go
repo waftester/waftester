@@ -312,8 +312,8 @@ func (s *Server) handleBypass(ctx context.Context, req *mcp.CallToolRequest) (*m
 
 	if args.Concurrency <= 0 {
 		args.Concurrency = defaults.ConcurrencyLow
-	} else if args.Concurrency > 50 {
-		args.Concurrency = 50
+	} else if args.Concurrency > defaults.ConcurrencyMax {
+		args.Concurrency = defaults.ConcurrencyMax
 	}
 	if args.RateLimit <= 0 {
 		args.RateLimit = 10
