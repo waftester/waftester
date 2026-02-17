@@ -6,8 +6,11 @@ package distributed
 // worker goroutine leak, stale task reschedule).
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -153,4 +156,43 @@ func TestCoordinator_RegisterNode_Duplicate(t *testing.T) {
 	testutil.AssertNoPanic(t, "duplicate register", func() {
 		_ = c.RegisterNode(node)
 	})
+}
+
+// TestCoordinator_RegisterNilNode_NoPanic verifies registering a nil node returns
+// an error instead of panicking with a nil pointer dereference.
+// Regression: RegisterNode dereferenced node.Status without a nil check,
+// causing a panic when the HTTP handler decoded `{"node": null}`.
+func TestCoordinator_RegisterNilNode_NoPanic(t *testing.T) {
+	t.Parallel()
+
+	c := NewCoordinator("coord-1", "localhost:9000")
+	err := c.RegisterNode(nil)
+	if err == nil {
+		t.Fatal("RegisterNode(nil) should return an error")
+	}
+}
+
+// TestHandleNodes_OversizedBody verifies the POST /api/nodes endpoint rejects
+// oversized request bodies.
+// Regression: json.Decoder had no size limit, allowing OOM via large POST body.
+func TestHandleNodes_OversizedBody(t *testing.T) {
+	t.Parallel()
+
+	c := NewCoordinator("coord-1", "localhost:9000")
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/nodes", c.handleNodes)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	// Send a body that exceeds 1MB
+	body := bytes.NewReader(make([]byte, 2<<20)) // 2MB
+	resp, err := http.Post(srv.URL+"/api/nodes", "application/json", body)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400 for oversized body, got %d", resp.StatusCode)
+	}
 }

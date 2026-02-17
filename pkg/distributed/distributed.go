@@ -112,6 +112,10 @@ func NewCoordinator(id, address string) *Coordinator {
 
 // RegisterNode registers a worker node
 func (c *Coordinator) RegisterNode(node *Node) error {
+	if node == nil {
+		return fmt.Errorf("distributed: nil node")
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -579,6 +583,7 @@ func (c *Coordinator) handleNodes(w http.ResponseWriter, r *http.Request) {
 		nodes := c.GetNodes()
 		json.NewEncoder(w).Encode(nodes)
 	case http.MethodPost:
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 		var req RegisterRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -600,6 +605,7 @@ func (c *Coordinator) handleTasks(w http.ResponseWriter, r *http.Request) {
 		tasks := c.GetTasks()
 		json.NewEncoder(w).Encode(tasks)
 	case http.MethodPost:
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 		var req TaskRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)

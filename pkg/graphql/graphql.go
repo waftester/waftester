@@ -419,6 +419,9 @@ func IntrospectionQuery() string {
 
 // TestDepthAttack tests for query depth vulnerabilities
 func (t *Tester) TestDepthAttack(ctx context.Context, fieldName string, depth int) (*Vulnerability, error) {
+	if depth <= 0 {
+		return nil, nil
+	}
 	if depth > t.config.MaxDepth {
 		depth = t.config.MaxDepth
 	}
@@ -494,6 +497,9 @@ func generateDeepQuery(fieldName string, depth int) string {
 
 // TestBatchAttack tests for batch query vulnerabilities
 func (t *Tester) TestBatchAttack(ctx context.Context, batchSize int) (*Vulnerability, error) {
+	if batchSize <= 0 {
+		return nil, nil
+	}
 	if batchSize > t.config.MaxBatchSize {
 		batchSize = t.config.MaxBatchSize
 	}

@@ -155,6 +155,7 @@ type Crawler struct {
 	pageCount  int
 	pageMu     sync.Mutex
 	inFlight   atomic.Int64 // tracks tasks in-flight for graceful shutdown
+	closeOnce  sync.Once    // guards c.queue close to prevent double-close panic
 }
 
 type crawlTask struct {
@@ -265,7 +266,7 @@ func (c *Crawler) worker() {
 			if c.pageCount >= c.config.MaxPages {
 				c.pageMu.Unlock()
 				if c.inFlight.Add(-1) == 0 {
-					close(c.queue)
+					c.closeOnce.Do(func() { close(c.queue) })
 				}
 				continue
 			}
@@ -296,7 +297,7 @@ func (c *Crawler) worker() {
 
 			// Mark this task done; if no more in-flight tasks, close queue
 			if c.inFlight.Add(-1) == 0 {
-				close(c.queue)
+				c.closeOnce.Do(func() { close(c.queue) })
 			}
 		}
 	}

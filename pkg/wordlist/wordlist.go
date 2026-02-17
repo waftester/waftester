@@ -7,6 +7,7 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"os"
@@ -100,7 +101,11 @@ func NewManager(cfg *Config) *Manager {
 	}
 
 	// Create cache directory
-	os.MkdirAll(cfg.CacheDir, 0755)
+	if err := os.MkdirAll(cfg.CacheDir, 0755); err != nil {
+		slog.Warn("wordlist: failed to create cache directory",
+			slog.String("path", cfg.CacheDir),
+			slog.String("error", err.Error()))
+	}
 
 	return m
 }

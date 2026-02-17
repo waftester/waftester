@@ -14,6 +14,7 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
 )
@@ -295,7 +296,7 @@ func (h *SlackHook) send(ctx context.Context, payload interface{}) error {
 		h.logger.Warn("failed to send message", slog.String("error", err.Error()))
 		return nil // Don't block scan
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode >= 400 {
 		h.logger.Warn("error response", slog.Int("status", resp.StatusCode))

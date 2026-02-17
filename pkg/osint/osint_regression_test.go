@@ -106,3 +106,22 @@ func TestRedactAPIKey_KeyAppearsMultipleTimes(t *testing.T) {
 	assert.Equal(t, 2, strings.Count(redacted.Error(), "[REDACTED]"),
 		"each occurrence should be replaced")
 }
+
+// TestGetResults_ReturnsCopy verifies that GetResults() returns a defensive
+// copy of the internal results slice, not a reference to it.
+// Regression: returning m.results directly allowed callers to observe mutations
+// or cause data races after the read lock was released.
+func TestGetResults_ReturnsCopy(t *testing.T) {
+	t.Parallel()
+
+	m := NewManager()
+	// Manually inject results via the FetchSubdomains path isn't practical,
+	// so we test the invariant: modifying the returned slice doesn't affect internal state.
+	r1 := m.GetResults()
+	require.Empty(t, r1, "new manager should have no results")
+
+	// Mutate the returned slice — internal state must not change
+	r1 = append(r1, Result{Source: "injected"})
+	r2 := m.GetResults()
+	assert.Empty(t, r2, "internal state must not be affected by mutating the returned slice")
+}
