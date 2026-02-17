@@ -2,6 +2,7 @@
 package writers
 
 import (
+	"fmt"
 	"io"
 	"strings"
 	"sync"
@@ -82,7 +83,7 @@ func (jw *JSONWriter) Close() error {
 	}
 
 	if err := encoder.Encode(jw.buffer); err != nil {
-		return err
+		return fmt.Errorf("json: encode: %w", err)
 	}
 
 	if closer, ok := jw.w.(io.Closer); ok {

@@ -214,6 +214,10 @@ func runFuzz() {
 					words = append(words, line)
 				}
 			}
+			if err := scanner.Err(); err != nil {
+				ui.PrintError(fmt.Sprintf("Failed to read wordlist: %v", err))
+				os.Exit(1)
+			}
 		} else {
 			// Read from file
 			file, err := os.Open(*wordlist)
@@ -228,6 +232,10 @@ func runFuzz() {
 				if line != "" && !strings.HasPrefix(line, "#") {
 					words = append(words, line)
 				}
+			}
+			if err := scanner.Err(); err != nil {
+				ui.PrintError(fmt.Sprintf("Failed to read wordlist: %v", err))
+				os.Exit(1)
 			}
 		}
 	} else {

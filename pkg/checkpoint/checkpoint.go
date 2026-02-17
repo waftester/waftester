@@ -152,7 +152,11 @@ func (m *Manager) Save() error {
 		return err
 	}
 
-	return os.Rename(tempFile, m.FilePath)
+	if err := os.Rename(tempFile, m.FilePath); err != nil {
+		os.Remove(tempFile) // Clean up orphaned temp file
+		return err
+	}
+	return nil
 }
 
 // MarkCompleted marks a target as completed

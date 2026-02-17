@@ -382,7 +382,7 @@ func (c *Client) doOnce(ctx context.Context, req *Request) (*Response, error) {
 			respBody, _ = iohelper.ReadBodyDefault(gzr)
 		}
 	}
-	if respBody == nil {
+	if len(respBody) == 0 {
 		respBody, _ = iohelper.ReadBodyDefault(httpResp.Body)
 	}
 

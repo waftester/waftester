@@ -60,6 +60,19 @@ func (l *Loader) LoadAll() ([]Payload, error) {
 // LoadCategory loads payloads from a specific category directory
 func (l *Loader) LoadCategory(category string) ([]Payload, error) {
 	categoryDir := filepath.Join(l.baseDir, category)
+
+	// Prevent path traversal via crafted category names
+	absCategory, err := filepath.Abs(categoryDir)
+	if err != nil {
+		return nil, fmt.Errorf("resolving category path: %w", err)
+	}
+	absBase, err := filepath.Abs(l.baseDir)
+	if err != nil {
+		return nil, fmt.Errorf("resolving base path: %w", err)
+	}
+	if !strings.HasPrefix(absCategory, absBase+string(filepath.Separator)) && absCategory != absBase {
+		return nil, fmt.Errorf("category %q escapes payload directory", category)
+	}
 	var payloads []Payload
 
 	entries, err := os.ReadDir(categoryDir)

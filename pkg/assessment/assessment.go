@@ -235,7 +235,9 @@ func (a *Assessment) detectWAF(ctx context.Context) {
 		}
 		req2.Header.Set("User-Agent", "Mozilla/5.0")
 
-		a.limiter.Wait(ctx)
+		if err := a.limiter.Wait(ctx); err != nil {
+			return
+		}
 		resp2, err := a.httpClient.Do(req2)
 		if err != nil {
 			return
@@ -495,7 +497,9 @@ func (a *Assessment) runAttackTests(ctx context.Context, payloads []AttackPayloa
 					}
 				}
 
-				a.limiter.Wait(ctx)
+				if err := a.limiter.Wait(ctx); err != nil {
+					return
+				}
 				result := a.executeAttackTest(ctx, payload)
 
 				a.resultsMu.Lock()
@@ -542,7 +546,9 @@ func (a *Assessment) runFPTests(ctx context.Context, payloads []corpus.Payload, 
 				default:
 				}
 
-				a.limiter.Wait(ctx)
+				if err := a.limiter.Wait(ctx); err != nil {
+					return
+				}
 				result := a.executeFPTest(ctx, payload)
 
 				a.resultsMu.Lock()

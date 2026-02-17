@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"time"
 
@@ -396,7 +395,7 @@ func (t *Tester) analyzeResponse(testURL, param string, payload *Payload, resp *
 	}
 
 	for _, pattern := range jsPatterns {
-		re := regexp.MustCompile(pattern)
+		re := regexcache.MustGet(pattern)
 		if matches := re.FindStringSubmatch(body); len(matches) > 1 {
 			if isRedirectToAttacker(matches[1], attackerDomain) {
 				return &Vulnerability{

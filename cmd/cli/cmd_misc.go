@@ -75,6 +75,10 @@ func runSmuggle() {
 				targets = append(targets, line)
 			}
 		}
+		if err := scanner.Err(); err != nil {
+			ui.PrintError(fmt.Sprintf("Failed to read target file: %v", err))
+			os.Exit(1)
+		}
 	}
 
 	if len(targets) == 0 {
@@ -731,6 +735,10 @@ func runHeadless() {
 			if line := strings.TrimSpace(scanner.Text()); line != "" && !strings.HasPrefix(line, "#") {
 				targets = append(targets, line)
 			}
+		}
+		if err := scanner.Err(); err != nil {
+			ui.PrintError(fmt.Sprintf("Failed to read target file: %v", err))
+			os.Exit(1)
 		}
 	}
 

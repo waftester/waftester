@@ -825,27 +825,46 @@ func runProbe() {
 		if strings.HasPrefix(apiAddr, ":") {
 			apiAddr = "127.0.0.1" + apiAddr
 		}
+
+		mux := http.NewServeMux()
+		mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]string{
+				"status":  "healthy",
+				"version": ui.UserAgent(),
+			})
+		})
+		mux.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"total":   atomic.LoadInt64(&statsTotal),
+				"success": atomic.LoadInt64(&statsSuccess),
+				"failed":  atomic.LoadInt64(&statsFailed),
+				"elapsed": time.Since(statsStart).String(),
+			})
+		})
+
+		apiServer := &http.Server{
+			Addr:              apiAddr,
+			Handler:           mux,
+			ReadHeaderTimeout: 10 * time.Second,
+			ReadTimeout:       30 * time.Second,
+			WriteTimeout:      30 * time.Second,
+			IdleTimeout:       60 * time.Second,
+		}
+
+		// Graceful shutdown when parent context is cancelled
 		go func() {
-			mux := http.NewServeMux()
-			mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusOK)
-				json.NewEncoder(w).Encode(map[string]string{
-					"status":  "healthy",
-					"version": ui.UserAgent(),
-				})
-			})
-			mux.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(map[string]interface{}{
-					"total":   atomic.LoadInt64(&statsTotal),
-					"success": atomic.LoadInt64(&statsSuccess),
-					"failed":  atomic.LoadInt64(&statsFailed),
-					"elapsed": time.Since(statsStart).String(),
-				})
-			})
+			<-ctx.Done()
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer shutdownCancel()
+			apiServer.Shutdown(shutdownCtx)
+		}()
+
+		go func() {
 			fmt.Printf("[*] HTTP API server started at %s (endpoints: /health, /stats)\n", apiAddr)
-			if err := http.ListenAndServe(apiAddr, mux); err != nil {
+			if err := apiServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				fmt.Fprintf(os.Stderr, "[!] HTTP API server error: %v\n", err)
 			}
 		}()
