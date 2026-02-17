@@ -140,13 +140,13 @@ func (s *Server) handleDiscover(ctx context.Context, req *mcp.CallToolRequest) (
 
 	if args.MaxDepth <= 0 {
 		args.MaxDepth = defaults.DepthMedium
-	} else if args.MaxDepth > 10 {
-		args.MaxDepth = 10
+	} else if args.MaxDepth > defaults.DepthMax {
+		args.MaxDepth = defaults.DepthMax
 	}
 	if args.Concurrency <= 0 {
 		args.Concurrency = defaults.ConcurrencyMedium
-	} else if args.Concurrency > 50 {
-		args.Concurrency = 50
+	} else if args.Concurrency > defaults.ConcurrencyMax {
+		args.Concurrency = defaults.ConcurrencyMax
 	}
 
 	return s.launchAsync(ctx, "discover", "15-120s depending on site size", func(taskCtx context.Context, task *Task) {
