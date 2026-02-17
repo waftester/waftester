@@ -5,6 +5,18 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.10] - 2026-02-17
+
+### Fixed
+
+- **Enterprise export wiring** — `fuzz`, `probe`, `crawl`, and `assess` commands registered `--json-export`, `--sarif-export`, and other enterprise output flags but never wrote files. Added dedicated export writers for all four commands.
+- **HTTP 503 block detection gaps** — Block detection in 7 packages only recognized 403/406/429. Added 503 (Service Unavailable), which WAFs commonly return for blocked requests. Affected: mutation executor, core test runner, CSV writer, discovery probes, WAF vendor detection, WAF detector, and calibration.
+- **Smart mode flag.Visit alias mismatch** — `scan` command's `flag.Visit` check for user-set rate limit only matched `rate-limit` but not the `-rl` alias, causing smart mode to silently override user-set values.
+- **Division by zero in mutate stats** — `mutate` command divided by `TotalTests` without zero guard, producing NaN percentages when no tests ran.
+- **Division by zero in progress display** — `StatsDisplay.render()` divided by `total` without zero guard, producing `+Inf%` and garbled terminal output when total was 0.
+- **Race condition in recursive fuzzer** — `addTask` incremented `inFlight` counter after writing to channel, allowing a fast worker to decrement it before the increment, causing premature queue closure.
+- **writeJSONFile silently drops close errors** — `writeJSONFile` used `defer f.Close()`, discarding write-flush errors on disk-full or NFS failures. Now uses named return to capture close errors.
+
 ## [2.9.9] - 2026-02-17
 
 ### Fixed
@@ -2217,6 +2229,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.10]: https://github.com/waftester/waftester/compare/v2.9.9...v2.9.10
 [2.9.9]: https://github.com/waftester/waftester/compare/v2.9.8...v2.9.9
 [2.9.8]: https://github.com/waftester/waftester/compare/v2.9.7...v2.9.8
 [2.9.7]: https://github.com/waftester/waftester/compare/v2.9.6...v2.9.7
