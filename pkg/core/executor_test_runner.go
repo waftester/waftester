@@ -302,11 +302,11 @@ retryLoop:
 			blockConfidence = blockResult.Confidence
 		} else {
 			// Fall back to status code check
-			isBlocked = resp.StatusCode == 403 || resp.StatusCode == 406 || resp.StatusCode == 429
+			isBlocked = resp.StatusCode == 403 || resp.StatusCode == 406 || resp.StatusCode == 429 || resp.StatusCode == 503
 		}
 	} else {
 		// Legacy: Simple status code check
-		isBlocked = resp.StatusCode == 403 || resp.StatusCode == 406 || resp.StatusCode == 429
+		isBlocked = resp.StatusCode == 403 || resp.StatusCode == 406 || resp.StatusCode == 429 || resp.StatusCode == 503
 	}
 
 	// Store block confidence as numeric value
