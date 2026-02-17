@@ -176,7 +176,11 @@ func (s *Scanner) testResourcePayload(ctx context.Context, targetURL string, pay
 
 	var body io.Reader
 	if payload.Payload != nil {
-		jsonData, _ := json.Marshal(payload.Payload)
+		jsonData, err := json.Marshal(payload.Payload)
+		if err != nil {
+			result.Evidence = fmt.Sprintf("failed to marshal payload: %v", err)
+			return result
+		}
 		body = strings.NewReader(string(jsonData))
 	}
 

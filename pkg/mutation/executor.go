@@ -306,7 +306,9 @@ func (e *Executor) Execute(ctx context.Context, tasks []MutationTask, handler Re
 				}
 
 				// Rate limit
-				e.limiter.Wait(ctx)
+				if err := e.limiter.Wait(ctx); err != nil {
+					return // Context cancelled
+				}
 
 				// Execute test
 				result := e.executeTask(ctx, task)

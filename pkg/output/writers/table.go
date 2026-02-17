@@ -427,7 +427,7 @@ func (tw *TableWriter) Close() error {
 	}
 
 	if err != nil {
-		return err
+		return fmt.Errorf("table: write: %w", err)
 	}
 
 	// Render legend if enabled

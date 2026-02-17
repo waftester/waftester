@@ -624,9 +624,12 @@ func (d *Discoverer) isExcluded(path string) bool {
 func (r *DiscoveryResult) SaveResult(filename string) error {
 	data, err := json.MarshalIndent(r, "", "  ")
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal discovery result: %w", err)
 	}
-	return writeFile(filename, data)
+	if err := writeFile(filename, data); err != nil {
+		return fmt.Errorf("write discovery result: %w", err)
+	}
+	return nil
 }
 
 // LoadResult loads a discovery result from a JSON file
