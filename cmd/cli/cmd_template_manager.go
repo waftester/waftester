@@ -209,7 +209,7 @@ func runTemplateShow() {
 		for len(data) > 0 && !utf8.Valid(data) {
 			data = data[:len(data)-1]
 		}
-		fmt.Fprintf(os.Stderr, "Warning: output truncated at %d bytes\n", maxSize)
+		ui.PrintWarning(fmt.Sprintf("output truncated at %d bytes", maxSize))
 	}
 
 	if !utf8.Valid(data) {

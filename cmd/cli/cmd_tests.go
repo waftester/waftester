@@ -36,7 +36,7 @@ func runTests() {
 	// Parse CLI flags first to check for silent mode
 	cfg, err := config.ParseFlags()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[ERR] Configuration error: %v\n", err)
+		ui.PrintError(fmt.Sprintf("Configuration error: %v", err))
 		os.Exit(1)
 	}
 
@@ -53,6 +53,11 @@ func runTests() {
 		detection.Disable()
 	}
 
+	// Print banner (unless silent) — before any further error messages
+	if !cfg.Silent {
+		ui.PrintBanner()
+	}
+
 	// Load policy and baseline for CI/CD gating
 	pol, err := outputFlags.LoadPolicy()
 	if err != nil {
@@ -63,11 +68,6 @@ func runTests() {
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Error loading baseline: %v", err))
 		os.Exit(1)
-	}
-
-	// Print banner (unless silent)
-	if !cfg.Silent {
-		ui.PrintBanner()
 	}
 
 	// Collect targets using shared TargetSource
