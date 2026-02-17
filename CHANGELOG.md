@@ -5,6 +5,20 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.9] - 2026-02-17
+
+### Fixed
+
+- **Scan export 0-byte files** — `scan --json-export` never wrote results because `WriteEnterpriseExports` expected `ExecutionResults` not `ScanResult`. Added `writeScanExports()` for scan-specific output.
+- **Bypass export 0-byte files** — `bypass --json-export` was registered but never wired to output. Added `writeBypassExports()` with JSON, SARIF, CSV, HTML, and Markdown support.
+- **Auto dry-run sends live requests** — `auto --dry-run` without `--spec` bypassed the dry-run check entirely. Added early return that prints scan plan without sending requests.
+- **FP rate doubled** — `FPRatio` was multiplied by 100 in `pkg/fp` and again in the display layer, producing rates like 3690% instead of 36.9%. Removed the redundant multiplication.
+- **Smart mode overrides user flags** — Smart mode unconditionally overwrote `-rate-limit` and `-concurrency` even when explicitly set by the user. Now uses `flag.Visit()` to detect user-set flags.
+- **Contradictory WAF effectiveness rating** — Final summary used a 3-tier scale (EXCELLENT/GOOD/NEEDS ATTENTION) while mid-stream used a 5-tier scale. Aligned to consistent 5-tier thresholds (99/95/90/80).
+- **HTTP 400 classified as error** — Legacy block detection only recognized 403, 406, 429. Added 400, which ModSecurity/Coraza and other WAFs commonly return for blocked requests.
+- **Scan command missing -v alias** — `scan` only accepted `-verbose` while other commands accepted both `-v` and `-verbose`. Added `-v` alias to `CommonFlags`.
+- **FP corpus alias mismatch** — `parseCorpusSources("all")` returned short names ("edge", "tech", "intl") but `corpus.Load()` only matched full names. Added aliases.
+
 ## [2.9.8] - 2026-02-17
 
 ### Fixed
@@ -2203,6 +2217,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.9]: https://github.com/waftester/waftester/compare/v2.9.8...v2.9.9
 [2.9.8]: https://github.com/waftester/waftester/compare/v2.9.7...v2.9.8
 [2.9.7]: https://github.com/waftester/waftester/compare/v2.9.6...v2.9.7
 [2.9.6]: https://github.com/waftester/waftester/compare/v2.9.5...v2.9.6
