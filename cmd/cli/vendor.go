@@ -47,19 +47,19 @@ func runVendorDetect() {
 
 	// Validate
 	if *target == "" {
-		fmt.Println(ui.ErrorStyle.Render("Error: Target URL required. Use -u <url>"))
-		fmt.Println()
-		fmt.Println("Usage: waf-tester vendor -u <url> [options]")
-		fmt.Println()
-		fmt.Println("Options:")
-		fmt.Println("  -u <url>        Target URL to detect WAF")
-		fmt.Println("  -timeout <n>    Request timeout in seconds (default: 10)")
-		fmt.Println("  -output <file>  Output results to JSON")
-		fmt.Println("  -autotune       Show auto-tune configuration")
-		fmt.Println("  -hints          Show bypass hints (default: true)")
-		fmt.Println("  -list           List all supported WAF vendors")
-		fmt.Println()
-		fmt.Printf("Supported WAF vendors: %d (ported from wafw00f)\n", len(vendors.GetAllSignatures()))
+		ui.PrintError("Target URL required. Use -u <url>")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Usage: waf-tester vendor -u <url> [options]")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Options:")
+		fmt.Fprintln(os.Stderr, "  -u <url>        Target URL to detect WAF")
+		fmt.Fprintln(os.Stderr, "  -timeout <n>    Request timeout in seconds (default: 10)")
+		fmt.Fprintln(os.Stderr, "  -output <file>  Output results to JSON")
+		fmt.Fprintln(os.Stderr, "  -autotune       Show auto-tune configuration")
+		fmt.Fprintln(os.Stderr, "  -hints          Show bypass hints (default: true)")
+		fmt.Fprintln(os.Stderr, "  -list           List all supported WAF vendors")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintf(os.Stderr, "Supported WAF vendors: %d (ported from wafw00f)\n", len(vendors.GetAllSignatures()))
 		os.Exit(1)
 	}
 
@@ -107,7 +107,7 @@ func runVendorDetect() {
 		if vendorDispCtx != nil {
 			_ = vendorDispCtx.EmitError(vendorCtx, "vendor", fmt.Sprintf("Vendor detection error: %v", err), true)
 		}
-		fmt.Println(ui.ErrorStyle.Render(fmt.Sprintf("Error: %v", err)))
+		ui.PrintError(fmt.Sprintf("%v", err))
 		os.Exit(1)
 	}
 
@@ -160,7 +160,7 @@ func runVendorDetect() {
 
 		data, _ := json.MarshalIndent(saveOutput, "", "  ")
 		if err := os.WriteFile(*output, data, 0644); err != nil {
-			fmt.Println(ui.ErrorStyle.Render(fmt.Sprintf("Error saving output: %v", err)))
+			ui.PrintError(fmt.Sprintf("Error saving output: %v", err))
 		} else {
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *output))
 		}
@@ -286,11 +286,11 @@ func runProtocolDetect() {
 	protoFlags.Parse(os.Args[2:])
 
 	if *target == "" {
-		fmt.Println(ui.ErrorStyle.Render("Error: Target URL required. Use -u <url>"))
-		fmt.Println()
-		fmt.Println("Usage: waf-tester protocol -u <url> [options]")
-		fmt.Println()
-		fmt.Println("Detects enterprise protocols: gRPC, gRPC-Web, SOAP, XML-RPC, WCF, GraphQL, Protobuf")
+		ui.PrintError("Target URL required. Use -u <url>")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Usage: waf-tester protocol -u <url> [options]")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Detects enterprise protocols: gRPC, gRPC-Web, SOAP, XML-RPC, WCF, GraphQL, Protobuf")
 		os.Exit(1)
 	}
 

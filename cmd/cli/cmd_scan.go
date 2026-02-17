@@ -3100,7 +3100,7 @@ func runScan() {
 		jsonData, _ := json.MarshalIndent(result, "", "  ")
 		if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
 			errMsg := fmt.Sprintf("Error writing output: %v", err)
-			fmt.Fprintf(os.Stderr, "[ERROR] %s\n", errMsg)
+			ui.PrintError(errMsg)
 			if dispCtx != nil {
 				_ = dispCtx.EmitError(ctx, "scan", errMsg, true)
 			}

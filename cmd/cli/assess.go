@@ -25,10 +25,10 @@ import (
 func runAssess() {
 	ui.PrintCompactBanner()
 	ui.PrintSection("Enterprise WAF Assessment")
-	fmt.Println()
-	fmt.Println("  🏢 Comprehensive security assessment with enterprise-grade metrics")
-	fmt.Println("     Combines attack testing + false positive testing + quantitative analysis")
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, ui.SanitizeString("  🏢 Comprehensive security assessment with enterprise-grade metrics"))
+	fmt.Fprintln(os.Stderr, "     Combines attack testing + false positive testing + quantitative analysis")
+	fmt.Fprintln(os.Stderr)
 
 	assessFlags := flag.NewFlagSet("assess", flag.ExitOnError)
 
@@ -80,40 +80,40 @@ func runAssess() {
 
 	// Validate
 	if *target == "" {
-		fmt.Println(ui.ErrorStyle.Render("Error: Target URL required. Use -u <url>"))
-		fmt.Println()
-		fmt.Println("Usage: waf-tester assess -u <url> [options]")
-		fmt.Println()
-		fmt.Println("Enterprise WAF Assessment - combines attack testing with FP testing")
-		fmt.Println("and produces quantitative metrics (F1 score, precision, recall, etc.)")
-		fmt.Println()
-		fmt.Println("Options:")
-		fmt.Println("  -u <url>              Target URL to assess (required)")
-		fmt.Println("  -c <n>                Concurrency (default: 25)")
-		fmt.Println("  -rate <n>             Rate limit requests/sec (default: 100)")
-		fmt.Println("  -timeout <n>          Request timeout in seconds (default: 10)")
-		fmt.Println("  -categories <list>    Attack categories (default: all)")
-		fmt.Println("  -fp                   Enable false positive testing (default: true)")
-		fmt.Println("  -corpus <sources>     FP corpus: builtin,leipzig (default: builtin)")
-		fmt.Println("  -custom-corpus <file> Path to custom corpus file")
-		fmt.Println("  -detect-waf           Auto-detect WAF vendor (default: true)")
-		fmt.Println("  -o <file>             Output results to file")
-		fmt.Println("  -format <fmt>         Output format: console, json (default: console)")
-		fmt.Println("  -v                    Verbose output")
-		fmt.Println("  -k                    Skip TLS verification")
-		fmt.Println()
-		fmt.Println("CI/CD Integration:")
-		fmt.Println("  -sarif-export <file>  Export SARIF for GitHub/Azure DevOps")
-		fmt.Println("  -junit-export <file>  Export JUnit XML for CI systems")
-		fmt.Println("  -policy <file>        Policy YAML for exit code rules")
-		fmt.Println("  -baseline <file>      Baseline JSON for regression detection")
-		fmt.Println("  -github-output        Enable GitHub Actions output")
-		fmt.Println("  -github-summary       Add to GitHub Actions job summary")
-		fmt.Println()
-		fmt.Println("Examples:")
-		fmt.Println("  waf-tester assess -u https://example.com")
-		fmt.Println("  waf-tester assess -u https://example.com -corpus builtin,leipzig -o report.json -format json")
-		fmt.Println("  waf-tester assess -u https://example.com -categories sqli,xss -c 50")
+		ui.PrintError("Target URL required. Use -u <url>")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Usage: waf-tester assess -u <url> [options]")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Enterprise WAF Assessment - combines attack testing with FP testing")
+		fmt.Fprintln(os.Stderr, "and produces quantitative metrics (F1 score, precision, recall, etc.)")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Options:")
+		fmt.Fprintln(os.Stderr, "  -u <url>              Target URL to assess (required)")
+		fmt.Fprintln(os.Stderr, "  -c <n>                Concurrency (default: 25)")
+		fmt.Fprintln(os.Stderr, "  -rate <n>             Rate limit requests/sec (default: 100)")
+		fmt.Fprintln(os.Stderr, "  -timeout <n>          Request timeout in seconds (default: 10)")
+		fmt.Fprintln(os.Stderr, "  -categories <list>    Attack categories (default: all)")
+		fmt.Fprintln(os.Stderr, "  -fp                   Enable false positive testing (default: true)")
+		fmt.Fprintln(os.Stderr, "  -corpus <sources>     FP corpus: builtin,leipzig (default: builtin)")
+		fmt.Fprintln(os.Stderr, "  -custom-corpus <file> Path to custom corpus file")
+		fmt.Fprintln(os.Stderr, "  -detect-waf           Auto-detect WAF vendor (default: true)")
+		fmt.Fprintln(os.Stderr, "  -o <file>             Output results to file")
+		fmt.Fprintln(os.Stderr, "  -format <fmt>         Output format: console, json (default: console)")
+		fmt.Fprintln(os.Stderr, "  -v                    Verbose output")
+		fmt.Fprintln(os.Stderr, "  -k                    Skip TLS verification")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "CI/CD Integration:")
+		fmt.Fprintln(os.Stderr, "  -sarif-export <file>  Export SARIF for GitHub/Azure DevOps")
+		fmt.Fprintln(os.Stderr, "  -junit-export <file>  Export JUnit XML for CI systems")
+		fmt.Fprintln(os.Stderr, "  -policy <file>        Policy YAML for exit code rules")
+		fmt.Fprintln(os.Stderr, "  -baseline <file>      Baseline JSON for regression detection")
+		fmt.Fprintln(os.Stderr, "  -github-output        Enable GitHub Actions output")
+		fmt.Fprintln(os.Stderr, "  -github-summary       Add to GitHub Actions job summary")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Examples:")
+		fmt.Fprintln(os.Stderr, "  waf-tester assess -u https://example.com")
+		fmt.Fprintln(os.Stderr, "  waf-tester assess -u https://example.com -corpus builtin,leipzig -o report.json -format json")
+		fmt.Fprintln(os.Stderr, "  waf-tester assess -u https://example.com -categories sqli,xss -c 50")
 		os.Exit(1)
 	}
 
@@ -255,7 +255,7 @@ func runAssess() {
 		if dispCtx != nil {
 			_ = dispCtx.EmitError(ctx, "assess", fmt.Sprintf("Assessment error: %v", err), true)
 		}
-		fmt.Println(ui.ErrorStyle.Render(fmt.Sprintf("Assessment error: %v", err)))
+		ui.PrintError(fmt.Sprintf("Assessment error: %v", err))
 		os.Exit(1)
 	}
 
@@ -313,12 +313,12 @@ func runAssess() {
 		}
 
 		if marshalErr != nil {
-			fmt.Println(ui.ErrorStyle.Render(fmt.Sprintf("Error encoding output: %v", marshalErr)))
+			ui.PrintError(fmt.Sprintf("Error encoding output: %v", marshalErr))
 			os.Exit(1)
 		}
 
 		if err := os.WriteFile(*output, data, 0644); err != nil {
-			fmt.Println(ui.ErrorStyle.Render(fmt.Sprintf("Error saving output: %v", err)))
+			ui.PrintError(fmt.Sprintf("Error saving output: %v", err))
 			os.Exit(1)
 		} else {
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *output))
