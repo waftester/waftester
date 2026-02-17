@@ -108,7 +108,7 @@ func (d *Discoverer) detectWAF(ctx context.Context, result *DiscoveryResult) {
 		}
 
 		// Check for WAF signatures
-		if resp.StatusCode == 403 || resp.StatusCode == 406 || resp.StatusCode == 418 {
+		if resp.StatusCode == 403 || resp.StatusCode == 406 || resp.StatusCode == 418 || resp.StatusCode == 429 || resp.StatusCode == 503 {
 			result.WAFDetected = true
 
 			// Try to fingerprint

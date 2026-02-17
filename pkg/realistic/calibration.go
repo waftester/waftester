@@ -112,7 +112,7 @@ func (c *Calibrator) Calibrate(ctx context.Context) (*CalibrationResult, error) 
 		result.Samples = append(result.Samples, *sample)
 
 		// Check if this looks like a block
-		if sample.StatusCode == 403 || sample.StatusCode == 406 || sample.StatusCode == 429 {
+		if sample.StatusCode == 403 || sample.StatusCode == 406 || sample.StatusCode == 429 || sample.StatusCode == 503 {
 			blockedSample = sample
 			break
 		}
@@ -181,7 +181,7 @@ func (c *Calibrator) executeRequest(ctx context.Context, req *http.Request) (*Sa
 		StatusCode: resp.StatusCode,
 		Latency:    latency,
 		BodyLength: int64(len(body)),
-		IsBlocked:  resp.StatusCode == 403 || resp.StatusCode == 406 || resp.StatusCode == 429,
+		IsBlocked:  resp.StatusCode == 403 || resp.StatusCode == 406 || resp.StatusCode == 429 || resp.StatusCode == 503,
 	}
 
 	return sample, nil
@@ -279,7 +279,7 @@ func (c *Calibrator) ProfileTarget(ctx context.Context) (*TargetProfile, error) 
 	if err == nil {
 		profile.BlockStatus = blockSample.StatusCode
 		profile.BlockLatency = blockSample.Latency
-		profile.WAFDetected = blockSample.StatusCode == 403 || blockSample.StatusCode == 406
+		profile.WAFDetected = blockSample.StatusCode == 403 || blockSample.StatusCode == 406 || blockSample.StatusCode == 429 || blockSample.StatusCode == 503
 	}
 
 	return profile, nil

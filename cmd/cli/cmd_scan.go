@@ -403,7 +403,7 @@ func runScan() {
 			userSetRL := false
 			userSetConc := false
 			scanFlags.Visit(func(f *flag.Flag) {
-				if f.Name == "rate-limit" {
+				if f.Name == "rate-limit" || f.Name == "rl" {
 					userSetRL = true
 				}
 				if f.Name == "concurrency" {

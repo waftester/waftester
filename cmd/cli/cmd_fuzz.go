@@ -17,6 +17,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/cli"
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/fuzz"
@@ -649,12 +650,160 @@ func runFuzz() {
 		}
 	}
 
+	// Enterprise file exports (--json-export, --sarif-export, etc.)
+	writeFuzzExports(&outputFlags, targetURL, results, stats, duration)
+
 	// ═══════════════════════════════════════════════════════════════════════════
 	// DISPATCHER SUMMARY EMISSION
 	// ═══════════════════════════════════════════════════════════════════════════
 	// Notify all hooks that fuzz is complete (total requests, matches found)
 	if fuzzDispCtx != nil {
 		_ = fuzzDispCtx.EmitSummary(ctx, int(stats.TotalRequests), int(stats.Matches), int(stats.Filtered), duration)
+	}
+}
+
+// writeFuzzExports writes fuzz results to enterprise export files (--json-export, --sarif-export, etc.).
+func writeFuzzExports(outFlags *OutputFlags, target string, results []*fuzz.Result, stats *fuzz.Stats, duration time.Duration) {
+	if outFlags.JSONExport == "" && outFlags.JSONLExport == "" && outFlags.SARIFExport == "" &&
+		outFlags.CSVExport == "" && outFlags.HTMLExport == "" && outFlags.MDExport == "" &&
+		outFlags.JUnitExport == "" && outFlags.PDFExport == "" {
+		return
+	}
+
+	output := struct {
+		Target      string         `json:"target"`
+		Results     []*fuzz.Result `json:"results"`
+		Stats       *fuzz.Stats    `json:"stats"`
+		Duration    string         `json:"duration"`
+		CompletedAt time.Time      `json:"completed_at"`
+	}{
+		Target:      target,
+		Results:     results,
+		Stats:       stats,
+		Duration:    duration.String(),
+		CompletedAt: time.Now(),
+	}
+
+	if outFlags.JSONExport != "" {
+		if err := writeJSONFile(outFlags.JSONExport, output); err != nil {
+			ui.PrintError(fmt.Sprintf("JSON export: %v", err))
+		} else {
+			ui.PrintSuccess(fmt.Sprintf("JSON export saved to %s", outFlags.JSONExport))
+		}
+	}
+
+	if outFlags.JSONLExport != "" {
+		f, err := os.Create(outFlags.JSONLExport)
+		if err != nil {
+			ui.PrintError(fmt.Sprintf("JSONL export: %v", err))
+		} else {
+			enc := json.NewEncoder(f)
+			for _, r := range results {
+				_ = enc.Encode(r)
+			}
+			f.Close()
+			ui.PrintSuccess(fmt.Sprintf("JSONL export saved to %s", outFlags.JSONLExport))
+		}
+	}
+
+	if outFlags.SARIFExport != "" {
+		sarif := buildFuzzSARIF(target, results)
+		if err := writeJSONFile(outFlags.SARIFExport, sarif); err != nil {
+			ui.PrintError(fmt.Sprintf("SARIF export: %v", err))
+		} else {
+			ui.PrintSuccess(fmt.Sprintf("SARIF export saved to %s", outFlags.SARIFExport))
+		}
+	}
+
+	if outFlags.CSVExport != "" {
+		f, err := os.Create(outFlags.CSVExport)
+		if err != nil {
+			ui.PrintError(fmt.Sprintf("CSV export: %v", err))
+		} else {
+			fmt.Fprintln(f, "url,status_code,content_length,word_count,line_count,response_time")
+			for _, r := range results {
+				fmt.Fprintf(f, "%s,%d,%d,%d,%d,%s\n",
+					r.URL, r.StatusCode, r.ContentLength, r.WordCount, r.LineCount, r.ResponseTime)
+			}
+			f.Close()
+			ui.PrintSuccess(fmt.Sprintf("CSV export saved to %s", outFlags.CSVExport))
+		}
+	}
+
+	if outFlags.HTMLExport != "" {
+		f, err := os.Create(outFlags.HTMLExport)
+		if err != nil {
+			ui.PrintError(fmt.Sprintf("HTML export: %v", err))
+		} else {
+			fmt.Fprintf(f, "<html><head><title>Fuzz Results</title></head><body>\n")
+			fmt.Fprintf(f, "<h1>Fuzz Results</h1>\n")
+			fmt.Fprintf(f, "<p>Target: %s | Total: %d | Matches: %d</p>\n",
+				html.EscapeString(target), stats.TotalRequests, stats.Matches)
+			if len(results) > 0 {
+				fmt.Fprintf(f, "<table border='1'><tr><th>URL</th><th>Status</th><th>Size</th><th>Words</th><th>Lines</th></tr>\n")
+				for _, r := range results {
+					fmt.Fprintf(f, "<tr><td>%s</td><td>%d</td><td>%d</td><td>%d</td><td>%d</td></tr>\n",
+						html.EscapeString(r.URL), r.StatusCode, r.ContentLength, r.WordCount, r.LineCount)
+				}
+				fmt.Fprintf(f, "</table>\n")
+			}
+			fmt.Fprintf(f, "</body></html>\n")
+			f.Close()
+			ui.PrintSuccess(fmt.Sprintf("HTML export saved to %s", outFlags.HTMLExport))
+		}
+	}
+
+	if outFlags.MDExport != "" {
+		f, err := os.Create(outFlags.MDExport)
+		if err != nil {
+			ui.PrintError(fmt.Sprintf("Markdown export: %v", err))
+		} else {
+			fmt.Fprintf(f, "# Fuzz Results\n\n")
+			fmt.Fprintf(f, "- **Target:** %s\n- **Total Requests:** %d\n- **Matches:** %d\n- **Duration:** %s\n\n",
+				target, stats.TotalRequests, stats.Matches, duration.Round(time.Millisecond))
+			if len(results) > 0 {
+				fmt.Fprintf(f, "| URL | Status | Size | Words | Lines |\n")
+				fmt.Fprintf(f, "|-----|--------|------|-------|-------|\n")
+				for _, r := range results {
+					fmt.Fprintf(f, "| %s | %d | %d | %d | %d |\n",
+						r.URL, r.StatusCode, r.ContentLength, r.WordCount, r.LineCount)
+				}
+			}
+			f.Close()
+			ui.PrintSuccess(fmt.Sprintf("Markdown export saved to %s", outFlags.MDExport))
+		}
+	}
+}
+
+// buildFuzzSARIF creates a minimal SARIF 2.1.0 structure for fuzz findings.
+func buildFuzzSARIF(target string, results []*fuzz.Result) map[string]interface{} {
+	sarifResults := make([]map[string]interface{}, 0, len(results))
+	for _, r := range results {
+		sarifResults = append(sarifResults, map[string]interface{}{
+			"ruleId":  "fuzz-finding",
+			"level":   "note",
+			"message": map[string]string{"text": fmt.Sprintf("Fuzz match: %s (status %d, %d bytes)", r.Input, r.StatusCode, r.ContentLength)},
+			"locations": []map[string]interface{}{
+				{"physicalLocation": map[string]interface{}{
+					"artifactLocation": map[string]string{"uri": r.URL},
+				}},
+			},
+		})
+	}
+	return map[string]interface{}{
+		"$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
+		"version": "2.1.0",
+		"runs": []map[string]interface{}{
+			{
+				"tool": map[string]interface{}{
+					"driver": map[string]interface{}{
+						"name":    "WAFtester",
+						"version": defaults.Version,
+					},
+				},
+				"results": sarifResults,
+			},
+		},
 	}
 }
 
