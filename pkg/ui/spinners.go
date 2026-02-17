@@ -50,8 +50,14 @@ var Spinners = map[SpinnerType]Spinner{
 	},
 }
 
-// GetSpinner returns a spinner by type with a default fallback
+// GetSpinner returns a spinner by type with a default fallback.
+// On terminals that cannot render Unicode (legacy Windows consoles),
+// Unicode-heavy spinners are replaced with SpinnerLine.
 func GetSpinner(t SpinnerType) Spinner {
+	if !UnicodeTerminal() {
+		// Only SpinnerLine is pure ASCII; all others use Unicode glyphs.
+		return Spinners[SpinnerLine]
+	}
 	if s, ok := Spinners[t]; ok {
 		return s
 	}

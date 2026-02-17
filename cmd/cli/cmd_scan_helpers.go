@@ -140,3 +140,38 @@ func dnsReconTotalRecords(r *DNSReconResult) int {
 	}
 	return len(r.CNAMEs) + len(r.MXRecords) + len(r.TXTRecords) + len(r.NSRecords)
 }
+
+// scanTipsByType maps scan type names to user-facing tips shown
+// in the progress display. Only tips for requested scan types are shown.
+var scanTipsByType = map[string]string{
+	"sqli":      "SQLi uses error-based, time-based, union, and boolean techniques",
+	"xss":       "XSS tests reflected, stored, and DOM-based vectors",
+	"ssrf":      "SSRF probes for internal network access and cloud metadata",
+	"traversal": "Path traversal tests for file system access vulnerabilities",
+	"cmdi":      "Command injection tests OS command execution vectors",
+	"nosqli":    "NoSQLi tests MongoDB, CouchDB, and other NoSQL backends",
+	"ssti":      "SSTI probes template engines for server-side code execution",
+	"jwt":       "JWT tests for algorithm confusion, weak secrets, and claim tampering",
+	"graphql":   "GraphQL tests introspection, batching, and injection vectors",
+	"cors":      "CORS tests for overly permissive cross-origin policies",
+	"csrf":      "CSRF tests for missing or weak anti-forgery tokens",
+	"lfi":       "LFI tests for local file read via path manipulation",
+	"rfi":       "RFI tests for remote file inclusion via URL injection",
+	"rce":       "RCE tests for remote code execution via multiple vectors",
+	"ldap":      "LDAP injection tests directory service query manipulation",
+	"smuggling": "Request smuggling tests CL/TE and TE/CL desync vectors",
+}
+
+// buildScanTips returns tips relevant to the scan types being run.
+// Falls back to a generic tip when no type-specific tips match.
+func buildScanTips(shouldScan func(string) bool) []string {
+	var tips []string
+	for scanType, tip := range scanTipsByType {
+		if shouldScan(scanType) {
+			tips = append(tips, tip)
+		}
+	}
+	// Always include a generic tip so the list is never empty
+	tips = append(tips, "Each scan type uses context-aware payload selection")
+	return tips
+}

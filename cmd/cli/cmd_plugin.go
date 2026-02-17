@@ -131,7 +131,7 @@ func runPluginList(manager *plugin.Manager, jsonOutput bool) {
 		if manager.IsBuiltin(p.Name) {
 			builtinTag = " [builtin]"
 		}
-		fmt.Printf("  • %s v%s%s\n", p.Name, p.Version, builtinTag)
+		fmt.Printf("  %s %s v%s%s\n", ui.Icon("•", "-"), p.Name, p.Version, builtinTag)
 		fmt.Printf("    %s\n", p.Description)
 		fmt.Println()
 	}
@@ -276,7 +276,7 @@ func runPluginRun(manager *plugin.Manager, name, targetURL, configFile, configJS
 	if len(result.Info) > 0 && verbose {
 		ui.PrintSection("Information")
 		for _, info := range result.Info {
-			fmt.Printf("  • %s: %s\n", info.Title, info.Value)
+			fmt.Printf("  %s %s: %s\n", ui.Icon("•", "-"), info.Title, info.Value)
 		}
 		fmt.Println()
 	}
