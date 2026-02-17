@@ -150,7 +150,25 @@ func runMutate() {
 
 	// Apply smart mode optimizations first
 	if *smartMode && smartResult != nil {
+		// Preserve user-explicit flags (same pattern as scan/autoscan)
+		userSetRL := false
+		userSetConc := false
+		mutateFlags.Visit(func(f *flag.Flag) {
+			if f.Name == "rl" {
+				userSetRL = true
+			}
+			if f.Name == "c" {
+				userSetConc = true
+			}
+		})
 		ApplySmartConfig(cfg, smartResult)
+		// Restore user-set values after smart config
+		if userSetRL {
+			cfg.RateLimit = *rateLimit
+		}
+		if userSetConc {
+			cfg.Concurrency = *concurrency
+		}
 		ui.PrintInfo(fmt.Sprintf("📊 WAF-optimized: %d encoders, %d evasions, %.0f req/sec",
 			len(cfg.Pipeline.Encoders), len(cfg.Pipeline.Evasions), cfg.RateLimit))
 		fmt.Println()
@@ -463,8 +481,13 @@ func runMutate() {
 	ui.Printf("  %s \033[1mFinal Stats:\033[0m\n", ui.Icon("📊", "#"))
 	bullet := ui.Icon("•", "-")
 	fmt.Printf("     %s Total Tests:   %d\n", bullet, stats.TotalTests)
-	fmt.Printf("     %s Bypasses:      \033[32m%d\033[0m (%.1f%%)\n", bullet, stats.Passed, float64(stats.Passed)/float64(stats.TotalTests)*100)
-	fmt.Printf("     %s Blocked:       \033[31m%d\033[0m (%.1f%%)\n", bullet, stats.Blocked, float64(stats.Blocked)/float64(stats.TotalTests)*100)
+	passRate, blockRate := float64(0), float64(0)
+	if stats.TotalTests > 0 {
+		passRate = float64(stats.Passed) / float64(stats.TotalTests) * 100
+		blockRate = float64(stats.Blocked) / float64(stats.TotalTests) * 100
+	}
+	fmt.Printf("     %s Bypasses:      \033[32m%d\033[0m (%.1f%%)\n", bullet, stats.Passed, passRate)
+	fmt.Printf("     %s Blocked:       \033[31m%d\033[0m (%.1f%%)\n", bullet, stats.Blocked, blockRate)
 	fmt.Printf("     %s Errors:        %d\n", bullet, stats.Errors)
 	fmt.Printf("     %s Duration:      %s\n", bullet, stats.Duration.Round(time.Millisecond))
 	fmt.Printf("     %s Throughput:    %.1f req/s\n", bullet, stats.RequestsPerSec)

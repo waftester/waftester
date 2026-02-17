@@ -110,7 +110,7 @@ func (e *ExecutorEnhancer) IsBlocked(statusCode int, body string, headers http.H
 	result, err := e.Detector.DetectBlock(resp, 0)
 	if err != nil {
 		// Fall back to simple status check
-		return statusCode == 403 || statusCode == 406 || statusCode == 429
+		return statusCode == 403 || statusCode == 406 || statusCode == 429 || statusCode == 503
 	}
 
 	return result.IsBlocked
@@ -134,7 +134,7 @@ func (e *ExecutorEnhancer) GetBlockConfidence(statusCode int, body string, heade
 
 	result, err := e.Detector.DetectBlock(resp, 0)
 	if err != nil {
-		if statusCode == 403 || statusCode == 406 || statusCode == 429 {
+		if statusCode == 403 || statusCode == 406 || statusCode == 429 || statusCode == 503 {
 			return 0.5
 		}
 		return 0.0

@@ -507,9 +507,12 @@ func (s *StatsDisplay) render() {
 	}
 
 	percent := float64(current) / float64(s.total) * 100
+	if math.IsNaN(percent) || math.IsInf(percent, 0) {
+		percent = 0
+	}
 	remaining := s.total - int(current)
 	eta := time.Duration(float64(remaining) / rps * float64(time.Second))
-	if rps <= 0 {
+	if rps <= 0 || math.IsNaN(eta.Seconds()) || math.IsInf(eta.Seconds(), 0) {
 		eta = 0
 	}
 

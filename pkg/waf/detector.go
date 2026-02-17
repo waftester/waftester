@@ -315,7 +315,7 @@ func (d *Detector) behavioralAnalysis(ctx context.Context, target string, result
 
 		// Check if behavior matches expectation
 		isBlocked := resp.StatusCode == 403 || resp.StatusCode == 406 ||
-			resp.StatusCode == 418 || resp.StatusCode == 405
+			resp.StatusCode == 418 || resp.StatusCode == 429 || resp.StatusCode == 503
 
 		if isBlocked && test.expectBlock {
 			result.Evidence = append(result.Evidence, Evidence{

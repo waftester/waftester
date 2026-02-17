@@ -486,7 +486,7 @@ func (e *Executor) executeTask(ctx context.Context, task MutationTask) *TestResu
 			}
 		} else {
 			// Fallback to legacy detection on error
-			result.Blocked = resp.StatusCode == 400 || resp.StatusCode == 403 || resp.StatusCode == 406 || resp.StatusCode == 429
+			result.Blocked = resp.StatusCode == 400 || resp.StatusCode == 403 || resp.StatusCode == 406 || resp.StatusCode == 429 || resp.StatusCode == 503
 			if result.Blocked {
 				result.Outcome = "Blocked"
 			} else if resp.StatusCode >= 200 && resp.StatusCode < 400 {
@@ -498,7 +498,7 @@ func (e *Executor) executeTask(ctx context.Context, task MutationTask) *TestResu
 		}
 	} else {
 		// Legacy: status-code-only detection
-		if resp.StatusCode == 400 || resp.StatusCode == 403 || resp.StatusCode == 406 || resp.StatusCode == 429 {
+		if resp.StatusCode == 400 || resp.StatusCode == 403 || resp.StatusCode == 406 || resp.StatusCode == 429 || resp.StatusCode == 503 {
 			result.Outcome = "Blocked"
 			result.Blocked = true
 		} else if resp.StatusCode >= 200 && resp.StatusCode < 400 {
