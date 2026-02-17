@@ -50,21 +50,21 @@ func (m *ExecutionManifest) Add(label string, value interface{}) *ExecutionManif
 
 // AddWithIcon adds an item with an icon
 func (m *ExecutionManifest) AddWithIcon(icon, label string, value interface{}) *ExecutionManifest {
-	m.Items = append(m.Items, ManifestItem{Icon: icon, Label: label, Value: value})
+	m.Items = append(m.Items, ManifestItem{Icon: SanitizeString(icon), Label: label, Value: value})
 	return m
 }
 
 // AddEmphasis adds an emphasized item (highlighted)
 func (m *ExecutionManifest) AddEmphasis(icon, label string, value interface{}) *ExecutionManifest {
-	m.Items = append(m.Items, ManifestItem{Icon: icon, Label: label, Value: value, Emphasis: true})
+	m.Items = append(m.Items, ManifestItem{Icon: SanitizeString(icon), Label: label, Value: value, Emphasis: true})
 	return m
 }
 
 // AddPayloadInfo adds payload count information (common pattern)
 func (m *ExecutionManifest) AddPayloadInfo(count int, categories []string) *ExecutionManifest {
-	m.AddEmphasis("📦", "Payloads", fmt.Sprintf("%d payloads loaded", count))
+	m.AddEmphasis(Icon("📦", "#"), "Payloads", fmt.Sprintf("%d payloads loaded", count))
 	if len(categories) > 0 {
-		m.AddWithIcon("🏷️", "Categories", strings.Join(categories, ", "))
+		m.AddWithIcon(Icon("🏷️", ">"), "Categories", strings.Join(categories, ", "))
 	}
 	return m
 }
@@ -72,9 +72,9 @@ func (m *ExecutionManifest) AddPayloadInfo(count int, categories []string) *Exec
 // AddTargetInfo adds target count information
 func (m *ExecutionManifest) AddTargetInfo(count int, sample string) *ExecutionManifest {
 	if count == 1 {
-		m.AddWithIcon("🎯", "Target", sample)
+		m.AddWithIcon(Icon("🎯", "@"), "Target", sample)
 	} else {
-		m.AddEmphasis("🎯", "Targets", fmt.Sprintf("%d targets", count))
+		m.AddEmphasis(Icon("🎯", "@"), "Targets", fmt.Sprintf("%d targets", count))
 		if sample != "" {
 			m.AddWithIcon("", "First", sample)
 		}
@@ -94,16 +94,16 @@ func (m *ExecutionManifest) AddEstimate(requests int, rateLimit float64) *Execut
 		} else {
 			estimate = fmt.Sprintf("~%.1f hrs", estimatedSecs/3600)
 		}
-		m.AddWithIcon("⏱️", "Estimate", fmt.Sprintf("%s @ %.0f req/s", estimate, rateLimit))
+		m.AddWithIcon(Icon("⏱️", "~"), "Estimate", fmt.Sprintf("%s @ %.0f req/s", estimate, rateLimit))
 	}
 	return m
 }
 
 // AddConcurrency adds concurrency/rate info
 func (m *ExecutionManifest) AddConcurrency(workers int, rateLimit float64) *ExecutionManifest {
-	m.AddWithIcon("⚡", "Workers", fmt.Sprintf("%d concurrent", workers))
+	m.AddWithIcon(Icon("⚡", "!"), "Workers", fmt.Sprintf("%d concurrent", workers))
 	if rateLimit > 0 {
-		m.AddWithIcon("🚦", "Rate Limit", fmt.Sprintf("%.0f req/s", rateLimit))
+		m.AddWithIcon(Icon("🚦", "|"), "Rate Limit", fmt.Sprintf("%.0f req/s", rateLimit))
 	}
 	return m
 }
@@ -124,6 +124,12 @@ func (m *ExecutionManifest) Print() {
 // printBoxed displays manifest in a Unicode box
 func (m *ExecutionManifest) printBoxed() {
 	w := m.Writer
+
+	// On non-Unicode terminals, fall back to simple layout
+	if !UnicodeTerminal() {
+		m.printSimple()
+		return
+	}
 
 	// Calculate max width
 	maxWidth := len(m.Title) + 4
@@ -253,9 +259,9 @@ func ScanManifest(target string, scanners []string, timeout time.Duration) *Exec
 	m := NewExecutionManifest("SCAN MANIFEST")
 	m.SetDescription("Security scanner configuration")
 	m.AddTargetInfo(1, target)
-	m.AddEmphasis("🔬", "Scanners", fmt.Sprintf("%d security modules", len(scanners)))
-	m.AddWithIcon("📋", "Modules", strings.Join(scanners, ", "))
-	m.AddWithIcon("⏰", "Timeout", timeout.String())
+	m.AddEmphasis(Icon("🔬", "#"), "Scanners", fmt.Sprintf("%d security modules", len(scanners)))
+	m.AddWithIcon(Icon("📋", ">"), "Modules", strings.Join(scanners, ", "))
+	m.AddWithIcon(Icon("⏰", "~"), "Timeout", timeout.String())
 	return m
 }
 
@@ -264,7 +270,7 @@ func DiscoveryManifest(target string, depth int, phases []string) *ExecutionMani
 	m := NewExecutionManifest("DISCOVERY MANIFEST")
 	m.SetDescription("Reconnaissance configuration")
 	m.AddTargetInfo(1, target)
-	m.AddWithIcon("🔍", "Depth", fmt.Sprintf("%d levels", depth))
-	m.AddEmphasis("📊", "Phases", fmt.Sprintf("%d phases", len(phases)))
+	m.AddWithIcon(Icon("🔍", "?"), "Depth", fmt.Sprintf("%d levels", depth))
+	m.AddEmphasis(Icon("📊", "#"), "Phases", fmt.Sprintf("%d phases", len(phases)))
 	return m
 }

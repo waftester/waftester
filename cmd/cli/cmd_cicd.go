@@ -70,7 +70,7 @@ func runCICD() {
 	if *listPlatforms {
 		ui.PrintSection("Supported CI/CD Platforms")
 		for _, p := range generator.ListPlatforms() {
-			fmt.Printf("  • %s\n", p)
+			fmt.Printf("  %s %s\n", ui.Icon("•", "-"), p)
 		}
 		fmt.Println()
 		fmt.Println("Usage: waf-tester cicd -p <platform> -u <target>")

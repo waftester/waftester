@@ -226,11 +226,11 @@ func showTampersForWAF(wafVendor string, jsonOut bool) {
 		ui.ConfigLabelStyle.Render("TAMPER"),
 		ui.HelpStyle.Render("EFFECTIVENESS"),
 		ui.HelpStyle.Render("NOTES"))
-	fmt.Println("  " + strings.Repeat("─", 70))
+	fmt.Println("  " + strings.Repeat(ui.Icon("─", "-"), 70))
 
 	for i, rec := range recs {
-		effectBar := strings.Repeat("█", int(rec.Effectiveness*10))
-		effectBar += strings.Repeat("░", 10-int(rec.Effectiveness*10))
+		effectBar := strings.Repeat(ui.Icon("█", "#"), int(rec.Effectiveness*10))
+		effectBar += strings.Repeat(ui.Icon("░", "-"), 10-int(rec.Effectiveness*10))
 
 		notes := rec.Notes
 		if notes == "" {
@@ -276,7 +276,7 @@ func testTamperTransformation(payload, tamperList string) {
 		return
 	}
 
-	fmt.Printf("  Applying tampers: %s\n\n", strings.Join(valid, " → "))
+	fmt.Printf("  Applying tampers: %s\n\n", strings.Join(valid, ui.Icon(" → ", " -> ")))
 
 	// Show step-by-step transformation
 	current := payload
@@ -295,7 +295,7 @@ func testTamperTransformation(payload, tamperList string) {
 		current = transformed
 	}
 
-	fmt.Println("  " + strings.Repeat("─", 50))
+	fmt.Println("  " + strings.Repeat(ui.Icon("─", "-"), 50))
 	fmt.Printf("  Final: %s\n", ui.PassStyle.Render(current))
 }
 

@@ -49,8 +49,11 @@ func TestExecutionManifestAddWithIcon(t *testing.T) {
 		t.Fatalf("Expected 1 item, got %d", len(m.Items))
 	}
 
-	if m.Items[0].Icon != "🎯" {
-		t.Errorf("Expected Icon '🎯', got '%s'", m.Items[0].Icon)
+	// Icon is sanitized for the current terminal capability.
+	// In test (piped stderr), emoji are stripped.
+	expected := SanitizeString("🎯")
+	if m.Items[0].Icon != expected {
+		t.Errorf("Expected Icon %q, got %q", expected, m.Items[0].Icon)
 	}
 
 	if m.Items[0].Label != "Target" {

@@ -24,15 +24,15 @@ func (c *Corpus) Load(sources []string) error {
 		switch source {
 		case "leipzig":
 			c.sources["leipzig"] = getLeipzigCorpus()
-		case "edgecases":
+		case "edgecases", "edge":
 			c.sources["edgecases"] = getEdgeCases()
 		case "forms":
 			c.sources["forms"] = getFormData()
 		case "api":
 			c.sources["api"] = getAPIPayloads()
-		case "technical":
+		case "technical", "tech":
 			c.sources["technical"] = getTechnicalContent()
-		case "international":
+		case "international", "intl":
 			c.sources["international"] = getInternationalNames()
 		}
 	}

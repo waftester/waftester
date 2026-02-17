@@ -208,7 +208,7 @@ sendLoop:
 	result.Errors = errors
 
 	if result.TotalTests > 0 {
-		result.FPRatio = float64(result.FalsePositives) / float64(result.TotalTests) * 100
+		result.FPRatio = float64(result.FalsePositives) / float64(result.TotalTests)
 	}
 
 	return result, nil

@@ -163,7 +163,7 @@ func runSOAPWSDLList(wsdlURL string, jsonOutput, verbose bool, timeout int) {
 
 	ui.PrintSection("Available Operations")
 	for _, op := range operations {
-		fmt.Printf("  • %s\n", op.Name)
+		fmt.Printf("  %s %s\n", ui.Icon("•", "-"), op.Name)
 		if verbose && op.SOAPAction != "" {
 			fmt.Printf("    SOAPAction: %s\n", op.SOAPAction)
 		}

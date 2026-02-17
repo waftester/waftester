@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // Format represents an output format for detection stats.
@@ -51,18 +53,18 @@ func (s Stats) writeConsole(w io.Writer) error {
 	}
 
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, strings.Repeat("─", 40))
+	fmt.Fprintln(w, strings.Repeat(ui.Icon("─", "-"), 40))
 	fmt.Fprintln(w, "  Detection Stats:")
 	fmt.Fprintln(w)
 
 	if s.DropsDetected > 0 {
-		fmt.Fprintf(w, "\033[33m    ⚠ Connection Drops: %d\033[0m\n", s.DropsDetected)
+		fmt.Fprintf(w, "\033[33m    %s Connection Drops: %d\033[0m\n", ui.Icon("⚠", "!"), s.DropsDetected)
 	}
 	if s.BansDetected > 0 {
-		fmt.Fprintf(w, "\033[31m    🚫 Silent Bans:      %d\033[0m\n", s.BansDetected)
+		fmt.Fprintf(w, "\033[31m    %s Silent Bans:      %d\033[0m\n", ui.Icon("🚫", "x"), s.BansDetected)
 	}
 	if s.HostsSkipped > 0 {
-		fmt.Fprintf(w, "\033[36m    ⏭ Hosts Skipped:     %d\033[0m\n", s.HostsSkipped)
+		fmt.Fprintf(w, "\033[36m    %s Hosts Skipped:     %d\033[0m\n", ui.Icon("⏭", ">"), s.HostsSkipped)
 	}
 
 	// Show recommendations if any
@@ -71,7 +73,7 @@ func (s Stats) writeConsole(w io.Writer) error {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "  Recommendations:")
 		for _, rec := range recs {
-			fmt.Fprintf(w, "    • %s\n", rec)
+			fmt.Fprintf(w, "    %s %s\n", ui.Icon("•", "-"), rec)
 		}
 	}
 

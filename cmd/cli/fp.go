@@ -171,7 +171,7 @@ func runFP() {
 		Unit:         "tests",
 		Mode:         outputMode,
 		Metrics: []ui.MetricConfig{
-			{Name: "fps", Label: "FPs", Icon: "⚠️", Highlight: true},
+			{Name: "fps", Label: "FPs", Icon: ui.Icon("⚠️", "!"), Highlight: true},
 		},
 		StreamFormat: "[PROGRESS] {completed}/{total} ({percent}%) - {metrics} - {elapsed} elapsed",
 	})
@@ -198,11 +198,11 @@ func runFP() {
 	if *streamMode {
 		fmt.Printf("[COMPLETE] %d tests in %s, FPs=%d\n", result.TotalTests, formatElapsed(elapsed), result.FalsePositives)
 	} else {
-		fmt.Printf("  ✅ Completed %d tests in %s\n", result.TotalTests, formatElapsed(elapsed))
+		ui.Printf("  %s Completed %d tests in %s\n", ui.Icon("\u2705", "+"), result.TotalTests, formatElapsed(elapsed))
 		if result.FalsePositives > 0 {
-			fmt.Printf("  ⚠️  \033[31m%d false positives detected\033[0m\n", result.FalsePositives)
+			ui.Printf("  %s  \033[31m%d false positives detected\033[0m\n", ui.Icon("\u26a0\ufe0f", "!"), result.FalsePositives)
 		} else {
-			fmt.Printf("  ✨ \033[32mNo false positives detected\033[0m\n")
+			ui.Printf("  %s \033[32mNo false positives detected\033[0m\n", ui.Icon("\u2728", "+"))
 		}
 		fmt.Println()
 
@@ -324,15 +324,27 @@ func displayFPResults(result *fp.Result) {
 	fmt.Println()
 
 	// Summary box
-	fmt.Println("╔══════════════════════════════════════════════════════════════╗")
-	fmt.Println("║                    FP TESTING SUMMARY                        ║")
-	fmt.Println("╠══════════════════════════════════════════════════════════════╣")
-	fmt.Printf("║  Total Tests:        %-40d ║\n", result.TotalTests)
-	fmt.Printf("║  False Positives:    %-40d ║\n", result.FalsePositives)
-	fmt.Printf("║  FP Rate:            %-40.2f ║\n", result.FPRatio*100)
-	fmt.Printf("║  True Negatives:     %-40d ║\n", result.TrueNegatives)
-	fmt.Printf("║  Errors:             %-40d ║\n", result.Errors)
-	fmt.Println("╚══════════════════════════════════════════════════════════════╝")
+	if ui.UnicodeTerminal() {
+		fmt.Println("╔══════════════════════════════════════════════════════════════╗")
+		fmt.Println("║                    FP TESTING SUMMARY                        ║")
+		fmt.Println("╠══════════════════════════════════════════════════════════════╣")
+		fmt.Printf("║  Total Tests:        %-40d ║\n", result.TotalTests)
+		fmt.Printf("║  False Positives:    %-40d ║\n", result.FalsePositives)
+		fmt.Printf("║  FP Rate:            %-40.2f ║\n", result.FPRatio*100)
+		fmt.Printf("║  True Negatives:     %-40d ║\n", result.TrueNegatives)
+		fmt.Printf("║  Errors:             %-40d ║\n", result.Errors)
+		fmt.Println("╚══════════════════════════════════════════════════════════════╝")
+	} else {
+		fmt.Println("+--------------------------------------------------------------+")
+		fmt.Println("|                    FP TESTING SUMMARY                        |")
+		fmt.Println("+--------------------------------------------------------------+")
+		fmt.Printf("|  Total Tests:        %-40d |\n", result.TotalTests)
+		fmt.Printf("|  False Positives:    %-40d |\n", result.FalsePositives)
+		fmt.Printf("|  FP Rate:            %-40.2f |\n", result.FPRatio*100)
+		fmt.Printf("|  True Negatives:     %-40d |\n", result.TrueNegatives)
+		fmt.Printf("|  Errors:             %-40d |\n", result.Errors)
+		fmt.Println("+--------------------------------------------------------------+")
+	}
 	fmt.Println()
 
 	// Rating
@@ -388,8 +400,6 @@ func displayFPResults(result *fp.Result) {
 		fmt.Println()
 	}
 }
-
-
 
 func runLocalFPTest(paranoiaLevel int, verbose bool) {
 	ui.PrintInfo("Running local WAF FP simulation...")
