@@ -319,8 +319,8 @@ func (d *VendorDetector) detectCloudflare(resp *http.Response, body string) (flo
 // Pre-compiled regexps for hot-path detection functions.
 // Avoids recompiling on every call to detect* methods.
 var (
-	awsWAFBodyRegex = regexp.MustCompile(`(?i)aws\s*waf`)
-	akamaiBodyRegex = regexp.MustCompile(`(?i)akamai|ghost`)
+	awsWAFBodyRegex  = regexp.MustCompile(`(?i)aws\s*waf`)
+	akamaiBodyRegex  = regexp.MustCompile(`(?i)akamai|ghost`)
 	f5SupportIDRegex = regexp.MustCompile(`support ID: \d+`)
 )
 
