@@ -15,6 +15,7 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
 )
@@ -211,7 +212,7 @@ func (h *AzureDevOpsHook) createWorkItem(ctx context.Context, bypass *events.Byp
 		h.logger.Warn("request failed", slog.String("error", err.Error()))
 		return nil
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		var errResp adoErrorResponse

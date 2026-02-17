@@ -189,11 +189,11 @@ func (m *Manager) FetchSubdomains(ctx context.Context, domain string) ([]Result,
 	return allResults, errors.Join(errs...)
 }
 
-// GetResults returns all collected results
+// GetResults returns a copy of all collected results.
 func (m *Manager) GetResults() []Result {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.results
+	return append([]Result(nil), m.results...)
 }
 
 // Clear removes all results
@@ -214,6 +214,9 @@ type RateLimiter struct {
 
 // NewRateLimiter creates a rate limiter
 func NewRateLimiter(requestsPerMinute int) *RateLimiter {
+	if requestsPerMinute <= 0 {
+		requestsPerMinute = 1
+	}
 	return &RateLimiter{
 		tokens:     requestsPerMinute,
 		maxTokens:  requestsPerMinute,
