@@ -210,7 +210,8 @@ func (cw *CSVWriter) writeResult(re *events.ResultEvent) error {
 
 	// Determine confidence based on status code patterns
 	confidence := "MEDIUM"
-	if re.Result.StatusCode == 403 || re.Result.StatusCode == 406 {
+	if re.Result.StatusCode == 403 || re.Result.StatusCode == 406 ||
+		re.Result.StatusCode == 429 || re.Result.StatusCode == 503 {
 		confidence = "HIGH"
 	} else if re.Result.StatusCode >= 500 {
 		confidence = "LOW"
