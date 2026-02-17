@@ -180,7 +180,25 @@ func runBypassFinder() {
 
 	// Apply smart mode optimizations
 	if *smartMode && smartResult != nil {
+		// Preserve user-explicit flags (same pattern as scan/autoscan)
+		userSetRL := false
+		userSetConc := false
+		bypassFlags.Visit(func(f *flag.Flag) {
+			if f.Name == "rl" {
+				userSetRL = true
+			}
+			if f.Name == "c" {
+				userSetConc = true
+			}
+		})
 		ApplySmartConfig(cfg, smartResult)
+		// Restore user-set values after smart config
+		if userSetRL {
+			cfg.RateLimit = *rateLimit
+		}
+		if userSetConc {
+			cfg.Concurrency = *concurrency
+		}
 		ui.PrintInfo(fmt.Sprintf("📊 WAF-optimized: %d encoders, %d evasions, %.0f req/sec",
 			len(cfg.Pipeline.Encoders), len(cfg.Pipeline.Evasions), cfg.RateLimit))
 	} else {
@@ -476,12 +494,16 @@ func writeBypassExports(outFlags *OutputFlags, target string, bypasses []*mutati
 }
 
 // writeJSONFile marshals v to a JSON file with indentation.
-func writeJSONFile(path string, v interface{}) error {
+func writeJSONFile(path string, v interface{}) (err error) {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if cerr := f.Close(); err == nil {
+			err = cerr
+		}
+	}()
 	enc := json.NewEncoder(f)
 	enc.SetIndent("", "  ")
 	return enc.Encode(v)

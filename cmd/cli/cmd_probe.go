@@ -813,6 +813,10 @@ func runProbe() {
 	// Vision recon cluster collection for -svrc flag
 	var visionClusters []ScreenshotCluster
 	var visionClustersMu sync.Mutex
+
+	// Accumulated probe results for enterprise exports (--json-export, etc.)
+	var allProbeResults []*ProbeResults
+	var allProbeResultsMu sync.Mutex
 	var screenshotClusterID int
 
 	// Helper for verbose output (not in silent/oneliner/jsonl/json mode)
@@ -2110,6 +2114,11 @@ func runProbe() {
 		results := result.Data
 		currentTarget := result.Target
 
+		// Accumulate results for enterprise exports
+		allProbeResultsMu.Lock()
+		allProbeResults = append(allProbeResults, results)
+		allProbeResultsMu.Unlock()
+
 		// Update statistics (atomic for thread-safe HTTP API access)
 		atomic.AddInt64(&statsTotal, 1)
 		probeProgress.Increment()
@@ -2657,6 +2666,9 @@ func runProbe() {
 			fmt.Printf("[!] PDCP dashboard upload file not found: %s\n", *pdDashboardUpload)
 		}
 	}
+
+	// Enterprise file exports (--json-export, --sarif-export, etc.)
+	writeProbeExports(&outFlags, allProbeResults, time.Since(probeStartTime))
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// DISPATCHER SUMMARY EMISSION

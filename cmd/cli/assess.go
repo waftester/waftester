@@ -298,6 +298,9 @@ func runAssess() {
 		displayAssessmentResults(result, elapsed)
 	}
 
+	// Write enterprise export files (--json-export, --sarif-export, etc.)
+	writeAssessExports(&outputFlags, result, elapsed)
+
 	// Save to file if requested
 	if *output != "" {
 		var data []byte

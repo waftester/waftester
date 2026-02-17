@@ -464,6 +464,9 @@ func runCrawl() {
 		}
 	}
 
+	// Write enterprise export files (--json-export, --sarif-export, etc.)
+	writeCrawlExports(&outputFlags, target, crawlResults, allForms, allScripts, allURLs, time.Since(startTime))
+
 	// ═══════════════════════════════════════════════════════════════════════════
 	// DISPATCHER SUMMARY EMISSION
 	// ═══════════════════════════════════════════════════════════════════════════

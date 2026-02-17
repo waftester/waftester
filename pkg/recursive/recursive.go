@@ -226,6 +226,7 @@ func (f *Fuzzer) addTask(baseURL, path string, depth int, parentURL string) bool
 		return false
 	}
 
+	atomic.AddInt64(&f.inFlight, 1)
 	select {
 	case f.queue <- fuzzerTask{
 		url:       baseURL,
@@ -233,9 +234,9 @@ func (f *Fuzzer) addTask(baseURL, path string, depth int, parentURL string) bool
 		depth:     depth,
 		parentURL: parentURL,
 	}:
-		atomic.AddInt64(&f.inFlight, 1)
 		return true
 	default:
+		atomic.AddInt64(&f.inFlight, -1)
 		return false
 	}
 }
