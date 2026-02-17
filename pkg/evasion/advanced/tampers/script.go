@@ -5,6 +5,7 @@ package tampers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -127,6 +128,7 @@ func (s *ScriptTamper) Transform(payload string) (result string) {
 
 	defer func() {
 		if r := recover(); r != nil {
+			log.Printf("[tamper] panic in script %s: %v", s.Name(), r)
 			result = payload
 		}
 	}()

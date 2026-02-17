@@ -299,7 +299,7 @@ func trimString(s string) string {
 func loadDynamicCorpus(tester *fp.Tester, filename string) error {
 	data, err := os.ReadFile(filename)
 	if err != nil {
-		return err
+		return fmt.Errorf("read corpus %s: %w", filename, err)
 	}
 
 	var payloads []string

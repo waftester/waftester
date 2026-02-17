@@ -3,6 +3,7 @@ package writers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/url"
 	"strconv"
@@ -209,7 +210,7 @@ func (hw *HARWriter) Close() error {
 	encoder := json.NewEncoder(hw.w)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(doc); err != nil {
-		return err
+		return fmt.Errorf("har: encode: %w", err)
 	}
 
 	if closer, ok := hw.w.(io.Closer); ok {

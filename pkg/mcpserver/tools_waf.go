@@ -312,12 +312,18 @@ func (s *Server) handleBypass(ctx context.Context, req *mcp.CallToolRequest) (*m
 
 	if args.Concurrency <= 0 {
 		args.Concurrency = defaults.ConcurrencyLow
+	} else if args.Concurrency > 50 {
+		args.Concurrency = 50
 	}
 	if args.RateLimit <= 0 {
 		args.RateLimit = 10
+	} else if args.RateLimit > 100 {
+		args.RateLimit = 100
 	}
 	if args.Timeout <= 0 {
 		args.Timeout = 10
+	} else if args.Timeout > 60 {
+		args.Timeout = 60
 	}
 
 	return s.launchAsync(ctx, "bypass", "30-300s depending on payload count and mutation matrix size", func(taskCtx context.Context, task *Task) {

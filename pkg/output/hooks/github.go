@@ -137,7 +137,7 @@ func (h *GitHubActionsHook) writeOutput(summary *events.SummaryEvent, result str
 
 	for _, line := range lines {
 		if _, err := fmt.Fprintln(f, line); err != nil {
-			return err
+			return fmt.Errorf("write github output: %w", err)
 		}
 	}
 
@@ -208,7 +208,10 @@ func (h *GitHubActionsHook) writeStepSummary(summary *events.SummaryEvent) error
 	}
 
 	_, err = f.WriteString(sb.String())
-	return err
+	if err != nil {
+		return fmt.Errorf("write step summary: %w", err)
+	}
+	return nil
 }
 
 // severityEmoji returns an emoji for the severity level.

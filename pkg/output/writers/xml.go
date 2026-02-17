@@ -3,6 +3,7 @@ package writers
 
 import (
 	"encoding/xml"
+	"fmt"
 	"io"
 	"strconv"
 	"sync"
@@ -167,7 +168,7 @@ func (xw *XMLWriter) Close() error {
 
 	// Write XML header
 	if _, err := xw.w.Write([]byte(xml.Header)); err != nil {
-		return err
+		return fmt.Errorf("xml: write header: %w", err)
 	}
 
 	// Write document
@@ -177,7 +178,7 @@ func (xw *XMLWriter) Close() error {
 	}
 
 	if err := encoder.Encode(doc); err != nil {
-		return err
+		return fmt.Errorf("xml: encode: %w", err)
 	}
 
 	// Close underlying writer if applicable

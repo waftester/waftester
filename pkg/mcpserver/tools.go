@@ -27,7 +27,9 @@ func loggedTool(name string, fn toolHandler) toolHandler {
 		var rawArgs map[string]interface{}
 		if json.Unmarshal(argBytes, &rawArgs) == nil {
 			redactMap(rawArgs)
-			argBytes, _ = json.Marshal(rawArgs)
+			if redacted, err := json.Marshal(rawArgs); err == nil {
+				argBytes = redacted
+			}
 		}
 		argStr := string(argBytes)
 		const maxArgLog = 200

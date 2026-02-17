@@ -168,7 +168,7 @@ func NewFormFiller(customValues map[string]string) *FormFiller {
 func (f *FormFiller) LoadFormConfig(path string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return err
+		return fmt.Errorf("read form config %s: %w", path, err)
 	}
 
 	var config struct {
@@ -178,7 +178,7 @@ func (f *FormFiller) LoadFormConfig(path string) error {
 	}
 
 	if err := json.Unmarshal(data, &config); err != nil {
-		return err
+		return fmt.Errorf("parse form config: %w", err)
 	}
 
 	for k, v := range config.Defaults {

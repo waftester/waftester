@@ -702,7 +702,7 @@ func (c *IPRangeChecker) LoadAWSRanges(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpclient.Default().Do(req)
 	if err != nil {
 		return err
 	}

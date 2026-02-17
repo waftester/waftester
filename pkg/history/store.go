@@ -169,7 +169,11 @@ func (s *Store) saveIndex() error {
 	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
 		return err
 	}
-	return os.Rename(tmpPath, s.indexPath())
+	if err := os.Rename(tmpPath, s.indexPath()); err != nil {
+		os.Remove(tmpPath) // Clean up orphaned temp file
+		return err
+	}
+	return nil
 }
 
 // Save stores a scan record.

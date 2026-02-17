@@ -285,7 +285,12 @@ func TestGetNonexistentEncoder(t *testing.T) {
 
 func TestChainWithInvalidEncoder(t *testing.T) {
 	chain := Chain("nonexistent1", "nonexistent2")
-	assert.Nil(t, chain)
+	require.NotNil(t, chain, "Chain should return passthrough encoder, not nil")
+	assert.Equal(t, "passthrough", chain.Name())
+	// Passthrough returns input unchanged
+	result, err := chain.Encode("test")
+	require.NoError(t, err)
+	assert.Equal(t, "test", result)
 }
 
 func TestChainWithPartiallyValidEncoders(t *testing.T) {
