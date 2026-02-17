@@ -825,4 +825,3 @@ func (d *Discovery) Fail(err error) {
 	d.Error = err.Error()
 	d.Stats.Duration = now.Sub(d.StartedAt)
 }
-

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -189,5 +190,63 @@ func printScanConsoleSummary(result *ScanResult) {
 		}
 	} else {
 		ui.PrintSuccess("No vulnerabilities found!")
+	}
+}
+
+// writeScanExports writes scan results to all configured enterprise export files.
+// The scan command produces ScanResult (vulnerability findings), not ExecutionResults
+// (test pass/fail), so it needs its own export logic using the scan-specific formatters.
+func writeScanExports(outFlags *OutputFlags, target string, result *ScanResult) {
+	if !outFlags.HasEnterpriseExports() {
+		return
+	}
+
+	outFlags.PrintOutputConfig()
+
+	writeToFile := func(path string, writeFn func(w io.Writer)) {
+		f, err := os.Create(path)
+		if err != nil {
+			ui.PrintError(fmt.Sprintf("export %s: %v", path, err))
+			return
+		}
+		writeFn(f)
+		if err := f.Close(); err != nil {
+			ui.PrintError(fmt.Sprintf("export %s: %v", path, err))
+			return
+		}
+		ui.PrintSuccess(fmt.Sprintf("Exported: %s", path))
+	}
+
+	if outFlags.JSONExport != "" {
+		writeToFile(outFlags.JSONExport, func(w io.Writer) {
+			enc := json.NewEncoder(w)
+			enc.SetIndent("", "  ")
+			_ = enc.Encode(result)
+		})
+	}
+	if outFlags.JSONLExport != "" {
+		writeToFile(outFlags.JSONLExport, func(w io.Writer) {
+			printScanJSONL(w, target, result)
+		})
+	}
+	if outFlags.SARIFExport != "" {
+		writeToFile(outFlags.SARIFExport, func(w io.Writer) {
+			printScanSARIF(w, target, result)
+		})
+	}
+	if outFlags.CSVExport != "" {
+		writeToFile(outFlags.CSVExport, func(w io.Writer) {
+			printScanCSV(w, target, result)
+		})
+	}
+	if outFlags.HTMLExport != "" {
+		writeToFile(outFlags.HTMLExport, func(w io.Writer) {
+			printScanHTML(w, result)
+		})
+	}
+	if outFlags.MDExport != "" {
+		writeToFile(outFlags.MDExport, func(w io.Writer) {
+			printScanMarkdown(w, result)
+		})
 	}
 }

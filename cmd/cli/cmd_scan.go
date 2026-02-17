@@ -398,14 +398,25 @@ func runScan() {
 		PrintSmartModeInfo(smartResult, *smartVerbose)
 
 		// Apply WAF-optimized rate limit and concurrency
-		// The smart mode values are the safe limits for that specific WAF
+		// Only override if the user didn't explicitly set these flags
 		if smartResult != nil && smartResult.WAFDetected {
-			if smartResult.RateLimit > 0 {
+			userSetRL := false
+			userSetConc := false
+			scanFlags.Visit(func(f *flag.Flag) {
+				if f.Name == "rate-limit" {
+					userSetRL = true
+				}
+				if f.Name == "concurrency" {
+					userSetConc = true
+				}
+			})
+
+			if !userSetRL && smartResult.RateLimit > 0 {
 				ui.PrintInfo(fmt.Sprintf("📊 Rate limit: %.0f req/sec (WAF-optimized for %s)",
 					smartResult.RateLimit, smartResult.VendorName))
 				*rateLimit = int(smartResult.RateLimit)
 			}
-			if smartResult.Concurrency > 0 {
+			if !userSetConc && smartResult.Concurrency > 0 {
 				ui.PrintInfo(fmt.Sprintf("📊 Concurrency: %d workers (WAF-optimized)",
 					smartResult.Concurrency))
 				*concurrency = smartResult.Concurrency
@@ -587,7 +598,7 @@ func runScan() {
 		ui.PrintInfo(fmt.Sprintf("Would execute %d scan types against %s:", len(selectedScans), target))
 		fmt.Fprintln(os.Stderr)
 		for _, s := range selectedScans {
-			fmt.Fprintf(os.Stderr, "  • %s\n", s)
+			fmt.Fprintf(os.Stderr, "  %s %s\n", ui.Icon("•", "-"), s)
 		}
 		fmt.Fprintln(os.Stderr)
 		ui.PrintHelp("Remove -dry-run flag to execute scans")
@@ -732,6 +743,9 @@ func runScan() {
 	}
 
 	// Live progress display using unified LiveProgress
+	// Build tips relevant to the scan types being run
+	scanTips := buildScanTips(shouldScan)
+
 	progress := ui.NewLiveProgress(ui.LiveProgressConfig{
 		Total:        int(totalScans),
 		DisplayLines: 4,
@@ -739,15 +753,9 @@ func runScan() {
 		Unit:         "scans",
 		Mode:         outputMode,
 		Metrics: []ui.MetricConfig{
-			{Name: "vulns", Label: "Vulns", Icon: "🚨", Highlight: true},
+			{Name: "vulns", Label: "Vulns", Icon: ui.Icon("🚨", "!"), Highlight: true},
 		},
-		Tips: []string{
-			"💡 SQLi uses error-based, time-based, union, and boolean techniques",
-			"💡 XSS tests reflected, stored, and DOM-based vectors",
-			"💡 SSRF probes for internal network access and cloud metadata",
-			"💡 Path traversal tests for file system access vulnerabilities",
-			"💡 Each scan type uses context-aware payload selection",
-		},
+		Tips:           scanTips,
 		StreamFormat:   "[PROGRESS] {completed}/{total} ({percent}%) | vulns: {metric:vulns} | active: {status} | {elapsed}",
 		StreamInterval: duration.StreamStd,
 	})
@@ -2990,7 +2998,9 @@ func runScan() {
 		"by_category": result.ByCategory,
 	})
 
-	// Progress cleanup is handled by defer progress.Stop()
+	// Stop progress display before printing summary to prevent
+	// the deferred Stop() from erasing output with ANSI clear codes.
+	progress.Stop()
 
 	// Print scan completion summary (to stderr if streaming JSON)
 	if !streamJSON {
@@ -3002,10 +3012,10 @@ func runScan() {
 			vulnColor = "\033[31m" // Red
 		}
 		fmt.Println() // debug:keep
-		ui.PrintSuccess(fmt.Sprintf("✓ Scan complete in %s", result.Duration.Round(time.Millisecond)))
-		fmt.Printf("  📊 Results: %s%d vulnerabilities\033[0m across %d scan types\n", vulnColor, result.TotalVulns, totalScans) // debug:keep
+		ui.PrintSuccess(fmt.Sprintf("Scan complete in %s", result.Duration.Round(time.Millisecond)))
+		fmt.Printf("  %s Results: %s%d vulnerabilities\033[0m across %d scan types\n", ui.Icon("📊", "#"), vulnColor, result.TotalVulns, totalScans) // debug:keep
 		if errCount := atomic.LoadInt32(&scanErrors); errCount > 0 {
-			ui.PrintWarning(fmt.Sprintf("  ⚠️  %d scanner(s) encountered errors (use -verbose for details)", errCount))
+			ui.PrintWarning(fmt.Sprintf("%d scanner(s) encountered errors (use -verbose for details)", errCount))
 		}
 		fmt.Println() // debug:keep
 	}
@@ -3096,6 +3106,9 @@ func runScan() {
 			}
 		}
 	}
+
+	// Enterprise export formats (--json-export, --sarif-export, --html-export, etc.)
+	writeScanExports(&outFlags, target, result)
 
 	if result.TotalVulns > 0 {
 		os.Exit(1) // Exit with error if vulnerabilities found

@@ -102,7 +102,7 @@ func runTemplateList() {
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 	fmt.Fprintf(w, "  CATEGORY\tCOUNT\tDESCRIPTION\n")
-	fmt.Fprintf(w, "  ────────\t─────\t───────────\n")
+	fmt.Fprintf(w, "  %s\t%s\t%s\n", strings.Repeat(ui.Icon("─", "-"), 8), strings.Repeat(ui.Icon("─", "-"), 5), strings.Repeat(ui.Icon("─", "-"), 11))
 	for _, cat := range categories {
 		desc := categoryDescriptions[cat.Kind]
 		fmt.Fprintf(w, "  %s\t%d\t%s\n", cat.Kind, cat.Count, desc)
@@ -142,7 +142,7 @@ func listCategoryTemplates(kind templateresolver.Kind, jsonOutput bool) {
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 	fmt.Fprintf(w, "  NAME\tPATH\n")
-	fmt.Fprintf(w, "  ────\t────\n")
+	fmt.Fprintf(w, "  %s\t%s\n", strings.Repeat(ui.Icon("─", "-"), 4), strings.Repeat(ui.Icon("─", "-"), 4))
 	for _, info := range infos {
 		fmt.Fprintf(w, "  %s\t%s\n", info.Name, info.Path)
 	}

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/waftester/waftester/pkg/strutil"
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // AutoTuneConfig represents auto-tuning configuration for a specific vendor
@@ -449,77 +450,84 @@ func ApplyAutoTune(config *AutoTuneConfig) []string {
 func FormatAutoTuneReport(detection *DetectionResult, config *AutoTuneConfig) string {
 	var sb strings.Builder
 
+	// Pick box-drawing character set based on terminal capability
+	tl, tr, bl, br, hz, vt, lj, rj, bullet, arrow := "╔", "╗", "╚", "╝", "═", "║", "╠", "╣", "•", "→"
+	if !ui.UnicodeTerminal() {
+		tl, tr, bl, br, hz, vt, lj, rj, bullet, arrow = "+", "+", "+", "+", "=", "|", "+", "+", "-", "->"
+	}
+	hline := strings.Repeat(hz, 62)
+
 	sb.WriteString("\n")
-	sb.WriteString("╔══════════════════════════════════════════════════════════════╗\n")
-	sb.WriteString("║              WAF AUTO-TUNE CONFIGURATION                     ║\n")
-	sb.WriteString("╠══════════════════════════════════════════════════════════════╣\n")
+	sb.WriteString(fmt.Sprintf("%s%s%s\n", tl, hline, tr))
+	sb.WriteString(fmt.Sprintf("%s              WAF AUTO-TUNE CONFIGURATION                     %s\n", vt, vt))
+	sb.WriteString(fmt.Sprintf("%s%s%s\n", lj, hline, rj))
 
 	if detection != nil && detection.Detected {
-		sb.WriteString(fmt.Sprintf("║  Detected WAF: %-45s ║\n", detection.VendorName))
-		sb.WriteString(fmt.Sprintf("║  Confidence:   %.0f%%%-42s ║\n", detection.Confidence*100, ""))
+		sb.WriteString(fmt.Sprintf("%s  Detected WAF: %-45s %s\n", vt, detection.VendorName, vt))
+		sb.WriteString(fmt.Sprintf("%s  Confidence:   %.0f%%%-42s %s\n", vt, detection.Confidence*100, "", vt))
 
 		if len(detection.Evidence) > 0 {
-			sb.WriteString("║  Evidence:                                                   ║\n")
+			sb.WriteString(fmt.Sprintf("%s  Evidence:                                                   %s\n", vt, vt))
 			for _, e := range detection.Evidence[:minInt(len(detection.Evidence), 3)] {
-				sb.WriteString(fmt.Sprintf("║    • %-56s ║\n", strutil.Truncate(e, 56)))
+				sb.WriteString(fmt.Sprintf("%s    %s %-56s %s\n", vt, bullet, strutil.Truncate(e, 56), vt))
 			}
 		}
 	} else {
-		sb.WriteString("║  Detected WAF: None (using defaults)                         ║\n")
+		sb.WriteString(fmt.Sprintf("%s  Detected WAF: None (using defaults)                         %s\n", vt, vt))
 	}
 
-	sb.WriteString("╠══════════════════════════════════════════════════════════════╣\n")
-	sb.WriteString("║  TUNING PARAMETERS                                           ║\n")
-	sb.WriteString("╠══════════════════════════════════════════════════════════════╣\n")
-	sb.WriteString(fmt.Sprintf("║  Strategy:      %-44s ║\n", config.MutationStrategy))
-	sb.WriteString(fmt.Sprintf("║  Concurrency:   %-44d ║\n", config.ConcurrencyLimit))
-	sb.WriteString(fmt.Sprintf("║  Rate Limit:    %.1f req/s%-35s ║\n", config.RateLimitRPS, ""))
-	sb.WriteString(fmt.Sprintf("║  Request Delay: %dms%-40s ║\n", config.RequestDelayMs, ""))
-	sb.WriteString(fmt.Sprintf("║  Bypass Mode:   %-44v ║\n", config.BypassMode))
+	sb.WriteString(fmt.Sprintf("%s%s%s\n", lj, hline, rj))
+	sb.WriteString(fmt.Sprintf("%s  TUNING PARAMETERS                                           %s\n", vt, vt))
+	sb.WriteString(fmt.Sprintf("%s%s%s\n", lj, hline, rj))
+	sb.WriteString(fmt.Sprintf("%s  Strategy:      %-44s %s\n", vt, config.MutationStrategy, vt))
+	sb.WriteString(fmt.Sprintf("%s  Concurrency:   %-44d %s\n", vt, config.ConcurrencyLimit, vt))
+	sb.WriteString(fmt.Sprintf("%s  Rate Limit:    %.1f req/s%-35s %s\n", vt, config.RateLimitRPS, "", vt))
+	sb.WriteString(fmt.Sprintf("%s  Request Delay: %dms%-40s %s\n", vt, config.RequestDelayMs, "", vt))
+	sb.WriteString(fmt.Sprintf("%s  Bypass Mode:   %-44v %s\n", vt, config.BypassMode, vt))
 
 	if len(config.PreferredEncodings) > 0 {
-		sb.WriteString(fmt.Sprintf("║  Encodings:     %-44s ║\n",
-			strutil.Truncate(strings.Join(config.PreferredEncodings, ", "), 44)))
+		sb.WriteString(fmt.Sprintf("%s  Encodings:     %-44s %s\n", vt,
+			strutil.Truncate(strings.Join(config.PreferredEncodings, ", "), 44), vt))
 	}
 
 	if len(config.EnabledMutations) > 0 {
-		sb.WriteString("║  Mutations:                                                  ║\n")
+		sb.WriteString(fmt.Sprintf("%s  Mutations:                                                  %s\n", vt, vt))
 		// Show first 4 mutations
 		for i, m := range config.EnabledMutations {
 			if i >= 4 {
 				remaining := len(config.EnabledMutations) - 4
-				sb.WriteString(fmt.Sprintf("║    ... and %d more%-40s ║\n", remaining, ""))
+				sb.WriteString(fmt.Sprintf("%s    ... and %d more%-40s %s\n", vt, remaining, "", vt))
 				break
 			}
-			sb.WriteString(fmt.Sprintf("║    • %-56s ║\n", m))
+			sb.WriteString(fmt.Sprintf("%s    %s %-56s %s\n", vt, bullet, m, vt))
 		}
 	}
 
 	if len(config.Notes) > 0 {
-		sb.WriteString("╠══════════════════════════════════════════════════════════════╣\n")
-		sb.WriteString("║  RECOMMENDATIONS                                             ║\n")
-		sb.WriteString("╠══════════════════════════════════════════════════════════════╣\n")
+		sb.WriteString(fmt.Sprintf("%s%s%s\n", lj, hline, rj))
+		sb.WriteString(fmt.Sprintf("%s  RECOMMENDATIONS                                             %s\n", vt, vt))
+		sb.WriteString(fmt.Sprintf("%s%s%s\n", lj, hline, rj))
 		for _, note := range config.Notes {
 			wrapped := wrapText(note, 56)
 			for _, line := range wrapped {
-				sb.WriteString(fmt.Sprintf("║  • %-58s ║\n", line))
+				sb.WriteString(fmt.Sprintf("%s  %s %-58s %s\n", vt, bullet, line, vt))
 			}
 		}
 	}
 
 	if detection != nil && len(detection.BypassHints) > 0 {
-		sb.WriteString("╠══════════════════════════════════════════════════════════════╣\n")
-		sb.WriteString("║  BYPASS HINTS                                                ║\n")
-		sb.WriteString("╠══════════════════════════════════════════════════════════════╣\n")
+		sb.WriteString(fmt.Sprintf("%s%s%s\n", lj, hline, rj))
+		sb.WriteString(fmt.Sprintf("%s  BYPASS HINTS                                                %s\n", vt, vt))
+		sb.WriteString(fmt.Sprintf("%s%s%s\n", lj, hline, rj))
 		for _, hint := range detection.BypassHints[:minInt(len(detection.BypassHints), 5)] {
 			wrapped := wrapText(hint, 56)
 			for _, line := range wrapped {
-				sb.WriteString(fmt.Sprintf("║  → %-58s ║\n", line))
+				sb.WriteString(fmt.Sprintf("%s  %s %-58s %s\n", vt, arrow, line, vt))
 			}
 		}
 	}
 
-	sb.WriteString("╚══════════════════════════════════════════════════════════════╝\n")
+	sb.WriteString(fmt.Sprintf("%s%s%s\n", bl, hline, br))
 
 	return sb.String()
 }

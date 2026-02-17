@@ -59,7 +59,7 @@ func runDiscover() {
 	ui.PrintConfigLine("Concurrency", fmt.Sprintf("%d", *concurrency))
 	ui.PrintConfigLine("Max Depth", fmt.Sprintf("%d", *maxDepth))
 	ui.PrintConfigLine("Output", *outputFile)
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Initialize dispatcher for hooks (Slack, Teams, PagerDuty, OTEL, etc.)
 	discoverOutputFlags := OutputFlags{
@@ -97,13 +97,15 @@ func runDiscover() {
 
 	// Run discovery
 	ui.PrintInfo("Starting endpoint discovery...")
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	result, err := discoverer.Discover(ctx)
 	if err != nil {
 		errMsg := fmt.Sprintf("Discovery error: %v", err)
 		ui.PrintError(errMsg)
-		_ = discoverDispCtx.EmitError(ctx, "discover", errMsg, true)
+		if discoverDispCtx != nil {
+			_ = discoverDispCtx.EmitError(ctx, "discover", errMsg, true)
+		}
 		os.Exit(1)
 	}
 
@@ -116,7 +118,7 @@ func runDiscover() {
 		ui.PrintConfigLine("WAF Type", result.WAFFingerprint)
 	}
 	ui.PrintConfigLine("Duration", result.Duration.String())
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Emit security findings to hooks in real-time
 	discoverCtx := context.Background()
@@ -179,82 +181,84 @@ func runDiscover() {
 	ui.PrintSection("Attack Surface Analysis")
 	surface := result.AttackSurface
 	if surface.HasAuthEndpoints {
-		ui.PrintInfo("✓ Authentication endpoints detected")
+		ui.PrintInfo(ui.Icon("✓", "+") + " Authentication endpoints detected")
 	}
 	if surface.HasOAuth {
-		ui.PrintInfo("✓ OAuth endpoints detected")
+		ui.PrintInfo(ui.Icon("✓", "+") + " OAuth endpoints detected")
 	}
 	if surface.HasSAML {
-		ui.PrintInfo("✓ SAML endpoints detected")
+		ui.PrintInfo(ui.Icon("✓", "+") + " SAML endpoints detected")
 	}
 	if surface.HasAPIEndpoints {
-		ui.PrintInfo("✓ API endpoints detected")
+		ui.PrintInfo(ui.Icon("✓", "+") + " API endpoints detected")
 	}
 	if surface.HasFileUpload {
-		ui.PrintInfo("✓ File upload endpoints detected")
+		ui.PrintInfo(ui.Icon("✓", "+") + " File upload endpoints detected")
 	}
 	if surface.HasGraphQL {
-		ui.PrintInfo("✓ GraphQL endpoint detected")
+		ui.PrintInfo(ui.Icon("✓", "+") + " GraphQL endpoint detected")
 	}
 	if surface.HasWebSockets {
-		ui.PrintInfo("✓ WebSocket endpoints detected")
+		ui.PrintInfo(ui.Icon("✓", "+") + " WebSocket endpoints detected")
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	ui.PrintConfigLine("Relevant Categories", fmt.Sprintf("%v", surface.RelevantCategories))
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Show enhanced discovery findings
 	if len(result.Secrets) > 0 {
-		ui.PrintSection("🔑 Secrets Detected")
+		ui.PrintSection(ui.Icon("🔑", "*") + " Secrets Detected")
 		for path, secrets := range result.Secrets {
 			for _, s := range secrets {
 				ui.PrintError(fmt.Sprintf("[%s] %s in %s", s.Severity, s.Type, path))
 			}
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	if len(result.S3Buckets) > 0 {
-		ui.PrintSection("☁️  S3 Buckets Found")
+		ui.PrintSection(ui.Icon("☁️", "~") + "  S3 Buckets Found")
 		for _, bucket := range result.S3Buckets {
 			ui.PrintInfo("  " + bucket)
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	if len(result.Subdomains) > 0 {
-		ui.PrintSection("🌐 Subdomains Discovered")
+		ui.PrintSection(ui.Icon("🌐", ">") + " Subdomains Discovered")
 		for _, sub := range result.Subdomains {
 			ui.PrintInfo("  " + sub)
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Show endpoints if verbose
 	if *verbose {
 		ui.PrintSection("Discovered Endpoints")
 		for _, ep := range result.Endpoints {
-			fmt.Printf("  [%s] %s %s (%s)\n",
+			fmt.Fprintf(os.Stderr, "  [%s] %s %s (%s)\n",
 				ui.StatusBracket(ep.StatusCode),
 				ep.Method,
 				ep.Path,
 				ep.Category,
 			)
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Save results
 	if err := result.SaveResult(*outputFile); err != nil {
 		errMsg := fmt.Sprintf("Error saving results: %v", err)
 		ui.PrintError(errMsg)
-		_ = discoverDispCtx.EmitError(discoverCtx, "discover", errMsg, true)
+		if discoverDispCtx != nil {
+			_ = discoverDispCtx.EmitError(discoverCtx, "discover", errMsg, true)
+		}
 		os.Exit(1)
 	}
 
 	ui.PrintSuccess(fmt.Sprintf("Discovery results saved to %s", *outputFile))
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 	ui.PrintHelp("Next step: waf-tester learn -discovery " + *outputFile)
 
 	// Emit summary to hooks

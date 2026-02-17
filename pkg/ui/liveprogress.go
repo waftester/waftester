@@ -347,6 +347,9 @@ func (lp *LiveProgress) renderInteractive(spinner Spinner) {
 		}
 	} else if completed >= total && total > 0 {
 		eta = "done"
+	} else if completed == 0 && elapsed.Seconds() > 2 {
+		// No items completed yet — show running state instead of stale "calculating"
+		eta = "in progress..."
 	}
 
 	// Get spinner frame
@@ -380,16 +383,16 @@ func (lp *LiveProgress) renderInteractive(spinner Spinner) {
 
 	// Line 2: Metrics, rate, elapsed, ETA
 	if metricsStr != "" {
-		fmt.Fprintf(lp.config.Writer, "  %s  \033[33m%.1f/s\033[0m  ⏱️ %s  ETA: %s\n",
-			metricsStr, rate, formatElapsedCompact(elapsed), eta)
+		fmt.Fprintf(lp.config.Writer, "  %s  \033[33m%.1f/s\033[0m  %s %s  ETA: %s\n",
+			metricsStr, rate, Icon("⏱️", ""), formatElapsedCompact(elapsed), eta)
 	} else {
-		fmt.Fprintf(lp.config.Writer, "  📊 \033[33m%.1f %s/s\033[0m  ⏱️ %s  ETA: %s\n",
-			rate, lp.config.Unit, formatElapsedCompact(elapsed), eta)
+		fmt.Fprintf(lp.config.Writer, "  %s \033[33m%.1f %s/s\033[0m  %s %s  ETA: %s\n",
+			Icon("📊", "#"), rate, lp.config.Unit, Icon("⏱️", ""), formatElapsedCompact(elapsed), eta)
 	}
 
 	// Line 3: Tips (if configured for 3 lines)
 	if lp.config.DisplayLines >= 3 && tipStr != "" {
-		fmt.Fprintf(lp.config.Writer, "  💡 %s\n", tipStr)
+		fmt.Fprintf(lp.config.Writer, "  %s %s\n", Icon("💡", "*"), SanitizeString(tipStr))
 	}
 }
 
@@ -435,7 +438,8 @@ func (lp *LiveProgress) renderStreaming() {
 	fmt.Fprintln(os.Stderr, output)
 }
 
-// buildProgressBar creates the visual progress bar
+// buildProgressBar creates the visual progress bar.
+// Uses block characters on Unicode terminals, ASCII on legacy consoles.
 func (lp *LiveProgress) buildProgressBar(percent float64) string {
 	width := lp.config.BarWidth
 	fillWidth := int(float64(width) * percent / 100)
@@ -443,9 +447,11 @@ func (lp *LiveProgress) buildProgressBar(percent float64) string {
 		fillWidth = width
 	}
 
+	fill := Icon("\u2588", "#")  // █ or #
+	empty := Icon("\u2591", "-") // ░ or -
 	return fmt.Sprintf("[%s%s]",
-		strings.Repeat("█", fillWidth),
-		strings.Repeat("░", width-fillWidth))
+		strings.Repeat(fill, fillWidth),
+		strings.Repeat(empty, width-fillWidth))
 }
 
 // buildMetricsString creates the colored metrics display
@@ -468,7 +474,7 @@ func (lp *LiveProgress) buildMetricsString() string {
 			color = "\033[31m" // Red for highlighted metrics with values
 		}
 
-		icon := m.Icon
+		icon := SanitizeString(m.Icon)
 		if icon == "" {
 			icon = "•"
 		}
@@ -499,7 +505,7 @@ func NewMultiTargetProgress(title string, targetCount int, unit string) *LivePro
 		Title:        title,
 		Unit:         unit,
 		Metrics: []MetricConfig{
-			{Name: "vulns", Label: "Vulns", Icon: "🚨", Highlight: true},
+			{Name: "vulns", Label: "Vulns", Icon: Icon("🚨", "!"), Highlight: true},
 		},
 	})
 }
@@ -512,8 +518,8 @@ func NewScanProgress(title string, total int) *LiveProgress {
 		Title:        title,
 		Unit:         "tests",
 		Metrics: []MetricConfig{
-			{Name: "blocked", Label: "Blocked", Icon: "🛡️", ColorCode: "\033[33m"},
-			{Name: "vulns", Label: "Vulns", Icon: "🔴", Highlight: true},
+			{Name: "blocked", Label: "Blocked", Icon: Icon("🛡️", "#"), ColorCode: "\033[33m"},
+			{Name: "vulns", Label: "Vulns", Icon: Icon("🔴", "!"), Highlight: true},
 		},
 		Tips: []string{
 			"Testing WAF rules for bypass opportunities",
@@ -531,8 +537,8 @@ func NewAnalysisProgress(title string, total int, unit string) *LiveProgress {
 		Title:        title,
 		Unit:         unit,
 		Metrics: []MetricConfig{
-			{Name: "found", Label: "Found", Icon: "📍", ColorCode: "\033[32m"},
-			{Name: "secrets", Label: "Secrets", Icon: "🔑", Highlight: true},
+			{Name: "found", Label: "Found", Icon: Icon("📍", "+"), ColorCode: "\033[32m"},
+			{Name: "secrets", Label: "Secrets", Icon: Icon("🔑", "*"), Highlight: true},
 		},
 	})
 }
@@ -545,7 +551,7 @@ func NewFPTestProgress(total int) *LiveProgress {
 		Title:        "Testing false positives",
 		Unit:         "tests",
 		Metrics: []MetricConfig{
-			{Name: "fps", Label: "FPs", Icon: "⚠️", Highlight: true},
+			{Name: "fps", Label: "FPs", Icon: Icon("⚠️", "!"), Highlight: true},
 		},
 	})
 }

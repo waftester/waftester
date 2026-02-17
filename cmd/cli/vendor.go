@@ -168,20 +168,35 @@ func runVendorDetect() {
 }
 
 func displayVendorResults(result *vendors.DetectionResult, showHints bool) {
-	fmt.Println("╔══════════════════════════════════════════════════════════════╗")
-	fmt.Println("║                  WAF VENDOR DETECTION                        ║")
-	fmt.Println("╠══════════════════════════════════════════════════════════════╣")
-
-	if result.Detected {
-		fmt.Printf("║  Status:      %-47s ║\n", "✓ WAF DETECTED")
-		fmt.Printf("║  Vendor:      %-47s ║\n", result.VendorName)
-		fmt.Printf("║  Confidence:  %-47s ║\n", fmt.Sprintf("%.0f%%", result.Confidence*100))
+	if ui.UnicodeTerminal() {
+		fmt.Println("╔══════════════════════════════════════════════════════════════╗")
+		fmt.Println("║                  WAF VENDOR DETECTION                        ║")
+		fmt.Println("╠══════════════════════════════════════════════════════════════╣")
 	} else {
-		fmt.Printf("║  Status:      %-47s ║\n", "✗ No WAF detected")
-		fmt.Printf("║  Note:        %-47s ║\n", "Target may not have WAF or uses unknown WAF")
+		fmt.Println("+--------------------------------------------------------------+")
+		fmt.Println("|                  WAF VENDOR DETECTION                        |")
+		fmt.Println("+--------------------------------------------------------------+")
 	}
 
-	fmt.Println("╚══════════════════════════════════════════════════════════════╝")
+	border := "|"
+	if ui.UnicodeTerminal() {
+		border = "║"
+	}
+
+	if result.Detected {
+		fmt.Printf("%s  Status:      %-47s %s\n", border, ui.Icon("✓", "+")+" WAF DETECTED", border)
+		fmt.Printf("%s  Vendor:      %-47s %s\n", border, result.VendorName, border)
+		fmt.Printf("%s  Confidence:  %-47s %s\n", border, fmt.Sprintf("%.0f%%", result.Confidence*100), border)
+	} else {
+		fmt.Printf("%s  Status:      %-47s %s\n", border, ui.Icon("✗", "-")+" No WAF detected", border)
+		fmt.Printf("%s  Note:        %-47s %s\n", border, "Target may not have WAF or uses unknown WAF", border)
+	}
+
+	if ui.UnicodeTerminal() {
+		fmt.Println("╚══════════════════════════════════════════════════════════════╝")
+	} else {
+		fmt.Println("+--------------------------------------------------------------+")
+	}
 	fmt.Println()
 
 	if result.Detected {
@@ -189,7 +204,7 @@ func displayVendorResults(result *vendors.DetectionResult, showHints bool) {
 		if len(result.Evidence) > 0 {
 			fmt.Println(ui.SectionStyle.Render("DETECTION EVIDENCE"))
 			for _, e := range result.Evidence {
-				fmt.Printf("  • %s\n", e)
+				fmt.Printf("  %s %s\n", ui.Icon("•", "-"), e)
 			}
 			fmt.Println()
 		}
@@ -215,7 +230,7 @@ func displayVendorResults(result *vendors.DetectionResult, showHints bool) {
 			if len(result.BlockSignature.ContentPatterns) > 0 {
 				fmt.Println("  Content Patterns:")
 				for _, p := range result.BlockSignature.ContentPatterns {
-					fmt.Printf("    • %s\n", p)
+					fmt.Printf("    %s %s\n", ui.Icon("•", "-"), p)
 				}
 			}
 			fmt.Println()
@@ -225,7 +240,7 @@ func displayVendorResults(result *vendors.DetectionResult, showHints bool) {
 		if showHints && len(result.BypassHints) > 0 {
 			fmt.Println(ui.SectionStyle.Render("BYPASS HINTS"))
 			for _, hint := range result.BypassHints {
-				fmt.Printf("  → %s\n", hint)
+				fmt.Printf("  %s %s\n", ui.Icon("→", "->"), hint)
 			}
 			fmt.Println()
 		}
@@ -234,7 +249,7 @@ func displayVendorResults(result *vendors.DetectionResult, showHints bool) {
 		if len(result.RecommendedEncoders) > 0 {
 			fmt.Println(ui.SectionStyle.Render("RECOMMENDED ENCODERS"))
 			for _, enc := range result.RecommendedEncoders {
-				fmt.Printf("  • %s\n", enc)
+				fmt.Printf("  %s %s\n", ui.Icon("•", "-"), enc)
 			}
 			fmt.Println()
 		}
@@ -243,7 +258,7 @@ func displayVendorResults(result *vendors.DetectionResult, showHints bool) {
 		if len(result.RecommendedEvasions) > 0 {
 			fmt.Println(ui.SectionStyle.Render("RECOMMENDED EVASIONS"))
 			for _, ev := range result.RecommendedEvasions {
-				fmt.Printf("  • %s\n", ev)
+				fmt.Printf("  %s %s\n", ui.Icon("•", "-"), ev)
 			}
 			fmt.Println()
 		}
@@ -310,20 +325,37 @@ func runProtocolDetect() {
 
 	// Import enterprise package dynamically
 	fmt.Println()
-	fmt.Println("╔══════════════════════════════════════════════════════════════╗")
-	fmt.Println("║             ENTERPRISE PROTOCOL DETECTION                    ║")
-	fmt.Println("╠══════════════════════════════════════════════════════════════╣")
-	fmt.Printf("║  Target:    %-49s ║\n", truncateStr(*target, 49))
-	fmt.Printf("║  Timeout:   %-49s ║\n", fmt.Sprintf("%ds", *timeout))
-	fmt.Println("║                                                              ║")
-	fmt.Println("║  Supported Protocols:                                        ║")
-	fmt.Println("║    • gRPC / gRPC-Web                                         ║")
-	fmt.Println("║    • SOAP 1.1 / SOAP 1.2                                     ║")
-	fmt.Println("║    • XML-RPC                                                 ║")
-	fmt.Println("║    • WCF (Windows Communication Foundation)                  ║")
-	fmt.Println("║    • GraphQL                                                 ║")
-	fmt.Println("║    • Protocol Buffers (Protobuf)                             ║")
-	fmt.Println("╚══════════════════════════════════════════════════════════════╝")
+	if ui.UnicodeTerminal() {
+		fmt.Println("╔══════════════════════════════════════════════════════════════╗")
+		fmt.Println("║             ENTERPRISE PROTOCOL DETECTION                    ║")
+		fmt.Println("╠══════════════════════════════════════════════════════════════╣")
+		fmt.Printf("║  Target:    %-49s ║\n", truncateStr(*target, 49))
+		fmt.Printf("║  Timeout:   %-49s ║\n", fmt.Sprintf("%ds", *timeout))
+		fmt.Println("║                                                              ║")
+		fmt.Println("║  Supported Protocols:                                        ║")
+		fmt.Println("║    • gRPC / gRPC-Web                                         ║")
+		fmt.Println("║    • SOAP 1.1 / SOAP 1.2                                     ║")
+		fmt.Println("║    • XML-RPC                                                 ║")
+		fmt.Println("║    • WCF (Windows Communication Foundation)                  ║")
+		fmt.Println("║    • GraphQL                                                 ║")
+		fmt.Println("║    • Protocol Buffers (Protobuf)                             ║")
+		fmt.Println("╚══════════════════════════════════════════════════════════════╝")
+	} else {
+		fmt.Println("+--------------------------------------------------------------+")
+		fmt.Println("|             ENTERPRISE PROTOCOL DETECTION                    |")
+		fmt.Println("+--------------------------------------------------------------+")
+		fmt.Printf("|  Target:    %-49s |\n", truncateStr(*target, 49))
+		fmt.Printf("|  Timeout:   %-49s |\n", fmt.Sprintf("%ds", *timeout))
+		fmt.Println("|                                                              |")
+		fmt.Println("|  Supported Protocols:                                        |")
+		fmt.Println("|    - gRPC / gRPC-Web                                         |")
+		fmt.Println("|    - SOAP 1.1 / SOAP 1.2                                     |")
+		fmt.Println("|    - XML-RPC                                                 |")
+		fmt.Println("|    - WCF (Windows Communication Foundation)                  |")
+		fmt.Println("|    - GraphQL                                                 |")
+		fmt.Println("|    - Protocol Buffers (Protobuf)                             |")
+		fmt.Println("+--------------------------------------------------------------+")
+	}
 	fmt.Println()
 
 	// Note: Full implementation would use pkg/enterprise
@@ -349,9 +381,15 @@ func displaySupportedVendors() {
 	signatures := vendors.GetAllSignatures()
 
 	fmt.Println()
-	fmt.Println("╔══════════════════════════════════════════════════════════════════╗")
-	fmt.Printf("║       SUPPORTED WAF VENDORS (%d Total - ported from wafw00f)     ║\n", len(signatures))
-	fmt.Println("╠══════════════════════════════════════════════════════════════════╣")
+	if ui.UnicodeTerminal() {
+		fmt.Println("╔══════════════════════════════════════════════════════════════════╗")
+		fmt.Printf("║       SUPPORTED WAF VENDORS (%d Total - ported from wafw00f)     ║\n", len(signatures))
+		fmt.Println("╠══════════════════════════════════════════════════════════════════╣")
+	} else {
+		fmt.Println("+------------------------------------------------------------------+")
+		fmt.Printf("|       SUPPORTED WAF VENDORS (%d Total - ported from wafw00f)     |\n", len(signatures))
+		fmt.Println("+------------------------------------------------------------------+")
+	}
 
 	// Group by category
 	categories := map[string][]string{
@@ -368,13 +406,16 @@ func displaySupportedVendors() {
 	}
 
 	categoryNames := map[string]string{
-		"cloud":            "☁️  CLOUD WAFs",
-		"cdn-integrated":   "🌐 CDN-INTEGRATED WAFs",
-		"appliance":        "🔒 APPLIANCE/ENTERPRISE WAFs",
-		"software":         "💻 SOFTWARE WAFs",
-		"wordpress-plugin": "📝 WORDPRESS WAF PLUGINS",
-		"bot-management":   "🤖 BOT MANAGEMENT",
+		"cloud":            ui.SanitizeString("☁️  CLOUD WAFs"),
+		"cdn-integrated":   ui.SanitizeString("🌐 CDN-INTEGRATED WAFs"),
+		"appliance":        ui.SanitizeString("🔒 APPLIANCE/ENTERPRISE WAFs"),
+		"software":         ui.SanitizeString("💻 SOFTWARE WAFs"),
+		"wordpress-plugin": ui.SanitizeString("📝 WORDPRESS WAF PLUGINS"),
+		"bot-management":   ui.SanitizeString("🤖 BOT MANAGEMENT"),
 	}
+
+	border := ui.Icon("║", "|")
+	bullet := ui.Icon("•", "-")
 
 	for _, cat := range []string{"cloud", "cdn-integrated", "appliance", "software", "wordpress-plugin", "bot-management"} {
 		vendorList := categories[cat]
@@ -382,16 +423,25 @@ func displaySupportedVendors() {
 			continue
 		}
 
-		fmt.Println("║                                                                  ║")
-		fmt.Printf("║  %s\n", categoryNames[cat])
+		if ui.UnicodeTerminal() {
+			fmt.Println("║                                                                  ║")
+		} else {
+			fmt.Println("|                                                                  |")
+		}
+		fmt.Printf("%s  %s\n", border, categoryNames[cat])
 
 		for _, name := range vendorList {
-			fmt.Printf("║    • %-59s ║\n", truncateStr(name, 59))
+			fmt.Printf("%s    %s %-59s %s\n", border, bullet, truncateStr(name, 59), border)
 		}
 	}
 
-	fmt.Println("║                                                                  ║")
-	fmt.Println("╚══════════════════════════════════════════════════════════════════╝")
+	if ui.UnicodeTerminal() {
+		fmt.Println("║                                                                  ║")
+		fmt.Println("╚══════════════════════════════════════════════════════════════════╝")
+	} else {
+		fmt.Println("|                                                                  |")
+		fmt.Println("+------------------------------------------------------------------+")
+	}
 	fmt.Println()
 	fmt.Println("Run: waf-tester vendor -u <target> to detect WAF")
 }
