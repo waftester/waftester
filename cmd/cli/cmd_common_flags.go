@@ -27,6 +27,7 @@ func (cf *CommonFlags) Register(fs *flag.FlagSet, timeoutDefault int) {
 	fs.IntVar(&cf.Timeout, "timeout", timeoutDefault, "Request timeout in seconds")
 	fs.BoolVar(&cf.SkipVerify, "skip-verify", false, "Skip TLS certificate verification")
 	fs.BoolVar(&cf.Verbose, "verbose", false, "Verbose output")
+	fs.BoolVar(&cf.Verbose, "v", false, "Verbose output (alias)")
 }
 
 // TargetSource creates an input.TargetSource from the common flags.

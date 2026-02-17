@@ -122,9 +122,9 @@ func EncodeAll(encoderName string, payloads []string) ([]string, error) {
 // Used when Chain() resolves no valid encoder names.
 type passthroughEncoder struct{}
 
-func (p *passthroughEncoder) Name() string                      { return "passthrough" }
-func (p *passthroughEncoder) Encode(s string) (string, error)   { return s, nil }
-func (p *passthroughEncoder) Decode(s string) (string, error)   { return s, nil }
+func (p *passthroughEncoder) Name() string                    { return "passthrough" }
+func (p *passthroughEncoder) Encode(s string) (string, error) { return s, nil }
+func (p *passthroughEncoder) Decode(s string) (string, error) { return s, nil }
 
 // EncodeWithAll applies all registered encoders to a single payload
 func EncodeWithAll(payload string) map[string]string {

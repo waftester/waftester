@@ -149,7 +149,7 @@ func runGRPCList(ctx context.Context, client *grpc.Client, jsonOutput bool) {
 
 	ui.PrintSection("Available Services")
 	for _, svc := range services {
-		fmt.Printf("  • %s\n", svc)
+		fmt.Printf("  %s %s\n", ui.Icon("•", "-"), svc)
 	}
 	fmt.Println()
 	ui.PrintSuccess(fmt.Sprintf("Found %d services", len(services)))

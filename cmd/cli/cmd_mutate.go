@@ -366,17 +366,17 @@ func runMutate() {
 		Unit:         "mutations",
 		Mode:         outputMode,
 		Metrics: []ui.MetricConfig{
-			{Name: "bypasses", Label: "Bypasses", Icon: "🔓", Highlight: true},
-			{Name: "blocked", Label: "Blocked", Icon: "🛡️"},
-			{Name: "errors", Label: "Errors", Icon: "⚠️"},
+			{Name: "bypasses", Label: "Bypasses", Icon: ui.Icon("🔓", "*"), Highlight: true},
+			{Name: "blocked", Label: "Blocked", Icon: ui.Icon("🛡️", "#")},
+			{Name: "errors", Label: "Errors", Icon: ui.Icon("⚠️", "!")},
 		},
 		Tips: []string{
-			"💡 Chunked encoding can split payloads to evade pattern matching",
-			"💡 Most WAFs can't properly normalize Unicode in all contexts",
-			"💡 Encoders combined with evasions multiply your test coverage",
-			"💡 Parameter pollution bypasses 30%+ of WAFs",
-			"💡 Case variations alone find bypasses in 1 out of 5 WAFs",
-			"💡 SQL comments /**/ can hide entire payload chunks",
+			"Chunked encoding can split payloads to evade pattern matching",
+			"Most WAFs can't properly normalize Unicode in all contexts",
+			"Encoders combined with evasions multiply your test coverage",
+			"Parameter pollution bypasses 30%+ of WAFs",
+			"Case variations alone find bypasses in 1 out of 5 WAFs",
+			"SQL comments /**/ can hide entire payload chunks",
 		},
 		StreamFormat:   "[PROGRESS] {completed}/{total} ({percent}%) | bypasses: {metric:bypasses} | blocked: {metric:blocked} | {status} | {elapsed}",
 		StreamInterval: duration.StreamStd,
@@ -441,40 +441,41 @@ func runMutate() {
 
 	// Print final results with celebration or commiseration
 	fmt.Println()
-	fmt.Println("  ═══════════════════════════════════════════════════════════")
+	fmt.Println("  " + ui.SanitizeString("═══════════════════════════════════════════════════════════"))
 
 	if stats.Passed > 0 {
 		if stats.Passed > 20 {
-			fmt.Printf("  🏆 \033[1;33mLEGENDARY! %d BYPASSES FOUND!\033[0m 🏆\n", stats.Passed)
+			ui.Printf("  %s \033[1;33mLEGENDARY! %d BYPASSES FOUND!\033[0m %s\n", ui.Icon("🏆", "*"), stats.Passed, ui.Icon("🏆", "*"))
 		} else if stats.Passed > 10 {
-			fmt.Printf("  🔥 \033[1;33mON FIRE! %d BYPASSES FOUND!\033[0m 🔥\n", stats.Passed)
+			ui.Printf("  %s \033[1;33mON FIRE! %d BYPASSES FOUND!\033[0m %s\n", ui.Icon("🔥", "*"), stats.Passed, ui.Icon("🔥", "*"))
 		} else if stats.Passed > 5 {
-			fmt.Printf("  ⚡ \033[1;33mNICE! %d BYPASSES FOUND!\033[0m ⚡\n", stats.Passed)
+			ui.Printf("  %s \033[1;33mNICE! %d BYPASSES FOUND!\033[0m %s\n", ui.Icon("⚡", "*"), stats.Passed, ui.Icon("⚡", "*"))
 		} else {
-			fmt.Printf("  🎯 \033[1;32m%d BYPASS(ES) FOUND!\033[0m\n", stats.Passed)
+			ui.Printf("  %s \033[1;32m%d BYPASS(ES) FOUND!\033[0m\n", ui.Icon("🎯", "*"), stats.Passed)
 		}
 	} else {
-		fmt.Printf("  🛡️ \033[1;36mWAF held strong - no bypasses found\033[0m\n")
+		ui.Printf("  %s \033[1;36mWAF held strong - no bypasses found\033[0m\n", ui.Icon("🛡️", "#"))
 	}
 
-	fmt.Println("  ═══════════════════════════════════════════════════════════")
+	fmt.Println("  " + ui.SanitizeString("═══════════════════════════════════════════════════════════"))
 	fmt.Println()
 
-	fmt.Printf("  📊 \033[1mFinal Stats:\033[0m\n")
-	fmt.Printf("     • Total Tests:   %d\n", stats.TotalTests)
-	fmt.Printf("     • Bypasses:      \033[32m%d\033[0m (%.1f%%)\n", stats.Passed, float64(stats.Passed)/float64(stats.TotalTests)*100)
-	fmt.Printf("     • Blocked:       \033[31m%d\033[0m (%.1f%%)\n", stats.Blocked, float64(stats.Blocked)/float64(stats.TotalTests)*100)
-	fmt.Printf("     • Errors:        %d\n", stats.Errors)
-	fmt.Printf("     • Duration:      %s\n", stats.Duration.Round(time.Millisecond))
-	fmt.Printf("     • Throughput:    %.1f req/s\n", stats.RequestsPerSec)
+	ui.Printf("  %s \033[1mFinal Stats:\033[0m\n", ui.Icon("📊", "#"))
+	bullet := ui.Icon("•", "-")
+	fmt.Printf("     %s Total Tests:   %d\n", bullet, stats.TotalTests)
+	fmt.Printf("     %s Bypasses:      \033[32m%d\033[0m (%.1f%%)\n", bullet, stats.Passed, float64(stats.Passed)/float64(stats.TotalTests)*100)
+	fmt.Printf("     %s Blocked:       \033[31m%d\033[0m (%.1f%%)\n", bullet, stats.Blocked, float64(stats.Blocked)/float64(stats.TotalTests)*100)
+	fmt.Printf("     %s Errors:        %d\n", bullet, stats.Errors)
+	fmt.Printf("     %s Duration:      %s\n", bullet, stats.Duration.Round(time.Millisecond))
+	fmt.Printf("     %s Throughput:    %.1f req/s\n", bullet, stats.RequestsPerSec)
 	fmt.Println()
 
 	// Top encoders if bypasses found
 	if stats.Passed > 0 && len(stats.ByEncoder) > 0 {
-		fmt.Printf("  🎯 \033[1mEffective Encoders:\033[0m\n")
+		ui.Printf("  %s \033[1mEffective Encoders:\033[0m\n", ui.Icon("🎯", "*"))
 		for enc, count := range stats.ByEncoder {
 			if count > 0 {
-				fmt.Printf("     • %-20s %d hits\n", enc, count)
+				fmt.Printf("     %s %-20s %d hits\n", ui.Icon("•", "-"), enc, count)
 			}
 		}
 		fmt.Println()

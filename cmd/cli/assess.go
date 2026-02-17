@@ -227,9 +227,9 @@ func runAssess() {
 		Unit:         "tests",
 		Mode:         outputMode,
 		Tips: []string{
-			"💡 Enterprise assessment combines attack testing with FP testing",
-			"💡 F1 score balances precision and recall for accurate grading",
-			"💡 Quantitative metrics provide objective WAF evaluation",
+			"Enterprise assessment combines attack testing with FP testing",
+			"F1 score balances precision and recall for accurate grading",
+			"Quantitative metrics provide objective WAF evaluation",
 		},
 		StreamFormat: "[PROGRESS] {completed}/{total} ({percent}%) - {status} - {elapsed} elapsed",
 	})
@@ -263,7 +263,7 @@ func runAssess() {
 	if *streamMode {
 		fmt.Printf("[COMPLETE] Assessment in %s, Grade=%s\n", formatElapsedAssess(elapsed), result.Grade)
 	} else {
-		fmt.Printf("  ✅ Assessment completed in %s\n", formatElapsedAssess(elapsed))
+		ui.Printf("  %s Assessment completed in %s\n", ui.Icon("✅", "+"), formatElapsedAssess(elapsed))
 		fmt.Println()
 	}
 
@@ -347,23 +347,41 @@ func displayAssessmentResults(m *metrics.EnterpriseMetrics, duration time.Durati
 
 	// Grade banner
 	gradeColor := getGradeColor(m.Grade)
-	fmt.Println("╔══════════════════════════════════════════════════════════════════╗")
-	fmt.Printf("║  %-64s ║\n", fmt.Sprintf("Grade: %s%s%s  -  %s", gradeColor, m.Grade, "\033[0m", m.GradeReason))
-	fmt.Println("╠══════════════════════════════════════════════════════════════════╣")
-	fmt.Printf("║  %-64s ║\n", fmt.Sprintf("Target: %s", assessTruncateString(m.TargetURL, 50)))
-	fmt.Printf("║  %-64s ║\n", fmt.Sprintf("WAF: %s", m.WAFVendor))
-	fmt.Printf("║  %-64s ║\n", fmt.Sprintf("Duration: %.2fs | Tests: %d", duration.Seconds(), m.TotalRequests))
-	fmt.Println("╚══════════════════════════════════════════════════════════════════╝")
+	if ui.UnicodeTerminal() {
+		fmt.Println("╔══════════════════════════════════════════════════════════════════╗")
+		fmt.Printf("║  %-64s ║\n", fmt.Sprintf("Grade: %s%s%s  -  %s", gradeColor, m.Grade, "\033[0m", m.GradeReason))
+		fmt.Println("╠══════════════════════════════════════════════════════════════════╣")
+		fmt.Printf("║  %-64s ║\n", fmt.Sprintf("Target: %s", assessTruncateString(m.TargetURL, 50)))
+		fmt.Printf("║  %-64s ║\n", fmt.Sprintf("WAF: %s", m.WAFVendor))
+		fmt.Printf("║  %-64s ║\n", fmt.Sprintf("Duration: %.2fs | Tests: %d", duration.Seconds(), m.TotalRequests))
+		fmt.Println("╚══════════════════════════════════════════════════════════════════╝")
+	} else {
+		fmt.Println("+------------------------------------------------------------------+")
+		fmt.Printf("|  %-64s |\n", fmt.Sprintf("Grade: %s%s%s  -  %s", gradeColor, m.Grade, "\033[0m", m.GradeReason))
+		fmt.Println("+------------------------------------------------------------------+")
+		fmt.Printf("|  %-64s |\n", fmt.Sprintf("Target: %s", assessTruncateString(m.TargetURL, 50)))
+		fmt.Printf("|  %-64s |\n", fmt.Sprintf("WAF: %s", m.WAFVendor))
+		fmt.Printf("|  %-64s |\n", fmt.Sprintf("Duration: %.2fs | Tests: %d", duration.Seconds(), m.TotalRequests))
+		fmt.Println("+------------------------------------------------------------------+")
+	}
 	fmt.Println()
 
 	// Confusion Matrix
 	fmt.Println(ui.SectionStyle.Render("CONFUSION MATRIX"))
 	fmt.Println()
-	fmt.Println("              │  Predicted  │  Predicted  │")
-	fmt.Println("              │   Blocked   │   Allowed   │")
-	fmt.Println("  ────────────┼─────────────┼─────────────┤")
-	fmt.Printf("  Attack      │  %9d  │  %9d  │ (TP, FN)\n", m.Matrix.TruePositives, m.Matrix.FalseNegatives)
-	fmt.Printf("  Benign      │  %9d  │  %9d  │ (FP, TN)\n", m.Matrix.FalsePositives, m.Matrix.TrueNegatives)
+	if ui.UnicodeTerminal() {
+		fmt.Println("              │  Predicted  │  Predicted  │")
+		fmt.Println("              │   Blocked   │   Allowed   │")
+		fmt.Println("  ────────────┼─────────────┼─────────────┤")
+		fmt.Printf("  Attack      │  %9d  │  %9d  │ (TP, FN)\n", m.Matrix.TruePositives, m.Matrix.FalseNegatives)
+		fmt.Printf("  Benign      │  %9d  │  %9d  │ (FP, TN)\n", m.Matrix.FalsePositives, m.Matrix.TrueNegatives)
+	} else {
+		fmt.Println("              |  Predicted  |  Predicted  |")
+		fmt.Println("              |   Blocked   |   Allowed   |")
+		fmt.Println("  ------------+-------------+-------------|")
+		fmt.Printf("  Attack      |  %9d  |  %9d  | (TP, FN)\n", m.Matrix.TruePositives, m.Matrix.FalseNegatives)
+		fmt.Printf("  Benign      |  %9d  |  %9d  | (FP, TN)\n", m.Matrix.FalsePositives, m.Matrix.TrueNegatives)
+	}
 	fmt.Println()
 
 	// Primary Metrics

@@ -20,6 +20,7 @@ import (
 	"github.com/waftester/waftester/pkg/leakypaths"
 	"github.com/waftester/waftester/pkg/params"
 	"github.com/waftester/waftester/pkg/tls"
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 // FullReconResult contains all reconnaissance data
@@ -355,10 +356,12 @@ func (r *FullReconResult) ToJSON() ([]byte, error) {
 // PrintSummary prints a human-readable summary
 func (r *FullReconResult) PrintSummary() string {
 	var sb strings.Builder
+	hline := strings.Repeat(ui.Icon("═", "="), 63)
+	bullet := ui.Icon("•", "-")
 
-	sb.WriteString(fmt.Sprintf("═══════════════════════════════════════════════════════════════\n"))
+	sb.WriteString(fmt.Sprintf("%s\n", hline))
 	sb.WriteString(fmt.Sprintf("                    RECONNAISSANCE SUMMARY\n"))
-	sb.WriteString(fmt.Sprintf("═══════════════════════════════════════════════════════════════\n\n"))
+	sb.WriteString(fmt.Sprintf("%s\n\n", hline))
 
 	sb.WriteString(fmt.Sprintf("Target:    %s\n", r.Target))
 	sb.WriteString(fmt.Sprintf("Duration:  %s\n", r.Duration.Round(time.Millisecond)))
@@ -367,18 +370,18 @@ func (r *FullReconResult) PrintSummary() string {
 	sb.WriteString(fmt.Sprintf("Risk Score: %.0f/100 [%s]\n\n", r.RiskScore, strings.ToUpper(r.RiskLevel)))
 
 	sb.WriteString("Discovery Results:\n")
-	sb.WriteString(fmt.Sprintf("  • Leaky Paths Found:     %d\n", r.Stats.LeakyPathsFound))
-	sb.WriteString(fmt.Sprintf("  • Parameters Found:      %d (%d reflected)\n", r.Stats.ParametersFound, r.Stats.ReflectedParams))
-	sb.WriteString(fmt.Sprintf("  • Secrets Found:         %d\n", r.Stats.SecretsFound))
-	sb.WriteString(fmt.Sprintf("  • API Endpoints Found:   %d\n", r.Stats.EndpointsFound))
-	sb.WriteString(fmt.Sprintf("  • DOM XSS Sinks Found:   %d\n", r.Stats.DOMSinksFound))
-	sb.WriteString(fmt.Sprintf("  • Cloud URLs Found:      %d\n", r.Stats.CloudURLsFound))
-	sb.WriteString(fmt.Sprintf("  • Subdomains Found:      %d\n\n", r.Stats.SubdomainsFound))
+	sb.WriteString(fmt.Sprintf("  %s Leaky Paths Found:     %d\n", bullet, r.Stats.LeakyPathsFound))
+	sb.WriteString(fmt.Sprintf("  %s Parameters Found:      %d (%d reflected)\n", bullet, r.Stats.ParametersFound, r.Stats.ReflectedParams))
+	sb.WriteString(fmt.Sprintf("  %s Secrets Found:         %d\n", bullet, r.Stats.SecretsFound))
+	sb.WriteString(fmt.Sprintf("  %s API Endpoints Found:   %d\n", bullet, r.Stats.EndpointsFound))
+	sb.WriteString(fmt.Sprintf("  %s DOM XSS Sinks Found:   %d\n", bullet, r.Stats.DOMSinksFound))
+	sb.WriteString(fmt.Sprintf("  %s Cloud URLs Found:      %d\n", bullet, r.Stats.CloudURLsFound))
+	sb.WriteString(fmt.Sprintf("  %s Subdomains Found:      %d\n\n", bullet, r.Stats.SubdomainsFound))
 
 	sb.WriteString("Finding Severity Breakdown:\n")
-	sb.WriteString(fmt.Sprintf("  🔴 Critical: %d\n", r.Stats.CriticalFindings))
-	sb.WriteString(fmt.Sprintf("  🟠 High:     %d\n", r.Stats.HighFindings))
-	sb.WriteString(fmt.Sprintf("  🟡 Medium:   %d\n\n", r.Stats.MediumFindings))
+	sb.WriteString(fmt.Sprintf("  %s Critical: %d\n", ui.Icon("🔴", "*"), r.Stats.CriticalFindings))
+	sb.WriteString(fmt.Sprintf("  %s High:     %d\n", ui.Icon("🟠", "*"), r.Stats.HighFindings))
+	sb.WriteString(fmt.Sprintf("  %s Medium:   %d\n\n", ui.Icon("🟡", "*"), r.Stats.MediumFindings))
 
 	if len(r.TopRisks) > 0 {
 		sb.WriteString("Top Risks:\n")
@@ -387,7 +390,7 @@ func (r *FullReconResult) PrintSummary() string {
 		}
 	}
 
-	sb.WriteString(fmt.Sprintf("\n═══════════════════════════════════════════════════════════════\n"))
+	sb.WriteString(fmt.Sprintf("\n%s\n", hline))
 
 	return sb.String()
 }

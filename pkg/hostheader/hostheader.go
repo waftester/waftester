@@ -22,18 +22,16 @@ import (
 type VulnerabilityType string
 
 const (
-	VulnPasswordReset    VulnerabilityType = "password-reset-poisoning"
-	VulnCachePoisoning   VulnerabilityType = "cache-poisoning"
-	VulnSSRF             VulnerabilityType = "ssrf"
-	VulnOpenRedirect     VulnerabilityType = "open-redirect"
+	VulnPasswordReset     VulnerabilityType = "password-reset-poisoning"
+	VulnCachePoisoning    VulnerabilityType = "cache-poisoning"
+	VulnSSRF              VulnerabilityType = "ssrf"
+	VulnOpenRedirect      VulnerabilityType = "open-redirect"
 	VulnWebCachePoisoning VulnerabilityType = "web-cache-poisoning"
 	VulnHostOverride      VulnerabilityType = "host-override"
 
 	// Deprecated: Use VulnWebCachePoisoning instead.
 	VulnWebCachePoisonng = VulnWebCachePoisoning
 )
-
-
 
 // Payload represents a Host header injection payload
 type Payload struct {

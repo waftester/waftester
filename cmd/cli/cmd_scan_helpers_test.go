@@ -367,3 +367,56 @@ func TestPrintScanJSONL(t *testing.T) {
 		t.Error("JSONL output missing target")
 	}
 }
+
+func TestBuildScanTips(t *testing.T) {
+	t.Run("sqli only shows sqli tip plus generic", func(t *testing.T) {
+		tips := buildScanTips(func(s string) bool { return s == "sqli" })
+		hasSQLi := false
+		hasXSS := false
+		hasGeneric := false
+		for _, tip := range tips {
+			if strings.Contains(tip, "SQLi") {
+				hasSQLi = true
+			}
+			if strings.Contains(tip, "XSS") {
+				hasXSS = true
+			}
+			if strings.Contains(tip, "context-aware") {
+				hasGeneric = true
+			}
+		}
+		if !hasSQLi {
+			t.Error("expected SQLi tip when sqli is selected")
+		}
+		if hasXSS {
+			t.Error("XSS tip should not appear when only sqli is selected")
+		}
+		if !hasGeneric {
+			t.Error("generic tip should always appear")
+		}
+	})
+
+	t.Run("no matching types still returns generic", func(t *testing.T) {
+		tips := buildScanTips(func(string) bool { return false })
+		if len(tips) != 1 {
+			t.Errorf("expected 1 generic tip, got %d", len(tips))
+		}
+	})
+
+	t.Run("multiple types include all relevant tips", func(t *testing.T) {
+		tips := buildScanTips(func(s string) bool { return s == "sqli" || s == "xss" })
+		hasSQLi := false
+		hasXSS := false
+		for _, tip := range tips {
+			if strings.Contains(tip, "SQLi") {
+				hasSQLi = true
+			}
+			if strings.Contains(tip, "XSS") {
+				hasXSS = true
+			}
+		}
+		if !hasSQLi || !hasXSS {
+			t.Error("expected both SQLi and XSS tips")
+		}
+	})
+}

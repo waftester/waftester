@@ -305,9 +305,9 @@ func runCrawl() {
 		Unit:         "pages",
 		Mode:         crawlOutputMode,
 		Metrics: []ui.MetricConfig{
-			{Name: "links", Label: "Links", Icon: "🔗"},
-			{Name: "forms", Label: "Forms", Icon: "📝"},
-			{Name: "scripts", Label: "Scripts", Icon: "📜"},
+			{Name: "links", Label: "Links", Icon: ui.Icon("🔗", "~")},
+			{Name: "forms", Label: "Forms", Icon: ui.Icon("📝", "F")},
+			{Name: "scripts", Label: "Scripts", Icon: ui.Icon("📜", "S")},
 		},
 		StreamFormat:   "[PROGRESS] {completed} pages | links: {metric:links} | forms: {metric:forms} | {elapsed}",
 		StreamInterval: duration.StreamStd,
