@@ -275,3 +275,87 @@ func TestTruncateString_UTF8Safe(t *testing.T) {
 		}
 	}
 }
+
+func TestRedactMap_ArrayTraversal(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		input      string
+		wantAbsent []string
+	}{
+		{
+			name:       "array of objects with sensitive fields",
+			input:      `{"items":[{"api_key":"secret1","name":"a"},{"token":"secret2","name":"b"}]}`,
+			wantAbsent: []string{"secret1", "secret2"},
+		},
+		{
+			name:       "nested array in object",
+			input:      `{"config":{"servers":[{"password":"pw1"},{"password":"pw2"}]}}`,
+			wantAbsent: []string{"pw1", "pw2"},
+		},
+		{
+			name:       "mixed array with non-map items",
+			input:      `{"data":["plain_string",{"secret":"hidden"},42]}`,
+			wantAbsent: []string{"hidden"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var rawArgs map[string]interface{}
+			if err := json.Unmarshal([]byte(tt.input), &rawArgs); err != nil {
+				t.Fatalf("invalid test input: %v", err)
+			}
+			redactMap(rawArgs)
+			result, _ := json.Marshal(rawArgs)
+			resultStr := string(result)
+			for _, absent := range tt.wantAbsent {
+				if strings.Contains(resultStr, absent) {
+					t.Errorf("sensitive value %q still present after redaction: %s", absent, resultStr)
+				}
+			}
+		})
+	}
+}
+
+func TestIsSensitiveKey_ExpandedPatterns(t *testing.T) {
+	t.Parallel()
+
+	// These patterns were added during security review to catch additional
+	// sensitive field names beyond the original set.
+	tests := []struct {
+		key  string
+		want bool
+	}{
+		{"access_key_id", true},
+		{"private_data", true},
+		{"signing_key", true},
+		{"encrypt_secret", true},
+		{"encryption_key", true},
+		{"access_id", true},
+		{"my_private_field", true},
+		{"proxy_auth", true},
+
+		// Intentional broad matches: "key" substring catches these.
+		// This is by design — we prefer false-positive redaction over leaking secrets.
+		{"primary_key", true},
+		{"keyboard_layout", true},
+
+		// Ensure non-sensitive fields are still safe.
+		{"process", false},
+		{"driver", false},
+		{"format", false},
+		{"concurrency", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			t.Parallel()
+			if got := isSensitiveKey(tt.key); got != tt.want {
+				t.Errorf("isSensitiveKey(%q) = %v; want %v", tt.key, got, tt.want)
+			}
+		})
+	}
+}
