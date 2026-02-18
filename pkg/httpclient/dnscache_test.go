@@ -3,6 +3,7 @@ package httpclient
 import (
 	"context"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -225,4 +226,59 @@ func BenchmarkDNSCache_vs_Direct(b *testing.B) {
 			}
 		})
 	})
+}
+
+func TestDNSCache_BackgroundEviction(t *testing.T) {
+	// Use a very short TTL so the eviction goroutine fires quickly.
+	// TTL=50ms → eviction interval=100ms.
+	cache := NewDNSCache(50*time.Millisecond, 50*time.Millisecond)
+	defer cache.Close()
+
+	// Prime the cache with a lookup.
+	_, err := cache.LookupHost(context.Background(), "localhost")
+	if err != nil {
+		t.Fatalf("LookupHost failed: %v", err)
+	}
+
+	// Confirm it's cached.
+	stats := cache.Stats()
+	if stats.TotalEntries == 0 {
+		t.Fatal("expected at least one cached entry after lookup")
+	}
+
+	// Wait for TTL + eviction interval + margin (50ms + 100ms + 100ms = 250ms).
+	time.Sleep(300 * time.Millisecond)
+
+	// The background eviction goroutine should have removed the expired entry.
+	stats = cache.Stats()
+	if stats.TotalEntries > 0 {
+		t.Errorf("expected 0 entries after background eviction, got %d (expired: %d)",
+			stats.TotalEntries, stats.ExpiredEntries)
+	}
+}
+
+func TestDNSCache_CloseStopsEviction(t *testing.T) {
+	cache := NewDNSCache(50*time.Millisecond, 50*time.Millisecond)
+
+	// Close should be safe to call multiple times.
+	cache.Close()
+	cache.Close() // double-close must not panic
+}
+
+func TestDNSCache_CorruptEntry(t *testing.T) {
+	// The type assertion guard in LookupHost must return an error — not panic —
+	// when an entry in the sync.Map has the wrong type.
+	cache := NewDNSCache(5*time.Minute, 30*time.Second)
+	defer cache.Close()
+
+	// Inject a corrupt entry directly into the underlying sync.Map.
+	cache.cache.Store("corrupt-host", "not-a-cacheEntry")
+
+	_, err := cache.LookupHost(context.Background(), "corrupt-host")
+	if err == nil {
+		t.Fatal("LookupHost should return error for corrupt cache entry, not panic")
+	}
+	if !strings.Contains(err.Error(), "corrupt") {
+		t.Errorf("error should mention corrupt entry, got: %v", err)
+	}
 }
