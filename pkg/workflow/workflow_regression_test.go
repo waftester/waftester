@@ -2,17 +2,20 @@
 package workflow
 
 import (
+	"path/filepath"
 	"testing"
 )
 
 // TestAllowlist_ExcludesScriptingLanguages verifies dangerous scripting
-// interpreters are NOT in the command allowlist.
-// Regression test for bug: arbitrary command execution from workflow files
+// interpreters and shell-executing tools are NOT in the command allowlist.
+// Regression: arbitrary command execution from workflow files
 func TestAllowlist_ExcludesScriptingLanguages(t *testing.T) {
 	engine := NewEngine()
 	denied := []string{
 		"python", "python3", "ruby", "perl", "php",
 		"node", "bash", "sh", "lua", "powershell",
+		// Removed in round 3: shell-executing or data-exfiltrating tools
+		"awk", "sed", "xargs", "curl", "wget", "tee", "ping",
 	}
 	for _, cmd := range denied {
 		if engine.isAllowedExternalCommand(cmd) {
@@ -27,8 +30,8 @@ func TestAllowlist_ExcludesScriptingLanguages(t *testing.T) {
 func TestAllowlist_IncludesSafeUtilities(t *testing.T) {
 	engine := NewEngine()
 	allowed := []string{
-		"echo", "grep", "jq", "curl", "wget",
-		"sort", "uniq", "nuclei",
+		"echo", "grep", "jq",
+		"sort", "uniq", "nuclei", "head", "tail", "wc", "tr", "cut", "base64", "sleep",
 	}
 	for _, cmd := range allowed {
 		if !engine.isAllowedExternalCommand(cmd) {
@@ -47,7 +50,7 @@ func TestAllowlist_HandlesPathPrefixes(t *testing.T) {
 	}{
 		{"/usr/bin/echo", true},
 		{"/usr/local/bin/jq", true},
-		{"/usr/bin/curl", true},
+		{"/usr/bin/curl", false},
 		{"/usr/bin/python3", false},
 		{"/usr/bin/ruby", false},
 
@@ -137,5 +140,26 @@ func TestIsWafTesterCommand_Regression(t *testing.T) {
 				t.Errorf("isWafTesterCommand(%q) = %v, want %v", tt.cmd, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestValidateFilePath_SiblingDirectoryBypass verifies that an absolute path
+// to a sibling directory (e.g. workdir-evil when workDir is workdir)
+// is correctly rejected. This was previously vulnerable when using HasPrefix.
+// Regression: path traversal via directory prefix matching
+func TestValidateFilePath_SiblingDirectoryBypass(t *testing.T) {
+	engine := NewEngine()
+
+	// Use temp dirs to get real absolute paths on any OS
+	workDir := t.TempDir()
+	engine.WorkDir = workDir
+
+	// Construct a sibling path by appending to the parent
+	sibling := workDir + "-evil"
+	siblingFile := filepath.Join(sibling, "payload.json")
+
+	err := engine.validateFilePath(siblingFile)
+	if err == nil {
+		t.Error("SECURITY: validateFilePath should reject sibling directory paths that share a prefix")
 	}
 }

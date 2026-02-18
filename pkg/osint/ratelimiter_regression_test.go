@@ -2,6 +2,7 @@
 package osint
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -30,7 +31,7 @@ func TestRateLimiter_ThunderingHerd(t *testing.T) {
 
 	// Drain all initial tokens first
 	for i := 0; i < 600; i++ {
-		rl.Wait()
+		rl.Wait(context.Background())
 	}
 
 	// Now all tokens are exhausted. Launch concurrent goroutines.
@@ -39,7 +40,7 @@ func TestRateLimiter_ThunderingHerd(t *testing.T) {
 	for i := 0; i < goroutines; i++ {
 		go func() {
 			defer wg.Done()
-			rl.Wait()
+			rl.Wait(context.Background())
 
 			// Track concurrency
 			c := atomic.AddInt64(&current, 1)
@@ -96,7 +97,7 @@ func TestRateLimiter_BasicFunctionality(t *testing.T) {
 
 	// Should complete immediately (initial tokens available)
 	start := time.Now()
-	rl.Wait()
+	rl.Wait(context.Background())
 	elapsed := time.Since(start)
 
 	if elapsed > 500*time.Millisecond {
@@ -112,7 +113,7 @@ func TestRateLimiter_RefillAfterSleep(t *testing.T) {
 
 	// Drain all tokens
 	for i := 0; i < 60; i++ {
-		rl.Wait()
+		rl.Wait(context.Background())
 	}
 
 	// Wait for refill period
@@ -120,7 +121,7 @@ func TestRateLimiter_RefillAfterSleep(t *testing.T) {
 
 	// Next Wait() should be near-instant (tokens refilled)
 	start := time.Now()
-	rl.Wait()
+	rl.Wait(context.Background())
 	elapsed := time.Since(start)
 
 	if elapsed > 500*time.Millisecond {
@@ -141,7 +142,7 @@ func TestRateLimiter_TokensNeverExceedMax(t *testing.T) {
 	// Drain: should get at most maxTokens without blocking
 	start := time.Now()
 	for i := 0; i < maxTokens; i++ {
-		rl.Wait()
+		rl.Wait(context.Background())
 	}
 	elapsed := time.Since(start)
 
@@ -161,7 +162,7 @@ func TestRateLimiter_ZeroRequestsPerMinute_NoPanic(t *testing.T) {
 		t.Fatal("NewRateLimiter(0) returned nil")
 	}
 	// Should be able to Wait without panic
-	rl.Wait()
+	rl.Wait(context.Background())
 }
 
 // TestRateLimiter_NegativeRequestsPerMinute_NoPanic verifies negative input is clamped.
@@ -172,5 +173,5 @@ func TestRateLimiter_NegativeRequestsPerMinute_NoPanic(t *testing.T) {
 	if rl == nil {
 		t.Fatal("NewRateLimiter(-5) returned nil")
 	}
-	rl.Wait()
+	rl.Wait(context.Background())
 }
