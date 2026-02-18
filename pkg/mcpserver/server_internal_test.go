@@ -670,3 +670,42 @@ func TestSlotExhaustion_RecoverAfterCompletion(t *testing.T) {
 		t.Fatalf("Create after completing one task: %v", err)
 	}
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// isWindowsAbsPath — cross-platform drive-letter detection
+// ═══════════════════════════════════════════════════════════════════════════
+
+func TestIsWindowsAbsPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		path string
+		want bool
+	}{
+		// Windows absolute paths — must be detected on all platforms.
+		{`C:\Windows\System32`, true},
+		{`D:\file.yaml`, true},
+		{`c:\lower`, true},
+		{`Z:/forward/slash`, true},
+
+		// Not Windows absolute paths.
+		{"", false},
+		{"a", false},
+		{"ab", false},
+		{"../etc/passwd", false},
+		{"/etc/passwd", false},
+		{"specs/api.yaml", false},
+		{"C:", false},  // no separator after colon
+		{"C:a", false}, // no separator after colon
+		{"1:\\digit", false},
+		{"CC:\\double", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			if got := isWindowsAbsPath(tt.path); got != tt.want {
+				t.Errorf("isWindowsAbsPath(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}
