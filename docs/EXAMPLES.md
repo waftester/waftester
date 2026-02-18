@@ -10,7 +10,7 @@ This guide provides comprehensive usage examples for WAFtester, organized by use
 
 > **Document Map:** [Quick Start](#quick-start) gets you running in 5 minutes. [Core Commands](#core-commands) covers each command with examples. [Real-World Playbooks](#real-world-playbooks) provides end-to-end workflows for common scenarios. [Interpreting Results](#interpreting-results) explains what the output means. [Troubleshooting](#troubleshooting) helps when things go wrong. For the flag reference, see [COMMANDS.md](COMMANDS.md). For a copy-paste cheat sheet, see [waftester.com/cheat-sheet](https://waftester.com/cheat-sheet).
 
-**Document Version:** 2.9.16  
+**Document Version:** 2.9.17  
 **Last Updated:** February 2026
 
 ---
@@ -261,7 +261,7 @@ waf-tester auto -u https://example.com
 ```
 $ waf-tester auto -u https://example.com
 
-WAFtester v2.9.16 - WAF Security Assessment Tool
+WAFtester v2.9.17 - WAF Security Assessment Tool
 
 🔍 Phase 1: WAF Detection
    ├─ Probing target...
@@ -694,7 +694,7 @@ waf-tester auto -u https://example.com \
 ```
 $ waf-tester auto -u https://api.example.com --smart --tamper-auto
 
-WAFtester v2.9.16 — Comprehensive WAF Security Assessment
+WAFtester v2.9.17 — Comprehensive WAF Security Assessment
 
 Target: https://api.example.com
 Mode: Smart (WAF-aware) with auto-tamper
@@ -900,7 +900,7 @@ waf-tester assess -u https://example.com \
 ```
 $ waf-tester assess -u https://secure.example.com -fp -corpus builtin
 
-WAFtester v2.9.16 — Enterprise WAF Assessment
+WAFtester v2.9.17 — Enterprise WAF Assessment
 
 Target: https://secure.example.com
 Mode: Full assessment with false positive testing
@@ -1135,7 +1135,7 @@ waf-tester scan -u https://target.com --tamper-profile=stealth -rl 10
 ```
 $ waf-tester scan -u https://api.example.com -category sqli,xss --smart
 
-WAFtester v2.9.16 — Targeted Vulnerability Scan
+WAFtester v2.9.17 — Targeted Vulnerability Scan
 
 Target: https://api.example.com
 Categories: sqli, xss
@@ -1403,7 +1403,7 @@ waf-tester vendor -u https://target.com
 ```
 $ waf-tester vendor -u https://secure.example.com
 
-WAFtester v2.9.16 — WAF Vendor Detection
+WAFtester v2.9.17 — WAF Vendor Detection
 
 Target: https://secure.example.com
 
@@ -1544,7 +1544,7 @@ waf-tester protocol -u https://target.com
 ```
 $ waf-tester protocol -u https://api.example.com
 
-WAFtester v2.9.16 — Protocol Detection
+WAFtester v2.9.17 — Protocol Detection
 
 Target: https://api.example.com
 
@@ -1740,7 +1740,7 @@ waf-tester bypass -u https://target.com \
 ```
 $ waf-tester bypass -u https://secure.example.com --smart --tamper-auto -category sqli
 
-WAFtester v2.9.16 — WAF Bypass Hunter
+WAFtester v2.9.17 — WAF Bypass Hunter
 
 Target: https://secure.example.com
 Category: sqli
@@ -1894,7 +1894,7 @@ waf-tester mutate -u https://target.com \
 ```
 $ waf-tester mutate -u https://target.com -encoders url,unicode,double_url
 
-WAFtester v2.9.16 — Mutation Testing
+WAFtester v2.9.17 — Mutation Testing
 
 Target: https://target.com
 Encoders: url, unicode, double_url
@@ -1975,7 +1975,7 @@ waf-tester fp -u https://target.com -corpus /path/to/benign-requests.txt
 ```
 $ waf-tester fp -u https://secure.example.com -corpus builtin,leipzig
 
-WAFtester v2.9.16 — False Positive Testing
+WAFtester v2.9.17 — False Positive Testing
 
 Target: https://secure.example.com
 Corpora: builtin (2,500), leipzig (5,000)
@@ -2669,7 +2669,7 @@ waf-tester smuggle -u https://target.com -safe=false
 ```
 $ waf-tester smuggle -u https://app.example.com
 
-WAFtester v2.9.16 — HTTP Smuggling Detection
+WAFtester v2.9.17 — HTTP Smuggling Detection
 
 Target: https://app.example.com
 Mode: Safe (timing-based)
@@ -2822,7 +2822,7 @@ waf-tester race -u https://target.com/process -attack toctou
 $ waf-tester race -u https://shop.example.com/apply-coupon -c 50 \
     -method POST -body '{"code":"SAVE50"}' -H "Authorization: Bearer xxx"
 
-WAFtester v2.9.16 — Race Condition Testing
+WAFtester v2.9.17 — Race Condition Testing
 
 Target: https://shop.example.com/apply-coupon
 Attack: double_submit
@@ -2948,7 +2948,7 @@ waf-tester crawl -u https://target.com -depth 5 -max-pages 500
 ```
 $ waf-tester crawl -u https://shop.example.com -depth 4 -max-pages 200
 
-WAFtester v2.9.16 — Web Crawler
+WAFtester v2.9.17 — Web Crawler
 
 Target: https://shop.example.com
 Depth: 4 | Max Pages: 200
@@ -3112,7 +3112,7 @@ waf-tester analyze -file ./app.js
 ```
 $ waf-tester analyze -u https://app.example.com
 
-WAFtester v2.9.16 — JavaScript Analysis
+WAFtester v2.9.17 — JavaScript Analysis
 
 Target: https://app.example.com
 JavaScript files: 12
@@ -3276,7 +3276,7 @@ waf-tester headless -l targets.txt --stream
 ```
 $ waf-tester headless -u https://spa.example.com -screenshot -v
 
-WAFtester v2.9.16 — Headless Browser Testing
+WAFtester v2.9.17 — Headless Browser Testing
 
 Target: https://spa.example.com
 Browser: Chromium (embedded)
@@ -3451,7 +3451,7 @@ waf-tester discover -u https://example.com -output custom-discovery.json
 ```
 $ waf-tester discover -u https://shop.example.com
 
-WAFtester v2.9.16 — Endpoint Discovery
+WAFtester v2.9.17 — Endpoint Discovery
 
 Target: https://shop.example.com
 
@@ -3528,7 +3528,7 @@ waf-tester run -u https://example.com -c 50 -rl 200
 ```
 $ waf-tester run -plan testplan.json
 
-WAFtester v2.9.16 — Test Execution
+WAFtester v2.9.17 — Test Execution
 
 Plan: testplan.json
 Endpoints: 148
@@ -3633,7 +3633,7 @@ waf-tester workflow -f workflow.yaml -dry-run
 ```
 $ waf-tester workflow -f full-assessment.yaml -var "target=https://shop.example.com"
 
-WAFtester v2.9.16 — Workflow Orchestration
+WAFtester v2.9.17 — Workflow Orchestration
 
 Workflow: Full Security Assessment
 Steps: 4
@@ -5133,7 +5133,7 @@ waf-tester scan -u https://target.com -format cyclonedx -o waf-findings.vex.json
       {
         "vendor": "WAFtester",
         "name": "waf-tester",
-        "version": "2.9.16"
+        "version": "2.9.17"
       }
     ],
     "component": {
@@ -5207,10 +5207,10 @@ waf-tester scan -u https://target.com \
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<waftester-report version="2.9.16" generatedAt="2026-02-03T14:30:00Z">
+<waftester-report version="2.9.17" generatedAt="2026-02-03T14:30:00Z">
   <generator>
     <name>WAFtester</name>
-    <version>2.9.16</version>
+    <version>2.9.17</version>
   </generator>
   <target>
     <url>https://target.com</url>
@@ -5305,7 +5305,7 @@ export WAFTESTER_ELASTICSEARCH_INDEX=security-waf
   "_source": {
     "@timestamp": "2026-02-03T14:30:00Z",
     "tool": "waftester",
-    "version": "2.9.16",
+    "version": "2.9.17",
     "target": "https://target.com",
     "waf_vendor": "Cloudflare",
     "category": "sqli",
@@ -5405,7 +5405,7 @@ A WAF bypass was detected during security testing.
 - Test with additional evasion techniques
 
 ---
-*Created by WAFtester v2.9.16*
+*Created by WAFtester v2.9.17*
 ```
 
 ### Azure DevOps Integration (v2.6.8+)
@@ -5724,7 +5724,7 @@ waf-tester scan -u https://target.com \
     {
       "type": "context",
       "elements": [
-        { "type": "mrkdwn", "text": "WAFtester v2.9.16 | Scan ID: a1b2c3d4 | 2026-02-03T14:30:00Z" }
+        { "type": "mrkdwn", "text": "WAFtester v2.9.17 | Scan ID: a1b2c3d4 | 2026-02-03T14:30:00Z" }
       ]
     }
   ]
@@ -5875,7 +5875,7 @@ waf-tester scan -u https://target.com \
       "resource": {
         "attributes": [
           { "key": "service.name", "value": { "stringValue": "waf-tester" } },
-          { "key": "service.version", "value": { "stringValue": "2.9.16" } }
+          { "key": "service.version", "value": { "stringValue": "2.9.17" } }
         ]
       },
       "scopeSpans": [
@@ -7027,7 +7027,7 @@ Each payload test produces one of these outcomes:
 ### Reading the summary output
 
 ```text
-WAFtester v2.9.16 — Assessment Complete
+WAFtester v2.9.17 — Assessment Complete
 Target:    https://example.com
 WAF:       Cloudflare (94% confidence)
 
@@ -7921,7 +7921,7 @@ docker run --rm ghcr.io/waftester/waftester \
   scan -u https://example.com -category sqli,xss
 
 # Use a specific version
-docker run -p 8080:8080 ghcr.io/waftester/waftester:2.9.16
+docker run -p 8080:8080 ghcr.io/waftester/waftester:2.9.17
 ```
 
 #### Available Image Tags
@@ -7929,7 +7929,7 @@ docker run -p 8080:8080 ghcr.io/waftester/waftester:2.9.16
 | Tag | Description |
 |-----|-------------|
 | `latest` | Latest stable release |
-| `2.9.16` | Exact version (semver) |
+| `2.9.17` | Exact version (semver) |
 | `2.9`, `2` | Minor/major aliases |
 | `edge` | Latest `main` branch build |
 | `sha-abc1234` | Specific commit |
@@ -7943,7 +7943,7 @@ The repository includes a `docker-compose.yml` for local builds:
 docker compose up --build
 
 # With version metadata
-VERSION=2.9.16 COMMIT=$(git rev-parse --short HEAD) \
+VERSION=2.9.17 COMMIT=$(git rev-parse --short HEAD) \
   BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
   docker compose up --build
 
