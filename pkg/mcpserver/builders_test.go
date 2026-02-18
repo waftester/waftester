@@ -217,7 +217,7 @@ func TestBuildScanNextSteps_WithBypasses(t *testing.T) {
 	results := output.ExecutionResults{
 		TotalTests:   100,
 		BlockedTests: 85,
-		FailedTests:  15,
+		PassedTests:  15, // 15 payloads bypassed the WAF
 	}
 	args := scanArgs{Target: "https://example.com"}
 	steps := buildScanNextSteps(results, args)
