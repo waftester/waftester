@@ -534,6 +534,8 @@ func (s *Server) runSync(
 		return errorResult(fmt.Sprintf("%s was cancelled", toolName)), nil
 	default:
 		// Shouldn't happen — workFn should call Complete or Fail.
+		// Transition to terminal state to avoid permanently consuming an active task slot.
+		task.Fail(fmt.Sprintf("tool returned without reporting completion or failure (state: %s)", snap.Status))
 		return errorResult(fmt.Sprintf("%s ended in unexpected state: %s", toolName, snap.Status)), nil
 	}
 }

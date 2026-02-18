@@ -403,11 +403,15 @@ func sseKeepAlive(next http.Handler) http.Handler {
 			ResponseWriter: w,
 			flusher:        flusher,
 			done:           make(chan struct{}),
+			stopped:        make(chan struct{}),
 		}
 
 		// Start keep-alive goroutine.
 		go kw.keepAliveLoop()
-		defer close(kw.done)
+		defer func() {
+			close(kw.done)
+			<-kw.stopped // wait for goroutine to exit before handler returns
+		}()
 
 		next.ServeHTTP(kw, r)
 	})
@@ -421,6 +425,7 @@ type keepAliveWriter struct {
 	http.ResponseWriter
 	flusher http.Flusher
 	done    chan struct{}
+	stopped chan struct{} // closed when keepAliveLoop exits
 }
 
 // WriteHeader serializes access to the underlying ResponseWriter.
@@ -454,6 +459,7 @@ func (kw *keepAliveWriter) Unwrap() http.ResponseWriter {
 }
 
 func (kw *keepAliveWriter) keepAliveLoop() {
+	defer close(kw.stopped)
 	ticker := time.NewTicker(sseKeepAliveInterval)
 	defer ticker.Stop()
 
