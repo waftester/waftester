@@ -30,12 +30,13 @@ import (
 
 // asyncToolNames is the canonical set of tool names passed to launchAsync.
 // It must match the actual calls in the codebase:
-//   pkg/mcpserver/tools_scan.go:       "scan", "assess"
-//   pkg/mcpserver/tools_waf.go:        "bypass"
-//   pkg/mcpserver/tools_discovery.go:  "discover"
-//   pkg/mcpserver/tool_spec.go:        "scan_spec"
-//   pkg/mcpserver/tools_tamper.go:     "discover_bypasses"
-//   pkg/mcpserver/tools_headless.go:   "event_crawl"
+//
+//	pkg/mcpserver/tools_scan.go:       "scan", "assess"
+//	pkg/mcpserver/tools_waf.go:        "bypass"
+//	pkg/mcpserver/tools_discovery.go:  "discover"
+//	pkg/mcpserver/tool_spec.go:        "scan_spec"
+//	pkg/mcpserver/tools_tamper.go:     "discover_bypasses"
+//	pkg/mcpserver/tools_headless.go:   "event_crawl"
 //
 // If a new launchAsync tool is added and this list is not updated, the
 // enum consistency test below will catch the missing entry.
@@ -371,16 +372,16 @@ func TestGenerateCICD_CronSafePattern_NotOverRestrictive(t *testing.T) {
 	t.Parallel()
 
 	validSchedules := []string{
-		"0 2 * * 1",       // specific day
-		"0 0 * * *",       // daily midnight
-		"0 */6 * * *",     // every 6 hours
-		"15 14 1 * *",     // specific time and day of month
-		"0 9 * * 1-5",     // weekdays (range with dash)
-		"@weekly",         // shorthand
-		"@daily",          // shorthand
-		"@monthly",        // shorthand
-		"0,30 * * * *",    // multiple minutes (comma)
-		"0 2,14 * * 1-5",  // complex multi-value
+		"0 2 * * 1",      // specific day
+		"0 0 * * *",      // daily midnight
+		"0 */6 * * *",    // every 6 hours
+		"15 14 1 * *",    // specific time and day of month
+		"0 9 * * 1-5",    // weekdays (range with dash)
+		"@weekly",        // shorthand
+		"@daily",         // shorthand
+		"@monthly",       // shorthand
+		"0,30 * * * *",   // multiple minutes (comma)
+		"0 2,14 * * 1-5", // complex multi-value
 	}
 
 	cs := newTestSession(t)
