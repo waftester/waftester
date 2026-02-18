@@ -71,8 +71,9 @@ Returns: list of {encoder, encoded_payload} pairs ready for copy-paste testing.`
 }
 
 type mutateArgs struct {
-	Payload  string   `json:"payload"`
-	Encoders []string `json:"encoders"`
+	Payload   string   `json:"payload"`
+	Encoders  []string `json:"encoders"`
+	Encodings []string `json:"encodings"`
 }
 
 type mutateResult struct {
@@ -97,6 +98,9 @@ func (s *Server) handleMutate(_ context.Context, req *mcp.CallToolRequest) (*mcp
 
 	if args.Payload == "" {
 		return errorResult("payload is required. Example: {\"payload\": \"' OR 1=1--\"}"), nil
+	}
+	if len(args.Encoders) == 0 && len(args.Encodings) > 0 {
+		args.Encoders = args.Encodings
 	}
 
 	variants := applyBasicEncodings(args.Payload, args.Encoders)
