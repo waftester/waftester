@@ -25,6 +25,9 @@ type DNSCache struct {
 
 	// negativeTTL is how long failed lookups are cached
 	negativeTTL time.Duration
+
+	// stopEviction signals the background eviction goroutine to stop
+	stopEviction chan struct{}
 }
 
 // cacheEntry holds cached DNS results
@@ -52,13 +55,61 @@ func GetDNSCache() *DNSCache {
 // NewDNSCache creates a new DNS cache with the specified TTL.
 // - ttl: how long successful lookups are cached
 // - negativeTTL: how long failed lookups are cached
+//
+// The cache starts a background goroutine that evicts expired entries
+// every 2*ttl. Call Close() to stop it when done.
 func NewDNSCache(ttl, negativeTTL time.Duration) *DNSCache {
-	return &DNSCache{
+	d := &DNSCache{
 		resolver: &net.Resolver{
 			PreferGo: true, // Use Go's resolver for better control
 		},
-		ttl:         ttl,
-		negativeTTL: negativeTTL,
+		ttl:          ttl,
+		negativeTTL:  negativeTTL,
+		stopEviction: make(chan struct{}),
+	}
+
+	// Background eviction of expired entries to prevent unbounded memory growth
+	go d.evictionLoop(2 * ttl)
+
+	return d
+}
+
+// Close stops the background eviction goroutine.
+func (d *DNSCache) Close() {
+	select {
+	case <-d.stopEviction:
+		// already closed
+	default:
+		close(d.stopEviction)
+	}
+}
+
+// evictionLoop periodically removes expired cache entries.
+func (d *DNSCache) evictionLoop(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-d.stopEviction:
+			return
+		case <-ticker.C:
+			now := time.Now()
+			d.cache.Range(func(key, value interface{}) bool {
+				entry, ok := value.(*cacheEntry)
+				if !ok {
+					d.cache.Delete(key)
+					return true
+				}
+				entry.mu.RLock()
+				expired := now.After(entry.expiresAt)
+				entry.mu.RUnlock()
+				if expired {
+					d.cache.Delete(key)
+				}
+				return true
+			})
+		}
 	}
 }
 

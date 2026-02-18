@@ -169,7 +169,13 @@ func (es *ExternalSources) ParseSitemaps(ctx context.Context, targetURL string) 
 }
 
 func (es *ExternalSources) fetchSitemap(ctx context.Context, sitemapURL string, seen map[string]bool) ([]SitemapURL, error) {
-	if seen[sitemapURL] {
+	return es.fetchSitemapRecursive(ctx, sitemapURL, seen, 0)
+}
+
+const maxSitemapDepth = 5
+
+func (es *ExternalSources) fetchSitemapRecursive(ctx context.Context, sitemapURL string, seen map[string]bool, depth int) ([]SitemapURL, error) {
+	if depth > maxSitemapDepth || seen[sitemapURL] {
 		return nil, nil
 	}
 	seen[sitemapURL] = true
@@ -200,7 +206,7 @@ func (es *ExternalSources) fetchSitemap(ctx context.Context, sitemapURL string, 
 	if err := xml.Unmarshal(body, &index); err == nil && len(index.Sitemaps) > 0 {
 		var allURLs []SitemapURL
 		for _, sm := range index.Sitemaps {
-			urls, _ := es.fetchSitemap(ctx, sm.Loc, seen)
+			urls, _ := es.fetchSitemapRecursive(ctx, sm.Loc, seen, depth+1)
 			allURLs = append(allURLs, urls...)
 		}
 		return allURLs, nil

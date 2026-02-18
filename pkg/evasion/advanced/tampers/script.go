@@ -30,6 +30,16 @@ var safeModules = stdlib.GetModuleMap("text", "fmt", "math", "times")
 // The script must define: name (string), description (string), transform (function).
 // Optional: category (string), priority (int), tags (array of strings).
 func LoadScriptTamper(path string) (*ScriptTamper, error) {
+	const maxScriptSize = 1024 * 1024 // 1 MB
+
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("stat tamper script %s: %w", path, err)
+	}
+	if info.Size() > maxScriptSize {
+		return nil, fmt.Errorf("tamper script %s is too large (%d bytes, max %d)", path, info.Size(), maxScriptSize)
+	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read tamper script %s: %w", path, err)

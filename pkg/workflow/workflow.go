@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"text/template"
 	"time"
 
 	"github.com/waftester/waftester/pkg/retry"
@@ -413,14 +412,39 @@ func (e *Engine) executeStep(ctx context.Context, step *Step, vars map[string]st
 		return result
 	}
 
-	// Build command
-	var cmd *exec.Cmd
-	if isWafTesterCommand(command) {
-		// Internal waf-tester command
-		cmdArgs := append([]string{command}, args...)
-		cmd = exec.CommandContext(ctx, e.WafTesterPath, cmdArgs...)
-	} else {
-		// External command - validate against allowlist for security
+	// Build command factory — exec.Cmd cannot be reused after CombinedOutput,
+	// so we recreate it on each retry attempt.
+	buildCmd := func() *exec.Cmd {
+		var c *exec.Cmd
+		if isWafTesterCommand(command) {
+			cmdArgs := append([]string{command}, args...)
+			c = exec.CommandContext(ctx, e.WafTesterPath, cmdArgs...)
+		} else {
+			c = exec.CommandContext(ctx, command, args...)
+		}
+
+		// Set working directory
+		if step.WorkDir != "" {
+			c.Dir = e.expand(step.WorkDir, vars)
+		} else if e.WorkDir != "" {
+			c.Dir = e.WorkDir
+		}
+
+		// Set environment
+		c.Env = os.Environ()
+		for k, v := range step.Env {
+			c.Env = append(c.Env, fmt.Sprintf("%s=%s", k, e.expand(v, vars)))
+		}
+
+		// Handle input
+		if inputData != "" {
+			c.Stdin = strings.NewReader(inputData)
+		}
+		return c
+	}
+
+	// Validate external command allowlist before building
+	if !isWafTesterCommand(command) {
 		if !e.isAllowedExternalCommand(command) {
 			result.Status = "failed"
 			result.Error = fmt.Sprintf("security: command %q is not in the allowed command list", command)
@@ -428,25 +452,6 @@ func (e *Engine) executeStep(ctx context.Context, step *Step, vars map[string]st
 			result.Duration = result.EndTime.Sub(result.StartTime)
 			return result
 		}
-		cmd = exec.CommandContext(ctx, command, args...)
-	}
-
-	// Set working directory
-	if step.WorkDir != "" {
-		cmd.Dir = e.expand(step.WorkDir, vars)
-	} else if e.WorkDir != "" {
-		cmd.Dir = e.WorkDir
-	}
-
-	// Set environment
-	cmd.Env = os.Environ()
-	for k, v := range step.Env {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, e.expand(v, vars)))
-	}
-
-	// Handle input
-	if inputData != "" {
-		cmd.Stdin = strings.NewReader(inputData)
 	}
 
 	// Execute with retries
@@ -463,6 +468,7 @@ func (e *Engine) executeStep(ctx context.Context, step *Step, vars map[string]st
 		MaxDelay:    30 * time.Second,
 		Strategy:    retry.Linear,
 	}, func() error {
+		cmd := buildCmd()
 		var cmdErr error
 		output, cmdErr = cmd.CombinedOutput()
 		return cmdErr
@@ -572,23 +578,16 @@ func generateMatrixCombinations(matrix map[string][]string) []map[string]string 
 	return result
 }
 
+// expand performs simple string variable substitution on input.
+// Uses plain string replacement instead of text/template to avoid
+// template injection from untrusted workflow YAML files.
 func (e *Engine) expand(input string, vars map[string]string) string {
-	tmpl, err := template.New("").Parse(input)
-	if err != nil {
-		// Fallback to simple replacement
-		result := input
-		for k, v := range vars {
-			result = strings.ReplaceAll(result, "{{"+k+"}}", v)
-			result = strings.ReplaceAll(result, "{{."+k+"}}", v)
-		}
-		return result
+	result := input
+	for k, v := range vars {
+		result = strings.ReplaceAll(result, "{{"+k+"}}", v)
+		result = strings.ReplaceAll(result, "{{."+k+"}}", v)
 	}
-
-	var buf strings.Builder
-	if err := tmpl.Execute(&buf, vars); err != nil {
-		return input
-	}
-	return buf.String()
+	return result
 }
 
 func (e *Engine) evaluateCondition(condition string, vars map[string]string) bool {

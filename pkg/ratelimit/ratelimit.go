@@ -33,6 +33,11 @@ type Config struct {
 	// PerHost enables per-host rate limiting (ffuf style)
 	PerHost bool
 
+	// MaxHosts limits the number of per-host rate limiters kept in memory.
+	// When exceeded, the least-recently-used host limiter is evicted.
+	// 0 means default (1000). Only applies when PerHost is true.
+	MaxHosts int
+
 	// AdaptiveSlowdown reduces rate on errors
 	AdaptiveSlowdown bool
 	SlowdownFactor   float64 // Multiply delay by this on error (default 1.5)
@@ -75,6 +80,8 @@ type Limiter struct {
 	// Per-host limiters (when PerHost is enabled)
 	hostLimiters   map[string]*Limiter
 	hostLimitersMu sync.RWMutex
+	hostLRU        []string // LRU order: oldest at front, most recent at back
+	maxHosts       int      // 0 means no limit
 
 	// Adaptive state
 	currentDelay time.Duration
@@ -193,11 +200,17 @@ func New(cfg *Config) *Limiter {
 		cfg = DefaultConfig()
 	}
 
+	maxHosts := cfg.MaxHosts
+	if maxHosts <= 0 {
+		maxHosts = 1000 // sensible default to prevent unbounded growth
+	}
+
 	l := &Limiter{
 		config:          cfg,
 		lastRequestNano: time.Now().UnixNano(),
 		currentDelay:    cfg.Delay,
 		hostLimiters:    make(map[string]*Limiter),
+		maxHosts:        maxHosts,
 	}
 
 	// Set up token bucket for per-second limiting
@@ -242,6 +255,10 @@ func (l *Limiter) getOrCreateHostLimiter(host string) *Limiter {
 	l.hostLimitersMu.RUnlock()
 
 	if ok {
+		// Move to back of LRU (most recently used) under write lock
+		l.hostLimitersMu.Lock()
+		l.touchLRU(host)
+		l.hostLimitersMu.Unlock()
 		return hl
 	}
 
@@ -250,7 +267,13 @@ func (l *Limiter) getOrCreateHostLimiter(host string) *Limiter {
 
 	// Double-check after acquiring write lock
 	if hl, ok = l.hostLimiters[host]; ok {
+		l.touchLRU(host)
 		return hl
+	}
+
+	// Evict oldest host if at capacity
+	if l.maxHosts > 0 && len(l.hostLimiters) >= l.maxHosts {
+		l.evictOldestLRU()
 	}
 
 	// Create new per-host limiter with same config (but no per-host recursion)
@@ -258,8 +281,32 @@ func (l *Limiter) getOrCreateHostLimiter(host string) *Limiter {
 	hostConfig.PerHost = false
 	hl = New(&hostConfig)
 	l.hostLimiters[host] = hl
+	l.hostLRU = append(l.hostLRU, host)
 
 	return hl
+}
+
+// touchLRU moves host to the back of the LRU list.
+// Caller must hold hostLimitersMu write lock.
+func (l *Limiter) touchLRU(host string) {
+	for i, h := range l.hostLRU {
+		if h == host {
+			l.hostLRU = append(l.hostLRU[:i], l.hostLRU[i+1:]...)
+			l.hostLRU = append(l.hostLRU, host)
+			return
+		}
+	}
+}
+
+// evictOldestLRU removes the least-recently-used host limiter.
+// Caller must hold hostLimitersMu write lock.
+func (l *Limiter) evictOldestLRU() {
+	if len(l.hostLRU) == 0 {
+		return
+	}
+	oldest := l.hostLRU[0]
+	l.hostLRU = l.hostLRU[1:]
+	delete(l.hostLimiters, oldest)
 }
 
 func (l *Limiter) waitInternal(ctx context.Context) error {
@@ -423,6 +470,12 @@ func (l *Limiter) ClearHost(host string) {
 	l.hostLimitersMu.Lock()
 	defer l.hostLimitersMu.Unlock()
 	delete(l.hostLimiters, host)
+	for i, h := range l.hostLRU {
+		if h == host {
+			l.hostLRU = append(l.hostLRU[:i], l.hostLRU[i+1:]...)
+			break
+		}
+	}
 }
 
 // ClearAllHosts removes all per-host rate limiters.
@@ -431,6 +484,7 @@ func (l *Limiter) ClearAllHosts() {
 	l.hostLimitersMu.Lock()
 	defer l.hostLimitersMu.Unlock()
 	l.hostLimiters = make(map[string]*Limiter)
+	l.hostLRU = l.hostLRU[:0]
 }
 
 // MultiLimiter combines multiple rate limiters (e.g., global + per-host)

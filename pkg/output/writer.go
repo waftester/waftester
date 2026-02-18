@@ -824,8 +824,8 @@ func (w *MarkdownWriter) Close() (retErr error) {
 	}
 
 	sb.WriteString("## Summary\n\n")
-	sb.WriteString(fmt.Sprintf("| Metric | Count |\n"))
-	sb.WriteString(fmt.Sprintf("|--------|-------|\n"))
+	sb.WriteString("| Metric | Count |\n")
+	sb.WriteString("|--------|-------|\n")
 	sb.WriteString(fmt.Sprintf("| Total | %d |\n", len(w.results)))
 	sb.WriteString(fmt.Sprintf("| ✅ Blocked | %d |\n", blocked))
 	sb.WriteString(fmt.Sprintf("| ✅ Pass | %d |\n", passed))
@@ -945,9 +945,9 @@ func (w *HTMLWriter) Close() (retErr error) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WAF Security Test Report</title>
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css" integrity="sha384-mMOF6fvuPJmio3XiR+1rJkeswfqLOaADVIOblSzTUjWGlDMY2hJFwGT3FIJjTGeF" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha384-1H217gwSVyLSIfaLxHbE7dRb3v4mYCKbpQvzx0cegeju1MVsGrX5xXxAvs/HgeFs" crossorigin="anonymous"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js" integrity="sha384-oeVtt02FVx8MWUoDsvfPwYuXpMkQqWC3GvlHFECcb2BFHP0+hWfSIy2WOqquTXm6" crossorigin="anonymous"></script>
     <style>
         :root {
             --critical: #dc3545;
