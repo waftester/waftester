@@ -14,6 +14,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
 )
@@ -174,7 +175,7 @@ func (ew *ElasticsearchWriter) bulkInsert(ctx context.Context, evts []events.Eve
 	if err != nil {
 		return fmt.Errorf("elasticsearch: request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
@@ -287,7 +288,7 @@ func (ew *ElasticsearchWriter) TestConnection(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("elasticsearch: connection failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))

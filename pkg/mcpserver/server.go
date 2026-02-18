@@ -598,25 +598,67 @@ func validateTargetURL(target string) error {
 		return fmt.Errorf("target URL %q points to a cloud metadata endpoint (SSRF protection)", target)
 	}
 
+	// Resolve DNS to catch rebinding services (nip.io, sslip.io, xip.io)
+	// that map arbitrary hostnames to metadata IPs.
+	if net.ParseIP(host) == nil {
+		// host is a DNS name, not a literal IP — resolve it
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		addrs, err := net.DefaultResolver.LookupHost(ctx, host)
+		if err == nil {
+			for _, addr := range addrs {
+				if isCloudMetadataHost(addr) {
+					return fmt.Errorf("target URL %q resolves to a cloud metadata endpoint %s (SSRF protection)", target, addr)
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
 // isCloudMetadataHost returns true if the host is a known cloud metadata endpoint.
 // Handles IPv6-mapped IPv4 addresses (e.g., ::ffff:169.254.169.254) to prevent
-// SSRF bypasses.
+// SSRF bypasses. Covers AWS, GCP, Azure, Oracle Cloud, Alibaba Cloud, and
+// DigitalOcean metadata services.
 func isCloudMetadataHost(host string) bool {
 	// Normalize: if the host is an IPv6-mapped IPv4, extract the IPv4 portion.
-	if ip := net.ParseIP(host); ip != nil {
+	ip := net.ParseIP(host)
+	if ip != nil {
 		if v4 := ip.To4(); v4 != nil {
 			host = v4.String()
+			ip = net.ParseIP(host) // re-parse normalized form
 		}
 	}
+
+	// Check known metadata IP/hostname entries
 	switch host {
 	case "169.254.169.254", // AWS, GCP, Azure IMDS
 		"metadata.google.internal", // GCP alternate
-		"100.100.100.200":          // Alibaba Cloud
+		"100.100.100.200",          // Alibaba Cloud
+		"192.0.0.192",              // Oracle Cloud IMDS
+		"168.63.129.16",            // Azure Wire Server
+		"fd00:ec2::254":            // AWS EC2 IPv6 metadata
 		return true
 	}
+
+	// Block the entire 169.254.0.0/16 link-local range — no legitimate scan
+	// target lives here, and variants like 169.254.42.42 can bypass the
+	// specific-IP check above.
+	if ip != nil {
+		linkLocal := net.IPNet{
+			IP:   net.IPv4(169, 254, 0, 0),
+			Mask: net.CIDRMask(16, 32),
+		}
+		if linkLocal.Contains(ip) {
+			return true
+		}
+		// Block IPv6 ULA range fd00::/8 — used for cloud metadata on some providers
+		if len(ip) == net.IPv6len && ip[0] == 0xfd {
+			return true
+		}
+	}
+
 	return false
 }
 
