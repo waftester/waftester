@@ -102,6 +102,9 @@ func (s *Server) handleDetectWAF(ctx context.Context, req *mcp.CallToolRequest) 
 	if timeout <= 0 {
 		timeout = 10 * time.Second
 	}
+	if timeout > 60*time.Second {
+		timeout = 60 * time.Second
+	}
 
 	notifyProgress(ctx, req, 0, 100, "Starting WAF detection on "+args.Target)
 	logToSession(ctx, req, logInfo, "Initiating WAF/CDN detection for "+args.Target)
@@ -541,6 +544,9 @@ func (s *Server) handleProbe(ctx context.Context, req *mcp.CallToolRequest) (*mc
 	timeout := time.Duration(args.Timeout) * time.Second
 	if timeout <= 0 {
 		timeout = 10 * time.Second
+	}
+	if timeout > 30*time.Second {
+		timeout = 30 * time.Second
 	}
 
 	notifyProgress(ctx, req, 0, 100, "Probing "+args.Target+"…")
