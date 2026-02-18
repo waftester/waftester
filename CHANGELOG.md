@@ -5,6 +5,16 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.17] - 2026-02-19
+
+### Fixed
+
+- **Scan detection rate miscounted bypasses** — Detection rate calculated `tested = BlockedTests + FailedTests` but `FailedTests` means execution errors, not bypasses. Against targets with no WAF, all payloads pass (`PassedTests`), so `tested=0` and interpretation was empty. Now uses `BlockedTests + PassedTests`.
+
+### Added
+
+- **MCP handler regression tests** — 58 new tests: 30 SSE transport tests simulating n8n client workflows plus 28 handler-level tests covering async lifecycle, input validation, SSRF consistency, payload truncation, and full E2E chains.
+
 ## [2.9.16] - 2026-02-18
 
 ### Fixed
@@ -2337,6 +2347,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.17]: https://github.com/waftester/waftester/compare/v2.9.16...v2.9.17
 [2.9.16]: https://github.com/waftester/waftester/compare/v2.9.15...v2.9.16
 [2.9.15]: https://github.com/waftester/waftester/compare/v2.9.14...v2.9.15
 [2.9.14]: https://github.com/waftester/waftester/compare/v2.9.13...v2.9.14
