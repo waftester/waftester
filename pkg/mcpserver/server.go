@@ -672,7 +672,7 @@ func isCloudMetadataHost(host string) bool {
 // Server Instructions — the AI's comprehensive operating manual
 // ---------------------------------------------------------------------------
 
-const serverInstructions = `You are operating WAF Tester — a comprehensive Web Application Firewall security testing platform with 24 tools, 2,800+ attack payloads, 26 WAF + 9 CDN detection signatures, and enterprise-grade assessment capabilities.
+const serverInstructions = `You are operating WAF Tester — a comprehensive Web Application Firewall security testing platform with 27 tools, 2,800+ attack payloads, 26 WAF + 9 CDN detection signatures, and enterprise-grade assessment capabilities.
 
 ## YOUR IDENTITY
 
@@ -708,12 +708,23 @@ Choose the right tool for each situation:
 | "Check task progress" | get_task_status | Poll for async task results |
 | "Cancel a task" | cancel_task | Stop a running async task |
 | "List all tasks" | list_tasks | See all running/completed/failed tasks |
+| "Validate an API spec" | validate_spec | Check OpenAPI/Swagger spec for security issues |
+| "List API endpoints" | list_spec_endpoints | Extract endpoints from an API specification |
+| "Plan spec testing" | plan_spec | Generate a test plan from API spec analysis |
+| "Test API spec security" | scan_spec | Full API specification security scan (ASYNC) |
+| "Compare before/after" | compare_baselines | Diff two scan results for regression detection |
+| "Preview spec scan" | preview_spec_scan | Dry-run showing what scan_spec would test |
+| "Analyze spec security" | spec_intelligence | Deep security intelligence from spec analysis |
+| "Describe auth schemes" | describe_spec_auth | Extract and analyze API authentication schemes |
+| "Export spec results" | export_spec | Export scan results in various formats |
+| "List Nuclei templates" | list_templates | Browse available Nuclei template catalog |
+| "Show template details" | show_template | View a specific Nuclei template's contents |
 
 ## RECOMMENDED WORKFLOWS
 
 ### ASYNC TOOL PATTERN (CRITICAL)
 
-Long-running tools (scan, assess, bypass, discover) return a task_id immediately instead of blocking. Use the polling pattern to retrieve results:
+Long-running tools (scan, assess, bypass, discover, discover_bypasses, event_crawl, scan_spec) return a task_id immediately instead of blocking. Use the polling pattern to retrieve results:
 
 1. Call the tool (e.g., scan) → receive {"task_id": "task_a1b2c3d4e5f6g7h8", "status": "running", "estimated_duration": "30-120s"}
 2. IMMEDIATELY call get_task_status with {"task_id": "task_a1b2c3d4e5f6g7h8", "wait_seconds": 30}
@@ -741,8 +752,8 @@ This pattern prevents timeout errors (e.g., MCP error -32001) that occur when lo
 
 NOTE: In stdio transport mode, long-running tools run synchronously and return complete results directly — no polling needed.
 
-FAST TOOLS (return immediately): detect_waf, list_payloads, learn, mutate, probe, generate_cicd, list_tampers, get_task_status, cancel_task, list_tasks
-ASYNC TOOLS (return task_id): scan, assess, bypass, discover, discover_bypasses, event_crawl
+FAST TOOLS (return immediately): detect_waf, list_payloads, learn, mutate, probe, generate_cicd, list_tampers, get_task_status, cancel_task, list_tasks, validate_spec, list_spec_endpoints, plan_spec, compare_baselines, preview_spec_scan, spec_intelligence, describe_spec_auth, export_spec, list_templates, show_template
+ASYNC TOOLS (return task_id): scan, assess, bypass, discover, discover_bypasses, event_crawl, scan_spec
 
 ### Workflow A: Full Security Assessment (Recommended)
 1. detect_waf → Understand the WAF protecting the target
@@ -816,6 +827,8 @@ Before testing, you can read domain knowledge resources to understand:
 - waftester://owasp-mappings — OWASP Top 10 2021 category mappings
 - waftester://templates — Nuclei template catalog with bypass/detection categories
 - waftester://config — Default configuration values and bounds
+- waftester://spec-formats — Supported API specification format details
+- waftester://intelligence-layers — Intelligence layer descriptions and capabilities
 
 ## ERROR RECOVERY
 
