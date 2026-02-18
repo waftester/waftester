@@ -132,7 +132,7 @@ docker compose down
 The compose file sets `read_only: true`, `no-new-privileges`, and a
 64 MB `tmpfs` at `/tmp` for security hardening.
 
-### Environment Variables
+### Docker Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -171,7 +171,8 @@ go build -o waf-tester ./cmd/cli
 
 ## MCP Server Setup
 
-The MCP server is built into the `waf-tester` binary. No additional installation is required.
+The MCP server is built into the `waf-tester` binary.
+No additional installation is required.
 
 ### Stdio Mode (IDE Integrations)
 
@@ -183,7 +184,10 @@ waf-tester mcp
 
 #### Claude Desktop
 
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+Add to your Claude Desktop config:
+
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
