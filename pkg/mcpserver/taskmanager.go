@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sort"
 	"sync"
 	"time"
 	// Note: time is used for timestamps (CreatedAt/UpdatedAt), not for RNG.
@@ -426,6 +427,9 @@ func (tm *TaskManager) List(statusFilter ...TaskStatus) []TaskSnapshot {
 		}
 		snapshots = append(snapshots, snap)
 	}
+	sort.Slice(snapshots, func(i, j int) bool {
+		return snapshots[i].CreatedAt.Before(snapshots[j].CreatedAt)
+	})
 	return snapshots
 }
 

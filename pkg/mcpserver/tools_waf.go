@@ -568,6 +568,10 @@ func probeTarget(ctx context.Context, target string, timeout time.Duration, skip
 		if len(redirectChain) > 10 {
 			return http.ErrUseLastResponse
 		}
+		// Re-validate redirect target against SSRF blocklist.
+		if err := validateTargetURL(r.URL.String()); err != nil {
+			return fmt.Errorf("redirect blocked (SSRF protection): %w", err)
+		}
 		return nil
 	}
 
