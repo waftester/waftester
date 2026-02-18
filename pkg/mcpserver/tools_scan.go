@@ -345,9 +345,11 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 
 		execResults := executor.Execute(taskCtx, filtered, &discardWriter{})
 
-		// Calculate detection rate
+		// Calculate detection rate.
+		// tested = payloads that got a definitive result (blocked or passed through).
+		// FailedTests are execution errors and don't count toward detection rate.
 		detectionRate := ""
-		tested := execResults.BlockedTests + execResults.FailedTests
+		tested := execResults.BlockedTests + execResults.PassedTests
 		if tested > 0 {
 			rate := float64(execResults.BlockedTests) / float64(tested) * 100
 			if execResults.HostsSkipped > 0 {
@@ -367,17 +369,18 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		cancelled := taskCtx.Err() != nil
 		if tested > 0 {
 			rate := float64(execResults.BlockedTests) / float64(tested) * 100
+			bypassed := execResults.PassedTests
 			switch {
 			case rate >= 95:
 				summary.Interpretation = fmt.Sprintf("Excellent WAF coverage (%.1f%%). The WAF blocked %d of %d attack payloads. Very few bypasses detected.", rate, execResults.BlockedTests, tested)
 			case rate >= 85:
-				summary.Interpretation = fmt.Sprintf("Good WAF coverage (%.1f%%), but %d payloads bypassed detection. Review the bypass details below and consider adding custom rules.", rate, execResults.FailedTests)
+				summary.Interpretation = fmt.Sprintf("Good WAF coverage (%.1f%%), but %d payloads bypassed detection. Review the bypass details below and consider adding custom rules.", rate, bypassed)
 			case rate >= 70:
-				summary.Interpretation = fmt.Sprintf("Moderate WAF coverage (%.1f%%). %d payloads bypassed the WAF — significant gaps exist that need rule tuning.", rate, execResults.FailedTests)
+				summary.Interpretation = fmt.Sprintf("Moderate WAF coverage (%.1f%%). %d payloads bypassed the WAF — significant gaps exist that need rule tuning.", rate, bypassed)
 			case rate >= 50:
-				summary.Interpretation = fmt.Sprintf("Weak WAF coverage (%.1f%%). %d of %d payloads bypassed detection. The WAF needs major rule updates or reconfiguration.", rate, execResults.FailedTests, tested)
+				summary.Interpretation = fmt.Sprintf("Weak WAF coverage (%.1f%%). %d of %d payloads bypassed detection. The WAF needs major rule updates or reconfiguration.", rate, bypassed, tested)
 			default:
-				summary.Interpretation = fmt.Sprintf("Critical: WAF is largely ineffective (%.1f%% detection). %d of %d payloads bypassed. Consider the WAF misconfigured or disabled for this endpoint.", rate, execResults.FailedTests, tested)
+				summary.Interpretation = fmt.Sprintf("Critical: WAF is largely ineffective (%.1f%% detection). %d of %d payloads bypassed. Consider the WAF misconfigured or disabled for this endpoint.", rate, bypassed, tested)
 			}
 			if cancelled {
 				summary.Interpretation = "PARTIAL RESULTS (scan was cancelled): " + summary.Interpretation
@@ -392,10 +395,10 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 
 		if execResults.HostsSkipped > 0 {
 			summary.Summary = fmt.Sprintf("Scanned %s with %d payloads. Detection rate: %s. Blocked: %d, Bypassed: %d, Errors: %d, Skipped: %d (host unreachable).",
-				args.Target, execResults.TotalTests, detectionRate, execResults.BlockedTests, execResults.FailedTests, execResults.ErrorTests, execResults.HostsSkipped)
+				args.Target, execResults.TotalTests, detectionRate, execResults.BlockedTests, execResults.PassedTests, execResults.ErrorTests, execResults.HostsSkipped)
 		} else {
 			summary.Summary = fmt.Sprintf("Scanned %s with %d payloads. Detection rate: %s. Blocked: %d, Bypassed: %d, Errors: %d.",
-				args.Target, execResults.TotalTests, detectionRate, execResults.BlockedTests, execResults.FailedTests, execResults.ErrorTests)
+				args.Target, execResults.TotalTests, detectionRate, execResults.BlockedTests, execResults.PassedTests, execResults.ErrorTests)
 		}
 
 		summary.NextSteps = buildScanNextSteps(execResults, args)
@@ -448,10 +451,11 @@ func (w *discardWriter) Close() error                     { return nil }
 // buildScanNextSteps generates contextual next steps based on scan results.
 func buildScanNextSteps(results output.ExecutionResults, args scanArgs) []string {
 	steps := make([]string, 0, 4)
+	bypassed := results.PassedTests // passedTests = payloads that got through the WAF
 
-	if results.FailedTests > 0 {
+	if bypassed > 0 {
 		steps = append(steps,
-			fmt.Sprintf("CRITICAL: %d bypasses found. Use 'bypass' tool to test WAF-evasion mutations against %s and discover additional bypass variants.", results.FailedTests, args.Target))
+			fmt.Sprintf("CRITICAL: %d bypasses found. Use 'bypass' tool to test WAF-evasion mutations against %s and discover additional bypass variants.", bypassed, args.Target))
 		steps = append(steps,
 			"Use 'mutate' with the bypassed payloads to generate encoded variants (URL, double-URL, Unicode, HTML hex) for deeper testing.")
 		steps = append(steps,
@@ -460,7 +464,7 @@ func buildScanNextSteps(results output.ExecutionResults, args scanArgs) []string
 		steps = append(steps,
 			fmt.Sprintf("All %d payloads were blocked — excellent WAF coverage for these categories.", results.BlockedTests))
 		steps = append(steps,
-			fmt.Sprintf("Use 'bypass' to test mutation-based evasions (encoding × location × technique) — WAF may miss encoded variants."))
+			"Use 'bypass' to test mutation-based evasions (encoding × location × technique) — WAF may miss encoded variants.")
 		if len(args.Categories) > 0 {
 			steps = append(steps,
 				"Run 'scan' with additional categories to broaden coverage (try adding 'ssrf', 'ssti', 'cmdi', 'xxe').")
