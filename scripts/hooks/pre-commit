@@ -170,6 +170,7 @@ for file in $STAGED_FILES; do
     [ -f "$file" ] || continue
     case "$file" in
         *.env*|*.pem|*.key) continue ;; # Handled by .gitignore
+        *_test.go) continue ;; # Test files use fake secrets for detection testing
     esac
     if grep -nP '(password|secret|api_key|token|private_key)\s*[:=]\s*["\x27][^"\x27]{8,}' "$file" 2>/dev/null | head -1 | grep -qi .; then
         echo "BLOCKED: $file may contain hardcoded secret" >&2
