@@ -15,6 +15,18 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 )
 
+// isWindowsAbsPath detects Windows-style drive-letter paths (e.g. C:\... or D:/).
+// filepath.IsAbs only recognizes these on Windows; on Linux it returns false,
+// letting attackers bypass path traversal checks in CI or Linux-hosted servers.
+func isWindowsAbsPath(p string) bool {
+	if len(p) < 3 {
+		return false
+	}
+	drive := p[0]
+	return ((drive >= 'A' && drive <= 'Z') || (drive >= 'a' && drive <= 'z')) &&
+		p[1] == ':' && (p[2] == '\\' || p[2] == '/')
+}
+
 // registerSpecTools adds spec-related MCP tools.
 func (s *Server) registerSpecTools() {
 	s.addValidateSpecTool()
@@ -76,12 +88,10 @@ func resolveSpecInput(ctx context.Context, content, path, url string) (*apispec.
 	switch {
 	case content != "":
 		spec, err = apispec.ParseContentContext(ctx, content)
-case path != "":
-		// Reject path traversal and absolute/rooted paths to prevent arbitrary file reads.
-		// Use both filepath.IsAbs and a separator-prefix check so that rooted paths like
-		// /etc/passwd (which become \etc\passwd on Windows) are blocked cross-platform.
+	case path != "":
+		// Reject path traversal, absolute, and rooted paths to prevent arbitrary file reads.
 		clean := filepath.Clean(path)
-		if filepath.IsAbs(clean) || strings.Contains(clean, "..") || strings.HasPrefix(clean, string(filepath.Separator)) {
+		if filepath.IsAbs(clean) || isWindowsAbsPath(clean) || strings.Contains(clean, "..") || strings.HasPrefix(clean, string(filepath.Separator)) {
 			return nil, errorResult("spec_path must be a relative path without '..' components")
 		}
 		spec, err = apispec.ParseContext(ctx, clean)
@@ -196,11 +206,9 @@ func (s *Server) handleValidateSpec(ctx context.Context, req *mcp.CallToolReques
 	case args.SpecContent != "":
 		spec, parseErr = apispec.ParseContentContext(ctx, args.SpecContent)
 	case args.SpecPath != "":
-		// Reject path traversal and absolute/rooted paths to prevent arbitrary file reads.
-		// Use both filepath.IsAbs and a separator-prefix check so that rooted paths like
-		// /etc/passwd (which become \etc\passwd on Windows) are blocked cross-platform.
+		// Reject path traversal, absolute, and rooted paths to prevent arbitrary file reads.
 		clean := filepath.Clean(args.SpecPath)
-		if filepath.IsAbs(clean) || strings.Contains(clean, "..") || strings.HasPrefix(clean, string(filepath.Separator)) {
+		if filepath.IsAbs(clean) || isWindowsAbsPath(clean) || strings.Contains(clean, "..") || strings.HasPrefix(clean, string(filepath.Separator)) {
 			return errorResult("spec_path must be a relative path without '..' components"), nil
 		}
 		spec, parseErr = apispec.ParseContext(ctx, clean)
