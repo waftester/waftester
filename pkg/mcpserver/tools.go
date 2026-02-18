@@ -7,6 +7,7 @@ import (
 	"log"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/waftester/waftester/pkg/payloadprovider"
@@ -105,6 +106,19 @@ func truncateString(s string, maxLen int) string {
 		return s
 	}
 	return string(runes[:maxLen])
+}
+
+// truncateBytes truncates s to at most maxBytes bytes, stepping back to the
+// nearest valid UTF-8 rune boundary to avoid producing an invalid UTF-8 fragment.
+func truncateBytes(s string, maxBytes int) string {
+	if len(s) <= maxBytes {
+		return s
+	}
+	// Step back from the byte limit until we land on a rune boundary.
+	for maxBytes > 0 && !utf8.RuneStart(s[maxBytes]) {
+		maxBytes--
+	}
+	return s[:maxBytes]
 }
 
 // categoryMeta holds rich metadata for each attack category — used to enrich
@@ -405,7 +419,10 @@ func (s *Server) handleListPayloads(_ context.Context, req *mcp.CallToolRequest)
 	}
 
 	// Enrich with Nuclei template payloads
-	unified, _ := provider.GetAll()
+	unified, err := provider.GetAll()
+	if err != nil {
+		log.Printf("[mcp] failed to load unified payloads: %v", err)
+	}
 	for _, up := range unified {
 		if up.Source == payloadprovider.SourceNuclei {
 			sev := up.Severity
@@ -472,7 +489,7 @@ func (s *Server) handleListPayloads(_ context.Context, req *mcp.CallToolRequest)
 	for _, p := range filtered[:limit] {
 		snippet := p.Payload
 		if len(snippet) > 120 {
-			snippet = snippet[:120] + "…"
+			snippet = truncateBytes(snippet, 120) + "…"
 		}
 		sev := p.SeverityHint
 		if sev == "" {

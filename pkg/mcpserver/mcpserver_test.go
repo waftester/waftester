@@ -4005,3 +4005,179 @@ func TestMalformedJSONDoesNotPanic(t *testing.T) {
 		})
 	}
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Code review regression tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+func TestOWASPMappings_DeterministicOrder(t *testing.T) {
+	// Regression: OWASP category-to-code reverse map used unsorted slice
+	// from map iteration, producing non-deterministic JSON output.
+	cs := newTestSession(t)
+	ctx := context.Background()
+
+	// Read the resource multiple times and verify identical output.
+	var firstJSON string
+	for i := 0; i < 10; i++ {
+		result, err := cs.ReadResource(ctx, &mcp.ReadResourceParams{URI: "waftester://owasp-mappings"})
+		if err != nil {
+			t.Fatalf("attempt %d: ReadResource(owasp-mappings): %v", i, err)
+		}
+		if len(result.Contents) == 0 {
+			t.Fatalf("attempt %d: no contents", i)
+		}
+
+		jsonStr := result.Contents[0].Text
+		if i == 0 {
+			firstJSON = jsonStr
+		} else if jsonStr != firstJSON {
+			t.Fatalf("non-deterministic OWASP output on attempt %d\nfirst: %s\ngot:   %s", i, firstJSON[:200], jsonStr[:200])
+		}
+	}
+}
+
+func TestGenerateCICD_RejectsShellInjection(t *testing.T) {
+	// Regression: generate_cicd embedded user-supplied target/scan_types
+	// directly into shell scripts without sanitization.
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	dangerousTargets := []struct {
+		name   string
+		target string
+	}{
+		{"semicolon", "https://example.com; rm -rf /"},
+		{"pipe", "https://example.com | cat /etc/passwd"},
+		{"backtick", "https://example.com`id`"},
+		{"dollar-paren", "https://example.com$(whoami)"},
+	}
+
+	for _, tt := range dangerousTargets {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+				Name:      "generate_cicd",
+				Arguments: json.RawMessage(fmt.Sprintf(`{"target": %q, "platform": "github"}`, tt.target)),
+			})
+			if err != nil {
+				t.Fatalf("CallTool error: %v", err)
+			}
+			if !result.IsError {
+				t.Fatalf("generate_cicd accepted dangerous target %q — expected rejection", tt.target)
+			}
+		})
+	}
+}
+
+func TestGenerateCICD_RejectsUnsafeScanType(t *testing.T) {
+	// Regression: scan_types were also embedded in shell scripts unsanitized.
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "generate_cicd",
+		Arguments: json.RawMessage(`{"target": "https://example.com", "platform": "github", "scan_types": ["sqli; rm -rf /"]}`),
+	})
+	if err != nil {
+		t.Fatalf("CallTool error: %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("generate_cicd accepted dangerous scan_type — expected rejection")
+	}
+}
+
+func TestPreviewSpecScan_SchemaDescription(t *testing.T) {
+	// Regression: schema said "Default: standard." but valid values use "normal".
+	cs := newTestSession(t)
+	ctx := context.Background()
+
+	result, err := cs.ListTools(ctx, &mcp.ListToolsParams{})
+	if err != nil {
+		t.Fatalf("ListTools: %v", err)
+	}
+
+	for _, tool := range result.Tools {
+		if tool.Name != "preview_spec_scan" {
+			continue
+		}
+
+		schemaBytes, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			t.Fatalf("failed to marshal schema: %v", err)
+		}
+		schema := string(schemaBytes)
+
+		// Must say "normal", not "standard" (which was the old bug).
+		if strings.Contains(schema, `Default: standard`) {
+			t.Fatal("preview_spec_scan schema still says 'Default: standard' — should be 'Default: normal'")
+		}
+		if !strings.Contains(schema, `Default: normal`) {
+			t.Fatal("preview_spec_scan schema missing 'Default: normal' description")
+		}
+		return
+	}
+	t.Fatal("preview_spec_scan tool not found")
+}
+
+func TestListTasks_DeterministicOrder(t *testing.T) {
+	// Regression: list_tasks returned tasks in map iteration order.
+	cs := newTestSession(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	// Launch several async tools to create tasks. detect_waf will fail on
+	// unreachable hosts, but the tasks still get created.
+	const taskCount = 3
+	taskIDs := make([]string, taskCount)
+	for i := 0; i < taskCount; i++ {
+		result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "detect_waf",
+			Arguments: json.RawMessage(fmt.Sprintf(`{"target": "https://nonexistent-%d.test"}`, i)),
+		})
+		if err != nil {
+			t.Fatalf("CallTool(detect_waf): %v", err)
+		}
+		// Extract task_id from the text response.
+		if len(result.Content) > 0 {
+			tc, ok := result.Content[0].(*mcp.TextContent)
+			if ok {
+				var resp map[string]any
+				if json.Unmarshal([]byte(tc.Text), &resp) == nil {
+					if id, ok := resp["task_id"].(string); ok {
+						taskIDs[i] = id
+					}
+				}
+			}
+		}
+		// Stagger to ensure distinct creation timestamps.
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	// Call list_tasks multiple times — order must be stable.
+	var firstOrder string
+	for attempt := 0; attempt < 5; attempt++ {
+		result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "list_tasks",
+			Arguments: json.RawMessage(`{}`),
+		})
+		if err != nil {
+			t.Fatalf("attempt %d: CallTool(list_tasks): %v", attempt, err)
+		}
+		if result.IsError {
+			continue
+		}
+		if len(result.Content) == 0 {
+			continue
+		}
+		tc, ok := result.Content[0].(*mcp.TextContent)
+		if !ok {
+			continue
+		}
+		if attempt == 0 {
+			firstOrder = tc.Text
+		} else if tc.Text != firstOrder {
+			t.Fatalf("non-deterministic task list on attempt %d", attempt)
+		}
+	}
+}
