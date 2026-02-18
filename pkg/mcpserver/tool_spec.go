@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -76,8 +77,17 @@ func resolveSpecInput(ctx context.Context, content, path, url string) (*apispec.
 	case content != "":
 		spec, err = apispec.ParseContentContext(ctx, content)
 	case path != "":
-		spec, err = apispec.ParseContext(ctx, path)
+		// Reject path traversal and absolute paths to prevent arbitrary file reads.
+		clean := filepath.Clean(path)
+		if filepath.IsAbs(clean) || strings.Contains(clean, "..") {
+			return nil, errorResult("spec_path must be a relative path without '..' components")
+		}
+		spec, err = apispec.ParseContext(ctx, clean)
 	case url != "":
+		// Validate spec_url against SSRF blocklist before fetching.
+		if urlErr := validateTargetURL(url); urlErr != nil {
+			return nil, errorResult(fmt.Sprintf("spec_url blocked: %v", urlErr))
+		}
 		spec, err = apispec.ParseContext(ctx, url)
 	}
 
@@ -608,11 +618,15 @@ func (s *Server) handleScanSpec(ctx context.Context, req *mcp.CallToolRequest) (
 			Result   *apispec.SpecScanResult `json:"result"`
 		}
 
-		data, _ := json.MarshalIndent(scanOutput{
+		data, err := json.MarshalIndent(scanOutput{
 			Target:   target,
 			Duration: time.Since(startTime).Round(time.Millisecond).String(),
 			Result:   scanResult,
 		}, "", "  ")
+		if err != nil {
+			task.Fail(fmt.Sprintf("marshaling scan result: %v", err))
+			return
+		}
 
 		task.Complete(json.RawMessage(data))
 	})
@@ -735,7 +749,7 @@ Result format: JSON with entries (endpoint, attack category, payload count), tot
 					p["intensity"] = map[string]any{
 						"type":        "string",
 						"enum":        []string{"quick", "normal", "deep", "paranoid"},
-						"description": "Scanning depth. Default: standard.",
+						"description": "Scanning depth. Default: normal.",
 					}
 					p["group"] = map[string]any{
 						"type":        "string",

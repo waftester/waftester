@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"sort"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -131,7 +133,10 @@ func (s *Server) addPayloadsResource() {
 			}
 
 			// Also get JSON-level stats for backward compat
-			all, _ := provider.JSONPayloads()
+			all, err := provider.JSONPayloads()
+			if err != nil {
+				log.Printf("[mcp] failed to load json payloads for stats: %v", err)
+			}
 			jsonStats := payloads.GetStats(all)
 
 			bySeverity := make(map[string]int)
@@ -211,7 +216,7 @@ func (s *Server) addPayloadsByCategoryResource() {
 			for _, up := range unified {
 				payload := up.Payload
 				if len(payload) > 120 {
-					payload = payload[:120] + "…"
+					payload = truncateBytes(payload, 120) + "…"
 				}
 				sev := up.Severity
 				if sev == "" {
@@ -636,6 +641,9 @@ func (s *Server) addOWASPMappingsResource() {
 			reverseMap := make(map[string][]string)
 			for category, code := range defaults.OWASPCategoryMapping {
 				reverseMap[code] = append(reverseMap[code], category)
+			}
+			for code := range reverseMap {
+				sort.Strings(reverseMap[code])
 			}
 
 			var entries []owaspEntry
