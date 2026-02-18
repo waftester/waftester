@@ -5,6 +5,23 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.15] - 2026-02-18
+
+### Fixed
+
+- **MCP server SSRF via spec_url** — `resolveSpecInput` fetched spec URLs without validating against the cloud metadata blocklist. Now calls `validateTargetURL` before fetching.
+- **MCP server path traversal via spec_path** — `resolveSpecInput` accepted absolute paths and `..` components, allowing arbitrary file reads. Now rejects both.
+- **MCP server SSRF via probe redirect chain** — `probeTarget` followed HTTP redirects without re-validating each hop against the SSRF blocklist. Redirect URLs are now checked.
+- **MCP server shell injection in generate_cicd** — Target URL and scan types were embedded in generated shell scripts without sanitization. Now rejects inputs containing shell metacharacters.
+- **MCP server non-deterministic task list** — `TaskManager.List()` returned tasks in Go map iteration order. Now sorted by creation time.
+- **MCP server non-deterministic OWASP categories** — OWASP reverse-map categories were appended from map iteration. Now sorted alphabetically.
+- **MCP server max_clicks suggestion exceeded schema** — Headless tool suggested `max_clicks` values above the schema maximum of 200. Now capped.
+- **MCP server schema description mismatch** — `preview_spec_scan` schema said "Default: standard" but valid values use "normal".
+- **MCP server silent error discards** — `GetAll()`, `JSONPayloads()`, and `json.MarshalIndent()` errors were silently discarded. Now logged or reported.
+- **MCP server UTF-8 unsafe truncation** — Payload snippet truncation used raw byte-index slicing, which could split multi-byte UTF-8 runes. Now steps back to the nearest rune boundary.
+- **MCP server keepAliveLoop goroutine leak** — SSE keep-alive goroutine outlived the HTTP handler. Now joined before handler returns.
+- **MCP server orphaned task slot leak** — `runSync` default case left tasks in running state when `workFn` returned without calling Complete/Fail. Now calls `task.Fail()`.
+
 ## [2.9.14] - 2026-02-18
 
 ### Fixed
@@ -2306,6 +2323,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.15]: https://github.com/waftester/waftester/compare/v2.9.14...v2.9.15
 [2.9.14]: https://github.com/waftester/waftester/compare/v2.9.13...v2.9.14
 [2.9.13]: https://github.com/waftester/waftester/compare/v2.9.12...v2.9.13
 [2.9.12]: https://github.com/waftester/waftester/compare/v2.9.11...v2.9.12
