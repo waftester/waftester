@@ -12,6 +12,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // CrossEndpointTestType identifies the kind of cross-endpoint test.
@@ -269,7 +270,7 @@ func executeIDORTest(ctx context.Context, test CrossEndpointTest, cfg CrossEndpo
 	if err != nil {
 		return CrossEndpointResult{Test: test, Error: fmt.Sprintf("request failed: %v", err)}
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	result := CrossEndpointResult{
 		Test:       test,
@@ -357,7 +358,7 @@ func executeRaceTest(ctx context.Context, test CrossEndpointTest, cfg CrossEndpo
 				errs[idx] = err
 				return
 			}
-			defer resp.Body.Close()
+			defer iohelper.DrainAndClose(resp.Body)
 			statusCodes[idx] = resp.StatusCode
 		}(i)
 	}
@@ -428,7 +429,7 @@ func executePrivescTest(ctx context.Context, test CrossEndpointTest, cfg CrossEn
 	if err != nil {
 		return CrossEndpointResult{Test: test, Error: fmt.Sprintf("request failed: %v", err)}
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	result := CrossEndpointResult{
 		Test:       test,

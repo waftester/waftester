@@ -33,7 +33,7 @@ func loggedTool(name string, fn toolHandler) toolHandler {
 		}
 		argStr := string(argBytes)
 		const maxArgLog = 200
-		if len(argStr) > maxArgLog {
+		if len([]rune(argStr)) > maxArgLog {
 			// Truncate at rune boundary to avoid splitting multi-byte UTF-8
 			argStr = truncateString(argStr, maxArgLog) + "..."
 		}
@@ -61,6 +61,7 @@ func loggedTool(name string, fn toolHandler) toolHandler {
 var sensitiveSubstrings = []string{
 	"secret", "password", "token", "credential", "key", "license",
 	"auth", "bearer", "jwt", "cookie", "session", "proxy",
+	"access", "private", "signing", "encrypt",
 }
 
 // isSensitiveKey returns true if the lowercased key contains any sensitive substring.
@@ -75,7 +76,8 @@ func isSensitiveKey(key string) bool {
 }
 
 // redactMap recursively redacts sensitive fields in a JSON-like map.
-// It traverses nested maps so payloads like {"config":{"api_key":"..."}} are caught.
+// It traverses nested maps and arrays so payloads like
+// {"config":{"api_key":"..."}} and {"items":[{"token":"..."}]} are caught.
 func redactMap(m map[string]interface{}) {
 	for k, v := range m {
 		if isSensitiveKey(k) {
@@ -83,8 +85,15 @@ func redactMap(m map[string]interface{}) {
 			continue
 		}
 		// Recurse into nested objects
-		if nested, ok := v.(map[string]interface{}); ok {
-			redactMap(nested)
+		switch val := v.(type) {
+		case map[string]interface{}:
+			redactMap(val)
+		case []interface{}:
+			for _, item := range val {
+				if nested, ok := item.(map[string]interface{}); ok {
+					redactMap(nested)
+				}
+			}
 		}
 	}
 }
@@ -561,7 +570,7 @@ func buildListPayloadsNextSteps(args listPayloadsArgs, stats payloads.LoadStats)
 		steps = append(steps,
 			fmt.Sprintf("Use 'scan' with {\"target\": \"https://your-target.com\", \"categories\": [\"%s\"]} to test these %d payloads against a WAF", args.Category, stats.TotalPayloads))
 		steps = append(steps,
-			fmt.Sprintf("Use 'mutate' to generate WAF-evasion variants of any payload above (e.g., URL encoding, Unicode, double-encoding)"))
+			"Use 'mutate' to generate WAF-evasion variants of any payload above (e.g., URL encoding, Unicode, double-encoding)")
 		if args.Severity == "" {
 			steps = append(steps,
 				fmt.Sprintf("Filter by severity: {\"category\": \"%s\", \"severity\": \"Critical\"} to focus on the most dangerous payloads", args.Category))

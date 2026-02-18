@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // ResolveAuth merges spec-declared auth schemes with CLI-provided credentials.
@@ -198,7 +199,7 @@ func (c *oauth2TokenCache) getOrRefresh(tokenURL, clientID, clientSecret, scopes
 	if err != nil {
 		return "", fmt.Errorf("token request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer iohelper.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		// Read error body for better diagnostics.
