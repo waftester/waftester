@@ -4,6 +4,8 @@ package discovery
 
 import (
 	"context"
+	"encoding/xml"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -955,4 +957,80 @@ func BenchmarkCalculateFingerprint(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		CalculateFingerprint(200, body, "text/html")
 	}
+}
+
+// ==================== SITEMAP DEPTH LIMIT TESTS ====================
+
+func TestFetchSitemap_DepthLimit(t *testing.T) {
+	// Sitemap indexes can reference other sitemap indexes recursively.
+	// Without a depth limit, a malicious server could cause infinite recursion.
+	// The limit is maxSitemapDepth (5).
+	var requestCount int
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		depth := requestCount
+		// Every request returns a sitemap index pointing to the next level.
+		nextURL := fmt.Sprintf("http://%s/sitemap-level%d.xml", r.Host, depth+1)
+		idx := SitemapIndex{
+			XMLName: xml.Name{Local: "sitemapindex"},
+			Sitemaps: []struct {
+				Loc     string `xml:"loc"`
+				LastMod string `xml:"lastmod,omitempty"`
+			}{
+				{Loc: nextURL},
+			},
+		}
+		w.Header().Set("Content-Type", "application/xml")
+		data, _ := xml.Marshal(idx)
+		w.Write(data)
+	}))
+	defer srv.Close()
+
+	es := NewExternalSources(5*time.Second, "test-agent")
+	seen := make(map[string]bool)
+	ctx := context.Background()
+
+	_, err := es.fetchSitemap(ctx, srv.URL+"/sitemap.xml", seen)
+	if err != nil {
+		t.Fatalf("fetchSitemap returned error: %v", err)
+	}
+
+	// Should stop at maxSitemapDepth + 1 requests (depth 0 through maxSitemapDepth).
+	// The key assertion: we don't make hundreds of requests.
+	if requestCount > maxSitemapDepth+2 {
+		t.Errorf("made %d HTTP requests; expected <= %d (depth limit should stop recursion)",
+			requestCount, maxSitemapDepth+2)
+	}
+}
+
+func TestFetchSitemap_DeduplicatesURLs(t *testing.T) {
+	// Sitemap indexes referencing the same URL should not cause loops.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Return a sitemap index that references itself.
+		selfURL := fmt.Sprintf("http://%s%s", r.Host, r.URL.Path)
+		idx := SitemapIndex{
+			XMLName: xml.Name{Local: "sitemapindex"},
+			Sitemaps: []struct {
+				Loc     string `xml:"loc"`
+				LastMod string `xml:"lastmod,omitempty"`
+			}{
+				{Loc: selfURL},
+			},
+		}
+		w.Header().Set("Content-Type", "application/xml")
+		data, _ := xml.Marshal(idx)
+		w.Write(data)
+	}))
+	defer srv.Close()
+
+	es := NewExternalSources(5*time.Second, "test-agent")
+	seen := make(map[string]bool)
+	ctx := context.Background()
+
+	_, err := es.fetchSitemap(ctx, srv.URL+"/sitemap.xml", seen)
+	if err != nil {
+		t.Fatalf("fetchSitemap returned error: %v", err)
+	}
+	// Should complete quickly — dedup prevents infinite loop.
 }

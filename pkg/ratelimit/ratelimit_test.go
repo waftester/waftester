@@ -286,3 +286,80 @@ func BenchmarkLimiter_WithRateLimit(b *testing.B) {
 		_ = l.Wait(ctx)
 	}
 }
+
+func TestLimiter_MaxHosts_LRUEviction(t *testing.T) {
+	// Create per-host limiter with capacity of 3 hosts.
+	l := New(&Config{
+		RequestsPerSecond: 1000,
+		Burst:             100,
+		PerHost:           true,
+		MaxHosts:          3,
+	})
+
+	ctx := context.Background()
+
+	// Fill to capacity with 3 hosts.
+	for _, host := range []string{"a.com", "b.com", "c.com"} {
+		if err := l.WaitForHost(ctx, host); err != nil {
+			t.Fatalf("WaitForHost(%q) failed: %v", host, err)
+		}
+	}
+	if stats := l.Stats(); stats.HostLimiterCount != 3 {
+		t.Fatalf("expected 3 host limiters, got %d", stats.HostLimiterCount)
+	}
+
+	// Adding a 4th host should evict the oldest (a.com).
+	if err := l.WaitForHost(ctx, "d.com"); err != nil {
+		t.Fatalf("WaitForHost(d.com) failed: %v", err)
+	}
+	if stats := l.Stats(); stats.HostLimiterCount != 3 {
+		t.Errorf("expected 3 host limiters after eviction, got %d", stats.HostLimiterCount)
+	}
+
+	// Verify the oldest was evicted by checking internal state.
+	l.hostLimitersMu.RLock()
+	_, aExists := l.hostLimiters["a.com"]
+	_, dExists := l.hostLimiters["d.com"]
+	l.hostLimitersMu.RUnlock()
+
+	if aExists {
+		t.Error("a.com should have been evicted as the oldest host")
+	}
+	if !dExists {
+		t.Error("d.com should exist after insertion")
+	}
+}
+
+func TestLimiter_LRU_TouchPromotesHost(t *testing.T) {
+	l := New(&Config{
+		RequestsPerSecond: 1000,
+		Burst:             100,
+		PerHost:           true,
+		MaxHosts:          3,
+	})
+
+	ctx := context.Background()
+
+	// Insert a, b, c (LRU order: a, b, c)
+	for _, host := range []string{"a.com", "b.com", "c.com"} {
+		_ = l.WaitForHost(ctx, host)
+	}
+
+	// Touch a.com to promote it (LRU order: b, c, a)
+	_ = l.WaitForHost(ctx, "a.com")
+
+	// Insert d.com — should evict b.com (the new oldest), not a.com.
+	_ = l.WaitForHost(ctx, "d.com")
+
+	l.hostLimitersMu.RLock()
+	_, aExists := l.hostLimiters["a.com"]
+	_, bExists := l.hostLimiters["b.com"]
+	l.hostLimitersMu.RUnlock()
+
+	if !aExists {
+		t.Error("a.com should survive (was promoted by touch)")
+	}
+	if bExists {
+		t.Error("b.com should have been evicted (was oldest after a.com was touched)")
+	}
+}

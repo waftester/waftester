@@ -1,6 +1,7 @@
 package defaults_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"go/ast"
 	"go/parser"
@@ -211,6 +212,37 @@ func TestDocVersionConsistency(t *testing.T) {
 				t.Errorf("%s: %s has %q, want %q", tt.file, tt.desc, found, defaults.Version)
 			}
 		})
+	}
+}
+
+// TestWebsiteChangelogSync ensures the website changelog is in sync with the main repo.
+// This catches forgotten syncs that leave waftester.com/changelog stale after a version bump.
+func TestWebsiteChangelogSync(t *testing.T) {
+	root := findProjectRoot(t)
+
+	mainPath := filepath.Join(root, "CHANGELOG.md")
+	websitePath := filepath.Join(root, "..", "waftester.com", "src", "content", "changelog.md")
+
+	mainContent, err := os.ReadFile(mainPath)
+	if err != nil {
+		t.Fatalf("Failed to read CHANGELOG.md: %v", err)
+	}
+
+	websiteContent, err := os.ReadFile(websitePath)
+	if err != nil {
+		t.Skipf("Website repo not found at %s (only available locally)", websitePath)
+		return
+	}
+
+	// Files must be identical — the website changelog is a direct copy
+	if !bytes.Equal(mainContent, websiteContent) {
+		// Check if just the current version is missing vs total drift
+		versionHeader := "## [" + defaults.Version + "]"
+		if !strings.Contains(string(websiteContent), versionHeader) {
+			t.Errorf("website changelog missing version %s — run: copy CHANGELOG.md ..\\waftester.com\\src\\content\\changelog.md", defaults.Version)
+		} else {
+			t.Errorf("website changelog differs from CHANGELOG.md — run: copy CHANGELOG.md ..\\waftester.com\\src\\content\\changelog.md")
+		}
 	}
 }
 

@@ -295,3 +295,68 @@ func TestMatchHeaders(t *testing.T) {
 		})
 	}
 }
+
+func TestIsErrorPage_PreservesWAFSignals(t *testing.T) {
+	// WAF-relevant status codes must NOT be classified as error pages.
+	// These are the primary signals the tool uses to detect WAF blocks.
+	// Filtering them would hide the tool's most important output.
+	wafCodes := []int{403, 406, 418, 429, 503}
+	for _, code := range wafCodes {
+		resp := &Response{StatusCode: code, Body: []byte("Request blocked")}
+		if isErrorPage(resp) {
+			t.Errorf("isErrorPage() returned true for WAF-signal status %d; these must pass through", code)
+		}
+	}
+}
+
+func TestIsErrorPage_FiltersGenericErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		resp *Response
+		want bool
+	}{
+		{
+			name: "404 with error body",
+			resp: &Response{StatusCode: 404, Body: []byte("Page not found")},
+			want: true,
+		},
+		{
+			name: "500 generic error",
+			resp: &Response{StatusCode: 500, Body: []byte("Internal Server Error")},
+			want: true,
+		},
+		{
+			name: "502 bad gateway",
+			resp: &Response{StatusCode: 502, Body: []byte("Bad Gateway")},
+			want: true,
+		},
+		{
+			name: "200 is not error page",
+			resp: &Response{StatusCode: 200, Body: []byte("OK")},
+			want: false,
+		},
+		{
+			name: "301 is not error page",
+			resp: &Response{StatusCode: 301, Body: []byte("Moved")},
+			want: false,
+		},
+		{
+			name: "200 with error body pattern",
+			resp: &Response{StatusCode: 200, Body: []byte("Page not found - custom 200 page")},
+			want: true,
+		},
+		{
+			name: "200 with internal server error body",
+			resp: &Response{StatusCode: 200, Body: []byte("internal server error occurred")},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isErrorPage(tt.resp); got != tt.want {
+				t.Errorf("isErrorPage(status=%d) = %v, want %v", tt.resp.StatusCode, got, tt.want)
+			}
+		})
+	}
+}

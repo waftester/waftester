@@ -172,3 +172,37 @@ func TestLoadScriptDir_EmptyDir(t *testing.T) {
 	assert.Nil(t, tampers)
 	assert.Nil(t, errs)
 }
+
+func TestScriptTamper_RejectsOversizedFile(t *testing.T) {
+	// Scripts larger than 1MB must be rejected to prevent resource exhaustion.
+	dir := t.TempDir()
+	path := filepath.Join(dir, "huge.tengo")
+
+	// Create a 1.1MB file — just over the limit.
+	data := make([]byte, 1100*1024)
+	for i := range data {
+		data[i] = '/'
+	}
+	require.NoError(t, os.WriteFile(path, data, 0644))
+
+	_, err := LoadScriptTamper(path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "too large")
+}
+
+func TestScriptTamper_AcceptsFileUnderLimit(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "small.tengo")
+
+	// Valid small script (well under 1MB).
+	script := []byte(`
+name := "small"
+description := "test"
+transform := func(p) { return p }
+`)
+	require.NoError(t, os.WriteFile(path, script, 0644))
+
+	tamper, err := LoadScriptTamper(path)
+	require.NoError(t, err)
+	assert.Equal(t, "small", tamper.Name())
+}
