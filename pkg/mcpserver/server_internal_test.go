@@ -1,6 +1,11 @@
 package mcpserver
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+)
 
 func TestIsCloudMetadataHost(t *testing.T) {
 	tests := []struct {
@@ -78,5 +83,48 @@ func TestIsLocalhostOrigin(t *testing.T) {
 				t.Errorf("isLocalhostOrigin(%q) = %v, want %v", tt.origin, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestParseArgs_RejectsUnknownFields(t *testing.T) {
+	t.Parallel()
+
+	type args struct {
+		Target string `json:"target"`
+	}
+
+	req := &mcp.CallToolRequest{
+		Params: &mcp.CallToolParamsRaw{
+			Arguments: json.RawMessage(`{"target":"https://example.com","typo_flag":true}`),
+		},
+	}
+
+	var got args
+	err := parseArgs(req, &got)
+	if err == nil {
+		t.Fatal("expected parseArgs to reject unknown fields")
+	}
+}
+
+func TestParseArgs_AllowsKnownFields(t *testing.T) {
+	t.Parallel()
+
+	type args struct {
+		Target string `json:"target"`
+	}
+
+	req := &mcp.CallToolRequest{
+		Params: &mcp.CallToolParamsRaw{
+			Arguments: json.RawMessage(`{"target":"https://example.com"}`),
+		},
+	}
+
+	var got args
+	err := parseArgs(req, &got)
+	if err != nil {
+		t.Fatalf("unexpected parseArgs error: %v", err)
+	}
+	if got.Target != "https://example.com" {
+		t.Fatalf("target mismatch: got %q", got.Target)
 	}
 }

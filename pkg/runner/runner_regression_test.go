@@ -9,6 +9,7 @@ package runner
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -114,4 +115,62 @@ func TestRunWithCallback_CancelledContextDoesNotBlock(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("BLOCKED: RunWithCallback() did not return within 5s after context cancellation")
 	}
+}
+
+// TestRun_CancelDuringRateLimitWait_StopsLaunching ensures cancellation while
+// blocked in WaitForHost does not execute additional tasks.
+func TestRun_CancelDuringRateLimitWait_StopsLaunching(t *testing.T) {
+	t.Parallel()
+
+	r := NewRunner[string]()
+	r.Concurrency = 1
+	r.RateLimit = 1
+
+	targets := []string{"https://example.com/a", "https://example.com/b", "https://example.com/c"}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var executed int32
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	_ = r.Run(ctx, targets, func(ctx context.Context, target string) (string, error) {
+		atomic.AddInt32(&executed, 1)
+		return "ok", nil
+	})
+
+	assert.LessOrEqual(t, atomic.LoadInt32(&executed), int32(1),
+		"runner executed tasks after context cancellation during rate-limit wait")
+}
+
+// TestRunWithCallback_CancelDuringRateLimitWait_StopsLaunching ensures callback
+// runner also stops launching tasks when cancellation happens during limiter wait.
+func TestRunWithCallback_CancelDuringRateLimitWait_StopsLaunching(t *testing.T) {
+	t.Parallel()
+
+	r := NewRunner[string]()
+	r.Concurrency = 1
+	r.RateLimit = 1
+
+	targets := []string{"https://example.com/a", "https://example.com/b", "https://example.com/c"}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var executed int32
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	r.RunWithCallback(ctx, targets, func(ctx context.Context, target string) (string, error) {
+		atomic.AddInt32(&executed, 1)
+		return "ok", nil
+	}, func(result Result[string]) {})
+
+	assert.LessOrEqual(t, atomic.LoadInt32(&executed), int32(1),
+		"runner callback variant executed tasks after context cancellation during rate-limit wait")
 }

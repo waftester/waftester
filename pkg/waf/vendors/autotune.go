@@ -532,8 +532,6 @@ func FormatAutoTuneReport(detection *DetectionResult, config *AutoTuneConfig) st
 	return sb.String()
 }
 
-
-
 func wrapText(s string, max int) []string {
 	if len(s) <= max {
 		return []string{s}
