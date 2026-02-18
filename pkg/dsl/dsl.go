@@ -116,7 +116,16 @@ var templateFuncs = template.FuncMap{
 	"hasSuffix":  strings.HasSuffix,
 	"split":      strings.Split,
 	"join":       strings.Join,
-	"repeat":     strings.Repeat,
+	"repeat": func(s string, n int) string {
+		const maxRepeat = 10000
+		if n > maxRepeat {
+			n = maxRepeat
+		}
+		if n < 0 {
+			n = 0
+		}
+		return strings.Repeat(s, n)
+	},
 	"trimPrefix": strings.TrimPrefix,
 	"trimSuffix": strings.TrimSuffix,
 

@@ -425,6 +425,9 @@ func (d *Detector) timingAnalysis(ctx context.Context, target string, result *De
 	attackTimes := make([]time.Duration, 0, 3)
 
 	for i := 0; i < 3; i++ {
+		if ctx.Err() != nil {
+			return
+		}
 		start := time.Now()
 		req, err := http.NewRequestWithContext(ctx, "GET", target, nil)
 		if err != nil {
@@ -440,6 +443,9 @@ func (d *Detector) timingAnalysis(ctx context.Context, target string, result *De
 
 	// Attack request timing
 	for i := 0; i < 3; i++ {
+		if ctx.Err() != nil {
+			return
+		}
 		start := time.Now()
 		req, err := http.NewRequestWithContext(ctx, "GET", target+"?id=1' OR '1'='1", nil)
 		if err != nil {

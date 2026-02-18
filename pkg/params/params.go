@@ -6,6 +6,8 @@ package params
 import (
 	"context"
 	"crypto/md5"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -559,7 +561,7 @@ func (d *Discoverer) testReflection(ctx context.Context, targetURL string, param
 		}
 
 		body, _ := iohelper.ReadBodyDefault(resp.Body)
-		_ = resp.Body.Close()
+		iohelper.DrainAndClose(resp.Body)
 
 		if strings.Contains(string(body), canary) {
 			reflected = append(reflected, param.Name)
@@ -591,9 +593,19 @@ func (d *Discoverer) deduplicate(params []DiscoveredParam) []DiscoveredParam {
 // canaryCounter provides unique canary values across concurrent goroutines.
 var canaryCounter uint64
 
-// generateCanary creates a unique string for reflection testing
+// canaryPrefix is a per-process random prefix to prevent WAF fingerprinting.
+// Initialized once at startup using crypto/rand.
+var canaryPrefix = func() string {
+	b := make([]byte, 4)
+	if _, err := rand.Read(b); err != nil {
+		return "x" // fallback — still better than a tool-branded prefix
+	}
+	return hex.EncodeToString(b)
+}()
+
+// generateCanary creates a unique, non-fingerprintable string for reflection testing.
 func generateCanary() string {
-	return fmt.Sprintf("waft%d", atomic.AddUint64(&canaryCounter, 1))
+	return fmt.Sprintf("%s%d", canaryPrefix, atomic.AddUint64(&canaryCounter, 1))
 }
 
 // getWordlist returns the wordlist to use - custom file if specified, otherwise built-in
@@ -614,8 +626,19 @@ func (d *Discoverer) getWordlist() []string {
 	return getParamWordlist()
 }
 
-// loadWordlistFromFile loads parameter names from a file (one per line)
+// loadWordlistFromFile loads parameter names from a file (one per line).
+// Files larger than 50MB are rejected to prevent memory exhaustion.
 func loadWordlistFromFile(path string) ([]string, error) {
+	const maxWordlistSize = 50 * 1024 * 1024 // 50 MB
+
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if info.Size() > maxWordlistSize {
+		return nil, fmt.Errorf("wordlist %s is too large (%d bytes, max %d)", path, info.Size(), maxWordlistSize)
+	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
