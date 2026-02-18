@@ -5,6 +5,9 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -304,5 +307,77 @@ func TestConfig_Methods(t *testing.T) {
 	}
 	if !hasPost {
 		t.Error("expected POST in default methods")
+	}
+}
+
+func TestGenerateCanary_NoPredictablePrefix(t *testing.T) {
+	// Canary values must not use a static prefix that WAFs could fingerprint.
+	// Previously used "waft" prefix — now uses crypto/rand hex.
+	for i := 0; i < 100; i++ {
+		c := generateCanary()
+		if strings.HasPrefix(c, "waft") {
+			t.Fatalf("canary %q uses fingerprintable prefix", c)
+		}
+		if c == "" {
+			t.Fatal("generateCanary returned empty string")
+		}
+	}
+}
+
+func TestGenerateCanary_Unique(t *testing.T) {
+	seen := make(map[string]bool)
+	for i := 0; i < 1000; i++ {
+		c := generateCanary()
+		if seen[c] {
+			t.Fatalf("duplicate canary: %q", c)
+		}
+		seen[c] = true
+	}
+}
+
+func TestLoadWordlistFromFile_SizeLimit(t *testing.T) {
+	// Files larger than 50MB must be rejected to prevent memory exhaustion.
+	dir := t.TempDir()
+
+	// Create a file just over the limit (write 51MB of data).
+	path := filepath.Join(dir, "huge.txt")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create temp file: %v", err)
+	}
+	chunk := make([]byte, 1024*1024) // 1MB
+	for i := range chunk {
+		chunk[i] = 'a'
+	}
+	for i := 0; i < 51; i++ {
+		if _, err := f.Write(chunk); err != nil {
+			f.Close()
+			t.Fatalf("write: %v", err)
+		}
+	}
+	f.Close()
+
+	_, err = loadWordlistFromFile(path)
+	if err == nil {
+		t.Fatal("expected error for 51MB wordlist, got nil")
+	}
+	if !strings.Contains(err.Error(), "too large") {
+		t.Errorf("expected 'too large' error, got: %v", err)
+	}
+}
+
+func TestLoadWordlistFromFile_Valid(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "words.txt")
+	if err := os.WriteFile(path, []byte("param1\nparam2\n# comment\n\nparam3\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	words, err := loadWordlistFromFile(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(words) != 3 {
+		t.Errorf("expected 3 words, got %d: %v", len(words), words)
 	}
 }

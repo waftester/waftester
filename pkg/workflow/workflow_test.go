@@ -737,3 +737,54 @@ func TestIsWafTesterCommand(t *testing.T) {
 		}
 	}
 }
+
+func TestExpand_NoTemplateInjection(t *testing.T) {
+	// expand() must use simple string replacement, not Go's text/template.
+	// An attacker controlling YAML variables could inject {{exec "cmd"}} directives.
+	e := newTestEngine()
+
+	vars := map[string]string{
+		"name": "safe_value",
+	}
+
+	// These inputs should be returned verbatim (not interpreted as template directives).
+	dangerous := []string{
+		`{{exec "rm -rf /"}}`,
+		`{{printf "%s" .Env}}`,
+		`{{ .Config }}`,
+		`{{template "exploit"}}`,
+	}
+
+	for _, input := range dangerous {
+		result := e.expand(input, vars)
+		if result != input {
+			t.Errorf("expand() modified dangerous input:\n  input:  %q\n  output: %q\nShould be returned verbatim", input, result)
+		}
+	}
+}
+
+func TestExpand_SubstitutesVariables(t *testing.T) {
+	e := newTestEngine()
+
+	vars := map[string]string{
+		"target": "https://example.com",
+		"mode":   "fast",
+	}
+
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"scan {{target}}", "scan https://example.com"},
+		{"{{.target}} --mode={{.mode}}", "https://example.com --mode=fast"},
+		{"no vars here", "no vars here"},
+		{"{{unknown}}", "{{unknown}}"},
+	}
+
+	for _, tt := range tests {
+		got := e.expand(tt.input, vars)
+		if got != tt.want {
+			t.Errorf("expand(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
