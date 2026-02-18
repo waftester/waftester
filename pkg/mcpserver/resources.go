@@ -72,8 +72,8 @@ func (s *Server) addVersionResource() {
 				"version": defaults.Version,
 				"capabilities": map[string]any{
 					"tools":     len(tools),
-					"resources": 12,
-					"prompts":   7,
+					"resources": 12, // Keep in sync with registerResources; regression test validates
+					"prompts":   7,  // Keep in sync with registerPrompts; regression test validates
 					"templates": templateCount,
 				},
 				"template_categories": catNames,
@@ -400,7 +400,7 @@ func (s *Server) addWAFSignaturesResource() {
 		&mcp.Resource{
 			URI:         "waftester://waf-signatures",
 			Name:        "WAF Signatures",
-			Description: "All supported WAF vendor signatures with detection methods, types, and bypass tips.",
+			Description: "Major WAF vendor signatures with detection methods, types, and bypass tips (12 of 26 supported vendors).",
 			MIMEType:    "application/json",
 		},
 		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {

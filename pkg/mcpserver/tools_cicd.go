@@ -12,6 +12,11 @@ import (
 // cicdSafePattern matches characters safe for inclusion in shell commands.
 var cicdSafePattern = regexp.MustCompile(`^[a-zA-Z0-9:/._\-?&=%,@+]+$`)
 
+// cronSafePattern matches valid cron expression characters.
+// Allows digits, *, /, ,, -, space, and @-prefixed shortcuts (e.g. @weekly).
+// Rejects newlines, single quotes, backslashes, and other YAML-breaking chars.
+var cronSafePattern = regexp.MustCompile(`^[@a-zA-Z0-9 */,\-]+$`)
+
 // ═══════════════════════════════════════════════════════════════════════════
 // generate_cicd — CI/CD Pipeline Generation
 // ═══════════════════════════════════════════════════════════════════════════
@@ -116,6 +121,11 @@ func (s *Server) handleGenerateCICD(_ context.Context, req *mcp.CallToolRequest)
 		if !cicdSafePattern.MatchString(st) {
 			return errorResult(fmt.Sprintf("scan type %q contains unsafe characters", st)), nil
 		}
+	}
+	// Validate schedule against cron-safe pattern to prevent YAML injection.
+	// cronSafePattern rejects newlines and quotes that would break the YAML structure.
+	if args.Schedule != "" && !cronSafePattern.MatchString(args.Schedule) {
+		return errorResult("schedule contains unsafe characters — use a standard cron expression (e.g. '0 2 * * 1') or @weekly shortcut"), nil
 	}
 
 	pipeline := generateCICDConfig(args)

@@ -76,10 +76,12 @@ func resolveSpecInput(ctx context.Context, content, path, url string) (*apispec.
 	switch {
 	case content != "":
 		spec, err = apispec.ParseContentContext(ctx, content)
-	case path != "":
-		// Reject path traversal and absolute paths to prevent arbitrary file reads.
+case path != "":
+		// Reject path traversal and absolute/rooted paths to prevent arbitrary file reads.
+		// Use both filepath.IsAbs and a separator-prefix check so that rooted paths like
+		// /etc/passwd (which become \etc\passwd on Windows) are blocked cross-platform.
 		clean := filepath.Clean(path)
-		if filepath.IsAbs(clean) || strings.Contains(clean, "..") {
+		if filepath.IsAbs(clean) || strings.Contains(clean, "..") || strings.HasPrefix(clean, string(filepath.Separator)) {
 			return nil, errorResult("spec_path must be a relative path without '..' components")
 		}
 		spec, err = apispec.ParseContext(ctx, clean)
@@ -186,14 +188,27 @@ func (s *Server) handleValidateSpec(ctx context.Context, req *mcp.CallToolReques
 	}
 
 	// Parse the spec — failures are validation results, not tool errors.
+	// Security guards mirror resolveSpecInput: reject path traversal and SSRF
+	// before attempting to read from the user-supplied source.
 	var spec *apispec.Spec
 	var parseErr error
 	switch {
 	case args.SpecContent != "":
 		spec, parseErr = apispec.ParseContentContext(ctx, args.SpecContent)
 	case args.SpecPath != "":
-		spec, parseErr = apispec.ParseContext(ctx, args.SpecPath)
+		// Reject path traversal and absolute/rooted paths to prevent arbitrary file reads.
+		// Use both filepath.IsAbs and a separator-prefix check so that rooted paths like
+		// /etc/passwd (which become \etc\passwd on Windows) are blocked cross-platform.
+		clean := filepath.Clean(args.SpecPath)
+		if filepath.IsAbs(clean) || strings.Contains(clean, "..") || strings.HasPrefix(clean, string(filepath.Separator)) {
+			return errorResult("spec_path must be a relative path without '..' components"), nil
+		}
+		spec, parseErr = apispec.ParseContext(ctx, clean)
 	case args.SpecURL != "":
+		// Validate spec_url against SSRF blocklist before fetching.
+		if urlErr := validateTargetURL(args.SpecURL); urlErr != nil {
+			return errorResult(fmt.Sprintf("spec_url blocked: %v", urlErr)), nil
+		}
 		spec, parseErr = apispec.ParseContext(ctx, args.SpecURL)
 	}
 	if parseErr != nil {
