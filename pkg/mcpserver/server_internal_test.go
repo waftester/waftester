@@ -18,9 +18,9 @@ func TestIsCloudMetadataHost(t *testing.T) {
 		{"metadata.google.internal", true},
 
 		// Cloud provider metadata IPs added in security review
-		{"192.0.0.192", true},      // Oracle Cloud IMDS
-		{"168.63.129.16", true},    // Azure Wire Server
-		{"fd00:ec2::254", true},    // AWS IMDSv2 IPv6
+		{"192.0.0.192", true},   // Oracle Cloud IMDS
+		{"168.63.129.16", true}, // Azure Wire Server
+		{"fd00:ec2::254", true}, // AWS IMDSv2 IPv6
 
 		// Link-local range (169.254.0.0/16) — not just .169.254
 		{"169.254.0.1", true},
