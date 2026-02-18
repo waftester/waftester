@@ -5,6 +5,20 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.16] - 2026-02-18
+
+### Fixed
+
+- **MCP server detect_waf timeout not clamped** — Schema declared `maximum: 60` but handler accepted any value. Clients could set arbitrarily long timeouts. Now clamped to 60 seconds.
+- **MCP server probe timeout not clamped** — Schema declared `maximum: 30` but handler accepted any value. Now clamped to 30 seconds.
+- **MCP server serverInstructions drift** — Tool count, tool names, and capability descriptions in the MCP instructions constant were stale. Updated to match actual registered tools.
+- **MCP server waf-signatures resource description** — Resource description was inaccurate. Updated to reflect actual content.
+- **MCP server enum completeness** — `list_tasks` and `get_task_status` `tool_name` enums were missing `discover_bypasses` and `event_crawl`.
+
+### Added
+
+- **MCP server regression test suite** — 29 new tests across 4 test files covering SSRF/traversal guards, CICD injection, schema invariants, live service integration, concurrency edge cases, and timeout boundary enforcement.
+
 ## [2.9.15] - 2026-02-18
 
 ### Fixed
@@ -2323,6 +2337,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.16]: https://github.com/waftester/waftester/compare/v2.9.15...v2.9.16
 [2.9.15]: https://github.com/waftester/waftester/compare/v2.9.14...v2.9.15
 [2.9.14]: https://github.com/waftester/waftester/compare/v2.9.13...v2.9.14
 [2.9.13]: https://github.com/waftester/waftester/compare/v2.9.12...v2.9.13
