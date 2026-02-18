@@ -377,7 +377,7 @@ func (t *Tester) generatePayloads() []Payload {
 // GetPayloads returns payloads filtered by type
 func (t *Tester) GetPayloads(injectionType InjectionType) []Payload {
 	if injectionType == "" {
-		return t.payloads
+		return append([]Payload(nil), t.payloads...)
 	}
 
 	filtered := make([]Payload, 0, len(t.payloads))

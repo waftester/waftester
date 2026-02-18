@@ -667,34 +667,30 @@ func isWafTesterCommand(cmd string) bool {
 
 // isAllowedExternalCommand validates external commands against a security allowlist.
 // This prevents arbitrary command execution from user-controlled workflow files.
+//
+// Security: awk/sed/xargs are excluded because they support shell execution
+// (awk system(), sed e, xargs sh). curl/wget are excluded because they enable
+// data exfiltration. Only read-only, non-executing utilities are allowed.
 func (e *Engine) isAllowedExternalCommand(cmd string) bool {
-	// Allowlist of safe external commands that can be executed from workflows
+	// Allowlist of safe external commands that can be executed from workflows.
+	// Each command here must be read-only and unable to spawn subprocesses.
 	allowedCommands := map[string]bool{
-		// Common safe utilities
+		// Read-only text utilities (no exec capability)
 		"echo":   true,
 		"cat":    true,
 		"grep":   true,
-		"awk":    true,
-		"sed":    true,
 		"jq":     true,
-		"curl":   true,
-		"wget":   true,
 		"head":   true,
 		"tail":   true,
 		"sort":   true,
 		"uniq":   true,
 		"wc":     true,
-		"tee":    true,
-		"xargs":  true,
 		"tr":     true,
 		"cut":    true,
 		"base64": true,
 		"sleep":  true,
-		"ping":   true, // Used for timeout simulation on Windows
 		// Nuclei integration
 		"nuclei": true,
-		// Windows shell removed from allowlist — cmd /c allows arbitrary
-		// command execution and inner-command validation is not implemented.
 	}
 
 	// Extract base command name (handle paths like /usr/bin/echo)
@@ -725,7 +721,10 @@ func (e *Engine) validateFilePath(path string) error {
 		if err != nil {
 			return fmt.Errorf("invalid working directory: %w", err)
 		}
-		if !strings.HasPrefix(cleanPath, absWorkDir) {
+		// Use filepath.Rel instead of HasPrefix to avoid prefix-matching
+		// siblings like /tmp/workdir-evil when workDir is /tmp/workdir.
+		rel, err := filepath.Rel(absWorkDir, cleanPath)
+		if err != nil || strings.HasPrefix(rel, "..") {
 			return fmt.Errorf("path %q escapes working directory", path)
 		}
 		return nil

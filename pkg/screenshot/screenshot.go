@@ -188,11 +188,15 @@ func (c *Capturer) CaptureURLs(ctx context.Context, urls []string) ([]Result, er
 	return results, nil
 }
 
-// GetResults returns all captured results
+// GetResults returns a defensive copy of all captured results
 func (c *Capturer) GetResults() []Result {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.results
+	copy := make([]Result, len(c.results))
+	for i := range c.results {
+		copy[i] = c.results[i]
+	}
+	return copy
 }
 
 // captureWithChrome performs actual screenshot capture

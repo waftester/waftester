@@ -439,7 +439,12 @@ func (d *Detector) dtdInclusionPayloads() []*Payload {
 // GetPayloads returns all payloads, optionally filtered by attack type
 func (d *Detector) GetPayloads(attackType AttackType) []*Payload {
 	if attackType == "" {
-		return d.payloads
+		copy := make([]*Payload, len(d.payloads))
+		for i, p := range d.payloads {
+			pCopy := *p
+			copy[i] = &pCopy
+		}
+		return copy
 	}
 
 	// Pre-allocate filtered slice with reasonable capacity

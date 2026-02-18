@@ -674,3 +674,36 @@ func TestGetLatest_ToolFilterNoMatch(t *testing.T) {
 		t.Errorf("GetLatest with non-matching filter should return nil, got %s", got.ID)
 	}
 }
+
+// TestSnapshot_DeepCopiesResult verifies that Snapshot() deep-copies the
+// Result field (json.RawMessage) instead of aliasing the internal buffer.
+// Regression: Snapshot returned the same underlying byte slice as the task's
+// Result, allowing callers to corrupt internal state by modifying the snapshot.
+func TestSnapshot_DeepCopiesResult(t *testing.T) {
+	tm := NewTaskManager()
+	defer tm.Stop()
+
+	task, _, err := tm.Create(context.Background(), "scan")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resultData := []byte(`{"key":"original"}`)
+	task.Complete(resultData)
+
+	snap := task.Snapshot()
+	if snap.Result == nil {
+		t.Fatal("snapshot Result should not be nil after Complete")
+	}
+
+	// Mutate the snapshot's Result bytes
+	for i := range snap.Result {
+		snap.Result[i] = 'X'
+	}
+
+	// Internal Result must be unchanged
+	snap2 := task.Snapshot()
+	if string(snap2.Result) != `{"key":"original"}` {
+		t.Errorf("internal Result was mutated via snapshot: got %s", string(snap2.Result))
+	}
+}

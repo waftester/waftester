@@ -14,6 +14,7 @@
 package osint
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -124,4 +125,52 @@ func TestGetResults_ReturnsCopy(t *testing.T) {
 	r1 = append(r1, Result{Source: "injected"})
 	r2 := m.GetResults()
 	assert.Empty(t, r2, "internal state must not be affected by mutating the returned slice")
+}
+
+// TestGetResults_DeepCopiesMetadata verifies that GetResults() deep-copies
+// the Metadata map in each Result, not just the struct.
+// Regression: shallow copy via append shared Metadata map references
+func TestGetResults_DeepCopiesMetadata(t *testing.T) {
+	t.Parallel()
+
+	m := NewManager()
+	// Inject a result with metadata directly
+	m.mu.Lock()
+	m.results = append(m.results, Result{
+		Source:   SourceCrtsh,
+		Type:     "subdomain",
+		Value:    "test.example.com",
+		Metadata: map[string]string{"org": "original"},
+	})
+	m.mu.Unlock()
+
+	// Get copy and mutate metadata
+	results := m.GetResults()
+	results[0].Metadata["org"] = "mutated"
+
+	// Internal state must be unchanged
+	internal := m.GetResults()
+	assert.Equal(t, "original", internal[0].Metadata["org"],
+		"internal Metadata was mutated via GetResults copy")
+}
+
+// TestRateLimiter_WaitRespectsContext verifies that Wait() returns an error
+// when the context is cancelled instead of blocking indefinitely.
+// Regression: Wait() used time.Sleep without checking context cancellation
+func TestRateLimiter_WaitRespectsContext(t *testing.T) {
+	t.Parallel()
+
+	// Create limiter with 0 initial tokens and very slow refill
+	rl := NewRateLimiter(1)
+	// Drain the initial token
+	ctx := context.Background()
+	err := rl.Wait(ctx)
+	require.NoError(t, err)
+
+	// Now cancel the context before next token is available
+	cancelCtx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately
+
+	err = rl.Wait(cancelCtx)
+	assert.Error(t, err, "Wait should return error when context is cancelled")
 }

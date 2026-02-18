@@ -196,3 +196,140 @@ func TestHandleNodes_OversizedBody(t *testing.T) {
 		t.Errorf("expected 400 for oversized body, got %d", resp.StatusCode)
 	}
 }
+
+// TestSplit_EmptyTargets_NoPanic verifies Split handles empty target slice
+// without panicking (previously indexed targets[0] on empty slice).
+// Regression: index out of range panic on empty targets
+func TestSplit_EmptyTargets_NoPanic(t *testing.T) {
+	t.Parallel()
+
+	splitter := NewTaskSplitter(10)
+	testutil.AssertNoPanic(t, "empty targets", func() {
+		result := splitter.Split("scan", []string{}, nil)
+		if result != nil {
+			t.Errorf("expected nil for empty targets, got %d tasks", len(result))
+		}
+	})
+	testutil.AssertNoPanic(t, "nil targets", func() {
+		result := splitter.Split("scan", nil, nil)
+		if result != nil {
+			t.Errorf("expected nil for nil targets, got %d tasks", len(result))
+		}
+	})
+}
+
+// TestCheckNodeHealth_DecrementsActiveTasks verifies that requeuing tasks
+// from unhealthy nodes also decrements their ActiveTasks counter.
+// Regression: capacity leak — ActiveTasks only went up, never down on requeue
+func TestCheckNodeHealth_DecrementsActiveTasks(t *testing.T) {
+	t.Parallel()
+
+	c := NewCoordinator("c1", "localhost:9000")
+
+	// Register a node first (RegisterNode sets LastSeen=now, Status=healthy)
+	node := &Node{
+		ID:          "n1",
+		Address:     "localhost:8001",
+		Role:        RoleWorker,
+		Capacity:    10,
+		ActiveTasks: 3,
+	}
+	_ = c.RegisterNode(node)
+
+	// Now set LastSeen to stale so checkNodeHealth marks it unhealthy
+	c.mu.Lock()
+	c.nodes["n1"].LastSeen = time.Now().Add(-10 * time.Minute)
+	c.mu.Unlock()
+
+	// Submit a task assigned to that node
+	task := &Task{
+		ID:         "t1",
+		Type:       "scan",
+		Target:     "https://example.com",
+		Status:     TaskRunning,
+		AssignedTo: "n1",
+	}
+	c.mu.Lock()
+	c.tasks[task.ID] = task
+	c.mu.Unlock()
+
+	// Run health check — should mark node unhealthy and decrement ActiveTasks
+	c.checkNodeHealth()
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.nodes["n1"].ActiveTasks != 2 {
+		t.Errorf("ActiveTasks should be 2 after requeue, got %d", c.nodes["n1"].ActiveTasks)
+	}
+	if c.tasks["t1"].Status != TaskPending {
+		t.Errorf("task should be requeued to pending, got %s", c.tasks["t1"].Status)
+	}
+}
+
+// TestResultAggregator_GetAll_DeepCopy verifies GetAll returns deep copies
+// of TaskResult values, not pointers to internal state.
+// Regression: shallow copy allowed callers to mutate internal results
+func TestResultAggregator_GetAll_DeepCopy(t *testing.T) {
+	t.Parallel()
+
+	agg := NewResultAggregator()
+	agg.Add("t1", &TaskResult{
+		Success: true,
+		Data:    map[string]interface{}{"key": "original"},
+	})
+
+	results := agg.GetAll()
+	// Mutate the returned copy
+	results["t1"].Data["key"] = "mutated"
+	results["t1"].Success = false
+
+	// Verify internal state is unchanged
+	internal := agg.GetAll()
+	if !internal["t1"].Success {
+		t.Error("internal Success was mutated via GetAll copy")
+	}
+	if internal["t1"].Data["key"] != "original" {
+		t.Errorf("internal Data was mutated via GetAll copy: got %v", internal["t1"].Data["key"])
+	}
+}
+
+// TestCopyTask_DeepCopiesNestedMaps verifies copyTask handles nested
+// map[string]interface{} values in Config.
+// Regression: shallow copy of Config values shared nested map references
+func TestCopyTask_DeepCopiesNestedMaps(t *testing.T) {
+	t.Parallel()
+
+	original := &Task{
+		ID:     "t1",
+		Target: "https://example.com",
+		Config: map[string]interface{}{
+			"nested": map[string]interface{}{
+				"key": "original",
+			},
+		},
+	}
+
+	copied := copyTask(original)
+
+	// Mutate nested map in copy
+	nested := copied.Config["nested"].(map[string]interface{})
+	nested["key"] = "mutated"
+
+	// Verify original is unchanged
+	origNested := original.Config["nested"].(map[string]interface{})
+	if origNested["key"] != "original" {
+		t.Errorf("copyTask did not deep-copy nested maps: got %v", origNested["key"])
+	}
+}
+
+// TestIsGracefulShutdown verifies the helper correctly identifies ErrServerClosed.
+func TestIsGracefulShutdown(t *testing.T) {
+	t.Parallel()
+
+	if !isGracefulShutdown(http.ErrServerClosed) {
+		t.Error("should recognize ErrServerClosed as graceful shutdown")
+	}
+	if isGracefulShutdown(fmt.Errorf("some other error")) {
+		t.Error("should not recognize arbitrary errors as graceful shutdown")
+	}
+}

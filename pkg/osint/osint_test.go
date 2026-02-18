@@ -345,7 +345,7 @@ func TestRateLimiter(t *testing.T) {
 	// Should be able to get tokens immediately
 	start := time.Now()
 	for i := 0; i < 10; i++ {
-		limiter.Wait()
+		limiter.Wait(context.Background())
 	}
 	elapsed := time.Since(start)
 
