@@ -5,6 +5,21 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.13] - 2026-02-18
+
+### Fixed
+
+- **Runner rate-limit cancellation ignored** — `WaitForHost` error was discarded with `_ =`, so context cancellation during rate limiting never stopped task dispatch. Now checks the error and stops on cancel.
+- **Runner stale rate limiter** — Rate limiter was only created once (`if r.limiter == nil`) and reused across runs with different settings. Now rebuilds per run.
+- **Export encode errors silently dropped** — JSONL `enc.Encode()` errors were discarded with `_ =` in probe, crawl, assess, and scan exporters. Now checked and reported.
+- **Export file close errors ignored** — `f.Close()` after writing CSV, HTML, and Markdown exports was unchecked. Now reports close failures.
+- **Unsupported export formats accepted silently** — JUnit and PDF flags were accepted but never implemented for crawl, assess, and scan commands. Now prints explicit error. Scan also warns on SonarQube, GitLab SAST, DefectDojo, HAR, CycloneDX, and XML.
+- **Scan stream JSON marshal error ignored** — `json.MarshalIndent` error in stream mode file write was discarded with `_ =`. Now checked with proper error exit.
+- **Scan export writer swallowed errors** — `writeToFile` helper accepted `func(w io.Writer)` with no error return. Changed to `func(w io.Writer) error` to propagate encode failures.
+- **MCP accepted unknown arguments** — `parseArgs` used `json.Unmarshal` which silently ignored typo'd field names. Now uses `DisallowUnknownFields()` to reject unknown arguments.
+- **MCP discover timeout unbounded** — Schema declared `maximum: 60` but runtime had no upper clamp. Now enforces the 60-second cap.
+- **MCP mutate encodings field mismatch** — Schema documented `encodings` but struct expected `encoders`. Added backward-compatible alias.
+
 ## [2.9.12] - 2026-02-18
 
 ### Fixed
@@ -2266,6 +2281,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.13]: https://github.com/waftester/waftester/compare/v2.9.12...v2.9.13
 [2.9.12]: https://github.com/waftester/waftester/compare/v2.9.11...v2.9.12
 [2.9.11]: https://github.com/waftester/waftester/compare/v2.9.10...v2.9.11
 [2.9.10]: https://github.com/waftester/waftester/compare/v2.9.9...v2.9.10
