@@ -1,6 +1,7 @@
 package mcpserver
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -566,7 +567,9 @@ func parseArgs(req *mcp.CallToolRequest, dst any) error {
 	if len(req.Params.Arguments) == 0 {
 		return nil
 	}
-	if err := json.Unmarshal(req.Params.Arguments, dst); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(req.Params.Arguments))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(dst); err != nil {
 		return fmt.Errorf("parsing tool arguments: %w", err)
 	}
 	return nil

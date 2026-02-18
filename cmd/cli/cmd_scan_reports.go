@@ -203,13 +203,17 @@ func writeScanExports(outFlags *OutputFlags, target string, result *ScanResult) 
 
 	outFlags.PrintOutputConfig()
 
-	writeToFile := func(path string, writeFn func(w io.Writer)) {
+	writeToFile := func(path string, writeFn func(w io.Writer) error) {
 		f, err := os.Create(path)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("export %s: %v", path, err))
 			return
 		}
-		writeFn(f)
+		if err := writeFn(f); err != nil {
+			_ = f.Close()
+			ui.PrintError(fmt.Sprintf("export %s: %v", path, err))
+			return
+		}
 		if err := f.Close(); err != nil {
 			ui.PrintError(fmt.Sprintf("export %s: %v", path, err))
 			return
@@ -217,36 +221,66 @@ func writeScanExports(outFlags *OutputFlags, target string, result *ScanResult) 
 		ui.PrintSuccess(fmt.Sprintf("Exported: %s", path))
 	}
 
+	if outFlags.JUnitExport != "" {
+		ui.PrintError("JUnit export is not supported for scan")
+	}
+	if outFlags.PDFExport != "" {
+		ui.PrintError("PDF export is not supported for scan")
+	}
+	if outFlags.SonarQubeExport != "" {
+		ui.PrintError("SonarQube export is not supported for scan")
+	}
+	if outFlags.GitLabSASTExport != "" {
+		ui.PrintError("GitLab SAST export is not supported for scan")
+	}
+	if outFlags.DefectDojoExport != "" {
+		ui.PrintError("DefectDojo export is not supported for scan")
+	}
+	if outFlags.HARExport != "" {
+		ui.PrintError("HAR export is not supported for scan")
+	}
+	if outFlags.CycloneDXExport != "" {
+		ui.PrintError("CycloneDX export is not supported for scan")
+	}
+	if outFlags.XMLExport != "" {
+		ui.PrintError("XML export is not supported for scan")
+	}
+
 	if outFlags.JSONExport != "" {
-		writeToFile(outFlags.JSONExport, func(w io.Writer) {
+		writeToFile(outFlags.JSONExport, func(w io.Writer) error {
 			enc := json.NewEncoder(w)
 			enc.SetIndent("", "  ")
-			_ = enc.Encode(result)
+			return enc.Encode(result)
 		})
 	}
 	if outFlags.JSONLExport != "" {
-		writeToFile(outFlags.JSONLExport, func(w io.Writer) {
+		writeToFile(outFlags.JSONLExport, func(w io.Writer) error {
 			printScanJSONL(w, target, result)
+			return nil
 		})
 	}
 	if outFlags.SARIFExport != "" {
-		writeToFile(outFlags.SARIFExport, func(w io.Writer) {
+		writeToFile(outFlags.SARIFExport, func(w io.Writer) error {
 			printScanSARIF(w, target, result)
+			return nil
 		})
 	}
 	if outFlags.CSVExport != "" {
-		writeToFile(outFlags.CSVExport, func(w io.Writer) {
+		writeToFile(outFlags.CSVExport, func(w io.Writer) error {
 			printScanCSV(w, target, result)
+			return nil
 		})
 	}
 	if outFlags.HTMLExport != "" {
-		writeToFile(outFlags.HTMLExport, func(w io.Writer) {
+		writeToFile(outFlags.HTMLExport, func(w io.Writer) error {
 			printScanHTML(w, result)
+			return nil
 		})
 	}
 	if outFlags.MDExport != "" {
-		writeToFile(outFlags.MDExport, func(w io.Writer) {
+		writeToFile(outFlags.MDExport, func(w io.Writer) error {
 			printScanMarkdown(w, result)
+			return nil
 		})
 	}
 }
