@@ -1177,6 +1177,13 @@ func TestWorkflowAllowlistNoScriptingLanguages(t *testing.T) {
 		{"node", "arbitrary Node.js code execution"},
 		{"lua", "arbitrary Lua code execution"},
 		{"bash", "arbitrary shell script execution"},
+		{"awk", "arbitrary code execution via pattern/action"},
+		{"sed", "arbitrary code execution via e flag"},
+		{"xargs", "arbitrary command execution via -I"},
+		{"curl", "data exfiltration via HTTP"},
+		{"wget", "data exfiltration via HTTP"},
+		{"tee", "arbitrary file write"},
+		{"ping", "network probing and covert channels"},
 	}
 
 	for _, fc := range forbiddenCommands {
@@ -1192,7 +1199,6 @@ func TestWorkflowAllowlistNoScriptingLanguages(t *testing.T) {
 		"echo",
 		"grep",
 		"jq",
-		"curl",
 	}
 
 	for _, rc := range requiredCommands {
