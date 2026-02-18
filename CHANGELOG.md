@@ -5,6 +5,31 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.14] - 2026-02-18
+
+### Fixed
+
+- **SSRF metadata allowlist incomplete** — Cloud metadata host detection missed Oracle Cloud (192.0.0.192), Azure Wire Server (168.63.129.16), AWS IPv6 (fd00:ec2::254), link-local range (169.254.0.0/16), and ULA range (fd00::/8). All now blocked.
+- **MCP log redaction missed arrays** — `redactMap` only recursed into nested objects, not arrays of objects. Sensitive fields inside `[{"api_key":"..."}]` were logged in plaintext.
+- **MCP log redaction patterns incomplete** — `isSensitiveKey` missed fields containing "access", "private", "signing", and "encrypt". Added to sensitive substring list.
+- **MCP log truncation byte/rune mismatch** — Truncation guard checked `len(argStr)` (bytes) but `truncateString` truncated by rune count. Multi-byte UTF-8 payloads could bypass truncation. Now checks rune count.
+- **Rate limiter unbounded host map** — Per-host rate limiter grew without bound. Added LRU eviction with configurable `MaxHosts` cap.
+- **DNS cache no background eviction** — Expired DNS entries accumulated until looked up again. Added background goroutine that evicts expired entries on a configurable interval.
+- **DNS cache corrupt entry panic** — Type assertion on `sync.Map` values could panic if an entry had the wrong type. Added guard that returns error instead.
+- **DSL repeat() unbounded** — `repeat(s, 1000000)` allocated ~1GB. Clamped to 10000 characters.
+- **Tamper script size unbounded** — Tengo script files had no size limit. Added 1MB cap.
+- **Wordlist size unbounded** — `loadWordlistFromFile` accepted arbitrarily large files. Added 50MB cap.
+- **Canary prefix predictable** — `generateCanary` used `waft` prefix with `math/rand`. Replaced with `crypto/rand` hex for unpredictable canaries.
+- **Filter hid WAF signal status codes** — `isErrorPage` classified 403, 406, 418, 429, and 503 as error pages, hiding WAF block responses. These status codes now pass through.
+- **Workflow path traversal via sibling directory** — `validateFilePath` used `strings.HasPrefix` which allowed `/tmp/workdir-evil` to match `/tmp/workdir`. Replaced with `filepath.Rel`.
+- **HTTP response body leaks** — Five locations across elasticsearch, auth, and cross-endpoint packages read HTTP response bodies without draining and closing. Added `DrainAndClose` calls.
+- **Sitemap fetch unbounded depth** — Recursive sitemap index fetching had no depth limit. Added `maxSitemapDepth` cap.
+- **WAF detector DNS rebinding ignored** — Added detection for DNS rebinding responses in WAF fingerprinting.
+
+### Changed
+
+- **Pre-commit hook excludes test files from secret scan** — Test files containing intentional fake secrets (for detection testing) no longer trigger the hardcoded secret hook.
+
 ## [2.9.13] - 2026-02-18
 
 ### Fixed
@@ -2281,6 +2306,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.14]: https://github.com/waftester/waftester/compare/v2.9.13...v2.9.14
 [2.9.13]: https://github.com/waftester/waftester/compare/v2.9.12...v2.9.13
 [2.9.12]: https://github.com/waftester/waftester/compare/v2.9.11...v2.9.12
 [2.9.11]: https://github.com/waftester/waftester/compare/v2.9.10...v2.9.11

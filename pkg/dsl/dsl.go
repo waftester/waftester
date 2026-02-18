@@ -106,16 +106,16 @@ var Presets = map[string]string{
 // templateFuncs provides helper functions for templates
 var templateFuncs = template.FuncMap{
 	// String functions
-	"lower":      strings.ToLower,
-	"upper":      strings.ToUpper,
-	"title":      cases.Title(language.English).String,
-	"trim":       strings.TrimSpace,
-	"replace":    strings.ReplaceAll,
-	"contains":   strings.Contains,
-	"hasPrefix":  strings.HasPrefix,
-	"hasSuffix":  strings.HasSuffix,
-	"split":      strings.Split,
-	"join":       strings.Join,
+	"lower":     strings.ToLower,
+	"upper":     strings.ToUpper,
+	"title":     cases.Title(language.English).String,
+	"trim":      strings.TrimSpace,
+	"replace":   strings.ReplaceAll,
+	"contains":  strings.Contains,
+	"hasPrefix": strings.HasPrefix,
+	"hasSuffix": strings.HasSuffix,
+	"split":     strings.Split,
+	"join":      strings.Join,
 	"repeat": func(s string, n int) string {
 		const maxRepeat = 10000
 		if n > maxRepeat {
