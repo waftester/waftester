@@ -4,6 +4,7 @@ package distributed
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -290,7 +291,17 @@ func copyTask(t *Task) *Task {
 	if t.Config != nil {
 		taskCopy.Config = make(map[string]interface{}, len(t.Config))
 		for k, v := range t.Config {
-			taskCopy.Config[k] = v
+			// Deep-copy nested maps (e.g. Config["targets"] = []string{...})
+			switch val := v.(type) {
+			case map[string]interface{}:
+				inner := make(map[string]interface{}, len(val))
+				for ik, iv := range val {
+					inner[ik] = iv
+				}
+				taskCopy.Config[k] = inner
+			default:
+				taskCopy.Config[k] = v
+			}
 		}
 	}
 	if t.StartedAt != nil {
@@ -409,6 +420,10 @@ func (c *Coordinator) checkNodeHealth() {
 	for _, task := range c.tasks {
 		if task.Status == TaskAssigned || task.Status == TaskRunning {
 			if node, ok := c.nodes[task.AssignedTo]; ok && node.Status == StatusUnhealthy {
+				// Decrement ActiveTasks to avoid capacity leak when requeuing
+				if node.ActiveTasks > 0 {
+					node.ActiveTasks--
+				}
 				task.Status = TaskPending
 				task.AssignedTo = ""
 				select {
@@ -590,7 +605,7 @@ func (c *Coordinator) handleNodes(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := c.RegisterNode(req.Node); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		json.NewEncoder(w).Encode(RegisterResponse{Success: true})
@@ -614,7 +629,7 @@ func (c *Coordinator) handleTasks(w http.ResponseWriter, r *http.Request) {
 		var taskIDs []string
 		for _, task := range req.Tasks {
 			if err := c.SubmitTask(task); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			taskIDs = append(taskIDs, task.ID)
@@ -675,6 +690,10 @@ func (c *Coordinator) Start(ctx context.Context) error {
 	return c.httpServer.ListenAndServe()
 }
 
+func isGracefulShutdown(err error) bool {
+	return errors.Is(err, http.ErrServerClosed)
+}
+
 // TaskSplitter splits a large task into smaller subtasks
 type TaskSplitter struct {
 	MaxTargetsPerTask int
@@ -690,6 +709,10 @@ func NewTaskSplitter(maxTargets int) *TaskSplitter {
 
 // Split divides targets into multiple tasks
 func (s *TaskSplitter) Split(taskType string, targets []string, config map[string]interface{}) []*Task {
+	if len(targets) == 0 {
+		return nil
+	}
+
 	if len(targets) <= s.MaxTargetsPerTask {
 		return []*Task{{
 			Type:   taskType,
@@ -744,14 +767,21 @@ func (a *ResultAggregator) Add(taskID string, result *TaskResult) {
 	a.results[taskID] = result
 }
 
-// GetAll returns all results
+// GetAll returns a deep copy of all results
 func (a *ResultAggregator) GetAll() map[string]*TaskResult {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
 	results := make(map[string]*TaskResult, len(a.results))
 	for k, v := range a.results {
-		results[k] = v
+		copy := *v
+		if v.Data != nil {
+			copy.Data = make(map[string]interface{}, len(v.Data))
+			for dk, dv := range v.Data {
+				copy.Data[dk] = dv
+			}
+		}
+		results[k] = &copy
 	}
 	return results
 }

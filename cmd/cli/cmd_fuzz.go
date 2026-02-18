@@ -380,7 +380,7 @@ func runFuzz() {
 	}
 
 	// Print config or manifest
-	if !*silent {
+	if !*silent && !*jsonOutput {
 		if *streamMode {
 			// Streaming mode: simple line output
 			fmt.Printf("[INFO] Starting fuzz: target=%s words=%d concurrency=%d rate=%d\n",

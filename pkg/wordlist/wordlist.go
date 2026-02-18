@@ -255,14 +255,15 @@ func (m *Manager) loadFromURL(url string) (*Wordlist, error) {
 		return nil, fmt.Errorf("download failed with status: %d", resp.StatusCode)
 	}
 
-	// Save to cache
+	// Save to cache with size limit (100 MB)
 	file, err := os.Create(cachePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cache file: %w", err)
 	}
 	defer file.Close()
 
-	if _, err := io.Copy(file, resp.Body); err != nil {
+	const maxWordlistSize = 100 << 20 // 100 MB
+	if _, err := io.Copy(file, io.LimitReader(resp.Body, maxWordlistSize)); err != nil {
 		return nil, fmt.Errorf("failed to write cache file: %w", err)
 	}
 

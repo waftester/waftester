@@ -227,9 +227,10 @@ func checkNoRawEmoji(t *testing.T, fset *token.FileSet, f *ast.File, fileName st
 			return true
 		}
 
-		// Only check fmt.Println and fmt.Printf — these go to terminal.
+		// Only check fmt.Println, fmt.Printf, fmt.Fprint, fmt.Fprintln — these go to terminal.
 		// fmt.Fprintf is checked separately; fmt.Sprintf is intermediate.
-		if ident.Name != "fmt" || (sel.Sel.Name != "Println" && sel.Sel.Name != "Printf") {
+		if ident.Name != "fmt" || (sel.Sel.Name != "Println" && sel.Sel.Name != "Printf" &&
+			sel.Sel.Name != "Fprint" && sel.Sel.Name != "Fprintln") {
 			return true
 		}
 
@@ -288,17 +289,12 @@ func isSafeUICall(call *ast.CallExpr) bool {
 	}
 
 	if ident.Name == "ui" {
-		// All ui.Print*, ui.Sanitize*, ui.Icon, and style Render calls are safe
+		// All ui.Print*, ui.Sanitize*, ui.Icon, and Render calls are safe
 		name := sel.Sel.Name
 		return strings.HasPrefix(name, "Print") ||
 			strings.HasPrefix(name, "Sanitize") ||
 			name == "Icon" ||
 			name == "Render"
-	}
-
-	// Also safe: lipgloss style.Render() calls on ui styles
-	if sel.Sel.Name == "Render" {
-		return true
 	}
 
 	return false
