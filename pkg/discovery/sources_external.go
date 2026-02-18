@@ -125,6 +125,9 @@ func (es *ExternalSources) FetchCommonCrawlURLs(ctx context.Context, domain stri
 			}
 		}
 	}
+	if err := scanner.Err(); err != nil {
+		return urls, fmt.Errorf("commoncrawl scan error: %w", err)
+	}
 
 	return urls, nil
 }
@@ -403,8 +406,8 @@ func (es *ExternalSources) FetchVirusTotalURLs(ctx context.Context, domain strin
 	}
 
 	vtURL := fmt.Sprintf(
-		"https://www.virustotal.com/vtapi/v2/domain/report?apikey=%s&domain=%s",
-		apiKey, domain,
+		"https://www.virustotal.com/vtapi/v2/domain/report?domain=%s",
+		domain,
 	)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", vtURL, nil)
@@ -412,6 +415,7 @@ func (es *ExternalSources) FetchVirusTotalURLs(ctx context.Context, domain strin
 		return nil, err
 	}
 	req.Header.Set("User-Agent", es.userAgent)
+	req.Header.Set("x-apikey", apiKey)
 
 	resp, err := es.httpClient.Do(req)
 	if err != nil {

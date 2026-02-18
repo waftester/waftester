@@ -387,8 +387,15 @@ func combineResults(results []bool, mode Mode) bool {
 	return false
 }
 
-// isErrorPage detects common error page patterns
+// isErrorPage detects common error page patterns.
+// WAF-relevant status codes (403, 406, 418, 429, 503) are excluded because
+// filtering those would hide the exact responses WAFtester exists to detect.
 func isErrorPage(resp *Response) bool {
+	// Skip WAF-relevant status codes — they carry signal, not noise
+	switch resp.StatusCode {
+	case 403, 406, 418, 429, 503:
+		return false
+	}
 	if resp.StatusCode >= 400 && resp.StatusCode < 600 {
 		return true
 	}
@@ -397,11 +404,7 @@ func isErrorPage(resp *Response) bool {
 		"not found",
 		"page not found",
 		"404 error",
-		"access denied",
-		"forbidden",
-		"unauthorized",
 		"internal server error",
-		"service unavailable",
 		"bad gateway",
 	}
 	for _, pattern := range errorPatterns {
