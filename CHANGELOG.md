@@ -5,6 +5,29 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.12] - 2026-02-18
+
+### Fixed
+
+- **Workflow allowlist too permissive** — External command allowlist included `awk`, `sed`, `xargs`, `curl`, `wget`, `tee`, and `ping`, enabling shell execution and data exfiltration via workflow injection. Removed all seven.
+- **Workflow path traversal via sibling directory** — `validateFilePath` used `strings.HasPrefix` which allowed `/tmp/workdir-evil` to match `/tmp/workdir`. Replaced with `filepath.Rel` for correct containment check.
+- **Distributed capacity leak on unhealthy nodes** — `checkNodeHealth` requeued tasks from unhealthy nodes without decrementing `ActiveTasks`, permanently consuming node capacity.
+- **Distributed error status codes** — `RegisterNode` and `SubmitTask` returned HTTP 500 for client validation errors. Changed to 400.
+- **Distributed graceful shutdown detection** — Coordinator `ListenAndServe` error was not checked for `http.ErrServerClosed`, causing false error logs on clean shutdown.
+- **Distributed empty targets panic** — `TaskSplitter.Split` with zero targets caused index-out-of-range panic. Added nil guard.
+- **Distributed result aggregator shallow copy** — `GetAll()` returned TaskResult values with shared Data map references. Callers mutating results corrupted internal state.
+- **Distributed copyTask shallow nested maps** — `copyTask` shallow-copied Config map, allowing nested `map[string]interface{}` mutations to propagate to the original task.
+- **Fuzz JSON output contamination** — `fuzz` command printed manifest and banner text to stdout even with `--json`, breaking JSON parsers. Suppressed non-JSON output when `--json` is set.
+- **Wordlist unbounded download** — Remote wordlist download had no size limit. Added 100MB cap via `io.LimitReader`.
+- **OSINT GetResults shallow copy** — `GetResults()` shallow-copied results but shared Metadata map references. Deep copies Metadata now.
+- **OSINT rate limiter not context-aware** — `RateLimiter.Wait()` used `time.Sleep` which ignored context cancellation. Changed to select on `ctx.Done()`.
+- **XSS GetPayloads mutable state** — `GetPayloads()` returned the internal payload slice directly. Returns a defensive copy now.
+- **SQLi GetPayloads mutable state** — Same issue as XSS. Returns a defensive copy now.
+- **XXE GetPayloads mutable state** — `GetPayloads()` returned internal pointer slice, allowing callers to mutate payloads. Deep copies each payload now.
+- **Screenshot GetResults state leak** — `GetResults()` returned the internal results slice. Returns a defensive copy now.
+- **MCP task snapshot aliasing** — `Snapshot()` aliased `json.RawMessage` bytes between snapshot and live task. Deep copies the byte buffer now.
+- **Output hygiene test gaps** — AST checker missed `fmt.Fprint` and `fmt.Fprintln` stdout writes, and an overbroad `.Render()` catch-all hid violations.
+
 ## [2.9.11] - 2026-02-17
 
 ### Fixed
@@ -2243,6 +2266,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.12]: https://github.com/waftester/waftester/compare/v2.9.11...v2.9.12
 [2.9.11]: https://github.com/waftester/waftester/compare/v2.9.10...v2.9.11
 [2.9.10]: https://github.com/waftester/waftester/compare/v2.9.9...v2.9.10
 [2.9.9]: https://github.com/waftester/waftester/compare/v2.9.8...v2.9.9

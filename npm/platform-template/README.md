@@ -10,7 +10,7 @@ Install the main package instead — it selects the correct binary for your plat
 
 ```bash
 # Run without installing
-npx -y @waftester/cli scan --target https://example.com
+npx -y @waftester/cli scan -u https://example.com
 
 # Or install globally
 npm install -g @waftester/cli
