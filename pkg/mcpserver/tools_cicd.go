@@ -3,10 +3,14 @@ package mcpserver
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+// cicdSafePattern matches characters safe for inclusion in shell commands.
+var cicdSafePattern = regexp.MustCompile(`^[a-zA-Z0-9:/._\-?&=%,@+]+$`)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // generate_cicd — CI/CD Pipeline Generation
@@ -102,6 +106,16 @@ func (s *Server) handleGenerateCICD(_ context.Context, req *mcp.CallToolRequest)
 	}
 	if args.Target == "" {
 		return errorResult("target URL is required."), nil
+	}
+	// Reject shell metacharacters in target and scan_types to prevent
+	// command injection in the generated pipeline scripts.
+	if !cicdSafePattern.MatchString(args.Target) {
+		return errorResult("target URL contains unsafe characters for shell embedding"), nil
+	}
+	for _, st := range args.ScanTypes {
+		if !cicdSafePattern.MatchString(st) {
+			return errorResult(fmt.Sprintf("scan type %q contains unsafe characters", st)), nil
+		}
 	}
 
 	pipeline := generateCICDConfig(args)

@@ -233,9 +233,13 @@ func buildEventCrawlResponse(results []EventCrawlResult, discoveredURLs []string
 		steps = append(steps,
 			"Use 'detect_waf' on the API endpoints to check if they have the same WAF protection as the main app.")
 	}
-	if len(results) == args.MaxClicks {
+	if len(results) == args.MaxClicks && args.MaxClicks < 200 {
 		steps = append(steps,
-			fmt.Sprintf("Hit the max_clicks limit (%d). Re-run with a higher limit to discover more: {\"max_clicks\": %d}.", args.MaxClicks, args.MaxClicks*2))
+			fmt.Sprintf("Hit the max_clicks limit (%d). Re-run with a higher limit to discover more: {\"max_clicks\": %d}.",
+				args.MaxClicks, min(args.MaxClicks*2, 200)))
+	} else if len(results) == args.MaxClicks {
+		steps = append(steps,
+			fmt.Sprintf("Hit the max_clicks limit (%d). All interactive elements may not have been explored — consider narrowing the target to a specific page.", args.MaxClicks))
 	}
 	steps = append(steps,
 		fmt.Sprintf("Use 'discover' on %s for complementary static endpoint discovery (robots.txt, sitemap, HTML parsing).", args.Target))
