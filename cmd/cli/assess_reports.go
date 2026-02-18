@@ -20,6 +20,13 @@ func writeAssessExports(outFlags *OutputFlags, result *metrics.EnterpriseMetrics
 		return
 	}
 
+	if outFlags.JUnitExport != "" {
+		ui.PrintError("JUnit export is not supported for assess")
+	}
+	if outFlags.PDFExport != "" {
+		ui.PrintError("PDF export is not supported for assess")
+	}
+
 	if outFlags.JSONExport != "" {
 		if err := writeJSONFile(outFlags.JSONExport, result); err != nil {
 			ui.PrintError(fmt.Sprintf("JSON export: %v", err))
@@ -34,8 +41,9 @@ func writeAssessExports(outFlags *OutputFlags, result *metrics.EnterpriseMetrics
 			ui.PrintError(fmt.Sprintf("JSONL export: %v", err))
 		} else {
 			enc := json.NewEncoder(f)
+			writeErr := error(nil)
 			// One line per category metric, plus a summary line
-			_ = enc.Encode(map[string]interface{}{
+			if err := enc.Encode(map[string]interface{}{
 				"type":           "summary",
 				"target":         result.TargetURL,
 				"grade":          result.Grade,
@@ -43,20 +51,33 @@ func writeAssessExports(outFlags *OutputFlags, result *metrics.EnterpriseMetrics
 				"fpr":            result.FalsePositiveRate,
 				"f1":             result.F1Score,
 				"duration":       duration.String(),
-			})
-			for cat, cm := range result.CategoryMetrics {
-				_ = enc.Encode(map[string]interface{}{
-					"type":           "category",
-					"category":       cat,
-					"total_tests":    cm.TotalTests,
-					"blocked":        cm.Blocked,
-					"bypassed":       cm.Bypassed,
-					"detection_rate": cm.DetectionRate,
-					"grade":          cm.Grade,
-				})
+			}); err != nil {
+				writeErr = err
 			}
-			f.Close()
-			ui.PrintSuccess(fmt.Sprintf("JSONL export saved to %s", outFlags.JSONLExport))
+			if writeErr == nil {
+				for cat, cm := range result.CategoryMetrics {
+					if err := enc.Encode(map[string]interface{}{
+						"type":           "category",
+						"category":       cat,
+						"total_tests":    cm.TotalTests,
+						"blocked":        cm.Blocked,
+						"bypassed":       cm.Bypassed,
+						"detection_rate": cm.DetectionRate,
+						"grade":          cm.Grade,
+					}); err != nil {
+						writeErr = err
+						break
+					}
+				}
+			}
+			if err := f.Close(); err != nil && writeErr == nil {
+				writeErr = err
+			}
+			if writeErr != nil {
+				ui.PrintError(fmt.Sprintf("JSONL export: %v", writeErr))
+			} else {
+				ui.PrintSuccess(fmt.Sprintf("JSONL export saved to %s", outFlags.JSONLExport))
+			}
 		}
 	}
 
@@ -79,8 +100,11 @@ func writeAssessExports(outFlags *OutputFlags, result *metrics.EnterpriseMetrics
 				fmt.Fprintf(f, "%s,%d,%d,%d,%.4f,%s\n",
 					cat, cm.TotalTests, cm.Blocked, cm.Bypassed, cm.DetectionRate, cm.Grade)
 			}
-			f.Close()
-			ui.PrintSuccess(fmt.Sprintf("CSV export saved to %s", outFlags.CSVExport))
+			if err := f.Close(); err != nil {
+				ui.PrintError(fmt.Sprintf("CSV export: %v", err))
+			} else {
+				ui.PrintSuccess(fmt.Sprintf("CSV export saved to %s", outFlags.CSVExport))
+			}
 		}
 	}
 
@@ -111,8 +135,11 @@ func writeAssessExports(outFlags *OutputFlags, result *metrics.EnterpriseMetrics
 				fmt.Fprintf(f, "</table>\n")
 			}
 			fmt.Fprintf(f, "</body></html>\n")
-			f.Close()
-			ui.PrintSuccess(fmt.Sprintf("HTML export saved to %s", outFlags.HTMLExport))
+			if err := f.Close(); err != nil {
+				ui.PrintError(fmt.Sprintf("HTML export: %v", err))
+			} else {
+				ui.PrintSuccess(fmt.Sprintf("HTML export saved to %s", outFlags.HTMLExport))
+			}
 		}
 	}
 
@@ -146,8 +173,11 @@ func writeAssessExports(outFlags *OutputFlags, result *metrics.EnterpriseMetrics
 					fmt.Fprintf(f, "%d. %s\n", i+1, rec)
 				}
 			}
-			f.Close()
-			ui.PrintSuccess(fmt.Sprintf("Markdown export saved to %s", outFlags.MDExport))
+			if err := f.Close(); err != nil {
+				ui.PrintError(fmt.Sprintf("Markdown export: %v", err))
+			} else {
+				ui.PrintSuccess(fmt.Sprintf("Markdown export saved to %s", outFlags.MDExport))
+			}
 		}
 	}
 }

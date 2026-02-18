@@ -136,6 +136,8 @@ func (s *Server) handleDiscover(ctx context.Context, req *mcp.CallToolRequest) (
 	timeout := time.Duration(args.Timeout) * time.Second
 	if timeout <= 0 {
 		timeout = 10 * time.Second
+	} else if timeout > 60*time.Second {
+		timeout = 60 * time.Second
 	}
 
 	if args.MaxDepth <= 0 {

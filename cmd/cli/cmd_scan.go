@@ -3097,7 +3097,15 @@ func runScan() {
 
 	// Still write to file if specified in stream mode
 	if *outputFile != "" && streamJSON {
-		jsonData, _ := json.MarshalIndent(result, "", "  ")
+		jsonData, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			errMsg := fmt.Sprintf("JSON encoding error: %v", err)
+			ui.PrintError(errMsg)
+			if dispCtx != nil {
+				_ = dispCtx.EmitError(ctx, "scan", errMsg, true)
+			}
+			os.Exit(1)
+		}
 		if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
 			errMsg := fmt.Sprintf("Error writing output: %v", err)
 			ui.PrintError(errMsg)

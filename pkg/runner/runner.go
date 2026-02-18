@@ -126,8 +126,8 @@ func (r *Runner[T]) Run(ctx context.Context, targets []string, task TaskFunc[T])
 	// Create semaphore for concurrency control
 	sem := make(chan struct{}, concurrency)
 
-	// Initialize rate limiter if needed
-	if r.RateLimit > 0 && r.limiter == nil {
+	// Initialize rate limiter from current settings for this run
+	if r.RateLimit > 0 {
 		// Ensure minimum burst of 1 to avoid blocking when RateLimit is 1-4
 		burst := r.RateLimit / 5
 		if burst < 1 {
@@ -138,6 +138,8 @@ func (r *Runner[T]) Run(ctx context.Context, targets []string, task TaskFunc[T])
 			PerHost:           r.RateLimitPerHost,
 			Burst:             burst,
 		})
+	} else {
+		r.limiter = nil
 	}
 
 	// Results channel
@@ -185,7 +187,19 @@ func (r *Runner[T]) Run(ctx context.Context, targets []string, task TaskFunc[T])
 		// Rate limiting with per-host support
 		if r.limiter != nil {
 			host := extractHost(target)
-			_ = r.limiter.WaitForHost(ctx, host)
+			if err := r.limiter.WaitForHost(ctx, host); err != nil {
+				if ctx.Err() != nil {
+					goto cleanup
+				}
+				atomic.AddInt64(&r.Stats.Completed, 1)
+				atomic.AddInt64(&r.Stats.Failed, 1)
+				resultsChan <- Result[T]{
+					Target:   target,
+					Error:    fmt.Errorf("rate limit wait failed: %w", err),
+					Duration: 0,
+				}
+				continue
+			}
 		}
 
 		// Acquire semaphore slot (respect context cancellation)
@@ -289,8 +303,8 @@ func (r *Runner[T]) RunWithCallback(ctx context.Context, targets []string, task 
 	// Create semaphore for concurrency control
 	sem := make(chan struct{}, concurrency)
 
-	// Initialize rate limiter if needed
-	if r.RateLimit > 0 && r.limiter == nil {
+	// Initialize rate limiter from current settings for this run
+	if r.RateLimit > 0 {
 		// Ensure minimum burst of 1 to avoid blocking when RateLimit is 1-4
 		burst := r.RateLimit / 5
 		if burst < 1 {
@@ -301,6 +315,8 @@ func (r *Runner[T]) RunWithCallback(ctx context.Context, targets []string, task 
 			PerHost:           r.RateLimitPerHost,
 			Burst:             burst,
 		})
+	} else {
+		r.limiter = nil
 	}
 
 	// WaitGroup for all goroutines
@@ -345,7 +361,20 @@ func (r *Runner[T]) RunWithCallback(ctx context.Context, targets []string, task 
 		// Rate limiting with per-host support
 		if r.limiter != nil {
 			host := extractHost(target)
-			_ = r.limiter.WaitForHost(ctx, host)
+			if err := r.limiter.WaitForHost(ctx, host); err != nil {
+				if ctx.Err() != nil {
+					wg.Wait()
+					return
+				}
+				atomic.AddInt64(&r.Stats.Completed, 1)
+				atomic.AddInt64(&r.Stats.Failed, 1)
+				callback(Result[T]{
+					Target:   target,
+					Error:    fmt.Errorf("rate limit wait failed: %w", err),
+					Duration: 0,
+				})
+				continue
+			}
 		}
 
 		// Acquire semaphore slot (respect context cancellation)

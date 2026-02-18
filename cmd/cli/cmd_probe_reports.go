@@ -42,11 +42,21 @@ func writeProbeExports(outFlags *OutputFlags, results []*ProbeResults, elapsed t
 			ui.PrintError(fmt.Sprintf("JSONL export: %v", err))
 		} else {
 			enc := json.NewEncoder(f)
+			writeErr := error(nil)
 			for _, r := range results {
-				_ = enc.Encode(r)
+				if err := enc.Encode(r); err != nil {
+					writeErr = err
+					break
+				}
 			}
-			f.Close()
-			ui.PrintSuccess(fmt.Sprintf("JSONL export saved to %s", outFlags.JSONLExport))
+			if err := f.Close(); err != nil && writeErr == nil {
+				writeErr = err
+			}
+			if writeErr != nil {
+				ui.PrintError(fmt.Sprintf("JSONL export: %v", writeErr))
+			} else {
+				ui.PrintSuccess(fmt.Sprintf("JSONL export saved to %s", outFlags.JSONLExport))
+			}
 		}
 	}
 
@@ -69,8 +79,11 @@ func writeProbeExports(outFlags *OutputFlags, results []*ProbeResults, elapsed t
 				fmt.Fprintf(f, "%s,%d,%d,%s,%s,%d,%d,%t\n",
 					r.Target, r.StatusCode, r.ContentLength, r.ContentType, r.Server, r.WordCount, r.LineCount, r.Alive)
 			}
-			f.Close()
-			ui.PrintSuccess(fmt.Sprintf("CSV export saved to %s", outFlags.CSVExport))
+			if err := f.Close(); err != nil {
+				ui.PrintError(fmt.Sprintf("CSV export: %v", err))
+			} else {
+				ui.PrintSuccess(fmt.Sprintf("CSV export saved to %s", outFlags.CSVExport))
+			}
 		}
 	}
 
@@ -98,8 +111,11 @@ func writeProbeExports(outFlags *OutputFlags, results []*ProbeResults, elapsed t
 				fmt.Fprintf(f, "</table>\n")
 			}
 			fmt.Fprintf(f, "</body></html>\n")
-			f.Close()
-			ui.PrintSuccess(fmt.Sprintf("HTML export saved to %s", outFlags.HTMLExport))
+			if err := f.Close(); err != nil {
+				ui.PrintError(fmt.Sprintf("HTML export: %v", err))
+			} else {
+				ui.PrintSuccess(fmt.Sprintf("HTML export saved to %s", outFlags.HTMLExport))
+			}
 		}
 	}
 
@@ -125,8 +141,11 @@ func writeProbeExports(outFlags *OutputFlags, results []*ProbeResults, elapsed t
 						r.Target, r.StatusCode, r.ContentType, r.Server, r.Alive)
 				}
 			}
-			f.Close()
-			ui.PrintSuccess(fmt.Sprintf("Markdown export saved to %s", outFlags.MDExport))
+			if err := f.Close(); err != nil {
+				ui.PrintError(fmt.Sprintf("Markdown export: %v", err))
+			} else {
+				ui.PrintSuccess(fmt.Sprintf("Markdown export saved to %s", outFlags.MDExport))
+			}
 		}
 	}
 }
