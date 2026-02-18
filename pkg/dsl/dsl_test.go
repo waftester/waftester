@@ -838,3 +838,80 @@ func TestFormat_StrictModeError(t *testing.T) {
 		t.Error("Expected error in strict mode for non-existent field")
 	}
 }
+
+func TestRepeat_ClampedToMax(t *testing.T) {
+	// strings.Repeat must be clamped to 10000 to prevent memory exhaustion.
+	// An unclamped repeat(s, 1000000) would allocate ~1GB.
+	f, err := New(`{{repeat "A" 50000}}`)
+	if err != nil {
+		t.Fatalf("failed to create formatter: %v", err)
+	}
+
+	output, err := f.Format(&Result{})
+	if err != nil {
+		t.Fatalf("format error: %v", err)
+	}
+	if len(output) != 10000 {
+		t.Errorf("repeat should clamp to 10000, got length %d", len(output))
+	}
+}
+
+func TestRepeat_ExactBoundary(t *testing.T) {
+	// Exactly at the clamp limit should NOT be truncated.
+	f, err := New(`{{repeat "Z" 10000}}`)
+	if err != nil {
+		t.Fatalf("failed to create formatter: %v", err)
+	}
+	output, err := f.Format(&Result{})
+	if err != nil {
+		t.Fatalf("format error: %v", err)
+	}
+	if len(output) != 10000 {
+		t.Errorf("repeat at exact boundary should produce 10000 chars, got %d", len(output))
+	}
+}
+
+func TestRepeat_OnePastBoundary(t *testing.T) {
+	// One past the clamp limit should be clamped to 10000.
+	f, err := New(`{{repeat "Z" 10001}}`)
+	if err != nil {
+		t.Fatalf("failed to create formatter: %v", err)
+	}
+	output, err := f.Format(&Result{})
+	if err != nil {
+		t.Fatalf("format error: %v", err)
+	}
+	if len(output) != 10000 {
+		t.Errorf("repeat at 10001 should clamp to 10000, got %d", len(output))
+	}
+}
+
+func TestRepeat_NegativeCount(t *testing.T) {
+	f, err := New(`{{repeat "B" -5}}`)
+	if err != nil {
+		t.Fatalf("failed to create formatter: %v", err)
+	}
+
+	output, err := f.Format(&Result{})
+	if err != nil {
+		t.Fatalf("format error: %v", err)
+	}
+	if output != "" {
+		t.Errorf("repeat with negative count should produce empty string, got %q", output)
+	}
+}
+
+func TestRepeat_NormalCount(t *testing.T) {
+	f, err := New(`{{repeat "x" 5}}`)
+	if err != nil {
+		t.Fatalf("failed to create formatter: %v", err)
+	}
+
+	output, err := f.Format(&Result{})
+	if err != nil {
+		t.Fatalf("format error: %v", err)
+	}
+	if output != "xxxxx" {
+		t.Errorf("expected %q, got %q", "xxxxx", output)
+	}
+}
