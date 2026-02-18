@@ -184,8 +184,11 @@ func (t *Task) Snapshot() TaskSnapshot {
 		CreatedAt: t.CreatedAt,
 		UpdatedAt: t.UpdatedAt,
 	}
-	if t.Status == TaskStatusCompleted {
-		snap.Result = t.Result
+	if t.Status == TaskStatusCompleted && t.Result != nil {
+		// Deep copy Result to avoid aliasing the internal json.RawMessage
+		buf := make(json.RawMessage, len(t.Result))
+		copy(buf, t.Result)
+		snap.Result = buf
 	}
 	if t.Status == TaskStatusFailed {
 		snap.Error = t.Error

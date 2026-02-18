@@ -401,3 +401,31 @@ func TestBatchCapturer_Results(t *testing.T) {
 		t.Error("expected non-nil results channel")
 	}
 }
+
+// TestGetResults_ReturnsDefensiveCopy verifies GetResults returns a copy,
+// not a reference to the internal slice.
+// Regression: direct slice return allowed callers to mutate internal state
+func TestGetResults_ReturnsDefensiveCopy(t *testing.T) {
+	t.Parallel()
+
+	c := NewCapturer(DefaultConfig())
+
+	// Add a result via internal state
+	c.mu.Lock()
+	c.results = append(c.results, Result{URL: "https://example.com"})
+	c.mu.Unlock()
+
+	// Get copy and mutate it
+	results := c.GetResults()
+	results[0].URL = "mutated"
+	results = append(results, Result{URL: "extra"})
+
+	// Internal state must be unchanged
+	internal := c.GetResults()
+	if len(internal) != 1 {
+		t.Errorf("internal results length changed: got %d, want 1", len(internal))
+	}
+	if internal[0].URL != "https://example.com" {
+		t.Errorf("internal URL was mutated: got %s", internal[0].URL)
+	}
+}

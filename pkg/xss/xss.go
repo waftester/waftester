@@ -345,7 +345,7 @@ func (t *Tester) generatePayloads() []Payload {
 // GetPayloads returns payloads filtered by context
 func (t *Tester) GetPayloads(ctx InjectionContext) []Payload {
 	if ctx == "" {
-		return t.payloads
+		return append([]Payload(nil), t.payloads...)
 	}
 
 	filtered := make([]Payload, 0, len(t.payloads)/4)

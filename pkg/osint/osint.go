@@ -152,7 +152,10 @@ func (m *Manager) FetchSubdomains(ctx context.Context, domain string) ([]Result,
 			defer wg.Done()
 
 			// Rate limit
-			m.rateLimit.Wait()
+			if err := m.rateLimit.Wait(ctx); err != nil {
+				errChan <- fmt.Errorf("%s: %w", c.Name(), err)
+				return
+			}
 
 			results, err := c.FetchSubdomains(ctx, domain)
 			if err != nil {
@@ -189,11 +192,21 @@ func (m *Manager) FetchSubdomains(ctx context.Context, domain string) ([]Result,
 	return allResults, errors.Join(errs...)
 }
 
-// GetResults returns a copy of all collected results.
+// GetResults returns a deep copy of all collected results.
 func (m *Manager) GetResults() []Result {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return append([]Result(nil), m.results...)
+	copy := make([]Result, len(m.results))
+	for i, r := range m.results {
+		copy[i] = r
+		if r.Metadata != nil {
+			copy[i].Metadata = make(map[string]string, len(r.Metadata))
+			for k, v := range r.Metadata {
+				copy[i].Metadata[k] = v
+			}
+		}
+	}
+	return copy
 }
 
 // Clear removes all results
@@ -225,8 +238,8 @@ func NewRateLimiter(requestsPerMinute int) *RateLimiter {
 	}
 }
 
-// Wait blocks until a request token is available
-func (r *RateLimiter) Wait() {
+// Wait blocks until a request token is available or ctx is cancelled.
+func (r *RateLimiter) Wait(ctx context.Context) error {
 	r.mu.Lock()
 
 	for {
@@ -248,12 +261,17 @@ func (r *RateLimiter) Wait() {
 		// Release lock before sleeping to avoid blocking other goroutines
 		sleepDuration := r.refillRate
 		r.mu.Unlock()
-		time.Sleep(sleepDuration)
+		select {
+		case <-time.After(sleepDuration):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 		r.mu.Lock()
 	}
 
 	r.tokens--
 	r.mu.Unlock()
+	return nil
 }
 
 // Helper functions
