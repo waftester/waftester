@@ -1916,10 +1916,10 @@ func TestNoLocalVulnerabilityStruct(t *testing.T) {
 
 // TestNoRawHTTPClient ensures production code creates HTTP clients through
 // the httpclient package, not with raw http.Client{} or http.Transport{} literals.
+// Scans both pkg/ and cmd/ to catch violations everywhere.
 func TestNoRawHTTPClient(t *testing.T) {
 	t.Parallel()
 	repoRoot := getRepoRoot(t)
-	pkgDir := filepath.Join(repoRoot, "pkg")
 
 	allowlist := map[string]bool{
 		"httpclient":  true,
@@ -1931,28 +1931,31 @@ func TestNoRawHTTPClient(t *testing.T) {
 
 	var violations []string
 
-	walkGoFiles(t, pkgDir, func(t *testing.T, fset *token.FileSet, f *ast.File, path string) {
-		if strings.HasSuffix(path, "_test.go") {
-			return
-		}
-		if allowlist[f.Name.Name] {
-			return
-		}
+	for _, dir := range []string{"pkg", "cmd"} {
+		root := filepath.Join(repoRoot, dir)
+		walkGoFiles(t, root, func(t *testing.T, fset *token.FileSet, f *ast.File, path string) {
+			if strings.HasSuffix(path, "_test.go") {
+				return
+			}
+			if allowlist[f.Name.Name] {
+				return
+			}
 
-		ast.Inspect(f, func(n ast.Node) bool {
-			lit, ok := n.(*ast.CompositeLit)
-			if !ok {
+			ast.Inspect(f, func(n ast.Node) bool {
+				lit, ok := n.(*ast.CompositeLit)
+				if !ok {
+					return true
+				}
+				name := exprName(lit.Type)
+				if name == "http.Client" || name == "http.Transport" {
+					rel, _ := filepath.Rel(repoRoot, path)
+					pos := fset.Position(lit.Pos())
+					violations = append(violations, filepath.ToSlash(rel)+":"+strings.TrimPrefix(filepath.ToSlash(pos.String()), filepath.ToSlash(rel)+":"))
+				}
 				return true
-			}
-			name := exprName(lit.Type)
-			if name == "http.Client" || name == "http.Transport" {
-				rel, _ := filepath.Rel(repoRoot, path)
-				pos := fset.Position(lit.Pos())
-				violations = append(violations, filepath.ToSlash(rel)+":"+strings.TrimPrefix(filepath.ToSlash(pos.String()), filepath.ToSlash(rel)+":"))
-			}
-			return true
+			})
 		})
-	})
+	}
 
 	if len(violations) > 0 {
 		t.Errorf("found raw http.Client{}/http.Transport{} outside httpclient package:")
@@ -1961,6 +1964,81 @@ func TestNoRawHTTPClient(t *testing.T) {
 		}
 		t.Error("Fix: Use httpclient.New() or httpclient.NewTransport() instead")
 	}
+}
+
+// TestNoHardcodedTimeouts ensures Timeout fields use duration.* or
+// httpclient.Timeout* constants instead of inline "N * time.Second" literals.
+// Scans both pkg/ and cmd/ to catch violations everywhere.
+func TestNoHardcodedTimeouts(t *testing.T) {
+	t.Parallel()
+	repoRoot := getRepoRoot(t)
+
+	excludePatterns := []string{
+		"duration.go",
+		"httpclient.go",
+		"_test.go",
+	}
+
+	var violations []string
+
+	for _, dir := range []string{"pkg", "cmd"} {
+		root := filepath.Join(repoRoot, dir)
+		walkGoFiles(t, root, func(t *testing.T, fset *token.FileSet, f *ast.File, path string) {
+			for _, pattern := range excludePatterns {
+				if strings.Contains(path, pattern) {
+					return
+				}
+			}
+
+			ast.Inspect(f, func(n ast.Node) bool {
+				if kv, ok := n.(*ast.KeyValueExpr); ok {
+					if ident, ok := kv.Key.(*ast.Ident); ok && ident.Name == "Timeout" {
+						if isHardcodedTimeDuration(kv.Value) {
+							pos := fset.Position(kv.Value.Pos())
+							rel, _ := filepath.Rel(repoRoot, pos.Filename)
+							violations = append(violations,
+								filepath.ToSlash(rel)+":"+strconv.Itoa(pos.Line)+": Timeout = <hardcoded duration>")
+						}
+					}
+				}
+				return true
+			})
+		})
+	}
+
+	if len(violations) > 0 {
+		t.Errorf("Found %d hardcoded Timeout values. Use duration.* or httpclient.WithTimeout() instead:", len(violations))
+		for _, v := range violations {
+			t.Errorf("  %s", v)
+		}
+	}
+}
+
+// isHardcodedTimeDuration checks if an expression is a hardcoded duration like "30 * time.Second".
+func isHardcodedTimeDuration(expr ast.Expr) bool {
+	binExpr, ok := expr.(*ast.BinaryExpr)
+	if !ok {
+		return false
+	}
+	if _, ok := binExpr.X.(*ast.BasicLit); !ok {
+		return false
+	}
+	sel, ok := binExpr.Y.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	ident, ok := sel.X.(*ast.Ident)
+	if !ok {
+		return false
+	}
+	if ident.Name != "time" {
+		return false
+	}
+	switch sel.Sel.Name {
+	case "Second", "Minute", "Hour", "Millisecond", "Microsecond", "Nanosecond":
+		return true
+	}
+	return false
 }
 
 // TestNoDirectPrintInPkg ensures production code under pkg/ does not use
@@ -2569,7 +2647,6 @@ func TestNoRawSeverityStrings(t *testing.T) {
 		"assessment":      true,
 		"browser":         true,
 		"cli":             true,
-		"cryptofailure":   true,
 		"inputvalidation": true,
 		"intelligence":    true,
 		"jwt":             true,
