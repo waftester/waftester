@@ -574,3 +574,324 @@ func TestExportSpec_EmptyContent(t *testing.T) {
 	text := resultText(t, result)
 	assert.Contains(t, text, "one of spec_content, spec_path, or spec_url is required")
 }
+
+// --- export_spec negative tests ---
+
+func TestExportSpec_NoSource(t *testing.T) {
+	t.Parallel()
+	s := &Server{}
+	result := callTool(t, s.handleExportSpec, map[string]string{})
+	assert.True(t, result.IsError)
+	text := resultText(t, result)
+	assert.Contains(t, text, "one of spec_content, spec_path, or spec_url is required")
+}
+
+func TestExportSpec_MultipleSources(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		args map[string]any
+	}{
+		{
+			name: "content and path",
+			args: map[string]any{
+				"spec_content": testOpenAPISpec,
+				"spec_path":    "some/file.yaml",
+			},
+		},
+		{
+			name: "content and url",
+			args: map[string]any{
+				"spec_content": testOpenAPISpec,
+				"spec_url":     "https://example.com/spec.yaml",
+			},
+		},
+		{
+			name: "path and url",
+			args: map[string]any{
+				"spec_path": "some/file.yaml",
+				"spec_url":  "https://example.com/spec.yaml",
+			},
+		},
+		{
+			name: "all three",
+			args: map[string]any{
+				"spec_content": testOpenAPISpec,
+				"spec_path":    "some/file.yaml",
+				"spec_url":     "https://example.com/spec.yaml",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := &Server{}
+			result := callTool(t, s.handleExportSpec, tc.args)
+			assert.True(t, result.IsError, "expected error for multiple sources")
+			text := resultText(t, result)
+			assert.Contains(t, text, "only one")
+		})
+	}
+}
+
+func TestExportSpec_MalformedContent(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		content string
+	}{
+		{"garbage text", "this is not valid yaml or json {{{}}}"},
+		{"truncated json", `{"openapi": "3.0.0", "info":`},
+		{"binary-like", "\x00\x01\x02\x03\x04\x05"},
+		{"xml not supported inline", "<api><endpoint>/users</endpoint></api>"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := &Server{}
+			result := callTool(t, s.handleExportSpec, map[string]string{
+				"spec_content": tc.content,
+			})
+			assert.True(t, result.IsError, "expected error for malformed content %q", tc.name)
+			text := resultText(t, result)
+			assert.Contains(t, text, "failed to parse spec")
+		})
+	}
+}
+
+func TestExportSpec_WhitespaceOnlyContent(t *testing.T) {
+	t.Parallel()
+	s := &Server{}
+	// Whitespace-only string is non-empty but unparseable.
+	result := callTool(t, s.handleExportSpec, map[string]string{
+		"spec_content": "   \n\t\n  ",
+	})
+	assert.True(t, result.IsError, "whitespace-only content should fail parsing")
+	text := resultText(t, result)
+	assert.Contains(t, text, "failed to parse spec")
+}
+
+func TestExportSpec_PathTraversal(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		path string
+	}{
+		{"parent traversal", "../../../etc/passwd"},
+		{"backslash traversal", `..\..\windows\system32\config\sam`},
+		{"mid-path traversal", "specs/../../../etc/shadow"},
+		{"absolute unix", "/etc/passwd"},
+		{"windows drive letter", `C:\Windows\System32\drivers\etc\hosts`},
+		{"windows forward slash", "C:/Windows/win.ini"},
+		{"unc path", `\\server\share\file.yaml`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := &Server{}
+			result := callTool(t, s.handleExportSpec, map[string]string{
+				"spec_path": tc.path,
+			})
+			assert.True(t, result.IsError, "spec_path %q should be rejected", tc.path)
+			text := resultText(t, result)
+			assert.Contains(t, text, "spec_path must be a relative path")
+		})
+	}
+}
+
+func TestExportSpec_SSRFViaURL(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		url  string
+		want string // substring expected in error
+	}{
+		{"aws metadata", "http://169.254.169.254/latest/meta-data/", "blocked"},
+		{"gcp metadata", "http://metadata.google.internal/computeMetadata/v1/", "blocked"},
+		{"file scheme", "file:///etc/passwd", "http:// or https://"},
+		{"ftp scheme", "ftp://evil.com/spec.yaml", "http:// or https://"},
+		{"no scheme", "://missing-scheme.com/spec", "invalid"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := &Server{}
+			result := callTool(t, s.handleExportSpec, map[string]string{
+				"spec_url": tc.url,
+			})
+			assert.True(t, result.IsError, "spec_url %q should be rejected", tc.url)
+			text := resultText(t, result)
+			assert.Contains(t, text, tc.want)
+		})
+	}
+}
+
+func TestExportSpec_SSRFViaEmbeddedServerURL(t *testing.T) {
+	t.Parallel()
+
+	// Spec with servers pointing at internal addresses — resolveSpecInput
+	// calls apispec.CheckServerURLs after parsing, which should block these.
+	specWithInternalServer := `openapi: "3.0.0"
+info:
+  title: Malicious API
+  version: "1.0"
+servers:
+  - url: http://169.254.169.254
+paths:
+  /steal-creds:
+    get:
+      summary: SSRF via server URL
+`
+
+	s := &Server{}
+	result := callTool(t, s.handleExportSpec, map[string]string{
+		"spec_content": specWithInternalServer,
+	})
+	assert.True(t, result.IsError, "spec with metadata server URL should be rejected")
+	text := resultText(t, result)
+	assert.Contains(t, text, "SSRF")
+}
+
+func TestExportSpec_UnknownField(t *testing.T) {
+	t.Parallel()
+	s := &Server{}
+	// parseArgs uses DisallowUnknownFields — unknown keys should error.
+	result := callTool(t, s.handleExportSpec, map[string]any{
+		"spec_content":      testOpenAPISpec,
+		"nonexistent_field": true,
+	})
+	assert.True(t, result.IsError, "unknown field should be rejected by parseArgs")
+	text := resultText(t, result)
+	assert.Contains(t, text, "invalid arguments")
+}
+
+func TestExportSpec_IncludeSchemas_False_StripsSchemas(t *testing.T) {
+	t.Parallel()
+
+	specWithSchema := `openapi: "3.0.0"
+info:
+  title: Schema Test
+  version: "1.0"
+paths:
+  /items:
+    post:
+      summary: Create item
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+            pattern: "^[a-z]+$"
+`
+	s := &Server{}
+
+	// Default (include_schemas=false) should strip parameter schemas.
+	result := callTool(t, s.handleExportSpec, map[string]any{
+		"spec_content":    specWithSchema,
+		"include_schemas": false,
+	})
+	assert.False(t, result.IsError)
+	text := resultText(t, result)
+
+	// The pattern from the parameter schema should be stripped.
+	assert.NotContains(t, text, `"pattern"`)
+	assert.NotContains(t, text, `^[a-z]+$`)
+}
+
+func TestExportSpec_IncludeSchemas_True_PreservesSchemas(t *testing.T) {
+	t.Parallel()
+
+	specWithSchema := `openapi: "3.0.0"
+info:
+  title: Schema Test
+  version: "1.0"
+paths:
+  /items:
+    post:
+      summary: Create item
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+            pattern: "^[a-z]+$"
+`
+	s := &Server{}
+
+	result := callTool(t, s.handleExportSpec, map[string]any{
+		"spec_content":    specWithSchema,
+		"include_schemas": true,
+	})
+	assert.False(t, result.IsError)
+	text := resultText(t, result)
+
+	// With include_schemas=true, the pattern should survive.
+	assert.Contains(t, text, `^[a-z]+$`)
+}
+
+func TestExportSpec_SpecWithNoEndpoints(t *testing.T) {
+	t.Parallel()
+
+	emptyPathsSpec := `openapi: "3.0.0"
+info:
+  title: Empty API
+  version: "1.0"
+paths: {}
+`
+	s := &Server{}
+	result := callTool(t, s.handleExportSpec, map[string]string{
+		"spec_content": emptyPathsSpec,
+	})
+	// Not an error — valid spec, just empty. Result should be valid JSON.
+	assert.False(t, result.IsError, "spec with zero endpoints is valid")
+	text := resultText(t, result)
+
+	var parsed map[string]any
+	assert.NoError(t, json.Unmarshal([]byte(text), &parsed), "result should be valid JSON")
+}
+
+func TestExportSpec_SpecWithServerVariables_SSRFExpansion(t *testing.T) {
+	t.Parallel()
+
+	// Server URL uses variables that expand to a metadata IP.
+	// resolveSpecInput calls apispec.ResolveVariables, then CheckServerURLs.
+	specWithVars := `openapi: "3.0.0"
+info:
+  title: Variable SSRF
+  version: "1.0"
+servers:
+  - url: "http://{host}"
+    variables:
+      host:
+        default: "169.254.169.254"
+paths:
+  /meta:
+    get:
+      summary: Get metadata
+`
+	s := &Server{}
+	result := callTool(t, s.handleExportSpec, map[string]string{
+		"spec_content": specWithVars,
+	})
+	assert.True(t, result.IsError, "expanded server variable to metadata IP should be blocked")
+	text := resultText(t, result)
+	assert.Contains(t, text, "SSRF")
+}
