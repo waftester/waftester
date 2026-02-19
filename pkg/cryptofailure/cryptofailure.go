@@ -542,11 +542,11 @@ func SummarizeResults(results []TestResult) map[string]int {
 		if r.Vulnerable {
 			summary["vulnerable"]++
 			switch r.Severity {
-			case "Critical":
+			case finding.Critical:
 				summary["critical"]++
-			case "High":
+			case finding.High:
 				summary["high"]++
-			case "Medium":
+			case finding.Medium:
 				summary["medium"]++
 			}
 		} else {

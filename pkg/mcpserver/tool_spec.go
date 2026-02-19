@@ -27,6 +27,13 @@ func isWindowsAbsPath(p string) bool {
 		p[1] == ':' && (p[2] == '\\' || p[2] == '/')
 }
 
+// isUNCPath detects Windows UNC paths (\\server\share) on any OS.
+// filepath.IsAbs only catches these on Windows; on Linux backslashes are
+// literal characters so the check must be string-based.
+func isUNCPath(p string) bool {
+	return len(p) >= 2 && p[0] == '\\' && p[1] == '\\'
+}
+
 // registerSpecTools adds spec-related MCP tools.
 func (s *Server) registerSpecTools() {
 	s.addValidateSpecTool()
@@ -91,7 +98,7 @@ func resolveSpecInput(ctx context.Context, content, path, url string) (*apispec.
 	case path != "":
 		// Reject path traversal, absolute, and rooted paths to prevent arbitrary file reads.
 		clean := filepath.Clean(path)
-		if filepath.IsAbs(clean) || isWindowsAbsPath(clean) || strings.Contains(clean, "..") || strings.HasPrefix(clean, string(filepath.Separator)) {
+		if filepath.IsAbs(clean) || isWindowsAbsPath(clean) || isUNCPath(clean) || strings.Contains(clean, "..") || strings.HasPrefix(clean, string(filepath.Separator)) {
 			return nil, errorResult("spec_path must be a relative path without '..' components")
 		}
 		spec, err = apispec.ParseContext(ctx, clean)
@@ -208,7 +215,7 @@ func (s *Server) handleValidateSpec(ctx context.Context, req *mcp.CallToolReques
 	case args.SpecPath != "":
 		// Reject path traversal, absolute, and rooted paths to prevent arbitrary file reads.
 		clean := filepath.Clean(args.SpecPath)
-		if filepath.IsAbs(clean) || isWindowsAbsPath(clean) || strings.Contains(clean, "..") || strings.HasPrefix(clean, string(filepath.Separator)) {
+		if filepath.IsAbs(clean) || isWindowsAbsPath(clean) || isUNCPath(clean) || strings.Contains(clean, "..") || strings.HasPrefix(clean, string(filepath.Separator)) {
 			return errorResult("spec_path must be a relative path without '..' components"), nil
 		}
 		spec, parseErr = apispec.ParseContext(ctx, clean)

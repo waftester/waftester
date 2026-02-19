@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 )
 
@@ -131,8 +132,8 @@ func TestScanForSecrets(t *testing.T) {
 				if !r.Vulnerable {
 					t.Error("Expected vulnerable to be true")
 				}
-				if r.Severity != "Critical" {
-					t.Errorf("Expected Critical severity, got %s", r.Severity)
+				if r.Severity != finding.Critical {
+					t.Errorf("Expected critical severity, got %s", r.Severity)
 				}
 			}
 		})
@@ -327,11 +328,11 @@ func TestNewTester(t *testing.T) {
 
 func TestSummarizeResults(t *testing.T) {
 	results := []TestResult{
-		{Vulnerable: true, Severity: "Critical"},
-		{Vulnerable: true, Severity: "High"},
-		{Vulnerable: true, Severity: "Medium"},
-		{Vulnerable: false, Severity: "Low"},
-		{Vulnerable: false, Severity: "Info"},
+		{Vulnerable: true, Severity: finding.Critical},
+		{Vulnerable: true, Severity: finding.High},
+		{Vulnerable: true, Severity: finding.Medium},
+		{Vulnerable: false, Severity: finding.Low},
+		{Vulnerable: false, Severity: finding.Info},
 	}
 
 	summary := SummarizeResults(results)
