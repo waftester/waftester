@@ -161,10 +161,6 @@ func (d *Discoverer) probeKnownEndpoints(ctx context.Context, result *DiscoveryR
 	case "agreementpulse":
 		endpoints = append(endpoints, getAgreementPulseEndpoints()...)
 		result.AttackSurface.HasAPIEndpoints = true
-	case "onehub":
-		endpoints = append(endpoints, getOnehubEndpoints()...)
-		result.AttackSurface.HasAPIEndpoints = true
-		result.AttackSurface.AcceptsJSON = true
 	default:
 		// Generic probing
 		endpoints = append(endpoints, getGenericEndpoints()...)
