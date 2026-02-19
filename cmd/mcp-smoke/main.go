@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/waftester/waftester/pkg/defaults"
 )
 
 // scenarioResult tracks the outcome of a single scenario.
@@ -54,7 +55,7 @@ func main() {
 	}
 	fmt.Println("server: healthy")
 
-	client := mcp.NewClient(&mcp.Implementation{Name: "mcp-smoke", Version: "1.0.0"}, nil)
+	client := mcp.NewClient(&mcp.Implementation{Name: "mcp-smoke", Version: defaults.Version}, nil)
 	session, err := client.Connect(ctx, &mcp.SSEClientTransport{
 		Endpoint: fmt.Sprintf("http://127.0.0.1:%d/sse", *port),
 	}, nil)
