@@ -463,9 +463,9 @@ func TestN8n_SSE_AsyncWorkflow(t *testing.T) {
 	// Step 3: Verify we got a terminal status
 	pollText := extractTextN8n(t, pollResult)
 	var finalSnap struct {
-		TaskID   string `json:"task_id"`
-		Status   string `json:"status"`
-		Tool     string `json:"tool"`
+		TaskID   string  `json:"task_id"`
+		Status   string  `json:"status"`
+		Tool     string  `json:"tool"`
 		Progress float64 `json:"progress"`
 	}
 	if err := json.Unmarshal([]byte(pollText), &finalSnap); err != nil {
@@ -799,8 +799,8 @@ func TestN8n_CORS_LocalhostOrigins(t *testing.T) {
 
 	// n8n runs on various localhost ports
 	origins := []string{
-		"http://localhost:5678",  // default n8n port
-		"http://localhost:3000",  // custom port
+		"http://localhost:5678", // default n8n port
+		"http://localhost:3000", // custom port
 		"http://127.0.0.1:5678", // IP-based
 		"http://[::1]:5678",     // IPv6
 	}
