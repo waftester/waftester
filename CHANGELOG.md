@@ -9,11 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-- **Removed client-specific discovery endpoints** — Removed `getOnehubEndpoints` function and its case branch from discovery probes. Added pre-commit hook guard to block client names from being committed to the public repo.
+- **Removed client-specific discovery endpoints** — Removed client-specific endpoint function and its case branch from discovery probes. Added pre-commit hook guard to block client names from being committed to the public repo.
 
 ### Fixed
 
 - **Pre-push hook grep delimiter** — Added `--` delimiter to `grep -E` in the pre-push hook to prevent patterns starting with `-` from being misinterpreted as flags.
+- **Cryptofailure severity type safety** — Changed `Severity` field from raw `string` to `finding.Severity` type with proper constants, fixing case mismatch in test assertions.
+- **Cross-platform UNC path detection** — Added `isUNCPath` helper to spec path validation so `\\server\share` paths are rejected on Linux where `filepath.IsAbs` doesn't recognize them.
 
 ## [2.9.18] - 2026-02-19
 
