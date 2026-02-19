@@ -70,7 +70,7 @@ if ! go test -count=1 ./pkg/defaults/ > /dev/null 2>&1; then
     echo "╚══════════════════════════════════════════════════════════════════╝"
     echo ""
     # Re-run with verbose output to show exactly what failed
-    go test -v -count=1 ./pkg/defaults/ 2>&1 | grep -E '--- FAIL|FAIL\s|found|expected|hardcoded|Hardcoded|npm|package.json|Document Version|Docker|INSTALLATION|Concurrency|MaxDepth|Retries|MaxRedirects|ContentType|UserAgent|ToolName|OWASP' || true
+    go test -v -count=1 ./pkg/defaults/ 2>&1 | grep -E -- '--- FAIL|FAIL\s|found|expected|hardcoded|Hardcoded|npm|package.json|Document Version|Docker|INSTALLATION|Concurrency|MaxDepth|Retries|MaxRedirects|ContentType|UserAgent|ToolName|OWASP' || true
     echo ""
     echo "Common fixes:"
     echo "  Version mismatch — update all 7 mandatory files (use version-bump skill)"
