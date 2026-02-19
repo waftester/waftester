@@ -5,6 +5,16 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.19] - 2026-02-19
+
+### Security
+
+- **Removed client-specific discovery endpoints** — Removed `getOnehubEndpoints` function and its case branch from discovery probes. Added pre-commit hook guard to block client names from being committed to the public repo.
+
+### Fixed
+
+- **Pre-push hook grep delimiter** — Added `--` delimiter to `grep -E` in the pre-push hook to prevent patterns starting with `-` from being misinterpreted as flags.
+
 ## [2.9.18] - 2026-02-19
 
 ### Added
@@ -2359,6 +2369,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.19]: https://github.com/waftester/waftester/compare/v2.9.18...v2.9.19
 [2.9.18]: https://github.com/waftester/waftester/compare/v2.9.17...v2.9.18
 [2.9.17]: https://github.com/waftester/waftester/compare/v2.9.16...v2.9.17
 [2.9.16]: https://github.com/waftester/waftester/compare/v2.9.15...v2.9.16

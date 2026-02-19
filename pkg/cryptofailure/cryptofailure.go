@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
@@ -40,7 +41,7 @@ type TestResult struct {
 	Vulnerable  bool              `json:"vulnerable"`
 	Description string            `json:"description"`
 	Evidence    string            `json:"evidence,omitempty"`
-	Severity    string            `json:"severity"`
+	Severity    finding.Severity  `json:"severity"`
 	Remediation string            `json:"remediation"`
 }
 
@@ -158,7 +159,7 @@ func (t *Tester) TestTLSVersion(ctx context.Context) ([]TestResult, error) {
 		result := TestResult{
 			VulnType: WeakTLSVersion,
 			Target:   t.target,
-			Severity: "High",
+			Severity: finding.High,
 		}
 
 		if err == nil {
@@ -206,7 +207,7 @@ func (t *Tester) TestCipherSuites(ctx context.Context) ([]TestResult, error) {
 		result := TestResult{
 			VulnType: WeakCipherSuite,
 			Target:   t.target,
-			Severity: "Medium",
+			Severity: finding.Medium,
 		}
 
 		if err == nil {
@@ -264,7 +265,7 @@ func (t *Tester) TestCertificate(ctx context.Context) ([]TestResult, error) {
 			Vulnerable:  true,
 			Description: "Certificate has expired",
 			Evidence:    fmt.Sprintf("Certificate expired on %s", cert.NotAfter.Format(time.RFC3339)),
-			Severity:    "Critical",
+			Severity:    finding.Critical,
 			Remediation: "Renew the SSL/TLS certificate immediately",
 		})
 	} else if time.Until(cert.NotAfter) < 30*24*time.Hour {
@@ -274,7 +275,7 @@ func (t *Tester) TestCertificate(ctx context.Context) ([]TestResult, error) {
 			Vulnerable:  true,
 			Description: "Certificate expires soon",
 			Evidence:    fmt.Sprintf("Certificate expires on %s (less than 30 days)", cert.NotAfter.Format(time.RFC3339)),
-			Severity:    "Medium",
+			Severity:    finding.Medium,
 			Remediation: "Plan certificate renewal before expiry",
 		})
 	}
@@ -288,7 +289,7 @@ func (t *Tester) TestCertificate(ctx context.Context) ([]TestResult, error) {
 			Vulnerable:  true,
 			Description: "Certificate is self-signed",
 			Evidence:    fmt.Sprintf("Issuer matches Subject: %s", cert.Issuer.String()),
-			Severity:    "High",
+			Severity:    finding.High,
 			Remediation: "Use a certificate from a trusted Certificate Authority",
 		})
 	}
@@ -304,7 +305,7 @@ func (t *Tester) TestCertificate(ctx context.Context) ([]TestResult, error) {
 					Vulnerable:  true,
 					Description: "Certificate uses weak key size",
 					Evidence:    fmt.Sprintf("RSA key size: %d bits (minimum recommended: 2048)", keySize),
-					Severity:    "High",
+					Severity:    finding.High,
 					Remediation: "Use at least 2048-bit RSA keys or switch to ECDSA",
 				})
 			}
@@ -334,7 +335,7 @@ func (t *Tester) TestHSTS(ctx context.Context) (*TestResult, error) {
 	result := &TestResult{
 		VulnType: MissingHSTS,
 		Target:   t.target,
-		Severity: "Medium",
+		Severity: finding.Medium,
 	}
 
 	if hstsHeader == "" {
@@ -377,7 +378,7 @@ func (t *Tester) TestHTTPDowngrade(ctx context.Context) (*TestResult, error) {
 			Target:      httpTarget,
 			Vulnerable:  false,
 			Description: "HTTP endpoint not accessible (good)",
-			Severity:    "Low",
+			Severity:    finding.Low,
 		}, nil
 	}
 	defer iohelper.DrainAndClose(resp.Body)
@@ -385,7 +386,7 @@ func (t *Tester) TestHTTPDowngrade(ctx context.Context) (*TestResult, error) {
 	result := &TestResult{
 		VulnType: InsecureTransport,
 		Target:   httpTarget,
-		Severity: "Medium",
+		Severity: finding.Medium,
 	}
 
 	if resp.StatusCode == 301 || resp.StatusCode == 302 || resp.StatusCode == 307 || resp.StatusCode == 308 {
@@ -436,7 +437,7 @@ func ScanForSecrets(content string) []TestResult {
 				Vulnerable:  true,
 				Description: fmt.Sprintf("Detected potential %s in content", name),
 				Evidence:    fmt.Sprintf("Found %d instances: %v", len(matches), maskedEvidence),
-				Severity:    "Critical",
+				Severity:    finding.Critical,
 				Remediation: "Remove hardcoded secrets and use environment variables or secret management",
 			})
 		}
@@ -457,7 +458,7 @@ func ScanForWeakHashing(content string) []TestResult {
 				VulnType:    WeakHashing,
 				Vulnerable:  true,
 				Description: fmt.Sprintf("Detected %s usage", name),
-				Severity:    "Medium",
+				Severity:    finding.Medium,
 				Remediation: "Use strong hashing algorithms like bcrypt, Argon2, or SHA-256+",
 			})
 		}
