@@ -101,7 +101,7 @@ for file in $STAGED_FILES; do
             ;;
         */ui/* | */interactive/* | */mcpserver/* | */output/* | */discovery/* | \
         */fp/* | */core/* | */corpus/* | */params/* | */report/* | */update/* | \
-        */validate/* | */input/* | */hooks/* | */cli/*)
+        */validate/* | */input/* | */hooks/* | */cli/* | */mcp-smoke/*)
             # Packages that legitimately produce console output (mirrors structural test allowlist).
             ;;
         *.go)
