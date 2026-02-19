@@ -93,7 +93,7 @@ if ! (cd "$REPO_ROOT/test" && go test -count=1 . > /dev/null 2>&1); then
     echo "║  BLOCKED: structural tests failed                              ║"
     echo "╚══════════════════════════════════════════════════════════════════╝"
     echo ""
-    (cd "$REPO_ROOT/test" && go test -v -count=1 . 2>&1 | grep -E '--- FAIL|FAIL\s|found|direct print|raw severity|signal\.Notify|string\(rune' || true)
+    (cd "$REPO_ROOT/test" && go test -v -count=1 . 2>&1 | grep -E -- '--- FAIL|FAIL\s|found|direct print|raw severity|signal\.Notify|string\(rune' || true)
     echo ""
     echo "Common fixes:"
     echo "  Direct print — use slog or ui package instead of fmt.Print/log.Print"
