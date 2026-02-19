@@ -119,9 +119,9 @@ func TestHandler_Scan_AsyncLifecycle(t *testing.T) {
 			// If completed, verify result structure
 			if snap.Status == "completed" && len(snap.Result) > 0 {
 				var scanResult struct {
-					Summary        string `json:"summary"`
-					DetectionRate  string `json:"detection_rate"`
-					Interpretation string `json:"interpretation"`
+					Summary        string   `json:"summary"`
+					DetectionRate  string   `json:"detection_rate"`
+					Interpretation string   `json:"interpretation"`
 					NextSteps      []string `json:"next_steps"`
 				}
 				if err := json.Unmarshal(snap.Result, &scanResult); err != nil {
@@ -376,8 +376,8 @@ func TestHandler_DetectWAF_ResponseStructure(t *testing.T) {
 
 	// Success: verify response has expected fields
 	var resp struct {
-		Summary        string `json:"summary"`
-		Interpretation string `json:"interpretation"`
+		Summary        string   `json:"summary"`
+		Interpretation string   `json:"interpretation"`
 		NextSteps      []string `json:"next_steps"`
 	}
 	if err := json.Unmarshal([]byte(text), &resp); err != nil {
