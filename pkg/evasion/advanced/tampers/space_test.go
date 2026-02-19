@@ -76,36 +76,72 @@ func TestSpace2MoreComment(t *testing.T) {
 
 func TestSpace2MSSQLBlank(t *testing.T) {
 	tamper := &Space2MSSQLBlank{}
-	// Test that spaces are replaced with something
-	result := tamper.Transform("A B C")
-	if result == "A B C" {
-		t.Error("Space2MSSQLBlank should replace spaces")
+
+	// Empty input returns empty.
+	if got := tamper.Transform(""); got != "" {
+		t.Errorf("Transform empty: got %q", got)
 	}
-	if strings.Count(result, " ") > 0 && !strings.Contains(result, "\x20") {
-		// Spaces should be replaced with alternate chars
+
+	// No spaces → unchanged.
+	if got := tamper.Transform("ABC"); got != "ABC" {
+		t.Errorf("Transform no-space: got %q, want ABC", got)
 	}
-	// Verify no spaces (or replaced with control chars which includes 0x20)
-	parts := strings.Split(result, "A")
-	if len(parts) < 2 {
-		t.Errorf("Original structure not preserved: %q", result)
+
+	// Valid MSSQL whitespace set (0x01–0x20).
+	validBlanks := make(map[byte]bool)
+	for b := byte(0x01); b <= 0x20; b++ {
+		validBlanks[b] = true
+	}
+
+	// Run multiple times — every byte at a space position must be a valid
+	// MSSQL blank, and non-space characters must be preserved.
+	for range 50 {
+		result := tamper.Transform("A B C")
+		bytes := []byte(result)
+		if len(bytes) != 5 {
+			t.Fatalf("length changed: got %d (%q)", len(bytes), result)
+		}
+		if bytes[0] != 'A' || bytes[2] != 'B' || bytes[4] != 'C' {
+			t.Fatalf("non-space chars altered: %q", result)
+		}
+		if !validBlanks[bytes[1]] {
+			t.Errorf("position 1: byte 0x%02X not a valid MSSQL blank", bytes[1])
+		}
+		if !validBlanks[bytes[3]] {
+			t.Errorf("position 3: byte 0x%02X not a valid MSSQL blank", bytes[3])
+		}
 	}
 }
 
 func TestSpace2MySQLBlank(t *testing.T) {
 	tamper := &Space2MySQLBlank{}
-	// Test deterministically by checking spaces are replaced
-	input := "SELECT FROM"
-	result := tamper.Transform(input)
-	// Count non-letter characters
-	letterCount := 0
-	for _, r := range result {
-		if r >= 'A' && r <= 'Z' {
-			letterCount++
-		}
+
+	// Empty input returns empty.
+	if got := tamper.Transform(""); got != "" {
+		t.Errorf("Transform empty: got %q", got)
 	}
-	// Should have same letters
-	if letterCount != 10 {
-		t.Errorf("Space2MySQLBlank changed letters: input=%q, result=%q", input, result)
+
+	// Valid MySQL whitespace set.
+	validBlanks := map[byte]bool{
+		0x09: true, 0x0A: true, 0x0B: true,
+		0x0C: true, 0x0D: true, 0x20: true,
+	}
+
+	// Run multiple times — every byte at a space position must be a valid
+	// MySQL blank, and letters must be preserved.
+	for range 50 {
+		result := tamper.Transform("SELECT FROM")
+		bytes := []byte(result)
+		if len(bytes) != 11 {
+			t.Fatalf("length changed: got %d (%q)", len(bytes), result)
+		}
+		// Letters preserved.
+		if string(bytes[:6]) != "SELECT" || string(bytes[7:]) != "FROM" {
+			t.Fatalf("letters altered: %q", result)
+		}
+		if !validBlanks[bytes[6]] {
+			t.Errorf("position 6: byte 0x%02X not a valid MySQL blank", bytes[6])
+		}
 	}
 }
 
