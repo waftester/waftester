@@ -14,6 +14,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 // scenarioResult tracks the outcome of a single scenario.
@@ -1680,7 +1681,7 @@ func findRepoRoot() (string, error) {
 }
 
 func waitForHealth(ctx context.Context, port int) error {
-	client := &http.Client{Timeout: 2 * time.Second}
+	client := httpclient.New(httpclient.WithTimeout(2 * time.Second))
 	url := fmt.Sprintf("http://127.0.0.1:%d/health", port)
 
 	ticker := time.NewTicker(300 * time.Millisecond)
