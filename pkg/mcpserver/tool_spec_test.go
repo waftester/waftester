@@ -493,6 +493,58 @@ func TestDescribeSpecAuth_EmptyContent(t *testing.T) {
 	assert.Contains(t, text, "one of spec_content, spec_path, or spec_url is required")
 }
 
+func TestDescribeSpecAuth_WithOAuthAndApiKeyMetadata(t *testing.T) {
+	t.Parallel()
+	s := &Server{}
+
+	specWithMultipleAuth := `openapi: "3.0.0"
+info:
+  title: Multi Auth API
+  version: "1.0"
+components:
+  securitySchemes:
+    oauth2Auth:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://idp.example.com/auth
+          tokenUrl: https://idp.example.com/token
+          scopes:
+            read: Read access
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+paths:
+  /reports:
+    get:
+      security:
+        - oauth2Auth: [read]
+  /internal:
+    get:
+      security:
+        - apiKeyAuth: []
+`
+
+	result := callTool(t, s.handleDescribeSpecAuth, map[string]string{
+		"spec_content": specWithMultipleAuth,
+	})
+
+	assert.False(t, result.IsError)
+	text := resultText(t, result)
+	assert.Contains(t, text, `"scheme_count": 2`)
+	assert.Contains(t, text, `"oauth2Auth"`)
+	assert.Contains(t, text, `"apiKeyAuth"`)
+	assert.Contains(t, text, `"token_url": "https://idp.example.com/token"`)
+	assert.Contains(t, text, `"auth_url": "https://idp.example.com/auth"`)
+	assert.Contains(t, text, `"scopes"`)
+	assert.Contains(t, text, `"in": "header"`)
+	assert.Contains(t, text, `"field_name": "X-API-Key"`)
+	assert.Contains(t, text, `"endpoint_auth"`)
+	assert.Contains(t, text, `"path": "/reports"`)
+	assert.Contains(t, text, `"path": "/internal"`)
+}
+
 // --- export_spec tests ---
 
 func TestExportSpec_NormalizedOutput(t *testing.T) {
