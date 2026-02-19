@@ -472,13 +472,11 @@ func scenarioTamperCatalog(ctx context.Context, s *mcp.ClientSession, _ string) 
 	if err != nil {
 		return fmt.Errorf("NEG list_tampers(fake): %w", err)
 	}
-	fakeTampers, _ := fakeData["tampers"].([]any)
 	fakeFiltered, _ := fakeData["filtered_count"].(float64)
 	// Either empty (filtered out) or the filter was ignored — both must not exceed total.
 	if fakeFiltered > totalCount {
 		return fmt.Errorf("NEG list_tampers(fake): filtered_count %v > total %v", fakeFiltered, totalCount)
 	}
-	_ = fakeTampers
 
 	return nil
 }
@@ -1239,13 +1237,12 @@ func agentAPISecurity(ctx context.Context, s *mcp.ClientSession, _ string) error
 	current := `[{"endpoint":"/users","method":"GET","finding":"sqli","severity":"high","blocked":true},` +
 		`{"endpoint":"/users","method":"POST","finding":"xss","severity":"medium","blocked":true}]`
 
-	compData, err := callToolJSON(ctx, s, "compare_baselines", map[string]any{
+	_, err = callToolJSON(ctx, s, "compare_baselines", map[string]any{
 		"baseline_findings": baseline, "current_findings": current,
 	})
 	if err != nil {
 		return fmt.Errorf("compare_baselines: %w", err)
 	}
-	_ = compData
 
 	return nil
 }
