@@ -5,6 +5,18 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.18] - 2026-02-19
+
+### Added
+
+- **MCP agent scenario smoke runner** — Cross-platform test runner (`cmd/mcp-smoke`) with 13 scenarios covering the entire MCP surface area: tool discovery, resource exploration, prompt catalog, payload/tamper operations, mutation engine, template workflow, CI/CD generation, spec pipeline, baseline comparison, task management, error handling, and live WAF recon.
+- **MCP export_spec negative tests** — Security and input validation tests for the `export_spec` tool.
+- **MCP coverage gap regression tests** — Tests targeting low-coverage branches: `buildDiscoverBypassesResponse`, `tlsVersionString`, `buildProbeResponse`, `estimateScanDuration`, writer wrappers, and `discardWriter`.
+
+### Changed
+
+- **n8n template descriptions** — Updated tool count from 18 to 27, added About WAFtester sections with website/GitHub/docs links, expanded How it works explanations, added capabilities tables and example prompts.
+
 ## [2.9.17] - 2026-02-19
 
 ### Fixed
@@ -2347,6 +2359,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.18]: https://github.com/waftester/waftester/compare/v2.9.17...v2.9.18
 [2.9.17]: https://github.com/waftester/waftester/compare/v2.9.16...v2.9.17
 [2.9.16]: https://github.com/waftester/waftester/compare/v2.9.15...v2.9.16
 [2.9.15]: https://github.com/waftester/waftester/compare/v2.9.14...v2.9.15
