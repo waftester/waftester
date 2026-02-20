@@ -9,6 +9,7 @@ import (
 	"html"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -22,6 +23,9 @@ import (
 
 // Compile-time interface check.
 var _ dispatcher.Hook = (*AzureDevOpsHook)(nil)
+
+// validADOName matches valid Azure DevOps organization, project, and work item type names.
+var validADOName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9 ._-]{0,63}$`)
 
 // AzureDevOpsHook creates work items in Azure DevOps via the REST API.
 // It creates work items for WAF bypasses that meet the severity threshold.
@@ -113,11 +117,22 @@ var adoPriorityMap = map[events.Severity]int{
 }
 
 // NewAzureDevOpsHook creates a new Azure DevOps hook.
-func NewAzureDevOpsHook(opts AzureDevOpsOptions) *AzureDevOpsHook {
-	// Apply defaults
+// Returns an error if Organization, Project, or WorkItemType contain invalid characters.
+func NewAzureDevOpsHook(opts AzureDevOpsOptions) (*AzureDevOpsHook, error) {
+	if !validADOName.MatchString(opts.Organization) {
+		return nil, fmt.Errorf("invalid Azure DevOps organization: %q", opts.Organization)
+	}
+	if !validADOName.MatchString(opts.Project) {
+		return nil, fmt.Errorf("invalid Azure DevOps project: %q", opts.Project)
+	}
 	if opts.WorkItemType == "" {
 		opts.WorkItemType = "Bug"
 	}
+	if !validADOName.MatchString(opts.WorkItemType) {
+		return nil, fmt.Errorf("invalid Azure DevOps work item type: %q", opts.WorkItemType)
+	}
+
+	// Apply defaults
 	if opts.MinSeverity == "" {
 		opts.MinSeverity = events.SeverityHigh
 	}
@@ -135,7 +150,7 @@ func NewAzureDevOpsHook(opts AzureDevOpsOptions) *AzureDevOpsHook {
 		}),
 		opts:   opts,
 		logger: orDefault(opts.Logger),
-	}
+	}, nil
 }
 
 // OnEvent processes events and creates work items in Azure DevOps.

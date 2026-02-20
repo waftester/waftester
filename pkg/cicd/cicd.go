@@ -4,6 +4,7 @@ package cicd
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"text/template"
 )
 
@@ -36,7 +37,7 @@ type TemplateConfig struct {
 	UploadArtifacts  bool     `json:"upload_artifacts"`   // Upload scan results
 	NotifySlack      bool     `json:"notify_slack"`       // Slack notifications
 	SlackWebhook     string   `json:"slack_webhook"`      // Slack webhook env var
-	Timeout          string   `json:"timeout"`            // Job timeout
+	Timeout          int      `json:"timeout"`            // Job timeout in minutes
 	ConcurrencyLimit int      `json:"concurrency_limit"`  // Parallel requests
 	RateLimit        int      `json:"rate_limit"`         // Requests per second
 	CustomArgs       string   `json:"custom_args"`        // Additional CLI args
@@ -59,7 +60,7 @@ func DefaultConfig(platform Platform, targetURL string) *TemplateConfig {
 		Branches:         []string{"main", "master"},
 		OutputFormat:     "sarif",
 		UploadArtifacts:  true,
-		Timeout:          "30m",
+		Timeout:          30,
 		ConcurrencyLimit: 50,
 		RateLimit:        10,
 		WafTesterVersion: "latest",
@@ -717,13 +718,13 @@ func (v *PipelineValidator) Validate(platform Platform, content string) error {
 
 	switch platform {
 	case PlatformGitHubActions, PlatformGitLabCI, PlatformAzureDevOps, PlatformCircleCI, PlatformBitbucket:
-		// YAML-based - basic validation
-		if !containsString(content, "waf-tester") {
+		// YAML-based — basic validation
+		if !strings.Contains(content, "waf-tester") {
 			return fmt.Errorf("template missing waf-tester command")
 		}
 	case PlatformJenkins:
 		// Groovy-based
-		if !containsString(content, "pipeline") {
+		if !strings.Contains(content, "pipeline") {
 			return fmt.Errorf("Jenkins template missing pipeline block")
 		}
 	default:
@@ -731,17 +732,4 @@ func (v *PipelineValidator) Validate(platform Platform, content string) error {
 	}
 
 	return nil
-}
-
-func containsString(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstring(s, substr))
-}
-
-func containsSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

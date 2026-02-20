@@ -491,7 +491,7 @@ func BuildDispatcher(cfg Config) (*dispatcher.Dispatcher, error) {
 		if cfg.JiraLabels != "" {
 			labels = parseCSV(cfg.JiraLabels)
 		}
-		hook := hooks.NewJiraHook(cfg.JiraURL, hooks.JiraOptions{
+		hook, err := hooks.NewJiraHook(cfg.JiraURL, hooks.JiraOptions{
 			ProjectKey: cfg.JiraProject,
 			Username:   cfg.JiraEmail,
 			APIToken:   cfg.JiraToken,
@@ -499,6 +499,10 @@ func BuildDispatcher(cfg Config) (*dispatcher.Dispatcher, error) {
 			Labels:     labels,
 			AssigneeID: cfg.JiraAssignee,
 		})
+		if err != nil {
+			cleanup()
+			return nil, fmt.Errorf("jira hook: %w", err)
+		}
 		d.RegisterHook(hook)
 	}
 
@@ -538,7 +542,7 @@ func BuildDispatcher(cfg Config) (*dispatcher.Dispatcher, error) {
 		if cfg.ADOTags != "" {
 			tags = parseSemicolonSeparated(cfg.ADOTags)
 		}
-		hook := hooks.NewAzureDevOpsHook(hooks.AzureDevOpsOptions{
+		hook, err := hooks.NewAzureDevOpsHook(hooks.AzureDevOpsOptions{
 			Organization:  cfg.ADOOrganization,
 			Project:       cfg.ADOProject,
 			PAT:           cfg.ADOPAT,
@@ -548,6 +552,10 @@ func BuildDispatcher(cfg Config) (*dispatcher.Dispatcher, error) {
 			Tags:          tags,
 			AssignedTo:    cfg.ADOAssignedTo,
 		})
+		if err != nil {
+			cleanup()
+			return nil, fmt.Errorf("azure devops hook: %w", err)
+		}
 		d.RegisterHook(hook)
 	}
 
