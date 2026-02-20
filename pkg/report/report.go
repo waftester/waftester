@@ -694,13 +694,13 @@ func CompareReports(baseline, current *Report) *ComparisonReport {
 	// Create maps for comparison
 	baselineMap := make(map[string]*Finding)
 	for _, f := range baseline.Technical.Findings {
-		key := f.Target + f.Endpoint + f.Type
+		key := f.Target + "\x00" + f.Endpoint + "\x00" + f.Type
 		baselineMap[key] = f
 	}
 
 	currentMap := make(map[string]*Finding)
 	for _, f := range current.Technical.Findings {
-		key := f.Target + f.Endpoint + f.Type
+		key := f.Target + "\x00" + f.Endpoint + "\x00" + f.Type
 		currentMap[key] = f
 	}
 
