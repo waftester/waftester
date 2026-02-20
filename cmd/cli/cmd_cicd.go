@@ -43,7 +43,7 @@ func runCICD() {
 	branches := cicdFlags.String("branches", "main,master", "Branches to trigger on (comma-separated)")
 
 	// Execution options
-	timeout := cicdFlags.String("timeout", "30m", "Job timeout")
+	timeout := cicdFlags.Int("timeout", 30, "Job timeout in minutes")
 	concurrency := cicdFlags.Int("concurrency", 50, "Request concurrency")
 	rateLimit := cicdFlags.Int("rate-limit", 10, "Requests per second")
 
