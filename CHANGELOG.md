@@ -5,6 +5,12 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.21] - 2026-02-20
+
+### Fixed
+
+- **Intelligence engine adversarial hardening (round 2)** — Five bugs found in re-review of intelligence engine changes: RecordBehavior composite key mismatch silently broke behavior tracking when HTTP method was set; totalObservations not persisted, disabling UCB1 exploration after resume; extractPattern false-positive matches on bare `O:` and `a:` prefixes; buildSecretChain and buildLeakyParamChain returned first match instead of best candidate; buildLeakyParamChain used case-sensitive path matching.
+
 ## [2.9.20] - 2026-02-20
 
 ### Fixed
@@ -2377,6 +2383,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.21]: https://github.com/waftester/waftester/compare/v2.9.20...v2.9.21
 [2.9.20]: https://github.com/waftester/waftester/compare/v2.9.19...v2.9.20
 [2.9.19]: https://github.com/waftester/waftester/compare/v2.9.18...v2.9.19
 [2.9.18]: https://github.com/waftester/waftester/compare/v2.9.17...v2.9.18
