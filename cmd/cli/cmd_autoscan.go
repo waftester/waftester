@@ -39,6 +39,7 @@ import (
 	"github.com/waftester/waftester/pkg/payloads"
 	"github.com/waftester/waftester/pkg/ratelimit"
 	"github.com/waftester/waftester/pkg/recon"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/report"
 	"github.com/waftester/waftester/pkg/templateresolver"
 	tlsja3 "github.com/waftester/waftester/pkg/tls"
@@ -187,6 +188,20 @@ func runAutoScan() {
 
 	autoFlags.Parse(os.Args[2:])
 
+	// Validate numeric flags to prevent panics (negative channel size) and hangs (zero workers).
+	if *concurrency <= 0 {
+		ui.PrintError("--concurrency must be a positive integer")
+		os.Exit(1)
+	}
+	if *rateLimit <= 0 {
+		ui.PrintError("--rl must be a positive integer")
+		os.Exit(1)
+	}
+	if *timeout <= 0 {
+		ui.PrintError("--timeout must be a positive integer")
+		os.Exit(1)
+	}
+
 	// Disable detection if requested
 	if *noDetect {
 		detection.Disable()
@@ -280,8 +295,9 @@ func runAutoScan() {
 		projectRoot := getProjectRoot()
 		workspaceDir = filepath.Join(projectRoot, "workspaces", domain, timestamp)
 	}
-	// Clean previous workspace files unless --no-clean is set
-	if !*noClean && workspaceDir != "" {
+	// Clean previous workspace files unless --no-clean or --resume is set.
+	// Resume needs the existing workspace intact to restore checkpoint state.
+	if !*noClean && !*resumeScan && workspaceDir != "" {
 		if info, err := os.Stat(workspaceDir); err == nil && info.IsDir() {
 			if removeErr := os.RemoveAll(workspaceDir); removeErr != nil {
 				ui.PrintWarning(fmt.Sprintf("Failed to clean workspace: %v", removeErr))
@@ -320,6 +336,7 @@ func runAutoScan() {
 		"learning",
 		"waf-testing",
 		"brain-feedback",
+		"mutation-pass",
 		"assessment",
 		"browser-scan",
 		"vendor-detection",
@@ -411,6 +428,26 @@ func runAutoScan() {
 
 		if !quietMode {
 			ui.PrintInfo(ui.Icon("🧠", "*") + " Brain Mode enabled (adaptive learning, attack chains)")
+		}
+	}
+
+	// Brain state persistence for resume support.
+	// The engine has Save/Load that persists all cognitive modules
+	// (memory, WAF model, tech profile, predictor, mutator, clusterer, pathfinder).
+	brainStatePath := filepath.Join(workspaceDir, "brain-state.json")
+	saveBrainState := func() {
+		if brain == nil {
+			return
+		}
+		if err := brain.Save(brainStatePath); err != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to save brain state: %v", err))
+		}
+	}
+
+	// Restore brain state on resume so sub-passes have full intelligence.
+	if *resumeScan && brain != nil {
+		if err := brain.Load(brainStatePath); err == nil {
+			ui.PrintInfo("🧠 Brain state restored from checkpoint")
 		}
 	}
 
@@ -959,6 +996,50 @@ func runAutoScan() {
 				allJSData = &loaded
 			}
 		}
+
+		// Re-inject JS endpoints into discResult — downstream phases (clustering,
+		// test plan, payload routing) depend on these being present.
+		for _, ep := range allJSData.Endpoints {
+			method := ep.Method
+			if method == "" {
+				method = inferHTTPMethod(ep.Path, ep.Source)
+			}
+			discResult.Endpoints = append(discResult.Endpoints, discovery.Endpoint{
+				Path:     ep.Path,
+				Method:   method,
+				Category: "api",
+				Service:  "js-discovery",
+			})
+		}
+		seenPaths := make(map[string]bool)
+		for _, ep := range discResult.Endpoints {
+			seenPaths[ep.Method+":"+ep.Path] = true
+		}
+		for _, urlInfo := range allJSData.URLs {
+			if !strings.HasPrefix(urlInfo.URL, "/") || strings.HasPrefix(urlInfo.URL, "//") {
+				continue
+			}
+			if strings.HasSuffix(urlInfo.URL, ".js") || strings.HasSuffix(urlInfo.URL, ".css") ||
+				strings.HasSuffix(urlInfo.URL, ".png") || strings.HasSuffix(urlInfo.URL, ".jpg") ||
+				strings.HasSuffix(urlInfo.URL, ".svg") || strings.HasSuffix(urlInfo.URL, ".woff") {
+				continue
+			}
+			method := urlInfo.Method
+			if method == "" {
+				method = "GET"
+			}
+			key := method + ":" + urlInfo.URL
+			if seenPaths[key] {
+				continue
+			}
+			seenPaths[key] = true
+			discResult.Endpoints = append(discResult.Endpoints, discovery.Endpoint{
+				Path:     urlInfo.URL,
+				Method:   method,
+				Category: "api",
+				Service:  "js-analysis",
+			})
+		}
 	} else {
 		printStatusLn(ui.SectionStyle.Render("PHASE 2: Deep JavaScript Analysis"))
 		printStatusLn()
@@ -1267,7 +1348,7 @@ func runAutoScan() {
 					Phase:      "js-analysis",
 					Category:   "secret",
 					Severity:   "high",
-					Evidence:   secret.Type + ": " + secret.Value[:min(30, len(secret.Value))],
+					Evidence:   secret.Type + ": " + strutil.Truncate(secret.Value, 30),
 					Confidence: 0.9,
 					Metadata:   map[string]interface{}{"type": secret.Type},
 				})
@@ -1664,6 +1745,80 @@ func runAutoScan() {
 			}
 		}
 	}
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// PHASE 2.8: ENDPOINT CLUSTERING (Brain-powered deduplication)
+	// Feeds discovered endpoints into the brain's EndpointClusterer to identify
+	// redundant paths (e.g., /api/users/1 ~ /api/users/2) and prioritize unique
+	// attack surfaces. This reduces test volume without losing coverage.
+	// ═══════════════════════════════════════════════════════════════════════════
+	const minEndpointsForClustering = 5 // Below this, clustering overhead exceeds benefit
+	if brain != nil && discResult != nil && len(discResult.Endpoints) > minEndpointsForClustering {
+		clusterer := brain.EndpointClusterer()
+		for _, ep := range discResult.Endpoints {
+			clusterer.AddEndpoint(ep.Path)
+		}
+
+		representatives := brain.GetRepresentativeEndpoints()
+		originalCount := len(discResult.Endpoints)
+
+		if len(representatives) > 0 && len(representatives) < originalCount {
+			// Build lookup set for representative endpoints
+			repSet := make(map[string]bool, len(representatives))
+			for _, r := range representatives {
+				repSet[r] = true
+			}
+
+			// Filter to representative endpoints only — the clusterer groups
+			// similar paths (e.g., /api/v1/users/1, /api/v1/users/42) and picks
+			// one representative per cluster. Testing the representative is
+			// sufficient because the WAF rule applies uniformly to the cluster.
+			var deduped []discovery.Endpoint
+			for _, ep := range discResult.Endpoints {
+				if repSet[ep.Path] {
+					deduped = append(deduped, ep)
+				}
+			}
+
+			if len(deduped) > 0 {
+				discResult.Endpoints = deduped
+				ui.PrintSuccess(fmt.Sprintf("🧠 Clustering: %d endpoints → %d representatives (%.0f%% reduction)",
+					originalCount, len(deduped), (1-float64(len(deduped))/float64(originalCount))*100))
+			}
+		}
+
+		// Also optimize test order: high-value targets first
+		paths := make([]string, len(discResult.Endpoints))
+		for i, ep := range discResult.Endpoints {
+			paths[i] = ep.Path
+		}
+		prioritized := brain.GetSmartEndpoints(paths)
+		if len(prioritized) > 0 {
+			// Reorder endpoints by brain priority
+			pathIdx := make(map[string]int, len(discResult.Endpoints))
+			for i, ep := range discResult.Endpoints {
+				pathIdx[ep.Path] = i
+			}
+			reordered := make([]discovery.Endpoint, 0, len(discResult.Endpoints))
+			for _, pep := range prioritized {
+				if idx, ok := pathIdx[pep.Path]; ok {
+					reordered = append(reordered, discResult.Endpoints[idx])
+				}
+			}
+			// Append any that didn't appear in prioritized list
+			reorderedSet := make(map[string]bool, len(reordered))
+			for _, r := range reordered {
+				reorderedSet[r.Path] = true
+			}
+			for _, ep := range discResult.Endpoints {
+				if !reorderedSet[ep.Path] {
+					reordered = append(reordered, ep)
+				}
+			}
+			discResult.Endpoints = reordered
+		}
+	}
+
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 3: INTELLIGENT LEARNING
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -1720,12 +1875,93 @@ func runAutoScan() {
 	wafResultsFile := filepath.Join(workspaceDir, "results-summary.json")
 	var results output.ExecutionResults
 
+	// ── Shared state for waf-testing, brain-feedback, and mutation-pass ──
+	// Hoisted above the skip guard so sub-passes can run independently on resume.
+	var allPayloads []payloads.Payload
+	var filterCfg core.FilterConfig
+	currentRateLimit := *rateLimit
+	currentConcurrency := *concurrency
+	rateMu := &sync.Mutex{}
+	var adaptiveLimiter *ratelimit.Limiter
+	var executorRef *core.Executor
+	escalationCount := int32(0)
+	autoEscalate := func(reason string) {
+		count := atomic.AddInt32(&escalationCount, 1)
+		if count > 5 {
+			return
+		}
+
+		rateMu.Lock()
+		defer rateMu.Unlock()
+
+		oldRate := currentRateLimit
+		oldConc := currentConcurrency
+
+		currentRateLimit = currentRateLimit / 2
+		if currentRateLimit < 10 {
+			currentRateLimit = 10
+		}
+		currentConcurrency = currentConcurrency / 2
+		if currentConcurrency < 5 {
+			currentConcurrency = 5
+		}
+
+		ui.PrintWarning(fmt.Sprintf("⚡ Auto-escalation triggered (%s): rate %d→%d, concurrency %d→%d (next pass)",
+			reason, oldRate, currentRateLimit, oldConc, currentConcurrency))
+
+		// NOTE: adaptiveLimiter.OnError() is NOT called here — handleAdaptiveRate
+		// already calls limiter.OnError() on 429s. Calling it again would double
+		// the backoff. Non-429 escalations (anomaly detection) call OnError()
+		// at their own call site when limiter backoff is needed.
+		if executorRef != nil {
+			executorRef.SetRateLimit(currentRateLimit)
+		}
+		if autoDispCtx != nil {
+			escalateDesc := fmt.Sprintf("Auto-escalation: %s - rate reduced to %d, concurrency to %d",
+				reason, currentRateLimit, currentConcurrency)
+			_ = autoDispCtx.EmitBypass(ctx, "auto-escalation", "warning", target, escalateDesc, 0)
+		}
+	}
+	payloadsCheckpoint := filepath.Join(workspaceDir, "payloads-prepared.json")
+
 	if shouldSkipPhase("waf-testing") {
 		ui.PrintInfo("⏭️  Skipping WAF testing (already completed)")
 		if data, err := os.ReadFile(wafResultsFile); err == nil {
 			if uerr := json.Unmarshal(data, &results); uerr != nil {
-				ui.PrintWarning(fmt.Sprintf("Corrupt results-summary.json, re-running WAF testing: %v", uerr))
+				ui.PrintWarning(fmt.Sprintf("Corrupt results-summary.json, continuing with empty results: %v", uerr))
 			}
+		} else {
+			ui.PrintWarning(fmt.Sprintf("Missing results-summary.json, continuing with empty results: %v", err))
+		}
+
+		// Reload prepared payloads for brain-feedback and mutation-pass sub-passes.
+		if data, err := os.ReadFile(payloadsCheckpoint); err == nil {
+			if uerr := json.Unmarshal(data, &allPayloads); uerr != nil {
+				ui.PrintWarning(fmt.Sprintf("Corrupt payloads checkpoint: %v", uerr))
+			}
+		} else {
+			ui.PrintWarning("Payloads checkpoint not found — brain-feedback and mutation-pass will have no payloads")
+		}
+
+		// Re-run calibration so sub-pass executors have a valid filter config.
+		cal := calibration.NewCalibratorWithClient(target, time.Duration(*timeout)*time.Second, *skipVerify, ja3Client)
+		if calResult, calErr := cal.Calibrate(ctx); calErr == nil && calResult != nil && calResult.Calibrated {
+			filterCfg.FilterStatus = calResult.Suggestions.FilterStatus
+			filterCfg.FilterSize = calResult.Suggestions.FilterSize
+		} else if calErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Resume calibration failed: %v — sub-passes will run without filtering", calErr))
+		}
+
+		// Re-init adaptive limiter for sub-passes.
+		if *adaptiveRate {
+			adaptiveLimiter = ratelimit.New(&ratelimit.Config{
+				RequestsPerSecond: *rateLimit,
+				AdaptiveSlowdown:  true,
+				SlowdownFactor:    1.5,
+				SlowdownMaxDelay:  5 * time.Second,
+				RecoveryRate:      0.9,
+				Burst:             *concurrency,
+			})
 		}
 	} else {
 		printStatusLn(ui.SectionStyle.Render("PHASE 4: WAF Security Testing"))
@@ -1742,7 +1978,8 @@ func runAutoScan() {
 		}
 
 		// Load payloads from unified engine (JSON + Nuclei templates)
-		allPayloads, _, err := loadUnifiedPayloads(payloadDir, templateDir, *verbose)
+		var err error
+		allPayloads, _, err = loadUnifiedPayloads(payloadDir, templateDir, *verbose)
 		if err != nil {
 			errMsg := fmt.Sprintf("Error loading payloads: %v", err)
 			ui.PrintError(errMsg)
@@ -1815,6 +2052,45 @@ func runAutoScan() {
 		for _, set := range testPlan.EndpointTests {
 			if len(set.CustomPayloads) > 0 {
 				allPayloads = append(allPayloads, set.CustomPayloads...)
+			}
+		}
+
+		// ── PREDICTIVE PAYLOAD RANKING ──────────────────────────────────────
+		// Use the brain's Predictor to reorder payloads by predicted bypass
+		// probability. Payloads most likely to bypass the WAF execute first,
+		// giving faster time-to-first-bypass and better brain learning.
+		if brain != nil && len(allPayloads) > 10 {
+			candidates := payloadsToCandidates(allPayloads)
+
+			ranked := brain.GetTopPayloads(candidates, len(candidates))
+			if len(ranked) > 0 {
+				// Rebuild payload slice in ranked order
+				payloadByKey := make(map[string]int, len(allPayloads))
+				for i, p := range allPayloads {
+					key := p.Category + "|" + p.Payload + "|" + p.TargetPath + "|" + p.EncodingUsed
+					payloadByKey[key] = i
+				}
+
+				reordered := make([]payloads.Payload, 0, len(allPayloads))
+				used := make(map[int]bool, len(allPayloads))
+				for _, rp := range ranked {
+					key := rp.Candidate.Category + "|" + rp.Candidate.Payload + "|" + rp.Candidate.Path + "|" + rp.Candidate.Encoding
+					if idx, ok := payloadByKey[key]; ok && !used[idx] {
+						reordered = append(reordered, allPayloads[idx])
+						used[idx] = true
+					}
+				}
+				// Append any unranked payloads at the end
+				for i, p := range allPayloads {
+					if !used[i] {
+						reordered = append(reordered, p)
+					}
+				}
+				allPayloads = reordered
+
+				topScore := ranked[0].Score
+				ui.PrintInfo(fmt.Sprintf("🧠 Predictor: reordered %d payloads by bypass probability (top score: %.2f)",
+					len(allPayloads), topScore))
 			}
 		}
 
@@ -1979,11 +2255,17 @@ func runAutoScan() {
 			printStatusLn()
 		}
 
+		// Save prepared payloads so brain-feedback/mutation-pass can resume independently.
+		if cpData, cpErr := json.Marshal(allPayloads); cpErr == nil {
+			if writeErr := os.WriteFile(payloadsCheckpoint, cpData, 0644); writeErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to save payloads checkpoint: %v", writeErr))
+			}
+		}
+
 		// Auto-calibration
 		ui.PrintInfo("Running auto-calibration...")
 		cal := calibration.NewCalibratorWithClient(target, time.Duration(*timeout)*time.Second, *skipVerify, ja3Client)
 		calResult, calErr := cal.Calibrate(ctx)
-		var filterCfg core.FilterConfig
 		if calErr == nil && calResult != nil && calResult.Calibrated {
 			filterCfg.FilterStatus = calResult.Suggestions.FilterStatus
 			filterCfg.FilterSize = calResult.Suggestions.FilterSize
@@ -1993,16 +2275,7 @@ func runAutoScan() {
 		}
 		printStatusLn()
 
-		// ═══════════════════════════════════════════════════════════════════════════
-		// ADAPTIVE RATE LIMITING (v2.6.4)
-		// Auto-adjust rate on WAF detection events (drops, bans, 429s)
-		// ═══════════════════════════════════════════════════════════════════════════
-		currentRateLimit := *rateLimit
-		currentConcurrency := *concurrency
-		rateMu := &sync.Mutex{}
-
-		// Create adaptive rate limiter if enabled
-		var adaptiveLimiter *ratelimit.Limiter
+		// Initialize adaptive rate limiter for the fresh run
 		if *adaptiveRate {
 			adaptiveLimiter = ratelimit.New(&ratelimit.Config{
 				RequestsPerSecond: *rateLimit,
@@ -2015,75 +2288,10 @@ func runAutoScan() {
 			ui.PrintInfo("📊 Adaptive rate limiting enabled (auto-adjusts on WAF response)")
 		}
 
-		// executorRef allows autoEscalate to dynamically adjust the running executor's rate limit.
-		// Set after executor creation below.
-		var executorRef *core.Executor
-
-		// Auto-escalation callback: reduce rate when WAF drops/bans detected
-		escalationCount := int32(0)
-		autoEscalate := func(reason string) {
-			count := atomic.AddInt32(&escalationCount, 1)
-			if count > 5 {
-				// Don't escalate too many times
-				return
-			}
-
-			rateMu.Lock()
-			defer rateMu.Unlock()
-
-			oldRate := currentRateLimit
-			oldConc := currentConcurrency
-
-			// Reduce by 50%
-			currentRateLimit = currentRateLimit / 2
-			if currentRateLimit < 10 {
-				currentRateLimit = 10 // Floor
-			}
-			currentConcurrency = currentConcurrency / 2
-			if currentConcurrency < 5 {
-				currentConcurrency = 5 // Floor
-			}
-
-			ui.PrintWarning(fmt.Sprintf("⚡ Auto-escalation triggered (%s): rate %d→%d, concurrency %d→%d",
-				reason, oldRate, currentRateLimit, oldConc, currentConcurrency))
-
-			// Notify adaptive limiter
-			if adaptiveLimiter != nil {
-				adaptiveLimiter.OnError()
-			}
-
-			// Apply rate change to running executor
-			if executorRef != nil {
-				executorRef.SetRateLimit(currentRateLimit)
-			}
-
-			// Emit to dispatcher
-			if autoDispCtx != nil {
-				escalateDesc := fmt.Sprintf("Auto-escalation: %s - rate reduced to %d, concurrency to %d",
-					reason, currentRateLimit, currentConcurrency)
-				_ = autoDispCtx.EmitBypass(ctx, "auto-escalation", "warning", target, escalateDesc, 0)
-			}
-		}
-
-		// Register detection callbacks for auto-escalation
-		detector := detection.Default()
-		detector.OnDrop(func(host string, result *detection.DropResult) {
-			if result.Consecutive >= 3 {
-				autoEscalate(fmt.Sprintf("connection drops (%d consecutive)", result.Consecutive))
-			}
-		})
-		detector.OnBan(func(host string, result *detection.BanResult) {
-			if result.Banned {
-				autoEscalate(fmt.Sprintf("silent ban detected (%s)", result.Type))
-			}
-		})
-
-		// E5: Wire brain anomaly detection to auto-escalation
-		if brain != nil {
-			brain.OnAnomaly(func(anomaly *intelligence.Anomaly) {
-				autoEscalate(fmt.Sprintf("brain anomaly: %s (confidence %.0f%%)", anomaly.Type, anomaly.Confidence*100))
-			})
-		}
+		// NOTE: detection.Default() callbacks are not registered here because
+		// core.NewExecutor creates its own detection.New() per executor instance.
+		// Registering on Default() would never fire. Drop/ban escalation is
+		// handled by the ShouldPauseScan anomaly check in the OnResult callback.
 
 		// Create progress tracker
 		progress := ui.NewProgress(ui.ProgressConfig{
@@ -2131,6 +2339,8 @@ func runAutoScan() {
 			brain.StartPhase(ctx, "waf-testing")
 		}
 
+		var anomalyCheckCounter int32 // Rate-limit ShouldPauseScan checks
+
 		// Create and run executor (using current adaptive values)
 		executor := core.NewExecutor(core.ExecutorConfig{
 			TargetURL:     target,
@@ -2152,8 +2362,8 @@ func runAutoScan() {
 					blocked := result.Outcome == "Blocked"
 					_ = autoDispCtx.EmitResult(ctx, result.Category, result.Severity, blocked, result.StatusCode, float64(result.LatencyMs))
 				}
-				// Additionally emit bypass event for non-blocked results
-				if autoDispCtx != nil && result.Outcome != "Blocked" && result.Outcome != "Error" {
+				// Emit bypass event only for actual WAF bypasses ("Fail" = expected block but got 2xx)
+				if autoDispCtx != nil && result.Outcome == "Fail" {
 					_ = autoDispCtx.EmitBypass(ctx, result.Category, result.Severity, target, result.Payload, result.StatusCode)
 				}
 
@@ -2174,10 +2384,25 @@ func runAutoScan() {
 							"method":  result.Method,
 						},
 					})
+
+					// Anomaly-aware execution: check every 50 results to avoid
+					// lock contention from ShouldPauseScan in the hot path.
+					if atomic.AddInt32(&anomalyCheckCounter, 1)%50 == 0 {
+						if shouldPause, reason := brain.ShouldPauseScan(); shouldPause {
+							// Only call OnError if handleAdaptiveRate didn't already
+							// (429 responses are already handled above).
+							if adaptiveLimiter != nil && result.StatusCode != 429 {
+								adaptiveLimiter.OnError()
+							}
+							autoEscalate(fmt.Sprintf("anomaly: %s", reason))
+						}
+					}
 				}
 			},
 		})
+		rateMu.Lock()
 		executorRef = executor
+		rateMu.Unlock()
 		defer executor.Close()
 
 		progress.Start()
@@ -2185,6 +2410,12 @@ func runAutoScan() {
 		progress.Stop()
 
 		writer.Close()
+
+		// Clear executorRef so autoEscalate (called from brain.OnAnomaly)
+		// doesn't SetRateLimit on a completed executor between passes.
+		rateMu.Lock()
+		executorRef = nil
+		rateMu.Unlock()
 
 		// Update progress after WAF testing
 		autoProgress.AddMetricN("bypasses", int64(results.FailedTests))
@@ -2194,173 +2425,369 @@ func runAutoScan() {
 		// Mark WAF testing phase complete for resume
 		markPhaseCompleted("waf-testing")
 
-		// E2: Brain feedback loop — focused second pass on weak categories
-		if brain != nil && !shouldSkipPhase("brain-feedback") {
-			recs := brain.RecommendPayloads()
-			if len(recs) > 0 {
-				// Collect high-priority categories with bypasses
-				focusCategories := make(map[string]bool)
-				for _, r := range recs {
-					if r.Priority <= 2 && r.Confidence >= 0.7 {
-						focusCategories[strings.ToLower(r.Category)] = true
+		// Flush results immediately so crash before brain-feedback doesn't
+		// lose all waf-testing data. On resume, the skip path reads this file.
+		if summaryData, err := json.MarshalIndent(results, "", "  "); err == nil {
+			if writeErr := os.WriteFile(wafResultsFile, summaryData, 0644); writeErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to save waf results: %v", writeErr))
+			}
+		}
+
+		// End WAF testing phase for Brain (only when waf-testing ran fresh)
+		if brain != nil {
+			brain.EndPhase("waf-testing")
+		}
+		saveBrainState()
+	} // end waf-testing skip guard
+
+	// E5: Wire brain anomaly detection to auto-escalation.
+	// Registered outside the skip guard so sub-passes get anomaly callbacks on resume.
+	if brain != nil {
+		brain.OnAnomaly(func(anomaly *intelligence.Anomaly) {
+			autoEscalate(fmt.Sprintf("brain anomaly: %s (confidence %.0f%%)", anomaly.Type, anomaly.Confidence*100))
+		})
+	}
+
+	// E2: Brain feedback loop — predictor-guided second pass
+	// Instead of blindly re-running all payloads from "focus categories",
+	// use the Predictor to rank focus payloads by bypass probability
+	// and only run the top candidates. This makes the feedback pass
+	// both faster and more effective.
+	if brain != nil && !shouldSkipPhase("brain-feedback") && ctx.Err() == nil {
+		recs := brain.RecommendPayloads()
+		if len(recs) > 0 {
+			// Collect high-priority categories with bypasses
+			focusCategories := make(map[string]bool)
+			for _, r := range recs {
+				if r.Priority <= 2 && r.Confidence >= 0.7 {
+					focusCategories[strings.ToLower(r.Category)] = true
+				}
+			}
+
+			if len(focusCategories) > 0 {
+				var focusPayloads []payloads.Payload
+				for _, p := range allPayloads {
+					if focusCategories[strings.ToLower(p.Category)] {
+						focusPayloads = append(focusPayloads, p)
 					}
 				}
 
-				if len(focusCategories) > 0 {
-					var focusPayloads []payloads.Payload
-					for _, p := range allPayloads {
-						if focusCategories[strings.ToLower(p.Category)] {
-							focusPayloads = append(focusPayloads, p)
+				// Exclude payloads that already bypassed in the main pass —
+				// retesting them inflates FailedTests and duplicates BypassDetails.
+				if len(results.BypassDetails) > 0 {
+					bypassSet := make(map[string]bool, len(results.BypassDetails))
+					for _, bd := range results.BypassDetails {
+						bypassSet[strings.ToLower(bd.Category)+"|"+bd.Payload] = true
+					}
+					filtered := focusPayloads[:0]
+					for _, p := range focusPayloads {
+						if !bypassSet[strings.ToLower(p.Category)+"|"+p.Payload] {
+							filtered = append(filtered, p)
 						}
 					}
+					focusPayloads = filtered
+				}
 
-					if len(focusPayloads) > 0 && len(focusPayloads) < len(allPayloads) {
-						catList := make([]string, 0, len(focusCategories))
-						for c := range focusCategories {
-							catList = append(catList, c)
+				// Use predictor to rank focus payloads — run only top N
+				if len(focusPayloads) > 20 {
+					candidates := payloadsToCandidates(focusPayloads)
+					topN := len(focusPayloads) / 2 // Take top half by predicted bypass probability
+					if topN < 20 {
+						topN = 20
+					}
+					ranked := brain.GetTopPayloads(candidates, topN)
+					if len(ranked) > 0 {
+						// Rebuild from ranked order
+						payIdx := make(map[string]int, len(focusPayloads))
+						for i, p := range focusPayloads {
+							payIdx[p.Category+"|"+p.Payload+"|"+p.TargetPath+"|"+p.EncodingUsed] = i
 						}
-						ui.PrintInfo(fmt.Sprintf("🧠 Brain feedback: focused re-test on %d payloads across [%s]",
-							len(focusPayloads), strings.Join(catList, ", ")))
+						var topPayloads []payloads.Payload
+						for _, rp := range ranked {
+							key := rp.Candidate.Category + "|" + rp.Candidate.Payload + "|" + rp.Candidate.Path + "|" + rp.Candidate.Encoding
+							if idx, ok := payIdx[key]; ok {
+								topPayloads = append(topPayloads, focusPayloads[idx])
+							}
+						}
+						if len(topPayloads) > 0 {
+							focusPayloads = topPayloads
+						}
+					}
+				}
+				if len(focusPayloads) == 0 && len(focusCategories) > 0 {
+					ui.PrintWarning("Brain feedback: no payloads available for focus categories (missing checkpoint?)")
+				}
 
-						brain.StartPhase(ctx, "brain-feedback")
-						feedbackResultsFile := filepath.Join(workspaceDir, "results-feedback.json")
-						focusWriter, focusErr := output.NewWriterWithOptions(feedbackResultsFile, "json", output.WriterOptions{
-							Verbose:       *verbose,
-							ShowTimestamp: true,
-							Target:        target,
-						})
-						if focusErr == nil {
-							focusExec := core.NewExecutor(core.ExecutorConfig{
-								TargetURL:     target,
-								Concurrency:   currentConcurrency,
-								RateLimit:     currentRateLimit,
-								Timeout:       time.Duration(*timeout) * time.Second,
-								Retries:       defaults.RetryLow,
-								Filter:        &filterCfg,
-								RealisticMode: true,
-								HTTPClient:    ja3Client,
-								OnResult: func(result *output.TestResult) {
-									// Adaptive rate limiting for feedback pass
-									handleAdaptiveRate(result.StatusCode, result.Outcome, adaptiveLimiter, autoEscalate)
+				if len(focusPayloads) > 0 && len(focusPayloads) < len(allPayloads) {
+					catList := make([]string, 0, len(focusCategories))
+					for c := range focusCategories {
+						catList = append(catList, c)
+					}
+					ui.PrintInfo(fmt.Sprintf("🧠 Brain feedback: focused re-test on %d payloads across [%s]",
+						len(focusPayloads), strings.Join(catList, ", ")))
 
-									// Feed feedback results to brain for continued learning
-									if brain != nil {
-										brain.LearnFromFinding(&intelligence.Finding{
-											Phase:      "brain-feedback",
-											Category:   result.Category,
-											Severity:   result.Severity,
-											Path:       result.TargetPath,
-											Payload:    result.Payload,
-											StatusCode: result.StatusCode,
-											Latency:    time.Duration(result.LatencyMs) * time.Millisecond,
-											Blocked:    result.Outcome == "Blocked",
-											Confidence: 0.95,
-											Metadata: map[string]interface{}{
-												"outcome": result.Outcome,
-												"method":  result.Method,
-											},
-										})
-									}
-									// Emit feedback results to hooks
-									if autoDispCtx != nil {
-										blocked := result.Outcome == "Blocked"
-										_ = autoDispCtx.EmitResult(ctx, result.Category, result.Severity, blocked, result.StatusCode, float64(result.LatencyMs))
-									}
-									if autoDispCtx != nil && result.Outcome != "Blocked" && result.Outcome != "Error" {
-										_ = autoDispCtx.EmitBypass(ctx, result.Category, result.Severity, target, result.Payload, result.StatusCode)
-									}
-								},
-							})
-							defer focusExec.Close()
-							focusResults := focusExec.ExecuteWithProgress(ctx, focusPayloads, focusWriter, nil)
-							focusWriter.Close()
+					brain.StartPhase(ctx, "brain-feedback")
+					feedbackResultsFile := filepath.Join(workspaceDir, "results-feedback.json")
+					focusWriter, focusErr := output.NewWriterWithOptions(feedbackResultsFile, "json", output.WriterOptions{
+						Verbose:       *verbose,
+						ShowTimestamp: true,
+						Target:        target,
+					})
+					if focusErr != nil {
+						ui.PrintWarning(fmt.Sprintf("Brain feedback pass skipped: writer error: %v", focusErr))
+						brain.EndPhase("brain-feedback")
+					} else {
+						focusExec := core.NewExecutor(core.ExecutorConfig{
+							TargetURL:     target,
+							Concurrency:   currentConcurrency,
+							RateLimit:     currentRateLimit,
+							Timeout:       time.Duration(*timeout) * time.Second,
+							Retries:       defaults.RetryLow,
+							Filter:        &filterCfg,
+							RealisticMode: true,
+							HTTPClient:    ja3Client,
+							// ShouldPauseScan omitted: feedback pass is short (predictor-filtered)
+							OnResult: func(result *output.TestResult) {
+								handleAdaptiveRate(result.StatusCode, result.Outcome, adaptiveLimiter, autoEscalate)
 
-							// Merge all execution result fields from feedback pass
-							results.TotalTests += focusResults.TotalTests
-							results.PassedTests += focusResults.PassedTests
-							results.FailedTests += focusResults.FailedTests
-							results.BlockedTests += focusResults.BlockedTests
-							results.ErrorTests += focusResults.ErrorTests
-							results.DropsDetected += focusResults.DropsDetected
-							results.BansDetected += focusResults.BansDetected
-							results.BypassPayloads = append(results.BypassPayloads, focusResults.BypassPayloads...)
-							results.BypassDetails = append(results.BypassDetails, focusResults.BypassDetails...)
-							// Merge maps — initialize destination if nil (possible after JSON resume)
-							if results.StatusCodes == nil {
-								results.StatusCodes = make(map[int]int)
-							}
-							for k, v := range focusResults.StatusCodes {
-								results.StatusCodes[k] += v
-							}
-							if results.SeverityBreakdown == nil {
-								results.SeverityBreakdown = make(map[string]int)
-							}
-							for k, v := range focusResults.SeverityBreakdown {
-								results.SeverityBreakdown[k] += v
-							}
-							if results.CategoryBreakdown == nil {
-								results.CategoryBreakdown = make(map[string]int)
-							}
-							for k, v := range focusResults.CategoryBreakdown {
-								results.CategoryBreakdown[k] += v
-							}
-							if results.OWASPBreakdown == nil {
-								results.OWASPBreakdown = make(map[string]int)
-							}
-							for k, v := range focusResults.OWASPBreakdown {
-								results.OWASPBreakdown[k] += v
-							}
-							if results.EndpointStats == nil {
-								results.EndpointStats = make(map[string]int)
-							}
-							for k, v := range focusResults.EndpointStats {
-								results.EndpointStats[k] += v
-							}
-							if results.MethodStats == nil {
-								results.MethodStats = make(map[string]int)
-							}
-							for k, v := range focusResults.MethodStats {
-								results.MethodStats[k] += v
-							}
-							if results.DetectionStats == nil {
-								results.DetectionStats = make(map[string]int)
-							}
-							for k, v := range focusResults.DetectionStats {
-								results.DetectionStats[k] += v
-							}
-							if results.EncodingStats == nil {
-								results.EncodingStats = make(map[string]*output.EncodingEffectiveness)
-							}
-							for k, v := range focusResults.EncodingStats {
-								if results.EncodingStats[k] == nil {
-									results.EncodingStats[k] = v
-								} else {
-									results.EncodingStats[k].TotalTests += v.TotalTests
-									results.EncodingStats[k].Bypasses += v.Bypasses
-									results.EncodingStats[k].BlockedTests += v.BlockedTests
+								// Feed feedback results to brain for continued learning
+								if brain != nil {
+									brain.LearnFromFinding(&intelligence.Finding{
+										Phase:      "brain-feedback",
+										Category:   result.Category,
+										Severity:   result.Severity,
+										Path:       result.TargetPath,
+										Payload:    result.Payload,
+										StatusCode: result.StatusCode,
+										Latency:    time.Duration(result.LatencyMs) * time.Millisecond,
+										Blocked:    result.Outcome == "Blocked",
+										Confidence: 0.95,
+										Metadata: map[string]interface{}{
+											"outcome": result.Outcome,
+											"method":  result.Method,
+										},
+									})
 								}
-							}
-							ui.PrintSuccess(fmt.Sprintf("  ✓ Feedback pass: %d additional bypasses found", focusResults.FailedTests))
-						}
+								// Emit feedback results to hooks
+								if autoDispCtx != nil {
+									blocked := result.Outcome == "Blocked"
+									_ = autoDispCtx.EmitResult(ctx, result.Category, result.Severity, blocked, result.StatusCode, float64(result.LatencyMs))
+								}
+								if autoDispCtx != nil && result.Outcome == "Fail" {
+									_ = autoDispCtx.EmitBypass(ctx, result.Category, result.Severity, target, result.Payload, result.StatusCode)
+								}
+							},
+						})
+						focusProgress := ui.NewProgress(ui.ProgressConfig{
+							Total: len(focusPayloads),
+						})
+						rateMu.Lock()
+						executorRef = focusExec
+						rateMu.Unlock()
+						focusResults := focusExec.ExecuteWithProgress(ctx, focusPayloads, focusWriter, focusProgress)
+						focusWriter.Close()
+						focusExec.Close()
+						rateMu.Lock()
+						executorRef = nil
+						rateMu.Unlock()
+
+						mergeExecutionResults(&results, focusResults)
+						ui.PrintSuccess(fmt.Sprintf("  ✓ Feedback pass: %d additional bypasses found", focusResults.FailedTests))
 						brain.EndPhase("brain-feedback")
 					}
 				}
 			}
-			markPhaseCompleted("brain-feedback")
 		}
+		markPhaseCompleted("brain-feedback")
+		saveBrainState()
 
-		// Save results summary AFTER feedback merge so resume loads complete data
+		// Save results after brain-feedback merge so crash before mutation-pass
+		// doesn't lose feedback bypass discoveries.
+		if len(results.Latencies) > 0 {
+			recalculateLatencyStats(&results)
+		}
 		if summaryData, err := json.MarshalIndent(results, "", "  "); err == nil {
 			if writeErr := os.WriteFile(wafResultsFile, summaryData, 0644); writeErr != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to save results summary: %v", writeErr))
+				ui.PrintWarning(fmt.Sprintf("Failed to save interim results: %v", writeErr))
 			}
 		}
+	}
 
-		// End WAF testing phase for Brain (inside guard — only when waf-testing ran fresh)
-		if brain != nil {
-			brain.EndPhase("waf-testing")
+	// ── MUTATION PASS ──────────────────────────────────────────────────
+	// When payloads are blocked, the MutationStrategist can suggest
+	// transformed variants (case variation, comment injection, encoding
+	// changes, WAF-specific evasions) that may bypass. This second-pass
+	// creates new payloads from blocked ones and runs them.
+	if brain != nil && !shouldSkipPhase("mutation-pass") && results.BlockedTests > 0 && ctx.Err() == nil {
+		// Collect unique blocked category+payload pairs for mutation.
+		// A payload is "blocked" if it was tested but did NOT bypass — we
+		// build a set of known bypasses from results.BypassDetails and
+		// exclude them.
+		type blockedEntry struct {
+			category string
+			payload  string
+			path     string
+			method   string
+			severity string
 		}
-	} // end waf-testing skip guard
+
+		bypassSet := make(map[string]bool, len(results.BypassDetails))
+		for _, bd := range results.BypassDetails {
+			bypassSet[strings.ToLower(bd.Category)+"|"+bd.Payload] = true
+		}
+
+		// NOTE: payloads that errored (timeout, conn refused) are not tracked
+		// per-payload — only BypassDetails gives per-payload outcomes. Errored
+		// payloads will be included in the mutation input, which is acceptable:
+		// mutations may succeed where the original timed out.
+
+		seen := make(map[string]bool)
+		var blocked []blockedEntry
+		const maxMutationInputs = 50
+
+		for _, p := range allPayloads {
+			if len(blocked) >= maxMutationInputs {
+				break
+			}
+			key := strings.ToLower(p.Category) + "|" + p.Payload
+			if seen[key] || bypassSet[key] {
+				continue // Skip duplicates and payloads that already bypassed
+			}
+			seen[key] = true
+			blocked = append(blocked, blockedEntry{
+				category: p.Category,
+				payload:  p.Payload,
+				path:     p.TargetPath,
+				method:   p.Method,
+				severity: p.SeverityHint,
+			})
+		}
+
+		if len(blocked) == 0 && results.BlockedTests > 0 && len(allPayloads) == 0 {
+			ui.PrintWarning("Mutation pass: no payload data available for mutation (missing checkpoint?)")
+		}
+
+		if len(blocked) > 0 {
+			var mutatedPayloads []payloads.Payload
+			const maxMutationsPerPayload = 3
+
+			for _, b := range blocked {
+				suggestions := brain.SuggestMutations(b.category, b.payload)
+				for i, s := range suggestions {
+					if i >= maxMutationsPerPayload {
+						break
+					}
+					if s.Example == "" || s.Example == b.payload {
+						continue // Skip no-op mutations
+					}
+					mutatedPayloads = append(mutatedPayloads, payloads.Payload{
+						ID:              fmt.Sprintf("mutation-%s-%d", b.category, len(mutatedPayloads)),
+						Payload:         s.Example,
+						Category:        b.category,
+						Method:          b.method,
+						TargetPath:      b.path,
+						ExpectedBlock:   true,
+						SeverityHint:    b.severity,
+						EncodingUsed:    s.Type,
+						MutationType:    "brain-mutation",
+						OriginalPayload: b.payload,
+					})
+				}
+			}
+
+			if len(mutatedPayloads) > 0 {
+				brain.StartPhase(ctx, "mutation-pass")
+				ui.PrintInfo(fmt.Sprintf("🧬 Mutation pass: %d mutated payloads from %d blocked originals",
+					len(mutatedPayloads), len(blocked)))
+
+				mutResultsFile := filepath.Join(workspaceDir, "results-mutations.json")
+				mutWriter, mutErr := output.NewWriterWithOptions(mutResultsFile, "json", output.WriterOptions{
+					Verbose:       *verbose,
+					ShowTimestamp: true,
+					Target:        target,
+				})
+				if mutErr != nil {
+					ui.PrintWarning(fmt.Sprintf("Mutation pass skipped: writer error: %v", mutErr))
+					brain.EndPhase("mutation-pass")
+				} else {
+					mutExec := core.NewExecutor(core.ExecutorConfig{
+						TargetURL:     target,
+						Concurrency:   currentConcurrency,
+						RateLimit:     currentRateLimit,
+						Timeout:       time.Duration(*timeout) * time.Second,
+						Retries:       defaults.RetryLow,
+						Filter:        &filterCfg,
+						RealisticMode: true,
+						HTTPClient:    ja3Client,
+						// ShouldPauseScan omitted: mutation pass is short (max 150 payloads)
+						OnResult: func(result *output.TestResult) {
+							handleAdaptiveRate(result.StatusCode, result.Outcome, adaptiveLimiter, autoEscalate)
+							if brain != nil {
+								brain.LearnFromFinding(&intelligence.Finding{
+									Phase:      "mutation-pass",
+									Category:   result.Category,
+									Severity:   result.Severity,
+									Path:       result.TargetPath,
+									Payload:    result.Payload,
+									StatusCode: result.StatusCode,
+									Latency:    time.Duration(result.LatencyMs) * time.Millisecond,
+									Blocked:    result.Outcome == "Blocked",
+									Confidence: 0.95,
+									Metadata: map[string]interface{}{
+										"outcome":       result.Outcome,
+										"method":        result.Method,
+										"mutation_pass": true,
+									},
+								})
+							}
+							if autoDispCtx != nil {
+								blocked := result.Outcome == "Blocked"
+								_ = autoDispCtx.EmitResult(ctx, result.Category, result.Severity, blocked, result.StatusCode, float64(result.LatencyMs))
+							}
+							if autoDispCtx != nil && result.Outcome == "Fail" {
+								_ = autoDispCtx.EmitBypass(ctx, result.Category, result.Severity, target, result.Payload, result.StatusCode)
+							}
+						},
+					})
+					rateMu.Lock()
+					executorRef = mutExec
+					rateMu.Unlock()
+					mutProgress := ui.NewProgress(ui.ProgressConfig{
+						Total: len(mutatedPayloads),
+					})
+					mutResults := mutExec.ExecuteWithProgress(ctx, mutatedPayloads, mutWriter, mutProgress)
+					mutWriter.Close()
+					mutExec.Close()
+					rateMu.Lock()
+					executorRef = nil
+					rateMu.Unlock()
+
+					mergeExecutionResults(&results, mutResults)
+					ui.PrintSuccess(fmt.Sprintf("  ✓ Mutation pass: %d additional bypasses from %d mutations",
+						mutResults.FailedTests, len(mutatedPayloads)))
+					brain.EndPhase("mutation-pass")
+				}
+			}
+		}
+		markPhaseCompleted("mutation-pass")
+		saveBrainState()
+	}
+
+	// Recalculate latency percentiles from merged raw latencies so that
+	// summary JSON and console output reflect all passes, not just the main one.
+	// Only recalculate when raw latencies are available — on resume without
+	// sub-passes, Latencies is empty (json:"-") and recalculating would zero
+	// out the loaded LatencyStats.
+	if len(results.Latencies) > 0 {
+		recalculateLatencyStats(&results)
+	}
+
+	// Save results summary AFTER feedback merge so resume loads complete data
+	if summaryData, err := json.MarshalIndent(results, "", "  "); err == nil {
+		if writeErr := os.WriteFile(wafResultsFile, summaryData, 0644); writeErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to save results summary: %v", writeErr))
+		}
+	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 4.5: VENDOR-SPECIFIC WAF ANALYSIS (NEW)
@@ -2503,6 +2930,11 @@ func runAutoScan() {
 	// G3: Capture brain recommendations for summary enrichment
 	var brainRecommendations []*intelligence.PayloadRecommendation
 
+	// Capture brain recommendations for summary output (works in both JSON and console modes).
+	if brain != nil {
+		brainRecommendations = brain.RecommendPayloads()
+	}
+
 	if brain != nil && !quietMode {
 		brainSummary := brain.GetSummary()
 
@@ -2541,7 +2973,9 @@ func runAutoScan() {
 			// WAF Behavioral Analysis
 			if len(brainSummary.WAFWeaknesses) > 0 {
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render(ui.SanitizeString("📊 WAF Behavioral Analysis:")))
-				fmt.Fprintf(os.Stderr, "    Strengths: %s\n", ui.PassStyle.Render(strings.Join(brainSummary.WAFStrengths[:min(3, len(brainSummary.WAFStrengths))], ", ")))
+				if len(brainSummary.WAFStrengths) > 0 {
+					fmt.Fprintf(os.Stderr, "    Strengths: %s\n", ui.PassStyle.Render(strings.Join(brainSummary.WAFStrengths[:min(3, len(brainSummary.WAFStrengths))], ", ")))
+				}
 				fmt.Fprintf(os.Stderr, "    Weaknesses: %s\n", ui.ErrorStyle.Render(strings.Join(brainSummary.WAFWeaknesses[:min(3, len(brainSummary.WAFWeaknesses))], ", ")))
 				fmt.Fprintln(os.Stderr)
 			}
@@ -2555,8 +2989,7 @@ func runAutoScan() {
 				fmt.Fprintln(os.Stderr)
 			}
 
-			// Payload Recommendations — captured for summary output (G3)
-			brainRecommendations = brain.RecommendPayloads()
+			// Payload Recommendations display
 			if len(brainRecommendations) > 0 {
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render(ui.SanitizeString("🎯 Smart Payload Recommendations:")))
 				for _, rec := range brainRecommendations[:min(5, len(brainRecommendations))] {
@@ -2579,6 +3012,60 @@ func runAutoScan() {
 				ui.BracketStyle.Render("📈"),
 				brainSummary.TotalFindings, brainSummary.Bypasses, brainSummary.AttackChains, atomic.LoadInt32(&insightCount))
 			printStatusLn()
+		}
+
+		// Cognitive Module Summary — displayed independently of chains/weaknesses
+		// since the brain modules collect data even against well-configured WAFs
+		// that produce zero bypasses.
+		cogSummary := brain.GetCognitiveSummary()
+		if cogSummary != nil {
+			fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render(ui.SanitizeString("🔬 Cognitive Module Performance:")))
+			fmt.Fprintf(os.Stderr, "    Predictor:   %d observations across %d categories, %d encoding patterns\n",
+				cogSummary.Predictor.TotalObservations, cogSummary.Predictor.CategoryPatterns, cogSummary.Predictor.EncodingPatterns)
+			fmt.Fprintf(os.Stderr, "    Mutator:     %d learned mutations from %d block patterns\n",
+				cogSummary.Mutator.LearnedMutations, cogSummary.Mutator.BlockPatterns)
+			fmt.Fprintf(os.Stderr, "    Clusterer:   %d clusters from %d endpoints (%.0f%% testing reduction)\n",
+				cogSummary.Clusterer.TotalClusters, cogSummary.Clusterer.TotalEndpoints, cogSummary.Clusterer.TestingReduction*100)
+			fmt.Fprintf(os.Stderr, "    Anomalies:   %d detected — system health: %s\n",
+				cogSummary.Anomaly.TotalAnomalies, cogSummary.Anomaly.OverallHealth)
+			fmt.Fprintf(os.Stderr, "    Pathfinder:  %d nodes, %d edges, %d paths found\n",
+				cogSummary.Pathfinder.TotalNodes, cogSummary.Pathfinder.TotalEdges, cogSummary.Pathfinder.TotalPaths)
+			fmt.Fprintln(os.Stderr)
+		}
+
+		// Attack Path — show the optimal path through the target
+		attackPath := brain.GetOptimalAttackPath()
+		if attackPath != nil && len(attackPath.Nodes) > 0 {
+			fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render(ui.SanitizeString("🛤️  Optimal Attack Path:")))
+			for i, step := range attackPath.Steps {
+				if i >= 5 {
+					fmt.Fprintf(os.Stderr, "    ... and %d more steps\n", len(attackPath.Steps)-5)
+					break
+				}
+				fmt.Fprintf(os.Stderr, "    %d. %s → %s (%.0f%% success)\n",
+					i+1, step.From, step.To, step.SuccessProb*100)
+			}
+			fmt.Fprintf(os.Stderr, "    Total path value: %.2f | Success probability: %.0f%%\n",
+				attackPath.TotalValue, attackPath.SuccessProb*100)
+			fmt.Fprintln(os.Stderr)
+		}
+
+		// Priority Targets — endpoints the brain thinks are most valuable to attack next
+		priorityTargets := brain.GetPriorityTargets()
+		if len(priorityTargets) > 0 {
+			fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render(ui.SanitizeString("🎯 Priority Targets (for follow-up):")))
+			for i, pt := range priorityTargets {
+				if i >= 5 {
+					break
+				}
+				reachable := "reachable"
+				if !pt.Reachable {
+					reachable = "blocked"
+				}
+				fmt.Fprintf(os.Stderr, "    %d. %s (value: %.2f, paths: %d, %s)\n",
+					i+1, pt.Path, pt.Value, pt.PathCount, reachable)
+			}
+			fmt.Fprintln(os.Stderr)
 		}
 	}
 
@@ -2927,6 +3414,28 @@ func runAutoScan() {
 		}
 		markPhaseCompleted("assessment")
 		printStatusLn()
+	} else if *enableAssess && shouldSkipPhase("assessment") {
+		// Reload enterprise metrics from previous assessment so summary.json stays complete.
+		assessFile := filepath.Join(workspaceDir, "assessment.json")
+		if data, err := os.ReadFile(assessFile); err == nil {
+			var prev map[string]interface{}
+			if json.Unmarshal(data, &prev) == nil {
+				metrics := make(map[string]interface{})
+				for _, key := range []string{
+					"grade", "grade_reason", "f1_score", "f2_score",
+					"precision", "recall", "specificity", "mcc",
+					"balanced_accuracy", "detection_rate", "false_positive_rate",
+					"bypass_resistance",
+				} {
+					if v, ok := prev[key]; ok {
+						metrics[key] = v
+					}
+				}
+				if len(metrics) > 0 {
+					summary["enterprise_metrics"] = metrics
+				}
+			}
+		}
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -3256,6 +3765,16 @@ func runAutoScan() {
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
+	// FINAL SUMMARY FLUSH
+	// ═══════════════════════════════════════════════════════════════════════════
+	// Write final summary to disk after all phases (including resume reloads)
+	// have contributed their data. This ensures enterprise_metrics, browser_scan,
+	// and payload_recommendations survive resume scenarios.
+	if finalData, err := json.MarshalIndent(summary, "", "  "); err == nil {
+		_ = os.WriteFile(summaryFile, finalData, 0644)
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════════
 	// DISPATCHER SUMMARY EMISSION
 	// ═══════════════════════════════════════════════════════════════════════════
 	// Notify all hooks (Slack, Teams, PagerDuty, OTEL, etc.) that scan is complete
@@ -3264,6 +3783,12 @@ func runAutoScan() {
 	}
 
 	if results.FailedTests > 0 {
+		// Explicitly flush deferred resources — os.Exit does not run defers.
+		if autoDispCtx != nil {
+			autoDispCtx.Close()
+		}
+		autoProgress.Stop()
+		cancel()
 		os.Exit(1)
 	}
 }

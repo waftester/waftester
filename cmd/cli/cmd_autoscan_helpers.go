@@ -1,8 +1,12 @@
 package main
 
 import (
+	"sort"
 	"strings"
 
+	"github.com/waftester/waftester/pkg/intelligence"
+	"github.com/waftester/waftester/pkg/output"
+	"github.com/waftester/waftester/pkg/payloads"
 	"github.com/waftester/waftester/pkg/ratelimit"
 	"github.com/waftester/waftester/pkg/strutil"
 )
@@ -17,7 +21,7 @@ func handleAdaptiveRate(statusCode int, outcome string, limiter *ratelimit.Limit
 	if statusCode == 429 {
 		limiter.OnError()
 		escalate("HTTP 429 Too Many Requests")
-	} else if outcome != "Error" {
+	} else if outcome != "Error" && outcome != "Skipped" {
 		limiter.OnSuccess()
 	}
 }
@@ -55,22 +59,27 @@ func inferHTTPMethod(path, source string) string {
 		return "DELETE"
 	}
 
-	// Check source for method hints
-	sourceLower := strings.ToLower(source)
-	if strings.Contains(sourceLower, "post") {
-		return "POST"
-	}
-	if strings.Contains(sourceLower, "put") {
-		return "PUT"
-	}
-	if strings.Contains(sourceLower, "delete") {
-		return "DELETE"
-	}
-	if strings.Contains(sourceLower, "patch") {
-		return "PATCH"
+	// Check source for whole-word HTTP method names to avoid false positives
+	// from substrings (e.g., "signpost" matching "post", "output" matching "put").
+	sourceUpper := strings.ToUpper(source)
+	for _, method := range []string{"POST", "PUT", "DELETE", "PATCH"} {
+		idx := strings.Index(sourceUpper, method)
+		if idx < 0 {
+			continue
+		}
+		// Check word boundaries: char before and after must be non-alpha
+		before := idx == 0 || !isAlpha(sourceUpper[idx-1])
+		after := idx+len(method) >= len(sourceUpper) || !isAlpha(sourceUpper[idx+len(method)])
+		if before && after {
+			return method
+		}
 	}
 
 	return "GET"
+}
+
+func isAlpha(b byte) bool {
+	return (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z')
 }
 
 // truncateString truncates a string to max length with ellipsis.
@@ -93,4 +102,118 @@ func severityToScore(severity string) string {
 	default:
 		return "1.0"
 	}
+}
+
+// payloadsToCandidates converts a slice of payloads to intelligence candidates
+// for use with GetTopPayloads and other predictor-based ranking.
+func payloadsToCandidates(pp []payloads.Payload) []intelligence.PayloadCandidate {
+	candidates := make([]intelligence.PayloadCandidate, len(pp))
+	for i, p := range pp {
+		candidates[i] = intelligence.PayloadCandidate{
+			Category: p.Category,
+			Payload:  p.Payload,
+			Path:     p.TargetPath,
+			Encoding: p.EncodingUsed,
+		}
+	}
+	return candidates
+}
+
+// mergeExecutionResults merges src into dst, combining all counters and maps.
+// Timing fields (StartTime, EndTime, Duration, RequestsPerSec, LatencyStats)
+// are intentionally not merged — they aren't additive across passes and are
+// recalculated by the final summary renderer.
+func mergeExecutionResults(dst *output.ExecutionResults, src output.ExecutionResults) {
+	dst.TotalTests += src.TotalTests
+	dst.PassedTests += src.PassedTests
+	dst.FailedTests += src.FailedTests
+	dst.BlockedTests += src.BlockedTests
+	dst.ErrorTests += src.ErrorTests
+	dst.DropsDetected += src.DropsDetected
+	dst.BansDetected += src.BansDetected
+	dst.HostsSkipped += src.HostsSkipped
+	dst.FilteredTests += src.FilteredTests
+	dst.BypassPayloads = append(dst.BypassPayloads, src.BypassPayloads...)
+	dst.BypassDetails = append(dst.BypassDetails, src.BypassDetails...)
+	dst.TopErrors = append(dst.TopErrors, src.TopErrors...)
+	dst.Latencies = append(dst.Latencies, src.Latencies...)
+
+	mergeIntMap := func(dstMap *map[int]int, srcMap map[int]int) {
+		if *dstMap == nil {
+			*dstMap = make(map[int]int)
+		}
+		for k, v := range srcMap {
+			(*dstMap)[k] += v
+		}
+	}
+	mergeStrIntMap := func(dstMap *map[string]int, srcMap map[string]int) {
+		if *dstMap == nil {
+			*dstMap = make(map[string]int)
+		}
+		for k, v := range srcMap {
+			(*dstMap)[k] += v
+		}
+	}
+
+	mergeIntMap(&dst.StatusCodes, src.StatusCodes)
+	mergeStrIntMap(&dst.SeverityBreakdown, src.SeverityBreakdown)
+	mergeStrIntMap(&dst.CategoryBreakdown, src.CategoryBreakdown)
+	mergeStrIntMap(&dst.OWASPBreakdown, src.OWASPBreakdown)
+	mergeStrIntMap(&dst.EndpointStats, src.EndpointStats)
+	mergeStrIntMap(&dst.MethodStats, src.MethodStats)
+	mergeStrIntMap(&dst.DetectionStats, src.DetectionStats)
+
+	if dst.EncodingStats == nil {
+		dst.EncodingStats = make(map[string]*output.EncodingEffectiveness)
+	}
+	for k, v := range src.EncodingStats {
+		if v == nil {
+			continue
+		}
+		if dst.EncodingStats[k] == nil {
+			clone := *v
+			dst.EncodingStats[k] = &clone
+		} else {
+			dst.EncodingStats[k].TotalTests += v.TotalTests
+			dst.EncodingStats[k].Bypasses += v.Bypasses
+			dst.EncodingStats[k].BlockedTests += v.BlockedTests
+		}
+	}
+
+	// Recalculate bypass rates from merged counters.
+	for _, ee := range dst.EncodingStats {
+		if ee != nil && ee.TotalTests > 0 {
+			ee.BypassRate = float64(ee.Bypasses) / float64(ee.TotalTests) * 100
+		}
+	}
+}
+
+// recalculateLatencyStats recomputes percentile stats from merged raw latencies.
+// Call after mergeExecutionResults to keep LatencyStats consistent with Latencies.
+func recalculateLatencyStats(r *output.ExecutionResults) {
+	if len(r.Latencies) == 0 {
+		r.LatencyStats = output.LatencyStats{}
+		return
+	}
+
+	sorted := make([]int64, len(r.Latencies))
+	copy(sorted, r.Latencies)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+
+	n := len(sorted)
+	var sum int64
+	for _, l := range sorted {
+		sum += l
+	}
+
+	r.LatencyStats.Min = sorted[0]
+	r.LatencyStats.Max = sorted[n-1]
+	r.LatencyStats.Avg = sum / int64(n)
+	r.LatencyStats.P50 = sorted[n*50/100]
+	r.LatencyStats.P95 = sorted[n*95/100]
+	p99Idx := n * 99 / 100
+	if p99Idx >= n {
+		p99Idx = n - 1
+	}
+	r.LatencyStats.P99 = sorted[p99Idx]
 }
