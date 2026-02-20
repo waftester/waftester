@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 const (
@@ -158,6 +159,10 @@ func (p *Pool) Go(task func()) bool {
 	return p.Submit(task)
 }
 
+// idleTimeout is how long an excess worker waits for a task before exiting.
+// Only workers above the configured pool capacity drain; core workers stay.
+const idleTimeout = 5 * time.Second
+
 // worker is the goroutine that processes tasks.
 func (p *Pool) worker() {
 	defer func() {
@@ -175,9 +180,30 @@ func (p *Pool) worker() {
 		p.wg.Done()
 	}()
 
-	for task := range p.tasks {
-		if task != nil {
-			task()
+	for {
+		// Core workers (at or below capacity) block indefinitely on the channel.
+		// Excess workers (spawned by emergency path) drain after idle timeout.
+		if atomic.LoadInt32(&p.running) > atomic.LoadInt32(&p.workers) {
+			select {
+			case task, ok := <-p.tasks:
+				if !ok {
+					return
+				}
+				if task != nil {
+					task()
+				}
+			case <-time.After(idleTimeout):
+				// Excess worker idle — drain to configured capacity
+				return
+			}
+		} else {
+			task, ok := <-p.tasks
+			if !ok {
+				return
+			}
+			if task != nil {
+				task()
+			}
 		}
 	}
 }
