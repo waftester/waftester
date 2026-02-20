@@ -142,8 +142,26 @@ func (r *Runner[T]) Run(ctx context.Context, targets []string, task TaskFunc[T])
 		r.limiter = nil
 	}
 
-	// Results channel
-	resultsChan := make(chan Result[T], len(targets))
+	// Results channel — cap buffer to avoid large pre-allocation for massive target lists.
+	// The buffer only needs to be large enough to decouple producers from the collector.
+	bufSize := len(targets)
+	if max := concurrency * 4; max < bufSize {
+		bufSize = max
+	}
+	resultsChan := make(chan Result[T], bufSize)
+
+	// Start collector goroutine before the launch loop so results
+	// are drained continuously. This prevents deadlock when the channel
+	// buffer is smaller than the total number of targets.
+	results := make([]Result[T], 0, len(targets))
+	var collectDone sync.WaitGroup
+	collectDone.Add(1)
+	go func() {
+		defer collectDone.Done()
+		for result := range resultsChan {
+			results = append(results, result)
+		}
+	}()
 
 	// WaitGroup for all goroutines
 	var wg sync.WaitGroup
@@ -264,17 +282,11 @@ func (r *Runner[T]) Run(ctx context.Context, targets []string, task TaskFunc[T])
 	}
 
 cleanup:
-	// Wait for all goroutines to complete
-	go func() {
-		wg.Wait()
-		close(resultsChan)
-	}()
-
-	// Collect results
-	results := make([]Result[T], 0, len(targets))
-	for result := range resultsChan {
-		results = append(results, result)
-	}
+	// Wait for all goroutines to complete, then close channel
+	// so the collector goroutine exits.
+	wg.Wait()
+	close(resultsChan)
+	collectDone.Wait()
 
 	return results
 }
@@ -421,6 +433,18 @@ func (r *Runner[T]) RunWithCallback(ctx context.Context, targets []string, task 
 				if r.detector != nil {
 					r.detector.RecordError(t, err)
 				}
+				if r.OnError != nil {
+					r.OnError(t, err)
+				}
+			}
+
+			// Progress callback
+			if r.OnProgress != nil {
+				r.OnProgress(
+					atomic.LoadInt64(&r.Stats.Completed),
+					atomic.LoadInt64(&r.Stats.Total),
+					result,
+				)
 			}
 
 			// Call the callback immediately (streaming output)
