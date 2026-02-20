@@ -91,6 +91,7 @@ func TestNewPayloadFieldsDocumented(t *testing.T) {
 		"EncodingUsed":    true, // Encoding applied to payload
 		"MutationType":    true, // Type of mutation applied
 		"OriginalPayload": true, // Original payload before mutation
+		"Vendor":          true, // WAF vendor hint for targeted testing
 	}
 
 	payloadType := reflect.TypeOf(payloads.Payload{})

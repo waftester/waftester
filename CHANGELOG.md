@@ -5,6 +5,15 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.22] - 2026-02-20
+
+### Fixed
+
+- **RPS calculation inflated on early cancellation** — Both core and mutation executors used planned `TotalTests` as RPS numerator. On death spiral or context cancellation, this produced wildly inflated RPS values. Now uses actual completed count (`Blocked + Passed + Failed + Errors`).
+- **RunWithCallback silently dropped OnError and OnProgress callbacks** — `Run()` invoked struct-level `OnError` and `OnProgress` inside worker goroutines, but `RunWithCallback()` only called the streaming callback parameter, silently ignoring these. Callers setting `runner.OnError` for centralized error tracking had errors unreported when using the streaming API.
+- **Runner resultsChan pre-allocated full target count** — For 100K+ targets the channel buffer and results slice both allocated at `len(targets)`. Buffer now capped to `concurrency*4` with a concurrent collector goroutine, preventing both memory waste and potential deadlock.
+- **Worker pool emergency-spawned goroutines never drained** — Emergency spawn path doubled the worker limit to prevent deadlock, but excess workers persisted until `Close()`. Excess workers now exit after 5 seconds idle, draining back to configured capacity.
+
 ## [2.9.21] - 2026-02-20
 
 ### Fixed
@@ -2383,6 +2392,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.22]: https://github.com/waftester/waftester/compare/v2.9.21...v2.9.22
 [2.9.21]: https://github.com/waftester/waftester/compare/v2.9.20...v2.9.21
 [2.9.20]: https://github.com/waftester/waftester/compare/v2.9.19...v2.9.20
 [2.9.19]: https://github.com/waftester/waftester/compare/v2.9.18...v2.9.19
