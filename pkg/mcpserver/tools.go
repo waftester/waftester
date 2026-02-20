@@ -408,7 +408,7 @@ func (s *Server) handleListPayloads(_ context.Context, req *mcp.CallToolRequest)
 	}
 
 	// Load from unified engine (JSON + Nuclei templates)
-	provider := payloadprovider.NewProvider(s.config.PayloadDir, s.config.TemplateDir)
+	provider := s.PayloadProvider()
 	if err := provider.Load(); err != nil {
 		return errorResult(fmt.Sprintf("failed to load payloads from %s: %v. Verify the payload directory exists and contains JSON files.", s.config.PayloadDir, err)), nil
 	}

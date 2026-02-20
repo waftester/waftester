@@ -122,7 +122,7 @@ func (s *Server) addPayloadsResource() {
 		},
 		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 			// Load from unified engine (JSON + Nuclei templates)
-			provider := payloadprovider.NewProvider(s.config.PayloadDir, s.config.TemplateDir)
+			provider := s.PayloadProvider()
 			if err := provider.Load(); err != nil {
 				return nil, fmt.Errorf("loading payloads: %w", err)
 			}
@@ -194,7 +194,7 @@ func (s *Server) addPayloadsByCategoryResource() {
 			}
 
 			// Load from unified engine with alias resolution
-			provider := payloadprovider.NewProvider(s.config.PayloadDir, s.config.TemplateDir)
+			provider := s.PayloadProvider()
 			if err := provider.Load(); err != nil {
 				return nil, fmt.Errorf("loading payloads: %w", err)
 			}
@@ -813,7 +813,7 @@ func (s *Server) addUnifiedPayloadsResource() {
 			MIMEType:    "application/json",
 		},
 		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-			provider := payloadprovider.NewProvider(s.config.PayloadDir, s.config.TemplateDir)
+			provider := s.PayloadProvider()
 			if err := provider.Load(); err != nil {
 				return nil, fmt.Errorf("loading unified payloads: %w", err)
 			}

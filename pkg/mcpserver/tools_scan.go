@@ -195,7 +195,7 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	}
 
 	// Load payloads synchronously so validation errors return immediately.
-	provider := payloadprovider.NewProvider(s.config.PayloadDir, s.config.TemplateDir)
+	provider := s.PayloadProvider()
 	if err := provider.Load(); err != nil {
 		return enrichedError(
 			fmt.Sprintf("failed to load payloads: %v", err),
