@@ -2,6 +2,7 @@ package payloads
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,31 +20,50 @@ func NewLoader(baseDir string) *Loader {
 	return &Loader{baseDir: baseDir}
 }
 
-// LoadAll loads all payloads from the directory structure
+// LoadAll loads all payloads from the directory structure.
+// Only regular files under baseDir are loaded; symlinks are skipped
+// to prevent directory escapes and infinite loops.
 func (l *Loader) LoadAll() ([]Payload, error) {
-	// Pre-allocate for typical payload count (~2048)
-	allPayloads := make([]Payload, 0, 2048)
+	absBase, err := filepath.Abs(l.baseDir)
+	if err != nil {
+		return nil, fmt.Errorf("resolving base path: %w", err)
+	}
 
-	// Walk through directory structure
-	err := filepath.Walk(l.baseDir, func(path string, info os.FileInfo, err error) error {
+	allPayloads := make([]Payload, 0, 3072)
+
+	err = filepath.WalkDir(l.baseDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
+		// Skip symlinks to prevent directory escapes and loops
+		if d.Type()&fs.ModeSymlink != 0 {
+			return nil
+		}
+
 		// Skip directories and non-JSON files
-		if info.IsDir() || !strings.HasSuffix(info.Name(), ".json") {
+		if d.IsDir() || !strings.HasSuffix(d.Name(), ".json") {
+			return nil
+		}
+
+		// Verify path stays under base directory
+		absPath, absErr := filepath.Abs(path)
+		if absErr != nil {
+			return nil
+		}
+		if !strings.HasPrefix(absPath, absBase+string(filepath.Separator)) && absPath != absBase {
 			return nil
 		}
 
 		// Skip metadata files
-		if info.Name() == "version.json" || info.Name() == "ids-map.json" {
+		if d.Name() == "version.json" || d.Name() == "ids-map.json" {
 			return nil
 		}
 
 		// Load payloads from file
-		payloads, err := l.loadFile(path)
-		if err != nil {
-			return fmt.Errorf("loading %s: %w", path, err)
+		payloads, loadErr := l.loadFile(path)
+		if loadErr != nil {
+			return fmt.Errorf("loading %s: %w", path, loadErr)
 		}
 
 		allPayloads = append(allPayloads, payloads...)
@@ -143,18 +163,19 @@ func Filter(payloads []Payload, category, severity string) []Payload {
 		return payloads
 	}
 
-	// Severity priority map for filtering (Critical > High > Medium > Low)
+	// Severity priority map for filtering (Critical > High > Medium > Low).
+	// Keys are lowercase so lookups are case-insensitive.
 	severityLevel := map[string]int{
-		"Critical": 4,
-		"High":     3,
-		"Medium":   2,
-		"Low":      1,
+		"critical": 4,
+		"high":     3,
+		"medium":   2,
+		"low":      1,
 	}
 
 	minLevel := 0
 	if severity != "" {
 		var ok bool
-		minLevel, ok = severityLevel[severity]
+		minLevel, ok = severityLevel[strings.ToLower(severity)]
 		if !ok {
 			// Invalid severity - return empty slice instead of all payloads
 			return []Payload{}
@@ -170,9 +191,9 @@ func Filter(payloads []Payload, category, severity string) []Payload {
 			}
 		}
 
-		// Severity filter
+		// Severity filter (case-insensitive)
 		if severity != "" {
-			payloadLevel := severityLevel[p.SeverityHint]
+			payloadLevel := severityLevel[strings.ToLower(p.SeverityHint)]
 			if payloadLevel < minLevel {
 				continue
 			}

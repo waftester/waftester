@@ -19,6 +19,7 @@ import (
 	"github.com/waftester/waftester/pkg/apispec"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
+	"github.com/waftester/waftester/pkg/payloadprovider"
 	"github.com/waftester/waftester/pkg/templateresolver"
 )
 
@@ -84,10 +85,23 @@ type Server struct {
 	tasks    *TaskManager // async task lifecycle manager
 	ready    atomic.Bool  // tracks whether startup validation passed
 	syncMode atomic.Bool  // stdio transport runs tools synchronously
+
+	payloadProvider     *payloadprovider.Provider // cached provider, initialised lazily
+	payloadProviderOnce sync.Once
 }
 
 // MCPServer returns the underlying MCP server for direct access (e.g., testing).
 func (s *Server) MCPServer() *mcp.Server { return s.mcp }
+
+// PayloadProvider returns a lazily-initialised, cached payload provider.
+// All MCP tools and resources share this single instance to avoid
+// re-walking the payload directory on every call.
+func (s *Server) PayloadProvider() *payloadprovider.Provider {
+	s.payloadProviderOnce.Do(func() {
+		s.payloadProvider = payloadprovider.NewProvider(s.config.PayloadDir, s.config.TemplateDir)
+	})
+	return s.payloadProvider
+}
 
 // Tasks returns the task manager for inspecting async task state (e.g., testing).
 func (s *Server) Tasks() *TaskManager { return s.tasks }
