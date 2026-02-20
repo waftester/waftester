@@ -344,7 +344,8 @@ sendLoop:
 	results.DropsDetected = int(atomic.LoadInt64(&drops))
 	results.BansDetected = int(atomic.LoadInt64(&bans))
 	if results.Duration.Seconds() > 0 {
-		results.RequestsPerSec = float64(results.TotalTests) / results.Duration.Seconds()
+		actualCompleted := results.BlockedTests + results.PassedTests + results.FailedTests + results.ErrorTests
+		results.RequestsPerSec = float64(actualCompleted) / results.Duration.Seconds()
 	}
 
 	// Capture detection statistics from detector

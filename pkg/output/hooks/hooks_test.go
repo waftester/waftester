@@ -2083,6 +2083,7 @@ func TestOtelHook_SpanCreation(t *testing.T) {
 		// Bypass events should be recorded successfully
 	})
 }
+
 // =============================================================================
 // GitHubIssuesHook Tests
 // =============================================================================

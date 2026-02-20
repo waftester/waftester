@@ -354,7 +354,8 @@ sendLoop:
 
 	stats.Duration = time.Since(startTime)
 	if stats.Duration.Seconds() > 0 {
-		stats.RequestsPerSec = float64(stats.TotalTests) / stats.Duration.Seconds()
+		actualCompleted := stats.Blocked + stats.Passed + stats.Errors
+		stats.RequestsPerSec = float64(actualCompleted) / stats.Duration.Seconds()
 	}
 
 	// Collect WAF fingerprint if enabled
