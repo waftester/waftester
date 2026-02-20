@@ -654,7 +654,7 @@ func TestCallMutate(t *testing.T) {
 
 	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
 		Name:      "mutate",
-		Arguments: json.RawMessage(`{"payload": "<script>alert(1)</script>", "encodings": ["url", "double_url"]}`),
+		Arguments: json.RawMessage(`{"payload": "<script>alert(1)</script>", "encoders": ["url", "double_url"]}`),
 	})
 	if err != nil {
 		t.Fatalf("CallTool(mutate): %v", err)
