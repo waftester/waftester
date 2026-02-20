@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"regexp"
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
@@ -20,6 +22,9 @@ import (
 
 // Compile-time interface check.
 var _ dispatcher.Hook = (*JiraHook)(nil)
+
+// validJiraProjectKey matches valid Jira project keys (uppercase alphanumeric, 2-10 chars).
+var validJiraProjectKey = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,9}$`)
 
 // JiraHook creates issues in Jira via the REST API v3.
 // It creates issues for WAF bypasses that meet the severity threshold.
@@ -121,7 +126,24 @@ var jiraPriorityMap = map[events.Severity]string{
 }
 
 // NewJiraHook creates a new Jira hook that creates issues in Jira.
-func NewJiraHook(baseURL string, opts JiraOptions) *JiraHook {
+// Returns an error if baseURL is invalid, credentials are missing, or ProjectKey is malformed.
+func NewJiraHook(baseURL string, opts JiraOptions) (*JiraHook, error) {
+	// Validate base URL
+	u, err := url.Parse(baseURL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return nil, fmt.Errorf("invalid Jira base URL: %q", baseURL)
+	}
+
+	// Require authentication credentials
+	if opts.Username == "" || opts.APIToken == "" {
+		return nil, fmt.Errorf("jira requires Username and APIToken for authentication")
+	}
+
+	// Validate project key (Jira keys are uppercase alpha + digits, e.g. SEC, PROJ10)
+	if !validJiraProjectKey.MatchString(opts.ProjectKey) {
+		return nil, fmt.Errorf("invalid Jira project key: %q (must be 2-10 uppercase alphanumeric chars starting with a letter)", opts.ProjectKey)
+	}
+
 	// Apply defaults
 	if opts.IssueType == "" {
 		opts.IssueType = "Bug"
@@ -141,7 +163,7 @@ func NewJiraHook(baseURL string, opts JiraOptions) *JiraHook {
 		client:  httpclient.New(httpclient.Config{Timeout: opts.Timeout}),
 		opts:    opts,
 		logger:  orDefault(opts.Logger),
-	}
+	}, nil
 }
 
 // OnEvent processes events and creates issues in Jira.

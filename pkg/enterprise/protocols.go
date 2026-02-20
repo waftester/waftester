@@ -202,27 +202,37 @@ func (l *GRPCLocation) BuildRequest(ctx context.Context, baseURL, payload string
 	return req, nil
 }
 
-// buildProtoString creates a protobuf-encoded string field
+// buildProtoString creates a protobuf-encoded string field.
+// Field numbers must be in range [1, 536870911] per the protobuf spec.
 func buildProtoString(fieldNum int, value string) []byte {
+	if fieldNum < 1 || fieldNum > 0x1FFFFFFF {
+		// Out of valid protobuf field number range; clamp to 1.
+		fieldNum = 1
+	}
+
 	// Tag = (field_number << 3) | wire_type
 	// Wire type 2 = length-delimited (strings, bytes, embedded messages)
 	tag := (fieldNum << 3) | 2
 
-	// Varint encode the tag and length
-	result := []byte{byte(tag)}
+	// Varint encode the tag
+	result := appendVarint(nil, uint64(tag))
 
-	// Add length as varint
-	length := len(value)
-	for length >= 0x80 {
-		result = append(result, byte(length)|0x80)
-		length >>= 7
-	}
-	result = append(result, byte(length))
+	// Varint encode the length
+	result = appendVarint(result, uint64(len(value)))
 
 	// Add the string value
-	result = append(result, []byte(value)...)
+	result = append(result, value...)
 
 	return result
+}
+
+// appendVarint appends a varint-encoded uint64 to buf.
+func appendVarint(buf []byte, x uint64) []byte {
+	for x >= 0x80 {
+		buf = append(buf, byte(x)|0x80)
+		x >>= 7
+	}
+	return append(buf, byte(x))
 }
 
 // =====================================================================

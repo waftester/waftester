@@ -31,6 +31,9 @@ type PagerDutyHook struct {
 	logger     *slog.Logger
 }
 
+// Default PagerDuty Events API v2 endpoint (US region).
+const pagerDutyDefaultBaseURL = "https://events.pagerduty.com/v2/enqueue"
+
 // PagerDutyOptions configures the PagerDuty hook behavior.
 type PagerDutyOptions struct {
 	// MinSeverity to trigger incident (default: high).
@@ -41,6 +44,10 @@ type PagerDutyOptions struct {
 
 	// Component for the incident.
 	Component string
+
+	// BaseURL overrides the Events API v2 endpoint.
+	// For EU: "https://events.eu.pagerduty.com/v2/enqueue"
+	BaseURL string
 
 	// Timeout for HTTP requests (default: 10s).
 	Timeout time.Duration
@@ -109,6 +116,10 @@ func NewPagerDutyHook(routingKey string, opts PagerDutyOptions) *PagerDutyHook {
 		opts.Timeout = duration.WebhookTimeout
 	}
 
+	if opts.BaseURL == "" {
+		opts.BaseURL = pagerDutyDefaultBaseURL
+	}
+
 	return &PagerDutyHook{
 		routingKey: routingKey,
 		client:     httpclient.New(httpclient.Config{Timeout: opts.Timeout}),
@@ -165,7 +176,7 @@ func (h *PagerDutyHook) sendEvent(ctx context.Context, bypass *events.BypassEven
 		return nil
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://events.pagerduty.com/v2/enqueue", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, h.opts.BaseURL, bytes.NewReader(body))
 	if err != nil {
 		h.logger.Warn("failed to create request", slog.String("error", err.Error()))
 		return nil

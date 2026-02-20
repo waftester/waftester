@@ -107,8 +107,11 @@ func (h *SlackHook) EventTypes() []events.EventType {
 
 // handleBypass collects bypass events and sends immediate alerts for critical/high severity.
 func (h *SlackHook) handleBypass(ctx context.Context, bypass *events.BypassEvent) error {
-	// Always collect for summary
-	h.bypasses = append(h.bypasses, bypass)
+	// Collect for summary, capped to prevent unbounded growth.
+	const maxCollectedBypasses = 100
+	if len(h.bypasses) < maxCollectedBypasses {
+		h.bypasses = append(h.bypasses, bypass)
+	}
 
 	// Apply MinSeverity filter
 	if h.opts.MinSeverity != "" && !h.meetsMinSeverity(bypass.Details.Severity) {
