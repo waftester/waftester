@@ -2,16 +2,19 @@
 package payloads
 
 import (
-	"embed"
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/waftester/waftester/pkg/jsonutil"
 )
 
-// Database holds all payloads organized by category
+// Database holds all payloads organized by category.
+// It is safe for concurrent reads after construction. Methods that mutate
+// (Add, AddBatch, LoadFromJSON) acquire a write lock.
 type Database struct {
+	mu         sync.RWMutex
 	payloads   []Payload
 	byCategory map[string][]Payload
 	byVendor   map[string][]Payload
@@ -35,19 +38,33 @@ func NewDatabase() *Database {
 	return db
 }
 
-// Add adds a payload to the database
+// Add adds a payload to the database.
 func (db *Database) Add(p Payload) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	db.addLocked(p)
+}
+
+// addLocked is the lock-free inner add; caller must hold db.mu.
+func (db *Database) addLocked(p Payload) {
 	db.payloads = append(db.payloads, p)
 
 	cat := strings.ToLower(p.Category)
 	db.byCategory[cat] = append(db.byCategory[cat], p)
 
-	// Vendor is stored in Notes field for now (backwards compatible)
-	if strings.Contains(p.Notes, "vendor:") {
-		parts := strings.Split(p.Notes, "vendor:")
-		if len(parts) > 1 {
-			vendor := strings.ToLower(strings.TrimSpace(strings.Split(parts[1], " ")[0]))
-			db.byVendor[vendor] = append(db.byVendor[vendor], p)
+	// Index by vendor: prefer the first-class Vendor field,
+	// fall back to extracting all vendor: tags from Notes.
+	if p.Vendor != "" {
+		v := strings.ToLower(p.Vendor)
+		db.byVendor[v] = append(db.byVendor[v], p)
+	} else {
+		for _, word := range strings.Fields(p.Notes) {
+			if strings.HasPrefix(strings.ToLower(word), "vendor:") {
+				v := strings.TrimPrefix(strings.ToLower(word), "vendor:")
+				if v != "" {
+					db.byVendor[v] = append(db.byVendor[v], p)
+				}
+			}
 		}
 	}
 
@@ -62,40 +79,54 @@ func (db *Database) Add(p Payload) {
 	}
 }
 
-// AddBatch adds multiple payloads at once
-func (db *Database) AddBatch(payloads []Payload) {
-	for _, p := range payloads {
-		db.Add(p)
+// AddBatch adds multiple payloads at once.
+func (db *Database) AddBatch(pls []Payload) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	for _, p := range pls {
+		db.addLocked(p)
 	}
 }
 
-// All returns all payloads
+// All returns all payloads.
 func (db *Database) All() []Payload {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
 	return db.payloads
 }
 
-// Count returns the total number of payloads
+// Count returns the total number of payloads.
 func (db *Database) Count() int {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
 	return len(db.payloads)
 }
 
-// ByCategory returns payloads for a specific category
+// ByCategory returns payloads for a specific category.
 func (db *Database) ByCategory(category string) []Payload {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
 	return db.byCategory[strings.ToLower(category)]
 }
 
-// ByVendor returns payloads targeting a specific WAF vendor
+// ByVendor returns payloads targeting a specific WAF vendor.
 func (db *Database) ByVendor(vendor string) []Payload {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
 	return db.byVendor[strings.ToLower(vendor)]
 }
 
-// ByTag returns payloads with a specific tag
+// ByTag returns payloads with a specific tag.
 func (db *Database) ByTag(tag string) []Payload {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
 	return db.byTag[strings.ToLower(tag)]
 }
 
-// BySeverity returns payloads with a specific severity
+// BySeverity returns payloads with a specific severity.
 func (db *Database) BySeverity(severity string) []Payload {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
 	return db.bySeverity[strings.ToLower(severity)]
 }
 
@@ -283,19 +314,21 @@ func (f *PayloadFilter) matches(p Payload) bool {
 	return true
 }
 
-// LoadFromJSON loads payloads from JSON data
+// LoadFromJSON loads payloads from JSON data.
 func (db *Database) LoadFromJSON(data []byte) error {
-	var payloads []Payload
-	if err := jsonutil.Unmarshal(data, &payloads); err != nil {
+	var pls []Payload
+	if err := jsonutil.Unmarshal(data, &pls); err != nil {
 		return fmt.Errorf("failed to parse JSON: %w", err)
 	}
 
-	db.AddBatch(payloads)
+	db.AddBatch(pls)
 	return nil
 }
 
-// ExportJSON exports the database to JSON
+// ExportJSON exports the database to JSON.
 func (db *Database) ExportJSON() ([]byte, error) {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
 	return jsonutil.MarshalIndent(db.payloads, "", "  ")
 }
 
@@ -644,19 +677,7 @@ func (db *Database) loadVendorBypasses() {
 	db.AddBatch(payloads)
 }
 
-// DefaultDatabase returns a database with all built-in payloads
+// DefaultDatabase returns a database with all built-in payloads.
 func DefaultDatabase() *Database {
 	return NewDatabase()
-}
-
-//go:embed payloads.json
-var embeddedPayloads embed.FS
-
-// LoadEmbeddedPayloads loads payloads from embedded JSON (if available)
-func (db *Database) LoadEmbeddedPayloads() error {
-	data, err := embeddedPayloads.ReadFile("payloads.json")
-	if err != nil { //nolint:nilerr // intentional: file not embedded is normal, use built-in
-		return nil
-	}
-	return db.LoadFromJSON(data)
 }

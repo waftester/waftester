@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -13,49 +14,41 @@ import (
 // REAL BUG-FINDING TESTS - These tests actually verify behavior and find issues
 // =============================================================================
 
-// TestFilterSeverityLevelBug tests a potential bug: what happens when
-// severity is provided but doesn't match the expected cases?
+// TestFilterSeverityLevelBug verifies that severity filtering is case-insensitive.
+// Previously the filter used title-case map keys, silently dropping lowercase
+// severity hints like "critical" (used in database.go builtins).
 func TestFilterSeverityLevelBug(t *testing.T) {
 	payloads := []Payload{
 		{ID: "1", Category: "sqli", SeverityHint: "Critical"},
-		{ID: "2", Category: "sqli", SeverityHint: "HIGH"},    // UPPERCASE - does filter handle this?
+		{ID: "2", Category: "sqli", SeverityHint: "HIGH"},    // UPPERCASE
 		{ID: "3", Category: "sqli", SeverityHint: "medium"},  // lowercase
 		{ID: "4", Category: "sqli", SeverityHint: ""},        // empty severity
 		{ID: "5", Category: "sqli", SeverityHint: "Unknown"}, // unknown severity
 	}
 
-	// Filter for "High" - this should include Critical and High
+	// Filter for "High" — should include Critical (#1) and HIGH (#2)
 	filtered := Filter(payloads, "", "High")
 
-	// BUG CHECK: Does the filter handle case-insensitive severity?
-	// The severityLevel map only has "Critical", "High", "Medium", "Low" (capitalized)
-	// So "HIGH" and "medium" won't match and will have level 0
-
-	// This test exposes that severity filtering is NOT case-insensitive
-	// If this test fails, we found a bug!
+	wantIDs := map[string]bool{"1": true, "2": true}
+	gotIDs := make(map[string]bool, len(filtered))
 	for _, p := range filtered {
-		level := getSeverityLevel(p.SeverityHint)
-		if level < getSeverityLevel("High") {
-			t.Errorf("BUG: Payload %s with severity %q (level %d) should NOT be in High+ filter results",
-				p.ID, p.SeverityHint, level)
+		gotIDs[p.ID] = true
+	}
+	for id := range wantIDs {
+		if !gotIDs[id] {
+			t.Errorf("expected payload %s in High+ filter results", id)
 		}
 	}
-
-	// Verify we got at least Critical (which definitely matches)
-	foundCritical := false
-	for _, p := range filtered {
-		if p.SeverityHint == "Critical" {
-			foundCritical = true
+	for id := range gotIDs {
+		if !wantIDs[id] {
+			t.Errorf("unexpected payload %s in High+ filter results", id)
 		}
-	}
-	if !foundCritical {
-		t.Error("BUG: Filter for High+ didn't include Critical severity payload")
 	}
 }
 
 func getSeverityLevel(severity string) int {
-	levels := map[string]int{"Critical": 4, "High": 3, "Medium": 2, "Low": 1}
-	return levels[severity] // Returns 0 for unknown
+	levels := map[string]int{"critical": 4, "high": 3, "medium": 2, "low": 1}
+	return levels[strings.ToLower(severity)]
 }
 
 // TestFilterWithNilPayloads tests what happens with nil input
