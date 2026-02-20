@@ -201,10 +201,27 @@ func detectBypassTechnique(payload string, techniques []string) string {
 	if strings.Contains(payload, "\\u") || strings.Contains(payload, "%u") {
 		return "Unicode Encoding"
 	}
-	if strings.Contains(payload, "/*") || strings.Contains(payload, "--") || strings.Contains(payload, "#") {
+	// "/*" is a reliable C-style/SQL comment marker.
+	// "-- " (trailing space) is SQL line comment per spec.
+	// "#" only counts when preceded by SQL keywords to avoid false positives
+	// on URL fragments and CSS selectors.
+	isCommentHash := strings.Contains(payload, "#") &&
+		(strings.Contains(payloadLower, "or#") || strings.Contains(payloadLower, "and#") || strings.Contains(payloadLower, "union#"))
+	if strings.Contains(payload, "/*") || strings.Contains(payload, "-- ") || isCommentHash {
 		return "Comment Insertion"
 	}
-	if payload != strings.ToLower(payload) && payload != strings.ToUpper(payload) {
+	// Detect intentional alternating case (e.g., "SeLeCt", "uNiOn") by counting
+	// case transitions between adjacent alpha characters. Normal mixed case like
+	// "JavaScript" has few transitions; deliberate randomization has many.
+	caseChanges := 0
+	for i := 1; i < len(payload); i++ {
+		curr, prev := payload[i], payload[i-1]
+		if (curr >= 'a' && curr <= 'z' && prev >= 'A' && prev <= 'Z') ||
+			(curr >= 'A' && curr <= 'Z' && prev >= 'a' && prev <= 'z') {
+			caseChanges++
+		}
+	}
+	if caseChanges >= 3 {
 		return "Case Variation"
 	}
 	if strings.Contains(payload, "\t") || strings.Contains(payload, "  ") {

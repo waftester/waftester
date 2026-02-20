@@ -242,7 +242,7 @@ func TestComplianceMapperDetermineStatus(t *testing.T) {
 		PassedRequests:  5,
 		BlockRate:       95.0,
 	}
-	status := mapper.determineStatus("xss", 0, highBlockStats)
+	status := mapper.determineStatus(highBlockStats)
 	if status != StatusPass {
 		t.Errorf("Expected pass status with 95%% block rate, got %s", status)
 	}
@@ -254,7 +254,7 @@ func TestComplianceMapperDetermineStatus(t *testing.T) {
 		PassedRequests:  15,
 		BlockRate:       85.0,
 	}
-	status = mapper.determineStatus("xss", 5, mediumBlockStats)
+	status = mapper.determineStatus(mediumBlockStats)
 	if status != StatusPartial {
 		t.Errorf("Expected partial status with 85%% block rate, got %s", status)
 	}
@@ -266,7 +266,7 @@ func TestComplianceMapperDetermineStatus(t *testing.T) {
 		PassedRequests:  50,
 		BlockRate:       50.0,
 	}
-	status = mapper.determineStatus("xss", 10, lowBlockStats)
+	status = mapper.determineStatus(lowBlockStats)
 	if status != StatusFail {
 		t.Errorf("Expected fail status with 50%% block rate, got %s", status)
 	}

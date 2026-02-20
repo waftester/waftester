@@ -346,10 +346,11 @@ func NewEnterpriseHTMLGenerator() (*EnterpriseHTMLGenerator, error) {
 		"upper":  strings.ToUpper,
 		"lower":  strings.ToLower,
 		"truncate": func(s string, maxLen int) string {
-			if len(s) <= maxLen {
+			runes := []rune(s)
+			if len(runes) <= maxLen {
 				return s
 			}
-			return s[:maxLen] + "..."
+			return string(runes[:maxLen]) + "..."
 		},
 		// SAFETY: json.Marshal produces valid JSON and Go's json.Marshal escapes
 		// <, >, and & in strings by default, making the output safe to embed in
@@ -362,7 +363,7 @@ func NewEnterpriseHTMLGenerator() (*EnterpriseHTMLGenerator, error) {
 			}
 			return template.JS(b)
 		},
-		"safeHTML": func(s string) template.HTML {
+		"escapeHTML": func(s string) template.HTML {
 			return template.HTML(template.HTMLEscapeString(s))
 		},
 		"mult": func(a, b float64) float64 {
@@ -414,7 +415,9 @@ func (g *EnterpriseHTMLGenerator) GenerateToFile(report *EnterpriseReport, filep
 	return os.WriteFile(filepath, html, 0644)
 }
 
-// DefaultComparisonTable returns industry benchmark data
+// DefaultComparisonTable returns industry benchmark data.
+// Source: internal WAFtester test suite results (2024). These are approximate
+// reference values and may not reflect current WAF product capabilities.
 func DefaultComparisonTable() []ComparisonRow {
 	return []ComparisonRow{
 		{
