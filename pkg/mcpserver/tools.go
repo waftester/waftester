@@ -401,6 +401,28 @@ type sampleEntry struct {
 	Notes    string   `json:"notes,omitempty"`
 }
 
+// enrichWithNuclei appends Nuclei-sourced unified payloads to a JSON payload slice.
+func enrichWithNuclei(all []payloads.Payload, unified []payloadprovider.UnifiedPayload) []payloads.Payload {
+	for _, up := range unified {
+		if up.Source == payloadprovider.SourceNuclei {
+			sev := up.Severity
+			if sev == "" {
+				sev = "Medium"
+			}
+			all = append(all, payloads.Payload{
+				ID:            up.ID,
+				Payload:       up.Payload,
+				Category:      up.Category,
+				Method:        up.Method,
+				SeverityHint:  sev,
+				ExpectedBlock: true,
+				Tags:          up.Tags,
+			})
+		}
+	}
+	return all
+}
+
 func (s *Server) handleListPayloads(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var args listPayloadsArgs
 	if err := parseArgs(req, &args); err != nil {
@@ -423,23 +445,7 @@ func (s *Server) handleListPayloads(_ context.Context, req *mcp.CallToolRequest)
 	if err != nil {
 		log.Printf("[mcp] failed to load unified payloads: %v", err)
 	}
-	for _, up := range unified {
-		if up.Source == payloadprovider.SourceNuclei {
-			sev := up.Severity
-			if sev == "" {
-				sev = "Medium"
-			}
-			all = append(all, payloads.Payload{
-				ID:            up.ID,
-				Payload:       up.Payload,
-				Category:      up.Category,
-				Method:        up.Method,
-				SeverityHint:  sev,
-				ExpectedBlock: true,
-				Tags:          up.Tags,
-			})
-		}
-	}
+	all = enrichWithNuclei(all, unified)
 
 	totalAvailable := len(all)
 

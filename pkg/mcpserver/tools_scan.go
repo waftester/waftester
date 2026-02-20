@@ -18,7 +18,6 @@ import (
 	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/output"
-	"github.com/waftester/waftester/pkg/payloadprovider"
 	"github.com/waftester/waftester/pkg/payloads"
 )
 
@@ -215,28 +214,12 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 			}), nil
 	}
 
-	// Enrich with Nuclei template payloads converted to payloads.Payload format
+	// Enrich with Nuclei template payloads
 	unified, err := provider.GetAll()
 	if err != nil {
 		log.Printf("[mcp-scan] failed to load unified payloads for Nuclei enrichment: %v", err)
 	}
-	for _, up := range unified {
-		if up.Source == payloadprovider.SourceNuclei {
-			sev := up.Severity
-			if sev == "" {
-				sev = "Medium"
-			}
-			all = append(all, payloads.Payload{
-				ID:            up.ID,
-				Payload:       up.Payload,
-				Category:      up.Category,
-				Method:        up.Method,
-				SeverityHint:  sev,
-				ExpectedBlock: true,
-				Tags:          up.Tags,
-			})
-		}
-	}
+	all = enrichWithNuclei(all, unified)
 
 	var filtered []payloads.Payload
 	if len(args.Categories) > 0 {
@@ -632,7 +615,7 @@ func (s *Server) handleAssess(ctx context.Context, req *mcp.CallToolRequest) (*m
 	if args.Timeout > 0 {
 		cfg.Timeout = time.Duration(args.Timeout) * time.Second
 	}
-	if args.Timeout > int(duration.HTTPAPI.Seconds()) {
+	if cfg.Timeout > duration.HTTPAPI {
 		cfg.Timeout = duration.HTTPAPI
 	}
 	if len(args.Categories) > 0 {
@@ -654,7 +637,7 @@ func (s *Server) handleAssess(ctx context.Context, req *mcp.CallToolRequest) (*m
 
 		progressFn := func(completed, total int64, phase string) {
 			if total > 0 {
-				pct := float64(completed) / float64(total) * 90
+				pct := min(float64(completed)/float64(total)*90, 90)
 				task.SetProgress(pct, 100, fmt.Sprintf("[%s] %d/%d", phase, completed, total))
 			}
 		}
