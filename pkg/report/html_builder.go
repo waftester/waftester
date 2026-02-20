@@ -370,10 +370,10 @@ func (r *EnterpriseReport) AddBypassesFromResultsFile(resultsFilePath string) er
 		return fmt.Errorf("failed to parse results file: %w", err)
 	}
 
-	// Find entries with outcome "Pass" (bypasses) or "Fail"
+	// Only "Pass" outcomes represent successful WAF bypasses.
 	for _, result := range results {
 		outcome, _ := result["outcome"].(string)
-		if outcome != "Pass" && outcome != "Fail" && outcome != "Failed" {
+		if outcome != "Pass" {
 			continue
 		}
 
@@ -391,11 +391,10 @@ func (r *EnterpriseReport) AddBypassesFromResultsFile(resultsFilePath string) er
 		if payload, ok := result["payload"].(string); ok {
 			finding.Payload = payload
 		}
-		if endpoint, ok := result["target_path"].(string); ok {
-			finding.Endpoint = endpoint
-		}
-		if endpoint, ok := result["request_url"].(string); ok {
-			finding.Endpoint = endpoint
+		if url, ok := result["request_url"].(string); ok {
+			finding.Endpoint = url
+		} else if path, ok := result["target_path"].(string); ok {
+			finding.Endpoint = path
 		}
 		if method, ok := result["method"].(string); ok {
 			finding.Method = method
