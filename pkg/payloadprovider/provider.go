@@ -367,6 +367,7 @@ func (p *Provider) EnrichTemplate(tmpl *nuclei.Template) (*nuclei.Template, int,
 }
 
 // merge combines JSON and Nuclei payloads into a single unified list.
+// Payloads are deduplicated by ID; the first occurrence wins.
 func (p *Provider) merge() []UnifiedPayload {
 	capacity := len(p.jsonPayloads)
 	for _, t := range p.nucleiTempls {
@@ -375,10 +376,17 @@ func (p *Provider) merge() []UnifiedPayload {
 		}
 	}
 
+	seenIDs := make(map[string]bool, capacity)
 	all := make([]UnifiedPayload, 0, capacity)
 
 	// Add JSON payloads
 	for _, jp := range p.jsonPayloads {
+		if jp.ID != "" && seenIDs[jp.ID] {
+			continue
+		}
+		if jp.ID != "" {
+			seenIDs[jp.ID] = true
+		}
 		all = append(all, UnifiedPayload{
 			ID:            jp.ID,
 			Payload:       jp.Payload,
@@ -400,8 +408,13 @@ func (p *Provider) merge() []UnifiedPayload {
 				if payload == "" {
 					continue
 				}
+				id := fmt.Sprintf("%s-path-%d", tmpl.ID, i)
+				if seenIDs[id] {
+					continue
+				}
+				seenIDs[id] = true
 				all = append(all, UnifiedPayload{
-					ID:         fmt.Sprintf("%s-path-%d", tmpl.ID, i),
+					ID:         id,
 					Payload:    payload,
 					Category:   category,
 					Method:     req.Method,
@@ -443,17 +456,23 @@ func buildPathFromPayload(jp payloads.Payload) string {
 // extractPayloadFromPath extracts the attack payload from a Nuclei template path.
 // e.g. "{{BaseURL}}/?id=1' UNION SELECT 1,2,3--" → "1' UNION SELECT 1,2,3--"
 //
-// This uses the first '=' sign as the delimiter, which works correctly for
-// single-parameter URLs (the standard format in WAFtester templates). For
-// multi-parameter URLs like "?a=1&b=PAYLOAD", it would return "1&b=PAYLOAD"
-// — but this pattern does not occur in the current template corpus.
+// For multi-parameter URLs like "?a=safe&b=PAYLOAD", it returns the last
+// parameter value (which is most likely the injection point).
 func extractPayloadFromPath(path string) string {
 	// Remove BaseURL prefix
 	path = strings.TrimPrefix(path, "{{BaseURL}}")
 
-	// Find the parameter value (after = sign)
-	if idx := strings.Index(path, "="); idx != -1 {
-		return path[idx+1:]
+	// Use the last query parameter value as the payload.
+	// Templates typically place the attack vector in the final parameter.
+	if qIdx := strings.IndexByte(path, '?'); qIdx >= 0 {
+		query := path[qIdx+1:]
+		if lastAmp := strings.LastIndexByte(query, '&'); lastAmp >= 0 {
+			query = query[lastAmp+1:]
+		}
+		if eqIdx := strings.IndexByte(query, '='); eqIdx >= 0 {
+			return query[eqIdx+1:]
+		}
+		return query
 	}
 
 	// If path itself is the payload (e.g. /../../etc/passwd)
