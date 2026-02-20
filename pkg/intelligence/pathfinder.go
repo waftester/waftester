@@ -28,6 +28,9 @@ type AttackPathOptimizer struct {
 	paths       []*AttackPath
 	optimalPath *AttackPath
 
+	// Dirty flag: set when graph changes, cleared after recalculation
+	dirty bool
+
 	// Configuration
 	config *PathfinderConfig
 }
@@ -191,8 +194,9 @@ func (apo *AttackPathOptimizer) LearnFromBypass(path string, category string, pa
 	// Create edges to potential escalation targets
 	apo.createEscalationEdges(vulnID, category)
 
-	// Recalculate paths
-	apo.recalculatePaths()
+	// Mark dirty instead of recalculating on every bypass.
+	// Call RecalculateIfDirty() at phase boundaries for batch efficiency.
+	apo.dirty = true
 }
 
 // LearnFromBlock updates the graph when an attack is blocked
@@ -334,6 +338,19 @@ func (apo *AttackPathOptimizer) getNodeTypeValue(nodeType NodeType) float64 {
 		return v
 	}
 	return NodeValueDefault
+}
+
+// RecalculateIfDirty recalculates paths only if the graph has changed since the last calculation.
+// Call at phase boundaries (e.g., after waf-testing completes) instead of on every bypass.
+func (apo *AttackPathOptimizer) RecalculateIfDirty() {
+	apo.mu.Lock()
+	defer apo.mu.Unlock()
+
+	if !apo.dirty {
+		return
+	}
+	apo.recalculatePaths()
+	apo.dirty = false
 }
 
 // recalculatePaths recalculates optimal attack paths

@@ -34,10 +34,11 @@ type Predictor struct {
 	// Feature correlations learned
 	categoryTechCorr map[string]map[string]float64 // Category → Tech → correlation
 
-	// Observation counts for confidence
+	// Observation counts for confidence and UCB1 exploration
 	categoryObservations map[string]int
 	encodingObservations map[string]int
 	patternObservations  map[string]int
+	totalObservations    int // Global counter for UCB1 exploration bonus
 }
 
 // NewPredictor creates a new Predictor with default configuration.
@@ -89,6 +90,8 @@ func (p *Predictor) Learn(finding *Finding) {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	p.totalObservations++
 
 	success := 0.0
 	if !finding.Blocked {
@@ -262,10 +265,28 @@ func (p *Predictor) PredictBatch(payloads []PayloadCandidate, techStack []string
 
 	for i, payload := range payloads {
 		pred := p.predictLocked(payload.Category, payload.Payload, payload.Path, techStack)
+
+		// UCB1 exploration bonus: boost under-tested categories
+		// sqrt(2 * ln(totalObs) / categoryObs) gives higher bonus to less-tested categories
+		explorationBonus := 0.0
+		if p.totalObservations > 0 && p.config.ExplorationWeight > 0 {
+			catObs := p.categoryObservations[payload.Category]
+			if catObs == 0 {
+				explorationBonus = 1.0 // Maximum bonus for untested categories
+			} else {
+				explorationBonus = math.Sqrt(2.0 * math.Log(float64(p.totalObservations)) / float64(catObs))
+				if explorationBonus > 1.0 {
+					explorationBonus = 1.0
+				}
+			}
+		}
+
+		exploitScore := pred.Probability * pred.Confidence
+		exploreScore := explorationBonus * p.config.ExplorationWeight
 		ranked[i] = RankedPayload{
 			Candidate:  payload,
 			Prediction: pred,
-			Score:      pred.Probability * pred.Confidence,
+			Score:      exploitScore + exploreScore,
 		}
 	}
 
@@ -374,6 +395,49 @@ func (p *Predictor) extractPattern(payload string) string {
 		return "ssrf-cloud"
 	}
 
+	// SSTI patterns
+	if strings.Contains(payload, "{{") || strings.Contains(payload, "${") || strings.Contains(payload, "#{") {
+		return "ssti-template"
+	}
+	if strings.Contains(lower, "jinja") || strings.Contains(lower, "twig") || strings.Contains(lower, "freemarker") {
+		return "ssti-engine"
+	}
+
+	// NoSQL injection
+	if strings.Contains(payload, "$gt") || strings.Contains(payload, "$ne") ||
+		strings.Contains(payload, "$where") || strings.Contains(payload, "$regex") {
+		return "nosqli-operator"
+	}
+	if strings.Contains(payload, "{'") || strings.Contains(payload, "{\"") {
+		return "nosqli-json"
+	}
+
+	// PHP deserialization — match format markers, not bare prefixes
+	if strings.Contains(payload, "O:4:") || strings.Contains(payload, "O:1:") ||
+		strings.Contains(payload, "a:2:{") || strings.Contains(payload, "a:1:{") ||
+		strings.Contains(payload, "s:4:") {
+		return "deser-php"
+	}
+	if strings.Contains(lower, "java.lang") || strings.Contains(lower, "rO0") {
+		return "deser-java"
+	}
+
+	// Prototype pollution
+	if strings.Contains(payload, "__proto__") || strings.Contains(payload, "constructor") {
+		return "proto-pollution"
+	}
+
+	// LDAP injection
+	if strings.Contains(payload, "(cn=") || strings.Contains(payload, "(uid=") ||
+		strings.Contains(payload, ")(|") || strings.Contains(payload, ")(cn=") {
+		return "ldap-injection"
+	}
+
+	// XXE
+	if strings.Contains(lower, "<!entity") || strings.Contains(lower, "<!doctype") {
+		return "xxe"
+	}
+
 	return ""
 }
 
@@ -412,9 +476,9 @@ func (p *Predictor) getConfidence(observations int) float64 {
 	if observations == 0 {
 		return 0.0
 	}
-	// Logarithmic confidence curve: approaches 1.0 with more observations
-	// 10 obs = 0.7, 50 obs = 0.85, 100 obs = 0.9
-	return math.Min(1.0, math.Log10(float64(observations)+1)/2)
+	// Logarithmic confidence curve: approaches 1.0 slowly with more observations.
+	// 10 obs ≈ 0.50, 100 obs ≈ 0.67, 1000 obs ≈ 0.83, 10000 obs ≈ 1.0
+	return math.Min(1.0, math.Log10(float64(observations)+1)/4)
 }
 
 // isBase64Like checks if string looks like base64
