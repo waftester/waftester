@@ -5,6 +5,12 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.20] - 2026-02-20
+
+### Fixed
+
+- **Auto mode adversarial hardening (rounds 6-15)** — 63 fixes from adversarial code review: death spiral TotalTests inflation, nil progress crash in sub-passes, double rate-limit backoff, EmitBypass on wrong outcomes, brain state persistence for resume, immediate result flush after waf-testing, mutation-pass diagnostic warnings, executorRef lifecycle cleanup, case-normalized bypass keys, and latency stats population in ExecuteWithProgress.
+
 ## [2.9.19] - 2026-02-19
 
 ### Security
@@ -2371,6 +2377,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.20]: https://github.com/waftester/waftester/compare/v2.9.19...v2.9.20
 [2.9.19]: https://github.com/waftester/waftester/compare/v2.9.18...v2.9.19
 [2.9.18]: https://github.com/waftester/waftester/compare/v2.9.17...v2.9.18
 [2.9.17]: https://github.com/waftester/waftester/compare/v2.9.16...v2.9.17
