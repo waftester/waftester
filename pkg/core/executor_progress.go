@@ -243,6 +243,11 @@ sendLoop2:
 			p99Idx = len(sortedLatencies) - 1
 		}
 		results.LatencyStats.P99 = sortedLatencies[p99Idx]
+
+		// Preserve raw latencies for downstream merge+recalculate.
+		// The json:"-" tag on Latencies prevents serialization bloat;
+		// this data is only used within the same process lifetime.
+		results.Latencies = sortedLatencies
 	}
 
 	// Calculate encoding bypass rates
@@ -267,6 +272,13 @@ sendLoop2:
 	results.ErrorTests = int(atomic.LoadInt64(&errored))
 	results.HostsSkipped = int(atomic.LoadInt64(&skipped))
 	results.FilteredTests = int(atomic.LoadInt64(&filteredCount))
+
+	// Correct TotalTests to actual completed count. When death spiral
+	// cancels execution early, unsent payloads never reach workers —
+	// using len(allPayloads) would inflate TotalTests and RequestsPerSec.
+	completedTests := blocked + passed + failed + errored + atomic.LoadInt64(&skipped) + atomic.LoadInt64(&filteredCount)
+	results.TotalTests = int(completedTests)
+
 	if results.Duration.Seconds() > 0 {
 		results.RequestsPerSec = float64(results.TotalTests) / results.Duration.Seconds()
 	}
