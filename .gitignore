@@ -22,6 +22,7 @@
 .claude/
 .mcp.json
 .vscode/
+AGENTS.md
 docs/plans/
 docs/research/
 
