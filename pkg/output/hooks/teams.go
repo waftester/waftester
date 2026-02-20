@@ -102,7 +102,11 @@ func (h *TeamsHook) handleBypass(bypass *events.BypassEvent) error {
 		return nil
 	}
 
-	h.bypasses = append(h.bypasses, bypass)
+	// Cap to prevent unbounded growth.
+	const maxCollectedBypasses = 100
+	if len(h.bypasses) < maxCollectedBypasses {
+		h.bypasses = append(h.bypasses, bypass)
+	}
 	return nil
 }
 
