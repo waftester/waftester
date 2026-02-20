@@ -14,6 +14,7 @@ type Payload struct {
 	SeverityHint  string   `json:"severity_hint"`
 	Tags          []string `json:"tags"`
 	Notes         string   `json:"notes"`
+	Vendor        string   `json:"vendor,omitempty"` // Target WAF vendor (modsecurity, cloudflare, etc.)
 
 	// Encoding/mutation tracking
 	EncodingUsed    string `json:"encoding_used,omitempty"`    // Encoder name (url, base64, etc.)
