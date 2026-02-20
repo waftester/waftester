@@ -97,13 +97,20 @@ func NewEndpointClustererWithConfig(cfg *ClustererConfig) *EndpointClusterer {
 	}
 }
 
-// AddEndpoint adds an endpoint and automatically clusters it
-func (ec *EndpointClusterer) AddEndpoint(path string) {
+// AddEndpoint adds an endpoint and automatically clusters it.
+// If method is provided, endpoints with different methods are treated as distinct.
+func (ec *EndpointClusterer) AddEndpoint(path string, method ...string) {
 	ec.mu.Lock()
 	defer ec.mu.Unlock()
 
+	// Use method:path as key when method is known, so GET and POST cluster separately
+	key := path
+	if len(method) > 0 && method[0] != "" {
+		key = strings.ToUpper(method[0]) + ":" + path
+	}
+
 	// Skip if already added
-	if _, ok := ec.endpointCluster[path]; ok {
+	if _, ok := ec.endpointCluster[key]; ok {
 		return
 	}
 
@@ -113,18 +120,18 @@ func (ec *EndpointClusterer) AddEndpoint(path string) {
 	}
 
 	// Initialize behavior tracking
-	ec.endpointBehaviors[path] = &EndpointBehavior{
+	ec.endpointBehaviors[key] = &EndpointBehavior{
 		Path:        path,
 		StatusCodes: make(map[int]int),
 		BlockRates:  make(map[string]float64),
 	}
 
-	// Try to find matching cluster
+	// Try to find matching cluster (cluster on path similarity, ignoring method)
 	for clusterID, cluster := range ec.clusters {
 		if ec.calculateSimilarity(path, cluster.Pattern) >= ec.similarityThreshold {
 			// Add to existing cluster
-			cluster.Members = append(cluster.Members, path)
-			ec.endpointCluster[path] = clusterID
+			cluster.Members = append(cluster.Members, key)
+			ec.endpointCluster[key] = clusterID
 			return
 		}
 	}
@@ -142,8 +149,8 @@ func (ec *EndpointClusterer) AddEndpoint(path string) {
 			}
 		}
 		if bestClusterID != "" {
-			ec.clusters[bestClusterID].Members = append(ec.clusters[bestClusterID].Members, path)
-			ec.endpointCluster[path] = bestClusterID
+			ec.clusters[bestClusterID].Members = append(ec.clusters[bestClusterID].Members, key)
+			ec.endpointCluster[key] = bestClusterID
 		}
 		return
 	}
@@ -153,27 +160,33 @@ func (ec *EndpointClusterer) AddEndpoint(path string) {
 	clusterID := "cluster_" + pattern
 	ec.clusters[clusterID] = &EndpointCluster{
 		ID:             clusterID,
-		Representative: path, // First endpoint is representative
-		Members:        []string{path},
+		Representative: key, // First endpoint is representative
+		Members:        []string{key},
 		Pattern:        pattern,
 		Confidence:     1.0,
 	}
-	ec.endpointCluster[path] = clusterID
+	ec.endpointCluster[key] = clusterID
 }
 
-// RecordBehavior records an observation for an endpoint
-func (ec *EndpointClusterer) RecordBehavior(path string, statusCode int, blocked bool, category string, latencyMs float64) {
+// RecordBehavior records an observation for an endpoint.
+// If method is provided, the composite key METHOD:path is used (matching AddEndpoint).
+func (ec *EndpointClusterer) RecordBehavior(path string, statusCode int, blocked bool, category string, latencyMs float64, method ...string) {
 	ec.mu.Lock()
 	defer ec.mu.Unlock()
 
-	behavior, ok := ec.endpointBehaviors[path]
+	key := path
+	if len(method) > 0 && method[0] != "" {
+		key = strings.ToUpper(method[0]) + ":" + path
+	}
+
+	behavior, ok := ec.endpointBehaviors[key]
 	if !ok {
 		behavior = &EndpointBehavior{
 			Path:        path,
 			StatusCodes: make(map[int]int),
 			BlockRates:  make(map[string]float64),
 		}
-		ec.endpointBehaviors[path] = behavior
+		ec.endpointBehaviors[key] = behavior
 	}
 
 	behavior.StatusCodes[statusCode]++
@@ -198,7 +211,7 @@ func (ec *EndpointClusterer) RecordBehavior(path string, statusCode int, blocked
 	}
 
 	// Update cluster behavior
-	ec.updateClusterBehavior(path)
+	ec.updateClusterBehavior(key)
 }
 
 // GetRepresentatives returns representative endpoints for testing

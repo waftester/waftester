@@ -188,19 +188,21 @@ func (e *Engine) Metrics() *Metrics {
 // Finding represents a discovery from any phase
 // Finding represents a discovered item from any phase
 type Finding struct {
-	Phase      string                 // discovery, js-analysis, leaky-paths, params, waf-testing
-	Category   string                 // xss, sqli, ssrf, secret, endpoint, param, etc.
-	Severity   string                 // critical, high, medium, low, info
-	Path       string                 // URL path or location
-	Payload    string                 // Attack payload if applicable
-	Evidence   string                 // Supporting evidence
-	StatusCode int                    // HTTP status code if applicable
-	Latency    time.Duration          // Response latency
-	Blocked    bool                   // Was it blocked by WAF?
-	Confidence float64                // 0.0-1.0 confidence score
-	Encodings  []string               // Encodings applied to payload
-	Metadata   map[string]interface{} // Additional data
-	Timestamp  time.Time
+	Phase           string                 // discovery, js-analysis, leaky-paths, params, waf-testing
+	Category        string                 // xss, sqli, ssrf, secret, endpoint, param, etc.
+	Severity        string                 // critical, high, medium, low, info
+	Path            string                 // URL path or location
+	Method          string                 // HTTP method (GET, POST, etc.)
+	Payload         string                 // Attack payload if applicable
+	OriginalPayload string                 // Pre-mutation payload (set when this is a mutation bypass)
+	Evidence        string                 // Supporting evidence
+	StatusCode      int                    // HTTP status code if applicable
+	Latency         time.Duration          // Response latency
+	Blocked         bool                   // Was it blocked by WAF?
+	Confidence      float64                // 0.0-1.0 confidence score
+	Encodings       []string               // Encodings applied to payload
+	Metadata        map[string]interface{} // Additional data
+	Timestamp       time.Time
 }
 
 // LearnFromFinding processes a single finding.
@@ -294,17 +296,17 @@ func (e *Engine) feedAdvancedModules(finding *Finding) []Anomaly {
 	if e.mutator != nil {
 		if finding.Blocked {
 			e.mutator.LearnBlock(finding.Category, finding.Payload, finding.StatusCode)
-		} else if finding.Severity != "info" && finding.Payload != "" {
-			// For bypass learning, we use the same payload as both original and bypass
-			// since we don't have the original blocked payload in this context
-			e.mutator.LearnBypass(finding.Category, finding.Payload, finding.Payload)
+		} else if finding.Severity != "info" && finding.Payload != "" && finding.OriginalPayload != "" {
+			// Only learn bypass when we know the original blocked payload,
+			// so the strategist can detect the actual mutation type applied
+			e.mutator.LearnBypass(finding.Category, finding.OriginalPayload, finding.Payload)
 		}
 	}
 
 	// Feed endpoint clusterer
 	if e.clusterer != nil && finding.Path != "" {
-		e.clusterer.AddEndpoint(finding.Path)
-		e.clusterer.RecordBehavior(finding.Path, finding.StatusCode, finding.Blocked, finding.Category, float64(finding.Latency.Milliseconds()))
+		e.clusterer.AddEndpoint(finding.Path, finding.Method)
+		e.clusterer.RecordBehavior(finding.Path, finding.StatusCode, finding.Blocked, finding.Category, float64(finding.Latency.Milliseconds()), finding.Method)
 	}
 
 	// Feed anomaly detector - collect anomalies for later callback
@@ -526,54 +528,71 @@ func (e *Engine) checkAttackChains(f *Finding) []*AttackChain {
 }
 
 func (e *Engine) buildSecretChain(secret *Finding, endpoints []*Finding) *AttackChain {
-	// Find auth-related endpoints
+	// Find the best auth-related endpoint (highest confidence)
+	var best *Finding
+	bestScore := 0.0
 	for _, ep := range endpoints {
 		pathLower := strings.ToLower(ep.Path)
 		if strings.Contains(pathLower, "auth") || strings.Contains(pathLower, "login") ||
 			strings.Contains(pathLower, "api") || strings.Contains(pathLower, "admin") {
-			return &AttackChain{
-				ID:     fmt.Sprintf("secret-auth-%d", time.Now().UnixNano()),
-				Name:   "Secret + Auth Endpoint Chain",
-				Impact: "critical",
-				Steps: []string{
-					fmt.Sprintf("1. Extract secret: %s", secret.Evidence),
-					fmt.Sprintf("2. Target endpoint: %s", ep.Path),
-					"3. Attempt authentication with discovered credentials",
-				},
-				Findings:    []*Finding{secret, ep},
-				Description: "Discovered secret can potentially be used against authentication endpoint",
-				CVSS:        9.8,
-				Confidence:  secret.Confidence * ep.Confidence,
-				Built:       time.Now(),
+			if ep.Confidence > bestScore {
+				bestScore = ep.Confidence
+				best = ep
 			}
 		}
 	}
-	return nil
+	if best == nil {
+		return nil
+	}
+	return &AttackChain{
+		ID:     fmt.Sprintf("secret-auth-%d", time.Now().UnixNano()),
+		Name:   "Secret + Auth Endpoint Chain",
+		Impact: "critical",
+		Steps: []string{
+			fmt.Sprintf("1. Extract secret: %s", secret.Evidence),
+			fmt.Sprintf("2. Target endpoint: %s", best.Path),
+			"3. Attempt authentication with discovered credentials",
+		},
+		Findings:    []*Finding{secret, best},
+		Description: "Discovered secret can potentially be used against authentication endpoint",
+		CVSS:        9.8,
+		Confidence:  secret.Confidence * best.Confidence,
+		Built:       time.Now(),
+	}
 }
 
 func (e *Engine) buildLeakyParamChain(leaky *Finding, params []*Finding) *AttackChain {
-	// Find params that could expose the leaky path further
+	// Find the best param that could expose the leaky path further (highest confidence)
+	var best *Finding
+	bestScore := 0.0
 	for _, p := range params {
-		if strings.Contains(p.Path, "debug") || strings.Contains(p.Path, "admin") ||
+		pathLower := strings.ToLower(p.Path)
+		if strings.Contains(pathLower, "debug") || strings.Contains(pathLower, "admin") ||
 			strings.Contains(strings.ToLower(p.Evidence), "debug") {
-			return &AttackChain{
-				ID:     fmt.Sprintf("leaky-param-%d", time.Now().UnixNano()),
-				Name:   "Leaky Path + Hidden Parameter Chain",
-				Impact: "high",
-				Steps: []string{
-					fmt.Sprintf("1. Access leaky path: %s", leaky.Path),
-					fmt.Sprintf("2. Add hidden parameter: %s", p.Evidence),
-					"3. Explore hidden functionality",
-				},
-				Findings:    []*Finding{leaky, p},
-				Description: "Hidden parameter may expose additional functionality on sensitive path",
-				CVSS:        7.5,
-				Confidence:  leaky.Confidence * p.Confidence,
-				Built:       time.Now(),
+			if p.Confidence > bestScore {
+				bestScore = p.Confidence
+				best = p
 			}
 		}
 	}
-	return nil
+	if best == nil {
+		return nil
+	}
+	return &AttackChain{
+		ID:     fmt.Sprintf("leaky-param-%d", time.Now().UnixNano()),
+		Name:   "Leaky Path + Hidden Parameter Chain",
+		Impact: "high",
+		Steps: []string{
+			fmt.Sprintf("1. Access leaky path: %s", leaky.Path),
+			fmt.Sprintf("2. Add hidden parameter: %s", best.Evidence),
+			"3. Explore hidden functionality",
+		},
+		Findings:    []*Finding{leaky, best},
+		Description: "Hidden parameter may expose additional functionality on sensitive path",
+		CVSS:        7.5,
+		Confidence:  leaky.Confidence * best.Confidence,
+		Built:       time.Now(),
+	}
 }
 
 func (e *Engine) buildPatternChain(f *Finding, similar []*Finding) *AttackChain {
@@ -597,73 +616,95 @@ func (e *Engine) buildPatternChain(f *Finding, similar []*Finding) *AttackChain 
 }
 
 func (e *Engine) buildCloudChain(ssrf *Finding, cloudURLs []*Finding) *AttackChain {
+	// Pick the cloud finding with highest confidence
+	var best *Finding
 	for _, cloud := range cloudURLs {
-		return &AttackChain{
-			ID:     fmt.Sprintf("ssrf-cloud-%d", time.Now().UnixNano()),
-			Name:   "SSRF + Cloud Metadata Chain",
-			Impact: "critical",
-			Steps: []string{
-				fmt.Sprintf("1. SSRF bypass at: %s", ssrf.Path),
-				fmt.Sprintf("2. Target cloud service: %s", cloud.Evidence),
-				"3. Attempt cloud metadata access (169.254.169.254, etc.)",
-				"4. Potential cloud credential theft",
-			},
-			Findings:    []*Finding{ssrf, cloud},
-			Description: "SSRF vulnerability combined with cloud infrastructure could lead to cloud compromise",
-			CVSS:        9.8,
-			Confidence:  ssrf.Confidence * cloud.Confidence,
-			Built:       time.Now(),
+		if best == nil || cloud.Confidence > best.Confidence {
+			best = cloud
 		}
 	}
-	return nil
+	if best == nil {
+		return nil
+	}
+	return &AttackChain{
+		ID:     fmt.Sprintf("ssrf-cloud-%d", time.Now().UnixNano()),
+		Name:   "SSRF + Cloud Metadata Chain",
+		Impact: "critical",
+		Steps: []string{
+			fmt.Sprintf("1. SSRF bypass at: %s", ssrf.Path),
+			fmt.Sprintf("2. Target cloud service: %s", best.Evidence),
+			"3. Attempt cloud metadata access (169.254.169.254, etc.)",
+			"4. Potential cloud credential theft",
+		},
+		Findings:    []*Finding{ssrf, best},
+		Description: "SSRF vulnerability combined with cloud infrastructure could lead to cloud compromise",
+		CVSS:        9.8,
+		Confidence:  ssrf.Confidence * best.Confidence,
+		Built:       time.Now(),
+	}
 }
 
 func (e *Engine) buildXSSChain(xss *Finding, domSinks []*Finding) *AttackChain {
+	// Pick the DOM sink with highest confidence
+	var best *Finding
+	var bestConfidence float64
 	for _, sink := range domSinks {
-		// Cap confidence at 1.0 (multiplier boost can exceed range)
-		confidence := xss.Confidence * sink.Confidence * 1.2
-		if confidence > 1.0 {
-			confidence = 1.0
+		conf := xss.Confidence * sink.Confidence * 1.2
+		if conf > 1.0 {
+			conf = 1.0
 		}
-		return &AttackChain{
-			ID:     fmt.Sprintf("xss-dom-%d", time.Now().UnixNano()),
-			Name:   "Reflected XSS + DOM Sink Chain",
-			Impact: "high",
-			Steps: []string{
-				fmt.Sprintf("1. XSS bypass payload: %s", xss.Payload),
-				fmt.Sprintf("2. Flows to DOM sink: %s", sink.Evidence),
-				"3. Reliable JavaScript execution confirmed",
-			},
-			Findings:    []*Finding{xss, sink},
-			Description: "XSS payload reaches DOM sink, confirming reliable exploitation",
-			CVSS:        7.5,
-			Confidence:  confidence,
-			Built:       time.Now(),
+		if best == nil || conf > bestConfidence {
+			best = sink
+			bestConfidence = conf
 		}
 	}
-	return nil
+	if best == nil {
+		return nil
+	}
+	return &AttackChain{
+		ID:     fmt.Sprintf("xss-dom-%d", time.Now().UnixNano()),
+		Name:   "Reflected XSS + DOM Sink Chain",
+		Impact: "high",
+		Steps: []string{
+			fmt.Sprintf("1. XSS bypass payload: %s", xss.Payload),
+			fmt.Sprintf("2. Flows to DOM sink: %s", best.Evidence),
+			"3. Reliable JavaScript execution confirmed",
+		},
+		Findings:    []*Finding{xss, best},
+		Description: "XSS payload reaches DOM sink, confirming reliable exploitation",
+		CVSS:        7.5,
+		Confidence:  bestConfidence,
+		Built:       time.Now(),
+	}
 }
 
 func (e *Engine) buildAuthBypassChain(sqli *Finding, authEndpoints []*Finding) *AttackChain {
+	// Pick the auth endpoint with highest confidence
+	var best *Finding
 	for _, auth := range authEndpoints {
-		return &AttackChain{
-			ID:     fmt.Sprintf("sqli-auth-%d", time.Now().UnixNano()),
-			Name:   "SQLi + Authentication Bypass Chain",
-			Impact: "critical",
-			Steps: []string{
-				fmt.Sprintf("1. SQLi bypass payload: %s", sqli.Payload),
-				fmt.Sprintf("2. Target auth endpoint: %s", auth.Path),
-				"3. Attempt authentication bypass with SQLi",
-				"4. Potential complete authentication bypass",
-			},
-			Findings:    []*Finding{sqli, auth},
-			Description: "SQL injection combined with authentication endpoint could lead to auth bypass",
-			CVSS:        9.8,
-			Confidence:  sqli.Confidence * auth.Confidence,
-			Built:       time.Now(),
+		if best == nil || auth.Confidence > best.Confidence {
+			best = auth
 		}
 	}
-	return nil
+	if best == nil {
+		return nil
+	}
+	return &AttackChain{
+		ID:     fmt.Sprintf("sqli-auth-%d", time.Now().UnixNano()),
+		Name:   "SQLi + Authentication Bypass Chain",
+		Impact: "critical",
+		Steps: []string{
+			fmt.Sprintf("1. SQLi bypass payload: %s", sqli.Payload),
+			fmt.Sprintf("2. Target auth endpoint: %s", best.Path),
+			"3. Attempt authentication bypass with SQLi",
+			"4. Potential complete authentication bypass",
+		},
+		Findings:    []*Finding{sqli, best},
+		Description: "SQL injection combined with authentication endpoint could lead to auth bypass",
+		CVSS:        9.8,
+		Confidence:  sqli.Confidence * best.Confidence,
+		Built:       time.Now(),
+	}
 }
 
 // addChain adds a chain to the engine and returns it if new (for later callback).
@@ -754,9 +795,7 @@ func (e *Engine) prepareJSAnalysis() {
 
 func (e *Engine) correlateJSWithDiscovery() {
 	// Match JS-discovered endpoints with crawled endpoints
-	// Note: GetByPhase returns slice of pointers to shared Findings.
-	// We only read Path fields here for correlation, avoiding data race.
-	// Confidence boosting is tracked separately rather than modifying shared state.
+	// Endpoints found in both JS analysis and crawling are higher confidence targets
 	jsEndpoints := e.memory.GetByPhase("js-analysis")
 	discoveredEndpoints := e.memory.GetByPhase("discovery")
 
@@ -766,13 +805,10 @@ func (e *Engine) correlateJSWithDiscovery() {
 		discoveredPaths[disc.Path] = true
 	}
 
-	// Track correlated endpoints (read-only operation on shared Findings)
+	// Boost priority for endpoints found in both phases
 	for _, js := range jsEndpoints {
 		if discoveredPaths[js.Path] {
-			// Endpoint found in both - store correlation in metadata
-			// This is informational only; actual confidence updates happen
-			// through proper LearnFromFinding calls with locking
-			_ = js.Path // Correlation noted
+			e.memory.SetPriority("endpoint:"+js.Path, "high")
 		}
 	}
 }
@@ -794,14 +830,28 @@ func (e *Engine) prioritizeFromLeakyPaths() {
 }
 
 func (e *Engine) enhancePayloadTargeting() {
-	// Use discovered params to enhance payload targeting
-	// Note: GetByCategory returns pointers to shared Findings.
-	// We only read from these Findings to avoid data races.
-	// Targeting decisions are made based on observed paths/categories.
+	// Use discovered params to prioritize attack categories
 	params := e.memory.GetByCategory("param")
-	_ = len(params) // Param count informs targeting strategy
-	// Actual targeting metadata is set during payload generation,
-	// not by mutating shared Finding objects.
+	for _, p := range params {
+		name := strings.ToLower(p.Evidence)
+		switch {
+		case strings.Contains(name, "id") || strings.Contains(name, "user"):
+			e.memory.SetPriority("sqli", "high")
+			e.memory.SetPriority("idor", "high")
+		case strings.Contains(name, "url") || strings.Contains(name, "redirect") || strings.Contains(name, "path"):
+			e.memory.SetPriority("ssrf", "high")
+			e.memory.SetPriority("redirect", "high")
+		case strings.Contains(name, "file") || strings.Contains(name, "template"):
+			e.memory.SetPriority("lfi", "high")
+			e.memory.SetPriority("ssti", "high")
+		case strings.Contains(name, "cmd") || strings.Contains(name, "exec") || strings.Contains(name, "command"):
+			e.memory.SetPriority("cmdi", "critical")
+			e.memory.SetPriority("rce", "critical")
+		case strings.Contains(name, "query") || strings.Contains(name, "search"):
+			e.memory.SetPriority("sqli", "high")
+			e.memory.SetPriority("xss", "high")
+		}
+	}
 }
 
 func (e *Engine) buildFinalChains() {
@@ -1042,9 +1092,14 @@ func (e *Engine) StartPhase(ctx context.Context, phase string) {
 // EndPhase notifies the engine that a phase has ended
 func (e *Engine) EndPhase(phase string) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
 	e.stats.EndPhase(phase)
 	e.correlatePhase(phase)
+	e.mu.Unlock()
+
+	// Recalculate attack paths at phase boundaries (not on every finding)
+	if e.pathfinder != nil {
+		e.pathfinder.RecalculateIfDirty()
+	}
 }
 
 // Helper functions

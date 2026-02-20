@@ -103,30 +103,33 @@ func (m *Memory) evictOldest() {
 		evictCount = 1
 	}
 
-	// Get findings to evict
-	toEvict := m.findings[:evictCount]
+	// Remove oldest findings from the main slice
 	m.findings = m.findings[evictCount:]
 
-	// Remove from indexes
-	for _, f := range toEvict {
-		m.byCategory[f.Category] = m.removeFromFindingSlice(m.byCategory[f.Category], f)
-		m.byPhase[f.Phase] = m.removeFromFindingSlice(m.byPhase[f.Phase], f)
-		m.byPath[f.Path] = m.removeFromFindingSlice(m.byPath[f.Path], f)
-		m.bySeverity[f.Severity] = m.removeFromFindingSlice(m.bySeverity[f.Severity], f)
-		if !f.Blocked {
-			m.bypasses = m.removeFromFindingSlice(m.bypasses, f)
-		}
-	}
+	// Rebuild all indexes from the remaining findings.
+	// This is O(n) total vs the previous O(evictCount × indexSize × 5)
+	// approach which did linear scans per evicted finding per index.
+	m.rebuildIndexes()
 }
 
-// removeFromFindingSlice removes a finding from a slice and returns the new slice
-func (m *Memory) removeFromFindingSlice(slice []*Finding, f *Finding) []*Finding {
-	for i, item := range slice {
-		if item == f {
-			return append(slice[:i], slice[i+1:]...)
+// rebuildIndexes reconstructs all secondary indexes from the primary findings slice.
+// Must hold m.mu write lock.
+func (m *Memory) rebuildIndexes() {
+	m.byCategory = make(map[string][]*Finding, len(m.byCategory))
+	m.byPhase = make(map[string][]*Finding, len(m.byPhase))
+	m.byPath = make(map[string][]*Finding, len(m.byPath))
+	m.bySeverity = make(map[string][]*Finding, len(m.bySeverity))
+	m.bypasses = m.bypasses[:0]
+
+	for _, f := range m.findings {
+		m.byCategory[f.Category] = append(m.byCategory[f.Category], f)
+		m.byPhase[f.Phase] = append(m.byPhase[f.Phase], f)
+		m.byPath[f.Path] = append(m.byPath[f.Path], f)
+		m.bySeverity[f.Severity] = append(m.bySeverity[f.Severity], f)
+		if !f.Blocked {
+			m.bypasses = append(m.bypasses, f)
 		}
 	}
-	return slice
 }
 
 // GetByCategory returns findings by category (returns empty slice if none found)

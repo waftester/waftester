@@ -24,6 +24,9 @@ type PredictorConfig struct {
 	LatencyWeight    float64
 	TechStackWeight  float64
 
+	// UCB1 exploration weight (0.0 = pure exploitation, higher = more exploration)
+	ExplorationWeight float64
+
 	// Minimum observations before factor contributes to prediction
 	MinObservationsForFactor int
 
@@ -43,6 +46,7 @@ func DefaultPredictorConfig() *PredictorConfig {
 		StatusCodeWeight:         0.05,
 		LatencyWeight:            0.03,
 		TechStackWeight:          0.02,
+		ExplorationWeight:        0.15,
 		MinObservationsForFactor: 3,
 		HighConfidenceThreshold:  0.7,
 	}
