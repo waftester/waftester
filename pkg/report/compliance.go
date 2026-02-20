@@ -138,7 +138,7 @@ func (m *ComplianceMapper) MapResults(stats *Statistics) []ComplianceControl {
 	controls := make([]ComplianceControl, 0)
 	seenControls := make(map[string]bool)
 
-	for category, count := range stats.ByCategory {
+	for category := range stats.ByCategory {
 		if controlIDs, ok := m.mappings[category]; ok {
 			for _, controlID := range controlIDs {
 				if seenControls[controlID] {
@@ -151,7 +151,7 @@ func (m *ComplianceMapper) MapResults(stats *Statistics) []ComplianceControl {
 					ControlID:   controlID,
 					ControlName: m.getControlName(controlID),
 					Description: m.getControlDescription(controlID),
-					Status:      m.determineStatus(category, count, stats),
+					Status:      m.determineStatus(stats),
 					Evidence: fmt.Sprintf("WAF blocked %d/%d %s attacks (%.1f%% block rate)",
 						stats.BlockedRequests, stats.TotalRequests, category, stats.BlockRate),
 					LastTested: time.Now(),
@@ -164,7 +164,7 @@ func (m *ComplianceMapper) MapResults(stats *Statistics) []ComplianceControl {
 	return controls
 }
 
-func (m *ComplianceMapper) determineStatus(category string, count int, stats *Statistics) ComplianceStatus {
+func (m *ComplianceMapper) determineStatus(stats *Statistics) ComplianceStatus {
 	if stats.BlockRate >= 95 {
 		return StatusPass
 	} else if stats.BlockRate >= 80 {
@@ -323,7 +323,7 @@ func (p *PDFEnhancer) WithConfidential(confidential bool) *PDFEnhancer {
 }
 
 // EnhanceHTML adds PDF-specific HTML metadata for conversion
-func (p *PDFEnhancer) EnhanceHTML(html []byte) []byte {
+func (p *PDFEnhancer) EnhanceHTML(htmlContent []byte) []byte {
 	var sb bytes.Buffer
 
 	// Add PDF-specific CSS
@@ -338,11 +338,13 @@ func (p *PDFEnhancer) EnhanceHTML(html []byte) []byte {
 `)
 
 	if p.Watermark != "" {
+		// XML-escape watermark to prevent SVG injection
+		safeWatermark := html.EscapeString(p.Watermark)
 		sb.WriteString(fmt.Sprintf(`
 @page {
-  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500"><text x="50%%" y="50%%" font-size="40" fill="rgba(0,0,0,0.05)" text-anchor="middle" transform="rotate(-45 250 250)">%s</text></svg>');
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500"><text x="50%%%%" y="50%%%%" font-size="40" fill="rgba(0,0,0,0.05)" text-anchor="middle" transform="rotate(-45 250 250)">%s</text></svg>');
 }
-`, p.Watermark))
+`, safeWatermark))
 	}
 
 	if p.Confidential {
@@ -372,12 +374,12 @@ func (p *PDFEnhancer) EnhanceHTML(html []byte) []byte {
 `)
 
 	// Insert before </head>
-	htmlStr := string(html)
+	htmlStr := string(htmlContent)
 	if idx := strings.Index(htmlStr, "</head>"); idx > 0 {
 		return []byte(htmlStr[:idx] + sb.String() + htmlStr[idx:])
 	}
 
-	return append(sb.Bytes(), html...)
+	return append(sb.Bytes(), htmlContent...)
 }
 
 // FormatComplianceTable formats compliance controls as an HTML table
@@ -418,7 +420,8 @@ func FormatComplianceTable(controls []ComplianceControl) string {
 	return sb.String()
 }
 
-// GetSupportedFrameworks returns all supported compliance frameworks
+// GetSupportedFrameworks returns frameworks with actual control mappings.
+// GDPR and NIST are declared as constants but have no mappings in loadMappings yet.
 func GetSupportedFrameworks() []ComplianceFramework {
 	return []ComplianceFramework{
 		FrameworkPCIDSS,
@@ -426,7 +429,5 @@ func GetSupportedFrameworks() []ComplianceFramework {
 		FrameworkSOC2,
 		FrameworkISO27001,
 		FrameworkHIPAA,
-		FrameworkGDPR,
-		FrameworkNIST,
 	}
 }
