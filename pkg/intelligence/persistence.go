@@ -82,6 +82,7 @@ type PredictorState struct {
 	StatusCodePatterns   map[int]float64    `json:"status_code_patterns"`
 	LatencyThresholds    map[string]float64 `json:"latency_thresholds"`
 	TechVulnerabilities  map[string]float64 `json:"tech_vulnerabilities"`
+	TotalObservations    int                `json:"total_observations"`
 }
 
 // MutatorState is the serializable form of MutationStrategist
@@ -494,6 +495,7 @@ func (p *Predictor) Export() *PredictorState {
 		StatusCodePatterns:   statusCodes,
 		LatencyThresholds:    copyStringFloatMap(p.latencyThresholds),
 		TechVulnerabilities:  copyStringFloatMap(p.techVulnerabilities),
+		TotalObservations:    p.totalObservations,
 	}
 }
 
@@ -517,6 +519,8 @@ func (p *Predictor) Import(state *PredictorState) {
 	for k, v := range state.StatusCodePatterns {
 		p.statusCodePatterns[k] = v
 	}
+
+	p.totalObservations = state.TotalObservations
 }
 
 // Reset clears Predictor state
