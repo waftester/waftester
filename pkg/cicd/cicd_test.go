@@ -398,21 +398,6 @@ func TestPipelineValidator_Validate_UnknownPlatform(t *testing.T) {
 	}
 }
 
-func TestContainsString(t *testing.T) {
-	if !containsString("hello world", "world") {
-		t.Error("expected to find 'world'")
-	}
-	if containsString("hello", "world") {
-		t.Error("should not find 'world'")
-	}
-	if !containsString("test", "test") {
-		t.Error("expected to find exact match")
-	}
-	if containsString("", "test") {
-		t.Error("should not find in empty string")
-	}
-}
-
 func TestTemplateConfig_Fields(t *testing.T) {
 	config := &TemplateConfig{
 		Platform:         PlatformGitHubActions,
@@ -430,7 +415,7 @@ func TestTemplateConfig_Fields(t *testing.T) {
 		UploadArtifacts:  true,
 		NotifySlack:      true,
 		SlackWebhook:     "SLACK_HOOK",
-		Timeout:          "1h",
+		Timeout:          60,
 		ConcurrencyLimit: 100,
 		RateLimit:        20,
 		CustomArgs:       "--debug",
@@ -443,7 +428,7 @@ func TestTemplateConfig_Fields(t *testing.T) {
 	if config.Platform != PlatformGitHubActions {
 		t.Error("unexpected platform")
 	}
-	if config.Timeout != "1h" {
+	if config.Timeout != 60 {
 		t.Error("unexpected timeout")
 	}
 	if config.ConcurrencyLimit != 100 {

@@ -2,7 +2,7 @@ package hooks
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
@@ -17,8 +17,9 @@ var _ dispatcher.Hook = (*HistoryHook)(nil)
 // HistoryHook saves scan results to a historical store for trend analysis.
 // It listens for SummaryEvent and creates a permanent record.
 type HistoryHook struct {
-	store *history.Store
-	tags  []string
+	store  *history.Store
+	tags   []string
+	logger *slog.Logger
 }
 
 // HistoryHookOptions configures the history hook.
@@ -28,6 +29,9 @@ type HistoryHookOptions struct {
 
 	// Tags are user-defined labels to attach to each scan record.
 	Tags []string
+
+	// Logger for structured logging (default: slog.Default()).
+	Logger *slog.Logger
 }
 
 // NewHistoryHook creates a new history hook.
@@ -38,8 +42,9 @@ func NewHistoryHook(opts HistoryHookOptions) (*HistoryHook, error) {
 	}
 
 	return &HistoryHook{
-		store: store,
-		tags:  opts.Tags,
+		store:  store,
+		tags:   opts.Tags,
+		logger: orDefault(opts.Logger),
 	}, nil
 }
 
@@ -53,11 +58,11 @@ func (h *HistoryHook) OnEvent(ctx context.Context, event events.Event) error {
 
 	record := h.buildRecord(summary)
 	if err := h.store.Save(record); err != nil {
-		log.Printf("history: failed to save scan record: %v", err)
+		h.logger.Warn("failed to save scan record", slog.String("error", err.Error()))
 		return nil
 	}
 
-	log.Printf("history: saved scan record %s for %s", record.ID, record.TargetURL)
+	h.logger.Info("saved scan record", slog.String("id", record.ID), slog.String("target", record.TargetURL))
 	return nil
 }
 

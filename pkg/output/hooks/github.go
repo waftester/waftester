@@ -125,7 +125,6 @@ func (h *GitHubActionsHook) writeOutput(summary *events.SummaryEvent, result str
 	if err != nil {
 		return fmt.Errorf("failed to open output file: %w", err)
 	}
-	defer f.Close()
 
 	lines := []string{
 		fmt.Sprintf("bypasses=%d", summary.Totals.Bypasses),
@@ -135,10 +134,18 @@ func (h *GitHubActionsHook) writeOutput(summary *events.SummaryEvent, result str
 		fmt.Sprintf("result=%s", result),
 	}
 
+	var writeErr error
 	for _, line := range lines {
-		if _, err := fmt.Fprintln(f, line); err != nil {
-			return fmt.Errorf("write github output: %w", err)
+		if _, writeErr = fmt.Fprintln(f, line); writeErr != nil {
+			break
 		}
+	}
+
+	if closeErr := f.Close(); closeErr != nil && writeErr == nil {
+		return fmt.Errorf("close github output: %w", closeErr)
+	}
+	if writeErr != nil {
+		return fmt.Errorf("write github output: %w", writeErr)
 	}
 
 	return nil
@@ -150,7 +157,6 @@ func (h *GitHubActionsHook) writeStepSummary(summary *events.SummaryEvent) error
 	if err != nil {
 		return fmt.Errorf("failed to open summary file: %w", err)
 	}
-	defer f.Close()
 
 	var sb strings.Builder
 
@@ -207,9 +213,12 @@ func (h *GitHubActionsHook) writeStepSummary(summary *events.SummaryEvent) error
 		sb.WriteString(fmt.Sprintf("\n> 💡 %s\n", summary.Effectiveness.Recommendation))
 	}
 
-	_, err = f.WriteString(sb.String())
-	if err != nil {
-		return fmt.Errorf("write step summary: %w", err)
+	_, writeErr := f.WriteString(sb.String())
+	if closeErr := f.Close(); closeErr != nil && writeErr == nil {
+		return fmt.Errorf("close step summary: %w", closeErr)
+	}
+	if writeErr != nil {
+		return fmt.Errorf("write step summary: %w", writeErr)
 	}
 	return nil
 }

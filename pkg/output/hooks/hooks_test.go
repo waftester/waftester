@@ -1369,20 +1369,23 @@ func TestJiraHook_CreatesIssueWithADFDescription(t *testing.T) {
 	}))
 	defer server.Close()
 
-	hook := NewJiraHook(server.URL, JiraOptions{
+	hook, err := NewJiraHook(server.URL, JiraOptions{
 		ProjectKey:  "SEC",
 		IssueType:   "Bug",
 		Username:    "test@example.com",
 		APIToken:    "test-token",
 		MinSeverity: events.SeverityHigh,
 	})
+	if err != nil {
+		t.Fatalf("NewJiraHook: %v", err)
+	}
 
 	bypass := newTestBypassEvent(events.SeverityCritical)
 	bypass.Details.TestID = "sqli-042"
 	bypass.Details.Category = "SQL Injection"
 	bypass.Details.Endpoint = "https://example.com/api"
 
-	err := hook.OnEvent(context.Background(), bypass)
+	err = hook.OnEvent(context.Background(), bypass)
 	if err != nil {
 		t.Fatalf("OnEvent failed: %v", err)
 	}
@@ -1448,10 +1451,15 @@ func TestJiraHook_UsesCorrectPriorityMapping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(string(tt.wafSeverity), func(t *testing.T) {
-			hook := NewJiraHook("https://jira.example.com", JiraOptions{
+			hook, err := NewJiraHook("https://jira.example.com", JiraOptions{
 				ProjectKey:  "SEC",
+				Username:    "test@example.com",
+				APIToken:    "test-token",
 				MinSeverity: events.SeverityInfo, // Allow all severities
 			})
+			if err != nil {
+				t.Fatalf("NewJiraHook: %v", err)
+			}
 
 			bypass := newTestBypassEvent(tt.wafSeverity)
 			issue := hook.buildIssue(bypass)
@@ -1465,10 +1473,15 @@ func TestJiraHook_UsesCorrectPriorityMapping(t *testing.T) {
 }
 
 func TestJiraHook_RespectsMinSeverityFilter(t *testing.T) {
-	hook := NewJiraHook("https://jira.example.com", JiraOptions{
+	hook, err := NewJiraHook("https://jira.example.com", JiraOptions{
 		ProjectKey:  "SEC",
+		Username:    "test@example.com",
+		APIToken:    "test-token",
 		MinSeverity: events.SeverityHigh,
 	})
+	if err != nil {
+		t.Fatalf("NewJiraHook: %v", err)
+	}
 
 	// Low severity should be filtered
 	lowBypass := newTestBypassEvent(events.SeverityLow)
@@ -1496,12 +1509,17 @@ func TestJiraHook_RespectsMinSeverityFilter(t *testing.T) {
 }
 
 func TestJiraHook_IncludesAllRequiredFields(t *testing.T) {
-	hook := NewJiraHook("https://jira.example.com", JiraOptions{
+	hook, err := NewJiraHook("https://jira.example.com", JiraOptions{
 		ProjectKey: "SEC",
 		IssueType:  "Bug",
+		Username:   "test@example.com",
+		APIToken:   "test-token",
 		Labels:     []string{"waftester", "security"},
 		AssigneeID: "user-123",
 	})
+	if err != nil {
+		t.Fatalf("NewJiraHook: %v", err)
+	}
 
 	bypass := newTestBypassEvent(events.SeverityCritical)
 	bypass.Details.TestID = "sqli-042"
@@ -1540,9 +1558,14 @@ func TestJiraHook_IncludesAllRequiredFields(t *testing.T) {
 }
 
 func TestJiraHook_EventTypesReturnsOnlyBypass(t *testing.T) {
-	hook := NewJiraHook("https://jira.example.com", JiraOptions{
+	hook, err := NewJiraHook("https://jira.example.com", JiraOptions{
 		ProjectKey: "SEC",
+		Username:   "test@example.com",
+		APIToken:   "test-token",
 	})
+	if err != nil {
+		t.Fatalf("NewJiraHook: %v", err)
+	}
 	types := hook.EventTypes()
 
 	if len(types) != 1 {
@@ -1554,13 +1577,18 @@ func TestJiraHook_EventTypesReturnsOnlyBypass(t *testing.T) {
 }
 
 func TestJiraHook_IgnoresNonBypassEvents(t *testing.T) {
-	hook := NewJiraHook("https://jira.example.com", JiraOptions{
+	hook, err := NewJiraHook("https://jira.example.com", JiraOptions{
 		ProjectKey: "SEC",
+		Username:   "test@example.com",
+		APIToken:   "test-token",
 	})
+	if err != nil {
+		t.Fatalf("NewJiraHook: %v", err)
+	}
 
 	// Result event should be ignored
 	result := newTestResultEvent(events.SeverityHigh, events.OutcomeBlocked)
-	err := hook.OnEvent(context.Background(), result)
+	err = hook.OnEvent(context.Background(), result)
 	if err != nil {
 		t.Errorf("expected nil error for non-bypass event, got %v", err)
 	}
@@ -1574,9 +1602,14 @@ func TestJiraHook_IgnoresNonBypassEvents(t *testing.T) {
 }
 
 func TestJiraHook_BuildsADFBulletList(t *testing.T) {
-	hook := NewJiraHook("https://jira.example.com", JiraOptions{
+	hook, err := NewJiraHook("https://jira.example.com", JiraOptions{
 		ProjectKey: "SEC",
+		Username:   "test@example.com",
+		APIToken:   "test-token",
 	})
+	if err != nil {
+		t.Fatalf("NewJiraHook: %v", err)
+	}
 
 	bypass := newTestBypassEvent(events.SeverityCritical)
 	bypass.Details.TestID = "sqli-042"
@@ -1616,10 +1649,15 @@ func TestJiraHook_BuildsADFBulletList(t *testing.T) {
 }
 
 func TestJiraHook_DefaultLabels(t *testing.T) {
-	hook := NewJiraHook("https://jira.example.com", JiraOptions{
+	hook, err := NewJiraHook("https://jira.example.com", JiraOptions{
 		ProjectKey: "SEC",
+		Username:   "test@example.com",
+		APIToken:   "test-token",
 		// No labels specified, should use defaults
 	})
+	if err != nil {
+		t.Fatalf("NewJiraHook: %v", err)
+	}
 
 	bypass := newTestBypassEvent(events.SeverityHigh)
 	issue := hook.buildIssue(bypass)
@@ -1690,8 +1728,16 @@ func TestAllHooks_ImplementInterface(t *testing.T) {
 	})
 
 	t.Run("JiraHook implements Hook", func(t *testing.T) {
-		var hook interface{} = NewJiraHook("http://jira.example.com", JiraOptions{ProjectKey: "TEST"})
-		if _, ok := hook.(interface {
+		hook, err := NewJiraHook("http://jira.example.com", JiraOptions{
+			ProjectKey: "TEST",
+			Username:   "test@example.com",
+			APIToken:   "test-token",
+		})
+		if err != nil {
+			t.Fatalf("NewJiraHook: %v", err)
+		}
+		var iface interface{} = hook
+		if _, ok := iface.(interface {
 			OnEvent(context.Context, events.Event) error
 			EventTypes() []events.EventType
 		}); !ok {
@@ -2328,6 +2374,15 @@ func TestGitHubIssuesHook_HandlesAPIErrorsGracefully(t *testing.T) {
 // AzureDevOpsHook Tests
 // =============================================================================
 
+func mustNewADOHook(t *testing.T, opts AzureDevOpsOptions) *AzureDevOpsHook {
+	t.Helper()
+	hook, err := NewAzureDevOpsHook(opts)
+	if err != nil {
+		t.Fatalf("NewAzureDevOpsHook: %v", err)
+	}
+	return hook
+}
+
 func TestAzureDevOpsHook_CreatesWorkItemWithJSONPatch(t *testing.T) {
 	var receivedBody []byte
 	var receivedContentType string
@@ -2345,7 +2400,7 @@ func TestAzureDevOpsHook_CreatesWorkItemWithJSONPatch(t *testing.T) {
 	defer server.Close()
 
 	// Create hook - we'll override the URL in the test
-	hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+	hook := mustNewADOHook(t, AzureDevOpsOptions{
 		Organization:  "testorg",
 		Project:       "testproj",
 		PAT:           "test-pat-123",
@@ -2459,7 +2514,7 @@ func TestAzureDevOpsHook_UsesCorrectSeverityMapping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(string(tt.wafSeverity), func(t *testing.T) {
-			hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+			hook := mustNewADOHook(t, AzureDevOpsOptions{
 				Organization: "testorg",
 				Project:      "testproj",
 				PAT:          "test-pat",
@@ -2500,7 +2555,7 @@ func TestAzureDevOpsHook_UsesCorrectSeverityMapping(t *testing.T) {
 }
 
 func TestAzureDevOpsHook_RespectsMinSeverityFilter(t *testing.T) {
-	hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+	hook := mustNewADOHook(t, AzureDevOpsOptions{
 		Organization: "testorg",
 		Project:      "testproj",
 		PAT:          "test-pat",
@@ -2529,7 +2584,7 @@ func TestAzureDevOpsHook_RespectsMinSeverityFilter(t *testing.T) {
 }
 
 func TestAzureDevOpsHook_UsesCustomTagsFromConfig(t *testing.T) {
-	hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+	hook := mustNewADOHook(t, AzureDevOpsOptions{
 		Organization: "testorg",
 		Project:      "testproj",
 		PAT:          "test-pat",
@@ -2560,7 +2615,7 @@ func TestAzureDevOpsHook_UsesCustomTagsFromConfig(t *testing.T) {
 }
 
 func TestAzureDevOpsHook_IncludesAreaAndIterationPaths(t *testing.T) {
-	hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+	hook := mustNewADOHook(t, AzureDevOpsOptions{
 		Organization:  "testorg",
 		Project:       "testproj",
 		PAT:           "test-pat",
@@ -2597,7 +2652,7 @@ func TestAzureDevOpsHook_IncludesAreaAndIterationPaths(t *testing.T) {
 }
 
 func TestAzureDevOpsHook_IncludesAssignedTo(t *testing.T) {
-	hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+	hook := mustNewADOHook(t, AzureDevOpsOptions{
 		Organization: "testorg",
 		Project:      "testproj",
 		PAT:          "test-pat",
@@ -2619,7 +2674,7 @@ func TestAzureDevOpsHook_IncludesAssignedTo(t *testing.T) {
 }
 
 func TestAzureDevOpsHook_EventTypesReturnsOnlyBypass(t *testing.T) {
-	hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+	hook := mustNewADOHook(t, AzureDevOpsOptions{
 		Organization: "testorg",
 		Project:      "testproj",
 		PAT:          "test-pat",
@@ -2635,7 +2690,7 @@ func TestAzureDevOpsHook_EventTypesReturnsOnlyBypass(t *testing.T) {
 }
 
 func TestAzureDevOpsHook_IgnoresNonBypassEvents(t *testing.T) {
-	hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+	hook := mustNewADOHook(t, AzureDevOpsOptions{
 		Organization: "testorg",
 		Project:      "testproj",
 		PAT:          "test-pat",
@@ -2657,7 +2712,7 @@ func TestAzureDevOpsHook_IgnoresNonBypassEvents(t *testing.T) {
 }
 
 func TestAzureDevOpsHook_DefaultWorkItemType(t *testing.T) {
-	hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+	hook := mustNewADOHook(t, AzureDevOpsOptions{
 		Organization: "testorg",
 		Project:      "testproj",
 		PAT:          "test-pat",
@@ -2670,7 +2725,7 @@ func TestAzureDevOpsHook_DefaultWorkItemType(t *testing.T) {
 }
 
 func TestAzureDevOpsHook_DefaultTags(t *testing.T) {
-	hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+	hook := mustNewADOHook(t, AzureDevOpsOptions{
 		Organization: "testorg",
 		Project:      "testproj",
 		PAT:          "test-pat",
@@ -2689,7 +2744,7 @@ func TestAzureDevOpsHook_HandlesAPIErrorsGracefully(t *testing.T) {
 	}))
 	defer server.Close()
 
-	hook := NewAzureDevOpsHook(AzureDevOpsOptions{
+	hook := mustNewADOHook(t, AzureDevOpsOptions{
 		Organization: "testorg",
 		Project:      "testproj",
 		PAT:          "bad-pat",

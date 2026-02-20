@@ -238,8 +238,8 @@ jobs:
 
       - name: Run WAF Security Scan
         run: |
-          ./waf-tester scan -u %s -types %s \
-            -format sarif -o results.sarif \
+          waf-tester scan -u %s -s %s \
+            -o sarif --output-file results.sarif \
             -c 10 -rl 50
 
       - name: Upload SARIF Results
@@ -263,7 +263,7 @@ waf-security-test:
     - apk add --no-cache curl
     - curl -fsSL https://github.com/waftester/waftester/releases/latest/download/waftester_Linux_x86_64.tar.gz | tar xz
     - install -m 755 waf-tester /usr/local/bin/
-    - ./waf-tester scan -u %s -types %s -format json -o results.json -c 10 -rl 50
+    - waf-tester scan -u %s -s %s -o json --output-file results.json -c 10 -rl 50
   artifacts:
     paths:
       - results.json
@@ -280,7 +280,7 @@ func generateJenkinsfile(target, scanTypes string) string {
                 sh '''
                     curl -fsSL https://github.com/waftester/waftester/releases/latest/download/waftester_Linux_x86_64.tar.gz | tar xz
                     install -m 755 waf-tester /usr/local/bin/
-                    ./waf-tester scan -u %s -types %s -format json -o results.json -c 10 -rl 50
+                    waf-tester scan -u %s -s %s -o json --output-file results.json -c 10 -rl 50
                 '''
             }
             post {
@@ -305,7 +305,7 @@ steps:
   - script: |
       curl -fsSL https://github.com/waftester/waftester/releases/latest/download/waftester_Linux_x86_64.tar.gz | tar xz
       install -m 755 waf-tester /usr/local/bin/
-      ./waf-tester scan -u %s -types %s -format json -o $(Build.ArtifactStagingDirectory)/results.json -c 10 -rl 50
+      waf-tester scan -u %s -s %s -o json --output-file $(Build.ArtifactStagingDirectory)/results.json -c 10 -rl 50
     displayName: 'Run WAF Security Scan'
 
   - publish: $(Build.ArtifactStagingDirectory)/results.json
@@ -328,7 +328,7 @@ jobs:
             install -m 755 waf-tester /usr/local/bin/
       - run:
           name: Run WAF Security Scan
-          command: ./waf-tester scan -u %s -types %s -format json -o results.json -c 10 -rl 50
+          command: waf-tester scan -u %s -s %s -o json --output-file results.json -c 10 -rl 50
       - store_artifacts:
           path: results.json
 
@@ -349,7 +349,7 @@ func generateBitbucket(target, scanTypes string) string {
           - apk add --no-cache curl
           - curl -fsSL https://github.com/waftester/waftester/releases/latest/download/waftester_Linux_x86_64.tar.gz | tar xz
           - install -m 755 waf-tester /usr/local/bin/
-          - ./waf-tester scan -u %s -types %s -format json -o results.json -c 10 -rl 50
+          - waf-tester scan -u %s -s %s -o json --output-file results.json -c 10 -rl 50
         artifacts:
           - results.json
 `, target, scanTypes)
