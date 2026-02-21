@@ -84,6 +84,10 @@ type pdfOWASPStat struct {
 // It buffers all events in memory and renders the complete PDF document on Close.
 // The writer is safe for concurrent use.
 // All Write calls must complete before Close is called.
+// PDFWriter writes events as a styled PDF report.
+// It buffers all events in memory and renders the complete PDF document on Close.
+// The writer is safe for concurrent use.
+// All Write calls must complete before Close is called.
 type PDFWriter struct {
 	w          io.Writer
 	mu         sync.Mutex
@@ -92,6 +96,7 @@ type PDFWriter struct {
 	config     PDFConfig
 	results    []*events.ResultEvent
 	summary    *events.SummaryEvent
+	start      *events.StartEvent
 }
 
 // NewPDFWriter creates a new PDF report writer.
@@ -128,6 +133,8 @@ func (pw *PDFWriter) Write(event events.Event) error {
 		pw.results = append(pw.results, e)
 	case *events.SummaryEvent:
 		pw.summary = e
+	case *events.StartEvent:
+		pw.start = e
 	}
 	return nil
 }
@@ -159,8 +166,11 @@ func (pw *PDFWriter) Close() error {
 		pw.addTableOfContents(pdf, byCategory)
 	}
 	pw.addExecutiveSummary(pdf)
+	pw.addTopBypasses(pdf)
+	pw.addCategoryBreakdown(pdf)
 	pw.addOWASPTable(pdf)
 	pw.addFindingsSectionFromGroups(pdf, bypasses, byCategory)
+	pw.addScanConfiguration(pdf)
 	pw.addMethodologyAppendix(pdf)
 
 	return pdf.Output(pw.w)
@@ -169,7 +179,7 @@ func (pw *PDFWriter) Close() error {
 // SupportsEvent returns true for result and summary events.
 func (pw *PDFWriter) SupportsEvent(eventType events.EventType) bool {
 	switch eventType {
-	case events.EventTypeResult, events.EventTypeSummary:
+	case events.EventTypeResult, events.EventTypeSummary, events.EventTypeStart:
 		return true
 	default:
 		return false
@@ -271,9 +281,21 @@ func (pw *PDFWriter) addCoverPage(pdf *gofpdf.Fpdf) {
 	pdf.SetY(100)
 	pw.addInfoRow(pdf, "Target URL:", targetURL)
 	pw.addInfoRow(pdf, "WAF Detected:", wafDetected)
+	if pw.summary != nil && pw.summary.Target.WAFConfidence > 0 {
+		pw.addInfoRow(pdf, "WAF Confidence:", fmt.Sprintf("%.0f%%", pw.summary.Target.WAFConfidence*100))
+	}
 	pw.addInfoRow(pdf, "Scan Date:", scanDate)
+	if pw.summary != nil && pw.summary.Timing.DurationSec > 0 {
+		pw.addInfoRow(pdf, "Scan Duration:", formatDuration(pw.summary.Timing.DurationSec))
+	}
+	if pw.summary != nil && pw.summary.Timing.RequestsPerSec > 0 {
+		pw.addInfoRow(pdf, "Throughput:", fmt.Sprintf("%.1f req/s", pw.summary.Timing.RequestsPerSec))
+	}
 	if pw.config.Author != "" {
 		pw.addInfoRow(pdf, "Report Author:", pw.config.Author)
+	}
+	if pw.summary != nil && pw.summary.ExitReason != "" && pw.summary.ExitReason != "completed" {
+		pw.addInfoRow(pdf, "Exit Reason:", pw.summary.ExitReason)
 	}
 
 	// Grade box - centered
@@ -457,6 +479,9 @@ func (pw *PDFWriter) addExecutiveSummary(pdf *gofpdf.Fpdf) {
 		pdf.SetTextColor(80, 80, 80)
 		pdf.MultiCell(0, 6, pw.summary.Effectiveness.Recommendation, "", "L", false)
 	}
+
+	// Latency profile
+	pw.addLatencyProfile(pdf)
 }
 
 // countBypassesBySeverity counts bypass results by severity from buffered results.
@@ -723,9 +748,71 @@ func (pw *PDFWriter) addFindingCard(pdf *gofpdf.Fpdf, finding *events.ResultEven
 		{"Latency", fmt.Sprintf("%.1f ms", finding.Result.LatencyMs)},
 	}
 
+	if finding.Result.ContentLength > 0 {
+		details = append(details, struct{ label, value string }{
+			"Size", fmt.Sprintf("%d bytes", finding.Result.ContentLength),
+		})
+	}
+
 	if len(finding.Test.OWASP) > 0 {
 		details = append(details, struct{ label, value string }{
 			"OWASP", strings.Join(finding.Test.OWASP, ", "),
+		})
+	}
+
+	if len(finding.Test.CWE) > 0 {
+		cweStrs := make([]string, len(finding.Test.CWE))
+		for i, c := range finding.Test.CWE {
+			cweStrs[i] = fmt.Sprintf("CWE-%d", c)
+		}
+		details = append(details, struct{ label, value string }{
+			"CWE", strings.Join(cweStrs, ", "),
+		})
+	}
+
+	if finding.Result.Confidence != "" {
+		note := string(finding.Result.Confidence)
+		if finding.Result.ConfidenceNote != "" {
+			note += " (" + finding.Result.ConfidenceNote + ")"
+		}
+		details = append(details, struct{ label, value string }{
+			"Confidence", note,
+		})
+	}
+
+	if finding.Result.WAFSignature != "" {
+		details = append(details, struct{ label, value string }{
+			"WAF Rule", finding.Result.WAFSignature,
+		})
+	}
+
+	// Evasion context
+	if finding.Context != nil {
+		if finding.Context.EvasionTechnique != "" {
+			details = append(details, struct{ label, value string }{
+				"Evasion", finding.Context.EvasionTechnique,
+			})
+		}
+		if finding.Context.Tamper != "" {
+			details = append(details, struct{ label, value string }{
+				"Tamper", finding.Context.Tamper,
+			})
+		}
+		if finding.Context.Encoding != "" {
+			details = append(details, struct{ label, value string }{
+				"Encoding", finding.Context.Encoding,
+			})
+		}
+	}
+
+	if finding.Target.Endpoint != "" {
+		details = append(details, struct{ label, value string }{
+			"Endpoint", finding.Target.Endpoint,
+		})
+	}
+	if finding.Target.Parameter != "" {
+		details = append(details, struct{ label, value string }{
+			"Parameter", finding.Target.Parameter,
 		})
 	}
 
@@ -750,6 +837,28 @@ func (pw *PDFWriter) addFindingCard(pdf *gofpdf.Fpdf, finding *events.ResultEven
 			pdf.SetTextColor(80, 80, 80)
 		}
 
+		if finding.Evidence.EncodedPayload != "" {
+			pdf.SetFont("Helvetica", "B", 9)
+			pdf.CellFormat(25, 5, "Encoded:", "", 0, "L", false, 0, "")
+			pdf.SetFont("Courier", "", 8)
+			pdf.SetTextColor(100, 100, 100)
+			encoded := truncateString(finding.Evidence.EncodedPayload, 90)
+			pdf.MultiCell(cardW-25, 4, encoded, "", "L", false)
+			pdf.SetTextColor(80, 80, 80)
+		}
+
+		if len(finding.Evidence.RequestHeaders) > 0 {
+			pdf.SetFont("Helvetica", "B", 9)
+			pdf.CellFormat(25, 5, "Headers:", "", 1, "L", false, 0, "")
+			pdf.SetFont("Courier", "", 7)
+			pdf.SetTextColor(100, 100, 100)
+			for hdr, val := range finding.Evidence.RequestHeaders {
+				line := truncateString(fmt.Sprintf("%s: %s", hdr, val), 100)
+				pdf.CellFormat(0, 3.5, "  "+line, "", 1, "L", false, 0, "")
+			}
+			pdf.SetTextColor(80, 80, 80)
+		}
+
 		if finding.Evidence.CurlCommand != "" {
 			pdf.SetFont("Helvetica", "B", 9)
 			pdf.CellFormat(25, 5, "Curl:", "", 1, "L", false, 0, "")
@@ -757,6 +866,16 @@ func (pw *PDFWriter) addFindingCard(pdf *gofpdf.Fpdf, finding *events.ResultEven
 			pdf.SetTextColor(100, 100, 100)
 			curl := truncateString(finding.Evidence.CurlCommand, 120)
 			pdf.MultiCell(cardW, 3, curl, "", "L", false)
+			pdf.SetTextColor(80, 80, 80)
+		}
+
+		if finding.Evidence.ResponsePreview != "" {
+			pdf.SetFont("Helvetica", "B", 9)
+			pdf.CellFormat(25, 5, "Response:", "", 1, "L", false, 0, "")
+			pdf.SetFont("Courier", "", 7)
+			pdf.SetTextColor(100, 100, 100)
+			preview := truncateString(finding.Evidence.ResponsePreview, 200)
+			pdf.MultiCell(cardW, 3, preview, "", "L", false)
 			pdf.SetTextColor(80, 80, 80)
 		}
 	}
@@ -841,6 +960,8 @@ func (pw *PDFWriter) addTableOfContents(pdf *gofpdf.Fpdf, byCategory map[string]
 	// Build section titles in render order.
 	entries := []string{
 		"Executive Summary",
+		"Top Bypass Vulnerabilities",
+		"Category Breakdown",
 		"OWASP Top 10 Coverage",
 		"Detailed Findings",
 	}
@@ -854,6 +975,7 @@ func (pw *PDFWriter) addTableOfContents(pdf *gofpdf.Fpdf, byCategory map[string]
 	for _, cat := range categories {
 		entries = append(entries, fmt.Sprintf("Findings: %s", strings.ToUpper(cat)))
 	}
+	entries = append(entries, "Appendix: Scan Configuration")
 	entries = append(entries, "Appendix: Testing Methodology")
 
 	pageW, _ := pdf.GetPageSize()
@@ -977,6 +1099,485 @@ func (pw *PDFWriter) addRiskGauge(pdf *gofpdf.Fpdf, blockRate float64) {
 	pdf.CellFormat(50, 20, fmt.Sprintf("%.0f%%", blockRate), "", 0, "C", false, 0, "")
 
 	pdf.SetY(cy + 15)
+}
+
+// formatDuration formats seconds into a human-readable duration string.
+func formatDuration(secs float64) string {
+	if secs < 60 {
+		return fmt.Sprintf("%.1fs", secs)
+	}
+	m := int(secs) / 60
+	s := int(secs) % 60
+	if m < 60 {
+		return fmt.Sprintf("%dm %ds", m, s)
+	}
+	h := m / 60
+	m = m % 60
+	return fmt.Sprintf("%dh %dm %ds", h, m, s)
+}
+
+// addLatencyProfile renders latency percentile statistics in the executive summary.
+func (pw *PDFWriter) addLatencyProfile(pdf *gofpdf.Fpdf) {
+	if pw.summary == nil {
+		return
+	}
+	lat := pw.summary.Latency
+	// Only render if there's meaningful latency data.
+	if lat.AvgMs == 0 && lat.P50Ms == 0 && lat.MaxMs == 0 {
+		return
+	}
+
+	pdf.Ln(10)
+	pdf.SetFont("Helvetica", "B", 12)
+	pdf.SetTextColor(60, 60, 60)
+	pdf.CellFormat(0, 10, "Response Latency Profile", "", 1, "L", false, 0, "")
+
+	pageW, _ := pdf.GetPageSize()
+
+	metrics := []struct {
+		label string
+		value int64
+		color []int
+	}{
+		{"Min", lat.MinMs, []int{22, 163, 74}},
+		{"Avg", lat.AvgMs, []int{37, 99, 235}},
+		{"P50", lat.P50Ms, []int{37, 99, 235}},
+		{"P95", lat.P95Ms, []int{202, 138, 4}},
+		{"P99", lat.P99Ms, []int{234, 88, 12}},
+		{"Max", lat.MaxMs, []int{220, 38, 38}},
+	}
+
+	cellW := (pageW - 30) / float64(len(metrics))
+	startY := pdf.GetY() + 3
+
+	for i, m := range metrics {
+		x := 15 + float64(i)*cellW
+
+		pdf.SetFillColor(245, 245, 245)
+		pdf.Rect(x, startY, cellW-2, 20, "F")
+
+		pdf.SetFont("Helvetica", "B", 14)
+		pdf.SetTextColor(m.color[0], m.color[1], m.color[2])
+		pdf.SetXY(x, startY+1)
+		pdf.CellFormat(cellW-2, 10, fmt.Sprintf("%d ms", m.value), "", 0, "C", false, 0, "")
+
+		pdf.SetFont("Helvetica", "", 8)
+		pdf.SetTextColor(100, 100, 100)
+		pdf.SetXY(x, startY+11)
+		pdf.CellFormat(cellW-2, 6, m.label, "", 0, "C", false, 0, "")
+	}
+
+	pdf.SetY(startY + 25)
+
+	// Bar visualization: relative latency bars for percentiles.
+	maxMs := lat.MaxMs
+	if maxMs == 0 {
+		maxMs = 1
+	}
+	barMaxW := pageW - 80
+
+	bars := []struct {
+		label string
+		ms    int64
+	}{
+		{"P50", lat.P50Ms},
+		{"P95", lat.P95Ms},
+		{"P99", lat.P99Ms},
+		{"Max", lat.MaxMs},
+	}
+
+	for _, b := range bars {
+		barW := float64(b.ms) / float64(maxMs) * barMaxW
+		if barW < 1 {
+			barW = 1
+		}
+
+		pdf.SetFont("Helvetica", "", 9)
+		pdf.SetTextColor(80, 80, 80)
+		pdf.CellFormat(20, 6, b.label, "", 0, "R", false, 0, "")
+
+		y := pdf.GetY()
+		// Color gradient based on percentile
+		var r, g, bv int
+		ratio := float64(b.ms) / float64(maxMs)
+		if ratio < 0.5 {
+			r, g, bv = 22, 163, 74
+		} else if ratio < 0.8 {
+			r, g, bv = 202, 138, 4
+		} else {
+			r, g, bv = 220, 38, 38
+		}
+		pdf.SetFillColor(r, g, bv)
+		pdf.Rect(40, y+1, barW, 4, "F")
+
+		pdf.SetX(40 + barW + 3)
+		pdf.SetFont("Helvetica", "", 8)
+		pdf.CellFormat(0, 6, fmt.Sprintf("%d ms", b.ms), "", 1, "L", false, 0, "")
+	}
+}
+
+// addTopBypasses renders the top bypass vulnerabilities as a prioritized table.
+func (pw *PDFWriter) addTopBypasses(pdf *gofpdf.Fpdf) {
+	if pw.summary == nil || len(pw.summary.TopBypasses) == 0 {
+		return
+	}
+
+	pdf.AddPage()
+	pw.addSectionHeader(pdf, "Top Bypass Vulnerabilities")
+
+	pdf.SetFont("Helvetica", "", 10)
+	pdf.SetTextColor(80, 80, 80)
+	pdf.MultiCell(0, 5, "The following bypasses represent the highest-priority vulnerabilities discovered during testing. "+
+		"These should be addressed immediately as they indicate active gaps in WAF protection.", "", "L", false)
+	pdf.Ln(5)
+
+	pageW, _ := pdf.GetPageSize()
+	tableW := pageW - 30
+
+	// Table header
+	pdf.SetFont("Helvetica", "B", 9)
+	pdf.SetFillColor(30, 41, 59)
+	pdf.SetTextColor(255, 255, 255)
+	pdf.CellFormat(8, 7, "#", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(tableW*0.20, 7, "Test ID", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(tableW*0.15, 7, "Category", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(tableW*0.12, 7, "Severity", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(tableW*0.15, 7, "Encoding", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(0, 7, "Curl Command", "1", 1, "L", true, 0, "")
+
+	// Table rows
+	pdf.SetFont("Helvetica", "", 8)
+	for i, bp := range pw.summary.TopBypasses {
+		if i >= 15 {
+			break // cap at 15 to avoid overflowing the page
+		}
+
+		// Alternating row colors
+		if i%2 == 0 {
+			pdf.SetFillColor(250, 250, 250)
+		} else {
+			pdf.SetFillColor(255, 255, 255)
+		}
+
+		pdf.SetTextColor(60, 60, 60)
+		pdf.CellFormat(8, 6, fmt.Sprintf("%d", i+1), "1", 0, "C", true, 0, "")
+		pdf.CellFormat(tableW*0.20, 6, truncateString(bp.ID, 25), "1", 0, "L", true, 0, "")
+		pdf.CellFormat(tableW*0.15, 6, strings.ToUpper(bp.Category), "1", 0, "C", true, 0, "")
+
+		// Severity with color
+		sevColor := pdfSeverityColors[bp.Severity]
+		if sevColor == nil {
+			sevColor = []int{128, 128, 128}
+		}
+		pdf.SetTextColor(sevColor[0], sevColor[1], sevColor[2])
+		pdf.SetFont("Helvetica", "B", 8)
+		pdf.CellFormat(tableW*0.12, 6, strings.ToUpper(bp.Severity), "1", 0, "C", true, 0, "")
+		pdf.SetFont("Helvetica", "", 8)
+		pdf.SetTextColor(60, 60, 60)
+
+		encoding := bp.Encoding
+		if encoding == "" {
+			encoding = "-"
+		}
+		pdf.CellFormat(tableW*0.15, 6, encoding, "1", 0, "C", true, 0, "")
+
+		curl := bp.Curl
+		if curl == "" {
+			curl = "-"
+		}
+		pdf.CellFormat(0, 6, truncateString(curl, 50), "1", 1, "L", true, 0, "")
+	}
+
+	// Summary count
+	pdf.Ln(3)
+	pdf.SetFont("Helvetica", "I", 9)
+	pdf.SetTextColor(100, 100, 100)
+	total := len(pw.summary.TopBypasses)
+	shown := total
+	if shown > 15 {
+		shown = 15
+	}
+	if total > shown {
+		pdf.CellFormat(0, 6, fmt.Sprintf("Showing %d of %d total bypass vulnerabilities.", shown, total), "", 1, "L", false, 0, "")
+	}
+}
+
+// addCategoryBreakdown renders block rate comparison across attack categories.
+func (pw *PDFWriter) addCategoryBreakdown(pdf *gofpdf.Fpdf) {
+	if pw.summary == nil || len(pw.summary.Breakdown.ByCategory) == 0 {
+		return
+	}
+
+	pdf.AddPage()
+	pw.addSectionHeader(pdf, "Category Breakdown")
+
+	pageW, _ := pdf.GetPageSize()
+
+	// Sort categories by block rate (worst first for risk prioritization).
+	type catRow struct {
+		name      string
+		total     int
+		bypasses  int
+		blockRate float64
+	}
+	rows := make([]catRow, 0, len(pw.summary.Breakdown.ByCategory))
+	for cat, stats := range pw.summary.Breakdown.ByCategory {
+		rows = append(rows, catRow{
+			name:      cat,
+			total:     stats.Total,
+			bypasses:  stats.Bypasses,
+			blockRate: stats.BlockRate,
+		})
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].blockRate < rows[j].blockRate
+	})
+
+	// Table
+	pdf.SetFont("Helvetica", "B", 10)
+	pdf.SetFillColor(30, 41, 59)
+	pdf.SetTextColor(255, 255, 255)
+	pdf.CellFormat(50, 8, "Category", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(30, 8, "Tests", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(30, 8, "Bypasses", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(35, 8, "Block Rate", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(0, 8, "Risk", "1", 1, "C", true, 0, "")
+
+	pdf.SetFont("Helvetica", "", 10)
+	for i, row := range rows {
+		if i%2 == 0 {
+			pdf.SetFillColor(250, 250, 250)
+		} else {
+			pdf.SetFillColor(255, 255, 255)
+		}
+
+		pdf.SetTextColor(60, 60, 60)
+		pdf.CellFormat(50, 7, strings.ToUpper(row.name), "1", 0, "L", true, 0, "")
+		pdf.CellFormat(30, 7, fmt.Sprintf("%d", row.total), "1", 0, "C", true, 0, "")
+
+		if row.bypasses > 0 {
+			pdf.SetTextColor(220, 38, 38)
+		}
+		pdf.CellFormat(30, 7, fmt.Sprintf("%d", row.bypasses), "1", 0, "C", true, 0, "")
+		pdf.SetTextColor(60, 60, 60)
+
+		// Block rate with color
+		var brColor []int
+		if row.blockRate >= 90 {
+			brColor = []int{22, 163, 74}
+		} else if row.blockRate >= 70 {
+			brColor = []int{202, 138, 4}
+		} else {
+			brColor = []int{220, 38, 38}
+		}
+		pdf.SetTextColor(brColor[0], brColor[1], brColor[2])
+		pdf.SetFont("Helvetica", "B", 10)
+		pdf.CellFormat(35, 7, fmt.Sprintf("%.1f%%", row.blockRate), "1", 0, "C", true, 0, "")
+		pdf.SetFont("Helvetica", "", 10)
+
+		// Risk label
+		risk := "LOW"
+		riskColor := []int{22, 163, 74}
+		if row.blockRate < 70 {
+			risk = "HIGH"
+			riskColor = []int{220, 38, 38}
+		} else if row.blockRate < 90 {
+			risk = "MEDIUM"
+			riskColor = []int{202, 138, 4}
+		}
+		pdf.SetTextColor(riskColor[0], riskColor[1], riskColor[2])
+		pdf.SetFont("Helvetica", "B", 10)
+		pdf.CellFormat(0, 7, risk, "1", 1, "C", true, 0, "")
+		pdf.SetFont("Helvetica", "", 10)
+	}
+
+	// Horizontal bar chart for block rates.
+	pdf.Ln(8)
+	pdf.SetFont("Helvetica", "B", 12)
+	pdf.SetTextColor(60, 60, 60)
+	pdf.CellFormat(0, 10, "Block Rate by Category", "", 1, "L", false, 0, "")
+
+	barMaxW := pageW - 90
+	for _, row := range rows {
+		barW := row.blockRate / 100.0 * barMaxW
+		if barW < 1 && row.total > 0 {
+			barW = 1
+		}
+
+		pdf.SetFont("Helvetica", "", 9)
+		pdf.SetTextColor(80, 80, 80)
+		pdf.CellFormat(35, 7, strings.ToUpper(row.name), "", 0, "R", false, 0, "")
+
+		y := pdf.GetY()
+		var r, g, b int
+		if row.blockRate >= 90 {
+			r, g, b = 22, 163, 74
+		} else if row.blockRate >= 70 {
+			r, g, b = 202, 138, 4
+		} else {
+			r, g, b = 220, 38, 38
+		}
+		pdf.SetFillColor(r, g, b)
+		pdf.Rect(40, y+1, barW, 5, "F")
+
+		pdf.SetX(40 + barMaxW + 3)
+		pdf.SetFont("Helvetica", "", 8)
+		pdf.CellFormat(0, 7, fmt.Sprintf("%.1f%%", row.blockRate), "", 1, "L", false, 0, "")
+	}
+
+	// Encoding breakdown below the chart if data exists.
+	pw.addEncodingBreakdown(pdf)
+}
+
+// addEncodingBreakdown renders which payload encodings bypassed the WAF.
+func (pw *PDFWriter) addEncodingBreakdown(pdf *gofpdf.Fpdf) {
+	if pw.summary == nil || len(pw.summary.Breakdown.ByEncoding) == 0 {
+		return
+	}
+
+	pdf.Ln(8)
+	pdf.SetFont("Helvetica", "B", 12)
+	pdf.SetTextColor(60, 60, 60)
+	pdf.CellFormat(0, 10, "Encoding Effectiveness", "", 1, "L", false, 0, "")
+
+	type encRow struct {
+		name      string
+		total     int
+		bypasses  int
+		blockRate float64
+	}
+	rows := make([]encRow, 0, len(pw.summary.Breakdown.ByEncoding))
+	for enc, stats := range pw.summary.Breakdown.ByEncoding {
+		rows = append(rows, encRow{
+			name:      enc,
+			total:     stats.Total,
+			bypasses:  stats.Bypasses,
+			blockRate: stats.BlockRate,
+		})
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].blockRate < rows[j].blockRate
+	})
+
+	pdf.SetFont("Helvetica", "B", 9)
+	pdf.SetFillColor(240, 240, 240)
+	pdf.SetTextColor(60, 60, 60)
+	pdf.CellFormat(50, 7, "Encoding", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(30, 7, "Tests", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(30, 7, "Bypasses", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(35, 7, "Block Rate", "1", 1, "C", true, 0, "")
+
+	pdf.SetFont("Helvetica", "", 9)
+	for _, row := range rows {
+		pdf.SetTextColor(60, 60, 60)
+		pdf.CellFormat(50, 6, row.name, "1", 0, "L", false, 0, "")
+		pdf.CellFormat(30, 6, fmt.Sprintf("%d", row.total), "1", 0, "C", false, 0, "")
+
+		if row.bypasses > 0 {
+			pdf.SetTextColor(220, 38, 38)
+		}
+		pdf.CellFormat(30, 6, fmt.Sprintf("%d", row.bypasses), "1", 0, "C", false, 0, "")
+		pdf.SetTextColor(60, 60, 60)
+
+		pdf.CellFormat(35, 6, fmt.Sprintf("%.1f%%", row.blockRate), "1", 1, "C", false, 0, "")
+	}
+}
+
+// addScanConfiguration renders the scan configuration as an appendix.
+func (pw *PDFWriter) addScanConfiguration(pdf *gofpdf.Fpdf) {
+	pdf.AddPage()
+	pw.addSectionHeader(pdf, "Appendix: Scan Configuration")
+
+	pdf.SetFont("Helvetica", "", 10)
+	pdf.SetTextColor(80, 80, 80)
+	pdf.MultiCell(0, 5, "The following parameters were used for this scan. "+
+		"Reproducing results requires the same configuration.", "", "L", false)
+	pdf.Ln(5)
+
+	// Collect config rows from StartEvent and SummaryEvent.
+	type cfgRow struct {
+		label, value string
+	}
+	var rows []cfgRow
+
+	if pw.summary != nil {
+		rows = append(rows, cfgRow{"Target URL", pw.summary.Target.URL})
+		if pw.summary.Target.WAFDetected != "" {
+			rows = append(rows, cfgRow{"WAF Detected", pw.summary.Target.WAFDetected})
+		}
+		if pw.summary.Target.WAFConfidence > 0 {
+			rows = append(rows, cfgRow{"WAF Confidence", fmt.Sprintf("%.0f%%", pw.summary.Target.WAFConfidence*100)})
+		}
+		rows = append(rows, cfgRow{"Total Tests", fmt.Sprintf("%d", pw.summary.Totals.Tests)})
+		if pw.summary.Timing.DurationSec > 0 {
+			rows = append(rows, cfgRow{"Duration", formatDuration(pw.summary.Timing.DurationSec)})
+		}
+		if pw.summary.Timing.RequestsPerSec > 0 {
+			rows = append(rows, cfgRow{"Throughput", fmt.Sprintf("%.1f req/s", pw.summary.Timing.RequestsPerSec)})
+		}
+		rows = append(rows, cfgRow{"Exit Code", fmt.Sprintf("%d", pw.summary.ExitCode)})
+		if pw.summary.ExitReason != "" {
+			rows = append(rows, cfgRow{"Exit Reason", pw.summary.ExitReason})
+		}
+		rows = append(rows, cfgRow{"Version", pw.summary.Version})
+	}
+
+	if pw.start != nil {
+		rows = append(rows, cfgRow{"Concurrency", fmt.Sprintf("%d", pw.start.Config.Concurrency)})
+		rows = append(rows, cfgRow{"Timeout", fmt.Sprintf("%ds", pw.start.Config.Timeout)})
+		if pw.start.Config.ThrottleMs > 0 {
+			rows = append(rows, cfgRow{"Throttle", fmt.Sprintf("%d ms", pw.start.Config.ThrottleMs)})
+		}
+		if len(pw.start.Config.Categories) > 0 {
+			rows = append(rows, cfgRow{"Categories", strings.Join(pw.start.Config.Categories, ", ")})
+		}
+		if len(pw.start.Config.Encodings) > 0 {
+			rows = append(rows, cfgRow{"Encodings", strings.Join(pw.start.Config.Encodings, ", ")})
+		}
+		if len(pw.start.Config.Tampers) > 0 {
+			rows = append(rows, cfgRow{"Tampers", strings.Join(pw.start.Config.Tampers, ", ")})
+		}
+		if pw.start.Config.Severity != "" {
+			rows = append(rows, cfgRow{"Min Severity", pw.start.Config.Severity})
+		}
+		rows = append(rows, cfgRow{"Follow Redirects", fmt.Sprintf("%v", pw.start.Config.FollowRedirects)})
+		rows = append(rows, cfgRow{"Verify SSL", fmt.Sprintf("%v", pw.start.Config.VerifySSL)})
+		if pw.start.Config.Proxy != "" {
+			rows = append(rows, cfgRow{"Proxy", pw.start.Config.Proxy})
+		}
+		if pw.start.Config.SNI != "" {
+			rows = append(rows, cfgRow{"SNI", pw.start.Config.SNI})
+		}
+	}
+
+	if len(rows) == 0 {
+		pdf.SetFont("Helvetica", "I", 10)
+		pdf.SetTextColor(128, 128, 128)
+		pdf.CellFormat(0, 8, "No scan configuration data available.", "", 1, "L", false, 0, "")
+		return
+	}
+
+	// Render as two-column table.
+	pdf.SetFont("Helvetica", "B", 10)
+	pdf.SetFillColor(30, 41, 59)
+	pdf.SetTextColor(255, 255, 255)
+	pdf.CellFormat(55, 8, "Parameter", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(0, 8, "Value", "1", 1, "L", true, 0, "")
+
+	pdf.SetFont("Helvetica", "", 10)
+	for i, row := range rows {
+		if i%2 == 0 {
+			pdf.SetFillColor(250, 250, 250)
+		} else {
+			pdf.SetFillColor(255, 255, 255)
+		}
+		pdf.SetTextColor(80, 80, 80)
+		pdf.SetFont("Helvetica", "B", 9)
+		pdf.CellFormat(55, 7, row.label, "1", 0, "L", true, 0, "")
+		pdf.SetFont("Helvetica", "", 9)
+		pdf.SetTextColor(60, 60, 60)
+		pdf.CellFormat(0, 7, truncateString(row.value, 80), "1", 1, "L", true, 0, "")
+	}
 }
 
 // addMethodologyAppendix adds an appendix explaining testing methodology.
