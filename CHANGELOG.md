@@ -5,6 +5,17 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.23] - 2026-02-21
+
+### Added
+
+- **Severity x Confidence matrix in PDF reports** — 2D cross-tabulation of bypass findings by severity and detection confidence, highlighting confirmed high-severity vulnerabilities for prioritized remediation.
+- **Passing categories section in PDF reports** — Green-themed table showing attack categories where the WAF achieved a 100% block rate, giving credit where protection is strong.
+- **Evasion technique effectiveness in PDF reports** — Bypass rate analysis per tamper chain and evasion technique, revealing which WAF bypass methods are most effective.
+- **Remediation guidance in PDF reports** — Actionable fix advice per bypass category with reference URLs, covering 24 attack types (SQLi, XSS, SSRF, SSTI, etc.).
+- **Scan insights in PDF reports** — Six automated heuristic observations: WAF detection confidence, protection posture assessment, error-prone categories, effective encodings, latency anomalies, and throughput metrics.
+- **CWE name enrichment in PDF finding cards** — Finding cards now display human-readable CWE names (e.g., "CWE-89: SQL Injection") instead of bare IDs, covering 60 common weakness enumerations.
+
 ## [2.9.22] - 2026-02-20
 
 ### Fixed
@@ -2392,6 +2403,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.23]: https://github.com/waftester/waftester/compare/v2.9.22...v2.9.23
 [2.9.22]: https://github.com/waftester/waftester/compare/v2.9.21...v2.9.22
 [2.9.21]: https://github.com/waftester/waftester/compare/v2.9.20...v2.9.21
 [2.9.20]: https://github.com/waftester/waftester/compare/v2.9.19...v2.9.20
