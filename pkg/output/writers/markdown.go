@@ -168,10 +168,10 @@ func (mw *MarkdownWriter) Close() error {
 	return nil
 }
 
-// SupportsEvent returns true for start, result, and summary events.
+// SupportsEvent returns true for result and summary events.
 func (mw *MarkdownWriter) SupportsEvent(eventType events.EventType) bool {
 	switch eventType {
-	case events.EventTypeStart, events.EventTypeResult, events.EventTypeSummary:
+	case events.EventTypeResult, events.EventTypeSummary:
 		return true
 	default:
 		return false

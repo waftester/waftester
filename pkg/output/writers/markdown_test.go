@@ -204,7 +204,7 @@ func TestMarkdownWriter_SupportsEvent(t *testing.T) {
 		eventType events.EventType
 		expected  bool
 	}{
-		{events.EventTypeStart, true},
+		{events.EventTypeStart, false},
 		{events.EventTypeResult, true},
 		{events.EventTypeSummary, true},
 		{events.EventTypeProgress, false},
