@@ -25,17 +25,35 @@ func makePDFTestResultEvent(id, category string, severity events.Severity, outco
 			CWE:      []int{89, 79},
 		},
 		Target: events.TargetInfo{
-			URL:    "https://example.com/api",
-			Method: "POST",
+			URL:       "https://example.com/api",
+			Method:    "POST",
+			Endpoint:  "/api/v1/search",
+			Parameter: "query",
 		},
 		Result: events.ResultInfo{
-			Outcome:    outcome,
-			StatusCode: 200,
-			LatencyMs:  42.5,
+			Outcome:        outcome,
+			StatusCode:     200,
+			LatencyMs:      42.5,
+			ContentLength:  1337,
+			WAFSignature:   "Cloudflare/942100",
+			Confidence:     events.ConfidenceHigh,
+			ConfidenceNote: "Pattern match on response body",
 		},
 		Evidence: &events.Evidence{
-			Payload:     "test-payload-" + id,
-			CurlCommand: "curl -X POST 'https://example.com/api' -d 'payload=...'",
+			Payload:        "test-payload-" + id,
+			EncodedPayload: "dGVzdC1wYXlsb2FkLQ==",
+			CurlCommand:    "curl -X POST 'https://example.com/api' -d 'payload=...'",
+			RequestHeaders: map[string]string{
+				"Content-Type":    "application/x-www-form-urlencoded",
+				"X-Forwarded-For": "127.0.0.1",
+			},
+			ResponsePreview: "<html><head><title>403 Forbidden</title></head>...",
+		},
+		Context: &events.ContextInfo{
+			Phase:            "waf-testing",
+			Tamper:           "space2comment",
+			Encoding:         "urlencode",
+			EvasionTechnique: "case-swapping",
 		},
 	}
 }
@@ -83,6 +101,24 @@ func makePDFTestSummaryEvent() *events.SummaryEvent {
 				"A03:2021": {Name: "Injection", Total: 40, Bypasses: 3},
 				"A07:2021": {Name: "Identification and Authentication Failures", Total: 10, Bypasses: 0},
 			},
+			ByEncoding: map[string]events.CategoryStats{
+				"none":      {Total: 50, Bypasses: 2, BlockRate: 96.0},
+				"base64":    {Total: 25, Bypasses: 1, BlockRate: 96.0},
+				"urlencode": {Total: 25, Bypasses: 2, BlockRate: 92.0},
+			},
+		},
+		TopBypasses: []events.BypassInfo{
+			{ID: "sqli-001", Severity: "critical", Category: "sqli", Encoding: "urlencode", Curl: "curl -X POST 'https://example.com/api' -d 'payload=1 OR 1=1'"},
+			{ID: "xss-001", Severity: "high", Category: "xss", Encoding: "base64", Curl: "curl 'https://example.com/?q=PHNjcmlwdD4='"},
+			{ID: "sqli-002", Severity: "high", Category: "sqli", Encoding: "", Curl: "curl 'https://example.com/?id=UNION+SELECT'"},
+		},
+		Latency: events.LatencyInfo{
+			MinMs: 12,
+			MaxMs: 850,
+			AvgMs: 145,
+			P50Ms: 120,
+			P95Ms: 480,
+			P99Ms: 720,
 		},
 		Timing: events.SummaryTiming{
 			StartedAt:      time.Now().Add(-5 * time.Minute),
@@ -164,7 +200,7 @@ func TestPDFWriter_SupportsEvent(t *testing.T) {
 		{events.EventTypeResult, true},
 		{events.EventTypeSummary, true},
 		{events.EventTypeProgress, false},
-		{events.EventTypeStart, false},
+		{events.EventTypeStart, true},
 		{events.EventTypeError, false},
 	}
 
