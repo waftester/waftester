@@ -153,10 +153,15 @@ func (pw *PDFWriter) Close() error {
 		pw.addTableOfContents(pdf, byCategory)
 	}
 	pw.addExecutiveSummary(pdf)
+	pw.addSeverityConfidenceMatrix(pdf)
 	pw.addTopBypasses(pdf)
 	pw.addCategoryBreakdown(pdf)
+	pw.addPassingCategories(pdf)
 	pw.addOWASPTable(pdf)
+	pw.addEvasionEffectiveness(pdf)
 	pw.addFindingsSectionFromGroups(pdf, bypasses, byCategory)
+	pw.addRemediationGuidance(pdf, byCategory)
+	pw.addScanInsights(pdf)
 	pw.addScanConfiguration(pdf)
 	pw.addMethodologyAppendix(pdf)
 
@@ -751,7 +756,11 @@ func (pw *PDFWriter) addFindingCard(pdf *gofpdf.Fpdf, finding *events.ResultEven
 	if len(finding.Test.CWE) > 0 {
 		cweStrs := make([]string, len(finding.Test.CWE))
 		for i, c := range finding.Test.CWE {
-			cweStrs[i] = fmt.Sprintf("CWE-%d", c)
+			if name := cweName(c); name != "" {
+				cweStrs[i] = fmt.Sprintf("CWE-%d: %s", c, name)
+			} else {
+				cweStrs[i] = fmt.Sprintf("CWE-%d", c)
+			}
 		}
 		details = append(details, struct{ label, value string }{
 			"CWE", strings.Join(cweStrs, ", "),
@@ -967,13 +976,22 @@ func (pw *PDFWriter) addTableOfContents(pdf *gofpdf.Fpdf, byCategory map[string]
 	entries := []string{
 		"Executive Summary",
 	}
+	if len(pw.results) > 0 {
+		entries = append(entries, "Severity vs Confidence Matrix")
+	}
 	if pw.summary != nil && len(pw.summary.TopBypasses) > 0 {
 		entries = append(entries, "Top Bypass Vulnerabilities")
 	}
 	if pw.summary != nil && len(pw.summary.Breakdown.ByCategory) > 0 {
 		entries = append(entries, "Category Breakdown")
 	}
+	if pw.hasPassingCategories() {
+		entries = append(entries, "Passing Categories")
+	}
 	entries = append(entries, "OWASP Top 10 Coverage")
+	if pw.hasEvasionData() {
+		entries = append(entries, "Evasion Technique Effectiveness")
+	}
 	if len(byCategory) == 0 {
 		entries = append(entries, "Detailed Findings")
 	}
@@ -987,6 +1005,10 @@ func (pw *PDFWriter) addTableOfContents(pdf *gofpdf.Fpdf, byCategory map[string]
 	for _, cat := range categories {
 		entries = append(entries, fmt.Sprintf("Findings: %s", strings.ToUpper(cat)))
 	}
+	if len(byCategory) > 0 {
+		entries = append(entries, "Remediation Guidance")
+	}
+	entries = append(entries, "Scan Insights")
 	entries = append(entries, "Appendix: Scan Configuration")
 	entries = append(entries, "Appendix: Testing Methodology")
 

@@ -929,3 +929,155 @@ func TestPDF_CategoryBreakdown_RiskLabels(t *testing.T) {
 	// With 92.5% and 94.3% block rates, both categories should have LOW risk
 	p.assertContainsText("LOW")
 }
+
+// --- New section tests ---
+
+func TestPDF_SeverityConfidenceMatrix(t *testing.T) {
+	t.Parallel()
+	results := []*events.ResultEvent{
+		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, nil),
+		makeBypassResult("sqli-002", "sqli", events.SeverityHigh, nil),
+	}
+	p := generatePDF(t, PDFConfig{}, results, makePDFTestSummaryEvent())
+	p.assertValid()
+	p.assertContainsText("Severity vs Confidence Matrix")
+	p.assertContainsText("Critical")
+	p.assertContainsText("High")
+}
+
+func TestPDF_SeverityConfidenceMatrix_NoBypassesSkipped(t *testing.T) {
+	t.Parallel()
+	// Only blocked results — matrix section should not appear.
+	results := []*events.ResultEvent{
+		makeBlockedResult("sqli-001", "sqli", events.SeverityCritical, nil),
+	}
+	p := generatePDF(t, PDFConfig{}, results, makePDFTestSummaryEvent())
+	p.assertValid()
+	p.assertNotContainsText("Severity vs Confidence Matrix")
+}
+
+func TestPDF_PassingCategories(t *testing.T) {
+	t.Parallel()
+	// Summary with one passing category (lfi: 100% block rate) and one failing (sqli).
+	summary := makePDFTestSummaryEvent()
+	summary.Breakdown.ByCategory["lfi"] = events.CategoryStats{Total: 20, Bypasses: 0, BlockRate: 100.0}
+
+	results := []*events.ResultEvent{
+		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, nil),
+	}
+	p := generatePDF(t, PDFConfig{}, results, summary)
+	p.assertValid()
+	p.assertContainsText("Passing Categories")
+	p.assertContainsText("LFI")
+	p.assertContainsText("100.0%")
+	p.assertContainsText("PASS")
+}
+
+func TestPDF_PassingCategories_NoneWhenAllBypassed(t *testing.T) {
+	t.Parallel()
+	// Default summary has only sqli and xss, both with bypasses.
+	p := generatePDF(t, PDFConfig{}, nil, makePDFTestSummaryEvent())
+	p.assertValid()
+	p.assertNotContainsText("Passing Categories")
+}
+
+func TestPDF_EvasionEffectiveness(t *testing.T) {
+	t.Parallel()
+	results := []*events.ResultEvent{
+		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, nil),
+		makeBlockedResult("sqli-002", "sqli", events.SeverityHigh, nil),
+	}
+	p := generatePDF(t, PDFConfig{}, results, makePDFTestSummaryEvent())
+	p.assertValid()
+	p.assertContainsText("Evasion Technique Effectiveness")
+	p.assertContainsText("Tamper Chains")
+	p.assertContainsText("space2comment")
+	p.assertContainsText("Evasion Techniques")
+	p.assertContainsText("case-swapping")
+}
+
+func TestPDF_EvasionEffectiveness_SkippedWithoutContext(t *testing.T) {
+	t.Parallel()
+	// Result with nil Context — evasion section should not appear.
+	r := makeBypassResult("sqli-001", "sqli", events.SeverityCritical, nil)
+	r.Context = nil
+	results := []*events.ResultEvent{r}
+	p := generatePDF(t, PDFConfig{}, results, makePDFTestSummaryEvent())
+	p.assertValid()
+	p.assertNotContainsText("Evasion Technique Effectiveness")
+}
+
+func TestPDF_RemediationGuidance(t *testing.T) {
+	t.Parallel()
+	results := []*events.ResultEvent{
+		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, nil),
+	}
+	p := generatePDF(t, PDFConfig{}, results, makePDFTestSummaryEvent())
+	p.assertValid()
+	p.assertContainsText("Remediation Guidance")
+	p.assertContainsText("SQL Injection")
+	p.assertContainsText("parameterized queries")
+}
+
+func TestPDF_RemediationGuidance_SkippedWithNoBypasses(t *testing.T) {
+	t.Parallel()
+	// No bypass results — remediation not shown.
+	results := []*events.ResultEvent{
+		makeBlockedResult("sqli-001", "sqli", events.SeverityCritical, nil),
+	}
+	p := generatePDF(t, PDFConfig{}, results, makePDFTestSummaryEvent())
+	p.assertValid()
+	p.assertNotContainsText("Remediation Guidance")
+}
+
+func TestPDF_ScanInsights(t *testing.T) {
+	t.Parallel()
+	results := []*events.ResultEvent{
+		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, nil),
+	}
+	p := generatePDF(t, PDFConfig{}, results, makePDFTestSummaryEvent())
+	p.assertValid()
+	p.assertContainsText("Scan Insights")
+	p.assertContainsText("WAF Detection")
+	p.assertContainsText("Cloudflare")
+	p.assertContainsText("Protection Posture")
+}
+
+func TestPDF_ScanInsights_NoSummary(t *testing.T) {
+	t.Parallel()
+	// No summary — should show "No notable insights".
+	p := generatePDF(t, PDFConfig{}, nil, nil)
+	p.assertValid()
+	p.assertContainsText("Scan Insights")
+	p.assertContainsText("No notable insights")
+}
+
+func TestPDF_CWENames_InFindingCard(t *testing.T) {
+	t.Parallel()
+	results := []*events.ResultEvent{
+		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, nil),
+	}
+	p := generatePDF(t, PDFConfig{IncludeEvidence: true}, results, makePDFTestSummaryEvent())
+	p.assertValid()
+	// CWE-89 should now show "CWE-89: SQL Injection"
+	p.assertContainsText("CWE-89: SQL Injection")
+	// CWE-79 should now show "CWE-79: Cross-site Scripting"
+	p.assertContainsText("CWE-79: Cross-site Scripting")
+}
+
+func TestPDF_TOC_NewSectionEntries(t *testing.T) {
+	t.Parallel()
+	// Build data that triggers all new sections.
+	summary := makePDFTestSummaryEvent()
+	summary.Breakdown.ByCategory["lfi"] = events.CategoryStats{Total: 20, Bypasses: 0, BlockRate: 100.0}
+	results := []*events.ResultEvent{
+		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, nil),
+	}
+	p := generatePDF(t, PDFConfig{IncludeTOC: true}, results, summary)
+	p.assertValid()
+	p.assertContainsText("Severity vs Confidence Matrix")
+	p.assertContainsText("Passing Categories")
+	p.assertContainsText("Evasion Technique Effectiveness")
+	p.assertContainsText("Remediation Guidance")
+	p.assertContainsText("Scan Insights")
+}
