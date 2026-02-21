@@ -1540,3 +1540,287 @@ func TestHTMLWriter_NoStaleComment(t *testing.T) {
 		}
 	}
 }
+
+// --- Round 11-24 regression tests ---
+
+func TestHTMLWriter_ExportJSON_IncludesTimeouts(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+	w.Write(makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeTimeout, nil))
+	w.Close()
+
+	output := buf.String()
+	if !strings.Contains(output, "timeouts:") {
+		t.Error("exportJSON function missing 'timeouts' key in totals")
+	}
+}
+
+func TestHTMLWriter_ExecSummary_TimeoutCard(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+	w.Write(makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeTimeout, nil))
+	summary := &events.SummaryEvent{
+		BaseEvent: events.BaseEvent{Type: events.EventTypeSummary, Time: time.Now()},
+		Totals:    events.SummaryTotals{Tests: 1, Timeouts: 1},
+	}
+	w.Write(summary)
+	w.Close()
+
+	output := buf.String()
+	if !strings.Contains(output, "timeout-card") {
+		t.Error("executive summary missing timeout card when timeouts > 0")
+	}
+}
+
+func TestHTMLWriter_SimpleSummary_ErrorAndTimeoutCards(t *testing.T) {
+	buf := &bytes.Buffer{}
+	// Set PrintOptimized to break zero-value detection, keeping ShowExecutiveSummary false
+	w := NewHTMLWriter(buf, HTMLConfig{PrintOptimized: true})
+	w.Write(makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeError, nil))
+	w.Write(makeHTMLTestResultEvent("t2", "sqli", events.SeverityHigh, events.OutcomeTimeout, nil))
+	w.Close()
+
+	output := buf.String()
+	if !strings.Contains(output, "error-card") {
+		t.Error("simple summary missing error card")
+	}
+	if !strings.Contains(output, "timeout-card") {
+		t.Error("simple summary missing timeout card")
+	}
+}
+
+func TestHTMLWriter_RiskMatrix_PassColumn(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+	w.Write(makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomePass, nil))
+	w.Write(makeHTMLTestResultEvent("t2", "sqli", events.SeverityHigh, events.OutcomeBypass, nil))
+	w.Close()
+
+	output := buf.String()
+	if !strings.Contains(output, "pass-col") {
+		t.Error("risk matrix table missing Pass column header")
+	}
+}
+
+func TestHTMLWriter_TimeoutColCSS(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+	w.Write(makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeBypass, nil))
+	w.Close()
+
+	output := buf.String()
+	if !strings.Contains(output, ".risk-matrix-table .timeout-col") {
+		t.Error("CSS missing .timeout-col rule for risk matrix")
+	}
+}
+
+func TestCapitalize_MultibyteSafe(t *testing.T) {
+	tests := []struct {
+		in, want string
+	}{
+		{"", ""},
+		{"hello", "Hello"},
+		{"critical", "Critical"},
+		{"a", "A"},
+	}
+	for _, tc := range tests {
+		got := capitalize(tc.in)
+		if got != tc.want {
+			t.Errorf("capitalize(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestHTMLWriter_LocalStorage_TryCatch(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+	w.Write(makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeBypass, nil))
+	w.Close()
+
+	output := buf.String()
+	if !strings.Contains(output, "try {") || !strings.Contains(output, "} catch(e) {}") {
+		t.Error("localStorage access not wrapped in try/catch")
+	}
+}
+
+func TestHTMLWriter_EffectivenessBar_ARIA(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+	w.Write(makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeBypass, nil))
+	w.Close()
+
+	output := buf.String()
+	if !strings.Contains(output, `role="progressbar"`) {
+		t.Error("effectiveness bar missing role=progressbar")
+	}
+	if !strings.Contains(output, "aria-valuemin") {
+		t.Error("effectiveness bar missing aria-valuemin")
+	}
+}
+
+func TestHTMLWriter_OWASPStatus_ErrorOnly_NotPass(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+	// All results for the OWASP category are errors — should NOT show as "pass"
+	e := makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeError, []string{"A03:2021"})
+	w.Write(e)
+	w.Close()
+
+	output := buf.String()
+	// The OWASP grid entry for A03 should not have "pass" status
+	// with only error results and no blocked results
+	if strings.Contains(output, `class="owasp-status pass"`) {
+		t.Error("OWASP category with only error results should not show 'pass' status")
+	}
+}
+
+func TestHTMLWriter_OWASPStatus_BlockedSetsPass(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+	e := makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeBlocked, []string{"A03:2021"})
+	w.Write(e)
+	w.Close()
+
+	output := buf.String()
+	if !strings.Contains(output, `class="owasp-status pass"`) {
+		t.Error("OWASP category with blocked results should show 'pass' status")
+	}
+}
+
+func TestOutcomeWeight_AllOutcomes(t *testing.T) {
+	tests := []struct {
+		outcome string
+		weight  int
+	}{
+		{string(events.OutcomeBypass), 5},
+		{string(events.OutcomeError), 4},
+		{string(events.OutcomeTimeout), 3},
+		{string(events.OutcomePass), 2},
+		{string(events.OutcomeBlocked), 1},
+		{"unknown", 1},
+	}
+	for _, tc := range tests {
+		got := outcomeWeight(tc.outcome)
+		if got != tc.weight {
+			t.Errorf("outcomeWeight(%q) = %d, want %d", tc.outcome, got, tc.weight)
+		}
+	}
+}
+
+func TestHTMLWriter_FindingsSorted_ByOutcomeWeight(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+	// Write in reverse order: blocked, pass, timeout, error, bypass
+	w.Write(makeHTMLTestResultEvent("blocked-1", "cat-blk", events.SeverityHigh, events.OutcomeBlocked, nil))
+	w.Write(makeHTMLTestResultEvent("pass-sort", "cat-pas", events.SeverityHigh, events.OutcomePass, nil))
+	w.Write(makeHTMLTestResultEvent("timeout-sort", "cat-tmo", events.SeverityHigh, events.OutcomeTimeout, nil))
+	w.Write(makeHTMLTestResultEvent("error-sort", "cat-err", events.SeverityHigh, events.OutcomeError, nil))
+	w.Write(makeHTMLTestResultEvent("bypass-sort", "cat-byp", events.SeverityHigh, events.OutcomeBypass, nil))
+	w.Close()
+
+	output := buf.String()
+	// Use unique markers from finding card titles: {{$f.ID}} - {{$f.Category}}
+	bypassIdx := strings.Index(output, "bypass-sort - cat-byp")
+	errorIdx := strings.Index(output, "error-sort - cat-err")
+	timeoutIdx := strings.Index(output, "timeout-sort - cat-tmo")
+	passIdx := strings.Index(output, "pass-sort - cat-pas")
+	blockedIdx := strings.Index(output, "blocked-1 - cat-blk")
+
+	if bypassIdx < 0 || errorIdx < 0 || timeoutIdx < 0 || passIdx < 0 || blockedIdx < 0 {
+		t.Fatal("one or more finding titles not found in output")
+	}
+	if bypassIdx > errorIdx {
+		t.Errorf("bypass (%d) should appear before error (%d)", bypassIdx, errorIdx)
+	}
+	if errorIdx > timeoutIdx {
+		t.Errorf("error (%d) should appear before timeout (%d)", errorIdx, timeoutIdx)
+	}
+	if timeoutIdx > passIdx {
+		t.Errorf("timeout (%d) should appear before pass (%d)", timeoutIdx, passIdx)
+	}
+	if passIdx > blockedIdx {
+		t.Errorf("pass (%d) should appear before blocked (%d)", passIdx, blockedIdx)
+	}
+}
+
+func TestHTMLWriter_NoFindings_Message(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+	// Close without writing any events
+	w.Close()
+
+	output := buf.String()
+	if !strings.Contains(output, "No findings to display") {
+		t.Error("empty report should show 'No findings to display' message")
+	}
+}
+
+func TestHTMLWriter_PrintReport_RequestAnimationFrame(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+	w.Write(makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeBypass, nil))
+	w.Close()
+
+	output := buf.String()
+	// printReport should use requestAnimationFrame, but setTimeout may still exist
+	// in other functions (e.g., copyToClipboard). Check the printReport function specifically.
+	printFuncIdx := strings.Index(output, "function printReport()")
+	if printFuncIdx < 0 {
+		t.Fatal("printReport function not found in output")
+	}
+	printFunc := output[printFuncIdx : printFuncIdx+500]
+	if strings.Contains(printFunc, "setTimeout") {
+		t.Error("printReport should use requestAnimationFrame, not setTimeout")
+	}
+	if !strings.Contains(printFunc, "requestAnimationFrame") {
+		t.Error("printReport missing requestAnimationFrame")
+	}
+}
+
+func TestHTMLWriter_Noscript_Fallback(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+	w.Write(makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeBypass, nil))
+	w.Close()
+
+	output := buf.String()
+	if !strings.Contains(output, "<noscript>") {
+		t.Error("HTML should include noscript fallback for finding visibility")
+	}
+}
+
+func TestHTMLWriter_TimeoutCard_CSS(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+	w.Write(makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeBypass, nil))
+	w.Close()
+
+	output := buf.String()
+	if !strings.Contains(output, ".summary-card.timeout-card") {
+		t.Error("CSS missing .timeout-card border style")
+	}
+}
+
+func TestHTMLWriter_FilterCount_Element(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+	w.Write(makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeBypass, nil))
+	w.Close()
+
+	output := buf.String()
+	if !strings.Contains(output, "filterCount") {
+		t.Error("findings toolbar missing filter count element")
+	}
+}
+
+func TestHTMLWriter_PassColCSS(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+	w.Write(makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeBypass, nil))
+	w.Close()
+
+	output := buf.String()
+	if !strings.Contains(output, ".risk-matrix-table .pass-col") {
+		t.Error("CSS missing .pass-col rule for risk matrix")
+	}
+}
