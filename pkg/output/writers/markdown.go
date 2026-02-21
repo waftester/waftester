@@ -811,13 +811,18 @@ func (mw *MarkdownWriter) buildCWERefs() map[int]cweStat {
 }
 
 func truncateString(s string, maxLen int) string {
+	// Fast path: if byte count fits, rune count fits too.
 	if len(s) <= maxLen {
 		return s
 	}
-	if maxLen < 3 {
-		return s[:maxLen]
+	runes := []rune(s)
+	if len(runes) <= maxLen {
+		return s
 	}
-	return s[:maxLen-3] + "..."
+	if maxLen < 3 {
+		return string(runes[:maxLen])
+	}
+	return string(runes[:maxLen-3]) + "..."
 }
 
 // capitalizeFirst capitalizes the first letter of a string.
