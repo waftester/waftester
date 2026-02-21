@@ -758,6 +758,124 @@ func TestPDF_CoverPageThroughput(t *testing.T) {
 	p.assertContainsText("45.7 req/s")
 }
 
+func TestPDF_ContainsSubcategory(t *testing.T) {
+	t.Parallel()
+	results := []*events.ResultEvent{
+		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, nil),
+	}
+	p := generatePDF(t, PDFConfig{IncludeEvidence: true}, results, makePDFTestSummaryEvent())
+
+	p.assertContainsText("error-based")
+}
+
+func TestPDF_ContainsTags(t *testing.T) {
+	t.Parallel()
+	results := []*events.ResultEvent{
+		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, nil),
+	}
+	p := generatePDF(t, PDFConfig{IncludeEvidence: true}, results, makePDFTestSummaryEvent())
+
+	p.assertContainsText("cve-2024-1234")
+	p.assertContainsText("owasp-a1")
+}
+
+func TestPDF_ContainsPhase(t *testing.T) {
+	t.Parallel()
+	results := []*events.ResultEvent{
+		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, nil),
+	}
+	p := generatePDF(t, PDFConfig{IncludeEvidence: true}, results, makePDFTestSummaryEvent())
+
+	p.assertContainsText("waf-testing")
+}
+
+func TestPDF_ScanConfig_SkipsZeroTimeout(t *testing.T) {
+	t.Parallel()
+	start := &events.StartEvent{
+		BaseEvent: events.BaseEvent{Type: events.EventTypeStart},
+		Config: events.ScanConfig{
+			Concurrency: 5,
+			Timeout:     0, // not populated
+		},
+	}
+	summary := makePDFTestSummaryEvent()
+	// Use a duration that doesn't contain "0s" as a substring.
+	summary.Timing.DurationSec = 125.0 // "2m 5s"
+
+	buf := &bytes.Buffer{}
+	w := NewPDFWriter(buf, PDFConfig{})
+	w.noCompress = true
+	w.Write(start)
+	w.Write(summary)
+	w.Close()
+
+	p := pdfResult{t: t, raw: buf.Bytes(), reader: bytes.NewReader(buf.Bytes())}
+	// With Timeout=0, no "0s" should appear in the scan config table.
+	// The summary duration is "2m 5s" which doesn't contain "0s".
+	p.assertNotContainsText("0s")
+}
+
+func TestPDF_ScanConfig_SkipsZeroConcurrency(t *testing.T) {
+	t.Parallel()
+	start := &events.StartEvent{
+		BaseEvent: events.BaseEvent{Type: events.EventTypeStart},
+		Config:    events.ScanConfig{Concurrency: 0},
+	}
+	buf := &bytes.Buffer{}
+	w := NewPDFWriter(buf, PDFConfig{})
+	w.noCompress = true
+	w.Write(start)
+	w.Write(makePDFTestSummaryEvent())
+	w.Close()
+
+	p := pdfResult{t: t, raw: buf.Bytes(), reader: bytes.NewReader(buf.Bytes())}
+	// "Concurrency" row should not appear for zero value
+	p.assertNotContainsText("Concurrency")
+}
+
+func TestPDF_ScanConfig_ShowsPopulatedTimeout(t *testing.T) {
+	t.Parallel()
+	start := &events.StartEvent{
+		BaseEvent: events.BaseEvent{Type: events.EventTypeStart},
+		Config: events.ScanConfig{
+			Concurrency: 10,
+			Timeout:     30,
+		},
+	}
+	buf := &bytes.Buffer{}
+	w := NewPDFWriter(buf, PDFConfig{})
+	w.noCompress = true
+	w.Write(start)
+	w.Write(makePDFTestSummaryEvent())
+	w.Close()
+
+	p := pdfResult{t: t, raw: buf.Bytes(), reader: bytes.NewReader(buf.Bytes())}
+	p.assertContainsText("30s")
+	p.assertContainsText("Concurrency")
+}
+
+func TestPDF_ScanConfig_ReplayProxy(t *testing.T) {
+	t.Parallel()
+	start := &events.StartEvent{
+		BaseEvent: events.BaseEvent{Type: events.EventTypeStart},
+		Config: events.ScanConfig{
+			Concurrency: 5,
+			Timeout:     30,
+			ReplayProxy: "http://burp:8080",
+		},
+	}
+	buf := &bytes.Buffer{}
+	w := NewPDFWriter(buf, PDFConfig{})
+	w.noCompress = true
+	w.Write(start)
+	w.Write(makePDFTestSummaryEvent())
+	w.Close()
+
+	p := pdfResult{t: t, raw: buf.Bytes(), reader: bytes.NewReader(buf.Bytes())}
+	p.assertContainsText("Replay Proxy")
+	p.assertContainsText("http://burp:8080")
+}
+
 func TestPDF_FormatDuration(t *testing.T) {
 	tests := []struct {
 		seconds  float64
