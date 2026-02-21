@@ -29,15 +29,6 @@ var pdfSeverityColors = map[string][]int{
 	"info":     {37, 99, 235}, // Blue
 }
 
-// pdfOutcomeColors maps outcomes to RGB color values.
-var pdfOutcomeColors = map[events.Outcome][]int{
-	events.OutcomeBypass:  {220, 38, 38}, // Red - bypass is bad
-	events.OutcomeBlocked: {22, 163, 74}, // Green - blocked is good
-	events.OutcomeError:   {202, 138, 4}, // Yellow
-	events.OutcomeTimeout: {37, 99, 235}, // Blue
-	events.OutcomePass:    {22, 163, 74}, // Green
-}
-
 // PDFConfig configures the PDF report writer.
 type PDFConfig struct {
 	// Title is the report title (default: "WAFtester Security Report")
@@ -275,7 +266,7 @@ func (pw *PDFWriter) addCoverPage(pdf *gofpdf.Fpdf) {
 
 	// Info section
 	pdf.SetY(100)
-	pw.addInfoRow(pdf, "Target URL:", targetURL)
+	pw.addInfoRow(pdf, "Target URL:", truncateString(targetURL, 70))
 	pw.addInfoRow(pdf, "WAF Detected:", wafDetected)
 	if pw.summary != nil && pw.summary.Target.WAFConfidence > 0 {
 		pw.addInfoRow(pdf, "WAF Confidence:", fmt.Sprintf("%.0f%%", pw.summary.Target.WAFConfidence*100))
@@ -373,7 +364,8 @@ func (pw *PDFWriter) addExecutiveSummary(pdf *gofpdf.Fpdf) {
 	pdf.SetTextColor(60, 60, 60)
 	pdf.CellFormat(0, 10, "Test Statistics", "", 1, "L", false, 0, "")
 
-	// Statistics grid
+	// Statistics grid — Passes (expected pass-through from false-positive testing)
+	// is intentionally omitted since it's almost always zero in WAF attack scans.
 	stats := []struct {
 		label string
 		value int
@@ -603,12 +595,6 @@ func (pw *PDFWriter) buildOWASPStats() map[string]*pdfOWASPStat {
 	return stats
 }
 
-// addFindingsSection creates the detailed findings section.
-// Deprecated: Use addFindingsSectionFromGroups to avoid redundant bypass filtering.
-func (pw *PDFWriter) addFindingsSection(pdf *gofpdf.Fpdf) {
-	pw.addFindingsSectionFromGroups(pdf, pw.getBypassResults(), nil)
-}
-
 // addFindingsSectionFromGroups renders findings from pre-computed bypass groups.
 // If byCategory is nil it is computed from bypasses.
 func (pw *PDFWriter) addFindingsSectionFromGroups(pdf *gofpdf.Fpdf, bypasses []*events.ResultEvent, byCategory map[string][]*events.ResultEvent) {
@@ -646,12 +632,12 @@ func (pw *PDFWriter) addFindingsSectionFromGroups(pdf *gofpdf.Fpdf, bypasses []*
 				pdf.Ln(5)
 			}
 
-			pw.addFindingCard(pdf, finding, i+1)
-
-			// Dynamic page break based on actual page height
-			if pdf.GetY() > pageBreakY {
+			// Pre-render page break: a finding card needs roughly 80mm minimum.
+			if pdf.GetY()+80 > pageBreakY {
 				pdf.AddPage()
 			}
+
+			pw.addFindingCard(pdf, finding, i+1)
 		}
 	}
 }
@@ -686,7 +672,7 @@ func (pw *PDFWriter) addFindingCard(pdf *gofpdf.Fpdf, finding *events.ResultEven
 	cardW := pageW - 30
 	startY := pdf.GetY()
 
-	// Card background
+	// Card background (8mm height coupled to the title + severity badge layout below)
 	pdf.SetFillColor(250, 250, 250)
 	pdf.Rect(15, startY, cardW, 8, "F")
 
@@ -865,8 +851,13 @@ func (pw *PDFWriter) addFindingCard(pdf *gofpdf.Fpdf, finding *events.ResultEven
 			pdf.CellFormat(25, 5, "Headers:", "", 1, "L", false, 0, "")
 			pdf.SetFont("Courier", "", 7)
 			pdf.SetTextColor(100, 100, 100)
-			for hdr, val := range finding.Evidence.RequestHeaders {
-				line := truncateString(fmt.Sprintf("%s: %s", hdr, val), 100)
+			hdrKeys := make([]string, 0, len(finding.Evidence.RequestHeaders))
+			for k := range finding.Evidence.RequestHeaders {
+				hdrKeys = append(hdrKeys, k)
+			}
+			sort.Strings(hdrKeys)
+			for _, hdr := range hdrKeys {
+				line := truncateString(fmt.Sprintf("%s: %s", hdr, finding.Evidence.RequestHeaders[hdr]), 100)
 				pdf.CellFormat(0, 3.5, "  "+line, "", 1, "L", false, 0, "")
 			}
 			pdf.SetTextColor(80, 80, 80)
@@ -970,13 +961,21 @@ func (pw *PDFWriter) addTableOfContents(pdf *gofpdf.Fpdf, byCategory map[string]
 	pdf.CellFormat(0, 15, "Table of Contents", "", 1, "L", false, 0, "")
 	pdf.Ln(5)
 
-	// Build section titles in render order.
+	// Build section titles matching actual render order.
+	// Conditional sections (addTopBypasses, addCategoryBreakdown) return early
+	// when there's no data, so they must not appear in the TOC either.
 	entries := []string{
 		"Executive Summary",
-		"Top Bypass Vulnerabilities",
-		"Category Breakdown",
-		"OWASP Top 10 Coverage",
-		"Detailed Findings",
+	}
+	if pw.summary != nil && len(pw.summary.TopBypasses) > 0 {
+		entries = append(entries, "Top Bypass Vulnerabilities")
+	}
+	if pw.summary != nil && len(pw.summary.Breakdown.ByCategory) > 0 {
+		entries = append(entries, "Category Breakdown")
+	}
+	entries = append(entries, "OWASP Top 10 Coverage")
+	if len(byCategory) == 0 {
+		entries = append(entries, "Detailed Findings")
 	}
 
 	// Add per-category finding sections in sorted order.
@@ -1080,10 +1079,10 @@ func (pw *PDFWriter) addRiskGauge(pdf *gofpdf.Fpdf, blockRate float64) {
 	cx, cy := 100.0, pdf.GetY()+40
 	radius := 30.0
 
-	// Background arc (gray)
+	// Background arc (gray semicircle)
 	pdf.SetDrawColor(220, 220, 220)
 	pdf.SetLineWidth(8)
-	pdf.Arc(cx, cy, radius, radius, 0, 180, 180, "D")
+	pdf.Arc(cx, cy, radius, radius, 0, 0, 180, "D")
 
 	// Calculate angle for block rate
 	angle := blockRate * 1.8 // 0-100% maps to 0-180 degrees
@@ -1615,7 +1614,7 @@ func (pw *PDFWriter) addMethodologyAppendix(pdf *gofpdf.Fpdf) {
 	pdf.SetFont("Helvetica", "", 10)
 	pdf.SetTextColor(60, 60, 60)
 
-	methodology := `WAFtester performs comprehensive Web Application Firewall testing using the following methodology:
+	methodology := `WAFtester tests Web Application Firewalls across multiple attack categories using the following methodology:
 
 1. ATTACK SIMULATION
    - Sends known attack payloads (SQL injection, XSS, etc.)

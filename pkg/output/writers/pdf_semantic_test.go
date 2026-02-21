@@ -242,7 +242,7 @@ func TestPDF_ContainsSectionHeaders(t *testing.T) {
 
 	p.assertContainsText("Executive Summary")
 	p.assertContainsText("OWASP Top 10 Coverage")
-	p.assertContainsText("Detailed Findings")
+	p.assertContainsText("Findings: SQLI") // per-category header when bypasses exist
 	p.assertContainsText("Table of Contents")
 	p.assertContainsText("Testing Methodology")
 }

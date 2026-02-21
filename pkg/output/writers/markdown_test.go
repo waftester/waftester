@@ -1013,6 +1013,13 @@ func TestTruncateString(t *testing.T) {
 		{"abc", 3, "abc"},
 		{"abcd", 3, "..."},
 		{"", 10, ""},
+
+		// Multi-byte rune safety: truncation must not split UTF-8 code points.
+		{"héllo world!!", 5, "hé..."},            // 13 runes truncated to 5 rune-safely
+		{"日本語テスト", 4, "日..."},              // CJK: 6 runes, truncate to 4
+		{"日本語テスト", 6, "日本語テスト"},        // exact fit
+		{"aé", 2, "aé"},                          // 3 bytes, 2 runes — fits
+		{"café long string", 6, "caf..."},         // mixed ASCII + multi-byte
 	}
 
 	for _, tc := range tests {
