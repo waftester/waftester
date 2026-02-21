@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/jsonutil"
@@ -403,12 +405,12 @@ func generateRiskChartSVG(counts map[string]int) string {
 }
 
 
-
 func capitalize(s string) string {
 	if len(s) == 0 {
 		return s
 	}
-	return strings.ToUpper(s[:1]) + s[1:]
+	r, size := utf8.DecodeRuneInString(s)
+	return string(unicode.ToUpper(r)) + s[size:]
 }
 
 // generateRiskMatrixHTML creates a risk × outcome matrix table
@@ -421,6 +423,7 @@ func generateRiskMatrixHTML(results []*events.ResultEvent) string {
 			"blocked": 0,
 			"error":   0,
 			"timeout": 0,
+			"pass":    0,
 		}
 	}
 
@@ -443,13 +446,13 @@ func generateRiskMatrixHTML(results []*events.ResultEvent) string {
 
 	var sb strings.Builder
 	sb.WriteString(`<table class="risk-matrix-table">`)
-	sb.WriteString(`<thead><tr><th>Severity</th><th class="bypass-col">Bypass</th><th class="blocked-col">Blocked</th><th class="error-col">Error</th><th class="timeout-col">Timeout</th><th>Total</th></tr></thead>`)
+	sb.WriteString(`<thead><tr><th>Severity</th><th class="bypass-col">Bypass</th><th class="blocked-col">Blocked</th><th class="error-col">Error</th><th class="timeout-col">Timeout</th><th class="pass-col">Pass</th><th>Total</th></tr></thead>`)
 	sb.WriteString(`<tbody>`)
 
 	for _, sev := range []string{"critical", "high", "medium", "low", "info"} {
 		sb.WriteString(fmt.Sprintf(`<tr class="severity-%s-row">`, sev))
 		sb.WriteString(fmt.Sprintf(`<td class="severity-label">%s</td>`, capitalize(sev)))
-		for _, outcome := range []string{"bypass", "blocked", "error", "timeout"} {
+		for _, outcome := range []string{"bypass", "blocked", "error", "timeout", "pass"} {
 			count := matrix[sev][outcome]
 			cellClass := ""
 			if count > 0 && outcome == "bypass" {
@@ -463,7 +466,7 @@ func generateRiskMatrixHTML(results []*events.ResultEvent) string {
 
 	// Totals row
 	sb.WriteString(`<tr class="totals-row"><td><strong>Total</strong></td>`)
-	for _, outcome := range []string{"bypass", "blocked", "error", "timeout"} {
+	for _, outcome := range []string{"bypass", "blocked", "error", "timeout", "pass"} {
 		sb.WriteString(fmt.Sprintf(`<td><strong>%d</strong></td>`, outcomeTotals[outcome]))
 	}
 	sb.WriteString(fmt.Sprintf(`<td class="grand-total"><strong>%d</strong></td>`, grandTotal))
@@ -584,7 +587,7 @@ func (hw *HTMLWriter) prepareTemplateData() *templateData {
 				if r.Result.Outcome == events.OutcomeBypass {
 					cat.Bypasses++
 					cat.Status = "fail"
-				} else if cat.Status == "none" {
+				} else if cat.Status == "none" && r.Result.Outcome != events.OutcomeError && r.Result.Outcome != events.OutcomeTimeout {
 					cat.Status = "pass"
 				}
 			}
@@ -733,10 +736,12 @@ func (hw *HTMLWriter) prepareTemplateData() *templateData {
 		data.TotalTimeouts = hw.summary.Totals.Timeouts
 	}
 
-	// Sort findings: bypasses first, then by severity
+	// Sort findings: bypasses first, then by outcome weight, then by severity
 	sort.Slice(data.Findings, func(i, j int) bool {
-		if data.Findings[i].Outcome != data.Findings[j].Outcome {
-			return data.Findings[i].Outcome == string(events.OutcomeBypass)
+		wi := outcomeWeight(data.Findings[i].Outcome)
+		wj := outcomeWeight(data.Findings[j].Outcome)
+		if wi != wj {
+			return wi > wj
 		}
 		return severityWeight(data.Findings[i].Severity) > severityWeight(data.Findings[j].Severity)
 	})
@@ -827,6 +832,23 @@ func calculateGrade(blockRate float64) string {
 		return "D"
 	default:
 		return "F"
+	}
+}
+
+// outcomeWeight assigns a sort priority to each outcome type.
+// Higher weight sorts first: bypass > error > timeout > pass > blocked.
+func outcomeWeight(outcome string) int {
+	switch outcome {
+	case string(events.OutcomeBypass):
+		return 5
+	case string(events.OutcomeError):
+		return 4
+	case string(events.OutcomeTimeout):
+		return 3
+	case string(events.OutcomePass):
+		return 2
+	default:
+		return 1
 	}
 }
 
@@ -1313,6 +1335,7 @@ const htmlTemplate = `<!DOCTYPE html>
         .summary-card.blocked-card { border-left-color: var(--outcome-blocked); }
         .summary-card.bypass-card { border-left-color: var(--outcome-bypass); }
         .summary-card.error-card { border-left-color: var(--outcome-error); }
+        .summary-card.timeout-card { border-left-color: var(--outcome-timeout); }
         .summary-card.grade-card { border-left-color: var(--accent); }
 
         .summary-card .value {
@@ -1723,6 +1746,12 @@ const htmlTemplate = `<!DOCTYPE html>
             font-size: 0.875rem;
         }
 
+        .filter-count {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            align-self: center;
+        }
+
         /* Risk Chart SVG */
         .risk-chart {
             max-width: 400px;
@@ -1770,6 +1799,8 @@ const htmlTemplate = `<!DOCTYPE html>
         .risk-matrix-table .bypass-col { color: var(--outcome-bypass); }
         .risk-matrix-table .blocked-col { color: var(--outcome-blocked); }
         .risk-matrix-table .error-col { color: var(--outcome-error); }
+        .risk-matrix-table .timeout-col { color: var(--outcome-timeout); }
+        .risk-matrix-table .pass-col { color: var(--owasp-pass); }
 
         .risk-matrix-table .totals-row {
             background: var(--bg-secondary);
@@ -2206,10 +2237,16 @@ const htmlTemplate = `<!DOCTYPE html>
                     <div class="label">Errors</div>
                 </div>
                 {{end}}
+                {{if .TotalTimeouts}}
+                <div class="summary-card timeout-card">
+                    <div class="value" style="color: var(--outcome-timeout)">{{.TotalTimeouts}}</div>
+                    <div class="label">Timeouts</div>
+                </div>
+                {{end}}
             </div>
 
             <!-- Effectiveness Bar -->
-            <div class="effectiveness-bar">
+            <div class="effectiveness-bar" role="progressbar" aria-valuenow="{{printf "%.0f" .BlockRate}}" aria-valuemin="0" aria-valuemax="100" aria-label="Block rate {{printf "%.1f" .BlockRate}}%">
                 <div class="effectiveness-fill" style="width: {{printf "%.1f" .BlockRate}}%;"></div>
             </div>
 
@@ -2245,6 +2282,18 @@ const htmlTemplate = `<!DOCTYPE html>
                 <div class="value">{{printf "%.1f" .BlockRate}}%</div>
                 <div class="label">Block Rate</div>
             </div>
+            {{if .TotalErrors}}
+            <div class="summary-card error-card">
+                <div class="value" style="color: var(--outcome-error)">{{.TotalErrors}}</div>
+                <div class="label">Errors</div>
+            </div>
+            {{end}}
+            {{if .TotalTimeouts}}
+            <div class="summary-card timeout-card">
+                <div class="value" style="color: var(--outcome-timeout)">{{.TotalTimeouts}}</div>
+                <div class="label">Timeouts</div>
+            </div>
+            {{end}}
         </section>
         {{end}}
 
@@ -2502,7 +2551,9 @@ const htmlTemplate = `<!DOCTYPE html>
                     <option value="timeout">Timeout</option>
                     <option value="pass">Pass</option>
                 </select>
+                <span id="filterCount" class="filter-count" style="display:none"></span>
             </div>
+            {{if .Findings}}
             {{range $i, $f := .Findings}}
             <article class="finding collapsible" id="finding-{{$i}}">
                 <div class="finding-header" onclick="toggleFinding({{$i}})" role="button" tabindex="0" aria-expanded="false">
@@ -2596,9 +2647,16 @@ const htmlTemplate = `<!DOCTYPE html>
                 </div>
             </article>
             {{end}}
+            {{else}}
+            <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">No findings to display.</p>
+            {{end}}
             </div>
         </section>
     </main>
+
+    <noscript>
+    <style>.finding-body { display: block !important; } .finding-toggle { display: none !important; }</style>
+    </noscript>
 
     <footer class="footer">
         <p>Generated by WAFtester on {{.GeneratedAt}}</p>
@@ -2609,23 +2667,25 @@ const htmlTemplate = `<!DOCTYPE html>
     <script>
         // Theme toggle with localStorage persistence
         (function() {
-            const saved = localStorage.getItem('waftester-theme');
-            if (saved) {
-                document.documentElement.setAttribute('data-theme', saved);
-            } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                const current = document.documentElement.getAttribute('data-theme');
-                if (current === 'auto') {
-                    document.documentElement.setAttribute('data-theme', 'dark');
+            try {
+                var saved = localStorage.getItem('waftester-theme');
+                if (saved) {
+                    document.documentElement.setAttribute('data-theme', saved);
+                } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    var current = document.documentElement.getAttribute('data-theme');
+                    if (current === 'auto') {
+                        document.documentElement.setAttribute('data-theme', 'dark');
+                    }
                 }
-            }
+            } catch(e) {}
         })();
 
         function toggleTheme() {
-            const html = document.documentElement;
-            const current = html.getAttribute('data-theme');
-            const next = current === 'dark' ? 'light' : 'dark';
+            var html = document.documentElement;
+            var current = html.getAttribute('data-theme');
+            var next = current === 'dark' ? 'light' : 'dark';
             html.setAttribute('data-theme', next);
-            localStorage.setItem('waftester-theme', next);
+            try { localStorage.setItem('waftester-theme', next); } catch(e) {}
         }
 
         // Collapsible sections toggle
@@ -2688,9 +2748,11 @@ const htmlTemplate = `<!DOCTYPE html>
             document.querySelectorAll('.collapsible-section').forEach(function(section) {
                 section.classList.remove('collapsed');
             });
-            setTimeout(function() {
-                window.print();
-            }, 100);
+            requestAnimationFrame(function() {
+                requestAnimationFrame(function() {
+                    window.print();
+                });
+            });
         }
 
         // Keyboard accessibility for findings
@@ -2740,15 +2802,27 @@ const htmlTemplate = `<!DOCTYPE html>
             const text = document.getElementById('findingsFilter').value.toLowerCase();
             const severity = document.getElementById('severityFilter').value;
             const outcome = document.getElementById('outcomeFilter').value;
+            const counter = document.getElementById('filterCount');
+            var total = 0, visible = 0;
             
             document.querySelectorAll('.finding').forEach(function(finding) {
+                total++;
                 const content = finding.textContent.toLowerCase();
                 const matchesText = !text || content.includes(text);
                 const matchesSeverity = !severity || finding.querySelector('.badge.severity-' + severity);
                 const matchesOutcome = !outcome || finding.querySelector('.badge.outcome-' + outcome);
-                
-                finding.style.display = (matchesText && matchesSeverity && matchesOutcome) ? '' : 'none';
+                var show = matchesText && matchesSeverity && matchesOutcome;
+                finding.style.display = show ? '' : 'none';
+                if (show) visible++;
             });
+            if (counter) {
+                if (text || severity || outcome) {
+                    counter.textContent = visible + ' of ' + total;
+                    counter.style.display = '';
+                } else {
+                    counter.style.display = 'none';
+                }
+            }
         }
 
         // Export report data as JSON
@@ -2763,7 +2837,8 @@ const htmlTemplate = `<!DOCTYPE html>
                     tests: {{.TotalTests}},
                     blocked: {{.TotalBlocked}},
                     bypasses: {{.TotalBypasses}},
-                    errors: {{.TotalErrors}}
+                    errors: {{.TotalErrors}},
+                    timeouts: {{.TotalTimeouts}}
                 }
             };
             const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
