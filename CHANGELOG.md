@@ -5,6 +5,12 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.24] - 2026-02-21
+
+### Fixed
+
+- **HTML writer: 23 bugs from deep adversarial review** — Two rounds of adversarial code review (R2-R9, R11-R24) covering all 2800+ lines of the HTML report writer. Fixes include: timeout outcomes missing from executive summary cards, simple summary grid, risk matrix, and JSON export; OWASP categories incorrectly marked "pass" for error/timeout results; findings sorted only by bypass vs non-bypass instead of full outcome priority; capitalize() using byte-level slice instead of rune-safe unicode; localStorage access crashing when storage disabled; effectiveness bar missing ARIA progressbar attributes; printReport using unreliable setTimeout instead of requestAnimationFrame; no noscript fallback for JS-collapsed findings; and filter toolbar lacking a visible result counter.
+
 ## [2.9.23] - 2026-02-21
 
 ### Added
@@ -2403,6 +2409,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.24]: https://github.com/waftester/waftester/compare/v2.9.23...v2.9.24
 [2.9.23]: https://github.com/waftester/waftester/compare/v2.9.22...v2.9.23
 [2.9.22]: https://github.com/waftester/waftester/compare/v2.9.21...v2.9.22
 [2.9.21]: https://github.com/waftester/waftester/compare/v2.9.20...v2.9.21
