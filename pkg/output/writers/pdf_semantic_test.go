@@ -119,6 +119,19 @@ func makeBlockedResult(id, category string, sev events.Severity, owasp []string)
 	return makePDFTestResultEvent(id, category, sev, events.OutcomeBlocked, owasp)
 }
 
+// --- Helpers ---
+
+// pageCount returns the page count of a generated PDF, failing the test on error.
+func pageCount(t *testing.T, p pdfResult) int {
+	t.Helper()
+	p.reader.Seek(0, 0)
+	count, err := pdfapi.PageCount(p.reader, nil)
+	if err != nil {
+		t.Fatalf("PageCount failed: %v", err)
+	}
+	return count
+}
+
 // --- Semantic tests ---
 
 func TestPDF_Structural_ValidPDF(t *testing.T) {
@@ -139,51 +152,85 @@ func TestPDF_Structural_ValidPDF(t *testing.T) {
 
 func TestPDF_PageCount_WithTOC(t *testing.T) {
 	t.Parallel()
-	// With TOC enabled: Cover(1) + TOC(1) + ExecSummary(1) + OWASP(1) + Findings[sqli](1) + Methodology(1) = 6
+	// With TOC: Cover + TOC + ExecSummary + TopBypasses + CategoryBreakdown + OWASP + Findings + ScanConfig + Methodology
 	results := []*events.ResultEvent{
 		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, []string{"A03:2021"}),
 	}
-	p := generatePDF(t, PDFConfig{IncludeTOC: true}, results, makePDFTestSummaryEvent())
-	p.assertValid()
-	p.assertPageCount(6)
+	withTOC := generatePDF(t, PDFConfig{IncludeTOC: true}, results, makePDFTestSummaryEvent())
+	withTOC.assertValid()
+	withTOC.assertPageCountAtLeast(9)
+
+	// Without TOC should be exactly 1 page less.
+	withoutTOC := generatePDF(t, PDFConfig{IncludeTOC: false}, results, makePDFTestSummaryEvent())
+	withoutTOC.assertValid()
+
+	withCount := pageCount(t, withTOC)
+	withoutCount := pageCount(t, withoutTOC)
+	if withCount != withoutCount+1 {
+		t.Errorf("TOC should add exactly 1 page: with=%d, without=%d", withCount, withoutCount)
+	}
 }
 
 func TestPDF_PageCount_WithoutTOC(t *testing.T) {
 	t.Parallel()
-	// Without TOC: Cover(1) + ExecSummary(1) + OWASP(1) + Findings[sqli](1) + Methodology(1) = 5
+	// Without TOC: Cover + ExecSummary + TopBypasses + CategoryBreakdown + OWASP + Findings + ScanConfig + Methodology
 	results := []*events.ResultEvent{
 		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, []string{"A03:2021"}),
 	}
 	p := generatePDF(t, PDFConfig{IncludeTOC: false}, results, makePDFTestSummaryEvent())
 	p.assertValid()
-	p.assertPageCount(5)
+	p.assertPageCountAtLeast(8)
 }
 
 func TestPDF_PageCount_MultipleCategories(t *testing.T) {
 	t.Parallel()
-	// Each category gets its own page for findings
-	// Cover(1) + TOC(1) + Summary(1) + OWASP(1) + Findings[lfi,sqli,xss](3) + Methodology(1) = 8
-	results := []*events.ResultEvent{
+	// More categories = more category section headers (each starts on a new page).
+	// Both summaries are nil to isolate findings-only page growth.
+	twoCategories := []*events.ResultEvent{
+		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, []string{"A03:2021"}),
+		makeBypassResult("xss-001", "xss", events.SeverityHigh, []string{"A03:2021"}),
+	}
+	fourCategories := []*events.ResultEvent{
 		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, []string{"A03:2021"}),
 		makeBypassResult("xss-001", "xss", events.SeverityHigh, []string{"A03:2021"}),
 		makeBypassResult("lfi-001", "lfi", events.SeverityMedium, []string{"A01:2021"}),
+		makeBypassResult("ssrf-001", "ssrf", events.SeverityMedium, []string{"A10:2021"}),
 	}
-	p := generatePDF(t, PDFConfig{IncludeTOC: true}, results, makePDFTestSummaryEvent())
-	p.assertValid()
-	p.assertPageCount(8)
+
+	p2 := generatePDF(t, PDFConfig{IncludeTOC: true}, twoCategories, nil)
+	p4 := generatePDF(t, PDFConfig{IncludeTOC: true}, fourCategories, nil)
+	p2.assertValid()
+	p4.assertValid()
+
+	c2 := pageCount(t, p2)
+	c4 := pageCount(t, p4)
+	if c4 <= c2 {
+		t.Errorf("4 categories (%d pages) should produce more pages than 2 categories (%d pages)", c4, c2)
+	}
 }
 
 func TestPDF_PageCount_NoBypassesFewerPages(t *testing.T) {
 	t.Parallel()
-	// All blocked: findings section is a single page with "No bypass vulnerabilities detected."
-	// Cover(1) + TOC(1) + Summary(1) + OWASP(1) + Findings[empty](1) + Methodology(1) = 6
-	results := []*events.ResultEvent{
+	// All blocked = fewer pages than bypasses (no per-category finding cards).
+	blockedOnly := []*events.ResultEvent{
 		makeBlockedResult("sqli-001", "sqli", events.SeverityHigh, nil),
 		makeBlockedResult("xss-001", "xss", events.SeverityHigh, nil),
 	}
-	p := generatePDF(t, PDFConfig{IncludeTOC: true}, results, makePDFTestSummaryEvent())
-	p.assertValid()
-	p.assertPageCount(6)
+	withBypasses := []*events.ResultEvent{
+		makeBypassResult("sqli-001", "sqli", events.SeverityHigh, nil),
+		makeBypassResult("xss-001", "xss", events.SeverityHigh, nil),
+	}
+
+	pBlocked := generatePDF(t, PDFConfig{IncludeTOC: true}, blockedOnly, makePDFTestSummaryEvent())
+	pBypass := generatePDF(t, PDFConfig{IncludeTOC: true}, withBypasses, makePDFTestSummaryEvent())
+	pBlocked.assertValid()
+	pBypass.assertValid()
+
+	cBlocked := pageCount(t, pBlocked)
+	cBypass := pageCount(t, pBypass)
+	if cBlocked >= cBypass {
+		t.Errorf("blocked-only (%d pages) should have fewer pages than with bypasses (%d pages)", cBlocked, cBypass)
+	}
 }
 
 func TestPDF_ContainsSectionHeaders(t *testing.T) {
@@ -361,8 +408,8 @@ func TestPDF_NoResults_NoSummary(t *testing.T) {
 	p := generatePDF(t, PDFConfig{IncludeTOC: true}, nil, nil)
 
 	p.assertValid()
-	// Cover + TOC + Summary("No summary data") + OWASP + Findings("No bypass") + Methodology = 6
-	p.assertPageCount(6)
+	// Cover + TOC + Summary("No summary data") + OWASP + Findings("No bypass") + ScanConfig + Methodology = 7+
+	p.assertPageCountAtLeast(7)
 	p.assertContainsText("No summary data available")
 	p.assertContainsText("No bypass vulnerabilities detected")
 }
@@ -475,8 +522,8 @@ func TestPDF_MultiCategory_FindingCounts(t *testing.T) {
 		p.assertContainsText(fmt.Sprintf("Findings: %s", strings.ToUpper(cat)))
 	}
 
-	// Cover + TOC + Summary + OWASP + 5 category pages + Methodology = 10
-	p.assertPageCount(10)
+	// 5 categories should produce more pages than fewer categories.
+	p.assertPageCountAtLeast(13)
 }
 
 func TestPDF_TimingInfo(t *testing.T) {
@@ -486,4 +533,281 @@ func TestPDF_TimingInfo(t *testing.T) {
 
 	p := generatePDF(t, PDFConfig{}, nil, summary)
 	p.assertContainsText("2026-02-15")
+}
+
+// --- New section tests ---
+
+func TestPDF_ContainsTopBypasses(t *testing.T) {
+	t.Parallel()
+	summary := makePDFTestSummaryEvent()
+	p := generatePDF(t, PDFConfig{}, nil, summary)
+
+	p.assertContainsText("Top Bypass Vulnerabilities")
+	p.assertContainsText("sqli-001")
+	p.assertContainsText("xss-001")
+	p.assertContainsText("CRITICAL")
+	p.assertContainsText("urlencode")
+}
+
+func TestPDF_TopBypasses_EmptySkipsSection(t *testing.T) {
+	t.Parallel()
+	summary := makePDFTestSummaryEvent()
+	summary.TopBypasses = nil
+
+	p := generatePDF(t, PDFConfig{}, nil, summary)
+	p.assertNotContainsText("Top Bypass Vulnerabilities")
+}
+
+func TestPDF_ContainsCategoryBreakdown(t *testing.T) {
+	t.Parallel()
+	summary := makePDFTestSummaryEvent()
+	p := generatePDF(t, PDFConfig{}, nil, summary)
+
+	p.assertContainsText("Category Breakdown")
+	p.assertContainsText("Block Rate by Category")
+	p.assertContainsText("SQLI")
+	p.assertContainsText("XSS")
+	p.assertContainsText("92.5")
+	p.assertContainsText("94.3")
+}
+
+func TestPDF_ContainsEncodingBreakdown(t *testing.T) {
+	t.Parallel()
+	summary := makePDFTestSummaryEvent()
+	p := generatePDF(t, PDFConfig{}, nil, summary)
+
+	p.assertContainsText("Encoding Effectiveness")
+	p.assertContainsText("base64")
+	p.assertContainsText("urlencode")
+	p.assertContainsText("none")
+}
+
+func TestPDF_ContainsLatencyProfile(t *testing.T) {
+	t.Parallel()
+	summary := makePDFTestSummaryEvent()
+	p := generatePDF(t, PDFConfig{}, nil, summary)
+
+	p.assertContainsText("Response Latency Profile")
+	p.assertContainsText("12 ms")   // Min
+	p.assertContainsText("850 ms")  // Max
+	p.assertContainsText("145 ms")  // Avg
+	p.assertContainsText("120 ms")  // P50
+	p.assertContainsText("480 ms")  // P95
+	p.assertContainsText("720 ms")  // P99
+}
+
+func TestPDF_LatencyProfile_NoDataSkipsSection(t *testing.T) {
+	t.Parallel()
+	summary := makePDFTestSummaryEvent()
+	summary.Latency = events.LatencyInfo{} // all zero
+
+	p := generatePDF(t, PDFConfig{}, nil, summary)
+	p.assertNotContainsText("Response Latency Profile")
+}
+
+func TestPDF_ContainsScanConfiguration(t *testing.T) {
+	t.Parallel()
+	summary := makePDFTestSummaryEvent()
+	p := generatePDF(t, PDFConfig{}, nil, summary)
+
+	p.assertContainsText("Appendix: Scan Configuration")
+	p.assertContainsText("https://example.com")
+	p.assertContainsText("Cloudflare")
+	p.assertContainsText("100")      // Total tests
+	p.assertContainsText("completed") // Exit reason
+}
+
+func TestPDF_ScanConfig_WithStartEvent(t *testing.T) {
+	t.Parallel()
+	summary := makePDFTestSummaryEvent()
+	start := &events.StartEvent{
+		BaseEvent: events.BaseEvent{Type: events.EventTypeStart},
+		Target:    "https://example.com",
+		Config: events.ScanConfig{
+			Concurrency: 10,
+			Timeout:     30,
+			Categories:  []string{"sqli", "xss", "lfi"},
+			Encodings:   []string{"none", "base64", "urlencode"},
+			Tampers:     []string{"space2comment", "randomcase"},
+		},
+	}
+
+	buf := &bytes.Buffer{}
+	w := NewPDFWriter(buf, PDFConfig{})
+	w.noCompress = true
+	w.Write(start)
+	w.Write(summary)
+	w.Close()
+
+	p := pdfResult{t: t, raw: buf.Bytes(), reader: bytes.NewReader(buf.Bytes())}
+	p.assertContainsText("Appendix: Scan Configuration")
+	p.assertContainsText("sqli, xss, lfi")
+	p.assertContainsText("space2comment, randomcase")
+	p.assertContainsText("none, base64, urlencode")
+}
+
+func TestPDF_ContainsCWEReferences(t *testing.T) {
+	t.Parallel()
+	results := []*events.ResultEvent{
+		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, nil),
+	}
+	p := generatePDF(t, PDFConfig{IncludeEvidence: true}, results, makePDFTestSummaryEvent())
+
+	p.assertContainsText("CWE-89")
+	p.assertContainsText("CWE-79")
+}
+
+func TestPDF_ContainsConfidenceLevel(t *testing.T) {
+	t.Parallel()
+	results := []*events.ResultEvent{
+		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, nil),
+	}
+	p := generatePDF(t, PDFConfig{IncludeEvidence: true}, results, makePDFTestSummaryEvent())
+
+	p.assertContainsText("high")
+	p.assertContainsText("Pattern match on response body")
+}
+
+func TestPDF_ContainsWAFSignature(t *testing.T) {
+	t.Parallel()
+	results := []*events.ResultEvent{
+		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, nil),
+	}
+	p := generatePDF(t, PDFConfig{IncludeEvidence: true}, results, makePDFTestSummaryEvent())
+
+	p.assertContainsText("Cloudflare/942100")
+}
+
+func TestPDF_ContainsEvasionContext(t *testing.T) {
+	t.Parallel()
+	results := []*events.ResultEvent{
+		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, nil),
+	}
+	p := generatePDF(t, PDFConfig{IncludeEvidence: true}, results, makePDFTestSummaryEvent())
+
+	p.assertContainsText("case-swapping")
+	p.assertContainsText("space2comment")
+}
+
+func TestPDF_ContainsEndpointParameter(t *testing.T) {
+	t.Parallel()
+	results := []*events.ResultEvent{
+		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, nil),
+	}
+	p := generatePDF(t, PDFConfig{IncludeEvidence: true}, results, makePDFTestSummaryEvent())
+
+	p.assertContainsText("/api/v1/search")
+	p.assertContainsText("query")
+}
+
+func TestPDF_ContainsEncodedPayload(t *testing.T) {
+	t.Parallel()
+	results := []*events.ResultEvent{
+		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, nil),
+	}
+	p := generatePDF(t, PDFConfig{IncludeEvidence: true}, results, makePDFTestSummaryEvent())
+
+	p.assertContainsText("dGVzdC1wYXlsb2FkLQ==")
+}
+
+func TestPDF_ContainsRequestHeaders(t *testing.T) {
+	t.Parallel()
+	results := []*events.ResultEvent{
+		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, nil),
+	}
+	p := generatePDF(t, PDFConfig{IncludeEvidence: true}, results, makePDFTestSummaryEvent())
+
+	p.assertContainsText("Content-Type")
+	p.assertContainsText("application/x-www-form-urlencoded")
+}
+
+func TestPDF_ContainsResponsePreview(t *testing.T) {
+	t.Parallel()
+	results := []*events.ResultEvent{
+		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, nil),
+	}
+	p := generatePDF(t, PDFConfig{IncludeEvidence: true}, results, makePDFTestSummaryEvent())
+
+	p.assertContainsText("403 Forbidden")
+}
+
+func TestPDF_CoverPageWAFConfidence(t *testing.T) {
+	t.Parallel()
+	summary := makePDFTestSummaryEvent()
+	summary.Target.WAFConfidence = 0.87
+	p := generatePDF(t, PDFConfig{}, nil, summary)
+
+	p.assertContainsText("87%")
+}
+
+func TestPDF_CoverPageDuration(t *testing.T) {
+	t.Parallel()
+	summary := makePDFTestSummaryEvent()
+	summary.Timing.DurationSec = 3723 // 1h 2m 3s
+	p := generatePDF(t, PDFConfig{}, nil, summary)
+
+	p.assertContainsText("1h 2m 3s")
+}
+
+func TestPDF_CoverPageThroughput(t *testing.T) {
+	t.Parallel()
+	summary := makePDFTestSummaryEvent()
+	summary.Timing.RequestsPerSec = 45.7
+	p := generatePDF(t, PDFConfig{}, nil, summary)
+
+	p.assertContainsText("45.7 req/s")
+}
+
+func TestPDF_FormatDuration(t *testing.T) {
+	tests := []struct {
+		seconds  float64
+		expected string
+	}{
+		{0, "0.0s"},
+		{5.3, "5.3s"},
+		{59.9, "59.9s"},
+		{60, "1m 0s"},
+		{125, "2m 5s"},
+		{3600, "1h 0m 0s"},
+		{3723, "1h 2m 3s"},
+		{7325, "2h 2m 5s"},
+	}
+
+	for _, tc := range tests {
+		result := formatDuration(tc.seconds)
+		if result != tc.expected {
+			t.Errorf("formatDuration(%v) = %q, want %q", tc.seconds, result, tc.expected)
+		}
+	}
+}
+
+func TestPDF_TOCIncludesNewSections(t *testing.T) {
+	t.Parallel()
+	summary := makePDFTestSummaryEvent()
+	p := generatePDF(t, PDFConfig{IncludeTOC: true}, nil, summary)
+
+	p.assertContainsText("Top Bypass Vulnerabilities")
+	p.assertContainsText("Category Breakdown")
+	p.assertContainsText("Appendix: Scan Configuration")
+}
+
+func TestPDF_ContentLength_InFindingCard(t *testing.T) {
+	t.Parallel()
+	results := []*events.ResultEvent{
+		makeBypassResult("sqli-001", "sqli", events.SeverityCritical, nil),
+	}
+	p := generatePDF(t, PDFConfig{IncludeEvidence: true}, results, makePDFTestSummaryEvent())
+
+	p.assertContainsText("1337 bytes")
+}
+
+func TestPDF_CategoryBreakdown_RiskLabels(t *testing.T) {
+	t.Parallel()
+	summary := makePDFTestSummaryEvent()
+	// sqli has 92.5% block rate (HIGH risk = block rate < 95? No, LOW = 90+, MEDIUM = 70-90, HIGH = <70)
+	// Both sqli (92.5%) and xss (94.3%) should show LOW risk
+	p := generatePDF(t, PDFConfig{}, nil, summary)
+
+	// With 92.5% and 94.3% block rates, both categories should have LOW risk
+	p.assertContainsText("LOW")
 }
