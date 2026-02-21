@@ -184,6 +184,8 @@ type siteStats struct {
 	Tests    int
 	Bypasses int
 	Blocked  int
+	Errors   int
+	Timeouts int
 	BlockPct float64
 }
 
@@ -293,10 +295,12 @@ func makeOWASPLink(code string) owaspLink {
 	return owaspLink{Code: code, URL: url}
 }
 
-// truncateResponse truncates a response if it exceeds the max length
+// truncateResponse truncates a response if it exceeds the max length.
+// Uses rune-based truncation to avoid splitting multibyte UTF-8 characters.
 func truncateResponse(response string, maxLen int) string {
-	if len(response) > maxLen {
-		return response[:maxLen] + "\n.... Truncated ...."
+	runes := []rune(response)
+	if len(runes) > maxLen {
+		return string(runes[:maxLen]) + "\n.... Truncated ...."
 	}
 	return response
 }
@@ -683,10 +687,15 @@ func (hw *HTMLWriter) prepareTemplateData() *templateData {
 		}
 		site := siteMap[url]
 		site.Tests++
-		if r.Result.Outcome == events.OutcomeBypass {
+		switch r.Result.Outcome {
+		case events.OutcomeBypass:
 			site.Bypasses++
-		} else if r.Result.Outcome == events.OutcomeBlocked {
+		case events.OutcomeBlocked:
 			site.Blocked++
+		case events.OutcomeError:
+			site.Errors++
+		case events.OutcomeTimeout:
+			site.Timeouts++
 		}
 	}
 	for _, site := range siteMap {
@@ -717,6 +726,9 @@ func (hw *HTMLWriter) prepareTemplateData() *templateData {
 			BlockRate: hw.summary.Effectiveness.BlockRatePct,
 			Grade:     hw.summary.Effectiveness.Grade,
 		}
+		data.TotalTests = hw.summary.Totals.Tests
+		data.TotalBypasses = hw.summary.Totals.Bypasses
+		data.TotalBlocked = hw.summary.Totals.Blocked
 		data.TotalErrors = hw.summary.Totals.Errors
 		data.TotalTimeouts = hw.summary.Totals.Timeouts
 	}
@@ -779,6 +791,8 @@ func outcomeToClass(o events.Outcome) string {
 		return "outcome-blocked"
 	case events.OutcomeError:
 		return "outcome-error"
+	case events.OutcomeTimeout:
+		return "outcome-timeout"
 	default:
 		return "outcome-pass"
 	}
@@ -1039,30 +1053,23 @@ func buildHTMLInsights(results []*events.ResultEvent, summary *events.SummaryEve
 			errors int
 			total  int
 		}
-		var errCats []errEntry
+		errMap := make(map[string]int)
 		for _, r := range results {
 			if r.Result.Outcome == events.OutcomeError {
 				cat := r.Test.Category
 				if cat == "" {
 					cat = "uncategorized"
 				}
-				found := false
-				for i := range errCats {
-					if errCats[i].cat == cat {
-						errCats[i].errors++
-						found = true
-						break
-					}
-				}
-				if !found {
-					errCats = append(errCats, errEntry{cat: cat, errors: 1})
-				}
+				errMap[cat]++
 			}
 		}
-		for i := range errCats {
-			if stats, ok := summary.Breakdown.ByCategory[errCats[i].cat]; ok {
-				errCats[i].total = stats.Total
+		errCats := make([]errEntry, 0, len(errMap))
+		for cat, count := range errMap {
+			e := errEntry{cat: cat, errors: count}
+			if stats, ok := summary.Breakdown.ByCategory[cat]; ok {
+				e.total = stats.Total
 			}
+			errCats = append(errCats, e)
 		}
 		sort.Slice(errCats, func(i, j int) bool { return errCats[i].errors > errCats[j].errors })
 		if len(errCats) > 0 && errCats[0].errors >= 3 {
@@ -1143,9 +1150,6 @@ func (hw *HTMLWriter) renderHTML(data *templateData) error {
 		return fmt.Errorf("failed to execute HTML template: %w", err)
 	}
 
-	if closer, ok := hw.w.(io.Closer); ok {
-		return closer.Close()
-	}
 	return nil
 }
 
@@ -1175,6 +1179,7 @@ const htmlTemplate = `<!DOCTYPE html>
             --outcome-bypass: #dc3545;
             --outcome-blocked: #198754;
             --outcome-error: #6c757d;
+            --outcome-timeout: #6f42c1;
             --owasp-pass: #198754;
             --owasp-fail: #dc3545;
             --owasp-none: #6c757d;
@@ -1475,6 +1480,7 @@ const htmlTemplate = `<!DOCTYPE html>
         .outcome-bypass { background: var(--outcome-bypass); color: white; }
         .outcome-blocked { background: var(--outcome-blocked); color: white; }
         .outcome-error { background: var(--outcome-error); color: white; }
+        .outcome-timeout { background: var(--outcome-timeout); color: white; }
         .outcome-pass { background: var(--owasp-pass); color: white; }
 
         .finding-body {
@@ -2321,6 +2327,8 @@ const htmlTemplate = `<!DOCTYPE html>
                             <th class="num-cell">Tests</th>
                             <th class="num-cell">Blocked</th>
                             <th class="num-cell">Bypasses</th>
+                            <th class="num-cell">Errors</th>
+                            <th class="num-cell">Timeouts</th>
                             <th class="num-cell">Block %</th>
                         </tr>
                     </thead>
@@ -2331,6 +2339,8 @@ const htmlTemplate = `<!DOCTYPE html>
                             <td class="num-cell">{{.Tests}}</td>
                             <td class="num-cell">{{.Blocked}}</td>
                             <td class="num-cell">{{.Bypasses}}</td>
+                            <td class="num-cell">{{.Errors}}</td>
+                            <td class="num-cell">{{.Timeouts}}</td>
                             <td class="num-cell">{{printf "%.1f" .BlockPct}}%</td>
                         </tr>
                         {{end}}
@@ -2364,7 +2374,6 @@ const htmlTemplate = `<!DOCTYPE html>
             </div>
         </section>
 
-        <!-- Findings -->
         {{if gt (len .PassingCategories) 0}}
         <!-- Passing Categories -->
         <section class="collapsible-section owasp-section" id="passing-section">
@@ -2490,6 +2499,8 @@ const htmlTemplate = `<!DOCTYPE html>
                     <option value="bypass">Bypass</option>
                     <option value="blocked">Blocked</option>
                     <option value="error">Error</option>
+                    <option value="timeout">Timeout</option>
+                    <option value="pass">Pass</option>
                 </select>
             </div>
             {{range $i, $f := .Findings}}
