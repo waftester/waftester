@@ -84,10 +84,6 @@ type pdfOWASPStat struct {
 // It buffers all events in memory and renders the complete PDF document on Close.
 // The writer is safe for concurrent use.
 // All Write calls must complete before Close is called.
-// PDFWriter writes events as a styled PDF report.
-// It buffers all events in memory and renders the complete PDF document on Close.
-// The writer is safe for concurrent use.
-// All Write calls must complete before Close is called.
 type PDFWriter struct {
 	w          io.Writer
 	mu         sync.Mutex
@@ -754,6 +750,12 @@ func (pw *PDFWriter) addFindingCard(pdf *gofpdf.Fpdf, finding *events.ResultEven
 		})
 	}
 
+	if finding.Test.Subcategory != "" {
+		details = append(details, struct{ label, value string }{
+			"Subcategory", finding.Test.Subcategory,
+		})
+	}
+
 	if len(finding.Test.OWASP) > 0 {
 		details = append(details, struct{ label, value string }{
 			"OWASP", strings.Join(finding.Test.OWASP, ", "),
@@ -786,8 +788,19 @@ func (pw *PDFWriter) addFindingCard(pdf *gofpdf.Fpdf, finding *events.ResultEven
 		})
 	}
 
+	if len(finding.Test.Tags) > 0 {
+		details = append(details, struct{ label, value string }{
+			"Tags", strings.Join(finding.Test.Tags, ", "),
+		})
+	}
+
 	// Evasion context
 	if finding.Context != nil {
+		if finding.Context.Phase != "" {
+			details = append(details, struct{ label, value string }{
+				"Phase", finding.Context.Phase,
+			})
+		}
 		if finding.Context.EvasionTechnique != "" {
 			details = append(details, struct{ label, value string }{
 				"Evasion", finding.Context.EvasionTechnique,
@@ -1523,8 +1536,12 @@ func (pw *PDFWriter) addScanConfiguration(pdf *gofpdf.Fpdf) {
 	}
 
 	if pw.start != nil {
-		rows = append(rows, cfgRow{"Concurrency", fmt.Sprintf("%d", pw.start.Config.Concurrency)})
-		rows = append(rows, cfgRow{"Timeout", fmt.Sprintf("%ds", pw.start.Config.Timeout)})
+		if pw.start.Config.Concurrency > 0 {
+			rows = append(rows, cfgRow{"Concurrency", fmt.Sprintf("%d", pw.start.Config.Concurrency)})
+		}
+		if pw.start.Config.Timeout > 0 {
+			rows = append(rows, cfgRow{"Timeout", fmt.Sprintf("%ds", pw.start.Config.Timeout)})
+		}
 		if pw.start.Config.ThrottleMs > 0 {
 			rows = append(rows, cfgRow{"Throttle", fmt.Sprintf("%d ms", pw.start.Config.ThrottleMs)})
 		}
@@ -1540,10 +1557,20 @@ func (pw *PDFWriter) addScanConfiguration(pdf *gofpdf.Fpdf) {
 		if pw.start.Config.Severity != "" {
 			rows = append(rows, cfgRow{"Min Severity", pw.start.Config.Severity})
 		}
-		rows = append(rows, cfgRow{"Follow Redirects", fmt.Sprintf("%v", pw.start.Config.FollowRedirects)})
-		rows = append(rows, cfgRow{"Verify SSL", fmt.Sprintf("%v", pw.start.Config.VerifySSL)})
+		// Only render boolean config fields when they're explicitly true.
+		// EmitStart callers don't always populate the full ScanConfig,
+		// so false could mean "not set" rather than "intentionally disabled".
+		if pw.start.Config.FollowRedirects {
+			rows = append(rows, cfgRow{"Follow Redirects", "true"})
+		}
+		if pw.start.Config.VerifySSL {
+			rows = append(rows, cfgRow{"Verify SSL", "true"})
+		}
 		if pw.start.Config.Proxy != "" {
 			rows = append(rows, cfgRow{"Proxy", pw.start.Config.Proxy})
+		}
+		if pw.start.Config.ReplayProxy != "" {
+			rows = append(rows, cfgRow{"Replay Proxy", pw.start.Config.ReplayProxy})
 		}
 		if pw.start.Config.SNI != "" {
 			rows = append(rows, cfgRow{"SNI", pw.start.Config.SNI})
