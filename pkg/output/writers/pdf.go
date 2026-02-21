@@ -74,15 +74,24 @@ type PDFConfig struct {
 	FooterText string
 }
 
+// pdfOWASPStat holds OWASP category counts for the PDF OWASP table.
+type pdfOWASPStat struct {
+	Total    int
+	Bypasses int
+}
+
 // PDFWriter writes events as a styled PDF report.
 // It buffers all events in memory and renders the complete PDF document on Close.
 // The writer is safe for concurrent use.
+// All Write calls must complete before Close is called.
 type PDFWriter struct {
-	w       io.Writer
-	mu      sync.Mutex
-	config  PDFConfig
-	results []*events.ResultEvent
-	summary *events.SummaryEvent
+	w          io.Writer
+	mu         sync.Mutex
+	closed     bool
+	noCompress bool // disables stream compression (test-only)
+	config     PDFConfig
+	results    []*events.ResultEvent
+	summary    *events.SummaryEvent
 }
 
 // NewPDFWriter creates a new PDF report writer.
@@ -105,9 +114,14 @@ func NewPDFWriter(w io.Writer, config PDFConfig) *PDFWriter {
 }
 
 // Write buffers an event for later PDF output.
+// Returns an error if Close has already been called.
 func (pw *PDFWriter) Write(event events.Event) error {
 	pw.mu.Lock()
 	defer pw.mu.Unlock()
+
+	if pw.closed {
+		return fmt.Errorf("pdf writer: write after close")
+	}
 
 	switch e := event.(type) {
 	case *events.ResultEvent:
@@ -125,9 +139,16 @@ func (pw *PDFWriter) Flush() error {
 }
 
 // Close renders and writes the complete PDF report.
+// All Write calls must complete before Close is called.
 func (pw *PDFWriter) Close() error {
 	pw.mu.Lock()
 	defer pw.mu.Unlock()
+
+	pw.closed = true
+
+	// Pre-compute bypass results once for TOC and findings.
+	bypasses := pw.getBypassResults()
+	byCategory := pw.groupByCategory(bypasses)
 
 	pdf := pw.createPDF()
 	pageW, pageH := pdf.GetPageSize()
@@ -135,11 +156,11 @@ func (pw *PDFWriter) Close() error {
 
 	pw.addCoverPage(pdf)
 	if pw.config.IncludeTOC {
-		pw.addTableOfContents(pdf)
+		pw.addTableOfContents(pdf, byCategory)
 	}
 	pw.addExecutiveSummary(pdf)
 	pw.addOWASPTable(pdf)
-	pw.addFindingsSection(pdf)
+	pw.addFindingsSectionFromGroups(pdf, bypasses, byCategory)
 	pw.addMethodologyAppendix(pdf)
 
 	return pdf.Output(pw.w)
@@ -158,6 +179,10 @@ func (pw *PDFWriter) SupportsEvent(eventType events.EventType) bool {
 // createPDF initializes a new PDF document with the configured settings.
 func (pw *PDFWriter) createPDF() *gofpdf.Fpdf {
 	pdf := gofpdf.New(pw.config.Orientation, "mm", pw.config.PageSize, "")
+
+	if pw.noCompress {
+		pdf.SetCompression(false)
+	}
 
 	// Set document info
 	pdf.SetTitle(pw.config.Title, true)
@@ -521,12 +546,12 @@ func (pw *PDFWriter) addOWASPTable(pdf *gofpdf.Fpdf) {
 }
 
 // buildOWASPStats builds OWASP statistics from buffered results.
-func (pw *PDFWriter) buildOWASPStats() map[string]*struct{ Total, Bypasses int } {
-	stats := make(map[string]*struct{ Total, Bypasses int })
+func (pw *PDFWriter) buildOWASPStats() map[string]*pdfOWASPStat {
+	stats := make(map[string]*pdfOWASPStat)
 
 	// Initialize all OWASP categories using centralized data
 	for _, code := range defaults.OWASPTop10Ordered {
-		stats[code] = &struct{ Total, Bypasses int }{}
+		stats[code] = &pdfOWASPStat{}
 	}
 
 	// Count from results
@@ -558,9 +583,14 @@ func (pw *PDFWriter) buildOWASPStats() map[string]*struct{ Total, Bypasses int }
 }
 
 // addFindingsSection creates the detailed findings section.
+// Deprecated: Use addFindingsSectionFromGroups to avoid redundant bypass filtering.
 func (pw *PDFWriter) addFindingsSection(pdf *gofpdf.Fpdf) {
-	// Only include bypass findings
-	bypasses := pw.getBypassResults()
+	pw.addFindingsSectionFromGroups(pdf, pw.getBypassResults(), nil)
+}
+
+// addFindingsSectionFromGroups renders findings from pre-computed bypass groups.
+// If byCategory is nil it is computed from bypasses.
+func (pw *PDFWriter) addFindingsSectionFromGroups(pdf *gofpdf.Fpdf, bypasses []*events.ResultEvent, byCategory map[string][]*events.ResultEvent) {
 	if len(bypasses) == 0 {
 		pdf.AddPage()
 		pw.addSectionHeader(pdf, "Detailed Findings")
@@ -570,8 +600,9 @@ func (pw *PDFWriter) addFindingsSection(pdf *gofpdf.Fpdf) {
 		return
 	}
 
-	// Group by category
-	byCategory := pw.groupByCategory(bypasses)
+	if byCategory == nil {
+		byCategory = pw.groupByCategory(bypasses)
+	}
 
 	// Get sorted category names
 	categories := make([]string, 0, len(byCategory))
@@ -579,6 +610,9 @@ func (pw *PDFWriter) addFindingsSection(pdf *gofpdf.Fpdf) {
 		categories = append(categories, cat)
 	}
 	sort.Strings(categories)
+
+	_, pageH := pdf.GetPageSize()
+	pageBreakY := pageH - 47 // footer + margin + buffer
 
 	for _, category := range categories {
 		findings := byCategory[category]
@@ -593,8 +627,8 @@ func (pw *PDFWriter) addFindingsSection(pdf *gofpdf.Fpdf) {
 
 			pw.addFindingCard(pdf, finding, i+1)
 
-			// Check if we need a new page
-			if pdf.GetY() > 250 {
+			// Dynamic page break based on actual page height
+			if pdf.GetY() > pageBreakY {
 				pdf.AddPage()
 			}
 		}
@@ -792,7 +826,10 @@ func (pw *PDFWriter) addWatermark(pdf *gofpdf.Fpdf, pageW, pageH float64) {
 }
 
 // addTableOfContents creates a professional table of contents.
-func (pw *PDFWriter) addTableOfContents(pdf *gofpdf.Fpdf) {
+// byCategory is pre-computed from Close to avoid redundant filtering.
+// Page numbers are omitted because actual page breaks depend on content height,
+// which isn't known until rendering. Section titles with dotted leaders are kept.
+func (pw *PDFWriter) addTableOfContents(pdf *gofpdf.Fpdf, byCategory map[string][]*events.ResultEvent) {
 	pdf.AddPage()
 
 	// TOC Header
@@ -801,70 +838,45 @@ func (pw *PDFWriter) addTableOfContents(pdf *gofpdf.Fpdf) {
 	pdf.CellFormat(0, 15, "Table of Contents", "", 1, "L", false, 0, "")
 	pdf.Ln(5)
 
-	// TOC entries - base pages
-	entries := []struct {
-		Title string
-		Page  int
-	}{
-		{"Executive Summary", 3},
-		{"OWASP Top 10 Coverage", 4},
-		{"Detailed Findings", 5},
+	// Build section titles in render order.
+	entries := []string{
+		"Executive Summary",
+		"OWASP Top 10 Coverage",
+		"Detailed Findings",
 	}
 
-	// Count findings pages dynamically
-	bypasses := pw.getBypassResults()
-	byCategory := pw.groupByCategory(bypasses)
-
-	// Get sorted category names for consistent ordering
+	// Add per-category finding sections in sorted order.
 	categories := make([]string, 0, len(byCategory))
 	for cat := range byCategory {
 		categories = append(categories, cat)
 	}
 	sort.Strings(categories)
-
-	pageNum := 5
 	for _, cat := range categories {
-		entries = append(entries, struct {
-			Title string
-			Page  int
-		}{
-			fmt.Sprintf("Findings: %s", strings.ToUpper(cat)),
-			pageNum,
-		})
-		pageNum++
+		entries = append(entries, fmt.Sprintf("Findings: %s", strings.ToUpper(cat)))
 	}
-
-	// Add methodology appendix
-	entries = append(entries, struct {
-		Title string
-		Page  int
-	}{"Appendix: Testing Methodology", pageNum})
+	entries = append(entries, "Appendix: Testing Methodology")
 
 	pageW, _ := pdf.GetPageSize()
 	contentW := pageW - 30 // Account for margins
 
-	for _, entry := range entries {
+	for _, title := range entries {
 		pdf.SetFont("Helvetica", "", 12)
 		pdf.SetTextColor(60, 60, 60)
 
-		titleW := pdf.GetStringWidth(entry.Title)
-		pageStr := fmt.Sprintf("%d", entry.Page)
-		pageNumW := pdf.GetStringWidth(pageStr)
+		titleW := pdf.GetStringWidth(title)
 
 		// Title
-		pdf.CellFormat(titleW, 8, entry.Title, "", 0, "L", false, 0, "")
+		pdf.CellFormat(titleW, 8, title, "", 0, "L", false, 0, "")
 
-		// Dotted leader
-		dotWidth := contentW - titleW - pageNumW - 10
+		// Dotted leader to right margin
+		dotWidth := contentW - titleW - 10
 		if dotWidth > 0 {
 			dots := strings.Repeat(".", int(dotWidth/2))
 			pdf.SetTextColor(180, 180, 180)
-			pdf.CellFormat(dotWidth, 8, dots, "", 0, "C", false, 0, "")
+			pdf.CellFormat(dotWidth, 8, dots, "", 1, "C", false, 0, "")
+		} else {
+			pdf.Ln(8)
 		}
-
-		// Page number
-		pdf.SetTextColor(60, 60, 60)
-		pdf.CellFormat(pageNumW, 8, pageStr, "", 1, "R", false, 0, "")
 	}
 }
 
@@ -922,6 +934,13 @@ func (pw *PDFWriter) addSeverityBarChart(pdf *gofpdf.Fpdf, severityCounts map[st
 
 // addRiskGauge creates a semi-circular gauge showing block rate.
 func (pw *PDFWriter) addRiskGauge(pdf *gofpdf.Fpdf, blockRate float64) {
+	// Clamp to valid range to avoid malformed arcs.
+	if blockRate < 0 {
+		blockRate = 0
+	} else if blockRate > 100 {
+		blockRate = 100
+	}
+
 	// Draw a semi-circular gauge
 	cx, cy := 100.0, pdf.GetY()+40
 	radius := 30.0

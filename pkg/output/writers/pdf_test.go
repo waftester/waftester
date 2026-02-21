@@ -386,6 +386,9 @@ func TestPDFWriter_TruncateString(t *testing.T) {
 		{"", 5, ""},
 		{"abc", 3, "abc"},
 		{"abcd", 3, "..."},
+		{"hello", 2, "he"}, // maxLen < 3: no room for "...", just truncate
+		{"hello", 1, "h"},  // maxLen < 3: single char
+		{"hello", 0, ""},   // maxLen 0: empty
 	}
 
 	for _, tc := range tests {
