@@ -1354,3 +1354,189 @@ func TestBuildHTMLInsights_NilSummary(t *testing.T) {
 		t.Error("expected no insights with nil summary")
 	}
 }
+
+// --- Round 2 regression tests ---
+
+func TestOutcomeToClass_Timeout(t *testing.T) {
+	got := outcomeToClass(events.OutcomeTimeout)
+	if got != "outcome-timeout" {
+		t.Errorf("outcomeToClass(timeout) = %q, want %q", got, "outcome-timeout")
+	}
+}
+
+func TestOutcomeToClass_AllOutcomes(t *testing.T) {
+	tests := []struct {
+		outcome events.Outcome
+		want    string
+	}{
+		{events.OutcomeBypass, "outcome-bypass"},
+		{events.OutcomeBlocked, "outcome-blocked"},
+		{events.OutcomeError, "outcome-error"},
+		{events.OutcomeTimeout, "outcome-timeout"},
+		{events.OutcomePass, "outcome-pass"},
+	}
+	for _, tt := range tests {
+		got := outcomeToClass(tt.outcome)
+		if got != tt.want {
+			t.Errorf("outcomeToClass(%q) = %q, want %q", tt.outcome, got, tt.want)
+		}
+	}
+}
+
+func TestHTMLWriter_TimeoutCSS(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+
+	e := makeHTMLTestResultEvent("timeout-1", "sqli", events.SeverityHigh, events.OutcomeTimeout, nil)
+	w.Write(e)
+	w.Close()
+
+	output := buf.String()
+
+	if !strings.Contains(output, "--outcome-timeout") {
+		t.Error("missing CSS variable --outcome-timeout")
+	}
+	if !strings.Contains(output, ".outcome-timeout") {
+		t.Error("missing CSS class .outcome-timeout")
+	}
+	if !strings.Contains(output, "outcome-timeout") {
+		t.Error("timeout finding should have outcome-timeout class")
+	}
+}
+
+func TestHTMLWriter_SiteBreakdown_CountsErrorsAndTimeouts(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+
+	// Need 2+ sites to trigger site breakdown rendering
+	urls := []string{"https://a.example.com", "https://b.example.com"}
+	outcomes := []events.Outcome{
+		events.OutcomeBlocked,
+		events.OutcomeBypass,
+		events.OutcomeError,
+		events.OutcomeTimeout,
+	}
+	for i, o := range outcomes {
+		e := makeHTMLTestResultEvent("site-"+string(rune('0'+i)), "sqli", events.SeverityHigh, o, nil)
+		e.Target.URL = urls[i%2]
+		w.Write(e)
+	}
+	w.Close()
+
+	output := buf.String()
+
+	if !strings.Contains(output, "<th class=\"num-cell\">Errors</th>") {
+		t.Error("site breakdown table missing Errors column header")
+	}
+	if !strings.Contains(output, "<th class=\"num-cell\">Timeouts</th>") {
+		t.Error("site breakdown table missing Timeouts column header")
+	}
+}
+
+func TestTruncateResponse_MultibyteSafe(t *testing.T) {
+	// 3 Chinese characters = 3 runes but 9 bytes
+	input := "\u4e16\u754c\u4f60" // 世界你
+	got := truncateResponse(input, 2)
+	// Should truncate to 2 runes, not 2 bytes
+	if !strings.HasPrefix(got, "\u4e16\u754c") {
+		t.Errorf("truncateResponse split multibyte runes: got prefix %q", got[:6])
+	}
+	if !strings.Contains(got, "Truncated") {
+		t.Error("truncated response should contain truncation marker")
+	}
+}
+
+func TestTruncateResponse_ShortString(t *testing.T) {
+	input := "hello"
+	got := truncateResponse(input, 100)
+	if got != input {
+		t.Errorf("truncateResponse should not truncate short strings: got %q", got)
+	}
+}
+
+func TestHTMLWriter_FilterDropdown_HasTimeoutAndPass(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+
+	e := makeHTMLTestResultEvent("filter-1", "sqli", events.SeverityHigh, events.OutcomeBypass, nil)
+	w.Write(e)
+	w.Close()
+
+	output := buf.String()
+
+	if !strings.Contains(output, `<option value="timeout">Timeout</option>`) {
+		t.Error("outcome filter dropdown missing timeout option")
+	}
+	if !strings.Contains(output, `<option value="pass">Pass</option>`) {
+		t.Error("outcome filter dropdown missing pass option")
+	}
+}
+
+func TestHTMLWriter_SummaryOverride_ReconcilesTotals(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+
+	// Write 2 bypass results
+	for i := range 2 {
+		e := makeHTMLTestResultEvent("sum-"+string(rune('0'+i)), "sqli", events.SeverityHigh, events.OutcomeBypass, nil)
+		w.Write(e)
+	}
+
+	// Write summary with different totals (e.g., from a larger run)
+	summary := &events.SummaryEvent{
+		BaseEvent: events.BaseEvent{
+			Type: events.EventTypeSummary,
+			Time: time.Now(),
+			Scan: "test-scan",
+		},
+		Target: events.SummaryTarget{URL: "https://example.com"},
+		Totals: events.SummaryTotals{
+			Tests:    100,
+			Bypasses: 30,
+			Blocked:  60,
+			Errors:   7,
+			Timeouts: 3,
+		},
+		Effectiveness: events.EffectivenessInfo{
+			BlockRatePct: 60.0,
+			Grade:        "D",
+		},
+	}
+	w.Write(summary)
+	w.Close()
+
+	output := buf.String()
+
+	// The executive summary stats card should show the summary total (100), not 2.
+	// Search for "100 Total" or the stats card rendering the value 100.
+	// The export JS function renders: tests: {{.TotalTests}}
+	re := regexp.MustCompile(`tests:\s*100`)
+	if !re.MatchString(output) {
+		// If the output uses a different rendering, check the summary section
+		re2 := regexp.MustCompile(`(?i)100\s*(total|tests)`)
+		if !re2.MatchString(output) {
+			t.Error("summary override should set TotalTests to summary value (100), but it does not appear in the output")
+		}
+	}
+}
+
+func TestHTMLWriter_NoStaleComment(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+	e := makeHTMLTestResultEvent("stale-1", "sqli", events.SeverityHigh, events.OutcomeBypass, nil)
+	w.Write(e)
+	w.Close()
+
+	output := buf.String()
+
+	// There should be no "<!-- Findings -->" comment right before the Passing Categories section
+	if strings.Contains(output, "<!-- Findings -->\n") {
+		// Check it's not immediately before the passing section
+		idx := strings.Index(output, "<!-- Findings -->")
+		after := output[idx+len("<!-- Findings -->"):]
+		trimmed := strings.TrimSpace(after)
+		if strings.HasPrefix(trimmed, "{{") || strings.HasPrefix(trimmed, "<!-- Passing") {
+			t.Error("stale <!-- Findings --> comment still present before Passing Categories section")
+		}
+	}
+}
