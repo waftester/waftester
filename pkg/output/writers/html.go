@@ -6,6 +6,7 @@ import (
 	"html"
 	"html/template"
 	"io"
+	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -84,13 +85,16 @@ func NewHTMLWriter(w io.Writer, config HTMLConfig) *HTMLWriter {
 	}
 	// Set defaults to true for new features
 	if !config.ShowExecutiveSummary && !config.ShowRiskChart && !config.ShowRiskMatrix &&
-		!config.ShowCurlCommands && !config.PrintOptimized {
-		// If none are explicitly set, enable all by default
+		!config.ShowCurlCommands && !config.PrintOptimized &&
+		!config.IncludeEvidence && !config.IncludeJSON {
+		// Zero-value config: enable all features by default.
 		config.ShowExecutiveSummary = true
 		config.ShowRiskChart = true
 		config.ShowRiskMatrix = true
 		config.ShowCurlCommands = true
 		config.PrintOptimized = true
+		config.IncludeEvidence = true
+		config.IncludeJSON = true
 	}
 	return &HTMLWriter{
 		w:       w,
@@ -162,6 +166,17 @@ type templateData struct {
 	RiskMatrixHTML     string
 	// Site breakdown for multi-target scans
 	SiteBreakdown []siteStats
+	// Severity x Confidence matrix (pre-rendered HTML)
+	SevConfMatrixHTML string
+	// Passing categories (100% block rate)
+	PassingCategories []passingCategory
+	// Evasion effectiveness
+	EvasionTampers    []evasionRow
+	EvasionTechniques []evasionRow
+	// Remediation guidance
+	RemediationEntries []remediationEntry
+	// Scan insights
+	ScanInsights []htmlInsight
 }
 
 type siteStats struct {
@@ -170,6 +185,33 @@ type siteStats struct {
 	Bypasses int
 	Blocked  int
 	BlockPct float64
+}
+
+type passingCategory struct {
+	Name  string
+	Tests int
+}
+
+type evasionRow struct {
+	Name       string
+	Total      int
+	Bypasses   int
+	BypassRate float64
+	RateClass  string // "high" (>=50%), "medium" (>=20%), "low" (<20%)
+}
+
+type remediationEntry struct {
+	Category     string
+	Title        string
+	BypassCount  int
+	Guidance     string
+	ReferenceURL string
+}
+
+type htmlInsight struct {
+	Icon  string
+	Title string
+	Body  string
 }
 
 type summaryData struct {
@@ -214,6 +256,8 @@ type findingData struct {
 	RequestHeaders  map[string]string
 	ResponsePreview string
 	Timestamp       string
+	Confidence      string
+	ConfidenceNote  string
 }
 
 type owaspLink struct {
@@ -222,8 +266,9 @@ type owaspLink struct {
 }
 
 type cweLink struct {
-	ID  int
-	URL string
+	ID   int
+	Name string
+	URL  string
 }
 
 // NOTE: OWASP Top 10 data is now centralized in defaults.OWASPTop10
@@ -233,8 +278,9 @@ type cweLink struct {
 // makeCWELink creates a CWE link struct for a CWE ID
 func makeCWELink(cweID int) cweLink {
 	return cweLink{
-		ID:  cweID,
-		URL: fmt.Sprintf("https://cwe.mitre.org/data/definitions/%d.html", cweID),
+		ID:   cweID,
+		Name: cweName(cweID),
+		URL:  fmt.Sprintf("https://cwe.mitre.org/data/definitions/%d.html", cweID),
 	}
 }
 
@@ -320,14 +366,14 @@ func generateRiskChartSVG(counts map[string]int) string {
 			}
 
 			// Convert angles to radians
-			startRad := startAngle * 3.14159265 / 180
-			endRad := endAngle * 3.14159265 / 180
+			startRad := startAngle * math.Pi / 180
+			endRad := endAngle * math.Pi / 180
 
 			// Calculate points
-			x1 := cx + r*cosApprox(startRad)
-			y1 := cy + r*sinApprox(startRad)
-			x2 := cx + r*cosApprox(endRad)
-			y2 := cy + r*sinApprox(endRad)
+			x1 := cx + r*math.Cos(startRad)
+			y1 := cy + r*math.Sin(startRad)
+			x2 := cx + r*math.Cos(endRad)
+			y2 := cy + r*math.Sin(endRad)
 
 			// Create path
 			sb.WriteString(fmt.Sprintf(`<path d="M%.1f,%.1f L%.1f,%.1f A%.1f,%.1f 0 %d,1 %.1f,%.1f Z" fill="%s"/>`,
@@ -352,33 +398,7 @@ func generateRiskChartSVG(counts map[string]int) string {
 	return sb.String()
 }
 
-// Simple trig approximations for SVG generation (avoid math import for inlining)
-func sinApprox(x float64) float64 {
-	// Taylor series approximation
-	x = normalizeAngle(x)
-	x3 := x * x * x
-	x5 := x3 * x * x
-	return x - x3/6 + x5/120
-}
 
-func cosApprox(x float64) float64 {
-	// Taylor series approximation
-	x = normalizeAngle(x)
-	x2 := x * x
-	x4 := x2 * x2
-	return 1 - x2/2 + x4/24
-}
-
-func normalizeAngle(x float64) float64 {
-	pi := 3.14159265
-	for x > pi {
-		x -= 2 * pi
-	}
-	for x < -pi {
-		x += 2 * pi
-	}
-	return x
-}
 
 func capitalize(s string) string {
 	if len(s) == 0 {
@@ -536,14 +556,21 @@ func (hw *HTMLWriter) prepareTemplateData() *templateData {
 	// Process results
 	bypassCount := 0
 	blockedCount := 0
+	errorCount := 0
+	timeoutCount := 0
 	for _, r := range hw.results {
-		// Count by severity for bypasses only
-		if r.Result.Outcome == events.OutcomeBypass {
+		// Count outcomes
+		switch r.Result.Outcome {
+		case events.OutcomeBypass:
 			bypassCount++
 			sevKey := string(r.Test.Severity)
 			data.SeverityCounts[sevKey]++
-		} else if r.Result.Outcome == events.OutcomeBlocked {
+		case events.OutcomeBlocked:
 			blockedCount++
+		case events.OutcomeError:
+			errorCount++
+		case events.OutcomeTimeout:
+			timeoutCount++
 		}
 
 		// Track OWASP categories
@@ -574,7 +601,9 @@ func (hw *HTMLWriter) prepareTemplateData() *templateData {
 			LatencyMs:     r.Result.LatencyMs,
 			OWASP:         r.Test.OWASP,
 			CWE:           r.Test.CWE,
-			Timestamp:     r.Time.Format("2006-01-02 15:04:05"),
+			Timestamp:      r.Time.Format("2006-01-02 15:04:05"),
+			Confidence:     string(r.Result.Confidence),
+			ConfidenceNote: r.Result.ConfidenceNote,
 		}
 
 		// Build CWE links
@@ -609,15 +638,8 @@ func (hw *HTMLWriter) prepareTemplateData() *templateData {
 	data.TotalTests = len(hw.results)
 	data.TotalBypasses = bypassCount
 	data.TotalBlocked = blockedCount
-
-	// Count errors and timeouts
-	for _, r := range hw.results {
-		if r.Result.Outcome == events.OutcomeError {
-			data.TotalErrors++
-		} else if r.Result.Outcome == events.OutcomeTimeout {
-			data.TotalTimeouts++
-		}
-	}
+	data.TotalErrors = errorCount
+	data.TotalTimeouts = timeoutCount
 
 	// Calculate block rate
 	if data.TotalTests > 0 {
@@ -648,6 +670,9 @@ func (hw *HTMLWriter) prepareTemplateData() *templateData {
 	if hw.config.ShowRiskMatrix {
 		data.RiskMatrixHTML = generateRiskMatrixHTML(hw.results)
 	}
+
+	// Generate severity x confidence matrix HTML
+	data.SevConfMatrixHTML = generateSevConfMatrixHTML(hw.results)
 
 	// Generate site breakdown for multi-target scans
 	siteMap := make(map[string]*siteStats)
@@ -703,6 +728,30 @@ func (hw *HTMLWriter) prepareTemplateData() *templateData {
 		}
 		return severityWeight(data.Findings[i].Severity) > severityWeight(data.Findings[j].Severity)
 	})
+
+	// Generate passing categories
+	if hw.summary != nil {
+		for cat, stats := range hw.summary.Breakdown.ByCategory {
+			if stats.Total > 0 && stats.Bypasses == 0 {
+				data.PassingCategories = append(data.PassingCategories, passingCategory{
+					Name:  cat,
+					Tests: stats.Total,
+				})
+			}
+		}
+		sort.Slice(data.PassingCategories, func(i, j int) bool {
+			return data.PassingCategories[i].Tests > data.PassingCategories[j].Tests
+		})
+	}
+
+	// Generate evasion effectiveness
+	data.EvasionTampers, data.EvasionTechniques = hw.buildEvasionData()
+
+	// Generate remediation guidance
+	data.RemediationEntries = hw.buildRemediationEntries()
+
+	// Generate scan insights
+	data.ScanInsights = buildHTMLInsights(hw.results, hw.summary)
 
 	return data
 }
@@ -765,6 +814,317 @@ func calculateGrade(blockRate float64) string {
 	default:
 		return "F"
 	}
+}
+
+// generateSevConfMatrixHTML creates a severity x confidence cross-tabulation table.
+func generateSevConfMatrixHTML(results []*events.ResultEvent) string {
+	type cell struct{ sev, conf string }
+	counts := make(map[cell]int)
+	for _, r := range results {
+		if r.Result.Outcome != events.OutcomeBypass {
+			continue
+		}
+		sev := string(r.Test.Severity)
+		conf := string(r.Result.Confidence)
+		if conf == "" {
+			conf = "unknown"
+		}
+		counts[cell{sev, conf}]++
+	}
+	if len(counts) == 0 {
+		return ""
+	}
+
+	sevOrder := []string{"critical", "high", "medium", "low", "info"}
+	confOrder := []string{"certain", "high", "medium", "low", "tentative", "unknown"}
+
+	// Prune empty columns.
+	var activeConf []string
+	for _, c := range confOrder {
+		for _, s := range sevOrder {
+			if counts[cell{s, c}] > 0 {
+				activeConf = append(activeConf, c)
+				break
+			}
+		}
+	}
+	if len(activeConf) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString(`<table class="sev-conf-table"><thead><tr><th>Severity</th>`)
+	for _, c := range activeConf {
+		sb.WriteString(fmt.Sprintf(`<th>%s</th>`, capitalize(c)))
+	}
+	sb.WriteString(`<th>Total</th></tr></thead><tbody>`)
+
+	for _, sev := range sevOrder {
+		hasRow := false
+		for _, c := range activeConf {
+			if counts[cell{sev, c}] > 0 {
+				hasRow = true
+				break
+			}
+		}
+		if !hasRow {
+			continue
+		}
+
+		sb.WriteString(fmt.Sprintf(`<tr class="severity-%s-row"><td class="severity-label">%s</td>`, sev, capitalize(sev)))
+		rowTotal := 0
+		for _, c := range activeConf {
+			n := counts[cell{sev, c}]
+			rowTotal += n
+			if n > 0 {
+				hot := ""
+				if (sev == "critical" || sev == "high") && (c == "certain" || c == "high") {
+					hot = ` class="sev-conf-hot"`
+				}
+				sb.WriteString(fmt.Sprintf(`<td%s>%d</td>`, hot, n))
+			} else {
+				sb.WriteString(`<td class="sev-conf-empty">-</td>`)
+			}
+		}
+		sb.WriteString(fmt.Sprintf(`<td class="row-total"><strong>%d</strong></td></tr>`, rowTotal))
+	}
+
+	// Column totals row.
+	sb.WriteString(`<tr class="totals-row"><td><strong>Total</strong></td>`)
+	grandTotal := 0
+	for _, c := range activeConf {
+		colTotal := 0
+		for _, s := range sevOrder {
+			colTotal += counts[cell{s, c}]
+		}
+		grandTotal += colTotal
+		sb.WriteString(fmt.Sprintf(`<td><strong>%d</strong></td>`, colTotal))
+	}
+	sb.WriteString(fmt.Sprintf(`<td class="grand-total"><strong>%d</strong></td></tr>`, grandTotal))
+	sb.WriteString(`</tbody></table>`)
+
+	return sb.String()
+}
+
+// buildEvasionData aggregates bypass rates per tamper chain and evasion technique.
+func (hw *HTMLWriter) buildEvasionData() ([]evasionRow, []evasionRow) {
+	type stat struct {
+		total    int
+		bypasses int
+	}
+	tampers := make(map[string]*stat)
+	techniques := make(map[string]*stat)
+
+	for _, r := range hw.results {
+		if r.Context == nil {
+			continue
+		}
+		if r.Context.Tamper != "" {
+			s := tampers[r.Context.Tamper]
+			if s == nil {
+				s = &stat{}
+				tampers[r.Context.Tamper] = s
+			}
+			s.total++
+			if r.Result.Outcome == events.OutcomeBypass {
+				s.bypasses++
+			}
+		}
+		if r.Context.EvasionTechnique != "" {
+			s := techniques[r.Context.EvasionTechnique]
+			if s == nil {
+				s = &stat{}
+				techniques[r.Context.EvasionTechnique] = s
+			}
+			s.total++
+			if r.Result.Outcome == events.OutcomeBypass {
+				s.bypasses++
+			}
+		}
+	}
+
+	toRows := func(data map[string]*stat) []evasionRow {
+		rows := make([]evasionRow, 0, len(data))
+		for name, s := range data {
+			rate := 0.0
+			if s.total > 0 {
+				rate = float64(s.bypasses) / float64(s.total) * 100
+			}
+			rc := "low"
+			if rate >= 50 {
+				rc = "high"
+			} else if rate >= 20 {
+				rc = "medium"
+			}
+			rows = append(rows, evasionRow{
+				Name:       name,
+				Total:      s.total,
+				Bypasses:   s.bypasses,
+				BypassRate: rate,
+				RateClass:  rc,
+			})
+		}
+		sort.Slice(rows, func(i, j int) bool { return rows[i].BypassRate > rows[j].BypassRate })
+		if len(rows) > 20 {
+			rows = rows[:20]
+		}
+		return rows
+	}
+
+	return toRows(tampers), toRows(techniques)
+}
+
+// buildRemediationEntries generates per-category remediation advice for bypass categories.
+func (hw *HTMLWriter) buildRemediationEntries() []remediationEntry {
+	categoryBypasses := make(map[string]int)
+	for _, r := range hw.results {
+		if r.Result.Outcome == events.OutcomeBypass {
+			categoryBypasses[r.Test.Category]++
+		}
+	}
+	if len(categoryBypasses) == 0 {
+		return nil
+	}
+
+	entries := make([]remediationEntry, 0, len(categoryBypasses))
+	for cat, count := range categoryBypasses {
+		info := categoryRemediationFor(cat)
+		entries = append(entries, remediationEntry{
+			Category:     cat,
+			Title:        info.Title,
+			BypassCount:  count,
+			Guidance:     info.Guidance,
+			ReferenceURL: info.ReferenceURL,
+		})
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].BypassCount > entries[j].BypassCount })
+	return entries
+}
+
+// buildHTMLInsights derives heuristic observations from the scan data.
+func buildHTMLInsights(results []*events.ResultEvent, summary *events.SummaryEvent) []htmlInsight {
+	var out []htmlInsight
+
+	// 1. WAF detection confidence.
+	if summary != nil && summary.Target.WAFDetected != "" {
+		conf := summary.Target.WAFConfidence
+		desc := "detected"
+		if conf >= 0.9 {
+			desc = "detected with high confidence"
+		} else if conf < 0.5 {
+			desc = "detected with low confidence (may be a false positive)"
+		}
+		out = append(out, htmlInsight{
+			Icon:  "WAF",
+			Title: "WAF Detection",
+			Body:  fmt.Sprintf("WAF identified as %s, %s (%.0f%% confidence).", summary.Target.WAFDetected, desc, conf*100),
+		})
+	}
+
+	// 2. Overall posture.
+	if summary != nil && summary.Effectiveness.Grade != "" {
+		grade := summary.Effectiveness.Grade
+		rate := summary.Effectiveness.BlockRatePct
+		out = append(out, htmlInsight{
+			Icon:  "GRADE",
+			Title: "Protection Posture",
+			Body:  fmt.Sprintf("Overall WAF grade: %s (%.1f%% block rate). %s", grade, rate, postureSummary(rate)),
+		})
+	}
+
+	// 3. Error-prone categories.
+	if summary != nil {
+		type errEntry struct {
+			cat    string
+			errors int
+			total  int
+		}
+		var errCats []errEntry
+		for _, r := range results {
+			if r.Result.Outcome == events.OutcomeError {
+				cat := r.Test.Category
+				if cat == "" {
+					cat = "uncategorized"
+				}
+				found := false
+				for i := range errCats {
+					if errCats[i].cat == cat {
+						errCats[i].errors++
+						found = true
+						break
+					}
+				}
+				if !found {
+					errCats = append(errCats, errEntry{cat: cat, errors: 1})
+				}
+			}
+		}
+		for i := range errCats {
+			if stats, ok := summary.Breakdown.ByCategory[errCats[i].cat]; ok {
+				errCats[i].total = stats.Total
+			}
+		}
+		sort.Slice(errCats, func(i, j int) bool { return errCats[i].errors > errCats[j].errors })
+		if len(errCats) > 0 && errCats[0].errors >= 3 {
+			top := errCats[0]
+			pct := 0.0
+			if top.total > 0 {
+				pct = float64(top.errors) / float64(top.total) * 100
+			}
+			out = append(out, htmlInsight{
+				Icon:  "ERR",
+				Title: "Error-Prone Category",
+				Body:  fmt.Sprintf("Category %q had %d errors (%.0f%% of its tests). This may indicate server-side issues or aggressive rate limiting.", strings.ToUpper(top.cat), top.errors, pct),
+			})
+		}
+	}
+
+	// 4. Most effective encoding.
+	if summary != nil && len(summary.Breakdown.ByEncoding) > 0 {
+		bestEnc := ""
+		bestRate := 0.0
+		for enc, stats := range summary.Breakdown.ByEncoding {
+			if stats.Total >= 5 {
+				bypassRate := 100.0 - stats.BlockRate
+				if bypassRate > bestRate {
+					bestRate = bypassRate
+					bestEnc = enc
+				}
+			}
+		}
+		if bestEnc != "" && bestRate > 10 {
+			out = append(out, htmlInsight{
+				Icon:  "ENC",
+				Title: "Most Effective Encoding",
+				Body:  fmt.Sprintf("Encoding %q achieved a %.1f%% bypass rate, suggesting the WAF does not adequately decode this format.", bestEnc, bestRate),
+			})
+		}
+	}
+
+	// 5. Latency anomalies.
+	if summary != nil && summary.Latency.P95Ms > 0 && summary.Latency.P50Ms > 0 {
+		ratio := float64(summary.Latency.P95Ms) / float64(summary.Latency.P50Ms)
+		if ratio > 5 {
+			out = append(out, htmlInsight{
+				Icon:  "LAT",
+				Title: "Latency Spike",
+				Body: fmt.Sprintf("P95 latency (%d ms) is %.0fx the median (%d ms). "+
+					"This may indicate WAF rule processing delays or backend throttling on certain payloads.",
+					summary.Latency.P95Ms, ratio, summary.Latency.P50Ms),
+			})
+		}
+	}
+
+	// 6. Scan performance.
+	if summary != nil && summary.Timing.RequestsPerSec > 0 {
+		out = append(out, htmlInsight{
+			Icon:  "PERF",
+			Title: "Scan Performance",
+			Body:  fmt.Sprintf("Completed %d tests in %.1f seconds (%.1f req/s).", summary.Totals.Tests, summary.Timing.DurationSec, summary.Timing.RequestsPerSec),
+		})
+	}
+
+	return out
 }
 
 func (hw *HTMLWriter) renderHTML(data *templateData) error {
@@ -1555,6 +1915,209 @@ const htmlTemplate = `<!DOCTYPE html>
             color: var(--text-secondary);
             font-size: 0.75rem;
         }
+
+        /* Severity x Confidence Matrix */
+        .sev-conf-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.875rem;
+        }
+
+        .sev-conf-table th,
+        .sev-conf-table td {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .sev-conf-table thead th {
+            background: var(--bg-secondary);
+            font-weight: 600;
+        }
+
+        .sev-conf-table .severity-label {
+            text-align: left;
+            font-weight: 600;
+        }
+
+        .sev-conf-table .sev-conf-hot {
+            background: rgba(220, 38, 38, 0.15);
+            color: var(--severity-critical);
+            font-weight: 700;
+        }
+
+        .sev-conf-table .sev-conf-empty {
+            color: var(--text-secondary);
+            opacity: 0.5;
+        }
+
+        .sev-conf-table .totals-row {
+            background: var(--bg-secondary);
+        }
+
+        /* Passing Categories */
+        .passing-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.875rem;
+        }
+
+        .passing-table th,
+        .passing-table td {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border-color);
+            text-align: left;
+        }
+
+        .passing-table thead th {
+            background: #16a34a;
+            color: white;
+            font-weight: 600;
+        }
+
+        [data-theme="dark"] .passing-table thead th {
+            background: #15803d;
+        }
+
+        .passing-table .pass-status {
+            color: #16a34a;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .passing-table .num-cell {
+            text-align: center;
+        }
+
+        .passing-summary {
+            color: #16a34a;
+            font-style: italic;
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        /* Evasion Effectiveness */
+        .evasion-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.875rem;
+        }
+
+        .evasion-table th,
+        .evasion-table td {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border-color);
+            text-align: left;
+        }
+
+        .evasion-table thead th {
+            background: var(--bg-secondary);
+            font-weight: 600;
+        }
+
+        .evasion-table .num-cell {
+            text-align: center;
+        }
+
+        .evasion-table .rate-high {
+            color: var(--severity-critical);
+            font-weight: 700;
+        }
+
+        .evasion-table .rate-medium {
+            color: #ca8a04;
+            font-weight: 600;
+        }
+
+        .evasion-table .rate-low {
+            color: #16a34a;
+        }
+
+        .evasion-subtitle {
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 1.5rem 0 0.5rem 0;
+            color: var(--text-primary);
+        }
+
+        /* Remediation Guidance */
+        .remediation-card {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1rem;
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--severity-high);
+        }
+
+        .remediation-card h4 {
+            margin: 0 0 0.5rem 0;
+            font-size: 0.95rem;
+        }
+
+        .remediation-card .bypass-count {
+            color: var(--severity-critical);
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+
+        .remediation-card .guidance-text {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin: 0.5rem 0;
+            line-height: 1.5;
+        }
+
+        .remediation-card .ref-link {
+            font-size: 0.8rem;
+        }
+
+        /* Scan Insights */
+        .insights-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .insight-card {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow);
+        }
+
+        .insight-card .insight-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .insight-card .insight-icon {
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            padding: 0.25rem 0.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .insight-card .insight-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .insight-card .insight-body {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
     </style>
 </head>
 <body>
@@ -1729,6 +2292,20 @@ const htmlTemplate = `<!DOCTYPE html>
         </section>
         {{end}}
 
+        {{if .SevConfMatrixHTML}}
+        <!-- Severity x Confidence Matrix -->
+        <section class="collapsible-section owasp-section" id="sev-conf-section">
+            <div class="section-header" onclick="toggleSection('sev-conf-section')">
+                <span class="section-toggle">▼</span>
+                <h2>🎯 Severity × Confidence Matrix</h2>
+            </div>
+            <div class="collapsible-content">
+                <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">Cross-tabulation of bypass findings by severity and detection confidence. Red-highlighted cells indicate confirmed, exploitable vulnerabilities.</p>
+                {{.SevConfMatrixHTML | safeHTML}}
+            </div>
+        </section>
+        {{end}}
+
         {{if gt (len .SiteBreakdown) 1}}
         <!-- Site Breakdown for multi-target scans -->
         <section class="collapsible-section owasp-section" id="site-breakdown-section">
@@ -1788,6 +2365,109 @@ const htmlTemplate = `<!DOCTYPE html>
         </section>
 
         <!-- Findings -->
+        {{if gt (len .PassingCategories) 0}}
+        <!-- Passing Categories -->
+        <section class="collapsible-section owasp-section" id="passing-section">
+            <div class="section-header" onclick="toggleSection('passing-section')">
+                <span class="section-toggle">▼</span>
+                <h2>✅ Passing Categories</h2>
+            </div>
+            <div class="collapsible-content">
+                <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">Attack categories where the WAF blocked 100% of test payloads.</p>
+                <table class="passing-table">
+                    <thead><tr><th>Category</th><th class="num-cell">Tests</th><th class="num-cell">Block Rate</th><th class="num-cell">Status</th></tr></thead>
+                    <tbody>
+                    {{range .PassingCategories}}
+                    <tr><td>{{.Name}}</td><td class="num-cell">{{.Tests}}</td><td class="num-cell">100.0%</td><td class="pass-status">PASS</td></tr>
+                    {{end}}
+                    </tbody>
+                </table>
+                <div class="passing-summary">{{len .PassingCategories}} categories fully blocked.</div>
+            </div>
+        </section>
+        {{end}}
+
+        {{if or (gt (len .EvasionTampers) 0) (gt (len .EvasionTechniques) 0)}}
+        <!-- Evasion Technique Effectiveness -->
+        <section class="collapsible-section owasp-section" id="evasion-section">
+            <div class="section-header" onclick="toggleSection('evasion-section')">
+                <span class="section-toggle">▼</span>
+                <h2>🛡️ Evasion Technique Effectiveness</h2>
+            </div>
+            <div class="collapsible-content">
+                <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">Effectiveness of evasion techniques and tamper chains. Higher bypass rates indicate techniques the WAF does not handle well.</p>
+                {{if gt (len .EvasionTampers) 0}}
+                <div class="evasion-subtitle">Tamper Chains</div>
+                <table class="evasion-table">
+                    <thead><tr><th>Technique</th><th class="num-cell">Tests</th><th class="num-cell">Bypasses</th><th class="num-cell">Bypass Rate</th></tr></thead>
+                    <tbody>
+                    {{range .EvasionTampers}}
+                    <tr><td>{{.Name}}</td><td class="num-cell">{{.Total}}</td><td class="num-cell">{{.Bypasses}}</td><td class="num-cell rate-{{.RateClass}}">{{printf "%.1f" .BypassRate}}%</td></tr>
+                    {{end}}
+                    </tbody>
+                </table>
+                {{end}}
+                {{if gt (len .EvasionTechniques) 0}}
+                <div class="evasion-subtitle">Evasion Techniques</div>
+                <table class="evasion-table">
+                    <thead><tr><th>Technique</th><th class="num-cell">Tests</th><th class="num-cell">Bypasses</th><th class="num-cell">Bypass Rate</th></tr></thead>
+                    <tbody>
+                    {{range .EvasionTechniques}}
+                    <tr><td>{{.Name}}</td><td class="num-cell">{{.Total}}</td><td class="num-cell">{{.Bypasses}}</td><td class="num-cell rate-{{.RateClass}}">{{printf "%.1f" .BypassRate}}%</td></tr>
+                    {{end}}
+                    </tbody>
+                </table>
+                {{end}}
+            </div>
+        </section>
+        {{end}}
+
+        {{if gt (len .ScanInsights) 0}}
+        <!-- Scan Insights -->
+        <section class="collapsible-section owasp-section" id="insights-section">
+            <div class="section-header" onclick="toggleSection('insights-section')">
+                <span class="section-toggle">▼</span>
+                <h2>💡 Scan Insights</h2>
+            </div>
+            <div class="collapsible-content">
+                <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">Automated observations derived from the scan results.</p>
+                <div class="insights-grid">
+                    {{range .ScanInsights}}
+                    <div class="insight-card">
+                        <div class="insight-header">
+                            <span class="insight-icon">{{.Icon}}</span>
+                            <span class="insight-title">{{.Title}}</span>
+                        </div>
+                        <div class="insight-body">{{.Body}}</div>
+                    </div>
+                    {{end}}
+                </div>
+            </div>
+        </section>
+        {{end}}
+
+        {{if gt (len .RemediationEntries) 0}}
+        <!-- Remediation Guidance -->
+        <section class="collapsible-section owasp-section" id="remediation-section">
+            <div class="section-header" onclick="toggleSection('remediation-section')">
+                <span class="section-toggle">▼</span>
+                <h2>🔧 Remediation Guidance</h2>
+            </div>
+            <div class="collapsible-content">
+                <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">Targeted remediation guidance for each attack category where bypasses were detected.</p>
+                {{range .RemediationEntries}}
+                <div class="remediation-card">
+                    <h4>{{.Title}}</h4>
+                    <span class="bypass-count">{{.BypassCount}} bypass(es) detected</span>
+                    <div class="guidance-text">{{.Guidance}}</div>
+                    {{if .ReferenceURL}}<a href="{{.ReferenceURL}}" target="_blank" rel="noopener" class="ref-link">Reference →</a>{{end}}
+                </div>
+                {{end}}
+            </div>
+        </section>
+        {{end}}
+
+        <!-- Findings (detail) -->
         <section class="findings-section collapsible-section" id="findings-section" aria-label="Security Findings">
             <div class="section-header" onclick="toggleSection('findings-section')">
                 <span class="section-toggle">▼</span>
@@ -1860,12 +2540,18 @@ const htmlTemplate = `<!DOCTYPE html>
                         {{if $f.CWELinks}}
                         <div class="detail-item">
                             <div class="detail-label">CWE</div>
-                            <div class="detail-value">{{range $j, $c := $f.CWELinks}}{{if $j}}, {{end}}<a href="{{$c.URL}}" target="_blank" rel="noopener" class="ref-link">CWE-{{$c.ID}}</a>{{end}}</div>
+                            <div class="detail-value">{{range $j, $c := $f.CWELinks}}{{if $j}}, {{end}}<a href="{{$c.URL}}" target="_blank" rel="noopener" class="ref-link">CWE-{{$c.ID}}{{if $c.Name}}: {{$c.Name}}{{end}}</a>{{end}}</div>
                         </div>
                         {{else if $f.CWE}}
                         <div class="detail-item">
                             <div class="detail-label">CWE</div>
                             <div class="detail-value">{{range $j, $c := $f.CWE}}{{if $j}}, {{end}}CWE-{{$c}}{{end}}</div>
+                        </div>
+                        {{end}}
+                        {{if $f.Confidence}}
+                        <div class="detail-item">
+                            <div class="detail-label">Confidence</div>
+                            <div class="detail-value">{{$f.Confidence}}{{if $f.ConfidenceNote}} ({{$f.ConfidenceNote}}){{end}}</div>
                         </div>
                         {{end}}
                     </div>
@@ -1877,7 +2563,7 @@ const htmlTemplate = `<!DOCTYPE html>
                         <div class="code-block">Payload: {{$f.Payload}}</div>
                         {{end}}
                         {{if $f.CurlCommand}}
-                        <div class="curl-command"><code>{{$f.CurlCommand}}</code><button class="copy-btn" onclick="copyToClipboard('{{$f.CurlCommand}}', this); event.stopPropagation();">📋 Copy</button></div>
+                        <div class="curl-command"><code>{{$f.CurlCommand}}</code><button class="copy-btn" data-curl="{{$f.CurlCommand}}" onclick="copyCurl(this); event.stopPropagation();">📋 Copy</button></div>
                         {{end}}
                         {{if $f.ResponsePreview}}
                         <h4>Response Preview</h4>
@@ -2031,6 +2717,11 @@ const htmlTemplate = `<!DOCTYPE html>
             }).catch(function(err) {
                 console.error('Failed to copy:', err);
             });
+        }
+
+        // Copy curl command from data attribute (avoids XSS from inline JS strings)
+        function copyCurl(button) {
+            copyToClipboard(button.getAttribute('data-curl'), button);
         }
 
         // Filter findings by text, severity, and outcome

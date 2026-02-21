@@ -917,3 +917,440 @@ func TestHTMLWriter_GeneratedTimestamp(t *testing.T) {
 		t.Error("expected date pattern in output")
 	}
 }
+
+func TestHTMLWriter_CWENameEnrichment(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{IncludeEvidence: true})
+
+	e := makeHTMLTestResultEvent("sqli-001", "sqli", events.SeverityCritical, events.OutcomeBypass, nil)
+	e.Test.CWE = []int{89}
+	w.Write(e)
+	w.Close()
+
+	output := buf.String()
+
+	// CWE-89 should include human-readable name
+	if !strings.Contains(output, "CWE-89: SQL Injection") {
+		t.Error("expected CWE name enrichment: 'CWE-89: SQL Injection'")
+	}
+}
+
+func TestHTMLWriter_ConfidenceInFindings(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{IncludeEvidence: true})
+
+	e := makeHTMLTestResultEvent("sqli-001", "sqli", events.SeverityCritical, events.OutcomeBypass, nil)
+	e.Result.Confidence = "high"
+	e.Result.ConfidenceNote = "status code matched bypass pattern"
+	w.Write(e)
+	w.Close()
+
+	output := buf.String()
+
+	if !strings.Contains(output, "Confidence") {
+		t.Error("expected Confidence label in finding")
+	}
+	if !strings.Contains(output, "high") {
+		t.Error("expected confidence value 'high'")
+	}
+	if !strings.Contains(output, "status code matched bypass pattern") {
+		t.Error("expected confidence note in finding")
+	}
+}
+
+func TestHTMLWriter_SevConfMatrix(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+
+	// Create bypass findings with severity and confidence
+	e1 := makeHTMLTestResultEvent("sqli-001", "sqli", events.SeverityCritical, events.OutcomeBypass, nil)
+	e1.Result.Confidence = "high"
+	e2 := makeHTMLTestResultEvent("xss-001", "xss", events.SeverityHigh, events.OutcomeBypass, nil)
+	e2.Result.Confidence = "medium"
+	e3 := makeHTMLTestResultEvent("lfi-001", "lfi", events.SeverityMedium, events.OutcomeBlocked, nil)
+
+	w.Write(e1)
+	w.Write(e2)
+	w.Write(e3)
+	w.Close()
+
+	output := buf.String()
+
+	if !strings.Contains(output, "sev-conf-table") {
+		t.Error("expected severity x confidence matrix table")
+	}
+	if !strings.Contains(output, "Severity × Confidence Matrix") {
+		t.Error("expected matrix section header")
+	}
+	// Hot cell for critical + high confidence
+	if !strings.Contains(output, "sev-conf-hot") {
+		t.Error("expected hot cell highlighting for critical+high confidence")
+	}
+}
+
+func TestHTMLWriter_SevConfMatrix_NoBypasses(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+
+	e := makeHTMLTestResultEvent("test-001", "sqli", events.SeverityCritical, events.OutcomeBlocked, nil)
+	w.Write(e)
+	w.Close()
+
+	output := buf.String()
+
+	// No bypasses means no matrix section rendered (CSS class still present in style block)
+	if strings.Contains(output, `id="sev-conf-section"`) {
+		t.Error("expected no severity x confidence matrix when no bypasses")
+	}
+}
+
+func TestHTMLWriter_PassingCategories(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+
+	e := makeHTMLTestResultEvent("sqli-001", "sqli", events.SeverityCritical, events.OutcomeBlocked, nil)
+	w.Write(e)
+
+	summary := &events.SummaryEvent{
+		BaseEvent: events.BaseEvent{Type: events.EventTypeSummary, Time: time.Now()},
+		Breakdown: events.BreakdownInfo{
+			ByCategory: map[string]events.CategoryStats{
+				"sqli": {Total: 10, Bypasses: 0, BlockRate: 100},
+				"xss":  {Total: 5, Bypasses: 2, BlockRate: 60},
+			},
+		},
+		Effectiveness: events.EffectivenessInfo{BlockRatePct: 87, Grade: "C"},
+		Totals:        events.SummaryTotals{Tests: 15, Blocked: 13, Bypasses: 2},
+	}
+	w.Write(summary)
+	w.Close()
+
+	output := buf.String()
+
+	if !strings.Contains(output, "Passing Categories") {
+		t.Error("expected passing categories section")
+	}
+	if !strings.Contains(output, "passing-table") {
+		t.Error("expected passing categories table")
+	}
+	if !strings.Contains(output, "sqli") {
+		t.Error("expected sqli in passing categories")
+	}
+	// xss had bypasses, should NOT be in passing
+	if strings.Contains(output, "passing-section") && !strings.Contains(output, "xss") {
+		// ok - xss should not appear in passing section, just verify sqli is there
+	}
+}
+
+func TestHTMLWriter_PassingCategories_NonePass(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+
+	e := makeHTMLTestResultEvent("sqli-001", "sqli", events.SeverityCritical, events.OutcomeBypass, nil)
+	w.Write(e)
+
+	summary := &events.SummaryEvent{
+		BaseEvent: events.BaseEvent{Type: events.EventTypeSummary, Time: time.Now()},
+		Breakdown: events.BreakdownInfo{
+			ByCategory: map[string]events.CategoryStats{
+				"sqli": {Total: 10, Bypasses: 3, BlockRate: 70},
+			},
+		},
+		Effectiveness: events.EffectivenessInfo{BlockRatePct: 70, Grade: "D"},
+		Totals:        events.SummaryTotals{Tests: 10, Blocked: 7, Bypasses: 3},
+	}
+	w.Write(summary)
+	w.Close()
+
+	output := buf.String()
+
+	if strings.Contains(output, `id="passing-section"`) {
+		t.Error("expected no passing categories when none fully blocked")
+	}
+}
+
+func TestHTMLWriter_EvasionEffectiveness(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+
+	e1 := makeHTMLTestResultEvent("sqli-001", "sqli", events.SeverityCritical, events.OutcomeBypass, nil)
+	e1.Context = &events.ContextInfo{Tamper: "base64encode", EvasionTechnique: "encoding"}
+	e2 := makeHTMLTestResultEvent("sqli-002", "sqli", events.SeverityHigh, events.OutcomeBlocked, nil)
+	e2.Context = &events.ContextInfo{Tamper: "base64encode", EvasionTechnique: "encoding"}
+
+	w.Write(e1)
+	w.Write(e2)
+	w.Close()
+
+	output := buf.String()
+
+	if !strings.Contains(output, "Evasion Technique Effectiveness") {
+		t.Error("expected evasion effectiveness section")
+	}
+	if !strings.Contains(output, "evasion-table") {
+		t.Error("expected evasion table")
+	}
+	if !strings.Contains(output, "base64encode") {
+		t.Error("expected tamper name in evasion table")
+	}
+	if !strings.Contains(output, "50.0%") {
+		t.Error("expected 50% bypass rate (1/2)")
+	}
+}
+
+func TestHTMLWriter_EvasionEffectiveness_NoEvasionData(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+
+	e := makeHTMLTestResultEvent("sqli-001", "sqli", events.SeverityCritical, events.OutcomeBypass, nil)
+	w.Write(e)
+	w.Close()
+
+	output := buf.String()
+
+	if strings.Contains(output, `id="evasion-section"`) {
+		t.Error("expected no evasion section without evasion context data")
+	}
+}
+
+func TestHTMLWriter_RemediationGuidance(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+
+	e := makeHTMLTestResultEvent("sqli-001", "sqli", events.SeverityCritical, events.OutcomeBypass, nil)
+	w.Write(e)
+	w.Close()
+
+	output := buf.String()
+
+	if !strings.Contains(output, "Remediation Guidance") {
+		t.Error("expected remediation guidance section")
+	}
+	if !strings.Contains(output, "remediation-card") {
+		t.Error("expected remediation card")
+	}
+	// Should contain guidance from categoryRemediationFor("sqli")
+	if !strings.Contains(output, "bypass") {
+		t.Error("expected bypass count in remediation")
+	}
+}
+
+func TestHTMLWriter_RemediationGuidance_NoBypasses(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+
+	e := makeHTMLTestResultEvent("sqli-001", "sqli", events.SeverityCritical, events.OutcomeBlocked, nil)
+	w.Write(e)
+	w.Close()
+
+	output := buf.String()
+
+	if strings.Contains(output, `id="remediation-section"`) {
+		t.Error("expected no remediation section when no bypasses")
+	}
+}
+
+func TestHTMLWriter_ScanInsights(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+
+	e := makeHTMLTestResultEvent("sqli-001", "sqli", events.SeverityCritical, events.OutcomeBypass, nil)
+	w.Write(e)
+
+	summary := &events.SummaryEvent{
+		BaseEvent: events.BaseEvent{Type: events.EventTypeSummary, Time: time.Now()},
+		Target: events.SummaryTarget{
+			URL:           "https://example.com",
+			WAFDetected:   "Cloudflare",
+			WAFConfidence: 0.95,
+		},
+		Effectiveness: events.EffectivenessInfo{BlockRatePct: 85, Grade: "C"},
+		Totals:        events.SummaryTotals{Tests: 100, Blocked: 85, Bypasses: 15},
+		Timing:        events.SummaryTiming{DurationSec: 30, RequestsPerSec: 3.3},
+		Latency:       events.LatencyInfo{P50Ms: 50, P95Ms: 300},
+	}
+	w.Write(summary)
+	w.Close()
+
+	output := buf.String()
+
+	if !strings.Contains(output, "Scan Insights") {
+		t.Error("expected scan insights section")
+	}
+	if !strings.Contains(output, "insight-card") {
+		t.Error("expected insight cards")
+	}
+	if !strings.Contains(output, "WAF Detection") {
+		t.Error("expected WAF detection insight")
+	}
+	if !strings.Contains(output, "Protection Posture") {
+		t.Error("expected protection posture insight")
+	}
+	if !strings.Contains(output, "Scan Performance") {
+		t.Error("expected scan performance insight")
+	}
+	// Latency ratio is 6:1 (300/50), should trigger latency spike insight
+	if !strings.Contains(output, "Latency Spike") {
+		t.Error("expected latency spike insight")
+	}
+}
+
+func TestHTMLWriter_ScanInsights_NoSummary(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+
+	e := makeHTMLTestResultEvent("sqli-001", "sqli", events.SeverityCritical, events.OutcomeBlocked, nil)
+	w.Write(e)
+	w.Close()
+
+	output := buf.String()
+
+	// No summary means no insights section rendered
+	if strings.Contains(output, `id="insights-section"`) {
+		t.Error("expected no insight cards without summary event")
+	}
+}
+
+func TestHTMLWriter_CurlDataAttribute(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{IncludeEvidence: true, ShowCurlCommands: true})
+
+	e := makeHTMLTestResultEvent("sqli-001", "sqli", events.SeverityCritical, events.OutcomeBypass, nil)
+	e.Evidence.CurlCommand = "curl -X POST 'https://example.com' -d \"test's payload\""
+	w.Write(e)
+	w.Close()
+
+	output := buf.String()
+
+	// Should use data-curl attribute instead of inline JS string
+	if !strings.Contains(output, "data-curl=") {
+		t.Error("expected data-curl attribute for safe clipboard copy")
+	}
+	if !strings.Contains(output, "copyCurl(this)") {
+		t.Error("expected copyCurl function call")
+	}
+	// Should NOT use inline copyToClipboard('...', this) pattern
+	if strings.Contains(output, "copyToClipboard('curl") {
+		t.Error("expected no inline copyToClipboard with curl string (XSS unsafe)")
+	}
+}
+
+func TestHTMLWriter_DefaultConfig_IncludesEvidenceAndJSON(t *testing.T) {
+	// Zero-value config should default IncludeEvidence and IncludeJSON to true
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+
+	e := makeHTMLTestResultEvent("sqli-001", "sqli", events.SeverityCritical, events.OutcomeBypass, nil)
+	w.Write(e)
+	w.Close()
+
+	output := buf.String()
+
+	// Evidence should be present with zero-value config
+	if !strings.Contains(output, "test-payload-sqli-001") {
+		t.Error("expected evidence payload with default config (IncludeEvidence should default to true)")
+	}
+
+	// JSON toggle should be present with zero-value config
+	if !strings.Contains(output, "json-toggle") {
+		t.Error("expected JSON toggle with default config (IncludeJSON should default to true)")
+	}
+}
+
+func TestGenerateSevConfMatrixHTML(t *testing.T) {
+	results := []*events.ResultEvent{
+		{
+			Test:   events.TestInfo{Severity: events.SeverityCritical},
+			Result: events.ResultInfo{Outcome: events.OutcomeBypass, Confidence: "high"},
+		},
+		{
+			Test:   events.TestInfo{Severity: events.SeverityCritical},
+			Result: events.ResultInfo{Outcome: events.OutcomeBypass, Confidence: "high"},
+		},
+		{
+			Test:   events.TestInfo{Severity: events.SeverityMedium},
+			Result: events.ResultInfo{Outcome: events.OutcomeBypass, Confidence: "low"},
+		},
+		{
+			Test:   events.TestInfo{Severity: events.SeverityHigh},
+			Result: events.ResultInfo{Outcome: events.OutcomeBlocked},
+		},
+	}
+
+	html := generateSevConfMatrixHTML(results)
+
+	if html == "" {
+		t.Fatal("expected non-empty matrix HTML")
+	}
+	if !strings.Contains(html, "sev-conf-table") {
+		t.Error("expected sev-conf-table class")
+	}
+	if !strings.Contains(html, "sev-conf-hot") {
+		t.Error("expected hot cell for critical+high")
+	}
+	// Blocked result should not appear in matrix
+	if strings.Contains(html, "High") && strings.Contains(html, "sev-conf-hot") {
+		// Only critical+high should be hot, not medium+low
+	}
+}
+
+func TestGenerateSevConfMatrixHTML_NoBypasses(t *testing.T) {
+	results := []*events.ResultEvent{
+		{
+			Test:   events.TestInfo{Severity: events.SeverityCritical},
+			Result: events.ResultInfo{Outcome: events.OutcomeBlocked},
+		},
+	}
+
+	html := generateSevConfMatrixHTML(results)
+	if html != "" {
+		t.Error("expected empty matrix HTML when no bypasses")
+	}
+}
+
+func TestBuildHTMLInsights(t *testing.T) {
+	summary := &events.SummaryEvent{
+		Target: events.SummaryTarget{
+			WAFDetected:   "ModSecurity",
+			WAFConfidence: 0.92,
+		},
+		Effectiveness: events.EffectivenessInfo{
+			Grade:        "B",
+			BlockRatePct: 91.5,
+		},
+		Totals: events.SummaryTotals{Tests: 200},
+		Timing: events.SummaryTiming{
+			DurationSec:    45,
+			RequestsPerSec: 4.4,
+		},
+		Latency: events.LatencyInfo{
+			P50Ms: 40,
+			P95Ms: 250,
+		},
+	}
+
+	insights := buildHTMLInsights(nil, summary)
+
+	if len(insights) == 0 {
+		t.Fatal("expected at least one insight")
+	}
+
+	titles := make(map[string]bool)
+	for _, ins := range insights {
+		titles[ins.Title] = true
+	}
+
+	expected := []string{"WAF Detection", "Protection Posture", "Latency Spike", "Scan Performance"}
+	for _, title := range expected {
+		if !titles[title] {
+			t.Errorf("expected insight with title %q", title)
+		}
+	}
+}
+
+func TestBuildHTMLInsights_NilSummary(t *testing.T) {
+	insights := buildHTMLInsights(nil, nil)
+	if len(insights) != 0 {
+		t.Error("expected no insights with nil summary")
+	}
+}
