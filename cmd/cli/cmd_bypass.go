@@ -14,6 +14,7 @@ import (
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/mutation"
+	"github.com/waftester/waftester/pkg/output"
 	"github.com/waftester/waftester/pkg/payloads"
 	"github.com/waftester/waftester/pkg/templateresolver"
 	"github.com/waftester/waftester/pkg/ui"
@@ -288,13 +289,37 @@ func runBypassFinder() {
 	executor.Execute(ctx, tasks, func(r *mutation.TestResult) {
 		progress.Increment()
 
-		// Emit every test result for complete telemetry
+		// Emit full result for HAR export and telemetry
 		if bypassDispCtx != nil {
-			category := "bypass-hunt"
+			cat := "bypass-hunt"
 			if r.EvasionUsed != "" {
-				category = "bypass-hunt-" + r.EvasionUsed
+				cat = "bypass-hunt-" + r.EvasionUsed
 			}
-			_ = bypassDispCtx.EmitResult(ctx, category, "high", r.Blocked, r.StatusCode, float64(r.LatencyMs))
+			outcome := r.Outcome
+			if outcome == "" {
+				outcome = "Passed"
+				if r.Blocked {
+					outcome = "Blocked"
+				}
+			}
+			tr := &output.TestResult{
+				ID:                  r.ID,
+				Category:            cat,
+				Severity:            "high",
+				Outcome:             outcome,
+				StatusCode:          r.StatusCode,
+				LatencyMs:           r.LatencyMs,
+				Payload:             r.MutatedPayload,
+				OriginalPayload:     r.OriginalPayload,
+				Method:              r.Method,
+				RequestURL:          r.URL,
+				ContentLength:       r.ContentLength,
+				ResponseHeaders:     r.ResponseHeaders,
+				ResponseBodySnippet: r.ResponseSnippet,
+				EncodingUsed:        r.EncoderUsed,
+				ErrorMessage:        r.ErrorMessage,
+			}
+			_ = bypassDispCtx.EmitDetailedResult(ctx, tr)
 		}
 
 		if r.Blocked {

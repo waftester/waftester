@@ -258,7 +258,12 @@ func runCrawl() {
 	// DISPATCHER INITIALIZATION (Hooks: Slack, Teams, PagerDuty, OTEL, Prometheus)
 	// ═══════════════════════════════════════════════════════════════════════════
 	crawlScanID := fmt.Sprintf("crawl-%d", time.Now().Unix())
+	// Crawl builds its own HAR from crawl results via writeCrawlHAR.
+	// Exclude HARExport from the dispatcher so it doesn't write an empty HAR on Close.
+	crawlHARPath := outputFlags.HARExport
+	outputFlags.HARExport = ""
 	crawlDispCtx, crawlDispErr := outputFlags.InitDispatcher(crawlScanID, target)
+	outputFlags.HARExport = crawlHARPath
 	if crawlDispErr != nil {
 		ui.PrintWarning(fmt.Sprintf("Output dispatcher warning: %v", crawlDispErr))
 	}
