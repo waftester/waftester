@@ -847,7 +847,7 @@ func runAutoScan() {
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.Icon("📊", "#")+" Findings by Severity:"))
 				for severity, count := range leakyResult.BySeverity {
 					sevStyle := ui.SeverityStyle(severity)
-					bar := strings.Repeat("█", min(count, 20))
+					bar := strings.Repeat(ui.Icon("█", "#"), min(count, 20))
 					fmt.Fprintf(os.Stderr, "    %s %s %d\n", sevStyle.Render(fmt.Sprintf("%-8s", severity)), ui.ProgressFullStyle.Render(bar), count)
 				}
 				fmt.Fprintln(os.Stderr)
@@ -855,7 +855,7 @@ func runAutoScan() {
 				// Show category breakdown
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.Icon("📂", "#")+" Findings by Category:"))
 				for category, count := range leakyResult.ByCategory {
-					bar := strings.Repeat("▪", min(count, 20))
+					bar := strings.Repeat(ui.Icon("▪", "*"), min(count, 20))
 					fmt.Fprintf(os.Stderr, "    %-15s %s %d\n", category, ui.StatLabelStyle.Render(bar), count)
 				}
 				fmt.Fprintln(os.Stderr)
@@ -1118,8 +1118,8 @@ func runAutoScan() {
 						progressWidth := 25
 						fillWidth := int(float64(progressWidth) * percent / 100)
 						bar := fmt.Sprintf("[%s%s]",
-							strings.Repeat("█", fillWidth),
-							strings.Repeat("░", progressWidth-fillWidth))
+							strings.Repeat(ui.Icon("█", "#"), fillWidth),
+							strings.Repeat(ui.Icon("░", "."), progressWidth-fillWidth))
 
 						secretColor := "\033[32m" // Green
 						if secrets > 0 {
@@ -1279,15 +1279,15 @@ func runAutoScan() {
 			fmt.Fprintln(os.Stderr)
 			ui.PrintSection("🔑 Secrets Detected in JavaScript")
 			for _, secret := range allJSData.Secrets {
-				severity := strings.ToUpper(secret.Confidence)
-				if severity == "" {
-					severity = "LOW"
+				confidence := strings.ToUpper(secret.Confidence)
+				if confidence == "" {
+					confidence = "LOW"
 				}
 				truncated := secret.Value
 				if len(truncated) > 50 {
 					truncated = truncated[:50] + "..."
 				}
-				ui.PrintError(fmt.Sprintf("  [%s] %s: %s", severity, secret.Type, truncated))
+				ui.PrintError(fmt.Sprintf("  [%s] %s: %s", confidence, secret.Type, truncated))
 			}
 		}
 
@@ -1472,8 +1472,8 @@ func runAutoScan() {
 							progressWidth := 25
 							fillWidth := int(float64(progressWidth) * percent / 100)
 							bar := fmt.Sprintf("[%s%s]",
-								strings.Repeat("█", fillWidth),
-								strings.Repeat("░", progressWidth-fillWidth))
+								strings.Repeat(ui.Icon("█", "#"), fillWidth),
+								strings.Repeat(ui.Icon("░", "."), progressWidth-fillWidth))
 
 							paramColor := "\033[33m" // Yellow
 							if found > 0 {
@@ -1552,7 +1552,7 @@ func runAutoScan() {
 					case "header":
 						typeStyle = ui.ErrorStyle
 					}
-					bar := strings.Repeat("█", min(count, 20))
+					bar := strings.Repeat(ui.Icon("█", "#"), min(count, 20))
 					fmt.Fprintf(os.Stderr, "    %s %s %d\n", typeStyle.Render(fmt.Sprintf("%-8s", paramType)), ui.ProgressFullStyle.Render(bar), count)
 				}
 				fmt.Fprintln(os.Stderr)
@@ -1560,7 +1560,7 @@ func runAutoScan() {
 				// Show source breakdown
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("🔎 Discovery Sources:")))
 				for source, count := range paramResult.BySource {
-					bar := strings.Repeat("▪", min(count, 20))
+					bar := strings.Repeat(ui.Icon("▪", "*"), min(count, 20))
 					fmt.Fprintf(os.Stderr, "    %-15s %s %d\n", source, ui.StatLabelStyle.Render(bar), count)
 				}
 				fmt.Fprintln(os.Stderr)
@@ -1719,7 +1719,7 @@ func runAutoScan() {
 				if len(fullReconResult.TopRisks) > 0 {
 					fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("⚠️  Top Risks:")))
 					for _, risk := range fullReconResult.TopRisks[:min(5, len(fullReconResult.TopRisks))] {
-						ui.PrintWarning(fmt.Sprintf("    • %s", risk))
+						ui.PrintWarning(fmt.Sprintf("    %s %s", ui.Icon("•", "-"), risk))
 					}
 					fmt.Fprintln(os.Stderr)
 				}
@@ -2858,7 +2858,7 @@ func runAutoScan() {
 					// Show detection evidence
 					if len(vendorResult.Evidence) > 0 {
 						for _, ev := range vendorResult.Evidence[:min(3, len(vendorResult.Evidence))] {
-							fmt.Fprintf(os.Stderr, "    • %s\n", ev)
+							fmt.Fprintf(os.Stderr, "    %s %s\n", ui.Icon("•", "-"), ev)
 						}
 					}
 
@@ -2867,7 +2867,7 @@ func runAutoScan() {
 						fmt.Fprintln(os.Stderr)
 						ui.PrintInfo("  📋 Bypass Recommendations:")
 						for _, hint := range bypassHints[:min(5, len(bypassHints))] {
-							fmt.Fprintf(os.Stderr, "    → %s\n", hint)
+							fmt.Fprintf(os.Stderr, "    %s %s\n", ui.Icon("→", "->"), hint)
 						}
 					}
 
@@ -3046,8 +3046,8 @@ func runAutoScan() {
 					fmt.Fprintf(os.Stderr, "    ... and %d more steps\n", len(attackPath.Steps)-5)
 					break
 				}
-				fmt.Fprintf(os.Stderr, "    %d. %s → %s (%.0f%% success)\n",
-					i+1, step.From, step.To, step.SuccessProb*100)
+				fmt.Fprintf(os.Stderr, "    %d. %s %s %s (%.0f%% success)\n",
+					i+1, step.From, ui.Icon("→", "->"), step.To, step.SuccessProb*100)
 			}
 			fmt.Fprintf(os.Stderr, "    Total path value: %.2f | Success probability: %.0f%%\n",
 				attackPath.TotalValue, attackPath.SuccessProb*100)
@@ -3393,7 +3393,7 @@ func runAutoScan() {
 			if err := report.GenerateEnterpriseHTMLReportFromWorkspace(workspaceDir, domain, scanDuration, htmlReportFile); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Enterprise HTML report generation error: %v", err))
 			} else if !quietMode {
-				fmt.Fprintf(os.Stderr, "    • Enterprise:  %s\n", htmlReportFile)
+				fmt.Fprintf(os.Stderr, "    %s Enterprise:  %s\n", ui.Icon("•", "-"), htmlReportFile)
 			}
 
 			// Update summary with enterprise metrics
@@ -3601,7 +3601,7 @@ func runAutoScan() {
 						fmt.Fprintln(os.Stderr)
 						fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("🚨 Top Risks:")))
 						for _, risk := range browserResult.RiskSummary.TopRisks {
-							ui.PrintWarning(fmt.Sprintf("    • %s", risk))
+							ui.PrintWarning(fmt.Sprintf("    %s %s", ui.Icon("•", "-"), risk))
 						}
 					}
 					fmt.Fprintln(os.Stderr)
@@ -3686,7 +3686,7 @@ func runAutoScan() {
 
 			ui.PrintSuccess(fmt.Sprintf("✓ Browser scan completed in %s", browserResult.ScanDuration.Round(time.Millisecond)))
 			if !quietMode {
-				fmt.Fprintf(os.Stderr, "    • Browser Results: %s\n", browserFile)
+				fmt.Fprintf(os.Stderr, "    %s Browser Results: %s\n", ui.Icon("•", "-"), browserFile)
 				fmt.Fprintln(os.Stderr)
 			}
 		}

@@ -114,16 +114,16 @@ var outcomeColors = map[events.Outcome]string{
 
 // boxChars contains Unicode box-drawing characters.
 var boxChars = struct {
-	TopLeft, TopRight, BottomLeft, BottomRight, Horizontal, Vertical string
+	TopLeft, TopRight, BottomLeft, BottomRight, Horizontal, Vertical, BarFilled, BarEmpty string
 }{
-	"┌", "┐", "└", "┘", "─", "│",
+	"┌", "┐", "└", "┘", "─", "│", "█", "░",
 }
 
 // asciiChars contains ASCII fallback characters for box drawing.
 var asciiChars = struct {
-	TopLeft, TopRight, BottomLeft, BottomRight, Horizontal, Vertical string
+	TopLeft, TopRight, BottomLeft, BottomRight, Horizontal, Vertical, BarFilled, BarEmpty string
 }{
-	"+", "+", "+", "+", "-", "|",
+	"+", "+", "+", "+", "-", "|", "#", ".",
 }
 
 // TableConfig configures the table writer behavior.
@@ -182,7 +182,7 @@ type TableWriter struct {
 	progressEvents []*events.ProgressEvent
 	summary        *events.SummaryEvent
 	chars          *struct {
-		TopLeft, TopRight, BottomLeft, BottomRight, Horizontal, Vertical string
+		TopLeft, TopRight, BottomLeft, BottomRight, Horizontal, Vertical, BarFilled, BarEmpty string
 	}
 	resultCount  int
 	seenPayloads map[string]int // tracks payload hashes for deduplication display
@@ -626,7 +626,7 @@ func (tw *TableWriter) writeEffectivenessScore(sb *strings.Builder) {
 		filledWidth = 0
 	}
 
-	bar := strings.Repeat("█", filledWidth) + strings.Repeat("░", barWidth-filledWidth)
+	bar := strings.Repeat(chars.BarFilled, filledWidth) + strings.Repeat(chars.BarEmpty, barWidth-filledWidth)
 
 	sb.WriteString(chars.Vertical)
 	sb.WriteString("  [")
@@ -1108,13 +1108,14 @@ func (tw *TableWriter) renderSummaryBanner(bypasses, blocked, errors, total int)
 		filledLen = 0
 	}
 
+	chars := tw.chars
 	var bar string
 	if tw.config.ColorEnabled {
-		filledPart := fmtBlocked(strings.Repeat("█", filledLen))
-		emptyPart := fmtDim(strings.Repeat("░", barLen-filledLen))
+		filledPart := fmtBlocked(strings.Repeat(chars.BarFilled, filledLen))
+		emptyPart := fmtDim(strings.Repeat(chars.BarEmpty, barLen-filledLen))
 		bar = filledPart + emptyPart
 	} else {
-		bar = strings.Repeat("█", filledLen) + strings.Repeat("░", barLen-filledLen)
+		bar = strings.Repeat(chars.BarFilled, filledLen) + strings.Repeat(chars.BarEmpty, barLen-filledLen)
 	}
 
 	fmt.Fprintf(tw.w, "\n%s WAF Effectiveness: %.1f%%\n", bar, effectiveness)
