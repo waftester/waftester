@@ -2697,8 +2697,14 @@ func TestHARWriter(t *testing.T) {
 		if !ok {
 			t.Fatal("pages should be an array")
 		}
-		if len(pageArr) != 0 {
-			t.Errorf("pages should be empty array, got %d items", len(pageArr))
+		if len(pageArr) != 1 {
+			t.Errorf("pages should contain exactly 1 page, got %d", len(pageArr))
+		}
+		if len(pageArr) == 1 {
+			pg := pageArr[0].(map[string]any)
+			if pg["id"] != "page_1" {
+				t.Errorf("page id = %v, want page_1", pg["id"])
+			}
 		}
 	})
 
