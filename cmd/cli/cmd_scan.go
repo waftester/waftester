@@ -1892,7 +1892,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "subtakeover", "vulns": vulnCount})
 		}()
 		cfg := &subtakeover.TesterConfig{
-			Base: baseConfig(),
+			Base:        baseConfig(),
 			CheckHTTP:   true,
 			FollowCNAME: true,
 		}

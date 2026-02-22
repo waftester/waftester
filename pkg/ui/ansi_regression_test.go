@@ -12,9 +12,10 @@ import (
 )
 
 // ansiPattern matches any ANSI escape sequence:
-//   ESC[ ... final_byte   (CSI sequences: cursor movement, colors, erase)
-//   ESC] ...              (OSC sequences)
-//   ESC followed by other introducer bytes
+//
+//	ESC[ ... final_byte   (CSI sequences: cursor movement, colors, erase)
+//	ESC] ...              (OSC sequences)
+//	ESC followed by other introducer bytes
 var ansiPattern = regexp.MustCompile(`\x1b\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]`)
 
 // assertNoANSI fails the test if buf contains any ANSI escape sequence.
