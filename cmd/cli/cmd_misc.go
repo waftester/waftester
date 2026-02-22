@@ -649,6 +649,7 @@ func runWorkflow() {
 		if workflowDispCtx != nil {
 			failedCount := countStepStatus(result.Steps, "failed")
 			_ = workflowDispCtx.EmitSummary(workflowCtx, len(result.Steps), len(result.Steps)-failedCount, failedCount, result.Duration)
+			_ = workflowDispCtx.Close()
 		}
 		os.Exit(1)
 	}

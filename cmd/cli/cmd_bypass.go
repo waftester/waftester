@@ -157,6 +157,7 @@ func runBypassFinder() {
 		ui.PrintError(errMsg)
 		if bypassDispCtx != nil {
 			_ = bypassDispCtx.EmitError(ctx, "bypass", errMsg, true)
+			_ = bypassDispCtx.Close()
 		}
 		os.Exit(1)
 	}
