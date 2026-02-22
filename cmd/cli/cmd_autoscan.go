@@ -2366,8 +2366,7 @@ func runAutoScan() {
 
 				// Emit every test result for complete telemetry
 				if autoDispCtx != nil {
-					blocked := result.Outcome == "Blocked"
-					_ = autoDispCtx.EmitResult(ctx, result.Category, result.Severity, blocked, result.StatusCode, float64(result.LatencyMs))
+					_ = autoDispCtx.EmitDetailedResult(ctx, result)
 				}
 				// Emit bypass event only for actual WAF bypasses ("Fail" = expected block but got 2xx)
 				if autoDispCtx != nil && result.Outcome == "Fail" {
@@ -2577,8 +2576,7 @@ func runAutoScan() {
 								}
 								// Emit feedback results to hooks
 								if autoDispCtx != nil {
-									blocked := result.Outcome == "Blocked"
-									_ = autoDispCtx.EmitResult(ctx, result.Category, result.Severity, blocked, result.StatusCode, float64(result.LatencyMs))
+									_ = autoDispCtx.EmitDetailedResult(ctx, result)
 								}
 								if autoDispCtx != nil && result.Outcome == "Fail" {
 									_ = autoDispCtx.EmitBypass(ctx, result.Category, result.Severity, target, result.Payload, result.StatusCode)
@@ -2748,8 +2746,7 @@ func runAutoScan() {
 								})
 							}
 							if autoDispCtx != nil {
-								blocked := result.Outcome == "Blocked"
-								_ = autoDispCtx.EmitResult(ctx, result.Category, result.Severity, blocked, result.StatusCode, float64(result.LatencyMs))
+								_ = autoDispCtx.EmitDetailedResult(ctx, result)
 							}
 							if autoDispCtx != nil && result.Outcome == "Fail" {
 								_ = autoDispCtx.EmitBypass(ctx, result.Category, result.Severity, target, result.Payload, result.StatusCode)
