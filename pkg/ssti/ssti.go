@@ -54,16 +54,16 @@ const (
 
 // Payload represents an SSTI payload
 type Payload struct {
-	Template       string           // The template injection payload
-	Engine         TemplateEngine   // Target template engine
-	Type           PayloadType      // Payload type
-	ExpectedOutput string           // Expected output if vulnerable
-	Regex          *regexp.Regexp   // Regex pattern to match in response
-	Description    string           // Description of what this payload does
-	Severity       finding.Severity // Severity if successful
-	MathA          int              // First number for math probes
-	MathB          int              // Second number for math probes
-	MathResult     int              // Expected result for math probes
+	Template       string           `json:"template"`                  // The template injection payload
+	Engine         TemplateEngine   `json:"engine"`                    // Target template engine
+	Type           PayloadType      `json:"type"`                      // Payload type
+	ExpectedOutput string           `json:"expected_output,omitempty"` // Expected output if vulnerable
+	Regex          *regexp.Regexp   `json:"-"`                         // Regex pattern to match in response
+	Description    string           `json:"description,omitempty"`     // Description of what this payload does
+	Severity       finding.Severity `json:"severity"`                  // Severity if successful
+	MathA          int              `json:"math_a,omitempty"`          // First number for math probes
+	MathB          int              `json:"math_b,omitempty"`          // Second number for math probes
+	MathResult     int              `json:"math_result,omitempty"`     // Expected result for math probes
 }
 
 // Vulnerability represents a detected SSTI vulnerability

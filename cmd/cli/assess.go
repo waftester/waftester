@@ -117,19 +117,7 @@ func runAssess() {
 		os.Exit(1)
 	}
 
-	// Print configuration
-	ui.PrintConfigLine("Target", *target)
-	ui.PrintConfigLine("Concurrency", fmt.Sprintf("%d", *concurrency))
-	ui.PrintConfigLine("Rate Limit", fmt.Sprintf("%.0f req/s", *rateLimit))
-	ui.PrintConfigLine("Timeout", fmt.Sprintf("%ds", *timeout))
-	if *categories != "" {
-		ui.PrintConfigLine("Categories", *categories)
-	} else {
-		ui.PrintConfigLine("Categories", "all")
-	}
-	ui.PrintConfigLine("FP Testing", fmt.Sprintf("%v", *enableFP))
-	ui.PrintConfigLine("Corpus", *corpus)
-	ui.PrintConfigLine("WAF Detection", fmt.Sprintf("%v", *detectWAF))
+	// Configuration is displayed via execution manifest below
 	fmt.Println()
 
 	// Resolve template directory (extracts embedded templates if needed)
