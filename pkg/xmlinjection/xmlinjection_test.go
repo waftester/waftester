@@ -151,7 +151,7 @@ func TestResult_Fields(t *testing.T) {
 		StatusCode:  200,
 		Vulnerable:  true,
 		Evidence:    "XXE detected",
-		Severity:    "CRITICAL",
+		Severity:    "critical",
 	}
 
 	if result.URL != "http://example.com/api" {
@@ -160,7 +160,7 @@ func TestResult_Fields(t *testing.T) {
 	if result.Vulnerable != true {
 		t.Error("Vulnerable not set correctly")
 	}
-	if result.Severity != "CRITICAL" {
+	if result.Severity != "critical" {
 		t.Error("Severity not set correctly")
 	}
 }

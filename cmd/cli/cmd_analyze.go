@@ -186,11 +186,11 @@ func runAnalyze() {
 		if *extractSecrets && len(result.Secrets) > 0 {
 			ui.PrintSection("🔑 Secrets Detected")
 			for _, secret := range result.Secrets {
-				severity := strings.ToUpper(secret.Confidence)
-				if severity == "" {
-					severity = "LOW"
+				confidence := strings.ToUpper(secret.Confidence)
+				if confidence == "" {
+					confidence = "LOW"
 				}
-				ui.PrintError(fmt.Sprintf("  [%s] %s: %s", severity, secret.Type, truncateSecret(secret.Value)))
+				ui.PrintError(fmt.Sprintf("  [%s] %s: %s", confidence, secret.Type, truncateSecret(secret.Value)))
 			}
 			fmt.Println()
 		}

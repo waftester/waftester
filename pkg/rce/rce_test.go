@@ -155,12 +155,12 @@ func TestResult_Fields(t *testing.T) {
 		StatusCode:  200,
 		Vulnerable:  true,
 		Evidence:    "uid=0",
-		Severity:    "CRITICAL",
+		Severity:    "critical",
 		Timestamp:   time.Now(),
 	}
 
-	if result.Severity != "CRITICAL" {
-		t.Error("RCE should be CRITICAL severity")
+	if result.Severity != "critical" {
+		t.Error("RCE should be critical severity")
 	}
 }
 
