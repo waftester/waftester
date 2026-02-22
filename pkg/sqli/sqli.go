@@ -569,6 +569,7 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 				DBMS:    detectedDBMS,
 				Payload: &payload,
 			})
+			t.config.NotifyVulnerabilityFound()
 			continue
 		}
 
@@ -597,6 +598,7 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 					DBMS:    payload.DBMS,
 					Payload: &payload,
 				})
+				t.config.NotifyVulnerabilityFound()
 			}
 			continue
 		}
@@ -625,6 +627,7 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 					DBMS:    DBMSGeneric,
 					Payload: &payload,
 				})
+				t.config.NotifyVulnerabilityFound()
 			}
 		}
 	}
