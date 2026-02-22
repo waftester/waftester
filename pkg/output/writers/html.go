@@ -404,7 +404,6 @@ func generateRiskChartSVG(counts map[string]int) string {
 	return sb.String()
 }
 
-
 func capitalize(s string) string {
 	if len(s) == 0 {
 		return s
@@ -595,19 +594,19 @@ func (hw *HTMLWriter) prepareTemplateData() *templateData {
 
 		// Build finding data
 		finding := findingData{
-			ID:            r.Test.ID,
-			Name:          r.Test.Name,
-			Category:      r.Test.Category,
-			Severity:      string(r.Test.Severity),
-			SeverityClass: severityToClass(r.Test.Severity),
-			Outcome:       string(r.Result.Outcome),
-			OutcomeClass:  outcomeToClass(r.Result.Outcome),
-			URL:           r.Target.URL,
-			Method:        r.Target.Method,
-			StatusCode:    r.Result.StatusCode,
-			LatencyMs:     r.Result.LatencyMs,
-			OWASP:         r.Test.OWASP,
-			CWE:           r.Test.CWE,
+			ID:             r.Test.ID,
+			Name:           r.Test.Name,
+			Category:       r.Test.Category,
+			Severity:       string(r.Test.Severity),
+			SeverityClass:  severityToClass(r.Test.Severity),
+			Outcome:        string(r.Result.Outcome),
+			OutcomeClass:   outcomeToClass(r.Result.Outcome),
+			URL:            r.Target.URL,
+			Method:         r.Target.Method,
+			StatusCode:     r.Result.StatusCode,
+			LatencyMs:      r.Result.LatencyMs,
+			OWASP:          r.Test.OWASP,
+			CWE:            r.Test.CWE,
 			Timestamp:      r.Time.Format("2006-01-02 15:04:05"),
 			Confidence:     string(r.Result.Confidence),
 			ConfidenceNote: r.Result.ConfidenceNote,
