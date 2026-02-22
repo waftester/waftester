@@ -158,7 +158,7 @@ func runFP() {
 	defer cancel()
 
 	// Determine output mode
-	outputMode := ui.OutputModeInteractive
+	outputMode := ui.DefaultOutputMode()
 	if *streamMode {
 		outputMode = ui.OutputModeStreaming
 	}
@@ -201,9 +201,17 @@ func runFP() {
 	} else {
 		ui.Printf("  %s Completed %d tests in %s\n", ui.Icon("\u2705", "+"), result.TotalTests, formatElapsed(elapsed))
 		if result.FalsePositives > 0 {
-			ui.Printf("  %s  \033[31m%d false positives detected\033[0m\n", ui.Icon("\u26a0\ufe0f", "!"), result.FalsePositives)
+			if ui.StdoutIsTerminal() {
+				ui.Printf("  %s  \033[31m%d false positives detected\033[0m\n", ui.Icon("\u26a0\ufe0f", "!"), result.FalsePositives)
+			} else {
+				ui.Printf("  %s  %d false positives detected\n", ui.Icon("\u26a0\ufe0f", "!"), result.FalsePositives)
+			}
 		} else {
-			ui.Printf("  %s \033[32mNo false positives detected\033[0m\n", ui.Icon("\u2728", "+"))
+			if ui.StdoutIsTerminal() {
+				ui.Printf("  %s \033[32mNo false positives detected\033[0m\n", ui.Icon("\u2728", "+"))
+			} else {
+				ui.Printf("  %s No false positives detected\n", ui.Icon("\u2728", "+"))
+			}
 		}
 		fmt.Println()
 

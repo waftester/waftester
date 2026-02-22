@@ -52,19 +52,36 @@ func (s Stats) writeConsole(w io.Writer) error {
 		return nil
 	}
 
+	// Determine if the writer supports ANSI based on whether it's a terminal.
+	tty := false
+	if f, ok := w.(*os.File); ok {
+		switch f.Fd() {
+		case os.Stderr.Fd():
+			tty = ui.StderrIsTerminal()
+		case os.Stdout.Fd():
+			tty = ui.StdoutIsTerminal()
+		}
+	}
+	ansi := func(code string) string {
+		if !tty {
+			return ""
+		}
+		return code
+	}
+
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, strings.Repeat(ui.Icon("─", "-"), 40))
 	fmt.Fprintln(w, "  Detection Stats:")
 	fmt.Fprintln(w)
 
 	if s.DropsDetected > 0 {
-		fmt.Fprintf(w, "\033[33m    %s Connection Drops: %d\033[0m\n", ui.Icon("⚠", "!"), s.DropsDetected)
+		fmt.Fprintf(w, "%s    %s Connection Drops: %d%s\n", ansi("\033[33m"), ui.Icon("⚠", "!"), s.DropsDetected, ansi("\033[0m"))
 	}
 	if s.BansDetected > 0 {
-		fmt.Fprintf(w, "\033[31m    %s Silent Bans:      %d\033[0m\n", ui.Icon("🚫", "x"), s.BansDetected)
+		fmt.Fprintf(w, "%s    %s Silent Bans:      %d%s\n", ansi("\033[31m"), ui.Icon("🚫", "x"), s.BansDetected, ansi("\033[0m"))
 	}
 	if s.HostsSkipped > 0 {
-		fmt.Fprintf(w, "\033[36m    %s Hosts Skipped:     %d\033[0m\n", ui.Icon("⏭", ">"), s.HostsSkipped)
+		fmt.Fprintf(w, "%s    %s Hosts Skipped:     %d%s\n", ansi("\033[36m"), ui.Icon("⏭", ">"), s.HostsSkipped, ansi("\033[0m"))
 	}
 
 	// Show recommendations if any

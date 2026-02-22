@@ -25,6 +25,16 @@ const (
 	OutputModeSilent
 )
 
+// DefaultOutputMode returns Interactive when stderr is a terminal,
+// Streaming otherwise. Use this instead of hardcoding OutputModeInteractive
+// to avoid ANSI escape codes in redirected output.
+func DefaultOutputMode() OutputMode {
+	if StderrIsTerminal() {
+		return OutputModeInteractive
+	}
+	return OutputModeStreaming
+}
+
 // LiveProgressConfig holds configuration for live progress display
 type LiveProgressConfig struct {
 	// Total number of items to process (0 = indeterminate)
@@ -113,7 +123,7 @@ type LiveProgress struct {
 func DefaultLiveProgressConfig() LiveProgressConfig {
 	return LiveProgressConfig{
 		DisplayLines:   2,
-		Mode:           OutputModeInteractive,
+		Mode:           DefaultOutputMode(),
 		Writer:         os.Stderr,
 		SpinnerType:    SpinnerDots,
 		BarWidth:       30,
