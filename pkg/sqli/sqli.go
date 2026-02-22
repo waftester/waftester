@@ -569,7 +569,8 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 				DBMS:    detectedDBMS,
 				Payload: &payload,
 			})
-			t.config.NotifyVulnerabilityFound()
+			// Key matches dedup.go: URL|Parameter|Type|DBMS
+			t.config.NotifyUniqueVuln(fmt.Sprintf("%s|%s|%s|%s", targetURL, param, InjectionErrorBased, detectedDBMS))
 			continue
 		}
 
@@ -598,7 +599,8 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 					DBMS:    payload.DBMS,
 					Payload: &payload,
 				})
-				t.config.NotifyVulnerabilityFound()
+				// Key matches dedup.go: URL|Parameter|Type|DBMS
+				t.config.NotifyUniqueVuln(fmt.Sprintf("%s|%s|%s|%s", targetURL, param, InjectionTimeBased, payload.DBMS))
 			}
 			continue
 		}
@@ -627,7 +629,8 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 					DBMS:    DBMSGeneric,
 					Payload: &payload,
 				})
-				t.config.NotifyVulnerabilityFound()
+				// Key matches dedup.go: URL|Parameter|Type|DBMS
+				t.config.NotifyUniqueVuln(fmt.Sprintf("%s|%s|%s|%s", targetURL, param, InjectionBooleanBased, DBMSGeneric))
 			}
 		}
 	}

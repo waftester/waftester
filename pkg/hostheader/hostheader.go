@@ -284,7 +284,8 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 				Remediation:   GetRemediation(),
 				CVSS:          7.5,
 			})
-			t.config.NotifyVulnerabilityFound()
+			// Key matches dedup.go: URL|Header|Type
+			t.config.NotifyUniqueVuln(fmt.Sprintf("%s|%s|%s", targetURL, payload.Header, VulnHostOverride))
 		}
 
 		// Check for reflection in Location header (potential redirect poisoning)
@@ -300,7 +301,8 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 				Remediation:   GetRemediation(),
 				CVSS:          6.1,
 			})
-			t.config.NotifyVulnerabilityFound()
+			// Key matches dedup.go: URL|Header|Type
+			t.config.NotifyUniqueVuln(fmt.Sprintf("%s|%s|%s", targetURL, payload.Header, VulnOpenRedirect))
 		}
 
 		// Check for cache poisoning indicators
@@ -320,7 +322,8 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 						Remediation:   GetCachePoisoningRemediation(),
 						CVSS:          9.0,
 					})
-					t.config.NotifyVulnerabilityFound()
+					// Key matches dedup.go: URL|Header|Type
+					t.config.NotifyUniqueVuln(fmt.Sprintf("%s|%s|%s", targetURL, payload.Header, VulnCachePoisoning))
 					break
 				}
 			}
