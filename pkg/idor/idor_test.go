@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 )
 
@@ -110,12 +111,12 @@ func TestScanner_DetermineSeverity(t *testing.T) {
 	tests := []struct {
 		url      string
 		method   string
-		expected string
+		expected finding.Severity
 	}{
-		{"/api/admin/users", "GET", "HIGH"},
-		{"/api/users", "DELETE", "HIGH"},
-		{"/api/users", "GET", "MEDIUM"},
-		{"/api/payment/cards", "GET", "HIGH"},
+		{"/api/admin/users", "GET", finding.High},
+		{"/api/users", "DELETE", finding.High},
+		{"/api/users", "GET", finding.Medium},
+		{"/api/payment/cards", "GET", finding.High},
 	}
 
 	for _, tt := range tests {

@@ -379,25 +379,25 @@ func collectScanFindings(result *ScanResult) []scanFinding {
 
 	// Simple Result types with URL, Payload, Parameter, Severity as string
 	for _, v := range result.LDAP {
-		add(v.URL, "", v.Payload, v.Parameter, "ldap", v.Severity)
+		add(v.URL, "", v.Payload, v.Parameter, "ldap", string(v.Severity))
 	}
 	for _, v := range result.SSI {
-		add(v.URL, "", v.Payload, v.Parameter, "ssi", v.Severity)
+		add(v.URL, "", v.Payload, v.Parameter, "ssi", string(v.Severity))
 	}
 	for _, v := range result.XPath {
-		add(v.URL, "", v.Payload, v.Parameter, "xpath", v.Severity)
+		add(v.URL, "", v.Payload, v.Parameter, "xpath", string(v.Severity))
 	}
 	for _, v := range result.XMLInjection {
-		add(v.URL, "", v.Payload, v.Parameter, "xmlinjection", v.Severity)
+		add(v.URL, "", v.Payload, v.Parameter, "xmlinjection", string(v.Severity))
 	}
 	for _, v := range result.RFI {
-		add(v.URL, "", v.Payload, v.Parameter, "rfi", v.Severity)
+		add(v.URL, "", v.Payload, v.Parameter, "rfi", string(v.Severity))
 	}
 	for _, v := range result.LFI {
-		add(v.URL, "", v.Payload, v.Parameter, "lfi", v.Severity)
+		add(v.URL, "", v.Payload, v.Parameter, "lfi", string(v.Severity))
 	}
 	for _, v := range result.RCE {
-		add(v.URL, "", v.Payload, v.Parameter, "rce", v.Severity)
+		add(v.URL, "", v.Payload, v.Parameter, "rce", string(v.Severity))
 	}
 	return findings
 }

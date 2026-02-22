@@ -12,6 +12,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
@@ -41,7 +42,7 @@ type Result struct {
 	SessionRegenerated bool
 	Vulnerable         bool
 	Evidence           string
-	Severity           string
+	Severity           finding.Severity
 	Timestamp          time.Time
 }
 
@@ -138,7 +139,7 @@ func (s *Scanner) Scan(ctx context.Context, loginURL string, credentials url.Val
 				result.Vulnerable = true
 				result.SessionRegenerated = false
 				result.Evidence = "Session not regenerated after authentication"
-				result.Severity = "high"
+				result.Severity = finding.High
 				s.config.NotifyVulnerabilityFound()
 			} else {
 				// Server never sent a session cookie; our injected value

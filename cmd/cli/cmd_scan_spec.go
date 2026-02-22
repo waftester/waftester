@@ -693,7 +693,7 @@ func runLFI(ctx context.Context, targetURL string, ep apispec.Endpoint, tag stri
 			Parameter:      r.Parameter,
 			Payload:        r.Payload,
 			Title:          fmt.Sprintf("Local File Inclusion via %s", r.Parameter),
-			Severity:       r.Severity,
+			Severity:       string(r.Severity),
 			Evidence:       r.Evidence,
 			CWE:            "CWE-98",
 		})
@@ -929,7 +929,7 @@ func runSpecLDAP(ctx context.Context, targetURL string, ep apispec.Endpoint, tag
 			Parameter:      r.Parameter,
 			Payload:        r.Payload,
 			Title:          fmt.Sprintf("LDAP Injection via %s", r.Parameter),
-			Severity:       r.Severity,
+			Severity:       string(r.Severity),
 			Evidence:       r.Evidence,
 			CWE:            "CWE-90",
 		})
@@ -964,7 +964,7 @@ func runSpecSSI(ctx context.Context, targetURL string, ep apispec.Endpoint, tag 
 			Parameter:      r.Parameter,
 			Payload:        r.Payload,
 			Title:          fmt.Sprintf("SSI Injection via %s", r.Parameter),
-			Severity:       r.Severity,
+			Severity:       string(r.Severity),
 			Evidence:       r.Evidence,
 			CWE:            "CWE-97",
 		})
@@ -999,7 +999,7 @@ func runSpecXPath(ctx context.Context, targetURL string, ep apispec.Endpoint, ta
 			Parameter:      r.Parameter,
 			Payload:        r.Payload,
 			Title:          fmt.Sprintf("XPath Injection via %s", r.Parameter),
-			Severity:       r.Severity,
+			Severity:       string(r.Severity),
 			Evidence:       r.Evidence,
 			CWE:            "CWE-643",
 		})
@@ -1024,7 +1024,7 @@ func runSpecXMLInjection(ctx context.Context, targetURL string, ep apispec.Endpo
 			Category:       "xmlinjection",
 			Payload:        r.Payload,
 			Title:          fmt.Sprintf("XML Injection (%s)", r.PayloadType),
-			Severity:       r.Severity,
+			Severity:       string(r.Severity),
 			Evidence:       r.Evidence,
 			CWE:            "CWE-91",
 		})
@@ -1059,7 +1059,7 @@ func runSpecRFI(ctx context.Context, targetURL string, ep apispec.Endpoint, tag 
 			Parameter:      r.Parameter,
 			Payload:        r.Payload,
 			Title:          fmt.Sprintf("Remote File Inclusion via %s", r.Parameter),
-			Severity:       r.Severity,
+			Severity:       string(r.Severity),
 			Evidence:       r.Evidence,
 			CWE:            "CWE-98",
 		})
@@ -1094,7 +1094,7 @@ func runSpecRCE(ctx context.Context, targetURL string, ep apispec.Endpoint, tag 
 			Parameter:      r.Parameter,
 			Payload:        r.Payload,
 			Title:          fmt.Sprintf("Remote Code Execution via %s", r.Parameter),
-			Severity:       r.Severity,
+			Severity:       string(r.Severity),
 			Evidence:       r.Evidence,
 			CWE:            "CWE-94",
 		})
@@ -1120,7 +1120,7 @@ func runSpecCSRF(ctx context.Context, targetURL string, ep apispec.Endpoint, tag
 		CorrelationTag: tag,
 		Category:       "csrf",
 		Title:          "Missing CSRF Protection",
-		Severity:       result.Severity,
+		Severity:       string(result.Severity),
 		Evidence:       result.Evidence,
 		CWE:            "CWE-352",
 	}}, nil
@@ -1140,7 +1140,7 @@ func runSpecClickjack(ctx context.Context, targetURL string, ep apispec.Endpoint
 		CorrelationTag: tag,
 		Category:       "clickjack",
 		Title:          "Clickjacking: Missing Frame Protection",
-		Severity:       result.Severity,
+		Severity:       string(result.Severity),
 		Evidence:       result.Evidence,
 		CWE:            "CWE-1021",
 	}}, nil
@@ -1167,7 +1167,7 @@ func runSpecIDOR(ctx context.Context, targetURL string, ep apispec.Endpoint, tag
 			CorrelationTag: tag,
 			Category:       "idor",
 			Title:          fmt.Sprintf("IDOR: %s accessible with ID %s", r.URL, r.TestedID),
-			Severity:       r.Severity,
+			Severity:       string(r.Severity),
 			Evidence:       r.Vulnerability,
 			CWE:            "CWE-639",
 		})
@@ -1193,7 +1193,7 @@ func runSpecMassAssignment(ctx context.Context, targetURL string, ep apispec.End
 			Category:       "massassignment",
 			Parameter:      r.Parameter,
 			Title:          fmt.Sprintf("Mass Assignment via %s", r.Parameter),
-			Severity:       r.Severity,
+			Severity:       string(r.Severity),
 			Evidence:       r.Evidence,
 			CWE:            "CWE-915",
 		})
