@@ -53,6 +53,7 @@ type Evidence struct {
 	EncodedPayload  string            `json:"encoded_payload,omitempty"`
 	CurlCommand     string            `json:"curl_command,omitempty"`
 	RequestHeaders  map[string]string `json:"request_headers,omitempty"`
+	ResponseHeaders map[string]string `json:"response_headers,omitempty"`
 	ResponsePreview string            `json:"response_preview,omitempty"`
 }
 
