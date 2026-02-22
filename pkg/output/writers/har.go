@@ -2,6 +2,7 @@
 package writers
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -225,11 +226,17 @@ func (hw *HARWriter) Close() error {
 	// Release buffer memory early.
 	hw.buffer = nil
 
-	var encodeErr error
-	encoder := json.NewEncoder(hw.w)
+	// Encode to buffer first so a mid-write I/O failure doesn't leave
+	// a corrupt (truncated) HAR file on disk.
+	var buf bytes.Buffer
+	encoder := json.NewEncoder(&buf)
 	encoder.SetIndent("", "  ")
+
+	var encodeErr error
 	if err := encoder.Encode(doc); err != nil {
 		encodeErr = fmt.Errorf("har: encode: %w", err)
+	} else if _, err := buf.WriteTo(hw.w); err != nil {
+		encodeErr = fmt.Errorf("har: write: %w", err)
 	}
 
 	if closer, ok := hw.w.(io.Closer); ok {
@@ -257,6 +264,13 @@ const harMillisecondFormat = "2006-01-02T15:04:05.000Z07:00"
 
 // resultToEntry converts a ResultEvent to a HAR entry.
 func (hw *HARWriter) resultToEntry(re *events.ResultEvent) harEntry {
+	// Default empty method to GET for spec compliance, consistent with
+	// bypassToResult which does the same.
+	method := re.Target.Method
+	if method == "" {
+		method = "GET"
+	}
+
 	queryParams := extractQueryParams(re.Target.URL)
 	comment := buildComment(re)
 
@@ -270,12 +284,13 @@ func (hw *HARWriter) resultToEntry(re *events.ResultEvent) harEntry {
 	}
 
 	reqHeaders := buildSortedHeaders(re.Evidence)
+	reqCookies := buildRequestCookies(re.Evidence)
 
 	// Build response content from evidence.
 	respContent := buildResponseContent(re)
 
 	var postData *harPostData
-	if wirePayload != "" && methodHasBody(re.Target.Method) {
+	if wirePayload != "" && methodHasBody(method) {
 		mimeType := "application/x-www-form-urlencoded"
 		if re.Evidence != nil {
 			if ct, ok := re.Evidence.RequestHeaders["Content-Type"]; ok {
@@ -285,6 +300,7 @@ func (hw *HARWriter) resultToEntry(re *events.ResultEvent) harEntry {
 		postData = &harPostData{
 			MimeType: mimeType,
 			Text:     wirePayload,
+			Params:   buildFormParams(mimeType, wirePayload),
 		}
 	}
 
@@ -292,12 +308,12 @@ func (hw *HARWriter) resultToEntry(re *events.ResultEvent) harEntry {
 		StartedDateTime: re.Time.Format(harMillisecondFormat),
 		Time:            re.Result.LatencyMs,
 		Request: harRequest{
-			Method:      re.Target.Method,
+			Method:      method,
 			URL:         re.Target.URL,
 			HTTPVersion: "HTTP/1.1",
 			Headers:     reqHeaders,
 			QueryString: queryParams,
-			Cookies:     []harCookie{},
+			Cookies:     reqCookies,
 			HeadersSize: -1,
 			BodySize:    bodySize,
 			PostData:    postData,
@@ -345,6 +361,7 @@ func extractQueryParams(rawURL string) []harNameValue {
 
 // buildComment creates a descriptive comment for the HAR entry.
 // Empty fields are filtered to avoid dangling separators.
+// Includes evasion context (encoding, tamper, technique) when available.
 func buildComment(re *events.ResultEvent) string {
 	var parts []string
 
@@ -362,7 +379,33 @@ func buildComment(re *events.ResultEvent) string {
 		parts = append(parts, "["+re.Test.Category+"]")
 	}
 
+	if ctx := buildContextTag(re.Context); ctx != "" {
+		parts = append(parts, ctx)
+	}
+
 	return strings.Join(parts, ": ")
+}
+
+// buildContextTag formats evasion context fields into a parenthesized tag
+// for the HAR comment, e.g. "(encoding: unicode, tamper: case-swap)".
+func buildContextTag(ctx *events.ContextInfo) string {
+	if ctx == nil {
+		return ""
+	}
+	var fields []string
+	if ctx.Encoding != "" {
+		fields = append(fields, "encoding: "+ctx.Encoding)
+	}
+	if ctx.Tamper != "" {
+		fields = append(fields, "tamper: "+ctx.Tamper)
+	}
+	if ctx.EvasionTechnique != "" {
+		fields = append(fields, "evasion: "+ctx.EvasionTechnique)
+	}
+	if len(fields) == 0 {
+		return ""
+	}
+	return "(" + strings.Join(fields, ", ") + ")"
 }
 
 // methodHasBody returns true if the HTTP method can carry a request body.
@@ -440,6 +483,61 @@ func sortNameValues(nv []harNameValue) {
 	slices.SortFunc(nv, func(a, b harNameValue) int {
 		return strings.Compare(a.Name, b.Name)
 	})
+}
+
+// buildRequestCookies parses the Cookie request header into individual
+// harCookie entries per HAR spec section 5.2.
+func buildRequestCookies(ev *events.Evidence) []harCookie {
+	if ev == nil {
+		return []harCookie{}
+	}
+	cookieHeader, ok := ev.RequestHeaders["Cookie"]
+	if !ok || cookieHeader == "" {
+		return []harCookie{}
+	}
+	return parseCookieHeader(cookieHeader)
+}
+
+// parseCookieHeader splits a Cookie header value ("name1=val1; name2=val2")
+// into individual harCookie entries.
+func parseCookieHeader(header string) []harCookie {
+	cookies := make([]harCookie, 0)
+	for _, pair := range strings.Split(header, ";") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		name, value, _ := strings.Cut(pair, "=")
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		cookies = append(cookies, harCookie{
+			Name:  name,
+			Value: strings.TrimSpace(value),
+		})
+	}
+	return cookies
+}
+
+// buildFormParams parses URL-encoded form data into HAR params when the
+// MIME type is application/x-www-form-urlencoded. Returns nil otherwise.
+func buildFormParams(mimeType, body string) []harNameValue {
+	if mimeType != "application/x-www-form-urlencoded" {
+		return nil
+	}
+	values, err := url.ParseQuery(body)
+	if err != nil {
+		return nil
+	}
+	params := make([]harNameValue, 0, len(values))
+	for key, vals := range values {
+		for _, val := range vals {
+			params = append(params, harNameValue{Name: key, Value: val})
+		}
+	}
+	sortNameValues(params)
+	return params
 }
 
 // effectivePayload returns the wire-format payload from evidence.
