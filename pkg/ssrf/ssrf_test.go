@@ -2,7 +2,9 @@ package ssrf
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -11,7 +13,7 @@ import (
 )
 
 func TestNewDetector(t *testing.T) {
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 	if d == nil {
 		t.Fatal("NewDetector returned nil")
 	}
@@ -33,7 +35,7 @@ func TestNewDetector(t *testing.T) {
 }
 
 func TestGeneratePayloads(t *testing.T) {
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 	payloads := d.GeneratePayloads()
 
 	if len(payloads) == 0 {
@@ -74,7 +76,7 @@ func TestGeneratePayloads(t *testing.T) {
 }
 
 func TestGeneratePayloadsWithCallback(t *testing.T) {
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 	d.CallbackServer = "callback.example.com"
 
 	payloads := d.GeneratePayloads()
@@ -96,7 +98,7 @@ func TestGeneratePayloadsWithCallback(t *testing.T) {
 }
 
 func TestLocalhostPayloads(t *testing.T) {
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 	payloads := d.generateLocalhostPayloads()
 
 	if len(payloads) == 0 {
@@ -129,7 +131,7 @@ func TestLocalhostPayloads(t *testing.T) {
 }
 
 func TestMetadataPayloads(t *testing.T) {
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 	payloads := d.generateMetadataPayloads()
 
 	if len(payloads) == 0 {
@@ -159,7 +161,7 @@ func TestMetadataPayloads(t *testing.T) {
 }
 
 func TestProtocolPayloads(t *testing.T) {
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 	payloads := d.generateProtocolPayloads()
 
 	if len(payloads) == 0 {
@@ -184,7 +186,7 @@ func TestProtocolPayloads(t *testing.T) {
 }
 
 func TestBypassPayloads(t *testing.T) {
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 	payloads := d.generateBypassPayloads()
 
 	if len(payloads) == 0 {
@@ -203,7 +205,7 @@ func TestBypassPayloads(t *testing.T) {
 }
 
 func TestApplyBypass(t *testing.T) {
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 
 	bypassed := d.ApplyBypass("http://127.0.0.1/test")
 
@@ -220,7 +222,7 @@ func TestApplyBypass(t *testing.T) {
 }
 
 func TestApplyBypassInvalidURL(t *testing.T) {
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 
 	bypassed := d.ApplyBypass("not-a-url")
 
@@ -231,7 +233,7 @@ func TestApplyBypassInvalidURL(t *testing.T) {
 }
 
 func TestCallbackRegistration(t *testing.T) {
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 
 	id := "test-callback-123"
 
@@ -255,7 +257,7 @@ func TestCallbackRegistration(t *testing.T) {
 }
 
 func TestAnalyzeResponseMetadata(t *testing.T) {
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 
 	payload := Payload{
 		Category: CategoryMetadata,
@@ -309,7 +311,7 @@ func TestAnalyzeResponseMetadata(t *testing.T) {
 }
 
 func TestAnalyzeResponseLocalhost(t *testing.T) {
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 
 	payload := Payload{
 		Category: CategoryLocalhost,
@@ -357,7 +359,7 @@ func TestAnalyzeResponseLocalhost(t *testing.T) {
 }
 
 func TestAnalyzeResponseFileProtocol(t *testing.T) {
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 
 	payload := Payload{
 		Category: CategoryProtocol,
@@ -533,7 +535,7 @@ func TestGenerateInternalPayloads(t *testing.T) {
 }
 
 func TestDetect(t *testing.T) {
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -560,7 +562,7 @@ func TestDetect(t *testing.T) {
 }
 
 func TestDetectContextCancellation(t *testing.T) {
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
@@ -703,5 +705,217 @@ func TestIsFileContent(t *testing.T) {
 				t.Errorf("Expected %v, got %v", tt.expected, result)
 			}
 		})
+	}
+}
+
+// --- New tests: DefaultConfig, buildPayloadURL, negative cases ---
+
+func TestDefaultConfig(t *testing.T) {
+	cfg := DefaultConfig()
+
+	if len(cfg.LocalIPs) == 0 {
+		t.Error("DefaultConfig should populate LocalIPs")
+	}
+	if len(cfg.CloudMetadataIPs) == 0 {
+		t.Error("DefaultConfig should populate CloudMetadataIPs")
+	}
+	if len(cfg.BypassTechniques) == 0 {
+		t.Error("DefaultConfig should populate BypassTechniques")
+	}
+	if cfg.Timeout <= 0 {
+		t.Error("DefaultConfig.Base.Timeout should be positive")
+	}
+}
+
+func TestBuildPayloadURL(t *testing.T) {
+	tests := []struct {
+		name       string
+		target     string
+		param      string
+		payload    string
+		wantErr    bool
+		wantContains string
+	}{
+		{
+			name:         "basic injection",
+			target:       "https://example.com/fetch",
+			param:        "url",
+			payload:      "http://127.0.0.1/",
+			wantContains: "url=http",
+		},
+		{
+			name:         "preserves existing query params",
+			target:       "https://example.com/fetch?a=1",
+			param:        "url",
+			payload:      "http://169.254.169.254/",
+			wantContains: "a=1",
+		},
+		{
+			name:    "invalid target URL",
+			target:  "://bad",
+			param:   "url",
+			payload: "http://127.0.0.1/",
+			wantErr: true,
+		},
+		{
+			name:         "empty param name",
+			target:       "https://example.com/",
+			param:        "",
+			payload:      "http://127.0.0.1/",
+			wantContains: "=http",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := buildPayloadURL(tt.target, tt.param, tt.payload)
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantContains != "" && !strings.Contains(got, tt.wantContains) {
+				t.Errorf("expected URL to contain %q, got %q", tt.wantContains, got)
+			}
+		})
+	}
+}
+
+func TestDetectMaxPayloads(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.MaxPayloads = 3
+	d := NewDetector(cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := d.Detect(ctx, "https://example.com/fetch", "url")
+	if err != nil {
+		t.Fatalf("Detect failed: %v", err)
+	}
+
+	if len(result.Payloads) != 3 {
+		t.Errorf("expected exactly 3 payloads with MaxPayloads=3, got %d", len(result.Payloads))
+	}
+}
+
+func TestDetectWithHTTPServer(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "normal page")
+	}))
+	defer server.Close()
+
+	cfg := DefaultConfig()
+	cfg.MaxPayloads = 2
+	d := NewDetector(cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := d.Detect(ctx, server.URL+"/fetch", "url")
+	if err != nil {
+		t.Fatalf("Detect failed: %v", err)
+	}
+
+	if len(result.Payloads) == 0 {
+		t.Fatal("expected payloads")
+	}
+
+	for _, pr := range result.Payloads {
+		if !pr.Sent {
+			t.Error("payload should be marked as sent")
+		}
+		if pr.Response.StatusCode == 0 && pr.Evidence == "" {
+			t.Error("payload should have either a response or error evidence")
+		}
+	}
+}
+
+func TestDetectEmptyTarget(t *testing.T) {
+	d := NewDetector(DefaultConfig())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Empty target — buildPayloadURL still works (url.Parse("") succeeds),
+	// but HTTP requests will fail with connection errors.
+	result, err := d.Detect(ctx, "", "url")
+	if err != nil {
+		t.Logf("Error on empty target: %v (acceptable)", err)
+	}
+	if result == nil {
+		t.Fatal("result should not be nil even with empty target")
+	}
+}
+
+func TestDetectCallbackFires(t *testing.T) {
+	// Simulate a server that responds with AWS metadata indicators
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprint(w, `{"ami-id":"ami-12345","instance-id":"i-abcdef"}`)
+	}))
+	defer server.Close()
+
+	var called int
+	cfg := DefaultConfig()
+	cfg.MaxPayloads = 5
+	cfg.OnVulnerabilityFound = func() { called++ }
+	d := NewDetector(cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := d.Detect(ctx, server.URL+"/fetch", "url")
+	if err != nil {
+		t.Fatalf("Detect failed: %v", err)
+	}
+
+	// The callback should fire for each metadata vuln found.
+	if len(result.Vulnerabilities) > 0 && called == 0 {
+		t.Error("OnVulnerabilityFound should have fired for detected vulns")
+	}
+}
+
+func TestAnalyzeResponseWrongCategory(t *testing.T) {
+	d := NewDetector(DefaultConfig())
+
+	// Metadata body but localhost category — should NOT detect as vuln
+	payload := Payload{Category: CategoryLocalhost, URL: "http://127.0.0.1/"}
+	vuln := d.AnalyzeResponse(payload, 404, `{"ami-id":"ami-12345"}`, http.Header{})
+	if vuln != nil {
+		t.Error("should not detect metadata content under localhost category")
+	}
+
+	// File content body but metadata category — should NOT detect
+	payload2 := Payload{Category: CategoryMetadata, URL: "http://169.254.169.254/"}
+	vuln2 := d.AnalyzeResponse(payload2, 200, "root:x:0:0:root:/root:/bin/bash", http.Header{})
+	if vuln2 != nil {
+		t.Error("should not detect file content under metadata category")
+	}
+}
+
+func TestAnalyzeResponseEmptyBody(t *testing.T) {
+	d := NewDetector(DefaultConfig())
+
+	categories := []struct {
+		cat     Category
+		url     string
+	}{
+		{CategoryMetadata, "http://169.254.169.254/"},
+		{CategoryLocalhost, "http://127.0.0.1/"},
+		{CategoryProtocol, "file:///etc/passwd"},
+	}
+
+	for _, c := range categories {
+		payload := Payload{Category: c.cat, URL: c.url}
+		vuln := d.AnalyzeResponse(payload, 200, "", http.Header{})
+		if vuln != nil {
+			t.Errorf("empty body should not trigger vuln for category %s", c.cat)
+		}
 	}
 }

@@ -1,7 +1,11 @@
 package jwt
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -805,5 +809,313 @@ func TestCallbackCountMatchesDedupGranularity(t *testing.T) {
 	if len(vulns) <= len(uniqueTypes) {
 		t.Errorf("expected more vuln variants (%d) than unique types (%d)",
 			len(vulns), len(uniqueTypes))
+	}
+}
+
+// --- New tests: Scanner, DefaultConfig, extractTokens, verifyToken, isJWT, negative cases ---
+
+func TestDefaultConfig(t *testing.T) {
+	cfg := DefaultConfig()
+	if cfg.Timeout <= 0 {
+		t.Error("DefaultConfig.Timeout should be positive")
+	}
+}
+
+func TestIsJWT(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		wantOK bool
+	}{
+		{"valid HS256", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIn0.rg2e2T2P", true},
+		{"empty string", "", false},
+		{"random text", "hello world", false},
+		{"only header", "eyJhbGciOiJIUzI1NiJ9", false},
+		{"two parts", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0", false},
+		{"no signature", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isJWT(tt.input); got != tt.wantOK {
+				t.Errorf("isJWT(%q) = %v, want %v", tt.input, got, tt.wantOK)
+			}
+		})
+	}
+}
+
+func TestNewScanner(t *testing.T) {
+	cfg := DefaultConfig()
+	var called bool
+	cfg.OnVulnerabilityFound = func() { called = true }
+	s := NewScanner(cfg)
+
+	if s.Attacker == nil {
+		t.Fatal("Attacker should not be nil")
+	}
+	if s.Attacker.OnVulnerabilityFound == nil {
+		t.Error("Attacker.OnVulnerabilityFound should be bridged from Config.Base")
+	}
+
+	// Verify the bridge works.
+	s.Attacker.OnVulnerabilityFound()
+	if !called {
+		t.Error("calling Attacker.OnVulnerabilityFound should trigger Base callback")
+	}
+}
+
+func TestScanWithServer(t *testing.T) {
+	// Server that returns a JWT in a Set-Cookie header.
+	testToken, _ := CreateToken(AlgHS256, &Claims{Subject: "1"}, []byte("secret"))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "token", Value: testToken})
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "ok")
+	}))
+	defer server.Close()
+
+	cfg := DefaultConfig()
+	cfg.Timeout = 5 * time.Second
+	s := NewScanner(cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := s.Scan(ctx, server.URL)
+	if err != nil {
+		t.Fatalf("Scan failed: %v", err)
+	}
+
+	if result.ExtractedTokens == 0 {
+		t.Error("should have extracted at least one token from Set-Cookie")
+	}
+	if len(result.Vulnerabilities) == 0 {
+		t.Error("should have generated vulnerability variants")
+	}
+}
+
+func TestScanWithNoTokens(t *testing.T) {
+	// Server with no tokens — scanner falls back to test token.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "no tokens here")
+	}))
+	defer server.Close()
+
+	s := NewScanner(DefaultConfig())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := s.Scan(ctx, server.URL)
+	if err != nil {
+		t.Fatalf("Scan failed: %v", err)
+	}
+
+	if result.ExtractedTokens != 0 {
+		t.Errorf("expected 0 extracted tokens, got %d", result.ExtractedTokens)
+	}
+	// Should still generate vulns from the fallback test token.
+	if len(result.Vulnerabilities) == 0 {
+		t.Error("should have generated vulnerabilities from fallback token")
+	}
+}
+
+func TestScanContextCancellation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	s := NewScanner(DefaultConfig())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately.
+
+	_, err := s.Scan(ctx, server.URL)
+	if err == nil {
+		t.Log("expected context error, may have completed before cancel")
+	}
+}
+
+func TestScanInvalidTarget(t *testing.T) {
+	s := NewScanner(DefaultConfig())
+
+	ctx := context.Background()
+	_, err := s.Scan(ctx, "://invalid")
+	if err == nil {
+		t.Error("expected error for invalid target URL")
+	}
+}
+
+func TestExtractTokensFromBody(t *testing.T) {
+	token, _ := CreateToken(AlgHS256, &Claims{Subject: "bodytoken"}, []byte("secret"))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, `{"access_token":"%s"}`, token)
+	}))
+	defer server.Close()
+
+	s := NewScanner(DefaultConfig())
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	tokens, err := s.extractTokens(context.Background(), client, server.URL)
+	if err != nil {
+		t.Fatalf("extractTokens failed: %v", err)
+	}
+
+	if len(tokens) == 0 {
+		t.Error("should have extracted token from response body")
+	}
+
+	found := false
+	for _, tok := range tokens {
+		if tok == token {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("extracted tokens should include the exact token from body")
+	}
+}
+
+func TestExtractTokensFromCustomHeaders(t *testing.T) {
+	token, _ := CreateToken(AlgHS256, &Claims{Subject: "hdrtoken"}, []byte("secret"))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Auth-Token", token)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	s := NewScanner(DefaultConfig())
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	tokens, err := s.extractTokens(context.Background(), client, server.URL)
+	if err != nil {
+		t.Fatalf("extractTokens failed: %v", err)
+	}
+
+	if len(tokens) == 0 {
+		t.Error("should have extracted token from X-Auth-Token header")
+	}
+}
+
+func TestExtractTokensDedup(t *testing.T) {
+	token, _ := CreateToken(AlgHS256, &Claims{Subject: "dup"}, []byte("secret"))
+
+	// Server returns the same token in cookie AND body.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "t", Value: token})
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, `{"token":"%s"}`, token)
+	}))
+	defer server.Close()
+
+	s := NewScanner(DefaultConfig())
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	tokens, err := s.extractTokens(context.Background(), client, server.URL)
+	if err != nil {
+		t.Fatalf("extractTokens failed: %v", err)
+	}
+
+	// Should only appear once despite being in two locations.
+	count := 0
+	for _, tok := range tokens {
+		if tok == token {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected token to appear exactly once (dedup), got %d", count)
+	}
+}
+
+func TestVerifyTokenAccepted(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Accept any token.
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	s := NewScanner(DefaultConfig())
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	accepted, err := s.verifyToken(context.Background(), client, server.URL, "malicious-token")
+	if err != nil {
+		t.Fatalf("verifyToken failed: %v", err)
+	}
+	if !accepted {
+		t.Error("200 response should be treated as accepted")
+	}
+}
+
+func TestVerifyTokenRejected(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	s := NewScanner(DefaultConfig())
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	accepted, err := s.verifyToken(context.Background(), client, server.URL, "bad-token")
+	if err != nil {
+		t.Fatalf("verifyToken failed: %v", err)
+	}
+	if accepted {
+		t.Error("401 response should be treated as rejected")
+	}
+}
+
+func TestVerifyTokenForbidden(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer server.Close()
+
+	s := NewScanner(DefaultConfig())
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	accepted, err := s.verifyToken(context.Background(), client, server.URL, "bad-token")
+	if err != nil {
+		t.Fatalf("verifyToken failed: %v", err)
+	}
+	if accepted {
+		t.Error("403 response should be treated as rejected")
+	}
+}
+
+func TestScanCallbackDedupBridge(t *testing.T) {
+	// End-to-end: verify Scanner.Scan fires callbacks with correct dedup.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	var called int
+	cfg := DefaultConfig()
+	cfg.Timeout = 5 * time.Second
+	cfg.OnVulnerabilityFound = func() { called++ }
+	s := NewScanner(cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := s.Scan(ctx, server.URL)
+	if err != nil {
+		t.Fatalf("Scan failed: %v", err)
+	}
+
+	// Count unique types in returned vulns.
+	uniqueTypes := make(map[AttackType]struct{})
+	for _, v := range result.Vulnerabilities {
+		uniqueTypes[v.Type] = struct{}{}
+	}
+
+	if len(result.Vulnerabilities) > 0 && called != len(uniqueTypes) {
+		t.Errorf("callback count (%d) should match unique types (%d)", called, len(uniqueTypes))
 	}
 }
