@@ -132,6 +132,19 @@ func (a *Attacker) notifyVuln() {
 	}
 }
 
+// notifyUniqueTypes fires the vulnerability callback once per unique attack type.
+// This matches the dedup granularity in dedup.go (key = string(v.Type)) so the
+// real-time progress counter stays consistent with the post-dedup final count.
+func (a *Attacker) notifyUniqueTypes(vulns []*Vulnerability) {
+	seen := make(map[AttackType]struct{})
+	for _, v := range vulns {
+		if _, ok := seen[v.Type]; !ok {
+			seen[v.Type] = struct{}{}
+			a.notifyVuln()
+		}
+	}
+}
+
 func getWeakPasswords() []string {
 	return []string{
 		// Very common secrets
@@ -637,52 +650,40 @@ func (a *Attacker) GenerateMaliciousTokens(tokenString string, options ...Attack
 
 	// None algorithm attack
 	if vulns, err := a.NoneAlgorithmAttack(token); err == nil {
-		for range vulns {
-			a.notifyVuln()
-		}
+		a.notifyUniqueTypes(vulns)
 		allVulns = append(allVulns, vulns...)
 	}
 
 	// Algorithm confusion (if public key provided)
 	if opts.publicKey != "" {
 		if vulns, err := a.AlgorithmConfusionAttack(token, opts.publicKey); err == nil {
-			for range vulns {
-				a.notifyVuln()
-			}
+			a.notifyUniqueTypes(vulns)
 			allVulns = append(allVulns, vulns...)
 		}
 	}
 
 	// Signature strip attacks
 	if vulns, err := a.SignatureStripAttack(token); err == nil {
-		for range vulns {
-			a.notifyVuln()
-		}
+		a.notifyUniqueTypes(vulns)
 		allVulns = append(allVulns, vulns...)
 	}
 
 	// Claim tampering
 	if vulns, err := a.ClaimTamperAttack(token); err == nil {
-		for range vulns {
-			a.notifyVuln()
-		}
+		a.notifyUniqueTypes(vulns)
 		allVulns = append(allVulns, vulns...)
 	}
 
 	// Kid injection
 	if vulns, err := a.KidInjectionAttack(token); err == nil {
-		for range vulns {
-			a.notifyVuln()
-		}
+		a.notifyUniqueTypes(vulns)
 		allVulns = append(allVulns, vulns...)
 	}
 
 	// JKU spoofing (if attacker URL provided)
 	if opts.attackerURL != "" {
 		if vulns, err := a.JKUSpoofAttack(token, opts.attackerURL); err == nil {
-			for range vulns {
-				a.notifyVuln()
-			}
+			a.notifyUniqueTypes(vulns)
 			allVulns = append(allVulns, vulns...)
 		}
 	}
