@@ -282,6 +282,7 @@ func Sign(header *Header, claims *Claims, secret []byte) (string, error) {
 	// Sign based on algorithm
 	var signature string
 	algLower := strings.ToLower(strings.TrimSpace(header.Alg))
+	algLower = strings.ReplaceAll(algLower, "\x00", "")
 
 	switch {
 	case algLower == "none" || algLower == "":
@@ -742,7 +743,8 @@ func Analyze(tokenString string) (*TokenAnalysis, error) {
 	}
 
 	// Check algorithm
-	if token.Header.Alg == "none" || token.Header.Alg == "None" {
+	algLower := strings.ToLower(strings.TrimSpace(strings.ReplaceAll(token.Header.Alg, "\x00", "")))
+	if algLower == "none" {
 		analysis.Issues = append(analysis.Issues, "Algorithm is 'none' - token is not signed")
 		analysis.Risk = "critical"
 	}
@@ -755,15 +757,19 @@ func Analyze(tokenString string) (*TokenAnalysis, error) {
 		}
 	}
 
-	// Check dangerous headers
+	// Check dangerous headers (only upgrade risk, never downgrade)
 	if token.Header.JKU != "" {
 		analysis.Issues = append(analysis.Issues, "JKU header present - potential for JWKS URL spoofing")
-		analysis.Risk = "high"
+		if analysis.Risk != "critical" {
+			analysis.Risk = "high"
+		}
 	}
 
 	if token.Header.X5U != "" {
 		analysis.Issues = append(analysis.Issues, "X5U header present - potential for certificate URL spoofing")
-		analysis.Risk = "high"
+		if analysis.Risk != "critical" {
+			analysis.Risk = "high"
+		}
 	}
 
 	if token.Header.Kid != "" {
@@ -812,12 +818,13 @@ func CreateToken(alg Algorithm, claims *Claims, secret []byte) (string, error) {
 		Typ: "JWT",
 	}
 
-	// Set issued at if not set
-	if claims.IssuedAt == 0 {
-		claims.IssuedAt = time.Now().Unix()
+	// Set issued at if not set (copy to avoid mutating caller's struct).
+	c := *claims
+	if c.IssuedAt == 0 {
+		c.IssuedAt = time.Now().Unix()
 	}
 
-	return Sign(header, claims, secret)
+	return Sign(header, &c, secret)
 }
 
 // CreateAdminToken creates a token with admin privileges
