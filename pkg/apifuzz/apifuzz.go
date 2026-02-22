@@ -615,6 +615,9 @@ func (t *Tester) sendFuzzRequest(ctx context.Context, baseURL string, endpoint E
 		if err == nil {
 			req.AddCookie(&http.Cookie{Name: param.Name, Value: payload})
 		}
+
+	default:
+		return nil, fmt.Errorf("unsupported parameter location %q for param %q", param.In, param.Name)
 	}
 
 	if err != nil {
