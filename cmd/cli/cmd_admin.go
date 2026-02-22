@@ -373,7 +373,7 @@ func runEnterpriseReport() {
 		fmt.Println()                                                                               // debug:keep
 		fmt.Println("Options:")                                                                     // debug:keep
 		fmt.Println("  -workspace <path>  Path to workspace directory containing results.json")     // debug:keep
-		fmt.Println("  -output <file>     Output HTML file (default: workspace/enterprise-report.html) // debug:keep")
+		fmt.Println("  -output <file>     Output HTML file (default: workspace/enterprise-report.html)") // debug:keep
 		fmt.Println("  -target <name>     Target name for report header") // debug:keep
 		os.Exit(1)
 	}
