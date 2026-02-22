@@ -11,6 +11,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/strutil"
@@ -41,7 +42,7 @@ type Result struct {
 	Match       string
 	Vulnerable  bool
 	Evidence    string
-	Severity    string
+	Severity    finding.Severity
 	Timestamp   time.Time
 }
 
@@ -58,7 +59,7 @@ type Scanner struct {
 type Pattern struct {
 	Name     string
 	Regex    *regexp.Regexp
-	Severity string
+	Severity finding.Severity
 }
 
 // NewScanner creates a new sensitive data scanner
@@ -80,21 +81,21 @@ func NewScanner(config Config) *Scanner {
 
 func compilePatterns() []Pattern {
 	patterns := []Pattern{
-		{Name: "AWS Access Key", Regex: regexp.MustCompile(`AKIA[0-9A-Z]{16}`), Severity: "critical"},
-		{Name: "AWS Secret Key", Regex: regexp.MustCompile(`(?i)aws.{0,20}['\"][0-9a-zA-Z/+]{40}['\"]`), Severity: "critical"},
-		{Name: "GitHub Token", Regex: regexp.MustCompile(`ghp_[a-zA-Z0-9]{36}`), Severity: "critical"},
-		{Name: "Google API Key", Regex: regexp.MustCompile(`AIza[0-9A-Za-z-_]{35}`), Severity: "high"},
-		{Name: "Private Key", Regex: regexp.MustCompile(`-----BEGIN (RSA |EC )?PRIVATE KEY-----`), Severity: "critical"},
-		{Name: "Credit Card", Regex: regexp.MustCompile(`\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b`), Severity: "critical"},
-		{Name: "SSN", Regex: regexp.MustCompile(`\b\d{3}-\d{2}-\d{4}\b`), Severity: "critical"},
-		{Name: "Email", Regex: regexp.MustCompile(`[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`), Severity: "low"},
-		{Name: "JWT", Regex: regexp.MustCompile(`eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*`), Severity: "high"},
-		{Name: "Basic Auth", Regex: regexp.MustCompile(`(?i)basic\s+[a-zA-Z0-9+/=]{10,}`), Severity: "high"},
-		{Name: "Bearer Token", Regex: regexp.MustCompile(`(?i)bearer\s+[a-zA-Z0-9._-]{10,}`), Severity: "high"},
-		{Name: "Password in URL", Regex: regexp.MustCompile(`(?i)password[=:][^&\s]+`), Severity: "high"},
-		{Name: "API Key Generic", Regex: regexp.MustCompile(`(?i)api[_-]?key[=:]['"]?[a-zA-Z0-9]{16,}['"]?`), Severity: "high"},
-		{Name: "Slack Token", Regex: regexp.MustCompile(`xox[baprs]-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24}`), Severity: "critical"},
-		{Name: "Heroku API Key", Regex: regexp.MustCompile(`(?i)heroku.*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`), Severity: "critical"},
+		{Name: "AWS Access Key", Regex: regexp.MustCompile(`AKIA[0-9A-Z]{16}`), Severity: finding.Critical},
+		{Name: "AWS Secret Key", Regex: regexp.MustCompile(`(?i)aws.{0,20}['\"][0-9a-zA-Z/+]{40}['\"]`), Severity: finding.Critical},
+		{Name: "GitHub Token", Regex: regexp.MustCompile(`ghp_[a-zA-Z0-9]{36}`), Severity: finding.Critical},
+		{Name: "Google API Key", Regex: regexp.MustCompile(`AIza[0-9A-Za-z-_]{35}`), Severity: finding.High},
+		{Name: "Private Key", Regex: regexp.MustCompile(`-----BEGIN (RSA |EC )?PRIVATE KEY-----`), Severity: finding.Critical},
+		{Name: "Credit Card", Regex: regexp.MustCompile(`\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b`), Severity: finding.Critical},
+		{Name: "SSN", Regex: regexp.MustCompile(`\b\d{3}-\d{2}-\d{4}\b`), Severity: finding.Critical},
+		{Name: "Email", Regex: regexp.MustCompile(`[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`), Severity: finding.Low},
+		{Name: "JWT", Regex: regexp.MustCompile(`eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*`), Severity: finding.High},
+		{Name: "Basic Auth", Regex: regexp.MustCompile(`(?i)basic\s+[a-zA-Z0-9+/=]{10,}`), Severity: finding.High},
+		{Name: "Bearer Token", Regex: regexp.MustCompile(`(?i)bearer\s+[a-zA-Z0-9._-]{10,}`), Severity: finding.High},
+		{Name: "Password in URL", Regex: regexp.MustCompile(`(?i)password[=:][^&\s]+`), Severity: finding.High},
+		{Name: "API Key Generic", Regex: regexp.MustCompile(`(?i)api[_-]?key[=:]['"]?[a-zA-Z0-9]{16,}['"]?`), Severity: finding.High},
+		{Name: "Slack Token", Regex: regexp.MustCompile(`xox[baprs]-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24}`), Severity: finding.Critical},
+		{Name: "Heroku API Key", Regex: regexp.MustCompile(`(?i)heroku.*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`), Severity: finding.Critical},
 	}
 	return patterns
 }

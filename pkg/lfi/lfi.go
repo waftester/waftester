@@ -11,6 +11,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
@@ -43,7 +44,7 @@ type Result struct {
 	Vulnerable   bool      `json:"vulnerable"`
 	FileContent  string    `json:"file_content,omitempty"`
 	Evidence     string    `json:"evidence,omitempty"`
-	Severity     string    `json:"severity"`
+	Severity     finding.Severity    `json:"severity"`
 	Timestamp    time.Time `json:"timestamp"`
 }
 
@@ -153,7 +154,7 @@ func (s *Scanner) testPayload(ctx context.Context, targetURL, param string, payl
 	result.Vulnerable, result.Evidence = s.detectVulnerability(string(body), payload.Markers)
 	if result.Vulnerable {
 		result.FileContent = string(body)
-		result.Severity = "high"
+		result.Severity = finding.High
 	}
 
 	return result

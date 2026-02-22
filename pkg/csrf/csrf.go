@@ -11,6 +11,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
@@ -42,7 +43,7 @@ type Result struct {
 	Referer       string    `json:"referer,omitempty"`
 	Vulnerable    bool      `json:"vulnerable"`
 	Evidence      string    `json:"evidence,omitempty"`
-	Severity      string    `json:"severity"`
+	Severity      finding.Severity    `json:"severity"`
 	Timestamp     time.Time `json:"timestamp"`
 }
 
@@ -94,7 +95,7 @@ func (s *Scanner) Scan(ctx context.Context, targetURL string, method string) (Re
 		if vulnerable {
 			result.Vulnerable = true
 			result.Evidence = "Request accepted without CSRF token"
-			result.Severity = "medium"
+			result.Severity = finding.Medium
 			s.config.NotifyVulnerabilityFound()
 		}
 	}
@@ -109,7 +110,7 @@ func (s *Scanner) Scan(ctx context.Context, targetURL string, method string) (Re
 		if !result.Vulnerable {
 			result.Vulnerable = true
 			result.Evidence = "Missing or weak SameSite cookie attribute"
-			result.Severity = "low"
+			result.Severity = finding.Low
 			s.config.NotifyVulnerabilityFound()
 		}
 	}

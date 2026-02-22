@@ -14,6 +14,7 @@ import (
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
@@ -46,7 +47,7 @@ type Result struct {
 	RateLimited  bool
 	Vulnerable   bool
 	Evidence     string
-	Severity     string
+	Severity     finding.Severity
 	Timestamp    time.Time
 }
 
@@ -132,7 +133,7 @@ func (s *Scanner) TestRateLimiting(ctx context.Context, targetURL string, reques
 	if !result.RateLimited && successCount == requests {
 		result.Vulnerable = true
 		result.Evidence = fmt.Sprintf("No rate limiting detected after %d requests", requests)
-		result.Severity = "medium"
+		result.Severity = finding.Medium
 		s.config.NotifyVulnerabilityFound()
 	}
 
@@ -211,7 +212,7 @@ func (s *Scanner) testResourcePayload(ctx context.Context, targetURL string, pay
 	if result.ResponseTime > duration.SlowResponse {
 		result.Vulnerable = true
 		result.Evidence = "Slow response: " + result.ResponseTime.String()
-		result.Severity = "high"
+		result.Severity = finding.High
 		s.config.NotifyVulnerabilityFound()
 	}
 
