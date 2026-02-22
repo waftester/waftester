@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
-	"strconv"
+	"slices"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
@@ -27,6 +27,7 @@ type HARWriter struct {
 	mu     sync.Mutex
 	opts   HAROptions
 	buffer []events.Event
+	closed bool
 }
 
 // HAROptions configures the HAR writer behavior.
@@ -53,6 +54,7 @@ type harDocument struct {
 type harLog struct {
 	Version string     `json:"version"`
 	Creator harCreator `json:"creator"`
+	Pages   []any      `json:"pages"`
 	Entries []harEntry `json:"entries"`
 }
 
@@ -147,6 +149,9 @@ func NewHARWriter(w io.Writer, opts HAROptions) *HARWriter {
 	if opts.CreatorName == "" {
 		opts.CreatorName = defaults.ToolName
 	}
+	if opts.CreatorVersion == "" {
+		opts.CreatorVersion = defaults.Version
+	}
 	return &HARWriter{
 		w:      w,
 		opts:   opts,
@@ -155,25 +160,28 @@ func NewHARWriter(w io.Writer, opts HAROptions) *HARWriter {
 }
 
 // Write buffers an event for later HAR output.
+// Accepts both ResultEvent and BypassEvent (converted to a synthetic ResultEvent).
 // The event is stored in memory until Close is called.
 func (hw *HARWriter) Write(event events.Event) error {
 	hw.mu.Lock()
 	defer hw.mu.Unlock()
 
-	// Only process result events
-	re, ok := event.(*events.ResultEvent)
-	if !ok {
+	if hw.closed {
 		return nil
 	}
 
-	// Filter: only bypasses if requested
-	if hw.opts.OnlyBypasses {
-		if re.Result.Outcome != events.OutcomeBypass {
+	switch e := event.(type) {
+	case *events.ResultEvent:
+		if hw.opts.OnlyBypasses && e.Result.Outcome != events.OutcomeBypass {
 			return nil
 		}
+		hw.buffer = append(hw.buffer, e)
+	case *events.BypassEvent:
+		re := bypassToResult(e)
+		hw.buffer = append(hw.buffer, re)
+	default:
+		// Unknown event type — ignore per convention.
 	}
-
-	hw.buffer = append(hw.buffer, event)
 	return nil
 }
 
@@ -184,10 +192,16 @@ func (hw *HARWriter) Flush() error {
 }
 
 // Close writes all buffered events as a HAR document and closes the writer.
-// If the underlying writer implements io.Closer, it will be closed.
+// The underlying writer is always closed if it implements io.Closer,
+// even when encoding fails (to avoid leaking file handles).
 func (hw *HARWriter) Close() error {
 	hw.mu.Lock()
 	defer hw.mu.Unlock()
+
+	if hw.closed {
+		return nil
+	}
+	hw.closed = true
 
 	doc := harDocument{
 		Log: harLog{
@@ -196,6 +210,7 @@ func (hw *HARWriter) Close() error {
 				Name:    hw.opts.CreatorName,
 				Version: hw.opts.CreatorVersion,
 			},
+			Pages:   []any{},
 			Entries: make([]harEntry, 0, len(hw.buffer)),
 		},
 	}
@@ -207,16 +222,22 @@ func (hw *HARWriter) Close() error {
 		}
 	}
 
+	// Release buffer memory early.
+	hw.buffer = nil
+
+	var encodeErr error
 	encoder := json.NewEncoder(hw.w)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(doc); err != nil {
-		return fmt.Errorf("har: encode: %w", err)
+		encodeErr = fmt.Errorf("har: encode: %w", err)
 	}
 
 	if closer, ok := hw.w.(io.Closer); ok {
-		return closer.Close()
+		if closeErr := closer.Close(); closeErr != nil && encodeErr == nil {
+			return fmt.Errorf("har: close: %w", closeErr)
+		}
 	}
-	return nil
+	return encodeErr
 }
 
 // SupportsEvent returns true for result and bypass events.
@@ -230,39 +251,45 @@ func (hw *HARWriter) SupportsEvent(eventType events.EventType) bool {
 	}
 }
 
+// harMillisecondFormat provides consistent 3-decimal-place timestamps
+// for HAR compatibility (some tools expect fixed millisecond precision).
+const harMillisecondFormat = "2006-01-02T15:04:05.000Z07:00"
+
 // resultToEntry converts a ResultEvent to a HAR entry.
 func (hw *HARWriter) resultToEntry(re *events.ResultEvent) harEntry {
-	// Parse URL for query string extraction
 	queryParams := extractQueryParams(re.Target.URL)
-
-	// Build comment from test info and outcome
 	comment := buildComment(re)
 
-	// Calculate body size from evidence if available
+	// Prefer the wire payload (EncodedPayload) over the raw payload for
+	// accurate representation of what was actually sent.
+	wirePayload := effectivePayload(re.Evidence)
+
 	bodySize := -1
-	if re.Evidence != nil && re.Evidence.Payload != "" {
-		bodySize = len(re.Evidence.Payload)
+	if wirePayload != "" {
+		bodySize = len(wirePayload)
 	}
 
-	// Build request headers from evidence
-	reqHeaders := make([]harNameValue, 0)
-	if re.Evidence != nil && re.Evidence.RequestHeaders != nil {
-		for name, value := range re.Evidence.RequestHeaders {
-			reqHeaders = append(reqHeaders, harNameValue{Name: name, Value: value})
-		}
-	}
+	reqHeaders := buildSortedHeaders(re.Evidence)
 
-	// Build post data if method supports it and we have a payload
+	// Build response content from evidence.
+	respContent := buildResponseContent(re)
+
 	var postData *harPostData
-	if re.Evidence != nil && re.Evidence.Payload != "" && methodHasBody(re.Target.Method) {
+	if wirePayload != "" && methodHasBody(re.Target.Method) {
+		mimeType := "application/x-www-form-urlencoded"
+		if re.Evidence != nil {
+			if ct, ok := re.Evidence.RequestHeaders["Content-Type"]; ok {
+				mimeType = ct
+			}
+		}
 		postData = &harPostData{
-			MimeType: "application/x-www-form-urlencoded",
-			Text:     re.Evidence.Payload,
+			MimeType: mimeType,
+			Text:     wirePayload,
 		}
 	}
 
 	return harEntry{
-		StartedDateTime: re.Time.Format(time.RFC3339Nano),
+		StartedDateTime: re.Time.Format(harMillisecondFormat),
 		Time:            re.Result.LatencyMs,
 		Request: harRequest{
 			Method:      re.Target.Method,
@@ -281,10 +308,7 @@ func (hw *HARWriter) resultToEntry(re *events.ResultEvent) harEntry {
 			HTTPVersion: "HTTP/1.1",
 			Headers:     []harNameValue{},
 			Cookies:     []harCookie{},
-			Content: harContent{
-				Size:     re.Result.ContentLength,
-				MimeType: "text/html",
-			},
+			Content:     respContent,
 			RedirectURL: "",
 			HeadersSize: -1,
 			BodySize:    re.Result.ContentLength,
@@ -299,7 +323,8 @@ func (hw *HARWriter) resultToEntry(re *events.ResultEvent) harEntry {
 	}
 }
 
-// extractQueryParams parses a URL and extracts query parameters.
+// extractQueryParams parses a URL and extracts query parameters in sorted order.
+// Empty-key params (from trailing "?") are filtered out.
 func extractQueryParams(rawURL string) []harNameValue {
 	params := make([]harNameValue, 0)
 	u, err := url.Parse(rawURL)
@@ -307,24 +332,31 @@ func extractQueryParams(rawURL string) []harNameValue {
 		return params
 	}
 	for key, values := range u.Query() {
+		if key == "" {
+			continue
+		}
 		for _, value := range values {
 			params = append(params, harNameValue{Name: key, Value: value})
 		}
 	}
+	sortNameValues(params)
 	return params
 }
 
 // buildComment creates a descriptive comment for the HAR entry.
+// Empty fields are filtered to avoid dangling separators.
 func buildComment(re *events.ResultEvent) string {
 	var parts []string
 
 	if re.Result.Outcome == events.OutcomeBypass {
 		parts = append(parts, "WAF bypass")
-	} else {
+	} else if re.Result.Outcome != "" {
 		parts = append(parts, string(re.Result.Outcome))
 	}
 
-	parts = append(parts, re.Test.ID)
+	if re.Test.ID != "" {
+		parts = append(parts, re.Test.ID)
+	}
 
 	if re.Test.Category != "" {
 		parts = append(parts, "["+re.Test.Category+"]")
@@ -333,10 +365,10 @@ func buildComment(re *events.ResultEvent) string {
 	return strings.Join(parts, ": ")
 }
 
-// methodHasBody returns true if the HTTP method typically has a body.
+// methodHasBody returns true if the HTTP method can carry a request body.
 func methodHasBody(method string) bool {
 	switch strings.ToUpper(method) {
-	case "POST", "PUT", "PATCH":
+	case "POST", "PUT", "PATCH", "DELETE":
 		return true
 	default:
 		return false
@@ -344,25 +376,122 @@ func methodHasBody(method string) bool {
 }
 
 // statusText returns the standard HTTP status text for a status code.
+// Delegates to net/http.StatusText which covers all IANA-registered codes.
 func statusText(code int) string {
-	texts := map[int]string{
-		200: "OK",
-		201: "Created",
-		204: "No Content",
-		301: "Moved Permanently",
-		302: "Found",
-		304: "Not Modified",
-		400: "Bad Request",
-		401: "Unauthorized",
-		403: "Forbidden",
-		404: "Not Found",
-		405: "Method Not Allowed",
-		500: "Internal Server Error",
-		502: "Bad Gateway",
-		503: "Service Unavailable",
-	}
-	if text, ok := texts[code]; ok {
+	if text := http.StatusText(code); text != "" {
 		return text
 	}
-	return "Status " + strconv.Itoa(code)
+	return fmt.Sprintf("Status %d", code)
+}
+
+// bypassToResult converts a BypassEvent into a synthetic ResultEvent
+// so it can be rendered as a HAR entry (HTTP request/response pair).
+// Defaults Method to GET when unset to satisfy HAR spec requirements.
+func bypassToResult(be *events.BypassEvent) *events.ResultEvent {
+	method := be.Details.Method
+	if method == "" {
+		method = "GET"
+	}
+
+	return &events.ResultEvent{
+		BaseEvent: be.BaseEvent,
+		Test: events.TestInfo{
+			ID:       be.Details.TestID,
+			Category: be.Details.Category,
+			Severity: be.Details.Severity,
+			OWASP:    be.Details.OWASP,
+			CWE:      be.Details.CWE,
+		},
+		Target: events.TargetInfo{
+			URL:    be.Details.Endpoint,
+			Method: method,
+		},
+		Result: events.ResultInfo{
+			Outcome:    events.OutcomeBypass,
+			StatusCode: be.Details.StatusCode,
+		},
+		Evidence: &events.Evidence{
+			Payload:     be.Details.Payload,
+			CurlCommand: be.Details.Curl,
+		},
+		Context: &events.ContextInfo{
+			Encoding: be.Details.Encoding,
+			Tamper:   be.Details.Tamper,
+		},
+	}
+}
+
+// buildSortedHeaders extracts request headers from evidence in deterministic
+// (sorted by name) order, safe for diff-based comparison.
+func buildSortedHeaders(ev *events.Evidence) []harNameValue {
+	headers := make([]harNameValue, 0)
+	if ev == nil || ev.RequestHeaders == nil {
+		return headers
+	}
+	for name, value := range ev.RequestHeaders {
+		headers = append(headers, harNameValue{Name: name, Value: value})
+	}
+	sortNameValues(headers)
+	return headers
+}
+
+// sortNameValues sorts a slice of harNameValue by Name for deterministic output.
+func sortNameValues(nv []harNameValue) {
+	slices.SortFunc(nv, func(a, b harNameValue) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+}
+
+// effectivePayload returns the wire-format payload from evidence.
+// Prefers EncodedPayload (the evasion-encoded form actually sent) over
+// the raw Payload. Returns empty string when no evidence is available.
+func effectivePayload(ev *events.Evidence) string {
+	if ev == nil {
+		return ""
+	}
+	if ev.EncodedPayload != "" {
+		return ev.EncodedPayload
+	}
+	return ev.Payload
+}
+
+// buildResponseContent constructs the HAR response content object.
+// Maps ResponsePreview to content.text when available, and infers
+// the MIME type from the preview content rather than guessing from
+// request headers.
+func buildResponseContent(re *events.ResultEvent) harContent {
+	c := harContent{
+		Size:     re.Result.ContentLength,
+		MimeType: "text/html",
+	}
+
+	if re.Evidence != nil && re.Evidence.ResponsePreview != "" {
+		c.Text = re.Evidence.ResponsePreview
+		c.MimeType = inferMIMEFromContent(re.Evidence.ResponsePreview)
+		if c.Size == 0 {
+			c.Size = len(re.Evidence.ResponsePreview)
+		}
+	}
+
+	return c
+}
+
+// inferMIMEFromContent makes a best-effort guess at MIME type from content.
+// Inspects the first non-whitespace character for JSON ({/[) or XML (<) markers.
+func inferMIMEFromContent(content string) string {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return "text/html"
+	}
+	switch trimmed[0] {
+	case '{', '[':
+		return "application/json"
+	case '<':
+		if strings.HasPrefix(trimmed, "<?xml") {
+			return "application/xml"
+		}
+		return "text/html"
+	default:
+		return "text/plain"
+	}
 }
