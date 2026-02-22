@@ -169,7 +169,7 @@ func TestResult_Fields(t *testing.T) {
 		StatusCode: 200,
 		Vulnerable: true,
 		Evidence:   "Parameter accepted",
-		Severity:   "CRITICAL",
+		Severity:   "critical",
 	}
 
 	if result.URL != "http://example.com/api/user" {
@@ -178,7 +178,7 @@ func TestResult_Fields(t *testing.T) {
 	if result.Vulnerable != true {
 		t.Error("Vulnerable not set correctly")
 	}
-	if result.Severity != "CRITICAL" {
+	if result.Severity != "critical" {
 		t.Error("Severity not set correctly")
 	}
 }
@@ -208,22 +208,22 @@ func TestDangerousParam_Severities(t *testing.T) {
 
 	for _, p := range params {
 		switch p.Severity {
-		case "CRITICAL":
+		case "critical":
 			hasCritical = true
-		case "HIGH":
+		case "high":
 			hasHigh = true
-		case "MEDIUM":
+		case "medium":
 			hasMedium = true
 		}
 	}
 
 	if !hasCritical {
-		t.Error("Expected CRITICAL severity parameters")
+		t.Error("Expected critical severity parameters")
 	}
 	if !hasHigh {
-		t.Error("Expected HIGH severity parameters")
+		t.Error("Expected high severity parameters")
 	}
 	if !hasMedium {
-		t.Error("Expected MEDIUM severity parameters")
+		t.Error("Expected medium severity parameters")
 	}
 }

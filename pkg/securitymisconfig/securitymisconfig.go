@@ -180,7 +180,7 @@ func (s *Scanner) testEndpoint(ctx context.Context, url, testType, endpoint stri
 	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
 		result.Vulnerable = true
 		result.Evidence = "Endpoint accessible: " + endpoint
-		result.Severity = "HIGH"
+		result.Severity = "high"
 		s.config.NotifyVulnerabilityFound()
 	}
 
@@ -206,7 +206,7 @@ func RequiredSecurityHeaders() []SecurityHeader {
 	return []SecurityHeader{
 		{
 			Name:     "X-Frame-Options",
-			Severity: "MEDIUM",
+			Severity: "medium",
 			Validator: func(v string) bool {
 				v = strings.ToUpper(v)
 				return v == "DENY" || v == "SAMEORIGIN"
@@ -214,38 +214,38 @@ func RequiredSecurityHeaders() []SecurityHeader {
 		},
 		{
 			Name:     "X-Content-Type-Options",
-			Severity: "MEDIUM",
+			Severity: "medium",
 			Validator: func(v string) bool {
 				return strings.ToLower(v) == "nosniff"
 			},
 		},
 		{
 			Name:     "Strict-Transport-Security",
-			Severity: "HIGH",
+			Severity: "high",
 			Validator: func(v string) bool {
 				return strings.Contains(strings.ToLower(v), "max-age=")
 			},
 		},
 		{
 			Name:      "Content-Security-Policy",
-			Severity:  "MEDIUM",
+			Severity:  "medium",
 			Validator: nil, // Any CSP is better than none
 		},
 		{
 			Name:     "X-XSS-Protection",
-			Severity: "LOW",
+			Severity: "low",
 			Validator: func(v string) bool {
 				return strings.HasPrefix(v, "1")
 			},
 		},
 		{
 			Name:      "Referrer-Policy",
-			Severity:  "LOW",
+			Severity:  "low",
 			Validator: nil,
 		},
 		{
 			Name:      "Permissions-Policy",
-			Severity:  "LOW",
+			Severity:  "low",
 			Validator: nil,
 		},
 	}

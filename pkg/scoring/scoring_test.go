@@ -123,8 +123,8 @@ func TestCalculateSensitivePatternEscalation(t *testing.T) {
 
 			// Check severity escalation
 			if tc.expectEscalate {
-				if result.FinalSeverity != "Critical" {
-					t.Errorf("Should escalate to Critical, got %s", result.FinalSeverity)
+				if result.FinalSeverity != "critical" {
+					t.Errorf("Should escalate to critical, got %s", result.FinalSeverity)
 				}
 			}
 		})
@@ -405,8 +405,8 @@ func TestCalculateSeverityEscalationThreshold(t *testing.T) {
 	for _, pattern := range highImpactPatterns {
 		input := Input{Severity: "Low", Outcome: "Fail", ResponseContains: pattern}
 		result := Calculate(input)
-		if result.FinalSeverity != "Critical" {
-			t.Errorf("Pattern %q (impact>=4.0) should escalate to Critical, got %s",
+		if result.FinalSeverity != "critical" {
+			t.Errorf("Pattern %q (impact>=4.0) should escalate to critical, got %s",
 				pattern, result.FinalSeverity)
 		}
 	}
@@ -414,8 +414,8 @@ func TestCalculateSeverityEscalationThreshold(t *testing.T) {
 	for _, pattern := range lowImpactPatterns {
 		input := Input{Severity: "Low", Outcome: "Fail", ResponseContains: pattern}
 		result := Calculate(input)
-		if result.FinalSeverity == "Critical" {
-			t.Errorf("Pattern %q (impact<4.0) should NOT escalate to Critical", pattern)
+		if result.FinalSeverity == "critical" {
+			t.Errorf("Pattern %q (impact<4.0) should NOT escalate to critical", pattern)
 		}
 	}
 }

@@ -56,8 +56,8 @@ func TestScanner_Scan_Vulnerable(t *testing.T) {
 	for _, r := range results {
 		if r.Vulnerable {
 			foundVuln = true
-			if r.Severity != "HIGH" {
-				t.Errorf("Vulnerable result severity = %s, want HIGH", r.Severity)
+			if r.Severity != "high" {
+				t.Errorf("Vulnerable result severity = %s, want high", r.Severity)
 			}
 		}
 	}
@@ -168,7 +168,7 @@ func TestResult_Fields(t *testing.T) {
 		StatusCode: 200,
 		Vulnerable: true,
 		Evidence:   "SSI error",
-		Severity:   "HIGH",
+		Severity:   "high",
 	}
 
 	if result.URL != "http://example.com" {
@@ -177,7 +177,7 @@ func TestResult_Fields(t *testing.T) {
 	if result.Vulnerable != true {
 		t.Error("Vulnerable not set correctly")
 	}
-	if result.Severity != "HIGH" {
+	if result.Severity != "high" {
 		t.Error("Severity not set correctly")
 	}
 }

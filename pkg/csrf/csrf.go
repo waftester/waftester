@@ -94,7 +94,7 @@ func (s *Scanner) Scan(ctx context.Context, targetURL string, method string) (Re
 		if vulnerable {
 			result.Vulnerable = true
 			result.Evidence = "Request accepted without CSRF token"
-			result.Severity = "MEDIUM"
+			result.Severity = "medium"
 			s.config.NotifyVulnerabilityFound()
 		}
 	}
@@ -109,7 +109,7 @@ func (s *Scanner) Scan(ctx context.Context, targetURL string, method string) (Re
 		if !result.Vulnerable {
 			result.Vulnerable = true
 			result.Evidence = "Missing or weak SameSite cookie attribute"
-			result.Severity = "LOW"
+			result.Severity = "low"
 			s.config.NotifyVulnerabilityFound()
 		}
 	}

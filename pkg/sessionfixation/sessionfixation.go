@@ -138,7 +138,7 @@ func (s *Scanner) Scan(ctx context.Context, loginURL string, credentials url.Val
 				result.Vulnerable = true
 				result.SessionRegenerated = false
 				result.Evidence = "Session not regenerated after authentication"
-				result.Severity = "HIGH"
+				result.Severity = "high"
 				s.config.NotifyVulnerabilityFound()
 			} else {
 				// Server never sent a session cookie; our injected value

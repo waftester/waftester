@@ -103,12 +103,12 @@ func TestResult_Fields(t *testing.T) {
 		Payload:    "http://evil.com/shell.txt",
 		StatusCode: 200,
 		Vulnerable: true,
-		Severity:   "CRITICAL",
+		Severity:   "critical",
 		Timestamp:  time.Now(),
 	}
 
-	if result.Severity != "CRITICAL" {
-		t.Error("RFI should be CRITICAL severity")
+	if result.Severity != "critical" {
+		t.Error("RFI should be critical severity")
 	}
 }
 

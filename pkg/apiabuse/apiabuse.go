@@ -132,7 +132,7 @@ func (s *Scanner) TestRateLimiting(ctx context.Context, targetURL string, reques
 	if !result.RateLimited && successCount == requests {
 		result.Vulnerable = true
 		result.Evidence = fmt.Sprintf("No rate limiting detected after %d requests", requests)
-		result.Severity = "MEDIUM"
+		result.Severity = "medium"
 		s.config.NotifyVulnerabilityFound()
 	}
 
@@ -211,7 +211,7 @@ func (s *Scanner) testResourcePayload(ctx context.Context, targetURL string, pay
 	if result.ResponseTime > duration.SlowResponse {
 		result.Vulnerable = true
 		result.Evidence = "Slow response: " + result.ResponseTime.String()
-		result.Severity = "HIGH"
+		result.Severity = "high"
 		s.config.NotifyVulnerabilityFound()
 	}
 

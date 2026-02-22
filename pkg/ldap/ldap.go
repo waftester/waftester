@@ -144,7 +144,7 @@ func (s *Scanner) testPayload(ctx context.Context, targetURL, param, payload str
 	// Check for LDAP injection indicators
 	result.Vulnerable, result.Evidence = s.detectVulnerability(string(body))
 	if result.Vulnerable {
-		result.Severity = "HIGH"
+		result.Severity = "high"
 	}
 
 	return result
