@@ -476,6 +476,7 @@ func (d *Detector) Detect(ctx context.Context, targetURL string, method string) 
 
 		if vuln != nil {
 			vulns = append(vulns, vuln)
+			d.config.NotifyVulnerabilityFound()
 		}
 	}
 
