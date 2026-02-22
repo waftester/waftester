@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/ui"
 )
 
 func TestNew_BasicTemplate(t *testing.T) {
@@ -422,9 +424,13 @@ func TestFormat_ColorFunctions(t *testing.T) {
 		t.Fatalf("Failed to format: %v", err)
 	}
 
-	// Should contain ANSI codes
-	if !strings.Contains(output, "\033[31m") {
-		t.Errorf("Expected red ANSI code in output")
+	// Text must always be present
+	if !strings.Contains(output, "error") {
+		t.Errorf("Expected text 'error' in output, got %q", output)
+	}
+	// ANSI codes only present when stdout is a terminal
+	if ui.StdoutIsTerminal() && !strings.Contains(output, "\033[31m") {
+		t.Errorf("Expected red ANSI code in output on TTY")
 	}
 }
 
@@ -609,14 +615,17 @@ func TestSeverityColor(t *testing.T) {
 					t.Errorf("Expected plain %q, got %q", tt.severity, output)
 				}
 			} else {
-				if !strings.Contains(output, tt.ansiCode) {
-					t.Errorf("Expected ANSI code %q in output %q", tt.ansiCode, output)
-				}
 				if !strings.Contains(output, tt.severity) {
 					t.Errorf("Expected severity text %q in output %q", tt.severity, output)
 				}
-				if !strings.Contains(output, "\033[0m") {
-					t.Errorf("Expected ANSI reset code in output %q", output)
+				// ANSI codes only present when stdout is a terminal
+				if ui.StdoutIsTerminal() {
+					if !strings.Contains(output, tt.ansiCode) {
+						t.Errorf("Expected ANSI code %q in output %q", tt.ansiCode, output)
+					}
+					if !strings.Contains(output, "\033[0m") {
+						t.Errorf("Expected ANSI reset code in output %q", output)
+					}
 				}
 			}
 		})
