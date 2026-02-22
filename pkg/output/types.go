@@ -25,12 +25,15 @@ type TestResult struct {
 	ContentType string `json:"content_type,omitempty"` // Request content type
 	RequestURL  string `json:"request_url,omitempty"`  // Full URL tested
 
+	// Request details from HTTP layer
+	RequestHeaders map[string]string `json:"request_headers,omitempty"` // Headers sent with the request
+
 	// Response details (for filtering - ffuf-style)
 	ContentLength   int               `json:"content_length,omitempty"`   // Response body size
 	WordCount       int               `json:"word_count,omitempty"`       // Words in response
 	LineCount       int               `json:"line_count,omitempty"`       // Lines in response
 	Filtered        bool              `json:"-"`                          // True if filtered out (not shown)
-	ResponseHeaders map[string]string `json:"response_headers,omitempty"` // Key response headers
+	ResponseHeaders map[string]string `json:"response_headers,omitempty"` // All response headers
 	WAFRuleID       string            `json:"waf_rule_id,omitempty"`      // WAF rule that blocked (if detected)
 	BlockConfidence float64           `json:"block_confidence,omitempty"` // Detection confidence 0-1
 
