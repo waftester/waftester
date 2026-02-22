@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **HTML writer: 23 bugs from deep adversarial review** — Two rounds of adversarial code review (R2-R9, R11-R24) covering all 2800+ lines of the HTML report writer. Fixes include: timeout outcomes missing from executive summary cards, simple summary grid, risk matrix, and JSON export; OWASP categories incorrectly marked "pass" for error/timeout results; findings sorted only by bypass vs non-bypass instead of full outcome priority; capitalize() using byte-level slice instead of rune-safe unicode; localStorage access crashing when storage disabled; effectiveness bar missing ARIA progressbar attributes; printReport using unreliable setTimeout instead of requestAnimationFrame; no noscript fallback for JS-collapsed findings; and filter toolbar lacking a visible result counter.
+- **HTML report writer: 23 bug fixes** — Timeout outcomes missing from executive summary cards, simple summary grid, risk matrix, and JSON export; OWASP categories incorrectly marked "pass" for error/timeout results; findings sorted only by bypass vs non-bypass instead of full outcome priority; capitalize() using byte-level slice instead of rune-safe unicode; localStorage access crashing when storage disabled; effectiveness bar missing ARIA progressbar attributes; printReport using unreliable setTimeout instead of requestAnimationFrame; no noscript fallback for JS-collapsed findings; and filter toolbar lacking a visible result counter.
 
 ## [2.9.23] - 2026-02-21
 
@@ -35,13 +35,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Intelligence engine adversarial hardening (round 2)** — Five bugs found in re-review of intelligence engine changes: RecordBehavior composite key mismatch silently broke behavior tracking when HTTP method was set; totalObservations not persisted, disabling UCB1 exploration after resume; extractPattern false-positive matches on bare `O:` and `a:` prefixes; buildSecretChain and buildLeakyParamChain returned first match instead of best candidate; buildLeakyParamChain used case-sensitive path matching.
+- **Intelligence engine: 5 bug fixes** — RecordBehavior composite key mismatch silently broke behavior tracking when HTTP method was set; totalObservations not persisted, disabling UCB1 exploration after resume; extractPattern false-positive matches on bare `O:` and `a:` prefixes; buildSecretChain and buildLeakyParamChain returned first match instead of best candidate; buildLeakyParamChain used case-sensitive path matching.
 
 ## [2.9.20] - 2026-02-20
 
 ### Fixed
 
-- **Auto mode adversarial hardening (rounds 6-15)** — 63 fixes from adversarial code review: death spiral TotalTests inflation, nil progress crash in sub-passes, double rate-limit backoff, EmitBypass on wrong outcomes, brain state persistence for resume, immediate result flush after waf-testing, mutation-pass diagnostic warnings, executorRef lifecycle cleanup, case-normalized bypass keys, and latency stats population in ExecuteWithProgress.
+- **Auto mode: 63 bug fixes** — Death spiral TotalTests inflation, nil progress crash in sub-passes, double rate-limit backoff, EmitBypass on wrong outcomes, brain state persistence for resume, immediate result flush after waf-testing, mutation-pass diagnostic warnings, executorRef lifecycle cleanup, case-normalized bypass keys, and latency stats population in ExecuteWithProgress.
 
 ## [2.9.19] - 2026-02-19
 
@@ -59,7 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **MCP agent scenario smoke runner** — Cross-platform test runner (`cmd/mcp-smoke`) with 13 scenarios covering the entire MCP surface area: tool discovery, resource exploration, prompt catalog, payload/tamper operations, mutation engine, template workflow, CI/CD generation, spec pipeline, baseline comparison, task management, error handling, and live WAF recon.
+- **MCP scenario smoke runner** — Cross-platform test runner (`cmd/mcp-smoke`) with 13 scenarios covering the entire MCP surface area: tool discovery, resource exploration, prompt catalog, payload/tamper operations, mutation engine, template workflow, CI/CD generation, spec pipeline, baseline comparison, task management, error handling, and live WAF recon.
 - **MCP export_spec negative tests** — Security and input validation tests for the `export_spec` tool.
 - **MCP coverage gap regression tests** — Tests targeting low-coverage branches: `buildDiscoverBypassesResponse`, `tlsVersionString`, `buildProbeResponse`, `estimateScanDuration`, writer wrappers, and `discardWriter`.
 
@@ -272,7 +272,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **JSON body, header, and cookie parameter discovery** — Parameter discovery now covers request body (JSON), headers, and cookies in addition to query and path parameters.
 - **MCP tools: discover_bypasses, list_tampers, event_crawl** — Three new MCP server tools for AI-assisted bypass discovery, tamper listing, and event-based crawling.
 - **Comprehensive command reference** — New `COMMANDS.md` with complete flag reference for every CLI command.
-- **42 regression tests** — 30 tests covering audit fix code paths, 12 hardened to catch real regressions on revert.
+- **42 regression tests** — 30 tests covering fix code paths, 12 hardened to catch real regressions on revert.
 
 ### Fixed
 
@@ -553,7 +553,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Gap test suite** — 13 new test files covering 6 structural testing gaps identified across rounds 1-4: type safety (`cli`, `dnscache`, `hosterrors`), error propagation (`output`, `corpus`, `checkpoint`), security boundaries (`compliance` HTML injection), concurrency (`workerpool`, `filter`, `distributed`), goroutine leaks (`screenshot`), and context cancellation (`recursive`)
+- **Gap test suite** — 13 new test files covering 6 structural testing gaps: type safety (`cli`, `dnscache`, `hosterrors`), error propagation (`output`, `corpus`, `checkpoint`), security boundaries (`compliance` HTML injection), concurrency (`workerpool`, `filter`, `distributed`), goroutine leaks (`screenshot`), and context cancellation (`recursive`)
 - **Shared test helpers** — `pkg/testutil` package with `FailingWriter`, `GoroutineTracker`, `AssertNoPanic`, `AssertTimeout`, `RunConcurrently`, `PoisonSyncMap`
 - **Workerpool regression test** — `TestPool_BlockingSendCloseDeadlock` reproduces the exact deadlock scenario (tiny buffer, blocked workers, concurrent Close) with timeout detection
 
