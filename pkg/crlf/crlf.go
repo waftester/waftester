@@ -258,6 +258,12 @@ func (t *Tester) TestParameter(ctx context.Context, baseURL string, param string
 	payloads := t.GetPayloads()
 
 	for _, payload := range payloads {
+		select {
+		case <-ctx.Done():
+			return vulns, ctx.Err()
+		default:
+		}
+
 		// Test in query parameter
 		testURL := baseURL
 		if strings.Contains(testURL, "?") {
@@ -365,6 +371,12 @@ func (t *Tester) TestHeader(ctx context.Context, targetURL string, headerName st
 	payloads := t.GetPayloads()
 
 	for _, payload := range payloads {
+		select {
+		case <-ctx.Done():
+			return vulns, ctx.Err()
+		default:
+		}
+
 		req, err := http.NewRequestWithContext(ctx, "GET", targetURL, nil)
 		if err != nil {
 			continue
@@ -409,6 +421,12 @@ func (t *Tester) TestPOST(ctx context.Context, targetURL string, param string) (
 	payloads := t.GetPayloads()
 
 	for _, payload := range payloads {
+		select {
+		case <-ctx.Done():
+			return vulns, ctx.Err()
+		default:
+		}
+
 		formData := url.Values{}
 		formData.Set(param, payload.Encoded)
 
@@ -460,6 +478,12 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*ScanResult, error
 
 	// Test each parameter
 	for _, param := range t.config.TestParams {
+		select {
+		case <-ctx.Done():
+			return result, ctx.Err()
+		default:
+		}
+
 		vulns, err := t.TestParameter(ctx, targetURL, param)
 		if err != nil {
 			continue
