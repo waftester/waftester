@@ -27,3 +27,23 @@ updates:
       go-modules:
         patterns:
           - "*"
+
+  # Keep Docker base image up to date
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - dependencies
+
+  # Keep npm dependencies up to date
+  - package-ecosystem: npm
+    directory: /npm/cli
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - dependencies
