@@ -2,6 +2,7 @@ package attackconfig
 
 import (
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
@@ -24,6 +25,11 @@ type Base struct {
 	// Scanners that support streaming call this per finding; others
 	// report in bulk after Scan() returns.
 	OnVulnerabilityFound func() `json:"-"`
+
+	// seenVulns tracks dedup keys for NotifyUniqueVuln to prevent
+	// overcounting in the progress display. Pointer to sync.Map so
+	// Base remains safe to copy by value (no embedded mutex).
+	seenVulns *sync.Map `json:"-"`
 }
 
 // DefaultBase returns a Base with production defaults.
@@ -49,6 +55,24 @@ func (b *Base) Validate() {
 // Call this after recording each vulnerability for real-time progress updates.
 func (b *Base) NotifyVulnerabilityFound() {
 	if b.OnVulnerabilityFound != nil {
+		b.OnVulnerabilityFound()
+	}
+}
+
+// NotifyUniqueVuln fires the OnVulnerabilityFound callback only once per
+// unique dedup key. Use this instead of NotifyVulnerabilityFound in scanners
+// where multiple findings share the same dedup key (e.g., same URL+param+type)
+// so the real-time progress counter matches the post-dedup final count.
+//
+// The key should match the dedup key used in dedup.go for that scanner.
+func (b *Base) NotifyUniqueVuln(key string) {
+	if b.OnVulnerabilityFound == nil {
+		return
+	}
+	if b.seenVulns == nil {
+		b.seenVulns = &sync.Map{}
+	}
+	if _, loaded := b.seenVulns.LoadOrStore(key, struct{}{}); !loaded {
 		b.OnVulnerabilityFound()
 	}
 }

@@ -539,7 +539,8 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 				Context: injCtx,
 				Payload: &payload,
 			})
-			t.config.NotifyVulnerabilityFound()
+			// Key matches dedup.go: URL|Parameter|Type|Context
+			t.config.NotifyUniqueVuln(fmt.Sprintf("%s|%s|%s|%s", targetURL, param, XSSReflected, injCtx))
 		}
 	}
 

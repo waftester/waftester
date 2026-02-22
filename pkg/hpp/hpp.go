@@ -517,7 +517,8 @@ func (t *Tester) TestPOST(ctx context.Context, targetURL string, param string) (
 				Evidence:    evidence,
 				Remediation: GetHPPRemediation(),
 			})
-			t.config.NotifyVulnerabilityFound()
+			// Key matches dedup.go: URL|Parameter|Type|Technology
+			t.config.NotifyUniqueVuln(fmt.Sprintf("%s|%s|%s|%s", targetURL, param, payload.Type, t.config.Technology))
 		}
 	}
 

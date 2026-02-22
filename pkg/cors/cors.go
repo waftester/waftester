@@ -393,7 +393,8 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*Result, error) {
 		if vuln != nil {
 			result.CORSEnabled = true
 			vulns = append(vulns, vuln)
-			t.config.NotifyVulnerabilityFound()
+			// Key matches dedup.go: URL|Type
+			t.config.NotifyUniqueVuln(fmt.Sprintf("%s|%s", vuln.URL, vuln.Type))
 		}
 	}
 
