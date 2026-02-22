@@ -66,6 +66,12 @@ type LiveProgressConfig struct {
 
 	// StreamInterval is how often to emit streaming updates (default: 1s)
 	StreamInterval time.Duration
+
+	// RateSource, when non-nil, provides the counter for rate calculation
+	// instead of using the completed count. Useful when the progress total
+	// is coarse (e.g., scanner types) but a finer counter (e.g., HTTP
+	// requests) gives a meaningful per-second rate.
+	RateSource *int64
 }
 
 // MetricConfig defines a custom metric to track
@@ -328,10 +334,15 @@ func (lp *LiveProgress) renderInteractive(spinner Spinner) {
 		percent = float64(completed) / float64(total) * 100
 	}
 
-	// Calculate rate
+	// Calculate rate — prefer RateSource (e.g., HTTP requests) over
+	// coarse scanner-level completions for a meaningful per-second value.
 	rate := float64(0)
 	if elapsed.Seconds() > 0 {
-		rate = float64(completed) / elapsed.Seconds()
+		if lp.config.RateSource != nil {
+			rate = float64(atomic.LoadInt64(lp.config.RateSource)) / elapsed.Seconds()
+		} else {
+			rate = float64(completed) / elapsed.Seconds()
+		}
 	}
 
 	// Calculate ETA
