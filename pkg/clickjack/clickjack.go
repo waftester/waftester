@@ -11,6 +11,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
@@ -39,7 +40,7 @@ type Result struct {
 	Frameable      bool      `json:"frameable"`
 	Vulnerable     bool      `json:"vulnerable"`
 	Evidence       string    `json:"evidence,omitempty"`
-	Severity       string    `json:"severity"`
+	Severity       finding.Severity    `json:"severity"`
 	Timestamp      time.Time `json:"timestamp"`
 }
 
@@ -103,7 +104,7 @@ func (s *Scanner) Scan(ctx context.Context, targetURL string) (Result, error) {
 	result.Vulnerable = result.Frameable
 
 	if result.Vulnerable {
-		result.Severity = "medium"
+		result.Severity = finding.Medium
 		result.Evidence = s.buildEvidence(result)
 		s.config.NotifyVulnerabilityFound()
 	}

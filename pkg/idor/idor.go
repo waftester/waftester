@@ -12,6 +12,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
@@ -57,7 +58,7 @@ type Result struct {
 	ResponseSize  int
 	AuthToken     string
 	Vulnerability string
-	Severity      string
+	Severity      finding.Severity
 	Timestamp     time.Time
 }
 
@@ -251,24 +252,24 @@ func (s *Scanner) testAccess(ctx context.Context, url, method, originalID, testI
 }
 
 // determineSeverity determines severity based on endpoint type
-func (s *Scanner) determineSeverity(url, method string) string {
+func (s *Scanner) determineSeverity(url, method string) finding.Severity {
 	urlLower := strings.ToLower(url)
 
 	// High severity patterns
 	highPatterns := []string{"admin", "password", "secret", "payment", "billing", "credit"}
 	for _, p := range highPatterns {
 		if strings.Contains(urlLower, p) {
-			return "HIGH"
+			return finding.High
 		}
 	}
 
 	// Write methods are higher severity
 	if method == "POST" || method == "PUT" || method == "DELETE" || method == "PATCH" {
-		return "HIGH"
+		return finding.High
 	}
 
 	// Medium by default for read access
-	return "MEDIUM"
+	return finding.Medium
 }
 
 // HorizontalPrivilegeTest tests for horizontal privilege escalation
@@ -297,7 +298,7 @@ func (s *Scanner) HorizontalPrivilegeTest(ctx context.Context, endpoint string, 
 				AuthToken:     tokens[i],
 				Accessible:    true,
 				Vulnerability: "Horizontal Privilege Escalation",
-				Severity:      "high",
+				Severity:      finding.High,
 				Timestamp:     time.Now(),
 			}
 			results = append(results, result)
@@ -393,7 +394,7 @@ func (s *Scanner) VerticalPrivilegeTest(ctx context.Context, adminEndpoints []st
 		result := s.testWithToken(ctx, endpoint, userToken)
 		if result.StatusCode >= 200 && result.StatusCode < 300 {
 			result.Vulnerability = "Vertical Privilege Escalation"
-			result.Severity = "critical"
+			result.Severity = finding.Critical
 			result.Accessible = true
 			results = append(results, result)
 		}
