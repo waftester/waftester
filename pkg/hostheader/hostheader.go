@@ -284,6 +284,7 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 				Remediation:   GetRemediation(),
 				CVSS:          7.5,
 			})
+			t.config.NotifyVulnerabilityFound()
 		}
 
 		// Check for reflection in Location header (potential redirect poisoning)
@@ -299,6 +300,7 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 				Remediation:   GetRemediation(),
 				CVSS:          6.1,
 			})
+			t.config.NotifyVulnerabilityFound()
 		}
 
 		// Check for cache poisoning indicators
@@ -318,6 +320,7 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 						Remediation:   GetCachePoisoningRemediation(),
 						CVSS:          9.0,
 					})
+					t.config.NotifyVulnerabilityFound()
 					break
 				}
 			}
@@ -390,6 +393,7 @@ func (t *Tester) TestPasswordReset(ctx context.Context, targetURL string, email 
 			Remediation:   GetPasswordResetRemediation(),
 			CVSS:          9.8,
 		})
+		t.config.NotifyVulnerabilityFound()
 	}
 
 	return vulns, nil
