@@ -203,6 +203,12 @@ func GeneratePOC(targetURL string) string {
 func (s *Scanner) ScanMultiple(ctx context.Context, urls []string) ([]Result, error) {
 	results := make([]Result, 0, len(urls))
 	for _, url := range urls {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
+
 		result, err := s.Scan(ctx, url)
 		if err != nil {
 			continue
