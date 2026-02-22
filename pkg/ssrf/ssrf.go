@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"io"
 	"math/big"
 	"net"
 	"net/http"
@@ -15,27 +16,26 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/hexutil"
 )
 
-// Detector detects SSRF vulnerabilities
-type Detector struct {
-	Timeout              time.Duration
-	CallbackServer       string   // OOB callback server (e.g., Burp Collaborator, interactsh)
-	LocalIPs             []string // IPs to test for internal access
-	CloudMetadataIPs     []string // Cloud metadata endpoints
-	BypassTechniques     []BypassTechnique
-	mu                   sync.Mutex
-	callbacks            map[string]time.Time
-	OnVulnerabilityFound func()
+// Config holds SSRF scanner configuration.
+type Config struct {
+	attackconfig.Base
+
+	CallbackServer   string   // OOB callback server (e.g., Burp Collaborator, interactsh)
+	LocalIPs         []string // IPs to test for internal access
+	CloudMetadataIPs []string // Cloud metadata endpoints
+	BypassTechniques []BypassTechnique
 }
 
-// NewDetector creates a new SSRF detector
-func NewDetector() *Detector {
-	return &Detector{
-		Timeout: duration.DialTimeout,
+// DefaultConfig returns a Config with production defaults.
+func DefaultConfig() Config {
+	return Config{
+		Base: attackconfig.DefaultBase(),
 		LocalIPs: []string{
 			"127.0.0.1",
 			"localhost",
@@ -54,7 +54,22 @@ func NewDetector() *Detector {
 			"fd00:ec2::254",   // AWS IPv6
 		},
 		BypassTechniques: defaultBypassTechniques(),
-		callbacks:        make(map[string]time.Time),
+	}
+}
+
+// Detector detects SSRF vulnerabilities
+type Detector struct {
+	Config
+	mu        sync.Mutex
+	callbacks map[string]time.Time
+}
+
+// NewDetector creates a new SSRF detector from Config.
+func NewDetector(cfg Config) *Detector {
+	cfg.Base.Validate()
+	return &Detector{
+		Config:    cfg,
+		callbacks: make(map[string]time.Time),
 	}
 }
 
@@ -772,7 +787,7 @@ type InternalNetworkScanner struct {
 // NewInternalNetworkScanner creates a scanner for internal network discovery
 func NewInternalNetworkScanner() *InternalNetworkScanner {
 	return &InternalNetworkScanner{
-		Detector: NewDetector(),
+		Detector: NewDetector(DefaultConfig()),
 		Subnets: []string{
 			"10.0.0.0/8",
 			"172.16.0.0/12",
@@ -820,7 +835,8 @@ func (s *InternalNetworkScanner) GenerateInternalPayloads(subnet string, ports [
 	return payloads
 }
 
-// Detect performs SSRF detection on a target
+// Detect performs SSRF detection by sending each payload to the target.
+// The param is the query parameter name into which payloads are injected.
 func (d *Detector) Detect(ctx context.Context, target, param string) (*Result, error) {
 	start := time.Now()
 
@@ -829,7 +845,15 @@ func (d *Detector) Detect(ctx context.Context, target, param string) (*Result, e
 		Parameter: param,
 	}
 
+	client := d.Client
+	if client == nil {
+		client = &http.Client{Timeout: d.Timeout}
+	}
+
 	payloads := d.GeneratePayloads()
+	if d.MaxPayloads > 0 && len(payloads) > d.MaxPayloads {
+		payloads = payloads[:d.MaxPayloads]
+	}
 
 	for _, payload := range payloads {
 		select {
@@ -844,14 +868,69 @@ func (d *Detector) Detect(ctx context.Context, target, param string) (*Result, e
 			Sent:    true,
 		}
 
-		// Here you would actually send the request with the payload
-		// For now, we just record that it was generated
+		reqURL, err := buildPayloadURL(target, param, payload.URL)
+		if err != nil {
+			pr.Evidence = err.Error()
+			result.Payloads = append(result.Payloads, pr)
+			continue
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+		if err != nil {
+			pr.Evidence = err.Error()
+			result.Payloads = append(result.Payloads, pr)
+			continue
+		}
+
+		for k, v := range d.HTTPHeader() {
+			req.Header[k] = v
+		}
+
+		reqStart := time.Now()
+		resp, err := client.Do(req)
+		respTime := time.Since(reqStart)
+		if err != nil {
+			pr.Evidence = err.Error()
+			result.Payloads = append(result.Payloads, pr)
+			continue
+		}
+
+		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+		resp.Body.Close()
+
+		bodyStr := string(bodyBytes)
+		pr.Response = ResponseInfo{
+			StatusCode:    resp.StatusCode,
+			ContentLength: len(bodyBytes),
+			ContentType:   resp.Header.Get("Content-Type"),
+			Headers:       resp.Header,
+			BodyPreview:   truncateBody(bodyStr, 500),
+			ResponseTime:  respTime,
+		}
+
+		vuln := d.AnalyzeResponse(payload, resp.StatusCode, bodyStr, resp.Header)
+		if vuln != nil {
+			pr.Vulnerable = true
+			result.Vulnerabilities = append(result.Vulnerabilities, *vuln)
+		}
 
 		result.Payloads = append(result.Payloads, pr)
 	}
 
 	result.Duration = time.Since(start)
 	return result, nil
+}
+
+// buildPayloadURL injects the payload into the target's query parameter.
+func buildPayloadURL(target, param, payloadURL string) (string, error) {
+	u, err := url.Parse(target)
+	if err != nil {
+		return "", fmt.Errorf("ssrf: parse target: %w", err)
+	}
+	q := u.Query()
+	q.Set(param, payloadURL)
+	u.RawQuery = q.Encode()
+	return u.String(), nil
 }
 
 // ClearCallbacks removes all registered callbacks
