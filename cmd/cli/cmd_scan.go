@@ -2017,7 +2017,7 @@ func runScan() {
 		// Define basic endpoints to fuzz
 		endpoints := []apifuzz.Endpoint{
 			{Path: "/api", Method: "GET", Parameters: []apifuzz.Parameter{{Name: "id", Type: apifuzz.ParamString, In: "query"}}},
-			{Path: "/api", Method: "POST", Parameters: []apifuzz.Parameter{{Name: "data", Type: apifuzz.ParamString, In: "body"}}},
+			{Path: "/api", Method: "POST", RequestBody: &apifuzz.RequestBody{ContentType: "application/json", Required: true}},
 		}
 		vulns, err := tester.FuzzAPI(ctx, target, endpoints)
 		if err != nil {

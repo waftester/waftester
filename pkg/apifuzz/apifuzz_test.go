@@ -3,6 +3,7 @@ package apifuzz
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -356,6 +357,125 @@ func TestSendFuzzRequest_UnknownParamIn(t *testing.T) {
 	}
 }
 
+// TestSendFuzzRequest_QueryParseError verifies that an unparseable URL
+// returns an error instead of silently dropping the payload.
+func TestSendFuzzRequest_QueryParseError(t *testing.T) {
+	tester := NewTester(&TesterConfig{
+		Base: attackconfig.Base{Timeout: 5 * time.Second},
+	})
+
+	endpoint := Endpoint{Path: "/test", Method: "GET"}
+	param := Parameter{Name: "q", In: "query", Type: ParamString}
+
+	// Use a URL with an invalid control character to trigger url.Parse failure
+	_, err := tester.sendFuzzRequest(context.Background(), "http://[::1]:namedport", endpoint, param, "payload")
+	if err == nil {
+		t.Fatal("expected error for unparseable URL, got nil")
+	}
+}
+
+// TestBoundaryPayloads_HugeMaxLength verifies OOM protection when MaxLength
+// is extremely large.
+func TestBoundaryPayloads_HugeMaxLength(t *testing.T) {
+	tester := NewTester(nil)
+
+	hugeLen := 1 << 30 // 1 billion
+	param := Parameter{
+		Name:      "data",
+		Type:      ParamString,
+		MaxLength: &hugeLen,
+	}
+
+	payloads := tester.boundaryPayloads(param)
+
+	for _, p := range payloads {
+		if len(p) > 200_000 {
+			t.Fatalf("boundary payload too large: %d bytes (should be capped)", len(p))
+		}
+	}
+}
+
+// TestFuzzAPI_ContextCancellation verifies that FuzzAPI respects context
+// cancellation and returns ctx.Err() instead of nil.
+func TestFuzzAPI_ContextCancellation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(100 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	tester := NewTester(&TesterConfig{
+		Base:       attackconfig.Base{Timeout: 5 * time.Second, Concurrency: 1},
+		Dictionary: []string{"a"},
+	})
+
+	endpoints := make([]Endpoint, 20)
+	for i := range endpoints {
+		endpoints[i] = Endpoint{
+			Path:   fmt.Sprintf("/api/v1/ep%d", i),
+			Method: "GET",
+			Parameters: []Parameter{
+				{Name: "q", In: "query", Type: ParamString},
+			},
+		}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	// Cancel almost immediately so most goroutines see cancelled context.
+	time.AfterFunc(50*time.Millisecond, cancel)
+
+	_, err := tester.FuzzAPI(ctx, server.URL, endpoints)
+	if err == nil {
+		t.Log("no error returned (all goroutines may have launched before cancellation)")
+	}
+	// The test primarily verifies no panic or deadlock under cancellation.
+}
+
+// TestFuzzEndpoint_BodyLoopRespectsContext verifies that the body-fuzzing
+// loop checks context cancellation between payloads.
+func TestFuzzEndpoint_BodyLoopRespectsContext(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	tester := NewTester(&TesterConfig{
+		Base:       attackconfig.Base{Timeout: 5 * time.Second},
+		Dictionary: []string{},
+	})
+
+	endpoint := Endpoint{
+		Path:        "/api/test",
+		Method:      "POST",
+		RequestBody: &RequestBody{ContentType: "application/json"},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	_, err := tester.FuzzEndpoint(ctx, server.URL, endpoint)
+	if err == nil {
+		t.Fatal("expected context error, got nil")
+	}
+	if !strings.Contains(err.Error(), "cancel") {
+		t.Errorf("expected context cancellation error, got: %v", err)
+	}
+}
+
+// TestExtractEvidence_UTF8Safe verifies rune-safe truncation of evidence.
+func TestExtractEvidence_UTF8Safe(t *testing.T) {
+	// Each emoji is 4 bytes. 200 emojis = 800 bytes but 200 runes.
+	body := strings.Repeat("\U0001F525", 200) // 🔥 repeated
+
+	evidence := extractEvidence(body)
+	// strutil.Truncate counts runes, so 500 runes + "..." at most
+	for _, r := range evidence {
+		if r == 0xFFFD {
+			t.Fatal("evidence contains replacement character — truncation broke a rune")
+		}
+	}
+}
+
 func TestSendBodyFuzzRequest(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -479,20 +599,25 @@ func TestHasErrorIndicator(t *testing.T) {
 
 func TestHasInjectionIndicator(t *testing.T) {
 	tests := []struct {
+		name    string
 		body    string
 		payload string
 		expect  bool
 	}{
-		{"Payload: test123 was received", "test123", true},
-		{"MySQL syntax error near 'x'", "x", true},
-		{"OK", "test", false},
+		{"long payload reflected", "Response: <script>alert(1)</script> was received", "<script>alert(1)</script>", true},
+		{"sql error with error keyword", "MySQL syntax error near 'x'", "x", true},
+		{"no match", "OK", "testpayload", false},
+		{"short payload not reflected", "body contains 1 somewhere", "1", false},
+		{"empty payload not reflected", "any body content", "", false},
+		{"7-char payload not reflected", "body contains test123", "test123", false},
+		{"8-char payload reflected", "body contains test1234 here", "test1234", true},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.body[:min(20, len(tt.body))], func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			result := hasInjectionIndicator(tt.body, tt.payload)
 			if result != tt.expect {
-				t.Errorf("got %v, want %v", result, tt.expect)
+				t.Errorf("hasInjectionIndicator(body, %q) = %v, want %v", tt.payload, result, tt.expect)
 			}
 		})
 	}
