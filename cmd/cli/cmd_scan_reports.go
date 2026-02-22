@@ -117,25 +117,32 @@ func printScanSARIF(w io.Writer, target string, result *ScanResult) {
 			},
 		},
 	}
-	jsonData, _ := json.MarshalIndent(sarif, "", "  ")
+	jsonData, err := json.MarshalIndent(sarif, "", "  ")
+	if err != nil {
+		ui.PrintError(fmt.Sprintf("marshal SARIF: %v", err))
+		return
+	}
 	fmt.Fprintln(w, string(jsonData))
 }
 
 // printScanJSONL writes scan results in JSON Lines format.
 func printScanJSONL(w io.Writer, target string, result *ScanResult) {
 	for cat, count := range result.ByCategory {
-		line, _ := json.Marshal(map[string]interface{}{"category": cat, "count": count, "target": target})
+		line, err := json.Marshal(map[string]interface{}{"category": cat, "count": count, "target": target})
+		if err != nil {
+			continue
+		}
 		fmt.Fprintln(w, string(line))
 	}
 }
 
 // printScanConsoleSummary writes scan results to console with colored formatting.
 func printScanConsoleSummary(result *ScanResult) {
-	fmt.Println()
+	fmt.Println() // debug:keep
 	ui.PrintSection("Scan Results")
 	ui.PrintConfigLine("Duration", result.Duration.Round(time.Millisecond).String())
 	ui.PrintConfigLine("Total Vulnerabilities", fmt.Sprintf("%d", result.TotalVulns))
-	fmt.Println()
+	fmt.Println() // debug:keep
 
 	if result.TotalVulns > 0 {
 		ui.PrintSection("By Severity")
@@ -151,7 +158,7 @@ func printScanConsoleSummary(result *ScanResult) {
 				ui.PrintInfo(fmt.Sprintf("  %s: %d", sev, count))
 			}
 		}
-		fmt.Println()
+		fmt.Println() // debug:keep
 
 		ui.PrintSection("By Category")
 		for cat, count := range result.ByCategory {
@@ -159,7 +166,7 @@ func printScanConsoleSummary(result *ScanResult) {
 				ui.PrintConfigLine(cat, fmt.Sprintf("%d vulnerabilities", count))
 			}
 		}
-		fmt.Println()
+		fmt.Println() // debug:keep
 
 		// Print detailed findings
 		if result.SQLi != nil && len(result.SQLi.Vulnerabilities) > 0 {
@@ -174,7 +181,7 @@ func printScanConsoleSummary(result *ScanResult) {
 			if len(result.SQLi.Vulnerabilities) > 5 {
 				ui.PrintInfo(fmt.Sprintf("  ... and %d more", len(result.SQLi.Vulnerabilities)-5))
 			}
-			fmt.Println()
+			fmt.Println() // debug:keep
 		}
 
 		if result.XSS != nil && len(result.XSS.Vulnerabilities) > 0 {
@@ -189,7 +196,7 @@ func printScanConsoleSummary(result *ScanResult) {
 			if len(result.XSS.Vulnerabilities) > 5 {
 				ui.PrintInfo(fmt.Sprintf("  ... and %d more", len(result.XSS.Vulnerabilities)-5))
 			}
-			fmt.Println()
+			fmt.Println() // debug:keep
 		}
 	} else {
 		ui.PrintSuccess("No vulnerabilities found!")

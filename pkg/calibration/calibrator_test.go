@@ -488,8 +488,7 @@ func TestCalibratorWithDifferentBodySizes(t *testing.T) {
 // BUG-EXPOSING TESTS - These tests expose real bugs in the source code
 // =============================================================================
 
-// TestRandomStringIsPredictable tests that randomString is now properly random using crypto/rand
-// FIXED: randomString now uses crypto/rand instead of time.Now().UnixNano()
+// TestRandomStringIsPredictable tests that randomString produces properly random output using crypto/rand.
 func TestRandomStringIsPredictable(t *testing.T) {
 	// Generate multiple strings rapidly and check for patterns
 	strings := make([]string, 100)
@@ -540,8 +539,7 @@ func TestRandomStringIsPredictable(t *testing.T) {
 	}
 }
 
-// TestRandomStringMustUseCryptoRand confirms that randomString uses crypto/rand
-// FIXED: randomString now uses crypto/rand for secure random generation
+// TestRandomStringMustUseCryptoRand confirms that randomString uses crypto/rand.
 func TestRandomStringMustUseCryptoRand(t *testing.T) {
 	// Verify that rapid generation produces unique strings
 	var identical int
