@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/strutil"
@@ -53,27 +54,38 @@ type Evidence struct {
 	Notes    string        `json:"notes,omitempty"`
 }
 
-// Detector detects HTTP request smuggling vulnerabilities
-type Detector struct {
-	Timeout              time.Duration
-	ReadTimeout          time.Duration
-	MaxRetries           int
-	DelayMs              int
-	SafeMode             bool // Only use timing-based detection
-	CustomPorts          []int
-	OnVulnerabilityFound func()
+// Config holds smuggling scanner configuration.
+type Config struct {
+	attackconfig.Base
+
+	ReadTimeout time.Duration
+	MaxRetries  int
+	DelayMs     int
+	SafeMode    bool  // Only use timing-based detection
+	CustomPorts []int
 }
 
-// NewDetector creates a new smuggling detector
-func NewDetector() *Detector {
-	return &Detector{
-		Timeout:     duration.DialTimeout,
+// DefaultConfig returns a Config with production defaults.
+func DefaultConfig() Config {
+	return Config{
+		Base:        attackconfig.DefaultBase(),
 		ReadTimeout: duration.HTTPProbing,
 		MaxRetries:  defaults.RetryMedium,
 		DelayMs:     1000,
-		SafeMode:    true, // Default to safe mode
+		SafeMode:    true,
 		CustomPorts: []int{80, 443, 8080, 8443},
 	}
+}
+
+// Detector detects HTTP request smuggling vulnerabilities
+type Detector struct {
+	Config
+}
+
+// NewDetector creates a new smuggling detector from Config.
+func NewDetector(cfg Config) *Detector {
+	cfg.Base.Validate()
+	return &Detector{Config: cfg}
 }
 
 // Result contains detection results
@@ -581,7 +593,7 @@ type HTTP2Detector struct {
 // NewHTTP2Detector creates a detector for HTTP/2 smuggling
 func NewHTTP2Detector() *HTTP2Detector {
 	return &HTTP2Detector{
-		Detector: NewDetector(),
+		Detector: NewDetector(DefaultConfig()),
 	}
 }
 

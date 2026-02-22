@@ -4,6 +4,7 @@
 package jwt
 
 import (
+	"context"
 	"crypto"
 	"crypto/hmac"
 	"crypto/rand"
@@ -15,9 +16,14 @@ import (
 	"errors"
 	"fmt"
 	"hash"
+	"io"
 	"math"
+	"net/http"
+	"regexp"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/attackconfig"
 )
 
 // Algorithm represents JWT signing algorithms
@@ -941,4 +947,190 @@ func log2(x float64) float64 {
 		return 0
 	}
 	return math.Log2(x)
+}
+
+// jwtPattern matches base64url.base64url.base64url JWT format.
+var jwtPattern = regexp.MustCompile(`eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*`)
+
+// Config holds JWT scanner configuration.
+type Config struct {
+	attackconfig.Base
+}
+
+// DefaultConfig returns a Config with production defaults.
+func DefaultConfig() Config {
+	return Config{Base: attackconfig.DefaultBase()}
+}
+
+// Scanner performs JWT security testing against a live target.
+// It extracts tokens from the target, generates attack variants,
+// and sends them back to verify if the server accepts them.
+type Scanner struct {
+	Config
+	Attacker *Attacker
+}
+
+// NewScanner creates a JWT scanner from Config.
+func NewScanner(cfg Config) *Scanner {
+	cfg.Base.Validate()
+	a := NewAttacker()
+	// Bridge the Base callback to the Attacker so the progress bar updates.
+	a.OnVulnerabilityFound = cfg.Base.OnVulnerabilityFound
+	return &Scanner{
+		Config:   cfg,
+		Attacker: a,
+	}
+}
+
+// ScanResult holds the results of a network JWT scan.
+type ScanResult struct {
+	ExtractedTokens int              `json:"extracted_tokens"`
+	Vulnerabilities []*Vulnerability `json:"vulnerabilities"`
+	Verified        []*Vulnerability `json:"verified"` // Vulns confirmed by the server accepting the token
+}
+
+// Scan fetches the target, extracts JWT tokens, generates attacks, and
+// verifies each malicious token against the target.
+func (s *Scanner) Scan(ctx context.Context, target string) (*ScanResult, error) {
+	client := s.Client
+	if client == nil {
+		client = &http.Client{Timeout: s.Timeout}
+	}
+
+	result := &ScanResult{}
+
+	// Extract tokens from the target response.
+	tokens, err := s.extractTokens(ctx, client, target)
+	if err != nil {
+		return nil, fmt.Errorf("jwt: extract tokens: %w", err)
+	}
+	result.ExtractedTokens = len(tokens)
+
+	// If no tokens found on the target, use a well-known test token
+	// so the scanner still generates findings about theoretical weaknesses.
+	if len(tokens) == 0 {
+		tokens = []string{
+			"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IlRlc3QgVXNlciIsImlhdCI6MTUxNjIzOTAyMn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+		}
+	}
+
+	for _, tok := range tokens {
+		select {
+		case <-ctx.Done():
+			return result, ctx.Err()
+		default:
+		}
+
+		vulns, err := s.Attacker.GenerateMaliciousTokens(tok)
+		if err != nil {
+			continue
+		}
+		result.Vulnerabilities = append(result.Vulnerabilities, vulns...)
+
+		// Verify each malicious token against the target.
+		for _, v := range vulns {
+			select {
+			case <-ctx.Done():
+				return result, ctx.Err()
+			default:
+			}
+
+			accepted, verifyErr := s.verifyToken(ctx, client, target, v.Token)
+			if verifyErr != nil {
+				continue
+			}
+			if accepted {
+				v.ConfirmedBy = 1
+				result.Verified = append(result.Verified, v)
+			}
+		}
+	}
+
+	return result, nil
+}
+
+// extractTokens fetches the target and looks for JWT tokens in response headers and body.
+func (s *Scanner) extractTokens(ctx context.Context, client *http.Client, target string) ([]string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range s.HTTPHeader() {
+		req.Header[k] = v
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
+
+	seen := make(map[string]struct{})
+	var tokens []string
+
+	addToken := func(t string) {
+		if _, ok := seen[t]; !ok {
+			seen[t] = struct{}{}
+			tokens = append(tokens, t)
+		}
+	}
+
+	// Check Authorization header (some APIs echo it back).
+	if auth := resp.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+		if tok := strings.TrimPrefix(auth, "Bearer "); isJWT(tok) {
+			addToken(tok)
+		}
+	}
+
+	// Check common token response headers.
+	for _, hdr := range []string{"X-Auth-Token", "X-Access-Token", "X-JWT-Token"} {
+		if val := resp.Header.Get(hdr); val != "" && isJWT(val) {
+			addToken(val)
+		}
+	}
+
+	// Check Set-Cookie headers for JWT values.
+	for _, cookie := range resp.Cookies() {
+		if isJWT(cookie.Value) {
+			addToken(cookie.Value)
+		}
+	}
+
+	// Scan response body for JWT patterns.
+	for _, match := range jwtPattern.FindAllString(string(bodyBytes), 10) {
+		addToken(match)
+	}
+
+	return tokens, nil
+}
+
+// verifyToken sends a request with the malicious token and checks if the
+// server accepts it (2xx or evidence of token processing).
+func (s *Scanner) verifyToken(ctx context.Context, client *http.Client, target, token string) (bool, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return false, err
+	}
+	for k, v := range s.HTTPHeader() {
+		req.Header[k] = v
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body) //nolint:errcheck // drain body for reuse
+
+	// A 2xx response with a malicious token is a strong indicator.
+	// 401/403 means the server rejected it (expected/safe).
+	return resp.StatusCode >= 200 && resp.StatusCode < 300, nil
+}
+
+// isJWT checks if a string matches the JWT three-part base64url format.
+func isJWT(s string) bool {
+	return jwtPattern.MatchString(s)
 }

@@ -579,7 +579,7 @@ func runSSRF(ctx context.Context, targetURL string, ep apispec.Endpoint, tag str
 	if param == "" {
 		return nil, nil
 	}
-	result, err := ssrf.NewDetector().Detect(ctx, targetURL, param)
+	result, err := ssrf.NewDetector(ssrf.DefaultConfig()).Detect(ctx, targetURL, param)
 	if err != nil {
 		return nil, fmt.Errorf("ssrf: %w", err)
 	}
