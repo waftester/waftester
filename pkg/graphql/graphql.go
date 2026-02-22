@@ -677,7 +677,8 @@ func (t *Tester) TestInjection(ctx context.Context, queryTemplate string, variab
 				Evidence:    fmt.Sprintf("Payload: %s, Response indicates injection", payload.Value),
 				Remediation: "Sanitize and validate all input. Use parameterized queries for database operations.",
 			})
-			t.config.NotifyVulnerabilityFound()
+			// Key matches dedup.go: string(v.Type)
+			t.config.NotifyUniqueVuln(string(AttackInjection))
 		}
 	}
 
@@ -800,7 +801,8 @@ func (t *Tester) TestIDOR(ctx context.Context, queryTemplate string, idParam str
 				Evidence:    fmt.Sprintf("Successfully retrieved data for ID: %s", id),
 				Remediation: "Implement proper authorization checks. Verify object ownership before returning data.",
 			})
-			t.config.NotifyVulnerabilityFound()
+			// Key matches dedup.go: string(v.Type)
+			t.config.NotifyUniqueVuln(string(AttackIDOR))
 		}
 	}
 
