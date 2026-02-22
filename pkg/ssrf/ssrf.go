@@ -18,9 +18,9 @@ import (
 
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/duration"
-	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/hexutil"
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 // internalIPRegex matches RFC 1918 private IP addresses in response bodies.
