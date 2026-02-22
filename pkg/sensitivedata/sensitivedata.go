@@ -159,6 +159,7 @@ func (s *Scanner) scanContent(url, content, location string) []Result {
 					Severity:   pattern.Severity,
 					Timestamp:  time.Now(),
 				}
+				s.config.NotifyVulnerabilityFound()
 				results = append(results, result)
 			}
 		}

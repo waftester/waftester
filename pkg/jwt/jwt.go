@@ -113,8 +113,9 @@ type Vulnerability struct {
 
 // Attacker performs JWT attacks
 type Attacker struct {
-	weakPasswords []string
-	commonKids    []string
+	weakPasswords        []string
+	commonKids           []string
+	OnVulnerabilityFound func()
 }
 
 // NewAttacker creates a new JWT attacker
@@ -122,6 +123,12 @@ func NewAttacker() *Attacker {
 	return &Attacker{
 		weakPasswords: getWeakPasswords(),
 		commonKids:    getCommonKids(),
+	}
+}
+
+func (a *Attacker) notifyVuln() {
+	if a.OnVulnerabilityFound != nil {
+		a.OnVulnerabilityFound()
 	}
 }
 
@@ -630,34 +637,52 @@ func (a *Attacker) GenerateMaliciousTokens(tokenString string, options ...Attack
 
 	// None algorithm attack
 	if vulns, err := a.NoneAlgorithmAttack(token); err == nil {
+		for range vulns {
+			a.notifyVuln()
+		}
 		allVulns = append(allVulns, vulns...)
 	}
 
 	// Algorithm confusion (if public key provided)
 	if opts.publicKey != "" {
 		if vulns, err := a.AlgorithmConfusionAttack(token, opts.publicKey); err == nil {
+			for range vulns {
+				a.notifyVuln()
+			}
 			allVulns = append(allVulns, vulns...)
 		}
 	}
 
 	// Signature strip attacks
 	if vulns, err := a.SignatureStripAttack(token); err == nil {
+		for range vulns {
+			a.notifyVuln()
+		}
 		allVulns = append(allVulns, vulns...)
 	}
 
 	// Claim tampering
 	if vulns, err := a.ClaimTamperAttack(token); err == nil {
+		for range vulns {
+			a.notifyVuln()
+		}
 		allVulns = append(allVulns, vulns...)
 	}
 
 	// Kid injection
 	if vulns, err := a.KidInjectionAttack(token); err == nil {
+		for range vulns {
+			a.notifyVuln()
+		}
 		allVulns = append(allVulns, vulns...)
 	}
 
 	// JKU spoofing (if attacker URL provided)
 	if opts.attackerURL != "" {
 		if vulns, err := a.JKUSpoofAttack(token, opts.attackerURL); err == nil {
+			for range vulns {
+				a.notifyVuln()
+			}
 			allVulns = append(allVulns, vulns...)
 		}
 	}
