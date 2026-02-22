@@ -1,9 +1,14 @@
 package ui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"os"
 
-// ANSI escape codes for simple terminal output (CLI commands)
-const (
+	"github.com/charmbracelet/lipgloss"
+)
+
+// Raw ANSI escape codes for simple terminal output (CLI commands).
+// Automatically blanked when stdout is not a TTY or NO_COLOR is set.
+var (
 	Reset   = "\033[0m"
 	Bold    = "\033[1m"
 	Red     = "\033[31m"
@@ -15,6 +20,27 @@ const (
 	White   = "\033[37m"
 	BoldRed = "\033[1;31m"
 )
+
+func init() {
+	if !StdoutIsTerminal() || os.Getenv("NO_COLOR") != "" {
+		disableRawColors()
+	}
+}
+
+// disableRawColors blanks raw ANSI constants so they produce
+// no escape sequences when stdout is not a terminal.
+func disableRawColors() {
+	Reset = ""
+	Bold = ""
+	Red = ""
+	Green = ""
+	Yellow = ""
+	Blue = ""
+	Magenta = ""
+	Cyan = ""
+	White = ""
+	BoldRed = ""
+}
 
 // Color palette inspired by top security tools
 var (

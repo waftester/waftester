@@ -2074,7 +2074,7 @@ func runProbe() {
 	} // end of probeTask function
 
 	// Determine output mode for LiveProgress
-	probeOutputMode := ui.OutputModeInteractive
+	probeOutputMode := ui.DefaultOutputMode()
 	if *streamMode {
 		probeOutputMode = ui.OutputModeStreaming
 	} else if *silent || *jsonOutput || *jsonl {

@@ -62,7 +62,7 @@ type Config struct {
 	ReadTimeout time.Duration
 	MaxRetries  int
 	DelayMs     int
-	SafeMode    bool  // Only use timing-based detection
+	SafeMode    bool // Only use timing-based detection
 	CustomPorts []int
 }
 
