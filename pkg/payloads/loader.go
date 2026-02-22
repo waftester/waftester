@@ -182,11 +182,25 @@ func Filter(payloads []Payload, category, severity string) []Payload {
 		}
 	}
 
+	// Build category set from comma-separated list for multi-category support.
+	// e.g., "sqli,xss" matches payloads with category "sqli" OR "xss".
+	var categorySet map[string]bool
+	if category != "" {
+		parts := strings.Split(category, ",")
+		categorySet = make(map[string]bool, len(parts))
+		for _, c := range parts {
+			c = strings.TrimSpace(c)
+			if c != "" {
+				categorySet[strings.ToLower(c)] = true
+			}
+		}
+	}
+
 	var filtered []Payload
 	for _, p := range payloads {
-		// Category filter (case-insensitive)
-		if category != "" {
-			if !strings.EqualFold(p.Category, category) {
+		// Category filter (case-insensitive, supports comma-separated list)
+		if len(categorySet) > 0 {
+			if !categorySet[strings.ToLower(p.Category)] {
 				continue
 			}
 		}
