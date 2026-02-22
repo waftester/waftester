@@ -95,7 +95,7 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 			targetURL = baseURL.String()
 		}
 	}
-	result.RequestURL = targetURL
+	// RequestURL is set below after the full URL (with query params) is built.
 
 	// Build request using realistic mode or legacy mode
 	if e.enhancer != nil && e.config.RealisticMode {
@@ -115,6 +115,7 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 		req, err = e.enhancer.BuildRequestWithTemplate(payload.Payload, template)
 		if err == nil {
 			req = req.WithContext(ctx)
+			result.RequestURL = req.URL.String()
 		}
 	} else if method == "POST" && payload.ContentType != "" {
 		// Legacy: For POST with body (custom payloads from 'learn' command)
@@ -128,6 +129,7 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 			req.Body = io.NopCloser(body)
 			req.ContentLength = int64(len(payload.Payload))
 			req.Header.Set("Content-Type", payload.ContentType)
+			result.RequestURL = req.URL.String()
 		}
 	} else {
 		// Legacy: For GET or simple payloads, inject in URL parameter
@@ -137,6 +139,7 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 		req.URL, err = url.Parse(targetWithPayload)
 		if err == nil {
 			req = req.WithContext(ctx)
+			result.RequestURL = targetWithPayload
 		}
 	}
 
@@ -155,6 +158,19 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 	// Only set static User-Agent if not using realistic mode
 	if e.enhancer == nil || !e.config.RealisticMode {
 		req.Header.Set("User-Agent", ui.UserAgent())
+	}
+
+	// Capture request headers after all modifications (User-Agent, Content-Type,
+	// realistic mode headers) so HAR output reflects the actual sent headers.
+	result.RequestHeaders = make(map[string]string, len(req.Header))
+	for key, values := range req.Header {
+		if len(values) > 0 {
+			result.RequestHeaders[key] = values[0]
+		}
+	}
+	// Add Host header explicitly — Go's net/http doesn't include it in req.Header.
+	if req.URL != nil && req.URL.Host != "" {
+		result.RequestHeaders["Host"] = req.URL.Host
 	}
 
 	start := time.Now()
@@ -220,16 +236,12 @@ retryLoop:
 	}
 	defer iohelper.DrainAndClose(resp.Body)
 
-	// Capture important response headers (WAF-related)
-	wafHeaders := []string{
-		"X-Waf-Rule", "X-Mod-Security-Message", "X-Coraza-Rule",
-		"X-Block-Reason", "X-Denied-Reason", "X-Request-Id",
-		"Server", "X-Powered-By", "X-Content-Type-Options",
-		"X-Modsecurity-Rule-Id", "X-Waf-Event-Id",
-	}
-	for _, h := range wafHeaders {
-		if v := resp.Header.Get(h); v != "" {
-			result.ResponseHeaders[h] = v
+	// Capture all response headers for HAR output and analysis.
+	// Previously only WAF-specific headers were captured, but HAR output
+	// and downstream consumers benefit from the full set.
+	for key, values := range resp.Header {
+		if len(values) > 0 {
+			result.ResponseHeaders[key] = values[0]
 		}
 	}
 
