@@ -104,6 +104,7 @@ func runScan() {
 	sf.Register(scanFlags)
 
 	types := scanFlags.String("types", "all", "Scan types: all, or comma-separated (sqli,xss,traversal,cmdi,nosqli,hpp,crlf,prototype,cors,redirect,hostheader,websocket,cache,upload,deserialize,oauth,ssrf,ssti,xxe,smuggling,graphql,jwt,subtakeover,bizlogic,race,apifuzz,ldap,ssi,xpath,xmlinjection,rfi,lfi,rce,csrf,clickjack,idor,massassignment,wafdetect,waffprint,wafevasion,tlsprobe,httpprobe,secheaders,jsanalyze,apidepth,osint,vhost,techdetect,dnsrecon)")
+	scanFlags.StringVar(types, "t", "all", "Scan types (alias)")
 	concurrency := scanFlags.Int("concurrency", 5, "Concurrent scanners")
 	outputFile := scanFlags.String("output", "", "Output results to JSON file")
 	jsonOutput := scanFlags.Bool("json", false, "Output in JSON format")
@@ -147,6 +148,7 @@ func runScan() {
 	csvOutput := scanFlags.Bool("csv", false, "Output in CSV format")
 	silent := scanFlags.Bool("silent", false, "Silent mode - no progress output")
 	scanFlags.BoolVar(silent, "s", false, "Silent mode (alias)")
+	scanFlags.BoolVar(silent, "q", false, "Quiet mode (alias)")
 	noColor := scanFlags.Bool("no-color", false, "Disable colored output")
 	scanFlags.BoolVar(noColor, "nc", false, "No color (alias)")
 	timestamp := scanFlags.Bool("timestamp", false, "Add timestamp to output")

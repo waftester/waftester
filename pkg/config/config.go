@@ -117,6 +117,7 @@ func ParseFlags() (*Config, error) {
 	flag.StringVar(&cfg.PayloadDir, "payloads", defaults.PayloadDir, "Payload directory")
 	flag.StringVar(&cfg.PayloadDir, "p", defaults.PayloadDir, "Payload dir (alias)")
 	flag.StringVar(&cfg.Category, "category", "", "Filter by category")
+	flag.StringVar(&cfg.Category, "cat", "", "Category (alias)")
 	flag.StringVar(&cfg.Severity, "severity", "", "Filter by min severity (Critical,High,Medium,Low)")
 	flag.BoolVar(&cfg.DryRun, "dry-run", false, "List tests without executing")
 
