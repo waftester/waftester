@@ -103,6 +103,7 @@ func (s *Scanner) ScanEndpoint(ctx context.Context, endpoint string, method stri
 			result := s.testAccess(ctx, testURL, method, originalID, testID)
 			if result.Accessible {
 				results = append(results, result)
+				s.config.NotifyVulnerabilityFound()
 			}
 		}
 	}
