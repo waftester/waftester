@@ -1663,6 +1663,7 @@ func runScan() {
 		}()
 		detector := ssrf.NewDetector()
 		detector.Timeout = timeoutDur
+		detector.OnVulnerabilityFound = onVuln
 		scanResult, err := detector.Detect(ctx, target, "url")
 		if err != nil {
 			scanError("SSRF", err)
@@ -1674,7 +1675,7 @@ func runScan() {
 			vulnCount = len(scanResult.Vulnerabilities)
 			result.ByCategory["ssrf"] = vulnCount
 			result.TotalVulns += vulnCount
-			progress.AddMetricBy("vulns", vulnCount)
+			// Vulns metric updated in real-time via OnVulnerabilityFound callback
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 				emitEvent("vulnerability", map[string]interface{}{
@@ -1768,6 +1769,7 @@ func runScan() {
 		}()
 		detector := smuggling.NewDetector()
 		detector.Timeout = timeoutDur
+		detector.OnVulnerabilityFound = onVuln
 		scanResult, err := detector.Detect(ctx, target)
 		if err != nil {
 			scanError("Smuggling", err)
@@ -1779,7 +1781,7 @@ func runScan() {
 			vulnCount = len(scanResult.Vulnerabilities)
 			result.ByCategory["smuggling"] = vulnCount
 			result.TotalVulns += vulnCount
-			progress.AddMetricBy("vulns", vulnCount)
+			// Vulns metric updated in real-time via OnVulnerabilityFound callback
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[v.Severity]++
 				emitEvent("vulnerability", map[string]interface{}{
@@ -1850,6 +1852,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "jwt", "vulns": vulnCount})
 		}()
 		attacker := jwt.NewAttacker()
+		attacker.OnVulnerabilityFound = onVuln
 		// Generate test tokens to demonstrate JWT attack capabilities
 		testToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IlRlc3QgVXNlciIsImlhdCI6MTUxNjIzOTAyMn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
 		vulns, err := attacker.GenerateMaliciousTokens(testToken)
@@ -1862,7 +1865,7 @@ func runScan() {
 		vulnCount = len(vulns)
 		result.ByCategory["jwt"] = vulnCount
 		result.TotalVulns += vulnCount
-		progress.AddMetricBy("vulns", vulnCount)
+		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
 			emitEvent("vulnerability", map[string]interface{}{
