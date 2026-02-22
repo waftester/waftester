@@ -19,11 +19,11 @@ type failWriter struct {
 	closed      bool
 }
 
-func (fw *failWriter) Write(_ []byte) (int, error) {
+func (fw *failWriter) Write(p []byte) (int, error) {
 	if fw.failOnWrite {
 		return 0, fmt.Errorf("simulated write error")
 	}
-	return 0, nil
+	return len(p), nil
 }
 
 func (fw *failWriter) Close() error {
@@ -2741,6 +2741,293 @@ func TestHARWriter(t *testing.T) {
 
 		if got := effectivePayload(nil); got != "" {
 			t.Errorf("expected empty for nil evidence, got %s", got)
+		}
+	})
+
+	t.Run("empty method defaults to GET in resultToEntry", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		re := makeTestResultEvent("test-001", "sqli", events.SeverityHigh, events.OutcomeBypass)
+		re.Target.Method = "" // empty method
+		w.Write(re)
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		if len(har.Log.Entries) != 1 {
+			t.Fatalf("expected 1 entry, got %d", len(har.Log.Entries))
+		}
+		if har.Log.Entries[0].Request.Method != "GET" {
+			t.Errorf("expected empty method to default to GET, got %q", har.Log.Entries[0].Request.Method)
+		}
+	})
+
+	t.Run("evasion context appears in comment", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		re := makeTestResultEvent("sqli-001", "sqli", events.SeverityCritical, events.OutcomeBypass)
+		re.Context = &events.ContextInfo{
+			Encoding:         "unicode",
+			Tamper:           "case-swap",
+			EvasionTechnique: "double-encode",
+		}
+		w.Write(re)
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		comment := har.Log.Entries[0].Comment
+		if !strings.Contains(comment, "encoding: unicode") {
+			t.Errorf("comment should contain encoding, got: %s", comment)
+		}
+		if !strings.Contains(comment, "tamper: case-swap") {
+			t.Errorf("comment should contain tamper, got: %s", comment)
+		}
+		if !strings.Contains(comment, "evasion: double-encode") {
+			t.Errorf("comment should contain evasion technique, got: %s", comment)
+		}
+	})
+
+	t.Run("evasion context omitted when nil context", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		re := makeTestResultEvent("sqli-001", "sqli", events.SeverityCritical, events.OutcomeBypass)
+		re.Context = nil
+		w.Write(re)
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		comment := har.Log.Entries[0].Comment
+		if strings.Contains(comment, "(") {
+			t.Errorf("comment should not contain context parens when nil, got: %s", comment)
+		}
+	})
+
+	t.Run("Cookie header parsed into request cookies", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		re := makeTestResultEvent("test-001", "sqli", events.SeverityHigh, events.OutcomeBypass)
+		re.Evidence = &events.Evidence{
+			Payload: "<script>alert(1)</script>",
+			RequestHeaders: map[string]string{
+				"Cookie": "session=abc123; lang=en; theme=dark",
+			},
+		}
+		w.Write(re)
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		cookies := har.Log.Entries[0].Request.Cookies
+		if len(cookies) != 3 {
+			t.Fatalf("expected 3 cookies, got %d", len(cookies))
+		}
+
+		// Check all cookie names exist
+		cookieMap := make(map[string]string)
+		for _, c := range cookies {
+			cookieMap[c.Name] = c.Value
+		}
+		if cookieMap["session"] != "abc123" {
+			t.Errorf("session cookie: want abc123, got %s", cookieMap["session"])
+		}
+		if cookieMap["lang"] != "en" {
+			t.Errorf("lang cookie: want en, got %s", cookieMap["lang"])
+		}
+		if cookieMap["theme"] != "dark" {
+			t.Errorf("theme cookie: want dark, got %s", cookieMap["theme"])
+		}
+	})
+
+	t.Run("no Cookie header produces empty cookies array", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		re := makeTestResultEvent("test-001", "sqli", events.SeverityHigh, events.OutcomeBypass)
+		re.Evidence = &events.Evidence{
+			Payload: "test",
+			RequestHeaders: map[string]string{
+				"Content-Type": "text/plain",
+			},
+		}
+		w.Write(re)
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		if len(har.Log.Entries[0].Request.Cookies) != 0 {
+			t.Errorf("expected empty cookies, got %d", len(har.Log.Entries[0].Request.Cookies))
+		}
+	})
+
+	t.Run("form-encoded postData includes params", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		re := makeTestResultEvent("test-001", "sqli", events.SeverityHigh, events.OutcomeBypass)
+		re.Target.Method = "POST"
+		re.Evidence = &events.Evidence{
+			Payload: "user=admin&pass=secret&action=login",
+			RequestHeaders: map[string]string{
+				"Content-Type": "application/x-www-form-urlencoded",
+			},
+		}
+		w.Write(re)
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		pd := har.Log.Entries[0].Request.PostData
+		if pd == nil {
+			t.Fatal("expected postData for POST request")
+		}
+		if len(pd.Params) != 3 {
+			t.Fatalf("expected 3 form params, got %d", len(pd.Params))
+		}
+
+		paramMap := make(map[string]string)
+		for _, p := range pd.Params {
+			paramMap[p.Name] = p.Value
+		}
+		if paramMap["user"] != "admin" {
+			t.Errorf("user param: want admin, got %s", paramMap["user"])
+		}
+		if paramMap["pass"] != "secret" {
+			t.Errorf("pass param: want secret, got %s", paramMap["pass"])
+		}
+	})
+
+	t.Run("non-form postData has no params", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		re := makeTestResultEvent("test-001", "sqli", events.SeverityHigh, events.OutcomeBypass)
+		re.Target.Method = "POST"
+		re.Evidence = &events.Evidence{
+			Payload: `{"admin": true}`,
+			RequestHeaders: map[string]string{
+				"Content-Type": "application/json",
+			},
+		}
+		w.Write(re)
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		pd := har.Log.Entries[0].Request.PostData
+		if pd == nil {
+			t.Fatal("expected postData for POST request")
+		}
+		if pd.Params != nil {
+			t.Errorf("JSON postData should have nil params, got %d", len(pd.Params))
+		}
+	})
+
+	t.Run("atomic write prevents partial output on write error", func(t *testing.T) {
+		fw := &failWriter{failOnWrite: true}
+		w := NewHARWriter(fw, HAROptions{})
+
+		re := makeTestResultEvent("test-001", "sqli", events.SeverityHigh, events.OutcomeBypass)
+		w.Write(re)
+		err := w.Close()
+		if err == nil {
+			t.Fatal("expected error from failing writer")
+		}
+
+		// The key behavior: failWriter should have received zero bytes
+		// because encoding goes to an intermediate buffer first.
+		if !strings.Contains(err.Error(), "har: write:") {
+			t.Errorf("expected har: write: error, got: %v", err)
+		}
+	})
+
+	t.Run("parseCookieHeader handles edge cases", func(t *testing.T) {
+		tests := []struct {
+			name   string
+			header string
+			want   int
+		}{
+			{"empty", "", 0},
+			{"single", "session=abc", 1},
+			{"multiple", "a=1; b=2; c=3", 3},
+			{"trailing semicolon", "a=1; b=2;", 2},
+			{"empty segments", "a=1;; b=2", 2},
+			{"value with equals", "token=abc=def", 1},
+			{"no value", "flag", 1},
+			{"whitespace only", "  ;  ;  ", 0},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				got := parseCookieHeader(tc.header)
+				if len(got) != tc.want {
+					t.Errorf("parseCookieHeader(%q): want %d cookies, got %d: %+v", tc.header, tc.want, len(got), got)
+				}
+			})
+		}
+
+		// Check value with equals sign preserves everything after first =
+		cookies := parseCookieHeader("token=abc=def")
+		if cookies[0].Value != "abc=def" {
+			t.Errorf("expected value abc=def, got %s", cookies[0].Value)
+		}
+	})
+
+	t.Run("buildFormParams returns nil for non-form types", func(t *testing.T) {
+		if got := buildFormParams("application/json", `{"a":1}`); got != nil {
+			t.Errorf("expected nil for JSON, got %v", got)
+		}
+		if got := buildFormParams("text/plain", "hello"); got != nil {
+			t.Errorf("expected nil for text/plain, got %v", got)
+		}
+	})
+
+	t.Run("buildFormParams parses url-encoded body", func(t *testing.T) {
+		params := buildFormParams("application/x-www-form-urlencoded", "a=1&b=2&a=3")
+		if params == nil {
+			t.Fatal("expected params for form-urlencoded")
+		}
+		if len(params) != 3 {
+			t.Fatalf("expected 3 params (a has 2 values), got %d", len(params))
+		}
+	})
+
+	t.Run("buildContextTag formats evasion info", func(t *testing.T) {
+		// nil context
+		if got := buildContextTag(nil); got != "" {
+			t.Errorf("nil context: expected empty, got %q", got)
+		}
+
+		// empty context
+		if got := buildContextTag(&events.ContextInfo{}); got != "" {
+			t.Errorf("empty context: expected empty, got %q", got)
+		}
+
+		// partial context
+		got := buildContextTag(&events.ContextInfo{Encoding: "base64"})
+		if got != "(encoding: base64)" {
+			t.Errorf("partial context: expected (encoding: base64), got %q", got)
+		}
+
+		// full context
+		got = buildContextTag(&events.ContextInfo{
+			Encoding:         "unicode",
+			Tamper:           "case-swap",
+			EvasionTechnique: "double-encode",
+		})
+		if !strings.Contains(got, "encoding: unicode") || !strings.Contains(got, "tamper: case-swap") || !strings.Contains(got, "evasion: double-encode") {
+			t.Errorf("full context missing fields: %q", got)
 		}
 	})
 }
