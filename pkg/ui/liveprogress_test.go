@@ -2,6 +2,7 @@ package ui
 
 import (
 	"bytes"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -231,7 +232,7 @@ func TestLiveProgressRateSource(t *testing.T) {
 
 	// Simulate HTTP requests via the external counter
 	for i := 0; i < 20; i++ {
-		reqCount++
+		atomic.AddInt64(&reqCount, 1)
 	}
 	// Let the render loop pick it up
 	time.Sleep(200 * time.Millisecond)
