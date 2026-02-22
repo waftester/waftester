@@ -195,6 +195,7 @@ func (t *Tester) TestDoubleSubmit(ctx context.Context, request *RequestConfig, n
 
 	// If more than one request succeeded, potential vulnerability
 	if successCount > 1 {
+		t.config.NotifyVulnerabilityFound()
 		return &Vulnerability{
 			Vulnerability: finding.Vulnerability{
 				Description: fmt.Sprintf("Double-submit vulnerability: %d out of %d concurrent requests succeeded", successCount, numRequests),
@@ -234,6 +235,7 @@ func (t *Tester) TestTokenReuse(ctx context.Context, request *RequestConfig, num
 
 	// If multiple requests succeed with same token, vulnerability exists
 	if successCount > 1 {
+		t.config.NotifyVulnerabilityFound()
 		return &Vulnerability{
 			Vulnerability: finding.Vulnerability{
 				Description: fmt.Sprintf("Token reuse vulnerability: same token accepted %d times", successCount),
@@ -272,6 +274,7 @@ func (t *Tester) TestLimitBypass(ctx context.Context, request *RequestConfig, nu
 
 	// If we got more successes than the limit allows, bypass detected
 	if successCount > expectedLimit {
+		t.config.NotifyVulnerabilityFound()
 		return &Vulnerability{
 			Vulnerability: finding.Vulnerability{
 				Description: fmt.Sprintf("Rate limit bypass: %d requests succeeded, expected limit was %d", successCount, expectedLimit),
@@ -324,6 +327,7 @@ func (t *Tester) TestSequential(ctx context.Context, checkRequest *RequestConfig
 
 	// If use succeeded multiple times while checks were happening, TOCTOU may exist
 	if successCount > int32(numAttempts/2) {
+		t.config.NotifyVulnerabilityFound()
 		return &Vulnerability{
 			Vulnerability: finding.Vulnerability{
 				Description: fmt.Sprintf("Potential TOCTOU: %d uses succeeded during concurrent checks", successCount),

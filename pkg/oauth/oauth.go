@@ -169,6 +169,7 @@ func (t *Tester) TestOpenRedirect(ctx context.Context) ([]Vulnerability, error) 
 					Remediation: "Implement strict redirect_uri validation with exact match",
 					CVSS:        7.4,
 				})
+				t.config.NotifyVulnerabilityFound()
 			}
 		}
 	}
@@ -223,6 +224,7 @@ func (t *Tester) TestCSRFAuthorization(ctx context.Context) ([]Vulnerability, er
 			Remediation: "Require and validate state parameter for CSRF protection",
 			CVSS:        8.1,
 		})
+		t.config.NotifyVulnerabilityFound()
 	}
 
 	return vulns, nil
@@ -278,6 +280,7 @@ func (t *Tester) TestStateBypass(ctx context.Context) ([]Vulnerability, error) {
 				Remediation: "Validate state parameter is present and matches expected format",
 				CVSS:        5.4,
 			})
+			t.config.NotifyVulnerabilityFound()
 			break // Only report once
 		}
 	}
@@ -334,6 +337,7 @@ func (t *Tester) TestScopeManipulation(ctx context.Context) ([]Vulnerability, er
 				Remediation: "Validate requested scopes against allowed scopes for client",
 				CVSS:        7.5,
 			})
+			t.config.NotifyVulnerabilityFound()
 		}
 	}
 
@@ -387,6 +391,7 @@ func (t *Tester) TestPKCEBypass(ctx context.Context) ([]Vulnerability, error) {
 			Remediation: "Require PKCE for public clients",
 			CVSS:        6.5,
 		})
+		t.config.NotifyVulnerabilityFound()
 	}
 
 	return vulns, nil

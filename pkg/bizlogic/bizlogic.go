@@ -211,6 +211,7 @@ func (t *Tester) TestIDOR(ctx context.Context, baseURL, path string, originalID,
 	if modifiedResp.StatusCode == 200 && originalResp.StatusCode == 200 {
 		// If the responses are different and both successful, potential IDOR
 		if string(originalBody) != string(modifiedBody) && len(modifiedBody) > 50 {
+			t.config.NotifyVulnerabilityFound()
 			return &Vulnerability{
 				Type:        VulnIDOR,
 				Description: "Possible IDOR vulnerability - accessed resource with different ID",
@@ -281,6 +282,7 @@ func (t *Tester) TestAuthBypass(ctx context.Context, targetURL string) ([]Vulner
 				Remediation: "Do not rely on client-provided headers for authentication or authorization",
 				CVSS:        9.8,
 			})
+			t.config.NotifyVulnerabilityFound()
 		}
 	}
 
@@ -309,6 +311,7 @@ func (t *Tester) TestPrivilegeEscalation(ctx context.Context, targetURL string, 
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
 
 	if resp.StatusCode == 200 && len(body) > 50 {
+		t.config.NotifyVulnerabilityFound()
 		return &Vulnerability{
 			Type:        VulnPrivEsc,
 			Description: "Privilege escalation - low privilege user accessed admin endpoint",
@@ -364,6 +367,7 @@ func (t *Tester) TestMassAssignment(ctx context.Context, targetURL string, norma
 		if strings.Contains(string(malBody), "admin") ||
 			strings.Contains(string(malBody), "role") ||
 			strings.Contains(string(malBody), "isAdmin") {
+			t.config.NotifyVulnerabilityFound()
 			return &Vulnerability{
 				Type:        VulnMassAssign,
 				Description: "Mass assignment vulnerability - privileged fields accepted",
@@ -456,6 +460,7 @@ func (t *Tester) TestRaceCondition(ctx context.Context, targetURL, method, body 
 			Remediation: "Implement proper locking mechanisms, use database transactions, or implement idempotency keys",
 			CVSS:        7.5,
 		})
+		t.config.NotifyVulnerabilityFound()
 	}
 
 	return vulns, nil
@@ -492,6 +497,7 @@ func (t *Tester) TestPriceManipulation(ctx context.Context, targetURL string, or
 	if resp.StatusCode == 200 || resp.StatusCode == 201 {
 		// Check if manipulated price was accepted
 		if strings.Contains(string(body), manipulatedPrice) {
+			t.config.NotifyVulnerabilityFound()
 			return &Vulnerability{
 				Type:        VulnPriceManip,
 				Description: fmt.Sprintf("Price manipulation accepted - changed from %s to %s", originalPrice, manipulatedPrice),
@@ -528,6 +534,7 @@ func (t *Tester) TestWorkflowBypass(ctx context.Context, finalStepURL string, re
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
 
 	if resp.StatusCode == 200 && len(body) > 20 {
+		t.config.NotifyVulnerabilityFound()
 		return &Vulnerability{
 			Type:        VulnWorkflowBypass,
 			Description: fmt.Sprintf("Workflow bypass - accessed final step without completing required steps: %v", requiredSteps),
@@ -577,6 +584,7 @@ func (t *Tester) TestEnumeration(ctx context.Context, targetURL string, validID,
 
 	// Check for enumeration - different responses indicate valid vs invalid
 	if validResp.StatusCode != invalidResp.StatusCode || len(validBody) != len(invalidBody) {
+		t.config.NotifyVulnerabilityFound()
 		return &Vulnerability{
 			Type:        VulnEnumeration,
 			Description: "Resource enumeration possible - different responses for valid/invalid IDs",

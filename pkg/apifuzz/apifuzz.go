@@ -228,6 +228,7 @@ func (t *Tester) FuzzEndpoint(ctx context.Context, baseURL string, endpoint Endp
 				mu.Lock()
 				vulns = append(vulns, *vuln)
 				mu.Unlock()
+				t.config.NotifyVulnerabilityFound()
 			}
 
 			if t.config.DelayBetween > 0 {
@@ -249,6 +250,7 @@ func (t *Tester) FuzzEndpoint(ctx context.Context, baseURL string, endpoint Endp
 				mu.Lock()
 				vulns = append(vulns, *vuln)
 				mu.Unlock()
+				t.config.NotifyVulnerabilityFound()
 			}
 		}
 	}
