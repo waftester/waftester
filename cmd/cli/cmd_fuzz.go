@@ -7,7 +7,9 @@ import (
 	"flag"
 	"fmt"
 	"html"
+	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -418,7 +420,12 @@ func runFuzz() {
 	// DISPATCHER INITIALIZATION (Hooks: Slack, Teams, PagerDuty, OTEL, Prometheus)
 	// ═══════════════════════════════════════════════════════════════════════════
 	fuzzScanID := fmt.Sprintf("fuzz-%d", time.Now().Unix())
+	// Fuzz builds its own HAR from discovery results via writeFuzzHAR.
+	// Exclude HARExport from the dispatcher so it doesn't write an empty HAR on Close.
+	fuzzHARPath := outputFlags.HARExport
+	outputFlags.HARExport = ""
 	fuzzDispCtx, fuzzDispErr := outputFlags.InitDispatcher(fuzzScanID, targetURL)
+	outputFlags.HARExport = fuzzHARPath
 	if fuzzDispErr != nil {
 		ui.PrintWarning(fmt.Sprintf("Output dispatcher warning: %v", fuzzDispErr))
 	}
@@ -664,12 +671,27 @@ func runFuzz() {
 	}
 }
 
-// writeFuzzExports writes fuzz results to enterprise export files (--json-export, --sarif-export, etc.).
+// writeFuzzExports writes fuzz results to enterprise export files (--json-export, --sarif-export, --har-export, etc.).
 func writeFuzzExports(outFlags *OutputFlags, target string, results []*fuzz.Result, stats *fuzz.Stats, duration time.Duration) {
 	if outFlags.JSONExport == "" && outFlags.JSONLExport == "" && outFlags.SARIFExport == "" &&
 		outFlags.CSVExport == "" && outFlags.HTMLExport == "" && outFlags.MDExport == "" &&
-		outFlags.JUnitExport == "" && outFlags.PDFExport == "" {
+		outFlags.JUnitExport == "" && outFlags.PDFExport == "" && outFlags.HARExport == "" {
 		return
+	}
+
+	if outFlags.HARExport != "" {
+		f, err := os.Create(outFlags.HARExport)
+		if err != nil {
+			ui.PrintError(fmt.Sprintf("HAR export: %v", err))
+		} else {
+			if err := writeFuzzHAR(f, target, results, duration); err != nil {
+				_ = f.Close()
+				ui.PrintError(fmt.Sprintf("HAR export: %v", err))
+			} else {
+				_ = f.Close()
+				ui.PrintSuccess(fmt.Sprintf("HAR export saved to %s", outFlags.HARExport))
+			}
+		}
 	}
 
 	output := struct {
@@ -865,4 +887,135 @@ func getBuiltInWordlist(wlType string) []string {
 	default:
 		return []string{}
 	}
+}
+
+// writeFuzzHAR writes fuzz discovery results as a HAR 1.2 document.
+func writeFuzzHAR(w io.Writer, target string, results []*fuzz.Result, dur time.Duration) error {
+	type nv struct {
+		Name  string `json:"name"`
+		Value string `json:"value"`
+	}
+	type harContent struct {
+		Size     int    `json:"size"`
+		MimeType string `json:"mimeType"`
+	}
+	type harTimings struct {
+		Send    float64 `json:"send"`
+		Wait    float64 `json:"wait"`
+		Receive float64 `json:"receive"`
+	}
+	type harRequest struct {
+		Method      string `json:"method"`
+		URL         string `json:"url"`
+		HTTPVersion string `json:"httpVersion"`
+		Headers     []nv   `json:"headers"`
+		QueryString []nv   `json:"queryString"`
+		Cookies     []nv   `json:"cookies"`
+		HeadersSize int    `json:"headersSize"`
+		BodySize    int    `json:"bodySize"`
+	}
+	type harResponse struct {
+		Status      int        `json:"status"`
+		StatusText  string     `json:"statusText"`
+		HTTPVersion string     `json:"httpVersion"`
+		Headers     []nv       `json:"headers"`
+		Cookies     []nv       `json:"cookies"`
+		Content     harContent `json:"content"`
+		RedirectURL string     `json:"redirectURL"`
+		HeadersSize int        `json:"headersSize"`
+		BodySize    int        `json:"bodySize"`
+	}
+	type harEntry struct {
+		Pageref         string      `json:"pageref"`
+		StartedDateTime string      `json:"startedDateTime"`
+		Time            float64     `json:"time"`
+		Request         harRequest  `json:"request"`
+		Response        harResponse `json:"response"`
+		Cache           struct{}    `json:"cache"`
+		Timings         harTimings  `json:"timings"`
+		Comment         string      `json:"comment,omitempty"`
+	}
+
+	startTime := time.Now().Format("2006-01-02T15:04:05.000Z")
+	pageID := "page_1"
+
+	entries := make([]harEntry, 0, len(results))
+	for _, r := range results {
+		reqURL := r.URL
+		if reqURL == "" {
+			reqURL = target
+		}
+
+		var qs []nv
+		if parsed, err := url.Parse(reqURL); err == nil && parsed.RawQuery != "" {
+			for k, vs := range parsed.Query() {
+				for _, v := range vs {
+					qs = append(qs, nv{Name: k, Value: v})
+				}
+			}
+		}
+
+		latencyMs := float64(r.ResponseTime.Milliseconds())
+		comment := fmt.Sprintf("fuzz input=%s", r.Input)
+
+		redirectURL := ""
+		if r.Redirected && r.RedirectURL != "" {
+			redirectURL = r.RedirectURL
+		}
+
+		entries = append(entries, harEntry{
+			Pageref:         pageID,
+			StartedDateTime: startTime,
+			Time:            latencyMs,
+			Request: harRequest{
+				Method:      "GET",
+				URL:         reqURL,
+				HTTPVersion: "HTTP/1.1",
+				Headers:     []nv{},
+				QueryString: qs,
+				Cookies:     []nv{},
+				HeadersSize: -1,
+				BodySize:    -1,
+			},
+			Response: harResponse{
+				Status:      r.StatusCode,
+				StatusText:  http.StatusText(r.StatusCode),
+				HTTPVersion: "HTTP/1.1",
+				Headers:     []nv{},
+				Cookies:     []nv{},
+				Content:     harContent{Size: r.ContentLength, MimeType: "text/html"},
+				RedirectURL: redirectURL,
+				HeadersSize: -1,
+				BodySize:    r.ContentLength,
+			},
+			Cache: struct{}{},
+			Timings: harTimings{
+				Send:    0,
+				Wait:    latencyMs,
+				Receive: 0,
+			},
+			Comment: comment,
+		})
+	}
+
+	doc := map[string]interface{}{
+		"log": map[string]interface{}{
+			"version": "1.2",
+			"creator": map[string]string{
+				"name":    "waftester",
+				"version": defaults.Version,
+			},
+			"pages": []map[string]interface{}{{
+				"startedDateTime": startTime,
+				"id":              pageID,
+				"title":           "WAFtester Fuzz: " + target,
+				"pageTimings":     map[string]float64{"onLoad": float64(dur.Milliseconds())},
+			}},
+			"entries": entries,
+		},
+	}
+
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(doc)
 }

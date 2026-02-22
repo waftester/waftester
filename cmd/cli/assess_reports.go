@@ -16,10 +16,13 @@ import (
 func writeAssessExports(outFlags *OutputFlags, result *metrics.EnterpriseMetrics, duration time.Duration) {
 	if outFlags.JSONExport == "" && outFlags.JSONLExport == "" && outFlags.SARIFExport == "" &&
 		outFlags.CSVExport == "" && outFlags.HTMLExport == "" && outFlags.MDExport == "" &&
-		outFlags.JUnitExport == "" && outFlags.PDFExport == "" {
+		outFlags.JUnitExport == "" && outFlags.PDFExport == "" && outFlags.HARExport == "" {
 		return
 	}
 
+	if outFlags.HARExport != "" {
+		ui.PrintWarning("HAR export is not supported for assess (no individual HTTP request data)")
+	}
 	if outFlags.JUnitExport != "" {
 		ui.PrintError("JUnit export is not supported for assess")
 	}
