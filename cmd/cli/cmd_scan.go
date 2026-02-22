@@ -2617,12 +2617,12 @@ func runScan() {
 		// TLS issues count as vulnerabilities if there are weaknesses
 		if tlsInfo != nil && (tlsInfo.SelfSigned || tlsInfo.Expired || tlsInfo.Mismatched) {
 			result.TotalVulns++
-			result.BySeverity["Medium"]++
+			result.BySeverity["medium"]++
 			result.ByCategory["tlsprobe"] = 1
 			vulnFound = true
 			emitEvent("vulnerability", map[string]interface{}{
 				"category":    "tlsprobe",
-				"severity":    "Medium",
+				"severity":    "medium",
 				"self_signed": tlsInfo.SelfSigned,
 				"expired":     tlsInfo.Expired,
 				"mismatched":  tlsInfo.Mismatched,
@@ -2708,20 +2708,20 @@ func runScan() {
 			if dangerousMethods > 0 {
 				result.TotalVulns += dangerousMethods
 				progress.AddMetricBy("vulns", dangerousMethods)
-				result.BySeverity["Low"] += dangerousMethods
+				result.BySeverity["low"] += dangerousMethods
 				emitEvent("vulnerability", map[string]interface{}{
 					"category": "httpprobe",
-					"severity": "Low",
+					"severity": "low",
 					"type":     fmt.Sprintf("Dangerous HTTP methods enabled: %s", strings.Join(dangerousMethodsList, ", ")),
 				})
 			}
 			if pipelineSupported {
 				result.TotalVulns++
 				progress.AddMetric("vulns")
-				result.BySeverity["Medium"]++
+				result.BySeverity["medium"]++
 				emitEvent("vulnerability", map[string]interface{}{
 					"category": "httpprobe",
-					"severity": "Medium",
+					"severity": "medium",
 					"type":     "HTTP pipelining supported (potential request smuggling vector)",
 				})
 			}
@@ -2776,12 +2776,12 @@ func runScan() {
 			if missingCount > 0 {
 				result.TotalVulns += missingCount
 				progress.AddMetricBy("vulns", missingCount)
-				result.BySeverity["Low"] += missingCount
+				result.BySeverity["low"] += missingCount
 				result.ByCategory["secheaders"] = missingCount
 				// Emit missing headers as a vulnerability
 				emitEvent("vulnerability", map[string]interface{}{
 					"category": "secheaders",
-					"severity": "Low",
+					"severity": "low",
 					"type":     fmt.Sprintf("Missing headers: %s", strings.Join(missingHeaders, ", ")),
 				})
 			}
@@ -2835,12 +2835,12 @@ func runScan() {
 				if secretsCount > 0 {
 					result.TotalVulns += secretsCount
 					progress.AddMetricBy("vulns", secretsCount)
-					result.BySeverity["Critical"] += secretsCount
+					result.BySeverity["critical"] += secretsCount
 					result.ByCategory["jsanalyze"] = secretsCount
 					for _, secret := range extracted.Secrets {
 						emitEvent("vulnerability", map[string]interface{}{
 							"category": "jsanalyze",
-							"severity": "Critical",
+							"severity": "critical",
 							"type":     secret.Type,
 						})
 					}
@@ -2930,11 +2930,11 @@ func runScan() {
 			if secretCount > 0 {
 				result.TotalVulns += secretCount
 				progress.AddMetricBy("vulns", secretCount)
-				result.BySeverity["Critical"] += secretCount
+				result.BySeverity["critical"] += secretCount
 				for _, secret := range osintResult.Secrets {
 					emitEvent("vulnerability", map[string]interface{}{
 						"category": "osint",
-						"severity": "Critical",
+						"severity": "critical",
 						"type":     secret.Type,
 					})
 				}
@@ -3001,11 +3001,11 @@ func runScan() {
 			result.ByCategory["vhost"] = vhostCount
 			result.TotalVulns += vhostCount
 			progress.AddMetricBy("vulns", vhostCount)
-			result.BySeverity["Low"] += vhostCount
+			result.BySeverity["low"] += vhostCount
 			for _, vh := range validVHosts {
 				emitEvent("vulnerability", map[string]interface{}{
 					"category": "vhost",
-					"severity": "Low",
+					"severity": "low",
 					"vhost":    vh.VHost,
 				})
 			}

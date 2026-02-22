@@ -66,8 +66,8 @@ func TestScanner_Scan_Vulnerable(t *testing.T) {
 	if result.SessionRegenerated {
 		t.Error("Session should not be regenerated")
 	}
-	if result.Severity != "HIGH" {
-		t.Errorf("Expected HIGH severity, got: %s", result.Severity)
+	if result.Severity != "high" {
+		t.Errorf("Expected high severity, got: %s", result.Severity)
 	}
 }
 

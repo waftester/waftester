@@ -136,42 +136,7 @@ func TestSeverityCaseConsistency(t *testing.T) {
 
 	// Known pre-existing violations by package directory name.
 	// Removing entries here is allowed and encouraged. Adding is NOT.
-	knownViolations := map[string]bool{
-		// cmd/cli — BySeverity map uses Title Case keys
-		"cli": true,
-		// pkg scanners with Severity string fields using wrong case
-		"accesscontrol":    true,
-		"apiabuse":         true,
-		"assessment":       true,
-		"brokenauth":       true,
-		"clickjack":        true,
-		"csrf":             true,
-		"idor":             true,
-		"inputvalidation":  true,
-		"ldap":             true,
-		"learning":         true,
-		"lfi":              true,
-		"massassignment":   true,
-		"rce":              true,
-		"requestforgery":   true,
-		"responsesplit":    true,
-		"rfi":              true,
-		"scoring":          true,
-		"securitymisconfig": true,
-		"sensitivedata":    true,
-		"sessionfixation":  true,
-		"ssi":              true,
-		"xmlinjection":     true,
-		"xpath":            true,
-		// pkg/mcpserver reads BySeverity with Title Case keys
-		"mcpserver": true,
-		// pkg/output — writer.go and writers/ use Title Case in SARIF/display maps
-		"output":       true,
-		"writers":       true,
-		"hooks":         true,
-		"testfixtures":  true,
-		"testutil":      true,
-	}
+	knownViolations := map[string]bool{}
 
 	var newViolations []string
 	var knownFound []string

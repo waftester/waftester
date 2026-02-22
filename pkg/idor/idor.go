@@ -297,7 +297,7 @@ func (s *Scanner) HorizontalPrivilegeTest(ctx context.Context, endpoint string, 
 				AuthToken:     tokens[i],
 				Accessible:    true,
 				Vulnerability: "Horizontal Privilege Escalation",
-				Severity:      "HIGH",
+				Severity:      "high",
 				Timestamp:     time.Now(),
 			}
 			results = append(results, result)
@@ -393,7 +393,7 @@ func (s *Scanner) VerticalPrivilegeTest(ctx context.Context, adminEndpoints []st
 		result := s.testWithToken(ctx, endpoint, userToken)
 		if result.StatusCode >= 200 && result.StatusCode < 300 {
 			result.Vulnerability = "Vertical Privilege Escalation"
-			result.Severity = "CRITICAL"
+			result.Severity = "critical"
 			result.Accessible = true
 			results = append(results, result)
 		}

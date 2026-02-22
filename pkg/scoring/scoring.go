@@ -99,7 +99,7 @@ func Calculate(input Input) Result {
 			exploitabilityMod += bestImpact
 			result.EscalationReason = bestReason
 			if bestImpact >= 4.0 && strings.ToLower(result.FinalSeverity) != "critical" {
-				result.FinalSeverity = "Critical"
+				result.FinalSeverity = "critical"
 				baseSeverity = severityScores["critical"]
 			}
 		}

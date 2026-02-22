@@ -498,10 +498,10 @@ func TestRunAllTests(t *testing.T) {
 
 func TestSummarizeResults(t *testing.T) {
 	results := []TestResult{
-		{Vulnerable: true, Severity: "Critical"},
-		{Vulnerable: true, Severity: "High"},
-		{Vulnerable: false, Severity: "Medium"},
-		{Vulnerable: false, Severity: "Low"},
+		{Vulnerable: true, Severity: "critical"},
+		{Vulnerable: true, Severity: "high"},
+		{Vulnerable: false, Severity: "medium"},
+		{Vulnerable: false, Severity: "low"},
 	}
 
 	summary := SummarizeResults(results)

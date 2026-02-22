@@ -125,9 +125,9 @@ func (s *Scanner) testPayload(ctx context.Context, targetURL string, payload Pay
 
 	result.Vulnerable, result.Evidence = s.detectVulnerability(string(body), payload)
 	if result.Vulnerable {
-		result.Severity = "HIGH"
+		result.Severity = "high"
 		if payload.Type == "xxe" {
-			result.Severity = "CRITICAL"
+			result.Severity = "critical"
 		}
 	}
 
