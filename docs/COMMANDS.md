@@ -376,7 +376,7 @@ Configure what gets scanned, how fast, and where results go.
 
 | Flag | Short | Type | Default | Description |
 |------|-------|------|---------|-------------|
-| `-types` | | string | `all` | Attack types to run (comma-separated, e.g., `sqli,xss,ssti,cmdi`) |
+| `-types` | `-t` | string | `all` | Attack types to run (comma-separated, e.g., `sqli,xss,ssti,cmdi`) |
 | `-concurrency` | | int | 5 | Concurrent requests |
 | `-timeout` | | int | 10 | Request timeout in seconds |
 | `-skip-verify` | | bool | false | Skip TLS verification |
@@ -469,7 +469,7 @@ Control how results are displayed. For file exports (SARIF, JUnit, etc.), see [o
 | `-md` | | bool | false | Markdown output |
 | `-html` | | bool | false | HTML output |
 | `-csv` | | bool | false | CSV output |
-| `-silent` | `-s` | bool | false | Suppress all output except results |
+| `-silent` | `-s`, `-q` | bool | false | Suppress all output except results |
 | `-no-color` | `-nc` | bool | false | Disable colored output |
 | `-timestamp` | `-ts` | bool | false | Add timestamps to output |
 | `-stream` | | bool | false | Stream results in real-time |
@@ -567,7 +567,7 @@ The `run` command is heavily inspired by `ffuf` and `nuclei` workflows. It suppo
 | `-rate-limit` | `-rl` | int | varies | Rate limit (req/s) |
 | `-retries` | | int | 1 | Retry count |
 | `-payloads` | `-p` | string | `./payloads` | Payload directory |
-| `-category` | | string | | Attack category filter |
+| `-category` | `-cat` | string | | Attack category filter |
 | `-severity` | | string | | Severity filter |
 | `-dry-run` | | bool | false | Preview without executing |
 
