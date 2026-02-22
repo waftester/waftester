@@ -272,6 +272,7 @@ func (t *Tester) TestParameter(ctx context.Context, baseURL string, param string
 		}
 		if vuln != nil {
 			vulns = append(vulns, *vuln)
+			t.config.NotifyVulnerabilityFound()
 		}
 	}
 
@@ -394,6 +395,7 @@ func (t *Tester) TestHeader(ctx context.Context, targetURL string, headerName st
 				Remediation: GetCRLFRemediation(),
 				CVSS:        getCVSS(payload.Type),
 			})
+			t.config.NotifyVulnerabilityFound()
 		}
 	}
 
@@ -438,6 +440,7 @@ func (t *Tester) TestPOST(ctx context.Context, targetURL string, param string) (
 				Remediation: GetCRLFRemediation(),
 				CVSS:        getCVSS(payload.Type),
 			})
+			t.config.NotifyVulnerabilityFound()
 		}
 	}
 

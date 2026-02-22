@@ -66,6 +66,7 @@ func (d *Detector) Detect(ctx context.Context, targetURL string, parameter strin
 
 		if vuln != nil {
 			vulns = append(vulns, vuln)
+			d.config.NotifyVulnerabilityFound()
 		}
 	}
 
@@ -273,6 +274,7 @@ func (d *Detector) DetectBlind(ctx context.Context, targetURL string, parameter 
 				Payload:    payload,
 				Confidence: "medium",
 			})
+			d.config.NotifyVulnerabilityFound()
 		}
 	}
 
