@@ -311,6 +311,7 @@ func (t *Tester) TestUnkeyedHeader(ctx context.Context, targetURL string, header
 
 	// If canary appears in second response without header, cache is poisoned
 	if strings.Contains(body2, canary) {
+		t.config.NotifyVulnerabilityFound()
 		return &Vulnerability{
 			Type:        VulnUnkeyedHeader,
 			Description: fmt.Sprintf("Header '%s' is reflected but not keyed in cache", header),
@@ -393,6 +394,7 @@ func (t *Tester) TestUnkeyedParameter(ctx context.Context, targetURL string, par
 	iohelper.DrainAndClose(resp2.Body)
 
 	if strings.Contains(body2, canary) {
+		t.config.NotifyVulnerabilityFound()
 		return &Vulnerability{
 			Type:        VulnUnkeyedParameter,
 			Description: fmt.Sprintf("Parameter '%s' is reflected but not keyed in cache", param),
@@ -518,6 +520,7 @@ func (t *Tester) TestCacheDeception(ctx context.Context, targetURL string) ([]Vu
 					Remediation: GetCacheDeceptionRemediation(),
 					CVSS:        7.1,
 				})
+				t.config.NotifyVulnerabilityFound()
 			}
 		}
 	}
@@ -595,6 +598,7 @@ func (t *Tester) TestPathNormalization(ctx context.Context, targetURL string) ([
 				Remediation: GetPathNormalizationRemediation(),
 				CVSS:        5.3,
 			})
+			t.config.NotifyVulnerabilityFound()
 		}
 	}
 
@@ -635,6 +639,7 @@ func (t *Tester) TestFatGET(ctx context.Context, targetURL string) (*Vulnerabili
 	iohelper.DrainAndClose(resp.Body)
 
 	if strings.Contains(body, canary) {
+		t.config.NotifyVulnerabilityFound()
 		return &Vulnerability{
 			Type:        VulnFatGET,
 			Description: "Server processes body in GET requests (Fat GET)",
@@ -712,6 +717,7 @@ func (t *Tester) TestParameterCloaking(ctx context.Context, targetURL string) ([
 				Remediation: GetParameterCloakingRemediation(),
 				CVSS:        5.3,
 			})
+			t.config.NotifyVulnerabilityFound()
 		}
 	}
 

@@ -381,6 +381,7 @@ func (t *Tester) checkSingleURL(ctx context.Context, subdomain, targetURL string
 	// Check for fingerprint patterns
 	for _, pattern := range fp.Patterns {
 		if pattern.MatchString(bodyStr) {
+			t.config.NotifyVulnerabilityFound()
 			return &Vulnerability{
 				Vulnerability: finding.Vulnerability{
 					Description: fmt.Sprintf("%s subdomain takeover possible", fp.Name),
@@ -412,6 +413,7 @@ func (t *Tester) CheckNS(domain string) (*Vulnerability, error) {
 		// Try to resolve each NS
 		_, err := net.LookupHost(record.Host)
 		if err != nil { //nolint:nilerr // intentional: DNS resolution failure IS the vulnerability
+			t.config.NotifyVulnerabilityFound()
 			return &Vulnerability{
 				Vulnerability: finding.Vulnerability{
 					Description: "Dangling NS record detected",
@@ -441,6 +443,7 @@ func (t *Tester) CheckMX(domain string) (*Vulnerability, error) {
 		// Try to resolve each MX
 		_, err := net.LookupHost(record.Host)
 		if err != nil { //nolint:nilerr // intentional: DNS resolution failure IS the vulnerability
+			t.config.NotifyVulnerabilityFound()
 			return &Vulnerability{
 				Vulnerability: finding.Vulnerability{
 					Description: "Dangling MX record detected",

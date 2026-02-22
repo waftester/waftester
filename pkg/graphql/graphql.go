@@ -436,6 +436,7 @@ func (t *Tester) TestDepthAttack(ctx context.Context, fieldName string, depth in
 	if err != nil {
 		// Check if it's a timeout (potential DoS)
 		if strings.Contains(err.Error(), "timeout") {
+			t.config.NotifyVulnerabilityFound()
 			return &Vulnerability{
 				Type:        AttackDepth,
 				Description: fmt.Sprintf("Server timed out on query with depth %d (potential DoS)", depth),
@@ -450,6 +451,7 @@ func (t *Tester) TestDepthAttack(ctx context.Context, fieldName string, depth in
 
 	// Check if deep query was accepted
 	if statusCode == 200 && len(resp.Errors) == 0 {
+		t.config.NotifyVulnerabilityFound()
 		return &Vulnerability{
 			Type:        AttackDepth,
 			Description: fmt.Sprintf("Server accepted query with depth %d without rate limiting", depth),
@@ -519,6 +521,7 @@ func (t *Tester) TestBatchAttack(ctx context.Context, batchSize int) (*Vulnerabi
 
 	if err != nil {
 		if strings.Contains(err.Error(), "timeout") {
+			t.config.NotifyVulnerabilityFound()
 			return &Vulnerability{
 				Type:        AttackBatch,
 				Description: fmt.Sprintf("Server timed out on batch of %d queries (potential DoS)", batchSize),
@@ -533,6 +536,7 @@ func (t *Tester) TestBatchAttack(ctx context.Context, batchSize int) (*Vulnerabi
 
 	// Check if batch was accepted
 	if statusCode == 200 && len(responses) == batchSize {
+		t.config.NotifyVulnerabilityFound()
 		return &Vulnerability{
 			Type:        AttackBatch,
 			Description: fmt.Sprintf("Server accepted batch of %d queries without limiting", batchSize),
@@ -556,6 +560,7 @@ func (t *Tester) TestAliasAbuse(ctx context.Context, fieldName string, aliasCoun
 
 	if err != nil {
 		if strings.Contains(err.Error(), "timeout") {
+			t.config.NotifyVulnerabilityFound()
 			return &Vulnerability{
 				Type:        AttackAlias,
 				Description: fmt.Sprintf("Server timed out with %d field aliases (potential DoS)", aliasCount),
@@ -569,6 +574,7 @@ func (t *Tester) TestAliasAbuse(ctx context.Context, fieldName string, aliasCoun
 	}
 
 	if statusCode == 200 && len(resp.Errors) == 0 {
+		t.config.NotifyVulnerabilityFound()
 		return &Vulnerability{
 			Type:        AttackAlias,
 			Description: fmt.Sprintf("Server executed query with %d aliases without limiting", aliasCount),
@@ -631,6 +637,7 @@ func (t *Tester) TestFieldSuggestion(ctx context.Context) (*Vulnerability, []str
 	}
 
 	if len(suggestions) > 0 {
+		t.config.NotifyVulnerabilityFound()
 		return &Vulnerability{
 			Type:        AttackFieldSuggestion,
 			Description: "GraphQL error messages reveal valid field names via suggestions",
@@ -670,6 +677,7 @@ func (t *Tester) TestInjection(ctx context.Context, queryTemplate string, variab
 				Evidence:    fmt.Sprintf("Payload: %s, Response indicates injection", payload.Value),
 				Remediation: "Sanitize and validate all input. Use parameterized queries for database operations.",
 			})
+			t.config.NotifyVulnerabilityFound()
 		}
 	}
 
@@ -792,6 +800,7 @@ func (t *Tester) TestIDOR(ctx context.Context, queryTemplate string, idParam str
 				Evidence:    fmt.Sprintf("Successfully retrieved data for ID: %s", id),
 				Remediation: "Implement proper authorization checks. Verify object ownership before returning data.",
 			})
+			t.config.NotifyVulnerabilityFound()
 		}
 	}
 
@@ -808,6 +817,7 @@ func (t *Tester) TestDirectiveOverload(ctx context.Context, directiveCount int) 
 
 	if err != nil {
 		if strings.Contains(err.Error(), "timeout") {
+			t.config.NotifyVulnerabilityFound()
 			return &Vulnerability{
 				Type:        AttackDirectiveOverload,
 				Description: fmt.Sprintf("Server timed out with %d directives (potential DoS)", directiveCount),
@@ -821,6 +831,7 @@ func (t *Tester) TestDirectiveOverload(ctx context.Context, directiveCount int) 
 	}
 
 	if statusCode == 200 && len(resp.Errors) == 0 {
+		t.config.NotifyVulnerabilityFound()
 		return &Vulnerability{
 			Type:        AttackDirectiveOverload,
 			Description: fmt.Sprintf("Server accepted query with %d directives", directiveCount),
