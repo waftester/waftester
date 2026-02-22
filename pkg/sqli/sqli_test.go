@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -780,5 +781,41 @@ func TestMaxParamsLimit(t *testing.T) {
 	}
 	if result.TestedParams != 2 {
 		t.Errorf("expected 2 tested params, got %d", result.TestedParams)
+	}
+}
+
+func TestOnVulnerabilityFoundCallback(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.URL.Query().Get("id")
+		if strings.Contains(id, "'") {
+			w.Write([]byte("You have an error in your SQL syntax"))
+		}
+	}))
+	defer server.Close()
+
+	var callbackCount int32
+	cfg := &TesterConfig{
+		Base: attackconfig.Base{
+			MaxParams:   1, // Test one param to keep it fast
+			MaxPayloads: 5,
+			OnVulnerabilityFound: func() {
+				atomic.AddInt32(&callbackCount, 1)
+			},
+		},
+	}
+	tester := NewTester(cfg)
+
+	result, err := tester.Scan(context.Background(), server.URL)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got := int(atomic.LoadInt32(&callbackCount))
+	want := len(result.Vulnerabilities)
+	if got != want {
+		t.Errorf("OnVulnerabilityFound called %d times, but %d vulnerabilities found", got, want)
+	}
+	if got == 0 {
+		t.Error("expected at least one callback invocation")
 	}
 }
