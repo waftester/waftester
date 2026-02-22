@@ -66,7 +66,8 @@ func (d *Detector) Detect(ctx context.Context, targetURL string, parameter strin
 
 		if vuln != nil {
 			vulns = append(vulns, vuln)
-			d.config.NotifyVulnerabilityFound()
+			// Key matches dedup.go: URL|Parameter|Engine
+			d.config.NotifyUniqueVuln(fmt.Sprintf("%s|%s|%s", targetURL, parameter, vuln.Engine))
 		}
 	}
 
@@ -274,7 +275,8 @@ func (d *Detector) DetectBlind(ctx context.Context, targetURL string, parameter 
 				Payload:    payload,
 				Confidence: "medium",
 			})
-			d.config.NotifyVulnerabilityFound()
+			// Key matches dedup.go: URL|Parameter|Engine
+			d.config.NotifyUniqueVuln(fmt.Sprintf("%s|%s|%s", targetURL, parameter, payload.Engine))
 		}
 	}
 

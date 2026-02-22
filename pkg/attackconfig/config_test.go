@@ -2,7 +2,10 @@ package attackconfig
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -82,7 +85,7 @@ func TestBase_JSONRoundtrip(t *testing.T) {
 		MaxParams:   5,
 		Concurrency: 20,
 	}
-	data, err := json.Marshal(b)
+	data, err := json.Marshal(&b)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
@@ -107,7 +110,7 @@ func TestBase_JSONRoundtrip(t *testing.T) {
 func TestBase_JSONOmitEmpty(t *testing.T) {
 	t.Parallel()
 	b := Base{}
-	data, err := json.Marshal(b)
+	data, err := json.Marshal(&b)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
@@ -122,12 +125,116 @@ func TestBase_ClientNotSerialized(t *testing.T) {
 	b := Base{
 		Client: &http.Client{Timeout: time.Second},
 	}
-	data, err := json.Marshal(b)
+	data, err := json.Marshal(&b)
 	if err != nil {
 		t.Fatal(err)
 	}
 	s := string(data)
 	if s != "{}" {
 		t.Errorf("Client should not appear in JSON, got %s", s)
+	}
+}
+
+func TestNotifyVulnerabilityFound(t *testing.T) {
+	t.Parallel()
+	var count int
+	b := Base{
+		OnVulnerabilityFound: func() { count++ },
+	}
+	b.NotifyVulnerabilityFound()
+	b.NotifyVulnerabilityFound()
+	b.NotifyVulnerabilityFound()
+	if count != 3 {
+		t.Errorf("expected 3 calls, got %d", count)
+	}
+}
+
+func TestNotifyVulnerabilityFound_NilCallback(t *testing.T) {
+	t.Parallel()
+	b := Base{}
+	b.NotifyVulnerabilityFound() // must not panic
+}
+
+func TestNotifyUniqueVuln_DeduplicatesKeys(t *testing.T) {
+	t.Parallel()
+	var count int
+	b := Base{
+		OnVulnerabilityFound: func() { count++ },
+	}
+
+	b.NotifyUniqueVuln("url1|param1|sqli|mysql")
+	b.NotifyUniqueVuln("url1|param1|sqli|mysql") // duplicate
+	b.NotifyUniqueVuln("url1|param1|sqli|mysql") // duplicate
+	b.NotifyUniqueVuln("url1|param2|sqli|mysql") // different key
+
+	if count != 2 {
+		t.Errorf("expected 2 unique callbacks, got %d", count)
+	}
+}
+
+func TestNotifyUniqueVuln_NilCallback(t *testing.T) {
+	t.Parallel()
+	b := Base{}
+	b.NotifyUniqueVuln("key1") // must not panic
+	b.NotifyUniqueVuln("key1") // must not panic
+}
+
+func TestNotifyUniqueVuln_EmptyKey(t *testing.T) {
+	t.Parallel()
+	var count int
+	b := Base{
+		OnVulnerabilityFound: func() { count++ },
+	}
+
+	b.NotifyUniqueVuln("")
+	b.NotifyUniqueVuln("") // duplicate of empty
+	b.NotifyUniqueVuln("a")
+
+	if count != 2 {
+		t.Errorf("expected 2 callbacks (empty + 'a'), got %d", count)
+	}
+}
+
+func TestNotifyUniqueVuln_IndependentOfNotifyVulnerabilityFound(t *testing.T) {
+	t.Parallel()
+	var count int
+	b := Base{
+		OnVulnerabilityFound: func() { count++ },
+	}
+
+	// NotifyVulnerabilityFound always fires
+	b.NotifyVulnerabilityFound()
+	b.NotifyVulnerabilityFound()
+
+	// NotifyUniqueVuln deduplicates
+	b.NotifyUniqueVuln("key1")
+	b.NotifyUniqueVuln("key1") // duplicate, should not fire
+
+	if count != 3 {
+		t.Errorf("expected 3 (2 raw + 1 unique), got %d", count)
+	}
+}
+
+func TestNotifyUniqueVuln_ConcurrentSafety(t *testing.T) {
+	t.Parallel()
+	var count int64
+	b := Base{
+		OnVulnerabilityFound: func() {
+			atomic.AddInt64(&count, 1)
+		},
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func(key string) {
+			defer wg.Done()
+			b.NotifyUniqueVuln(key)
+		}(fmt.Sprintf("key%d", i%10)) // 10 unique keys, each fired 10 times
+	}
+	wg.Wait()
+
+	if count != 10 {
+		t.Errorf("expected 10 unique callbacks from concurrent access, got %d", count)
 	}
 }
