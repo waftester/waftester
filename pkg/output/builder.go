@@ -393,13 +393,15 @@ func BuildDispatcher(cfg Config) (*dispatcher.Dispatcher, error) {
 
 	// === CONSOLE OUTPUT ===
 
-	// Table writer for console output (unless silent or JSON mode)
+	// Table writer for console output (unless silent or JSON mode).
+	// Writes to stderr so it never contaminates structured stdout
+	// (JSON, SARIF, CSV, HTML, Markdown, etc.).
 	if !cfg.Silent && !cfg.JSONMode {
 		mode := "summary"
 		if cfg.StreamMode {
 			mode = "streaming"
 		}
-		writer := writers.NewTableWriter(os.Stdout, writers.TableConfig{
+		writer := writers.NewTableWriter(os.Stderr, writers.TableConfig{
 			Mode:             mode,
 			ColorEnabled:     !cfg.NoColor,
 			UnicodeEnabled:   true,
