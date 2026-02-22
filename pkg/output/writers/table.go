@@ -215,10 +215,12 @@ func NewTableWriter(w io.Writer, config TableConfig) *TableWriter {
 		config.Mode = "summary"
 	}
 
-	// Select box-drawing character set
-	// Use Unicode by default, ASCII only if explicitly disabled
+	// Select box-drawing character set.
+	// Use Unicode by default, fall back to ASCII if explicitly disabled
+	// or if the platform can't render UTF-8 (e.g., piped output on Windows
+	// where PowerShell re-encodes through the system OEM codepage).
 	chars := &boxChars
-	if config.DisableUnicode {
+	if config.DisableUnicode || !unicodeSupported(w) {
 		chars = &asciiChars
 	}
 
