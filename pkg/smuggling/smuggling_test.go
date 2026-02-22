@@ -12,7 +12,7 @@ import (
 )
 
 func TestNewDetector(t *testing.T) {
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 	if d == nil {
 		t.Fatal("NewDetector returned nil")
 	}
@@ -56,7 +56,7 @@ func TestVulnTypes(t *testing.T) {
 }
 
 func TestGeneratePayloads(t *testing.T) {
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 	payloads := d.GeneratePayloads("example.com")
 
 	if len(payloads) == 0 {
@@ -80,7 +80,7 @@ func TestGeneratePayloads(t *testing.T) {
 }
 
 func TestPayloadHostSubstitution(t *testing.T) {
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 
 	hosts := []string{
 		"test.com",
@@ -109,7 +109,7 @@ func TestDetectWithTestServer(t *testing.T) {
 	}))
 	defer server.Close()
 
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 	d.Timeout = 2 * time.Second
 	d.ReadTimeout = 1 * time.Second
 	d.DelayMs = 100
@@ -134,7 +134,7 @@ func TestDetectWithTestServer(t *testing.T) {
 }
 
 func TestDetectInvalidURL(t *testing.T) {
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 	ctx := context.Background()
 
 	// Test with an actually invalid URL that has an invalid scheme
@@ -151,7 +151,7 @@ func TestDetectContextCancellation(t *testing.T) {
 	}))
 	defer server.Close()
 
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 	d.Timeout = 1 * time.Second
 	d.DelayMs = 10
 
@@ -231,7 +231,7 @@ func TestSendRawRequestConnection(t *testing.T) {
 
 	addr := listener.Addr().(*net.TCPAddr)
 
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 	d.Timeout = 2 * time.Second
 	d.ReadTimeout = 1 * time.Second
 
@@ -271,7 +271,7 @@ func TestSendRawRequestTimeout(t *testing.T) {
 
 	addr := listener.Addr().(*net.TCPAddr)
 
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 	d.Timeout = 500 * time.Millisecond
 	d.ReadTimeout = 200 * time.Millisecond
 
@@ -290,7 +290,7 @@ func TestSendRawRequestTimeout(t *testing.T) {
 
 func TestDetectWithHTTPS(t *testing.T) {
 	// Just ensure HTTPS URL parsing works
-	d := NewDetector()
+	d := NewDetector(DefaultConfig())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -396,5 +396,121 @@ func TestPayloadFields(t *testing.T) {
 	}
 	if p.Type != VulnCLTE {
 		t.Error("Type mismatch")
+	}
+}
+
+// --- New tests: DefaultConfig, negative cases ---
+
+func TestDefaultConfig(t *testing.T) {
+	cfg := DefaultConfig()
+
+	if cfg.Timeout <= 0 {
+		t.Error("DefaultConfig.Timeout should be positive")
+	}
+	if cfg.ReadTimeout <= 0 {
+		t.Error("DefaultConfig.ReadTimeout should be positive")
+	}
+	if !cfg.SafeMode {
+		t.Error("DefaultConfig.SafeMode should be true")
+	}
+	if cfg.DelayMs <= 0 {
+		t.Error("DefaultConfig.DelayMs should be positive")
+	}
+	if cfg.MaxRetries <= 0 {
+		t.Error("DefaultConfig.MaxRetries should be positive")
+	}
+	if len(cfg.CustomPorts) == 0 {
+		t.Error("DefaultConfig.CustomPorts should be populated")
+	}
+}
+
+func TestDetectEmptyTarget(t *testing.T) {
+	d := NewDetector(DefaultConfig())
+	d.Timeout = 500 * time.Millisecond
+	d.ReadTimeout = 200 * time.Millisecond
+	d.DelayMs = 0
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	result, err := d.Detect(ctx, "")
+	// url.Parse("") succeeds, so Detect won't return a parse error.
+	// It should still return a result with zero vulnerabilities.
+	if err != nil {
+		t.Logf("got error (OK): %v", err)
+	}
+	if result != nil && len(result.Vulnerabilities) > 0 {
+		t.Error("expected no vulnerabilities for empty target")
+	}
+}
+
+func TestDetectCallbackFires(t *testing.T) {
+	// TCP echo server that returns multiple HTTP responses to trigger CL.0
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Failed to create listener: %v", err)
+	}
+	defer listener.Close()
+
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				buf := make([]byte, 4096)
+				c.Read(buf)
+				c.Write([]byte("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK"))
+			}(conn)
+		}
+	}()
+
+	addr := listener.Addr().(*net.TCPAddr)
+
+	var called int
+	cfg := DefaultConfig()
+	cfg.Timeout = 1 * time.Second
+	cfg.ReadTimeout = 500 * time.Millisecond
+	cfg.DelayMs = 10
+	cfg.OnVulnerabilityFound = func() { called++ }
+	d := NewDetector(cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := d.Detect(ctx, fmt.Sprintf("http://127.0.0.1:%d/", addr.Port))
+	if err != nil {
+		t.Logf("Detect error: %v (may be expected)", err)
+	}
+	if result == nil {
+		t.Fatal("result should not be nil")
+	}
+
+	// If any vulns were found, callback should have fired.
+	if len(result.Vulnerabilities) > 0 && called == 0 {
+		t.Error("OnVulnerabilityFound should have fired")
+	}
+}
+
+func TestSendRawRequestConnectionRefused(t *testing.T) {
+	d := NewDetector(DefaultConfig())
+	d.Timeout = 500 * time.Millisecond
+
+	ctx := context.Background()
+	_, _, err := d.sendRawRequest(ctx, "127.0.0.1", "1", false, "GET / HTTP/1.1\r\n\r\n")
+	if err == nil {
+		t.Error("expected error for connection refused")
+	}
+}
+
+func TestGeneratePayloadsEmptyHost(t *testing.T) {
+	d := NewDetector(DefaultConfig())
+	payloads := d.GeneratePayloads("")
+
+	// Should still produce payloads (with empty host).
+	if len(payloads) == 0 {
+		t.Error("should generate payloads even with empty host")
 	}
 }
