@@ -3,12 +3,36 @@ package writers
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/waftester/waftester/pkg/output/events"
 )
+
+// failWriter is a test helper that implements io.Writer and io.Closer
+// and can be configured to fail on Write or Close calls.
+type failWriter struct {
+	failOnWrite bool
+	failOnClose bool
+	closed      bool
+}
+
+func (fw *failWriter) Write(_ []byte) (int, error) {
+	if fw.failOnWrite {
+		return 0, fmt.Errorf("simulated write error")
+	}
+	return 0, nil
+}
+
+func (fw *failWriter) Close() error {
+	fw.closed = true
+	if fw.failOnClose {
+		return fmt.Errorf("simulated close error")
+	}
+	return nil
+}
 
 // makeTestResultEvent creates a test result event for testing.
 func makeTestResultEvent(id, category string, severity events.Severity, outcome events.Outcome) *events.ResultEvent {
@@ -2040,7 +2064,10 @@ func TestHARWriter(t *testing.T) {
 			{401, "Unauthorized"},
 			{403, "Forbidden"},
 			{404, "Not Found"},
+			{429, "Too Many Requests"},
 			{500, "Internal Server Error"},
+			{502, "Bad Gateway"},
+			{503, "Service Unavailable"},
 			{999, "Status 999"},
 		}
 
@@ -2049,6 +2076,671 @@ func TestHARWriter(t *testing.T) {
 			if text != tc.expected {
 				t.Errorf("status %d: expected %s, got %s", tc.code, tc.expected, text)
 			}
+		}
+	})
+
+	t.Run("BypassEvent is converted to HAR entry", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		bypass := &events.BypassEvent{
+			BaseEvent: events.BaseEvent{
+				Type: events.EventTypeBypass,
+				Time: time.Date(2024, 6, 15, 12, 0, 0, 0, time.UTC),
+				Scan: "scan-bypass-test",
+			},
+			Priority: "critical",
+			Alert: events.AlertInfo{
+				Title:       "WAF Bypass Detected",
+				Description: "SQL injection payload bypassed WAF",
+			},
+			Details: events.BypassDetail{
+				TestID:     "sqli-042",
+				Category:   "sqli",
+				Severity:   events.SeverityCritical,
+				StatusCode: 200,
+				Endpoint:   "https://example.com/login",
+				Method:     "POST",
+				Payload:    "' OR '1'='1",
+				OWASP:      []string{"A03:2021"},
+				CWE:        []int{89},
+			},
+		}
+
+		if err := w.Write(bypass); err != nil {
+			t.Fatalf("write bypass: %v", err)
+		}
+		if err := w.Close(); err != nil {
+			t.Fatalf("close: %v", err)
+		}
+
+		var har harDocument
+		if err := json.Unmarshal(buf.Bytes(), &har); err != nil {
+			t.Fatalf("invalid HAR JSON: %v", err)
+		}
+
+		if len(har.Log.Entries) != 1 {
+			t.Fatalf("expected 1 entry from BypassEvent, got %d", len(har.Log.Entries))
+		}
+
+		entry := har.Log.Entries[0]
+		if entry.Request.Method != "POST" {
+			t.Errorf("method: want POST, got %s", entry.Request.Method)
+		}
+		if entry.Request.URL != "https://example.com/login" {
+			t.Errorf("URL: want https://example.com/login, got %s", entry.Request.URL)
+		}
+		if entry.Response.Status != 200 {
+			t.Errorf("status: want 200, got %d", entry.Response.Status)
+		}
+		if !strings.Contains(entry.Comment, "WAF bypass") {
+			t.Errorf("comment should contain 'WAF bypass', got %s", entry.Comment)
+		}
+		if !strings.Contains(entry.Comment, "sqli-042") {
+			t.Errorf("comment should contain test ID, got %s", entry.Comment)
+		}
+	})
+
+	t.Run("BypassEvent mixed with ResultEvent", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		result := makeTestResultEvent("xss-001", "xss", events.SeverityHigh, events.OutcomeBlocked)
+		bypass := &events.BypassEvent{
+			BaseEvent: events.BaseEvent{
+				Type: events.EventTypeBypass,
+				Time: time.Now(),
+				Scan: "scan-mixed",
+			},
+			Details: events.BypassDetail{
+				TestID:     "sqli-042",
+				Category:   "sqli",
+				Severity:   events.SeverityCritical,
+				StatusCode: 200,
+				Endpoint:   "https://example.com/api",
+				Method:     "GET",
+			},
+		}
+
+		w.Write(result)
+		w.Write(bypass)
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		if len(har.Log.Entries) != 2 {
+			t.Errorf("expected 2 entries (ResultEvent + BypassEvent), got %d", len(har.Log.Entries))
+		}
+	})
+
+	t.Run("OnlyBypasses also includes BypassEvent", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{OnlyBypasses: true})
+
+		blocked := makeTestResultEvent("xss-001", "xss", events.SeverityHigh, events.OutcomeBlocked)
+		bypass := &events.BypassEvent{
+			BaseEvent: events.BaseEvent{
+				Type: events.EventTypeBypass,
+				Time: time.Now(),
+				Scan: "scan-filtered",
+			},
+			Details: events.BypassDetail{
+				TestID:     "sqli-042",
+				Category:   "sqli",
+				Severity:   events.SeverityCritical,
+				StatusCode: 200,
+				Endpoint:   "https://example.com/api",
+				Method:     "GET",
+			},
+		}
+
+		w.Write(blocked) // Should be filtered out
+		w.Write(bypass)  // Should be included
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		if len(har.Log.Entries) != 1 {
+			t.Errorf("expected 1 entry (only BypassEvent), got %d", len(har.Log.Entries))
+		}
+	})
+
+	t.Run("Close closes underlying writer on encode error", func(t *testing.T) {
+		fw := &failWriter{failOnWrite: true}
+		w := NewHARWriter(fw, HAROptions{})
+
+		result := makeTestResultEvent("test-1", "sqli", events.SeverityCritical, events.OutcomeBypass)
+		w.Write(result)
+
+		err := w.Close()
+		if err == nil {
+			t.Fatal("expected error from Close when write fails")
+		}
+		if !fw.closed {
+			t.Error("underlying writer was not closed on encode error")
+		}
+	})
+
+	t.Run("Close returns close error when encode succeeds", func(t *testing.T) {
+		fw := &failWriter{failOnClose: true}
+		w := NewHARWriter(fw, HAROptions{})
+
+		err := w.Close()
+		if err == nil {
+			t.Fatal("expected error from Close")
+		}
+		if !strings.Contains(err.Error(), "har: close:") {
+			t.Errorf("expected 'har: close:' prefix, got: %v", err)
+		}
+	})
+
+	t.Run("headers are sorted deterministically", func(t *testing.T) {
+		for i := 0; i < 10; i++ {
+			buf := &bytes.Buffer{}
+			w := NewHARWriter(buf, HAROptions{})
+
+			event := makeTestResultEvent("test-1", "sqli", events.SeverityCritical, events.OutcomeBypass)
+			event.Evidence = &events.Evidence{
+				Payload: "test",
+				RequestHeaders: map[string]string{
+					"Z-Custom":      "last",
+					"Authorization": "Bearer token",
+					"Accept":        "text/html",
+					"Content-Type":  "application/json",
+				},
+			}
+
+			w.Write(event)
+			w.Close()
+
+			var har harDocument
+			json.Unmarshal(buf.Bytes(), &har)
+
+			headers := har.Log.Entries[0].Request.Headers
+			if len(headers) != 4 {
+				t.Fatalf("expected 4 headers, got %d", len(headers))
+			}
+			if headers[0].Name != "Accept" {
+				t.Errorf("iteration %d: first header should be Accept, got %s", i, headers[0].Name)
+			}
+			if headers[1].Name != "Authorization" {
+				t.Errorf("iteration %d: second header should be Authorization, got %s", i, headers[1].Name)
+			}
+			if headers[2].Name != "Content-Type" {
+				t.Errorf("iteration %d: third header should be Content-Type, got %s", i, headers[2].Name)
+			}
+			if headers[3].Name != "Z-Custom" {
+				t.Errorf("iteration %d: fourth header should be Z-Custom, got %s", i, headers[3].Name)
+			}
+		}
+	})
+
+	t.Run("query params are sorted deterministically", func(t *testing.T) {
+		for i := 0; i < 10; i++ {
+			buf := &bytes.Buffer{}
+			w := NewHARWriter(buf, HAROptions{})
+
+			event := makeTestResultEvent("test-1", "sqli", events.SeverityCritical, events.OutcomeBypass)
+			event.Target.URL = "https://example.com/api?z=3&a=1&m=2"
+
+			w.Write(event)
+			w.Close()
+
+			var har harDocument
+			json.Unmarshal(buf.Bytes(), &har)
+
+			params := har.Log.Entries[0].Request.QueryString
+			if len(params) != 3 {
+				t.Fatalf("expected 3 params, got %d", len(params))
+			}
+			if params[0].Name != "a" {
+				t.Errorf("iteration %d: first param should be 'a', got %s", i, params[0].Name)
+			}
+			if params[1].Name != "m" {
+				t.Errorf("iteration %d: second param should be 'm', got %s", i, params[1].Name)
+			}
+			if params[2].Name != "z" {
+				t.Errorf("iteration %d: third param should be 'z', got %s", i, params[2].Name)
+			}
+		}
+	})
+
+	t.Run("statusText covers WAF-relevant codes via http.StatusText", func(t *testing.T) {
+		wafCodes := []struct {
+			code     int
+			expected string
+		}{
+			{406, "Not Acceptable"},
+			{418, "I'm a teapot"},
+			{429, "Too Many Requests"},
+			{451, "Unavailable For Legal Reasons"},
+			{511, "Network Authentication Required"},
+		}
+
+		for _, tc := range wafCodes {
+			text := statusText(tc.code)
+			if text != tc.expected {
+				t.Errorf("status %d: expected %q, got %q", tc.code, tc.expected, text)
+			}
+		}
+	})
+
+	t.Run("response MIME inferred from ResponsePreview content", func(t *testing.T) {
+		tests := []struct {
+			name            string
+			responsePreview string
+			wantMIME        string
+		}{
+			{"json response", `{"error":"forbidden"}`, "application/json"},
+			{"xml response", `<?xml version="1.0"?><error/>`, "application/xml"},
+			{"html response", "<html><body>Blocked</body></html>", "text/html"},
+			{"plain text response", "Access denied", "text/plain"},
+			{"no preview", "", "text/html"},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				buf := &bytes.Buffer{}
+				w := NewHARWriter(buf, HAROptions{})
+
+				event := makeTestResultEvent("test-1", "sqli", events.SeverityCritical, events.OutcomeBypass)
+				if tc.responsePreview != "" {
+					event.Evidence = &events.Evidence{
+						Payload:         "test",
+						ResponsePreview: tc.responsePreview,
+					}
+				} else {
+					event.Evidence = nil
+				}
+
+				w.Write(event)
+				w.Close()
+
+				var har harDocument
+				json.Unmarshal(buf.Bytes(), &har)
+
+				got := har.Log.Entries[0].Response.Content.MimeType
+				if got != tc.wantMIME {
+					t.Errorf("MIME: want %s, got %s", tc.wantMIME, got)
+				}
+			})
+		}
+	})
+
+	t.Run("postData uses actual Content-Type from headers", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		event := makeTestResultEvent("test-1", "sqli", events.SeverityCritical, events.OutcomeBypass)
+		event.Target.Method = "POST"
+		event.Evidence = &events.Evidence{
+			Payload:        `{"username":"admin"}`,
+			RequestHeaders: map[string]string{"Content-Type": "application/json"},
+		}
+
+		w.Write(event)
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		pd := har.Log.Entries[0].Request.PostData
+		if pd == nil {
+			t.Fatal("expected postData for POST with JSON body")
+		}
+		if pd.MimeType != "application/json" {
+			t.Errorf("postData MIME: want application/json, got %s", pd.MimeType)
+		}
+	})
+
+	t.Run("unknown event types are silently ignored", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		progress := &events.ProgressEvent{
+			BaseEvent: events.BaseEvent{
+				Type: events.EventTypeProgress,
+				Time: time.Now(),
+				Scan: "test",
+			},
+		}
+
+		if err := w.Write(progress); err != nil {
+			t.Fatalf("Write should not error on unsupported event: %v", err)
+		}
+
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		if len(har.Log.Entries) != 0 {
+			t.Errorf("expected 0 entries for unsupported event, got %d", len(har.Log.Entries))
+		}
+	})
+
+	t.Run("nil evidence produces safe defaults", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		event := makeTestResultEvent("test-1", "sqli", events.SeverityCritical, events.OutcomeBypass)
+		event.Evidence = nil
+
+		w.Write(event)
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		entry := har.Log.Entries[0]
+		if entry.Request.BodySize != -1 {
+			t.Errorf("expected bodySize -1 with nil evidence, got %d", entry.Request.BodySize)
+		}
+		if len(entry.Request.Headers) != 0 {
+			t.Errorf("expected 0 headers with nil evidence, got %d", len(entry.Request.Headers))
+		}
+		if entry.Request.PostData != nil {
+			t.Error("expected nil postData with nil evidence")
+		}
+		if entry.Response.Content.MimeType != "text/html" {
+			t.Errorf("expected text/html fallback MIME, got %s", entry.Response.Content.MimeType)
+		}
+	})
+
+	t.Run("write after close is silently ignored", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		event := makeTestResultEvent("test-1", "sqli", events.SeverityCritical, events.OutcomeBypass)
+		w.Write(event)
+		w.Close()
+
+		// Capture what was written
+		firstOutput := buf.String()
+
+		// Write after close should not panic or modify output
+		if err := w.Write(event); err != nil {
+			t.Fatalf("Write after Close should not error: %v", err)
+		}
+
+		if buf.String() != firstOutput {
+			t.Error("Write after Close modified the output buffer")
+		}
+	})
+
+	t.Run("double close is idempotent", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		event := makeTestResultEvent("test-1", "sqli", events.SeverityCritical, events.OutcomeBypass)
+		w.Write(event)
+
+		if err := w.Close(); err != nil {
+			t.Fatalf("first Close failed: %v", err)
+		}
+		firstOutput := buf.String()
+
+		if err := w.Close(); err != nil {
+			t.Fatalf("second Close should not error: %v", err)
+		}
+
+		if buf.String() != firstOutput {
+			t.Error("double Close produced additional output")
+		}
+	})
+
+	t.Run("bypassToResult defaults empty method to GET", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		bypass := &events.BypassEvent{
+			BaseEvent: events.BaseEvent{
+				Type: events.EventTypeBypass,
+				Time: time.Now(),
+				Scan: "scan-empty-method",
+			},
+			Details: events.BypassDetail{
+				TestID:     "sqli-001",
+				Category:   "sqli",
+				Severity:   events.SeverityCritical,
+				StatusCode: 200,
+				Endpoint:   "https://example.com/api",
+				// Method intentionally empty
+			},
+		}
+
+		w.Write(bypass)
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		if len(har.Log.Entries) != 1 {
+			t.Fatalf("expected 1 entry, got %d", len(har.Log.Entries))
+		}
+		if har.Log.Entries[0].Request.Method != "GET" {
+			t.Errorf("expected default method GET, got %s", har.Log.Entries[0].Request.Method)
+		}
+	})
+
+	t.Run("EncodedPayload preferred over raw Payload", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		event := makeTestResultEvent("test-1", "sqli", events.SeverityCritical, events.OutcomeBypass)
+		event.Target.Method = "POST"
+		event.Evidence = &events.Evidence{
+			Payload:        "' OR 1=1",
+			EncodedPayload: "%27%20OR%201%3D1",
+		}
+
+		w.Write(event)
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		entry := har.Log.Entries[0]
+		if entry.Request.PostData == nil {
+			t.Fatal("expected postData")
+		}
+		if entry.Request.PostData.Text != "%27%20OR%201%3D1" {
+			t.Errorf("postData should use EncodedPayload, got %s", entry.Request.PostData.Text)
+		}
+		if entry.Request.BodySize != len("%27%20OR%201%3D1") {
+			t.Errorf("bodySize should reflect EncodedPayload length, got %d", entry.Request.BodySize)
+		}
+	})
+
+	t.Run("ResponsePreview mapped to content text", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		event := makeTestResultEvent("test-1", "sqli", events.SeverityCritical, events.OutcomeBypass)
+		event.Evidence = &events.Evidence{
+			Payload:         "test",
+			ResponsePreview: `{"error": "blocked by WAF"}`,
+		}
+		event.Result.ContentLength = 0
+
+		w.Write(event)
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		content := har.Log.Entries[0].Response.Content
+		if content.Text != `{"error": "blocked by WAF"}` {
+			t.Errorf("content.text should contain ResponsePreview, got %s", content.Text)
+		}
+		if content.MimeType != "application/json" {
+			t.Errorf("content MIME should be inferred as JSON from preview, got %s", content.MimeType)
+		}
+		if content.Size != len(`{"error": "blocked by WAF"}`) {
+			t.Errorf("content.size should use preview length when ContentLength is 0, got %d", content.Size)
+		}
+	})
+
+	t.Run("CreatorVersion defaults to defaults.Version", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		if har.Log.Creator.Version == "" {
+			t.Error("creator version should not be empty when using defaults")
+		}
+	})
+
+	t.Run("DELETE method includes postData", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		event := makeTestResultEvent("test-1", "sqli", events.SeverityCritical, events.OutcomeBypass)
+		event.Target.Method = "DELETE"
+		event.Evidence = &events.Evidence{
+			Payload: `{"id": 42}`,
+		}
+
+		w.Write(event)
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		entry := har.Log.Entries[0]
+		if entry.Request.PostData == nil {
+			t.Error("expected postData for DELETE with body")
+		}
+	})
+
+	t.Run("trailing question mark in URL produces no empty query params", func(t *testing.T) {
+		params := extractQueryParams("https://example.com/api?")
+		if len(params) != 0 {
+			t.Errorf("expected 0 params for trailing ?, got %d: %+v", len(params), params)
+		}
+
+		params = extractQueryParams("https://example.com/api?&")
+		if len(params) != 0 {
+			t.Errorf("expected 0 params for ?&, got %d: %+v", len(params), params)
+		}
+	})
+
+	t.Run("buildComment handles empty fields gracefully", func(t *testing.T) {
+		event := &events.ResultEvent{
+			BaseEvent: events.BaseEvent{Type: events.EventTypeResult},
+			Test:      events.TestInfo{},
+			Result:    events.ResultInfo{},
+		}
+
+		comment := buildComment(event)
+		if comment != "" {
+			t.Errorf("expected empty comment for empty fields, got %q", comment)
+		}
+
+		// Only outcome set
+		event.Result.Outcome = events.OutcomeBlocked
+		comment = buildComment(event)
+		if comment != "blocked" {
+			t.Errorf("expected 'blocked', got %q", comment)
+		}
+
+		// Only ID set
+		event.Result.Outcome = ""
+		event.Test.ID = "test-1"
+		comment = buildComment(event)
+		if comment != "test-1" {
+			t.Errorf("expected 'test-1', got %q", comment)
+		}
+	})
+
+	t.Run("startedDateTime has consistent millisecond precision", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		event := makeTestResultEvent("test-1", "sqli", events.SeverityCritical, events.OutcomeBypass)
+		// Use a time with zero nanoseconds to verify we get .000 not truncation
+		event.Time = time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
+
+		w.Write(event)
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		ts := har.Log.Entries[0].StartedDateTime
+		if !strings.Contains(ts, ".000") {
+			t.Errorf("expected millisecond precision (.000), got %s", ts)
+		}
+	})
+
+	t.Run("HAR output includes pages array", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+		w.Close()
+
+		// Parse as generic map to check pages field
+		var raw map[string]any
+		json.Unmarshal(buf.Bytes(), &raw)
+
+		logObj := raw["log"].(map[string]any)
+		pages, ok := logObj["pages"]
+		if !ok {
+			t.Fatal("HAR log should contain 'pages' array")
+		}
+		pageArr, ok := pages.([]any)
+		if !ok {
+			t.Fatal("pages should be an array")
+		}
+		if len(pageArr) != 0 {
+			t.Errorf("pages should be empty array, got %d items", len(pageArr))
+		}
+	})
+
+	t.Run("inferMIMEFromContent identifies formats correctly", func(t *testing.T) {
+		tests := []struct {
+			content  string
+			wantMIME string
+		}{
+			{`{"key":"val"}`, "application/json"},
+			{`[1,2,3]`, "application/json"},
+			{`  {"spaced": true}`, "application/json"},
+			{`<?xml version="1.0"?><root/>`, "application/xml"},
+			{`<html><body>test</body></html>`, "text/html"},
+			{`Access denied`, "text/plain"},
+			{``, "text/html"},
+			{`   `, "text/html"},
+		}
+
+		for _, tc := range tests {
+			got := inferMIMEFromContent(tc.content)
+			if got != tc.wantMIME {
+				t.Errorf("inferMIMEFromContent(%q): want %s, got %s", tc.content, tc.wantMIME, got)
+			}
+		}
+	})
+
+	t.Run("effectivePayload prefers EncodedPayload", func(t *testing.T) {
+		ev := &events.Evidence{
+			Payload:        "raw",
+			EncodedPayload: "encoded",
+		}
+		if got := effectivePayload(ev); got != "encoded" {
+			t.Errorf("expected encoded, got %s", got)
+		}
+
+		ev.EncodedPayload = ""
+		if got := effectivePayload(ev); got != "raw" {
+			t.Errorf("expected raw, got %s", got)
+		}
+
+		if got := effectivePayload(nil); got != "" {
+			t.Errorf("expected empty for nil evidence, got %s", got)
 		}
 	})
 }
