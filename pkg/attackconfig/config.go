@@ -20,6 +20,11 @@ type Base struct {
 	MaxParams   int           `json:"max_params,omitempty"`
 	Concurrency int           `json:"concurrency,omitempty"`
 
+	// Headers holds custom HTTP headers (from CLI -H flags and --cookie)
+	// to send with every request. Scanners should merge these into
+	// outgoing requests. Key = header name, value = header value.
+	Headers map[string]string `json:"headers,omitempty"`
+
 	// OnVulnerabilityFound is called each time a scanner discovers a
 	// vulnerability, enabling real-time progress updates in the CLI.
 	// Scanners that support streaming call this per finding; others
@@ -30,6 +35,16 @@ type Base struct {
 	// overcounting in the progress display. Pointer to sync.Map so
 	// Base remains safe to copy by value (no embedded mutex).
 	seenVulns *sync.Map `json:"-"`
+}
+
+// HTTPHeader converts the map[string]string Headers to http.Header
+// for scanners that need the standard library type.
+func (b Base) HTTPHeader() http.Header {
+	h := make(http.Header, len(b.Headers))
+	for k, v := range b.Headers {
+		h.Set(k, v)
+	}
+	return h
 }
 
 // DefaultBase returns a Base with production defaults.

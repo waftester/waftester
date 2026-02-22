@@ -87,11 +87,12 @@ func runSmuggle() {
 	}
 
 	// Create detector
-	detector := smuggling.NewDetector()
-	detector.Timeout = time.Duration(*timeout) * time.Second
-	detector.SafeMode = *safeMode
-	detector.DelayMs = *delay
-	detector.MaxRetries = *retries
+	cfg := smuggling.DefaultConfig()
+	cfg.Timeout = time.Duration(*timeout) * time.Second
+	cfg.SafeMode = *safeMode
+	cfg.DelayMs = *delay
+	cfg.MaxRetries = *retries
+	detector := smuggling.NewDetector(cfg)
 
 	if *verbose {
 		fmt.Printf("  Mode: %s\n", map[bool]string{true: "Safe (timing only)", false: "Full (payload injection)"}[*safeMode])

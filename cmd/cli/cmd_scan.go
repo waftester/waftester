@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"runtime"
+	"runtime/pprof"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -100,6 +102,37 @@ func (ct *countingTransport) RoundTrip(req *http.Request) (*http.Response, error
 	return ct.inner.RoundTrip(req)
 }
 
+// rateLimitTransport enforces a per-request rate limit at the HTTP
+// transport level so all scanners share a single token bucket.
+// This replaces the per-scanner-launch limiter that only gated scanner
+// starts, not actual HTTP traffic.
+type rateLimitTransport struct {
+	inner   http.RoundTripper
+	limiter *rate.Limiter
+}
+
+func (rt *rateLimitTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if err := rt.limiter.Wait(req.Context()); err != nil {
+		return nil, err
+	}
+	return rt.inner.RoundTrip(req)
+}
+
+// tamperTransport applies WAF evasion tampers to every outgoing HTTP
+// request via the tamper engine's TransformRequest method. This ensures
+// all scanners benefit from --tamper/--tamper-auto without individual
+// scanner changes.
+type tamperTransport struct {
+	inner  http.RoundTripper
+	engine interface {
+		TransformRequest(req *http.Request) *http.Request
+	}
+}
+
+func (tt *tamperTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return tt.inner.RoundTrip(tt.engine.TransformRequest(req))
+}
+
 func runScan() {
 	scanFlags := flag.NewFlagSet("scan", flag.ExitOnError)
 
@@ -164,8 +197,6 @@ func runScan() {
 	scanFlags.BoolVar(silent, "q", false, "Quiet mode (alias)")
 	noColor := scanFlags.Bool("no-color", false, "Disable colored output")
 	scanFlags.BoolVar(noColor, "nc", false, "No color (alias)")
-	timestamp := scanFlags.Bool("timestamp", false, "Add timestamp to output")
-	scanFlags.BoolVar(timestamp, "ts", false, "Timestamp (alias)")
 
 	// Filtering and matching
 	matchSeverity := scanFlags.String("match-severity", "", "Match findings by severity (critical,high,medium,low)")
@@ -220,8 +251,6 @@ func runScan() {
 	scanFlags.BoolVar(includeRemediation, "ir", true, "Include remediation (alias)")
 
 	// Advanced options
-	maxDepth := scanFlags.Int("max-depth", 5, "Max crawl depth for discovered URLs")
-	scanFlags.IntVar(maxDepth, "mxd", 5, "Max depth (alias)")
 	followRedirects := scanFlags.Bool("follow-redirects", true, "Follow HTTP redirects")
 	scanFlags.BoolVar(followRedirects, "fr", true, "Follow redirects (alias)")
 	maxRedirects := scanFlags.Int("max-redirects", 10, "Max redirects to follow")
@@ -316,12 +345,39 @@ func runScan() {
 
 	// Handle CPU profiling
 	if *profile {
-		ui.PrintInfo("CPU profiling enabled (would write to cpu.prof)")
+		f, err := os.Create("cpu.prof")
+		if err != nil {
+			ui.PrintWarning(fmt.Sprintf("Could not create cpu.prof: %v", err))
+		} else {
+			if err := pprof.StartCPUProfile(f); err != nil {
+				ui.PrintWarning(fmt.Sprintf("Could not start CPU profile: %v", err))
+				f.Close()
+			} else {
+				defer func() {
+					pprof.StopCPUProfile()
+					f.Close()
+					ui.PrintInfo("CPU profile written to cpu.prof")
+				}()
+			}
+		}
 	}
 
 	// Handle memory profiling
 	if *memProfile {
-		ui.PrintInfo("Memory profiling enabled (would write to mem.prof)")
+		defer func() {
+			f, err := os.Create("mem.prof")
+			if err != nil {
+				ui.PrintWarning(fmt.Sprintf("Could not create mem.prof: %v", err))
+				return
+			}
+			defer f.Close()
+			runtime.GC()
+			if err := pprof.WriteHeapProfile(f); err != nil {
+				ui.PrintWarning(fmt.Sprintf("Could not write memory profile: %v", err))
+				return
+			}
+			ui.PrintInfo("Memory profile written to mem.prof")
+		}()
 	}
 
 	// Handle dry run mode
@@ -655,6 +711,24 @@ func runScan() {
 		counter: &httpReqCount,
 	}
 
+	// Layer rate-limit enforcement at the HTTP transport level so every
+	// scanner request obeys --rate-limit, not just scanner launches.
+	if *rateLimit > 0 {
+		httpClient.Transport = &rateLimitTransport{
+			inner:   httpClient.Transport,
+			limiter: rate.NewLimiter(rate.Limit(*rateLimit), *rateLimit),
+		}
+	}
+
+	// Layer tamper engine on the transport so --tamper/--tamper-auto
+	// apply WAF evasion transformations to every outgoing request.
+	if tamperEngine != nil {
+		httpClient.Transport = &tamperTransport{
+			inner:  httpClient.Transport,
+			engine: tamperEngine,
+		}
+	}
+
 	// Determine user agent
 	effectiveUserAgent := *userAgent
 	if effectiveUserAgent == "" {
@@ -714,7 +788,13 @@ func runScan() {
 				targetPath = parsedTarget.Path
 			}
 			for _, disallowed := range robotsResult.DisallowedPaths {
-				if strings.HasPrefix(targetPath, disallowed) {
+				// Path-segment-aware match: /admin must not match
+				// /administrator. A disallowed path matches when the
+				// target equals it exactly, or is a sub-path (next
+				// char is '/').
+				if targetPath == disallowed ||
+					(strings.HasPrefix(targetPath, disallowed) &&
+						(strings.HasSuffix(disallowed, "/") || targetPath[len(disallowed)] == '/')) {
 					ui.PrintWarning(fmt.Sprintf("Target path %q is disallowed by robots.txt (matched %q) — skipping scan", targetPath, disallowed))
 					if dispCtx != nil {
 						_ = dispCtx.Close()
@@ -748,10 +828,9 @@ func runScan() {
 		*rateLimit = 1
 	}
 
-	// Create rate limiter. When --rate-limit-per-host is set, use the
-	// full-featured per-host limiter from pkg/ratelimit. Otherwise use
-	// the simpler stdlib token bucket.
-	scanLimiter := rate.NewLimiter(rate.Limit(*rateLimit), *rateLimit)
+	// Create per-host rate limiter when --rate-limit-per-host is set.
+	// Global rate limiting is enforced at the HTTP transport level via
+	// rateLimitTransport, so no standalone scanLimiter is needed.
 	var perHostLimiter *ratelimit.Limiter
 	if *rateLimitPerHost {
 		perHostLimiter = ratelimit.New(&ratelimit.Config{
@@ -905,16 +984,13 @@ func runScan() {
 				return
 			}
 
-			// Enforce rate limit before any network call.
-			// Per-host limiter takes precedence when configured.
+			// Enforce per-host rate limit when configured. Global request
+			// rate limiting is handled at the HTTP transport level.
 			if perHostLimiter != nil {
 				if err := perHostLimiter.WaitForHost(ctx, targetHost); err != nil {
 					progress.Increment()
 					return
 				}
-			} else if err := scanLimiter.Wait(ctx); err != nil {
-				progress.Increment()
-				return // Context cancelled
 			}
 
 			// Apply inter-request delay + jitter if configured
@@ -955,6 +1031,8 @@ func runScan() {
 			// Wrap scanner execution with retry logic when --retries > 0.
 			// Each scanner's fn() is idempotent (creates a fresh tester +
 			// records results), so retrying on transient errors is safe.
+			// We detect errors by checking if the global error counter
+			// increased during the scanner's invocation.
 			if *retries > 0 {
 				retryCfg := retry.Config{
 					MaxAttempts: *retries + 1, // retries flag = retry count, +1 for initial attempt
@@ -964,8 +1042,12 @@ func runScan() {
 					Jitter:      true,
 				}
 				_ = retry.Do(ctx, retryCfg, func() error {
+					before := atomic.LoadInt32(&scanErrors)
 					fn()
-					return nil // scanners report errors via scanError(), not return values
+					if atomic.LoadInt32(&scanErrors) > before {
+						return fmt.Errorf("%s scan failed", name)
+					}
+					return nil
 				})
 			} else {
 				fn()
@@ -1004,6 +1086,23 @@ func runScan() {
 		progress.AddMetric("vulns")
 	}
 
+	// baseConfig builds an attackconfig.Base with all CLI flags wired.
+	// Every scanner using attackconfig.Base should call this instead of
+	// constructing Base literals — ensures --user-agent, --header,
+	// --cookie, --max-payloads, --max-params, --concurrency all work.
+	baseConfig := func() attackconfig.Base {
+		return attackconfig.Base{
+			Timeout:              timeoutDur,
+			UserAgent:            effectiveUserAgent,
+			Client:               httpClient,
+			MaxPayloads:          *maxPayloads,
+			MaxParams:            *maxParams,
+			Concurrency:          *concurrency,
+			Headers:              customHeaders,
+			OnVulnerabilityFound: onVuln,
+		}
+	}
+
 	// SQL Injection Scanner
 	runScanner("sqli", func() {
 		var vulnCount int
@@ -1015,14 +1114,7 @@ func runScan() {
 		}()
 
 		cfg := &sqli.TesterConfig{
-			Base: attackconfig.Base{
-				Timeout:              timeoutDur,
-				UserAgent:            ui.UserAgent(),
-				Client:               httpClient,
-				MaxPayloads:          *maxPayloads,
-				MaxParams:            *maxParams,
-				OnVulnerabilityFound: onVuln,
-			},
+			Base: baseConfig(),
 		}
 		tester := sqli.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -1059,12 +1151,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "xss", "vulns": vulnCount})
 		}()
 		cfg := &xss.TesterConfig{
-			Base: attackconfig.Base{
-				Timeout:              timeoutDur,
-				UserAgent:            ui.UserAgent(),
-				Client:               httpClient,
-				OnVulnerabilityFound: onVuln,
-			},
+			Base: baseConfig(),
 		}
 		tester := xss.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -1099,12 +1186,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "traversal", "vulns": vulnCount})
 		}()
 		cfg := &traversal.TesterConfig{
-			Base: attackconfig.Base{
-				Timeout:              timeoutDur,
-				UserAgent:            ui.UserAgent(),
-				Client:               httpClient,
-				OnVulnerabilityFound: onVuln,
-			},
+			Base: baseConfig(),
 		}
 		tester := traversal.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -1139,12 +1221,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "cmdi", "vulns": vulnCount})
 		}()
 		cfg := &cmdi.TesterConfig{
-			Base: attackconfig.Base{
-				Timeout:              timeoutDur,
-				UserAgent:            ui.UserAgent(),
-				Client:               httpClient,
-				OnVulnerabilityFound: onVuln,
-			},
+			Base: baseConfig(),
 		}
 		tester := cmdi.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -1179,12 +1256,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "nosqli", "vulns": vulnCount})
 		}()
 		cfg := &nosqli.TesterConfig{
-			Base: attackconfig.Base{
-				Timeout:              timeoutDur,
-				UserAgent:            ui.UserAgent(),
-				Client:               httpClient,
-				OnVulnerabilityFound: onVuln,
-			},
+			Base: baseConfig(),
 		}
 		tester := nosqli.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -1219,12 +1291,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "hpp", "vulns": vulnCount})
 		}()
 		cfg := &hpp.TesterConfig{
-			Base: attackconfig.Base{
-				Timeout:              timeoutDur,
-				UserAgent:            ui.UserAgent(),
-				Client:               httpClient,
-				OnVulnerabilityFound: onVuln,
-			},
+			Base: baseConfig(),
 		}
 		tester := hpp.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -1258,12 +1325,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "crlf", "vulns": vulnCount})
 		}()
 		cfg := &crlf.TesterConfig{
-			Base: attackconfig.Base{
-				Timeout:              timeoutDur,
-				UserAgent:            ui.UserAgent(),
-				Client:               httpClient,
-				OnVulnerabilityFound: onVuln,
-			},
+			Base: baseConfig(),
 		}
 		tester := crlf.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -1297,12 +1359,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "prototype", "vulns": vulnCount})
 		}()
 		cfg := &prototype.TesterConfig{
-			Base: attackconfig.Base{
-				Timeout:              timeoutDur,
-				UserAgent:            ui.UserAgent(),
-				Client:               httpClient,
-				OnVulnerabilityFound: onVuln,
-			},
+			Base: baseConfig(),
 		}
 		tester := prototype.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -1336,12 +1393,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "cors", "vulns": vulnCount})
 		}()
 		cfg := &cors.TesterConfig{
-			Base: attackconfig.Base{
-				Timeout:              timeoutDur,
-				UserAgent:            ui.UserAgent(),
-				Client:               httpClient,
-				OnVulnerabilityFound: onVuln,
-			},
+			Base: baseConfig(),
 		}
 		tester := cors.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -1376,12 +1428,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "redirect", "vulns": vulnCount})
 		}()
 		cfg := &redirect.TesterConfig{
-			Base: attackconfig.Base{
-				Timeout:              timeoutDur,
-				UserAgent:            ui.UserAgent(),
-				Client:               httpClient,
-				OnVulnerabilityFound: onVuln,
-			},
+			Base: baseConfig(),
 		}
 		tester := redirect.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -1416,12 +1463,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "hostheader", "vulns": vulnCount})
 		}()
 		cfg := &hostheader.TesterConfig{
-			Base: attackconfig.Base{
-				Timeout:              timeoutDur,
-				UserAgent:            ui.UserAgent(),
-				Client:               httpClient,
-				OnVulnerabilityFound: onVuln,
-			},
+			Base: baseConfig(),
 		}
 		tester := hostheader.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -1456,12 +1498,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "websocket", "vulns": vulnCount})
 		}()
 		cfg := &websocket.TesterConfig{
-			Base: attackconfig.Base{
-				Timeout:              timeoutDur,
-				UserAgent:            ui.UserAgent(),
-				Client:               httpClient,
-				OnVulnerabilityFound: onVuln,
-			},
+			Base: baseConfig(),
 		}
 		tester := websocket.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -1495,12 +1532,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "cache", "vulns": vulnCount})
 		}()
 		cfg := &cache.TesterConfig{
-			Base: attackconfig.Base{
-				Timeout:              timeoutDur,
-				UserAgent:            ui.UserAgent(),
-				Client:               httpClient,
-				OnVulnerabilityFound: onVuln,
-			},
+			Base: baseConfig(),
 		}
 		tester := cache.NewTester(cfg)
 		scanResult, err := tester.Scan(ctx, target)
@@ -1539,12 +1571,7 @@ func runScan() {
 		defer uploadCancel()
 
 		cfg := &upload.TesterConfig{
-			Base: attackconfig.Base{
-				Timeout:              timeoutDur,
-				UserAgent:            ui.UserAgent(),
-				Client:               httpClient,
-				OnVulnerabilityFound: onVuln,
-			},
+			Base: baseConfig(),
 		}
 		tester := upload.NewTester(cfg)
 		vulns, err := tester.Scan(uploadCtx, target)
@@ -1576,12 +1603,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "deserialize", "vulns": vulnCount})
 		}()
 		cfg := &deserialize.TesterConfig{
-			Base: attackconfig.Base{
-				Timeout:              timeoutDur,
-				UserAgent:            ui.UserAgent(),
-				Client:               httpClient,
-				OnVulnerabilityFound: onVuln,
-			},
+			Base: baseConfig(),
 		}
 		tester := deserialize.NewTester(cfg)
 		vulns, err := tester.Scan(ctx, target)
@@ -1619,12 +1641,7 @@ func runScan() {
 			return
 		}
 		cfg := &oauth.TesterConfig{
-			Base: attackconfig.Base{
-				Timeout:              timeoutDur,
-				UserAgent:            ui.UserAgent(),
-				Client:               httpClient,
-				OnVulnerabilityFound: onVuln,
-			},
+			Base: baseConfig(),
 		}
 		endpoints := &oauth.OAuthEndpoint{
 			AuthorizationURL: *oauthAuthEndpoint,
@@ -1663,9 +1680,9 @@ func runScan() {
 		defer func() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "ssrf", "vulns": vulnCount})
 		}()
-		detector := ssrf.NewDetector()
-		detector.Timeout = timeoutDur
-		detector.OnVulnerabilityFound = onVuln
+		cfg := ssrf.DefaultConfig()
+		cfg.Base = baseConfig()
+		detector := ssrf.NewDetector(cfg)
 		scanResult, err := detector.Detect(ctx, target, "url")
 		if err != nil {
 			scanError("SSRF", err)
@@ -1698,12 +1715,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "ssti", "vulns": vulnCount})
 		}()
 		cfg := &ssti.DetectorConfig{
-			Base: attackconfig.Base{
-				Timeout:              timeoutDur,
-				UserAgent:            ui.UserAgent(),
-				Client:               httpClient,
-				OnVulnerabilityFound: onVuln,
-			},
+			Base: baseConfig(),
 		}
 		detector := ssti.NewDetector(cfg)
 		vulns, err := detector.Detect(ctx, target, "input")
@@ -1736,10 +1748,8 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "xxe", "vulns": vulnCount})
 		}()
 		cfg := xxe.DefaultConfig()
-		cfg.Timeout = timeoutDur
-		cfg.UserAgent = ui.UserAgent()
-		cfg.Client = httpClient
-		cfg.OnVulnerabilityFound = onVuln
+		cfg.Base = baseConfig()
+		cfg.Headers = baseConfig().HTTPHeader()
 		detector := xxe.NewDetector(cfg)
 		vulns, err := detector.Detect(ctx, target, "POST")
 		if err != nil {
@@ -1769,9 +1779,9 @@ func runScan() {
 		defer func() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "smuggling", "vulns": vulnCount})
 		}()
-		detector := smuggling.NewDetector()
-		detector.Timeout = timeoutDur
-		detector.OnVulnerabilityFound = onVuln
+		cfg := smuggling.DefaultConfig()
+		cfg.Base = baseConfig()
+		detector := smuggling.NewDetector(cfg)
 		scanResult, err := detector.Detect(ctx, target)
 		if err != nil {
 			scanError("Smuggling", err)
@@ -1808,10 +1818,8 @@ func runScan() {
 			emitEvent("scan_complete", data)
 		}()
 		cfg := graphql.DefaultConfig()
-		cfg.Timeout = timeoutDur
-		cfg.UserAgent = ui.UserAgent()
-		cfg.Client = httpClient
-		cfg.OnVulnerabilityFound = onVuln
+		cfg.Base = baseConfig()
+		cfg.Headers = baseConfig().HTTPHeader()
 		// Attempt common GraphQL endpoints
 		graphqlEndpoints := []string{
 			target + "/graphql",
@@ -1853,22 +1861,20 @@ func runScan() {
 		defer func() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "jwt", "vulns": vulnCount})
 		}()
-		attacker := jwt.NewAttacker()
-		attacker.OnVulnerabilityFound = onVuln
-		// Generate test tokens to demonstrate JWT attack capabilities
-		testToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IlRlc3QgVXNlciIsImlhdCI6MTUxNjIzOTAyMn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
-		vulns, err := attacker.GenerateMaliciousTokens(testToken)
+		scanner := jwt.NewScanner(jwt.Config{
+			Base: baseConfig(),
+		})
+		scanResult, err := scanner.Scan(ctx, target)
 		if err != nil {
 			scanError("JWT", err)
 			return
 		}
 		mu.Lock()
-		result.JWT = vulns
-		vulnCount = len(vulns)
+		result.JWT = scanResult.Vulnerabilities
+		vulnCount = len(scanResult.Vulnerabilities)
 		result.ByCategory["jwt"] = vulnCount
 		result.TotalVulns += vulnCount
-		// Vulns metric updated in real-time via OnVulnerabilityFound callback
-		for _, v := range vulns {
+		for _, v := range scanResult.Vulnerabilities {
 			result.BySeverity[string(v.Severity)]++
 			emitEvent("vulnerability", map[string]interface{}{
 				"category": "jwt",
@@ -1886,13 +1892,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "subtakeover", "vulns": vulnCount})
 		}()
 		cfg := &subtakeover.TesterConfig{
-			Base: attackconfig.Base{
-				Timeout:              timeoutDur,
-				UserAgent:            ui.UserAgent(),
-				Concurrency:          *concurrency,
-				Client:               httpClient,
-				OnVulnerabilityFound: onVuln,
-			},
+			Base: baseConfig(),
 			CheckHTTP:   true,
 			FollowCNAME: true,
 		}
@@ -1937,10 +1937,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "bizlogic", "vulns": vulnCount})
 		}()
 		cfg := bizlogic.DefaultConfig()
-		cfg.Timeout = timeoutDur
-		cfg.UserAgent = ui.UserAgent()
-		cfg.Client = httpClient
-		cfg.OnVulnerabilityFound = onVuln
+		cfg.Base = baseConfig()
 		tester := bizlogic.NewTester(cfg)
 		// Test common business logic vulnerabilities
 		vulns, err := tester.Scan(ctx, target, []string{"/", "/api", "/admin", "/user", "/account"})
@@ -1972,10 +1969,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "race", "vulns": vulnCount})
 		}()
 		cfg := race.DefaultConfig()
-		cfg.Timeout = timeoutDur
-		cfg.UserAgent = ui.UserAgent()
-		cfg.Client = httpClient
-		cfg.OnVulnerabilityFound = onVuln
+		cfg.Base = baseConfig()
 		tester := race.NewTester(cfg)
 		// Test common race condition scenarios
 		reqCfg := &race.RequestConfig{
@@ -2014,10 +2008,7 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "apifuzz", "vulns": vulnCount})
 		}()
 		cfg := apifuzz.DefaultConfig()
-		cfg.Timeout = timeoutDur
-		cfg.UserAgent = ui.UserAgent()
-		cfg.Client = httpClient
-		cfg.OnVulnerabilityFound = onVuln
+		cfg.Base = baseConfig()
 		tester := apifuzz.NewTester(cfg)
 		// Define basic endpoints to fuzz
 		endpoints := []apifuzz.Endpoint{
@@ -2053,10 +2044,8 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "ldap", "vulns": vulnCount})
 		}()
 		cfg := ldap.DefaultConfig()
-		cfg.Timeout = timeoutDur
-		cfg.UserAgent = ui.UserAgent()
-		cfg.Client = httpClient
-		cfg.OnVulnerabilityFound = onVuln
+		cfg.Base = baseConfig()
+		cfg.Headers = customHeaders
 		scanner := ldap.NewScanner(cfg)
 		// Synthetic params for bare-URL mode (matching SSRF/SSTI pattern)
 		params := map[string]string{"search": "test", "user": "admin", "filter": "test"}
@@ -2096,10 +2085,8 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "ssi", "vulns": vulnCount})
 		}()
 		cfg := ssi.DefaultConfig()
-		cfg.Timeout = timeoutDur
-		cfg.UserAgent = ui.UserAgent()
-		cfg.Client = httpClient
-		cfg.OnVulnerabilityFound = onVuln
+		cfg.Base = baseConfig()
+		cfg.Headers = customHeaders
 		scanner := ssi.NewScanner(cfg)
 		params := map[string]string{"input": "test", "page": "index", "file": "test"}
 		results, err := scanner.Scan(ctx, target, params)
@@ -2138,10 +2125,8 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "xpath", "vulns": vulnCount})
 		}()
 		cfg := xpath.DefaultConfig()
-		cfg.Timeout = timeoutDur
-		cfg.UserAgent = ui.UserAgent()
-		cfg.Client = httpClient
-		cfg.OnVulnerabilityFound = onVuln
+		cfg.Base = baseConfig()
+		cfg.Headers = customHeaders
 		scanner := xpath.NewScanner(cfg)
 		params := map[string]string{"search": "test", "query": "test", "id": "1"}
 		results, err := scanner.Scan(ctx, target, params)
@@ -2180,10 +2165,8 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "xmlinjection", "vulns": vulnCount})
 		}()
 		cfg := xmlinjection.DefaultConfig()
-		cfg.Timeout = timeoutDur
-		cfg.UserAgent = ui.UserAgent()
-		cfg.Client = httpClient
-		cfg.OnVulnerabilityFound = onVuln
+		cfg.Base = baseConfig()
+		cfg.Headers = customHeaders
 		scanner := xmlinjection.NewScanner(cfg)
 		results, err := scanner.Scan(ctx, target)
 		if err != nil {
@@ -2220,10 +2203,8 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "rfi", "vulns": vulnCount})
 		}()
 		cfg := rfi.DefaultConfig()
-		cfg.Timeout = timeoutDur
-		cfg.UserAgent = ui.UserAgent()
-		cfg.Client = httpClient
-		cfg.OnVulnerabilityFound = onVuln
+		cfg.Base = baseConfig()
+		cfg.Headers = customHeaders
 		scanner := rfi.NewScanner(cfg)
 		params := map[string]string{"file": "index", "page": "home", "path": "/tmp/test"}
 		results, err := scanner.Scan(ctx, target, params)
@@ -2262,10 +2243,8 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "lfi", "vulns": vulnCount})
 		}()
 		cfg := lfi.DefaultConfig()
-		cfg.Timeout = timeoutDur
-		cfg.UserAgent = ui.UserAgent()
-		cfg.Client = httpClient
-		cfg.OnVulnerabilityFound = onVuln
+		cfg.Base = baseConfig()
+		cfg.Headers = customHeaders
 		scanner := lfi.NewScanner(cfg)
 		params := map[string]string{"file": "index", "page": "home", "path": "/tmp/test"}
 		results, err := scanner.Scan(ctx, target, params)
@@ -2304,10 +2283,8 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "rce", "vulns": vulnCount})
 		}()
 		cfg := rce.DefaultConfig()
-		cfg.Timeout = timeoutDur
-		cfg.UserAgent = ui.UserAgent()
-		cfg.Client = httpClient
-		cfg.OnVulnerabilityFound = onVuln
+		cfg.Base = baseConfig()
+		cfg.Headers = customHeaders
 		scanner := rce.NewScanner(cfg)
 		params := map[string]string{"cmd": "test", "exec": "test", "input": "test"}
 		results, err := scanner.Scan(ctx, target, params)
@@ -2346,10 +2323,8 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "csrf", "vulns": vulnCount})
 		}()
 		cfg := csrf.DefaultConfig()
-		cfg.Timeout = timeoutDur
-		cfg.UserAgent = ui.UserAgent()
-		cfg.Client = httpClient
-		cfg.OnVulnerabilityFound = onVuln
+		cfg.Base = baseConfig()
+		cfg.Headers = customHeaders
 		scanner := csrf.NewScanner(cfg)
 		csrfResult, err := scanner.Scan(ctx, target, "POST")
 		if err != nil {
@@ -2380,10 +2355,8 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "clickjack", "vulns": vulnCount})
 		}()
 		cfg := clickjack.DefaultConfig()
-		cfg.Timeout = timeoutDur
-		cfg.UserAgent = ui.UserAgent()
-		cfg.Client = httpClient
-		cfg.OnVulnerabilityFound = onVuln
+		cfg.Base = baseConfig()
+		cfg.Headers = customHeaders
 		scanner := clickjack.NewScanner(cfg)
 		clickResult, err := scanner.Scan(ctx, target)
 		if err != nil {
@@ -2414,10 +2387,8 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "idor", "vulns": vulnCount})
 		}()
 		cfg := idor.DefaultConfig()
-		cfg.Timeout = timeoutDur
-		cfg.UserAgent = ui.UserAgent()
-		cfg.Client = httpClient
-		cfg.OnVulnerabilityFound = onVuln
+		cfg.Base = baseConfig()
+		cfg.Headers = customHeaders
 		cfg.BaseURL = target
 		scanner := idor.NewScanner(cfg)
 		// Test common endpoints for IDOR
@@ -2465,10 +2436,8 @@ func runScan() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "massassignment", "vulns": vulnCount})
 		}()
 		cfg := massassignment.DefaultConfig()
-		cfg.Timeout = timeoutDur
-		cfg.UserAgent = ui.UserAgent()
-		cfg.Client = httpClient
-		cfg.OnVulnerabilityFound = onVuln
+		cfg.Base = baseConfig()
+		cfg.Headers = customHeaders
 		scanner := massassignment.NewScanner(cfg)
 		// Empty baseline — scanner will test with DangerousParameters() against the endpoint
 		originalData := map[string]interface{}{"name": "test", "email": "test@example.com"}
@@ -2737,6 +2706,8 @@ func runScan() {
 		if dangerousMethods > 0 || pipelineSupported {
 			result.ByCategory["httpprobe"] = dangerousMethods
 			if dangerousMethods > 0 {
+				result.TotalVulns += dangerousMethods
+				progress.AddMetricBy("vulns", dangerousMethods)
 				result.BySeverity["Low"] += dangerousMethods
 				emitEvent("vulnerability", map[string]interface{}{
 					"category": "httpprobe",
@@ -2745,6 +2716,9 @@ func runScan() {
 				})
 			}
 			if pipelineSupported {
+				result.TotalVulns++
+				progress.AddMetric("vulns")
+				result.BySeverity["Medium"]++
 				emitEvent("vulnerability", map[string]interface{}{
 					"category": "httpprobe",
 					"severity": "Medium",
@@ -2761,8 +2735,16 @@ func runScan() {
 		defer func() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "secheaders", "missing_headers": missingCount})
 		}()
-		client := httpclient.New(httpclient.WithTimeout(timeoutDur))
-		resp, err := client.Get(target)
+		req, err := http.NewRequestWithContext(ctx, "GET", target, nil)
+		if err != nil {
+			scanError("SecurityHeaders", err)
+			return
+		}
+		req.Header.Set("User-Agent", effectiveUserAgent)
+		for k, v := range customHeaders {
+			req.Header.Set(k, v)
+		}
+		resp, err := httpClient.Do(req)
 		if err != nil {
 			scanError("SecurityHeaders", err)
 			return
@@ -2792,6 +2774,9 @@ func runScan() {
 				missingHeaders = append(missingHeaders, "X-Content-Type-Options")
 			}
 			if missingCount > 0 {
+				result.TotalVulns += missingCount
+				progress.AddMetricBy("vulns", missingCount)
+				result.BySeverity["Low"] += missingCount
 				result.ByCategory["secheaders"] = missingCount
 				// Emit missing headers as a vulnerability
 				emitEvent("vulnerability", map[string]interface{}{
@@ -2816,8 +2801,16 @@ func runScan() {
 			})
 		}()
 		// Fetch JavaScript from target and analyze
-		client := httpclient.New(httpclient.WithTimeout(timeoutDur))
-		resp, err := client.Get(target)
+		req, err := http.NewRequestWithContext(ctx, "GET", target, nil)
+		if err != nil {
+			scanError("JSAnalyze", err)
+			return
+		}
+		req.Header.Set("User-Agent", effectiveUserAgent)
+		for k, v := range customHeaders {
+			req.Header.Set(k, v)
+		}
+		resp, err := httpClient.Do(req)
 		if err != nil {
 			scanError("JSAnalyze", err)
 			return
@@ -2922,7 +2915,7 @@ func runScan() {
 		}
 		domain := parsedURL.Hostname()
 
-		sources := discovery.NewExternalSources(timeoutDur, ui.UserAgentWithContext("OSINT"))
+		sources := discovery.NewExternalSources(timeoutDur, effectiveUserAgent)
 		osintResult := sources.GatherAllSources(ctx, target, domain)
 
 		if osintResult != nil && osintResult.TotalUnique > 0 {
@@ -3034,11 +3027,12 @@ func runScan() {
 		if err != nil {
 			return
 		}
-		req.Header.Set("User-Agent", ui.UserAgentWithContext("Discovery"))
+		req.Header.Set("User-Agent", effectiveUserAgent)
+		for k, v := range customHeaders {
+			req.Header.Set(k, v)
+		}
 
-		client := httpclient.New(httpclient.WithTimeout(timeoutDur))
-
-		resp, err := client.Do(req)
+		resp, err := httpClient.Do(req)
 		if err != nil {
 			return
 		}
