@@ -230,6 +230,12 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL string, param stri
 	}
 
 	for _, payload := range payloads {
+		select {
+		case <-ctx.Done():
+			return vulns, ctx.Err()
+		default:
+		}
+
 		var vuln *Vulnerability
 
 		switch payload.ContentType {
@@ -516,6 +522,12 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*ScanResult, error
 
 	// Test each parameter
 	for _, param := range t.config.TestParams {
+		select {
+		case <-ctx.Done():
+			return result, ctx.Err()
+		default:
+		}
+
 		vulns, err := t.TestParameter(ctx, targetURL, param, payloads)
 		if err != nil {
 			continue
