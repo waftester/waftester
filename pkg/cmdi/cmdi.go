@@ -327,6 +327,7 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL string, param stri
 		}
 		if vuln != nil {
 			vulns = append(vulns, vuln)
+			t.config.NotifyVulnerabilityFound()
 		}
 	}
 

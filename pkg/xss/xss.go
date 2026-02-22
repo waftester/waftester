@@ -539,6 +539,7 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 				Context: injCtx,
 				Payload: &payload,
 			})
+			t.config.NotifyVulnerabilityFound()
 		}
 	}
 
@@ -603,6 +604,7 @@ func (t *Tester) checkDOMXSS(ctx context.Context, targetURL string) []Vulnerabil
 			Type:    XSSDOMBased,
 			Context: ContextJavaScript,
 		})
+		t.config.NotifyVulnerabilityFound()
 	}
 
 	return vulns
