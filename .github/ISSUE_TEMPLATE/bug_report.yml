@@ -50,7 +50,7 @@ body:
     attributes:
       label: WAFtester Version
       description: Run `waf-tester --version`
-      placeholder: "v1.0.0"
+      placeholder: "vX.Y.Z"
     validations:
       required: true
 
