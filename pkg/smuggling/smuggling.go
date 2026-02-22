@@ -55,12 +55,13 @@ type Evidence struct {
 
 // Detector detects HTTP request smuggling vulnerabilities
 type Detector struct {
-	Timeout     time.Duration
-	ReadTimeout time.Duration
-	MaxRetries  int
-	DelayMs     int
-	SafeMode    bool // Only use timing-based detection
-	CustomPorts []int
+	Timeout              time.Duration
+	ReadTimeout          time.Duration
+	MaxRetries           int
+	DelayMs              int
+	SafeMode             bool // Only use timing-based detection
+	CustomPorts          []int
+	OnVulnerabilityFound func()
 }
 
 // NewDetector creates a new smuggling detector
@@ -136,6 +137,9 @@ func (d *Detector) Detect(ctx context.Context, target string) (*Result, error) {
 		}
 		if vuln != nil {
 			result.Vulnerabilities = append(result.Vulnerabilities, *vuln)
+			if d.OnVulnerabilityFound != nil {
+				d.OnVulnerabilityFound()
+			}
 		}
 
 		// Small delay between tests to avoid overwhelming target
