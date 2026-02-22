@@ -79,6 +79,7 @@ func runValidate() {
 	if err != nil {
 		if validateDispCtx != nil {
 			_ = validateDispCtx.EmitError(validateCtx, "validate", fmt.Sprintf("Validation error: %v", err), true)
+			_ = validateDispCtx.Close()
 		}
 		ui.PrintError(fmt.Sprintf("Validation error: %v", err))
 		os.Exit(1)
@@ -90,6 +91,7 @@ func runValidate() {
 		if err != nil {
 			if validateDispCtx != nil {
 				_ = validateDispCtx.EmitError(validateCtx, "validate", fmt.Sprintf("Cannot create output file: %v", err), true)
+				_ = validateDispCtx.Close()
 			}
 			ui.PrintError(fmt.Sprintf("Cannot create output file: %v", err))
 			os.Exit(1)
@@ -104,6 +106,7 @@ func runValidate() {
 		if validateDispCtx != nil {
 			_ = validateDispCtx.EmitBypass(validateCtx, "payload-validation-failure", "high", *payloadDir, "Payload validation failed", 0)
 			_ = validateDispCtx.EmitSummary(validateCtx, 1, 0, 1, time.Since(validateStartTime))
+			_ = validateDispCtx.Close()
 		}
 		ui.PrintError("Validation failed!")
 		os.Exit(1)
@@ -255,6 +258,7 @@ func runValidateTemplates() {
 	if err != nil {
 		if vtDispCtx != nil {
 			_ = vtDispCtx.EmitError(vtCtx, "validate-templates", fmt.Sprintf("Validation error: %v", err), true)
+			_ = vtDispCtx.Close()
 		}
 		ui.PrintError(fmt.Sprintf("Validation error: %v", err))
 		os.Exit(1)
@@ -308,6 +312,7 @@ func runValidateTemplates() {
 		if err != nil {
 			if vtDispCtx != nil {
 				_ = vtDispCtx.EmitError(vtCtx, "validate-templates", fmt.Sprintf("Cannot marshal results: %v", err), true)
+				_ = vtDispCtx.Close()
 			}
 			ui.PrintError(fmt.Sprintf("Cannot marshal results: %v", err))
 			os.Exit(1)
@@ -315,6 +320,7 @@ func runValidateTemplates() {
 		if err := os.WriteFile(*outputJSON, data, 0644); err != nil {
 			if vtDispCtx != nil {
 				_ = vtDispCtx.EmitError(vtCtx, "validate-templates", fmt.Sprintf("Cannot create output file: %v", err), true)
+				_ = vtDispCtx.Close()
 			}
 			ui.PrintError(fmt.Sprintf("Cannot create output file: %v", err))
 			os.Exit(1)
@@ -328,6 +334,7 @@ func runValidateTemplates() {
 			failDesc := fmt.Sprintf("%d invalid templates found", summary.InvalidFiles)
 			_ = vtDispCtx.EmitBypass(vtCtx, "template-validation-failure", "high", *templateDir, failDesc, 0)
 			_ = vtDispCtx.EmitSummary(vtCtx, summary.TotalFiles, summary.ValidFiles, summary.InvalidFiles, time.Since(vtStartTime))
+			_ = vtDispCtx.Close()
 		}
 		ui.PrintError(fmt.Sprintf("Validation failed! %d invalid templates found.", summary.InvalidFiles))
 		os.Exit(1)
@@ -435,6 +442,7 @@ func runEnterpriseReport() {
 		if reportDispCtx != nil {
 			_ = reportDispCtx.EmitBypass(reportCtx, "report-generation-failure", "medium", target, err.Error(), 0)
 			_ = reportDispCtx.EmitSummary(reportCtx, 1, 0, 1, time.Since(reportStartTime))
+			_ = reportDispCtx.Close()
 		}
 		ui.PrintError(fmt.Sprintf("Report generation failed: %v", err))
 		os.Exit(1)
@@ -515,6 +523,7 @@ func runUpdate() {
 		if updateDispCtx != nil {
 			_ = updateDispCtx.EmitBypass(updateCtx, "payload-update-failure", "medium", *payloadDir, err.Error(), 0)
 			_ = updateDispCtx.EmitSummary(updateCtx, 1, 0, 1, time.Since(updateStartTime))
+			_ = updateDispCtx.Close()
 		}
 		ui.PrintError(fmt.Sprintf("Update error: %v", err))
 		os.Exit(1)

@@ -331,6 +331,9 @@ func runTests() {
 		os.Stdout.Sync()
 		fmt.Fprintln(os.Stderr)
 		ui.PrintHelp("Remove -dry-run flag to execute tests")
+		if runDispCtx != nil {
+			_ = runDispCtx.Close()
+		}
 		os.Exit(0)
 	}
 
@@ -418,17 +421,10 @@ func runTests() {
 			Filter:        buildFilterConfig(cfg),
 			RealisticMode: cfg.RealisticMode,
 			AutoCalibrate: cfg.RealisticMode && cfg.AutoCalibration,
-			// Real-time streaming to hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
+			// Real-time streaming to hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, HAR, etc.)
 			OnResult: func(result *output.TestResult) {
-				// Emit every test result for complete telemetry
 				if runDispCtx != nil {
-					blocked := result.Outcome == "Blocked"
-					_ = runDispCtx.EmitResult(ctx, result.Category, result.Severity, blocked, result.StatusCode, float64(result.LatencyMs))
-				}
-				// Additionally emit bypass event for non-blocked results
-				// Skip "Skipped" payloads — they're host-unreachable, not bypasses
-				if runDispCtx != nil && result.Outcome != "Blocked" && result.Outcome != "Error" && result.Outcome != "Skipped" {
-					_ = runDispCtx.EmitBypass(ctx, result.Category, result.Severity, result.RequestURL, result.Payload, result.StatusCode)
+					_ = runDispCtx.EmitDetailedResult(ctx, result)
 				}
 			},
 		})
