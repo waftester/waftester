@@ -407,7 +407,8 @@ func (t *Tester) TestHeader(ctx context.Context, targetURL string, headerName st
 				Remediation: GetCRLFRemediation(),
 				CVSS:        getCVSS(payload.Type),
 			})
-			t.config.NotifyVulnerabilityFound()
+			// Key matches dedup.go: URL|Parameter|Type
+			t.config.NotifyUniqueVuln(fmt.Sprintf("%s|%s|%s", targetURL, headerName, payload.Type))
 		}
 	}
 
@@ -458,7 +459,8 @@ func (t *Tester) TestPOST(ctx context.Context, targetURL string, param string) (
 				Remediation: GetCRLFRemediation(),
 				CVSS:        getCVSS(payload.Type),
 			})
-			t.config.NotifyVulnerabilityFound()
+			// Key matches dedup.go: URL|Parameter|Type
+			t.config.NotifyUniqueVuln(fmt.Sprintf("%s|%s|%s", targetURL, param, payload.Type))
 		}
 	}
 

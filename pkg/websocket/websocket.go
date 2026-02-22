@@ -251,7 +251,8 @@ func (t *Tester) TestOriginValidation(ctx context.Context, targetURL string) ([]
 				},
 				Type: VulnOriginValidation,
 			})
-			t.config.NotifyVulnerabilityFound()
+			// Key matches dedup.go: URL|Type
+			t.config.NotifyUniqueVuln(fmt.Sprintf("%s|%s", targetURL, VulnOriginValidation))
 		}
 
 		// Check if Sec-WebSocket-Accept matches expected key (upgrade truly accepted)
@@ -268,7 +269,8 @@ func (t *Tester) TestOriginValidation(ctx context.Context, targetURL string) ([]
 				},
 				Type: VulnCSWS,
 			})
-			t.config.NotifyVulnerabilityFound()
+			// Key matches dedup.go: URL|Type
+			t.config.NotifyUniqueVuln(fmt.Sprintf("%s|%s", targetURL, VulnCSWS))
 		}
 	}
 
@@ -362,7 +364,8 @@ func (t *Tester) TestTokenInURL(ctx context.Context, targetURL string) ([]Vulner
 				},
 				Type: VulnTokenExposure,
 			})
-			t.config.NotifyVulnerabilityFound()
+			// Key matches dedup.go: URL|Type
+			t.config.NotifyUniqueVuln(fmt.Sprintf("%s|%s", targetURL, VulnTokenExposure))
 		}
 	}
 
