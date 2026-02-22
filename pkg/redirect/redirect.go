@@ -288,6 +288,12 @@ func (t *Tester) TestParameter(ctx context.Context, baseURL string, param string
 	var vulns []*Vulnerability
 
 	for _, payload := range t.payloads {
+		select {
+		case <-ctx.Done():
+			return vulns, ctx.Err()
+		default:
+		}
+
 		vuln, err := t.testPayload(ctx, baseURL, param, payload)
 		if err != nil {
 			continue
