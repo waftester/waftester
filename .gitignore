@@ -129,6 +129,7 @@ license.key
 # Testing
 #===============================================================================
 # Test artifacts
+*.har
 *.sarif
 *.junit.xml
 test-results/
