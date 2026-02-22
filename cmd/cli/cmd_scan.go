@@ -87,6 +87,19 @@ func (h *headerSlice) Set(value string) error {
 	return nil
 }
 
+// countingTransport wraps an http.RoundTripper and atomically increments
+// a counter on every request. This feeds the LiveProgress rate display
+// so it shows real HTTP req/s instead of 0.0/s while scanners run.
+type countingTransport struct {
+	inner   http.RoundTripper
+	counter *int64
+}
+
+func (ct *countingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	atomic.AddInt64(ct.counter, 1)
+	return ct.inner.RoundTrip(req)
+}
+
 func runScan() {
 	scanFlags := flag.NewFlagSet("scan", flag.ExitOnError)
 
@@ -633,6 +646,15 @@ func runScan() {
 	httpClient := httpclient.New(httpCfg)
 	httpClient.Timeout = time.Duration(cf.Timeout) * time.Second
 
+	// Wrap transport with a request counter so the progress display
+	// can show a meaningful per-second rate instead of 0.0/s while
+	// a single long-running scanner type is active.
+	var httpReqCount int64
+	httpClient.Transport = &countingTransport{
+		inner:   httpClient.Transport,
+		counter: &httpReqCount,
+	}
+
 	// Determine user agent
 	effectiveUserAgent := *userAgent
 	if effectiveUserAgent == "" {
@@ -775,6 +797,7 @@ func runScan() {
 		Title:        "Deep Vulnerability Scan",
 		Unit:         "scans",
 		Mode:         outputMode,
+		RateSource:   &httpReqCount,
 		Metrics: []ui.MetricConfig{
 			{Name: "vulns", Label: "Vulns", Icon: ui.Icon("🚨", "!"), Highlight: true},
 		},
@@ -974,6 +997,11 @@ func runScan() {
 
 	timeoutDur := time.Duration(cf.Timeout) * time.Second
 
+	// Shared callback for real-time vulnerability counting.
+	// Scanners that support streaming call this per finding so the
+	// progress display updates immediately instead of after Scan() returns.
+	onVuln := func() { progress.AddMetric("vulns") }
+
 	// SQL Injection Scanner
 	runScanner("sqli", func() {
 		var vulnCount int
@@ -986,11 +1014,12 @@ func runScan() {
 
 		cfg := &sqli.TesterConfig{
 			Base: attackconfig.Base{
-				Timeout:     timeoutDur,
-				UserAgent:   ui.UserAgent(),
-				Client:      httpClient,
-				MaxPayloads: *maxPayloads,
-				MaxParams:   *maxParams,
+				Timeout:              timeoutDur,
+				UserAgent:            ui.UserAgent(),
+				Client:               httpClient,
+				MaxPayloads:          *maxPayloads,
+				MaxParams:            *maxParams,
+				OnVulnerabilityFound: onVuln,
 			},
 		}
 		tester := sqli.NewTester(cfg)
@@ -1005,7 +1034,7 @@ func runScan() {
 			vulnCount = len(scanResult.Vulnerabilities)
 			result.ByCategory["sqli"] = vulnCount
 			result.TotalVulns += vulnCount
-			progress.AddMetricBy("vulns", vulnCount)
+			// Vulns metric updated in real-time via OnVulnerabilityFound callback
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 				// Emit real-time event for each vulnerability
@@ -1029,9 +1058,10 @@ func runScan() {
 		}()
 		cfg := &xss.TesterConfig{
 			Base: attackconfig.Base{
-				Timeout:   timeoutDur,
-				UserAgent: ui.UserAgent(),
-				Client:    httpClient,
+				Timeout:              timeoutDur,
+				UserAgent:            ui.UserAgent(),
+				Client:               httpClient,
+				OnVulnerabilityFound: onVuln,
 			},
 		}
 		tester := xss.NewTester(cfg)
@@ -1046,7 +1076,7 @@ func runScan() {
 			vulnCount = len(scanResult.Vulnerabilities)
 			result.ByCategory["xss"] = vulnCount
 			result.TotalVulns += vulnCount
-			progress.AddMetricBy("vulns", vulnCount)
+			// Vulns metric updated in real-time via OnVulnerabilityFound callback
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 				emitEvent("vulnerability", map[string]interface{}{
@@ -1068,9 +1098,10 @@ func runScan() {
 		}()
 		cfg := &traversal.TesterConfig{
 			Base: attackconfig.Base{
-				Timeout:   timeoutDur,
-				UserAgent: ui.UserAgent(),
-				Client:    httpClient,
+				Timeout:              timeoutDur,
+				UserAgent:            ui.UserAgent(),
+				Client:               httpClient,
+				OnVulnerabilityFound: onVuln,
 			},
 		}
 		tester := traversal.NewTester(cfg)
@@ -1085,7 +1116,7 @@ func runScan() {
 			vulnCount = len(scanResult.Vulnerabilities)
 			result.ByCategory["traversal"] = vulnCount
 			result.TotalVulns += vulnCount
-			progress.AddMetricBy("vulns", vulnCount)
+			// Vulns metric updated in real-time via OnVulnerabilityFound callback
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 				emitEvent("vulnerability", map[string]interface{}{
@@ -1107,8 +1138,10 @@ func runScan() {
 		}()
 		cfg := &cmdi.TesterConfig{
 			Base: attackconfig.Base{
-				Timeout:   timeoutDur,
-				UserAgent: ui.UserAgent(),
+				Timeout:              timeoutDur,
+				UserAgent:            ui.UserAgent(),
+				Client:               httpClient,
+				OnVulnerabilityFound: onVuln,
 			},
 		}
 		tester := cmdi.NewTester(cfg)
@@ -1123,7 +1156,7 @@ func runScan() {
 			vulnCount = len(scanResult.Vulnerabilities)
 			result.ByCategory["cmdi"] = vulnCount
 			result.TotalVulns += vulnCount
-			progress.AddMetricBy("vulns", vulnCount)
+			// Vulns metric updated in real-time via OnVulnerabilityFound callback
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 				emitEvent("vulnerability", map[string]interface{}{
@@ -1145,9 +1178,10 @@ func runScan() {
 		}()
 		cfg := &nosqli.TesterConfig{
 			Base: attackconfig.Base{
-				Timeout:   timeoutDur,
-				UserAgent: ui.UserAgent(),
-				Client:    httpClient,
+				Timeout:              timeoutDur,
+				UserAgent:            ui.UserAgent(),
+				Client:               httpClient,
+				OnVulnerabilityFound: onVuln,
 			},
 		}
 		tester := nosqli.NewTester(cfg)
@@ -1162,7 +1196,7 @@ func runScan() {
 			vulnCount = len(scanResult.Vulnerabilities)
 			result.ByCategory["nosqli"] = vulnCount
 			result.TotalVulns += vulnCount
-			progress.AddMetricBy("vulns", vulnCount)
+			// Vulns metric updated in real-time via OnVulnerabilityFound callback
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 				emitEvent("vulnerability", map[string]interface{}{
@@ -1184,9 +1218,10 @@ func runScan() {
 		}()
 		cfg := &hpp.TesterConfig{
 			Base: attackconfig.Base{
-				Timeout:   timeoutDur,
-				UserAgent: ui.UserAgent(),
-				Client:    httpClient,
+				Timeout:              timeoutDur,
+				UserAgent:            ui.UserAgent(),
+				Client:               httpClient,
+				OnVulnerabilityFound: onVuln,
 			},
 		}
 		tester := hpp.NewTester(cfg)
@@ -1201,7 +1236,7 @@ func runScan() {
 			vulnCount = len(scanResult.Vulnerabilities)
 			result.ByCategory["hpp"] = vulnCount
 			result.TotalVulns += vulnCount
-			progress.AddMetricBy("vulns", vulnCount)
+			// Vulns metric updated in real-time via OnVulnerabilityFound callback
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 				emitEvent("vulnerability", map[string]interface{}{
@@ -1222,9 +1257,10 @@ func runScan() {
 		}()
 		cfg := &crlf.TesterConfig{
 			Base: attackconfig.Base{
-				Timeout:   timeoutDur,
-				UserAgent: ui.UserAgent(),
-				Client:    httpClient,
+				Timeout:              timeoutDur,
+				UserAgent:            ui.UserAgent(),
+				Client:               httpClient,
+				OnVulnerabilityFound: onVuln,
 			},
 		}
 		tester := crlf.NewTester(cfg)
@@ -1239,7 +1275,7 @@ func runScan() {
 			vulnCount = len(scanResult.Vulnerabilities)
 			result.ByCategory["crlf"] = vulnCount
 			result.TotalVulns += vulnCount
-			progress.AddMetricBy("vulns", vulnCount)
+			// Vulns metric updated in real-time via OnVulnerabilityFound callback
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 				emitEvent("vulnerability", map[string]interface{}{
@@ -1260,9 +1296,10 @@ func runScan() {
 		}()
 		cfg := &prototype.TesterConfig{
 			Base: attackconfig.Base{
-				Timeout:   timeoutDur,
-				UserAgent: ui.UserAgent(),
-				Client:    httpClient,
+				Timeout:              timeoutDur,
+				UserAgent:            ui.UserAgent(),
+				Client:               httpClient,
+				OnVulnerabilityFound: onVuln,
 			},
 		}
 		tester := prototype.NewTester(cfg)
@@ -1277,7 +1314,7 @@ func runScan() {
 			vulnCount = len(scanResult.Vulnerabilities)
 			result.ByCategory["prototype"] = vulnCount
 			result.TotalVulns += vulnCount
-			progress.AddMetricBy("vulns", vulnCount)
+			// Vulns metric updated in real-time via OnVulnerabilityFound callback
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 				emitEvent("vulnerability", map[string]interface{}{
@@ -1298,8 +1335,10 @@ func runScan() {
 		}()
 		cfg := &cors.TesterConfig{
 			Base: attackconfig.Base{
-				Timeout:   timeoutDur,
-				UserAgent: ui.UserAgent(),
+				Timeout:              timeoutDur,
+				UserAgent:            ui.UserAgent(),
+				Client:               httpClient,
+				OnVulnerabilityFound: onVuln,
 			},
 		}
 		tester := cors.NewTester(cfg)
@@ -1314,7 +1353,7 @@ func runScan() {
 			vulnCount = len(scanResult.Vulnerabilities)
 			result.ByCategory["cors"] = vulnCount
 			result.TotalVulns += vulnCount
-			progress.AddMetricBy("vulns", vulnCount)
+			// Vulns metric updated in real-time via OnVulnerabilityFound callback
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 				emitEvent("vulnerability", map[string]interface{}{
@@ -1336,8 +1375,10 @@ func runScan() {
 		}()
 		cfg := &redirect.TesterConfig{
 			Base: attackconfig.Base{
-				Timeout:   timeoutDur,
-				UserAgent: ui.UserAgent(),
+				Timeout:              timeoutDur,
+				UserAgent:            ui.UserAgent(),
+				Client:               httpClient,
+				OnVulnerabilityFound: onVuln,
 			},
 		}
 		tester := redirect.NewTester(cfg)
@@ -1352,7 +1393,7 @@ func runScan() {
 			vulnCount = len(scanResult.Vulnerabilities)
 			result.ByCategory["redirect"] = vulnCount
 			result.TotalVulns += vulnCount
-			progress.AddMetricBy("vulns", vulnCount)
+			// Vulns metric updated in real-time via OnVulnerabilityFound callback
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 				emitEvent("vulnerability", map[string]interface{}{
@@ -1374,9 +1415,10 @@ func runScan() {
 		}()
 		cfg := &hostheader.TesterConfig{
 			Base: attackconfig.Base{
-				Timeout:   timeoutDur,
-				UserAgent: ui.UserAgent(),
-				Client:    httpClient,
+				Timeout:              timeoutDur,
+				UserAgent:            ui.UserAgent(),
+				Client:               httpClient,
+				OnVulnerabilityFound: onVuln,
 			},
 		}
 		tester := hostheader.NewTester(cfg)
@@ -1391,7 +1433,7 @@ func runScan() {
 			vulnCount = len(scanResult.Vulnerabilities)
 			result.ByCategory["hostheader"] = vulnCount
 			result.TotalVulns += vulnCount
-			progress.AddMetricBy("vulns", vulnCount)
+			// Vulns metric updated in real-time via OnVulnerabilityFound callback
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 				emitEvent("vulnerability", map[string]interface{}{
@@ -1413,8 +1455,10 @@ func runScan() {
 		}()
 		cfg := &websocket.TesterConfig{
 			Base: attackconfig.Base{
-				Timeout:   timeoutDur,
-				UserAgent: ui.UserAgent(),
+				Timeout:              timeoutDur,
+				UserAgent:            ui.UserAgent(),
+				Client:               httpClient,
+				OnVulnerabilityFound: onVuln,
 			},
 		}
 		tester := websocket.NewTester(cfg)
@@ -1429,7 +1473,7 @@ func runScan() {
 			vulnCount = len(scanResult.Vulnerabilities)
 			result.ByCategory["websocket"] = vulnCount
 			result.TotalVulns += vulnCount
-			progress.AddMetricBy("vulns", vulnCount)
+			// Vulns metric updated in real-time via OnVulnerabilityFound callback
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 				emitEvent("vulnerability", map[string]interface{}{
@@ -1450,9 +1494,10 @@ func runScan() {
 		}()
 		cfg := &cache.TesterConfig{
 			Base: attackconfig.Base{
-				Timeout:   timeoutDur,
-				UserAgent: ui.UserAgent(),
-				Client:    httpClient,
+				Timeout:              timeoutDur,
+				UserAgent:            ui.UserAgent(),
+				Client:               httpClient,
+				OnVulnerabilityFound: onVuln,
 			},
 		}
 		tester := cache.NewTester(cfg)
@@ -1467,7 +1512,7 @@ func runScan() {
 			vulnCount = len(scanResult.Vulnerabilities)
 			result.ByCategory["cache"] = vulnCount
 			result.TotalVulns += vulnCount
-			progress.AddMetricBy("vulns", vulnCount)
+			// Vulns metric updated in real-time via OnVulnerabilityFound callback
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 				emitEvent("vulnerability", map[string]interface{}{
@@ -1493,8 +1538,10 @@ func runScan() {
 
 		cfg := &upload.TesterConfig{
 			Base: attackconfig.Base{
-				Timeout:   timeoutDur,
-				UserAgent: ui.UserAgent(),
+				Timeout:              timeoutDur,
+				UserAgent:            ui.UserAgent(),
+				Client:               httpClient,
+				OnVulnerabilityFound: onVuln,
 			},
 		}
 		tester := upload.NewTester(cfg)
@@ -1508,7 +1555,7 @@ func runScan() {
 		vulnCount = len(vulns)
 		result.ByCategory["upload"] = vulnCount
 		result.TotalVulns += vulnCount
-		progress.AddMetricBy("vulns", vulnCount)
+		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
 			emitEvent("vulnerability", map[string]interface{}{
@@ -1528,8 +1575,10 @@ func runScan() {
 		}()
 		cfg := &deserialize.TesterConfig{
 			Base: attackconfig.Base{
-				Timeout:   timeoutDur,
-				UserAgent: ui.UserAgent(),
+				Timeout:              timeoutDur,
+				UserAgent:            ui.UserAgent(),
+				Client:               httpClient,
+				OnVulnerabilityFound: onVuln,
 			},
 		}
 		tester := deserialize.NewTester(cfg)
@@ -1543,7 +1592,7 @@ func runScan() {
 		vulnCount = len(vulns)
 		result.ByCategory["deserialize"] = vulnCount
 		result.TotalVulns += vulnCount
-		progress.AddMetricBy("vulns", vulnCount)
+		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
 			emitEvent("vulnerability", map[string]interface{}{
@@ -1569,8 +1618,10 @@ func runScan() {
 		}
 		cfg := &oauth.TesterConfig{
 			Base: attackconfig.Base{
-				Timeout:   timeoutDur,
-				UserAgent: ui.UserAgent(),
+				Timeout:              timeoutDur,
+				UserAgent:            ui.UserAgent(),
+				Client:               httpClient,
+				OnVulnerabilityFound: onVuln,
 			},
 		}
 		endpoints := &oauth.OAuthEndpoint{
@@ -1592,7 +1643,7 @@ func runScan() {
 		vulnCount = len(vulns)
 		result.ByCategory["oauth"] = vulnCount
 		result.TotalVulns += vulnCount
-		progress.AddMetricBy("vulns", vulnCount)
+		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
 			emitEvent("vulnerability", map[string]interface{}{
@@ -1645,8 +1696,10 @@ func runScan() {
 		}()
 		cfg := &ssti.DetectorConfig{
 			Base: attackconfig.Base{
-				Timeout:   timeoutDur,
-				UserAgent: ui.UserAgent(),
+				Timeout:              timeoutDur,
+				UserAgent:            ui.UserAgent(),
+				Client:               httpClient,
+				OnVulnerabilityFound: onVuln,
 			},
 		}
 		detector := ssti.NewDetector(cfg)
@@ -1660,7 +1713,7 @@ func runScan() {
 		vulnCount = len(vulns)
 		result.ByCategory["ssti"] = vulnCount
 		result.TotalVulns += vulnCount
-		progress.AddMetricBy("vulns", vulnCount)
+		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
 			emitEvent("vulnerability", map[string]interface{}{
@@ -1682,6 +1735,8 @@ func runScan() {
 		cfg := xxe.DefaultConfig()
 		cfg.Timeout = timeoutDur
 		cfg.UserAgent = ui.UserAgent()
+		cfg.Client = httpClient
+		cfg.OnVulnerabilityFound = onVuln
 		detector := xxe.NewDetector(cfg)
 		vulns, err := detector.Detect(ctx, target, "POST")
 		if err != nil {
@@ -1693,7 +1748,7 @@ func runScan() {
 		vulnCount = len(vulns)
 		result.ByCategory["xxe"] = vulnCount
 		result.TotalVulns += vulnCount
-		progress.AddMetricBy("vulns", vulnCount)
+		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
 			emitEvent("vulnerability", map[string]interface{}{
@@ -1751,6 +1806,8 @@ func runScan() {
 		cfg := graphql.DefaultConfig()
 		cfg.Timeout = timeoutDur
 		cfg.UserAgent = ui.UserAgent()
+		cfg.Client = httpClient
+		cfg.OnVulnerabilityFound = onVuln
 		// Attempt common GraphQL endpoints
 		graphqlEndpoints := []string{
 			target + "/graphql",
@@ -1768,7 +1825,7 @@ func runScan() {
 				foundEndpoint = endpoint
 				result.ByCategory["graphql"] = vulnCount
 				result.TotalVulns += vulnCount
-				progress.AddMetricBy("vulns", vulnCount)
+				// Vulns metric updated in real-time via OnVulnerabilityFound callback
 				for _, v := range scanResult.Vulnerabilities {
 					result.BySeverity[string(v.Severity)]++
 					emitEvent("vulnerability", map[string]interface{}{
@@ -1825,10 +1882,11 @@ func runScan() {
 		}()
 		cfg := &subtakeover.TesterConfig{
 			Base: attackconfig.Base{
-				Timeout:     timeoutDur,
-				UserAgent:   ui.UserAgent(),
-				Concurrency: *concurrency,
-				Client:      httpClient,
+				Timeout:              timeoutDur,
+				UserAgent:            ui.UserAgent(),
+				Concurrency:          *concurrency,
+				Client:               httpClient,
+				OnVulnerabilityFound: onVuln,
 			},
 			CheckHTTP:   true,
 			FollowCNAME: true,
@@ -1853,7 +1911,7 @@ func runScan() {
 			vulnCount = len(scanResult.Vulnerabilities)
 			result.ByCategory["subtakeover"] = vulnCount
 			result.TotalVulns += vulnCount
-			progress.AddMetricBy("vulns", vulnCount)
+			// Vulns metric updated in real-time via OnVulnerabilityFound callback
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 				emitEvent("vulnerability", map[string]interface{}{
@@ -1876,6 +1934,8 @@ func runScan() {
 		cfg := bizlogic.DefaultConfig()
 		cfg.Timeout = timeoutDur
 		cfg.UserAgent = ui.UserAgent()
+		cfg.Client = httpClient
+		cfg.OnVulnerabilityFound = onVuln
 		tester := bizlogic.NewTester(cfg)
 		// Test common business logic vulnerabilities
 		vulns, err := tester.Scan(ctx, target, []string{"/", "/api", "/admin", "/user", "/account"})
@@ -1888,7 +1948,7 @@ func runScan() {
 		vulnCount = len(vulns)
 		result.ByCategory["bizlogic"] = vulnCount
 		result.TotalVulns += vulnCount
-		progress.AddMetricBy("vulns", vulnCount)
+		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
 			emitEvent("vulnerability", map[string]interface{}{
@@ -1909,6 +1969,8 @@ func runScan() {
 		cfg := race.DefaultConfig()
 		cfg.Timeout = timeoutDur
 		cfg.UserAgent = ui.UserAgent()
+		cfg.Client = httpClient
+		cfg.OnVulnerabilityFound = onVuln
 		tester := race.NewTester(cfg)
 		// Test common race condition scenarios
 		reqCfg := &race.RequestConfig{
@@ -1927,7 +1989,7 @@ func runScan() {
 			vulnCount = len(scanResult.Vulnerabilities)
 			result.ByCategory["race"] = vulnCount
 			result.TotalVulns += vulnCount
-			progress.AddMetricBy("vulns", vulnCount)
+			// Vulns metric updated in real-time via OnVulnerabilityFound callback
 			for _, v := range scanResult.Vulnerabilities {
 				result.BySeverity[string(v.Severity)]++
 				emitEvent("vulnerability", map[string]interface{}{
@@ -1949,6 +2011,8 @@ func runScan() {
 		cfg := apifuzz.DefaultConfig()
 		cfg.Timeout = timeoutDur
 		cfg.UserAgent = ui.UserAgent()
+		cfg.Client = httpClient
+		cfg.OnVulnerabilityFound = onVuln
 		tester := apifuzz.NewTester(cfg)
 		// Define basic endpoints to fuzz
 		endpoints := []apifuzz.Endpoint{
@@ -1965,7 +2029,7 @@ func runScan() {
 		vulnCount = len(vulns)
 		result.ByCategory["apifuzz"] = vulnCount
 		result.TotalVulns += vulnCount
-		progress.AddMetricBy("vulns", vulnCount)
+		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, v := range vulns {
 			result.BySeverity[string(v.Severity)]++
 			emitEvent("vulnerability", map[string]interface{}{
@@ -1986,6 +2050,8 @@ func runScan() {
 		cfg := ldap.DefaultConfig()
 		cfg.Timeout = timeoutDur
 		cfg.UserAgent = ui.UserAgent()
+		cfg.Client = httpClient
+		cfg.OnVulnerabilityFound = onVuln
 		scanner := ldap.NewScanner(cfg)
 		// Synthetic params for bare-URL mode (matching SSRF/SSTI pattern)
 		params := map[string]string{"search": "test", "user": "admin", "filter": "test"}
@@ -2005,7 +2071,7 @@ func runScan() {
 		vulnCount = len(vulnResults)
 		result.ByCategory["ldap"] = vulnCount
 		result.TotalVulns += vulnCount
-		progress.AddMetricBy("vulns", vulnCount)
+		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, r := range vulnResults {
 			result.BySeverity[r.Severity]++
 			emitEvent("vulnerability", map[string]interface{}{
@@ -2027,6 +2093,8 @@ func runScan() {
 		cfg := ssi.DefaultConfig()
 		cfg.Timeout = timeoutDur
 		cfg.UserAgent = ui.UserAgent()
+		cfg.Client = httpClient
+		cfg.OnVulnerabilityFound = onVuln
 		scanner := ssi.NewScanner(cfg)
 		params := map[string]string{"input": "test", "page": "index", "file": "test"}
 		results, err := scanner.Scan(ctx, target, params)
@@ -2045,7 +2113,7 @@ func runScan() {
 		vulnCount = len(vulnResults)
 		result.ByCategory["ssi"] = vulnCount
 		result.TotalVulns += vulnCount
-		progress.AddMetricBy("vulns", vulnCount)
+		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, r := range vulnResults {
 			result.BySeverity[r.Severity]++
 			emitEvent("vulnerability", map[string]interface{}{
@@ -2067,6 +2135,8 @@ func runScan() {
 		cfg := xpath.DefaultConfig()
 		cfg.Timeout = timeoutDur
 		cfg.UserAgent = ui.UserAgent()
+		cfg.Client = httpClient
+		cfg.OnVulnerabilityFound = onVuln
 		scanner := xpath.NewScanner(cfg)
 		params := map[string]string{"search": "test", "query": "test", "id": "1"}
 		results, err := scanner.Scan(ctx, target, params)
@@ -2085,7 +2155,7 @@ func runScan() {
 		vulnCount = len(vulnResults)
 		result.ByCategory["xpath"] = vulnCount
 		result.TotalVulns += vulnCount
-		progress.AddMetricBy("vulns", vulnCount)
+		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, r := range vulnResults {
 			result.BySeverity[r.Severity]++
 			emitEvent("vulnerability", map[string]interface{}{
@@ -2107,6 +2177,8 @@ func runScan() {
 		cfg := xmlinjection.DefaultConfig()
 		cfg.Timeout = timeoutDur
 		cfg.UserAgent = ui.UserAgent()
+		cfg.Client = httpClient
+		cfg.OnVulnerabilityFound = onVuln
 		scanner := xmlinjection.NewScanner(cfg)
 		results, err := scanner.Scan(ctx, target)
 		if err != nil {
@@ -2124,7 +2196,7 @@ func runScan() {
 		vulnCount = len(vulnResults)
 		result.ByCategory["xmlinjection"] = vulnCount
 		result.TotalVulns += vulnCount
-		progress.AddMetricBy("vulns", vulnCount)
+		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, r := range vulnResults {
 			result.BySeverity[r.Severity]++
 			emitEvent("vulnerability", map[string]interface{}{
@@ -2145,6 +2217,8 @@ func runScan() {
 		cfg := rfi.DefaultConfig()
 		cfg.Timeout = timeoutDur
 		cfg.UserAgent = ui.UserAgent()
+		cfg.Client = httpClient
+		cfg.OnVulnerabilityFound = onVuln
 		scanner := rfi.NewScanner(cfg)
 		params := map[string]string{"file": "index", "page": "home", "path": "/tmp/test"}
 		results, err := scanner.Scan(ctx, target, params)
@@ -2163,7 +2237,7 @@ func runScan() {
 		vulnCount = len(vulnResults)
 		result.ByCategory["rfi"] = vulnCount
 		result.TotalVulns += vulnCount
-		progress.AddMetricBy("vulns", vulnCount)
+		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, r := range vulnResults {
 			result.BySeverity[r.Severity]++
 			emitEvent("vulnerability", map[string]interface{}{
@@ -2185,6 +2259,8 @@ func runScan() {
 		cfg := lfi.DefaultConfig()
 		cfg.Timeout = timeoutDur
 		cfg.UserAgent = ui.UserAgent()
+		cfg.Client = httpClient
+		cfg.OnVulnerabilityFound = onVuln
 		scanner := lfi.NewScanner(cfg)
 		params := map[string]string{"file": "index", "page": "home", "path": "/tmp/test"}
 		results, err := scanner.Scan(ctx, target, params)
@@ -2203,7 +2279,7 @@ func runScan() {
 		vulnCount = len(vulnResults)
 		result.ByCategory["lfi"] = vulnCount
 		result.TotalVulns += vulnCount
-		progress.AddMetricBy("vulns", vulnCount)
+		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, r := range vulnResults {
 			result.BySeverity[r.Severity]++
 			emitEvent("vulnerability", map[string]interface{}{
@@ -2225,6 +2301,8 @@ func runScan() {
 		cfg := rce.DefaultConfig()
 		cfg.Timeout = timeoutDur
 		cfg.UserAgent = ui.UserAgent()
+		cfg.Client = httpClient
+		cfg.OnVulnerabilityFound = onVuln
 		scanner := rce.NewScanner(cfg)
 		params := map[string]string{"cmd": "test", "exec": "test", "input": "test"}
 		results, err := scanner.Scan(ctx, target, params)
@@ -2243,7 +2321,7 @@ func runScan() {
 		vulnCount = len(vulnResults)
 		result.ByCategory["rce"] = vulnCount
 		result.TotalVulns += vulnCount
-		progress.AddMetricBy("vulns", vulnCount)
+		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, r := range vulnResults {
 			result.BySeverity[r.Severity]++
 			emitEvent("vulnerability", map[string]interface{}{
@@ -2265,6 +2343,8 @@ func runScan() {
 		cfg := csrf.DefaultConfig()
 		cfg.Timeout = timeoutDur
 		cfg.UserAgent = ui.UserAgent()
+		cfg.Client = httpClient
+		cfg.OnVulnerabilityFound = onVuln
 		scanner := csrf.NewScanner(cfg)
 		csrfResult, err := scanner.Scan(ctx, target, "POST")
 		if err != nil {
@@ -2277,7 +2357,7 @@ func runScan() {
 			vulnCount = 1
 			result.ByCategory["csrf"] = 1
 			result.TotalVulns++
-			progress.AddMetricBy("vulns", 1)
+			// Vulns metric updated in real-time via OnVulnerabilityFound callback
 			result.BySeverity[csrfResult.Severity]++
 			emitEvent("vulnerability", map[string]interface{}{
 				"category": "csrf",
@@ -2297,6 +2377,8 @@ func runScan() {
 		cfg := clickjack.DefaultConfig()
 		cfg.Timeout = timeoutDur
 		cfg.UserAgent = ui.UserAgent()
+		cfg.Client = httpClient
+		cfg.OnVulnerabilityFound = onVuln
 		scanner := clickjack.NewScanner(cfg)
 		clickResult, err := scanner.Scan(ctx, target)
 		if err != nil {
@@ -2309,7 +2391,7 @@ func runScan() {
 			vulnCount = 1
 			result.ByCategory["clickjack"] = 1
 			result.TotalVulns++
-			progress.AddMetricBy("vulns", 1)
+			// Vulns metric updated in real-time via OnVulnerabilityFound callback
 			result.BySeverity[clickResult.Severity]++
 			emitEvent("vulnerability", map[string]interface{}{
 				"category":        "clickjack",
@@ -2329,6 +2411,8 @@ func runScan() {
 		cfg := idor.DefaultConfig()
 		cfg.Timeout = timeoutDur
 		cfg.UserAgent = ui.UserAgent()
+		cfg.Client = httpClient
+		cfg.OnVulnerabilityFound = onVuln
 		cfg.BaseURL = target
 		scanner := idor.NewScanner(cfg)
 		// Test common endpoints for IDOR
@@ -2356,7 +2440,7 @@ func runScan() {
 		vulnCount = len(allResults)
 		result.ByCategory["idor"] = vulnCount
 		result.TotalVulns += vulnCount
-		progress.AddMetricBy("vulns", vulnCount)
+		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, r := range allResults {
 			result.BySeverity[r.Severity]++
 			emitEvent("vulnerability", map[string]interface{}{
@@ -2378,6 +2462,8 @@ func runScan() {
 		cfg := massassignment.DefaultConfig()
 		cfg.Timeout = timeoutDur
 		cfg.UserAgent = ui.UserAgent()
+		cfg.Client = httpClient
+		cfg.OnVulnerabilityFound = onVuln
 		scanner := massassignment.NewScanner(cfg)
 		// Empty baseline — scanner will test with DangerousParameters() against the endpoint
 		originalData := map[string]interface{}{"name": "test", "email": "test@example.com"}
@@ -2397,7 +2483,7 @@ func runScan() {
 		vulnCount = len(vulnResults)
 		result.ByCategory["massassignment"] = vulnCount
 		result.TotalVulns += vulnCount
-		progress.AddMetricBy("vulns", vulnCount)
+		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, r := range vulnResults {
 			result.BySeverity[r.Severity]++
 			emitEvent("vulnerability", map[string]interface{}{
