@@ -1000,7 +1000,9 @@ func runScan() {
 	// Shared callback for real-time vulnerability counting.
 	// Scanners that support streaming call this per finding so the
 	// progress display updates immediately instead of after Scan() returns.
-	onVuln := func() { progress.AddMetric("vulns") }
+	onVuln := func() {
+		progress.AddMetric("vulns")
+	}
 
 	// SQL Injection Scanner
 	runScanner("sqli", func() {
