@@ -18,6 +18,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/hexutil"
 )
@@ -141,12 +142,12 @@ type ResponseInfo struct {
 type Vulnerability struct {
 	Type        string           `json:"type"`
 	Severity    finding.Severity `json:"severity"`
-	Parameter   string  `json:"parameter"`
-	Payload     string  `json:"payload"`
-	Evidence    string  `json:"evidence"`
-	Confidence  float64 `json:"confidence"`
-	Remediation string  `json:"remediation"`
-	ConfirmedBy int     `json:"confirmed_by,omitempty"`
+	Parameter   string           `json:"parameter"`
+	Payload     string           `json:"payload"`
+	Evidence    string           `json:"evidence"`
+	Confidence  float64          `json:"confidence"`
+	Remediation string           `json:"remediation"`
+	ConfirmedBy int              `json:"confirmed_by,omitempty"`
 }
 
 // GeneratePayloads generates SSRF test payloads
@@ -839,7 +840,7 @@ func (d *Detector) Detect(ctx context.Context, target, param string) (*Result, e
 
 	client := d.Client
 	if client == nil {
-		client = &http.Client{Timeout: d.Timeout}
+		client = httpclient.New(httpclient.WithTimeout(d.Timeout))
 	}
 
 	payloads := d.GeneratePayloads()
