@@ -12,6 +12,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
@@ -40,7 +41,7 @@ type Result struct {
 	StatusCode  int
 	Vulnerable  bool
 	Evidence    string
-	Severity    string
+	Severity    finding.Severity
 	OriginalReq map[string]interface{}
 	ModifiedReq map[string]interface{}
 	Timestamp   time.Time
@@ -192,7 +193,7 @@ func (s *Scanner) GetResults() []Result {
 type DangerousParam struct {
 	Name     string
 	Value    interface{}
-	Severity string
+	Severity finding.Severity
 	Category string
 }
 
@@ -200,77 +201,77 @@ type DangerousParam struct {
 func DangerousParameters() []DangerousParam {
 	return []DangerousParam{
 		// Role/Permission escalation
-		{Name: "role", Value: "admin", Severity: "critical", Category: "privilege"},
-		{Name: "isAdmin", Value: true, Severity: "critical", Category: "privilege"},
-		{Name: "is_admin", Value: true, Severity: "critical", Category: "privilege"},
-		{Name: "admin", Value: true, Severity: "critical", Category: "privilege"},
-		{Name: "permissions", Value: []string{"admin", "write"}, Severity: "critical", Category: "privilege"},
-		{Name: "role_id", Value: 1, Severity: "critical", Category: "privilege"},
-		{Name: "user_type", Value: "admin", Severity: "critical", Category: "privilege"},
-		{Name: "access_level", Value: "admin", Severity: "critical", Category: "privilege"},
+		{Name: "role", Value: "admin", Severity: finding.Critical, Category: "privilege"},
+		{Name: "isAdmin", Value: true, Severity: finding.Critical, Category: "privilege"},
+		{Name: "is_admin", Value: true, Severity: finding.Critical, Category: "privilege"},
+		{Name: "admin", Value: true, Severity: finding.Critical, Category: "privilege"},
+		{Name: "permissions", Value: []string{"admin", "write"}, Severity: finding.Critical, Category: "privilege"},
+		{Name: "role_id", Value: 1, Severity: finding.Critical, Category: "privilege"},
+		{Name: "user_type", Value: "admin", Severity: finding.Critical, Category: "privilege"},
+		{Name: "access_level", Value: "admin", Severity: finding.Critical, Category: "privilege"},
 
 		// Account status
-		{Name: "verified", Value: true, Severity: "high", Category: "account"},
-		{Name: "is_verified", Value: true, Severity: "high", Category: "account"},
-		{Name: "email_verified", Value: true, Severity: "high", Category: "account"},
-		{Name: "active", Value: true, Severity: "high", Category: "account"},
-		{Name: "is_active", Value: true, Severity: "high", Category: "account"},
-		{Name: "approved", Value: true, Severity: "high", Category: "account"},
+		{Name: "verified", Value: true, Severity: finding.High, Category: "account"},
+		{Name: "is_verified", Value: true, Severity: finding.High, Category: "account"},
+		{Name: "email_verified", Value: true, Severity: finding.High, Category: "account"},
+		{Name: "active", Value: true, Severity: finding.High, Category: "account"},
+		{Name: "is_active", Value: true, Severity: finding.High, Category: "account"},
+		{Name: "approved", Value: true, Severity: finding.High, Category: "account"},
 
 		// Sensitive data
-		{Name: "balance", Value: 999999, Severity: "critical", Category: "financial"},
-		{Name: "credits", Value: 999999, Severity: "critical", Category: "financial"},
-		{Name: "points", Value: 999999, Severity: "high", Category: "financial"},
-		{Name: "price", Value: 0.01, Severity: "critical", Category: "financial"},
-		{Name: "discount", Value: 99, Severity: "high", Category: "financial"},
+		{Name: "balance", Value: 999999, Severity: finding.Critical, Category: "financial"},
+		{Name: "credits", Value: 999999, Severity: finding.Critical, Category: "financial"},
+		{Name: "points", Value: 999999, Severity: finding.High, Category: "financial"},
+		{Name: "price", Value: 0.01, Severity: finding.Critical, Category: "financial"},
+		{Name: "discount", Value: 99, Severity: finding.High, Category: "financial"},
 
 		// ID manipulation
-		{Name: "id", Value: 1, Severity: "high", Category: "id"},
-		{Name: "user_id", Value: 1, Severity: "high", Category: "id"},
-		{Name: "userId", Value: 1, Severity: "high", Category: "id"},
-		{Name: "owner_id", Value: 1, Severity: "high", Category: "id"},
-		{Name: "org_id", Value: 1, Severity: "high", Category: "id"},
-		{Name: "organization_id", Value: 1, Severity: "high", Category: "id"},
+		{Name: "id", Value: 1, Severity: finding.High, Category: "id"},
+		{Name: "user_id", Value: 1, Severity: finding.High, Category: "id"},
+		{Name: "userId", Value: 1, Severity: finding.High, Category: "id"},
+		{Name: "owner_id", Value: 1, Severity: finding.High, Category: "id"},
+		{Name: "org_id", Value: 1, Severity: finding.High, Category: "id"},
+		{Name: "organization_id", Value: 1, Severity: finding.High, Category: "id"},
 
 		// Internal fields
-		{Name: "created_at", Value: "2020-01-01", Severity: "medium", Category: "internal"},
-		{Name: "updated_at", Value: "2020-01-01", Severity: "medium", Category: "internal"},
-		{Name: "_id", Value: "injected", Severity: "high", Category: "internal"},
+		{Name: "created_at", Value: "2020-01-01", Severity: finding.Medium, Category: "internal"},
+		{Name: "updated_at", Value: "2020-01-01", Severity: finding.Medium, Category: "internal"},
+		{Name: "_id", Value: "injected", Severity: finding.High, Category: "internal"},
 
 		// ---- Framework-specific parameters ----
 
 		// Rails nested attribute patterns (user[role], user[admin])
-		{Name: "user[admin]", Value: true, Severity: "critical", Category: "rails"},
-		{Name: "user[role]", Value: "admin", Severity: "critical", Category: "rails"},
-		{Name: "user[is_admin]", Value: true, Severity: "critical", Category: "rails"},
-		{Name: "user[role_id]", Value: 1, Severity: "critical", Category: "rails"},
-		{Name: "_destroy", Value: true, Severity: "high", Category: "rails"},
-		{Name: "user[_destroy]", Value: true, Severity: "high", Category: "rails"},
+		{Name: "user[admin]", Value: true, Severity: finding.Critical, Category: "rails"},
+		{Name: "user[role]", Value: "admin", Severity: finding.Critical, Category: "rails"},
+		{Name: "user[is_admin]", Value: true, Severity: finding.Critical, Category: "rails"},
+		{Name: "user[role_id]", Value: 1, Severity: finding.Critical, Category: "rails"},
+		{Name: "_destroy", Value: true, Severity: finding.High, Category: "rails"},
+		{Name: "user[_destroy]", Value: true, Severity: finding.High, Category: "rails"},
 
 		// Django model fields
-		{Name: "is_staff", Value: true, Severity: "critical", Category: "django"},
-		{Name: "is_superuser", Value: true, Severity: "critical", Category: "django"},
-		{Name: "groups", Value: []int{1}, Severity: "critical", Category: "django"},
-		{Name: "user_permissions", Value: []int{1}, Severity: "critical", Category: "django"},
-		{Name: "is_active", Value: true, Severity: "high", Category: "django"},
+		{Name: "is_staff", Value: true, Severity: finding.Critical, Category: "django"},
+		{Name: "is_superuser", Value: true, Severity: finding.Critical, Category: "django"},
+		{Name: "groups", Value: []int{1}, Severity: finding.Critical, Category: "django"},
+		{Name: "user_permissions", Value: []int{1}, Severity: finding.Critical, Category: "django"},
+		{Name: "is_active", Value: true, Severity: finding.High, Category: "django"},
 
 		// Spring/Java patterns
-		{Name: "class.module.classLoader", Value: "x", Severity: "critical", Category: "spring"},
-		{Name: "authorities", Value: []string{"ROLE_ADMIN"}, Severity: "critical", Category: "spring"},
-		{Name: "authority", Value: "ROLE_ADMIN", Severity: "critical", Category: "spring"},
-		{Name: "roles", Value: []string{"ADMIN"}, Severity: "critical", Category: "spring"},
-		{Name: "enabled", Value: true, Severity: "high", Category: "spring"},
-		{Name: "accountNonLocked", Value: true, Severity: "high", Category: "spring"},
-		{Name: "credentialsNonExpired", Value: true, Severity: "high", Category: "spring"},
+		{Name: "class.module.classLoader", Value: "x", Severity: finding.Critical, Category: "spring"},
+		{Name: "authorities", Value: []string{"ROLE_ADMIN"}, Severity: finding.Critical, Category: "spring"},
+		{Name: "authority", Value: "ROLE_ADMIN", Severity: finding.Critical, Category: "spring"},
+		{Name: "roles", Value: []string{"ADMIN"}, Severity: finding.Critical, Category: "spring"},
+		{Name: "enabled", Value: true, Severity: finding.High, Category: "spring"},
+		{Name: "accountNonLocked", Value: true, Severity: finding.High, Category: "spring"},
+		{Name: "credentialsNonExpired", Value: true, Severity: finding.High, Category: "spring"},
 
 		// Laravel/PHP patterns
-		{Name: "guard_name", Value: "web", Severity: "high", Category: "laravel"},
-		{Name: "is_admin", Value: 1, Severity: "critical", Category: "laravel"},
-		{Name: "role_names", Value: []string{"admin"}, Severity: "critical", Category: "laravel"},
+		{Name: "guard_name", Value: "web", Severity: finding.High, Category: "laravel"},
+		{Name: "is_admin", Value: 1, Severity: finding.Critical, Category: "laravel"},
+		{Name: "role_names", Value: []string{"admin"}, Severity: finding.Critical, Category: "laravel"},
 
 		// Node.js/Express patterns
-		{Name: "__proto__", Value: map[string]interface{}{"isAdmin": true}, Severity: "critical", Category: "nodejs"},
-		{Name: "constructor", Value: map[string]interface{}{"prototype": map[string]interface{}{"isAdmin": true}}, Severity: "critical", Category: "nodejs"},
+		{Name: "__proto__", Value: map[string]interface{}{"isAdmin": true}, Severity: finding.Critical, Category: "nodejs"},
+		{Name: "constructor", Value: map[string]interface{}{"prototype": map[string]interface{}{"isAdmin": true}}, Severity: finding.Critical, Category: "nodejs"},
 	}
 }
 
