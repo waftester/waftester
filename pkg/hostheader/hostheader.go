@@ -42,25 +42,25 @@ type Payload struct {
 
 // Vulnerability represents a detected Host header vulnerability
 type Vulnerability struct {
-	Type          VulnerabilityType
-	Description   string
-	Severity      finding.Severity
-	URL           string
-	Header        string
-	InjectedValue string
-	Evidence      string
-	Remediation   string
-	CVSS          float64
-	ConfirmedBy   int
+	Type          VulnerabilityType `json:"type"`
+	Description   string            `json:"description"`
+	Severity      finding.Severity  `json:"severity"`
+	URL           string            `json:"url"`
+	Header        string            `json:"header"`
+	InjectedValue string            `json:"injected_value"`
+	Evidence      string            `json:"evidence,omitempty"`
+	Remediation   string            `json:"remediation,omitempty"`
+	CVSS          float64           `json:"cvss"`
+	ConfirmedBy   int               `json:"confirmed_by"`
 }
 
 // ScanResult represents the result of a scan
 type ScanResult struct {
-	URL             string
-	TestedHeaders   int
-	Vulnerabilities []Vulnerability
-	StartTime       time.Time
-	Duration        time.Duration
+	URL             string          `json:"url"`
+	TestedHeaders   int             `json:"tested_headers"`
+	Vulnerabilities []Vulnerability `json:"vulnerabilities"`
+	StartTime       time.Time       `json:"start_time"`
+	Duration        time.Duration   `json:"duration"`
 }
 
 // TesterConfig holds configuration for the Host header tester

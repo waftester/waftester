@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -14,6 +15,39 @@ import (
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/ui"
 )
+
+// severityOrder defines canonical display ordering for severity levels.
+var severityOrder = map[string]int{
+	"Critical": 0,
+	"High":     1,
+	"Medium":   2,
+	"Low":      3,
+	"Info":     4,
+}
+
+// sortedSeverities returns the keys of a severity map sorted by severity order
+// (Critical first, Info last). Unknown severities sort after known ones alphabetically.
+func sortedSeverities(m map[string]int) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		oi, oki := severityOrder[keys[i]]
+		oj, okj := severityOrder[keys[j]]
+		if !oki {
+			oi = 100
+		}
+		if !okj {
+			oj = 100
+		}
+		if oi != oj {
+			return oi < oj
+		}
+		return keys[i] < keys[j]
+	})
+	return keys
+}
 
 // printScanCSV writes scan results in CSV format.
 func printScanCSV(w io.Writer, target string, result *ScanResult) {
@@ -42,8 +76,8 @@ func printScanMarkdown(w io.Writer, result *ScanResult) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "| Severity | Count |")
 	fmt.Fprintln(w, "|----------|-------|")
-	for sev, count := range result.BySeverity {
-		fmt.Fprintf(w, "| %s | %d |\n", sev, count)
+	for _, sev := range sortedSeverities(result.BySeverity) {
+		fmt.Fprintf(w, "| %s | %d |\n", sev, result.BySeverity[sev])
 	}
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "## By Category")
@@ -73,7 +107,8 @@ func printScanHTML(w io.Writer, result *ScanResult) {
 	fmt.Fprintf(w, "<p><strong>Date:</strong> %s</p>\n", result.StartTime.Format("2006-01-02 15:04:05"))
 	fmt.Fprintf(w, "<p><strong>Total Vulnerabilities:</strong> %d</p>\n", result.TotalVulns)
 	fmt.Fprintln(w, "<h2>By Severity</h2><table><tr><th>Severity</th><th>Count</th></tr>")
-	for sev, count := range result.BySeverity {
+	for _, sev := range sortedSeverities(result.BySeverity) {
+		count := result.BySeverity[sev]
 		fmt.Fprintf(w, "<tr><td class='%s'>%s</td><td>%d</td></tr>\n", strings.ToLower(html.EscapeString(sev)), html.EscapeString(sev), count)
 	}
 	fmt.Fprintln(w, "</table><h2>By Category</h2><table><tr><th>Category</th><th>Count</th></tr>")
@@ -146,7 +181,8 @@ func printScanConsoleSummary(result *ScanResult) {
 
 	if result.TotalVulns > 0 {
 		ui.PrintSection("By Severity")
-		for sev, count := range result.BySeverity {
+		for _, sev := range sortedSeverities(result.BySeverity) {
+			count := result.BySeverity[sev]
 			switch sev {
 			case "Critical":
 				ui.PrintError(fmt.Sprintf("  %s: %d", sev, count))
