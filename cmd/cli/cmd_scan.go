@@ -546,6 +546,9 @@ func runScan() {
 		includeRe, err = regexp.Compile(*includePatterns)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Invalid --include-patterns regex: %v", err))
+			if dispCtx != nil {
+				_ = dispCtx.Close()
+			}
 			os.Exit(1)
 		}
 	}
@@ -554,6 +557,9 @@ func runScan() {
 		excludeRe, err = regexp.Compile(*excludePatterns)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Invalid --exclude-patterns regex: %v", err))
+			if dispCtx != nil {
+				_ = dispCtx.Close()
+			}
 			os.Exit(1)
 		}
 	}
@@ -602,6 +608,9 @@ func runScan() {
 		}
 		fmt.Fprintln(os.Stderr)
 		ui.PrintHelp("Remove -dry-run flag to execute scans")
+		if dispCtx != nil {
+			_ = dispCtx.Close()
+		}
 		os.Exit(0)
 	}
 
@@ -677,6 +686,9 @@ func runScan() {
 			for _, disallowed := range robotsResult.DisallowedPaths {
 				if strings.HasPrefix(targetPath, disallowed) {
 					ui.PrintWarning(fmt.Sprintf("Target path %q is disallowed by robots.txt (matched %q) — skipping scan", targetPath, disallowed))
+					if dispCtx != nil {
+						_ = dispCtx.Close()
+					}
 					os.Exit(0)
 				}
 			}
@@ -691,6 +703,9 @@ func runScan() {
 	// Check URL include/exclude patterns against the target
 	if !shouldScanURL(target) {
 		ui.PrintWarning("Target URL excluded by --include-patterns / --exclude-patterns")
+		if dispCtx != nil {
+			_ = dispCtx.Close()
+		}
 		os.Exit(0)
 	}
 
@@ -3074,6 +3089,7 @@ func runScan() {
 			ui.PrintError(errMsg)
 			if dispCtx != nil {
 				_ = dispCtx.EmitError(ctx, "scan", errMsg, true)
+				_ = dispCtx.Close()
 			}
 			os.Exit(1)
 		}
@@ -3084,6 +3100,7 @@ func runScan() {
 				ui.PrintError(errMsg)
 				if dispCtx != nil {
 					_ = dispCtx.EmitError(ctx, "scan", errMsg, true)
+					_ = dispCtx.Close()
 				}
 				os.Exit(1)
 			}
@@ -3103,6 +3120,7 @@ func runScan() {
 			ui.PrintError(errMsg)
 			if dispCtx != nil {
 				_ = dispCtx.EmitError(ctx, "scan", errMsg, true)
+				_ = dispCtx.Close()
 			}
 			os.Exit(1)
 		}
@@ -3119,6 +3137,9 @@ func runScan() {
 	writeScanExports(&outFlags, target, result)
 
 	if result.TotalVulns > 0 {
+		if dispCtx != nil {
+			_ = dispCtx.Close()
+		}
 		os.Exit(1) // Exit with error if vulnerabilities found
 	}
 }
