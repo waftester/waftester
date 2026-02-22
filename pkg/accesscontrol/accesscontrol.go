@@ -203,7 +203,7 @@ func (t *Tester) TestVerticalPrivilegeEscalation(ctx context.Context) ([]TestRes
 			Endpoint:   endpoint,
 			Method:     "GET",
 			StatusCode: resp.StatusCode,
-			Severity:   "Critical",
+			Severity:   "critical",
 		}
 
 		// If we get 200 with low privilege token on admin endpoint, it's vulnerable
@@ -254,7 +254,7 @@ func (t *Tester) TestHorizontalPrivilegeEscalation(ctx context.Context, userID s
 			Endpoint:   path,
 			Method:     "GET",
 			StatusCode: resp.StatusCode,
-			Severity:   "High",
+			Severity:   "high",
 		}
 
 		if resp.StatusCode == 200 {
@@ -311,7 +311,7 @@ func (t *Tester) TestMetadataManipulation(ctx context.Context) ([]TestResult, er
 				VulnType: MetadataManipulation,
 				Endpoint: adminEndpoint,
 				Method:   "GET",
-				Severity: "Critical",
+				Severity: "critical",
 			}
 
 			// If adding header changes response from 403/401 to 200
@@ -387,7 +387,7 @@ func (t *Tester) TestForcefulBrowsing(ctx context.Context) ([]TestResult, error)
 			Endpoint:   resource,
 			Method:     "GET",
 			StatusCode: resp.StatusCode,
-			Severity:   "Medium",
+			Severity:   "medium",
 		}
 
 		if resp.StatusCode == 200 {
@@ -436,7 +436,7 @@ func (t *Tester) TestMissingFunctionLevelAccess(ctx context.Context) ([]TestResu
 			Endpoint:   action.Path,
 			Method:     action.Method,
 			StatusCode: resp.StatusCode,
-			Severity:   "Critical",
+			Severity:   "critical",
 		}
 
 		// Success response with low privilege is a vulnerability
@@ -531,7 +531,7 @@ func (t *Tester) TestPathTraversalACL(ctx context.Context) ([]TestResult, error)
 			Endpoint:   payload,
 			Method:     "GET",
 			StatusCode: resp.StatusCode,
-			Severity:   "High",
+			Severity:   "high",
 		}
 
 		// If manipulated path gives access when normal path doesn't
@@ -603,11 +603,11 @@ func SummarizeResults(results []TestResult) map[string]int {
 		if r.Vulnerable {
 			summary["vulnerable"]++
 			switch r.Severity {
-			case "Critical":
+			case "critical":
 				summary["critical"]++
-			case "High":
+			case "high":
 				summary["high"]++
-			case "Medium":
+			case "medium":
 				summary["medium"]++
 			}
 		} else {

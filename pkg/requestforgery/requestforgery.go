@@ -260,7 +260,7 @@ func (t *Tester) TestRequestSplitting(ctx context.Context, param string) ([]Test
 			Technique:  p.Description,
 			Payload:    p.Payload,
 			StatusCode: resp.StatusCode,
-			Severity:   "Critical",
+			Severity:   "critical",
 		}
 
 		// Check for signs of injection
@@ -308,7 +308,7 @@ func (t *Tester) TestHostHeaderInjection(ctx context.Context) ([]TestResult, err
 			Technique:  "Host header manipulation",
 			Payload:    p.Host,
 			StatusCode: resp.StatusCode,
-			Severity:   "High",
+			Severity:   "high",
 		}
 
 		// Check if the injected host is reflected
@@ -361,7 +361,7 @@ func (t *Tester) TestMethodOverride(ctx context.Context, endpoint string) ([]Tes
 			Technique:  h.Header,
 			Payload:    h.Method,
 			StatusCode: resp.StatusCode,
-			Severity:   "Medium",
+			Severity:   "medium",
 		}
 
 		// DELETE/PUT returning success on POST could indicate method override works
@@ -406,7 +406,7 @@ func (t *Tester) TestProxyHeaderInjection(ctx context.Context) ([]TestResult, er
 			Technique:  p.Header,
 			Payload:    p.Value,
 			StatusCode: resp.StatusCode,
-			Severity:   "High",
+			Severity:   "high",
 		}
 
 		// Check if header value is reflected or affects behavior
@@ -463,7 +463,7 @@ func (t *Tester) TestRefererSpoofing(ctx context.Context, protectedPath string) 
 			Technique:  "Referer header spoofing",
 			Payload:    referer,
 			StatusCode: resp.StatusCode,
-			Severity:   "Medium",
+			Severity:   "medium",
 		}
 
 		// Check if spoofed Referer grants access
@@ -506,7 +506,7 @@ func (t *Tester) TestOriginSpoofing(ctx context.Context) ([]TestResult, error) {
 			Technique:  "Origin header spoofing",
 			Payload:    origin,
 			StatusCode: resp.StatusCode,
-			Severity:   "High",
+			Severity:   "high",
 		}
 
 		acao := resp.Header.Get("Access-Control-Allow-Origin")
@@ -519,7 +519,7 @@ func (t *Tester) TestOriginSpoofing(ctx context.Context) ([]TestResult, error) {
 			result.Evidence = fmt.Sprintf("ACAO: %s reflects Origin: %s", acao, origin)
 			if acac == "true" {
 				result.Description = "Origin reflected with credentials allowed (Critical)"
-				result.Severity = "Critical"
+				result.Severity = "critical"
 			}
 			result.Remediation = "Use whitelist for allowed origins, avoid reflecting Origin"
 		}
@@ -572,7 +572,7 @@ func (t *Tester) TestCacheKeyInjection(ctx context.Context) ([]TestResult, error
 			Technique:  p.Description,
 			Payload:    p.Param,
 			StatusCode: resp.StatusCode,
-			Severity:   "Medium",
+			Severity:   "medium",
 		}
 
 		// Check cache headers
@@ -649,11 +649,11 @@ func SummarizeResults(results []TestResult) map[string]int {
 		if r.Vulnerable {
 			summary["vulnerable"]++
 			switch r.Severity {
-			case "Critical":
+			case "critical":
 				summary["critical"]++
-			case "High":
+			case "high":
 				summary["high"]++
-			case "Medium":
+			case "medium":
 				summary["medium"]++
 			}
 		} else {

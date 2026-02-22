@@ -103,7 +103,7 @@ func (s *Scanner) Scan(ctx context.Context, targetURL string) (Result, error) {
 	result.Vulnerable = result.Frameable
 
 	if result.Vulnerable {
-		result.Severity = "MEDIUM"
+		result.Severity = "medium"
 		result.Evidence = s.buildEvidence(result)
 		s.config.NotifyVulnerabilityFound()
 	}

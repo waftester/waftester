@@ -447,7 +447,7 @@ func deduplicateAllFindings(r *ScanResult) {
 	if r.JSAnalysis != nil {
 		if n := len(r.JSAnalysis.Secrets); n > 0 {
 			r.TotalVulns += n
-			r.BySeverity["Critical"] += n
+			r.BySeverity["critical"] += n
 			r.ByCategory["jsanalyze"] = n
 		}
 		if n := len(r.JSAnalysis.DOMSinks); n > 0 {
@@ -464,7 +464,7 @@ func deduplicateAllFindings(r *ScanResult) {
 		}
 		if n := len(r.OSINT.Secrets); n > 0 {
 			r.TotalVulns += n
-			r.BySeverity["Critical"] += n
+			r.BySeverity["critical"] += n
 		}
 	}
 
@@ -472,7 +472,7 @@ func deduplicateAllFindings(r *ScanResult) {
 		n := len(r.VHosts)
 		r.ByCategory["vhost"] = n
 		r.TotalVulns += n
-		r.BySeverity["Low"] += n
+		r.BySeverity["low"] += n
 	}
 
 	// Informational categories (no TotalVulns contribution)

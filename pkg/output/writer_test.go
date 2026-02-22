@@ -626,7 +626,7 @@ func TestExecutionResults(t *testing.T) {
 			Duration:          10 * time.Second,
 			RequestsPerSec:    10.0,
 			StatusCodes:       map[int]int{200: 50, 403: 50},
-			SeverityBreakdown: map[string]int{"High": 30, "Medium": 70},
+			SeverityBreakdown: map[string]int{"high": 30, "medium": 70},
 			CategoryBreakdown: map[string]int{"sqli": 50, "xss": 50},
 			TopErrors:         []string{"error1", "error2"},
 		}
@@ -637,8 +637,8 @@ func TestExecutionResults(t *testing.T) {
 		if results.StatusCodes[200] != 50 {
 			t.Errorf("expected StatusCodes[200] = 50, got %d", results.StatusCodes[200])
 		}
-		if results.SeverityBreakdown["High"] != 30 {
-			t.Errorf("expected SeverityBreakdown[High] = 30, got %d", results.SeverityBreakdown["High"])
+		if results.SeverityBreakdown["high"] != 30 {
+			t.Errorf("expected SeverityBreakdown[high] = 30, got %d", results.SeverityBreakdown["high"])
 		}
 	})
 }

@@ -310,7 +310,7 @@ func (t *Tester) TestTypeJuggling(ctx context.Context, endpoint, param string) (
 			Parameter:  param,
 			Payload:    p.Value,
 			StatusCode: resp.StatusCode,
-			Severity:   "High",
+			Severity:   "high",
 		}
 
 		// Check for unexpected success
@@ -361,7 +361,7 @@ func (t *Tester) TestIntegerOverflow(ctx context.Context, endpoint, param string
 			Parameter:  param,
 			Payload:    p.Value,
 			StatusCode: resp.StatusCode,
-			Severity:   "High",
+			Severity:   "high",
 		}
 
 		// Check for error messages indicating overflow
@@ -410,7 +410,7 @@ func (t *Tester) TestFormatString(ctx context.Context, endpoint, param string) (
 			Parameter:  param,
 			Payload:    payload,
 			StatusCode: resp.StatusCode,
-			Severity:   "Critical",
+			Severity:   "critical",
 		}
 
 		// Check if format string was interpreted
@@ -460,7 +460,7 @@ func (t *Tester) TestNullByte(ctx context.Context, endpoint, param string) ([]Te
 			Parameter:  param,
 			Payload:    payload,
 			StatusCode: resp.StatusCode,
-			Severity:   "High",
+			Severity:   "high",
 		}
 
 		// Successful 200 with null byte in path could indicate vulnerability
@@ -508,7 +508,7 @@ func (t *Tester) TestUnicodeBypass(ctx context.Context, endpoint, param string) 
 			Parameter:  param,
 			Payload:    p.Payload,
 			StatusCode: resp.StatusCode,
-			Severity:   "Medium",
+			Severity:   "medium",
 		}
 
 		// Check if unicode characters bypassed filter
@@ -556,7 +556,7 @@ func (t *Tester) TestEncodingBypass(ctx context.Context, endpoint, param string)
 			Parameter:  param,
 			Payload:    p.Payload,
 			StatusCode: resp.StatusCode,
-			Severity:   "High",
+			Severity:   "high",
 		}
 
 		// Check if encoded payload was reflected (XSS) or executed
