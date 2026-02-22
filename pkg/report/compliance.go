@@ -279,7 +279,7 @@ func generateComplianceRecommendations(controls []ComplianceControl) []string {
 	}
 
 	if failCount == 0 && partialCount == 0 {
-		recs = append(recs, "✓ All assessed controls are passing. Continue monitoring.")
+		recs = append(recs, "[PASS] All assessed controls are passing. Continue monitoring.")
 	}
 
 	return recs

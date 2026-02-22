@@ -500,9 +500,9 @@ func TestTableWriter_EffectivenessScore(t *testing.T) {
 		if !strings.Contains(output, "Grade: B") {
 			t.Error("expected 'Grade: B'")
 		}
-		// Check for progress bar characters
-		if !strings.Contains(output, "█") || !strings.Contains(output, "░") {
-			t.Error("expected progress bar characters (█ and ░)")
+		// Check for progress bar characters (Unicode mode uses block elements)
+		if !strings.Contains(output, boxChars.BarFilled) || !strings.Contains(output, boxChars.BarEmpty) {
+			t.Error("expected progress bar characters")
 		}
 	})
 
@@ -879,5 +879,43 @@ func TestTableWriter_IntegrationSummaryWithResults(t *testing.T) {
 	}
 	if !strings.Contains(output, "Top Bypasses") {
 		t.Error("expected top bypasses section")
+	}
+}
+
+// TestTableWriter_ASCIIModeNoUnicode verifies that ASCII mode output contains
+// zero non-ASCII bytes. This catches hardcoded Unicode characters (like progress
+// bar █/░) that bypass the char-set fallback and render as garbled text on
+// Windows consoles with non-UTF-8 codepages.
+func TestTableWriter_ASCIIModeNoUnicode(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewTableWriter(buf, TableConfig{
+		Mode:           "summary",
+		DisableUnicode: true,
+		Width:          80,
+	})
+
+	// Feed a complete result + summary so every rendering path fires:
+	// header, totals, effectiveness bar, severity breakdown, top bypasses, footer.
+	w.Write(makeTableTestResultEvent("sqli-001", "sqli", events.SeverityCritical, events.OutcomeBypass))
+	w.Write(makeTableTestResultEvent("xss-001", "xss", events.SeverityHigh, events.OutcomeBlocked))
+	w.Write(makeTableTestSummaryEvent())
+	if err := w.Close(); err != nil {
+		t.Fatalf("close failed: %v", err)
+	}
+
+	output := buf.Bytes()
+	for i, b := range output {
+		if b > 0x7E {
+			// Show context around the offending byte.
+			start := i - 20
+			if start < 0 {
+				start = 0
+			}
+			end := i + 20
+			if end > len(output) {
+				end = len(output)
+			}
+			t.Fatalf("non-ASCII byte 0x%02X at offset %d; context: %q", b, i, output[start:end])
+		}
 	}
 }
