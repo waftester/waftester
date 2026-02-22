@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/attackconfig"
+	"github.com/waftester/waftester/pkg/httpclient"
 )
 
 // Algorithm represents JWT signing algorithms
@@ -1001,7 +1002,7 @@ type ScanResult struct {
 func (s *Scanner) Scan(ctx context.Context, target string) (*ScanResult, error) {
 	client := s.Client
 	if client == nil {
-		client = &http.Client{Timeout: s.Timeout}
+		client = httpclient.New(httpclient.WithTimeout(s.Timeout))
 	}
 
 	result := &ScanResult{}

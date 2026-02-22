@@ -732,11 +732,11 @@ func TestDefaultConfig(t *testing.T) {
 
 func TestBuildPayloadURL(t *testing.T) {
 	tests := []struct {
-		name       string
-		target     string
-		param      string
-		payload    string
-		wantErr    bool
+		name         string
+		target       string
+		param        string
+		payload      string
+		wantErr      bool
 		wantContains string
 	}{
 		{
@@ -906,8 +906,8 @@ func TestAnalyzeResponseEmptyBody(t *testing.T) {
 	d := NewDetector(DefaultConfig())
 
 	categories := []struct {
-		cat     Category
-		url     string
+		cat Category
+		url string
 	}{
 		{CategoryMetadata, "http://169.254.169.254/"},
 		{CategoryLocalhost, "http://127.0.0.1/"},
