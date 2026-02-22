@@ -183,14 +183,23 @@ fi
 # ============================================================================
 # CODE QUALITY — BLOCK HARDCODED SECRETS
 # ============================================================================
+# Only scan ADDED lines in staged diffs — existing code in a WAF testing tool
+# legitimately uses "token", "secret", etc. as identifiers and comparisons.
+# Add "// nosecret" on the same line to suppress false positives.
+SECRET_PATTERN='(password|secret|api_key|token|private_key)\s*[:=]\s*["\x27][^"\x27]{8,}'
 for file in $STAGED_FILES; do
     [ -f "$file" ] || continue
     case "$file" in
         *.env*|*.pem|*.key) continue ;; # Handled by .gitignore
         *_test.go) continue ;; # Test files use fake secrets for detection testing
     esac
-    if grep -nP '(password|secret|api_key|token|private_key)\s*[:=]\s*["\x27][^"\x27]{8,}' "$file" 2>/dev/null | head -1 | grep -qi .; then
-        echo "BLOCKED: $file may contain hardcoded secret" >&2
-        exit 1
+    # Extract only added lines (starting with +) from the staged diff.
+    ADDED_LINES=$(git diff --cached -U0 -- "$file" | grep '^+' | grep -v '^+++' || true)
+    if [ -n "$ADDED_LINES" ]; then
+        if echo "$ADDED_LINES" | grep -P "$SECRET_PATTERN" | grep -v '// nosecret' | head -1 | grep -qi .; then
+            echo "BLOCKED: $file may contain hardcoded secret (in added lines)" >&2
+            echo "  Suppress with: // nosecret" >&2
+            exit 1
+        fi
     fi
 done
