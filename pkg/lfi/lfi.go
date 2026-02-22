@@ -86,6 +86,7 @@ func (s *Scanner) Scan(ctx context.Context, targetURL string, params map[string]
 			result := s.testPayload(ctx, targetURL, param, payload, testParams)
 			if result.Vulnerable {
 				results = append(results, result)
+				s.config.NotifyVulnerabilityFound()
 			}
 		}
 	}

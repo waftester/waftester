@@ -282,6 +282,7 @@ func (t *Tester) TestParameter(ctx context.Context, baseURL string, param string
 				Technology:  t.config.Technology,
 				Remediation: GetHPPRemediation(),
 			})
+			t.config.NotifyVulnerabilityFound()
 		}
 	}
 
@@ -498,6 +499,7 @@ func (t *Tester) TestPOST(ctx context.Context, targetURL string, param string) (
 				Evidence:    evidence,
 				Remediation: GetHPPRemediation(),
 			})
+			t.config.NotifyVulnerabilityFound()
 		}
 	}
 
