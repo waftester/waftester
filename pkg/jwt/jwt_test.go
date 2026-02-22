@@ -1119,3 +1119,135 @@ func TestScanCallbackDedupBridge(t *testing.T) {
 		t.Errorf("callback count (%d) should match unique types (%d)", called, len(uniqueTypes))
 	}
 }
+
+// --- Round 3 regression tests ---
+
+func TestSignNullByteNone(t *testing.T) {
+	// "none\x00" should produce a valid unsigned token, not an error.
+	header := &Header{Alg: "none\x00", Typ: "JWT"}
+	claims := &Claims{Subject: "test"}
+
+	token, err := Sign(header, claims, nil)
+	if err != nil {
+		t.Fatalf("Sign with none\\x00 should succeed, got: %v", err)
+	}
+
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		t.Fatalf("expected 3 parts, got %d", len(parts))
+	}
+	if parts[2] != "" {
+		t.Errorf("none variant should have empty signature, got %q", parts[2])
+	}
+}
+
+func TestSignNullByteNoneMixedCase(t *testing.T) {
+	// "NoNe\x00" should also work via case-insensitive + null-strip.
+	header := &Header{Alg: "NoNe\x00", Typ: "JWT"}
+	claims := &Claims{Subject: "test"}
+
+	token, err := Sign(header, claims, nil)
+	if err != nil {
+		t.Fatalf("Sign with NoNe\\x00 should succeed, got: %v", err)
+	}
+
+	parts := strings.Split(token, ".")
+	if parts[2] != "" {
+		t.Errorf("none variant should have empty signature, got %q", parts[2])
+	}
+}
+
+func TestAnalyzeNoneCaseInsensitive(t *testing.T) {
+	// Tokens with alg="nOnE" should be flagged as critical.
+	variants := []string{"none", "None", "NONE", "nOnE", "NoNe"}
+
+	for _, alg := range variants {
+		t.Run(alg, func(t *testing.T) {
+			header := &Header{Alg: alg, Typ: "JWT"}
+			claims := &Claims{Subject: "test", IssuedAt: time.Now().Unix()}
+			token, err := Sign(header, claims, nil)
+			if err != nil {
+				t.Fatalf("Sign failed for alg=%q: %v", alg, err)
+			}
+
+			analysis, err := Analyze(token)
+			if err != nil {
+				t.Fatalf("Analyze failed: %v", err)
+			}
+			if analysis.Risk != "critical" {
+				t.Errorf("alg=%q should be critical, got %q", alg, analysis.Risk)
+			}
+		})
+	}
+}
+
+func TestAnalyzeNoneWithJKUKeepsCritical(t *testing.T) {
+	// alg=none + JKU present: risk should stay "critical", not downgrade to "high".
+	header := &Header{Alg: "none", Typ: "JWT", JKU: "https://evil.com/jwks"}
+	claims := &Claims{Subject: "test", IssuedAt: time.Now().Unix()}
+	token, err := Sign(header, claims, nil)
+	if err != nil {
+		t.Fatalf("Sign failed: %v", err)
+	}
+
+	// Forge the header to include JKU (Parse won't see it from Sign,
+	// so build a token manually).
+	parsed, err := Parse(token)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	parsed.Header.JKU = "https://evil.com/jwks"
+
+	// Re-encode with JKU in header.
+	headerBytes, _ := json.Marshal(parsed.Header)
+	claimsBytes, _ := json.Marshal(parsed.Claims)
+	forged := base64URLEncode(headerBytes) + "." + base64URLEncode(claimsBytes) + "."
+
+	analysis, err := Analyze(forged)
+	if err != nil {
+		t.Fatalf("Analyze failed: %v", err)
+	}
+	if analysis.Risk != "critical" {
+		t.Errorf("none+JKU should keep critical, got %q", analysis.Risk)
+	}
+}
+
+func TestCreateTokenDoesNotMutateClaims(t *testing.T) {
+	claims := &Claims{
+		Subject:   "user",
+		ExpiresAt: time.Now().Add(time.Hour).Unix(),
+	}
+
+	// IssuedAt is 0 before call.
+	if claims.IssuedAt != 0 {
+		t.Fatal("precondition: IssuedAt should be 0")
+	}
+
+	_, err := CreateToken(AlgHS256, claims, []byte("secret"))
+	if err != nil {
+		t.Fatalf("CreateToken failed: %v", err)
+	}
+
+	// After call, the caller's claims should still have IssuedAt == 0.
+	if claims.IssuedAt != 0 {
+		t.Error("CreateToken mutated caller's claims.IssuedAt")
+	}
+}
+
+func TestAnalyzeNullByteNoneVariant(t *testing.T) {
+	// A token with alg="none\x00" should be detected as critical.
+	header := &Header{Alg: "none\x00", Typ: "JWT"}
+	claims := &Claims{Subject: "test", IssuedAt: time.Now().Unix()}
+	token, err := Sign(header, claims, nil)
+	if err != nil {
+		t.Fatalf("Sign failed: %v", err)
+	}
+
+	analysis, err := Analyze(token)
+	if err != nil {
+		t.Fatalf("Analyze failed: %v", err)
+	}
+	if analysis.Risk != "critical" {
+		t.Errorf("none\\x00 should be critical, got %q", analysis.Risk)
+	}
+}
