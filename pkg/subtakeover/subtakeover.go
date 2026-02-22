@@ -269,6 +269,7 @@ func (t *Tester) CheckSubdomain(ctx context.Context, subdomain string) (*ScanRes
 				Type:      VulnCNAME,
 				Subdomain: subdomain,
 			})
+			t.config.NotifyVulnerabilityFound()
 			result.IsVulnerable = true
 		} else {
 			// Non-NXDOMAIN DNS errors should not be silently swallowed
