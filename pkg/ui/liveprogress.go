@@ -487,7 +487,7 @@ func (lp *LiveProgress) buildMetricsString() string {
 
 		icon := SanitizeString(m.Icon)
 		if icon == "" {
-			icon = "•"
+			icon = Icon("•", "-")
 		}
 
 		parts = append(parts, fmt.Sprintf("%s%s %s: %d%s", color, icon, m.Label, val, reset))
