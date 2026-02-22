@@ -99,6 +99,12 @@ func (s *Scanner) ScanEndpoint(ctx context.Context, endpoint string, method stri
 	for _, originalID := range ids {
 		testIDs := s.generateTestIDs(originalID)
 		for _, testID := range testIDs {
+			select {
+			case <-ctx.Done():
+				return results, ctx.Err()
+			default:
+			}
+
 			testURL := strings.Replace(endpoint, originalID, testID, 1)
 			result := s.testAccess(ctx, testURL, method, originalID, testID)
 			if result.Accessible {
