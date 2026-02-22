@@ -293,7 +293,7 @@ func (hw *HARWriter) resultToEntry(re *events.ResultEvent) harEntry {
 	if wirePayload != "" && methodHasBody(method) {
 		mimeType := "application/x-www-form-urlencoded"
 		if re.Evidence != nil {
-			if ct, ok := re.Evidence.RequestHeaders["Content-Type"]; ok {
+			if ct := headerValue(re.Evidence.RequestHeaders, "Content-Type"); ct != "" {
 				mimeType = ct
 			}
 		}
@@ -430,6 +430,7 @@ func statusText(code int) string {
 // bypassToResult converts a BypassEvent into a synthetic ResultEvent
 // so it can be rendered as a HAR entry (HTTP request/response pair).
 // Defaults Method to GET when unset to satisfy HAR spec requirements.
+// Propagates WAFDetected from AlertContext to WAFSignature for forensics.
 func bypassToResult(be *events.BypassEvent) *events.ResultEvent {
 	method := be.Details.Method
 	if method == "" {
@@ -450,8 +451,9 @@ func bypassToResult(be *events.BypassEvent) *events.ResultEvent {
 			Method: method,
 		},
 		Result: events.ResultInfo{
-			Outcome:    events.OutcomeBypass,
-			StatusCode: be.Details.StatusCode,
+			Outcome:      events.OutcomeBypass,
+			StatusCode:   be.Details.StatusCode,
+			WAFSignature: be.Context.WAFDetected,
 		},
 		Evidence: &events.Evidence{
 			Payload:     be.Details.Payload,
@@ -487,12 +489,13 @@ func sortNameValues(nv []harNameValue) {
 
 // buildRequestCookies parses the Cookie request header into individual
 // harCookie entries per HAR spec section 5.2.
+// Uses case-insensitive header lookup for HTTP/2 compatibility.
 func buildRequestCookies(ev *events.Evidence) []harCookie {
 	if ev == nil {
 		return []harCookie{}
 	}
-	cookieHeader, ok := ev.RequestHeaders["Cookie"]
-	if !ok || cookieHeader == "" {
+	cookieHeader := headerValue(ev.RequestHeaders, "Cookie")
+	if cookieHeader == "" {
 		return []harCookie{}
 	}
 	return parseCookieHeader(cookieHeader)
@@ -522,8 +525,10 @@ func parseCookieHeader(header string) []harCookie {
 
 // buildFormParams parses URL-encoded form data into HAR params when the
 // MIME type is application/x-www-form-urlencoded. Returns nil otherwise.
+// Uses base MIME type comparison to handle Content-Type parameters
+// like "; charset=utf-8".
 func buildFormParams(mimeType, body string) []harNameValue {
-	if mimeType != "application/x-www-form-urlencoded" {
+	if baseMIMEType(mimeType) != "application/x-www-form-urlencoded" {
 		return nil
 	}
 	values, err := url.ParseQuery(body)
@@ -557,6 +562,9 @@ func effectivePayload(ev *events.Evidence) string {
 // Maps ResponsePreview to content.text when available, and infers
 // the MIME type from the preview content rather than guessing from
 // request headers.
+// Size always reflects ContentLength from the actual HTTP response;
+// ResponsePreview is a truncated snippet and its length would misrepresent
+// the true response size.
 func buildResponseContent(re *events.ResultEvent) harContent {
 	c := harContent{
 		Size:     re.Result.ContentLength,
@@ -566,12 +574,36 @@ func buildResponseContent(re *events.ResultEvent) harContent {
 	if re.Evidence != nil && re.Evidence.ResponsePreview != "" {
 		c.Text = re.Evidence.ResponsePreview
 		c.MimeType = inferMIMEFromContent(re.Evidence.ResponsePreview)
-		if c.Size == 0 {
-			c.Size = len(re.Evidence.ResponsePreview)
-		}
 	}
 
 	return c
+}
+
+// headerValue returns the value of a header by name using case-insensitive
+// comparison. HTTP/2 normalizes header names to lowercase, but HTTP/1.1
+// preserves original casing — this handles both.
+func headerValue(headers map[string]string, name string) string {
+	if headers == nil {
+		return ""
+	}
+	// Fast path: exact match (common for HTTP/1.1 canonical headers).
+	if v, ok := headers[name]; ok {
+		return v
+	}
+	// Slow path: case-insensitive scan for HTTP/2 lowercase headers.
+	for k, v := range headers {
+		if strings.EqualFold(k, name) {
+			return v
+		}
+	}
+	return ""
+}
+
+// baseMIMEType extracts the base MIME type from a Content-Type header value,
+// stripping parameters like "; charset=utf-8".
+func baseMIMEType(contentType string) string {
+	base, _, _ := strings.Cut(contentType, ";")
+	return strings.TrimSpace(base)
 }
 
 // inferMIMEFromContent makes a best-effort guess at MIME type from content.
