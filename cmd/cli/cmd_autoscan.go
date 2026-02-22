@@ -734,6 +734,7 @@ func runAutoScan() {
 			ui.PrintError(errMsg)
 			if autoDispCtx != nil {
 				_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
+				_ = autoDispCtx.Close()
 			}
 			os.Exit(1) // intentional: CLI early exit on fatal error
 		}
@@ -743,6 +744,7 @@ func runAutoScan() {
 			ui.PrintError(errMsg)
 			if autoDispCtx != nil {
 				_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
+				_ = autoDispCtx.Close()
 			}
 			os.Exit(1) // intentional: CLI early exit on fatal error
 		}
@@ -1985,6 +1987,7 @@ func runAutoScan() {
 			ui.PrintError(errMsg)
 			if autoDispCtx != nil {
 				_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
+				_ = autoDispCtx.Close()
 			}
 			os.Exit(1)
 		}
@@ -2010,6 +2013,9 @@ func runAutoScan() {
 				allPayloads, _, reloadErr = loadUnifiedPayloads(payloadDir, templateDir, *verbose)
 				if reloadErr != nil {
 					ui.PrintError(fmt.Sprintf("Failed to reload payloads: %v", reloadErr))
+					if autoDispCtx != nil {
+						_ = autoDispCtx.Close()
+					}
 					os.Exit(1)
 				}
 			}
@@ -2316,6 +2322,7 @@ func runAutoScan() {
 			ui.PrintError(errMsg)
 			if autoDispCtx != nil {
 				_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
+				_ = autoDispCtx.Close()
 			}
 			os.Exit(1) // intentional: CLI early exit on fatal error
 		}
