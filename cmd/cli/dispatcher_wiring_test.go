@@ -33,7 +33,7 @@ func TestDispatcherWiringMinimumEmissions(t *testing.T) {
 		{"EmitBypass", 80, "bypass/discovery events across commands"},
 		{"EmitSummary", 25, "every command should emit completion summary"},
 		{"EmitError", 35, "error paths should emit errors"},
-		{"EmitResult", 4, "test-based commands should emit per-result telemetry"},
+		{"Emit(Detailed)?Result", 4, "test-based commands should emit per-result telemetry"},
 	}
 
 	for _, tc := range tests {
@@ -153,9 +153,9 @@ func TestTestBasedCommandsHaveEmitResult(t *testing.T) {
 
 	for _, dispName := range testBasedDispatchers {
 		t.Run(dispName, func(t *testing.T) {
-			emitResultPattern := regexp.MustCompile(dispName + `\.EmitResult\(`)
+			emitResultPattern := regexp.MustCompile(dispName + `\.Emit(Detailed)?Result\(`)
 			if !emitResultPattern.MatchString(sourceCode) {
-				t.Errorf("%s: missing EmitResult call - test-based commands must emit every test result", dispName)
+				t.Errorf("%s: missing EmitResult/EmitDetailedResult call - test-based commands must emit every test result", dispName)
 			}
 		})
 	}
@@ -198,8 +198,8 @@ func TestOnResultCallbacksHaveEmitResult(t *testing.T) {
 		}
 
 		callbackBody := sourceCode[bodyStart : pos-1]
-		if !strings.Contains(callbackBody, "EmitResult") {
-			t.Errorf("OnResult callback #%d is missing EmitResult call", i+1)
+		if !strings.Contains(callbackBody, "EmitResult") && !strings.Contains(callbackBody, "EmitDetailedResult") {
+			t.Errorf("OnResult callback #%d is missing EmitResult/EmitDetailedResult call", i+1)
 		}
 	}
 }
@@ -218,13 +218,13 @@ func TestMutationCallbacksHaveEmitResult(t *testing.T) {
 		return
 	}
 
-	// Check each callback has EmitResult
-	emitResultPattern := regexp.MustCompile(`DispCtx\.EmitResult\(`)
+	// Check each callback has EmitResult or EmitDetailedResult
+	emitResultPattern := regexp.MustCompile(`DispCtx\.Emit(Detailed)?Result\(`)
 	emitResultMatches := emitResultPattern.FindAllStringIndex(sourceCode, -1)
 
-	// We should have at least as many EmitResult calls as mutation callbacks
+	// We should have at least as many EmitResult/EmitDetailedResult calls as mutation callbacks
 	if len(emitResultMatches) < len(matches) {
-		t.Errorf("mutation callbacks (%d) exceed EmitResult calls (%d) - some callbacks are not wired",
+		t.Errorf("mutation callbacks (%d) exceed EmitResult/EmitDetailedResult calls (%d) - some callbacks are not wired",
 			len(matches), len(emitResultMatches))
 	}
 }

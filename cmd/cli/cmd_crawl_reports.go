@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"io"
+	"net/http"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/waftester/waftester/pkg/crawler"
@@ -12,12 +15,27 @@ import (
 	"github.com/waftester/waftester/pkg/ui"
 )
 
-// writeCrawlExports writes crawl results to enterprise export files (--json-export, --sarif-export, etc.).
+// writeCrawlExports writes crawl results to enterprise export files (--json-export, --sarif-export, --har-export, etc.).
 func writeCrawlExports(outFlags *OutputFlags, target string, results []*crawler.CrawlResult, forms []crawler.FormInfo, scripts, urls []string, duration time.Duration) {
 	if outFlags.JSONExport == "" && outFlags.JSONLExport == "" && outFlags.SARIFExport == "" &&
 		outFlags.CSVExport == "" && outFlags.HTMLExport == "" && outFlags.MDExport == "" &&
-		outFlags.JUnitExport == "" && outFlags.PDFExport == "" {
+		outFlags.JUnitExport == "" && outFlags.PDFExport == "" && outFlags.HARExport == "" {
 		return
+	}
+
+	if outFlags.HARExport != "" {
+		f, err := os.Create(outFlags.HARExport)
+		if err != nil {
+			ui.PrintError(fmt.Sprintf("HAR export: %v", err))
+		} else {
+			if err := writeCrawlHAR(f, target, results, duration); err != nil {
+				_ = f.Close()
+				ui.PrintError(fmt.Sprintf("HAR export: %v", err))
+			} else {
+				_ = f.Close()
+				ui.PrintSuccess(fmt.Sprintf("HAR export saved to %s", outFlags.HARExport))
+			}
+		}
 	}
 
 	if outFlags.JUnitExport != "" {
@@ -199,4 +217,152 @@ func buildCrawlSARIF(target string, results []*crawler.CrawlResult, forms []craw
 			},
 		},
 	}
+}
+
+// writeCrawlHAR writes crawl results as a HAR 1.2 document.
+// Each crawled page becomes an entry with response headers and content info.
+func writeCrawlHAR(w io.Writer, target string, results []*crawler.CrawlResult, dur time.Duration) error {
+	type nv struct {
+		Name  string `json:"name"`
+		Value string `json:"value"`
+	}
+	type harContent struct {
+		Size     int    `json:"size"`
+		MimeType string `json:"mimeType"`
+	}
+	type harTimings struct {
+		Send    float64 `json:"send"`
+		Wait    float64 `json:"wait"`
+		Receive float64 `json:"receive"`
+	}
+	type harRequest struct {
+		Method      string `json:"method"`
+		URL         string `json:"url"`
+		HTTPVersion string `json:"httpVersion"`
+		Headers     []nv   `json:"headers"`
+		QueryString []nv   `json:"queryString"`
+		Cookies     []nv   `json:"cookies"`
+		HeadersSize int    `json:"headersSize"`
+		BodySize    int    `json:"bodySize"`
+	}
+	type harResponse struct {
+		Status      int        `json:"status"`
+		StatusText  string     `json:"statusText"`
+		HTTPVersion string     `json:"httpVersion"`
+		Headers     []nv       `json:"headers"`
+		Cookies     []nv       `json:"cookies"`
+		Content     harContent `json:"content"`
+		RedirectURL string     `json:"redirectURL"`
+		HeadersSize int        `json:"headersSize"`
+		BodySize    int        `json:"bodySize"`
+	}
+	type harEntry struct {
+		Pageref         string      `json:"pageref"`
+		StartedDateTime string      `json:"startedDateTime"`
+		Time            float64     `json:"time"`
+		Request         harRequest  `json:"request"`
+		Response        harResponse `json:"response"`
+		Cache           struct{}    `json:"cache"`
+		Timings         harTimings  `json:"timings"`
+		Comment         string      `json:"comment,omitempty"`
+	}
+
+	pageID := "page_1"
+	var startTime string
+	if len(results) > 0 && !results[0].Timestamp.IsZero() {
+		startTime = results[0].Timestamp.Format("2006-01-02T15:04:05.000Z")
+	} else {
+		startTime = time.Now().Format("2006-01-02T15:04:05.000Z")
+	}
+
+	entries := make([]harEntry, 0, len(results))
+	for _, r := range results {
+		// Convert http.Header to HAR name-value pairs
+		var respHeaders []nv
+		if r.Headers != nil {
+			keys := make([]string, 0, len(r.Headers))
+			for k := range r.Headers {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			for _, k := range keys {
+				for _, v := range r.Headers[k] {
+					respHeaders = append(respHeaders, nv{Name: k, Value: v})
+				}
+			}
+		}
+		if respHeaders == nil {
+			respHeaders = []nv{}
+		}
+
+		mimeType := r.ContentType
+		if mimeType == "" {
+			mimeType = "text/html"
+		}
+
+		ts := startTime
+		if !r.Timestamp.IsZero() {
+			ts = r.Timestamp.Format("2006-01-02T15:04:05.000Z")
+		}
+
+		comment := fmt.Sprintf("depth=%d", r.Depth)
+		if r.Title != "" {
+			comment += " title=" + r.Title
+		}
+
+		entries = append(entries, harEntry{
+			Pageref:         pageID,
+			StartedDateTime: ts,
+			Time:            0,
+			Request: harRequest{
+				Method:      "GET",
+				URL:         r.URL,
+				HTTPVersion: "HTTP/1.1",
+				Headers:     []nv{},
+				QueryString: []nv{},
+				Cookies:     []nv{},
+				HeadersSize: -1,
+				BodySize:    -1,
+			},
+			Response: harResponse{
+				Status:      r.StatusCode,
+				StatusText:  http.StatusText(r.StatusCode),
+				HTTPVersion: "HTTP/1.1",
+				Headers:     respHeaders,
+				Cookies:     []nv{},
+				Content:     harContent{Size: r.ContentLength, MimeType: mimeType},
+				RedirectURL: "",
+				HeadersSize: -1,
+				BodySize:    r.ContentLength,
+			},
+			Cache: struct{}{},
+			Timings: harTimings{
+				Send:    0,
+				Wait:    0,
+				Receive: 0,
+			},
+			Comment: comment,
+		})
+	}
+
+	doc := map[string]interface{}{
+		"log": map[string]interface{}{
+			"version": "1.2",
+			"creator": map[string]string{
+				"name":    "waftester",
+				"version": defaults.Version,
+			},
+			"pages": []map[string]interface{}{{
+				"startedDateTime": startTime,
+				"id":              pageID,
+				"title":           "WAFtester Crawl: " + target,
+				"pageTimings":     map[string]float64{"onLoad": float64(dur.Milliseconds())},
+			}},
+			"entries": entries,
+		},
+	}
+
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(doc)
 }

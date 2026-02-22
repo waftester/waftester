@@ -13,8 +13,13 @@ import (
 // writeProbeExports writes probe results to enterprise export files (--json-export, --sarif-export, etc.).
 func writeProbeExports(outFlags *OutputFlags, results []*ProbeResults, elapsed time.Duration) {
 	if outFlags.JSONExport == "" && outFlags.JSONLExport == "" && outFlags.SARIFExport == "" &&
-		outFlags.CSVExport == "" && outFlags.HTMLExport == "" && outFlags.MDExport == "" {
+		outFlags.CSVExport == "" && outFlags.HTMLExport == "" && outFlags.MDExport == "" &&
+		outFlags.HARExport == "" {
 		return
+	}
+
+	if outFlags.HARExport != "" {
+		ui.PrintWarning("HAR export is not supported for probe (no individual HTTP request data)")
 	}
 
 	if outFlags.JSONExport != "" {
