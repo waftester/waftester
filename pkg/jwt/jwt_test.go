@@ -770,3 +770,40 @@ func TestVulnerabilityRemediation(t *testing.T) {
 		}
 	}
 }
+
+func TestCallbackCountMatchesDedupGranularity(t *testing.T) {
+	// Regression test: the OnVulnerabilityFound callback must fire once per
+	// unique AttackType, matching the dedup key in dedup.go (string(v.Type)).
+	// Before the fix, GenerateMaliciousTokens fired 28 callbacks for 5 types.
+	attacker := NewAttacker()
+
+	var callbackCount int
+	attacker.OnVulnerabilityFound = func() { callbackCount++ }
+
+	token, err := CreateToken(AlgHS256, &Claims{Subject: "test"}, []byte("secret"))
+	if err != nil {
+		t.Fatalf("create token: %v", err)
+	}
+
+	vulns, err := attacker.GenerateMaliciousTokens(token)
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+
+	// Count unique attack types in the returned vulns.
+	uniqueTypes := make(map[AttackType]struct{})
+	for _, v := range vulns {
+		uniqueTypes[v.Type] = struct{}{}
+	}
+
+	if callbackCount != len(uniqueTypes) {
+		t.Errorf("callback count (%d) != unique types (%d); vulns returned: %d",
+			callbackCount, len(uniqueTypes), len(vulns))
+	}
+
+	// Sanity: we should have more vulns than unique types (variants exist).
+	if len(vulns) <= len(uniqueTypes) {
+		t.Errorf("expected more vuln variants (%d) than unique types (%d)",
+			len(vulns), len(uniqueTypes))
+	}
+}
