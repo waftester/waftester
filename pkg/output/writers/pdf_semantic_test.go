@@ -588,12 +588,12 @@ func TestPDF_ContainsLatencyProfile(t *testing.T) {
 	p := generatePDF(t, PDFConfig{}, nil, summary)
 
 	p.assertContainsText("Response Latency Profile")
-	p.assertContainsText("12 ms")   // Min
-	p.assertContainsText("850 ms")  // Max
-	p.assertContainsText("145 ms")  // Avg
-	p.assertContainsText("120 ms")  // P50
-	p.assertContainsText("480 ms")  // P95
-	p.assertContainsText("720 ms")  // P99
+	p.assertContainsText("12 ms")  // Min
+	p.assertContainsText("850 ms") // Max
+	p.assertContainsText("145 ms") // Avg
+	p.assertContainsText("120 ms") // P50
+	p.assertContainsText("480 ms") // P95
+	p.assertContainsText("720 ms") // P99
 }
 
 func TestPDF_LatencyProfile_NoDataSkipsSection(t *testing.T) {
@@ -613,7 +613,7 @@ func TestPDF_ContainsScanConfiguration(t *testing.T) {
 	p.assertContainsText("Appendix: Scan Configuration")
 	p.assertContainsText("https://example.com")
 	p.assertContainsText("Cloudflare")
-	p.assertContainsText("100")      // Total tests
+	p.assertContainsText("100")       // Total tests
 	p.assertContainsText("completed") // Exit reason
 }
 

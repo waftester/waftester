@@ -407,12 +407,12 @@ func TestPDFWriter_TruncateString(t *testing.T) {
 		{"hello", 0, ""},   // maxLen 0: empty
 
 		// Multi-byte rune safety: truncation must not split UTF-8 code points.
-		{"héllo world!!", 5, "hé..."},            // 13 runes truncated to 5 rune-safely
-		{"日本語テスト", 4, "日..."},              // CJK: 6 runes, truncate to 4
-		{"日本語テスト", 6, "日本語テスト"},        // exact fit
-		{"日本語テスト", 7, "日本語テスト"},        // over fit — return original
-		{"aé", 2, "aé"},                          // 3 bytes, 2 runes — fits
-		{"café long string", 6, "caf..."},         // mixed ASCII + multi-byte
+		{"héllo world!!", 5, "hé..."},     // 13 runes truncated to 5 rune-safely
+		{"日本語テスト", 4, "日..."},             // CJK: 6 runes, truncate to 4
+		{"日本語テスト", 6, "日本語テスト"},           // exact fit
+		{"日本語テスト", 7, "日本語テスト"},           // over fit — return original
+		{"aé", 2, "aé"},                   // 3 bytes, 2 runes — fits
+		{"café long string", 6, "caf..."}, // mixed ASCII + multi-byte
 	}
 
 	for _, tc := range tests {
