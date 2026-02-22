@@ -206,7 +206,6 @@ func NewTester(config *TesterConfig) *Tester {
 // FuzzEndpoint fuzzes a single API endpoint.
 func (t *Tester) FuzzEndpoint(ctx context.Context, baseURL string, endpoint Endpoint) ([]Vulnerability, error) {
 	var vulns []Vulnerability
-	var mu sync.Mutex
 
 	// Generate fuzz cases for each parameter
 	for _, param := range endpoint.Parameters {
@@ -225,9 +224,7 @@ func (t *Tester) FuzzEndpoint(ctx context.Context, baseURL string, endpoint Endp
 			}
 
 			if vuln := t.analyzeResponse(endpoint, param, payload, resp); vuln != nil {
-				mu.Lock()
 				vulns = append(vulns, *vuln)
-				mu.Unlock()
 				t.config.NotifyVulnerabilityFound()
 			}
 
@@ -241,16 +238,24 @@ func (t *Tester) FuzzEndpoint(ctx context.Context, baseURL string, endpoint Endp
 	if endpoint.RequestBody != nil {
 		bodyPayloads := t.generateBodyPayloads(endpoint.RequestBody)
 		for _, payload := range bodyPayloads {
+			select {
+			case <-ctx.Done():
+				return vulns, ctx.Err()
+			default:
+			}
+
 			resp, err := t.sendBodyFuzzRequest(ctx, baseURL, endpoint, payload)
 			if err != nil {
 				continue
 			}
 
 			if vuln := t.analyzeBodyResponse(endpoint, payload, resp); vuln != nil {
-				mu.Lock()
 				vulns = append(vulns, *vuln)
-				mu.Unlock()
 				t.config.NotifyVulnerabilityFound()
+			}
+
+			if t.config.DelayBetween > 0 {
+				time.Sleep(t.config.DelayBetween)
 			}
 		}
 	}
@@ -266,7 +271,12 @@ func (t *Tester) FuzzAPI(ctx context.Context, baseURL string, endpoints []Endpoi
 
 	sem := make(chan struct{}, t.config.Concurrency)
 
+	var firstErr error
 	for _, endpoint := range endpoints {
+		if ctx.Err() != nil {
+			break
+		}
+
 		wg.Add(1)
 		go func(ep Endpoint) {
 			defer wg.Done()
@@ -275,18 +285,20 @@ func (t *Tester) FuzzAPI(ctx context.Context, baseURL string, endpoints []Endpoi
 			defer func() { <-sem }()
 
 			endpointVulns, err := t.FuzzEndpoint(ctx, baseURL, ep)
-			if err != nil {
-				return
-			}
-
 			mu.Lock()
-			vulns = append(vulns, endpointVulns...)
+			if err != nil {
+				if firstErr == nil {
+					firstErr = err
+				}
+			} else {
+				vulns = append(vulns, endpointVulns...)
+			}
 			mu.Unlock()
 		}(endpoint)
 	}
 
 	wg.Wait()
-	return vulns, nil
+	return vulns, firstErr
 }
 
 // generatePayloads generates fuzz payloads for a parameter.
@@ -409,14 +421,20 @@ func (t *Tester) boundaryPayloads(param Parameter) []string {
 	}
 	payloads = append(payloads, intBoundaries...)
 
-	// Length boundaries
+	// Length boundaries (cap to prevent OOM on huge schema values)
+	const maxBoundaryLen = 100_000
 	if param.MaxLength != nil {
 		max := *param.MaxLength
-		payloads = append(payloads,
-			strings.Repeat("A", max),
-			strings.Repeat("A", max+1),
-			strings.Repeat("A", max+100),
-		)
+		if max > maxBoundaryLen {
+			max = maxBoundaryLen
+		}
+		if max >= 0 {
+			payloads = append(payloads,
+				strings.Repeat("A", max),
+				strings.Repeat("A", max+1),
+				strings.Repeat("A", max+100),
+			)
+		}
 	}
 
 	if param.MinLength != nil && *param.MinLength > 0 {
@@ -592,13 +610,12 @@ func (t *Tester) sendFuzzRequest(ctx context.Context, baseURL string, endpoint E
 	case "query":
 		u, parseErr := url.Parse(fullURL)
 		if parseErr != nil {
-			req, err = http.NewRequestWithContext(ctx, endpoint.Method, fullURL, nil)
-		} else {
-			q := u.Query()
-			q.Set(param.Name, payload)
-			u.RawQuery = q.Encode()
-			req, err = http.NewRequestWithContext(ctx, endpoint.Method, u.String(), nil)
+			return nil, fmt.Errorf("parsing URL %q: %w", fullURL, parseErr)
 		}
+		q := u.Query()
+		q.Set(param.Name, payload)
+		u.RawQuery = q.Encode()
+		req, err = http.NewRequestWithContext(ctx, endpoint.Method, u.String(), nil)
 
 	case "path":
 		fullURL = strings.Replace(fullURL, "{"+param.Name+"}", url.PathEscape(payload), 1)
@@ -855,9 +872,14 @@ func hasErrorIndicator(body string) bool {
 	return false
 }
 
+// minReflectionLen is the minimum payload length to check for reflection.
+// Shorter payloads (empty string, "0", "1", "true", etc.) match almost
+// every response body, flooding results with false positives.
+const minReflectionLen = 8
+
 func hasInjectionIndicator(body, payload string) bool {
-	// Check if payload is reflected
-	if strings.Contains(body, payload) {
+	// Check if payload is reflected (skip short payloads that match everything)
+	if len(payload) >= minReflectionLen && strings.Contains(body, payload) {
 		return true
 	}
 
@@ -886,11 +908,7 @@ func hasInfoDisclosure(body string) bool {
 }
 
 func extractEvidence(body string) string {
-	// Extract first 500 chars or less
-	if len(body) > 500 {
-		return body[:500] + "..."
-	}
-	return body
+	return strutil.Truncate(body, 500)
 }
 
 // DefaultDictionary returns default fuzzing dictionary.
