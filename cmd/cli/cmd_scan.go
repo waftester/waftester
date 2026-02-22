@@ -858,7 +858,7 @@ func runScan() {
 	}
 
 	// Determine output mode for progress
-	outputMode := ui.OutputModeInteractive
+	outputMode := ui.DefaultOutputMode()
 	if *streamMode {
 		outputMode = ui.OutputModeStreaming
 	}
@@ -3112,12 +3112,17 @@ func runScan() {
 
 	// Print scan completion summary to stderr (never pollute stdout used for JSON/structured output)
 	if !streamJSON {
-		vulnColor := "\033[32m" // Green
-		if result.TotalVulns > 0 {
-			vulnColor = "\033[33m" // Yellow
-		}
-		if result.TotalVulns > 5 {
-			vulnColor = "\033[31m" // Red
+		vulnColor := ""
+		colorReset := ""
+		if ui.StderrIsTerminal() {
+			vulnColor = "\033[32m" // Green
+			if result.TotalVulns > 0 {
+				vulnColor = "\033[33m" // Yellow
+			}
+			if result.TotalVulns > 5 {
+				vulnColor = "\033[31m" // Red
+			}
+			colorReset = "\033[0m"
 		}
 		vulnWord := "vulnerabilities"
 		if result.TotalVulns == 1 {
@@ -3129,7 +3134,7 @@ func runScan() {
 		}
 		fmt.Fprintln(os.Stderr) // debug:keep
 		ui.PrintSuccess(fmt.Sprintf("Scan complete in %s", result.Duration.Round(time.Millisecond)))
-		fmt.Fprintf(os.Stderr, "  %s Results: %s%d %s\033[0m across %d %s\n", ui.Icon("📊", "#"), vulnColor, result.TotalVulns, vulnWord, totalScans, typeWord) // debug:keep
+		fmt.Fprintf(os.Stderr, "  %s Results: %s%d %s%s across %d %s\n", ui.Icon("📊", "#"), vulnColor, result.TotalVulns, vulnWord, colorReset, totalScans, typeWord) // debug:keep
 		if errCount := atomic.LoadInt32(&scanErrors); errCount > 0 {
 			ui.PrintWarning(fmt.Sprintf("%d scanner(s) encountered errors (use -verbose for details)", errCount))
 		}

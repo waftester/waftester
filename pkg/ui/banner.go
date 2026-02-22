@@ -65,6 +65,8 @@ func SetNoColor(noColor bool) {
 	if noColor {
 		// Use ASCII profile to disable colors
 		lipgloss.SetColorProfile(termenv.Ascii)
+		// Also disable raw ANSI constants in styles.go
+		disableRawColors()
 	}
 }
 

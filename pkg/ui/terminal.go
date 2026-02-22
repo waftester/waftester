@@ -16,7 +16,33 @@ import (
 var (
 	unicodeOnce sync.Once
 	unicodeOK   bool
+
+	terminalOnce sync.Once
+	terminalOK   bool
+
+	stdoutOnce sync.Once
+	stdoutOK   bool
 )
+
+// StderrIsTerminal reports whether stderr is connected to an
+// interactive terminal (not piped or redirected to a file).
+// Result is cached after the first call.
+func StderrIsTerminal() bool {
+	terminalOnce.Do(func() {
+		terminalOK = term.IsTerminal(int(os.Stderr.Fd()))
+	})
+	return terminalOK
+}
+
+// StdoutIsTerminal reports whether stdout is connected to an
+// interactive terminal (not piped or redirected to a file).
+// Result is cached after the first call.
+func StdoutIsTerminal() bool {
+	stdoutOnce.Do(func() {
+		stdoutOK = term.IsTerminal(int(os.Stdout.Fd()))
+	})
+	return stdoutOK
+}
 
 // UnicodeTerminal reports whether stderr can render Unicode glyphs
 // (braille spinners, emoji). Returns false when output is piped,
