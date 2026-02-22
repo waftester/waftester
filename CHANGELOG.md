@@ -5,6 +5,24 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.25] - 2026-02-22
+
+### Added
+
+- **Real-time vulnerability counter in scan progress bar** — Live "vulns" metric tracks unique findings during execution across all 30+ scanner packages. Callbacks are deduplicated using composite keys matching each scanner's dedup logic, so the progress counter matches the final post-scan count.
+- **HAR 1.2 export across all commands** — `scan`, `bypass`, `fuzz`, `crawl`, `assess`, and `auto` commands now support `-har-export` for HTTP Archive output with full request/response headers, page grouping, and scan findings embedded as comments.
+- **Short flag aliases** — `-t` (types), `-q` (quiet), `-cat` (category) shorthand flags for `scan` and `run` commands.
+
+### Fixed
+
+- **HAR writer: 27 fixes** — Request data population, response headers, page grouping, scan findings linkage, double-write in multi-category scans, content size accuracy, case-insensitive header lookups, and MIME type charset handling.
+- **Dispatcher flush on os.Exit** — 28 exit paths across all CLI commands now explicitly close the output dispatcher before `os.Exit`, preventing 0-byte output files from buffered writers (HAR, SARIF, XML).
+- **Context cancellation in 12 scanner loops** — Added `ctx.Err()` checks in payload loops for ldap, nosqli, ssi, rfi, lfi, crlf, hpp, prototype, csrf, clickjack, idor, rce, and redirect. Scans stop promptly on cancellation instead of testing remaining payloads.
+- **Host header scanner FD leak** — Moved `defer DrainAndClose(resp.Body)` out of `TestURL` payload loop. Response bodies now close immediately after reading instead of accumulating until function return.
+- **API fuzzer: 9 bug fixes** — Nil pointer panic in `sendFuzzRequest` for unsupported param locations, plus 8 additional correctness fixes across apifuzz and scan integration.
+- **Windows Unicode detection** — Auto-detect Unicode support on piped output to prevent garbled characters in CI environments.
+- **Secret detection hook** — Pre-commit hook now scans only added lines instead of the full diff, reducing false positives from existing code.
+
 ## [2.9.24] - 2026-02-21
 
 ### Fixed
@@ -2409,6 +2427,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.25]: https://github.com/waftester/waftester/compare/v2.9.24...v2.9.25
 [2.9.24]: https://github.com/waftester/waftester/compare/v2.9.23...v2.9.24
 [2.9.23]: https://github.com/waftester/waftester/compare/v2.9.22...v2.9.23
 [2.9.22]: https://github.com/waftester/waftester/compare/v2.9.21...v2.9.22
