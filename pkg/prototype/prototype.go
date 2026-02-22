@@ -217,6 +217,7 @@ func (t *Tester) TestParameter(ctx context.Context, baseURL string, param string
 			}
 			if vuln != nil {
 				vulns = append(vulns, *vuln)
+				t.config.NotifyVulnerabilityFound()
 			}
 		} else {
 			// Test in query string
@@ -226,6 +227,7 @@ func (t *Tester) TestParameter(ctx context.Context, baseURL string, param string
 			}
 			if vuln != nil {
 				vulns = append(vulns, *vuln)
+				t.config.NotifyVulnerabilityFound()
 			}
 		}
 	}
