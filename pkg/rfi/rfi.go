@@ -75,6 +75,12 @@ func (s *Scanner) Scan(ctx context.Context, targetURL string, params map[string]
 
 	for param := range params {
 		for _, payload := range Payloads(s.config.CallbackURL) {
+			select {
+			case <-ctx.Done():
+				return results, ctx.Err()
+			default:
+			}
+
 			testParams := make(map[string]string)
 			for k, v := range params {
 				testParams[k] = v
