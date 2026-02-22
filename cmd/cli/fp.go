@@ -188,6 +188,7 @@ func runFP() {
 		// Emit error to hooks
 		if fpDispCtx != nil {
 			_ = fpDispCtx.EmitError(fpCtx, "fp", fmt.Sprintf("FP test error: %v", err), true)
+			_ = fpDispCtx.Close()
 		}
 		ui.PrintError(fmt.Sprintf("%v", err))
 		os.Exit(1)

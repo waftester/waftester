@@ -126,6 +126,7 @@ func runTests() {
 			ui.PrintHelp("Run 'waf-tester learn -discovery <file>' first to generate a test plan")
 			if runDispCtx != nil {
 				_ = runDispCtx.EmitError(ctx, "run", errMsg, true)
+				_ = runDispCtx.Close()
 			}
 			os.Exit(1)
 		}
@@ -269,6 +270,7 @@ func runTests() {
 		ui.PrintError(errMsg)
 		if runDispCtx != nil {
 			_ = runDispCtx.EmitError(ctx, "run", errMsg, true)
+			_ = runDispCtx.Close()
 		}
 		os.Exit(1)
 	}
@@ -602,6 +604,12 @@ func runTests() {
 	// Default exit logic if no policy/baseline configured
 	if pol == nil && bl == nil && aggregatedResults.FailedTests > 0 {
 		exitCode = 1
+	}
+
+	// Close dispatcher explicitly before os.Exit — os.Exit skips defers,
+	// which would leave buffered writers (HAR, SARIF, etc.) unflushed.
+	if runDispCtx != nil {
+		_ = runDispCtx.Close()
 	}
 
 	if exitCode != 0 {

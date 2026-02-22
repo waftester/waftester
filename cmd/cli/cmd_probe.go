@@ -455,12 +455,16 @@ func runProbe() {
 		ui.PrintError(errMsg)
 		if probeDispCtx != nil {
 			_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
+			_ = probeDispCtx.Close()
 		}
 		os.Exit(1)
 	}
 
 	if len(targets) == 0 {
 		ui.PrintError("No targets specified. Use -u URL, -l file.txt, or pipe to stdin")
+		if probeDispCtx != nil {
+			_ = probeDispCtx.Close()
+		}
 		os.Exit(1)
 	}
 
@@ -626,6 +630,7 @@ func runProbe() {
 			ui.PrintError(errMsg)
 			if probeDispCtx != nil {
 				_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
+				_ = probeDispCtx.Close()
 			}
 			os.Exit(1)
 		}
@@ -2391,7 +2396,10 @@ func runProbe() {
 			if err != nil {
 				errMsg := fmt.Sprintf("JSON encoding error: %v", err)
 				ui.PrintError(errMsg)
-				_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
+				if probeDispCtx != nil {
+					_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
+					_ = probeDispCtx.Close()
+				}
 				os.Exit(1)
 			}
 
@@ -2399,7 +2407,10 @@ func runProbe() {
 				if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
 					errMsg := fmt.Sprintf("Error writing output: %v", err)
 					ui.PrintError(errMsg)
-					_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
+					if probeDispCtx != nil {
+						_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
+						_ = probeDispCtx.Close()
+					}
 					os.Exit(1)
 				}
 				ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))

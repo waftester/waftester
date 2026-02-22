@@ -89,7 +89,10 @@ func runLearn() {
 		errMsg := fmt.Sprintf("Error loading discovery file: %v", err)
 		ui.PrintError(errMsg)
 		ui.PrintHelp("Run 'waf-tester discover' first to generate discovery.json")
-		_ = learnDispCtx.EmitError(learnCtx, "learn", errMsg, true)
+		if learnDispCtx != nil {
+			_ = learnDispCtx.EmitError(learnCtx, "learn", errMsg, true)
+			_ = learnDispCtx.Close()
+		}
 		os.Exit(1)
 	}
 
@@ -163,7 +166,10 @@ func runLearn() {
 	if err := plan.SavePlan(*outputPlan); err != nil {
 		errMsg := fmt.Sprintf("Error saving test plan: %v", err)
 		ui.PrintError(errMsg)
-		_ = learnDispCtx.EmitError(learnCtx, "learn", errMsg, true)
+		if learnDispCtx != nil {
+			_ = learnDispCtx.EmitError(learnCtx, "learn", errMsg, true)
+			_ = learnDispCtx.Close()
+		}
 		os.Exit(1)
 	}
 	ui.PrintSuccess(fmt.Sprintf("Test plan saved to %s", *outputPlan))
@@ -173,7 +179,10 @@ func runLearn() {
 		if err := plan.GeneratePayloadFile(*outputPayloads); err != nil {
 			errMsg := fmt.Sprintf("Error saving custom payloads: %v", err)
 			ui.PrintError(errMsg)
-			_ = learnDispCtx.EmitError(learnCtx, "learn", errMsg, true)
+			if learnDispCtx != nil {
+				_ = learnDispCtx.EmitError(learnCtx, "learn", errMsg, true)
+				_ = learnDispCtx.Close()
+			}
 			os.Exit(1)
 		}
 		ui.PrintSuccess(fmt.Sprintf("Custom payloads saved to %s", *outputPayloads))

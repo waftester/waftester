@@ -629,6 +629,7 @@ func runFuzz() {
 			ui.PrintError(errMsg)
 			if fuzzDispCtx != nil {
 				_ = fuzzDispCtx.EmitError(context.Background(), "fuzz", errMsg, true)
+				_ = fuzzDispCtx.Close()
 			}
 			os.Exit(1)
 		}
@@ -639,6 +640,7 @@ func runFuzz() {
 				ui.PrintError(errMsg)
 				if fuzzDispCtx != nil {
 					_ = fuzzDispCtx.EmitError(context.Background(), "fuzz", errMsg, true)
+					_ = fuzzDispCtx.Close()
 				}
 				os.Exit(1)
 			}

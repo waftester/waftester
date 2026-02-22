@@ -105,6 +105,7 @@ func runDiscover() {
 		ui.PrintError(errMsg)
 		if discoverDispCtx != nil {
 			_ = discoverDispCtx.EmitError(ctx, "discover", errMsg, true)
+			_ = discoverDispCtx.Close()
 		}
 		os.Exit(1)
 	}
@@ -253,6 +254,7 @@ func runDiscover() {
 		ui.PrintError(errMsg)
 		if discoverDispCtx != nil {
 			_ = discoverDispCtx.EmitError(discoverCtx, "discover", errMsg, true)
+			_ = discoverDispCtx.Close()
 		}
 		os.Exit(1)
 	}

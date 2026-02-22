@@ -106,6 +106,7 @@ func runVendorDetect() {
 		// Emit error to hooks
 		if vendorDispCtx != nil {
 			_ = vendorDispCtx.EmitError(vendorCtx, "vendor", fmt.Sprintf("Vendor detection error: %v", err), true)
+			_ = vendorDispCtx.Close()
 		}
 		ui.PrintError(fmt.Sprintf("%v", err))
 		os.Exit(1)
