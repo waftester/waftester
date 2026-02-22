@@ -256,6 +256,12 @@ func (t *Tester) TestParameter(ctx context.Context, baseURL string, param string
 	payloads := t.GetPayloads(param)
 
 	for _, payload := range payloads {
+		select {
+		case <-ctx.Done():
+			return vulns, ctx.Err()
+		default:
+		}
+
 		// Construct test URL
 		testURL := baseURL
 		if strings.Contains(testURL, "?") {
@@ -449,6 +455,12 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*ScanResult, error
 	// Test each parameter
 	totalPayloads := 0
 	for _, param := range t.config.TestParams {
+		select {
+		case <-ctx.Done():
+			return result, ctx.Err()
+		default:
+		}
+
 		vulns, err := t.TestParameter(ctx, targetURL, param)
 		if err != nil {
 			continue
@@ -471,6 +483,12 @@ func (t *Tester) TestPOST(ctx context.Context, targetURL string, param string) (
 	payloads := t.GetPayloads(param)
 
 	for _, payload := range payloads {
+		select {
+		case <-ctx.Done():
+			return vulns, ctx.Err()
+		default:
+		}
+
 		req, err := http.NewRequestWithContext(ctx, "POST", targetURL,
 			strings.NewReader(payload.Query))
 		if err != nil {
