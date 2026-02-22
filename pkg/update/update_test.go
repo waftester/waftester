@@ -810,15 +810,15 @@ func TestBumpVersionDeepEdgeCases(t *testing.T) {
 		{"minor resets patch", "1.2.3", "minor", "1.3.0"},
 		{"major resets all", "5.6.7", "major", "6.0.0"},
 
-		// Invalid/edge versions - FIXED: now return "1.0.0" for malformed input
+		// Invalid/edge versions — malformed input returns default "1.0.0"
 		{"empty version", "", "patch", "1.0.0"},            // Should default
 		{"single part", "1", "patch", "1.0.0"},             // Invalid format
 		{"two parts", "1.2", "patch", "1.0.0"},             // Invalid format
 		{"four parts", "1.2.3.4", "patch", "1.0.0"},        // Too many parts
-		{"non-numeric major", "a.0.0", "patch", "1.0.0"},   // FIXED: invalid returns default
-		{"non-numeric minor", "1.b.0", "minor", "1.0.0"},   // FIXED: invalid returns default
-		{"non-numeric patch", "1.0.c", "patch", "1.0.0"},   // FIXED: invalid returns default
-		{"negative numbers", "-1.-2.-3", "patch", "1.0.0"}, // FIXED: negative rejected
+		{"non-numeric major", "a.0.0", "patch", "1.0.0"},   // Invalid returns default
+		{"non-numeric minor", "1.b.0", "minor", "1.0.0"},   // Invalid returns default
+		{"non-numeric patch", "1.0.c", "patch", "1.0.0"},   // Invalid returns default
+		{"negative numbers", "-1.-2.-3", "patch", "1.0.0"}, // Negative rejected
 		{"large numbers", "999.999.999", "patch", "999.999.1000"},
 		{"zero version", "0.0.0", "patch", "0.0.1"},
 		{"leading zeros", "01.02.03", "patch", "1.2.4"}, // Atoi strips leading zeros
@@ -1126,28 +1126,27 @@ func writePayloads(t *testing.T, path string, count int) {
 // BUG-EXPOSING TESTS - These tests expose real bugs in the source code
 // =============================================================================
 
-// TestBumpVersionMustRejectMalformedVersions tests that malformed versions are properly handled
-// FIXED: bumpVersion now returns "1.0.0" for any malformed version instead of silently converting garbage
+// TestBumpVersionMustRejectMalformedVersions tests that malformed versions return default "1.0.0".
 func TestBumpVersionMustRejectMalformedVersions(t *testing.T) {
 	tests := []struct {
 		name        string
 		version     string
 		bump        string
 		expected    string
-		shouldError bool // True = malformed input, should return default "1.0.0"
+		shouldError bool // True = malformed input, returns default "1.0.0"
 	}{
 		{"valid version", "1.2.3", "patch", "1.2.4", false},
-		{"letters in major", "a.0.0", "patch", "1.0.0", true},         // FIXED: returns "1.0.0"
-		{"letters in minor", "1.b.0", "minor", "1.0.0", true},         // FIXED: returns "1.0.0"
-		{"letters in patch", "1.0.c", "patch", "1.0.0", true},         // FIXED: returns "1.0.0"
-		{"all letters", "a.b.c", "patch", "1.0.0", true},              // FIXED: returns "1.0.0"
-		{"mixed garbage", "1.x.3", "patch", "1.0.0", true},            // FIXED: returns "1.0.0"
-		{"hex looks valid", "0x10.0x20.0x30", "patch", "1.0.0", true}, // FIXED: returns "1.0.0"
+		{"letters in major", "a.0.0", "patch", "1.0.0", true},         // Returns default
+		{"letters in minor", "1.b.0", "minor", "1.0.0", true},         // Returns default
+		{"letters in patch", "1.0.c", "patch", "1.0.0", true},         // Returns default
+		{"all letters", "a.b.c", "patch", "1.0.0", true},              // Returns default
+		{"mixed garbage", "1.x.3", "patch", "1.0.0", true},            // Returns default
+		{"hex looks valid", "0x10.0x20.0x30", "patch", "1.0.0", true}, // Returns default
 		{"float version", "1.2.3.4", "patch", "1.0.0", false},         // Already handled (len != 3)
-		{"spaces", "1 .2 .3", "patch", "1.0.0", true},                 // FIXED: returns "1.0.0"
-		{"empty parts", "..", "patch", "1.0.0", true},                 // FIXED: returns "1.0.0"
-		{"negative string", "-a.-b.-c", "patch", "1.0.0", true},       // FIXED: returns "1.0.0"
-		{"negative numbers", "-1.-2.-3", "patch", "1.0.0", true},      // FIXED: negative rejected
+		{"spaces", "1 .2 .3", "patch", "1.0.0", true},                 // Returns default
+		{"empty parts", "..", "patch", "1.0.0", true},                 // Returns default
+		{"negative string", "-a.-b.-c", "patch", "1.0.0", true},       // Returns default
+		{"negative numbers", "-1.-2.-3", "patch", "1.0.0", true},      // Negative rejected
 	}
 
 	for _, tt := range tests {
