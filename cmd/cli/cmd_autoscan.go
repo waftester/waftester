@@ -518,7 +518,7 @@ func runAutoScan() {
 	}
 
 	// Determine output mode for LiveProgress
-	autoOutputMode := ui.OutputModeInteractive
+	autoOutputMode := ui.DefaultOutputMode()
 	if outFlags.JSONMode {
 		autoOutputMode = ui.OutputModeSilent
 	} else if outFlags.StreamMode {
@@ -1091,7 +1091,7 @@ func runAutoScan() {
 		jsFrameIdx := 0
 		jsStartTime := time.Now()
 
-		if totalJSFiles > 1 && !outFlags.StreamMode && !quietMode {
+		if totalJSFiles > 1 && !outFlags.StreamMode && !quietMode && ui.StderrIsTerminal() {
 			go func() {
 				ticker := time.NewTicker(100 * time.Millisecond)
 				defer ticker.Stop()
@@ -1196,7 +1196,7 @@ func runAutoScan() {
 		if totalJSFiles > 1 {
 			close(jsProgressDone)
 			time.Sleep(50 * time.Millisecond)
-			if !quietMode {
+			if !quietMode && ui.StderrIsTerminal() {
 				fmt.Fprintf(os.Stderr, "\033[2A\033[J")
 			}
 		}
@@ -1450,7 +1450,7 @@ func runAutoScan() {
 			paramFrameIdx := 0
 			totalEndpoints := len(testEndpoints)
 
-			if !outFlags.StreamMode && !quietMode {
+			if !outFlags.StreamMode && !quietMode && ui.StderrIsTerminal() {
 				go func() {
 					ticker := time.NewTicker(100 * time.Millisecond)
 					defer ticker.Stop()
@@ -1509,7 +1509,7 @@ func runAutoScan() {
 			// Stop progress display
 			close(paramProgressDone)
 			time.Sleep(50 * time.Millisecond)
-			if !quietMode {
+			if !quietMode && ui.StderrIsTerminal() {
 				fmt.Fprintf(os.Stderr, "\033[2A\033[J")
 			}
 

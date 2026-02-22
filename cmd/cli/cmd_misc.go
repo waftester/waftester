@@ -133,7 +133,7 @@ func runSmuggle() {
 	}
 
 	// Determine output mode
-	outputMode := ui.OutputModeInteractive
+	outputMode := ui.DefaultOutputMode()
 	if *streamMode {
 		outputMode = ui.OutputModeStreaming
 	}
@@ -820,7 +820,7 @@ func runHeadless() {
 	allResults := []*headless.PageResult{}
 
 	// Determine output mode
-	outputMode := ui.OutputModeInteractive
+	outputMode := ui.DefaultOutputMode()
 	if *streamMode {
 		outputMode = ui.OutputModeStreaming
 	}

@@ -202,7 +202,7 @@ func runAssess() {
 	}
 
 	// Determine output mode
-	outputMode := ui.OutputModeInteractive
+	outputMode := ui.DefaultOutputMode()
 	if *streamMode {
 		outputMode = ui.OutputModeStreaming
 	}
@@ -348,9 +348,13 @@ func displayAssessmentResults(m *metrics.EnterpriseMetrics, duration time.Durati
 
 	// Grade banner
 	gradeColor := getGradeColor(m.Grade)
+	gradeReset := ""
+	if ui.StdoutIsTerminal() {
+		gradeReset = "\033[0m"
+	}
 	if ui.UnicodeTerminal() {
 		fmt.Println("╔══════════════════════════════════════════════════════════════════╗")
-		fmt.Printf("║  %-64s ║\n", fmt.Sprintf("Grade: %s%s%s  -  %s", gradeColor, m.Grade, "\033[0m", m.GradeReason))
+		fmt.Printf("║  %-64s ║\n", fmt.Sprintf("Grade: %s%s%s  -  %s", gradeColor, m.Grade, gradeReset, m.GradeReason))
 		fmt.Println("╠══════════════════════════════════════════════════════════════════╣")
 		fmt.Printf("║  %-64s ║\n", fmt.Sprintf("Target: %s", assessTruncateString(m.TargetURL, 50)))
 		fmt.Printf("║  %-64s ║\n", fmt.Sprintf("WAF: %s", m.WAFVendor))
@@ -358,7 +362,7 @@ func displayAssessmentResults(m *metrics.EnterpriseMetrics, duration time.Durati
 		fmt.Println("╚══════════════════════════════════════════════════════════════════╝")
 	} else {
 		fmt.Println("+------------------------------------------------------------------+")
-		fmt.Printf("|  %-64s |\n", fmt.Sprintf("Grade: %s%s%s  -  %s", gradeColor, m.Grade, "\033[0m", m.GradeReason))
+		fmt.Printf("|  %-64s |\n", fmt.Sprintf("Grade: %s%s%s  -  %s", gradeColor, m.Grade, gradeReset, m.GradeReason))
 		fmt.Println("+------------------------------------------------------------------+")
 		fmt.Printf("|  %-64s |\n", fmt.Sprintf("Target: %s", assessTruncateString(m.TargetURL, 50)))
 		fmt.Printf("|  %-64s |\n", fmt.Sprintf("WAF: %s", m.WAFVendor))
@@ -454,7 +458,7 @@ func displayAssessmentResults(m *metrics.EnterpriseMetrics, duration time.Durati
 }
 
 func getGradeColor(grade string) string {
-	if len(grade) == 0 {
+	if !ui.StdoutIsTerminal() || len(grade) == 0 {
 		return ""
 	}
 	switch grade[0] {
@@ -472,10 +476,14 @@ func getGradeColor(grade string) string {
 }
 
 func formatMetric(value float64, suffix string) string {
+	tty := ui.StdoutIsTerminal()
 	color := ""
-	reset := "\033[0m"
+	reset := ""
+	if tty {
+		reset = "\033[0m"
+	}
 
-	if suffix == "%" {
+	if tty && suffix == "%" {
 		if value >= 95 {
 			color = "\033[32m" // Green
 		} else if value >= 80 {
@@ -491,17 +499,23 @@ func formatMetric(value float64, suffix string) string {
 }
 
 func formatMCC(value float64) string {
+	tty := ui.StdoutIsTerminal()
 	color := ""
-	reset := "\033[0m"
+	reset := ""
+	if tty {
+		reset = "\033[0m"
+	}
 
-	if value >= 0.8 {
-		color = "\033[32m" // Green
-	} else if value >= 0.5 {
-		color = "\033[33m" // Yellow
-	} else if value >= 0 {
-		color = "\033[35m" // Magenta
-	} else {
-		color = "\033[31m" // Red
+	if tty {
+		if value >= 0.8 {
+			color = "\033[32m" // Green
+		} else if value >= 0.5 {
+			color = "\033[33m" // Yellow
+		} else if value >= 0 {
+			color = "\033[35m" // Magenta
+		} else {
+			color = "\033[31m" // Red
+		}
 	}
 
 	return fmt.Sprintf("%s%+.4f%s", color, value, reset)
