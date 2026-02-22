@@ -2578,8 +2578,8 @@ func TestHARWriter(t *testing.T) {
 		if content.MimeType != "application/json" {
 			t.Errorf("content MIME should be inferred as JSON from preview, got %s", content.MimeType)
 		}
-		if content.Size != len(`{"error": "blocked by WAF"}`) {
-			t.Errorf("content.size should use preview length when ContentLength is 0, got %d", content.Size)
+		if content.Size != 0 {
+			t.Errorf("content.size should remain 0 (unknown) when ContentLength is 0, got %d", content.Size)
 		}
 	})
 
@@ -3028,6 +3028,232 @@ func TestHARWriter(t *testing.T) {
 		})
 		if !strings.Contains(got, "encoding: unicode") || !strings.Contains(got, "tamper: case-swap") || !strings.Contains(got, "evasion: double-encode") {
 			t.Errorf("full context missing fields: %q", got)
+		}
+	})
+
+	t.Run("ResponsePreview size not used as content.size", func(t *testing.T) {
+		// F1: ResponsePreview is a truncated snippet. Its length should not
+		// be used as the content size when ContentLength is 0 (unknown).
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		re := makeTestResultEvent("test-1", "sqli", events.SeverityCritical, events.OutcomeBypass)
+		re.Evidence = &events.Evidence{
+			Payload:         "test",
+			ResponsePreview: strings.Repeat("x", 512), // 512-byte preview of a much larger response
+		}
+		re.Result.ContentLength = 0
+
+		w.Write(re)
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		content := har.Log.Entries[0].Response.Content
+		if content.Size != 0 {
+			t.Errorf("content.size should remain 0 (unknown), not preview length %d", content.Size)
+		}
+		if content.Text == "" {
+			t.Error("content.text should still contain the preview")
+		}
+	})
+
+	t.Run("ResponsePreview with known ContentLength preserves size", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		re := makeTestResultEvent("test-1", "sqli", events.SeverityCritical, events.OutcomeBypass)
+		re.Evidence = &events.Evidence{
+			Payload:         "test",
+			ResponsePreview: `{"error": "blocked"}`,
+		}
+		re.Result.ContentLength = 4096
+
+		w.Write(re)
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		content := har.Log.Entries[0].Response.Content
+		if content.Size != 4096 {
+			t.Errorf("content.size should be ContentLength 4096, got %d", content.Size)
+		}
+	})
+
+	t.Run("BypassEvent propagates WAFDetected to WAFSignature", func(t *testing.T) {
+		// F2: WAFDetected from AlertContext should carry through to the
+		// synthetic ResultEvent as WAFSignature.
+		be := &events.BypassEvent{
+			BaseEvent: events.BaseEvent{Type: events.EventTypeBypass},
+			Details: events.BypassDetail{
+				TestID:   "sqli-001",
+				Category: "sqli",
+				Endpoint: "https://example.com/api",
+				Method:   "POST",
+				Payload:  "' OR 1=1--",
+			},
+			Context: events.AlertContext{
+				WAFDetected: "Cloudflare",
+			},
+		}
+
+		re := bypassToResult(be)
+		if re.Result.WAFSignature != "Cloudflare" {
+			t.Errorf("WAFSignature should be Cloudflare, got %q", re.Result.WAFSignature)
+		}
+	})
+
+	t.Run("BypassEvent with empty WAFDetected", func(t *testing.T) {
+		be := &events.BypassEvent{
+			BaseEvent: events.BaseEvent{Type: events.EventTypeBypass},
+			Details: events.BypassDetail{
+				TestID:   "xss-001",
+				Category: "xss",
+				Endpoint: "https://example.com",
+			},
+		}
+
+		re := bypassToResult(be)
+		if re.Result.WAFSignature != "" {
+			t.Errorf("WAFSignature should be empty when WAFDetected is empty, got %q", re.Result.WAFSignature)
+		}
+	})
+
+	t.Run("form-encoded with charset parameter in Content-Type", func(t *testing.T) {
+		// F3: Content-Type with parameters like "; charset=utf-8" should
+		// still match application/x-www-form-urlencoded.
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		re := makeTestResultEvent("test-001", "sqli", events.SeverityHigh, events.OutcomeBypass)
+		re.Target.Method = "POST"
+		re.Evidence = &events.Evidence{
+			Payload: "user=admin&role=root",
+			RequestHeaders: map[string]string{
+				"Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
+			},
+		}
+		w.Write(re)
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		pd := har.Log.Entries[0].Request.PostData
+		if pd == nil {
+			t.Fatal("expected postData for form-encoded POST")
+		}
+		if pd.MimeType != "application/x-www-form-urlencoded; charset=utf-8" {
+			t.Errorf("postData.mimeType should preserve full Content-Type, got %s", pd.MimeType)
+		}
+		if len(pd.Params) != 2 {
+			t.Fatalf("expected 2 form params despite charset parameter, got %d", len(pd.Params))
+		}
+	})
+
+	t.Run("baseMIMEType strips parameters", func(t *testing.T) {
+		tests := []struct {
+			input string
+			want  string
+		}{
+			{"application/json", "application/json"},
+			{"application/x-www-form-urlencoded; charset=utf-8", "application/x-www-form-urlencoded"},
+			{"text/html; charset=ISO-8859-1", "text/html"},
+			{"multipart/form-data; boundary=----", "multipart/form-data"},
+			{"", ""},
+		}
+		for _, tc := range tests {
+			got := baseMIMEType(tc.input)
+			if got != tc.want {
+				t.Errorf("baseMIMEType(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		}
+	})
+
+	t.Run("case-insensitive Cookie header lookup", func(t *testing.T) {
+		// F4: HTTP/2 normalizes headers to lowercase.
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		re := makeTestResultEvent("test-001", "sqli", events.SeverityHigh, events.OutcomeBypass)
+		re.Evidence = &events.Evidence{
+			Payload: "test",
+			RequestHeaders: map[string]string{
+				"cookie": "session=abc; lang=en", // lowercase (HTTP/2 style)
+			},
+		}
+		w.Write(re)
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		cookies := har.Log.Entries[0].Request.Cookies
+		if len(cookies) != 2 {
+			t.Fatalf("expected 2 cookies from lowercase cookie header, got %d", len(cookies))
+		}
+	})
+
+	t.Run("case-insensitive Content-Type header lookup", func(t *testing.T) {
+		// F4+F5: Content-Type lookup in postData should also be case-insensitive.
+		buf := &bytes.Buffer{}
+		w := NewHARWriter(buf, HAROptions{})
+
+		re := makeTestResultEvent("test-001", "sqli", events.SeverityHigh, events.OutcomeBypass)
+		re.Target.Method = "POST"
+		re.Evidence = &events.Evidence{
+			Payload: `{"admin": true}`,
+			RequestHeaders: map[string]string{
+				"content-type": "application/json", // lowercase (HTTP/2 style)
+			},
+		}
+		w.Write(re)
+		w.Close()
+
+		var har harDocument
+		json.Unmarshal(buf.Bytes(), &har)
+
+		pd := har.Log.Entries[0].Request.PostData
+		if pd == nil {
+			t.Fatal("expected postData for POST with lowercase content-type")
+		}
+		if pd.MimeType != "application/json" {
+			t.Errorf("postData.mimeType should pick up lowercase content-type, got %s", pd.MimeType)
+		}
+	})
+
+	t.Run("headerValue case insensitive with fast path", func(t *testing.T) {
+		headers := map[string]string{
+			"Content-Type": "text/html",
+			"cookie":       "session=abc",
+			"X-Custom":     "value",
+		}
+
+		// Exact match (fast path)
+		if got := headerValue(headers, "Content-Type"); got != "text/html" {
+			t.Errorf("exact match: want text/html, got %s", got)
+		}
+
+		// Case-insensitive (slow path)
+		if got := headerValue(headers, "content-type"); got != "text/html" {
+			t.Errorf("case-insensitive: want text/html, got %s", got)
+		}
+
+		// Uppercase cookie
+		if got := headerValue(headers, "Cookie"); got != "session=abc" {
+			t.Errorf("uppercase Cookie: want session=abc, got %s", got)
+		}
+
+		// Nil headers
+		if got := headerValue(nil, "Content-Type"); got != "" {
+			t.Errorf("nil headers: want empty, got %s", got)
+		}
+
+		// Missing header
+		if got := headerValue(headers, "Authorization"); got != "" {
+			t.Errorf("missing header: want empty, got %s", got)
 		}
 	})
 }
