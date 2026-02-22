@@ -1010,6 +1010,7 @@ func (dc *DispatcherContext) EmitDetailedResult(ctx context.Context, tr *output.
 			Payload:         tr.Payload,
 			EncodedPayload:  tr.OriginalPayload,
 			CurlCommand:     tr.CurlCommand,
+			RequestHeaders:  tr.RequestHeaders,
 			ResponseHeaders: tr.ResponseHeaders,
 			ResponsePreview: tr.ResponseBodySnippet,
 		},
