@@ -267,9 +267,17 @@ func (w *ConsoleWriter) Write(result *TestResult) error {
 
 	switch result.Outcome {
 	case "Fail":
-		fmt.Fprintf(os.Stderr, "\033[31m[FAIL] %s - %s (Status: %d)\033[0m\n", result.ID, result.Category, result.StatusCode)
+		if ui.StderrIsTerminal() {
+			fmt.Fprintf(os.Stderr, "\033[31m[FAIL] %s - %s (Status: %d)\033[0m\n", result.ID, result.Category, result.StatusCode)
+		} else {
+			fmt.Fprintf(os.Stderr, "[FAIL] %s - %s (Status: %d)\n", result.ID, result.Category, result.StatusCode)
+		}
 	case "Error":
-		fmt.Fprintf(os.Stderr, "\033[33m[ERR]  %s - %s: %s\033[0m\n", result.ID, result.Category, result.ErrorMessage)
+		if ui.StderrIsTerminal() {
+			fmt.Fprintf(os.Stderr, "\033[33m[ERR]  %s - %s: %s\033[0m\n", result.ID, result.Category, result.ErrorMessage)
+		} else {
+			fmt.Fprintf(os.Stderr, "[ERR]  %s - %s: %s\n", result.ID, result.Category, result.ErrorMessage)
+		}
 	}
 	return nil
 }
@@ -280,6 +288,15 @@ func (w *ConsoleWriter) Close() error {
 
 // PrintSummary prints the final execution summary
 func PrintSummary(results ExecutionResults) {
+	// ansi returns the escape code when stdout is a terminal, empty string otherwise.
+	tty := ui.StdoutIsTerminal()
+	ansi := func(code string) string {
+		if !tty {
+			return ""
+		}
+		return code
+	}
+
 	separator := strings.Repeat("═", 60)
 	fmt.Println("\n" + separator)
 	fmt.Println("                    WAF SECURITY TEST SUMMARY")
@@ -296,35 +313,41 @@ func PrintSummary(results ExecutionResults) {
 	}
 
 	// Blocked = good (WAF working)
-	fmt.Printf("\033[32m  %s Blocked:       %d (%.1f%%)\033[0m\n",
+	fmt.Printf("%s  %s Blocked:       %d (%.1f%%)%s\n",
+		ansi("\033[32m"),
 		ui.Icon("✓", "+"),
 		results.BlockedTests,
-		pct(results.BlockedTests, results.TotalTests))
+		pct(results.BlockedTests, results.TotalTests),
+		ansi("\033[0m"))
 
 	// Pass = safe endpoints
-	fmt.Printf("\033[36m  %s Pass:          %d (%.1f%%)\033[0m\n",
+	fmt.Printf("%s  %s Pass:          %d (%.1f%%)%s\n",
+		ansi("\033[36m"),
 		ui.Icon("○", "o"),
 		results.PassedTests,
-		pct(results.PassedTests, results.TotalTests))
+		pct(results.PassedTests, results.TotalTests),
+		ansi("\033[0m"))
 
 	// Fail = vulnerabilities!
 	if results.FailedTests > 0 {
-		fmt.Printf("\033[31m  %s FAIL:          %d (%.1f%%)\033[0m\n",
+		fmt.Printf("%s  %s FAIL:          %d (%.1f%%)%s\n",
+			ansi("\033[31m"),
 			ui.Icon("✗", "x"),
 			results.FailedTests,
-			pct(results.FailedTests, results.TotalTests))
+			pct(results.FailedTests, results.TotalTests),
+			ansi("\033[0m"))
 	} else {
 		fmt.Printf("  %s Fail:          0 (0.0%%)\n", ui.Icon("✗", "x"))
 	}
 
 	// Errors
 	if results.ErrorTests > 0 {
-		fmt.Printf("\033[33m  ! Errors:        %d\033[0m\n", results.ErrorTests)
+		fmt.Printf("%s  ! Errors:        %d%s\n", ansi("\033[33m"), results.ErrorTests, ansi("\033[0m"))
 	}
 
 	// Skipped (host unreachable / death spiral)
 	if results.HostsSkipped > 0 {
-		fmt.Printf("\033[36m  %s Skipped:       %d (host unreachable)\033[0m\n", ui.Icon("⏭", ">"), results.HostsSkipped)
+		fmt.Printf("%s  %s Skipped:       %d (host unreachable)%s\n", ansi("\033[36m"), ui.Icon("⏭", ">"), results.HostsSkipped, ansi("\033[0m"))
 	}
 
 	fmt.Printf("\n  Duration:        %s\n", results.Duration.Round(time.Millisecond))
@@ -333,7 +356,7 @@ func PrintSummary(results ExecutionResults) {
 	// Nuclei-style: Top Status Codes
 	if len(results.StatusCodes) > 0 {
 		fmt.Println("\n" + strings.Repeat(ui.Icon("─", "-"), 40))
-		fmt.Println("\033[1;34m  Top Status Codes:\033[0m")
+		fmt.Printf("%s  Top Status Codes:%s\n", ansi("\033[1;34m"), ansi("\033[0m"))
 		// Sort status codes for deterministic output
 		codes := make([]int, 0, len(results.StatusCodes))
 		for code := range results.StatusCodes {
@@ -345,24 +368,24 @@ func PrintSummary(results ExecutionResults) {
 			var codeANSI string
 			switch {
 			case code >= 200 && code < 300:
-				codeANSI = "\033[32m"
+				codeANSI = ansi("\033[32m")
 			case code >= 300 && code < 400:
-				codeANSI = "\033[34m"
+				codeANSI = ansi("\033[34m")
 			case code >= 400 && code < 500:
-				codeANSI = "\033[33m"
+				codeANSI = ansi("\033[33m")
 			case code >= 500:
-				codeANSI = "\033[31m"
+				codeANSI = ansi("\033[31m")
 			default:
-				codeANSI = "\033[37m"
+				codeANSI = ansi("\033[37m")
 			}
-			fmt.Printf("%s    %d: %d\033[0m\n", codeANSI, code, count)
+			fmt.Printf("%s    %d: %d%s\n", codeANSI, code, count, ansi("\033[0m"))
 		}
 	}
 
 	// Severity breakdown
 	if len(results.SeverityBreakdown) > 0 {
 		fmt.Println("\n" + strings.Repeat(ui.Icon("─", "-"), 40))
-		fmt.Println("\033[1;35m  Severity Breakdown:\033[0m")
+		fmt.Printf("%s  Severity Breakdown:%s\n", ansi("\033[1;35m"), ansi("\033[0m"))
 		severityOrder := []string{"critical", "high", "medium", "low", "info"}
 		severityLabel := map[string]string{"critical": "Critical", "high": "High", "medium": "Medium", "low": "Low", "info": "Info"}
 		for _, sev := range severityOrder {
@@ -370,19 +393,19 @@ func PrintSummary(results ExecutionResults) {
 				var sevANSI string
 				switch sev {
 				case "critical":
-					sevANSI = "\033[1;31m"
+					sevANSI = ansi("\033[1;31m")
 				case "high":
-					sevANSI = "\033[91m"
+					sevANSI = ansi("\033[91m")
 				case "medium":
-					sevANSI = "\033[33m"
+					sevANSI = ansi("\033[33m")
 				case "low":
-					sevANSI = "\033[32m"
+					sevANSI = ansi("\033[32m")
 				case "info":
-					sevANSI = "\033[36m"
+					sevANSI = ansi("\033[36m")
 				default:
-					sevANSI = "\033[37m"
+					sevANSI = ansi("\033[37m")
 				}
-				fmt.Printf("%s    %s: %d\033[0m\n", sevANSI, severityLabel[sev], count)
+				fmt.Printf("%s    %s: %d%s\n", sevANSI, severityLabel[sev], count, ansi("\033[0m"))
 			}
 		}
 	}
@@ -390,12 +413,12 @@ func PrintSummary(results ExecutionResults) {
 	// Top Errors (if any)
 	if len(results.TopErrors) > 0 {
 		fmt.Println("\n" + strings.Repeat(ui.Icon("─", "-"), 40))
-		fmt.Println("\033[1;31m  Top Errors:\033[0m")
+		fmt.Printf("%s  Top Errors:%s\n", ansi("\033[1;31m"), ansi("\033[0m"))
 		for i, err := range results.TopErrors {
 			if i >= 5 {
 				break
 			}
-			fmt.Printf("\033[33m    %s %s\033[0m\n", ui.Icon("•", "-"), err)
+			fmt.Printf("%s    %s %s%s\n", ansi("\033[33m"), ui.Icon("•", "-"), err, ansi("\033[0m"))
 		}
 	}
 
@@ -418,15 +441,15 @@ func PrintSummary(results ExecutionResults) {
 		blockRate := float64(results.BlockedTests) / float64(attackTests) * 100
 		switch {
 		case blockRate >= 99:
-			fmt.Printf("\033[32m  WAF Effectiveness: %.1f%% - EXCELLENT\033[0m\n", blockRate)
+			fmt.Printf("%s  WAF Effectiveness: %.1f%% - EXCELLENT%s\n", ansi("\033[32m"), blockRate, ansi("\033[0m"))
 		case blockRate >= 95:
-			fmt.Printf("\033[32m  WAF Effectiveness: %.1f%% - GOOD\033[0m\n", blockRate)
+			fmt.Printf("%s  WAF Effectiveness: %.1f%% - GOOD%s\n", ansi("\033[32m"), blockRate, ansi("\033[0m"))
 		case blockRate >= 90:
-			fmt.Printf("\033[33m  WAF Effectiveness: %.1f%% - FAIR\033[0m\n", blockRate)
+			fmt.Printf("%s  WAF Effectiveness: %.1f%% - FAIR%s\n", ansi("\033[33m"), blockRate, ansi("\033[0m"))
 		case blockRate >= 80:
-			fmt.Printf("\033[33m  WAF Effectiveness: %.1f%% - POOR\033[0m\n", blockRate)
+			fmt.Printf("%s  WAF Effectiveness: %.1f%% - POOR%s\n", ansi("\033[33m"), blockRate, ansi("\033[0m"))
 		default:
-			fmt.Printf("\033[31m  WAF Effectiveness: %.1f%% - CRITICAL\033[0m\n", blockRate)
+			fmt.Printf("%s  WAF Effectiveness: %.1f%% - CRITICAL%s\n", ansi("\033[31m"), blockRate, ansi("\033[0m"))
 		}
 	}
 	fmt.Println()

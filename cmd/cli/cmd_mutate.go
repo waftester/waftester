@@ -371,7 +371,7 @@ func runMutate() {
 	fmt.Printf("  Mutations: %d | Mode: %s\n\n", len(tasks), effectiveMode)
 
 	// Determine output mode for progress
-	outputMode := ui.OutputModeInteractive
+	outputMode := ui.DefaultOutputMode()
 	if *streamMode {
 		outputMode = ui.OutputModeStreaming
 	}
@@ -461,24 +461,32 @@ func runMutate() {
 	fmt.Println()
 	fmt.Println("  " + ui.SanitizeString("═══════════════════════════════════════════════════════════"))
 
+	tty := ui.StdoutIsTerminal()
+	a := func(code string) string {
+		if !tty {
+			return ""
+		}
+		return code
+	}
+
 	if stats.Passed > 0 {
 		if stats.Passed > 20 {
-			ui.Printf("  %s \033[1;33mLEGENDARY! %d BYPASSES FOUND!\033[0m %s\n", ui.Icon("🏆", "*"), stats.Passed, ui.Icon("🏆", "*"))
+			ui.Printf("  %s %sLEGENDARY! %d BYPASSES FOUND!%s %s\n", ui.Icon("🏆", "*"), a("\033[1;33m"), stats.Passed, a("\033[0m"), ui.Icon("🏆", "*"))
 		} else if stats.Passed > 10 {
-			ui.Printf("  %s \033[1;33mON FIRE! %d BYPASSES FOUND!\033[0m %s\n", ui.Icon("🔥", "*"), stats.Passed, ui.Icon("🔥", "*"))
+			ui.Printf("  %s %sON FIRE! %d BYPASSES FOUND!%s %s\n", ui.Icon("🔥", "*"), a("\033[1;33m"), stats.Passed, a("\033[0m"), ui.Icon("🔥", "*"))
 		} else if stats.Passed > 5 {
-			ui.Printf("  %s \033[1;33mNICE! %d BYPASSES FOUND!\033[0m %s\n", ui.Icon("⚡", "*"), stats.Passed, ui.Icon("⚡", "*"))
+			ui.Printf("  %s %sNICE! %d BYPASSES FOUND!%s %s\n", ui.Icon("⚡", "*"), a("\033[1;33m"), stats.Passed, a("\033[0m"), ui.Icon("⚡", "*"))
 		} else {
-			ui.Printf("  %s \033[1;32m%d BYPASS(ES) FOUND!\033[0m\n", ui.Icon("🎯", "*"), stats.Passed)
+			ui.Printf("  %s %s%d BYPASS(ES) FOUND!%s\n", ui.Icon("🎯", "*"), a("\033[1;32m"), stats.Passed, a("\033[0m"))
 		}
 	} else {
-		ui.Printf("  %s \033[1;36mWAF held strong - no bypasses found\033[0m\n", ui.Icon("🛡️", "#"))
+		ui.Printf("  %s %sWAF held strong - no bypasses found%s\n", ui.Icon("🛡️", "#"), a("\033[1;36m"), a("\033[0m"))
 	}
 
 	fmt.Println("  " + ui.SanitizeString("═══════════════════════════════════════════════════════════"))
 	fmt.Println()
 
-	ui.Printf("  %s \033[1mFinal Stats:\033[0m\n", ui.Icon("📊", "#"))
+	ui.Printf("  %s %sFinal Stats:%s\n", ui.Icon("📊", "#"), a("\033[1m"), a("\033[0m"))
 	bullet := ui.Icon("•", "-")
 	fmt.Printf("     %s Total Tests:   %d\n", bullet, stats.TotalTests)
 	passRate, blockRate := float64(0), float64(0)
@@ -486,8 +494,8 @@ func runMutate() {
 		passRate = float64(stats.Passed) / float64(stats.TotalTests) * 100
 		blockRate = float64(stats.Blocked) / float64(stats.TotalTests) * 100
 	}
-	fmt.Printf("     %s Bypasses:      \033[32m%d\033[0m (%.1f%%)\n", bullet, stats.Passed, passRate)
-	fmt.Printf("     %s Blocked:       \033[31m%d\033[0m (%.1f%%)\n", bullet, stats.Blocked, blockRate)
+	fmt.Printf("     %s Bypasses:      %s%d%s (%.1f%%)\n", bullet, a("\033[32m"), stats.Passed, a("\033[0m"), passRate)
+	fmt.Printf("     %s Blocked:       %s%d%s (%.1f%%)\n", bullet, a("\033[31m"), stats.Blocked, a("\033[0m"), blockRate)
 	fmt.Printf("     %s Errors:        %d\n", bullet, stats.Errors)
 	fmt.Printf("     %s Duration:      %s\n", bullet, stats.Duration.Round(time.Millisecond))
 	fmt.Printf("     %s Throughput:    %.1f req/s\n", bullet, stats.RequestsPerSec)
@@ -495,7 +503,7 @@ func runMutate() {
 
 	// Top encoders if bypasses found
 	if stats.Passed > 0 && len(stats.ByEncoder) > 0 {
-		ui.Printf("  %s \033[1mEffective Encoders:\033[0m\n", ui.Icon("🎯", "*"))
+		ui.Printf("  %s %sEffective Encoders:%s\n", ui.Icon("🎯", "*"), a("\033[1m"), a("\033[0m"))
 		for enc, count := range stats.ByEncoder {
 			if count > 0 {
 				fmt.Printf("     %s %-20s %d hits\n", ui.Icon("•", "-"), enc, count)

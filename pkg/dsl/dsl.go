@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/ui"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -161,15 +162,15 @@ var templateFuncs = template.FuncMap{
 	"isClientError": func(code int) bool { return code >= 400 && code < 500 },
 	"isServerError": func(code int) bool { return code >= 500 },
 
-	// Color helpers (ANSI)
-	"red":     func(s string) string { return "\033[31m" + s + "\033[0m" },
-	"green":   func(s string) string { return "\033[32m" + s + "\033[0m" },
-	"yellow":  func(s string) string { return "\033[33m" + s + "\033[0m" },
-	"blue":    func(s string) string { return "\033[34m" + s + "\033[0m" },
-	"magenta": func(s string) string { return "\033[35m" + s + "\033[0m" },
-	"cyan":    func(s string) string { return "\033[36m" + s + "\033[0m" },
-	"bold":    func(s string) string { return "\033[1m" + s + "\033[0m" },
-	"dim":     func(s string) string { return "\033[2m" + s + "\033[0m" },
+	// Color helpers (ANSI) — only emit codes when stdout is a terminal
+	"red":     dslColor("\033[31m"),
+	"green":   dslColor("\033[32m"),
+	"yellow":  dslColor("\033[33m"),
+	"blue":    dslColor("\033[34m"),
+	"magenta": dslColor("\033[35m"),
+	"cyan":    dslColor("\033[36m"),
+	"bold":    dslColor("\033[1m"),
+	"dim":     dslColor("\033[2m"),
 
 	// Severity colors
 	"severityColor": severityColor,
@@ -341,6 +342,9 @@ func formatDuration(d time.Duration) string {
 }
 
 func severityColor(severity string) string {
+	if !ui.StdoutIsTerminal() {
+		return severity
+	}
 	switch strings.ToLower(severity) {
 	case "critical":
 		return "\033[1;31m" + severity + "\033[0m" // Bold red
@@ -354,6 +358,17 @@ func severityColor(severity string) string {
 		return "\033[36m" + severity + "\033[0m" // Cyan
 	default:
 		return severity
+	}
+}
+
+// dslColor returns a template function that wraps text in the given
+// ANSI code when stdout is a terminal, returns text unchanged otherwise.
+func dslColor(code string) func(string) string {
+	return func(s string) string {
+		if !ui.StdoutIsTerminal() {
+			return s
+		}
+		return code + s + "\033[0m"
 	}
 }
 

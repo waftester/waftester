@@ -165,13 +165,19 @@ func (d *Discoverer) Discover(ctx context.Context) (*DiscoveryResult, error) {
 	// spinWhile runs work() while showing an animated spinner on stderr.
 	// The spinner goroutine is fully stopped before this function returns,
 	// so the caller can safely write the completion line without a race.
+	// Spinner animation is suppressed when stderr is not a terminal.
 	spinnerFrames := ui.DefaultSpinner().Frames
+	stderrTTY := ui.StderrIsTerminal()
 	spinWhile := func(phaseNum int, phaseName string, work func()) {
 		done := make(chan struct{})
 		stopped := make(chan struct{})
 
 		go func() {
 			defer close(stopped)
+			if !stderrTTY {
+				<-done
+				return
+			}
 			frame := 0
 			for {
 				select {
@@ -190,12 +196,19 @@ func (d *Discoverer) Discover(ctx context.Context) (*DiscoveryResult, error) {
 		<-stopped
 	}
 
+	// clearEOL returns the ANSI "erase to end of line" code when stderr is
+	// a terminal, empty string otherwise.
+	clearEOL := ""
+	if ui.StderrIsTerminal() {
+		clearEOL = "\033[K"
+	}
+
 	// runPhase runs a phase with spinner and prints a standard "+N" completion line.
 	runPhase := func(phaseNum int, phaseName string, work func()) int {
 		beforeCount := len(d.endpoints)
 		spinWhile(phaseNum, phaseName, work)
 		added := len(d.endpoints) - beforeCount
-		fmt.Fprintf(os.Stderr, "\r  [%d/9] %s %s +%d\033[K\n", phaseNum, ui.Icon("✅", "+"), phaseName, added)
+		fmt.Fprintf(os.Stderr, "\r  [%d/9] %s %s +%d%s\n", phaseNum, ui.Icon("✅", "+"), phaseName, added, clearEOL)
 		return added
 	}
 
@@ -204,9 +217,9 @@ func (d *Discoverer) Discover(ctx context.Context) (*DiscoveryResult, error) {
 		d.detectWAF(ctx, result)
 	})
 	if result.WAFDetected {
-		fmt.Fprintf(os.Stderr, "\r  [1/9] %s WAF detected: %s\033[K\n", ui.Icon("✅", "+"), result.WAFFingerprint)
+		fmt.Fprintf(os.Stderr, "\r  [1/9] %s WAF detected: %s%s\n", ui.Icon("✅", "+"), result.WAFFingerprint, clearEOL)
 	} else {
-		fmt.Fprintf(os.Stderr, "\r  [1/9] %s No WAF detected\033[K\n", ui.Icon("✅", "+"))
+		fmt.Fprintf(os.Stderr, "\r  [1/9] %s No WAF detected%s\n", ui.Icon("✅", "+"), clearEOL)
 	}
 
 	// Phase 2: Active discovery — comprehensive path brute-forcing
@@ -214,7 +227,7 @@ func (d *Discoverer) Discover(ctx context.Context) (*DiscoveryResult, error) {
 		spinWhile(2, "Active discovery (path brute-force)...", func() {
 			d.discoverActiveEndpoints(ctx, result)
 		})
-		fmt.Fprintf(os.Stderr, "\r  [2/9] %s Active discovery: %d endpoints\033[K\n", ui.Icon("✅", "+"), len(d.endpoints))
+		fmt.Fprintf(os.Stderr, "\r  [2/9] %s Active discovery: %d endpoints%s\n", ui.Icon("✅", "+"), len(d.endpoints), clearEOL)
 	}
 
 	// Phase 3: External Sources
@@ -251,7 +264,7 @@ func (d *Discoverer) Discover(ctx context.Context) (*DiscoveryResult, error) {
 	spinWhile(9, "Analyzing attack surface...", func() {
 		d.analyzeAttackSurface(result)
 	})
-	fmt.Fprintf(os.Stderr, "\r  [9/9] %s Attack surface analyzed\033[K\n", ui.Icon("✅", "+"))
+	fmt.Fprintf(os.Stderr, "\r  [9/9] %s Attack surface analyzed%s\n", ui.Icon("✅", "+"), clearEOL)
 
 	result.Duration = time.Since(start)
 	result.Endpoints = d.endpoints

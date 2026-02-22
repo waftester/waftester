@@ -207,8 +207,8 @@ func (p *Progress) renderTurbo(spinner string, workerIndicator string) {
 	failed := atomic.LoadInt64(&p.failed)
 	errored := atomic.LoadInt64(&p.errored)
 
-	// Skip rendering in silent mode
-	if IsSilent() {
+	// Skip rendering in silent mode or non-terminal stderr
+	if IsSilent() || !StderrIsTerminal() {
 		return
 	}
 

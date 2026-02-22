@@ -200,11 +200,20 @@ func (m *ExecutionManifest) printBoxed() {
 // printSimple displays manifest as simple key-value pairs
 func (m *ExecutionManifest) printSimple() {
 	w := m.Writer
+	tty := StderrIsTerminal()
 
 	fmt.Fprintln(w)
-	fmt.Fprintf(w, "  \033[1m%s\033[0m\n", m.Title)
+	if tty {
+		fmt.Fprintf(w, "  \033[1m%s\033[0m\n", m.Title)
+	} else {
+		fmt.Fprintf(w, "  %s\n", m.Title)
+	}
 	if m.Description != "" {
-		fmt.Fprintf(w, "  \033[2m%s\033[0m\n", m.Description)
+		if tty {
+			fmt.Fprintf(w, "  \033[2m%s\033[0m\n", m.Description)
+		} else {
+			fmt.Fprintf(w, "  %s\n", m.Description)
+		}
 	}
 	fmt.Fprintln(w)
 
@@ -215,7 +224,7 @@ func (m *ExecutionManifest) printSimple() {
 		}
 
 		valueStr := fmt.Sprintf("%v", item.Value)
-		if item.Emphasis {
+		if item.Emphasis && tty {
 			valueStr = fmt.Sprintf("\033[1;36m%s\033[0m", valueStr)
 		}
 

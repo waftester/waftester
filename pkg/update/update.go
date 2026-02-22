@@ -103,10 +103,34 @@ const (
 )
 
 var (
-	green  = func(a ...interface{}) string { return "\033[32m" + fmt.Sprint(a...) + "\033[0m" }
-	red    = func(a ...interface{}) string { return "\033[31m" + fmt.Sprint(a...) + "\033[0m" }
-	yellow = func(a ...interface{}) string { return "\033[33m" + fmt.Sprint(a...) + "\033[0m" }
-	cyan   = func(a ...interface{}) string { return "\033[36m" + fmt.Sprint(a...) + "\033[0m" }
+	green = func(a ...interface{}) string {
+		s := fmt.Sprint(a...)
+		if !ui.StdoutIsTerminal() {
+			return s
+		}
+		return "\033[32m" + s + "\033[0m"
+	}
+	red = func(a ...interface{}) string {
+		s := fmt.Sprint(a...)
+		if !ui.StdoutIsTerminal() {
+			return s
+		}
+		return "\033[31m" + s + "\033[0m"
+	}
+	yellow = func(a ...interface{}) string {
+		s := fmt.Sprint(a...)
+		if !ui.StdoutIsTerminal() {
+			return s
+		}
+		return "\033[33m" + s + "\033[0m"
+	}
+	cyan = func(a ...interface{}) string {
+		s := fmt.Sprint(a...)
+		if !ui.StdoutIsTerminal() {
+			return s
+		}
+		return "\033[36m" + s + "\033[0m"
+	}
 )
 
 // UpdatePayloads performs the payload update operation
