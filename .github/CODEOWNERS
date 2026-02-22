@@ -3,6 +3,13 @@
 .github/dependabot.yml @waftester/core
 .goreleaser.yaml @waftester/core
 
+# Protect agent infrastructure — behavioral config for AI agents
+.github/agents/ @waftester/core
+.github/skills/ @waftester/core
+.github/prompts/ @waftester/core
+.github/instructions/ @waftester/core
+.github/copilot-instructions.md @waftester/core
+
 # Protect security-critical files — changes here can leak private files
 .gitignore @waftester/core
 .github/CODEOWNERS @waftester/core

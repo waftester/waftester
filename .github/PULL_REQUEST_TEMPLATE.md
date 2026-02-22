@@ -28,7 +28,7 @@
 
 <!-- Describe how you tested your changes -->
 
-- [ ] Unit tests pass (`go test ./...`)
+- [ ] Unit tests pass (`go test -race ./...`)
 - [ ] Integration tests pass (if applicable)
 - [ ] Manual testing performed
 
@@ -38,7 +38,7 @@
 - [ ] I have added/updated documentation as needed
 - [ ] I have added tests that prove my fix/feature works
 - [ ] All new and existing tests pass
-- [ ] I have run `go fmt` and `go vet`
+- [ ] I have run `golangci-lint run`
 - [ ] I have checked for any security implications
 
 ## Screenshots (if applicable)
