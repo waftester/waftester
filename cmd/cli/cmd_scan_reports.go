@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"net/url"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -193,6 +196,310 @@ func printScanConsoleSummary(result *ScanResult) {
 	}
 }
 
+// scanFinding is an intermediate type for collecting vulnerability data
+// from heterogeneous scan result types into a uniform HAR-exportable format.
+type scanFinding struct {
+	URL          string
+	Method       string
+	Payload      string
+	Parameter    string
+	Category     string
+	Severity     string
+	ResponseTime time.Duration
+}
+
+// collectScanFindings extracts all vulnerability findings from ScanResult
+// into a flat list suitable for HAR entry generation.
+func collectScanFindings(result *ScanResult) []scanFinding {
+	var findings []scanFinding
+
+	// add creates a scanFinding from individual fields.
+	add := func(u, method, payload, param, category, severity string) {
+		findings = append(findings, scanFinding{
+			URL:       u,
+			Method:    method,
+			Payload:   payload,
+			Parameter: param,
+			Category:  category,
+			Severity:  severity,
+		})
+	}
+
+	// addBase creates a scanFinding from an embedded finding.Vulnerability.
+	addBase := func(v finding.Vulnerability, category string) {
+		add(v.URL, v.Method, v.Payload, v.Parameter, category, string(v.Severity))
+	}
+
+	// Types that embed finding.Vulnerability
+	if r := result.SQLi; r != nil {
+		for _, v := range r.Vulnerabilities {
+			addBase(v.Vulnerability, "sqli")
+		}
+	}
+	if r := result.XSS; r != nil {
+		for _, v := range r.Vulnerabilities {
+			addBase(v.Vulnerability, "xss")
+		}
+	}
+	if r := result.Traversal; r != nil {
+		for _, v := range r.Vulnerabilities {
+			addBase(v.Vulnerability, "traversal")
+		}
+	}
+	if r := result.CMDI; r != nil {
+		for _, v := range r.Vulnerabilities {
+			if v != nil {
+				addBase(v.Vulnerability, "cmdi")
+			}
+		}
+	}
+	if r := result.Prototype; r != nil {
+		for _, v := range r.Vulnerabilities {
+			addBase(v.Vulnerability, "prototype")
+		}
+	}
+	for _, v := range result.Upload {
+		addBase(v.Vulnerability, "upload")
+	}
+	for _, v := range result.SSTI {
+		if v != nil {
+			addBase(v.Vulnerability, "ssti")
+		}
+	}
+	for _, v := range result.XXE {
+		if v != nil {
+			addBase(v.Vulnerability, "xxe")
+		}
+	}
+
+	// Types with their own URL/Payload/Parameter/Severity fields
+	if r := result.NoSQLi; r != nil {
+		for _, v := range r.Vulnerabilities {
+			add(v.URL, "", v.Payload, v.Parameter, "nosqli", string(v.Severity))
+		}
+	}
+	if r := result.HPP; r != nil {
+		for _, v := range r.Vulnerabilities {
+			add(v.URL, "", v.Payload, v.Parameter, "hpp", string(v.Severity))
+		}
+	}
+	if r := result.CRLF; r != nil {
+		for _, v := range r.Vulnerabilities {
+			add(v.URL, "", v.Payload, v.Parameter, "crlf", string(v.Severity))
+		}
+	}
+	if r := result.Redirect; r != nil {
+		for _, v := range r.Vulnerabilities {
+			payload := ""
+			if v.Payload != nil {
+				payload = v.Payload.Value
+			}
+			add(v.URL, "", payload, v.Parameter, "redirect", string(v.Severity))
+		}
+	}
+	if r := result.HostHeader; r != nil {
+		for _, v := range r.Vulnerabilities {
+			add(v.URL, "", v.InjectedValue, v.Header, "hostheader", string(v.Severity))
+		}
+	}
+	for _, v := range result.Deserialize {
+		add(v.URL, "", v.Payload, v.Parameter, "deserialization", string(v.Severity))
+	}
+	for _, v := range result.OAuth {
+		add(v.URL, "", v.Payload, v.Parameter, "oauth", string(v.Severity))
+	}
+	if r := result.SSRF; r != nil {
+		for _, v := range r.Vulnerabilities {
+			add(r.Target, "", v.Payload, v.Parameter, "ssrf", string(v.Severity))
+		}
+	}
+	if r := result.GraphQL; r != nil {
+		for _, v := range r.Vulnerabilities {
+			add("", "POST", v.Query, "", "graphql", string(v.Severity))
+		}
+	}
+	for _, v := range result.JWT {
+		if v != nil {
+			add("", "", "", "", "jwt", v.Severity)
+		}
+	}
+	for _, v := range result.BizLogic {
+		add(v.URL, v.Method, "", v.Parameter, "bizlogic", string(v.Severity))
+	}
+	for _, v := range result.APIFuzz {
+		add(v.Endpoint, v.Method, v.Payload, v.Parameter, "apifuzz", string(v.Severity))
+	}
+
+	// Simple Result types with URL, Payload, Parameter, Severity as string
+	for _, v := range result.LDAP {
+		add(v.URL, "", v.Payload, v.Parameter, "ldap", v.Severity)
+	}
+	for _, v := range result.SSI {
+		add(v.URL, "", v.Payload, v.Parameter, "ssi", v.Severity)
+	}
+	for _, v := range result.XPath {
+		add(v.URL, "", v.Payload, v.Parameter, "xpath", v.Severity)
+	}
+	for _, v := range result.XMLInjection {
+		add(v.URL, "", v.Payload, v.Parameter, "xmlinjection", v.Severity)
+	}
+	for _, v := range result.RFI {
+		add(v.URL, "", v.Payload, v.Parameter, "rfi", v.Severity)
+	}
+	for _, v := range result.LFI {
+		add(v.URL, "", v.Payload, v.Parameter, "lfi", v.Severity)
+	}
+	for _, v := range result.RCE {
+		add(v.URL, "", v.Payload, v.Parameter, "rce", v.Severity)
+	}
+	return findings
+}
+
+// writeScanHAR generates a HAR 1.2 document from scan vulnerability findings.
+// Each vulnerability becomes a HAR entry representing the request that triggered it.
+func writeScanHAR(w io.Writer, result *ScanResult) error {
+	findings := collectScanFindings(result)
+
+	type nv struct {
+		Name  string `json:"name"`
+		Value string `json:"value"`
+	}
+	type harContent struct {
+		Size     int    `json:"size"`
+		MimeType string `json:"mimeType"`
+	}
+	type harTimings struct {
+		Send    float64 `json:"send"`
+		Wait    float64 `json:"wait"`
+		Receive float64 `json:"receive"`
+	}
+	type harRequest struct {
+		Method      string `json:"method"`
+		URL         string `json:"url"`
+		HTTPVersion string `json:"httpVersion"`
+		Headers     []nv   `json:"headers"`
+		QueryString []nv   `json:"queryString"`
+		Cookies     []nv   `json:"cookies"`
+		HeadersSize int    `json:"headersSize"`
+		BodySize    int    `json:"bodySize"`
+	}
+	type harResponse struct {
+		Status      int        `json:"status"`
+		StatusText  string     `json:"statusText"`
+		HTTPVersion string     `json:"httpVersion"`
+		Headers     []nv       `json:"headers"`
+		Cookies     []nv       `json:"cookies"`
+		Content     harContent `json:"content"`
+		RedirectURL string     `json:"redirectURL"`
+		HeadersSize int        `json:"headersSize"`
+		BodySize    int        `json:"bodySize"`
+	}
+	type harEntry struct {
+		Pageref         string      `json:"pageref"`
+		StartedDateTime string      `json:"startedDateTime"`
+		Time            float64     `json:"time"`
+		Request         harRequest  `json:"request"`
+		Response        harResponse `json:"response"`
+		Cache           struct{}    `json:"cache"`
+		Timings         harTimings  `json:"timings"`
+		Comment         string      `json:"comment,omitempty"`
+	}
+	type pageTimings struct {
+		OnLoad float64 `json:"onLoad"`
+	}
+	type harPage struct {
+		StartedDateTime string      `json:"startedDateTime"`
+		ID              string      `json:"id"`
+		Title           string      `json:"title"`
+		PageTimings     pageTimings `json:"pageTimings"`
+	}
+
+	startTime := result.StartTime.Format("2006-01-02T15:04:05.000Z")
+	pageID := "page_1"
+
+	entries := make([]harEntry, 0, len(findings))
+	for _, f := range findings {
+		method := f.Method
+		if method == "" {
+			method = "GET"
+		}
+		reqURL := f.URL
+		if reqURL == "" {
+			reqURL = result.Target
+		}
+
+		var qs []nv
+		if parsed, err := url.Parse(reqURL); err == nil && parsed.RawQuery != "" {
+			for k, vs := range parsed.Query() {
+				for _, v := range vs {
+					qs = append(qs, nv{Name: k, Value: v})
+				}
+			}
+		}
+
+		latencyMs := float64(f.ResponseTime.Milliseconds())
+		comment := fmt.Sprintf("[%s] %s", f.Severity, f.Category)
+		if f.Parameter != "" {
+			comment += " param=" + f.Parameter
+		}
+
+		entries = append(entries, harEntry{
+			Pageref:         pageID,
+			StartedDateTime: startTime,
+			Time:            latencyMs,
+			Request: harRequest{
+				Method:      method,
+				URL:         reqURL,
+				HTTPVersion: "HTTP/1.1",
+				Headers:     []nv{},
+				QueryString: qs,
+				Cookies:     []nv{},
+				HeadersSize: -1,
+				BodySize:    -1,
+			},
+			Response: harResponse{
+				Status:      0,
+				StatusText:  "",
+				HTTPVersion: "HTTP/1.1",
+				Headers:     []nv{},
+				Cookies:     []nv{},
+				Content:     harContent{Size: 0, MimeType: "text/html"},
+				RedirectURL: "",
+				HeadersSize: -1,
+				BodySize:    -1,
+			},
+			Cache: struct{}{},
+			Timings: harTimings{
+				Send:    0,
+				Wait:    latencyMs,
+				Receive: 0,
+			},
+			Comment: comment,
+		})
+	}
+
+	doc := map[string]interface{}{
+		"log": map[string]interface{}{
+			"version": "1.2",
+			"creator": map[string]string{
+				"name":    "waftester",
+				"version": defaults.Version,
+			},
+			"pages": []harPage{{
+				StartedDateTime: startTime,
+				ID:              pageID,
+				Title:           "WAFtester Scan: " + result.Target,
+				PageTimings:     pageTimings{OnLoad: float64(result.Duration.Milliseconds())},
+			}},
+			"entries": entries,
+		},
+	}
+
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(doc)
+}
+
 // writeScanExports writes scan results to all configured enterprise export files.
 // The scan command produces ScanResult (vulnerability findings), not ExecutionResults
 // (test pass/fail), so it needs its own export logic using the scan-specific formatters.
@@ -237,7 +544,9 @@ func writeScanExports(outFlags *OutputFlags, target string, result *ScanResult) 
 		ui.PrintError("DefectDojo export is not supported for scan")
 	}
 	if outFlags.HARExport != "" {
-		ui.PrintError("HAR export is not supported for scan")
+		writeToFile(outFlags.HARExport, func(w io.Writer) error {
+			return writeScanHAR(w, result)
+		})
 	}
 	if outFlags.CycloneDXExport != "" {
 		ui.PrintError("CycloneDX export is not supported for scan")

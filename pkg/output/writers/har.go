@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
@@ -55,8 +56,21 @@ type harDocument struct {
 type harLog struct {
 	Version string     `json:"version"`
 	Creator harCreator `json:"creator"`
-	Pages   []any      `json:"pages"`
+	Pages   []harPage  `json:"pages"`
 	Entries []harEntry `json:"entries"`
+}
+
+// harPage represents a HAR page object.
+type harPage struct {
+	StartedDateTime string         `json:"startedDateTime"`
+	ID              string         `json:"id"`
+	Title           string         `json:"title"`
+	PageTimings     harPageTimings `json:"pageTimings"`
+}
+
+// harPageTimings represents page-level timing data.
+type harPageTimings struct {
+	OnLoad float64 `json:"onLoad"`
 }
 
 // harCreator represents the HAR creator object.
@@ -67,6 +81,7 @@ type harCreator struct {
 
 // harEntry represents a single HAR entry.
 type harEntry struct {
+	Pageref         string      `json:"pageref,omitempty"`
 	StartedDateTime string      `json:"startedDateTime"`
 	Time            float64     `json:"time"`
 	Request         harRequest  `json:"request"`
@@ -204,6 +219,16 @@ func (hw *HARWriter) Close() error {
 	}
 	hw.closed = true
 
+	// Build a single page entry per HAR spec. Viewers like Chrome DevTools
+	// and Charles expect at least one page.
+	pageID := "page_1"
+	var pageStarted string
+	if len(hw.buffer) > 0 {
+		pageStarted = hw.buffer[0].Timestamp().Format(harMillisecondFormat)
+	} else {
+		pageStarted = time.Now().Format(harMillisecondFormat)
+	}
+
 	doc := harDocument{
 		Log: harLog{
 			Version: "1.2",
@@ -211,7 +236,12 @@ func (hw *HARWriter) Close() error {
 				Name:    hw.opts.CreatorName,
 				Version: hw.opts.CreatorVersion,
 			},
-			Pages:   []any{},
+			Pages: []harPage{{
+				StartedDateTime: pageStarted,
+				ID:              pageID,
+				Title:           "WAF Security Test",
+				PageTimings:     harPageTimings{OnLoad: -1},
+			}},
 			Entries: make([]harEntry, 0, len(hw.buffer)),
 		},
 	}
@@ -286,6 +316,10 @@ func (hw *HARWriter) resultToEntry(re *events.ResultEvent) harEntry {
 	reqHeaders := buildSortedHeaders(re.Evidence)
 	reqCookies := buildRequestCookies(re.Evidence)
 
+	// Build response headers and cookies from evidence.
+	respHeaders := buildResponseHeaders(re.Evidence)
+	respCookies := buildResponseCookies(re.Evidence)
+
 	// Build response content from evidence.
 	respContent := buildResponseContent(re)
 
@@ -305,6 +339,7 @@ func (hw *HARWriter) resultToEntry(re *events.ResultEvent) harEntry {
 	}
 
 	return harEntry{
+		Pageref:         "page_1",
 		StartedDateTime: re.Time.Format(harMillisecondFormat),
 		Time:            re.Result.LatencyMs,
 		Request: harRequest{
@@ -322,8 +357,8 @@ func (hw *HARWriter) resultToEntry(re *events.ResultEvent) harEntry {
 			Status:      re.Result.StatusCode,
 			StatusText:  statusText(re.Result.StatusCode),
 			HTTPVersion: "HTTP/1.1",
-			Headers:     []harNameValue{},
-			Cookies:     []harCookie{},
+			Headers:     respHeaders,
+			Cookies:     respCookies,
 			Content:     respContent,
 			RedirectURL: "",
 			HeadersSize: -1,
@@ -501,6 +536,45 @@ func buildRequestCookies(ev *events.Evidence) []harCookie {
 	return parseCookieHeader(cookieHeader)
 }
 
+// buildResponseHeaders extracts response headers from evidence in
+// deterministic (sorted) order.
+func buildResponseHeaders(ev *events.Evidence) []harNameValue {
+	headers := make([]harNameValue, 0)
+	if ev == nil || ev.ResponseHeaders == nil {
+		return headers
+	}
+	for name, value := range ev.ResponseHeaders {
+		headers = append(headers, harNameValue{Name: name, Value: value})
+	}
+	sortNameValues(headers)
+	return headers
+}
+
+// buildResponseCookies parses Set-Cookie response headers into individual
+// harCookie entries.
+func buildResponseCookies(ev *events.Evidence) []harCookie {
+	if ev == nil || ev.ResponseHeaders == nil {
+		return []harCookie{}
+	}
+	setCookie := headerValue(ev.ResponseHeaders, "Set-Cookie")
+	if setCookie == "" {
+		return []harCookie{}
+	}
+	// Set-Cookie is a single header in our map; parse its name=value.
+	cookies := make([]harCookie, 0)
+	name, value, _ := strings.Cut(setCookie, "=")
+	name = strings.TrimSpace(name)
+	if name != "" {
+		// Strip cookie attributes after first semicolon for the value.
+		value, _, _ = strings.Cut(value, ";")
+		cookies = append(cookies, harCookie{
+			Name:  name,
+			Value: strings.TrimSpace(value),
+		})
+	}
+	return cookies
+}
+
 // parseCookieHeader splits a Cookie header value ("name1=val1; name2=val2")
 // into individual harCookie entries.
 func parseCookieHeader(header string) []harCookie {
@@ -559,9 +633,8 @@ func effectivePayload(ev *events.Evidence) string {
 }
 
 // buildResponseContent constructs the HAR response content object.
-// Maps ResponsePreview to content.text when available, and infers
-// the MIME type from the preview content rather than guessing from
-// request headers.
+// Uses Content-Type from response headers when available, falls back to
+// content-sniffing the preview, and finally defaults to text/html.
 // Size always reflects ContentLength from the actual HTTP response;
 // ResponsePreview is a truncated snippet and its length would misrepresent
 // the true response size.
@@ -571,9 +644,16 @@ func buildResponseContent(re *events.ResultEvent) harContent {
 		MimeType: "text/html",
 	}
 
-	if re.Evidence != nil && re.Evidence.ResponsePreview != "" {
-		c.Text = re.Evidence.ResponsePreview
-		c.MimeType = inferMIMEFromContent(re.Evidence.ResponsePreview)
+	// Prefer the actual Content-Type header from the response.
+	if re.Evidence != nil {
+		if ct := headerValue(re.Evidence.ResponseHeaders, "Content-Type"); ct != "" {
+			c.MimeType = baseMIMEType(ct)
+		} else if re.Evidence.ResponsePreview != "" {
+			c.MimeType = inferMIMEFromContent(re.Evidence.ResponsePreview)
+		}
+		if re.Evidence.ResponsePreview != "" {
+			c.Text = re.Evidence.ResponsePreview
+		}
 	}
 
 	return c
