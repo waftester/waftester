@@ -10,6 +10,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
@@ -38,7 +39,7 @@ type Result struct {
 	StatusCode  int
 	Vulnerable  bool
 	Evidence    string
-	Severity    string
+	Severity    finding.Severity
 	Timestamp   time.Time
 }
 
@@ -180,7 +181,7 @@ func (s *Scanner) testEndpoint(ctx context.Context, url, testType, endpoint stri
 	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
 		result.Vulnerable = true
 		result.Evidence = "Endpoint accessible: " + endpoint
-		result.Severity = "high"
+		result.Severity = finding.High
 		s.config.NotifyVulnerabilityFound()
 	}
 
@@ -197,7 +198,7 @@ func (s *Scanner) GetResults() []Result {
 // SecurityHeader represents a security header to check
 type SecurityHeader struct {
 	Name      string
-	Severity  string
+	Severity  finding.Severity
 	Validator func(string) bool
 }
 
@@ -206,7 +207,7 @@ func RequiredSecurityHeaders() []SecurityHeader {
 	return []SecurityHeader{
 		{
 			Name:     "X-Frame-Options",
-			Severity: "medium",
+			Severity: finding.Medium,
 			Validator: func(v string) bool {
 				v = strings.ToUpper(v)
 				return v == "DENY" || v == "SAMEORIGIN"
@@ -214,38 +215,38 @@ func RequiredSecurityHeaders() []SecurityHeader {
 		},
 		{
 			Name:     "X-Content-Type-Options",
-			Severity: "medium",
+			Severity: finding.Medium,
 			Validator: func(v string) bool {
 				return strings.ToLower(v) == "nosniff"
 			},
 		},
 		{
 			Name:     "Strict-Transport-Security",
-			Severity: "high",
+			Severity: finding.High,
 			Validator: func(v string) bool {
 				return strings.Contains(strings.ToLower(v), "max-age=")
 			},
 		},
 		{
 			Name:      "Content-Security-Policy",
-			Severity:  "medium",
+			Severity:  finding.Medium,
 			Validator: nil, // Any CSP is better than none
 		},
 		{
 			Name:     "X-XSS-Protection",
-			Severity: "low",
+			Severity: finding.Low,
 			Validator: func(v string) bool {
 				return strings.HasPrefix(v, "1")
 			},
 		},
 		{
 			Name:      "Referrer-Policy",
-			Severity:  "low",
+			Severity:  finding.Low,
 			Validator: nil,
 		},
 		{
 			Name:      "Permissions-Policy",
-			Severity:  "low",
+			Severity:  finding.Low,
 			Validator: nil,
 		},
 	}

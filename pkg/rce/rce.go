@@ -11,6 +11,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
@@ -42,7 +43,7 @@ type Result struct {
 	ResponseSize int
 	Vulnerable   bool
 	Evidence     string
-	Severity     string
+	Severity     finding.Severity
 	Timestamp    time.Time
 }
 
@@ -143,7 +144,7 @@ func (s *Scanner) testPayload(ctx context.Context, targetURL, param string, payl
 
 	result.Vulnerable, result.Evidence = s.detectVulnerability(string(body), payload.Markers)
 	if result.Vulnerable {
-		result.Severity = "critical"
+		result.Severity = finding.Critical
 	}
 
 	return result

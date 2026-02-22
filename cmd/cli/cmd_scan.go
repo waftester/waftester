@@ -2067,7 +2067,7 @@ func runScan() {
 		result.TotalVulns += vulnCount
 		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, r := range vulnResults {
-			result.BySeverity[r.Severity]++
+			result.BySeverity[string(r.Severity)]++
 			emitEvent("vulnerability", map[string]interface{}{
 				"category":  "ldap",
 				"severity":  r.Severity,
@@ -2107,7 +2107,7 @@ func runScan() {
 		result.TotalVulns += vulnCount
 		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, r := range vulnResults {
-			result.BySeverity[r.Severity]++
+			result.BySeverity[string(r.Severity)]++
 			emitEvent("vulnerability", map[string]interface{}{
 				"category":  "ssi",
 				"severity":  r.Severity,
@@ -2147,7 +2147,7 @@ func runScan() {
 		result.TotalVulns += vulnCount
 		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, r := range vulnResults {
-			result.BySeverity[r.Severity]++
+			result.BySeverity[string(r.Severity)]++
 			emitEvent("vulnerability", map[string]interface{}{
 				"category":  "xpath",
 				"severity":  r.Severity,
@@ -2186,7 +2186,7 @@ func runScan() {
 		result.TotalVulns += vulnCount
 		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, r := range vulnResults {
-			result.BySeverity[r.Severity]++
+			result.BySeverity[string(r.Severity)]++
 			emitEvent("vulnerability", map[string]interface{}{
 				"category": "xmlinjection",
 				"severity": r.Severity,
@@ -2225,7 +2225,7 @@ func runScan() {
 		result.TotalVulns += vulnCount
 		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, r := range vulnResults {
-			result.BySeverity[r.Severity]++
+			result.BySeverity[string(r.Severity)]++
 			emitEvent("vulnerability", map[string]interface{}{
 				"category":  "rfi",
 				"severity":  r.Severity,
@@ -2265,7 +2265,7 @@ func runScan() {
 		result.TotalVulns += vulnCount
 		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, r := range vulnResults {
-			result.BySeverity[r.Severity]++
+			result.BySeverity[string(r.Severity)]++
 			emitEvent("vulnerability", map[string]interface{}{
 				"category":  "lfi",
 				"severity":  r.Severity,
@@ -2305,7 +2305,7 @@ func runScan() {
 		result.TotalVulns += vulnCount
 		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, r := range vulnResults {
-			result.BySeverity[r.Severity]++
+			result.BySeverity[string(r.Severity)]++
 			emitEvent("vulnerability", map[string]interface{}{
 				"category":  "rce",
 				"severity":  r.Severity,
@@ -2338,7 +2338,7 @@ func runScan() {
 			result.ByCategory["csrf"] = 1
 			result.TotalVulns++
 			// Vulns metric updated in real-time via OnVulnerabilityFound callback
-			result.BySeverity[csrfResult.Severity]++
+			result.BySeverity[string(csrfResult.Severity)]++
 			emitEvent("vulnerability", map[string]interface{}{
 				"category": "csrf",
 				"severity": csrfResult.Severity,
@@ -2370,7 +2370,7 @@ func runScan() {
 			result.ByCategory["clickjack"] = 1
 			result.TotalVulns++
 			// Vulns metric updated in real-time via OnVulnerabilityFound callback
-			result.BySeverity[clickResult.Severity]++
+			result.BySeverity[string(clickResult.Severity)]++
 			emitEvent("vulnerability", map[string]interface{}{
 				"category":        "clickjack",
 				"severity":        clickResult.Severity,
@@ -2418,7 +2418,7 @@ func runScan() {
 		result.TotalVulns += vulnCount
 		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, r := range allResults {
-			result.BySeverity[r.Severity]++
+			result.BySeverity[string(r.Severity)]++
 			emitEvent("vulnerability", map[string]interface{}{
 				"category": "idor",
 				"severity": r.Severity,
@@ -2459,7 +2459,7 @@ func runScan() {
 		result.TotalVulns += vulnCount
 		// Vulns metric updated in real-time via OnVulnerabilityFound callback
 		for _, r := range vulnResults {
-			result.BySeverity[r.Severity]++
+			result.BySeverity[string(r.Severity)]++
 			emitEvent("vulnerability", map[string]interface{}{
 				"category":  "massassignment",
 				"severity":  r.Severity,
