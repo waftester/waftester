@@ -5,6 +5,22 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.26] - 2026-02-23
+
+### Fixed
+
+- **SSRF scanner: 14 bug fixes** — False positives from bare nginx/apache strings in `isLocalResponse`, overly broad `<!DOCTYPE` and `<?xml` patterns in `isFileContent`, missing `vuln.Parameter` after `AnalyzeResponse`, unhandled `CategoryBypass` in localhost check, runtime-compiled regex, narrowed availability-zone metadata pattern, dead code removal, and `DefaultConfig()` for safe defaults so `LocalIPs`/`CloudMetadataIPs`/`BypassTechniques` populate correctly.
+- **Request smuggling scanner: 9 bug fixes** — Missing `VulnCL0` constant, CRLF obfuscation header premature termination, case-insensitive multi-response detection in `containsDesyncIndicator`, H2 stub returning faked techniques, silent technique errors, missing write deadline in `sendRawRequest`, empty hostname crash, and `DefaultConfig()` for safe `SafeMode`/`DelayMs`/`ReadTimeout` defaults.
+- **JWT scanner: 8 bug fixes** — Null bytes in `Sign()` blocking `none\x00` variant, case-insensitive none detection with null-byte stripping, JKU/X5U risk downgrade from critical, claim mutation in `CreateToken`, double-fire `notifyUniqueTypes`, missing `OnVulnerabilityFound` bridge from `Config.Base` to `Attacker`, and token extraction from `X-Auth-Token`/`X-Access-Token`/`X-JWT-Token` headers.
+- **Structured output corruption** — Scan summary line wrote to stdout, corrupting JSON/SARIF/CSV/HTML piping. Table writer summary appended after format-specific stdout output on deferred `Close()`. Both now route to stderr.
+- **JSON output missing struct tags** — 8 result types (`sqli.ScanResult`, `ssti.Payload`, `xss.ScanResult`, `hostheader.Vulnerability`, `hostheader.ScanResult`, `websocket.ScanResult`, `csrf.Result`, `clickjack.Result`) produced PascalCase keys instead of camelCase.
+- **Severity case inconsistency** — 42 files across 25+ packages used mixed-case severity strings. Normalized all `Severity` field assignments to lowercase matching `finding.Severity*` constants. Added `TestSeverityCaseConsistency` enforcement test.
+- **Unicode garbled on Windows consoles** — Progress bars, bullets, arrows, and other non-ASCII characters were hardcoded, bypassing the existing `boxChars`/`asciiChars` fallback system. Added `BarFilled`/`BarEmpty` fields and replaced 16 hardcoded Unicode sites with `ui.Icon()` or struct references.
+- **ANSI escape code leak in redirected output** — Raw `\033[` sequences leaked into non-TTY stdout and stderr across 15+ files. Centralized color output through `pkg/ui/styles.go` and `pkg/dsl` color functions with terminal capability detection (`StderrIsTerminal()`, `StdoutIsTerminal()`). Respects `NO_COLOR` and `TERM=dumb`. 8 regression tests verify zero ESC bytes in piped output.
+- **Scan summary grammar** — Category count used plural "vulnerabilities" when count was 1. Severity display order was random map iteration instead of Critical > High > Medium > Low > Info.
+- **Raw HTTP clients in SSRF/JWT** — `jwt.go` and `ssrf.go` created fallback clients with bare `&http.Client{}` literals instead of `httpclient.New()`, bypassing timeout and TLS configuration.
+- **Bypass command output message** — "see bypasses.json" displayed even without `-o` flag. Now shows "use `-o <file>`" when no output file is specified.
+
 ## [2.9.25] - 2026-02-22
 
 ### Added
@@ -2427,6 +2443,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.26]: https://github.com/waftester/waftester/compare/v2.9.25...v2.9.26
 [2.9.25]: https://github.com/waftester/waftester/compare/v2.9.24...v2.9.25
 [2.9.24]: https://github.com/waftester/waftester/compare/v2.9.23...v2.9.24
 [2.9.23]: https://github.com/waftester/waftester/compare/v2.9.22...v2.9.23
