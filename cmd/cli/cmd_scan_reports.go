@@ -18,11 +18,11 @@ import (
 
 // severityOrder defines canonical display ordering for severity levels.
 var severityOrder = map[string]int{
-	"Critical": 0,
-	"High":     1,
-	"Medium":   2,
-	"Low":      3,
-	"Info":     4,
+	"critical": 0,
+	"high":     1,
+	"medium":   2,
+	"low":      3,
+	"info":     4,
 }
 
 // sortedSeverities returns the keys of a severity map sorted by severity order
@@ -184,11 +184,11 @@ func printScanConsoleSummary(result *ScanResult) {
 		for _, sev := range sortedSeverities(result.BySeverity) {
 			count := result.BySeverity[sev]
 			switch sev {
-			case "Critical":
+			case "critical":
 				ui.PrintError(fmt.Sprintf("  %s: %d", sev, count))
-			case "High":
+			case "high":
 				ui.PrintError(fmt.Sprintf("  %s: %d", sev, count))
-			case "Medium":
+			case "medium":
 				ui.PrintWarning(fmt.Sprintf("  %s: %d", sev, count))
 			default:
 				ui.PrintInfo(fmt.Sprintf("  %s: %d", sev, count))
@@ -199,7 +199,11 @@ func printScanConsoleSummary(result *ScanResult) {
 		ui.PrintSection("By Category")
 		for cat, count := range result.ByCategory {
 			if count > 0 {
-				ui.PrintConfigLine(cat, fmt.Sprintf("%d vulnerabilities", count))
+				word := "vulnerabilities"
+				if count == 1 {
+					word = "vulnerability"
+				}
+				ui.PrintConfigLine(cat, fmt.Sprintf("%d %s", count, word))
 			}
 		}
 		fmt.Println() // debug:keep
