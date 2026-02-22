@@ -40,6 +40,7 @@ const (
 	VulnCLTE      VulnType = "CL.TE"     // Content-Length first, Transfer-Encoding second
 	VulnTECL      VulnType = "TE.CL"     // Transfer-Encoding first, Content-Length second
 	VulnTETE      VulnType = "TE.TE"     // Both use TE but with obfuscation
+	VulnCL0       VulnType = "CL.0"      // Content-Length: 0 desync
 	VulnH2CL      VulnType = "H2.CL"     // HTTP/2 to HTTP/1.1 with CL
 	VulnH2TE      VulnType = "H2.TE"     // HTTP/2 to HTTP/1.1 with TE
 	VulnWebSocket VulnType = "WebSocket" // WebSocket upgrade smuggling
@@ -106,6 +107,10 @@ func (d *Detector) Detect(ctx context.Context, target string) (*Result, error) {
 		return nil, fmt.Errorf("invalid URL: %w", err)
 	}
 
+	if u.Hostname() == "" {
+		return nil, fmt.Errorf("smuggling: empty hostname in target URL")
+	}
+
 	result := &Result{
 		Target:   target,
 		SafeMode: d.SafeMode,
@@ -134,6 +139,7 @@ func (d *Detector) Detect(ctx context.Context, target string) (*Result, error) {
 		{"CL.0", d.detectCL0},
 	}
 
+	var lastErr error
 	for _, tech := range techniques {
 		select {
 		case <-ctx.Done():
@@ -145,13 +151,12 @@ func (d *Detector) Detect(ctx context.Context, target string) (*Result, error) {
 
 		vuln, err := tech.detect(ctx, host, port, useTLS)
 		if err != nil {
-			continue // Log but continue testing
+			lastErr = err
+			continue
 		}
 		if vuln != nil {
 			result.Vulnerabilities = append(result.Vulnerabilities, *vuln)
-			if d.OnVulnerabilityFound != nil {
-				d.OnVulnerabilityFound()
-			}
+			d.NotifyUniqueVuln(string(vuln.Type))
 		}
 
 		// Small delay between tests to avoid overwhelming target
@@ -159,6 +164,10 @@ func (d *Detector) Detect(ctx context.Context, target string) (*Result, error) {
 	}
 
 	result.Duration = time.Since(start)
+	// If all techniques failed and produced no results, surface the last error.
+	if len(result.Vulnerabilities) == 0 && len(result.TestedTechniques) > 0 && lastErr != nil {
+		return result, lastErr
+	}
 	return result, nil
 }
 
@@ -310,7 +319,7 @@ func (d *Detector) detectTETE(ctx context.Context, host, port string, useTLS boo
 	}{
 		{"Space before colon", "Transfer-Encoding : chunked"},
 		{"Tab after colon", "Transfer-Encoding:\tchunked"},
-		{"CRLF in value", "Transfer-Encoding: chunked\r\n"},
+		{"CRLF in value", "Transfer-Encoding: chunked\r\nX-Dummy: 1"},
 		{"Case variation", "Transfer-ENCODING: chunked"},
 		{"Double header", "Transfer-Encoding: chunked\r\nTransfer-Encoding: identity"},
 		{"Null byte", "Transfer-Encoding: chunked\x00"},
@@ -402,7 +411,7 @@ func (d *Detector) detectCL0(ctx context.Context, host, port string, useTLS bool
 	// Check if we got multiple responses or admin content
 	if strings.Count(resp, "HTTP/1.") > 1 {
 		return &Vulnerability{
-			Type:        VulnCLTE,
+			Type:        VulnCL0,
 			Technique:   "CL.0 desync",
 			Description: "Server may be ignoring Content-Length: 0, allowing smuggled requests",
 			Severity:    "high",
@@ -447,6 +456,9 @@ func (d *Detector) sendRawRequest(ctx context.Context, host, port string, useTLS
 		return 0, "", fmt.Errorf("connection failed: %w", err)
 	}
 	defer conn.Close()
+
+	// Set write deadline to prevent hanging on stalled connections.
+	conn.SetWriteDeadline(time.Now().Add(d.Timeout))
 
 	// Set read deadline
 	conn.SetReadDeadline(time.Now().Add(d.ReadTimeout))
@@ -561,29 +573,27 @@ func isTimeout(err error) bool {
 }
 
 func containsDesyncIndicator(resp string) bool {
-	indicators := []string{
-		"HTTP/1.1 400",
-		"HTTP/1.0 400",
-		"Bad Request",
-		"Invalid request",
-		"Malformed",
-		"HTTP/1.1 200", // Multiple responses
+	// Primary check: multiple HTTP responses in a single connection
+	// indicates a desync or response splitting.
+	lowerResp := strings.ToLower(resp)
+	if strings.Count(lowerResp, "http/1.") > 1 {
+		return true
 	}
 
-	lowerResp := strings.ToLower(resp)
+	// Secondary: anomalous status codes that indicate parsing confusion.
+	indicators := []string{
+		"bad request",
+		"invalid request",
+		"malformed",
+	}
 	for _, ind := range indicators {
-		if strings.Contains(lowerResp, strings.ToLower(ind)) {
-			// Check for multiple HTTP responses
-			if strings.Count(resp, "HTTP/1.") > 1 {
-				return true
-			}
+		if strings.Contains(lowerResp, ind) {
+			return true
 		}
 	}
 
 	return false
 }
-
-
 
 // HTTP2Detector detects HTTP/2 specific smuggling
 type HTTP2Detector struct {
@@ -597,21 +607,14 @@ func NewHTTP2Detector() *HTTP2Detector {
 	}
 }
 
-// DetectH2Smuggling checks for HTTP/2 to HTTP/1.1 smuggling
+// DetectH2Smuggling checks for HTTP/2 to HTTP/1.1 smuggling.
+// NOTE: Not yet implemented — requires HTTP/2 client support.
+// Returns empty result with no tested techniques.
 func (d *HTTP2Detector) DetectH2Smuggling(ctx context.Context, target string) (*Result, error) {
 	result := &Result{
 		Target:   target,
 		SafeMode: d.SafeMode,
 	}
-
-	// HTTP/2 specific techniques would go here
-	// These require HTTP/2 client implementation
-	result.TestedTechniques = append(result.TestedTechniques,
-		"H2.CL Content-Length injection",
-		"H2.TE Transfer-Encoding injection",
-		"H2 CRLF injection",
-		"H2 header name splitting",
-	)
 
 	return result, nil
 }
