@@ -308,8 +308,10 @@ func (hw *HARWriter) resultToEntry(re *events.ResultEvent) harEntry {
 	// accurate representation of what was actually sent.
 	wirePayload := effectivePayload(re.Evidence)
 
+	// bodySize is the request body size. For methods without a body (GET, HEAD,
+	// DELETE), the payload travels in the query string, not the body.
 	bodySize := -1
-	if wirePayload != "" {
+	if wirePayload != "" && methodHasBody(method) {
 		bodySize = len(wirePayload)
 	}
 
