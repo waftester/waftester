@@ -35,16 +35,16 @@ func DefaultConfig() Config {
 
 // Result represents an LFI test result
 type Result struct {
-	URL          string
-	Parameter    string
-	Payload      string
-	StatusCode   int
-	ResponseSize int
-	Vulnerable   bool
-	FileContent  string
-	Evidence     string
-	Severity     string
-	Timestamp    time.Time
+	URL          string    `json:"url"`
+	Parameter    string    `json:"parameter"`
+	Payload      string    `json:"payload"`
+	StatusCode   int       `json:"status_code"`
+	ResponseSize int       `json:"response_size"`
+	Vulnerable   bool      `json:"vulnerable"`
+	FileContent  string    `json:"file_content,omitempty"`
+	Evidence     string    `json:"evidence,omitempty"`
+	Severity     string    `json:"severity"`
+	Timestamp    time.Time `json:"timestamp"`
 }
 
 // Scanner performs LFI testing

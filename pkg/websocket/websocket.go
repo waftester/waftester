@@ -39,18 +39,18 @@ const (
 // Vulnerability represents a detected WebSocket vulnerability
 type Vulnerability struct {
 	finding.Vulnerability
-	Type VulnerabilityType
+	Type VulnerabilityType `json:"type"`
 }
 
 // ScanResult represents the result of a WebSocket scan
 type ScanResult struct {
-	URL             string
-	IsWebSocket     bool
-	SupportsWS      bool
-	SupportsWSS     bool
-	Vulnerabilities []Vulnerability
-	StartTime       time.Time
-	Duration        time.Duration
+	URL             string          `json:"url"`
+	IsWebSocket     bool            `json:"is_websocket"`
+	SupportsWS      bool            `json:"supports_ws"`
+	SupportsWSS     bool            `json:"supports_wss"`
+	Vulnerabilities []Vulnerability `json:"vulnerabilities"`
+	StartTime       time.Time       `json:"start_time"`
+	Duration        time.Duration   `json:"duration"`
 }
 
 // TesterConfig holds configuration for the WebSocket tester

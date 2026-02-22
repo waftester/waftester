@@ -370,7 +370,12 @@ func runBypassFinder() {
 		shown := 0
 		for _, bp := range bypassPayloads {
 			if shown >= 10 {
-				fmt.Printf("  ... and %d more (see %s)\n", len(bypassPayloads)-10, *outputFile)
+				remaining := len(bypassPayloads) - 10
+				if *outputFile != "" {
+					fmt.Printf("  ... and %d more (see %s)\n", remaining, *outputFile)
+				} else {
+					fmt.Printf("  ... and %d more (use -o <file> to export all)\n", remaining)
+				}
 				break
 			}
 			fmt.Printf("  [%d] %s | %s | %s\n",
