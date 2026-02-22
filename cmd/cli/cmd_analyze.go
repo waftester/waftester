@@ -240,7 +240,10 @@ func runAnalyze() {
 		if err != nil {
 			errMsg := fmt.Sprintf("JSON encoding error: %v", err)
 			ui.PrintError(errMsg)
-			_ = analyzeDispCtx.EmitError(context.Background(), "analyze", errMsg, true)
+			if analyzeDispCtx != nil {
+				_ = analyzeDispCtx.EmitError(context.Background(), "analyze", errMsg, true)
+				_ = analyzeDispCtx.Close()
+			}
 			os.Exit(1)
 		}
 
@@ -248,7 +251,10 @@ func runAnalyze() {
 			if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
 				errMsg := fmt.Sprintf("Error writing output: %v", err)
 				ui.PrintError(errMsg)
-				_ = analyzeDispCtx.EmitError(context.Background(), "analyze", errMsg, true)
+				if analyzeDispCtx != nil {
+					_ = analyzeDispCtx.EmitError(context.Background(), "analyze", errMsg, true)
+					_ = analyzeDispCtx.Close()
+				}
 				os.Exit(1)
 			}
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))

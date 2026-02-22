@@ -275,7 +275,10 @@ func runCrawl() {
 	if err != nil {
 		errMsg := fmt.Sprintf("Crawl error: %v", err)
 		ui.PrintError(errMsg)
-		_ = crawlDispCtx.EmitError(ctx, "crawl", errMsg, true)
+		if crawlDispCtx != nil {
+			_ = crawlDispCtx.EmitError(ctx, "crawl", errMsg, true)
+			_ = crawlDispCtx.Close()
+		}
 		os.Exit(1)
 	}
 
@@ -445,7 +448,10 @@ func runCrawl() {
 		if err != nil {
 			errMsg := fmt.Sprintf("JSON encoding error: %v", err)
 			ui.PrintError(errMsg)
-			_ = crawlDispCtx.EmitError(context.Background(), "crawl", errMsg, true)
+			if crawlDispCtx != nil {
+				_ = crawlDispCtx.EmitError(context.Background(), "crawl", errMsg, true)
+				_ = crawlDispCtx.Close()
+			}
 			os.Exit(1)
 		}
 
@@ -453,7 +459,10 @@ func runCrawl() {
 			if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
 				errMsg := fmt.Sprintf("Error writing output: %v", err)
 				ui.PrintError(errMsg)
-				_ = crawlDispCtx.EmitError(context.Background(), "crawl", errMsg, true)
+				if crawlDispCtx != nil {
+					_ = crawlDispCtx.EmitError(context.Background(), "crawl", errMsg, true)
+					_ = crawlDispCtx.Close()
+				}
 				os.Exit(1)
 			}
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))

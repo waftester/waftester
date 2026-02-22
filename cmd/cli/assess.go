@@ -254,6 +254,7 @@ func runAssess() {
 		// Emit error to hooks
 		if dispCtx != nil {
 			_ = dispCtx.EmitError(ctx, "assess", fmt.Sprintf("Assessment error: %v", err), true)
+			_ = dispCtx.Close()
 		}
 		ui.PrintError(fmt.Sprintf("Assessment error: %v", err))
 		os.Exit(1)
@@ -314,11 +315,17 @@ func runAssess() {
 
 		if marshalErr != nil {
 			ui.PrintError(fmt.Sprintf("Error encoding output: %v", marshalErr))
+			if dispCtx != nil {
+				_ = dispCtx.Close()
+			}
 			os.Exit(1)
 		}
 
 		if err := os.WriteFile(*output, data, 0644); err != nil {
 			ui.PrintError(fmt.Sprintf("Error saving output: %v", err))
+			if dispCtx != nil {
+				_ = dispCtx.Close()
+			}
 			os.Exit(1)
 		} else {
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *output))
@@ -327,6 +334,9 @@ func runAssess() {
 
 	// Exit code based on grade
 	if result.Grade == "F" || result.Grade == "D" || result.Grade == "D-" {
+		if dispCtx != nil {
+			_ = dispCtx.Close()
+		}
 		os.Exit(1)
 	}
 }
