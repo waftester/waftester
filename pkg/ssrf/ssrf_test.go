@@ -661,21 +661,24 @@ func TestIsMetadataResponse(t *testing.T) {
 
 func TestIsLocalResponse(t *testing.T) {
 	tests := []struct {
-		name       string
-		body       string
-		statusCode int
-		expected   bool
+		name     string
+		body     string
+		expected bool
 	}{
-		{"200 OK bare", "OK", 200, false},
-		{"500 Error", "Error", 500, false},
-		{"Nginx", "Welcome to nginx!", 403, true},
-		{"Apache", "Apache server", 403, true},
-		{"404 with nginx", "nginx 404", 404, true},
+		{"200 OK bare", "OK", false},
+		{"500 Error", "Error", false},
+		{"Welcome to nginx", "Welcome to nginx!", true},
+		{"Bare nginx no match", "Powered by nginx 1.24", false},
+		{"Bare apache no match", "Apache server", false},
+		{"Apache2 default page", "This is the Apache2 default page", true},
+		{"redis banner", "redis_version:6.0.0", true},
+		{"internal IP 10.x", "server at 10.0.0.1 responded", true},
+		{"internal IP 192.168", "host: 192.168.1.1", true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := isLocalResponse(tt.body, tt.statusCode)
+			result := isLocalResponse(tt.body)
 			if result != tt.expected {
 				t.Errorf("Expected %v, got %v", tt.expected, result)
 			}
@@ -693,7 +696,7 @@ func TestIsFileContent(t *testing.T) {
 		{"PHP", "<?php echo 1; ?>", true},
 		{"Shebang", "#!/bin/bash\necho test", true},
 		{"XML", "<?xml version='1.0'?>", true},
-		{"DOCTYPE", "<!DOCTYPE html>", true},
+		{"DOCTYPE no match", "<!DOCTYPE html>", false},
 		{"Normal text", "Hello World", false},
 		{"HTML", "<html>test</html>", false},
 	}
@@ -916,6 +919,151 @@ func TestAnalyzeResponseEmptyBody(t *testing.T) {
 		vuln := d.AnalyzeResponse(payload, 200, "", http.Header{})
 		if vuln != nil {
 			t.Errorf("empty body should not trigger vuln for category %s", c.cat)
+		}
+	}
+}
+
+// --- Round 3 regression tests ---
+
+func TestAnalyzeResponseBypassCategory(t *testing.T) {
+	// CategoryBypass payloads targeting localhost should be detected
+	// when the response body contains local service indicators.
+	d := NewDetector(DefaultConfig())
+
+	payload := Payload{
+		Category: CategoryBypass,
+		URL:      "http://0x7f000001/",
+	}
+
+	vuln := d.AnalyzeResponse(payload, 200, "Welcome to nginx!", http.Header{})
+	if vuln == nil {
+		t.Fatal("CategoryBypass with localhost-indicating body should trigger vuln")
+	}
+	if vuln.Type != "Localhost Access" {
+		t.Errorf("expected 'Localhost Access', got %q", vuln.Type)
+	}
+}
+
+func TestAnalyzeResponseBypassNonLocal(t *testing.T) {
+	// CategoryBypass with a non-local body should NOT trigger.
+	d := NewDetector(DefaultConfig())
+
+	payload := Payload{Category: CategoryBypass, URL: "http://0x7f000001/"}
+	vuln := d.AnalyzeResponse(payload, 200, "Hello World", http.Header{})
+	if vuln != nil {
+		t.Error("CategoryBypass with benign body should not trigger vuln")
+	}
+}
+
+func TestIsLocalResponseNoFalsePositives(t *testing.T) {
+	// Bodies that mention "nginx" or "apache" in passing should NOT match.
+	falsePositives := []string{
+		"Powered by nginx 1.24",
+		"Using Apache as reverse proxy",
+		"nginx is a web server",
+		"apache foundation project",
+		`<html><body>Read more about nginx here</body></html>`,
+	}
+
+	for _, body := range falsePositives {
+		t.Run(body[:20], func(t *testing.T) {
+			if isLocalResponse(body) {
+				t.Errorf("should not match: %s", body)
+			}
+		})
+	}
+}
+
+func TestIsFileContentNoDOCTYPE(t *testing.T) {
+	// <!DOCTYPE html> must not trigger file content detection.
+	bodies := []string{
+		"<!DOCTYPE html><html><body>Error</body></html>",
+		"<!DOCTYPE html>\n<html>",
+		`<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN">`,
+	}
+
+	for _, body := range bodies {
+		if isFileContent(body) {
+			t.Errorf("DOCTYPE should not trigger isFileContent: %s", body[:30])
+		}
+	}
+}
+
+func TestIsFileContentXMLVersion(t *testing.T) {
+	// "<?xml version" should match, but bare "<?xml" without "version" should not.
+	if !isFileContent("<?xml version='1.0' encoding='UTF-8'?>") {
+		t.Error("<?xml version should match")
+	}
+	if isFileContent("<?xml encoding='UTF-8'?>") {
+		t.Error("<?xml without version should not match")
+	}
+}
+
+func TestIsMetadataResponseAvailabilityZone(t *testing.T) {
+	// "availability-zone" should match. Bare "zone" should not.
+	if !isMetadataResponse(`{"availability-zone":"us-east-1a"}`, http.Header{}) {
+		t.Error("availability-zone should match metadata")
+	}
+	if isMetadataResponse(`{"zone":"America/New_York"}`, http.Header{}) {
+		t.Error("bare 'zone' should not match metadata")
+	}
+}
+
+func TestDetectPopulatesParameter(t *testing.T) {
+	// Server that reflects metadata content for any URL param value.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{"ami-id":"ami-12345","instance-type":"t2.micro"}`))
+	}))
+	defer server.Close()
+
+	cfg := DefaultConfig()
+	cfg.Timeout = 5 * time.Second
+	d := NewDetector(cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	result, err := d.Detect(ctx, server.URL+"/fetch?url=test", "url")
+	if err != nil {
+		t.Fatalf("Detect failed: %v", err)
+	}
+
+	for _, v := range result.Vulnerabilities {
+		if v.Parameter == "" {
+			t.Errorf("vuln.Parameter should be populated, got empty for type %s", v.Type)
+		}
+		if v.Parameter != "url" {
+			t.Errorf("expected Parameter='url', got %q", v.Parameter)
+		}
+	}
+}
+
+func TestInternalIPRegexPrecompiled(t *testing.T) {
+	// Verify the package-level regex matches internal IP patterns.
+	matches := []string{
+		"10.0.0.1",
+		"10.255.0.1",
+		"172.16.0.1",
+		"172.31.255.255",
+		"192.168.1.1",
+	}
+	noMatches := []string{
+		"11.0.0.1",
+		"172.32.0.1",
+		"193.168.1.1",
+		"8.8.8.8",
+	}
+
+	for _, ip := range matches {
+		if !internalIPRegex.MatchString(ip) {
+			t.Errorf("should match internal IP: %s", ip)
+		}
+	}
+	for _, ip := range noMatches {
+		if internalIPRegex.MatchString(ip) {
+			t.Errorf("should not match non-internal IP: %s", ip)
 		}
 	}
 }

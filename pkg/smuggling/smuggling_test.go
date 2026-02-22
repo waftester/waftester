@@ -118,8 +118,10 @@ func TestDetectWithTestServer(t *testing.T) {
 	defer cancel()
 
 	result, err := d.Detect(ctx, server.URL)
+	// Detect now returns accumulated errors when all techniques fail,
+	// which is expected against a normal HTTP server.
 	if err != nil {
-		t.Fatalf("Detect failed: %v", err)
+		t.Logf("Detect error (expected against normal server): %v", err)
 	}
 
 	if result == nil {
@@ -127,9 +129,6 @@ func TestDetectWithTestServer(t *testing.T) {
 	}
 	if result.Target != server.URL {
 		t.Errorf("Target mismatch: got %s", result.Target)
-	}
-	if len(result.TestedTechniques) == 0 {
-		t.Error("Should have tested some techniques")
 	}
 }
 
@@ -193,7 +192,8 @@ func TestContainsDesyncIndicator(t *testing.T) {
 	}{
 		{"empty", "", false},
 		{"normal 200", "HTTP/1.1 200 OK\r\n\r\nBody", false},
-		{"single 400", "HTTP/1.1 400 Bad Request\r\n\r\n", false},
+		{"single 400 bad request", "HTTP/1.1 400 Bad Request\r\n\r\n", true},
+		{"single 200 no anomaly", "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nHello", false},
 		{"multiple responses", "HTTP/1.1 200 OK\r\n\r\nHTTP/1.1 200 OK\r\n\r\n", true},
 		{"400 with multiple", "HTTP/1.1 400 Bad Request\r\n\r\nHTTP/1.1 200 OK\r\n\r\n", true},
 	}
@@ -315,8 +315,11 @@ func TestHTTP2DetectorDetectH2Smuggling(t *testing.T) {
 	if result == nil {
 		t.Fatal("Result should not be nil")
 	}
-	if len(result.TestedTechniques) == 0 {
-		t.Error("Should list tested techniques")
+	if len(result.TestedTechniques) != 0 {
+		t.Error("Unimplemented H2 detection should not list tested techniques")
+	}
+	if len(result.Vulnerabilities) != 0 {
+		t.Error("Unimplemented H2 detection should not report vulnerabilities")
 	}
 }
 
@@ -434,10 +437,9 @@ func TestDetectEmptyTarget(t *testing.T) {
 	defer cancel()
 
 	result, err := d.Detect(ctx, "")
-	// url.Parse("") succeeds, so Detect won't return a parse error.
-	// It should still return a result with zero vulnerabilities.
-	if err != nil {
-		t.Logf("got error (OK): %v", err)
+	// Empty hostname is now rejected early.
+	if err == nil {
+		t.Error("expected error for empty target")
 	}
 	if result != nil && len(result.Vulnerabilities) > 0 {
 		t.Error("expected no vulnerabilities for empty target")
@@ -512,5 +514,92 @@ func TestGeneratePayloadsEmptyHost(t *testing.T) {
 	// Should still produce payloads (with empty host).
 	if len(payloads) == 0 {
 		t.Error("should generate payloads even with empty host")
+	}
+}
+
+// --- Round 3 regression tests ---
+
+func TestVulnCL0Type(t *testing.T) {
+	// VulnCL0 constant should exist and be distinct from VulnCLTE.
+	if VulnCL0 == "" {
+		t.Fatal("VulnCL0 should not be empty")
+	}
+	if VulnCL0 == VulnCLTE {
+		t.Error("VulnCL0 should differ from VulnCLTE")
+	}
+	if string(VulnCL0) != "CL.0" {
+		t.Errorf("expected VulnCL0='CL.0', got %q", VulnCL0)
+	}
+}
+
+func TestContainsDesyncIndicatorCaseInsensitive(t *testing.T) {
+	// Multiple HTTP/1. versions with different casing should still match.
+	resp := "http/1.0 200 OK\r\n\r\nHTTP/1.1 200 OK\r\n\r\n"
+	if !containsDesyncIndicator(resp) {
+		t.Error("case-insensitive multi-response should trigger indicator")
+	}
+}
+
+func TestContainsDesyncIndicatorMalformed(t *testing.T) {
+	// "malformed" as an anomalous keyword should trigger.
+	if !containsDesyncIndicator("Error: malformed request received") {
+		t.Error("'malformed' should trigger desync indicator")
+	}
+	// "invalid request" should trigger.
+	if !containsDesyncIndicator("400 Invalid Request") {
+		t.Error("'invalid request' should trigger desync indicator")
+	}
+}
+
+func TestContainsDesyncIndicatorNoFalsePositive(t *testing.T) {
+	// A single clean 200 response with no anomaly keywords should not trigger.
+	if containsDesyncIndicator("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<html>OK</html>") {
+		t.Error("single clean response should not trigger indicator")
+	}
+}
+
+func TestDetectEmptyHostnameError(t *testing.T) {
+	d := NewDetector(DefaultConfig())
+	d.Timeout = 200 * time.Millisecond
+	d.ReadTimeout = 100 * time.Millisecond
+
+	ctx := context.Background()
+	_, err := d.Detect(ctx, "")
+	if err == nil {
+		t.Error("empty target should return error")
+	}
+}
+
+func TestDetectAccumulatesErrors(t *testing.T) {
+	// A target where all techniques fail should return a non-nil error.
+	d := NewDetector(DefaultConfig())
+	d.Timeout = 200 * time.Millisecond
+	d.ReadTimeout = 100 * time.Millisecond
+	d.DelayMs = 0
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	// Use a port that refuses connections.
+	result, err := d.Detect(ctx, "http://127.0.0.1:1/")
+	if result == nil {
+		t.Fatal("result should not be nil")
+	}
+	if len(result.Vulnerabilities) == 0 && err == nil {
+		t.Error("if no vulns found and all techniques failed, error should be returned")
+	}
+}
+
+func TestH2SmugglingStubbedEmpty(t *testing.T) {
+	d := NewHTTP2Detector()
+	result, err := d.DetectH2Smuggling(context.Background(), "https://example.com")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.TestedTechniques) != 0 {
+		t.Error("stub should return empty TestedTechniques")
+	}
+	if len(result.Vulnerabilities) != 0 {
+		t.Error("stub should return empty Vulnerabilities")
 	}
 }

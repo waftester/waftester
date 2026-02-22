@@ -22,6 +22,9 @@ import (
 	"github.com/waftester/waftester/pkg/hexutil"
 )
 
+// internalIPRegex matches RFC 1918 private IP addresses in response bodies.
+var internalIPRegex = regexp.MustCompile(`\b(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})\b`)
+
 // Config holds SSRF scanner configuration.
 type Config struct {
 	attackconfig.Base
@@ -545,9 +548,7 @@ func (d *Detector) AnalyzeResponse(payload Payload, statusCode int, body string,
 	// Check for successful metadata access
 	if payload.Category == CategoryMetadata {
 		if isMetadataResponse(body, headers) {
-			if d.OnVulnerabilityFound != nil {
-				d.OnVulnerabilityFound()
-			}
+			d.NotifyUniqueVuln(string(payload.Category) + "|metadata")
 			return &Vulnerability{
 				Type:        "Cloud Metadata Access",
 				Severity:    finding.Critical,
@@ -559,12 +560,10 @@ func (d *Detector) AnalyzeResponse(payload Payload, statusCode int, body string,
 		}
 	}
 
-	// Check for localhost access
-	if payload.Category == CategoryLocalhost {
-		if isLocalResponse(body, statusCode) {
-			if d.OnVulnerabilityFound != nil {
-				d.OnVulnerabilityFound()
-			}
+	// Check for localhost access (includes bypass payloads that target localhost)
+	if payload.Category == CategoryLocalhost || payload.Category == CategoryBypass {
+		if isLocalResponse(body) {
+			d.NotifyUniqueVuln(string(payload.Category) + "|localhost")
 			return &Vulnerability{
 				Type:        "Localhost Access",
 				Severity:    finding.High,
@@ -579,9 +578,7 @@ func (d *Detector) AnalyzeResponse(payload Payload, statusCode int, body string,
 	// Check for file protocol success
 	if payload.Category == CategoryProtocol && strings.HasPrefix(payload.URL, "file://") {
 		if isFileContent(body) {
-			if d.OnVulnerabilityFound != nil {
-				d.OnVulnerabilityFound()
-			}
+			d.NotifyUniqueVuln(string(payload.Category) + "|file")
 			return &Vulnerability{
 				Type:        "Local File Read via SSRF",
 				Severity:    finding.Critical,
@@ -682,7 +679,8 @@ func isMetadataResponse(body string, headers http.Header) bool {
 		"instance-identity",
 		"security-credentials",
 		"project-id",
-		"zone",
+		"availability-zone",
+		"placement/availability-zone",
 		"machine-type",
 	}
 
@@ -696,11 +694,9 @@ func isMetadataResponse(body string, headers http.Header) bool {
 	return false
 }
 
-func isLocalResponse(body string, statusCode int) bool {
-	// A 200 status alone is NOT sufficient evidence of SSRF —
-	// the target may simply return its normal page regardless of
-	// the injected URL. Require body content that indicates a
-	// local or internal service actually responded.
+func isLocalResponse(body string) bool {
+	// Require body content that indicates a local or internal
+	// service actually responded. A 200 status alone is not enough.
 
 	localPatterns := []string{
 		// Web server default pages
@@ -709,9 +705,6 @@ func isLocalResponse(body string, statusCode int) bool {
 		"iis windows server",
 		"it works!",
 		"default web site page",
-		// Web server banner strings (indicate local service)
-		"nginx",
-		"apache",
 		// Internal service banners
 		"redis_version",
 		"mysql_native_password",
@@ -733,8 +726,8 @@ func isLocalResponse(body string, statusCode int) bool {
 		}
 	}
 
-	// Check for internal IP addresses via regex (e.g., 10.x.x.x, 172.16-31.x.x)
-	if matched, _ := regexp.MatchString(`\b(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})\b`, body); matched {
+	// Check for internal IP addresses via precompiled regex.
+	if internalIPRegex.MatchString(body) {
 		return true
 	}
 
@@ -756,8 +749,7 @@ func isFileContent(body string) bool {
 	filePatterns := []string{
 		"<?php",
 		"#!/bin/",
-		"<?xml",
-		"<!DOCTYPE",
+		"<?xml version",
 	}
 
 	for _, pattern := range filePatterns {
@@ -910,6 +902,7 @@ func (d *Detector) Detect(ctx context.Context, target, param string) (*Result, e
 
 		vuln := d.AnalyzeResponse(payload, resp.StatusCode, bodyStr, resp.Header)
 		if vuln != nil {
+			vuln.Parameter = param
 			pr.Vulnerable = true
 			result.Vulnerabilities = append(result.Vulnerabilities, *vuln)
 		}
