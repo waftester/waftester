@@ -33,17 +33,17 @@ func DefaultConfig() Config {
 
 // Result represents a CSRF test result
 type Result struct {
-	URL           string
-	Method        string
-	HasCSRFToken  bool
-	TokenName     string
-	TokenLocation string
-	SameSite      string
-	Referer       string
-	Vulnerable    bool
-	Evidence      string
-	Severity      string
-	Timestamp     time.Time
+	URL           string    `json:"url"`
+	Method        string    `json:"method"`
+	HasCSRFToken  bool      `json:"has_csrf_token"`
+	TokenName     string    `json:"token_name,omitempty"`
+	TokenLocation string    `json:"token_location,omitempty"`
+	SameSite      string    `json:"same_site,omitempty"`
+	Referer       string    `json:"referer,omitempty"`
+	Vulnerable    bool      `json:"vulnerable"`
+	Evidence      string    `json:"evidence,omitempty"`
+	Severity      string    `json:"severity"`
+	Timestamp     time.Time `json:"timestamp"`
 }
 
 // Scanner performs CSRF testing

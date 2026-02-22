@@ -64,11 +64,11 @@ type Vulnerability struct {
 
 // ScanResult represents the result of a scan
 type ScanResult struct {
-	URL             string
-	TestedParams    int
-	Vulnerabilities []Vulnerability
-	StartTime       time.Time
-	Duration        time.Duration
+	URL             string          `json:"url"`
+	TestedParams    int             `json:"tested_params"`
+	Vulnerabilities []Vulnerability `json:"vulnerabilities"`
+	StartTime       time.Time       `json:"start_time"`
+	Duration        time.Duration   `json:"duration"`
 }
 
 // TesterConfig holds configuration for the SQL injection tester

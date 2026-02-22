@@ -33,14 +33,14 @@ func DefaultConfig() Config {
 
 // Result represents a clickjacking test result
 type Result struct {
-	URL            string
-	XFrameOptions  string
-	CSPFrameAncest string
-	Frameable      bool
-	Vulnerable     bool
-	Evidence       string
-	Severity       string
-	Timestamp      time.Time
+	URL            string    `json:"url"`
+	XFrameOptions  string    `json:"x_frame_options,omitempty"`
+	CSPFrameAncest string    `json:"csp_frame_ancestors,omitempty"`
+	Frameable      bool      `json:"frameable"`
+	Vulnerable     bool      `json:"vulnerable"`
+	Evidence       string    `json:"evidence,omitempty"`
+	Severity       string    `json:"severity"`
+	Timestamp      time.Time `json:"timestamp"`
 }
 
 // Scanner performs clickjacking testing

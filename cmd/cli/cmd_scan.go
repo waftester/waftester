@@ -3110,7 +3110,7 @@ func runScan() {
 	// the deferred Stop() from erasing output with ANSI clear codes.
 	progress.Stop()
 
-	// Print scan completion summary (to stderr if streaming JSON)
+	// Print scan completion summary to stderr (never pollute stdout used for JSON/structured output)
 	if !streamJSON {
 		vulnColor := "\033[32m" // Green
 		if result.TotalVulns > 0 {
@@ -3119,13 +3119,21 @@ func runScan() {
 		if result.TotalVulns > 5 {
 			vulnColor = "\033[31m" // Red
 		}
-		fmt.Println() // debug:keep
+		vulnWord := "vulnerabilities"
+		if result.TotalVulns == 1 {
+			vulnWord = "vulnerability"
+		}
+		typeWord := "scan types"
+		if totalScans == 1 {
+			typeWord = "scan type"
+		}
+		fmt.Fprintln(os.Stderr) // debug:keep
 		ui.PrintSuccess(fmt.Sprintf("Scan complete in %s", result.Duration.Round(time.Millisecond)))
-		fmt.Printf("  %s Results: %s%d vulnerabilities\033[0m across %d scan types\n", ui.Icon("📊", "#"), vulnColor, result.TotalVulns, totalScans) // debug:keep
+		fmt.Fprintf(os.Stderr, "  %s Results: %s%d %s\033[0m across %d %s\n", ui.Icon("📊", "#"), vulnColor, result.TotalVulns, vulnWord, totalScans, typeWord) // debug:keep
 		if errCount := atomic.LoadInt32(&scanErrors); errCount > 0 {
 			ui.PrintWarning(fmt.Sprintf("%d scanner(s) encountered errors (use -verbose for details)", errCount))
 		}
-		fmt.Println() // debug:keep
+		fmt.Fprintln(os.Stderr) // debug:keep
 	}
 
 	// Apply report metadata
