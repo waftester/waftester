@@ -327,6 +327,35 @@ func TestSendFuzzRequest(t *testing.T) {
 	}
 }
 
+// TestSendFuzzRequest_UnknownParamIn verifies that an unsupported parameter
+// location returns an error instead of panicking on a nil *http.Request.
+// Regression test for a nil pointer dereference in applyHeaders.
+func TestSendFuzzRequest_UnknownParamIn(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	tester := NewTester(&TesterConfig{
+		Base: attackconfig.Base{Timeout: 5 * time.Second},
+	})
+
+	for _, location := range []string{"", "body", "formData", "unknown"} {
+		t.Run("param_in_"+location, func(t *testing.T) {
+			endpoint := Endpoint{Path: "/test", Method: "GET"}
+			param := Parameter{Name: "x", In: location, Type: ParamString}
+
+			_, err := tester.sendFuzzRequest(context.Background(), server.URL, endpoint, param, "p")
+			if err == nil {
+				t.Fatalf("expected error for param.In=%q, got nil", location)
+			}
+			if !strings.Contains(err.Error(), "unsupported parameter location") {
+				t.Errorf("unexpected error message: %v", err)
+			}
+		})
+	}
+}
+
 func TestSendBodyFuzzRequest(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
