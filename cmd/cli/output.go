@@ -961,6 +961,66 @@ func (dc *DispatcherContext) EmitResult(ctx context.Context, category, severity 
 	return dc.Dispatcher.Dispatch(ctx, event)
 }
 
+// EmitDetailedResult sends a fully-populated result event from a TestResult.
+// This is the preferred method for dispatching events — it carries all
+// evidence fields (headers, body preview, timing, content info) so
+// writers like HAR can produce complete HTTP archive entries.
+// Bypass events are NOT emitted separately; the outcome field distinguishes
+// blocked vs bypassed results.
+func (dc *DispatcherContext) EmitDetailedResult(ctx context.Context, tr *output.TestResult) error {
+	if dc == nil || dc.Dispatcher == nil || tr == nil {
+		return nil
+	}
+
+	outcome := events.OutcomeBypass
+	if tr.Outcome == "Blocked" {
+		outcome = events.OutcomeBlocked
+	} else if tr.Outcome == "Error" || tr.Outcome == "Skipped" {
+		outcome = events.Outcome(tr.Outcome)
+	}
+
+	targetURL := tr.RequestURL
+	if targetURL == "" {
+		targetURL = dc.Target
+	}
+
+	event := &events.ResultEvent{
+		BaseEvent: events.BaseEvent{
+			Type: events.EventTypeResult,
+			Time: time.Now(),
+			Scan: dc.ScanID,
+		},
+		Test: events.TestInfo{
+			ID:       tr.ID,
+			Category: tr.Category,
+			Severity: events.Severity(tr.Severity),
+		},
+		Target: events.TargetInfo{
+			URL:       targetURL,
+			Method:    tr.Method,
+			Parameter: tr.TargetPath,
+		},
+		Result: events.ResultInfo{
+			Outcome:       outcome,
+			StatusCode:    tr.StatusCode,
+			LatencyMs:     float64(tr.LatencyMs),
+			ContentLength: tr.ContentLength,
+		},
+		Evidence: &events.Evidence{
+			Payload:         tr.Payload,
+			EncodedPayload:  tr.OriginalPayload,
+			CurlCommand:     tr.CurlCommand,
+			ResponseHeaders: tr.ResponseHeaders,
+			ResponsePreview: tr.ResponseBodySnippet,
+		},
+		Context: &events.ContextInfo{
+			Encoding: tr.EncodingUsed,
+		},
+	}
+
+	return dc.Dispatcher.Dispatch(ctx, event)
+}
+
 // EmitError sends an error event to hooks when a command fails.
 // This allows external systems (Slack, PagerDuty, etc.) to be notified of failures.
 func (dc *DispatcherContext) EmitError(ctx context.Context, command, errorMsg string, fatal bool) error {
