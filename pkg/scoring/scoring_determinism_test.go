@@ -53,7 +53,7 @@ func TestMultiplePatterns_HighestImpactWins(t *testing.T) {
 		name           string
 		response       string
 		wantReason     string
-		wantEscalation bool // true if FinalSeverity should be "Critical"
+		wantEscalation bool // true if FinalSeverity should be "critical"
 	}{
 		{
 			name:           "aws_and_passwd",
@@ -97,12 +97,12 @@ func TestMultiplePatterns_HighestImpactWins(t *testing.T) {
 				t.Errorf("EscalationReason = %q, want %q", result.EscalationReason, tt.wantReason)
 			}
 
-			if tt.wantEscalation && result.FinalSeverity != "Critical" {
-				t.Errorf("FinalSeverity = %q, want Critical (impact >= 4.0)", result.FinalSeverity)
+			if tt.wantEscalation && result.FinalSeverity != "critical" {
+				t.Errorf("FinalSeverity = %q, want critical (impact >= 4.0)", result.FinalSeverity)
 			}
 
-			if !tt.wantEscalation && result.FinalSeverity == "Critical" {
-				t.Errorf("FinalSeverity = %q, should NOT be Critical (impact < 4.0)", result.FinalSeverity)
+			if !tt.wantEscalation && result.FinalSeverity == "critical" {
+				t.Errorf("FinalSeverity = %q, should NOT be critical (impact < 4.0)", result.FinalSeverity)
 			}
 		})
 	}

@@ -454,9 +454,9 @@ func (s *Server) handleListPayloads(_ context.Context, req *mcp.CallToolRequest)
 
 	bySeverity := make(map[string]int)
 	for _, p := range filtered {
-		sev := p.SeverityHint
+		sev := strings.ToLower(p.SeverityHint)
 		if sev == "" {
-			sev = "Unclassified"
+			sev = "unclassified"
 		}
 		bySeverity[sev]++
 	}
@@ -563,13 +563,13 @@ func buildListPayloadsSummary(args listPayloadsArgs, stats payloads.LoadStats, t
 	sb.WriteString(". ")
 
 	// Severity breakdown
-	if crit, ok := bySeverity["Critical"]; ok && crit > 0 {
+	if crit, ok := bySeverity["critical"]; ok && crit > 0 {
 		fmt.Fprintf(&sb, "%d Critical", crit)
-		if high, ok := bySeverity["High"]; ok && high > 0 {
+		if high, ok := bySeverity["high"]; ok && high > 0 {
 			fmt.Fprintf(&sb, ", %d High", high)
 		}
 		sb.WriteString(" severity. ")
-	} else if high, ok := bySeverity["High"]; ok && high > 0 {
+	} else if high, ok := bySeverity["high"]; ok && high > 0 {
 		fmt.Fprintf(&sb, "%d High severity. ", high)
 	}
 

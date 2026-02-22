@@ -51,8 +51,8 @@ func TestScanner_Scan_FindsAWSKey(t *testing.T) {
 	for _, r := range results {
 		if r.DataType == "AWS Access Key" {
 			foundAWS = true
-			if r.Severity != "CRITICAL" {
-				t.Errorf("AWS key severity = %s, want CRITICAL", r.Severity)
+			if r.Severity != "critical" {
+				t.Errorf("AWS key severity = %s, want critical", r.Severity)
 			}
 		}
 	}
@@ -102,7 +102,7 @@ func TestScanner_Scan_NoSensitiveData(t *testing.T) {
 	}
 
 	for _, r := range results {
-		if r.Vulnerable && r.Severity == "CRITICAL" {
+		if r.Vulnerable && r.Severity == "critical" {
 			t.Errorf("Found unexpected sensitive data: %s", r.DataType)
 		}
 	}
@@ -183,7 +183,7 @@ func TestResult_Fields(t *testing.T) {
 		Match:      "AKIAIOSFODNN7EXAMPLE",
 		Vulnerable: true,
 		Evidence:   "AWS Access Key found in body",
-		Severity:   "CRITICAL",
+		Severity:   "critical",
 	}
 
 	if result.URL != "http://example.com" {
@@ -192,7 +192,7 @@ func TestResult_Fields(t *testing.T) {
 	if result.Vulnerable != true {
 		t.Error("Vulnerable not set correctly")
 	}
-	if result.Severity != "CRITICAL" {
+	if result.Severity != "critical" {
 		t.Error("Severity not set correctly")
 	}
 }

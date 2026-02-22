@@ -52,8 +52,8 @@ func TestScanner_TestSessionManagement(t *testing.T) {
 	for _, r := range results {
 		if r.Vulnerable {
 			foundVuln = true
-			if r.Severity != "HIGH" {
-				t.Errorf("Severity = %s, want HIGH", r.Severity)
+			if r.Severity != "high" {
+				t.Errorf("Severity = %s, want high", r.Severity)
 			}
 		}
 	}

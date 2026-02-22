@@ -363,25 +363,26 @@ func PrintSummary(results ExecutionResults) {
 	if len(results.SeverityBreakdown) > 0 {
 		fmt.Println("\n" + strings.Repeat(ui.Icon("─", "-"), 40))
 		fmt.Println("\033[1;35m  Severity Breakdown:\033[0m")
-		severityOrder := []string{"Critical", "High", "Medium", "Low", "Info"}
+		severityOrder := []string{"critical", "high", "medium", "low", "info"}
+		severityLabel := map[string]string{"critical": "Critical", "high": "High", "medium": "Medium", "low": "Low", "info": "Info"}
 		for _, sev := range severityOrder {
 			if count, ok := results.SeverityBreakdown[sev]; ok && count > 0 {
 				var sevANSI string
 				switch sev {
-				case "Critical":
+				case "critical":
 					sevANSI = "\033[1;31m"
-				case "High":
+				case "high":
 					sevANSI = "\033[91m"
-				case "Medium":
+				case "medium":
 					sevANSI = "\033[33m"
-				case "Low":
+				case "low":
 					sevANSI = "\033[32m"
-				case "Info":
+				case "info":
 					sevANSI = "\033[36m"
 				default:
 					sevANSI = "\033[37m"
 				}
-				fmt.Printf("%s    %s: %d\033[0m\n", sevANSI, sev, count)
+				fmt.Printf("%s    %s: %d\033[0m\n", sevANSI, severityLabel[sev], count)
 			}
 		}
 	}
@@ -561,19 +562,19 @@ type sarifArtifact struct {
 
 func (w *SARIFWriter) buildSARIF() sarifDocument {
 	severityMap := map[string]string{
-		"Critical": "error",
-		"High":     "error",
-		"Medium":   "warning",
-		"Low":      "note",
-		"Info":     "note",
+		"critical": "error",
+		"high":     "error",
+		"medium":   "warning",
+		"low":      "note",
+		"info":     "note",
 	}
 
 	securityScore := map[string]string{
-		"Critical": "9.5",
-		"High":     "7.5",
-		"Medium":   "5.0",
-		"Low":      "2.5",
-		"Info":     "1.0",
+		"critical": "9.5",
+		"high":     "7.5",
+		"medium":   "5.0",
+		"low":      "2.5",
+		"info":     "1.0",
 	}
 
 	rules := make(map[string]sarifRule)
@@ -584,6 +585,9 @@ func (w *SARIFWriter) buildSARIF() sarifDocument {
 		if r.Outcome != "Fail" && r.Outcome != "Error" {
 			continue
 		}
+
+		// Normalize severity for map lookups
+		sev := strings.ToLower(r.Severity)
 
 		// Build rule if not exists
 		if _, exists := rules[r.ID]; !exists {
@@ -615,11 +619,11 @@ func (w *SARIFWriter) buildSARIF() sarifDocument {
 					Text: fmt.Sprintf("Tests WAF protection against %s attacks. OWASP: %s", r.Category, owaspID),
 				},
 				DefaultConfig: sarifRuleConfig{
-					Level: severityMap[r.Severity],
+					Level: severityMap[sev],
 				},
 				Properties: sarifRuleProps{
 					Tags:             tags,
-					SecuritySeverity: securityScore[r.Severity],
+					SecuritySeverity: securityScore[sev],
 					CWE:              cweList,
 					OWASP:            owaspID,
 				},
@@ -652,7 +656,7 @@ func (w *SARIFWriter) buildSARIF() sarifDocument {
 
 		result := sarifResult{
 			RuleID:       r.ID,
-			Level:        severityMap[r.Severity],
+			Level:        severityMap[sev],
 			Message:      sarifMessage{Text: msg},
 			Fingerprints: fingerprints,
 			Properties: sarifResultProps{
@@ -846,21 +850,28 @@ func (w *MarkdownWriter) Close() (retErr error) {
 	sb.WriteString("| ID | Category | Severity | Outcome | Method | Path | Status | Latency |\n")
 	sb.WriteString("|-----|----------|----------|---------|--------|------|--------|--------|\n")
 
-	for _, r := range w.results {
-		severityEmoji := map[string]string{
-			"Critical": "🔴",
-			"High":     "🟠",
-			"Medium":   "🟡",
-			"Low":      "🟢",
-			"Info":     "🔵",
-		}
-		outcomeEmoji := map[string]string{
-			"Blocked": "✅",
-			"Pass":    "✅",
-			"Fail":    "❌",
-			"Error":   "⚠️",
-		}
+	severityEmoji := map[string]string{
+		"critical": "🔴",
+		"high":     "🟠",
+		"medium":   "🟡",
+		"low":      "🟢",
+		"info":     "🔵",
+	}
+	severityDisplay := map[string]string{
+		"critical": "Critical",
+		"high":     "High",
+		"medium":   "Medium",
+		"low":      "Low",
+		"info":     "Info",
+	}
+	outcomeEmoji := map[string]string{
+		"Blocked": "✅",
+		"Pass":    "✅",
+		"Fail":    "❌",
+		"Error":   "⚠️",
+	}
 
+	for _, r := range w.results {
 		method := r.Method
 		if method == "" {
 			method = "GET"
@@ -870,10 +881,15 @@ func (w *MarkdownWriter) Close() (retErr error) {
 			path = "/"
 		}
 
+		sevLabel := severityDisplay[r.Severity]
+		if sevLabel == "" {
+			sevLabel = r.Severity
+		}
+
 		sb.WriteString(fmt.Sprintf("| %s | %s | %s %s | %s %s | %s | %s | %d | %dms |\n",
 			r.ID,
 			r.Category,
-			severityEmoji[r.Severity], r.Severity,
+			severityEmoji[r.Severity], sevLabel,
 			outcomeEmoji[r.Outcome], r.Outcome,
 			method,
 			path,

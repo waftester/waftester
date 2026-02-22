@@ -144,7 +144,7 @@ func (s *Scanner) analyzeSessionToken(cookie *http.Cookie) Result {
 	if len(issues) > 0 {
 		result.Vulnerable = true
 		result.Evidence = strings.Join(issues, ", ")
-		result.Severity = "HIGH"
+		result.Severity = "high"
 		s.config.NotifyVulnerabilityFound()
 	}
 
@@ -196,7 +196,7 @@ func (s *Scanner) TestPasswordPolicy(ctx context.Context, registerURL string) ([
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			result.Vulnerable = true
 			result.Evidence = "Weak password accepted: " + pwd
-			result.Severity = "MEDIUM"
+			result.Severity = "medium"
 			s.config.NotifyVulnerabilityFound()
 		}
 
@@ -256,7 +256,7 @@ func (s *Scanner) TestAccountLockout(ctx context.Context, loginURL string, usern
 	// No lockout detected after all attempts
 	result.Vulnerable = true
 	result.Evidence = "No account lockout after " + strconv.Itoa(attempts) + " failed attempts"
-	result.Severity = "HIGH"
+	result.Severity = "high"
 	s.config.NotifyVulnerabilityFound()
 
 	s.mu.Lock()

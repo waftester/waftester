@@ -56,8 +56,8 @@ func TestScanner_Scan_Vulnerable(t *testing.T) {
 	for _, r := range results {
 		if r.Vulnerable {
 			foundVuln = true
-			if r.Severity != "HIGH" {
-				t.Errorf("Vulnerable result severity = %s, want HIGH", r.Severity)
+			if r.Severity != "high" {
+				t.Errorf("Vulnerable result severity = %s, want high", r.Severity)
 			}
 		}
 	}

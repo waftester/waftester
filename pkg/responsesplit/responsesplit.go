@@ -137,7 +137,7 @@ func (s *Scanner) testPayload(ctx context.Context, targetURL, param string, payl
 	result.Evidence = evidence
 	result.Location = location
 	if vulnerable {
-		result.Severity = "HIGH"
+		result.Severity = "high"
 	}
 
 	return result
