@@ -416,6 +416,7 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL string, param stri
 				Type:      getVulnType(payload),
 				FileFound: identifyFile(evidence),
 			})
+			t.config.NotifyVulnerabilityFound()
 		}
 	}
 
@@ -611,6 +612,7 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 				},
 				Type: VulnPathTraversal,
 			})
+			t.config.NotifyVulnerabilityFound()
 		}
 	}
 
