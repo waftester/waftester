@@ -22,11 +22,12 @@ import (
 
 // Scanner performs leaky path discovery on target URLs
 type Scanner struct {
-	client      *http.Client
-	concurrency int
-	timeout     time.Duration
-	userAgent   string
-	verbose     bool
+	client               *http.Client
+	concurrency          int
+	timeout              time.Duration
+	userAgent            string
+	verbose              bool
+	onVulnerabilityFound func()
 }
 
 // ScanResult represents the result of scanning a single path
@@ -92,11 +93,12 @@ func NewScanner(cfg *Config) *Scanner {
 	}
 
 	return &Scanner{
-		client:      client,
-		concurrency: cfg.Concurrency,
-		timeout:     cfg.Timeout,
-		userAgent:   cfg.UserAgent,
-		verbose:     cfg.Verbose,
+		client:               client,
+		concurrency:          cfg.Concurrency,
+		timeout:              cfg.Timeout,
+		userAgent:            cfg.UserAgent,
+		verbose:              cfg.Verbose,
+		onVulnerabilityFound: cfg.OnVulnerabilityFound,
 	}
 }
 
@@ -167,6 +169,9 @@ func (s *Scanner) Scan(ctx context.Context, targetURL string, categories ...stri
 			summary.InterestingHits++
 			summary.BySeverity[result.Severity]++
 			summary.ByCategory[result.Category]++
+			if s.onVulnerabilityFound != nil {
+				s.onVulnerabilityFound()
+			}
 		}
 	}
 
