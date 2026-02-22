@@ -18,6 +18,12 @@ type Base struct {
 	MaxPayloads int           `json:"max_payloads,omitempty"`
 	MaxParams   int           `json:"max_params,omitempty"`
 	Concurrency int           `json:"concurrency,omitempty"`
+
+	// OnVulnerabilityFound is called each time a scanner discovers a
+	// vulnerability, enabling real-time progress updates in the CLI.
+	// Scanners that support streaming call this per finding; others
+	// report in bulk after Scan() returns.
+	OnVulnerabilityFound func() `json:"-"`
 }
 
 // DefaultBase returns a Base with production defaults.
@@ -36,5 +42,13 @@ func (b *Base) Validate() {
 	}
 	if b.Concurrency <= 0 {
 		b.Concurrency = defaults.ConcurrencyMedium
+	}
+}
+
+// NotifyVulnerabilityFound calls the OnVulnerabilityFound callback if set.
+// Call this after recording each vulnerability for real-time progress updates.
+func (b *Base) NotifyVulnerabilityFound() {
+	if b.OnVulnerabilityFound != nil {
+		b.OnVulnerabilityFound()
 	}
 }

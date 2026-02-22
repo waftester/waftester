@@ -209,3 +209,43 @@ func TestLiveProgressGetElapsed(t *testing.T) {
 		t.Errorf("Expected elapsed >= 50ms, got %v", elapsed)
 	}
 }
+
+func TestLiveProgressRateSource(t *testing.T) {
+	var buf bytes.Buffer
+	var reqCount int64
+
+	cfg := LiveProgressConfig{
+		Total:          1,
+		Title:          "Test",
+		Mode:           OutputModeInteractive,
+		Writer:         &buf,
+		RateSource:     &reqCount,
+		DisplayLines:   2,
+		Metrics: []MetricConfig{
+			{Name: "vulns", Label: "Vulns", Icon: "!"},
+		},
+	}
+
+	p := NewLiveProgress(cfg)
+	p.Start()
+
+	// Simulate HTTP requests via the external counter
+	for i := 0; i < 20; i++ {
+		reqCount++
+	}
+	// Let the render loop pick it up
+	time.Sleep(200 * time.Millisecond)
+
+	p.Stop()
+
+	output := buf.String()
+	// The rate display should show a non-zero value since reqCount > 0,
+	// even though completed is still 0.
+	if !bytes.Contains([]byte(output), []byte("/s")) {
+		t.Error("Expected /s rate indicator in output")
+	}
+	// Completed is 0, but rate should NOT be 0.0 because RateSource has 20
+	if bytes.Contains([]byte(output), []byte("0.0/s")) {
+		t.Error("Rate should not be 0.0/s when RateSource has requests; got 0.0/s")
+	}
+}
