@@ -141,6 +141,7 @@ func (t *Tester) TestPayload(ctx context.Context, targetURL string, param string
 
 	// Check for deserialization indicators
 	if t.isVulnerable(resp.StatusCode, bodyStr, payload.VulnType) {
+		t.config.NotifyVulnerabilityFound()
 		return &Vulnerability{
 			Type:        payload.VulnType,
 			Description: payload.Description,
@@ -183,6 +184,7 @@ func (t *Tester) TestPOST(ctx context.Context, targetURL string, payload Payload
 	bodyStr := string(body)
 
 	if t.isVulnerable(resp.StatusCode, bodyStr, payload.VulnType) {
+		t.config.NotifyVulnerabilityFound()
 		return &Vulnerability{
 			Type:        payload.VulnType,
 			Description: payload.Description,

@@ -393,6 +393,7 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*Result, error) {
 		if vuln != nil {
 			result.CORSEnabled = true
 			vulns = append(vulns, vuln)
+			t.config.NotifyVulnerabilityFound()
 		}
 	}
 
@@ -400,6 +401,7 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*Result, error) {
 	preflightVuln, _ := t.TestPreflight(ctx, targetURL, "https://evil.com")
 	if preflightVuln != nil {
 		vulns = append(vulns, preflightVuln)
+		t.config.NotifyVulnerabilityFound()
 	}
 
 	result.Vulnerabilities = vulns

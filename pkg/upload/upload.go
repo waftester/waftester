@@ -164,6 +164,7 @@ func (t *Tester) TestUpload(ctx context.Context, targetURL string, payload Uploa
 	respBody, _ := iohelper.ReadBodyDefault(resp.Body)
 
 	if t.isUploadSuccessful(resp.StatusCode, string(respBody)) {
+		t.config.NotifyVulnerabilityFound()
 		return &Vulnerability{
 			Vulnerability: finding.Vulnerability{
 				Description: payload.Description,
