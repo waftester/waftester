@@ -22,13 +22,14 @@ import (
 
 // Detector detects SSRF vulnerabilities
 type Detector struct {
-	Timeout          time.Duration
-	CallbackServer   string   // OOB callback server (e.g., Burp Collaborator, interactsh)
-	LocalIPs         []string // IPs to test for internal access
-	CloudMetadataIPs []string // Cloud metadata endpoints
-	BypassTechniques []BypassTechnique
-	mu               sync.Mutex
-	callbacks        map[string]time.Time
+	Timeout              time.Duration
+	CallbackServer       string   // OOB callback server (e.g., Burp Collaborator, interactsh)
+	LocalIPs             []string // IPs to test for internal access
+	CloudMetadataIPs     []string // Cloud metadata endpoints
+	BypassTechniques     []BypassTechnique
+	mu                   sync.Mutex
+	callbacks            map[string]time.Time
+	OnVulnerabilityFound func()
 }
 
 // NewDetector creates a new SSRF detector
@@ -529,6 +530,9 @@ func (d *Detector) AnalyzeResponse(payload Payload, statusCode int, body string,
 	// Check for successful metadata access
 	if payload.Category == CategoryMetadata {
 		if isMetadataResponse(body, headers) {
+			if d.OnVulnerabilityFound != nil {
+				d.OnVulnerabilityFound()
+			}
 			return &Vulnerability{
 				Type:        "Cloud Metadata Access",
 				Severity:    finding.Critical,
@@ -543,6 +547,9 @@ func (d *Detector) AnalyzeResponse(payload Payload, statusCode int, body string,
 	// Check for localhost access
 	if payload.Category == CategoryLocalhost {
 		if isLocalResponse(body, statusCode) {
+			if d.OnVulnerabilityFound != nil {
+				d.OnVulnerabilityFound()
+			}
 			return &Vulnerability{
 				Type:        "Localhost Access",
 				Severity:    finding.High,
@@ -557,6 +564,9 @@ func (d *Detector) AnalyzeResponse(payload Payload, statusCode int, body string,
 	// Check for file protocol success
 	if payload.Category == CategoryProtocol && strings.HasPrefix(payload.URL, "file://") {
 		if isFileContent(body) {
+			if d.OnVulnerabilityFound != nil {
+				d.OnVulnerabilityFound()
+			}
 			return &Vulnerability{
 				Type:        "Local File Read via SSRF",
 				Severity:    finding.Critical,

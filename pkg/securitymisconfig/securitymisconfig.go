@@ -99,10 +99,12 @@ func (s *Scanner) TestSecurityHeaders(ctx context.Context, targetURL string) ([]
 			result.Vulnerable = true
 			result.Evidence = "Missing security header: " + header.Name
 			result.Severity = header.Severity
+			s.config.NotifyVulnerabilityFound()
 		} else if header.Validator != nil && !header.Validator(value) {
 			result.Vulnerable = true
 			result.Evidence = "Weak header value: " + header.Name + "=" + value
 			result.Severity = header.Severity
+			s.config.NotifyVulnerabilityFound()
 		}
 
 		results = append(results, result)
@@ -179,6 +181,7 @@ func (s *Scanner) testEndpoint(ctx context.Context, url, testType, endpoint stri
 		result.Vulnerable = true
 		result.Evidence = "Endpoint accessible: " + endpoint
 		result.Severity = "HIGH"
+		s.config.NotifyVulnerabilityFound()
 	}
 
 	return result
