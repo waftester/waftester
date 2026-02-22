@@ -86,6 +86,10 @@ func (s *Scanner) Scan(ctx context.Context, targetURL string, method string) (Re
 
 	// Test without CSRF token
 	if method != "GET" {
+		if err := ctx.Err(); err != nil {
+			return result, err
+		}
+
 		vulnerable := s.testWithoutToken(ctx, targetURL, method)
 		if vulnerable {
 			result.Vulnerable = true
@@ -96,6 +100,10 @@ func (s *Scanner) Scan(ctx context.Context, targetURL string, method string) (Re
 	}
 
 	// Check SameSite cookie attribute
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+
 	result.SameSite = s.checkSameSite(ctx, targetURL)
 	if result.SameSite == "None" || result.SameSite == "" {
 		if !result.Vulnerable {
