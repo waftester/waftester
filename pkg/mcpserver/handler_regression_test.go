@@ -33,6 +33,7 @@ func newQuickSSESession(t *testing.T) *mcp.ClientSession {
 // ═══════════════════════════════════════════════════════════════════════════
 
 func TestHandler_Scan_AsyncLifecycle(t *testing.T) {
+	t.Parallel()
 	cs := newQuickSSESession(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -86,10 +87,10 @@ func TestHandler_Scan_AsyncLifecycle(t *testing.T) {
 	// Poll with wait_seconds — observe progress or terminal state
 	var sawProgress bool
 	var finalStatus string
-	for i := 0; i < 15; i++ {
+	for i := 0; i < 60; i++ {
 		pollArgs, _ := json.Marshal(map[string]any{
 			"task_id":      asyncResp.TaskID,
-			"wait_seconds": 3,
+			"wait_seconds": 1,
 		})
 		pollResult, err := cs.CallTool(ctx, &mcp.CallToolParams{
 			Name:      "get_task_status",
@@ -139,7 +140,7 @@ func TestHandler_Scan_AsyncLifecycle(t *testing.T) {
 	}
 
 	if finalStatus == "" {
-		t.Error("scan task never reached terminal status after 15 polls")
+		t.Error("scan task never reached terminal status after 60 polls")
 	}
 	// Progress may not always be visible (fast tasks complete instantly),
 	// but for scan it should usually show some intermediate state.
@@ -303,6 +304,7 @@ func TestHandler_Bypass_PayloadTruncation(t *testing.T) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 func TestHandler_Discover_AsyncLifecycle(t *testing.T) {
+	t.Parallel()
 	cs := newQuickSSESession(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -990,6 +992,7 @@ func TestHandler_GetTaskStatus_ExplicitZeroWait(t *testing.T) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 func TestHandler_TaskProgressVisibility(t *testing.T) {
+	t.Parallel()
 	// Use a shared server so we can launch from one session and poll from another
 	_, ts := newN8nSharedServer(t)
 
@@ -1031,7 +1034,7 @@ func TestHandler_TaskProgressVisibility(t *testing.T) {
 	// Rapid-poll with wait_seconds=0 to catch intermediate progress
 	var progressValues []float64
 	var messages []string
-	for i := 0; i < 30; i++ {
+	for i := 0; i < 60; i++ {
 		pollArgs, _ := json.Marshal(map[string]any{
 			"task_id":      asyncResp.TaskID,
 			"wait_seconds": 1,
@@ -1257,6 +1260,7 @@ paths:
 // ═══════════════════════════════════════════════════════════════════════════
 
 func TestHandler_FullWorkflowChain(t *testing.T) {
+	t.Parallel()
 	cs := newQuickSSESession(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
@@ -1488,10 +1492,10 @@ func TestHandler_EnrichedErrorConsistency(t *testing.T) {
 // pollUntilTerminal polls get_task_status until a terminal state is reached.
 func pollUntilTerminal(t *testing.T, cs *mcp.ClientSession, ctx context.Context, taskID string) string {
 	t.Helper()
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 60; i++ {
 		pollArgs, _ := json.Marshal(map[string]any{
 			"task_id":      taskID,
-			"wait_seconds": 5,
+			"wait_seconds": 1,
 		})
 		result, err := cs.CallTool(ctx, &mcp.CallToolParams{
 			Name:      "get_task_status",
