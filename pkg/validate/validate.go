@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/waftester/waftester/pkg/payloadprovider"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -52,32 +53,7 @@ var (
 		"low":      true,
 	}
 
-	validCategories = map[string]bool{
-		"Injection":        true,
-		"XSS":              true,
-		"Traversal":        true,
-		"SSRF":             true,
-		"Auth":             true,
-		"Protocol":         true,
-		"GraphQL":          true,
-		"Cache":            true,
-		"Logic":            true,
-		"Deserialization":  true,
-		"Fuzzing":          true,
-		"Fuzz":             true,
-		"AI":               true,
-		"Media":            true,
-		"RateLimit":        true,
-		"WAF-Validation":   true,
-		"WAF-Bypass":       true,
-		"Regression":       true,
-		"OWASP-Top10":      true,
-		"Obfuscation":      true,
-		"Bypass":           true,
-		"Service-Specific": true,
-		"Services":         true,
-		"Upload":           true,
-	}
+	validCategories = payloadprovider.NewCategoryMapper().ValidCategories()
 
 	requiredFields = []string{"id", "payload", "category", "severity_hint", "tags", "notes"}
 
@@ -281,7 +257,7 @@ func ValidatePayloads(payloadDir string, failFast bool, verbose bool) (*Validati
 
 			// Validate category
 			if category, ok := p["category"].(string); ok {
-				if !validCategories[category] {
+				if !validCategories[strings.ToLower(category)] {
 					result.Warnings = append(result.Warnings,
 						fmt.Sprintf("%s[%d]: non-standard category '%s'", relPath, i, category))
 				}

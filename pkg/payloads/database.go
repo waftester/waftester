@@ -332,6 +332,84 @@ func (db *Database) ExportJSON() ([]byte, error) {
 	return jsonutil.MarshalIndent(db.payloads, "", "  ")
 }
 
+// RankedPayloads returns payloads sorted by a composite score that considers
+// effectiveness, payload complexity, and vendor specificity.
+//
+// Scoring formula:
+//
+//	score = effectiveness*0.6 + complexityBonus*0.2 + sampleBonus*0.2
+//
+// Shorter payloads get a higher complexity bonus (simpler = more likely to bypass
+// naive pattern matching). Payloads with more test samples get a higher sample bonus
+// (confidence-weighted).
+func (db *Database) RankedPayloads(category, vendor string, limit int) []Payload {
+	db.mu.RLock()
+	candidates := make([]Payload, 0, len(db.payloads))
+	for _, p := range db.payloads {
+		if category != "" && !strings.EqualFold(p.Category, category) {
+			continue
+		}
+		if vendor != "" && p.Vendor != "" && !strings.EqualFold(p.Vendor, vendor) {
+			continue
+		}
+		candidates = append(candidates, p)
+	}
+	db.mu.RUnlock()
+
+	// Score each payload
+	type scored struct {
+		payload Payload
+		score   float64
+	}
+	items := make([]scored, len(candidates))
+	for i, p := range candidates {
+		var effectiveness float64
+		if vendor != "" {
+			effectiveness = p.GetEffectivenessByVendor(vendor)
+		} else if p.Effectiveness != nil {
+			effectiveness = p.Effectiveness.Overall
+		} else {
+			effectiveness = 0.5 // unknown defaults to neutral
+		}
+
+		// Shorter payloads score higher on complexity (inverse length, capped at 1.0).
+		complexityBonus := 1.0
+		if len(p.Payload) > 0 {
+			complexityBonus = 1.0 / (1.0 + float64(len(p.Payload))/100.0)
+		}
+
+		// More observations = higher confidence.
+		var sampleBonus float64
+		if p.Effectiveness != nil && p.Effectiveness.SampleCount > 0 {
+			sampleBonus = 1.0 - 1.0/(1.0+float64(p.Effectiveness.SampleCount)/10.0)
+		}
+
+		items[i] = scored{
+			payload: p,
+			score:   effectiveness*0.6 + complexityBonus*0.2 + sampleBonus*0.2,
+		}
+	}
+
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].score > items[j].score
+	})
+
+	if limit <= 0 || limit > len(items) {
+		limit = len(items)
+	}
+	result := make([]Payload, limit)
+	for i := 0; i < limit; i++ {
+		result[i] = items[i].payload
+	}
+	return result
+}
+
+// TopPayloads returns the top N payloads for a category, ranked by effectiveness.
+// Convenience wrapper around RankedPayloads with no vendor filter.
+func (db *Database) TopPayloads(category string, n int) []Payload {
+	return db.RankedPayloads(category, "", n)
+}
+
 // loadBuiltinPayloads loads the curated payload database
 func (db *Database) loadBuiltinPayloads() {
 	// SQL Injection payloads (100+)

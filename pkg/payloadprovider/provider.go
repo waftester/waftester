@@ -17,8 +17,10 @@
 package payloadprovider
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 
@@ -116,13 +118,15 @@ func (p *Provider) Load() error {
 	}
 	p.jsonPayloads = jp
 
-	// Load Nuclei templates (best-effort — directory may not exist)
+	// Load Nuclei templates (best-effort — directory may not exist).
+	// Pre-check with os.Stat to avoid walking a non-existent directory.
 	if p.nucleiDir != "" {
-		tmpls, err := nuclei.LoadDirectory(p.nucleiDir)
-		if err == nil {
-			p.nucleiTempls = tmpls
+		if _, statErr := os.Stat(p.nucleiDir); statErr == nil {
+			tmpls, loadErr := nuclei.LoadDirectory(p.nucleiDir)
+			if loadErr == nil {
+				p.nucleiTempls = tmpls
+			}
 		}
-		// silently skip if directory doesn't exist
 	}
 
 	p.unified = p.merge()
@@ -131,9 +135,13 @@ func (p *Provider) Load() error {
 }
 
 // Reset clears cached data so the next Load re-reads from disk.
+// All fields are swapped atomically under a single lock to prevent
+// readers from seeing a partially-reset state.
 func (p *Provider) Reset() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	// Swap all state at once to avoid partial visibility.
 	p.jsonPayloads = nil
 	p.nucleiTempls = nil
 	p.unified = nil
@@ -402,13 +410,23 @@ func (p *Provider) merge() []UnifiedPayload {
 	// Extract payloads from Nuclei templates
 	for _, tmpl := range p.nucleiTempls {
 		category := p.categoryMap.TemplateToCategory(tmpl)
+
+		// Generate a stable fallback ID when the template has no ID.
+		// Uses a SHA-256 hash of available template metadata.
+		templateID := tmpl.ID
+		if templateID == "" {
+			hashInput := tmpl.Info.Name + tmpl.Info.Tags + tmpl.Info.Severity + category
+			h := sha256.Sum256([]byte(hashInput))
+			templateID = fmt.Sprintf("nuclei-%x", h[:8])
+		}
+
 		for _, req := range tmpl.HTTP {
 			for i, path := range req.Path {
 				payload := extractPayloadFromPath(path)
 				if payload == "" {
 					continue
 				}
-				id := fmt.Sprintf("%s-path-%d", tmpl.ID, i)
+				id := fmt.Sprintf("%s-path-%d", templateID, i)
 				if seenIDs[id] {
 					continue
 				}
@@ -421,7 +439,7 @@ func (p *Provider) merge() []UnifiedPayload {
 					Severity:   tmpl.Info.Severity,
 					Tags:       parseCommaSeparated(tmpl.Info.Tags),
 					Source:     SourceNuclei,
-					TemplateID: tmpl.ID,
+					TemplateID: templateID,
 				})
 			}
 		}
@@ -432,7 +450,7 @@ func (p *Provider) merge() []UnifiedPayload {
 
 // buildPathFromPayload converts a JSON Payload into a Nuclei-style path string.
 // GET payloads are URL-encoded to prevent characters like & or = in the payload
-// from breaking URL structure.
+// from breaking URL structure. Uses strings.Builder to reduce allocations.
 func buildPathFromPayload(jp payloads.Payload) string {
 	target := jp.TargetPath
 	if target == "" {
@@ -445,7 +463,15 @@ func buildPathFromPayload(jp payloads.Payload) string {
 		if strings.Contains(target, "?") {
 			sep = "&"
 		}
-		return "{{BaseURL}}" + target + sep + "input=" + url.QueryEscape(jp.Payload)
+		encoded := url.QueryEscape(jp.Payload)
+		var b strings.Builder
+		b.Grow(len("{{BaseURL}}") + len(target) + 1 + len("input=") + len(encoded))
+		b.WriteString("{{BaseURL}}")
+		b.WriteString(target)
+		b.WriteString(sep)
+		b.WriteString("input=")
+		b.WriteString(encoded)
+		return b.String()
 	}
 
 	// For POST and other methods, just return the target path

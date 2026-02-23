@@ -44,7 +44,7 @@ func runSOAP() {
 
 	// Fuzzing options
 	fuzz := soapFlags.Bool("fuzz", false, "Fuzz SOAP operations with attack payloads")
-	payloadCategory := soapFlags.String("category", "xxe", "Payload category for fuzzing: xxe, sqli, xss")
+	payloadCategory := soapFlags.String("category", "xxe", "Payload category for fuzzing (e.g. xxe, sqli, xss, ssti, rce, open-redirect)")
 	payloadDir := soapFlags.String("payloads", defaults.PayloadDir, "Payload directory")
 	templateDir := soapFlags.String("template-dir", defaults.TemplateDir, "Nuclei template directory")
 

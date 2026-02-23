@@ -202,6 +202,26 @@ var OWASPCategoryMapping = map[string]string{
 	// A10:2021 - Server-Side Request Forgery
 	"ssrf":    "A10:2021",
 	"forgery": "A10:2021",
+
+	// Broader categories — mapped to closest OWASP category
+	"injection":         "A03:2021",
+	"graphql":           "A01:2021",
+	"ai":                "A03:2021",
+	"logic":             "A04:2021",
+	"media":             "A04:2021",
+	"obfuscation":       "A05:2021",
+	"protocol":          "A05:2021",
+	"ratelimit":         "A04:2021",
+	"fuzz":              "A03:2021",
+	"fuzzing":           "A03:2021",
+	"polyglot":          "A03:2021",
+	"cache-poisoning":   "A05:2021",
+	"cache":             "A05:2021",
+	"service-specific":  "A06:2021",
+	"waf-validation":    "A05:2021",
+	"waf-bypass":        "A05:2021",
+	"regression":        "A05:2021",
+	"request-smuggling": "A05:2021",
 }
 
 // CategoryReadableNames maps attack categories to human-readable names.
@@ -242,6 +262,7 @@ var CategoryReadableNames = map[string]string{
 	"clickjacking":        "Clickjacking",
 	"smuggling":           "HTTP Request Smuggling",
 	"http-smuggling":      "HTTP Request Smuggling",
+	"request-smuggling":   "HTTP Request Smuggling",
 	"crlf":                "CRLF Injection",
 	"header":              "HTTP Header Injection",
 	"xpath":               "XPath Injection",
@@ -252,6 +273,23 @@ var CategoryReadableNames = map[string]string{
 	"oauth":               "OAuth Misconfiguration",
 	"session":             "Session Management",
 	"session-fixation":    "Session Fixation",
+	"graphql":             "GraphQL Injection",
+	"injection":           "Injection",
+	"ai":                  "AI / Prompt Injection",
+	"logic":               "Business Logic",
+	"media":               "Media / File Metadata",
+	"obfuscation":         "Obfuscation / Encoding",
+	"protocol":            "Protocol-Level Attacks",
+	"ratelimit":           "Rate Limit Testing",
+	"fuzz":                "Fuzzing",
+	"fuzzing":             "Fuzzing",
+	"polyglot":            "Polyglot Payloads",
+	"cache-poisoning":     "Cache Poisoning",
+	"service-specific":    "Service-Specific Attacks",
+	"waf-validation":      "WAF Validation",
+	"waf-bypass":          "WAF Bypass Techniques",
+	"owasp-top10":         "OWASP Top 10 Coverage",
+	"regression":          "Regression Tests",
 }
 
 // GetOWASPCategory returns the OWASP Top 10 code for an attack category.
