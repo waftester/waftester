@@ -5,6 +5,20 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.28] - 2026-02-23
+
+### Added
+
+- **Advanced payload files for 11 attack categories** — New payload JSON files for CRLF injection, LDAP injection, NoSQL injection, open redirect, prototype pollution, request smuggling, SSRF, SSTI, XXE, polyglot, and WAF bypass chains.
+- **Payload generation package** — `pkg/payloadgen` for programmatic payload generation with type validation.
+- **Category synchronization tests** — Compile-time enforcement that payload files, mapper categories, and validation sets stay in sync.
+
+### Changed
+
+- **Centralized category definitions in CategoryMapper** — `CategoryMapper` is now the single source of truth for all payload categories. MCP tool enums, resource lists, validation, and CLI help text all derive from the mapper instead of maintaining separate hardcoded lists.
+- **Dynamic MCP metadata** — Replaced all hardcoded MCP server metadata (resource count, prompt count, tool names, WAF/CDN vendor lists, WAF signatures JSON) with runtime-derived values. Adding a tool, resource, prompt, or WAF signature no longer requires updating counts or lists elsewhere.
+- **Tag CI gate** — Pre-push hook now blocks tag pushes until CI is green, preventing releases from untested commits.
+
 ## [2.9.27] - 2026-02-23
 
 ### Changed
@@ -2449,6 +2463,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.28]: https://github.com/waftester/waftester/compare/v2.9.27...v2.9.28
 [2.9.27]: https://github.com/waftester/waftester/compare/v2.9.26...v2.9.27
 [2.9.26]: https://github.com/waftester/waftester/compare/v2.9.25...v2.9.26
 [2.9.25]: https://github.com/waftester/waftester/compare/v2.9.24...v2.9.25
