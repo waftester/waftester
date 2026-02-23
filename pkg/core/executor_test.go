@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -616,25 +617,28 @@ func TestExecute(t *testing.T) {
 // TestRateLimiting verifies the rate limiter works
 func TestRateLimiting(t *testing.T) {
 	hosterrors.ClearAll()
-	requestCount := 0
-	var mu sync.Mutex
+	var serverHits int64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		requestCount++
-		mu.Unlock()
+		atomic.AddInt64(&serverHits, 1)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
 
+	const (
+		numPayloads = 60
+		rateLimit   = 10
+		concurrency = 5
+	)
+
 	e := NewExecutor(ExecutorConfig{
 		TargetURL:   server.URL,
-		Concurrency: 10,
-		RateLimit:   10, // Only 10 requests per second
-		Timeout:     5 * time.Second,
+		Concurrency: concurrency,
+		RateLimit:   rateLimit, // 10 requests per second, burst=10
+		Timeout:     10 * time.Second,
 	})
 
-	testPayloads := make([]payloads.Payload, 30)
-	for i := 0; i < 30; i++ {
+	testPayloads := make([]payloads.Payload, numPayloads)
+	for i := 0; i < numPayloads; i++ {
 		testPayloads[i] = payloads.Payload{ID: fmt.Sprintf("test-%d", i)}
 	}
 
@@ -643,10 +647,16 @@ func TestRateLimiting(t *testing.T) {
 	e.Execute(context.Background(), testPayloads, writer)
 	elapsed := time.Since(start)
 
-	// With 30 requests at 10/sec, should take at least ~2 seconds
-	// Use 1.8s threshold to avoid flaky failures from timing jitter
-	if elapsed < 1800*time.Millisecond {
-		t.Errorf("rate limiting not working: 30 requests completed in %v", elapsed)
+	// Verify all requests reached the server (none silently skipped)
+	hits := atomic.LoadInt64(&serverHits)
+	if hits != numPayloads {
+		t.Errorf("expected %d server requests, got %d (requests skipped or lost)", numPayloads, hits)
+	}
+
+	// With 60 requests at 10/sec (burst=10), 50 remaining at 10/sec = 5s.
+	// Use generous 3.5s threshold for CI with race detector overhead.
+	if elapsed < 3500*time.Millisecond {
+		t.Errorf("rate limiting not effective: %d requests in %v (expected >=3.5s)", numPayloads, elapsed)
 	}
 }
 
