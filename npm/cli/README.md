@@ -40,7 +40,7 @@ Executes the complete lifecycle: endpoint discovery → WAF fingerprinting → o
 
 ### WAF Detection & Fingerprinting
 
-Identify WAF vendors with 197 vendor signatures:
+Identify WAF vendors with 198 vendor signatures:
 
 ```
 $ waf-tester vendor -u https://protected.example.com
@@ -235,7 +235,7 @@ Also integrates with SonarQube, GitLab SAST, DefectDojo, Elasticsearch, Slack, T
 |---------|-------------|
 | `auto` | Full automated assessment (discovery → detection → testing → report) |
 | `scan` | Targeted vulnerability scanning across 50+ categories |
-| `vendor` | WAF vendor detection and fingerprinting (197 signatures) |
+| `vendor` | WAF vendor detection and fingerprinting (198 signatures) |
 | `probe` | WAF detection + protocol info in one pass |
 | `bypass` | Bypass discovery with tamper chain optimization |
 | `assess` | Enterprise assessment with statistical metrics |
