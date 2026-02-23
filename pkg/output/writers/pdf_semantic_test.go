@@ -3,13 +3,23 @@ package writers
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	pdfapi "github.com/pdfcpu/pdfcpu/pkg/api"
+	pdfmodel "github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 	"github.com/waftester/waftester/pkg/output/events"
 )
+
+// TestMain pre-initializes pdfcpu's config file before parallel tests run.
+// pdfcpu lazily creates ~/.config/pdfcpu/config.yml on first use, which
+// races when multiple tests call Validate/PageCount concurrently.
+func TestMain(m *testing.M) {
+	pdfmodel.NewDefaultConfiguration()
+	os.Exit(m.Run())
+}
 
 // pdfResult holds a generated PDF and provides semantic assertions.
 type pdfResult struct {
