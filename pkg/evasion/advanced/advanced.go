@@ -749,20 +749,21 @@ func OverlongUTF8(s string) string {
 	return buf.String()
 }
 
+// unicodeReplacements contains the unicode lookalike mappings (allocated once at package init)
+var unicodeReplacements = map[rune]rune{
+	'<':  '\uFF1C', // Fullwidth less-than
+	'>':  '\uFF1E', // Fullwidth greater-than
+	'\'': '\u2019', // Right single quotation
+	'"':  '\u201C', // Left double quotation
+	'/':  '\uFF0F', // Fullwidth solidus
+	'=':  '\uFF1D', // Fullwidth equals
+}
+
 // UnicodeNormalizationBypass uses unicode lookalikes.
 func UnicodeNormalizationBypass(s string) string {
-	replacements := map[rune]rune{
-		'<':  '\uFF1C', // Fullwidth less-than
-		'>':  '\uFF1E', // Fullwidth greater-than
-		'\'': '\u2019', // Right single quotation
-		'"':  '\u201C', // Left double quotation
-		'/':  '\uFF0F', // Fullwidth solidus
-		'=':  '\uFF1D', // Fullwidth equals
-	}
-
 	var buf bytes.Buffer
 	for _, r := range s {
-		if repl, ok := replacements[r]; ok {
+		if repl, ok := unicodeReplacements[r]; ok {
 			buf.WriteRune(repl)
 		} else {
 			buf.WriteRune(r)

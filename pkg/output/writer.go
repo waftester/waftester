@@ -92,8 +92,9 @@ type JSONWriter struct {
 
 // JSONLWriter writes results as newline-delimited JSON
 type JSONLWriter struct {
-	file *os.File
-	mu   sync.Mutex
+	file    *os.File
+	encoder *json.Encoder
+	mu      sync.Mutex
 }
 
 // SARIFWriter writes results in SARIF 2.1.0 format for GitHub
@@ -222,19 +223,18 @@ func newJSONLWriter(path string) (*JSONLWriter, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &JSONLWriter{file: file}, nil
+	return &JSONLWriter{
+		file:    file,
+		encoder: json.NewEncoder(file),
+	}, nil
 }
 
 func (w *JSONLWriter) Write(result *TestResult) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	data, err := json.Marshal(result)
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(w.file, "%s\n", data)
-	return err
+	// Stream directly to file without intermediate allocation
+	return w.encoder.Encode(result)
 }
 
 func (w *JSONLWriter) Close() error {
