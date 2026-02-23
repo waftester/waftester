@@ -6,9 +6,54 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/waftester/waftester/pkg/jsonutil"
 )
+
+// cacheEntry holds cached payload data for a single file.
+type cacheEntry struct {
+	payloads []Payload
+	modTime  time.Time
+	size     int64
+}
+
+// fileCache caches parsed payload files, keyed by absolute path.
+// Re-parses only when the file's modTime or size has changed.
+type fileCache struct {
+	mu      sync.RWMutex
+	entries map[string]*cacheEntry
+}
+
+var defaultCache = &fileCache{entries: make(map[string]*cacheEntry)}
+
+// get returns cached payloads if the file hasn't changed, or nil if stale/missing.
+func (fc *fileCache) get(absPath string, info os.FileInfo) ([]Payload, bool) {
+	fc.mu.RLock()
+	defer fc.mu.RUnlock()
+
+	e, ok := fc.entries[absPath]
+	if !ok {
+		return nil, false
+	}
+	if e.modTime.Equal(info.ModTime()) && e.size == info.Size() {
+		return e.payloads, true
+	}
+	return nil, false
+}
+
+// put stores parsed payloads in the cache.
+func (fc *fileCache) put(absPath string, info os.FileInfo, payloads []Payload) {
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+
+	fc.entries[absPath] = &cacheEntry{
+		payloads: payloads,
+		modTime:  info.ModTime(),
+		size:     info.Size(),
+	}
+}
 
 // Loader handles loading payloads from JSON files
 type Loader struct {
@@ -21,12 +66,18 @@ func NewLoader(baseDir string) *Loader {
 }
 
 // LoadAll loads all payloads from the directory structure.
-// Only regular files under baseDir are loaded; symlinks are skipped
-// to prevent directory escapes and infinite loops.
+// Symlinks are resolved via filepath.EvalSymlinks and verified to stay
+// within the base directory, preventing traversal attacks.
 func (l *Loader) LoadAll() ([]Payload, error) {
 	absBase, err := filepath.Abs(l.baseDir)
 	if err != nil {
 		return nil, fmt.Errorf("resolving base path: %w", err)
+	}
+
+	// Resolve symlinks in the base path to establish the real root.
+	resolvedBase, err := filepath.EvalSymlinks(absBase)
+	if err != nil {
+		return nil, fmt.Errorf("resolving base symlinks: %w", err)
 	}
 
 	allPayloads := make([]Payload, 0, 3072)
@@ -36,23 +87,23 @@ func (l *Loader) LoadAll() ([]Payload, error) {
 			return err
 		}
 
-		// Skip symlinks to prevent directory escapes and loops
-		if d.Type()&fs.ModeSymlink != 0 {
-			return nil
-		}
-
 		// Skip directories and non-JSON files
 		if d.IsDir() || !strings.HasSuffix(d.Name(), ".json") {
 			return nil
 		}
 
-		// Verify path stays under base directory
+		// Resolve the real path (follows symlinks) and verify it
+		// stays within the resolved base directory.
 		absPath, absErr := filepath.Abs(path)
 		if absErr != nil {
 			return nil
 		}
-		if !strings.HasPrefix(absPath, absBase+string(filepath.Separator)) && absPath != absBase {
-			return nil
+		resolvedPath, evalErr := filepath.EvalSymlinks(absPath)
+		if evalErr != nil {
+			return nil // skip files whose symlinks can't be resolved
+		}
+		if !strings.HasPrefix(resolvedPath, resolvedBase+string(filepath.Separator)) && resolvedPath != resolvedBase {
+			return nil // symlink escapes base directory
 		}
 
 		// Skip metadata files
@@ -116,9 +167,25 @@ func (l *Loader) LoadCategory(category string) ([]Payload, error) {
 	return payloads, nil
 }
 
-// loadFile loads payloads from a single JSON file
+// loadFile loads payloads from a single JSON file, using the file cache
+// to avoid re-parsing unchanged files.
 func (l *Loader) loadFile(path string) ([]Payload, error) {
-	data, err := os.ReadFile(path)
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("resolving path: %w", err)
+	}
+
+	info, err := os.Stat(absPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return cached result if the file hasn't changed.
+	if cached, ok := defaultCache.get(absPath, info); ok {
+		return cached, nil
+	}
+
+	data, err := os.ReadFile(absPath)
 	if err != nil {
 		return nil, err
 	}
@@ -128,18 +195,20 @@ func (l *Loader) loadFile(path string) ([]Payload, error) {
 		return nil, fmt.Errorf("parsing %s: %w", path, err)
 	}
 
-	// Normalize payloads: if AttackCategory is set but Category is not, copy it
+	// Normalize and validate each payload, keeping only valid ones.
+	valid := make([]Payload, 0, len(payloads))
 	for i := range payloads {
-		if payloads[i].Category == "" && payloads[i].AttackCategory != "" {
-			payloads[i].Category = payloads[i].AttackCategory
+		payloads[i].Normalize()
+		if err := payloads[i].Validate(); err != nil {
+			// Skip invalid payloads silently — they fail validation
+			// but shouldn't break the entire load.
+			continue
 		}
-		// Default method to GET if not specified
-		if payloads[i].Method == "" {
-			payloads[i].Method = "GET"
-		}
+		valid = append(valid, payloads[i])
 	}
 
-	return payloads, nil
+	defaultCache.put(absPath, info, valid)
+	return valid, nil
 }
 
 // GetStats returns statistics about loaded payloads

