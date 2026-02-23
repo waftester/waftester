@@ -161,6 +161,7 @@ func TestNotifyUniqueVuln_DeduplicatesKeys(t *testing.T) {
 	b := Base{
 		OnVulnerabilityFound: func() { count++ },
 	}
+	b.Validate()
 
 	b.NotifyUniqueVuln("url1|param1|sqli|mysql")
 	b.NotifyUniqueVuln("url1|param1|sqli|mysql") // duplicate
@@ -185,6 +186,7 @@ func TestNotifyUniqueVuln_EmptyKey(t *testing.T) {
 	b := Base{
 		OnVulnerabilityFound: func() { count++ },
 	}
+	b.Validate()
 
 	b.NotifyUniqueVuln("")
 	b.NotifyUniqueVuln("") // duplicate of empty
@@ -201,6 +203,7 @@ func TestNotifyUniqueVuln_IndependentOfNotifyVulnerabilityFound(t *testing.T) {
 	b := Base{
 		OnVulnerabilityFound: func() { count++ },
 	}
+	b.Validate()
 
 	// NotifyVulnerabilityFound always fires
 	b.NotifyVulnerabilityFound()
@@ -223,6 +226,7 @@ func TestNotifyUniqueVuln_ConcurrentSafety(t *testing.T) {
 			atomic.AddInt64(&count, 1)
 		},
 	}
+	b.Validate() // Initialize seenVulns before concurrent access
 
 	var wg sync.WaitGroup
 	for i := 0; i < 100; i++ {

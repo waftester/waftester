@@ -52,6 +52,7 @@ func DefaultBase() Base {
 	return Base{
 		Timeout:     httpclient.TimeoutScanning,
 		Concurrency: defaults.ConcurrencyMedium,
+		seenVulns:   &sync.Map{},
 	}
 }
 
@@ -63,6 +64,9 @@ func (b *Base) Validate() {
 	}
 	if b.Concurrency <= 0 {
 		b.Concurrency = defaults.ConcurrencyMedium
+	}
+	if b.seenVulns == nil {
+		b.seenVulns = &sync.Map{}
 	}
 }
 
@@ -84,10 +88,14 @@ func (b *Base) NotifyUniqueVuln(key string) {
 	if b.OnVulnerabilityFound == nil {
 		return
 	}
-	if b.seenVulns == nil {
-		b.seenVulns = &sync.Map{}
+	// seenVulns is initialized by Validate() / DefaultBase().
+	// Guard against callers that skip initialization.
+	m := b.seenVulns
+	if m == nil {
+		b.OnVulnerabilityFound()
+		return
 	}
-	if _, loaded := b.seenVulns.LoadOrStore(key, struct{}{}); !loaded {
+	if _, loaded := m.LoadOrStore(key, struct{}{}); !loaded {
 		b.OnVulnerabilityFound()
 	}
 }
