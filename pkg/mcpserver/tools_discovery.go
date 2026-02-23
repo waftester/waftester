@@ -19,7 +19,7 @@ import (
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addDiscoverTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "discover",
 			Title: "Discover Attack Surface",
@@ -293,7 +293,7 @@ func buildDiscoverySummary(r *discovery.DiscoveryResult) *discoverySummary {
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addLearnTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "learn",
 			Title: "Generate Test Plan",

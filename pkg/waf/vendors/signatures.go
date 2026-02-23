@@ -10,6 +10,7 @@ package vendors
 
 import (
 	"regexp"
+	"sort"
 )
 
 // WAFSignature defines a comprehensive WAF detection signature
@@ -3154,4 +3155,79 @@ func GetSignaturesByCategory(category string) []WAFSignature {
 // GetTotalSignatureCount returns the total number of WAF signatures
 func GetTotalSignatureCount() int {
 	return len(AllSignatures)
+}
+
+// SignatureSummary is a JSON-friendly view of a WAF signature for the MCP resource.
+type SignatureSummary struct {
+	Name        string   `json:"name"`
+	Category    string   `json:"type"`
+	BypassTips  []string `json:"bypass_tips,omitempty"`
+	Encoders    []string `json:"recommended_encoders,omitempty"`
+	Evasions    []string `json:"recommended_evasions,omitempty"`
+	Detection   []string `json:"detection,omitempty"`
+	Reliable    bool     `json:"reliable"`
+}
+
+// GetSignatureSummaries returns a JSON-serializable summary of all signatures
+// that have bypass tips, sorted by priority (highest first).
+func GetSignatureSummaries() []SignatureSummary {
+	var summaries []SignatureSummary
+	for _, sig := range AllSignatures {
+		if len(sig.BypassTips) == 0 {
+			continue
+		}
+
+		// Derive detection method descriptions from pattern fields.
+		var detection []string
+		for name := range sig.HeaderPatterns {
+			detection = append(detection, name+" header pattern")
+		}
+		if len(sig.CookiePatterns) > 0 {
+			detection = append(detection, "Cookie patterns")
+		}
+		if len(sig.BodyPatterns) > 0 {
+			detection = append(detection, "Response body patterns")
+		}
+		if len(sig.BlockPatterns) > 0 {
+			detection = append(detection, "Block page signatures")
+		}
+		if len(sig.StatusCodes) > 0 {
+			detection = append(detection, "Specific status codes")
+		}
+		sort.Strings(detection)
+
+		summaries = append(summaries, SignatureSummary{
+			Name:       sig.Name,
+			Category:   sig.Category,
+			BypassTips: sig.BypassTips,
+			Encoders:   sig.Encoders,
+			Evasions:   sig.Evasions,
+			Detection:  detection,
+			Reliable:   sig.Reliable,
+		})
+	}
+	return summaries
+}
+
+// GetVendorNamesByCategory returns sorted unique vendor names for the given categories.
+func GetVendorNamesByCategory(categories ...string) []string {
+	catSet := make(map[string]struct{}, len(categories))
+	for _, c := range categories {
+		catSet[c] = struct{}{}
+	}
+
+	seen := make(map[string]struct{})
+	var names []string
+	for _, sig := range AllSignatures {
+		if _, ok := catSet[sig.Category]; !ok {
+			continue
+		}
+		if _, dup := seen[sig.Name]; dup {
+			continue
+		}
+		seen[sig.Name] = struct{}{}
+		names = append(names, sig.Name)
+	}
+	sort.Strings(names)
+	return names
 }

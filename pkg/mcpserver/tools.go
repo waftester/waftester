@@ -271,7 +271,23 @@ var categoryDescriptions = map[string]categoryMeta{
 		RiskLevel:   "High",
 		CommonUsage: "Test JSON merge/deep-copy endpoints, configuration APIs, and any server-side JavaScript object manipulation.",
 	},
+	"prototype-pollution": {
+		Name:        "Prototype Pollution",
+		Description: "Payloads injecting properties into JavaScript Object.prototype to modify application behavior, bypass security checks, or achieve RCE.",
+		OWASPCode:   "A03:2021",
+		OWASPName:   "Injection",
+		RiskLevel:   "High",
+		CommonUsage: "Test JSON merge/deep-copy endpoints, configuration APIs, and any server-side JavaScript object manipulation.",
+	},
 	"deserialize": {
+		Name:        "Insecure Deserialization",
+		Description: "Payloads exploiting unsafe deserialization in Java, PHP, Python, .NET, and Ruby to achieve remote code execution or privilege escalation.",
+		OWASPCode:   "A08:2021",
+		OWASPName:   "Software and Data Integrity Failures",
+		RiskLevel:   "Critical",
+		CommonUsage: "Test serialized data inputs (Java ObjectInputStream, PHP unserialize, Python pickle) and session/state storage.",
+	},
+	"deserialization": {
 		Name:        "Insecure Deserialization",
 		Description: "Payloads exploiting unsafe deserialization in Java, PHP, Python, .NET, and Ruby to achieve remote code execution or privilege escalation.",
 		OWASPCode:   "A08:2021",
@@ -288,6 +304,337 @@ var categoryDescriptions = map[string]categoryMeta{
 		RiskLevel:   "Critical",
 		CommonUsage: "Broad injection testing across multiple backend technologies.",
 	},
+	"open-redirect": {
+		Name:        "Open Redirect",
+		Description: "Payloads exploiting URL redirect functionality to send users to malicious external sites for phishing or credential theft.",
+		OWASPCode:   "A01:2021",
+		OWASPName:   "Broken Access Control",
+		RiskLevel:   "Medium",
+		CommonUsage: "Test login redirect parameters, OAuth callback URLs, and any URL forwarding functionality.",
+	},
+	"polyglot": {
+		Name:        "Polyglot Payloads",
+		Description: "Multi-context payloads that combine multiple attack vectors (XSS+SQLi+SSTI) in a single string — effective for broad WAF testing.",
+		OWASPCode:   "A03:2021",
+		OWASPName:   "Injection",
+		RiskLevel:   "Critical",
+		CommonUsage: "Test WAF coverage gaps by sending payloads valid in multiple injection contexts simultaneously.",
+	},
+	"ai": {
+		Name:        "AI / Prompt Injection",
+		Description: "Payloads targeting AI/ML systems — prompt injection, model poisoning, jailbreak attempts, and workflow abuse vectors.",
+		OWASPCode:   "A03:2021",
+		OWASPName:   "Injection",
+		RiskLevel:   "High",
+		CommonUsage: "Test LLM-powered features, chatbots, AI agents, and any AI-assisted input processing.",
+	},
+	"logic": {
+		Name:        "Business Logic Attacks",
+		Description: "Payloads targeting application logic flaws — IDOR, privilege escalation, forced browsing, and workflow bypass.",
+		OWASPCode:   "A04:2021",
+		OWASPName:   "Insecure Design",
+		RiskLevel:   "High",
+		CommonUsage: "Test authorization boundaries, role-based access, and multi-step workflow integrity.",
+	},
+	"media": {
+		Name:        "Media / File Metadata",
+		Description: "Payloads embedded in image EXIF data, document metadata, and media file headers to test upload processing pipelines.",
+		OWASPCode:   "A04:2021",
+		OWASPName:   "Insecure Design",
+		RiskLevel:   "Medium",
+		CommonUsage: "Test image upload processing, EXIF parsing, and media file handling for injection via metadata.",
+	},
+	"obfuscation": {
+		Name:        "Obfuscation / Encoding",
+		Description: "Payloads using encoding tricks, character substitution, and obfuscation to bypass WAF pattern matching rules.",
+		OWASPCode:   "A05:2021",
+		OWASPName:   "Security Misconfiguration",
+		RiskLevel:   "High",
+		CommonUsage: "Test WAF rule thoroughness by sending known-bad payloads through various encoding layers.",
+	},
+	"protocol": {
+		Name:        "Protocol-Level Attacks",
+		Description: "Payloads targeting HTTP/2, WebSocket, and protocol-level vulnerabilities including request smuggling and downgrade attacks.",
+		OWASPCode:   "A05:2021",
+		OWASPName:   "Security Misconfiguration",
+		RiskLevel:   "High",
+		CommonUsage: "Test HTTP/2 endpoints, WebSocket handlers, and protocol negotiation for smuggling and abuse.",
+	},
+	"ratelimit": {
+		Name:        "Rate Limit Testing",
+		Description: "Payloads for testing rate limiting effectiveness — burst simulation, zone bypass attempts, and distributed request patterns.",
+		OWASPCode:   "A04:2021",
+		OWASPName:   "Insecure Design",
+		RiskLevel:   "Medium",
+		CommonUsage: "Test API rate limiters, login attempt throttling, and DDoS protection thresholds.",
+	},
+	"service-specific": {
+		Name:        "Service-Specific Attacks",
+		Description: "Payloads targeting specific services and platforms — vendor-specific vulnerabilities, API abuse, and known CVE patterns.",
+		OWASPCode:   "A06:2021",
+		OWASPName:   "Vulnerable and Outdated Components",
+		RiskLevel:   "High",
+		CommonUsage: "Test specific third-party services, known platform vulnerabilities, and vendor-specific API abuse.",
+	},
+	"waf-validation": {
+		Name:        "WAF Validation / Rule Testing",
+		Description: "Payloads designed to validate WAF rule effectiveness — ModSecurity CRS tests, custom rule verification, and regression checks.",
+		OWASPCode:   "A05:2021",
+		OWASPName:   "Security Misconfiguration",
+		RiskLevel:   "Medium",
+		CommonUsage: "Verify WAF rules block what they should, test custom rulesets, and validate after configuration changes.",
+	},
+	"owasp-top10": {
+		Name:        "OWASP Top 10 Coverage",
+		Description: "Payloads mapped to OWASP Top 10 categories for compliance-driven testing and coverage reporting.",
+		OWASPCode:   "A00:2021",
+		OWASPName:   "OWASP Top 10 (All Categories)",
+		RiskLevel:   "Critical",
+		CommonUsage: "Run compliance-focused scans covering all OWASP Top 10 risk categories.",
+	},
+	"regression": {
+		Name:        "Regression Tests",
+		Description: "Payloads from previously-discovered bypasses and fixed vulnerabilities — ensures WAF rules stay effective after updates.",
+		OWASPCode:   "A05:2021",
+		OWASPName:   "Security Misconfiguration",
+		RiskLevel:   "High",
+		CommonUsage: "Run after WAF rule updates, CRS upgrades, or configuration changes to catch regressions.",
+	},
+	"waf-bypass": {
+		Name:        "WAF Bypass Techniques",
+		Description: "Payloads specifically crafted to evade WAF detection using encoding tricks, protocol abuse, and rule gap exploitation.",
+		OWASPCode:   "A05:2021",
+		OWASPName:   "Security Misconfiguration",
+		RiskLevel:   "Critical",
+		CommonUsage: "Test WAF resilience against evasion techniques — run after initial scan to find bypass paths.",
+	},
+	"rfi": {
+		Name:        "Remote File Inclusion (RFI)",
+		Description: "Payloads that include remote files from attacker-controlled servers to achieve code execution on the target.",
+		OWASPCode:   "A03:2021",
+		OWASPName:   "Injection",
+		RiskLevel:   "Critical",
+		CommonUsage: "Test include/require parameters, template loading, and any remote resource fetching functionality.",
+	},
+	"ldap": {
+		Name:        "LDAP Injection",
+		Description: "Payloads manipulating LDAP queries to bypass authentication, enumerate directory entries, or extract sensitive data.",
+		OWASPCode:   "A03:2021",
+		OWASPName:   "Injection",
+		RiskLevel:   "High",
+		CommonUsage: "Test LDAP-backed authentication, directory search interfaces, and any LDAP query construction.",
+	},
+	"xpath": {
+		Name:        "XPath Injection",
+		Description: "Payloads injecting XPath syntax into XML document queries to extract data or bypass access controls.",
+		OWASPCode:   "A03:2021",
+		OWASPName:   "Injection",
+		RiskLevel:   "High",
+		CommonUsage: "Test XML-based search, SOAP services, and any application using XPath for data retrieval.",
+	},
+	"request-smuggling": {
+		Name:        "HTTP Request Smuggling",
+		Description: "Payloads exploiting discrepancies between front-end and back-end HTTP parsing to smuggle malicious requests.",
+		OWASPCode:   "A05:2021",
+		OWASPName:   "Security Misconfiguration",
+		RiskLevel:   "Critical",
+		CommonUsage: "Test reverse proxy / CDN / WAF chains for CL.TE, TE.CL, and H2.CL desync vulnerabilities.",
+	},
+	"cache-poisoning": {
+		Name:        "Cache Poisoning",
+		Description: "Payloads that poison web caches to serve malicious content to other users — exploits cache key inconsistencies.",
+		OWASPCode:   "A05:2021",
+		OWASPName:   "Security Misconfiguration",
+		RiskLevel:   "High",
+		CommonUsage: "Test CDN/reverse proxy caching for key normalization issues, unkeyed header injection, and cache deception.",
+	},
+	"fuzz": {
+		Name:        "Fuzzing Payloads",
+		Description: "General-purpose fuzzing payloads — special characters, boundary values, encoding variations, and format strings.",
+		OWASPCode:   "A03:2021",
+		OWASPName:   "Injection",
+		RiskLevel:   "Medium",
+		CommonUsage: "Broad fuzzing of input fields to discover unexpected behavior, crashes, or security-relevant responses.",
+	},
+	"csrf": {
+		Name:        "Cross-Site Request Forgery (CSRF)",
+		Description: "Payloads testing CSRF protections — token absence, token bypass, SameSite cookie misconfiguration, and cross-origin state changes.",
+		OWASPCode:   "A01:2021",
+		OWASPName:   "Broken Access Control",
+		RiskLevel:   "High",
+		CommonUsage: "Test state-changing endpoints for missing or weak CSRF tokens, SameSite cookie attributes, and origin validation.",
+	},
+	"xml-injection": {
+		Name:        "XML Injection",
+		Description: "Payloads injecting malicious XML content to manipulate document structure, bypass input validation, or trigger parser vulnerabilities.",
+		OWASPCode:   "A03:2021",
+		OWASPName:   "Injection",
+		RiskLevel:   "High",
+		CommonUsage: "Test XML-based APIs, SOAP services, and any XML document processing for injection and parser abuse.",
+	},
+	"response-splitting": {
+		Name:        "HTTP Response Splitting",
+		Description: "Payloads injecting CRLF sequences into HTTP responses to add headers, set cookies, or split responses for cache poisoning.",
+		OWASPCode:   "A03:2021",
+		OWASPName:   "Injection",
+		RiskLevel:   "High",
+		CommonUsage: "Test URL redirects, header reflection, and any input echoed in HTTP response headers.",
+	},
+	"websocket": {
+		Name:        "WebSocket Security",
+		Description: "Payloads targeting WebSocket connections — cross-site WebSocket hijacking, message injection, and authentication bypass.",
+		OWASPCode:   "A01:2021",
+		OWASPName:   "Broken Access Control",
+		RiskLevel:   "High",
+		CommonUsage: "Test WebSocket endpoints for origin validation, authentication on upgrade, and message-level injection.",
+	},
+	"hpp": {
+		Name:        "HTTP Parameter Pollution (HPP)",
+		Description: "Payloads exploiting duplicate parameter handling differences between front-end and back-end to bypass WAF rules or alter logic.",
+		OWASPCode:   "A03:2021",
+		OWASPName:   "Injection",
+		RiskLevel:   "Medium",
+		CommonUsage: "Test parameter handling by sending duplicate query/body parameters to exploit parsing inconsistencies.",
+	},
+	"host-header": {
+		Name:        "Host Header Injection",
+		Description: "Payloads manipulating the HTTP Host header to poison password reset links, bypass virtual host routing, or enable cache poisoning.",
+		OWASPCode:   "A05:2021",
+		OWASPName:   "Security Misconfiguration",
+		RiskLevel:   "High",
+		CommonUsage: "Test password reset flows, virtual host routing, and any functionality that uses the Host header for URL generation.",
+	},
+	"clickjacking": {
+		Name:        "Clickjacking / UI Redressing",
+		Description: "Payloads testing frame-based UI attacks — missing X-Frame-Options, weak CSP frame-ancestors, and iframe embedding vulnerabilities.",
+		OWASPCode:   "A05:2021",
+		OWASPName:   "Security Misconfiguration",
+		RiskLevel:   "Medium",
+		CommonUsage: "Test pages with state-changing actions for missing framing protections (X-Frame-Options, CSP frame-ancestors).",
+	},
+	"access-control": {
+		Name:        "Broken Access Control",
+		Description: "Payloads testing authorization boundaries — privilege escalation, horizontal/vertical access bypass, and missing function-level checks.",
+		OWASPCode:   "A01:2021",
+		OWASPName:   "Broken Access Control",
+		RiskLevel:   "Critical",
+		CommonUsage: "Test admin endpoints with low-privilege tokens, IDOR via numeric IDs, and role-based access enforcement.",
+	},
+	"race-condition": {
+		Name:        "Race Condition / TOCTOU",
+		Description: "Payloads exploiting race conditions — time-of-check/time-of-use bugs, concurrent request abuse, and double-spend attacks.",
+		OWASPCode:   "A04:2021",
+		OWASPName:   "Insecure Design",
+		RiskLevel:   "High",
+		CommonUsage: "Test financial transactions, coupon redemption, and any endpoint where concurrent requests could cause inconsistent state.",
+	},
+	"subdomain-takeover": {
+		Name:        "Subdomain Takeover",
+		Description: "Payloads detecting dangling DNS records (CNAME, A) pointing to deprovisioned cloud resources that can be claimed by attackers.",
+		OWASPCode:   "A05:2021",
+		OWASPName:   "Security Misconfiguration",
+		RiskLevel:   "High",
+		CommonUsage: "Test DNS records for dangling CNAMEs to deprovisioned S3 buckets, Heroku apps, Azure, and other cloud services.",
+	},
+	"session-fixation": {
+		Name:        "Session Fixation",
+		Description: "Payloads testing session management — fixation attacks, session ID prediction, and failure to regenerate tokens after authentication.",
+		OWASPCode:   "A07:2021",
+		OWASPName:   "Identification and Authentication Failures",
+		RiskLevel:   "High",
+		CommonUsage: "Test login flows for session ID regeneration, cookie attributes (HttpOnly, Secure, SameSite), and fixation vectors.",
+	},
+	"mass-assignment": {
+		Name:        "Mass Assignment",
+		Description: "Payloads testing mass assignment / parameter binding — injecting admin=true, role=admin, or other privileged fields into update requests.",
+		OWASPCode:   "A04:2021",
+		OWASPName:   "Insecure Design",
+		RiskLevel:   "High",
+		CommonUsage: "Test user profile updates, registration endpoints, and any API accepting JSON/form bodies for unprotected field binding.",
+	},
+	"ssi": {
+		Name:        "Server-Side Includes (SSI) Injection",
+		Description: "Payloads injecting SSI directives (<!--#exec -->, <!--#include -->) to execute commands or include files on the server.",
+		OWASPCode:   "A03:2021",
+		OWASPName:   "Injection",
+		RiskLevel:   "High",
+		CommonUsage: "Test web servers with SSI enabled (.shtml pages) for directive injection in user-controlled input.",
+	},
+	"misconfiguration": {
+		Name:        "Security Misconfiguration",
+		Description: "Payloads testing security misconfigurations — debug endpoints, default credentials, missing security headers, and verbose error pages.",
+		OWASPCode:   "A05:2021",
+		OWASPName:   "Security Misconfiguration",
+		RiskLevel:   "High",
+		CommonUsage: "Test for exposed admin panels, debug modes, stack traces in errors, and missing security headers.",
+	},
+	"sensitive-data": {
+		Name:        "Sensitive Data Exposure",
+		Description: "Payloads detecting exposed sensitive data — API keys in responses, PII leakage, directory listings, and information disclosure.",
+		OWASPCode:   "A02:2021",
+		OWASPName:   "Cryptographic Failures",
+		RiskLevel:   "High",
+		CommonUsage: "Test API responses for leaked credentials, error messages with stack traces, and unprotected sensitive endpoints.",
+	},
+	"crypto-failure": {
+		Name:        "Cryptographic Failure",
+		Description: "Payloads testing cryptographic weaknesses — weak TLS versions, insecure cipher suites, missing HSTS, and weak hashing algorithms.",
+		OWASPCode:   "A02:2021",
+		OWASPName:   "Cryptographic Failures",
+		RiskLevel:   "High",
+		CommonUsage: "Test TLS configuration, certificate validation, HSTS enforcement, and detection of weak cryptographic primitives.",
+	},
+	"api-abuse": {
+		Name:        "API Abuse",
+		Description: "Payloads targeting API-specific vulnerabilities — excessive data exposure, mass assignment, BOLA, resource exhaustion, and broken auth.",
+		OWASPCode:   "A01:2021",
+		OWASPName:   "Broken Access Control",
+		RiskLevel:   "High",
+		CommonUsage: "Test REST/GraphQL APIs for OWASP API Top 10 issues including BOLA, broken auth, and excessive data exposure.",
+	},
+	"lfi": {
+		Name:        "Path Traversal / LFI",
+		Description: "Payloads that traverse directory structures (../../etc/passwd) to read sensitive files from the server filesystem.",
+		OWASPCode:   "A01:2021",
+		OWASPName:   "Broken Access Control",
+		RiskLevel:   "High",
+		CommonUsage: "Test file download endpoints, include parameters, template paths, and any input used in filesystem operations.",
+	},
+	"rce": {
+		Name:        "OS Command Injection",
+		Description: "Payloads that inject operating system commands (;whoami, |cat /etc/passwd) to execute arbitrary commands on the server.",
+		OWASPCode:   "A03:2021",
+		OWASPName:   "Injection",
+		RiskLevel:   "Critical",
+		CommonUsage: "Test ping/traceroute tools, file processors, system administration interfaces, and any input passed to shell commands.",
+	},
+}
+
+// categoryMapper is a package-level mapper used by lookupCategoryMeta to
+// resolve aliases without constructing a new mapper on every call.
+var categoryMapper = payloadprovider.NewCategoryMapper()
+
+// lookupCategoryMeta resolves a category name (which may be an alias like
+// "lfi", "rce", "deserialization") to its metadata in categoryDescriptions.
+// It first tries a direct map lookup, then resolves through the CategoryMapper
+// to find the canonical category and checks all its tags against the map.
+func lookupCategoryMeta(category string) (categoryMeta, bool) {
+	lower := strings.ToLower(category)
+	if meta, ok := categoryDescriptions[lower]; ok {
+		return meta, true
+	}
+	// Resolve through mapper: "lfi" → "Path-Traversal", "rce" → "Command-Injection"
+	resolved := categoryMapper.Resolve(lower)
+	if len(resolved) > 0 {
+		// Check all tags for the resolved canonical category
+		tags := categoryMapper.CategoriesToTags(resolved[0])
+		for _, tag := range tags {
+			if meta, ok := categoryDescriptions[tag]; ok {
+				return meta, true
+			}
+		}
+	}
+	return categoryMeta{}, false
 }
 
 // registerTools adds all WAF testing tools to the MCP server.
@@ -317,6 +664,7 @@ func (s *Server) registerTools() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addListPayloadsTool() {
+	categoryShortNames := payloadprovider.NewCategoryMapper().ShortNames()
 	s.mcp.AddTool(
 		&mcp.Tool{
 			Name:  "list_payloads",
@@ -342,7 +690,7 @@ EXAMPLE INPUTS:
 • Only critical XSS payloads: {"category": "xss", "severity": "Critical"}
 • High+ severity across all categories: {"severity": "High"}
 
-CATEGORIES: sqli, xss, traversal, auth, ssrf, ssti, cmdi, xxe, nosqli, graphql, cors, crlf, redirect, upload, jwt, oauth, prototype, deserialize
+CATEGORIES: ` + strings.Join(categoryShortNames, ", ") + `
 SEVERITY (descending): Critical > High > Medium > Low
 
 Returns: total count, per-category breakdown, severity distribution, 5 sample payloads.`,
@@ -352,7 +700,7 @@ Returns: total count, per-category breakdown, severity distribution, 5 sample pa
 					"category": map[string]any{
 						"type":        "string",
 						"description": "Filter by specific attack category. Leave empty to see all categories.",
-						"enum":        []string{"sqli", "xss", "traversal", "auth", "ssrf", "ssti", "cmdi", "xxe", "nosqli", "graphql", "cors", "crlf", "redirect", "upload", "jwt", "oauth", "prototype", "deserialize"},
+						"enum":        categoryShortNames,
 					},
 					"severity": map[string]any{
 						"type":        "string",
@@ -482,7 +830,7 @@ func (s *Server) handleListPayloads(_ context.Context, req *mcp.CallToolRequest)
 
 	// Add category metadata when filtering by category
 	if args.Category != "" {
-		if meta, ok := categoryDescriptions[strings.ToLower(args.Category)]; ok {
+		if meta, ok := lookupCategoryMeta(args.Category); ok {
 			summary.CategoryInfo = &meta
 		}
 	}
@@ -537,7 +885,7 @@ func buildListPayloadsSummary(args listPayloadsArgs, stats payloads.LoadStats, t
 				fmt.Fprintf(&sb, " at severity '%s' or higher", args.Severity)
 			}
 			sb.WriteString(". ")
-			if meta, ok := categoryDescriptions[strings.ToLower(args.Category)]; ok {
+			if meta, ok := lookupCategoryMeta(args.Category); ok {
 				fmt.Fprintf(&sb, "The '%s' category (%s) exists but may not have payloads in the current payload directory. ", args.Category, meta.Name)
 			}
 			fmt.Fprintf(&sb, "Total payloads available across all categories: %d. Try removing filters or checking the payload directory.", totalAvailable)
@@ -548,7 +896,7 @@ func buildListPayloadsSummary(args listPayloadsArgs, stats payloads.LoadStats, t
 	}
 
 	if args.Category != "" {
-		if meta, ok := categoryDescriptions[strings.ToLower(args.Category)]; ok {
+		if meta, ok := lookupCategoryMeta(args.Category); ok {
 			fmt.Fprintf(&sb, "Found %d %s (%s) payloads", stats.TotalPayloads, meta.Name, strings.ToUpper(args.Category))
 		} else {
 			fmt.Fprintf(&sb, "Found %d '%s' payloads", stats.TotalPayloads, args.Category)
@@ -585,7 +933,8 @@ func buildListPayloadsNextSteps(args listPayloadsArgs, stats payloads.LoadStats)
 
 	if stats.TotalPayloads == 0 {
 		steps = append(steps, "Try 'list_payloads' with no filters to see all available categories and payloads")
-		steps = append(steps, "Check available categories: sqli, xss, traversal, auth, ssrf, ssti, cmdi, xxe, nosqli, graphql, cors, crlf, redirect, upload, jwt, oauth, prototype, deserialize")
+		allCats := payloadprovider.NewCategoryMapper().ShortNames()
+		steps = append(steps, "Check available categories: "+strings.Join(allCats, ", "))
 		return steps
 	}
 

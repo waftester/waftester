@@ -22,7 +22,7 @@ var cronSafePattern = regexp.MustCompile(`^[@a-zA-Z0-9 */,\-]+$`)
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addGenerateCICDTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "generate_cicd",
 			Title: "Generate CI/CD Pipeline",

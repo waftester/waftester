@@ -14,7 +14,7 @@ import (
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addEventCrawlTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "event_crawl",
 			Title: "DOM Event Crawling",
