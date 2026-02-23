@@ -79,10 +79,12 @@ jobs:
           echo "Checking commit author identities..."
 
           # Only these identities are allowed in commits
-          ALLOWED_EMAILS="dev@waftester.com|noreply@github.com|dependabot\[bot\]"
+          # noreply.github.com covers both GitHub web-flow and users.noreply.github.com
+          ALLOWED_EMAILS="dev@waftester.com|noreply\.github\.com|dependabot\[bot\]"
 
-          # Check author emails in recent commits
-          VIOLATIONS=$(git log --format="%H %ae" HEAD~5..HEAD 2>/dev/null \
+          # Skip merge commits — GitHub creates them during "Update branch"
+          # with the authenticated user's email, not the project identity
+          VIOLATIONS=$(git log --no-merges --format="%H %ae" HEAD~5..HEAD 2>/dev/null \
             | grep -ivE "$ALLOWED_EMAILS" || true)
 
           if [ -n "$VIOLATIONS" ]; then
