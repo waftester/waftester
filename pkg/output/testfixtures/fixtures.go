@@ -7,6 +7,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/output"
+	"github.com/waftester/waftester/pkg/payloadprovider"
 	"github.com/waftester/waftester/pkg/scoring"
 )
 
@@ -200,14 +201,9 @@ func MakeAssessmentData() AssessmentMetrics {
 // ============================================================================
 
 // AllCategories returns all attack categories for comprehensive testing.
+// Derived from the CategoryMapper — the single source of truth.
 func AllCategories() []string {
-	return []string{
-		"sqli", "xss", "traversal", "rce", "ssrf", "xxe", "lfi", "rfi",
-		"cmdi", "nosqli", "ldap", "xpath", "ssti", "deserialize",
-		"graphql", "grpc", "soap", "websocket", "jwt", "oauth",
-		"csrf", "cors", "clickjack", "openredirect", "smuggling",
-		"hpp", "massassignment", "idor", "race", "upload",
-	}
+	return payloadprovider.NewCategoryMapper().ShortNames()
 }
 
 // OWASPCategories returns OWASP-mapped categories for compliance testing.

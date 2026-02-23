@@ -1,6 +1,7 @@
 package payloadprovider
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/waftester/waftester/pkg/nuclei"
@@ -61,7 +62,7 @@ func NewCategoryMapper() *CategoryMapper {
 	m.alias("server-side-template-injection", "SSTI")
 
 	// ── LFI / Path Traversal ───────────────────────────────────────
-	m.register("Path-Traversal", "lfi", "path-traversal", "directory-traversal", "lfi-bypass", "file-inclusion")
+	m.register("Path-Traversal", "lfi", "path-traversal", "directory-traversal", "lfi-bypass", "file-inclusion", "traversal")
 	m.alias("lfi", "Path-Traversal")
 	m.alias("directory-traversal", "Path-Traversal")
 	m.alias("file-inclusion", "Path-Traversal")
@@ -82,6 +83,16 @@ func NewCategoryMapper() *CategoryMapper {
 	m.alias("crlf", "CRLF-Injection")
 	m.alias("header-injection", "CRLF-Injection")
 
+	// ── CORS ───────────────────────────────────────────────────────
+	m.register("CORS", "cors", "cross-origin", "cors-misconfiguration", "origin-reflection")
+	m.alias("cors", "CORS")
+	m.alias("cross-origin", "CORS")
+
+	// ── CSRF ───────────────────────────────────────────────────────
+	m.register("CSRF", "csrf", "cross-site-request-forgery", "token-bypass")
+	m.alias("csrf", "CSRF")
+	m.alias("cross-site-request-forgery", "CSRF")
+
 	// ── LDAP Injection ─────────────────────────────────────────────
 	m.register("LDAP-Injection", "ldap", "ldap-injection")
 	m.alias("ldap", "LDAP-Injection")
@@ -90,15 +101,25 @@ func NewCategoryMapper() *CategoryMapper {
 	m.register("XPath-Injection", "xpath", "xpath-injection")
 	m.alias("xpath", "XPath-Injection")
 
+	// ── XML Injection ──────────────────────────────────────────────
+	m.register("XML-Injection", "xml-injection", "xml")
+	m.alias("xml-injection", "XML-Injection")
+
 	// ── Prototype Pollution ────────────────────────────────────────
 	m.register("Prototype-Pollution", "prototype-pollution", "proto-pollution")
 	m.alias("prototype-pollution", "Prototype-Pollution")
 	m.alias("proto-pollution", "Prototype-Pollution")
+	m.alias("prototype", "Prototype-Pollution")
 
 	// ── Request Smuggling ──────────────────────────────────────────
-	m.register("Request-Smuggling", "request-smuggling", "http-smuggling", "http-desync")
+	m.register("Request-Smuggling", "request-smuggling", "http-smuggling", "http-desync", "smuggling")
 	m.alias("request-smuggling", "Request-Smuggling")
 	m.alias("http-smuggling", "Request-Smuggling")
+	m.alias("smuggling", "Request-Smuggling")
+
+	// ── Response Splitting ─────────────────────────────────────────
+	m.register("Response-Splitting", "response-splitting", "http-response-split")
+	m.alias("response-splitting", "Response-Splitting")
 
 	// ── WAF Bypass ─────────────────────────────────────────────────
 	m.register("WAF-Bypass", "waf-bypass", "bypass", "evasion", "waf")
@@ -111,6 +132,8 @@ func NewCategoryMapper() *CategoryMapper {
 	m.alias("jwt", "Authentication")
 	m.alias("oauth", "Authentication")
 	m.alias("broken-auth", "Authentication")
+	m.alias("brokenauth", "Authentication")
+	m.alias("broken-authentication", "Authentication")
 
 	// ── GraphQL ────────────────────────────────────────────────────
 	m.register("GraphQL", "graphql", "graphql-injection")
@@ -120,10 +143,12 @@ func NewCategoryMapper() *CategoryMapper {
 	m.register("Deserialization", "deserialization", "insecure-deserialization")
 	m.alias("deserialization", "Deserialization")
 	m.alias("insecure-deserialization", "Deserialization")
+	m.alias("deserialize", "Deserialization")
 
 	// ── Cache Poisoning ────────────────────────────────────────────
-	m.register("Cache-Poisoning", "cache-poisoning", "web-cache")
+	m.register("Cache-Poisoning", "cache-poisoning", "web-cache", "cache")
 	m.alias("cache-poisoning", "Cache-Poisoning")
+	m.alias("cache", "Cache-Poisoning")
 
 	// ── Upload ─────────────────────────────────────────────────────
 	m.register("Upload", "upload", "file-upload", "upload-bypass")
@@ -138,6 +163,142 @@ func NewCategoryMapper() *CategoryMapper {
 	// ── RFI ────────────────────────────────────────────────────────
 	m.register("RFI", "rfi", "remote-file-inclusion")
 	m.alias("rfi", "RFI")
+
+	// ── Open Redirect ──────────────────────────────────────────────
+	m.register("Open-Redirect", "open-redirect", "redirect", "url-redirect", "unvalidated-redirect")
+	m.alias("open-redirect", "Open-Redirect")
+	m.alias("redirect", "Open-Redirect")
+	m.alias("url-redirect", "Open-Redirect")
+
+	// ── Polyglot ───────────────────────────────────────────────────
+	m.register("Polyglot", "polyglot", "multi-context", "multi-vector")
+	m.alias("polyglot", "Polyglot")
+	m.alias("multi-context", "Polyglot")
+
+	// ── AI / Prompt Injection ──────────────────────────────────────
+	m.register("AI", "ai", "prompt-injection", "ml-poisoning", "llm")
+	m.alias("ai", "AI")
+	m.alias("prompt-injection", "AI")
+
+	// ── Injection (generic) ────────────────────────────────────────
+	m.register("Injection", "injection", "generic-injection")
+	m.alias("injection", "Injection")
+
+	// ── Logic / Business Logic ─────────────────────────────────────
+	m.register("Logic", "logic", "business-logic", "idor", "privilege-escalation", "forced-browsing")
+	m.alias("logic", "Logic")
+	m.alias("business-logic", "Logic")
+	m.alias("idor", "Logic")
+	m.alias("bizlogic", "Logic")
+
+	// ── Media ──────────────────────────────────────────────────────
+	m.register("Media", "media", "exif-injection", "metadata-poison")
+	m.alias("media", "Media")
+
+	// ── Obfuscation ────────────────────────────────────────────────
+	m.register("Obfuscation", "obfuscation", "encoding-evasion")
+	m.alias("obfuscation", "Obfuscation")
+
+	// ── Protocol ───────────────────────────────────────────────────
+	m.register("Protocol", "protocol", "http2", "grpc")
+	m.alias("protocol", "Protocol")
+
+	// ── WebSocket ──────────────────────────────────────────────────
+	m.register("WebSocket", "websocket", "ws", "cross-site-websocket-hijacking")
+	m.alias("websocket", "WebSocket")
+	m.alias("ws", "WebSocket")
+
+	// ── Rate Limiting ──────────────────────────────────────────────
+	m.register("Rate-Limiting", "ratelimit", "rate-limit", "rate-limiting", "burst")
+	m.alias("ratelimit", "Rate-Limiting")
+	m.alias("rate-limit", "Rate-Limiting")
+
+	// ── HPP ────────────────────────────────────────────────────────
+	m.register("HTTP-Parameter-Pollution", "hpp", "parameter-pollution")
+	m.alias("hpp", "HTTP-Parameter-Pollution")
+	m.alias("parameter-pollution", "HTTP-Parameter-Pollution")
+
+	// ── Host Header Injection ──────────────────────────────────────
+	m.register("Host-Header-Injection", "host-header", "host-header-injection")
+	m.alias("host-header", "Host-Header-Injection")
+	m.alias("host-header-injection", "Host-Header-Injection")
+	m.alias("hostheader", "Host-Header-Injection")
+
+	// ── Clickjacking ───────────────────────────────────────────────
+	m.register("Clickjacking", "clickjacking", "x-frame-options", "ui-redressing")
+	m.alias("clickjacking", "Clickjacking")
+	m.alias("clickjack", "Clickjacking")
+
+	// ── Access Control ─────────────────────────────────────────────
+	m.register("Access-Control", "access-control", "broken-access-control", "authorization-bypass")
+	m.alias("access-control", "Access-Control")
+	m.alias("broken-access-control", "Access-Control")
+	m.alias("accesscontrol", "Access-Control")
+
+	// ── Race Condition ─────────────────────────────────────────────
+	m.register("Race-Condition", "race-condition", "race", "toctou", "concurrency")
+	m.alias("race-condition", "Race-Condition")
+	m.alias("race", "Race-Condition")
+
+	// ── Subdomain Takeover ─────────────────────────────────────────
+	m.register("Subdomain-Takeover", "subdomain-takeover", "dangling-cname", "dns-hijack")
+	m.alias("subdomain-takeover", "Subdomain-Takeover")
+	m.alias("subtakeover", "Subdomain-Takeover")
+
+	// ── Session Fixation ───────────────────────────────────────────
+	m.register("Session-Fixation", "session-fixation", "session-hijack")
+	m.alias("session-fixation", "Session-Fixation")
+	m.alias("sessionfixation", "Session-Fixation")
+
+	// ── Mass Assignment ────────────────────────────────────────────
+	m.register("Mass-Assignment", "mass-assignment", "parameter-binding", "object-injection")
+	m.alias("mass-assignment", "Mass-Assignment")
+	m.alias("massassignment", "Mass-Assignment")
+
+	// ── SSI Injection ──────────────────────────────────────────────
+	m.register("SSI-Injection", "ssi", "server-side-includes", "ssi-injection")
+	m.alias("ssi", "SSI-Injection")
+	m.alias("server-side-includes", "SSI-Injection")
+
+	// ── Security Misconfiguration ──────────────────────────────────
+	m.register("Security-Misconfiguration", "misconfiguration", "security-headers", "debug-endpoints")
+	m.alias("misconfiguration", "Security-Misconfiguration")
+	m.alias("security-misconfiguration", "Security-Misconfiguration")
+	m.alias("securitymisconfig", "Security-Misconfiguration")
+
+	// ── Sensitive Data Exposure ────────────────────────────────────
+	m.register("Sensitive-Data-Exposure", "sensitive-data", "information-disclosure", "data-leakage")
+	m.alias("sensitive-data", "Sensitive-Data-Exposure")
+	m.alias("information-disclosure", "Sensitive-Data-Exposure")
+	m.alias("sensitivedata", "Sensitive-Data-Exposure")
+
+	// ── Cryptographic Failure ──────────────────────────────────────
+	m.register("Cryptographic-Failure", "crypto-failure", "weak-tls", "weak-cipher")
+	m.alias("crypto-failure", "Cryptographic-Failure")
+	m.alias("cryptofailure", "Cryptographic-Failure")
+	m.alias("weak-crypto", "Cryptographic-Failure")
+
+	// ── API Abuse ──────────────────────────────────────────────────
+	m.register("API-Abuse", "api-abuse", "api-security", "resource-exhaustion")
+	m.alias("api-abuse", "API-Abuse")
+	m.alias("apiabuse", "API-Abuse")
+
+	// ── Service-Specific ───────────────────────────────────────────
+	m.register("Service-Specific", "service-specific", "vendor-specific")
+	m.alias("service-specific", "Service-Specific")
+
+	// ── WAF Validation ─────────────────────────────────────────────
+	m.register("WAF-Validation", "waf-validation", "waf-testing", "rule-validation")
+	m.alias("waf-validation", "WAF-Validation")
+
+	// ── OWASP Top 10 ───────────────────────────────────────────────
+	m.register("OWASP-Top10", "owasp-top10", "owasp", "top10")
+	m.alias("owasp-top10", "OWASP-Top10")
+	m.alias("owasp", "OWASP-Top10")
+
+	// ── Regression ─────────────────────────────────────────────────
+	m.register("Regression", "regression", "regression-test")
+	m.alias("regression", "Regression")
 
 	return m
 }
@@ -273,6 +434,53 @@ func (m *CategoryMapper) AllCategories() []string {
 		cats = append(cats, name)
 	}
 	return cats
+}
+
+// ShortNames returns the primary short alias for each registered category.
+// These are the first tag passed to register() — the most recognizable
+// short name for each category (e.g. "sqli", "xss", "lfi").
+// Sorted alphabetically for deterministic output.
+func (m *CategoryMapper) ShortNames() []string {
+	seen := make(map[string]bool, len(m.categoryToTags))
+	names := make([]string, 0, len(m.categoryToTags))
+	for _, tags := range m.categoryToTags {
+		if len(tags) > 0 && !seen[tags[0]] {
+			seen[tags[0]] = true
+			names = append(names, tags[0])
+		}
+	}
+	// Also include well-known aliases that users commonly type.
+	// These all resolve through Resolve() to valid canonical names.
+	wellKnown := []string{
+		"traversal", "cmdi", "cors", "csrf", "jwt", "oauth",
+		"redirect", "prototype", "deserialize", "hpp",
+		"clickjacking", "race", "smuggling", "ssi",
+	}
+	for _, alias := range wellKnown {
+		if !seen[alias] {
+			seen[alias] = true
+			names = append(names, alias)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+// ValidCategories returns a set of all category names and aliases that
+// are accepted as valid input. Includes canonical names, short aliases,
+// and registered tags — all lowercased.
+func (m *CategoryMapper) ValidCategories() map[string]bool {
+	valid := make(map[string]bool, len(m.canonicalNames)+len(m.aliases)+len(m.tagToCategory))
+	for lower := range m.canonicalNames {
+		valid[lower] = true
+	}
+	for alias := range m.aliases {
+		valid[alias] = true
+	}
+	for tag := range m.tagToCategory {
+		valid[tag] = true
+	}
+	return valid
 }
 
 // canonicalName returns the proper-cased canonical name for a lowercase
