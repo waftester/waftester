@@ -100,7 +100,7 @@ docker run -p 8080:8080 \
 | Tag | Description | Example |
 |-----|-------------|---------|
 | `latest` | Latest stable release | `ghcr.io/waftester/waftester:latest` |
-| `2.9.26` | Exact version | `ghcr.io/waftester/waftester:2.9.26` |
+| `2.9.27` | Exact version | `ghcr.io/waftester/waftester:2.9.27` |
 | `2.7` | Latest patch in minor | `ghcr.io/waftester/waftester:2.7` |
 | `2` | Latest in major | `ghcr.io/waftester/waftester:2` |
 | `edge` | Latest `main` build | `ghcr.io/waftester/waftester:edge` |
@@ -116,7 +116,7 @@ development:
 docker compose up --build
 
 # With version info from your environment
-VERSION=2.9.26 COMMIT=$(git rev-parse --short HEAD) \
+VERSION=2.9.27 COMMIT=$(git rev-parse --short HEAD) \
   docker compose up --build
 
 # Detached mode
