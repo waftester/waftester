@@ -92,6 +92,7 @@ func TestNewPayloadFieldsDocumented(t *testing.T) {
 		"MutationType":    true, // Type of mutation applied
 		"OriginalPayload": true, // Original payload before mutation
 		"Vendor":          true, // WAF vendor hint for targeted testing
+		"Effectiveness":   true, // Expected effectiveness rating
 	}
 
 	payloadType := reflect.TypeOf(payloads.Payload{})
