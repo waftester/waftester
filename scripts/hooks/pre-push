@@ -155,6 +155,75 @@ else
 fi
 
 # ============================================================================
+# TAG CI GATE — BLOCK TAG PUSHES UNLESS CI IS GREEN
+# ============================================================================
+# When pushing a version tag, verify CI passed for the tagged commit.
+# This prevents releasing before CI is green — the exact mistake that caused
+# v2.9.27 to ship with race condition failures.
+TAG_PUSH_FOUND=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+    # Only check version tags (refs/tags/v*)
+    case "$remote_ref" in
+        refs/tags/v*)
+            TAG_PUSH_FOUND=1
+            TAG_NAME="${remote_ref#refs/tags/}"
+            TAG_SHA="$local_sha"
+            break
+            ;;
+    esac
+done < <(echo "$PUSH_REFS")
+
+if [ $TAG_PUSH_FOUND -eq 1 ]; then
+    echo "Checking CI status for tag $TAG_NAME ($TAG_SHA)..."
+
+    if ! command -v gh &> /dev/null; then
+        echo ""
+        echo "╔══════════════════════════════════════════════════════════════════╗"
+        echo "║  WARNING: gh CLI not found — cannot verify CI status           ║"
+        echo "╚══════════════════════════════════════════════════════════════════╝"
+        echo ""
+        echo "  Install gh CLI to enable tag CI verification."
+        echo "  Proceeding without CI check."
+        echo ""
+    else
+        # Get the conclusion of the most recent CI workflow run for this commit.
+        # The workflow file is ci.yml; check both "test" and "lint" jobs.
+        CI_CONCLUSION=$(gh run list --commit "$TAG_SHA" --workflow ci.yml \
+            --json conclusion --jq '.[0].conclusion' 2>/dev/null || echo "")
+
+        if [ -z "$CI_CONCLUSION" ]; then
+            echo ""
+            echo "╔══════════════════════════════════════════════════════════════════╗"
+            echo "║  BLOCKED: No CI run found for commit $TAG_SHA   ║"
+            echo "╚══════════════════════════════════════════════════════════════════╝"
+            echo ""
+            echo "  Push the commit to main first and wait for CI to complete:"
+            echo "    git push origin main"
+            echo "    gh run watch"
+            echo ""
+            echo "  Then push the tag:"
+            echo "    git push origin $TAG_NAME"
+            echo ""
+            ERRORS=$((ERRORS + 1))
+        elif [ "$CI_CONCLUSION" != "success" ]; then
+            echo ""
+            echo "╔══════════════════════════════════════════════════════════════════╗"
+            echo "║  BLOCKED: CI is not green (status: $CI_CONCLUSION)  ║"
+            echo "╚══════════════════════════════════════════════════════════════════╝"
+            echo ""
+            echo "  CI must pass before tagging. Check the run:"
+            echo "    gh run list --commit $TAG_SHA --workflow ci.yml"
+            echo ""
+            echo "  Fix failures, push, wait for green, then tag."
+            echo ""
+            ERRORS=$((ERRORS + 1))
+        else
+            echo "  ✓ CI passed for $TAG_NAME"
+        fi
+    fi
+fi
+
+# ============================================================================
 # RESULT
 # ============================================================================
 if [ $ERRORS -gt 0 ]; then
