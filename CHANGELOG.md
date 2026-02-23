@@ -5,6 +5,12 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.27] - 2026-02-23
+
+### Changed
+
+- **Hot path performance optimizations** — Zero-allocation word/line counting, lazy response body materialization, request pool fix (return original pooled request instead of context-derived copy), streaming JSON encoder for JSONL output, cached target URL parsing in executor, per-rune unicode case conversion replacing string allocation in evasion packages, package-level unicode replacements map, removed duplicate host error checks from test runner.
+
 ## [2.9.26] - 2026-02-23
 
 ### Fixed
@@ -2443,6 +2449,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.27]: https://github.com/waftester/waftester/compare/v2.9.26...v2.9.27
 [2.9.26]: https://github.com/waftester/waftester/compare/v2.9.25...v2.9.26
 [2.9.25]: https://github.com/waftester/waftester/compare/v2.9.24...v2.9.25
 [2.9.24]: https://github.com/waftester/waftester/compare/v2.9.23...v2.9.24
