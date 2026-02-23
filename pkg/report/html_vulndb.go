@@ -7,29 +7,9 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 )
 
-// CategoryDisplayNames maps internal names to display names
-var CategoryDisplayNames = map[string]string{
-	"sqli":      "SQL Injection",
-	"xss":       "Cross-Site Scripting",
-	"cmdi":      "Command Injection",
-	"lfi":       "Local File Inclusion",
-	"rfi":       "Remote File Inclusion",
-	"rce":       "Remote Code Execution",
-	"ssrf":      "Server-Side Request Forgery",
-	"ssti":      "Server-Side Template Injection",
-	"xxe":       "XML External Entity",
-	"traversal": "Path Traversal",
-	"ldap":      "LDAP Injection",
-	"header":    "Header Injection",
-	"log":       "Log Injection",
-	"nosqli":    "NoSQL Injection",
-	"crlf":      "CRLF Injection",
-	"injection": "Injection",
-	"evasion":   "WAF Evasion",
-	"bypass":    "Security Bypass",
-	"cache":     "Cache Poisoning",
-	"auth":      "Authentication Bypass",
-}
+// CategoryDisplayNames is an alias for defaults.CategoryReadableNames.
+// Single source of truth — do not duplicate category display names.
+var CategoryDisplayNames = defaults.CategoryReadableNames
 
 // VulnerabilityInfo contains enterprise vulnerability details for each category
 type VulnerabilityInfo struct {
@@ -589,13 +569,9 @@ func GetVulnerabilityInfo(category string) VulnerabilityInfo {
 	}
 }
 
-// GetCategoryDisplayName returns a human-readable name
+// GetCategoryDisplayName returns a human-readable name.
+// Delegates to defaults.GetCategoryReadableName which handles normalization
+// and fallback to title-casing.
 func GetCategoryDisplayName(category string) string {
-	if name, ok := CategoryDisplayNames[strings.ToLower(category)]; ok {
-		return name
-	}
-	if len(category) > 0 {
-		return strings.ToUpper(category[:1]) + category[1:]
-	}
-	return category
+	return defaults.GetCategoryReadableName(category)
 }
