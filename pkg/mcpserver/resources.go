@@ -36,7 +36,7 @@ func (s *Server) registerResources() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addVersionResource() {
-	s.mcp.AddResource(
+	s.addResource(
 		&mcp.Resource{
 			URI:         "waftester://version",
 			Name:        "WAF Tester Version",
@@ -72,8 +72,8 @@ func (s *Server) addVersionResource() {
 				"version": defaults.Version,
 				"capabilities": map[string]any{
 					"tools":     len(tools),
-					"resources": 12, // Keep in sync with registerResources; regression test validates
-					"prompts":   7,  // Keep in sync with registerPrompts; regression test validates
+					"resources": s.resourceCount,
+					"prompts":   s.promptCount,
 					"templates": templateCount,
 				},
 				"template_categories": catNames,
@@ -89,11 +89,7 @@ func (s *Server) addVersionResource() {
 					"Cloudflare", "AWS CloudFront", "Fastly", "Akamai", "KeyCDN",
 					"StackPath", "Azure CDN", "Google Cloud CDN", "Bunny CDN",
 				},
-				"attack_categories": []string{
-					"sqli", "xss", "traversal", "auth", "ssrf", "ssti",
-					"cmdi", "xxe", "nosqli", "graphql", "cors", "crlf",
-					"redirect", "upload", "jwt", "oauth", "prototype", "deserialize",
-				},
+				"attack_categories": payloadprovider.NewCategoryMapper().ShortNames(),
 			}
 			data, err := json.MarshalIndent(info, "", "  ")
 			if err != nil {
@@ -113,7 +109,7 @@ func (s *Server) addVersionResource() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addPayloadsResource() {
-	s.mcp.AddResource(
+	s.addResource(
 		&mcp.Resource{
 			URI:         "waftester://payloads",
 			Name:        "Payload Catalog",
@@ -175,7 +171,7 @@ func (s *Server) addPayloadsResource() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addPayloadsByCategoryResource() {
-	s.mcp.AddResourceTemplate(
+	s.addResourceTemplate(
 		&mcp.ResourceTemplate{
 			URITemplate: "waftester://payloads/{category}",
 			Name:        "Payloads by Category",
@@ -266,7 +262,7 @@ func (s *Server) addPayloadsByCategoryResource() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addGuideResource() {
-	s.mcp.AddResource(
+	s.addResource(
 		&mcp.Resource{
 			URI:         "waftester://guide",
 			Name:        "WAF Testing Guide",
@@ -396,7 +392,7 @@ A WAF test report should include:
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addWAFSignaturesResource() {
-	s.mcp.AddResource(
+	s.addResource(
 		&mcp.Resource{
 			URI:         "waftester://waf-signatures",
 			Name:        "WAF Signatures",
@@ -563,7 +559,7 @@ const wafSignaturesJSON = `{
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addEvasionTechniquesResource() {
-	s.mcp.AddResource(
+	s.addResource(
 		&mcp.Resource{
 			URI:         "waftester://evasion-techniques",
 			Name:        "Evasion Techniques",
@@ -621,7 +617,7 @@ const evasionTechniquesJSON = `{
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addOWASPMappingsResource() {
-	s.mcp.AddResource(
+	s.addResource(
 		&mcp.Resource{
 			URI:         "waftester://owasp-mappings",
 			Name:        "OWASP Mappings",
@@ -684,7 +680,7 @@ func (s *Server) addOWASPMappingsResource() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addConfigResource() {
-	s.mcp.AddResource(
+	s.addResource(
 		&mcp.Resource{
 			URI:         "waftester://config",
 			Name:        "Configuration Defaults",
@@ -756,7 +752,7 @@ func (s *Server) addConfigResource() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addTemplatesResource() {
-	s.mcp.AddResource(
+	s.addResource(
 		&mcp.Resource{
 			URI:         "waftester://templates",
 			Name:        "Template Library",
@@ -805,7 +801,7 @@ func (s *Server) addTemplatesResource() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addUnifiedPayloadsResource() {
-	s.mcp.AddResource(
+	s.addResource(
 		&mcp.Resource{
 			URI:         "waftester://payloads/unified",
 			Name:        "Unified Payload Statistics",
@@ -876,7 +872,7 @@ func (s *Server) addUnifiedPayloadsResource() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addSpecFormatsResource() {
-	s.mcp.AddResource(
+	s.addResource(
 		&mcp.Resource{
 			URI:         "waftester://spec-formats",
 			Name:        "Supported Spec Formats",
@@ -911,7 +907,7 @@ func (s *Server) addSpecFormatsResource() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addIntelligenceLayersResource() {
-	s.mcp.AddResource(
+	s.addResource(
 		&mcp.Resource{
 			URI:         "waftester://intelligence-layers",
 			Name:        "Intelligence Engine Layers",

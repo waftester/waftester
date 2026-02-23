@@ -23,7 +23,7 @@ import (
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addDetectWAFTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "detect_waf",
 			Title: "Detect WAF/CDN",
@@ -205,7 +205,7 @@ func buildDetectWAFResponse(result *waf.DetectionResult, target string) *detectW
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addBypassTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "bypass",
 			Title: "WAF Bypass Finder",
@@ -435,7 +435,7 @@ func buildBypassResponse(result *mutation.WAFBypassResult, args bypassArgs) *byp
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addProbeTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "probe",
 			Title: "Probe Infrastructure",

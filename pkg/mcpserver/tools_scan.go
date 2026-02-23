@@ -26,7 +26,7 @@ import (
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addScanTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "scan",
 			Title: "WAF Security Scan",
@@ -476,7 +476,7 @@ func buildScanNextSteps(results output.ExecutionResults, args scanArgs) []string
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addAssessTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "assess",
 			Title: "Enterprise WAF Assessment",

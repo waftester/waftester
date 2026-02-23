@@ -109,7 +109,7 @@ func (s *Server) addListTemplatesTool() {
 	kindEnum := validKindStrings()
 	kindsLine := strings.Join(kindEnum, ", ")
 
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "list_templates",
 			Title: "List Templates",
@@ -243,7 +243,7 @@ func (s *Server) handleListTemplates(_ context.Context, req *mcp.CallToolRequest
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addShowTemplateTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "show_template",
 			Title: "Show Template Content",

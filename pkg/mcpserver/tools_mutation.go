@@ -13,7 +13,7 @@ import (
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addMutateTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "mutate",
 			Title: "Mutate Payloads",
