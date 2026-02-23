@@ -32,7 +32,7 @@ func (s *Server) registerAsyncTools() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addGetTaskStatusTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "get_task_status",
 			Title: "Get Task Status",
@@ -215,7 +215,7 @@ func ValidateTaskID(id string) string {
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addCancelTaskTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "cancel_task",
 			Title: "Cancel Task",
@@ -304,7 +304,7 @@ func (s *Server) handleCancelTask(_ context.Context, req *mcp.CallToolRequest) (
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addListTasksTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "list_tasks",
 			Title: "List Tasks",

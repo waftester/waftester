@@ -131,7 +131,7 @@ func resolveSpecInput(ctx context.Context, content, path, url string) (*apispec.
 // --- validate_spec ---
 
 func (s *Server) addValidateSpecTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "validate_spec",
 			Title: "Validate API Specification",
@@ -262,7 +262,7 @@ func (s *Server) handleValidateSpec(ctx context.Context, req *mcp.CallToolReques
 // --- list_spec_endpoints ---
 
 func (s *Server) addListSpecEndpointsTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "list_spec_endpoints",
 			Title: "List Spec Endpoints",
@@ -352,7 +352,7 @@ func (s *Server) handleListSpecEndpoints(ctx context.Context, req *mcp.CallToolR
 // --- plan_spec ---
 
 func (s *Server) addPlanSpecTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "plan_spec",
 			Title: "Generate Spec Scan Plan",
@@ -463,7 +463,7 @@ func (s *Server) handlePlanSpec(ctx context.Context, req *mcp.CallToolRequest) (
 // --- scan_spec ---
 
 func (s *Server) addScanSpecTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "scan_spec",
 			Title: "Scan from API Specification",
@@ -693,7 +693,7 @@ func splitCSV(s string) []string {
 // --- compare_baselines ---
 
 func (s *Server) addCompareBaselinesTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "compare_baselines",
 			Title: "Compare Scan Baselines",
@@ -759,7 +759,7 @@ func (s *Server) handleCompareBaselines(_ context.Context, req *mcp.CallToolRequ
 // --- preview_spec_scan ---
 
 func (s *Server) addPreviewSpecScanTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "preview_spec_scan",
 			Title: "Preview Spec Scan Plan",
@@ -865,7 +865,7 @@ func (s *Server) handlePreviewSpecScan(ctx context.Context, req *mcp.CallToolReq
 // --- spec_intelligence ---
 
 func (s *Server) addSpecIntelligenceTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "spec_intelligence",
 			Title: "Spec Intelligence Analysis",
@@ -981,7 +981,7 @@ func (s *Server) handleSpecIntelligence(ctx context.Context, req *mcp.CallToolRe
 // --- describe_spec_auth ---
 
 func (s *Server) addDescribeSpecAuthTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "describe_spec_auth",
 			Title: "Describe Spec Authentication",
@@ -1087,7 +1087,7 @@ func (s *Server) handleDescribeSpecAuth(ctx context.Context, req *mcp.CallToolRe
 // --- export_spec ---
 
 func (s *Server) addExportSpecTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "export_spec",
 			Title: "Export Parsed Spec",

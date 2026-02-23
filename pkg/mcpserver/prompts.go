@@ -23,7 +23,7 @@ func (s *Server) registerPrompts() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addSecurityAuditPrompt() {
-	s.mcp.AddPrompt(
+	s.addPrompt(
 		&mcp.Prompt{
 			Name:        "security_audit",
 			Description: "Comprehensive 5-phase WAF security audit workflow. Guides through detection, discovery, scanning, assessment, and reporting.",
@@ -125,7 +125,7 @@ Be thorough but respect the rate limit guidance for a %s environment.`,
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addWAFBypassPrompt() {
-	s.mcp.AddPrompt(
+	s.addPrompt(
 		&mcp.Prompt{
 			Name:        "waf_bypass",
 			Description: "Systematic 6-step WAF bypass discovery workflow. Identifies blocked payloads, applies evasion techniques, and finds working bypasses.",
@@ -219,7 +219,7 @@ Focus on critical and high severity bypasses first.`,
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addFullAssessmentPrompt() {
-	s.mcp.AddPrompt(
+	s.addPrompt(
 		&mcp.Prompt{
 			Name:        "full_assessment",
 			Description: "Enterprise-grade WAF assessment with metrics, grading, and OWASP compliance mapping.",
@@ -312,7 +312,7 @@ Format the output suitable for executive and technical audiences.`,
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addDiscoveryWorkflowPrompt() {
-	s.mcp.AddPrompt(
+	s.addPrompt(
 		&mcp.Prompt{
 			Name:        "discovery_workflow",
 			Description: "Attack surface discovery and intelligent test plan generation workflow.",
@@ -395,7 +395,7 @@ Read waftester://payloads to understand available payload categories and counts.
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addEvasionResearchPrompt() {
-	s.mcp.AddPrompt(
+	s.addPrompt(
 		&mcp.Prompt{
 			Name:        "evasion_research",
 			Description: "Systematic evasion technique research workflow. Tests encoding and mutation combinations against a specific WAF.",
@@ -470,7 +470,7 @@ For each variant, explain WHY it might bypass the specific WAF vendor:
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addTemplateScanPrompt() {
-	s.mcp.AddPrompt(
+	s.addPrompt(
 		&mcp.Prompt{
 			Name:        "template_scan",
 			Description: "Run bundled Nuclei templates for systematic WAF bypass and detection testing.",
@@ -565,7 +565,7 @@ Read waftester://owasp-mappings to map findings to compliance frameworks.`,
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addSpecSecurityAuditPrompt() {
-	s.mcp.AddPrompt(
+	s.addPrompt(
 		&mcp.Prompt{
 			Name:        "spec_security_audit",
 			Description: "Spec-first API security audit: validate spec, generate intelligent plan, execute targeted attacks, and report findings.",

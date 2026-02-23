@@ -19,7 +19,7 @@ import (
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addDiscoverBypassesTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "discover_bypasses",
 			Title: "Discover WAF Bypass Tampers",
@@ -289,7 +289,7 @@ func buildDiscoverBypassesResponse(result *tampers.BypassDiscoveryResult, args d
 // ═══════════════════════════════════════════════════════════════════════════
 
 func (s *Server) addListTampersTool() {
-	s.mcp.AddTool(
+	s.addTool(
 		&mcp.Tool{
 			Name:  "list_tampers",
 			Title: "List Tamper Techniques",

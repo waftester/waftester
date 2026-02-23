@@ -86,8 +86,36 @@ type Server struct {
 	ready    atomic.Bool  // tracks whether startup validation passed
 	syncMode atomic.Bool  // stdio transport runs tools synchronously
 
+	toolNames     []string // tracks registered tool names in order
+	resourceCount int      // tracks registered resources + resource templates
+	promptCount   int      // tracks registered prompts
+
 	payloadProvider     *payloadprovider.Provider // cached provider, initialised lazily
 	payloadProviderOnce sync.Once
+}
+
+// addTool registers a tool and records its name for the version resource.
+func (s *Server) addTool(t *mcp.Tool, h toolHandler) {
+	s.mcp.AddTool(t, h)
+	s.toolNames = append(s.toolNames, t.Name)
+}
+
+// addResource registers a resource and increments the resource counter.
+func (s *Server) addResource(r *mcp.Resource, h mcp.ResourceHandler) {
+	s.mcp.AddResource(r, h)
+	s.resourceCount++
+}
+
+// addResourceTemplate registers a resource template and increments the resource counter.
+func (s *Server) addResourceTemplate(rt *mcp.ResourceTemplate, h mcp.ResourceHandler) {
+	s.mcp.AddResourceTemplate(rt, h)
+	s.resourceCount++
+}
+
+// addPrompt registers a prompt and increments the prompt counter.
+func (s *Server) addPrompt(p *mcp.Prompt, h mcp.PromptHandler) {
+	s.mcp.AddPrompt(p, h)
+	s.promptCount++
 }
 
 // MCPServer returns the underlying MCP server for direct access (e.g., testing).
@@ -837,7 +865,7 @@ Before testing, you can read domain knowledge resources to understand:
 - waftester://payloads/{category} — Payloads for a specific category
 - waftester://payloads/unified — Combined payload inventory (JSON + Nuclei templates)
 - waftester://guide — Comprehensive WAF testing methodology guide
-- waftester://waf-signatures — 12 of 26 WAF vendors with detailed bypass tips
+- waftester://waf-signatures — WAF vendor signatures with bypass tips (dynamically generated)
 - waftester://evasion-techniques — Available evasion and encoding techniques
 - waftester://owasp-mappings — OWASP Top 10 2021 category mappings
 - waftester://templates — Nuclei template catalog with bypass/detection categories
