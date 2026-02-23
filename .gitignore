@@ -112,6 +112,7 @@ resume.cfg
 # Scan outputs (generated per-scan)
 workspaces/
 *-results.json
+bypasses.json
 *-report.md
 *-report.html
 *-discovery.json
