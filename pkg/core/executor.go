@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sync"
 	"sync/atomic"
@@ -68,6 +69,7 @@ type Executor struct {
 	limiter    *rate.Limiter
 	enhancer   *realistic.ExecutorEnhancer // Realistic mode enhancer
 	detector   *detection.Detector         // Connection drop and silent ban detection
+	parsedBase *url.URL                    // Parsed base URL (cached to avoid repeated parsing)
 	logger     *slog.Logger
 }
 
@@ -114,10 +116,18 @@ func NewExecutor(cfg ExecutorConfig, opts ...ExecutorOption) *Executor {
 	// Create rate limiter (token bucket)
 	limiter := rate.NewLimiter(rate.Limit(cfg.RateLimit), cfg.RateLimit)
 
+	// Parse base URL once to avoid repeated parsing in hot path
+	parsedBase, urlErr := url.Parse(cfg.TargetURL)
+	if urlErr != nil {
+		// Return executor with nil parsedBase, fallback to runtime parsing
+		parsedBase = nil
+	}
+
 	executor := &Executor{
 		config:     cfg,
 		httpClient: client,
 		limiter:    limiter,
+		parsedBase: parsedBase,
 		logger:     slog.Default(),
 	}
 	for _, opt := range opts {

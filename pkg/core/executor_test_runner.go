@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -23,6 +24,28 @@ import (
 	"github.com/waftester/waftester/pkg/scoring"
 	"github.com/waftester/waftester/pkg/ui"
 )
+
+// countWordsAndLines efficiently counts words and lines in a byte slice without allocations
+func countWordsAndLines(data []byte) (words, lines int) {
+	if len(data) == 0 {
+		return 0, 0
+	}
+	
+	inWord := false
+	for _, b := range data {
+		if b == '\n' {
+			lines++
+		}
+		if b == ' ' || b == '\t' || b == '\n' || b == '\r' {
+			inWord = false
+		} else if !inWord {
+			inWord = true
+			words++
+		}
+	}
+	lines++ // Account for last line if no trailing newline
+	return words, lines
+}
 
 // evidencePatterns contains pre-compiled regexes for detecting vulnerability evidence in responses.
 var evidencePatterns = []struct {
@@ -57,29 +80,11 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 		Method:          method,
 		TargetPath:      payload.TargetPath,
 		ContentType:     payload.ContentType,
-		ResponseHeaders: make(map[string]string),
+		ResponseHeaders: nil, // Lazy init only when headers exist
 		// Copy encoding info from payload for effectiveness tracking
 		EncodingUsed:    payload.EncodingUsed,
 		MutationType:    payload.MutationType,
 		OriginalPayload: payload.OriginalPayload,
-	}
-
-	// Check if target host is known to be failing (skip to save time)
-	if hosterrors.Check(e.config.TargetURL) {
-		result.Outcome = "Skipped"
-		result.ErrorMessage = "[HOST_FAILED] Host has exceeded error threshold"
-		result.RiskScore = scoring.Result{RiskScore: 0}
-		return result
-	}
-
-	// Check if detection system recommends skipping
-	if e.detector != nil {
-		if skip, reason := e.detector.ShouldSkipHost(e.config.TargetURL); skip {
-			result.Outcome = "Skipped"
-			result.ErrorMessage = fmt.Sprintf("[DETECTION] %s", reason)
-			result.RiskScore = scoring.Result{RiskScore: 0}
-			return result
-		}
 	}
 
 	var req *http.Request
@@ -88,11 +93,19 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 	// Determine target URL (use TargetPath if specified, otherwise use base URL)
 	targetURL := e.config.TargetURL
 	if payload.TargetPath != "" {
-		// Parse base URL and append target path
-		baseURL, parseErr := url.Parse(e.config.TargetURL)
-		if parseErr == nil {
-			baseURL.Path = payload.TargetPath
-			targetURL = baseURL.String()
+		// Use pre-parsed base URL if available
+		if e.parsedBase != nil {
+			// Clone the base URL and modify the path
+			modifiedURL := *e.parsedBase
+			modifiedURL.Path = payload.TargetPath
+			targetURL = modifiedURL.String()
+		} else {
+			// Fallback to runtime parsing if initialization failed
+			baseURL, parseErr := url.Parse(e.config.TargetURL)
+			if parseErr == nil {
+				baseURL.Path = payload.TargetPath
+				targetURL = baseURL.String()
+			}
 		}
 	}
 	// RequestURL is set below after the full URL (with query params) is built.
@@ -121,11 +134,11 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 		// Legacy: For POST with body (custom payloads from 'learn' command)
 		// The payload IS the body (e.g., JSON like {"message": "' OR '1'='1"})
 		body := strings.NewReader(payload.Payload)
-		req = requestpool.GetWithMethod(method)
-		defer requestpool.Put(req) // Return to pool when done
+		origReq := requestpool.GetWithMethod(method)
+		defer requestpool.Put(origReq) // Return original to pool
+		req = origReq.WithContext(ctx) // Create context-aware copy
 		req.URL, err = url.Parse(targetURL)
 		if err == nil {
-			req = req.WithContext(ctx)
 			req.Body = io.NopCloser(body)
 			req.ContentLength = int64(len(payload.Payload))
 			req.Header.Set("Content-Type", payload.ContentType)
@@ -134,11 +147,11 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 	} else {
 		// Legacy: For GET or simple payloads, inject in URL parameter
 		targetWithPayload := fmt.Sprintf("%s?test=%s", targetURL, url.QueryEscape(payload.Payload))
-		req = requestpool.GetWithMethod(method)
-		defer requestpool.Put(req) // Return to pool when done
+		origReq := requestpool.GetWithMethod(method)
+		defer requestpool.Put(origReq) // Return original to pool
+		req = origReq.WithContext(ctx) // Create context-aware copy
 		req.URL, err = url.Parse(targetWithPayload)
 		if err == nil {
-			req = req.WithContext(ctx)
 			result.RequestURL = targetWithPayload
 		}
 	}
@@ -162,15 +175,17 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 
 	// Capture request headers after all modifications (User-Agent, Content-Type,
 	// realistic mode headers) so HAR output reflects the actual sent headers.
-	result.RequestHeaders = make(map[string]string, len(req.Header))
-	for key, values := range req.Header {
-		if len(values) > 0 {
-			result.RequestHeaders[key] = values[0]
+	if len(req.Header) > 0 {
+		result.RequestHeaders = make(map[string]string, len(req.Header))
+		for key, values := range req.Header {
+			if len(values) > 0 {
+				result.RequestHeaders[key] = values[0]
+			}
 		}
-	}
-	// Add Host header explicitly — Go's net/http doesn't include it in req.Header.
-	if req.URL != nil && req.URL.Host != "" {
-		result.RequestHeaders["Host"] = req.URL.Host
+		// Add Host header explicitly — Go's net/http doesn't include it in req.Header.
+		if req.URL != nil && req.URL.Host != "" {
+			result.RequestHeaders["Host"] = req.URL.Host
+		}
 	}
 
 	start := time.Now()
@@ -239,9 +254,12 @@ retryLoop:
 	// Capture all response headers for HAR output and analysis.
 	// Previously only WAF-specific headers were captured, but HAR output
 	// and downstream consumers benefit from the full set.
-	for key, values := range resp.Header {
-		if len(values) > 0 {
-			result.ResponseHeaders[key] = values[0]
+	if len(resp.Header) > 0 {
+		result.ResponseHeaders = make(map[string]string, len(resp.Header))
+		for key, values := range resp.Header {
+			if len(values) > 0 {
+				result.ResponseHeaders[key] = values[0]
+			}
 		}
 	}
 
@@ -270,14 +288,12 @@ retryLoop:
 			break
 		}
 	}
-	bodyStr := bodyBuf.String()
-
-	// Calculate word and line counts for filtering
-	result.WordCount = len(strings.Fields(bodyStr))
-	result.LineCount = strings.Count(bodyStr, "\n") + 1
-	if len(bodyStr) == 0 {
-		result.LineCount = 0
-	}
+	// Calculate word and line counts for filtering (zero-allocation)
+	bodyBytes := bodyBuf.Bytes()
+	result.WordCount, result.LineCount = countWordsAndLines(bodyBytes)
+	
+	// Keep bodyStr only for operations that require a string
+	var bodyStr string
 	result.ContentLength = bodyBuf.Len()
 
 	// Capture baseline for detection AFTER body is read so ContentLength is accurate
@@ -289,6 +305,9 @@ retryLoop:
 
 	// Apply filters if configured
 	if e.config.Filter != nil {
+		if bodyStr == "" {
+			bodyStr = bodyBuf.String()
+		}
 		if !e.shouldShowResult(result, bodyStr) {
 			result.Filtered = true
 			return result
@@ -300,6 +319,10 @@ retryLoop:
 	var blockConfidence float64
 
 	if e.enhancer != nil && e.config.RealisticMode {
+		// Materialize body string for realistic mode analysis
+		if bodyStr == "" {
+			bodyStr = bodyBuf.String()
+		}
 		// Use intelligent block detection
 		blockResult, detectErr := e.enhancer.AnalyzeResponse(
 			&http.Response{
@@ -337,7 +360,10 @@ retryLoop:
 			result.CurlCommand = generateCurlCommand(req)
 
 			// Capture response evidence for bypass analysis
-			captureResponseEvidence(result, bodyStr, bodyBuf.Bytes())
+			if bodyStr == "" {
+				bodyStr = bodyBuf.String()
+			}
+			captureResponseEvidence(result, bodyStr, bodyBytes)
 		} else {
 			result.Outcome = "Pass"
 		}
@@ -356,17 +382,22 @@ retryLoop:
 		if len(payloadCheck) > 20 {
 			payloadCheck = payloadCheck[:20] // Check first 20 chars
 		}
-		reflected = strings.Contains(bodyStr, payloadCheck)
+		reflected = bytes.Contains(bodyBytes, []byte(payloadCheck))
 	}
 
 	// Calculate risk score with full context
+	// Scoring only checks ResponseContains for sensitive patterns, so pass
+	// the body string. If bodyStr wasn't materialized yet, convert from bytes.
+	if bodyStr == "" && len(bodyBytes) > 0 {
+		bodyStr = string(bodyBytes)
+	}
 	result.RiskScore = scoring.Calculate(scoring.Input{
 		Severity:         payload.SeverityHint,
 		Outcome:          result.Outcome,
 		StatusCode:       result.StatusCode,
 		LatencyMs:        result.LatencyMs,
 		Category:         payload.Category,
-		ResponseContains: bodyStr, // Pass response body for pattern detection
+		ResponseContains: bodyStr,
 		Reflected:        reflected,
 	})
 
