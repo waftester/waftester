@@ -19,4 +19,10 @@ cp "$REPO_ROOT/scripts/hooks/pre-push" "$HOOKS_DIR/pre-push"
 chmod +x "$HOOKS_DIR/pre-push"
 echo "  ✓ pre-push hook installed"
 
+# Mark race-test.sh as executable
+chmod +x "$REPO_ROOT/scripts/race-test.sh" 2>/dev/null || true
+
 echo "Done. Hooks are active."
+echo ""
+echo "Optional: run race tests locally before pushing:"
+echo "  bash scripts/race-test.sh"
