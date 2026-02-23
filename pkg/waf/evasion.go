@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"net/url"
 	"strings"
+	"unicode"
 	"unicode/utf16"
 
 	"github.com/waftester/waftester/pkg/bufpool"
@@ -258,9 +259,9 @@ func (e *Evasion) initTechniques() {
 				defer bufpool.PutString(alt)
 				for i, r := range payload {
 					if i%2 == 0 {
-						alt.WriteString(strings.ToUpper(string(r)))
+						alt.WriteRune(unicode.ToUpper(r))
 					} else {
-						alt.WriteString(strings.ToLower(string(r)))
+						alt.WriteRune(unicode.ToLower(r))
 					}
 				}
 				results = append(results, alt.String())
