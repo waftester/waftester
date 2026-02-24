@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/mutation"
 	"github.com/waftester/waftester/pkg/waf"
+	"github.com/waftester/waftester/pkg/waf/strategy"
 )
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -230,7 +232,8 @@ Mutation Matrix: For each payload, bypass tries multiple encoders (url, double_u
 EXAMPLE INPUTS:
 • Hunt SQLi bypasses: {"target": "https://example.com/search?q=test", "payloads": ["' OR 1=1--", "1 UNION SELECT null--"]}
 • XSS bypass: {"target": "https://example.com", "payloads": ["<script>alert(1)</script>", "<img src=x onerror=alert(1)>"]}
-• Stealth mode: {"target": "https://example.com", "payloads": ["' OR 1=1--"], "rate_limit": 5, "concurrency": 2}
+• Smart mode (auto-detect WAF and optimize matrix): {"target": "https://example.com", "payloads": ["' OR 1=1--"], "smart": true}
+• Smart stealth: {"target": "https://example.com", "payloads": ["' OR 1=1--"], "smart": true, "smart_mode": "stealth"}
 • Self-signed cert: {"target": "https://internal.app", "payloads": ["{{7*7}}"], "skip_verify": true}
 
 Returns: successful bypasses with exact payload + encoding + location, total mutations tested, bypass rate, reproduction details.
@@ -275,6 +278,17 @@ ASYNC TOOL: This tool returns a task_id immediately and runs in the background (
 						"description": "Skip TLS certificate verification.",
 						"default":     false,
 					},
+					"smart": map[string]any{
+						"type":        "boolean",
+						"description": "Enable WAF-aware adaptive bypass testing. Detects the WAF vendor and optimizes the mutation matrix (encoders, evasions, locations) for that specific WAF.",
+						"default":     false,
+					},
+					"smart_mode": map[string]any{
+						"type":        "string",
+						"description": "Smart mode profile. Controls mutation matrix depth and evasion intensity. Only used when smart=true.",
+						"enum":        strategy.SmartModes(),
+						"default":     "bypass",
+					},
 				},
 				"required": []string{"target", "payloads"},
 			},
@@ -295,6 +309,8 @@ type bypassArgs struct {
 	RateLimit   int      `json:"rate_limit"`
 	Timeout     int      `json:"timeout"`
 	SkipVerify  bool     `json:"skip_verify"`
+	Smart       bool     `json:"smart"`
+	SmartMode   string   `json:"smart_mode"`
 }
 
 func (s *Server) handleBypass(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -347,13 +363,45 @@ func (s *Server) handleBypass(ctx context.Context, req *mcp.CallToolRequest) (*m
 			return
 		}
 
+		// Build pipeline config: WAF-optimized when smart mode is on, default otherwise.
+		var pipeline *mutation.PipelineConfig
+		if args.Smart {
+			mode := args.SmartMode
+			if mode == "" {
+				mode = "bypass"
+			}
+			engine := strategy.NewStrategyEngine(time.Duration(args.Timeout) * time.Second)
+			strat, err := engine.GetStrategy(taskCtx, args.Target)
+			if err != nil {
+				log.Printf("[mcp-bypass] smart mode WAF detection failed: %v (continuing with defaults)", err)
+				pipeline = mutation.DefaultPipelineConfig()
+			} else {
+				pipeline = strategy.WAFOptimizedPipeline(strat, mode)
+
+				// Override rate limit and concurrency with WAF-optimal values
+				// if user didn't set them explicitly (schema defaults: 10 and 5).
+				optimalRate, _ := strat.GetOptimalRateLimit(mode)
+				if args.RateLimit == 10 {
+					args.RateLimit = int(optimalRate)
+				}
+				optimalConcurrency := strat.GetRecommendedConcurrency(mode)
+				if args.Concurrency == 5 {
+					args.Concurrency = optimalConcurrency
+				}
+
+				task.SetProgress(5, 100, fmt.Sprintf("WAF detected: %s — optimizing bypass matrix…", strat.VendorName))
+			}
+		} else {
+			pipeline = mutation.DefaultPipelineConfig()
+		}
+
 		executor := mutation.NewExecutor(&mutation.ExecutorConfig{
 			TargetURL:   args.Target,
 			Concurrency: args.Concurrency,
 			RateLimit:   float64(args.RateLimit),
 			Timeout:     time.Duration(args.Timeout) * time.Second,
 			SkipVerify:  args.SkipVerify,
-			Pipeline:    mutation.DefaultPipelineConfig(),
+			Pipeline:    pipeline,
 		})
 		defer executor.Close()
 
