@@ -16,6 +16,7 @@ import (
 	"github.com/waftester/waftester/pkg/bufpool"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
+	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/output"
 	"github.com/waftester/waftester/pkg/payloads"
@@ -236,6 +237,8 @@ retryLoop:
 			if dropResult.Drop != nil && dropResult.Drop.Dropped {
 				result.ErrorMessage = fmt.Sprintf("[%s] %s", dropResult.Drop.Type.String(), result.ErrorMessage)
 			}
+		} else if hosterrors.IsNetworkError(err) {
+			hosterrors.MarkError(e.config.TargetURL)
 		}
 
 		// Calculate risk score for error case

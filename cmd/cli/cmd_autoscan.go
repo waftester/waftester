@@ -1973,9 +1973,11 @@ func runAutoScan() {
 		// Clear host error state accumulated during discovery/learning phases.
 		// Without this, transient errors in param discovery poison the
 		// hosterrors cache and prevent all WAF testing payloads from running.
-		hosterrors.Clear(target)
+		// ClearHostErrors clears both detection state AND hosterrors in one call.
 		if det := detection.Default(); det != nil {
 			det.ClearHostErrors(target)
+		} else {
+			hosterrors.Clear(target)
 		}
 
 		ui.PrintInfo("⚡ Executing security tests with auto-calibration...")
