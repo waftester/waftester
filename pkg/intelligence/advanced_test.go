@@ -510,6 +510,7 @@ func TestEngineFeedsAdvancedModules(t *testing.T) {
 	// Feed findings
 	for i := 0; i < 10; i++ {
 		engine.LearnFromFinding(&Finding{
+			Phase:      "waf-testing",
 			Category:   "sqli",
 			Payload:    "' OR 1=1--",
 			Path:       "/api/test",
@@ -543,6 +544,7 @@ func TestEngineConvenienceMethods(t *testing.T) {
 	// Train with data
 	for i := 0; i < 20; i++ {
 		engine.LearnFromFinding(&Finding{
+			Phase:      "waf-testing",
 			Category:   "xss",
 			Payload:    "<script>alert(1)</script>",
 			Path:       "/search",
@@ -1035,7 +1037,7 @@ func TestNilFindingSafety(t *testing.T) {
 				t.Errorf("Panic on nil finding: %v", r)
 			}
 		}()
-		stats.RecordFinding(nil)
+		stats.RecordFinding(nil, true)
 	})
 
 	t.Run("WAFBehaviorModel.Learn", func(t *testing.T) {
