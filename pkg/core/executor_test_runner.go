@@ -16,7 +16,6 @@ import (
 	"github.com/waftester/waftester/pkg/bufpool"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
-	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/output"
 	"github.com/waftester/waftester/pkg/payloads"
@@ -30,7 +29,7 @@ func countWordsAndLines(data []byte) (words, lines int) {
 	if len(data) == 0 {
 		return 0, 0
 	}
-	
+
 	inWord := false
 	for _, b := range data {
 		if b == '\n' {
@@ -228,12 +227,10 @@ retryLoop:
 		// Categorize the error for better analysis
 		result.ErrorMessage = categorizeError(err)
 
-		// Track network errors to skip failing hosts after threshold
-		if hosterrors.IsNetworkError(err) {
-			hosterrors.MarkError(e.config.TargetURL)
-		}
-
-		// Record error in detection system
+		// Record error in detection system (which manages hosterrors internally)
+		// Do NOT call hosterrors.MarkError() directly here — the detector
+		// calls it when consecutive errors exceed the threshold, avoiding
+		// double-counting that triggers false HOST_FAILED too early.
 		if e.detector != nil {
 			dropResult := e.detector.RecordError(e.config.TargetURL, err)
 			if dropResult.Drop != nil && dropResult.Drop.Dropped {
@@ -291,7 +288,7 @@ retryLoop:
 	// Calculate word and line counts for filtering (zero-allocation)
 	bodyBytes := bodyBuf.Bytes()
 	result.WordCount, result.LineCount = countWordsAndLines(bodyBytes)
-	
+
 	// Keep bodyStr only for operations that require a string
 	var bodyStr string
 	result.ContentLength = bodyBuf.Len()
