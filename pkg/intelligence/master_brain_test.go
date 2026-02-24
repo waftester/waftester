@@ -918,3 +918,151 @@ func TestDefaultTransformLibrary_NonEmpty(t *testing.T) {
 		}
 	}
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BYPASS INFLATION REGRESSION — recon findings must not inflate bypass counters
+// ══════════════════════════════════════════════════════════════════════════════
+
+func TestFinding_IsTestingPhase(t *testing.T) {
+	tests := []struct {
+		phase string
+		want  bool
+	}{
+		{"waf-testing", true},
+		{"brain-feedback", true},
+		{"mutation-pass", true},
+		{"discovery", false},
+		{"js-analysis", false},
+		{"leaky-paths", false},
+		{"param-discovery", false},
+		{"", false},
+		{"unknown-phase", false},
+	}
+	for _, tt := range tests {
+		f := &Finding{Phase: tt.phase}
+		if got := f.IsTestingPhase(); got != tt.want {
+			t.Errorf("Finding{Phase: %q}.IsTestingPhase() = %v, want %v", tt.phase, got, tt.want)
+		}
+	}
+}
+
+// Regression test for bypass inflation bug: discovery-phase findings with
+// Blocked=false (default zero value) were being counted as WAF bypasses,
+// inflating bypass counts in the summary, WAF model, predictor, and bandits.
+func TestReconFindingsDoNotInflateBypasses(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.MasterBrainEnabled = true
+	cfg.EnableWAFModel = true
+	cfg.EnableChains = true
+	e := NewEngine(cfg)
+
+	// Simulate discovery phase: 50 endpoints found (Blocked=false by default)
+	reconFindings := []Finding{
+		{Phase: "discovery", Category: "endpoint", Severity: "info", Path: "/api/users"},
+		{Phase: "discovery", Category: "endpoint", Severity: "info", Path: "/api/orders"},
+		{Phase: "discovery", Category: "waf", Severity: "info", Evidence: "ModSecurity"},
+		{Phase: "js-analysis", Category: "secret", Severity: "high", Evidence: "API key found"},
+		{Phase: "js-analysis", Category: "endpoint", Severity: "info", Path: "/api/admin"},
+		{Phase: "js-analysis", Category: "dom-sink", Severity: "medium", Evidence: "innerHTML"},
+		{Phase: "leaky-paths", Category: "config", Severity: "medium", Path: "/.env"},
+		{Phase: "param-discovery", Category: "hidden-parameter", Severity: "medium", Path: "/api"},
+	}
+
+	e.StartPhase(context.Background(), "discovery")
+	for i := range reconFindings {
+		e.LearnFromFinding(&reconFindings[i])
+	}
+	e.EndPhase("discovery")
+
+	// Verify: zero bypasses counted from recon findings
+	summary := e.GetSummary()
+	if summary.Bypasses != 0 {
+		t.Errorf("recon findings inflated bypass count: got %d, want 0", summary.Bypasses)
+	}
+	if summary.Blocked != 0 {
+		t.Errorf("recon findings inflated blocked count: got %d, want 0", summary.Blocked)
+	}
+	// Memory should store all findings
+	if summary.TotalFindings != len(reconFindings) {
+		t.Errorf("total findings = %d, want %d", summary.TotalFindings, len(reconFindings))
+	}
+
+	// WAF profiler should have zero bypasses
+	if e.wafProfiler != nil {
+		wpSummary := e.wafProfiler.GenerateSummary()
+		if wpSummary.TotalBypasses != 0 {
+			t.Errorf("WAF profiler bypass count inflated: got %d, want 0", wpSummary.TotalBypasses)
+		}
+		if wpSummary.TotalBlocks != 0 {
+			t.Errorf("WAF profiler block count inflated: got %d, want 0", wpSummary.TotalBlocks)
+		}
+	}
+
+	// WAF behavioral model should have zero bypass/block counts
+	e.mu.Lock()
+	bypassCount := e.wafModel.bypassCount
+	blockedCount := e.wafModel.blockedCount
+	e.mu.Unlock()
+	if bypassCount != 0 {
+		t.Errorf("WAF model bypass count inflated: got %d, want 0", bypassCount)
+	}
+	if blockedCount != 0 {
+		t.Errorf("WAF model blocked count inflated: got %d, want 0", blockedCount)
+	}
+
+	// Predictor should have zero observations (recon findings skipped)
+	e.mu.Lock()
+	predObs := e.predictor.totalObservations
+	e.mu.Unlock()
+	if predObs != 0 {
+		t.Errorf("predictor learned from recon findings: got %d observations, want 0", predObs)
+	}
+
+	// Thompson Sampling bandits should have no trials
+	e.mu.Lock()
+	catTrials := 0.0
+	for _, arm := range e.banditCategory.arms {
+		catTrials += arm.Alpha + arm.Beta - 2 // subtract priors (1,1)
+	}
+	e.mu.Unlock()
+	if catTrials != 0 {
+		t.Errorf("bandit learned from recon findings: got %.0f trials, want 0", catTrials)
+	}
+
+	// Now simulate WAF testing phase: actual test results
+	testFindings := []Finding{
+		{Phase: "waf-testing", Category: "sqli", Severity: "high", Payload: "' OR 1=1", Blocked: true, StatusCode: 403, Latency: 50 * time.Millisecond},
+		{Phase: "waf-testing", Category: "sqli", Severity: "high", Payload: "1 UNION SELECT", Blocked: false, StatusCode: 200, Latency: 30 * time.Millisecond},
+		{Phase: "waf-testing", Category: "xss", Severity: "high", Payload: "<script>alert(1)</script>", Blocked: true, StatusCode: 403, Latency: 45 * time.Millisecond},
+	}
+
+	e.StartPhase(context.Background(), "waf-testing")
+	for i := range testFindings {
+		e.LearnFromFinding(&testFindings[i])
+	}
+	e.EndPhase("waf-testing")
+
+	// Verify: only testing findings counted
+	summary = e.GetSummary()
+	if summary.Bypasses != 1 {
+		t.Errorf("bypass count = %d, want 1 (the unblocked sqli)", summary.Bypasses)
+	}
+	if summary.Blocked != 2 {
+		t.Errorf("blocked count = %d, want 2", summary.Blocked)
+	}
+	// Total findings include both recon and testing
+	if summary.TotalFindings != len(reconFindings)+len(testFindings) {
+		t.Errorf("total findings = %d, want %d", summary.TotalFindings, len(reconFindings)+len(testFindings))
+	}
+
+	// WAF profiler should reflect testing findings only
+	if e.wafProfiler != nil {
+		wpSummary := e.wafProfiler.GenerateSummary()
+		if wpSummary.TotalBypasses != 1 {
+			t.Errorf("WAF profiler bypass count = %d, want 1", wpSummary.TotalBypasses)
+		}
+		if wpSummary.TotalBlocks != 2 {
+			t.Errorf("WAF profiler block count = %d, want 2", wpSummary.TotalBlocks)
+		}
+	}
+}

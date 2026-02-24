@@ -69,7 +69,10 @@ func (s *Stats) EndPhase(phase string) {
 
 // RecordFinding records a finding in statistics.
 // Safe to call with nil finding (no-op).
-func (s *Stats) RecordFinding(f *Finding) {
+// When isTesting is false (recon phase), the finding is counted by
+// category/phase/severity but NOT in bypass/block counters, since
+// recon findings have Blocked=false by default which would inflate bypass counts.
+func (s *Stats) RecordFinding(f *Finding, isTesting bool) {
 	if f == nil {
 		return
 	}
@@ -80,10 +83,12 @@ func (s *Stats) RecordFinding(f *Finding) {
 	s.findingsByPhase[f.Phase]++
 	s.findingsBySeverity[f.Severity]++
 
-	if f.Blocked {
-		s.blocksByCategory[f.Category]++
-	} else {
-		s.bypassesByCategory[f.Category]++
+	if isTesting {
+		if f.Blocked {
+			s.blocksByCategory[f.Category]++
+		} else {
+			s.bypassesByCategory[f.Category]++
+		}
 	}
 }
 
