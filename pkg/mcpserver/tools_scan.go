@@ -61,7 +61,9 @@ EXAMPLE INPUTS:
 RESULT MEANINGS:
 • "Blocked" = WAF stopped the attack (good)
 • "Fail" = attack reached the app (BAD — this is a bypass)
+• "Pass" = benign payload was allowed through (expected for non-attack payloads)
 • "Error" = network issue (investigate connectivity)
+• "Skipped" = host became unreachable mid-scan (WAF/CDN may be rate-limiting)
 
 Returns: detection rate, total/blocked/failed counts, bypass details with reproduction info, latency stats.
 
@@ -177,8 +179,8 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	if args.Concurrency <= 0 {
 		args.Concurrency = defaults.ConcurrencyMedium
 	}
-	if args.Concurrency > defaults.ConcurrencyDNS {
-		args.Concurrency = defaults.ConcurrencyDNS
+	if args.Concurrency > defaults.ConcurrencyMax {
+		args.Concurrency = defaults.ConcurrencyMax
 	}
 	if args.RateLimit <= 0 {
 		args.RateLimit = 50
@@ -255,19 +257,22 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		case "bypass":
 			profile = tampers.ProfileBypass
 		}
+		var customTampers []string
 		if args.Tamper != "" {
 			profile = tampers.ProfileCustom
 			// Validate tamper names before proceeding — fail hard in MCP mode
 			// since the caller can't see stderr warnings.
-			_, invalid := tampers.ValidateTamperNames(tampers.ParseTamperList(args.Tamper))
+			parsed := tampers.ParseTamperList(args.Tamper)
+			valid, invalid := tampers.ValidateTamperNames(parsed)
 			if len(invalid) > 0 {
 				return errorResult(fmt.Sprintf("unknown tampers: %s. Use list_tampers to see available tampers.", strings.Join(invalid, ", "))), nil
 			}
+			customTampers = valid
 		}
 
 		engine := tampers.NewEngine(&tampers.EngineConfig{
 			Profile:       profile,
-			CustomTampers: tampers.ParseTamperList(args.Tamper),
+			CustomTampers: customTampers,
 			EnableMetrics: false,
 		})
 
@@ -329,10 +334,10 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		execResults := executor.Execute(taskCtx, filtered, &discardWriter{})
 
 		// Calculate detection rate.
-		// tested = payloads that got a definitive result (blocked or passed through).
-		// FailedTests are execution errors and don't count toward detection rate.
+		// tested = payloads that got a definitive result (blocked or bypassed).
+		// ErrorTests are execution errors and don't count toward detection rate.
 		detectionRate := ""
-		tested := execResults.BlockedTests + execResults.PassedTests
+		tested := execResults.BlockedTests + execResults.FailedTests
 		if tested > 0 {
 			rate := float64(execResults.BlockedTests) / float64(tested) * 100
 			if execResults.HostsSkipped > 0 {
@@ -350,9 +355,9 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 
 		// Build interpretation based on detection rate
 		cancelled := taskCtx.Err() != nil
+		bypassed := execResults.FailedTests
 		if tested > 0 {
 			rate := float64(execResults.BlockedTests) / float64(tested) * 100
-			bypassed := execResults.PassedTests
 			switch {
 			case rate >= 95:
 				summary.Interpretation = fmt.Sprintf("Excellent WAF coverage (%.1f%%). The WAF blocked %d of %d attack payloads. Very few bypasses detected.", rate, execResults.BlockedTests, tested)
@@ -374,14 +379,22 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 				"The WAF or CDN may be rate-limiting or IP-blocking the scanner. "+
 				"Try again later, use a proxy, reduce concurrency/rate_limit, or test from a different IP.",
 				execResults.HostsSkipped, execResults.TotalTests)
+		} else if execResults.PassedTests > 0 {
+			// All payloads returned non-attack outcomes (e.g. 404 — endpoint doesn't exist).
+			// No WAF interaction was observed.
+			detectionRate = "N/A"
+			summary.Interpretation = fmt.Sprintf("No WAF interaction detected. All %d payloads returned non-blocking responses (e.g. 404 Not Found) "+
+				"without triggering WAF rules. The target endpoint may not exist, or the WAF may not be inspecting this path. "+
+				"Verify the target URL points to a real application endpoint that processes input.",
+				execResults.PassedTests)
 		}
 
 		if execResults.HostsSkipped > 0 {
 			summary.Summary = fmt.Sprintf("Scanned %s with %d payloads. Detection rate: %s. Blocked: %d, Bypassed: %d, Errors: %d, Skipped: %d (host unreachable).",
-				args.Target, execResults.TotalTests, detectionRate, execResults.BlockedTests, execResults.PassedTests, execResults.ErrorTests, execResults.HostsSkipped)
+				args.Target, execResults.TotalTests, detectionRate, execResults.BlockedTests, bypassed, execResults.ErrorTests, execResults.HostsSkipped)
 		} else {
 			summary.Summary = fmt.Sprintf("Scanned %s with %d payloads. Detection rate: %s. Blocked: %d, Bypassed: %d, Errors: %d.",
-				args.Target, execResults.TotalTests, detectionRate, execResults.BlockedTests, execResults.PassedTests, execResults.ErrorTests)
+				args.Target, execResults.TotalTests, detectionRate, execResults.BlockedTests, bypassed, execResults.ErrorTests)
 		}
 
 		summary.NextSteps = buildScanNextSteps(execResults, args)
@@ -434,7 +447,7 @@ func (w *discardWriter) Close() error                     { return nil }
 // buildScanNextSteps generates contextual next steps based on scan results.
 func buildScanNextSteps(results output.ExecutionResults, args scanArgs) []string {
 	steps := make([]string, 0, 4)
-	bypassed := results.PassedTests // passedTests = payloads that got through the WAF
+	bypassed := results.FailedTests // FailedTests = attack payloads that bypassed the WAF (ExpectedBlock was true but got 2xx)
 
 	if bypassed > 0 {
 		steps = append(steps,
@@ -561,6 +574,8 @@ ASYNC TOOL: This tool returns a task_id immediately and runs in the background (
 				"required": []string{"target"},
 			},
 			Annotations: &mcp.ToolAnnotations{
+				ReadOnlyHint:    false,
+				IdempotentHint:  false,
 				OpenWorldHint:   boolPtr(true),
 				DestructiveHint: boolPtr(false),
 				Title:           "Enterprise WAF Assessment",
@@ -603,8 +618,8 @@ func (s *Server) handleAssess(ctx context.Context, req *mcp.CallToolRequest) (*m
 	if args.Concurrency > 0 {
 		cfg.Concurrency = args.Concurrency
 	}
-	if cfg.Concurrency > defaults.ConcurrencyDNS {
-		cfg.Concurrency = defaults.ConcurrencyDNS
+	if cfg.Concurrency > defaults.ConcurrencyMax {
+		cfg.Concurrency = defaults.ConcurrencyMax
 	}
 	if args.RateLimit > 0 {
 		cfg.RateLimit = float64(args.RateLimit)
