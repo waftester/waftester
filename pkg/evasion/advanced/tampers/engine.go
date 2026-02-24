@@ -36,6 +36,27 @@ const (
 	ProfileCustom Profile = "custom"
 )
 
+// Profiles returns all predefined profiles (excludes ProfileCustom).
+func Profiles() []Profile {
+	return []Profile{
+		ProfileStealth,
+		ProfileStandard,
+		ProfileAggressive,
+		ProfileBypass,
+	}
+}
+
+// ProfileStrings returns profile names as strings, suitable for enum schemas.
+// Excludes ProfileCustom since it requires explicit tamper names.
+func ProfileStrings() []string {
+	ps := Profiles()
+	out := make([]string, len(ps))
+	for i, p := range ps {
+		out[i] = string(p)
+	}
+	return out
+}
+
 // Engine provides intelligent tamper selection and application.
 // It integrates with WAF detection to automatically choose optimal tampers.
 type Engine struct {
