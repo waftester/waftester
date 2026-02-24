@@ -135,7 +135,7 @@ type BetaArmState struct {
 // PhaseControllerState is the serializable form of PhaseController.
 type PhaseControllerState struct {
 	QTable  map[string]map[string]float64 `json:"q_table"`
-	Epsilon float64                        `json:"epsilon"`
+	Epsilon float64                       `json:"epsilon"`
 }
 
 // CalibratorState is the serializable form of ChangePointDetector.

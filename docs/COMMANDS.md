@@ -4,7 +4,7 @@ The definitive reference for every WAFtester CLI command, flag, environment vari
 
 For usage examples and real-world workflows, see the [Examples Guide](https://github.com/waftester/waftester/blob/main/docs/EXAMPLES.md). For installation, see the [Installation Guide](https://github.com/waftester/waftester/blob/main/docs/INSTALLATION.md). For a quick task-oriented reference, see the [Cheat Sheet](https://waftester.com/cheat-sheet).
 
-**Document Version:** 2.9.6
+**Document Version:** 2.9.30
 **Last Updated:** February 2026
 
 > **Reading order:** This is the flag reference. For real-world examples, see [EXAMPLES.md](EXAMPLES.md). For a quick copy-paste reference, see the [Cheat Sheet](https://waftester.com/cheat-sheet). For a beginner guide, see [waftester.com/docs](https://waftester.com/docs).
@@ -254,7 +254,7 @@ Smart mode adapts scanning behavior based on detected WAF responses. It analyzes
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `-smart` | bool | false | Enable WAF-aware adaptive scanning |
-| `-smart-mode` | string | `standard` | Smart mode profile: `stealth` (slow, minimal footprint), `standard` (balanced), `aggressive` (fast, noisy), `bypass` (focus on finding bypasses) |
+| `-smart-mode` | string | `standard` | Smart mode profile: `quick` (fast validation), `standard` (balanced), `full` (maximum coverage), `bypass` (focus on finding bypasses), `stealth` (slow, minimal footprint) |
 | `-smart-verbose` | bool | false | Show smart mode decision details |
 
 #### Tamper Engine
