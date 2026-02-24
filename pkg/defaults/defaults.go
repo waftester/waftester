@@ -371,8 +371,10 @@ const (
 
 const (
 	// DropDetectConsecutiveThreshold is the number of consecutive failures
-	// before considering the connection dropped (3 failures triggers detection)
-	DropDetectConsecutiveThreshold = 3
+	// before considering the connection dropped.
+	// 5 is resilient against transient errors during param discovery and
+	// early probing while still catching genuinely unreachable hosts.
+	DropDetectConsecutiveThreshold = 5
 
 	// DropDetectTimeoutMultiplier multiplies the base timeout to detect
 	// slow-down attacks vs actual drops (3x normal timeout)

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/hosterrors"
 )
 
@@ -69,9 +70,13 @@ func (d *Detector) RecordError(targetURL string, err error) *DetectionResult {
 
 	dropResult := d.connMon.RecordDrop(host, err)
 
-	// Sync significant drops with hosterrors
-	if dropResult.Dropped && dropResult.Consecutive >= 3 {
-		hosterrors.MarkError(targetURL)
+	// Sync with hosterrors when the host crosses the dropping threshold.
+	// Uses MarkPermanent so a single call marks the host (rather than
+	// incrementally calling MarkError which needs DefaultMaxErrors calls).
+	// hosterrors state is cleared when ClearHostErrors is called between
+	// scan phases.
+	if dropResult.Dropped && dropResult.Consecutive >= defaults.DropDetectConsecutiveThreshold {
+		hosterrors.MarkPermanent(targetURL)
 	}
 
 	// Invoke callback if registered and drop was detected
