@@ -1733,17 +1733,18 @@ func TestExecutorWithEmptyTargetURL(t *testing.T) {
 func TestExecute_SkipBeforeRateLimiter(t *testing.T) {
 	hosterrors.ClearAll()
 
-	// Mark the host as failed immediately (threshold = 3).
-	for i := 0; i < 5; i++ {
-		hosterrors.MarkError("http://unreachable.test")
-	}
-
 	e := NewExecutor(ExecutorConfig{
 		TargetURL:   "http://unreachable.test",
 		Concurrency: 2,
 		RateLimit:   1, // Extremely slow — 1 req/sec. If skip runs after limiter, 100 payloads = 100s.
 		Timeout:     5 * time.Second,
 	})
+
+	// Poison the detector so ShouldSkipHost returns true.
+	// Uses RecordError with a classifiable error to trip the threshold.
+	for i := 0; i < 6; i++ {
+		e.detector.RecordError("http://unreachable.test", fmt.Errorf("connection refused"))
+	}
 
 	testPayloads := make([]payloads.Payload, 100)
 	for i := 0; i < 100; i++ {
@@ -1790,18 +1791,17 @@ func TestExecute_SkipBeforeRateLimiter(t *testing.T) {
 func TestExecute_DeathSpiralAbort(t *testing.T) {
 	hosterrors.ClearAll()
 
-	// Set up a server that always errors (connection refused after first 3).
-	// We pre-poison the host error cache directly.
-	for i := 0; i < 5; i++ {
-		hosterrors.MarkError("http://dead-host.test:9999")
-	}
-
 	e := NewExecutor(ExecutorConfig{
 		TargetURL:   "http://dead-host.test:9999",
 		Concurrency: 5,
 		RateLimit:   1000,
 		Timeout:     1 * time.Second,
 	})
+
+	// Poison the detector so ShouldSkipHost returns true.
+	for i := 0; i < 6; i++ {
+		e.detector.RecordError("http://dead-host.test:9999", fmt.Errorf("connection refused"))
+	}
 
 	// 200 payloads — death spiral should stop well before all 200.
 	testPayloads := make([]payloads.Payload, 200)
@@ -1882,17 +1882,17 @@ func TestBuildSkippedResult(t *testing.T) {
 func TestExecuteWithProgress_SkippedCounter(t *testing.T) {
 	hosterrors.ClearAll()
 
-	// Pre-poison the host.
-	for i := 0; i < 5; i++ {
-		hosterrors.MarkError("http://progress-skip.test")
-	}
-
 	e := NewExecutor(ExecutorConfig{
 		TargetURL:   "http://progress-skip.test",
 		Concurrency: 2,
 		RateLimit:   1000,
 		Timeout:     5 * time.Second,
 	})
+
+	// Poison the detector so ShouldSkipHost returns true.
+	for i := 0; i < 6; i++ {
+		e.detector.RecordError("http://progress-skip.test", fmt.Errorf("connection refused"))
+	}
 
 	testPayloads := make([]payloads.Payload, 20)
 	for i := 0; i < 20; i++ {
