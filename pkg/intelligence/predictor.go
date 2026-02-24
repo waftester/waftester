@@ -39,6 +39,11 @@ type Predictor struct {
 	encodingObservations map[string]int
 	patternObservations  map[string]int
 	totalObservations    int // Global counter for UCB1 exploration bonus
+
+	// Thompson Sampling bandits (optional, used when UseBandit=true)
+	categoryBandit *BanditSelector
+	encodingBandit *BanditSelector
+	patternBandit  *BanditSelector
 }
 
 // NewPredictor creates a new Predictor with default configuration.
@@ -256,6 +261,16 @@ func (p *Predictor) predictLocked(category, payload, path string, techStack []st
 	return pred
 }
 
+// SetBandits injects Thompson Sampling bandits for exploration.
+// Called by Engine initialization when MasterBrainEnabled.
+func (p *Predictor) SetBandits(category, encoding, pattern *BanditSelector) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.categoryBandit = category
+	p.encodingBandit = encoding
+	p.patternBandit = pattern
+}
+
 // PredictBatch predicts and ranks multiple payloads
 func (p *Predictor) PredictBatch(payloads []PayloadCandidate, techStack []string) []RankedPayload {
 	p.mu.RLock()
@@ -266,13 +281,17 @@ func (p *Predictor) PredictBatch(payloads []PayloadCandidate, techStack []string
 	for i, payload := range payloads {
 		pred := p.predictLocked(payload.Category, payload.Payload, payload.Path, techStack)
 
-		// UCB1 exploration bonus: boost under-tested categories
-		// sqrt(2 * ln(totalObs) / categoryObs) gives higher bonus to less-tested categories
+		// Exploration bonus: Thompson Sampling if bandits available, else UCB1
 		explorationBonus := 0.0
-		if p.totalObservations > 0 && p.config.ExplorationWeight > 0 {
+		if p.config.UseBandit && p.categoryBandit != nil {
+			// Thompson Sampling: sample from Beta posterior for this category
+			explorationBonus = p.categoryBandit.SampleArm(payload.Category)
+		} else if p.totalObservations > 0 && p.config.ExplorationWeight > 0 {
+			// UCB1 exploration bonus: boost under-tested categories
+			// sqrt(2 * ln(totalObs) / categoryObs)
 			catObs := p.categoryObservations[payload.Category]
 			if catObs == 0 {
-				explorationBonus = 1.0 // Maximum bonus for untested categories
+				explorationBonus = 1.0
 			} else {
 				explorationBonus = math.Sqrt(2.0 * math.Log(float64(p.totalObservations)) / float64(catObs))
 				if explorationBonus > 1.0 {
