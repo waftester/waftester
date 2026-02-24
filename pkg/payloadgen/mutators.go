@@ -33,7 +33,7 @@ func (m *CaseMutator) Mutate(payload string) []string {
 		var b strings.Builder
 		b.Grow(len(payload))
 		for _, ch := range payload {
-			if rand.Intn(2) == 0 { //nolint:gosec // non-crypto randomness is fine for case mutation
+			if rand.Intn(2) == 0 && ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z')) { //nolint:gosec // non-crypto randomness is fine for case mutation
 				b.WriteRune(ch ^ 0x20) // toggle ASCII case
 			} else {
 				b.WriteRune(ch)

@@ -250,3 +250,33 @@ func TestHTMLEntityEncode(t *testing.T) {
 		t.Errorf("expected &#60; for <, got %q", result)
 	}
 }
+
+func TestCaseMutator_NonLetterPreservation(t *testing.T) {
+	m := &CaseMutator{MaxVariants: 50}
+
+	// Payload with digits, symbols, and non-ASCII — none should be corrupted.
+	payload := "SELECT 1+1 FROM tbl WHERE id=42"
+
+	variants := m.Mutate(payload)
+	if len(variants) == 0 {
+		t.Fatal("expected at least one case variant")
+	}
+
+	runes := []rune(payload)
+	for _, variant := range variants {
+		vrunes := []rune(variant)
+		if len(vrunes) != len(runes) {
+			t.Fatalf("variant length changed: got %d, want %d", len(vrunes), len(runes))
+		}
+		for i, ch := range vrunes {
+			orig := runes[i]
+			if !isASCIILetter(orig) && ch != orig {
+				t.Errorf("non-letter rune at position %d changed: %q -> %q", i, string(orig), string(ch))
+			}
+		}
+	}
+}
+
+func isASCIILetter(r rune) bool {
+	return (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z')
+}
