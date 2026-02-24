@@ -183,7 +183,7 @@ func (l *Loader) loadFile(path string) ([]Payload, error) {
 
 	// Return cached result if the file hasn't changed.
 	if cached, ok := defaultCache.get(absPath, info); ok {
-		return cached, nil
+		return copyPayloads(cached), nil
 	}
 
 	data, err := os.ReadFile(absPath)
@@ -229,7 +229,7 @@ func GetStats(payloads []Payload) LoadStats {
 // Filter filters payloads by category and severity
 func Filter(payloads []Payload, category, severity string) []Payload {
 	if category == "" && severity == "" {
-		return payloads
+		return copyPayloads(payloads)
 	}
 
 	// Severity priority map for filtering (Critical > High > Medium > Low).
