@@ -13,6 +13,7 @@ import (
 	"github.com/waftester/waftester/pkg/payloadprovider"
 	"github.com/waftester/waftester/pkg/payloads"
 	"github.com/waftester/waftester/pkg/templateresolver"
+	"github.com/waftester/waftester/pkg/waf/vendors"
 )
 
 // registerResources adds all domain-knowledge resources to the MCP server.
@@ -76,20 +77,11 @@ func (s *Server) addVersionResource() {
 					"prompts":   s.promptCount,
 					"templates": templateCount,
 				},
-				"template_categories": catNames,
-				"tools":               tools,
-				"supported_waf_vendors": []string{
-					"ModSecurity", "Coraza", "Cloudflare", "AWS WAF", "Azure WAF",
-					"Akamai Kona", "Imperva Incapsula", "F5 BIG-IP ASM", "FortiWeb", "Barracuda WAF",
-					"Sucuri", "Google Cloud Armor", "StackPath", "Wordfence", "NGINX App Protect",
-					"DenyAll", "Citrix NetScaler", "Radware AppWall", "SafeDog", "360 WAF",
-					"Wallarm", "Reblaze", "Comodo WAF", "USP Secure Entry", "TrafficShield", "Varnish",
-				},
-				"supported_cdn_vendors": []string{
-					"Cloudflare", "AWS CloudFront", "Fastly", "Akamai", "KeyCDN",
-					"StackPath", "Azure CDN", "Google Cloud CDN", "Bunny CDN",
-				},
-				"attack_categories": payloadprovider.NewCategoryMapper().ShortNames(),
+				"template_categories":   catNames,
+				"tools":                 tools,
+				"supported_waf_vendors": vendors.GetVendorNamesByCategory("cloud", "appliance", "software", "bot-management", "wordpress-plugin", "joomla-plugin"),
+				"supported_cdn_vendors": vendors.GetVendorNamesByCategory("cdn-integrated"),
+				"attack_categories":     payloadprovider.NewCategoryMapper().ShortNames(),
 			}
 			data, err := json.MarshalIndent(info, "", "  ")
 			if err != nil {
