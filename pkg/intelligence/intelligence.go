@@ -231,10 +231,16 @@ func (e *Engine) Metrics() *Metrics {
 // PHASE LEARNING - Absorb findings from each phase
 // ══════════════════════════════════════════════════════════════════════════════
 
-// Finding represents a discovery from any phase
-// Finding represents a discovered item from any phase
+// Finding represents a discovered item from any phase.
+// Phases fall into two categories:
+//   - Recon phases: discovery, js-analysis, leaky-paths, param-discovery
+//   - Testing phases: waf-testing, brain-feedback, mutation-pass
+//
+// Only testing phases produce meaningful Blocked values. Recon findings
+// always have Blocked=false (zero value) because they are HTTP responses,
+// not WAF test results. Bypass/block counters must only count testing findings.
 type Finding struct {
-	Phase           string                 // discovery, js-analysis, leaky-paths, params, waf-testing
+	Phase           string                 // discovery, js-analysis, leaky-paths, param-discovery, waf-testing, brain-feedback, mutation-pass
 	Category        string                 // xss, sqli, ssrf, secret, endpoint, param, etc.
 	Severity        string                 // critical, high, medium, low, info
 	Path            string                 // URL path or location
@@ -251,6 +257,19 @@ type Finding struct {
 	Timestamp       time.Time
 }
 
+// IsTestingPhase returns true if the finding is from a WAF testing phase
+// where the Blocked field is meaningful. Recon-phase findings (discovery,
+// js-analysis, leaky-paths, param-discovery) have Blocked=false by default
+// and must not be counted as bypasses.
+func (f *Finding) IsTestingPhase() bool {
+	switch f.Phase {
+	case "waf-testing", "brain-feedback", "mutation-pass":
+		return true
+	default:
+		return false
+	}
+}
+
 // LearnFromFinding processes a single finding.
 // Safe to call with nil finding (no-op).
 func (e *Engine) LearnFromFinding(finding *Finding) {
@@ -263,26 +282,33 @@ func (e *Engine) LearnFromFinding(finding *Finding) {
 	var anomalies []Anomaly
 	var newChains []*AttackChain
 
+	isTesting := finding.IsTestingPhase()
+
 	e.mu.Lock()
 
-	// 0. Record metrics
+	// 0. Record metrics (only count blocked/bypassed for testing phases)
 	if e.metrics != nil {
-		e.metrics.RecordFinding(finding.Blocked)
+		if isTesting {
+			e.metrics.RecordFinding(finding.Blocked)
+		} else {
+			e.metrics.FindingsProcessed.Add(1)
+		}
 	}
 
-	// 1. Store in memory
+	// 1. Store in memory (all phases — recon context is valuable)
 	e.memory.Store(finding)
 
-	// 2. Update WAF behavioral model
-	if e.config.EnableWAFModel {
+	// 2. Update WAF behavioral model (testing phases only —
+	// recon findings have Blocked=false which inflates bypass counts)
+	if e.config.EnableWAFModel && isTesting {
 		e.wafModel.Learn(finding)
 	}
 
-	// 3. Update technology profile
+	// 3. Update technology profile (all phases — recon detects tech)
 	e.techProfile.Update(finding)
 
-	// 4. Update WAF profiler
-	if e.wafProfiler != nil {
+	// 4. Update WAF profiler (testing phases only — same bypass inflation risk)
+	if e.wafProfiler != nil && isTesting {
 		e.wafProfiler.LearnFromFinding(finding)
 	}
 
@@ -294,8 +320,8 @@ func (e *Engine) LearnFromFinding(finding *Finding) {
 	// 6. Generate insights (collect, don't invoke callback yet)
 	insights = e.generateInsights(finding)
 
-	// 7. Update statistics
-	e.stats.RecordFinding(finding)
+	// 7. Update statistics (testing phases only for bypass/block counts)
+	e.stats.RecordFinding(finding, isTesting)
 
 	// 8. Feed advanced cognitive modules (returns anomalies for callback)
 	anomalies = e.feedAdvancedModules(finding)
@@ -333,13 +359,16 @@ func (e *Engine) feedAdvancedModules(finding *Finding) []Anomaly {
 		return nil
 	}
 
-	// Feed the predictor to learn bypass patterns
-	if e.predictor != nil {
+	isTesting := finding.IsTestingPhase()
+
+	// Feed the predictor to learn bypass patterns (testing only —
+	// recon findings would teach the predictor that everything bypasses)
+	if e.predictor != nil && isTesting {
 		e.predictor.Learn(finding)
 	}
 
-	// Feed mutation strategist with block/bypass outcomes
-	if e.mutator != nil {
+	// Feed mutation strategist with block/bypass outcomes (testing only)
+	if e.mutator != nil && isTesting {
 		if finding.Blocked {
 			e.mutator.LearnBlock(finding.Category, finding.Payload, finding.StatusCode)
 		} else if finding.Severity != "info" && finding.Payload != "" && finding.OriginalPayload != "" {
@@ -349,15 +378,17 @@ func (e *Engine) feedAdvancedModules(finding *Finding) []Anomaly {
 		}
 	}
 
-	// Feed endpoint clusterer
+	// Feed endpoint clusterer (all phases — recon path data is valuable)
 	if e.clusterer != nil && finding.Path != "" {
 		e.clusterer.AddEndpoint(finding.Path, finding.Method)
-		e.clusterer.RecordBehavior(finding.Path, finding.StatusCode, finding.Blocked, finding.Category, float64(finding.Latency.Milliseconds()), finding.Method)
+		if isTesting {
+			e.clusterer.RecordBehavior(finding.Path, finding.StatusCode, finding.Blocked, finding.Category, float64(finding.Latency.Milliseconds()), finding.Method)
+		}
 	}
 
-	// Feed anomaly detector - collect anomalies for later callback
+	// Feed anomaly detector (testing only — recon status codes are not anomalies)
 	var anomalies []Anomaly
-	if e.anomaly != nil && finding.StatusCode > 0 {
+	if e.anomaly != nil && finding.StatusCode > 0 && isTesting {
 		responseSize := 0
 		if finding.Evidence != "" {
 			responseSize = len(finding.Evidence)
@@ -372,8 +403,8 @@ func (e *Engine) feedAdvancedModules(finding *Finding) []Anomaly {
 		)
 	}
 
-	// Feed attack path optimizer
-	if e.pathfinder != nil {
+	// Feed attack path optimizer (testing only)
+	if e.pathfinder != nil && isTesting {
 		if !finding.Blocked && finding.Severity != "info" && finding.Payload != "" {
 			e.pathfinder.LearnFromBypass(finding.Path, finding.Category, finding.Payload)
 		} else if finding.Blocked {
@@ -381,8 +412,8 @@ func (e *Engine) feedAdvancedModules(finding *Finding) []Anomaly {
 		}
 	}
 
-	// Feed Master Brain modules
-	if e.config.MasterBrainEnabled {
+	// Feed Master Brain modules (testing only — all use Blocked as reward signal)
+	if e.config.MasterBrainEnabled && isTesting {
 		// Thompson Sampling bandits
 		if e.banditCategory != nil && finding.Category != "" {
 			e.banditCategory.Record(finding.Category, !finding.Blocked)
