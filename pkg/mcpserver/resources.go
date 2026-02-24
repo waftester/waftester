@@ -77,11 +77,11 @@ func (s *Server) addVersionResource() {
 					"prompts":   s.promptCount,
 					"templates": templateCount,
 				},
-				"template_categories": catNames,
-				"tools":               tools,
+				"template_categories":   catNames,
+				"tools":                 tools,
 				"supported_waf_vendors": vendors.GetVendorNamesByCategory("cloud", "appliance", "software", "bot-management", "wordpress-plugin", "joomla-plugin"),
 				"supported_cdn_vendors": vendors.GetVendorNamesByCategory("cdn-integrated"),
-				"attack_categories": payloadprovider.NewCategoryMapper().ShortNames(),
+				"attack_categories":     payloadprovider.NewCategoryMapper().ShortNames(),
 			}
 			data, err := json.MarshalIndent(info, "", "  ")
 			if err != nil {
