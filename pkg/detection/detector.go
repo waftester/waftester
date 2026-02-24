@@ -75,7 +75,7 @@ func (d *Detector) RecordError(targetURL string, err error) *DetectionResult {
 	// incrementally calling MarkError which needs DefaultMaxErrors calls).
 	// hosterrors state is cleared when ClearHostErrors is called between
 	// scan phases.
-	if dropResult.Dropped && dropResult.Consecutive >= defaults.DropDetectConsecutiveThreshold {
+	if dropResult.Dropped && dropResult.Consecutive == defaults.DropDetectConsecutiveThreshold {
 		hosterrors.MarkPermanent(targetURL)
 	}
 
@@ -198,24 +198,6 @@ func (d *Detector) Stats() map[string]int {
 	}
 
 	return stats
-}
-
-// SyncWithHostErrors marks hosts in the hosterrors cache when detection determines they should be skipped.
-// This bridges the detection system with the existing hosterrors caching mechanism.
-// Call this periodically or when detection status changes.
-func (d *Detector) SyncWithHostErrors(targetURL string) {
-	host := extractHost(targetURL)
-
-	// If we detect connection dropping, mark in hosterrors
-	if d.connMon.IsDropping(host) {
-		hosterrors.MarkError(targetURL)
-	}
-
-	// For severe silent bans, mark as permanent error
-	banResult := d.banDetect.Analyze(host)
-	if banResult != nil && banResult.Banned && banResult.Confidence >= 0.8 {
-		hosterrors.MarkPermanent(targetURL)
-	}
 }
 
 // ClearHostErrors clears both detection state and hosterrors cache for a host.
