@@ -97,3 +97,18 @@ jobs:
         uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
         with:
           version: latest
+
+  # Umbrella job — branch protection requires this single check name
+  ci:
+    if: always()
+    needs: [test, lint]
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Verify all jobs passed
+        run: |
+          if [[ "${{ needs.test.result }}" != "success" || "${{ needs.lint.result }}" != "success" ]]; then
+            echo "::error::CI failed: test=${{ needs.test.result }}, lint=${{ needs.lint.result }}"
+            exit 1
+          fi
+          echo "All CI jobs passed"
