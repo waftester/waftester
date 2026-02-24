@@ -117,6 +117,9 @@ bypasses.json
 *-report.html
 *-discovery.json
 *-testplan.json
+# Ad-hoc scan JSON files in repo root
+*-scan.json
+*-scan2.json
 
 # Cached payloads (downloaded from API)
 payloads/premium/
@@ -133,6 +136,9 @@ license.key
 *.har
 *.sarif
 *.junit.xml
+# Verbose test output files written by integration/intelligence tests
+*_trace.txt
+*_intel.txt
 test-results/
 playwright-report/
 pkg/screenshot/screenshots/
