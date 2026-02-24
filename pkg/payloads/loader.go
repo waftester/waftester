@@ -3,7 +3,7 @@ package payloads
 import (
 	"fmt"
 	"io/fs"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -201,7 +201,7 @@ func (l *Loader) loadFile(path string) ([]Payload, error) {
 	for i := range payloads {
 		payloads[i].Normalize()
 		if err := payloads[i].Validate(); err != nil {
-			log.Printf("payloads: skipping invalid payload in %s (index %d): %v", path, i, err)
+			slog.Warn("payloads: skipping invalid payload", "file", path, "index", i, "error", err)
 			continue
 		}
 		valid = append(valid, payloads[i])
