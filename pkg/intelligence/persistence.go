@@ -35,6 +35,15 @@ type BrainState struct {
 	// Note: Anomaly detector is intentionally NOT persisted (runtime-only)
 	// Note: Metrics are runtime-only observability counters, not persisted
 
+	// Master Brain module states (omitempty for backward compatibility)
+	BanditCategory    *BanditState            `json:"bandit_category,omitempty"`
+	BanditEncoding    *BanditState            `json:"bandit_encoding,omitempty"`
+	BanditPattern     *BanditState            `json:"bandit_pattern,omitempty"`
+	PhaseController   *PhaseControllerState   `json:"phase_controller,omitempty"`
+	Calibrator        *CalibratorState        `json:"calibrator,omitempty"`
+	InfluenceGraph    *InfluenceGraphState    `json:"influence_graph,omitempty"`
+	MutationGenerator *MutationGeneratorState `json:"mutation_generator,omitempty"`
+
 	// Statistics
 	Stats *StatsState `json:"stats"`
 }
@@ -105,6 +114,78 @@ type PathfinderState struct {
 	Nodes      map[string]*AttackNode `json:"nodes"`
 	Edges      []AttackEdge           `json:"edges"`
 	NodeValues map[string]float64     `json:"node_values"`
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MASTER BRAIN STATE TYPES
+// ══════════════════════════════════════════════════════════════════════════════
+
+// BanditState is the serializable form of BanditSelector.
+type BanditState struct {
+	Arms map[string]*BetaArmState `json:"arms"`
+}
+
+// BetaArmState is the serializable form of BetaArm.
+type BetaArmState struct {
+	Alpha float64 `json:"alpha"`
+	Beta  float64 `json:"beta"`
+	Pulls int     `json:"pulls"`
+}
+
+// PhaseControllerState is the serializable form of PhaseController.
+type PhaseControllerState struct {
+	QTable  map[string]map[string]float64 `json:"q_table"`
+	Epsilon float64                        `json:"epsilon"`
+}
+
+// CalibratorState is the serializable form of ChangePointDetector.
+type CalibratorState struct {
+	Metrics map[string]*CUSUMMetricState `json:"metrics"`
+}
+
+// CUSUMMetricState is the serializable form of a single CUSUM metric.
+type CUSUMMetricState struct {
+	Baseline float64 `json:"baseline"`
+	Count    int     `json:"count"`
+}
+
+// InfluenceGraphState is the serializable form of InfluenceGraph.
+type InfluenceGraphState struct {
+	Nodes map[string]*InfluenceNodeState `json:"nodes"`
+	Edges []InfluenceEdgeState           `json:"edges"`
+}
+
+// InfluenceNodeState is the serializable form of InfluenceNode.
+type InfluenceNodeState struct {
+	Type   string  `json:"type"`
+	Weight float64 `json:"weight"`
+}
+
+// InfluenceEdgeState is the serializable form of InfluenceEdge.
+type InfluenceEdgeState struct {
+	Source string  `json:"source"`
+	Target string  `json:"target"`
+	Weight float64 `json:"weight"`
+	Obs    int     `json:"observations"`
+}
+
+// MutationGeneratorState is the serializable form of MutationGenerator.
+type MutationGeneratorState struct {
+	BestChromosomes []MutationChromosomeState `json:"best_chromosomes"`
+	Generation      int                       `json:"generation"`
+}
+
+// MutationChromosomeState is the serializable form of MutationChromosome.
+type MutationChromosomeState struct {
+	Genes   []MutationGeneState `json:"genes"`
+	Fitness float64             `json:"fitness"`
+}
+
+// MutationGeneState is the serializable form of MutationGene.
+type MutationGeneState struct {
+	Transform string `json:"transform"`
+	Position  string `json:"position"`
+	Param     string `json:"param,omitempty"`
 }
 
 // StatsState is the serializable form of Stats
@@ -202,6 +283,29 @@ func (e *Engine) exportState() *BrainState {
 	// Export stats
 	state.Stats = e.stats.Export()
 
+	// Export Master Brain modules
+	if e.banditCategory != nil {
+		state.BanditCategory = e.banditCategory.Export()
+	}
+	if e.banditEncoding != nil {
+		state.BanditEncoding = e.banditEncoding.Export()
+	}
+	if e.banditPattern != nil {
+		state.BanditPattern = e.banditPattern.Export()
+	}
+	if e.phaseCtrl != nil {
+		state.PhaseController = e.phaseCtrl.Export()
+	}
+	if e.calibrator != nil {
+		state.Calibrator = e.calibrator.Export()
+	}
+	if e.influenceGraph != nil {
+		state.InfluenceGraph = e.influenceGraph.Export()
+	}
+	if e.mutationGen != nil {
+		state.MutationGenerator = e.mutationGen.Export()
+	}
+
 	return state
 }
 
@@ -258,6 +362,29 @@ func (e *Engine) ImportJSON(data []byte) error {
 		e.stats.Import(state.Stats)
 	}
 
+	// Import Master Brain modules (nil-safe for backward compatibility)
+	if state.BanditCategory != nil && e.banditCategory != nil {
+		e.banditCategory.Import(state.BanditCategory)
+	}
+	if state.BanditEncoding != nil && e.banditEncoding != nil {
+		e.banditEncoding.Import(state.BanditEncoding)
+	}
+	if state.BanditPattern != nil && e.banditPattern != nil {
+		e.banditPattern.Import(state.BanditPattern)
+	}
+	if state.PhaseController != nil && e.phaseCtrl != nil {
+		e.phaseCtrl.Import(state.PhaseController)
+	}
+	if state.Calibrator != nil && e.calibrator != nil {
+		e.calibrator.Import(state.Calibrator)
+	}
+	if state.InfluenceGraph != nil && e.influenceGraph != nil {
+		e.influenceGraph.Import(state.InfluenceGraph)
+	}
+	if state.MutationGenerator != nil && e.mutationGen != nil {
+		e.mutationGen.Import(state.MutationGenerator)
+	}
+
 	return nil
 }
 
@@ -301,6 +428,29 @@ func (e *Engine) Reset() {
 		e.stats.Reset()
 	}
 	e.attackChains = make([]*AttackChain, 0)
+
+	// Reset Master Brain modules
+	if e.banditCategory != nil {
+		e.banditCategory.Reset()
+	}
+	if e.banditEncoding != nil {
+		e.banditEncoding.Reset()
+	}
+	if e.banditPattern != nil {
+		e.banditPattern.Reset()
+	}
+	if e.phaseCtrl != nil {
+		e.phaseCtrl.Reset()
+	}
+	if e.calibrator != nil {
+		e.calibrator.Reset()
+	}
+	if e.influenceGraph != nil {
+		e.influenceGraph.Reset()
+	}
+	if e.mutationGen != nil {
+		e.mutationGen.Reset()
+	}
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

@@ -44,6 +44,9 @@ type AnomalyDetector struct {
 
 	// Detection thresholds
 	thresholds AnomalyThresholds
+
+	// Master Brain: CUSUM change-point detector (optional, nil when Master Brain disabled)
+	changeDetector *ChangePointDetector
 }
 
 // BehaviorBaseline represents normal server behavior
@@ -156,6 +159,14 @@ func (ad *AnomalyDetector) SetCallback(fn func(*Anomaly)) {
 	ad.anomalyCallback = fn
 }
 
+// SetChangeDetector attaches a CUSUM change-point detector to the anomaly detector.
+// Observed block rates and latencies are forwarded to the CUSUM detector automatically.
+func (ad *AnomalyDetector) SetChangeDetector(cd *ChangePointDetector) {
+	ad.mu.Lock()
+	defer ad.mu.Unlock()
+	ad.changeDetector = cd
+}
+
 // ObserveResponse records a response and checks for anomalies
 func (ad *AnomalyDetector) ObserveResponse(latencyMs float64, statusCode int, responseSize int, blocked bool, category, path string) []Anomaly {
 	ad.mu.Lock()
@@ -174,6 +185,18 @@ func (ad *AnomalyDetector) ObserveResponse(latencyMs float64, statusCode int, re
 	ad.recentResponses = append(ad.recentResponses, metrics)
 	if len(ad.recentResponses) > ad.windowSize {
 		ad.recentResponses = ad.recentResponses[1:]
+	}
+
+	// Feed CUSUM change-point detector (Master Brain)
+	if ad.changeDetector != nil {
+		blockVal := 0.0
+		if blocked {
+			blockVal = 1.0
+		}
+		ad.changeDetector.Observe("block_rate", blockVal)
+		if latencyMs > 0 {
+			ad.changeDetector.Observe("latency_ms", latencyMs)
+		}
 	}
 
 	// Update baseline if not established
