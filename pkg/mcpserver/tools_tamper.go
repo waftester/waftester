@@ -324,7 +324,7 @@ Returns: tamper count, per-category breakdown, tamper list with name/description
 					"category": map[string]any{
 						"type":        "string",
 						"description": "Filter by tamper category.",
-						"enum":        []string{"encoding", "space", "sql", "mysql", "mssql", "waf", "http", "obfuscation"},
+						"enum":        tampers.CategoryStrings(),
 					},
 					"for_waf": map[string]any{
 						"type":        "string",
