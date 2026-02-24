@@ -88,11 +88,24 @@ func (db *Database) AddBatch(pls []Payload) {
 	}
 }
 
+// copyPayloads returns an independent copy of the slice.
+// Note: this is a shallow copy — inner reference types (Tags, Effectiveness)
+// still share backing memory with the original. This is sufficient because
+// external callers only read returned payloads.
+func copyPayloads(src []Payload) []Payload {
+	if src == nil {
+		return nil
+	}
+	dst := make([]Payload, len(src))
+	copy(dst, src)
+	return dst
+}
+
 // All returns all payloads.
 func (db *Database) All() []Payload {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
-	return db.payloads
+	return copyPayloads(db.payloads)
 }
 
 // Count returns the total number of payloads.
@@ -106,32 +119,34 @@ func (db *Database) Count() int {
 func (db *Database) ByCategory(category string) []Payload {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
-	return db.byCategory[strings.ToLower(category)]
+	return copyPayloads(db.byCategory[strings.ToLower(category)])
 }
 
 // ByVendor returns payloads targeting a specific WAF vendor.
 func (db *Database) ByVendor(vendor string) []Payload {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
-	return db.byVendor[strings.ToLower(vendor)]
+	return copyPayloads(db.byVendor[strings.ToLower(vendor)])
 }
 
 // ByTag returns payloads with a specific tag.
 func (db *Database) ByTag(tag string) []Payload {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
-	return db.byTag[strings.ToLower(tag)]
+	return copyPayloads(db.byTag[strings.ToLower(tag)])
 }
 
 // BySeverity returns payloads with a specific severity.
 func (db *Database) BySeverity(severity string) []Payload {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
-	return db.bySeverity[strings.ToLower(severity)]
+	return copyPayloads(db.bySeverity[strings.ToLower(severity)])
 }
 
 // Categories returns all unique categories
 func (db *Database) Categories() []string {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
 	cats := make([]string, 0, len(db.byCategory))
 	for cat := range db.byCategory {
 		cats = append(cats, cat)
@@ -142,6 +157,8 @@ func (db *Database) Categories() []string {
 
 // Vendors returns all unique vendors
 func (db *Database) Vendors() []string {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
 	vendors := make([]string, 0, len(db.byVendor))
 	for v := range db.byVendor {
 		vendors = append(vendors, v)
@@ -152,6 +169,8 @@ func (db *Database) Vendors() []string {
 
 // Tags returns all unique tags
 func (db *Database) Tags() []string {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
 	tags := make([]string, 0, len(db.byTag))
 	for t := range db.byTag {
 		tags = append(tags, t)
@@ -162,6 +181,8 @@ func (db *Database) Tags() []string {
 
 // Search finds payloads matching the query
 func (db *Database) Search(query string) []Payload {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
 	query = strings.ToLower(query)
 	var results []Payload
 
@@ -178,6 +199,8 @@ func (db *Database) Search(query string) []Payload {
 
 // Filter filters payloads by multiple criteria
 func (db *Database) Filter(opts ...FilterOption) []Payload {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
 	filter := &PayloadFilter{}
 	for _, opt := range opts {
 		opt(filter)
@@ -257,6 +280,11 @@ func (f *PayloadFilter) matches(p Payload) bool {
 	if len(f.vendors) > 0 {
 		found := false
 		for _, v := range f.vendors {
+			if strings.EqualFold(p.Vendor, v) {
+				found = true
+				break
+			}
+			// Fallback: check Notes for "vendor:<name>" tags
 			if strings.Contains(strings.ToLower(p.Notes), "vendor:"+strings.ToLower(v)) {
 				found = true
 				break
