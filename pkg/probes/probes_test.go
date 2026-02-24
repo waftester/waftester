@@ -456,6 +456,129 @@ func TestGenerateVHostWordlist(t *testing.T) {
 	if !hasAPI {
 		t.Error("wordlist should contain api")
 	}
+
+	// Returned slice must be a copy of the internal list.
+	wordlist[0] = "MUTATED"
+	fresh := GenerateVHostWordlist()
+	if fresh[0] == "MUTATED" {
+		t.Error("GenerateVHostWordlist must return a copy, not the internal slice")
+	}
+}
+
+func TestVHostWordlistGenerator_Defaults(t *testing.T) {
+	t.Parallel()
+
+	gen := NewVHostWordlistGenerator("example.com")
+	wl := gen.Generate()
+
+	if len(wl) < 50 {
+		t.Errorf("expected at least 50 default prefixes, got %d", len(wl))
+	}
+
+	has := func(needle string) bool {
+		for _, w := range wl {
+			if w == needle {
+				return true
+			}
+		}
+		return false
+	}
+	for _, want := range []string{"www", "api", "admin", "staging", "dev"} {
+		if !has(want) {
+			t.Errorf("missing default prefix %q", want)
+		}
+	}
+}
+
+func TestVHostWordlistGenerator_TLS(t *testing.T) {
+	t.Parallel()
+
+	gen := NewVHostWordlistGenerator("example.com")
+	gen.AddFromTLS(&TLSInfo{
+		SubjectCN: "example.com",
+		SubjectAN: []string{
+			"staging.example.com",
+			"api.example.com",
+			"cdn.otherdomain.net",
+			"*.example.com",
+		},
+	})
+	wl := gen.Generate()
+
+	has := func(needle string) bool {
+		for _, w := range wl {
+			if w == needle {
+				return true
+			}
+		}
+		return false
+	}
+
+	if !has("staging") {
+		t.Error("should extract 'staging' from SAN staging.example.com")
+	}
+	if !has("api") {
+		t.Error("should extract 'api' from SAN api.example.com")
+	}
+	if !has("cdn") {
+		t.Error("should extract first label 'cdn' from cdn.otherdomain.net")
+	}
+}
+
+func TestVHostWordlistGenerator_CSP(t *testing.T) {
+	t.Parallel()
+
+	gen := NewVHostWordlistGenerator("example.com")
+	gen.AddFromCSP("default-src 'self'; script-src https://assets.example.com https://tracker.analytics.net")
+	wl := gen.Generate()
+
+	has := func(needle string) bool {
+		for _, w := range wl {
+			if w == needle {
+				return true
+			}
+		}
+		return false
+	}
+
+	if !has("assets") {
+		t.Error("should extract 'assets' from CSP domain assets.example.com")
+	}
+	if !has("tracker") {
+		t.Error("should extract first label 'tracker' from tracker.analytics.net")
+	}
+}
+
+func TestVHostWordlistGenerator_Dedup(t *testing.T) {
+	t.Parallel()
+
+	gen := NewVHostWordlistGenerator("example.com")
+	gen.AddPrefixes("api", "api", "staging", "www")
+	wl := gen.Generate()
+
+	count := 0
+	for _, w := range wl {
+		if w == "api" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("'api' should appear exactly once, got %d", count)
+	}
+}
+
+func TestVHostWordlistGenerator_NilTLS(t *testing.T) {
+	t.Parallel()
+
+	gen := NewVHostWordlistGenerator("example.com")
+	gen.AddFromTLS(nil)
+	gen.AddFromCSP("")
+	wl := gen.Generate()
+
+	// Should still have all defaults.
+	if len(wl) < 50 {
+		t.Errorf("nil sources should not break generation, got %d prefixes", len(wl))
+	}
 }
 
 func TestExtractTitle(t *testing.T) {
