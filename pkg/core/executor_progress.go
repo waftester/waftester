@@ -75,14 +75,11 @@ func (e *Executor) ExecuteWithProgress(ctx context.Context, allPayloads []payloa
 				default:
 					// Check skip conditions BEFORE rate limiter to avoid
 					// wasting rate-limit tokens on payloads that will be skipped.
-					if hosterrors.Check(e.config.TargetURL) {
-						result := e.buildSkippedResult(payload, "[HOST_FAILED] Host has exceeded error threshold")
-						resultsChan <- result
-						progress.Increment(result.Outcome)
-						atomic.AddInt64(&skipped, 1)
-						checkDeathSpiral2()
-						continue
-					}
+					//
+					// When a detector is present it is the authoritative check
+					// because it implements recovery probes. Falling through to
+					// hosterrors only when there is no detector prevents the
+					// non-recoverable hosterrors cache from shadowing recovery.
 					if e.detector != nil {
 						if skip, reason := e.detector.ShouldSkipHost(e.config.TargetURL); skip {
 							result := e.buildSkippedResult(payload, fmt.Sprintf("[DETECTION] %s", reason))
@@ -92,6 +89,13 @@ func (e *Executor) ExecuteWithProgress(ctx context.Context, allPayloads []payloa
 							checkDeathSpiral2()
 							continue
 						}
+					} else if hosterrors.Check(e.config.TargetURL) {
+						result := e.buildSkippedResult(payload, "[HOST_FAILED] Host has exceeded error threshold")
+						resultsChan <- result
+						progress.Increment(result.Outcome)
+						atomic.AddInt64(&skipped, 1)
+						checkDeathSpiral2()
+						continue
 					}
 
 					// Rate limit
