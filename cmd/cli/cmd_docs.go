@@ -1693,4 +1693,3 @@ func printDocsTemplates() {
 	fmt.Println("    waf-tester auto -u https://target.com --template-config templates/report-configs/dark.yaml")
 	fmt.Println()
 }
-
