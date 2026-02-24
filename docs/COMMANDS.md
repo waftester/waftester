@@ -254,7 +254,7 @@ Smart mode adapts scanning behavior based on detected WAF responses. It analyzes
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `-smart` | bool | false | Enable WAF-aware adaptive scanning |
-| `-smart-mode` | string | `standard` | Smart mode profile: `stealth` (slow, minimal footprint), `standard` (balanced), `aggressive` (fast, noisy), `bypass` (focus on finding bypasses) |
+| `-smart-mode` | string | `standard` | Smart mode profile: `quick` (fast validation), `standard` (balanced), `full` (maximum coverage), `bypass` (focus on finding bypasses), `stealth` (slow, minimal footprint) |
 | `-smart-verbose` | bool | false | Show smart mode decision details |
 
 #### Tamper Engine
