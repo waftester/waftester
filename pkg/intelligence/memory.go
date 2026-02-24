@@ -89,8 +89,9 @@ func (m *Memory) Store(f *Finding) {
 	// Index by severity
 	m.bySeverity[f.Severity] = append(m.bySeverity[f.Severity], f)
 
-	// Track bypasses
-	if !f.Blocked {
+	// Track bypasses (testing phases only — recon findings have Blocked=false
+	// by default which would inflate the bypass list)
+	if !f.Blocked && f.IsTestingPhase() {
 		m.bypasses = append(m.bypasses, f)
 	}
 }
@@ -126,7 +127,7 @@ func (m *Memory) rebuildIndexes() {
 		m.byPhase[f.Phase] = append(m.byPhase[f.Phase], f)
 		m.byPath[f.Path] = append(m.byPath[f.Path], f)
 		m.bySeverity[f.Severity] = append(m.bySeverity[f.Severity], f)
-		if !f.Blocked {
+		if !f.Blocked && f.IsTestingPhase() {
 			m.bypasses = append(m.bypasses, f)
 		}
 	}
@@ -175,7 +176,9 @@ func (m *Memory) GetByPath(patterns ...string) []*Finding {
 	return result
 }
 
-// GetBypasses returns all non-blocked findings
+// GetBypasses returns all non-blocked findings from testing phases.
+// Recon findings are excluded because their Blocked=false is the zero value,
+// not a WAF bypass signal.
 func (m *Memory) GetBypasses() []*Finding {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -228,14 +231,14 @@ func (m *Memory) Count() int {
 	return len(m.findings)
 }
 
-// CountBlocked returns count of blocked findings
+// CountBlocked returns count of blocked findings (testing phases only)
 func (m *Memory) CountBlocked() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	count := 0
 	for _, f := range m.findings {
-		if f.Blocked {
+		if f.Blocked && f.IsTestingPhase() {
 			count++
 		}
 	}

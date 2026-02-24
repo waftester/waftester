@@ -342,13 +342,13 @@ func TestStatsPhaseTracking(t *testing.T) {
 
 	stats.StartPhase("discovery")
 	time.Sleep(10 * time.Millisecond)
-	stats.RecordFinding(&Finding{Category: "leaked-secrets", Severity: "High"})
-	stats.RecordFinding(&Finding{Category: "leaky-paths", Severity: "Medium"})
+	stats.RecordFinding(&Finding{Category: "leaked-secrets", Severity: "High"}, false)
+	stats.RecordFinding(&Finding{Category: "leaky-paths", Severity: "Medium"}, false)
 	stats.EndPhase("discovery")
 
 	stats.StartPhase("waf-testing")
-	stats.RecordFinding(&Finding{Category: "sqli", Severity: "Critical", Blocked: false})
-	stats.RecordFinding(&Finding{Category: "sqli", Severity: "Critical", Blocked: true})
+	stats.RecordFinding(&Finding{Category: "sqli", Severity: "Critical", Blocked: false}, true)
+	stats.RecordFinding(&Finding{Category: "sqli", Severity: "Critical", Blocked: true}, true)
 	stats.EndPhase("waf-testing")
 
 	// Check bypass rate for sqli category
