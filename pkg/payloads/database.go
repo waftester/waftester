@@ -11,8 +11,8 @@ import (
 )
 
 // Database holds all payloads organized by category.
-// It is safe for concurrent reads after construction. Methods that mutate
-// (Add, AddBatch, LoadFromJSON) acquire a write lock.
+// It is safe for concurrent use. Write methods (Add, AddBatch, LoadFromJSON)
+// acquire a write lock; read methods acquire a read lock.
 type Database struct {
 	mu         sync.RWMutex
 	payloads   []Payload
@@ -357,7 +357,11 @@ func (db *Database) LoadFromJSON(data []byte) error {
 func (db *Database) ExportJSON() ([]byte, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
-	return jsonutil.MarshalIndent(db.payloads, "", "  ")
+	data, err := jsonutil.MarshalIndent(db.payloads, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("payloads: export JSON: %w", err)
+	}
+	return data, nil
 }
 
 // RankedPayloads returns payloads sorted by a composite score that considers
@@ -377,12 +381,20 @@ func (db *Database) RankedPayloads(category, vendor string, limit int) []Payload
 		if category != "" && !strings.EqualFold(p.Category, category) {
 			continue
 		}
-		if vendor != "" && p.Vendor != "" && !strings.EqualFold(p.Vendor, vendor) {
-			continue
+		if vendor != "" {
+			// Match vendor using same logic as PayloadFilter.matches():
+			// check Vendor field first, fall back to Notes "vendor:" tags.
+			if p.Vendor != "" {
+				if !strings.EqualFold(p.Vendor, vendor) {
+					continue
+				}
+			} else if !strings.Contains(strings.ToLower(p.Notes), "vendor:"+strings.ToLower(vendor)) {
+				continue
+			}
 		}
 		candidates = append(candidates, p)
 	}
-	db.mu.RUnlock()
+	db.mu.RUnlock() // release before scoring — candidates is an independent copy
 
 	// Score each payload
 	type scored struct {

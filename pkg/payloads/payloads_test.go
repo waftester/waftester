@@ -476,9 +476,44 @@ func TestDatabase_VendorFilterMatchesVendorField(t *testing.T) {
 		Notes:    "some notes without vendor tag",
 	})
 
+	// Vendor field match
 	results := db.Filter(WithVendors("cloudflare"))
 	if len(results) == 0 {
 		t.Error("Filter(WithVendors) did not match payload with Vendor field set")
+	}
+
+	// Case-insensitive match on Vendor field
+	results = db.Filter(WithVendors("CLOUDFLARE"))
+	if len(results) == 0 {
+		t.Error("Filter(WithVendors) should match case-insensitively on Vendor field")
+	}
+}
+
+func TestDatabase_VendorFilterNotesFallback(t *testing.T) {
+	db := &Database{
+		payloads:   make([]Payload, 0),
+		byCategory: make(map[string][]Payload),
+		byVendor:   make(map[string][]Payload),
+		byTag:      make(map[string][]Payload),
+		bySeverity: make(map[string][]Payload),
+	}
+	// Payload with NO Vendor field, only Notes tag
+	db.Add(Payload{
+		ID:       "vendor-notes-1",
+		Payload:  "test-notes-vendor",
+		Category: "sqli",
+		Notes:    "vendor:modsecurity bypass technique",
+	})
+
+	results := db.Filter(WithVendors("modsecurity"))
+	if len(results) == 0 {
+		t.Error("Filter(WithVendors) should fall back to Notes vendor: tags")
+	}
+
+	// Should NOT match a different vendor
+	results = db.Filter(WithVendors("akamai"))
+	if len(results) != 0 {
+		t.Error("Filter(WithVendors) matched wrong vendor via Notes fallback")
 	}
 }
 
@@ -529,6 +564,9 @@ func TestDatabase_ConcurrentAccess(t *testing.T) {
 		func() { db.All() },
 		func() { db.ByCategory("sqli") },
 		func() { db.ByVendor("cloudflare") },
+		func() { db.ByTag("evasion") },
+		func() { db.BySeverity("high") },
+		func() { db.Count() },
 	} {
 		wg.Add(1)
 		go func() {
