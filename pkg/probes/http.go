@@ -9,6 +9,8 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -599,21 +601,142 @@ func contentSimilarity(a, b []byte) float64 {
 	return float64(matches) / float64(len(longer))
 }
 
-// GenerateVHostWordlist generates common vhost prefixes
+// defaultVHostPrefixes are common subdomain prefixes found during vhost enumeration.
+var defaultVHostPrefixes = []string{
+	"www", "mail", "remote", "blog", "webmail", "server",
+	"ns1", "ns2", "smtp", "secure", "vpn", "m", "shop",
+	"ftp", "mail2", "test", "portal", "ns", "ww1", "host",
+	"support", "dev", "web", "bbs", "mx", "email",
+	"cloud", "mail1", "forum", "owa", "www2",
+	"gw", "admin", "store", "mx1", "cdn", "api", "exchange",
+	"app", "gov", "vps", "news", "proxy", "cache", "backup",
+	"db", "sql", "mysql", "postgres", "redis", "mongo",
+	"internal", "intranet", "corp", "local",
+	"staging", "stage", "demo", "sandbox", "beta", "alpha",
+	"pre", "preprod", "uat", "qa", "ci", "cd", "jenkins",
+	"gitlab", "github", "bitbucket", "jira", "confluence",
+	"grafana", "kibana", "prometheus", "elk", "log", "logs",
+	"monitor", "metrics", "status", "health", "dashboard",
+}
+
+// GenerateVHostWordlist returns the default vhost prefixes.
+// Deprecated: Use VHostWordlistGenerator for target-aware wordlist generation.
 func GenerateVHostWordlist() []string {
-	return []string{
-		"www", "mail", "remote", "blog", "webmail", "server",
-		"ns1", "ns2", "smtp", "secure", "vpn", "m", "shop",
-		"ftp", "mail2", "test", "portal", "ns", "ww1", "host",
-		"support", "dev", "web", "bbs", "ww42", "mx", "email",
-		"cloud", "1", "mail1", "2", "forum", "owa", "www2",
-		"gw", "admin", "store", "mx1", "cdn", "api", "exchange",
-		"app", "gov", "2tty", "vps", "govyty", "hgfgdf", "news",
-		"1rer", "lkjkui", "internal", "intranet", "corp", "local",
-		"staging", "stage", "demo", "sandbox", "beta", "alpha",
-		"pre", "preprod", "uat", "qa", "ci", "cd", "jenkins",
-		"gitlab", "github", "bitbucket", "jira", "confluence",
-		"grafana", "kibana", "prometheus", "elk", "log", "logs",
-		"monitor", "metrics", "status", "health", "dashboard",
+	cp := make([]string, len(defaultVHostPrefixes))
+	copy(cp, defaultVHostPrefixes)
+	return cp
+}
+
+// VHostWordlistGenerator builds vhost wordlists from multiple sources:
+// base prefixes, external wordlist files, and target-derived domains
+// (TLS certificate SANs, CSP headers).
+type VHostWordlistGenerator struct {
+	domain string
+	seen   map[string]bool
+	extra  []string
+}
+
+// NewVHostWordlistGenerator creates a generator for the given target domain.
+func NewVHostWordlistGenerator(domain string) *VHostWordlistGenerator {
+	return &VHostWordlistGenerator{
+		domain: strings.ToLower(domain),
+		seen:   make(map[string]bool),
 	}
+}
+
+// AddFromFile loads newline-delimited prefixes from a wordlist file.
+// Blank lines and lines starting with '#' are skipped.
+func (g *VHostWordlistGenerator) AddFromFile(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("vhost wordlist: %w", err)
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		g.addPrefix(strings.ToLower(line))
+	}
+	return scanner.Err()
+}
+
+// AddFromTLS extracts subdomain prefixes from TLS certificate SANs.
+func (g *VHostWordlistGenerator) AddFromTLS(info *TLSInfo) {
+	if info == nil {
+		return
+	}
+	for _, d := range info.GetAllDomains() {
+		g.addDomain(d)
+	}
+}
+
+// AddFromCSP extracts subdomain prefixes from a Content-Security-Policy header.
+func (g *VHostWordlistGenerator) AddFromCSP(csp string) {
+	if csp == "" {
+		return
+	}
+	for _, d := range ExtractDomainsFromCSP(csp) {
+		g.addDomain(d)
+	}
+}
+
+// AddPrefixes adds arbitrary prefixes (e.g. from user input).
+func (g *VHostWordlistGenerator) AddPrefixes(prefixes ...string) {
+	for _, p := range prefixes {
+		g.addPrefix(strings.ToLower(p))
+	}
+}
+
+// Generate returns the deduplicated wordlist: base defaults + all added sources.
+func (g *VHostWordlistGenerator) Generate() []string {
+	// Start with defaults.
+	for _, p := range defaultVHostPrefixes {
+		g.addPrefix(p)
+	}
+
+	// Sort extras for deterministic output.
+	sort.Strings(g.extra)
+	return g.extra
+}
+
+// addDomain extracts the first subdomain label relative to g.domain and adds it.
+// For SANs/CSP domains that share the target's base domain, this turns
+// "staging.example.com" into the prefix "staging".
+// Domains that don't share the base domain are added whole as prefixes.
+func (g *VHostWordlistGenerator) addDomain(d string) {
+	d = strings.ToLower(strings.TrimPrefix(d, "*."))
+	if d == "" || d == g.domain {
+		return
+	}
+
+	suffix := "." + g.domain
+	if strings.HasSuffix(d, suffix) {
+		prefix := strings.TrimSuffix(d, suffix)
+		// Could be multi-level (e.g. "a.b"); split and add each segment.
+		for _, part := range strings.Split(prefix, ".") {
+			if part != "" {
+				g.addPrefix(part)
+			}
+		}
+		return
+	}
+
+	// Different base domain — add first label as a prefix (it may be a
+	// common environment name like "cdn" or "api").
+	parts := strings.SplitN(d, ".", 2)
+	if len(parts) > 0 && parts[0] != "" {
+		g.addPrefix(parts[0])
+	}
+}
+
+func (g *VHostWordlistGenerator) addPrefix(p string) {
+	if g.seen[p] {
+		return
+	}
+	g.seen[p] = true
+	g.extra = append(g.extra, p)
 }
