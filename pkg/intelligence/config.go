@@ -32,6 +32,9 @@ type PredictorConfig struct {
 
 	// Threshold for "high confidence" predictions
 	HighConfidenceThreshold float64
+
+	// UseBandit enables Thompson Sampling for exploration instead of UCB1
+	UseBandit bool
 }
 
 // DefaultPredictorConfig returns sensible defaults for Predictor
@@ -49,6 +52,7 @@ func DefaultPredictorConfig() *PredictorConfig {
 		ExplorationWeight:        0.15,
 		MinObservationsForFactor: 3,
 		HighConfidenceThreshold:  0.7,
+		UseBandit:                true,
 	}
 }
 

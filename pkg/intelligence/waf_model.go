@@ -43,6 +43,9 @@ type WAFBehaviorModel struct {
 
 	// Detected strengths
 	strengths []string
+
+	// Master Brain: influence graph for cross-phase correlation (optional)
+	influenceGraph *InfluenceGraph
 }
 
 // Weakness represents a detected WAF weakness
@@ -72,6 +75,14 @@ func NewWAFBehaviorModel() *WAFBehaviorModel {
 		weaknesses:     make([]Weakness, 0),
 		strengths:      make([]string, 0),
 	}
+}
+
+// SetInfluenceGraph attaches an influence graph for cross-phase correlation.
+// When set, weakness and pattern discoveries are propagated as graph signals.
+func (w *WAFBehaviorModel) SetInfluenceGraph(g *InfluenceGraph) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.influenceGraph = g
 }
 
 // Learn updates the model from a finding.
@@ -127,6 +138,15 @@ func (w *WAFBehaviorModel) Learn(f *Finding) {
 
 	// Update weaknesses and strengths based on category rates
 	w.updateAssessments()
+
+	// Master Brain: propagate discoveries to influence graph
+	if w.influenceGraph != nil && !f.Blocked && f.Category != "" {
+		bypassRate := w.getCategoryBypassRate(f.Category)
+		if bypassRate > 0.3 {
+			// Signal that this category is a productive weakness
+			w.influenceGraph.Propagate("weakness:"+f.Category, bypassRate)
+		}
+	}
 }
 
 // DetectPattern checks if a finding matches a known pattern.
@@ -167,6 +187,10 @@ func (w *WAFBehaviorModel) DetectPattern(f *Finding) *WAFPattern {
 	if !f.Blocked {
 		bypassRate := w.getCategoryBypassRate(f.Category)
 		if bypassRate > 0.5 {
+			// Propagate weakness pattern signal to influence graph
+			if w.influenceGraph != nil {
+				w.influenceGraph.Propagate("pattern:category-weakness:"+f.Category, bypassRate)
+			}
 			return &WAFPattern{
 				Name:              "Category Weakness",
 				Description:       "High bypass rate in this category indicates weak rules",
