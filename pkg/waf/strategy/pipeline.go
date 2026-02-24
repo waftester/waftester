@@ -9,6 +9,11 @@ import (
 	"github.com/waftester/waftester/pkg/mutation"
 )
 
+// SmartModes returns the canonical smart-mode names for schema enums.
+func SmartModes() []string {
+	return []string{"quick", "standard", "full", "bypass", "stealth"}
+}
+
 // WAFOptimizedPipeline creates a mutation pipeline optimized for a specific WAF
 func WAFOptimizedPipeline(s *Strategy, mode string) *mutation.PipelineConfig {
 	if s == nil {

@@ -925,6 +925,9 @@ func runAutoScan() {
 			}
 		}
 
+		// Update endpoint counter after leaky paths enrichment
+		autoProgress.SetMetric("endpoints", int64(len(discResult.Endpoints)))
+
 		// G9: Feed leaky paths findings to Brain
 		if brain != nil && leakyResult != nil && leakyResult.InterestingHits > 0 {
 			brain.StartPhase(ctx, "leaky-paths")
@@ -974,6 +977,9 @@ func runAutoScan() {
 			}
 		}
 	}
+
+	// Refresh endpoint counter after leaky-paths resume enrichment
+	autoProgress.SetMetric("endpoints", int64(len(discResult.Endpoints)))
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 2: DEEP JAVASCRIPT ANALYSIS
@@ -1043,6 +1049,10 @@ func runAutoScan() {
 				Service:  "js-analysis",
 			})
 		}
+
+		// Update counters after JS resume re-injection
+		autoProgress.SetMetric("endpoints", int64(len(discResult.Endpoints)))
+		autoProgress.AddMetricN("secrets", int64(len(allJSData.Secrets)))
 	} else {
 		printStatusLn(ui.SectionStyle.Render("PHASE 2: Deep JavaScript Analysis"))
 		printStatusLn()
@@ -1274,6 +1284,9 @@ func runAutoScan() {
 				Service:  "js-analysis",
 			})
 		}
+
+		// Update endpoint counter after JS-discovered endpoints
+		autoProgress.SetMetric("endpoints", int64(len(discResult.Endpoints)))
 
 		// Print secrets if found
 		if len(allJSData.Secrets) > 0 && !quietMode {
@@ -2384,6 +2397,11 @@ func runAutoScan() {
 					_ = autoDispCtx.EmitBypass(ctx, result.Category, result.Severity, target, result.Payload, result.StatusCode)
 				}
 
+				// Update live bypass counter in real-time
+				if result.Outcome == "Fail" {
+					autoProgress.AddMetric("bypasses")
+				}
+
 				// Feed test result to Brain for real-time learning
 				if brain != nil {
 					brain.LearnFromFinding(&intelligence.Finding{
@@ -2434,8 +2452,7 @@ func runAutoScan() {
 		executorRef = nil
 		rateMu.Unlock()
 
-		// Update progress after WAF testing
-		autoProgress.AddMetricN("bypasses", int64(results.FailedTests))
+		// Update progress after WAF testing (bypass counter already updated in real-time via OnResult)
 		autoProgress.SetStatus("Analysis")
 		autoProgress.Increment()
 
@@ -2591,6 +2608,10 @@ func runAutoScan() {
 								}
 								if autoDispCtx != nil && result.Outcome == "Fail" {
 									_ = autoDispCtx.EmitBypass(ctx, result.Category, result.Severity, target, result.Payload, result.StatusCode)
+								}
+								// Update live bypass counter in real-time
+								if result.Outcome == "Fail" {
+									autoProgress.AddMetric("bypasses")
 								}
 							},
 						})
@@ -2761,6 +2782,10 @@ func runAutoScan() {
 							}
 							if autoDispCtx != nil && result.Outcome == "Fail" {
 								_ = autoDispCtx.EmitBypass(ctx, result.Category, result.Severity, target, result.Payload, result.StatusCode)
+							}
+							// Update live bypass counter in real-time
+							if result.Outcome == "Fail" {
+								autoProgress.AddMetric("bypasses")
 							}
 						},
 					})
