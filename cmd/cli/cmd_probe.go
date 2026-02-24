@@ -1697,8 +1697,15 @@ func runProbe() {
 			vhostProber := probes.NewVHostProber()
 			vhostProber.Timeout = timeoutDur
 
-			// Test with a few common prefixes
-			testPrefixes := []string{"admin", "api", "dev", "staging", "internal"}
+			// Build wordlist from TLS SANs, CSP, and base prefixes
+			gen := probes.NewVHostWordlistGenerator(host)
+			if results.TLS != nil {
+				gen.AddFromTLS(results.TLS)
+			}
+			if results.Headers != nil {
+				gen.AddFromCSP(results.Headers.ContentSecurityPolicy)
+			}
+			testPrefixes := gen.Generate()
 
 			port := 443
 			foundVHosts := []string{}

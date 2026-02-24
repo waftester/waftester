@@ -2962,13 +2962,14 @@ func runScan() {
 		vhostProber := probes.NewVHostProber()
 		vhostProber.Timeout = timeoutDur
 
-		// Common vhost prefixes to test
-		wordlist := []string{
-			"admin", "api", "app", "beta", "blog", "cdn", "cms", "dev",
-			"docs", "internal", "intranet", "jenkins", "jira", "mail",
-			"monitor", "mysql", "portal", "private", "prod", "staging",
-			"static", "test", "vpn", "www2", "www-dev", "www-staging",
+		// Build wordlist dynamically from TLS SANs and base prefixes
+		gen := probes.NewVHostWordlistGenerator(parsedURL.Hostname())
+		mu.Lock()
+		if result.TLSInfo != nil {
+			gen.AddFromTLS(result.TLSInfo)
 		}
+		mu.Unlock()
+		wordlist := gen.Generate()
 
 		host := parsedURL.Hostname()
 		port := 443
