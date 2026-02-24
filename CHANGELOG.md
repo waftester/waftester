@@ -5,6 +5,21 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.29] - 2026-02-24
+
+### Added
+
+- **Master Brain intelligence modules** — Thompson Sampling bandit for payload exploration-exploitation, OODA-cycle control loop for adaptive scanning, Q-learning phase controller, CUSUM-based change point detector, causal influence graph for finding relationships, and adaptive mutation generator with fitness scoring.
+- **Master Brain engine integration** — Wired all modules into the existing intelligence engine: bandit-boosted payload recommendations, CUSUM anomaly feed from response observations, influence graph events from WAF model, phase transitions, and recalibration hooks.
+- **Dynamic vhost wordlist generator** — Replace hardcoded entries with real infrastructure prefixes, TLS SAN extraction, and CSP source enrichment for virtual host probing.
+
+### Fixed
+
+- **False connection_dropping killing Phase 4 WAF testing** — Three interacting bugs caused all WAF test payloads to be skipped: double-counting errors (executor and detector both called `hosterrors.MarkError`), wrong check order (`hosterrors.Check` ran before detector's recovery probes), and cross-phase contamination from discovery errors poisoning Phase 4. Fixed by making detector the single error source, detector-first check order in both executor variants, phase clearing before WAF testing, and raising thresholds from 3 to 5.
+- **Recon findings inflating bypass counters** — Discovery, JS analysis, leaky-paths, and param-discovery phases produced findings with `Blocked=false` that were counted as WAF bypasses across all intelligence modules. Added `Finding.IsTestingPhase()` to guard all bypass/block counters.
+- **MCP scan detection rate always 100%** — Used `FailedTests` instead of `PassedTests` for detection rate calculation (attack payloads produce "Fail" outcome, not "Pass"). Also fixed double `ParseTamperList` call and capped HTTP concurrency.
+- **Payload database: 10 bug fixes** — Vendor filter missed `Payload.Vendor` field, `All()`/`ByCategory()`/etc returned mutable internal slices, `caseSwap` XOR corrupted non-letter characters, `Categories()`/`Vendors()`/`Tags()` had data races under concurrent access, and loader silently dropped invalid payloads.
+
 ## [2.9.28] - 2026-02-23
 
 ### Added
@@ -2463,6 +2478,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.29]: https://github.com/waftester/waftester/compare/v2.9.28...v2.9.29
 [2.9.28]: https://github.com/waftester/waftester/compare/v2.9.27...v2.9.28
 [2.9.27]: https://github.com/waftester/waftester/compare/v2.9.26...v2.9.27
 [2.9.26]: https://github.com/waftester/waftester/compare/v2.9.25...v2.9.26
