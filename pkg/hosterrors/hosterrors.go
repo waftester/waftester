@@ -30,8 +30,9 @@ import (
 
 // Default configuration
 const (
-	// DefaultMaxErrors is the max errors before marking a host as failed
-	DefaultMaxErrors = 3
+	// DefaultMaxErrors is the max errors before marking a host as failed.
+	// Matches DropDetectConsecutiveThreshold so both systems trip together.
+	DefaultMaxErrors = 5
 )
 
 // DefaultExpiry is how long to cache a failed host

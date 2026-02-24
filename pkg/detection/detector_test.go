@@ -7,6 +7,9 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/hosterrors"
 )
 
 func TestClassifyError(t *testing.T) {
@@ -116,20 +119,21 @@ func TestConnectionMonitor_RecordDrop(t *testing.T) {
 		}
 	})
 
-	t.Run("IsDropping=true after 3 consecutive errors", func(t *testing.T) {
+	t.Run("IsDropping=true after threshold consecutive errors", func(t *testing.T) {
 		cm := NewConnectionMonitor()
 		host := "example.com"
 
-		// Record 3 consecutive drops (threshold is 3)
-		cm.RecordDrop(host, syscall.ECONNRESET)
-		cm.RecordDrop(host, syscall.ECONNRESET)
-		result := cm.RecordDrop(host, syscall.ECONNRESET)
+		threshold := defaults.DropDetectConsecutiveThreshold
+		var result *DropResult
+		for i := 0; i < threshold; i++ {
+			result = cm.RecordDrop(host, syscall.ECONNRESET)
+		}
 
 		if !cm.IsDropping(host) {
-			t.Error("expected IsDropping=true after 3 consecutive errors")
+			t.Errorf("expected IsDropping=true after %d consecutive errors", threshold)
 		}
-		if result.Consecutive != 3 {
-			t.Errorf("expected Consecutive=3, got %d", result.Consecutive)
+		if result.Consecutive != threshold {
+			t.Errorf("expected Consecutive=%d, got %d", threshold, result.Consecutive)
 		}
 	})
 }
@@ -139,13 +143,13 @@ func TestConnectionMonitor_RecordSuccess(t *testing.T) {
 		cm := NewConnectionMonitor()
 		host := "example.com"
 
-		// Build up 3 drops to reach IsDropping=true
-		cm.RecordDrop(host, syscall.ECONNRESET)
-		cm.RecordDrop(host, syscall.ECONNRESET)
-		cm.RecordDrop(host, syscall.ECONNRESET)
+		threshold := defaults.DropDetectConsecutiveThreshold
+		for i := 0; i < threshold; i++ {
+			cm.RecordDrop(host, syscall.ECONNRESET)
+		}
 
 		if !cm.IsDropping(host) {
-			t.Fatal("expected IsDropping=true after 3 drops")
+			t.Fatalf("expected IsDropping=true after %d drops", threshold)
 		}
 
 		// Record 2 successes (recovery threshold is 2)
@@ -162,10 +166,9 @@ func TestConnectionMonitor_RecordSuccess(t *testing.T) {
 		cm := NewConnectionMonitor()
 		host := "example.com"
 
-		// Build up 3 drops
-		cm.RecordDrop(host, syscall.ECONNRESET)
-		cm.RecordDrop(host, syscall.ECONNRESET)
-		cm.RecordDrop(host, syscall.ECONNRESET)
+		for i := 0; i < defaults.DropDetectConsecutiveThreshold; i++ {
+			cm.RecordDrop(host, syscall.ECONNRESET)
+		}
 
 		// Record only 1 success
 		cm.RecordSuccess(host)
@@ -447,15 +450,14 @@ func TestDetector_ShouldSkipHost(t *testing.T) {
 		d := New()
 		targetURL := "https://example.com/test"
 
-		// Record 3 drops to trigger dropping state
-		d.RecordError(targetURL, syscall.ECONNRESET)
-		d.RecordError(targetURL, syscall.ECONNRESET)
-		d.RecordError(targetURL, syscall.ECONNRESET)
+		for i := 0; i < defaults.DropDetectConsecutiveThreshold; i++ {
+			d.RecordError(targetURL, syscall.ECONNRESET)
+		}
 
 		skip, reason := d.ShouldSkipHost(targetURL)
 
 		if !skip {
-			t.Error("expected skip=true after 3 connection drops")
+			t.Errorf("expected skip=true after %d connection drops", defaults.DropDetectConsecutiveThreshold)
 		}
 		if reason != "connection_dropping" {
 			t.Errorf("expected reason='connection_dropping', got '%s'", reason)
@@ -644,4 +646,74 @@ func TestDefaultDetector(t *testing.T) {
 			t.Error("expected Default() to return the same instance")
 		}
 	})
+}
+
+// TestDetector_NoDoubleCountHosterrors verifies that RecordError only syncs to
+// hosterrors once consecutive errors reach DropDetectConsecutiveThreshold,
+// preventing the false HOST_FAILED that previously killed Phase 4 WAF testing.
+func TestDetector_NoDoubleCountHosterrors(t *testing.T) {
+	t.Parallel()
+
+	d := New()
+	target := "http://double-count.example.com"
+
+	// Clear any leftover state
+	d.ClearHostErrors(target)
+
+	// Record fewer errors than the threshold
+	for i := 0; i < defaults.DropDetectConsecutiveThreshold-1; i++ {
+		d.RecordError(target, errors.New("connection refused"))
+	}
+
+	// hosterrors should NOT be triggered yet
+	if hosterrors.Check(target) {
+		t.Errorf("hosterrors marked host after %d errors, threshold is %d",
+			defaults.DropDetectConsecutiveThreshold-1, defaults.DropDetectConsecutiveThreshold)
+	}
+
+	// One more error pushes past threshold
+	d.RecordError(target, errors.New("connection refused"))
+
+	// Now hosterrors should be marked
+	if !hosterrors.Check(target) {
+		t.Error("hosterrors should be marked after reaching threshold")
+	}
+
+	d.ClearHostErrors(target)
+}
+
+// TestDetector_ClearHostErrorsResetsState verifies ClearHostErrors resets
+// both the detector and hosterrors, simulating a phase transition in the
+// auto scan pipeline.
+func TestDetector_ClearHostErrorsResetsState(t *testing.T) {
+	t.Parallel()
+
+	d := New()
+	target := "http://phase-clear.example.com"
+
+	// Accumulate errors past the threshold
+	for i := 0; i < defaults.DropDetectConsecutiveThreshold+2; i++ {
+		d.RecordError(target, errors.New("i/o timeout"))
+	}
+
+	// Verify host is detected as dropping
+	skip, _ := d.ShouldSkipHost(target)
+	if !skip {
+		t.Error("expected ShouldSkipHost=true after exceeding threshold")
+	}
+	if !hosterrors.Check(target) {
+		t.Error("expected hosterrors.Check=true after exceeding threshold")
+	}
+
+	// Clear (simulates phase transition)
+	d.ClearHostErrors(target)
+
+	// Both systems should be clean
+	skip, _ = d.ShouldSkipHost(target)
+	if skip {
+		t.Error("expected ShouldSkipHost=false after ClearHostErrors")
+	}
+	if hosterrors.Check(target) {
+		t.Error("expected hosterrors.Check=false after ClearHostErrors")
+	}
 }

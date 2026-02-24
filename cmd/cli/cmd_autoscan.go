@@ -26,6 +26,7 @@ import (
 	"github.com/waftester/waftester/pkg/discovery"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
+	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/input"
 	"github.com/waftester/waftester/pkg/intelligence"
@@ -1968,6 +1969,14 @@ func runAutoScan() {
 	} else {
 		printStatusLn(ui.SectionStyle.Render("PHASE 4: WAF Security Testing"))
 		printStatusLn()
+
+		// Clear host error state accumulated during discovery/learning phases.
+		// Without this, transient errors in param discovery poison the
+		// hosterrors cache and prevent all WAF testing payloads from running.
+		hosterrors.Clear(target)
+		if det := detection.Default(); det != nil {
+			det.ClearHostErrors(target)
+		}
 
 		ui.PrintInfo("⚡ Executing security tests with auto-calibration...")
 		printStatusLn()
