@@ -49,6 +49,9 @@ type MutationStrategist struct {
 
 	// Observation tracking
 	observations int
+
+	// Master Brain: GA-based mutation generator (optional)
+	generator *MutationGenerator
 }
 
 // MutationRecord tracks a successful mutation
@@ -160,6 +163,14 @@ func (ms *MutationStrategist) initWAFKnowledge() {
 	}
 }
 
+// SetMutationGenerator attaches a GA-based mutation generator.
+// When set, SuggestMutations merges GA-evolved suggestions with heuristic ones.
+func (ms *MutationStrategist) SetMutationGenerator(gen *MutationGenerator) {
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+	ms.generator = gen
+}
+
 // LearnBlock records a blocked attempt for future mutation suggestions
 func (ms *MutationStrategist) LearnBlock(category, payload string, statusCode int) {
 	ms.mu.Lock()
@@ -181,6 +192,11 @@ func (ms *MutationStrategist) LearnBlock(category, payload string, statusCode in
 			}
 		}
 		ms.blockPatternMutations[signature] = make([]MutationRecord, 0)
+	}
+
+	// Feed GA generator with block outcome
+	if ms.generator != nil {
+		ms.generator.RecordOutcome(0, TrialResult{Bypassed: false})
 	}
 }
 
@@ -219,6 +235,11 @@ func (ms *MutationStrategist) LearnBypass(category, originalPayload, bypassPaylo
 		} else {
 			ms.encodingEffectiveness[encoding] = DefaultEncodingEffectiveness
 		}
+	}
+
+	// Feed GA generator with bypass outcome
+	if ms.generator != nil {
+		ms.generator.RecordOutcome(0, TrialResult{Bypassed: true})
 	}
 }
 
@@ -275,7 +296,27 @@ func (ms *MutationStrategist) SuggestMutations(category, payload string, wafVend
 		}
 	}
 
-	// 4. Generic fallback suggestions
+	// 4. GA-evolved mutation suggestions (Master Brain)
+	if ms.generator != nil {
+		gaChromosomes := ms.generator.SuggestMutations(5)
+		for _, chrom := range gaChromosomes {
+			if chrom.Fitness < 0.1 {
+				continue // Skip low-fitness chromosomes
+			}
+			geneDesc := make([]string, 0, len(chrom.Genes))
+			for _, g := range chrom.Genes {
+				geneDesc = append(geneDesc, g.Transform)
+			}
+			suggestions = append(suggestions, MutationSuggestion{
+				Type:        "ga-evolved",
+				Description: "GA-evolved transform chain: " + strings.Join(geneDesc, " → "),
+				Confidence:  chrom.Fitness,
+				Reasoning:   fmt.Sprintf("Evolved through %d generations with %.0f%% bypass fitness", chrom.Age, chrom.Fitness*100),
+			})
+		}
+	}
+
+	// 5. Generic fallback suggestions
 	genericSuggestions := []MutationSuggestion{
 		{
 			Type:        "case-variation",

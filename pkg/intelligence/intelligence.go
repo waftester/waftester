@@ -41,6 +41,16 @@ type Engine struct {
 	pathfinder  *AttackPathOptimizer // Finds optimal attack paths
 	wafProfiler *WAFProfiler         // WAF fingerprint profiling
 
+	// Master Brain modules
+	banditCategory *BanditSelector      // Thompson Sampling for categories
+	banditEncoding *BanditSelector      // Thompson Sampling for encodings
+	banditPattern  *BanditSelector      // Thompson Sampling for patterns
+	controlLoop    *ControlLoop         // OODA feedback loop
+	phaseCtrl      *PhaseController     // Q-learning phase ordering
+	calibrator     *ChangePointDetector // CUSUM change-point detection
+	influenceGraph *InfluenceGraph      // Cross-phase correlation
+	mutationGen    *MutationGenerator   // GA mutation generation
+
 	// Observability
 	metrics *Metrics
 
@@ -75,6 +85,10 @@ type Config struct {
 
 	// Verbose logging
 	Verbose bool
+
+	// MasterBrainEnabled activates all advanced ML modules.
+	// When false, Engine uses the original heuristic-based algorithms.
+	MasterBrainEnabled bool
 }
 
 // DefaultConfig returns sensible defaults
@@ -86,6 +100,7 @@ func DefaultConfig() *Config {
 		EnableWAFModel:      true,
 		MaxChains:           50,
 		Verbose:             false,
+		MasterBrainEnabled:  true,
 	}
 }
 
@@ -95,7 +110,7 @@ func NewEngine(cfg *Config) *Engine {
 		cfg = DefaultConfig()
 	}
 
-	return &Engine{
+	e := &Engine{
 		memory:       NewMemory(),
 		wafModel:     NewWAFBehaviorModel(),
 		techProfile:  NewTechProfile(),
@@ -111,6 +126,37 @@ func NewEngine(cfg *Config) *Engine {
 		anomaly:    NewAnomalyDetector(),
 		pathfinder: NewAttackPathOptimizer(),
 	}
+
+	// Initialize Master Brain modules when enabled
+	if cfg.MasterBrainEnabled {
+		seed := time.Now().UnixNano()
+		e.banditCategory = NewBanditSelector(seed)
+		e.banditEncoding = NewBanditSelector(seed + 1)
+		e.banditPattern = NewBanditSelector(seed + 2)
+		e.phaseCtrl = NewPhaseController(
+			[]string{"discovery", "js-analysis", "leaky-paths", "params", "waf-testing"},
+			DefaultPhaseControllerConfig(),
+		)
+		e.calibrator = NewChangePointDetector(DefaultCalibratorConfig(), func(metric string, magnitude float64) {
+			// Re-calibration callback — triggered when CUSUM detects behavioral shift
+			e.recalibrate(metric, magnitude)
+		})
+		e.influenceGraph = NewInfluenceGraph()
+		SeedKnownCorrelations(e.influenceGraph)
+		e.mutationGen = NewMutationGenerator(DefaultMutationGeneratorConfig(), seed+4)
+		// ControlLoop requires the Engine pointer — set after struct is populated
+		e.controlLoop = NewControlLoop(e, DefaultControlLoopConfig())
+		// Wire bandits into predictor for Thompson Sampling exploration
+		e.predictor.SetBandits(e.banditCategory, e.banditEncoding, e.banditPattern)
+		// Wire CUSUM into anomaly detector for change-point detection
+		e.anomaly.SetChangeDetector(e.calibrator)
+		// Wire influence graph into WAF model for cross-phase correlation
+		e.wafModel.SetInfluenceGraph(e.influenceGraph)
+		// Wire mutation generator into strategist for GA-based mutations
+		e.mutator.SetMutationGenerator(e.mutationGen)
+	}
+
+	return e
 }
 
 // OnInsight sets a callback for when a new insight is discovered
@@ -332,6 +378,43 @@ func (e *Engine) feedAdvancedModules(finding *Finding) []Anomaly {
 			e.pathfinder.LearnFromBypass(finding.Path, finding.Category, finding.Payload)
 		} else if finding.Blocked {
 			e.pathfinder.LearnFromBlock(finding.Path, finding.Category)
+		}
+	}
+
+	// Feed Master Brain modules
+	if e.config.MasterBrainEnabled {
+		// Thompson Sampling bandits
+		if e.banditCategory != nil && finding.Category != "" {
+			e.banditCategory.Record(finding.Category, !finding.Blocked)
+		}
+		if e.banditEncoding != nil && len(finding.Encodings) > 0 {
+			for _, enc := range finding.Encodings {
+				e.banditEncoding.Record(enc, !finding.Blocked)
+			}
+		}
+		if e.banditPattern != nil && finding.Payload != "" {
+			e.banditPattern.Record(finding.Payload, !finding.Blocked)
+		}
+
+		// CUSUM change-point detection
+		if e.calibrator != nil {
+			blockRate := 0.0
+			if finding.Blocked {
+				blockRate = 1.0
+			}
+			e.calibrator.Observe("block_rate", blockRate)
+			if finding.Latency > 0 {
+				e.calibrator.Observe("latency_ms", float64(finding.Latency.Milliseconds()))
+			}
+		}
+
+		// Influence graph propagation
+		if e.influenceGraph != nil && finding.Category != "" {
+			signal := 0.5
+			if !finding.Blocked {
+				signal = 1.0
+			}
+			e.influenceGraph.Propagate("category:"+finding.Category, signal)
 		}
 	}
 
@@ -946,6 +1029,41 @@ func (e *Engine) RecommendPayloads() []*PayloadRecommendation {
 		return recommendations[i].Confidence > recommendations[j].Confidence
 	})
 
+	// Master Brain: boost with Thompson Sampling rankings
+	if e.config.MasterBrainEnabled && e.banditCategory != nil {
+		ranked := e.banditCategory.RankAll()
+		for _, arm := range ranked {
+			if arm.Pulls < 3 {
+				continue // Not enough data
+			}
+			found := false
+			for _, rec := range recommendations {
+				if rec.Category == arm.Key {
+					// Boost confidence with bandit posterior mean
+					rec.Confidence = (rec.Confidence + arm.Mean) / 2.0
+					found = true
+					break
+				}
+			}
+			if !found && arm.Mean > 0.3 {
+				recommendations = append(recommendations, &PayloadRecommendation{
+					Category:   arm.Key,
+					Priority:   2,
+					Reason:     fmt.Sprintf("Thompson Sampling: %.0f%% bypass rate (%d trials)", arm.Mean*100, arm.Pulls),
+					Confidence: arm.Mean,
+				})
+			}
+		}
+
+		// Re-sort after modifications
+		sort.Slice(recommendations, func(i, j int) bool {
+			if recommendations[i].Priority != recommendations[j].Priority {
+				return recommendations[i].Priority < recommendations[j].Priority
+			}
+			return recommendations[i].Confidence > recommendations[j].Confidence
+		})
+	}
+
 	return recommendations
 }
 
@@ -1094,12 +1212,56 @@ func (e *Engine) EndPhase(phase string) {
 	e.mu.Lock()
 	e.stats.EndPhase(phase)
 	e.correlatePhase(phase)
+
+	// Master Brain: mark phase completed in Q-learning controller
+	if e.config.MasterBrainEnabled && e.phaseCtrl != nil {
+		e.phaseCtrl.MarkCompleted(phase)
+	}
+
+	// Reinforce influence graph edges for confirmed correlations
+	if e.config.MasterBrainEnabled && e.influenceGraph != nil {
+		bypasses := e.memory.GetBypasses()
+		for _, b := range bypasses {
+			if b.Phase == phase && b.Category != "" {
+				e.influenceGraph.ReinforceEdge("phase:"+phase, "category:"+b.Category, 0.05)
+			}
+		}
+	}
+
 	e.mu.Unlock()
 
 	// Recalculate attack paths at phase boundaries (not on every finding)
 	if e.pathfinder != nil {
 		e.pathfinder.RecalculateIfDirty()
 	}
+}
+
+// recalibrate is called when the CUSUM detector detects a behavioral shift.
+// It resets predictor baselines using recent observations.
+func (e *Engine) recalibrate(metric string, magnitude float64) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	// Decay bandit priors to partially forget old behavior
+	if e.banditCategory != nil {
+		e.banditCategory.Decay(0.8)
+	}
+	if e.banditEncoding != nil {
+		e.banditEncoding.Decay(0.8)
+	}
+	if e.banditPattern != nil {
+		e.banditPattern.Decay(0.8)
+	}
+
+	// Reset CUSUM baselines to recent values
+	if e.calibrator != nil {
+		state, ok := e.calibrator.GetMetricState(metric)
+		if ok {
+			e.calibrator.ResetMetric(metric, state.LastValue)
+		}
+	}
+
+	_ = magnitude // Used for logging in verbose mode if needed
 }
 
 // Helper functions
