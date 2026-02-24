@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/waftester/waftester/pkg/waf/vendors"
 )
 
 func TestIsCloudMetadataHost(t *testing.T) {
@@ -344,6 +345,30 @@ func TestServerInstructions_ReadingResources(t *testing.T) {
 		if !strings.Contains(serverInstructions, uri) {
 			t.Errorf("READING RESOURCES missing registered resource template %q", uri)
 		}
+	}
+}
+
+func TestServerInstructions_VendorCounts(t *testing.T) {
+	t.Parallel()
+
+	wafCount := len(vendors.GetVendorNamesByCategory("cloud", "appliance", "software", "bot-management", "wordpress-plugin", "joomla-plugin"))
+	cdnCount := len(vendors.GetVendorNamesByCategory("cdn-integrated"))
+
+	if wafCount == 0 {
+		t.Fatal("WAF vendor registry returned 0 entries; check category names in GetVendorNamesByCategory call")
+	}
+	if cdnCount == 0 {
+		t.Fatal("CDN vendor registry returned 0 entries; check category names in GetVendorNamesByCategory call")
+	}
+
+	wafClaim := fmt.Sprintf("%d WAF", wafCount)
+	if !strings.Contains(serverInstructions, wafClaim) {
+		t.Errorf("serverInstructions does not contain %q; WAF signature count may be stale", wafClaim)
+	}
+
+	cdnClaim := fmt.Sprintf("%d CDN", cdnCount)
+	if !strings.Contains(serverInstructions, cdnClaim) {
+		t.Errorf("serverInstructions does not contain %q; CDN signature count may be stale", cdnClaim)
 	}
 }
 

@@ -21,6 +21,7 @@ import (
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
 	"github.com/waftester/waftester/pkg/payloadprovider"
 	"github.com/waftester/waftester/pkg/templateresolver"
+	"github.com/waftester/waftester/pkg/waf/vendors"
 )
 
 // ---------------------------------------------------------------------------
@@ -715,7 +716,16 @@ func isCloudMetadataHost(host string) bool {
 // Server Instructions — the AI's comprehensive operating manual
 // ---------------------------------------------------------------------------
 
-const serverInstructions = `You are operating WAF Tester — a comprehensive Web Application Firewall security testing platform with 27 tools, 2,800+ attack payloads, 26 WAF + 9 CDN detection signatures, and enterprise-grade assessment capabilities.
+// serverInstructions is computed at package init so WAF/CDN signature counts
+// stay in sync with the vendor registry automatically.
+var serverInstructions = buildServerInstructions()
+
+// buildServerInstructions generates the full AI operating manual with dynamic
+// signature counts derived from the vendor registry.
+func buildServerInstructions() string {
+	wafCount := len(vendors.GetVendorNamesByCategory("cloud", "appliance", "software", "bot-management", "wordpress-plugin", "joomla-plugin"))
+	cdnCount := len(vendors.GetVendorNamesByCategory("cdn-integrated"))
+	return fmt.Sprintf(`You are operating WAF Tester — a comprehensive Web Application Firewall security testing platform with 27 tools, 2,800+ attack payloads, %d WAF + %d CDN detection signatures, and enterprise-grade assessment capabilities.`, wafCount, cdnCount) + `
 
 ## YOUR IDENTITY
 
@@ -902,3 +912,4 @@ Parse "summary" for a quick understanding of the result. Use "next_steps" to det
 - Include curl commands for reproducing bypasses when available
 - Format assessment metrics in a clear table
 - Always include a brief recommendation section`
+}
