@@ -19,6 +19,7 @@ import (
 	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/output"
 	"github.com/waftester/waftester/pkg/payloads"
+	"github.com/waftester/waftester/pkg/waf/strategy"
 )
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -57,6 +58,8 @@ EXAMPLE INPUTS:
 • Critical only: {"target": "https://prod.com", "severity": "Critical", "rate_limit": 20}
 • Through Burp proxy: {"target": "https://example.com", "proxy": "http://127.0.0.1:8080"}
 • Production-safe: {"target": "https://prod.com", "concurrency": 5, "rate_limit": 10}
+• Smart mode (auto-detect WAF and optimize): {"target": "https://example.com", "smart": true}
+• Smart stealth: {"target": "https://prod.com", "smart": true, "smart_mode": "stealth"}
 
 RESULT MEANINGS:
 • "Blocked" = WAF stopped the attack (good)
@@ -124,7 +127,18 @@ ASYNC TOOL: This tool returns a task_id immediately and runs in the background. 
 					"tamper_profile": map[string]any{
 						"type":        "string",
 						"description": "Predefined tamper profile to apply. Ignored if 'tamper' is set.",
-						"enum":        []string{"standard", "stealth", "aggressive", "bypass"},
+						"enum":        tampers.ProfileStrings(),
+					},
+					"smart": map[string]any{
+						"type":        "boolean",
+						"description": "Enable WAF-aware adaptive scanning. Detects the WAF vendor first, then optimizes encoders, evasion techniques, rate limiting, and concurrency for that specific WAF. Equivalent to --smart on the CLI.",
+						"default":     false,
+					},
+					"smart_mode": map[string]any{
+						"type":        "string",
+						"description": "Smart mode profile. Controls how aggressively the WAF-aware optimizer tunes the scan. Only used when smart=true.",
+						"enum":        strategy.SmartModes(),
+						"default":     "standard",
 					},
 				},
 				"required": []string{"target"},
@@ -152,6 +166,8 @@ type scanArgs struct {
 	Proxy         string   `json:"proxy"`
 	Tamper        string   `json:"tamper"`
 	TamperProfile string   `json:"tamper_profile"`
+	Smart         bool     `json:"smart"`
+	SmartMode     string   `json:"smart_mode"`
 }
 
 type scanResultSummary struct {
@@ -246,6 +262,34 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		return errorResult("no payloads match the specified filters. Try broadening the category or severity, or check that the payload directory contains files."), nil
 	}
 
+	// Smart mode: detect WAF and optimize scan parameters.
+	// Runs before tamper application so WAF-specific strategy can influence tamper selection.
+	var smartStrategy *strategy.Strategy
+	if args.Smart {
+		mode := args.SmartMode
+		if mode == "" {
+			mode = "standard"
+		}
+		engine := strategy.NewStrategyEngine(time.Duration(args.Timeout) * time.Second)
+		strat, err := engine.GetStrategy(ctx, args.Target)
+		if err != nil {
+			log.Printf("[mcp-scan] smart mode WAF detection failed: %v (continuing with defaults)", err)
+		} else {
+			smartStrategy = strat
+
+			// Override rate limit and concurrency only if user didn't set them explicitly.
+			// Zero means "not provided" since JSON unmarshalling leaves them at zero default.
+			optimalRate, _ := strat.GetOptimalRateLimit(mode)
+			if args.RateLimit <= 0 || args.RateLimit == 50 { // 50 is the schema default
+				args.RateLimit = int(optimalRate)
+			}
+			optimalConcurrency := strat.GetRecommendedConcurrency(mode)
+			if args.Concurrency <= 0 || args.Concurrency == 10 { // 10 is the schema default
+				args.Concurrency = optimalConcurrency
+			}
+		}
+	}
+
 	// Apply tamper transformations if requested
 	if args.Tamper != "" || args.TamperProfile != "" {
 		profile := tampers.ProfileStandard
@@ -282,6 +326,23 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 
 		for i := range filtered {
 			filtered[i].Payload = engine.Transform(filtered[i].Payload)
+		}
+	} else if smartStrategy != nil {
+		// Smart mode with no explicit tampers: use WAF-specific encoders from the strategy.
+		mode := args.SmartMode
+		if mode == "" {
+			mode = "standard"
+		}
+		pipeline := strategy.WAFOptimizedPipeline(smartStrategy, mode)
+		if len(pipeline.Encoders) > 0 {
+			engine := tampers.NewEngine(&tampers.EngineConfig{
+				Profile:       tampers.ProfileCustom,
+				CustomTampers: pipeline.Encoders,
+				EnableMetrics: false,
+			})
+			for i := range filtered {
+				filtered[i].Payload = engine.Transform(filtered[i].Payload)
+			}
 		}
 	}
 

@@ -257,3 +257,13 @@ func Categories() []Category {
 		CategoryObfuscation,
 	}
 }
+
+// CategoryStrings returns all category names as strings, suitable for enum schemas.
+func CategoryStrings() []string {
+	cats := Categories()
+	out := make([]string, len(cats))
+	for i, c := range cats {
+		out[i] = string(c)
+	}
+	return out
+}

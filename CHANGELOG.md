@@ -5,6 +5,23 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.30] - 2026-02-24
+
+### Added
+
+- **MCP smart mode for scan and bypass tools** — New `smartMode` parameter in MCP scan and bypass tools enables automatic payload/tamper/category selection based on target analysis rather than requiring manual configuration.
+
+### Fixed
+
+- **Auto scan real-time counters** — Endpoints, Secrets, and Bypasses counters now update in real-time during auto scan instead of only at completion.
+- **MCP vendor category mapping** — `GetVendorNamesByCategory` now returns correct vendor names instead of mismatched categories.
+- **Smart-mode values in docs and help text** — Corrected smart-mode allowed values in CLI help output and documentation to match actual implementation.
+
+### Changed
+
+- **Dynamic MCP enums from source of truth** — Replaced all hardcoded MCP tool enums (categories, vendors, tampers) with runtime-derived values from `CategoryMapper`, eliminating drift between code and metadata.
+- **CLI help/docs sync tests** — Added 9 layers of automated tests ensuring CLI dispatch clauses, help text, numeric defaults, smart-mode values, COMMANDS.md flags, aliases, defaults, and ToC all stay in sync with code.
+
 ## [2.9.29] - 2026-02-24
 
 ### Added
@@ -2478,6 +2495,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.30]: https://github.com/waftester/waftester/compare/v2.9.29...v2.9.30
 [2.9.29]: https://github.com/waftester/waftester/compare/v2.9.28...v2.9.29
 [2.9.28]: https://github.com/waftester/waftester/compare/v2.9.27...v2.9.28
 [2.9.27]: https://github.com/waftester/waftester/compare/v2.9.26...v2.9.27
