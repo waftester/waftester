@@ -4,6 +4,7 @@ package strategy
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/mutation"
@@ -233,40 +234,59 @@ func CreateOptimizedConfig(s *Strategy, mode string, targetURL string) *mutation
 	}
 }
 
-// ShouldSkipPayload returns true if this payload type is ineffective against the WAF
-func (s *Strategy) ShouldSkipPayload(payloadCategory string) bool {
-	// Some WAFs have specific strengths - no point testing what they definitely block
-	// This is a heuristic that can be refined based on experience
-	return false // By default, test everything
+// ShouldSkipPayload returns true if this payload encoding is known to be
+// ineffective against the detected WAF. For example, Cloudflare decodes
+// base64 natively, so base64_simple encodings are always caught.
+func (s *Strategy) ShouldSkipPayload(encodingUsed string) bool {
+	if s == nil || len(s.SkipIneffectiveMutators) == 0 || encodingUsed == "" {
+		return false
+	}
+	lower := strings.ToLower(encodingUsed)
+	for _, skip := range s.SkipIneffectiveMutators {
+		if strings.ToLower(skip) == lower {
+			return true
+		}
+	}
+	return false
 }
 
-// PrioritizePayloads reorders payloads based on WAF-specific knowledge
+// PrioritizePayloads reorders payload categories based on WAF-specific knowledge.
+// If the strategy has PrioritizeMutators, those categories get the highest priority.
+// Otherwise, falls back to generic category ordering.
 func (s *Strategy) PrioritizePayloads(payloadCategories []string) []string {
-	// WAF-specific category ordering
-	// For most WAFs: test injection first, then XSS, then others
-	priority := map[string]int{
-		"sqli":      1,
-		"injection": 1,
-		"nosqli":    2,
-		"xss":       3,
-		"xxe":       4,
-		"ssti":      5,
-		"ssrf":      6,
-		"traversal": 7,
-		"lfi":       7,
-		"rfi":       8,
-		"rce":       9,
-		"cmdi":      9,
+	if len(payloadCategories) == 0 {
+		return payloadCategories
 	}
 
-	// Simple copy and sort by priority
+	// Generic priority: lower number = higher priority
+	priority := map[string]int{
+		"sqli":      10,
+		"injection": 10,
+		"nosqli":    20,
+		"xss":       30,
+		"xxe":       40,
+		"ssti":      50,
+		"ssrf":      60,
+		"traversal": 70,
+		"lfi":       70,
+		"rfi":       80,
+		"rce":       90,
+		"cmdi":      90,
+	}
+
+	// Boost WAF-specific prioritized mutators to the top (1, 2, 3, ...)
+	if s != nil && len(s.PrioritizeMutators) > 0 {
+		for i, m := range s.PrioritizeMutators {
+			priority[strings.ToLower(m)] = i + 1
+		}
+	}
+
 	result := make([]string, len(payloadCategories))
 	copy(result, payloadCategories)
 
-	// Sort by priority using efficient O(n log n) sort
 	sort.Slice(result, func(i, j int) bool {
-		pi := priority[result[i]]
-		pj := priority[result[j]]
+		pi := priority[strings.ToLower(result[i])]
+		pj := priority[strings.ToLower(result[j])]
 		if pi == 0 {
 			pi = 100
 		}

@@ -1682,6 +1682,12 @@ func runAutoScan() {
 			leakyPathCats = strings.Split(*leakyCategories, ",")
 		}
 
+		// Skip recon modules whose individual phases already produced results,
+		// avoiding redundant network requests when --leaky-paths and --discover-params
+		// (both default: true) already ran as separate phases.
+		alreadyRanLeaky := leakyResult != nil
+		alreadyRanParams := paramResult != nil
+
 		reconScanner := recon.NewScanner(&recon.Config{
 			Base: attackconfig.Base{
 				Timeout:     time.Duration(*timeout) * time.Second,
@@ -1690,8 +1696,8 @@ func runAutoScan() {
 			Verbose:              *verbose,
 			SkipTLSVerify:        *skipVerify,
 			HTTPClient:           ja3Client, // JA3 TLS fingerprint rotation
-			EnableLeakyPaths:     *enableLeakyPaths,
-			EnableParamDiscovery: *enableParamDiscovery,
+			EnableLeakyPaths:     *enableLeakyPaths && !alreadyRanLeaky,
+			EnableParamDiscovery: *enableParamDiscovery && !alreadyRanParams,
 			EnableJSAnalysis:     true,
 			EnableJA3Rotation:    *enableJA3,
 			LeakyPathCategories:  leakyPathCats,
@@ -1940,6 +1946,9 @@ func runAutoScan() {
 	}
 	payloadsCheckpoint := filepath.Join(workspaceDir, "payloads-prepared.json")
 
+	// Declare tamperEngine at outer scope so mutation-pass can reuse it on resume.
+	var tamperEngine *tampers.Engine
+
 	if shouldSkipPhase("waf-testing") {
 		ui.PrintInfo("⏭️  Skipping WAF testing (already completed)")
 		if data, err := os.ReadFile(wafResultsFile); err == nil {
@@ -2046,7 +2055,7 @@ func runAutoScan() {
 		}
 
 		// G1: Inject discovered params into payload target paths
-		// Appends hidden params as query strings so payloads test them
+		// Generates payloads for query params (GET) and body params (POST)
 		if paramResult != nil && paramResult.FoundParams > 0 {
 			const maxParamPayloads = 200
 			var paramPayloads []payloads.Payload
@@ -2054,21 +2063,39 @@ func runAutoScan() {
 				if len(paramPayloads) >= maxParamPayloads {
 					break // Cap total additional payloads across all params
 				}
-				if p.Type != "query" {
+
+				switch p.Type {
+				case "query":
+					// Append as query string parameter
+					for _, existing := range allPayloads {
+						if len(paramPayloads) >= maxParamPayloads {
+							break
+						}
+						clone := existing
+						separator := "?"
+						if strings.Contains(clone.TargetPath, "?") {
+							separator = "&"
+						}
+						clone.TargetPath = clone.TargetPath + separator + p.Name + "=" + clone.Payload
+						paramPayloads = append(paramPayloads, clone)
+					}
+
+				case "body":
+					// Generate POST payloads with the param in form-encoded body
+					for _, existing := range allPayloads {
+						if len(paramPayloads) >= maxParamPayloads {
+							break
+						}
+						clone := existing
+						clone.Method = "POST"
+						clone.ContentType = defaults.ContentTypeForm
+						clone.Payload = p.Name + "=" + existing.Payload
+						paramPayloads = append(paramPayloads, clone)
+					}
+
+				default:
+					// header/cookie params: skip for now (no clean executor support)
 					continue
-				}
-				// Generate injection payloads targeting discovered params
-				for _, existing := range allPayloads {
-					if len(paramPayloads) >= maxParamPayloads {
-						break
-					}
-					clone := existing
-					separator := "?"
-					if strings.Contains(clone.TargetPath, "?") {
-						separator = "&"
-					}
-					clone.TargetPath = clone.TargetPath + separator + p.Name + "=" + clone.Payload
-					paramPayloads = append(paramPayloads, clone)
 				}
 			}
 			if len(paramPayloads) > 0 {
@@ -2210,12 +2237,30 @@ func runAutoScan() {
 		}
 
 		ui.PrintInfo(fmt.Sprintf("Loaded %d payloads for testing", len(allPayloads)))
+
+		// Filter out payloads with encodings known to be ineffective against the detected WAF.
+		// For example, Cloudflare natively decodes base64, so base64_simple encodings are always caught.
+		if smartResult != nil && smartResult.Strategy != nil && len(smartResult.Strategy.SkipIneffectiveMutators) > 0 {
+			filtered := make([]payloads.Payload, 0, len(allPayloads))
+			skippedCount := 0
+			for _, p := range allPayloads {
+				if smartResult.Strategy.ShouldSkipPayload(p.EncodingUsed) {
+					skippedCount++
+					continue
+				}
+				filtered = append(filtered, p)
+			}
+			if skippedCount > 0 {
+				allPayloads = filtered
+				ui.PrintInfo(fmt.Sprintf("Skipped %d payloads with ineffective encodings for %s", skippedCount, smartResult.VendorName))
+			}
+		}
+
 		printStatusLn()
 
 		// ═══════════════════════════════════════════════════════════════════════════
 		// TAMPER ENGINE INITIALIZATION
 		// ═══════════════════════════════════════════════════════════════════════════
-		var tamperEngine *tampers.Engine
 		if *tamperList != "" || *tamperAuto || (*smartMode && smartResult != nil && smartResult.WAFDetected) {
 			// Determine tamper profile
 			profile := tampers.ProfileStandard
@@ -2254,10 +2299,19 @@ func runAutoScan() {
 				}
 			}
 
+			// Collect strategy-recommended evasions as hints for tamper selection.
+			// These come from smart mode's WAF-specific strategy (e.g., Cloudflare
+			// recommends case_swap, chunked, whitespace_alt).
+			var strategyHints []string
+			if smartResult != nil && smartResult.Strategy != nil {
+				strategyHints = smartResult.Strategy.Evasions
+			}
+
 			tamperEngine = tampers.NewEngine(&tampers.EngineConfig{
 				Profile:       profile,
 				CustomTampers: tampers.ParseTamperList(*tamperList),
 				WAFVendor:     wafVendor,
+				StrategyHints: strategyHints,
 				EnableMetrics: true,
 			})
 
@@ -2729,6 +2783,14 @@ func runAutoScan() {
 						MutationType:    "brain-mutation",
 						OriginalPayload: b.payload,
 					})
+				}
+			}
+
+			// Apply tamper transforms to mutation payloads so they benefit from
+			// the same WAF-specific evasion transforms as the main payload set.
+			if tamperEngine != nil && len(mutatedPayloads) > 0 {
+				for i := range mutatedPayloads {
+					mutatedPayloads[i].Payload = tamperEngine.Transform(mutatedPayloads[i].Payload)
 				}
 			}
 

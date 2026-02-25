@@ -64,6 +64,7 @@ type Engine struct {
 	profile       Profile
 	customTampers []string
 	wafVendor     string
+	strategyHints []string // WAF strategy-recommended evasion names to boost
 
 	// State
 	metrics     *MetricsCollector
@@ -76,6 +77,7 @@ type EngineConfig struct {
 	Profile       Profile  // Tamper selection profile
 	CustomTampers []string // Custom tamper names (for ProfileCustom)
 	WAFVendor     string   // Detected WAF vendor (optional, enhances selection)
+	StrategyHints []string // Strategy-recommended evasion names (from smart mode detection)
 	EnableMetrics bool     // Enable real-time metrics collection
 }
 
@@ -89,6 +91,7 @@ func NewEngine(cfg *EngineConfig) *Engine {
 		profile:       cfg.Profile,
 		customTampers: cfg.CustomTampers,
 		wafVendor:     strings.ToLower(cfg.WAFVendor),
+		strategyHints: cfg.StrategyHints,
 		adaptiveMap:   make(map[string]float64),
 	}
 
@@ -119,22 +122,53 @@ func (e *Engine) GetSelectedTampers() []string {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
+	var selected []string
 	switch e.profile {
 	case ProfileCustom:
-		return e.customTampers
-
+		return e.customTampers // Custom profile: user controls everything, no hint merging
 	case ProfileStealth:
-		return e.selectStealthTampers()
-
+		selected = e.selectStealthTampers()
 	case ProfileAggressive:
-		return e.selectAggressiveTampers()
-
+		selected = e.selectAggressiveTampers()
 	case ProfileBypass:
-		return e.selectBypassTampers()
-
+		selected = e.selectBypassTampers()
 	default: // ProfileStandard
-		return e.selectStandardTampers()
+		selected = e.selectStandardTampers()
 	}
+
+	return e.mergeStrategyHints(selected)
+}
+
+// mergeStrategyHints prepends strategy-recommended tampers that are registered
+// and not already in the selected list. This ensures WAF-specific evasion
+// techniques from smart mode detection get priority.
+func (e *Engine) mergeStrategyHints(selected []string) []string {
+	if len(e.strategyHints) == 0 {
+		return selected
+	}
+
+	seen := make(map[string]bool, len(selected))
+	for _, name := range selected {
+		seen[strings.ToLower(name)] = true
+	}
+
+	var prepend []string
+	for _, hint := range e.strategyHints {
+		lower := strings.ToLower(hint)
+		if seen[lower] {
+			continue
+		}
+		// Only include hints that correspond to registered tampers
+		if Get(hint) != nil {
+			prepend = append(prepend, hint)
+			seen[lower] = true
+		}
+	}
+
+	if len(prepend) == 0 {
+		return selected
+	}
+	return append(prepend, selected...)
 }
 
 // selectStealthTampers returns minimal, low-noise tampers
