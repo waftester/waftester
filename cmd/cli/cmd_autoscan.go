@@ -439,6 +439,10 @@ func runAutoScan() {
 	var insightCount int32
 	var chainCount int32
 
+	// Insight dedup: aggregate repeated titles instead of spamming console
+	var insightMu sync.Mutex
+	insightSeen := make(map[string]int) // title → count
+
 	if *enableBrain {
 		brain = intelligence.NewEngine(&intelligence.Config{
 			LearningSensitivity: 0.7,
@@ -453,6 +457,17 @@ func runAutoScan() {
 		brain.OnInsight(func(insight *intelligence.Insight) {
 			atomic.AddInt32(&insightCount, 1)
 			if *brainVerbose && !quietMode {
+				insightMu.Lock()
+				insightSeen[insight.Title]++
+				count := insightSeen[insight.Title]
+				insightMu.Unlock()
+
+				// Only print the first occurrence of each insight title;
+				// subsequent duplicates are silently counted and summarized later.
+				if count > 1 {
+					return
+				}
+
 				priorityStyle := ui.PassStyle
 				switch insight.Priority {
 				case 1:
@@ -462,7 +477,13 @@ func runAutoScan() {
 				case 3:
 					priorityStyle = ui.SeverityStyle("Medium")
 				}
-				fmt.Fprintf(os.Stderr, "  %s %s: %s\n", ui.Icon("🧠", "*"), priorityStyle.Render(string(insight.Type)), insight.Title)
+				// Show description (has URL/path details) for vulnerability insights,
+				// fall back to title for others.
+				detail := insight.Title
+				if insight.Type == intelligence.InsightVulnerability && insight.Description != "" {
+					detail = insight.Description
+				}
+				fmt.Fprintf(os.Stderr, "  %s %s: %s\n", ui.Icon("🧠", "*"), priorityStyle.Render(string(insight.Type)), detail)
 			}
 		})
 
@@ -783,9 +804,26 @@ func runAutoScan() {
 
 		discoverer := discovery.NewDiscoverer(discoveryCfg)
 
+		// Poll endpoint count during discovery so the progress ticker
+		// reflects intermediate results instead of staying at 0.
+		discDone := make(chan struct{})
+		go func() {
+			ticker := time.NewTicker(2 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-discDone:
+					return
+				case <-ticker.C:
+					autoProgress.SetMetric("endpoints", int64(discoverer.EndpointCount()))
+				}
+			}
+		}()
+
 		ui.PrintInfo(ui.Icon("🔍", "?") + " Starting endpoint discovery...")
 		var err error
 		discResult, err = discoverer.Discover(ctx)
+		close(discDone)
 		if err != nil {
 			errMsg := fmt.Sprintf("Discovery failed: %v", err)
 			ui.PrintError(errMsg)
@@ -808,7 +846,14 @@ func runAutoScan() {
 
 		ui.PrintSuccess(fmt.Sprintf("%s Discovered %d endpoints", ui.Icon("✓", "+"), len(discResult.Endpoints)))
 		if discResult.WAFDetected {
-			ui.PrintInfo(fmt.Sprintf("  WAF Detected: %s", discResult.WAFFingerprint))
+			wafLabel := discResult.WAFFingerprint
+			// Fall back to smart mode WAF name when discovery fingerprint is empty
+			if wafLabel == "" && smartResult != nil && smartResult.VendorName != "" {
+				wafLabel = smartResult.VendorName
+			}
+			if wafLabel != "" {
+				ui.PrintInfo(fmt.Sprintf("  WAF Detected: %s", wafLabel))
+			}
 		}
 		printStatusLn()
 
@@ -2948,7 +2993,7 @@ func runAutoScan() {
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
-	// PHASE 4.5: VENDOR-SPECIFIC WAF ANALYSIS (NEW)
+	// VENDOR-SPECIFIC WAF ANALYSIS (runs after testing, before report)
 	// ═══════════════════════════════════════════════════════════════════════════
 
 	// Vendor detection with comprehensive signature database
@@ -2979,7 +3024,7 @@ func runAutoScan() {
 		}
 	} else {
 		printStatusLn()
-		printStatusLn(ui.SectionStyle.Render("PHASE 4.5: Vendor-Specific WAF Analysis"))
+		printStatusLn(ui.SectionStyle.Render("Vendor-Specific WAF Analysis"))
 		printStatusLn()
 
 		ui.PrintInfo("🔍 Detecting WAF vendor with 150+ signatures...")
@@ -3169,6 +3214,17 @@ func runAutoScan() {
 			fmt.Fprintf(os.Stderr, "  %s Total findings: %d | Bypasses: %d | Attack chains: %d | Insights: %d\n",
 				ui.BracketStyle.Render("📈"),
 				brainSummary.TotalFindings, brainSummary.Bypasses, brainSummary.AttackChains, atomic.LoadInt32(&insightCount))
+
+			// Print aggregated insight counts for repeated types
+			if *brainVerbose {
+				insightMu.Lock()
+				for title, count := range insightSeen {
+					if count > 1 {
+						fmt.Fprintf(os.Stderr, "    %s %s (×%d)\n", ui.Icon("↳", " "), title, count)
+					}
+				}
+				insightMu.Unlock()
+			}
 			printStatusLn()
 		}
 
@@ -3469,6 +3525,12 @@ func runAutoScan() {
 			assessTemplateDir = resolved
 		}
 
+		// Use pre-detected WAF vendor from smart mode or vendor detection phase
+		assessWAFVendor := vendorName
+		if assessWAFVendor == "" && smartResult != nil && smartResult.VendorName != "" {
+			assessWAFVendor = smartResult.VendorName
+		}
+
 		assessConfig := &assessment.Config{
 			Base: attackconfig.Base{
 				Concurrency: *concurrency,
@@ -3482,6 +3544,7 @@ func runAutoScan() {
 			EnableFPTesting: true,
 			CorpusSources:   strings.Split(*assessCorpus, ","),
 			DetectWAF:       true,
+			WAFVendor:       assessWAFVendor,
 			PayloadDir:      payloadDir,
 			TemplateDir:     assessTemplateDir,
 		}

@@ -148,6 +148,15 @@ func NewDiscoverer(cfg DiscoveryConfig) *Discoverer {
 	}
 }
 
+// EndpointCount returns the current number of discovered endpoints.
+// Safe to call concurrently while Discover is running.
+func (d *Discoverer) EndpointCount() int {
+	d.mu.Lock()
+	n := len(d.endpoints)
+	d.mu.Unlock()
+	return n
+}
+
 // Discover runs the discovery process
 func (d *Discoverer) Discover(ctx context.Context) (*DiscoveryResult, error) {
 	start := time.Now()
