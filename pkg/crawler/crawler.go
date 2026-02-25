@@ -6,7 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -203,7 +203,7 @@ func NewCrawler(config *Config) *Crawler {
 	}
 
 	if config.JSRendering {
-		log.Printf("[crawl] WARNING: --js/--javascript flag is not yet implemented; headless rendering is unavailable. Use the event_crawl MCP tool for SPA crawling.")
+		slog.Warn("[crawl] --js/--javascript flag is not yet implemented; headless rendering is unavailable. Use the event_crawl MCP tool for SPA crawling.")
 	}
 
 	// Build HTTP client — always use a custom client for crawling so we get
@@ -622,7 +622,7 @@ func (c *Crawler) queueURL(rawURL string, depth int) {
 		c.inFlight.Add(-1)
 		c.droppedCount.Add(1)
 		if c.config.Verbose {
-			log.Printf("[crawl] queue full, dropped: %s", normalized)
+			slog.Debug("[crawl] queue full, dropped", "url", normalized)
 		}
 	}
 }
