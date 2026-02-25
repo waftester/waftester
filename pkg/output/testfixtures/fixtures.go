@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/output"
 	"github.com/waftester/waftester/pkg/payloadprovider"
 	"github.com/waftester/waftester/pkg/scoring"
@@ -99,7 +100,7 @@ func MakeErrorResult(id, category string, errorMsg string) *output.TestResult {
 func MakeSampleResults(n int) []*output.TestResult {
 	results := make([]*output.TestResult, 0, n)
 	categories := []string{"sqli", "xss", "traversal", "rce", "ssrf", "xxe"}
-	severities := []string{"Critical", "High", "Medium", "Low"}
+	severities := finding.TitleCaseStrings()
 	outcomes := []string{"Blocked", "Fail", "Pass", "Error"}
 
 	for i := 0; i < n; i++ {

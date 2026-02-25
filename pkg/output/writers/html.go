@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/jsonutil"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
@@ -335,7 +336,7 @@ func generateRiskChartSVG(counts map[string]int) string {
 	}
 
 	var segments []segment
-	for _, sev := range []string{"critical", "high", "medium", "low", "info"} {
+	for _, sev := range finding.OrderedStrings() {
 		if c := counts[sev]; c > 0 {
 			segments = append(segments, segment{
 				name:    sev,
@@ -416,7 +417,7 @@ func capitalize(s string) string {
 func generateRiskMatrixHTML(results []*events.ResultEvent) string {
 	// Count by severity and outcome
 	matrix := make(map[string]map[string]int)
-	for _, sev := range []string{"critical", "high", "medium", "low", "info"} {
+	for _, sev := range finding.OrderedStrings() {
 		matrix[sev] = map[string]int{
 			"bypass":  0,
 			"blocked": 0,
@@ -448,7 +449,7 @@ func generateRiskMatrixHTML(results []*events.ResultEvent) string {
 	sb.WriteString(`<thead><tr><th>Severity</th><th class="bypass-col">Bypass</th><th class="blocked-col">Blocked</th><th class="error-col">Error</th><th class="timeout-col">Timeout</th><th class="pass-col">Pass</th><th>Total</th></tr></thead>`)
 	sb.WriteString(`<tbody>`)
 
-	for _, sev := range []string{"critical", "high", "medium", "low", "info"} {
+	for _, sev := range finding.OrderedStrings() {
 		sb.WriteString(fmt.Sprintf(`<tr class="severity-%s-row">`, sev))
 		sb.WriteString(fmt.Sprintf(`<td class="severity-label">%s</td>`, capitalize(sev)))
 		for _, outcome := range []string{"bypass", "blocked", "error", "timeout", "pass"} {
@@ -544,7 +545,7 @@ func (hw *HTMLWriter) prepareTemplateData() *templateData {
 	}
 
 	// Initialize severity counts
-	for _, sev := range []string{"critical", "high", "medium", "low", "info"} {
+	for _, sev := range finding.OrderedStrings() {
 		data.SeverityCounts[sev] = 0
 	}
 
@@ -803,18 +804,7 @@ func outcomeToClass(o events.Outcome) string {
 }
 
 func severityWeight(s string) int {
-	switch s {
-	case "critical":
-		return 5
-	case "high":
-		return 4
-	case "medium":
-		return 3
-	case "low":
-		return 2
-	default:
-		return 1
-	}
+	return finding.Severity(s).Score()
 }
 
 func calculateGrade(blockRate float64) string {
@@ -870,7 +860,7 @@ func generateSevConfMatrixHTML(results []*events.ResultEvent) string {
 		return ""
 	}
 
-	sevOrder := []string{"critical", "high", "medium", "low", "info"}
+	sevOrder := finding.OrderedStrings()
 	confOrder := []string{"certain", "high", "medium", "low", "tentative", "unknown"}
 
 	// Prune empty columns.

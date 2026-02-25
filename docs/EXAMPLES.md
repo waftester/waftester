@@ -10,7 +10,7 @@ This guide provides comprehensive usage examples for WAFtester, organized by use
 
 > **Document Map:** [Quick Start](#quick-start) gets you running in 5 minutes. [Core Commands](#core-commands) covers each command with examples. [Real-World Playbooks](#real-world-playbooks) provides end-to-end workflows for common scenarios. [Interpreting Results](#interpreting-results) explains what the output means. [Troubleshooting](#troubleshooting) helps when things go wrong. For the flag reference, see [COMMANDS.md](COMMANDS.md). For a copy-paste cheat sheet, see [waftester.com/cheat-sheet](https://waftester.com/cheat-sheet).
 
-**Document Version:** 2.9.30  
+**Document Version:** 2.9.31  
 **Last Updated:** February 2026
 
 ---
@@ -117,6 +117,8 @@ This guide provides comprehensive usage examples for WAFtester, organized by use
 - [Unified Payload Provider](#unified-payload-provider)
   - [Template Enrichment with `--enrich`](#template-enrichment-with---enrich)
   - [MCP Server: Unified Resource](#mcp-server-unified-resource)
+- [Service Presets](#service-presets)
+  - [Creating Custom Presets](#creating-custom-presets)
 - [Template Library (v2.7.3)](#template-library-v273)
   - [Why Templates?](#why-templates)
   - [Nuclei Templates](#nuclei-templates)
@@ -261,7 +263,7 @@ waf-tester auto -u https://example.com
 ```
 $ waf-tester auto -u https://example.com
 
-WAFtester v2.9.30 - WAF Security Assessment Tool
+WAFtester v2.9.31 - WAF Security Assessment Tool
 
 🔍 Phase 1: WAF Detection
    ├─ Probing target...
@@ -694,7 +696,7 @@ waf-tester auto -u https://example.com \
 ```
 $ waf-tester auto -u https://api.example.com --smart --tamper-auto
 
-WAFtester v2.9.30 — Comprehensive WAF Security Assessment
+WAFtester v2.9.31 — Comprehensive WAF Security Assessment
 
 Target: https://api.example.com
 Mode: Smart (WAF-aware) with auto-tamper
@@ -756,15 +758,21 @@ Mode: Smart (WAF-aware) with auto-tamper
 
 #### Service-Specific Scanning
 
-When you know the target framework, use service presets for optimized testing:
+When you know the target framework, use service presets for optimized testing. Presets are JSON files in the `presets/` directory that define service-specific endpoints and attack surface hints.
 
 ```bash
+# Use a built-in preset
 waf-tester auto -u https://myblog.com -service wordpress
 waf-tester auto -u https://myapp.com -service django
-waf-tester auto -u https://store.com -service nextjs
+waf-tester auto -u https://sso.example.com -service authentik
+
+# Use a custom preset (drop JSON in presets/ directory)
+waf-tester auto -u https://photos.example.com -service immich
 ```
 
-| Service | Optimizations Applied |
+**Built-in presets:**
+
+| Preset | Optimizations Applied |
 |---------|----------------------|
 | `wordpress` | WP-specific paths, plugin vulns, xmlrpc, wp-admin |
 | `drupal` | Drupal paths, node access, views exploits |
@@ -774,6 +782,13 @@ waf-tester auto -u https://store.com -service nextjs
 | `spring` | Actuator endpoints, SpEL injection, mass assignment |
 | `nextjs` | API routes, _next paths, SSR injection points |
 | `flask` | Debug mode, Jinja2 SSTI, Flask-specific paths |
+| `authentik` | OAuth2/SAML/LDAP endpoints, identity provider paths |
+| `n8n` | REST API, webhooks, WebSocket push, OAuth2 credential flows |
+| `immich` | Photo upload, face recognition API, asset management |
+| `webapp` | Generic web app: login, API, admin, file upload, search |
+| `intranet` | Internal apps: admin panels, internal APIs, SSO |
+
+See [Service Presets](#service-presets) for how to create custom presets.
 
 #### Decision Guide
 
@@ -900,7 +915,7 @@ waf-tester assess -u https://example.com \
 ```
 $ waf-tester assess -u https://secure.example.com -fp -corpus builtin
 
-WAFtester v2.9.30 — Enterprise WAF Assessment
+WAFtester v2.9.31 — Enterprise WAF Assessment
 
 Target: https://secure.example.com
 Mode: Full assessment with false positive testing
@@ -1135,7 +1150,7 @@ waf-tester scan -u https://target.com --tamper-profile=stealth -rl 10
 ```
 $ waf-tester scan -u https://api.example.com -category sqli,xss --smart
 
-WAFtester v2.9.30 — Targeted Vulnerability Scan
+WAFtester v2.9.31 — Targeted Vulnerability Scan
 
 Target: https://api.example.com
 Categories: sqli, xss
@@ -1403,7 +1418,7 @@ waf-tester vendor -u https://target.com
 ```
 $ waf-tester vendor -u https://secure.example.com
 
-WAFtester v2.9.30 — WAF Vendor Detection
+WAFtester v2.9.31 — WAF Vendor Detection
 
 Target: https://secure.example.com
 
@@ -1544,7 +1559,7 @@ waf-tester protocol -u https://target.com
 ```
 $ waf-tester protocol -u https://api.example.com
 
-WAFtester v2.9.30 — Protocol Detection
+WAFtester v2.9.31 — Protocol Detection
 
 Target: https://api.example.com
 
@@ -1740,7 +1755,7 @@ waf-tester bypass -u https://target.com \
 ```
 $ waf-tester bypass -u https://secure.example.com --smart --tamper-auto -category sqli
 
-WAFtester v2.9.30 — WAF Bypass Hunter
+WAFtester v2.9.31 — WAF Bypass Hunter
 
 Target: https://secure.example.com
 Category: sqli
@@ -1894,7 +1909,7 @@ waf-tester mutate -u https://target.com \
 ```
 $ waf-tester mutate -u https://target.com -encoders url,unicode,double_url
 
-WAFtester v2.9.30 — Mutation Testing
+WAFtester v2.9.31 — Mutation Testing
 
 Target: https://target.com
 Encoders: url, unicode, double_url
@@ -1975,7 +1990,7 @@ waf-tester fp -u https://target.com -corpus /path/to/benign-requests.txt
 ```
 $ waf-tester fp -u https://secure.example.com -corpus builtin,leipzig
 
-WAFtester v2.9.30 — False Positive Testing
+WAFtester v2.9.31 — False Positive Testing
 
 Target: https://secure.example.com
 Corpora: builtin (2,500), leipzig (5,000)
@@ -2669,7 +2684,7 @@ waf-tester smuggle -u https://target.com -safe=false
 ```
 $ waf-tester smuggle -u https://app.example.com
 
-WAFtester v2.9.30 — HTTP Smuggling Detection
+WAFtester v2.9.31 — HTTP Smuggling Detection
 
 Target: https://app.example.com
 Mode: Safe (timing-based)
@@ -2822,7 +2837,7 @@ waf-tester race -u https://target.com/process -attack toctou
 $ waf-tester race -u https://shop.example.com/apply-coupon -c 50 \
     -method POST -body '{"code":"SAVE50"}' -H "Authorization: Bearer xxx"
 
-WAFtester v2.9.30 — Race Condition Testing
+WAFtester v2.9.31 — Race Condition Testing
 
 Target: https://shop.example.com/apply-coupon
 Attack: double_submit
@@ -2948,7 +2963,7 @@ waf-tester crawl -u https://target.com -depth 5 -max-pages 500
 ```
 $ waf-tester crawl -u https://shop.example.com -depth 4 -max-pages 200
 
-WAFtester v2.9.30 — Web Crawler
+WAFtester v2.9.31 — Web Crawler
 
 Target: https://shop.example.com
 Depth: 4 | Max Pages: 200
@@ -3112,7 +3127,7 @@ waf-tester analyze -file ./app.js
 ```
 $ waf-tester analyze -u https://app.example.com
 
-WAFtester v2.9.30 — JavaScript Analysis
+WAFtester v2.9.31 — JavaScript Analysis
 
 Target: https://app.example.com
 JavaScript files: 12
@@ -3276,7 +3291,7 @@ waf-tester headless -l targets.txt --stream
 ```
 $ waf-tester headless -u https://spa.example.com -screenshot -v
 
-WAFtester v2.9.30 — Headless Browser Testing
+WAFtester v2.9.31 — Headless Browser Testing
 
 Target: https://spa.example.com
 Browser: Chromium (embedded)
@@ -3444,14 +3459,31 @@ waf-tester discover -u https://example.com -output custom-discovery.json
 | JavaScript | Inline and external | API endpoints, internal URLs |
 | Wayback Machine | Archive.org | Historical endpoints, old versions |
 | HTML forms | All pages | Input fields, actions |
-| Service presets | Known patterns | Admin panels, API docs |
+| Service presets | JSON files in `presets/` | Service-specific endpoints, admin panels, API docs |
+
+#### Using Service Presets with Discovery
+
+Service presets add known endpoints for specific platforms. When you specify `-service`, the discover command loads the matching preset and includes its endpoints in the discovery results.
+
+```bash
+# Discover with authentik preset — adds OAuth2, SAML, admin paths
+waf-tester discover -u https://sso.example.com -service authentik
+
+# Discover with n8n preset — adds REST API, webhook, WebSocket paths
+waf-tester discover -u https://automation.example.com -service n8n
+
+# Custom preset directory
+WAF_TESTER_PRESET_DIR=./my-presets waf-tester discover -u https://target.com -service myapp
+```
+
+See [Service Presets](#service-presets) for creating custom presets.
 
 #### Sample Discovery Output
 
 ```
 $ waf-tester discover -u https://shop.example.com
 
-WAFtester v2.9.30 — Endpoint Discovery
+WAFtester v2.9.31 — Endpoint Discovery
 
 Target: https://shop.example.com
 
@@ -3528,7 +3560,7 @@ waf-tester run -u https://example.com -c 50 -rl 200
 ```
 $ waf-tester run -plan testplan.json
 
-WAFtester v2.9.30 — Test Execution
+WAFtester v2.9.31 — Test Execution
 
 Plan: testplan.json
 Endpoints: 148
@@ -3633,7 +3665,7 @@ waf-tester workflow -f workflow.yaml -dry-run
 ```
 $ waf-tester workflow -f full-assessment.yaml -var "target=https://shop.example.com"
 
-WAFtester v2.9.30 — Workflow Orchestration
+WAFtester v2.9.31 — Workflow Orchestration
 
 Workflow: Full Security Assessment
 Steps: 4
@@ -5133,7 +5165,7 @@ waf-tester scan -u https://target.com -format cyclonedx -o waf-findings.vex.json
       {
         "vendor": "WAFtester",
         "name": "waf-tester",
-        "version": "2.9.30"
+        "version": "2.9.31"
       }
     ],
     "component": {
@@ -5207,10 +5239,10 @@ waf-tester scan -u https://target.com \
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<waftester-report version="2.9.30" generatedAt="2026-02-03T14:30:00Z">
+<waftester-report version="2.9.31" generatedAt="2026-02-03T14:30:00Z">
   <generator>
     <name>WAFtester</name>
-    <version>2.9.30</version>
+    <version>2.9.31</version>
   </generator>
   <target>
     <url>https://target.com</url>
@@ -5305,7 +5337,7 @@ export WAFTESTER_ELASTICSEARCH_INDEX=security-waf
   "_source": {
     "@timestamp": "2026-02-03T14:30:00Z",
     "tool": "waftester",
-    "version": "2.9.30",
+    "version": "2.9.31",
     "target": "https://target.com",
     "waf_vendor": "Cloudflare",
     "category": "sqli",
@@ -5405,7 +5437,7 @@ A WAF bypass was detected during security testing.
 - Test with additional evasion techniques
 
 ---
-*Created by WAFtester v2.9.30*
+*Created by WAFtester v2.9.31*
 ```
 
 ### Azure DevOps Integration (v2.6.8+)
@@ -5724,7 +5756,7 @@ waf-tester scan -u https://target.com \
     {
       "type": "context",
       "elements": [
-        { "type": "mrkdwn", "text": "WAFtester v2.9.30 | Scan ID: a1b2c3d4 | 2026-02-03T14:30:00Z" }
+        { "type": "mrkdwn", "text": "WAFtester v2.9.31 | Scan ID: a1b2c3d4 | 2026-02-03T14:30:00Z" }
       ]
     }
   ]
@@ -5875,7 +5907,7 @@ waf-tester scan -u https://target.com \
       "resource": {
         "attributes": [
           { "key": "service.name", "value": { "stringValue": "waf-tester" } },
-          { "key": "service.version", "value": { "stringValue": "2.9.30" } }
+          { "key": "service.version", "value": { "stringValue": "2.9.31" } }
         ]
       },
       "scopeSpans": [
@@ -7027,7 +7059,7 @@ Each payload test produces one of these outcomes:
 ### Reading the summary output
 
 ```text
-WAFtester v2.9.30 — Assessment Complete
+WAFtester v2.9.31 — Assessment Complete
 Target:    https://example.com
 WAF:       Cloudflare (94% confidence)
 
@@ -7921,7 +7953,7 @@ docker run --rm ghcr.io/waftester/waftester \
   scan -u https://example.com -category sqli,xss
 
 # Use a specific version
-docker run -p 8080:8080 ghcr.io/waftester/waftester:2.9.30
+docker run -p 8080:8080 ghcr.io/waftester/waftester:2.9.31
 ```
 
 #### Available Image Tags
@@ -7929,7 +7961,7 @@ docker run -p 8080:8080 ghcr.io/waftester/waftester:2.9.30
 | Tag | Description |
 |-----|-------------|
 | `latest` | Latest stable release |
-| `2.9.30` | Exact version (semver) |
+| `2.9.31` | Exact version (semver) |
 | `2.9`, `2` | Minor/major aliases |
 | `edge` | Latest `main` branch build |
 | `sha-abc1234` | Specific commit |
@@ -7943,7 +7975,7 @@ The repository includes a `docker-compose.yml` for local builds:
 docker compose up --build
 
 # With version metadata
-VERSION=2.9.30 COMMIT=$(git rev-parse --short HEAD) \
+VERSION=2.9.31 COMMIT=$(git rev-parse --short HEAD) \
   BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
   docker compose up --build
 
@@ -8198,6 +8230,23 @@ waf-tester mcp --payloads ./payloads --templates ./templates/nuclei
 
 The `list_payloads` tool also reports unified stats including Nuclei template payload counts alongside JSON payload counts. Environment variables `WAF_TESTER_PAYLOAD_DIR` and `WAF_TESTER_TEMPLATE_DIR` configure both sources.
 
+### Custom Preset Directories
+
+The MCP `--presets` flag and `WAF_TESTER_PRESET_DIR` environment variable control where service presets are loaded from:
+
+```bash
+# MCP server with custom presets
+waf-tester mcp --presets /path/to/presets
+
+# Via environment variable
+WAF_TESTER_PRESET_DIR=/opt/presets waf-tester mcp
+
+# Docker with custom presets volume
+docker run -p 8080:8080 \
+  -v /path/to/presets:/app/presets:ro \
+  ghcr.io/waftester/waftester
+```
+
 ### Custom Payload Directories Across Commands
 
 All commands that use payloads support the `--payloads` flag for custom payload directories. Commands that also use Nuclei templates accept `--template-dir`.
@@ -8245,6 +8294,418 @@ waf-tester mcp \
 | `auto` | `--payloads` | — |
 | `bypass` | `--payloads` | — |
 | `mutate` | `--payloads` | — |
+
+---
+
+## Service Presets
+
+Service presets are JSON files that define known endpoints and attack surface characteristics for specific platforms. When you use `-service NAME`, WAFtester loads the matching preset from the `presets/` directory and uses its data during discovery and scanning.
+
+### Why Presets?
+
+Without presets, WAFtester discovers endpoints through crawling, JavaScript parsing, and sitemap analysis. This works well for most targets but misses known API routes, admin panels, and internal paths specific to a platform. Presets fill this gap by providing a curated list of endpoints that the platform is known to expose.
+
+### How Presets Work
+
+1. You specify `-service authentik` (or any preset name)
+2. WAFtester loads `presets/authentik.json`
+3. Discovery adds the preset endpoints to its crawl results
+4. Attack surface hints (e.g., `has_oauth`, `has_file_upload`) influence payload selection
+
+### Resolution Order
+
+Presets load from the first available source:
+
+| Priority | Source | When |
+|----------|--------|------|
+| 1 | `WAF_TESTER_PRESET_DIR` env var | Custom directory override |
+| 2 | `./presets` directory | Default on-disk directory |
+| 3 | Embedded presets | Fallback (e.g., `go install` without filesystem access) |
+
+### Built-in Presets
+
+| Preset | Description | Key Endpoints |
+|--------|-------------|---------------|
+| `authentik` | Identity provider (OAuth2, SAML, LDAP) | `/api/v3/`, `/application/o/`, `/source/saml/` |
+| `n8n` | Workflow automation | `/rest/workflows`, `/webhook/`, `/api/v1/` |
+| `immich` | Self-hosted photo management | `/api/assets/upload`, `/api/search/`, `/api/faces/` |
+| `webapp` | Generic web application | `/api/`, `/login`, `/admin/`, `/upload` |
+| `intranet` | Internal/intranet application | `/api/`, `/dashboard/`, `/graphql` |
+
+<details>
+<summary><strong>authentik.json</strong> — Identity provider (OAuth2, SAML, LDAP)</summary>
+
+Identity providers are high-value targets because they control authentication for every downstream application. A vulnerability here compromises the entire SSO chain.
+
+**Why these endpoints:**
+- **Health probes** (`/-/health/`) — confirm the service is reachable and reveal version/stack info in headers.
+- **Core API** (`/api/v3/core/`) — applications, groups, users, tokens. IDOR and privilege escalation targets. Token endpoints are particularly sensitive because leaked tokens grant cross-service access.
+- **Flow executor** (`/api/v3/flows/executor/`) — drives the authentication pipeline. Flow manipulation can bypass MFA or skip consent screens.
+- **OAuth endpoints** (`/application/o/authorize|token|userinfo`) — authorization code injection, token theft, open redirect via `redirect_uri`, scope escalation.
+- **SAML source** (`/source/saml/`) — XML parsing surface. XXE, SAML response forgery, signature wrapping attacks.
+- **Admin/User panels** (`/if/admin/`, `/if/user/`) — client-side rendered SPAs that often have different authorization boundaries than the API.
+- **WebSocket** (`/ws/`) — persistent connection. Tests WebSocket upgrade handling and frame injection.
+
+**Attack surface flags:** `has_auth_endpoints` + `has_oauth` + `has_saml` tells WAFtester to include OAuth-specific payloads (redirect_uri manipulation, token endpoint abuse) and SAML-specific payloads (XML signature bypass, assertion replay) alongside standard injection tests.
+
+```json
+{
+  "name": "authentik",
+  "description": "Authentik identity provider — OAuth2, SAML, LDAP authentication platform",
+  "endpoints": [
+    "/-/health/ready/",
+    "/-/health/live/",
+    "/api/v3/core/applications/",
+    "/api/v3/core/groups/",
+    "/api/v3/core/users/",
+    "/api/v3/core/tokens/",
+    "/api/v3/flows/executor/",
+    "/api/v3/policies/",
+    "/application/o/authorize/",
+    "/application/o/token/",
+    "/application/o/userinfo/",
+    "/source/saml/",
+    "/source/oauth/",
+    "/if/flow/default-authentication-flow/",
+    "/if/admin/",
+    "/if/user/",
+    "/ws/"
+  ],
+  "attack_surface": {
+    "has_auth_endpoints": true,
+    "has_oauth": true,
+    "has_saml": true
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>n8n.json</strong> — Workflow automation (REST API, webhooks, WebSocket)</summary>
+
+Workflow automation platforms are high-risk targets because they execute arbitrary logic triggered by external input. Compromising n8n means arbitrary code execution on the host.
+
+**Why these endpoints:**
+- **Health check** (`/healthz`) — confirms the instance is live and often leaks version info.
+- **REST API** (`/rest/workflows`, `/rest/credentials`, `/rest/executions`) — the core management surface. Workflows contain business logic, credentials store secrets (API keys, DB passwords), and executions may log sensitive data. IDOR on any of these is critical.
+- **Settings/Users** (`/rest/settings`, `/rest/users`) — configuration tampering and user enumeration.
+- **OAuth credential** (`/rest/oauth2-credential/`) — stores OAuth tokens for third-party integrations. Token theft here compromises connected services.
+- **Webhooks** (`/webhook/`, `/webhook-test/`) — accept arbitrary external input and trigger workflow execution. Primary injection surface: payloads in webhook bodies flow directly into workflow nodes.
+- **API v1** (`/api/v1/`) — public API with potentially different auth requirements than the internal REST API.
+- **Push** (`/push`) — WebSocket endpoint for real-time UI updates. Tests upgrade handling and frame-level injection.
+
+**Attack surface flags:** `has_api_endpoints` + `has_websockets` tells WAFtester to focus on API injection patterns (JSON body payloads, header injection, parameter pollution) and WebSocket-specific tests (upgrade request manipulation, frame injection).
+
+```json
+{
+  "name": "n8n",
+  "description": "n8n workflow automation platform — REST API, webhooks, WebSocket push",
+  "endpoints": [
+    "/healthz",
+    "/rest/workflows",
+    "/rest/credentials",
+    "/rest/executions",
+    "/rest/settings",
+    "/rest/users",
+    "/rest/oauth2-credential/",
+    "/webhook/",
+    "/webhook-test/",
+    "/api/v1/",
+    "/push"
+  ],
+  "attack_surface": {
+    "has_api_endpoints": true,
+    "has_websockets": true
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>immich.json</strong> — Self-hosted photo/video management</summary>
+
+Photo management platforms combine file upload, ML processing, and user data — three attack surfaces that compound each other. Malicious uploads can exploit image parsers, and face recognition endpoints process untrusted binary data.
+
+**Why these endpoints:**
+- **Server probes** (`/api/server/ping`, `/api/server-info/`) — confirm reachability and reveal server configuration (storage type, ML model versions, feature flags).
+- **Auth** (`/api/auth/login`, `/api/auth/signup`) — standard credential endpoints. Signup may allow unauthorized account creation if not properly gated.
+- **Users/Albums** (`/api/users/`, `/api/albums/`) — IDOR targets. User enumeration via sequential IDs or predictable UUIDs. Album access control bypass.
+- **Assets** (`/api/assets/`, `/api/assets/upload`) — the primary attack vector. File upload endpoints accept images/videos and pass them through processing pipelines (thumbnailing, EXIF extraction, ML inference). Test for: unrestricted file types, path traversal in filenames, oversized uploads, polyglot files (image headers + embedded payloads).
+- **Search** (`/api/search/`) — full-text and metadata search. Potential for injection if search queries hit a database or search engine directly.
+- **Face recognition** (`/api/faces/`, `/api/people/`) — ML endpoints that process binary data. Less common injection target but may have deserialization issues or resource exhaustion vulnerabilities.
+
+**Attack surface flags:** `has_file_upload` + `has_api_endpoints` tells WAFtester to include file upload bypass payloads (extension manipulation, content-type spoofing, path traversal in multipart filenames) alongside standard API injection tests.
+
+```json
+{
+  "name": "immich",
+  "description": "Immich self-hosted photo/video management — asset upload, face recognition, search",
+  "endpoints": [
+    "/api/server/ping",
+    "/api/server-info/",
+    "/api/auth/login",
+    "/api/auth/signup",
+    "/api/users/",
+    "/api/albums/",
+    "/api/assets/",
+    "/api/assets/upload",
+    "/api/search/",
+    "/api/faces/",
+    "/api/people/"
+  ],
+  "attack_surface": {
+    "has_file_upload": true,
+    "has_api_endpoints": true
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>webapp.json</strong> — Generic web application</summary>
+
+A catch-all preset for standard web applications when no service-specific preset exists. Covers the endpoints that appear in most web apps regardless of framework.
+
+**Why these endpoints:**
+- **API versions** (`/api/`, `/api/v1/`, `/api/v2/`) — versioned APIs often have different security controls. Older versions may lack input validation that newer versions enforce.
+- **Auth flow** (`/login`, `/logout`, `/register`, `/signup`) — credential stuffing, brute force, account enumeration, session fixation.
+- **Admin/Dashboard** (`/admin/`, `/dashboard/`) — privilege escalation targets. Often behind weaker WAF rules because they are "internal."
+- **User management** (`/settings/`, `/profile/`, `/users/`) — IDOR, mass assignment, privilege escalation via profile field manipulation.
+- **Search** (`/search`) — injection surface. Search queries often reach databases or search engines with insufficient sanitization.
+- **File handling** (`/upload`, `/download`) — unrestricted upload, path traversal in download parameters, content-type bypass.
+- **GraphQL** (`/graphql`) — introspection disclosure, nested query DoS, batch query abuse, field-level authorization bypass.
+- **API docs** (`/swagger.json`, `/openapi.json`) — not an attack endpoint, but leaks the entire API surface. WAFtester uses these to discover additional endpoints.
+- **Sensitive files** (`/.env`, `/config`) — configuration file exposure. A reachable `.env` file typically leaks database credentials, API keys, and secrets.
+
+**Attack surface flags:** `has_api_endpoints` + `has_auth_endpoints` gives WAFtester the baseline injection and authentication test suites. Add more flags as you learn about the target (file upload, GraphQL, etc.).
+
+```json
+{
+  "name": "webapp",
+  "description": "Generic web application — login, API, admin, file upload, search",
+  "endpoints": [
+    "/api/",
+    "/api/v1/",
+    "/api/v2/",
+    "/login",
+    "/logout",
+    "/register",
+    "/signup",
+    "/admin/",
+    "/dashboard/",
+    "/settings/",
+    "/profile/",
+    "/users/",
+    "/search",
+    "/upload",
+    "/download",
+    "/graphql",
+    "/swagger.json",
+    "/openapi.json",
+    "/.env",
+    "/config"
+  ],
+  "attack_surface": {
+    "has_api_endpoints": true,
+    "has_auth_endpoints": true
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>intranet.json</strong> — Internal/intranet application</summary>
+
+Internal applications deserve dedicated testing because they are often deployed behind a corporate VPN or network perimeter with the assumption that "internal = trusted." This assumption leads to weaker WAF rules, disabled input validation, and exposed debug endpoints. A preset for internal apps signals WAFtester to probe for this false sense of security.
+
+**Why these endpoints are the same as webapp:** Internal apps are structurally similar to external web apps, but the security posture differs. The same `/admin/`, `/upload`, and `/.env` endpoints exist, but internal apps are more likely to have them exposed without protection. This preset uses the same endpoint list as `webapp` but exists as a separate preset so teams can apply different scan configurations, thresholds, and reporting for internal vs. external targets.
+
+**When to customize:** Fork this preset and add endpoints specific to your internal tools: `/jenkins/`, `/sonarqube/`, `/grafana/api/`, `/kibana/`, `/prometheus/metrics`, etc. Internal tools often expose metrics and admin endpoints without authentication.
+
+**Attack surface flags:** Same as `webapp`. Override with `has_graphql`, `has_websockets`, `has_file_upload` etc. as you discover what your internal app exposes.
+
+```json
+{
+  "name": "intranet",
+  "description": "Internal/intranet application — admin panels, internal APIs, SSO",
+  "endpoints": [
+    "/api/",
+    "/api/v1/",
+    "/api/v2/",
+    "/login",
+    "/logout",
+    "/register",
+    "/signup",
+    "/admin/",
+    "/dashboard/",
+    "/settings/",
+    "/profile/",
+    "/users/",
+    "/search",
+    "/upload",
+    "/download",
+    "/graphql",
+    "/swagger.json",
+    "/openapi.json",
+    "/.env",
+    "/config"
+  ],
+  "attack_surface": {
+    "has_api_endpoints": true,
+    "has_auth_endpoints": true
+  }
+}
+```
+</details>
+
+### Usage
+
+```bash
+# Auto scan with service preset
+waf-tester auto -u https://sso.example.com -service authentik
+
+# Discover endpoints using preset hints
+waf-tester discover -u https://automation.example.com -service n8n
+
+# Three-step workflow with preset
+waf-tester discover -u https://photos.example.com -service immich
+waf-tester learn -discovery discovery.json
+waf-tester run -plan testplan.json
+```
+
+### Creating Custom Presets
+
+Add a JSON file to the `presets/` directory. The file name (minus `.json`) becomes the preset name.
+
+#### Designing Good Presets
+
+A preset is a hypothesis about where a service is most vulnerable. Good presets are focused, not exhaustive — they encode the security-relevant endpoints that matter most, not every route in the app.
+
+**Endpoint selection strategy:**
+
+1. **Start with authentication.** Login, signup, password reset, OAuth token, SAML SSO — these are always high-value targets. If the service has auth, list every auth-related path.
+2. **Find the data entry points.** File uploads, search boxes, webhook receivers, form submissions, API endpoints that accept POST/PUT bodies — anywhere user-controlled data enters the system.
+3. **Locate admin and privileged surfaces.** Admin panels, settings pages, user management — endpoints where authorization boundaries matter.
+4. **Probe for information leaks.** Health checks, API docs (`/swagger.json`, `/openapi.json`), debug endpoints, environment files (`/.env`), config endpoints — these reveal stack details and may expose secrets.
+5. **Include protocol-specific endpoints.** GraphQL endpoints, WebSocket upgrade paths, gRPC-Web endpoints — each protocol has its own attack patterns.
+
+**Setting attack surface flags:**
+
+Each flag tells WAFtester to include additional category-specific payloads in its test suite. Only set flags that are true for your target — false positives waste scan time.
+
+| Flag | Set when | What it enables |
+|------|----------|-----------------|
+| `has_auth_endpoints` | Service has login/register/password flows | Credential stuffing patterns, session fixation, account enumeration |
+| `has_api_endpoints` | Service exposes REST/JSON APIs | JSON body injection, header manipulation, parameter pollution |
+| `has_file_upload` | Users can upload files | Extension bypass, content-type spoofing, path traversal in filenames |
+| `has_oauth` | Service uses OAuth2 flows | Redirect URI manipulation, token theft, scope escalation |
+| `has_saml` | Service uses SAML SSO | XML signature wrapping, assertion replay, XXE via SAML |
+| `has_graphql` | Service exposes a GraphQL endpoint | Introspection leaks, nested query DoS, batch abuse |
+| `has_websockets` | Service uses WebSocket connections | Upgrade request manipulation, frame injection |
+
+**Common mistakes:**
+- Listing every route — presets are not sitemaps. Focus on security-relevant paths.
+- Omitting health/info endpoints — they seem harmless but leak version and stack information.
+- Setting all attack surface flags to `true` — only set what actually exists. False flags add noise.
+- Forgetting trailing slashes — some frameworks treat `/api/users` and `/api/users/` as different routes. Include the variant your service uses.
+
+#### JSON Schema
+
+```json
+{
+  "name": "myapp",
+  "description": "My application — what it does and key features",
+  "endpoints": [
+    "/api/v1/users",
+    "/api/v1/auth/login",
+    "/api/v1/auth/register",
+    "/admin/",
+    "/upload",
+    "/graphql",
+    "/health"
+  ],
+  "attack_surface": {
+    "has_auth_endpoints": true,
+    "has_api_endpoints": true,
+    "has_file_upload": true,
+    "has_oauth": false,
+    "has_saml": false,
+    "has_graphql": true,
+    "has_websockets": false
+  }
+}
+```
+
+#### Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Preset identifier (matches filename) |
+| `description` | string | Yes | What the service does |
+| `endpoints` | string[] | Yes | Known paths to probe during discovery |
+| `attack_surface.has_auth_endpoints` | bool | No | Has login/register/password reset |
+| `attack_surface.has_api_endpoints` | bool | No | Has REST/JSON API endpoints |
+| `attack_surface.has_file_upload` | bool | No | Has file upload functionality |
+| `attack_surface.has_oauth` | bool | No | Has OAuth2 flows |
+| `attack_surface.has_saml` | bool | No | Has SAML SSO |
+| `attack_surface.has_graphql` | bool | No | Has GraphQL endpoint |
+| `attack_surface.has_websockets` | bool | No | Has WebSocket connections |
+
+#### Example: GitLab Preset
+
+```json
+{
+  "name": "gitlab",
+  "description": "GitLab DevOps platform — Git hosting, CI/CD, container registry",
+  "endpoints": [
+    "/api/v4/projects",
+    "/api/v4/users",
+    "/api/v4/groups",
+    "/api/v4/runners",
+    "/users/sign_in",
+    "/users/sign_up",
+    "/oauth/authorize",
+    "/oauth/token",
+    "/-/graphql",
+    "/-/health",
+    "/-/readiness",
+    "/admin",
+    "/uploads"
+  ],
+  "attack_surface": {
+    "has_auth_endpoints": true,
+    "has_api_endpoints": true,
+    "has_file_upload": true,
+    "has_oauth": true,
+    "has_graphql": true,
+    "has_websockets": true
+  }
+}
+```
+
+Save as `presets/gitlab.json`. Use with:
+```bash
+waf-tester auto -u https://gitlab.example.com -service gitlab
+```
+
+#### Using Custom Preset Directories
+
+```bash
+# Environment variable
+export WAF_TESTER_PRESET_DIR=/opt/security/presets
+waf-tester auto -u https://target.com -service myapp
+
+# MCP server with custom presets
+waf-tester mcp --presets /opt/security/presets
+
+# Docker with custom presets mounted
+docker run -p 8080:8080 \
+  -v /opt/security/presets:/app/presets:ro \
+  ghcr.io/waftester/waftester
+
+# npm with custom presets
+WAF_TESTER_PRESET_DIR=./my-presets npx @waftester/cli auto -u https://target.com -service myapp
+```
 
 ---
 

@@ -10,6 +10,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/discovery"
 	"github.com/waftester/waftester/pkg/payloadprovider"
 	"github.com/waftester/waftester/pkg/payloads"
 	"github.com/waftester/waftester/pkg/templateresolver"
@@ -79,8 +80,8 @@ func (s *Server) addVersionResource() {
 				},
 				"template_categories":   catNames,
 				"tools":                 tools,
-				"supported_waf_vendors": vendors.GetVendorNamesByCategory("cloud", "appliance", "software", "bot-management", "wordpress-plugin", "joomla-plugin"),
-				"supported_cdn_vendors": vendors.GetVendorNamesByCategory("cdn-integrated"),
+				"supported_waf_vendors": vendors.GetVendorNamesByCategory(vendors.WAFCategories()...),
+				"supported_cdn_vendors": vendors.GetVendorNamesByCategory(vendors.CDNCategories()...),
 				"attack_categories":     payloadprovider.NewCategoryMapper().ShortNames(),
 			}
 			data, err := json.MarshalIndent(info, "", "  ")
@@ -703,7 +704,7 @@ func (s *Server) addConfigResource() {
 					"max_depth":       map[string]any{"default": 3, "min": 1, "max": 10},
 					"concurrency":     map[string]any{"default": 10, "min": 1, "max": 50},
 					"timeout_seconds": map[string]any{"default": 10, "min": 1, "max": 60},
-					"service_presets": []string{"authentik", "n8n", "immich", "webapp", "intranet"},
+					"service_presets": discovery.ServicePresets(),
 				},
 				"detect_waf": map[string]any{
 					"timeout_seconds": map[string]any{"default": 10, "min": 1, "max": 60},

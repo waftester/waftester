@@ -8,6 +8,9 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// mutateEncoders is the canonical list of encoders supported by the mutate tool.
+var mutateEncoders = []string{"url", "double_url", "unicode", "html_hex"}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // mutate — Payload Mutation & Encoding
 // ═══════════════════════════════════════════════════════════════════════════
@@ -53,7 +56,7 @@ Returns: list of {encoder, encoded_payload} pairs ready for copy-paste testing.`
 						"type": "array",
 						"items": map[string]any{
 							"type": "string",
-							"enum": []string{"url", "double_url", "unicode", "html_hex"},
+							"enum": mutateEncoders,
 						},
 						"description": "Encoders to apply. Default: all available encoders.",
 					},
@@ -126,7 +129,7 @@ func (s *Server) handleMutate(_ context.Context, req *mcp.CallToolRequest) (*mcp
 // applyBasicEncodings applies common encoding transformations to a payload.
 func applyBasicEncodings(payload string, encoders []string) []mutateVariant {
 	if len(encoders) == 0 {
-		encoders = []string{"url", "double_url", "unicode", "html_hex"}
+		encoders = mutateEncoders
 	}
 
 	encSet := make(map[string]bool)

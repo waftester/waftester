@@ -142,6 +142,12 @@ const (
 	// CrawlDelay is the delay between crawl/recursive requests (100ms)
 	CrawlDelay = 100 * time.Millisecond
 
+	// RetryBaseBackoff is the base delay for exponential backoff retries (500ms)
+	RetryBaseBackoff = 500 * time.Millisecond
+
+	// RetryAfterMax is the maximum Retry-After header value we'll honor (30s)
+	RetryAfterMax = 30 * time.Second
+
 	// WorkerHeartbeat is for distributed worker heartbeat (10s)
 	WorkerHeartbeat = 10 * time.Second
 
