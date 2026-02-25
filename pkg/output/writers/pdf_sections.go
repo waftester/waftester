@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	gofpdf "github.com/go-pdf/fpdf"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/output/events"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -50,7 +51,7 @@ func (pw *PDFWriter) addSeverityConfidenceMatrix(pdf *gofpdf.Fpdf) {
 		"that should be prioritized for remediation.", "", "L", false)
 	pdf.Ln(5)
 
-	sevOrder := []string{"critical", "high", "medium", "low", "info"}
+	sevOrder := finding.OrderedStrings()
 	confOrder := []string{"certain", "high", "medium", "low", "tentative", "unknown"}
 
 	// Prune empty columns.

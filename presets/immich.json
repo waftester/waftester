@@ -1,0 +1,21 @@
+{
+  "name": "immich",
+  "description": "Immich self-hosted photo/video management — asset upload, face recognition, search",
+  "endpoints": [
+    "/api/server/ping",
+    "/api/server-info/",
+    "/api/auth/login",
+    "/api/auth/signup",
+    "/api/users/",
+    "/api/albums/",
+    "/api/assets/",
+    "/api/assets/upload",
+    "/api/search/",
+    "/api/faces/",
+    "/api/people/"
+  ],
+  "attack_surface": {
+    "has_file_upload": true,
+    "has_api_endpoints": true
+  }
+}

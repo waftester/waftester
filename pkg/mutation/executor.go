@@ -635,14 +635,7 @@ func (e *Executor) buildRequest(ctx context.Context, task MutationTask) (*http.R
 
 // QuickScan runs a fast scan with common encodings and locations
 func (e *Executor) QuickScan(ctx context.Context, payloads []string, handler ResultHandler) *ExecutionStats {
-	// Use minimal configuration for speed
-	e.config.Pipeline = &PipelineConfig{
-		Encoders:   []string{"raw", "url", "double_url"},
-		Locations:  []string{"query_param", "post_form", "post_json"},
-		Evasions:   []string{},
-		IncludeRaw: true,
-	}
-
+	e.config.Pipeline = QuickPipelineConfig()
 	tasks := e.GenerateTasks(payloads, nil)
 	return e.Execute(ctx, tasks, handler)
 }

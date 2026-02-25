@@ -28,6 +28,27 @@ Payloads in `payloads/community/` are MIT licensed and welcome contributions:
 3. Avoid duplicate payloads
 4. Test against a local WAF before submitting
 
+### Service Presets
+
+Service presets in `presets/` define known endpoints and attack surface characteristics for specific platforms (e.g., WordPress, GitLab, n8n). Contributing a preset:
+
+1. Create a JSON file in `presets/` named after the service (e.g., `presets/jira.json`)
+2. Follow the schema:
+   ```json
+   {
+     "name": "jira",
+     "description": "Atlassian Jira — issue tracking and project management",
+     "endpoints": ["/rest/api/2/search", "/login.jsp", "/secure/admin/"],
+     "attack_surface": {
+       "has_auth_endpoints": true,
+       "has_api_endpoints": true
+     }
+   }
+   ```
+3. Include only endpoints the platform is known to expose (check official docs)
+4. Set `attack_surface` flags that apply: `has_auth_endpoints`, `has_api_endpoints`, `has_file_upload`, `has_oauth`, `has_saml`, `has_graphql`, `has_websockets`
+5. Test with: `waf-tester discover -u https://your-instance -service jira`
+
 ## Development Setup
 
 ```bash

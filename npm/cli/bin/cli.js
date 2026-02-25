@@ -116,6 +116,9 @@ const cliDir = path.resolve(__dirname, "..");
 if (!process.env.WAF_TESTER_PAYLOAD_DIR) {
   process.env.WAF_TESTER_PAYLOAD_DIR = path.join(cliDir, "payloads");
 }
+if (!process.env.WAF_TESTER_PRESET_DIR) {
+  process.env.WAF_TESTER_PRESET_DIR = path.join(cliDir, "presets");
+}
 if (!process.env.WAF_TESTER_TEMPLATE_DIR) {
   process.env.WAF_TESTER_TEMPLATE_DIR = path.join(
     cliDir,

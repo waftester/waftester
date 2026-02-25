@@ -56,14 +56,20 @@ type WebhookOptions struct {
 	Logger *slog.Logger
 }
 
-// severityOrder maps severity to numeric order for comparison.
-// Higher number = more severe.
-var severityOrder = map[events.Severity]int{
-	events.SeverityInfo:     1,
-	events.SeverityLow:      2,
-	events.SeverityMedium:   3,
-	events.SeverityHigh:     4,
-	events.SeverityCritical: 5,
+// severityMeetsMin returns true if severity >= minSeverity.
+// Unknown severities are allowed through (returns true).
+func severityMeetsMin(severity, minSeverity events.Severity) bool {
+	minScore := minSeverity.Score()
+	if minScore == 0 {
+		return true // Unknown min severity, allow through
+	}
+
+	eventScore := severity.Score()
+	if eventScore == 0 {
+		return true // Unknown event severity, allow through
+	}
+
+	return eventScore >= minScore
 }
 
 // NewWebhookHook creates a new webhook hook that sends events to the given endpoint.
@@ -123,11 +129,6 @@ func (h *WebhookHook) EventTypes() []events.EventType {
 
 // meetsMinSeverity checks if the event meets the minimum severity threshold.
 func (h *WebhookHook) meetsMinSeverity(event events.Event) bool {
-	minOrder, ok := severityOrder[h.opts.MinSeverity]
-	if !ok {
-		return true // Unknown severity, allow through
-	}
-
 	// Extract severity from the event
 	var eventSeverity events.Severity
 	switch e := event.(type) {
@@ -139,12 +140,7 @@ func (h *WebhookHook) meetsMinSeverity(event events.Event) bool {
 		return true // Non-severity events pass through
 	}
 
-	eventOrder, ok := severityOrder[eventSeverity]
-	if !ok {
-		return true // Unknown severity, allow through
-	}
-
-	return eventOrder >= minOrder
+	return severityMeetsMin(eventSeverity, h.opts.MinSeverity)
 }
 
 // sendWithRetry sends the request with exponential backoff retries.

@@ -96,6 +96,23 @@ $ waf-tester assess -u https://target.com -fp -o assessment.json
 
 Includes benign traffic corpus testing (Leipzig integration) for false positive measurement.
 
+### Service Presets
+
+Use service presets for platform-specific testing. Presets add known endpoints and attack surface hints to improve discovery coverage.
+
+```bash
+# Test an Authentik identity provider
+waf-tester auto -u https://sso.example.com -service authentik
+
+# Test an n8n automation instance
+waf-tester discover -u https://automation.example.com -service n8n
+
+# Custom presets — drop JSON files in presets/ directory
+WAF_TESTER_PRESET_DIR=./my-presets waf-tester auto -u https://target.com -service myapp
+```
+
+Built-in presets: `authentik`, `n8n`, `immich`, `webapp`, `intranet`. Create custom presets by adding JSON files — see the [Examples Guide](https://github.com/waftester/waftester/blob/main/docs/EXAMPLES.md#service-presets).
+
 ### Targeted Scanning
 
 ```bash
@@ -280,6 +297,7 @@ ARM64 platforms with x64 emulation (Rosetta 2, Windows WoW) are supported as fal
 |---|---|
 | `WAF_TESTER_BINARY_PATH` | Override binary path (skip platform resolution) |
 | `WAF_TESTER_PAYLOAD_DIR` | Override bundled payload directory |
+| `WAF_TESTER_PRESET_DIR` | Override bundled service preset directory |
 | `WAF_TESTER_TEMPLATE_DIR` | Override bundled template directory |
 
 ## License

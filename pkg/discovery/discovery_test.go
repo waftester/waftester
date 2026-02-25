@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/waftester/waftester/pkg/discovery/presets"
 	"github.com/waftester/waftester/pkg/httpclient"
 )
 
@@ -951,94 +953,105 @@ func TestLoadResultNotFound(t *testing.T) {
 	}
 }
 
-// TestGetAuthentikEndpoints tests authentik endpoint list
-func TestGetAuthentikEndpoints(t *testing.T) {
-	endpoints := getAuthentikEndpoints()
-	if len(endpoints) == 0 {
-		t.Error("expected authentik endpoints")
+// TestPresetsLoad verifies all JSON presets load and have endpoints
+func TestPresetsLoad(t *testing.T) {
+	names := presets.Names()
+	if len(names) == 0 {
+		t.Fatal("expected at least one preset")
 	}
-	// Check for some key authentik endpoints
-	found := false
-	for _, ep := range endpoints {
-		if strContains(ep, "health") {
-			found = true
-			break
+	for _, name := range names {
+		p := presets.Get(name)
+		if p == nil {
+			t.Errorf("preset %q returned nil", name)
+			continue
 		}
-	}
-	if !found {
-		t.Error("expected health endpoint in authentik list")
+		if len(p.Endpoints) == 0 {
+			t.Errorf("preset %q has no endpoints", name)
+		}
 	}
 }
 
-// TestGetN8nEndpoints tests n8n endpoint list
-func TestGetN8nEndpoints(t *testing.T) {
-	endpoints := getN8nEndpoints()
-	if len(endpoints) == 0 {
-		t.Error("expected n8n endpoints")
-	}
-	found := false
-	for _, ep := range endpoints {
-		if strContains(ep, "webhook") {
-			found = true
-			break
+// TestPresetsGetCaseInsensitive verifies case-insensitive lookup
+func TestPresetsGetCaseInsensitive(t *testing.T) {
+	for _, name := range []string{"Authentik", "AUTHENTIK", "authentik"} {
+		if presets.Get(name) == nil {
+			t.Errorf("expected preset for %q", name)
 		}
-	}
-	if !found {
-		t.Error("expected webhook endpoint in n8n list")
 	}
 }
 
-// TestGetImmichEndpoints tests immich endpoint list
-func TestGetImmichEndpoints(t *testing.T) {
-	endpoints := getImmichEndpoints()
-	if len(endpoints) == 0 {
-		t.Error("expected immich endpoints")
-	}
-	found := false
-	for _, ep := range endpoints {
-		if strContains(ep, "upload") {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Error("expected upload endpoint in immich list")
+// TestPresetsGetUnknown returns nil for unknown presets
+func TestPresetsGetUnknown(t *testing.T) {
+	if presets.Get("nonexistent-service") != nil {
+		t.Error("expected nil for unknown preset")
 	}
 }
 
-// TestGetAgreementPulseEndpoints tests agreementpulse endpoint list
-func TestGetAgreementPulseEndpoints(t *testing.T) {
-	endpoints := getAgreementPulseEndpoints()
-	if len(endpoints) == 0 {
-		t.Error("expected agreementpulse endpoints")
+// TestPresetsLoadFromDisk verifies presets load from a filesystem directory
+func TestPresetsLoadFromDisk(t *testing.T) {
+	// Reset to clear any existing registry state
+	presets.Reset()
+	defer presets.Reset() // clean up for other tests
+
+	// Create a temp dir with a custom preset
+	dir := t.TempDir()
+	data := []byte(`{
+		"name": "custom-app",
+		"description": "Test custom preset",
+		"endpoints": ["/api/test", "/health"],
+		"attack_surface": {"has_api_endpoints": true, "has_graphql": true}
+	}`)
+	if err := os.WriteFile(dir+"/custom-app.json", data, 0644); err != nil {
+		t.Fatal(err)
 	}
-	found := false
-	for _, ep := range endpoints {
-		if strContains(ep, "health") {
-			found = true
-			break
-		}
+
+	presets.SetDir(dir)
+	p := presets.Get("custom-app")
+	if p == nil {
+		t.Fatal("custom preset not loaded from disk")
 	}
-	if !found {
-		t.Error("expected health endpoint in agreementpulse list")
+	if len(p.Endpoints) != 2 {
+		t.Errorf("expected 2 endpoints, got %d", len(p.Endpoints))
+	}
+	if !p.AttackSurface.HasGraphQL {
+		t.Error("expected HasGraphQL from custom preset")
+	}
+
+	// Built-in presets should NOT be loaded (filesystem takes precedence, not merged)
+	if presets.Get("authentik") != nil {
+		t.Error("embedded presets should not load when disk dir exists")
 	}
 }
 
-// TestGetGenericEndpoints tests generic endpoint list
-func TestGetGenericEndpoints(t *testing.T) {
-	endpoints := getGenericEndpoints()
-	if len(endpoints) == 0 {
-		t.Error("expected generic endpoints")
+// TestPresetsEmbeddedFallback verifies embedded presets load when no dir is set
+func TestPresetsEmbeddedFallback(t *testing.T) {
+	presets.Reset()
+	defer presets.Reset()
+
+	// Point to a non-existent directory — should fall back to embedded
+	presets.SetDir("/nonexistent/path/that/does/not/exist")
+	p := presets.Get("authentik")
+	if p == nil {
+		t.Fatal("expected embedded fallback to load authentik preset")
 	}
-	found := false
-	for _, ep := range endpoints {
-		if strContains(ep, "api") {
-			found = true
-			break
-		}
+	if len(p.Endpoints) == 0 {
+		t.Error("expected endpoints from embedded preset")
 	}
-	if !found {
-		t.Error("expected api endpoint in generic list")
+}
+
+// TestApplyAttackHints verifies hints are applied to attack surface
+func TestApplyAttackHints(t *testing.T) {
+	p := presets.Get("authentik")
+	if p == nil {
+		t.Fatal("authentik preset not found")
+	}
+	var surface AttackSurface
+	applyAttackHints(&surface, &p.AttackSurface)
+	if !surface.HasAuthEndpoints {
+		t.Error("expected HasAuthEndpoints")
+	}
+	if !surface.HasOAuth {
+		t.Error("expected HasOAuth")
 	}
 }
 

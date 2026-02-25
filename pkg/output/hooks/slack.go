@@ -138,17 +138,7 @@ func (h *SlackHook) handleSummary(ctx context.Context, summary *events.SummaryEv
 
 // meetsMinSeverity checks if the severity meets the minimum threshold.
 func (h *SlackHook) meetsMinSeverity(severity events.Severity) bool {
-	minOrder, ok := severityOrder[h.opts.MinSeverity]
-	if !ok {
-		return true
-	}
-
-	eventOrder, ok := severityOrder[severity]
-	if !ok {
-		return true
-	}
-
-	return eventOrder >= minOrder
+	return severityMeetsMin(severity, h.opts.MinSeverity)
 }
 
 // sendBypassAlert sends an immediate alert for a critical/high bypass.

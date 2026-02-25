@@ -274,6 +274,9 @@ waf-tester scan -u https://target.com --smart --tamper-auto
 
 # With custom payload and template directories
 waf-tester scan -u https://target.com --payloads ./custom-payloads --template-dir ./my-templates
+
+# With service preset for platform-specific testing
+waf-tester auto -u https://sso.example.com -service authentik
 ```
 
 ### WAF Intelligence
@@ -582,6 +585,7 @@ For complete MCP examples, see [docs/EXAMPLES.md](docs/EXAMPLES.md#mcp-server-in
 | `--burp` | Burp Suite proxy shortcut | false |
 | `--zap` | OWASP ZAP proxy shortcut | false |
 | `--payloads` | Custom payload directory | `./payloads` |
+| `--presets` | Custom service preset directory | `./presets` |
 | `--template-dir` | Custom Nuclei template directory | `./templates/nuclei` |
 | `--stream` | Real-time streaming output | false |
 

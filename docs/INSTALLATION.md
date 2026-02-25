@@ -34,6 +34,7 @@ npm automatically installs only the binary for your platform via `optionalDepend
 |----------|-------------|
 | `WAF_TESTER_BINARY_PATH` | Override binary path (dev/debug) |
 | `WAF_TESTER_PAYLOAD_DIR` | Override payload directory |
+| `WAF_TESTER_PRESET_DIR` | Override service preset directory |
 | `WAF_TESTER_TEMPLATE_DIR` | Override Nuclei template directory |
 
 ## Homebrew (macOS/Linux)
@@ -93,6 +94,11 @@ docker run --rm ghcr.io/waftester/waftester scan -u https://example.com
 docker run -p 8080:8080 \
   -v /path/to/payloads:/app/payloads:ro \
   ghcr.io/waftester/waftester
+
+# Run with custom service presets mounted
+docker run -p 8080:8080 \
+  -v /path/to/presets:/app/presets:ro \
+  ghcr.io/waftester/waftester
 ```
 
 ### Available Tags
@@ -100,7 +106,7 @@ docker run -p 8080:8080 \
 | Tag | Description | Example |
 |-----|-------------|---------|
 | `latest` | Latest stable release | `ghcr.io/waftester/waftester:latest` |
-| `2.9.30` | Exact version | `ghcr.io/waftester/waftester:2.9.30` |
+| `2.9.31` | Exact version | `ghcr.io/waftester/waftester:2.9.31` |
 | `2.7` | Latest patch in minor | `ghcr.io/waftester/waftester:2.7` |
 | `2` | Latest in major | `ghcr.io/waftester/waftester:2` |
 | `edge` | Latest `main` build | `ghcr.io/waftester/waftester:edge` |
@@ -116,7 +122,7 @@ development:
 docker compose up --build
 
 # With version info from your environment
-VERSION=2.9.30 COMMIT=$(git rev-parse --short HEAD) \
+VERSION=2.9.31 COMMIT=$(git rev-parse --short HEAD) \
   docker compose up --build
 
 # Detached mode
@@ -137,6 +143,7 @@ The compose file sets `read_only: true`, `no-new-privileges`, and a
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `WAF_TESTER_PAYLOAD_DIR` | Override payload directory path | `/app/payloads` |
+| `WAF_TESTER_PRESET_DIR` | Override service preset directory path | `/app/presets` |
 | `WAF_TESTER_HTTP_ADDR` | HTTP listen address | `:8080` |
 
 ### Security Notes

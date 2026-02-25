@@ -18,7 +18,7 @@ import (
 )
 
 // Version is the current WAFtester version
-const Version = "2.9.30"
+const Version = "2.9.31"
 
 // ToolName is the canonical tool name for output formats and integrations
 const ToolName = "waftester"
@@ -28,6 +28,9 @@ const ToolNameDisplay = "WAFtester"
 
 // PayloadDir is the default directory for JSON payload files.
 const PayloadDir = "./payloads"
+
+// PresetDir is the default directory for service preset JSON files.
+const PresetDir = "./presets"
 
 // ============================================================================
 // TEMPLATE DIRECTORIES
@@ -276,6 +279,9 @@ const (
 	// DepthGraphQL is for GraphQL introspection queries (20)
 	// GraphQL schemas can have deeply nested types requiring extra depth
 	DepthGraphQL = 20
+
+	// CrawlMaxPages is the default maximum pages for a crawl session (100)
+	CrawlMaxPages = 100
 )
 
 // ============================================================================

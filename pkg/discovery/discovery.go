@@ -94,7 +94,7 @@ type DiscoveryConfig struct {
 	Concurrency   int
 	SkipVerify    bool
 	UserAgent     string
-	Service       string // Optional: authentik, n8n, immich, agreementpulse
+	Service       string // Optional: preset name from pkg/discovery/presets/
 	IncludePaths  []string
 	ExcludePaths  []string
 	DisableActive bool         // Skip active path brute-forcing (useful for testing)
@@ -146,6 +146,15 @@ func NewDiscoverer(cfg DiscoveryConfig) *Discoverer {
 		httpClient: client,
 		endpoints:  make([]Endpoint, 0),
 	}
+}
+
+// EndpointCount returns the current number of discovered endpoints.
+// Safe to call concurrently while Discover is running.
+func (d *Discoverer) EndpointCount() int {
+	d.mu.Lock()
+	n := len(d.endpoints)
+	d.mu.Unlock()
+	return n
 }
 
 // Discover runs the discovery process

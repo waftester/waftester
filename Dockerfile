@@ -64,6 +64,9 @@ COPY --from=build /bin/waf-tester .
 # Attack payload files — self-contained image
 COPY payloads/ ./payloads/
 
+# Service preset files for endpoint discovery
+COPY presets/ ./presets/
+
 # Pre-built templates (workflows, policies, overrides, output formats, report configs)
 COPY templates/ ./templates/
 

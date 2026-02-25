@@ -9,6 +9,9 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
+	_ "github.com/waftester/waftester/pkg/mutation/encoder"
+	_ "github.com/waftester/waftester/pkg/mutation/evasion"
+	_ "github.com/waftester/waftester/pkg/mutation/location"
 	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/waf/vendors"
 )

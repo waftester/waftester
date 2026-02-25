@@ -144,17 +144,7 @@ func (h *GitHubIssuesHook) EventTypes() []events.EventType {
 
 // meetsMinSeverity checks if the severity meets the minimum threshold.
 func (h *GitHubIssuesHook) meetsMinSeverity(severity events.Severity) bool {
-	minOrder, ok := severityOrder[h.opts.MinSeverity]
-	if !ok {
-		return true
-	}
-
-	eventOrder, ok := severityOrder[severity]
-	if !ok {
-		return true
-	}
-
-	return eventOrder >= minOrder
+	return severityMeetsMin(severity, h.opts.MinSeverity)
 }
 
 // createIssue creates a GitHub issue for the bypass event.

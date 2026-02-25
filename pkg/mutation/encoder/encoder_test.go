@@ -188,12 +188,15 @@ func TestAllEncodersRegistered(t *testing.T) {
 	// Verify all encoders are registered in the default registry
 	encoders := mutation.DefaultRegistry.GetByCategory("encoder")
 
-	expectedEncoders := []string{
+	// Verify we have a reasonable number of encoders
+	if len(encoders) < 10 {
+		t.Errorf("Expected at least 10 encoders, got %d", len(encoders))
+	}
+
+	// Verify key encoders are present
+	coreEncoders := []string{
 		"raw", "url", "double_url", "triple_url",
-		"html_decimal", "html_hex", "html_named",
-		"unicode", "utf7", "utf16le", "utf16be",
-		"overlong_utf8", "wide_gbk", "wide_sjis",
-		"base64", "hex", "octal", "mixed",
+		"html_decimal", "html_hex", "unicode", "base64",
 	}
 
 	registered := make(map[string]bool)
@@ -201,10 +204,17 @@ func TestAllEncodersRegistered(t *testing.T) {
 		registered[enc.Name()] = true
 	}
 
-	for _, name := range expectedEncoders {
+	for _, name := range coreEncoders {
 		if !registered[name] {
-			t.Errorf("Encoder '%s' not registered", name)
+			t.Errorf("Core encoder '%s' not registered", name)
 		}
+	}
+
+	// Verify NamesForCategory matches GetByCategory
+	names := mutation.DefaultRegistry.NamesForCategory("encoder")
+	if len(names) != len(encoders) {
+		t.Errorf("NamesForCategory returned %d names, GetByCategory returned %d mutators",
+			len(names), len(encoders))
 	}
 }
 

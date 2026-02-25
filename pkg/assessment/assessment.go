@@ -56,6 +56,7 @@ type Config struct {
 
 	// WAF detection
 	DetectWAF bool
+	WAFVendor string // Pre-detected WAF vendor (skips self-detection when set)
 }
 
 // DefaultConfig returns sensible defaults for assessment
@@ -147,7 +148,9 @@ func (a *Assessment) Run(ctx context.Context, progressFn ProgressCallback) (*met
 	a.startTime = time.Now()
 
 	// Phase 1: WAF Detection
-	if a.config.DetectWAF {
+	if a.config.WAFVendor != "" {
+		a.detectedWAF = a.config.WAFVendor
+	} else if a.config.DetectWAF {
 		if progressFn != nil {
 			progressFn(0, 0, "Detecting WAF...")
 		}
