@@ -117,7 +117,8 @@ func (e *Engine) SetProfile(p Profile) {
 }
 
 // GetSelectedTampers returns the list of tampers that will be applied
-// based on current profile and WAF detection
+// based on current profile and WAF detection.
+// Lock order: Engine.mu (held here) → package-level registry mu (via Get in mergeStrategyHints).
 func (e *Engine) GetSelectedTampers() []string {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -158,9 +159,9 @@ func (e *Engine) mergeStrategyHints(selected []string) []string {
 		if seen[lower] {
 			continue
 		}
-		// Only include hints that correspond to registered tampers
-		if Get(hint) != nil {
-			prepend = append(prepend, hint)
+		// Look up using lowercase (all registered tampers use lowercase names)
+		if t := Get(lower); t != nil {
+			prepend = append(prepend, t.Name()) // use canonical registry name
 			seen[lower] = true
 		}
 	}

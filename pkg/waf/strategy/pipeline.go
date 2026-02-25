@@ -250,15 +250,18 @@ func (s *Strategy) ShouldSkipPayload(encodingUsed string) bool {
 	return false
 }
 
-// PrioritizePayloads reorders payload categories based on WAF-specific knowledge.
-// If the strategy has PrioritizeMutators, those categories get the highest priority.
-// Otherwise, falls back to generic category ordering.
+// PrioritizePayloads reorders payload categories based on generic attack-type
+// ordering. Lower priority number = tested first. Unknown categories sort last.
+// Note: PrioritizeMutators contains encoding/technique names (e.g. "unicode",
+// "case_swap") which operate in the mutation pipeline, not at the category level.
 func (s *Strategy) PrioritizePayloads(payloadCategories []string) []string {
 	if len(payloadCategories) == 0 {
 		return payloadCategories
 	}
 
-	// Generic priority: lower number = higher priority
+	// Generic priority: lower number = higher priority.
+	// This ordering reflects typical WAF bypass likelihood:
+	// injection types that WAFs commonly miss come first.
 	priority := map[string]int{
 		"sqli":      10,
 		"injection": 10,
@@ -274,17 +277,10 @@ func (s *Strategy) PrioritizePayloads(payloadCategories []string) []string {
 		"cmdi":      90,
 	}
 
-	// Boost WAF-specific prioritized mutators to the top (1, 2, 3, ...)
-	if s != nil && len(s.PrioritizeMutators) > 0 {
-		for i, m := range s.PrioritizeMutators {
-			priority[strings.ToLower(m)] = i + 1
-		}
-	}
-
 	result := make([]string, len(payloadCategories))
 	copy(result, payloadCategories)
 
-	sort.Slice(result, func(i, j int) bool {
+	sort.SliceStable(result, func(i, j int) bool {
 		pi := priority[strings.ToLower(result[i])]
 		pj := priority[strings.ToLower(result[j])]
 		if pi == 0 {

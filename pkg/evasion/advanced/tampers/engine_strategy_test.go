@@ -65,6 +65,11 @@ func TestEngine_StrategyHints_NilConfig(t *testing.T) {
 }
 
 func TestEngine_StrategyHints_DedupsWithExisting(t *testing.T) {
+	// Verify precondition: randomcase must be registered and in the standard set
+	if Get("randomcase") == nil {
+		t.Skip("randomcase tamper not registered; cannot test dedup")
+	}
+
 	// When a hint is already in the vendor-recommended list, it should not appear twice
 	engine := NewEngine(&EngineConfig{
 		Profile:       ProfileStandard,

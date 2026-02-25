@@ -49,16 +49,46 @@ import (
 	"github.com/waftester/waftester/pkg/waf/vendors"
 )
 
-// smartModeCache is a JSON-serializable subset of SmartModeResult for resume.
+// smartModeCache is a JSON-serializable snapshot of SmartModeResult for resume.
+// All Strategy fields are persisted so resumed scans behave identically to fresh ones.
 type smartModeCache struct {
-	WAFDetected   bool     `json:"waf_detected"`
-	VendorName    string   `json:"vendor_name"`
-	Confidence    float64  `json:"confidence"`
-	BypassHints   []string `json:"bypass_hints,omitempty"`
-	RateLimit     float64  `json:"rate_limit"`
-	Concurrency   int      `json:"concurrency"`
-	StratEncoders []string `json:"strategy_encoders,omitempty"`
-	StratEvasions []string `json:"strategy_evasions,omitempty"`
+	WAFDetected             bool     `json:"waf_detected"`
+	VendorName              string   `json:"vendor_name"`
+	Confidence              float64  `json:"confidence"`
+	BypassHints             []string `json:"bypass_hints,omitempty"`
+	RateLimit               float64  `json:"rate_limit"`
+	Concurrency             int      `json:"concurrency"`
+	StratVendor             string   `json:"strategy_vendor,omitempty"`
+	StratVendorName         string   `json:"strategy_vendor_name,omitempty"`
+	StratConfidence         float64  `json:"strategy_confidence,omitempty"`
+	StratEncoders           []string `json:"strategy_encoders,omitempty"`
+	StratEvasions           []string `json:"strategy_evasions,omitempty"`
+	StratLocations          []string `json:"strategy_locations,omitempty"`
+	StratSkipIneffective    []string `json:"strategy_skip_ineffective,omitempty"`
+	StratPrioritizeMutators []string `json:"strategy_prioritize_mutators,omitempty"`
+	StratBypassTips         []string `json:"strategy_bypass_tips,omitempty"`
+	StratSafeRateLimit      int      `json:"strategy_safe_rate_limit,omitempty"`
+	StratBurstRateLimit     int      `json:"strategy_burst_rate_limit,omitempty"`
+	StratCooldownSeconds    int      `json:"strategy_cooldown_seconds,omitempty"`
+	StratBlockStatusCodes   []int    `json:"strategy_block_status_codes,omitempty"`
+	StratBlockPatterns      []string `json:"strategy_block_patterns,omitempty"`
+	StratRecommendedDepth   int      `json:"strategy_recommended_depth,omitempty"`
+}
+
+// copyStrings returns an independent copy of a string slice.
+func copyStrings(s []string) []string {
+	if s == nil {
+		return nil
+	}
+	return append([]string(nil), s...)
+}
+
+// copyInts returns an independent copy of an int slice.
+func copyInts(s []int) []int {
+	if s == nil {
+		return nil
+	}
+	return append([]int(nil), s...)
 }
 
 func newSmartModeCache(r *SmartModeResult) smartModeCache {
@@ -66,13 +96,26 @@ func newSmartModeCache(r *SmartModeResult) smartModeCache {
 		WAFDetected: r.WAFDetected,
 		VendorName:  r.VendorName,
 		Confidence:  r.Confidence,
-		BypassHints: r.BypassHints,
+		BypassHints: copyStrings(r.BypassHints),
 		RateLimit:   r.RateLimit,
 		Concurrency: r.Concurrency,
 	}
 	if r.Strategy != nil {
-		c.StratEncoders = r.Strategy.Encoders
-		c.StratEvasions = r.Strategy.Evasions
+		c.StratVendor = string(r.Strategy.Vendor)
+		c.StratVendorName = r.Strategy.VendorName
+		c.StratConfidence = r.Strategy.Confidence
+		c.StratEncoders = copyStrings(r.Strategy.Encoders)
+		c.StratEvasions = copyStrings(r.Strategy.Evasions)
+		c.StratLocations = copyStrings(r.Strategy.Locations)
+		c.StratSkipIneffective = copyStrings(r.Strategy.SkipIneffectiveMutators)
+		c.StratPrioritizeMutators = copyStrings(r.Strategy.PrioritizeMutators)
+		c.StratBypassTips = copyStrings(r.Strategy.BypassTips)
+		c.StratSafeRateLimit = r.Strategy.SafeRateLimit
+		c.StratBurstRateLimit = r.Strategy.BurstRateLimit
+		c.StratCooldownSeconds = r.Strategy.CooldownSeconds
+		c.StratBlockStatusCodes = copyInts(r.Strategy.BlockStatusCodes)
+		c.StratBlockPatterns = copyStrings(r.Strategy.BlockPatterns)
+		c.StratRecommendedDepth = r.Strategy.RecommendedMutationDepth
 	}
 	return c
 }
@@ -86,8 +129,21 @@ func (c *smartModeCache) toSmartModeResult() *SmartModeResult {
 		RateLimit:   c.RateLimit,
 		Concurrency: c.Concurrency,
 		Strategy: &strategy.Strategy{
-			Encoders: c.StratEncoders,
-			Evasions: c.StratEvasions,
+			Vendor:                   vendors.WAFVendor(c.StratVendor),
+			VendorName:               c.StratVendorName,
+			Confidence:               c.StratConfidence,
+			Encoders:                 c.StratEncoders,
+			Evasions:                 c.StratEvasions,
+			Locations:                c.StratLocations,
+			SkipIneffectiveMutators:  c.StratSkipIneffective,
+			PrioritizeMutators:       c.StratPrioritizeMutators,
+			BypassTips:               c.StratBypassTips,
+			SafeRateLimit:            c.StratSafeRateLimit,
+			BurstRateLimit:           c.StratBurstRateLimit,
+			CooldownSeconds:          c.StratCooldownSeconds,
+			BlockStatusCodes:         c.StratBlockStatusCodes,
+			BlockPatterns:            c.StratBlockPatterns,
+			RecommendedMutationDepth: c.StratRecommendedDepth,
 		},
 	}
 }
