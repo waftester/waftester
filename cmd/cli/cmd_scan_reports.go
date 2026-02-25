@@ -16,15 +16,6 @@ import (
 	"github.com/waftester/waftester/pkg/ui"
 )
 
-// severityOrder defines canonical display ordering for severity levels.
-var severityOrder = map[string]int{
-	"critical": 0,
-	"high":     1,
-	"medium":   2,
-	"low":      3,
-	"info":     4,
-}
-
 // sortedSeverities returns the keys of a severity map sorted by severity order
 // (Critical first, Info last). Unknown severities sort after known ones alphabetically.
 func sortedSeverities(m map[string]int) []string {
@@ -33,16 +24,10 @@ func sortedSeverities(m map[string]int) []string {
 		keys = append(keys, k)
 	}
 	sort.Slice(keys, func(i, j int) bool {
-		oi, oki := severityOrder[keys[i]]
-		oj, okj := severityOrder[keys[j]]
-		if !oki {
-			oi = 100
-		}
-		if !okj {
-			oj = 100
-		}
-		if oi != oj {
-			return oi < oj
+		si := finding.Severity(keys[i]).Score()
+		sj := finding.Severity(keys[j]).Score()
+		if si != sj {
+			return si > sj // higher score = more severe = sorts first
 		}
 		return keys[i] < keys[j]
 	})

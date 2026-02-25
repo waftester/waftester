@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/output/events"
 )
 
@@ -316,7 +317,7 @@ func TestPDFWriter_FlushIsNoOp(t *testing.T) {
 
 func TestPDFWriter_SeverityColors(t *testing.T) {
 	// Verify all severity colors are defined
-	severities := []string{"critical", "high", "medium", "low", "info"}
+	severities := finding.OrderedStrings()
 
 	for _, sev := range severities {
 		color, ok := pdfSeverityColors[sev]

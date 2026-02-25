@@ -84,7 +84,7 @@ TYPICAL WORKFLOW: detect_waf → discover → learn → scan`,
 					"service": map[string]any{
 						"type":        "string",
 						"description": "Application preset — adds known endpoint patterns.",
-						"enum":        []string{"authentik", "n8n", "immich", "webapp", "intranet"},
+						"enum":        discovery.ServicePresets(),
 					},
 					"skip_verify": map[string]any{
 						"type":        "boolean",

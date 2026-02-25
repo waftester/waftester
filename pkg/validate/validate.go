@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/payloadprovider"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -42,16 +43,17 @@ type PayloadSchema struct {
 }
 
 var (
-	validSeverities = map[string]bool{
-		"Critical": true,
-		"critical": true,
-		"High":     true,
-		"high":     true,
-		"Medium":   true,
-		"medium":   true,
-		"Low":      true,
-		"low":      true,
-	}
+	// validSeverities is built from finding.TitleCaseStrings to stay in sync.
+	// Payloads use Critical/High/Medium/Low (not Info).
+	validSeverities = func() map[string]bool {
+		titles := finding.TitleCaseStrings()
+		m := make(map[string]bool, len(titles)*2)
+		for _, s := range titles {
+			m[s] = true                    // title case ("Critical")
+			m[strings.ToLower(s)] = true   // lowercase ("critical")
+		}
+		return m
+	}()
 
 	validCategories = payloadprovider.NewCategoryMapper().ValidCategories()
 
@@ -249,7 +251,7 @@ func ValidatePayloads(payloadDir string, failFast bool, verbose bool) (*Validati
 			// Validate severity
 			if severity, ok := p["severity_hint"].(string); ok {
 				if !validSeverities[severity] {
-					msg := fmt.Sprintf("%s[%d]: invalid severity '%s' (expected: Critical, High, Medium, Low)", relPath, i, severity)
+					msg := fmt.Sprintf("%s[%d]: invalid severity '%s' (expected: %s)", relPath, i, severity, strings.Join(finding.TitleCaseStrings(), ", "))
 					result.InvalidSeverities = append(result.InvalidSeverities, msg)
 					result.Valid = false
 				}

@@ -11,6 +11,7 @@ import (
 
 	gofpdf "github.com/go-pdf/fpdf"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
 	"golang.org/x/text/cases"
@@ -430,7 +431,7 @@ func (pw *PDFWriter) addExecutiveSummary(pdf *gofpdf.Fpdf) {
 
 		// Table rows
 		pdf.SetFont("Helvetica", "", 10)
-		severityOrder := []string{"critical", "high", "medium", "low", "info"}
+		severityOrder := finding.OrderedStrings()
 		for _, sev := range severityOrder {
 			stats, exists := pw.summary.Breakdown.BySeverity[sev]
 			if !exists {
@@ -1058,7 +1059,7 @@ func (pw *PDFWriter) addSeverityBarChart(pdf *gofpdf.Fpdf, severityCounts map[st
 	}
 
 	barMaxWidth := 100.0
-	severities := []string{"critical", "high", "medium", "low", "info"}
+	severities := finding.OrderedStrings()
 
 	for _, sev := range severities {
 		count := severityCounts[sev]

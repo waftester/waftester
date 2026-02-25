@@ -16,6 +16,12 @@ import (
 	"github.com/waftester/waftester/pkg/regexcache"
 )
 
+// ServicePresets returns the canonical list of known service presets
+// for endpoint discovery. Used by MCP tool schemas and resource definitions.
+func ServicePresets() []string {
+	return []string{"authentik", "n8n", "immich", "webapp", "intranet"}
+}
+
 func (d *Discoverer) discoverForms(ctx context.Context, result *DiscoveryResult) {
 	// Analyze HTML responses for forms
 	for _, ep := range d.endpoints {

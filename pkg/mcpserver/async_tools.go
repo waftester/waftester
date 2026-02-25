@@ -16,6 +16,12 @@ import (
 // Using a pointer (*int) lets us distinguish "not provided" from "explicitly 0".
 const defaultWaitSeconds = 30
 
+// asyncToolNames is the canonical list of tool names that run asynchronously.
+var asyncToolNames = []string{"scan", "assess", "bypass", "discover", "scan_spec", "discover_bypasses", "event_crawl"}
+
+// asyncTaskStatuses is the canonical list of task statuses.
+var asyncTaskStatuses = []string{"pending", "running", "completed", "failed", "cancelled"}
+
 // ---------------------------------------------------------------------------
 // Async tool infrastructure — get_task_status, cancel_task, list_tasks
 // ---------------------------------------------------------------------------
@@ -81,7 +87,7 @@ TASK ID FORMAT: task_ prefix + exactly 16 hex characters (e.g., task_a1b2c3d4e5f
 					"tool_name": map[string]any{
 						"type":        "string",
 						"description": "When task_id is omitted, filter auto-discovery by the tool that started the task (e.g., \"assess\", \"scan\", \"bypass\", \"discover\", \"scan_spec\", \"discover_bypasses\", \"event_crawl\").",
-						"enum":        []string{"scan", "assess", "bypass", "discover", "scan_spec", "discover_bypasses", "event_crawl"},
+						"enum":        asyncToolNames,
 					},
 					"wait_seconds": map[string]any{
 						"type":        "integer",
@@ -328,12 +334,12 @@ EXAMPLES: {} or {"status": "running"} or {"tool_name": "assess"} or {"status": "
 					"status": map[string]any{
 						"type":        "string",
 						"description": "Filter by task status.",
-						"enum":        []string{"pending", "running", "completed", "failed", "cancelled"},
+						"enum":        asyncTaskStatuses,
 					},
 					"tool_name": map[string]any{
 						"type":        "string",
 						"description": "Filter by which tool started the task.",
-						"enum":        []string{"scan", "assess", "bypass", "discover", "scan_spec", "discover_bypasses", "event_crawl"},
+						"enum":        asyncToolNames,
 					},
 				},
 			},

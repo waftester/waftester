@@ -3231,3 +3231,14 @@ func GetVendorNamesByCategory(categories ...string) []string {
 	sort.Strings(names)
 	return names
 }
+
+// WAFCategories returns the vendor categories that represent WAF products
+// (everything except CDN-integrated). Use with GetVendorNamesByCategory.
+func WAFCategories() []string {
+	return []string{"cloud", "appliance", "software", "bot-management", "wordpress-plugin", "joomla-plugin"}
+}
+
+// CDNCategories returns the vendor categories that represent CDN-integrated WAFs.
+func CDNCategories() []string {
+	return []string{"cdn-integrated"}
+}
