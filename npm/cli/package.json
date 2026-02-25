@@ -1,6 +1,6 @@
 {
   "name": "@waftester/cli",
-  "version": "2.9.31",
+  "version": "2.9.32",
   "description": "WAFtester — the most comprehensive WAF testing CLI & MCP server",
   "license": "BUSL-1.1",
   "repository": {
@@ -44,11 +44,11 @@
     "node": ">=16"
   },
   "optionalDependencies": {
-    "@waftester/darwin-x64": "2.9.31",
-    "@waftester/darwin-arm64": "2.9.31",
-    "@waftester/linux-x64": "2.9.31",
-    "@waftester/linux-arm64": "2.9.31",
-    "@waftester/win32-x64": "2.9.31",
-    "@waftester/win32-arm64": "2.9.31"
+    "@waftester/darwin-x64": "2.9.32",
+    "@waftester/darwin-arm64": "2.9.32",
+    "@waftester/linux-x64": "2.9.32",
+    "@waftester/linux-arm64": "2.9.32",
+    "@waftester/win32-x64": "2.9.32",
+    "@waftester/win32-arm64": "2.9.32"
   }
 }
