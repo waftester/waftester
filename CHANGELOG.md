@@ -5,6 +5,12 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.32] - 2026-02-26
+
+### Fixed
+
+- **Scan command missing strategy hints** — The scan command's tamper engine now receives WAF-specific evasion hints from smart mode detection, aligning it with autoscan's strategy integration and improving tamper selection accuracy for detected WAF vendors.
+
 ## [2.9.31] - 2026-02-26
 
 ### Added
@@ -2517,6 +2523,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.32]: https://github.com/waftester/waftester/compare/v2.9.31...v2.9.32
 [2.9.31]: https://github.com/waftester/waftester/compare/v2.9.30...v2.9.31
 [2.9.30]: https://github.com/waftester/waftester/compare/v2.9.29...v2.9.30
 [2.9.29]: https://github.com/waftester/waftester/compare/v2.9.28...v2.9.29
