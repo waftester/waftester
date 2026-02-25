@@ -94,7 +94,7 @@ type DiscoveryConfig struct {
 	Concurrency   int
 	SkipVerify    bool
 	UserAgent     string
-	Service       string // Optional: authentik, n8n, immich
+	Service       string // Optional: preset name from pkg/discovery/presets/
 	IncludePaths  []string
 	ExcludePaths  []string
 	DisableActive bool         // Skip active path brute-forcing (useful for testing)
