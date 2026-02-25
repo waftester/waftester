@@ -49,8 +49,8 @@ var (
 		titles := finding.TitleCaseStrings()
 		m := make(map[string]bool, len(titles)*2)
 		for _, s := range titles {
-			m[s] = true                    // title case ("Critical")
-			m[strings.ToLower(s)] = true   // lowercase ("critical")
+			m[s] = true                  // title case ("Critical")
+			m[strings.ToLower(s)] = true // lowercase ("critical")
 		}
 		return m
 	}()

@@ -3159,13 +3159,13 @@ func GetTotalSignatureCount() int {
 
 // SignatureSummary is a JSON-friendly view of a WAF signature for the MCP resource.
 type SignatureSummary struct {
-	Name        string   `json:"name"`
-	Category    string   `json:"type"`
-	BypassTips  []string `json:"bypass_tips,omitempty"`
-	Encoders    []string `json:"recommended_encoders,omitempty"`
-	Evasions    []string `json:"recommended_evasions,omitempty"`
-	Detection   []string `json:"detection,omitempty"`
-	Reliable    bool     `json:"reliable"`
+	Name       string   `json:"name"`
+	Category   string   `json:"type"`
+	BypassTips []string `json:"bypass_tips,omitempty"`
+	Encoders   []string `json:"recommended_encoders,omitempty"`
+	Evasions   []string `json:"recommended_evasions,omitempty"`
+	Detection  []string `json:"detection,omitempty"`
+	Reliable   bool     `json:"reliable"`
 }
 
 // GetSignatureSummaries returns a JSON-serializable summary of all signatures
