@@ -34,6 +34,7 @@ npm automatically installs only the binary for your platform via `optionalDepend
 |----------|-------------|
 | `WAF_TESTER_BINARY_PATH` | Override binary path (dev/debug) |
 | `WAF_TESTER_PAYLOAD_DIR` | Override payload directory |
+| `WAF_TESTER_PRESET_DIR` | Override service preset directory |
 | `WAF_TESTER_TEMPLATE_DIR` | Override Nuclei template directory |
 
 ## Homebrew (macOS/Linux)
@@ -137,6 +138,7 @@ The compose file sets `read_only: true`, `no-new-privileges`, and a
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `WAF_TESTER_PAYLOAD_DIR` | Override payload directory path | `/app/payloads` |
+| `WAF_TESTER_PRESET_DIR` | Override service preset directory path | `/app/presets` |
 | `WAF_TESTER_HTTP_ADDR` | HTTP listen address | `:8080` |
 
 ### Security Notes

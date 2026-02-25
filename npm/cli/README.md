@@ -280,6 +280,7 @@ ARM64 platforms with x64 emulation (Rosetta 2, Windows WoW) are supported as fal
 |---|---|
 | `WAF_TESTER_BINARY_PATH` | Override binary path (skip platform resolution) |
 | `WAF_TESTER_PAYLOAD_DIR` | Override bundled payload directory |
+| `WAF_TESTER_PRESET_DIR` | Override bundled service preset directory |
 | `WAF_TESTER_TEMPLATE_DIR` | Override bundled template directory |
 
 ## License

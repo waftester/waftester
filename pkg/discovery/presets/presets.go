@@ -1,20 +1,32 @@
-// Package presets provides embedded service preset definitions for endpoint
-// discovery. Presets are JSON files that define service-specific endpoints
-// and attack surface characteristics. Add new services by dropping a JSON
-// file into this directory — no Go code changes required.
+// Package presets loads service preset definitions for endpoint discovery.
+//
+// Resolution order:
+//  1. On-disk directory (defaults.PresetDir or WAF_TESTER_PRESET_DIR)
+//  2. Embedded fallback (presets.FS compiled into the binary)
+//
+// Add new services by dropping a JSON file in the presets/ directory.
+// The JSON schema is:
+//
+//	{
+//	  "name": "myservice",
+//	  "description": "My service description",
+//	  "endpoints": ["/api/v1/", "/health"],
+//	  "attack_surface": { "has_api_endpoints": true }
+//	}
 package presets
 
 import (
-	"embed"
 	"encoding/json"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
-)
 
-//go:embed *.json
-var embedded embed.FS
+	embedded "github.com/waftester/waftester/presets"
+)
 
 // Preset defines a service endpoint preset loaded from JSON.
 type Preset struct {
@@ -39,34 +51,105 @@ type AttackHints struct {
 var (
 	registry     map[string]*Preset
 	registryOnce sync.Once
+	presetDir    string // set via SetDir before first access
+	dirMu        sync.Mutex
 )
+
+// SetDir configures the on-disk directory to load presets from.
+// Must be called before the first Get/Names/All call.
+// If never called or dir is empty, falls back to embedded presets.
+func SetDir(dir string) {
+	dirMu.Lock()
+	defer dirMu.Unlock()
+	presetDir = dir
+}
+
+func getDir() string {
+	dirMu.Lock()
+	defer dirMu.Unlock()
+	return presetDir
+}
 
 func loadRegistry() map[string]*Preset {
 	registryOnce.Do(func() {
 		registry = make(map[string]*Preset)
-		entries, err := embedded.ReadDir(".")
-		if err != nil {
-			return
+
+		// Try on-disk directory first
+		dir := getDir()
+		if dir != "" {
+			if info, err := os.Stat(dir); err == nil && info.IsDir() {
+				loadFromDisk(dir, registry)
+				return
+			}
 		}
-		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
-				continue
-			}
-			data, err := embedded.ReadFile(entry.Name())
-			if err != nil {
-				continue
-			}
-			var p Preset
-			if err := json.Unmarshal(data, &p); err != nil {
-				continue
-			}
-			if p.Name == "" {
-				p.Name = strings.TrimSuffix(entry.Name(), ".json")
-			}
-			registry[strings.ToLower(p.Name)] = &p
-		}
+
+		// Fall back to embedded presets
+		loadFromFS(embedded.FS, registry)
 	})
 	return registry
+}
+
+// loadFromDisk reads all JSON files from an on-disk directory.
+func loadFromDisk(dir string, reg map[string]*Preset) {
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return
+	}
+
+	entries, err := os.ReadDir(absDir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		path := filepath.Join(absDir, entry.Name())
+
+		// Resolve symlinks and verify we stay within the preset directory.
+		resolved, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			continue
+		}
+		if !strings.HasPrefix(resolved, absDir) {
+			continue
+		}
+
+		data, err := os.ReadFile(resolved)
+		if err != nil {
+			continue
+		}
+		parseAndRegister(data, entry.Name(), reg)
+	}
+}
+
+// loadFromFS reads all JSON files from an embed.FS.
+func loadFromFS(fsys fs.FS, reg map[string]*Preset) {
+	entries, err := fs.ReadDir(fsys, ".")
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		data, err := fs.ReadFile(fsys, entry.Name())
+		if err != nil {
+			continue
+		}
+		parseAndRegister(data, entry.Name(), reg)
+	}
+}
+
+func parseAndRegister(data []byte, filename string, reg map[string]*Preset) {
+	var p Preset
+	if err := json.Unmarshal(data, &p); err != nil {
+		return
+	}
+	if p.Name == "" {
+		p.Name = strings.TrimSuffix(filename, ".json")
+	}
+	reg[strings.ToLower(p.Name)] = &p
 }
 
 // Get returns a preset by name (case-insensitive). Returns nil if not found.
@@ -96,4 +179,13 @@ func Validate(name string) error {
 		return fmt.Errorf("unknown service preset %q (available: %s)", name, strings.Join(Names(), ", "))
 	}
 	return nil
+}
+
+// Reset clears the registry so the next call reloads from disk/embedded.
+// Intended for testing only.
+func Reset() {
+	dirMu.Lock()
+	defer dirMu.Unlock()
+	registry = nil
+	registryOnce = sync.Once{}
 }

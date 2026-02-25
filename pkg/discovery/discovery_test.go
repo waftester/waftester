@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -983,6 +984,58 @@ func TestPresetsGetCaseInsensitive(t *testing.T) {
 func TestPresetsGetUnknown(t *testing.T) {
 	if presets.Get("nonexistent-service") != nil {
 		t.Error("expected nil for unknown preset")
+	}
+}
+
+// TestPresetsLoadFromDisk verifies presets load from a filesystem directory
+func TestPresetsLoadFromDisk(t *testing.T) {
+	// Reset to clear any existing registry state
+	presets.Reset()
+	defer presets.Reset() // clean up for other tests
+
+	// Create a temp dir with a custom preset
+	dir := t.TempDir()
+	data := []byte(`{
+		"name": "custom-app",
+		"description": "Test custom preset",
+		"endpoints": ["/api/test", "/health"],
+		"attack_surface": {"has_api_endpoints": true, "has_graphql": true}
+	}`)
+	if err := os.WriteFile(dir+"/custom-app.json", data, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	presets.SetDir(dir)
+	p := presets.Get("custom-app")
+	if p == nil {
+		t.Fatal("custom preset not loaded from disk")
+	}
+	if len(p.Endpoints) != 2 {
+		t.Errorf("expected 2 endpoints, got %d", len(p.Endpoints))
+	}
+	if !p.AttackSurface.HasGraphQL {
+		t.Error("expected HasGraphQL from custom preset")
+	}
+
+	// Built-in presets should NOT be loaded (filesystem takes precedence, not merged)
+	if presets.Get("authentik") != nil {
+		t.Error("embedded presets should not load when disk dir exists")
+	}
+}
+
+// TestPresetsEmbeddedFallback verifies embedded presets load when no dir is set
+func TestPresetsEmbeddedFallback(t *testing.T) {
+	presets.Reset()
+	defer presets.Reset()
+
+	// Point to a non-existent directory — should fall back to embedded
+	presets.SetDir("/nonexistent/path/that/does/not/exist")
+	p := presets.Get("authentik")
+	if p == nil {
+		t.Fatal("expected embedded fallback to load authentik preset")
+	}
+	if len(p.Endpoints) == 0 {
+		t.Error("expected endpoints from embedded preset")
 	}
 }
 

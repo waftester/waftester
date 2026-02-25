@@ -29,6 +29,9 @@ const ToolNameDisplay = "WAFtester"
 // PayloadDir is the default directory for JSON payload files.
 const PayloadDir = "./payloads"
 
+// PresetDir is the default directory for service preset JSON files.
+const PresetDir = "./presets"
+
 // ============================================================================
 // TEMPLATE DIRECTORIES
 // ============================================================================

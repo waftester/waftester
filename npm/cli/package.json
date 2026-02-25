@@ -35,6 +35,7 @@
   "files": [
     "bin/",
     "payloads/",
+    "presets/",
     "templates/",
     "LICENSE",
     "LICENSE-COMMUNITY"

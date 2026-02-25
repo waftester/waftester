@@ -90,6 +90,7 @@ Run `docker compose up -d` and connect your AI client to `http://localhost:8080/
 |---|---|---|
 | `WAF_TESTER_HTTP_ADDR` | `:8080` | HTTP listen address for MCP server |
 | `WAF_TESTER_PAYLOAD_DIR` | `/app/payloads` | Path to payload JSON files |
+| `WAF_TESTER_PRESET_DIR` | `/app/presets` | Path to service preset JSON files |
 | `WAF_TESTER_TEMPLATE_DIR` | `/app/templates/nuclei` | Path to Nuclei YAML templates |
 
 Example:

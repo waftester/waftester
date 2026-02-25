@@ -10,7 +10,9 @@ import (
 	"github.com/waftester/waftester/pkg/apispec"
 	"github.com/waftester/waftester/pkg/config"
 	"github.com/waftester/waftester/pkg/core"
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
+	"github.com/waftester/waftester/pkg/discovery/presets"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/mutation"
 	_ "github.com/waftester/waftester/pkg/mutation/encoder"
@@ -67,6 +69,9 @@ func main() {
 	// Register detection transport wrapper globally
 	// This ensures ALL httpclient.New() calls get detection capabilities
 	httpclient.RegisterTransportWrapper(detection.WrapRoundTripper)
+
+	// Initialize service preset directory (env var takes precedence)
+	presets.SetDir(envOrDefault("WAF_TESTER_PRESET_DIR", defaults.PresetDir))
 
 	// Check for subcommands
 	if len(os.Args) < 2 {
@@ -411,4 +416,3 @@ func parseIntList(s string) []int {
 	}
 	return result
 }
-
