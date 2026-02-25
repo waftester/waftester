@@ -173,33 +173,19 @@ func relatedEncoders(enc string) []string {
 	return nil
 }
 
-// getAllEncoders returns all available encoders
+// getAllEncoders returns all registered encoder names.
 func getAllEncoders() []string {
-	return []string{
-		"raw", "url", "double_url", "triple_url",
-		"html_decimal", "html_hex", "html_named",
-		"unicode", "utf7", "utf16le", "utf16be",
-		"overlong_utf8", "wide_gbk", "wide_sjis",
-		"base64", "base64url", "hex", "hex_space", "octal",
-		"json_unicode", "cdata", "mixed",
-	}
+	return mutation.DefaultRegistry.NamesForCategory("encoder")
 }
 
-// getAllLocations returns all available locations
+// getAllLocations returns all registered location names.
 func getAllLocations() []string {
-	return []string{
-		"query_param", "post_form", "post_json", "post_xml",
-		"header_xforward", "header_referer", "header_useragent", "header_custom",
-		"cookie", "path_segment", "multipart", "fragment",
-	}
+	return mutation.DefaultRegistry.NamesForCategory("location")
 }
 
-// getAllEvasions returns all available evasions
+// getAllEvasions returns all registered evasion names.
 func getAllEvasions() []string {
-	return []string{
-		"case_swap", "sql_comment", "whitespace_alt",
-		"null_byte", "hpp", "chunked", "unicode",
-	}
+	return mutation.DefaultRegistry.NamesForCategory("evasion")
 }
 
 // GetOptimalRateLimit returns the recommended rate limit for the WAF

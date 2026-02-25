@@ -184,28 +184,12 @@ func applyMutations(cfg *config.Config, originalPayloads []payloads.Payload) []p
 
 	switch cfg.MutationMode {
 	case "quick":
-		// Quick mode: just URL encoding variants
-		pipelineCfg = &mutation.PipelineConfig{
-			Encoders:       []string{"raw", "url", "double_url"},
-			Locations:      []string{"query_param"},
-			Evasions:       []string{},
-			ChainEncodings: false,
-			IncludeRaw:     true,
-		}
+		pipelineCfg = mutation.QuickPipelineConfig()
 	case "standard":
-		// Standard mode: common encodings and locations
-		pipelineCfg = &mutation.PipelineConfig{
-			Encoders:       []string{"raw", "url", "double_url", "html_hex", "unicode"},
-			Locations:      []string{"query_param", "post_form", "post_json"},
-			Evasions:       []string{},
-			ChainEncodings: false,
-			IncludeRaw:     true,
-		}
+		pipelineCfg = mutation.StandardPipelineConfig()
 	case "full":
-		// Full mode: all mutators
 		pipelineCfg = mutation.FullCoveragePipelineConfig()
 	default:
-		// Use default config
 		pipelineCfg = mutation.DefaultPipelineConfig()
 	}
 
