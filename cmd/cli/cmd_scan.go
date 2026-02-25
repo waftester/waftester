@@ -532,10 +532,14 @@ func runScan() {
 			profile = tampers.ProfileCustom
 		}
 
-		// Get WAF vendor for intelligent selection
-		wafVendor := ""
+		// Get WAF vendor and strategy hints for intelligent selection
+		wafVendor := "unknown"
+		var strategyHints []string
 		if smartResult != nil && smartResult.WAFDetected {
 			wafVendor = smartResult.VendorName
+		}
+		if smartResult != nil && smartResult.Strategy != nil {
+			strategyHints = smartResult.Strategy.Evasions
 		}
 
 		// Create tamper engine
@@ -557,6 +561,7 @@ func runScan() {
 			Profile:       profile,
 			CustomTampers: tampers.ParseTamperList(*tamperList),
 			WAFVendor:     wafVendor,
+			StrategyHints: strategyHints,
 			EnableMetrics: true,
 		})
 
@@ -571,8 +576,13 @@ func runScan() {
 			}
 		} else if *tamperAuto || (*smartMode && smartResult != nil && smartResult.WAFDetected) {
 			selectedTampers := tamperEngine.GetSelectedTampers()
-			ui.PrintInfo(fmt.Sprintf("🔧 Auto-selected %d tampers for %s: %s",
-				len(selectedTampers), wafVendor, strings.Join(selectedTampers, ", ")))
+			if len(strategyHints) > 0 {
+				ui.PrintInfo(fmt.Sprintf("🔧 Auto-selected %d tampers for %s (strategy hints: %d): %s",
+					len(selectedTampers), wafVendor, len(strategyHints), strings.Join(selectedTampers, ", ")))
+			} else {
+				ui.PrintInfo(fmt.Sprintf("🔧 Auto-selected %d tampers for %s: %s",
+					len(selectedTampers), wafVendor, strings.Join(selectedTampers, ", ")))
+			}
 		}
 	}
 	// Only print config to stdout if not in streaming JSON mode
