@@ -61,18 +61,6 @@ func getImmichEndpoints() []string {
 	}
 }
 
-func getAgreementPulseEndpoints() []string {
-	return []string{
-		"/api/health",
-		"/api/auth/login",
-		"/api/auth/register",
-		"/api/agreements/",
-		"/api/documents/",
-		"/api/users/",
-		"/api/notifications/",
-	}
-}
-
 func getGenericEndpoints() []string {
 	return []string{
 		"/api/",

@@ -74,7 +74,7 @@ Legitimate traffic validation (should NOT be blocked):
 - HTML content in JSON
 - Email addresses
 - Code/formula content
-- Service-specific endpoints (n8n, Immich, Authentik, AgreementPulse)
+- Service-specific endpoints (n8n, Immich, Authentik)
 
 ## Usage
 

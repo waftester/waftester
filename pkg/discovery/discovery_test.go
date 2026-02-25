@@ -1006,24 +1006,6 @@ func TestGetImmichEndpoints(t *testing.T) {
 	}
 }
 
-// TestGetAgreementPulseEndpoints tests agreementpulse endpoint list
-func TestGetAgreementPulseEndpoints(t *testing.T) {
-	endpoints := getAgreementPulseEndpoints()
-	if len(endpoints) == 0 {
-		t.Error("expected agreementpulse endpoints")
-	}
-	found := false
-	for _, ep := range endpoints {
-		if strContains(ep, "health") {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Error("expected health endpoint in agreementpulse list")
-	}
-}
-
 // TestGetGenericEndpoints tests generic endpoint list
 func TestGetGenericEndpoints(t *testing.T) {
 	endpoints := getGenericEndpoints()

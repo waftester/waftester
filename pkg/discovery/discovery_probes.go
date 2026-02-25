@@ -22,6 +22,9 @@ func ServicePresets() []string {
 	return []string{"authentik", "n8n", "immich", "webapp", "intranet"}
 }
 
+// NOTE: Do not add client-specific services here. Use the generic "webapp"
+// preset or custom endpoint lists via configuration instead.
+
 func (d *Discoverer) discoverForms(ctx context.Context, result *DiscoveryResult) {
 	// Analyze HTML responses for forms
 	for _, ep := range d.endpoints {
@@ -163,9 +166,6 @@ func (d *Discoverer) probeKnownEndpoints(ctx context.Context, result *DiscoveryR
 	case "immich":
 		endpoints = append(endpoints, getImmichEndpoints()...)
 		result.AttackSurface.HasFileUpload = true
-		result.AttackSurface.HasAPIEndpoints = true
-	case "agreementpulse":
-		endpoints = append(endpoints, getAgreementPulseEndpoints()...)
 		result.AttackSurface.HasAPIEndpoints = true
 	default:
 		// Generic probing
