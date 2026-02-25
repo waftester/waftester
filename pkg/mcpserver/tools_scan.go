@@ -15,6 +15,7 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/output"
@@ -87,7 +88,7 @@ ASYNC TOOL: This tool returns a task_id immediately and runs in the background. 
 					"severity": map[string]any{
 						"type":        "string",
 						"description": "Minimum severity level to test.",
-						"enum":        []string{"Critical", "High", "Medium", "Low"},
+						"enum":        finding.TitleCaseStrings(),
 					},
 					"concurrency": map[string]any{
 						"type":        "integer",

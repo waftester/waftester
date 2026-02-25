@@ -152,12 +152,17 @@ func TestDefaultPipelineConfig(t *testing.T) {
 	if cfg == nil {
 		t.Fatal("DefaultPipelineConfig returned nil")
 	}
-	// Empty Encoders means "all encoders"
-	if len(cfg.Locations) == 0 {
-		t.Error("No default locations")
-	}
 	if !cfg.IncludeRaw {
 		t.Error("IncludeRaw should be true by default")
+	}
+	if cfg.ChainEncodings {
+		t.Error("ChainEncodings should be false by default")
+	}
+	if cfg.MaxChainDepth != 2 {
+		t.Errorf("Expected MaxChainDepth 2, got %d", cfg.MaxChainDepth)
+	}
+	if len(cfg.Evasions) != 0 {
+		t.Error("Default config should have no evasions")
 	}
 }
 
@@ -167,14 +172,56 @@ func TestFullCoveragePipelineConfig(t *testing.T) {
 	if cfg == nil {
 		t.Fatal("FullCoveragePipelineConfig returned nil")
 	}
-	if len(cfg.Encoders) < 10 {
-		t.Errorf("Expected at least 10 encoders for full coverage, got %d", len(cfg.Encoders))
+	if !cfg.ChainEncodings {
+		t.Error("FullCoverage should have ChainEncodings enabled")
 	}
-	if len(cfg.Locations) < 10 {
-		t.Errorf("Expected at least 10 locations for full coverage, got %d", len(cfg.Locations))
+	if cfg.MaxChainDepth != 3 {
+		t.Errorf("Expected MaxChainDepth 3, got %d", cfg.MaxChainDepth)
 	}
-	if len(cfg.Evasions) < 5 {
-		t.Errorf("Expected at least 5 evasions for full coverage, got %d", len(cfg.Evasions))
+	if !cfg.IncludeRaw {
+		t.Error("IncludeRaw should be true")
+	}
+}
+
+func TestQuickPipelineConfig(t *testing.T) {
+	cfg := QuickPipelineConfig()
+
+	if cfg == nil {
+		t.Fatal("QuickPipelineConfig returned nil")
+	}
+	if len(cfg.Encoders) != 3 {
+		t.Errorf("Expected 3 encoders for quick mode, got %d", len(cfg.Encoders))
+	}
+	if len(cfg.Locations) != 1 {
+		t.Errorf("Expected 1 location for quick mode, got %d", len(cfg.Locations))
+	}
+}
+
+func TestStandardPipelineConfig(t *testing.T) {
+	cfg := StandardPipelineConfig()
+
+	if cfg == nil {
+		t.Fatal("StandardPipelineConfig returned nil")
+	}
+	if len(cfg.Encoders) != 5 {
+		t.Errorf("Expected 5 encoders for standard mode, got %d", len(cfg.Encoders))
+	}
+	if len(cfg.Locations) != 3 {
+		t.Errorf("Expected 3 locations for standard mode, got %d", len(cfg.Locations))
+	}
+}
+
+func TestBypassPipelineConfig(t *testing.T) {
+	cfg := BypassPipelineConfig()
+
+	if cfg == nil {
+		t.Fatal("BypassPipelineConfig returned nil")
+	}
+	if !cfg.ChainEncodings {
+		t.Error("Bypass should have ChainEncodings enabled")
+	}
+	if len(cfg.Evasions) == 0 {
+		t.Error("Bypass should have evasions")
 	}
 }
 

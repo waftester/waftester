@@ -4,6 +4,7 @@ package strategy
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/mutation"
@@ -173,33 +174,19 @@ func relatedEncoders(enc string) []string {
 	return nil
 }
 
-// getAllEncoders returns all available encoders
+// getAllEncoders returns all registered encoder names.
 func getAllEncoders() []string {
-	return []string{
-		"raw", "url", "double_url", "triple_url",
-		"html_decimal", "html_hex", "html_named",
-		"unicode", "utf7", "utf16le", "utf16be",
-		"overlong_utf8", "wide_gbk", "wide_sjis",
-		"base64", "base64url", "hex", "hex_space", "octal",
-		"json_unicode", "cdata", "mixed",
-	}
+	return mutation.DefaultRegistry.NamesForCategory("encoder")
 }
 
-// getAllLocations returns all available locations
+// getAllLocations returns all registered location names.
 func getAllLocations() []string {
-	return []string{
-		"query_param", "post_form", "post_json", "post_xml",
-		"header_xforward", "header_referer", "header_useragent", "header_custom",
-		"cookie", "path_segment", "multipart", "fragment",
-	}
+	return mutation.DefaultRegistry.NamesForCategory("location")
 }
 
-// getAllEvasions returns all available evasions
+// getAllEvasions returns all registered evasion names.
 func getAllEvasions() []string {
-	return []string{
-		"case_swap", "sql_comment", "whitespace_alt",
-		"null_byte", "hpp", "chunked", "unicode",
-	}
+	return mutation.DefaultRegistry.NamesForCategory("evasion")
 }
 
 // GetOptimalRateLimit returns the recommended rate limit for the WAF
@@ -247,40 +234,55 @@ func CreateOptimizedConfig(s *Strategy, mode string, targetURL string) *mutation
 	}
 }
 
-// ShouldSkipPayload returns true if this payload type is ineffective against the WAF
-func (s *Strategy) ShouldSkipPayload(payloadCategory string) bool {
-	// Some WAFs have specific strengths - no point testing what they definitely block
-	// This is a heuristic that can be refined based on experience
-	return false // By default, test everything
+// ShouldSkipPayload returns true if this payload encoding is known to be
+// ineffective against the detected WAF. For example, Cloudflare decodes
+// base64 natively, so base64_simple encodings are always caught.
+func (s *Strategy) ShouldSkipPayload(encodingUsed string) bool {
+	if s == nil || len(s.SkipIneffectiveMutators) == 0 || encodingUsed == "" {
+		return false
+	}
+	lower := strings.ToLower(encodingUsed)
+	for _, skip := range s.SkipIneffectiveMutators {
+		if strings.ToLower(skip) == lower {
+			return true
+		}
+	}
+	return false
 }
 
-// PrioritizePayloads reorders payloads based on WAF-specific knowledge
+// PrioritizePayloads reorders payload categories based on generic attack-type
+// ordering. Lower priority number = tested first. Unknown categories sort last.
+// Note: PrioritizeMutators contains encoding/technique names (e.g. "unicode",
+// "case_swap") which operate in the mutation pipeline, not at the category level.
 func (s *Strategy) PrioritizePayloads(payloadCategories []string) []string {
-	// WAF-specific category ordering
-	// For most WAFs: test injection first, then XSS, then others
-	priority := map[string]int{
-		"sqli":      1,
-		"injection": 1,
-		"nosqli":    2,
-		"xss":       3,
-		"xxe":       4,
-		"ssti":      5,
-		"ssrf":      6,
-		"traversal": 7,
-		"lfi":       7,
-		"rfi":       8,
-		"rce":       9,
-		"cmdi":      9,
+	if len(payloadCategories) == 0 {
+		return payloadCategories
 	}
 
-	// Simple copy and sort by priority
+	// Generic priority: lower number = higher priority.
+	// This ordering reflects typical WAF bypass likelihood:
+	// injection types that WAFs commonly miss come first.
+	priority := map[string]int{
+		"sqli":      10,
+		"injection": 10,
+		"nosqli":    20,
+		"xss":       30,
+		"xxe":       40,
+		"ssti":      50,
+		"ssrf":      60,
+		"traversal": 70,
+		"lfi":       70,
+		"rfi":       80,
+		"rce":       90,
+		"cmdi":      90,
+	}
+
 	result := make([]string, len(payloadCategories))
 	copy(result, payloadCategories)
 
-	// Sort by priority using efficient O(n log n) sort
-	sort.Slice(result, func(i, j int) bool {
-		pi := priority[result[i]]
-		pj := priority[result[j]]
+	sort.SliceStable(result, func(i, j int) bool {
+		pi := priority[strings.ToLower(result[i])]
+		pj := priority[strings.ToLower(result[j])]
 		if pi == 0 {
 			pi = 100
 		}

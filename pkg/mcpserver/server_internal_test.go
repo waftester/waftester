@@ -232,9 +232,18 @@ func TestServerInstructions_ToolCount(t *testing.T) {
 		t.Fatalf("ListTools: %v", err)
 	}
 
-	claim := fmt.Sprintf("%d tools", len(tools.Tools))
-	if !strings.Contains(serverInstructions, claim) {
-		t.Errorf("serverInstructions does not contain %q (actual tool count); instructions may be stale", claim)
+	// The instructions list every tool under FAST TOOLS and ASYNC TOOLS.
+	// Verify the sum matches the actual registered tool count.
+	fastLine := instructionLine("FAST TOOLS (return immediately):")
+	asyncLine := instructionLine("ASYNC TOOLS (return task_id):")
+
+	fast := parseToolList(fastLine, "FAST TOOLS (return immediately):")
+	async := parseToolList(asyncLine, "ASYNC TOOLS (return task_id):")
+
+	listed := len(fast) + len(async)
+	if listed != len(tools.Tools) {
+		t.Errorf("instructions list %d tools (fast=%d + async=%d), but %d are registered",
+			listed, len(fast), len(async), len(tools.Tools))
 	}
 }
 
@@ -351,8 +360,8 @@ func TestServerInstructions_ReadingResources(t *testing.T) {
 func TestServerInstructions_VendorCounts(t *testing.T) {
 	t.Parallel()
 
-	wafCount := len(vendors.GetVendorNamesByCategory("cloud", "appliance", "software", "bot-management", "wordpress-plugin", "joomla-plugin"))
-	cdnCount := len(vendors.GetVendorNamesByCategory("cdn-integrated"))
+	wafCount := len(vendors.GetVendorNamesByCategory(vendors.WAFCategories()...))
+	cdnCount := len(vendors.GetVendorNamesByCategory(vendors.CDNCategories()...))
 
 	if wafCount == 0 {
 		t.Fatal("WAF vendor registry returned 0 entries; check category names in GetVendorNamesByCategory call")

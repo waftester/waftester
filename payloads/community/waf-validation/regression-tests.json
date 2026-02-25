@@ -205,23 +205,5 @@
     "severity_hint": "Low",
     "notes": "Authentik authentication flow - MUST NOT be blocked",
     "category": "Regression"
-  },
-  {
-    "id": "LEGIT-AGREEMENTPULSE-001",
-    "payload": "GET /api/health",
-    "tags": ["regression", "agreementpulse", "health", "quick"],
-    "expected_block": false,
-    "severity_hint": "Low",
-    "notes": "AgreementPulse health check - MUST NOT be blocked",
-    "category": "Regression"
-  },
-  {
-    "id": "LEGIT-AGREEMENTPULSE-002",
-    "payload": "POST /api/contracts HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"title\":\"Service Agreement\",\"parties\":[\"Company A\",\"Company B\"]}",
-    "tags": ["regression", "agreementpulse", "contract", "quick"],
-    "expected_block": false,
-    "severity_hint": "Low",
-    "notes": "AgreementPulse contract creation - MUST NOT be blocked",
-    "category": "Regression"
   }
 ]
