@@ -1310,7 +1310,11 @@ func TestProgressReporting(t *testing.T) {
 		// Drain
 	}
 
-	// Progress should have been called at least once (ticker fires every 2s + final)
+	// The final progress callback fires asynchronously when the context is
+	// cancelled (after results channel closes). Give it a moment to complete.
+	time.Sleep(200 * time.Millisecond)
+
+	// Progress should have been called at least once (ticker fires every 3s + final on ctx.Done)
 	if progressCalled.Load() < 1 {
 		t.Error("expected progress callback to be called at least once")
 	}
