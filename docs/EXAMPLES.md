@@ -8335,6 +8335,19 @@ Presets load from the first available source:
 <details>
 <summary><strong>authentik.json</strong> — Identity provider (OAuth2, SAML, LDAP)</summary>
 
+Identity providers are high-value targets because they control authentication for every downstream application. A vulnerability here compromises the entire SSO chain.
+
+**Why these endpoints:**
+- **Health probes** (`/-/health/`) — confirm the service is reachable and reveal version/stack info in headers.
+- **Core API** (`/api/v3/core/`) — applications, groups, users, tokens. IDOR and privilege escalation targets. Token endpoints are particularly sensitive because leaked tokens grant cross-service access.
+- **Flow executor** (`/api/v3/flows/executor/`) — drives the authentication pipeline. Flow manipulation can bypass MFA or skip consent screens.
+- **OAuth endpoints** (`/application/o/authorize|token|userinfo`) — authorization code injection, token theft, open redirect via `redirect_uri`, scope escalation.
+- **SAML source** (`/source/saml/`) — XML parsing surface. XXE, SAML response forgery, signature wrapping attacks.
+- **Admin/User panels** (`/if/admin/`, `/if/user/`) — client-side rendered SPAs that often have different authorization boundaries than the API.
+- **WebSocket** (`/ws/`) — persistent connection. Tests WebSocket upgrade handling and frame injection.
+
+**Attack surface flags:** `has_auth_endpoints` + `has_oauth` + `has_saml` tells WAFtester to include OAuth-specific payloads (redirect_uri manipulation, token endpoint abuse) and SAML-specific payloads (XML signature bypass, assertion replay) alongside standard injection tests.
+
 ```json
 {
   "name": "authentik",
@@ -8370,6 +8383,19 @@ Presets load from the first available source:
 <details>
 <summary><strong>n8n.json</strong> — Workflow automation (REST API, webhooks, WebSocket)</summary>
 
+Workflow automation platforms are high-risk targets because they execute arbitrary logic triggered by external input. Compromising n8n means arbitrary code execution on the host.
+
+**Why these endpoints:**
+- **Health check** (`/healthz`) — confirms the instance is live and often leaks version info.
+- **REST API** (`/rest/workflows`, `/rest/credentials`, `/rest/executions`) — the core management surface. Workflows contain business logic, credentials store secrets (API keys, DB passwords), and executions may log sensitive data. IDOR on any of these is critical.
+- **Settings/Users** (`/rest/settings`, `/rest/users`) — configuration tampering and user enumeration.
+- **OAuth credential** (`/rest/oauth2-credential/`) — stores OAuth tokens for third-party integrations. Token theft here compromises connected services.
+- **Webhooks** (`/webhook/`, `/webhook-test/`) — accept arbitrary external input and trigger workflow execution. Primary injection surface: payloads in webhook bodies flow directly into workflow nodes.
+- **API v1** (`/api/v1/`) — public API with potentially different auth requirements than the internal REST API.
+- **Push** (`/push`) — WebSocket endpoint for real-time UI updates. Tests upgrade handling and frame-level injection.
+
+**Attack surface flags:** `has_api_endpoints` + `has_websockets` tells WAFtester to focus on API injection patterns (JSON body payloads, header injection, parameter pollution) and WebSocket-specific tests (upgrade request manipulation, frame injection).
+
 ```json
 {
   "name": "n8n",
@@ -8398,6 +8424,18 @@ Presets load from the first available source:
 <details>
 <summary><strong>immich.json</strong> — Self-hosted photo/video management</summary>
 
+Photo management platforms combine file upload, ML processing, and user data — three attack surfaces that compound each other. Malicious uploads can exploit image parsers, and face recognition endpoints process untrusted binary data.
+
+**Why these endpoints:**
+- **Server probes** (`/api/server/ping`, `/api/server-info/`) — confirm reachability and reveal server configuration (storage type, ML model versions, feature flags).
+- **Auth** (`/api/auth/login`, `/api/auth/signup`) — standard credential endpoints. Signup may allow unauthorized account creation if not properly gated.
+- **Users/Albums** (`/api/users/`, `/api/albums/`) — IDOR targets. User enumeration via sequential IDs or predictable UUIDs. Album access control bypass.
+- **Assets** (`/api/assets/`, `/api/assets/upload`) — the primary attack vector. File upload endpoints accept images/videos and pass them through processing pipelines (thumbnailing, EXIF extraction, ML inference). Test for: unrestricted file types, path traversal in filenames, oversized uploads, polyglot files (image headers + embedded payloads).
+- **Search** (`/api/search/`) — full-text and metadata search. Potential for injection if search queries hit a database or search engine directly.
+- **Face recognition** (`/api/faces/`, `/api/people/`) — ML endpoints that process binary data. Less common injection target but may have deserialization issues or resource exhaustion vulnerabilities.
+
+**Attack surface flags:** `has_file_upload` + `has_api_endpoints` tells WAFtester to include file upload bypass payloads (extension manipulation, content-type spoofing, path traversal in multipart filenames) alongside standard API injection tests.
+
 ```json
 {
   "name": "immich",
@@ -8425,6 +8463,21 @@ Presets load from the first available source:
 
 <details>
 <summary><strong>webapp.json</strong> — Generic web application</summary>
+
+A catch-all preset for standard web applications when no service-specific preset exists. Covers the endpoints that appear in most web apps regardless of framework.
+
+**Why these endpoints:**
+- **API versions** (`/api/`, `/api/v1/`, `/api/v2/`) — versioned APIs often have different security controls. Older versions may lack input validation that newer versions enforce.
+- **Auth flow** (`/login`, `/logout`, `/register`, `/signup`) — credential stuffing, brute force, account enumeration, session fixation.
+- **Admin/Dashboard** (`/admin/`, `/dashboard/`) — privilege escalation targets. Often behind weaker WAF rules because they are "internal."
+- **User management** (`/settings/`, `/profile/`, `/users/`) — IDOR, mass assignment, privilege escalation via profile field manipulation.
+- **Search** (`/search`) — injection surface. Search queries often reach databases or search engines with insufficient sanitization.
+- **File handling** (`/upload`, `/download`) — unrestricted upload, path traversal in download parameters, content-type bypass.
+- **GraphQL** (`/graphql`) — introspection disclosure, nested query DoS, batch query abuse, field-level authorization bypass.
+- **API docs** (`/swagger.json`, `/openapi.json`) — not an attack endpoint, but leaks the entire API surface. WAFtester uses these to discover additional endpoints.
+- **Sensitive files** (`/.env`, `/config`) — configuration file exposure. A reachable `.env` file typically leaks database credentials, API keys, and secrets.
+
+**Attack surface flags:** `has_api_endpoints` + `has_auth_endpoints` gives WAFtester the baseline injection and authentication test suites. Add more flags as you learn about the target (file upload, GraphQL, etc.).
 
 ```json
 {
@@ -8462,6 +8515,14 @@ Presets load from the first available source:
 
 <details>
 <summary><strong>intranet.json</strong> — Internal/intranet application</summary>
+
+Internal applications deserve dedicated testing because they are often deployed behind a corporate VPN or network perimeter with the assumption that "internal = trusted." This assumption leads to weaker WAF rules, disabled input validation, and exposed debug endpoints. A preset for internal apps signals WAFtester to probe for this false sense of security.
+
+**Why these endpoints are the same as webapp:** Internal apps are structurally similar to external web apps, but the security posture differs. The same `/admin/`, `/upload`, and `/.env` endpoints exist, but internal apps are more likely to have them exposed without protection. This preset uses the same endpoint list as `webapp` but exists as a separate preset so teams can apply different scan configurations, thresholds, and reporting for internal vs. external targets.
+
+**When to customize:** Fork this preset and add endpoints specific to your internal tools: `/jenkins/`, `/sonarqube/`, `/grafana/api/`, `/kibana/`, `/prometheus/metrics`, etc. Internal tools often expose metrics and admin endpoints without authentication.
+
+**Attack surface flags:** Same as `webapp`. Override with `has_graphql`, `has_websockets`, `has_file_upload` etc. as you discover what your internal app exposes.
 
 ```json
 {
@@ -8515,6 +8576,38 @@ waf-tester run -plan testplan.json
 ### Creating Custom Presets
 
 Add a JSON file to the `presets/` directory. The file name (minus `.json`) becomes the preset name.
+
+#### Designing Good Presets
+
+A preset is a hypothesis about where a service is most vulnerable. Good presets are focused, not exhaustive — they encode the security-relevant endpoints that matter most, not every route in the app.
+
+**Endpoint selection strategy:**
+
+1. **Start with authentication.** Login, signup, password reset, OAuth token, SAML SSO — these are always high-value targets. If the service has auth, list every auth-related path.
+2. **Find the data entry points.** File uploads, search boxes, webhook receivers, form submissions, API endpoints that accept POST/PUT bodies — anywhere user-controlled data enters the system.
+3. **Locate admin and privileged surfaces.** Admin panels, settings pages, user management — endpoints where authorization boundaries matter.
+4. **Probe for information leaks.** Health checks, API docs (`/swagger.json`, `/openapi.json`), debug endpoints, environment files (`/.env`), config endpoints — these reveal stack details and may expose secrets.
+5. **Include protocol-specific endpoints.** GraphQL endpoints, WebSocket upgrade paths, gRPC-Web endpoints — each protocol has its own attack patterns.
+
+**Setting attack surface flags:**
+
+Each flag tells WAFtester to include additional category-specific payloads in its test suite. Only set flags that are true for your target — false positives waste scan time.
+
+| Flag | Set when | What it enables |
+|------|----------|-----------------|
+| `has_auth_endpoints` | Service has login/register/password flows | Credential stuffing patterns, session fixation, account enumeration |
+| `has_api_endpoints` | Service exposes REST/JSON APIs | JSON body injection, header manipulation, parameter pollution |
+| `has_file_upload` | Users can upload files | Extension bypass, content-type spoofing, path traversal in filenames |
+| `has_oauth` | Service uses OAuth2 flows | Redirect URI manipulation, token theft, scope escalation |
+| `has_saml` | Service uses SAML SSO | XML signature wrapping, assertion replay, XXE via SAML |
+| `has_graphql` | Service exposes a GraphQL endpoint | Introspection leaks, nested query DoS, batch abuse |
+| `has_websockets` | Service uses WebSocket connections | Upgrade request manipulation, frame injection |
+
+**Common mistakes:**
+- Listing every route — presets are not sitemaps. Focus on security-relevant paths.
+- Omitting health/info endpoints — they seem harmless but leak version and stack information.
+- Setting all attack surface flags to `true` — only set what actually exists. False flags add noise.
+- Forgetting trailing slashes — some frameworks treat `/api/users` and `/api/users/` as different routes. Include the variant your service uses.
 
 #### JSON Schema
 
