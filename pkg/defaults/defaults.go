@@ -279,6 +279,9 @@ const (
 	// DepthGraphQL is for GraphQL introspection queries (20)
 	// GraphQL schemas can have deeply nested types requiring extra depth
 	DepthGraphQL = 20
+
+	// CrawlMaxPages is the default maximum pages for a crawl session (100)
+	CrawlMaxPages = 100
 )
 
 // ============================================================================

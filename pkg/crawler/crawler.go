@@ -141,12 +141,12 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		MaxDepth:          defaults.DepthMedium,
-		MaxPages:          100,
-		MaxConcurrency:    10,
+		MaxPages:          defaults.CrawlMaxPages,
+		MaxConcurrency:    defaults.ConcurrencyMedium,
 		Timeout:           httpclient.TimeoutFuzzing,
 		Delay:             duration.CrawlDelay,
-		MaxRetries:        2,
-		RetryDelay:        500 * time.Millisecond,
+		MaxRetries:        defaults.RetryLow,
+		RetryDelay:        duration.RetryBaseBackoff,
 		ExtractForms:      true,
 		ExtractScripts:    true,
 		ExtractLinks:      true,
@@ -318,7 +318,7 @@ func (c *Crawler) Stats() CrawlStats {
 }
 
 func (c *Crawler) progressReporter() {
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(duration.StreamStd)
 	defer ticker.Stop()
 
 	for {
@@ -490,7 +490,7 @@ func (c *Crawler) crawlURL(rawURL string, depth int) *CrawlResult {
 
 		// Respect Retry-After header if present
 		if ra := resp.Header.Get("Retry-After"); ra != "" {
-			if secs, parseErr := time.ParseDuration(ra + "s"); parseErr == nil && secs > 0 && secs <= 30*time.Second {
+			if secs, parseErr := time.ParseDuration(ra + "s"); parseErr == nil && secs > 0 && secs <= duration.RetryAfterMax {
 				select {
 				case <-time.After(secs):
 				case <-c.ctx.Done():
