@@ -1201,7 +1201,7 @@ waftester crawl -u https://target.com --secrets --emails --json
 
 Automated service discovery and endpoint enumeration. Probes a target to identify API endpoints, query parameters, form fields, and service characteristics. The output feeds directly into `learn` to generate test plans.
 
-Discovery combines passive analysis (HTML/JS parsing, link extraction) with active probing (common path checks, parameter detection) to build a target map.
+Discovery combines passive analysis (HTML/JS parsing, link extraction) with active probing (common path checks, parameter detection) to build a target map. When a `-service` preset is specified, discovery also probes service-specific endpoints from the matching JSON preset file (see `presets/` directory).
 
 **When to use:** Before `learn` + `run` workflows, or when you need a structured endpoint inventory for manual review.
 
@@ -1210,7 +1210,7 @@ Discovery combines passive analysis (HTML/JS parsing, link extraction) with acti
 | `-target` | `-u` | string[] | | Target URL(s) |
 | `-l` | | string | | Target list |
 | `-stdin` | | bool | false | Read stdin |
-| `-service` | | string | | Service type hint |
+| `-service` | | string | | Service preset name (loads `presets/<name>.json` for service-specific endpoints). Built-in: `authentik`, `n8n`, `immich`, `webapp`, `intranet`. Custom: add JSON to `presets/` directory. |
 | `-output` | | string | `discovery.json` | Output file |
 | `-timeout` | | int | 10 | Timeout |
 | `-concurrency` | | int | 10 | Concurrency |
@@ -1228,6 +1228,12 @@ waftester discover -u https://target.com -o endpoints.json
 
 # Deep discovery
 waftester discover -u https://target.com --depth 5 --verbose
+
+# Discover with service preset (adds known endpoints for the platform)
+waftester discover -u https://sso.example.com -service authentik
+
+# Custom preset directory
+WAF_TESTER_PRESET_DIR=./my-presets waftester discover -u https://target.com -service myapp
 ```
 
 **Related:** [`learn`](#learn) (generate test plan from discovery results) → [`run`](#run) (execute the test plan)

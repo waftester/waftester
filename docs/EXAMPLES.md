@@ -117,6 +117,8 @@ This guide provides comprehensive usage examples for WAFtester, organized by use
 - [Unified Payload Provider](#unified-payload-provider)
   - [Template Enrichment with `--enrich`](#template-enrichment-with---enrich)
   - [MCP Server: Unified Resource](#mcp-server-unified-resource)
+- [Service Presets](#service-presets)
+  - [Creating Custom Presets](#creating-custom-presets)
 - [Template Library (v2.7.3)](#template-library-v273)
   - [Why Templates?](#why-templates)
   - [Nuclei Templates](#nuclei-templates)
@@ -756,15 +758,21 @@ Mode: Smart (WAF-aware) with auto-tamper
 
 #### Service-Specific Scanning
 
-When you know the target framework, use service presets for optimized testing:
+When you know the target framework, use service presets for optimized testing. Presets are JSON files in the `presets/` directory that define service-specific endpoints and attack surface hints.
 
 ```bash
+# Use a built-in preset
 waf-tester auto -u https://myblog.com -service wordpress
 waf-tester auto -u https://myapp.com -service django
-waf-tester auto -u https://store.com -service nextjs
+waf-tester auto -u https://sso.example.com -service authentik
+
+# Use a custom preset (drop JSON in presets/ directory)
+waf-tester auto -u https://photos.example.com -service immich
 ```
 
-| Service | Optimizations Applied |
+**Built-in presets:**
+
+| Preset | Optimizations Applied |
 |---------|----------------------|
 | `wordpress` | WP-specific paths, plugin vulns, xmlrpc, wp-admin |
 | `drupal` | Drupal paths, node access, views exploits |
@@ -774,6 +782,13 @@ waf-tester auto -u https://store.com -service nextjs
 | `spring` | Actuator endpoints, SpEL injection, mass assignment |
 | `nextjs` | API routes, _next paths, SSR injection points |
 | `flask` | Debug mode, Jinja2 SSTI, Flask-specific paths |
+| `authentik` | OAuth2/SAML/LDAP endpoints, identity provider paths |
+| `n8n` | REST API, webhooks, WebSocket push, OAuth2 credential flows |
+| `immich` | Photo upload, face recognition API, asset management |
+| `webapp` | Generic web app: login, API, admin, file upload, search |
+| `intranet` | Internal apps: admin panels, internal APIs, SSO |
+
+See [Service Presets](#service-presets) for how to create custom presets.
 
 #### Decision Guide
 
@@ -3444,7 +3459,24 @@ waf-tester discover -u https://example.com -output custom-discovery.json
 | JavaScript | Inline and external | API endpoints, internal URLs |
 | Wayback Machine | Archive.org | Historical endpoints, old versions |
 | HTML forms | All pages | Input fields, actions |
-| Service presets | Known patterns | Admin panels, API docs |
+| Service presets | JSON files in `presets/` | Service-specific endpoints, admin panels, API docs |
+
+#### Using Service Presets with Discovery
+
+Service presets add known endpoints for specific platforms. When you specify `-service`, the discover command loads the matching preset and includes its endpoints in the discovery results.
+
+```bash
+# Discover with authentik preset — adds OAuth2, SAML, admin paths
+waf-tester discover -u https://sso.example.com -service authentik
+
+# Discover with n8n preset — adds REST API, webhook, WebSocket paths
+waf-tester discover -u https://automation.example.com -service n8n
+
+# Custom preset directory
+WAF_TESTER_PRESET_DIR=./my-presets waf-tester discover -u https://target.com -service myapp
+```
+
+See [Service Presets](#service-presets) for creating custom presets.
 
 #### Sample Discovery Output
 
@@ -8198,6 +8230,23 @@ waf-tester mcp --payloads ./payloads --templates ./templates/nuclei
 
 The `list_payloads` tool also reports unified stats including Nuclei template payload counts alongside JSON payload counts. Environment variables `WAF_TESTER_PAYLOAD_DIR` and `WAF_TESTER_TEMPLATE_DIR` configure both sources.
 
+### Custom Preset Directories
+
+The MCP `--presets` flag and `WAF_TESTER_PRESET_DIR` environment variable control where service presets are loaded from:
+
+```bash
+# MCP server with custom presets
+waf-tester mcp --presets /path/to/presets
+
+# Via environment variable
+WAF_TESTER_PRESET_DIR=/opt/presets waf-tester mcp
+
+# Docker with custom presets volume
+docker run -p 8080:8080 \
+  -v /path/to/presets:/app/presets:ro \
+  ghcr.io/waftester/waftester
+```
+
 ### Custom Payload Directories Across Commands
 
 All commands that use payloads support the `--payloads` flag for custom payload directories. Commands that also use Nuclei templates accept `--template-dir`.
@@ -8245,6 +8294,160 @@ waf-tester mcp \
 | `auto` | `--payloads` | — |
 | `bypass` | `--payloads` | — |
 | `mutate` | `--payloads` | — |
+
+---
+
+## Service Presets
+
+Service presets are JSON files that define known endpoints and attack surface characteristics for specific platforms. When you use `-service NAME`, WAFtester loads the matching preset from the `presets/` directory and uses its data during discovery and scanning.
+
+### Why Presets?
+
+Without presets, WAFtester discovers endpoints through crawling, JavaScript parsing, and sitemap analysis. This works well for most targets but misses known API routes, admin panels, and internal paths specific to a platform. Presets fill this gap by providing a curated list of endpoints that the platform is known to expose.
+
+### How Presets Work
+
+1. You specify `-service authentik` (or any preset name)
+2. WAFtester loads `presets/authentik.json`
+3. Discovery adds the preset endpoints to its crawl results
+4. Attack surface hints (e.g., `has_oauth`, `has_file_upload`) influence payload selection
+
+### Resolution Order
+
+Presets load from the first available source:
+
+| Priority | Source | When |
+|----------|--------|------|
+| 1 | `WAF_TESTER_PRESET_DIR` env var | Custom directory override |
+| 2 | `./presets` directory | Default on-disk directory |
+| 3 | Embedded presets | Fallback (e.g., `go install` without filesystem access) |
+
+### Built-in Presets
+
+| Preset | Description | Key Endpoints |
+|--------|-------------|---------------|
+| `authentik` | Identity provider (OAuth2, SAML, LDAP) | `/api/v3/`, `/application/o/`, `/source/saml/` |
+| `n8n` | Workflow automation | `/rest/workflows`, `/webhook/`, `/api/v1/` |
+| `immich` | Self-hosted photo management | `/api/assets/upload`, `/api/search/`, `/api/faces/` |
+| `webapp` | Generic web application | `/api/`, `/login`, `/admin/`, `/upload` |
+| `intranet` | Internal/intranet application | `/api/`, `/dashboard/`, `/graphql` |
+
+### Usage
+
+```bash
+# Auto scan with service preset
+waf-tester auto -u https://sso.example.com -service authentik
+
+# Discover endpoints using preset hints
+waf-tester discover -u https://automation.example.com -service n8n
+
+# Three-step workflow with preset
+waf-tester discover -u https://photos.example.com -service immich
+waf-tester learn -discovery discovery.json
+waf-tester run -plan testplan.json
+```
+
+### Creating Custom Presets
+
+Add a JSON file to the `presets/` directory. The file name (minus `.json`) becomes the preset name.
+
+#### JSON Schema
+
+```json
+{
+  "name": "myapp",
+  "description": "My application — what it does and key features",
+  "endpoints": [
+    "/api/v1/users",
+    "/api/v1/auth/login",
+    "/api/v1/auth/register",
+    "/admin/",
+    "/upload",
+    "/graphql",
+    "/health"
+  ],
+  "attack_surface": {
+    "has_auth_endpoints": true,
+    "has_api_endpoints": true,
+    "has_file_upload": true,
+    "has_oauth": false,
+    "has_saml": false,
+    "has_graphql": true,
+    "has_websockets": false
+  }
+}
+```
+
+#### Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Preset identifier (matches filename) |
+| `description` | string | Yes | What the service does |
+| `endpoints` | string[] | Yes | Known paths to probe during discovery |
+| `attack_surface.has_auth_endpoints` | bool | No | Has login/register/password reset |
+| `attack_surface.has_api_endpoints` | bool | No | Has REST/JSON API endpoints |
+| `attack_surface.has_file_upload` | bool | No | Has file upload functionality |
+| `attack_surface.has_oauth` | bool | No | Has OAuth2 flows |
+| `attack_surface.has_saml` | bool | No | Has SAML SSO |
+| `attack_surface.has_graphql` | bool | No | Has GraphQL endpoint |
+| `attack_surface.has_websockets` | bool | No | Has WebSocket connections |
+
+#### Example: GitLab Preset
+
+```json
+{
+  "name": "gitlab",
+  "description": "GitLab DevOps platform — Git hosting, CI/CD, container registry",
+  "endpoints": [
+    "/api/v4/projects",
+    "/api/v4/users",
+    "/api/v4/groups",
+    "/api/v4/runners",
+    "/users/sign_in",
+    "/users/sign_up",
+    "/oauth/authorize",
+    "/oauth/token",
+    "/-/graphql",
+    "/-/health",
+    "/-/readiness",
+    "/admin",
+    "/uploads"
+  ],
+  "attack_surface": {
+    "has_auth_endpoints": true,
+    "has_api_endpoints": true,
+    "has_file_upload": true,
+    "has_oauth": true,
+    "has_graphql": true,
+    "has_websockets": true
+  }
+}
+```
+
+Save as `presets/gitlab.json`. Use with:
+```bash
+waf-tester auto -u https://gitlab.example.com -service gitlab
+```
+
+#### Using Custom Preset Directories
+
+```bash
+# Environment variable
+export WAF_TESTER_PRESET_DIR=/opt/security/presets
+waf-tester auto -u https://target.com -service myapp
+
+# MCP server with custom presets
+waf-tester mcp --presets /opt/security/presets
+
+# Docker with custom presets mounted
+docker run -p 8080:8080 \
+  -v /opt/security/presets:/app/presets:ro \
+  ghcr.io/waftester/waftester
+
+# npm with custom presets
+WAF_TESTER_PRESET_DIR=./my-presets npx @waftester/cli auto -u https://target.com -service myapp
+```
 
 ---
 

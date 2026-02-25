@@ -93,11 +93,23 @@ Run `docker compose up -d` and connect your AI client to `http://localhost:8080/
 | `WAF_TESTER_PRESET_DIR` | `/app/presets` | Path to service preset JSON files |
 | `WAF_TESTER_TEMPLATE_DIR` | `/app/templates/nuclei` | Path to Nuclei YAML templates |
 
-Example:
+Examples:
 
 ```bash
+# Change HTTP listen port
 docker run -d -p 9090:9090 \
   -e WAF_TESTER_HTTP_ADDR=:9090 \
+  qandil/waftester
+
+# Mount custom service presets
+docker run -d -p 8080:8080 \
+  -v /path/to/presets:/app/presets:ro \
+  qandil/waftester
+
+# Mount custom payloads and presets
+docker run -d -p 8080:8080 \
+  -v /path/to/payloads:/app/payloads:ro \
+  -v /path/to/presets:/app/presets:ro \
   qandil/waftester
 ```
 

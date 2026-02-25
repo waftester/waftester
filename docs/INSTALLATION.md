@@ -94,6 +94,11 @@ docker run --rm ghcr.io/waftester/waftester scan -u https://example.com
 docker run -p 8080:8080 \
   -v /path/to/payloads:/app/payloads:ro \
   ghcr.io/waftester/waftester
+
+# Run with custom service presets mounted
+docker run -p 8080:8080 \
+  -v /path/to/presets:/app/presets:ro \
+  ghcr.io/waftester/waftester
 ```
 
 ### Available Tags
