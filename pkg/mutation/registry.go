@@ -111,6 +111,19 @@ func (r *Registry) Categories() []string {
 	return categories
 }
 
+// NamesForCategory returns the names of all mutators in a category.
+func (r *Registry) NamesForCategory(category string) []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	mutators := r.byType[category]
+	names := make([]string, len(mutators))
+	for i, m := range mutators {
+		names[i] = m.Name()
+	}
+	return names
+}
+
 // MutateWithAll applies all mutators to a payload
 func (r *Registry) MutateWithAll(payload string) []MutatedPayload {
 	r.mu.RLock()
@@ -218,11 +231,12 @@ type PipelineConfig struct {
 	IncludeRaw bool `json:"include_raw,omitempty"`
 }
 
-// DefaultPipelineConfig returns sensible defaults
+// DefaultPipelineConfig returns sensible defaults for standard scanning.
+// Uses all registered encoders, common locations, no evasions.
 func DefaultPipelineConfig() *PipelineConfig {
 	return &PipelineConfig{
-		Encoders:       []string{}, // All encoders
-		Locations:      []string{"query_param", "post_form", "post_json"},
+		Encoders:       DefaultRegistry.NamesForCategory("encoder"),
+		Locations:      DefaultRegistry.NamesForCategory("location"),
 		Evasions:       []string{}, // None by default for speed
 		ChainEncodings: false,
 		MaxChainDepth:  2,
@@ -230,25 +244,60 @@ func DefaultPipelineConfig() *PipelineConfig {
 	}
 }
 
-// FullCoveragePipelineConfig returns config for maximum coverage
-func FullCoveragePipelineConfig() *PipelineConfig {
+// QuickPipelineConfig returns a minimal config for fast scanning.
+// URL encoding variants only, single location.
+func QuickPipelineConfig() *PipelineConfig {
+	return &PipelineConfig{
+		Encoders:       []string{"raw", "url", "double_url"},
+		Locations:      []string{"query_param"},
+		Evasions:       []string{},
+		ChainEncodings: false,
+		IncludeRaw:     true,
+	}
+}
+
+// StandardPipelineConfig returns a balanced config for typical scanning.
+// Common encoders and locations, no evasions.
+func StandardPipelineConfig() *PipelineConfig {
+	return &PipelineConfig{
+		Encoders:       []string{"raw", "url", "double_url", "html_hex", "unicode"},
+		Locations:      []string{"query_param", "post_form", "post_json"},
+		Evasions:       []string{},
+		ChainEncodings: false,
+		IncludeRaw:     true,
+	}
+}
+
+// BypassPipelineConfig returns a config optimized for WAF bypass testing.
+// Includes encoding tricks, multiple injection locations, and evasion techniques.
+func BypassPipelineConfig() *PipelineConfig {
 	return &PipelineConfig{
 		Encoders: []string{
 			"raw", "url", "double_url", "triple_url",
-			"html_decimal", "html_hex", "html_named",
-			"unicode", "utf7", "utf16le", "utf16be",
-			"overlong_utf8", "wide_gbk", "wide_sjis",
-			"base64", "hex", "octal",
+			"overlong_utf8", "wide_gbk", "utf7",
+			"html_decimal", "html_hex", "mixed",
 		},
 		Locations: []string{
-			"query_param", "post_form", "post_json", "post_xml",
-			"header_xforward", "header_referer", "header_useragent", "header_custom",
-			"cookie", "path_segment", "multipart", "fragment",
+			"query_param", "post_form", "post_json",
+			"header_xforward", "cookie", "path_segment",
 		},
 		Evasions: []string{
 			"case_swap", "sql_comment", "whitespace_alt",
-			"null_byte", "hpp", "chunked",
+			"null_byte", "hpp", "unicode_normalize",
 		},
+		ChainEncodings: true,
+		MaxChainDepth:  2,
+		IncludeRaw:     true,
+	}
+}
+
+// FullCoveragePipelineConfig returns config for maximum coverage.
+// All registered encoders, locations, and evasions with chaining enabled.
+func FullCoveragePipelineConfig() *PipelineConfig {
+	return &PipelineConfig{
+		Encoders:       DefaultRegistry.NamesForCategory("encoder"),
+		Locations:      DefaultRegistry.NamesForCategory("location"),
+		Evasions:       DefaultRegistry.NamesForCategory("evasion"),
 		ChainEncodings: true,
 		MaxChainDepth:  3,
 		IncludeRaw:     true,

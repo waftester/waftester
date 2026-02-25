@@ -8,6 +8,8 @@ package report
 import (
 	"fmt"
 	"testing"
+
+	"github.com/waftester/waftester/pkg/finding"
 )
 
 // TestEnrichFinding_RiskConfidence_IncludesConfidence verifies that
@@ -73,7 +75,7 @@ func TestEnrichFinding_RiskConfidence_IncludesConfidence(t *testing.T) {
 func TestEnrichFinding_RiskConfidence_FormatConsistency(t *testing.T) {
 	t.Parallel()
 
-	severities := []string{"critical", "high", "medium", "low", "info"}
+	severities := finding.OrderedStrings()
 	for _, sev := range severities {
 		t.Run(sev, func(t *testing.T) {
 			t.Parallel()

@@ -12,9 +12,17 @@ import (
 	"sync"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/discovery/presets"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 )
+
+// ServicePresets returns the canonical list of known service presets
+// for endpoint discovery. Derived from embedded JSON files in the presets
+// package — add new services by dropping a JSON file there.
+func ServicePresets() []string {
+	return presets.Names()
+}
 
 func (d *Discoverer) discoverForms(ctx context.Context, result *DiscoveryResult) {
 	// Analyze HTML responses for forms
@@ -143,27 +151,16 @@ func (d *Discoverer) probeKnownEndpoints(ctx context.Context, result *DiscoveryR
 	}
 	endpoints = append(endpoints, common...)
 
-	// Service-specific endpoints
-	switch strings.ToLower(d.config.Service) {
-	case "authentik":
-		endpoints = append(endpoints, getAuthentikEndpoints()...)
-		result.AttackSurface.HasAuthEndpoints = true
-		result.AttackSurface.HasOAuth = true
-		result.AttackSurface.HasSAML = true
-	case "n8n":
-		endpoints = append(endpoints, getN8nEndpoints()...)
-		result.AttackSurface.HasAPIEndpoints = true
-		result.AttackSurface.HasWebSockets = true
-	case "immich":
-		endpoints = append(endpoints, getImmichEndpoints()...)
-		result.AttackSurface.HasFileUpload = true
-		result.AttackSurface.HasAPIEndpoints = true
-	case "agreementpulse":
-		endpoints = append(endpoints, getAgreementPulseEndpoints()...)
-		result.AttackSurface.HasAPIEndpoints = true
-	default:
-		// Generic probing
-		endpoints = append(endpoints, getGenericEndpoints()...)
+	// Service-specific endpoints from JSON presets
+	service := strings.ToLower(d.config.Service)
+	if p := presets.Get(service); p != nil {
+		endpoints = append(endpoints, p.Endpoints...)
+		applyAttackHints(&result.AttackSurface, &p.AttackSurface)
+	} else {
+		// No matching preset — fall back to generic probing
+		if p := presets.Get("webapp"); p != nil {
+			endpoints = append(endpoints, p.Endpoints...)
+		}
 	}
 
 	// Probe each endpoint using worker pool pattern
@@ -210,6 +207,31 @@ sendLoop:
 	}
 	close(work)
 	wg.Wait()
+}
+
+// applyAttackHints copies preset attack surface hints into the discovery result.
+func applyAttackHints(dst *AttackSurface, src *presets.AttackHints) {
+	if src.HasAuthEndpoints {
+		dst.HasAuthEndpoints = true
+	}
+	if src.HasAPIEndpoints {
+		dst.HasAPIEndpoints = true
+	}
+	if src.HasFileUpload {
+		dst.HasFileUpload = true
+	}
+	if src.HasOAuth {
+		dst.HasOAuth = true
+	}
+	if src.HasSAML {
+		dst.HasSAML = true
+	}
+	if src.HasGraphQL {
+		dst.HasGraphQL = true
+	}
+	if src.HasWebSockets {
+		dst.HasWebSockets = true
+	}
 }
 
 // probeEndpoint tests a single endpoint

@@ -350,9 +350,6 @@ retryLoop:
 	// Determine outcome based on detection and expectations
 	if isBlocked {
 		result.Outcome = "Blocked"
-		if blockConfidence > 0 {
-			result.ErrorMessage = fmt.Sprintf("Block confidence: %.0f%%", blockConfidence*100)
-		}
 	} else if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		if payload.ExpectedBlock {
 			result.Outcome = "Fail" // Should have been blocked!

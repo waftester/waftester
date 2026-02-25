@@ -1,0 +1,21 @@
+{
+  "name": "n8n",
+  "description": "n8n workflow automation platform — REST API, webhooks, WebSocket push",
+  "endpoints": [
+    "/healthz",
+    "/rest/workflows",
+    "/rest/credentials",
+    "/rest/executions",
+    "/rest/settings",
+    "/rest/users",
+    "/rest/oauth2-credential/",
+    "/webhook/",
+    "/webhook-test/",
+    "/api/v1/",
+    "/push"
+  ],
+  "attack_surface": {
+    "has_api_endpoints": true,
+    "has_websockets": true
+  }
+}
