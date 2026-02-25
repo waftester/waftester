@@ -49,16 +49,46 @@ import (
 	"github.com/waftester/waftester/pkg/waf/vendors"
 )
 
-// smartModeCache is a JSON-serializable subset of SmartModeResult for resume.
+// smartModeCache is a JSON-serializable snapshot of SmartModeResult for resume.
+// All Strategy fields are persisted so resumed scans behave identically to fresh ones.
 type smartModeCache struct {
-	WAFDetected   bool     `json:"waf_detected"`
-	VendorName    string   `json:"vendor_name"`
-	Confidence    float64  `json:"confidence"`
-	BypassHints   []string `json:"bypass_hints,omitempty"`
-	RateLimit     float64  `json:"rate_limit"`
-	Concurrency   int      `json:"concurrency"`
-	StratEncoders []string `json:"strategy_encoders,omitempty"`
-	StratEvasions []string `json:"strategy_evasions,omitempty"`
+	WAFDetected             bool     `json:"waf_detected"`
+	VendorName              string   `json:"vendor_name"`
+	Confidence              float64  `json:"confidence"`
+	BypassHints             []string `json:"bypass_hints,omitempty"`
+	RateLimit               float64  `json:"rate_limit"`
+	Concurrency             int      `json:"concurrency"`
+	StratVendor             string   `json:"strategy_vendor,omitempty"`
+	StratVendorName         string   `json:"strategy_vendor_name,omitempty"`
+	StratConfidence         float64  `json:"strategy_confidence,omitempty"`
+	StratEncoders           []string `json:"strategy_encoders,omitempty"`
+	StratEvasions           []string `json:"strategy_evasions,omitempty"`
+	StratLocations          []string `json:"strategy_locations,omitempty"`
+	StratSkipIneffective    []string `json:"strategy_skip_ineffective,omitempty"`
+	StratPrioritizeMutators []string `json:"strategy_prioritize_mutators,omitempty"`
+	StratBypassTips         []string `json:"strategy_bypass_tips,omitempty"`
+	StratSafeRateLimit      int      `json:"strategy_safe_rate_limit,omitempty"`
+	StratBurstRateLimit     int      `json:"strategy_burst_rate_limit,omitempty"`
+	StratCooldownSeconds    int      `json:"strategy_cooldown_seconds,omitempty"`
+	StratBlockStatusCodes   []int    `json:"strategy_block_status_codes,omitempty"`
+	StratBlockPatterns      []string `json:"strategy_block_patterns,omitempty"`
+	StratRecommendedDepth   int      `json:"strategy_recommended_depth,omitempty"`
+}
+
+// copyStrings returns an independent copy of a string slice.
+func copyStrings(s []string) []string {
+	if s == nil {
+		return nil
+	}
+	return append([]string(nil), s...)
+}
+
+// copyInts returns an independent copy of an int slice.
+func copyInts(s []int) []int {
+	if s == nil {
+		return nil
+	}
+	return append([]int(nil), s...)
 }
 
 func newSmartModeCache(r *SmartModeResult) smartModeCache {
@@ -66,13 +96,26 @@ func newSmartModeCache(r *SmartModeResult) smartModeCache {
 		WAFDetected: r.WAFDetected,
 		VendorName:  r.VendorName,
 		Confidence:  r.Confidence,
-		BypassHints: r.BypassHints,
+		BypassHints: copyStrings(r.BypassHints),
 		RateLimit:   r.RateLimit,
 		Concurrency: r.Concurrency,
 	}
 	if r.Strategy != nil {
-		c.StratEncoders = r.Strategy.Encoders
-		c.StratEvasions = r.Strategy.Evasions
+		c.StratVendor = string(r.Strategy.Vendor)
+		c.StratVendorName = r.Strategy.VendorName
+		c.StratConfidence = r.Strategy.Confidence
+		c.StratEncoders = copyStrings(r.Strategy.Encoders)
+		c.StratEvasions = copyStrings(r.Strategy.Evasions)
+		c.StratLocations = copyStrings(r.Strategy.Locations)
+		c.StratSkipIneffective = copyStrings(r.Strategy.SkipIneffectiveMutators)
+		c.StratPrioritizeMutators = copyStrings(r.Strategy.PrioritizeMutators)
+		c.StratBypassTips = copyStrings(r.Strategy.BypassTips)
+		c.StratSafeRateLimit = r.Strategy.SafeRateLimit
+		c.StratBurstRateLimit = r.Strategy.BurstRateLimit
+		c.StratCooldownSeconds = r.Strategy.CooldownSeconds
+		c.StratBlockStatusCodes = copyInts(r.Strategy.BlockStatusCodes)
+		c.StratBlockPatterns = copyStrings(r.Strategy.BlockPatterns)
+		c.StratRecommendedDepth = r.Strategy.RecommendedMutationDepth
 	}
 	return c
 }
@@ -86,8 +129,21 @@ func (c *smartModeCache) toSmartModeResult() *SmartModeResult {
 		RateLimit:   c.RateLimit,
 		Concurrency: c.Concurrency,
 		Strategy: &strategy.Strategy{
-			Encoders: c.StratEncoders,
-			Evasions: c.StratEvasions,
+			Vendor:                   vendors.WAFVendor(c.StratVendor),
+			VendorName:               c.StratVendorName,
+			Confidence:               c.StratConfidence,
+			Encoders:                 c.StratEncoders,
+			Evasions:                 c.StratEvasions,
+			Locations:                c.StratLocations,
+			SkipIneffectiveMutators:  c.StratSkipIneffective,
+			PrioritizeMutators:       c.StratPrioritizeMutators,
+			BypassTips:               c.StratBypassTips,
+			SafeRateLimit:            c.StratSafeRateLimit,
+			BurstRateLimit:           c.StratBurstRateLimit,
+			CooldownSeconds:          c.StratCooldownSeconds,
+			BlockStatusCodes:         c.StratBlockStatusCodes,
+			BlockPatterns:            c.StratBlockPatterns,
+			RecommendedMutationDepth: c.StratRecommendedDepth,
 		},
 	}
 }
@@ -383,6 +439,10 @@ func runAutoScan() {
 	var insightCount int32
 	var chainCount int32
 
+	// Insight dedup: aggregate repeated titles instead of spamming console
+	var insightMu sync.Mutex
+	insightSeen := make(map[string]int) // title → count
+
 	if *enableBrain {
 		brain = intelligence.NewEngine(&intelligence.Config{
 			LearningSensitivity: 0.7,
@@ -397,6 +457,17 @@ func runAutoScan() {
 		brain.OnInsight(func(insight *intelligence.Insight) {
 			atomic.AddInt32(&insightCount, 1)
 			if *brainVerbose && !quietMode {
+				insightMu.Lock()
+				insightSeen[insight.Title]++
+				count := insightSeen[insight.Title]
+				insightMu.Unlock()
+
+				// Only print the first occurrence of each insight title;
+				// subsequent duplicates are silently counted and summarized later.
+				if count > 1 {
+					return
+				}
+
 				priorityStyle := ui.PassStyle
 				switch insight.Priority {
 				case 1:
@@ -406,7 +477,13 @@ func runAutoScan() {
 				case 3:
 					priorityStyle = ui.SeverityStyle("Medium")
 				}
-				fmt.Fprintf(os.Stderr, "  %s %s: %s\n", ui.Icon("🧠", "*"), priorityStyle.Render(string(insight.Type)), insight.Title)
+				// Show description (has URL/path details) for vulnerability insights,
+				// fall back to title for others.
+				detail := insight.Title
+				if insight.Type == intelligence.InsightVulnerability && insight.Description != "" {
+					detail = insight.Description
+				}
+				fmt.Fprintf(os.Stderr, "  %s %s: %s\n", ui.Icon("🧠", "*"), priorityStyle.Render(string(insight.Type)), detail)
 			}
 		})
 
@@ -727,9 +804,26 @@ func runAutoScan() {
 
 		discoverer := discovery.NewDiscoverer(discoveryCfg)
 
+		// Poll endpoint count during discovery so the progress ticker
+		// reflects intermediate results instead of staying at 0.
+		discDone := make(chan struct{})
+		go func() {
+			ticker := time.NewTicker(2 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-discDone:
+					return
+				case <-ticker.C:
+					autoProgress.SetMetric("endpoints", int64(discoverer.EndpointCount()))
+				}
+			}
+		}()
+
 		ui.PrintInfo(ui.Icon("🔍", "?") + " Starting endpoint discovery...")
 		var err error
 		discResult, err = discoverer.Discover(ctx)
+		close(discDone)
 		if err != nil {
 			errMsg := fmt.Sprintf("Discovery failed: %v", err)
 			ui.PrintError(errMsg)
@@ -752,7 +846,14 @@ func runAutoScan() {
 
 		ui.PrintSuccess(fmt.Sprintf("%s Discovered %d endpoints", ui.Icon("✓", "+"), len(discResult.Endpoints)))
 		if discResult.WAFDetected {
-			ui.PrintInfo(fmt.Sprintf("  WAF Detected: %s", discResult.WAFFingerprint))
+			wafLabel := discResult.WAFFingerprint
+			// Fall back to smart mode WAF name when discovery fingerprint is empty
+			if wafLabel == "" && smartResult != nil && smartResult.VendorName != "" {
+				wafLabel = smartResult.VendorName
+			}
+			if wafLabel != "" {
+				ui.PrintInfo(fmt.Sprintf("  WAF Detected: %s", wafLabel))
+			}
 		}
 		printStatusLn()
 
@@ -1682,6 +1783,12 @@ func runAutoScan() {
 			leakyPathCats = strings.Split(*leakyCategories, ",")
 		}
 
+		// Skip recon modules whose individual phases already produced results,
+		// avoiding redundant network requests when --leaky-paths and --discover-params
+		// (both default: true) already ran as separate phases.
+		alreadyRanLeaky := leakyResult != nil
+		alreadyRanParams := paramResult != nil
+
 		reconScanner := recon.NewScanner(&recon.Config{
 			Base: attackconfig.Base{
 				Timeout:     time.Duration(*timeout) * time.Second,
@@ -1690,8 +1797,8 @@ func runAutoScan() {
 			Verbose:              *verbose,
 			SkipTLSVerify:        *skipVerify,
 			HTTPClient:           ja3Client, // JA3 TLS fingerprint rotation
-			EnableLeakyPaths:     *enableLeakyPaths,
-			EnableParamDiscovery: *enableParamDiscovery,
+			EnableLeakyPaths:     *enableLeakyPaths && !alreadyRanLeaky,
+			EnableParamDiscovery: *enableParamDiscovery && !alreadyRanParams,
 			EnableJSAnalysis:     true,
 			EnableJA3Rotation:    *enableJA3,
 			LeakyPathCategories:  leakyPathCats,
@@ -1940,6 +2047,9 @@ func runAutoScan() {
 	}
 	payloadsCheckpoint := filepath.Join(workspaceDir, "payloads-prepared.json")
 
+	// Declare tamperEngine at outer scope so mutation-pass can reuse it on resume.
+	var tamperEngine *tampers.Engine
+
 	if shouldSkipPhase("waf-testing") {
 		ui.PrintInfo("⏭️  Skipping WAF testing (already completed)")
 		if data, err := os.ReadFile(wafResultsFile); err == nil {
@@ -2046,7 +2156,7 @@ func runAutoScan() {
 		}
 
 		// G1: Inject discovered params into payload target paths
-		// Appends hidden params as query strings so payloads test them
+		// Generates payloads for query params (GET) and body params (POST)
 		if paramResult != nil && paramResult.FoundParams > 0 {
 			const maxParamPayloads = 200
 			var paramPayloads []payloads.Payload
@@ -2054,21 +2164,39 @@ func runAutoScan() {
 				if len(paramPayloads) >= maxParamPayloads {
 					break // Cap total additional payloads across all params
 				}
-				if p.Type != "query" {
+
+				switch p.Type {
+				case "query":
+					// Append as query string parameter
+					for _, existing := range allPayloads {
+						if len(paramPayloads) >= maxParamPayloads {
+							break
+						}
+						clone := existing
+						separator := "?"
+						if strings.Contains(clone.TargetPath, "?") {
+							separator = "&"
+						}
+						clone.TargetPath = clone.TargetPath + separator + p.Name + "=" + clone.Payload
+						paramPayloads = append(paramPayloads, clone)
+					}
+
+				case "body":
+					// Generate POST payloads with the param in form-encoded body
+					for _, existing := range allPayloads {
+						if len(paramPayloads) >= maxParamPayloads {
+							break
+						}
+						clone := existing
+						clone.Method = "POST"
+						clone.ContentType = defaults.ContentTypeForm
+						clone.Payload = p.Name + "=" + existing.Payload
+						paramPayloads = append(paramPayloads, clone)
+					}
+
+				default:
+					// header/cookie params: skip for now (no clean executor support)
 					continue
-				}
-				// Generate injection payloads targeting discovered params
-				for _, existing := range allPayloads {
-					if len(paramPayloads) >= maxParamPayloads {
-						break
-					}
-					clone := existing
-					separator := "?"
-					if strings.Contains(clone.TargetPath, "?") {
-						separator = "&"
-					}
-					clone.TargetPath = clone.TargetPath + separator + p.Name + "=" + clone.Payload
-					paramPayloads = append(paramPayloads, clone)
 				}
 			}
 			if len(paramPayloads) > 0 {
@@ -2210,12 +2338,30 @@ func runAutoScan() {
 		}
 
 		ui.PrintInfo(fmt.Sprintf("Loaded %d payloads for testing", len(allPayloads)))
+
+		// Filter out payloads with encodings known to be ineffective against the detected WAF.
+		// For example, Cloudflare natively decodes base64, so base64_simple encodings are always caught.
+		if smartResult != nil && smartResult.Strategy != nil && len(smartResult.Strategy.SkipIneffectiveMutators) > 0 {
+			filtered := make([]payloads.Payload, 0, len(allPayloads))
+			skippedCount := 0
+			for _, p := range allPayloads {
+				if smartResult.Strategy.ShouldSkipPayload(p.EncodingUsed) {
+					skippedCount++
+					continue
+				}
+				filtered = append(filtered, p)
+			}
+			if skippedCount > 0 {
+				allPayloads = filtered
+				ui.PrintInfo(fmt.Sprintf("Skipped %d payloads with ineffective encodings for %s", skippedCount, smartResult.VendorName))
+			}
+		}
+
 		printStatusLn()
 
 		// ═══════════════════════════════════════════════════════════════════════════
 		// TAMPER ENGINE INITIALIZATION
 		// ═══════════════════════════════════════════════════════════════════════════
-		var tamperEngine *tampers.Engine
 		if *tamperList != "" || *tamperAuto || (*smartMode && smartResult != nil && smartResult.WAFDetected) {
 			// Determine tamper profile
 			profile := tampers.ProfileStandard
@@ -2254,10 +2400,19 @@ func runAutoScan() {
 				}
 			}
 
+			// Collect strategy-recommended evasions as hints for tamper selection.
+			// These come from smart mode's WAF-specific strategy (e.g., Cloudflare
+			// recommends case_swap, chunked, whitespace_alt).
+			var strategyHints []string
+			if smartResult != nil && smartResult.Strategy != nil {
+				strategyHints = smartResult.Strategy.Evasions
+			}
+
 			tamperEngine = tampers.NewEngine(&tampers.EngineConfig{
 				Profile:       profile,
 				CustomTampers: tampers.ParseTamperList(*tamperList),
 				WAFVendor:     wafVendor,
+				StrategyHints: strategyHints,
 				EnableMetrics: true,
 			})
 
@@ -2732,6 +2887,14 @@ func runAutoScan() {
 				}
 			}
 
+			// Apply tamper transforms to mutation payloads so they benefit from
+			// the same WAF-specific evasion transforms as the main payload set.
+			if tamperEngine != nil && len(mutatedPayloads) > 0 {
+				for i := range mutatedPayloads {
+					mutatedPayloads[i].Payload = tamperEngine.Transform(mutatedPayloads[i].Payload)
+				}
+			}
+
 			if len(mutatedPayloads) > 0 {
 				brain.StartPhase(ctx, "mutation-pass")
 				ui.PrintInfo(fmt.Sprintf("🧬 Mutation pass: %d mutated payloads from %d blocked originals",
@@ -2830,7 +2993,7 @@ func runAutoScan() {
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
-	// PHASE 4.5: VENDOR-SPECIFIC WAF ANALYSIS (NEW)
+	// VENDOR-SPECIFIC WAF ANALYSIS (runs after testing, before report)
 	// ═══════════════════════════════════════════════════════════════════════════
 
 	// Vendor detection with comprehensive signature database
@@ -2861,7 +3024,7 @@ func runAutoScan() {
 		}
 	} else {
 		printStatusLn()
-		printStatusLn(ui.SectionStyle.Render("PHASE 4.5: Vendor-Specific WAF Analysis"))
+		printStatusLn(ui.SectionStyle.Render("Vendor-Specific WAF Analysis"))
 		printStatusLn()
 
 		ui.PrintInfo("🔍 Detecting WAF vendor with 150+ signatures...")
@@ -3051,6 +3214,17 @@ func runAutoScan() {
 			fmt.Fprintf(os.Stderr, "  %s Total findings: %d | Bypasses: %d | Attack chains: %d | Insights: %d\n",
 				ui.BracketStyle.Render("📈"),
 				brainSummary.TotalFindings, brainSummary.Bypasses, brainSummary.AttackChains, atomic.LoadInt32(&insightCount))
+
+			// Print aggregated insight counts for repeated types
+			if *brainVerbose {
+				insightMu.Lock()
+				for title, count := range insightSeen {
+					if count > 1 {
+						fmt.Fprintf(os.Stderr, "    %s %s (×%d)\n", ui.Icon("↳", " "), title, count)
+					}
+				}
+				insightMu.Unlock()
+			}
 			printStatusLn()
 		}
 
@@ -3351,6 +3525,12 @@ func runAutoScan() {
 			assessTemplateDir = resolved
 		}
 
+		// Use pre-detected WAF vendor from smart mode or vendor detection phase
+		assessWAFVendor := vendorName
+		if assessWAFVendor == "" && smartResult != nil && smartResult.VendorName != "" {
+			assessWAFVendor = smartResult.VendorName
+		}
+
 		assessConfig := &assessment.Config{
 			Base: attackconfig.Base{
 				Concurrency: *concurrency,
@@ -3364,6 +3544,7 @@ func runAutoScan() {
 			EnableFPTesting: true,
 			CorpusSources:   strings.Split(*assessCorpus, ","),
 			DetectWAF:       true,
+			WAFVendor:       assessWAFVendor,
 			PayloadDir:      payloadDir,
 			TemplateDir:     assessTemplateDir,
 		}

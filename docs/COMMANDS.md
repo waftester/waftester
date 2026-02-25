@@ -171,6 +171,7 @@ Environment variables override flag defaults. They are useful for CI/CD or Docke
 | Variable | Description |
 |----------|-------------|
 | `WAF_TESTER_PAYLOAD_DIR` | Override default payload directory (`./payloads`). Used by the CLI, npm shim, and MCP server. |
+| `WAF_TESTER_PRESET_DIR` | Override default service preset directory (`./presets`). Used by discovery and MCP server. |
 | `WAF_TESTER_TEMPLATE_DIR` | Override default Nuclei template directory (`./templates/nuclei`). Used by scan, template, and MCP commands. |
 | `WAF_TESTER_HTTP_ADDR` | Default HTTP listen address for the MCP server when `--http` is not specified. |
 | `WAF_TESTER_BINARY_PATH` | Override the resolved binary path. Primarily used by the npm shim for development or custom installations. |
@@ -1200,7 +1201,7 @@ waftester crawl -u https://target.com --secrets --emails --json
 
 Automated service discovery and endpoint enumeration. Probes a target to identify API endpoints, query parameters, form fields, and service characteristics. The output feeds directly into `learn` to generate test plans.
 
-Discovery combines passive analysis (HTML/JS parsing, link extraction) with active probing (common path checks, parameter detection) to build a target map.
+Discovery combines passive analysis (HTML/JS parsing, link extraction) with active probing (common path checks, parameter detection) to build a target map. When a `-service` preset is specified, discovery also probes service-specific endpoints from the matching JSON preset file (see `presets/` directory).
 
 **When to use:** Before `learn` + `run` workflows, or when you need a structured endpoint inventory for manual review.
 
@@ -1209,7 +1210,7 @@ Discovery combines passive analysis (HTML/JS parsing, link extraction) with acti
 | `-target` | `-u` | string[] | | Target URL(s) |
 | `-l` | | string | | Target list |
 | `-stdin` | | bool | false | Read stdin |
-| `-service` | | string | | Service type hint |
+| `-service` | | string | | Service preset name (loads `presets/<name>.json` for service-specific endpoints). Built-in: `authentik`, `n8n`, `immich`, `webapp`, `intranet`. Custom: add JSON to `presets/` directory. |
 | `-output` | | string | `discovery.json` | Output file |
 | `-timeout` | | int | 10 | Timeout |
 | `-concurrency` | | int | 10 | Concurrency |
@@ -1227,6 +1228,12 @@ waftester discover -u https://target.com -o endpoints.json
 
 # Deep discovery
 waftester discover -u https://target.com --depth 5 --verbose
+
+# Discover with service preset (adds known endpoints for the platform)
+waftester discover -u https://sso.example.com -service authentik
+
+# Custom preset directory
+WAF_TESTER_PRESET_DIR=./my-presets waftester discover -u https://target.com -service myapp
 ```
 
 **Related:** [`learn`](#learn) (generate test plan from discovery results) → [`run`](#run) (execute the test plan)
@@ -1985,6 +1992,7 @@ Model Context Protocol (MCP) server for AI agent integration. Exposes WAFtester'
 | `-stdio` | bool | true | Use stdio transport (for IDE integration) |
 | `-http` | string | | HTTP listen address (e.g., `:8080`) |
 | `-payloads` | string | `$WAF_TESTER_PAYLOAD_DIR` or `./payloads` | Payload directory |
+| `-presets` | string | `$WAF_TESTER_PRESET_DIR` or `./presets` | Service preset directory |
 | `-templates` | string | `$WAF_TESTER_TEMPLATE_DIR` or `./templates/nuclei` | Template directory |
 | `-tamper-dir` | string | | Directory of custom `.tengo` tamper scripts to load for `discover_bypasses` and `scan` tools |
 

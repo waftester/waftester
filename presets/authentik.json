@@ -1,0 +1,28 @@
+{
+  "name": "authentik",
+  "description": "Authentik identity provider — OAuth2, SAML, LDAP authentication platform",
+  "endpoints": [
+    "/-/health/ready/",
+    "/-/health/live/",
+    "/api/v3/core/applications/",
+    "/api/v3/core/groups/",
+    "/api/v3/core/users/",
+    "/api/v3/core/tokens/",
+    "/api/v3/flows/executor/",
+    "/api/v3/policies/",
+    "/application/o/authorize/",
+    "/application/o/token/",
+    "/application/o/userinfo/",
+    "/source/saml/",
+    "/source/oauth/",
+    "/if/flow/default-authentication-flow/",
+    "/if/admin/",
+    "/if/user/",
+    "/ws/"
+  ],
+  "attack_surface": {
+    "has_auth_endpoints": true,
+    "has_oauth": true,
+    "has_saml": true
+  }
+}

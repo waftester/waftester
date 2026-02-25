@@ -723,9 +723,9 @@ var serverInstructions = buildServerInstructions()
 // buildServerInstructions generates the full AI operating manual with dynamic
 // signature counts derived from the vendor registry.
 func buildServerInstructions() string {
-	wafCount := len(vendors.GetVendorNamesByCategory("cloud", "appliance", "software", "bot-management", "wordpress-plugin", "joomla-plugin"))
-	cdnCount := len(vendors.GetVendorNamesByCategory("cdn-integrated"))
-	return fmt.Sprintf(`You are operating WAF Tester — a comprehensive Web Application Firewall security testing platform with 27 tools, 2,800+ attack payloads, %d WAF + %d CDN detection signatures, and enterprise-grade assessment capabilities.`, wafCount, cdnCount) + `
+	wafCount := len(vendors.GetVendorNamesByCategory(vendors.WAFCategories()...))
+	cdnCount := len(vendors.GetVendorNamesByCategory(vendors.CDNCategories()...))
+	return fmt.Sprintf(`You are operating WAF Tester — a comprehensive Web Application Firewall security testing platform with 2,800+ attack payloads, %d WAF + %d CDN detection signatures, and enterprise-grade assessment capabilities.`, wafCount, cdnCount) + `
 
 ## YOUR IDENTITY
 

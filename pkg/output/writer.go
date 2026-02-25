@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/finding"
 	detectionoutput "github.com/waftester/waftester/pkg/output/detection"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -386,7 +387,7 @@ func PrintSummary(results ExecutionResults) {
 	if len(results.SeverityBreakdown) > 0 {
 		fmt.Println("\n" + strings.Repeat(ui.Icon("─", "-"), 40))
 		fmt.Printf("%s  Severity Breakdown:%s\n", ansi("\033[1;35m"), ansi("\033[0m"))
-		severityOrder := []string{"critical", "high", "medium", "low", "info"}
+		severityOrder := finding.OrderedStrings()
 		severityLabel := map[string]string{"critical": "Critical", "high": "High", "medium": "Medium", "low": "Low", "info": "Info"}
 		for _, sev := range severityOrder {
 			if count, ok := results.SeverityBreakdown[sev]; ok && count > 0 {

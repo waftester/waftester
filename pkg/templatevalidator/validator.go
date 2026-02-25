@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/waftester/waftester/pkg/finding"
 	"gopkg.in/yaml.v3"
 )
 
@@ -65,8 +66,9 @@ type Template struct {
 	Variables map[string]string `yaml:"variables"`
 }
 
-// ValidSeverities defines valid severity levels
-var ValidSeverities = []string{"critical", "high", "medium", "low", "info", "unknown"}
+// ValidSeverities defines valid severity levels, derived from finding.Severity
+// plus "unknown" for templates with unclassified severity.
+var ValidSeverities = append(finding.OrderedStrings(), "unknown")
 
 // Validator validates Nuclei-compatible templates
 type Validator struct {

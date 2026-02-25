@@ -1,0 +1,30 @@
+{
+  "name": "intranet",
+  "description": "Internal/intranet application — admin panels, internal APIs, SSO",
+  "endpoints": [
+    "/api/",
+    "/api/v1/",
+    "/api/v2/",
+    "/login",
+    "/logout",
+    "/register",
+    "/signup",
+    "/admin/",
+    "/dashboard/",
+    "/settings/",
+    "/profile/",
+    "/users/",
+    "/search",
+    "/upload",
+    "/download",
+    "/graphql",
+    "/swagger.json",
+    "/openapi.json",
+    "/.env",
+    "/config"
+  ],
+  "attack_surface": {
+    "has_api_endpoints": true,
+    "has_auth_endpoints": true
+  }
+}

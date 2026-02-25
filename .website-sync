@@ -2,4 +2,4 @@
 # Updated after syncing website content. Checked by tests + pre-push.
 # Run: ./scripts/mark-website-synced.sh
 
-changelog_version=2.8.7
+changelog_version=2.9.30

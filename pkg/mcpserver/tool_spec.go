@@ -380,7 +380,7 @@ Result format: JSON with entries (attack plan), total_tests, priority breakdown,
 					p["intensity"] = map[string]any{
 						"type":        "string",
 						"description": "Scanning intensity: quick, normal, deep, paranoid. Default: normal.",
-						"enum":        []string{"quick", "normal", "deep", "paranoid"},
+						"enum":        apispec.Intensities(),
 					}
 					p["group"] = map[string]any{
 						"type":        "string",
@@ -499,7 +499,7 @@ Result format: JSON with findings, endpoint results, attack summary, and scan du
 					p["intensity"] = map[string]any{
 						"type":        "string",
 						"description": "Scanning intensity: quick, normal, deep, paranoid.",
-						"enum":        []string{"quick", "normal", "deep", "paranoid"},
+						"enum":        apispec.Intensities(),
 					}
 					p["group"] = map[string]any{
 						"type":        "string",
@@ -778,7 +778,7 @@ Result format: JSON with entries (endpoint, attack category, payload count), tot
 					p := specInputProperties()
 					p["intensity"] = map[string]any{
 						"type":        "string",
-						"enum":        []string{"quick", "normal", "deep", "paranoid"},
+						"enum":        apispec.Intensities(),
 						"description": "Scanning depth. Default: normal.",
 					}
 					p["group"] = map[string]any{

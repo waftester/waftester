@@ -562,6 +562,7 @@ func (s *Strategy) GetTamperEngine(profile tampers.Profile) *tampers.Engine {
 	return tampers.NewEngine(&tampers.EngineConfig{
 		Profile:       profile,
 		WAFVendor:     string(s.Vendor),
+		StrategyHints: s.Evasions,
 		EnableMetrics: true,
 	})
 }

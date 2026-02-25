@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/payloadprovider"
 	"github.com/waftester/waftester/pkg/payloads"
 )
@@ -705,7 +706,7 @@ Returns: total count, per-category breakdown, severity distribution, 5 sample pa
 					"severity": map[string]any{
 						"type":        "string",
 						"description": "Filter by minimum severity level. Only payloads at this severity or higher are returned.",
-						"enum":        []string{"Critical", "High", "Medium", "Low"},
+						"enum":        finding.TitleCaseStrings(),
 					},
 				},
 			},

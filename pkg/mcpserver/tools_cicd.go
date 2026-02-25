@@ -12,6 +12,9 @@ import (
 // cicdSafePattern matches characters safe for inclusion in shell commands.
 var cicdSafePattern = regexp.MustCompile(`^[a-zA-Z0-9:/._\-?&=%,@+]+$`)
 
+// supportedPlatforms is the canonical list of CI/CD platforms supported by generate_cicd.
+var supportedPlatforms = []string{"github", "gitlab", "jenkins", "azure-devops", "circleci", "bitbucket"}
+
 // cronSafePattern matches valid cron expression characters.
 // Allows digits, *, /, ,, -, space, and @-prefixed shortcuts (e.g. @weekly).
 // Rejects newlines, single quotes, backslashes, and other YAML-breaking chars.
@@ -58,7 +61,7 @@ Returns: complete pipeline YAML/Groovy, ready to paste into your repo and commit
 					"platform": map[string]any{
 						"type":        "string",
 						"description": "CI/CD platform to generate config for.",
-						"enum":        []string{"github", "gitlab", "jenkins", "azure-devops", "circleci", "bitbucket"},
+						"enum":        supportedPlatforms,
 					},
 					"target": map[string]any{
 						"type":        "string",
@@ -100,14 +103,14 @@ func (s *Server) handleGenerateCICD(_ context.Context, req *mcp.CallToolRequest)
 	}
 
 	if args.Platform == "" {
-		return errorResult("platform is required. Supported: github, gitlab, jenkins, azure-devops, circleci, bitbucket"), nil
+		return errorResult("platform is required. Supported: " + strings.Join(supportedPlatforms, ", ")), nil
 	}
-	validPlatforms := map[string]bool{
-		"github": true, "gitlab": true, "jenkins": true,
-		"azure-devops": true, "circleci": true, "bitbucket": true,
+	validPlatforms := make(map[string]bool, len(supportedPlatforms))
+	for _, p := range supportedPlatforms {
+		validPlatforms[p] = true
 	}
 	if !validPlatforms[args.Platform] {
-		return errorResult(fmt.Sprintf("unsupported platform %q. Supported: github, gitlab, jenkins, azure-devops, circleci, bitbucket", args.Platform)), nil
+		return errorResult(fmt.Sprintf("unsupported platform %q. Supported: %s", args.Platform, strings.Join(supportedPlatforms, ", "))), nil
 	}
 	if args.Target == "" {
 		return errorResult("target URL is required."), nil

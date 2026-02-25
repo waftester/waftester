@@ -13,6 +13,7 @@ import (
 	"github.com/chromedp/chromedp"
 	"github.com/waftester/waftester/pkg/apispec"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/discovery/presets"
 	"github.com/waftester/waftester/pkg/headless"
 	"github.com/waftester/waftester/pkg/mcpserver"
 	"github.com/waftester/waftester/pkg/payloadprovider"
@@ -31,6 +32,7 @@ func runMCP() {
 	httpAddr := fs.String("http", "", "HTTP address to listen on (e.g. :8080). Disables stdio.")
 	payloadDir := fs.String("payloads", envOrDefault("WAF_TESTER_PAYLOAD_DIR", defaults.PayloadDir), "Payload directory")
 	templateDir := fs.String("templates", envOrDefault("WAF_TESTER_TEMPLATE_DIR", defaults.TemplateDir), "Nuclei template directory")
+	presetDir := fs.String("presets", envOrDefault("WAF_TESTER_PRESET_DIR", defaults.PresetDir), "Service preset directory")
 	tamperDir := fs.String("tamper-dir", "", "Directory of .tengo script tampers to load")
 
 	fs.Usage = func() {
@@ -42,6 +44,7 @@ func runMCP() {
 		fmt.Fprintf(os.Stderr, "Environment variables:\n")
 		fmt.Fprintf(os.Stderr, "  WAF_TESTER_PAYLOAD_DIR   Payload directory (default: %s)\n", defaults.PayloadDir)
 		fmt.Fprintf(os.Stderr, "  WAF_TESTER_TEMPLATE_DIR  Nuclei template directory (default: %s)\n", defaults.TemplateDir)
+		fmt.Fprintf(os.Stderr, "  WAF_TESTER_PRESET_DIR    Service preset directory (default: %s)\n", defaults.PresetDir)
 		fmt.Fprintf(os.Stderr, "  WAF_TESTER_HTTP_ADDR     HTTP listen address (same as --http)\n\n")
 		fmt.Fprintf(os.Stderr, "Examples:\n")
 		fmt.Fprintf(os.Stderr, "  waf-tester mcp --stdio\n")
@@ -60,6 +63,9 @@ func runMCP() {
 	if resolved, resolveErr := templateresolver.ResolveNucleiDir(*templateDir); resolveErr == nil {
 		*templateDir = resolved
 	}
+
+	// Override service preset directory if --presets was explicitly set.
+	presets.SetDir(*presetDir)
 
 	// Allow env var override for HTTP address (useful in Docker/K8s)
 	if *httpAddr == "" {

@@ -64,6 +64,16 @@ const (
 	IntensityParanoid Intensity = "paranoid"
 )
 
+// Intensities returns the canonical intensity level names for schema enums.
+func Intensities() []string {
+	return []string{
+		string(IntensityQuick),
+		string(IntensityNormal),
+		string(IntensityDeep),
+		string(IntensityParanoid),
+	}
+}
+
 // Spec is the unified representation of any API specification.
 // Regardless of input format (OpenAPI 3.x, Swagger 2.0, Postman,
 // HAR, etc.), Parse() produces this single type.

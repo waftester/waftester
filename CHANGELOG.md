@@ -5,6 +5,28 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.31] - 2026-02-26
+
+### Added
+
+- **Autoscan strategy integration** — Wired 7 disconnected strategy, tamper, and param integrations: `ShouldSkipPayload()` filters ineffective encodings per-WAF vendor, `PrioritizePayloads()` respects vendor-specific mutator priorities, body params from discovery generate POST payloads, tamper engine applies transforms to mutation pass payloads, full-recon deduplicates already-completed phases, and strategy evasion hints feed into the tamper engine selection.
+- **Discovery service presets** — Replaced hardcoded service endpoints with filesystem-first JSON presets loaded from `presets/` directory, enabling customizable discovery targets with proper distribution wiring for embedded and on-disk resolution.
+- **Live discovery progress** — Endpoint count updates in real-time during discovery phase via polling goroutine instead of only showing final count at completion.
+
+### Fixed
+
+- **Brain insight spam** — Deduplicated intelligence engine insights so repeated findings (e.g., 150+ identical "ENDPOINT Bypass Detected") display once with description details, then aggregate counts in a summary after the brain report.
+- **Empty WAF name after discovery** — Falls back to smart mode vendor name when discovery fingerprint is empty, suppressing the blank "WAF Detected: " line entirely when no vendor is identified.
+- **Enterprise assessment ignoring detected WAF** — Assessment phase now receives the pre-detected WAF vendor from smart mode instead of re-running its own detection that defaults to "Unknown".
+- **Block confidence polluting top errors** — Removed block confidence percentage from `ErrorMessage` field on blocked results; confidence is metadata stored in `BlockConfidence`, not an error string.
+- **Strategy cache round-trip** — Fixed smart mode cache not persisting WAF strategy fields (skip/prioritize mutators, evasions) and corrected evasion engine hint lookup, pipeline sort stability, and nil-safe strategy field propagation.
+
+### Changed
+
+- **Crawler HTML tokenizer** — Replaced regex-based HTML parsing with `golang.org/x/net/html` tokenizer for reliable link/form/script extraction, plus 11 reliability improvements including robots.txt caching, bounded redirect chains, and content-type filtering.
+- **Mutation registry pattern** — Replaced hardcoded encoder, location, and evasion lists in the mutation package with a registry pattern, eliminating scattered magic strings.
+- **Centralized defaults across 32 files** — Eliminated hardcoded duplications of timeouts, buffer sizes, concurrency limits, and content types by referencing `pkg/defaults/` constants throughout the codebase.
+
 ## [2.9.30] - 2026-02-24
 
 ### Added
@@ -2495,6 +2517,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.31]: https://github.com/waftester/waftester/compare/v2.9.30...v2.9.31
 [2.9.30]: https://github.com/waftester/waftester/compare/v2.9.29...v2.9.30
 [2.9.29]: https://github.com/waftester/waftester/compare/v2.9.28...v2.9.29
 [2.9.28]: https://github.com/waftester/waftester/compare/v2.9.27...v2.9.28

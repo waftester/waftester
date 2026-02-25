@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
 	"golang.org/x/term"
@@ -741,7 +742,7 @@ func (tw *TableWriter) writeSeverityBreakdown(sb *strings.Builder) {
 	sb.WriteString("\n")
 
 	// Sort severities by priority
-	severities := []string{"critical", "high", "medium", "low", "info"}
+	severities := finding.OrderedStrings()
 	for _, sev := range severities {
 		stats, ok := tw.summary.Breakdown.BySeverity[sev]
 		if !ok || stats.Total == 0 {

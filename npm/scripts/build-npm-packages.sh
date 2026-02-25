@@ -163,8 +163,9 @@ mkdir -p "${cli_dir}/bin"
 # Copy bin shim
 cp "${NPM_DIR}/cli/bin/cli.js" "${cli_dir}/bin/"
 
-# Copy payloads and templates from repo root
+# Copy payloads, presets, and templates from repo root
 cp -r "${REPO_ROOT}/payloads" "${cli_dir}/"
+cp -r "${REPO_ROOT}/presets" "${cli_dir}/"
 cp -r "${REPO_ROOT}/templates" "${cli_dir}/"
 
 # Remove any .cache or premium dirs that shouldn't be published

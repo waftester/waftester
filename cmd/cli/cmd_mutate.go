@@ -176,35 +176,13 @@ func runMutate() {
 		// Configure pipeline based on mode (only if not using smart mode)
 		switch *mode {
 		case "quick":
-			cfg.Pipeline = &mutation.PipelineConfig{
-				Encoders:   []string{"raw", "url", "double_url"},
-				Locations:  []string{"query_param", "post_form", "post_json"},
-				Evasions:   []string{},
-				IncludeRaw: true,
-			}
+			cfg.Pipeline = mutation.QuickPipelineConfig()
 		case "standard":
-			cfg.Pipeline = mutation.DefaultPipelineConfig()
+			cfg.Pipeline = mutation.StandardPipelineConfig()
 		case "full":
 			cfg.Pipeline = mutation.FullCoveragePipelineConfig()
 		case "bypass":
-			cfg.Pipeline = &mutation.PipelineConfig{
-				Encoders: []string{
-					"raw", "url", "double_url", "triple_url",
-					"overlong_utf8", "wide_gbk", "utf7",
-					"html_decimal", "html_hex", "mixed",
-				},
-				Locations: []string{
-					"query_param", "post_form", "post_json",
-					"header_xforward", "cookie", "path_segment",
-				},
-				Evasions: []string{
-					"case_swap", "sql_comment", "whitespace_alt",
-					"null_byte", "hpp", "unicode_normalize",
-				},
-				ChainEncodings: true,
-				MaxChainDepth:  2,
-				IncludeRaw:     true,
-			}
+			cfg.Pipeline = mutation.BypassPipelineConfig()
 		}
 	} // End of else block for non-smart mode
 

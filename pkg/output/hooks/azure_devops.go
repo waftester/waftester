@@ -178,17 +178,7 @@ func (h *AzureDevOpsHook) EventTypes() []events.EventType {
 
 // meetsMinSeverity checks if the severity meets the minimum threshold.
 func (h *AzureDevOpsHook) meetsMinSeverity(severity events.Severity) bool {
-	minOrder, ok := severityOrder[h.opts.MinSeverity]
-	if !ok {
-		return true
-	}
-
-	eventOrder, ok := severityOrder[severity]
-	if !ok {
-		return true
-	}
-
-	return eventOrder >= minOrder
+	return severityMeetsMin(severity, h.opts.MinSeverity)
 }
 
 // createWorkItem creates an Azure DevOps work item for the bypass event.

@@ -55,6 +55,28 @@ func (s Severity) String() string {
 	return string(s)
 }
 
+// Ordered returns all severity levels from most to least severe.
+func Ordered() []Severity {
+	return []Severity{Critical, High, Medium, Low, Info}
+}
+
+// OrderedStrings returns severity level names from most to least severe.
+func OrderedStrings() []string {
+	return []string{
+		string(Critical),
+		string(High),
+		string(Medium),
+		string(Low),
+		string(Info),
+	}
+}
+
+// TitleCaseStrings returns severity levels in Title Case (Critical, High, ...)
+// for contexts that need display-friendly names (MCP schema enums, UI labels).
+func TitleCaseStrings() []string {
+	return []string{"Critical", "High", "Medium", "Low"}
+}
+
 // ToSonarQube maps severity to SonarQube Generic Issue Import severity.
 // Critical → CRITICAL, High → MAJOR, Medium → MINOR, Low/Info → INFO.
 // See: https://docs.sonarqube.org/latest/analyzing-source-code/importing-external-issues/generic-issue-import-format/
