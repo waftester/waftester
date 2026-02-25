@@ -8332,6 +8332,171 @@ Presets load from the first available source:
 | `webapp` | Generic web application | `/api/`, `/login`, `/admin/`, `/upload` |
 | `intranet` | Internal/intranet application | `/api/`, `/dashboard/`, `/graphql` |
 
+<details>
+<summary><strong>authentik.json</strong> — Identity provider (OAuth2, SAML, LDAP)</summary>
+
+```json
+{
+  "name": "authentik",
+  "description": "Authentik identity provider — OAuth2, SAML, LDAP authentication platform",
+  "endpoints": [
+    "/-/health/ready/",
+    "/-/health/live/",
+    "/api/v3/core/applications/",
+    "/api/v3/core/groups/",
+    "/api/v3/core/users/",
+    "/api/v3/core/tokens/",
+    "/api/v3/flows/executor/",
+    "/api/v3/policies/",
+    "/application/o/authorize/",
+    "/application/o/token/",
+    "/application/o/userinfo/",
+    "/source/saml/",
+    "/source/oauth/",
+    "/if/flow/default-authentication-flow/",
+    "/if/admin/",
+    "/if/user/",
+    "/ws/"
+  ],
+  "attack_surface": {
+    "has_auth_endpoints": true,
+    "has_oauth": true,
+    "has_saml": true
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>n8n.json</strong> — Workflow automation (REST API, webhooks, WebSocket)</summary>
+
+```json
+{
+  "name": "n8n",
+  "description": "n8n workflow automation platform — REST API, webhooks, WebSocket push",
+  "endpoints": [
+    "/healthz",
+    "/rest/workflows",
+    "/rest/credentials",
+    "/rest/executions",
+    "/rest/settings",
+    "/rest/users",
+    "/rest/oauth2-credential/",
+    "/webhook/",
+    "/webhook-test/",
+    "/api/v1/",
+    "/push"
+  ],
+  "attack_surface": {
+    "has_api_endpoints": true,
+    "has_websockets": true
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>immich.json</strong> — Self-hosted photo/video management</summary>
+
+```json
+{
+  "name": "immich",
+  "description": "Immich self-hosted photo/video management — asset upload, face recognition, search",
+  "endpoints": [
+    "/api/server/ping",
+    "/api/server-info/",
+    "/api/auth/login",
+    "/api/auth/signup",
+    "/api/users/",
+    "/api/albums/",
+    "/api/assets/",
+    "/api/assets/upload",
+    "/api/search/",
+    "/api/faces/",
+    "/api/people/"
+  ],
+  "attack_surface": {
+    "has_file_upload": true,
+    "has_api_endpoints": true
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>webapp.json</strong> — Generic web application</summary>
+
+```json
+{
+  "name": "webapp",
+  "description": "Generic web application — login, API, admin, file upload, search",
+  "endpoints": [
+    "/api/",
+    "/api/v1/",
+    "/api/v2/",
+    "/login",
+    "/logout",
+    "/register",
+    "/signup",
+    "/admin/",
+    "/dashboard/",
+    "/settings/",
+    "/profile/",
+    "/users/",
+    "/search",
+    "/upload",
+    "/download",
+    "/graphql",
+    "/swagger.json",
+    "/openapi.json",
+    "/.env",
+    "/config"
+  ],
+  "attack_surface": {
+    "has_api_endpoints": true,
+    "has_auth_endpoints": true
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>intranet.json</strong> — Internal/intranet application</summary>
+
+```json
+{
+  "name": "intranet",
+  "description": "Internal/intranet application — admin panels, internal APIs, SSO",
+  "endpoints": [
+    "/api/",
+    "/api/v1/",
+    "/api/v2/",
+    "/login",
+    "/logout",
+    "/register",
+    "/signup",
+    "/admin/",
+    "/dashboard/",
+    "/settings/",
+    "/profile/",
+    "/users/",
+    "/search",
+    "/upload",
+    "/download",
+    "/graphql",
+    "/swagger.json",
+    "/openapi.json",
+    "/.env",
+    "/config"
+  ],
+  "attack_surface": {
+    "has_api_endpoints": true,
+    "has_auth_endpoints": true
+  }
+}
+```
+</details>
+
 ### Usage
 
 ```bash
