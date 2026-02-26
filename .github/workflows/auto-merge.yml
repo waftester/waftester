@@ -1,0 +1,80 @@
+name: Auto Merge
+
+on:
+  # Trigger when CI completes on a PR
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Only run if CI succeeded for a pull_request event
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request'
+    steps:
+      - name: Find PR for this workflow run
+        id: find_pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="${{ github.event.workflow_run.head_branch }}"
+          PR_DATA=$(gh pr list --repo ${{ github.repository }} --json number,headRefName,author \
+            --jq ".[] | select(.headRefName == \"$BRANCH\")" 2>/dev/null || echo "")
+
+          if [ -z "$PR_DATA" ]; then
+            echo "No open PR found for branch $BRANCH"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          PR_NUM=$(echo "$PR_DATA" | jq -r '.number')
+          AUTHOR=$(echo "$PR_DATA" | jq -r '.author.login')
+          echo "pr=$PR_NUM" >> $GITHUB_OUTPUT
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          echo "author=$AUTHOR" >> $GITHUB_OUTPUT
+          echo "skip=false" >> $GITHUB_OUTPUT
+          echo "Found PR #$PR_NUM from $BRANCH by $AUTHOR"
+
+      - name: Check if auto-merge eligible
+        if: steps.find_pr.outputs.skip != 'true'
+        id: eligible
+        env:
+          BRANCH: ${{ steps.find_pr.outputs.branch }}
+          AUTHOR: ${{ steps.find_pr.outputs.author }}
+        run: |
+          # Auto-merge these PR types:
+          #   - release/* and version/* branches (version bumps)
+          #   - dependabot PRs
+          ELIGIBLE=false
+          case "$BRANCH" in
+            release/*|version/*) ELIGIBLE=true ;;
+          esac
+          case "$AUTHOR" in
+            dependabot|dependabot[bot]) ELIGIBLE=true ;;
+          esac
+
+          echo "eligible=$ELIGIBLE" >> $GITHUB_OUTPUT
+          echo "Auto-merge eligible: $ELIGIBLE (branch=$BRANCH, author=$AUTHOR)"
+
+      - name: Rebase merge PR
+        if: steps.eligible.outputs.eligible == 'true'
+        env:
+          PR_NUM: ${{ steps.find_pr.outputs.pr }}
+          BRANCH: ${{ steps.find_pr.outputs.branch }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Rebase merge preserves original commit authors (WAFtester, dependabot)
+          # and avoids creating a merge commit attributed to whoever merges.
+          gh pr merge "$PR_NUM" --repo ${{ github.repository }} \
+            --rebase --delete-branch \
+            --body "Auto-merged by CI after all checks passed."
+
+          echo "Merged PR #$PR_NUM ($BRANCH) via rebase"
