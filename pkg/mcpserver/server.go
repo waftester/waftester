@@ -125,9 +125,14 @@ func (s *Server) MCPServer() *mcp.Server { return s.mcp }
 // PayloadProvider returns a lazily-initialised, cached payload provider.
 // All MCP tools and resources share this single instance to avoid
 // re-walking the payload directory on every call.
+// The provider is loaded eagerly on first access so subsequent tool and
+// resource calls hit the fast path (p.loaded == true) without blocking.
 func (s *Server) PayloadProvider() *payloadprovider.Provider {
 	s.payloadProviderOnce.Do(func() {
 		s.payloadProvider = payloadprovider.NewProvider(s.config.PayloadDir, s.config.TemplateDir)
+		if err := s.payloadProvider.Load(); err != nil {
+			slog.Warn("mcp: eager payload load failed", "error", err)
+		}
 	})
 	return s.payloadProvider
 }
