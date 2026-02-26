@@ -15,7 +15,7 @@ func TestDispatcher_RegisterAndGet(t *testing.T) {
 		return &Result{
 			Category: "test",
 			Vulnerabilities: []Vulnerability{
-				{Category: "test", Severity: finding.High, Type: "test-vuln"},
+				{Severity: finding.High, Description: "test-vuln"},
 			},
 		}
 	}
@@ -84,11 +84,10 @@ func TestScanFunc_ReturnsResult(t *testing.T) {
 			Category: "sqli",
 			Vulnerabilities: []Vulnerability{
 				{
-					Category:  "sqli",
-					Severity:  finding.Critical,
-					Type:      "sql-injection",
-					Parameter: "id",
-					Payload:   "' OR 1=1--",
+					Severity:    finding.Critical,
+					Description: "sql-injection",
+					Parameter:   "id",
+					Payload:     "' OR 1=1--",
 				},
 			},
 		}
