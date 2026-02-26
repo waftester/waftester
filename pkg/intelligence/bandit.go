@@ -12,6 +12,11 @@ import (
 
 // BetaArm represents a single arm in a Thompson Sampling bandit.
 // Alpha = successes + 1 (prior), Beta = failures + 1 (prior).
+//
+// Thread safety: BetaArm fields are NOT individually synchronized.
+// All concurrent access must go through BanditSelector methods which
+// hold the selector-level mutex. Do not mutate a BetaArm obtained
+// via GetOrCreate from multiple goroutines without external synchronization.
 type BetaArm struct {
 	Alpha float64 // Successes + prior (starts at 1.0 for uniform prior)
 	Beta  float64 // Failures + prior (starts at 1.0 for uniform prior)

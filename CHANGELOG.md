@@ -5,6 +5,27 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.36] - 2026-02-26
+
+### Fixed
+
+- **Stored XSS in HTML exports** — Bypass and probe HTML report generators now escape user-controlled fields (`target`, `payload`, `encoder`, `content-type`, `server`) with `html.EscapeString`, preventing script injection via crafted scan targets
+- **JUnit XML failures attribute** — JUnit output was writing `PassedTests` into the `failures` XML attribute instead of `FailedTests`, producing incorrect CI results
+- **ECSVWriter data race on Close** — Added mutex synchronization to `Close()` preventing concurrent flush/close races
+- **Baseline SaveBaseline write-under-read-lock** — Upgraded `RLock` to `Lock` in `SaveBaseline()` which mutates `UpdatedAt` while serializing
+- **Rate limiter TOCTOU races** — Replaced separate check-then-act sequences in token bucket and sliding window with atomic `takeOrWait()` and `tryProceed()` methods, eliminating time-of-check/time-of-use gaps
+- **Rate limiter busy-wait on zero wait time** — Added 1ms spin floor to `waitInternal` preventing CPU-bound tight loops when sliding window returns zero wait duration
+- **Shared header map mutation** — Test runner now clones request headers before each retry, preventing concurrent writes to a shared `http.Header` map across goroutines
+- **Mutation generator insert-during-iteration** — Genetic algorithm `mutate()` now collects insertions and applies them in reverse order after iteration, fixing slice corruption from modifying a slice while iterating
+- **Scan command nil dereference** — Added nil guard for `url.Parse` result before accessing `.Host` in scan target resolution
+- **Auto-escalate race condition** — Moved escalation counter inside the rate mutex scope, preventing unsynchronized concurrent increments
+- **Correlator GetRules slice aliasing** — `GetRules()` now returns a copy of the internal rules slice instead of a direct reference, preventing external mutation
+- **Progress display division by zero** — Added elapsed-time guard before computing requests-per-second, preventing divide-by-zero when elapsed is zero
+- **ChainExecutor zero timeout** — Added default 5-minute timeout when caller passes zero, preventing indefinite hangs
+- **XXE double file:// protocol** — Fixed payload path that concatenated `file://` with an already-prefixed `file:///etc/passwd`
+- **Table writer color race** — Changed global `colorEnabled` from plain `bool` to `atomic.Bool`, preventing data races when multiple goroutines create table writers
+- **Regex recompilation per call** — Precompiled regexes at package level in `ssrf.go`, `osint.go`, and `wordlist.go` that were previously recompiled on every function call
+
 ## [2.9.35] - 2026-02-26
 
 ### Fixed
@@ -2559,6 +2580,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.36]: https://github.com/waftester/waftester/compare/v2.9.35...v2.9.36
 [2.9.35]: https://github.com/waftester/waftester/compare/v2.9.34...v2.9.35
 [2.9.34]: https://github.com/waftester/waftester/compare/v2.9.33...v2.9.34
 [2.9.33]: https://github.com/waftester/waftester/compare/v2.9.32...v2.9.33
