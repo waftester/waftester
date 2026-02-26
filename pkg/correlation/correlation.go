@@ -605,11 +605,13 @@ func (c *Correlator) AddRule(rule CorrelationRule) {
 	c.rules = append(c.rules, rule)
 }
 
-// GetRules returns all correlation rules
+// GetRules returns a copy of all correlation rules
 func (c *Correlator) GetRules() []CorrelationRule {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.rules
+	result := make([]CorrelationRule, len(c.rules))
+	copy(result, c.rules)
+	return result
 }
 
 // Clear removes all findings and history

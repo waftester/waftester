@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -272,11 +273,9 @@ func runFuzz() {
 		words = words[:*wordlistMax]
 	}
 	if *wordlistShuffle {
-		// Fisher-Yates shuffle
-		for i := len(words) - 1; i > 0; i-- {
-			j := int(time.Now().UnixNano()) % (i + 1)
+		rand.Shuffle(len(words), func(i, j int) {
 			words[i], words[j] = words[j], words[i]
-		}
+		})
 	}
 	if *wordlistLower {
 		for i, w := range words {

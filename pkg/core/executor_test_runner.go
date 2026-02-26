@@ -137,6 +137,7 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 		origReq := requestpool.GetWithMethod(method)
 		defer requestpool.Put(origReq) // Return original to pool
 		req = origReq.WithContext(ctx) // Create context-aware copy
+		req.Header = origReq.Header.Clone() // Break shared header map reference
 		req.URL, err = url.Parse(targetURL)
 		if err == nil {
 			req.Body = io.NopCloser(body)
@@ -150,6 +151,7 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 		origReq := requestpool.GetWithMethod(method)
 		defer requestpool.Put(origReq) // Return original to pool
 		req = origReq.WithContext(ctx) // Create context-aware copy
+		req.Header = origReq.Header.Clone() // Break shared header map reference
 		req.URL, err = url.Parse(targetWithPayload)
 		if err == nil {
 			result.RequestURL = targetWithPayload

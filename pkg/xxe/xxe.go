@@ -149,7 +149,7 @@ func (d *Detector) fileDisclosurePayloads() []*Payload {
 			patterns: []string{"[extensions]", "[fonts]", "[mci extensions]"},
 		},
 		{
-			path:     "file:///etc/passwd",
+			path:     "/etc/passwd",
 			patterns: []string{"root:", "nobody:"},
 		},
 	}
