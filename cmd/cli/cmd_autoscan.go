@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -622,62 +623,8 @@ func runAutoScan() {
 	defer autoProgress.Stop()
 
 	// ═══════════════════════════════════════════════════════════════════════════
-	// SPEC-DRIVEN PIPELINE: If --spec or --spec-url provided, use intelligence
-	// engine instead of discovery+learning.
-	// ═══════════════════════════════════════════════════════════════════════════
-	if *specFile != "" || *specURL != "" {
-		runSpecPipeline(specPipelineConfig{
-			specFile:       *specFile,
-			specURL:        *specURL,
-			target:         target,
-			intensity:      *specIntensity,
-			group:          *specGroup,
-			skipGroup:      *specSkipGroup,
-			scanConfigPath: *scanConfigPath,
-			dryRun:         *specDryRun,
-			yes:            *specYes,
-			concurrency:    *concurrency,
-			rateLimit:      *rateLimit,
-			timeout:        *timeout,
-			skipVerify:     *skipVerify,
-			verbose:        *verbose,
-			quietMode:      quietMode,
-			outFlags:       &outFlags,
-			printStatus:    printStatus,
-		})
-		return
-	}
-
-	// ═══════════════════════════════════════════════════════════════════════════
-	// DRY-RUN: Show scan plan without executing (also works for non-spec scans)
-	// ═══════════════════════════════════════════════════════════════════════════
-	if *specDryRun {
-		ui.PrintSection("Auto Scan Plan (dry-run)")
-		fmt.Printf("  Target:        %s\n", target)
-		fmt.Printf("  Concurrency:   %d\n", *concurrency)
-		fmt.Printf("  Rate Limit:    %d req/sec\n", *rateLimit)
-		fmt.Printf("  Timeout:       %ds\n", *timeout)
-		fmt.Printf("  Smart Mode:    %v\n", *smartMode)
-		fmt.Printf("  Brain Mode:    %v\n", *enableBrain)
-		fmt.Println()
-		ui.PrintSection("Phases")
-		if *smartMode {
-			fmt.Println("  0. Smart Mode - WAF Detection & Strategy Optimization")
-		}
-		fmt.Println("  1. Target Discovery & Reconnaissance")
-		fmt.Println("  2. Leaky Path Scanning")
-		fmt.Println("  3. Learning Phase - WAF Behavior Analysis")
-		fmt.Println("  4. Core Vulnerability Scanning")
-		fmt.Println("  5. Tamper Discovery & Bypass Analysis")
-		fmt.Println("  6. Enterprise Assessment")
-		fmt.Println("  7. Report Generation")
-		fmt.Println()
-		ui.PrintInfo("No requests sent. Remove --dry-run to execute.")
-		return
-	}
-
-	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 0: SMART MODE - WAF DETECTION & STRATEGY OPTIMIZATION (Optional)
+	// Runs BEFORE spec pipeline so both paths benefit from WAF-tuned settings.
 	// ═══════════════════════════════════════════════════════════════════════════
 	smartModeFile := filepath.Join(workspaceDir, "smart-mode.json")
 	var smartResult *SmartModeResult
@@ -764,6 +711,62 @@ func runAutoScan() {
 			}
 		}
 		printStatusLn()
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// SPEC-DRIVEN PIPELINE: If --spec or --spec-url provided, use intelligence
+	// engine instead of discovery+learning.
+	// ═══════════════════════════════════════════════════════════════════════════
+	if *specFile != "" || *specURL != "" {
+		runSpecPipeline(specPipelineConfig{
+			specFile:       *specFile,
+			specURL:        *specURL,
+			target:         target,
+			intensity:      *specIntensity,
+			group:          *specGroup,
+			skipGroup:      *specSkipGroup,
+			scanConfigPath: *scanConfigPath,
+			dryRun:         *specDryRun,
+			yes:            *specYes,
+			concurrency:    *concurrency,
+			rateLimit:      *rateLimit,
+			timeout:        *timeout,
+			skipVerify:     *skipVerify,
+			verbose:        *verbose,
+			quietMode:      quietMode,
+			outFlags:       &outFlags,
+			printStatus:    printStatus,
+			smartResult:    smartResult,
+		})
+		return
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// DRY-RUN: Show scan plan without executing (also works for non-spec scans)
+	// ═══════════════════════════════════════════════════════════════════════════
+	if *specDryRun {
+		ui.PrintSection("Auto Scan Plan (dry-run)")
+		fmt.Printf("  Target:        %s\n", target)
+		fmt.Printf("  Concurrency:   %d\n", *concurrency)
+		fmt.Printf("  Rate Limit:    %d req/sec\n", *rateLimit)
+		fmt.Printf("  Timeout:       %ds\n", *timeout)
+		fmt.Printf("  Smart Mode:    %v\n", *smartMode)
+		fmt.Printf("  Brain Mode:    %v\n", *enableBrain)
+		fmt.Println()
+		ui.PrintSection("Phases")
+		if *smartMode {
+			fmt.Println("  0. Smart Mode - WAF Detection & Strategy Optimization")
+		}
+		fmt.Println("  1. Target Discovery & Reconnaissance")
+		fmt.Println("  2. Leaky Path Scanning")
+		fmt.Println("  3. Learning Phase - WAF Behavior Analysis")
+		fmt.Println("  4. Core Vulnerability Scanning")
+		fmt.Println("  5. Tamper Discovery & Bypass Analysis")
+		fmt.Println("  6. Enterprise Assessment")
+		fmt.Println("  7. Report Generation")
+		fmt.Println()
+		ui.PrintInfo("No requests sent. Remove --dry-run to execute.")
+		return
 	}
 
 	// Update progress after smart mode
@@ -2213,6 +2216,58 @@ func runAutoScan() {
 			}
 		}
 
+		// ── STRATEGY-BASED CATEGORY ORDERING ────────────────────────────────
+		// When smart mode detected a WAF, use the strategy's PrioritizePayloads
+		// to order payload categories by generic bypass likelihood (e.g., sqli
+		// before xss). This provides a good initial ordering even on the first
+		// scan when the brain predictor has no training data.
+		if smartResult != nil && smartResult.Strategy != nil && len(allPayloads) > 1 {
+			// Collect unique categories
+			catSet := make(map[string]bool)
+			for _, p := range allPayloads {
+				catSet[strings.ToLower(p.Category)] = true
+			}
+			cats := make([]string, 0, len(catSet))
+			for c := range catSet {
+				cats = append(cats, c)
+			}
+			prioritized := smartResult.Strategy.PrioritizePayloads(cats)
+
+			// Build category→priority index
+			catPriority := make(map[string]int, len(prioritized))
+			for i, c := range prioritized {
+				catPriority[c] = i
+			}
+
+			sort.SliceStable(allPayloads, func(i, j int) bool {
+				pi := catPriority[strings.ToLower(allPayloads[i].Category)]
+				pj := catPriority[strings.ToLower(allPayloads[j].Category)]
+				return pi < pj
+			})
+		}
+
+		// ── STRATEGY-BASED ENCODING BOOST ───────────────────────────────────
+		// Boost payloads whose EncodingUsed matches a recommended encoder.
+		// Prefer Pipeline (mode-filtered) over raw Strategy encoders so that
+		// quick/stealth modes test fewer encodings while full/bypass test all.
+		var boostEncoders []string
+		if smartResult != nil && smartResult.Pipeline != nil && len(smartResult.Pipeline.Encoders) > 0 {
+			boostEncoders = smartResult.Pipeline.Encoders
+		} else if smartResult != nil && smartResult.Strategy != nil && len(smartResult.Strategy.Encoders) > 0 {
+			boostEncoders = smartResult.Strategy.Encoders
+		}
+		if len(boostEncoders) > 0 && len(allPayloads) > 1 {
+			recEnc := make(map[string]bool, len(boostEncoders))
+			for _, e := range boostEncoders {
+				recEnc[strings.ToLower(e)] = true
+			}
+			sort.SliceStable(allPayloads, func(i, j int) bool {
+				iRec := recEnc[strings.ToLower(allPayloads[i].EncodingUsed)]
+				jRec := recEnc[strings.ToLower(allPayloads[j].EncodingUsed)]
+				return iRec && !jRec
+			})
+		}
+
 		// ── PREDICTIVE PAYLOAD RANKING ──────────────────────────────────────
 		// Use the brain's Predictor to reorder payloads by predicted bypass
 		// probability. Payloads most likely to bypass the WAF execute first,
@@ -2400,12 +2455,27 @@ func runAutoScan() {
 				}
 			}
 
-			// Collect strategy-recommended evasions as hints for tamper selection.
-			// These come from smart mode's WAF-specific strategy (e.g., Cloudflare
-			// recommends case_swap, chunked, whitespace_alt).
+			// Collect strategy-recommended evasions AND prioritized mutation techniques
+			// as hints for tamper selection. Prefer Pipeline.Evasions (mode-filtered)
+			// over raw Strategy.Evasions so quick/stealth modes use fewer evasions.
 			var strategyHints []string
-			if smartResult != nil && smartResult.Strategy != nil {
+			if smartResult != nil && smartResult.Pipeline != nil && len(smartResult.Pipeline.Evasions) > 0 {
+				strategyHints = smartResult.Pipeline.Evasions
+			} else if smartResult != nil && smartResult.Strategy != nil {
 				strategyHints = smartResult.Strategy.Evasions
+			}
+			// Merge PrioritizeMutators — technique names that the tamper engine's
+			// mergeStrategyHints() can match against its registry.
+			if smartResult != nil && smartResult.Strategy != nil && len(smartResult.Strategy.PrioritizeMutators) > 0 {
+				seen := make(map[string]bool, len(strategyHints))
+				for _, h := range strategyHints {
+					seen[strings.ToLower(h)] = true
+				}
+				for _, m := range smartResult.Strategy.PrioritizeMutators {
+					if !seen[strings.ToLower(m)] {
+						strategyHints = append(strategyHints, m)
+					}
+				}
 			}
 
 			tamperEngine = tampers.NewEngine(&tampers.EngineConfig{
@@ -2861,7 +2931,14 @@ func runAutoScan() {
 
 		if len(blocked) > 0 {
 			var mutatedPayloads []payloads.Payload
-			const maxMutationsPerPayload = 3
+			// Use WAF-tuned mutation depth: prefer Pipeline.MaxChainDepth
+			// (mode-filtered), then Strategy.RecommendedMutationDepth, then 3.
+			maxMutationsPerPayload := 3
+			if smartResult != nil && smartResult.Pipeline != nil && smartResult.Pipeline.MaxChainDepth > 0 {
+				maxMutationsPerPayload = smartResult.Pipeline.MaxChainDepth
+			} else if smartResult != nil && smartResult.Strategy != nil && smartResult.Strategy.RecommendedMutationDepth > 0 {
+				maxMutationsPerPayload = smartResult.Strategy.RecommendedMutationDepth
+			}
 
 			for _, b := range blocked {
 				suggestions := brain.SuggestMutations(b.category, b.payload)

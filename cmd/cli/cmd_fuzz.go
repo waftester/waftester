@@ -22,6 +22,7 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
 	"github.com/waftester/waftester/pkg/fuzz"
 	"github.com/waftester/waftester/pkg/input"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -149,6 +150,17 @@ func runFuzz() {
 
 	// Detection (v2.5.2)
 	noDetect := fuzzFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
+
+	// Smart mode (WAF-aware testing with 197+ vendor signatures)
+	smartMode := fuzzFlags.Bool("smart", false, "Enable WAF-aware testing (auto-detect WAF and optimize)")
+	smartModeType := fuzzFlags.String("smart-mode", "standard", "Smart mode type: quick, standard, full, bypass, stealth")
+	smartVerbose := fuzzFlags.Bool("smart-verbose", false, "Show detailed WAF detection info")
+
+	// Tamper scripts (70+ sqlmap-compatible WAF bypass transformations)
+	tamperList := fuzzFlags.String("tamper", "", "Comma-separated tamper scripts: space2comment,randomcase,charencode")
+	tamperAuto := fuzzFlags.Bool("tamper-auto", false, "Auto-select tampers based on detected WAF")
+	tamperProfile := fuzzFlags.String("tamper-profile", "standard", "Tamper profile: stealth, standard, aggressive, bypass")
+	tamperDir := fuzzFlags.String("tamper-dir", "", "Directory of .tengo script tampers to load")
 
 	fuzzFlags.Parse(os.Args[2:])
 
@@ -324,6 +336,146 @@ func runFuzz() {
 		}
 	}
 
+	// ═══════════════════════════════════════════════════════════════════════════
+	// SMART MODE: WAF DETECTION & OPTIMIZATION
+	// ═══════════════════════════════════════════════════════════════════════════
+	// Set up context early so smart mode detection can use it
+	ctx, cancel := cli.SignalContext(30 * time.Second)
+	defer cancel()
+
+	var smartResult *SmartModeResult
+	if *smartMode {
+		if !*silent && !*jsonOutput {
+			ui.PrintSection("Smart Mode: WAF Detection & Optimization")
+			fmt.Fprintln(os.Stderr)
+		}
+
+		smartConfig := &SmartModeConfig{
+			DetectionTimeout: time.Duration(*timeout) * time.Second,
+			Verbose:          *smartVerbose,
+			Mode:             *smartModeType,
+		}
+
+		var detectErr error
+		smartResult, detectErr = DetectAndOptimize(ctx, targetURL, smartConfig)
+		if detectErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Smart mode detection warning: %v", detectErr))
+		}
+
+		if !*silent && !*jsonOutput {
+			PrintSmartModeInfo(smartResult, *smartVerbose)
+		}
+
+		// Apply WAF-optimized rate limit and concurrency
+		// Only override if the user didn't explicitly set these flags
+		if smartResult != nil && smartResult.WAFDetected {
+			userSetRL := false
+			userSetConc := false
+			fuzzFlags.Visit(func(f *flag.Flag) {
+				if f.Name == "rate" {
+					userSetRL = true
+				}
+				if f.Name == "t" {
+					userSetConc = true
+				}
+			})
+
+			if !userSetRL && smartResult.RateLimit > 0 {
+				if !*silent && !*jsonOutput {
+					ui.PrintInfo(fmt.Sprintf("Rate limit: %.0f req/sec (WAF-optimized for %s)",
+						smartResult.RateLimit, smartResult.VendorName))
+				}
+				*rateLimit = int(smartResult.RateLimit)
+			}
+			if !userSetConc && smartResult.Concurrency > 0 {
+				if !*silent && !*jsonOutput {
+					ui.PrintInfo(fmt.Sprintf("Concurrency: %d workers (WAF-optimized)",
+						smartResult.Concurrency))
+				}
+				*concurrency = smartResult.Concurrency
+			}
+		}
+		if !*silent && !*jsonOutput {
+			fmt.Fprintln(os.Stderr)
+		}
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// TAMPER ENGINE INITIALIZATION (Fuzz Command)
+	// ═══════════════════════════════════════════════════════════════════════════
+	var tamperEngine *tampers.Engine
+	if *tamperList != "" || *tamperAuto || (*smartMode && smartResult != nil && smartResult.WAFDetected) {
+		// Determine tamper profile
+		profile := tampers.ProfileStandard
+		switch *tamperProfile {
+		case "stealth":
+			profile = tampers.ProfileStealth
+		case "aggressive":
+			profile = tampers.ProfileAggressive
+		case "bypass":
+			profile = tampers.ProfileBypass
+		}
+
+		// If custom tamper list provided, use custom profile
+		if *tamperList != "" {
+			profile = tampers.ProfileCustom
+		}
+
+		// Get WAF vendor and strategy hints for intelligent selection
+		wafVendor := "unknown"
+		var strategyHints []string
+		if smartResult != nil && smartResult.WAFDetected {
+			wafVendor = smartResult.VendorName
+		}
+		if smartResult != nil && smartResult.Strategy != nil {
+			strategyHints = smartResult.Strategy.Evasions
+		}
+
+		// Load script tampers from directory if specified
+		if *tamperDir != "" {
+			scripts, errs := tampers.LoadScriptDir(*tamperDir)
+			for _, e := range errs {
+				ui.PrintWarning(fmt.Sprintf("Script tamper: %v", e))
+			}
+			for _, st := range scripts {
+				tampers.Register(st)
+			}
+			if len(scripts) > 0 && !*silent {
+				ui.PrintInfo(fmt.Sprintf("Loaded %d script tampers from %s", len(scripts), *tamperDir))
+			}
+		}
+
+		tamperEngine = tampers.NewEngine(&tampers.EngineConfig{
+			Profile:       profile,
+			CustomTampers: tampers.ParseTamperList(*tamperList),
+			WAFVendor:     wafVendor,
+			StrategyHints: strategyHints,
+			EnableMetrics: true,
+		})
+
+		// Print tamper info
+		if !*silent && !*jsonOutput {
+			if *tamperList != "" {
+				valid, invalid := tampers.ValidateTamperNames(tampers.ParseTamperList(*tamperList))
+				if len(invalid) > 0 {
+					ui.PrintWarning(fmt.Sprintf("Unknown tampers: %s", strings.Join(invalid, ", ")))
+				}
+				if len(valid) > 0 {
+					ui.PrintInfo(fmt.Sprintf("Using %d custom tampers: %s", len(valid), strings.Join(valid, ", ")))
+				}
+			} else {
+				selectedTampers := tamperEngine.GetSelectedTampers()
+				if len(strategyHints) > 0 {
+					ui.PrintInfo(fmt.Sprintf("Auto-selected %d tampers for %s (strategy hints: %d): %s",
+						len(selectedTampers), wafVendor, len(strategyHints), strings.Join(selectedTampers, ", ")))
+				} else {
+					ui.PrintInfo(fmt.Sprintf("Auto-selected %d tampers: %s",
+						len(selectedTampers), strings.Join(selectedTampers, ", ")))
+				}
+			}
+		}
+	}
+
 	// Build fuzz config
 	cfg := &fuzz.Config{
 		TargetURL: targetURL,
@@ -366,6 +518,11 @@ func runFuzz() {
 		ExtractPreset:  *extractPreset,
 	}
 
+	// Wire tamper engine into fuzz config (nil-safe: only set if engine was created)
+	if tamperEngine != nil {
+		cfg.Transformer = tamperEngine
+	}
+
 	// Apply noColor setting to UI
 	if *noColor {
 		// Colors are disabled in the UI package via environment
@@ -398,6 +555,13 @@ func runFuzz() {
 				manifest.AddWithIcon("📎", "Extensions", strings.Join(exts, ", "))
 			}
 			manifest.AddConcurrency(*concurrency, float64(*rateLimit))
+			if smartResult != nil && smartResult.WAFDetected {
+				manifest.AddWithIcon("🛡", "WAF Detected", fmt.Sprintf("%s (%.0f%% confidence)", smartResult.VendorName, smartResult.Confidence*100))
+			}
+			if tamperEngine != nil {
+				selectedTampers := tamperEngine.GetSelectedTampers()
+				manifest.AddWithIcon("🔧", "Tampers", fmt.Sprintf("%d active", len(selectedTampers)))
+			}
 			if *matchStatus != "" {
 				manifest.AddWithIcon("✓", "Match Status", *matchStatus)
 			}
@@ -411,10 +575,6 @@ func runFuzz() {
 
 	// Create fuzzer
 	fuzzer := fuzz.NewFuzzer(cfg)
-
-	// Set up context with cancellation
-	ctx, cancel := cli.SignalContext(30 * time.Second)
-	defer cancel()
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// DISPATCHER INITIALIZATION (Hooks: Slack, Teams, PagerDuty, OTEL, Prometheus)
@@ -433,6 +593,15 @@ func runFuzz() {
 		defer fuzzDispCtx.Close()
 		fuzzDispCtx.RegisterDetectionCallbacks(ctx)
 		_ = fuzzDispCtx.EmitStart(ctx, targetURL, len(words), *concurrency, nil)
+
+		// Emit smart mode WAF detection to hooks
+		if smartResult != nil && smartResult.WAFDetected {
+			wafDesc := fmt.Sprintf("Smart mode detected: %s (%.0f%% confidence)", smartResult.VendorName, smartResult.Confidence*100)
+			_ = fuzzDispCtx.EmitBypass(ctx, "smart-waf-detection", "info", targetURL, wafDesc, 0)
+			for _, hint := range smartResult.BypassHints {
+				_ = fuzzDispCtx.EmitBypass(ctx, "bypass-hint", "info", targetURL, hint, 0)
+			}
+		}
 	}
 
 	// Auto-calibration

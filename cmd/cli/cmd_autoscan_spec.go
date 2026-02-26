@@ -12,6 +12,7 @@ import (
 	"github.com/waftester/waftester/pkg/apispec"
 	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/ui"
+	"golang.org/x/time/rate"
 )
 
 // specPipelineConfig holds the spec-driven scan configuration.
@@ -33,7 +34,15 @@ type specPipelineConfig struct {
 	quietMode      bool
 	outFlags       *OutputFlags
 	printStatus    func(format string, args ...interface{})
+	smartResult    *SmartModeResult // WAF detection results (nil when --smart not used)
 }
+
+// specRateLimiter adapts x/time/rate to apispec.RateLimiter.
+type specRateLimiter struct{ l *rate.Limiter }
+
+func (s *specRateLimiter) Wait(ctx context.Context) error { return s.l.Wait(ctx) }
+func (s *specRateLimiter) OnError()                       {}
+func (s *specRateLimiter) OnSuccess()                     {}
 
 // runSpecPipeline runs the spec-driven scan pipeline:
 // parse spec -> intelligence engine -> preview -> execute.
@@ -228,9 +237,30 @@ func runSpecPipeline(cfg specPipelineConfig) {
 	// Phase 4: Execute.
 	cfg.printStatus("  Executing spec-driven scan...\n")
 
+	// Apply WAF-optimized settings when smart mode detected a vendor.
+	specConc := cfg.concurrency
+	specRL := cfg.rateLimit
+	if cfg.smartResult != nil && cfg.smartResult.WAFDetected {
+		if cfg.smartResult.Concurrency > 0 {
+			specConc = cfg.smartResult.Concurrency
+		}
+		if cfg.smartResult.RateLimit > 0 {
+			specRL = int(cfg.smartResult.RateLimit)
+		}
+		ui.PrintInfo(fmt.Sprintf("Smart mode: %s detected — concurrency=%d, rate=%d req/s",
+			cfg.smartResult.VendorName, specConc, specRL))
+	}
+
+	// Create rate limiter for spec executor
+	var specLimiter apispec.RateLimiter
+	if specRL > 0 {
+		specLimiter = &specRateLimiter{l: rate.NewLimiter(rate.Limit(specRL), specRL)}
+	}
+
 	executor := &apispec.AdaptiveExecutor{
 		BaseURL:     scanTarget,
-		Concurrency: cfg.concurrency,
+		Concurrency: specConc,
+		Limiter:     specLimiter,
 		ScanFn: func(ctx context.Context, name string, targetURL string, ep apispec.Endpoint) ([]apispec.SpecFinding, error) {
 			// Bridge to the shared scanner dispatcher in cmd_scan_spec.go.
 			cf := &CommonFlags{

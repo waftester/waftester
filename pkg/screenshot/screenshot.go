@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/waftester/waftester/pkg/attackconfig"
@@ -250,6 +251,7 @@ type BatchCapturer struct {
 	queue     chan string
 	results   chan Result
 	done      chan struct{}
+	stopped   atomic.Bool
 	stopOnce  sync.Once
 	drainDone chan struct{}
 	wg        sync.WaitGroup
@@ -287,9 +289,18 @@ func (b *BatchCapturer) Start(ctx context.Context, workers int) {
 	}
 }
 
-// Add adds a URL to the queue
+// Add adds a URL to the queue. It is safe to call concurrently with Stop;
+// sends after Stop are silently dropped.
 func (b *BatchCapturer) Add(url string) {
-	b.queue <- url
+	if b.stopped.Load() {
+		return
+	}
+	// Non-blocking send to avoid panic on closed channel when Stop races
+	// between the Load above and this send.
+	select {
+	case b.queue <- url:
+	case <-b.done:
+	}
 }
 
 // Results returns the results channel
@@ -300,6 +311,7 @@ func (b *BatchCapturer) Results() <-chan Result {
 // Stop stops the batch capturer and drains channels to prevent goroutine leaks
 func (b *BatchCapturer) Stop() {
 	b.stopOnce.Do(func() {
+		b.stopped.Store(true)
 		close(b.done)
 		// Wait for workers to exit, then close channels so drain goroutines terminate
 		b.wg.Wait()
