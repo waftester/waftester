@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -123,10 +123,10 @@ func (s *Server) handleGetTaskStatus(ctx context.Context, req *mcp.CallToolReque
 		var task *Task
 		if args.ToolName != "" {
 			task = s.tasks.GetLatest(args.ToolName)
-			log.Printf("[mcp] get_task_status: auto-discovery by tool_name=%q", args.ToolName)
+			slog.Info("mcp: get_task_status auto-discovery", "tool_name", args.ToolName)
 		} else {
 			task = s.tasks.GetLatest()
-			log.Printf("[mcp] get_task_status: auto-discovery (no task_id, no tool_name)")
+			slog.Info("mcp: get_task_status auto-discovery (no task_id, no tool_name)")
 		}
 		if task == nil {
 			return enrichedError(
@@ -139,7 +139,7 @@ func (s *Server) handleGetTaskStatus(ctx context.Context, req *mcp.CallToolReque
 			), nil
 		}
 		args.TaskID = task.ID
-		log.Printf("[mcp] get_task_status: auto-discovered task %s (tool=%s)", task.ID, task.Tool)
+		slog.Info("mcp: get_task_status auto-discovered task", "id", task.ID, "tool", task.Tool)
 	}
 
 	// Validate task ID format before map lookup. Our IDs are "task_" + 16
@@ -147,7 +147,7 @@ func (s *Server) handleGetTaskStatus(ctx context.Context, req *mcp.CallToolReque
 	// hallucinate UUIDs (dashes) or wrong-length IDs — catch that early
 	// with a specific error message so the agent can self-correct.
 	if reason := ValidateTaskID(args.TaskID); reason != "" {
-		log.Printf("[mcp] get_task_status: invalid task_id format: %s (got %q)", reason, args.TaskID)
+		slog.Warn("mcp: get_task_status invalid task_id format", "reason", reason, "task_id", args.TaskID)
 		return enrichedError(
 			fmt.Sprintf("invalid task_id format: %s", reason),
 			[]string{
@@ -174,7 +174,7 @@ func (s *Server) handleGetTaskStatus(ctx context.Context, req *mcp.CallToolReque
 
 	task := s.tasks.Get(args.TaskID)
 	if task == nil {
-		log.Printf("[mcp] get_task_status: task %s not found (active tasks: %d)", args.TaskID, s.tasks.ActiveCount())
+		slog.Warn("mcp: get_task_status task not found", "id", args.TaskID, "active_tasks", s.tasks.ActiveCount())
 		return enrichedError(
 			fmt.Sprintf("task %q not found — it may have expired (tasks are kept for 30 minutes after completion)", args.TaskID),
 			[]string{
@@ -425,7 +425,7 @@ func (s *Server) launchAsync(
 	// between invocations. Blocking is safe because stdio has no HTTP
 	// timeout and the client waits for the response.
 	if s.syncMode.Load() {
-		log.Printf("[mcp] sync mode: running %s inline (no async)", toolName)
+		slog.Info("mcp: sync mode running inline", "tool", toolName)
 		return s.runSync(ctx, toolName, workFn)
 	}
 
@@ -442,7 +442,7 @@ func (s *Server) launchAsync(
 		), nil
 	}
 
-	log.Printf("[mcp] async: created task %s for %s", task.ID, toolName)
+	slog.Info("mcp: async task created", "id", task.ID, "tool", toolName)
 
 	// Fire and forget — the goroutine runs independently of the request.
 	// Panic recovery ensures the task transitions to "failed" instead of
@@ -463,7 +463,7 @@ func (s *Server) launchAsync(
 		defer s.tasks.wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
-				log.Printf("[mcp] task %s panicked: %v", task.ID, r)
+				slog.Error("mcp: task panicked", "id", task.ID, "error", r)
 				task.Fail(fmt.Sprintf("internal panic: %v", r))
 			}
 		}()
@@ -476,7 +476,7 @@ func (s *Server) launchAsync(
 			task.Fail("tool returned without reporting completion or failure")
 			snap = task.Snapshot()
 		}
-		log.Printf("[mcp] task %s finished: status=%s", task.ID, snap.Status)
+		slog.Info("mcp: task finished", "id", task.ID, "status", snap.Status)
 	}()
 
 	resp := asyncTaskResponse{
@@ -514,7 +514,7 @@ func (s *Server) runSync(
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Printf("[mcp] sync task %s panicked: %v", task.ID, r)
+				slog.Error("mcp: sync task panicked", "id", task.ID, "error", r)
 				task.Fail(fmt.Sprintf("internal panic: %v", r))
 			}
 		}()
@@ -522,7 +522,7 @@ func (s *Server) runSync(
 	}()
 
 	snap := task.Snapshot()
-	log.Printf("[mcp] sync task %s completed: status=%s", task.ID, snap.Status)
+	slog.Info("mcp: sync task completed", "id", task.ID, "status", snap.Status)
 
 	switch snap.Status {
 	case TaskStatusCompleted:

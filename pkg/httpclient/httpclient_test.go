@@ -218,6 +218,46 @@ func TestRegisterTransportWrapper(t *testing.T) {
 	}
 }
 
+func TestConfigTransportWrapperOverridesGlobal(t *testing.T) {
+	// Save original state
+	wrapperMu.Lock()
+	origWrapper := transportWrapper
+	wrapperMu.Unlock()
+
+	defer func() {
+		wrapperMu.Lock()
+		transportWrapper = origWrapper
+		wrapperMu.Unlock()
+	}()
+
+	// Register a global wrapper
+	globalCalled := false
+	RegisterTransportWrapper(func(rt http.RoundTripper) http.RoundTripper {
+		globalCalled = true
+		return rt
+	})
+
+	// Create a client with a per-client wrapper — should override the global one
+	configCalled := false
+	cfg := DefaultConfig()
+	cfg.TransportWrapper = func(rt http.RoundTripper) http.RoundTripper {
+		configCalled = true
+		return rt
+	}
+
+	client := New(cfg)
+	if client == nil {
+		t.Fatal("expected non-nil client")
+	}
+
+	if !configCalled {
+		t.Error("expected per-client Config.TransportWrapper to be called")
+	}
+	if globalCalled {
+		t.Error("expected global wrapper NOT to be called when Config.TransportWrapper is set")
+	}
+}
+
 func TestTransportWrapperNil(t *testing.T) {
 	// Save original state
 	wrapperMu.Lock()
