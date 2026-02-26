@@ -21,7 +21,6 @@ import (
 
 	"github.com/waftester/waftester/pkg/api"
 	"github.com/waftester/waftester/pkg/apifuzz"
-	"github.com/waftester/waftester/pkg/apispec"
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/bizlogic"
 	"github.com/waftester/waftester/pkg/cache"
@@ -79,231 +78,43 @@ import (
 )
 
 func runScan() {
-	scanFlags := flag.NewFlagSet("scan", flag.ExitOnError)
-
-	// Output configuration (unified architecture - enterprise flags only)
-	// Uses RegisterEnterpriseFlags to avoid conflicts with existing legacy flags
-	var outFlags OutputFlags
-	outFlags.RegisterEnterpriseFlags(scanFlags)
-	outFlags.Version = ui.Version
-
-	var cf CommonFlags
-	cf.Register(scanFlags, 30)
-
-	// API spec scanning flags
-	var sf apispec.SpecFlags
-	sf.Register(scanFlags)
-
-	types := scanFlags.String("types", "all", "Scan types: all, or comma-separated (sqli,xss,traversal,cmdi,nosqli,hpp,crlf,prototype,cors,redirect,hostheader,websocket,cache,upload,deserialize,oauth,ssrf,ssti,xxe,smuggling,graphql,jwt,subtakeover,bizlogic,race,apifuzz,ldap,ssi,xpath,xmlinjection,rfi,lfi,rce,csrf,clickjack,idor,massassignment,wafdetect,waffprint,wafevasion,tlsprobe,httpprobe,secheaders,jsanalyze,apidepth,osint,vhost,techdetect,dnsrecon)")
-	scanFlags.StringVar(types, "t", "all", "Scan types (alias)")
-	concurrency := scanFlags.Int("concurrency", 5, "Concurrent scanners")
-	outputFile := scanFlags.String("output", "", "Output results to JSON file")
-	jsonOutput := scanFlags.Bool("json", false, "Output in JSON format")
-
-	// Smart mode (WAF-aware testing with 197+ vendor signatures)
-	var smartFlags SmartModeFlags
-	smartFlags.Register(scanFlags)
-
-	// Tamper scripts (70+ sqlmap-compatible WAF bypass transformations)
-	var tamperFlags TamperFlags
-	tamperFlags.Register(scanFlags)
-
-	// OAuth-specific flags
-	oauthClientID := scanFlags.String("oauth-client-id", "", "OAuth client ID for OAuth testing")
-	oauthAuthEndpoint := scanFlags.String("oauth-auth-endpoint", "", "OAuth authorization endpoint")
-	oauthTokenEndpoint := scanFlags.String("oauth-token-endpoint", "", "OAuth token endpoint")
-	oauthRedirectURI := scanFlags.String("oauth-redirect-uri", "", "OAuth redirect URI")
-
-	// === NEW SCAN FLAGS (42+ for 300+ total) ===
-
-	// Rate limiting and throttling
-	rateLimit := scanFlags.Int("rate-limit", 50, "Max requests per second")
-	scanFlags.IntVar(rateLimit, "rl", 50, "Max requests per second (alias)")
-
-	// Payload and template directories
-	payloadDir := scanFlags.String("payloads", defaults.PayloadDir, "Payload directory")
-	templateDir := scanFlags.String("template-dir", defaults.TemplateDir, "Nuclei template directory")
-	rateLimitPerHost := scanFlags.Bool("rate-limit-per-host", false, "Apply rate limit per host")
-	scanFlags.BoolVar(rateLimitPerHost, "rlph", false, "Rate limit per host (alias)")
-	delay := scanFlags.Duration("delay", 0, "Delay between requests (e.g., 100ms, 1s)")
-	jitter := scanFlags.Duration("jitter", 0, "Random jitter to add to delay")
-
-	// Output formats
-	formatType := scanFlags.String("format", "console", "Output format: console,json,jsonl,sarif,csv,md,html")
-	sarifOutput := scanFlags.Bool("sarif", false, "Output in SARIF format for CI/CD")
-	markdownOutput := scanFlags.Bool("md", false, "Output in Markdown format")
-	htmlOutput := scanFlags.Bool("html", false, "Output in HTML format")
-	csvOutput := scanFlags.Bool("csv", false, "Output in CSV format")
-	silent := scanFlags.Bool("silent", false, "Silent mode - no progress output")
-	scanFlags.BoolVar(silent, "s", false, "Silent mode (alias)")
-	scanFlags.BoolVar(silent, "q", false, "Quiet mode (alias)")
-	noColor := scanFlags.Bool("no-color", false, "Disable colored output")
-	scanFlags.BoolVar(noColor, "nc", false, "No color (alias)")
-
-	// Filtering and matching
-	matchSeverity := scanFlags.String("match-severity", "", "Match findings by severity (critical,high,medium,low)")
-	scanFlags.StringVar(matchSeverity, "msev", "", "Match severity (alias)")
-	filterSeverity := scanFlags.String("filter-severity", "", "Filter findings by severity")
-	scanFlags.StringVar(filterSeverity, "fsev", "", "Filter severity (alias)")
-	matchCategory := scanFlags.String("match-category", "", "Match findings by category")
-	scanFlags.StringVar(matchCategory, "mcat", "", "Match category (alias)")
-	filterCategory := scanFlags.String("filter-category", "", "Filter findings by category")
-	scanFlags.StringVar(filterCategory, "fcat", "", "Filter category (alias)")
-
-	// Network options
-	proxy := scanFlags.String("proxy", "", "HTTP/SOCKS5 proxy URL")
-	scanFlags.StringVar(proxy, "x", "", "Proxy (alias)")
-	userAgent := scanFlags.String("user-agent", "", "Custom User-Agent (default: waftester/VERSION)")
-	scanFlags.StringVar(userAgent, "ua", "", "User-Agent (alias)")
-	randomAgent := scanFlags.Bool("random-agent", false, "Use random User-Agent")
-	scanFlags.BoolVar(randomAgent, "ra", false, "Random agent (alias)")
-	var headerFlags headerSlice
-	scanFlags.Var(&headerFlags, "header", "Custom header (Name: Value) — repeatable")
-	scanFlags.Var(&headerFlags, "H", "Custom header (alias)")
-	cookies := scanFlags.String("cookie", "", "Cookies to send")
-	scanFlags.StringVar(cookies, "b", "", "Cookie (alias)")
-
-	// Retries and error handling
-	retries := scanFlags.Int("retries", 2, "Number of retries on failure")
-	scanFlags.IntVar(retries, "r", 2, "Retries (alias)")
-	maxErrors := scanFlags.Int("max-errors", 10, "Max errors before stopping scan")
-	scanFlags.IntVar(maxErrors, "me", 10, "Max errors (alias)")
-	stopOnFirstVuln := scanFlags.Bool("stop-on-first", false, "Stop scan on first vulnerability")
-	scanFlags.BoolVar(stopOnFirstVuln, "sof", false, "Stop on first (alias)")
-
-	// Resume and checkpointing
-	resume := scanFlags.Bool("resume", false, "Resume from previous checkpoint")
-	checkpointFile := scanFlags.String("checkpoint", "", "Checkpoint file for resume")
-	scanFlags.StringVar(checkpointFile, "cp", "", "Checkpoint (alias)")
-
-	// Scope control
-	excludeTypes := scanFlags.String("exclude-types", "", "Exclude scan types (comma-separated)")
-	scanFlags.StringVar(excludeTypes, "et", "", "Exclude types (alias)")
-	excludePatterns := scanFlags.String("exclude-patterns", "", "Exclude URL patterns (regex)")
-	scanFlags.StringVar(excludePatterns, "ep", "", "Exclude patterns (alias)")
-	includePatterns := scanFlags.String("include-patterns", "", "Include only matching URL patterns (regex)")
-	scanFlags.StringVar(includePatterns, "ip", "", "Include patterns (alias)")
-
-	// Reporting
-	reportTitle := scanFlags.String("report-title", "", "Custom report title")
-	reportAuthor := scanFlags.String("report-author", "", "Report author name")
-	includeEvidence := scanFlags.Bool("include-evidence", true, "Include evidence in report")
-	scanFlags.BoolVar(includeEvidence, "ie", true, "Include evidence (alias)")
-	includeRemediation := scanFlags.Bool("include-remediation", true, "Include remediation advice")
-	scanFlags.BoolVar(includeRemediation, "ir", true, "Include remediation (alias)")
-
-	// Advanced options
-	followRedirects := scanFlags.Bool("follow-redirects", true, "Follow HTTP redirects")
-	scanFlags.BoolVar(followRedirects, "fr", true, "Follow redirects (alias)")
-	maxRedirects := scanFlags.Int("max-redirects", 10, "Max redirects to follow")
-	respectRobots := scanFlags.Bool("respect-robots", false, "Respect robots.txt")
-	scanFlags.BoolVar(respectRobots, "rr", false, "Respect robots (alias)")
-	dryRun := scanFlags.Bool("dry-run", false, "Show what would be scanned without scanning")
-	scanFlags.BoolVar(dryRun, "dr", false, "Dry run (alias)")
-
-	// Payload limits (useful for CI/CD and quick validation)
-	maxPayloads := scanFlags.Int("max-payloads", 0, "Max payloads per parameter per scan type (0 = unlimited)")
-	scanFlags.IntVar(maxPayloads, "mp", 0, "Max payloads (alias)")
-	maxParams := scanFlags.Int("max-params", 0, "Max parameters to test per scan type (0 = unlimited)")
-
-	// Debug and diagnostics
-	debug := scanFlags.Bool("debug", false, "Enable debug output")
-	debugRequest := scanFlags.Bool("debug-request", false, "Show request details")
-	scanFlags.BoolVar(debugRequest, "dreq", false, "Debug request (alias)")
-	debugResponse := scanFlags.Bool("debug-response", false, "Show response details")
-	scanFlags.BoolVar(debugResponse, "dresp", false, "Debug response (alias)")
-	profile := scanFlags.Bool("profile", false, "Enable CPU profiling")
-	memProfile := scanFlags.Bool("mem-profile", false, "Enable memory profiling")
-
-	// Streaming mode (CI-friendly output)
-	streamMode := scanFlags.Bool("stream", false, "Streaming output mode for CI/scripts")
-
-	// Detection (v2.5.2)
-	noDetect := scanFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
-
+	scanFlags, cfg := registerScanFlags()
+	cfg.Out.Version = ui.Version
 	scanFlags.Parse(os.Args[2:])
-
-	// Validate flag values
-	if *concurrency < 1 {
-		exitWithError("--concurrency must be at least 1, got %d", *concurrency)
-	}
-	if *maxPayloads < 0 {
-		exitWithError("--max-payloads must be non-negative, got %d", *maxPayloads)
-	}
-	if *maxParams < 0 {
-		exitWithError("--max-params must be non-negative, got %d", *maxParams)
-	}
-	if *rateLimit < 0 {
-		exitWithError("--rate-limit must be non-negative, got %d", *rateLimit)
-	}
-	if *maxErrors < 1 {
-		exitWithError("--max-errors must be at least 1, got %d", *maxErrors)
-	}
+	cfg.validate()
 
 	// Resolve nuclei template directory: if the default path doesn't exist
 	// on disk, extract embedded templates to a temp directory.
-	resolvedTemplateDir, resolveErr := templateresolver.ResolveNucleiDir(*templateDir)
+	resolvedTemplateDir, resolveErr := templateresolver.ResolveNucleiDir(*cfg.TemplateDir)
 	if resolveErr == nil {
-		*templateDir = resolvedTemplateDir
+		*cfg.TemplateDir = resolvedTemplateDir
 	}
 
 	// Disable detection if requested
-	if *noDetect {
+	if *cfg.NoDetect {
 		detection.Disable()
 	}
 
-	// Merge legacy output flags into outFlags (backward compatibility)
-	// Legacy flags take precedence only if outFlags equivalents are empty
-	if outFlags.OutputFile == "" && *outputFile != "" {
-		outFlags.OutputFile = *outputFile
-	}
-	if !outFlags.JSONMode && *jsonOutput {
-		outFlags.JSONMode = true
-	}
-	if outFlags.Format == "console" && *formatType != "console" {
-		outFlags.Format = *formatType
-	}
-	if !outFlags.StreamMode && *streamMode {
-		outFlags.StreamMode = true
-	}
-	if *sarifOutput && outFlags.SARIFExport == "" {
-		outFlags.SARIFExport = "results.sarif"
-	}
-	if *markdownOutput && outFlags.MDExport == "" {
-		outFlags.MDExport = "results.md"
-	}
-	if *htmlOutput && outFlags.HTMLExport == "" {
-		outFlags.HTMLExport = "results.html"
-	}
-	if *csvOutput && outFlags.CSVExport == "" {
-		outFlags.CSVExport = "results.csv"
-	}
-	if *silent {
-		outFlags.Silent = true
-	}
-	if *noColor {
-		outFlags.NoColor = true
-	}
+	cfg.mergeLegacyOutputFlags()
+	cfg.Out.ApplyUISettings()
 
-	// Apply UI settings from unified output flags
-	outFlags.ApplyUISettings()
+	// Check if we are in streaming JSON mode (suppress UI output)
+	streamJSON := cfg.Out.StreamMode && (cfg.Out.JSONMode || cfg.Out.Format == "json" || cfg.Out.Format == "jsonl")
 
-	// Check if we're in streaming JSON mode (suppress UI output)
-	streamJSON := outFlags.StreamMode && (outFlags.JSONMode || outFlags.Format == "json" || outFlags.Format == "jsonl")
 
-	// Print banner unless in streaming JSON mode or suppressed by outFlags
-	if !streamJSON && !outFlags.ShouldSuppressBanner() {
+	// Print banner unless in streaming JSON mode or suppressed by cfg.Out
+	if !streamJSON && !cfg.Out.ShouldSuppressBanner() {
 		ui.PrintCompactBanner()
 		ui.PrintSection("Deep Vulnerability Scan")
 	}
 
 	// Apply debug mode
-	if *debug || *debugRequest || *debugResponse {
-		cf.Verbose = true // Debug implies verbose
+	if *cfg.Debug || *cfg.DebugRequest || *cfg.DebugResponse {
+		cfg.Common.Verbose = true // Debug implies verbose
 	}
 
 	// Handle CPU profiling
-	if *profile {
+	if *cfg.Profile {
 		f, err := os.Create("cpu.prof")
 		if err != nil {
 			ui.PrintWarning(fmt.Sprintf("Could not create cpu.prof: %v", err))
@@ -322,7 +133,7 @@ func runScan() {
 	}
 
 	// Handle memory profiling
-	if *memProfile {
+	if *cfg.MemProfile {
 		defer func() {
 			f, err := os.Create("mem.prof")
 			if err != nil {
@@ -340,13 +151,13 @@ func runScan() {
 	}
 
 	// Handle dry run mode
-	if *dryRun {
+	if *cfg.DryRun {
 		ui.PrintWarning("Dry run mode - showing what would be scanned")
 	}
 
 	// Handle resume from checkpoint
-	if *resume {
-		checkpointPath := *checkpointFile
+	if *cfg.Resume {
+		checkpointPath := *cfg.CheckpointFile
 		if checkpointPath == "" {
 			checkpointPath = "scan-resume.cfg"
 		}
@@ -358,13 +169,13 @@ func runScan() {
 	}
 
 	// Collect targets using shared TargetSource
-	specCfg := sf.ToConfig()
+	specCfg := cfg.Spec.ToConfig()
 	specMode := specCfg.HasSpec()
 
 	var target string
 	if specMode {
 		// In spec mode, target comes from spec BaseURL or -u override.
-		ts := cf.TargetSource()
+		ts := cfg.Common.TargetSource()
 		t, terr := ts.GetSingleTarget()
 		if terr == nil {
 			target = t
@@ -372,7 +183,7 @@ func runScan() {
 		}
 		// Target will be resolved from spec if not provided via -u.
 	} else {
-		ts := cf.TargetSource()
+		ts := cfg.Common.TargetSource()
 		var terr error
 		target, terr = ts.GetSingleTarget()
 		if terr != nil {
@@ -386,7 +197,7 @@ func runScan() {
 	ctx, cancel := cli.SignalContext(30 * time.Second)
 	defer cancel()
 
-	ctx, tCancel := context.WithTimeout(ctx, time.Duration(cf.Timeout)*time.Minute)
+	ctx, tCancel := context.WithTimeout(ctx, time.Duration(cfg.Common.Timeout)*time.Minute)
 	defer tCancel()
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -396,10 +207,10 @@ func runScan() {
 	// Scan builds its own HAR from vulnerability findings via writeScanHAR.
 	// Exclude HARExport from the dispatcher so it doesn't open the same file
 	// (the dispatcher would write an empty HAR on Close, overwriting the real one).
-	scanHARPath := outFlags.HARExport
-	outFlags.HARExport = ""
-	dispCtx, dispErr := outFlags.InitDispatcher(scanID, target)
-	outFlags.HARExport = scanHARPath
+	scanHARPath := cfg.Out.HARExport
+	cfg.Out.HARExport = ""
+	dispCtx, dispErr := cfg.Out.InitDispatcher(scanID, target)
+	cfg.Out.HARExport = scanHARPath
 	if dispErr != nil {
 		ui.PrintWarning(fmt.Sprintf("Output dispatcher warning: %v", dispErr))
 	}
@@ -410,19 +221,19 @@ func runScan() {
 			ui.PrintInfo("Real-time integrations enabled (hooks active)")
 		}
 		// Emit scan start event to hooks
-		_ = dispCtx.EmitStart(ctx, target, 0, *concurrency, nil)
+		_ = dispCtx.EmitStart(ctx, target, 0, *cfg.Concurrency, nil)
 	}
 
 	// Smart Mode: Detect WAF and optimize configuration
 	var smartResult *SmartModeResult
-	if *smartFlags.Enabled {
+	if *cfg.Smart.Enabled {
 		ui.PrintSection("🧠 Smart Mode: WAF Detection & Optimization")
 		fmt.Fprintln(os.Stderr)
 
 		smartConfig := &SmartModeConfig{
-			DetectionTimeout: time.Duration(cf.Timeout) * time.Second,
-			Verbose:          *smartFlags.Verbose,
-			Mode:             *smartFlags.Mode,
+			DetectionTimeout: time.Duration(cfg.Common.Timeout) * time.Second,
+			Verbose:          *cfg.Smart.Verbose,
+			Mode:             *cfg.Smart.Mode,
 		}
 
 		var detectErr error
@@ -431,7 +242,7 @@ func runScan() {
 			ui.PrintWarning(fmt.Sprintf("Smart mode detection warning: %v", detectErr))
 		}
 
-		PrintSmartModeInfo(smartResult, *smartFlags.Verbose)
+		PrintSmartModeInfo(smartResult, *cfg.Smart.Verbose)
 
 		// Apply WAF-optimized rate limit and concurrency
 		// Only override if the user didn't explicitly set these flags
@@ -450,12 +261,12 @@ func runScan() {
 			if !userSetRL && smartResult.RateLimit > 0 {
 				ui.PrintInfo(fmt.Sprintf("📊 Rate limit: %.0f req/sec (WAF-optimized for %s)",
 					smartResult.RateLimit, smartResult.VendorName))
-				*rateLimit = int(smartResult.RateLimit)
+				*cfg.RateLimit = int(smartResult.RateLimit)
 			}
 			if !userSetConc && smartResult.Concurrency > 0 {
 				ui.PrintInfo(fmt.Sprintf("📊 Concurrency: %d workers (WAF-optimized)",
 					smartResult.Concurrency))
-				*concurrency = smartResult.Concurrency
+				*cfg.Concurrency = smartResult.Concurrency
 			}
 
 			// Emit smart mode WAF detection to hooks
@@ -474,21 +285,21 @@ func runScan() {
 	// TAMPER ENGINE INITIALIZATION (Scan Command)
 	// ═══════════════════════════════════════════════════════════════════════════
 	var tamperEngine *tampers.Engine
-	if *tamperFlags.List != "" || *tamperFlags.Auto || (*smartFlags.Enabled && smartResult != nil && smartResult.WAFDetected) {
+	if *cfg.Tamper.List != "" || *cfg.Tamper.Auto || (*cfg.Smart.Enabled && smartResult != nil && smartResult.WAFDetected) {
 		// Determine tamper profile
-		profile := tampers.ProfileStandard
-		switch *tamperFlags.Profile {
+		tamperProfile := tampers.ProfileStandard
+		switch *cfg.Tamper.Profile {
 		case "stealth":
-			profile = tampers.ProfileStealth
+			tamperProfile = tampers.ProfileStealth
 		case "aggressive":
-			profile = tampers.ProfileAggressive
+			tamperProfile = tampers.ProfileAggressive
 		case "bypass":
-			profile = tampers.ProfileBypass
+			tamperProfile = tampers.ProfileBypass
 		}
 
 		// If custom tamper list provided, use custom profile
-		if *tamperFlags.List != "" {
-			profile = tampers.ProfileCustom
+		if *cfg.Tamper.List != "" {
+			tamperProfile = tampers.ProfileCustom
 		}
 
 		// Get WAF vendor and strategy hints for intelligent selection
@@ -503,8 +314,8 @@ func runScan() {
 
 		// Create tamper engine
 		// Load script tampers from directory if specified
-		if *tamperFlags.Dir != "" {
-			scripts, errs := tampers.LoadScriptDir(*tamperFlags.Dir)
+		if *cfg.Tamper.Dir != "" {
+			scripts, errs := tampers.LoadScriptDir(*cfg.Tamper.Dir)
 			for _, e := range errs {
 				ui.PrintWarning(fmt.Sprintf("Script tamper: %v", e))
 			}
@@ -512,28 +323,28 @@ func runScan() {
 				tampers.Register(st)
 			}
 			if len(scripts) > 0 {
-				ui.PrintInfo(fmt.Sprintf("Loaded %d script tampers from %s", len(scripts), *tamperFlags.Dir))
+				ui.PrintInfo(fmt.Sprintf("Loaded %d script tampers from %s", len(scripts), *cfg.Tamper.Dir))
 			}
 		}
 
 		tamperEngine = tampers.NewEngine(&tampers.EngineConfig{
-			Profile:       profile,
-			CustomTampers: tampers.ParseTamperList(*tamperFlags.List),
+			Profile:       tamperProfile,
+			CustomTampers: tampers.ParseTamperList(*cfg.Tamper.List),
 			WAFVendor:     wafVendor,
 			StrategyHints: strategyHints,
 			EnableMetrics: true,
 		})
 
 		// Validate custom tampers if specified
-		if *tamperFlags.List != "" {
-			valid, invalid := tampers.ValidateTamperNames(tampers.ParseTamperList(*tamperFlags.List))
+		if *cfg.Tamper.List != "" {
+			valid, invalid := tampers.ValidateTamperNames(tampers.ParseTamperList(*cfg.Tamper.List))
 			if len(invalid) > 0 {
 				ui.PrintWarning(fmt.Sprintf("Unknown tampers: %s", strings.Join(invalid, ", ")))
 			}
 			if len(valid) > 0 {
 				ui.PrintInfo(fmt.Sprintf("🔧 Using %d custom tampers: %s", len(valid), strings.Join(valid, ", ")))
 			}
-		} else if *tamperFlags.Auto || (*smartFlags.Enabled && smartResult != nil && smartResult.WAFDetected) {
+		} else if *cfg.Tamper.Auto || (*cfg.Smart.Enabled && smartResult != nil && smartResult.WAFDetected) {
 			selectedTampers := tamperEngine.GetSelectedTampers()
 			if len(strategyHints) > 0 {
 				ui.PrintInfo(fmt.Sprintf("🔧 Auto-selected %d tampers for %s (strategy hints: %d): %s",
@@ -547,33 +358,33 @@ func runScan() {
 	// Only print config to stdout if not in streaming JSON mode
 	if !streamJSON {
 		ui.PrintConfigLine("Target", target)
-		ui.PrintConfigLine("Scan Types", *types)
-		ui.PrintConfigLine("Timeout", fmt.Sprintf("%ds", cf.Timeout))
-		ui.PrintConfigLine("Concurrency", fmt.Sprintf("%d", *concurrency))
-		if *smartFlags.Enabled {
-			ui.PrintConfigLine("Rate Limit", fmt.Sprintf("%d req/sec (WAF-optimized)", *rateLimit))
+		ui.PrintConfigLine("Scan Types", *cfg.Types)
+		ui.PrintConfigLine("Timeout", fmt.Sprintf("%ds", cfg.Common.Timeout))
+		ui.PrintConfigLine("Concurrency", fmt.Sprintf("%d", *cfg.Concurrency))
+		if *cfg.Smart.Enabled {
+			ui.PrintConfigLine("Rate Limit", fmt.Sprintf("%d req/sec (WAF-optimized)", *cfg.RateLimit))
 		}
 		fmt.Fprintln(os.Stderr)
 
 		// Print output configuration if verbose
-		if cf.Verbose {
-			outFlags.PrintOutputConfig()
+		if cfg.Common.Verbose {
+			cfg.Out.PrintOutputConfig()
 		}
 	}
 
 	// Parse scan types
-	scanAll := *types == "all"
+	scanAll := *cfg.Types == "all"
 	typeSet := make(map[string]bool)
 	if !scanAll {
-		for _, t := range strings.Split(*types, ",") {
+		for _, t := range strings.Split(*cfg.Types, ",") {
 			typeSet[strings.TrimSpace(strings.ToLower(t))] = true
 		}
 	}
 
 	// Parse excluded scan types
 	excludeSet := make(map[string]bool)
-	if *excludeTypes != "" {
-		for _, t := range strings.Split(*excludeTypes, ",") {
+	if *cfg.ExcludeTypes != "" {
+		for _, t := range strings.Split(*cfg.ExcludeTypes, ",") {
 			excludeSet[strings.TrimSpace(strings.ToLower(t))] = true
 		}
 	}
@@ -587,9 +398,9 @@ func runScan() {
 
 	// Compile URL include/exclude patterns for scope control
 	var includeRe, excludeRe *regexp.Regexp
-	if *includePatterns != "" {
+	if *cfg.IncludePatterns != "" {
 		var err error
-		includeRe, err = regexp.Compile(*includePatterns)
+		includeRe, err = regexp.Compile(*cfg.IncludePatterns)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Invalid --include-patterns regex: %v", err))
 			if dispCtx != nil {
@@ -598,9 +409,9 @@ func runScan() {
 			os.Exit(1)
 		}
 	}
-	if *excludePatterns != "" {
+	if *cfg.ExcludePatterns != "" {
 		var err error
-		excludeRe, err = regexp.Compile(*excludePatterns)
+		excludeRe, err = regexp.Compile(*cfg.ExcludePatterns)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Invalid --exclude-patterns regex: %v", err))
 			if dispCtx != nil {
@@ -628,15 +439,15 @@ func runScan() {
 	// Forward generic --dry-run to spec dry-run so both flags work.
 	// ═══════════════════════════════════════════════════════════════════════════
 	if specMode {
-		if *dryRun {
+		if *cfg.DryRun {
 			specCfg.DryRun = true
 		}
-		runSpecScan(ctx, specCfg, &cf, &outFlags, shouldScan, target, *concurrency, *rateLimit, *proxy, streamJSON, dispCtx)
+		runSpecScan(ctx, specCfg, &cfg.Common, &cfg.Out, shouldScan, target, *cfg.Concurrency, *cfg.RateLimit, *cfg.Proxy, streamJSON, dispCtx)
 		return
 	}
 
 	// Dry run mode - list what would be scanned and exit
-	if *dryRun {
+	if *cfg.DryRun {
 		allScanTypes := []string{"sqli", "xss", "traversal", "cmdi", "nosqli", "hpp", "crlf", "prototype", "cors", "redirect", "hostheader", "websocket", "cache", "upload", "deserialize", "oauth", "ssrf", "ssti", "xxe", "smuggling", "graphql", "jwt", "subtakeover", "bizlogic", "race", "apifuzz", "ldap", "ssi", "xpath", "xmlinjection", "rfi", "lfi", "rce", "csrf", "clickjack", "idor", "massassignment", "wafdetect", "waffprint", "wafevasion", "tlsprobe", "httpprobe", "secheaders", "jsanalyze", "apidepth", "osint", "vhost", "techdetect", "dnsrecon"}
 
 		var selectedScans []string
@@ -662,14 +473,14 @@ func runScan() {
 
 	// Build HTTP client using shared factory (DNS cache, HTTP/2, sockopt, detection wrapper)
 	httpCfg := httpclient.FuzzingConfig()
-	httpCfg.InsecureSkipVerify = cf.SkipVerify
-	httpCfg.MaxConnsPerHost = *concurrency
-	httpCfg.MaxIdleConns = *concurrency * 2
-	if *proxy != "" {
-		httpCfg.Proxy = *proxy
+	httpCfg.InsecureSkipVerify = cfg.Common.SkipVerify
+	httpCfg.MaxConnsPerHost = *cfg.Concurrency
+	httpCfg.MaxIdleConns = *cfg.Concurrency * 2
+	if *cfg.Proxy != "" {
+		httpCfg.Proxy = *cfg.Proxy
 	}
 	httpClient := httpclient.New(httpCfg)
-	httpClient.Timeout = time.Duration(cf.Timeout) * time.Second
+	httpClient.Timeout = time.Duration(cfg.Common.Timeout) * time.Second
 
 	// Wrap transport with a request counter so the progress display
 	// can show a meaningful per-second rate instead of 0.0/s while
@@ -682,10 +493,10 @@ func runScan() {
 
 	// Layer rate-limit enforcement at the HTTP transport level so every
 	// scanner request obeys --rate-limit, not just scanner launches.
-	if *rateLimit > 0 {
+	if *cfg.RateLimit > 0 {
 		httpClient.Transport = &rateLimitTransport{
 			inner:   httpClient.Transport,
-			limiter: rate.NewLimiter(rate.Limit(*rateLimit), *rateLimit),
+			limiter: rate.NewLimiter(rate.Limit(*cfg.RateLimit), *cfg.RateLimit),
 		}
 	}
 
@@ -699,11 +510,11 @@ func runScan() {
 	}
 
 	// Determine user agent
-	effectiveUserAgent := *userAgent
+	effectiveUserAgent := *cfg.UserAgent
 	if effectiveUserAgent == "" {
 		effectiveUserAgent = ui.UserAgent()
 	}
-	if *randomAgent {
+	if *cfg.RandomAgent {
 		userAgents := []string{
 			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -715,22 +526,22 @@ func runScan() {
 
 	// Build custom headers map
 	customHeaders := make(map[string]string)
-	for _, h := range headerFlags {
+	for _, h := range cfg.Headers {
 		parts := strings.SplitN(h, ":", 2)
 		if len(parts) == 2 {
 			customHeaders[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
 		}
 	}
 	customHeaders["User-Agent"] = effectiveUserAgent
-	if *cookies != "" {
-		customHeaders["Cookie"] = *cookies
+	if *cfg.Cookies != "" {
+		customHeaders["Cookie"] = *cfg.Cookies
 	}
 
 	// Configure redirect policy
 	redirectPolicy := func(req *http.Request, via []*http.Request) error {
-		if *followRedirects {
-			if len(via) >= *maxRedirects {
-				return fmt.Errorf("stopped after %d redirects", *maxRedirects)
+		if *cfg.FollowRedirects {
+			if len(via) >= *cfg.MaxRedirects {
+				return fmt.Errorf("stopped after %d redirects", *cfg.MaxRedirects)
 			}
 			return nil
 		}
@@ -747,8 +558,8 @@ func runScan() {
 
 	// Respect robots.txt: fetch disallowed paths and block the scan if the
 	// target path is disallowed. We do this once, before launching scanners.
-	if *respectRobots {
-		es := discovery.NewExternalSources(time.Duration(cf.Timeout)*time.Second, effectiveUserAgent)
+	if *cfg.RespectRobots {
+		es := discovery.NewExternalSources(time.Duration(cfg.Common.Timeout)*time.Second, effectiveUserAgent)
 		robotsResult, err := es.ParseRobotsTxt(ctx, target)
 		if err == nil && robotsResult != nil {
 			parsedTarget, _ := url.Parse(target)
@@ -771,10 +582,10 @@ func runScan() {
 					os.Exit(0)
 				}
 			}
-			if cf.Verbose {
+			if cfg.Common.Verbose {
 				ui.PrintInfo(fmt.Sprintf("robots.txt: %d disallowed paths checked, target path allowed", len(robotsResult.DisallowedPaths)))
 			}
-		} else if err != nil && cf.Verbose {
+		} else if err != nil && cfg.Common.Verbose {
 			ui.PrintWarning(fmt.Sprintf("Could not fetch robots.txt: %v (continuing scan)", err))
 		}
 	}
@@ -790,22 +601,22 @@ func runScan() {
 
 	var mu sync.Mutex
 	var wg sync.WaitGroup
-	semaphore := make(chan struct{}, *concurrency)
+	semaphore := make(chan struct{}, *cfg.Concurrency)
 
 	// Clamp rate limit to minimum of 1 (0 or negative would block forever)
-	if *rateLimit < 1 {
-		*rateLimit = 1
+	if *cfg.RateLimit < 1 {
+		*cfg.RateLimit = 1
 	}
 
 	// Create per-host rate limiter when --rate-limit-per-host is set.
 	// Global rate limiting is enforced at the HTTP transport level via
 	// rateLimitTransport, so no standalone scanLimiter is needed.
 	var perHostLimiter *ratelimit.Limiter
-	if *rateLimitPerHost {
+	if *cfg.RateLimitPerHost {
 		perHostLimiter = ratelimit.New(&ratelimit.Config{
-			RequestsPerSecond: *rateLimit,
+			RequestsPerSecond: *cfg.RateLimit,
 			PerHost:           true,
-			Burst:             *rateLimit,
+			Burst:             *cfg.RateLimit,
 		})
 	}
 
@@ -815,7 +626,7 @@ func runScan() {
 	// Progress tracking
 	var totalScans int32
 	var scanErrors int32
-	scanMaxErrors := int32(*maxErrors)
+	scanMaxErrors := int32(*cfg.MaxErrors)
 	var scanTimings sync.Map // map[string]time.Duration
 
 	// Count total scans first — must match every runScanner() call below
@@ -828,10 +639,10 @@ func runScan() {
 
 	// Determine output mode for progress
 	outputMode := ui.DefaultOutputMode()
-	if *streamMode {
+	if *cfg.StreamMode {
 		outputMode = ui.OutputModeStreaming
 	}
-	if *silent {
+	if *cfg.Silent {
 		outputMode = ui.OutputModeSilent
 	}
 
@@ -910,7 +721,7 @@ func runScan() {
 	emitEvent("scan_start", map[string]interface{}{
 		"target":      target,
 		"scan_types":  allScanTypes,
-		"concurrency": *concurrency,
+		"concurrency": *cfg.Concurrency,
 	})
 
 	// Extract host from target URL for detection checks
@@ -920,7 +731,7 @@ func runScan() {
 	// checkStopOnFirst cancels the scan context when --stop-on-first is set
 	// and vulns have been recorded. Called after each scanner completes.
 	checkStopOnFirst := func() {
-		if !*stopOnFirstVuln {
+		if !*cfg.StopOnFirstVuln {
 			return
 		}
 		mu.Lock()
@@ -948,7 +759,7 @@ func runScan() {
 			defer func() { <-semaphore }()
 
 			// Stop-on-first: skip if a vuln was already found
-			if *stopOnFirstVuln && atomic.LoadInt32(&foundVuln) == 1 {
+			if *cfg.StopOnFirstVuln && atomic.LoadInt32(&foundVuln) == 1 {
 				progress.Increment()
 				return
 			}
@@ -963,10 +774,10 @@ func runScan() {
 			}
 
 			// Apply inter-request delay + jitter if configured
-			if *delay > 0 {
-				d := *delay
-				if *jitter > 0 {
-					d += time.Duration(rand.Int63n(int64(*jitter)))
+			if *cfg.Delay > 0 {
+				d := *cfg.Delay
+				if *cfg.Jitter > 0 {
+					d += time.Duration(rand.Int63n(int64(*cfg.Jitter)))
 				}
 				select {
 				case <-ctx.Done():
@@ -1002,9 +813,9 @@ func runScan() {
 			// records results), so retrying on transient errors is safe.
 			// We detect errors by checking if the global error counter
 			// increased during the scanner's invocation.
-			if *retries > 0 {
+			if *cfg.Retries > 0 {
 				retryCfg := retry.Config{
-					MaxAttempts: *retries + 1, // retries flag = retry count, +1 for initial attempt
+					MaxAttempts: *cfg.Retries + 1, // retries flag = retry count, +1 for initial attempt
 					InitDelay:   500 * time.Millisecond,
 					MaxDelay:    5 * time.Second,
 					Strategy:    retry.Exponential,
@@ -1034,7 +845,7 @@ func runScan() {
 	// Death-spiral protection: if too many scanners error, cancel remaining.
 	scanError := func(scanner string, err error) {
 		n := atomic.AddInt32(&scanErrors, 1)
-		if cf.Verbose {
+		if cfg.Common.Verbose {
 			ui.PrintWarning(fmt.Sprintf("%s scan error: %v", scanner, err))
 		}
 		if n >= scanMaxErrors {
@@ -1046,7 +857,7 @@ func runScan() {
 		}
 	}
 
-	timeoutDur := time.Duration(cf.Timeout) * time.Second
+	timeoutDur := time.Duration(cfg.Common.Timeout) * time.Second
 
 	// Shared callback for real-time vulnerability counting.
 	// Scanners that support streaming call this per finding so the
@@ -1064,9 +875,9 @@ func runScan() {
 			Timeout:              timeoutDur,
 			UserAgent:            effectiveUserAgent,
 			Client:               httpClient,
-			MaxPayloads:          *maxPayloads,
-			MaxParams:            *maxParams,
-			Concurrency:          *concurrency,
+			MaxPayloads:          *cfg.MaxPayloads,
+			MaxParams:            *cfg.MaxParams,
+			Concurrency:          *cfg.Concurrency,
 			Headers:              customHeaders,
 			OnVulnerabilityFound: onVuln,
 		}
@@ -1603,24 +1414,24 @@ func runScan() {
 		defer func() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "oauth", "vulns": vulnCount})
 		}()
-		if *oauthAuthEndpoint == "" {
-			if cf.Verbose {
+		if *cfg.OAuthAuthEndpoint == "" {
+			if cfg.Common.Verbose {
 				ui.PrintInfo("OAuth scan skipped: no -oauth-auth-endpoint provided")
 			}
 			return
 		}
-		cfg := &oauth.TesterConfig{
+		testerCfg := &oauth.TesterConfig{
 			Base: baseConfig(),
 		}
 		endpoints := &oauth.OAuthEndpoint{
-			AuthorizationURL: *oauthAuthEndpoint,
-			TokenURL:         *oauthTokenEndpoint,
+			AuthorizationURL: *cfg.OAuthAuthEndpoint,
+			TokenURL:         *cfg.OAuthTokenEndpoint,
 		}
 		oauthCfg := &oauth.OAuthConfig{
-			ClientID:    *oauthClientID,
-			RedirectURI: *oauthRedirectURI,
+			ClientID:    *cfg.OAuthClientID,
+			RedirectURI: *cfg.OAuthRedirectURI,
 		}
-		tester := oauth.NewTester(cfg, endpoints, oauthCfg)
+		tester := oauth.NewTester(testerCfg, endpoints, oauthCfg)
 		vulns, err := tester.Scan(ctx)
 		if err != nil {
 			scanError("OAuth", err)
@@ -1786,9 +1597,9 @@ func runScan() {
 			}
 			emitEvent("scan_complete", data)
 		}()
-		cfg := graphql.DefaultConfig()
-		cfg.Base = baseConfig()
-		cfg.Headers = baseConfig().HTTPHeader()
+		testerCfg := graphql.DefaultConfig()
+		testerCfg.Base = baseConfig()
+		testerCfg.Headers = baseConfig().HTTPHeader()
 		// Attempt common GraphQL endpoints
 		graphqlEndpoints := []string{
 			target + "/graphql",
@@ -1797,7 +1608,7 @@ func runScan() {
 			target + "/query",
 		}
 		for _, endpoint := range graphqlEndpoints {
-			tester := graphql.NewTester(endpoint, cfg)
+			tester := graphql.NewTester(endpoint, testerCfg)
 			scanResult, err := tester.FullScan(ctx)
 			if err == nil && scanResult != nil && len(scanResult.Vulnerabilities) > 0 {
 				mu.Lock()
@@ -1819,7 +1630,7 @@ func runScan() {
 				return
 			}
 		}
-		if cf.Verbose {
+		if cfg.Common.Verbose {
 			ui.PrintInfo("No GraphQL endpoint found or no vulnerabilities detected")
 		}
 	})
@@ -1860,16 +1671,16 @@ func runScan() {
 		defer func() {
 			emitEvent("scan_complete", map[string]interface{}{"scanner": "subtakeover", "vulns": vulnCount})
 		}()
-		cfg := &subtakeover.TesterConfig{
+		testerCfg := &subtakeover.TesterConfig{
 			Base:        baseConfig(),
 			CheckHTTP:   true,
 			FollowCNAME: true,
 		}
-		tester := subtakeover.NewTester(cfg)
+		tester := subtakeover.NewTester(testerCfg)
 		// Extract domain from target URL
 		u, err := url.Parse(target)
 		if err != nil {
-			if cf.Verbose {
+			if cfg.Common.Verbose {
 				ui.PrintWarning(fmt.Sprintf("Subtakeover: invalid URL: %v", err))
 			}
 			return
@@ -2497,16 +2308,16 @@ func runScan() {
 			"../../../etc/passwd",
 		}
 		// Attempt to enrich with JSON payload database
-		provider := payloadprovider.NewProvider(*payloadDir, *templateDir)
+		provider := payloadprovider.NewProvider(*cfg.PayloadDir, *cfg.TemplateDir)
 		if err := provider.Load(); err != nil {
-			if cf.Verbose {
+			if cfg.Common.Verbose {
 				ui.PrintInfo(fmt.Sprintf("Payload provider: using fallback payloads (load error: %v)", err))
 			}
 		} else {
 			for _, cat := range []string{"XSS", "SQL-Injection", "Path-Traversal"} {
 				catPayloads, catErr := provider.GetByCategory(cat)
 				if catErr != nil {
-					if cf.Verbose {
+					if cfg.Common.Verbose {
 						ui.PrintInfo(fmt.Sprintf("Payload provider: skipping %s category: %v", cat, catErr))
 					}
 					continue
@@ -2561,7 +2372,7 @@ func runScan() {
 			return
 		}
 		if parsedURL.Scheme != "https" {
-			if cf.Verbose {
+			if cfg.Common.Verbose {
 				ui.PrintInfo("Skipping TLS probe for non-HTTPS target")
 			}
 			return
@@ -2877,7 +2688,7 @@ func runScan() {
 		// Extract domain from target
 		parsedURL, err := url.Parse(target)
 		if err != nil {
-			if cf.Verbose {
+			if cfg.Common.Verbose {
 				ui.PrintWarning(fmt.Sprintf("OSINT: Failed to parse target URL: %v", err))
 			}
 			return
@@ -2910,7 +2721,7 @@ func runScan() {
 			}
 			mu.Unlock()
 
-			if cf.Verbose {
+			if cfg.Common.Verbose {
 				ui.PrintInfo(fmt.Sprintf("OSINT: Found %d unique endpoints from external sources", endpointCount))
 			}
 		}
@@ -2981,7 +2792,7 @@ func runScan() {
 			}
 			mu.Unlock()
 
-			if cf.Verbose {
+			if cfg.Common.Verbose {
 				ui.PrintInfo(fmt.Sprintf("VHost: Found %d virtual hosts", vhostCount))
 			}
 		}
@@ -3018,7 +2829,7 @@ func runScan() {
 			result.ByCategory["techdetect"] = len(uniqueTech)
 			mu.Unlock()
 
-			if cf.Verbose {
+			if cfg.Common.Verbose {
 				ui.PrintInfo(fmt.Sprintf("TechDetect: Identified %d technologies: %v", len(uniqueTech), uniqueTech))
 			}
 		}
@@ -3045,7 +2856,7 @@ func runScan() {
 			result.ByCategory["dnsrecon"] = totalRecords
 			mu.Unlock()
 
-			if cf.Verbose {
+			if cfg.Common.Verbose {
 				ui.PrintInfo(fmt.Sprintf("DNSRecon: Found %d DNS records", totalRecords))
 			}
 		}
@@ -3059,7 +2870,7 @@ func runScan() {
 	deduplicateAllFindings(result)
 
 	// Apply severity/category filters and strip evidence/remediation if configured
-	filters := parseScanFilters(*matchSeverity, *filterSeverity, *matchCategory, *filterCategory, *includeEvidence, *includeRemediation)
+	filters := parseScanFilters(*cfg.MatchSeverity, *cfg.FilterSeverity, *cfg.MatchCategory, *cfg.FilterCategory, *cfg.IncludeEvidence, *cfg.IncludeRemediation)
 	applyFilters(result, filters)
 
 	// Emit summary to all hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
@@ -3086,16 +2897,16 @@ func runScan() {
 		StreamJSON:   streamJSON,
 		TotalScans:   totalScans,
 		ScanErrors:   &scanErrors,
-		CSVOutput:    *csvOutput,
-		MDOutput:     *markdownOutput,
-		HTMLOutput:   *htmlOutput,
-		SARIFOutput:  *sarifOutput,
-		JSONOutput:   *jsonOutput,
-		FormatType:   *formatType,
-		OutputFile:   *outputFile,
-		ReportTitle:  *reportTitle,
-		ReportAuthor: *reportAuthor,
-		OutFlags:     &outFlags,
+		CSVOutput:    *cfg.CSVOutput,
+		MDOutput:     *cfg.MarkdownOutput,
+		HTMLOutput:   *cfg.HTMLOutput,
+		SARIFOutput:  *cfg.SARIFOutput,
+		JSONOutput:   *cfg.JSONOutput,
+		FormatType:   *cfg.FormatType,
+		OutputFile:   *cfg.OutputFile,
+		ReportTitle:  *cfg.ReportTitle,
+		ReportAuthor: *cfg.ReportAuthor,
+		OutFlags:     &cfg.Out,
 		DispCtx:      dispCtx,
 	})
 }

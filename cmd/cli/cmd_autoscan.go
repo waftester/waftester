@@ -153,116 +153,25 @@ func (c *smartModeCache) toSmartModeResult() *SmartModeResult {
 func runAutoScan() {
 	startTime := time.Now()
 
-	// Parse flags FIRST so we can determine output mode before printing anything
-	autoFlags := flag.NewFlagSet("auto", flag.ExitOnError)
-
-	// Output configuration (unified architecture)
-	var outFlags OutputFlags
-	outFlags.RegisterFlags(autoFlags)
-	outFlags.RegisterOutputAliases(autoFlags)
-	outFlags.Version = ui.Version
-
-	var cf CommonFlags
-	cf.Register(autoFlags, 10)
-
-	service := autoFlags.String("service", "", "Service preset: wordpress, drupal, nextjs, flask, django")
-	payloadDirFlag := autoFlags.String("payloads", "", "Payload directory (default: auto-detect)")
-	concurrency := autoFlags.Int("c", 50, "Concurrent workers for testing")
-	rateLimit := autoFlags.Int("rl", 200, "Rate limit (requests per second)")
-	depth := autoFlags.Int("depth", 3, "Max crawl depth for discovery")
-	outputDir := autoFlags.String("output-dir", "", "Output directory (default: workspaces/<domain>/<timestamp>)")
-	noClean := autoFlags.Bool("no-clean", false, "Don't clean previous workspace files")
-
-	// Smart mode (WAF-aware testing with 197+ vendor signatures)
-	var smartFlags SmartModeFlags
-	smartFlags.Register(autoFlags)
-
-	// Tamper scripts (70+ sqlmap-compatible WAF bypass transformations)
-	var tamperFlags TamperFlags
-	tamperFlags.Register(autoFlags)
-
-	// Enterprise assessment with quantitative metrics (NOW DEFAULT for superpower mode)
-	enableAssess := autoFlags.Bool("assess", true, "Run enterprise assessment with F1/precision/MCC metrics (default: true)")
-	assessCorpus := autoFlags.String("assess-corpus", "builtin,leipzig", "FP corpus for assessment: builtin,leipzig")
-
-	// NEW: Leaky paths scanning (Phase 1.5)
-	enableLeakyPaths := autoFlags.Bool("leaky-paths", true, "Enable sensitive path scanning (300+ paths)")
-	leakyCategories := autoFlags.String("leaky-categories", "", "Filter leaky paths: config,debug,vcs,admin,backup,source,api,cloud,ci")
-
-	// NEW: Parameter discovery (Phase 2.5)
-	enableParamDiscovery := autoFlags.Bool("discover-params", true, "Enable Arjun-style parameter discovery")
-	paramWordlist := autoFlags.String("param-wordlist", "", "Custom parameter wordlist file")
-
-	// NEW: JA3 fingerprint rotation
-	enableJA3 := autoFlags.Bool("ja3-rotate", false, "Enable JA3 fingerprint rotation")
-	ja3Profile := autoFlags.String("ja3-profile", "", "Specific JA3 profile: chrome120,firefox121,safari17,edge120")
-
-	// NEW: Full recon mode using unified recon package
-	enableFullRecon := autoFlags.Bool("full-recon", false, "Run unified reconnaissance (combines leaky-paths, params, JS analysis)")
-
-	// NEW: Browser-based authenticated scanning (Phase 7-9)
-	enableBrowserScan := autoFlags.Bool("browser", true, "Enable authenticated browser scanning (default: true)")
-	browserHeadless := autoFlags.Bool("browser-headless", false, "Run browser in headless mode (no visible window)")
-	browserTimeout := autoFlags.Duration("browser-timeout", duration.BrowserLogin, "Timeout for user login during browser scan")
-
-	// Note: stream, json, and -j flags are now registered via outFlags.RegisterFlags()
-	// Use outFlags.StreamMode and outFlags.JSONMode instead of local variables
-
-	// Detection (v2.5.2)
-	noDetect := autoFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
-
-	// NEW v2.6.4: Auto-resume with checkpoint support
-	resumeScan := autoFlags.Bool("resume", false, "Resume interrupted scan from checkpoint")
-	checkpointFile := autoFlags.String("checkpoint", "", "Checkpoint file path (default: <workspace>/checkpoint.json)")
-
-	// NEW v2.6.4: Multi-format report generation
-	reportFormats := autoFlags.String("report-formats", "json,md,html", "Comma-separated report formats: json,md,html,sarif")
-
-	// NEW v2.6.4: Adaptive rate limiting
-	adaptiveRate := autoFlags.Bool("adaptive-rate", true, "Enable adaptive rate limiting (auto-adjust on WAF response)")
-
-	// NEW v2.6.4: Brain Mode - adaptive learning engine
-	enableBrain := autoFlags.Bool("brain", true, "Enable Brain Mode (adaptive learning, attack chains, smart prioritization)")
-	brainVerbose := autoFlags.Bool("brain-verbose", false, "Show detailed brain insights during scan")
-
-	// API spec-driven scanning
-	specFile := autoFlags.String("spec", "", "API spec file path (OpenAPI, Swagger, Postman, HAR)")
-	specURL := autoFlags.String("spec-url", "", "API spec URL to fetch and parse")
-	specIntensity := autoFlags.String("intensity", "normal", "Spec scan intensity: quick, normal, deep, paranoid")
-	specGroup := autoFlags.String("group", "", "Filter spec endpoints by group/tag")
-	specSkipGroup := autoFlags.String("skip-group", "", "Exclude spec endpoints by group/tag")
-	specDryRun := autoFlags.Bool("dry-run", false, "Show scan plan without executing")
-	specYes := autoFlags.Bool("yes", false, "Skip confirmation prompt for spec scans")
-	scanConfigPath := autoFlags.String("scan-config", "", "Path to .waftester-spec.yaml for per-endpoint overrides")
-
+	autoFlags, cfg := registerAutoscanFlags()
 	autoFlags.Parse(os.Args[2:])
-
-	// Validate numeric flags to prevent panics (negative channel size) and hangs (zero workers).
-	if *concurrency <= 0 {
-		exitWithError("--concurrency must be a positive integer")
-	}
-	if *rateLimit <= 0 {
-		exitWithError("--rl must be a positive integer")
-	}
-	if cf.Timeout <= 0 {
-		exitWithError("--timeout must be a positive integer")
-	}
+	cfg.validate()
 
 	// Disable detection if requested
-	if *noDetect {
+	if *cfg.NoDetect {
 		detection.Disable()
 	}
 
 	// Apply unified output settings (silent, color)
-	outFlags.ApplyUISettings()
+	cfg.Out.ApplyUISettings()
 
 	// Apply silent mode for JSON output - suppress all non-JSON output to stdout
-	if outFlags.JSONMode {
+	if cfg.Out.JSONMode {
 		ui.SetSilent(true)
 	}
 
 	// Print banner and intro only when not in JSON mode
-	if !outFlags.ShouldSuppressBanner() {
+	if !cfg.Out.ShouldSuppressBanner() {
 		ui.PrintBanner()
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintln(os.Stderr, ui.SectionStyle.Render(ui.Icon("🚀", ">")+" SUPERPOWER MODE - Full Automated Security Scan"))
@@ -271,7 +180,7 @@ func runAutoScan() {
 
 	// Helper to suppress console output in JSON mode
 	// All informational output should use these instead of fmt.Print*
-	quietMode := outFlags.JSONMode
+	quietMode := cfg.Out.JSONMode
 	printStatus := func(format string, args ...interface{}) {
 		if !quietMode {
 			fmt.Fprintf(os.Stderr, format, args...)
@@ -284,7 +193,7 @@ func runAutoScan() {
 	}
 
 	// Auto-detect payload directory if not specified
-	payloadDir := *payloadDirFlag
+	payloadDir := *cfg.PayloadDir
 	if payloadDir == "" {
 		// Try common locations
 		candidates := []string{
@@ -308,8 +217,8 @@ func runAutoScan() {
 
 	// Get target. In spec mode, target is optional — the spec's server
 	// URLs will be used if -u is not provided.
-	specModeActive := *specFile != "" || *specURL != ""
-	ts := cf.TargetSource()
+	specModeActive := *cfg.SpecFile != "" || *cfg.SpecURL != ""
+	ts := cfg.Common.TargetSource()
 	target, err := ts.GetSingleTarget()
 	if err != nil && !specModeActive {
 		ui.PrintError("Target URL is required. Use: waf-tester auto -u https://example.com")
@@ -331,7 +240,7 @@ func runAutoScan() {
 
 	// Create output directory structure
 	timestamp := time.Now().Format("2006-01-02_15-04-05")
-	workspaceDir := *outputDir
+	workspaceDir := *cfg.OutputDir
 	if workspaceDir == "" {
 		// Use project root workspaces directory for consistent output location
 		projectRoot := getProjectRoot()
@@ -339,7 +248,7 @@ func runAutoScan() {
 	}
 	// Clean previous workspace files unless --no-clean or --resume is set.
 	// Resume needs the existing workspace intact to restore checkpoint state.
-	if !*noClean && !*resumeScan && workspaceDir != "" {
+	if !*cfg.NoClean && !*cfg.ResumeScan && workspaceDir != "" {
 		if info, err := os.Stat(workspaceDir); err == nil && info.IsDir() {
 			if removeErr := os.RemoveAll(workspaceDir); removeErr != nil {
 				ui.PrintWarning(fmt.Sprintf("Failed to clean workspace: %v", removeErr))
@@ -361,7 +270,7 @@ func runAutoScan() {
 	// ═══════════════════════════════════════════════════════════════════════════
 	// AUTO-RESUME: Checkpoint Manager Initialization (v2.6.4)
 	// ═══════════════════════════════════════════════════════════════════════════
-	cpFile := *checkpointFile
+	cpFile := *cfg.CheckpointFile
 	if cpFile == "" {
 		cpFile = filepath.Join(workspaceDir, "checkpoint.json")
 	}
@@ -388,8 +297,8 @@ func runAutoScan() {
 	cpManager.Init("auto", phaseNames, map[string]interface{}{
 		"target":      target,
 		"workspace":   workspaceDir,
-		"concurrency": *concurrency,
-		"rate_limit":  *rateLimit,
+		"concurrency": *cfg.Concurrency,
+		"rate_limit":  *cfg.RateLimit,
 	})
 
 	// Helper to mark phase as completed and save checkpoint
@@ -399,14 +308,14 @@ func runAutoScan() {
 
 	// Helper to check if phase should be skipped (resume mode)
 	shouldSkipPhase := func(name string) bool {
-		if !*resumeScan {
+		if !*cfg.ResumeScan {
 			return false
 		}
 		return cpManager.IsCompleted(name)
 	}
 
 	// Check for resume mode
-	if *resumeScan && cpManager.Exists() {
+	if *cfg.ResumeScan && cpManager.Exists() {
 		state, err := cpManager.Load()
 		if err == nil && state != nil {
 			ui.PrintInfo(fmt.Sprintf("Resuming scan from checkpoint (started: %s)", state.StartTime.Format(time.RFC3339)))
@@ -428,20 +337,20 @@ func runAutoScan() {
 	var insightMu sync.Mutex
 	insightSeen := make(map[string]int) // title → count
 
-	if *enableBrain {
+	if *cfg.EnableBrain {
 		brain = intelligence.NewEngine(&intelligence.Config{
 			LearningSensitivity: 0.7,
 			MinConfidence:       0.6,
 			EnableChains:        true,
 			EnableWAFModel:      true,
 			MaxChains:           50,
-			Verbose:             *brainVerbose,
+			Verbose:             *cfg.BrainVerbose,
 		})
 
 		// Register insight callback for real-time brain insights
 		brain.OnInsight(func(insight *intelligence.Insight) {
 			atomic.AddInt32(&insightCount, 1)
-			if *brainVerbose && !quietMode {
+			if *cfg.BrainVerbose && !quietMode {
 				insightMu.Lock()
 				insightSeen[insight.Title]++
 				count := insightSeen[insight.Title]
@@ -508,7 +417,7 @@ func runAutoScan() {
 	}
 
 	// Restore brain state on resume so sub-passes have full intelligence.
-	if *resumeScan && brain != nil {
+	if *cfg.ResumeScan && brain != nil {
 		if err := brain.Load(brainStatePath); err == nil {
 			ui.PrintInfo("🧠 Brain state restored from checkpoint")
 		}
@@ -517,41 +426,41 @@ func runAutoScan() {
 	fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("Configuration"))
 	ui.PrintConfigLine("Target", target)
 	ui.PrintConfigLine("Domain", domain)
-	if *service != "" {
-		ui.PrintConfigLine("Service", *service)
+	if *cfg.Service != "" {
+		ui.PrintConfigLine("Service", *cfg.Service)
 	}
 	ui.PrintConfigLine("Workspace", workspaceDir)
-	ui.PrintConfigLine("Concurrency", fmt.Sprintf("%d", *concurrency))
-	ui.PrintConfigLine("Rate Limit", fmt.Sprintf("%d req/sec", *rateLimit))
-	if *enableLeakyPaths {
+	ui.PrintConfigLine("Concurrency", fmt.Sprintf("%d", *cfg.Concurrency))
+	ui.PrintConfigLine("Rate Limit", fmt.Sprintf("%d req/sec", *cfg.RateLimit))
+	if *cfg.EnableLeakyPaths {
 		ui.PrintConfigLine("Leaky Paths", "Enabled (300+ sensitive paths)")
 	}
-	if *enableParamDiscovery {
+	if *cfg.EnableParamDiscovery {
 		ui.PrintConfigLine("Param Discovery", "Enabled (Arjun-style)")
 	}
-	if *enableJA3 {
-		profile := *ja3Profile
+	if *cfg.EnableJA3 {
+		profile := *cfg.JA3Profile
 		if profile == "" {
 			profile = "rotating"
 		}
 		ui.PrintConfigLine("JA3 Rotation", profile)
 	}
-	if *enableFullRecon {
+	if *cfg.EnableFullRecon {
 		ui.PrintConfigLine("Full Recon", "Enabled (unified reconnaissance)")
 	}
 	fmt.Fprintln(os.Stderr)
 
 	// Create JA3-aware HTTP client if enabled
 	var ja3Client *http.Client
-	if *enableJA3 {
+	if *cfg.EnableJA3 {
 		ja3Cfg := &tlsja3.Config{
 			RotateEvery: 25,
-			Timeout:     time.Duration(cf.Timeout) * time.Second,
-			SkipVerify:  cf.SkipVerify,
+			Timeout:     time.Duration(cfg.Common.Timeout) * time.Second,
+			SkipVerify:  cfg.Common.SkipVerify,
 		}
-		if *ja3Profile != "" {
+		if *cfg.JA3Profile != "" {
 			// Use specific profile
-			if profile, err := tlsja3.GetProfileByName(*ja3Profile); err == nil {
+			if profile, err := tlsja3.GetProfileByName(*cfg.JA3Profile); err == nil {
 				ja3Cfg.Profiles = []*tlsja3.JA3Profile{profile}
 			}
 		}
@@ -566,7 +475,7 @@ func runAutoScan() {
 	// DISPATCHER INITIALIZATION (Hooks: Slack, Teams, PagerDuty, OTEL, Prometheus)
 	// ═══════════════════════════════════════════════════════════════════════════
 	autoScanID := fmt.Sprintf("auto-%d", time.Now().Unix())
-	autoDispCtx, autoDispErr := outFlags.InitDispatcher(autoScanID, target)
+	autoDispCtx, autoDispErr := cfg.Out.InitDispatcher(autoScanID, target)
 	if autoDispErr != nil {
 		ui.PrintWarning(fmt.Sprintf("Output dispatcher warning: %v", autoDispErr))
 	}
@@ -577,14 +486,14 @@ func runAutoScan() {
 			ui.PrintInfo("Real-time integrations enabled (hooks active)")
 		}
 		// Emit scan start event to hooks
-		_ = autoDispCtx.EmitStart(ctx, target, 0, *concurrency, nil)
+		_ = autoDispCtx.EmitStart(ctx, target, 0, *cfg.Concurrency, nil)
 	}
 
 	// Determine output mode for LiveProgress
 	autoOutputMode := ui.DefaultOutputMode()
-	if outFlags.JSONMode {
+	if cfg.Out.JSONMode {
 		autoOutputMode = ui.OutputModeSilent
-	} else if outFlags.StreamMode {
+	} else if cfg.Out.StreamMode {
 		autoOutputMode = ui.OutputModeStreaming
 	}
 
@@ -613,7 +522,7 @@ func runAutoScan() {
 	smartModeFile := filepath.Join(workspaceDir, "smart-mode.json")
 	var smartResult *SmartModeResult
 
-	if *smartFlags.Enabled && shouldSkipPhase("smart-mode") {
+	if *cfg.Smart.Enabled && shouldSkipPhase("smart-mode") {
 		ui.PrintInfo("⏭️  Skipping smart mode (already completed)")
 		// Reload cached smart mode results for downstream phases
 		if data, err := os.ReadFile(smartModeFile); err == nil {
@@ -624,16 +533,16 @@ func runAutoScan() {
 		}
 	}
 
-	if *smartFlags.Enabled && smartResult == nil && !shouldSkipPhase("smart-mode") {
+	if *cfg.Smart.Enabled && smartResult == nil && !shouldSkipPhase("smart-mode") {
 		printStatusLn(ui.SectionStyle.Render("PHASE 0: Smart Mode - WAF Detection & Strategy Optimization"))
 		printStatusLn()
 
 		ui.PrintInfo(ui.Icon("🧠", "*") + " Detecting WAF vendor from 197+ signatures...")
 
 		smartConfig := &SmartModeConfig{
-			DetectionTimeout: time.Duration(cf.Timeout) * time.Second,
-			Verbose:          *smartFlags.Verbose,
-			Mode:             *smartFlags.Mode,
+			DetectionTimeout: time.Duration(cfg.Common.Timeout) * time.Second,
+			Verbose:          *cfg.Smart.Verbose,
+			Mode:             *cfg.Smart.Mode,
 		}
 
 		var err error
@@ -643,7 +552,7 @@ func runAutoScan() {
 		}
 
 		if !quietMode {
-			PrintSmartModeInfo(smartResult, *smartFlags.Verbose)
+			PrintSmartModeInfo(smartResult, *cfg.Smart.Verbose)
 		}
 
 		// Apply WAF-optimized rate limit and concurrency
@@ -664,13 +573,13 @@ func runAutoScan() {
 				ui.PrintInfo(fmt.Sprintf("%s Rate limit: %.0f req/sec (WAF-optimized for %s)",
 					ui.Icon("📊", "#"),
 					smartResult.RateLimit, smartResult.VendorName))
-				*rateLimit = int(smartResult.RateLimit)
+				*cfg.RateLimit = int(smartResult.RateLimit)
 			}
 			if !userSetConc && smartResult.Concurrency > 0 {
 				ui.PrintInfo(fmt.Sprintf("%s Concurrency: %d workers (WAF-optimized)",
 					ui.Icon("📊", "#"),
 					smartResult.Concurrency))
-				*concurrency = smartResult.Concurrency
+				*cfg.Concurrency = smartResult.Concurrency
 			}
 
 			// Emit smart mode WAF detection to hooks
@@ -701,24 +610,24 @@ func runAutoScan() {
 	// SPEC-DRIVEN PIPELINE: If --spec or --spec-url provided, use intelligence
 	// engine instead of discovery+learning.
 	// ═══════════════════════════════════════════════════════════════════════════
-	if *specFile != "" || *specURL != "" {
+	if *cfg.SpecFile != "" || *cfg.SpecURL != "" {
 		runSpecPipeline(specPipelineConfig{
-			specFile:       *specFile,
-			specURL:        *specURL,
+			specFile:       *cfg.SpecFile,
+			specURL:        *cfg.SpecURL,
 			target:         target,
-			intensity:      *specIntensity,
-			group:          *specGroup,
-			skipGroup:      *specSkipGroup,
-			scanConfigPath: *scanConfigPath,
-			dryRun:         *specDryRun,
-			yes:            *specYes,
-			concurrency:    *concurrency,
-			rateLimit:      *rateLimit,
-			timeout:        cf.Timeout,
-			skipVerify:     cf.SkipVerify,
-			verbose:        cf.Verbose,
+			intensity:      *cfg.SpecIntensity,
+			group:          *cfg.SpecGroup,
+			skipGroup:      *cfg.SpecSkipGroup,
+			scanConfigPath: *cfg.ScanConfigPath,
+			dryRun:         *cfg.SpecDryRun,
+			yes:            *cfg.SpecYes,
+			concurrency:    *cfg.Concurrency,
+			rateLimit:      *cfg.RateLimit,
+			timeout:        cfg.Common.Timeout,
+			skipVerify:     cfg.Common.SkipVerify,
+			verbose:        cfg.Common.Verbose,
 			quietMode:      quietMode,
-			outFlags:       &outFlags,
+			outFlags:       &cfg.Out,
 			printStatus:    printStatus,
 			smartResult:    smartResult,
 		})
@@ -728,17 +637,17 @@ func runAutoScan() {
 	// ═══════════════════════════════════════════════════════════════════════════
 	// DRY-RUN: Show scan plan without executing (also works for non-spec scans)
 	// ═══════════════════════════════════════════════════════════════════════════
-	if *specDryRun {
+	if *cfg.SpecDryRun {
 		ui.PrintSection("Auto Scan Plan (dry-run)")
 		fmt.Printf("  Target:        %s\n", target)
-		fmt.Printf("  Concurrency:   %d\n", *concurrency)
-		fmt.Printf("  Rate Limit:    %d req/sec\n", *rateLimit)
-		fmt.Printf("  Timeout:       %ds\n", cf.Timeout)
-		fmt.Printf("  Smart Mode:    %v\n", *smartFlags.Enabled)
-		fmt.Printf("  Brain Mode:    %v\n", *enableBrain)
+		fmt.Printf("  Concurrency:   %d\n", *cfg.Concurrency)
+		fmt.Printf("  Rate Limit:    %d req/sec\n", *cfg.RateLimit)
+		fmt.Printf("  Timeout:       %ds\n", cfg.Common.Timeout)
+		fmt.Printf("  Smart Mode:    %v\n", *cfg.Smart.Enabled)
+		fmt.Printf("  Brain Mode:    %v\n", *cfg.EnableBrain)
 		fmt.Println()
 		ui.PrintSection("Phases")
-		if *smartFlags.Enabled {
+		if *cfg.Smart.Enabled {
 			fmt.Println("  0. Smart Mode - WAF Detection & Strategy Optimization")
 		}
 		fmt.Println("  1. Target Discovery & Reconnaissance")
@@ -780,12 +689,12 @@ func runAutoScan() {
 
 		discoveryCfg := discovery.DiscoveryConfig{
 			Target:      target,
-			Service:     *service,
-			Timeout:     time.Duration(cf.Timeout) * time.Second,
-			Concurrency: *concurrency,
-			MaxDepth:    *depth,
-			SkipVerify:  cf.SkipVerify,
-			Verbose:     cf.Verbose,
+			Service:     *cfg.Service,
+			Timeout:     time.Duration(cfg.Common.Timeout) * time.Second,
+			Concurrency: *cfg.Concurrency,
+			MaxDepth:    *cfg.Depth,
+			SkipVerify:  cfg.Common.SkipVerify,
+			Verbose:     cfg.Common.Verbose,
 			HTTPClient:  ja3Client, // JA3 TLS fingerprint rotation
 		}
 
@@ -889,15 +798,15 @@ func runAutoScan() {
 	leakyPathsFile := filepath.Join(workspaceDir, "leaky-paths.json")
 	var leakyResult *leakypaths.ScanSummary
 
-	if *enableLeakyPaths && !shouldSkipPhase("leaky-paths") {
+	if *cfg.EnableLeakyPaths && !shouldSkipPhase("leaky-paths") {
 		printStatusLn(ui.SectionStyle.Render("PHASE 1.5: Sensitive Path Scanning (leaky-paths)"))
 		printStatusLn()
 
 		// Filter categories if specified
 		var categories []string
-		if *leakyCategories != "" {
-			categories = strings.Split(*leakyCategories, ",")
-			ui.PrintInfo(fmt.Sprintf("%s Scanning for sensitive paths (categories: %s)...", ui.Icon("🔓", "?"), *leakyCategories))
+		if *cfg.LeakyCategories != "" {
+			categories = strings.Split(*cfg.LeakyCategories, ",")
+			ui.PrintInfo(fmt.Sprintf("%s Scanning for sensitive paths (categories: %s)...", ui.Icon("🔓", "?"), *cfg.LeakyCategories))
 		} else {
 			ui.PrintInfo(ui.Icon("🔓", "?") + " Scanning 1,766+ high-value sensitive paths...")
 		}
@@ -909,10 +818,10 @@ func runAutoScan() {
 
 		leakyScanner := leakypaths.NewScanner(&leakypaths.Config{
 			Base: attackconfig.Base{
-				Timeout:     time.Duration(cf.Timeout) * time.Second,
-				Concurrency: *concurrency,
+				Timeout:     time.Duration(cfg.Common.Timeout) * time.Second,
+				Concurrency: *cfg.Concurrency,
 			},
-			Verbose:    cf.Verbose,
+			Verbose:    cfg.Common.Verbose,
 			HTTPClient: ja3Client, // JA3 TLS fingerprint rotation
 		})
 
@@ -1041,7 +950,7 @@ func runAutoScan() {
 		}
 
 		markPhaseCompleted("leaky-paths")
-	} else if *enableLeakyPaths && shouldSkipPhase("leaky-paths") {
+	} else if *cfg.EnableLeakyPaths && shouldSkipPhase("leaky-paths") {
 		// Resume: reload leaky-paths results for G2/G9 enrichments
 		ui.PrintInfo("⏭️  Skipping leaky-paths (already completed)")
 		if data, err := os.ReadFile(leakyPathsFile); err == nil {
@@ -1178,7 +1087,7 @@ func runAutoScan() {
 		if ja3Client != nil {
 			client = ja3Client
 		} else {
-			client = httpclient.New(httpclient.WithTimeout(time.Duration(cf.Timeout) * time.Second))
+			client = httpclient.New(httpclient.WithTimeout(time.Duration(cfg.Common.Timeout) * time.Second))
 		}
 
 		totalJSFiles := len(jsFiles)
@@ -1190,7 +1099,7 @@ func runAutoScan() {
 		jsFrameIdx := 0
 		jsStartTime := time.Now()
 
-		if totalJSFiles > 1 && !outFlags.StreamMode && !quietMode && ui.StderrIsTerminal() {
+		if totalJSFiles > 1 && !cfg.Out.StreamMode && !quietMode && ui.StderrIsTerminal() {
 			go func() {
 				ticker := time.NewTicker(100 * time.Millisecond)
 				defer ticker.Stop()
@@ -1285,7 +1194,7 @@ func runAutoScan() {
 			atomic.AddInt32(&secretsFound, int32(len(result.Secrets)))
 			atomic.AddInt32(&endpointsFound, int32(len(result.Endpoints)))
 
-			if cf.Verbose {
+			if cfg.Common.Verbose {
 				ui.PrintInfo(fmt.Sprintf("  Analyzed: %s (%d URLs, %d endpoints, %d secrets)",
 					jsPath, len(result.URLs), len(result.Endpoints), len(result.Secrets)))
 			}
@@ -1500,7 +1409,7 @@ func runAutoScan() {
 	paramsFile := filepath.Join(workspaceDir, "discovered-params.json")
 	var paramResult *params.DiscoveryResult
 
-	if *enableParamDiscovery && !shouldSkipPhase("param-discovery") {
+	if *cfg.EnableParamDiscovery && !shouldSkipPhase("param-discovery") {
 		printStatusLn(ui.SectionStyle.Render("PHASE 2.5: Parameter Discovery (Arjun-style)"))
 		printStatusLn()
 
@@ -1512,13 +1421,13 @@ func runAutoScan() {
 
 		paramDiscoverer := params.NewDiscoverer(&params.Config{
 			Base: attackconfig.Base{
-				Timeout:     time.Duration(cf.Timeout) * time.Second,
-				Concurrency: *concurrency,
+				Timeout:     time.Duration(cfg.Common.Timeout) * time.Second,
+				Concurrency: *cfg.Concurrency,
 			},
-			Verbose:      cf.Verbose,
+			Verbose:      cfg.Common.Verbose,
 			ChunkSize:    256, // Test 256 params per request for efficiency
 			HTTPClient:   ja3Client,
-			WordlistFile: *paramWordlist,
+			WordlistFile: *cfg.ParamWordlist,
 		})
 
 		// Test discovered endpoints for hidden params
@@ -1552,7 +1461,7 @@ func runAutoScan() {
 			paramFrameIdx := 0
 			totalEndpoints := len(testEndpoints)
 
-			if !outFlags.StreamMode && !quietMode && ui.StderrIsTerminal() {
+			if !cfg.Out.StreamMode && !quietMode && ui.StderrIsTerminal() {
 				go func() {
 					ticker := time.NewTicker(100 * time.Millisecond)
 					defer ticker.Stop()
@@ -1591,12 +1500,12 @@ func runAutoScan() {
 				}()
 				fmt.Fprintln(os.Stderr)
 				fmt.Fprintln(os.Stderr)
-			} // end if !outFlags.StreamMode
+			} // end if !cfg.Out.StreamMode
 
 			for _, endpoint := range testEndpoints {
 				result, err := paramDiscoverer.Discover(ctx, endpoint)
 				if err != nil {
-					if cf.Verbose && !quietMode {
+					if cfg.Common.Verbose && !quietMode {
 						fmt.Fprintln(os.Stderr)
 						ui.PrintWarning(fmt.Sprintf("  Warning for %s: %v", endpoint, err))
 					}
@@ -1742,7 +1651,7 @@ func runAutoScan() {
 		}
 
 		markPhaseCompleted("param-discovery")
-	} else if *enableParamDiscovery && shouldSkipPhase("param-discovery") {
+	} else if *cfg.EnableParamDiscovery && shouldSkipPhase("param-discovery") {
 		// Resume: reload param discovery results for G1 enrichment
 		ui.PrintInfo("⏭️  Skipping param-discovery (already completed)")
 		if data, err := os.ReadFile(paramsFile); err == nil {
@@ -1754,7 +1663,7 @@ func runAutoScan() {
 	}
 	// Full Recon Mode - runs unified reconnaissance if enabled
 	var fullReconResult *recon.FullReconResult
-	if *enableFullRecon && !shouldSkipPhase("full-recon") {
+	if *cfg.EnableFullRecon && !shouldSkipPhase("full-recon") {
 		printStatusLn(ui.SectionStyle.Render("PHASE 2.7: Unified Reconnaissance (Full Recon)"))
 		printStatusLn()
 
@@ -1766,8 +1675,8 @@ func runAutoScan() {
 
 		// Handle empty categories - nil means all categories, not [""] which matches nothing
 		var leakyPathCats []string
-		if *leakyCategories != "" {
-			leakyPathCats = strings.Split(*leakyCategories, ",")
+		if *cfg.LeakyCategories != "" {
+			leakyPathCats = strings.Split(*cfg.LeakyCategories, ",")
 		}
 
 		// Skip recon modules whose individual phases already produced results,
@@ -1778,19 +1687,19 @@ func runAutoScan() {
 
 		reconScanner := recon.NewScanner(&recon.Config{
 			Base: attackconfig.Base{
-				Timeout:     time.Duration(cf.Timeout) * time.Second,
-				Concurrency: *concurrency,
+				Timeout:     time.Duration(cfg.Common.Timeout) * time.Second,
+				Concurrency: *cfg.Concurrency,
 			},
-			Verbose:              cf.Verbose,
-			SkipTLSVerify:        cf.SkipVerify,
+			Verbose:              cfg.Common.Verbose,
+			SkipTLSVerify:        cfg.Common.SkipVerify,
 			HTTPClient:           ja3Client, // JA3 TLS fingerprint rotation
-			EnableLeakyPaths:     *enableLeakyPaths && !alreadyRanLeaky,
-			EnableParamDiscovery: *enableParamDiscovery && !alreadyRanParams,
+			EnableLeakyPaths:     *cfg.EnableLeakyPaths && !alreadyRanLeaky,
+			EnableParamDiscovery: *cfg.EnableParamDiscovery && !alreadyRanParams,
 			EnableJSAnalysis:     true,
-			EnableJA3Rotation:    *enableJA3,
+			EnableJA3Rotation:    *cfg.EnableJA3,
 			LeakyPathCategories:  leakyPathCats,
-			JA3Profile:           *ja3Profile,
-			ParamWordlist:        *paramWordlist,
+			JA3Profile:           *cfg.JA3Profile,
+			ParamWordlist:        *cfg.ParamWordlist,
 		})
 
 		var err error
@@ -1845,7 +1754,7 @@ func runAutoScan() {
 			}
 		}
 		markPhaseCompleted("full-recon")
-	} else if *enableFullRecon && shouldSkipPhase("full-recon") {
+	} else if *cfg.EnableFullRecon && shouldSkipPhase("full-recon") {
 		ui.PrintInfo("⏭️  Skipping full-recon (already completed)")
 		reconFile := filepath.Join(workspaceDir, "full-recon.json")
 		if data, err := os.ReadFile(reconFile); err == nil {
@@ -1989,8 +1898,8 @@ func runAutoScan() {
 	// Hoisted above the skip guard so sub-passes can run independently on resume.
 	var allPayloads []payloads.Payload
 	var filterCfg core.FilterConfig
-	currentRateLimit := *rateLimit
-	currentConcurrency := *concurrency
+	currentRateLimit := *cfg.RateLimit
+	currentConcurrency := *cfg.Concurrency
 	rateMu := &sync.Mutex{}
 	var adaptiveLimiter *ratelimit.Limiter
 	var executorRef *core.Executor
@@ -2057,7 +1966,7 @@ func runAutoScan() {
 		}
 
 		// Re-run calibration so sub-pass executors have a valid filter config.
-		cal := calibration.NewCalibratorWithClient(target, time.Duration(cf.Timeout)*time.Second, cf.SkipVerify, ja3Client)
+		cal := calibration.NewCalibratorWithClient(target, time.Duration(cfg.Common.Timeout)*time.Second, cfg.Common.SkipVerify, ja3Client)
 		if calResult, calErr := cal.Calibrate(ctx); calErr == nil && calResult != nil && calResult.Calibrated {
 			filterCfg.FilterStatus = calResult.Suggestions.FilterStatus
 			filterCfg.FilterSize = calResult.Suggestions.FilterSize
@@ -2066,14 +1975,14 @@ func runAutoScan() {
 		}
 
 		// Re-init adaptive limiter for sub-passes.
-		if *adaptiveRate {
+		if *cfg.AdaptiveRate {
 			adaptiveLimiter = ratelimit.New(&ratelimit.Config{
-				RequestsPerSecond: *rateLimit,
+				RequestsPerSecond: *cfg.RateLimit,
 				AdaptiveSlowdown:  true,
 				SlowdownFactor:    1.5,
 				SlowdownMaxDelay:  5 * time.Second,
 				RecoveryRate:      0.9,
-				Burst:             *concurrency,
+				Burst:             *cfg.Concurrency,
 			})
 		}
 	} else {
@@ -2102,7 +2011,7 @@ func runAutoScan() {
 
 		// Load payloads from unified engine (JSON + Nuclei templates)
 		var err error
-		allPayloads, _, err = loadUnifiedPayloads(payloadDir, templateDir, cf.Verbose)
+		allPayloads, _, err = loadUnifiedPayloads(payloadDir, templateDir, cfg.Common.Verbose)
 		if err != nil {
 			errMsg := fmt.Sprintf("Error loading payloads: %v", err)
 			ui.PrintError(errMsg)
@@ -2131,7 +2040,7 @@ func runAutoScan() {
 			if len(allPayloads) == 0 {
 				ui.PrintWarning("No payloads match test plan categories, using full payload set")
 				var reloadErr error
-				allPayloads, _, reloadErr = loadUnifiedPayloads(payloadDir, templateDir, cf.Verbose)
+				allPayloads, _, reloadErr = loadUnifiedPayloads(payloadDir, templateDir, cfg.Common.Verbose)
 				if reloadErr != nil {
 					ui.PrintError(fmt.Sprintf("Failed to reload payloads: %v", reloadErr))
 					if autoDispCtx != nil {
@@ -2401,10 +2310,10 @@ func runAutoScan() {
 		// ═══════════════════════════════════════════════════════════════════════════
 		// TAMPER ENGINE INITIALIZATION
 		// ═══════════════════════════════════════════════════════════════════════════
-		if *tamperFlags.List != "" || *tamperFlags.Auto || (*smartFlags.Enabled && smartResult != nil && smartResult.WAFDetected) {
+		if *cfg.Tamper.List != "" || *cfg.Tamper.Auto || (*cfg.Smart.Enabled && smartResult != nil && smartResult.WAFDetected) {
 			// Determine tamper profile
 			profile := tampers.ProfileStandard
-			switch *tamperFlags.Profile {
+			switch *cfg.Tamper.Profile {
 			case "stealth":
 				profile = tampers.ProfileStealth
 			case "aggressive":
@@ -2414,7 +2323,7 @@ func runAutoScan() {
 			}
 
 			// If custom tamper list provided, use custom profile
-			if *tamperFlags.List != "" {
+			if *cfg.Tamper.List != "" {
 				profile = tampers.ProfileCustom
 			}
 
@@ -2426,8 +2335,8 @@ func runAutoScan() {
 
 			// Create tamper engine
 			// Load script tampers from directory if specified
-			if *tamperFlags.Dir != "" {
-				scripts, errs := tampers.LoadScriptDir(*tamperFlags.Dir)
+			if *cfg.Tamper.Dir != "" {
+				scripts, errs := tampers.LoadScriptDir(*cfg.Tamper.Dir)
 				for _, e := range errs {
 					ui.PrintWarning(fmt.Sprintf("Script tamper: %v", e))
 				}
@@ -2435,7 +2344,7 @@ func runAutoScan() {
 					tampers.Register(st)
 				}
 				if len(scripts) > 0 {
-					ui.PrintInfo(fmt.Sprintf("Loaded %d script tampers from %s", len(scripts), *tamperFlags.Dir))
+					ui.PrintInfo(fmt.Sprintf("Loaded %d script tampers from %s", len(scripts), *cfg.Tamper.Dir))
 				}
 			}
 
@@ -2464,22 +2373,22 @@ func runAutoScan() {
 
 			tamperEngine = tampers.NewEngine(&tampers.EngineConfig{
 				Profile:       profile,
-				CustomTampers: tampers.ParseTamperList(*tamperFlags.List),
+				CustomTampers: tampers.ParseTamperList(*cfg.Tamper.List),
 				WAFVendor:     wafVendor,
 				StrategyHints: strategyHints,
 				EnableMetrics: true,
 			})
 
 			// Validate custom tampers if specified
-			if *tamperFlags.List != "" {
-				valid, invalid := tampers.ValidateTamperNames(tampers.ParseTamperList(*tamperFlags.List))
+			if *cfg.Tamper.List != "" {
+				valid, invalid := tampers.ValidateTamperNames(tampers.ParseTamperList(*cfg.Tamper.List))
 				if len(invalid) > 0 {
 					ui.PrintWarning(fmt.Sprintf("Unknown tampers: %s", strings.Join(invalid, ", ")))
 				}
 				if len(valid) > 0 {
 					ui.PrintInfo(fmt.Sprintf("🔧 Using %d custom tampers: %s", len(valid), strings.Join(valid, ", ")))
 				}
-			} else if *tamperFlags.Auto || (*smartFlags.Enabled && smartResult != nil && smartResult.WAFDetected) {
+			} else if *cfg.Tamper.Auto || (*cfg.Smart.Enabled && smartResult != nil && smartResult.WAFDetected) {
 				selectedTampers := tamperEngine.GetSelectedTampers()
 				ui.PrintInfo(fmt.Sprintf("🔧 Auto-selected %d tampers for %s: %s",
 					len(selectedTampers), wafVendor, strings.Join(selectedTampers, ", ")))
@@ -2503,7 +2412,7 @@ func runAutoScan() {
 
 		// Auto-calibration
 		ui.PrintInfo("Running auto-calibration...")
-		cal := calibration.NewCalibratorWithClient(target, time.Duration(cf.Timeout)*time.Second, cf.SkipVerify, ja3Client)
+		cal := calibration.NewCalibratorWithClient(target, time.Duration(cfg.Common.Timeout)*time.Second, cfg.Common.SkipVerify, ja3Client)
 		calResult, calErr := cal.Calibrate(ctx)
 		if calErr == nil && calResult != nil && calResult.Calibrated {
 			filterCfg.FilterStatus = calResult.Suggestions.FilterStatus
@@ -2515,14 +2424,14 @@ func runAutoScan() {
 		printStatusLn()
 
 		// Initialize adaptive rate limiter for the fresh run
-		if *adaptiveRate {
+		if *cfg.AdaptiveRate {
 			adaptiveLimiter = ratelimit.New(&ratelimit.Config{
-				RequestsPerSecond: *rateLimit,
+				RequestsPerSecond: *cfg.RateLimit,
 				AdaptiveSlowdown:  true,
 				SlowdownFactor:    1.5,
 				SlowdownMaxDelay:  5 * time.Second,
 				RecoveryRate:      0.9,
-				Burst:             *concurrency,
+				Burst:             *cfg.Concurrency,
 			})
 			ui.PrintInfo("📊 Adaptive rate limiting enabled (auto-adjusts on WAF response)")
 		}
@@ -2545,7 +2454,7 @@ func runAutoScan() {
 
 		// Create output writer for results
 		writer, err := output.NewWriterWithOptions(resultsFile, "json", output.WriterOptions{
-			Verbose:       cf.Verbose,
+			Verbose:       cfg.Common.Verbose,
 			ShowTimestamp: true,
 			Silent:        false,
 			Target:        target,
@@ -2586,7 +2495,7 @@ func runAutoScan() {
 			TargetURL:     target,
 			Concurrency:   currentConcurrency,
 			RateLimit:     currentRateLimit,
-			Timeout:       time.Duration(cf.Timeout) * time.Second,
+			Timeout:       time.Duration(cfg.Common.Timeout) * time.Second,
 			Retries:       defaults.RetryLow,
 			Filter:        &filterCfg,
 			RealisticMode: true,
@@ -2772,7 +2681,7 @@ func runAutoScan() {
 					brain.StartPhase(ctx, "brain-feedback")
 					feedbackResultsFile := filepath.Join(workspaceDir, "results-feedback.json")
 					focusWriter, focusErr := output.NewWriterWithOptions(feedbackResultsFile, "json", output.WriterOptions{
-						Verbose:       cf.Verbose,
+						Verbose:       cfg.Common.Verbose,
 						ShowTimestamp: true,
 						Target:        target,
 					})
@@ -2784,7 +2693,7 @@ func runAutoScan() {
 							TargetURL:     target,
 							Concurrency:   currentConcurrency,
 							RateLimit:     currentRateLimit,
-							Timeout:       time.Duration(cf.Timeout) * time.Second,
+							Timeout:       time.Duration(cfg.Common.Timeout) * time.Second,
 							Retries:       defaults.RetryLow,
 							Filter:        &filterCfg,
 							RealisticMode: true,
@@ -2963,7 +2872,7 @@ func runAutoScan() {
 
 				mutResultsFile := filepath.Join(workspaceDir, "results-mutations.json")
 				mutWriter, mutErr := output.NewWriterWithOptions(mutResultsFile, "json", output.WriterOptions{
-					Verbose:       cf.Verbose,
+					Verbose:       cfg.Common.Verbose,
 					ShowTimestamp: true,
 					Target:        target,
 				})
@@ -2975,7 +2884,7 @@ func runAutoScan() {
 						TargetURL:     target,
 						Concurrency:   currentConcurrency,
 						RateLimit:     currentRateLimit,
-						Timeout:       time.Duration(cf.Timeout) * time.Second,
+						Timeout:       time.Duration(cfg.Common.Timeout) * time.Second,
 						Retries:       defaults.RetryLow,
 						Filter:        &filterCfg,
 						RealisticMode: true,
@@ -3102,7 +3011,7 @@ func runAutoScan() {
 			ui.PrintSuccess(fmt.Sprintf("  WAF Vendor: %s (%.0f%% confidence, from smart mode)", vendorName, vendorConfidence*100))
 		} else {
 			// Use the comprehensive vendor detector with 150+ signatures
-			vendorDetector := vendors.NewVendorDetectorWithClient(time.Duration(cf.Timeout)*time.Second, ja3Client)
+			vendorDetector := vendors.NewVendorDetectorWithClient(time.Duration(cfg.Common.Timeout)*time.Second, ja3Client)
 			vendorResult, vendorErr := vendorDetector.Detect(ctx, target)
 
 			if vendorErr == nil && vendorResult.Detected {
@@ -3277,7 +3186,7 @@ func runAutoScan() {
 				brainSummary.TotalFindings, brainSummary.Bypasses, brainSummary.AttackChains, atomic.LoadInt32(&insightCount))
 
 			// Print aggregated insight counts for repeated types
-			if *brainVerbose {
+			if *cfg.BrainVerbose {
 				insightMu.Lock()
 				for title, count := range insightSeen {
 					if count > 1 {
@@ -3419,7 +3328,7 @@ func runAutoScan() {
 	// ═══════════════════════════════════════════════════════════════════════════
 	// MULTI-FORMAT REPORT GENERATION (v2.6.4)
 	// ═══════════════════════════════════════════════════════════════════════════
-	formats := strings.Split(*reportFormats, ",")
+	formats := strings.Split(*cfg.ReportFormats, ",")
 	generatedReports := make([]string, 0, len(formats))
 
 	for _, format := range formats {
@@ -3572,7 +3481,7 @@ func runAutoScan() {
 	autoProgress.SetStatus("Assessment")
 	autoProgress.Increment()
 
-	if *enableAssess && !shouldSkipPhase("assessment") {
+	if *cfg.EnableAssess && !shouldSkipPhase("assessment") {
 		printStatusLn()
 		printStatusLn(ui.SectionStyle.Render("PHASE 6: Enterprise Assessment (Quantitative Metrics)"))
 		printStatusLn()
@@ -3594,16 +3503,16 @@ func runAutoScan() {
 
 		assessConfig := &assessment.Config{
 			Base: attackconfig.Base{
-				Concurrency: *concurrency,
-				Timeout:     time.Duration(cf.Timeout) * time.Second,
+				Concurrency: *cfg.Concurrency,
+				Timeout:     time.Duration(cfg.Common.Timeout) * time.Second,
 			},
 			TargetURL:       target,
-			RateLimit:       float64(*rateLimit),
-			SkipTLSVerify:   cf.SkipVerify,
-			Verbose:         cf.Verbose,
+			RateLimit:       float64(*cfg.RateLimit),
+			SkipTLSVerify:   cfg.Common.SkipVerify,
+			Verbose:         cfg.Common.Verbose,
 			HTTPClient:      ja3Client, // JA3 TLS fingerprint rotation
 			EnableFPTesting: true,
-			CorpusSources:   strings.Split(*assessCorpus, ","),
+			CorpusSources:   strings.Split(*cfg.AssessCorpus, ","),
 			DetectWAF:       true,
 			WAFVendor:       assessWAFVendor,
 			PayloadDir:      payloadDir,
@@ -3615,7 +3524,7 @@ func runAutoScan() {
 		defer assessCancel()
 
 		progressFn := func(completed, total int64, phase string) {
-			if !quietMode && (cf.Verbose || completed%25 == 0 || completed == total) {
+			if !quietMode && (cfg.Common.Verbose || completed%25 == 0 || completed == total) {
 				pct := float64(0)
 				if total > 0 {
 					pct = float64(completed) / float64(total) * 100
@@ -3696,7 +3605,7 @@ func runAutoScan() {
 		}
 		markPhaseCompleted("assessment")
 		printStatusLn()
-	} else if *enableAssess && shouldSkipPhase("assessment") {
+	} else if *cfg.EnableAssess && shouldSkipPhase("assessment") {
 		// Reload enterprise metrics from previous assessment so summary.json stays complete.
 		assessFile := filepath.Join(workspaceDir, "assessment.json")
 		if data, err := os.ReadFile(assessFile); err == nil {
@@ -3730,7 +3639,7 @@ func runAutoScan() {
 
 	var browserResult *browser.BrowserScanResult
 
-	if *enableBrowserScan && !shouldSkipPhase("browser-scan") {
+	if *cfg.EnableBrowserScan && !shouldSkipPhase("browser-scan") {
 		printStatusLn()
 		printStatusLn(ui.SectionStyle.Render("PHASE 7: Authenticated Browser Scanning"))
 		printStatusLn()
@@ -3748,11 +3657,11 @@ func runAutoScan() {
 		browserConfig := &browser.AuthConfig{
 			TargetURL:      target,
 			Timeout:        duration.HTTPLongOps,
-			WaitForLogin:   *browserTimeout,
+			WaitForLogin:   *cfg.BrowserTimeout,
 			PostLoginDelay: duration.BrowserPostWait,
-			CrawlDepth:     *depth,
-			ShowBrowser:    !*browserHeadless,
-			Verbose:        cf.Verbose,
+			CrawlDepth:     *cfg.Depth,
+			ShowBrowser:    !*cfg.BrowserHeadless,
+			Verbose:        cfg.Common.Verbose,
 			ScreenshotDir:  filepath.Join(workspaceDir, "screenshots"),
 			EnableScreens:  true,
 		}
@@ -3761,7 +3670,7 @@ func runAutoScan() {
 
 		// Progress callback
 		browserProgress := func(msg string) {
-			if cf.Verbose {
+			if cfg.Common.Verbose {
 				ui.PrintInfo(fmt.Sprintf("  %s", msg))
 			}
 		}
@@ -3972,7 +3881,7 @@ func runAutoScan() {
 	}
 
 	// Output JSON summary to stdout if requested
-	if outFlags.JSONMode {
+	if cfg.Out.JSONMode {
 		// Create a comprehensive output structure
 		jsonSummary := map[string]interface{}{
 			"target":            target,
