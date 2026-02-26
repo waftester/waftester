@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/crawler"
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/input"
@@ -220,6 +222,7 @@ func runCrawl() {
 		ExtractScripts:    *extractScripts,
 		ExtractLinks:      *extractLinks,
 		ExtractComments:   *extractComments,
+		ExtractMeta:       true,
 		FollowRobots:      *respectRobots,
 		UserAgent:         effectiveUserAgent,
 		Headers:           customHeaders,
@@ -228,6 +231,9 @@ func runCrawl() {
 		SameDomain:        *sameDomain,
 		SamePort:          *samePort,
 		Debug:             *debug,
+		Verbose:           *verbose,
+		MaxRetries:        defaults.RetryLow,
+		RetryDelay:        duration.RetryBaseBackoff,
 		// Headless browser options
 		JSRendering: *jsRendering,
 		JSTimeout:   time.Duration(*jsTimeout) * time.Second,
@@ -237,6 +243,32 @@ func runCrawl() {
 		ExtractEndpoints: *extractEndpoints,
 		ExtractParams:    *extractParams,
 		ExtractSecrets:   *extractSecrets,
+		// Advanced crawling (enabled by default — same as DefaultConfig)
+		PathClimbing:    true,
+		FormFilling:     true,
+		CrossDomainJS:   true,
+		SkipJSLibraries: true,
+		// File type exclusions (prevent crawling images, fonts, archives, etc.)
+		DisallowedExtensions: []string{
+			".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp", ".ico",
+			".mp3", ".mp4", ".wav", ".avi", ".mov", ".webm",
+			".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+			".zip", ".tar", ".gz", ".rar", ".7z",
+			".woff", ".woff2", ".ttf", ".eot", ".otf",
+		},
+	}
+
+	// Parse cookies from --cookie flag (format: "name=value; name2=value2")
+	if *cookies != "" {
+		for _, pair := range strings.Split(*cookies, ";") {
+			pair = strings.TrimSpace(pair)
+			if parts := strings.SplitN(pair, "=", 2); len(parts) == 2 {
+				cfg.Cookies = append(cfg.Cookies, &http.Cookie{
+					Name:  strings.TrimSpace(parts[0]),
+					Value: strings.TrimSpace(parts[1]),
+				})
+			}
+		}
 	}
 
 	if *includeScope != "" {
@@ -292,6 +324,13 @@ func runCrawl() {
 	var allForms []crawler.FormInfo
 	var allScripts []string
 	var allURLs []string
+	var allEmails []string
+	var allParams []string
+	var allSecrets []crawler.SecretFinding
+	var allSubdomains []string
+	emailSeen := make(map[string]bool)
+	paramSeen := make(map[string]bool)
+	subdomainSeen := make(map[string]bool)
 
 	// Progress tracking
 	startTime := time.Now()
@@ -329,6 +368,28 @@ func runCrawl() {
 		allURLs = append(allURLs, result.URL)
 		allForms = append(allForms, result.Forms...)
 		allScripts = append(allScripts, result.Scripts...)
+
+		// Aggregate new extraction fields (deduplicated)
+		for _, email := range result.Emails {
+			if !emailSeen[email] {
+				emailSeen[email] = true
+				allEmails = append(allEmails, email)
+			}
+		}
+		for _, param := range result.Parameters {
+			if !paramSeen[param] {
+				paramSeen[param] = true
+				allParams = append(allParams, param)
+			}
+		}
+		allSecrets = append(allSecrets, result.Secrets...)
+		for _, sub := range result.Subdomains {
+			if !subdomainSeen[sub] {
+				subdomainSeen[sub] = true
+				allSubdomains = append(allSubdomains, sub)
+			}
+		}
+
 		// Update metrics
 		crawlProgress.SetMetric("links", int64(len(allURLs)))
 		crawlProgress.SetMetric("forms", int64(len(allForms)))
@@ -364,6 +425,18 @@ func runCrawl() {
 		ui.PrintConfigLine("URLs Found", fmt.Sprintf("%d", len(allURLs)))
 		ui.PrintConfigLine("Forms Found", fmt.Sprintf("%d", len(allForms)))
 		ui.PrintConfigLine("Scripts Found", fmt.Sprintf("%d", len(allScripts)))
+		if len(allEmails) > 0 {
+			ui.PrintConfigLine("Emails Found", fmt.Sprintf("%d", len(allEmails)))
+		}
+		if len(allParams) > 0 {
+			ui.PrintConfigLine("Parameters Found", fmt.Sprintf("%d", len(allParams)))
+		}
+		if len(allSecrets) > 0 {
+			ui.PrintConfigLine("Secrets Found", fmt.Sprintf("%d", len(allSecrets)))
+		}
+		if len(allSubdomains) > 0 {
+			ui.PrintConfigLine("Subdomains Found", fmt.Sprintf("%d", len(allSubdomains)))
+		}
 		fmt.Println()
 
 		if *verbose && len(allForms) > 0 {
@@ -387,6 +460,36 @@ func runCrawl() {
 			for _, script := range allScripts {
 				ui.PrintInfo("  " + script)
 			}
+			fmt.Println()
+		}
+
+		if *verbose && len(allSecrets) > 0 {
+			ui.PrintSection("Potential Secrets")
+			for _, s := range allSecrets {
+				ui.PrintWarning(fmt.Sprintf("  [%s] %s", s.Type, s.Match))
+			}
+			fmt.Println()
+		}
+
+		if *verbose && len(allSubdomains) > 0 {
+			ui.PrintSection("Subdomains")
+			for _, sub := range allSubdomains {
+				ui.PrintInfo("  " + sub)
+			}
+			fmt.Println()
+		}
+
+		if *verbose && len(allEmails) > 0 {
+			ui.PrintSection("Emails")
+			for _, email := range allEmails {
+				ui.PrintInfo("  " + email)
+			}
+			fmt.Println()
+		}
+
+		if *verbose && len(allParams) > 0 {
+			ui.PrintSection("Parameters")
+			ui.PrintInfo("  " + strings.Join(allParams, ", "))
 			fmt.Println()
 		}
 	}

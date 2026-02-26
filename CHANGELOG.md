@@ -5,6 +5,18 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.37] - 2026-02-27
+
+### Added
+
+- **Crawler competitive feature parity** — JS library detection and skip with case-insensitive `.min.js` fallback, cross-domain JS analysis, path climbing, form filling with intelligent value generation, upload form flagging, query parameter normalization, subdomain discovery
+- **Email extraction** — Extracts email addresses from crawled pages with deduplication and false-positive filtering
+- **Parameter extraction** — Discovers query parameters from crawled URLs
+- **Secret extraction** — 17 regex patterns detect AWS keys, GitHub tokens, Slack webhooks, Stripe keys, JWTs, private keys, and more with automatic redaction
+- **Scope controls** — `SameDomain` and `SamePort` config options for precise crawl scoping
+- **CLI crawl defaults** — DisallowedExtensions (images, video, docs, archives, fonts), MaxRetries, RetryDelay, cookie parsing from `--cookie` flag, ExtractMeta enabled by default
+- **Discovery endpoint categorization** — Added graphql, websocket, webhook categories; path parameter extraction for numeric, UUID, and hash segments; parameter type inference from values
+
 ## [2.9.36] - 2026-02-26
 
 ### Fixed
@@ -2580,6 +2592,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.37]: https://github.com/waftester/waftester/compare/v2.9.36...v2.9.37
 [2.9.36]: https://github.com/waftester/waftester/compare/v2.9.35...v2.9.36
 [2.9.35]: https://github.com/waftester/waftester/compare/v2.9.34...v2.9.35
 [2.9.34]: https://github.com/waftester/waftester/compare/v2.9.33...v2.9.34
