@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"sort"
 	"sync"
 	"time"
@@ -99,7 +99,7 @@ func (t *Task) Complete(result json.RawMessage) {
 		t.cancel()
 	}
 	closeDone(t.done)
-	log.Printf("[mcp-task] COMPLETED  id=%s  tool=%s  result_bytes=%d", t.ID, t.Tool, len(result))
+	slog.Info("mcp-task: completed", "id", t.ID, "tool", t.Tool, "result_bytes", len(result))
 }
 
 // Fail marks the task as failed with an error message and releases
@@ -120,7 +120,7 @@ func (t *Task) Fail(errMsg string) {
 		t.cancel()
 	}
 	closeDone(t.done)
-	log.Printf("[mcp-task] FAILED  id=%s  tool=%s  err=%s", t.ID, t.Tool, errMsg)
+	slog.Error("mcp-task: failed", "id", t.ID, "tool", t.Tool, "error", errMsg)
 }
 
 // Cancel marks the task as cancelled and fires the context cancellation.
@@ -136,7 +136,7 @@ func (t *Task) Cancel() {
 			t.cancel()
 		}
 		closeDone(t.done)
-		log.Printf("[mcp-task] CANCELLED  id=%s  tool=%s", t.ID, t.Tool)
+		slog.Info("mcp-task: cancelled", "id", t.ID, "tool", t.Tool)
 	}
 }
 
@@ -335,7 +335,7 @@ func (tm *TaskManager) Create(parent context.Context, tool string) (*Task, conte
 		go tm.cleanupLoop()
 	}
 
-	log.Printf("[mcp-task] CREATED  id=%s  tool=%s  active=%d", id, tool, active+1)
+	slog.Info("mcp-task: created", "id", id, "tool", tool, "active_count", active+1)
 	return task, ctx, nil
 }
 
@@ -350,7 +350,7 @@ func (tm *TaskManager) Get(id string) *Task {
 		for k := range tm.tasks {
 			ids = append(ids, k)
 		}
-		log.Printf("[mcp-task] GET MISS  id=%s  known_tasks=%d  ids=%v", id, len(tm.tasks), ids)
+		slog.Warn("mcp-task: get miss", "id", id, "known_tasks", len(tm.tasks), "ids", ids)
 	}
 	return t
 }
@@ -505,7 +505,7 @@ func (tm *TaskManager) cleanup() {
 	}
 	remaining := len(tm.tasks)
 	tm.mu.Unlock()
-	log.Printf("[mcp-task] CLEANUP  removed=%d  remaining=%d  ids=%v", len(expired), remaining, expired)
+	slog.Info("mcp-task: cleanup", "removed", len(expired), "remaining", remaining, "ids", expired)
 }
 
 // cancelAll cancels every running/pending task. Called during server shutdown

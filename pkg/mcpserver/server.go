@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -172,13 +172,13 @@ func New(cfg *Config) *Server {
 	if cfg.TamperDir != "" {
 		scripts, errs := tampers.LoadScriptDir(cfg.TamperDir)
 		for _, e := range errs {
-			log.Printf("[mcp] script tamper warning: %v", e)
+			slog.Warn("mcp: script tamper warning", "error", e)
 		}
 		for _, st := range scripts {
 			tampers.Register(st)
 		}
 		if len(scripts) > 0 {
-			log.Printf("[mcp] loaded %d script tampers from %s", len(scripts), cfg.TamperDir)
+			slog.Info("mcp: loaded script tampers", "count", len(scripts), "dir", cfg.TamperDir)
 		}
 	}
 
@@ -213,7 +213,7 @@ func New(cfg *Config) *Server {
 // lost when the process exits between invocations.
 func (s *Server) RunStdio(ctx context.Context) error {
 	s.syncMode.Store(true)
-	log.Println("[mcp] stdio transport: sync mode enabled (long-running tools will block)")
+	slog.Info("mcp: stdio transport sync mode enabled")
 	return s.mcp.Run(ctx, &mcp.StdioTransport{})
 }
 
@@ -289,15 +289,17 @@ func requestLogger(next http.Handler) http.Handler {
 		sessionID := r.Header.Get("Mcp-Session-Id")
 		contentType := r.Header.Get("Content-Type")
 
-		log.Printf("[mcp-http] --> %s %s  session=%q  content-type=%q  content-length=%d  remote=%s",
-			r.Method, r.URL.Path, sessionID, contentType, r.ContentLength, r.RemoteAddr)
+		slog.Info("mcp-http: request",
+			"method", r.Method, "path", r.URL.Path, "session", sessionID,
+			"content_type", contentType, "content_length", r.ContentLength, "remote", r.RemoteAddr)
 
 		// Wrap the ResponseWriter to capture the status code.
 		lw := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 		next.ServeHTTP(lw, r)
 
-		log.Printf("[mcp-http] <-- %s %s  status=%d  duration=%s",
-			r.Method, r.URL.Path, lw.statusCode, time.Since(start).Round(time.Millisecond))
+		slog.Info("mcp-http: response",
+			"method", r.Method, "path", r.URL.Path, "status", lw.statusCode,
+			"duration", time.Since(start).Round(time.Millisecond))
 	})
 }
 
@@ -402,7 +404,7 @@ func recoveryMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if err := recover(); err != nil {
-				log.Printf("panic in HTTP handler: %v\n%s", err, debug.Stack())
+				slog.Error("mcp-http: panic", "error", err, "stack", string(debug.Stack()))
 
 				// Best-effort error response: if headers were already sent
 				// (e.g., during SSE streaming), WriteHeader is a no-op.
