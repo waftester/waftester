@@ -5,6 +5,18 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.34] - 2026-02-26
+
+### Changed
+
+- **MCP server logging** — Migrated all `log.Printf` calls to structured `log/slog` across pkg/mcpserver for consistent observability
+- **CLI scan output extraction** — Extracted scan output and transport logic into dedicated files to reduce god function complexity
+- **HTTP client transport wrapper** — Added per-client `TransportWrapper` support with priority over global wrapper
+- **CLI flag validation** — Added early flag validation in scan and autoscan commands with `exitWithError` helper
+- **Deprecated openapi command** — Replaced removed `openapi` command with migration error pointing to `scan --spec`
+- **Probe flag deprecation** — Added deprecation warnings for legacy probe flags
+- **Package interfaces** — Added package-level interfaces for crawler, detection, waf, and scanner packages
+
 ## [2.9.33] - 2026-02-26
 
 ### Added
@@ -2536,6 +2548,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.34]: https://github.com/waftester/waftester/compare/v2.9.33...v2.9.34
 [2.9.33]: https://github.com/waftester/waftester/compare/v2.9.32...v2.9.33
 [2.9.32]: https://github.com/waftester/waftester/compare/v2.9.31...v2.9.32
 [2.9.31]: https://github.com/waftester/waftester/compare/v2.9.30...v2.9.31

@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -39,19 +39,19 @@ func loggedTool(name string, fn toolHandler) toolHandler {
 			// Truncate at rune boundary to avoid splitting multi-byte UTF-8
 			argStr = truncateString(argStr, maxArgLog) + "..."
 		}
-		log.Printf("[mcp-tool] --> %s  args=%s", name, argStr)
+		slog.Info("mcp: tool invoked", "tool", name, "args", argStr)
 
 		start := time.Now()
 		result, err := fn(ctx, req)
 		elapsed := time.Since(start).Round(time.Millisecond)
 
 		if err != nil {
-			log.Printf("[mcp-tool] <-- %s  ERROR  duration=%s  err=%v", name, elapsed, err)
+			slog.Error("mcp: tool error", "tool", name, "duration", elapsed, "error", err)
 		} else if result != nil && result.IsError {
 			// Tool returned an error result (not a Go error).
-			log.Printf("[mcp-tool] <-- %s  TOOL_ERROR  duration=%s", name, elapsed)
+			slog.Warn("mcp: tool returned error result", "tool", name, "duration", elapsed)
 		} else {
-			log.Printf("[mcp-tool] <-- %s  OK  duration=%s", name, elapsed)
+			slog.Info("mcp: tool completed", "tool", name, "duration", elapsed)
 		}
 		return result, err
 	}
@@ -792,7 +792,7 @@ func (s *Server) handleListPayloads(_ context.Context, req *mcp.CallToolRequest)
 	// Enrich with Nuclei template payloads
 	unified, err := provider.GetAll()
 	if err != nil {
-		log.Printf("[mcp] failed to load unified payloads: %v", err)
+		slog.Warn("mcp: failed to load unified payloads", "error", err)
 	}
 	all = enrichWithNuclei(all, unified)
 

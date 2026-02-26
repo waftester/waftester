@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -373,7 +373,7 @@ func (s *Server) handleBypass(ctx context.Context, req *mcp.CallToolRequest) (*m
 			engine := strategy.NewStrategyEngine(time.Duration(args.Timeout) * time.Second)
 			strat, err := engine.GetStrategy(taskCtx, args.Target)
 			if err != nil {
-				log.Printf("[mcp-bypass] smart mode WAF detection failed: %v (continuing with defaults)", err)
+				slog.Warn("mcp-bypass: smart mode WAF detection failed", "error", err)
 				pipeline = mutation.DefaultPipelineConfig()
 			} else {
 				pipeline = strategy.WAFOptimizedPipeline(strat, mode)
