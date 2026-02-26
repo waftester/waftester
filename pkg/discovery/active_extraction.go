@@ -260,9 +260,34 @@ func (ad *ActiveDiscoverer) discoverParameters(ctx context.Context) {
 // discoverParametersWithProgress tests common parameters on high-value endpoints using worker pool
 func (ad *ActiveDiscoverer) discoverParametersWithProgress(ctx context.Context, concurrency int, progress func(done, total int)) {
 	commonParams := []string{
-		"id", "page", "search", "q", "query",
-		"user", "file", "path", "url", "redirect",
-		"debug", "token", "key", "format", "callback",
+		// Core identifiers
+		"id", "uid", "user_id", "user", "username", "email", "account",
+		// Pagination and filtering
+		"page", "per_page", "limit", "offset", "cursor", "after", "before",
+		"sort", "order", "filter", "status", "state", "type", "category",
+		// Search
+		"search", "q", "query", "keyword", "term",
+		// Content and format
+		"format", "fields", "include", "exclude", "expand", "embed",
+		"view", "mode", "lang", "locale", "version",
+		// Auth and access
+		"token", "key", "api_key", "auth", "access_token", "session",
+		// Paths and redirects
+		"file", "path", "url", "redirect", "redirect_uri", "return_url", "next", "callback",
+		// Actions
+		"action", "cmd", "command", "method", "operation",
+		// Data
+		"name", "title", "body", "content", "message", "comment", "description",
+		// Common framework params
+		"debug", "verbose", "pretty", "raw",
+		// Date/time
+		"start", "end", "from", "to", "since", "until", "date",
+		// Size and counts
+		"size", "count", "max", "min", "length", "width", "height",
+		// Taxonomy
+		"tag", "tags", "label", "group", "role", "scope", "level",
+		// References
+		"ref", "source", "origin", "parent", "target",
 	}
 
 	// Get high-value endpoints only
