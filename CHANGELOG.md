@@ -5,6 +5,17 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.35] - 2026-02-26
+
+### Fixed
+
+- **MCP payload provider latency** — Eager-load payload provider during server init, eliminating 22-41s first-call latency that caused concurrent tool call timeouts
+
+### Changed
+
+- **CLI flag deduplication** — Extracted `SmartModeFlags` and `TamperFlags` into shared structs, replacing copy-pasted flag declarations across scan, autoscan, and bypass commands
+- **CLI flag setup extraction** — Moved flag declarations from `runScan()`, `runAutoScan()`, and `runProbe()` into dedicated config files, reducing god function size by ~640 lines
+
 ## [2.9.34] - 2026-02-26
 
 ### Changed
@@ -2548,6 +2559,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.35]: https://github.com/waftester/waftester/compare/v2.9.34...v2.9.35
 [2.9.34]: https://github.com/waftester/waftester/compare/v2.9.33...v2.9.34
 [2.9.33]: https://github.com/waftester/waftester/compare/v2.9.32...v2.9.33
 [2.9.32]: https://github.com/waftester/waftester/compare/v2.9.31...v2.9.32
