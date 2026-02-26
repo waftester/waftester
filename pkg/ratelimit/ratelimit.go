@@ -106,6 +106,13 @@ func newTokenBucket(rps int, burst int) *tokenBucket {
 }
 
 func (tb *tokenBucket) take() bool {
+	ok, _ := tb.takeOrWait()
+	return ok
+}
+
+// takeOrWait atomically tries to take a token. If unavailable, returns the wait
+// duration needed. This eliminates the TOCTOU race between separate take/waitTime calls.
+func (tb *tokenBucket) takeOrWait() (bool, time.Duration) {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
 
@@ -122,9 +129,12 @@ func (tb *tokenBucket) take() bool {
 	// Try to take a token
 	if tb.tokens >= 1 {
 		tb.tokens--
-		return true
+		return true, 0
 	}
-	return false
+
+	// Calculate wait time for 1 token
+	needed := 1 - tb.tokens
+	return false, time.Duration(needed / tb.refillRate)
 }
 
 func (tb *tokenBucket) waitTime() time.Duration {
@@ -173,6 +183,31 @@ func (sw *slidingWindow) canProceed() bool {
 	sw.requests = newReqs
 
 	return len(sw.requests) < sw.maxCount
+}
+
+// tryProceed atomically checks capacity and records the request if allowed.
+// This eliminates the TOCTOU race between separate canProceed/record calls.
+func (sw *slidingWindow) tryProceed() bool {
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+
+	now := time.Now()
+	cutoff := now.Add(-sw.window)
+
+	// Remove old requests
+	newReqs := sw.requests[:0]
+	for _, t := range sw.requests {
+		if t.After(cutoff) {
+			newReqs = append(newReqs, t)
+		}
+	}
+	sw.requests = newReqs
+
+	if len(sw.requests) < sw.maxCount {
+		sw.requests = append(sw.requests, now)
+		return true
+	}
+	return false
 }
 
 func (sw *slidingWindow) record() {
@@ -312,46 +347,59 @@ func (l *Limiter) evictOldestLRU() {
 func (l *Limiter) waitInternal(ctx context.Context) error {
 	// Use a reusable timer to avoid allocations on each wait
 	var timer *time.Timer
+	defer func() {
+		if timer != nil {
+			timer.Stop()
+		}
+	}()
 
 	// Helper to wait with reusable timer
 	waitWithTimer := func(d time.Duration) error {
 		if timer == nil {
 			timer = time.NewTimer(d)
-			defer timer.Stop()
 		} else {
+			// Safely reset: timer already fired (channel drained by previous select),
+			// so Stop returns false and no drain is needed.
 			timer.Reset(d)
 		}
 		select {
 		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
 			return ctx.Err()
 		case <-timer.C:
 			return nil
 		}
 	}
 
-	// Check per-second bucket
+	// Check per-second bucket (atomic take-or-wait to prevent busy-loop)
 	if l.secondBucket != nil {
-		for !l.secondBucket.take() {
-			waitTime := l.secondBucket.waitTime()
-			if waitTime > 0 {
-				if err := waitWithTimer(waitTime); err != nil {
-					return err
-				}
+		for {
+			ok, wait := l.secondBucket.takeOrWait()
+			if ok {
+				break
+			}
+			if wait <= 0 {
+				wait = time.Millisecond // floor to prevent spin
+			}
+			if err := waitWithTimer(wait); err != nil {
+				return err
 			}
 		}
 	}
 
-	// Check per-minute window
+	// Check per-minute window (atomic try-proceed to prevent over-admission)
 	if l.minuteWindow != nil {
-		for !l.minuteWindow.canProceed() {
+		for !l.minuteWindow.tryProceed() {
 			waitTime := l.minuteWindow.waitTime()
-			if waitTime > 0 {
-				if err := waitWithTimer(waitTime); err != nil {
-					return err
-				}
+			if waitTime <= 0 {
+				waitTime = time.Millisecond // floor to prevent spin
+			}
+			if err := waitWithTimer(waitTime); err != nil {
+				return err
 			}
 		}
-		l.minuteWindow.record()
 	}
 
 	// Apply fixed/random delay

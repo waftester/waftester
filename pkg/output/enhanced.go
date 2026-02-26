@@ -206,6 +206,9 @@ func (w *ECSVWriter) Write(result *TestResult) error {
 }
 
 func (w *ECSVWriter) Close() (retErr error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
 	w.writer.Flush()
 	if err := w.writer.Error(); err != nil {
 		retErr = err

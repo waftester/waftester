@@ -725,8 +725,10 @@ func runScan() {
 	})
 
 	// Extract host from target URL for detection checks
-	targetURL, _ := url.Parse(target)
-	targetHost := targetURL.Host
+	var targetHost string
+	if targetURL, err := url.Parse(target); err == nil && targetURL != nil {
+		targetHost = targetURL.Host
+	}
 
 	// checkStopOnFirst cancels the scan context when --stop-on-first is set
 	// and vulns have been recorded. Called after each scanner completes.

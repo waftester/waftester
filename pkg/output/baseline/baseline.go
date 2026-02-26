@@ -109,8 +109,8 @@ func LoadBaseline(path string) (*Baseline, error) {
 
 // SaveBaseline saves the baseline to the given path.
 func (b *Baseline) SaveBaseline(path string) error {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
 	// Update timestamp on save
 	b.UpdatedAt = time.Now().UTC()
