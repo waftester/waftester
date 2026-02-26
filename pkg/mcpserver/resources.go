@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"sort"
 	"strings"
 
@@ -124,7 +124,7 @@ func (s *Server) addPayloadsResource() {
 			// Also get JSON-level stats for backward compat
 			all, err := provider.JSONPayloads()
 			if err != nil {
-				log.Printf("[mcp] failed to load json payloads for stats: %v", err)
+				slog.Warn("mcp: failed to load json payloads for stats", "error", err)
 			}
 			jsonStats := payloads.GetStats(all)
 
