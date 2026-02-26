@@ -26,6 +26,12 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// RequestTransformer transforms outgoing HTTP requests (e.g., WAF evasion tampers).
+// The tamper engine (*tampers.Engine) satisfies this interface.
+type RequestTransformer interface {
+	TransformRequest(req *http.Request) *http.Request
+}
+
 // Config holds fuzzing configuration
 type Config struct {
 	attackconfig.Base
@@ -39,6 +45,9 @@ type Config struct {
 	// Execution
 	RateLimit  int  // Requests per second
 	SkipVerify bool // Skip TLS verification
+
+	// Smart mode (WAF-aware optimization)
+	Transformer RequestTransformer // Optional request transformer for WAF evasion
 
 	// HTTP
 	Method      string            // HTTP method (default: GET)
@@ -163,6 +172,14 @@ func NewFuzzer(cfg *Config) *Fuzzer {
 		}
 	}
 
+	// Wrap transport with request transformer (WAF evasion tampers) if provided
+	if cfg.Transformer != nil {
+		client.Transport = &transformTransport{
+			inner:       client.Transport,
+			transformer: cfg.Transformer,
+		}
+	}
+
 	limiter := rate.NewLimiter(rate.Limit(cfg.RateLimit), cfg.RateLimit)
 
 	fuzzer := &Fuzzer{
@@ -175,6 +192,17 @@ func NewFuzzer(cfg *Config) *Fuzzer {
 	fuzzer.detector = detection.Default()
 
 	return fuzzer
+}
+
+// transformTransport wraps an http.RoundTripper and applies a RequestTransformer
+// to every outgoing request (e.g., WAF evasion tampers from smart mode).
+type transformTransport struct {
+	inner       http.RoundTripper
+	transformer RequestTransformer
+}
+
+func (tt *transformTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return tt.inner.RoundTrip(tt.transformer.TransformRequest(req))
 }
 
 // ResultCallback is called for each matching result
