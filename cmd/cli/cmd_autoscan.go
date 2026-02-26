@@ -248,16 +248,13 @@ func runAutoScan() {
 
 	// Validate numeric flags to prevent panics (negative channel size) and hangs (zero workers).
 	if *concurrency <= 0 {
-		ui.PrintError("--concurrency must be a positive integer")
-		os.Exit(1)
+		exitWithError("--concurrency must be a positive integer")
 	}
 	if *rateLimit <= 0 {
-		ui.PrintError("--rl must be a positive integer")
-		os.Exit(1)
+		exitWithError("--rl must be a positive integer")
 	}
 	if *timeout <= 0 {
-		ui.PrintError("--timeout must be a positive integer")
-		os.Exit(1)
+		exitWithError("--timeout must be a positive integer")
 	}
 
 	// Disable detection if requested

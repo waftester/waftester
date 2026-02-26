@@ -368,17 +368,13 @@ func runProbe() {
 
 	// Handle special flags that exit early
 	if *showVersion {
-		fmt.Println("waf-tester probe v1.0.0 (httpx-compatible)")
+		ui.PrintMiniBanner()
 		return
 	}
 
 	if *healthCheck {
-		fmt.Println("[+] Running diagnostic check...")
-		fmt.Println("[+] DNS resolution: OK")
-		fmt.Println("[+] TLS/SSL support: OK")
-		fmt.Println("[+] HTTP client: OK")
-		fmt.Println("[+] Proxy support: OK")
-		fmt.Println("[+] All checks passed!")
+		ui.PrintWarning("The -hc/--health-check flag is deprecated and will be removed in a future release.")
+		ui.PrintWarning("Use 'waf-tester version' or 'waf-tester -v' instead.")
 		return
 	}
 
@@ -2591,7 +2587,8 @@ func runProbe() {
 
 	// Update check
 	if *updateCheck && !*disableUpdateCheck {
-		fmt.Println("[*] Update check: You have the latest version")
+		ui.PrintWarning("The -up/--update flag is deprecated and will be removed in a future release.")
+		ui.PrintWarning("Use 'waf-tester update' command instead.")
 	}
 
 	// Headless options acknowledgment

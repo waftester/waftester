@@ -147,6 +147,13 @@ type Config struct {
 	// When true, a net/http/cookiejar.Jar is attached to the client,
 	// allowing stateful sessions (e.g., OAuth2 flows, authenticated scanning).
 	CookieJar bool
+
+	// TransportWrapper is an optional per-client transport wrapper.
+	// When set, this wrapper is applied INSTEAD of the global
+	// RegisterTransportWrapper wrapper, giving callers explicit control
+	// over transport middleware without relying on global state.
+	// This is preferred over RegisterTransportWrapper for testability.
+	TransportWrapper TransportWrapper
 }
 
 // DefaultConfig returns sensible defaults optimized for security scanning workloads.
@@ -210,16 +217,22 @@ var (
 	wrapperMu        sync.RWMutex
 )
 
-// RegisterTransportWrapper registers a function to wrap all transports.
+// RegisterTransportWrapper registers a global function to wrap all transports.
 // This should be called once at startup before creating clients.
 // Used by detection package to inject connection drop/ban detection.
+//
+// Deprecated: Prefer setting Config.TransportWrapper for per-client wrappers.
+// The global wrapper remains for backward compatibility but per-client wrappers
+// take precedence when set, enabling testable, non-global configuration.
 func RegisterTransportWrapper(wrapper TransportWrapper) {
 	wrapperMu.Lock()
 	defer wrapperMu.Unlock()
 	transportWrapper = wrapper
 }
 
-// wrapTransport applies the registered wrapper if one exists.
+// wrapTransport applies the per-client wrapper if set, otherwise falls back
+// to the global registered wrapper. Per-client wrappers take precedence
+// to enable testing without mutating global state.
 func wrapTransport(transport http.RoundTripper) http.RoundTripper {
 	wrapperMu.RLock()
 	defer wrapperMu.RUnlock()
@@ -227,6 +240,15 @@ func wrapTransport(transport http.RoundTripper) http.RoundTripper {
 		return transportWrapper(transport)
 	}
 	return transport
+}
+
+// wrapTransportWithConfig applies a per-client wrapper if provided in Config,
+// otherwise falls back to the global registered wrapper.
+func wrapTransportWithConfig(transport http.RoundTripper, cfg Config) http.RoundTripper {
+	if cfg.TransportWrapper != nil {
+		return cfg.TransportWrapper(transport)
+	}
+	return wrapTransport(transport)
 }
 
 // Default returns a shared, pre-configured HTTP client.
@@ -425,8 +447,9 @@ func New(cfg Config) *http.Client {
 		transport.Proxy = http.ProxyURL(proxyConfig.URL)
 	}
 
-	// Apply registered transport wrapper (e.g., detection)
-	var finalTransport http.RoundTripper = wrapTransport(transport)
+	// Apply transport wrapper: per-client Config.TransportWrapper takes
+	// precedence over the global RegisterTransportWrapper.
+	var finalTransport http.RoundTripper = wrapTransportWithConfig(transport, cfg)
 
 	// Wrap with middleware transport for UA, auth headers, and retries
 	if needsMiddleware(cfg) {

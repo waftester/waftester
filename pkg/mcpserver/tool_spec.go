@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"path/filepath"
 	"strings"
 	"time"
@@ -616,7 +616,7 @@ func (s *Server) handleScanSpec(ctx context.Context, req *mcp.CallToolRequest) (
 	// Launch async scan.
 	estimatedDuration := estimateSpecDuration(plan)
 	return s.launchAsync(ctx, "scan_spec", estimatedDuration, func(taskCtx context.Context, task *Task) {
-		log.Printf("[scan_spec] starting spec scan against %s (%d entries)", target, len(plan.Entries))
+		slog.Info("scan_spec: starting", "target", target, "entries", len(plan.Entries))
 
 		scanResult := &apispec.SpecScanResult{
 			SpecSource: spec.Source,
@@ -629,7 +629,7 @@ func (s *Server) handleScanSpec(ctx context.Context, req *mcp.CallToolRequest) (
 			Concurrency: defaults.ConcurrencyLow,
 			ScanFn:      s.specScanFn(),
 			OnEndpointStart: func(ep apispec.Endpoint, scanType string) {
-				log.Printf("[scan_spec] scanning %s %s (%s)", ep.Method, ep.Path, scanType)
+				slog.Info("scan_spec: scanning", "method", ep.Method, "path", ep.Path, "scan_type", scanType)
 			},
 			OnFinding: func(f apispec.SpecFinding) {
 				scanResult.AddFinding(f)
@@ -1155,7 +1155,7 @@ func (s *Server) specScanFn() apispec.ScanFunc {
 		return s.config.SpecScanFn
 	}
 	return func(_ context.Context, name string, _ string, ep apispec.Endpoint) ([]apispec.SpecFinding, error) {
-		log.Printf("[scan_spec] no scanner bridge configured for %s %s (%s)", ep.Method, ep.Path, name)
+		slog.Warn("scan_spec: no scanner bridge configured", "method", ep.Method, "path", ep.Path, "scan_type", name)
 		return nil, nil
 	}
 }
