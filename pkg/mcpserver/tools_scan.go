@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -236,7 +236,7 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 	// Enrich with Nuclei template payloads
 	unified, err := provider.GetAll()
 	if err != nil {
-		log.Printf("[mcp-scan] failed to load unified payloads for Nuclei enrichment: %v", err)
+		slog.Warn("mcp-scan: failed to load unified payloads for nuclei enrichment", "error", err)
 	}
 	all = enrichWithNuclei(all, unified)
 
@@ -274,7 +274,7 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		engine := strategy.NewStrategyEngine(time.Duration(args.Timeout) * time.Second)
 		strat, err := engine.GetStrategy(ctx, args.Target)
 		if err != nil {
-			log.Printf("[mcp-scan] smart mode WAF detection failed: %v (continuing with defaults)", err)
+			slog.Warn("mcp-scan: smart mode WAF detection failed", "error", err)
 		} else {
 			smartStrategy = strat
 
@@ -322,7 +322,9 @@ func (s *Server) handleScan(ctx context.Context, req *mcp.CallToolRequest) (*mcp
 		})
 
 		if profile == tampers.ProfileBypass && args.Tamper == "" {
-			log.Printf("[mcp-tool] WARNING: tamper_profile=bypass without detected WAF vendor — falling back to aggressive tampers. Run detect_waf first for WAF-specific bypass chains.")
+			slog.Warn("mcp-tool: tamper_profile=bypass without detected WAF vendor",
+				"fallback", "aggressive tampers",
+				"hint", "run detect_waf first for WAF-specific bypass chains")
 		}
 
 		for i := range filtered {
