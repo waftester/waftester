@@ -10,7 +10,6 @@ import (
 	"crypto/sha512"
 	"encoding/base64"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -45,340 +44,22 @@ import (
 
 // runProbe executes protocol probing (TLS, HTTP/2, headers, WAF detection)
 func runProbe() {
-	// Parse flags first to check for silent mode
-	probeFlags := flag.NewFlagSet("probe", flag.ExitOnError)
-	var targetURLs input.StringSliceFlag
-	probeFlags.Var(&targetURLs, "u", "Target URL(s) - comma-separated or repeated")
-	probeFlags.Var(&targetURLs, "target", "Target URL(s) - comma-separated or repeated")
-	outputFile := probeFlags.String("output", "", "Output file for results (JSON)")
-	timeout := probeFlags.Int("timeout", 10, "Request timeout in seconds")
-	tlsProbe := probeFlags.Bool("tls", true, "Probe TLS configuration")
-	headerProbe := probeFlags.Bool("headers", true, "Probe security headers")
-	httpProbe := probeFlags.Bool("http", true, "Probe HTTP/2, pipeline, methods")
-	wafProbe := probeFlags.Bool("waf", true, "Detect WAF/CDN")
-	faviconProbe := probeFlags.Bool("favicon", true, "Probe favicon and calculate hash")
-	jarmProbe := probeFlags.Bool("jarm", true, "Calculate JARM TLS fingerprint")
-	techProbe := probeFlags.Bool("tech", true, "Detect technologies (title, frameworks, CMS)")
-	dnsProbe := probeFlags.Bool("dns", true, "DNS resolution (IP, CNAME, ASN)")
-	jsonOutput := probeFlags.Bool("j", false, "Output in JSONL(ines) format")
-	probeFlags.BoolVar(jsonOutput, "json", false, "Output in JSONL(ines) format")
-	jsonl := probeFlags.Bool("jsonl", false, "Output in JSONL format (one JSON per line)")
-	stdinInput := probeFlags.Bool("stdin", false, "Read targets from stdin")
-	silent := probeFlags.Bool("silent", false, "Only output results, no banner")
-	oneliner := probeFlags.Bool("1", false, "One-liner output (single line per result)")
-	concurrency := probeFlags.Int("c", 0, "Concurrency for multiple targets (overrides -t)")
-
-	// httpx-style output flags
-	showContentLength := probeFlags.Bool("cl", false, "Show content-length in output")
-	showContentType := probeFlags.Bool("ct", false, "Show content-type in output")
-	showWordCount := probeFlags.Bool("wc", false, "Show word count in output")
-	showLineCount := probeFlags.Bool("lc", false, "Show line count in output")
-	showServer := probeFlags.Bool("server", false, "Show server header in output")
-	showMethod := probeFlags.Bool("method", false, "Show HTTP method in output")
-	showLocation := probeFlags.Bool("location", false, "Show redirect location")
-	followRedirects := probeFlags.Bool("fr", false, "Follow HTTP redirects")
-	maxRedirects := probeFlags.Int("max-redirects", 10, "Max redirects to follow")
-	customHeaders := probeFlags.String("H", "", "Custom header (format: 'Name: Value')")
-	httpMethod := probeFlags.String("x", "GET", "HTTP method to use")
-	requestBody := probeFlags.String("body", "", "Request body for POST/PUT")
-	randomAgent := probeFlags.Bool("random-agent", false, "Use random User-Agent")
-	probeStatus := probeFlags.Bool("probe", false, "Show probe status (up/down)")
-
-	// Missing httpx features - now added
-	skipVerify := probeFlags.Bool("k", false, "Skip TLS certificate verification")
-	probeFlags.BoolVar(skipVerify, "skip-verify", false, "Skip TLS certificate verification")
-	retries := probeFlags.Int("retries", 0, "Number of retries on failure")
-	delay := probeFlags.Duration("delay", 0, "Delay between requests (e.g., 100ms, 1s)")
-	rateLimit := probeFlags.Int("rl", 0, "Rate limit (requests per second, 0=unlimited)")
-	probeFlags.IntVar(rateLimit, "rate-limit", 0, "Rate limit (requests per second, 0=unlimited)")
-	rateLimitPerHost := probeFlags.Bool("rlph", false, "Apply rate limit per host (not global)")
-	probeFlags.BoolVar(rateLimitPerHost, "rate-limit-per-host", false, "Apply rate limit per host (not global)")
-	proxyURL := probeFlags.String("proxy", "", "HTTP/SOCKS5 proxy URL")
-	storeResponse := probeFlags.Bool("sr", false, "Store HTTP response to file")
-	probeFlags.BoolVar(storeResponse, "store-response", false, "Store HTTP response to file")
-	storeResponseDir := probeFlags.String("srd", "./responses", "Directory to store responses")
-	probeFlags.StringVar(storeResponseDir, "store-response-dir", "./responses", "Directory to store responses")
-	csvOutput := probeFlags.Bool("csv", false, "Output in CSV format")
-	hashType := probeFlags.String("hash", "", "Calculate body hash (md5, sha256, mmh3)")
-	debug := probeFlags.Bool("debug", false, "Show request/response details")
-	showTitle := probeFlags.Bool("title", false, "Show page title in output")
-	showIP := probeFlags.Bool("ip", false, "Show resolved IP in output")
-	showASN := probeFlags.Bool("asn", false, "Show ASN info in output")
-	showCDN := probeFlags.Bool("cdn", false, "Show CDN/WAF detection in output")
-	showTech := probeFlags.Bool("td", false, "Show technology detection in output")
-	probeFlags.BoolVar(showTech, "tech-detect", false, "Show technology detection in output")
-	listFile := probeFlags.String("l", "", "File containing list of targets")
-	probeFlags.StringVar(listFile, "list", "", "File containing list of targets")
-	outputCSV := probeFlags.String("o", "", "Output file (auto-detect format by extension)")
-	probeFlags.StringVar(outputCSV, "output-file", "", "Output file (auto-detect format by extension)")
-
-	// More httpx features - section 2
-	bodyPreview := probeFlags.Int("bp", 0, "Show first N characters of response body")
-	probeFlags.IntVar(bodyPreview, "body-preview", 0, "Show first N characters of response body")
-	showWebSocket := probeFlags.Bool("ws", false, "Show WebSocket support")
-	probeFlags.BoolVar(showWebSocket, "websocket", false, "Show WebSocket support")
-	showCNAME := probeFlags.Bool("cname", false, "Show CNAME record in output")
-	extractRegex := probeFlags.String("er", "", "Extract content matching regex")
-	probeFlags.StringVar(extractRegex, "extract-regex", "", "Extract content matching regex")
-	extractPreset := probeFlags.String("ep", "", "Extract preset patterns (url,ipv4,mail)")
-	probeFlags.StringVar(extractPreset, "extract-preset", "", "Extract preset patterns (url,ipv4,mail)")
-	probePorts := probeFlags.String("ports", "", "Ports to probe (e.g., 80,443,8080)")
-	probeFlags.StringVar(probePorts, "p", "", "Ports to probe (e.g., 80,443,8080)")
-	probePaths := probeFlags.String("path", "", "Paths to probe (comma-separated)")
-	showHTTP2 := probeFlags.Bool("http2", false, "Show HTTP/2 support")
-	showPipeline := probeFlags.Bool("pipeline", false, "Show HTTP pipelining support")
-	showStats := probeFlags.Bool("stats", false, "Show scan statistics at end")
-	noColor := probeFlags.Bool("nc", false, "Disable colors in output")
-	probeFlags.BoolVar(noColor, "no-color", false, "Disable colors in output")
-	verbose := probeFlags.Bool("v", false, "Verbose output")
-	probeFlags.BoolVar(verbose, "verbose", false, "Verbose output")
-	threads := probeFlags.Int("t", 10, "Number of concurrent threads")
-	probeFlags.IntVar(threads, "threads", 10, "Number of concurrent threads")
-	includeChain := probeFlags.Bool("include-chain", false, "Include redirect chain in output")
-	headerHash := probeFlags.Bool("header-hash", false, "Show hash of response headers")
-	showFaviconHash := probeFlags.Bool("favicon-hash", false, "Show favicon hash in one-liner output")
-	showScheme := probeFlags.Bool("scheme", false, "Show URL scheme (http/https)")
-	matchCode := probeFlags.String("mc", "", "Match status codes (e.g., 200,302)")
-	probeFlags.StringVar(matchCode, "match-code", "", "Match status codes (e.g., 200,302)")
-	filterCode := probeFlags.String("fc", "", "Filter out status codes (e.g., 404,500)")
-	probeFlags.StringVar(filterCode, "filter-code", "", "Filter out status codes (e.g., 404,500)")
-	matchString := probeFlags.String("ms", "", "Match responses containing string")
-	probeFlags.StringVar(matchString, "match-string", "", "Match responses containing string")
-	filterString := probeFlags.String("fs", "", "Filter responses containing string")
-	probeFlags.StringVar(filterString, "filter-string", "", "Filter responses containing string")
-
-	// Additional httpx matchers
-	matchLength := probeFlags.String("ml", "", "Match content length (e.g., 100,200-500)")
-	probeFlags.StringVar(matchLength, "match-length", "", "Match content length (e.g., 100,200-500)")
-	matchLineCount := probeFlags.String("mlc", "", "Match line count (e.g., 10,20-50)")
-	probeFlags.StringVar(matchLineCount, "match-line-count", "", "Match line count (e.g., 10,20-50)")
-	matchWordCount := probeFlags.String("mwc", "", "Match word count (e.g., 100,200-500)")
-	probeFlags.StringVar(matchWordCount, "match-word-count", "", "Match word count (e.g., 100,200-500)")
-	matchRegex := probeFlags.String("mr", "", "Match responses with regex")
-	probeFlags.StringVar(matchRegex, "match-regex", "", "Match responses with regex")
-	matchFavicon := probeFlags.String("mfc", "", "Match favicon hash (murmur3)")
-	probeFlags.StringVar(matchFavicon, "match-favicon", "", "Match favicon hash (murmur3)")
-	matchCDN := probeFlags.String("mcdn", "", "Match CDN provider (cloudflare,akamai,etc)")
-	probeFlags.StringVar(matchCDN, "match-cdn", "", "Match CDN provider (cloudflare,akamai,etc)")
-	matchRespTime := probeFlags.String("mrt", "", "Match response time (e.g., '<1s', '>500ms')")
-	probeFlags.StringVar(matchRespTime, "match-response-time", "", "Match response time (e.g., '<1s', '>500ms')")
-
-	// Additional httpx filters
-	filterLength := probeFlags.String("fl", "", "Filter content length (e.g., 0,404)")
-	probeFlags.StringVar(filterLength, "filter-length", "", "Filter content length (e.g., 0,404)")
-	filterLineCount := probeFlags.String("flc", "", "Filter line count (e.g., 1,2)")
-	probeFlags.StringVar(filterLineCount, "filter-line-count", "", "Filter line count (e.g., 1,2)")
-	filterWordCount := probeFlags.String("fwc", "", "Filter word count (e.g., 0,10)")
-	probeFlags.StringVar(filterWordCount, "filter-word-count", "", "Filter word count (e.g., 0,10)")
-	filterRegex := probeFlags.String("fe", "", "Filter responses with regex")
-	probeFlags.StringVar(filterRegex, "filter-regex", "", "Filter responses with regex")
-	filterFavicon := probeFlags.String("ffc", "", "Filter favicon hash (murmur3)")
-	probeFlags.StringVar(filterFavicon, "filter-favicon", "", "Filter favicon hash (murmur3)")
-	filterCDN := probeFlags.String("fcdn", "", "Filter CDN provider (cloudflare,akamai,etc)")
-	probeFlags.StringVar(filterCDN, "filter-cdn", "", "Filter CDN provider (cloudflare,akamai,etc)")
-	filterRespTime := probeFlags.String("frt", "", "Filter response time (e.g., '>5s')")
-	probeFlags.StringVar(filterRespTime, "filter-response-time", "", "Filter response time (e.g., '>5s')")
-
-	// Batch 1: Missing Probe flags
-	extractFQDN := probeFlags.Bool("efqdn", false, "Extract domains/subdomains from response")
-	probeFlags.BoolVar(extractFQDN, "extract-fqdn", false, "Extract domains/subdomains from response")
-	showCPE := probeFlags.Bool("cpe", false, "Show CPE (Common Platform Enumeration)")
-	showWordPress := probeFlags.Bool("wp", false, "Detect WordPress plugins and themes")
-	probeFlags.BoolVar(showWordPress, "wordpress", false, "Detect WordPress plugins and themes")
-
-	// Batch 2: Missing Rate-Limit flags
-	rateLimitMinute := probeFlags.Int("rlm", 0, "Rate limit per minute (0=unlimited)")
-	probeFlags.IntVar(rateLimitMinute, "rate-limit-minute", 0, "Rate limit per minute (0=unlimited)")
-
-	// Batch 3: Missing Misc flags
-	probeAllIPs := probeFlags.Bool("pa", false, "Probe all IPs associated with host")
-	probeFlags.BoolVar(probeAllIPs, "probe-all-ips", false, "Probe all IPs associated with host")
-	tlsProbeExtracted := probeFlags.Bool("tls-probe", false, "Send probes on extracted TLS domains")
-	cspProbe := probeFlags.Bool("csp-probe", false, "Send probes on extracted CSP domains")
-	tlsGrab := probeFlags.Bool("tls-grab", false, "Perform TLS/SSL data grabbing")
-	vhostProbe := probeFlags.Bool("vhost", false, "Probe and display VHOST support")
-	listDSLVars := probeFlags.Bool("ldv", false, "List DSL variable names")
-	probeFlags.BoolVar(listDSLVars, "list-dsl-variables", false, "List DSL variable names")
-
-	// Batch 4: Missing Output flags
-	outputAll := probeFlags.Bool("oa", false, "Output in all formats (json, csv, txt)")
-	probeFlags.BoolVar(outputAll, "output-all", false, "Output in all formats (json, csv, txt)")
-	omitBody := probeFlags.Bool("ob", false, "Omit response body in output")
-	probeFlags.BoolVar(omitBody, "omit-body", false, "Omit response body in output")
-	csvEncoding := probeFlags.String("csvo", "utf-8", "CSV output encoding")
-	probeFlags.StringVar(csvEncoding, "csv-output-encoding", "utf-8", "CSV output encoding")
-	includeRespHeader := probeFlags.Bool("irh", false, "Include response headers in JSON output")
-	probeFlags.BoolVar(includeRespHeader, "include-response-header", false, "Include response headers in JSON output")
-	includeResponse := probeFlags.Bool("irr", false, "Include full request/response in JSON output")
-	probeFlags.BoolVar(includeResponse, "include-response", false, "Include full request/response in JSON output")
-	includeRespBase64 := probeFlags.Bool("irrb", false, "Include base64 encoded response in JSON")
-	probeFlags.BoolVar(includeRespBase64, "include-response-base64", false, "Include base64 encoded response in JSON")
-	storeChain := probeFlags.Bool("store-chain", false, "Store redirect chain in responses")
-	protocolOutput := probeFlags.String("pr", "", "Protocol to use (http11, h2)")
-	probeFlags.StringVar(protocolOutput, "protocol", "", "Protocol to use (http11, h2)")
-	listOutputFields := probeFlags.Bool("lof", false, "List available output field names")
-	probeFlags.BoolVar(listOutputFields, "list-output-fields", false, "List available output field names")
-	excludeFields := probeFlags.String("eof", "", "Exclude output fields (comma-separated)")
-	probeFlags.StringVar(excludeFields, "exclude-output-fields", "", "Exclude output fields (comma-separated)")
-
-	// Batch 5: Missing Filter flags
-	filterErrorPage := probeFlags.Bool("fep", false, "Filter error pages")
-	probeFlags.BoolVar(filterErrorPage, "filter-error-page", false, "Filter error pages")
-	filterDuplicates := probeFlags.Bool("fd", false, "Filter near-duplicate responses")
-	probeFlags.BoolVar(filterDuplicates, "filter-duplicates", false, "Filter near-duplicate responses")
-	stripTags := probeFlags.String("strip", "", "Strip tags from response (html, xml)")
-
-	// Batch 6: Missing Config flags
-	configFile := probeFlags.String("config", "", "Path to config file")
-	resolvers := probeFlags.String("r", "", "Custom resolvers (file or comma-separated)")
-	probeFlags.StringVar(resolvers, "resolvers", "", "Custom resolvers (file or comma-separated)")
-	allowList := probeFlags.String("allow", "", "Allowed IP/CIDR list")
-	denyList := probeFlags.String("deny", "", "Denied IP/CIDR list")
-	sniName := probeFlags.String("sni", "", "Custom TLS SNI name")
-	probeFlags.StringVar(sniName, "sni-name", "", "Custom TLS SNI name")
-	autoReferer := probeFlags.Bool("auto-referer", false, "Set Referer header to current URL")
-	unsafeMode := probeFlags.Bool("unsafe", false, "Send raw requests without normalization")
-	resumeScan := probeFlags.Bool("resume", false, "Resume scan using resume.cfg")
-	followHostRedirects := probeFlags.Bool("fhr", false, "Follow redirects on same host only")
-	probeFlags.BoolVar(followHostRedirects, "follow-host-redirects", false, "Follow redirects on same host only")
-	respectHSTS := probeFlags.Bool("rhsts", false, "Respect HSTS for redirect requests")
-	probeFlags.BoolVar(respectHSTS, "respect-hsts", false, "Respect HSTS for redirect requests")
-	vhostInput := probeFlags.Bool("vhost-input", false, "Get vhosts as input")
-	streamMode := probeFlags.Bool("s", false, "Stream mode - process without sorting")
-	probeFlags.BoolVar(streamMode, "stream", false, "Stream mode - process without sorting")
-	skipDedupe := probeFlags.Bool("sd", false, "Skip deduplication in stream mode")
-	probeFlags.BoolVar(skipDedupe, "skip-dedupe", false, "Skip deduplication in stream mode")
-	leaveDefaultPorts := probeFlags.Bool("ldp", false, "Leave default ports in host header")
-	probeFlags.BoolVar(leaveDefaultPorts, "leave-default-ports", false, "Leave default ports in host header")
-	useZTLS := probeFlags.Bool("ztls", false, "Use ztls library for TLS1.3")
-	noDecode := probeFlags.Bool("no-decode", false, "Avoid decoding response body")
-	tlsImpersonate := probeFlags.Bool("tlsi", false, "Enable TLS client hello randomization")
-	probeFlags.BoolVar(tlsImpersonate, "tls-impersonate", false, "Enable TLS client hello randomization")
-	noStdin := probeFlags.Bool("no-stdin", false, "Disable stdin processing")
-	secretFile := probeFlags.String("sf", "", "Path to secret file for authentication")
-	probeFlags.StringVar(secretFile, "secret-file", "", "Path to secret file for authentication")
-
-	// Batch 7: Missing Debug flags
-	healthCheck := probeFlags.Bool("hc", false, "Run diagnostic check")
-	probeFlags.BoolVar(healthCheck, "health-check", false, "Run diagnostic check")
-	debugReq := probeFlags.Bool("debug-req", false, "Display request content")
-	debugResp := probeFlags.Bool("debug-resp", false, "Display response content")
-	showVersion := probeFlags.Bool("version", false, "Display version")
-	statsInterval := probeFlags.Int("si", 5, "Stats update interval in seconds")
-	probeFlags.IntVar(statsInterval, "stats-interval", 5, "Stats update interval in seconds")
-	traceMode := probeFlags.Bool("tr", false, "Enable trace mode")
-	probeFlags.BoolVar(traceMode, "trace", false, "Enable trace mode")
-
-	// Batch 8: Missing Optimization flags
-	noFallback := probeFlags.Bool("nf", false, "Display both HTTP and HTTPS results")
-	probeFlags.BoolVar(noFallback, "no-fallback", false, "Display both HTTP and HTTPS results")
-	noFallbackScheme := probeFlags.Bool("nfs", false, "Probe with scheme from input only")
-	probeFlags.BoolVar(noFallbackScheme, "no-fallback-scheme", false, "Probe with scheme from input only")
-	maxHostErrors := probeFlags.Int("maxhr", 30, "Max errors per host before skipping")
-	probeFlags.IntVar(maxHostErrors, "max-host-error", 30, "Max errors per host before skipping")
-	excludeHosts := probeFlags.String("e", "", "Exclude hosts (cdn, private-ips, cidr, regex)")
-	probeFlags.StringVar(excludeHosts, "exclude", "", "Exclude hosts (cdn, private-ips, cidr, regex)")
-	respSizeToSave := probeFlags.Int("rsts", 0, "Max response size to save (bytes)")
-	probeFlags.IntVar(respSizeToSave, "response-size-to-save", 0, "Max response size to save (bytes)")
-	respSizeToRead := probeFlags.Int("rstr", 0, "Max response size to read (bytes)")
-	probeFlags.IntVar(respSizeToRead, "response-size-to-read", 0, "Max response size to read (bytes)")
-
-	// NEW: DSL Condition Matching (httpx power feature)
-	matchCondition := probeFlags.String("mdc", "", "Match with DSL expression (e.g., 'status_code == 200 && contains(body, \"admin\")')")
-	probeFlags.StringVar(matchCondition, "match-condition", "", "Match with DSL expression")
-	filterCondition := probeFlags.String("fdc", "", "Filter with DSL expression")
-	probeFlags.StringVar(filterCondition, "filter-condition", "", "Filter with DSL expression")
-
-	// NEW: Raw Request Support (Burp import)
-	rawRequestFile := probeFlags.String("rr", "", "File containing raw HTTP request")
-	probeFlags.StringVar(rawRequestFile, "request", "", "File containing raw HTTP request")
-	inputMode := probeFlags.String("im", "", "Input mode (burp for Burp XML)")
-	probeFlags.StringVar(inputMode, "input-mode", "", "Input mode (burp for Burp XML)")
-
-	// NEW: Screenshot/Headless (basic support)
-	screenshot := probeFlags.Bool("ss", false, "Enable saving screenshot (requires chromedp)")
-	probeFlags.BoolVar(screenshot, "screenshot", false, "Enable saving screenshot")
-	screenshotTimeout := probeFlags.Int("st", 10, "Screenshot timeout in seconds")
-	probeFlags.IntVar(screenshotTimeout, "screenshot-timeout", 10, "Screenshot timeout in seconds")
-
-	// NEW: Simhash for near-duplicate detection
-	simhashThreshold := probeFlags.Int("simhash", 0, "Simhash similarity threshold (0-64, 0=disabled)")
-
-	// NEW: Custom fingerprint file
-	customFingerprintFile := probeFlags.String("cff", "", "Custom fingerprint file for tech detection")
-	probeFlags.StringVar(customFingerprintFile, "custom-fingerprint-file", "", "Custom fingerprint file")
-
-	// NEW: HTML summary report
-	htmlOutput := probeFlags.String("html", "", "Generate HTML summary report")
-
-	// NEW: Memory profiling
-	memProfile := probeFlags.String("profile-mem", "", "Memory profile dump file")
-
-	// NEW: Update command
-	updateCheck := probeFlags.Bool("up", false, "Update to latest version")
-	probeFlags.BoolVar(updateCheck, "update", false, "Update to latest version")
-	disableUpdateCheck := probeFlags.Bool("duc", false, "Disable automatic update check")
-	probeFlags.BoolVar(disableUpdateCheck, "disable-update-check", false, "Disable automatic update check")
-
-	// HEADLESS OPTIONS (httpx compatibility)
-	systemChrome := probeFlags.Bool("system-chrome", false, "Use local installed chrome for screenshot")
-	headlessOptions := probeFlags.String("ho", "", "Start headless chrome with additional options")
-	probeFlags.StringVar(headlessOptions, "headless-options", "", "Start headless chrome with additional options")
-	excludeScreenshotBytes := probeFlags.Bool("esb", false, "Exclude screenshot bytes from JSON output")
-	probeFlags.BoolVar(excludeScreenshotBytes, "exclude-screenshot-bytes", false, "Exclude screenshot bytes from JSON output")
-	noScreenshotFullPage := probeFlags.Bool("no-screenshot-full-page", false, "Disable saving full page screenshot")
-	excludeHeadlessBody := probeFlags.Bool("ehb", false, "Exclude headless header from JSON output")
-	probeFlags.BoolVar(excludeHeadlessBody, "exclude-headless-body", false, "Exclude headless header from JSON output")
-	screenshotIdle := probeFlags.Int("sid", 1, "Set idle time before taking screenshot in seconds")
-	probeFlags.IntVar(screenshotIdle, "screenshot-idle", 1, "Set idle time before taking screenshot in seconds")
-	javascriptCode := probeFlags.String("jsc", "", "Execute JavaScript code after navigation")
-	probeFlags.StringVar(javascriptCode, "javascript-code", "", "Execute JavaScript code after navigation")
-
-	// OUTPUT OPTIONS (httpx compatibility)
-	storeVisionRecon := probeFlags.Bool("svrc", false, "Include visual recon clusters (-ss and -sr only)")
-	probeFlags.BoolVar(storeVisionRecon, "store-vision-recon-cluster", false, "Include visual recon clusters")
-	filterErrorPagePath := probeFlags.String("fepp", "filtered_error_page.json", "Path to store filtered error pages")
-	probeFlags.StringVar(filterErrorPagePath, "filter-error-page-path", "filtered_error_page.json", "Path to store filtered error pages")
-
-	// HTTP API (httpx compatibility)
-	httpAPIEndpoint := probeFlags.String("hae", "", "Experimental HTTP API endpoint")
-	probeFlags.StringVar(httpAPIEndpoint, "http-api-endpoint", "", "Experimental HTTP API endpoint")
-
-	// CLOUD/DASHBOARD (httpx compatibility - stubs for API compatibility)
-	pdAuth := probeFlags.Bool("auth", false, "Configure projectdiscovery cloud API key")
-	pdAuthConfig := probeFlags.String("ac", "", "Configure pdcp API key credential file")
-	probeFlags.StringVar(pdAuthConfig, "auth-config", "", "Configure pdcp API key credential file")
-	pdDashboard := probeFlags.Bool("pd", false, "Upload/view output in projectdiscovery cloud UI")
-	probeFlags.BoolVar(pdDashboard, "dashboard", false, "Upload/view output in pdcp UI")
-	pdTeamID := probeFlags.String("tid", "", "Upload results to team ID")
-	probeFlags.StringVar(pdTeamID, "team-id", "", "Upload results to team ID")
-	pdAssetID := probeFlags.String("aid", "", "Upload to existing asset ID")
-	probeFlags.StringVar(pdAssetID, "asset-id", "", "Upload to existing asset ID")
-	pdAssetName := probeFlags.String("aname", "", "Asset group name to set")
-	probeFlags.StringVar(pdAssetName, "asset-name", "", "Asset group name to set")
-	pdDashboardUpload := probeFlags.String("pdu", "", "Upload httpx output file to pdcp UI")
-	probeFlags.StringVar(pdDashboardUpload, "dashboard-upload", "", "Upload httpx output file to pdcp UI")
-
-	// Output configuration (unified architecture)
-	var outFlags OutputFlags
-	outFlags.RegisterProbeEnterpriseFlags(probeFlags)
-	outFlags.Version = ui.Version
-
+	probeFlags, cfg := registerProbeFlags()
 	probeFlags.Parse(os.Args[2:])
 
 	// Handle special flags that exit early
-	if *showVersion {
+	if *cfg.ShowVersion {
 		ui.PrintMiniBanner()
 		return
 	}
 
-	if *healthCheck {
+	if *cfg.HealthCheck {
 		ui.PrintWarning("The -hc/--health-check flag is deprecated and will be removed in a future release.")
 		ui.PrintWarning("Use 'waf-tester version' or 'waf-tester -v' instead.")
 		return
 	}
 
-	if *listDSLVars || *listOutputFields {
+	if *cfg.ListDSLVars || *cfg.ListOutputFields {
 		fmt.Println("Available output fields for DSL/filtering:")
 		fmt.Println("  target          - Target URL")
 		fmt.Println("  scheme          - URL scheme (http/https)")
@@ -410,7 +91,7 @@ func runProbe() {
 	}
 
 	// Apply unified output settings
-	outFlags.ApplyUISettings()
+	cfg.Out.ApplyUISettings()
 
 	// Graceful shutdown on SIGINT/SIGTERM
 	ctx, cancel := cli.SignalContext(30 * time.Second)
@@ -420,29 +101,29 @@ func runProbe() {
 	// DISPATCHER INITIALIZATION (Hooks: Slack, Teams, PagerDuty, OTEL, Prometheus)
 	// ═══════════════════════════════════════════════════════════════════════════
 	probeScanID := fmt.Sprintf("probe-%d", time.Now().Unix())
-	probeDispCtx, probeDispErr := outFlags.InitDispatcher(probeScanID, "multi-target")
+	probeDispCtx, probeDispErr := cfg.Out.InitDispatcher(probeScanID, "multi-target")
 	if probeDispErr != nil {
-		if !*silent {
+		if !*cfg.Silent {
 			ui.PrintWarning(fmt.Sprintf("Output dispatcher warning: %v", probeDispErr))
 		}
 	}
 	if probeDispCtx != nil {
 		defer probeDispCtx.Close()
-		_ = probeDispCtx.EmitStart(ctx, "multi-target", 0, *threads, nil)
+		_ = probeDispCtx.EmitStart(ctx, "multi-target", 0, *cfg.Threads, nil)
 	}
 	probeStartTime := time.Now()
 
 	// Print banner unless in silent/oneliner mode
-	if !*silent && !*oneliner && !*jsonl {
+	if !*cfg.Silent && !*cfg.Oneliner && !*cfg.JSONL {
 		ui.PrintCompactBanner()
 		ui.PrintSection("Protocol Probing")
 	}
 
 	// Collect targets using shared TargetSource
 	ts := &input.TargetSource{
-		URLs:     targetURLs,
-		ListFile: *listFile,
-		Stdin:    *stdinInput,
+		URLs:     cfg.TargetURLs,
+		ListFile: *cfg.ListFile,
+		Stdin:    *cfg.StdinInput,
 	}
 
 	targets, err := ts.GetTargets()
@@ -465,8 +146,8 @@ func runProbe() {
 	}
 
 	// Path expansion: if -path flag is set, expand targets with those paths
-	if *probePaths != "" {
-		paths := strings.Split(*probePaths, ",")
+	if *cfg.ProbePaths != "" {
+		paths := strings.Split(*cfg.ProbePaths, ",")
 		var expandedTargets []string
 		for _, t := range targets {
 			// Parse the target URL
@@ -492,27 +173,27 @@ func runProbe() {
 
 	// Port expansion: if -ports flag is set, expand targets with those ports
 	// Supports NMAP-style syntax: http:80,https:443,8080-8090,http:8000-8010
-	if *probePorts != "" {
-		portSpecs := parseProbePorts(*probePorts)
+	if *cfg.ProbePorts != "" {
+		portSpecs := parseProbePorts(*cfg.ProbePorts)
 		expanded := expandProbeTargetPorts(targets, portSpecs)
 		if len(expanded) > 0 {
 			targets = expanded
-			if *verbose {
+			if *cfg.Verbose {
 				ui.PrintInfo(fmt.Sprintf("Port expansion: %d targets across %d port specs", len(targets), len(portSpecs)))
 			}
 		}
 	}
 
 	// Output file: use -o if -output not set
-	if *outputFile == "" && *outputCSV != "" {
-		*outputFile = *outputCSV
+	if *cfg.OutputFile == "" && *cfg.OutputCSV != "" {
+		*cfg.OutputFile = *cfg.OutputCSV
 	}
 
 	// Protocol output: force HTTP/1.1 or HTTP/2
 	forceHTTP2 := false
 	forceHTTP11 := false
-	if *protocolOutput != "" {
-		switch strings.ToLower(*protocolOutput) {
+	if *cfg.ProtocolOutput != "" {
+		switch strings.ToLower(*cfg.ProtocolOutput) {
 		case "h2", "http2", "http/2":
 			forceHTTP2 = true
 		case "http11", "http1.1", "http/1.1":
@@ -522,10 +203,10 @@ func runProbe() {
 
 	// Custom DNS resolvers
 	var customResolvers []string
-	if *resolvers != "" {
+	if *cfg.Resolvers != "" {
 		// Check if it's a file
-		if _, err := os.Stat(*resolvers); err == nil {
-			data, err := os.ReadFile(*resolvers)
+		if _, err := os.Stat(*cfg.Resolvers); err == nil {
+			data, err := os.ReadFile(*cfg.Resolvers)
 			if err == nil {
 				lines := strings.Split(string(data), "\n")
 				for _, line := range lines {
@@ -537,22 +218,22 @@ func runProbe() {
 			}
 		} else {
 			// Comma-separated list
-			for _, r := range strings.Split(*resolvers, ",") {
+			for _, r := range strings.Split(*cfg.Resolvers, ",") {
 				r = strings.TrimSpace(r)
 				if r != "" {
 					customResolvers = append(customResolvers, r)
 				}
 			}
 		}
-		if *verbose && len(customResolvers) > 0 {
+		if *cfg.Verbose && len(customResolvers) > 0 {
 			ui.PrintInfo(fmt.Sprintf("Using %d custom DNS resolvers", len(customResolvers)))
 		}
 	}
 
 	// Secret file for authentication
 	var authSecrets map[string]string
-	if *secretFile != "" {
-		data, err := os.ReadFile(*secretFile)
+	if *cfg.SecretFile != "" {
+		data, err := os.ReadFile(*cfg.SecretFile)
 		if err != nil {
 			ui.PrintWarning(fmt.Sprintf("Cannot read secret file: %v", err))
 		} else {
@@ -568,16 +249,16 @@ func runProbe() {
 					}
 				}
 			}
-			if *verbose {
-				ui.PrintInfo(fmt.Sprintf("Loaded %d auth secrets from %s", len(authSecrets), *secretFile))
+			if *cfg.Verbose {
+				ui.PrintInfo(fmt.Sprintf("Loaded %d auth secrets from %s", len(authSecrets), *cfg.SecretFile))
 			}
 		}
 	}
 
 	// Fields to exclude from output
 	excludedOutputFields := make(map[string]bool)
-	if *excludeFields != "" {
-		for _, f := range strings.Split(*excludeFields, ",") {
+	if *cfg.ExcludeFields != "" {
+		for _, f := range strings.Split(*cfg.ExcludeFields, ",") {
 			excludedOutputFields[strings.TrimSpace(strings.ToLower(f))] = true
 		}
 	}
@@ -585,7 +266,7 @@ func runProbe() {
 	// Custom resolvers will be passed to ProbeHTTPOptions
 
 	// VHost input mode: treat targets as vhosts
-	vhostMode := *vhostInput
+	vhostMode := *cfg.VHostInput
 	vhostHeaders := make(map[string]string) // map of target -> Host header
 	if vhostMode && len(targets) > 0 {
 		// In vhost mode, targets are hostnames to use as Host header
@@ -598,15 +279,15 @@ func runProbe() {
 				vhostHeaders[t] = strings.Split(vhostHeaders[t], "/")[0]
 			}
 		}
-		if len(vhostHeaders) > 0 && *verbose {
+		if len(vhostHeaders) > 0 && *cfg.Verbose {
 			ui.PrintInfo(fmt.Sprintf("VHost mode: %d vhosts for %s", len(vhostHeaders), baseTarget))
 		}
 	}
 
 	// For single target, show detailed output
-	if len(targets) == 1 && !*silent && !*oneliner && !*jsonl {
+	if len(targets) == 1 && !*cfg.Silent && !*cfg.Oneliner && !*cfg.JSONL {
 		ui.PrintConfigLine("Target", targets[0])
-		ui.PrintConfigLine("Timeout", fmt.Sprintf("%ds", *timeout))
+		ui.PrintConfigLine("Timeout", fmt.Sprintf("%ds", *cfg.Timeout))
 		fmt.Println()
 	}
 
@@ -619,8 +300,8 @@ func runProbe() {
 		CustomHeaders   string   `json:"headers"`
 		FollowRedirects bool     `json:"follow_redirects"`
 	}
-	if *configFile != "" {
-		configData, err := os.ReadFile(*configFile)
+	if *cfg.ConfigFile != "" {
+		configData, err := os.ReadFile(*cfg.ConfigFile)
 		if err != nil {
 			errMsg := fmt.Sprintf("Cannot read config file: %v", err)
 			ui.PrintError(errMsg)
@@ -639,29 +320,29 @@ func runProbe() {
 				targets = append(targets, loadedConfig.Targets...)
 			}
 			// Apply other config values (override defaults, not CLI flags)
-			if loadedConfig.Timeout > 0 && *timeout == 10 {
-				*timeout = loadedConfig.Timeout
+			if loadedConfig.Timeout > 0 && *cfg.Timeout == 10 {
+				*cfg.Timeout = loadedConfig.Timeout
 			}
-			if loadedConfig.Threads > 0 && *threads == 10 {
-				*threads = loadedConfig.Threads
+			if loadedConfig.Threads > 0 && *cfg.Threads == 10 {
+				*cfg.Threads = loadedConfig.Threads
 			}
-			if loadedConfig.RateLimit > 0 && *rateLimit == 0 {
-				*rateLimit = loadedConfig.RateLimit
+			if loadedConfig.RateLimit > 0 && *cfg.RateLimit == 0 {
+				*cfg.RateLimit = loadedConfig.RateLimit
 			}
-			if loadedConfig.CustomHeaders != "" && *customHeaders == "" {
-				*customHeaders = loadedConfig.CustomHeaders
+			if loadedConfig.CustomHeaders != "" && *cfg.CustomHeaders == "" {
+				*cfg.CustomHeaders = loadedConfig.CustomHeaders
 			}
-			if loadedConfig.FollowRedirects && !*followRedirects {
-				*followRedirects = loadedConfig.FollowRedirects
+			if loadedConfig.FollowRedirects && !*cfg.FollowRedirects {
+				*cfg.FollowRedirects = loadedConfig.FollowRedirects
 			}
-			if *verbose {
-				ui.PrintInfo(fmt.Sprintf("Loaded config from %s", *configFile))
+			if *cfg.Verbose {
+				ui.PrintInfo(fmt.Sprintf("Loaded config from %s", *cfg.ConfigFile))
 			}
 		}
 	}
 
 	// Resume scan from saved state (if specified)
-	resumeState := *resumeScan
+	resumeState := *cfg.ResumeScan
 	var checkpointMgr *checkpoint.Manager
 	if resumeState {
 		checkpointMgr = checkpoint.NewManager("resume.cfg")
@@ -673,7 +354,7 @@ func runProbe() {
 				// Filter out already-scanned targets
 				originalCount := len(targets)
 				targets = checkpointMgr.GetPendingTargets(targets)
-				if *verbose && originalCount != len(targets) {
+				if *cfg.Verbose && originalCount != len(targets) {
 					ui.PrintInfo(fmt.Sprintf("Resume mode: skipping %d previously scanned targets, %d remaining",
 						originalCount-len(targets), len(targets)))
 				}
@@ -692,20 +373,20 @@ func runProbe() {
 
 	// Initialize checkpoint state for saving progress
 	checkpointMgr.Init("probe", targets, map[string]interface{}{
-		"timeout":     *timeout,
-		"concurrency": *concurrency,
-		"threads":     *threads,
+		"timeout":     *cfg.Timeout,
+		"concurrency": *cfg.Concurrency,
+		"threads":     *cfg.Threads,
 	})
 
 	// Redirect chain tracking configuration
-	trackRedirectChain := *includeChain
-	storeRedirectChain := *storeChain
-	extractTLSDomains := *tlsProbeExtracted
+	trackRedirectChain := *cfg.IncludeChain
+	storeRedirectChain := *cfg.StoreChain
+	extractTLSDomains := *cfg.TLSProbeExtracted
 
 	// Parallel processing with threads/concurrency
-	workerCount := *threads
-	if *concurrency > 0 {
-		workerCount = *concurrency
+	workerCount := *cfg.Threads
+	if *cfg.Concurrency > 0 {
+		workerCount = *cfg.Concurrency
 	}
 
 	// Parallel processing with runner package
@@ -714,10 +395,10 @@ func runProbe() {
 	// CPE (Common Platform Enumeration) generation helper
 	// Rate limiting is handled via rateLimit flag (requests per second)
 	// rateLimitMinute can be converted: rps = rlm / 60
-	if *rateLimitMinute > 0 && *rateLimit == 0 {
-		*rateLimit = *rateLimitMinute / 60
-		if *rateLimit < 1 {
-			*rateLimit = 1
+	if *cfg.RateLimitMinute > 0 && *cfg.RateLimit == 0 {
+		*cfg.RateLimit = *cfg.RateLimitMinute / 60
+		if *cfg.RateLimit < 1 {
+			*cfg.RateLimit = 1
 		}
 	}
 
@@ -729,8 +410,8 @@ func runProbe() {
 	// - protocolOutput: Protocol info included in scheme field
 	// - excludeFields: Can be filtered in post-processing
 	csvEnc := "utf-8"
-	if *csvEncoding != "" {
-		csvEnc = *csvEncoding
+	if *cfg.CSVEncoding != "" {
+		csvEnc = *cfg.CSVEncoding
 	}
 
 	// Batch 5: Filter flag suppressions (implemented)
@@ -741,32 +422,32 @@ func runProbe() {
 	// Allow/Deny lists for filtering targets
 	allowedHosts := make(map[string]bool)
 	deniedHosts := make(map[string]bool)
-	if *allowList != "" {
-		for _, h := range strings.Split(*allowList, ",") {
+	if *cfg.AllowList != "" {
+		for _, h := range strings.Split(*cfg.AllowList, ",") {
 			allowedHosts[strings.TrimSpace(h)] = true
 		}
 	}
-	if *denyList != "" {
-		for _, h := range strings.Split(*denyList, ",") {
+	if *cfg.DenyList != "" {
+		for _, h := range strings.Split(*cfg.DenyList, ",") {
 			deniedHosts[strings.TrimSpace(h)] = true
 		}
 	}
 
 	// Config option variables - used in ProbeHTTPOptions
-	customSNI := *sniName
-	useAutoReferer := *autoReferer
-	isUnsafeMode := *unsafeMode
-	followSameHost := *followHostRedirects
-	hstsRespect := *respectHSTS
-	isStreamMode := *streamMode
-	noDedup := *skipDedupe
-	keepDefaultPorts := *leaveDefaultPorts
-	zTLS := *useZTLS
-	skipDecode := *noDecode
-	useTLSImpersonate := *tlsImpersonate
+	customSNI := *cfg.SNIName
+	useAutoReferer := *cfg.AutoReferer
+	isUnsafeMode := *cfg.UnsafeMode
+	followSameHost := *cfg.FollowHostRedirects
+	hstsRespect := *cfg.RespectHSTS
+	isStreamMode := *cfg.StreamMode
+	noDedup := *cfg.SkipDedupe
+	keepDefaultPorts := *cfg.LeaveDefaultPorts
+	zTLS := *cfg.UseZTLS
+	skipDecode := *cfg.NoDecode
+	useTLSImpersonate := *cfg.TLSImpersonate
 
 	// Stdin handling
-	ignoreStdin := *noStdin
+	ignoreStdin := *cfg.NoStdin
 	if !ignoreStdin {
 		// Check if stdin has data (non-blocking)
 		stat, _ := os.Stdin.Stat()
@@ -777,22 +458,22 @@ func runProbe() {
 	}
 
 	// Debug options
-	isTraceMode := *traceMode
+	isTraceMode := *cfg.TraceMode
 
 	// Optimization options - used in ProbeHTTPOptions
-	skipFallback := *noFallback
-	skipSchemeSwitch := *noFallbackScheme
-	hostErrorLimit := *maxHostErrors
-	maxSaveSize := *respSizeToSave
-	maxReadSize := *respSizeToRead
+	skipFallback := *cfg.NoFallback
+	skipSchemeSwitch := *cfg.NoFallbackScheme
+	hostErrorLimit := *cfg.MaxHostErrors
+	maxSaveSize := *cfg.RespSizeToSave
+	maxReadSize := *cfg.RespSizeToRead
 
 	// Host error tracking for MaxHostErrors feature
 	hostErrors := make(map[string]int)
 
 	// excludeHosts: Skip these hosts
 	excludedHosts := make(map[string]bool)
-	if *excludeHosts != "" {
-		for _, h := range strings.Split(*excludeHosts, ",") {
+	if *cfg.ExcludeHosts != "" {
+		for _, h := range strings.Split(*cfg.ExcludeHosts, ",") {
 			excludedHosts[strings.TrimSpace(h)] = true
 		}
 	}
@@ -821,12 +502,12 @@ func runProbe() {
 	var screenshotClusterID int
 
 	// Helper for verbose output (not in silent/oneliner/jsonl/json mode)
-	showDetails := !*silent && !*oneliner && !*jsonl && !*jsonOutput
+	showDetails := !*cfg.Silent && !*cfg.Oneliner && !*cfg.JSONL && !*cfg.JSONOutput
 
 	// HTTP API endpoint - start server if specified
-	if *httpAPIEndpoint != "" {
+	if *cfg.HTTPAPIEndpoint != "" {
 		// Security: ensure the endpoint binds to localhost if no host is specified
-		apiAddr := *httpAPIEndpoint
+		apiAddr := *cfg.HTTPAPIEndpoint
 		if strings.HasPrefix(apiAddr, ":") {
 			apiAddr = "127.0.0.1" + apiAddr
 		}
@@ -885,16 +566,16 @@ func runProbe() {
 	probeRunner := runner.NewRunner[*ProbeResults]()
 	probeRunner.EnableDetection() // Enable connection drop and silent ban detection
 	probeRunner.Concurrency = workerCount
-	probeRunner.Timeout = time.Duration(*timeout*5) * time.Second
-	if *rateLimit > 0 {
-		probeRunner.RateLimit = *rateLimit
-		probeRunner.RateLimitPerHost = *rateLimitPerHost
-		if *rateLimitPerHost && *verbose {
-			ui.PrintInfo(fmt.Sprintf("Per-host rate limiting: %d RPS per host", *rateLimit))
+	probeRunner.Timeout = time.Duration(*cfg.Timeout*5) * time.Second
+	if *cfg.RateLimit > 0 {
+		probeRunner.RateLimit = *cfg.RateLimit
+		probeRunner.RateLimitPerHost = *cfg.RateLimitPerHost
+		if *cfg.RateLimitPerHost && *cfg.Verbose {
+			ui.PrintInfo(fmt.Sprintf("Per-host rate limiting: %d RPS per host", *cfg.RateLimit))
 		}
 	}
 
-	if workerCount > 1 && *verbose {
+	if workerCount > 1 && *cfg.Verbose {
 		ui.PrintInfo(fmt.Sprintf("Parallel mode: %d workers (using runner package)", workerCount))
 	}
 
@@ -957,7 +638,7 @@ func runProbe() {
 
 		results := ProbeResults{
 			Target:  normalizedTarget,
-			Method:  *httpMethod,
+			Method:  *cfg.HTTPMethod,
 			ProbeAt: time.Now(),
 		}
 
@@ -967,15 +648,15 @@ func runProbe() {
 			redirectChain = make([]string, 0)
 		}
 
-		timeoutDur := time.Duration(*timeout) * time.Second
+		timeoutDur := time.Duration(*cfg.Timeout) * time.Second
 
 		// Extract host from target URL
 		host := hostForFilter
 
 		// Note: Rate limiting is handled by the runner package
 		// Delay between requests can still be applied if needed
-		if *delay > 0 {
-			time.Sleep(*delay)
+		if *cfg.Delay > 0 {
+			time.Sleep(*cfg.Delay)
 		}
 
 		// Initial HTTP Probe for response time and status
@@ -984,16 +665,16 @@ func runProbe() {
 		}
 		startTime := time.Now()
 		probeOpts := ProbeHTTPOptions{
-			Method:           *httpMethod,
-			FollowRedirects:  *followRedirects,
-			MaxRedirects:     *maxRedirects,
-			RandomAgent:      *randomAgent,
-			CustomHeaders:    *customHeaders,
-			RequestBody:      *requestBody,
-			ProxyURL:         *proxyURL,
-			Retries:          *retries,
-			SkipVerify:       *skipVerify,
-			Delay:            *delay,
+			Method:           *cfg.HTTPMethod,
+			FollowRedirects:  *cfg.FollowRedirects,
+			MaxRedirects:     *cfg.MaxRedirects,
+			RandomAgent:      *cfg.RandomAgent,
+			CustomHeaders:    *cfg.CustomHeaders,
+			RequestBody:      *cfg.RequestBody,
+			ProxyURL:         *cfg.ProxyURL,
+			Retries:          *cfg.Retries,
+			SkipVerify:       *cfg.SkipVerify,
+			Delay:            *cfg.Delay,
 			SNI:              customSNI,
 			AutoReferer:      useAutoReferer,
 			UnsafeMode:       isUnsafeMode,
@@ -1042,17 +723,17 @@ func runProbe() {
 		}
 
 		// Debug request output
-		if *debugReq {
+		if *cfg.DebugReq {
 			fmt.Printf("\n--- DEBUG REQUEST ---\n")
-			fmt.Printf("%s %s HTTP/1.1\n", *httpMethod, currentTarget)
+			fmt.Printf("%s %s HTTP/1.1\n", *cfg.HTTPMethod, currentTarget)
 			fmt.Printf("Host: %s\n", host)
-			if *customHeaders != "" {
-				for _, h := range strings.Split(*customHeaders, ";") {
+			if *cfg.CustomHeaders != "" {
+				for _, h := range strings.Split(*cfg.CustomHeaders, ";") {
 					fmt.Println(strings.TrimSpace(h))
 				}
 			}
-			if *requestBody != "" {
-				fmt.Printf("\n%s\n", *requestBody)
+			if *cfg.RequestBody != "" {
+				fmt.Printf("\n%s\n", *cfg.RequestBody)
 			}
 			fmt.Printf("--- END REQUEST ---\n\n")
 		}
@@ -1062,7 +743,7 @@ func runProbe() {
 			defer iohelper.DrainAndClose(initialResp.Body)
 
 			// Debug response output
-			if *debugResp {
+			if *cfg.DebugResp {
 				fmt.Printf("\n--- DEBUG RESPONSE ---\n")
 				fmt.Printf("HTTP/1.1 %d %s\n", initialResp.StatusCode, http.StatusText(initialResp.StatusCode))
 				for k, v := range initialResp.Header {
@@ -1083,7 +764,7 @@ func runProbe() {
 			// Read body for word/line count and hash (unless omitBody)
 			var body []byte
 			var bodyStr string
-			if !*omitBody {
+			if !*cfg.OmitBody {
 				// Limit response read size if specified
 				if maxReadSize > 0 {
 					body = make([]byte, maxReadSize)
@@ -1102,14 +783,14 @@ func runProbe() {
 			// Body is closed by defer above
 
 			// Apply strip tags if enabled
-			if *stripTags != "" && !*omitBody {
-				if strings.Contains(*stripTags, "html") || strings.Contains(*stripTags, "xml") {
+			if *cfg.StripTags != "" && !*cfg.OmitBody {
+				if strings.Contains(*cfg.StripTags, "html") || strings.Contains(*cfg.StripTags, "xml") {
 					bodyStr = stripHTMLTags(bodyStr)
 				}
 			}
 
 			results.rawBody = bodyStr // Store for matching (empty if omitBody)
-			if !*omitBody {
+			if !*cfg.OmitBody {
 				results.WordCount = len(strings.Fields(bodyStr))
 				results.LineCount = strings.Count(bodyStr, "\n") + 1
 			}
@@ -1118,7 +799,7 @@ func runProbe() {
 			}
 
 			// Include response headers if requested
-			if *includeRespHeader {
+			if *cfg.IncludeRespHeader {
 				results.ResponseHeaders = make(map[string][]string)
 				for k, v := range initialResp.Header {
 					results.ResponseHeaders[k] = v
@@ -1126,13 +807,13 @@ func runProbe() {
 			}
 
 			// Include response body if requested
-			if *includeResponse || *includeRespBase64 {
+			if *cfg.IncludeResponse || *cfg.IncludeRespBase64 {
 				// Limit body for saving if maxSaveSize is specified
 				savedBody := bodyStr
 				if maxSaveSize > 0 && len(savedBody) > maxSaveSize {
 					savedBody = savedBody[:maxSaveSize]
 				}
-				if *includeRespBase64 {
+				if *cfg.IncludeRespBase64 {
 					// Use truncated body for base64 encoding
 					results.ResponseBody = base64.StdEncoding.EncodeToString([]byte(savedBody))
 				} else {
@@ -1141,8 +822,8 @@ func runProbe() {
 			}
 
 			// Calculate body hash if requested (supports: md5, sha1, sha256, sha512, mmh3, simhash)
-			if *hashType != "" {
-				switch strings.ToLower(*hashType) {
+			if *cfg.HashType != "" {
+				switch strings.ToLower(*cfg.HashType) {
 				case "md5":
 					results.BodyHash = fmt.Sprintf("md5:%x", md5.Sum(body))
 				case "sha1":
@@ -1163,8 +844,8 @@ func runProbe() {
 			}
 
 			// Store response if requested
-			if *storeResponse {
-				respDir := *storeResponseDir
+			if *cfg.StoreResponse {
+				respDir := *cfg.StoreResponseDir
 				os.MkdirAll(respDir, 0755)
 				// Sanitize filename from URL
 				safeName := strings.ReplaceAll(host, ":", "_")
@@ -1185,7 +866,7 @@ func runProbe() {
 			}
 
 			// Screenshot capture if requested (-ss flag)
-			if *screenshot {
+			if *cfg.Screenshot {
 				// Create screenshots directory
 				screenshotDir := "screenshots"
 				os.MkdirAll(screenshotDir, 0755)
@@ -1197,23 +878,23 @@ func runProbe() {
 				browserCfg := headless.DefaultConfig()
 				browserCfg.ScreenshotEnabled = true
 				browserCfg.ScreenshotDir = screenshotDir
-				browserCfg.PageTimeout = time.Duration(*screenshotTimeout) * time.Second
-				browserCfg.IdleTimeout = time.Duration(*screenshotIdle) * time.Second
-				browserCfg.ScreenshotFull = !*noScreenshotFullPage
+				browserCfg.PageTimeout = time.Duration(*cfg.ScreenshotTimeout) * time.Second
+				browserCfg.IdleTimeout = time.Duration(*cfg.ScreenshotIdle) * time.Second
+				browserCfg.ScreenshotFull = !*cfg.NoScreenshotFullPage
 
 				// Wire up system chrome option
-				if *systemChrome {
+				if *cfg.SystemChrome {
 					browserCfg.ChromiumPath = "" // Empty means use system chrome
 				}
 
 				// Wire up headless options (comma-separated args for browser launch)
-				if *headlessOptions != "" {
-					browserCfg.HeadlessArgs = strings.Split(*headlessOptions, ",")
+				if *cfg.HeadlessOptions != "" {
+					browserCfg.HeadlessArgs = strings.Split(*cfg.HeadlessOptions, ",")
 				}
 
 				// Wire up JavaScript code execution after page load
-				if *javascriptCode != "" {
-					browserCfg.PostLoadJS = *javascriptCode
+				if *cfg.JavascriptCode != "" {
+					browserCfg.PostLoadJS = *cfg.JavascriptCode
 				}
 
 				// Note: Full screenshot capture requires rod/chromedp which may not be available
@@ -1222,11 +903,11 @@ func runProbe() {
 
 				if showDetails {
 					ui.PrintInfo(fmt.Sprintf("Screenshot: %s (timeout: %ds, idle: %ds, full: %v)",
-						screenshotFile, *screenshotTimeout, *screenshotIdle, !*noScreenshotFullPage))
+						screenshotFile, *cfg.ScreenshotTimeout, *cfg.ScreenshotIdle, !*cfg.NoScreenshotFullPage))
 				}
 
 				// Include screenshot bytes in JSON output if file exists and not excluded
-				if !*excludeScreenshotBytes {
+				if !*cfg.ExcludeScreenshotBytes {
 					// Try to read existing screenshot file and encode as base64
 					if screenshotData, err := os.ReadFile(screenshotFile); err == nil {
 						results.ScreenshotBytes = base64.StdEncoding.EncodeToString(screenshotData)
@@ -1234,7 +915,7 @@ func runProbe() {
 				}
 
 				// Vision recon clustering - group similar screenshots
-				if *storeVisionRecon {
+				if *cfg.StoreVisionRecon {
 					bodyHash := fp.Simhash(results.rawBody)
 					visionClustersMu.Lock()
 					clusterID := screenshotClusterID
@@ -1259,12 +940,12 @@ func runProbe() {
 			}
 
 			// Debug mode - show request/response
-			if *debug {
+			if *cfg.Debug {
 				fmt.Printf("\n[DEBUG] Request:\n")
-				fmt.Printf("  Method: %s\n", *httpMethod)
+				fmt.Printf("  Method: %s\n", *cfg.HTTPMethod)
 				fmt.Printf("  URL: %s\n", currentTarget)
-				if *customHeaders != "" {
-					fmt.Printf("  Headers: %s\n", *customHeaders)
+				if *cfg.CustomHeaders != "" {
+					fmt.Printf("  Headers: %s\n", *cfg.CustomHeaders)
 				}
 				fmt.Printf("\n[DEBUG] Response:\n")
 				fmt.Printf("  Status: %d %s\n", initialResp.StatusCode, http.StatusText(initialResp.StatusCode))
@@ -1279,8 +960,8 @@ func runProbe() {
 			}
 
 			// Body preview
-			if *bodyPreview > 0 && len(bodyStr) > 0 {
-				previewLen := *bodyPreview
+			if *cfg.BodyPreview > 0 && len(bodyStr) > 0 {
+				previewLen := *cfg.BodyPreview
 				if previewLen > len(bodyStr) {
 					previewLen = len(bodyStr)
 				}
@@ -1288,7 +969,7 @@ func runProbe() {
 			}
 
 			// Header hash
-			if *headerHash {
+			if *cfg.HeaderHash {
 				headerContent := ""
 				for k, v := range initialResp.Header {
 					headerContent += fmt.Sprintf("%s: %s\n", k, strings.Join(v, ", "))
@@ -1304,7 +985,7 @@ func runProbe() {
 			}
 
 			// WebSocket detection
-			if *showWebSocket {
+			if *cfg.ShowWebSocket {
 				upgradeHeader := strings.ToLower(initialResp.Header.Get("Upgrade"))
 				connectionHeader := strings.ToLower(initialResp.Header.Get("Connection"))
 				if strings.Contains(upgradeHeader, "websocket") || strings.Contains(connectionHeader, "upgrade") {
@@ -1313,8 +994,8 @@ func runProbe() {
 			}
 
 			// Extract regex
-			if *extractRegex != "" {
-				re, err := regexcache.Get(*extractRegex)
+			if *cfg.ExtractRegex != "" {
+				re, err := regexcache.Get(*cfg.ExtractRegex)
 				if err == nil {
 					matches := re.FindAllString(bodyStr, 50) // limit to 50 matches
 					results.Extracted = matches
@@ -1322,8 +1003,8 @@ func runProbe() {
 			}
 
 			// Extract preset patterns
-			if *extractPreset != "" {
-				presets := strings.Split(*extractPreset, ",")
+			if *cfg.ExtractPreset != "" {
+				presets := strings.Split(*cfg.ExtractPreset, ",")
 				for _, preset := range presets {
 					var pattern string
 					switch strings.TrimSpace(preset) {
@@ -1345,7 +1026,7 @@ func runProbe() {
 			}
 
 			// Extract FQDN (domains and subdomains) from response body and headers
-			if *extractFQDN {
+			if *cfg.ExtractFQDN {
 				fqdnPattern := `(?i)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}`
 				re, err := regexcache.Get(fqdnPattern)
 				if err == nil {
@@ -1373,7 +1054,7 @@ func runProbe() {
 			}
 
 			// WordPress detection
-			if *showWordPress {
+			if *cfg.ShowWordPress {
 				wpResult := probes.DetectWordPress(bodyStr)
 				results.WordPress = wpResult.Detected
 				results.WPPlugins = wpResult.Plugins
@@ -1405,7 +1086,7 @@ func runProbe() {
 		}
 
 		// DNS Resolution
-		if *dnsProbe || *probeAllIPs {
+		if *cfg.DNSProbe || *cfg.ProbeAllIPs {
 			if showDetails {
 				ui.PrintInfo("Resolving DNS...")
 			}
@@ -1415,7 +1096,7 @@ func runProbe() {
 			results.DNS = dnsResult
 
 			// Probe all IPs if requested
-			if *probeAllIPs && len(dnsResult.IPv4) > 0 {
+			if *cfg.ProbeAllIPs && len(dnsResult.IPv4) > 0 {
 				if showDetails {
 					ui.PrintInfo(fmt.Sprintf("Probing all %d IPs...", len(dnsResult.IPv4)))
 				}
@@ -1463,7 +1144,7 @@ func runProbe() {
 		}
 
 		// TLS Probing (includes tls-grab functionality)
-		if (*tlsProbe || *tlsGrab) && strings.HasPrefix(currentTarget, "https://") {
+		if (*cfg.TLSProbe || *cfg.TLSGrab) && strings.HasPrefix(currentTarget, "https://") {
 			if showDetails {
 				ui.PrintInfo("Probing TLS configuration...")
 			}
@@ -1497,7 +1178,7 @@ func runProbe() {
 					for _, san := range tlsInfo.SubjectAN {
 						results.Extracted = append(results.Extracted, "tls-domain:"+san)
 					}
-					if showDetails && *verbose {
+					if showDetails && *cfg.Verbose {
 						ui.PrintInfo(fmt.Sprintf("Extracted %d domains from TLS certificate", len(tlsInfo.SubjectAN)))
 					}
 				}
@@ -1505,7 +1186,7 @@ func runProbe() {
 		}
 
 		// JARM TLS Fingerprint
-		if *jarmProbe && strings.HasPrefix(currentTarget, "https://") {
+		if *cfg.JARMProbe && strings.HasPrefix(currentTarget, "https://") {
 			if showDetails {
 				ui.PrintInfo("Calculating JARM fingerprint...")
 			}
@@ -1527,7 +1208,7 @@ func runProbe() {
 		}
 
 		// Security Headers - need HTTP response first
-		if *headerProbe {
+		if *cfg.HeaderProbe {
 			if showDetails {
 				ui.PrintInfo("Analyzing security headers...")
 			}
@@ -1559,7 +1240,7 @@ func runProbe() {
 		}
 
 		// CSP Probe - extract and display domains from CSP
-		if *cspProbe && results.Headers != nil && results.Headers.ContentSecurityPolicy != "" {
+		if *cfg.CSPProbe && results.Headers != nil && results.Headers.ContentSecurityPolicy != "" {
 			cspDomains := probes.ExtractDomainsFromCSP(results.Headers.ContentSecurityPolicy)
 			if len(cspDomains) > 0 {
 				results.Extracted = append(results.Extracted, cspDomains...)
@@ -1574,7 +1255,7 @@ func runProbe() {
 		}
 
 		// Technology Detection
-		if *techProbe {
+		if *cfg.TechProbe {
 			if showDetails {
 				ui.PrintInfo("Detecting technologies...")
 			}
@@ -1591,7 +1272,7 @@ func runProbe() {
 				results.Tech = techResult
 
 				// Generate CPE strings if requested
-				if *showCPE {
+				if *cfg.ShowCPE {
 					results.CPEs = generateCPE(techResult)
 					if showDetails && len(results.CPEs) > 0 {
 						ui.PrintSection("CPE Strings")
@@ -1627,7 +1308,7 @@ func runProbe() {
 		}
 
 		// HTTP Probing
-		if *httpProbe {
+		if *cfg.HTTPProbe {
 			if showDetails {
 				ui.PrintInfo("Probing HTTP capabilities...")
 			}
@@ -1653,7 +1334,7 @@ func runProbe() {
 		}
 
 		// WAF/CDN Detection
-		if *wafProbe {
+		if *cfg.WAFProbe {
 			if showDetails {
 				ui.PrintInfo("Detecting WAF/CDN...")
 			}
@@ -1686,7 +1367,7 @@ func runProbe() {
 		}
 
 		// VHost Probe - check for virtual host support
-		if *vhostProbe && strings.HasPrefix(currentTarget, "https://") {
+		if *cfg.VHostProbe && strings.HasPrefix(currentTarget, "https://") {
 			if showDetails {
 				ui.PrintInfo("Probing virtual hosts...")
 			}
@@ -1726,7 +1407,7 @@ func runProbe() {
 		}
 
 		// Favicon Probing
-		if *faviconProbe {
+		if *cfg.FaviconProbe {
 			if showDetails {
 				ui.PrintInfo("Probing favicon...")
 			}
@@ -1753,7 +1434,7 @@ func runProbe() {
 
 		// Filter error pages - ML-inspired heuristic error page detection
 		// Detects: status codes 4xx/5xx, common error page patterns, short generic content
-		if *filterErrorPage && !skipOutput {
+		if *cfg.FilterErrorPage && !skipOutput {
 			isErrorPage := false
 
 			// Check status code (4xx, 5xx)
@@ -1804,8 +1485,8 @@ func runProbe() {
 		}
 
 		// Match code - only show if status matches
-		if *matchCode != "" && !skipOutput {
-			codes := strings.Split(*matchCode, ",")
+		if *cfg.MatchCode != "" && !skipOutput {
+			codes := strings.Split(*cfg.MatchCode, ",")
 			matched := false
 			for _, c := range codes {
 				code, _ := strconv.Atoi(strings.TrimSpace(c))
@@ -1820,8 +1501,8 @@ func runProbe() {
 		}
 
 		// Filter code - skip if status matches filter
-		if *filterCode != "" && !skipOutput {
-			codes := strings.Split(*filterCode, ",")
+		if *cfg.FilterCode != "" && !skipOutput {
+			codes := strings.Split(*cfg.FilterCode, ",")
 			for _, c := range codes {
 				code, _ := strconv.Atoi(strings.TrimSpace(c))
 				if results.StatusCode == code {
@@ -1832,82 +1513,82 @@ func runProbe() {
 		}
 
 		// Match string - only show if body contains string
-		if *matchString != "" && !skipOutput {
-			if !strings.Contains(results.rawBody, *matchString) {
+		if *cfg.MatchString != "" && !skipOutput {
+			if !strings.Contains(results.rawBody, *cfg.MatchString) {
 				skipOutput = true
 			}
 		}
 
 		// Filter string - skip if body contains string
-		if *filterString != "" && !skipOutput {
-			if strings.Contains(results.rawBody, *filterString) {
+		if *cfg.FilterString != "" && !skipOutput {
+			if strings.Contains(results.rawBody, *cfg.FilterString) {
 				skipOutput = true
 			}
 		}
 
 		// Match length - only show if content length matches
-		if *matchLength != "" && !skipOutput {
-			if !matchRange(int(results.ContentLength), *matchLength) {
+		if *cfg.MatchLength != "" && !skipOutput {
+			if !matchRange(int(results.ContentLength), *cfg.MatchLength) {
 				skipOutput = true
 			}
 		}
 
 		// Filter length - skip if content length matches
-		if *filterLength != "" && !skipOutput {
-			if matchRange(int(results.ContentLength), *filterLength) {
+		if *cfg.FilterLength != "" && !skipOutput {
+			if matchRange(int(results.ContentLength), *cfg.FilterLength) {
 				skipOutput = true
 			}
 		}
 
 		// Match line count - only show if line count matches
-		if *matchLineCount != "" && !skipOutput {
-			if !matchRange(results.LineCount, *matchLineCount) {
+		if *cfg.MatchLineCount != "" && !skipOutput {
+			if !matchRange(results.LineCount, *cfg.MatchLineCount) {
 				skipOutput = true
 			}
 		}
 
 		// Filter line count - skip if line count matches
-		if *filterLineCount != "" && !skipOutput {
-			if matchRange(results.LineCount, *filterLineCount) {
+		if *cfg.FilterLineCount != "" && !skipOutput {
+			if matchRange(results.LineCount, *cfg.FilterLineCount) {
 				skipOutput = true
 			}
 		}
 
 		// Match word count - only show if word count matches
-		if *matchWordCount != "" && !skipOutput {
-			if !matchRange(results.WordCount, *matchWordCount) {
+		if *cfg.MatchWordCount != "" && !skipOutput {
+			if !matchRange(results.WordCount, *cfg.MatchWordCount) {
 				skipOutput = true
 			}
 		}
 
 		// Filter word count - skip if word count matches
-		if *filterWordCount != "" && !skipOutput {
-			if matchRange(results.WordCount, *filterWordCount) {
+		if *cfg.FilterWordCount != "" && !skipOutput {
+			if matchRange(results.WordCount, *cfg.FilterWordCount) {
 				skipOutput = true
 			}
 		}
 
 		// Match regex - only show if body matches regex
-		if *matchRegex != "" && !skipOutput {
-			re, err := regexcache.Get(*matchRegex)
+		if *cfg.MatchRegex != "" && !skipOutput {
+			re, err := regexcache.Get(*cfg.MatchRegex)
 			if err == nil && !re.MatchString(results.rawBody) {
 				skipOutput = true
 			}
 		}
 
 		// Filter regex - skip if body matches regex
-		if *filterRegex != "" && !skipOutput {
-			re, err := regexcache.Get(*filterRegex)
+		if *cfg.FilterRegex != "" && !skipOutput {
+			re, err := regexcache.Get(*cfg.FilterRegex)
 			if err == nil && re.MatchString(results.rawBody) {
 				skipOutput = true
 			}
 		}
 
 		// Match favicon - only show if favicon hash matches
-		if *matchFavicon != "" && !skipOutput {
+		if *cfg.MatchFavicon != "" && !skipOutput {
 			if results.Favicon != nil {
 				matched := false
-				hashes := strings.Split(*matchFavicon, ",")
+				hashes := strings.Split(*cfg.MatchFavicon, ",")
 				for _, h := range hashes {
 					if strings.TrimSpace(h) == fmt.Sprintf("%d", results.Favicon.MMH3Hash) {
 						matched = true
@@ -1923,9 +1604,9 @@ func runProbe() {
 		}
 
 		// Filter favicon - skip if favicon hash matches
-		if *filterFavicon != "" && !skipOutput {
+		if *cfg.FilterFavicon != "" && !skipOutput {
 			if results.Favicon != nil {
-				hashes := strings.Split(*filterFavicon, ",")
+				hashes := strings.Split(*cfg.FilterFavicon, ",")
 				for _, h := range hashes {
 					if strings.TrimSpace(h) == fmt.Sprintf("%d", results.Favicon.MMH3Hash) {
 						skipOutput = true
@@ -1936,10 +1617,10 @@ func runProbe() {
 		}
 
 		// Match CDN - only show if CDN matches
-		if *matchCDN != "" && !skipOutput {
+		if *cfg.MatchCDN != "" && !skipOutput {
 			matched := false
 			if results.WAF != nil && results.WAF.Detected {
-				cdns := strings.Split(strings.ToLower(*matchCDN), ",")
+				cdns := strings.Split(strings.ToLower(*cfg.MatchCDN), ",")
 				for _, w := range results.WAF.WAFs {
 					wafLower := strings.ToLower(w.Name)
 					for _, cdn := range cdns {
@@ -1956,9 +1637,9 @@ func runProbe() {
 		}
 
 		// Filter CDN - skip if CDN matches
-		if *filterCDN != "" && !skipOutput {
+		if *cfg.FilterCDN != "" && !skipOutput {
 			if results.WAF != nil && results.WAF.Detected {
-				cdns := strings.Split(strings.ToLower(*filterCDN), ",")
+				cdns := strings.Split(strings.ToLower(*cfg.FilterCDN), ",")
 				for _, w := range results.WAF.WAFs {
 					wafLower := strings.ToLower(w.Name)
 					for _, cdn := range cdns {
@@ -1972,24 +1653,24 @@ func runProbe() {
 		}
 
 		// Match response time - only show if response time matches condition
-		if *matchRespTime != "" && !skipOutput {
+		if *cfg.MatchRespTime != "" && !skipOutput {
 			dur, _ := time.ParseDuration(results.ResponseTime)
-			if !matchTimeCondition(dur, *matchRespTime) {
+			if !matchTimeCondition(dur, *cfg.MatchRespTime) {
 				skipOutput = true
 			}
 		}
 
 		// Filter response time - skip if response time matches condition
-		if *filterRespTime != "" && !skipOutput {
+		if *cfg.FilterRespTime != "" && !skipOutput {
 			dur, _ := time.ParseDuration(results.ResponseTime)
-			if matchTimeCondition(dur, *filterRespTime) {
+			if matchTimeCondition(dur, *cfg.FilterRespTime) {
 				skipOutput = true
 			}
 		}
 
 		// Filter duplicates - skip if response signature already seen
 		// (unless noDedup/skipDedupe is enabled, or filterDuplicates is not set)
-		if *filterDuplicates && !noDedup && !skipOutput {
+		if *cfg.FilterDuplicates && !noDedup && !skipOutput {
 			// Create signature from status code, content length, and body hash
 			signature := fmt.Sprintf("%d-%d-%s", results.StatusCode, results.ContentLength, results.BodyHash)
 			seenResponsesMu.Lock()
@@ -2002,14 +1683,14 @@ func runProbe() {
 		}
 
 		// DSL Match Condition - only show if DSL expression matches
-		if *matchCondition != "" && !skipOutput {
+		if *cfg.MatchCondition != "" && !skipOutput {
 			// Extract title from body if present
 			titleStr := ""
 			titleRe := regexcache.MustGet(`<title[^>]*>([^<]+)</title>`)
 			if titleMatch := titleRe.FindStringSubmatch(results.rawBody); len(titleMatch) > 1 {
 				titleStr = titleMatch[1]
 			}
-			if !dsl.Evaluate(*matchCondition, &dsl.ResponseData{
+			if !dsl.Evaluate(*cfg.MatchCondition, &dsl.ResponseData{
 				StatusCode:    results.StatusCode,
 				ContentLength: results.ContentLength,
 				Body:          results.rawBody,
@@ -2024,13 +1705,13 @@ func runProbe() {
 		}
 
 		// DSL Filter Condition - skip if DSL expression matches
-		if *filterCondition != "" && !skipOutput {
+		if *cfg.FilterCondition != "" && !skipOutput {
 			titleStr := ""
 			titleRe := regexcache.MustGet(`<title[^>]*>([^<]+)</title>`)
 			if titleMatch := titleRe.FindStringSubmatch(results.rawBody); len(titleMatch) > 1 {
 				titleStr = titleMatch[1]
 			}
-			if dsl.Evaluate(*filterCondition, &dsl.ResponseData{
+			if dsl.Evaluate(*cfg.FilterCondition, &dsl.ResponseData{
 				StatusCode:    results.StatusCode,
 				ContentLength: results.ContentLength,
 				Body:          results.rawBody,
@@ -2045,12 +1726,12 @@ func runProbe() {
 		}
 
 		// Simhash near-duplicate detection
-		if *simhashThreshold > 0 && !skipOutput {
+		if *cfg.SimhashThreshold > 0 && !skipOutput {
 			bodyHash := fp.Simhash(results.rawBody)
 			isDuplicate := false
 			seenSimhashesMu.Lock()
 			for _, seen := range seenSimhashes {
-				if fp.HammingDistance(bodyHash, seen) <= *simhashThreshold {
+				if fp.HammingDistance(bodyHash, seen) <= *cfg.SimhashThreshold {
 					isDuplicate = true
 					break
 				}
@@ -2078,9 +1759,9 @@ func runProbe() {
 
 	// Determine output mode for LiveProgress
 	probeOutputMode := ui.DefaultOutputMode()
-	if *streamMode {
+	if *cfg.StreamMode {
 		probeOutputMode = ui.OutputModeStreaming
-	} else if *silent || *jsonOutput || *jsonl {
+	} else if *cfg.Silent || *cfg.JSONOutput || *cfg.JSONL {
 		probeOutputMode = ui.OutputModeSilent
 	}
 
@@ -2098,7 +1779,7 @@ func runProbe() {
 		StreamFormat:   "[PROGRESS] {completed}/{total} ({percent}%) | alive: {metric:alive} | dead: {metric:dead} | {elapsed}",
 		StreamInterval: duration.StreamStd,
 	})
-	if len(targets) > 1 && !*oneliner {
+	if len(targets) > 1 && !*cfg.Oneliner {
 		probeProgress.Start()
 		defer probeProgress.Stop()
 	}
@@ -2188,7 +1869,7 @@ func runProbe() {
 		defer outputMu.Unlock()
 
 		// Output results
-		if *oneliner {
+		if *cfg.Oneliner {
 			// httpx-style one-liner output
 			parts := []string{currentTarget}
 			if results.StatusCode > 0 {
@@ -2198,13 +1879,13 @@ func runProbe() {
 				parts = append(parts, fmt.Sprintf("[%s]", results.ResponseTime))
 			}
 			// Show title when -title flag or default tech detection
-			if *showTitle && results.Tech != nil && results.Tech.Title != "" {
+			if *cfg.ShowTitle && results.Tech != nil && results.Tech.Title != "" {
 				title := results.Tech.Title
 				if len(title) > 50 {
 					title = title[:47] + "..."
 				}
 				parts = append(parts, fmt.Sprintf("[%s]", title))
-			} else if results.Tech != nil && results.Tech.Title != "" && !*showTitle {
+			} else if results.Tech != nil && results.Tech.Title != "" && !*cfg.ShowTitle {
 				title := results.Tech.Title
 				if len(title) > 50 {
 					title = title[:47] + "..."
@@ -2212,17 +1893,17 @@ func runProbe() {
 				parts = append(parts, fmt.Sprintf("[%s]", title))
 			}
 			// Show IP when -ip flag or default DNS
-			if *showIP && results.DNS != nil && len(results.DNS.IPv4) > 0 {
+			if *cfg.ShowIP && results.DNS != nil && len(results.DNS.IPv4) > 0 {
 				parts = append(parts, fmt.Sprintf("[%s]", results.DNS.IPv4[0]))
-			} else if results.DNS != nil && len(results.DNS.IPv4) > 0 && !*showIP {
+			} else if results.DNS != nil && len(results.DNS.IPv4) > 0 && !*cfg.ShowIP {
 				parts = append(parts, fmt.Sprintf("[%s]", results.DNS.IPv4[0]))
 			}
 			// Show ASN when -asn flag
-			if *showASN && results.DNS != nil && results.DNS.ASN != nil {
+			if *cfg.ShowASN && results.DNS != nil && results.DNS.ASN != nil {
 				parts = append(parts, fmt.Sprintf("[AS%d]", results.DNS.ASN.Number))
 			}
 			// Show CDN/WAF when -cdn flag
-			if *showCDN && results.WAF != nil && results.WAF.Detected && len(results.WAF.WAFs) > 0 {
+			if *cfg.ShowCDN && results.WAF != nil && results.WAF.Detected && len(results.WAF.WAFs) > 0 {
 				wafNames := make([]string, 0)
 				for _, w := range results.WAF.WAFs {
 					wafNames = append(wafNames, w.Name)
@@ -2230,7 +1911,7 @@ func runProbe() {
 				parts = append(parts, fmt.Sprintf("[WAF:%s]", strings.Join(wafNames, ",")))
 			}
 			// Show technologies when -td flag or default
-			if *showTech && results.Tech != nil && len(results.Tech.Technologies) > 0 {
+			if *cfg.ShowTech && results.Tech != nil && len(results.Tech.Technologies) > 0 {
 				techs := make([]string, 0)
 				for i, t := range results.Tech.Technologies {
 					if i >= 3 {
@@ -2239,7 +1920,7 @@ func runProbe() {
 					techs = append(techs, t.Name)
 				}
 				parts = append(parts, fmt.Sprintf("[%s]", strings.Join(techs, ",")))
-			} else if results.Tech != nil && len(results.Tech.Technologies) > 0 && !*showTech {
+			} else if results.Tech != nil && len(results.Tech.Technologies) > 0 && !*cfg.ShowTech {
 				techs := make([]string, 0)
 				for i, t := range results.Tech.Technologies {
 					if i >= 3 {
@@ -2250,29 +1931,29 @@ func runProbe() {
 				parts = append(parts, fmt.Sprintf("[%s]", strings.Join(techs, ",")))
 			}
 			// Optional httpx-style output fields
-			if *showContentLength && results.ContentLength > 0 {
+			if *cfg.ShowContentLength && results.ContentLength > 0 {
 				parts = append(parts, fmt.Sprintf("[%d]", results.ContentLength))
 			}
-			if *showContentType && results.ContentType != "" {
+			if *cfg.ShowContentType && results.ContentType != "" {
 				ct := results.ContentType
 				if ctIdx := strings.Index(ct, ";"); ctIdx > 0 {
 					ct = ct[:ctIdx]
 				}
 				parts = append(parts, fmt.Sprintf("[%s]", ct))
 			}
-			if *showWordCount {
+			if *cfg.ShowWordCount {
 				parts = append(parts, fmt.Sprintf("[%dW]", results.WordCount))
 			}
-			if *showLineCount {
+			if *cfg.ShowLineCount {
 				parts = append(parts, fmt.Sprintf("[%dL]", results.LineCount))
 			}
-			if *showServer && results.Server != "" {
+			if *cfg.ShowServer && results.Server != "" {
 				parts = append(parts, fmt.Sprintf("[%s]", results.Server))
 			}
-			if *showMethod {
+			if *cfg.ShowMethod {
 				parts = append(parts, fmt.Sprintf("[%s]", results.Method))
 			}
-			if *showLocation && results.Location != "" {
+			if *cfg.ShowLocation && results.Location != "" {
 				parts = append(parts, fmt.Sprintf("[%s]", results.Location))
 			}
 			// Show body hash if calculated
@@ -2280,35 +1961,35 @@ func runProbe() {
 				parts = append(parts, fmt.Sprintf("[%s]", results.BodyHash))
 			}
 			// Show header hash
-			if *headerHash && results.HeaderHash != "" {
+			if *cfg.HeaderHash && results.HeaderHash != "" {
 				parts = append(parts, fmt.Sprintf("[hdr:%s]", results.HeaderHash))
 			}
 			// Show CNAME
-			if *showCNAME && results.DNS != nil && results.DNS.CNAME != "" {
+			if *cfg.ShowCNAME && results.DNS != nil && results.DNS.CNAME != "" {
 				parts = append(parts, fmt.Sprintf("[CNAME:%s]", results.DNS.CNAME))
 			}
 			// Show scheme
-			if *showScheme {
+			if *cfg.ShowScheme {
 				parts = append(parts, fmt.Sprintf("[%s]", results.Scheme))
 			}
 			// Show WebSocket support
-			if *showWebSocket && results.WebSocket {
+			if *cfg.ShowWebSocket && results.WebSocket {
 				parts = append(parts, "[WS]")
 			}
 			// Show HTTP/2 support
-			if *showHTTP2 && results.HTTP2 {
+			if *cfg.ShowHTTP2 && results.HTTP2 {
 				parts = append(parts, "[HTTP2]")
 			}
 			// Show pipelining support
-			if *showPipeline && results.Pipeline {
+			if *cfg.ShowPipeline && results.Pipeline {
 				parts = append(parts, "[PIPE]")
 			}
 			// Show favicon hash
-			if *showFaviconHash && results.Favicon != nil && results.Favicon.MMH3Hash != 0 {
+			if *cfg.ShowFaviconHash && results.Favicon != nil && results.Favicon.MMH3Hash != 0 {
 				parts = append(parts, fmt.Sprintf("[fav:%d]", results.Favicon.MMH3Hash))
 			}
 			// Show body preview
-			if *bodyPreview > 0 && results.BodyPreview != "" {
+			if *cfg.BodyPreview > 0 && results.BodyPreview != "" {
 				preview := strings.ReplaceAll(results.BodyPreview, "\n", " ")
 				preview = strings.ReplaceAll(preview, "\r", "")
 				if len(preview) > 50 {
@@ -2325,7 +2006,7 @@ func runProbe() {
 					parts = append(parts, fmt.Sprintf("[%s]", e))
 				}
 			}
-			if *probeStatus {
+			if *cfg.ProbeStatus {
 				if results.Alive {
 					parts = append(parts, "[UP]")
 				} else {
@@ -2333,15 +2014,15 @@ func runProbe() {
 				}
 			}
 			// Show line count
-			if *showLineCount && results.LineCount > 0 {
+			if *cfg.ShowLineCount && results.LineCount > 0 {
 				parts = append(parts, fmt.Sprintf("[LC:%d]", results.LineCount))
 			}
 			// Show word count
-			if *showWordCount && results.WordCount > 0 {
+			if *cfg.ShowWordCount && results.WordCount > 0 {
 				parts = append(parts, fmt.Sprintf("[WC:%d]", results.WordCount))
 			}
 			fmt.Println(strings.Join(parts, " "))
-		} else if *csvOutput {
+		} else if *cfg.CSVOutput {
 			// CSV output format
 			ip := ""
 			if results.DNS != nil && len(results.DNS.IPv4) > 0 {
@@ -2365,7 +2046,7 @@ func runProbe() {
 				results.LineCount,
 				results.Alive,
 			)
-		} else if *jsonl {
+		} else if *cfg.JSONL {
 			// JSONL output (one JSON per line)
 			// Apply field exclusions if any
 			if len(excludedOutputFields) > 0 {
@@ -2381,7 +2062,7 @@ func runProbe() {
 				jsonData, _ := json.Marshal(results)
 				fmt.Println(string(jsonData))
 			}
-		} else if *jsonOutput || *outputFile != "" {
+		} else if *cfg.JSONOutput || *cfg.OutputFile != "" {
 			// Apply field exclusions if any
 			var jsonData []byte
 			var err error
@@ -2406,8 +2087,8 @@ func runProbe() {
 				os.Exit(1)
 			}
 
-			if *outputFile != "" {
-				if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
+			if *cfg.OutputFile != "" {
+				if err := os.WriteFile(*cfg.OutputFile, jsonData, 0644); err != nil {
 					errMsg := fmt.Sprintf("Error writing output: %v", err)
 					ui.PrintError(errMsg)
 					if probeDispCtx != nil {
@@ -2416,12 +2097,12 @@ func runProbe() {
 					}
 					os.Exit(1)
 				}
-				ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
+				ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *cfg.OutputFile))
 
 				// Output all formats if requested
-				if *outputAll {
+				if *cfg.OutputAll {
 					// CSV file with encoding support
-					csvFile := strings.TrimSuffix(*outputFile, filepath.Ext(*outputFile)) + ".csv"
+					csvFile := strings.TrimSuffix(*cfg.OutputFile, filepath.Ext(*cfg.OutputFile)) + ".csv"
 					csvLine := fmt.Sprintf("%s,%d,%d,%s,%s,%d,%d,%t\n",
 						results.Target, results.StatusCode, results.ContentLength,
 						strings.ReplaceAll(results.ContentType, ",", ";"),
@@ -2439,7 +2120,7 @@ func runProbe() {
 					}
 
 					// TXT file (oneliner format)
-					txtFile := strings.TrimSuffix(*outputFile, filepath.Ext(*outputFile)) + ".txt"
+					txtFile := strings.TrimSuffix(*cfg.OutputFile, filepath.Ext(*cfg.OutputFile)) + ".txt"
 					txtLine := fmt.Sprintf("%s [%d] [%s] [%s] [%s]\n",
 						results.Target, results.StatusCode, results.ResponseTime,
 						results.ContentType, results.Server)
@@ -2449,7 +2130,7 @@ func runProbe() {
 				}
 			}
 
-			if *jsonOutput {
+			if *cfg.JSONOutput {
 				fmt.Println(string(jsonData))
 			}
 		}
@@ -2476,7 +2157,7 @@ func runProbe() {
 	// Clean up checkpoint file on successful completion
 	if checkpointMgr != nil && checkpointMgr.GetProgress() >= 100 {
 		checkpointMgr.Delete()
-		if *verbose {
+		if *cfg.Verbose {
 			ui.PrintInfo("Scan complete - checkpoint file removed")
 		}
 	}
@@ -2485,19 +2166,19 @@ func runProbe() {
 	total := atomic.LoadInt64(&statsTotal)
 	success := atomic.LoadInt64(&statsSuccess)
 	failed := atomic.LoadInt64(&statsFailed)
-	if *showStats && total > 0 {
+	if *cfg.ShowStats && total > 0 {
 		elapsed := time.Since(statsStart)
 		fmt.Printf("\n[STATS] Scanned: %d | Success: %d | Failed: %d | Time: %s | Rate: %.1f/s\n",
 			total, success, failed, elapsed.Round(time.Millisecond), float64(total)/elapsed.Seconds())
 	}
 
 	// Verbose summary
-	if *verbose && total > 1 {
+	if *cfg.Verbose && total > 1 {
 		fmt.Printf("\n[VERBOSE] Completed probing %d targets\n", total)
 	}
 
 	// Generate HTML summary report if requested
-	if *htmlOutput != "" {
+	if *cfg.HTMLOutput != "" {
 		elapsed := time.Since(statsStart)
 		htmlContent := fmt.Sprintf(`<!DOCTYPE html>
 <html>
@@ -2545,16 +2226,16 @@ func runProbe() {
 </html>`, time.Now().Format(time.RFC1123), statsTotal, statsSuccess, statsFailed,
 			elapsed.Round(time.Millisecond), float64(statsTotal)/elapsed.Seconds())
 
-		if err := os.WriteFile(*htmlOutput, []byte(htmlContent), 0644); err != nil {
+		if err := os.WriteFile(*cfg.HTMLOutput, []byte(htmlContent), 0644); err != nil {
 			ui.PrintError(fmt.Sprintf("Error writing HTML report: %v", err))
 		} else {
-			fmt.Printf("[*] HTML report saved to: %s\n", *htmlOutput)
+			fmt.Printf("[*] HTML report saved to: %s\n", *cfg.HTMLOutput)
 		}
 	}
 
 	// Memory profiling if requested
-	if *memProfile != "" {
-		f, err := os.Create(*memProfile)
+	if *cfg.MemProfile != "" {
+		f, err := os.Create(*cfg.MemProfile)
 		if err != nil {
 			ui.PrintWarning(fmt.Sprintf("Could not create memory profile: %v", err))
 		} else {
@@ -2562,16 +2243,16 @@ func runProbe() {
 			if err := pprof.WriteHeapProfile(f); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Could not write memory profile: %v", err))
 			} else {
-				fmt.Printf("[*] Memory profile saved to: %s\n", *memProfile)
+				fmt.Printf("[*] Memory profile saved to: %s\n", *cfg.MemProfile)
 			}
 			f.Close()
 		}
 	}
 
 	// Custom fingerprint file notification
-	if *customFingerprintFile != "" {
+	if *cfg.CustomFingerprintFile != "" {
 		// Load custom fingerprints for tech detection
-		content, err := os.ReadFile(*customFingerprintFile)
+		content, err := os.ReadFile(*cfg.CustomFingerprintFile)
 		if err != nil {
 			ui.PrintWarning(fmt.Sprintf("Could not read custom fingerprint file: %v", err))
 		} else {
@@ -2580,33 +2261,33 @@ func runProbe() {
 			if err := json.Unmarshal(content, &fingerprints); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Could not parse custom fingerprint file: %v", err))
 			} else {
-				fmt.Printf("[*] Loaded %d custom fingerprints from: %s\n", len(fingerprints), *customFingerprintFile)
+				fmt.Printf("[*] Loaded %d custom fingerprints from: %s\n", len(fingerprints), *cfg.CustomFingerprintFile)
 			}
 		}
 	}
 
 	// Update check
-	if *updateCheck && !*disableUpdateCheck {
+	if *cfg.UpdateCheck && !*cfg.DisableUpdateCheck {
 		ui.PrintWarning("The -up/--update flag is deprecated and will be removed in a future release.")
 		ui.PrintWarning("Use 'waf-tester update' command instead.")
 	}
 
 	// Headless options acknowledgment
-	if *systemChrome {
+	if *cfg.SystemChrome {
 		fmt.Println("[*] Using system Chrome for screenshots")
 	}
-	if *headlessOptions != "" {
-		fmt.Printf("[*] Headless options: %s\n", *headlessOptions)
+	if *cfg.HeadlessOptions != "" {
+		fmt.Printf("[*] Headless options: %s\n", *cfg.HeadlessOptions)
 	}
-	if *screenshotIdle > 1 {
-		fmt.Printf("[*] Screenshot idle time: %d seconds\n", *screenshotIdle)
+	if *cfg.ScreenshotIdle > 1 {
+		fmt.Printf("[*] Screenshot idle time: %d seconds\n", *cfg.ScreenshotIdle)
 	}
-	if *javascriptCode != "" {
-		fmt.Printf("[*] JavaScript code to execute: %s\n", *javascriptCode)
+	if *cfg.JavascriptCode != "" {
+		fmt.Printf("[*] JavaScript code to execute: %s\n", *cfg.JavascriptCode)
 	}
 
 	// Vision recon clusters - save to file if any screenshots were clustered
-	if *storeVisionRecon && len(visionClusters) > 0 {
+	if *cfg.StoreVisionRecon && len(visionClusters) > 0 {
 		clusterFile := "vision_clusters.json"
 		data, err := json.MarshalIndent(visionClusters, "", "  ")
 		if err == nil {
@@ -2625,11 +2306,11 @@ func runProbe() {
 	}
 
 	// Filter error page path - save filtered error pages to file
-	if *filterErrorPage && len(filteredErrorPages) > 0 {
+	if *cfg.FilterErrorPage && len(filteredErrorPages) > 0 {
 		data, err := json.MarshalIndent(filteredErrorPages, "", "  ")
 		if err == nil {
-			if err := os.WriteFile(*filterErrorPagePath, data, 0644); err == nil {
-				fmt.Printf("[*] Saved %d filtered error pages to: %s\n", len(filteredErrorPages), *filterErrorPagePath)
+			if err := os.WriteFile(*cfg.FilterErrorPagePath, data, 0644); err == nil {
+				fmt.Printf("[*] Saved %d filtered error pages to: %s\n", len(filteredErrorPages), *cfg.FilterErrorPagePath)
 			} else {
 				ui.PrintWarning(fmt.Sprintf("Failed to write filtered error pages: %v", err))
 			}
@@ -2641,14 +2322,14 @@ func runProbe() {
 	// Cloud/Dashboard features - these require ProjectDiscovery Cloud Platform (PDCP) API
 	// which is a proprietary service. These flags are acknowledged for compatibility
 	// but require PDCP account and API keys to function.
-	if *pdAuth {
+	if *cfg.PdAuth {
 		fmt.Println("[*] PDCP authentication enabled (requires pdcp.io account)")
 		fmt.Println("    Note: PDCP integration requires ProjectDiscovery Cloud Platform subscription")
 	}
-	if *pdAuthConfig != "" {
+	if *cfg.PdAuthConfig != "" {
 		// Load auth config from file (JSON with api_key, team_id fields)
-		if data, err := os.ReadFile(*pdAuthConfig); err == nil {
-			fmt.Printf("[*] PDCP auth config loaded: %s (%d bytes)\n", *pdAuthConfig, len(data))
+		if data, err := os.ReadFile(*cfg.PdAuthConfig); err == nil {
+			fmt.Printf("[*] PDCP auth config loaded: %s (%d bytes)\n", *cfg.PdAuthConfig, len(data))
 			// Parse and validate the config structure
 			var authCfg map[string]interface{}
 			if json.Unmarshal(data, &authCfg) == nil {
@@ -2657,33 +2338,33 @@ func runProbe() {
 				}
 			}
 		} else {
-			fmt.Printf("[!] PDCP auth config not found: %s\n", *pdAuthConfig)
+			fmt.Printf("[!] PDCP auth config not found: %s\n", *cfg.PdAuthConfig)
 		}
 	}
-	if *pdDashboard {
+	if *cfg.PdDashboard {
 		fmt.Println("[*] Dashboard upload enabled (requires pdcp.io account)")
 	}
-	if *pdTeamID != "" {
-		fmt.Printf("[*] PDCP Team ID: %s\n", *pdTeamID)
+	if *cfg.PdTeamID != "" {
+		fmt.Printf("[*] PDCP Team ID: %s\n", *cfg.PdTeamID)
 	}
-	if *pdAssetID != "" {
-		fmt.Printf("[*] PDCP Asset ID: %s\n", *pdAssetID)
+	if *cfg.PdAssetID != "" {
+		fmt.Printf("[*] PDCP Asset ID: %s\n", *cfg.PdAssetID)
 	}
-	if *pdAssetName != "" {
-		fmt.Printf("[*] PDCP Asset name: %s\n", *pdAssetName)
+	if *cfg.PdAssetName != "" {
+		fmt.Printf("[*] PDCP Asset name: %s\n", *cfg.PdAssetName)
 	}
-	if *pdDashboardUpload != "" {
+	if *cfg.PdDashboardUpload != "" {
 		// Validate and prepare file for PDCP dashboard upload
-		if info, err := os.Stat(*pdDashboardUpload); err == nil {
-			fmt.Printf("[*] PDCP dashboard upload file: %s (%d bytes, ready)\n", *pdDashboardUpload, info.Size())
+		if info, err := os.Stat(*cfg.PdDashboardUpload); err == nil {
+			fmt.Printf("[*] PDCP dashboard upload file: %s (%d bytes, ready)\n", *cfg.PdDashboardUpload, info.Size())
 			fmt.Println("    Note: Actual upload requires PDCP API authentication")
 		} else {
-			fmt.Printf("[!] PDCP dashboard upload file not found: %s\n", *pdDashboardUpload)
+			fmt.Printf("[!] PDCP dashboard upload file not found: %s\n", *cfg.PdDashboardUpload)
 		}
 	}
 
 	// Enterprise file exports (--json-export, --sarif-export, etc.)
-	writeProbeExports(&outFlags, allProbeResults, time.Since(probeStartTime))
+	writeProbeExports(&cfg.Out, allProbeResults, time.Since(probeStartTime))
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// DISPATCHER SUMMARY EMISSION
