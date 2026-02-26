@@ -78,61 +78,6 @@ import (
 	"github.com/waftester/waftester/pkg/xxe"
 )
 
-// headerSlice implements flag.Value for repeated -H flags.
-// Does not split on commas since header values may contain them.
-type headerSlice []string
-
-func (h *headerSlice) String() string { return strings.Join(*h, "; ") }
-
-func (h *headerSlice) Set(value string) error {
-	*h = append(*h, value)
-	return nil
-}
-
-// countingTransport wraps an http.RoundTripper and atomically increments
-// a counter on every request. This feeds the LiveProgress rate display
-// so it shows real HTTP req/s instead of 0.0/s while scanners run.
-type countingTransport struct {
-	inner   http.RoundTripper
-	counter *int64
-}
-
-func (ct *countingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	atomic.AddInt64(ct.counter, 1)
-	return ct.inner.RoundTrip(req)
-}
-
-// rateLimitTransport enforces a per-request rate limit at the HTTP
-// transport level so all scanners share a single token bucket.
-// This replaces the per-scanner-launch limiter that only gated scanner
-// starts, not actual HTTP traffic.
-type rateLimitTransport struct {
-	inner   http.RoundTripper
-	limiter *rate.Limiter
-}
-
-func (rt *rateLimitTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if err := rt.limiter.Wait(req.Context()); err != nil {
-		return nil, err
-	}
-	return rt.inner.RoundTrip(req)
-}
-
-// tamperTransport applies WAF evasion tampers to every outgoing HTTP
-// request via the tamper engine's TransformRequest method. This ensures
-// all scanners benefit from --tamper/--tamper-auto without individual
-// scanner changes.
-type tamperTransport struct {
-	inner  http.RoundTripper
-	engine interface {
-		TransformRequest(req *http.Request) *http.Request
-	}
-}
-
-func (tt *tamperTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	return tt.inner.RoundTrip(tt.engine.TransformRequest(req))
-}
-
 func runScan() {
 	scanFlags := flag.NewFlagSet("scan", flag.ExitOnError)
 
@@ -280,6 +225,23 @@ func runScan() {
 	noDetect := scanFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
 
 	scanFlags.Parse(os.Args[2:])
+
+	// Validate flag values
+	if *concurrency < 1 {
+		exitWithError("--concurrency must be at least 1, got %d", *concurrency)
+	}
+	if *maxPayloads < 0 {
+		exitWithError("--max-payloads must be non-negative, got %d", *maxPayloads)
+	}
+	if *maxParams < 0 {
+		exitWithError("--max-params must be non-negative, got %d", *maxParams)
+	}
+	if *rateLimit < 0 {
+		exitWithError("--rate-limit must be non-negative, got %d", *rateLimit)
+	}
+	if *maxErrors < 1 {
+		exitWithError("--max-errors must be at least 1, got %d", *maxErrors)
+	}
 
 	// Resolve nuclei template directory: if the default path doesn't exist
 	// on disk, extract embedded templates to a temp directory.
@@ -3121,142 +3083,22 @@ func runScan() {
 	// the deferred Stop() from erasing output with ANSI clear codes.
 	progress.Stop()
 
-	// Print scan completion summary to stderr (never pollute stdout used for JSON/structured output)
-	if !streamJSON {
-		vulnColor := ""
-		colorReset := ""
-		if ui.StderrIsTerminal() {
-			vulnColor = "\033[32m" // Green
-			if result.TotalVulns > 0 {
-				vulnColor = "\033[33m" // Yellow
-			}
-			if result.TotalVulns > 5 {
-				vulnColor = "\033[31m" // Red
-			}
-			colorReset = "\033[0m"
-		}
-		vulnWord := "vulnerabilities"
-		if result.TotalVulns == 1 {
-			vulnWord = "vulnerability"
-		}
-		typeWord := "scan types"
-		if totalScans == 1 {
-			typeWord = "scan type"
-		}
-		fmt.Fprintln(os.Stderr) // debug:keep
-		ui.PrintSuccess(fmt.Sprintf("Scan complete in %s", result.Duration.Round(time.Millisecond)))
-		fmt.Fprintf(os.Stderr, "  %s Results: %s%d %s%s across %d %s\n", ui.Icon("📊", "#"), vulnColor, result.TotalVulns, vulnWord, colorReset, totalScans, typeWord) // debug:keep
-		if errCount := atomic.LoadInt32(&scanErrors); errCount > 0 {
-			ui.PrintWarning(fmt.Sprintf("%d scanner(s) encountered errors (use -verbose for details)", errCount))
-		}
-		fmt.Fprintln(os.Stderr) // debug:keep
-	}
-
-	// Apply report metadata
-	if *reportTitle != "" {
-		result.ReportTitle = *reportTitle
-	}
-	if *reportAuthor != "" {
-		result.ReportAuthor = *reportAuthor
-	}
-
-	// CSV output format
-	if *csvOutput {
-		printScanCSV(os.Stdout, target, result)
-		return
-	}
-
-	// Markdown output format
-	if *markdownOutput {
-		printScanMarkdown(os.Stdout, result)
-		return
-	}
-
-	// HTML output format
-	if *htmlOutput {
-		printScanHTML(os.Stdout, result)
-		return
-	}
-
-	// SARIF output format (for CI/CD integration)
-	if *sarifOutput {
-		printScanSARIF(os.Stdout, target, result)
-		return
-	}
-
-	// Check format type flag
-	if *formatType != "" && *formatType != "console" {
-		switch *formatType {
-		case "jsonl":
-			printScanJSONL(os.Stdout, target, result)
-			return
-		}
-	}
-
-	// Print summary (skip in stream+json mode - we already emitted events)
-	if !*jsonOutput && !streamJSON {
-		printScanConsoleSummary(result)
-	}
-
-	// Output JSON (skip final blob in stream+json mode - we already emitted events)
-	if (*jsonOutput || *outputFile != "") && !streamJSON {
-		jsonData, err := json.MarshalIndent(result, "", "  ")
-		if err != nil {
-			errMsg := fmt.Sprintf("JSON encoding error: %v", err)
-			ui.PrintError(errMsg)
-			if dispCtx != nil {
-				_ = dispCtx.EmitError(ctx, "scan", errMsg, true)
-				_ = dispCtx.Close()
-			}
-			os.Exit(1)
-		}
-
-		if *outputFile != "" {
-			if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
-				errMsg := fmt.Sprintf("Error writing output: %v", err)
-				ui.PrintError(errMsg)
-				if dispCtx != nil {
-					_ = dispCtx.EmitError(ctx, "scan", errMsg, true)
-					_ = dispCtx.Close()
-				}
-				os.Exit(1)
-			}
-			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
-		}
-
-		if *jsonOutput {
-			fmt.Println(string(jsonData)) // debug:keep
-		}
-	}
-
-	// Still write to file if specified in stream mode
-	if *outputFile != "" && streamJSON {
-		jsonData, err := json.MarshalIndent(result, "", "  ")
-		if err != nil {
-			errMsg := fmt.Sprintf("JSON encoding error: %v", err)
-			ui.PrintError(errMsg)
-			if dispCtx != nil {
-				_ = dispCtx.EmitError(ctx, "scan", errMsg, true)
-				_ = dispCtx.Close()
-			}
-			os.Exit(1)
-		}
-		if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
-			errMsg := fmt.Sprintf("Error writing output: %v", err)
-			ui.PrintError(errMsg)
-			if dispCtx != nil {
-				_ = dispCtx.EmitError(ctx, "scan", errMsg, true)
-			}
-		}
-	}
-
-	// Enterprise export formats (--json-export, --sarif-export, --html-export, etc.)
-	writeScanExports(&outFlags, target, result)
-
-	if result.TotalVulns > 0 {
-		if dispCtx != nil {
-			_ = dispCtx.Close()
-		}
-		os.Exit(1) // Exit with error if vulnerabilities found
-	}
+	// Finalize: output, exports, and exit code
+	finalizeScanOutput(ctx, result, scanOutputConfig{
+		Target:      target,
+		StreamJSON:  streamJSON,
+		TotalScans:  totalScans,
+		ScanErrors:  &scanErrors,
+		CSVOutput:   *csvOutput,
+		MDOutput:    *markdownOutput,
+		HTMLOutput:  *htmlOutput,
+		SARIFOutput: *sarifOutput,
+		JSONOutput:  *jsonOutput,
+		FormatType:  *formatType,
+		OutputFile:  *outputFile,
+		ReportTitle: *reportTitle,
+		ReportAuthor: *reportAuthor,
+		OutFlags:    &outFlags,
+		DispCtx:     dispCtx,
+	})
 }
