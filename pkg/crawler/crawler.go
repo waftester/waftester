@@ -22,6 +22,7 @@ import (
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/js"
 	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -45,17 +46,23 @@ type CrawlResult struct {
 	Headers       http.Header       `json:"headers,omitempty"`
 	RedirectChain []string          `json:"redirect_chain,omitempty"` // Full redirect history
 	Error         string            `json:"error,omitempty"`
+	APIEndpoints  []APIEndpointInfo `json:"api_endpoints,omitempty"`
+	Subdomains    []string          `json:"subdomains,omitempty"`    // Discovered subdomains
+	Emails        []string          `json:"emails,omitempty"`        // Extracted email addresses
+	Parameters    []string          `json:"parameters,omitempty"`    // Discovered parameter names
+	Secrets       []SecretFinding   `json:"secrets,omitempty"`       // Potential secrets/tokens
 	Timestamp     time.Time         `json:"timestamp"`
 }
 
 // FormInfo represents an HTML form
 type FormInfo struct {
-	Action  string      `json:"action"`
-	Method  string      `json:"method"`
-	ID      string      `json:"id,omitempty"`
-	Name    string      `json:"name,omitempty"`
-	Inputs  []InputInfo `json:"inputs,omitempty"`
-	Enctype string      `json:"enctype,omitempty"`
+	Action    string      `json:"action"`
+	Method    string      `json:"method"`
+	ID        string      `json:"id,omitempty"`
+	Name      string      `json:"name,omitempty"`
+	Inputs    []InputInfo `json:"inputs,omitempty"`
+	Enctype   string      `json:"enctype,omitempty"`
+	HasUpload bool        `json:"has_upload,omitempty"` // Contains file input
 }
 
 // InputInfo represents a form input
@@ -106,6 +113,12 @@ type Config struct {
 	ExtractParams    bool `json:"extract_params"`
 	ExtractSecrets   bool `json:"extract_secrets"`
 
+	// Advanced crawling options
+	PathClimbing     bool `json:"path_climbing"`      // Crawl parent paths (/a/b/c → /a/b/, /a/)
+	FormFilling      bool `json:"form_filling"`        // Auto-fill and submit forms
+	CrossDomainJS    bool `json:"cross_domain_js"`     // Analyze JS files from CDNs outside scope
+	SkipJSLibraries  bool `json:"skip_js_libraries"`   // Skip analysis of jQuery/React/Angular/etc.
+
 	// Request options
 	UserAgent  string            `json:"user_agent"`
 	Headers    map[string]string `json:"headers,omitempty"`
@@ -152,8 +165,14 @@ func DefaultConfig() *Config {
 		ExtractLinks:      true,
 		ExtractComments:   false,
 		ExtractMeta:       true,
+		ExtractEndpoints:  true,
 		FollowRobots:      true,
+		SameDomain:        true,
 		IncludeSubdomains: true,
+		PathClimbing:      true,
+		FormFilling:       true,
+		CrossDomainJS:     true,
+		SkipJSLibraries:   true,
 		UserAgent:         ui.UserAgentWithContext("crawler"),
 		DisallowedExtensions: []string{
 			".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp", ".ico",
@@ -161,7 +180,6 @@ func DefaultConfig() *Config {
 			".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
 			".zip", ".tar", ".gz", ".rar", ".7z",
 			".woff", ".woff2", ".ttf", ".eot", ".otf",
-			".css", // Often not useful for crawling
 		},
 	}
 }
@@ -180,6 +198,9 @@ type Crawler struct {
 	includeRE     []*regexp.Regexp
 	excludeRE     []*regexp.Regexp
 	baseDomain    string
+	baseHostname  string // hostname without port
+	basePort      string // port (or default for scheme)
+	jsAnalyzer    *js.Analyzer
 	wg            sync.WaitGroup
 	ctx           context.Context
 	cancel        context.CancelFunc
@@ -230,6 +251,7 @@ func NewCrawler(config *Config) *Crawler {
 		queue:       make(chan *crawlTask, defaults.ChannelLarge),
 		results:     make(chan *CrawlResult, defaults.ChannelMedium),
 		client:      client,
+		jsAnalyzer:  js.NewAnalyzer(),
 	}
 
 	// Compile include patterns
@@ -257,15 +279,27 @@ func (c *Crawler) Crawl(ctx context.Context, startURL string) (<-chan *CrawlResu
 	}
 
 	c.baseDomain = parsed.Host
+	c.baseHostname = parsed.Hostname()
+	c.basePort = parsed.Port()
+	if c.basePort == "" {
+		if parsed.Scheme == "https" {
+			c.basePort = "443"
+		} else {
+			c.basePort = "80"
+		}
+	}
 	c.ctx, c.cancel = context.WithCancel(ctx)
 
 	// Establish soft-404 baseline: request a known-nonexistent path and hash the body
 	c.detectSoft404(parsed)
 
-	// Enforce robots.txt: check disallowed paths
+	// Enforce robots.txt: check disallowed paths and extract Allow/Sitemap URLs
 	if c.config.FollowRobots {
 		c.loadRobotsTxt(parsed)
 	}
+
+	// Fetch sitemap.xml for additional crawl targets
+	c.loadSitemaps(parsed)
 
 	// Start workers
 	for i := 0; i < c.config.MaxConcurrency; i++ {
@@ -390,6 +424,37 @@ func (c *Crawler) worker() {
 					if form.Action != "" {
 						c.queueURL(form.Action, task.Depth+1)
 					}
+				}
+				// Queue external script URLs for JS endpoint extraction
+				for _, script := range result.Scripts {
+					c.queueURL(script, task.Depth+1)
+					// .min.js → .js source fallback: source files have better variable names
+					if strings.HasSuffix(strings.ToLower(script), ".min.js") {
+						base := script[:len(script)-len(".min.js")]
+						c.queueURL(base+".js", task.Depth+1)
+						c.queueURL(base+".js.map", task.Depth+1)
+					}
+				}
+				// Queue discovered API endpoints
+				for _, ep := range result.APIEndpoints {
+					if ep.Path != "" {
+						if taskParsed, parseErr := url.Parse(task.URL); parseErr == nil {
+							if resolved := resolveURL(ep.Path, taskParsed); resolved != "" {
+								c.queueURL(resolved, task.Depth+1)
+							}
+						}
+					}
+				}
+
+				// Path climbing: crawl parent paths to discover directory listings
+				if c.config.PathClimbing {
+					c.climbPaths(task.URL, task.Depth+1)
+				}
+
+				// Queue discovered subdomains
+				for _, sub := range result.Subdomains {
+					subURL := fmt.Sprintf("https://%s/", sub)
+					c.queueURL(subURL, task.Depth+1)
 				}
 			}
 
@@ -524,7 +589,65 @@ func (c *Crawler) crawlURL(rawURL string, depth int) *CrawlResult {
 	}
 	result.ContentLength = len(body)
 
-	// Only parse HTML content
+	// Extract URLs from response headers regardless of content type.
+	// Link, CSP, Location, Content-Location, and Set-Cookie headers reveal
+	// application structure even for non-HTML responses.
+	if c.config.ExtractLinks {
+		headerLinks, headerEPs := extractFromResponseHeaders(resp.Header, parsed)
+		result.Links = append(result.Links, headerLinks...)
+		result.APIEndpoints = append(result.APIEndpoints, headerEPs...)
+	}
+
+	// Handle JSON API responses — extract URLs/paths from JSON values.
+	if strings.Contains(result.ContentType, "application/json") || strings.Contains(result.ContentType, "text/json") {
+		if c.config.ExtractEndpoints {
+			jsonLinks, jsonEPs := extractFromJSONResponse(body, parsed)
+			result.Links = append(result.Links, jsonLinks...)
+			result.APIEndpoints = append(result.APIEndpoints, jsonEPs...)
+			// LinkFinder catches additional paths in JSON string values
+			lfLinks, lfEPs := extractWithLinkFinder(string(body), parsed)
+			result.Links = append(result.Links, lfLinks...)
+			result.APIEndpoints = append(result.APIEndpoints, lfEPs...)
+		}
+		if c.config.ExtractSecrets {
+			result.Secrets = extractSecrets(string(body), rawURL)
+		}
+		return result
+	}
+
+	// Handle JavaScript file responses — extract URLs and endpoints.
+	if strings.Contains(result.ContentType, "javascript") {
+		if c.config.ExtractEndpoints {
+			// Skip analysis of common JS libraries (jQuery, React, etc.) — they only produce noise
+			if c.config.SkipJSLibraries && isCommonJSLibrary(rawURL) {
+				return result
+			}
+			jsLinks, jsEPs := extractFromJSFile(body, parsed, c.jsAnalyzer)
+			result.Links = append(result.Links, jsLinks...)
+			result.APIEndpoints = append(result.APIEndpoints, jsEPs...)
+			// LinkFinder regex as fallback — catches things the AST parser misses
+			lfLinks, lfEPs := extractWithLinkFinder(string(body), parsed)
+			result.Links = append(result.Links, lfLinks...)
+			result.APIEndpoints = append(result.APIEndpoints, lfEPs...)
+		}
+		// Secrets commonly leak in JS bundles
+		if c.config.ExtractSecrets {
+			result.Secrets = extractSecrets(string(body), rawURL)
+		}
+		return result
+	}
+
+	// Handle XML responses (sitemap, RSS, etc.) — extract with LinkFinder
+	if strings.Contains(result.ContentType, "text/xml") || strings.Contains(result.ContentType, "application/xml") {
+		if c.config.ExtractEndpoints {
+			lfLinks, lfEPs := extractWithLinkFinder(string(body), parsed)
+			result.Links = append(result.Links, lfLinks...)
+			result.APIEndpoints = append(result.APIEndpoints, lfEPs...)
+		}
+		return result
+	}
+
+	// Only full HTML parsing for text/html content
 	if !strings.Contains(result.ContentType, "text/html") {
 		return result
 	}
@@ -577,6 +700,84 @@ func (c *Crawler) crawlURL(rawURL string, depth int) *CrawlResult {
 	// Extract meta tags
 	if c.config.ExtractMeta {
 		result.Meta = extractMetaTokenizer(htmlStr)
+	}
+
+	// Extract URLs from inline <script> tags — critical for SPAs.
+	// React/Vue/Angular/Next.js define routes in inline bundles.
+	if c.config.ExtractScripts {
+		inlineLinks, inlineEPs := extractInlineJSTokenizer(htmlStr, base, c.jsAnalyzer)
+		result.Links = append(result.Links, inlineLinks...)
+		result.APIEndpoints = append(result.APIEndpoints, inlineEPs...)
+	}
+
+	// Extract URLs from media elements (iframe, embed, object, video, audio, source)
+	if c.config.ExtractLinks {
+		result.Links = append(result.Links, extractMediaElementsTokenizer(htmlStr, base)...)
+	}
+
+	// Extract URLs from CSS url() in inline styles
+	result.Links = append(result.Links, extractCSSURLsTokenizer(htmlStr, base)...)
+
+	// LinkFinder regex as body-wide fallback — catches URLs in inline JS,
+	// JSON-LD, data attributes, and anywhere else the structured parsers miss.
+	if c.config.ExtractEndpoints {
+		lfLinks, lfEPs := extractWithLinkFinder(htmlStr, base)
+		result.Links = append(result.Links, lfLinks...)
+		result.APIEndpoints = append(result.APIEndpoints, lfEPs...)
+	}
+
+	// Add form actions to links so they get crawled
+	for i := range result.Forms {
+		if result.Forms[i].Action != "" {
+			result.Links = append(result.Links, result.Forms[i].Action)
+		}
+		// Flag upload forms (high-value WAF testing targets)
+		for _, input := range result.Forms[i].Inputs {
+			if strings.EqualFold(input.Type, "file") {
+				result.Forms[i].HasUpload = true
+				break
+			}
+		}
+	}
+
+	// Subdomain discovery from response body
+	if c.config.IncludeSubdomains && c.baseDomain != "" {
+		result.Subdomains = extractSubdomains(htmlStr, c.baseDomain)
+	}
+
+	// Cross-domain JS analysis: analyze out-of-scope scripts for endpoints
+	if c.config.CrossDomainJS && c.config.ExtractEndpoints {
+		c.analyzeCrossDomainScripts(result.Scripts, base, result)
+	}
+
+	// Auto-fill and submit forms to discover POST-based endpoints
+	if c.config.FormFilling {
+		for _, form := range result.Forms {
+			if filledReq := fillForm(form, base); filledReq != nil {
+				// Add the filled form URL to links for crawling
+				result.Links = append(result.Links, filledReq.URL)
+				result.APIEndpoints = append(result.APIEndpoints, APIEndpointInfo{
+					Path:   filledReq.URL,
+					Method: filledReq.Method,
+					Source: "form-fill",
+				})
+			}
+		}
+	}
+
+	// Email extraction from page content
+	if c.config.ExtractEmails {
+		result.Emails = extractEmails(htmlStr)
+	}
+
+	// Parameter extraction from discovered URLs
+	if c.config.ExtractParams {
+		result.Parameters = extractParameters(result.Links)
+	}
+
+	// Secret detection in page source
+	if c.config.ExtractSecrets {
+		result.Secrets = extractSecrets(htmlStr, rawURL)
 	}
 
 	return result
@@ -655,7 +856,94 @@ func (c *Crawler) normalizeURL(rawURL string) string {
 		parsed.Path = "/"
 	}
 
+	// Strip tracking parameters and sort query params for dedup
+	if parsed.RawQuery != "" {
+		params := parsed.Query()
+		for key := range params {
+			if isTrackingParam(key) {
+				params.Del(key)
+			}
+		}
+		// Sort query parameters for consistent dedup
+		parsed.RawQuery = sortedQueryString(params)
+	}
+
 	return parsed.String()
+}
+
+// trackingParams are query parameters that don't affect page content.
+// Stripping them improves crawl dedup efficiency.
+var trackingParams = map[string]bool{
+	"utm_source": true, "utm_medium": true, "utm_campaign": true,
+	"utm_term": true, "utm_content": true, "utm_id": true,
+	"fbclid": true, "gclid": true, "gclsrc": true, "dclid": true,
+	"msclkid": true, "twclid": true, "li_fat_id": true,
+	"mc_cid": true, "mc_eid": true, "igshid": true,
+	"_ga": true, "_gl": true, "_gid": true,
+	"ref": true, "ref_src": true, "ref_url": true,
+	"yclid": true, "ymclid": true, "ysclid": true,
+	"_hsenc": true, "_hsmi": true, "hsa_cam": true,
+}
+
+func isTrackingParam(key string) bool {
+	return trackingParams[strings.ToLower(key)]
+}
+
+// sortedQueryString produces a deterministic query string with params sorted by key.
+func sortedQueryString(params url.Values) string {
+	if len(params) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(params))
+	for k := range params {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var b strings.Builder
+	for i, k := range keys {
+		vals := params[k]
+		sort.Strings(vals)
+		for j, v := range vals {
+			if i > 0 || j > 0 {
+				b.WriteByte('&')
+			}
+			b.WriteString(url.QueryEscape(k))
+			b.WriteByte('=')
+			b.WriteString(url.QueryEscape(v))
+		}
+	}
+	return b.String()
+}
+
+// commonJSLibraryRE matches URLs of common JS libraries that should be skipped
+// during endpoint analysis (they produce only false positives).
+var commonJSLibraryRE = regexp.MustCompile(`(?i)(?:` +
+	`jquery|angular(?:js)?|react(?:-dom)?|vue(?:\.runtime)?|backbone|ember|` +
+	`bootstrap|foundation|materialize|bulma|semantic(?:-ui)?|` +
+	`lodash|underscore|moment|dayjs|luxon|date-fns|` +
+	`d3(?:\.v\d)?|chart\.?js|three(?:\.min)?|leaflet|mapbox|` +
+	`webpack|polyfill|babel|core-js|regenerator|tslib|` +
+	`google.*analytics|gtag|ga\.js|segment|mixpanel|amplitude|hotjar|` +
+	`stripe|paypal|braintree|recaptcha|turnstile|hcaptcha|` +
+	`socket\.io|sockjs|signalr|` +
+	`tinymce|ckeditor|quill|codemirror|ace-editor|monaco|` +
+	`swiper|slick|owl\.?carousel|lightbox|fancybox|photoswipe|` +
+	`gsap|anime|velocity|wow|scroll|parallax|` +
+	`font-?awesome|ionicons|material-icons|` +
+	`popper|tippy|floating-ui|` +
+	`highlight\.?js|prism(?:\.min)?|` +
+	`sentry|bugsnag|datadog|newrelic|rollbar` +
+	`)`)
+
+// isCommonJSLibrary checks if a script URL is a known JS library that
+// should be skipped during endpoint analysis.
+func isCommonJSLibrary(scriptURL string) bool {
+	// Extract just the filename/path portion for matching
+	if parsed, err := url.Parse(scriptURL); err == nil {
+		return commonJSLibraryRE.MatchString(parsed.Path)
+	}
+	return commonJSLibraryRE.MatchString(scriptURL)
 }
 
 func (c *Crawler) inScope(rawURL string) bool {
@@ -664,26 +952,44 @@ func (c *Crawler) inScope(rawURL string) bool {
 		return false
 	}
 
-	// Check if same domain or subdomain
-	host := parsed.Host
-	if host == c.baseDomain {
-		// Same domain, OK
-	} else if c.config.IncludeSubdomains && strings.HasSuffix(host, "."+c.baseDomain) {
-		// Subdomain, OK if allowed
-	} else if len(c.includeRE) > 0 {
-		// Check include patterns
-		matched := false
-		for _, re := range c.includeRE {
-			if re.MatchString(rawURL) {
-				matched = true
-				break
+	host := parsed.Hostname() // stripped of port
+
+	// Domain check (only when SameDomain is true, which is the default)
+	if c.config.SameDomain {
+		if host == c.baseHostname {
+			// Same domain, OK
+		} else if c.config.IncludeSubdomains && strings.HasSuffix(host, "."+c.baseHostname) {
+			// Subdomain, OK if allowed
+		} else if len(c.includeRE) > 0 {
+			// Check include patterns
+			matched := false
+			for _, re := range c.includeRE {
+				if re.MatchString(rawURL) {
+					matched = true
+					break
+				}
 			}
-		}
-		if !matched {
+			if !matched {
+				return false
+			}
+		} else {
 			return false
 		}
-	} else {
-		return false
+	}
+
+	// Port check (only when SamePort is true)
+	if c.config.SamePort {
+		port := parsed.Port()
+		if port == "" {
+			if parsed.Scheme == "https" {
+				port = "443"
+			} else {
+				port = "80"
+			}
+		}
+		if port != c.basePort {
+			return false
+		}
 	}
 
 	// Check exclude patterns
@@ -837,8 +1143,15 @@ func (c *Crawler) loadRobotsTxt(base *url.URL) {
 		return
 	}
 
-	disallowed := parseRobotsDisallowed(string(body))
+	robotsStr := string(body)
+	disallowed := parseRobotsDisallowed(robotsStr)
 	c.config.RobotsDisallowed = disallowed
+
+	// Extract Allow and Sitemap paths for crawling
+	allowedPaths := parseRobotsAllowAndSitemaps(robotsStr, base)
+	for _, p := range allowedPaths {
+		c.queueURL(p, 1)
+	}
 }
 
 // parseRobotsDisallowed extracts Disallow paths from robots.txt for * user-agent.
@@ -870,6 +1183,47 @@ func parseRobotsDisallowed(body string) []string {
 	return disallowed
 }
 
+// parseRobotsAllowAndSitemaps extracts Allow paths and Sitemap URLs from robots.txt.
+func parseRobotsAllowAndSitemaps(body string, base *url.URL) []string {
+	var urls []string
+	inWildcard := false
+
+	for _, line := range strings.Split(body, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		lower := strings.ToLower(line)
+
+		// Sitemap directives are global (not user-agent specific)
+		if strings.HasPrefix(lower, "sitemap:") {
+			sitemapURL := strings.TrimSpace(line[len("sitemap:"):])
+			if sitemapURL != "" {
+				urls = append(urls, sitemapURL)
+			}
+			continue
+		}
+
+		if strings.HasPrefix(lower, "user-agent:") {
+			agent := strings.TrimSpace(line[len("user-agent:"):])
+			inWildcard = agent == "*"
+			continue
+		}
+
+		if inWildcard && strings.HasPrefix(lower, "allow:") {
+			path := strings.TrimSpace(line[len("allow:"):])
+			if path != "" && path != "/" {
+				if resolved := resolveURL(path, base); resolved != "" {
+					urls = append(urls, resolved)
+				}
+			}
+		}
+	}
+
+	return urls
+}
+
 func (c *Crawler) isRobotsDisallowed(rawURL string) bool {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
@@ -883,6 +1237,302 @@ func (c *Crawler) isRobotsDisallowed(rawURL string) bool {
 		}
 	}
 	return false
+}
+
+// ---------- Sitemap.xml parsing ----------
+
+// sitemapPaths lists common sitemap locations to probe (same set as gospider).
+var sitemapPaths = []string{
+	"/sitemap.xml",
+	"/sitemap_index.xml",
+	"/sitemap-index.xml",
+	"/sitemapindex.xml",
+	"/sitemap_news.xml",
+	"/sitemap-news.xml",
+	"/post-sitemap.xml",
+	"/page-sitemap.xml",
+	"/portfolio-sitemap.xml",
+	"/category-sitemap.xml",
+	"/author-sitemap.xml",
+}
+
+// loadSitemaps fetches sitemap.xml files and queues discovered URLs for crawling.
+func (c *Crawler) loadSitemaps(base *url.URL) {
+	for _, path := range sitemapPaths {
+		sitemapURL := fmt.Sprintf("%s://%s%s", base.Scheme, base.Host, path)
+		c.parseSitemapURL(sitemapURL, base, 0)
+	}
+}
+
+// parseSitemapURL fetches and parses a single sitemap URL. Handles sitemap indexes
+// recursively (up to depth 2 to prevent infinite loops).
+func (c *Crawler) parseSitemapURL(sitemapURL string, base *url.URL, depth int) {
+	if depth > 2 {
+		return
+	}
+
+	req, err := http.NewRequestWithContext(c.ctx, "GET", sitemapURL, nil)
+	if err != nil {
+		return
+	}
+	req.Header.Set("User-Agent", c.config.UserAgent)
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return
+	}
+	defer iohelper.DrainAndClose(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return
+	}
+
+	body, err := iohelper.ReadBodyDefault(resp.Body)
+	if err != nil {
+		return
+	}
+
+	// Extract URLs using a simple regex — handles both <loc> and <sitemap> entries
+	locRE := regexcache.MustGet(`<loc>\s*([^<]+?)\s*</loc>`)
+	for _, match := range locRE.FindAllSubmatch(body, -1) {
+		if len(match) < 2 {
+			continue
+		}
+		loc := strings.TrimSpace(string(match[1]))
+		if loc == "" {
+			continue
+		}
+
+		// If the located URL is itself a sitemap, parse it recursively
+		lower := strings.ToLower(loc)
+		if strings.HasSuffix(lower, ".xml") || strings.Contains(lower, "sitemap") {
+			c.parseSitemapURL(loc, base, depth+1)
+		}
+
+		// Queue as crawl target
+		c.queueURL(loc, 1)
+	}
+}
+
+// ---------- Path climbing ----------
+
+// climbPaths extracts parent paths from a URL and queues them for crawling.
+// Given /a/b/c/page, it queues /a/b/c/, /a/b/, /a/ to discover directory listings.
+func (c *Crawler) climbPaths(rawURL string, depth int) {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return
+	}
+
+	path := parsed.Path
+	// Strip trailing filename
+	lastSlash := strings.LastIndex(path, "/")
+	if lastSlash <= 0 {
+		return
+	}
+	path = path[:lastSlash]
+
+	// Walk up directory tree
+	for path != "" && path != "/" {
+		parent := *parsed
+		parent.Path = path + "/"
+		parent.RawQuery = ""
+		c.queueURL(parent.String(), depth)
+
+		lastSlash = strings.LastIndex(path, "/")
+		if lastSlash <= 0 {
+			break
+		}
+		path = path[:lastSlash]
+	}
+}
+
+// ---------- Subdomain discovery ----------
+
+// extractSubdomains finds subdomains of baseDomain mentioned in text content.
+func extractSubdomains(text, baseDomain string) []string {
+	// Build a regex that matches *.baseDomain
+	escaped := regexp.QuoteMeta(baseDomain)
+	re, err := regexp.Compile(`(?i)([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.` + escaped + `)`)
+	if err != nil {
+		return nil
+	}
+
+	matches := re.FindAllString(text, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]bool, len(matches))
+	var result []string
+	for _, m := range matches {
+		lower := strings.ToLower(m)
+		if lower == baseDomain || seen[lower] {
+			continue
+		}
+		seen[lower] = true
+		result = append(result, lower)
+	}
+	return result
+}
+
+// ---------- Cross-domain JS analysis ----------
+
+// analyzeCrossDomainScripts fetches and analyzes JS files that are outside the
+// crawl scope (e.g., CDN-hosted application JS). Discovered endpoints are added
+// back to the result only if they resolve to in-scope URLs.
+func (c *Crawler) analyzeCrossDomainScripts(scripts []string, base *url.URL, result *CrawlResult) {
+	for _, script := range scripts {
+		if !c.inScope(script) && !isCommonJSLibrary(script) {
+			c.analyzeExternalJS(script, base, result)
+		}
+	}
+}
+
+func (c *Crawler) analyzeExternalJS(jsURL string, base *url.URL, result *CrawlResult) {
+	req, err := http.NewRequestWithContext(c.ctx, "GET", jsURL, nil)
+	if err != nil {
+		return
+	}
+	req.Header.Set("User-Agent", c.config.UserAgent)
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return
+	}
+	defer iohelper.DrainAndClose(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return
+	}
+
+	body, err := iohelper.ReadBodyDefault(resp.Body)
+	if err != nil || len(body) == 0 {
+		return
+	}
+
+	jsParsed, _ := url.Parse(jsURL)
+	if jsParsed == nil {
+		jsParsed = base
+	}
+
+	// Run both AST analyzer and LinkFinder
+	jsLinks, jsEPs := extractFromJSFile(body, jsParsed, c.jsAnalyzer)
+	lfLinks, lfEPs := extractWithLinkFinder(string(body), jsParsed)
+
+	// Only keep endpoints that resolve to in-scope URLs
+	for _, link := range append(jsLinks, lfLinks...) {
+		if c.inScope(link) {
+			result.Links = append(result.Links, link)
+		}
+	}
+	for _, ep := range append(jsEPs, lfEPs...) {
+		if resolved := resolveURL(ep.Path, base); resolved != "" && c.inScope(resolved) {
+			ep.Source = "crossdomain-" + ep.Source
+			result.APIEndpoints = append(result.APIEndpoints, ep)
+		}
+	}
+}
+
+// ---------- Form filling ----------
+
+// FilledFormRequest represents a form that has been auto-filled for submission.
+type FilledFormRequest struct {
+	URL         string
+	Method      string
+	ContentType string
+	Body        string
+}
+
+// formFillDefaults provides type-aware default values for form inputs.
+var formFillDefaults = map[string]string{
+	"email":    "test@example.org",
+	"password": "TestP@ssw0rd1!",
+	"tel":      "2124567890",
+	"number":   "1",
+	"range":    "50",
+	"color":    "#e66465",
+	"date":     "2025-01-15",
+	"time":     "12:00",
+	"url":      "https://example.com",
+	"search":   "test",
+	"month":    "2025-01",
+	"week":     "2025-W03",
+}
+
+// fillForm generates a filled form request for submission.
+// Hidden input values are preserved (CSRF tokens, etc.).
+// Returns nil if the form cannot be filled.
+func fillForm(form FormInfo, base *url.URL) *FilledFormRequest {
+	if form.Action == "" && len(form.Inputs) == 0 {
+		return nil
+	}
+
+	params := url.Values{}
+	for _, input := range form.Inputs {
+		if input.Name == "" {
+			continue
+		}
+
+		val := input.Value
+		if val == "" {
+			// Don't overwrite hidden inputs — they contain CSRF tokens, etc.
+			if strings.EqualFold(input.Type, "hidden") {
+				continue
+			}
+
+			// Use placeholder if available
+			if input.Placeholder != "" {
+				val = input.Placeholder
+			} else if def, ok := formFillDefaults[strings.ToLower(input.Type)]; ok {
+				val = def
+			} else {
+				val = "test"
+			}
+		}
+		params.Set(input.Name, val)
+	}
+
+	if len(params) == 0 {
+		return nil
+	}
+
+	method := strings.ToUpper(form.Method)
+	if method == "" {
+		method = "GET"
+	}
+
+	actionURL := form.Action
+	if actionURL == "" && base != nil {
+		actionURL = base.String()
+	}
+
+	result := &FilledFormRequest{
+		Method: method,
+	}
+
+	if method == "GET" {
+		// Append params to URL
+		parsed, err := url.Parse(actionURL)
+		if err != nil {
+			return nil
+		}
+		existing := parsed.Query()
+		for k, vs := range params {
+			for _, v := range vs {
+				existing.Set(k, v)
+			}
+		}
+		parsed.RawQuery = existing.Encode()
+		result.URL = parsed.String()
+		result.ContentType = ""
+	} else {
+		result.URL = actionURL
+		result.ContentType = "application/x-www-form-urlencoded"
+		result.Body = params.Encode()
+	}
+
+	return result
 }
 
 // ---------- Redirect chain tracking ----------
@@ -959,27 +1609,139 @@ func extractLinksTokenizer(htmlStr string, base *url.URL) []string {
 
 		if tt == html.StartTagToken || tt == html.SelfClosingTagToken {
 			t := z.Token()
+			tag := t.Data
 
-			// Standard href attribute (a, area, link)
+			// Standard href attribute (a, area, link, base)
 			if href := getAttr(t, "href"); href != "" {
 				addLink(href)
 			}
 
-			// data-href, data-url attributes (common in lazy-loading / SPAs)
+			// a[ping], area[ping] — tracking URLs
+			if tag == "a" || tag == "area" {
+				if ping := getAttr(t, "ping"); ping != "" {
+					addLink(ping)
+				}
+			}
+
+			// src attribute (script, img, frame, iframe, embed, input, audio, video, source, track)
+			if src := getAttr(t, "src"); src != "" {
+				switch tag {
+				case "script", "frame", "iframe", "embed", "video", "audio", "source", "track":
+					addLink(src)
+				case "img":
+					if !strings.HasPrefix(src, "data:") {
+						addLink(src)
+					}
+				case "input":
+					// input[type='image'] src
+					if strings.EqualFold(getAttr(t, "type"), "image") {
+						addLink(src)
+					}
+				}
+			}
+
+			// data-href, data-url, data-src attributes (lazy-loading / SPAs)
 			if dh := getAttr(t, "data-href"); dh != "" {
 				addLink(dh)
 			}
 			if du := getAttr(t, "data-url"); du != "" {
 				addLink(du)
 			}
+			if ds := getAttr(t, "data-src"); ds != "" {
+				addLink(ds)
+			}
+
+			// button[formaction]
+			if tag == "button" {
+				if fa := getAttr(t, "formaction"); fa != "" {
+					addLink(fa)
+				}
+			}
+
+			// blockquote[cite]
+			if tag == "blockquote" {
+				if cite := getAttr(t, "cite"); cite != "" {
+					addLink(cite)
+				}
+			}
+
+			// body[background], table[background], td[background]
+			if tag == "body" || tag == "table" || tag == "td" {
+				if bg := getAttr(t, "background"); bg != "" {
+					addLink(bg)
+				}
+			}
+
+			// img — dynsrc, longdesc, lowsrc, srcset
+			if tag == "img" {
+				for _, attr := range []string{"dynsrc", "longdesc", "lowsrc"} {
+					if v := getAttr(t, attr); v != "" {
+						addLink(v)
+					}
+				}
+			}
+
+			// video[poster]
+			if tag == "video" {
+				if poster := getAttr(t, "poster"); poster != "" {
+					addLink(poster)
+				}
+			}
+
+			// object[data], object[codebase]
+			if tag == "object" {
+				if data := getAttr(t, "data"); data != "" {
+					addLink(data)
+				}
+				if cb := getAttr(t, "codebase"); cb != "" {
+					addLink(cb)
+				}
+			}
+
+			// applet[archive], applet[codebase]
+			if tag == "applet" {
+				if archive := getAttr(t, "archive"); archive != "" {
+					addLink(archive)
+				}
+				if cb := getAttr(t, "codebase"); cb != "" {
+					addLink(cb)
+				}
+			}
+
+			// isindex[action]
+			if tag == "isindex" {
+				if action := getAttr(t, "action"); action != "" {
+					addLink(action)
+				}
+			}
+
+			// import[implementation]
+			if tag == "import" {
+				if impl := getAttr(t, "implementation"); impl != "" {
+					addLink(impl)
+				}
+			}
+
+			// html[manifest]
+			if tag == "html" {
+				if manifest := getAttr(t, "manifest"); manifest != "" {
+					addLink(manifest)
+				}
+			}
 
 			// meta http-equiv="refresh" content="0;url=..."
-			if t.Data == "meta" {
+			if tag == "meta" {
 				equiv := strings.ToLower(getAttr(t, "http-equiv"))
 				if equiv == "refresh" {
 					content := getAttr(t, "content")
 					if u := parseMetaRefreshURL(content); u != "" {
 						addLink(u)
+					}
+				}
+				// Also extract URLs from meta content (og:url, etc.)
+				if content := getAttr(t, "content"); content != "" {
+					if looksLikeURL(content) {
+						addLink(content)
 					}
 				}
 			}
@@ -990,6 +1752,16 @@ func extractLinksTokenizer(htmlStr string, base *url.URL) []string {
 					parts := strings.Fields(strings.TrimSpace(entry))
 					if len(parts) > 0 {
 						addLink(parts[0])
+					}
+				}
+			}
+
+			// htmx attributes: hx-get, hx-post, hx-put, hx-delete, hx-patch
+			for _, attr := range t.Attr {
+				switch attr.Key {
+				case "hx-get", "hx-post", "hx-put", "hx-delete", "hx-patch":
+					if attr.Val != "" {
+						addLink(attr.Val)
 					}
 				}
 			}
@@ -1065,6 +1837,9 @@ func extractFormsTokenizer(htmlStr string, base *url.URL) []FormInfo {
 							input.Required = true
 							break
 						}
+					}
+					if strings.EqualFold(input.Type, "file") {
+						currentForm.HasUpload = true
 					}
 					if input.Name != "" {
 						currentForm.Inputs = append(currentForm.Inputs, input)

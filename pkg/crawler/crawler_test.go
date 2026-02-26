@@ -88,11 +88,14 @@ func TestCrawlerNormalizeURL(t *testing.T) {
 
 func TestCrawlerInScope(t *testing.T) {
 	config := &Config{
+		SameDomain:        true,
 		IncludeSubdomains: true,
 		ExcludeScope:      []string{`/admin`, `/private`},
 	}
 	c := NewCrawler(config)
 	c.baseDomain = "example.com"
+	c.baseHostname = "example.com"
+	c.basePort = "443"
 
 	tests := []struct {
 		url      string
