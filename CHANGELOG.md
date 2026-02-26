@@ -5,6 +5,19 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.33] - 2026-02-26
+
+### Added
+
+- **Fuzz command smart mode and tamper engine** — Wire WAF-aware testing into the fuzz command with `--smart`, `--smart-mode`, `--smart-verbose` flags for auto-detection, plus `--tamper`, `--tamper-auto`, `--tamper-profile`, `--tamper-dir` for evasion transformations via a `RequestTransformer` interface.
+- **Spec pipeline smart mode integration** — The `--spec`/`--spec-url` scan path now benefits from WAF detection when `--smart` is enabled, applying WAF-tuned concurrency and rate limiting to API spec-driven scans.
+
+### Fixed
+
+- **Auto scan strategy disconnects** — Four strategy fields were computed and cached but silently discarded during test execution: `PrioritizeMutators` now feeds tamper engine hints, `PrioritizePayloads()` orders categories by bypass likelihood, `RecommendedMutationDepth` replaces the hardcoded depth of 3, and `Strategy.Encoders` boosts WAF-effective payloads to the front of the queue.
+- **Pipeline mode filtering** — Encoder boost, tamper hints, and mutation depth now prefer the mode-filtered Pipeline config over raw Strategy fields, so quick/stealth modes test fewer encodings while full/bypass modes test everything.
+- **Screenshot BatchCapturer data race** — Eliminated a race between `Add()` and `Stop()` where a channel send could hit a closed channel; fixed with an atomic stopped flag and a select guard on the done channel.
+
 ## [2.9.32] - 2026-02-26
 
 ### Fixed
@@ -2523,6 +2536,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.33]: https://github.com/waftester/waftester/compare/v2.9.32...v2.9.33
 [2.9.32]: https://github.com/waftester/waftester/compare/v2.9.31...v2.9.32
 [2.9.31]: https://github.com/waftester/waftester/compare/v2.9.30...v2.9.31
 [2.9.30]: https://github.com/waftester/waftester/compare/v2.9.29...v2.9.30
