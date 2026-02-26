@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -2213,6 +2214,54 @@ func runAutoScan() {
 			}
 		}
 
+		// ── STRATEGY-BASED CATEGORY ORDERING ────────────────────────────────
+		// When smart mode detected a WAF, use the strategy's PrioritizePayloads
+		// to order payload categories by generic bypass likelihood (e.g., sqli
+		// before xss). This provides a good initial ordering even on the first
+		// scan when the brain predictor has no training data.
+		if smartResult != nil && smartResult.Strategy != nil && len(allPayloads) > 1 {
+			// Collect unique categories
+			catSet := make(map[string]bool)
+			for _, p := range allPayloads {
+				catSet[strings.ToLower(p.Category)] = true
+			}
+			cats := make([]string, 0, len(catSet))
+			for c := range catSet {
+				cats = append(cats, c)
+			}
+			prioritized := smartResult.Strategy.PrioritizePayloads(cats)
+
+			// Build category→priority index
+			catPriority := make(map[string]int, len(prioritized))
+			for i, c := range prioritized {
+				catPriority[c] = i
+			}
+
+			sort.SliceStable(allPayloads, func(i, j int) bool {
+				pi := catPriority[strings.ToLower(allPayloads[i].Category)]
+				pj := catPriority[strings.ToLower(allPayloads[j].Category)]
+				return pi < pj
+			})
+		}
+
+		// ── STRATEGY-BASED ENCODING BOOST ───────────────────────────────────
+		// When smart mode provides recommended encoders, boost payloads whose
+		// EncodingUsed matches a recommended encoder to the front within their
+		// category group. This is a stable sort tie-breaker: payloads using
+		// WAF-effective encodings (e.g., double_url for Cloudflare) run first.
+		if smartResult != nil && smartResult.Strategy != nil && len(smartResult.Strategy.Encoders) > 0 && len(allPayloads) > 1 {
+			recEnc := make(map[string]bool, len(smartResult.Strategy.Encoders))
+			for _, e := range smartResult.Strategy.Encoders {
+				recEnc[strings.ToLower(e)] = true
+			}
+			sort.SliceStable(allPayloads, func(i, j int) bool {
+				iRec := recEnc[strings.ToLower(allPayloads[i].EncodingUsed)]
+				jRec := recEnc[strings.ToLower(allPayloads[j].EncodingUsed)]
+				// Recommended encoding sorts before non-recommended
+				return iRec && !jRec
+			})
+		}
+
 		// ── PREDICTIVE PAYLOAD RANKING ──────────────────────────────────────
 		// Use the brain's Predictor to reorder payloads by predicted bypass
 		// probability. Payloads most likely to bypass the WAF execute first,
@@ -2400,12 +2449,26 @@ func runAutoScan() {
 				}
 			}
 
-			// Collect strategy-recommended evasions as hints for tamper selection.
-			// These come from smart mode's WAF-specific strategy (e.g., Cloudflare
-			// recommends case_swap, chunked, whitespace_alt).
+			// Collect strategy-recommended evasions AND prioritized mutation techniques
+			// as hints for tamper selection. Evasions come from WAF-specific bypass
+			// knowledge; PrioritizeMutators lists encoding/technique names (e.g.,
+			// "unicode", "case_swap") the vendor is known to be weak against.
 			var strategyHints []string
 			if smartResult != nil && smartResult.Strategy != nil {
 				strategyHints = smartResult.Strategy.Evasions
+				// Merge PrioritizeMutators — technique names that the tamper engine's
+				// mergeStrategyHints() can match against its registry.
+				if len(smartResult.Strategy.PrioritizeMutators) > 0 {
+					seen := make(map[string]bool, len(strategyHints))
+					for _, h := range strategyHints {
+						seen[strings.ToLower(h)] = true
+					}
+					for _, m := range smartResult.Strategy.PrioritizeMutators {
+						if !seen[strings.ToLower(m)] {
+							strategyHints = append(strategyHints, m)
+						}
+					}
+				}
 			}
 
 			tamperEngine = tampers.NewEngine(&tampers.EngineConfig{
@@ -2861,7 +2924,12 @@ func runAutoScan() {
 
 		if len(blocked) > 0 {
 			var mutatedPayloads []payloads.Payload
-			const maxMutationsPerPayload = 3
+			// Use WAF-tuned mutation depth when smart mode detected a vendor,
+			// falling back to a safe default of 3 otherwise.
+			maxMutationsPerPayload := 3
+			if smartResult != nil && smartResult.Strategy != nil && smartResult.Strategy.RecommendedMutationDepth > 0 {
+				maxMutationsPerPayload = smartResult.Strategy.RecommendedMutationDepth
+			}
 
 			for _, b := range blocked {
 				suggestions := brain.SuggestMutations(b.category, b.payload)
