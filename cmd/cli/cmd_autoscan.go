@@ -29,7 +29,6 @@ import (
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
 	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/httpclient"
-	"github.com/waftester/waftester/pkg/input"
 	"github.com/waftester/waftester/pkg/intelligence"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/js"
@@ -163,32 +162,24 @@ func runAutoScan() {
 	outFlags.RegisterOutputAliases(autoFlags)
 	outFlags.Version = ui.Version
 
-	var targetURLs input.StringSliceFlag
-	autoFlags.Var(&targetURLs, "u", "Target URL(s)")
-	autoFlags.Var(&targetURLs, "target", "Target URL(s)")
-	listFile := autoFlags.String("l", "", "File containing target URLs")
-	stdinInput := autoFlags.Bool("stdin", false, "Read targets from stdin")
+	var cf CommonFlags
+	cf.Register(autoFlags, 10)
+
 	service := autoFlags.String("service", "", "Service preset: wordpress, drupal, nextjs, flask, django")
 	payloadDirFlag := autoFlags.String("payloads", "", "Payload directory (default: auto-detect)")
 	concurrency := autoFlags.Int("c", 50, "Concurrent workers for testing")
 	rateLimit := autoFlags.Int("rl", 200, "Rate limit (requests per second)")
-	timeout := autoFlags.Int("timeout", 10, "HTTP timeout in seconds")
-	skipVerify := autoFlags.Bool("skip-verify", false, "Skip TLS verification")
 	depth := autoFlags.Int("depth", 3, "Max crawl depth for discovery")
 	outputDir := autoFlags.String("output-dir", "", "Output directory (default: workspaces/<domain>/<timestamp>)")
-	verbose := autoFlags.Bool("v", false, "Verbose output")
 	noClean := autoFlags.Bool("no-clean", false, "Don't clean previous workspace files")
 
 	// Smart mode (WAF-aware testing with 197+ vendor signatures)
-	smartMode := autoFlags.Bool("smart", false, "Enable WAF-aware testing (auto-detect WAF and optimize)")
-	smartModeType := autoFlags.String("smart-mode", "standard", "Smart mode type: quick, standard, full, bypass, stealth")
-	smartVerbose := autoFlags.Bool("smart-verbose", false, "Show detailed WAF detection info")
+	var smartFlags SmartModeFlags
+	smartFlags.Register(autoFlags)
 
 	// Tamper scripts (70+ sqlmap-compatible WAF bypass transformations)
-	tamperList := autoFlags.String("tamper", "", "Comma-separated tamper scripts: space2comment,randomcase,charencode")
-	tamperAuto := autoFlags.Bool("tamper-auto", false, "Auto-select tampers based on detected WAF")
-	tamperProfile := autoFlags.String("tamper-profile", "standard", "Tamper profile: stealth, standard, aggressive, bypass")
-	tamperDir := autoFlags.String("tamper-dir", "", "Directory of .tengo script tampers to load")
+	var tamperFlags TamperFlags
+	tamperFlags.Register(autoFlags)
 
 	// Enterprise assessment with quantitative metrics (NOW DEFAULT for superpower mode)
 	enableAssess := autoFlags.Bool("assess", true, "Run enterprise assessment with F1/precision/MCC metrics (default: true)")
@@ -253,7 +244,7 @@ func runAutoScan() {
 	if *rateLimit <= 0 {
 		exitWithError("--rl must be a positive integer")
 	}
-	if *timeout <= 0 {
+	if cf.Timeout <= 0 {
 		exitWithError("--timeout must be a positive integer")
 	}
 
@@ -318,11 +309,7 @@ func runAutoScan() {
 	// Get target. In spec mode, target is optional — the spec's server
 	// URLs will be used if -u is not provided.
 	specModeActive := *specFile != "" || *specURL != ""
-	ts := &input.TargetSource{
-		URLs:     targetURLs,
-		ListFile: *listFile,
-		Stdin:    *stdinInput,
-	}
+	ts := cf.TargetSource()
 	target, err := ts.GetSingleTarget()
 	if err != nil && !specModeActive {
 		ui.PrintError("Target URL is required. Use: waf-tester auto -u https://example.com")
@@ -559,8 +546,8 @@ func runAutoScan() {
 	if *enableJA3 {
 		ja3Cfg := &tlsja3.Config{
 			RotateEvery: 25,
-			Timeout:     time.Duration(*timeout) * time.Second,
-			SkipVerify:  *skipVerify,
+			Timeout:     time.Duration(cf.Timeout) * time.Second,
+			SkipVerify:  cf.SkipVerify,
 		}
 		if *ja3Profile != "" {
 			// Use specific profile
@@ -626,7 +613,7 @@ func runAutoScan() {
 	smartModeFile := filepath.Join(workspaceDir, "smart-mode.json")
 	var smartResult *SmartModeResult
 
-	if *smartMode && shouldSkipPhase("smart-mode") {
+	if *smartFlags.Enabled && shouldSkipPhase("smart-mode") {
 		ui.PrintInfo("⏭️  Skipping smart mode (already completed)")
 		// Reload cached smart mode results for downstream phases
 		if data, err := os.ReadFile(smartModeFile); err == nil {
@@ -637,16 +624,16 @@ func runAutoScan() {
 		}
 	}
 
-	if *smartMode && smartResult == nil && !shouldSkipPhase("smart-mode") {
+	if *smartFlags.Enabled && smartResult == nil && !shouldSkipPhase("smart-mode") {
 		printStatusLn(ui.SectionStyle.Render("PHASE 0: Smart Mode - WAF Detection & Strategy Optimization"))
 		printStatusLn()
 
 		ui.PrintInfo(ui.Icon("🧠", "*") + " Detecting WAF vendor from 197+ signatures...")
 
 		smartConfig := &SmartModeConfig{
-			DetectionTimeout: time.Duration(*timeout) * time.Second,
-			Verbose:          *smartVerbose,
-			Mode:             *smartModeType,
+			DetectionTimeout: time.Duration(cf.Timeout) * time.Second,
+			Verbose:          *smartFlags.Verbose,
+			Mode:             *smartFlags.Mode,
 		}
 
 		var err error
@@ -656,7 +643,7 @@ func runAutoScan() {
 		}
 
 		if !quietMode {
-			PrintSmartModeInfo(smartResult, *smartVerbose)
+			PrintSmartModeInfo(smartResult, *smartFlags.Verbose)
 		}
 
 		// Apply WAF-optimized rate limit and concurrency
@@ -727,9 +714,9 @@ func runAutoScan() {
 			yes:            *specYes,
 			concurrency:    *concurrency,
 			rateLimit:      *rateLimit,
-			timeout:        *timeout,
-			skipVerify:     *skipVerify,
-			verbose:        *verbose,
+			timeout:        cf.Timeout,
+			skipVerify:     cf.SkipVerify,
+			verbose:        cf.Verbose,
 			quietMode:      quietMode,
 			outFlags:       &outFlags,
 			printStatus:    printStatus,
@@ -746,12 +733,12 @@ func runAutoScan() {
 		fmt.Printf("  Target:        %s\n", target)
 		fmt.Printf("  Concurrency:   %d\n", *concurrency)
 		fmt.Printf("  Rate Limit:    %d req/sec\n", *rateLimit)
-		fmt.Printf("  Timeout:       %ds\n", *timeout)
-		fmt.Printf("  Smart Mode:    %v\n", *smartMode)
+		fmt.Printf("  Timeout:       %ds\n", cf.Timeout)
+		fmt.Printf("  Smart Mode:    %v\n", *smartFlags.Enabled)
 		fmt.Printf("  Brain Mode:    %v\n", *enableBrain)
 		fmt.Println()
 		ui.PrintSection("Phases")
-		if *smartMode {
+		if *smartFlags.Enabled {
 			fmt.Println("  0. Smart Mode - WAF Detection & Strategy Optimization")
 		}
 		fmt.Println("  1. Target Discovery & Reconnaissance")
@@ -794,11 +781,11 @@ func runAutoScan() {
 		discoveryCfg := discovery.DiscoveryConfig{
 			Target:      target,
 			Service:     *service,
-			Timeout:     time.Duration(*timeout) * time.Second,
+			Timeout:     time.Duration(cf.Timeout) * time.Second,
 			Concurrency: *concurrency,
 			MaxDepth:    *depth,
-			SkipVerify:  *skipVerify,
-			Verbose:     *verbose,
+			SkipVerify:  cf.SkipVerify,
+			Verbose:     cf.Verbose,
 			HTTPClient:  ja3Client, // JA3 TLS fingerprint rotation
 		}
 
@@ -922,10 +909,10 @@ func runAutoScan() {
 
 		leakyScanner := leakypaths.NewScanner(&leakypaths.Config{
 			Base: attackconfig.Base{
-				Timeout:     time.Duration(*timeout) * time.Second,
+				Timeout:     time.Duration(cf.Timeout) * time.Second,
 				Concurrency: *concurrency,
 			},
-			Verbose:    *verbose,
+			Verbose:    cf.Verbose,
 			HTTPClient: ja3Client, // JA3 TLS fingerprint rotation
 		})
 
@@ -1191,7 +1178,7 @@ func runAutoScan() {
 		if ja3Client != nil {
 			client = ja3Client
 		} else {
-			client = httpclient.New(httpclient.WithTimeout(time.Duration(*timeout) * time.Second))
+			client = httpclient.New(httpclient.WithTimeout(time.Duration(cf.Timeout) * time.Second))
 		}
 
 		totalJSFiles := len(jsFiles)
@@ -1298,7 +1285,7 @@ func runAutoScan() {
 			atomic.AddInt32(&secretsFound, int32(len(result.Secrets)))
 			atomic.AddInt32(&endpointsFound, int32(len(result.Endpoints)))
 
-			if *verbose {
+			if cf.Verbose {
 				ui.PrintInfo(fmt.Sprintf("  Analyzed: %s (%d URLs, %d endpoints, %d secrets)",
 					jsPath, len(result.URLs), len(result.Endpoints), len(result.Secrets)))
 			}
@@ -1525,10 +1512,10 @@ func runAutoScan() {
 
 		paramDiscoverer := params.NewDiscoverer(&params.Config{
 			Base: attackconfig.Base{
-				Timeout:     time.Duration(*timeout) * time.Second,
+				Timeout:     time.Duration(cf.Timeout) * time.Second,
 				Concurrency: *concurrency,
 			},
-			Verbose:      *verbose,
+			Verbose:      cf.Verbose,
 			ChunkSize:    256, // Test 256 params per request for efficiency
 			HTTPClient:   ja3Client,
 			WordlistFile: *paramWordlist,
@@ -1609,7 +1596,7 @@ func runAutoScan() {
 			for _, endpoint := range testEndpoints {
 				result, err := paramDiscoverer.Discover(ctx, endpoint)
 				if err != nil {
-					if *verbose && !quietMode {
+					if cf.Verbose && !quietMode {
 						fmt.Fprintln(os.Stderr)
 						ui.PrintWarning(fmt.Sprintf("  Warning for %s: %v", endpoint, err))
 					}
@@ -1791,11 +1778,11 @@ func runAutoScan() {
 
 		reconScanner := recon.NewScanner(&recon.Config{
 			Base: attackconfig.Base{
-				Timeout:     time.Duration(*timeout) * time.Second,
+				Timeout:     time.Duration(cf.Timeout) * time.Second,
 				Concurrency: *concurrency,
 			},
-			Verbose:              *verbose,
-			SkipTLSVerify:        *skipVerify,
+			Verbose:              cf.Verbose,
+			SkipTLSVerify:        cf.SkipVerify,
 			HTTPClient:           ja3Client, // JA3 TLS fingerprint rotation
 			EnableLeakyPaths:     *enableLeakyPaths && !alreadyRanLeaky,
 			EnableParamDiscovery: *enableParamDiscovery && !alreadyRanParams,
@@ -2070,7 +2057,7 @@ func runAutoScan() {
 		}
 
 		// Re-run calibration so sub-pass executors have a valid filter config.
-		cal := calibration.NewCalibratorWithClient(target, time.Duration(*timeout)*time.Second, *skipVerify, ja3Client)
+		cal := calibration.NewCalibratorWithClient(target, time.Duration(cf.Timeout)*time.Second, cf.SkipVerify, ja3Client)
 		if calResult, calErr := cal.Calibrate(ctx); calErr == nil && calResult != nil && calResult.Calibrated {
 			filterCfg.FilterStatus = calResult.Suggestions.FilterStatus
 			filterCfg.FilterSize = calResult.Suggestions.FilterSize
@@ -2115,7 +2102,7 @@ func runAutoScan() {
 
 		// Load payloads from unified engine (JSON + Nuclei templates)
 		var err error
-		allPayloads, _, err = loadUnifiedPayloads(payloadDir, templateDir, *verbose)
+		allPayloads, _, err = loadUnifiedPayloads(payloadDir, templateDir, cf.Verbose)
 		if err != nil {
 			errMsg := fmt.Sprintf("Error loading payloads: %v", err)
 			ui.PrintError(errMsg)
@@ -2144,7 +2131,7 @@ func runAutoScan() {
 			if len(allPayloads) == 0 {
 				ui.PrintWarning("No payloads match test plan categories, using full payload set")
 				var reloadErr error
-				allPayloads, _, reloadErr = loadUnifiedPayloads(payloadDir, templateDir, *verbose)
+				allPayloads, _, reloadErr = loadUnifiedPayloads(payloadDir, templateDir, cf.Verbose)
 				if reloadErr != nil {
 					ui.PrintError(fmt.Sprintf("Failed to reload payloads: %v", reloadErr))
 					if autoDispCtx != nil {
@@ -2414,10 +2401,10 @@ func runAutoScan() {
 		// ═══════════════════════════════════════════════════════════════════════════
 		// TAMPER ENGINE INITIALIZATION
 		// ═══════════════════════════════════════════════════════════════════════════
-		if *tamperList != "" || *tamperAuto || (*smartMode && smartResult != nil && smartResult.WAFDetected) {
+		if *tamperFlags.List != "" || *tamperFlags.Auto || (*smartFlags.Enabled && smartResult != nil && smartResult.WAFDetected) {
 			// Determine tamper profile
 			profile := tampers.ProfileStandard
-			switch *tamperProfile {
+			switch *tamperFlags.Profile {
 			case "stealth":
 				profile = tampers.ProfileStealth
 			case "aggressive":
@@ -2427,7 +2414,7 @@ func runAutoScan() {
 			}
 
 			// If custom tamper list provided, use custom profile
-			if *tamperList != "" {
+			if *tamperFlags.List != "" {
 				profile = tampers.ProfileCustom
 			}
 
@@ -2439,8 +2426,8 @@ func runAutoScan() {
 
 			// Create tamper engine
 			// Load script tampers from directory if specified
-			if *tamperDir != "" {
-				scripts, errs := tampers.LoadScriptDir(*tamperDir)
+			if *tamperFlags.Dir != "" {
+				scripts, errs := tampers.LoadScriptDir(*tamperFlags.Dir)
 				for _, e := range errs {
 					ui.PrintWarning(fmt.Sprintf("Script tamper: %v", e))
 				}
@@ -2448,7 +2435,7 @@ func runAutoScan() {
 					tampers.Register(st)
 				}
 				if len(scripts) > 0 {
-					ui.PrintInfo(fmt.Sprintf("Loaded %d script tampers from %s", len(scripts), *tamperDir))
+					ui.PrintInfo(fmt.Sprintf("Loaded %d script tampers from %s", len(scripts), *tamperFlags.Dir))
 				}
 			}
 
@@ -2477,22 +2464,22 @@ func runAutoScan() {
 
 			tamperEngine = tampers.NewEngine(&tampers.EngineConfig{
 				Profile:       profile,
-				CustomTampers: tampers.ParseTamperList(*tamperList),
+				CustomTampers: tampers.ParseTamperList(*tamperFlags.List),
 				WAFVendor:     wafVendor,
 				StrategyHints: strategyHints,
 				EnableMetrics: true,
 			})
 
 			// Validate custom tampers if specified
-			if *tamperList != "" {
-				valid, invalid := tampers.ValidateTamperNames(tampers.ParseTamperList(*tamperList))
+			if *tamperFlags.List != "" {
+				valid, invalid := tampers.ValidateTamperNames(tampers.ParseTamperList(*tamperFlags.List))
 				if len(invalid) > 0 {
 					ui.PrintWarning(fmt.Sprintf("Unknown tampers: %s", strings.Join(invalid, ", ")))
 				}
 				if len(valid) > 0 {
 					ui.PrintInfo(fmt.Sprintf("🔧 Using %d custom tampers: %s", len(valid), strings.Join(valid, ", ")))
 				}
-			} else if *tamperAuto || (*smartMode && smartResult != nil && smartResult.WAFDetected) {
+			} else if *tamperFlags.Auto || (*smartFlags.Enabled && smartResult != nil && smartResult.WAFDetected) {
 				selectedTampers := tamperEngine.GetSelectedTampers()
 				ui.PrintInfo(fmt.Sprintf("🔧 Auto-selected %d tampers for %s: %s",
 					len(selectedTampers), wafVendor, strings.Join(selectedTampers, ", ")))
@@ -2516,7 +2503,7 @@ func runAutoScan() {
 
 		// Auto-calibration
 		ui.PrintInfo("Running auto-calibration...")
-		cal := calibration.NewCalibratorWithClient(target, time.Duration(*timeout)*time.Second, *skipVerify, ja3Client)
+		cal := calibration.NewCalibratorWithClient(target, time.Duration(cf.Timeout)*time.Second, cf.SkipVerify, ja3Client)
 		calResult, calErr := cal.Calibrate(ctx)
 		if calErr == nil && calResult != nil && calResult.Calibrated {
 			filterCfg.FilterStatus = calResult.Suggestions.FilterStatus
@@ -2558,7 +2545,7 @@ func runAutoScan() {
 
 		// Create output writer for results
 		writer, err := output.NewWriterWithOptions(resultsFile, "json", output.WriterOptions{
-			Verbose:       *verbose,
+			Verbose:       cf.Verbose,
 			ShowTimestamp: true,
 			Silent:        false,
 			Target:        target,
@@ -2599,7 +2586,7 @@ func runAutoScan() {
 			TargetURL:     target,
 			Concurrency:   currentConcurrency,
 			RateLimit:     currentRateLimit,
-			Timeout:       time.Duration(*timeout) * time.Second,
+			Timeout:       time.Duration(cf.Timeout) * time.Second,
 			Retries:       defaults.RetryLow,
 			Filter:        &filterCfg,
 			RealisticMode: true,
@@ -2785,7 +2772,7 @@ func runAutoScan() {
 					brain.StartPhase(ctx, "brain-feedback")
 					feedbackResultsFile := filepath.Join(workspaceDir, "results-feedback.json")
 					focusWriter, focusErr := output.NewWriterWithOptions(feedbackResultsFile, "json", output.WriterOptions{
-						Verbose:       *verbose,
+						Verbose:       cf.Verbose,
 						ShowTimestamp: true,
 						Target:        target,
 					})
@@ -2797,7 +2784,7 @@ func runAutoScan() {
 							TargetURL:     target,
 							Concurrency:   currentConcurrency,
 							RateLimit:     currentRateLimit,
-							Timeout:       time.Duration(*timeout) * time.Second,
+							Timeout:       time.Duration(cf.Timeout) * time.Second,
 							Retries:       defaults.RetryLow,
 							Filter:        &filterCfg,
 							RealisticMode: true,
@@ -2976,7 +2963,7 @@ func runAutoScan() {
 
 				mutResultsFile := filepath.Join(workspaceDir, "results-mutations.json")
 				mutWriter, mutErr := output.NewWriterWithOptions(mutResultsFile, "json", output.WriterOptions{
-					Verbose:       *verbose,
+					Verbose:       cf.Verbose,
 					ShowTimestamp: true,
 					Target:        target,
 				})
@@ -2988,7 +2975,7 @@ func runAutoScan() {
 						TargetURL:     target,
 						Concurrency:   currentConcurrency,
 						RateLimit:     currentRateLimit,
-						Timeout:       time.Duration(*timeout) * time.Second,
+						Timeout:       time.Duration(cf.Timeout) * time.Second,
 						Retries:       defaults.RetryLow,
 						Filter:        &filterCfg,
 						RealisticMode: true,
@@ -3115,7 +3102,7 @@ func runAutoScan() {
 			ui.PrintSuccess(fmt.Sprintf("  WAF Vendor: %s (%.0f%% confidence, from smart mode)", vendorName, vendorConfidence*100))
 		} else {
 			// Use the comprehensive vendor detector with 150+ signatures
-			vendorDetector := vendors.NewVendorDetectorWithClient(time.Duration(*timeout)*time.Second, ja3Client)
+			vendorDetector := vendors.NewVendorDetectorWithClient(time.Duration(cf.Timeout)*time.Second, ja3Client)
 			vendorResult, vendorErr := vendorDetector.Detect(ctx, target)
 
 			if vendorErr == nil && vendorResult.Detected {
@@ -3608,12 +3595,12 @@ func runAutoScan() {
 		assessConfig := &assessment.Config{
 			Base: attackconfig.Base{
 				Concurrency: *concurrency,
-				Timeout:     time.Duration(*timeout) * time.Second,
+				Timeout:     time.Duration(cf.Timeout) * time.Second,
 			},
 			TargetURL:       target,
 			RateLimit:       float64(*rateLimit),
-			SkipTLSVerify:   *skipVerify,
-			Verbose:         *verbose,
+			SkipTLSVerify:   cf.SkipVerify,
+			Verbose:         cf.Verbose,
 			HTTPClient:      ja3Client, // JA3 TLS fingerprint rotation
 			EnableFPTesting: true,
 			CorpusSources:   strings.Split(*assessCorpus, ","),
@@ -3628,7 +3615,7 @@ func runAutoScan() {
 		defer assessCancel()
 
 		progressFn := func(completed, total int64, phase string) {
-			if !quietMode && (*verbose || completed%25 == 0 || completed == total) {
+			if !quietMode && (cf.Verbose || completed%25 == 0 || completed == total) {
 				pct := float64(0)
 				if total > 0 {
 					pct = float64(completed) / float64(total) * 100
@@ -3765,7 +3752,7 @@ func runAutoScan() {
 			PostLoginDelay: duration.BrowserPostWait,
 			CrawlDepth:     *depth,
 			ShowBrowser:    !*browserHeadless,
-			Verbose:        *verbose,
+			Verbose:        cf.Verbose,
 			ScreenshotDir:  filepath.Join(workspaceDir, "screenshots"),
 			EnableScreens:  true,
 		}
@@ -3774,7 +3761,7 @@ func runAutoScan() {
 
 		// Progress callback
 		browserProgress := func(msg string) {
-			if *verbose {
+			if cf.Verbose {
 				ui.PrintInfo(fmt.Sprintf("  %s", msg))
 			}
 		}

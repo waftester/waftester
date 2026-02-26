@@ -101,15 +101,12 @@ func runScan() {
 	jsonOutput := scanFlags.Bool("json", false, "Output in JSON format")
 
 	// Smart mode (WAF-aware testing with 197+ vendor signatures)
-	smartMode := scanFlags.Bool("smart", false, "Enable WAF-aware testing (auto-detect WAF and optimize)")
-	smartModeType := scanFlags.String("smart-mode", "standard", "Smart mode type: quick, standard, full, bypass, stealth")
-	smartVerbose := scanFlags.Bool("smart-verbose", false, "Show detailed WAF detection info")
+	var smartFlags SmartModeFlags
+	smartFlags.Register(scanFlags)
 
 	// Tamper scripts (70+ sqlmap-compatible WAF bypass transformations)
-	tamperList := scanFlags.String("tamper", "", "Comma-separated tamper scripts: space2comment,randomcase,charencode")
-	tamperAuto := scanFlags.Bool("tamper-auto", false, "Auto-select tampers based on detected WAF")
-	tamperProfile := scanFlags.String("tamper-profile", "standard", "Tamper profile: stealth, standard, aggressive, bypass")
-	tamperDir := scanFlags.String("tamper-dir", "", "Directory of .tengo script tampers to load")
+	var tamperFlags TamperFlags
+	tamperFlags.Register(scanFlags)
 
 	// OAuth-specific flags
 	oauthClientID := scanFlags.String("oauth-client-id", "", "OAuth client ID for OAuth testing")
@@ -418,14 +415,14 @@ func runScan() {
 
 	// Smart Mode: Detect WAF and optimize configuration
 	var smartResult *SmartModeResult
-	if *smartMode {
+	if *smartFlags.Enabled {
 		ui.PrintSection("🧠 Smart Mode: WAF Detection & Optimization")
 		fmt.Fprintln(os.Stderr)
 
 		smartConfig := &SmartModeConfig{
 			DetectionTimeout: time.Duration(cf.Timeout) * time.Second,
-			Verbose:          *smartVerbose,
-			Mode:             *smartModeType,
+			Verbose:          *smartFlags.Verbose,
+			Mode:             *smartFlags.Mode,
 		}
 
 		var detectErr error
@@ -434,7 +431,7 @@ func runScan() {
 			ui.PrintWarning(fmt.Sprintf("Smart mode detection warning: %v", detectErr))
 		}
 
-		PrintSmartModeInfo(smartResult, *smartVerbose)
+		PrintSmartModeInfo(smartResult, *smartFlags.Verbose)
 
 		// Apply WAF-optimized rate limit and concurrency
 		// Only override if the user didn't explicitly set these flags
@@ -477,10 +474,10 @@ func runScan() {
 	// TAMPER ENGINE INITIALIZATION (Scan Command)
 	// ═══════════════════════════════════════════════════════════════════════════
 	var tamperEngine *tampers.Engine
-	if *tamperList != "" || *tamperAuto || (*smartMode && smartResult != nil && smartResult.WAFDetected) {
+	if *tamperFlags.List != "" || *tamperFlags.Auto || (*smartFlags.Enabled && smartResult != nil && smartResult.WAFDetected) {
 		// Determine tamper profile
 		profile := tampers.ProfileStandard
-		switch *tamperProfile {
+		switch *tamperFlags.Profile {
 		case "stealth":
 			profile = tampers.ProfileStealth
 		case "aggressive":
@@ -490,7 +487,7 @@ func runScan() {
 		}
 
 		// If custom tamper list provided, use custom profile
-		if *tamperList != "" {
+		if *tamperFlags.List != "" {
 			profile = tampers.ProfileCustom
 		}
 
@@ -506,8 +503,8 @@ func runScan() {
 
 		// Create tamper engine
 		// Load script tampers from directory if specified
-		if *tamperDir != "" {
-			scripts, errs := tampers.LoadScriptDir(*tamperDir)
+		if *tamperFlags.Dir != "" {
+			scripts, errs := tampers.LoadScriptDir(*tamperFlags.Dir)
 			for _, e := range errs {
 				ui.PrintWarning(fmt.Sprintf("Script tamper: %v", e))
 			}
@@ -515,28 +512,28 @@ func runScan() {
 				tampers.Register(st)
 			}
 			if len(scripts) > 0 {
-				ui.PrintInfo(fmt.Sprintf("Loaded %d script tampers from %s", len(scripts), *tamperDir))
+				ui.PrintInfo(fmt.Sprintf("Loaded %d script tampers from %s", len(scripts), *tamperFlags.Dir))
 			}
 		}
 
 		tamperEngine = tampers.NewEngine(&tampers.EngineConfig{
 			Profile:       profile,
-			CustomTampers: tampers.ParseTamperList(*tamperList),
+			CustomTampers: tampers.ParseTamperList(*tamperFlags.List),
 			WAFVendor:     wafVendor,
 			StrategyHints: strategyHints,
 			EnableMetrics: true,
 		})
 
 		// Validate custom tampers if specified
-		if *tamperList != "" {
-			valid, invalid := tampers.ValidateTamperNames(tampers.ParseTamperList(*tamperList))
+		if *tamperFlags.List != "" {
+			valid, invalid := tampers.ValidateTamperNames(tampers.ParseTamperList(*tamperFlags.List))
 			if len(invalid) > 0 {
 				ui.PrintWarning(fmt.Sprintf("Unknown tampers: %s", strings.Join(invalid, ", ")))
 			}
 			if len(valid) > 0 {
 				ui.PrintInfo(fmt.Sprintf("🔧 Using %d custom tampers: %s", len(valid), strings.Join(valid, ", ")))
 			}
-		} else if *tamperAuto || (*smartMode && smartResult != nil && smartResult.WAFDetected) {
+		} else if *tamperFlags.Auto || (*smartFlags.Enabled && smartResult != nil && smartResult.WAFDetected) {
 			selectedTampers := tamperEngine.GetSelectedTampers()
 			if len(strategyHints) > 0 {
 				ui.PrintInfo(fmt.Sprintf("🔧 Auto-selected %d tampers for %s (strategy hints: %d): %s",
@@ -553,7 +550,7 @@ func runScan() {
 		ui.PrintConfigLine("Scan Types", *types)
 		ui.PrintConfigLine("Timeout", fmt.Sprintf("%ds", cf.Timeout))
 		ui.PrintConfigLine("Concurrency", fmt.Sprintf("%d", *concurrency))
-		if *smartMode {
+		if *smartFlags.Enabled {
 			ui.PrintConfigLine("Rate Limit", fmt.Sprintf("%d req/sec (WAF-optimized)", *rateLimit))
 		}
 		fmt.Fprintln(os.Stderr)
@@ -3085,20 +3082,20 @@ func runScan() {
 
 	// Finalize: output, exports, and exit code
 	finalizeScanOutput(ctx, result, scanOutputConfig{
-		Target:      target,
-		StreamJSON:  streamJSON,
-		TotalScans:  totalScans,
-		ScanErrors:  &scanErrors,
-		CSVOutput:   *csvOutput,
-		MDOutput:    *markdownOutput,
-		HTMLOutput:  *htmlOutput,
-		SARIFOutput: *sarifOutput,
-		JSONOutput:  *jsonOutput,
-		FormatType:  *formatType,
-		OutputFile:  *outputFile,
-		ReportTitle: *reportTitle,
+		Target:       target,
+		StreamJSON:   streamJSON,
+		TotalScans:   totalScans,
+		ScanErrors:   &scanErrors,
+		CSVOutput:    *csvOutput,
+		MDOutput:     *markdownOutput,
+		HTMLOutput:   *htmlOutput,
+		SARIFOutput:  *sarifOutput,
+		JSONOutput:   *jsonOutput,
+		FormatType:   *formatType,
+		OutputFile:   *outputFile,
+		ReportTitle:  *reportTitle,
 		ReportAuthor: *reportAuthor,
-		OutFlags:    &outFlags,
-		DispCtx:     dispCtx,
+		OutFlags:     &outFlags,
+		DispCtx:      dispCtx,
 	})
 }

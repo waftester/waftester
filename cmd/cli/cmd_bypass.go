@@ -48,9 +48,8 @@ func runBypassFinder() {
 	autoCalibrate := bypassFlags.Bool("ac", false, "Auto-calibrate baseline before testing")
 
 	// Smart mode (WAF-aware testing with 197+ vendor signatures)
-	smartMode := bypassFlags.Bool("smart", false, "Enable WAF-aware testing (auto-detect WAF and optimize)")
-	smartModeType := bypassFlags.String("smart-mode", "bypass", "Smart mode type: quick, standard, full, bypass, stealth")
-	smartVerbose := bypassFlags.Bool("smart-verbose", false, "Show detailed WAF detection info")
+	var smartFlags SmartModeFlags
+	smartFlags.RegisterBypass(bypassFlags)
 
 	// Enterprise output flags (unified output configuration)
 	var outputFlags OutputFlags
@@ -84,8 +83,8 @@ func runBypassFinder() {
 
 	ui.PrintConfigLine("Target", targetURL)
 	ui.PrintConfigLine("Category", *category)
-	if *smartMode {
-		ui.PrintConfigLine("Mode", fmt.Sprintf("Smart Bypass Hunter (%s mode)", *smartModeType))
+	if *smartFlags.Enabled {
+		ui.PrintConfigLine("Mode", fmt.Sprintf("Smart Bypass Hunter (%s mode)", *smartFlags.Mode))
 	} else {
 		ui.PrintConfigLine("Mode", "Bypass Hunter (all evasions enabled)")
 	}
@@ -116,14 +115,14 @@ func runBypassFinder() {
 
 	// Smart Mode: Detect WAF and optimize configuration
 	var smartResult *SmartModeResult
-	if *smartMode {
+	if *smartFlags.Enabled {
 		ui.PrintSection("🧠 Smart Mode: WAF Detection & Optimization")
 		fmt.Println()
 
 		smartConfig := &SmartModeConfig{
 			DetectionTimeout: duration.HTTPScanning,
-			Verbose:          *smartVerbose,
-			Mode:             *smartModeType,
+			Verbose:          *smartFlags.Verbose,
+			Mode:             *smartFlags.Mode,
 		}
 
 		var err error
@@ -132,7 +131,7 @@ func runBypassFinder() {
 			ui.PrintWarning(fmt.Sprintf("Smart mode detection warning: %v", err))
 		}
 
-		PrintSmartModeInfo(smartResult, *smartVerbose)
+		PrintSmartModeInfo(smartResult, *smartFlags.Verbose)
 
 		// Emit smart mode WAF detection to hooks
 		if bypassDispCtx != nil && smartResult != nil && smartResult.WAFDetected {
@@ -152,7 +151,7 @@ func runBypassFinder() {
 	}
 
 	// Load payloads from unified engine (JSON + Nuclei templates)
-	allPayloads, _, err := loadUnifiedPayloads(*payloadDir, templateDir, *smartVerbose)
+	allPayloads, _, err := loadUnifiedPayloads(*payloadDir, templateDir, *smartFlags.Verbose)
 	if err != nil {
 		errMsg := fmt.Sprintf("Cannot load payloads: %v", err)
 		ui.PrintError(errMsg)
@@ -177,11 +176,11 @@ func runBypassFinder() {
 	cfg.Concurrency = *concurrency
 	cfg.RateLimit = *rateLimit
 	cfg.SkipVerify = *skipVerify
-	cfg.RealisticMode = *realisticMode || *realisticShort || *smartMode
-	cfg.AutoCalibrate = *autoCalibrate || *smartMode
+	cfg.RealisticMode = *realisticMode || *realisticShort || *smartFlags.Enabled
+	cfg.AutoCalibrate = *autoCalibrate || *smartFlags.Enabled
 
 	// Apply smart mode optimizations
-	if *smartMode && smartResult != nil {
+	if *smartFlags.Enabled && smartResult != nil {
 		// Preserve user-explicit flags (same pattern as scan/autoscan)
 		userSetRL := false
 		userSetConc := false
@@ -251,8 +250,8 @@ func runBypassFinder() {
 		manifest.AddEmphasis("📦", "Payloads", fmt.Sprintf("%d base payloads", len(testPayloads)))
 		manifest.AddEmphasis("🔀", "Mutations", fmt.Sprintf("%d test combinations", len(tasks)))
 		manifest.AddWithIcon("🏷️", "Category", *category)
-		if *smartMode {
-			manifest.AddWithIcon("🧠", "Mode", fmt.Sprintf("Smart (%s)", *smartModeType))
+		if *smartFlags.Enabled {
+			manifest.AddWithIcon("🧠", "Mode", fmt.Sprintf("Smart (%s)", *smartFlags.Mode))
 		} else {
 			manifest.AddWithIcon("⚔️", "Mode", "Bypass Hunter (all evasions)")
 		}
