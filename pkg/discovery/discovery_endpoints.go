@@ -8,34 +8,69 @@ import (
 )
 
 func categorizeEndpoint(path, method string) string {
-	path = strings.ToLower(path)
+	lower := strings.ToLower(path)
 
-	if strings.Contains(path, "health") || strings.Contains(path, "ping") {
+	switch {
+	case strings.Contains(lower, "health") || strings.Contains(lower, "ping") || strings.Contains(lower, "status") || strings.Contains(lower, "ready") || strings.Contains(lower, "alive"):
 		return "health"
-	}
-	if strings.Contains(path, "login") || strings.Contains(path, "auth") || strings.Contains(path, "oauth") {
+	case strings.Contains(lower, "login") || strings.Contains(lower, "signup") || strings.Contains(lower, "register") ||
+		strings.Contains(lower, "auth") || strings.Contains(lower, "oauth") || strings.Contains(lower, "sso") ||
+		strings.Contains(lower, "token") || strings.Contains(lower, "session") || strings.Contains(lower, "password"):
 		return "auth"
-	}
-	if strings.Contains(path, "api") {
-		return "api"
-	}
-	if strings.Contains(path, "admin") {
-		return "admin"
-	}
-	if strings.Contains(path, "upload") || strings.Contains(path, "asset") {
-		return "upload"
-	}
-	if strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".css") || strings.HasSuffix(path, ".png") {
-		return "static"
-	}
-	if strings.Contains(path, "webhook") {
+	case strings.Contains(lower, "graphql"):
+		return "graphql"
+	case strings.Contains(lower, "webhook") || strings.Contains(lower, "callback") || strings.Contains(lower, "hook"):
 		return "webhook"
+	case strings.Contains(lower, "admin") || strings.Contains(lower, "manage") || strings.Contains(lower, "dashboard"):
+		return "admin"
+	case strings.Contains(lower, "upload") || strings.Contains(lower, "import") || strings.Contains(lower, "asset") || strings.Contains(lower, "media"):
+		return "upload"
+	case strings.Contains(lower, "/api/") || strings.HasPrefix(lower, "/v1/") || strings.HasPrefix(lower, "/v2/") || strings.HasPrefix(lower, "/v3/"):
+		return "api"
+	case strings.Contains(lower, "websocket") || strings.Contains(lower, "/ws") || strings.Contains(lower, "socket.io"):
+		return "websocket"
+	case strings.HasSuffix(lower, ".js") || strings.HasSuffix(lower, ".css") || strings.HasSuffix(lower, ".png") ||
+		strings.HasSuffix(lower, ".jpg") || strings.HasSuffix(lower, ".svg") || strings.HasSuffix(lower, ".woff") ||
+		strings.HasSuffix(lower, ".ico") || strings.HasSuffix(lower, ".map"):
+		return "static"
+	case method == "POST" || method == "PUT" || method == "PATCH" || method == "DELETE":
+		return "api"
+	default:
+		return "general"
 	}
-	return "general"
 }
 
 func extractParameters(path, body, contentType string) []Parameter {
 	params := make([]Parameter, 0)
+
+	// Extract path parameters — numeric or UUID segments that look like IDs.
+	// /api/v1/users/42/posts → id=42 in path segment "users"
+	// /items/550e8400-e29b-41d4-a716-446655440000 → uuid in path
+	cleanPath := path
+	if idx := strings.Index(cleanPath, "?"); idx != -1 {
+		cleanPath = cleanPath[:idx]
+	}
+	segments := strings.Split(strings.Trim(cleanPath, "/"), "/")
+	for i, seg := range segments {
+		if seg == "" {
+			continue
+		}
+		paramType := classifyPathSegment(seg)
+		if paramType != "" {
+			name := "id"
+			if i > 0 {
+				// Use previous segment as parameter name hint: /users/42 → user_id
+				prev := strings.TrimRight(segments[i-1], "s")
+				name = prev + "_id"
+			}
+			params = append(params, Parameter{
+				Name:     name,
+				Location: "path",
+				Type:     paramType,
+				Example:  seg,
+			})
+		}
+	}
 
 	// Extract query parameters from path
 	if idx := strings.Index(path, "?"); idx != -1 {
@@ -45,7 +80,7 @@ func extractParameters(path, body, contentType string) []Parameter {
 				params = append(params, Parameter{
 					Name:     kv[0],
 					Location: "query",
-					Type:     "string",
+					Type:     inferTypeFromValue(kv[1]),
 					Example:  kv[1],
 				})
 			}
@@ -66,32 +101,127 @@ func extractParameters(path, body, contentType string) []Parameter {
 		}
 	}
 
+	// Extract form body parameters
+	if strings.Contains(contentType, "form-urlencoded") && len(body) > 0 {
+		for _, pair := range strings.Split(body, "&") {
+			if kv := strings.SplitN(pair, "=", 2); len(kv) == 2 {
+				params = append(params, Parameter{
+					Name:     kv[0],
+					Location: "body",
+					Type:     inferTypeFromValue(kv[1]),
+					Example:  kv[1],
+				})
+			}
+		}
+	}
+
 	return params
+}
+
+// classifyPathSegment returns the type if a path segment looks like a parameter,
+// or empty string if it's a static segment.
+func classifyPathSegment(seg string) string {
+	// UUID: 8-4-4-4-12 hex
+	if len(seg) == 36 && seg[8] == '-' && seg[13] == '-' && seg[18] == '-' && seg[23] == '-' {
+		return "uuid"
+	}
+	// Pure numeric
+	if len(seg) > 0 && len(seg) <= 20 {
+		allDigit := true
+		for _, c := range seg {
+			if c < '0' || c > '9' {
+				allDigit = false
+				break
+			}
+		}
+		if allDigit {
+			return "integer"
+		}
+	}
+	// Hex hash (e.g., commit SHAs, object IDs)
+	if len(seg) >= 24 && len(seg) <= 64 {
+		allHex := true
+		for _, c := range seg {
+			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+				allHex = false
+				break
+			}
+		}
+		if allHex {
+			return "hash"
+		}
+	}
+	return ""
+}
+
+// inferTypeFromValue guesses a parameter type from its string value.
+func inferTypeFromValue(val string) string {
+	if val == "true" || val == "false" {
+		return "boolean"
+	}
+	allDigit := true
+	for _, c := range val {
+		if c < '0' || c > '9' {
+			allDigit = false
+			break
+		}
+	}
+	if allDigit && len(val) > 0 {
+		return "integer"
+	}
+	return "string"
 }
 
 func identifyRiskFactors(path, method string, body string) []string {
 	risks := make([]string, 0)
-	path = strings.ToLower(path)
-	body = strings.ToLower(body)
+	lower := strings.ToLower(path)
+	bodyLower := strings.ToLower(body)
 
-	// Check for injection points
-	if strings.Contains(path, "?") || strings.Contains(path, "id=") || strings.Contains(path, "query=") {
+	// Parameter injection
+	if strings.Contains(lower, "?") || strings.Contains(lower, "id=") || strings.Contains(lower, "query=") {
 		risks = append(risks, "parameter_injection")
 	}
 
-	// Check for file access
-	if strings.Contains(path, "file") || strings.Contains(path, "path") || strings.Contains(path, "download") {
+	// File access / path traversal
+	if strings.Contains(lower, "file") || strings.Contains(lower, "path") || strings.Contains(lower, "download") ||
+		strings.Contains(lower, "include") || strings.Contains(lower, "template") || strings.Contains(lower, "read") {
 		risks = append(risks, "file_access")
 	}
 
-	// Check for command execution hints
-	if strings.Contains(body, "exec") || strings.Contains(body, "command") || strings.Contains(body, "shell") {
+	// Command execution
+	if strings.Contains(bodyLower, "exec") || strings.Contains(bodyLower, "command") || strings.Contains(bodyLower, "shell") ||
+		strings.Contains(lower, "exec") || strings.Contains(lower, "run") || strings.Contains(lower, "eval") {
 		risks = append(risks, "command_execution")
 	}
 
-	// Check for redirect
-	if strings.Contains(path, "redirect") || strings.Contains(path, "url=") || strings.Contains(path, "next=") {
+	// Open redirect
+	if strings.Contains(lower, "redirect") || strings.Contains(lower, "url=") || strings.Contains(lower, "next=") ||
+		strings.Contains(lower, "return") || strings.Contains(lower, "goto") || strings.Contains(lower, "dest") {
 		risks = append(risks, "redirect")
+	}
+
+	// SSRF
+	if strings.Contains(lower, "url=") || strings.Contains(lower, "proxy") || strings.Contains(lower, "fetch") ||
+		strings.Contains(lower, "request") || strings.Contains(lower, "load") {
+		risks = append(risks, "ssrf")
+	}
+
+	// Auth-sensitive
+	if strings.Contains(lower, "admin") || strings.Contains(lower, "user") || strings.Contains(lower, "role") ||
+		strings.Contains(lower, "permission") || strings.Contains(lower, "privilege") {
+		risks = append(risks, "access_control")
+	}
+
+	// Data exposure
+	if (method == "GET" || method == "") && (strings.Contains(lower, "export") || strings.Contains(lower, "dump") ||
+		strings.Contains(lower, "backup") || strings.Contains(lower, "log") || strings.Contains(lower, "debug")) {
+		risks = append(risks, "data_exposure")
+	}
+
+	// Deserialization
+	if strings.Contains(bodyLower, "class") || strings.Contains(bodyLower, "__type") ||
+		strings.Contains(bodyLower, "java.") || strings.Contains(bodyLower, "rO0") {
+		risks = append(risks, "deserialization")
 	}
 
 	return risks
