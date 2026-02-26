@@ -1,6 +1,6 @@
 module github.com/waftester/waftester
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
@@ -11,7 +11,7 @@ require (
 	github.com/go-json-experiment/json v0.0.0-20250725192818-e39067aee2d2
 	github.com/go-pdf/fpdf v0.9.0
 	github.com/google/uuid v1.6.0
-	github.com/modelcontextprotocol/go-sdk v1.3.0
+	github.com/modelcontextprotocol/go-sdk v1.3.1
 	github.com/muesli/termenv v0.16.0
 	github.com/pdfcpu/pdfcpu v0.11.1
 	github.com/prometheus/client_golang v1.23.2
@@ -22,7 +22,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.40.0
 	go.opentelemetry.io/otel/sdk v1.40.0
 	go.opentelemetry.io/otel/trace v1.40.0
-	golang.org/x/net v0.50.0
+	golang.org/x/net v0.51.0
 	golang.org/x/sys v0.41.0
 	golang.org/x/term v0.40.0
 	golang.org/x/text v0.34.0
@@ -72,6 +72,8 @@ require (
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/segmentio/asm v1.1.3 // indirect
+	github.com/segmentio/encoding v0.5.3 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.7.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
