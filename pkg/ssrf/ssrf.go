@@ -735,9 +735,11 @@ func isLocalResponse(body string) bool {
 	return false
 }
 
+var etcPasswdRegex = regexp.MustCompile(`root:.*:0:0:`)
+
 func isFileContent(body string) bool {
 	// Check for /etc/passwd content
-	if matched, _ := regexp.MatchString(`root:.*:0:0:`, body); matched {
+	if etcPasswdRegex.MatchString(body) {
 		return true
 	}
 

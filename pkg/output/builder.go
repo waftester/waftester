@@ -782,8 +782,8 @@ func writeResultsJUnit(path string, results ExecutionResults) (err error) {
 <testsuites tests="%d" failures="%d" errors="%d" time="%.2f">
   <testsuite name="`+defaults.ToolNameDisplay+`" tests="%d" failures="%d" errors="%d" time="%.2f">
 `,
-		results.TotalTests, results.PassedTests, results.ErrorTests, results.Duration.Seconds(),
-		results.TotalTests, results.PassedTests, results.ErrorTests, results.Duration.Seconds()); err != nil {
+		results.TotalTests, results.FailedTests, results.ErrorTests, results.Duration.Seconds(),
+		results.TotalTests, results.FailedTests, results.ErrorTests, results.Duration.Seconds()); err != nil {
 		return err
 	}
 

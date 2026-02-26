@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/waftester/waftester/pkg/finding"
@@ -31,12 +32,17 @@ const (
 )
 
 // colorEnabled controls whether ANSI color codes are emitted.
-var colorEnabled = true
+// Uses atomic.Bool for concurrent safety across multiple TableWriter instances.
+var colorEnabled atomic.Bool
+
+func init() {
+	colorEnabled.Store(true)
+}
 
 // ansiSprint wraps text in an ANSI escape code, respecting colorEnabled.
 func ansiSprint(code string, a ...interface{}) string {
 	s := fmt.Sprint(a...)
-	if !colorEnabled {
+	if !colorEnabled.Load() {
 		return s
 	}
 	return code + s + "\033[0m"
@@ -209,7 +215,7 @@ func NewTableWriter(w io.Writer, config TableConfig) *TableWriter {
 	}
 
 	// Configure color output based on our color detection
-	colorEnabled = config.ColorEnabled
+	colorEnabled.Store(config.ColorEnabled)
 
 	// Default mode to summary
 	if config.Mode == "" {

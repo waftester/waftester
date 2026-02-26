@@ -300,9 +300,9 @@ func ExtractDomainFromURL(rawURL string) (string, error) {
 	return u.Hostname(), nil
 }
 
+var validDomainRegex = regexp.MustCompile(`^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$`)
+
 // IsValidDomain checks if a string is a valid domain
 func IsValidDomain(domain string) bool {
-	pattern := `^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$`
-	matched, _ := regexp.MatchString(pattern, domain)
-	return matched
+	return validDomainRegex.MatchString(domain)
 }

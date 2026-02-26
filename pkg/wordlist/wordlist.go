@@ -719,10 +719,19 @@ func reverse(s string) string {
 
 // Filter filters a wordlist based on criteria
 func (m *Manager) Filter(wl *Wordlist, opts FilterOptions) (*Wordlist, error) {
-	var filtered []string
+	// Precompile regex once instead of per-word
+	var regexFilter *regexp.Regexp
+	if opts.Regex != "" {
+		var err error
+		regexFilter, err = regexp.Compile(opts.Regex)
+		if err != nil {
+			return nil, fmt.Errorf("invalid filter regex: %w", err)
+		}
+	}
 
+	var filtered []string
 	for _, word := range wl.Words {
-		if matchesFilter(word, opts) {
+		if matchesFilter(word, opts, regexFilter) {
 			filtered = append(filtered, word)
 		}
 	}
@@ -750,7 +759,7 @@ type FilterOptions struct {
 	OnlyAlpha   bool
 }
 
-func matchesFilter(word string, opts FilterOptions) bool {
+func matchesFilter(word string, opts FilterOptions, regexFilter *regexp.Regexp) bool {
 	if opts.MinLength > 0 && len(word) < opts.MinLength {
 		return false
 	}
@@ -769,8 +778,8 @@ func matchesFilter(word string, opts FilterOptions) bool {
 	if opts.EndsWith != "" && !strings.HasSuffix(word, opts.EndsWith) {
 		return false
 	}
-	if opts.Regex != "" {
-		if matched, _ := regexp.MatchString(opts.Regex, word); !matched {
+	if regexFilter != nil {
+		if !regexFilter.MatchString(word) {
 			return false
 		}
 	}

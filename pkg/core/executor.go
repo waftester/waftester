@@ -314,7 +314,10 @@ func (e *Executor) Execute(ctx context.Context, allPayloads []payloads.Payload, 
 			case <-ticker.C:
 				done := atomic.LoadInt64(&completed)
 				elapsed := time.Since(results.StartTime).Seconds()
-				rps := float64(done) / elapsed
+				rps := 0.0
+				if elapsed > 0 {
+					rps = float64(done) / elapsed
+				}
 				fmt.Printf("\r[*] Progress: %d/%d (%.1f/sec) | Blocked: %d | Pass: %d | Fail: %d | Error: %d", // debug:keep
 					done, results.TotalTests, rps,
 					atomic.LoadInt64(&blocked),

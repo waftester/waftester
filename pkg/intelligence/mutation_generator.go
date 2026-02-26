@@ -224,7 +224,15 @@ func (mg *MutationGenerator) mutate(c *MutationChromosome) {
 		return
 	}
 
-	for i := range c.Genes {
+	// Collect insertions separately to avoid mutating the slice during iteration
+	type insertion struct {
+		pos  int
+		gene MutationGene
+	}
+	var inserts []insertion
+
+	n := len(c.Genes)
+	for i := 0; i < n; i++ {
 		if mg.rng.Float64() < mg.config.MutationRate {
 			op := mg.rng.Intn(3)
 			switch op {
@@ -233,14 +241,23 @@ func (mg *MutationGenerator) mutate(c *MutationChromosome) {
 			case 1: // Swap position
 				c.Genes[i].Position = mg.positions[mg.rng.Intn(len(mg.positions))]
 			case 2: // Insert new gene (if under max length)
-				if len(c.Genes) < mg.config.MaxGeneLength {
-					newGene := mg.randomGene()
-					// Insert at position i
-					c.Genes = append(c.Genes[:i+1], c.Genes[i:]...)
-					c.Genes[i] = newGene
+				if n+len(inserts) < mg.config.MaxGeneLength {
+					inserts = append(inserts, insertion{pos: i, gene: mg.randomGene()})
 				}
 			}
 		}
+	}
+
+	// Apply insertions in reverse order to preserve indices
+	for j := len(inserts) - 1; j >= 0; j-- {
+		ins := inserts[j]
+		c.Genes = append(c.Genes[:ins.pos+1], c.Genes[ins.pos:]...)
+		c.Genes[ins.pos] = ins.gene
+	}
+
+	// Enforce max gene length after insertions
+	if len(c.Genes) > mg.config.MaxGeneLength {
+		c.Genes = c.Genes[:mg.config.MaxGeneLength]
 	}
 
 	// Small chance to delete a gene

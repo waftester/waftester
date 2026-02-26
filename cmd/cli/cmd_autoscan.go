@@ -1903,15 +1903,15 @@ func runAutoScan() {
 	rateMu := &sync.Mutex{}
 	var adaptiveLimiter *ratelimit.Limiter
 	var executorRef *core.Executor
-	escalationCount := int32(0)
+	escalationCount := 0
 	autoEscalate := func(reason string) {
-		count := atomic.AddInt32(&escalationCount, 1)
-		if count > 5 {
-			return
-		}
-
 		rateMu.Lock()
 		defer rateMu.Unlock()
+
+		escalationCount++
+		if escalationCount > 5 {
+			return
+		}
 
 		oldRate := currentRateLimit
 		oldConc := currentConcurrency

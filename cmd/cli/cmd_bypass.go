@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html"
 	"os"
 	"sync"
 	"time"
@@ -486,12 +487,12 @@ func writeBypassExports(outFlags *OutputFlags, target string, bypasses []*mutati
 			fmt.Fprintf(f, "<html><head><title>WAF Bypass Results</title></head><body>\n")
 			fmt.Fprintf(f, "<h1>WAF Bypass Results</h1>\n")
 			fmt.Fprintf(f, "<p>Target: %s | Total: %d | Bypasses: %d | Rate: %.2f%%</p>\n",
-				target, totalTested, len(bypasses), bypassRate)
+				html.EscapeString(target), totalTested, len(bypasses), bypassRate)
 			if len(bypasses) > 0 {
 				fmt.Fprintf(f, "<table border='1'><tr><th>Status</th><th>Payload</th><th>Encoder</th><th>Evasion</th><th>Location</th></tr>\n")
 				for _, bp := range bypasses {
 					fmt.Fprintf(f, "<tr><td>%d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>\n",
-						bp.StatusCode, bp.MutatedPayload, bp.EncoderUsed, bp.EvasionUsed, bp.LocationUsed)
+						bp.StatusCode, html.EscapeString(bp.MutatedPayload), html.EscapeString(bp.EncoderUsed), html.EscapeString(bp.EvasionUsed), html.EscapeString(bp.LocationUsed))
 				}
 				fmt.Fprintf(f, "</table>\n")
 			}

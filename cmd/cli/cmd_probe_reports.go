@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"os"
 	"time"
 
@@ -111,7 +112,7 @@ func writeProbeExports(outFlags *OutputFlags, results []*ProbeResults, elapsed t
 				fmt.Fprintf(f, "<table border='1'><tr><th>Target</th><th>Status</th><th>Content-Type</th><th>Server</th><th>Alive</th></tr>\n")
 				for _, r := range results {
 					fmt.Fprintf(f, "<tr><td>%s</td><td>%d</td><td>%s</td><td>%s</td><td>%t</td></tr>\n",
-						r.Target, r.StatusCode, r.ContentType, r.Server, r.Alive)
+						html.EscapeString(r.Target), r.StatusCode, html.EscapeString(r.ContentType), html.EscapeString(r.Server), r.Alive)
 				}
 				fmt.Fprintf(f, "</table>\n")
 			}
