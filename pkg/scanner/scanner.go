@@ -17,20 +17,10 @@ import (
 	"github.com/waftester/waftester/pkg/finding"
 )
 
-// Vulnerability is a unified representation of a security finding
-// discovered by any scanner. Scanner implementations convert their
-// package-specific vulnerability types into this common format.
-type Vulnerability struct {
-	Category    string           `json:"category"`
-	Severity    finding.Severity `json:"severity"`
-	Type        string           `json:"type"`
-	Description string           `json:"description,omitempty"`
-	Parameter   string           `json:"parameter,omitempty"`
-	Payload     string           `json:"payload,omitempty"`
-	Evidence    string           `json:"evidence,omitempty"`
-	Remediation string           `json:"remediation,omitempty"`
-	URL         string           `json:"url,omitempty"`
-}
+// Vulnerability is an alias for finding.Vulnerability, the canonical
+// representation of a security finding. Scanner implementations convert
+// their package-specific vulnerability types into this common format.
+type Vulnerability = finding.Vulnerability
 
 // Result holds the output of a single scanner execution.
 type Result struct {
