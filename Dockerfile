@@ -13,7 +13,7 @@
 # ---------------------------------------------------------------------------
 # Stage 1: Build — compile a static Go binary
 # ---------------------------------------------------------------------------
-FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
 
 ARG TARGETARCH
 ARG TARGETOS=linux
