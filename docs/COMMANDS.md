@@ -2109,7 +2109,9 @@ waftester update --skip-destructive
 
 **Alias:** `diff`
 
-Compare two scan result JSON files and show what changed. Reports severity deltas, new/fixed vulnerability categories, WAF vendor changes, and an overall verdict (improved, regressed, or unchanged).
+Compare two scan result JSON files and show what changed. Reports severity deltas, severity-weighted risk scores, new/fixed vulnerability categories, WAF vendor changes (including multi-WAF environments), and an overall verdict (improved, regressed, or unchanged).
+
+Auto-detects the JSON format: accepts both `scan --json` output and `auto --json` (autoscan summary) output.
 
 **When to use:** After adjusting WAF rules, upgrading WAF vendors, or testing A/B configurations. Compare a baseline scan against a current scan to measure security posture changes.
 
@@ -2124,6 +2126,24 @@ Compare two scan result JSON files and show what changed. Reports severity delta
 
 Positional arguments are also supported: `waf-tester compare before.json after.json`
 
+#### Verdict Logic
+
+| Verdict | Condition |
+|---------|-----------|
+| `improved` | Total vulnerabilities decreased, or same total but severity shifted down (e.g., critical → low) |
+| `regressed` | Total vulnerabilities increased, or same total but severity shifted up (e.g., low → critical) |
+| `unchanged` | No change in total count or severity-weighted risk score |
+
+Severity weights: critical=10, high=5, medium=2, low=1, info=0. A risk score row appears in console output when severity shifts are detected.
+
+#### CI/CD Integration
+
+Exits with code 1 when the verdict is `regressed`. Use in CI pipelines to gate deployments on WAF effectiveness:
+
+```bash
+waf-tester compare baseline.json current.json || echo "WAF regression detected"
+```
+
 #### Examples
 
 ```bash
@@ -2135,6 +2155,9 @@ waf-tester compare baseline.json current.json
 
 # JSON output to file
 waf-tester compare --before a.json --after b.json --format json -o diff.json
+
+# Compare autoscan summaries
+waf-tester compare summary-before.json summary-after.json
 ```
 
 ---
