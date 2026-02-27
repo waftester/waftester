@@ -343,8 +343,13 @@ func (c *Client) doOnce(ctx context.Context, req *Request) (*Response, error) {
 	// Referer
 	if req.Referer != "" {
 		httpReq.Header.Set("Referer", req.Referer)
-	} else if c.referer != "" {
-		httpReq.Header.Set("Referer", c.referer)
+	} else {
+		c.mu.Lock()
+		ref := c.referer
+		c.mu.Unlock()
+		if ref != "" {
+			httpReq.Header.Set("Referer", ref)
+		}
 	}
 
 	// Origin
