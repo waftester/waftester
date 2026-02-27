@@ -463,8 +463,15 @@ func (s *AuthenticatedScanner) runChromedpScan(ctx context.Context, result *Brow
 	// cancelBrowser is a helper that cancels chromedp contexts with a timeout.
 	// On Windows, chromedp's allocator cancel can block waiting for Chrome
 	// child processes (GPU, renderer) to exit. This wrapper ensures cleanup
-	// completes within 5 seconds, forcibly abandoning the process tree if needed.
+	// completes within 5 seconds, then force-kills the browser process tree.
 	cancelBrowser := func() {
+		// Capture the browser process BEFORE cancelling contexts — after
+		// cancel the process reference may be nil.
+		var proc *os.Process
+		if c := chromedp.FromContext(browserCtx); c != nil && c.Browser != nil {
+			proc = c.Browser.Process()
+		}
+
 		done := make(chan struct{})
 		go func() {
 			browserCancel()
@@ -475,9 +482,12 @@ func (s *AuthenticatedScanner) runChromedpScan(ctx context.Context, result *Brow
 		case <-done:
 			// Clean shutdown
 		case <-time.After(5 * time.Second):
-			// Force-kill: chromedp cleanup blocked (likely orphaned Chrome processes)
+			// Graceful cancel blocked — force-kill the Chrome process tree.
+			if proc != nil {
+				_ = proc.Kill()
+			}
 			if progressFn != nil {
-				progressFn("Browser cleanup timed out — orphaned Chrome processes may remain")
+				progressFn("Browser cleanup timed out — force-killed Chrome process")
 			}
 		}
 	}

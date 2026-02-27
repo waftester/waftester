@@ -303,36 +303,48 @@ func TestWAFModelLearning(t *testing.T) {
 	}
 }
 
-// TestTechProfileDetection tests technology detection
+// TestTechProfileDetection tests technology detection via Evidence and Path
 func TestTechProfileDetection(t *testing.T) {
 	profile := NewTechProfile()
 
-	// Add findings with tech indicators
+	// Update with a finding whose Evidence contains a Django indicator.
+	// Detection uses Evidence + Path (NOT Metadata or Payload).
 	profile.Update(&Finding{
-		Path: "/",
-		Metadata: map[string]interface{}{
-			"headers": "X-Powered-By: Django",
-		},
-	})
-	profile.Update(&Finding{
-		Path: "/admin",
-		Metadata: map[string]interface{}{
-			"body": "csrfmiddlewaretoken",
-		},
+		Path:     "/admin",
+		Evidence: "csrfmiddlewaretoken",
 	})
 
-	// Detect from a finding with Django indicators
-	profile.Detect(&Finding{
-		Path:    "/django/admin",
-		Payload: "csrfmiddlewaretoken",
+	if !profile.HasFramework("django") {
+		t.Error("Expected django framework to be detected via csrfmiddlewaretoken in Evidence")
+	}
+
+	// Detect should return a new TechInfo for an unseen framework
+	tech := profile.Detect(&Finding{
+		Path:     "/api/v1/users",
+		Evidence: "X-Powered-By: Express",
 	})
+	if tech == nil {
+		t.Error("Expected Detect to return TechInfo for Express via x-powered-by header")
+	} else if tech.Name != "express" {
+		t.Errorf("Expected tech name 'express', got %q", tech.Name)
+	}
 
-	detected := profile.GetDetected()
-	t.Logf("Detected technologies: %+v", detected)
+	// Payload content must NOT trigger detection (attacker-controlled)
+	profile2 := NewTechProfile()
+	profile2.Update(&Finding{
+		Path:    "/test",
+		Payload: "django flask spring react angular vue",
+	})
+	detected := profile2.GetDetected()
+	if len(detected) > 0 {
+		t.Errorf("Payload content should not trigger tech detection, but got: %v", detected)
+	}
 
-	// Should have detected Django
-	if !profile.HasFramework("django") && !profile.HasFramework("Django") {
-		t.Log("Django not detected (may depend on detection patterns)")
+	// Verify GetDetected returns both frameworks
+	all := profile.GetDetected()
+	t.Logf("Detected technologies: %v", all)
+	if len(all) < 2 {
+		t.Errorf("Expected at least 2 detected technologies, got %d", len(all))
 	}
 }
 
