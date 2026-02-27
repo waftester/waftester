@@ -43,6 +43,10 @@ func NewTechProfile() *TechProfile {
 
 // Update processes a finding for technology indicators.
 // Safe to call with nil finding (no-op).
+// Only uses Evidence (response headers/body) and Path for detection — NOT the
+// Payload field, because attack payloads contain framework/database keywords
+// (e.g., "mysql", "python", ".js") that would cause every technology to be
+// falsely detected.
 func (t *TechProfile) Update(f *Finding) {
 	if f == nil {
 		return
@@ -50,7 +54,9 @@ func (t *TechProfile) Update(f *Finding) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	content := strings.ToLower(f.Payload + f.Evidence + f.Path)
+	// Only use evidence and path — payload is attacker-controlled content
+	// and should not influence tech stack detection.
+	content := strings.ToLower(f.Evidence + " " + f.Path)
 
 	// Detect frameworks
 	t.detectFrameworks(content)
@@ -67,6 +73,7 @@ func (t *TechProfile) Update(f *Finding) {
 
 // Detect checks if a finding indicates a specific technology.
 // Returns nil if f is nil or no technology detected.
+// Only uses Evidence and Path — NOT Payload (see Update comment).
 func (t *TechProfile) Detect(f *Finding) *TechInfo {
 	if f == nil {
 		return nil
@@ -74,7 +81,7 @@ func (t *TechProfile) Detect(f *Finding) *TechInfo {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	content := strings.ToLower(f.Payload + f.Evidence + f.Path)
+	content := strings.ToLower(f.Evidence + " " + f.Path)
 
 	// Check for new technology indicators
 	for name, indicators := range frameworkIndicators {
@@ -281,14 +288,14 @@ var frameworkIndicators = map[string][]string{
 }
 
 var databaseIndicators = map[string][]string{
-	"mysql":         {"mysql", "mysqld", "maria"},
+	"mysql":         {"mysql", "mysqld", "mariadb"},
 	"postgresql":    {"postgresql", "postgres", "pgsql"},
-	"mongodb":       {"mongodb", "mongoose", "_id", "objectid"},
-	"redis":         {"redis", "redisdb"},
-	"sqlite":        {"sqlite", ".sqlite"},
+	"mongodb":       {"mongodb", "mongoose"},
+	"redis":         {"redis-server", "redisdb"},
+	"sqlite":        {"sqlite3", ".sqlite"},
 	"oracle":        {"oracle", "ora-"},
 	"mssql":         {"mssql", "sqlserver", "microsoft sql"},
-	"elasticsearch": {"elasticsearch", "elastic", "_search"},
+	"elasticsearch": {"elasticsearch", "_search/scroll"},
 	"dynamodb":      {"dynamodb", "aws.dynamodb"},
 	"firebase":      {"firebase", "firestore"},
 }
@@ -304,13 +311,13 @@ var serverIndicators = map[string][]string{
 }
 
 var languageIndicators = map[string][]string{
-	"python": {"python", ".py", "django", "flask"},
-	"php":    {"php", ".php"},
-	"java":   {"java", ".jsp", ".do", "jsessionid"},
-	"ruby":   {"ruby", ".rb", "rails"},
-	"node":   {"node", ".js"},
-	"go":     {"go ", "golang"},
-	"dotnet": {".net", "asp.net", ".aspx"},
+	"python": {"x-powered-by: python", "wsgi", "django", "flask"},
+	"php":    {"x-powered-by: php", ".php"},
+	"java":   {"x-powered-by: java", ".jsp", ".do", "jsessionid"},
+	"ruby":   {"x-powered-by: ruby", ".rb", "x-rails"},
+	"node":   {"x-powered-by: express", "x-powered-by: node"},
+	"go":     {"x-powered-by: go", "x-powered-by: golang"},
+	"dotnet": {"x-powered-by: asp.net", ".aspx", "__viewstate"},
 }
 
 func getFrameworkRecommendation(name string) string {
