@@ -31,7 +31,7 @@ npm install -g @waftester/cli
 
 ## What Is WAFtester?
 
-The most comprehensive WAF testing CLI — detect, fingerprint, and bypass Web Application Firewalls with 2,800+ payloads, 90+ tamper scripts, and quantitative security metrics.
+The most comprehensive WAF testing CLI — detect, fingerprint, and bypass Web Application Firewalls with 2,800+ payloads, 96 tamper scripts, and quantitative security metrics.
 
 - [Website](https://waftester.com)
 - [GitHub](https://github.com/waftester/waftester)

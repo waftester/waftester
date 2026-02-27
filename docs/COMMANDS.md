@@ -4,7 +4,7 @@ The definitive reference for every WAFtester CLI command, flag, environment vari
 
 For usage examples and real-world workflows, see the [Examples Guide](https://github.com/waftester/waftester/blob/main/docs/EXAMPLES.md). For installation, see the [Installation Guide](https://github.com/waftester/waftester/blob/main/docs/INSTALLATION.md). For a quick task-oriented reference, see the [Cheat Sheet](https://waftester.com/cheat-sheet).
 
-**Document Version:** 2.9.30
+**Document Version:** 2.9.38
 **Last Updated:** February 2026
 
 > **Reading order:** This is the flag reference. For real-world examples, see [EXAMPLES.md](EXAMPLES.md). For a quick copy-paste reference, see the [Cheat Sheet](https://waftester.com/cheat-sheet). For a beginner guide, see [waftester.com/docs](https://waftester.com/docs).
@@ -44,7 +44,7 @@ For usage examples and real-world workflows, see the [Examples Guide](https://gi
   - [template](#template) — Nuclei template scanning
   - [smuggle](#smuggle) — HTTP request smuggling
   - [race](#race) — Race condition testing
-  - [openapi](#openapi) — OpenAPI/Swagger testing
+  - [openapi](#openapi) — ~~Removed~~ (use `scan --spec` instead)
   - [grpc](#grpc) — gRPC service testing
   - [soap](#soap) — SOAP/WSDL service testing
 - **Utilities**
@@ -379,7 +379,7 @@ Configure what gets scanned, how fast, and where results go.
 |------|-------|------|---------|-------------|
 | `-types` | `-t` | string | `all` | Attack types to run (comma-separated, e.g., `sqli,xss,ssti,cmdi`) |
 | `-concurrency` | | int | 5 | Concurrent requests |
-| `-timeout` | | int | 10 | Request timeout in seconds |
+| `-timeout` | | int | 30 | Request timeout in seconds |
 | `-skip-verify` | | bool | false | Skip TLS verification |
 | `-verbose` | | bool | false | Verbose output |
 | `-output` | | string | | Output file |
@@ -431,7 +431,6 @@ Customize HTTP request properties. Use `-proxy` to route through Burp Suite or Z
 | `-follow-redirects` | `-fr` | bool | true | Follow HTTP redirects |
 | `-max-redirects` | | int | 10 | Maximum redirect chain length |
 | `-respect-robots` | `-rr` | bool | false | Respect robots.txt directives |
-| `-max-depth` | `-mxd` | int | 5 | Maximum crawl depth |
 
 #### OAuth
 
@@ -472,7 +471,6 @@ Control how results are displayed. For file exports (SARIF, JUnit, etc.), see [o
 | `-csv` | | bool | false | CSV output |
 | `-silent` | `-s`, `-q` | bool | false | Suppress all output except results |
 | `-no-color` | `-nc` | bool | false | Disable colored output |
-| `-timestamp` | `-ts` | bool | false | Add timestamps to output |
 | `-stream` | | bool | false | Stream results in real-time |
 
 #### Report
@@ -622,7 +620,6 @@ Filters exclude responses that match criteria. The inverse of matchers. Combine 
 | `-no-color` | `-nc` | bool | false | No colored output |
 | `-stats` | | bool | false | Show live stats |
 | `-stats-interval` | | int | 5 | Stats refresh interval (seconds) |
-| `-timestamp` | `-ts` | bool | false | Timestamps |
 | `-noninteractive` | `-ni` | bool | false | Non-interactive mode |
 | `-store-response` | `-sr` | bool | false | Store raw responses to disk |
 | `-store-response-dir` | `-srd` | string | `responses` | Response storage directory |
@@ -1732,43 +1729,14 @@ waftester workflow -f pipeline.yaml --dry-run
 
 **Aliases:** `openapi-fuzz`, `swagger`
 
-API specification-driven security testing. Parses OpenAPI 3.x or Swagger 2.0 specs to enumerate endpoints, extract parameter schemas, and generate targeted attack payloads that respect the API contract (correct content types, required fields, valid enum values) while injecting malicious data into individual parameters.
-
-This approach tests WAF rules in the context of the actual API surface, catching parameter-specific bypasses and schema-aware injection vectors that generic scanning would miss.
-
-**When to use:** Testing REST APIs that have an OpenAPI/Swagger spec. For GraphQL, gRPC, or SOAP, use the dedicated commands instead.
-
-| Flag | Short | Type | Default | Description |
-|------|-------|------|---------|-------------|
-| `-spec` | `-s` | string | | API specification file |
-| `-spec-url` | | string | | API spec URL |
-| `-base-url` | `-u` | string | | Base URL override |
-| `-list` | | bool | false | List spec endpoints |
-| `-fuzz` | | bool | false | Fuzz endpoints |
-| `-scan-type` | | string | `all` | Scan type filter |
-| `-path` | | string | | Path filter |
-| `-method` | | string | | Method filter |
-| `-auth-header` | | string | | Authorization header |
-| `-api-key` | | string | | API key |
-| `-api-key-header` | | string | `X-API-Key` | API key header name |
-| `-bearer` | | string | | Bearer token |
-| `-payloads` | | string | | Payload directory |
-| `-template-dir` | | string | | Template directory |
-| `-o` | | string | | Output file |
-| `-json` | | bool | false | JSON output |
-| `-v` | | bool | false | Verbose |
-
-#### Examples
+> **Removed.** The standalone `openapi` command has been removed. Use `auto --spec` or `scan --spec` instead, which provide the same API spec scanning capabilities integrated with the full scanning pipeline.
 
 ```bash
-# List endpoints from spec
-waftester openapi --spec openapi.yaml --list
+# Replacement — scan an OpenAPI spec
+waftester scan --spec openapi.yaml -u https://api.example.com
 
-# Fuzz all endpoints
-waftester openapi --spec openapi.yaml --fuzz -u https://api.example.com
-
-# Auth-protected API
-waftester openapi --spec openapi.yaml --fuzz --bearer "$TOKEN" -u https://api.example.com
+# Or with full auto assessment
+waftester auto -u https://api.example.com --spec openapi.yaml
 ```
 
 ---
@@ -1819,7 +1787,7 @@ waftester grpc -u localhost:50051 --fuzz --category injection
 
 SOAP/WSDL service security testing. Parses WSDL definitions to discover operations, generates SOAP envelopes for each operation, and tests for XXE (XML External Entity), XML injection, SSRF (via SOAP attributes), and command injection. Supports custom SOAPAction headers, namespace overrides, and request body templates.
 
-**When to use:** Testing legacy SOAP/XML web services. For REST APIs, use `scan` or `openapi` instead.
+**When to use:** Testing legacy SOAP/XML web services. For REST APIs, use `scan --spec` instead.
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|

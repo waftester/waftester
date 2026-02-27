@@ -243,7 +243,6 @@ func printUsage() {
 	fmt.Println("    -v, -verbose           Verbose output")
 	fmt.Println("    -s, -silent            Silent mode - no progress")
 	fmt.Println("    -nc, -no-color         Disable colored output")
-	fmt.Println("    -ts, -timestamp        Add timestamp to output (nuclei style)")
 	fmt.Println("    -sr, -store-response   Store HTTP responses to directory")
 	fmt.Println("    -srd <dir>             Directory for stored responses")
 	fmt.Println("    -stats                 Show statistics during execution")
@@ -660,7 +659,6 @@ func printDocsRun() {
 	fmt.Println()
 	fmt.Println("  -v, -verbose         Show detailed test output")
 	fmt.Println("  -s, -silent          No progress output (for scripting)")
-	fmt.Println("  -ts, -timestamp      Add timestamps (nuclei style)")
 	fmt.Println("  -stats               Show live statistics")
 	fmt.Println()
 
