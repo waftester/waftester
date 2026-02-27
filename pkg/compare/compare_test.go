@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -554,5 +555,444 @@ func TestCompare_LargeDeltaValues(t *testing.T) {
 	}
 	if r.SeverityDeltas["critical"] != -50000 {
 		t.Errorf("critical delta = %d, want -50000", r.SeverityDeltas["critical"])
+	}
+}
+
+// --- Autoscan format tests ---
+
+func TestLoadSummary_AutoscanFormat(t *testing.T) {
+	dir := t.TempDir()
+	raw := map[string]interface{}{
+		"target":             "https://auto.example.com",
+		"timestamp":          "2026-02-28T10:00:00Z",
+		"duration_seconds":   45.5,
+		"bypass_count":       12,
+		"severity_breakdown": map[string]int{"critical": 2, "high": 5, "medium": 3, "low": 2},
+		"category_breakdown": map[string]int{"sqli": 6, "xss": 4, "cmdi": 2},
+		"discovery":          map[string]interface{}{"waf_vendor": "Cloudflare", "waf_detected": true},
+		"intelligence":       map[string]interface{}{"tech_stack": []string{"nginx", "react"}},
+	}
+	path := writeTestJSON(t, dir, "autoscan.json", raw)
+
+	s, err := LoadSummary(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Target != "https://auto.example.com" {
+		t.Errorf("Target = %q, want %q", s.Target, "https://auto.example.com")
+	}
+	if s.TotalVulns != 12 {
+		t.Errorf("TotalVulns = %d, want 12 (from bypass_count)", s.TotalVulns)
+	}
+	if len(s.BySeverity) != 4 {
+		t.Errorf("BySeverity has %d entries, want 4 (from severity_breakdown)", len(s.BySeverity))
+	}
+	if len(s.ByCategory) != 3 {
+		t.Errorf("ByCategory has %d entries, want 3 (from category_breakdown)", len(s.ByCategory))
+	}
+	if s.WAFVendor != "Cloudflare" {
+		t.Errorf("WAFVendor = %q, want %q (from discovery)", s.WAFVendor, "Cloudflare")
+	}
+	if len(s.TechStack) != 2 {
+		t.Errorf("TechStack has %d entries, want 2 (from intelligence)", len(s.TechStack))
+	}
+	if s.StartTime.IsZero() {
+		t.Error("StartTime should be parsed from timestamp field")
+	}
+	if s.Duration == 0 {
+		t.Error("Duration should be parsed from duration_seconds")
+	}
+	// 45.5 seconds
+	if s.Duration.Seconds() < 45 || s.Duration.Seconds() > 46 {
+		t.Errorf("Duration = %v, want ~45.5s", s.Duration)
+	}
+}
+
+func TestLoadSummary_AutoscanStatsFallback(t *testing.T) {
+	dir := t.TempDir()
+	raw := map[string]interface{}{
+		"target": "https://stats.example.com",
+		"stats":  map[string]interface{}{"total_tests": 100, "blocked": 80, "failed": 20},
+	}
+	path := writeTestJSON(t, dir, "stats.json", raw)
+
+	s, err := LoadSummary(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.TotalVulns != 20 {
+		t.Errorf("TotalVulns = %d, want 20 (from stats.failed)", s.TotalVulns)
+	}
+}
+
+func TestLoadSummary_SmartModeVendor(t *testing.T) {
+	dir := t.TempDir()
+	raw := map[string]interface{}{
+		"target":     "https://smart.example.com",
+		"smart_mode": map[string]interface{}{"vendor": "Imperva"},
+	}
+	path := writeTestJSON(t, dir, "smart.json", raw)
+
+	s, err := LoadSummary(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.WAFVendor != "Imperva" {
+		t.Errorf("WAFVendor = %q, want %q (from smart_mode)", s.WAFVendor, "Imperva")
+	}
+}
+
+// --- Duration parsing tests ---
+
+func TestLoadSummary_DurationNanoseconds(t *testing.T) {
+	dir := t.TempDir()
+	raw := map[string]interface{}{
+		"target":   "https://ns.example.com",
+		"duration": 5000000000, // 5 seconds in nanoseconds
+	}
+	path := writeTestJSON(t, dir, "ns.json", raw)
+
+	s, err := LoadSummary(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Duration.Seconds() < 4.9 || s.Duration.Seconds() > 5.1 {
+		t.Errorf("Duration = %v, want ~5s (from nanoseconds int64)", s.Duration)
+	}
+}
+
+func TestLoadSummary_DurationString(t *testing.T) {
+	dir := t.TempDir()
+	raw := map[string]interface{}{
+		"target":   "https://str.example.com",
+		"duration": "5m30s",
+	}
+	path := writeTestJSON(t, dir, "str.json", raw)
+
+	s, err := LoadSummary(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := 5*60 + 30 // 330 seconds
+	got := int(s.Duration.Seconds())
+	if got != want {
+		t.Errorf("Duration = %v (%ds), want %ds (from string \"5m30s\")", s.Duration, got, want)
+	}
+}
+
+// --- Empty file and JSON array tests ---
+
+func TestLoadSummary_EmptyFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "empty.json")
+	if err := os.WriteFile(path, []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := LoadSummary(path)
+	if err == nil {
+		t.Fatal("expected error for empty file")
+	}
+	if !strings.Contains(err.Error(), "empty") {
+		t.Errorf("error = %q, want mention of 'empty'", err.Error())
+	}
+}
+
+func TestLoadSummary_JSONArray(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "array.json")
+	if err := os.WriteFile(path, []byte(`[{"target":"x"}]`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := LoadSummary(path)
+	if err == nil {
+		t.Fatal("expected error for JSON array")
+	}
+	if !strings.Contains(err.Error(), "array") {
+		t.Errorf("error = %q, want mention of 'array'", err.Error())
+	}
+}
+
+// --- Severity-weighted verdict tests ---
+
+func TestCompare_SeverityShiftRegression(t *testing.T) {
+	// Same total vulns, but severity shifted up (low→critical)
+	before := &ScanSummary{
+		TotalVulns: 10,
+		BySeverity: map[string]int{"low": 10},
+	}
+	after := &ScanSummary{
+		TotalVulns: 10,
+		BySeverity: map[string]int{"critical": 10},
+	}
+	r := Compare(before, after)
+	if r.Verdict != "regressed" {
+		t.Errorf("Verdict = %q, want %q (severity shifted up)", r.Verdict, "regressed")
+	}
+	if r.VulnDelta != 0 {
+		t.Errorf("VulnDelta = %d, want 0", r.VulnDelta)
+	}
+	// Weighted: before=10*1=10, after=10*10=100, delta=+90
+	if r.WeightedDelta != 90 {
+		t.Errorf("WeightedDelta = %d, want 90", r.WeightedDelta)
+	}
+}
+
+func TestCompare_SeverityShiftImprovement(t *testing.T) {
+	// Same total vulns, but severity shifted down (critical→low)
+	before := &ScanSummary{
+		TotalVulns: 10,
+		BySeverity: map[string]int{"critical": 10},
+	}
+	after := &ScanSummary{
+		TotalVulns: 10,
+		BySeverity: map[string]int{"low": 10},
+	}
+	r := Compare(before, after)
+	if r.Verdict != "improved" {
+		t.Errorf("Verdict = %q, want %q (severity shifted down)", r.Verdict, "improved")
+	}
+	if !r.Improved {
+		t.Error("Improved should be true for severity downshift")
+	}
+	// Weighted: before=10*10=100, after=10*1=10, delta=-90
+	if r.WeightedDelta != -90 {
+		t.Errorf("WeightedDelta = %d, want -90", r.WeightedDelta)
+	}
+}
+
+func TestCompare_WeightedScores(t *testing.T) {
+	// Verify weighted score calculation
+	before := &ScanSummary{
+		TotalVulns: 5,
+		BySeverity: map[string]int{"critical": 1, "high": 2, "medium": 1, "low": 1},
+	}
+	after := &ScanSummary{
+		TotalVulns: 5,
+		BySeverity: map[string]int{"medium": 3, "low": 2},
+	}
+	r := Compare(before, after)
+	// Before: 1*10 + 2*5 + 1*2 + 1*1 = 10+10+2+1 = 23
+	if r.WeightedBefore != 23 {
+		t.Errorf("WeightedBefore = %d, want 23", r.WeightedBefore)
+	}
+	// After: 3*2 + 2*1 = 6+2 = 8
+	if r.WeightedAfter != 8 {
+		t.Errorf("WeightedAfter = %d, want 8", r.WeightedAfter)
+	}
+	// Delta: 8-23 = -15
+	if r.WeightedDelta != -15 {
+		t.Errorf("WeightedDelta = %d, want -15", r.WeightedDelta)
+	}
+}
+
+// --- Multi-WAF comparison tests ---
+
+func TestCompare_MultiWAFChanged(t *testing.T) {
+	before := &ScanSummary{
+		TotalVulns: 5,
+		WAFVendor:  "Cloudflare",
+		WAFVendors: []string{"Cloudflare"},
+	}
+	after := &ScanSummary{
+		TotalVulns: 5,
+		WAFVendor:  "AWS",
+		WAFVendors: []string{"AWS", "Cloudflare"},
+	}
+	r := Compare(before, after)
+	if !r.WAFChanged {
+		t.Error("WAFChanged should be true when vendor set differs")
+	}
+}
+
+func TestCompare_MultiWAFSameSet(t *testing.T) {
+	before := &ScanSummary{
+		TotalVulns: 5,
+		WAFVendor:  "AWS",
+		WAFVendors: []string{"AWS", "Cloudflare"},
+	}
+	after := &ScanSummary{
+		TotalVulns: 5,
+		WAFVendor:  "AWS",
+		WAFVendors: []string{"AWS", "Cloudflare"},
+	}
+	r := Compare(before, after)
+	if r.WAFChanged {
+		t.Error("WAFChanged should be false when vendor sets are identical")
+	}
+}
+
+func TestLoadSummary_MultipleWAFVendorSources(t *testing.T) {
+	dir := t.TempDir()
+	// Both waf_detect and discovery report different vendors
+	raw := map[string]interface{}{
+		"target": "https://multi.example.com",
+		"waf_detect": map[string]interface{}{
+			"wafs": []map[string]interface{}{
+				{"vendor": "Cloudflare", "name": "Cloudflare"},
+			},
+		},
+		"discovery": map[string]interface{}{
+			"waf_vendor":   "Imperva",
+			"waf_detected": true,
+		},
+	}
+	path := writeTestJSON(t, dir, "multi_source.json", raw)
+
+	s, err := LoadSummary(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.WAFVendors) != 2 {
+		t.Fatalf("WAFVendors = %v, want 2 vendors", s.WAFVendors)
+	}
+	// Sorted: Cloudflare, Imperva
+	if s.WAFVendors[0] != "Cloudflare" || s.WAFVendors[1] != "Imperva" {
+		t.Errorf("WAFVendors = %v, want [Cloudflare, Imperva]", s.WAFVendors)
+	}
+}
+
+func TestLoadSummary_DeduplicatesWAFVendors(t *testing.T) {
+	dir := t.TempDir()
+	// Same vendor from multiple sources
+	raw := map[string]interface{}{
+		"target": "https://dedup.example.com",
+		"waf_detect": map[string]interface{}{
+			"wafs": []map[string]interface{}{
+				{"vendor": "Cloudflare", "name": "Cloudflare"},
+			},
+		},
+		"discovery": map[string]interface{}{
+			"waf_vendor":   "Cloudflare",
+			"waf_detected": true,
+		},
+		"smart_mode": map[string]interface{}{
+			"vendor": "Cloudflare",
+		},
+	}
+	path := writeTestJSON(t, dir, "dedup.json", raw)
+
+	s, err := LoadSummary(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.WAFVendors) != 1 {
+		t.Errorf("WAFVendors = %v, want [Cloudflare] (deduplicated)", s.WAFVendors)
+	}
+}
+
+// --- parseDuration unit tests ---
+
+func TestParseDuration_NanosecondsInt(t *testing.T) {
+	raw := json.RawMessage(`5000000000`) // 5 seconds
+	d := parseDuration(raw, nil)
+	if d.Seconds() < 4.9 || d.Seconds() > 5.1 {
+		t.Errorf("parseDuration(5000000000) = %v, want ~5s", d)
+	}
+}
+
+func TestParseDuration_StringFormat(t *testing.T) {
+	raw := json.RawMessage(`"2m30s"`)
+	d := parseDuration(raw, nil)
+	if d.Seconds() != 150 {
+		t.Errorf("parseDuration(\"2m30s\") = %v, want 2m30s", d)
+	}
+}
+
+func TestParseDuration_DurationSecondsFallback(t *testing.T) {
+	sec := 45.5
+	d := parseDuration(nil, &sec)
+	if d.Seconds() < 45 || d.Seconds() > 46 {
+		t.Errorf("parseDuration(nil, 45.5) = %v, want ~45.5s", d)
+	}
+}
+
+func TestParseDuration_NullJSON(t *testing.T) {
+	raw := json.RawMessage(`null`)
+	d := parseDuration(raw, nil)
+	if d != 0 {
+		t.Errorf("parseDuration(null) = %v, want 0", d)
+	}
+}
+
+func TestParseDuration_ZeroJSON(t *testing.T) {
+	raw := json.RawMessage(`0`)
+	d := parseDuration(raw, nil)
+	if d != 0 {
+		t.Errorf("parseDuration(0) = %v, want 0", d)
+	}
+}
+
+// --- computeWeightedScore tests ---
+
+func TestComputeWeightedScore_AllSeverities(t *testing.T) {
+	sev := map[string]int{
+		"critical": 1,
+		"high":     2,
+		"medium":   3,
+		"low":      4,
+		"info":     5,
+	}
+	// 1*10 + 2*5 + 3*2 + 4*1 + 5*0 = 10+10+6+4+0 = 30
+	got := computeWeightedScore(sev)
+	if got != 30 {
+		t.Errorf("computeWeightedScore = %d, want 30", got)
+	}
+}
+
+func TestComputeWeightedScore_UnknownSeverity(t *testing.T) {
+	sev := map[string]int{"custom": 5}
+	// Unknown severity gets default weight of 1
+	got := computeWeightedScore(sev)
+	if got != 5 {
+		t.Errorf("computeWeightedScore = %d, want 5 (5 * default weight 1)", got)
+	}
+}
+
+func TestComputeWeightedScore_NilMap(t *testing.T) {
+	got := computeWeightedScore(nil)
+	if got != 0 {
+		t.Errorf("computeWeightedScore(nil) = %d, want 0", got)
+	}
+}
+
+// --- extractWAFVendors tests ---
+
+func TestExtractWAFVendors_EmptyWhitespace(t *testing.T) {
+	raw := rawSummary{
+		Discovery: &struct {
+			WAFVendor   string `json:"waf_vendor"`
+			WAFDetected bool   `json:"waf_detected"`
+		}{
+			WAFVendor: "  ",
+		},
+	}
+	vendors := extractWAFVendors(raw)
+	if len(vendors) != 0 {
+		t.Errorf("extractWAFVendors = %v, want empty (whitespace-only vendor)", vendors)
+	}
+}
+
+// --- stringSlicesEqual tests ---
+
+func TestStringSlicesEqual(t *testing.T) {
+	tests := []struct {
+		name string
+		a, b []string
+		want bool
+	}{
+		{"both nil", nil, nil, true},
+		{"both empty", []string{}, []string{}, true},
+		{"equal", []string{"a", "b"}, []string{"a", "b"}, true},
+		{"different length", []string{"a"}, []string{"a", "b"}, false},
+		{"different content", []string{"a", "b"}, []string{"a", "c"}, false},
+		{"nil vs empty", nil, []string{}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stringSlicesEqual(tt.a, tt.b)
+			if got != tt.want {
+				t.Errorf("stringSlicesEqual(%v, %v) = %v, want %v", tt.a, tt.b, got, tt.want)
+			}
+		})
 	}
 }
