@@ -47,10 +47,10 @@ type CrawlResult struct {
 	RedirectChain []string          `json:"redirect_chain,omitempty"` // Full redirect history
 	Error         string            `json:"error,omitempty"`
 	APIEndpoints  []APIEndpointInfo `json:"api_endpoints,omitempty"`
-	Subdomains    []string          `json:"subdomains,omitempty"`    // Discovered subdomains
-	Emails        []string          `json:"emails,omitempty"`        // Extracted email addresses
-	Parameters    []string          `json:"parameters,omitempty"`    // Discovered parameter names
-	Secrets       []SecretFinding   `json:"secrets,omitempty"`       // Potential secrets/tokens
+	Subdomains    []string          `json:"subdomains,omitempty"` // Discovered subdomains
+	Emails        []string          `json:"emails,omitempty"`     // Extracted email addresses
+	Parameters    []string          `json:"parameters,omitempty"` // Discovered parameter names
+	Secrets       []SecretFinding   `json:"secrets,omitempty"`    // Potential secrets/tokens
 	Timestamp     time.Time         `json:"timestamp"`
 }
 
@@ -114,10 +114,10 @@ type Config struct {
 	ExtractSecrets   bool `json:"extract_secrets"`
 
 	// Advanced crawling options
-	PathClimbing     bool `json:"path_climbing"`      // Crawl parent paths (/a/b/c → /a/b/, /a/)
-	FormFilling      bool `json:"form_filling"`        // Auto-fill and submit forms
-	CrossDomainJS    bool `json:"cross_domain_js"`     // Analyze JS files from CDNs outside scope
-	SkipJSLibraries  bool `json:"skip_js_libraries"`   // Skip analysis of jQuery/React/Angular/etc.
+	PathClimbing    bool `json:"path_climbing"`     // Crawl parent paths (/a/b/c → /a/b/, /a/)
+	FormFilling     bool `json:"form_filling"`      // Auto-fill and submit forms
+	CrossDomainJS   bool `json:"cross_domain_js"`   // Analyze JS files from CDNs outside scope
+	SkipJSLibraries bool `json:"skip_js_libraries"` // Skip analysis of jQuery/React/Angular/etc.
 
 	// Request options
 	UserAgent  string            `json:"user_agent"`
