@@ -286,7 +286,7 @@ Also integrates with SonarQube, GitLab SAST, DefectDojo, Elasticsearch, Slack, T
 | `validate` | Payload and spec validation |
 | `workflow` | YAML workflow orchestration |
 | `plugin` | Plugin management |
-| `compare` | Compare two scan result JSON files (severity/category deltas) |
+| `compare` | Compare two scan result JSON files (severity deltas, risk scores, CI exit code) |
 | `update` | Check for and install updates |
 | `docs` | Built-in command reference |
 | ... | 4 more specialized commands (`full`, `quick`, `standard`, `validate-templates`) |
