@@ -56,6 +56,7 @@ For usage examples and real-world workflows, see the [Examples Guide](https://gi
   - [mcp](#mcp) — Model Context Protocol server
   - [validate](#validate) — Payload and spec validation
   - [validate-templates](#validate-templates) — Template validation
+  - [compare](#compare) — Compare two scan result JSON files
   - [report](#report) — Enterprise HTML report generation
   - [update](#update) — Payload updater
 - [Understanding Matchers and Filters](#understanding-matchers-and-filters)
@@ -472,6 +473,7 @@ Control how results are displayed. For file exports (SARIF, JUnit, etc.), see [o
 | `-silent` | `-s`, `-q` | bool | false | Suppress all output except results |
 | `-no-color` | `-nc` | bool | false | Disable colored output |
 | `-stream` | | bool | false | Stream results in real-time |
+| `-timestamp` | `-ts` | bool | false | Add timestamps to vulnerability output |
 
 #### Report
 
@@ -2099,6 +2101,38 @@ waftester update --auto-apply
 
 # Skip destructive changes
 waftester update --skip-destructive
+```
+
+### `compare`
+
+**Alias:** `diff`
+
+Compare two scan result JSON files and show what changed. Reports severity deltas, new/fixed vulnerability categories, WAF vendor changes, and an overall verdict (improved, regressed, or unchanged).
+
+**When to use:** After adjusting WAF rules, upgrading WAF vendors, or testing A/B configurations. Compare a baseline scan against a current scan to measure security posture changes.
+
+#### Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `-before` | string | | First scan result JSON (baseline) |
+| `-after` | string | | Second scan result JSON (current) |
+| `-format` | string | `console` | Output format: `console`, `json` |
+| `-o` | string | | Output file |
+
+Positional arguments are also supported: `waf-tester compare before.json after.json`
+
+#### Examples
+
+```bash
+# Compare two scan results
+waf-tester compare --before baseline.json --after current.json
+
+# Positional args
+waf-tester compare baseline.json current.json
+
+# JSON output to file
+waf-tester compare --before a.json --after b.json --format json -o diff.json
 ```
 
 ---

@@ -101,7 +101,6 @@ func runScan() {
 	// Check if we are in streaming JSON mode (suppress UI output)
 	streamJSON := cfg.Out.StreamMode && (cfg.Out.JSONMode || cfg.Out.Format == "json" || cfg.Out.Format == "jsonl")
 
-
 	// Print banner unless in streaming JSON mode or suppressed by cfg.Out
 	if !streamJSON && !cfg.Out.ShouldSuppressBanner() {
 		ui.PrintCompactBanner()
@@ -699,6 +698,17 @@ func runScan() {
 				}
 				// Dispatch bypass event to all hooks (Slack, Teams, PagerDuty, OTEL, etc.)
 				_ = dispCtx.EmitBypass(ctx, category, severity, target, payload, 200)
+			}
+		}
+
+		// Console timestamp output (non-JSON mode)
+		if *cfg.Timestamp && !streamJSON && eventType == "vulnerability" {
+			ts := time.Now().Format("15:04:05")
+			if dataMap, ok := data.(map[string]interface{}); ok {
+				category, _ := dataMap["category"].(string)
+				severity := fmt.Sprintf("%v", dataMap["severity"])
+				vulnType, _ := dataMap["type"].(string)
+				fmt.Fprintf(os.Stderr, "[%s] [%s] %s: %s\n", ts, severity, category, vulnType)
 			}
 		}
 
