@@ -450,14 +450,38 @@ func (s *AuthenticatedScanner) runChromedpScan(ctx context.Context, result *Brow
 	}
 
 	allocCtx, allocCancel := chromedp.NewExecAllocator(ctx, opts...)
-	defer allocCancel()
+	// NOTE: allocCancel and browserCancel are called explicitly below with a
+	// timeout to prevent the process freeze on Windows where Chrome child
+	// processes (GPU, renderer) can block indefinitely during cleanup.
 
 	if progressFn != nil {
 		progressFn("Browser allocator initialized")
 	}
 
 	browserCtx, browserCancel := chromedp.NewContext(allocCtx)
-	defer browserCancel()
+
+	// cancelBrowser is a helper that cancels chromedp contexts with a timeout.
+	// On Windows, chromedp's allocator cancel can block waiting for Chrome
+	// child processes (GPU, renderer) to exit. This wrapper ensures cleanup
+	// completes within 5 seconds, forcibly abandoning the process tree if needed.
+	cancelBrowser := func() {
+		done := make(chan struct{})
+		go func() {
+			browserCancel()
+			allocCancel()
+			close(done)
+		}()
+		select {
+		case <-done:
+			// Clean shutdown
+		case <-time.After(5 * time.Second):
+			// Force-kill: chromedp cleanup blocked (likely orphaned Chrome processes)
+			if progressFn != nil {
+				progressFn("Browser cleanup timed out — orphaned Chrome processes may remain")
+			}
+		}
+	}
+	defer cancelBrowser()
 
 	if progressFn != nil {
 		progressFn("Browser context created, launching...")

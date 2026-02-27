@@ -232,6 +232,8 @@ func (cm *ConnectionMonitor) RecordSuccess(host string) {
 }
 
 // IsDropping returns true if the host is currently in a dropping state.
+// Periodically allows a recovery probe through (every RecoveryWindow) so that
+// hosts that have recovered are not permanently blacklisted.
 func (cm *ConnectionMonitor) IsDropping(host string) bool {
 	cm.mu.RLock()
 	state, exists := cm.hostDrops[host]
@@ -241,7 +243,19 @@ func (cm *ConnectionMonitor) IsDropping(host string) bool {
 		return false
 	}
 
-	return state.consecutiveDrops.Load() >= int64(defaults.DropDetectConsecutiveThreshold)
+	if state.consecutiveDrops.Load() < int64(defaults.DropDetectConsecutiveThreshold) {
+		return false
+	}
+
+	// Allow a recovery probe through every RecoveryWindow so the host has a
+	// chance to recover. Without this, skipped hosts never get re-tested and
+	// the detection is permanent (death spiral).
+	lastDrop := time.Unix(0, state.lastDropTime.Load())
+	if time.Since(lastDrop) >= defaults.DropDetectRecoveryWindow() {
+		return false // allow one probe through
+	}
+
+	return true
 }
 
 // GetDropState returns the current drop state for a host.

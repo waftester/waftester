@@ -137,9 +137,17 @@ func (d *Discoverer) extractJSFromHomepage(ctx context.Context) []string {
 	// Pattern: <script ... src="..." ...>
 	scriptPattern := regexcache.MustGet(`<script[^>]*\ssrc=["']([^"']+)["']`)
 	matches := scriptPattern.FindAllStringSubmatch(html, -1)
+	baseURL := d.config.Target
+	// Ensure base URL ends without trailing slash for clean concatenation
+	baseURL = strings.TrimRight(baseURL, "/")
+
 	for _, match := range matches {
 		if len(match) > 1 {
 			src := match[1]
+			// Skip data URIs and empty sources
+			if src == "" || strings.HasPrefix(src, "data:") {
+				continue
+			}
 			// Convert to absolute URL
 			if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") {
 				// Check if same domain
@@ -151,7 +159,11 @@ func (d *Discoverer) extractJSFromHomepage(ctx context.Context) []string {
 				jsURLs = append(jsURLs, "https:"+src)
 			} else if strings.HasPrefix(src, "/") {
 				// Absolute path
-				jsURLs = append(jsURLs, d.config.Target+src)
+				jsURLs = append(jsURLs, baseURL+src)
+			} else {
+				// Relative path (e.g., "js/app.js", "./bundle.js")
+				// Resolve against base URL
+				jsURLs = append(jsURLs, baseURL+"/"+src)
 			}
 		}
 	}
