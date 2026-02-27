@@ -101,10 +101,11 @@ See the [Installation Guide](https://github.com/waftester/waftester/blob/main/do
 | Benchmark WAF effectiveness | [`assess`](#assess) | F1 scores, detection rates, and false positive analysis |
 | Discover endpoints first, then scan | [`discover`](#discover) → [`learn`](#learn) → [`run`](#run) | Three-step workflow: map target, generate test plan, execute |
 | Fuzz directories or parameters | [`fuzz`](#fuzz) | ffuf-compatible directory and parameter fuzzing |
-| Identify the WAF vendor | [`vendor`](#vendor) | Detects WAF product from 197+ signatures |
+| Identify the WAF vendor | [`vendor`](#vendor) | Detects WAF product from 198+ signatures |
 | Scan an API spec | [`scan --spec`](#scan) | OpenAPI, Swagger, Postman, HAR, AsyncAPI, gRPC, GraphQL |
 | Run in CI/CD | [`cicd`](#cicd) | Generates pipeline configs for GitHub Actions, GitLab CI, Azure DevOps |
 | Connect to AI agents | [`mcp`](#mcp) | MCP server for Claude, Copilot, Cursor, n8n |
+| Compare before/after scans | [`compare`](#compare) | Severity deltas, new/fixed categories, WAF vendor changes |
 
 ---
 
@@ -1448,7 +1449,7 @@ waftester fp -u https://target.com --local --corpus custom
 
 **Aliases:** `waf-detect`, `detect-waf`
 
-WAF vendor detection and fingerprinting. Sends crafted requests and analyzes responses (headers, cookies, error pages, status codes, body content) to identify the WAF product from a database of 197 signatures. Detection covers cloud WAFs (Cloudflare, AWS WAF, Akamai, Azure Front Door, Imperva), CDN-integrated WAFs, and self-hosted solutions (ModSecurity, NAXSI).
+WAF vendor detection and fingerprinting. Sends crafted requests and analyzes responses (headers, cookies, error pages, status codes, body content) to identify the WAF product from a database of 198 signatures. Detection covers cloud WAFs (Cloudflare, AWS WAF, Akamai, Azure Front Door, Imperva), CDN-integrated WAFs, and self-hosted solutions (ModSecurity, NAXSI).
 
 Results inform tamper selection and evasion strategy. The `auto` command runs vendor detection automatically; use this command standalone when you only need identification.
 

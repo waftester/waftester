@@ -701,13 +701,22 @@ func runScan() {
 			}
 		}
 
-		// Console timestamp output (non-JSON mode)
-		if *cfg.Timestamp && !streamJSON && eventType == "vulnerability" {
+		// Console timestamp output (non-JSON mode, respects -silent)
+		if *cfg.Timestamp && !streamJSON && !*cfg.Silent && eventType == "vulnerability" {
 			ts := time.Now().Format("15:04:05")
 			if dataMap, ok := data.(map[string]interface{}); ok {
 				category, _ := dataMap["category"].(string)
-				severity := fmt.Sprintf("%v", dataMap["severity"])
+				if category == "" {
+					category = "unknown"
+				}
+				severity, _ := dataMap["severity"].(string)
+				if severity == "" {
+					severity = "unknown"
+				}
 				vulnType, _ := dataMap["type"].(string)
+				if vulnType == "" {
+					vulnType = "detected"
+				}
 				fmt.Fprintf(os.Stderr, "[%s] [%s] %s: %s\n", ts, severity, category, vulnType)
 			}
 		}

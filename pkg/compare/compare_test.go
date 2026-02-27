@@ -483,6 +483,59 @@ func TestCompare_BothNilSummaries(t *testing.T) {
 	}
 }
 
+func TestCompare_CategoryWithZeroCountNotNew(t *testing.T) {
+	before := &ScanSummary{
+		TotalVulns: 5,
+		ByCategory: map[string]int{"xss": 5},
+	}
+	after := &ScanSummary{
+		TotalVulns: 5,
+		ByCategory: map[string]int{"xss": 5, "sqli": 0},
+	}
+	r := Compare(before, after)
+	if len(r.NewCategories) != 0 {
+		t.Errorf("NewCategories = %v, want empty (sqli has count 0)", r.NewCategories)
+	}
+}
+
+func TestCompare_CategoryWithZeroCountNotFixed(t *testing.T) {
+	before := &ScanSummary{
+		TotalVulns: 5,
+		ByCategory: map[string]int{"xss": 5, "cmdi": 0},
+	}
+	after := &ScanSummary{
+		TotalVulns: 5,
+		ByCategory: map[string]int{"xss": 5},
+	}
+	r := Compare(before, after)
+	if len(r.FixedCategories) != 0 {
+		t.Errorf("FixedCategories = %v, want empty (cmdi had count 0)", r.FixedCategories)
+	}
+}
+
+func TestCompare_CategoryChurnUnchangedTotal(t *testing.T) {
+	// Same total vulns, but completely different categories — verdict is "unchanged"
+	// but NewCategories/FixedCategories should capture the shift
+	before := &ScanSummary{
+		TotalVulns: 10,
+		ByCategory: map[string]int{"sqli": 10},
+	}
+	after := &ScanSummary{
+		TotalVulns: 10,
+		ByCategory: map[string]int{"xss": 10},
+	}
+	r := Compare(before, after)
+	if r.Verdict != "unchanged" {
+		t.Errorf("Verdict = %q, want %q", r.Verdict, "unchanged")
+	}
+	if len(r.NewCategories) != 1 || r.NewCategories[0] != "xss" {
+		t.Errorf("NewCategories = %v, want [xss]", r.NewCategories)
+	}
+	if len(r.FixedCategories) != 1 || r.FixedCategories[0] != "sqli" {
+		t.Errorf("FixedCategories = %v, want [sqli]", r.FixedCategories)
+	}
+}
+
 func TestCompare_LargeDeltaValues(t *testing.T) {
 	before := &ScanSummary{
 		TotalVulns: 100000,
