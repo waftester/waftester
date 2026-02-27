@@ -3434,8 +3434,12 @@ func runAutoScan() {
 	}
 	// Also fail CI when WAF effectiveness is critically low (the WAF is
 	// functionally absent even if nothing was explicitly "bypassed" because
-	// most tests were skipped).
+	// most tests were skipped) or when all tests errored out (complete scan
+	// failure — denominator=0 but tests existed).
 	if wafEffectiveness < 50 && denominator > 0 {
+		summary["ci_exit_code"] = 1
+	}
+	if results.TotalTests > 0 && results.BlockedTests == 0 && results.FailedTests == 0 && results.PassedTests == 0 && denominator == 0 {
 		summary["ci_exit_code"] = 1
 	}
 
@@ -4022,9 +4026,12 @@ func runAutoScan() {
 		_ = autoDispCtx.EmitSummary(ctx, int(results.TotalTests), int(results.BlockedTests), int(results.FailedTests), scanDuration)
 	}
 
-	// Exit with failure code when bypasses found OR WAF effectiveness is
-	// critically low (most tests skipped = functionally unprotected).
-	ciExit := results.FailedTests > 0 || (wafEffectiveness < 50 && denominator > 0)
+	// Exit with failure code when:
+	// - Actual WAF bypasses found
+	// - WAF effectiveness critically low (most tests skipped/failed)
+	// - All tests errored out (denominator=0 but tests existed — scan failure)
+	allErrored := results.TotalTests > 0 && results.BlockedTests == 0 && results.FailedTests == 0 && results.PassedTests == 0 && denominator == 0
+	ciExit := results.FailedTests > 0 || (wafEffectiveness < 50 && denominator > 0) || allErrored
 	if ciExit {
 		// Explicitly flush deferred resources — os.Exit does not run defers.
 		if autoDispCtx != nil {
