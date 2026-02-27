@@ -253,7 +253,7 @@ Use the official [WAFtester Action](https://github.com/marketplace/actions/wafte
 
 Also integrates with SonarQube, GitLab SAST, DefectDojo, Elasticsearch, Slack, Teams, PagerDuty, Jira, Azure DevOps, and OpenTelemetry.
 
-## All 35 Commands
+## All 36 Commands
 
 | Command | Description |
 |---------|-------------|
@@ -286,6 +286,7 @@ Also integrates with SonarQube, GitLab SAST, DefectDojo, Elasticsearch, Slack, T
 | `validate` | Payload and spec validation |
 | `workflow` | YAML workflow orchestration |
 | `plugin` | Plugin management |
+| `compare` | Compare two scan result JSON files (severity/category deltas) |
 | `docs` | Built-in command reference |
 | ... | 5 more specialized commands |
 
