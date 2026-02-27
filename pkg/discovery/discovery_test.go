@@ -66,7 +66,9 @@ func TestNewDiscoverer(t *testing.T) {
 
 // TestDiscover tests the discovery process
 func TestDiscover(t *testing.T) {
+	t.Parallel()
 	t.Run("basic discovery", func(t *testing.T) {
+		t.Parallel()
 		// Mock server that returns simple responses
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
@@ -88,7 +90,7 @@ func TestDiscover(t *testing.T) {
 
 		cfg := DiscoveryConfig{
 			Target:        server.URL,
-			Timeout:       5 * time.Second,
+			Timeout:       500 * time.Millisecond,
 			MaxDepth:      1,
 			Concurrency:   2,
 			DisableActive: true, // Disable active brute-forcing for tests
@@ -96,7 +98,7 @@ func TestDiscover(t *testing.T) {
 		d := NewDiscoverer(cfg)
 
 		// Use a timeout context to prevent test hanging due to active discovery
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 
 		result, err := d.Discover(ctx)
@@ -113,6 +115,7 @@ func TestDiscover(t *testing.T) {
 	})
 
 	t.Run("context cancellation", func(t *testing.T) {
+		t.Parallel()
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(100 * time.Millisecond)
 			w.WriteHeader(http.StatusOK)
@@ -121,7 +124,7 @@ func TestDiscover(t *testing.T) {
 
 		cfg := DiscoveryConfig{
 			Target:        server.URL,
-			Timeout:       5 * time.Second,
+			Timeout:       500 * time.Millisecond,
 			DisableActive: true, // Disable active brute-forcing for tests
 		}
 		d := NewDiscoverer(cfg)
@@ -138,6 +141,7 @@ func TestDiscover(t *testing.T) {
 	})
 
 	t.Run("active discovery enabled", func(t *testing.T) {
+		t.Parallel()
 		// Mock server with various endpoints
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
@@ -395,7 +399,9 @@ func TestDiscoveryConfig(t *testing.T) {
 
 // TestWAFDetection tests WAF detection
 func TestWAFDetection(t *testing.T) {
+	t.Parallel()
 	t.Run("detects WAF on 403", func(t *testing.T) {
+		t.Parallel()
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Simulate WAF blocking
 			if strContains(r.URL.RawQuery, "'") || strContains(r.URL.RawQuery, "<") {
@@ -408,12 +414,14 @@ func TestWAFDetection(t *testing.T) {
 
 		cfg := DiscoveryConfig{
 			Target:        server.URL,
-			Timeout:       5 * time.Second,
+			Timeout:       500 * time.Millisecond,
 			DisableActive: true, // Disable active brute-forcing for tests
 		}
 		d := NewDiscoverer(cfg)
 
-		result, _ := d.Discover(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		result, _ := d.Discover(ctx)
 		// WAF detection should run
 		_ = result
 	})
@@ -1075,6 +1083,7 @@ func TestIsExcluded(t *testing.T) {
 
 // TestDiscoverWithServiceAuthentik tests discovery with authentik service
 func TestDiscoverWithServiceAuthentik(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/-/health/ready/":
@@ -1089,12 +1098,14 @@ func TestDiscoverWithServiceAuthentik(t *testing.T) {
 	cfg := DiscoveryConfig{
 		Target:        server.URL,
 		Service:       "authentik",
-		Timeout:       2 * time.Second,
+		Timeout:       500 * time.Millisecond,
 		DisableActive: true, // Disable active brute-forcing for tests
 	}
 	d := NewDiscoverer(cfg)
 
-	result, err := d.Discover(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	result, err := d.Discover(ctx)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1110,6 +1121,7 @@ func TestDiscoverWithServiceAuthentik(t *testing.T) {
 
 // TestDiscoverWithServiceN8n tests discovery with n8n service
 func TestDiscoverWithServiceN8n(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/healthz":
@@ -1123,12 +1135,14 @@ func TestDiscoverWithServiceN8n(t *testing.T) {
 	cfg := DiscoveryConfig{
 		Target:        server.URL,
 		Service:       "n8n",
-		Timeout:       2 * time.Second,
+		Timeout:       500 * time.Millisecond,
 		DisableActive: true, // Disable active brute-forcing for tests
 	}
 	d := NewDiscoverer(cfg)
 
-	result, err := d.Discover(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	result, err := d.Discover(ctx)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1144,6 +1158,7 @@ func TestDiscoverWithServiceN8n(t *testing.T) {
 
 // TestDiscoverWithServiceImmich tests discovery with immich service
 func TestDiscoverWithServiceImmich(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/server/ping":
@@ -1157,12 +1172,14 @@ func TestDiscoverWithServiceImmich(t *testing.T) {
 	cfg := DiscoveryConfig{
 		Target:        server.URL,
 		Service:       "immich",
-		Timeout:       2 * time.Second,
+		Timeout:       500 * time.Millisecond,
 		DisableActive: true, // Disable active brute-forcing for tests
 	}
 	d := NewDiscoverer(cfg)
 
-	result, err := d.Discover(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	result, err := d.Discover(ctx)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1175,6 +1192,7 @@ func TestDiscoverWithServiceImmich(t *testing.T) {
 
 // TestAnalyzeAttackSurfaceDetectsAuth tests auth detection
 func TestAnalyzeAttackSurfaceDetectsAuth(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/login" {
 			w.WriteHeader(http.StatusOK)
@@ -1186,12 +1204,14 @@ func TestAnalyzeAttackSurfaceDetectsAuth(t *testing.T) {
 
 	cfg := DiscoveryConfig{
 		Target:        server.URL,
-		Timeout:       2 * time.Second,
+		Timeout:       500 * time.Millisecond,
 		DisableActive: true, // Disable active brute-forcing for tests
 	}
 	d := NewDiscoverer(cfg)
 
-	result, err := d.Discover(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	result, err := d.Discover(ctx)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1202,6 +1222,7 @@ func TestAnalyzeAttackSurfaceDetectsAuth(t *testing.T) {
 
 // TestProbeEndpointMethods tests probing with different HTTP methods
 func TestProbeEndpointMethods(t *testing.T) {
+	t.Parallel()
 	var mu sync.Mutex
 	methodsCalled := make(map[string]bool)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1214,13 +1235,15 @@ func TestProbeEndpointMethods(t *testing.T) {
 
 	cfg := DiscoveryConfig{
 		Target:        server.URL,
-		Timeout:       2 * time.Second,
+		Timeout:       500 * time.Millisecond,
 		DisableActive: true, // Disable active brute-forcing for tests
 	}
 	d := NewDiscoverer(cfg)
 
 	// This will call probeEndpoint internally
-	result, _ := d.Discover(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	result, _ := d.Discover(ctx)
 	_ = result
 
 	// Should have tried GET at minimum
@@ -1234,6 +1257,7 @@ func TestProbeEndpointMethods(t *testing.T) {
 
 // TestExternalSourcesGatherAll tests gathering from all external sources
 func TestExternalSourcesGatherAll(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/robots.txt":
@@ -1246,8 +1270,10 @@ func TestExternalSourcesGatherAll(t *testing.T) {
 	}))
 	defer server.Close()
 
-	es := NewExternalSources(5*time.Second, "TestAgent")
-	allSources := es.GatherAllSources(context.Background(), server.URL, "localhost")
+	es := NewExternalSources(500*time.Millisecond, "TestAgent")
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	allSources := es.GatherAllSources(ctx, server.URL, "localhost")
 
 	// Should have gathered something from robots.txt at minimum
 	_ = allSources
@@ -1716,6 +1742,7 @@ func TestFindLinksInJSLargeFile(t *testing.T) {
 
 // TestDiscoverWithExcludePaths tests discovery with excluded paths
 func TestDiscoverWithExcludePaths(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/health" {
 			w.WriteHeader(http.StatusOK)
@@ -1730,12 +1757,14 @@ func TestDiscoverWithExcludePaths(t *testing.T) {
 	cfg := DiscoveryConfig{
 		Target:        server.URL,
 		ExcludePaths:  []string{"/static"},
-		Timeout:       2 * time.Second,
+		Timeout:       500 * time.Millisecond,
 		DisableActive: true, // Disable active brute-forcing for tests
 	}
 	d := NewDiscoverer(cfg)
 
-	result, _ := d.Discover(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	result, _ := d.Discover(ctx)
 	_ = result
 
 	// Static paths should be excluded
@@ -1746,6 +1775,7 @@ func TestDiscoverWithExcludePaths(t *testing.T) {
 
 // TestProbeEndpointSkips404 tests that 404 responses are skipped
 func TestProbeEndpointSkips404(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
@@ -1753,12 +1783,14 @@ func TestProbeEndpointSkips404(t *testing.T) {
 
 	cfg := DiscoveryConfig{
 		Target:        server.URL,
-		Timeout:       2 * time.Second,
+		Timeout:       500 * time.Millisecond,
 		DisableActive: true, // Disable active brute-forcing for tests
 	}
 	d := NewDiscoverer(cfg)
 
-	result, _ := d.Discover(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	result, _ := d.Discover(ctx)
 
 	// Should have no endpoints from 404 responses
 	for _, ep := range result.Endpoints {
