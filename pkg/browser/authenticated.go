@@ -683,6 +683,12 @@ func (s *AuthenticatedScanner) runChromedpScan(ctx context.Context, result *Brow
 	maxLinks := 50 // Total limit to prevent excessive crawling
 	visitedCount := 0
 
+	targetParsed, err := url.Parse(s.config.TargetURL)
+	if err != nil {
+		return fmt.Errorf("invalid target URL: %w", err)
+	}
+	targetHost := targetParsed.Host
+
 	// Recursive crawl helper function
 	var crawlPage func(pageURL string, currentDepth int)
 	crawlPage = func(pageURL string, currentDepth int) {
@@ -690,50 +696,28 @@ func (s *AuthenticatedScanner) runChromedpScan(ctx context.Context, result *Brow
 			return
 		}
 
-		// Find links on current page
-		var links []string
+		// CHROME: extract links from DOM
+		var rawLinks []string
 		_ = chromedp.Run(browserCtx,
-			chromedp.Evaluate(`Array.from(document.querySelectorAll('a[href]')).map(a => a.href)`, &links),
+			chromedp.Evaluate(`Array.from(document.querySelectorAll('a[href]')).map(a => a.href)`, &rawLinks),
 		)
 
-		// Sort links to prioritize FocusPatterns (e.g., /api/, /admin/)
-		if len(s.config.FocusPatterns) > 0 {
-			sort.SliceStable(links, func(i, j int) bool {
-				iPriority := s.matchesFocusPattern(links[i])
-				jPriority := s.matchesFocusPattern(links[j])
-				return iPriority && !jPriority
-			})
-		}
+		// PURE: filter and sort
+		filtered := s.filterCrawlLinks(rawLinks, targetHost, visited, maxLinks-visitedCount)
 
-		for _, link := range links {
+		for _, link := range filtered {
 			if visitedCount >= maxLinks {
 				if progressFn != nil {
 					progressFn(fmt.Sprintf("Reached max link limit (%d), stopping crawl", maxLinks))
 				}
 				return
 			}
-			if visited[link] || s.shouldIgnoreURL(link) {
-				continue
-			}
-
-			// Security: Only crawl same-origin links to prevent token leakage
-			linkParsed, err := url.Parse(link)
-			if err != nil {
-				continue
-			}
-			targetParsed, err := url.Parse(s.config.TargetURL)
-			if err != nil {
-				continue
-			}
-			if linkParsed.Host != targetParsed.Host {
-				continue // Skip cross-origin links
-			}
 
 			visited[link] = true
 			visitedCount++
 
-			// Navigate to link
-			err = chromedp.Run(browserCtx,
+			// CHROME: navigate to link
+			err := chromedp.Run(browserCtx,
 				chromedp.Navigate(link),
 				chromedp.Sleep(duration.RetryFast),
 			)
@@ -762,15 +746,10 @@ func (s *AuthenticatedScanner) runChromedpScan(ctx context.Context, result *Brow
 				}
 			}
 
+			// PURE: build route
+			route := buildDiscoveredRoute(link, title, currentDepth)
 			s.mu.Lock()
-			result.DiscoveredRoutes = append(result.DiscoveredRoutes, DiscoveredRoute{
-				FullURL:       link,
-				Path:          extractPath(link),
-				Method:        "GET",
-				RequiresAuth:  true,
-				PageTitle:     title,
-				DiscoveredVia: fmt.Sprintf("browser_crawl_depth_%d", currentDepth),
-			})
+			result.DiscoveredRoutes = append(result.DiscoveredRoutes, route)
 			s.mu.Unlock()
 
 			// Recursively crawl this page for more links
@@ -789,8 +768,7 @@ func (s *AuthenticatedScanner) runChromedpScan(ctx context.Context, result *Brow
 		tokenCount := len(result.ExposedTokens)
 		apiCount := len(result.ThirdPartyAPIs)
 		s.mu.Unlock()
-		progressFn(fmt.Sprintf("Discovered %d routes, %d tokens, %d third-party APIs",
-			routeCount, tokenCount, apiCount))
+		progressFn(formatScanSummary(routeCount, tokenCount, apiCount))
 	}
 
 	return nil
@@ -1101,6 +1079,68 @@ func (s *AuthenticatedScanner) classifyThirdPartyAPI(requestURL, targetDomain st
 	return api
 }
 
+// filterCrawlLinks filters raw page links for crawling: removes visited,
+// ignored, and cross-origin links, then sorts by focus pattern priority.
+// Returns at most maxRemaining links.
+func (s *AuthenticatedScanner) filterCrawlLinks(
+	rawLinks []string,
+	targetHost string,
+	visited map[string]bool,
+	maxRemaining int,
+) []string {
+	if len(rawLinks) == 0 || maxRemaining <= 0 {
+		return nil
+	}
+
+	// Sort links to prioritize FocusPatterns (e.g., /api/, /admin/)
+	if len(s.config.FocusPatterns) > 0 {
+		sort.SliceStable(rawLinks, func(i, j int) bool {
+			iPriority := s.matchesFocusPattern(rawLinks[i])
+			jPriority := s.matchesFocusPattern(rawLinks[j])
+			return iPriority && !jPriority
+		})
+	}
+
+	seen := make(map[string]bool)
+	var result []string
+	for _, link := range rawLinks {
+		if len(result) >= maxRemaining {
+			break
+		}
+		if seen[link] || visited[link] || s.shouldIgnoreURL(link) {
+			continue
+		}
+		linkParsed, err := url.Parse(link)
+		if err != nil {
+			continue
+		}
+		if linkParsed.Host != targetHost {
+			continue
+		}
+		seen[link] = true
+		result = append(result, link)
+	}
+	return result
+}
+
+// buildDiscoveredRoute creates a DiscoveredRoute from crawl data.
+func buildDiscoveredRoute(link, title string, depth int) DiscoveredRoute {
+	return DiscoveredRoute{
+		FullURL:       link,
+		Path:          extractPath(link),
+		Method:        "GET",
+		RequiresAuth:  true,
+		PageTitle:     title,
+		DiscoveredVia: fmt.Sprintf("browser_crawl_depth_%d", depth),
+	}
+}
+
+// formatScanSummary creates the final scan progress message.
+func formatScanSummary(routeCount, tokenCount, apiCount int) string {
+	return fmt.Sprintf("Discovered %d routes, %d tokens, %d third-party APIs",
+		routeCount, tokenCount, apiCount)
+}
+
 // handleNetworkRequest processes network request events from chromedp
 func (s *AuthenticatedScanner) handleNetworkRequest(e *network.EventRequestWillBeSent, result *BrowserScanResult) {
 	s.mu.Lock()
@@ -1288,7 +1328,7 @@ func (s *AuthenticatedScanner) isAuthenticationComplete(currentURL string, resul
 	if len(result.ExposedTokens) > 0 {
 		for _, token := range result.ExposedTokens {
 			// Match lowercase types set by analyzeToken()
-			if token.Type == "jwt" || token.Type == "bearer" || token.Type == "session" || token.Type == "oauth" || token.Type == "access_token" {
+			if token.Type == "jwt" || token.Type == "bearer" || token.Type == "session" || token.Type == "oauth" {
 				return true
 			}
 		}
