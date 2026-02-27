@@ -5,6 +5,31 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.38] - 2026-02-27
+
+### Fixed
+
+- **Chrome process freeze after Phase 9** — Timeout-wrapped browser cleanup prevents orphaned chromedp processes from blocking the main goroutine; `Browser.Process().Kill()` after 5s instead of leaked goroutine
+- **Detection death spiral silently skipping 56% of tests** — Recovery probe window in `IsDropping()` lets hosts retry after recovery interval; clear host errors between scan phases
+- **WAF effectiveness formula** — Include skipped tests in denominator instead of only counting blocked+failed
+- **Brain bypass count vs summary mismatch** — Use `results.FailedTests` as authoritative bypass count in intelligence summary
+- **Auto-escalation cascade** — 10-second cooldown between successive escalation triggers prevents rapid-fire rate halving
+- **JS discovery relative paths** — Resolve relative script paths against base URL; strip `./` prefix before URL concatenation
+- **Parameter discovery stale host errors** — `ClearHostErrors` before Phase 2.5 prevents stale errors from blocking parameter discovery
+- **CI exit code for low-effectiveness scans** — Return exit code 1 when WAF effectiveness is below 50% or all tests errored
+- **Tech stack detection false positives** — Remove generic English words from framework indicators; exclude attacker-controlled payload content from detection
+- **`access_token` dead code in auth detection** — Remove unreachable `token.Type == "access_token"` check (`analyzeToken` maps access_token keys to type `"bearer"`)
+- **Runner nil request panic** — Return error instead of crashing when `TestCase.Request` is nil
+
+### Changed
+
+- **Browser scanner testability** — Extract `filterCrawlLinks`, `buildDiscoveredRoute`, and `formatScanSummary` from 415-line `crawlPage` closure into independently testable functions
+- **Discovery test speed** — Parallelize 10 slow discovery tests and reduce HTTP timeouts from 2-5s to 500ms for localhost-only tests (35s to 7s)
+
+### Added
+
+- **Browser scanner test coverage** — 65+ new test cases covering edge cases for authenticated scanning, cookie analysis, third-party API classification, risk calculation, link filtering, and route building
+
 ## [2.9.37] - 2026-02-27
 
 ### Added
@@ -2592,6 +2617,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.38]: https://github.com/waftester/waftester/compare/v2.9.37...v2.9.38
 [2.9.37]: https://github.com/waftester/waftester/compare/v2.9.36...v2.9.37
 [2.9.36]: https://github.com/waftester/waftester/compare/v2.9.35...v2.9.36
 [2.9.35]: https://github.com/waftester/waftester/compare/v2.9.34...v2.9.35
