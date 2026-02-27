@@ -149,18 +149,30 @@ func printCompareConsole(r *compare.Result, beforePath, afterPath string) {
 	ui.PrintConfigLine("Verdict", verdictSymbol)
 	fmt.Fprintln(os.Stderr)
 
-	// Severity table
+	// Severity table with dynamic column width
 	severities := collectSeverityKeys(r)
 	if len(severities) > 0 || r.VulnDelta != 0 {
 		fmt.Fprintln(os.Stderr, "  Severity Breakdown:")
 		fmt.Fprintln(os.Stderr)
+		colWidth := 12
+		for _, sev := range severities {
+			if len(sev) >= colWidth {
+				colWidth = len(sev) + 2
+			}
+		}
+		fmtStr := fmt.Sprintf("    %%-%ds %%4d -> %%4d  %%s\n", colWidth)
 		for _, sev := range severities {
 			beforeVal := r.Before.BySeverity[sev]
 			afterVal := r.After.BySeverity[sev]
 			delta := r.SeverityDeltas[sev]
-			fmt.Fprintf(os.Stderr, "    %-12s %4d -> %4d  %s\n", sev, beforeVal, afterVal, formatDelta(delta))
+			fmt.Fprintf(os.Stderr, fmtStr, sev, beforeVal, afterVal, formatDelta(delta))
 		}
-		fmt.Fprintf(os.Stderr, "    %-12s %4d -> %4d  %s\n", "TOTAL", r.Before.TotalVulns, r.After.TotalVulns, formatDelta(r.VulnDelta))
+		fmt.Fprintf(os.Stderr, fmtStr, "TOTAL", r.Before.TotalVulns, r.After.TotalVulns, formatDelta(r.VulnDelta))
+
+		// Show weighted risk score when severity shifts are detected
+		if r.WeightedDelta != 0 {
+			fmt.Fprintf(os.Stderr, fmtStr, "RISK SCORE", r.WeightedBefore, r.WeightedAfter, formatDelta(r.WeightedDelta))
+		}
 		fmt.Fprintln(os.Stderr)
 	}
 
@@ -172,19 +184,13 @@ func printCompareConsole(r *compare.Result, beforePath, afterPath string) {
 		ui.PrintError("New: " + strings.Join(r.NewCategories, ", "))
 	}
 
-	// WAF change
+	// WAF change — show all vendors when available
 	if r.WAFChanged {
-		beforeWAF := r.Before.WAFVendor
-		if beforeWAF == "" {
-			beforeWAF = "none"
-		}
-		afterWAF := r.After.WAFVendor
-		if afterWAF == "" {
-			afterWAF = "none"
-		}
+		beforeWAF := formatWAFVendors(r.Before)
+		afterWAF := formatWAFVendors(r.After)
 		ui.PrintConfigLine("WAF", beforeWAF+" -> "+afterWAF)
 	} else if r.Before.WAFVendor != "" {
-		ui.PrintConfigLine("WAF", r.Before.WAFVendor+" (unchanged)")
+		ui.PrintConfigLine("WAF", formatWAFVendors(r.Before)+" (unchanged)")
 	}
 }
 
@@ -219,6 +225,17 @@ func collectSeverityKeys(r *compare.Result) []string {
 		return keys[i] < keys[j]
 	})
 	return keys
+}
+
+// formatWAFVendors returns a display string for a scan summary's WAF vendors.
+func formatWAFVendors(s *compare.ScanSummary) string {
+	if len(s.WAFVendors) > 0 {
+		return strings.Join(s.WAFVendors, ", ")
+	}
+	if s.WAFVendor != "" {
+		return s.WAFVendor
+	}
+	return "none"
 }
 
 // formatDelta returns a human-readable delta string like "+3 ▲" or "-2 ▼" or "0 =".
