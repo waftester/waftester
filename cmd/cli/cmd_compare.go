@@ -27,18 +27,29 @@ func runCompare() {
 	fs.Parse(os.Args[2:])
 
 	// Support positional args: waf-tester compare before.json after.json
-	if *beforePath == "" && *afterPath == "" {
-		args := fs.Args()
-		if len(args) >= 2 {
-			*beforePath = args[0]
-			*afterPath = args[1]
-		}
+	// Also handles mixed: waf-tester compare -before base.json current.json
+	args := fs.Args()
+	if *beforePath == "" && *afterPath == "" && len(args) >= 2 {
+		*beforePath = args[0]
+		*afterPath = args[1]
+	} else if *beforePath != "" && *afterPath == "" && len(args) >= 1 {
+		*afterPath = args[0]
+	} else if *beforePath == "" && *afterPath != "" && len(args) >= 1 {
+		*beforePath = args[0]
+	}
+
+	// Validate format
+	switch *format {
+	case "console", "json":
+		// valid
+	default:
+		exitWithError("Unknown format %q. Supported: console, json", *format)
 	}
 
 	if *beforePath == "" || *afterPath == "" {
 		exitWithUsage(
-			"Both --before and --after files are required.",
-			"waf-tester compare --before baseline.json --after current.json\n       waf-tester compare baseline.json current.json",
+			"Both -before and -after files are required.",
+			"waf-tester compare -before baseline.json -after current.json\n       waf-tester compare baseline.json current.json",
 		)
 	}
 
@@ -81,6 +92,11 @@ func runCompare() {
 			fmt.Fprintln(os.Stderr)
 			ui.PrintSuccess(fmt.Sprintf("JSON result written to %s", *output))
 		}
+	}
+
+	// Exit with code 1 if scan regressed (useful for CI/CD gating)
+	if result.Verdict == "regressed" {
+		os.Exit(1)
 	}
 }
 
