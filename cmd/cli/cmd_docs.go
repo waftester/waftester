@@ -78,8 +78,6 @@ func printUsage() {
 	fmt.Printf("  %s  %s\n", ui.StatValueStyle.Render("        "), ui.SanitizeString("  Alias: grpc-test"))
 	fmt.Printf("  %s  %s\n", ui.StatValueStyle.Render("soap    "), ui.SanitizeString("🆕 SOAP/WSDL testing and fuzzing"))
 	fmt.Printf("  %s  %s\n", ui.StatValueStyle.Render("        "), ui.SanitizeString("  Alias: wsdl"))
-	fmt.Printf("  %s  %s\n", ui.StatValueStyle.Render("compare "), ui.SanitizeString("🆕 Compare two scan result JSON files (severity/category deltas)"))
-	fmt.Printf("  %s  %s\n", ui.StatValueStyle.Render("        "), ui.SanitizeString("  Alias: diff"))
 	fmt.Printf("  %s  %s\n", ui.StatValueStyle.Render("cicd    "), ui.SanitizeString("🆕 Generate CI/CD pipeline configurations"))
 	fmt.Printf("  %s  %s\n", ui.StatValueStyle.Render("        "), ui.SanitizeString("  Aliases: ci-cd, pipeline"))
 	fmt.Printf("  %s  %s\n", ui.StatValueStyle.Render("plugin  "), ui.SanitizeString("🆕 Plugin management (list, load, run)"))
@@ -669,6 +667,7 @@ func printDocsRun() {
 	fmt.Println("  -v, -verbose         Show detailed test output")
 	fmt.Println("  -s, -silent          No progress output (for scripting)")
 	fmt.Println("  -stats               Show live statistics")
+	fmt.Println("  -ts, -timestamp      Add timestamps to output")
 	fmt.Println()
 
 	fmt.Println(ui.SectionStyle.Render("REALISTIC MODE"))

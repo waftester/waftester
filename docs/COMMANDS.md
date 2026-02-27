@@ -625,6 +625,7 @@ Filters exclude responses that match criteria. The inverse of matchers. Combine 
 | `-noninteractive` | `-ni` | bool | false | Non-interactive mode |
 | `-store-response` | `-sr` | bool | false | Store raw responses to disk |
 | `-store-response-dir` | `-srd` | string | `responses` | Response storage directory |
+| `-timestamp` | `-ts` | bool | false | Add timestamps to output |
 
 #### Network
 
