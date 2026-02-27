@@ -190,9 +190,15 @@ func (cm *ConnectionMonitor) RecordDrop(host string, err error) *DropResult {
 	state.lastDropType.Store(int32(dropType))
 	state.lastDropTime.Store(time.Now().UnixNano())
 
-	// Reset recovery state on drop
-	state.recoverySuccesses.Store(0)
-	state.inRecovery.Store(false)
+	// Only reset recovery state if we haven't yet crossed the dropping
+	// threshold. Once past the threshold, recovery probes are the only way
+	// out — resetting successes on every failed probe would trap
+	// intermittent hosts permanently because they could never accumulate
+	// the required DropDetectRecoveryProbes consecutive successes.
+	if consecutive < int64(defaults.DropDetectConsecutiveThreshold) {
+		state.recoverySuccesses.Store(0)
+		state.inRecovery.Store(false)
+	}
 
 	return &DropResult{
 		Dropped:      true,

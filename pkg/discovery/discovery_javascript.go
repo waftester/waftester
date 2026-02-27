@@ -162,8 +162,9 @@ func (d *Discoverer) extractJSFromHomepage(ctx context.Context) []string {
 				jsURLs = append(jsURLs, baseURL+src)
 			} else {
 				// Relative path (e.g., "js/app.js", "./bundle.js")
-				// Resolve against base URL
-				jsURLs = append(jsURLs, baseURL+"/"+src)
+				// Strip leading "./" before resolving against base URL
+				cleanSrc := strings.TrimPrefix(src, "./")
+				jsURLs = append(jsURLs, baseURL+"/"+cleanSrc)
 			}
 		}
 	}

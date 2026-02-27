@@ -267,24 +267,29 @@ func (t *TechProfile) getScore(name string) float64 {
 
 // Technology indicators
 
+// frameworkIndicators maps framework names to indicators that reliably
+// signal their presence. Generic English words ("express", "spring",
+// "react", "node", "vue", "angular") are excluded as bare matches because
+// they cause false positives from normal page content. Only technical
+// artifacts (headers, HTML attributes, path patterns) are used.
 var frameworkIndicators = map[string][]string{
-	"django":    {"django", "csrfmiddlewaretoken", "wsgi", "__debug__"},
-	"flask":     {"flask", "werkzeug", "jinja2"},
-	"express":   {"express", "x-powered-by: express"},
-	"node":      {"node", "nodejs", "__dirname"},
-	"rails":     {"rails", "ruby on rails", "x-rails"},
-	"laravel":   {"laravel", "x-powered-by: php", "csrf_token"},
-	"spring":    {"spring", "springframework", "jsessionid"},
-	"asp.net":   {"asp.net", "__viewstate", ".aspx"},
-	"react":     {"react", "_reactroot", "data-reactid"},
-	"angular":   {"angular", "ng-app", "ng-"},
-	"vue":       {"vue", "v-for", "v-if", "v-model"},
-	"nextjs":    {"next.js", "_next/", "__next"},
-	"nuxt":      {"nuxt", "_nuxt/"},
+	"django":    {"csrfmiddlewaretoken", "wsgi", "__debug__"},
+	"flask":     {"werkzeug", "jinja2"},
+	"express":   {"x-powered-by: express"},
+	"node":      {"nodejs", "__dirname"},
+	"rails":     {"ruby on rails", "x-rails"},
+	"laravel":   {"x-powered-by: php", "csrf_token"},
+	"spring":    {"springframework", "jsessionid"},
+	"asp.net":   {"__viewstate", ".aspx"},
+	"react":     {"_reactroot", "data-reactid"},
+	"angular":   {"ng-app", "ng-version"},
+	"vue":       {"v-for", "v-if", "v-model"},
+	"nextjs":    {"_next/", "__next"},
+	"nuxt":      {"_nuxt/"},
 	"fastapi":   {"fastapi", "starlette"},
-	"graphql":   {"graphql", "__schema", "__typename"},
-	"wordpress": {"wp-content", "wp-includes", "wordpress"},
-	"drupal":    {"drupal", "sites/default"},
+	"graphql":   {"__schema", "__typename"},
+	"wordpress": {"wp-content", "wp-includes"},
+	"drupal":    {"sites/default"},
 }
 
 var databaseIndicators = map[string][]string{
