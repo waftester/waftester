@@ -298,7 +298,7 @@ var databaseIndicators = map[string][]string{
 	"mongodb":       {"mongodb", "mongoose"},
 	"redis":         {"redis-server", "redisdb"},
 	"sqlite":        {"sqlite3", ".sqlite"},
-	"oracle":        {"oracle", "ora-"},
+	"oracle":        {"ora-", "oracledb"},
 	"mssql":         {"mssql", "sqlserver", "microsoft sql"},
 	"elasticsearch": {"elasticsearch", "_search/scroll"},
 	"dynamodb":      {"dynamodb", "aws.dynamodb"},
@@ -316,7 +316,7 @@ var serverIndicators = map[string][]string{
 }
 
 var languageIndicators = map[string][]string{
-	"python": {"x-powered-by: python", "wsgi", "django", "flask"},
+	"python": {"x-powered-by: python", "wsgi"},
 	"php":    {"x-powered-by: php", ".php"},
 	"java":   {"x-powered-by: java", ".jsp", ".do", "jsessionid"},
 	"ruby":   {"x-powered-by: ruby", ".rb", "x-rails"},
