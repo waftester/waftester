@@ -596,6 +596,14 @@ func NewRunner(opts ...Option) (*Runner, error) {
 
 // Run executes a test case
 func (r *Runner) Run(tc *TestCase) *Result {
+	// Guard against nil request
+	if tc.Request == nil {
+		return &Result{
+			TestCase: tc,
+			Error:    fmt.Errorf("test case has nil request"),
+		}
+	}
+
 	// Set profile if specified
 	if tc.Profile != nil {
 		r.client.SetProfile(tc.Profile)
