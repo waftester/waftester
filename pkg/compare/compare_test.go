@@ -395,6 +395,94 @@ func TestCompare_BothZeroVulns(t *testing.T) {
 	}
 }
 
+func TestLoadSummary_RealWAFDetectFormat(t *testing.T) {
+	dir := t.TempDir()
+	// Real scan output format: waf_detect has a wafs array, not a direct vendor field.
+	raw := map[string]interface{}{
+		"target":                "https://protected.example.com",
+		"total_vulnerabilities": 5,
+		"waf_detect": map[string]interface{}{
+			"detected":   true,
+			"confidence": 0.95,
+			"wafs": []map[string]interface{}{
+				{"name": "Cloudflare", "vendor": "Cloudflare", "confidence": 0.98},
+			},
+		},
+	}
+	path := writeTestJSON(t, dir, "real_waf.json", raw)
+
+	s, err := LoadSummary(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.WAFVendor != "Cloudflare" {
+		t.Errorf("WAFVendor = %q, want %q (from wafs[0].vendor)", s.WAFVendor, "Cloudflare")
+	}
+}
+
+func TestLoadSummary_RealWAFDetectMultipleWAFs(t *testing.T) {
+	dir := t.TempDir()
+	raw := map[string]interface{}{
+		"target":                "https://multi.example.com",
+		"total_vulnerabilities": 3,
+		"waf_detect": map[string]interface{}{
+			"detected": true,
+			"wafs": []map[string]interface{}{
+				{"name": "AWS WAF", "vendor": "AWS", "confidence": 0.90},
+				{"name": "Cloudflare", "vendor": "Cloudflare", "confidence": 0.50},
+			},
+		},
+	}
+	path := writeTestJSON(t, dir, "multi_waf.json", raw)
+
+	s, err := LoadSummary(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Should pick the first WAF in the array
+	if s.WAFVendor != "AWS" {
+		t.Errorf("WAFVendor = %q, want %q (first WAF)", s.WAFVendor, "AWS")
+	}
+}
+
+func TestCompare_NilBeforeSummary(t *testing.T) {
+	after := &ScanSummary{
+		TotalVulns: 5,
+		BySeverity: map[string]int{"high": 5},
+	}
+	// Should not panic
+	r := Compare(nil, after)
+	if r.VulnDelta != 5 {
+		t.Errorf("VulnDelta = %d, want 5", r.VulnDelta)
+	}
+	if r.Verdict != "regressed" {
+		t.Errorf("Verdict = %q, want %q", r.Verdict, "regressed")
+	}
+}
+
+func TestCompare_NilAfterSummary(t *testing.T) {
+	before := &ScanSummary{
+		TotalVulns: 10,
+		BySeverity: map[string]int{"high": 10},
+	}
+	// Should not panic
+	r := Compare(before, nil)
+	if r.VulnDelta != -10 {
+		t.Errorf("VulnDelta = %d, want -10", r.VulnDelta)
+	}
+	if r.Verdict != "improved" {
+		t.Errorf("Verdict = %q, want %q", r.Verdict, "improved")
+	}
+}
+
+func TestCompare_BothNilSummaries(t *testing.T) {
+	// Should not panic
+	r := Compare(nil, nil)
+	if r.Verdict != "unchanged" {
+		t.Errorf("Verdict = %q, want %q", r.Verdict, "unchanged")
+	}
+}
+
 func TestCompare_LargeDeltaValues(t *testing.T) {
 	before := &ScanSummary{
 		TotalVulns: 100000,

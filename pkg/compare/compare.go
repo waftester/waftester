@@ -42,7 +42,7 @@ type Result struct {
 }
 
 // rawSummary is an intermediate struct for unmarshaling scan result JSON.
-// It handles the nested waf_detect field.
+// It handles the nested waf_detect field which contains a wafs array.
 type rawSummary struct {
 	Target     string         `json:"target"`
 	StartTime  time.Time      `json:"start_time"`
@@ -52,7 +52,11 @@ type rawSummary struct {
 	ByCategory map[string]int `json:"by_category"`
 	TechStack  []string       `json:"tech_stack"`
 	WAFDetect  *struct {
-		Vendor string `json:"vendor"`
+		Vendor string `json:"vendor"` // legacy: direct vendor field
+		WAFs   []struct {
+			Vendor string `json:"vendor"`
+			Name   string `json:"name"`
+		} `json:"wafs"` // real format: array of detected WAFs
 	} `json:"waf_detect"`
 }
 
@@ -80,7 +84,12 @@ func LoadSummary(path string) (*ScanSummary, error) {
 	}
 
 	if raw.WAFDetect != nil {
-		s.WAFVendor = raw.WAFDetect.Vendor
+		// Prefer wafs[0].vendor (real scan output format), fall back to direct vendor field.
+		if len(raw.WAFDetect.WAFs) > 0 && raw.WAFDetect.WAFs[0].Vendor != "" {
+			s.WAFVendor = raw.WAFDetect.WAFs[0].Vendor
+		} else if raw.WAFDetect.Vendor != "" {
+			s.WAFVendor = raw.WAFDetect.Vendor
+		}
 	}
 
 	// If total_vulnerabilities is 0 but by_severity has entries, sum them.
@@ -99,7 +108,14 @@ func LoadSummary(path string) (*ScanSummary, error) {
 }
 
 // Compare compares two scan summaries and returns a structured result.
+// Both before and after must be non-nil.
 func Compare(before, after *ScanSummary) *Result {
+	if before == nil {
+		before = &ScanSummary{}
+	}
+	if after == nil {
+		after = &ScanSummary{}
+	}
 	r := &Result{
 		Before:         before,
 		After:          after,
