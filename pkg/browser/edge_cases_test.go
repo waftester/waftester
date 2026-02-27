@@ -1091,6 +1091,426 @@ func TestExtractPath_EdgeCases(t *testing.T) {
 	}
 }
 
+// =============================================================================
+// EXTRACTED FUNCTION TESTS (filterCrawlLinks, buildDiscoveredRoute, formatScanSummary)
+// =============================================================================
+
+func TestFilterCrawlLinks(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		config       *AuthConfig
+		rawLinks     []string
+		targetHost   string
+		visited      map[string]bool
+		maxRemaining int
+		want         []string
+	}{
+		{
+			name:         "same-origin kept, cross-origin filtered",
+			config:       &AuthConfig{},
+			rawLinks:     []string{"https://example.com/a", "https://other.com/b", "https://example.com/c"},
+			targetHost:   "example.com",
+			visited:      map[string]bool{},
+			maxRemaining: 10,
+			want:         []string{"https://example.com/a", "https://example.com/c"},
+		},
+		{
+			name:         "visited links removed",
+			config:       &AuthConfig{},
+			rawLinks:     []string{"https://example.com/a", "https://example.com/b"},
+			targetHost:   "example.com",
+			visited:      map[string]bool{"https://example.com/a": true},
+			maxRemaining: 10,
+			want:         []string{"https://example.com/b"},
+		},
+		{
+			name:   "ignored patterns filtered",
+			config: &AuthConfig{IgnorePatterns: []string{`\.css$`, `\.png$`}},
+			rawLinks: []string{
+				"https://example.com/style.css",
+				"https://example.com/api/data",
+				"https://example.com/logo.png",
+			},
+			targetHost:   "example.com",
+			visited:      map[string]bool{},
+			maxRemaining: 10,
+			want:         []string{"https://example.com/api/data"},
+		},
+		{
+			name:   "focus pattern sorting puts matches first",
+			config: &AuthConfig{FocusPatterns: []string{"/api/"}},
+			rawLinks: []string{
+				"https://example.com/about",
+				"https://example.com/api/users",
+				"https://example.com/contact",
+			},
+			targetHost:   "example.com",
+			visited:      map[string]bool{},
+			maxRemaining: 10,
+			want:         []string{"https://example.com/api/users", "https://example.com/about", "https://example.com/contact"},
+		},
+		{
+			name:         "maxRemaining limit enforced",
+			config:       &AuthConfig{},
+			rawLinks:     []string{"https://example.com/a", "https://example.com/b", "https://example.com/c"},
+			targetHost:   "example.com",
+			visited:      map[string]bool{},
+			maxRemaining: 2,
+			want:         []string{"https://example.com/a", "https://example.com/b"},
+		},
+		{
+			name:         "nil input returns nil",
+			config:       &AuthConfig{},
+			rawLinks:     nil,
+			targetHost:   "example.com",
+			visited:      map[string]bool{},
+			maxRemaining: 10,
+			want:         nil,
+		},
+		{
+			name:         "empty input returns nil",
+			config:       &AuthConfig{},
+			rawLinks:     []string{},
+			targetHost:   "example.com",
+			visited:      map[string]bool{},
+			maxRemaining: 10,
+			want:         nil,
+		},
+		{
+			name:         "all links filtered returns nil",
+			config:       &AuthConfig{},
+			rawLinks:     []string{"https://other.com/a", "https://evil.com/b"},
+			targetHost:   "example.com",
+			visited:      map[string]bool{},
+			maxRemaining: 10,
+			want:         nil,
+		},
+		{
+			name:         "duplicate links in rawLinks deduped",
+			config:       &AuthConfig{},
+			rawLinks:     []string{"https://example.com/a", "https://example.com/a", "https://example.com/b"},
+			targetHost:   "example.com",
+			visited:      map[string]bool{},
+			maxRemaining: 10,
+			want:         []string{"https://example.com/a", "https://example.com/b"},
+		},
+		{
+			name:         "malformed URLs silently skipped",
+			config:       &AuthConfig{},
+			rawLinks:     []string{"://bad", "https://example.com/good", "not a url at all"},
+			targetHost:   "example.com",
+			visited:      map[string]bool{},
+			maxRemaining: 10,
+			want:         []string{"https://example.com/good"},
+		},
+		{
+			name:         "port difference strict behavior",
+			config:       &AuthConfig{},
+			rawLinks:     []string{"https://example.com:8443/secure"},
+			targetHost:   "example.com",
+			visited:      map[string]bool{},
+			maxRemaining: 10,
+			want:         nil, // strict Host comparison: "example.com:8443" != "example.com"
+		},
+		{
+			name:         "subdomain strict behavior",
+			config:       &AuthConfig{},
+			rawLinks:     []string{"https://api.example.com/v1/data"},
+			targetHost:   "example.com",
+			visited:      map[string]bool{},
+			maxRemaining: 10,
+			want:         nil, // strict Host comparison: "api.example.com" != "example.com"
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			scanner := NewAuthenticatedScanner(tt.config)
+			got := scanner.filterCrawlLinks(tt.rawLinks, tt.targetHost, tt.visited, tt.maxRemaining)
+
+			if len(got) != len(tt.want) {
+				t.Fatalf("filterCrawlLinks() returned %d links, want %d\ngot:  %v\nwant: %v",
+					len(got), len(tt.want), got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("link[%d] = %s, want %s", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestBuildDiscoveredRoute(t *testing.T) {
+	t.Parallel()
+
+	t.Run("normal path extraction", func(t *testing.T) {
+		t.Parallel()
+		route := buildDiscoveredRoute("https://example.com/api/users", "User List", 2)
+		if route.Path != "/api/users" {
+			t.Errorf("Path = %s, want /api/users", route.Path)
+		}
+		if route.FullURL != "https://example.com/api/users" {
+			t.Errorf("FullURL = %s, want https://example.com/api/users", route.FullURL)
+		}
+		if route.Method != "GET" {
+			t.Errorf("Method = %s, want GET", route.Method)
+		}
+		if !route.RequiresAuth {
+			t.Error("RequiresAuth should be true")
+		}
+		if route.PageTitle != "User List" {
+			t.Errorf("PageTitle = %s, want User List", route.PageTitle)
+		}
+		if route.DiscoveredVia != "browser_crawl_depth_2" {
+			t.Errorf("DiscoveredVia = %s, want browser_crawl_depth_2", route.DiscoveredVia)
+		}
+	})
+
+	t.Run("root URL empty title", func(t *testing.T) {
+		t.Parallel()
+		route := buildDiscoveredRoute("https://example.com", "", 1)
+		if route.Path != "/" {
+			t.Errorf("Path = %s, want /", route.Path)
+		}
+		if route.PageTitle != "" {
+			t.Errorf("PageTitle = %q, want empty", route.PageTitle)
+		}
+	})
+
+	t.Run("URL with query params stripped", func(t *testing.T) {
+		t.Parallel()
+		route := buildDiscoveredRoute("https://example.com/search?q=test&page=1", "Search", 1)
+		if route.Path != "/search" {
+			t.Errorf("Path = %s, want /search (query params should be stripped)", route.Path)
+		}
+	})
+}
+
+func TestFormatScanSummary(t *testing.T) {
+	t.Parallel()
+
+	t.Run("normal counts", func(t *testing.T) {
+		t.Parallel()
+		got := formatScanSummary(15, 3, 7)
+		want := "Discovered 15 routes, 3 tokens, 7 third-party APIs"
+		if got != want {
+			t.Errorf("formatScanSummary(15,3,7) = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("all zeros", func(t *testing.T) {
+		t.Parallel()
+		got := formatScanSummary(0, 0, 0)
+		want := "Discovered 0 routes, 0 tokens, 0 third-party APIs"
+		if got != want {
+			t.Errorf("formatScanSummary(0,0,0) = %q, want %q", got, want)
+		}
+	})
+}
+
+// =============================================================================
+// classifyThirdPartyAPI SERVICE CLASSIFICATION TESTS
+// =============================================================================
+
+func TestClassifyThirdPartyAPI_ServiceClassification(t *testing.T) {
+	t.Parallel()
+	scanner := NewAuthenticatedScanner(&AuthConfig{
+		TargetURL: "https://example.com",
+	})
+
+	tests := []struct {
+		name         string
+		requestURL   string
+		wantName     string
+		wantNil      bool
+		wantSeverity string
+	}{
+		{
+			name:       "Microsoft Graph API",
+			requestURL: "https://graph.microsoft.com/v1.0/me",
+			wantName:   "Microsoft Graph API",
+		},
+		{
+			name:       "Azure services",
+			requestURL: "https://management.azure.com/subscriptions",
+			wantName:   "Microsoft/Azure Services",
+		},
+		{
+			name:         "SAP high severity",
+			requestURL:   "https://api.sap.com/odata/v2/products",
+			wantName:     "SAP",
+			wantSeverity: "high",
+		},
+		{
+			name:       "ServiceNow",
+			requestURL: "https://myinstance.servicenow.com/api/now/table/incident",
+			wantName:   "ServiceNow",
+		},
+		{
+			name:       "SharePoint",
+			requestURL: "https://company.sharepoint.com/sites/team/_api/web/lists",
+			wantName:   "SharePoint",
+		},
+		{
+			name:       "Analytics/Telemetry via segment",
+			requestURL: "https://cdn.segment.com/analytics.js/v1/abc/analytics.min.js",
+			wantName:   "Analytics/Telemetry",
+		},
+		{
+			name:       "Google Services",
+			requestURL: "https://apis.google.com/js/api.js",
+			wantName:   "Google Services",
+		},
+		{
+			name:       "AWS",
+			requestURL: "https://s3.amazonaws.com/bucket/key",
+			wantName:   "AWS",
+		},
+		{
+			name:       "CDN filtered to nil",
+			requestURL: "https://cdn.cloudflare.com/libs/jquery/3.6.0/jquery.min.js",
+			wantNil:    true,
+		},
+		{
+			name:       "Unknown third party",
+			requestURL: "https://random-api.io/v1/data",
+			wantName:   "Unknown: random-api.io",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := scanner.classifyThirdPartyAPI(tt.requestURL, "example.com")
+			if tt.wantNil {
+				if result != nil {
+					t.Errorf("expected nil, got %+v", result)
+				}
+				return
+			}
+			if result == nil {
+				t.Fatalf("expected non-nil result for %s", tt.requestURL)
+			}
+			if result.Name != tt.wantName {
+				t.Errorf("Name = %q, want %q", result.Name, tt.wantName)
+			}
+			if tt.wantSeverity != "" && result.Severity != tt.wantSeverity {
+				t.Errorf("Severity = %q, want %q", result.Severity, tt.wantSeverity)
+			}
+		})
+	}
+}
+
+// =============================================================================
+// calculateRiskSummary BRANCH TESTS
+// =============================================================================
+
+func TestCalculateRiskSummary_Branches(t *testing.T) {
+	t.Parallel()
+	scanner := NewAuthenticatedScanner(nil)
+
+	t.Run("high overall risk", func(t *testing.T) {
+		t.Parallel()
+		result := &BrowserScanResult{
+			ExposedTokens: []ExposedToken{
+				{Type: "api_key", Severity: "high", Risk: "API key exposed"},
+				{Type: "session", Severity: "high", Risk: "Session token exposed"},
+			},
+			ThirdPartyAPIs: []ThirdPartyAPI{},
+		}
+		summary := scanner.calculateRiskSummary(result)
+		if summary.OverallRisk != "high" {
+			t.Errorf("OverallRisk = %q, want \"high\"", summary.OverallRisk)
+		}
+		if summary.HighCount != 2 {
+			t.Errorf("HighCount = %d, want 2", summary.HighCount)
+		}
+		if summary.CriticalCount != 0 {
+			t.Errorf("CriticalCount = %d, want 0", summary.CriticalCount)
+		}
+	})
+
+	t.Run("medium overall risk", func(t *testing.T) {
+		t.Parallel()
+		result := &BrowserScanResult{
+			ExposedTokens: []ExposedToken{
+				{Type: "sensitive", Severity: "medium", Risk: "Potentially sensitive"},
+			},
+			ThirdPartyAPIs: []ThirdPartyAPI{},
+		}
+		summary := scanner.calculateRiskSummary(result)
+		if summary.OverallRisk != "medium" {
+			t.Errorf("OverallRisk = %q, want \"medium\"", summary.OverallRisk)
+		}
+		if summary.MediumCount != 1 {
+			t.Errorf("MediumCount = %d, want 1", summary.MediumCount)
+		}
+	})
+
+	t.Run("low overall risk with no findings", func(t *testing.T) {
+		t.Parallel()
+		result := &BrowserScanResult{
+			ExposedTokens:  []ExposedToken{},
+			ThirdPartyAPIs: []ThirdPartyAPI{},
+		}
+		summary := scanner.calculateRiskSummary(result)
+		if summary.OverallRisk != "low" {
+			t.Errorf("OverallRisk = %q, want \"low\"", summary.OverallRisk)
+		}
+		if summary.TotalFindings != 0 {
+			t.Errorf("TotalFindings = %d, want 0", summary.TotalFindings)
+		}
+	})
+
+	t.Run("TopRisks truncated to 5", func(t *testing.T) {
+		t.Parallel()
+		result := &BrowserScanResult{
+			ExposedTokens: []ExposedToken{
+				{Type: "jwt", Severity: "critical", Risk: "JWT 1"},
+				{Type: "jwt", Severity: "critical", Risk: "JWT 2"},
+				{Type: "jwt", Severity: "critical", Risk: "JWT 3"},
+				{Type: "jwt", Severity: "critical", Risk: "JWT 4"},
+				{Type: "jwt", Severity: "critical", Risk: "JWT 5"},
+				{Type: "jwt", Severity: "critical", Risk: "JWT 6"},
+			},
+			ThirdPartyAPIs: []ThirdPartyAPI{
+				{Name: "SAP", Severity: "high"},
+			},
+		}
+		summary := scanner.calculateRiskSummary(result)
+		if len(summary.TopRisks) > 5 {
+			t.Errorf("TopRisks length = %d, want <= 5", len(summary.TopRisks))
+		}
+	})
+
+	t.Run("third-party warning when more than 5 APIs", func(t *testing.T) {
+		t.Parallel()
+		apis := make([]ThirdPartyAPI, 6)
+		for i := range apis {
+			apis[i] = ThirdPartyAPI{Name: "API", Severity: "low"}
+		}
+		result := &BrowserScanResult{
+			ExposedTokens:  []ExposedToken{},
+			ThirdPartyAPIs: apis,
+		}
+		summary := scanner.calculateRiskSummary(result)
+		found := false
+		for _, rec := range summary.Recommendations {
+			if strings.Contains(rec, "third-party") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("expected third-party warning in Recommendations when > 5 APIs")
+		}
+	})
+}
+
 // TestIsLowValueAsset_EdgeCases verifies asset filtering edge cases.
 func TestIsLowValueAsset_EdgeCases(t *testing.T) {
 	t.Parallel()
