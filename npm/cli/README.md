@@ -287,8 +287,9 @@ Also integrates with SonarQube, GitLab SAST, DefectDojo, Elasticsearch, Slack, T
 | `workflow` | YAML workflow orchestration |
 | `plugin` | Plugin management |
 | `compare` | Compare two scan result JSON files (severity/category deltas) |
+| `update` | Check for and install updates |
 | `docs` | Built-in command reference |
-| ... | 5 more specialized commands |
+| ... | 4 more specialized commands (`full`, `quick`, `standard`, `validate-templates`) |
 
 ## Platform Support
 

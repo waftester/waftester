@@ -153,12 +153,14 @@ func computeDeltas(before, after map[string]int) map[string]int {
 	return deltas
 }
 
-// findNew returns sorted keys present in after but not in before.
+// findNew returns sorted keys present in after (with count > 0) but not in before.
 func findNew(before, after map[string]int) []string {
 	var result []string
-	for k := range after {
-		if _, exists := before[k]; !exists {
-			result = append(result, k)
+	for k, v := range after {
+		if v > 0 {
+			if _, exists := before[k]; !exists {
+				result = append(result, k)
+			}
 		}
 	}
 	sort.Strings(result)
