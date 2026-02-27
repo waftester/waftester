@@ -1410,6 +1410,14 @@ func runAutoScan() {
 	var paramResult *params.DiscoveryResult
 
 	if *cfg.EnableParamDiscovery && !shouldSkipPhase("param-discovery") {
+		// Clear detection state so discovery-phase connection drops (e.g. from
+		// path brute-force) don't block parameter probing.
+		if det := detection.Default(); det != nil {
+			det.ClearHostErrors(target)
+		} else {
+			hosterrors.Clear(target)
+		}
+
 		printStatusLn(ui.SectionStyle.Render("PHASE 2.5: Parameter Discovery (Arjun-style)"))
 		printStatusLn()
 
@@ -1904,6 +1912,7 @@ func runAutoScan() {
 	var adaptiveLimiter *ratelimit.Limiter
 	var executorRef *core.Executor
 	escalationCount := 0
+	var lastEscalationTime time.Time
 	autoEscalate := func(reason string) {
 		rateMu.Lock()
 		defer rateMu.Unlock()
@@ -1912,6 +1921,15 @@ func runAutoScan() {
 		if escalationCount > 5 {
 			return
 		}
+
+		// Cooldown: ignore rapid-fire escalations. Without this, anomaly
+		// callbacks fire in burst (all observing the same batch of results)
+		// and cascade rate/concurrency down to minimums in one second.
+		if !lastEscalationTime.IsZero() && time.Since(lastEscalationTime) < 10*time.Second {
+			escalationCount-- // don't count suppressed escalation
+			return
+		}
+		lastEscalationTime = time.Now()
 
 		oldRate := currentRateLimit
 		oldConc := currentConcurrency
@@ -3260,10 +3278,19 @@ func runAutoScan() {
 	printStatusLn(ui.SectionStyle.Render("PHASE 5: Comprehensive Report"))
 	printStatusLn()
 
-	// Calculate WAF effectiveness
+	// Calculate WAF effectiveness.
+	// The denominator includes blocked + failed + skipped tests so that hosts
+	// which were unreachable (silent-banned / connection-dropped) are not
+	// silently excluded — otherwise a scan where 90% of tests were skipped
+	// could report "100% effectiveness."
 	wafEffectiveness := float64(0)
-	if results.BlockedTests+results.FailedTests > 0 {
-		wafEffectiveness = float64(results.BlockedTests) / float64(results.BlockedTests+results.FailedTests) * 100
+	skippedTests := results.TotalTests - results.BlockedTests - results.PassedTests - results.FailedTests - results.ErrorTests
+	if skippedTests < 0 {
+		skippedTests = 0
+	}
+	denominator := results.BlockedTests + results.FailedTests + skippedTests
+	if denominator > 0 {
+		wafEffectiveness = float64(results.BlockedTests) / float64(denominator) * 100
 	}
 
 	scanDuration := time.Since(startTime)
@@ -3405,6 +3432,12 @@ func runAutoScan() {
 		summary["ci_exit_code"] = 1
 		summary["bypass_details"] = results.BypassDetails
 	}
+	// Also fail CI when WAF effectiveness is critically low (the WAF is
+	// functionally absent even if nothing was explicitly "bypassed" because
+	// most tests were skipped).
+	if wafEffectiveness < 50 && denominator > 0 {
+		summary["ci_exit_code"] = 1
+	}
 
 	// Add Intelligence Engine data to summary
 	if brain != nil {
@@ -3420,17 +3453,22 @@ func runAutoScan() {
 				"confidence":  chain.Confidence,
 			})
 		}
+		// Note: intSummary.Bypasses counts non-blocked brain observations
+		// (including skipped tests where status_code=0). This differs from
+		// results.FailedTests which counts actual WAF bypasses. Use
+		// bypass_count (from results.FailedTests) as the authoritative count.
 		summary["intelligence"] = map[string]interface{}{
-			"enabled":        true,
-			"total_findings": intSummary.TotalFindings,
-			"bypasses":       intSummary.Bypasses,
-			"blocked":        intSummary.Blocked,
-			"attack_chains":  chainData,
-			"waf_strengths":  intSummary.WAFStrengths,
-			"waf_weaknesses": intSummary.WAFWeaknesses,
-			"tech_stack":     intSummary.TechStack,
-			"insights_count": atomic.LoadInt32(&insightCount),
-			"chains_count":   atomic.LoadInt32(&chainCount),
+			"enabled":         true,
+			"total_findings":  intSummary.TotalFindings,
+			"bypasses":        results.FailedTests, // authoritative: actual WAF bypasses
+			"brain_unblocked": intSummary.Bypasses, // brain's count (includes skipped)
+			"blocked":         intSummary.Blocked,
+			"attack_chains":   chainData,
+			"waf_strengths":   intSummary.WAFStrengths,
+			"waf_weaknesses":  intSummary.WAFWeaknesses,
+			"tech_stack":      intSummary.TechStack,
+			"insights_count":  atomic.LoadInt32(&insightCount),
+			"chains_count":    atomic.LoadInt32(&chainCount),
 		}
 	}
 
@@ -3482,6 +3520,14 @@ func runAutoScan() {
 	autoProgress.Increment()
 
 	if *cfg.EnableAssess && !shouldSkipPhase("assessment") {
+		// Clear detection state so Phase 4's connection drops don't contaminate
+		// the independent enterprise assessment.
+		if det := detection.Default(); det != nil {
+			det.ClearHostErrors(target)
+		} else {
+			hosterrors.Clear(target)
+		}
+
 		printStatusLn()
 		printStatusLn(ui.SectionStyle.Render("PHASE 6: Enterprise Assessment (Quantitative Metrics)"))
 		printStatusLn()
@@ -3679,12 +3725,15 @@ func runAutoScan() {
 		ui.PrintInfo(fmt.Sprintf("   You have %s to complete authentication", browserConfig.WaitForLogin))
 		printStatusLn()
 
-		// Run the browser scan
+		// Run the browser scan.
+		// Cancel the context explicitly after Scan returns to avoid blocking
+		// on deferred cancel during function exit (Chrome process cleanup on
+		// Windows can hang indefinitely).
 		browserCtx, browserCancel := context.WithTimeout(ctx, browserConfig.Timeout)
-		defer browserCancel()
 
 		var err error
 		browserResult, err = scanner.Scan(browserCtx, browserProgress)
+		browserCancel() // cancel immediately — don't defer (prevents freeze on exit)
 
 		if err != nil {
 			ui.PrintWarning(fmt.Sprintf("Browser scan warning: %v", err))
@@ -3973,7 +4022,10 @@ func runAutoScan() {
 		_ = autoDispCtx.EmitSummary(ctx, int(results.TotalTests), int(results.BlockedTests), int(results.FailedTests), scanDuration)
 	}
 
-	if results.FailedTests > 0 {
+	// Exit with failure code when bypasses found OR WAF effectiveness is
+	// critically low (most tests skipped = functionally unprotected).
+	ciExit := results.FailedTests > 0 || (wafEffectiveness < 50 && denominator > 0)
+	if ciExit {
 		// Explicitly flush deferred resources — os.Exit does not run defers.
 		if autoDispCtx != nil {
 			autoDispCtx.Close()

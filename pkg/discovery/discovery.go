@@ -279,6 +279,13 @@ func (d *Discoverer) Discover(ctx context.Context) (*DiscoveryResult, error) {
 	result.Endpoints = d.endpoints
 	result.Statistics.TotalEndpoints = len(d.endpoints)
 
+	// Populate TotalParameters by counting all parameters across endpoints
+	totalParams := 0
+	for _, ep := range d.endpoints {
+		totalParams += len(ep.Parameters)
+	}
+	result.Statistics.TotalParameters = totalParams
+
 	return result, nil
 }
 
