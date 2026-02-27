@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -26,9 +27,9 @@ import (
 // error is returned when all attempts fail.
 func TestClientRetryExhaustion(t *testing.T) {
 	t.Parallel()
-	var attempts int
+	var attempts atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		attempts++
+		attempts.Add(1)
 		// Force connection close to trigger error
 		hj, ok := w.(http.Hijacker)
 		if ok {
@@ -55,18 +56,18 @@ func TestClientRetryExhaustion(t *testing.T) {
 		t.Error("expected error after retry exhaustion, got nil")
 	}
 	// Should have attempted 3 times (1 initial + 2 retries)
-	if attempts < 2 {
-		t.Errorf("expected at least 2 attempts, got %d", attempts)
+	if attempts.Load() < 2 {
+		t.Errorf("expected at least 2 attempts, got %d", attempts.Load())
 	}
 }
 
 // TestClientRetrySuccess verifies that a request succeeds after initial failures.
 func TestClientRetrySuccess(t *testing.T) {
 	t.Parallel()
-	var attempts int
+	var attempts atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		attempts++
-		if attempts < 3 {
+		n := attempts.Add(1)
+		if n < 3 {
 			// Force connection close on first 2 attempts
 			hj, ok := w.(http.Hijacker)
 			if ok {
