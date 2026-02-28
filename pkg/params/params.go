@@ -583,9 +583,14 @@ func (d *Discoverer) deduplicate(params []DiscoveredParam) []DiscoveredParam {
 		}
 	}
 
+	names := make([]string, 0, len(seen))
+	for name := range seen {
+		names = append(names, name)
+	}
+	sort.Strings(names)
 	var result []DiscoveredParam
-	for _, p := range seen {
-		result = append(result, *p)
+	for _, name := range names {
+		result = append(result, *seen[name])
 	}
 	return result
 }

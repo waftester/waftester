@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -220,7 +221,13 @@ func generateAutoMarkdownReport(filename, target, domain string, duration time.D
 		sb.WriteString("### Encoding Effectiveness\n\n")
 		sb.WriteString("| Encoding | Tests | Bypasses | Bypass Rate |\n")
 		sb.WriteString("|----------|-------|----------|-------------|\n")
-		for name, stats := range results.EncodingStats {
+		encStatNames := make([]string, 0, len(results.EncodingStats))
+	for name := range results.EncodingStats {
+		encStatNames = append(encStatNames, name)
+	}
+	sort.Strings(encStatNames)
+	for _, name := range encStatNames {
+		stats := results.EncodingStats[name]
 			rateIcon := "✅"
 			if stats.BypassRate > 10 {
 				rateIcon = "🔴"
