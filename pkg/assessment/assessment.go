@@ -657,7 +657,7 @@ func (a *Assessment) executeAttackTest(ctx context.Context, payload AttackPayloa
 // executeFPTest executes a single false positive test
 func (a *Assessment) executeFPTest(ctx context.Context, payload corpus.Payload) metrics.BenignResult {
 	result := metrics.BenignResult{
-		ID:      payload.Text[:min(20, len(payload.Text))],
+		ID:      truncateRunes(payload.Text, 20),
 		Corpus:  payload.Source,
 		Payload: payload.Text,
 	}
@@ -803,4 +803,13 @@ func getBuiltinAttackPayloads() []AttackPayload {
 	}
 
 	return payloads
+}
+
+// truncateRunes safely truncates a string to maxRunes rune characters.
+func truncateRunes(s string, maxRunes int) string {
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return s
+	}
+	return string(runes[:maxRunes])
 }

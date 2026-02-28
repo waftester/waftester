@@ -2188,6 +2188,7 @@ func runAutoScan() {
 			for c := range catSet {
 				cats = append(cats, c)
 			}
+			sort.Strings(cats)
 			prioritized := smartResult.Strategy.PrioritizePayloads(cats)
 
 			// Build category→priority index
@@ -3674,8 +3675,10 @@ func runAutoScan() {
 
 			// Save assessment results
 			assessFile := filepath.Join(workspaceDir, "assessment.json")
-			assessData, _ := json.MarshalIndent(assessResult, "", "  ")
-			if err := os.WriteFile(assessFile, assessData, 0644); err != nil {
+			assessData, marshalErr := json.MarshalIndent(assessResult, "", "  ")
+			if marshalErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to marshal assessment: %v", marshalErr))
+			} else if err := os.WriteFile(assessFile, assessData, 0644); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Failed to write assessment: %v", err))
 			}
 			ui.PrintSuccess(fmt.Sprintf("📊 Assessment saved to: %s", assessFile))
@@ -3703,9 +3706,13 @@ func runAutoScan() {
 				"false_positive_rate": assessResult.FalsePositiveRate,
 				"bypass_resistance":   assessResult.BypassResistance,
 			}
-			summaryData, _ = json.MarshalIndent(summary, "", "  ")
-			if err := os.WriteFile(summaryFile, summaryData, 0644); err != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
+			if data, mErr := json.MarshalIndent(summary, "", "  "); mErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to marshal summary: %v", mErr))
+			} else {
+				summaryData = data
+				if err := os.WriteFile(summaryFile, summaryData, 0644); err != nil {
+					ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
+				}
 			}
 		}
 		markPhaseCompleted("assessment")
@@ -3966,9 +3973,13 @@ func runAutoScan() {
 			}
 
 			// Save updated summary
-			summaryData, _ = json.MarshalIndent(summary, "", "  ")
-			if err := os.WriteFile(summaryFile, summaryData, 0644); err != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
+			if data, mErr := json.MarshalIndent(summary, "", "  "); mErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to marshal summary: %v", mErr))
+			} else {
+				summaryData = data
+				if err := os.WriteFile(summaryFile, summaryData, 0644); err != nil {
+					ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
+				}
 			}
 
 			// Regenerate enterprise report to include browser findings

@@ -4,6 +4,7 @@ package js
 
 import (
 	"regexp"
+	"sort"
 
 	"github.com/waftester/waftester/pkg/regexcache"
 )
@@ -320,15 +321,23 @@ func SecretCategory(secretType string) string {
 		},
 	}
 
-	for category, prefixes := range categories {
-		for _, prefix := range prefixes {
-			if len(secretType) >= len(prefix) && secretType[:len(prefix)] == prefix {
-				return category
+	bestCategory := "generic"
+	bestLen := 0
+	catKeys := make([]string, 0, len(categories))
+	for cat := range categories {
+		catKeys = append(catKeys, cat)
+	}
+	sort.Strings(catKeys)
+	for _, category := range catKeys {
+		for _, prefix := range categories[category] {
+			if len(secretType) >= len(prefix) && secretType[:len(prefix)] == prefix && len(prefix) > bestLen {
+				bestLen = len(prefix)
+				bestCategory = category
 			}
 		}
 	}
 
-	return "generic"
+	return bestCategory
 }
 
 // SecretSeverity returns the severity level for a secret type

@@ -871,8 +871,13 @@ func (t *Tester) applyHeaders(req *http.Request) {
 		req.Header.Set("Authorization", t.config.AuthHeader)
 	}
 
-	for name, value := range t.config.Cookies {
-		req.AddCookie(&http.Cookie{Name: name, Value: value})
+	cookieNames := make([]string, 0, len(t.config.Cookies))
+	for name := range t.config.Cookies {
+		cookieNames = append(cookieNames, name)
+	}
+	sort.Strings(cookieNames)
+	for _, name := range cookieNames {
+		req.AddCookie(&http.Cookie{Name: name, Value: t.config.Cookies[name]})
 	}
 }
 

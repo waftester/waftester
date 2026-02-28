@@ -219,7 +219,13 @@ func printScanConsoleSummary(result *ScanResult) {
 		fmt.Println() // debug:keep
 
 		ui.PrintSection("By Category")
-		for cat, count := range result.ByCategory {
+		detailCats := make([]string, 0, len(result.ByCategory))
+		for cat := range result.ByCategory {
+			detailCats = append(detailCats, cat)
+		}
+		sort.Strings(detailCats)
+		for _, cat := range detailCats {
+			count := result.ByCategory[cat]
 			if count > 0 {
 				word := "vulnerabilities"
 				if count == 1 {

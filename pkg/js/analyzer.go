@@ -402,7 +402,13 @@ func (a *Analyzer) ExtractSecrets(code string) []SecretInfo {
 	var secrets []SecretInfo
 	seen := make(map[string]bool)
 
-	for secretType, pattern := range a.SecretPatterns {
+	secretTypeKeys := make([]string, 0, len(a.SecretPatterns))
+	for k := range a.SecretPatterns {
+		secretTypeKeys = append(secretTypeKeys, k)
+	}
+	sort.Strings(secretTypeKeys)
+	for _, secretType := range secretTypeKeys {
+		pattern := a.SecretPatterns[secretType]
 		matches := pattern.FindAllStringSubmatch(code, -1)
 		for _, match := range matches {
 			value := match[0]
@@ -473,7 +479,13 @@ func (a *Analyzer) ExtractVariables(code string) []VariableInfo {
 		"password": regexp.MustCompile(`(?i)(?:var|let|const)\s+([a-zA-Z_$][a-zA-Z0-9_$]*(?:password|passwd|pwd))\s*=\s*["']([^"']+)["']`),
 	}
 
-	for varType, pattern := range varPatterns {
+	varTypeKeys := make([]string, 0, len(varPatterns))
+	for k := range varPatterns {
+		varTypeKeys = append(varTypeKeys, k)
+	}
+	sort.Strings(varTypeKeys)
+	for _, varType := range varTypeKeys {
+		pattern := varPatterns[varType]
 		matches := pattern.FindAllStringSubmatch(code, -1)
 		for _, match := range matches {
 			if len(match) < 3 {
@@ -538,7 +550,13 @@ func (a *Analyzer) ExtractCloudURLs(code string) []CloudURL {
 	var cloudURLs []CloudURL
 	seen := make(map[string]bool)
 
-	for service, pattern := range a.CloudPatterns {
+	cloudKeys := make([]string, 0, len(a.CloudPatterns))
+	for k := range a.CloudPatterns {
+		cloudKeys = append(cloudKeys, k)
+	}
+	sort.Strings(cloudKeys)
+	for _, service := range cloudKeys {
+		pattern := a.CloudPatterns[service]
 		matches := pattern.FindAllString(code, -1)
 		for _, match := range matches {
 			if seen[match] {
@@ -877,7 +895,13 @@ func (a *Analyzer) inferMethodFromURL(url string) string {
 	urlLower := strings.ToLower(url)
 
 	// Check for exact path segment matches
-	for pattern, method := range urlMethodHints {
+	hintKeys := make([]string, 0, len(urlMethodHints))
+	for k := range urlMethodHints {
+		hintKeys = append(hintKeys, k)
+	}
+	sort.Strings(hintKeys)
+	for _, pattern := range hintKeys {
+		method := urlMethodHints[pattern]
 		patternWithoutSlash := strings.TrimPrefix(pattern, "/")
 		// Check if URL contains the pattern as a path segment
 		if strings.Contains(urlLower, pattern+"/") ||
@@ -905,7 +929,8 @@ func (a *Analyzer) inferMethodFromURL(url string) string {
 			part = part[:idx]
 		}
 
-		for pattern, method := range urlMethodHints {
+		for _, pattern := range hintKeys {
+			method := urlMethodHints[pattern]
 			patternWithoutSlash := strings.TrimPrefix(pattern, "/")
 			// Match the pattern without leading slash
 			if part == patternWithoutSlash {

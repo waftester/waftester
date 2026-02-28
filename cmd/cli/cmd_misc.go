@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -246,7 +247,9 @@ func runSmuggle() {
 	if *jsonOutput {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		enc.Encode(allResults)
+		if err := enc.Encode(allResults); err != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to encode JSON: %v", err))
+		}
 	}
 
 	if *outputFile != "" {
@@ -254,11 +257,17 @@ func runSmuggle() {
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Failed to create output file: %v", err))
 		} else {
-			defer f.Close()
 			enc := json.NewEncoder(f)
 			enc.SetIndent("", "  ")
-			enc.Encode(allResults)
-			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
+			encErr := enc.Encode(allResults)
+			closeErr := f.Close()
+			if encErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to encode results: %v", encErr))
+			} else if closeErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to close output file: %v", closeErr))
+			} else {
+				ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
+			}
 		}
 	}
 }
@@ -398,8 +407,13 @@ func runRace() {
 
 		if *verbose {
 			fmt.Println("  Response distribution:")
-			for status, count := range statusCounts {
-				fmt.Printf("    HTTP %d: %d responses\n", status, count)
+			sortedStatuses := make([]int, 0, len(statusCounts))
+			for status := range statusCounts {
+				sortedStatuses = append(sortedStatuses, status)
+			}
+			sort.Ints(sortedStatuses)
+			for _, status := range sortedStatuses {
+				fmt.Printf("    HTTP %d: %d responses\n", status, statusCounts[status])
 			}
 		}
 	}
@@ -445,7 +459,9 @@ func runRace() {
 	if *jsonOutput && len(vulns) > 0 {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		enc.Encode(vulns)
+		if err := enc.Encode(vulns); err != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to encode JSON: %v", err))
+		}
 	}
 
 	if *outputFile != "" && len(vulns) > 0 {
@@ -453,11 +469,17 @@ func runRace() {
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Failed to create output file: %v", err))
 		} else {
-			defer f.Close()
 			enc := json.NewEncoder(f)
 			enc.SetIndent("", "  ")
-			enc.Encode(vulns)
-			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
+			encErr := enc.Encode(vulns)
+			closeErr := f.Close()
+			if encErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to encode results: %v", encErr))
+			} else if closeErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to close output file: %v", closeErr))
+			} else {
+				ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
+			}
 		}
 	}
 }
@@ -632,7 +654,9 @@ func runWorkflow() {
 	if *jsonOutput {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		enc.Encode(result)
+		if err := enc.Encode(result); err != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to encode JSON: %v", err))
+		}
 	}
 
 	if *outputFile != "" {
@@ -640,11 +664,17 @@ func runWorkflow() {
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Failed to create output file: %v", err))
 		} else {
-			defer f.Close()
 			enc := json.NewEncoder(f)
 			enc.SetIndent("", "  ")
-			enc.Encode(result)
-			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
+			encErr := enc.Encode(result)
+			closeErr := f.Close()
+			if encErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to encode results: %v", encErr))
+			} else if closeErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to close output file: %v", closeErr))
+			} else {
+				ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
+			}
 		}
 	}
 
@@ -1003,7 +1033,9 @@ func runHeadless() {
 	if *jsonOutput {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		enc.Encode(allResults)
+		if err := enc.Encode(allResults); err != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to encode JSON: %v", err))
+		}
 	}
 
 	if *outputFile != "" {
@@ -1011,11 +1043,17 @@ func runHeadless() {
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Failed to create output file: %v", err))
 		} else {
-			defer f.Close()
 			enc := json.NewEncoder(f)
 			enc.SetIndent("", "  ")
-			enc.Encode(allResults)
-			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
+			encErr := enc.Encode(allResults)
+			closeErr := f.Close()
+			if encErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to encode results: %v", encErr))
+			} else if closeErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to close output file: %v", closeErr))
+			} else {
+				ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
+			}
 		}
 	}
 
