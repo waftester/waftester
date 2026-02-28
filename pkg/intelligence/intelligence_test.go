@@ -98,6 +98,7 @@ func TestBypassTracking(t *testing.T) {
 	engine.LearnFromFinding(&Finding{
 		Phase: "waf-testing", Category: "sqli", Severity: "Critical",
 		Path: "/api/user", Payload: "' or '1'='1", Blocked: false,
+		StatusCode: 200, // actual bypass (got HTTP response)
 	})
 
 	summary := engine.GetSummary()
@@ -522,7 +523,7 @@ func TestStatsPhaseTracking(t *testing.T) {
 	stats.EndPhase("discovery")
 
 	stats.StartPhase("waf-testing")
-	stats.RecordFinding(&Finding{Category: "sqli", Severity: "Critical", Blocked: false}, true)
+	stats.RecordFinding(&Finding{Category: "sqli", Severity: "Critical", Blocked: false, StatusCode: 200}, true)
 	stats.RecordFinding(&Finding{Category: "sqli", Severity: "Critical", Blocked: true}, true)
 	stats.EndPhase("waf-testing")
 

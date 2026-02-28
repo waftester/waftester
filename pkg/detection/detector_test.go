@@ -623,8 +623,9 @@ func TestExtractHost(t *testing.T) {
 		{"https://example.com:8080/path", "example.com:8080"},
 		{"http://test.example.com", "test.example.com"},
 		// url.Parse on "invalid-url" succeeds but returns empty Host
-		// since it's treated as a relative URL path
-		{"invalid-url", ""},
+		// since it's treated as a relative URL path. extractHost returns
+		// the input as-is to avoid all bare hosts colliding on empty key.
+		{"invalid-url", "invalid-url"},
 	}
 
 	for _, tc := range tests {
