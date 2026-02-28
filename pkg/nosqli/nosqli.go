@@ -519,7 +519,7 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*ScanResult, error
 
 	// Get payloads
 	payloads := t.GetPayloads(db)
-	result.TestedPayloads = len(payloads)
+	result.TestedPayloads = len(payloads) * len(t.config.TestParams)
 
 	// Test each parameter
 	for _, param := range t.config.TestParams {

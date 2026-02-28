@@ -176,10 +176,13 @@ func (m *ConcatenationMutator) Mutate(payload string) []string {
 	switch lang {
 	case "sql":
 		// Split SQL keywords with concatenation: UNION -> UN'+'ION
+		upper := strings.ToUpper(payload)
 		for _, kw := range []string{"UNION", "SELECT", "INSERT", "UPDATE", "DELETE", "FROM", "WHERE"} {
-			if idx := strings.Index(strings.ToUpper(payload), kw); idx >= 0 {
-				mid := len(kw) / 2
-				concat := payload[:idx] + kw[:mid] + "'+'" + kw[mid:] + payload[idx+len(kw):]
+			if idx := strings.Index(upper, kw); idx >= 0 {
+				// Preserve original case of the keyword from the payload
+				origKW := payload[idx : idx+len(kw)]
+				mid := len(origKW) / 2
+				concat := payload[:idx] + origKW[:mid] + "'+'" + origKW[mid:] + payload[idx+len(kw):]
 				results = append(results, concat)
 			}
 		}

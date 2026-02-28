@@ -32,7 +32,9 @@ type ClientOption func(*Client)
 func WithTimeout(d time.Duration) ClientOption {
 	return func(c *Client) {
 		c.timeout = d
-		c.httpClient.Timeout = d
+		// Do NOT mutate c.httpClient.Timeout — the client may be the shared
+		// httpclient.Default() singleton and mutating it would change the
+		// timeout for every other user of that client across the process.
 	}
 }
 
@@ -310,24 +312,35 @@ type PartInfo struct {
 	Type    string
 }
 
+// Pre-compiled regexes for WSDL parsing (avoid recompiling on every call).
+var (
+	wsdlNSRe      = regexp.MustCompile(`targetNamespace="([^"]+)"`)
+	wsdlSvcRe     = regexp.MustCompile(`<(?:wsdl:)?service\s+name="([^"]+)"[^>]*>([\s\S]*?)</(?:wsdl:)?service>`)
+	wsdlPortRe    = regexp.MustCompile(`<(?:wsdl:)?port\s+name="([^"]+)"[^>]*binding="([^"]+)"[^>]*>[\s\S]*?<(?:soap:)?address\s+location="([^"]+)"`)
+	wsdlBindingRe = regexp.MustCompile(`<(?:wsdl:)?binding[^>]*>([\s\S]*?)</(?:wsdl:)?binding>`)
+	wsdlBindOpRe  = regexp.MustCompile(`<(?:wsdl:)?operation\s+name="([^"]+)"[\s\S]*?<(?:soap:)?operation\s+soapAction="([^"]*)"`)
+	wsdlMsgRe     = regexp.MustCompile(`<(?:wsdl:)?message\s+name="([^"]+)"[^>]*>([\s\S]*?)</(?:wsdl:)?message>`)
+	wsdlPartRe    = regexp.MustCompile(`<(?:wsdl:)?part\s+name="([^"]+)"(?:\s+element="([^"]+)")?(?:\s+type="([^"]+)")?`)
+	wsdlTypeRe    = regexp.MustCompile(`<(?:xs?|xsd):complexType\s+name="([^"]+)"[^>]*>([\s\S]*?)</(?:xs?|xsd):complexType>`)
+	wsdlElemRe    = regexp.MustCompile(`<(?:xs?|xsd):element\s+name="([^"]+)"(?:\s+type="([^"]+)")?`)
+)
+
 // ParseWSDL parses a WSDL from URL or raw content
 func ParseWSDL(content []byte) (*WSDLDefinition, error) {
 	def := &WSDLDefinition{}
 
 	// Extract target namespace
-	nsMatch := regexp.MustCompile(`targetNamespace="([^"]+)"`).FindSubmatch(content)
+	nsMatch := wsdlNSRe.FindSubmatch(content)
 	if len(nsMatch) > 1 {
 		def.TargetNamespace = string(nsMatch[1])
 	}
 
 	// Extract services
-	svcRe := regexp.MustCompile(`<(?:wsdl:)?service\s+name="([^"]+)"[^>]*>([\s\S]*?)</(?:wsdl:)?service>`)
-	for _, match := range svcRe.FindAllSubmatch(content, -1) {
+	for _, match := range wsdlSvcRe.FindAllSubmatch(content, -1) {
 		svc := ServiceInfo{Name: string(match[1])}
 
 		// Extract ports
-		portRe := regexp.MustCompile(`<(?:wsdl:)?port\s+name="([^"]+)"[^>]*binding="([^"]+)"[^>]*>[\s\S]*?<(?:soap:)?address\s+location="([^"]+)"`)
-		for _, portMatch := range portRe.FindAllSubmatch(match[2], -1) {
+		for _, portMatch := range wsdlPortRe.FindAllSubmatch(match[2], -1) {
 			svc.Ports = append(svc.Ports, PortInfo{
 				Name:     string(portMatch[1]),
 				Binding:  string(portMatch[2]),
@@ -341,28 +354,31 @@ func ParseWSDL(content []byte) (*WSDLDefinition, error) {
 		def.Services = append(def.Services, svc)
 	}
 
-	// Extract operations
-	opRe := regexp.MustCompile(`<(?:wsdl:)?operation\s+name="([^"]+)"`)
-	actionRe := regexp.MustCompile(`<(?:soap:)?operation\s+soapAction="([^"]+)"`)
-
-	opMatches := opRe.FindAllSubmatch(content, -1)
-	actionMatches := actionRe.FindAllSubmatch(content, -1)
-
-	for i, match := range opMatches {
-		op := OperationInfo{Name: string(match[1])}
-		if i < len(actionMatches) && len(actionMatches[i]) > 1 {
-			op.SOAPAction = string(actionMatches[i][1])
+	// Extract operations from <binding> sections only.
+	// Previous code matched <operation> globally, which captured both
+	// <portType> and <binding> entries (2N matches for N operations),
+	// then paired them positionally with <soap:operation> (N matches) —
+	// causing wrong SOAPAction assignment.
+	seen := make(map[string]bool)
+	for _, bindMatch := range wsdlBindingRe.FindAllSubmatch(content, -1) {
+		for _, opMatch := range wsdlBindOpRe.FindAllSubmatch(bindMatch[1], -1) {
+			name := string(opMatch[1])
+			if seen[name] {
+				continue // deduplicate across multiple bindings
+			}
+			seen[name] = true
+			def.Operations = append(def.Operations, OperationInfo{
+				Name:       name,
+				SOAPAction: string(opMatch[2]),
+			})
 		}
-		def.Operations = append(def.Operations, op)
 	}
 
 	// Extract messages
-	msgRe := regexp.MustCompile(`<(?:wsdl:)?message\s+name="([^"]+)"[^>]*>([\s\S]*?)</(?:wsdl:)?message>`)
-	for _, match := range msgRe.FindAllSubmatch(content, -1) {
+	for _, match := range wsdlMsgRe.FindAllSubmatch(content, -1) {
 		msg := MessageInfo{Name: string(match[1])}
 
-		partRe := regexp.MustCompile(`<(?:wsdl:)?part\s+name="([^"]+)"(?:\s+element="([^"]+)")?(?:\s+type="([^"]+)")?`)
-		for _, partMatch := range partRe.FindAllSubmatch(match[2], -1) {
+		for _, partMatch := range wsdlPartRe.FindAllSubmatch(match[2], -1) {
 			part := PartInfo{Name: string(partMatch[1])}
 			if len(partMatch) > 2 {
 				part.Element = string(partMatch[2])
@@ -377,15 +393,13 @@ func ParseWSDL(content []byte) (*WSDLDefinition, error) {
 	}
 
 	// Extract complex types
-	typeRe := regexp.MustCompile(`<(?:xs?|xsd):complexType\s+name="([^"]+)"[^>]*>([\s\S]*?)</(?:xs?|xsd):complexType>`)
-	for _, match := range typeRe.FindAllSubmatch(content, -1) {
+	for _, match := range wsdlTypeRe.FindAllSubmatch(content, -1) {
 		typ := TypeInfo{
 			Name:      string(match[1]),
 			IsComplex: true,
 		}
 
-		elemRe := regexp.MustCompile(`<(?:xs?|xsd):element\s+name="([^"]+)"(?:\s+type="([^"]+)")?`)
-		for _, elemMatch := range elemRe.FindAllSubmatch(match[2], -1) {
+		for _, elemMatch := range wsdlElemRe.FindAllSubmatch(match[2], -1) {
 			elem := ElementInfo{Name: string(elemMatch[1])}
 			if len(elemMatch) > 2 {
 				elem.Type = string(elemMatch[2])
@@ -412,7 +426,7 @@ func FetchWSDL(url string) (*WSDLDefinition, error) {
 		return nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)
 	}
 
-	content, err := iohelper.ReadBodyDefault(resp.Body)
+	content, err := iohelper.ReadBody(resp.Body, 5*1024*1024) // 5MB limit
 	if err != nil {
 		return nil, fmt.Errorf("failed to read WSDL: %w", err)
 	}

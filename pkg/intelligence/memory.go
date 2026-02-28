@@ -122,7 +122,7 @@ func (m *Memory) rebuildIndexes() {
 	m.byPhase = make(map[string][]*Finding, len(m.byPhase))
 	m.byPath = make(map[string][]*Finding, len(m.byPath))
 	m.bySeverity = make(map[string][]*Finding, len(m.bySeverity))
-	m.bypasses = m.bypasses[:0]
+	m.bypasses = nil // Release old backing array so evicted findings can be GC'd
 
 	for _, f := range m.findings {
 		m.byCategory[f.Category] = append(m.byCategory[f.Category], f)

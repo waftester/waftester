@@ -120,12 +120,17 @@ func NewFuzzer(config Config) (*Fuzzer, error) {
 	}
 
 	f := &Fuzzer{
-		config:     config,
-		results:    make([]Result, 0),
-		visited:    make(map[string]bool),
-		queue:      make(chan fuzzerTask, 10000),
-		httpClient: httpclient.New(httpclient.WithTimeout(config.Timeout)),
-		detector:   detection.Default(),
+		config:  config,
+		results: make([]Result, 0),
+		visited: make(map[string]bool),
+		queue:   make(chan fuzzerTask, 10000),
+		httpClient: func() *http.Client {
+			if config.Client != nil {
+				return config.Client
+			}
+			return httpclient.New(httpclient.WithTimeout(config.Timeout))
+		}(),
+		detector: detection.Default(),
 	}
 
 	if config.ExcludeRegex != "" {
@@ -304,9 +309,13 @@ func (f *Fuzzer) processTask(ctx context.Context, task fuzzerTask) {
 		}
 	}
 
-	// Apply delay
+	// Apply delay (context-aware)
 	if f.config.Delay > 0 {
-		time.Sleep(f.config.Delay)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(f.config.Delay):
+		}
 	}
 }
 
@@ -409,10 +418,12 @@ func (f *Fuzzer) Stop() {
 
 // GetStats returns current statistics
 func (f *Fuzzer) GetStats() Stats {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-
-	stats := f.stats
+	stats := Stats{
+		TotalRequests: atomic.LoadInt64(&f.stats.TotalRequests),
+		Found:         atomic.LoadInt64(&f.stats.Found),
+		Errors:        atomic.LoadInt64(&f.stats.Errors),
+		CurrentDepth:  atomic.LoadInt32(&f.stats.CurrentDepth),
+	}
 	stats.Duration = time.Since(f.startTime)
 	if stats.Duration.Seconds() > 0 {
 		stats.Rate = float64(stats.TotalRequests) / stats.Duration.Seconds()
@@ -424,7 +435,9 @@ func (f *Fuzzer) GetStats() Stats {
 func (f *Fuzzer) GetResults() []Result {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	return f.results
+	out := make([]Result, len(f.results))
+	copy(out, f.results)
+	return out
 }
 
 // LinkExtractor extracts links from HTML content

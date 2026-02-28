@@ -9,6 +9,7 @@ package dispatcher
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -198,6 +199,13 @@ func (d *Dispatcher) Close() error {
 	for _, w := range d.writers {
 		_ = w.Flush()
 		_ = w.Close()
+	}
+
+	// Close hooks that hold resources (e.g., OTel tracer, Prometheus HTTP server).
+	for _, h := range d.hooks {
+		if closer, ok := h.(io.Closer); ok {
+			_ = closer.Close()
+		}
 	}
 	d.mu.Unlock()
 

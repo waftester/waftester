@@ -429,8 +429,20 @@ func (wp *WAFProfiler) Export() *WAFProfilerState {
 	wp.mu.RLock()
 	defer wp.mu.RUnlock()
 
+	// Deep-copy the fingerprint so the exported state doesn't share
+	// mutable slice fields (Evidence, BypassTips, etc.) with the live profiler.
+	var fpCopy *WAFFingerprint
+	if wp.fingerprint != nil {
+		c := *wp.fingerprint
+		c.Evidence = append([]WAFEvidence(nil), wp.fingerprint.Evidence...)
+		c.BypassTips = append([]string(nil), wp.fingerprint.BypassTips...)
+		c.KnownRules = append([]string(nil), wp.fingerprint.KnownRules...)
+		c.BlockCodes = append([]int(nil), wp.fingerprint.BlockCodes...)
+		fpCopy = &c
+	}
+
 	return &WAFProfilerState{
-		Fingerprint:      wp.fingerprint,
+		Fingerprint:      fpCopy,
 		CategoryBlocks:   copyStringIntMap(wp.categoryBlocks),
 		CategoryBypasses: copyStringIntMap(wp.categoryBypasses),
 		EncodingBlocks:   copyStringIntMap(wp.encodingBlocks),

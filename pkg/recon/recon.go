@@ -224,7 +224,7 @@ func (s *Scanner) FullScan(ctx context.Context, targetURL string) (*FullReconRes
 // scanLeakyPaths scans for leaky paths
 func (s *Scanner) scanLeakyPaths(ctx context.Context, targetURL string) (*leakypaths.ScanSummary, error) {
 	scanner := leakypaths.NewScanner(&leakypaths.Config{
-		Base:       attackconfig.Base{Concurrency: s.config.Concurrency, Timeout: s.config.Timeout},
+		Base:       attackconfig.Base{Concurrency: s.config.Concurrency, Timeout: s.config.Timeout, UserAgent: s.config.UserAgent, Client: s.config.HTTPClient},
 		Verbose:    s.config.Verbose,
 		HTTPClient: s.config.HTTPClient, // JA3 TLS fingerprint rotation
 	})
@@ -235,7 +235,7 @@ func (s *Scanner) scanLeakyPaths(ctx context.Context, targetURL string) (*leakyp
 // discoverParams discovers hidden parameters
 func (s *Scanner) discoverParams(ctx context.Context, targetURL string) (*params.DiscoveryResult, error) {
 	discoverer := params.NewDiscoverer(&params.Config{
-		Base:         attackconfig.Base{Concurrency: s.config.Concurrency, Timeout: s.config.Timeout},
+		Base:         attackconfig.Base{Concurrency: s.config.Concurrency, Timeout: s.config.Timeout, UserAgent: s.config.UserAgent, Client: s.config.HTTPClient},
 		Verbose:      s.config.Verbose,
 		WordlistFile: s.config.ParamWordlist,
 		HTTPClient:   s.config.HTTPClient, // JA3 TLS fingerprint rotation
@@ -334,18 +334,13 @@ func (s *Scanner) calculateRisk(result *FullReconResult) (float64, string, []str
 
 // QuickScan performs a faster scan with reduced coverage
 func (s *Scanner) QuickScan(ctx context.Context, targetURL string) (*FullReconResult, error) {
-	// Use reduced settings for quick scan
-	originalConcurrency := s.config.Concurrency
-	s.config.Concurrency = defaults.ConcurrencyMax                    // Higher concurrency
-	s.config.LeakyPathCategories = []string{"config", "vcs", "debug"} // Only high-value categories
+	// Create a separate scanner with quick-scan settings to avoid data races
+	quickCfg := *s.config
+	quickCfg.Concurrency = defaults.ConcurrencyMax
+	quickCfg.LeakyPathCategories = []string{"config", "vcs", "debug"}
 
-	result, err := s.FullScan(ctx, targetURL)
-
-	// Restore settings
-	s.config.Concurrency = originalConcurrency
-	s.config.LeakyPathCategories = nil
-
-	return result, err
+	quickScanner := &Scanner{config: &quickCfg, tlsCfg: s.tlsCfg}
+	return quickScanner.FullScan(ctx, targetURL)
 }
 
 // ToJSON serializes the result to JSON

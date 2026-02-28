@@ -36,13 +36,13 @@ func NewJARMProber() *JARMProber {
 
 // Probe generates a JARM fingerprint for the target
 func (p *JARMProber) Probe(ctx context.Context, host string, port int) *JARMResult {
+	if port == 0 {
+		port = 443
+	}
+
 	result := &JARMResult{
 		Host: host,
 		Port: port,
-	}
-
-	if port == 0 {
-		port = 443
 	}
 
 	addr := net.JoinHostPort(host, strconv.Itoa(port))
@@ -80,7 +80,7 @@ func getJARMProbes(host string) []jarmProbe {
 
 	// Forward cipher order (most common ciphers first)
 	forwardCiphers := []byte{
-		0x00, 0x16, // ALL_CIPHERS count
+		0x00, 0x1c, // cipher suite list length: 28 bytes = 14 cipher suites
 		0xc0, 0x2c, 0xc0, 0x2b, 0xc0, 0x30, 0xc0, 0x2f, // ECDHE-ECDSA-AES256-GCM, etc.
 		0x00, 0x9e, 0x00, 0x9d, 0x00, 0x9c, 0x00, 0xa3, // DHE-RSA-AES128-GCM, etc.
 		0x00, 0x9f, 0x00, 0xa2, 0x00, 0x35, 0x00, 0x2f, // More ciphers
@@ -90,15 +90,11 @@ func getJARMProbes(host string) []jarmProbe {
 	// Reverse cipher order
 	reverseCiphers := make([]byte, len(forwardCiphers))
 	copy(reverseCiphers, forwardCiphers)
-	reverseCiphers[0] = forwardCiphers[0]
-	reverseCiphers[1] = forwardCiphers[1]
-	// Reverse cipher pairs (skip length bytes)
-	for i := 2; i < len(forwardCiphers)-2; i += 4 {
-		j := len(forwardCiphers) - i - 2
-		if j > i {
-			reverseCiphers[i], reverseCiphers[j] = forwardCiphers[j], forwardCiphers[i]
-			reverseCiphers[i+1], reverseCiphers[j+1] = forwardCiphers[j+1], forwardCiphers[i+1]
-		}
+	// Reverse cipher pairs (skip 2-byte length header)
+	cipherData := reverseCiphers[2:]
+	for lo, hi := 0, len(cipherData)-2; lo < hi; lo, hi = lo+2, hi-2 {
+		cipherData[lo], cipherData[hi] = cipherData[hi], cipherData[lo]
+		cipherData[lo+1], cipherData[hi+1] = cipherData[hi+1], cipherData[lo+1]
 	}
 
 	// Common extensions
@@ -223,6 +219,39 @@ func buildClientHello(probe jarmProbe) []byte {
 		extensions = []byte{}
 	}
 
+	// Add GREASE extension for probes that request it
+	if probe.grease {
+		greaseExt := []byte{
+			0x0a, 0x0a, // GREASE extension type
+			0x00, 0x01, // length
+			0x00, // data
+		}
+		extensions = append(extensions, greaseExt...)
+		// Prepend GREASE cipher suite value
+		greaseCipher := []byte{0x0a, 0x0a}
+		newCiphers := make([]byte, 0, len(ciphers)+2)
+		newCiphers = append(newCiphers, ciphers[:2]...) // length header
+		newCiphers = append(newCiphers, greaseCipher...)
+		newCiphers = append(newCiphers, ciphers[2:]...) // cipher data
+		// Update length header (+2 for grease cipher)
+		cipherLen := len(newCiphers) - 2
+		newCiphers[0] = byte(cipherLen >> 8)
+		newCiphers[1] = byte(cipherLen & 0xff)
+		ciphers = newCiphers
+	}
+
+	// Add ALPN extension for probes that request it
+	if probe.alpn {
+		alpnExt := []byte{
+			0x00, 0x10, // extension type: ALPN
+			0x00, 0x0e, // extension length
+			0x00, 0x0c, // ALPN protocol list length
+			0x02, 0x68, 0x32, // "h2"
+			0x08, 0x68, 0x74, 0x74, 0x70, 0x2f, 0x31, 0x2e, 0x31, // "http/1.1"
+		}
+		extensions = append(extensions, alpnExt...)
+	}
+
 	// Calculate lengths
 	helloBody := append(clientVersion, random...)
 	helloBody = append(helloBody, byte(len(sessionID)))
@@ -251,15 +280,15 @@ func buildClientHello(probe jarmProbe) []byte {
 
 // parseServerHelloForJARM extracts the JARM-relevant fields from ServerHello
 func parseServerHelloForJARM(data []byte) string {
-	if len(data) < 6 {
+	if len(data) < 7 {
 		return ""
 	}
 
 	// Check for TLS record
 	if data[0] != 0x16 { // Handshake
-		// Could be alert (0x15)
+		// Could be alert (0x15) — TLS alert is 7 bytes: type(1)+version(2)+length(2)+level(1)+desc(1)
 		if data[0] == 0x15 {
-			return fmt.Sprintf("%02x%02x", data[5], data[6]) // Alert description
+			return fmt.Sprintf("%02x%02x", data[5], data[6]) // Alert level + description
 		}
 		return ""
 	}
@@ -340,9 +369,9 @@ var KnownJARMFingerprints = map[string]string{
 	"2ad2ad16d2ad2ad22c2ad2ad2ad2ad30e5e6ed24a0e9ea7e6b71b0ef5ccc6a": "Cloudflare",
 	"27d40d40d29d40d1dc27d40d27d40d3df7a16ed2bffb3d3e41a87f53e0e2c7": "AWS ALB",
 	"29d29d15d29d29d21c29d29d29d29de0c4c3e2d2d6d2d2d2d2d2d2d2d2d2d2": "nginx",
-	"07d14d16d21d21d07c42d41d00041d24a458a375eef0c576d23a7934c27d":   "Apache",
-	"2ad2ad0002ad2ad00041d2ad2ad2adce0f2d3f2d3f2d3f2d3f2d3f2d3f2d":   "IIS",
-	"07d14d16d21d21d00007d14d07d21d9b2f5869a6985368a9dec764186a904":  "Caddy",
+	"07d14d16d21d21d07c42d41d00041d24a458a375eef0c576d23a7934c27d00": "Apache",
+	"2ad2ad0002ad2ad00041d2ad2ad2adce0f2d3f2d3f2d3f2d3f2d3f2d3f2d00": "IIS",
+	"07d14d16d21d21d00007d14d07d21d9b2f5869a6985368a9dec764186a9040": "Caddy",
 	"00000000000000000000000000000000000000000000000000000000000000": "Connection Failed",
 }
 

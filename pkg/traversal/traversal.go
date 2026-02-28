@@ -257,8 +257,10 @@ func (t *Tester) generatePayloads(platform Platform) []Payload {
 			// Traversal with depths
 			for _, depth := range depths {
 				for _, pattern := range traversalPatterns {
-					if strings.Contains(pattern.pattern, "\\") {
-						continue // Skip backslash patterns for Linux
+					if strings.Contains(pattern.pattern, "\\") ||
+						strings.Contains(pattern.pattern, "%5c") ||
+						strings.Contains(pattern.pattern, "%c1%9c") {
+						continue // Skip backslash patterns (literal and URL-encoded) for Linux
 					}
 
 					traversal := strings.Repeat(pattern.pattern, depth)

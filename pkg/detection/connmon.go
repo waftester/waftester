@@ -231,9 +231,11 @@ func (cm *ConnectionMonitor) RecordSuccess(host string) bool {
 
 		// Full recovery after enough successful probes
 		if successes >= int64(defaults.DropDetectRecoveryProbes) {
-			state.consecutiveDrops.Store(0)
-			state.inRecovery.Store(false)
+			// Order matters: zero successes first to prevent re-trigger,
+			// then clear recovery flag, then reset drops.
 			state.recoverySuccesses.Store(0)
+			state.inRecovery.Store(false)
+			state.consecutiveDrops.Store(0)
 			return true
 		}
 	}

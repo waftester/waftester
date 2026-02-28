@@ -186,14 +186,14 @@ func (c *Calculator) Calculate(targetURL string, wafVendor string, duration time
 	// Calculate balanced metrics
 	c.calculateBalancedMetrics(m)
 
-	// Calculate WAF-specific metrics
+	// Calculate category breakdown (must precede WAF metrics which reads CategoryMetrics)
+	c.calculateCategoryMetrics(m)
+
+	// Calculate WAF-specific metrics (depends on CategoryMetrics for BlockConsistency)
 	c.calculateWAFMetrics(m)
 
 	// Calculate latency metrics
 	c.calculateLatencyMetrics(m)
-
-	// Calculate category breakdown
-	c.calculateCategoryMetrics(m)
 
 	// Assign grade
 	c.assignGrade(m)

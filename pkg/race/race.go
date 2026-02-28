@@ -92,9 +92,14 @@ func NewTester(config *TesterConfig) *Tester {
 		config = DefaultConfig()
 	}
 
+	client := config.Client
+	if client == nil {
+		client = httpclient.Default()
+	}
+
 	return &Tester{
 		config: config,
-		client: httpclient.Default(),
+		client: client,
 	}
 }
 
