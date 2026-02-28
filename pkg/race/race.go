@@ -177,7 +177,13 @@ func (t *Tester) sendRequest(ctx context.Context, rc *RequestConfig) (*http.Resp
 func (t *Tester) TestDoubleSubmit(ctx context.Context, request *RequestConfig, numRequests int) (*Vulnerability, error) {
 	requests := make([]*RequestConfig, numRequests)
 	for i := 0; i < numRequests; i++ {
-		requests[i] = request
+		// Deep-copy to avoid concurrent goroutines sharing the same
+		// Headers map and other mutable fields.
+		cp := *request
+		if request.Headers != nil {
+			cp.Headers = request.Headers.Clone()
+		}
+		requests[i] = &cp
 	}
 
 	responses := t.SendConcurrent(ctx, requests)

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"sync"
 
@@ -401,10 +402,19 @@ func (sw *SARIFWriter) Close() error {
 	sw.mu.Lock()
 	defer sw.mu.Unlock()
 
-	// Build rules array from map
+	// Build rules array from map and sort by ID for deterministic output.
 	rules := make([]sarifRule, 0, len(sw.rules))
 	for _, rule := range sw.rules {
 		rules = append(rules, rule)
+	}
+	sort.Slice(rules, func(i, j int) bool {
+		return rules[i].ID < rules[j].ID
+	})
+
+	// Ensure results is never nil so JSON encodes as [] not null per SARIF spec.
+	results := sw.results
+	if results == nil {
+		results = make([]sarifResult, 0)
 	}
 
 	doc := sarifDocument{
@@ -423,7 +433,7 @@ func (sw *SARIFWriter) Close() error {
 						Rules:           rules,
 					},
 				},
-				Results:    sw.results,
+				Results:    results,
 				ColumnKind: "utf16CodeUnits",
 			},
 		},

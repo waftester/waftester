@@ -148,8 +148,8 @@ func (t *Tester) CheckWebSocket(ctx context.Context, targetURL string) (bool, er
 		// Validate Sec-WebSocket-Accept header per RFC 6455 §4.2.2
 		expectedAccept := computeAcceptKey(key)
 		actualAccept := resp.Header.Get("Sec-WebSocket-Accept")
-		if actualAccept != "" && actualAccept != expectedAccept {
-			return false, nil // Invalid accept key — not a valid WebSocket upgrade
+		if actualAccept == "" || actualAccept != expectedAccept {
+			return false, nil // Missing or invalid accept key — not a valid WebSocket upgrade
 		}
 		return true, nil
 	}
@@ -255,22 +255,24 @@ func (t *Tester) TestOriginValidation(ctx context.Context, targetURL string) ([]
 			t.config.NotifyUniqueVuln(fmt.Sprintf("%s|%s", targetURL, VulnOriginValidation))
 		}
 
-		// Check if Sec-WebSocket-Accept matches expected key (upgrade truly accepted)
-		expectedAccept := computeAcceptKey(key)
-		if secWSAccept != "" && secWSAccept == expectedAccept {
-			vulns = append(vulns, Vulnerability{
-				Vulnerability: finding.Vulnerability{
-					Description: fmt.Sprintf("Cross-site WebSocket hijacking possible with origin: %s", origin),
-					Severity:    finding.Critical,
-					URL:         targetURL,
-					Evidence:    fmt.Sprintf("Sec-WebSocket-Accept: %s", secWSAccept),
-					Remediation: GetCSWSRemediation(),
-					CVSS:        8.1,
-				},
-				Type: VulnCSWS,
-			})
-			// Key matches dedup.go: URL|Type
-			t.config.NotifyUniqueVuln(fmt.Sprintf("%s|%s", targetURL, VulnCSWS))
+		// Only report CSWS when the upgrade was actually accepted (101)
+		if statusCode == http.StatusSwitchingProtocols {
+			expectedAccept := computeAcceptKey(key)
+			if secWSAccept != "" && secWSAccept == expectedAccept {
+				vulns = append(vulns, Vulnerability{
+					Vulnerability: finding.Vulnerability{
+						Description: fmt.Sprintf("Cross-site WebSocket hijacking possible with origin: %s", origin),
+						Severity:    finding.Critical,
+						URL:         targetURL,
+						Evidence:    fmt.Sprintf("Sec-WebSocket-Accept: %s", secWSAccept),
+						Remediation: GetCSWSRemediation(),
+						CVSS:        8.1,
+					},
+					Type: VulnCSWS,
+				})
+				// Key matches dedup.go: URL|Type
+				t.config.NotifyUniqueVuln(fmt.Sprintf("%s|%s", targetURL, VulnCSWS))
+			}
 		}
 	}
 

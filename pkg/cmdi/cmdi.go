@@ -359,13 +359,24 @@ func (t *Tester) testPayload(ctx context.Context, targetURL, param, method strin
 		return nil, err
 	}
 
-	q := testURL.Query()
-	q.Set(param, payload.Value)
-	testURL.RawQuery = q.Encode()
-
-	req, err := http.NewRequestWithContext(ctx, method, testURL.String(), nil)
-	if err != nil {
-		return nil, err
+	var req *http.Request
+	if method == http.MethodPost {
+		// Send payload in form body for POST requests.
+		form := url.Values{}
+		form.Set(param, payload.Value)
+		req, err = http.NewRequestWithContext(ctx, method, testURL.String(), strings.NewReader(form.Encode()))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	} else {
+		q := testURL.Query()
+		q.Set(param, payload.Value)
+		testURL.RawQuery = q.Encode()
+		req, err = http.NewRequestWithContext(ctx, method, testURL.String(), nil)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	req.Header.Set("User-Agent", t.config.UserAgent)

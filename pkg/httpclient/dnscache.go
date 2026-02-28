@@ -157,6 +157,12 @@ func (d *DNSCache) refresh(ctx context.Context, host string) ([]net.IP, error) {
 	addrs, err := d.resolver.LookupHost(ctx, host)
 
 	if err != nil {
+		// If the context was canceled, do NOT cache the error — a subsequent
+		// lookup with a fresh context should retry DNS, not get a stale
+		// "context canceled" / "deadline exceeded" error.
+		if ctx.Err() != nil {
+			return nil, err
+		}
 		// Cache negative result with shorter TTL
 		entry.ips = nil
 		entry.err = err
