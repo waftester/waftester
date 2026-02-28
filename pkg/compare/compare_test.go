@@ -2,6 +2,7 @@ package compare
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -70,6 +71,12 @@ func TestLoadSummary_FullScanResult(t *testing.T) {
 	if s.TechStack[0] != "nginx" || s.TechStack[1] != "php" {
 		t.Errorf("TechStack = %v, want [nginx php]", s.TechStack)
 	}
+	if len(s.ByCategory) != 3 {
+		t.Errorf("ByCategory has %d entries, want 3", len(s.ByCategory))
+	}
+	if s.ByCategory["sqli"] != 4 || s.ByCategory["xss"] != 5 || s.ByCategory["cmdi"] != 3 {
+		t.Errorf("ByCategory = %v, want {sqli:4 xss:5 cmdi:3}", s.ByCategory)
+	}
 }
 
 func TestLoadSummary_MinimalJSON(t *testing.T) {
@@ -106,6 +113,9 @@ func TestLoadSummary_EmptyObject(t *testing.T) {
 	err := testParseErr(t, map[string]interface{}{})
 	if err == nil {
 		t.Fatal("expected ErrNotScanResult for empty object")
+	}
+	if !errors.Is(err, ErrNotScanResult) {
+		t.Errorf("error = %v, want ErrNotScanResult sentinel", err)
 	}
 }
 
@@ -180,6 +190,17 @@ func TestCompare_Identical(t *testing.T) {
 	if len(r.FixedCategories) != 0 {
 		t.Errorf("FixedCategories = %v, want empty", r.FixedCategories)
 	}
+	// Verify weighted scores are computed correctly even for unchanged results.
+	// high=5*5=25, medium=5*2=10 → total=35
+	if r.WeightedBefore != 35 {
+		t.Errorf("WeightedBefore = %d, want 35", r.WeightedBefore)
+	}
+	if r.WeightedAfter != 35 {
+		t.Errorf("WeightedAfter = %d, want 35", r.WeightedAfter)
+	}
+	if r.WeightedDelta != 0 {
+		t.Errorf("WeightedDelta = %d, want 0", r.WeightedDelta)
+	}
 }
 
 func TestCompare_Improved(t *testing.T) {
@@ -213,6 +234,15 @@ func TestCompare_Regressed(t *testing.T) {
 	}
 	if r.Improved {
 		t.Error("Improved should be false")
+	}
+	if r.SeverityDeltas["critical"] != 3 {
+		t.Errorf("critical delta = %d, want 3", r.SeverityDeltas["critical"])
+	}
+	if r.SeverityDeltas["medium"] != 7 {
+		t.Errorf("medium delta = %d, want 7", r.SeverityDeltas["medium"])
+	}
+	if len(r.NewCategories) != 1 || r.NewCategories[0] != "sqli" {
+		t.Errorf("NewCategories = %v, want [sqli]", r.NewCategories)
 	}
 }
 
@@ -1321,5 +1351,121 @@ func TestCompare_WAFChangedAsymmetricDifferentVendor(t *testing.T) {
 	)
 	if !r.WAFChanged {
 		t.Error("WAFChanged should be true: different primary vendors in asymmetric case")
+	}
+}
+
+// --- parseDuration edge cases (Phase 3) ---
+
+func TestParseDuration_EmptyString(t *testing.T) {
+	t.Parallel()
+	d := parseDuration(json.RawMessage(`""`), nil)
+	if d != 0 {
+		t.Errorf("parseDuration(\"\") = %v, want 0", d)
+	}
+}
+
+func TestParseDuration_NegativeString(t *testing.T) {
+	t.Parallel()
+	d := parseDuration(json.RawMessage(`"-5m30s"`), nil)
+	if d != 0 {
+		t.Errorf("parseDuration(\"-5m30s\") = %v, want 0 (negative rejected)", d)
+	}
+}
+
+func TestParseDuration_ZeroFloat(t *testing.T) {
+	t.Parallel()
+	// 0.0 passes the "!= 0" string check but should still return 0.
+	d := parseDuration(json.RawMessage(`0.0`), nil)
+	if d != 0 {
+		t.Errorf("parseDuration(0.0) = %v, want 0", d)
+	}
+}
+
+func TestParseDuration_BooleanJSON(t *testing.T) {
+	t.Parallel()
+	// Non-numeric, non-string JSON should gracefully return 0.
+	d := parseDuration(json.RawMessage(`true`), nil)
+	if d != 0 {
+		t.Errorf("parseDuration(true) = %v, want 0", d)
+	}
+}
+
+// --- extractWAFVendors edge cases (Phase 3) ---
+
+func TestExtractWAFVendors_WAFsWithEmptyVendor(t *testing.T) {
+	t.Parallel()
+	s := testParse(t, map[string]interface{}{
+		"target": "https://mixed.example.com",
+		"waf_detect": map[string]interface{}{
+			"wafs": []map[string]interface{}{
+				{"vendor": "", "name": "Unknown"},
+				{"vendor": "Cloudflare", "name": "CF"},
+			},
+		},
+	})
+	if len(s.WAFVendors) != 1 || s.WAFVendors[0] != "Cloudflare" {
+		t.Errorf("WAFVendors = %v, want [Cloudflare] (empty vendor filtered)", s.WAFVendors)
+	}
+}
+
+func TestExtractWAFVendors_WAFsPopulatedIgnoresLegacyVendor(t *testing.T) {
+	t.Parallel()
+	s := testParse(t, map[string]interface{}{
+		"target": "https://legacy.example.com",
+		"waf_detect": map[string]interface{}{
+			"vendor": "ShouldBeIgnored",
+			"wafs": []map[string]interface{}{
+				{"vendor": "Cloudflare"},
+			},
+		},
+	})
+	if len(s.WAFVendors) != 1 {
+		t.Fatalf("WAFVendors = %v, want exactly 1 (legacy vendor skipped)", s.WAFVendors)
+	}
+	if s.WAFVendors[0] != "Cloudflare" {
+		t.Errorf("WAFVendors[0] = %q, want Cloudflare (legacy vendor ignored)", s.WAFVendors[0])
+	}
+}
+
+// --- Timestamp and findNew edge cases (Phase 3) ---
+
+func TestLoadSummary_InvalidTimestampFallback(t *testing.T) {
+	t.Parallel()
+	s := testParse(t, map[string]interface{}{
+		"target":    "https://badtime.example.com",
+		"timestamp": "not-a-timestamp",
+	})
+	if !s.StartTime.IsZero() {
+		t.Errorf("StartTime = %v, want zero (invalid timestamp should be ignored)", s.StartTime)
+	}
+}
+
+func TestFindNew_NegativeBeforeCountTreatedAsAbsent(t *testing.T) {
+	t.Parallel()
+	// A negative count in "before" should be treated as absent,
+	// so the category should appear as "new" in after.
+	r := Compare(
+		&ScanSummary{TotalVulns: 5, ByCategory: map[string]int{"xss": 5, "sqli": -1}},
+		&ScanSummary{TotalVulns: 10, ByCategory: map[string]int{"xss": 5, "sqli": 5}},
+	)
+	if len(r.NewCategories) != 1 || r.NewCategories[0] != "sqli" {
+		t.Errorf("NewCategories = %v, want [sqli] (negative before count → treated as absent)", r.NewCategories)
+	}
+}
+
+func TestFindNew_KeyInBothMapsNotNew(t *testing.T) {
+	t.Parallel()
+	// "sqli" exists in both with count > 0 — should NOT be new.
+	result := findNew(
+		map[string]int{"sqli": 10, "xss": 5},
+		map[string]int{"sqli": 3, "xss": 5, "cmdi": 2},
+	)
+	for _, v := range result {
+		if v == "sqli" || v == "xss" {
+			t.Errorf("findNew should not include %q (exists in before with count > 0)", v)
+		}
+	}
+	if len(result) != 1 || result[0] != "cmdi" {
+		t.Errorf("findNew = %v, want [cmdi]", result)
 	}
 }

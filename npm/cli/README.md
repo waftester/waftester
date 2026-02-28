@@ -253,7 +253,7 @@ Use the official [WAFtester Action](https://github.com/marketplace/actions/wafte
 
 Also integrates with SonarQube, GitLab SAST, DefectDojo, Elasticsearch, Slack, Teams, PagerDuty, Jira, Azure DevOps, and OpenTelemetry.
 
-## All 36 Commands
+## All 33 Commands
 
 | Command | Description |
 |---------|-------------|
