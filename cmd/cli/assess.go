@@ -288,7 +288,9 @@ func runAssess() {
 	}
 
 	// Write enterprise export files (--json-export, --sarif-export, etc.)
-	writeAssessExports(&outputFlags, result, elapsed)
+	outputFlags.MaybeExport(func() execResults {
+		return assessResultsToExecution(result, elapsed)
+	})
 
 	// Save to file if requested
 	if *output != "" {
@@ -526,15 +528,6 @@ func assessTruncateString(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-3] + "..."
-}
-
-// Helper functions for animated progress
-func repeatCharAssess(char string, count int) string {
-	result := ""
-	for i := 0; i < count; i++ {
-		result += char
-	}
-	return result
 }
 
 func formatElapsedAssess(d time.Duration) string {
