@@ -108,7 +108,12 @@ func LoadSummary(path string) (*ScanSummary, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reading %s: %w", path, err)
 	}
+	return parseSummary(data, path)
+}
 
+// parseSummary parses JSON bytes into a ScanSummary.
+// The path is used for error messages and stored in FilePath.
+func parseSummary(data []byte, path string) (*ScanSummary, error) {
 	if len(data) == 0 {
 		return nil, fmt.Errorf("file is empty: %s", path)
 	}
