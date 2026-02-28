@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -78,7 +79,13 @@ func NewScanner(config Config) *Scanner {
 func (s *Scanner) Scan(ctx context.Context, targetURL string, params map[string]string) ([]Result, error) {
 	results := make([]Result, 0)
 
-	for param, value := range params {
+	paramNames := make([]string, 0, len(params))
+	for param := range params {
+		paramNames = append(paramNames, param)
+	}
+	sort.Strings(paramNames)
+	for _, param := range paramNames {
+		value := params[param]
 		for _, payload := range Payloads() {
 			testParams := make(map[string]string)
 			for k, v := range params {

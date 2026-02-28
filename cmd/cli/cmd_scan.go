@@ -727,7 +727,10 @@ func runScan() {
 			"timestamp": time.Now().Format(time.RFC3339),
 			"data":      data,
 		}
-		eventData, _ := json.Marshal(event)
+		eventData, marshalErr := json.Marshal(event)
+		if marshalErr != nil {
+			return
+		}
 		fmt.Println(string(eventData)) // debug:keep
 	}
 

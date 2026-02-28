@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/textproto"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 
@@ -142,7 +143,13 @@ func (t *Tester) TestUpload(ctx context.Context, targetURL string, payload Uploa
 		return nil, fmt.Errorf("writing file content: %w", err)
 	}
 
-	for key, value := range t.config.ExtraFields {
+	extraKeys := make([]string, 0, len(t.config.ExtraFields))
+	for key := range t.config.ExtraFields {
+		extraKeys = append(extraKeys, key)
+	}
+	sort.Strings(extraKeys)
+	for _, key := range extraKeys {
+		value := t.config.ExtraFields[key]
 		if err := writer.WriteField(key, value); err != nil {
 			return nil, fmt.Errorf("writing field %s: %w", key, err)
 		}
