@@ -542,8 +542,8 @@ func (d *Detector) analyzeResponse(targetURL string, payload *Payload, body stri
 		matches := payload.Regex.FindStringSubmatch(body)
 		if len(matches) > 0 {
 			evidence = matches[0]
-			if len(evidence) > 100 {
-				evidence = evidence[:100] + "..."
+			if len([]rune(evidence)) > 100 {
+				evidence = string([]rune(evidence)[:100]) + "..."
 			}
 			detected = true
 		}

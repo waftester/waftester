@@ -2,6 +2,7 @@ package logcorrelation
 
 import (
 	"fmt"
+	"sort"
 )
 
 // VerificationResult holds the result of rule verification
@@ -73,6 +74,7 @@ func (c *Correlator) Verify(marker string, expectRules, noExpectRules []uint) (*
 	for id := range triggeredMap {
 		triggered = append(triggered, id)
 	}
+	sort.Slice(triggered, func(i, j int) bool { return triggered[i] < triggered[j] })
 
 	result := &VerificationResult{
 		Marker:          marker,
@@ -127,6 +129,7 @@ func (c *Correlator) VerifyBlocked(marker string) (*VerificationResult, error) {
 	for id := range triggeredMap {
 		triggered = append(triggered, id)
 	}
+	sort.Slice(triggered, func(i, j int) bool { return triggered[i] < triggered[j] })
 
 	result := &VerificationResult{
 		Marker:         marker,

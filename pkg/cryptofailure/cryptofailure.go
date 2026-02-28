@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -425,7 +426,14 @@ func ScanForSecrets(content string) []TestResult {
 
 	patterns := SecretPatterns()
 
-	for name, pattern := range patterns {
+	patternNames := make([]string, 0, len(patterns))
+	for name := range patterns {
+		patternNames = append(patternNames, name)
+	}
+	sort.Strings(patternNames)
+
+	for _, name := range patternNames {
+		pattern := patterns[name]
 		matches := pattern.FindAllString(content, -1)
 		if len(matches) > 0 {
 			// Mask the actual secret
@@ -460,7 +468,14 @@ func ScanForWeakHashing(content string) []TestResult {
 
 	patterns := WeakHashPatterns()
 
-	for name, pattern := range patterns {
+	hashNames := make([]string, 0, len(patterns))
+	for name := range patterns {
+		hashNames = append(hashNames, name)
+	}
+	sort.Strings(hashNames)
+
+	for _, name := range hashNames {
+		pattern := patterns[name]
 		if pattern.MatchString(content) {
 			results = append(results, TestResult{
 				VulnType:    WeakHashing,

@@ -135,25 +135,29 @@ func (l *PostJSONLocation) Mutate(payload string) []mutation.MutatedPayload {
 			"input": payload,
 		},
 	}
-	nestedBytes, _ := json.Marshal(nestedJSON)
+	nestedBytes, err := json.Marshal(nestedJSON)
+	if err == nil {
 	results = append(results, mutation.MutatedPayload{
 		Original:    payload,
 		Mutated:     string(nestedBytes),
 		MutatorName: l.Name() + "_nested",
 		Category:    l.Category(),
 	})
+	}
 
 	// Array in JSON
 	arrayJSON := map[string]interface{}{
 		"items": []string{payload},
 	}
-	arrayBytes, _ := json.Marshal(arrayJSON)
+	arrayBytes, err2 := json.Marshal(arrayJSON)
+	if err2 == nil {
 	results = append(results, mutation.MutatedPayload{
 		Original:    payload,
 		Mutated:     string(arrayBytes),
 		MutatorName: l.Name() + "_array",
 		Category:    l.Category(),
 	})
+	}
 
 	return results
 }

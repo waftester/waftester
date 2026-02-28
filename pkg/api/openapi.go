@@ -200,7 +200,14 @@ func (p *Parser) parseSwagger2(raw map[string]interface{}) (*OpenAPISpec, error)
 func (p *Parser) parseSwagger2Paths(paths map[string]interface{}) []Route {
 	var routes []Route
 
-	for path, methods := range paths {
+	sortedPaths := make([]string, 0, len(paths))
+	for path := range paths {
+		sortedPaths = append(sortedPaths, path)
+	}
+	sort.Strings(sortedPaths)
+
+	for _, path := range sortedPaths {
+		methods := paths[path]
 		methodsMap, ok := methods.(map[string]interface{})
 		if !ok {
 			continue

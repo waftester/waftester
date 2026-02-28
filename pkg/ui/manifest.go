@@ -254,8 +254,8 @@ func MultiTargetManifest(title string, targets []string, operation string) *Exec
 	sample := ""
 	if len(targets) > 0 {
 		sample = targets[0]
-		if len(sample) > 50 {
-			sample = sample[:47] + "..."
+		if len([]rune(sample)) > 50 {
+			sample = string([]rune(sample)[:47]) + "..."
 		}
 	}
 	m.AddTargetInfo(len(targets), sample)
