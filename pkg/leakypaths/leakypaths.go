@@ -265,8 +265,8 @@ func (s *Scanner) isInteresting(resp *http.Response, path PathEntry) bool {
 			}
 		}
 
-		// Sensitive files should return content
-		if resp.ContentLength > 0 {
+		// Sensitive files should return content (ContentLength is -1 for chunked responses)
+		if resp.ContentLength != 0 {
 			return true
 		}
 	}

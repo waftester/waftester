@@ -238,6 +238,12 @@ func (t *Tester) TestRequestSplitting(ctx context.Context, param string) ([]Test
 	payloads := RequestSplittingPayloads()
 
 	for _, p := range payloads {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
+
 		// Inject in query parameter
 		fullURL := t.target + "?" + param + "=" + url.QueryEscape(p.Payload)
 
@@ -287,6 +293,12 @@ func (t *Tester) TestHostHeaderInjection(ctx context.Context) ([]TestResult, err
 	payloads := HostHeaderPayloads()
 
 	for _, p := range payloads {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
+
 		req, err := http.NewRequestWithContext(ctx, "GET", t.target, nil)
 		if err != nil {
 			continue
@@ -385,6 +397,12 @@ func (t *Tester) TestProxyHeaderInjection(ctx context.Context) ([]TestResult, er
 	payloads := ProxyHeaderPayloads()
 
 	for _, p := range payloads {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
+
 		req, err := http.NewRequestWithContext(ctx, "GET", t.target, nil)
 		if err != nil {
 			continue
@@ -551,6 +569,12 @@ func (t *Tester) TestCacheKeyInjection(ctx context.Context) ([]TestResult, error
 	payloads := CacheKeyPayloads()
 
 	for _, p := range payloads {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
+
 		fullURL := t.target + "?" + p.Param
 
 		req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)

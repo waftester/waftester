@@ -427,17 +427,9 @@ func (e *Engine) feedAdvancedModules(finding *Finding) []Anomaly {
 			e.banditPattern.Record(finding.Payload, !finding.Blocked)
 		}
 
-		// CUSUM change-point detection
-		if e.calibrator != nil {
-			blockRate := 0.0
-			if finding.Blocked {
-				blockRate = 1.0
-			}
-			e.calibrator.Observe("block_rate", blockRate)
-			if finding.Latency > 0 {
-				e.calibrator.Observe("latency_ms", float64(finding.Latency.Milliseconds()))
-			}
-		}
+		// CUSUM change-point detection is handled by AnomalyDetector.ObserveResponse;
+		// feeding here as well would double-count every observation, making the
+		// detector trigger alarms roughly twice as fast as intended.
 
 		// Influence graph propagation
 		if e.influenceGraph != nil && finding.Category != "" {

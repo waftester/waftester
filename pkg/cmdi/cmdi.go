@@ -95,9 +95,14 @@ func NewTester(config *TesterConfig) *Tester {
 		config = DefaultConfig()
 	}
 
+	client := config.Client
+	if client == nil {
+		client = httpclient.Fuzzing()
+	}
+
 	t := &Tester{
 		config: config,
-		client: httpclient.Fuzzing(),
+		client: client,
 	}
 
 	t.payloads = t.generatePayloads()

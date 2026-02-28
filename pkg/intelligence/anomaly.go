@@ -425,6 +425,20 @@ func (ad *AnomalyDetector) checkBehaviorShift() []Anomaly {
 				Confidence: math.Min(1.0, math.Abs(change)),
 			}}
 		}
+	} else if secondRate > ad.thresholds.BehaviorShiftThreshold {
+		// Block rate went from 0% to significant — definite behavior shift
+		return []Anomaly{{
+			Type:        AnomalyBehaviorShift,
+			Severity:    "high",
+			Timestamp:   time.Now(),
+			Description: fmt.Sprintf("WAF behavior shift: block rate jumped from 0%% to %.0f%%", secondRate*100),
+			Evidence: []string{
+				"First half block rate: 0.0%",
+				fmt.Sprintf("Second half block rate: %.1f%%", secondRate*100),
+			},
+			Action:     "WAF may have activated new rules - recalibrate immediately",
+			Confidence: math.Min(1.0, secondRate),
+		}}
 	}
 
 	return nil
@@ -692,7 +706,9 @@ func (ad *AnomalyDetector) GetRecentTrend() *BehaviorTrend {
 
 	// Compare to baseline
 	if ad.baseline.Established {
-		trend.LatencyTrend = (trend.AvgLatency - ad.baseline.AvgLatency) / ad.baseline.AvgLatency
+		if ad.baseline.AvgLatency > 0 {
+			trend.LatencyTrend = (trend.AvgLatency - ad.baseline.AvgLatency) / ad.baseline.AvgLatency
+		}
 		trend.BlockRateTrend = trend.BlockRate - ad.baseline.BlockRate
 	}
 

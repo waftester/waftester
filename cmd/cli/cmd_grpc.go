@@ -274,6 +274,12 @@ func runGRPCFuzz(ctx context.Context, client *grpc.Client, payloadDir, templateD
 			continue
 		}
 
+		select {
+		case <-ctx.Done():
+			goto grpcFuzzDone
+		default:
+		}
+
 		desc, err := client.DescribeService(ctx, svc)
 		if err != nil {
 			continue
@@ -281,8 +287,15 @@ func runGRPCFuzz(ctx context.Context, client *grpc.Client, payloadDir, templateD
 
 		for _, method := range desc.Methods {
 			for _, payload := range payloads {
-				// Create fuzz request with payload
-				fuzzData := fmt.Sprintf(`{"value": "%s"}`, payload)
+				select {
+				case <-ctx.Done():
+					goto grpcFuzzDone
+				default:
+				}
+
+				// Create fuzz request with payload (json.Marshal escapes special chars)
+				escapedPayload, _ := json.Marshal(payload)
+				fuzzData := fmt.Sprintf(`{"value": %s}`, string(escapedPayload))
 
 				result, err := client.InvokeMethod(ctx, method.FullName, []byte(fuzzData), nil)
 
@@ -312,6 +325,7 @@ func runGRPCFuzz(ctx context.Context, client *grpc.Client, payloadDir, templateD
 			}
 		}
 	}
+grpcFuzzDone:
 
 	// Output results
 	if outputFile != "" {

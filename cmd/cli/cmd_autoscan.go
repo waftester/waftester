@@ -1204,7 +1204,10 @@ func runAutoScan() {
 		// Stop JS analysis progress display
 		if totalJSFiles > 1 {
 			close(jsProgressDone)
-			time.Sleep(50 * time.Millisecond)
+			select {
+			case <-ctx.Done():
+			case <-time.After(50 * time.Millisecond):
+			}
 			if !quietMode && ui.StderrIsTerminal() {
 				fmt.Fprintf(os.Stderr, "\033[2A\033[J")
 			}
@@ -1528,7 +1531,10 @@ func runAutoScan() {
 
 			// Stop progress display
 			close(paramProgressDone)
-			time.Sleep(50 * time.Millisecond)
+			select {
+			case <-ctx.Done():
+			case <-time.After(50 * time.Millisecond):
+			}
 			if !quietMode && ui.StderrIsTerminal() {
 				fmt.Fprintf(os.Stderr, "\033[2A\033[J")
 			}
@@ -2096,7 +2102,7 @@ func runAutoScan() {
 						if strings.Contains(clone.TargetPath, "?") {
 							separator = "&"
 						}
-						clone.TargetPath = clone.TargetPath + separator + p.Name + "=" + clone.Payload
+						clone.TargetPath = clone.TargetPath + separator + url.QueryEscape(p.Name) + "=" + url.QueryEscape(clone.Payload)
 						paramPayloads = append(paramPayloads, clone)
 					}
 
@@ -2109,7 +2115,7 @@ func runAutoScan() {
 						clone := existing
 						clone.Method = "POST"
 						clone.ContentType = defaults.ContentTypeForm
-						clone.Payload = p.Name + "=" + existing.Payload
+						clone.Payload = url.QueryEscape(p.Name) + "=" + url.QueryEscape(existing.Payload)
 						paramPayloads = append(paramPayloads, clone)
 					}
 

@@ -304,6 +304,11 @@ func runOpenAPIFuzz(ctx context.Context, spec *openapi.Spec, baseURL, payloadDir
 		// Fuzz each parameter with payloads
 		for _, param := range tc.Parameters {
 			for _, payload := range payloads {
+				select {
+				case <-ctx.Done():
+					goto done
+				default:
+				}
 				result, err := generator.ExecuteFuzzTest(ctx, tc, param.Name, payload)
 
 				fr := fuzzResult{

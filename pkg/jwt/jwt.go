@@ -1071,7 +1071,10 @@ func (s *Scanner) extractTokens(ctx context.Context, client *http.Client, target
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		io.Copy(io.Discard, resp.Body) //nolint:errcheck // drain for connection reuse
+		resp.Body.Close()
+	}()
 
 	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
 

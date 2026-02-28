@@ -79,9 +79,14 @@ func NewScanner(config Config) *Scanner {
 		config.Timeout = httpclient.TimeoutProbing
 	}
 
+	client := config.Client
+	if client == nil {
+		client = httpclient.Default()
+	}
+
 	return &Scanner{
 		config:  config,
-		client:  httpclient.Default(),
+		client:  client,
 		results: make([]Result, 0),
 	}
 }

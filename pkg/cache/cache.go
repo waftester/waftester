@@ -854,7 +854,7 @@ func similarity(a, b string) float64 {
 		}
 	}
 
-	return float64(matches) / float64(longer)
+	return float64(matches) / float64(minLen)
 }
 
 // Remediation guidance

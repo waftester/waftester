@@ -507,10 +507,10 @@ func (info *TLSInfo) SANContains(domain string) bool {
 		if san == domain {
 			return true
 		}
-		// Check wildcard
+		// Check wildcard — RFC 6125: wildcards match exactly one label
 		if strings.HasPrefix(san, "*.") {
-			suffix := san[1:] // Remove *
-			if strings.HasSuffix(domain, suffix) {
+			baseDomain := san[2:] // Remove *.
+			if idx := strings.Index(domain, "."); idx != -1 && domain[idx+1:] == baseDomain {
 				return true
 			}
 		}

@@ -71,9 +71,14 @@ func NewScanner(config Config) *Scanner {
 		config.RateLimit = 100
 	}
 
+	client := config.Client
+	if client == nil {
+		client = httpclient.Probing()
+	}
+
 	return &Scanner{
 		config:  config,
-		client:  httpclient.Probing(),
+		client:  client,
 		results: make([]Result, 0),
 	}
 }

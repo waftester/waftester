@@ -273,6 +273,10 @@ type SchemaField struct {
 
 // getSchemaFields extracts all injectable fields from a schema
 func (g *Generator) getSchemaFields(schema *Schema, spec *Spec, prefix string) []SchemaField {
+	return g.getSchemaFieldsInner(schema, spec, prefix, make(map[*Schema]bool))
+}
+
+func (g *Generator) getSchemaFieldsInner(schema *Schema, spec *Spec, prefix string, visited map[*Schema]bool) []SchemaField {
 	var fields []SchemaField
 
 	if schema == nil {
@@ -286,6 +290,13 @@ func (g *Generator) getSchemaFields(schema *Schema, spec *Spec, prefix string) [
 			return fields
 		}
 	}
+
+	// Guard against self-referential schemas (e.g., Tree -> children -> Tree)
+	if visited[schema] {
+		return fields
+	}
+	visited[schema] = true
+	defer delete(visited, schema)
 
 	switch schema.Type {
 	case "object":
@@ -311,7 +322,7 @@ func (g *Generator) getSchemaFields(schema *Schema, spec *Spec, prefix string) [
 					Schema: propSchema,
 				})
 			} else if propSchema.Type == "object" {
-				nested := g.getSchemaFields(propSchema, spec, path)
+				nested := g.getSchemaFieldsInner(propSchema, spec, path, visited)
 				fields = append(fields, nested...)
 			}
 		}
@@ -319,7 +330,7 @@ func (g *Generator) getSchemaFields(schema *Schema, spec *Spec, prefix string) [
 	case "array":
 		if schema.Items != nil {
 			// Add array item fields with [0] notation
-			itemFields := g.getSchemaFields(schema.Items, spec, prefix+"[0]")
+			itemFields := g.getSchemaFieldsInner(schema.Items, spec, prefix+"[0]", visited)
 			fields = append(fields, itemFields...)
 		}
 

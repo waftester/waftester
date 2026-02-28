@@ -361,6 +361,14 @@ func (t *Tester) TestHSTS(ctx context.Context) (*TestResult, error) {
 
 // TestHTTPDowngrade tests for HTTP downgrade vulnerability
 func (t *Tester) TestHTTPDowngrade(ctx context.Context) (*TestResult, error) {
+	if !strings.HasPrefix(t.target, "https://") {
+		return &TestResult{
+			VulnType: InsecureTransport,
+			Target:   t.target,
+			Severity: finding.Info,
+			Evidence: "Target is not HTTPS — downgrade test not applicable",
+		}, nil
+	}
 	httpTarget := strings.Replace(t.target, "https://", "http://", 1)
 
 	client := httpclient.Default()

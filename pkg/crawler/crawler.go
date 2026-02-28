@@ -410,9 +410,13 @@ func (c *Crawler) worker() {
 				return
 			}
 
-			// Add delay
+			// Add delay (context-aware)
 			if c.config.Delay > 0 {
-				time.Sleep(c.config.Delay)
+				select {
+				case <-c.ctx.Done():
+					return
+				case <-time.After(c.config.Delay):
+				}
 			}
 
 			// Queue new URLs if within depth

@@ -114,7 +114,11 @@ func NewCapturer(config Config) *Capturer {
 
 // CaptureURL captures a screenshot of a URL
 func (c *Capturer) CaptureURL(ctx context.Context, url string) (Result, error) {
-	c.semaphore <- struct{}{}        // Acquire
+	select {
+	case c.semaphore <- struct{}{}: // Acquire
+	case <-ctx.Done():
+		return Result{URL: url, Error: ctx.Err().Error(), Timestamp: time.Now()}, ctx.Err()
+	}
 	defer func() { <-c.semaphore }() // Release
 
 	start := time.Now()
@@ -282,7 +286,11 @@ func (b *BatchCapturer) Start(ctx context.Context, workers int) {
 					return
 				case url := <-b.queue:
 					result, _ := b.capturer.CaptureURL(ctx, url)
-					b.results <- result
+					select {
+					case b.results <- result:
+					case <-b.done:
+						return
+					}
 				}
 			}
 		}()
