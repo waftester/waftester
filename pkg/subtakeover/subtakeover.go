@@ -6,6 +6,7 @@ package subtakeover
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -257,7 +258,8 @@ func (t *Tester) CheckSubdomain(ctx context.Context, subdomain string) (*ScanRes
 	cnameChain, err := t.resolveCNAMEChain(subdomain)
 	if err != nil {
 		// NXDOMAIN might indicate vulnerability
-		if strings.Contains(err.Error(), "no such host") || strings.Contains(err.Error(), "NXDOMAIN") {
+		var dnsErr *net.DNSError
+		if errors.As(err, &dnsErr) && dnsErr.IsNotFound {
 			result.Vulnerabilities = append(result.Vulnerabilities, Vulnerability{
 				Vulnerability: finding.Vulnerability{
 					Description: "Subdomain has dangling CNAME record",

@@ -318,6 +318,13 @@ func (t *Tester) getResponse(ctx context.Context, targetURL string) (string, err
 }
 
 // detectVulnerability checks if the response indicates HPP vulnerability
+var hppErrorPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)array to string conversion`),
+	regexp.MustCompile(`(?i)invalid.*parameter`),
+	regexp.MustCompile(`(?i)multiple.*values`),
+	regexp.MustCompile(`(?i)unexpected.*array`),
+}
+
 func (t *Tester) detectVulnerability(response, baseline string, payload Payload) string {
 	// Check for different indicators based on payload type
 	switch payload.Type {
@@ -369,12 +376,7 @@ func (t *Tester) detectVulnerability(response, baseline string, payload Payload)
 	}
 
 	// Check for error messages that indicate HPP handling
-	errorPatterns := []*regexp.Regexp{
-		regexp.MustCompile(`(?i)array to string conversion`),
-		regexp.MustCompile(`(?i)invalid.*parameter`),
-		regexp.MustCompile(`(?i)multiple.*values`),
-		regexp.MustCompile(`(?i)unexpected.*array`),
-	}
+	errorPatterns := hppErrorPatterns
 
 	for _, p := range errorPatterns {
 		if match := p.FindString(response); match != "" {

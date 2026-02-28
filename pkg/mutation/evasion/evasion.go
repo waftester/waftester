@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"unicode/utf8"
 	"unicode"
 
 	"github.com/waftester/waftester/pkg/mutation"
@@ -86,8 +87,9 @@ func (e *CaseSwapEvasion) Mutate(payload string) []mutation.MutatedPayload {
 			title.WriteString(" ")
 		}
 		if len(word) > 0 {
-			title.WriteString(strings.ToUpper(string(word[0])))
-			title.WriteString(strings.ToLower(word[1:]))
+			r, size := utf8.DecodeRuneInString(word)
+			title.WriteString(strings.ToUpper(string(r)))
+			title.WriteString(strings.ToLower(word[size:]))
 		}
 	}
 	results = append(results, mutation.MutatedPayload{

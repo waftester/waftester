@@ -139,9 +139,10 @@ func (m *Manager) Save() error {
 		return nil
 	}
 
+	m.state.mu.Lock()
 	m.state.LastUpdate = time.Now()
-
 	data, err := json.MarshalIndent(m.state, "", "  ")
+	m.state.mu.Unlock()
 	if err != nil {
 		return err
 	}

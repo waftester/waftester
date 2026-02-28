@@ -162,9 +162,7 @@ func (mw *MarkdownWriter) Close() error {
 		return fmt.Errorf("failed to write Markdown: %w", err)
 	}
 
-	if closer, ok := mw.w.(io.Closer); ok {
-		return closer.Close()
-	}
+	// Do not close the underlying writer -- the caller owns its lifecycle
 	return nil
 }
 

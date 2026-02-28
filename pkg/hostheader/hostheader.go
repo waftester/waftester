@@ -206,7 +206,7 @@ func (t *Tester) generatePayloads() []Payload {
 // GetPayloads returns all payloads or filtered by header
 func (t *Tester) GetPayloads(header string) []Payload {
 	if header == "" {
-		return t.payloads
+		return append([]Payload(nil), t.payloads...)
 	}
 
 	var filtered []Payload

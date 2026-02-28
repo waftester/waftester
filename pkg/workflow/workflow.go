@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -553,6 +554,7 @@ func generateMatrixCombinations(matrix map[string][]string) []map[string]string 
 	for k := range matrix {
 		keys = append(keys, k)
 	}
+	sort.Strings(keys)
 
 	// Generate all combinations
 	var result []map[string]string
