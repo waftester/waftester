@@ -10,6 +10,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -642,6 +643,7 @@ func (d *Discoverer) analyzeAttackSurface(result *DiscoveryResult) {
 	for cat := range categories {
 		surface.RelevantCategories = append(surface.RelevantCategories, cat)
 	}
+	sort.Strings(surface.RelevantCategories)
 
 	// Always include these baseline categories
 	baseline := []string{"xss", "waf-validation", "protocol"}

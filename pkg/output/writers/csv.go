@@ -119,10 +119,14 @@ func truncateField(s string, maxLen int) string {
 	if maxLen <= 0 || len(s) <= maxLen {
 		return s
 	}
-	if maxLen > 3 {
-		return s[:maxLen-3] + "..."
+	runes := []rune(s)
+	if len(runes) <= maxLen {
+		return s
 	}
-	return s[:maxLen]
+	if maxLen > 3 {
+		return string(runes[:maxLen-3]) + "..."
+	}
+	return string(runes[:maxLen])
 }
 
 // NewCSVWriter creates a new CSV writer with gold-standard features.

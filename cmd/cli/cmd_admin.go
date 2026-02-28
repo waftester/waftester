@@ -97,7 +97,11 @@ func runValidate() {
 			os.Exit(1)
 		}
 		defer f.Close()
-		data, _ := json.MarshalIndent(result, "", "  ")
+		data, marshalErr := json.MarshalIndent(result, "", "  ")
+		if marshalErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to marshal admin result: %v", marshalErr))
+			return
+		}
 		f.Write(data)
 		f.Write([]byte("\n"))
 		ui.PrintSuccess(fmt.Sprintf("Results written to %s", *outputJSON))

@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -176,25 +177,38 @@ func runOpenAPIList(spec *openapi.Spec, baseURL string, jsonOutput bool) {
 
 	var endpoints []endpointInfo
 
-	for path, pathItem := range spec.Paths {
-		methods := map[string]*openapi.Operation{
-			"GET":     pathItem.Get,
-			"POST":    pathItem.Post,
-			"PUT":     pathItem.Put,
-			"DELETE":  pathItem.Delete,
-			"PATCH":   pathItem.Patch,
-			"OPTIONS": pathItem.Options,
-			"HEAD":    pathItem.Head,
+	oaPaths := make([]string, 0, len(spec.Paths))
+	for p := range spec.Paths {
+		oaPaths = append(oaPaths, p)
+	}
+	sort.Strings(oaPaths)
+
+	type methodEntry struct {
+		name string
+		op   *openapi.Operation
+	}
+
+	for _, path := range oaPaths {
+		pathItem := spec.Paths[path]
+		methodList := []methodEntry{
+			{"DELETE", pathItem.Delete},
+			{"GET", pathItem.Get},
+			{"HEAD", pathItem.Head},
+			{"OPTIONS", pathItem.Options},
+			{"PATCH", pathItem.Patch},
+			{"POST", pathItem.Post},
+			{"PUT", pathItem.Put},
 		}
 
-		for method, op := range methods {
+		for _, me := range methodList {
+			op := me.op
 			if op == nil {
 				continue
 			}
 
 			ep := endpointInfo{
 				Path:        path,
-				Method:      method,
+				Method:      me.name,
 				OperationID: op.OperationID,
 				Summary:     op.Summary,
 				Tags:        op.Tags,
@@ -206,14 +220,18 @@ func runOpenAPIList(spec *openapi.Spec, baseURL string, jsonOutput bool) {
 	}
 
 	if jsonOutput {
-		data, _ := json.MarshalIndent(map[string]interface{}{
+		data, marshalErr := json.MarshalIndent(map[string]interface{}{
 			"base_url":  baseURL,
 			"title":     spec.Info.Title,
 			"version":   spec.Info.Version,
 			"endpoints": endpoints,
 			"count":     len(endpoints),
 		}, "", "  ")
-		fmt.Println(string(data))
+		if marshalErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to marshal endpoints: %v", marshalErr))
+		} else {
+			fmt.Println(string(data))
+		}
 		return
 	}
 
@@ -353,7 +371,11 @@ done:
 
 	// Output results
 	if outputFile != "" {
-		data, _ := json.MarshalIndent(results, "", "  ")
+		data, marshalErr := json.MarshalIndent(results, "", "  ")
+		if marshalErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to marshal results: %v", marshalErr))
+			os.Exit(1)
+		}
 		if err := os.WriteFile(outputFile, data, 0644); err != nil {
 			ui.PrintError(fmt.Sprintf("Failed to write output: %v", err))
 		} else {
@@ -362,7 +384,11 @@ done:
 	}
 
 	if jsonOutput {
-		data, _ := json.MarshalIndent(results, "", "  ")
+		data, marshalErr := json.MarshalIndent(results, "", "  ")
+		if marshalErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to marshal results: %v", marshalErr))
+			os.Exit(1)
+		}
 		fmt.Println(string(data))
 	} else {
 		fmt.Println()

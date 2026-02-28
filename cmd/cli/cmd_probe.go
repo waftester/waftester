@@ -20,6 +20,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"strconv"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -965,18 +966,24 @@ func runProbe() {
 
 			// Body preview
 			if *cfg.BodyPreview > 0 && len(bodyStr) > 0 {
+				bodyRunes := []rune(bodyStr)
 				previewLen := *cfg.BodyPreview
-				if previewLen > len(bodyStr) {
-					previewLen = len(bodyStr)
+				if previewLen > len(bodyRunes) {
+					previewLen = len(bodyRunes)
 				}
-				results.BodyPreview = bodyStr[:previewLen]
+				results.BodyPreview = string(bodyRunes[:previewLen])
 			}
 
 			// Header hash
 			if *cfg.HeaderHash {
+				headerKeys := make([]string, 0, len(initialResp.Header))
+				for k := range initialResp.Header {
+					headerKeys = append(headerKeys, k)
+				}
+				sort.Strings(headerKeys)
 				headerContent := ""
-				for k, v := range initialResp.Header {
-					headerContent += fmt.Sprintf("%s: %s\n", k, strings.Join(v, ", "))
+				for _, k := range headerKeys {
+					headerContent += fmt.Sprintf("%s: %s\n", k, strings.Join(initialResp.Header[k], ", "))
 				}
 				results.HeaderHash = fmt.Sprintf("md5:%x", md5.Sum([]byte(headerContent)))
 			}

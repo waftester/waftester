@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -666,7 +667,10 @@ func (t *Tester) sendFuzzRequest(ctx context.Context, baseURL string, endpoint E
 	}
 	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := iohelper.ReadBodyDefault(resp.Body)
+	body, readErr := iohelper.ReadBodyDefault(resp.Body)
+	if readErr != nil {
+		return nil, fmt.Errorf("reading response body: %w", readErr)
+	}
 	t.detector.RecordResponse(baseURL, resp, duration, len(body))
 
 	headers := make(map[string]string)
@@ -716,7 +720,10 @@ func (t *Tester) sendBodyFuzzRequest(ctx context.Context, baseURL string, endpoi
 	}
 	defer iohelper.DrainAndClose(resp.Body)
 
-	body, _ := iohelper.ReadBodyDefault(resp.Body)
+	body, readErr := iohelper.ReadBodyDefault(resp.Body)
+	if readErr != nil {
+		return nil, fmt.Errorf("reading response body: %w", readErr)
+	}
 	t.detector.RecordResponse(baseURL, resp, duration, len(body))
 
 	headers := make(map[string]string)
@@ -961,13 +968,27 @@ func ParseOpenAPISpec(spec []byte) ([]Endpoint, error) {
 		return nil, fmt.Errorf("no paths found in spec")
 	}
 
-	for path, methods := range paths {
+	pathKeys := make([]string, 0, len(paths))
+	for p := range paths {
+		pathKeys = append(pathKeys, p)
+	}
+	sort.Strings(pathKeys)
+
+	for _, path := range pathKeys {
+		methods := paths[path]
 		methodsMap, ok := methods.(map[string]interface{})
 		if !ok {
 			continue
 		}
 
-		for method, details := range methodsMap {
+		methodKeys := make([]string, 0, len(methodsMap))
+		for m := range methodsMap {
+			methodKeys = append(methodKeys, m)
+		}
+		sort.Strings(methodKeys)
+
+		for _, method := range methodKeys {
+			details := methodsMap[method]
 			if method == "parameters" {
 				continue
 			}

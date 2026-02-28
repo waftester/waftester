@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/waftester/waftester/pkg/cli"
@@ -108,10 +109,14 @@ func runPluginList(manager *plugin.Manager, jsonOutput bool) {
 			})
 		}
 
-		data, _ := json.MarshalIndent(map[string]interface{}{
+		data, marshalErr := json.MarshalIndent(map[string]interface{}{
 			"plugins": infos,
 			"count":   len(infos),
 		}, "", "  ")
+		if marshalErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to marshal plugin list: %v", marshalErr))
+			os.Exit(1)
+		}
 		fmt.Println(string(data))
 		return
 	}
@@ -165,12 +170,16 @@ func runPluginInfo(manager *plugin.Manager, name string, jsonOutput bool) {
 	}
 
 	if jsonOutput {
-		data, _ := json.MarshalIndent(map[string]interface{}{
+		data, marshalErr := json.MarshalIndent(map[string]interface{}{
 			"name":        scanner.Name(),
 			"version":     scanner.Version(),
 			"description": scanner.Description(),
 			"builtin":     manager.IsBuiltin(name),
 		}, "", "  ")
+		if marshalErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to marshal plugin info: %v", marshalErr))
+			return
+		}
 		fmt.Println(string(data))
 		return
 	}
@@ -242,7 +251,11 @@ func runPluginRun(manager *plugin.Manager, name, targetURL, configFile, configJS
 
 	// Output results
 	if outputFile != "" {
-		data, _ := json.MarshalIndent(result, "", "  ")
+		data, marshalErr := json.MarshalIndent(result, "", "  ")
+		if marshalErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to marshal results: %v", marshalErr))
+			os.Exit(1)
+		}
 		if err := os.WriteFile(outputFile, data, 0644); err != nil {
 			ui.PrintError(fmt.Sprintf("Failed to write output: %v", err))
 		} else {
@@ -251,7 +264,11 @@ func runPluginRun(manager *plugin.Manager, name, targetURL, configFile, configJS
 	}
 
 	if jsonOutput {
-		data, _ := json.MarshalIndent(result, "", "  ")
+		data, marshalErr := json.MarshalIndent(result, "", "  ")
+		if marshalErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to marshal results: %v", marshalErr))
+			os.Exit(1)
+		}
 		fmt.Println(string(data))
 		return
 	}
@@ -291,7 +308,12 @@ func runPluginRun(manager *plugin.Manager, name, targetURL, configFile, configJS
 	for _, f := range result.Findings {
 		sevCounts[f.Severity]++
 	}
-	for sev, count := range sevCounts {
-		ui.PrintConfigLine(fmt.Sprintf("  %s", sev), fmt.Sprintf("%d", count))
+	sevKeys := make([]string, 0, len(sevCounts))
+	for sev := range sevCounts {
+		sevKeys = append(sevKeys, sev)
+	}
+	sort.Strings(sevKeys)
+	for _, sev := range sevKeys {
+		ui.PrintConfigLine(fmt.Sprintf("  %s", sev), fmt.Sprintf("%d", sevCounts[sev]))
 	}
 }

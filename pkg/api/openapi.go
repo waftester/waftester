@@ -219,7 +219,14 @@ func (p *Parser) parseSwagger2Paths(paths map[string]interface{}) []Route {
 			pathParams = p.parseParameters(pathParamsRaw)
 		}
 
-		for method, operation := range methodsMap {
+		sortedMethods := make([]string, 0, len(methodsMap))
+		for m := range methodsMap {
+			sortedMethods = append(sortedMethods, m)
+		}
+		sort.Strings(sortedMethods)
+
+		for _, method := range sortedMethods {
+			operation := methodsMap[method]
 			// Skip non-HTTP methods (like "parameters").
 			if !isHTTPMethod(method) {
 				continue
@@ -399,7 +406,14 @@ func (p *Parser) parseOpenAPI3Paths(paths map[string]interface{}) []Route {
 			pathParams = p.parseParameters(pathParamsRaw)
 		}
 
-		for method, operation := range methodsMap {
+		sortedMethods3 := make([]string, 0, len(methodsMap))
+		for m := range methodsMap {
+			sortedMethods3 = append(sortedMethods3, m)
+		}
+		sort.Strings(sortedMethods3)
+
+		for _, method := range sortedMethods3 {
+			operation := methodsMap[method]
 			if !isHTTPMethod(method) {
 				continue
 			}

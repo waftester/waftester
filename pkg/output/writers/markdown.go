@@ -829,6 +829,6 @@ func capitalizeFirst(s string) string {
 	if s == "" {
 		return s
 	}
-	// For severity values like "critical", "high", etc.
-	return strings.ToUpper(s[:1]) + s[1:]
+	r := []rune(s)
+	return strings.ToUpper(string(r[:1])) + string(r[1:])
 }
