@@ -26,7 +26,7 @@ waftester scan --spec openapi.yaml
 waftester scan --spec openapi.yaml -u https://api.example.com
 
 # Auto mode with Postman collection + environment
-waftester auto --spec collection.json --spec-env environment.json
+waftester auto --spec collection.json --env environment.json
 
 # Dry-run to preview the scan plan without sending requests
 waftester scan --spec openapi.yaml --dry-run
@@ -35,7 +35,7 @@ waftester scan --spec openapi.yaml --dry-run
 waftester validate --spec openapi.yaml
 
 # Scan specific endpoint groups only
-waftester scan --spec openapi.yaml -u https://api.example.com --groups users,auth
+waftester scan --spec openapi.yaml -u https://api.example.com --group users,auth
 ```
 
 > **Note:** The `-u` flag is optional when the spec contains server URLs (OpenAPI `servers`, Swagger `host`, Postman `baseUrl`). WAFtester resolves the target from the spec automatically. Use `-u` to override.
@@ -199,7 +199,7 @@ Checkpoint data is stored in `~/.waftester/checkpoints/` and includes completed 
 
 ```bash
 waftester scan --spec openapi.yaml -u https://api.example.com
-waftester scan --spec openapi.json -u https://api.example.com --groups users
+waftester scan --spec openapi.json -u https://api.example.com --group users
 ```
 
 ### Swagger 2.0
@@ -215,7 +215,7 @@ waftester scan --spec swagger.json -u https://api.example.com
 waftester scan --spec collection.json -u https://api.example.com
 
 # Collection with environment variables
-waftester auto --spec collection.json --spec-env production.json -u https://api.example.com
+waftester auto --spec collection.json --env production.json -u https://api.example.com
 ```
 
 Postman environment variables (`{{baseUrl}}`, `{{apiKey}}`) are substituted before parsing.
