@@ -235,6 +235,11 @@ func (t *Tester) TestHorizontalPrivilegeEscalation(ctx context.Context, userID s
 	testCases := IDORTestCases()
 
 	for _, tc := range testCases {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
 		// Try to access other user's resources with our token
 		path := strings.Replace(tc.PathTemplate, "{id}", otherUserID, 1)
 		fullURL := t.target + path
@@ -290,15 +295,21 @@ func (t *Tester) TestMetadataManipulation(ctx context.Context) ([]TestResult, er
 	if err != nil {
 		return nil, err
 	}
-	baseResp, _ := t.client.Do(baseReq)
-	if baseResp != nil {
-		iohelper.DrainAndClose(baseResp.Body)
+	baseResp, err := t.client.Do(baseReq)
+	if err != nil {
+		return nil, fmt.Errorf("baseline request failed: %w", err)
 	}
+	iohelper.DrainAndClose(baseResp.Body)
 
 	payloads := MetadataManipulationPayloads()
 
 	for _, p := range payloads {
 		for _, val := range p.Values {
+			select {
+			case <-ctx.Done():
+				return results, ctx.Err()
+			default:
+			}
 			req, err := http.NewRequestWithContext(ctx, "GET", baseURL, nil)
 			if err != nil {
 				continue

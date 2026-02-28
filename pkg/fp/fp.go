@@ -255,7 +255,10 @@ func (t *Tester) executeTest(ctx context.Context, task TestTask) (blocked bool, 
 
 	case "post_json":
 		method = "POST"
-		jsonBody, _ := json.Marshal(map[string]string{"input": task.Payload})
+		jsonBody, marshalErr := json.Marshal(map[string]string{"input": task.Payload})
+		if marshalErr != nil {
+			return false, 0, "", fmt.Errorf("marshal json body: %w", marshalErr)
+		}
 		body = strings.NewReader(string(jsonBody))
 		headers["Content-Type"] = "application/json"
 
