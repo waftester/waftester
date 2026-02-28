@@ -214,14 +214,14 @@ waf-tester scan --spec openapi.yaml -u https://api.example.com --dry-run
 | SARIF | GitHub/GitLab Security, VS Code | `-format sarif` |
 | HTML | Stakeholder reports | `-format html` |
 | PDF | Executive reports with severity matrix | `-format pdf` |
-| Markdown | Documentation, wikis | `-format markdown` |
-| JUnit | CI/CD test frameworks | `-format junit` |
+| Markdown | Documentation, wikis | `-format md` |
 | CSV | Spreadsheets, data analysis | `-format csv` |
-| XML | Legacy integrations | `-format xml` |
-| CycloneDX | SBOM vulnerability exchange | `-format cyclonedx` |
-| SonarQube | SonarQube import | `-format sonarqube` |
-| GitLab SAST | GitLab security dashboard | `-format gitlab-sast` |
-| Table | Terminal display (default) | `-format table` |
+| JUnit | CI/CD test frameworks | `-junit-export results.xml` |
+| XML | Legacy integrations | `-xml-export results.xml` |
+| CycloneDX | SBOM vulnerability exchange | `-cyclonedx-export results.json` |
+| SonarQube | SonarQube import | `-sonarqube-export results.json` |
+| GitLab SAST | GitLab security dashboard | `-gitlab-sast-export results.json` |
+| Console | Terminal display (default) | `-format console` |
 
 ## CI/CD Integration
 
@@ -289,7 +289,7 @@ Also integrates with SonarQube, GitLab SAST, DefectDojo, Elasticsearch, Slack, T
 | `compare` | Compare two scan result JSON files (severity deltas, risk scores, CI exit code) |
 | `update` | Check for and install updates |
 | `docs` | Built-in command reference |
-| ... | 4 more specialized commands (`full`, `quick`, `standard`, `validate-templates`) |
+| `validate-templates` | Validate Nuclei/custom scan templates |
 
 ## Platform Support
 

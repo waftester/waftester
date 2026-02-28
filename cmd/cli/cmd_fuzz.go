@@ -698,10 +698,10 @@ func runFuzz() {
 				statusColor = ui.ErrorStyle
 			}
 
-			// Include timestamp if requested (use stderr to avoid corrupting piped JSON)
+			// Include timestamp prefix if requested
 			if *timestamp {
 				ts := time.Now().Format("15:04:05")
-				fmt.Fprintf(os.Stderr, "[%s] %s %-50s [%s] [%s] [%s] [%s]\n",
+				fmt.Printf("[%s] %s %-50s [%s] [%s] [%s] [%s]\n",
 					ts,
 					statusColor.Render(fmt.Sprintf("%d", result.StatusCode)),
 					result.Input,

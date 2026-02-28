@@ -125,7 +125,7 @@ docker run -d -p 8080:8080 \
 - **Multi-protocol templates** — Nuclei-compatible templates support HTTP, DNS, TCP, and UDP
 - **Smart mode** — auto-detects WAF vendor and optimizes payloads, rate limits, and encoders
 - **API spec scanning** — OpenAPI, Swagger, Postman, HAR, AsyncAPI, gRPC, and GraphQL
-- **Output formats**: JSON, JSONL, SARIF, HTML, PDF, Markdown, JUnit, CSV, XML, CycloneDX, SonarQube, GitLab SAST, DefectDojo, Elasticsearch, HAR, Table, Template
+- **Output formats**: JSON, JSONL, SARIF, HTML, PDF, Markdown, JUnit, CSV, XML, CycloneDX, SonarQube, GitLab SAST, HAR, Template
 
 ## Image Details
 
