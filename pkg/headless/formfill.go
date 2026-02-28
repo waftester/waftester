@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/waftester/waftester/pkg/regexcache"
@@ -215,8 +216,14 @@ func (f *FormFiller) GetValueForField(field FormField) string {
 		return val
 	}
 
-	// 3. Check patterns
-	for pattern, value := range f.patterns {
+	// 3. Check patterns (sorted for deterministic first-match)
+	patternKeys := make([]string, 0, len(f.patterns))
+	for k := range f.patterns {
+		patternKeys = append(patternKeys, k)
+	}
+	sort.Strings(patternKeys)
+	for _, pattern := range patternKeys {
+		value := f.patterns[pattern]
 		re, err := regexcache.Get(pattern)
 		if err != nil {
 			continue

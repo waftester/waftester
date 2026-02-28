@@ -3,6 +3,7 @@ package headless
 import (
 	"encoding/json"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -132,9 +133,15 @@ func (x *XHRExtractor) GetAPIEndpoints() []APIEndpoint {
 		}
 	}
 
+	// Sort keys for deterministic output order
+	keys := make([]string, 0, len(endpoints))
+	for k := range endpoints {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
 	result := make([]APIEndpoint, 0, len(endpoints))
-	for _, ep := range endpoints {
-		result = append(result, ep)
+	for _, k := range keys {
+		result = append(result, endpoints[k])
 	}
 	return result
 }

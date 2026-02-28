@@ -422,6 +422,7 @@ func (t *Tester) Scan(ctx context.Context) ([]Vulnerability, error) {
 	var allVulns []Vulnerability
 	var mu sync.Mutex
 	var wg sync.WaitGroup
+	var firstErr error
 
 	tests := []func(context.Context) ([]Vulnerability, error){
 		t.TestOpenRedirect,
@@ -437,18 +438,21 @@ func (t *Tester) Scan(ctx context.Context) ([]Vulnerability, error) {
 			defer wg.Done()
 
 			vulns, err := testFn(ctx)
+			mu.Lock()
+			defer mu.Unlock()
 			if err != nil {
+				if firstErr == nil {
+					firstErr = err
+				}
 				return
 			}
-
-			mu.Lock()
 			allVulns = append(allVulns, vulns...)
-			mu.Unlock()
 		}(test)
 	}
 
 	wg.Wait()
-	return allVulns, nil
+	// Return results even on partial failure, but propagate the first error
+	return allVulns, firstErr
 }
 
 func (t *Tester) applyHeaders(req *http.Request) {
