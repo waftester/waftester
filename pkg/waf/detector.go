@@ -218,6 +218,9 @@ func (d *Detector) activeDetection(ctx context.Context, target string, result *D
 	}
 
 	for _, attack := range attackPayloads {
+		if ctx.Err() != nil {
+			return
+		}
 		req, err := http.NewRequestWithContext(ctx, attack.method, target+attack.payload, nil)
 		if err != nil {
 			continue
@@ -297,6 +300,9 @@ func (d *Detector) behavioralAnalysis(ctx context.Context, target string, result
 	}
 
 	for _, test := range tests {
+		if ctx.Err() != nil {
+			return
+		}
 		testURL := target + test.path
 		req, err := http.NewRequestWithContext(ctx, test.method, testURL, nil)
 		if err != nil {
@@ -619,7 +625,10 @@ func (d *Detector) consolidateResults(result *DetectionResult) {
 
 	// Sort by confidence
 	sort.Slice(result.WAFs, func(i, j int) bool {
-		return result.WAFs[i].Confidence > result.WAFs[j].Confidence
+		if result.WAFs[i].Confidence != result.WAFs[j].Confidence {
+			return result.WAFs[i].Confidence > result.WAFs[j].Confidence
+		}
+		return result.WAFs[i].Name < result.WAFs[j].Name
 	})
 
 	// Set detected flag

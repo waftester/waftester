@@ -359,8 +359,8 @@ func (h *AzureDevOpsHook) buildDescription(bypass *events.BypassEvent) string {
 	if d.Payload != "" {
 		sb.WriteString("<h3>Payload</h3>\n")
 		payload := d.Payload
-		if len(payload) > 500 {
-			payload = payload[:500] + "... (truncated)"
+		if len([]rune(payload)) > 500 {
+			payload = string([]rune(payload)[:500]) + "... (truncated)"
 		}
 		sb.WriteString(fmt.Sprintf("<pre><code>%s</code></pre>\n", html.EscapeString(payload)))
 	}

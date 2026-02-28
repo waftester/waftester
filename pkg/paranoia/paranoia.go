@@ -295,8 +295,8 @@ func intToString(n int) string {
 }
 
 func generateDescription(category, payload string) string {
-	if len(payload) > 50 {
-		payload = payload[:50] + "..."
+	if len([]rune(payload)) > 50 {
+		payload = string([]rune(payload)[:50]) + "..."
 	}
 	return category + " attack: " + payload
 }

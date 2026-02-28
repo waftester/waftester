@@ -487,11 +487,10 @@ type Stats struct {
 
 func (l *Limiter) Stats() Stats {
 	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	stats := Stats{
 		CurrentDelay: l.currentDelay,
 	}
+	l.mu.Unlock()
 
 	l.hostLimitersMu.RLock()
 	stats.HostLimiterCount = len(l.hostLimiters)
