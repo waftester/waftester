@@ -448,7 +448,10 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*ScanResult, error
 	}
 
 	// Detect technology
-	tech, _ := t.DetectTechnology(ctx, targetURL)
+	tech, err := t.DetectTechnology(ctx, targetURL)
+	if err != nil && ctx.Err() != nil {
+		return result, ctx.Err()
+	}
 	if t.config.Technology != TechUnknown {
 		tech = t.config.Technology
 	}

@@ -211,6 +211,7 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) ([]Vulnerability, e
 	var vulns []Vulnerability
 	var mu sync.Mutex
 	var wg sync.WaitGroup
+	var firstErr error
 
 	payloads := GetAllPayloads()
 	sem := make(chan struct{}, t.config.Concurrency)
@@ -231,6 +232,11 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) ([]Vulnerability, e
 
 				vuln, err := t.TestPayload(ctx, targetURL, par, p)
 				if err != nil {
+					mu.Lock()
+					if firstErr == nil {
+						firstErr = err
+					}
+					mu.Unlock()
 					return
 				}
 
@@ -244,7 +250,7 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) ([]Vulnerability, e
 	}
 
 	wg.Wait()
-	return vulns, nil
+	return vulns, firstErr
 }
 
 // GetAllPayloads returns all deserialization test payloads.
