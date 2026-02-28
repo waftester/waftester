@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sort"
 	"strings"
 	"time"
 
@@ -234,7 +235,13 @@ func UpdatePayloads(cfg *UpdateConfig) (*UpdateReport, error) {
 func updateFromOWASP(cfg *UpdateConfig, report *UpdateReport) error {
 	fmt.Println("   Fetching OWASP community payloads...")
 
-	for category, url := range owaspSources {
+	owaspCats := make([]string, 0, len(owaspSources))
+	for category := range owaspSources {
+		owaspCats = append(owaspCats, category)
+	}
+	sort.Strings(owaspCats)
+	for _, category := range owaspCats {
+		url := owaspSources[category]
 		fmt.Printf("   %s %s: ", ui.Icon("•", "-"), category)
 
 		// Use a closure to ensure resp.Body is closed after each iteration

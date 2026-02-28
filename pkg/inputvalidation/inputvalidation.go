@@ -327,7 +327,7 @@ func (t *Tester) TestTypeJuggling(ctx context.Context, endpoint, param string) (
 				strings.Contains(bodyStr, "admin") {
 				result.Vulnerable = true
 				result.Description = fmt.Sprintf("Type juggling with '%s' may have bypassed validation", p.Expected)
-				result.Response = string(body[:min(100, len(body))])
+				result.Response = truncateBytesSafe(body, 100)
 				result.Remediation = "Use strict type comparison (=== in PHP/JS)"
 			}
 		}
@@ -382,7 +382,7 @@ func (t *Tester) TestIntegerOverflow(ctx context.Context, endpoint, param string
 			resp.StatusCode == 500 {
 			result.Vulnerable = true
 			result.Description = fmt.Sprintf("Integer overflow detected with %s", p.Description)
-			result.Response = string(body[:min(200, len(body))])
+			result.Response = truncateBytesSafe(body, 200)
 			result.Remediation = "Validate integer ranges before processing"
 		}
 
@@ -436,7 +436,7 @@ func (t *Tester) TestFormatString(ctx context.Context, endpoint, param string) (
 			if strings.Contains(bodyStr, "0x") || strings.Contains(bodyStr, "(nil)") {
 				result.Vulnerable = true
 				result.Description = "Format string payload appears to be interpreted"
-				result.Response = string(body[:min(200, len(body))])
+				result.Response = truncateBytesSafe(body, 200)
 				result.Remediation = "Never pass user input directly to format functions"
 			}
 		}
@@ -489,7 +489,7 @@ func (t *Tester) TestNullByte(ctx context.Context, endpoint, param string) ([]Te
 			if strings.Contains(bodyStr, "root:") || strings.Contains(bodyStr, "/bin/") {
 				result.Vulnerable = true
 				result.Description = "Null byte injection may have bypassed extension check"
-				result.Response = string(body[:min(200, len(body))])
+				result.Response = truncateBytesSafe(body, 200)
 				result.Remediation = "Reject input containing null bytes"
 			}
 		}
@@ -542,7 +542,7 @@ func (t *Tester) TestUnicodeBypass(ctx context.Context, endpoint, param string) 
 			if strings.Contains(bodyStr, "admin") || strings.Contains(bodyStr, "success") {
 				result.Vulnerable = true
 				result.Description = fmt.Sprintf("Unicode bypass (%s) may have succeeded", p.Description)
-				result.Response = string(body[:min(200, len(body))])
+				result.Response = truncateBytesSafe(body, 200)
 				result.Remediation = "Normalize unicode before validation, reject unexpected characters"
 			}
 		}
@@ -594,7 +594,7 @@ func (t *Tester) TestEncodingBypass(ctx context.Context, endpoint, param string)
 			strings.Contains(strings.ToLower(bodyStr), "script") {
 			result.Vulnerable = true
 			result.Description = fmt.Sprintf("Encoding bypass (%s) may have succeeded", p.Description)
-			result.Response = string(body[:min(200, len(body))])
+			result.Response = truncateBytesSafe(body, 200)
 			result.Remediation = "Decode all layers before validation, use output encoding"
 		}
 
@@ -623,4 +623,15 @@ func AllPayloadCategories() []string {
 // GenerateBufferPayload generates a buffer overflow payload of specified size
 func GenerateBufferPayload(size int, char byte) string {
 	return strings.Repeat(string(char), size)
+}
+
+// truncateBytesSafe truncates a byte slice to maxBytes without splitting multi-byte UTF-8 runes.
+func truncateBytesSafe(b []byte, maxBytes int) string {
+	if len(b) <= maxBytes {
+		return string(b)
+	}
+	for maxBytes > 0 && maxBytes < len(b) && b[maxBytes]>>6 == 0b10 {
+		maxBytes--
+	}
+	return string(b[:maxBytes])
 }

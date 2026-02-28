@@ -152,12 +152,16 @@ func runSOAPWSDLList(wsdlURL string, jsonOutput, verbose bool, timeout int) {
 	operations := wsdlDef.GetOperations()
 
 	if jsonOutput {
-		data, _ := json.MarshalIndent(map[string]interface{}{
+		data, marshalErr := json.MarshalIndent(map[string]interface{}{
 			"wsdl":       wsdlURL,
 			"operations": operations,
 			"count":      len(operations),
 		}, "", "  ")
-		fmt.Println(string(data))
+		if marshalErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to marshal operations: %v", marshalErr))
+		} else {
+			fmt.Println(string(data))
+		}
 		return
 	}
 
@@ -221,14 +225,18 @@ func runSOAPCall(ctx context.Context, client *soap.Client, operation, action, da
 	}
 
 	if jsonOutput {
-		data, _ := json.MarshalIndent(map[string]interface{}{
+		data, marshalErr := json.MarshalIndent(map[string]interface{}{
 			"status_code": resp.StatusCode,
 			"body":        resp.Body,
 			"fault":       resp.Fault,
 			"latency_ms":  resp.Latency.Milliseconds(),
 			"blocked":     resp.Blocked,
 		}, "", "  ")
-		fmt.Println(string(data))
+		if marshalErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to marshal response: %v", marshalErr))
+		} else {
+			fmt.Println(string(data))
+		}
 		return
 	}
 
@@ -313,8 +321,10 @@ soapFuzzDone:
 
 	// Output results
 	if outputFile != "" {
-		data, _ := json.MarshalIndent(results, "", "  ")
-		if err := os.WriteFile(outputFile, data, 0644); err != nil {
+		data, marshalErr := json.MarshalIndent(results, "", "  ")
+		if marshalErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to marshal results: %v", marshalErr))
+		} else if err := os.WriteFile(outputFile, data, 0644); err != nil {
 			ui.PrintError(fmt.Sprintf("Failed to write output: %v", err))
 		} else {
 			ui.PrintSuccess(fmt.Sprintf("Results written to %s", outputFile))
@@ -322,8 +332,12 @@ soapFuzzDone:
 	}
 
 	if jsonOutput {
-		data, _ := json.MarshalIndent(results, "", "  ")
-		fmt.Println(string(data))
+		data, marshalErr := json.MarshalIndent(results, "", "  ")
+		if marshalErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to marshal results: %v", marshalErr))
+		} else {
+			fmt.Println(string(data))
+		}
 	} else {
 		fmt.Println()
 		blocked := 0

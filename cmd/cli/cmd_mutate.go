@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -279,11 +280,15 @@ func runMutate() {
 			if task.Evasion != nil {
 				evasion = " + " + task.Evasion.MutatorName
 			}
-			fmt.Printf("  [%s] [%s]%s: %.50s...\n",
-				task.EncodedPayload.MutatorName,
-				task.Location.MutatorName,
-				evasion,
-				task.EncodedPayload.Mutated)
+			displayMutated := task.EncodedPayload.Mutated
+				if mutRunes := []rune(displayMutated); len(mutRunes) > 50 {
+					displayMutated = string(mutRunes[:50])
+				}
+				fmt.Printf("  [%s] [%s]%s: %s...\n",
+					task.EncodedPayload.MutatorName,
+					task.Location.MutatorName,
+					evasion,
+					displayMutated)
 			shown++
 		}
 		return
@@ -482,9 +487,15 @@ func runMutate() {
 	// Top encoders if bypasses found
 	if stats.Passed > 0 && len(stats.ByEncoder) > 0 {
 		ui.Printf("  %s %sEffective Encoders:%s\n", ui.Icon("🎯", "*"), a("\033[1m"), a("\033[0m"))
-		for enc, count := range stats.ByEncoder {
+		encKeys := make([]string, 0, len(stats.ByEncoder))
+		for enc := range stats.ByEncoder {
+			encKeys = append(encKeys, enc)
+		}
+		sort.Strings(encKeys)
+		for _, enc := range encKeys {
+			count := stats.ByEncoder[enc]
 			if count > 0 {
-				fmt.Printf("     %s %-20s %d hits\n", ui.Icon("•", "-"), enc, count)
+fmt.Printf("     %s %-20s %d hits\n", ui.Icon("•", "-"), enc, count)
 			}
 		}
 		fmt.Println()

@@ -44,7 +44,13 @@ func csvQuote(s string) string {
 // printScanCSV writes scan results in CSV format.
 func printScanCSV(w io.Writer, target string, result *ScanResult) {
 	fmt.Fprintln(w, "target,category,severity,count")
-	for cat, count := range result.ByCategory {
+	cats := make([]string, 0, len(result.ByCategory))
+	for cat := range result.ByCategory {
+		cats = append(cats, cat)
+	}
+	sort.Strings(cats)
+	for _, cat := range cats {
+		count := result.ByCategory[cat]
 		fmt.Fprintf(w, "%s,%s,various,%d\n", csvQuote(target), csvQuote(cat), count)
 	}
 }
@@ -76,7 +82,13 @@ func printScanMarkdown(w io.Writer, result *ScanResult) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "| Category | Count |")
 	fmt.Fprintln(w, "|----------|-------|")
-	for cat, count := range result.ByCategory {
+	mdCats := make([]string, 0, len(result.ByCategory))
+	for cat := range result.ByCategory {
+		mdCats = append(mdCats, cat)
+	}
+	sort.Strings(mdCats)
+	for _, cat := range mdCats {
+		count := result.ByCategory[cat]
 		if count > 0 {
 			fmt.Fprintf(w, "| %s | %d |\n", cat, count)
 		}
@@ -104,7 +116,13 @@ func printScanHTML(w io.Writer, result *ScanResult) {
 		fmt.Fprintf(w, "<tr><td class='%s'>%s</td><td>%d</td></tr>\n", strings.ToLower(html.EscapeString(sev)), html.EscapeString(sev), count)
 	}
 	fmt.Fprintln(w, "</table><h2>By Category</h2><table><tr><th>Category</th><th>Count</th></tr>")
-	for cat, count := range result.ByCategory {
+	htmlCats := make([]string, 0, len(result.ByCategory))
+	for cat := range result.ByCategory {
+		htmlCats = append(htmlCats, cat)
+	}
+	sort.Strings(htmlCats)
+	for _, cat := range htmlCats {
+		count := result.ByCategory[cat]
 		if count > 0 {
 			fmt.Fprintf(w, "<tr><td>%s</td><td>%d</td></tr>\n", html.EscapeString(cat), count)
 		}
@@ -115,7 +133,13 @@ func printScanHTML(w io.Writer, result *ScanResult) {
 // printScanSARIF writes scan results in SARIF 2.1.0 format for CI/CD integration.
 func printScanSARIF(w io.Writer, target string, result *ScanResult) {
 	sarifResults := make([]map[string]interface{}, 0)
-	for cat, count := range result.ByCategory {
+	sarifCats := make([]string, 0, len(result.ByCategory))
+	for cat := range result.ByCategory {
+		sarifCats = append(sarifCats, cat)
+	}
+	sort.Strings(sarifCats)
+	for _, cat := range sarifCats {
+		count := result.ByCategory[cat]
 		if count > 0 {
 			sarifResults = append(sarifResults, map[string]interface{}{
 				"ruleId":  cat,
@@ -154,7 +178,13 @@ func printScanSARIF(w io.Writer, target string, result *ScanResult) {
 
 // printScanJSONL writes scan results in JSON Lines format.
 func printScanJSONL(w io.Writer, target string, result *ScanResult) {
-	for cat, count := range result.ByCategory {
+	jlCats := make([]string, 0, len(result.ByCategory))
+	for cat := range result.ByCategory {
+		jlCats = append(jlCats, cat)
+	}
+	sort.Strings(jlCats)
+	for _, cat := range jlCats {
+		count := result.ByCategory[cat]
 		line, err := json.Marshal(map[string]interface{}{"category": cat, "count": count, "target": target})
 		if err != nil {
 			continue
