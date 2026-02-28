@@ -18,9 +18,9 @@ import (
 // ErrNotScanResult is returned when a JSON file doesn't contain scan result data.
 var ErrNotScanResult = errors.New("file does not contain scan result data")
 
-// SeverityWeights maps severity names to numeric weights for risk scoring.
+// severityWeights maps severity names to numeric weights for risk scoring.
 // Used to detect severity shifts even when total vulnerability count is unchanged.
-var SeverityWeights = map[string]int{
+var severityWeights = map[string]int{
 	"critical": 10,
 	"high":     5,
 	"medium":   2,
@@ -189,18 +189,24 @@ func parseSummary(data []byte, path string) (*ScanSummary, error) {
 }
 
 // parseDuration extracts a duration from a JSON raw message or duration_seconds float.
-// Handles: int64 nanoseconds (Go default), string like "5m30s", and float64 seconds fallback.
+// Handles: int64 nanoseconds (Go default), float64 nanoseconds (JavaScript),
+// string like "5m30s", and float64 seconds fallback.
 func parseDuration(raw json.RawMessage, durationSeconds *float64) time.Duration {
 	if len(raw) > 0 && string(raw) != "null" && string(raw) != "0" {
 		// Try int64 nanoseconds first (standard Go time.Duration JSON).
 		var ns int64
-		if err := json.Unmarshal(raw, &ns); err == nil && ns != 0 {
+		if err := json.Unmarshal(raw, &ns); err == nil && ns > 0 {
 			return time.Duration(ns)
+		}
+		// Try float64 nanoseconds (JavaScript JSON.stringify produces floats for large numbers).
+		var f float64
+		if err := json.Unmarshal(raw, &f); err == nil && f > 0 {
+			return time.Duration(int64(f))
 		}
 		// Try string format like "5m30s".
 		var s string
 		if err := json.Unmarshal(raw, &s); err == nil && s != "" {
-			if d, err := time.ParseDuration(s); err == nil {
+			if d, err := time.ParseDuration(s); err == nil && d > 0 {
 				return d
 			}
 		}
@@ -307,7 +313,7 @@ func Compare(before, after *ScanSummary) *Result {
 func computeWeightedScore(severity map[string]int) int {
 	score := 0
 	for sev, count := range severity {
-		weight, ok := SeverityWeights[strings.ToLower(sev)]
+		weight, ok := severityWeights[strings.ToLower(sev)]
 		if !ok {
 			weight = 1 // default weight for unknown severities
 		}
