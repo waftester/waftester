@@ -1918,14 +1918,16 @@ func runAutoScan() {
 		defer rateMu.Unlock()
 
 		escalationCount++
-		if escalationCount > 5 {
+		if escalationCount > 3 {
 			return
 		}
 
 		// Cooldown: ignore rapid-fire escalations. Without this, anomaly
 		// callbacks fire in burst (all observing the same batch of results)
 		// and cascade rate/concurrency down to minimums in one second.
-		if !lastEscalationTime.IsZero() && time.Since(lastEscalationTime) < 10*time.Second {
+		// 30-second cooldown prevents cascading through all escalation
+		// levels from a single burst of anomalies.
+		if !lastEscalationTime.IsZero() && time.Since(lastEscalationTime) < 30*time.Second {
 			escalationCount-- // don't count suppressed escalation
 			return
 		}
@@ -1934,11 +1936,13 @@ func runAutoScan() {
 		oldRate := currentRateLimit
 		oldConc := currentConcurrency
 
-		currentRateLimit = currentRateLimit / 2
+		// Reduce by 25% instead of 50% — gentler ramp-down preserves
+		// more scan throughput while still respecting WAF rate limits.
+		currentRateLimit = currentRateLimit * 3 / 4
 		if currentRateLimit < 10 {
 			currentRateLimit = 10
 		}
-		currentConcurrency = currentConcurrency / 2
+		currentConcurrency = currentConcurrency * 3 / 4
 		if currentConcurrency < 5 {
 			currentConcurrency = 5
 		}
@@ -3325,6 +3329,9 @@ func runAutoScan() {
 		fmt.Fprintf(os.Stderr, "  |  Passed:             %-26d |\n", results.PassedTests)
 		fmt.Fprintf(os.Stderr, "  |  Failed (Bypass):    %-26d |\n", results.FailedTests)
 		fmt.Fprintf(os.Stderr, "  |  Errors:             %-26d |\n", results.ErrorTests)
+		if skippedTests > 0 {
+			fmt.Fprintf(os.Stderr, "  |  Skipped (dropped):  %-26d |\n", skippedTests)
+		}
 		fmt.Fprintf(os.Stderr, "  +------------------------------------------------+\n")
 		fmt.Fprintln(os.Stderr)
 
@@ -3401,6 +3408,7 @@ func runAutoScan() {
 			"passed":        results.PassedTests,
 			"failed":        results.FailedTests,
 			"errors":        results.ErrorTests,
+			"skipped":       skippedTests,
 			"requests_sec":  results.RequestsPerSec,
 			"endpoints":     len(discResult.Endpoints),
 			"js_files":      atomic.LoadInt32(&jsAnalyzed),

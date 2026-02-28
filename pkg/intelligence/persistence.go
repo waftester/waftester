@@ -509,7 +509,7 @@ func (m *Memory) Import(state *MemoryState) {
 		m.byCategory[f.Category] = append(m.byCategory[f.Category], f)
 		m.bySeverity[f.Severity] = append(m.bySeverity[f.Severity], f)
 		m.byPath[f.Path] = append(m.byPath[f.Path], f)
-		if !f.Blocked && f.IsTestingPhase() {
+		if !f.Blocked && f.IsTestingPhase() && f.StatusCode > 0 {
 			m.bypasses = append(m.bypasses, f)
 		}
 	}
