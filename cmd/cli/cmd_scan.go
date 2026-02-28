@@ -203,13 +203,7 @@ func runScan() {
 	// DISPATCHER INITIALIZATION (Hooks: Slack, Teams, PagerDuty, OTEL, Prometheus)
 	// ═══════════════════════════════════════════════════════════════════════════
 	scanID := fmt.Sprintf("scan-%d", time.Now().Unix())
-	// Scan builds its own HAR from vulnerability findings via writeScanHAR.
-	// Exclude HARExport from the dispatcher so it doesn't open the same file
-	// (the dispatcher would write an empty HAR on Close, overwriting the real one).
-	scanHARPath := cfg.Out.HARExport
-	cfg.Out.HARExport = ""
 	dispCtx, dispErr := cfg.Out.InitDispatcher(scanID, target)
-	cfg.Out.HARExport = scanHARPath
 	if dispErr != nil {
 		ui.PrintWarning(fmt.Sprintf("Output dispatcher warning: %v", dispErr))
 	}

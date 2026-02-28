@@ -494,6 +494,20 @@ func runCrawl() {
 		}
 	}
 
+	// Enterprise file exports (--json-export, --sarif-export, etc.)
+	// Must run BEFORE stdout format routing because those branches return early.
+	outputFlags.MaybeExport(func() execResults {
+		return crawlResultsToExecution(target, crawlResults, allForms, allScripts, allURLs, time.Since(startTime))
+	})
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// DISPATCHER SUMMARY EMISSION
+	// ═══════════════════════════════════════════════════════════════════════════
+	// Notify all hooks that crawl is complete (pages discovered, forms found)
+	if crawlDispCtx != nil {
+		_ = crawlDispCtx.EmitSummary(ctx, len(crawlResults), len(allURLs), len(allForms), time.Since(startTime))
+	}
+
 	// Output URLs only mode
 	if *outputURLs {
 		for _, u := range allURLs {
@@ -581,14 +595,4 @@ func runCrawl() {
 		}
 	}
 
-	// Write enterprise export files (--json-export, --sarif-export, etc.)
-	writeCrawlExports(&outputFlags, target, crawlResults, allForms, allScripts, allURLs, time.Since(startTime))
-
-	// ═══════════════════════════════════════════════════════════════════════════
-	// DISPATCHER SUMMARY EMISSION
-	// ═══════════════════════════════════════════════════════════════════════════
-	// Notify all hooks that crawl is complete (pages discovered, forms found)
-	if crawlDispCtx != nil {
-		_ = crawlDispCtx.EmitSummary(ctx, len(crawlResults), len(allURLs), len(allForms), time.Since(startTime))
-	}
 }
