@@ -378,7 +378,11 @@ func runBypassFinder() {
 			}
 			fmt.Printf("  [%d] %s | %s | %s\n",
 				bp.StatusCode, bp.EncoderUsed, bp.LocationUsed, bp.EvasionUsed)
-			fmt.Printf("      Payload: %.60s...\n", bp.MutatedPayload)
+			displayPayload := bp.MutatedPayload
+				if payloadRunes := []rune(displayPayload); len(payloadRunes) > 60 {
+					displayPayload = string(payloadRunes[:60])
+				}
+				fmt.Printf("      Payload: %s...\n", displayPayload)
 			fmt.Println()
 			shown++
 		}

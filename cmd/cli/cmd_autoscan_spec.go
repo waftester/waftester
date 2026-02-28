@@ -201,13 +201,17 @@ func runSpecPipeline(cfg specPipelineConfig) {
 			Intensity string            `json:"intensity"`
 			Plan      *apispec.ScanPlan `json:"plan"`
 		}
-		data, _ := json.MarshalIndent(dryRunOutput{
+		data, marshalErr := json.MarshalIndent(dryRunOutput{
 			DryRun:    true,
 			Target:    cfg.target,
 			SpecFile:  source,
 			Intensity: cfg.intensity,
 			Plan:      plan,
 		}, "", "  ")
+		if marshalErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to marshal dry-run output: %v", marshalErr))
+			os.Exit(1)
+		}
 		fmt.Println(string(data)) // debug:keep — JSON dry-run output
 		return
 	}
@@ -316,12 +320,15 @@ func runSpecPipeline(cfg specPipelineConfig) {
 		Duration string                  `json:"duration"`
 		Result   *apispec.SpecScanResult `json:"result"`
 	}
-	data, _ := json.MarshalIndent(scanOutput{
+	data, marshalErr := json.MarshalIndent(scanOutput{
 		Target:   scanTarget,
 		SpecFile: source,
 		Duration: elapsed.String(),
 		Result:   result,
 	}, "", "  ")
+	if marshalErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Failed to marshal scan output: %v", marshalErr))
+	}
 
 	if cfg.outFlags.JSONMode {
 		fmt.Println(string(data)) // debug:keep — JSON result output

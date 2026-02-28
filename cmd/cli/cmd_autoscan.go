@@ -846,7 +846,13 @@ func runAutoScan() {
 			if leakyResult.InterestingHits > 0 && !quietMode {
 				// Show severity breakdown in nuclei-style
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.Icon("📊", "#")+" Findings by Severity:"))
-				for severity, count := range leakyResult.BySeverity {
+				leakySevKeys := make([]string, 0, len(leakyResult.BySeverity))
+				for sev := range leakyResult.BySeverity {
+					leakySevKeys = append(leakySevKeys, sev)
+				}
+				sort.Strings(leakySevKeys)
+				for _, severity := range leakySevKeys {
+					count := leakyResult.BySeverity[severity]
 					sevStyle := ui.SeverityStyle(severity)
 					bar := strings.Repeat(ui.Icon("█", "#"), min(count, 20))
 					fmt.Fprintf(os.Stderr, "    %s %s %d\n", sevStyle.Render(fmt.Sprintf("%-8s", severity)), ui.ProgressFullStyle.Render(bar), count)
@@ -855,7 +861,13 @@ func runAutoScan() {
 
 				// Show category breakdown
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.Icon("📂", "#")+" Findings by Category:"))
-				for category, count := range leakyResult.ByCategory {
+				leakyCatKeys := make([]string, 0, len(leakyResult.ByCategory))
+				for cat := range leakyResult.ByCategory {
+					leakyCatKeys = append(leakyCatKeys, cat)
+				}
+				sort.Strings(leakyCatKeys)
+				for _, category := range leakyCatKeys {
+					count := leakyResult.ByCategory[category]
 					bar := strings.Repeat(ui.Icon("▪", "*"), min(count, 20))
 					fmt.Fprintf(os.Stderr, "    %-15s %s %d\n", category, ui.StatLabelStyle.Render(bar), count)
 				}
@@ -1575,7 +1587,13 @@ func runAutoScan() {
 				fmt.Fprintln(os.Stderr)
 				// Show type breakdown
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("📊 Parameters by Type:")))
-				for paramType, count := range paramResult.ByType {
+				paramTypeKeys := make([]string, 0, len(paramResult.ByType))
+			for pt := range paramResult.ByType {
+				paramTypeKeys = append(paramTypeKeys, pt)
+			}
+			sort.Strings(paramTypeKeys)
+			for _, paramType := range paramTypeKeys {
+				count := paramResult.ByType[paramType]
 					typeStyle := ui.ConfigValueStyle
 					switch paramType {
 					case "query":
@@ -1592,7 +1610,13 @@ func runAutoScan() {
 
 				// Show source breakdown
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("🔎 Discovery Sources:")))
-				for source, count := range paramResult.BySource {
+				paramSrcKeys := make([]string, 0, len(paramResult.BySource))
+				for src := range paramResult.BySource {
+					paramSrcKeys = append(paramSrcKeys, src)
+				}
+				sort.Strings(paramSrcKeys)
+				for _, source := range paramSrcKeys {
+					count := paramResult.BySource[source]
 					bar := strings.Repeat(ui.Icon("▪", "*"), min(count, 20))
 					fmt.Fprintf(os.Stderr, "    %-15s %s %d\n", source, ui.StatLabelStyle.Render(bar), count)
 				}
@@ -2715,6 +2739,7 @@ func runAutoScan() {
 					for c := range focusCategories {
 						catList = append(catList, c)
 					}
+					sort.Strings(catList)
 					ui.PrintInfo(fmt.Sprintf("🧠 Brain feedback: focused re-test on %d payloads across [%s]",
 						len(focusPayloads), strings.Join(catList, ", ")))
 
@@ -3123,14 +3148,16 @@ func runAutoScan() {
 		printStatusLn()
 
 		// Save vendor detection results for resume
-		vendorCache, _ := json.MarshalIndent(struct {
+		vendorCache, marshalErr := json.MarshalIndent(struct {
 			VendorName          string   `json:"vendor_name"`
 			VendorConfidence    float64  `json:"vendor_confidence"`
 			BypassHints         []string `json:"bypass_hints,omitempty"`
 			RecommendedEncoders []string `json:"recommended_encoders,omitempty"`
 			RecommendedEvasions []string `json:"recommended_evasions,omitempty"`
 		}{vendorName, vendorConfidence, bypassHints, recommendedEncoders, recommendedEvasions}, "", "  ")
-		if err := os.WriteFile(vendorDetectionFile, vendorCache, 0644); err != nil {
+		if marshalErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to marshal vendor detection: %v", marshalErr))
+		} else if err := os.WriteFile(vendorDetectionFile, vendorCache, 0644); err != nil {
 			ui.PrintWarning(fmt.Sprintf("Failed to save vendor detection: %v", err))
 		}
 		markPhaseCompleted("vendor-detection")
@@ -3516,8 +3543,10 @@ func runAutoScan() {
 		summary["payload_recommendations"] = recData
 	}
 
-	summaryData, _ := json.MarshalIndent(summary, "", "  ")
-	if err := os.WriteFile(summaryFile, summaryData, 0644); err != nil {
+	summaryData, marshalErr := json.MarshalIndent(summary, "", "  ")
+	if marshalErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Failed to marshal summary: %v", marshalErr))
+	} else if err := os.WriteFile(summaryFile, summaryData, 0644); err != nil {
 		ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
 	}
 
@@ -4030,8 +4059,12 @@ func runAutoScan() {
 		}
 
 		// Output to stdout
-		jsonBytes, _ := json.MarshalIndent(jsonSummary, "", "  ")
-		fmt.Println(string(jsonBytes)) // debug:keep
+		jsonBytes, marshalErr := json.MarshalIndent(jsonSummary, "", "  ")
+		if marshalErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to marshal JSON summary: %v", marshalErr))
+		} else {
+			fmt.Println(string(jsonBytes)) // debug:keep
+		}
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════

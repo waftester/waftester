@@ -276,7 +276,7 @@ func (t *Tester) TestRequestSplitting(ctx context.Context, param string) ([]Test
 			strings.Contains(bodyStr, "X-Injected") {
 			result.Vulnerable = true
 			result.Description = fmt.Sprintf("Request splitting via %s", p.Description)
-			result.Evidence = string(body[:min(200, len(body))])
+			result.Evidence = truncateBytesSafe(body, 200)
 			result.Remediation = "Reject input containing CRLF characters"
 		}
 
@@ -441,7 +441,7 @@ func (t *Tester) TestProxyHeaderInjection(ctx context.Context) ([]TestResult, er
 			if strings.Contains(bodyStr, "admin") || strings.Contains(bodyStr, "internal") {
 				result.Vulnerable = true
 				result.Description = fmt.Sprintf("Access control bypassed via %s", p.Header)
-				result.Evidence = string(body[:min(200, len(body))])
+				result.Evidence = truncateBytesSafe(body, 200)
 			}
 		}
 
@@ -686,4 +686,15 @@ func SummarizeResults(results []TestResult) map[string]int {
 	}
 
 	return summary
+}
+
+// truncateBytesSafe truncates a byte slice to maxBytes without splitting multi-byte UTF-8 runes.
+func truncateBytesSafe(b []byte, maxBytes int) string {
+	if len(b) <= maxBytes {
+		return string(b)
+	}
+	for maxBytes > 0 && maxBytes < len(b) && b[maxBytes]>>6 == 0b10 {
+		maxBytes--
+	}
+	return string(b[:maxBytes])
 }
