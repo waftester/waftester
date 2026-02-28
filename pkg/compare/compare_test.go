@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 // writeTestJSON writes a JSON file to the given path and returns the path.
@@ -994,5 +996,358 @@ func TestStringSlicesEqual(t *testing.T) {
 				t.Errorf("stringSlicesEqual(%v, %v) = %v, want %v", tt.a, tt.b, got, tt.want)
 			}
 		})
+	}
+}
+
+// --- LoadSummary fallback priority tests ---
+
+func TestLoadSummary_TotalVulnsPriorityOverBypass(t *testing.T) {
+	dir := t.TempDir()
+	raw := map[string]interface{}{
+		"target":                "https://priority.example.com",
+		"total_vulnerabilities": 15,
+		"bypass_count":          12,
+	}
+	path := writeTestJSON(t, dir, "priority.json", raw)
+	s, err := LoadSummary(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.TotalVulns != 15 {
+		t.Errorf("TotalVulns = %d, want 15 (total_vulnerabilities wins over bypass_count)", s.TotalVulns)
+	}
+}
+
+func TestLoadSummary_BypassPriorityOverStatsFailed(t *testing.T) {
+	dir := t.TempDir()
+	raw := map[string]interface{}{
+		"target":       "https://bypass.example.com",
+		"bypass_count": 12,
+		"stats":        map[string]interface{}{"total_tests": 100, "blocked": 80, "failed": 8},
+	}
+	path := writeTestJSON(t, dir, "bypass.json", raw)
+	s, err := LoadSummary(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.TotalVulns != 12 {
+		t.Errorf("TotalVulns = %d, want 12 (bypass_count wins over stats.failed)", s.TotalVulns)
+	}
+}
+
+func TestLoadSummary_StatsFallbackWhenBypassZero(t *testing.T) {
+	dir := t.TempDir()
+	raw := map[string]interface{}{
+		"target":       "https://stats2.example.com",
+		"bypass_count": 0,
+		"stats":        map[string]interface{}{"total_tests": 100, "blocked": 80, "failed": 20},
+	}
+	path := writeTestJSON(t, dir, "stats2.json", raw)
+	s, err := LoadSummary(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.TotalVulns != 20 {
+		t.Errorf("TotalVulns = %d, want 20 (stats.failed fallback when bypass_count=0)", s.TotalVulns)
+	}
+}
+
+func TestLoadSummary_BySeverityPriorityOverBreakdown(t *testing.T) {
+	dir := t.TempDir()
+	raw := map[string]interface{}{
+		"target":             "https://sev.example.com",
+		"by_severity":        map[string]int{"high": 5, "medium": 3},
+		"severity_breakdown": map[string]int{"critical": 10},
+	}
+	path := writeTestJSON(t, dir, "sev.json", raw)
+	s, err := LoadSummary(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.BySeverity) != 2 {
+		t.Errorf("BySeverity has %d entries, want 2 (by_severity wins over severity_breakdown)", len(s.BySeverity))
+	}
+	if s.BySeverity["high"] != 5 {
+		t.Errorf("BySeverity[high] = %d, want 5", s.BySeverity["high"])
+	}
+}
+
+func TestLoadSummary_StartTimePriorityOverTimestamp(t *testing.T) {
+	dir := t.TempDir()
+	raw := map[string]interface{}{
+		"target":     "https://time.example.com",
+		"start_time": "2026-02-28T10:00:00Z",
+		"timestamp":  "2026-01-01T00:00:00Z",
+	}
+	path := writeTestJSON(t, dir, "time.json", raw)
+	s, err := LoadSummary(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.StartTime.Month() != 2 || s.StartTime.Day() != 28 {
+		t.Errorf("StartTime = %v, want Feb 28 (start_time wins over timestamp)", s.StartTime)
+	}
+}
+
+func TestLoadSummary_BypassFallbackWhenTotalZero(t *testing.T) {
+	dir := t.TempDir()
+	raw := map[string]interface{}{
+		"target":                "https://zero.example.com",
+		"total_vulnerabilities": 0,
+		"bypass_count":          12,
+	}
+	path := writeTestJSON(t, dir, "zero.json", raw)
+	s, err := LoadSummary(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.TotalVulns != 12 {
+		t.Errorf("TotalVulns = %d, want 12 (bypass_count fallback when total is 0)", s.TotalVulns)
+	}
+}
+
+// --- parseDuration edge case tests ---
+
+func TestParseDuration_NegativeNanoseconds(t *testing.T) {
+	raw := json.RawMessage(`-5000000000`)
+	d := parseDuration(raw, nil)
+	if d != -5*time.Second {
+		t.Errorf("parseDuration(-5000000000) = %v, want -5s", d)
+	}
+}
+
+func TestParseDuration_InvalidString(t *testing.T) {
+	raw := json.RawMessage(`"not-a-duration"`)
+	d := parseDuration(raw, nil)
+	if d != 0 {
+		t.Errorf("parseDuration(\"not-a-duration\") = %v, want 0", d)
+	}
+}
+
+func TestParseDuration_NegativeDurationSeconds(t *testing.T) {
+	neg := -10.5
+	d := parseDuration(nil, &neg)
+	if d != 0 {
+		t.Errorf("parseDuration(nil, -10.5) = %v, want 0 (negative seconds rejected)", d)
+	}
+}
+
+func TestParseDuration_DurationWinsOverDurationSeconds(t *testing.T) {
+	raw := json.RawMessage(`5000000000`) // 5 seconds in nanoseconds
+	sec := 45.5
+	d := parseDuration(raw, &sec)
+	if d.Seconds() < 4.9 || d.Seconds() > 5.1 {
+		t.Errorf("parseDuration(5s_ns, 45.5) = %v, want ~5s (duration wins over duration_seconds)", d)
+	}
+}
+
+// --- computeWeightedScore edge cases ---
+
+func TestComputeWeightedScore_CaseInsensitive(t *testing.T) {
+	sev := map[string]int{
+		"Critical": 1,
+		"HIGH":     2,
+		"Medium":   3,
+	}
+	// 1*10 + 2*5 + 3*2 = 10+10+6 = 26
+	got := computeWeightedScore(sev)
+	if got != 26 {
+		t.Errorf("computeWeightedScore = %d, want 26 (case-insensitive matching)", got)
+	}
+}
+
+func TestComputeWeightedScore_EmptyMap(t *testing.T) {
+	got := computeWeightedScore(map[string]int{})
+	if got != 0 {
+		t.Errorf("computeWeightedScore({}) = %d, want 0", got)
+	}
+}
+
+// --- findNew bug fix: zero count treated as absent ---
+
+func TestCompare_CategoryZeroToPositiveIsNew(t *testing.T) {
+	before := &ScanSummary{
+		TotalVulns: 5,
+		ByCategory: map[string]int{"xss": 5, "sqli": 0},
+	}
+	after := &ScanSummary{
+		TotalVulns: 10,
+		ByCategory: map[string]int{"xss": 5, "sqli": 5},
+	}
+	r := Compare(before, after)
+	// sqli went from 0→5, which is a new category appearing
+	if len(r.NewCategories) != 1 || r.NewCategories[0] != "sqli" {
+		t.Errorf("NewCategories = %v, want [sqli] (0→5 is a new category)", r.NewCategories)
+	}
+}
+
+func TestCompare_CategoryPositiveToZeroIsFixed(t *testing.T) {
+	before := &ScanSummary{
+		TotalVulns: 10,
+		ByCategory: map[string]int{"xss": 5, "sqli": 5},
+	}
+	after := &ScanSummary{
+		TotalVulns: 5,
+		ByCategory: map[string]int{"xss": 5, "sqli": 0},
+	}
+	r := Compare(before, after)
+	// sqli went from 5→0, which is a fixed category
+	if len(r.FixedCategories) != 1 || r.FixedCategories[0] != "sqli" {
+		t.Errorf("FixedCategories = %v, want [sqli] (5→0 is a fixed category)", r.FixedCategories)
+	}
+}
+
+// --- WAFChanged primary path vs fallback ---
+
+func TestCompare_WAFChangedVendorsVsNilVendors(t *testing.T) {
+	before := &ScanSummary{
+		TotalVulns: 5,
+		WAFVendor:  "Cloudflare",
+		WAFVendors: []string{"Cloudflare"},
+	}
+	after := &ScanSummary{
+		TotalVulns: 5,
+		WAFVendor:  "Cloudflare",
+		// WAFVendors is nil — stringSlicesEqual(["Cloudflare"], nil) = false
+	}
+	r := Compare(before, after)
+	if !r.WAFChanged {
+		t.Error("WAFChanged should be true: one has WAFVendors populated, other has nil")
+	}
+}
+
+func TestCompare_WAFChangedFallbackBothEmpty(t *testing.T) {
+	// Both WAFVendors empty → falls back to WAFVendor string comparison
+	before := &ScanSummary{
+		TotalVulns: 5,
+		WAFVendor:  "Cloudflare",
+	}
+	after := &ScanSummary{
+		TotalVulns: 5,
+		WAFVendor:  "AWS WAF",
+	}
+	r := Compare(before, after)
+	if !r.WAFChanged {
+		t.Error("WAFChanged should be true: different WAFVendor strings via fallback")
+	}
+}
+
+// --- VulnDelta vs WeightedDelta priority ---
+
+func TestCompare_VulnDeltaImprovedWinsOverWeightedRegressed(t *testing.T) {
+	// VulnDelta < 0 (fewer total) but WeightedDelta > 0 (higher severity)
+	before := &ScanSummary{
+		TotalVulns: 20,
+		BySeverity: map[string]int{"low": 20},
+	}
+	after := &ScanSummary{
+		TotalVulns: 5,
+		BySeverity: map[string]int{"critical": 5},
+	}
+	r := Compare(before, after)
+	// VulnDelta = 5 - 20 = -15 → improved
+	// WeightedDelta = 50 - 20 = +30 → regressed by weight
+	// VulnDelta should win
+	if r.Verdict != "improved" {
+		t.Errorf("Verdict = %q, want %q (VulnDelta wins over WeightedDelta)", r.Verdict, "improved")
+	}
+	if r.VulnDelta != -15 {
+		t.Errorf("VulnDelta = %d, want -15", r.VulnDelta)
+	}
+	if r.WeightedDelta != 30 {
+		t.Errorf("WeightedDelta = %d, want 30", r.WeightedDelta)
+	}
+}
+
+func TestCompare_VulnDeltaRegressedWinsOverWeightedImproved(t *testing.T) {
+	// VulnDelta > 0 (more total) but WeightedDelta < 0 (lower severity)
+	before := &ScanSummary{
+		TotalVulns: 5,
+		BySeverity: map[string]int{"critical": 5},
+	}
+	after := &ScanSummary{
+		TotalVulns: 20,
+		BySeverity: map[string]int{"low": 20},
+	}
+	r := Compare(before, after)
+	// VulnDelta = 20 - 5 = +15 → regressed
+	// WeightedDelta = 20 - 50 = -30 → improved by weight
+	// VulnDelta should win
+	if r.Verdict != "regressed" {
+		t.Errorf("Verdict = %q, want %q (VulnDelta wins over WeightedDelta)", r.Verdict, "regressed")
+	}
+}
+
+// --- Concurrent safety ---
+
+func TestCompare_ConcurrentSafe(t *testing.T) {
+	before := &ScanSummary{
+		TotalVulns: 10,
+		BySeverity: map[string]int{"high": 5, "medium": 5},
+		ByCategory: map[string]int{"sqli": 5, "xss": 5},
+		WAFVendor:  "Cloudflare",
+		WAFVendors: []string{"Cloudflare"},
+	}
+	after := &ScanSummary{
+		TotalVulns: 5,
+		BySeverity: map[string]int{"high": 3, "medium": 2},
+		ByCategory: map[string]int{"sqli": 3, "xss": 2},
+		WAFVendor:  "AWS",
+		WAFVendors: []string{"AWS"},
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			r := Compare(before, after)
+			if r.Verdict != "improved" {
+				t.Errorf("Verdict = %q, want %q", r.Verdict, "improved")
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+// --- extractWAFVendors edge cases ---
+
+func TestExtractWAFVendors_EmptyWAFsArrayFallsBackToVendor(t *testing.T) {
+	dir := t.TempDir()
+	raw := map[string]interface{}{
+		"target": "https://fallback.example.com",
+		"waf_detect": map[string]interface{}{
+			"vendor": "Cloudflare",
+			"wafs":   []map[string]interface{}{}, // empty array
+		},
+	}
+	path := writeTestJSON(t, dir, "fallback_waf.json", raw)
+	s, err := LoadSummary(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.WAFVendor != "Cloudflare" {
+		t.Errorf("WAFVendor = %q, want %q (legacy vendor fallback from empty wafs)", s.WAFVendor, "Cloudflare")
+	}
+}
+
+func TestExtractWAFVendors_EmptyVendorString(t *testing.T) {
+	dir := t.TempDir()
+	raw := map[string]interface{}{
+		"target": "https://empty.example.com",
+		"waf_detect": map[string]interface{}{
+			"vendor": "",
+		},
+	}
+	path := writeTestJSON(t, dir, "empty_vendor.json", raw)
+	s, err := LoadSummary(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.WAFVendor != "" {
+		t.Errorf("WAFVendor = %q, want empty (empty vendor string filtered out)", s.WAFVendor)
+	}
+	if len(s.WAFVendors) != 0 {
+		t.Errorf("WAFVendors = %v, want empty", s.WAFVendors)
 	}
 }
