@@ -462,7 +462,7 @@ func (e *Executor) executeTask(ctx context.Context, task MutationTask) *TestResu
 		}
 		// First 200 chars of response
 		if len(bodyBytes) > 200 {
-			result.ResponseSnippet = string(bodyBytes[:200])
+			result.ResponseSnippet = string([]rune(string(bodyBytes[:300]))[:200])
 		} else {
 			result.ResponseSnippet = string(bodyBytes)
 		}

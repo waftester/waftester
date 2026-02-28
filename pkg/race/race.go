@@ -378,8 +378,8 @@ func AnalyzeResponses(responses []*Response) *RaceAnalysis {
 
 		// Hash or truncate body for comparison
 		bodyKey := r.Body
-		if len(bodyKey) > 500 {
-			bodyKey = bodyKey[:500]
+		if len([]rune(bodyKey)) > 500 {
+			bodyKey = string([]rune(bodyKey)[:500])
 		}
 		uniqueBodies[bodyKey]++
 	}
