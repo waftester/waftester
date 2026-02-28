@@ -300,7 +300,10 @@ sendLoop2:
 	}
 	// Sort by count descending using efficient O(n log n) sort
 	sort.Slice(errList, func(i, j int) bool {
-		return errList[i].count > errList[j].count
+		if errList[i].count != errList[j].count {
+			return errList[i].count > errList[j].count
+		}
+		return errList[i].msg < errList[j].msg
 	})
 	// Take top 5
 	for i := 0; i < len(errList) && i < 5; i++ {

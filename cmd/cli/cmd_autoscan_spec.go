@@ -55,7 +55,7 @@ func runSpecPipeline(cfg specPipelineConfig) {
 
 	if cfg.timeout > 0 {
 		var tCancel context.CancelFunc
-		ctx, tCancel = context.WithTimeout(ctx, time.Duration(cfg.timeout)*time.Minute)
+		ctx, tCancel = context.WithTimeout(ctx, time.Duration(cfg.timeout)*time.Second)
 		defer tCancel()
 	}
 

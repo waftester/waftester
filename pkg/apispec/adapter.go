@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -299,7 +300,13 @@ func parseOpenAPI3(data []byte, source string) (*Spec, error) {
 
 	// Extract security schemes
 	if oaSpec.Components != nil && oaSpec.Components.SecuritySchemes != nil {
-		for name, ss := range oaSpec.Components.SecuritySchemes {
+		schemeNames := make([]string, 0, len(oaSpec.Components.SecuritySchemes))
+		for name := range oaSpec.Components.SecuritySchemes {
+			schemeNames = append(schemeNames, name)
+		}
+		sort.Strings(schemeNames)
+		for _, name := range schemeNames {
+			ss := oaSpec.Components.SecuritySchemes[name]
 			spec.AuthSchemes = append(spec.AuthSchemes, convertOA3SecurityScheme(name, ss))
 		}
 	}
@@ -313,9 +320,12 @@ func parseOpenAPI3(data []byte, source string) (*Spec, error) {
 		// Apply spec-level security as defaults for operations without their own.
 		if len(ep.Auth) == 0 && len(oaSpec.Security) > 0 {
 			for _, secReq := range oaSpec.Security {
+				names := make([]string, 0, len(secReq))
 				for schemeName := range secReq {
-					ep.Auth = append(ep.Auth, schemeName)
+					names = append(names, schemeName)
 				}
+				sort.Strings(names)
+				ep.Auth = append(ep.Auth, names...)
 			}
 		}
 
@@ -336,8 +346,13 @@ func parseOpenAPI3(data []byte, source string) (*Spec, error) {
 		}
 	}
 
-	// Build groups from tags
+	// Build groups from tags (sorted for deterministic output).
+	tags := make([]string, 0, len(tagSet))
 	for tag := range tagSet {
+		tags = append(tags, tag)
+	}
+	sort.Strings(tags)
+	for _, tag := range tags {
 		spec.Groups = append(spec.Groups, Group{Name: tag})
 	}
 

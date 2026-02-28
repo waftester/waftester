@@ -218,6 +218,9 @@ func ExecuteCrossEndpointTests(ctx context.Context, tests []CrossEndpointTest, c
 	hasDualAuth := cfg.AuthTokenA != "" && cfg.AuthTokenB != ""
 
 	for _, test := range tests {
+		if err := ctx.Err(); err != nil {
+			break
+		}
 		if test.RequiresDualAuth && !hasDualAuth {
 			results = append(results, CrossEndpointResult{
 				Test:  test,

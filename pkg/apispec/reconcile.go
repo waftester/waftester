@@ -65,7 +65,8 @@ func Reconcile(spec *Spec, disc *discovery.DiscoveryResult, livenessCheck bool) 
 	}
 
 	// Attach discovery metadata.
-	result.Technologies = disc.Technologies
+	result.Technologies = make([]string, len(disc.Technologies))
+	copy(result.Technologies, disc.Technologies)
 	result.WAFDetected = disc.WAFDetected
 	result.WAFFingerprint = disc.WAFFingerprint
 

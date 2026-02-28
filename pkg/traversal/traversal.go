@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -152,13 +153,16 @@ func NewTester(config *TesterConfig) *Tester {
 	}
 }
 
-// GetPayloads returns traversal payloads for the specified platform (cached)
+// GetPayloads returns traversal payloads for the specified platform (cached).
+// Returns a defensive copy to prevent callers from mutating the cache.
 func (t *Tester) GetPayloads(platform Platform) []Payload {
 	// Check cache first
 	t.cacheMu.RLock()
 	if cached, ok := t.payloadCache[platform]; ok {
 		t.cacheMu.RUnlock()
-		return cached
+		cp := make([]Payload, len(cached))
+		copy(cp, cached)
+		return cp
 	}
 	t.cacheMu.RUnlock()
 
@@ -506,9 +510,14 @@ func identifyFile(evidence string) string {
 		"PHP source":     "PHP file",
 	}
 
-	for indicator, file := range fileIndicators {
+	indicatorKeys := make([]string, 0, len(fileIndicators))
+	for k := range fileIndicators {
+		indicatorKeys = append(indicatorKeys, k)
+	}
+	sort.Strings(indicatorKeys)
+	for _, indicator := range indicatorKeys {
 		if strings.Contains(strings.ToLower(evidence), strings.ToLower(indicator)) {
-			return file
+			return fileIndicators[indicator]
 		}
 	}
 

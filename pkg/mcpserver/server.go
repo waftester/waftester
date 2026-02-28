@@ -688,6 +688,11 @@ func isCloudMetadataHost(host string) bool {
 		}
 	}
 
+	// Block "0" which some OSes resolve to localhost/0.0.0.0.
+	if host == "0" || host == "0.0.0.0" {
+		return true
+	}
+
 	// Check known metadata IP/hostname entries
 	switch host {
 	case "169.254.169.254", // AWS, GCP, Azure IMDS

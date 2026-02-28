@@ -9,6 +9,7 @@ package dispatcher
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"sync"
@@ -176,11 +177,14 @@ func (d *Dispatcher) Flush() error {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
+	var errs []error
 	for _, w := range d.writers {
-		_ = w.Flush()
+		if err := w.Flush(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
 // Close flushes and closes all writers, and waits for async hooks to complete.
@@ -196,18 +200,25 @@ func (d *Dispatcher) Close() error {
 	d.mu.Lock()
 	d.hookWg.Wait()
 
+	var errs []error
 	for _, w := range d.writers {
-		_ = w.Flush()
-		_ = w.Close()
+		if err := w.Flush(); err != nil {
+			errs = append(errs, err)
+		}
+		if err := w.Close(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	// Close hooks that hold resources (e.g., OTel tracer, Prometheus HTTP server).
 	for _, h := range d.hooks {
 		if closer, ok := h.(io.Closer); ok {
-			_ = closer.Close()
+			if err := closer.Close(); err != nil {
+				errs = append(errs, err)
+			}
 		}
 	}
 	d.mu.Unlock()
 
-	return nil
+	return errors.Join(errs...)
 }

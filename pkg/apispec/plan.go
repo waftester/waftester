@@ -1,6 +1,7 @@
 package apispec
 
 import (
+	"sort"
 	"strings"
 	"time"
 )
@@ -100,7 +101,12 @@ func injectableTargets(ep Endpoint) []InjectionTarget {
 		})
 	}
 
+	contentTypes := make([]string, 0, len(ep.RequestBodies))
 	for ct := range ep.RequestBodies {
+		contentTypes = append(contentTypes, ct)
+	}
+	sort.Strings(contentTypes)
+	for _, ct := range contentTypes {
 		targets = append(targets, InjectionTarget{
 			Parameter:   "body",
 			Location:    LocationBody,

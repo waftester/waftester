@@ -153,10 +153,7 @@ func (d *Detector) fileDisclosurePayloads() []*Payload {
 			path:     "C:/Windows/win.ini",
 			patterns: []string{"[extensions]", "[fonts]", "[mci extensions]"},
 		},
-		{
-			path:     "/etc/passwd",
-			patterns: []string{"root:", "nobody:"},
-		},
+
 	}
 
 	// Pre-allocate slice for typical payload count (~40 payloads)

@@ -250,18 +250,18 @@ func (p *HTTPProber) ProbePipeline(ctx context.Context, host string, port int, u
 						break
 					}
 					sizeLine = strings.TrimSpace(sizeLine)
-					if sizeLine == "0" {
-						// Read trailing CRLF
-						reader.ReadString('\n')
-						break
+					// Strip chunk extensions (RFC 7230 sec 4.1.1)
+					if semi := strings.IndexByte(sizeLine, ';'); semi >= 0 {
+						sizeLine = sizeLine[:semi]
 					}
 					var chunkSize int64
 					fmt.Sscanf(sizeLine, "%x", &chunkSize)
-					if chunkSize > 0 {
-						io.CopyN(io.Discard, reader, chunkSize)
+					if chunkSize == 0 {
+						reader.ReadString('\n') // trailing CRLF
+						break
 					}
-					// Read chunk-terminating CRLF
-					reader.ReadString('\n')
+					io.CopyN(io.Discard, reader, chunkSize)
+					reader.ReadString('\n') // chunk-terminating CRLF
 				}
 			}
 		}
@@ -369,14 +369,18 @@ func (p *HTTPProber) ProbeKeepAlive(ctx context.Context, host string, port int, 
 			} else if chunked {
 				// Simple chunked reading
 				for {
-					sizeLine, _ := reader.ReadString('\n')
+					sizeLine, readErr := reader.ReadString('\n')
+					if readErr != nil {
+						break
+					}
 					sizeLine = strings.TrimSpace(sizeLine)
-					size, _ := strconv.ParseInt(sizeLine, 16, 64)
-					if size == 0 {
+					size, parseErr := strconv.ParseInt(sizeLine, 16, 64)
+					if parseErr != nil || size == 0 {
 						reader.ReadString('\n') // trailing CRLF
 						break
 					}
-					io.CopyN(io.Discard, reader, size+2) // +2 for CRLF
+					io.CopyN(io.Discard, reader, size)
+					reader.ReadString('\n') // chunk-terminating CRLF
 				}
 			}
 		}
@@ -410,8 +414,9 @@ func (p *HTTPProber) ProbeMethods(ctx context.Context, host string, port int, us
 
 		resp, err := client.Do(req)
 		if err == nil {
-			defer iohelper.DrainAndClose(resp.Body)
-			if allow := resp.Header.Get("Allow"); allow != "" {
+			allow := resp.Header.Get("Allow")
+			iohelper.DrainAndClose(resp.Body) // Close immediately, not defer
+			if allow != "" {
 				methods := strings.Split(allow, ",")
 				for i := range methods {
 					methods[i] = strings.TrimSpace(methods[i])
@@ -419,6 +424,11 @@ func (p *HTTPProber) ProbeMethods(ctx context.Context, host string, port int, us
 				return methods, nil
 			}
 		}
+	}
+
+	// Check context before falling back to probing each method
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
 
 	// Fall back to probing each method
@@ -566,24 +576,22 @@ func (p *VHostProber) ProbeVHosts(ctx context.Context, targetIP string, port int
 
 // extractTitle extracts title from HTML
 func extractTitle(body []byte) string {
-	html := string(body)
-	lower := strings.ToLower(html)
-	start := strings.Index(lower, "<title>")
+	html := strings.ToLower(string(body))
+	start := strings.Index(html, "<title>")
 	if start == -1 {
 		return ""
 	}
 	start += 7
 
-	end := strings.Index(lower[start:], "</title>")
+	end := strings.Index(html[start:], "</title>")
 	if end == -1 {
 		return ""
 	}
 
-	// Extract from original HTML to preserve casing.
-	// Tag names are ASCII so byte offsets from lower match original.
 	title := strings.TrimSpace(html[start : start+end])
-	if len(title) > 100 {
-		title = title[:100]
+	titleRunes := []rune(title)
+	if len(titleRunes) > 100 {
+		title = string(titleRunes[:100])
 	}
 	return title
 }

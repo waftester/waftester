@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -135,8 +136,8 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 		// The payload IS the body (e.g., JSON like {"message": "' OR '1'='1"})
 		body := strings.NewReader(payload.Payload)
 		origReq := requestpool.GetWithMethod(method)
-		defer requestpool.Put(origReq) // Return original to pool
-		req = origReq.WithContext(ctx) // Create context-aware copy
+		defer requestpool.Put(origReq)      // Return original to pool
+		req = origReq.WithContext(ctx)      // Create context-aware copy
 		req.Header = origReq.Header.Clone() // Break shared header map reference
 		req.URL, err = url.Parse(targetURL)
 		if err == nil {
@@ -149,8 +150,8 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 		// Legacy: For GET or simple payloads, inject in URL parameter
 		targetWithPayload := fmt.Sprintf("%s?test=%s", targetURL, url.QueryEscape(payload.Payload))
 		origReq := requestpool.GetWithMethod(method)
-		defer requestpool.Put(origReq) // Return original to pool
-		req = origReq.WithContext(ctx) // Create context-aware copy
+		defer requestpool.Put(origReq)      // Return original to pool
+		req = origReq.WithContext(ctx)      // Create context-aware copy
 		req.Header = origReq.Header.Clone() // Break shared header map reference
 		req.URL, err = url.Parse(targetWithPayload)
 		if err == nil {
@@ -378,8 +379,8 @@ retryLoop:
 	if payload.Category == "xss" || payload.Category == "XSS" {
 		// Check if key parts of payload are reflected
 		payloadCheck := payload.Payload
-		if len(payloadCheck) > 20 {
-			payloadCheck = payloadCheck[:20] // Check first 20 chars
+		if runeCount := len([]rune(payloadCheck)); runeCount > 20 {
+			payloadCheck = string([]rune(payloadCheck)[:20])
 		}
 		reflected = bytes.Contains(bodyBytes, []byte(payloadCheck))
 	}
@@ -421,7 +422,13 @@ func generateCurlCommand(req *http.Request) string {
 		return ""
 	}
 	cmd := fmt.Sprintf("curl -X %s '%s'", req.Method, req.URL.String())
-	for k, v := range req.Header {
+	keys := make([]string, 0, len(req.Header))
+	for k := range req.Header {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		v := req.Header[k]
 		if len(v) > 0 && k != "User-Agent" {
 			cmd += fmt.Sprintf(" -H '%s: %s'", k, v[0])
 		}
@@ -433,8 +440,8 @@ func generateCurlCommand(req *http.Request) string {
 func captureResponseEvidence(result *output.TestResult, bodyStr string, bodyBytes []byte) {
 	// Capture snippet (first 300 chars, sanitized)
 	snippet := bodyStr
-	if len(snippet) > 300 {
-		snippet = snippet[:300] + "..."
+	if snippetRunes := []rune(snippet); len(snippetRunes) > 300 {
+		snippet = string(snippetRunes[:300]) + "..."
 	}
 	result.ResponseBodySnippet = sanitizeForJSON(snippet)
 

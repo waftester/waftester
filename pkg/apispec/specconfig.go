@@ -177,7 +177,9 @@ func (c *SpecConfig) MatchesGroup(group string, tags []string) bool {
 // FilterEndpoints filters a spec's endpoints based on path and group config.
 func (c *SpecConfig) FilterEndpoints(endpoints []Endpoint) []Endpoint {
 	if c.PathFilter == "" && len(c.Groups) == 0 && len(c.SkipGroups) == 0 {
-		return endpoints
+		result := make([]Endpoint, len(endpoints))
+		copy(result, endpoints)
+		return result
 	}
 
 	var filtered []Endpoint

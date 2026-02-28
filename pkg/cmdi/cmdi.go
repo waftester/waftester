@@ -294,10 +294,13 @@ func (t *Tester) oobPayloads() []*Payload {
 	}
 }
 
-// GetPayloads returns all payloads, optionally filtered by type
+// GetPayloads returns all payloads, optionally filtered by type.
+// Returns a defensive copy to prevent callers from mutating internal state.
 func (t *Tester) GetPayloads(injType InjectionType) []*Payload {
 	if injType == "" {
-		return t.payloads
+		cp := make([]*Payload, len(t.payloads))
+		copy(cp, t.payloads)
+		return cp
 	}
 
 	filtered := make([]*Payload, 0, len(t.payloads))
