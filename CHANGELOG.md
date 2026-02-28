@@ -5,6 +5,31 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.39] - 2026-02-28
+
+### Added
+
+- **`compare` command** — Compare two scan result JSON files to track security posture changes (severity deltas, new/fixed categories, WAF vendor changes, severity-weighted risk scoring, CI exit code 1 on regression)
+- **`-timestamp`/`-ts` flag for `scan`** — Add timestamps to vulnerability output in console mode (already supported in `run` and `fuzz`)
+- **94 compare package tests** — Comprehensive test coverage including multi-format JSON parsing, duration handling, WAF vendor extraction, and adversarial edge cases
+
+### Fixed
+
+- **Type assertion panic in scan timestamp output** — Named severity type (`finding.Severity`) fails `.(string)` assertion; use `fmt.Sprintf` instead
+- **Fuzz timestamp output to wrong stream** — Timestamp output was writing to stderr instead of stdout
+- **`findNew` zero-count category bug** — Categories with count 0 in `before` were incorrectly treated as present; now treat counts <= 0 as absent
+- **Nil request panic in runner** — Return error instead of crashing when `TestCase.Request` is nil
+
+### Changed
+
+- **Discovery test performance** — Parallelize 10 slow discovery tests and reduce HTTP timeouts (27s to 7s)
+
+### Documentation
+
+- **Distribution README accuracy** — Fixed MCP prompt count (10 to 7), command count (36 to 33), removed non-existent "Template" output format, removed `--export-correlations` flag, fixed `--spec-env` to `--env`
+- **COMMANDS.md** — Added `compare` command section, corrected scan format list to include `jsonl`, documented severity-weighted verdicts and CI exit codes
+- **API-SPEC-SCANNING.md** — Documented comparison mode with `compare` command integration
+
 ## [2.9.38] - 2026-02-27
 
 ### Fixed
@@ -2617,6 +2642,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.39]: https://github.com/waftester/waftester/compare/v2.9.38...v2.9.39
 [2.9.38]: https://github.com/waftester/waftester/compare/v2.9.37...v2.9.38
 [2.9.37]: https://github.com/waftester/waftester/compare/v2.9.36...v2.9.37
 [2.9.36]: https://github.com/waftester/waftester/compare/v2.9.35...v2.9.36
