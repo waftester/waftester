@@ -484,7 +484,7 @@ func (d *Detector) sendRawRequest(ctx context.Context, host, port string, useTLS
 
 	// Read response with size limit to prevent memory exhaustion
 	var buf bytes.Buffer
-	_, err = io.Copy(&buf, io.LimitReader(conn, 10*1024*1024)) // 10MB limit
+	_, err = io.Copy(&buf, io.LimitReader(conn, 1024*1024)) // 10MB limit
 	duration := time.Since(start)
 
 	if err != nil && !isTimeout(err) && err != io.EOF {

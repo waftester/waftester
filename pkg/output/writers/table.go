@@ -444,9 +444,7 @@ func (tw *TableWriter) Close() error {
 		tw.renderLegend()
 	}
 
-	if closer, ok := tw.w.(io.Closer); ok {
-		return closer.Close()
-	}
+	// Do not close the underlying writer -- the caller owns its lifecycle
 	return nil
 }
 

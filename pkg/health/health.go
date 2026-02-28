@@ -511,6 +511,8 @@ func NewMonitor(checker *Checker, interval time.Duration) *Monitor {
 
 // SetCallback sets the result callback
 func (m *Monitor) SetCallback(fn func([]*Result)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.onResult = fn
 }
 

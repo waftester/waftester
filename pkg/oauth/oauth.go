@@ -120,11 +120,15 @@ func NewTester(config *TesterConfig, endpoints *OAuthEndpoint, oauthConfig *OAut
 	// httpclient.Default() already does not follow redirects, which is the
 	// correct default for security testing. Only override when FollowRedirect
 	// is explicitly enabled.
-	var client *http.Client
-	if config.FollowRedirect {
-		client = httpclient.New(httpclient.Config{CookieJar: true})
-	} else {
-		client = httpclient.Default()
+	client := config.Client
+	if client == nil {
+		if config.FollowRedirect {
+			cfg := httpclient.DefaultConfig()
+			cfg.CookieJar = true
+			client = httpclient.New(cfg)
+		} else {
+			client = httpclient.Default()
+		}
 	}
 
 	return &Tester{

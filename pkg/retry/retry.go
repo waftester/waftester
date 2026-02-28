@@ -82,8 +82,10 @@ type sleeper interface {
 type realSleeper struct{}
 
 func (realSleeper) sleep(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
 	select {
-	case <-time.After(d):
+	case <-timer.C:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()

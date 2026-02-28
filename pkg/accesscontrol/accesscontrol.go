@@ -180,6 +180,11 @@ func (t *Tester) TestVerticalPrivilegeEscalation(ctx context.Context) ([]TestRes
 
 	// Test admin endpoints with low-privilege token
 	for _, endpoint := range AdminOnlyEndpoints() {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
 		fullURL := t.target + endpoint
 
 		req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)

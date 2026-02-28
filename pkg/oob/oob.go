@@ -247,7 +247,9 @@ func (c *InteractshClient) Poll(ctx context.Context) ([]Interaction, error) {
 func (c *InteractshClient) GetInteractions() []Interaction {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.interactions
+	result := make([]Interaction, len(c.interactions))
+	copy(result, c.interactions)
+	return result
 }
 
 // ClearInteractions removes all collected interactions
@@ -410,7 +412,9 @@ func (d *OOBDetector) CheckInteractions(ctx context.Context) ([]DetectedVulnerab
 func (d *OOBDetector) GetDetectedVulnerabilities() []DetectedVulnerability {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	return d.detectedVulns
+	result := make([]DetectedVulnerability, len(d.detectedVulns))
+	copy(result, d.detectedVulns)
+	return result
 }
 
 // PayloadTemplates provides common OOB payload templates

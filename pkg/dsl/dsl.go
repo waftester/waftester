@@ -295,17 +295,54 @@ func ListPresets() []string {
 // Helper functions
 
 func defaultValue(def, val interface{}) interface{} {
-	if val == nil || val == "" || val == 0 {
+	if val == nil || val == "" {
 		return def
+	}
+	switch v := val.(type) {
+	case int:
+		if v == 0 {
+			return def
+		}
+	case int64:
+		if v == 0 {
+			return def
+		}
+	case float64:
+		if v == 0 {
+			return def
+		}
+	case bool:
+		if !v {
+			return def
+		}
 	}
 	return val
 }
 
 func coalesce(values ...interface{}) interface{} {
 	for _, v := range values {
-		if v != nil && v != "" && v != 0 {
-			return v
+		if v == nil || v == "" {
+			continue
 		}
+		switch tv := v.(type) {
+		case int:
+			if tv == 0 {
+				continue
+			}
+		case int64:
+			if tv == 0 {
+				continue
+			}
+		case float64:
+			if tv == 0 {
+				continue
+			}
+		case bool:
+			if !tv {
+				continue
+			}
+		}
+		return v
 	}
 	return ""
 }

@@ -3,6 +3,7 @@ package plugin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -199,14 +200,14 @@ func (m *Manager) LoadAll() error {
 		return fmt.Errorf("failed to glob plugins: %w", err)
 	}
 
-	var loadErr error
+	var errs []error
 	for _, file := range files {
 		if err := m.LoadPlugin(file); err != nil {
-			loadErr = err // Keep trying other plugins
+			errs = append(errs, err) // Keep trying other plugins
 		}
 	}
 
-	return loadErr
+	return errors.Join(errs...)
 }
 
 // Register registers a built-in scanner
