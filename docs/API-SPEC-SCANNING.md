@@ -171,13 +171,7 @@ X-Correlation-ID: waftester-a3f8c21e-post-users-sqli-body.email-0042
 
 Format: `waftester-{session}-{endpoint}-{attack}-{param}-{seq}`
 
-Export all correlation records:
-
-```bash
-waftester scan --spec openapi.yaml -u https://api.example.com --export-correlations correlations.json
-```
-
-Each record includes: session ID, correlation ID, endpoint tag, attack category, injection point, payload hash (not plaintext), blocked status, and WAF response.
+Each record includes: session ID, correlation ID, endpoint tag, attack category, injection point, payload hash (not plaintext), blocked status, and WAF response. Correlation data appears in JSON and SARIF output formats.
 
 ## Checkpointing and Resume
 

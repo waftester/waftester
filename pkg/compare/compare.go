@@ -357,13 +357,13 @@ func computeDeltas(before, after map[string]int) map[string]int {
 	return deltas
 }
 
-// findNew returns sorted keys present in after (with count > 0) but absent or zero in before.
-// A category with count 0 in before is treated as not present.
+// findNew returns sorted keys present in after (with count > 0) but absent or non-positive in before.
+// A category with count <= 0 in before is treated as not present.
 func findNew(before, after map[string]int) []string {
 	var result []string
 	for k, v := range after {
 		if v > 0 {
-			if bv, exists := before[k]; !exists || bv == 0 {
+			if bv, exists := before[k]; !exists || bv <= 0 {
 				result = append(result, k)
 			}
 		}
