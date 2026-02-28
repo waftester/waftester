@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 )
 
 // testParse marshals v to JSON and parses it via parseSummary, skipping filesystem I/O.
@@ -55,6 +54,9 @@ func TestLoadSummary_FullScanResult(t *testing.T) {
 	}
 	if s.WAFVendor != "Cloudflare" {
 		t.Errorf("WAFVendor = %q, want %q", s.WAFVendor, "Cloudflare")
+	}
+	if len(s.WAFVendors) != 1 || s.WAFVendors[0] != "Cloudflare" {
+		t.Errorf("WAFVendors = %v, want [Cloudflare]", s.WAFVendors)
 	}
 	if len(s.BySeverity) != 4 {
 		t.Errorf("BySeverity has %d entries, want 4", len(s.BySeverity))
@@ -866,9 +868,10 @@ func TestLoadSummary_BypassFallbackWhenTotalZero(t *testing.T) {
 
 func TestParseDuration_NegativeNanoseconds(t *testing.T) {
 	t.Parallel()
+	// Negative durations are nonsensical for scan results — should return 0.
 	d := parseDuration(json.RawMessage(`-5000000000`), nil)
-	if d != -5*time.Second {
-		t.Errorf("parseDuration(-5000000000) = %v, want -5s", d)
+	if d != 0 {
+		t.Errorf("parseDuration(-5000000000) = %v, want 0 (reject negatives)", d)
 	}
 }
 
@@ -894,6 +897,33 @@ func TestParseDuration_DurationWinsOverDurationSeconds(t *testing.T) {
 	d := parseDuration(json.RawMessage(`5000000000`), &sec)
 	if d.Seconds() < 4.9 || d.Seconds() > 5.1 {
 		t.Errorf("parseDuration(5s_ns, 45.5) = %v, want ~5s (duration wins over duration_seconds)", d)
+	}
+}
+
+func TestParseDuration_Float64Nanoseconds(t *testing.T) {
+	t.Parallel()
+	// JavaScript JSON.stringify produces floats for large numbers (e.g., 5000000000.0)
+	d := parseDuration(json.RawMessage(`5000000000.0`), nil)
+	if d.Seconds() < 4.9 || d.Seconds() > 5.1 {
+		t.Errorf("parseDuration(5e9 float) = %v, want ~5s", d)
+	}
+}
+
+func TestParseDuration_Float64SmallValue(t *testing.T) {
+	t.Parallel()
+	// Small float like 45.5 nanoseconds
+	d := parseDuration(json.RawMessage(`45.5`), nil)
+	if d != 45 {
+		t.Errorf("parseDuration(45.5) = %v, want 45ns", d)
+	}
+}
+
+func TestParseDuration_Float64ScientificNotation(t *testing.T) {
+	t.Parallel()
+	// Scientific notation: 1.5e10 = 15 seconds in nanoseconds
+	d := parseDuration(json.RawMessage(`1.5e10`), nil)
+	if d.Seconds() < 14.9 || d.Seconds() > 15.1 {
+		t.Errorf("parseDuration(1.5e10) = %v, want ~15s", d)
 	}
 }
 

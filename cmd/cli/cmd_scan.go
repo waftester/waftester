@@ -709,12 +709,12 @@ func runScan() {
 				if category == "" {
 					category = "unknown"
 				}
-				severity, _ := dataMap["severity"].(string)
-				if severity == "" {
+				severity := fmt.Sprintf("%v", dataMap["severity"])
+				if severity == "" || severity == "<nil>" {
 					severity = "unknown"
 				}
-				vulnType, _ := dataMap["type"].(string)
-				if vulnType == "" {
+				vulnType := fmt.Sprintf("%v", dataMap["type"])
+				if vulnType == "" || vulnType == "<nil>" {
 					vulnType = "detected"
 				}
 				fmt.Fprintf(os.Stderr, "[%s] [%s] %s: %s\n", ts, severity, category, vulnType)

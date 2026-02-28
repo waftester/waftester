@@ -2111,7 +2111,7 @@ waftester update --skip-destructive
 
 Compare two scan result JSON files and show what changed. Reports severity deltas, severity-weighted risk scores, new/fixed vulnerability categories, WAF vendor changes (including multi-WAF environments), and an overall verdict (improved, regressed, or unchanged).
 
-Auto-detects the JSON format: accepts both `scan --json` output and `auto --json` (autoscan summary) output.
+Auto-detects the JSON format: accepts both `scan -format json` output and autoscan workspace `summary.json` output.
 
 **When to use:** After adjusting WAF rules, upgrading WAF vendors, or testing A/B configurations. Compare a baseline scan against a current scan to measure security posture changes.
 
@@ -2401,7 +2401,7 @@ Approximate resource usage by command. Actual numbers vary with target response 
 | `fuzz` | Wordlist-dependent | 50–200 MB | 100k wordlist ≈ 100k requests |
 | `probe` | 1 per target × modules | 50–150 MB | 8 modules × target count |
 | `assess` | 200–1,000 | 100–200 MB | Payload set + false positive corpus |
-| `race` | `-requests` × `-threads` | 20–50 MB | Burst: all threads fire simultaneously |
+| `race` | `-n` × `-c` | 20–50 MB | Burst: all concurrent requests fire simultaneously |
 | `smuggle` | 10–50 per technique | 30–50 MB | Low volume, technique-based |
 | `crawl` | Site-dependent | 100–500 MB | Headless browser adds memory |
 
@@ -2482,7 +2482,7 @@ WAFtester uses standard exit codes for CI/CD integration. Scripts and pipelines 
 |------|---------|
 | 0 | Success — no findings, or all tests passed |
 | 1 | Findings detected, scan errors, or policy violation |
-| 2 | Invalid arguments or configuration error |
+| 2 | Invalid flag syntax (from Go flag parser) |
 
 ### CI/CD usage
 
