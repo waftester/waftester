@@ -150,17 +150,16 @@ Compare scan results against a saved baseline to track regressions:
 
 ```bash
 # Save a baseline
-waftester scan --spec openapi.yaml -u https://api.example.com -o baseline.json
+waftester scan --spec openapi.yaml -u https://api.example.com -format json -o baseline.json
 
-# Compare against baseline
-waftester scan --spec openapi.yaml -u https://api.example.com --compare baseline.json
+# Run a new scan
+waftester scan --spec openapi.yaml -u https://api.example.com -format json -o current.json
+
+# Compare the two results
+waftester compare baseline.json current.json
 ```
 
-The comparison report shows:
-- **New** — findings not in the baseline (potential new vulnerabilities)
-- **Fixed** — baseline findings no longer present (resolved issues)
-- **Regressed** — findings with worse severity than baseline
-- **Unchanged** — findings present in both with same severity
+The comparison report shows severity deltas, new/fixed categories, WAF vendor changes, and a severity-weighted verdict. Exits with code 1 on regression for CI/CD gating.
 
 ## Correlation IDs
 
