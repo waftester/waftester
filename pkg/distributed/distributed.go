@@ -125,7 +125,8 @@ func (c *Coordinator) RegisterNode(node *Node) error {
 	c.nodes[node.ID] = node
 
 	if c.OnNodeJoin != nil {
-		go c.OnNodeJoin(node)
+		nodeCopy := *node
+		go c.OnNodeJoin(&nodeCopy)
 	}
 
 	return nil
@@ -167,6 +168,7 @@ func (c *Coordinator) SubmitTask(task *Task) error {
 	case c.taskQueue <- task:
 		return nil
 	default:
+		delete(c.tasks, task.ID)
 		return fmt.Errorf("task queue full")
 	}
 }
@@ -220,7 +222,7 @@ func (c *Coordinator) CompleteTask(taskID string, result *TaskResult) {
 	task.CompletedAt = &now
 	task.Result = result
 
-	if result.Success {
+	if result != nil && result.Success {
 		task.Status = TaskCompleted
 	} else {
 		task.Status = TaskFailed
@@ -550,9 +552,9 @@ func (w *Worker) fetchAndExecuteTask(ctx context.Context) {
 // Stop gracefully stops the worker
 func (w *Worker) Stop() {
 	w.stopOnce.Do(func() {
+		w.Node.Status = StatusDraining
 		close(w.StopChan)
 	})
-	w.Node.Status = StatusDraining
 }
 
 // API handlers for coordinator HTTP server
@@ -672,8 +674,12 @@ func (c *Coordinator) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 // Start starts the coordinator HTTP server
 func (c *Coordinator) Start(ctx context.Context) error {
 	c.httpServer = &http.Server{
-		Addr:    c.Address,
-		Handler: c,
+		Addr:              c.Address,
+		Handler:           c,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	// Start distributor

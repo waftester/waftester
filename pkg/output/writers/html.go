@@ -397,7 +397,7 @@ func generateRiskChartSVG(counts map[string]int) string {
 		sb.WriteString(fmt.Sprintf(`<rect x="%.1f" y="%.1f" width="16" height="16" fill="%s" rx="2"/>`,
 			legendX, legendY, seg.color))
 		sb.WriteString(fmt.Sprintf(`<text x="%.1f" y="%.1f" class="legend-text">%s: %d (%.1f%%)</text>`,
-			legendX+22, legendY+12, capitalize(seg.name), seg.count, seg.percent))
+			legendX+22, legendY+12, html.EscapeString(capitalize(seg.name)), seg.count, seg.percent))
 		legendY += 28
 	}
 

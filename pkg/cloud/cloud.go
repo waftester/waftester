@@ -708,6 +708,10 @@ func (c *IPRangeChecker) LoadAWSRanges(ctx context.Context) error {
 	}
 	defer iohelper.DrainAndClose(resp.Body)
 
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("cloud: AWS IP ranges returned HTTP %d", resp.StatusCode)
+	}
+
 	var data struct {
 		Prefixes []struct {
 			IPPrefix string `json:"ip_prefix"`

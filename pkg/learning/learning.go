@@ -694,7 +694,9 @@ func buildPayloadURL(basePath string, point InjectPoint, payload string) string 
 		// Replace the segment
 		return strings.Replace(basePath, point.Original, payload, 1)
 	case "body":
-		return fmt.Sprintf(`{"%s": "%s"}`, point.Name, payload)
+		obj := map[string]string{point.Name: payload}
+		data, _ := json.Marshal(obj)
+		return string(data)
 	default:
 		return payload
 	}

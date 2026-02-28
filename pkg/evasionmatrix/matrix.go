@@ -192,12 +192,12 @@ func (m *Matrix) TestsChan() <-chan Test {
 	copy(snapshot, m.tests)
 	m.mu.RUnlock()
 
-	ch := make(chan Test)
+	ch := make(chan Test, len(snapshot))
 	go func() {
+		defer close(ch)
 		for _, test := range snapshot {
 			ch <- test
 		}
-		close(ch)
 	}()
 	return ch
 }
