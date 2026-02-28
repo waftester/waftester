@@ -189,7 +189,7 @@ func printCompareConsole(r *compare.Result, beforePath, afterPath string) {
 		beforeWAF := formatWAFVendors(r.Before)
 		afterWAF := formatWAFVendors(r.After)
 		ui.PrintConfigLine("WAF", beforeWAF+" -> "+afterWAF)
-	} else if r.Before.WAFVendor != "" {
+	} else if r.Before.WAFVendor != "" || len(r.Before.WAFVendors) > 0 {
 		ui.PrintConfigLine("WAF", formatWAFVendors(r.Before)+" (unchanged)")
 	}
 }
