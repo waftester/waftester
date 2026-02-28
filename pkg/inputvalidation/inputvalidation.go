@@ -289,6 +289,11 @@ func (t *Tester) TestTypeJuggling(ctx context.Context, endpoint, param string) (
 	payloads := TypeJugglingPayloads()
 
 	for _, p := range payloads {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
 		fullURL := t.target + endpoint + "?" + url.QueryEscape(param) + "=" + url.QueryEscape(p.Value)
 
 		req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
@@ -340,6 +345,11 @@ func (t *Tester) TestIntegerOverflow(ctx context.Context, endpoint, param string
 	payloads := IntegerOverflowPayloads()
 
 	for _, p := range payloads {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
 		fullURL := t.target + endpoint + "?" + url.QueryEscape(param) + "=" + url.QueryEscape(p.Value)
 
 		req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
@@ -389,6 +399,11 @@ func (t *Tester) TestFormatString(ctx context.Context, endpoint, param string) (
 	payloads := FormatStringPayloads()
 
 	for _, payload := range payloads {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
 		fullURL := t.target + endpoint + "?" + url.QueryEscape(param) + "=" + url.QueryEscape(payload)
 
 		req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
@@ -439,6 +454,11 @@ func (t *Tester) TestNullByte(ctx context.Context, endpoint, param string) ([]Te
 	payloads := NullBytePayloads()
 
 	for _, payload := range payloads {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
 		fullURL := t.target + endpoint + "?" + param + "=" + url.QueryEscape(payload)
 
 		req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
@@ -487,6 +507,11 @@ func (t *Tester) TestUnicodeBypass(ctx context.Context, endpoint, param string) 
 	payloads := UnicodeBypassPayloads()
 
 	for _, p := range payloads {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
 		fullURL := t.target + endpoint + "?" + param + "=" + url.QueryEscape(p.Payload)
 
 		req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
@@ -535,6 +560,9 @@ func (t *Tester) TestEncodingBypass(ctx context.Context, endpoint, param string)
 	payloads := EncodingBypassPayloads()
 
 	for _, p := range payloads {
+		if ctx.Err() != nil {
+			return results, ctx.Err()
+		}
 		fullURL := t.target + endpoint + "?" + param + "=" + url.QueryEscape(p.Payload)
 
 		req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)

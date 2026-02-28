@@ -133,7 +133,11 @@ func runCloud() {
 
 	// Output results
 	if *outputFile != "" {
-		data, _ := json.MarshalIndent(results, "", "  ")
+		data, marshalErr := json.MarshalIndent(results, "", "  ")
+		if marshalErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to marshal results: %v", marshalErr))
+			os.Exit(1)
+		}
 		if err := os.WriteFile(*outputFile, data, 0644); err != nil {
 			ui.PrintError(fmt.Sprintf("Failed to write output: %v", err))
 		} else {
@@ -142,7 +146,11 @@ func runCloud() {
 	}
 
 	if *jsonOutput {
-		data, _ := json.MarshalIndent(results, "", "  ")
+		data, marshalErr := json.MarshalIndent(results, "", "  ")
+		if marshalErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to marshal results: %v", marshalErr))
+			os.Exit(1)
+		}
 		fmt.Println(string(data))
 		return
 	}

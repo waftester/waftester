@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 
@@ -482,7 +483,14 @@ func (d *Discoverer) parseOpenAPISpec(ctx context.Context, specPath string) []En
 		return endpoints
 	}
 
-	for path, methods := range paths {
+	pathKeys := make([]string, 0, len(paths))
+	for p := range paths {
+		pathKeys = append(pathKeys, p)
+	}
+	sort.Strings(pathKeys)
+
+	for _, path := range pathKeys {
+		methods := paths[path]
 		methodMap, ok := methods.(map[string]interface{})
 		if !ok {
 			continue
@@ -492,7 +500,14 @@ func (d *Discoverer) parseOpenAPISpec(ctx context.Context, specPath string) []En
 		// Normalize path - replace {param} with placeholder
 		fullPath = regexcache.MustGet(`\{[^}]+\}`).ReplaceAllString(fullPath, "1")
 
-		for method, details := range methodMap {
+		methodKeys := make([]string, 0, len(methodMap))
+		for m := range methodMap {
+			methodKeys = append(methodKeys, m)
+		}
+		sort.Strings(methodKeys)
+
+		for _, method := range methodKeys {
+			details := methodMap[method]
 			method = strings.ToUpper(method)
 			if method == "PARAMETERS" || method == "SERVERS" {
 				continue // Skip non-HTTP method keys

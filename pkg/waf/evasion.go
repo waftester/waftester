@@ -560,21 +560,24 @@ func (e *Evasion) initTechniques() {
 			Description: "Split payload into chunks",
 			Category:    "chunking",
 			Transform: func(payload string) []string {
-				if len(payload) < 4 {
+				runes := []rune(payload)
+				if len(runes) < 4 {
 					return []string{payload}
 				}
 
 				results := make([]string, 0, 3)
 
-				// Split with concat
-				mid := len(payload) / 2
-				results = append(results, payload[:mid]+"'+'"+payload[mid:])
+				// Split at rune boundary to preserve multi-byte characters
+				mid := len(runes) / 2
+				left := string(runes[:mid])
+				right := string(runes[mid:])
+				results = append(results, left+"'+'"+right)
 
 				// Split with comments (SQL)
-				results = append(results, payload[:mid]+"/*split*/"+payload[mid:])
+				results = append(results, left+"/*split*/"+right)
 
 				// String concat
-				results = append(results, "concat('"+payload[:mid]+"','"+payload[mid:]+"')")
+				results = append(results, "concat('"+left+"','"+right+"')")
 
 				return results
 			},
