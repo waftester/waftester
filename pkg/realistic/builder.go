@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -252,8 +253,13 @@ func (b *Builder) buildCookieRequest(targetURL, payload string, template *Reques
 	}
 
 	// Add legitimate cookies
-	for name, value := range template.Cookies {
-		req.AddCookie(&http.Cookie{Name: name, Value: value})
+	cookieNames := make([]string, 0, len(template.Cookies))
+	for name := range template.Cookies {
+		cookieNames = append(cookieNames, name)
+	}
+	sort.Strings(cookieNames)
+	for _, name := range cookieNames {
+		req.AddCookie(&http.Cookie{Name: name, Value: template.Cookies[name]})
 	}
 
 	// Add payload cookie
@@ -381,8 +387,13 @@ func (b *Builder) addRealisticHeaders(req *http.Request, template *RequestTempla
 	}
 
 	// Add cookies
-	for name, value := range template.Cookies {
-		req.AddCookie(&http.Cookie{Name: name, Value: value})
+	cookieNames2 := make([]string, 0, len(template.Cookies))
+	for name := range template.Cookies {
+		cookieNames2 = append(cookieNames2, name)
+	}
+	sort.Strings(cookieNames2)
+	for _, name := range cookieNames2 {
+		req.AddCookie(&http.Cookie{Name: name, Value: template.Cookies[name]})
 	}
 
 	// Add session if configured

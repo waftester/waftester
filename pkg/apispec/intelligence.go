@@ -125,7 +125,13 @@ func BuildIntelligentPlan(spec *Spec, opts IntelligenceOptions) *ScanPlan {
 		targets := injectableTargets(*ep)
 
 		// Create plan entries.
-		for _, sel := range selections {
+		selKeys := make([]string, 0, len(selections))
+		for k := range selections {
+			selKeys = append(selKeys, k)
+		}
+		sort.Strings(selKeys)
+		for _, selKey := range selKeys {
+			sel := selections[selKey]
 			count := estimatePayloads(sel.Category, intensity)
 			sel.PayloadCount = count
 

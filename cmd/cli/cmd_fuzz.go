@@ -763,6 +763,9 @@ func runFuzz() {
 			})
 		}
 		w.Flush()
+		if err := w.Error(); err != nil {
+			ui.PrintWarning(fmt.Sprintf("CSV write error: %v", err))
+		}
 		return
 	}
 

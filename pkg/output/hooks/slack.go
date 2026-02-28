@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
@@ -307,7 +308,7 @@ func capitalize(s string) string {
 	// Get first rune and uppercase it safely
 	for i, r := range s {
 		if i == 0 {
-			return string(unicode.ToUpper(r)) + s[1:]
+			return string(unicode.ToUpper(r)) + s[utf8.RuneLen(r):]
 		}
 	}
 	return s

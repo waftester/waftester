@@ -505,7 +505,7 @@ func generateTopRecommendations(results []*events.ResultEvent, severityCounts ma
 	var worstCat string
 	var worstCount int
 	for cat, count := range categoryBypasses {
-		if count > worstCount {
+		if count > worstCount || (count == worstCount && cat < worstCat) {
 			worstCat = cat
 			worstCount = count
 		}
@@ -635,8 +635,12 @@ func (hw *HTMLWriter) prepareTemplateData() *templateData {
 		}
 
 		if hw.config.IncludeJSON {
-			jsonBytes, _ := jsonutil.MarshalIndent(r, "", "  ")
-			finding.JSONData = html.EscapeString(string(jsonBytes))
+			jsonBytes, jsonErr := jsonutil.MarshalIndent(r, "", "  ")
+			if jsonErr != nil {
+				finding.JSONData = html.EscapeString(fmt.Sprintf("(JSON serialization error: %v)", jsonErr))
+			} else {
+				finding.JSONData = html.EscapeString(string(jsonBytes))
+			}
 		}
 
 		data.Findings = append(data.Findings, finding)

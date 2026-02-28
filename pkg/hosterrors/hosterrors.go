@@ -118,6 +118,17 @@ func (c *Cache) MarkPermanent(host string) {
 		return
 	}
 
+	// Update existing state in-place to avoid racing with MarkError
+	if v, ok := c.hosts.Load(host); ok {
+		if existing, _ := v.(*hostState); existing != nil {
+			existing.mu.Lock()
+			existing.count = c.maxErrors
+			existing.markedAt = time.Now()
+			existing.permanent = true
+			existing.mu.Unlock()
+			return
+		}
+	}
 	c.hosts.Store(host, &hostState{
 		count:     c.maxErrors,
 		markedAt:  time.Now(),
@@ -279,7 +290,18 @@ func IsNetworkError(err error) bool {
 	// Check for specific network errors
 	var netErr net.Error
 	if isNetErr := errorAs(err, &netErr); isNetErr {
-		return netErr.Timeout() || !netErr.Temporary()
+		if netErr.Timeout() {
+		return true
+	}
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		return true
+	}
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return true
+	}
+	return false
 	}
 
 	// Check error message for common network failures
