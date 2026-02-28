@@ -383,19 +383,17 @@ func (d *Detector) getBaselineBody(ctx context.Context, targetURL *url.URL, para
 
 // FingerprintEngine attempts to identify the template engine being used
 func (d *Detector) FingerprintEngine(ctx context.Context, targetURL string, parameter string) (TemplateEngine, error) {
-	// Use fingerprinting payloads that have unique outputs per engine
-	fingerprints := map[string]TemplateEngine{
-		// Jinja2/Twig specific
-		"{{7*'7'}}": EngineJinja2, // Returns "7777777" in Jinja2, error in Twig
-
-		// Twig specific
-		"{{_self.env.registerUndefinedFilterCallback('id')}}": EngineTwig,
-
-		// Smarty specific
-		"{$smarty.version}": EngineSmarty,
-
-		// Freemarker specific
-		"${.data_model}": EngineFreemarker,
+	// Use fingerprinting payloads that have unique outputs per engine.
+	// Use a slice for deterministic iteration order.
+	type fingerprint struct {
+		payload string
+		engine  TemplateEngine
+	}
+	fingerprints := []fingerprint{
+		{"{{7*'7'}}", EngineJinja2}, // Returns "7777777" in Jinja2, error in Twig
+		{"{{_self.env.registerUndefinedFilterCallback('id')}}", EngineTwig},
+		{"{$smarty.version}", EngineSmarty},
+		{"${.data_model}", EngineFreemarker},
 	}
 
 	parsedURL, err := url.Parse(targetURL)
@@ -403,7 +401,8 @@ func (d *Detector) FingerprintEngine(ctx context.Context, targetURL string, para
 		return EngineUnknown, err
 	}
 
-	for payload, engine := range fingerprints {
+	for _, fp := range fingerprints {
+		payload, engine := fp.payload, fp.engine
 		testURL := *parsedURL
 		query := testURL.Query()
 		query.Set(parameter, payload)

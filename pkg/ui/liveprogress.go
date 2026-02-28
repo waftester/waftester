@@ -455,8 +455,8 @@ func (lp *LiveProgress) renderStreaming() {
 		output = strings.ReplaceAll(output, fmt.Sprintf("{metric:%s}", m.Name), fmt.Sprintf("%d", val))
 	}
 
-	// Streaming mode writes to stderr to keep stdout clean for JSON/data output
-	fmt.Fprintln(os.Stderr, output)
+	// Streaming mode writes to the configured writer (default: stderr)
+	fmt.Fprintln(lp.config.Writer, output)
 }
 
 // buildProgressBar creates the visual progress bar.

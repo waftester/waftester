@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -453,10 +454,16 @@ var errorPatterns = map[DBMS][]*regexp.Regexp{
 
 // detectDBMS detects the DBMS from error messages
 func detectDBMS(body string) DBMS {
-	for dbms, patterns := range errorPatterns {
+	dbmsNames := make([]DBMS, 0, len(errorPatterns))
+	for dbms := range errorPatterns {
+		dbmsNames = append(dbmsNames, dbms)
+	}
+	sort.Slice(dbmsNames, func(i, j int) bool { return dbmsNames[i] < dbmsNames[j] })
+	for _, dbms := range dbmsNames {
 		if dbms == DBMSGeneric {
 			continue
 		}
+		patterns := errorPatterns[dbms]
 		for _, pattern := range patterns {
 			if pattern.MatchString(body) {
 				return dbms
@@ -476,19 +483,28 @@ func containsError(body string) (bool, string) {
 		return false, ""
 	}
 
-	for _, patterns := range errorPatterns {
+	dbmsNames := make([]DBMS, 0, len(errorPatterns))
+	for dbms := range errorPatterns {
+		dbmsNames = append(dbmsNames, dbms)
+	}
+	sort.Slice(dbmsNames, func(i, j int) bool { return dbmsNames[i] < dbmsNames[j] })
+	for _, dbms := range dbmsNames {
+		patterns := errorPatterns[dbms]
 		for _, pattern := range patterns {
 			if loc := pattern.FindStringIndex(body); loc != nil {
-				// Extract context around the match
-				start := loc[0] - 50
+				// Extract context around the match (rune-safe slicing)
+				runes := []rune(body)
+				runeStart := len([]rune(body[:loc[0]]))
+				runeEnd := len([]rune(body[:loc[1]]))
+				start := runeStart - 50
 				if start < 0 {
 					start = 0
 				}
-				end := loc[1] + 50
-				if end > len(body) {
-					end = len(body)
+				end := runeEnd + 50
+				if end > len(runes) {
+					end = len(runes)
 				}
-				return true, body[start:end]
+				return true, string(runes[start:end])
 			}
 		}
 	}

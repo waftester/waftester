@@ -226,17 +226,20 @@ func checkReflection(body, injectedValue string) (bool, string) {
 
 	// Direct check
 	if strings.Contains(body, injectedValue) {
-		// Find context
+		// Find context (rune-safe slicing to avoid splitting multi-byte chars)
 		idx := strings.Index(body, injectedValue)
-		start := idx - 50
+		runes := []rune(body)
+		runeIdx := len([]rune(body[:idx]))
+		runeValLen := len([]rune(injectedValue))
+		start := runeIdx - 50
 		if start < 0 {
 			start = 0
 		}
-		end := idx + len(injectedValue) + 50
-		if end > len(body) {
-			end = len(body)
+		end := runeIdx + runeValLen + 50
+		if end > len(runes) {
+			end = len(runes)
 		}
-		return true, body[start:end]
+		return true, string(runes[start:end])
 	}
 
 	return false, ""

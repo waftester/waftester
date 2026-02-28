@@ -145,9 +145,14 @@ var FieldPatterns = map[string]string{
 
 // NewFormFiller creates a new form filler with optional custom values
 func NewFormFiller(customValues map[string]string) *FormFiller {
+	// Defensive copy of global FieldPatterns to prevent mutation via LoadFormConfig
+	patternsCopy := make(map[string]string, len(FieldPatterns))
+	for k, v := range FieldPatterns {
+		patternsCopy[k] = v
+	}
 	filler := &FormFiller{
 		defaults:    make(map[string]string),
-		patterns:    FieldPatterns,
+		patterns:    patternsCopy,
 		customRules: make(map[string]string),
 	}
 

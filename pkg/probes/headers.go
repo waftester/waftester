@@ -185,7 +185,13 @@ func (e *HeaderExtractor) Extract(resp *http.Response) *SecurityHeaders {
 		"last-modified": true, "accept-ranges": true, "age": true,
 	}
 
+	// Sort header names for deterministic output
+	headerNames := make([]string, 0, len(h))
 	for name := range h {
+		headerNames = append(headerNames, name)
+	}
+	sort.Strings(headerNames)
+	for _, name := range headerNames {
 		lower := strings.ToLower(name)
 		if !standardHeaders[lower] && !isKnownSecurityHeader(lower) {
 			if strings.HasPrefix(lower, "x-") || strings.HasPrefix(lower, "cf-") {
@@ -242,10 +248,18 @@ func parseHSTS(hsts string) (maxAge int, includeSubdomains, preload bool) {
 		if strings.HasPrefix(part, "max-age=") {
 			ageStr := strings.TrimPrefix(part, "max-age=")
 			ageStr = strings.Trim(ageStr, "\"'")
-			// Parse as int
+			// Parse as int with overflow protection.
+			// Cap at MaxInt32 since HSTS max-age is in seconds and
+			// values above ~68 years are nonsensical.
+			const maxHSTS = 1<<31 - 1
 			for _, c := range ageStr {
 				if c >= '0' && c <= '9' {
-					maxAge = maxAge*10 + int(c-'0')
+					next := maxAge*10 + int(c-'0')
+					if next < maxAge || next > maxHSTS { // overflow or unreasonable
+						maxAge = maxHSTS
+						break
+					}
+					maxAge = next
 				} else {
 					break
 				}
@@ -307,10 +321,15 @@ func (e *HeaderExtractor) findMissingHeaders(h *SecurityHeaders) []string {
 func (e *HeaderExtractor) findWeakHeaders(h *SecurityHeaders) []string {
 	var weak []string
 
-	// Check CSP for unsafe directives
+	// Check CSP for unsafe directives (sorted for deterministic output)
 	if csp := h.CSPDirectives; len(csp) > 0 {
-		for directive, values := range csp {
-			for _, v := range values {
+		directives := make([]string, 0, len(csp))
+		for d := range csp {
+			directives = append(directives, d)
+		}
+		sort.Strings(directives)
+		for _, directive := range directives {
+			for _, v := range csp[directive] {
 				if v == "'unsafe-inline'" || v == "'unsafe-eval'" {
 					weak = append(weak, "CSP: "+directive+" uses "+v)
 				}
@@ -447,7 +466,14 @@ func analyzeCSPIssues(directives map[string][]string) []string {
 		"base-uri":   {"*", "data:"},
 	}
 
-	for directive, dangerousVals := range dangerous {
+	// Sort dangerous directive keys for deterministic output
+	dangerousKeys := make([]string, 0, len(dangerous))
+	for k := range dangerous {
+		dangerousKeys = append(dangerousKeys, k)
+	}
+	sort.Strings(dangerousKeys)
+	for _, directive := range dangerousKeys {
+		dangerousVals := dangerous[directive]
 		if vals, ok := directives[directive]; ok {
 			for _, v := range vals {
 				matched := false

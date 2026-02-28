@@ -276,7 +276,10 @@ func (d *Discoverer) Discover(ctx context.Context) (*DiscoveryResult, error) {
 	fmt.Fprintf(os.Stderr, "\r  [9/9] %s Attack surface analyzed%s\n", ui.Icon("✅", "+"), clearEOL)
 
 	result.Duration = time.Since(start)
-	result.Endpoints = d.endpoints
+	d.mu.Lock()
+	result.Endpoints = make([]Endpoint, len(d.endpoints))
+	copy(result.Endpoints, d.endpoints)
+	d.mu.Unlock()
 	result.Statistics.TotalEndpoints = len(d.endpoints)
 
 	// Populate TotalParameters by counting all parameters across endpoints

@@ -18,6 +18,7 @@ import (
 )
 
 // generateAutoMarkdownReport creates a comprehensive markdown report for auto scan
+// generateAutoMarkdownReport generates a markdown report from autoscan results.
 func generateAutoMarkdownReport(filename, target, domain string, duration time.Duration,
 	discResult *discovery.DiscoveryResult, jsData *js.ExtractedData,
 	testPlan *learning.TestPlan, results output.ExecutionResults, wafEffectiveness float64,
@@ -139,8 +140,9 @@ func generateAutoMarkdownReport(filename, target, domain string, duration time.D
 		for _, secret := range jsData.Secrets {
 			// Redact secret values — show only first 4 chars to confirm identity
 			redacted := "****"
-			if len(secret.Value) >= 4 {
-				redacted = secret.Value[:4] + "****"
+			secretRunes := []rune(secret.Value)
+			if len(secretRunes) >= 4 {
+				redacted = string(secretRunes[:4]) + "****"
 			}
 			sb.WriteString(fmt.Sprintf("| %s | %s | `%s` |\n", secret.Type, secret.Confidence, redacted))
 		}

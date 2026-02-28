@@ -61,9 +61,15 @@ func loggedTool(name string, fn toolHandler) toolHandler {
 // trigger redaction. This is intentionally broad to catch variations like
 // "x_api_key", "my_secret_token", "auth_header", etc.
 var sensitiveSubstrings = []string{
-	"secret", "password", "token", "credential", "key", "license",
-	"auth", "bearer", "jwt", "cookie", "session", "proxy",
-	"access", "private", "signing", "encrypt",
+	"secret", "password", "token", "credential", "license",
+	"auth", "bearer", "jwt", "cookie", "session",
+	"private", "signing", "encrypt",
+	// Use specific patterns to avoid over-redacting benign fields
+	// like "keyboard", "hotkey", "access_level", "accessibility".
+	"api_key", "apikey", "api-key",
+	"_key", "-key",
+	"proxy_pass", "proxy_url", "proxy_auth",
+	"access_token", "access_key", "access_secret",
 }
 
 // isSensitiveKey returns true if the lowercased key contains any sensitive substring.
