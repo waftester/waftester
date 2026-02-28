@@ -31,11 +31,21 @@ func sortedSeverities(m map[string]int) []string {
 	return keys
 }
 
+// csvQuote returns s wrapped in double quotes with internal double quotes
+// doubled, if s contains a comma, double quote, or newline. Otherwise it
+// returns s unchanged. This follows RFC 4180 quoting rules.
+func csvQuote(s string) string {
+	if strings.ContainsAny(s, ",\"\n\r") {
+		return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
+	}
+	return s
+}
+
 // printScanCSV writes scan results in CSV format.
 func printScanCSV(w io.Writer, target string, result *ScanResult) {
 	fmt.Fprintln(w, "target,category,severity,count")
 	for cat, count := range result.ByCategory {
-		fmt.Fprintf(w, "%s,%s,various,%d\n", target, cat, count)
+		fmt.Fprintf(w, "%s,%s,various,%d\n", csvQuote(target), csvQuote(cat), count)
 	}
 }
 
@@ -104,7 +114,7 @@ func printScanHTML(w io.Writer, result *ScanResult) {
 
 // printScanSARIF writes scan results in SARIF 2.1.0 format for CI/CD integration.
 func printScanSARIF(w io.Writer, target string, result *ScanResult) {
-	var sarifResults []map[string]interface{}
+	sarifResults := make([]map[string]interface{}, 0)
 	for cat, count := range result.ByCategory {
 		if count > 0 {
 			sarifResults = append(sarifResults, map[string]interface{}{

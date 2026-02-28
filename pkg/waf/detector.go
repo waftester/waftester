@@ -495,16 +495,26 @@ func (d *Detector) checkWAFSignature(sig WAFSignature, resp *http.Response, body
 		}
 	}
 
-	// Check body patterns
-	if body != "" {
+	// Check body patterns.
+	// Require a minimum body length to avoid false positives on very short
+	// error pages (e.g. plain "Not Found" or empty responses) that can
+	// accidentally match generic patterns like "not acceptable" or "aws".
+	const minBodyLen = 50
+	if body != "" && len(body) >= minBodyLen {
 		for _, pattern := range sig.BodyPatterns {
 			if pattern.MatchString(body) {
+				// Reduce confidence for short bodies that are more likely
+				// to be generic error pages rather than real WAF block pages.
+				conf := 0.7
+				if len(body) < 200 {
+					conf = 0.3
+				}
 				evidence = append(evidence, Evidence{
 					Type:       "body",
 					Source:     "response_body",
 					Value:      strutil.Truncate(pattern.FindString(body), 100),
 					Indicates:  sig.Name,
-					Confidence: 0.7,
+					Confidence: conf,
 				})
 			}
 		}

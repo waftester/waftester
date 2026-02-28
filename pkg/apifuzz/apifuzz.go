@@ -196,9 +196,14 @@ func NewTester(config *TesterConfig) *Tester {
 		config = DefaultConfig()
 	}
 
+	client := config.Client
+	if client == nil {
+		client = httpclient.Fuzzing()
+	}
+
 	return &Tester{
 		config:   config,
-		client:   httpclient.Fuzzing(),
+		client:   client,
 		detector: detection.Default(),
 	}
 }
@@ -229,7 +234,11 @@ func (t *Tester) FuzzEndpoint(ctx context.Context, baseURL string, endpoint Endp
 			}
 
 			if t.config.DelayBetween > 0 {
-				time.Sleep(t.config.DelayBetween)
+				select {
+				case <-ctx.Done():
+					return vulns, ctx.Err()
+				case <-time.After(t.config.DelayBetween):
+				}
 			}
 		}
 	}
@@ -255,7 +264,11 @@ func (t *Tester) FuzzEndpoint(ctx context.Context, baseURL string, endpoint Endp
 			}
 
 			if t.config.DelayBetween > 0 {
-				time.Sleep(t.config.DelayBetween)
+				select {
+				case <-ctx.Done():
+					return vulns, ctx.Err()
+				case <-time.After(t.config.DelayBetween):
+				}
 			}
 		}
 	}

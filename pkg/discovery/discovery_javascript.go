@@ -163,8 +163,12 @@ func (d *Discoverer) extractJSFromHomepage(ctx context.Context) []string {
 					jsURLs = append(jsURLs, src)
 				}
 			} else if strings.HasPrefix(src, "//") {
-				// Protocol-relative URL
-				jsURLs = append(jsURLs, "https:"+src)
+				// Protocol-relative URL — inherit scheme from target
+				scheme := "https:"
+				if strings.HasPrefix(baseURL, "http://") {
+					scheme = "http:"
+				}
+				jsURLs = append(jsURLs, scheme+src)
 			} else if strings.HasPrefix(src, "/") {
 				// Absolute path
 				jsURLs = append(jsURLs, baseURL+src)
@@ -172,7 +176,8 @@ func (d *Discoverer) extractJSFromHomepage(ctx context.Context) []string {
 				// Relative path (e.g., "js/app.js", "./bundle.js")
 				// Strip leading "./" before resolving against base URL
 				cleanSrc := strings.TrimPrefix(src, "./")
-				jsURLs = append(jsURLs, baseURL+"/"+cleanSrc)
+				base := strings.TrimSuffix(baseURL, "/")
+				jsURLs = append(jsURLs, base+"/"+cleanSrc)
 			}
 		}
 	}

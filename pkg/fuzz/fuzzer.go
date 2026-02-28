@@ -236,7 +236,9 @@ func (f *Fuzzer) Run(ctx context.Context, callback ResultCallback) *Stats {
 				case <-ctx.Done():
 					return
 				default:
-					f.limiter.Wait(ctx)
+					if err := f.limiter.Wait(ctx); err != nil {
+						return
+					}
 					result := f.fuzz(ctx, word)
 					atomic.AddInt64(&totalReqs, 1)
 

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"os"
@@ -82,6 +82,7 @@ func runScan() {
 	cfg.Out.Version = ui.Version
 	scanFlags.Parse(os.Args[2:])
 	cfg.validate()
+	defer cfg.Out.CleanupTemplates()
 
 	// Resolve nuclei template directory: if the default path doesn't exist
 	// on disk, extract embedded templates to a temp directory.
@@ -792,7 +793,7 @@ func runScan() {
 			if *cfg.Delay > 0 {
 				d := *cfg.Delay
 				if *cfg.Jitter > 0 {
-					d += time.Duration(rand.Int63n(int64(*cfg.Jitter)))
+					d += time.Duration(rand.N(int64(*cfg.Jitter)))
 				}
 				select {
 				case <-ctx.Done():
@@ -2890,7 +2891,11 @@ func runScan() {
 
 	// Emit summary to all hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
 	if dispCtx != nil {
-		_ = dispCtx.EmitSummary(ctx, int(totalScans), 0, result.TotalVulns, result.Duration)
+		blocked := int(totalScans) - result.TotalVulns
+		if blocked < 0 {
+			blocked = 0
+		}
+		_ = dispCtx.EmitSummary(ctx, int(totalScans), blocked, result.TotalVulns, result.Duration)
 	}
 
 	// Emit scan_end event for streaming JSON

@@ -288,11 +288,11 @@ func Sign(header *Header, claims *Claims, secret []byte) (string, error) {
 	switch {
 	case algLower == "none" || algLower == "":
 		signature = ""
-	case Algorithm(header.Alg) == AlgHS256:
+	case algLower == "hs256":
 		signature = signHMAC(signingInput, secret, sha256.New)
-	case Algorithm(header.Alg) == AlgHS384:
+	case algLower == "hs384":
 		signature = signHMAC(signingInput, secret, sha512.New384)
-	case Algorithm(header.Alg) == AlgHS512:
+	case algLower == "hs512":
 		signature = signHMAC(signingInput, secret, sha512.New)
 	default:
 		return "", fmt.Errorf("unsupported algorithm: %s", header.Alg)
