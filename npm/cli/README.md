@@ -140,7 +140,7 @@ waf-tester headless -u https://app.example.com --smart
 
 ## MCP Server (AI Integration)
 
-WAFtester includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/) server with **27 tools**, **10 guided prompts**, and **12 resources** for AI-powered security testing from Claude Desktop, VS Code, Cursor, and other MCP clients.
+WAFtester includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/) server with **27 tools**, **7 guided prompts**, and **12 resources** for AI-powered security testing from Claude Desktop, VS Code, Cursor, and other MCP clients.
 
 ### Claude Desktop
 

@@ -61,8 +61,14 @@ func TestLoadSummary_FullScanResult(t *testing.T) {
 	if len(s.BySeverity) != 4 {
 		t.Errorf("BySeverity has %d entries, want 4", len(s.BySeverity))
 	}
+	if s.BySeverity["critical"] != 2 || s.BySeverity["high"] != 5 || s.BySeverity["medium"] != 3 || s.BySeverity["low"] != 2 {
+		t.Errorf("BySeverity = %v, want {critical:2 high:5 medium:3 low:2}", s.BySeverity)
+	}
 	if len(s.TechStack) != 2 {
 		t.Errorf("TechStack has %d entries, want 2", len(s.TechStack))
+	}
+	if s.TechStack[0] != "nginx" || s.TechStack[1] != "php" {
+		t.Errorf("TechStack = %v, want [nginx php]", s.TechStack)
 	}
 }
 
@@ -302,6 +308,9 @@ func TestCompare_OneNilOnePopulated(t *testing.T) {
 	if len(r.NewCategories) != 2 {
 		t.Errorf("NewCategories = %v, want 2 entries", r.NewCategories)
 	}
+	if len(r.NewCategories) == 2 && (r.NewCategories[0] != "sqli" || r.NewCategories[1] != "xss") {
+		t.Errorf("NewCategories = %v, want [sqli xss]", r.NewCategories)
+	}
 }
 
 func TestCompare_BothZeroVulns(t *testing.T) {
@@ -463,14 +472,23 @@ func TestLoadSummary_AutoscanFormat(t *testing.T) {
 	if len(s.BySeverity) != 4 {
 		t.Errorf("BySeverity has %d entries, want 4 (from severity_breakdown)", len(s.BySeverity))
 	}
+	if s.BySeverity["critical"] != 2 || s.BySeverity["high"] != 5 {
+		t.Errorf("BySeverity = %v, want critical:2 high:5 (from severity_breakdown)", s.BySeverity)
+	}
 	if len(s.ByCategory) != 3 {
 		t.Errorf("ByCategory has %d entries, want 3 (from category_breakdown)", len(s.ByCategory))
+	}
+	if s.ByCategory["sqli"] != 6 || s.ByCategory["xss"] != 4 {
+		t.Errorf("ByCategory = %v, want sqli:6 xss:4 (from category_breakdown)", s.ByCategory)
 	}
 	if s.WAFVendor != "Cloudflare" {
 		t.Errorf("WAFVendor = %q, want %q (from discovery)", s.WAFVendor, "Cloudflare")
 	}
 	if len(s.TechStack) != 2 {
 		t.Errorf("TechStack has %d entries, want 2 (from intelligence)", len(s.TechStack))
+	}
+	if s.TechStack[0] != "nginx" || s.TechStack[1] != "react" {
+		t.Errorf("TechStack = %v, want [nginx react] (from intelligence)", s.TechStack)
 	}
 	if s.StartTime.IsZero() {
 		t.Error("StartTime should be parsed from timestamp field")
@@ -973,12 +991,15 @@ func TestCompare_CategoryPositiveToZeroIsFixed(t *testing.T) {
 
 func TestCompare_WAFChangedVendorsVsNilVendors(t *testing.T) {
 	t.Parallel()
+	// Asymmetric: one side has WAFVendors, other has only WAFVendor string.
+	// When the primary vendor matches, WAFChanged should be false to avoid
+	// false positives from different JSON format paths.
 	r := Compare(
 		&ScanSummary{TotalVulns: 5, WAFVendor: "Cloudflare", WAFVendors: []string{"Cloudflare"}},
 		&ScanSummary{TotalVulns: 5, WAFVendor: "Cloudflare"}, // WAFVendors nil
 	)
-	if !r.WAFChanged {
-		t.Error("WAFChanged should be true: one has WAFVendors populated, other has nil")
+	if r.WAFChanged {
+		t.Error("WAFChanged should be false: same primary vendor despite asymmetric WAFVendors")
 	}
 }
 
@@ -1107,5 +1128,198 @@ func TestLoadSummary_FilesystemIntegration(t *testing.T) {
 	}
 	if s.FilePath != path {
 		t.Errorf("FilePath = %q, want %q", s.FilePath, path)
+	}
+}
+
+// --- computeDeltas edge cases ---
+
+func TestComputeDeltas_OverlappingIdenticalKeys(t *testing.T) {
+	t.Parallel()
+	// When both maps have the same keys with the same values, all deltas should be 0.
+	before := map[string]int{"sqli": 5, "xss": 3, "cmdi": 2}
+	after := map[string]int{"sqli": 5, "xss": 3, "cmdi": 2}
+	deltas := computeDeltas(before, after)
+	for k, d := range deltas {
+		if d != 0 {
+			t.Errorf("delta[%s] = %d, want 0 (identical maps)", k, d)
+		}
+	}
+	if len(deltas) != 3 {
+		t.Errorf("deltas has %d entries, want 3", len(deltas))
+	}
+}
+
+func TestComputeDeltas_DisjointKeys(t *testing.T) {
+	t.Parallel()
+	before := map[string]int{"sqli": 5}
+	after := map[string]int{"xss": 3}
+	deltas := computeDeltas(before, after)
+	if deltas["sqli"] != -5 {
+		t.Errorf("delta[sqli] = %d, want -5", deltas["sqli"])
+	}
+	if deltas["xss"] != 3 {
+		t.Errorf("delta[xss] = %d, want 3", deltas["xss"])
+	}
+}
+
+func TestComputeDeltas_NilMaps(t *testing.T) {
+	t.Parallel()
+	deltas := computeDeltas(nil, nil)
+	if len(deltas) != 0 {
+		t.Errorf("deltas = %v, want empty for nil maps", deltas)
+	}
+}
+
+// --- Case-insensitive WAF vendor deduplication ---
+
+func TestExtractWAFVendors_CaseInsensitiveDedup(t *testing.T) {
+	t.Parallel()
+	s := testParse(t, map[string]interface{}{
+		"target": "https://case.example.com",
+		"waf_detect": map[string]interface{}{
+			"wafs": []map[string]interface{}{
+				{"vendor": "Cloudflare", "name": "Cloudflare"},
+			},
+		},
+		"discovery": map[string]interface{}{
+			"waf_vendor":   "cloudflare", // lowercase
+			"waf_detected": true,
+		},
+		"smart_mode": map[string]interface{}{
+			"vendor": "CLOUDFLARE", // uppercase
+		},
+	})
+	if len(s.WAFVendors) != 1 {
+		t.Errorf("WAFVendors = %v, want 1 vendor (case-insensitive dedup)", s.WAFVendors)
+	}
+	// The first occurrence's casing should be preserved.
+	if len(s.WAFVendors) == 1 && s.WAFVendors[0] != "Cloudflare" {
+		t.Errorf("WAFVendors[0] = %q, want %q (first occurrence casing preserved)", s.WAFVendors[0], "Cloudflare")
+	}
+}
+
+// --- parseDuration overflow protection ---
+
+func TestParseDuration_Float64Overflow(t *testing.T) {
+	t.Parallel()
+	// A float64 value larger than 1e18 should be rejected to prevent int64 overflow.
+	d := parseDuration(json.RawMessage(`9.9e18`), nil)
+	if d != 0 {
+		t.Errorf("parseDuration(9.9e18) = %v, want 0 (overflow protection)", d)
+	}
+}
+
+func TestParseDuration_DurationSecondsOverflow(t *testing.T) {
+	t.Parallel()
+	// A duration_seconds value larger than 1e9 should be rejected.
+	huge := 2e9
+	d := parseDuration(nil, &huge)
+	if d != 0 {
+		t.Errorf("parseDuration(nil, 2e9) = %v, want 0 (overflow protection)", d)
+	}
+}
+
+// --- Full round-trip: LoadSummary → Compare → JSON marshal → unmarshal ---
+
+func TestCompare_FullRoundTrip(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	// Write two scan result files.
+	before := map[string]interface{}{
+		"target":                "https://rt.example.com",
+		"total_vulnerabilities": 15,
+		"by_severity":           map[string]int{"critical": 2, "high": 5, "medium": 5, "low": 3},
+		"by_category":           map[string]int{"sqli": 8, "xss": 5, "cmdi": 2},
+		"waf_detect":            map[string]interface{}{"wafs": []map[string]interface{}{{"vendor": "Cloudflare"}}},
+	}
+	after := map[string]interface{}{
+		"target":                "https://rt.example.com",
+		"total_vulnerabilities": 10,
+		"by_severity":           map[string]int{"critical": 0, "high": 3, "medium": 5, "low": 2},
+		"by_category":           map[string]int{"sqli": 5, "xss": 3, "ssti": 2},
+		"waf_detect":            map[string]interface{}{"wafs": []map[string]interface{}{{"vendor": "Cloudflare"}}},
+	}
+
+	writeJSON := func(name string, v interface{}) string {
+		data, _ := json.Marshal(v)
+		p := filepath.Join(dir, name)
+		os.WriteFile(p, data, 0o644)
+		return p
+	}
+
+	beforePath := writeJSON("before.json", before)
+	afterPath := writeJSON("after.json", after)
+
+	// Load summaries from disk.
+	beforeSum, err := LoadSummary(beforePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterSum, err := LoadSummary(afterPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Compare.
+	result := Compare(beforeSum, afterSum)
+
+	// Verify key fields.
+	if result.Verdict != "improved" {
+		t.Errorf("Verdict = %q, want %q", result.Verdict, "improved")
+	}
+	if result.VulnDelta != -5 {
+		t.Errorf("VulnDelta = %d, want -5", result.VulnDelta)
+	}
+	if !result.Improved {
+		t.Error("Improved should be true")
+	}
+	if result.WAFChanged {
+		t.Error("WAFChanged should be false (same vendor)")
+	}
+
+	// Round-trip through JSON.
+	resultJSON, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded Result
+	if err := json.Unmarshal(resultJSON, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Verdict != "improved" {
+		t.Errorf("decoded.Verdict = %q, want %q", decoded.Verdict, "improved")
+	}
+	if decoded.VulnDelta != -5 {
+		t.Errorf("decoded.VulnDelta = %d, want -5", decoded.VulnDelta)
+	}
+	if decoded.WeightedBefore != result.WeightedBefore {
+		t.Errorf("decoded.WeightedBefore = %d, want %d", decoded.WeightedBefore, result.WeightedBefore)
+	}
+	if decoded.WeightedAfter != result.WeightedAfter {
+		t.Errorf("decoded.WeightedAfter = %d, want %d", decoded.WeightedAfter, result.WeightedAfter)
+	}
+
+	// Verify new/fixed categories.
+	if len(result.NewCategories) != 1 || result.NewCategories[0] != "ssti" {
+		t.Errorf("NewCategories = %v, want [ssti]", result.NewCategories)
+	}
+	if len(result.FixedCategories) != 1 || result.FixedCategories[0] != "cmdi" {
+		t.Errorf("FixedCategories = %v, want [cmdi]", result.FixedCategories)
+	}
+}
+
+// --- WAFChanged asymmetric edge cases ---
+
+func TestCompare_WAFChangedAsymmetricDifferentVendor(t *testing.T) {
+	t.Parallel()
+	// Asymmetric: one has WAFVendors array, other has only WAFVendor string.
+	// Different primary vendors → WAFChanged should be true.
+	r := Compare(
+		&ScanSummary{TotalVulns: 5, WAFVendor: "Cloudflare", WAFVendors: []string{"Cloudflare"}},
+		&ScanSummary{TotalVulns: 5, WAFVendor: "AWS WAF"},
+	)
+	if !r.WAFChanged {
+		t.Error("WAFChanged should be true: different primary vendors in asymmetric case")
 	}
 }
