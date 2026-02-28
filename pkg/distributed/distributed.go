@@ -598,7 +598,9 @@ func (c *Coordinator) handleNodes(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		nodes := c.GetNodes()
-		json.NewEncoder(w).Encode(nodes)
+		if err := json.NewEncoder(w).Encode(nodes); err != nil {
+		slog.Warn("failed to encode nodes response", "error", err)
+	}
 	case http.MethodPost:
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 		var req RegisterRequest
@@ -610,7 +612,9 @@ func (c *Coordinator) handleNodes(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		json.NewEncoder(w).Encode(RegisterResponse{Success: true})
+		if err := json.NewEncoder(w).Encode(RegisterResponse{Success: true}); err != nil {
+		slog.Warn("failed to encode register response", "error", err)
+	}
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -620,7 +624,9 @@ func (c *Coordinator) handleTasks(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		tasks := c.GetTasks()
-		json.NewEncoder(w).Encode(tasks)
+		if err := json.NewEncoder(w).Encode(tasks); err != nil {
+		slog.Warn("failed to encode tasks response", "error", err)
+	}
 	case http.MethodPost:
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 		var req TaskRequest
@@ -636,7 +642,9 @@ func (c *Coordinator) handleTasks(w http.ResponseWriter, r *http.Request) {
 			}
 			taskIDs = append(taskIDs, task.ID)
 		}
-		json.NewEncoder(w).Encode(TaskResponse{TaskIDs: taskIDs})
+		if err := json.NewEncoder(w).Encode(TaskResponse{TaskIDs: taskIDs}); err != nil {
+		slog.Warn("failed to encode task response", "error", err)
+	}
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -648,7 +656,9 @@ func (c *Coordinator) handleStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	stats := c.Stats()
-	json.NewEncoder(w).Encode(stats)
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		slog.Warn("failed to encode stats response", "error", err)
+	}
 }
 
 func (c *Coordinator) handleHeartbeat(w http.ResponseWriter, r *http.Request) {

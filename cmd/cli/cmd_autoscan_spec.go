@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -337,8 +338,14 @@ func runSpecPipeline(cfg specPipelineConfig) {
 		totalFindings := result.TotalFindings()
 		if totalFindings > 0 {
 			ui.PrintInfo(fmt.Sprintf("  Findings: %d total", totalFindings))
-			for sev, count := range result.BySeverity() {
-				fmt.Fprintf(os.Stderr, "    %s: %d\n", sev, count)
+			bySev := result.BySeverity()
+			sevKeys := make([]string, 0, len(bySev))
+			for sev := range bySev {
+				sevKeys = append(sevKeys, sev)
+			}
+			sort.Strings(sevKeys)
+			for _, sev := range sevKeys {
+				fmt.Fprintf(os.Stderr, "    %s: %d\n", sev, bySev[sev])
 			}
 		} else {
 			ui.PrintInfo("  No findings detected.")

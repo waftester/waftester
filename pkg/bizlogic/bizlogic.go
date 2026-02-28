@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -271,8 +272,8 @@ func (t *Tester) TestAuthBypass(ctx context.Context, targetURL string) ([]Vulner
 			continue
 		}
 
-		defer iohelper.DrainAndClose(resp.Body)
 		body, _ := iohelper.ReadBodyDefault(resp.Body)
+		iohelper.DrainAndClose(resp.Body)
 
 		// Check for bypass indicators
 		if resp.StatusCode == 200 && (len(body) > 100 || containsAdminIndicators(string(body))) {
@@ -379,7 +380,7 @@ func (t *Tester) TestMassAssignment(ctx context.Context, targetURL string, norma
 				Severity:    finding.High,
 				URL:         targetURL,
 				Method:      "POST",
-				Evidence:    fmt.Sprintf("Server accepted payload with admin/role fields: %s", string(malBody)[:min(200, len(malBody))]),
+				Evidence:    fmt.Sprintf("Server accepted payload with admin/role fields: %s", truncateRunesSafe(string(malBody), 200)),
 				Remediation: "Implement whitelist of allowed fields and ignore unknown parameters",
 				CVSS:        8.1,
 			}, nil
@@ -778,8 +779,13 @@ func (t *Tester) applyHeaders(req *http.Request) {
 		req.Header.Set("Authorization", t.config.AuthHeader)
 	}
 
-	for name, value := range t.config.Cookies {
-		req.AddCookie(&http.Cookie{Name: name, Value: value})
+	cookieNames := make([]string, 0, len(t.config.Cookies))
+	for name := range t.config.Cookies {
+		cookieNames = append(cookieNames, name)
+	}
+	sort.Strings(cookieNames)
+	for _, name := range cookieNames {
+		req.AddCookie(&http.Cookie{Name: name, Value: t.config.Cookies[name]})
 	}
 }
 
@@ -822,4 +828,13 @@ func isUUID(s string) bool {
 // ParseURL parses a URL string into components for testing.
 func ParseURL(rawURL string) (*url.URL, error) {
 	return url.Parse(rawURL)
+}
+
+// truncateRunesSafe safely truncates a string to maxRunes rune characters.
+func truncateRunesSafe(s string, maxRunes int) string {
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return s
+	}
+	return string(runes[:maxRunes])
 }

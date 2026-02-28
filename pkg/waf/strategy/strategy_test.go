@@ -59,6 +59,7 @@ func TestGetStrategy_CacheHit(t *testing.T) {
 		SafeRateLimit: 100,
 	}
 	engine.cache["https://example.com"] = cachedStrategy
+	engine.cacheExpiry["https://example.com"] = time.Now().Add(10 * time.Minute)
 
 	// Should return cached strategy without making network request
 	strategy, err := engine.GetStrategy(context.Background(), "https://example.com")
