@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -278,7 +279,7 @@ func runAssess() {
 
 		// Emit summary
 		_ = dispCtx.EmitSummary(ctx, int(result.TotalRequests),
-			int(result.Matrix.TruePositives+result.Matrix.TrueNegatives),
+			int(result.Matrix.TruePositives),
 			int(result.Matrix.FalseNegatives), elapsed)
 	}
 
@@ -441,7 +442,13 @@ func displayAssessmentResults(m *metrics.EnterpriseMetrics, duration time.Durati
 		fmt.Println()
 		fmt.Println("  Category          │ Tests │ Blocked │ Detection │ Grade")
 		fmt.Println("  ──────────────────┼───────┼─────────┼───────────┼──────")
-		for cat, cm := range m.CategoryMetrics {
+		cats := make([]string, 0, len(m.CategoryMetrics))
+		for cat := range m.CategoryMetrics {
+			cats = append(cats, cat)
+		}
+		sort.Strings(cats)
+		for _, cat := range cats {
+			cm := m.CategoryMetrics[cat]
 			fmt.Printf("  %-18s│ %5d │ %7d │   %5.1f%%  │   %s\n",
 				assessTruncateString(cat, 18), cm.TotalTests, cm.Blocked, cm.DetectionRate*100, cm.Grade)
 		}

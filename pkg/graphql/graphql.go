@@ -889,20 +889,26 @@ func (t *Tester) FullScan(ctx context.Context) (*ScanResult, error) {
 
 	// Test depth attack
 	for _, depth := range []int{10, 15, 20} {
+		queriesSent++
+		if ctx.Err() != nil {
+			break
+		}
 		if vuln, err := t.TestDepthAttack(ctx, "node", depth); err == nil && vuln != nil {
 			result.Vulnerabilities = append(result.Vulnerabilities, vuln)
 			break // Found vulnerability, no need to test deeper
 		}
-		queriesSent++
 	}
 
 	// Test batch attack
 	for _, size := range []int{10, 50, 100} {
+		queriesSent++
+		if ctx.Err() != nil {
+			break
+		}
 		if vuln, err := t.TestBatchAttack(ctx, size); err == nil && vuln != nil {
 			result.Vulnerabilities = append(result.Vulnerabilities, vuln)
 			break
 		}
-		queriesSent++
 	}
 
 	// Test alias abuse
@@ -1015,6 +1021,9 @@ func generateFieldQuery(sb *strings.Builder, schema *Schema, typeName string, de
 		return
 	}
 	visited[typeName] = true
+	// Use backtracking so diamond-shaped schemas (A->B->D, A->C->D) expand D
+	// on every path while still preventing cycles (A->B->A).
+	defer delete(visited, typeName)
 
 	for _, t := range schema.Types {
 		if t.Name == typeName {

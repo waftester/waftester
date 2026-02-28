@@ -457,9 +457,21 @@ func (t *Tester) isVulnerable(statusCode int, body string, vulnType Vulnerabilit
 		}
 	}
 
-	// Server error with deserialization-related stack trace
-	if statusCode >= 500 && (strings.Contains(body, "Exception") || strings.Contains(body, "Error")) {
-		return true
+	// Server error with deserialization-specific stack trace indicators.
+	// Generic "Exception"/"Error" alone is too broad — require at least one
+	// deserialization-related class or keyword alongside the error.
+	if statusCode >= 500 {
+		deserialKeywords := []string{
+			"ObjectInputStream", "BinaryFormatter", "unserialize",
+			"pickle", "marshal", "yaml.load", "Deserialize",
+			"SerializationException", "ClassNotFound", "InvalidClass",
+			"StreamCorrupted", "TypeNameHandling", "JsonSerializationException",
+		}
+		for _, kw := range deserialKeywords {
+			if strings.Contains(body, kw) {
+				return true
+			}
+		}
 	}
 
 	return false

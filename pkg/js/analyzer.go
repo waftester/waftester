@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/waftester/waftester/pkg/bufpool"
 	"github.com/waftester/waftester/pkg/regexcache"
@@ -975,7 +976,9 @@ func calculateEntropy(s string) float64 {
 	}
 
 	var entropy float64
-	length := float64(len(s))
+	// Use rune count (not byte length) to match the rune-based frequency map.
+	// len(s) counts bytes, which differs from rune count for multi-byte characters.
+	length := float64(utf8.RuneCountInString(s))
 
 	for _, count := range freq {
 		p := float64(count) / length
@@ -1077,6 +1080,19 @@ func intToString(n int) string {
 		return "0"
 	}
 	if n < 0 {
+		// Guard against math.MinInt overflow: -math.MinInt overflows back
+		// to math.MinInt because two's complement has one more negative
+		// value than positive. Handle by working with negative digits directly.
+		if n == -n { // true only for math.MinInt
+			// Process digits from the negative number without negating.
+			var digits []byte
+			for n < 0 {
+				// n%10 is <= 0 for negative n, so negate the digit.
+				digits = append([]byte{byte('0' + (-(n % 10)))}, digits...)
+				n /= 10
+			}
+			return "-" + string(digits)
+		}
 		return "-" + intToString(-n)
 	}
 	var digits []byte

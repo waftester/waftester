@@ -450,13 +450,16 @@ func analyzeCSPIssues(directives map[string][]string) []string {
 	for directive, dangerousVals := range dangerous {
 		if vals, ok := directives[directive]; ok {
 			for _, v := range vals {
+				matched := false
 				for _, d := range dangerousVals {
 					if v == d {
 						issues = append(issues, directive+" contains "+d)
+						matched = true
+						break
 					}
 				}
-				// Check for wildcards
-				if v == "*" || strings.HasPrefix(v, "*.") {
+				// Check for wildcards (skip if already reported as dangerous value)
+				if !matched && (v == "*" || strings.HasPrefix(v, "*.")) {
 					issues = append(issues, directive+" contains wildcard "+v)
 				}
 			}

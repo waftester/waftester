@@ -142,9 +142,9 @@ func DefaultConfig() *TesterConfig {
 			Concurrency: defaults.ConcurrencyMedium,
 		},
 		RetryCount: defaults.RetryLow,
-		EnableRace:  true,
-		RaceCount:   10,
-		Cookies:     make(map[string]string),
+		EnableRace: true,
+		RaceCount:  10,
+		Cookies:    make(map[string]string),
 		IDPatterns: []string{
 			`[0-9]+`,
 			`[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}`,
@@ -159,9 +159,14 @@ func NewTester(config *TesterConfig) *Tester {
 		config = DefaultConfig()
 	}
 
+	client := config.Client
+	if client == nil {
+		client = httpclient.Fuzzing()
+	}
+
 	return &Tester{
 		config: config,
-		client: httpclient.Fuzzing(),
+		client: client,
 	}
 }
 

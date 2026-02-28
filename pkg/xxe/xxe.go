@@ -184,7 +184,7 @@ func (d *Detector) fileDisclosurePayloads() []*Payload {
 <root>&xxe;</root>`, file.path),
 			Description:  fmt.Sprintf("Attempt to read %s via PHP filter wrapper", file.path),
 			Severity:     finding.Critical,
-			Regex:        regexp.MustCompile(`^[A-Za-z0-9+/=]{20,}`),
+			Regex:        regexp.MustCompile(`[A-Za-z0-9+/=]{20,}`),
 			ExpectedFile: file.path,
 		})
 	}
@@ -559,6 +559,8 @@ func (d *Detector) analyzeResponse(targetURL string, payload *Payload, body stri
 			if evidence == "" {
 				evidence = fmt.Sprintf("XML parser error: %s", errStr)
 			}
+			detected = true
+			break
 		}
 	}
 
@@ -656,42 +658,58 @@ func ContentTypes() []string {
 	}
 }
 
-// WrapInSOAP wraps a payload in a SOAP envelope
-func WrapInSOAP(xxePayload string) string {
-	// Extract entity definitions from payload
+// extractDOCTYPEAndEntityRef extracts the DOCTYPE block and the first entity
+// reference name from an XXE payload. Returns (doctype, entityRef) where
+// entityRef is e.g. "&xxe;" or "%dtd;" depending on the payload.
+func extractDOCTYPEAndEntityRef(xxePayload string) (string, string) {
 	doctypeStart := strings.Index(xxePayload, "<!DOCTYPE")
 	doctypeEnd := strings.Index(xxePayload, "]>")
 
-	var entities string
+	var doctype string
 	if doctypeStart != -1 && doctypeEnd != -1 {
-		entities = xxePayload[doctypeStart : doctypeEnd+2]
+		doctype = xxePayload[doctypeStart : doctypeEnd+2]
 	}
+
+	// Find the entity reference used in the payload body (after ]>)
+	entityRef := "&xxe;" // default
+	bodyStart := doctypeEnd + 2
+	if doctypeEnd != -1 && bodyStart < len(xxePayload) {
+		body := xxePayload[bodyStart:]
+		// Look for &name; pattern
+		ampIdx := strings.Index(body, "&")
+		if ampIdx != -1 {
+			semiIdx := strings.Index(body[ampIdx:], ";")
+			if semiIdx != -1 && semiIdx < 30 {
+				entityRef = body[ampIdx : ampIdx+semiIdx+1]
+			}
+		}
+	}
+
+	return doctype, entityRef
+}
+
+// WrapInSOAP wraps a payload in a SOAP envelope
+func WrapInSOAP(xxePayload string) string {
+	doctype, entityRef := extractDOCTYPEAndEntityRef(xxePayload)
 
 	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 %s
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
   <soap:Body>
-    <test>&xxe;</test>
+    <test>%s</test>
   </soap:Body>
-</soap:Envelope>`, entities)
+</soap:Envelope>`, doctype, entityRef)
 }
 
 // WrapInSVG wraps a payload in an SVG image
 func WrapInSVG(xxePayload string) string {
-	// Extract entity definitions from payload
-	doctypeStart := strings.Index(xxePayload, "<!DOCTYPE")
-	doctypeEnd := strings.Index(xxePayload, "]>")
-
-	var entities string
-	if doctypeStart != -1 && doctypeEnd != -1 {
-		entities = xxePayload[doctypeStart : doctypeEnd+2]
-	}
+	doctype, entityRef := extractDOCTYPEAndEntityRef(xxePayload)
 
 	return fmt.Sprintf(`<?xml version="1.0" standalone="yes"?>
 %s
 <svg xmlns="http://www.w3.org/2000/svg">
-  <text x="10" y="20">&xxe;</text>
-</svg>`, entities)
+  <text x="10" y="20">%s</text>
+</svg>`, doctype, entityRef)
 }
 
 // Result represents an XXE scan result

@@ -174,7 +174,7 @@ func (d *Detector) analyzeResponse(targetURL, parameter string, payload *Payload
 	if payload.ExpectedOutput != "" {
 		if strings.Contains(body, payload.ExpectedOutput) {
 			// Skip if expected output was already in baseline (false positive)
-			if baselineBody == "" || !strings.Contains(baselineBody, payload.ExpectedOutput) {
+			if baselineBody != "" && !strings.Contains(baselineBody, payload.ExpectedOutput) {
 				matched = true
 				evidence = payload.ExpectedOutput
 				confidence = "high"
@@ -437,6 +437,15 @@ func (d *Detector) FingerprintEngine(ctx context.Context, targetURL string, para
 		case EngineSmarty:
 			if regexcache.MustGet(`Smarty[_\-]?[0-9]`).MatchString(string(body)) {
 				return EngineSmarty, nil
+			}
+		case EngineTwig:
+			if strings.Contains(string(body), "Twig") {
+				return EngineTwig, nil
+			}
+		case EngineFreemarker:
+			bodyStr := string(body)
+			if strings.Contains(bodyStr, "freemarker") || strings.Contains(bodyStr, "FreeMarker") {
+				return EngineFreemarker, nil
 			}
 		}
 	}

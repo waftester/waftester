@@ -639,6 +639,9 @@ func splitPayload(payload string) []string {
 }
 
 func chunkPayload(payload string, n int) []string {
+	if n <= 0 || len(payload) == 0 {
+		return []string{payload}
+	}
 	var chunks []string
 	chunkSize := len(payload) / n
 	if chunkSize == 0 {

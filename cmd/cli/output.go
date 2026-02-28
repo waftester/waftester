@@ -128,16 +128,21 @@ type OutputFlags struct {
 	// Version for reports
 	Version string
 
-	// templateCleanup removes temp files created by ResolveTemplatePaths.
-	templateCleanup func()
+	// templateCleanups accumulates cleanup functions from ResolveTemplatePaths
+	// so that multiple calls to ToConfig() don't orphan temp files.
+	templateCleanups []func()
 }
 
 // CleanupTemplates removes any temp files created by embedded template resolution.
 // Safe to call multiple times or on nil.
 func (o *OutputFlags) CleanupTemplates() {
-	if o != nil && o.templateCleanup != nil {
-		o.templateCleanup()
+	if o == nil {
+		return
 	}
+	for _, fn := range o.templateCleanups {
+		fn()
+	}
+	o.templateCleanups = nil
 }
 
 // =============================================================================
@@ -405,7 +410,9 @@ func (o *OutputFlags) ToConfig() output.Config {
 	// Resolve short template names before building config.
 	// This allows --template-config dark, --policy strict, --overrides api-only.
 	// Caller should defer o.CleanupTemplates() to remove temp files.
-	o.templateCleanup = o.ResolveTemplatePaths()
+	if cleanup := o.ResolveTemplatePaths(); cleanup != nil {
+		o.templateCleanups = append(o.templateCleanups, cleanup)
+	}
 
 	// Parse history tags from comma-separated string
 	var historyTags []string
@@ -1040,33 +1047,16 @@ func (dc *DispatcherContext) EmitError(ctx context.Context, command, errorMsg st
 		return nil
 	}
 
-	severity := "error"
-	if fatal {
-		severity = "critical"
-	}
-
-	event := &events.BypassEvent{
+	event := &events.ErrorEvent{
 		BaseEvent: events.BaseEvent{
 			Type: events.EventTypeError,
 			Time: time.Now(),
 			Scan: dc.ScanID,
 		},
-		Priority: "high",
-		Alert: events.AlertInfo{
-			Title:          fmt.Sprintf("Command Failed: %s", command),
-			Description:    errorMsg,
-			ActionRequired: "Investigate and retry",
-		},
-		Details: events.BypassDetail{
-			TestID:   fmt.Sprintf("error-%s-%d", command, time.Now().UnixNano()),
-			Category: "command-error",
-			Severity: events.Severity(severity),
-			Endpoint: dc.Target,
-			Payload:  errorMsg,
-		},
-		Context: events.AlertContext{
-			WAFDetected: "",
-		},
+		Target:    dc.Target,
+		ErrorType: command,
+		Message:   errorMsg,
+		Fatal:     fatal,
 	}
 
 	return dc.Dispatcher.Dispatch(ctx, event)

@@ -160,7 +160,14 @@ func (d *Detector) Detect(ctx context.Context, target string) (*Result, error) {
 		}
 
 		// Small delay between tests to avoid overwhelming target
-		time.Sleep(time.Duration(d.DelayMs) * time.Millisecond)
+		delay := time.Duration(d.DelayMs) * time.Millisecond
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return result, ctx.Err()
+		case <-timer.C:
+		}
 	}
 
 	result.Duration = time.Since(start)
@@ -386,7 +393,13 @@ func (d *Detector) detectTETE(ctx context.Context, host, port string, useTLS boo
 			}, nil
 		}
 
-		time.Sleep(100 * time.Millisecond)
+		timer := time.NewTimer(100 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
 	}
 
 	return nil, nil

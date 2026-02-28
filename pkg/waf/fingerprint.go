@@ -242,7 +242,10 @@ func (f *Fingerprinter) profileTiming(ctx context.Context, target string) Timing
 	}
 	if len(blockedTimes) > 0 {
 		profile.BlockedAvgMs = average(blockedTimes)
-		profile.Variance = profile.BlockedAvgMs - profile.NormalAvgMs
+		// Only compute timing difference when we have a valid normal baseline.
+		if len(normalTimes) > 0 {
+			profile.Variance = profile.BlockedAvgMs - profile.NormalAvgMs
+		}
 	}
 
 	return profile
