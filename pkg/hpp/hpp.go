@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -687,6 +688,7 @@ func IsParameterDuplicate(rawURL string) (bool, []string) {
 			duplicates = append(duplicates, key)
 		}
 	}
+	sort.Strings(duplicates)
 
 	return len(duplicates) > 0, duplicates
 }

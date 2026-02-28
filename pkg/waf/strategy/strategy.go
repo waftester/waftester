@@ -121,15 +121,26 @@ func (e *StrategyEngine) GetStrategy(ctx context.Context, target string) (*Strat
 	// Enforce cache size limit before adding
 	e.mu.Lock()
 	if len(e.cache) >= e.maxCacheSize {
-		// Evict oldest entries (approximately half)
+		// Evict oldest entries first (approximately half)
 		now := time.Now()
-		for t, expiry := range e.cacheExpiry {
-			if now.After(expiry) || len(e.cache) >= e.maxCacheSize {
-				delete(e.cache, t)
-				delete(e.cacheExpiry, t)
-			}
+		type cacheEntry struct {
+			key    string
+			expiry time.Time
+		}
+		entries := make([]cacheEntry, 0, len(e.cacheExpiry))
+		for t, exp := range e.cacheExpiry {
+			entries = append(entries, cacheEntry{t, exp})
+		}
+		sort.Slice(entries, func(i, j int) bool {
+			return entries[i].expiry.Before(entries[j].expiry)
+		})
+		for _, entry := range entries {
 			if len(e.cache) < e.maxCacheSize/2 {
 				break
+			}
+			if now.After(entry.expiry) || len(e.cache) >= e.maxCacheSize/2 {
+				delete(e.cache, entry.key)
+				delete(e.cacheExpiry, entry.key)
 			}
 		}
 	}
@@ -545,7 +556,10 @@ func sortByFrequency(freqMap map[string]int) []string {
 		sorted = append(sorted, kv{k, v})
 	}
 	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].Value > sorted[j].Value
+		if sorted[i].Value != sorted[j].Value {
+			return sorted[i].Value > sorted[j].Value
+		}
+		return sorted[i].Key < sorted[j].Key
 	})
 
 	result := make([]string, len(sorted))

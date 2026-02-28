@@ -376,8 +376,8 @@ func sanitizeFilename(url string) string {
 	s = replacer.Replace(s)
 
 	// Limit length
-	if len(s) > 100 {
-		s = s[:100]
+	if len([]rune(s)) > 100 {
+		s = string([]rune(s)[:100])
 	}
 
 	return s

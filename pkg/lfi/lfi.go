@@ -173,19 +173,23 @@ func (s *Scanner) detectVulnerability(body string, markers []string) (bool, stri
 		}
 	}
 
-	// Generic file content patterns
-	patterns := map[string]string{
-		"root:x:0:0":    "passwd file",
-		"[fonts]":       "win.ini file",
-		"[extensions]":  "system.ini file",
-		"[boot loader]": "boot.ini file",
-		"<?php":         "PHP source",
-		"#!/bin":        "shell script",
+	// Generic file content patterns (ordered for deterministic matching)
+	type lfiPattern struct {
+		pattern string
+		desc    string
+	}
+	patterns := []lfiPattern{
+		{"root:x:0:0", "passwd file"},
+		{"[fonts]", "win.ini file"},
+		{"[extensions]", "system.ini file"},
+		{"[boot loader]", "boot.ini file"},
+		{"<?php", "PHP source"},
+		{"#!/bin", "shell script"},
 	}
 
-	for pattern, desc := range patterns {
-		if strings.Contains(body, pattern) {
-			return true, desc + " detected"
+	for _, p := range patterns {
+		if strings.Contains(body, p.pattern) {
+			return true, p.desc + " detected"
 		}
 	}
 

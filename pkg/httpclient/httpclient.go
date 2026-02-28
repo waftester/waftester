@@ -480,7 +480,11 @@ func New(cfg Config) *http.Client {
 	if cfg.CookieJar {
 		// cookiejar.New with nil options uses the public suffix list,
 		// which is the safe default for cross-domain cookie handling.
-		jar, _ = cookiejar.New(nil)
+		var jarErr error
+		jar, jarErr = cookiejar.New(nil)
+		if jarErr != nil {
+			slog.Warn("httpclient: failed to create cookie jar", "error", jarErr)
+		}
 	}
 
 	return &http.Client{

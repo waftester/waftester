@@ -775,10 +775,11 @@ type FilterOptions struct {
 }
 
 func matchesFilter(word string, opts FilterOptions, regexFilter *regexp.Regexp) bool {
-	if opts.MinLength > 0 && len(word) < opts.MinLength {
+	wordLen := len([]rune(word))
+	if opts.MinLength > 0 && wordLen < opts.MinLength {
 		return false
 	}
-	if opts.MaxLength > 0 && len(word) > opts.MaxLength {
+	if opts.MaxLength > 0 && wordLen > opts.MaxLength {
 		return false
 	}
 	if opts.Contains != "" && !strings.Contains(word, opts.Contains) {

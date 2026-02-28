@@ -420,7 +420,12 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*Result, error) {
 	}
 
 	// Test preflight
-	preflightVuln, _ := t.TestPreflight(ctx, targetURL, "https://evil.com")
+	preflightVuln, preflightErr := t.TestPreflight(ctx, targetURL, "https://evil.com")
+	if preflightErr != nil && ctx.Err() != nil {
+		result.Vulnerabilities = vulns
+		result.Duration = time.Since(start)
+		return result, ctx.Err()
+	}
 	if preflightVuln != nil {
 		vulns = append(vulns, preflightVuln)
 		t.config.NotifyVulnerabilityFound()
