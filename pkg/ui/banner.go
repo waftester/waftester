@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -164,11 +165,16 @@ func PrintConfigBanner(options map[string]string) {
 		}
 	}
 
-	// Print any remaining options not in the order list
-	for name, value := range options {
-		if !printed[name] && value != "" {
-			printOption(name, value)
+	// Print any remaining options not in the order list (sorted for determinism)
+	remaining := make([]string, 0)
+	for name := range options {
+		if !printed[name] && options[name] != "" {
+			remaining = append(remaining, name)
 		}
+	}
+	sort.Strings(remaining)
+	for _, name := range remaining {
+		printOption(name, options[name])
 	}
 
 	fmt.Fprintf(os.Stderr, "%s\n\n", DividerStyle.Render(bannerSeparator))

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
@@ -1157,22 +1158,22 @@ func (tw *TableWriter) renderLegend() {
 
 // truncateWithMarker truncates a string and adds a clear truncation marker.
 func truncateWithMarker(s string, maxLen int) string {
-	if maxLen <= 0 || len(s) <= maxLen {
+	if maxLen <= 0 || utf8.RuneCountInString(s) <= maxLen {
 		return s
 	}
 	if maxLen <= 5 {
-		return s[:maxLen]
+		return string([]rune(s)[:maxLen])
 	}
-	return s[:maxLen-5] + "[...]"
+	return string([]rune(s)[:maxLen-5]) + "[...]"
 }
 
 // hashPayload creates a simple hash for payload deduplication tracking.
 func hashPayload(payload string) string {
-	// Simple hash for deduplication - first 32 chars or full string if shorter
-	if len(payload) <= 32 {
+	// Simple hash for deduplication - first 32 runes or full string if shorter
+	if utf8.RuneCountInString(payload) <= 32 {
 		return payload
 	}
-	return payload[:32]
+	return string([]rune(payload)[:32])
 }
 
 // formatCurlCommand generates a cURL command for a result event.
@@ -1213,11 +1214,16 @@ func (tw *TableWriter) getGradeColor(grade string) string {
 
 // centerText centers text within a given width.
 func (tw *TableWriter) centerText(text string, width int) string {
-	if len(text) >= width {
-		return text[:width]
+	textLen := utf8.RuneCountInString(text)
+	if textLen >= width {
+		return string([]rune(text)[:width])
 	}
-	padding := (width - len(text)) / 2
-	return strings.Repeat(" ", padding) + text + strings.Repeat(" ", width-len(text)-padding)
+	padding := (width - textLen) / 2
+	right := width - textLen - padding
+	if right < 0 {
+		right = 0
+	}
+	return strings.Repeat(" ", padding) + text + strings.Repeat(" ", right)
 }
 
 // stripANSI removes ANSI escape codes from a string for length calculation.

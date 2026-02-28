@@ -52,19 +52,21 @@ func SchemaToSpec(schema *graphql.Schema, endpoint string) *Spec {
 
 	// Convert queries.
 	if schema.QueryType != nil {
-		queryType := typeIndex[schema.QueryType.Name]
-		for _, field := range queryType.Fields {
-			ep := fieldToEndpoint(field, "query", endpoint, typeIndex)
-			spec.Endpoints = append(spec.Endpoints, ep)
+		if queryType, ok := typeIndex[schema.QueryType.Name]; ok {
+			for _, field := range queryType.Fields {
+				ep := fieldToEndpoint(field, "query", endpoint, typeIndex)
+				spec.Endpoints = append(spec.Endpoints, ep)
+			}
 		}
 	}
 
 	// Convert mutations.
 	if schema.MutationType != nil {
-		mutationType := typeIndex[schema.MutationType.Name]
-		for _, field := range mutationType.Fields {
-			ep := fieldToEndpoint(field, "mutation", endpoint, typeIndex)
-			spec.Endpoints = append(spec.Endpoints, ep)
+		if mutationType, ok := typeIndex[schema.MutationType.Name]; ok {
+			for _, field := range mutationType.Fields {
+				ep := fieldToEndpoint(field, "mutation", endpoint, typeIndex)
+				spec.Endpoints = append(spec.Endpoints, ep)
+			}
 		}
 	}
 

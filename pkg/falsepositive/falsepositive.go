@@ -346,7 +346,8 @@ func (db *Database) Get(fingerprint string) *FalsePositive {
 
 	for _, fp := range db.FalsePositives {
 		if fp.Fingerprint() == fingerprint {
-			return fp
+			clone := *fp
+			return &clone
 		}
 	}
 	return nil

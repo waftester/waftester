@@ -220,7 +220,9 @@ func (c *Client) buildEnvelope(req *Request) []byte {
 		ns = c.namespace
 	}
 	if ns != "" {
-		sb.WriteString(fmt.Sprintf(` xmlns:ns="%s"`, ns))
+		// Escape namespace to prevent XML injection.
+		escNS := xmlEscapeAttr(ns)
+		sb.WriteString(fmt.Sprintf(` xmlns:ns="%s"`, escNS))
 	}
 
 	sb.WriteString(`>`)
@@ -584,6 +586,15 @@ func FetchAndParseWSDL(ctx context.Context, url string) (*WSDLDefinition, error)
 	}
 
 	return ParseWSDL(body)
+}
+
+// xmlEscapeAttr escapes a string for safe use in an XML attribute value.
+func xmlEscapeAttr(s string) string {
+	s = strings.ReplaceAll(s, "&", "&amp;")
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
+	s = strings.ReplaceAll(s, "\"", "&quot;")
+	return s
 }
 
 // OperationsList is a convenience wrapper for operations

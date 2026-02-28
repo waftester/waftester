@@ -5,6 +5,7 @@ import (
 	"context"
 	"html"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -265,11 +266,17 @@ func GeneratePOC(targetURL, method string, params map[string]string) string {
 	sb.WriteString(`">
 `)
 
-	for name, value := range params {
+	// Sort parameter names for deterministic output
+	paramNames := make([]string, 0, len(params))
+	for name := range params {
+		paramNames = append(paramNames, name)
+	}
+	sort.Strings(paramNames)
+	for _, name := range paramNames {
 		sb.WriteString(`  <input type="hidden" name="`)
 		sb.WriteString(html.EscapeString(name))
 		sb.WriteString(`" value="`)
-		sb.WriteString(html.EscapeString(value))
+		sb.WriteString(html.EscapeString(params[name]))
 		sb.WriteString(`" />
 `)
 	}

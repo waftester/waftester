@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"text/template"
 	"time"
@@ -283,12 +284,13 @@ func Validate(templateStr string) error {
 	return err
 }
 
-// ListPresets returns available preset names
+// ListPresets returns available preset names in sorted order.
 func ListPresets() []string {
 	presets := make([]string, 0, len(Presets))
 	for name := range Presets {
 		presets = append(presets, name)
 	}
+	sort.Strings(presets)
 	return presets
 }
 
@@ -354,14 +356,20 @@ func ternary(condition bool, trueVal, falseVal interface{}) interface{} {
 	return falseVal
 }
 
-func toJSON(v interface{}) string {
-	data, _ := json.Marshal(v)
-	return string(data)
+func toJSON(v interface{}) (string, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return "", fmt.Errorf("toJson: %w", err)
+	}
+	return string(data), nil
 }
 
-func toPrettyJSON(v interface{}) string {
-	data, _ := json.MarshalIndent(v, "", "  ")
-	return string(data)
+func toPrettyJSON(v interface{}) (string, error) {
+	data, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("toPrettyJson: %w", err)
+	}
+	return string(data), nil
 }
 
 func formatTime(t time.Time, format string) string {

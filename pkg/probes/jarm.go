@@ -102,18 +102,27 @@ func getJARMProbes(host string) []jarmProbe {
 	ec := []byte{0x00, 0x0a, 0x00, 0x04, 0x00, 0x02, 0x00, 0x17} // supported_groups: x25519
 	ecFormat := []byte{0x00, 0x0b, 0x00, 0x02, 0x01, 0x00}       // ec_point_formats: uncompressed
 
+	// Clone sni for each probe to prevent slice aliasing
+	cloneSNI := func() []byte {
+		c := make([]byte, len(sni))
+		copy(c, sni)
+		return c
+	}
+	sniEC := append(cloneSNI(), ec...)
+	sniECFmt := append(append(cloneSNI(), ec...), ecFormat...)
+
 	// JARM uses 10 probes with variations
 	return []jarmProbe{
-		{cipherOrder: forwardCiphers, version: tls12, extensions: sni},
-		{cipherOrder: reverseCiphers, version: tls12, extensions: sni},
-		{cipherOrder: forwardCiphers, version: tls12, extensions: append(sni, ec...)},
-		{cipherOrder: reverseCiphers, version: tls12, extensions: append(sni, ec...)},
-		{cipherOrder: forwardCiphers, version: tls12, extensions: append(append(sni, ec...), ecFormat...)},
-		{cipherOrder: reverseCiphers, version: tls12, extensions: append(append(sni, ec...), ecFormat...)},
-		{cipherOrder: forwardCiphers, version: tls12, grease: true, extensions: sni},
-		{cipherOrder: reverseCiphers, version: tls12, grease: true, extensions: sni},
-		{cipherOrder: forwardCiphers, version: tls12, alpn: true, extensions: sni},
-		{cipherOrder: reverseCiphers, version: tls12, alpn: true, extensions: sni},
+		{cipherOrder: forwardCiphers, version: tls12, extensions: cloneSNI()},
+		{cipherOrder: reverseCiphers, version: tls12, extensions: cloneSNI()},
+		{cipherOrder: forwardCiphers, version: tls12, extensions: append([]byte(nil), sniEC...)},
+		{cipherOrder: reverseCiphers, version: tls12, extensions: append([]byte(nil), sniEC...)},
+		{cipherOrder: forwardCiphers, version: tls12, extensions: append([]byte(nil), sniECFmt...)},
+		{cipherOrder: reverseCiphers, version: tls12, extensions: append([]byte(nil), sniECFmt...)},
+		{cipherOrder: forwardCiphers, version: tls12, grease: true, extensions: cloneSNI()},
+		{cipherOrder: reverseCiphers, version: tls12, grease: true, extensions: cloneSNI()},
+		{cipherOrder: forwardCiphers, version: tls12, alpn: true, extensions: cloneSNI()},
+		{cipherOrder: reverseCiphers, version: tls12, alpn: true, extensions: cloneSNI()},
 	}
 }
 

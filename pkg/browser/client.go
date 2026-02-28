@@ -462,7 +462,9 @@ func (c *Client) PostJSON(urlStr string, jsonBody string) (*Response, error) {
 func (c *Client) History() []*Request {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.history
+	result := make([]*Request, len(c.history))
+	copy(result, c.history)
+	return result
 }
 
 // ClearHistory clears the request history
@@ -478,8 +480,10 @@ func (c *Client) ClearCookies() error {
 	if err != nil {
 		return err
 	}
+	c.mu.Lock()
 	c.cookieJar = jar
 	c.http.Jar = jar
+	c.mu.Unlock()
 	return nil
 }
 
@@ -500,7 +504,9 @@ func (c *Client) Profile() *Profile {
 
 // SetProfile changes the browser profile
 func (c *Client) SetProfile(p *Profile) {
+	c.mu.Lock()
 	c.profile = p
+	c.mu.Unlock()
 }
 
 // Close closes the client and releases resources
@@ -648,7 +654,9 @@ func (r *Runner) RunAll(testCases []*TestCase) []*Result {
 func (r *Runner) Results() []*Result {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.results
+	result := make([]*Result, len(r.results))
+	copy(result, r.results)
+	return result
 }
 
 // Summary returns a summary of results

@@ -123,8 +123,11 @@ func (p *Predictor) Learn(finding *Finding) {
 
 	// Learn status code patterns
 	if finding.StatusCode > 0 {
-		current := p.statusCodePatterns[finding.StatusCode]
-		p.statusCodePatterns[finding.StatusCode] = current*0.9 + success*0.1
+		if current, ok := p.statusCodePatterns[finding.StatusCode]; ok {
+			p.statusCodePatterns[finding.StatusCode] = current*0.9 + success*0.1
+		} else {
+			p.statusCodePatterns[finding.StatusCode] = success
+		}
 	}
 
 	// Learn latency patterns (blocked requests often have different latency)

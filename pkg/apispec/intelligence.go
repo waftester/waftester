@@ -885,6 +885,10 @@ func layerBusinessLogic(endpoints []Endpoint, entries []ScanPlanEntry, totalTest
 		}
 	}
 
+	// Snapshot the original entry count so entries appended by earlier
+	// flows are not re-scanned by later flows.
+	originalLen := len(entries)
+
 	// Check which flows have 2+ matching steps.
 	for _, flow := range bizFlows {
 		matched := 0
@@ -898,7 +902,7 @@ func layerBusinessLogic(endpoints []Endpoint, entries []ScanPlanEntry, totalTest
 		}
 
 		// Add bizlogic scan type to endpoints that participate in this flow.
-		for i := range entries {
+		for i := 0; i < originalLen; i++ {
 			ep := &entries[i].Endpoint
 			lower := strings.ToLower(ep.Path)
 			for _, step := range flow.Steps {

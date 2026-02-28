@@ -814,14 +814,18 @@ func writeResultsCSV(path string, results ExecutionResults) (err error) {
 
 	// Write header
 	w := csv.NewWriter(f)
-	w.Write([]string{"PayloadID", "Category", "Severity", "Endpoint", "Method", "StatusCode"})
+	if err := w.Write([]string{"PayloadID", "Category", "Severity", "Endpoint", "Method", "StatusCode"}); err != nil {
+		return err
+	}
 
 	// Write bypass details
 	for _, bypass := range results.BypassDetails {
-		w.Write([]string{
+		if err := w.Write([]string{
 			bypass.PayloadID, bypass.Category, bypass.Severity,
 			bypass.Endpoint, bypass.Method, fmt.Sprintf("%d", bypass.StatusCode),
-		})
+		}); err != nil {
+			return err
+		}
 	}
 	w.Flush()
 
@@ -1076,5 +1080,9 @@ func parseSemicolonSeparated(s string) []string {
 func xmlEscape(s string) string {
 	var b strings.Builder
 	xml.EscapeText(&b, []byte(s))
-	return b.String()
+	// xml.EscapeText does not escape quotes; do it for attribute safety
+	result := b.String()
+	result = strings.ReplaceAll(result, `"`, "&quot;")
+	result = strings.ReplaceAll(result, `'`, "&apos;")
+	return result
 }

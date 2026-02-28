@@ -159,8 +159,10 @@ func runVendorDetect() {
 			saveOutput.AutoTune = vendors.GetAutoTuneConfig(result)
 		}
 
-		data, _ := json.MarshalIndent(saveOutput, "", "  ")
-		if err := os.WriteFile(*output, data, 0644); err != nil {
+		data, marshalErr := json.MarshalIndent(saveOutput, "", "  ")
+		if marshalErr != nil {
+			ui.PrintError(fmt.Sprintf("Error marshaling results: %v", marshalErr))
+		} else if err := os.WriteFile(*output, data, 0644); err != nil {
 			ui.PrintError(fmt.Sprintf("Error saving output: %v", err))
 		} else {
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *output))
@@ -371,10 +373,14 @@ func runProtocolDetect() {
 }
 
 func truncateStr(s string, max int) string {
-	if len(s) <= max {
+	runes := []rune(s)
+	if len(runes) <= max {
 		return s
 	}
-	return s[:max-3] + "..."
+	if max < 4 {
+		return string(runes[:max])
+	}
+	return string(runes[:max-3]) + "..."
 }
 
 // displaySupportedVendors shows all supported WAF vendors

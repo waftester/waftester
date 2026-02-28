@@ -197,8 +197,8 @@ func (ec *EndpointClusterer) RecordBehavior(path string, statusCode int, blocked
 
 	// Update block rate for category
 	if category != "" {
-		current := behavior.BlockRates[category]
-		if behavior.TotalRequests == 1 {
+		current, seen := behavior.BlockRates[category]
+		if !seen {
 			behavior.BlockRates[category] = boolToFloat(blocked)
 		} else {
 			behavior.BlockRates[category] = current*0.9 + boolToFloat(blocked)*0.1
@@ -207,7 +207,11 @@ func (ec *EndpointClusterer) RecordBehavior(path string, statusCode int, blocked
 
 	// Update average latency
 	if latencyMs > 0 {
-		behavior.AvgLatency = behavior.AvgLatency*0.9 + latencyMs*0.1
+		if behavior.AvgLatency == 0 {
+			behavior.AvgLatency = latencyMs
+		} else {
+			behavior.AvgLatency = behavior.AvgLatency*0.9 + latencyMs*0.1
+		}
 	}
 
 	// Update cluster behavior
@@ -400,7 +404,11 @@ func (ec *EndpointClusterer) calculateSimilarity(path1, path2 string) float64 {
 				matches++
 			}
 		}
-		return float64(matches)/float64(maxInt(len(seg1), len(seg2))) - depthPenalty
+		score := float64(matches)/float64(maxInt(len(seg1), len(seg2))) - depthPenalty
+	if score < 0 {
+		score = 0
+	}
+	return score
 	}
 
 	// Same depth - compare segments

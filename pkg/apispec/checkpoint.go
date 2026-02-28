@@ -63,7 +63,12 @@ func checkpointPath(sessionID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, sessionID+".json"), nil
+	// Sanitize sessionID to prevent path traversal.
+	clean := filepath.Base(sessionID)
+	if clean == "." || clean == ".." || clean != sessionID {
+		return "", fmt.Errorf("invalid session ID: %q", sessionID)
+	}
+	return filepath.Join(dir, clean+".json"), nil
 }
 
 // NewCheckpoint creates a new checkpoint for a scan session.
@@ -146,8 +151,9 @@ func (c *Checkpoint) RemainingEntries(totalEntries int) []int {
 // Save writes the checkpoint to disk.
 func (c *Checkpoint) Save() error {
 	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	data, err := json.MarshalIndent(c, "", "  ")
-	c.mu.Unlock()
 	if err != nil {
 		return fmt.Errorf("marshal checkpoint: %w", err)
 	}
@@ -162,8 +168,12 @@ func (c *Checkpoint) Save() error {
 		return fmt.Errorf("create checkpoint dir: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0o600); err != nil {
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o600); err != nil {
 		return fmt.Errorf("write checkpoint: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return fmt.Errorf("rename checkpoint: %w", err)
 	}
 
 	return nil
@@ -263,9 +273,13 @@ func hashPlan(plan *ScanPlan) string {
 	h.Write([]byte(plan.SpecSource))
 	for _, entry := range plan.Entries {
 		h.Write([]byte(entry.Endpoint.Method))
+		h.Write([]byte{0})
 		h.Write([]byte(entry.Endpoint.Path))
+		h.Write([]byte{0})
 		h.Write([]byte(entry.Attack.Category))
+		h.Write([]byte{0})
 		h.Write([]byte(entry.InjectionTarget.Parameter))
+		h.Write([]byte{0})
 	}
 	return fmt.Sprintf("%x", h.Sum(nil))[:16]
 }

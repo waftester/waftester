@@ -3,6 +3,7 @@ package apispec
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -121,8 +122,14 @@ func ParseAsyncAPI(content string) (*Spec, error) {
 		ParsedAt:    time.Now(),
 	}
 
-	// Extract WebSocket servers.
-	for name, srv := range doc.Servers {
+	// Extract WebSocket servers (sorted for deterministic output).
+	var serverNames []string
+	for name := range doc.Servers {
+		serverNames = append(serverNames, name)
+	}
+	sort.Strings(serverNames)
+	for _, name := range serverNames {
+		srv := doc.Servers[name]
 		protocol := strings.ToLower(srv.Protocol)
 		if protocol != "ws" && protocol != "wss" {
 			continue
@@ -141,8 +148,14 @@ func ParseAsyncAPI(content string) (*Spec, error) {
 		})
 	}
 
-	// Extract WebSocket channels as endpoints.
-	for channelPath, ch := range doc.Channels {
+	// Extract WebSocket channels as endpoints (sorted for deterministic output).
+	var channelPaths []string
+	for channelPath := range doc.Channels {
+		channelPaths = append(channelPaths, channelPath)
+	}
+	sort.Strings(channelPaths)
+	for _, channelPath := range channelPaths {
+		ch := doc.Channels[channelPath]
 		isWS := isWebSocketChannel(ch, doc.Servers)
 		if !isWS {
 			continue
@@ -230,8 +243,15 @@ func asyncSchemaToParams(schema asyncSchemaObj) []Parameter {
 		requiredSet[r] = true
 	}
 
+	// Sort property names for deterministic parameter order.
+	var propNames []string
+	for name := range schema.Properties {
+		propNames = append(propNames, name)
+	}
+	sort.Strings(propNames)
 	var params []Parameter
-	for name, prop := range schema.Properties {
+	for _, name := range propNames {
+		prop := schema.Properties[name]
 		p := Parameter{
 			Name:     name,
 			In:       LocationBody,

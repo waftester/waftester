@@ -198,9 +198,11 @@ func ClickAndCapture(ctx context.Context, element ClickableElement, originalURL 
 	clickCancel()
 
 	// Wait for network activity to settle
+	settleTimer := time.NewTimer(waitDuration)
 	select {
-	case <-time.After(waitDuration):
+	case <-settleTimer.C:
 	case <-ctx.Done():
+		settleTimer.Stop()
 		return result, ctx.Err()
 	}
 
@@ -244,9 +246,11 @@ func ClickAndCapture(ctx context.Context, element ClickableElement, originalURL 
 		if err := chromedp.Run(ctx, chromedp.Navigate(originalURL)); err != nil {
 			return result, fmt.Errorf("navigate back to %s: %w", originalURL, err)
 		}
+		navTimer := time.NewTimer(500 * time.Millisecond)
 		select {
-		case <-time.After(500 * time.Millisecond):
+		case <-navTimer.C:
 		case <-ctx.Done():
+			navTimer.Stop()
 			return result, ctx.Err()
 		}
 	}

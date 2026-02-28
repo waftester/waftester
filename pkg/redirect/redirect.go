@@ -254,10 +254,13 @@ func (t *Tester) generatePayloads() []*Payload {
 	}
 }
 
-// GetPayloads returns all payloads, optionally filtered by type
+// GetPayloads returns all payloads, optionally filtered by type.
+// Returns a defensive copy to prevent callers from mutating internal state.
 func (t *Tester) GetPayloads(vulnType VulnerabilityType) []*Payload {
 	if vulnType == "" {
-		return t.payloads
+		cp := make([]*Payload, len(t.payloads))
+		copy(cp, t.payloads)
+		return cp
 	}
 
 	var filtered []*Payload

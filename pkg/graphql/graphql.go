@@ -310,10 +310,12 @@ func (t *Tester) TestIntrospection(ctx context.Context) (*Vulnerability, *Schema
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		if attempt > 0 {
 			backoff := time.Duration(attempt) * time.Second
+			timer := time.NewTimer(backoff)
 			select {
 			case <-ctx.Done():
+				timer.Stop()
 				return nil, nil, ctx.Err()
-			case <-time.After(backoff):
+			case <-timer.C:
 			}
 		}
 		resp, statusCode, err = t.SendQuery(ctx, query, nil)

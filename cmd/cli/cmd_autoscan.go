@@ -832,8 +832,10 @@ func runAutoScan() {
 			ui.PrintWarning(fmt.Sprintf("Leaky paths scan warning: %v", err))
 		} else {
 			// Save results
-			leakyData, _ := json.MarshalIndent(leakyResult, "", "  ")
-			if err := os.WriteFile(leakyPathsFile, leakyData, 0644); err != nil {
+			leakyData, marshalErr := json.MarshalIndent(leakyResult, "", "  ")
+			if marshalErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to marshal leaky paths: %v", marshalErr))
+			} else if err := os.WriteFile(leakyPathsFile, leakyData, 0644); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Failed to write leaky paths: %v", err))
 			}
 
@@ -1222,10 +1224,13 @@ func runAutoScan() {
 		for sub := range subdomainMap {
 			allJSData.Subdomains = append(allJSData.Subdomains, sub)
 		}
+		sort.Strings(allJSData.Subdomains)
 
 		// Save JS analysis
-		jsDataBytes, _ := json.MarshalIndent(allJSData, "", "  ")
-		if err := os.WriteFile(jsAnalysisFile, jsDataBytes, 0644); err != nil {
+		jsDataBytes, marshalErr := json.MarshalIndent(allJSData, "", "  ")
+		if marshalErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to marshal JS analysis: %v", marshalErr))
+		} else if err := os.WriteFile(jsAnalysisFile, jsDataBytes, 0644); err != nil {
 			ui.PrintWarning(fmt.Sprintf("Failed to write JS analysis: %v", err))
 		}
 
@@ -1299,8 +1304,8 @@ func runAutoScan() {
 					confidence = "LOW"
 				}
 				truncated := secret.Value
-				if len(truncated) > 50 {
-					truncated = truncated[:50] + "..."
+				if truncRunes := []rune(truncated); len(truncRunes) > 50 {
+					truncated = string(truncRunes[:50]) + "..."
 				}
 				ui.PrintError(fmt.Sprintf("  [%s] %s: %s", confidence, secret.Type, truncated))
 			}
@@ -1557,8 +1562,10 @@ func runAutoScan() {
 			}
 
 			// Save results
-			paramData, _ := json.MarshalIndent(paramResult, "", "  ")
-			if err := os.WriteFile(paramsFile, paramData, 0644); err != nil {
+			paramData, marshalErr := json.MarshalIndent(paramResult, "", "  ")
+			if marshalErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to marshal params: %v", marshalErr))
+			} else if err := os.WriteFile(paramsFile, paramData, 0644); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Failed to write params: %v", err))
 			}
 
@@ -1724,8 +1731,10 @@ func runAutoScan() {
 		} else {
 			// Save recon results
 			reconFile := filepath.Join(workspaceDir, "full-recon.json")
-			reconData, _ := json.MarshalIndent(fullReconResult, "", "  ")
-			if err := os.WriteFile(reconFile, reconData, 0644); err != nil {
+			reconData, marshalErr := json.MarshalIndent(fullReconResult, "", "  ")
+			if marshalErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to marshal recon data: %v", marshalErr))
+			} else if err := os.WriteFile(reconFile, reconData, 0644); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Failed to write recon: %v", err))
 			}
 
@@ -1878,8 +1887,10 @@ func runAutoScan() {
 		testPlan = learner.GenerateTestPlan()
 
 		// Save test plan
-		planData, _ := json.MarshalIndent(testPlan, "", "  ")
-		if err := os.WriteFile(testPlanFile, planData, 0644); err != nil {
+		planData, marshalErr := json.MarshalIndent(testPlan, "", "  ")
+		if marshalErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to marshal test plan: %v", marshalErr))
+		} else if err := os.WriteFile(testPlanFile, planData, 0644); err != nil {
 			ui.PrintWarning(fmt.Sprintf("Failed to write test plan: %v", err))
 		}
 

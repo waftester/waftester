@@ -277,10 +277,13 @@ func (b *ReportBuilder) buildExecutiveSummary() ExecutiveSummary {
 }
 
 func (b *ReportBuilder) buildTechnicalDetails() TechnicalDetails {
+	// Defensive copy of findings to prevent external mutation
+	findingsCopy := make([]*Finding, len(b.findings))
+	copy(findingsCopy, b.findings)
 	details := TechnicalDetails{
 		Methodology: b.config.Methodology,
 		Tools:       b.config.Tools,
-		Findings:    b.findings,
+		Findings:    findingsCopy,
 		Statistics:  b.calculateStatistics(),
 	}
 
@@ -297,10 +300,21 @@ func (b *ReportBuilder) calculateOverallRisk(byRisk map[finding.Severity]int) (s
 	mediumCount := byRisk[finding.Medium]
 	lowCount := byRisk[finding.Low]
 
-	// Calculate weighted score
-	score := float64(criticalCount*40 + highCount*20 + mediumCount*10 + lowCount*5)
-
-	// Normalize to 0-100
+	// Calculate weighted score using diminishing-returns curve so the
+	// score remains meaningful across a wide range of finding counts.
+	score := 0.0
+	if criticalCount > 0 {
+		score += 40 * (1 - 1/float64(criticalCount+1))
+	}
+	if highCount > 0 {
+		score += 25 * (1 - 1/float64(highCount+1))
+	}
+	if mediumCount > 0 {
+		score += 20 * (1 - 1/float64(mediumCount+1))
+	}
+	if lowCount > 0 {
+		score += 15 * (1 - 1/float64(lowCount+1))
+	}
 	if score > 100 {
 		score = 100
 	}
@@ -704,8 +718,14 @@ func CompareReports(baseline, current *Report) *ComparisonReport {
 		currentMap[key] = f
 	}
 
-	// Find new and unchanged
-	for key, f := range currentMap {
+	// Find new and unchanged (deterministic order).
+	currentKeys := make([]string, 0, len(currentMap))
+	for key := range currentMap {
+		currentKeys = append(currentKeys, key)
+	}
+	sort.Strings(currentKeys)
+	for _, key := range currentKeys {
+		f := currentMap[key]
 		if _, exists := baselineMap[key]; exists {
 			comparison.Unchanged = append(comparison.Unchanged, f)
 		} else {
@@ -713,8 +733,14 @@ func CompareReports(baseline, current *Report) *ComparisonReport {
 		}
 	}
 
-	// Find fixed
-	for key, f := range baselineMap {
+	// Find fixed (deterministic order).
+	baselineKeys := make([]string, 0, len(baselineMap))
+	for key := range baselineMap {
+		baselineKeys = append(baselineKeys, key)
+	}
+	sort.Strings(baselineKeys)
+	for _, key := range baselineKeys {
+		f := baselineMap[key]
 		if _, exists := currentMap[key]; !exists {
 			comparison.FixedFindings = append(comparison.FixedFindings, f)
 		}
