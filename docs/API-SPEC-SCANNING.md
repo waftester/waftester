@@ -1,6 +1,6 @@
 # API Spec Scanning
 
-> Document Version: 2.8.9
+> Document Version: 2.9.39
 
 WAFtester can drive security scans from API specifications instead of blind URL fuzzing. Provide an OpenAPI, Swagger, Postman, HAR, GraphQL, gRPC, or AsyncAPI spec and WAFtester generates targeted attacks against every documented endpoint, parameter, and schema constraint.
 
