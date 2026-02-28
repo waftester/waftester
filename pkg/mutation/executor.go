@@ -415,8 +415,18 @@ func (e *Executor) executeTask(ctx context.Context, task MutationTask) *TestResu
 		MaxDelay:    100 * time.Millisecond,
 		Strategy:    retry.Constant,
 	}, func() error {
+		// Drain previous response body on retry to prevent connection leak
+		if resp != nil {
+			iohelper.DrainAndClose(resp.Body)
+			resp = nil
+		}
+		// Rebuild request each attempt since body reader is consumed after first Do
+		retryReq, buildErr := e.buildRequest(ctx, task)
+		if buildErr != nil {
+			return retry.Stop(buildErr)
+		}
 		var doErr error
-		resp, doErr = e.httpClient.Do(req)
+		resp, doErr = e.httpClient.Do(retryReq)
 		return doErr
 	})
 	result.LatencyMs = time.Since(start).Milliseconds()

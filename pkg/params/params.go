@@ -813,6 +813,13 @@ func DiscoverFromJSON(data []byte) []DiscoveredParam {
 }
 
 func extractKeys(obj map[string]interface{}, prefix string, params *[]DiscoveredParam) {
+	extractKeysWithDepth(obj, prefix, params, 0)
+}
+
+func extractKeysWithDepth(obj map[string]interface{}, prefix string, params *[]DiscoveredParam, depth int) {
+	if depth > 20 {
+		return
+	}
 	for key, value := range obj {
 		fullKey := key
 		if prefix != "" {
@@ -827,7 +834,7 @@ func extractKeys(obj map[string]interface{}, prefix string, params *[]Discovered
 		})
 
 		if nested, ok := value.(map[string]interface{}); ok {
-			extractKeys(nested, fullKey, params)
+			extractKeysWithDepth(nested, fullKey, params, depth+1)
 		}
 	}
 }

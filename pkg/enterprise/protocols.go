@@ -479,8 +479,9 @@ func (l *WCFLocation) BuildRequest(ctx context.Context, baseURL, payload string)
 	}
 
 	req.Header.Set("Content-Type", l.ContentType())
-	req.Header.Set("SOAPAction", fmt.Sprintf("http://tempuri.org/I%s/%s", l.ServiceName, l.Operation))
-
+	if l.Binding != "wsHttpBinding" {
+		req.Header.Set("SOAPAction", fmt.Sprintf("http://tempuri.org/I%s/%s", l.ServiceName, l.Operation))
+	}
 	return req, nil
 }
 

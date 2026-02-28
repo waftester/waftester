@@ -463,7 +463,10 @@ func (m *Memory) Export() *MemoryState {
 	defer m.mu.RUnlock()
 
 	findings := make([]*Finding, len(m.findings))
-	copy(findings, m.findings)
+	for i, f := range m.findings {
+		fCopy := *f
+		findings[i] = &fCopy
+	}
 
 	// Copy category priorities
 	categoryPriority := make(map[string]string, len(m.categoryPriority))
