@@ -385,6 +385,11 @@ func (t *Tester) TestForcefulBrowsing(ctx context.Context) ([]TestResult, error)
 	}
 
 	for _, resource := range sensitiveResources {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
 		fullURL := t.target + resource
 
 		req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
@@ -429,6 +434,11 @@ func (t *Tester) TestMissingFunctionLevelAccess(ctx context.Context) ([]TestResu
 	actions := PrivilegedActions()
 
 	for _, action := range actions {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
 		fullURL := t.target + action.Path
 
 		req, err := http.NewRequestWithContext(ctx, action.Method, fullURL, nil)
@@ -513,14 +523,19 @@ func (t *Tester) TestPathTraversalACL(ctx context.Context) ([]TestResult, error)
 	if err != nil {
 		return nil, err
 	}
-	baseResp, _ := t.client.Do(baseReq)
-	var baseStatus int
-	if baseResp != nil {
-		baseStatus = baseResp.StatusCode
-		iohelper.DrainAndClose(baseResp.Body)
+	baseResp, err := t.client.Do(baseReq)
+	if err != nil {
+		return nil, fmt.Errorf("baseline request failed: %w", err)
 	}
+	baseStatus := baseResp.StatusCode
+	iohelper.DrainAndClose(baseResp.Body)
 
 	for _, payload := range payloads {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
 		fullURL := t.target + payload
 
 		// URL encode properly for special characters

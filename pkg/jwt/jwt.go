@@ -940,7 +940,11 @@ func EstimateSecretEntropy(secret string) float64 {
 
 	// Calculate entropy using Shannon entropy formula
 	var entropy float64
-	length := float64(len(secret))
+	runeCount := 0
+	for range secret {
+		runeCount++
+	}
+	length := float64(runeCount)
 
 	for _, count := range chars {
 		p := float64(count) / length

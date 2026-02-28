@@ -212,11 +212,14 @@ func runSpecScan(
 		},
 		OnFinding: func(f apispec.SpecFinding) {
 			if streamJSON {
-				data, _ := json.Marshal(map[string]interface{}{
+				data, marshalErr := json.Marshal(map[string]interface{}{
 					"type":      "spec_finding",
 					"timestamp": time.Now().Format(time.RFC3339),
 					"data":      f,
 				})
+				if marshalErr != nil {
+					return
+				}
 				fmt.Println(string(data)) // debug:keep
 			} else {
 				ui.PrintWarning(fmt.Sprintf("[%s] %s %s — %s: %s (param: %s)",
@@ -304,7 +307,11 @@ func runSpecScan(
 // runSpecDryRun outputs the spec scan plan and exits.
 func runSpecDryRun(plan *apispec.ScanPlan, endpoints []apispec.Endpoint, streamJSON bool) {
 	if streamJSON {
-		data, _ := json.Marshal(plan)
+		data, marshalErr := json.Marshal(plan)
+		if marshalErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to marshal plan: %v", marshalErr))
+			return
+		}
 		fmt.Println(string(data)) // debug:keep
 		os.Exit(0)
 	}
