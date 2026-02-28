@@ -4,7 +4,7 @@ The definitive reference for every WAFtester CLI command, flag, environment vari
 
 For usage examples and real-world workflows, see the [Examples Guide](https://github.com/waftester/waftester/blob/main/docs/EXAMPLES.md). For installation, see the [Installation Guide](https://github.com/waftester/waftester/blob/main/docs/INSTALLATION.md). For a quick task-oriented reference, see the [Cheat Sheet](https://waftester.com/cheat-sheet).
 
-**Document Version:** 2.9.38
+**Document Version:** 2.9.39
 **Last Updated:** February 2026
 
 > **Reading order:** This is the flag reference. For real-world examples, see [EXAMPLES.md](EXAMPLES.md). For a quick copy-paste reference, see the [Cheat Sheet](https://waftester.com/cheat-sheet). For a beginner guide, see [waftester.com/docs](https://waftester.com/docs).
