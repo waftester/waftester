@@ -134,7 +134,11 @@ func expandTemplate(tmpl PayloadTemplate) []string {
 	return results
 }
 
+// maxCartesianSize caps the cartesian product to prevent OOM on pathological inputs.
+const maxCartesianSize = 100_000
+
 // cartesian computes the cartesian product of a list of string slices.
+// It caps the result at maxCartesianSize to prevent OOM from combinatorial explosion.
 func cartesian(lists [][]string) [][]string {
 	if len(lists) == 0 {
 		return [][]string{{}}
@@ -148,6 +152,9 @@ func cartesian(lists [][]string) [][]string {
 				copy(combo, existing)
 				combo[len(existing)] = val
 				next = append(next, combo)
+				if len(next) >= maxCartesianSize {
+					return next
+				}
 			}
 		}
 		result = next

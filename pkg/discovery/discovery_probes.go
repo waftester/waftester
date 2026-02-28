@@ -55,6 +55,10 @@ func (d *Discoverer) discoverForms(ctx context.Context, result *DiscoveryResult)
 			if form.Action != "" {
 				formPath := extractPath(form.Action)
 				if formPath != "" && !d.isExcluded(formPath) {
+					// Skip if already visited to prevent duplicates across pages
+					if _, exists := d.visited.LoadOrStore("form:"+formPath, true); exists {
+						continue
+					}
 					// Create endpoint for form target
 					formEndpoint := Endpoint{
 						Path:       formPath,

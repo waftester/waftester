@@ -605,12 +605,25 @@ func (e *MutationEngine) GetBasePayloads(payloadType PayloadType) []string {
 	return []string{}
 }
 
-// Mutate applies mutations to a payload
+// Mutate applies mutations to a payload.
+// If encodings is non-empty, only mutators whose Name() matches an entry are applied.
 func (e *MutationEngine) Mutate(payload string, payloadType PayloadType, level int, encodings []string) []string {
 	results := []string{payload}
 
+	// Build allowed set from encodings filter
+	var allowed map[string]bool
+	if len(encodings) > 0 {
+		allowed = make(map[string]bool, len(encodings))
+		for _, enc := range encodings {
+			allowed[enc] = true
+		}
+	}
+
 	// Apply mutations based on level
 	for i := 0; i < level && i < len(e.mutators); i++ {
+		if allowed != nil && !allowed[e.mutators[i].Name()] {
+			continue
+		}
 		var newResults []string
 		for _, p := range results {
 			mutated := e.mutators[i].Mutate(p)

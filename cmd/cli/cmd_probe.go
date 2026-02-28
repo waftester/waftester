@@ -656,7 +656,11 @@ func runProbe() {
 		// Note: Rate limiting is handled by the runner package
 		// Delay between requests can still be applied if needed
 		if *cfg.Delay > 0 {
-			time.Sleep(*cfg.Delay)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(*cfg.Delay):
+			}
 		}
 
 		// Initial HTTP Probe for response time and status

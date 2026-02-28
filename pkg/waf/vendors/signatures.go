@@ -973,7 +973,7 @@ var AllSignatures = []WAFSignature{
 			"X-Kpsdk-Cd": regexp.MustCompile(`.+`),
 		},
 		CookiePatterns: []*regexp.Regexp{
-			regexp.MustCompile(`(?i)^x-]kpsdk-ct=`),
+			regexp.MustCompile(`(?i)^x-kpsdk-ct=`),
 		},
 		BypassTips: []string{
 			"Kasada has advanced obfuscation",

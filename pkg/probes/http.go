@@ -165,7 +165,18 @@ func (p *HTTPProber) ProbePipeline(ctx context.Context, host string, port int, u
 			ServerName:         host,
 			InsecureSkipVerify: true,
 		}
-		conn, err = tls.DialWithDialer(dialer, "tcp", addr, tlsConfig)
+		rawConn, dialErr := dialer.DialContext(ctx, "tcp", addr)
+		if dialErr != nil {
+			err = dialErr
+		} else {
+			tlsConn := tls.Client(rawConn, tlsConfig)
+			if hsErr := tlsConn.HandshakeContext(ctx); hsErr != nil {
+				rawConn.Close()
+				err = hsErr
+			} else {
+				conn = tlsConn
+			}
+		}
 	} else {
 		conn, err = dialer.DialContext(ctx, "tcp", addr)
 	}
@@ -284,7 +295,18 @@ func (p *HTTPProber) ProbeKeepAlive(ctx context.Context, host string, port int, 
 			ServerName:         host,
 			InsecureSkipVerify: true,
 		}
-		conn, err = tls.DialWithDialer(dialer, "tcp", addr, tlsConfig)
+		rawConn, dialErr := dialer.DialContext(ctx, "tcp", addr)
+		if dialErr != nil {
+			err = dialErr
+		} else {
+			tlsConn := tls.Client(rawConn, tlsConfig)
+			if hsErr := tlsConn.HandshakeContext(ctx); hsErr != nil {
+				rawConn.Close()
+				err = hsErr
+			} else {
+				conn = tlsConn
+			}
+		}
 	} else {
 		conn, err = dialer.DialContext(ctx, "tcp", addr)
 	}
@@ -545,17 +567,20 @@ func (p *VHostProber) ProbeVHosts(ctx context.Context, targetIP string, port int
 // extractTitle extracts title from HTML
 func extractTitle(body []byte) string {
 	html := string(body)
-	start := strings.Index(strings.ToLower(html), "<title>")
+	lower := strings.ToLower(html)
+	start := strings.Index(lower, "<title>")
 	if start == -1 {
 		return ""
 	}
 	start += 7
 
-	end := strings.Index(strings.ToLower(html[start:]), "</title>")
+	end := strings.Index(lower[start:], "</title>")
 	if end == -1 {
 		return ""
 	}
 
+	// Extract from original HTML to preserve casing.
+	// Tag names are ASCII so byte offsets from lower match original.
 	title := strings.TrimSpace(html[start : start+end])
 	if len(title) > 100 {
 		title = title[:100]

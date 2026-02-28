@@ -2,7 +2,6 @@ package tampers
 
 import (
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -59,10 +58,12 @@ func (m *MetricsCollector) getOrCreate(name string) *TamperMetrics {
 // RecordTransform records a payload transformation
 func (m *MetricsCollector) RecordTransform(name, original, transformed string) {
 	metrics := m.getOrCreate(name)
-	atomic.AddInt64(&metrics.TransformCount, 1)
-	atomic.AddInt64(&metrics.CharactersAdded, int64(len(transformed)-len(original)))
 
+	// Hold the write lock for all field accesses to avoid data races between
+	// atomic int64 operations and adjacent time.Time struct writes.
 	m.mu.Lock()
+	metrics.TransformCount++
+	metrics.CharactersAdded += int64(len(transformed) - len(original))
 	metrics.LastUsed = time.Now()
 	m.mu.Unlock()
 }
@@ -72,10 +73,10 @@ func (m *MetricsCollector) RecordSuccess(tamperNames []string) {
 	now := time.Now()
 	for _, name := range tamperNames {
 		metrics := m.getOrCreate(name)
-		atomic.AddInt64(&metrics.TotalAttempts, 1)
-		atomic.AddInt64(&metrics.SuccessCount, 1)
 
 		m.mu.Lock()
+		metrics.TotalAttempts++
+		metrics.SuccessCount++
 		metrics.LastUsed = now
 		metrics.LastSuccess = now
 		m.mu.Unlock()
@@ -87,10 +88,10 @@ func (m *MetricsCollector) RecordFailure(tamperNames []string) {
 	now := time.Now()
 	for _, name := range tamperNames {
 		metrics := m.getOrCreate(name)
-		atomic.AddInt64(&metrics.TotalAttempts, 1)
-		atomic.AddInt64(&metrics.BlockedCount, 1)
 
 		m.mu.Lock()
+		metrics.TotalAttempts++
+		metrics.BlockedCount++
 		metrics.LastUsed = now
 		m.mu.Unlock()
 	}
@@ -101,10 +102,10 @@ func (m *MetricsCollector) RecordError(tamperNames []string) {
 	now := time.Now()
 	for _, name := range tamperNames {
 		metrics := m.getOrCreate(name)
-		atomic.AddInt64(&metrics.TotalAttempts, 1)
-		atomic.AddInt64(&metrics.ErrorCount, 1)
 
 		m.mu.Lock()
+		metrics.TotalAttempts++
+		metrics.ErrorCount++
 		metrics.LastUsed = now
 		m.mu.Unlock()
 	}
@@ -120,7 +121,9 @@ func (m *MetricsCollector) RecordLatency(tamperNames []string, latency time.Dura
 
 	for _, name := range tamperNames {
 		metrics := m.getOrCreate(name)
-		atomic.AddInt64(&metrics.TotalLatencyNs, perTamper)
+		m.mu.Lock()
+		metrics.TotalLatencyNs += perTamper
+		m.mu.Unlock()
 	}
 }
 
@@ -130,16 +133,16 @@ func (m *MetricsCollector) GetMetrics(name string) *TamperMetrics {
 	defer m.mu.RUnlock()
 
 	if metrics, ok := m.metrics[name]; ok {
-		// Return a copy to avoid race conditions
+		// Return a copy — all fields read under RLock (no more atomics)
 		return &TamperMetrics{
 			TamperName:      metrics.TamperName,
-			TotalAttempts:   atomic.LoadInt64(&metrics.TotalAttempts),
-			SuccessCount:    atomic.LoadInt64(&metrics.SuccessCount),
-			BlockedCount:    atomic.LoadInt64(&metrics.BlockedCount),
-			ErrorCount:      atomic.LoadInt64(&metrics.ErrorCount),
-			TransformCount:  atomic.LoadInt64(&metrics.TransformCount),
-			TotalLatencyNs:  atomic.LoadInt64(&metrics.TotalLatencyNs),
-			CharactersAdded: atomic.LoadInt64(&metrics.CharactersAdded),
+			TotalAttempts:   metrics.TotalAttempts,
+			SuccessCount:    metrics.SuccessCount,
+			BlockedCount:    metrics.BlockedCount,
+			ErrorCount:      metrics.ErrorCount,
+			TransformCount:  metrics.TransformCount,
+			TotalLatencyNs:  metrics.TotalLatencyNs,
+			CharactersAdded: metrics.CharactersAdded,
 			LastUsed:        metrics.LastUsed,
 			LastSuccess:     metrics.LastSuccess,
 		}
@@ -156,13 +159,13 @@ func (m *MetricsCollector) GetAllMetrics() map[string]*TamperMetrics {
 	for name, metrics := range m.metrics {
 		result[name] = &TamperMetrics{
 			TamperName:      metrics.TamperName,
-			TotalAttempts:   atomic.LoadInt64(&metrics.TotalAttempts),
-			SuccessCount:    atomic.LoadInt64(&metrics.SuccessCount),
-			BlockedCount:    atomic.LoadInt64(&metrics.BlockedCount),
-			ErrorCount:      atomic.LoadInt64(&metrics.ErrorCount),
-			TransformCount:  atomic.LoadInt64(&metrics.TransformCount),
-			TotalLatencyNs:  atomic.LoadInt64(&metrics.TotalLatencyNs),
-			CharactersAdded: atomic.LoadInt64(&metrics.CharactersAdded),
+			TotalAttempts:   metrics.TotalAttempts,
+			SuccessCount:    metrics.SuccessCount,
+			BlockedCount:    metrics.BlockedCount,
+			ErrorCount:      metrics.ErrorCount,
+			TransformCount:  metrics.TransformCount,
+			TotalLatencyNs:  metrics.TotalLatencyNs,
+			CharactersAdded: metrics.CharactersAdded,
 			LastUsed:        metrics.LastUsed,
 			LastSuccess:     metrics.LastSuccess,
 		}
@@ -195,12 +198,12 @@ func (m *MetricsCollector) GetTopPerformers(n int) []TamperPerformance {
 
 	perfs := make([]TamperPerformance, 0, len(m.metrics))
 	for name, metrics := range m.metrics {
-		attempts := atomic.LoadInt64(&metrics.TotalAttempts)
+		attempts := metrics.TotalAttempts
 		if attempts == 0 {
 			continue
 		}
 
-		success := atomic.LoadInt64(&metrics.SuccessCount)
+		success := metrics.SuccessCount
 		perfs = append(perfs, TamperPerformance{
 			Name:        name,
 			SuccessRate: float64(success) / float64(attempts),
@@ -263,12 +266,12 @@ func (m *MetricsCollector) GetSummary() *MetricsSummary {
 	var totalTransforms int64
 
 	for name, metrics := range m.metrics {
-		attempts := atomic.LoadInt64(&metrics.TotalAttempts)
-		success := atomic.LoadInt64(&metrics.SuccessCount)
-		blocked := atomic.LoadInt64(&metrics.BlockedCount)
-		errors := atomic.LoadInt64(&metrics.ErrorCount)
-		transforms := atomic.LoadInt64(&metrics.TransformCount)
-		charsAdded := atomic.LoadInt64(&metrics.CharactersAdded)
+		attempts := metrics.TotalAttempts
+		success := metrics.SuccessCount
+		blocked := metrics.BlockedCount
+		errors := metrics.ErrorCount
+		transforms := metrics.TransformCount
+		charsAdded := metrics.CharactersAdded
 
 		summary.TotalAttempts += attempts
 		summary.TotalSuccesses += success

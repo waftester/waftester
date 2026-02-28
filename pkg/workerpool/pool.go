@@ -168,13 +168,17 @@ func (p *Pool) worker() {
 	defer func() {
 		// Recover from panics in tasks
 		if r := recover(); r != nil {
-			// Respawn worker to maintain pool capacity
+			// Respawn worker to maintain pool capacity.
+			// Acquire RLock to synchronize wg.Add with Close's wg.Wait —
+			// without this, a concurrent Close could call wg.Wait before
+			// our wg.Add, causing a panic.
+			p.mu.RLock()
 			if atomic.LoadInt32(&p.closed) == 0 {
-				// Increment running for the replacement before decrementing for current
 				atomic.AddInt32(&p.running, 1)
 				p.wg.Add(1)
 				go p.worker()
 			}
+			p.mu.RUnlock()
 		}
 		atomic.AddInt32(&p.running, -1)
 		p.wg.Done()

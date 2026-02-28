@@ -1,6 +1,7 @@
 package realistic
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"regexp"
@@ -78,7 +79,7 @@ func (d *BlockDetector) DetectBlock(resp *http.Response, responseTime time.Durat
 	// 1. Check status code
 	if d.isBlockedStatusCode(resp.StatusCode) {
 		totalConfidence += 0.4
-		reasons = append(reasons, "status_code:"+string(rune(resp.StatusCode)))
+		reasons = append(reasons, fmt.Sprintf("status_code:%d", resp.StatusCode))
 		result.MatchedPatterns = append(result.MatchedPatterns, "status_code")
 	}
 
@@ -279,7 +280,7 @@ func simpleHash(s string) string {
 		hash ^= uint32(s[i])
 		hash *= 16777619
 	}
-	return string(rune(hash))
+	return fmt.Sprintf("%08x", hash)
 }
 
 func headerMap(h http.Header) map[string]string {

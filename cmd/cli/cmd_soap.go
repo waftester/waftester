@@ -268,7 +268,7 @@ func runSOAPFuzz(ctx context.Context, client *soap.Client, endpoint, payloadDir,
 	for _, payload := range payloads {
 		select {
 		case <-ctx.Done():
-			break
+			goto soapFuzzDone
 		default:
 		}
 
@@ -309,6 +309,7 @@ func runSOAPFuzz(ctx context.Context, client *soap.Client, endpoint, payloadDir,
 			}
 		}
 	}
+soapFuzzDone:
 
 	// Output results
 	if outputFile != "" {
