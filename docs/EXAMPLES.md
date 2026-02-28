@@ -4025,10 +4025,11 @@ waftester scan --spec openapi.yaml -u https://api.example.com \
 # Save a baseline scan
 waftester scan --spec openapi.yaml -u https://api.example.com -format json -o baseline.json
 
-# Compare a new scan against the baseline
-waftester scan --spec openapi.yaml -u https://api.example.com --compare baseline.json
+# Run a new scan and save output
+waftester scan --spec openapi.yaml -u https://api.example.com -format json -o current.json
 
-# The diff shows: new findings, fixed issues, regressions, unchanged
+# Compare against baseline — shows severity deltas, new/fixed categories, verdict
+waftester compare baseline.json current.json
 ```
 
 ### Checkpointing and Resume
@@ -5513,11 +5514,8 @@ waf-tester scan -u https://target.com \
   --history-path=./waf-history \
   --history-tags="production,weekly,cloudflare"
 
-# Compare two scans (by scan ID)
-waf-tester history compare \
-  --history-path=./waf-history \
-  --base=scan-2026-01-01 \
-  --compare=scan-2026-02-01
+# Compare two scan result files
+waf-tester compare scan-2026-01-01.json scan-2026-02-01.json
 
 # View trend data for a target
 waf-tester history trend \
@@ -7668,10 +7666,8 @@ waf-tester history trend \
   --history-path=/var/lib/waftester/history \
   --target=https://production.example.com
 
-# Compare latest scan against previous baseline
-waf-tester history compare \
-  --history-path=/var/lib/waftester/history \
-  --base=last-2 --compare=last-1
+# Compare two scan results for regression detection
+waf-tester compare previous-scan.json latest-scan.json
 ```
 
 **Prometheus + Grafana integration:**
@@ -8914,7 +8910,7 @@ waf-tester scan -u https://example.com --html report.html \
 - **13 Scan Flags Wired** — `--match-severity`, `--filter-severity`, `--match-category`, `--filter-category`, `--exclude-types`, `--include-patterns`, `--exclude-patterns`, `--stop-on-first`, `--rate-limit-per-host`, `--retries`, `--respect-robots`, `--include-evidence`, `--include-remediation` ([details](#scan-control-flags-v290))
 - **Cross-Endpoint Attacks** — IDOR, race condition, and privilege escalation testing across related endpoints
 - **Checkpointing and Resume** — Resume interrupted spec scans with `--resume` ([details](#checkpointing-and-resume))
-- **Comparison Mode** — Diff against baseline with `--compare` ([details](#comparison-mode))
+- **Comparison Mode** — Diff two scan results with `waf-tester compare` ([details](#comparison-mode))
 - **9 MCP Spec Tools** — `validate_spec`, `list_spec_endpoints`, `plan_spec`, `scan_spec`, `compare_baselines`, `preview_spec_scan`, `spec_intelligence`, `describe_spec_auth`, `export_spec`
 
 </details>

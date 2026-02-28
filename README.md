@@ -135,7 +135,7 @@ waf-tester scan --spec recording.har -u https://api.example.com
 waf-tester scan --spec openapi.yaml -u https://api.example.com --dry-run
 
 # Compare against baseline for regression detection
-waf-tester scan --spec openapi.yaml -u https://api.example.com --compare baseline.json
+waf-tester compare baseline.json current.json
 ```
 
 Supported formats: OpenAPI 3.x, Swagger 2.0, Postman Collection v2.x, HAR 1.2, GraphQL (introspection), gRPC (reflection), AsyncAPI 2.x.
