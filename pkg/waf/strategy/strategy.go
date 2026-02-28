@@ -98,11 +98,13 @@ func (e *StrategyEngine) ClearExpiredCache() {
 
 // GetStrategy detects WAF and returns optimized testing strategy
 func (e *StrategyEngine) GetStrategy(ctx context.Context, target string) (*Strategy, error) {
-	// Check cache first
+	// Check cache first (verify entry hasn't expired)
 	e.mu.RLock()
 	if cached, ok := e.cache[target]; ok {
-		e.mu.RUnlock()
-		return cached, nil
+		if expiry, hasExpiry := e.cacheExpiry[target]; hasExpiry && time.Now().Before(expiry) {
+			e.mu.RUnlock()
+			return cached, nil
+		}
 	}
 	e.mu.RUnlock()
 

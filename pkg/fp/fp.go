@@ -155,7 +155,9 @@ func (t *Tester) Run(ctx context.Context) (*Result, error) {
 				}
 
 				// Rate limit
-				t.limiter.Wait(ctx)
+				if err := t.limiter.Wait(ctx); err != nil {
+					return // context cancelled
+				}
 
 				// Execute test
 				isBlocked, statusCode, respBody, err := t.executeTest(ctx, task)

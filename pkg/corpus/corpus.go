@@ -69,7 +69,10 @@ type DownloadProgress struct {
 // NewManager creates a new corpus manager
 func NewManager(cacheDir string, verbose bool) *Manager {
 	if cacheDir == "" {
-		home, _ := os.UserHomeDir()
+		home, err := os.UserHomeDir()
+		if err != nil || home == "" {
+			home = os.TempDir()
+		}
 		cacheDir = filepath.Join(home, ".waf-tester", "corpus")
 	}
 
@@ -83,12 +86,12 @@ func NewManager(cacheDir string, verbose bool) *Manager {
 
 // GetBuiltinCorpus returns the built-in corpus (always available, no download)
 func (m *Manager) GetBuiltinCorpus() *Corpus {
-	m.mu.RLock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if c, ok := m.corpora["builtin"]; ok {
-		m.mu.RUnlock()
 		return c
 	}
-	m.mu.RUnlock()
 
 	// Load builtin corpus
 	corpus := &Corpus{
@@ -106,10 +109,7 @@ func (m *Manager) GetBuiltinCorpus() *Corpus {
 		corpus.Categories[p.Category]++
 	}
 
-	m.mu.Lock()
 	m.corpora["builtin"] = corpus
-	m.mu.Unlock()
-
 	return corpus
 }
 

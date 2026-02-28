@@ -117,9 +117,14 @@ func NewDetector(config *DetectorConfig) *Detector {
 		config = DefaultConfig()
 	}
 
+	client := config.Client
+	if client == nil {
+		client = httpclient.Default()
+	}
+
 	d := &Detector{
 		config: config,
-		client: httpclient.Default(),
+		client: client,
 	}
 
 	d.payloads = d.generatePayloads()

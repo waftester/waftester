@@ -284,7 +284,9 @@ sendLoop2:
 	results.TotalTests = int(completedTests)
 
 	if results.Duration.Seconds() > 0 {
-		results.RequestsPerSec = float64(results.TotalTests) / results.Duration.Seconds()
+		// Only count tests that actually made HTTP requests for RPS
+		actualRequests := blocked + passed + failed + errored
+		results.RequestsPerSec = float64(actualRequests) / results.Duration.Seconds()
 	}
 
 	// Populate top errors (sorted by frequency)

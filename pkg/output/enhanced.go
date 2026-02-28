@@ -202,7 +202,11 @@ func (w *ECSVWriter) Write(result *TestResult) error {
 		fmt.Sprintf("%.2f", result.RiskScore.RiskScore),
 	}
 
-	return w.writer.Write(record)
+	if err := w.writer.Write(record); err != nil {
+		return err
+	}
+	w.writer.Flush()
+	return w.writer.Error()
 }
 
 func (w *ECSVWriter) Close() (retErr error) {

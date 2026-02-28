@@ -891,6 +891,7 @@ func (d *Detector) Detect(ctx context.Context, target, param string) (*Result, e
 		}
 
 		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+		io.Copy(io.Discard, resp.Body) // drain remainder for connection reuse
 		resp.Body.Close()
 
 		bodyStr := string(bodyBytes)

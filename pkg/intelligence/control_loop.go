@@ -211,8 +211,11 @@ func (cl *ControlLoop) Orient() *Orientation {
 	// Marginal value: findings per request in last epoch
 	if len(cl.findingsPerEpoch) > 0 && cl.budget.TotalRequests > 0 {
 		lastFindings := cl.findingsPerEpoch[len(cl.findingsPerEpoch)-1]
-		// Approximate requests in last epoch
-		ori.MarginalValue = float64(lastFindings) / float64(cl.budget.TotalRequests/len(cl.findingsPerEpoch))
+		// Use float64 division to avoid integer truncation to zero
+		reqsPerEpoch := float64(cl.budget.TotalRequests) / float64(len(cl.findingsPerEpoch))
+		if reqsPerEpoch > 0 {
+			ori.MarginalValue = float64(lastFindings) / reqsPerEpoch
+		}
 	}
 
 	// Confidence based on data volume

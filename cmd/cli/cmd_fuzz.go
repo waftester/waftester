@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -749,10 +750,19 @@ func runFuzz() {
 
 	// CSV output
 	if *csvFuzz {
-		fmt.Println("url,status,size,words,lines,time")
+		w := csv.NewWriter(os.Stdout)
+		w.Write([]string{"url", "status", "size", "words", "lines", "time"})
 		for _, r := range results {
-			fmt.Printf("%s,%d,%d,%d,%d,%s\n", r.URL, r.StatusCode, r.ContentLength, r.WordCount, r.LineCount, r.ResponseTime)
+			w.Write([]string{
+				r.URL,
+				fmt.Sprintf("%d", r.StatusCode),
+				fmt.Sprintf("%d", r.ContentLength),
+				fmt.Sprintf("%d", r.WordCount),
+				fmt.Sprintf("%d", r.LineCount),
+				r.ResponseTime.String(),
+			})
 		}
+		w.Flush()
 		return
 	}
 
@@ -767,7 +777,8 @@ func runFuzz() {
 		fmt.Println("| URL | Status | Size | Words | Lines |")
 		fmt.Println("|-----|--------|------|-------|-------|")
 		for _, r := range results {
-			fmt.Printf("| %s | %d | %d | %d | %d |\n", r.URL, r.StatusCode, r.ContentLength, r.WordCount, r.LineCount)
+			escapedURL := strings.ReplaceAll(r.URL, "|", "\\|")
+			fmt.Printf("| %s | %d | %d | %d | %d |\n", escapedURL, r.StatusCode, r.ContentLength, r.WordCount, r.LineCount)
 		}
 		return
 	}

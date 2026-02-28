@@ -130,8 +130,9 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		DisableKeepAlives: true,
 	}
 
-	// Set matching User-Agent
+	// Clone request before mutating headers (RoundTripper contract)
 	if profile.UserAgent != "" && req.Header.Get("User-Agent") == "" {
+		req = req.Clone(req.Context())
 		req.Header.Set("User-Agent", profile.UserAgent)
 	}
 
@@ -170,7 +171,7 @@ func (t *Transport) dialTLSWithProfile(ctx context.Context, network, addr string
 
 	uConn := utls.UClient(conn, tlsConfig, *profile.ClientHello)
 	if err := uConn.Handshake(); err != nil {
-		conn.Close()
+		uConn.Close() // close uTLS wrapper (also closes underlying conn)
 		return nil, fmt.Errorf("TLS handshake failed: %w", err)
 	}
 
@@ -385,6 +386,10 @@ func NewFallbackTransport(cfg *Config) *FallbackTransport {
 // RoundTrip implements http.RoundTripper with User-Agent rotation
 func (t *FallbackTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	t.mu.Lock()
+	if len(t.profiles) == 0 {
+		t.mu.Unlock()
+		return nil, fmt.Errorf("no TLS profiles configured")
+	}
 	profile := t.profiles[t.currentIndex]
 	t.requestCount++
 
@@ -398,12 +403,11 @@ func (t *FallbackTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	}
 	t.mu.Unlock()
 
-	// Set User-Agent from profile
+	// Clone request before mutating headers (RoundTripper contract)
+	req = req.Clone(req.Context())
 	if profile.UserAgent != "" && req.Header.Get("User-Agent") == "" {
 		req.Header.Set("User-Agent", profile.UserAgent)
 	}
-
-	// Add browser-like headers
 	addBrowserHeaders(req)
 
 	transport := &http.Transport{

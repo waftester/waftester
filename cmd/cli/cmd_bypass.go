@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -106,7 +105,7 @@ func runBypassFinder() {
 		defer bypassDispCtx.Close()
 		bypassDispCtx.RegisterDetectionCallbacks(ctx)
 	}
-	bypassCtx := context.Background()
+	bypassCtx := ctx
 
 	// Emit start event for scan lifecycle hooks
 	if bypassDispCtx != nil {

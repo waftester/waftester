@@ -213,9 +213,13 @@ func (d *VendorDetector) checkSignature(sig *WAFSignature, resp *http.Response, 
 	}
 
 	// Check body patterns (only for attack responses or if no attack headers)
+	// Copy to a new slice to avoid corrupting the shared BodyPatterns backing array.
 	patterns := sig.BodyPatterns
 	if isAttack && len(sig.BlockPatterns) > 0 {
-		patterns = append(patterns, sig.BlockPatterns...)
+		combined := make([]*regexp.Regexp, 0, len(sig.BodyPatterns)+len(sig.BlockPatterns))
+		combined = append(combined, sig.BodyPatterns...)
+		combined = append(combined, sig.BlockPatterns...)
+		patterns = combined
 	}
 
 	for _, pattern := range patterns {

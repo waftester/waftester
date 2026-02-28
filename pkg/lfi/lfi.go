@@ -36,16 +36,16 @@ func DefaultConfig() Config {
 
 // Result represents an LFI test result
 type Result struct {
-	URL          string    `json:"url"`
-	Parameter    string    `json:"parameter"`
-	Payload      string    `json:"payload"`
-	StatusCode   int       `json:"status_code"`
-	ResponseSize int       `json:"response_size"`
-	Vulnerable   bool      `json:"vulnerable"`
-	FileContent  string    `json:"file_content,omitempty"`
-	Evidence     string    `json:"evidence,omitempty"`
-	Severity     finding.Severity    `json:"severity"`
-	Timestamp    time.Time `json:"timestamp"`
+	URL          string           `json:"url"`
+	Parameter    string           `json:"parameter"`
+	Payload      string           `json:"payload"`
+	StatusCode   int              `json:"status_code"`
+	ResponseSize int              `json:"response_size"`
+	Vulnerable   bool             `json:"vulnerable"`
+	FileContent  string           `json:"file_content,omitempty"`
+	Evidence     string           `json:"evidence,omitempty"`
+	Severity     finding.Severity `json:"severity"`
+	Timestamp    time.Time        `json:"timestamp"`
 }
 
 // Scanner performs LFI testing
@@ -65,9 +65,14 @@ func NewScanner(config Config) *Scanner {
 		config.Timeout = httpclient.TimeoutProbing
 	}
 
+	client := config.Client
+	if client == nil {
+		client = httpclient.Default()
+	}
+
 	return &Scanner{
 		config:  config,
-		client:  httpclient.Default(),
+		client:  client,
 		results: make([]Result, 0),
 	}
 }

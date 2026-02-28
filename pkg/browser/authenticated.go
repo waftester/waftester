@@ -658,7 +658,18 @@ func (s *AuthenticatedScanner) runChromedpScan(ctx context.Context, result *Brow
 		}
 		s.mu.Lock()
 		defer s.mu.Unlock()
+		// Deduplicate: GetCookies returns all cookies for the browser context,
+		// which may overlap with cookies collected from earlier navigations.
+		seen := make(map[string]bool, len(result.StorageData.Cookies))
+		for _, existing := range result.StorageData.Cookies {
+			seen[existing.Name+"|"+existing.Domain+"|"+existing.Path] = true
+		}
 		for _, c := range cookies {
+			key := c.Name + "|" + c.Domain + "|" + c.Path
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
 			result.StorageData.Cookies = append(result.StorageData.Cookies, CookieInfo{
 				Name:     c.Name,
 				Domain:   c.Domain,

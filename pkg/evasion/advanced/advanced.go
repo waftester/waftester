@@ -493,8 +493,13 @@ func NewChunkedEncoder(chunkSize int) *ChunkedEncoder {
 func (c *ChunkedEncoder) Encode(data []byte) []byte {
 	var buf bytes.Buffer
 
-	for i := 0; i < len(data); i += c.ChunkSize {
-		end := i + c.ChunkSize
+	chunkSize := c.ChunkSize
+	if chunkSize <= 0 {
+		chunkSize = 1
+	}
+
+	for i := 0; i < len(data); i += chunkSize {
+		end := i + chunkSize
 		if end > len(data) {
 			end = len(data)
 		}

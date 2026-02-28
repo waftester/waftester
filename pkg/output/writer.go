@@ -218,7 +218,7 @@ func (w *JSONWriter) Close() (retErr error) {
 
 func newJSONLWriter(path string) (*JSONLWriter, error) {
 	if path == "" {
-		return &JSONLWriter{file: os.Stdout}, nil
+		return &JSONLWriter{file: os.Stdout, encoder: json.NewEncoder(os.Stdout)}, nil
 	}
 	file, err := os.Create(path)
 	if err != nil {

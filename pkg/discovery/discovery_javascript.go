@@ -159,7 +159,8 @@ func (d *Discoverer) extractJSFromHomepage(ctx context.Context) []string {
 				// strings.Contains(s, "") is always true, which would match
 				// every third-party CDN URL.
 				hostname := d.getHostname()
-				if hostname != "" && strings.Contains(src, hostname) {
+				srcURL, parseErr := url.Parse(src)
+				if parseErr == nil && hostname != "" && srcURL.Hostname() == hostname {
 					jsURLs = append(jsURLs, src)
 				}
 			} else if strings.HasPrefix(src, "//") {
@@ -168,7 +169,12 @@ func (d *Discoverer) extractJSFromHomepage(ctx context.Context) []string {
 				if strings.HasPrefix(baseURL, "http://") {
 					scheme = "http:"
 				}
-				jsURLs = append(jsURLs, scheme+src)
+				fullURL := scheme + src
+				hostname := d.getHostname()
+				srcURL, parseErr := url.Parse(fullURL)
+				if parseErr == nil && hostname != "" && srcURL.Hostname() == hostname {
+					jsURLs = append(jsURLs, fullURL)
+				}
 			} else if strings.HasPrefix(src, "/") {
 				// Absolute path
 				jsURLs = append(jsURLs, baseURL+src)
@@ -176,8 +182,17 @@ func (d *Discoverer) extractJSFromHomepage(ctx context.Context) []string {
 				// Relative path (e.g., "js/app.js", "./bundle.js")
 				// Strip leading "./" before resolving against base URL
 				cleanSrc := strings.TrimPrefix(src, "./")
-				base := strings.TrimSuffix(baseURL, "/")
-				jsURLs = append(jsURLs, base+"/"+cleanSrc)
+				parsedBase, parseErr := url.Parse(baseURL)
+				if parseErr == nil {
+					dir := parsedBase.Path
+					if idx := strings.LastIndex(dir, "/"); idx >= 0 {
+						dir = dir[:idx]
+					}
+					parsedBase.Path = dir + "/" + cleanSrc
+					jsURLs = append(jsURLs, parsedBase.String())
+				} else {
+					jsURLs = append(jsURLs, baseURL+"/"+cleanSrc)
+				}
 			}
 		}
 	}
@@ -231,6 +246,10 @@ func normalizeJSPath(p string) string {
 	}
 	// Reject traversal after stripping ./
 	if strings.HasPrefix(p, "../") {
+		return ""
+	}
+	// Also reject mid-path traversal (e.g., "foo/../bar")
+	if strings.Contains(p, "/../") || strings.HasSuffix(p, "/..") {
 		return ""
 	}
 	return "/" + p

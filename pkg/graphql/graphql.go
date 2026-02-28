@@ -183,7 +183,10 @@ func NewTester(endpoint string, config *TesterConfig) *Tester {
 		config = DefaultConfig()
 	}
 
-	client := httpclient.New(httpclient.WithTimeout(config.Timeout))
+	client := config.Client
+	if client == nil {
+		client = httpclient.New(httpclient.WithTimeout(config.Timeout))
+	}
 
 	if !config.FollowRedirects {
 		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {

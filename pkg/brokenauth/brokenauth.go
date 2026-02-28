@@ -50,6 +50,7 @@ type Result struct {
 // Scanner performs broken authentication testing
 type Scanner struct {
 	config  Config
+	client  *http.Client
 	results []Result
 	mu      sync.RWMutex
 }
@@ -63,8 +64,14 @@ func NewScanner(config Config) *Scanner {
 		config.Timeout = httpclient.TimeoutScanning
 	}
 
+	client := config.Client
+	if client == nil {
+		client = httpclient.Default()
+	}
+
 	return &Scanner{
 		config:  config,
+		client:  client,
 		results: make([]Result, 0),
 	}
 }
@@ -74,7 +81,7 @@ func (s *Scanner) TestSessionManagement(ctx context.Context, loginURL string, cr
 	results := make([]Result, 0)
 
 	jar, _ := cookiejar.New(nil)
-	client := httpclient.Scanning()
+	client := s.client
 	client.Jar = jar
 
 	// Login
@@ -158,7 +165,7 @@ func (s *Scanner) TestPasswordPolicy(ctx context.Context, registerURL string) ([
 
 	weakPasswords := WeakPasswords()
 
-	client := httpclient.Default()
+	client := s.client
 
 	for _, pwd := range weakPasswords {
 		result := Result{
@@ -220,7 +227,7 @@ func (s *Scanner) TestAccountLockout(ctx context.Context, loginURL string, usern
 		Timestamp:   time.Now(),
 	}
 
-	client := httpclient.Default()
+	client := s.client
 
 	for i := 0; i < attempts; i++ {
 		data := url.Values{
