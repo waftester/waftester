@@ -7,10 +7,8 @@ import (
 	"flag"
 	"fmt"
 	"html"
-	"io"
 	"math/rand"
 	"net/http"
-	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -20,7 +18,6 @@ import (
 
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/cli"
-	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
@@ -579,12 +576,7 @@ func runFuzz() {
 	// DISPATCHER INITIALIZATION (Hooks: Slack, Teams, PagerDuty, OTEL, Prometheus)
 	// ═══════════════════════════════════════════════════════════════════════════
 	fuzzScanID := fmt.Sprintf("fuzz-%d", time.Now().Unix())
-	// Fuzz builds its own HAR from discovery results via writeFuzzHAR.
-	// Exclude HARExport from the dispatcher so it doesn't write an empty HAR on Close.
-	fuzzHARPath := outputFlags.HARExport
-	outputFlags.HARExport = ""
 	fuzzDispCtx, fuzzDispErr := outputFlags.InitDispatcher(fuzzScanID, targetURL)
-	outputFlags.HARExport = fuzzHARPath
 	if fuzzDispErr != nil {
 		ui.PrintWarning(fmt.Sprintf("Output dispatcher warning: %v", fuzzDispErr))
 	}
@@ -741,6 +733,20 @@ func runFuzz() {
 		fmt.Println()
 	}
 
+	// Enterprise file exports (--json-export, --sarif-export, etc.)
+	// Must run BEFORE stdout format routing because those branches return early.
+	outputFlags.MaybeExport(func() execResults {
+		return fuzzResultsToExecution(targetURL, results, stats, duration)
+	})
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// DISPATCHER SUMMARY EMISSION
+	// ═══════════════════════════════════════════════════════════════════════════
+	// Notify all hooks that fuzz is complete (total requests, matches found)
+	if fuzzDispCtx != nil {
+		_ = fuzzDispCtx.EmitSummary(ctx, int(stats.TotalRequests), int(stats.Matches), int(stats.Filtered), duration)
+	}
+
 	// CSV output
 	if *csvFuzz {
 		fmt.Println("url,status,size,words,lines,time")
@@ -827,176 +833,6 @@ func runFuzz() {
 		}
 	}
 
-	// Enterprise file exports (--json-export, --sarif-export, etc.)
-	writeFuzzExports(&outputFlags, targetURL, results, stats, duration)
-
-	// ═══════════════════════════════════════════════════════════════════════════
-	// DISPATCHER SUMMARY EMISSION
-	// ═══════════════════════════════════════════════════════════════════════════
-	// Notify all hooks that fuzz is complete (total requests, matches found)
-	if fuzzDispCtx != nil {
-		_ = fuzzDispCtx.EmitSummary(ctx, int(stats.TotalRequests), int(stats.Matches), int(stats.Filtered), duration)
-	}
-}
-
-// writeFuzzExports writes fuzz results to enterprise export files (--json-export, --sarif-export, --har-export, etc.).
-func writeFuzzExports(outFlags *OutputFlags, target string, results []*fuzz.Result, stats *fuzz.Stats, duration time.Duration) {
-	if outFlags.JSONExport == "" && outFlags.JSONLExport == "" && outFlags.SARIFExport == "" &&
-		outFlags.CSVExport == "" && outFlags.HTMLExport == "" && outFlags.MDExport == "" &&
-		outFlags.JUnitExport == "" && outFlags.PDFExport == "" && outFlags.HARExport == "" {
-		return
-	}
-
-	if outFlags.HARExport != "" {
-		f, err := os.Create(outFlags.HARExport)
-		if err != nil {
-			ui.PrintError(fmt.Sprintf("HAR export: %v", err))
-		} else {
-			if err := writeFuzzHAR(f, target, results, duration); err != nil {
-				_ = f.Close()
-				ui.PrintError(fmt.Sprintf("HAR export: %v", err))
-			} else {
-				_ = f.Close()
-				ui.PrintSuccess(fmt.Sprintf("HAR export saved to %s", outFlags.HARExport))
-			}
-		}
-	}
-
-	output := struct {
-		Target      string         `json:"target"`
-		Results     []*fuzz.Result `json:"results"`
-		Stats       *fuzz.Stats    `json:"stats"`
-		Duration    string         `json:"duration"`
-		CompletedAt time.Time      `json:"completed_at"`
-	}{
-		Target:      target,
-		Results:     results,
-		Stats:       stats,
-		Duration:    duration.String(),
-		CompletedAt: time.Now(),
-	}
-
-	if outFlags.JSONExport != "" {
-		if err := writeJSONFile(outFlags.JSONExport, output); err != nil {
-			ui.PrintError(fmt.Sprintf("JSON export: %v", err))
-		} else {
-			ui.PrintSuccess(fmt.Sprintf("JSON export saved to %s", outFlags.JSONExport))
-		}
-	}
-
-	if outFlags.JSONLExport != "" {
-		f, err := os.Create(outFlags.JSONLExport)
-		if err != nil {
-			ui.PrintError(fmt.Sprintf("JSONL export: %v", err))
-		} else {
-			enc := json.NewEncoder(f)
-			for _, r := range results {
-				_ = enc.Encode(r)
-			}
-			f.Close()
-			ui.PrintSuccess(fmt.Sprintf("JSONL export saved to %s", outFlags.JSONLExport))
-		}
-	}
-
-	if outFlags.SARIFExport != "" {
-		sarif := buildFuzzSARIF(target, results)
-		if err := writeJSONFile(outFlags.SARIFExport, sarif); err != nil {
-			ui.PrintError(fmt.Sprintf("SARIF export: %v", err))
-		} else {
-			ui.PrintSuccess(fmt.Sprintf("SARIF export saved to %s", outFlags.SARIFExport))
-		}
-	}
-
-	if outFlags.CSVExport != "" {
-		f, err := os.Create(outFlags.CSVExport)
-		if err != nil {
-			ui.PrintError(fmt.Sprintf("CSV export: %v", err))
-		} else {
-			fmt.Fprintln(f, "url,status_code,content_length,word_count,line_count,response_time")
-			for _, r := range results {
-				fmt.Fprintf(f, "%s,%d,%d,%d,%d,%s\n",
-					r.URL, r.StatusCode, r.ContentLength, r.WordCount, r.LineCount, r.ResponseTime)
-			}
-			f.Close()
-			ui.PrintSuccess(fmt.Sprintf("CSV export saved to %s", outFlags.CSVExport))
-		}
-	}
-
-	if outFlags.HTMLExport != "" {
-		f, err := os.Create(outFlags.HTMLExport)
-		if err != nil {
-			ui.PrintError(fmt.Sprintf("HTML export: %v", err))
-		} else {
-			fmt.Fprintf(f, "<html><head><title>Fuzz Results</title></head><body>\n")
-			fmt.Fprintf(f, "<h1>Fuzz Results</h1>\n")
-			fmt.Fprintf(f, "<p>Target: %s | Total: %d | Matches: %d</p>\n",
-				html.EscapeString(target), stats.TotalRequests, stats.Matches)
-			if len(results) > 0 {
-				fmt.Fprintf(f, "<table border='1'><tr><th>URL</th><th>Status</th><th>Size</th><th>Words</th><th>Lines</th></tr>\n")
-				for _, r := range results {
-					fmt.Fprintf(f, "<tr><td>%s</td><td>%d</td><td>%d</td><td>%d</td><td>%d</td></tr>\n",
-						html.EscapeString(r.URL), r.StatusCode, r.ContentLength, r.WordCount, r.LineCount)
-				}
-				fmt.Fprintf(f, "</table>\n")
-			}
-			fmt.Fprintf(f, "</body></html>\n")
-			f.Close()
-			ui.PrintSuccess(fmt.Sprintf("HTML export saved to %s", outFlags.HTMLExport))
-		}
-	}
-
-	if outFlags.MDExport != "" {
-		f, err := os.Create(outFlags.MDExport)
-		if err != nil {
-			ui.PrintError(fmt.Sprintf("Markdown export: %v", err))
-		} else {
-			fmt.Fprintf(f, "# Fuzz Results\n\n")
-			fmt.Fprintf(f, "- **Target:** %s\n- **Total Requests:** %d\n- **Matches:** %d\n- **Duration:** %s\n\n",
-				target, stats.TotalRequests, stats.Matches, duration.Round(time.Millisecond))
-			if len(results) > 0 {
-				fmt.Fprintf(f, "| URL | Status | Size | Words | Lines |\n")
-				fmt.Fprintf(f, "|-----|--------|------|-------|-------|\n")
-				for _, r := range results {
-					fmt.Fprintf(f, "| %s | %d | %d | %d | %d |\n",
-						r.URL, r.StatusCode, r.ContentLength, r.WordCount, r.LineCount)
-				}
-			}
-			f.Close()
-			ui.PrintSuccess(fmt.Sprintf("Markdown export saved to %s", outFlags.MDExport))
-		}
-	}
-}
-
-// buildFuzzSARIF creates a minimal SARIF 2.1.0 structure for fuzz findings.
-func buildFuzzSARIF(target string, results []*fuzz.Result) map[string]interface{} {
-	sarifResults := make([]map[string]interface{}, 0, len(results))
-	for _, r := range results {
-		sarifResults = append(sarifResults, map[string]interface{}{
-			"ruleId":  "fuzz-finding",
-			"level":   "note",
-			"message": map[string]string{"text": fmt.Sprintf("Fuzz match: %s (status %d, %d bytes)", r.Input, r.StatusCode, r.ContentLength)},
-			"locations": []map[string]interface{}{
-				{"physicalLocation": map[string]interface{}{
-					"artifactLocation": map[string]string{"uri": r.URL},
-				}},
-			},
-		})
-	}
-	return map[string]interface{}{
-		"$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
-		"version": "2.1.0",
-		"runs": []map[string]interface{}{
-			{
-				"tool": map[string]interface{}{
-					"driver": map[string]interface{}{
-						"name":    "WAFtester",
-						"version": defaults.Version,
-					},
-				},
-				"results": sarifResults,
-			},
-		},
-	}
 }
 
 // getBuiltInWordlist returns a built-in wordlist based on type
@@ -1055,135 +891,4 @@ func getBuiltInWordlist(wlType string) []string {
 	default:
 		return []string{}
 	}
-}
-
-// writeFuzzHAR writes fuzz discovery results as a HAR 1.2 document.
-func writeFuzzHAR(w io.Writer, target string, results []*fuzz.Result, dur time.Duration) error {
-	type nv struct {
-		Name  string `json:"name"`
-		Value string `json:"value"`
-	}
-	type harContent struct {
-		Size     int    `json:"size"`
-		MimeType string `json:"mimeType"`
-	}
-	type harTimings struct {
-		Send    float64 `json:"send"`
-		Wait    float64 `json:"wait"`
-		Receive float64 `json:"receive"`
-	}
-	type harRequest struct {
-		Method      string `json:"method"`
-		URL         string `json:"url"`
-		HTTPVersion string `json:"httpVersion"`
-		Headers     []nv   `json:"headers"`
-		QueryString []nv   `json:"queryString"`
-		Cookies     []nv   `json:"cookies"`
-		HeadersSize int    `json:"headersSize"`
-		BodySize    int    `json:"bodySize"`
-	}
-	type harResponse struct {
-		Status      int        `json:"status"`
-		StatusText  string     `json:"statusText"`
-		HTTPVersion string     `json:"httpVersion"`
-		Headers     []nv       `json:"headers"`
-		Cookies     []nv       `json:"cookies"`
-		Content     harContent `json:"content"`
-		RedirectURL string     `json:"redirectURL"`
-		HeadersSize int        `json:"headersSize"`
-		BodySize    int        `json:"bodySize"`
-	}
-	type harEntry struct {
-		Pageref         string      `json:"pageref"`
-		StartedDateTime string      `json:"startedDateTime"`
-		Time            float64     `json:"time"`
-		Request         harRequest  `json:"request"`
-		Response        harResponse `json:"response"`
-		Cache           struct{}    `json:"cache"`
-		Timings         harTimings  `json:"timings"`
-		Comment         string      `json:"comment,omitempty"`
-	}
-
-	startTime := time.Now().Format("2006-01-02T15:04:05.000Z")
-	pageID := "page_1"
-
-	entries := make([]harEntry, 0, len(results))
-	for _, r := range results {
-		reqURL := r.URL
-		if reqURL == "" {
-			reqURL = target
-		}
-
-		var qs []nv
-		if parsed, err := url.Parse(reqURL); err == nil && parsed.RawQuery != "" {
-			for k, vs := range parsed.Query() {
-				for _, v := range vs {
-					qs = append(qs, nv{Name: k, Value: v})
-				}
-			}
-		}
-
-		latencyMs := float64(r.ResponseTime.Milliseconds())
-		comment := fmt.Sprintf("fuzz input=%s", r.Input)
-
-		redirectURL := ""
-		if r.Redirected && r.RedirectURL != "" {
-			redirectURL = r.RedirectURL
-		}
-
-		entries = append(entries, harEntry{
-			Pageref:         pageID,
-			StartedDateTime: startTime,
-			Time:            latencyMs,
-			Request: harRequest{
-				Method:      "GET",
-				URL:         reqURL,
-				HTTPVersion: "HTTP/1.1",
-				Headers:     []nv{},
-				QueryString: qs,
-				Cookies:     []nv{},
-				HeadersSize: -1,
-				BodySize:    -1,
-			},
-			Response: harResponse{
-				Status:      r.StatusCode,
-				StatusText:  http.StatusText(r.StatusCode),
-				HTTPVersion: "HTTP/1.1",
-				Headers:     []nv{},
-				Cookies:     []nv{},
-				Content:     harContent{Size: r.ContentLength, MimeType: "text/html"},
-				RedirectURL: redirectURL,
-				HeadersSize: -1,
-				BodySize:    r.ContentLength,
-			},
-			Cache: struct{}{},
-			Timings: harTimings{
-				Send:    0,
-				Wait:    latencyMs,
-				Receive: 0,
-			},
-			Comment: comment,
-		})
-	}
-
-	doc := map[string]interface{}{
-		"log": map[string]interface{}{
-			"version": "1.2",
-			"creator": map[string]string{
-				"name":    "waftester",
-				"version": defaults.Version,
-			},
-			"pages": []map[string]interface{}{{
-				"startedDateTime": startTime,
-				"id":              pageID,
-				"title":           "WAFtester Fuzz: " + target,
-				"pageTimings":     map[string]float64{"onLoad": float64(dur.Milliseconds())},
-			}},
-			"entries": entries,
-		},
-	}
-
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	return enc.Encode(doc)
 }

@@ -2364,7 +2364,9 @@ func runProbe() {
 	}
 
 	// Enterprise file exports (--json-export, --sarif-export, etc.)
-	writeProbeExports(&cfg.Out, allProbeResults, time.Since(probeStartTime))
+	cfg.Out.MaybeExport(func() execResults {
+		return probeResultsToExecution(allProbeResults, time.Since(probeStartTime))
+	})
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// DISPATCHER SUMMARY EMISSION

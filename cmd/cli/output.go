@@ -794,6 +794,17 @@ func (o *OutputFlags) HasEnterpriseExports() bool {
 		o.CycloneDXExport != "" || o.XMLExport != ""
 }
 
+// MaybeExport runs the converter and writes enterprise exports only if any are configured.
+// The lazy converter avoids work when no exports are requested.
+func (o *OutputFlags) MaybeExport(convert func() output.ExecutionResults) {
+	if !o.HasEnterpriseExports() {
+		return
+	}
+	if err := o.WriteEnterpriseExports(convert()); err != nil {
+		ui.PrintError(fmt.Sprintf("export: %v", err))
+	}
+}
+
 // WriteEnterpriseExports writes results to all configured enterprise export formats.
 func (o *OutputFlags) WriteEnterpriseExports(results output.ExecutionResults) error {
 	cfg := o.ToConfig()
