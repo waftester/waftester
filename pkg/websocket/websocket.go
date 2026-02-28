@@ -402,15 +402,27 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*ScanResult, error
 	}
 
 	// Run origin validation tests
-	originVulns, _ := t.TestOriginValidation(ctx, targetURL)
+	originVulns, originErr := t.TestOriginValidation(ctx, targetURL)
+	if originErr != nil && ctx.Err() != nil {
+		result.Duration = time.Since(startTime)
+		return result, ctx.Err()
+	}
 	result.Vulnerabilities = append(result.Vulnerabilities, originVulns...)
 
 	// Run TLS tests
-	tlsVulns, _ := t.TestTLS(ctx, targetURL)
+	tlsVulns, tlsErr := t.TestTLS(ctx, targetURL)
+	if tlsErr != nil && ctx.Err() != nil {
+		result.Duration = time.Since(startTime)
+		return result, ctx.Err()
+	}
 	result.Vulnerabilities = append(result.Vulnerabilities, tlsVulns...)
 
 	// Check for tokens in URL
-	tokenVulns, _ := t.TestTokenInURL(ctx, targetURL)
+	tokenVulns, tokenErr := t.TestTokenInURL(ctx, targetURL)
+	if tokenErr != nil && ctx.Err() != nil {
+		result.Duration = time.Since(startTime)
+		return result, ctx.Err()
+	}
 	result.Vulnerabilities = append(result.Vulnerabilities, tokenVulns...)
 
 	result.Duration = time.Since(startTime)

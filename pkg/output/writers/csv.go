@@ -191,8 +191,8 @@ func (cw *CSVWriter) writeResult(re *events.ResultEvent) error {
 	if re.Evidence != nil {
 		payload = re.Evidence.Payload
 		evidence = re.Evidence.ResponsePreview
-		if len(evidence) > 500 {
-			evidence = evidence[:500] + "..."
+		if len([]rune(evidence)) > 500 {
+			evidence = string([]rune(evidence)[:500]) + "..."
 		}
 	}
 
