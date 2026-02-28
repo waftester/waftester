@@ -5,6 +5,18 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.40] - 2026-02-28
+
+### Changed
+
+- **Unified enterprise export pipeline** — Replaced 6 per-command export functions (`writeScanExports`, `writeProbeExports`, `writeCrawlExports`, `writeFuzzExports`, `writeBypassExports`, `writeAssessExports`) with shared converters and a single `MaybeExport` lazy wrapper, eliminating ~1,500 lines of duplicated format code
+
+### Fixed
+
+- **Fuzz/crawl `--csv`/`--md`/`--html` flags skipped enterprise exports** — Stdout format routing branches contained early returns that bypassed `--json-export`, `--sarif-export`, and dispatcher summary emission
+- **Assess converter missing confusion matrix quadrants** — Only TruePositives and FalseNegatives were mapped; TrueNegatives (PassedTests) and FalsePositives (ErrorTests) are now included
+- **Negative BlockedTests in bypass/fuzz converters** — When bypasses exceeded total tested count, BlockedTests went negative; now clamped to zero
+
 ## [2.9.39] - 2026-02-28
 
 ### Added
@@ -2642,6 +2654,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.40]: https://github.com/waftester/waftester/compare/v2.9.39...v2.9.40
 [2.9.39]: https://github.com/waftester/waftester/compare/v2.9.38...v2.9.39
 [2.9.38]: https://github.com/waftester/waftester/compare/v2.9.37...v2.9.38
 [2.9.37]: https://github.com/waftester/waftester/compare/v2.9.36...v2.9.37
