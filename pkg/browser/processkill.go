@@ -23,7 +23,7 @@ func killProcessTree(proc *os.Process) {
 		// Try to kill the entire process group via external kill command.
 		// chromedp launches Chrome with Setpgid=true so the group ID equals
 		// the parent PID. Negative PID targets the process group.
-		err := exec.Command("kill", "-9", "--", "-"+strconv.Itoa(proc.Pid)).Run()
+		err := exec.Command("kill", "-9", "-"+strconv.Itoa(proc.Pid)).Run()
 		if err != nil {
 			// Fallback: kill just the parent process
 			_ = proc.Kill()

@@ -765,10 +765,11 @@ func isFileContent(body string) bool {
 }
 
 func truncateBody(body string, maxLen int) string {
-	if len(body) <= maxLen {
+	runes := []rune(body)
+	if len(runes) <= maxLen {
 		return body
 	}
-	return body[:maxLen] + "..."
+	return string(runes[:maxLen]) + "..."
 }
 
 // InternalNetworkScanner scans for internal network access

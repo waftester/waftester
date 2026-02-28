@@ -248,7 +248,11 @@ func runTemplate() {
 			if result.Matched {
 				matched++
 				if *jsonOutput {
-					jsonBytes, _ := json.Marshal(result)
+					jsonBytes, jsonErr := json.Marshal(result)
+					if jsonErr != nil {
+						ui.PrintWarning(fmt.Sprintf("JSON marshal error: %v", jsonErr))
+						continue
+					}
 					fmt.Println(string(jsonBytes))
 				} else {
 					severityColor := getSeverityColor(result.Severity)
@@ -276,7 +280,11 @@ done:
 
 	// Write output file
 	if *outputFile != "" {
-		data, _ := json.MarshalIndent(results, "", "  ")
+		data, marshalErr := json.MarshalIndent(results, "", "  ")
+		if marshalErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to marshal results: %v", marshalErr))
+			return
+		}
 		if err := os.WriteFile(*outputFile, data, 0644); err != nil {
 			ui.PrintError(fmt.Sprintf("Failed to write output: %v", err))
 		} else {

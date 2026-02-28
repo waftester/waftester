@@ -437,6 +437,7 @@ func (r *EnterpriseReport) AddBypassesFromResultsFile(resultsFilePath string) er
 					headerLines = append(headerLines, fmt.Sprintf("%s: %s", k, vs))
 				}
 			}
+			sort.Strings(headerLines)
 			if len(headerLines) > 0 {
 				finding.Evidence = strings.Join(headerLines, "\n")
 			}

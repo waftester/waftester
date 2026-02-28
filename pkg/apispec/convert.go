@@ -1,6 +1,7 @@
 package apispec
 
 import (
+	"sort"
 	"strings"
 	"time"
 
@@ -137,6 +138,7 @@ func buildAttackSurface(spec *Spec) discovery.AttackSurface {
 	for cat := range categories {
 		as.RelevantCategories = append(as.RelevantCategories, cat)
 	}
+	sort.Strings(as.RelevantCategories)
 
 	return as
 }

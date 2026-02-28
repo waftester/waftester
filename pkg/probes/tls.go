@@ -114,7 +114,6 @@ func (p *TLSProber) Probe(ctx context.Context, host string, port int) (*TLSInfo,
 	if err != nil {
 		return nil, fmt.Errorf("dial failed: %w", err)
 	}
-	defer netConn.Close()
 
 	// Set deadline
 	if deadline, ok := ctx.Deadline(); ok {
@@ -126,9 +125,10 @@ func (p *TLSProber) Probe(ctx context.Context, host string, port int) (*TLSInfo,
 	// TLS handshake
 	tlsConn := tls.Client(netConn, tlsConfig)
 	if err := tlsConn.Handshake(); err != nil {
+		netConn.Close()
 		return nil, fmt.Errorf("TLS handshake failed: %w", err)
 	}
-	defer tlsConn.Close()
+	defer tlsConn.Close() // also closes underlying netConn
 
 	// Extract connection state
 	state := tlsConn.ConnectionState()
@@ -149,7 +149,7 @@ func (p *TLSProber) Probe(ctx context.Context, host string, port int) (*TLSInfo,
 		info.SubjectDN = cert.Subject.String()
 		info.IssuerDN = cert.Issuer.String()
 		info.SubjectCN = cert.Subject.CommonName
-		info.SubjectAN = cert.DNSNames
+		info.SubjectAN = append([]string(nil), cert.DNSNames...)
 		info.Serial = cert.SerialNumber.String()
 		info.NotBefore = cert.NotBefore
 		info.NotAfter = cert.NotAfter
@@ -249,10 +249,10 @@ func (p *TLSProber) ProbeSupportedVersions(ctx context.Context, host string, por
 
 		tlsConn := tls.Client(conn, tlsConfig)
 		err = tlsConn.Handshake()
-		tlsConn.Close()
-		conn.Close()
-
-		if err == nil {
+		if err != nil {
+			conn.Close()
+		} else {
+			tlsConn.Close() // also closes conn
 			supported = append(supported, versionToString(ver))
 		}
 	}
@@ -307,10 +307,10 @@ func (p *TLSProber) ProbeCipherSuites(ctx context.Context, host string, port int
 
 		tlsConn := tls.Client(conn, tlsConfig)
 		err = tlsConn.Handshake()
-		tlsConn.Close()
-		conn.Close()
-
-		if err == nil {
+		if err != nil {
+			conn.Close()
+		} else {
+			tlsConn.Close() // also closes conn
 			supported = append(supported, tls.CipherSuiteName(cipher))
 		}
 	}

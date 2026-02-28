@@ -166,7 +166,9 @@ func (p *Parser) parseSwagger2(raw map[string]interface{}) (*OpenAPISpec, error)
 		// Apply global consumes to routes that have no content type.
 		for i := range spec.Routes {
 			if len(spec.Routes[i].ContentType) == 0 && len(globalConsumes) > 0 {
-				spec.Routes[i].ContentType = globalConsumes
+				ct := make([]string, len(globalConsumes))
+				copy(ct, globalConsumes)
+				spec.Routes[i].ContentType = ct
 			}
 		}
 	}

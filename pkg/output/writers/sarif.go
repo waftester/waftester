@@ -346,7 +346,10 @@ func (sw *SARIFWriter) Write(event events.Event) error {
 		// Truncate payload for display
 		displayPayload := payload
 		if len(displayPayload) > 100 {
-			displayPayload = displayPayload[:100] + "..."
+			payloadRunes := []rune(displayPayload)
+			if len(payloadRunes) > 100 {
+				displayPayload = string(payloadRunes[:100]) + "..."
+			}
 		}
 		msgMarkdown += fmt.Sprintf("\n| Payload | `%s` |", displayPayload)
 	}

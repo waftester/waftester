@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -258,18 +259,28 @@ func runSpecScan(
 
 		bySev := result.BySeverity()
 		if len(bySev) > 0 {
+			var sevKeys []string
+			for sev := range bySev {
+				sevKeys = append(sevKeys, sev)
+			}
+			sort.Strings(sevKeys)
 			var sevParts []string
-			for sev, count := range bySev {
-				sevParts = append(sevParts, fmt.Sprintf("%s: %d", sev, count))
+			for _, sev := range sevKeys {
+				sevParts = append(sevParts, fmt.Sprintf("%s: %d", sev, bySev[sev]))
 			}
 			ui.PrintConfigLine("By Severity", strings.Join(sevParts, ", "))
 		}
 
 		byCat := result.ByCategory()
 		if len(byCat) > 0 {
+			var catKeys []string
+			for cat := range byCat {
+				catKeys = append(catKeys, cat)
+			}
+			sort.Strings(catKeys)
 			var catParts []string
-			for cat, count := range byCat {
-				catParts = append(catParts, fmt.Sprintf("%s: %d", cat, count))
+			for _, cat := range catKeys {
+				catParts = append(catParts, fmt.Sprintf("%s: %d", cat, byCat[cat]))
 			}
 			ui.PrintConfigLine("By Category", strings.Join(catParts, ", "))
 		}
