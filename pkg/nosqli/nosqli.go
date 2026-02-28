@@ -545,7 +545,10 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*ScanResult, error
 // Helper functions
 
 func readBodyLimit(resp *http.Response, limit int64) string {
-	data, _ := io.ReadAll(io.LimitReader(resp.Body, limit))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, limit))
+	if err != nil {
+		return ""
+	}
 	return string(data)
 }
 

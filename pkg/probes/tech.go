@@ -171,8 +171,8 @@ func techExtractTitle(html string) string {
 	if len(matches) > 1 {
 		title := strings.TrimSpace(matches[1])
 		// Limit length
-		if len(title) > 100 {
-			title = title[:100] + "..."
+		if len([]rune(title)) > 100 {
+			title = string([]rune(title)[:100]) + "..."
 		}
 		return title
 	}

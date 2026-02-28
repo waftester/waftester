@@ -171,7 +171,10 @@ func (g *Generator) Generate(ctx context.Context, provider Provider, req *Payloa
 }
 
 func (g *Generator) cacheKey(req *PayloadRequest) string {
-	data, _ := json.Marshal(req)
+	data, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Sprintf("%s:%d:%d", req.Type, req.EvasionLevel, req.Count)
+	}
 	return string(data)
 }
 
@@ -297,20 +300,21 @@ func (c *OpenAIClient) AnalyzeWAFResponse(ctx context.Context, response string, 
 	// Simple heuristic WAF detection
 	responseLower := strings.ToLower(response)
 
-	wafSignatures := map[string]string{
-		"cloudflare":  "cloudflare",
-		"modsecurity": "modsecurity",
-		"aws waf":     "aws-waf",
-		"akamai":      "akamai",
-		"imperva":     "imperva",
-		"f5":          "f5",
-		"fortinet":    "fortinet",
+	type wafSig struct{ name, signature string }
+	wafSignatures := []wafSig{
+		{"cloudflare", "cloudflare"},
+		{"modsecurity", "modsecurity"},
+		{"aws waf", "aws-waf"},
+		{"akamai", "akamai"},
+		{"imperva", "imperva"},
+		{"f5", "f5"},
+		{"fortinet", "fortinet"},
 	}
 
-	for name, signature := range wafSignatures {
-		if strings.Contains(responseLower, signature) {
+	for _, sig := range wafSignatures {
+		if strings.Contains(responseLower, sig.signature) {
 			analysis.WAFDetected = true
-			analysis.WAFName = name
+			analysis.WAFName = sig.name
 			analysis.Confidence = 0.9
 			break
 		}

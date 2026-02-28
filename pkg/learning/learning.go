@@ -695,7 +695,10 @@ func buildPayloadURL(basePath string, point InjectPoint, payload string) string 
 		return strings.Replace(basePath, point.Original, payload, 1)
 	case "body":
 		obj := map[string]string{point.Name: payload}
-		data, _ := json.Marshal(obj)
+		data, err := json.Marshal(obj)
+		if err != nil {
+			return payload
+		}
 		return string(data)
 	default:
 		return payload

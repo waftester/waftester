@@ -371,8 +371,8 @@ func (ms *MutationStrategist) SuggestMutations(category, payload string, wafVend
 func (ms *MutationStrategist) extractBlockSignature(category, payload string, statusCode int) string {
 	// Normalize payload to create reusable signature
 	normalized := strings.ToLower(payload)
-	if len(normalized) > 50 {
-		normalized = normalized[:50]
+	if len([]rune(normalized)) > 50 {
+		normalized = string([]rune(normalized)[:50])
 	}
 	return category + ":" + normalized + ":" + fmt.Sprintf("%d", statusCode)
 }
