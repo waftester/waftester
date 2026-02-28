@@ -921,7 +921,7 @@ func printDocsScan() {
 	fmt.Println()
 	fmt.Println("  -ts, -timestamp      Add timestamps to vulnerability output")
 	fmt.Println("  -stream              Streaming JSONL output for CI/scripts")
-	fmt.Println("  -format <fmt>        Output format: console, json, sarif, csv, md, html")
+	fmt.Println("  -format <fmt>        Output format: console, json, jsonl, sarif, csv, md, html")
 	fmt.Println()
 }
 
