@@ -346,6 +346,9 @@ func (t *Tester) TestIntrospection(ctx context.Context) (*Vulnerability, *Schema
 		Schema *Schema `json:"__schema"`
 	}
 
+	if resp.Data == nil {
+		return nil, nil, nil
+	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return nil, nil, err
 	}
@@ -884,13 +887,17 @@ func (t *Tester) FullScan(ctx context.Context) (*ScanResult, error) {
 	var queriesSent int
 
 	// Test introspection
-	if vuln, schema, err := t.TestIntrospection(ctx); err == nil {
-		queriesSent++
-		if vuln != nil {
-			result.Vulnerabilities = append(result.Vulnerabilities, vuln)
-		}
-		result.Schema = schema
+	vuln, schema, err := t.TestIntrospection(ctx)
+	queriesSent++
+	if err != nil && ctx.Err() != nil {
+		result.Duration = time.Since(start)
+		result.QueriesSent = queriesSent
+		return result, ctx.Err()
 	}
+	if vuln != nil {
+		result.Vulnerabilities = append(result.Vulnerabilities, vuln)
+	}
+	result.Schema = schema
 
 	// Test depth attack
 	for _, depth := range []int{10, 15, 20} {
@@ -898,8 +905,8 @@ func (t *Tester) FullScan(ctx context.Context) (*ScanResult, error) {
 		if ctx.Err() != nil {
 			break
 		}
-		if vuln, err := t.TestDepthAttack(ctx, "node", depth); err == nil && vuln != nil {
-			result.Vulnerabilities = append(result.Vulnerabilities, vuln)
+		if depthVuln, depthErr := t.TestDepthAttack(ctx, "node", depth); depthErr == nil && depthVuln != nil {
+			result.Vulnerabilities = append(result.Vulnerabilities, depthVuln)
 			break // Found vulnerability, no need to test deeper
 		}
 	}
@@ -910,27 +917,27 @@ func (t *Tester) FullScan(ctx context.Context) (*ScanResult, error) {
 		if ctx.Err() != nil {
 			break
 		}
-		if vuln, err := t.TestBatchAttack(ctx, size); err == nil && vuln != nil {
-			result.Vulnerabilities = append(result.Vulnerabilities, vuln)
+		if batchVuln, batchErr := t.TestBatchAttack(ctx, size); batchErr == nil && batchVuln != nil {
+			result.Vulnerabilities = append(result.Vulnerabilities, batchVuln)
 			break
 		}
 	}
 
 	// Test alias abuse
-	if vuln, err := t.TestAliasAbuse(ctx, "__typename", 100); err == nil && vuln != nil {
-		result.Vulnerabilities = append(result.Vulnerabilities, vuln)
+	if aliasVuln, aliasErr := t.TestAliasAbuse(ctx, "__typename", 100); aliasErr == nil && aliasVuln != nil {
+		result.Vulnerabilities = append(result.Vulnerabilities, aliasVuln)
 	}
 	queriesSent++
 
 	// Test field suggestion
-	if vuln, _, err := t.TestFieldSuggestion(ctx); err == nil && vuln != nil {
-		result.Vulnerabilities = append(result.Vulnerabilities, vuln)
+	if sugVuln, _, sugErr := t.TestFieldSuggestion(ctx); sugErr == nil && sugVuln != nil {
+		result.Vulnerabilities = append(result.Vulnerabilities, sugVuln)
 	}
 	queriesSent += 6 // Multiple queries in TestFieldSuggestion
 
 	// Test directive overload
-	if vuln, err := t.TestDirectiveOverload(ctx, 50); err == nil && vuln != nil {
-		result.Vulnerabilities = append(result.Vulnerabilities, vuln)
+	if dirVuln, dirErr := t.TestDirectiveOverload(ctx, 50); dirErr == nil && dirVuln != nil {
+		result.Vulnerabilities = append(result.Vulnerabilities, dirVuln)
 	}
 	queriesSent++
 
@@ -1061,10 +1068,12 @@ func getBaseTypeName(ft FieldType) string {
 	return ""
 }
 
+// scalarTypes is a package-level set to avoid allocating a new map per call.
+var scalarTypes = map[string]bool{
+	"String": true, "Int": true, "Float": true, "Boolean": true, "ID": true,
+	"DateTime": true, "Date": true, "Time": true, "JSON": true,
+}
+
 func isScalarType(name string) bool {
-	scalars := map[string]bool{
-		"String": true, "Int": true, "Float": true, "Boolean": true, "ID": true,
-		"DateTime": true, "Date": true, "Time": true, "JSON": true,
-	}
-	return scalars[name]
+	return scalarTypes[name]
 }
