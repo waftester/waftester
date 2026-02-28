@@ -271,8 +271,8 @@ func (t *Tester) TestAuthBypass(ctx context.Context, targetURL string) ([]Vulner
 			continue
 		}
 
+		defer iohelper.DrainAndClose(resp.Body)
 		body, _ := iohelper.ReadBodyDefault(resp.Body)
-		iohelper.DrainAndClose(resp.Body)
 
 		// Check for bypass indicators
 		if resp.StatusCode == 200 && (len(body) > 100 || containsAdminIndicators(string(body))) {
@@ -447,6 +447,9 @@ func (t *Tester) TestRaceCondition(ctx context.Context, targetURL, method, body 
 	uniqueResponses := make(map[string]int)
 
 	for _, r := range responses {
+		if r.StatusCode == 0 {
+			continue // Skip failed goroutines
+		}
 		if r.StatusCode >= 200 && r.StatusCode < 300 {
 			successCount++
 		}

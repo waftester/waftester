@@ -604,10 +604,13 @@ func enrichedError(msg string, recoverySteps []string) *mcp.CallToolResult {
 		Error         string   `json:"error"`
 		RecoverySteps []string `json:"recovery_steps"`
 	}
-	data, _ := json.MarshalIndent(errResponse{
+	data, marshalErr := json.MarshalIndent(errResponse{
 		Error:         msg,
 		RecoverySteps: recoverySteps,
 	}, "", "  ")
+	if marshalErr != nil {
+		return errorResult(msg)
+	}
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			&mcp.TextContent{Text: string(data)},
