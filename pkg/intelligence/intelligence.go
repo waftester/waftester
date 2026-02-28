@@ -523,8 +523,10 @@ func (e *Engine) generateInsights(f *Finding) []*Insight {
 		})
 	}
 
-	// Check for vulnerability patterns
-	if !f.Blocked && f.Confidence >= e.config.MinConfidence {
+	// Check for vulnerability patterns — only for testing-phase findings with
+	// actual HTTP responses. Recon findings always have Blocked=false which
+	// would generate spurious "Bypass Detected" insights for every endpoint.
+	if !f.Blocked && f.IsTestingPhase() && f.StatusCode > 0 && f.Confidence >= e.config.MinConfidence {
 		severity := severityToPriority(f.Severity)
 		insights = append(insights, &Insight{
 			Type:        InsightVulnerability,
@@ -1123,8 +1125,15 @@ func (e *Engine) RecommendResourceAllocation() []*ResourceAllocation {
 	categoryTotal := make(map[string]float64)
 
 	for _, f := range e.memory.GetAll() {
+		// Only consider testing-phase findings for resource allocation.
+		// Recon findings have Blocked=false by default, which would give
+		// categories like "endpoint" a 100% bypass rate and starve real
+		// attack categories of resources.
+		if !f.IsTestingPhase() {
+			continue
+		}
 		categoryTotal[f.Category]++
-		if !f.Blocked {
+		if !f.Blocked && f.StatusCode > 0 {
 			categorySuccess[f.Category]++
 		}
 	}

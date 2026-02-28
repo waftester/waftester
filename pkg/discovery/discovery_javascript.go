@@ -53,6 +53,13 @@ func (d *Discoverer) discoverFromJavaScript(ctx context.Context, result *Discove
 
 	// Fetch and analyze each JS file
 	for _, jsURL := range uniqueJS {
+		// Check context cancellation between JS files to enable prompt shutdown
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
 		req, err := http.NewRequestWithContext(ctx, "GET", jsURL, nil)
 		if err != nil {
 			continue
@@ -77,35 +84,33 @@ func (d *Discoverer) discoverFromJavaScript(ctx context.Context, result *Discove
 
 		// Add endpoints from JS analyzer (fetch/axios/xhr patterns)
 		for _, ep := range jsData.Endpoints {
-			if strings.HasPrefix(ep.Path, "/") && !strings.HasPrefix(ep.Path, "//") {
-				path := extractPath(ep.Path)
-				if path != "" && !d.isExcluded(path) {
-					method := ep.Method
-					if method == "" {
-						method = "GET"
-					}
-					d.probeEndpointWithMethod(ctx, path, method, result)
+			epPath := normalizeJSPath(ep.Path)
+			if epPath == "" || isStaticFile(epPath) {
+				continue
+			}
+			path := extractPath(epPath)
+			if path != "" && !d.isExcluded(path) {
+				method := ep.Method
+				if method == "" {
+					method = "GET"
 				}
+				d.probeEndpointWithMethod(ctx, path, method, result)
 			}
 		}
 
 		// Add URLs with inferred methods
 		for _, urlInfo := range jsData.URLs {
-			if strings.HasPrefix(urlInfo.URL, "/") && !strings.HasPrefix(urlInfo.URL, "//") {
-				// Skip static files
-				if strings.HasSuffix(urlInfo.URL, ".js") || strings.HasSuffix(urlInfo.URL, ".css") ||
-					strings.HasSuffix(urlInfo.URL, ".png") || strings.HasSuffix(urlInfo.URL, ".jpg") ||
-					strings.HasSuffix(urlInfo.URL, ".svg") || strings.HasSuffix(urlInfo.URL, ".woff") {
-					continue
+			urlPath := normalizeJSPath(urlInfo.URL)
+			if urlPath == "" || isStaticFile(urlPath) {
+				continue
+			}
+			path := extractPath(urlPath)
+			if path != "" && !d.isExcluded(path) {
+				method := urlInfo.Method
+				if method == "" {
+					method = "GET"
 				}
-				path := extractPath(urlInfo.URL)
-				if path != "" && !d.isExcluded(path) {
-					method := urlInfo.Method
-					if method == "" {
-						method = "GET"
-					}
-					d.probeEndpointWithMethod(ctx, path, method, result)
-				}
+				d.probeEndpointWithMethod(ctx, path, method, result)
 			}
 		}
 	}
@@ -150,8 +155,11 @@ func (d *Discoverer) extractJSFromHomepage(ctx context.Context) []string {
 			}
 			// Convert to absolute URL
 			if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") {
-				// Check if same domain
-				if strings.Contains(src, d.getHostname()) {
+				// Check if same domain. Guard against empty hostname — in Go,
+				// strings.Contains(s, "") is always true, which would match
+				// every third-party CDN URL.
+				hostname := d.getHostname()
+				if hostname != "" && strings.Contains(src, hostname) {
 					jsURLs = append(jsURLs, src)
 				}
 			} else if strings.HasPrefix(src, "//") {
@@ -177,12 +185,64 @@ func (d *Discoverer) extractJSFromHomepage(ctx context.Context) []string {
 		if len(match) > 1 {
 			src := match[1]
 			if strings.HasPrefix(src, "/") {
-				jsURLs = append(jsURLs, d.config.Target+src)
+				jsURLs = append(jsURLs, baseURL+src)
 			}
 		}
 	}
 
 	return jsURLs
+}
+
+// normalizeJSPath converts a JS-extracted path to an absolute path.
+// Absolute paths ("/api/users") pass through. Relative paths ("api/users",
+// "./config") get a "/" prefix. Protocol-relative ("//cdn.example.com") and
+// full URLs ("https://...") are rejected (return "").
+// Parent-directory traversals ("../secret") are rejected to avoid probing
+// nonsensical paths that could trigger WAF rules on the target.
+func normalizeJSPath(p string) string {
+	if p == "" || p == "." || p == ".." {
+		return ""
+	}
+	// Reject protocol-relative and full URLs
+	if strings.HasPrefix(p, "//") || strings.HasPrefix(p, "http://") || strings.HasPrefix(p, "https://") {
+		return ""
+	}
+	// Reject parent-directory traversals
+	if strings.HasPrefix(p, "../") {
+		return ""
+	}
+	// Already absolute
+	if strings.HasPrefix(p, "/") {
+		// Reject traversal in absolute paths
+		if strings.Contains(p, "/../") || strings.HasSuffix(p, "/..") {
+			return ""
+		}
+		return p
+	}
+	// Relative path — strip "./" prefix and make absolute
+	p = strings.TrimPrefix(p, "./")
+	if p == "" || p == "." || p == ".." {
+		return ""
+	}
+	// Reject traversal after stripping ./
+	if strings.HasPrefix(p, "../") {
+		return ""
+	}
+	return "/" + p
+}
+
+// isStaticFile returns true if the path ends with a known static file extension.
+// Used to skip probing static assets that are not API endpoints.
+func isStaticFile(p string) bool {
+	lower := strings.ToLower(p)
+	return strings.HasSuffix(lower, ".js") || strings.HasSuffix(lower, ".css") ||
+		strings.HasSuffix(lower, ".png") || strings.HasSuffix(lower, ".jpg") ||
+		strings.HasSuffix(lower, ".jpeg") || strings.HasSuffix(lower, ".gif") ||
+		strings.HasSuffix(lower, ".svg") || strings.HasSuffix(lower, ".woff") ||
+		strings.HasSuffix(lower, ".woff2") || strings.HasSuffix(lower, ".ttf") ||
+		strings.HasSuffix(lower, ".eot") || strings.HasSuffix(lower, ".ico") ||
+		strings.HasSuffix(lower, ".map") || strings.HasSuffix(lower, ".webp") ||
+		strings.HasSuffix(lower, ".mp4") || strings.HasSuffix(lower, ".webm")
 }
 
 // getHostname extracts hostname from target URL

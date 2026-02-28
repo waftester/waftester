@@ -295,7 +295,7 @@ func isLoginForm(form Form) bool {
 func isSearchForm(form Form) bool {
 	for _, field := range form.Fields {
 		name := strings.ToLower(field.Name)
-		if strings.Contains(name, "search") || strings.Contains(name, "query") || strings.Contains(name, "q") {
+		if strings.Contains(name, "search") || strings.Contains(name, "query") || name == "q" {
 			return true
 		}
 	}
