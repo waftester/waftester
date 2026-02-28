@@ -547,9 +547,17 @@ func generateCombinations(parts [][]string, separator string) []string {
 		return nil
 	}
 
-	// Calculate total combinations
+	// Calculate total combinations with overflow protection
 	total := 1
 	for _, part := range parts {
+		if len(part) == 0 {
+			return nil
+		}
+		// Check for overflow before multiplying
+		if total > 1000000/len(part) {
+			total = 1000000
+			break
+		}
 		total *= len(part)
 	}
 

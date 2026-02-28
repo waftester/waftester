@@ -61,7 +61,14 @@ func (m *middlewareTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	for i := 0; i < attempts; i++ {
 		if i > 0 {
 			if m.retryDelay > 0 {
-				time.Sleep(m.retryDelay)
+				// Respect context cancellation during retry sleep
+				timer := time.NewTimer(m.retryDelay)
+				select {
+				case <-r.Context().Done():
+					timer.Stop()
+					return nil, r.Context().Err()
+				case <-timer.C:
+				}
 			}
 			// Reset body for retry if possible.
 			if r.GetBody != nil {

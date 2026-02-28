@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -188,8 +189,7 @@ func (t *Tester) generatePayloads() []Payload {
 		desc   string
 	}{
 		{"Host", "", "Empty host with absolute URL"},
-		{"Host", ".", "Dot host"},
-		{"Host", "..", "Double dot host"},
+		{"Host", "evil.localhost", "Dot-separated host"},
 	}
 
 	for _, p := range absolutePayloads {
@@ -306,7 +306,7 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 		}
 
 		// Check for cache poisoning indicators
-		cacheHeaders := []string{"X-Cache", "CF-Cache-Status", "Age", "Cache-Control"}
+		cacheHeaders := []string{"X-Cache", "CF-Cache-Status", "Age"}
 		for _, cacheHeader := range cacheHeaders {
 			if resp.Header.Get(cacheHeader) != "" {
 				// If we have cache indicators and host is reflected, it's cache poisoning
@@ -362,7 +362,7 @@ func (t *Tester) TestPasswordReset(ctx context.Context, targetURL string, email 
 	}
 
 	// Create password reset request
-	form := strings.NewReader(fmt.Sprintf("email=%s", email))
+	form := strings.NewReader(url.Values{"email": {email}}.Encode())
 	req, err := http.NewRequestWithContext(ctx, "POST", targetURL, form)
 	if err != nil {
 		return nil, err

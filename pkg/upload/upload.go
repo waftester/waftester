@@ -356,6 +356,11 @@ func (t *Tester) applyHeaders(req *http.Request) {
 }
 
 func (t *Tester) isUploadSuccessful(statusCode int, body string) bool {
+	// Redirects after upload often indicate the file was accepted
+	if statusCode == 301 || statusCode == 302 || statusCode == 303 {
+		return true
+	}
+
 	if statusCode >= 200 && statusCode < 300 {
 		successIndicators := []string{"success", "uploaded", "complete", "file_url", "location", "path", "url"}
 		lowerBody := strings.ToLower(body)
@@ -364,10 +369,9 @@ func (t *Tester) isUploadSuccessful(statusCode int, body string) bool {
 				return true
 			}
 		}
-		return true
-	}
-	if statusCode == 301 || statusCode == 302 || statusCode == 303 {
-		return true
+		// 2xx without any success indicator — the server accepted the request
+		// but we can't confirm the file was actually stored. Don't flag as vuln.
+		return false
 	}
 	return false
 }

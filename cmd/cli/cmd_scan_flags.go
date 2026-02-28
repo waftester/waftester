@@ -271,6 +271,15 @@ func (cfg *scanConfig) validate() {
 	if *cfg.MaxErrors < 1 {
 		exitWithError("--max-errors must be at least 1, got %d", *cfg.MaxErrors)
 	}
+	if *cfg.Retries < 0 {
+		exitWithError("--retries must be non-negative, got %d", *cfg.Retries)
+	}
+	if cfg.Common.Timeout < 1 {
+		exitWithError("--timeout must be at least 1, got %d", cfg.Common.Timeout)
+	}
+	if *cfg.MaxRedirects < 0 {
+		exitWithError("--max-redirects must be non-negative, got %d", *cfg.MaxRedirects)
+	}
 }
 
 // mergeLegacyOutputFlags copies legacy shorthand flags into the unified

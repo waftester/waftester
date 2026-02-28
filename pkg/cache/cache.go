@@ -75,7 +75,7 @@ type TesterConfig struct {
 	CacheBusters []string // Custom cache busters
 	TestHeaders  []string // Headers to test for unkeyed behavior
 	TestParams   []string // Parameters to test
-	VerifyCache  bool // Whether to verify caching behavior
+	VerifyCache  bool     // Whether to verify caching behavior
 }
 
 // Tester performs cache poisoning tests
@@ -478,7 +478,16 @@ func (t *Tester) TestCacheDeception(ctx context.Context, targetURL string) ([]Vu
 	for _, ext := range cacheableExtensions {
 		for _, delim := range pathDelimiters {
 			testPath := basePath + delim + ext
-			u.Path = testPath
+			if strings.Contains(delim, "%") {
+				// Percent-encoded delimiters must go into RawPath to avoid
+				// Go's url.URL.String() re-encoding the '%' character.
+				decoded, _ := url.PathUnescape(testPath)
+				u.Path = decoded
+				u.RawPath = testPath
+			} else {
+				u.Path = testPath
+				u.RawPath = ""
+			}
 
 			newBuster, err := generateCacheBuster()
 			if err != nil {
@@ -509,7 +518,7 @@ func (t *Tester) TestCacheDeception(ctx context.Context, targetURL string) ([]Vu
 			iohelper.DrainAndClose(resp2.Body)
 
 			// If responses are similar and it's being cached, it's vulnerable
-			if (cacheStatus == "HIT" || cfCache == "HIT" || cfCache == "DYNAMIC") &&
+			if (cacheStatus == "HIT" || cfCache == "HIT") &&
 				similarity(originalBody, testBody) > 0.8 {
 				vulns = append(vulns, Vulnerability{
 					Type:        VulnCacheDeception,
@@ -559,7 +568,14 @@ func (t *Tester) TestPathNormalization(ctx context.Context, targetURL string) ([
 
 	for _, variation := range pathVariations {
 		testPath := originalPath + variation.pattern + "test"
-		u.Path = testPath
+		if strings.Contains(variation.pattern, "%") {
+			decoded, _ := url.PathUnescape(testPath)
+			u.Path = decoded
+			u.RawPath = testPath
+		} else {
+			u.Path = testPath
+			u.RawPath = ""
+		}
 
 		buster, err := generateCacheBuster()
 		if err != nil {
@@ -838,7 +854,7 @@ func similarity(a, b string) float64 {
 		}
 	}
 
-	return float64(matches) / float64(minLen)
+	return float64(matches) / float64(longer)
 }
 
 // Remediation guidance

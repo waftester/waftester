@@ -296,9 +296,15 @@ func (t *Tester) generatePayloads(platform Platform) []Payload {
 					}
 
 					traversal := strings.Repeat(pattern.pattern, depth)
-					// Get just filename for traversal
+					// Get relative path from drive root (e.g. "Windows\System32\drivers\etc\hosts")
+					// Splitting on "\" and dropping the drive letter prefix ("C:")
 					parts := strings.Split(file, "\\")
-					filePath := parts[len(parts)-1]
+					var filePath string
+					if len(parts) > 1 {
+						filePath = strings.Join(parts[1:], "\\")
+					} else {
+						filePath = parts[0]
+					}
 
 					payloads = append(payloads, Payload{
 						Value:       traversal + filePath,
@@ -628,8 +634,6 @@ func readBodyLimit(resp *http.Response, limit int64) string {
 	}
 	return string(data)
 }
-
-
 
 // Remediation guidance
 

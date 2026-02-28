@@ -155,8 +155,8 @@ func (t *Tester) generatePayloads() []*Payload {
 		{
 			Name:        "Unicode Encoded",
 			Type:        VulnEncodedRedirect,
-			Value:       fmt.Sprintf("http://%s", strings.ReplaceAll(domain, ".", "\u002e")),
-			Description: "Unicode dot encoding",
+			Value:       fmt.Sprintf("http://%s", strings.ReplaceAll(domain, ".", "\uff0e")),
+			Description: "Unicode fullwidth dot encoding",
 		},
 		{
 			Name:        "Hex Encoded Slashes",

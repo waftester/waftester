@@ -156,6 +156,7 @@ func runAutoScan() {
 	autoFlags, cfg := registerAutoscanFlags()
 	autoFlags.Parse(os.Args[2:])
 	cfg.validate()
+	defer cfg.Out.CleanupTemplates()
 
 	// Disable detection if requested
 	if *cfg.NoDetect {
