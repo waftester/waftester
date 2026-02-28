@@ -199,8 +199,9 @@ func parseDuration(raw json.RawMessage, durationSeconds *float64) time.Duration 
 			return time.Duration(ns)
 		}
 		// Try float64 nanoseconds (JavaScript JSON.stringify produces floats for large numbers).
+		// Cap at 1e18 (~31 years) to prevent int64 overflow on cast.
 		var f float64
-		if err := json.Unmarshal(raw, &f); err == nil && f > 0 {
+		if err := json.Unmarshal(raw, &f); err == nil && f > 0 && f < 1e18 {
 			return time.Duration(int64(f))
 		}
 		// Try string format like "5m30s".
@@ -212,7 +213,8 @@ func parseDuration(raw json.RawMessage, durationSeconds *float64) time.Duration 
 		}
 	}
 	// Fall back to duration_seconds (autoscan format).
-	if durationSeconds != nil && *durationSeconds > 0 {
+	// Cap at 1e9 seconds (~31 years) to prevent int64 overflow in multiplication.
+	if durationSeconds != nil && *durationSeconds > 0 && *durationSeconds < 1e9 {
 		return time.Duration(*durationSeconds * float64(time.Second))
 	}
 	return 0
@@ -225,8 +227,9 @@ func extractWAFVendors(raw rawSummary) []string {
 	var vendors []string
 	add := func(v string) {
 		v = strings.TrimSpace(v)
-		if v != "" && !seen[v] {
-			seen[v] = true
+		key := strings.ToLower(v)
+		if v != "" && !seen[key] {
+			seen[key] = true
 			vendors = append(vendors, v)
 		}
 	}
@@ -274,9 +277,16 @@ func Compare(before, after *ScanSummary) *Result {
 	}
 
 	// WAF comparison: use full vendor sets for accurate change detection.
-	r.WAFChanged = !stringSlicesEqual(before.WAFVendors, after.WAFVendors)
-	// Fallback for summaries without WAFVendors populated (e.g., manually constructed).
-	if len(before.WAFVendors) == 0 && len(after.WAFVendors) == 0 {
+	// When both sides have WAFVendors, compare slices directly.
+	// When only one side has WAFVendors, fall back to WAFVendor string comparison
+	// to avoid false positives from different JSON format paths.
+	if len(before.WAFVendors) > 0 && len(after.WAFVendors) > 0 {
+		r.WAFChanged = !stringSlicesEqual(before.WAFVendors, after.WAFVendors)
+	} else if len(before.WAFVendors) == 0 && len(after.WAFVendors) == 0 {
+		r.WAFChanged = before.WAFVendor != after.WAFVendor
+	} else {
+		// Asymmetric: one side has WAFVendors array, other has only WAFVendor string.
+		// Compare the primary vendor to avoid false WAFChanged from format differences.
 		r.WAFChanged = before.WAFVendor != after.WAFVendor
 	}
 

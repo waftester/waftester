@@ -126,7 +126,7 @@ Drive security scans from API specifications. WAFtester parses your spec, genera
 waf-tester scan --spec openapi.yaml -u https://api.example.com
 
 # Postman collection with environment variables
-waf-tester auto --spec collection.json --spec-env staging.json -u https://api.example.com
+waf-tester auto --spec collection.json --env staging.json -u https://api.example.com
 
 # HAR recording from browser DevTools
 waf-tester scan --spec recording.har -u https://api.example.com
