@@ -94,8 +94,11 @@ func TestTransport_RecordsLatency(t *testing.T) {
 func TestTransport_SkipsBlockedHost(t *testing.T) {
 	detector := New()
 
-	// Simulate many connection errors to mark host as blocked
-	host := "blocked.example.com:443"
+	// Simulate many connection errors to mark host as blocked.
+	// Use the exact host string that Transport.RoundTrip will extract
+	// from req.URL.Host — for "https://blocked.example.com/test" Go
+	// returns "blocked.example.com" (default port stripped).
+	host := "blocked.example.com"
 	for i := 0; i < 10; i++ {
 		detector.RecordError(host, io.EOF)
 	}

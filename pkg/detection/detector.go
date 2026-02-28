@@ -101,11 +101,20 @@ func (d *Detector) RecordError(targetURL string, err error) *DetectionResult {
 func (d *Detector) RecordResponse(targetURL string, resp *http.Response, latency time.Duration, bodySize int) *DetectionResult {
 	host := extractHost(targetURL)
 
-	// Record success for connection monitoring
-	d.connMon.RecordSuccess(host)
-
-	// Check for tarpit behavior
+	// Check for tarpit behavior FIRST. If the response is a tarpit (extremely
+	// slow), record it as a drop — don't also call RecordSuccess, which would
+	// contradict by advancing recovery state on the same response.
 	tarpitResult := d.connMon.CheckTarpit(host, latency)
+
+	// Only record success if NOT a tarpit. If full recovery completed, clear
+	// the hosterrors permanent mark so the host is no longer skipped by other
+	// layers (prevents death spiral where hosterrors permanently blocks a
+	// recovered host).
+	if !tarpitResult.Dropped {
+		if d.connMon.RecordSuccess(host) {
+			hosterrors.Clear(targetURL)
+		}
+	}
 
 	// Record sample for silent ban detection
 	banResult := d.banDetect.RecordSample(host, resp, latency, bodySize, false)
@@ -148,9 +157,18 @@ func (d *Detector) CaptureBaseline(targetURL string, resp *http.Response, latenc
 func (d *Detector) ShouldSkipHost(targetURL string) (skip bool, reason string) {
 	host := extractHost(targetURL)
 
-	// Check if connection monitor detects dropping
+	// Check if connection monitor detects dropping.
+	// IsDropping periodically returns false (recovery window) to allow a
+	// recovery probe through. When that happens, also clear the hosterrors
+	// cache so the probe isn't blocked by a separate permanent-mark layer.
 	if d.connMon.IsDropping(host) {
 		return true, "connection_dropping"
+	}
+	// If we reach here and the host WAS previously marked permanent in
+	// hosterrors (e.g., recovery window opened), clear it so the recovery
+	// probe can actually reach the network layer.
+	if d.connMon.WasDropping(host) {
+		hosterrors.Clear(targetURL)
 	}
 
 	// Check if silent ban detector detects ban
@@ -207,9 +225,13 @@ func (d *Detector) ClearHostErrors(targetURL string) {
 }
 
 // extractHost extracts the host from a URL string.
+// If targetURL has no scheme (bare host like "example.com:443"), url.Parse
+// treats it as a relative path and returns empty Host. In that case, return
+// the input as-is so callers (especially Transport.RoundTrip) don't collide
+// all hosts onto a single empty-string key.
 func extractHost(targetURL string) string {
 	parsed, err := url.Parse(targetURL)
-	if err != nil {
+	if err != nil || parsed.Host == "" {
 		return targetURL
 	}
 	return parsed.Host

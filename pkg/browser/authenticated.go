@@ -483,8 +483,9 @@ func (s *AuthenticatedScanner) runChromedpScan(ctx context.Context, result *Brow
 			// Clean shutdown
 		case <-time.After(5 * time.Second):
 			// Graceful cancel blocked — force-kill the Chrome process tree.
+			// Uses killProcessTree for platform-aware cleanup (taskkill on Windows).
 			if proc != nil {
-				_ = proc.Kill()
+				killProcessTree(proc)
 			}
 			if progressFn != nil {
 				progressFn("Browser cleanup timed out — force-killed Chrome process")

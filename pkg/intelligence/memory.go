@@ -90,8 +90,10 @@ func (m *Memory) Store(f *Finding) {
 	m.bySeverity[f.Severity] = append(m.bySeverity[f.Severity], f)
 
 	// Track bypasses (testing phases only — recon findings have Blocked=false
-	// by default which would inflate the bypass list)
-	if !f.Blocked && f.IsTestingPhase() {
+	// by default which would inflate the bypass list).
+	// Also require StatusCode > 0: skipped/dropped tests have StatusCode=0
+	// and Blocked=false, which would falsely inflate the bypass count.
+	if !f.Blocked && f.IsTestingPhase() && f.StatusCode > 0 {
 		m.bypasses = append(m.bypasses, f)
 	}
 }
@@ -127,7 +129,7 @@ func (m *Memory) rebuildIndexes() {
 		m.byPhase[f.Phase] = append(m.byPhase[f.Phase], f)
 		m.byPath[f.Path] = append(m.byPath[f.Path], f)
 		m.bySeverity[f.Severity] = append(m.bySeverity[f.Severity], f)
-		if !f.Blocked && f.IsTestingPhase() {
+		if !f.Blocked && f.IsTestingPhase() && f.StatusCode > 0 {
 			m.bypasses = append(m.bypasses, f)
 		}
 	}

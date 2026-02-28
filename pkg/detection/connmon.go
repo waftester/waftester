@@ -210,13 +210,14 @@ func (cm *ConnectionMonitor) RecordDrop(host string, err error) *DropResult {
 }
 
 // RecordSuccess records a successful connection for recovery tracking.
-func (cm *ConnectionMonitor) RecordSuccess(host string) {
+// Returns true if the host completed full recovery (was dropping, now recovered).
+func (cm *ConnectionMonitor) RecordSuccess(host string) bool {
 	cm.mu.RLock()
 	state, exists := cm.hostDrops[host]
 	cm.mu.RUnlock()
 
 	if !exists {
-		return
+		return false
 	}
 
 	// If we're in a dropping state, track recovery
@@ -233,8 +234,23 @@ func (cm *ConnectionMonitor) RecordSuccess(host string) {
 			state.consecutiveDrops.Store(0)
 			state.inRecovery.Store(false)
 			state.recoverySuccesses.Store(0)
+			return true
 		}
 	}
+	return false
+}
+
+// WasDropping returns true if the host has ever crossed the dropping threshold,
+// even if IsDropping currently returns false (recovery window open).
+// Used to clear hosterrors marks when a recovery probe is allowed through.
+func (cm *ConnectionMonitor) WasDropping(host string) bool {
+	cm.mu.RLock()
+	state, exists := cm.hostDrops[host]
+	cm.mu.RUnlock()
+	if !exists {
+		return false
+	}
+	return state.consecutiveDrops.Load() >= int64(defaults.DropDetectConsecutiveThreshold)
 }
 
 // IsDropping returns true if the host is currently in a dropping state.
@@ -322,9 +338,13 @@ func (cm *ConnectionMonitor) CheckTarpit(host string, latency time.Duration) *Dr
 		state.lastDropType.Store(int32(DropTypeTarpit))
 		state.lastDropTime.Store(time.Now().UnixNano())
 
-		// Reset recovery state
-		state.recoverySuccesses.Store(0)
-		state.inRecovery.Store(false)
+		// Only reset recovery state below threshold — same guard as RecordDrop.
+		// Once past the threshold, recovery probes are the only way out;
+		// resetting on every tarpit would trap intermittent hosts permanently.
+		if consecutive < int64(defaults.DropDetectConsecutiveThreshold) {
+			state.recoverySuccesses.Store(0)
+			state.inRecovery.Store(false)
+		}
 
 		return &DropResult{
 			Dropped:      true,

@@ -86,7 +86,10 @@ func (s *Stats) RecordFinding(f *Finding, isTesting bool) {
 	if isTesting {
 		if f.Blocked {
 			s.blocksByCategory[f.Category]++
-		} else {
+		} else if f.StatusCode > 0 {
+			// Only count as bypass if StatusCode > 0. Skipped/dropped tests
+			// have StatusCode=0 and Blocked=false, which would falsely
+			// inflate per-category bypass rates.
 			s.bypassesByCategory[f.Category]++
 		}
 	}
