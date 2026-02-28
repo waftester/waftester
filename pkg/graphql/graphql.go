@@ -189,9 +189,11 @@ func NewTester(endpoint string, config *TesterConfig) *Tester {
 	}
 
 	if !config.FollowRedirects {
-		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		cloned := *client
+		cloned.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
+		client = &cloned
 	}
 
 	return &Tester{

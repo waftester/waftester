@@ -428,8 +428,6 @@ func runTests() {
 				}
 			},
 		})
-		defer executor.Close()
-
 		// Start progress display (skip if silent)
 		if !cfg.Silent {
 			progress.Start()
@@ -462,8 +460,9 @@ func runTests() {
 			output.PrintSummary(results)
 		}
 
-		// Close writer to flush output
+		// Close writer and executor to release resources
 		writer.Close()
+		executor.Close()
 
 		// Save results if output file specified
 		if outputFile != "" && !cfg.Silent {
