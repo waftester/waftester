@@ -163,8 +163,12 @@ func runGRPCDescribe(ctx context.Context, client *grpc.Client, serviceName strin
 	}
 
 	if jsonOutput {
-		data, _ := json.MarshalIndent(desc, "", "  ")
-		fmt.Println(string(data))
+		data, marshalErr := json.MarshalIndent(desc, "", "  ")
+		if marshalErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to marshal gRPC description: %v", marshalErr))
+		} else {
+			fmt.Println(string(data))
+		}
 		return
 	}
 

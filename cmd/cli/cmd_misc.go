@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/chromedp/chromedp"
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/headless"
 	"github.com/waftester/waftester/pkg/race"
 	"github.com/waftester/waftester/pkg/smuggling"
@@ -101,7 +102,8 @@ func runSmuggle() {
 		fmt.Println()
 	}
 
-	ctx := context.Background()
+	ctx, cancel := cli.SignalContext(30 * time.Second)
+	defer cancel()
 	allResults := []*smuggling.Result{}
 	smuggleStartTime := time.Now()
 
@@ -330,7 +332,8 @@ func runRace() {
 		fmt.Println()
 	}
 
-	ctx := context.Background()
+	ctx, cancel := cli.SignalContext(30 * time.Second)
+	defer cancel()
 	var vulns []*race.Vulnerability
 	raceStartTime := time.Now()
 
