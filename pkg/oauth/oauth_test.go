@@ -560,7 +560,7 @@ func TestApplyHeaders(t *testing.T) {
 	}
 	tester := NewTester(config, nil, nil)
 
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://example.com", nil)
 	tester.applyHeaders(req)
 
 	if req.Header.Get("User-Agent") != "Test-Agent" {

@@ -1688,7 +1688,7 @@ func TestHealthEndpointMethodNotAllowed(t *testing.T) {
 	ts := httptest.NewServer(handler)
 	defer ts.Close()
 
-	req, err := http.NewRequest(http.MethodDelete, ts.URL+"/health", nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodDelete, ts.URL+"/health", nil)
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)
 	}
@@ -1711,7 +1711,7 @@ func TestCORSHeaders(t *testing.T) {
 	ts := httptest.NewServer(handler)
 	defer ts.Close()
 
-	req, err := http.NewRequest(http.MethodGet, ts.URL+"/health", nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, ts.URL+"/health", nil)
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)
 	}
@@ -1757,7 +1757,7 @@ func TestCORSPreflight(t *testing.T) {
 	ts := httptest.NewServer(handler)
 	defer ts.Close()
 
-	req, err := http.NewRequest(http.MethodOptions, ts.URL+"/mcp", nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodOptions, ts.URL+"/mcp", nil)
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)
 	}
@@ -1816,7 +1816,7 @@ func TestCORSRejectsNonLocalhost(t *testing.T) {
 	ts := httptest.NewServer(handler)
 	defer ts.Close()
 
-	req, err := http.NewRequest(http.MethodGet, ts.URL+"/health", nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, ts.URL+"/health", nil)
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)
 	}
@@ -3015,7 +3015,7 @@ func TestHealthEndpointHEAD(t *testing.T) {
 	ts := httptest.NewServer(srv.HTTPHandler())
 	defer ts.Close()
 
-	req, _ := http.NewRequest(http.MethodHead, ts.URL+"/health", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodHead, ts.URL+"/health", nil)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("HEAD /health: %v", err)
