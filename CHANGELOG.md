@@ -5,6 +5,106 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.41] - 2026-03-01
+
+### Fixed
+
+- **GraphQL diamond-schema incomplete expansion** — Visited-map backtracking caused incomplete type exploration in diamond-shaped schemas; full expansion now guaranteed
+- **GraphQL `FullScan` query counter and context cancellation** — `queriesSent` was miscounted and context cancellation was not checked between operations
+- **Command injection POST payloads sent as query strings** — `cmdi` scanner sent POST-method payloads in the URL query instead of the form body
+- **6 SQL injection payloads misclassified** — Time-based payloads were listed in error-based sections, causing wrong detection logic
+- **XSS HTML entity decoding reversed** — Decoder was encoding the payload instead of decoding the response body
+- **XSS DOM check ran per-parameter instead of per-URL** — Redundant DOM checks on every parameter of the same page
+- **JWT algorithm normalization inconsistency** — `header.Alg` vs `algLower` comparison produced false negatives on mixed-case algorithms
+- **Cache similarity divided by shorter length** — Similarity metric used the shorter response as denominator, inflating similarity scores
+- **Cache false positive on CF-Cache-Status DYNAMIC** — Cloudflare `DYNAMIC` status was incorrectly treated as a cache hit
+- **Cache double-encoding in deception and path normalization tests** — URL-encoded payloads were encoded again, testing the wrong paths
+- **SSTI empty baseline false positives** — When baseline response was empty, all template injections appeared to produce unique output
+- **SSTI missing Twig and Freemarker fingerprint cases** — `FingerprintEngine` switch statement lacked cases for two major template engines
+- **XXE error detection never set `detected=true`** — Detection loop evaluated conditions but never flipped the flag
+- **XXE PHP filter regex missed base64 in response body** — Regex was anchored to start of line, missing base64 content mid-body
+- **WebSocket missing `Sec-WebSocket-Accept` accepted as valid** — Upgrade response without the required header was treated as successful
+- **WebSocket CSWS check fired outside 101 status block** — Cross-site WebSocket check ran even when the upgrade failed
+- **Scan summary `EmitSummary` passed 0 for blocked count** — Blocked count was hardcoded to 0 instead of using actual value
+- **Assess `EmitSummary` included true negatives in blocked count** — Inflated blocked count by including passed tests
+- **Assess category breakdown non-deterministic ordering** — Table rows appeared in random order across runs
+- **Upload `isUploadSuccessful` dead-code loop** — 2xx status unconditionally returned true, making the success-indicator loop unreachable
+- **Deserialize broad 500-error heuristic** — Any HTTP 500 was flagged as deserialization vulnerability; now requires deserialization-specific keywords
+- **WAF detector body pattern false positives on short responses** — Short response bodies triggered pattern matches too easily
+- **WAF fingerprint timing variance without baseline** — Timing analysis computed variance without a normal-request baseline for comparison
+- **CSP header reported duplicate wildcard and dangerous-value** — Same CSP issue was reported twice with overlapping descriptions
+- **Host header injection false positives** — Cache-Control matching, dot-payload false positives, and email encoding issues
+- **CORS IP/IPv6 bugs and swallowed preflight error** — IP address and IPv6 origin matching was incorrect; preflight errors were silently ignored
+- **OAuth broken detection logic and concurrent nil-panic** — Detection conditions were inverted; concurrent access could panic on nil response
+- **Open redirect unicode bypass used no-op codepoint** — Unicode bypass payload used a codepoint that browsers ignore
+- **SSTI SafeMode leaked Nunjucks/Handlebars RCE payloads** — Safe mode was supposed to exclude dangerous payloads but included RCE-capable ones
+- **Deduplication keys missing differentiating fields** — GraphQL, SSRF, Smuggling, and JWT dedup keys lacked fields needed to distinguish unique findings
+- **`truncateStr` off-by-one when max=3** — `max < 4` guard should be `max < 3`; when max equals 3, the ellipsis `"..."` fits exactly
+- **`extractTitle` returned lowercase page titles** — HTML title extraction lowercased the entire document including the extracted text
+- **Nuclei `matchStatus` empty list returned false** — Empty status list should be vacuous truth (match everything), consistent with `matchSize`
+- **MCP `isSensitiveKey` false positives on "keyboard"** — Bare substring match on "key" caused false-positive redaction of non-sensitive fields like `keyboard_layout`
+- **Session fixation scanner used raw `&http.Client{}`** — Bypassed `httpclient` package; replaced with `httpclient.New(DefaultConfig())`
+- **Detection `extractHost` returned empty for bare hostnames** — All bare hosts collided on empty key in the transport map
+- **Detection `RecordResponse` contradicted tarpit state** — `RecordSuccess` was called before `checkTarpit`, resetting tarpit state on the same response
+- **Detection `CheckTarpit` trapped hosts permanently** — Recovery reset was not guarded behind threshold, preventing hosts from ever leaving tarpit state
+- **Discovery `normalizeJSPath` accepted traversal paths** — `../` sequences and bare `.` paths were probed, triggering WAF rules
+- **Discovery static file filter incomplete** — Missing `.woff2`, `.ico`, `.gif`, `.map`, `.ttf` and 11 other extensions; filter only applied to URLs, not Endpoints
+- **Discovery empty hostname guard always matched** — `strings.Contains(s, "")` is always true, matching every third-party CDN URL
+- **Discovery import pattern URLs created double-slash paths** — Untrimmed base URL produced `//` in resolved paths
+- **Discovery `isSearchForm` substring-matched "q"** — Any field containing the letter "q" (quantity, frequency) was treated as a search form
+- **Intelligence `Stats.RecordFinding` inflated bypass rates** — Tests with `StatusCode=0` (skipped) were counted as bypasses
+- **Intelligence WAF model missed unprotected categories** — `updateAssessments` only iterated categories with blocks, missing those with zero blocks entirely
+- **Intelligence false "Bypass Detected" insights during recon** — Insights were emitted for recon-phase findings that aren't actual bypass attempts
+- **Intelligence resource allocation skewed by recon findings** — Recon findings gave categories like "endpoint" a 100% bypass rate
+- **Browser process kill only terminated parent** — On Linux/macOS, only the parent Chrome process was killed; child processes survived as zombies
+- **Encoding decoders inserted zero bytes on parse failure** — Unicode, JSHex, Octal, and Binary decoders called `fmt.Sscanf` without checking the return value, silently inserting NUL bytes for unparseable escape sequences
+- **Race condition on shared `http.Client` in auth scanner** — `brokenauth` mutated the shared client's cookie jar; now clones the client first
+- **Race condition on cookie jar in browser client** — `SetCookie`/`Cookies` and `ClearCookies` ran concurrently without synchronization
+- **Race condition on browser profile access** — `doOnce` read the profile snapshot without holding the lock while `SetProfile` wrote it
+- **Race condition on health monitor callback** — `onResult` callback was read in `monitor.run` without synchronization
+- **Race condition on shared `RequestConfig` in smuggling** — `TestDoubleSubmit` shared a pointer across goroutines
+- **Race condition on NoSQL injection pattern slices** — Shared pattern slices were aliased instead of copied
+- **Race condition on GraphQL shared client mutation** — Concurrent scans mutated the same `http.Client`
+- **Race condition on host error store** — `MarkPermanent` store-vs-load race in `hosterrors`
+- **Headless infinite loop on empty attribute values** — `href=""` caused the attribute extractor to loop forever
+- **Traversal scanner mutated shared URL pointer** — Loop iterations modified the same `*url.URL`, corrupting subsequent requests
+- **XXE deep-copy missing for filtered payloads** — Filtered payload slices shared internal pointers with the original
+- **Timer leaks in retry and request loops** — `time.After` timers were not stopped, leaking until GC
+- **HTTP response bodies not drained before close** — `resp.Body` in SSRF, JWT, and API spec scanners was closed without draining, preventing connection reuse
+- **Goroutine leak on TLS handshake failure** — Failed TLS handshakes leaked the connection goroutine
+- **DNS cache stored context cancellation as negative result** — Cancelled DNS lookups were cached as "host not found"
+- **Wordlist partial cache file and wrong size field** — Incomplete downloads were cached; size check used wrong struct field
+- **Crawler seed URL race with workers** — Seed URL was queued after workers started, causing a race condition
+- **Crawler scope check after visited-map insertion** — Out-of-scope URLs were added to the visited map before being rejected, causing unbounded growth
+- **Crawler `buildRedirectChain` nil dereference** — Nil `resp.Response` caused a panic in redirect chain construction
+- **SARIF non-deterministic rules ordering** — Rules appeared in random order across runs; nil results guard was missing
+- **CSV injection in scan reports** — User-controlled content in CSV output was not escaped for formula injection
+- **58 `json.Marshal`/`MarshalIndent` errors silently dropped** — Across 15+ CLI commands and HTTP handlers, marshal errors were ignored
+- **Context cancellation missing in 20+ scan loops** — `traversal` (2,500 payloads), `massassignment` (49 params), `brokenauth`, `apiabuse`, and 15 other scanners did not check `ctx.Done()` in their main loops
+- **Map iteration non-determinism in 40+ locations** — Unsorted map iterations across cookie handling, secret classification, severity display, scan tips, payload prioritization, and report generation produced non-reproducible output
+- **Byte-offset truncation corrupted multi-byte UTF-8 in 25+ locations** — Evidence strings, payload previews, page titles, and secret masking used byte slicing (`s[:N]`) instead of rune-aware truncation, splitting multi-byte characters
+- **Slice aliasing in 8 locations** — Shared state mutations via `globalConsumes`, `FilterEndpoints`, business logic entries, JA3 extensions, and DNS name slices
+- **3 resource leaks from `defer` inside loops** — `bizlogic` auth bypass, `cmd_tests` executor, and `cmd_misc` file handles deferred close inside loops, accumulating open handles
+- **Ratelimit deadlock from ABBA lock ordering** — `Stats()` acquired locks in opposite order from the rate limiter, causing occasional deadlocks
+- **Wordlist `matchesFilter` used byte length instead of rune count** — Filter threshold compared byte length, rejecting valid short multi-byte words
+- **Risk score linear instead of logarithmic scaling** — Linear scoring made medium-severity findings indistinguishable from high-severity ones
+- **`bizlogic`/`apifuzz` `NewTester` ignored `config.Client`** — Custom HTTP client from `attackconfig.Base` was silently replaced with default
+- **`httpclient` spraying config overrode keep-alive setting** — Pool defaults set keep-alive to true even when explicitly disabled
+- **HPP `chunkPayload` division by zero** — `n=0` caused panic in `rand.Int63n`
+- **Ratelimit `DelayMin > DelayMax` panic** — Invalid delay range caused panic in random delay calculation
+- **JavaScript analyzer integer overflow and entropy mismatch** — `intToString` overflowed on large values; `calculateEntropy` used wrong base
+- **Cookie path quote stripping was no-op** — Extraction function stripped quotes from the wrong variable
+- **Duplicate XXE `/etc/passwd` payloads and broken SOAP/SVG wrappers** — Payload list had duplicates; SOAP and SVG XML wrappers had structural errors
+
+### Added
+
+- **35 regression tests across 13 packages** — Edge case tests for Sscanf validation, map determinism, byte safety, shared client mutation, URL mutation, infinite loops, race conditions, TCP health checks, and context cancellation
+
+### Changed
+
+- **Scan report output is now fully deterministic** — All map iterations across reports, tips, secrets, cookies, and severity displays are sorted, producing identical output across runs
+- **Context cancellation is now checked in all scan loops** — Every scanner with a payload or parameter iteration loop respects `ctx.Done()` for prompt cancellation
+
 ## [2.9.40] - 2026-02-28
 
 ### Changed
@@ -2654,6 +2754,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.41]: https://github.com/waftester/waftester/compare/v2.9.40...v2.9.41
 [2.9.40]: https://github.com/waftester/waftester/compare/v2.9.39...v2.9.40
 [2.9.39]: https://github.com/waftester/waftester/compare/v2.9.38...v2.9.39
 [2.9.38]: https://github.com/waftester/waftester/compare/v2.9.37...v2.9.38
