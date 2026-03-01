@@ -56,7 +56,7 @@ type BlockResult struct {
 // NewBlockDetector creates a detector with sensible defaults
 func NewBlockDetector() *BlockDetector {
 	return &BlockDetector{
-		BlockStatusCodes:    defaults.BlockedStatusCodes,
+		BlockStatusCodes:    defaults.BlockedStatusCodes(),
 		BlockKeywords:       DefaultBlockKeywords,
 		BlockPatterns:       compilePatterns(DefaultBlockPatterns),
 		BlockHeaders:        DefaultBlockHeaders,

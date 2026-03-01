@@ -142,7 +142,7 @@ func (p *CookiePlaceholder) Apply(ctx context.Context, targetURL, payload string
 	}
 
 	cfg := MergeConfig(config)
-	req.Header.Set("Cookie", fmt.Sprintf("%s=%s", cfg.CookieName, payload))
+	httputil.SetPayloadCookie(req, cfg.CookieName, payload)
 	return req, nil
 }
 
@@ -300,7 +300,7 @@ func (p *AcceptPlaceholder) Apply(ctx context.Context, targetURL, payload string
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Accept", payload)
+	httputil.SetPayloadHeader(req, "Accept", payload)
 	return req, nil
 }
 
@@ -314,6 +314,6 @@ func (p *AuthorizationPlaceholder) Apply(ctx context.Context, targetURL, payload
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", payload)
+	httputil.SetPayloadHeader(req, "Authorization", payload)
 	return req, nil
 }
