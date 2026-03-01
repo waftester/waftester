@@ -16,6 +16,7 @@ import (
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 // ErrNotImplemented is returned by cloud provider stubs that require SDK integration.
@@ -340,7 +341,7 @@ func (m *Manager) ExtractTargets(resources []*Resource) []string {
 
 // normalizeEndpoint ensures a URL has a scheme
 func normalizeEndpoint(ep string) string {
-	if strings.HasPrefix(ep, "http://") || strings.HasPrefix(ep, "https://") {
+	if urlutil.IsHTTPURL(ep) {
 		return ep
 	}
 	return "https://" + ep

@@ -10,6 +10,7 @@ import (
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/js"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 // discoverFromJavaScript extracts links from JavaScript files using LinkFinder
@@ -159,7 +160,7 @@ func (d *Discoverer) extractJSFromHomepage(ctx context.Context) []string {
 				continue
 			}
 			// Convert to absolute URL
-			if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") {
+			if urlutil.IsHTTPURL(src) {
 				// Check if same domain. Guard against empty hostname — in Go,
 				// strings.Contains(s, "") is always true, which would match
 				// every third-party CDN URL.

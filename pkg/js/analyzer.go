@@ -14,6 +14,7 @@ import (
 	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/subdomain"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 // ExtractedData represents all data extracted from JavaScript
@@ -309,7 +310,7 @@ func (a *Analyzer) ExtractURLs(code string) []URLInfo {
 
 			// Determine type
 			urlType := "relative"
-			if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
+			if urlutil.IsHTTPURL(url) {
 				urlType = "absolute"
 			} else if strings.HasPrefix(url, "//") {
 				urlType = "protocol-relative"

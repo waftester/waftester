@@ -64,6 +64,7 @@ import (
 	"github.com/waftester/waftester/pkg/ssi"
 	"github.com/waftester/waftester/pkg/ssrf"
 	"github.com/waftester/waftester/pkg/ssti"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/subtakeover"
 	"github.com/waftester/waftester/pkg/templateresolver"
 	"github.com/waftester/waftester/pkg/traversal"
@@ -2359,15 +2360,7 @@ func runScan() {
 				}
 			}
 			// Deduplicate payloads (enrichment may include the hardcoded fallbacks)
-			seen := make(map[string]bool, len(testPayloads))
-			deduped := make([]string, 0, len(testPayloads))
-			for _, p := range testPayloads {
-				if !seen[p] {
-					seen[p] = true
-					deduped = append(deduped, p)
-				}
-			}
-			testPayloads = deduped
+			testPayloads = strutil.Unique(testPayloads)
 		}
 		var allTransformed []waf.TransformedPayload
 		for _, payload := range testPayloads {

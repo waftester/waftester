@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/waftester/waftester/pkg/cli"
@@ -16,6 +15,7 @@ import (
 	"github.com/waftester/waftester/pkg/openapi"
 	"github.com/waftester/waftester/pkg/templateresolver"
 	"github.com/waftester/waftester/pkg/ui"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 // =============================================================================
@@ -111,7 +111,7 @@ func runOpenAPI() {
 	var spec *openapi.Spec
 	var err error
 
-	if strings.HasPrefix(specPath, "http://") || strings.HasPrefix(specPath, "https://") {
+	if urlutil.IsHTTPURL(specPath) {
 		spec, err = openapi.ParseFromURL(specPath)
 	} else {
 		spec, err = openapi.ParseFromFile(specPath)

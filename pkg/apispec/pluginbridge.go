@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/waftester/waftester/pkg/plugin"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 // EndpointToTarget converts an apispec.Endpoint to a plugin.Target suitable
@@ -94,7 +95,7 @@ func exampleOrDefault(p Parameter) string {
 
 // isAbsoluteURL checks if the string starts with http:// or https://.
 func isAbsoluteURL(s string) bool {
-	return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://")
+	return urlutil.IsHTTPURL(s)
 }
 
 // joinURL joins a base URL and path, handling slashes.

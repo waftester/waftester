@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // detectTechStack identifies web technologies from HTTP response headers, cookies, and body content.
@@ -87,16 +89,7 @@ func detectTechStack(resp *http.Response, body []byte) []string {
 	}
 
 	// Deduplicate
-	seen := make(map[string]bool)
-	var unique []string
-	for _, t := range techStack {
-		if !seen[t] {
-			seen[t] = true
-			unique = append(unique, t)
-		}
-	}
-
-	return unique
+	return strutil.Unique(techStack)
 }
 
 // performDNSRecon performs DNS reconnaissance on a domain and returns findings.
