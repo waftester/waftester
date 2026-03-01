@@ -1,6 +1,7 @@
 package strutil
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -88,6 +89,73 @@ func TestTruncate(t *testing.T) {
 			}
 			if tt.maxLen > 0 && len(got) > tt.maxLen {
 				t.Errorf("Truncate result length %d exceeds maxLen %d", len(got), tt.maxLen)
+			}
+		})
+	}
+}
+
+func TestSplitTrimmed(t *testing.T) {
+	tests := []struct {
+		name string
+		s    string
+		sep  string
+		want []string
+	}{
+		{
+			name: "comma separated with spaces",
+			s:    " foo , bar , baz ",
+			sep:  ",",
+			want: []string{"foo", "bar", "baz"},
+		},
+		{
+			name: "no spaces",
+			s:    "foo,bar,baz",
+			sep:  ",",
+			want: []string{"foo", "bar", "baz"},
+		},
+		{
+			name: "empty string returns nil",
+			s:    "",
+			sep:  ",",
+			want: nil,
+		},
+		{
+			name: "only whitespace elements",
+			s:    " , , ",
+			sep:  ",",
+			want: nil,
+		},
+		{
+			name: "single element",
+			s:    "  hello  ",
+			sep:  ",",
+			want: []string{"hello"},
+		},
+		{
+			name: "pipe separator",
+			s:    "a | b | c",
+			sep:  "|",
+			want: []string{"a", "b", "c"},
+		},
+		{
+			name: "trailing separator",
+			s:    "foo,bar,",
+			sep:  ",",
+			want: []string{"foo", "bar"},
+		},
+		{
+			name: "leading separator",
+			s:    ",foo,bar",
+			sep:  ",",
+			want: []string{"foo", "bar"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := SplitTrimmed(tt.s, tt.sep)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("SplitTrimmed(%q, %q) = %v, want %v", tt.s, tt.sep, got, tt.want)
 			}
 		})
 	}

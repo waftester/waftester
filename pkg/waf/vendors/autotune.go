@@ -468,7 +468,7 @@ func FormatAutoTuneReport(detection *DetectionResult, config *AutoTuneConfig) st
 
 		if len(detection.Evidence) > 0 {
 			sb.WriteString(fmt.Sprintf("%s  Evidence:                                                   %s\n", vt, vt))
-			for _, e := range detection.Evidence[:minInt(len(detection.Evidence), 3)] {
+			for _, e := range detection.Evidence[:min(len(detection.Evidence), 3)] {
 				sb.WriteString(fmt.Sprintf("%s    %s %-56s %s\n", vt, bullet, strutil.Truncate(e, 56), vt))
 			}
 		}
@@ -519,7 +519,7 @@ func FormatAutoTuneReport(detection *DetectionResult, config *AutoTuneConfig) st
 		sb.WriteString(fmt.Sprintf("%s%s%s\n", lj, hline, rj))
 		sb.WriteString(fmt.Sprintf("%s  BYPASS HINTS                                                %s\n", vt, vt))
 		sb.WriteString(fmt.Sprintf("%s%s%s\n", lj, hline, rj))
-		for _, hint := range detection.BypassHints[:minInt(len(detection.BypassHints), 5)] {
+		for _, hint := range detection.BypassHints[:min(len(detection.BypassHints), 5)] {
 			wrapped := wrapText(hint, 56)
 			for _, line := range wrapped {
 				sb.WriteString(fmt.Sprintf("%s  %s %-58s %s\n", vt, arrow, line, vt))
@@ -557,11 +557,4 @@ func wrapText(s string, max int) []string {
 	}
 
 	return lines
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
