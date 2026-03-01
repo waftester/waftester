@@ -249,6 +249,41 @@ func TestScanResult_Defaults(t *testing.T) {
 	}
 }
 
+// TestExtractEvidenceDeterministic verifies that extractEvidence returns the
+// same evidence string regardless of Go's randomized map iteration order.
+// This is a regression test: evidencePatterns is a map, and without sorting
+// the keys before iteration, the joined evidence string had non-deterministic
+// ordering across runs.
+func TestExtractEvidenceDeterministic(t *testing.T) {
+	scanner := NewScanner(nil)
+	path := PathEntry{Path: "/.env", Category: "config", Severity: "critical"}
+
+	// Body that matches multiple evidence patterns at once:
+	// - aws_key:     AKIA followed by 16 uppercase/digit chars
+	// - jwt:         three base64url segments separated by dots
+	// - password:    password= followed by a value
+	// - debug_mode:  debug=true
+	body := `{
+		"key": "AKIAIOSFODNN7EXAMPLE",
+		"token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.abcdefghijklmnop",
+		"password": "SuperSecret123",
+		"debug": true
+	}`
+
+	first := scanner.extractEvidence(body, path)
+	if first == "" {
+		t.Fatal("expected non-empty evidence from body matching multiple patterns")
+	}
+
+	for i := 1; i < 10; i++ {
+		result := scanner.extractEvidence(body, path)
+		if result != first {
+			t.Fatalf("non-deterministic evidence on iteration %d:\n  got:  %q\n  want: %q",
+				i, result, first)
+		}
+	}
+}
+
 // TestScanSummary_Defaults verifies ScanSummary has proper zero values
 func TestScanSummary_Defaults(t *testing.T) {
 	summary := ScanSummary{}

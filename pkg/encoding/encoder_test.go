@@ -301,3 +301,71 @@ func TestChainWithPartiallyValidEncoders(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, result)
 }
+
+// Regression: Sscanf validation in decoders.
+// Before the fix, unparseable escape sequences silently inserted zero bytes
+// (NUL, 0x00) because Sscanf failed but the variable was left at its zero value.
+
+func TestUnicodeDecoder_ValidSequence(t *testing.T) {
+	enc := Get("unicode")
+	require.NotNil(t, enc)
+
+	decoded, err := enc.Decode(`\u0041`)
+	require.NoError(t, err)
+	assert.Equal(t, "A", decoded)
+}
+
+func TestUnicodeDecoder_InvalidSequence_NoNUL(t *testing.T) {
+	enc := Get("unicode")
+	require.NotNil(t, enc)
+
+	// \uZZZZ is not valid hex; the decoder must NOT insert a NUL byte.
+	decoded, err := enc.Decode(`\uZZZZ`)
+	require.NoError(t, err)
+	assert.NotContains(t, decoded, "\x00",
+		"invalid unicode escape must not produce NUL byte")
+	// The invalid sequence should be left as-is in the output
+	assert.Contains(t, decoded, `\uZZZZ`)
+}
+
+func TestOctalDecoder_ValidSequence(t *testing.T) {
+	enc := Get("octal")
+	require.NotNil(t, enc)
+
+	decoded, err := enc.Decode(`\101`)
+	require.NoError(t, err)
+	assert.Equal(t, "A", decoded)
+}
+
+func TestBinaryDecoder_ValidSequence(t *testing.T) {
+	enc := Get("binary")
+	require.NotNil(t, enc)
+
+	decoded, err := enc.Decode("01000001")
+	require.NoError(t, err)
+	assert.Equal(t, "A", decoded)
+}
+
+func TestJSUnicodeDecoder_InvalidHex_NoNUL(t *testing.T) {
+	enc := Get("js-unicode")
+	require.NotNil(t, enc)
+
+	// \xZZ is not valid hex; the decoder must NOT insert a NUL byte.
+	decoded, err := enc.Decode(`\xZZ`)
+	require.NoError(t, err)
+	assert.NotContains(t, decoded, "\x00",
+		"invalid JS hex escape must not produce NUL byte")
+	// The invalid sequence should be left as-is
+	assert.Contains(t, decoded, `\xZZ`)
+}
+
+func TestJSHexDecoder_InvalidHex_NoNUL(t *testing.T) {
+	enc := Get("js-hex")
+	require.NotNil(t, enc)
+
+	// \xZZ is not valid hex; the decoder must NOT insert a NUL byte.
+	decoded, err := enc.Decode(`\xZZ`)
+	require.NoError(t, err)
+	assert.NotContains(t, decoded, "\x00",
+		"invalid JS hex escape must not produce NUL byte")
+}

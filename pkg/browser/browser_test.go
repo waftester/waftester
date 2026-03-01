@@ -724,6 +724,69 @@ func TestRunnerWithProfile(t *testing.T) {
 	}
 }
 
+// TestSetProfileConcurrentWithGet is a regression test for a data race on
+// c.profile. The old doOnce read c.profile without holding the mutex, racing
+// with SetProfile. The fix locks c.mu before reading profile in doOnce.
+// Run with -race to detect the race if the fix is reverted.
+func TestSetProfileConcurrentWithGet(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		w.Write([]byte("OK"))
+	}))
+	defer server.Close()
+
+	client, err := NewClient()
+	if err != nil {
+		t.Fatalf("NewClient failed: %v", err)
+	}
+	defer client.Close()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 50; i++ {
+			if i%2 == 0 {
+				client.SetProfile(Firefox)
+			} else {
+				client.SetProfile(Chrome)
+			}
+		}
+	}()
+
+	for i := 0; i < 50; i++ {
+		_, _ = client.Get(server.URL)
+	}
+	<-done
+}
+
+// TestCookieOperationsConcurrent is a regression test for data races on
+// cookieJar. The old code read c.cookieJar without the mutex in SetCookie
+// and Cookies. The fix snapshots the jar pointer under the lock.
+// Run with -race to detect the race if the fix is reverted.
+func TestCookieOperationsConcurrent(t *testing.T) {
+	client, err := NewClient()
+	if err != nil {
+		t.Fatalf("NewClient failed: %v", err)
+	}
+	defer client.Close()
+
+	u, _ := url.Parse("http://example.com")
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 50; i++ {
+			_ = client.ClearCookies()
+		}
+	}()
+
+	for i := 0; i < 50; i++ {
+		client.SetCookie(u, &http.Cookie{Name: "test", Value: "value"})
+		_ = client.Cookies(u)
+	}
+	<-done
+}
+
 func TestClientCustomHeaders(t *testing.T) {
 	var capturedHeader string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

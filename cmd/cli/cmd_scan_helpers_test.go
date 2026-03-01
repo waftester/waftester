@@ -368,6 +368,37 @@ func TestPrintScanJSONL(t *testing.T) {
 	}
 }
 
+// TestBuildScanTipsDeterministic verifies that buildScanTips returns tips in a
+// stable order regardless of Go's randomized map iteration. This is a
+// regression test: scanTipsByType is a map[string]string, and without sorting
+// the keys before iteration, the tips slice appeared in non-deterministic order
+// across runs.
+func TestBuildScanTipsDeterministic(t *testing.T) {
+	// shouldScan returns true for many types so multiple map entries are hit
+	shouldScan := func(s string) bool {
+		return s == "sqli" || s == "xss" || s == "ssrf" || s == "traversal" ||
+			s == "cmdi" || s == "nosqli" || s == "ssti" || s == "jwt"
+	}
+
+	first := buildScanTips(shouldScan)
+	if len(first) < 8 {
+		t.Fatalf("expected at least 8 tips (8 types + generic), got %d", len(first))
+	}
+
+	for i := 1; i < 10; i++ {
+		result := buildScanTips(shouldScan)
+		if len(result) != len(first) {
+			t.Fatalf("iteration %d: tip count changed: got %d, want %d", i, len(result), len(first))
+		}
+		for j := range result {
+			if result[j] != first[j] {
+				t.Fatalf("non-deterministic tip order on iteration %d at index %d:\n  got:  %q\n  want: %q",
+					i, j, result[j], first[j])
+			}
+		}
+	}
+}
+
 func TestBuildScanTips(t *testing.T) {
 	t.Run("sqli only shows sqli tip plus generic", func(t *testing.T) {
 		tips := buildScanTips(func(s string) bool { return s == "sqli" })

@@ -1,6 +1,7 @@
 package enterprise
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/waftester/waftester/pkg/httpclient"
@@ -151,6 +152,87 @@ func TestGraphQLLocation(t *testing.T) {
 			t.Error("GraphQL location should have content type")
 		}
 	}
+}
+
+// TestFormatProtocolReportMultiByteEvidence is a regression test for a byte
+// truncation bug. The old code used e[:53] which truncates at byte offset 53,
+// potentially splitting a multi-byte UTF-8 character and producing invalid
+// output (or panicking). The fix uses []rune to truncate at rune boundaries.
+// This test passes a multi-byte string (Chinese characters, 3 bytes each in
+// UTF-8) that would corrupt output under the old byte-based truncation.
+func TestFormatProtocolReportMultiByteEvidence(t *testing.T) {
+	// Each Chinese character is 3 bytes in UTF-8.
+	// 20 runes = under the 56 rune limit, should not be truncated.
+	shortEvidence := strings.Repeat("证", 20)
+	// 60 runes = over the 56 rune limit, should be truncated to 53 + "..."
+	longEvidence := strings.Repeat("据", 60)
+
+	detected := &DetectedProtocol{
+		Type:       ProtocolGRPC,
+		Confidence: 0.95,
+		Evidence:   []string{shortEvidence, longEvidence},
+	}
+
+	// Should not panic with multi-byte characters
+	report := FormatProtocolReport(detected, nil)
+
+	// Short evidence should appear intact (under limit)
+	if !containsSubstring(report, shortEvidence) {
+		t.Error("short multi-byte evidence should appear intact in report")
+	}
+
+	// Long evidence should be truncated with "..."
+	if !containsSubstring(report, "...") {
+		t.Error("long multi-byte evidence should be truncated with ...")
+	}
+
+	// The truncated string should be valid UTF-8
+	for _, r := range report {
+		if r == 0xFFFD { // Unicode replacement character indicates corruption
+			t.Fatal("report contains replacement character — multi-byte truncation corrupted UTF-8")
+		}
+	}
+}
+
+// TestFormatProtocolReportMultiByteDescription is a regression test for a byte
+// truncation bug in location description rendering. Same fix as evidence: uses
+// []rune instead of byte slicing.
+func TestFormatProtocolReportMultiByteDescription(t *testing.T) {
+	detected := &DetectedProtocol{
+		Type:       ProtocolSOAP,
+		Confidence: 0.80,
+	}
+
+	// Create a mock location with a long multi-byte description
+	factory := NewLocationFactory()
+	locations := factory.CreateLocations(ProtocolSOAP)
+
+	report := FormatProtocolReport(detected, locations)
+
+	// Should not panic and should produce valid UTF-8
+	for _, r := range report {
+		if r == 0xFFFD {
+			t.Fatal("report contains replacement character — multi-byte truncation corrupted UTF-8")
+		}
+	}
+
+	// Report should contain INJECTION LOCATIONS section if locations exist
+	if len(locations) > 0 && !containsSubstring(report, "INJECTION LOCATIONS") {
+		t.Error("report should contain INJECTION LOCATIONS section")
+	}
+}
+
+func containsSubstring(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || findSubstring(s, substr))
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
 
 func TestProtocolTypeString(t *testing.T) {
