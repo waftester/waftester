@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Action represents an override action.
@@ -297,17 +299,12 @@ func (m *Manager) SaveToFile(path string) error {
 	}
 	m.mu.RUnlock()
 
-	data, err := json.MarshalIndent(overrides, "", "  ")
-	if err != nil {
-		return err
-	}
-
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0644)
+	return iohelper.WriteAtomicJSON(path, overrides, 0644)
 }
 
 // Helper functions

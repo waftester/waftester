@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -669,11 +669,7 @@ func bumpVersion(current, bump string) string {
 }
 
 func writeReport(path string, report *UpdateReport) error {
-	data, err := json.MarshalIndent(report, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal update report: %w", err)
-	}
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	if err := iohelper.WriteAtomicJSON(path, report, 0644); err != nil {
 		return fmt.Errorf("write update report %s: %w", path, err)
 	}
 	return nil

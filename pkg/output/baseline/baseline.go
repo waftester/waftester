@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/output/events"
 )
@@ -116,13 +117,8 @@ func (b *Baseline) SaveBaseline(path string) error {
 	// Update timestamp on save
 	b.UpdatedAt = time.Now().UTC()
 
-	data, err := json.MarshalIndent(b, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshaling baseline: %w", err)
-	}
-
-	if err := os.WriteFile(path, data, 0644); err != nil {
-		return fmt.Errorf("writing baseline file: %w", err)
+	if err := iohelper.WriteAtomicJSON(path, b, 0644); err != nil {
+		return fmt.Errorf("saving baseline: %w", err)
 	}
 
 	return nil

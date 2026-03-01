@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -294,9 +293,5 @@ func (t *Tester) executeTest(ctx context.Context, task TestTask) (blocked bool, 
 
 // SaveResult saves the FP test result to a file
 func (r *Result) SaveResult(filepath string) error {
-	data, err := json.MarshalIndent(r, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filepath, data, 0644)
+	return iohelper.WriteAtomicJSON(filepath, r, 0644)
 }

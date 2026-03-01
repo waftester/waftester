@@ -10,8 +10,9 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/discovery"
-	"github.com/waftester/waftester/pkg/strutil"
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/payloads"
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // TestPlan represents a contextual testing plan based on discovered endpoints
@@ -649,11 +650,7 @@ func (l *Learner) estimateTime(totalTests int) string {
 
 // SavePlan saves the test plan to a JSON file
 func (p *TestPlan) SavePlan(filename string) error {
-	data, err := json.MarshalIndent(p, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filename, data, 0644)
+	return iohelper.WriteAtomicJSON(filename, p, 0644)
 }
 
 // LoadPlan loads a test plan from a JSON file
@@ -675,11 +672,7 @@ func (p *TestPlan) GeneratePayloadFile(filename string) error {
 		allPayloads = append(allPayloads, set.CustomPayloads...)
 	}
 
-	data, err := json.MarshalIndent(allPayloads, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filename, data, 0644)
+	return iohelper.WriteAtomicJSON(filename, allPayloads, 0644)
 }
 
 // Helper functions
@@ -705,7 +698,6 @@ func buildPayloadURL(basePath string, point InjectPoint, payload string) string 
 		return payload
 	}
 }
-
 
 func isUUID(s string) bool {
 	// Simple UUID pattern check

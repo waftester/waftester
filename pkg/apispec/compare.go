@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // ComparisonStatus classifies a finding relative to a baseline.
@@ -48,13 +50,8 @@ func SaveBaseline(path string, findings []SpecFinding, specSource string) error 
 		CreatedAt:  timeNowStr(),
 	}
 
-	data, err := json.MarshalIndent(bl, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal baseline: %w", err)
-	}
-
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		return fmt.Errorf("write baseline: %w", err)
+	if err := iohelper.WriteAtomicJSON(path, bl, 0o600); err != nil {
+		return fmt.Errorf("save baseline: %w", err)
 	}
 
 	return nil
