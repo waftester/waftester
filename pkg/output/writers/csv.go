@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
 )
@@ -214,8 +215,7 @@ func (cw *CSVWriter) writeResult(re *events.ResultEvent) error {
 
 	// Determine confidence based on status code patterns
 	confidence := "MEDIUM"
-	if re.Result.StatusCode == 403 || re.Result.StatusCode == 406 ||
-		re.Result.StatusCode == 429 || re.Result.StatusCode == 503 {
+	if defaults.IsBlockedStatus(re.Result.StatusCode) {
 		confidence = "HIGH"
 	} else if re.Result.StatusCode >= 500 {
 		confidence = "LOW"

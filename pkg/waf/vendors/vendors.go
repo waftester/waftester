@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
@@ -150,8 +151,7 @@ func (d *VendorDetector) Detect(ctx context.Context, target string) (*DetectionR
 		}
 
 		// Check block signature
-		if attackResp.StatusCode == 403 || attackResp.StatusCode == 406 ||
-			attackResp.StatusCode == 418 || attackResp.StatusCode == 429 || attackResp.StatusCode == 503 {
+		if defaults.IsBlockedStatus(attackResp.StatusCode) {
 			result.BlockSignature = &BlockSignature{
 				StatusCode:      attackResp.StatusCode,
 				ContentPatterns: extractBlockPatterns(attackBody),
