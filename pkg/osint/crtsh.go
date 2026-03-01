@@ -78,7 +78,7 @@ func (c *CrtshClient) FetchSubdomains(ctx context.Context, domain string) ([]Res
 			}
 			seen[name] = true
 
-			if strings.HasSuffix(name, domain) {
+			if name == domain || strings.HasSuffix(name, "."+domain) {
 				results = append(results, Result{
 					Source:    SourceCrtsh,
 					Type:      "subdomain",

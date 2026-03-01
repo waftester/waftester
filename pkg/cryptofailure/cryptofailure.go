@@ -76,6 +76,17 @@ func NewTester(target string, timeout time.Duration) *Tester {
 	}
 }
 
+// tlsHost extracts host:port from the target URL for TLS connections.
+func (t *Tester) tlsHost() string {
+	host := strings.TrimPrefix(t.target, "https://")
+	host = strings.TrimPrefix(host, "http://")
+	host = strings.Split(host, "/")[0]
+	if !strings.Contains(host, ":") {
+		host += ":443"
+	}
+	return host
+}
+
 // WeakTLSVersions returns deprecated/weak TLS versions
 func WeakTLSVersions() map[uint16]string {
 	return map[uint16]string{
@@ -137,13 +148,7 @@ func WeakHashPatterns() map[string]*regexp.Regexp {
 func (t *Tester) TestTLSVersion(ctx context.Context) ([]TestResult, error) {
 	var results []TestResult
 
-	host := strings.TrimPrefix(t.target, "https://")
-	host = strings.TrimPrefix(host, "http://")
-	host = strings.Split(host, "/")[0]
-
-	if !strings.Contains(host, ":") {
-		host = host + ":443"
-	}
+	host := t.tlsHost()
 
 	weakVersions := WeakTLSVersions()
 
@@ -191,13 +196,7 @@ func (t *Tester) TestTLSVersion(ctx context.Context) ([]TestResult, error) {
 func (t *Tester) TestCipherSuites(ctx context.Context) ([]TestResult, error) {
 	var results []TestResult
 
-	host := strings.TrimPrefix(t.target, "https://")
-	host = strings.TrimPrefix(host, "http://")
-	host = strings.Split(host, "/")[0]
-
-	if !strings.Contains(host, ":") {
-		host = host + ":443"
-	}
+	host := t.tlsHost()
 
 	weakCiphers := WeakCipherSuites()
 
@@ -246,13 +245,7 @@ func (t *Tester) TestCipherSuites(ctx context.Context) ([]TestResult, error) {
 func (t *Tester) TestCertificate(ctx context.Context) ([]TestResult, error) {
 	var results []TestResult
 
-	host := strings.TrimPrefix(t.target, "https://")
-	host = strings.TrimPrefix(host, "http://")
-	host = strings.Split(host, "/")[0]
-
-	if !strings.Contains(host, ":") {
-		host = host + ":443"
-	}
+	host := t.tlsHost()
 
 	config := &tls.Config{
 		InsecureSkipVerify: true,
