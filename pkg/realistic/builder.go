@@ -385,19 +385,25 @@ func (b *Builder) addRealisticHeaders(req *http.Request, template *RequestTempla
 		req.Header.Set("X-Requested-With", "XMLHttpRequest")
 	}
 
-	// Add template-specific headers
+	// Add template-specific headers (skip the injection param to avoid
+	// overwriting the attack payload set by buildHeaderRequest)
 	for k, v := range template.Headers {
+		if template.InjectionLoc == LocationHeader && k == template.InjectionParam {
+			continue
+		}
 		req.Header.Set(k, v)
 	}
 
-	// Add cookies
-	cookieNames2 := make([]string, 0, len(template.Cookies))
-	for name := range template.Cookies {
-		cookieNames2 = append(cookieNames2, name)
-	}
-	sort.Strings(cookieNames2)
-	for _, name := range cookieNames2 {
-		req.AddCookie(&http.Cookie{Name: name, Value: template.Cookies[name]})
+	// Add cookies (skip if LocationCookie — buildCookieRequest already added them)
+	if template.InjectionLoc != LocationCookie {
+		cookieNames2 := make([]string, 0, len(template.Cookies))
+		for name := range template.Cookies {
+			cookieNames2 = append(cookieNames2, name)
+		}
+		sort.Strings(cookieNames2)
+		for _, name := range cookieNames2 {
+			req.AddCookie(&http.Cookie{Name: name, Value: template.Cookies[name]})
+		}
 	}
 
 	// Add session if configured

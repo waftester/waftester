@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
@@ -26,6 +27,7 @@ type ExecutorEnhancer struct {
 	DetectBlocks       bool
 	Templates          []*RequestTemplate
 	CurrentTemplateIdx int
+	mu                 sync.Mutex // protects CurrentTemplateIdx
 }
 
 // NewExecutorEnhancer creates an enhancer for realistic testing
@@ -85,15 +87,19 @@ func (e *ExecutorEnhancer) UseUnifiedDetection() {
 
 // AnalyzeResponse checks if a response indicates blocking
 func (e *ExecutorEnhancer) AnalyzeResponse(resp *http.Response, responseTime time.Duration) (*BlockResult, error) {
+	if resp == nil {
+		return &BlockResult{IsBlocked: false}, nil
+	}
+
 	result, err := e.Detector.DetectBlock(resp, responseTime)
 
 	// Also record in unified detector if enabled
-	if e.UnifiedDetector != nil && resp != nil {
+	if e.UnifiedDetector != nil {
 		bodySize := 0
 		if resp.ContentLength > 0 {
 			bodySize = int(resp.ContentLength)
 		}
-		e.UnifiedDetector.RecordResponse("", resp, responseTime, bodySize)
+		e.UnifiedDetector.RecordResponse(e.Builder.BaseURL, resp, responseTime, bodySize)
 	}
 
 	return result, err
@@ -167,14 +173,17 @@ func (e *ExecutorEnhancer) AddTemplate(template *RequestTemplate) {
 	e.Templates = append(e.Templates, template)
 }
 
-// RotateTemplate cycles through available templates
+// RotateTemplate cycles through available templates.
+// Safe for concurrent use by multiple goroutines.
 func (e *ExecutorEnhancer) RotateTemplate() *RequestTemplate {
 	if len(e.Templates) == 0 {
 		return DefaultTemplate("")
 	}
 
+	e.mu.Lock()
 	template := e.Templates[e.CurrentTemplateIdx]
 	e.CurrentTemplateIdx = (e.CurrentTemplateIdx + 1) % len(e.Templates)
+	e.mu.Unlock()
 	return template
 }
 
