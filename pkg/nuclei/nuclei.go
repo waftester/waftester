@@ -1105,8 +1105,7 @@ var reservedVarKeys = map[string]bool{
 
 func extractHostname(url string) string {
 	// Simple hostname extraction
-	url = strings.TrimPrefix(url, "http://")
-	url = strings.TrimPrefix(url, "https://")
+	url = urlutil.StripScheme(url)
 	if idx := strings.Index(url, "/"); idx != -1 {
 		url = url[:idx]
 	}
