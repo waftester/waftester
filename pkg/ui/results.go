@@ -302,19 +302,18 @@ func PrintWAFEffectiveness(percent float64) {
 	)
 }
 
-// getEffectivenessRating returns a text rating for effectiveness
+// getEffectivenessRating returns a styled text rating for effectiveness.
+// Uses metrics.RateEffectiveness for the canonical 5-tier thresholds,
+// then applies UI styling based on the rating tier.
 func getEffectivenessRating(percent float64) string {
-	switch {
-	case percent >= 99:
-		return PassStyle.Render("Excellent")
-	case percent >= 95:
-		return PassStyle.Render("Good")
-	case percent >= 90:
-		return ErrorStyle.Render("Fair")
-	case percent >= 80:
-		return ErrorStyle.Render("Poor")
+	rating := metrics.RateEffectiveness(percent)
+	switch rating {
+	case "Excellent", "Good":
+		return PassStyle.Render(rating)
+	case "Fair", "Poor":
+		return ErrorStyle.Render(rating)
 	default:
-		return FailStyle.Render("Critical")
+		return FailStyle.Render(rating)
 	}
 }
 
