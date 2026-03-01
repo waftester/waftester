@@ -1170,7 +1170,7 @@ func TestPagerDutyHook_SendsEventToPagerDutyAPI(t *testing.T) {
 	pdEvent := hook.buildEvent(bypass)
 	body, _ := json.Marshal(pdEvent)
 
-	req, _ := http.NewRequest(http.MethodPost, server.URL, bytes.NewReader(body))
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, server.URL, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := hook.client.Do(req)
 	if err != nil {
@@ -2423,7 +2423,7 @@ func TestAzureDevOpsHook_CreatesWorkItemWithJSONPatch(t *testing.T) {
 	ops := hook.buildWorkItemOps(bypass)
 	body, _ := json.Marshal(ops)
 
-	req, _ := http.NewRequest(http.MethodPost, server.URL, bytes.NewReader(body))
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, server.URL, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json-patch+json")
 	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(":"+hook.opts.PAT)))
 	req.Header.Set("User-Agent", "waftester")

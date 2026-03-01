@@ -807,7 +807,7 @@ func TestN8n_CORS_LocalhostOrigins(t *testing.T) {
 
 	for _, origin := range origins {
 		t.Run(origin, func(t *testing.T) {
-			req, _ := http.NewRequest("OPTIONS", ts.URL+"/mcp", nil)
+			req, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", ts.URL+"/mcp", nil)
 			req.Header.Set("Origin", origin)
 			req.Header.Set("Access-Control-Request-Method", "POST")
 			req.Header.Set("Access-Control-Request-Headers", "Content-Type, Mcp-Session-Id")
@@ -856,7 +856,7 @@ func TestN8n_CORS_NonLocalhostBlocked(t *testing.T) {
 
 	for _, origin := range origins {
 		t.Run(origin, func(t *testing.T) {
-			req, _ := http.NewRequest("OPTIONS", ts.URL+"/mcp", nil)
+			req, _ := http.NewRequestWithContext(context.Background(), "OPTIONS", ts.URL+"/mcp", nil)
 			req.Header.Set("Origin", origin)
 			req.Header.Set("Access-Control-Request-Method", "POST")
 

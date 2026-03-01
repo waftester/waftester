@@ -1,6 +1,7 @@
 package httputil
 
 import (
+	"context"
 	"net/http"
 	"testing"
 )
@@ -24,7 +25,7 @@ func TestSetPayloadCookie_PreservesSpecialChars(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, _ := http.NewRequest("GET", "http://example.com", nil)
+			req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://example.com", nil)
 			SetPayloadCookie(req, tt.cookie, tt.value)
 			got := req.Header.Get("Cookie")
 			if got == "" {
@@ -40,7 +41,7 @@ func TestSetPayloadCookie_PreservesSpecialChars(t *testing.T) {
 }
 
 func TestSetPayloadCookie_AppendsToExisting(t *testing.T) {
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://example.com", nil)
 
 	// Add a legitimate cookie first
 	req.AddCookie(&http.Cookie{Name: "session", Value: "abc123"})
@@ -69,7 +70,7 @@ func TestSetPayloadCookie_GoAddCookieStripsChars(t *testing.T) {
 
 	for _, tt := range specialChars {
 		t.Run(tt.name, func(t *testing.T) {
-			req, _ := http.NewRequest("GET", "http://example.com", nil)
+			req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://example.com", nil)
 			req.AddCookie(&http.Cookie{Name: "test", Value: tt.value})
 			got := req.Header.Get("Cookie")
 			// Go's AddCookie should strip or modify the value
@@ -96,7 +97,7 @@ func TestSetPayloadHeader_PreservesCRLF(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, _ := http.NewRequest("GET", "http://example.com", nil)
+			req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://example.com", nil)
 			SetPayloadHeader(req, tt.key, tt.value)
 			got := req.Header.Get(tt.key)
 			if got != tt.expect {
@@ -107,7 +108,7 @@ func TestSetPayloadHeader_PreservesCRLF(t *testing.T) {
 }
 
 func TestSetPayloadHeader_CanonicalKey(t *testing.T) {
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://example.com", nil)
 	SetPayloadHeader(req, "x-forwarded-for", "127.0.0.1\r\nX-Injected: true")
 
 	// Should be accessible via canonical key

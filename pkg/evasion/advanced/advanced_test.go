@@ -2,6 +2,7 @@ package advanced
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -53,14 +54,14 @@ func TestTechniqueApplyHTTP(t *testing.T) {
 		},
 	}
 
-	req, _ := http.NewRequest("GET", "/", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	modified := tech.ApplyHTTP(req)
 	assert.Equal(t, "value", modified.Header.Get("X-Test"))
 }
 
 func TestTechniqueApplyHTTPNil(t *testing.T) {
 	tech := &Technique{ID: "noop"}
-	req, _ := http.NewRequest("GET", "/", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	result := tech.ApplyHTTP(req)
 	assert.Equal(t, req, result)
 }
@@ -284,7 +285,7 @@ func TestChunkPayloadZeroSize(t *testing.T) {
 }
 
 func TestMethodOverride(t *testing.T) {
-	req, _ := http.NewRequest("DELETE", "/", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), "DELETE", "/", nil)
 	modified := MethodOverride(req)
 
 	assert.Equal(t, "POST", modified.Method)
@@ -292,7 +293,7 @@ func TestMethodOverride(t *testing.T) {
 }
 
 func TestHTTPVersionMod(t *testing.T) {
-	req, _ := http.NewRequest("GET", "/", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	modified := HTTPVersionMod(req)
 
 	assert.Equal(t, "HTTP/1.0", modified.Proto)
@@ -382,7 +383,7 @@ func TestNewHTTPSmuggling(t *testing.T) {
 
 func TestHTTPSmugglingPrepareRequestCLTE(t *testing.T) {
 	sm := NewHTTPSmuggling("cl-te")
-	req, err := sm.PrepareRequest("payload")
+	req, err := sm.PrepareRequest(context.Background(), "payload")
 
 	require.NoError(t, err)
 	assert.Equal(t, "7", req.Header.Get("Content-Length"))
@@ -391,7 +392,7 @@ func TestHTTPSmugglingPrepareRequestCLTE(t *testing.T) {
 
 func TestHTTPSmugglingPrepareRequestTECL(t *testing.T) {
 	sm := NewHTTPSmuggling("te-cl")
-	req, err := sm.PrepareRequest("payload")
+	req, err := sm.PrepareRequest(context.Background(), "payload")
 
 	require.NoError(t, err)
 	assert.Equal(t, "chunked", req.Header.Get("Transfer-Encoding"))
@@ -400,7 +401,7 @@ func TestHTTPSmugglingPrepareRequestTECL(t *testing.T) {
 
 func TestHTTPSmugglingPrepareRequestTETE(t *testing.T) {
 	sm := NewHTTPSmuggling("te-te")
-	req, err := sm.PrepareRequest("payload")
+	req, err := sm.PrepareRequest(context.Background(), "payload")
 
 	require.NoError(t, err)
 	assert.Len(t, req.Header["Transfer-Encoding"], 2)
