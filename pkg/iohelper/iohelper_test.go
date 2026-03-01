@@ -163,6 +163,63 @@ func TestDrainAndClose_ClosesReadCloser(t *testing.T) {
 	}
 }
 
+func TestCountWords(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+		want int
+	}{
+		{"empty", []byte{}, 0},
+		{"nil", nil, 0},
+		{"single word", []byte("hello"), 1},
+		{"two words", []byte("hello world"), 2},
+		{"leading spaces", []byte("  hello"), 1},
+		{"trailing spaces", []byte("hello  "), 1},
+		{"multiple spaces", []byte("hello   world"), 2},
+		{"tabs", []byte("hello\tworld"), 2},
+		{"newlines", []byte("hello\nworld"), 2},
+		{"mixed whitespace", []byte(" hello\t\n world "), 2},
+		{"only spaces", []byte("   "), 0},
+		{"carriage return", []byte("a\r\nb"), 2},
+		{"many words", []byte("one two three four five"), 5},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := CountWords(tt.data)
+			if got != tt.want {
+				t.Errorf("CountWords(%q) = %d, want %d", tt.data, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCountLines(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+		want int
+	}{
+		{"empty", []byte{}, 0},
+		{"nil", nil, 0},
+		{"single line no newline", []byte("hello"), 1},
+		{"single line with newline", []byte("hello\n"), 2},
+		{"two lines", []byte("hello\nworld"), 2},
+		{"three lines", []byte("a\nb\nc"), 3},
+		{"trailing newline", []byte("a\nb\n"), 3},
+		{"only newlines", []byte("\n\n\n"), 4},
+		{"blank lines between", []byte("a\n\nb"), 3},
+		{"single newline", []byte("\n"), 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := CountLines(tt.data)
+			if got != tt.want {
+				t.Errorf("CountLines(%q) = %d, want %d", tt.data, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestMaxBodySize_Constants(t *testing.T) {
 	if DefaultMaxBodySize <= 0 {
 		t.Error("DefaultMaxBodySize should be positive")

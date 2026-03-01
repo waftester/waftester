@@ -401,7 +401,7 @@ func (f *Fuzzer) fuzz(ctx context.Context, word string) *Result {
 
 	result.ContentLength = len(bodyBytes)
 	// Count words and lines directly from bytes to avoid string allocation
-	result.WordCount = countWords(bodyBytes)
+	result.WordCount = iohelper.CountWords(bodyBytes)
 	result.LineCount = bytes.Count(bodyBytes, []byte{'\n'}) + 1
 	if len(bodyBytes) == 0 {
 		result.LineCount = 0
@@ -622,23 +622,6 @@ func abs(x int) int {
 		return -x
 	}
 	return x
-}
-
-// countWords counts words in a byte slice without allocating a string.
-// A word is a sequence of non-whitespace characters.
-func countWords(b []byte) int {
-	count := 0
-	inWord := false
-	for _, c := range b {
-		isSpace := c == ' ' || c == '\t' || c == '\n' || c == '\r'
-		if isSpace {
-			inWord = false
-		} else if !inWord {
-			count++
-			inWord = true
-		}
-	}
-	return count
 }
 
 // needsBodyString returns true if filtering requires the body as a string.

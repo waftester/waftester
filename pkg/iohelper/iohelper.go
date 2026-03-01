@@ -88,6 +88,36 @@ func ReadBodyOrLog(r io.Reader, logger *slog.Logger) []byte {
 	return data
 }
 
+// CountWords returns the number of whitespace-separated words in data.
+func CountWords(data []byte) int {
+	count := 0
+	inWord := false
+	for _, b := range data {
+		if b == ' ' || b == '\t' || b == '\n' || b == '\r' {
+			inWord = false
+		} else if !inWord {
+			count++
+			inWord = true
+		}
+	}
+	return count
+}
+
+// CountLines returns the number of lines in data.
+// An empty input returns 0; non-empty input without newlines returns 1.
+func CountLines(data []byte) int {
+	if len(data) == 0 {
+		return 0
+	}
+	count := 1
+	for _, b := range data {
+		if b == '\n' {
+			count++
+		}
+	}
+	return count
+}
+
 // DrainAndClose reads any remaining data from r and closes it if it's a ReadCloser.
 // This ensures the connection can be reused for HTTP keep-alive.
 // Always returns nil error to allow use in defer.

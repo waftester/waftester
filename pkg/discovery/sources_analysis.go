@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/subdomain"
 )
@@ -344,12 +345,11 @@ type ResponseFingerprint struct {
 func CalculateFingerprint(statusCode int, body []byte, contentType string) ResponseFingerprint {
 	content := string(body)
 
-	// Count words (simple split on whitespace)
-	words := strings.Fields(content)
-	wordCount := len(words)
+	// Count words (efficient byte iteration)
+	wordCount := iohelper.CountWords(body)
 
 	// Count lines
-	lineCount := strings.Count(content, "\n") + 1
+	lineCount := iohelper.CountLines(body)
 
 	// Extract title hash (using pre-compiled regex)
 	titleHash := ""
