@@ -20,6 +20,7 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/httputil"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/payloadprovider"
@@ -616,7 +617,7 @@ func (a *Assessment) executeAttackTest(ctx context.Context, payload AttackPayloa
 	case "header":
 		req, err = http.NewRequestWithContext(ctx, "GET", a.config.TargetURL, nil)
 		if req != nil {
-			req.Header.Set("X-Custom-Input", payload.Payload)
+			httputil.SetPayloadHeader(req, "X-Custom-Input", payload.Payload)
 		}
 	default: // query
 		testURL := a.config.TargetURL + "?test=" + url.QueryEscape(payload.Payload)

@@ -22,6 +22,9 @@ var (
 
 	stdoutOnce sync.Once
 	stdoutOK   bool
+
+	stdinOnce sync.Once
+	stdinOK   bool
 )
 
 // StderrIsTerminal reports whether stderr is connected to an
@@ -42,6 +45,16 @@ func StdoutIsTerminal() bool {
 		stdoutOK = term.IsTerminal(int(os.Stdout.Fd()))
 	})
 	return stdoutOK
+}
+
+// StdinIsTerminal reports whether stdin is connected to an
+// interactive terminal (not piped or redirected from a file).
+// Result is cached after the first call.
+func StdinIsTerminal() bool {
+	stdinOnce.Do(func() {
+		stdinOK = term.IsTerminal(int(os.Stdin.Fd()))
+	})
+	return stdinOK
 }
 
 // UnicodeTerminal reports whether stderr can render Unicode glyphs

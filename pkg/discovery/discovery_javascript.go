@@ -80,7 +80,12 @@ func (d *Discoverer) discoverFromJavaScript(ctx context.Context, result *Discove
 		jsCode := string(body)
 
 		// Use JS analyzer for proper method inference
-		jsData := jsAnalyzer.Analyze(jsCode)
+		// Pass target domain to scope subdomain extraction
+		targetDomain := ""
+		if u, err := url.Parse(d.config.Target); err == nil {
+			targetDomain = u.Hostname()
+		}
+		jsData := jsAnalyzer.Analyze(jsCode, targetDomain)
 
 		// Add endpoints from JS analyzer (fetch/axios/xhr patterns)
 		for _, ep := range jsData.Endpoints {
