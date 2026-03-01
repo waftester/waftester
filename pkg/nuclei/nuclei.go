@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/httpclient"
-	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
 	"github.com/waftester/waftester/pkg/urlutil"
 	"gopkg.in/yaml.v3"
@@ -988,7 +988,9 @@ func evaluateDSLStatusCode(expr string, statusCode int) bool {
 
 	op := matches[1]
 	var expected int
-	fmt.Sscanf(matches[2], "%d", &expected)
+	if n, _ := fmt.Sscanf(matches[2], "%d", &expected); n != 1 {
+		return false
+	}
 
 	switch op {
 	case "==":

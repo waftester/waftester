@@ -2,6 +2,7 @@ package duration
 
 import (
 	"fmt"
+	"math"
 	"time"
 )
 
@@ -9,6 +10,9 @@ import (
 // microseconds for < 1ms, milliseconds for < 1s, seconds with 2 decimal places otherwise.
 // This is the canonical formatter for response-time display (e.g. "500µs", "150ms", "2.50s").
 func FormatPrecision(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
 	if d < time.Millisecond {
 		return fmt.Sprintf("%dµs", d.Microseconds())
 	}
@@ -57,6 +61,9 @@ func FormatCompact(d time.Duration) string {
 // "5.3s" for < 60s, "2m 5s" for < 1h, "1h 2m 3s" otherwise.
 // This is the canonical formatter for report/PDF duration display where the input is seconds.
 func FormatSeconds(secs float64) string {
+	if secs < 0 || math.IsNaN(secs) || math.IsInf(secs, 0) {
+		secs = 0
+	}
 	if secs < 60 {
 		return fmt.Sprintf("%.1fs", secs)
 	}

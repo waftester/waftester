@@ -376,7 +376,7 @@ func (t *Tester) TestPasswordReset(ctx context.Context, targetURL string, email 
 	req.Header.Set("User-Agent", t.config.UserAgent)
 
 	// Inject X-Forwarded-Host
-	req.Header.Set("X-Forwarded-Host", attackDomain)
+	httputil.SetPayloadHeader(req, "X-Forwarded-Host", attackDomain)
 
 	resp, err := t.client.Do(req)
 	if err != nil {

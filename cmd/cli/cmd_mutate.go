@@ -281,14 +281,14 @@ func runMutate() {
 				evasion = " + " + task.Evasion.MutatorName
 			}
 			displayMutated := task.EncodedPayload.Mutated
-				if mutRunes := []rune(displayMutated); len(mutRunes) > 50 {
-					displayMutated = string(mutRunes[:50])
-				}
-				fmt.Printf("  [%s] [%s]%s: %s...\n",
-					task.EncodedPayload.MutatorName,
-					task.Location.MutatorName,
-					evasion,
-					displayMutated)
+			if mutRunes := []rune(displayMutated); len(mutRunes) > 50 {
+				displayMutated = string(mutRunes[:50])
+			}
+			fmt.Printf("  [%s] [%s]%s: %s...\n",
+				task.EncodedPayload.MutatorName,
+				task.Location.MutatorName,
+				evasion,
+				displayMutated)
 			shown++
 		}
 		return
@@ -495,7 +495,7 @@ func runMutate() {
 		for _, enc := range encKeys {
 			count := stats.ByEncoder[enc]
 			if count > 0 {
-fmt.Printf("     %s %-20s %d hits\n", ui.Icon("•", "-"), enc, count)
+				fmt.Printf("     %s %-20s %d hits\n", ui.Icon("•", "-"), enc, count)
 			}
 		}
 		fmt.Println()
@@ -516,20 +516,6 @@ fmt.Printf("     %s %-20s %d hits\n", ui.Icon("•", "-"), enc, count)
 	} else {
 		ui.PrintSuccess("✓ WAF blocked all mutation attempts")
 	}
-}
-
-// formatETA formats a duration for ETA display
-func formatETA(d time.Duration) string {
-	if d <= 0 {
-		return "calculating..."
-	}
-	if d < time.Minute {
-		return fmt.Sprintf("%.0fs", d.Seconds())
-	}
-	if d < time.Hour {
-		return fmt.Sprintf("%dm %ds", int(d.Minutes()), int(d.Seconds())%60)
-	}
-	return fmt.Sprintf("%dh %dm", int(d.Hours()), int(d.Minutes())%60)
 }
 
 // sanitizeForDisplay removes newlines and control characters for single-line display
