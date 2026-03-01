@@ -279,7 +279,7 @@ func (t *Tester) TestParameter(ctx context.Context, baseURL string, param string
 		}
 		if vuln != nil {
 			vulns = append(vulns, *vuln)
-			t.config.NotifyVulnerabilityFound()
+			t.config.NotifyUniqueVuln(fmt.Sprintf("%s|%s|%s", testURL, param, payload.Type))
 		}
 	}
 

@@ -232,7 +232,7 @@ func (p *HTTPProber) ProbePipeline(ctx context.Context, host string, port int, u
 				}
 				lower := strings.ToLower(header)
 				if strings.HasPrefix(lower, "content-length:") {
-					fmt.Sscanf(lower, "content-length: %d", &contentLength)
+					fmt.Sscanf(lower, "content-length: %d", &contentLength) //nolint:errcheck // safe: contentLength stays 0 on parse failure
 				}
 				if strings.Contains(lower, "transfer-encoding:") && strings.Contains(lower, "chunked") {
 					chunked = true
@@ -255,7 +255,9 @@ func (p *HTTPProber) ProbePipeline(ctx context.Context, host string, port int, u
 						sizeLine = sizeLine[:semi]
 					}
 					var chunkSize int64
-					fmt.Sscanf(sizeLine, "%x", &chunkSize)
+					if n, _ := fmt.Sscanf(sizeLine, "%x", &chunkSize); n != 1 {
+						break
+					}
 					if chunkSize == 0 {
 						reader.ReadString('\n') // trailing CRLF
 						break
@@ -356,7 +358,7 @@ func (p *HTTPProber) ProbeKeepAlive(ctx context.Context, host string, port int, 
 				}
 				lower := strings.ToLower(header)
 				if strings.HasPrefix(lower, "content-length:") {
-					fmt.Sscanf(lower, "content-length: %d", &contentLength)
+					fmt.Sscanf(lower, "content-length: %d", &contentLength) //nolint:errcheck // safe: contentLength stays 0 on parse failure
 				}
 				if strings.Contains(lower, "transfer-encoding:") && strings.Contains(lower, "chunked") {
 					chunked = true

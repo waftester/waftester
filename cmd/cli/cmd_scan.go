@@ -2785,7 +2785,9 @@ func runScan() {
 			port = 80
 		}
 		if parsedURL.Port() != "" {
-			fmt.Sscanf(parsedURL.Port(), "%d", &port)
+			if n, _ := fmt.Sscanf(parsedURL.Port(), "%d", &port); n != 1 {
+				port = 443
+			}
 		}
 
 		vhosts, err := vhostProber.ProbeVHosts(ctx, host, port, host, wordlist)
