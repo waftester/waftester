@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/httputil"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -466,7 +467,7 @@ func (t *Tester) TestMissingFunctionLevelAccess(ctx context.Context) ([]TestResu
 		}
 
 		// Success response with low privilege is a vulnerability
-		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		if httputil.IsSuccess(resp.StatusCode) {
 			result.Vulnerable = true
 			result.Description = fmt.Sprintf("Low privilege user can perform: %s", action.Desc)
 			result.Evidence = fmt.Sprintf("%s %s returned HTTP %d with low privilege token", action.Method, action.Path, resp.StatusCode)

@@ -16,6 +16,7 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/httputil"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
 	"github.com/waftester/waftester/pkg/retry"
@@ -178,7 +179,7 @@ func (h *WebhookHook) sendWithRetry(ctx context.Context, eventType events.EventT
 		}()
 
 		// Success
-		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		if httputil.IsSuccess(resp.StatusCode) {
 			return nil
 		}
 

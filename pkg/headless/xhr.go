@@ -3,12 +3,12 @@ package headless
 import (
 	"encoding/json"
 	"net/url"
-	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // XHRExtractor captures and analyzes XHR/fetch requests from page navigation
@@ -134,11 +134,7 @@ func (x *XHRExtractor) GetAPIEndpoints() []APIEndpoint {
 	}
 
 	// Sort keys for deterministic output order
-	keys := make([]string, 0, len(endpoints))
-	for k := range endpoints {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
+	keys := strutil.SortedMapKeys(endpoints)
 	result := make([]APIEndpoint, 0, len(endpoints))
 	for _, k := range keys {
 		result = append(result, endpoints[k])

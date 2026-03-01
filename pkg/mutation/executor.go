@@ -16,6 +16,7 @@ import (
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/httputil"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/realistic"
 	"github.com/waftester/waftester/pkg/retry"
@@ -489,7 +490,7 @@ func (e *Executor) executeTask(ctx context.Context, task MutationTask) *TestResu
 					result.ResponseSnippet = fmt.Sprintf("[Block detected: %s (confidence: %.2f)]",
 						blockResult.Reason, blockResult.Confidence)
 				}
-			} else if resp.StatusCode >= 200 && resp.StatusCode < 400 {
+			} else if httputil.IsSuccessOrRedirect(resp.StatusCode) {
 				result.Outcome = "Passed"
 			} else {
 				result.Outcome = "Error"
@@ -500,7 +501,7 @@ func (e *Executor) executeTask(ctx context.Context, task MutationTask) *TestResu
 			result.Blocked = defaults.IsBlockedStatus(resp.StatusCode) || resp.StatusCode == 400
 			if result.Blocked {
 				result.Outcome = "Blocked"
-			} else if resp.StatusCode >= 200 && resp.StatusCode < 400 {
+			} else if httputil.IsSuccessOrRedirect(resp.StatusCode) {
 				result.Outcome = "Passed"
 			} else {
 				result.Outcome = "Error"
@@ -512,7 +513,7 @@ func (e *Executor) executeTask(ctx context.Context, task MutationTask) *TestResu
 		if defaults.IsBlockedStatus(resp.StatusCode) || resp.StatusCode == 400 {
 			result.Outcome = "Blocked"
 			result.Blocked = true
-		} else if resp.StatusCode >= 200 && resp.StatusCode < 400 {
+		} else if httputil.IsSuccessOrRedirect(resp.StatusCode) {
 			result.Outcome = "Passed"
 			result.Blocked = false
 		} else {

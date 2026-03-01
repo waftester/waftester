@@ -14,6 +14,7 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/httputil"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -234,7 +235,7 @@ func (s *Scanner) testAccess(ctx context.Context, url, method, originalID, testI
 	result.ResponseSize = len(body)
 
 	// Only consider 2xx responses as potentially accessible
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+	if httputil.IsSuccess(resp.StatusCode) {
 		// Verify the response isn't an access-denied page disguised as 200
 		bodyLower := strings.ToLower(string(body))
 		accessDenied := false
@@ -397,7 +398,7 @@ func (s *Scanner) VerticalPrivilegeTest(ctx context.Context, adminEndpoints []st
 
 	for _, endpoint := range adminEndpoints {
 		result := s.testWithToken(ctx, endpoint, userToken)
-		if result.StatusCode >= 200 && result.StatusCode < 300 {
+		if httputil.IsSuccess(result.StatusCode) {
 			result.Vulnerability = "Vertical Privilege Escalation"
 			result.Severity = finding.Critical
 			result.Accessible = true

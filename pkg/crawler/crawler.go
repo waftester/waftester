@@ -19,6 +19,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -897,11 +898,7 @@ func sortedQueryString(params url.Values) string {
 	if len(params) == 0 {
 		return ""
 	}
-	keys := make([]string, 0, len(params))
-	for k := range params {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
+	keys := strutil.SortedMapKeys(params)
 
 	var b strings.Builder
 	for i, k := range keys {
