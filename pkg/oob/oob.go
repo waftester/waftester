@@ -14,6 +14,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 // InteractionType represents the type of OOB interaction
@@ -118,9 +119,7 @@ func NewInteractshClient(config InteractshConfig) *InteractshClient {
 // GetServer returns the OOB callback server
 func (c *InteractshClient) GetServer() string {
 	// Extract hostname from URL
-	server := strings.TrimPrefix(c.serverURL, "https://")
-	server = strings.TrimPrefix(server, "http://")
-	return server
+	return urlutil.StripScheme(c.serverURL)
 }
 
 // GetCorrelationID returns the correlation ID
