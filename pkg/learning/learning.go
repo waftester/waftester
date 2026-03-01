@@ -4,7 +4,6 @@ package learning
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
@@ -655,13 +654,11 @@ func (p *TestPlan) SavePlan(filename string) error {
 
 // LoadPlan loads a test plan from a JSON file
 func LoadPlan(filename string) (*TestPlan, error) {
-	data, err := os.ReadFile(filename)
-	if err != nil {
+	var plan TestPlan
+	if err := iohelper.ReadJSON(filename, &plan); err != nil {
 		return nil, err
 	}
-	var plan TestPlan
-	err = json.Unmarshal(data, &plan)
-	return &plan, err
+	return &plan, nil
 }
 
 // GeneratePayloadFile exports custom payloads to a JSON file for the tester

@@ -684,20 +684,14 @@ func (r *DiscoveryResult) SaveResult(filename string) error {
 
 // LoadResult loads a discovery result from a JSON file
 func LoadResult(filename string) (*DiscoveryResult, error) {
-	data, err := readFile(filename)
-	if err != nil {
+	var result DiscoveryResult
+	if err := iohelper.ReadJSON(filename, &result); err != nil {
 		return nil, err
 	}
-	var result DiscoveryResult
-	err = json.Unmarshal(data, &result)
-	return &result, err
+	return &result, nil
 }
 
 // File I/O helpers (platform-independent)
 func writeFile(filename string, data []byte) error {
 	return iohelper.WriteAtomic(filename, data, 0644)
-}
-
-func readFile(filename string) ([]byte, error) {
-	return os.ReadFile(filename)
 }

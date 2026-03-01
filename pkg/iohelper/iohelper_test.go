@@ -220,6 +220,52 @@ func TestCountLines(t *testing.T) {
 	}
 }
 
+func TestReadJSON(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.json")
+
+	type payload struct {
+		Name  string `json:"name"`
+		Count int    `json:"count"`
+	}
+
+	// Write a JSON file
+	if err := WriteAtomicJSON(path, payload{Name: "read-test", Count: 99}, 0644); err != nil {
+		t.Fatalf("WriteAtomicJSON: %v", err)
+	}
+
+	// Read it back
+	var got payload
+	if err := ReadJSON(path, &got); err != nil {
+		t.Fatalf("ReadJSON: %v", err)
+	}
+	if got.Name != "read-test" || got.Count != 99 {
+		t.Errorf("expected {read-test 99}, got %+v", got)
+	}
+}
+
+func TestReadJSON_FileNotFound(t *testing.T) {
+	var v struct{}
+	err := ReadJSON("/nonexistent/path.json", &v)
+	if err == nil {
+		t.Error("expected error for nonexistent file")
+	}
+}
+
+func TestReadJSON_InvalidJSON(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bad.json")
+	if err := os.WriteFile(path, []byte("not json"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var v struct{}
+	err := ReadJSON(path, &v)
+	if err == nil {
+		t.Error("expected error for invalid JSON")
+	}
+}
+
 func TestMaxBodySize_Constants(t *testing.T) {
 	if DefaultMaxBodySize <= 0 {
 		t.Error("DefaultMaxBodySize should be positive")

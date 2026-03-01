@@ -3,7 +3,6 @@ package baseline
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -88,16 +87,11 @@ func New() *Baseline {
 // Returns ErrBaselineNotFound if the file doesn't exist.
 // Returns ErrInvalidBaseline if the file is malformed.
 func LoadBaseline(path string) (*Baseline, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
+	var b Baseline
+	if err := iohelper.ReadJSON(path, &b); err != nil {
 		if os.IsNotExist(err) {
 			return nil, ErrBaselineNotFound
 		}
-		return nil, fmt.Errorf("reading baseline file: %w", err)
-	}
-
-	var b Baseline
-	if err := json.Unmarshal(data, &b); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidBaseline, err)
 	}
 

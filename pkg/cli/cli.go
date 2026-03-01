@@ -20,6 +20,7 @@ import (
 	"github.com/waftester/waftester/pkg/ftw"
 	"github.com/waftester/waftester/pkg/health"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/override"
 	"github.com/waftester/waftester/pkg/paranoia"
 	"github.com/waftester/waftester/pkg/placeholder"
@@ -402,13 +403,8 @@ func RunReport(opts *ReportOptions, w io.Writer) error {
 		return fmt.Errorf("results file is required")
 	}
 
-	data, err := os.ReadFile(opts.ResultsFile)
-	if err != nil {
-		return err
-	}
-
 	var findings []*report.Finding
-	if err := json.Unmarshal(data, &findings); err != nil {
+	if err := iohelper.ReadJSON(opts.ResultsFile, &findings); err != nil {
 		return err
 	}
 
@@ -680,12 +676,8 @@ func writeJSON(w io.Writer, v interface{}) error {
 
 // LoadConfig loads CLI config from file.
 func LoadConfig(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
 	config := DefaultConfig()
-	if err := json.Unmarshal(data, config); err != nil {
+	if err := iohelper.ReadJSON(path, config); err != nil {
 		return nil, err
 	}
 	return config, nil

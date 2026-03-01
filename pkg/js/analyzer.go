@@ -12,6 +12,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/bufpool"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/subdomain"
 )
 
@@ -409,11 +410,7 @@ func (a *Analyzer) ExtractSecrets(code string) []SecretInfo {
 	var secrets []SecretInfo
 	seen := make(map[string]bool)
 
-	secretTypeKeys := make([]string, 0, len(a.SecretPatterns))
-	for k := range a.SecretPatterns {
-		secretTypeKeys = append(secretTypeKeys, k)
-	}
-	sort.Strings(secretTypeKeys)
+	secretTypeKeys := strutil.SortedMapKeys(a.SecretPatterns)
 	for _, secretType := range secretTypeKeys {
 		pattern := a.SecretPatterns[secretType]
 		matches := pattern.FindAllStringSubmatch(code, -1)
@@ -486,11 +483,7 @@ func (a *Analyzer) ExtractVariables(code string) []VariableInfo {
 		"password": regexp.MustCompile(`(?i)(?:var|let|const)\s+([a-zA-Z_$][a-zA-Z0-9_$]*(?:password|passwd|pwd))\s*=\s*["']([^"']+)["']`),
 	}
 
-	varTypeKeys := make([]string, 0, len(varPatterns))
-	for k := range varPatterns {
-		varTypeKeys = append(varTypeKeys, k)
-	}
-	sort.Strings(varTypeKeys)
+	varTypeKeys := strutil.SortedMapKeys(varPatterns)
 	for _, varType := range varTypeKeys {
 		pattern := varPatterns[varType]
 		matches := pattern.FindAllStringSubmatch(code, -1)
@@ -557,11 +550,7 @@ func (a *Analyzer) ExtractCloudURLs(code string) []CloudURL {
 	var cloudURLs []CloudURL
 	seen := make(map[string]bool)
 
-	cloudKeys := make([]string, 0, len(a.CloudPatterns))
-	for k := range a.CloudPatterns {
-		cloudKeys = append(cloudKeys, k)
-	}
-	sort.Strings(cloudKeys)
+	cloudKeys := strutil.SortedMapKeys(a.CloudPatterns)
 	for _, service := range cloudKeys {
 		pattern := a.CloudPatterns[service]
 		matches := pattern.FindAllString(code, -1)
@@ -891,11 +880,7 @@ func (a *Analyzer) inferMethodFromURL(url string) string {
 	urlLower := strings.ToLower(url)
 
 	// Check for exact path segment matches
-	hintKeys := make([]string, 0, len(urlMethodHints))
-	for k := range urlMethodHints {
-		hintKeys = append(hintKeys, k)
-	}
-	sort.Strings(hintKeys)
+	hintKeys := strutil.SortedMapKeys(urlMethodHints)
 	for _, pattern := range hintKeys {
 		method := urlMethodHints[pattern]
 		patternWithoutSlash := strings.TrimPrefix(pattern, "/")

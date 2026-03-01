@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"sort"
 	"strings"
 	"sync"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/waftester/waftester/pkg/discovery/presets"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // ServicePresets returns the canonical list of known service presets
@@ -483,11 +483,7 @@ func (d *Discoverer) parseOpenAPISpec(ctx context.Context, specPath string) []En
 		return endpoints
 	}
 
-	pathKeys := make([]string, 0, len(paths))
-	for p := range paths {
-		pathKeys = append(pathKeys, p)
-	}
-	sort.Strings(pathKeys)
+	pathKeys := strutil.SortedMapKeys(paths)
 
 	for _, path := range pathKeys {
 		methods := paths[path]
@@ -500,11 +496,7 @@ func (d *Discoverer) parseOpenAPISpec(ctx context.Context, specPath string) []En
 		// Normalize path - replace {param} with placeholder
 		fullPath = regexcache.MustGet(`\{[^}]+\}`).ReplaceAllString(fullPath, "1")
 
-		methodKeys := make([]string, 0, len(methodMap))
-		for m := range methodMap {
-			methodKeys = append(methodKeys, m)
-		}
-		sort.Strings(methodKeys)
+		methodKeys := strutil.SortedMapKeys(methodMap)
 
 		for _, method := range methodKeys {
 			details := methodMap[method]

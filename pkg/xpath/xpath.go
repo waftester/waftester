@@ -5,7 +5,6 @@ import (
 	"context"
 	"net/http"
 	"net/url"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // Config configures XPath injection testing
@@ -79,11 +79,7 @@ func NewScanner(config Config) *Scanner {
 func (s *Scanner) Scan(ctx context.Context, targetURL string, params map[string]string) ([]Result, error) {
 	results := make([]Result, 0)
 
-	paramNames := make([]string, 0, len(params))
-	for param := range params {
-		paramNames = append(paramNames, param)
-	}
-	sort.Strings(paramNames)
+	paramNames := strutil.SortedMapKeys(params)
 	for _, param := range paramNames {
 		value := params[param]
 		for _, payload := range Payloads() {
