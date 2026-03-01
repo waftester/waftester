@@ -15,6 +15,7 @@ import (
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/httputil"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -349,7 +350,7 @@ func (t *Tester) sendRequest(ctx context.Context, targetURL string, payload Payl
 	if payload.Header == "Host" && payload.Value != "" {
 		req.Host = payload.Value
 	} else {
-		req.Header.Set(payload.Header, payload.Value)
+		httputil.SetPayloadHeader(req, payload.Header, payload.Value)
 	}
 
 	return t.client.Do(req)

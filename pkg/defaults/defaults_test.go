@@ -516,16 +516,24 @@ func TestIsBlockedStatus(t *testing.T) {
 	}
 }
 
-// TestBlockedStatusCodesSlice ensures the exported slice matches expectations
+// TestBlockedStatusCodesSlice ensures the exported function returns expected codes
 func TestBlockedStatusCodesSlice(t *testing.T) {
 	expected := []int{403, 406, 418, 429, 503}
-	if len(defaults.BlockedStatusCodes) != len(expected) {
-		t.Fatalf("BlockedStatusCodes has %d entries, want %d", len(defaults.BlockedStatusCodes), len(expected))
+	got := defaults.BlockedStatusCodes()
+	if len(got) != len(expected) {
+		t.Fatalf("BlockedStatusCodes() has %d entries, want %d", len(got), len(expected))
 	}
 	for i, code := range expected {
-		if defaults.BlockedStatusCodes[i] != code {
-			t.Errorf("BlockedStatusCodes[%d] = %d, want %d", i, defaults.BlockedStatusCodes[i], code)
+		if got[i] != code {
+			t.Errorf("BlockedStatusCodes()[%d] = %d, want %d", i, got[i], code)
 		}
+	}
+
+	// Verify mutation safety: modifying the returned slice must not affect the source
+	got[0] = 999
+	fresh := defaults.BlockedStatusCodes()
+	if fresh[0] != 403 {
+		t.Errorf("BlockedStatusCodes() is not returning a copy; mutation leaked")
 	}
 }
 
