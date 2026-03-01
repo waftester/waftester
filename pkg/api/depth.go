@@ -266,8 +266,8 @@ func (d *DepthScanner) sendRequest(ctx context.Context, method, url string, head
 		Method:      method,
 		StatusCode:  resp.StatusCode,
 		Size:        len(body),
-		Words:       len(strings.Fields(string(body))),
-		Lines:       len(strings.Split(string(body), "\n")),
+		Words:       iohelper.CountWords(body),
+		Lines:       iohelper.CountLines(body),
 		ContentType: resp.Header.Get("Content-Type"),
 		Latency:     latency,
 	}

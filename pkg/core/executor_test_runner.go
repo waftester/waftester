@@ -26,28 +26,6 @@ import (
 	"github.com/waftester/waftester/pkg/ui"
 )
 
-// countWordsAndLines efficiently counts words and lines in a byte slice without allocations
-func countWordsAndLines(data []byte) (words, lines int) {
-	if len(data) == 0 {
-		return 0, 0
-	}
-
-	inWord := false
-	for _, b := range data {
-		if b == '\n' {
-			lines++
-		}
-		if b == ' ' || b == '\t' || b == '\n' || b == '\r' {
-			inWord = false
-		} else if !inWord {
-			inWord = true
-			words++
-		}
-	}
-	lines++ // Account for last line if no trailing newline
-	return words, lines
-}
-
 // evidencePatterns contains pre-compiled regexes for detecting vulnerability evidence in responses.
 var evidencePatterns = []struct {
 	name    string
@@ -292,7 +270,8 @@ retryLoop:
 	}
 	// Calculate word and line counts for filtering (zero-allocation)
 	bodyBytes := bodyBuf.Bytes()
-	result.WordCount, result.LineCount = countWordsAndLines(bodyBytes)
+	result.WordCount = iohelper.CountWords(bodyBytes)
+	result.LineCount = iohelper.CountLines(bodyBytes)
 
 	// Keep bodyStr only for operations that require a string
 	var bodyStr string
