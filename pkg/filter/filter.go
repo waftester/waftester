@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 	"sync"
 	"time"
 )
@@ -143,13 +145,13 @@ func (f *Filter) matchesMatcher(resp *Response) bool {
 
 	// Word count matching
 	if len(c.MatchWords) > 0 {
-		wordCount := countWords(resp.Body)
+		wordCount := iohelper.CountWords(resp.Body)
 		results = append(results, matchesAnyRange(c.MatchWords, wordCount))
 	}
 
 	// Line count matching
 	if len(c.MatchLines) > 0 {
-		lineCount := countLines(resp.Body)
+		lineCount := iohelper.CountLines(resp.Body)
 		results = append(results, matchesAnyRange(c.MatchLines, lineCount))
 	}
 
@@ -247,13 +249,13 @@ func (f *Filter) matchesFilter(resp *Response) bool {
 
 	// Word count filtering
 	if len(c.FilterWords) > 0 {
-		wordCount := countWords(resp.Body)
+		wordCount := iohelper.CountWords(resp.Body)
 		results = append(results, matchesAnyRange(c.FilterWords, wordCount))
 	}
 
 	// Line count filtering
 	if len(c.FilterLines) > 0 {
-		lineCount := countLines(resp.Body)
+		lineCount := iohelper.CountLines(resp.Body)
 		results = append(results, matchesAnyRange(c.FilterLines, lineCount))
 	}
 
@@ -336,14 +338,6 @@ func matchesAnyRange(ranges []Range, val int) bool {
 		}
 	}
 	return false
-}
-
-func countWords(body []byte) int {
-	return len(strings.Fields(string(body)))
-}
-
-func countLines(body []byte) int {
-	return len(strings.Split(string(body), "\n"))
 }
 
 func matchesHeaders(want map[string]string, have map[string][]string) bool {

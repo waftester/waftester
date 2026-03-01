@@ -102,8 +102,8 @@ func (c *Calibrator) Calibrate(ctx context.Context) (*Result, error) {
 
 		status := resp.StatusCode
 		size := len(body)
-		words := len(strings.Fields(string(body)))
-		lines := len(strings.Split(string(body), "\n"))
+		words := iohelper.CountWords(body)
+		lines := iohelper.CountLines(body)
 
 		statusCounts[status]++
 		sizeCounts[size]++

@@ -796,8 +796,8 @@ func runProbe() {
 
 			results.rawBody = bodyStr // Store for matching (empty if omitBody)
 			if !*cfg.OmitBody {
-				results.WordCount = len(strings.Fields(bodyStr))
-				results.LineCount = strings.Count(bodyStr, "\n") + 1
+				results.WordCount = iohelper.CountWords([]byte(bodyStr))
+				results.LineCount = iohelper.CountLines([]byte(bodyStr))
 			}
 			if results.ContentLength <= 0 {
 				results.ContentLength = int64(len(body))
