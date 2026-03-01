@@ -15,6 +15,7 @@ import (
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 // Timeout constants for screenshot operations
@@ -360,8 +361,7 @@ func Compare(img1, img2 []byte) (ComparisonResult, error) {
 
 func sanitizeFilename(url string) string {
 	// Remove protocol
-	s := strings.TrimPrefix(url, "https://")
-	s = strings.TrimPrefix(s, "http://")
+	s := urlutil.StripScheme(url)
 
 	// Replace invalid characters
 	replacer := strings.NewReplacer(

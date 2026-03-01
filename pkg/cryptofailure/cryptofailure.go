@@ -17,6 +17,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 // VulnerabilityType represents cryptographic vulnerability types
@@ -78,8 +79,7 @@ func NewTester(target string, timeout time.Duration) *Tester {
 
 // tlsHost extracts host:port from the target URL for TLS connections.
 func (t *Tester) tlsHost() string {
-	host := strings.TrimPrefix(t.target, "https://")
-	host = strings.TrimPrefix(host, "http://")
+	host := urlutil.StripScheme(t.target)
 	host = strings.Split(host, "/")[0]
 	if !strings.Contains(host, ":") {
 		host += ":443"

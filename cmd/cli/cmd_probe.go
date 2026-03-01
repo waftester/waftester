@@ -19,8 +19,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/pprof"
-	"strconv"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -40,6 +40,7 @@ import (
 	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/runner"
 	"github.com/waftester/waftester/pkg/ui"
+	"github.com/waftester/waftester/pkg/urlutil"
 	"github.com/waftester/waftester/pkg/waf"
 )
 
@@ -276,7 +277,7 @@ func runProbe() {
 		for i, t := range targets {
 			if i > 0 {
 				// Store vhost for custom Host header
-				vhostHeaders[t] = strings.TrimPrefix(strings.TrimPrefix(t, "https://"), "http://")
+				vhostHeaders[t] = urlutil.StripScheme(t)
 				vhostHeaders[t] = strings.Split(vhostHeaders[t], "/")[0]
 			}
 		}
@@ -583,8 +584,7 @@ func runProbe() {
 	// Define the probe task function
 	probeTask := func(ctx context.Context, currentTarget string) (*ProbeResults, error) {
 		// Extract host from target URL for filtering
-		hostForFilter := strings.TrimPrefix(currentTarget, "https://")
-		hostForFilter = strings.TrimPrefix(hostForFilter, "http://")
+		hostForFilter := urlutil.StripScheme(currentTarget)
 		hostForFilter = strings.Split(hostForFilter, "/")[0]
 		hostForFilter = strings.Split(hostForFilter, ":")[0]
 
@@ -1870,8 +1870,7 @@ func runProbe() {
 			probeProgress.AddMetric("dead")
 			// Track host errors for MaxHostErrors feature
 			if hostErrorLimit > 0 {
-				hostForFilter := strings.TrimPrefix(currentTarget, "https://")
-				hostForFilter = strings.TrimPrefix(hostForFilter, "http://")
+				hostForFilter := urlutil.StripScheme(currentTarget)
 				hostForFilter = strings.Split(hostForFilter, "/")[0]
 				hostForFilter = strings.Split(hostForFilter, ":")[0]
 				hostErrorsMu.Lock()

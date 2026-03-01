@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/waftester/waftester/pkg/metrics"
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // ResultFormatter formats test results for display
@@ -55,7 +56,7 @@ func (rf *ResultFormatter) FormatResult(id, category, severity, outcome string, 
 
 	// Add payload if verbose
 	if rf.showPayload && payload != "" {
-		truncatedPayload := truncateString(payload, 60)
+		truncatedPayload := strutil.Truncate(payload, 60)
 		result += "\n      " + SubtitleStyle.Render("-> "+truncatedPayload)
 	}
 
@@ -95,7 +96,7 @@ func (rf *ResultFormatter) FormatFailure(id, category, severity string, statusCo
 	if payload != "" {
 		output.WriteString(fmt.Sprintf("    %s %s\n",
 			ConfigLabelStyle.Render("Payload:"),
-			SubtitleStyle.Render(truncateString(payload, 80)),
+			SubtitleStyle.Render(strutil.Truncate(payload, 80)),
 		))
 	}
 
@@ -109,7 +110,7 @@ func (rf *ResultFormatter) FormatError(id, category, errorMsg string) string {
 		BracketStyle.Render("[")+CategoryStyle.Render(category)+BracketStyle.Render("]"),
 		StatValueStyle.Render(id),
 		ErrorStyle.Render("Error"),
-		SubtitleStyle.Render(truncateString(errorMsg, 50)),
+		SubtitleStyle.Render(strutil.Truncate(errorMsg, 50)),
 	)
 }
 
@@ -119,14 +120,6 @@ func formatLatency(ms int64) string {
 		return fmt.Sprintf("%dms", ms)
 	}
 	return fmt.Sprintf("%.2fs", float64(ms)/1000)
-}
-
-// truncateString truncates a string with ellipsis
-func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
 }
 
 // StatusBracket returns a formatted status code bracket

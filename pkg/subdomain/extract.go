@@ -6,6 +6,9 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 // domainPattern matches domain-like strings (with optional protocol prefix).
@@ -27,8 +30,7 @@ func Extract(content, baseDomain string) []string {
 	bd := strings.ToLower(baseDomain)
 
 	for _, m := range matches {
-		clean := strings.TrimPrefix(m, "https://")
-		clean = strings.TrimPrefix(clean, "http://")
+		clean := urlutil.StripScheme(m)
 		clean = strings.ToLower(clean)
 
 		if len(clean) < 5 {
@@ -64,10 +66,7 @@ func ExtractStrict(content, baseDomain string) []string {
 	}
 
 	escaped := regexp.QuoteMeta(baseDomain)
-	re, err := regexp.Compile(`(?i)([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.` + escaped + `)`)
-	if err != nil {
-		return nil
-	}
+	re := regexcache.MustGet(`(?i)([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.` + escaped + `)`)
 
 	matches := re.FindAllString(content, -1)
 	if len(matches) == 0 {
