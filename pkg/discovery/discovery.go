@@ -377,18 +377,24 @@ func (d *Discoverer) discoverFromExternalSources(ctx context.Context, result *Di
 
 	// Probe robots.txt paths
 	for _, path := range allSources.RobotsPaths {
+		if ctx.Err() != nil {
+			return
+		}
 		d.probeEndpoint(ctx, path, result)
 	}
 
 	// Probe sitemap URLs
 	for _, path := range allSources.SitemapURLs {
+		if ctx.Err() != nil {
+			return
+		}
 		d.probeEndpoint(ctx, path, result)
 	}
 
 	// Probe Wayback URLs (limit to avoid overwhelming)
 	maxWayback := 100
 	for i, path := range allSources.WaybackURLs {
-		if i >= maxWayback {
+		if i >= maxWayback || ctx.Err() != nil {
 			break
 		}
 		d.probeEndpoint(ctx, path, result)
@@ -397,7 +403,7 @@ func (d *Discoverer) discoverFromExternalSources(ctx context.Context, result *Di
 	// Probe CommonCrawl URLs (limit)
 	maxCC := 50
 	for i, path := range allSources.CommonCrawl {
-		if i >= maxCC {
+		if i >= maxCC || ctx.Err() != nil {
 			break
 		}
 		d.probeEndpoint(ctx, path, result)
@@ -406,7 +412,7 @@ func (d *Discoverer) discoverFromExternalSources(ctx context.Context, result *Di
 	// Probe OTX URLs (limit)
 	maxOTX := 50
 	for i, path := range allSources.OTXURLs {
-		if i >= maxOTX {
+		if i >= maxOTX || ctx.Err() != nil {
 			break
 		}
 		d.probeEndpoint(ctx, path, result)
@@ -415,7 +421,7 @@ func (d *Discoverer) discoverFromExternalSources(ctx context.Context, result *Di
 	// Probe VirusTotal URLs if available (limit)
 	maxVT := 25
 	for i, path := range allSources.VirusTotalURLs {
-		if i >= maxVT {
+		if i >= maxVT || ctx.Err() != nil {
 			break
 		}
 		d.probeEndpoint(ctx, path, result)

@@ -153,7 +153,6 @@ func (d *Detector) fileDisclosurePayloads() []*Payload {
 			path:     "C:/Windows/win.ini",
 			patterns: []string{"[extensions]", "[fonts]", "[mci extensions]"},
 		},
-
 	}
 
 	// Pre-allocate slice for typical payload count (~40 payloads)
@@ -453,7 +452,8 @@ func (d *Detector) GetPayloads(attackType AttackType) []*Payload {
 	filtered := make([]*Payload, 0, len(d.payloads)/4)
 	for _, p := range d.payloads {
 		if p.Type == attackType {
-			filtered = append(filtered, p)
+			pCopy := *p
+			filtered = append(filtered, &pCopy)
 		}
 	}
 	return filtered

@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -113,11 +114,16 @@ func TestCheckerCheckOneHTTPBodyMatch(t *testing.T) {
 }
 
 func TestCheckerCheckOneTCP(t *testing.T) {
-	checker := NewChecker(nil)
-	check := &Check{Name: "test", Endpoint: "localhost:8080", Type: CheckTypeTCP}
-
-	result, err := checker.CheckOne(context.Background(), check)
+	// Start a real TCP listener so the health check can connect
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
+	defer ln.Close()
+
+	checker := NewChecker(nil)
+	check := &Check{Name: "test", Endpoint: ln.Addr().String(), Type: CheckTypeTCP, Timeout: 2 * time.Second}
+
+	result, checkErr := checker.CheckOne(context.Background(), check)
+	require.NoError(t, checkErr)
 	assert.Equal(t, StatusHealthy, result.Status)
 }
 
