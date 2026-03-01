@@ -99,7 +99,7 @@ func (c *Calibrator) Calibrate(ctx context.Context) (*CalibrationResult, error) 
 			InjectionLoc:   LocationQuery,
 		}
 
-		req, err := c.Builder.BuildRequest(payload, template)
+		req, err := c.Builder.BuildRequest(ctx, payload, template)
 		if err != nil {
 			continue
 		}
@@ -150,7 +150,7 @@ func (c *Calibrator) samplePath(ctx context.Context, path string) (*SampleResult
 		QueryParams: map[string]string{},
 	}
 
-	req, err := c.Builder.BuildRequest("", template)
+	req, err := c.Builder.BuildRequest(ctx, "", template)
 	if err != nil {
 		return nil, err
 	}
@@ -160,8 +160,6 @@ func (c *Calibrator) samplePath(ctx context.Context, path string) (*SampleResult
 
 // executeRequest sends a request and records the response characteristics
 func (c *Calibrator) executeRequest(ctx context.Context, req *http.Request) (*SampleResult, error) {
-	req = req.WithContext(ctx)
-
 	start := time.Now()
 	resp, err := c.Client.Do(req)
 	latency := time.Since(start)
@@ -270,7 +268,7 @@ func (c *Calibrator) ProfileTarget(ctx context.Context) (*TargetProfile, error) 
 		InjectionLoc:   LocationQuery,
 	}
 
-	req, err := c.Builder.BuildRequest("<script>alert(1)</script>", template)
+	req, err := c.Builder.BuildRequest(ctx, "<script>alert(1)</script>", template)
 	if err != nil {
 		return profile, err
 	}

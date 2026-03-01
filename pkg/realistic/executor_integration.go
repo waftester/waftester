@@ -66,14 +66,14 @@ func (e *ExecutorEnhancer) FullCalibrate(ctx context.Context) (*CalibrationResul
 }
 
 // BuildRequest creates a realistic request for a payload
-func (e *ExecutorEnhancer) BuildRequest(payload string, location InjectionLocation, method string) (*http.Request, error) {
+func (e *ExecutorEnhancer) BuildRequest(ctx context.Context, payload string, location InjectionLocation, method string) (*http.Request, error) {
 	template := e.selectTemplate(location, method)
-	return e.Builder.BuildRequest(payload, template)
+	return e.Builder.BuildRequest(ctx, payload, template)
 }
 
 // BuildRequestWithTemplate creates a request using a specific template
-func (e *ExecutorEnhancer) BuildRequestWithTemplate(payload string, template *RequestTemplate) (*http.Request, error) {
-	return e.Builder.BuildRequest(payload, template)
+func (e *ExecutorEnhancer) BuildRequestWithTemplate(ctx context.Context, payload string, template *RequestTemplate) (*http.Request, error) {
+	return e.Builder.BuildRequest(ctx, payload, template)
 }
 
 // UseUnifiedDetection enables the unified detection package for connection
