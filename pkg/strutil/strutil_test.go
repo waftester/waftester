@@ -1,6 +1,8 @@
 package strutil
 
 import (
+	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 	"testing"
@@ -292,4 +294,86 @@ func TestSanitizeFilename(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSortedMapKeys(t *testing.T) {
+	t.Run("string values", func(t *testing.T) {
+		m := map[string]string{"banana": "b", "apple": "a", "cherry": "c"}
+		got := SortedMapKeys(m)
+		want := []string{"apple", "banana", "cherry"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("int values", func(t *testing.T) {
+		m := map[string]int{"z": 1, "a": 2, "m": 3}
+		got := SortedMapKeys(m)
+		want := []string{"a", "m", "z"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("interface values", func(t *testing.T) {
+		m := map[string]interface{}{"beta": 1, "alpha": "x"}
+		got := SortedMapKeys(m)
+		want := []string{"alpha", "beta"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("nil map", func(t *testing.T) {
+		got := SortedMapKeys[map[string]string](nil)
+		if got == nil {
+			t.Errorf("expected empty non-nil slice, got nil")
+		}
+		if len(got) != 0 {
+			t.Errorf("expected empty slice, got %v", got)
+		}
+	})
+
+	t.Run("empty map", func(t *testing.T) {
+		got := SortedMapKeys(map[string]int{})
+		if got == nil {
+			t.Errorf("expected empty non-nil slice, got nil")
+		}
+		if len(got) != 0 {
+			t.Errorf("expected empty slice, got %v", got)
+		}
+	})
+
+	t.Run("single element", func(t *testing.T) {
+		m := map[string]bool{"only": true}
+		got := SortedMapKeys(m)
+		want := []string{"only"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("http.Header named type", func(t *testing.T) {
+		h := http.Header{
+			"Content-Type":  []string{"text/plain"},
+			"Authorization": []string{"Bearer tok"},
+		}
+		got := SortedMapKeys(h)
+		want := []string{"Authorization", "Content-Type"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("url.Values named type", func(t *testing.T) {
+		v := url.Values{
+			"z_param": []string{"1"},
+			"a_param": []string{"2"},
+		}
+		got := SortedMapKeys(v)
+		want := []string{"a_param", "z_param"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
 }
