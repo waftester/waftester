@@ -113,7 +113,7 @@ func (c *Calibrator) Calibrate(ctx context.Context) (*CalibrationResult, error) 
 		result.Samples = append(result.Samples, *sample)
 
 		// Check if this looks like a block
-		if sample.StatusCode == 403 || sample.StatusCode == 406 || sample.StatusCode == 429 || sample.StatusCode == 503 {
+		if defaults.IsBlockedStatus(sample.StatusCode) {
 			blockedSample = sample
 			break
 		}
@@ -278,7 +278,7 @@ func (c *Calibrator) ProfileTarget(ctx context.Context) (*TargetProfile, error) 
 	if err == nil {
 		profile.BlockStatus = blockSample.StatusCode
 		profile.BlockLatency = blockSample.Latency
-		profile.WAFDetected = blockSample.StatusCode == 403 || blockSample.StatusCode == 406 || blockSample.StatusCode == 429 || blockSample.StatusCode == 503
+		profile.WAFDetected = defaults.IsBlockedStatus(blockSample.StatusCode)
 	}
 
 	return profile, nil
