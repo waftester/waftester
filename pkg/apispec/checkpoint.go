@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Checkpoint stores the state of an in-progress scan so it can be resumed.
@@ -153,11 +155,6 @@ func (c *Checkpoint) Save() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data, err := json.MarshalIndent(c, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal checkpoint: %w", err)
-	}
-
 	path, pathErr := checkpointPath(c.SessionID)
 	if pathErr != nil {
 		return pathErr
@@ -168,15 +165,7 @@ func (c *Checkpoint) Save() error {
 		return fmt.Errorf("create checkpoint dir: %w", err)
 	}
 
-	tmpPath := path + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0o600); err != nil {
-		return fmt.Errorf("write checkpoint: %w", err)
-	}
-	if err := os.Rename(tmpPath, path); err != nil {
-		return fmt.Errorf("rename checkpoint: %w", err)
-	}
-
-	return nil
+	return iohelper.WriteAtomicJSON(path, c, 0o600)
 }
 
 // LoadCheckpoint loads a checkpoint from disk by session ID.

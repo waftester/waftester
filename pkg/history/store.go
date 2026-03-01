@@ -14,6 +14,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Store manages historical scan data using JSON file storage.
@@ -158,22 +160,8 @@ func (s *Store) loadIndex() error {
 }
 
 // saveIndex persists the store index to disk using atomic write.
-// Writes to a temporary file first, then renames to prevent corruption.
 func (s *Store) saveIndex() error {
-	data, err := json.MarshalIndent(s.index, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	tmpPath := s.indexPath() + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
-		return err
-	}
-	if err := os.Rename(tmpPath, s.indexPath()); err != nil {
-		os.Remove(tmpPath) // Clean up orphaned temp file
-		return err
-	}
-	return nil
+	return iohelper.WriteAtomicJSON(s.indexPath(), s.index, 0644)
 }
 
 // Save stores a scan record.

@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -218,24 +220,7 @@ func (e *Engine) Save(path string) error {
 		return fmt.Errorf("create directory: %w", err)
 	}
 
-	data, err := json.MarshalIndent(state, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal state: %w", err)
-	}
-
-	// Write atomically via temp file
-	tmpPath := path + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
-		os.Remove(tmpPath) // Clean up partial file on failure
-		return fmt.Errorf("write temp file: %w", err)
-	}
-
-	if err := os.Rename(tmpPath, path); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("rename temp file: %w", err)
-	}
-
-	return nil
+	return iohelper.WriteAtomicJSON(path, state, 0644)
 }
 
 // ExportJSON returns the brain state as JSON bytes

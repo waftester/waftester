@@ -12,6 +12,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 // Result represents auto-calibration results
@@ -82,7 +83,7 @@ func (c *Calibrator) Calibrate(ctx context.Context) (*Result, error) {
 	var lineCounts = make(map[int]int)
 
 	for _, path := range calibrationPaths {
-		url := strings.TrimSuffix(c.targetURL, "/") + path
+		url := urlutil.JoinPath(c.targetURL, path)
 
 		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 		if err != nil {
