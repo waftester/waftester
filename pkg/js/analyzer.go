@@ -248,8 +248,10 @@ func (a *Analyzer) initCloudPatterns() {
 	}
 }
 
-// Analyze performs full analysis on JavaScript code
-func (a *Analyzer) Analyze(code string) *ExtractedData {
+// Analyze performs full analysis on JavaScript code.
+// baseDomain scopes subdomain extraction to the target (e.g. "example.com").
+// Pass "" to disable scope filtering (legacy behavior).
+func (a *Analyzer) Analyze(code string, baseDomain ...string) *ExtractedData {
 	data := &ExtractedData{}
 
 	// Extract URLs
@@ -270,8 +272,12 @@ func (a *Analyzer) Analyze(code string) *ExtractedData {
 	// Extract cloud URLs
 	data.CloudURLs = a.ExtractCloudURLs(code)
 
-	// Extract subdomains
-	data.Subdomains = a.ExtractSubdomains(code)
+	// Extract subdomains (scoped to target domain if provided)
+	bd := ""
+	if len(baseDomain) > 0 {
+		bd = baseDomain[0]
+	}
+	data.Subdomains = a.ExtractSubdomains(code, bd)
 
 	return data
 }
@@ -596,8 +602,10 @@ var invalidTLDs = map[string]bool{
 	"min": true, "map": true, "bundle": true, "chunk": true,
 }
 
-// ExtractSubdomains extracts subdomains from code with enhanced false positive filtering
-func (a *Analyzer) ExtractSubdomains(code string) []string {
+// ExtractSubdomains extracts subdomains from code with enhanced false positive filtering.
+// baseDomain scopes results to subdomains of the target (e.g. "example.com").
+// Pass "" to return all discovered domains (legacy behavior).
+func (a *Analyzer) ExtractSubdomains(code string, baseDomain string) []string {
 	// Require at least one subdomain part (2+ dots) to reduce false positives
 	pattern := regexcache.MustGet(`(?:https?://)?([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}`)
 	matches := pattern.FindAllString(code, -1)
@@ -649,6 +657,18 @@ func (a *Analyzer) ExtractSubdomains(code string) []string {
 			seen[clean] = true
 			subdomains = append(subdomains, clean)
 		}
+	}
+
+	// Scope filter: keep only subdomains of the target domain
+	if baseDomain != "" {
+		baseDomain = strings.ToLower(baseDomain)
+		filtered := subdomains[:0]
+		for _, s := range subdomains {
+			if s == baseDomain || strings.HasSuffix(s, "."+baseDomain) {
+				filtered = append(filtered, s)
+			}
+		}
+		subdomains = filtered
 	}
 
 	sort.Strings(subdomains)

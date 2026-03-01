@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/waftester/waftester/pkg/metrics"
 )
 
 // ResultFormatter formats test results for display
@@ -242,13 +243,7 @@ func PrintSummary(s Summary) {
 	// WAF effectiveness = Blocked / (Blocked + Failed)
 	// This measures what % of attack payloads were stopped by the WAF
 	fmt.Fprintln(os.Stderr)
-	attackTests := s.BlockedTests + s.FailedTests
-	var effectiveness float64
-	if attackTests > 0 {
-		effectiveness = float64(s.BlockedTests) / float64(attackTests) * 100
-	} else {
-		effectiveness = 0 // No attack tests executed
-	}
+	effectiveness := metrics.CalcEffectiveness(s.BlockedTests, s.FailedTests)
 	PrintWAFEffectiveness(effectiveness)
 
 	// Final verdict

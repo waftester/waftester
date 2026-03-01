@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/waftester/waftester/pkg/httputil"
 	"github.com/waftester/waftester/pkg/requestpool"
 )
 
@@ -98,7 +99,7 @@ func BuildRequest(baseURL string, ep Endpoint, target InjectionTarget, payload s
 			continue
 		}
 		if target.Location == LocationHeader && target.Parameter == p.Name {
-			req.Header.Set(p.Name, payload)
+			httputil.SetPayloadHeader(req, p.Name, payload)
 		} else if p.Example != nil {
 			req.Header.Set(p.Name, fmt.Sprintf("%v", p.Example))
 		} else if p.Required {
@@ -111,14 +112,16 @@ func BuildRequest(baseURL string, ep Endpoint, target InjectionTarget, payload s
 		if p.In != LocationCookie {
 			continue
 		}
-		value := defaultValue(p.Schema)
-		if p.Example != nil {
-			value = fmt.Sprintf("%v", p.Example)
-		}
 		if target.Location == LocationCookie && target.Parameter == p.Name {
-			value = payload
+			// Use raw header to avoid Go's cookie value sanitization on payloads
+			httputil.SetPayloadCookie(req, p.Name, payload)
+		} else {
+			value := defaultValue(p.Schema)
+			if p.Example != nil {
+				value = fmt.Sprintf("%v", p.Example)
+			}
+			req.AddCookie(&http.Cookie{Name: p.Name, Value: value})
 		}
-		req.AddCookie(&http.Cookie{Name: p.Name, Value: value})
 	}
 
 	return req, nil

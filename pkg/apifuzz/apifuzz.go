@@ -24,6 +24,7 @@ import (
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/httputil"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
@@ -638,13 +639,13 @@ func (t *Tester) sendFuzzRequest(ctx context.Context, baseURL string, endpoint E
 	case "header":
 		req, err = http.NewRequestWithContext(ctx, endpoint.Method, fullURL, nil)
 		if err == nil {
-			req.Header.Set(param.Name, payload)
+			httputil.SetPayloadHeader(req, param.Name, payload)
 		}
 
 	case "cookie":
 		req, err = http.NewRequestWithContext(ctx, endpoint.Method, fullURL, nil)
 		if err == nil {
-			req.AddCookie(&http.Cookie{Name: param.Name, Value: payload})
+			httputil.SetPayloadCookie(req, param.Name, payload)
 		}
 
 	default:

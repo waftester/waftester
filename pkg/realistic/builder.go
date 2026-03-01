@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/httputil"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -235,7 +236,7 @@ func (b *Builder) buildHeaderRequest(targetURL, payload string, template *Reques
 	if headerName == "" {
 		headerName = "X-Custom-Data"
 	}
-	req.Header.Set(headerName, payload)
+	httputil.SetPayloadHeader(req, headerName, payload)
 
 	return req, nil
 }
@@ -267,7 +268,7 @@ func (b *Builder) buildCookieRequest(targetURL, payload string, template *Reques
 	if cookieName == "" {
 		cookieName = "session_data"
 	}
-	req.AddCookie(&http.Cookie{Name: cookieName, Value: payload})
+	httputil.SetPayloadCookie(req, cookieName, payload)
 
 	return req, nil
 }
@@ -285,8 +286,8 @@ func (b *Builder) buildXForwardedRequest(targetURL, payload string, template *Re
 	}
 
 	// Add payload in X-Forwarded-For (commonly used for IP spoofing attacks)
-	req.Header.Set("X-Forwarded-For", payload)
-	req.Header.Set("X-Real-IP", payload)
+	httputil.SetPayloadHeader(req, "X-Forwarded-For", payload)
+	httputil.SetPayloadHeader(req, "X-Real-IP", payload)
 
 	return req, nil
 }

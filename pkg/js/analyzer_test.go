@@ -267,7 +267,7 @@ func TestExtractSubdomains(t *testing.T) {
 	`
 
 	analyzer := NewAnalyzer()
-	subdomains := analyzer.ExtractSubdomains(code)
+	subdomains := analyzer.ExtractSubdomains(code, "example.com")
 
 	if len(subdomains) < 2 {
 		t.Errorf("expected at least 2 subdomains, got %d", len(subdomains))
@@ -278,6 +278,43 @@ func TestExtractSubdomains(t *testing.T) {
 		if strings.Contains(s, "googleapis.com") {
 			t.Error("should filter out googleapis.com as CDN")
 		}
+	}
+}
+
+func TestExtractSubdomains_ScopeFiltering(t *testing.T) {
+	code := `
+		const api = "https://api.target.com/v1";
+		const cdn = "https://cdn.target.com/assets";
+		const tracker = "https://analytics.google.com/track";
+		const ads = "https://ads.facebook.com/pixel";
+		const deep = "https://sub.deep.target.com/api";
+	`
+
+	analyzer := NewAnalyzer()
+
+	// With scope filtering
+	scoped := analyzer.ExtractSubdomains(code, "target.com")
+	for _, s := range scoped {
+		if !strings.HasSuffix(s, ".target.com") && s != "target.com" {
+			t.Errorf("scoped result %q is not a subdomain of target.com", s)
+		}
+	}
+	if len(scoped) < 2 {
+		t.Errorf("expected at least 2 target.com subdomains, got %d: %v", len(scoped), scoped)
+	}
+
+	// Without scope filtering (empty baseDomain)
+	unscoped := analyzer.ExtractSubdomains(code, "")
+	if len(unscoped) <= len(scoped) {
+		t.Errorf("unscoped (%d) should have more results than scoped (%d)", len(unscoped), len(scoped))
+	}
+}
+
+func TestExtractSubdomains_EmptyInput(t *testing.T) {
+	analyzer := NewAnalyzer()
+	result := analyzer.ExtractSubdomains("", "example.com")
+	if len(result) != 0 {
+		t.Errorf("expected 0 subdomains from empty input, got %d", len(result))
 	}
 }
 

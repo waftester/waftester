@@ -18,6 +18,7 @@ import (
 	"github.com/waftester/waftester/pkg/input"
 	"github.com/waftester/waftester/pkg/interactive"
 	"github.com/waftester/waftester/pkg/learning"
+	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/output"
 	"github.com/waftester/waftester/pkg/output/baseline"
 	"github.com/waftester/waftester/pkg/output/policy"
@@ -523,9 +524,9 @@ func runTests() {
 	// Policy evaluation takes precedence
 	if pol != nil {
 		// Build SummaryData from aggregated results
-		var effectiveness, errorRate float64
+		effectiveness := metrics.CalcEffectiveness(aggregatedResults.BlockedTests, aggregatedResults.FailedTests)
+		var errorRate float64
 		if aggregatedResults.TotalTests > 0 {
-			effectiveness = float64(aggregatedResults.BlockedTests) / float64(aggregatedResults.TotalTests) * 100
 			errorRate = float64(aggregatedResults.ErrorTests) / float64(aggregatedResults.TotalTests) * 100
 		}
 		summaryData := policy.SummaryData{

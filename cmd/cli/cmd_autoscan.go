@@ -34,6 +34,7 @@ import (
 	"github.com/waftester/waftester/pkg/js"
 	"github.com/waftester/waftester/pkg/leakypaths"
 	"github.com/waftester/waftester/pkg/learning"
+	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/output"
 	detectionoutput "github.com/waftester/waftester/pkg/output/detection"
 	"github.com/waftester/waftester/pkg/params"
@@ -1194,7 +1195,7 @@ func runAutoScan() {
 			}
 
 			jsCode := string(body)
-			result := jsAnalyzer.Analyze(jsCode)
+			result := jsAnalyzer.Analyze(jsCode, domain)
 
 			// Merge results
 			allJSData.URLs = append(allJSData.URLs, result.URLs...)
@@ -1588,12 +1589,12 @@ func runAutoScan() {
 				// Show type breakdown
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("📊 Parameters by Type:")))
 				paramTypeKeys := make([]string, 0, len(paramResult.ByType))
-			for pt := range paramResult.ByType {
-				paramTypeKeys = append(paramTypeKeys, pt)
-			}
-			sort.Strings(paramTypeKeys)
-			for _, paramType := range paramTypeKeys {
-				count := paramResult.ByType[paramType]
+				for pt := range paramResult.ByType {
+					paramTypeKeys = append(paramTypeKeys, pt)
+				}
+				sort.Strings(paramTypeKeys)
+				for _, paramType := range paramTypeKeys {
+					count := paramResult.ByType[paramType]
 					typeStyle := ui.ConfigValueStyle
 					switch paramType {
 					case "query":
@@ -3328,19 +3329,13 @@ func runAutoScan() {
 	printStatusLn(ui.SectionStyle.Render("PHASE 5: Comprehensive Report"))
 	printStatusLn()
 
-	// Calculate WAF effectiveness.
-	// The denominator includes blocked + failed + skipped tests so that hosts
-	// which were unreachable (silent-banned / connection-dropped) are not
-	// silently excluded — otherwise a scan where 90% of tests were skipped
-	// could report "100% effectiveness."
-	wafEffectiveness := float64(0)
+	// Calculate WAF effectiveness: Blocked / (Blocked + Failed).
+	// Skipped/error tests are excluded — they aren't attack attempts and
+	// shouldn't dilute effectiveness when hosts are unreachable.
+	wafEffectiveness := metrics.CalcEffectiveness(results.BlockedTests, results.FailedTests)
 	skippedTests := results.TotalTests - results.BlockedTests - results.PassedTests - results.FailedTests - results.ErrorTests
 	if skippedTests < 0 {
 		skippedTests = 0
-	}
-	denominator := results.BlockedTests + results.FailedTests + skippedTests
-	if denominator > 0 {
-		wafEffectiveness = float64(results.BlockedTests) / float64(denominator) * 100
 	}
 
 	scanDuration := time.Since(startTime)
@@ -3382,12 +3377,17 @@ func runAutoScan() {
 		fmt.Fprintln(os.Stderr)
 
 		// WAF Effectiveness
-		if wafEffectiveness >= 95 {
-			ui.PrintSuccess(fmt.Sprintf("  WAF Effectiveness: %.1f%% - EXCELLENT", wafEffectiveness))
-		} else if wafEffectiveness >= 80 {
-			ui.PrintWarning(fmt.Sprintf("  WAF Effectiveness: %.1f%% - GOOD (room for improvement)", wafEffectiveness))
-		} else {
-			ui.PrintError(fmt.Sprintf("  WAF Effectiveness: %.1f%% - NEEDS ATTENTION", wafEffectiveness))
+		rating := metrics.RateEffectiveness(wafEffectiveness)
+		switch {
+		case wafEffectiveness >= 90:
+			ui.PrintSuccess(fmt.Sprintf("  WAF Effectiveness: %.1f%% - %s", wafEffectiveness, strings.ToUpper(rating)))
+		case wafEffectiveness >= 80:
+			ui.PrintWarning(fmt.Sprintf("  WAF Effectiveness: %.1f%% - %s", wafEffectiveness, strings.ToUpper(rating)))
+		default:
+			ui.PrintError(fmt.Sprintf("  WAF Effectiveness: %.1f%% - %s", wafEffectiveness, strings.ToUpper(rating)))
+		}
+		if skippedTests > 0 {
+			ui.PrintWarning(fmt.Sprintf("  Note: %d tests were skipped (host unreachable/dropped)", skippedTests))
 		}
 		fmt.Fprintln(os.Stderr)
 
@@ -3490,10 +3490,11 @@ func runAutoScan() {
 	// functionally absent even if nothing was explicitly "bypassed" because
 	// most tests were skipped) or when all tests errored out (complete scan
 	// failure — denominator=0 but tests existed).
-	if wafEffectiveness < 50 && denominator > 0 {
+	attackTests := results.BlockedTests + results.FailedTests
+	if wafEffectiveness < 50 && attackTests > 0 {
 		summary["ci_exit_code"] = 1
 	}
-	if results.TotalTests > 0 && results.BlockedTests == 0 && results.FailedTests == 0 && results.PassedTests == 0 && denominator == 0 {
+	if results.TotalTests > 0 && results.BlockedTests == 0 && results.FailedTests == 0 && results.PassedTests == 0 && attackTests == 0 {
 		summary["ci_exit_code"] = 1
 	}
 
@@ -3752,251 +3753,260 @@ func runAutoScan() {
 	var browserResult *browser.BrowserScanResult
 
 	if *cfg.EnableBrowserScan && !shouldSkipPhase("browser-scan") {
-		printStatusLn()
-		printStatusLn(ui.SectionStyle.Render("PHASE 7: Authenticated Browser Scanning"))
-		printStatusLn()
-
-		ui.PrintInfo("🌐 Launching browser for authenticated scanning...")
-		printStatusLn()
-
-		if !quietMode {
-			fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("  Browser Mode: Authenticated Discovery"))
-			fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("  Captures: Routes, Tokens, Storage, Third-Party APIs, Network Traffic"))
-			fmt.Fprintln(os.Stderr)
-		}
-
-		// Configure browser scanner
-		browserConfig := &browser.AuthConfig{
-			TargetURL:      target,
-			Timeout:        duration.HTTPLongOps,
-			WaitForLogin:   *cfg.BrowserTimeout,
-			PostLoginDelay: duration.BrowserPostWait,
-			CrawlDepth:     *cfg.Depth,
-			ShowBrowser:    !*cfg.BrowserHeadless,
-			Verbose:        cfg.Common.Verbose,
-			ScreenshotDir:  filepath.Join(workspaceDir, "screenshots"),
-			EnableScreens:  true,
-		}
-
-		scanner := browser.NewAuthenticatedScanner(browserConfig)
-
-		// Progress callback
-		browserProgress := func(msg string) {
-			if cfg.Common.Verbose {
-				ui.PrintInfo(fmt.Sprintf("  %s", msg))
-			}
-		}
-
-		ui.PrintWarning("⏳ Browser will open - please log in when prompted")
-		ui.PrintInfo(fmt.Sprintf("   You have %s to complete authentication", browserConfig.WaitForLogin))
-		printStatusLn()
-
-		// Run the browser scan.
-		// Cancel the context explicitly after Scan returns to avoid blocking
-		// on deferred cancel during function exit (Chrome process cleanup on
-		// Windows can hang indefinitely).
-		browserCtx, browserCancel := context.WithTimeout(ctx, browserConfig.Timeout)
-
-		var err error
-		browserResult, err = scanner.Scan(browserCtx, browserProgress)
-		browserCancel() // cancel immediately — don't defer (prevents freeze on exit)
-
-		if err != nil {
-			ui.PrintWarning(fmt.Sprintf("Browser scan warning: %v", err))
+		// Skip interactive browser in non-TTY environments (CI/CD, piped input)
+		// unless headless mode is explicitly enabled.
+		if !ui.StdinIsTerminal() && !*cfg.BrowserHeadless {
+			printStatusLn()
+			ui.PrintInfo("Skipping browser phase: no interactive terminal detected (use --browser-headless for CI)")
+			printStatusLn()
+			markPhaseCompleted("browser-scan")
 		} else {
-			// ═══════════════════════════════════════════════════════════════════════════
-			// PHASE 8: Browser Findings Analysis
-			// ═══════════════════════════════════════════════════════════════════════════
 			printStatusLn()
-			printStatusLn(ui.SectionStyle.Render("PHASE 8: Browser Findings Analysis"))
+			printStatusLn(ui.SectionStyle.Render("PHASE 7: Authenticated Browser Scanning"))
 			printStatusLn()
 
-			// Save browser results
-			browserFile := filepath.Join(workspaceDir, "browser-scan.json")
-			if err := browserResult.SaveResult(browserFile); err != nil {
-				ui.PrintWarning(fmt.Sprintf("Error saving browser results: %v", err))
-			}
+			ui.PrintInfo("🌐 Launching browser for authenticated scanning...")
+			printStatusLn()
 
 			if !quietMode {
-				// Display authentication info
-				if browserResult.AuthFlowInfo != nil && browserResult.AuthFlowInfo.Provider != "" {
-					fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("🔐 Authentication Flow Detected:")))
-					fmt.Fprintf(os.Stderr, "    Provider: %s\n", ui.ConfigValueStyle.Render(browserResult.AuthFlowInfo.Provider))
-					fmt.Fprintf(os.Stderr, "    Flow Type: %s\n", ui.ConfigValueStyle.Render(browserResult.AuthFlowInfo.FlowType))
-					if browserResult.AuthFlowInfo.LibraryUsed != "" {
-						fmt.Fprintf(os.Stderr, "    Library: %s\n", ui.ConfigValueStyle.Render(browserResult.AuthFlowInfo.LibraryUsed))
-					}
-					fmt.Fprintln(os.Stderr)
-				}
-
-				// Display discovered routes
-				if len(browserResult.DiscoveredRoutes) > 0 {
-					fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("🗺️  Discovered Routes:")))
-					for i, route := range browserResult.GetSortedRoutes() {
-						if i >= 15 {
-							remaining := len(browserResult.DiscoveredRoutes) - 15
-							fmt.Fprintf(os.Stderr, "    %s\n", ui.SubtitleStyle.Render(fmt.Sprintf("... and %d more routes", remaining)))
-							break
-						}
-						authIcon := ui.Icon("🔓", "+")
-						if route.RequiresAuth {
-							authIcon = ui.Icon("🔒", "-")
-						}
-						fmt.Fprintf(os.Stderr, "    %s %s %s\n", authIcon, ui.ConfigValueStyle.Render(route.Path),
-							ui.SubtitleStyle.Render(route.PageTitle))
-					}
-					fmt.Fprintln(os.Stderr)
-				}
-
-				// Display exposed tokens (CRITICAL)
-				if len(browserResult.ExposedTokens) > 0 {
-					fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("⚠️  Exposed Tokens/Secrets:")))
-					for _, token := range browserResult.ExposedTokens {
-						sevStyle := ui.SeverityStyle(token.Severity)
-						fmt.Fprintf(os.Stderr, "    %s%s%s %s in %s\n",
-							ui.BracketStyle.Render("["),
-							sevStyle.Render(strings.ToUpper(token.Severity)),
-							ui.BracketStyle.Render("]"),
-							ui.ConfigValueStyle.Render(token.Type),
-							ui.SubtitleStyle.Render(token.Location),
-						)
-						fmt.Fprintf(os.Stderr, "      %s %s\n", ui.Icon("→", "->"), token.Risk)
-					}
-					fmt.Fprintln(os.Stderr)
-				}
-
-				// Display third-party APIs
-				if len(browserResult.ThirdPartyAPIs) > 0 {
-					fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("🔗 Third-Party Integrations:")))
-					for i, api := range browserResult.ThirdPartyAPIs {
-						if i >= 10 {
-							remaining := len(browserResult.ThirdPartyAPIs) - 10
-							fmt.Fprintf(os.Stderr, "    %s\n", ui.SubtitleStyle.Render(fmt.Sprintf("... and %d more integrations", remaining)))
-							break
-						}
-						sevStyle := ui.SeverityStyle(api.Severity)
-						fmt.Fprintf(os.Stderr, "    %s%s%s %s (%s)\n",
-							ui.BracketStyle.Render("["),
-							sevStyle.Render(api.Severity),
-							ui.BracketStyle.Render("]"),
-							ui.ConfigValueStyle.Render(api.Name),
-							ui.SubtitleStyle.Render(api.RequestType),
-						)
-					}
-					fmt.Fprintln(os.Stderr)
-				}
-
-				// Risk Summary
-				if browserResult.RiskSummary != nil {
-					fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("📊 Browser Scan Risk Summary:")))
-					riskStyle := ui.SeverityStyle(browserResult.RiskSummary.OverallRisk)
-					fmt.Fprintf(os.Stderr, "    Overall Risk: %s\n", riskStyle.Render(strings.ToUpper(browserResult.RiskSummary.OverallRisk)))
-					fmt.Fprintf(os.Stderr, "    Total Findings: %d (Critical: %d, High: %d, Medium: %d, Low: %d)\n",
-						browserResult.RiskSummary.TotalFindings,
-						browserResult.RiskSummary.CriticalCount,
-						browserResult.RiskSummary.HighCount,
-						browserResult.RiskSummary.MediumCount,
-						browserResult.RiskSummary.LowCount,
-					)
-
-					if len(browserResult.RiskSummary.TopRisks) > 0 {
-						fmt.Fprintln(os.Stderr)
-						fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("🚨 Top Risks:")))
-						for _, risk := range browserResult.RiskSummary.TopRisks {
-							ui.PrintWarning(fmt.Sprintf("    %s %s", ui.Icon("•", "-"), risk))
-						}
-					}
-					fmt.Fprintln(os.Stderr)
-				}
-
-				// Emit browser findings to hooks (exposed tokens are critical!)
-				if autoDispCtx != nil {
-					for _, token := range browserResult.ExposedTokens {
-						tokenDesc := fmt.Sprintf("Token exposed in browser: %s at %s - %s", token.Type, token.Location, token.Risk)
-						_ = autoDispCtx.EmitBypass(ctx, "browser-token-exposure", token.Severity, target, tokenDesc, 0)
-					}
-					// Emit third-party API integrations that may leak data
-					for _, api := range browserResult.ThirdPartyAPIs {
-						if api.Severity == "critical" || api.Severity == "high" {
-							apiDesc := fmt.Sprintf("Risky third-party API: %s (%s)", api.Name, api.RequestType)
-							_ = autoDispCtx.EmitBypass(ctx, "browser-risky-integration", api.Severity, target, apiDesc, 0)
-						}
-					}
-					// Emit top risks from browser scan
-					if browserResult.RiskSummary != nil {
-						for _, risk := range browserResult.RiskSummary.TopRisks {
-							_ = autoDispCtx.EmitBypass(ctx, "browser-top-risk", "high", target, risk, 0)
-						}
-						// Emit overall risk level
-						if browserResult.RiskSummary.OverallRisk != "" {
-							riskDesc := fmt.Sprintf("Browser scan overall risk: %s (Critical:%d, High:%d)",
-								browserResult.RiskSummary.OverallRisk, browserResult.RiskSummary.CriticalCount, browserResult.RiskSummary.HighCount)
-							_ = autoDispCtx.EmitBypass(ctx, "browser-risk-summary", browserResult.RiskSummary.OverallRisk, target, riskDesc, 0)
-						}
-					}
-				}
-			}
-
-			// ═══════════════════════════════════════════════════════════════════════════
-			// PHASE 9: Browser Findings Integration
-			// ═══════════════════════════════════════════════════════════════════════════
-			printStatusLn()
-			printStatusLn(ui.SectionStyle.Render("PHASE 9: Browser Findings Integration"))
-			printStatusLn()
-
-			ui.PrintInfo("📊 Merging browser findings into enterprise report...")
-
-			// Update summary with browser findings
-			browserScanSummary := map[string]interface{}{
-				"auth_successful":    browserResult.AuthSuccessful,
-				"discovered_routes":  len(browserResult.DiscoveredRoutes),
-				"exposed_tokens":     len(browserResult.ExposedTokens),
-				"third_party_apis":   len(browserResult.ThirdPartyAPIs),
-				"network_requests":   len(browserResult.NetworkRequests),
-				"scan_duration_secs": browserResult.ScanDuration.Seconds(),
-			}
-			// Add risk summary if available
-			if browserResult.RiskSummary != nil {
-				browserScanSummary["overall_risk"] = browserResult.RiskSummary.OverallRisk
-				browserScanSummary["critical_count"] = browserResult.RiskSummary.CriticalCount
-				browserScanSummary["high_count"] = browserResult.RiskSummary.HighCount
-			}
-			summary["browser_scan"] = browserScanSummary
-
-			// Add auth flow info if detected
-			if browserResult.AuthFlowInfo != nil {
-				summary["auth_flow"] = map[string]interface{}{
-					"provider":  browserResult.AuthFlowInfo.Provider,
-					"flow_type": browserResult.AuthFlowInfo.FlowType,
-					"library":   browserResult.AuthFlowInfo.LibraryUsed,
-				}
-			}
-
-			// Save updated summary
-			if data, mErr := json.MarshalIndent(summary, "", "  "); mErr != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to marshal summary: %v", mErr))
-			} else {
-				summaryData = data
-				if err := os.WriteFile(summaryFile, summaryData, 0644); err != nil {
-					ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
-				}
-			}
-
-			// Regenerate enterprise report to include browser findings
-			htmlReportFile := filepath.Join(workspaceDir, "enterprise-report.html")
-			if err := report.GenerateEnterpriseHTMLReportFromWorkspace(workspaceDir, domain, scanDuration, htmlReportFile); err != nil {
-				ui.PrintWarning(fmt.Sprintf("Enterprise report regeneration error: %v", err))
-			} else {
-				ui.PrintSuccess("✓ Enterprise report updated with browser findings")
-			}
-
-			ui.PrintSuccess(fmt.Sprintf("✓ Browser scan completed in %s", browserResult.ScanDuration.Round(time.Millisecond)))
-			if !quietMode {
-				fmt.Fprintf(os.Stderr, "    %s Browser Results: %s\n", ui.Icon("•", "-"), browserFile)
+				fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("  Browser Mode: Authenticated Discovery"))
+				fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("  Captures: Routes, Tokens, Storage, Third-Party APIs, Network Traffic"))
 				fmt.Fprintln(os.Stderr)
 			}
-		}
-		markPhaseCompleted("browser-scan")
+
+			// Configure browser scanner
+			browserConfig := &browser.AuthConfig{
+				TargetURL:      target,
+				Timeout:        duration.HTTPLongOps,
+				WaitForLogin:   *cfg.BrowserTimeout,
+				PostLoginDelay: duration.BrowserPostWait,
+				CrawlDepth:     *cfg.Depth,
+				ShowBrowser:    !*cfg.BrowserHeadless,
+				Verbose:        cfg.Common.Verbose,
+				ScreenshotDir:  filepath.Join(workspaceDir, "screenshots"),
+				EnableScreens:  true,
+			}
+
+			scanner := browser.NewAuthenticatedScanner(browserConfig)
+
+			// Progress callback
+			browserProgress := func(msg string) {
+				if cfg.Common.Verbose {
+					ui.PrintInfo(fmt.Sprintf("  %s", msg))
+				}
+			}
+
+			ui.PrintWarning("⏳ Browser will open - please log in when prompted")
+			ui.PrintInfo(fmt.Sprintf("   You have %s to complete authentication", browserConfig.WaitForLogin))
+			printStatusLn()
+
+			// Run the browser scan.
+			// Cancel the context explicitly after Scan returns to avoid blocking
+			// on deferred cancel during function exit (Chrome process cleanup on
+			// Windows can hang indefinitely).
+			browserCtx, browserCancel := context.WithTimeout(ctx, browserConfig.Timeout)
+
+			var err error
+			browserResult, err = scanner.Scan(browserCtx, browserProgress)
+			browserCancel() // cancel immediately — don't defer (prevents freeze on exit)
+
+			if err != nil {
+				ui.PrintWarning(fmt.Sprintf("Browser scan warning: %v", err))
+			} else {
+				// ═══════════════════════════════════════════════════════════════════════════
+				// PHASE 8: Browser Findings Analysis
+				// ═══════════════════════════════════════════════════════════════════════════
+				printStatusLn()
+				printStatusLn(ui.SectionStyle.Render("PHASE 8: Browser Findings Analysis"))
+				printStatusLn()
+
+				// Save browser results
+				browserFile := filepath.Join(workspaceDir, "browser-scan.json")
+				if err := browserResult.SaveResult(browserFile); err != nil {
+					ui.PrintWarning(fmt.Sprintf("Error saving browser results: %v", err))
+				}
+
+				if !quietMode {
+					// Display authentication info
+					if browserResult.AuthFlowInfo != nil && browserResult.AuthFlowInfo.Provider != "" {
+						fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("🔐 Authentication Flow Detected:")))
+						fmt.Fprintf(os.Stderr, "    Provider: %s\n", ui.ConfigValueStyle.Render(browserResult.AuthFlowInfo.Provider))
+						fmt.Fprintf(os.Stderr, "    Flow Type: %s\n", ui.ConfigValueStyle.Render(browserResult.AuthFlowInfo.FlowType))
+						if browserResult.AuthFlowInfo.LibraryUsed != "" {
+							fmt.Fprintf(os.Stderr, "    Library: %s\n", ui.ConfigValueStyle.Render(browserResult.AuthFlowInfo.LibraryUsed))
+						}
+						fmt.Fprintln(os.Stderr)
+					}
+
+					// Display discovered routes
+					if len(browserResult.DiscoveredRoutes) > 0 {
+						fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("🗺️  Discovered Routes:")))
+						for i, route := range browserResult.GetSortedRoutes() {
+							if i >= 15 {
+								remaining := len(browserResult.DiscoveredRoutes) - 15
+								fmt.Fprintf(os.Stderr, "    %s\n", ui.SubtitleStyle.Render(fmt.Sprintf("... and %d more routes", remaining)))
+								break
+							}
+							authIcon := ui.Icon("🔓", "+")
+							if route.RequiresAuth {
+								authIcon = ui.Icon("🔒", "-")
+							}
+							fmt.Fprintf(os.Stderr, "    %s %s %s\n", authIcon, ui.ConfigValueStyle.Render(route.Path),
+								ui.SubtitleStyle.Render(route.PageTitle))
+						}
+						fmt.Fprintln(os.Stderr)
+					}
+
+					// Display exposed tokens (CRITICAL)
+					if len(browserResult.ExposedTokens) > 0 {
+						fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("⚠️  Exposed Tokens/Secrets:")))
+						for _, token := range browserResult.ExposedTokens {
+							sevStyle := ui.SeverityStyle(token.Severity)
+							fmt.Fprintf(os.Stderr, "    %s%s%s %s in %s\n",
+								ui.BracketStyle.Render("["),
+								sevStyle.Render(strings.ToUpper(token.Severity)),
+								ui.BracketStyle.Render("]"),
+								ui.ConfigValueStyle.Render(token.Type),
+								ui.SubtitleStyle.Render(token.Location),
+							)
+							fmt.Fprintf(os.Stderr, "      %s %s\n", ui.Icon("→", "->"), token.Risk)
+						}
+						fmt.Fprintln(os.Stderr)
+					}
+
+					// Display third-party APIs
+					if len(browserResult.ThirdPartyAPIs) > 0 {
+						fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("🔗 Third-Party Integrations:")))
+						for i, api := range browserResult.ThirdPartyAPIs {
+							if i >= 10 {
+								remaining := len(browserResult.ThirdPartyAPIs) - 10
+								fmt.Fprintf(os.Stderr, "    %s\n", ui.SubtitleStyle.Render(fmt.Sprintf("... and %d more integrations", remaining)))
+								break
+							}
+							sevStyle := ui.SeverityStyle(api.Severity)
+							fmt.Fprintf(os.Stderr, "    %s%s%s %s (%s)\n",
+								ui.BracketStyle.Render("["),
+								sevStyle.Render(api.Severity),
+								ui.BracketStyle.Render("]"),
+								ui.ConfigValueStyle.Render(api.Name),
+								ui.SubtitleStyle.Render(api.RequestType),
+							)
+						}
+						fmt.Fprintln(os.Stderr)
+					}
+
+					// Risk Summary
+					if browserResult.RiskSummary != nil {
+						fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("📊 Browser Scan Risk Summary:")))
+						riskStyle := ui.SeverityStyle(browserResult.RiskSummary.OverallRisk)
+						fmt.Fprintf(os.Stderr, "    Overall Risk: %s\n", riskStyle.Render(strings.ToUpper(browserResult.RiskSummary.OverallRisk)))
+						fmt.Fprintf(os.Stderr, "    Total Findings: %d (Critical: %d, High: %d, Medium: %d, Low: %d)\n",
+							browserResult.RiskSummary.TotalFindings,
+							browserResult.RiskSummary.CriticalCount,
+							browserResult.RiskSummary.HighCount,
+							browserResult.RiskSummary.MediumCount,
+							browserResult.RiskSummary.LowCount,
+						)
+
+						if len(browserResult.RiskSummary.TopRisks) > 0 {
+							fmt.Fprintln(os.Stderr)
+							fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("🚨 Top Risks:")))
+							for _, risk := range browserResult.RiskSummary.TopRisks {
+								ui.PrintWarning(fmt.Sprintf("    %s %s", ui.Icon("•", "-"), risk))
+							}
+						}
+						fmt.Fprintln(os.Stderr)
+					}
+
+					// Emit browser findings to hooks (exposed tokens are critical!)
+					if autoDispCtx != nil {
+						for _, token := range browserResult.ExposedTokens {
+							tokenDesc := fmt.Sprintf("Token exposed in browser: %s at %s - %s", token.Type, token.Location, token.Risk)
+							_ = autoDispCtx.EmitBypass(ctx, "browser-token-exposure", token.Severity, target, tokenDesc, 0)
+						}
+						// Emit third-party API integrations that may leak data
+						for _, api := range browserResult.ThirdPartyAPIs {
+							if api.Severity == "critical" || api.Severity == "high" {
+								apiDesc := fmt.Sprintf("Risky third-party API: %s (%s)", api.Name, api.RequestType)
+								_ = autoDispCtx.EmitBypass(ctx, "browser-risky-integration", api.Severity, target, apiDesc, 0)
+							}
+						}
+						// Emit top risks from browser scan
+						if browserResult.RiskSummary != nil {
+							for _, risk := range browserResult.RiskSummary.TopRisks {
+								_ = autoDispCtx.EmitBypass(ctx, "browser-top-risk", "high", target, risk, 0)
+							}
+							// Emit overall risk level
+							if browserResult.RiskSummary.OverallRisk != "" {
+								riskDesc := fmt.Sprintf("Browser scan overall risk: %s (Critical:%d, High:%d)",
+									browserResult.RiskSummary.OverallRisk, browserResult.RiskSummary.CriticalCount, browserResult.RiskSummary.HighCount)
+								_ = autoDispCtx.EmitBypass(ctx, "browser-risk-summary", browserResult.RiskSummary.OverallRisk, target, riskDesc, 0)
+							}
+						}
+					}
+				}
+
+				// ═══════════════════════════════════════════════════════════════════════════
+				// PHASE 9: Browser Findings Integration
+				// ═══════════════════════════════════════════════════════════════════════════
+				printStatusLn()
+				printStatusLn(ui.SectionStyle.Render("PHASE 9: Browser Findings Integration"))
+				printStatusLn()
+
+				ui.PrintInfo("📊 Merging browser findings into enterprise report...")
+
+				// Update summary with browser findings
+				browserScanSummary := map[string]interface{}{
+					"auth_successful":    browserResult.AuthSuccessful,
+					"discovered_routes":  len(browserResult.DiscoveredRoutes),
+					"exposed_tokens":     len(browserResult.ExposedTokens),
+					"third_party_apis":   len(browserResult.ThirdPartyAPIs),
+					"network_requests":   len(browserResult.NetworkRequests),
+					"scan_duration_secs": browserResult.ScanDuration.Seconds(),
+				}
+				// Add risk summary if available
+				if browserResult.RiskSummary != nil {
+					browserScanSummary["overall_risk"] = browserResult.RiskSummary.OverallRisk
+					browserScanSummary["critical_count"] = browserResult.RiskSummary.CriticalCount
+					browserScanSummary["high_count"] = browserResult.RiskSummary.HighCount
+				}
+				summary["browser_scan"] = browserScanSummary
+
+				// Add auth flow info if detected
+				if browserResult.AuthFlowInfo != nil {
+					summary["auth_flow"] = map[string]interface{}{
+						"provider":  browserResult.AuthFlowInfo.Provider,
+						"flow_type": browserResult.AuthFlowInfo.FlowType,
+						"library":   browserResult.AuthFlowInfo.LibraryUsed,
+					}
+				}
+
+				// Save updated summary
+				if data, mErr := json.MarshalIndent(summary, "", "  "); mErr != nil {
+					ui.PrintWarning(fmt.Sprintf("Failed to marshal summary: %v", mErr))
+				} else {
+					summaryData = data
+					if err := os.WriteFile(summaryFile, summaryData, 0644); err != nil {
+						ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
+					}
+				}
+
+				// Regenerate enterprise report to include browser findings
+				htmlReportFile := filepath.Join(workspaceDir, "enterprise-report.html")
+				if err := report.GenerateEnterpriseHTMLReportFromWorkspace(workspaceDir, domain, scanDuration, htmlReportFile); err != nil {
+					ui.PrintWarning(fmt.Sprintf("Enterprise report regeneration error: %v", err))
+				} else {
+					ui.PrintSuccess("✓ Enterprise report updated with browser findings")
+				}
+
+				ui.PrintSuccess(fmt.Sprintf("✓ Browser scan completed in %s", browserResult.ScanDuration.Round(time.Millisecond)))
+				if !quietMode {
+					fmt.Fprintf(os.Stderr, "    %s Browser Results: %s\n", ui.Icon("•", "-"), browserFile)
+					fmt.Fprintln(os.Stderr)
+				}
+			}
+			markPhaseCompleted("browser-scan")
+		} // end else (TTY gate)
 	}
 
 	// Output JSON summary to stdout if requested
@@ -4100,8 +4110,8 @@ func runAutoScan() {
 	// - Actual WAF bypasses found
 	// - WAF effectiveness critically low (most tests skipped/failed)
 	// - All tests errored out (denominator=0 but tests existed — scan failure)
-	allErrored := results.TotalTests > 0 && results.BlockedTests == 0 && results.FailedTests == 0 && results.PassedTests == 0 && denominator == 0
-	ciExit := results.FailedTests > 0 || (wafEffectiveness < 50 && denominator > 0) || allErrored
+	allErrored := results.TotalTests > 0 && results.BlockedTests == 0 && results.FailedTests == 0 && results.PassedTests == 0 && attackTests == 0
+	ciExit := results.FailedTests > 0 || (wafEffectiveness < 50 && attackTests > 0) || allErrored
 	if ciExit {
 		// Explicitly flush deferred resources — os.Exit does not run defers.
 		if autoDispCtx != nil {
