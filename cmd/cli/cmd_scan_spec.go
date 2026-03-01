@@ -33,6 +33,7 @@ import (
 	"github.com/waftester/waftester/pkg/ssrf"
 	"github.com/waftester/waftester/pkg/ssti"
 	"github.com/waftester/waftester/pkg/traversal"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
 	"github.com/waftester/waftester/pkg/upload"
 	"github.com/waftester/waftester/pkg/xmlinjection"
@@ -338,7 +339,7 @@ func runSpecDryRun(plan *apispec.ScanPlan, endpoints []apispec.Endpoint, streamJ
 	for _, k := range order {
 		scanTypes := seen[k]
 		fmt.Fprintf(os.Stderr, "  %s %s\n", k.method, k.path)
-		fmt.Fprintf(os.Stderr, "    Scans: %s\n", strings.Join(unique(scanTypes), ", "))
+		fmt.Fprintf(os.Stderr, "    Scans: %s\n", strings.Join(strutil.Unique(scanTypes), ", "))
 	}
 
 	fmt.Fprintln(os.Stderr)
@@ -347,18 +348,6 @@ func runSpecDryRun(plan *apispec.ScanPlan, endpoints []apispec.Endpoint, streamJ
 	os.Exit(0)
 }
 
-// unique deduplicates a string slice preserving order.
-func unique(ss []string) []string {
-	seen := make(map[string]bool, len(ss))
-	var result []string
-	for _, s := range ss {
-		if !seen[s] {
-			seen[s] = true
-			result = append(result, s)
-		}
-	}
-	return result
-}
 
 // runScannerForSpec runs a single scanner type against a spec endpoint URL.
 // This bridges the gap between spec-driven scanning and the existing

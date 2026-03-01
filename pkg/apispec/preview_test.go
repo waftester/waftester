@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 func TestRenderPreview_NilPlan(t *testing.T) {
@@ -187,10 +188,10 @@ func TestCountUniqueEndpoints(t *testing.T) {
 
 func TestDedupStrings(t *testing.T) {
 	t.Parallel()
-	result := dedupStrings([]string{"a", "b", "a", "c", "b"})
+	result := strutil.Unique([]string{"a", "b", "a", "c", "b"})
 	assert.Equal(t, []string{"a", "b", "c"}, result)
 
-	assert.Empty(t, dedupStrings(nil))
+	assert.Empty(t, strutil.Unique([]string(nil)))
 }
 
 func TestRenderPreview_NoReasons(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/discovery"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/payloads"
 )
 
@@ -346,7 +347,7 @@ func (l *Learner) categorizeEndpointAttacks(ep discovery.Endpoint) []string {
 		}
 	}
 
-	return unique(categories)
+	return strutil.Unique(categories)
 }
 
 // findInjectPoints identifies where to inject payloads
@@ -705,17 +706,6 @@ func buildPayloadURL(basePath string, point InjectPoint, payload string) string 
 	}
 }
 
-func unique(slice []string) []string {
-	seen := make(map[string]bool)
-	result := make([]string, 0)
-	for _, s := range slice {
-		if !seen[s] {
-			seen[s] = true
-			result = append(result, s)
-		}
-	}
-	return result
-}
 
 func isUUID(s string) bool {
 	// Simple UUID pattern check

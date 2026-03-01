@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // TestNewActiveDiscoverer tests ActiveDiscoverer creation
@@ -523,7 +525,7 @@ func TestHasExtension(t *testing.T) {
 // TestDedupe tests slice deduplication
 func TestDedupe(t *testing.T) {
 	input := []string{"a", "b", "a", "c", "b", "d"}
-	result := dedupe(input)
+	result := strutil.Unique(input)
 
 	if len(result) != 4 {
 		t.Errorf("expected 4 unique items, got %d", len(result))
