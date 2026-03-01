@@ -13,6 +13,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/finding"
+	"github.com/waftester/waftester/pkg/metrics"
 	detectionoutput "github.com/waftester/waftester/pkg/output/detection"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -436,22 +437,19 @@ func PrintSummary(results ExecutionResults) {
 	fmt.Println("\n" + strings.Repeat(ui.Icon("═", "="), 60))
 
 	// WAF effectiveness = Blocked / (Blocked + Failed)
-	// This measures what % of attack payloads were stopped by the WAF
-	attackTests := results.BlockedTests + results.FailedTests
-	if attackTests > 0 {
-		blockRate := float64(results.BlockedTests) / float64(attackTests) * 100
+	blockRate := metrics.CalcEffectiveness(results.BlockedTests, results.FailedTests)
+	if results.BlockedTests+results.FailedTests > 0 {
+		rating := metrics.RateEffectiveness(blockRate)
+		var colorCode string
 		switch {
-		case blockRate >= 99:
-			fmt.Printf("%s  WAF Effectiveness: %.1f%% - EXCELLENT%s\n", ansi("\033[32m"), blockRate, ansi("\033[0m"))
-		case blockRate >= 95:
-			fmt.Printf("%s  WAF Effectiveness: %.1f%% - GOOD%s\n", ansi("\033[32m"), blockRate, ansi("\033[0m"))
 		case blockRate >= 90:
-			fmt.Printf("%s  WAF Effectiveness: %.1f%% - FAIR%s\n", ansi("\033[33m"), blockRate, ansi("\033[0m"))
+			colorCode = "\033[32m" // green
 		case blockRate >= 80:
-			fmt.Printf("%s  WAF Effectiveness: %.1f%% - POOR%s\n", ansi("\033[33m"), blockRate, ansi("\033[0m"))
+			colorCode = "\033[33m" // yellow
 		default:
-			fmt.Printf("%s  WAF Effectiveness: %.1f%% - CRITICAL%s\n", ansi("\033[31m"), blockRate, ansi("\033[0m"))
+			colorCode = "\033[31m" // red
 		}
+		fmt.Printf("%s  WAF Effectiveness: %.1f%% - %s%s\n", ansi(colorCode), blockRate, strings.ToUpper(rating), ansi("\033[0m"))
 	}
 	fmt.Println()
 }

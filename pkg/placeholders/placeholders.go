@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/httputil"
 )
 
 func init() {
@@ -97,7 +98,7 @@ func (p *HeaderPlaceholder) Apply(ctx context.Context, targetURL, payload string
 	}
 
 	cfg := MergeConfig(config)
-	req.Header.Set(cfg.HeaderName, payload)
+	httputil.SetPayloadHeader(req, cfg.HeaderName, payload)
 	return req, nil
 }
 
@@ -111,7 +112,7 @@ func (p *UserAgentPlaceholder) Apply(ctx context.Context, targetURL, payload str
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", payload)
+	httputil.SetPayloadHeader(req, "User-Agent", payload)
 	return req, nil
 }
 
@@ -125,7 +126,7 @@ func (p *RefererPlaceholder) Apply(ctx context.Context, targetURL, payload strin
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Referer", payload)
+	httputil.SetPayloadHeader(req, "Referer", payload)
 	return req, nil
 }
 
@@ -271,7 +272,7 @@ func (p *XForwardedForPlaceholder) Apply(ctx context.Context, targetURL, payload
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("X-Forwarded-For", payload)
+	httputil.SetPayloadHeader(req, "X-Forwarded-For", payload)
 	return req, nil
 }
 
@@ -285,7 +286,7 @@ func (p *ContentTypePlaceholder) Apply(ctx context.Context, targetURL, payload s
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", payload)
+	httputil.SetPayloadHeader(req, "Content-Type", payload)
 	return req, nil
 }
 
