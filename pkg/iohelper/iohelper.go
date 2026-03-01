@@ -3,9 +3,38 @@
 package iohelper
 
 import (
+	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
+	"os"
 )
+
+// WriteAtomic writes data to path atomically via a temp file + rename.
+// The caller is responsible for creating parent directories if needed.
+func WriteAtomic(path string, data []byte, perm os.FileMode) error {
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, perm); err != nil {
+		return fmt.Errorf("write temp file: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("rename temp file: %w", err)
+	}
+
+	return nil
+}
+
+// WriteAtomicJSON marshals v as indented JSON and writes it atomically to path.
+// The caller is responsible for creating parent directories if needed.
+func WriteAtomicJSON(path string, v any, perm os.FileMode) error {
+	data, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal json: %w", err)
+	}
+	return WriteAtomic(path, data, perm)
+}
 
 // Standard body size limits for different use cases
 const (

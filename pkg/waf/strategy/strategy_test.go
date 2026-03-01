@@ -1617,7 +1617,7 @@ func TestAppendUniqueStr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := appendUniqueStr(tt.slice, tt.items...)
+			result := appendUnique(tt.slice, tt.items...)
 
 			if len(result) != len(tt.expect) {
 				t.Errorf("Expected length %d, got %d", len(tt.expect), len(result))
@@ -1663,8 +1663,6 @@ func TestSortByFrequency_Empty(t *testing.T) {
 // =============================================================================
 // Test Helpers
 // =============================================================================
-
-
 
 func indexOf(slice []string, item string) int {
 	for i, s := range slice {

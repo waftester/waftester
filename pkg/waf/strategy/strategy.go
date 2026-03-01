@@ -506,8 +506,8 @@ func MergeStrategies(strategies ...*Strategy) *Strategy {
 
 		// Merge block signatures
 		merged.BlockStatusCodes = appendUnique(merged.BlockStatusCodes, s.BlockStatusCodes...)
-		merged.BlockPatterns = appendUniqueStr(merged.BlockPatterns, s.BlockPatterns...)
-		merged.BypassTips = appendUniqueStr(merged.BypassTips, s.BypassTips...)
+		merged.BlockPatterns = appendUnique(merged.BlockPatterns, s.BlockPatterns...)
+		merged.BypassTips = appendUnique(merged.BypassTips, s.BypassTips...)
 	}
 
 	// Sort by frequency (techniques effective against multiple WAFs first)
@@ -518,22 +518,8 @@ func MergeStrategies(strategies ...*Strategy) *Strategy {
 	return merged
 }
 
-func appendUnique(slice []int, items ...int) []int {
-	seen := make(map[int]bool)
-	for _, v := range slice {
-		seen[v] = true
-	}
-	for _, item := range items {
-		if !seen[item] {
-			slice = append(slice, item)
-			seen[item] = true
-		}
-	}
-	return slice
-}
-
-func appendUniqueStr(slice []string, items ...string) []string {
-	seen := make(map[string]bool)
+func appendUnique[T comparable](slice []T, items ...T) []T {
+	seen := make(map[T]bool, len(slice))
 	for _, v := range slice {
 		seen[v] = true
 	}

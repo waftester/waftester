@@ -13,6 +13,7 @@ import (
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 // Config configures security misconfiguration testing
@@ -128,7 +129,7 @@ func (s *Scanner) TestDebugEndpoints(ctx context.Context, baseURL string) ([]Res
 	results := make([]Result, 0)
 
 	for _, endpoint := range DebugEndpoints() {
-		fullURL := strings.TrimSuffix(baseURL, "/") + endpoint
+		fullURL := urlutil.JoinPath(baseURL, endpoint)
 		result := s.testEndpoint(ctx, fullURL, "debug_endpoint", endpoint)
 		results = append(results, result)
 	}
@@ -145,7 +146,7 @@ func (s *Scanner) TestDefaultCredentials(ctx context.Context, baseURL string) ([
 	results := make([]Result, 0)
 
 	for _, endpoint := range AdminEndpoints() {
-		fullURL := strings.TrimSuffix(baseURL, "/") + endpoint
+		fullURL := urlutil.JoinPath(baseURL, endpoint)
 		result := s.testEndpoint(ctx, fullURL, "admin_exposure", endpoint)
 		results = append(results, result)
 	}

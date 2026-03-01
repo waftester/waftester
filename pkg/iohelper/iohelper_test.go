@@ -2,9 +2,63 @@ package iohelper
 
 import (
 	"bytes"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestWriteAtomic(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.dat")
+
+	data := []byte("hello world")
+	if err := WriteAtomic(path, data, 0644); err != nil {
+		t.Fatalf("WriteAtomic: %v", err)
+	}
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if string(got) != "hello world" {
+		t.Errorf("expected 'hello world', got %q", got)
+	}
+
+	// Verify no temp file left behind
+	if _, err := os.Stat(path + ".tmp"); !os.IsNotExist(err) {
+		t.Error("temp file should not exist after successful write")
+	}
+}
+
+func TestWriteAtomicJSON(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.json")
+
+	type payload struct {
+		Name  string `json:"name"`
+		Count int    `json:"count"`
+	}
+	v := payload{Name: "test", Count: 42}
+
+	if err := WriteAtomicJSON(path, v, 0644); err != nil {
+		t.Fatalf("WriteAtomicJSON: %v", err)
+	}
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+
+	var loaded payload
+	if err := json.Unmarshal(got, &loaded); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if loaded.Name != "test" || loaded.Count != 42 {
+		t.Errorf("expected {test 42}, got %+v", loaded)
+	}
+}
 
 func TestReadBody_NilReader(t *testing.T) {
 	body, err := ReadBody(nil, DefaultMaxBodySize)
