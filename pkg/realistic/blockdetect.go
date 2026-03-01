@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -55,7 +56,7 @@ type BlockResult struct {
 // NewBlockDetector creates a detector with sensible defaults
 func NewBlockDetector() *BlockDetector {
 	return &BlockDetector{
-		BlockStatusCodes:    []int{403, 406, 429, 503},
+		BlockStatusCodes:    defaults.BlockedStatusCodes,
 		BlockKeywords:       DefaultBlockKeywords,
 		BlockPatterns:       compilePatterns(DefaultBlockPatterns),
 		BlockHeaders:        DefaultBlockHeaders,

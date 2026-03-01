@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 )
 
@@ -110,7 +111,7 @@ func (e *ExecutorEnhancer) IsBlocked(statusCode int, body string, headers http.H
 	result, err := e.Detector.DetectBlock(resp, 0)
 	if err != nil {
 		// Fall back to simple status check
-		return statusCode == 403 || statusCode == 406 || statusCode == 429 || statusCode == 503
+		return defaults.IsBlockedStatus(statusCode)
 	}
 
 	return result.IsBlocked
@@ -134,7 +135,7 @@ func (e *ExecutorEnhancer) GetBlockConfidence(statusCode int, body string, heade
 
 	result, err := e.Detector.DetectBlock(resp, 0)
 	if err != nil {
-		if statusCode == 403 || statusCode == 406 || statusCode == 429 || statusCode == 503 {
+		if defaults.IsBlockedStatus(statusCode) {
 			return 0.5
 		}
 		return 0.0

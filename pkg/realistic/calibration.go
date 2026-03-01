@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -179,7 +180,7 @@ func (c *Calibrator) executeRequest(ctx context.Context, req *http.Request) (*Sa
 		StatusCode: resp.StatusCode,
 		Latency:    latency,
 		BodyLength: int64(len(body)),
-		IsBlocked:  resp.StatusCode == 403 || resp.StatusCode == 406 || resp.StatusCode == 429 || resp.StatusCode == 503,
+		IsBlocked:  defaults.IsBlockedStatus(resp.StatusCode),
 	}
 
 	return sample, nil

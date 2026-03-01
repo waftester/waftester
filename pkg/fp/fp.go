@@ -287,8 +287,7 @@ func (t *Tester) executeTest(ctx context.Context, task TestTask) (blocked bool, 
 	statusCode = resp.StatusCode
 
 	// Check if blocked - these status codes indicate WAF block
-	blocked = statusCode == 403 || statusCode == 406 || statusCode == 429 ||
-		statusCode == 418 || statusCode == 503
+	blocked = defaults.IsBlockedStatus(statusCode)
 
 	return blocked, statusCode, respBody, nil
 }

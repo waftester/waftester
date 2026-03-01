@@ -693,8 +693,7 @@ func (a *Assessment) executeFPTest(ctx context.Context, payload corpus.Payload) 
 
 // isBlockedResponse determines if a response indicates WAF blocking
 func isBlockedResponse(statusCode int) bool {
-	return statusCode == 403 || statusCode == 406 || statusCode == 429 ||
-		statusCode == 418 || statusCode == 503 || statusCode == 400
+	return defaults.IsBlockedStatus(statusCode) || statusCode == 400
 }
 
 // SaveResults saves assessment results to a file
