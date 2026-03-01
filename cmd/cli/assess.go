@@ -18,6 +18,7 @@ import (
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/metrics"
 	detectionoutput "github.com/waftester/waftester/pkg/output/detection"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/templateresolver"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -333,15 +334,7 @@ func runAssess() {
 }
 
 func parseCorpusSourcesAssess(sources string) []string {
-	parts := strings.Split(sources, ",")
-	result := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			result = append(result, p)
-		}
-	}
-	return result
+	return strutil.SplitTrimmed(sources, ",")
 }
 
 func displayAssessmentResults(m *metrics.EnterpriseMetrics, duration time.Duration) {

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // TestVersion checks version constants
@@ -420,23 +421,22 @@ func TestFormatLatency(t *testing.T) {
 	}
 }
 
-// TestTruncateString tests truncateString helper
+// TestTruncateString tests strutil.Truncate via results.go usage
 func TestTruncateString(t *testing.T) {
 	tests := []struct {
-		input    string
-		maxLen   int
-		expected string
+		input  string
+		maxLen int
 	}{
-		{"short", 10, "short"},
-		{"exactly10!", 10, "exactly10!"},
-		{"this is a longer string", 10, "this is..."},
-		{"hello world and more", 15, "hello world ..."},
+		{"short", 10},
+		{"exactly10!", 10},
+		{"this is a longer string", 10},
+		{"hello world and more", 15},
 	}
 
 	for _, tt := range tests {
-		result := truncateString(tt.input, tt.maxLen)
+		result := strutil.Truncate(tt.input, tt.maxLen)
 		if len(result) > tt.maxLen {
-			t.Errorf("truncateString result too long: %d > %d", len(result), tt.maxLen)
+			t.Errorf("strutil.Truncate result too long: %d > %d", len(result), tt.maxLen)
 		}
 	}
 }

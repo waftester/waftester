@@ -10,6 +10,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/discovery/wordlists"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // fingerprintTechnology detects the technology stack and sets up wildcard detection
@@ -427,9 +428,8 @@ func (ad *ActiveDiscoverer) probeOptions(ctx context.Context, path string) {
 		return
 	}
 
-	for _, method := range strings.Split(allow, ",") {
-		method = strings.TrimSpace(method)
-		if method == "" || method == "GET" || method == "OPTIONS" || method == "HEAD" {
+	for _, method := range strutil.SplitTrimmed(allow, ",") {
+		if method == "GET" || method == "OPTIONS" || method == "HEAD" {
 			continue
 		}
 		ad.found.Store(path, true)

@@ -434,25 +434,25 @@ func (t *TechDetector) AddCustomFingerprint(fp CustomFingerprint) {
 	}
 
 	for k, v := range fp.Headers {
-		if re, err := regexp.Compile(v); err == nil {
+		if re, err := regexcache.Get(v); err == nil {
 			sig.headers[k] = re
 		}
 	}
 
 	for _, pattern := range fp.HTML {
-		if re, err := regexp.Compile(pattern); err == nil {
+		if re, err := regexcache.Get(pattern); err == nil {
 			sig.html = append(sig.html, re)
 		}
 	}
 
 	for _, pattern := range fp.Scripts {
-		if re, err := regexp.Compile(pattern); err == nil {
+		if re, err := regexcache.Get(pattern); err == nil {
 			sig.scripts = append(sig.scripts, re)
 		}
 	}
 
 	for k, v := range fp.Meta {
-		if re, err := regexp.Compile(v); err == nil {
+		if re, err := regexcache.Get(v); err == nil {
 			sig.meta[k] = re
 		}
 	}

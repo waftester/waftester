@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 // SecurityHeaders contains extracted security header information
@@ -526,8 +527,7 @@ func ExtractDomainsFromCSP(csp string) []string {
 
 	for _, m := range matches {
 		// Clean up
-		m = strings.TrimPrefix(m, "https://")
-		m = strings.TrimPrefix(m, "http://")
+		m = urlutil.StripScheme(m)
 		m = strings.TrimSuffix(m, "/")
 		m = strings.ToLower(m)
 		domains[m] = true

@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/waftester/waftester/pkg/detection"
@@ -16,6 +15,7 @@ import (
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
 	"github.com/waftester/waftester/pkg/output/policy"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/templateresolver"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -415,15 +415,7 @@ func (o *OutputFlags) ToConfig() output.Config {
 	}
 
 	// Parse history tags from comma-separated string
-	var historyTags []string
-	if o.HistoryTags != "" {
-		for _, t := range strings.Split(o.HistoryTags, ",") {
-			t = strings.TrimSpace(t)
-			if t != "" {
-				historyTags = append(historyTags, t)
-			}
-		}
-	}
+	historyTags := strutil.SplitTrimmed(o.HistoryTags, ",")
 
 	return output.Config{
 		OutputFile:            o.OutputFile,

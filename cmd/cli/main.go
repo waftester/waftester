@@ -21,6 +21,7 @@ import (
 	_ "github.com/waftester/waftester/pkg/mutation/protocol"
 	"github.com/waftester/waftester/pkg/payloads"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -391,11 +392,7 @@ func buildFilterConfig(cfg *config.Config) *core.FilterConfig {
 // parseIntList parses comma-separated integers (e.g., "200,403,500")
 func parseIntList(s string) []int {
 	var result []int
-	for _, part := range strings.Split(s, ",") {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
+	for _, part := range strutil.SplitTrimmed(s, ",") {
 		if n, err := strconv.Atoi(part); err == nil {
 			result = append(result, n)
 		}

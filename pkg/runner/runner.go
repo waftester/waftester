@@ -16,6 +16,7 @@ import (
 	"github.com/waftester/waftester/pkg/hosterrors"
 	"github.com/waftester/waftester/pkg/ratelimit"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 // Result represents the result of processing a single target
@@ -485,8 +486,7 @@ func extractHostUncached(target string) string {
 	}
 
 	// Fallback: strip scheme and path
-	host := strings.TrimPrefix(target, "https://")
-	host = strings.TrimPrefix(host, "http://")
+	host := urlutil.StripScheme(target)
 	host = strings.Split(host, "/")[0]
 	host = strings.Split(host, ":")[0]
 	return host
