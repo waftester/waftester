@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -320,8 +321,7 @@ func (d *Detector) behavioralAnalysis(ctx context.Context, target string, result
 		iohelper.DrainAndClose(resp.Body)
 
 		// Check if behavior matches expectation
-		isBlocked := resp.StatusCode == 403 || resp.StatusCode == 406 ||
-			resp.StatusCode == 418 || resp.StatusCode == 429 || resp.StatusCode == 503
+		isBlocked := defaults.IsBlockedStatus(resp.StatusCode)
 
 		if isBlocked && test.expectBlock {
 			result.Evidence = append(result.Evidence, Evidence{
