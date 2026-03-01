@@ -237,8 +237,7 @@ func (d *Detector) activeDetection(ctx context.Context, target string, result *D
 		iohelper.DrainAndClose(resp.Body) // Drain remainder after ReadBody; defer not needed here — no early returns
 
 		// Check for WAF block indicators
-		if resp.StatusCode == 403 || resp.StatusCode == 406 || resp.StatusCode == 418 ||
-			resp.StatusCode == 429 || resp.StatusCode == 503 {
+		if defaults.IsBlockedStatus(resp.StatusCode) {
 			result.Evidence = append(result.Evidence, Evidence{
 				Type:       "status",
 				Source:     attack.name,
