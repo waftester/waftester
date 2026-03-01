@@ -16,6 +16,7 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/httputil"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -385,7 +386,7 @@ func (t *Tester) TestHeader(ctx context.Context, targetURL string, headerName st
 
 		// Try to inject via header (Note: Go HTTP client sanitizes these)
 		// This is mainly for documentation/awareness
-		req.Header.Set(headerName, "test"+payload.Value)
+		httputil.SetPayloadHeader(req, headerName, "test"+payload.Value)
 
 		resp, err := t.client.Do(req)
 		if err != nil {

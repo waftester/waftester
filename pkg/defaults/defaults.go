@@ -470,14 +470,23 @@ const (
 // but the default status-code check should always delegate here.
 // ============================================================================
 
-// BlockedStatusCodes is the canonical set of HTTP status codes indicating
+// blockedStatusCodes is the canonical set of HTTP status codes indicating
 // a WAF block. Sorted for readability:
 //   - 403 Forbidden: standard WAF block response
 //   - 406 Not Acceptable: used by ModSecurity and similar WAFs
 //   - 418 I'm a Teapot: used by Cloudflare and other CDN WAFs
 //   - 429 Too Many Requests: rate limiting / anti-automation
 //   - 503 Service Unavailable: used by AWS WAF, Akamai, etc.
-var BlockedStatusCodes = []int{403, 406, 418, 429, 503}
+var blockedStatusCodes = []int{403, 406, 418, 429, 503}
+
+// BlockedStatusCodes returns a copy of the canonical blocked status codes
+// slice. Returning a copy prevents callers from mutating the package-level
+// default, which would silently affect every other consumer.
+func BlockedStatusCodes() []int {
+	out := make([]int, len(blockedStatusCodes))
+	copy(out, blockedStatusCodes)
+	return out
+}
 
 // IsBlockedStatus returns true if the HTTP status code is in the canonical
 // set of WAF block indicators. This replaces scattered inline checks like:
@@ -487,7 +496,7 @@ var BlockedStatusCodes = []int{403, 406, 418, 429, 503}
 // For more sophisticated detection (body patterns, headers, confidence
 // scoring), use pkg/realistic.BlockDetector instead.
 func IsBlockedStatus(statusCode int) bool {
-	for _, code := range BlockedStatusCodes {
+	for _, code := range blockedStatusCodes {
 		if statusCode == code {
 			return true
 		}
