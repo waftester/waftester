@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/waftester/waftester/pkg/httputil"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/requestpool"
 )
 
@@ -187,11 +188,7 @@ func buildBody(ep Endpoint, target InjectionTarget, payload string) string {
 	rb, ok := ep.RequestBodies[ct]
 	if !ok {
 		// Deterministic fallback: sort content types alphabetically.
-		keys := make([]string, 0, len(ep.RequestBodies))
-		for k := range ep.RequestBodies {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
+		keys := strutil.SortedMapKeys(ep.RequestBodies)
 		if len(keys) > 0 {
 			ct = keys[0]
 			rb = ep.RequestBodies[ct]
@@ -422,11 +419,7 @@ func needsBody(method string) bool {
 // defaultContentType returns the first content type from the endpoint's request
 // bodies, falling back to application/json.
 func defaultContentType(ep Endpoint) string {
-	keys := make([]string, 0, len(ep.RequestBodies))
-	for k := range ep.RequestBodies {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
+	keys := strutil.SortedMapKeys(ep.RequestBodies)
 	if len(keys) > 0 {
 		return keys[0]
 	}

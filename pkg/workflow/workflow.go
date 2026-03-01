@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/retry"
+	"github.com/waftester/waftester/pkg/strutil"
 	"gopkg.in/yaml.v3"
 )
 
@@ -550,11 +551,7 @@ func generateMatrixCombinations(matrix map[string][]string) []map[string]string 
 	}
 
 	// Get keys in consistent order
-	keys := make([]string, 0, len(matrix))
-	for k := range matrix {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
+	keys := strutil.SortedMapKeys(matrix)
 
 	// Generate all combinations
 	var result []map[string]string

@@ -18,6 +18,7 @@ import (
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/httputil"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -198,7 +199,7 @@ func (t *Tester) TestDoubleSubmit(ctx context.Context, request *RequestConfig, n
 	var successResponses []*Response
 
 	for _, resp := range responses {
-		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		if httputil.IsSuccess(resp.StatusCode) {
 			successCount++
 			successResponses = append(successResponses, resp)
 		}
@@ -235,7 +236,7 @@ func (t *Tester) TestTokenReuse(ctx context.Context, request *RequestConfig, num
 	failCount := 0
 
 	for _, resp := range responses {
-		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		if httputil.IsSuccess(resp.StatusCode) {
 			successCount++
 		} else if resp.StatusCode >= 400 {
 			failCount++
@@ -274,7 +275,7 @@ func (t *Tester) TestLimitBypass(ctx context.Context, request *RequestConfig, nu
 	for _, resp := range responses {
 		if resp.StatusCode == 429 {
 			rateLimitedCount++
-		} else if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		} else if httputil.IsSuccess(resp.StatusCode) {
 			successCount++
 		}
 	}
@@ -322,7 +323,7 @@ func (t *Tester) TestSequential(ctx context.Context, checkRequest *RequestConfig
 			time.Sleep(time.Microsecond)
 			resp, err := t.sendRequest(ctx, useRequest)
 			if err == nil && resp != nil {
-				if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+				if httputil.IsSuccess(resp.StatusCode) {
 					atomic.AddInt32(&successCount, 1)
 				}
 				iohelper.DrainAndClose(resp.Body)

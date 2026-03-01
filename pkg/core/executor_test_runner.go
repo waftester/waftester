@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 
@@ -18,6 +17,8 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/hosterrors"
+	"github.com/waftester/waftester/pkg/strutil"
+	"github.com/waftester/waftester/pkg/httputil"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/output"
 	"github.com/waftester/waftester/pkg/payloads"
@@ -278,7 +279,7 @@ retryLoop:
 	result.ContentLength = bodyBuf.Len()
 
 	// Capture baseline for detection AFTER body is read so ContentLength is accurate
-	if e.detector != nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
+	if e.detector != nil && httputil.IsSuccess(resp.StatusCode) {
 		e.detector.CaptureBaseline(e.config.TargetURL, resp, time.Duration(result.LatencyMs)*time.Millisecond, result.ContentLength)
 	}
 
@@ -331,7 +332,7 @@ retryLoop:
 	// Determine outcome based on detection and expectations
 	if isBlocked {
 		result.Outcome = "Blocked"
-	} else if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+	} else if httputil.IsSuccess(resp.StatusCode) {
 		if payload.ExpectedBlock {
 			result.Outcome = "Fail" // Should have been blocked!
 			// Generate curl command for bypass reproduction
@@ -400,11 +401,7 @@ func generateCurlCommand(req *http.Request) string {
 		return ""
 	}
 	cmd := fmt.Sprintf("curl -X %s '%s'", req.Method, req.URL.String())
-	keys := make([]string, 0, len(req.Header))
-	for k := range req.Header {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
+	keys := strutil.SortedMapKeys(req.Header)
 	for _, k := range keys {
 		v := req.Header[k]
 		if len(v) > 0 && k != "User-Agent" {

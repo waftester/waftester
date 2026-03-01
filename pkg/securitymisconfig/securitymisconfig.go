@@ -12,6 +12,7 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/httputil"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/urlutil"
 )
@@ -184,7 +185,7 @@ func (s *Scanner) testEndpoint(ctx context.Context, url, testType, endpoint stri
 	result.StatusCode = resp.StatusCode
 
 	// Check if endpoint is accessible
-	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
+	if httputil.IsSuccessOrRedirect(resp.StatusCode) {
 		result.Vulnerable = true
 		result.Evidence = "Endpoint accessible: " + endpoint
 		result.Severity = finding.High
