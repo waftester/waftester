@@ -5,6 +5,7 @@ package intelligence
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"time"
@@ -526,11 +527,11 @@ func (w *WAFBehaviorModel) Export() *WAFModelState {
 	defer w.mu.RUnlock()
 
 	return &WAFModelState{
-		BlockPatterns:     copyStringIntMap(w.blockPatterns),
-		BypassPatterns:    copyStringIntMap(w.bypassPatterns),
-		CategoryBlock:     copyStringIntMap(w.categoryBlock),
-		CategoryBypass:    copyStringIntMap(w.categoryBypass),
-		StatusCodes:       copyIntIntMap(w.statusCodes),
+		BlockPatterns:     maps.Clone(w.blockPatterns),
+		BypassPatterns:    maps.Clone(w.bypassPatterns),
+		CategoryBlock:     maps.Clone(w.categoryBlock),
+		CategoryBypass:    maps.Clone(w.categoryBypass),
+		StatusCodes:       maps.Clone(w.statusCodes),
 		AvgBlockedLatency: int64(w.avgBlockedLatency),
 		AvgBypassLatency:  int64(w.avgBypassLatency),
 		BlockedCount:      w.blockedCount,
@@ -545,11 +546,11 @@ func (w *WAFBehaviorModel) Import(state *WAFModelState) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	w.blockPatterns = copyStringIntMap(state.BlockPatterns)
-	w.bypassPatterns = copyStringIntMap(state.BypassPatterns)
-	w.categoryBlock = copyStringIntMap(state.CategoryBlock)
-	w.categoryBypass = copyStringIntMap(state.CategoryBypass)
-	w.statusCodes = copyIntIntMap(state.StatusCodes)
+	w.blockPatterns = cloneMap(state.BlockPatterns)
+	w.bypassPatterns = cloneMap(state.BypassPatterns)
+	w.categoryBlock = cloneMap(state.CategoryBlock)
+	w.categoryBypass = cloneMap(state.CategoryBypass)
+	w.statusCodes = cloneMap(state.StatusCodes)
 	w.avgBlockedLatency = time.Duration(state.AvgBlockedLatency)
 	w.avgBypassLatency = time.Duration(state.AvgBypassLatency)
 	w.blockedCount = state.BlockedCount
@@ -586,7 +587,7 @@ func (t *TechProfile) Export() *TechProfileState {
 		Databases:  append([]TechInfo{}, t.databases...),
 		Servers:    append([]TechInfo{}, t.servers...),
 		Languages:  append([]TechInfo{}, t.languages...),
-		Scores:     copyStringFloatMap(t.scores),
+		Scores:     maps.Clone(t.scores),
 	}
 }
 
@@ -599,7 +600,7 @@ func (t *TechProfile) Import(state *TechProfileState) {
 	t.databases = append([]TechInfo{}, state.Databases...)
 	t.servers = append([]TechInfo{}, state.Servers...)
 	t.languages = append([]TechInfo{}, state.Languages...)
-	t.scores = copyStringFloatMap(state.Scores)
+	t.scores = cloneMap(state.Scores)
 }
 
 // Reset clears TechProfile state
@@ -626,16 +627,16 @@ func (p *Predictor) Export() *PredictorState {
 	}
 
 	return &PredictorState{
-		CategorySuccessRate:  copyStringFloatMap(p.categorySuccessRate),
-		CategoryObservations: copyStringIntMap(p.categoryObservations),
-		EncodingSuccessRate:  copyStringFloatMap(p.encodingSuccessRate),
-		EncodingObservations: copyStringIntMap(p.encodingObservations),
-		PatternSuccessRate:   copyStringFloatMap(p.patternSuccessRate),
-		PatternObservations:  copyStringIntMap(p.patternObservations),
-		EndpointSuccessRate:  copyStringFloatMap(p.endpointSuccessRate),
+		CategorySuccessRate:  maps.Clone(p.categorySuccessRate),
+		CategoryObservations: maps.Clone(p.categoryObservations),
+		EncodingSuccessRate:  maps.Clone(p.encodingSuccessRate),
+		EncodingObservations: maps.Clone(p.encodingObservations),
+		PatternSuccessRate:   maps.Clone(p.patternSuccessRate),
+		PatternObservations:  maps.Clone(p.patternObservations),
+		EndpointSuccessRate:  maps.Clone(p.endpointSuccessRate),
 		StatusCodePatterns:   statusCodes,
-		LatencyThresholds:    copyStringFloatMap(p.latencyThresholds),
-		TechVulnerabilities:  copyStringFloatMap(p.techVulnerabilities),
+		LatencyThresholds:    maps.Clone(p.latencyThresholds),
+		TechVulnerabilities:  maps.Clone(p.techVulnerabilities),
 		TotalObservations:    p.totalObservations,
 	}
 }
@@ -645,15 +646,15 @@ func (p *Predictor) Import(state *PredictorState) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	p.categorySuccessRate = copyStringFloatMap(state.CategorySuccessRate)
-	p.categoryObservations = copyStringIntMap(state.CategoryObservations)
-	p.encodingSuccessRate = copyStringFloatMap(state.EncodingSuccessRate)
-	p.encodingObservations = copyStringIntMap(state.EncodingObservations)
-	p.patternSuccessRate = copyStringFloatMap(state.PatternSuccessRate)
-	p.patternObservations = copyStringIntMap(state.PatternObservations)
-	p.endpointSuccessRate = copyStringFloatMap(state.EndpointSuccessRate)
-	p.latencyThresholds = copyStringFloatMap(state.LatencyThresholds)
-	p.techVulnerabilities = copyStringFloatMap(state.TechVulnerabilities)
+	p.categorySuccessRate = cloneMap(state.CategorySuccessRate)
+	p.categoryObservations = cloneMap(state.CategoryObservations)
+	p.encodingSuccessRate = cloneMap(state.EncodingSuccessRate)
+	p.encodingObservations = cloneMap(state.EncodingObservations)
+	p.patternSuccessRate = cloneMap(state.PatternSuccessRate)
+	p.patternObservations = cloneMap(state.PatternObservations)
+	p.endpointSuccessRate = cloneMap(state.EndpointSuccessRate)
+	p.latencyThresholds = cloneMap(state.LatencyThresholds)
+	p.techVulnerabilities = cloneMap(state.TechVulnerabilities)
 
 	// Copy status code patterns
 	p.statusCodePatterns = make(map[int]float64, len(state.StatusCodePatterns))
@@ -700,7 +701,7 @@ func (ms *MutationStrategist) Export() *MutatorState {
 	return &MutatorState{
 		BlockPatternMutations: blockPatternMutations,
 		CategoryMutations:     categoryMutations,
-		EncodingEffectiveness: copyStringFloatMap(ms.encodingEffectiveness),
+		EncodingEffectiveness: maps.Clone(ms.encodingEffectiveness),
 		Observations:          ms.observations,
 	}
 }
@@ -720,7 +721,7 @@ func (ms *MutationStrategist) Import(state *MutatorState) {
 		ms.categoryMutations[k] = append([]MutationRecord{}, v...)
 	}
 
-	ms.encodingEffectiveness = copyStringFloatMap(state.EncodingEffectiveness)
+	ms.encodingEffectiveness = cloneMap(state.EncodingEffectiveness)
 	ms.observations = state.Observations
 }
 
@@ -750,7 +751,7 @@ func (ec *EndpointClusterer) Export() *ClustererState {
 			behaviorCopy = &ClusterBehavior{
 				AvgBlockRate:        v.Behavior.AvgBlockRate,
 				CommonStatusCodes:   append([]int{}, v.Behavior.CommonStatusCodes...),
-				BlockRateByCategory: copyStringFloatMap(v.Behavior.BlockRateByCategory),
+				BlockRateByCategory: maps.Clone(v.Behavior.BlockRateByCategory),
 				Variance:            v.Behavior.Variance,
 			}
 		}
@@ -776,8 +777,8 @@ func (ec *EndpointClusterer) Export() *ClustererState {
 	for k, v := range ec.endpointBehaviors {
 		behaviorCopy := &EndpointBehavior{
 			Path:            v.Path,
-			StatusCodes:     copyIntIntMap(v.StatusCodes),
-			BlockRates:      copyStringFloatMap(v.BlockRates),
+			StatusCodes:     maps.Clone(v.StatusCodes),
+			BlockRates:      maps.Clone(v.BlockRates),
 			AvgLatency:      v.AvgLatency,
 			Characteristics: append([]string{}, v.Characteristics...),
 			TotalRequests:   v.TotalRequests,
@@ -805,7 +806,7 @@ func (ec *EndpointClusterer) Import(state *ClustererState) {
 			behaviorCopy = &ClusterBehavior{
 				AvgBlockRate:        v.Behavior.AvgBlockRate,
 				CommonStatusCodes:   append([]int{}, v.Behavior.CommonStatusCodes...),
-				BlockRateByCategory: copyStringFloatMap(v.Behavior.BlockRateByCategory),
+				BlockRateByCategory: cloneMap(v.Behavior.BlockRateByCategory),
 				Variance:            v.Behavior.Variance,
 			}
 		}
@@ -829,8 +830,8 @@ func (ec *EndpointClusterer) Import(state *ClustererState) {
 	for k, v := range state.EndpointBehaviors {
 		ec.endpointBehaviors[k] = &EndpointBehavior{
 			Path:            v.Path,
-			StatusCodes:     copyIntIntMap(v.StatusCodes),
-			BlockRates:      copyStringFloatMap(v.BlockRates),
+			StatusCodes:     cloneMap(v.StatusCodes),
+			BlockRates:      cloneMap(v.BlockRates),
 			AvgLatency:      v.AvgLatency,
 			Characteristics: append([]string{}, v.Characteristics...),
 			TotalRequests:   v.TotalRequests,
@@ -944,11 +945,11 @@ func (s *Stats) Export() *StatsState {
 	}
 
 	return &StatsState{
-		FindingsByCategory: copyStringIntMap(s.findingsByCategory),
-		FindingsByPhase:    copyStringIntMap(s.findingsByPhase),
-		FindingsBySeverity: copyStringIntMap(s.findingsBySeverity),
-		BypassesByCategory: copyStringIntMap(s.bypassesByCategory),
-		BlocksByCategory:   copyStringIntMap(s.blocksByCategory),
+		FindingsByCategory: maps.Clone(s.findingsByCategory),
+		FindingsByPhase:    maps.Clone(s.findingsByPhase),
+		FindingsBySeverity: maps.Clone(s.findingsBySeverity),
+		BypassesByCategory: maps.Clone(s.bypassesByCategory),
+		BlocksByCategory:   maps.Clone(s.blocksByCategory),
 		PhaseDuration:      phaseDuration,
 		PhaseOrder:         append([]string{}, s.phaseOrder...),
 		StartTime:          s.startTime,
@@ -961,11 +962,11 @@ func (s *Stats) Import(state *StatsState) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.findingsByCategory = copyStringIntMap(state.FindingsByCategory)
-	s.findingsByPhase = copyStringIntMap(state.FindingsByPhase)
-	s.findingsBySeverity = copyStringIntMap(state.FindingsBySeverity)
-	s.bypassesByCategory = copyStringIntMap(state.BypassesByCategory)
-	s.blocksByCategory = copyStringIntMap(state.BlocksByCategory)
+	s.findingsByCategory = cloneMap(state.FindingsByCategory)
+	s.findingsByPhase = cloneMap(state.FindingsByPhase)
+	s.findingsBySeverity = cloneMap(state.FindingsBySeverity)
+	s.bypassesByCategory = cloneMap(state.BypassesByCategory)
+	s.blocksByCategory = cloneMap(state.BlocksByCategory)
 	s.phaseOrder = append([]string{}, state.PhaseOrder...)
 	s.startTime = state.StartTime
 	s.totalTime = time.Duration(state.TotalTime)
@@ -994,39 +995,12 @@ func (s *Stats) Reset() {
 	s.totalTime = 0
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// HELPER FUNCTIONS
-// ══════════════════════════════════════════════════════════════════════════════
-
-func copyStringIntMap(m map[string]int) map[string]int {
+// cloneMap returns a shallow clone of m. Unlike maps.Clone, it returns an
+// initialized (non-nil) empty map when m is nil, which is required by Import
+// methods whose fields may be written to after restore.
+func cloneMap[K comparable, V any](m map[K]V) map[K]V {
 	if m == nil {
-		return make(map[string]int)
+		return make(map[K]V)
 	}
-	result := make(map[string]int, len(m))
-	for k, v := range m {
-		result[k] = v
-	}
-	return result
-}
-
-func copyIntIntMap(m map[int]int) map[int]int {
-	if m == nil {
-		return make(map[int]int)
-	}
-	result := make(map[int]int, len(m))
-	for k, v := range m {
-		result[k] = v
-	}
-	return result
-}
-
-func copyStringFloatMap(m map[string]float64) map[string]float64 {
-	if m == nil {
-		return make(map[string]float64)
-	}
-	result := make(map[string]float64, len(m))
-	for k, v := range m {
-		result[k] = v
-	}
-	return result
+	return maps.Clone(m)
 }

@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -76,28 +77,12 @@ type smartModeCache struct {
 	StratRecommendedDepth   int      `json:"strategy_recommended_depth,omitempty"`
 }
 
-// copyStrings returns an independent copy of a string slice.
-func copyStrings(s []string) []string {
-	if s == nil {
-		return nil
-	}
-	return append([]string(nil), s...)
-}
-
-// copyInts returns an independent copy of an int slice.
-func copyInts(s []int) []int {
-	if s == nil {
-		return nil
-	}
-	return append([]int(nil), s...)
-}
-
 func newSmartModeCache(r *SmartModeResult) smartModeCache {
 	c := smartModeCache{
 		WAFDetected: r.WAFDetected,
 		VendorName:  r.VendorName,
 		Confidence:  r.Confidence,
-		BypassHints: copyStrings(r.BypassHints),
+		BypassHints: slices.Clone(r.BypassHints),
 		RateLimit:   r.RateLimit,
 		Concurrency: r.Concurrency,
 	}
@@ -105,17 +90,17 @@ func newSmartModeCache(r *SmartModeResult) smartModeCache {
 		c.StratVendor = string(r.Strategy.Vendor)
 		c.StratVendorName = r.Strategy.VendorName
 		c.StratConfidence = r.Strategy.Confidence
-		c.StratEncoders = copyStrings(r.Strategy.Encoders)
-		c.StratEvasions = copyStrings(r.Strategy.Evasions)
-		c.StratLocations = copyStrings(r.Strategy.Locations)
-		c.StratSkipIneffective = copyStrings(r.Strategy.SkipIneffectiveMutators)
-		c.StratPrioritizeMutators = copyStrings(r.Strategy.PrioritizeMutators)
-		c.StratBypassTips = copyStrings(r.Strategy.BypassTips)
+		c.StratEncoders = slices.Clone(r.Strategy.Encoders)
+		c.StratEvasions = slices.Clone(r.Strategy.Evasions)
+		c.StratLocations = slices.Clone(r.Strategy.Locations)
+		c.StratSkipIneffective = slices.Clone(r.Strategy.SkipIneffectiveMutators)
+		c.StratPrioritizeMutators = slices.Clone(r.Strategy.PrioritizeMutators)
+		c.StratBypassTips = slices.Clone(r.Strategy.BypassTips)
 		c.StratSafeRateLimit = r.Strategy.SafeRateLimit
 		c.StratBurstRateLimit = r.Strategy.BurstRateLimit
 		c.StratCooldownSeconds = r.Strategy.CooldownSeconds
-		c.StratBlockStatusCodes = copyInts(r.Strategy.BlockStatusCodes)
-		c.StratBlockPatterns = copyStrings(r.Strategy.BlockPatterns)
+		c.StratBlockStatusCodes = slices.Clone(r.Strategy.BlockStatusCodes)
+		c.StratBlockPatterns = slices.Clone(r.Strategy.BlockPatterns)
 		c.StratRecommendedDepth = r.Strategy.RecommendedMutationDepth
 	}
 	return c

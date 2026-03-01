@@ -846,15 +846,6 @@ func TestHelperFunctions(t *testing.T) {
 		}
 	})
 
-	t.Run("StrToInt", func(t *testing.T) {
-		if StrToInt("123") != 123 {
-			t.Error("StrToInt failed")
-		}
-		if StrToInt("invalid") != 0 {
-			t.Error("StrToInt should return 0 for invalid")
-		}
-	})
-
 	t.Run("extractEvidence", func(t *testing.T) {
 		long := strings.Repeat("a", 1000)
 		result := extractEvidence(long)

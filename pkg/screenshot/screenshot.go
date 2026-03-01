@@ -15,6 +15,7 @@ import (
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/urlutil"
 )
 
@@ -131,7 +132,7 @@ func (c *Capturer) CaptureURL(ctx context.Context, url string) (Result, error) {
 	}
 
 	// Generate filename
-	filename := sanitizeFilename(url) + "." + string(c.config.Format)
+	filename := strutil.SanitizeFilename(urlutil.StripScheme(url), 0) + "." + string(c.config.Format)
 	result.FilePath = filepath.Join(c.config.OutputDir, filename)
 
 	// Simulate screenshot capture (actual chromedp integration would go here)
@@ -355,32 +356,6 @@ func Compare(img1, img2 []byte) (ComparisonResult, error) {
 		Similarity: 1.0,
 		DiffPixels: 0,
 	}, nil
-}
-
-// Helper functions
-
-func sanitizeFilename(url string) string {
-	// Remove protocol
-	s := urlutil.StripScheme(url)
-
-	// Replace invalid characters
-	replacer := strings.NewReplacer(
-		"/", "_",
-		":", "_",
-		"?", "_",
-		"&", "_",
-		"=", "_",
-		"#", "_",
-		" ", "_",
-	)
-	s = replacer.Replace(s)
-
-	// Limit length
-	if len([]rune(s)) > 100 {
-		s = string([]rune(s)[:100])
-	}
-
-	return s
 }
 
 func generateMockImage(width, height int, format Format) ([]byte, error) {

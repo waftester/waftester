@@ -4,6 +4,7 @@ package intelligence
 
 import (
 	"context"
+	"maps"
 	"sort"
 	"sync"
 	"time"
@@ -443,11 +444,11 @@ func (wp *WAFProfiler) Export() *WAFProfilerState {
 
 	return &WAFProfilerState{
 		Fingerprint:      fpCopy,
-		CategoryBlocks:   copyStringIntMap(wp.categoryBlocks),
-		CategoryBypasses: copyStringIntMap(wp.categoryBypasses),
-		EncodingBlocks:   copyStringIntMap(wp.encodingBlocks),
-		EncodingBypasses: copyStringIntMap(wp.encodingBypasses),
-		StatusCodeDist:   copyIntIntMap(wp.statusCodeDist),
+		CategoryBlocks:   maps.Clone(wp.categoryBlocks),
+		CategoryBypasses: maps.Clone(wp.categoryBypasses),
+		EncodingBlocks:   maps.Clone(wp.encodingBlocks),
+		EncodingBypasses: maps.Clone(wp.encodingBypasses),
+		StatusCodeDist:   maps.Clone(wp.statusCodeDist),
 	}
 }
 
@@ -467,11 +468,11 @@ func (wp *WAFProfiler) Import(state *WAFProfilerState) {
 	defer wp.mu.Unlock()
 
 	wp.fingerprint = state.Fingerprint
-	wp.categoryBlocks = copyStringIntMap(state.CategoryBlocks)
-	wp.categoryBypasses = copyStringIntMap(state.CategoryBypasses)
-	wp.encodingBlocks = copyStringIntMap(state.EncodingBlocks)
-	wp.encodingBypasses = copyStringIntMap(state.EncodingBypasses)
-	wp.statusCodeDist = copyIntIntMap(state.StatusCodeDist)
+	wp.categoryBlocks = cloneMap(state.CategoryBlocks)
+	wp.categoryBypasses = cloneMap(state.CategoryBypasses)
+	wp.encodingBlocks = cloneMap(state.EncodingBlocks)
+	wp.encodingBypasses = cloneMap(state.EncodingBypasses)
+	wp.statusCodeDist = cloneMap(state.StatusCodeDist)
 }
 
 // Reset clears WAFProfiler state
@@ -493,8 +494,6 @@ func (wp *WAFProfiler) Reset() {
 	wp.encodingBypasses = make(map[string]int)
 }
 
-// copyIntIntMap is a helper to copy int→int maps (defined in persistence.go)
-// This is a forward declaration for use in this file
 
 // The Engine can integrate with WAFProfiler by adding a field:
 // wafProfiler *WAFProfiler

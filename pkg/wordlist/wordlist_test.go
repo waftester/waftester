@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 func TestNewManager(t *testing.T) {
@@ -471,7 +473,7 @@ func TestGetStats(t *testing.T) {
 
 func TestDeduplicate(t *testing.T) {
 	input := []string{"a", "b", "a", "c", "b", "d"}
-	result := deduplicate(input)
+	result := strutil.Unique(input)
 
 	if len(result) != 4 {
 		t.Errorf("expected 4 unique, got %d", len(result))
@@ -606,7 +608,7 @@ func TestSanitizeFilename(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := sanitizeFilename(tt.input)
+		result := strutil.SanitizeFilename(tt.input, 0)
 		// Just check it's safe, not exact match
 		if strings.ContainsAny(result, ":/\\?*\"<>|") {
 			t.Errorf("result '%s' contains unsafe chars", result)

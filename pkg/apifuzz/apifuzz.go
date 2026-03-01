@@ -13,7 +13,6 @@ import (
 	"net/url"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1109,8 +1108,4 @@ func Float64Ptr(f float64) *float64 {
 	return &f
 }
 
-// StrToInt converts string to int, returning 0 on error.
-func StrToInt(s string) int {
-	i, _ := strconv.Atoi(s)
-	return i
-}
+

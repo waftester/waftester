@@ -100,7 +100,7 @@ func (ad *ActiveDiscoverer) fingerprintTechnology(ctx context.Context) []string 
 	// Detect wildcard/404 baseline by requesting random non-existent paths
 	ad.detectWildcardBaseline(ctx)
 
-	return dedupe(detected)
+	return strutil.Unique(detected)
 }
 
 // detectWildcardBaseline probes random paths to establish 404/wildcard baseline

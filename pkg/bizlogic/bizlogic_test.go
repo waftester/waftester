@@ -454,15 +454,6 @@ func TestHelperFunctions(t *testing.T) {
 		}
 	})
 
-	t.Run("parseInt", func(t *testing.T) {
-		if parseInt("123") != 123 {
-			t.Error("expected 123")
-		}
-		if parseInt("0") != 0 {
-			t.Error("expected 0")
-		}
-	})
-
 	t.Run("isUUID", func(t *testing.T) {
 		if !isUUID("550e8400-e29b-41d4-a716-446655440000") {
 			t.Error("should be valid UUID")

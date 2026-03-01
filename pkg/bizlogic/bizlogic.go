@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +22,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -642,7 +642,7 @@ func GenerateIDVariations(id string) []string {
 
 	// Try numeric variations
 	if isNumeric(id) {
-		num := parseInt(id)
+		num := strutil.Atoi(id)
 		variations = append(variations,
 			fmt.Sprintf("%d", num+1),
 			fmt.Sprintf("%d", num-1),
@@ -812,13 +812,7 @@ func isNumeric(s string) bool {
 	return len(s) > 0
 }
 
-func parseInt(s string) int {
-	n, err := strconv.Atoi(s)
-	if err != nil {
-		return 0
-	}
-	return n
-}
+
 
 func isUUID(s string) bool {
 	uuidPattern := regexcache.MustGet(`^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$`)

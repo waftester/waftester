@@ -262,47 +262,7 @@ func parseCorpusSources(sources string) []string {
 	if sources == "all" {
 		return []string{"leipzig", "edge", "forms", "api", "tech", "intl"}
 	}
-	return splitAndTrim(sources, ",")
-}
-
-func splitAndTrim(s string, sep string) []string {
-	parts := make([]string, 0)
-	for _, p := range splitString(s, sep) {
-		p = trimString(p)
-		if p != "" {
-			parts = append(parts, p)
-		}
-	}
-	return parts
-}
-
-func splitString(s, sep string) []string {
-	if s == "" {
-		return nil
-	}
-	result := make([]string, 0)
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if i+len(sep) <= len(s) && s[i:i+len(sep)] == sep {
-			result = append(result, s[start:i])
-			start = i + len(sep)
-			i += len(sep) - 1
-		}
-	}
-	result = append(result, s[start:])
-	return result
-}
-
-func trimString(s string) string {
-	start := 0
-	end := len(s)
-	for start < end && (s[start] == ' ' || s[start] == '\t') {
-		start++
-	}
-	for end > start && (s[end-1] == ' ' || s[end-1] == '\t') {
-		end--
-	}
-	return s[start:end]
+	return strutil.SplitTrimmed(sources, ",")
 }
 
 func loadDynamicCorpus(tester *fp.Tester, filename string) error {
@@ -314,13 +274,7 @@ func loadDynamicCorpus(tester *fp.Tester, filename string) error {
 	var payloads []string
 	if err := json.Unmarshal(data, &payloads); err != nil {
 		// Try line-by-line format
-		lines := splitString(string(data), "\n")
-		for _, line := range lines {
-			line = trimString(line)
-			if line != "" {
-				payloads = append(payloads, line)
-			}
-		}
+		payloads = strutil.SplitTrimmed(string(data), "\n")
 	}
 
 	tester.GetCorpus().AddDynamicCorpus(payloads)

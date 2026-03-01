@@ -544,17 +544,6 @@ func hasExtension(path string) bool {
 	return strings.Contains(last, ".")
 }
 
-func dedupe(slice []string) []string {
-	seen := make(map[string]bool)
-	result := make([]string, 0, len(slice))
-	for _, s := range slice {
-		if !seen[s] {
-			seen[s] = true
-			result = append(result, s)
-		}
-	}
-	return result
-}
 
 func abs(x int) int {
 	if x < 0 {

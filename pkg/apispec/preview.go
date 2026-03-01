@@ -5,6 +5,8 @@ import (
 	"io"
 	"sort"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/strutil"
 	"time"
 )
 
@@ -179,7 +181,7 @@ func renderEndpointTable(w io.Writer, plan *ScanPlan, cfg PreviewConfig) {
 		g := groups[key]
 
 		// Deduplicate attacks.
-		uniqueAttacks := dedupStrings(g.attacks)
+		uniqueAttacks := strutil.Unique(g.attacks)
 
 		priLabel := priorityLabel(g.priority)
 		fmt.Fprintf(w, "    [%s] %s %s\n", priLabel, key.method, key.path)
@@ -261,17 +263,4 @@ func countUniqueCategories(plan *ScanPlan) int {
 		seen[e.Attack.Category] = true
 	}
 	return len(seen)
-}
-
-// dedupStrings returns unique values preserving order.
-func dedupStrings(ss []string) []string {
-	seen := make(map[string]bool, len(ss))
-	result := make([]string, 0, len(ss))
-	for _, s := range ss {
-		if !seen[s] {
-			seen[s] = true
-			result = append(result, s)
-		}
-	}
-	return result
 }
