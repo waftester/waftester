@@ -22,6 +22,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/strutil"
+	"github.com/waftester/waftester/pkg/urlutil"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -126,7 +127,7 @@ func (m *Manager) Load(source string) (*Wordlist, error) {
 	}
 
 	// Check if it's a URL
-	if strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "https://") {
+	if urlutil.IsHTTPURL(source) {
 		return m.loadFromURL(source)
 	}
 
@@ -872,7 +873,6 @@ type WordlistStats struct {
 }
 
 // Helper functions
-
 
 func detectWordlistType(path string, words []string) WordlistType {
 	name := strings.ToLower(filepath.Base(path))

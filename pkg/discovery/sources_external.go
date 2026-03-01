@@ -12,6 +12,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 // ==================== WAYBACK MACHINE ====================
@@ -303,7 +304,7 @@ func isSearchForm(form Form) bool {
 }
 
 func resolveURL(link, baseURL string) string {
-	if strings.HasPrefix(link, "http://") || strings.HasPrefix(link, "https://") {
+	if urlutil.IsHTTPURL(link) {
 		return link
 	}
 	if strings.HasPrefix(link, "//") {

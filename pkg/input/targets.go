@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 // TargetSource consolidates all target input methods
@@ -26,7 +28,7 @@ func (ts *TargetSource) GetTargets() ([]string, error) {
 			return
 		}
 		// Normalize: add https:// if no scheme
-		if !strings.HasPrefix(t, "http://") && !strings.HasPrefix(t, "https://") {
+		if !urlutil.IsHTTPURL(t) {
 			t = "https://" + t
 		}
 		if !seen[t] {

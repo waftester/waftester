@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -405,7 +404,7 @@ func ValidURL(url string) bool {
 	if url == "" {
 		return false
 	}
-	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+	if !urlutil.IsHTTPURL(url) {
 		return false
 	}
 	return true
