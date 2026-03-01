@@ -562,6 +562,9 @@ func runScan() {
 				targetPath = parsedTarget.Path
 			}
 			for _, disallowed := range robotsResult.DisallowedPaths {
+				if disallowed == "" {
+					continue
+				}
 				// Path-segment-aware match: /admin must not match
 				// /administrator. A disallowed path matches when the
 				// target equals it exactly, or is a sub-path (next
@@ -1627,6 +1630,9 @@ func runScan() {
 			target + "/query",
 		}
 		for _, endpoint := range graphqlEndpoints {
+			if ctx.Err() != nil {
+				return
+			}
 			tester := graphql.NewTester(endpoint, testerCfg)
 			scanResult, err := tester.FullScan(ctx)
 			if err == nil && scanResult != nil && len(scanResult.Vulnerabilities) > 0 {
@@ -2200,6 +2206,9 @@ func runScan() {
 		}
 		var allResults []idor.Result
 		for _, ep := range endpoints {
+			if ctx.Err() != nil {
+				break
+			}
 			results, err := scanner.ScanEndpoint(ctx, ep.path, ep.method)
 			if err != nil {
 				continue

@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math/rand/v2"
 	"net/http"
 	"os"
 	"strings"
@@ -208,7 +210,7 @@ func runCrawl() {
 			"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
 			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0",
 		}
-		effectiveUserAgent = userAgents[time.Now().UnixNano()%int64(len(userAgents))]
+		effectiveUserAgent = userAgents[rand.IntN(len(userAgents))]
 	}
 
 	cfg := &crawler.Config{
@@ -518,10 +520,19 @@ func runCrawl() {
 
 	// CSV output mode
 	if *outputCSV {
-		fmt.Println("url,status_code,content_type,title")
+		csvW := csv.NewWriter(os.Stdout)
+		csvW.Write([]string{"url", "status_code", "content_type", "title"})
 		for _, r := range crawlResults {
-			title := strings.ReplaceAll(r.Title, ",", " ")
-			fmt.Printf("%s,%d,%s,%s\n", r.URL, r.StatusCode, r.ContentType, title)
+			csvW.Write([]string{
+				r.URL,
+				fmt.Sprintf("%d", r.StatusCode),
+				r.ContentType,
+				r.Title,
+			})
+		}
+		csvW.Flush()
+		if csvErr := csvW.Error(); csvErr != nil {
+			ui.PrintWarning(fmt.Sprintf("CSV write error: %v", csvErr))
 		}
 		return
 	}

@@ -324,9 +324,12 @@ func (c *Client) doOnce(ctx context.Context, req *Request) (*Response, error) {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Apply browser profile headers
-	httpReq.Header.Set("User-Agent", c.profile.UserAgent)
-	for k, v := range c.profile.Headers {
+	// Apply browser profile headers (snapshot under lock to avoid race with SetProfile)
+	c.mu.Lock()
+	profile := c.profile
+	c.mu.Unlock()
+	httpReq.Header.Set("User-Agent", profile.UserAgent)
+	for k, v := range profile.Headers {
 		httpReq.Header.Set(k, v)
 	}
 
@@ -381,10 +384,13 @@ func (c *Client) doOnce(ctx context.Context, req *Request) (*Response, error) {
 	// Read body
 	var respBody []byte
 	if httpResp.Header.Get("Content-Encoding") == "gzip" {
-		gzr, err := gzip.NewReader(httpResp.Body)
-		if err == nil {
+		gzr, gzErr := gzip.NewReader(httpResp.Body)
+		if gzErr == nil {
 			defer gzr.Close() // Ensure closure even on panic
-			respBody, _ = iohelper.ReadBodyDefault(gzr)
+			respBody, gzErr = iohelper.ReadBodyDefault(gzr)
+			if gzErr != nil {
+				respBody = nil // Don't use partially decompressed data
+			}
 		}
 	}
 	if len(respBody) == 0 {
@@ -489,12 +495,18 @@ func (c *Client) ClearCookies() error {
 
 // SetCookie sets a cookie
 func (c *Client) SetCookie(u *url.URL, cookie *http.Cookie) {
-	c.cookieJar.SetCookies(u, []*http.Cookie{cookie})
+	c.mu.Lock()
+	jar := c.cookieJar
+	c.mu.Unlock()
+	jar.SetCookies(u, []*http.Cookie{cookie})
 }
 
 // Cookies returns cookies for a URL
 func (c *Client) Cookies(u *url.URL) []*http.Cookie {
-	return c.cookieJar.Cookies(u)
+	c.mu.Lock()
+	jar := c.cookieJar
+	c.mu.Unlock()
+	return jar.Cookies(u)
 }
 
 // Profile returns the current browser profile

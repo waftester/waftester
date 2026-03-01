@@ -154,6 +154,11 @@ func (s *Scanner) TestResourceExhaustion(ctx context.Context, targetURL string) 
 	results := make([]Result, 0)
 
 	for _, payload := range ResourceExhaustionPayloads() {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
 		result := s.testResourcePayload(ctx, targetURL, payload)
 		results = append(results, result)
 	}

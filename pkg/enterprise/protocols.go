@@ -727,8 +727,8 @@ func FormatProtocolReport(detected *DetectedProtocol, locations []Location) stri
 	if len(detected.Evidence) > 0 {
 		sb.WriteString("║  Evidence:                                                   ║\n")
 		for _, e := range detected.Evidence {
-			if len(e) > 56 {
-				e = e[:53] + "..."
+			if eRunes := []rune(e); len(eRunes) > 56 {
+				e = string(eRunes[:53]) + "..."
 			}
 			sb.WriteString(fmt.Sprintf("║    • %-56s ║\n", e))
 		}
@@ -740,8 +740,8 @@ func FormatProtocolReport(detected *DetectedProtocol, locations []Location) stri
 		sb.WriteString("╠══════════════════════════════════════════════════════════════╣\n")
 		for _, loc := range locations {
 			desc := loc.Description()
-			if len(desc) > 56 {
-				desc = desc[:53] + "..."
+			if descRunes := []rune(desc); len(descRunes) > 56 {
+				desc = string(descRunes[:53]) + "..."
 			}
 			sb.WriteString(fmt.Sprintf("║  → %-58s ║\n", desc))
 		}

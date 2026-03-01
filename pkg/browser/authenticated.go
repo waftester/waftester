@@ -909,8 +909,9 @@ func (s *AuthenticatedScanner) analyzeToken(key, value, location string) *Expose
 	}
 
 	// Truncate for display
-	if len(value) > 50 {
-		token.Value = value[:25] + "..." + value[len(value)-15:]
+	runes := []rune(value)
+	if len(runes) > 50 {
+		token.Value = string(runes[:25]) + "..." + string(runes[len(runes)-15:])
 	} else {
 		token.Value = value
 	}

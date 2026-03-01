@@ -283,7 +283,7 @@ func extractAttribute(html, attr string) []string {
 		if value != "" && value != "#" && !strings.HasPrefix(value, "javascript:") {
 			results = append(results, value)
 		}
-		remaining = remaining[endIdx:]
+		remaining = remaining[endIdx+1:]
 	}
 
 	// Also check single quotes
@@ -303,7 +303,7 @@ func extractAttribute(html, attr string) []string {
 		if value != "" && value != "#" && !strings.HasPrefix(value, "javascript:") {
 			results = append(results, value)
 		}
-		remaining = remaining[endIdx:]
+		remaining = remaining[endIdx+1:]
 	}
 
 	return results
