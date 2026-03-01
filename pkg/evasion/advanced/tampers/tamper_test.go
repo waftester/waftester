@@ -1,6 +1,7 @@
 package tampers
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -194,7 +195,7 @@ func TestBaseTamper(t *testing.T) {
 	assert.Equal(t, []string{"mysql", "postgres"}, base.Tags())
 
 	// Default TransformRequest returns nil
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://example.com", nil)
 	assert.Nil(t, base.TransformRequest(req))
 }
 

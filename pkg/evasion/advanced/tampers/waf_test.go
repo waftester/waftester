@@ -1,6 +1,7 @@
 package tampers
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -48,17 +49,17 @@ func TestLuanginxWAF(t *testing.T) {
 
 func TestXForwardedFor(t *testing.T) {
 	tamper := &XForwardedFor{}
-	
+
 	// Payload should pass through unchanged
 	result := tamper.Transform("test")
 	if result != "test" {
 		t.Errorf("XForwardedFor should not modify payload: %q", result)
 	}
-	
+
 	// Request should have headers added
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://example.com", nil)
 	req = tamper.TransformRequest(req)
-	
+
 	if req.Header.Get("X-Forwarded-For") == "" {
 		t.Error("X-Forwarded-For header should be set")
 	}
@@ -69,10 +70,10 @@ func TestXForwardedFor(t *testing.T) {
 
 func TestRandomUserAgent(t *testing.T) {
 	tamper := &RandomUserAgent{}
-	
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
+
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://example.com", nil)
 	req = tamper.TransformRequest(req)
-	
+
 	ua := req.Header.Get("User-Agent")
 	if ua == "" {
 		t.Error("User-Agent header should be set")

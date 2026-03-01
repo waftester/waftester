@@ -1,6 +1,7 @@
 package apispec
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -12,7 +13,7 @@ func TestResolveAuthCLIBearer(t *testing.T) {
 	t.Parallel()
 	authFn := ResolveAuth(nil, AuthConfig{BearerToken: "my-token"})
 
-	req, _ := http.NewRequest(http.MethodGet, "https://example.com", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.com", nil)
 	authFn(req)
 
 	assert.Equal(t, "Bearer my-token", req.Header.Get("Authorization"))
@@ -22,7 +23,7 @@ func TestResolveAuthCLIAPIKey(t *testing.T) {
 	t.Parallel()
 	authFn := ResolveAuth(nil, AuthConfig{APIKey: "key123"})
 
-	req, _ := http.NewRequest(http.MethodGet, "https://example.com", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.com", nil)
 	authFn(req)
 
 	assert.Equal(t, "key123", req.Header.Get("X-API-Key"))
@@ -32,7 +33,7 @@ func TestResolveAuthCLIAPIKeyCustomHeader(t *testing.T) {
 	t.Parallel()
 	authFn := ResolveAuth(nil, AuthConfig{APIKey: "key123", APIKeyHeader: "X-My-Key"})
 
-	req, _ := http.NewRequest(http.MethodGet, "https://example.com", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.com", nil)
 	authFn(req)
 
 	assert.Equal(t, "key123", req.Header.Get("X-My-Key"))
@@ -42,7 +43,7 @@ func TestResolveAuthCLIBasic(t *testing.T) {
 	t.Parallel()
 	authFn := ResolveAuth(nil, AuthConfig{BasicUser: "admin", BasicPass: "secret"})
 
-	req, _ := http.NewRequest(http.MethodGet, "https://example.com", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.com", nil)
 	authFn(req)
 
 	user, pass, ok := req.BasicAuth()
@@ -59,7 +60,7 @@ func TestResolveAuthCLICustomHeaders(t *testing.T) {
 		},
 	})
 
-	req, _ := http.NewRequest(http.MethodGet, "https://example.com", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.com", nil)
 	authFn(req)
 
 	assert.Equal(t, "secret-value", req.Header.Get("X-Custom-Auth"))
@@ -69,7 +70,7 @@ func TestResolveAuthCLIAuthHeader(t *testing.T) {
 	t.Parallel()
 	authFn := ResolveAuth(nil, AuthConfig{AuthHeader: "Token xyz"})
 
-	req, _ := http.NewRequest(http.MethodGet, "https://example.com", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.com", nil)
 	authFn(req)
 
 	assert.Equal(t, "Token xyz", req.Header.Get("Authorization"))
@@ -79,7 +80,7 @@ func TestResolveAuthNoAuth(t *testing.T) {
 	t.Parallel()
 	authFn := ResolveAuth(nil, AuthConfig{})
 
-	req, _ := http.NewRequest(http.MethodGet, "https://example.com", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.com", nil)
 	authFn(req)
 
 	assert.Empty(t, req.Header.Get("Authorization"))
@@ -93,7 +94,7 @@ func TestResolveAuthCLIOverridesSpec(t *testing.T) {
 	// CLI credentials should be used even when spec declares auth.
 	authFn := ResolveAuth(specSchemes, AuthConfig{BearerToken: "cli-token"})
 
-	req, _ := http.NewRequest(http.MethodGet, "https://example.com", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.com", nil)
 	authFn(req)
 
 	assert.Equal(t, "Bearer cli-token", req.Header.Get("Authorization"))
