@@ -15,6 +15,7 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/httputil"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -208,7 +209,7 @@ func (s *Scanner) TestPasswordPolicy(ctx context.Context, registerURL string) ([
 		result.ResponseSize = len(body)
 
 		// If password was accepted
-		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		if httputil.IsSuccess(resp.StatusCode) {
 			result.Vulnerable = true
 			result.Evidence = "Weak password accepted: " + pwd
 			result.Severity = finding.Medium

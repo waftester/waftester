@@ -14,6 +14,7 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/httputil"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -209,7 +210,7 @@ func (s *Scanner) testWithoutToken(ctx context.Context, url string, method strin
 	defer iohelper.DrainAndClose(resp.Body)
 
 	// If request succeeds (2xx or 3xx), might be vulnerable
-	return resp.StatusCode >= 200 && resp.StatusCode < 400
+	return httputil.IsSuccessOrRedirect(resp.StatusCode)
 }
 
 // checkSameSite checks the SameSite cookie attribute

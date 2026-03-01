@@ -25,6 +25,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/httputil"
 )
 
 // Algorithm represents JWT signing algorithms
@@ -1142,7 +1143,7 @@ func (s *Scanner) verifyToken(ctx context.Context, client *http.Client, target, 
 
 	// A 2xx response with a malicious token is a strong indicator.
 	// 401/403 means the server rejected it (expected/safe).
-	return resp.StatusCode >= 200 && resp.StatusCode < 300, nil
+	return httputil.IsSuccess(resp.StatusCode), nil
 }
 
 // isJWT checks if a string matches the JWT three-part base64url format.

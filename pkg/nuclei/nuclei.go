@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/ui"
@@ -748,11 +749,7 @@ func buildHeaderString(headers http.Header) string {
 	if len(headers) == 0 {
 		return ""
 	}
-	keys := make([]string, 0, len(headers))
-	for k := range headers {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
+	keys := strutil.SortedMapKeys(headers)
 	var buf bytes.Buffer
 	for _, k := range keys {
 		buf.WriteString(fmt.Sprintf("%s: %s\n", k, strings.Join(headers[k], ", ")))

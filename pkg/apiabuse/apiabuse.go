@@ -16,6 +16,7 @@ import (
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
+	"github.com/waftester/waftester/pkg/httputil"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
 
@@ -125,7 +126,7 @@ func (s *Scanner) TestRateLimiting(ctx context.Context, targetURL string, reques
 			result.RateLimited = true
 			break
 		}
-		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		if httputil.IsSuccess(resp.StatusCode) {
 			successCount++
 		}
 	}

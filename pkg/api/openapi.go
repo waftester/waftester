@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/regexcache"
 	"gopkg.in/yaml.v3"
 )
@@ -541,11 +542,7 @@ func (p *Parser) parseRequestBody(reqBody map[string]interface{}) *RequestBody {
 		if _, ok := content["application/json"]; ok {
 			ct = "application/json"
 		} else {
-			keys := make([]string, 0, len(content))
-			for k := range content {
-				keys = append(keys, k)
-			}
-			sort.Strings(keys)
+			keys := strutil.SortedMapKeys(content)
 			if len(keys) > 0 {
 				ct = keys[0]
 			}
@@ -751,11 +748,7 @@ func getExampleValue(p Parameter) string {
 
 func buildQueryString(params map[string]string) string {
 	var parts []string
-	keys := make([]string, 0, len(params))
-	for k := range params {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
+	keys := strutil.SortedMapKeys(params)
 	for _, k := range keys {
 		parts = append(parts, url.QueryEscape(k)+"="+url.QueryEscape(params[k]))
 	}
