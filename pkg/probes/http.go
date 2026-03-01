@@ -576,7 +576,8 @@ func (p *VHostProber) ProbeVHosts(ctx context.Context, targetIP string, port int
 
 // extractTitle extracts title from HTML
 func extractTitle(body []byte) string {
-	html := strings.ToLower(string(body))
+	original := string(body)
+	html := strings.ToLower(original)
 	start := strings.Index(html, "<title>")
 	if start == -1 {
 		return ""
@@ -588,7 +589,7 @@ func extractTitle(body []byte) string {
 		return ""
 	}
 
-	title := strings.TrimSpace(html[start : start+end])
+	title := strings.TrimSpace(original[start : start+end])
 	titleRunes := []rune(title)
 	if len(titleRunes) > 100 {
 		title = string(titleRunes[:100])

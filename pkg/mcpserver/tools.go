@@ -72,9 +72,22 @@ var sensitiveSubstrings = []string{
 	"access_token", "access_key", "access_secret",
 }
 
-// isSensitiveKey returns true if the lowercased key contains any sensitive substring.
+// sensitiveExactKeys are field names that are sensitive only as exact matches.
+// For example, "key" is a common name for API keys / secrets, but as a
+// substring it would false-positive on "keyboard", "monkey", "hotkey", etc.
+var sensitiveExactKeys = []string{
+	"key",
+}
+
+// isSensitiveKey returns true if the lowercased key contains any sensitive
+// substring, or matches an exact sensitive key name.
 func isSensitiveKey(key string) bool {
 	lower := strings.ToLower(key)
+	for _, exact := range sensitiveExactKeys {
+		if lower == exact {
+			return true
+		}
+	}
 	for _, sub := range sensitiveSubstrings {
 		if strings.Contains(lower, sub) {
 			return true

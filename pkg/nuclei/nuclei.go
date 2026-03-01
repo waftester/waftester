@@ -894,7 +894,7 @@ func matchRegex(patterns []string, content, condition string) bool {
 
 func matchStatus(statuses []int, code int, condition string) bool {
 	if len(statuses) == 0 {
-		return false
+		return true
 	}
 
 	if condition == "and" {
