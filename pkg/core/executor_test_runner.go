@@ -126,9 +126,8 @@ func (e *Executor) executeTest(ctx context.Context, payload payloads.Payload) *o
 			template.Method = method
 		}
 
-		req, err = e.enhancer.BuildRequestWithTemplate(payload.Payload, template)
+		req, err = e.enhancer.BuildRequestWithTemplate(ctx, payload.Payload, template)
 		if err == nil {
-			req = req.WithContext(ctx)
 			result.RequestURL = req.URL.String()
 		}
 	} else if method == "POST" && payload.ContentType != "" {

