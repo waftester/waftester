@@ -86,7 +86,7 @@ func (c *CensysClient) FetchSubdomains(ctx context.Context, domain string) ([]Re
 
 	var results []Result
 	for _, hit := range data.Result.Hits {
-		if strings.HasSuffix(hit.Name, domain) {
+		if hit.Name == domain || strings.HasSuffix(hit.Name, "."+domain) {
 			results = append(results, Result{
 				Source:    SourceCensys,
 				Type:      "subdomain",

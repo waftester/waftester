@@ -163,7 +163,7 @@ func TestConfig_RandomUA_Diversity(t *testing.T) {
 
 func TestConfig_RandomUA_Realistic(t *testing.T) {
 	// All random UAs must look like real browser strings.
-	for _, ua := range defaultUserAgents {
+	for _, ua := range DefaultUserAgents {
 		if !strings.Contains(ua, "Mozilla/5.0") {
 			t.Errorf("UA does not contain Mozilla/5.0: %s", ua)
 		}
