@@ -386,7 +386,7 @@ func (f ResponseFingerprint) IsSimilar(other ResponseFingerprint, threshold floa
 	if f.ContentLength == 0 && other.ContentLength == 0 {
 		score += 0.4
 	} else if f.ContentLength > 0 && other.ContentLength > 0 {
-		lenDiff := float64(abs64(f.ContentLength-other.ContentLength)) / float64(max64(f.ContentLength, other.ContentLength))
+		lenDiff := float64(abs64(f.ContentLength-other.ContentLength)) / float64(max(f.ContentLength, other.ContentLength))
 		if lenDiff < 0.1 { // Within 10%
 			score += 0.4
 		}
@@ -396,7 +396,7 @@ func (f ResponseFingerprint) IsSimilar(other ResponseFingerprint, threshold floa
 	if f.WordCount == 0 && other.WordCount == 0 {
 		score += 0.3
 	} else if f.WordCount > 0 && other.WordCount > 0 {
-		wordDiff := float64(absInt(f.WordCount-other.WordCount)) / float64(maxInt(f.WordCount, other.WordCount))
+		wordDiff := float64(absInt(f.WordCount-other.WordCount)) / float64(max(f.WordCount, other.WordCount))
 		if wordDiff < 0.1 {
 			score += 0.3
 		}
@@ -406,7 +406,7 @@ func (f ResponseFingerprint) IsSimilar(other ResponseFingerprint, threshold floa
 	if f.LineCount == 0 && other.LineCount == 0 {
 		score += 0.2
 	} else if f.LineCount > 0 && other.LineCount > 0 {
-		lineDiff := float64(absInt(f.LineCount-other.LineCount)) / float64(maxInt(f.LineCount, other.LineCount))
+		lineDiff := float64(absInt(f.LineCount-other.LineCount)) / float64(max(f.LineCount, other.LineCount))
 		if lineDiff < 0.1 {
 			score += 0.2
 		}
@@ -440,20 +440,6 @@ func abs64(x int64) int64 {
 		return -x
 	}
 	return x
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func max64(a, b int64) int64 {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 // ==================== WILDCARD/404 DETECTION ====================

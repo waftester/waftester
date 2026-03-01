@@ -629,7 +629,7 @@ func (apo *AttackPathOptimizer) GetAttackCategories() []CategoryPriority {
 		priorities = append(priorities, CategoryPriority{
 			Category:    cat,
 			TotalValue:  value,
-			SuccessRate: float64(categorySuccess[cat]) / float64(maxInt(1, categoryTotal[cat])),
+			SuccessRate: float64(categorySuccess[cat]) / float64(max(1, categoryTotal[cat])),
 			EdgeCount:   categoryTotal[cat],
 		})
 	}
