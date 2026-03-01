@@ -635,9 +635,10 @@ func (a *Analyzer) ExtractSubdomains(code string, baseDomain string) []string {
 		}
 
 		// Skip if it looks like a JS method call (followed by parenthesis)
-		idx := strings.Index(strings.ToLower(code), clean)
-		if idx >= 0 && idx+len(clean) < len(code) {
-			nextChars := code[idx+len(clean):]
+		codeLower := strings.ToLower(code)
+		idx := strings.Index(codeLower, clean)
+		if idx >= 0 && idx+len(clean) < len(codeLower) {
+			nextChars := codeLower[idx+len(clean):]
 			if len(nextChars) > 0 && (nextChars[0] == '(' || nextChars[0] == '[') {
 				continue
 			}
