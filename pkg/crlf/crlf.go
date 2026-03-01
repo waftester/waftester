@@ -22,17 +22,15 @@ import (
 )
 
 // crlfSanitizePatterns contains pre-compiled regexes for removing encoded CRLF sequences.
+// Longer patterns (CRLF pairs) are listed first so they match before individual CR/LF.
+// (?i) makes hex digits case-insensitive, so %0d also matches %0D.
 var crlfSanitizePatterns = []*regexp.Regexp{
-	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%0d")),
-	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%0D")),
-	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%0a")),
-	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%0A")),
-	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%0d%0a")),
-	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%0D%0A")),
-	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%250d")),
-	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%250a")),
-	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%250D")),
-	regexp.MustCompile("(?i)" + regexp.QuoteMeta("%250A")),
+	regexp.MustCompile(`(?i)%250d%250a`), // double-encoded CRLF pair
+	regexp.MustCompile(`(?i)%0d%0a`),     // CRLF pair
+	regexp.MustCompile(`(?i)%250d`),      // double-encoded CR
+	regexp.MustCompile(`(?i)%250a`),      // double-encoded LF
+	regexp.MustCompile(`(?i)%0d`),        // CR
+	regexp.MustCompile(`(?i)%0a`),        // LF
 }
 
 // VulnerabilityType represents the type of CRLF vulnerability
@@ -130,6 +128,14 @@ func DefaultConfig() *TesterConfig {
 func NewTester(config *TesterConfig) *Tester {
 	if config == nil {
 		config = DefaultConfig()
+	}
+
+	// Fill in defaults when callers provide a partial config
+	if len(config.TestParams) == 0 {
+		config.TestParams = DefaultConfig().TestParams
+	}
+	if len(config.TestHeaders) == 0 {
+		config.TestHeaders = DefaultConfig().TestHeaders
 	}
 
 	client := config.Client
@@ -488,6 +494,22 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*ScanResult, error
 		}
 
 		vulns, err := t.TestParameter(ctx, targetURL, param)
+		if err != nil {
+			continue
+		}
+		result.Vulnerabilities = append(result.Vulnerabilities, vulns...)
+		totalPayloads += len(payloads)
+	}
+
+	// Test each header
+	for _, header := range t.config.TestHeaders {
+		select {
+		case <-ctx.Done():
+			return result, ctx.Err()
+		default:
+		}
+
+		vulns, err := t.TestHeader(ctx, targetURL, header)
 		if err != nil {
 			continue
 		}

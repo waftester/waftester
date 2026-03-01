@@ -168,22 +168,24 @@ func (e *ExecutorEnhancer) selectTemplate(location InjectionLocation, method str
 	}
 }
 
-// AddTemplate adds a custom template for testing
+// AddTemplate adds a custom template for testing.
+// Safe for concurrent use with RotateTemplate.
 func (e *ExecutorEnhancer) AddTemplate(template *RequestTemplate) {
+	e.mu.Lock()
 	e.Templates = append(e.Templates, template)
+	e.mu.Unlock()
 }
 
 // RotateTemplate cycles through available templates.
 // Safe for concurrent use by multiple goroutines.
 func (e *ExecutorEnhancer) RotateTemplate() *RequestTemplate {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	if len(e.Templates) == 0 {
 		return DefaultTemplate("")
 	}
-
-	e.mu.Lock()
 	template := e.Templates[e.CurrentTemplateIdx]
 	e.CurrentTemplateIdx = (e.CurrentTemplateIdx + 1) % len(e.Templates)
-	e.mu.Unlock()
 	return template
 }
 
