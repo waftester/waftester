@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/finding"
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 )
 
@@ -410,12 +411,10 @@ func (db *Database) Save(path string) error {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	data, err := json.MarshalIndent(db, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal: %w", err)
+	if err := iohelper.WriteAtomicJSON(path, db, 0644); err != nil {
+		return fmt.Errorf("save false positive db: %w", err)
 	}
-
-	return os.WriteFile(path, data, 0644)
+	return nil
 }
 
 // Load loads the database from a file

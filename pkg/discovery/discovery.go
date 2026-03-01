@@ -695,7 +695,7 @@ func LoadResult(filename string) (*DiscoveryResult, error) {
 
 // File I/O helpers (platform-independent)
 func writeFile(filename string, data []byte) error {
-	return os.WriteFile(filename, data, 0644)
+	return iohelper.WriteAtomic(filename, data, 0644)
 }
 
 func readFile(filename string) ([]byte, error) {

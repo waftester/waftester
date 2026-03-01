@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // CorrelationTracker accumulates correlation records during a scan session.
@@ -111,13 +113,8 @@ func (ct *CorrelationTracker) ExportJSON(path string) error {
 	copy(records, ct.records)
 	ct.mu.Unlock()
 
-	data, err := json.MarshalIndent(records, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal correlations: %w", err)
-	}
-
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		return fmt.Errorf("write correlations: %w", err)
+	if err := iohelper.WriteAtomicJSON(path, records, 0o600); err != nil {
+		return fmt.Errorf("save correlations: %w", err)
 	}
 	return nil
 }

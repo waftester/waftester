@@ -613,6 +613,7 @@ func (a *Analyzer) ExtractSubdomains(code string, baseDomain string) []string {
 	candidates := subdomain.Extract(code, baseDomain)
 
 	// Apply JS-specific false positive filters
+	codeLower := strings.ToLower(code)
 	var filtered []string
 	for _, clean := range candidates {
 		// Skip JS object property access patterns (window.leave, document.body, etc.)
@@ -635,7 +636,6 @@ func (a *Analyzer) ExtractSubdomains(code string, baseDomain string) []string {
 		}
 
 		// Skip if it looks like a JS method call (followed by parenthesis)
-		codeLower := strings.ToLower(code)
 		idx := strings.Index(codeLower, clean)
 		if idx >= 0 && idx+len(clean) < len(codeLower) {
 			nextChars := codeLower[idx+len(clean):]
