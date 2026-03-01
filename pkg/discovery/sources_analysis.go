@@ -92,7 +92,7 @@ func ExtractS3Buckets(content string) []string {
 // Delegates to the shared subdomain package for consistent behavior
 // across discovery, crawler, and JS analyzer.
 func ExtractSubdomains(content string, baseDomain string) []string {
-	return subdomain.ExtractStrict(content, baseDomain)
+	return subdomain.Extract(content, baseDomain)
 }
 
 // ==================== DIRECTORY LISTING DETECTION ====================
