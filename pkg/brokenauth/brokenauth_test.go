@@ -217,6 +217,44 @@ func TestResult_Fields(t *testing.T) {
 	}
 }
 
+// TestSessionManagementDoesNotMutateSharedClient is a regression test for a
+// shared-client mutation bug. The old code did `client := s.client; client.Jar = jar`
+// which mutated the Scanner's shared http.Client (since it copied the pointer,
+// not the struct). The fix clones the struct: `cloned := *s.client; cloned.Jar = jar`.
+// This test fails if the fix is reverted because s.client.Jar would be non-nil
+// after calling TestSessionManagement.
+func TestSessionManagementDoesNotMutateSharedClient(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{
+			Name:  "session_token",
+			Value: "abc123def456abc123def456abc123def456",
+		})
+		w.WriteHeader(200)
+	}))
+	defer server.Close()
+
+	config := DefaultConfig()
+	scanner := NewScanner(config)
+
+	// Verify the shared client starts with no jar.
+	if scanner.client.Jar != nil {
+		t.Fatal("precondition: scanner.client.Jar should be nil before test")
+	}
+
+	_, err := scanner.TestSessionManagement(context.Background(), server.URL, url.Values{
+		"username": {"test"},
+		"password": {"test"},
+	})
+	if err != nil {
+		t.Fatalf("TestSessionManagement error: %v", err)
+	}
+
+	// After the call, the shared client must NOT have been mutated.
+	if scanner.client.Jar != nil {
+		t.Error("scanner.client.Jar was mutated by TestSessionManagement — shared client mutation regression")
+	}
+}
+
 func TestIsSessionCookie(t *testing.T) {
 	tests := []struct {
 		name     string

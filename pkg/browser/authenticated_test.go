@@ -659,6 +659,57 @@ func TestMatchesFocusPattern(t *testing.T) {
 	}
 }
 
+// TestAnalyzeTokenMultiByteTruncation is a regression test for a byte
+// truncation bug in analyzeToken. The old code used value[:25] which truncates
+// at byte offset 25, potentially splitting a multi-byte UTF-8 character and
+// producing an invalid string (or panicking). The fix uses []rune to truncate
+// at rune boundaries. This test passes a token made of Chinese characters
+// (3 bytes each) that would panic under the old byte-based truncation.
+func TestAnalyzeTokenMultiByteTruncation(t *testing.T) {
+	scanner := NewAuthenticatedScanner(&AuthConfig{
+		TargetURL: "https://example.com",
+	})
+
+	// 60 Chinese characters = 180 bytes, well over the 50 rune threshold.
+	// Under byte-based truncation, value[:25] would split a 3-byte char.
+	longMultiByteValue := "这是一个非常长的安全令牌值包含中文字符用于测试截断功能是否正确处理多字节字符不会导致程序崩溃或产生无效输出"
+
+	token := scanner.analyzeToken("auth_token", longMultiByteValue, "cookie")
+
+	// Should not panic (the test reaching here means no panic)
+
+	// The display value should be truncated (original is > 50 runes)
+	if token.Value == longMultiByteValue {
+		t.Error("token.Value should be truncated for display")
+	}
+
+	// The truncated value should contain "..."
+	if len(token.Value) > 0 {
+		found := false
+		for i := 0; i <= len(token.Value)-3; i++ {
+			if token.Value[i:i+3] == "..." {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("truncated token should contain '...'")
+		}
+	}
+
+	// The full value should be preserved
+	if token.FullValue != longMultiByteValue {
+		t.Error("token.FullValue should preserve the complete original value")
+	}
+
+	// The truncated string should be valid UTF-8
+	for _, r := range token.Value {
+		if r == 0xFFFD { // Unicode replacement character
+			t.Fatal("truncated token contains replacement character — byte-boundary corruption")
+		}
+	}
+}
+
 // Helper to parse URL for tests
 func mustParseURL(s string) *url.URL {
 	u, err := url.Parse(s)

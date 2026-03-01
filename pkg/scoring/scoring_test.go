@@ -551,6 +551,40 @@ func TestCalculateStatusCodeIgnored(t *testing.T) {
 	}
 }
 
+// TestCalculateMultiplePatternsDeterministic verifies that when multiple
+// sensitive patterns match, the EscalationReason is deterministic across runs.
+// This is a regression test for a map iteration non-determinism bug: without
+// sorting the sensitivePatterns keys, different runs could select different
+// "best" patterns due to Go's randomized map iteration order.
+func TestCalculateMultiplePatternsDeterministic(t *testing.T) {
+	// Build a response that matches multiple patterns with the SAME impact
+	// score. Patterns with Impact 4.0: "AWS_ACCESS_KEY_ID" and "-----BEGIN".
+	// When two patterns share the same impact, the tie-breaker is
+	// lexicographic key order, which only works if keys are sorted.
+	input := Input{
+		Severity:         "Medium",
+		Outcome:          "Fail",
+		ResponseContains: "AWS_ACCESS_KEY_ID=AKIA1234 and -----BEGIN RSA PRIVATE KEY-----",
+	}
+
+	first := Calculate(input)
+	if first.EscalationReason == "" {
+		t.Fatal("expected a non-empty EscalationReason from matching patterns")
+	}
+
+	for i := 1; i < 10; i++ {
+		result := Calculate(input)
+		if result.EscalationReason != first.EscalationReason {
+			t.Fatalf("non-deterministic EscalationReason on iteration %d: got %q, first was %q",
+				i, result.EscalationReason, first.EscalationReason)
+		}
+		if result.RiskScore != first.RiskScore {
+			t.Fatalf("non-deterministic RiskScore on iteration %d: got %.1f, first was %.1f",
+				i, result.RiskScore, first.RiskScore)
+		}
+	}
+}
+
 // TestCalculateCategoryIgnored verifies category doesn't affect score
 func TestCalculateCategoryIgnored(t *testing.T) {
 	// Category is in Input but not used in Calculate
