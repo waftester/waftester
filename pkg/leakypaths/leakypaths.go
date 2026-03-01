@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sort"
 	"net/http"
 	"regexp"
 	"strings"
@@ -303,7 +304,13 @@ var evidencePatterns = map[string]*regexp.Regexp{
 // extractEvidence finds specific sensitive data in responses
 func (s *Scanner) extractEvidence(body string, path PathEntry) string {
 	var evidence []string
-	for name, re := range evidencePatterns {
+	evidenceNames := make([]string, 0, len(evidencePatterns))
+	for name := range evidencePatterns {
+		evidenceNames = append(evidenceNames, name)
+	}
+	sort.Strings(evidenceNames)
+	for _, name := range evidenceNames {
+		re := evidencePatterns[name]
 		if matches := re.FindStringSubmatch(body); len(matches) > 0 {
 			evidence = append(evidence, fmt.Sprintf("%s found", name))
 		}

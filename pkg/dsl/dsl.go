@@ -471,8 +471,9 @@ func evaluateStatusCode(expr string, statusCode int) bool {
 		parts := strings.Split(expr, "==")
 		if len(parts) == 2 {
 			var val int
-			fmt.Sscanf(parts[1], "%d", &val)
-			return statusCode == val
+			if n, _ := fmt.Sscanf(parts[1], "%d", &val); n == 1 {
+				return statusCode == val
+			}
 		}
 	}
 
@@ -480,8 +481,9 @@ func evaluateStatusCode(expr string, statusCode int) bool {
 		parts := strings.Split(expr, ">=")
 		if len(parts) == 2 {
 			var val int
-			fmt.Sscanf(parts[1], "%d", &val)
-			return statusCode >= val
+			if n, _ := fmt.Sscanf(parts[1], "%d", &val); n == 1 {
+				return statusCode >= val
+			}
 		}
 	}
 
@@ -489,8 +491,9 @@ func evaluateStatusCode(expr string, statusCode int) bool {
 		parts := strings.Split(expr, "<=")
 		if len(parts) == 2 {
 			var val int
-			fmt.Sscanf(parts[1], "%d", &val)
-			return statusCode <= val
+			if n, _ := fmt.Sscanf(parts[1], "%d", &val); n == 1 {
+				return statusCode <= val
+			}
 		}
 	}
 
@@ -498,8 +501,9 @@ func evaluateStatusCode(expr string, statusCode int) bool {
 		parts := strings.Split(expr, ">")
 		if len(parts) == 2 {
 			var val int
-			fmt.Sscanf(parts[1], "%d", &val)
-			return statusCode > val
+			if n, _ := fmt.Sscanf(parts[1], "%d", &val); n == 1 {
+				return statusCode > val
+			}
 		}
 	}
 
@@ -507,8 +511,9 @@ func evaluateStatusCode(expr string, statusCode int) bool {
 		parts := strings.Split(expr, "<")
 		if len(parts) == 2 {
 			var val int
-			fmt.Sscanf(parts[1], "%d", &val)
-			return statusCode < val
+			if n, _ := fmt.Sscanf(parts[1], "%d", &val); n == 1 {
+				return statusCode < val
+			}
 		}
 	}
 

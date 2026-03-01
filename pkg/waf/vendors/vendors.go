@@ -192,7 +192,13 @@ func (d *VendorDetector) checkSignature(sig *WAFSignature, resp *http.Response, 
 		headers = sig.AttackHeaders
 	}
 
-	for headerName, pattern := range headers {
+	headerKeys := make([]string, 0, len(headers))
+	for h := range headers {
+		headerKeys = append(headerKeys, h)
+	}
+	sort.Strings(headerKeys)
+	for _, headerName := range headerKeys {
+		pattern := headers[headerName]
 		value := resp.Header.Get(headerName)
 		if value != "" && pattern.MatchString(value) {
 			confidence += 0.3

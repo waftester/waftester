@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"regexp"
 	"strings"
@@ -256,8 +257,6 @@ func (c *Checker) checkHTTP(ctx context.Context, check *Check, result *Result) (
 func (c *Checker) checkTCP(ctx context.Context, check *Check, result *Result) (*Result, error) {
 	start := time.Now()
 
-	// TCP check - just verify the endpoint format for now
-	// Full TCP implementation would use net.Dial
 	if !strings.Contains(check.Endpoint, ":") {
 		result.Status = StatusUnhealthy
 		result.Message = "invalid TCP endpoint format (expected host:port)"
@@ -265,9 +264,17 @@ func (c *Checker) checkTCP(ctx context.Context, check *Check, result *Result) (*
 		return result, nil
 	}
 
-	result.Status = StatusHealthy
-	result.Message = "TCP endpoint format valid"
+	dialer := &net.Dialer{Timeout: check.Timeout}
+	conn, dialErr := dialer.DialContext(ctx, "tcp", check.Endpoint)
 	result.Latency = time.Since(start)
+	if dialErr != nil {
+		result.Status = StatusUnhealthy
+		result.Message = fmt.Sprintf("TCP connection failed: %v", dialErr)
+		return result, nil
+	}
+	conn.Close()
+	result.Status = StatusHealthy
+	result.Message = "TCP connection successful"
 	return result, nil
 }
 
@@ -565,8 +572,11 @@ func (m *Monitor) run(ctx context.Context) {
 			return
 		case <-ticker.C:
 			results, _ := m.checker.CheckAll(ctx)
-			if m.onResult != nil {
-				m.onResult(results)
+			m.mu.Lock()
+			cb := m.onResult
+			m.mu.Unlock()
+			if cb != nil {
+				cb(results)
 			}
 		}
 	}
