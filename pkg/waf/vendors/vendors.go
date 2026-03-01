@@ -163,7 +163,7 @@ func (d *VendorDetector) Detect(ctx context.Context, target string) (*DetectionR
 	if bestConfidence > 0.3 && bestSignature != nil {
 		result.Detected = true
 		result.Vendor = bestSignature.ID
-		result.Confidence = minFloat(bestConfidence, 1.0)
+		result.Confidence = min(bestConfidence, 1.0)
 		result.VendorName = bestSignature.Name
 
 		// Add bypass hints and recommendations from signature
@@ -256,7 +256,7 @@ func (d *VendorDetector) checkSignature(sig *WAFSignature, resp *http.Response, 
 		confidence *= 1.2
 	}
 
-	return minFloat(confidence, 1.0), evidence
+	return min(confidence, 1.0), evidence
 }
 
 // makeAttackRequest sends a combined attack payload to trigger WAF
@@ -323,7 +323,7 @@ func (d *VendorDetector) detectCloudflare(resp *http.Response, body string) (flo
 		evidence = append(evidence, "Cloudflare challenge page")
 	}
 
-	return minFloat(confidence, 1.0), evidence
+	return min(confidence, 1.0), evidence
 }
 
 // Pre-compiled regexps for hot-path detection functions.
@@ -358,7 +358,7 @@ func (d *VendorDetector) detectAWSWAF(resp *http.Response, body string) (float64
 		evidence = append(evidence, "AWS WAF reference in body")
 	}
 
-	return minFloat(confidence, 1.0), evidence
+	return min(confidence, 1.0), evidence
 }
 
 func (d *VendorDetector) detectAzureWAF(resp *http.Response, body string) (float64, []string) {
@@ -385,7 +385,7 @@ func (d *VendorDetector) detectAzureWAF(resp *http.Response, body string) (float
 		evidence = append(evidence, "Azure Front Door block")
 	}
 
-	return minFloat(confidence, 1.0), evidence
+	return min(confidence, 1.0), evidence
 }
 
 func (d *VendorDetector) detectAkamai(resp *http.Response, body string) (float64, []string) {
@@ -414,7 +414,7 @@ func (d *VendorDetector) detectAkamai(resp *http.Response, body string) (float64
 		evidence = append(evidence, "Kona Site Defender signature")
 	}
 
-	return minFloat(confidence, 1.0), evidence
+	return min(confidence, 1.0), evidence
 }
 
 func (d *VendorDetector) detectModSecurity(resp *http.Response, body string) (float64, []string) {
@@ -442,7 +442,7 @@ func (d *VendorDetector) detectModSecurity(resp *http.Response, body string) (fl
 		}
 	}
 
-	return minFloat(confidence, 1.0), evidence
+	return min(confidence, 1.0), evidence
 }
 
 func (d *VendorDetector) detectImperva(resp *http.Response, body string) (float64, []string) {
@@ -465,7 +465,7 @@ func (d *VendorDetector) detectImperva(resp *http.Response, body string) (float6
 		evidence = append(evidence, "Incapsula signature in body")
 	}
 
-	return minFloat(confidence, 1.0), evidence
+	return min(confidence, 1.0), evidence
 }
 
 func (d *VendorDetector) detectF5BigIP(resp *http.Response, body string) (float64, []string) {
@@ -492,7 +492,7 @@ func (d *VendorDetector) detectF5BigIP(resp *http.Response, body string) (float6
 		evidence = append(evidence, "F5 support ID in response")
 	}
 
-	return minFloat(confidence, 1.0), evidence
+	return min(confidence, 1.0), evidence
 }
 
 func (d *VendorDetector) detectFortinet(resp *http.Response, body string) (float64, []string) {
@@ -515,7 +515,7 @@ func (d *VendorDetector) detectFortinet(resp *http.Response, body string) (float
 		evidence = append(evidence, "Fortinet block page")
 	}
 
-	return minFloat(confidence, 1.0), evidence
+	return min(confidence, 1.0), evidence
 }
 
 func (d *VendorDetector) detectBarracuda(resp *http.Response, body string) (float64, []string) {
@@ -534,7 +534,7 @@ func (d *VendorDetector) detectBarracuda(resp *http.Response, body string) (floa
 		evidence = append(evidence, "Barracuda block page")
 	}
 
-	return minFloat(confidence, 1.0), evidence
+	return min(confidence, 1.0), evidence
 }
 
 func (d *VendorDetector) detectSucuri(resp *http.Response, body string) (float64, []string) {
@@ -561,7 +561,7 @@ func (d *VendorDetector) detectSucuri(resp *http.Response, body string) (float64
 		evidence = append(evidence, "Sucuri reference in body")
 	}
 
-	return minFloat(confidence, 1.0), evidence
+	return min(confidence, 1.0), evidence
 }
 
 func (d *VendorDetector) detectWordfence(resp *http.Response, body string) (float64, []string) {
@@ -582,7 +582,7 @@ func (d *VendorDetector) detectWordfence(resp *http.Response, body string) (floa
 		evidence = append(evidence, "Wordfence block message")
 	}
 
-	return minFloat(confidence, 1.0), evidence
+	return min(confidence, 1.0), evidence
 }
 
 func (d *VendorDetector) detectFastly(resp *http.Response, body string) (float64, []string) {
@@ -603,7 +603,7 @@ func (d *VendorDetector) detectFastly(resp *http.Response, body string) (float64
 		evidence = append(evidence, "Fastly X-Timer header")
 	}
 
-	return minFloat(confidence, 1.0), evidence
+	return min(confidence, 1.0), evidence
 }
 
 func (d *VendorDetector) detectCloudArmor(resp *http.Response, body string) (float64, []string) {
@@ -626,7 +626,7 @@ func (d *VendorDetector) detectCloudArmor(resp *http.Response, body string) (flo
 		evidence = append(evidence, "Cloud Armor reference")
 	}
 
-	return minFloat(confidence, 1.0), evidence
+	return min(confidence, 1.0), evidence
 }
 
 // =====================================================================
@@ -812,13 +812,6 @@ func extractSignificantHeaders(resp *http.Response) []string {
 	}
 
 	return significant
-}
-
-func minFloat(a, b float64) float64 {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // Ensure regexp is used (for pattern compilation in signatures)

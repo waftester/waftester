@@ -404,11 +404,11 @@ func (ec *EndpointClusterer) calculateSimilarity(path1, path2 string) float64 {
 				matches++
 			}
 		}
-		score := float64(matches)/float64(maxInt(len(seg1), len(seg2))) - depthPenalty
-	if score < 0 {
-		score = 0
-	}
-	return score
+		score := float64(matches)/float64(max(len(seg1), len(seg2))) - depthPenalty
+		if score < 0 {
+			score = 0
+		}
+		return score
 	}
 
 	// Same depth - compare segments
@@ -561,7 +561,7 @@ func (ec *EndpointClusterer) updateClusterBehavior(path string) {
 	sort.Slice(codes, func(i, j int) bool {
 		return codes[i].count > codes[j].count
 	})
-	for i := 0; i < minInt(3, len(codes)); i++ {
+	for i := 0; i < min(3, len(codes)); i++ {
 		behavior.CommonStatusCodes = append(behavior.CommonStatusCodes, codes[i].code)
 	}
 
@@ -660,18 +660,4 @@ func absInt(x int) int {
 		return -x
 	}
 	return x
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
