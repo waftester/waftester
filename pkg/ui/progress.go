@@ -11,6 +11,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
 )
 
 // ProgressConfig holds progress display settings
@@ -217,8 +218,8 @@ func (p *Progress) renderTurbo(spinner string, workerIndicator string) {
 
 	// Nuclei-style progress format:
 	// [elapsed] [percent%] | Tests: current/total | Blocked: n | Pass: n | Fail: n | Errors: n | RPS: n.n | ETA: mm:ss
-	elapsedStr := formatDuration(elapsed)
-	etaStr := formatDuration(eta)
+	elapsedStr := duration.FormatClock(elapsed)
+	etaStr := duration.FormatClock(eta)
 
 	// Build colorized output (to stderr)
 	fmt.Fprintf(os.Stderr, "[%s] [%s] %s Tests: %s/%d %s Blocked: %s %s Pass: %s %s Fail: %s %s Errors: %s %s RPS: %s %s ETA: %s",
@@ -305,8 +306,8 @@ func (p *Progress) buildStats(current int64, rps float64, eta time.Duration) str
 	elapsed := time.Since(p.startTime)
 
 	// Format duration
-	elapsedStr := formatDuration(elapsed)
-	etaStr := formatDuration(eta)
+	elapsedStr := duration.FormatClock(elapsed)
+	etaStr := duration.FormatClock(eta)
 
 	// Build stats with consistent spacing
 	stats := fmt.Sprintf("%s/%d %s RPS: %s %s %s %s %s %s %s",
@@ -323,21 +324,6 @@ func (p *Progress) buildStats(current int64, rps float64, eta time.Duration) str
 	)
 
 	return stats
-}
-
-// formatDuration formats a duration as MM:SS or HH:MM:SS
-func formatDuration(d time.Duration) string {
-	d = d.Round(time.Second)
-	h := d / time.Hour
-	d -= h * time.Hour
-	m := d / time.Minute
-	d -= m * time.Minute
-	s := d / time.Second
-
-	if h > 0 {
-		return fmt.Sprintf("%02d:%02d:%02d", h, m, s)
-	}
-	return fmt.Sprintf("%02d:%02d", m, s)
 }
 
 // PrintFinalProgress prints a completed progress line
@@ -361,7 +347,7 @@ func PrintFinalProgress(total int, elapsed time.Duration, rps float64, blocked, 
 		FailStyle.Render(fmt.Sprintf("x %d", failed)),
 		ErrorStyle.Render(fmt.Sprintf("! %d", errored)),
 		BracketStyle.Render("|"),
-		StatLabelStyle.Render(formatDuration(elapsed)),
+		StatLabelStyle.Render(duration.FormatClock(elapsed)),
 	)
 
 	if IsSilent() {
@@ -522,7 +508,7 @@ func (s *StatsDisplay) render() {
 
 	// Nuclei-style stats output (to stderr)
 	fmt.Fprintf(os.Stderr, "\r[%s] [%s] Templates: %d/%d | Blocked: %s | Pass: %s | Fail: %s | Errors: %s | RPS: %.0f | ETA: %s",
-		StatValueStyle.Render(formatDuration(elapsed)),
+		StatValueStyle.Render(duration.FormatClock(elapsed)),
 		StatValueStyle.Render(fmt.Sprintf("%.0f%%", percent)),
 		current, s.total,
 		BlockedStyle.Render(fmt.Sprintf("%d", blocked)),
@@ -530,6 +516,6 @@ func (s *StatsDisplay) render() {
 		FailStyle.Render(fmt.Sprintf("%d", failed)),
 		ErrorStyle.Render(fmt.Sprintf("%d", errored)),
 		rps,
-		formatDuration(eta),
+		duration.FormatClock(eta),
 	)
 }

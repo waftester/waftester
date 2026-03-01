@@ -11,6 +11,7 @@ import (
 
 	gofpdf "github.com/go-pdf/fpdf"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
@@ -279,7 +280,7 @@ func (pw *PDFWriter) addCoverPage(pdf *gofpdf.Fpdf) {
 	}
 	pw.addInfoRow(pdf, "Scan Date:", scanDate)
 	if pw.summary != nil && pw.summary.Timing.DurationSec > 0 {
-		pw.addInfoRow(pdf, "Scan Duration:", formatDuration(pw.summary.Timing.DurationSec))
+		pw.addInfoRow(pdf, "Scan Duration:", duration.FormatSeconds(pw.summary.Timing.DurationSec))
 	}
 	if pw.summary != nil && pw.summary.Timing.RequestsPerSec > 0 {
 		pw.addInfoRow(pdf, "Throughput:", fmt.Sprintf("%.1f req/s", pw.summary.Timing.RequestsPerSec))
@@ -1136,21 +1137,6 @@ func (pw *PDFWriter) addRiskGauge(pdf *gofpdf.Fpdf, blockRate float64) {
 	pdf.SetY(cy + 15)
 }
 
-// formatDuration formats seconds into a human-readable duration string.
-func formatDuration(secs float64) string {
-	if secs < 60 {
-		return fmt.Sprintf("%.1fs", secs)
-	}
-	m := int(secs) / 60
-	s := int(secs) % 60
-	if m < 60 {
-		return fmt.Sprintf("%dm %ds", m, s)
-	}
-	h := m / 60
-	m = m % 60
-	return fmt.Sprintf("%dh %dm %ds", h, m, s)
-}
-
 // addLatencyProfile renders latency percentile statistics in the executive summary.
 func (pw *PDFWriter) addLatencyProfile(pdf *gofpdf.Fpdf) {
 	if pw.summary == nil {
@@ -1545,7 +1531,7 @@ func (pw *PDFWriter) addScanConfiguration(pdf *gofpdf.Fpdf) {
 		}
 		rows = append(rows, cfgRow{"Total Tests", fmt.Sprintf("%d", pw.summary.Totals.Tests)})
 		if pw.summary.Timing.DurationSec > 0 {
-			rows = append(rows, cfgRow{"Duration", formatDuration(pw.summary.Timing.DurationSec)})
+			rows = append(rows, cfgRow{"Duration", duration.FormatSeconds(pw.summary.Timing.DurationSec)})
 		}
 		if pw.summary.Timing.RequestsPerSec > 0 {
 			rows = append(rows, cfgRow{"Throughput", fmt.Sprintf("%.1f req/s", pw.summary.Timing.RequestsPerSec)})
