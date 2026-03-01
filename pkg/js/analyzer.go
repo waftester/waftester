@@ -1043,7 +1043,7 @@ func isCommonCDN(domain string) bool {
 	}
 
 	for _, cdn := range cdnDomains {
-		if strings.HasSuffix(domain, cdn) {
+		if domain == cdn || strings.HasSuffix(domain, "."+cdn) {
 			return true
 		}
 	}

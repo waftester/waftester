@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/httputil"
 	"github.com/waftester/waftester/pkg/iohelper"
 )
@@ -68,7 +69,7 @@ type Builder struct {
 func NewBuilder(baseURL string) *Builder {
 	return &Builder{
 		BaseURL:     strings.TrimSuffix(baseURL, "/"),
-		UserAgents:  DefaultUserAgents,
+		UserAgents:  httpclient.DefaultUserAgents,
 		Referers:    []string{},
 		RandomizeUA: true,
 		AddJitter:   false,
@@ -356,7 +357,7 @@ func (b *Builder) addRealisticHeaders(req *http.Request, template *RequestTempla
 	if b.RandomizeUA && len(b.UserAgents) > 0 {
 		req.Header.Set("User-Agent", b.UserAgents[rand.Intn(len(b.UserAgents))])
 	} else {
-		req.Header.Set("User-Agent", DefaultUserAgents[0])
+		req.Header.Set("User-Agent", httpclient.DefaultUserAgents[0])
 	}
 
 	// Standard browser headers
@@ -408,8 +409,8 @@ func (b *Builder) GetRotatingUA() string {
 	if b.RandomizeUA && len(b.UserAgents) > 0 {
 		return b.UserAgents[rand.Intn(len(b.UserAgents))]
 	}
-	if len(DefaultUserAgents) > 0 {
-		return DefaultUserAgents[0]
+	if len(httpclient.DefaultUserAgents) > 0 {
+		return httpclient.DefaultUserAgents[0]
 	}
 	return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 }
@@ -517,27 +518,4 @@ func CloneRequest(req *http.Request) (*http.Request, error) {
 	}
 
 	return clone, nil
-}
-
-// DefaultUserAgents is a list of common real browser User-Agent strings
-var DefaultUserAgents = []string{
-	// Chrome on Windows
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-	// Chrome on Mac
-	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-	// Firefox on Windows
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-	// Firefox on Mac
-	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0",
-	// Safari on Mac
-	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
-	// Edge on Windows
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
-	// Chrome on Linux
-	"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-	// Mobile Chrome on Android
-	"Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-	// Mobile Safari on iPhone
-	"Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1",
 }
