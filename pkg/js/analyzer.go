@@ -12,6 +12,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/bufpool"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/subdomain"
 )
 
 // ExtractedData represents all data extracted from JavaScript
@@ -602,23 +603,18 @@ var invalidTLDs = map[string]bool{
 	"min": true, "map": true, "bundle": true, "chunk": true,
 }
 
-// ExtractSubdomains extracts subdomains from code with enhanced false positive filtering.
+// ExtractSubdomains extracts subdomains from JavaScript code with JS-specific
+// false positive filtering (CDN domains, JS artifacts, file extensions, method
+// calls). Delegates core extraction and scope filtering to pkg/subdomain.
 // baseDomain scopes results to subdomains of the target (e.g. "example.com").
 // Pass "" to return all discovered domains (legacy behavior).
 func (a *Analyzer) ExtractSubdomains(code string, baseDomain string) []string {
-	// Require at least one subdomain part (2+ dots) to reduce false positives
-	pattern := regexcache.MustGet(`(?:https?://)?([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}`)
-	matches := pattern.FindAllString(code, -1)
+	// Use shared extractor for core regex + scope filtering
+	candidates := subdomain.Extract(code, baseDomain)
 
-	seen := make(map[string]bool)
-	var subdomains []string
-
-	for _, match := range matches {
-		// Clean up
-		clean := strings.TrimPrefix(match, "https://")
-		clean = strings.TrimPrefix(clean, "http://")
-		clean = strings.ToLower(clean)
-
+	// Apply JS-specific false positive filters
+	var filtered []string
+	for _, clean := range candidates {
 		// Skip JS object property access patterns (window.leave, document.body, etc.)
 		if jsArtifactPattern.MatchString(clean) {
 			continue
@@ -638,41 +634,20 @@ func (a *Analyzer) ExtractSubdomains(code string, baseDomain string) []string {
 			continue
 		}
 
-		// Skip if it looks like a JS method call (contains parentheses nearby in original code)
-		idx := strings.Index(code, match)
-		if idx >= 0 && idx+len(match) < len(code) {
-			// Check if followed by ( which indicates a method call
-			nextChars := code[idx+len(match):]
+		// Skip if it looks like a JS method call (followed by parenthesis)
+		idx := strings.Index(code, clean)
+		if idx >= 0 && idx+len(clean) < len(code) {
+			nextChars := code[idx+len(clean):]
 			if len(nextChars) > 0 && (nextChars[0] == '(' || nextChars[0] == '[') {
 				continue
 			}
 		}
 
-		// Skip very short potential false positives (e.g., "a.bc")
-		if len(clean) < 5 {
-			continue
-		}
-
-		if !seen[clean] {
-			seen[clean] = true
-			subdomains = append(subdomains, clean)
-		}
+		filtered = append(filtered, clean)
 	}
 
-	// Scope filter: keep only subdomains of the target domain
-	if baseDomain != "" {
-		baseDomain = strings.ToLower(baseDomain)
-		filtered := subdomains[:0]
-		for _, s := range subdomains {
-			if s == baseDomain || strings.HasSuffix(s, "."+baseDomain) {
-				filtered = append(filtered, s)
-			}
-		}
-		subdomains = filtered
-	}
-
-	sort.Strings(subdomains)
-	return subdomains
+	sort.Strings(filtered)
+	return filtered
 }
 
 // Method inference patterns (compiled once)
