@@ -126,7 +126,7 @@ func (e *Base64URLEncoder) Decode(encoded string) (string, error) {
 	return string(decoded), err
 }
 
-// UnicodeEncoder applies \uXXXX encoding
+// UnicodeEncoder applies backslash-u hex encoding
 type UnicodeEncoder struct{}
 
 func (e *UnicodeEncoder) Name() string { return "unicode" }
@@ -147,8 +147,9 @@ func (e *UnicodeEncoder) Decode(encoded string) (string, error) {
 	for i := 0; i < len(result)-5; i++ {
 		if result[i] == '\\' && result[i+1] == 'u' {
 			var r rune
-			fmt.Sscanf(result[i+2:i+6], "%04x", &r)
-			result = result[:i] + string(r) + result[i+6:]
+			if n, _ := fmt.Sscanf(result[i+2:i+6], "%04x", &r); n == 1 {
+				result = result[:i] + string(r) + result[i+6:]
+			}
 		}
 	}
 	return result, nil
@@ -219,7 +220,7 @@ func (e *JSUnicodeEncoder) Encode(payload string) (string, error) {
 			// \xXX format for bytes (0-255)
 			hexutil.WriteHexEscape(result, byte(r))
 		} else {
-			// \uXXXX format for runes > 255
+			// unicode escape format for runes > 255
 			hexutil.WriteUnicodeEscape(result, r)
 		}
 	}
@@ -230,8 +231,9 @@ func (e *JSUnicodeEncoder) Decode(encoded string) (string, error) {
 	for i := 0; i < len(result)-3; i++ {
 		if result[i] == '\\' && result[i+1] == 'x' {
 			var b byte
-			fmt.Sscanf(result[i+2:i+4], "%02x", &b)
-			result = result[:i] + string(b) + result[i+4:]
+			if n, _ := fmt.Sscanf(result[i+2:i+4], "%02x", &b); n == 1 {
+				result = result[:i] + string(b) + result[i+4:]
+			}
 		}
 	}
 	return result, nil
@@ -354,8 +356,9 @@ func (e *OctalEncoder) Decode(encoded string) (string, error) {
 	for i := 0; i < len(encoded); {
 		if encoded[i] == '\\' && i+3 < len(encoded) {
 			var b byte
-			fmt.Sscanf(encoded[i+1:i+4], "%03o", &b)
-			result = append(result, b)
+			if n, _ := fmt.Sscanf(encoded[i+1:i+4], "%03o", &b); n == 1 {
+				result = append(result, b)
+			}
 			i += 4
 		} else {
 			result = append(result, encoded[i])
@@ -382,8 +385,9 @@ func (e *BinaryEncoder) Decode(encoded string) (string, error) {
 	var result []byte
 	for i := 0; i+8 <= len(encoded); i += 8 {
 		var b byte
-		fmt.Sscanf(encoded[i:i+8], "%08b", &b)
-		result = append(result, b)
+		if n, _ := fmt.Sscanf(encoded[i:i+8], "%08b", &b); n == 1 {
+			result = append(result, b)
+		}
 	}
 	return string(result), nil
 }
