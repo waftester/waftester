@@ -20,7 +20,11 @@ func FormatPrecision(d time.Duration) string {
 
 // FormatClock formats a duration as a clock-style string: MM:SS or HH:MM:SS.
 // This is the canonical formatter for progress-bar elapsed/ETA display.
+// Negative durations are clamped to zero.
 func FormatClock(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
 	d = d.Round(time.Second)
 	h := d / time.Hour
 	d -= h * time.Hour
@@ -36,7 +40,11 @@ func FormatClock(d time.Duration) string {
 
 // FormatCompact formats a duration compactly: "1.5s" for < 1min, "2m30s" otherwise.
 // This is the canonical formatter for inline elapsed-time display.
+// Negative durations are clamped to zero.
 func FormatCompact(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
 	if d < time.Minute {
 		return fmt.Sprintf("%.1fs", d.Seconds())
 	}

@@ -82,6 +82,17 @@ func SanitizeFilename(s string, maxLen int) string {
 		"*", "_",
 	)
 	s = replacer.Replace(s)
+	// Strip control characters (null bytes, newlines, etc.) that can
+	// cause filesystem truncation or display corruption.
+	var buf strings.Builder
+	for _, r := range s {
+		if r < 0x20 || r == 0x7F {
+			buf.WriteByte('_')
+		} else {
+			buf.WriteRune(r)
+		}
+	}
+	s = buf.String()
 	if len([]rune(s)) > maxLen {
 		s = string([]rune(s)[:maxLen])
 	}

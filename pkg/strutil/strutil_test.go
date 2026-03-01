@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestTruncate(t *testing.T) {
@@ -89,8 +90,8 @@ func TestTruncate(t *testing.T) {
 			if got != tt.want {
 				t.Errorf("Truncate(%q, %d) = %q, want %q", tt.input, tt.maxLen, got, tt.want)
 			}
-			if tt.maxLen > 0 && len(got) > tt.maxLen {
-				t.Errorf("Truncate result length %d exceeds maxLen %d", len(got), tt.maxLen)
+			if tt.maxLen > 0 && utf8.RuneCountInString(got) > tt.maxLen {
+				t.Errorf("Truncate result length %d runes exceeds maxLen %d", utf8.RuneCountInString(got), tt.maxLen)
 			}
 		})
 	}
@@ -271,6 +272,12 @@ func TestSanitizeFilename(t *testing.T) {
 			input:  strings.Repeat("c", 150),
 			maxLen: -1,
 			want:   strings.Repeat("c", 100),
+		},
+		{
+			name:   "control chars replaced",
+			input:  "file\x00name\nnew\rline\ttab",
+			maxLen: 0,
+			want:   "file_name_new_line_tab",
 		},
 		{
 			name:   "safe string unchanged",
