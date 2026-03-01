@@ -17,8 +17,11 @@ func TestExtract_WithScope(t *testing.T) {
 
 	got := Extract(content, "target.com")
 	for _, s := range got {
-		if !strings.HasSuffix(s, ".target.com") && s != "target.com" {
+		if !strings.HasSuffix(s, ".target.com") {
 			t.Errorf("unexpected domain in scoped result: %q", s)
+		}
+		if s == "target.com" {
+			t.Error("should not include base domain itself")
 		}
 	}
 	if len(got) < 2 {
@@ -62,7 +65,7 @@ func TestExtract_Dedup(t *testing.T) {
 	}
 }
 
-func TestExtractStrict_ReturnsSubdomainsOnly(t *testing.T) {
+func TestExtract_ReturnsSubdomainsOnly(t *testing.T) {
 	content := `
 		<a href="https://api.example.com/v1">API</a>
 		<a href="https://staging.example.com">Staging</a>
@@ -70,7 +73,7 @@ func TestExtractStrict_ReturnsSubdomainsOnly(t *testing.T) {
 		<a href="https://not-example.com">Other</a>
 	`
 
-	got := ExtractStrict(content, "example.com")
+	got := Extract(content, "example.com")
 
 	want := map[string]bool{
 		"api.example.com":     true,
@@ -98,15 +101,56 @@ func TestExtractStrict_ReturnsSubdomainsOnly(t *testing.T) {
 	}
 }
 
-func TestExtractStrict_EmptyBaseDomain(t *testing.T) {
-	if got := ExtractStrict("some content", ""); got != nil {
-		t.Errorf("expected nil for empty baseDomain, got %v", got)
+func TestExtract_EmptyBaseDomainReturnsAll(t *testing.T) {
+	content := `https://api.example.com https://cdn.other.com`
+	got := Extract(content, "")
+	if len(got) < 2 {
+		t.Errorf("expected at least 2 domains without scope, got %d: %v", len(got), got)
 	}
 }
 
-func TestExtractStrict_NoMatches(t *testing.T) {
-	got := ExtractStrict("no subdomains here", "example.com")
+func TestExtract_NoMatches(t *testing.T) {
+	got := Extract("no subdomains here", "example.com")
 	if len(got) != 0 {
 		t.Errorf("expected 0, got %d: %v", len(got), got)
+	}
+}
+
+func TestExtractAll(t *testing.T) {
+	content := `https://api.example.com https://cdn.other.net https://deep.nested.third.io`
+	got := ExtractAll(content)
+	if len(got) < 3 {
+		t.Errorf("expected at least 3 domains, got %d: %v", len(got), got)
+	}
+	if !sort.StringsAreSorted(got) {
+		t.Errorf("results not sorted: %v", got)
+	}
+}
+
+func TestExtractAll_IncludesBaseDomain(t *testing.T) {
+	content := `https://example.com https://api.example.com`
+	got := ExtractAll(content)
+	found := false
+	for _, s := range got {
+		if s == "example.com" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("ExtractAll should include base domain, got: %v", got)
+	}
+}
+
+func TestExtract_DeepSubdomain(t *testing.T) {
+	content := `staging.api.example.com is the API endpoint`
+	got := Extract(content, "example.com")
+	found := false
+	for _, s := range got {
+		if s == "staging.api.example.com" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected staging.api.example.com in results, got: %v", got)
 	}
 }

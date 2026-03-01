@@ -19,12 +19,12 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/waftester/waftester/pkg/defaults"
-	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/js"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/subdomain"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -1352,7 +1352,7 @@ func (c *Crawler) climbPaths(rawURL string, depth int) {
 // extractSubdomains finds subdomains of baseDomain mentioned in text content.
 // Delegates to the shared subdomain package for consistent behavior.
 func extractSubdomains(text, baseDomain string) []string {
-	return subdomain.ExtractStrict(text, baseDomain)
+	return subdomain.Extract(text, baseDomain)
 }
 
 // ---------- Cross-domain JS analysis ----------
