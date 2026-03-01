@@ -3,6 +3,11 @@ package urlutil
 
 import "strings"
 
+// IsHTTPURL returns true if s starts with "http://" or "https://".
+func IsHTTPURL(s string) bool {
+	return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://")
+}
+
 // StripScheme removes the "https://" or "http://" prefix from a URL string.
 // Returns the input unchanged if no scheme prefix is present.
 func StripScheme(s string) string {

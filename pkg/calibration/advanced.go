@@ -2,12 +2,10 @@ package calibration
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -165,13 +163,8 @@ func NewAdvancedCalibrator(config AdvancedConfig) *AdvancedCalibrator {
 
 // LoadStrategiesFromFile loads calibration strategies from a JSON file
 func LoadStrategiesFromFile(path string) ([]CalibrationStrategy, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
 	var strategies []CalibrationStrategy
-	if err := json.Unmarshal(data, &strategies); err != nil {
+	if err := iohelper.ReadJSON(path, &strategies); err != nil {
 		return nil, err
 	}
 

@@ -36,6 +36,16 @@ func WriteAtomicJSON(path string, v any, perm os.FileMode) error {
 	return WriteAtomic(path, data, perm)
 }
 
+// ReadJSON reads a JSON file from disk and unmarshals it into v.
+// This is the read-side counterpart to WriteAtomicJSON.
+func ReadJSON(path string, v any) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, v)
+}
+
 // Standard body size limits for different use cases
 const (
 	// SmallMaxBodySize is for headers, status pages, etc. (8KB)

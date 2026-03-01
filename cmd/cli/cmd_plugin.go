@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"time"
 
 	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/plugin"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -308,11 +308,7 @@ func runPluginRun(manager *plugin.Manager, name, targetURL, configFile, configJS
 	for _, f := range result.Findings {
 		sevCounts[f.Severity]++
 	}
-	sevKeys := make([]string, 0, len(sevCounts))
-	for sev := range sevCounts {
-		sevKeys = append(sevKeys, sev)
-	}
-	sort.Strings(sevKeys)
+	sevKeys := strutil.SortedMapKeys(sevCounts)
 	for _, sev := range sevKeys {
 		ui.PrintConfigLine(fmt.Sprintf("  %s", sev), fmt.Sprintf("%d", sevCounts[sev]))
 	}

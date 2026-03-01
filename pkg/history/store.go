@@ -7,7 +7,6 @@
 package history
 
 import (
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -152,11 +151,7 @@ func (s *Store) indexPath() string {
 
 // loadIndex loads the store index from disk.
 func (s *Store) loadIndex() error {
-	data, err := os.ReadFile(s.indexPath())
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(data, s.index)
+	return iohelper.ReadJSON(s.indexPath(), s.index)
 }
 
 // saveIndex persists the store index to disk using atomic write.

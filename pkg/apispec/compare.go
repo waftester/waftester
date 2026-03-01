@@ -1,9 +1,7 @@
 package apispec
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -59,14 +57,9 @@ func SaveBaseline(path string, findings []SpecFinding, specSource string) error 
 
 // LoadBaseline reads a baseline from a JSON file.
 func LoadBaseline(path string) (*Baseline, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read baseline: %w", err)
-	}
-
 	var bl Baseline
-	if err := json.Unmarshal(data, &bl); err != nil {
-		return nil, fmt.Errorf("parse baseline: %w", err)
+	if err := iohelper.ReadJSON(path, &bl); err != nil {
+		return nil, fmt.Errorf("load baseline: %w", err)
 	}
 
 	return &bl, nil

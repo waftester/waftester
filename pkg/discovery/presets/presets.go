@@ -21,10 +21,10 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 
+	"github.com/waftester/waftester/pkg/strutil"
 	embedded "github.com/waftester/waftester/presets"
 )
 
@@ -160,12 +160,7 @@ func Get(name string) *Preset {
 // Names returns all registered preset names in sorted order.
 func Names() []string {
 	reg := loadRegistry()
-	names := make([]string, 0, len(reg))
-	for name := range reg {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
+	return strutil.SortedMapKeys(reg)
 }
 
 // All returns all registered presets.

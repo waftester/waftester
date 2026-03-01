@@ -2,7 +2,6 @@ package apispec
 
 import (
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -175,14 +174,9 @@ func LoadCheckpoint(sessionID string) (*Checkpoint, error) {
 		return nil, err
 	}
 
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read checkpoint: %w", err)
-	}
-
 	var cp Checkpoint
-	if err := json.Unmarshal(data, &cp); err != nil {
-		return nil, fmt.Errorf("parse checkpoint: %w", err)
+	if err := iohelper.ReadJSON(path, &cp); err != nil {
+		return nil, fmt.Errorf("load checkpoint: %w", err)
 	}
 
 	return &cp, nil

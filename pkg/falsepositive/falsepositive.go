@@ -4,9 +4,7 @@ package falsepositive
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"os"
 	"slices"
 	"sort"
 	"strings"
@@ -422,12 +420,7 @@ func (db *Database) Load(path string) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read file: %w", err)
-	}
-
-	return json.Unmarshal(data, db)
+	return iohelper.ReadJSON(path, db)
 }
 
 // Count returns the total number of false positives

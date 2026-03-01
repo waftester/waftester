@@ -2,6 +2,30 @@ package urlutil
 
 import "testing"
 
+func TestIsHTTPURL(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"https://example.com", true},
+		{"http://example.com", true},
+		{"ftp://example.com", false},
+		{"example.com", false},
+		{"", false},
+		{"HTTPS://EXAMPLE.COM", false}, // case-sensitive
+		{"https://", true},
+		{"http://", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := IsHTTPURL(tt.input)
+			if got != tt.want {
+				t.Errorf("IsHTTPURL(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestStripScheme(t *testing.T) {
 	tests := []struct {
 		name  string
