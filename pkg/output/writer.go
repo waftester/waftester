@@ -860,11 +860,7 @@ func (w *MarkdownWriter) Close() (retErr error) {
 	sb.WriteString("\n")
 
 	// WAF Effectiveness = Blocked / (Blocked + Failed)
-	attackTests := blocked + failed
-	var effectiveness float64
-	if attackTests > 0 {
-		effectiveness = float64(blocked) / float64(attackTests) * 100
-	}
+	effectiveness := metrics.CalcEffectiveness(blocked, failed)
 	sb.WriteString(fmt.Sprintf("**WAF Effectiveness: %.1f%%**\n\n", effectiveness))
 
 	// Results table
@@ -1036,9 +1032,9 @@ func (w *HTMLWriter) Close() (retErr error) {
             <div class="stat-card failed"><div class="value">` + fmt.Sprintf("%d", failed) + `</div><div>Fail</div></div>
             <div class="stat-card error"><div class="value">` + fmt.Sprintf("%d", errored) + `</div><div>Error</div></div>
             <div class="stat-card"><div class="value">` + func() string {
-		attackTests := blocked + failed
-		if attackTests > 0 {
-			return fmt.Sprintf("%.1f%%", float64(blocked)/float64(attackTests)*100)
+		eff := metrics.CalcEffectiveness(blocked, failed)
+		if blocked+failed > 0 {
+			return fmt.Sprintf("%.1f%%", eff)
 		}
 		return "N/A"
 	}() + `</div><div>WAF Effectiveness</div></div>

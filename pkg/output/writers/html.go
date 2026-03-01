@@ -18,6 +18,7 @@ import (
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/jsonutil"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
+	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/output/events"
 )
 
@@ -654,7 +655,7 @@ func (hw *HTMLWriter) prepareTemplateData() *templateData {
 
 	// Calculate block rate
 	if data.TotalTests > 0 {
-		data.BlockRate = float64(blockedCount) / float64(data.TotalTests) * 100
+		data.BlockRate = metrics.CalcEffectiveness(blockedCount, bypassCount)
 	}
 	data.Grade = calculateGrade(data.BlockRate)
 
