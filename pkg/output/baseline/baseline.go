@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/output/events"
 )
 
@@ -280,30 +281,21 @@ func hashPayload(payload string) string {
 }
 
 // calculateEffectiveness calculates the WAF effectiveness percentage from results.
+// Only blocked and bypass outcomes are considered; errors and timeouts are excluded.
 func calculateEffectiveness(results []*events.ResultEvent) float64 {
-	if len(results) == 0 {
-		return 0
-	}
-
-	blocked := 0
-	total := 0
-
+	var blocked, failed int
 	for _, r := range results {
 		if r == nil {
 			continue
 		}
-
-		total++
-		if r.Result.Outcome == events.OutcomeBlocked {
+		switch r.Result.Outcome {
+		case events.OutcomeBlocked:
 			blocked++
+		case events.OutcomeBypass, events.OutcomePass:
+			failed++
 		}
 	}
-
-	if total == 0 {
-		return 0
-	}
-
-	return float64(blocked) / float64(total) * 100
+	return metrics.CalcEffectiveness(blocked, failed)
 }
 
 // AddBypass adds a bypass entry to the baseline.

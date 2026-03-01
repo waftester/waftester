@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/detection"
+	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/output"
 	"github.com/waftester/waftester/pkg/output/baseline"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
@@ -1060,10 +1061,7 @@ func (dc *DispatcherContext) EmitSummary(ctx context.Context, totalTests, blocke
 		return nil
 	}
 
-	effectiveness := float64(0)
-	if totalTests > 0 {
-		effectiveness = float64(blocked) / float64(totalTests) * 100
-	}
+	effectiveness := metrics.CalcEffectiveness(blocked, bypassed)
 
 	now := time.Now()
 	event := &events.SummaryEvent{
