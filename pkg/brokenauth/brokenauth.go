@@ -81,8 +81,9 @@ func (s *Scanner) TestSessionManagement(ctx context.Context, loginURL string, cr
 	results := make([]Result, 0)
 
 	jar, _ := cookiejar.New(nil)
-	client := s.client
-	client.Jar = jar
+	cloned := *s.client
+	cloned.Jar = jar
+	client := &cloned
 
 	// Login
 	loginReq, err := http.NewRequestWithContext(ctx, "POST", loginURL, strings.NewReader(credentials.Encode()))
@@ -168,6 +169,12 @@ func (s *Scanner) TestPasswordPolicy(ctx context.Context, registerURL string) ([
 	client := s.client
 
 	for _, pwd := range weakPasswords {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
+
 		result := Result{
 			URL:         registerURL,
 			TestType:    "weak_password",
@@ -230,6 +237,12 @@ func (s *Scanner) TestAccountLockout(ctx context.Context, loginURL string, usern
 	client := s.client
 
 	for i := 0; i < attempts; i++ {
+		select {
+		case <-ctx.Done():
+			return result, ctx.Err()
+		default:
+		}
+
 		data := url.Values{
 			"username": {username},
 			"password": {"wrongpassword" + time.Now().Format("150405")},

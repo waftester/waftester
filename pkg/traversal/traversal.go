@@ -392,10 +392,16 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL string, param stri
 	}
 
 	for _, payload := range payloads {
-		q := u.Query()
+		select {
+		case <-ctx.Done():
+			return vulns, ctx.Err()
+		default:
+		}
+		cloned := *u
+		q := cloned.Query()
 		q.Set(param, payload.Value)
-		u.RawQuery = q.Encode()
-		testURL := u.String()
+		cloned.RawQuery = q.Encode()
+		testURL := cloned.String()
 
 		req, err := http.NewRequestWithContext(ctx, "GET", testURL, nil)
 		if err != nil {
@@ -563,6 +569,13 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*ScanResult, error
 
 	// Test each parameter
 	for _, param := range t.config.TestParams {
+		select {
+		case <-ctx.Done():
+			result.EndTime = time.Now()
+			result.Duration = result.EndTime.Sub(startTime)
+			return result, ctx.Err()
+		default:
+		}
 		vulns, err := t.TestParameter(ctx, targetURL, param, payloads)
 		if err != nil {
 			continue

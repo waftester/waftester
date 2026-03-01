@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -100,7 +101,13 @@ func (s *HeaderScanner) Scan(ctx context.Context, target *Target) (*ScanResult, 
 		},
 	}
 
-	for header, check := range securityHeaders {
+	headerNames := make([]string, 0, len(securityHeaders))
+	for h := range securityHeaders {
+		headerNames = append(headerNames, h)
+	}
+	sort.Strings(headerNames)
+	for _, header := range headerNames {
+		check := securityHeaders[header]
 		value := resp.Header.Get(header)
 		if value == "" {
 			result.Findings = append(result.Findings, Finding{
@@ -131,7 +138,7 @@ func (s *HeaderScanner) Scan(ctx context.Context, target *Target) (*ScanResult, 
 	}
 
 	// Record all security headers present
-	for header := range securityHeaders {
+	for _, header := range headerNames {
 		if v := resp.Header.Get(header); v != "" {
 			result.Info = append(result.Info, InfoItem{
 				Title: header,
@@ -231,7 +238,12 @@ func (s *TechScanner) Scan(ctx context.Context, target *Target) (*ScanResult, er
 		}
 	}
 
+	techs := make([]string, 0, len(detected))
 	for tech := range detected {
+		techs = append(techs, tech)
+	}
+	sort.Strings(techs)
+	for _, tech := range techs {
 		result.Info = append(result.Info, InfoItem{
 			Title: "Technology",
 			Value: tech,
@@ -301,6 +313,9 @@ func (s *CORSScanner) Scan(ctx context.Context, target *Target) (*ScanResult, er
 	}
 
 	for _, origin := range testOrigins {
+		if ctx.Err() != nil {
+			break
+		}
 		req, err := http.NewRequestWithContext(ctx, "GET", target.URL, nil)
 		if err != nil {
 			continue

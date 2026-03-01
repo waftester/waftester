@@ -102,8 +102,14 @@ func runValidate() {
 			ui.PrintWarning(fmt.Sprintf("Failed to marshal admin result: %v", marshalErr))
 			return
 		}
-		f.Write(data)
-		f.Write([]byte("\n"))
+		if _, writeErr := f.Write(data); writeErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to write results: %v", writeErr))
+			os.Exit(1)
+		}
+		if _, writeErr := f.Write([]byte("\n")); writeErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to write results: %v", writeErr))
+			os.Exit(1)
+		}
 		ui.PrintSuccess(fmt.Sprintf("Results written to %s", *outputJSON))
 	}
 

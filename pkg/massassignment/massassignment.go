@@ -83,6 +83,11 @@ func (s *Scanner) Scan(ctx context.Context, targetURL string, originalData map[s
 	results := make([]Result, 0)
 
 	for _, param := range DangerousParameters() {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
 		result := s.testParameter(ctx, targetURL, param, originalData)
 		if result.Vulnerable {
 			results = append(results, result)

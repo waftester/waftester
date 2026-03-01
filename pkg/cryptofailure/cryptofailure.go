@@ -147,7 +147,14 @@ func (t *Tester) TestTLSVersion(ctx context.Context) ([]TestResult, error) {
 
 	weakVersions := WeakTLSVersions()
 
-	for version, name := range weakVersions {
+	versionKeys := make([]uint16, 0, len(weakVersions))
+	for v := range weakVersions {
+		versionKeys = append(versionKeys, v)
+	}
+	sort.Slice(versionKeys, func(i, j int) bool { return versionKeys[i] < versionKeys[j] })
+
+	for _, version := range versionKeys {
+		name := weakVersions[version]
 		config := &tls.Config{
 			MinVersion:         version,
 			MaxVersion:         version,
@@ -194,7 +201,14 @@ func (t *Tester) TestCipherSuites(ctx context.Context) ([]TestResult, error) {
 
 	weakCiphers := WeakCipherSuites()
 
-	for cipher, name := range weakCiphers {
+	cipherKeys := make([]uint16, 0, len(weakCiphers))
+	for c := range weakCiphers {
+		cipherKeys = append(cipherKeys, c)
+	}
+	sort.Slice(cipherKeys, func(i, j int) bool { return cipherKeys[i] < cipherKeys[j] })
+
+	for _, cipher := range cipherKeys {
+		name := weakCiphers[cipher]
 		config := &tls.Config{
 			MinVersion:         tls.VersionTLS12,
 			MaxVersion:         tls.VersionTLS12,
@@ -439,10 +453,11 @@ func ScanForSecrets(content string) []TestResult {
 			// Mask the actual secret
 			maskedEvidence := make([]string, len(matches))
 			for i, m := range matches {
-				if len(m) > 20 {
-					maskedEvidence[i] = m[:10] + "..." + m[len(m)-5:]
-				} else if len(m) > 8 {
-					maskedEvidence[i] = m[:4] + "..." + m[len(m)-2:]
+				runes := []rune(m)
+				if len(runes) > 20 {
+					maskedEvidence[i] = string(runes[:10]) + "..." + string(runes[len(runes)-5:])
+				} else if len(runes) > 8 {
+					maskedEvidence[i] = string(runes[:4]) + "..." + string(runes[len(runes)-2:])
 				} else {
 					maskedEvidence[i] = "***"
 				}
