@@ -12,6 +12,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/openapi"
 	"github.com/waftester/waftester/pkg/templateresolver"
 	"github.com/waftester/waftester/pkg/ui"
@@ -402,10 +403,8 @@ done:
 		ui.PrintConfigLine("Total Tests", fmt.Sprintf("%d", len(results)))
 		ui.PrintConfigLine("Blocked", fmt.Sprintf("%d", blocked))
 		ui.PrintConfigLine("Bypassed", fmt.Sprintf("%d", len(results)-blocked))
-		if len(results) > 0 {
-			blockRate := float64(blocked) / float64(len(results)) * 100
-			ui.PrintConfigLine("Block Rate", fmt.Sprintf("%.1f%%", blockRate))
-		}
+		blockRate := metrics.CalcEffectiveness(blocked, len(results)-blocked)
+		ui.PrintConfigLine("Block Rate", fmt.Sprintf("%.1f%%", blockRate))
 	}
 }
 

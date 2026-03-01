@@ -458,6 +458,44 @@ const (
 )
 
 // ============================================================================
+// BLOCKED STATUS CODES
+// ============================================================================
+//
+// Canonical set of HTTP status codes that indicate a WAF blocked the request.
+// Use IsBlockedStatus() instead of inline comparisons like:
+//   statusCode == 403 || statusCode == 406 || statusCode == 429 || statusCode == 503
+//
+// This is the single source of truth. Individual packages may extend
+// detection with body analysis, header checks, or configurable code lists,
+// but the default status-code check should always delegate here.
+// ============================================================================
+
+// BlockedStatusCodes is the canonical set of HTTP status codes indicating
+// a WAF block. Sorted for readability:
+//   - 403 Forbidden: standard WAF block response
+//   - 406 Not Acceptable: used by ModSecurity and similar WAFs
+//   - 418 I'm a Teapot: used by Cloudflare and other CDN WAFs
+//   - 429 Too Many Requests: rate limiting / anti-automation
+//   - 503 Service Unavailable: used by AWS WAF, Akamai, etc.
+var BlockedStatusCodes = []int{403, 406, 418, 429, 503}
+
+// IsBlockedStatus returns true if the HTTP status code is in the canonical
+// set of WAF block indicators. This replaces scattered inline checks like:
+//
+//	statusCode == 403 || statusCode == 406 || statusCode == 429 || statusCode == 503
+//
+// For more sophisticated detection (body patterns, headers, confidence
+// scoring), use pkg/realistic.BlockDetector instead.
+func IsBlockedStatus(statusCode int) bool {
+	for _, code := range BlockedStatusCodes {
+		if statusCode == code {
+			return true
+		}
+	}
+	return false
+}
+
+// ============================================================================
 // SCORING
 // ============================================================================
 //
