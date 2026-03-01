@@ -268,9 +268,10 @@ func TestTestHTTPDowngrade(t *testing.T) {
 			server := httptest.NewServer(handler)
 			defer server.Close()
 
-			// Create tester with http URL
+			// Create tester with https URL; TestHTTPDowngrade will
+			// derive the http variant automatically, which points at
+			// the plain-HTTP test server.
 			tester := NewTester(strings.Replace(server.URL, "http://", "https://", 1), 5*time.Second)
-			tester.target = server.URL // Override to HTTP for test
 
 			result, err := tester.TestHTTPDowngrade(context.Background())
 			if err != nil {
@@ -437,10 +438,11 @@ func TestScanForSecretsDeterministic(t *testing.T) {
 // character-safe slicing. This test verifies that secrets containing multi-byte
 // UTF-8 characters are masked without producing invalid UTF-8.
 func TestScanForSecretsMultiByteUTF8Safety(t *testing.T) {
-	// Craft content with a "Generic Secret" pattern using multi-byte characters.
-	// The pattern matches: password="..." with 8+ alphanumeric chars.
-	// We use a mix of ASCII and CJK characters to trigger the rune boundary issue.
-	content := `password="日本語テスト長いパスワード1234567890abcdef"`
+	// Use a "Database URL" pattern that naturally captures multi-byte characters
+	// in the password portion. The pattern (mongodb|...):\/\/[^:]+:[^@]+@ matches
+	// any non-@ characters including CJK, so the matched string will contain
+	// multi-byte runes and exercise the rune-safe masking code.
+	content := `mongodb://admin:日本語テストパスワード1234@host.example.com/db`
 
 	results := ScanForSecrets(content)
 

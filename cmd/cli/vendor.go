@@ -377,7 +377,7 @@ func truncateStr(s string, max int) string {
 	if len(runes) <= max {
 		return s
 	}
-	if max < 4 {
+	if max < 3 {
 		return string(runes[:max])
 	}
 	return string(runes[:max-3]) + "..."
