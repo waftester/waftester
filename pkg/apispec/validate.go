@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/waftester/waftester/pkg/urlutil"
 	"gopkg.in/yaml.v3"
 )
 
@@ -168,7 +169,7 @@ func findRefs(node any, specDir string, result *SpecValidationResult, jsonPath s
 // checkRef validates a single $ref value.
 func checkRef(ref, specDir string, result *SpecValidationResult, jsonPath string) {
 	// Check for external HTTP references
-	if strings.HasPrefix(ref, "http://") || strings.HasPrefix(ref, "https://") {
+	if urlutil.IsHTTPURL(ref) {
 		result.Valid = false
 		result.Errors = append(result.Errors, ValidationIssue{
 			Code:    "external_ref",

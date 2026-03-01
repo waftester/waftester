@@ -16,6 +16,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/openapi"
+	"github.com/waftester/waftester/pkg/urlutil"
 	"gopkg.in/yaml.v3"
 )
 
@@ -151,7 +152,7 @@ func loadURL(ctx context.Context, specURL string) ([]byte, error) {
 
 // isURL returns true if source looks like a URL (has http/https scheme).
 func isURL(source string) bool {
-	return strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "https://")
+	return urlutil.IsHTTPURL(source)
 }
 
 // detectFormat examines the raw data and source path to determine

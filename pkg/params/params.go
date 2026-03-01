@@ -26,6 +26,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // Discoverer handles parameter discovery operations
@@ -793,15 +794,7 @@ func getParamWordlist() []string {
 
 	// Deduplicate: the wordlist is organized by category so entries
 	// intentionally appear in multiple sections for readability.
-	seen := make(map[string]struct{}, len(raw))
-	deduped := make([]string, 0, len(raw))
-	for _, w := range raw {
-		if _, dup := seen[w]; !dup {
-			seen[w] = struct{}{}
-			deduped = append(deduped, w)
-		}
-	}
-	return deduped
+	return strutil.Unique(raw)
 }
 
 // DiscoverFromJSON extracts parameters from a JSON API response

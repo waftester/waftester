@@ -27,6 +27,7 @@ import (
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/ui"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 func runFuzz() {
@@ -202,11 +203,11 @@ func runFuzz() {
 	var words []string
 	if *wordlist != "" {
 		// Reject non-HTTP URL schemes (SSRF protection)
-		if strings.Contains(*wordlist, "://") && !strings.HasPrefix(*wordlist, "http://") && !strings.HasPrefix(*wordlist, "https://") {
+		if strings.Contains(*wordlist, "://") && !urlutil.IsHTTPURL(*wordlist) {
 			ui.PrintError("Wordlist URL must use http:// or https:// scheme")
 			os.Exit(1)
 		}
-		if strings.HasPrefix(*wordlist, "http://") || strings.HasPrefix(*wordlist, "https://") {
+		if urlutil.IsHTTPURL(*wordlist) {
 			// Download wordlist with timeout
 			dlCtx, dlCancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer dlCancel()
