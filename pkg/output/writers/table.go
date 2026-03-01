@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/waftester/waftester/pkg/finding"
+	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
 	"golang.org/x/term"
@@ -530,10 +531,7 @@ func (tw *TableWriter) writeMinimalOutput() error {
 		}
 	}
 
-	var effectiveness float64
-	if total > 0 {
-		effectiveness = float64(blocked) / float64(total) * 100
-	}
+	effectiveness := metrics.CalcEffectiveness(blocked, bypasses)
 
 	line := fmt.Sprintf("Tests: %d | Blocked: %d | Bypasses: %d | Effectiveness: %.1f%%",
 		total, blocked, bypasses, effectiveness)
@@ -798,10 +796,7 @@ func (tw *TableWriter) writeResultsStats(sb *strings.Builder) {
 	}
 
 	total := len(tw.results)
-	var effectiveness float64
-	if total > 0 {
-		effectiveness = float64(blocked) / float64(total) * 100
-	}
+	effectiveness := metrics.CalcEffectiveness(blocked, bypasses)
 
 	// Effectiveness line
 	effLine := fmt.Sprintf("Effectiveness: %.1f%% (%d/%d blocked)", effectiveness, blocked, total)
@@ -1102,7 +1097,7 @@ func (tw *TableWriter) renderSummaryBanner(bypasses, blocked, errors, total int)
 		return
 	}
 
-	effectiveness := float64(blocked) / float64(total) * 100
+	effectiveness := metrics.CalcEffectiveness(blocked, bypasses)
 
 	// Visual effectiveness bar
 	const barLen = 40

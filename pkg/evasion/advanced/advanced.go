@@ -4,6 +4,7 @@ package advanced
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -605,8 +606,8 @@ func NewHTTPSmuggling(technique string) *HTTPSmuggling {
 }
 
 // PrepareRequest prepares a smuggling request.
-func (s *HTTPSmuggling) PrepareRequest(payload string) (*http.Request, error) {
-	req, err := http.NewRequest("POST", "/", strings.NewReader(payload))
+func (s *HTTPSmuggling) PrepareRequest(ctx context.Context, payload string) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, "POST", "/", strings.NewReader(payload))
 	if err != nil {
 		return nil, err
 	}

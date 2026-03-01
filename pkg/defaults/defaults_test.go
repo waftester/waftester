@@ -499,6 +499,36 @@ func TestNpmVersionConsistency(t *testing.T) {
 	}
 }
 
+// TestIsBlockedStatus validates the canonical blocked status code function
+func TestIsBlockedStatus(t *testing.T) {
+	// Canonical blocked codes
+	for _, code := range []int{403, 406, 418, 429, 503} {
+		if !defaults.IsBlockedStatus(code) {
+			t.Errorf("IsBlockedStatus(%d) = false, want true", code)
+		}
+	}
+
+	// Non-blocked codes
+	for _, code := range []int{200, 201, 301, 302, 400, 401, 404, 500, 502, 504} {
+		if defaults.IsBlockedStatus(code) {
+			t.Errorf("IsBlockedStatus(%d) = true, want false", code)
+		}
+	}
+}
+
+// TestBlockedStatusCodesSlice ensures the exported slice matches expectations
+func TestBlockedStatusCodesSlice(t *testing.T) {
+	expected := []int{403, 406, 418, 429, 503}
+	if len(defaults.BlockedStatusCodes) != len(expected) {
+		t.Fatalf("BlockedStatusCodes has %d entries, want %d", len(defaults.BlockedStatusCodes), len(expected))
+	}
+	for i, code := range expected {
+		if defaults.BlockedStatusCodes[i] != code {
+			t.Errorf("BlockedStatusCodes[%d] = %d, want %d", i, defaults.BlockedStatusCodes[i], code)
+		}
+	}
+}
+
 // TestNoHardcodedConcurrency ensures all concurrency values use defaults.Concurrency* constants
 func TestNoHardcodedConcurrency(t *testing.T) {
 	violations := findHardcodedValues(t, "Concurrency", 3, 200, []string{

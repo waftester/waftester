@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
 )
@@ -284,10 +285,7 @@ func (xw *XMLWriter) buildDocument() xmlDocument {
 	}
 
 	// Calculate detection rate
-	var detectionRate float64
-	if totalTests > 0 {
-		detectionRate = float64(blocked) / float64(totalTests) * 100
-	}
+	detectionRate := metrics.CalcEffectiveness(blocked, bypasses)
 
 	doc.Summary = xmlSummary{
 		TotalTests:     totalTests,
