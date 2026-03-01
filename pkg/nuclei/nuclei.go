@@ -16,6 +16,7 @@ import (
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/ui"
+	"github.com/waftester/waftester/pkg/urlutil"
 	"gopkg.in/yaml.v3"
 )
 
@@ -554,7 +555,7 @@ func (e *Engine) executeHTTPRequest(ctx context.Context, req *HTTPRequest, targe
 	for _, path := range paths {
 		// Expand variables in path
 		expandedPath := expandVariables(path, vars)
-		fullURL := strings.TrimSuffix(target, "/") + expandedPath
+		fullURL := urlutil.JoinPath(target, expandedPath)
 
 		// Build request
 		body := expandVariables(req.Body, vars)
@@ -643,7 +644,7 @@ func (e *Engine) executeRawRequests(ctx context.Context, req *HTTPRequest, targe
 		expandedRaw := expandVariables(raw, vars)
 		rawMethod, rawPath, rawHeaders, rawBody := parseRawRequest(expandedRaw)
 
-		fullURL := strings.TrimSuffix(target, "/") + rawPath
+		fullURL := urlutil.JoinPath(target, rawPath)
 
 		httpReq, err := http.NewRequestWithContext(ctx, rawMethod, fullURL, strings.NewReader(rawBody))
 		if err != nil {

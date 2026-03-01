@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // State represents the checkpoint state for resumable scans
@@ -147,17 +149,7 @@ func (m *Manager) Save() error {
 		return err
 	}
 
-	// Write to temp file first, then rename (atomic)
-	tempFile := m.FilePath + ".tmp"
-	if err := os.WriteFile(tempFile, data, 0644); err != nil {
-		return err
-	}
-
-	if err := os.Rename(tempFile, m.FilePath); err != nil {
-		os.Remove(tempFile) // Clean up orphaned temp file
-		return err
-	}
-	return nil
+	return iohelper.WriteAtomic(m.FilePath, data, 0644)
 }
 
 // MarkCompleted marks a target as completed

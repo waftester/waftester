@@ -14,6 +14,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 // DepthScanner implements kiterunner-style depth-based API scanning
@@ -110,7 +111,7 @@ func (d *DepthScanner) PreflightCheck(ctx context.Context, baseURL string, depth
 	var responses []ScanResult
 	for i := 0; i < d.preflightDepth; i++ {
 		randomPath := prefix + "/" + randomString(12)
-		url := strings.TrimSuffix(baseURL, "/") + randomPath
+		url := urlutil.JoinPath(baseURL, randomPath)
 
 		result, err := d.sendRequest(ctx, "GET", url, nil)
 		if err != nil {
@@ -216,7 +217,7 @@ func (d *DepthScanner) ScanPath(ctx context.Context, baseURL, path, method strin
 	// Check for wildcard at this depth
 	wildcardInfo, _ := d.PreflightCheck(ctx, baseURL, depth)
 
-	url := strings.TrimSuffix(baseURL, "/") + path
+	url := urlutil.JoinPath(baseURL, path)
 	result, err := d.sendRequest(ctx, method, url, nil)
 	if err != nil {
 		return nil, err
