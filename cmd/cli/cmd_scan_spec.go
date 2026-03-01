@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
@@ -32,8 +31,8 @@ import (
 	"github.com/waftester/waftester/pkg/ssi"
 	"github.com/waftester/waftester/pkg/ssrf"
 	"github.com/waftester/waftester/pkg/ssti"
-	"github.com/waftester/waftester/pkg/traversal"
 	"github.com/waftester/waftester/pkg/strutil"
+	"github.com/waftester/waftester/pkg/traversal"
 	"github.com/waftester/waftester/pkg/ui"
 	"github.com/waftester/waftester/pkg/upload"
 	"github.com/waftester/waftester/pkg/xmlinjection"
@@ -263,11 +262,7 @@ func runSpecScan(
 
 		bySev := result.BySeverity()
 		if len(bySev) > 0 {
-			var sevKeys []string
-			for sev := range bySev {
-				sevKeys = append(sevKeys, sev)
-			}
-			sort.Strings(sevKeys)
+			sevKeys := strutil.SortedMapKeys(bySev)
 			var sevParts []string
 			for _, sev := range sevKeys {
 				sevParts = append(sevParts, fmt.Sprintf("%s: %d", sev, bySev[sev]))
@@ -277,11 +272,7 @@ func runSpecScan(
 
 		byCat := result.ByCategory()
 		if len(byCat) > 0 {
-			var catKeys []string
-			for cat := range byCat {
-				catKeys = append(catKeys, cat)
-			}
-			sort.Strings(catKeys)
+			catKeys := strutil.SortedMapKeys(byCat)
 			var catParts []string
 			for _, cat := range catKeys {
 				catParts = append(catParts, fmt.Sprintf("%s: %d", cat, byCat[cat]))
@@ -347,7 +338,6 @@ func runSpecDryRun(plan *apispec.ScanPlan, endpoints []apispec.Endpoint, streamJ
 	ui.PrintHelp("Remove --spec-dry-run to execute")
 	os.Exit(0)
 }
-
 
 // runScannerForSpec runs a single scanner type against a spec endpoint URL.
 // This bridges the gap between spec-driven scanning and the existing

@@ -5,7 +5,6 @@ import (
 	"context"
 	"html"
 	"net/http"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +15,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/httputil"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // Config configures CSRF testing
@@ -268,11 +268,7 @@ func GeneratePOC(targetURL, method string, params map[string]string) string {
 `)
 
 	// Sort parameter names for deterministic output
-	paramNames := make([]string, 0, len(params))
-	for name := range params {
-		paramNames = append(paramNames, name)
-	}
-	sort.Strings(paramNames)
+	paramNames := strutil.SortedMapKeys(params)
 	for _, name := range paramNames {
 		sb.WriteString(`  <input type="hidden" name="`)
 		sb.WriteString(html.EscapeString(name))

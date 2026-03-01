@@ -2,7 +2,6 @@
 package override
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"sync"
@@ -271,13 +270,8 @@ func (m *Manager) Clear() {
 
 // LoadFromFile loads overrides from file.
 func (m *Manager) LoadFromFile(path string) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-
 	var overrides []*Override
-	if err := json.Unmarshal(data, &overrides); err != nil {
+	if err := iohelper.ReadJSON(path, &overrides); err != nil {
 		return err
 	}
 

@@ -3,9 +3,7 @@ package apispec
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -121,14 +119,9 @@ func (ct *CorrelationTracker) ExportJSON(path string) error {
 
 // LoadCorrelationRecords reads correlation records from a JSON file.
 func LoadCorrelationRecords(path string) ([]CorrelationRecord, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read correlations: %w", err)
-	}
-
 	var records []CorrelationRecord
-	if err := json.Unmarshal(data, &records); err != nil {
-		return nil, fmt.Errorf("parse correlations: %w", err)
+	if err := iohelper.ReadJSON(path, &records); err != nil {
+		return nil, fmt.Errorf("load correlations: %w", err)
 	}
 	return records, nil
 }

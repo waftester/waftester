@@ -3,7 +3,6 @@ package rce
 
 import (
 	"context"
-	"sort"
 	"net/http"
 	"net/url"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // Config configures RCE testing
@@ -81,11 +81,7 @@ func NewScanner(config Config) *Scanner {
 func (s *Scanner) Scan(ctx context.Context, targetURL string, params map[string]string) ([]Result, error) {
 	results := make([]Result, 0)
 
-	paramKeys := make([]string, 0, len(params))
-	for k := range params {
-		paramKeys = append(paramKeys, k)
-	}
-	sort.Strings(paramKeys)
+	paramKeys := strutil.SortedMapKeys(params)
 	for _, param := range paramKeys {
 		value := params[param]
 		for _, payload := range Payloads() {

@@ -832,11 +832,7 @@ func runAutoScan() {
 			if leakyResult.InterestingHits > 0 && !quietMode {
 				// Show severity breakdown in nuclei-style
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.Icon("📊", "#")+" Findings by Severity:"))
-				leakySevKeys := make([]string, 0, len(leakyResult.BySeverity))
-				for sev := range leakyResult.BySeverity {
-					leakySevKeys = append(leakySevKeys, sev)
-				}
-				sort.Strings(leakySevKeys)
+				leakySevKeys := strutil.SortedMapKeys(leakyResult.BySeverity)
 				for _, severity := range leakySevKeys {
 					count := leakyResult.BySeverity[severity]
 					sevStyle := ui.SeverityStyle(severity)
@@ -847,11 +843,7 @@ func runAutoScan() {
 
 				// Show category breakdown
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.Icon("📂", "#")+" Findings by Category:"))
-				leakyCatKeys := make([]string, 0, len(leakyResult.ByCategory))
-				for cat := range leakyResult.ByCategory {
-					leakyCatKeys = append(leakyCatKeys, cat)
-				}
-				sort.Strings(leakyCatKeys)
+				leakyCatKeys := strutil.SortedMapKeys(leakyResult.ByCategory)
 				for _, category := range leakyCatKeys {
 					count := leakyResult.ByCategory[category]
 					bar := strings.Repeat(ui.Icon("▪", "*"), min(count, 20))
@@ -1573,11 +1565,7 @@ func runAutoScan() {
 				fmt.Fprintln(os.Stderr)
 				// Show type breakdown
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("📊 Parameters by Type:")))
-				paramTypeKeys := make([]string, 0, len(paramResult.ByType))
-				for pt := range paramResult.ByType {
-					paramTypeKeys = append(paramTypeKeys, pt)
-				}
-				sort.Strings(paramTypeKeys)
+				paramTypeKeys := strutil.SortedMapKeys(paramResult.ByType)
 				for _, paramType := range paramTypeKeys {
 					count := paramResult.ByType[paramType]
 					typeStyle := ui.ConfigValueStyle
@@ -1596,11 +1584,7 @@ func runAutoScan() {
 
 				// Show source breakdown
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("🔎 Discovery Sources:")))
-				paramSrcKeys := make([]string, 0, len(paramResult.BySource))
-				for src := range paramResult.BySource {
-					paramSrcKeys = append(paramSrcKeys, src)
-				}
-				sort.Strings(paramSrcKeys)
+				paramSrcKeys := strutil.SortedMapKeys(paramResult.BySource)
 				for _, source := range paramSrcKeys {
 					count := paramResult.BySource[source]
 					bar := strings.Repeat(ui.Icon("▪", "*"), min(count, 20))
@@ -2170,11 +2154,7 @@ func runAutoScan() {
 			for _, p := range allPayloads {
 				catSet[strings.ToLower(p.Category)] = true
 			}
-			cats := make([]string, 0, len(catSet))
-			for c := range catSet {
-				cats = append(cats, c)
-			}
-			sort.Strings(cats)
+			cats := strutil.SortedMapKeys(catSet)
 			prioritized := smartResult.Strategy.PrioritizePayloads(cats)
 
 			// Build category→priority index
@@ -2722,11 +2702,7 @@ func runAutoScan() {
 				}
 
 				if len(focusPayloads) > 0 && len(focusPayloads) < len(allPayloads) {
-					catList := make([]string, 0, len(focusCategories))
-					for c := range focusCategories {
-						catList = append(catList, c)
-					}
-					sort.Strings(catList)
+					catList := strutil.SortedMapKeys(focusCategories)
 					ui.PrintInfo(fmt.Sprintf("🧠 Brain feedback: focused re-test on %d payloads across [%s]",
 						len(focusPayloads), strings.Join(catList, ", ")))
 
