@@ -524,9 +524,13 @@ func (apo *AttackPathOptimizer) GetTopPaths(n int) []*AttackPath {
 		return nil
 	}
 	if len(apo.paths) <= n {
-		return apo.paths
+		result := make([]*AttackPath, len(apo.paths))
+		copy(result, apo.paths)
+		return result
 	}
-	return apo.paths[:n]
+	result := make([]*AttackPath, n)
+	copy(result, apo.paths[:n])
+	return result
 }
 
 // GetNextTarget returns the next highest-value target to pursue

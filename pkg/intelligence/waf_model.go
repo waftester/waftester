@@ -250,7 +250,17 @@ func (w *WAFBehaviorModel) updateAssessments() {
 	w.weaknesses = make([]Weakness, 0)
 	w.strengths = make([]string, 0)
 
-	for category := range w.categoryBlock {
+	// Iterate union of categoryBlock and categoryBypass keys so categories
+	// with zero blocks (WAF has no rules) are still evaluated as weaknesses.
+	allCategories := make(map[string]struct{})
+	for cat := range w.categoryBlock {
+		allCategories[cat] = struct{}{}
+	}
+	for cat := range w.categoryBypass {
+		allCategories[cat] = struct{}{}
+	}
+
+	for category := range allCategories {
 		rate := w.getCategoryBypassRate(category)
 		total := w.categoryBlock[category] + w.categoryBypass[category]
 

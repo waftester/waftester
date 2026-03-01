@@ -235,8 +235,8 @@ func (h *GitHubIssuesHook) buildIssue(bypass *events.BypassEvent) githubIssueReq
 	if d.Payload != "" {
 		sb.WriteString("\n### Payload\n\n")
 		sb.WriteString("```\n")
-		if len(d.Payload) > 500 {
-			sb.WriteString(d.Payload[:500])
+		if len([]rune(d.Payload)) > 500 {
+			sb.WriteString(string([]rune(d.Payload)[:500]))
 			sb.WriteString("\n... (truncated)")
 		} else {
 			sb.WriteString(d.Payload)

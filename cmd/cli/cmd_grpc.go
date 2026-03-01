@@ -139,10 +139,14 @@ func runGRPCList(ctx context.Context, client *grpc.Client, jsonOutput bool) {
 	}
 
 	if jsonOutput {
-		data, _ := json.MarshalIndent(map[string]interface{}{
+		data, marshalErr := json.MarshalIndent(map[string]interface{}{
 			"services": services,
 			"count":    len(services),
 		}, "", "  ")
+		if marshalErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to marshal services: %v", marshalErr))
+			os.Exit(1)
+		}
 		fmt.Println(string(data))
 		return
 	}
@@ -163,8 +167,12 @@ func runGRPCDescribe(ctx context.Context, client *grpc.Client, serviceName strin
 	}
 
 	if jsonOutput {
-		data, _ := json.MarshalIndent(desc, "", "  ")
-		fmt.Println(string(data))
+		data, marshalErr := json.MarshalIndent(desc, "", "  ")
+		if marshalErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to marshal gRPC description: %v", marshalErr))
+		} else {
+			fmt.Println(string(data))
+		}
 		return
 	}
 
@@ -274,6 +282,12 @@ func runGRPCFuzz(ctx context.Context, client *grpc.Client, payloadDir, templateD
 			continue
 		}
 
+		select {
+		case <-ctx.Done():
+			goto grpcFuzzDone
+		default:
+		}
+
 		desc, err := client.DescribeService(ctx, svc)
 		if err != nil {
 			continue
@@ -281,8 +295,18 @@ func runGRPCFuzz(ctx context.Context, client *grpc.Client, payloadDir, templateD
 
 		for _, method := range desc.Methods {
 			for _, payload := range payloads {
-				// Create fuzz request with payload
-				fuzzData := fmt.Sprintf(`{"value": "%s"}`, payload)
+				select {
+				case <-ctx.Done():
+					goto grpcFuzzDone
+				default:
+				}
+
+				// Create fuzz request with payload (json.Marshal escapes special chars)
+				escapedPayload, escErr := json.Marshal(payload)
+				if escErr != nil {
+					continue
+				}
+				fuzzData := fmt.Sprintf(`{"value": %s}`, string(escapedPayload))
 
 				result, err := client.InvokeMethod(ctx, method.FullName, []byte(fuzzData), nil)
 
@@ -312,10 +336,15 @@ func runGRPCFuzz(ctx context.Context, client *grpc.Client, payloadDir, templateD
 			}
 		}
 	}
+grpcFuzzDone:
 
 	// Output results
 	if outputFile != "" {
-		data, _ := json.MarshalIndent(results, "", "  ")
+		data, marshalErr := json.MarshalIndent(results, "", "  ")
+		if marshalErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to marshal results: %v", marshalErr))
+			os.Exit(1)
+		}
 		if err := os.WriteFile(outputFile, data, 0644); err != nil {
 			ui.PrintError(fmt.Sprintf("Failed to write output: %v", err))
 		} else {
@@ -324,7 +353,11 @@ func runGRPCFuzz(ctx context.Context, client *grpc.Client, payloadDir, templateD
 	}
 
 	if jsonOutput {
-		data, _ := json.MarshalIndent(results, "", "  ")
+		data, marshalErr := json.MarshalIndent(results, "", "  ")
+		if marshalErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to marshal results: %v", marshalErr))
+			os.Exit(1)
+		}
 		fmt.Println(string(data))
 	} else {
 		fmt.Println()
@@ -342,8 +375,12 @@ func runGRPCFuzz(ctx context.Context, client *grpc.Client, payloadDir, templateD
 }
 
 func truncatePayload(s string, maxLen int) string {
-	if len(s) <= maxLen {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
 		return s
 	}
-	return s[:maxLen-3] + "..."
+	if maxLen < 4 {
+		return string(runes[:maxLen])
+	}
+	return string(runes[:maxLen-3]) + "..."
 }

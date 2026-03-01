@@ -156,6 +156,7 @@ func runAutoScan() {
 	autoFlags, cfg := registerAutoscanFlags()
 	autoFlags.Parse(os.Args[2:])
 	cfg.validate()
+	defer cfg.Out.CleanupTemplates()
 
 	// Disable detection if requested
 	if *cfg.NoDetect {
@@ -831,8 +832,10 @@ func runAutoScan() {
 			ui.PrintWarning(fmt.Sprintf("Leaky paths scan warning: %v", err))
 		} else {
 			// Save results
-			leakyData, _ := json.MarshalIndent(leakyResult, "", "  ")
-			if err := os.WriteFile(leakyPathsFile, leakyData, 0644); err != nil {
+			leakyData, marshalErr := json.MarshalIndent(leakyResult, "", "  ")
+			if marshalErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to marshal leaky paths: %v", marshalErr))
+			} else if err := os.WriteFile(leakyPathsFile, leakyData, 0644); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Failed to write leaky paths: %v", err))
 			}
 
@@ -843,7 +846,13 @@ func runAutoScan() {
 			if leakyResult.InterestingHits > 0 && !quietMode {
 				// Show severity breakdown in nuclei-style
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.Icon("📊", "#")+" Findings by Severity:"))
-				for severity, count := range leakyResult.BySeverity {
+				leakySevKeys := make([]string, 0, len(leakyResult.BySeverity))
+				for sev := range leakyResult.BySeverity {
+					leakySevKeys = append(leakySevKeys, sev)
+				}
+				sort.Strings(leakySevKeys)
+				for _, severity := range leakySevKeys {
+					count := leakyResult.BySeverity[severity]
 					sevStyle := ui.SeverityStyle(severity)
 					bar := strings.Repeat(ui.Icon("█", "#"), min(count, 20))
 					fmt.Fprintf(os.Stderr, "    %s %s %d\n", sevStyle.Render(fmt.Sprintf("%-8s", severity)), ui.ProgressFullStyle.Render(bar), count)
@@ -852,7 +861,13 @@ func runAutoScan() {
 
 				// Show category breakdown
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.Icon("📂", "#")+" Findings by Category:"))
-				for category, count := range leakyResult.ByCategory {
+				leakyCatKeys := make([]string, 0, len(leakyResult.ByCategory))
+				for cat := range leakyResult.ByCategory {
+					leakyCatKeys = append(leakyCatKeys, cat)
+				}
+				sort.Strings(leakyCatKeys)
+				for _, category := range leakyCatKeys {
+					count := leakyResult.ByCategory[category]
 					bar := strings.Repeat(ui.Icon("▪", "*"), min(count, 20))
 					fmt.Fprintf(os.Stderr, "    %-15s %s %d\n", category, ui.StatLabelStyle.Render(bar), count)
 				}
@@ -1203,7 +1218,10 @@ func runAutoScan() {
 		// Stop JS analysis progress display
 		if totalJSFiles > 1 {
 			close(jsProgressDone)
-			time.Sleep(50 * time.Millisecond)
+			select {
+			case <-ctx.Done():
+			case <-time.After(50 * time.Millisecond):
+			}
 			if !quietMode && ui.StderrIsTerminal() {
 				fmt.Fprintf(os.Stderr, "\033[2A\033[J")
 			}
@@ -1218,10 +1236,13 @@ func runAutoScan() {
 		for sub := range subdomainMap {
 			allJSData.Subdomains = append(allJSData.Subdomains, sub)
 		}
+		sort.Strings(allJSData.Subdomains)
 
 		// Save JS analysis
-		jsDataBytes, _ := json.MarshalIndent(allJSData, "", "  ")
-		if err := os.WriteFile(jsAnalysisFile, jsDataBytes, 0644); err != nil {
+		jsDataBytes, marshalErr := json.MarshalIndent(allJSData, "", "  ")
+		if marshalErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to marshal JS analysis: %v", marshalErr))
+		} else if err := os.WriteFile(jsAnalysisFile, jsDataBytes, 0644); err != nil {
 			ui.PrintWarning(fmt.Sprintf("Failed to write JS analysis: %v", err))
 		}
 
@@ -1295,8 +1316,8 @@ func runAutoScan() {
 					confidence = "LOW"
 				}
 				truncated := secret.Value
-				if len(truncated) > 50 {
-					truncated = truncated[:50] + "..."
+				if truncRunes := []rune(truncated); len(truncRunes) > 50 {
+					truncated = string(truncRunes[:50]) + "..."
 				}
 				ui.PrintError(fmt.Sprintf("  [%s] %s: %s", confidence, secret.Type, truncated))
 			}
@@ -1410,6 +1431,14 @@ func runAutoScan() {
 	var paramResult *params.DiscoveryResult
 
 	if *cfg.EnableParamDiscovery && !shouldSkipPhase("param-discovery") {
+		// Clear detection state so discovery-phase connection drops (e.g. from
+		// path brute-force) don't block parameter probing.
+		if det := detection.Default(); det != nil {
+			det.ClearHostErrors(target)
+		} else {
+			hosterrors.Clear(target)
+		}
+
 		printStatusLn(ui.SectionStyle.Render("PHASE 2.5: Parameter Discovery (Arjun-style)"))
 		printStatusLn()
 
@@ -1519,7 +1548,10 @@ func runAutoScan() {
 
 			// Stop progress display
 			close(paramProgressDone)
-			time.Sleep(50 * time.Millisecond)
+			select {
+			case <-ctx.Done():
+			case <-time.After(50 * time.Millisecond):
+			}
 			if !quietMode && ui.StderrIsTerminal() {
 				fmt.Fprintf(os.Stderr, "\033[2A\033[J")
 			}
@@ -1542,8 +1574,10 @@ func runAutoScan() {
 			}
 
 			// Save results
-			paramData, _ := json.MarshalIndent(paramResult, "", "  ")
-			if err := os.WriteFile(paramsFile, paramData, 0644); err != nil {
+			paramData, marshalErr := json.MarshalIndent(paramResult, "", "  ")
+			if marshalErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to marshal params: %v", marshalErr))
+			} else if err := os.WriteFile(paramsFile, paramData, 0644); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Failed to write params: %v", err))
 			}
 
@@ -1553,7 +1587,13 @@ func runAutoScan() {
 				fmt.Fprintln(os.Stderr)
 				// Show type breakdown
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("📊 Parameters by Type:")))
-				for paramType, count := range paramResult.ByType {
+				paramTypeKeys := make([]string, 0, len(paramResult.ByType))
+			for pt := range paramResult.ByType {
+				paramTypeKeys = append(paramTypeKeys, pt)
+			}
+			sort.Strings(paramTypeKeys)
+			for _, paramType := range paramTypeKeys {
+				count := paramResult.ByType[paramType]
 					typeStyle := ui.ConfigValueStyle
 					switch paramType {
 					case "query":
@@ -1570,7 +1610,13 @@ func runAutoScan() {
 
 				// Show source breakdown
 				fmt.Fprintf(os.Stderr, "  %s\n", ui.SectionStyle.Render(ui.SanitizeString("🔎 Discovery Sources:")))
-				for source, count := range paramResult.BySource {
+				paramSrcKeys := make([]string, 0, len(paramResult.BySource))
+				for src := range paramResult.BySource {
+					paramSrcKeys = append(paramSrcKeys, src)
+				}
+				sort.Strings(paramSrcKeys)
+				for _, source := range paramSrcKeys {
+					count := paramResult.BySource[source]
 					bar := strings.Repeat(ui.Icon("▪", "*"), min(count, 20))
 					fmt.Fprintf(os.Stderr, "    %-15s %s %d\n", source, ui.StatLabelStyle.Render(bar), count)
 				}
@@ -1709,8 +1755,10 @@ func runAutoScan() {
 		} else {
 			// Save recon results
 			reconFile := filepath.Join(workspaceDir, "full-recon.json")
-			reconData, _ := json.MarshalIndent(fullReconResult, "", "  ")
-			if err := os.WriteFile(reconFile, reconData, 0644); err != nil {
+			reconData, marshalErr := json.MarshalIndent(fullReconResult, "", "  ")
+			if marshalErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to marshal recon data: %v", marshalErr))
+			} else if err := os.WriteFile(reconFile, reconData, 0644); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Failed to write recon: %v", err))
 			}
 
@@ -1863,8 +1911,10 @@ func runAutoScan() {
 		testPlan = learner.GenerateTestPlan()
 
 		// Save test plan
-		planData, _ := json.MarshalIndent(testPlan, "", "  ")
-		if err := os.WriteFile(testPlanFile, planData, 0644); err != nil {
+		planData, marshalErr := json.MarshalIndent(testPlan, "", "  ")
+		if marshalErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to marshal test plan: %v", marshalErr))
+		} else if err := os.WriteFile(testPlanFile, planData, 0644); err != nil {
 			ui.PrintWarning(fmt.Sprintf("Failed to write test plan: %v", err))
 		}
 
@@ -1904,23 +1954,37 @@ func runAutoScan() {
 	var adaptiveLimiter *ratelimit.Limiter
 	var executorRef *core.Executor
 	escalationCount := 0
+	var lastEscalationTime time.Time
 	autoEscalate := func(reason string) {
 		rateMu.Lock()
 		defer rateMu.Unlock()
 
 		escalationCount++
-		if escalationCount > 5 {
+		if escalationCount > 3 {
 			return
 		}
+
+		// Cooldown: ignore rapid-fire escalations. Without this, anomaly
+		// callbacks fire in burst (all observing the same batch of results)
+		// and cascade rate/concurrency down to minimums in one second.
+		// 30-second cooldown prevents cascading through all escalation
+		// levels from a single burst of anomalies.
+		if !lastEscalationTime.IsZero() && time.Since(lastEscalationTime) < 30*time.Second {
+			escalationCount-- // don't count suppressed escalation
+			return
+		}
+		lastEscalationTime = time.Now()
 
 		oldRate := currentRateLimit
 		oldConc := currentConcurrency
 
-		currentRateLimit = currentRateLimit / 2
+		// Reduce by 25% instead of 50% — gentler ramp-down preserves
+		// more scan throughput while still respecting WAF rate limits.
+		currentRateLimit = currentRateLimit * 3 / 4
 		if currentRateLimit < 10 {
 			currentRateLimit = 10
 		}
-		currentConcurrency = currentConcurrency / 2
+		currentConcurrency = currentConcurrency * 3 / 4
 		if currentConcurrency < 5 {
 			currentConcurrency = 5
 		}
@@ -2073,7 +2137,7 @@ func runAutoScan() {
 						if strings.Contains(clone.TargetPath, "?") {
 							separator = "&"
 						}
-						clone.TargetPath = clone.TargetPath + separator + p.Name + "=" + clone.Payload
+						clone.TargetPath = clone.TargetPath + separator + url.QueryEscape(p.Name) + "=" + url.QueryEscape(clone.Payload)
 						paramPayloads = append(paramPayloads, clone)
 					}
 
@@ -2086,7 +2150,7 @@ func runAutoScan() {
 						clone := existing
 						clone.Method = "POST"
 						clone.ContentType = defaults.ContentTypeForm
-						clone.Payload = p.Name + "=" + existing.Payload
+						clone.Payload = url.QueryEscape(p.Name) + "=" + url.QueryEscape(existing.Payload)
 						paramPayloads = append(paramPayloads, clone)
 					}
 
@@ -2124,6 +2188,7 @@ func runAutoScan() {
 			for c := range catSet {
 				cats = append(cats, c)
 			}
+			sort.Strings(cats)
 			prioritized := smartResult.Strategy.PrioritizePayloads(cats)
 
 			// Build category→priority index
@@ -2675,6 +2740,7 @@ func runAutoScan() {
 					for c := range focusCategories {
 						catList = append(catList, c)
 					}
+					sort.Strings(catList)
 					ui.PrintInfo(fmt.Sprintf("🧠 Brain feedback: focused re-test on %d payloads across [%s]",
 						len(focusPayloads), strings.Join(catList, ", ")))
 
@@ -3083,14 +3149,16 @@ func runAutoScan() {
 		printStatusLn()
 
 		// Save vendor detection results for resume
-		vendorCache, _ := json.MarshalIndent(struct {
+		vendorCache, marshalErr := json.MarshalIndent(struct {
 			VendorName          string   `json:"vendor_name"`
 			VendorConfidence    float64  `json:"vendor_confidence"`
 			BypassHints         []string `json:"bypass_hints,omitempty"`
 			RecommendedEncoders []string `json:"recommended_encoders,omitempty"`
 			RecommendedEvasions []string `json:"recommended_evasions,omitempty"`
 		}{vendorName, vendorConfidence, bypassHints, recommendedEncoders, recommendedEvasions}, "", "  ")
-		if err := os.WriteFile(vendorDetectionFile, vendorCache, 0644); err != nil {
+		if marshalErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to marshal vendor detection: %v", marshalErr))
+		} else if err := os.WriteFile(vendorDetectionFile, vendorCache, 0644); err != nil {
 			ui.PrintWarning(fmt.Sprintf("Failed to save vendor detection: %v", err))
 		}
 		markPhaseCompleted("vendor-detection")
@@ -3260,10 +3328,19 @@ func runAutoScan() {
 	printStatusLn(ui.SectionStyle.Render("PHASE 5: Comprehensive Report"))
 	printStatusLn()
 
-	// Calculate WAF effectiveness
+	// Calculate WAF effectiveness.
+	// The denominator includes blocked + failed + skipped tests so that hosts
+	// which were unreachable (silent-banned / connection-dropped) are not
+	// silently excluded — otherwise a scan where 90% of tests were skipped
+	// could report "100% effectiveness."
 	wafEffectiveness := float64(0)
-	if results.BlockedTests+results.FailedTests > 0 {
-		wafEffectiveness = float64(results.BlockedTests) / float64(results.BlockedTests+results.FailedTests) * 100
+	skippedTests := results.TotalTests - results.BlockedTests - results.PassedTests - results.FailedTests - results.ErrorTests
+	if skippedTests < 0 {
+		skippedTests = 0
+	}
+	denominator := results.BlockedTests + results.FailedTests + skippedTests
+	if denominator > 0 {
+		wafEffectiveness = float64(results.BlockedTests) / float64(denominator) * 100
 	}
 
 	scanDuration := time.Since(startTime)
@@ -3298,6 +3375,9 @@ func runAutoScan() {
 		fmt.Fprintf(os.Stderr, "  |  Passed:             %-26d |\n", results.PassedTests)
 		fmt.Fprintf(os.Stderr, "  |  Failed (Bypass):    %-26d |\n", results.FailedTests)
 		fmt.Fprintf(os.Stderr, "  |  Errors:             %-26d |\n", results.ErrorTests)
+		if skippedTests > 0 {
+			fmt.Fprintf(os.Stderr, "  |  Skipped (dropped):  %-26d |\n", skippedTests)
+		}
 		fmt.Fprintf(os.Stderr, "  +------------------------------------------------+\n")
 		fmt.Fprintln(os.Stderr)
 
@@ -3374,6 +3454,7 @@ func runAutoScan() {
 			"passed":        results.PassedTests,
 			"failed":        results.FailedTests,
 			"errors":        results.ErrorTests,
+			"skipped":       skippedTests,
 			"requests_sec":  results.RequestsPerSec,
 			"endpoints":     len(discResult.Endpoints),
 			"js_files":      atomic.LoadInt32(&jsAnalyzed),
@@ -3405,6 +3486,16 @@ func runAutoScan() {
 		summary["ci_exit_code"] = 1
 		summary["bypass_details"] = results.BypassDetails
 	}
+	// Also fail CI when WAF effectiveness is critically low (the WAF is
+	// functionally absent even if nothing was explicitly "bypassed" because
+	// most tests were skipped) or when all tests errored out (complete scan
+	// failure — denominator=0 but tests existed).
+	if wafEffectiveness < 50 && denominator > 0 {
+		summary["ci_exit_code"] = 1
+	}
+	if results.TotalTests > 0 && results.BlockedTests == 0 && results.FailedTests == 0 && results.PassedTests == 0 && denominator == 0 {
+		summary["ci_exit_code"] = 1
+	}
 
 	// Add Intelligence Engine data to summary
 	if brain != nil {
@@ -3420,17 +3511,22 @@ func runAutoScan() {
 				"confidence":  chain.Confidence,
 			})
 		}
+		// Note: intSummary.Bypasses counts non-blocked brain observations
+		// (including skipped tests where status_code=0). This differs from
+		// results.FailedTests which counts actual WAF bypasses. Use
+		// bypass_count (from results.FailedTests) as the authoritative count.
 		summary["intelligence"] = map[string]interface{}{
-			"enabled":        true,
-			"total_findings": intSummary.TotalFindings,
-			"bypasses":       intSummary.Bypasses,
-			"blocked":        intSummary.Blocked,
-			"attack_chains":  chainData,
-			"waf_strengths":  intSummary.WAFStrengths,
-			"waf_weaknesses": intSummary.WAFWeaknesses,
-			"tech_stack":     intSummary.TechStack,
-			"insights_count": atomic.LoadInt32(&insightCount),
-			"chains_count":   atomic.LoadInt32(&chainCount),
+			"enabled":         true,
+			"total_findings":  intSummary.TotalFindings,
+			"bypasses":        results.FailedTests, // authoritative: actual WAF bypasses
+			"brain_unblocked": intSummary.Bypasses, // brain's count (includes skipped)
+			"blocked":         intSummary.Blocked,
+			"attack_chains":   chainData,
+			"waf_strengths":   intSummary.WAFStrengths,
+			"waf_weaknesses":  intSummary.WAFWeaknesses,
+			"tech_stack":      intSummary.TechStack,
+			"insights_count":  atomic.LoadInt32(&insightCount),
+			"chains_count":    atomic.LoadInt32(&chainCount),
 		}
 	}
 
@@ -3448,8 +3544,10 @@ func runAutoScan() {
 		summary["payload_recommendations"] = recData
 	}
 
-	summaryData, _ := json.MarshalIndent(summary, "", "  ")
-	if err := os.WriteFile(summaryFile, summaryData, 0644); err != nil {
+	summaryData, marshalErr := json.MarshalIndent(summary, "", "  ")
+	if marshalErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Failed to marshal summary: %v", marshalErr))
+	} else if err := os.WriteFile(summaryFile, summaryData, 0644); err != nil {
 		ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
 	}
 
@@ -3482,6 +3580,14 @@ func runAutoScan() {
 	autoProgress.Increment()
 
 	if *cfg.EnableAssess && !shouldSkipPhase("assessment") {
+		// Clear detection state so Phase 4's connection drops don't contaminate
+		// the independent enterprise assessment.
+		if det := detection.Default(); det != nil {
+			det.ClearHostErrors(target)
+		} else {
+			hosterrors.Clear(target)
+		}
+
 		printStatusLn()
 		printStatusLn(ui.SectionStyle.Render("PHASE 6: Enterprise Assessment (Quantitative Metrics)"))
 		printStatusLn()
@@ -3569,8 +3675,10 @@ func runAutoScan() {
 
 			// Save assessment results
 			assessFile := filepath.Join(workspaceDir, "assessment.json")
-			assessData, _ := json.MarshalIndent(assessResult, "", "  ")
-			if err := os.WriteFile(assessFile, assessData, 0644); err != nil {
+			assessData, marshalErr := json.MarshalIndent(assessResult, "", "  ")
+			if marshalErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to marshal assessment: %v", marshalErr))
+			} else if err := os.WriteFile(assessFile, assessData, 0644); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Failed to write assessment: %v", err))
 			}
 			ui.PrintSuccess(fmt.Sprintf("📊 Assessment saved to: %s", assessFile))
@@ -3598,9 +3706,13 @@ func runAutoScan() {
 				"false_positive_rate": assessResult.FalsePositiveRate,
 				"bypass_resistance":   assessResult.BypassResistance,
 			}
-			summaryData, _ = json.MarshalIndent(summary, "", "  ")
-			if err := os.WriteFile(summaryFile, summaryData, 0644); err != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
+			if data, mErr := json.MarshalIndent(summary, "", "  "); mErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to marshal summary: %v", mErr))
+			} else {
+				summaryData = data
+				if err := os.WriteFile(summaryFile, summaryData, 0644); err != nil {
+					ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
+				}
 			}
 		}
 		markPhaseCompleted("assessment")
@@ -3679,12 +3791,15 @@ func runAutoScan() {
 		ui.PrintInfo(fmt.Sprintf("   You have %s to complete authentication", browserConfig.WaitForLogin))
 		printStatusLn()
 
-		// Run the browser scan
+		// Run the browser scan.
+		// Cancel the context explicitly after Scan returns to avoid blocking
+		// on deferred cancel during function exit (Chrome process cleanup on
+		// Windows can hang indefinitely).
 		browserCtx, browserCancel := context.WithTimeout(ctx, browserConfig.Timeout)
-		defer browserCancel()
 
 		var err error
 		browserResult, err = scanner.Scan(browserCtx, browserProgress)
+		browserCancel() // cancel immediately — don't defer (prevents freeze on exit)
 
 		if err != nil {
 			ui.PrintWarning(fmt.Sprintf("Browser scan warning: %v", err))
@@ -3858,9 +3973,13 @@ func runAutoScan() {
 			}
 
 			// Save updated summary
-			summaryData, _ = json.MarshalIndent(summary, "", "  ")
-			if err := os.WriteFile(summaryFile, summaryData, 0644); err != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
+			if data, mErr := json.MarshalIndent(summary, "", "  "); mErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to marshal summary: %v", mErr))
+			} else {
+				summaryData = data
+				if err := os.WriteFile(summaryFile, summaryData, 0644); err != nil {
+					ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
+				}
 			}
 
 			// Regenerate enterprise report to include browser findings
@@ -3951,8 +4070,12 @@ func runAutoScan() {
 		}
 
 		// Output to stdout
-		jsonBytes, _ := json.MarshalIndent(jsonSummary, "", "  ")
-		fmt.Println(string(jsonBytes)) // debug:keep
+		jsonBytes, marshalErr := json.MarshalIndent(jsonSummary, "", "  ")
+		if marshalErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to marshal JSON summary: %v", marshalErr))
+		} else {
+			fmt.Println(string(jsonBytes)) // debug:keep
+		}
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -3973,7 +4096,13 @@ func runAutoScan() {
 		_ = autoDispCtx.EmitSummary(ctx, int(results.TotalTests), int(results.BlockedTests), int(results.FailedTests), scanDuration)
 	}
 
-	if results.FailedTests > 0 {
+	// Exit with failure code when:
+	// - Actual WAF bypasses found
+	// - WAF effectiveness critically low (most tests skipped/failed)
+	// - All tests errored out (denominator=0 but tests existed — scan failure)
+	allErrored := results.TotalTests > 0 && results.BlockedTests == 0 && results.FailedTests == 0 && results.PassedTests == 0 && denominator == 0
+	ciExit := results.FailedTests > 0 || (wafEffectiveness < 50 && denominator > 0) || allErrored
+	if ciExit {
 		// Explicitly flush deferred resources — os.Exit does not run defers.
 		if autoDispCtx != nil {
 			autoDispCtx.Close()

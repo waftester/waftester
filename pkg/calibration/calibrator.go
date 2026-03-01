@@ -192,7 +192,7 @@ func findMostCommon(counts map[int]int) int {
 	mostCommon := 0
 
 	for value, count := range counts {
-		if count > maxCount {
+		if count > maxCount || (count == maxCount && value < mostCommon) {
 			maxCount = count
 			mostCommon = value
 		}

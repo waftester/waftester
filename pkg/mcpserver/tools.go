@@ -61,14 +61,33 @@ func loggedTool(name string, fn toolHandler) toolHandler {
 // trigger redaction. This is intentionally broad to catch variations like
 // "x_api_key", "my_secret_token", "auth_header", etc.
 var sensitiveSubstrings = []string{
-	"secret", "password", "token", "credential", "key", "license",
-	"auth", "bearer", "jwt", "cookie", "session", "proxy",
-	"access", "private", "signing", "encrypt",
+	"secret", "password", "token", "credential", "license",
+	"auth", "bearer", "jwt", "cookie", "session",
+	"private", "signing", "encrypt",
+	// Use specific patterns to avoid over-redacting benign fields
+	// like "keyboard", "hotkey", "access_level", "accessibility".
+	"api_key", "apikey", "api-key",
+	"_key", "-key",
+	"proxy_pass", "proxy_url", "proxy_auth",
+	"access_token", "access_key", "access_secret",
 }
 
-// isSensitiveKey returns true if the lowercased key contains any sensitive substring.
+// sensitiveExactKeys are field names that are sensitive only as exact matches.
+// For example, "key" is a common name for API keys / secrets, but as a
+// substring it would false-positive on "keyboard", "monkey", "hotkey", etc.
+var sensitiveExactKeys = []string{
+	"key",
+}
+
+// isSensitiveKey returns true if the lowercased key contains any sensitive
+// substring, or matches an exact sensitive key name.
 func isSensitiveKey(key string) bool {
 	lower := strings.ToLower(key)
+	for _, exact := range sensitiveExactKeys {
+		if lower == exact {
+			return true
+		}
+	}
 	for _, sub := range sensitiveSubstrings {
 		if strings.Contains(lower, sub) {
 			return true

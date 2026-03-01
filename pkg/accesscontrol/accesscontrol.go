@@ -180,6 +180,11 @@ func (t *Tester) TestVerticalPrivilegeEscalation(ctx context.Context) ([]TestRes
 
 	// Test admin endpoints with low-privilege token
 	for _, endpoint := range AdminOnlyEndpoints() {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
 		fullURL := t.target + endpoint
 
 		req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
@@ -230,6 +235,11 @@ func (t *Tester) TestHorizontalPrivilegeEscalation(ctx context.Context, userID s
 	testCases := IDORTestCases()
 
 	for _, tc := range testCases {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
 		// Try to access other user's resources with our token
 		path := strings.Replace(tc.PathTemplate, "{id}", otherUserID, 1)
 		fullURL := t.target + path
@@ -285,15 +295,21 @@ func (t *Tester) TestMetadataManipulation(ctx context.Context) ([]TestResult, er
 	if err != nil {
 		return nil, err
 	}
-	baseResp, _ := t.client.Do(baseReq)
-	if baseResp != nil {
-		iohelper.DrainAndClose(baseResp.Body)
+	baseResp, err := t.client.Do(baseReq)
+	if err != nil {
+		return nil, fmt.Errorf("baseline request failed: %w", err)
 	}
+	iohelper.DrainAndClose(baseResp.Body)
 
 	payloads := MetadataManipulationPayloads()
 
 	for _, p := range payloads {
 		for _, val := range p.Values {
+			select {
+			case <-ctx.Done():
+				return results, ctx.Err()
+			default:
+			}
 			req, err := http.NewRequestWithContext(ctx, "GET", baseURL, nil)
 			if err != nil {
 				continue
@@ -369,6 +385,11 @@ func (t *Tester) TestForcefulBrowsing(ctx context.Context) ([]TestResult, error)
 	}
 
 	for _, resource := range sensitiveResources {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
 		fullURL := t.target + resource
 
 		req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
@@ -413,6 +434,11 @@ func (t *Tester) TestMissingFunctionLevelAccess(ctx context.Context) ([]TestResu
 	actions := PrivilegedActions()
 
 	for _, action := range actions {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
 		fullURL := t.target + action.Path
 
 		req, err := http.NewRequestWithContext(ctx, action.Method, fullURL, nil)
@@ -497,14 +523,19 @@ func (t *Tester) TestPathTraversalACL(ctx context.Context) ([]TestResult, error)
 	if err != nil {
 		return nil, err
 	}
-	baseResp, _ := t.client.Do(baseReq)
-	var baseStatus int
-	if baseResp != nil {
-		baseStatus = baseResp.StatusCode
-		iohelper.DrainAndClose(baseResp.Body)
+	baseResp, err := t.client.Do(baseReq)
+	if err != nil {
+		return nil, fmt.Errorf("baseline request failed: %w", err)
 	}
+	baseStatus := baseResp.StatusCode
+	iohelper.DrainAndClose(baseResp.Body)
 
 	for _, payload := range payloads {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
 		fullURL := t.target + payload
 
 		// URL encode properly for special characters

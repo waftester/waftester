@@ -76,7 +76,9 @@ func (s *Scanner) Scan(ctx context.Context, loginURL string, credentials url.Val
 	}
 
 	jar, _ := cookiejar.New(nil)
-	client := httpclient.Default()
+	// Create a dedicated client for this scan — mutating httpclient.Default()'s
+	// Jar field would be a data race affecting all concurrent HTTP callers.
+	client := httpclient.New(httpclient.DefaultConfig())
 	client.Jar = jar
 
 	// Step 1: Get initial session (pre-auth)

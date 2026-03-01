@@ -34,14 +34,14 @@ func DefaultConfig() Config {
 
 // Result represents a clickjacking test result
 type Result struct {
-	URL            string    `json:"url"`
-	XFrameOptions  string    `json:"x_frame_options,omitempty"`
-	CSPFrameAncest string    `json:"csp_frame_ancestors,omitempty"`
-	Frameable      bool      `json:"frameable"`
-	Vulnerable     bool      `json:"vulnerable"`
-	Evidence       string    `json:"evidence,omitempty"`
-	Severity       finding.Severity    `json:"severity"`
-	Timestamp      time.Time `json:"timestamp"`
+	URL            string           `json:"url"`
+	XFrameOptions  string           `json:"x_frame_options,omitempty"`
+	CSPFrameAncest string           `json:"csp_frame_ancestors,omitempty"`
+	Frameable      bool             `json:"frameable"`
+	Vulnerable     bool             `json:"vulnerable"`
+	Evidence       string           `json:"evidence,omitempty"`
+	Severity       finding.Severity `json:"severity"`
+	Timestamp      time.Time        `json:"timestamp"`
 }
 
 // Scanner performs clickjacking testing
@@ -61,9 +61,14 @@ func NewScanner(config Config) *Scanner {
 		config.Timeout = httpclient.TimeoutProbing
 	}
 
+	client := config.Client
+	if client == nil {
+		client = httpclient.Default()
+	}
+
 	return &Scanner{
 		config:  config,
-		client:  httpclient.Default(),
+		client:  client,
 		results: make([]Result, 0),
 	}
 }
@@ -139,7 +144,11 @@ func (s *Scanner) isFrameable(xfo, frameAncestors string) bool {
 	// If CSP frame-ancestors is set restrictively, not frameable
 	if frameAncestors != "" {
 		fa := strings.ToLower(frameAncestors)
-		if fa == "'none'" || fa == "'self'" {
+		if strings.Contains(fa, "'none'") || fa == "'self'" {
+			return false
+		}
+		// Multi-value directives like "'self' https://trusted.com" are restrictive
+		if strings.Contains(fa, "'self'") && !strings.Contains(fa, "*") {
 			return false
 		}
 	}

@@ -171,7 +171,10 @@ func (g *Generator) Generate(ctx context.Context, provider Provider, req *Payloa
 }
 
 func (g *Generator) cacheKey(req *PayloadRequest) string {
-	data, _ := json.Marshal(req)
+	data, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Sprintf("%s:%d:%d", req.Type, req.EvasionLevel, req.Count)
+	}
 	return string(data)
 }
 
@@ -297,20 +300,21 @@ func (c *OpenAIClient) AnalyzeWAFResponse(ctx context.Context, response string, 
 	// Simple heuristic WAF detection
 	responseLower := strings.ToLower(response)
 
-	wafSignatures := map[string]string{
-		"cloudflare":  "cloudflare",
-		"modsecurity": "modsecurity",
-		"aws waf":     "aws-waf",
-		"akamai":      "akamai",
-		"imperva":     "imperva",
-		"f5":          "f5",
-		"fortinet":    "fortinet",
+	type wafSig struct{ name, signature string }
+	wafSignatures := []wafSig{
+		{"cloudflare", "cloudflare"},
+		{"modsecurity", "modsecurity"},
+		{"aws waf", "aws-waf"},
+		{"akamai", "akamai"},
+		{"imperva", "imperva"},
+		{"f5", "f5"},
+		{"fortinet", "fortinet"},
 	}
 
-	for name, signature := range wafSignatures {
-		if strings.Contains(responseLower, signature) {
+	for _, sig := range wafSignatures {
+		if strings.Contains(responseLower, sig.signature) {
 			analysis.WAFDetected = true
-			analysis.WAFName = name
+			analysis.WAFName = sig.name
 			analysis.Confidence = 0.9
 			break
 		}
@@ -605,12 +609,25 @@ func (e *MutationEngine) GetBasePayloads(payloadType PayloadType) []string {
 	return []string{}
 }
 
-// Mutate applies mutations to a payload
+// Mutate applies mutations to a payload.
+// If encodings is non-empty, only mutators whose Name() matches an entry are applied.
 func (e *MutationEngine) Mutate(payload string, payloadType PayloadType, level int, encodings []string) []string {
 	results := []string{payload}
 
+	// Build allowed set from encodings filter
+	var allowed map[string]bool
+	if len(encodings) > 0 {
+		allowed = make(map[string]bool, len(encodings))
+		for _, enc := range encodings {
+			allowed[enc] = true
+		}
+	}
+
 	// Apply mutations based on level
 	for i := 0; i < level && i < len(e.mutators); i++ {
+		if allowed != nil && !allowed[e.mutators[i].Name()] {
+			continue
+		}
 		var newResults []string
 		for _, p := range results {
 			mutated := e.mutators[i].Mutate(p)

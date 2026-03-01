@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -152,13 +153,16 @@ func NewTester(config *TesterConfig) *Tester {
 	}
 }
 
-// GetPayloads returns traversal payloads for the specified platform (cached)
+// GetPayloads returns traversal payloads for the specified platform (cached).
+// Returns a defensive copy to prevent callers from mutating the cache.
 func (t *Tester) GetPayloads(platform Platform) []Payload {
 	// Check cache first
 	t.cacheMu.RLock()
 	if cached, ok := t.payloadCache[platform]; ok {
 		t.cacheMu.RUnlock()
-		return cached
+		cp := make([]Payload, len(cached))
+		copy(cp, cached)
+		return cp
 	}
 	t.cacheMu.RUnlock()
 
@@ -257,8 +261,10 @@ func (t *Tester) generatePayloads(platform Platform) []Payload {
 			// Traversal with depths
 			for _, depth := range depths {
 				for _, pattern := range traversalPatterns {
-					if strings.Contains(pattern.pattern, "\\") {
-						continue // Skip backslash patterns for Linux
+					if strings.Contains(pattern.pattern, "\\") ||
+						strings.Contains(pattern.pattern, "%5c") ||
+						strings.Contains(pattern.pattern, "%c1%9c") {
+						continue // Skip backslash patterns (literal and URL-encoded) for Linux
 					}
 
 					traversal := strings.Repeat(pattern.pattern, depth)
@@ -296,9 +302,15 @@ func (t *Tester) generatePayloads(platform Platform) []Payload {
 					}
 
 					traversal := strings.Repeat(pattern.pattern, depth)
-					// Get just filename for traversal
+					// Get relative path from drive root (e.g. "Windows\System32\drivers\etc\hosts")
+					// Splitting on "\" and dropping the drive letter prefix ("C:")
 					parts := strings.Split(file, "\\")
-					filePath := parts[len(parts)-1]
+					var filePath string
+					if len(parts) > 1 {
+						filePath = strings.Join(parts[1:], "\\")
+					} else {
+						filePath = parts[0]
+					}
 
 					payloads = append(payloads, Payload{
 						Value:       traversal + filePath,
@@ -380,10 +392,16 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL string, param stri
 	}
 
 	for _, payload := range payloads {
-		q := u.Query()
+		select {
+		case <-ctx.Done():
+			return vulns, ctx.Err()
+		default:
+		}
+		cloned := *u
+		q := cloned.Query()
 		q.Set(param, payload.Value)
-		u.RawQuery = q.Encode()
-		testURL := u.String()
+		cloned.RawQuery = q.Encode()
+		testURL := cloned.String()
 
 		req, err := http.NewRequestWithContext(ctx, "GET", testURL, nil)
 		if err != nil {
@@ -498,9 +516,14 @@ func identifyFile(evidence string) string {
 		"PHP source":     "PHP file",
 	}
 
-	for indicator, file := range fileIndicators {
+	indicatorKeys := make([]string, 0, len(fileIndicators))
+	for k := range fileIndicators {
+		indicatorKeys = append(indicatorKeys, k)
+	}
+	sort.Strings(indicatorKeys)
+	for _, indicator := range indicatorKeys {
 		if strings.Contains(strings.ToLower(evidence), strings.ToLower(indicator)) {
-			return file
+			return fileIndicators[indicator]
 		}
 	}
 
@@ -546,6 +569,13 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*ScanResult, error
 
 	// Test each parameter
 	for _, param := range t.config.TestParams {
+		select {
+		case <-ctx.Done():
+			result.EndTime = time.Now()
+			result.Duration = result.EndTime.Sub(startTime)
+			return result, ctx.Err()
+		default:
+		}
 		vulns, err := t.TestParameter(ctx, targetURL, param, payloads)
 		if err != nil {
 			continue
@@ -628,8 +658,6 @@ func readBodyLimit(resp *http.Response, limit int64) string {
 	}
 	return string(data)
 }
-
-
 
 // Remediation guidance
 

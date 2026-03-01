@@ -264,8 +264,11 @@ func (m *Manager) loadFromURL(url string) (*Wordlist, error) {
 
 	const maxWordlistSize = 100 << 20 // 100 MB
 	if _, err := io.Copy(file, io.LimitReader(resp.Body, maxWordlistSize)); err != nil {
+		file.Close()
+		os.Remove(cachePath)
 		return nil, fmt.Errorf("failed to write cache file: %w", err)
 	}
+	file.Close() // explicit close before re-read
 
 	return m.loadFromFile(cachePath)
 }
@@ -396,6 +399,9 @@ func generateAlpha(minLen, maxLen int, charset string) []string {
 
 	var generate func(prefix string, length int)
 	generate = func(prefix string, length int) {
+		if len(words) >= 1000000 {
+			return
+		}
 		if length == 0 {
 			if len(prefix) >= minLen {
 				words = append(words, prefix)
@@ -410,7 +416,7 @@ func generateAlpha(minLen, maxLen int, charset string) []string {
 	for l := minLen; l <= maxLen; l++ {
 		generate("", l)
 		// Limit to prevent memory explosion
-		if len(words) > 1000000 {
+		if len(words) >= 1000000 {
 			break
 		}
 	}
@@ -547,9 +553,17 @@ func generateCombinations(parts [][]string, separator string) []string {
 		return nil
 	}
 
-	// Calculate total combinations
+	// Calculate total combinations with overflow protection
 	total := 1
 	for _, part := range parts {
+		if len(part) == 0 {
+			return nil
+		}
+		// Check for overflow before multiplying
+		if total > 1000000/len(part) {
+			total = 1000000
+			break
+		}
 		total *= len(part)
 	}
 
@@ -627,10 +641,11 @@ func (m *Manager) Transform(wl *Wordlist, transforms []Transform) (*Wordlist, er
 		}
 	}
 
+	deduped := deduplicate(words)
 	return &Wordlist{
 		Name:   wl.Name + "-transformed",
-		Words:  deduplicate(words),
-		Size:   len(words),
+		Words:  deduped,
+		Size:   len(deduped),
 		Type:   wl.Type,
 		Loaded: time.Now(),
 	}, nil
@@ -760,10 +775,11 @@ type FilterOptions struct {
 }
 
 func matchesFilter(word string, opts FilterOptions, regexFilter *regexp.Regexp) bool {
-	if opts.MinLength > 0 && len(word) < opts.MinLength {
+	wordLen := len([]rune(word))
+	if opts.MinLength > 0 && wordLen < opts.MinLength {
 		return false
 	}
-	if opts.MaxLength > 0 && len(word) > opts.MaxLength {
+	if opts.MaxLength > 0 && wordLen > opts.MaxLength {
 		return false
 	}
 	if opts.Contains != "" && !strings.Contains(word, opts.Contains) {

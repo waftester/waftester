@@ -5,6 +5,7 @@ import (
 	"context"
 	"html"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -34,17 +35,17 @@ func DefaultConfig() Config {
 
 // Result represents a CSRF test result
 type Result struct {
-	URL           string    `json:"url"`
-	Method        string    `json:"method"`
-	HasCSRFToken  bool      `json:"has_csrf_token"`
-	TokenName     string    `json:"token_name,omitempty"`
-	TokenLocation string    `json:"token_location,omitempty"`
-	SameSite      string    `json:"same_site,omitempty"`
-	Referer       string    `json:"referer,omitempty"`
-	Vulnerable    bool      `json:"vulnerable"`
-	Evidence      string    `json:"evidence,omitempty"`
-	Severity      finding.Severity    `json:"severity"`
-	Timestamp     time.Time `json:"timestamp"`
+	URL           string           `json:"url"`
+	Method        string           `json:"method"`
+	HasCSRFToken  bool             `json:"has_csrf_token"`
+	TokenName     string           `json:"token_name,omitempty"`
+	TokenLocation string           `json:"token_location,omitempty"`
+	SameSite      string           `json:"same_site,omitempty"`
+	Referer       string           `json:"referer,omitempty"`
+	Vulnerable    bool             `json:"vulnerable"`
+	Evidence      string           `json:"evidence,omitempty"`
+	Severity      finding.Severity `json:"severity"`
+	Timestamp     time.Time        `json:"timestamp"`
 }
 
 // Scanner performs CSRF testing
@@ -64,9 +65,14 @@ func NewScanner(config Config) *Scanner {
 		config.Timeout = httpclient.TimeoutProbing
 	}
 
+	client := config.Client
+	if client == nil {
+		client = httpclient.Default()
+	}
+
 	return &Scanner{
 		config:  config,
-		client:  httpclient.Default(),
+		client:  client,
 		results: make([]Result, 0),
 	}
 }
@@ -219,18 +225,23 @@ func (s *Scanner) checkSameSite(ctx context.Context, url string) string {
 	}
 	defer iohelper.DrainAndClose(resp.Body)
 
+	weakest := ""
 	for _, cookie := range resp.Cookies() {
 		switch cookie.SameSite {
-		case http.SameSiteStrictMode:
-			return "Strict"
-		case http.SameSiteLaxMode:
-			return "Lax"
 		case http.SameSiteNoneMode:
-			return "None"
+			return "None" // Can't get weaker than None
+		case http.SameSiteLaxMode:
+			if weakest != "None" {
+				weakest = "Lax"
+			}
+		case http.SameSiteStrictMode:
+			if weakest == "" {
+				weakest = "Strict"
+			}
 		}
 	}
 
-	return ""
+	return weakest
 }
 
 // GetResults returns all results
@@ -255,11 +266,17 @@ func GeneratePOC(targetURL, method string, params map[string]string) string {
 	sb.WriteString(`">
 `)
 
-	for name, value := range params {
+	// Sort parameter names for deterministic output
+	paramNames := make([]string, 0, len(params))
+	for name := range params {
+		paramNames = append(paramNames, name)
+	}
+	sort.Strings(paramNames)
+	for _, name := range paramNames {
 		sb.WriteString(`  <input type="hidden" name="`)
 		sb.WriteString(html.EscapeString(name))
 		sb.WriteString(`" value="`)
-		sb.WriteString(html.EscapeString(value))
+		sb.WriteString(html.EscapeString(params[name]))
 		sb.WriteString(`" />
 `)
 	}

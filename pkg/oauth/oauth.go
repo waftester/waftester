@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 
@@ -110,12 +111,32 @@ func NewTester(config *TesterConfig, endpoints *OAuthEndpoint, oauthConfig *OAut
 	if config == nil {
 		config = DefaultTesterConfig()
 	}
+	if oauthConfig == nil {
+		oauthConfig = &OAuthConfig{}
+	}
+	if endpoints == nil {
+		endpoints = &OAuthEndpoint{}
+	}
+
+	// httpclient.Default() already does not follow redirects, which is the
+	// correct default for security testing. Only override when FollowRedirect
+	// is explicitly enabled.
+	client := config.Client
+	if client == nil {
+		if config.FollowRedirect {
+			cfg := httpclient.DefaultConfig()
+			cfg.CookieJar = true
+			client = httpclient.New(cfg)
+		} else {
+			client = httpclient.Default()
+		}
+	}
 
 	return &Tester{
 		config:    config,
 		endpoints: endpoints,
 		oauth:     oauthConfig,
-		client:    httpclient.Default(),
+		client:    client,
 	}
 }
 
@@ -402,6 +423,7 @@ func (t *Tester) Scan(ctx context.Context) ([]Vulnerability, error) {
 	var allVulns []Vulnerability
 	var mu sync.Mutex
 	var wg sync.WaitGroup
+	var firstErr error
 
 	tests := []func(context.Context) ([]Vulnerability, error){
 		t.TestOpenRedirect,
@@ -417,18 +439,21 @@ func (t *Tester) Scan(ctx context.Context) ([]Vulnerability, error) {
 			defer wg.Done()
 
 			vulns, err := testFn(ctx)
+			mu.Lock()
+			defer mu.Unlock()
 			if err != nil {
+				if firstErr == nil {
+					firstErr = err
+				}
 				return
 			}
-
-			mu.Lock()
 			allVulns = append(allVulns, vulns...)
-			mu.Unlock()
 		}(test)
 	}
 
 	wg.Wait()
-	return allVulns, nil
+	// Return results even on partial failure, but propagate the first error
+	return allVulns, firstErr
 }
 
 func (t *Tester) applyHeaders(req *http.Request) {
@@ -436,8 +461,13 @@ func (t *Tester) applyHeaders(req *http.Request) {
 	if t.config.AuthHeader != "" {
 		req.Header.Set("Authorization", t.config.AuthHeader)
 	}
-	for name, value := range t.config.Cookies {
-		req.AddCookie(&http.Cookie{Name: name, Value: value})
+	cookieNames := make([]string, 0, len(t.config.Cookies))
+	for name := range t.config.Cookies {
+		cookieNames = append(cookieNames, name)
+	}
+	sort.Strings(cookieNames)
+	for _, name := range cookieNames {
+		req.AddCookie(&http.Cookie{Name: name, Value: t.config.Cookies[name]})
 	}
 }
 

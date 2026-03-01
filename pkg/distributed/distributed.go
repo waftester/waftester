@@ -125,7 +125,8 @@ func (c *Coordinator) RegisterNode(node *Node) error {
 	c.nodes[node.ID] = node
 
 	if c.OnNodeJoin != nil {
-		go c.OnNodeJoin(node)
+		nodeCopy := *node
+		go c.OnNodeJoin(&nodeCopy)
 	}
 
 	return nil
@@ -167,6 +168,7 @@ func (c *Coordinator) SubmitTask(task *Task) error {
 	case c.taskQueue <- task:
 		return nil
 	default:
+		delete(c.tasks, task.ID)
 		return fmt.Errorf("task queue full")
 	}
 }
@@ -220,7 +222,7 @@ func (c *Coordinator) CompleteTask(taskID string, result *TaskResult) {
 	task.CompletedAt = &now
 	task.Result = result
 
-	if result.Success {
+	if result != nil && result.Success {
 		task.Status = TaskCompleted
 	} else {
 		task.Status = TaskFailed
@@ -550,9 +552,9 @@ func (w *Worker) fetchAndExecuteTask(ctx context.Context) {
 // Stop gracefully stops the worker
 func (w *Worker) Stop() {
 	w.stopOnce.Do(func() {
+		w.Node.Status = StatusDraining
 		close(w.StopChan)
 	})
-	w.Node.Status = StatusDraining
 }
 
 // API handlers for coordinator HTTP server
@@ -596,7 +598,9 @@ func (c *Coordinator) handleNodes(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		nodes := c.GetNodes()
-		json.NewEncoder(w).Encode(nodes)
+		if err := json.NewEncoder(w).Encode(nodes); err != nil {
+		slog.Warn("failed to encode nodes response", "error", err)
+	}
 	case http.MethodPost:
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 		var req RegisterRequest
@@ -608,7 +612,9 @@ func (c *Coordinator) handleNodes(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		json.NewEncoder(w).Encode(RegisterResponse{Success: true})
+		if err := json.NewEncoder(w).Encode(RegisterResponse{Success: true}); err != nil {
+		slog.Warn("failed to encode register response", "error", err)
+	}
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -618,7 +624,9 @@ func (c *Coordinator) handleTasks(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		tasks := c.GetTasks()
-		json.NewEncoder(w).Encode(tasks)
+		if err := json.NewEncoder(w).Encode(tasks); err != nil {
+		slog.Warn("failed to encode tasks response", "error", err)
+	}
 	case http.MethodPost:
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 		var req TaskRequest
@@ -634,7 +642,9 @@ func (c *Coordinator) handleTasks(w http.ResponseWriter, r *http.Request) {
 			}
 			taskIDs = append(taskIDs, task.ID)
 		}
-		json.NewEncoder(w).Encode(TaskResponse{TaskIDs: taskIDs})
+		if err := json.NewEncoder(w).Encode(TaskResponse{TaskIDs: taskIDs}); err != nil {
+		slog.Warn("failed to encode task response", "error", err)
+	}
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -646,7 +656,9 @@ func (c *Coordinator) handleStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	stats := c.Stats()
-	json.NewEncoder(w).Encode(stats)
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		slog.Warn("failed to encode stats response", "error", err)
+	}
 }
 
 func (c *Coordinator) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
@@ -672,8 +684,12 @@ func (c *Coordinator) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 // Start starts the coordinator HTTP server
 func (c *Coordinator) Start(ctx context.Context) error {
 	c.httpServer = &http.Server{
-		Addr:    c.Address,
-		Handler: c,
+		Addr:              c.Address,
+		Handler:           c,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	// Start distributor

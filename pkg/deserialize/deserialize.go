@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 
@@ -101,9 +102,14 @@ func NewTester(config *TesterConfig) *Tester {
 		config = DefaultConfig()
 	}
 
+	client := config.Client
+	if client == nil {
+		client = httpclient.Default()
+	}
+
 	return &Tester{
 		config: config,
-		client: httpclient.Default(),
+		client: client,
 	}
 }
 
@@ -206,6 +212,7 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) ([]Vulnerability, e
 	var vulns []Vulnerability
 	var mu sync.Mutex
 	var wg sync.WaitGroup
+	var firstErr error
 
 	payloads := GetAllPayloads()
 	sem := make(chan struct{}, t.config.Concurrency)
@@ -226,6 +233,11 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) ([]Vulnerability, e
 
 				vuln, err := t.TestPayload(ctx, targetURL, par, p)
 				if err != nil {
+					mu.Lock()
+					if firstErr == nil {
+						firstErr = err
+					}
+					mu.Unlock()
 					return
 				}
 
@@ -239,7 +251,7 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) ([]Vulnerability, e
 	}
 
 	wg.Wait()
-	return vulns, nil
+	return vulns, firstErr
 }
 
 // GetAllPayloads returns all deserialization test payloads.
@@ -434,8 +446,13 @@ func (t *Tester) applyHeaders(req *http.Request) {
 	if t.config.AuthHeader != "" {
 		req.Header.Set("Authorization", t.config.AuthHeader)
 	}
-	for name, value := range t.config.Cookies {
-		req.AddCookie(&http.Cookie{Name: name, Value: value})
+	cookieNames := make([]string, 0, len(t.config.Cookies))
+	for name := range t.config.Cookies {
+		cookieNames = append(cookieNames, name)
+	}
+	sort.Strings(cookieNames)
+	for _, name := range cookieNames {
+		req.AddCookie(&http.Cookie{Name: name, Value: t.config.Cookies[name]})
 	}
 }
 
@@ -457,9 +474,21 @@ func (t *Tester) isVulnerable(statusCode int, body string, vulnType Vulnerabilit
 		}
 	}
 
-	// Server error with deserialization-related stack trace
-	if statusCode >= 500 && (strings.Contains(body, "Exception") || strings.Contains(body, "Error")) {
-		return true
+	// Server error with deserialization-specific stack trace indicators.
+	// Generic "Exception"/"Error" alone is too broad — require at least one
+	// deserialization-related class or keyword alongside the error.
+	if statusCode >= 500 {
+		deserialKeywords := []string{
+			"ObjectInputStream", "BinaryFormatter", "unserialize",
+			"pickle", "marshal", "yaml.load", "Deserialize",
+			"SerializationException", "ClassNotFound", "InvalidClass",
+			"StreamCorrupted", "TypeNameHandling", "JsonSerializationException",
+		}
+		for _, kw := range deserialKeywords {
+			if strings.Contains(body, kw) {
+				return true
+			}
+		}
 	}
 
 	return false

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"os"
@@ -82,6 +82,7 @@ func runScan() {
 	cfg.Out.Version = ui.Version
 	scanFlags.Parse(os.Args[2:])
 	cfg.validate()
+	defer cfg.Out.CleanupTemplates()
 
 	// Resolve nuclei template directory: if the default path doesn't exist
 	// on disk, extract embedded templates to a temp directory.
@@ -100,7 +101,6 @@ func runScan() {
 
 	// Check if we are in streaming JSON mode (suppress UI output)
 	streamJSON := cfg.Out.StreamMode && (cfg.Out.JSONMode || cfg.Out.Format == "json" || cfg.Out.Format == "jsonl")
-
 
 	// Print banner unless in streaming JSON mode or suppressed by cfg.Out
 	if !streamJSON && !cfg.Out.ShouldSuppressBanner() {
@@ -204,13 +204,7 @@ func runScan() {
 	// DISPATCHER INITIALIZATION (Hooks: Slack, Teams, PagerDuty, OTEL, Prometheus)
 	// ═══════════════════════════════════════════════════════════════════════════
 	scanID := fmt.Sprintf("scan-%d", time.Now().Unix())
-	// Scan builds its own HAR from vulnerability findings via writeScanHAR.
-	// Exclude HARExport from the dispatcher so it doesn't open the same file
-	// (the dispatcher would write an empty HAR on Close, overwriting the real one).
-	scanHARPath := cfg.Out.HARExport
-	cfg.Out.HARExport = ""
 	dispCtx, dispErr := cfg.Out.InitDispatcher(scanID, target)
-	cfg.Out.HARExport = scanHARPath
 	if dispErr != nil {
 		ui.PrintWarning(fmt.Sprintf("Output dispatcher warning: %v", dispErr))
 	}
@@ -521,7 +515,7 @@ func runScan() {
 			"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 			"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
 		}
-		effectiveUserAgent = userAgents[time.Now().UnixNano()%int64(len(userAgents))]
+		effectiveUserAgent = userAgents[rand.IntN(len(userAgents))]
 	}
 
 	// Build custom headers map
@@ -568,6 +562,9 @@ func runScan() {
 				targetPath = parsedTarget.Path
 			}
 			for _, disallowed := range robotsResult.DisallowedPaths {
+				if disallowed == "" {
+					continue
+				}
 				// Path-segment-aware match: /admin must not match
 				// /administrator. A disallowed path matches when the
 				// target equals it exactly, or is a sub-path (next
@@ -702,6 +699,26 @@ func runScan() {
 			}
 		}
 
+		// Console timestamp output (non-JSON mode, respects -silent)
+		if *cfg.Timestamp && !streamJSON && !*cfg.Silent && eventType == "vulnerability" {
+			ts := time.Now().Format("15:04:05")
+			if dataMap, ok := data.(map[string]interface{}); ok {
+				category, _ := dataMap["category"].(string)
+				if category == "" {
+					category = "unknown"
+				}
+				severity := fmt.Sprintf("%v", dataMap["severity"])
+				if severity == "" || severity == "<nil>" {
+					severity = "unknown"
+				}
+				vulnType := fmt.Sprintf("%v", dataMap["type"])
+				if vulnType == "" || vulnType == "<nil>" {
+					vulnType = "detected"
+				}
+				fmt.Fprintf(os.Stderr, "[%s] [%s] %s: %s\n", ts, severity, category, vulnType)
+			}
+		}
+
 		// JSON streaming output (only if streamJSON mode)
 		if !streamJSON {
 			return
@@ -713,7 +730,10 @@ func runScan() {
 			"timestamp": time.Now().Format(time.RFC3339),
 			"data":      data,
 		}
-		eventData, _ := json.Marshal(event)
+		eventData, marshalErr := json.Marshal(event)
+		if marshalErr != nil {
+			return
+		}
 		fmt.Println(string(eventData)) // debug:keep
 	}
 
@@ -779,7 +799,7 @@ func runScan() {
 			if *cfg.Delay > 0 {
 				d := *cfg.Delay
 				if *cfg.Jitter > 0 {
-					d += time.Duration(rand.Int63n(int64(*cfg.Jitter)))
+					d += time.Duration(rand.N(int64(*cfg.Jitter)))
 				}
 				select {
 				case <-ctx.Done():
@@ -1610,6 +1630,9 @@ func runScan() {
 			target + "/query",
 		}
 		for _, endpoint := range graphqlEndpoints {
+			if ctx.Err() != nil {
+				return
+			}
 			tester := graphql.NewTester(endpoint, testerCfg)
 			scanResult, err := tester.FullScan(ctx)
 			if err == nil && scanResult != nil && len(scanResult.Vulnerabilities) > 0 {
@@ -2183,6 +2206,9 @@ func runScan() {
 		}
 		var allResults []idor.Result
 		for _, ep := range endpoints {
+			if ctx.Err() != nil {
+				break
+			}
 			results, err := scanner.ScanEndpoint(ctx, ep.path, ep.method)
 			if err != nil {
 				continue
@@ -2877,7 +2903,11 @@ func runScan() {
 
 	// Emit summary to all hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
 	if dispCtx != nil {
-		_ = dispCtx.EmitSummary(ctx, int(totalScans), 0, result.TotalVulns, result.Duration)
+		blocked := int(totalScans) - result.TotalVulns
+		if blocked < 0 {
+			blocked = 0
+		}
+		_ = dispCtx.EmitSummary(ctx, int(totalScans), blocked, result.TotalVulns, result.Duration)
 	}
 
 	// Emit scan_end event for streaming JSON

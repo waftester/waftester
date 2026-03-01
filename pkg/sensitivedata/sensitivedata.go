@@ -71,9 +71,14 @@ func NewScanner(config Config) *Scanner {
 		config.Timeout = httpclient.TimeoutProbing
 	}
 
+	client := config.Client
+	if client == nil {
+		client = httpclient.Default()
+	}
+
 	return &Scanner{
 		config:   config,
-		client:   httpclient.Default(),
+		client:   client,
 		patterns: compilePatterns(),
 		results:  make([]Result, 0),
 	}
@@ -168,8 +173,6 @@ func (s *Scanner) scanContent(url, content, location string) []Result {
 
 	return results
 }
-
-
 
 // GetResults returns all results
 func (s *Scanner) GetResults() []Result {

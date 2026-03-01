@@ -98,6 +98,7 @@ func TestBypassTracking(t *testing.T) {
 	engine.LearnFromFinding(&Finding{
 		Phase: "waf-testing", Category: "sqli", Severity: "Critical",
 		Path: "/api/user", Payload: "' or '1'='1", Blocked: false,
+		StatusCode: 200, // actual bypass (got HTTP response)
 	})
 
 	summary := engine.GetSummary()
@@ -303,36 +304,211 @@ func TestWAFModelLearning(t *testing.T) {
 	}
 }
 
-// TestTechProfileDetection tests technology detection
+// TestTechProfileDetection tests technology detection via Evidence and Path
 func TestTechProfileDetection(t *testing.T) {
 	profile := NewTechProfile()
 
-	// Add findings with tech indicators
+	// Update with a finding whose Evidence contains a Django indicator.
+	// Detection uses Evidence + Path (NOT Metadata or Payload).
 	profile.Update(&Finding{
-		Path: "/",
-		Metadata: map[string]interface{}{
-			"headers": "X-Powered-By: Django",
-		},
-	})
-	profile.Update(&Finding{
-		Path: "/admin",
-		Metadata: map[string]interface{}{
-			"body": "csrfmiddlewaretoken",
-		},
+		Path:     "/admin",
+		Evidence: "csrfmiddlewaretoken",
 	})
 
-	// Detect from a finding with Django indicators
-	profile.Detect(&Finding{
-		Path:    "/django/admin",
-		Payload: "csrfmiddlewaretoken",
+	if !profile.HasFramework("django") {
+		t.Error("Expected django framework to be detected via csrfmiddlewaretoken in Evidence")
+	}
+
+	// Detect should return a new TechInfo for an unseen framework
+	tech := profile.Detect(&Finding{
+		Path:     "/api/v1/users",
+		Evidence: "X-Powered-By: Express",
+	})
+	if tech == nil {
+		t.Error("Expected Detect to return TechInfo for Express via x-powered-by header")
+	} else if tech.Name != "express" {
+		t.Errorf("Expected tech name 'express', got %q", tech.Name)
+	}
+
+	// Payload content must NOT trigger detection (attacker-controlled)
+	profile2 := NewTechProfile()
+	profile2.Update(&Finding{
+		Path:    "/test",
+		Payload: "django flask spring react angular vue",
+	})
+	detected := profile2.GetDetected()
+	if len(detected) > 0 {
+		t.Errorf("Payload content should not trigger tech detection, but got: %v", detected)
+	}
+
+	// Verify GetDetected returns both frameworks
+	all := profile.GetDetected()
+	t.Logf("Detected technologies: %v", all)
+	if len(all) < 2 {
+		t.Errorf("Expected at least 2 detected technologies, got %d", len(all))
+	}
+}
+
+// TestTechProfile_NoFalsePositivesFromEnglish verifies that common English
+// words in response bodies do NOT trigger false technology detection.
+// BUG #10: Generic words like "express", "spring", "react", "node", "vue",
+// "angular" in page content caused every technology to be detected.
+func TestTechProfile_NoFalsePositivesFromEnglish(t *testing.T) {
+	t.Parallel()
+
+	// Realistic page content containing trigger words in normal English
+	englishContent := []string{
+		"We express our gratitude for your patience",
+		"Spring sale! 50% off all products",
+		"Please react quickly to this urgent notice",
+		"This node in our network is operational",
+		"The vue from the balcony is beautiful",
+		"Angular momentum of the particle is conserved",
+		"Our oracle told us it would rain tomorrow",
+		"flask of water on the laboratory bench",
+		"Django Unchained is a great movie",
+		"The ruby gemstone sparkled in the light",
+		"She went on a wordpress about her feelings",
+	}
+
+	for _, content := range englishContent {
+		profile := NewTechProfile()
+		profile.Update(&Finding{
+			Evidence: content,
+			Path:     "/about",
+		})
+
+		detected := profile.GetDetected()
+		if len(detected) > 0 {
+			t.Errorf("False positive: %q triggered detection of: %v", content, detected)
+		}
+	}
+}
+
+// TestTechProfile_RealIndicatorsDetected verifies that actual technology
+// artifacts (headers, HTML attributes, path patterns) DO trigger detection.
+func TestTechProfile_RealIndicatorsDetected(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		evidence string
+		path     string
+		wantType string // "Framework:", "Server:", "Language:", "Database:"
+		wantName string
+	}{
+		{
+			name:     "csrfmiddlewaretoken detects Django",
+			evidence: "csrfmiddlewaretoken",
+			path:     "/login",
+			wantType: "Framework:",
+			wantName: "django",
+		},
+		{
+			name:     "x-powered-by header detects Express",
+			evidence: "x-powered-by: express",
+			path:     "/api",
+			wantType: "Framework:",
+			wantName: "express",
+		},
+		{
+			name:     "__viewstate detects ASP.NET",
+			evidence: "__viewstate",
+			path:     "/default",
+			wantType: "Framework:",
+			wantName: "asp.net",
+		},
+		{
+			name:     "data-reactid detects React",
+			evidence: "data-reactid=\".0\"",
+			path:     "/",
+			wantType: "Framework:",
+			wantName: "react",
+		},
+		{
+			name:     "wp-content detects WordPress",
+			evidence: "/wp-content/themes/flavor/style.css",
+			path:     "/",
+			wantType: "Framework:",
+			wantName: "wordpress",
+		},
+		{
+			name:     "nginx server header detects Nginx",
+			evidence: "server: nginx/1.25.3",
+			path:     "/",
+			wantType: "Server:",
+			wantName: "nginx",
+		},
+		{
+			name:     "_next/ path detects Next.js",
+			evidence: "",
+			path:     "/_next/static/chunks/main.js",
+			wantType: "Framework:",
+			wantName: "nextjs",
+		},
+		{
+			name:     "x-powered-by php detects PHP language",
+			evidence: "x-powered-by: php/8.2",
+			path:     "/index",
+			wantType: "Language:",
+			wantName: "php",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			profile := NewTechProfile()
+			profile.Update(&Finding{
+				Evidence: tt.evidence,
+				Path:     tt.path,
+			})
+
+			detected := profile.GetDetected()
+			found := false
+			for _, d := range detected {
+				if d == tt.wantType+" "+tt.wantName {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("Expected %s %s to be detected, got: %v", tt.wantType, tt.wantName, detected)
+			}
+		})
+	}
+}
+
+// TestTechProfile_PayloadExcluded verifies that attack payload content
+// is never used for technology detection.
+// BUG #10: Payload field was concatenated into detection content, causing
+// every technology to be falsely detected from attack strings.
+func TestTechProfile_PayloadExcluded(t *testing.T) {
+	t.Parallel()
+
+	profile := NewTechProfile()
+
+	// This payload contains indicators for almost every technology
+	profile.Update(&Finding{
+		Payload:  "csrfmiddlewaretoken werkzeug x-powered-by: express jsessionid __viewstate data-reactid ng-app wp-content nginx mysql",
+		Evidence: "", // empty evidence
+		Path:     "/test",
 	})
 
 	detected := profile.GetDetected()
-	t.Logf("Detected technologies: %+v", detected)
+	if len(detected) > 0 {
+		t.Errorf("Payload content should not trigger detection, but detected: %v", detected)
+	}
 
-	// Should have detected Django
-	if !profile.HasFramework("django") && !profile.HasFramework("Django") {
-		t.Log("Django not detected (may depend on detection patterns)")
+	// Also test Detect() method
+	tech := profile.Detect(&Finding{
+		Payload:  "csrfmiddlewaretoken werkzeug data-reactid",
+		Evidence: "",
+		Path:     "/test",
+	})
+	if tech != nil {
+		t.Errorf("Detect() returned %v from payload content, expected nil", tech.Name)
 	}
 }
 
@@ -347,7 +523,7 @@ func TestStatsPhaseTracking(t *testing.T) {
 	stats.EndPhase("discovery")
 
 	stats.StartPhase("waf-testing")
-	stats.RecordFinding(&Finding{Category: "sqli", Severity: "Critical", Blocked: false}, true)
+	stats.RecordFinding(&Finding{Category: "sqli", Severity: "Critical", Blocked: false, StatusCode: 200}, true)
 	stats.RecordFinding(&Finding{Category: "sqli", Severity: "Critical", Blocked: true}, true)
 	stats.EndPhase("waf-testing")
 

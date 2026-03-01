@@ -49,8 +49,6 @@ const (
 	DBUnknown  Database = "unknown"
 )
 
-
-
 // Vulnerability represents a detected NoSQL injection vulnerability
 type Vulnerability struct {
 	Type        VulnerabilityType `json:"type"`
@@ -428,8 +426,11 @@ var (
 
 // detectEvidence checks response for signs of NoSQL injection
 func (t *Tester) detectEvidence(body string, statusCode int, db Database) string {
-	// Check based on database type
-	patterns := genericNoSQLPatterns
+	// Build a local slice of patterns to check. We must NOT alias the
+	// package-level slices because append could write into their backing
+	// arrays when called concurrently from multiple goroutines.
+	patterns := make([]*regexp.Regexp, len(genericNoSQLPatterns), len(genericNoSQLPatterns)+len(mongoPatterns)+len(couchPatterns)+len(redisPatterns))
+	copy(patterns, genericNoSQLPatterns)
 	if db == DBMongoDB || db == DBUnknown {
 		patterns = append(patterns, mongoPatterns...)
 	}
@@ -518,7 +519,7 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*ScanResult, error
 
 	// Get payloads
 	payloads := t.GetPayloads(db)
-	result.TestedPayloads = len(payloads)
+	result.TestedPayloads = len(payloads) * len(t.config.TestParams)
 
 	// Test each parameter
 	for _, param := range t.config.TestParams {
@@ -544,11 +545,12 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*ScanResult, error
 // Helper functions
 
 func readBodyLimit(resp *http.Response, limit int64) string {
-	data, _ := io.ReadAll(io.LimitReader(resp.Body, limit))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, limit))
+	if err != nil {
+		return ""
+	}
 	return string(data)
 }
-
-
 
 func getSeverity(vulnType VulnerabilityType) finding.Severity {
 	switch vulnType {

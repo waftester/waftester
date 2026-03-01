@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -618,10 +619,6 @@ func (s *Server) handleScanSpec(ctx context.Context, req *mcp.CallToolRequest) (
 	return s.launchAsync(ctx, "scan_spec", estimatedDuration, func(taskCtx context.Context, task *Task) {
 		slog.Info("scan_spec: starting", "target", target, "entries", len(plan.Entries))
 
-		scanResult := &apispec.SpecScanResult{
-			SpecSource: spec.Source,
-			StartedAt:  time.Now(),
-		}
 		startTime := time.Now()
 
 		executor := &apispec.SimpleExecutor{
@@ -631,16 +628,17 @@ func (s *Server) handleScanSpec(ctx context.Context, req *mcp.CallToolRequest) (
 			OnEndpointStart: func(ep apispec.Endpoint, scanType string) {
 				slog.Info("scan_spec: scanning", "method", ep.Method, "path", ep.Path, "scan_type", scanType)
 			},
-			OnFinding: func(f apispec.SpecFinding) {
-				scanResult.AddFinding(f)
-			},
 		}
 
-		if _, err := executor.Execute(taskCtx, plan); err != nil {
-			scanResult.AddError(fmt.Sprintf("execution error: %v", err))
+		session, execErr := executor.Execute(taskCtx, plan)
+		if execErr != nil {
+			task.Fail(fmt.Sprintf("execution error: %v", execErr))
+			return
 		}
 
-		scanResult.Finalize()
+		// Use the executor's result which has complete data
+		// (findings, errors, TotalEndpoints, TotalTests).
+		scanResult := session.Result
 
 		type scanOutput struct {
 			Target   string                  `json:"target"`
@@ -930,6 +928,7 @@ func (s *Server) handleSpecIntelligence(ctx context.Context, req *mcp.CallToolRe
 				unique = append(unique, r)
 			}
 		}
+		sort.Strings(unique)
 		categoryInfo[cat] = map[string]any{
 			"endpoint_count": len(reasons),
 			"reasons":        unique,

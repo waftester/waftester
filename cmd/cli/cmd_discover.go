@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/waftester/waftester/pkg/discovery"
@@ -130,8 +131,13 @@ func runDiscover() {
 			_ = discoverDispCtx.EmitBypass(discoverCtx, "waf-detection", "info", target, wafDesc, 0)
 		}
 		// Emit secrets found during discovery
-		for path, secrets := range result.Secrets {
-			for _, s := range secrets {
+		secretPaths := make([]string, 0, len(result.Secrets))
+		for path := range result.Secrets {
+			secretPaths = append(secretPaths, path)
+		}
+		sort.Strings(secretPaths)
+		for _, path := range secretPaths {
+			for _, s := range result.Secrets[path] {
 				secretDesc := fmt.Sprintf("%s found at %s", s.Type, path)
 				_ = discoverDispCtx.EmitBypass(discoverCtx, "secret-exposure", s.Severity, target, secretDesc, 0)
 			}
@@ -210,8 +216,13 @@ func runDiscover() {
 	// Show enhanced discovery findings
 	if len(result.Secrets) > 0 {
 		ui.PrintSection(ui.Icon("🔑", "*") + " Secrets Detected")
-		for path, secrets := range result.Secrets {
-			for _, s := range secrets {
+		displayPaths := make([]string, 0, len(result.Secrets))
+		for path := range result.Secrets {
+			displayPaths = append(displayPaths, path)
+		}
+		sort.Strings(displayPaths)
+		for _, path := range displayPaths {
+			for _, s := range result.Secrets[path] {
 				ui.PrintError(fmt.Sprintf("[%s] %s in %s", s.Severity, s.Type, path))
 			}
 		}

@@ -463,7 +463,10 @@ func (m *Memory) Export() *MemoryState {
 	defer m.mu.RUnlock()
 
 	findings := make([]*Finding, len(m.findings))
-	copy(findings, m.findings)
+	for i, f := range m.findings {
+		fCopy := *f
+		findings[i] = &fCopy
+	}
 
 	// Copy category priorities
 	categoryPriority := make(map[string]string, len(m.categoryPriority))
@@ -484,7 +487,10 @@ func (m *Memory) Import(state *MemoryState) {
 	defer m.mu.Unlock()
 
 	m.findings = make([]*Finding, len(state.Findings))
-	copy(m.findings, state.Findings)
+	for i, f := range state.Findings {
+		fCopy := *f
+		m.findings[i] = &fCopy
+	}
 
 	// Restore max findings setting
 	if state.MaxFindings > 0 {
@@ -509,7 +515,7 @@ func (m *Memory) Import(state *MemoryState) {
 		m.byCategory[f.Category] = append(m.byCategory[f.Category], f)
 		m.bySeverity[f.Severity] = append(m.bySeverity[f.Severity], f)
 		m.byPath[f.Path] = append(m.byPath[f.Path], f)
-		if !f.Blocked && f.IsTestingPhase() {
+		if !f.Blocked && f.IsTestingPhase() && f.StatusCode > 0 {
 			m.bypasses = append(m.bypasses, f)
 		}
 	}
@@ -807,19 +813,44 @@ func (ec *EndpointClusterer) Import(state *ClustererState) {
 	ec.mu.Lock()
 	defer ec.mu.Unlock()
 
-	ec.clusters = make(map[string]*EndpointCluster)
+	ec.clusters = make(map[string]*EndpointCluster, len(state.Clusters))
 	for k, v := range state.Clusters {
-		ec.clusters[k] = v
+		var behaviorCopy *ClusterBehavior
+		if v.Behavior != nil {
+			behaviorCopy = &ClusterBehavior{
+				AvgBlockRate:        v.Behavior.AvgBlockRate,
+				CommonStatusCodes:   append([]int{}, v.Behavior.CommonStatusCodes...),
+				BlockRateByCategory: copyStringFloatMap(v.Behavior.BlockRateByCategory),
+				Variance:            v.Behavior.Variance,
+			}
+		}
+		ec.clusters[k] = &EndpointCluster{
+			ID:             v.ID,
+			Representative: v.Representative,
+			Members:        append([]string{}, v.Members...),
+			Pattern:        v.Pattern,
+			Technology:     v.Technology,
+			Behavior:       behaviorCopy,
+			Confidence:     v.Confidence,
+		}
 	}
 
-	ec.endpointCluster = make(map[string]string)
+	ec.endpointCluster = make(map[string]string, len(state.EndpointCluster))
 	for k, v := range state.EndpointCluster {
 		ec.endpointCluster[k] = v
 	}
 
-	ec.endpointBehaviors = make(map[string]*EndpointBehavior)
+	ec.endpointBehaviors = make(map[string]*EndpointBehavior, len(state.EndpointBehaviors))
 	for k, v := range state.EndpointBehaviors {
-		ec.endpointBehaviors[k] = v
+		ec.endpointBehaviors[k] = &EndpointBehavior{
+			Path:            v.Path,
+			StatusCodes:     copyIntIntMap(v.StatusCodes),
+			BlockRates:      copyStringFloatMap(v.BlockRates),
+			AvgLatency:      v.AvgLatency,
+			Characteristics: append([]string{}, v.Characteristics...),
+			TotalRequests:   v.TotalRequests,
+			BlockedRequests: v.BlockedRequests,
+		}
 	}
 }
 
@@ -876,9 +907,20 @@ func (apo *AttackPathOptimizer) Import(state *PathfinderState) {
 	apo.mu.Lock()
 	defer apo.mu.Unlock()
 
-	apo.nodes = make(map[string]*AttackNode)
+	apo.nodes = make(map[string]*AttackNode, len(state.Nodes))
 	for k, v := range state.Nodes {
-		apo.nodes[k] = v
+		apo.nodes[k] = &AttackNode{
+			ID:          v.ID,
+			Type:        v.Type,
+			Path:        v.Path,
+			Category:    v.Category,
+			Description: v.Description,
+			Value:       v.Value,
+			Reachable:   v.Reachable,
+			Exploited:   v.Exploited,
+			BlockedBy:   append([]string{}, v.BlockedBy...),
+			RequiredFor: append([]string{}, v.RequiredFor...),
+		}
 	}
 
 	apo.edges = make([]AttackEdge, len(state.Edges))

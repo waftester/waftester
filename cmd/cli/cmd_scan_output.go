@@ -53,6 +53,12 @@ func finalizeScanOutput(ctx context.Context, result *ScanResult, cfg scanOutputC
 		result.ReportAuthor = cfg.ReportAuthor
 	}
 
+	// Enterprise export formats (--json-export, --sarif-export, --html-export, etc.)
+	// Must run BEFORE stdout format routing because those branches return early.
+	cfg.OutFlags.MaybeExport(func() execResults {
+		return scanResultsToExecution(cfg.Target, result)
+	})
+
 	// CSV output format
 	if cfg.CSVOutput {
 		printScanCSV(os.Stdout, cfg.Target, result)
@@ -100,9 +106,6 @@ func finalizeScanOutput(ctx context.Context, result *ScanResult, cfg scanOutputC
 	if cfg.OutputFile != "" && cfg.StreamJSON {
 		writeScanJSON(ctx, result, cfg)
 	}
-
-	// Enterprise export formats (--json-export, --sarif-export, --html-export, etc.)
-	writeScanExports(cfg.OutFlags, cfg.Target, result)
 
 	if result.TotalVulns > 0 {
 		if cfg.DispCtx != nil {

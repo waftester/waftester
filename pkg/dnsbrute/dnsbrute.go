@@ -165,7 +165,11 @@ func (b *Bruteforcer) Run(ctx context.Context, domain string, words []string) ([
 					}
 					atomic.AddInt64(&b.stats.Tested, 1)
 					if b.config.QueryDelay > 0 {
-						time.Sleep(b.config.QueryDelay)
+						select {
+						case <-ctx.Done():
+							return
+						case <-time.After(b.config.QueryDelay):
+						}
 					}
 				}
 			}
@@ -232,10 +236,13 @@ func (b *Bruteforcer) Stop() {
 
 // GetStats returns current statistics
 func (b *Bruteforcer) GetStats() Stats {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	stats := b.stats
+	stats := Stats{
+		Total:     atomic.LoadInt64(&b.stats.Total),
+		Tested:    atomic.LoadInt64(&b.stats.Tested),
+		Found:     atomic.LoadInt64(&b.stats.Found),
+		Errors:    atomic.LoadInt64(&b.stats.Errors),
+		Wildcards: atomic.LoadInt64(&b.stats.Wildcards),
+	}
 	stats.Duration = time.Since(b.startTime)
 	if stats.Duration.Seconds() > 0 {
 		stats.Rate = float64(stats.Tested) / stats.Duration.Seconds()
@@ -247,7 +254,9 @@ func (b *Bruteforcer) GetStats() Stats {
 func (b *Bruteforcer) GetResults() []Result {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	return b.results
+	out := make([]Result, len(b.results))
+	copy(out, b.results)
+	return out
 }
 
 // bruteforce tests a single subdomain

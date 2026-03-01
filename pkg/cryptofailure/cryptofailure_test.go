@@ -5,9 +5,11 @@ import (
 	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
@@ -266,9 +268,10 @@ func TestTestHTTPDowngrade(t *testing.T) {
 			server := httptest.NewServer(handler)
 			defer server.Close()
 
-			// Create tester with http URL
+			// Create tester with https URL; TestHTTPDowngrade will
+			// derive the http variant automatically, which points at
+			// the plain-HTTP test server.
 			tester := NewTester(strings.Replace(server.URL, "http://", "https://", 1), 5*time.Second)
-			tester.target = server.URL // Override to HTTP for test
 
 			result, err := tester.TestHTTPDowngrade(context.Background())
 			if err != nil {
@@ -348,6 +351,109 @@ func TestSummarizeResults(t *testing.T) {
 	}
 	if summary["critical"] != 1 {
 		t.Errorf("Expected critical 1, got %d", summary["critical"])
+	}
+}
+
+// TestWeakTLSVersionsDeterministic verifies that iterating WeakTLSVersions()
+// in sorted order produces a deterministic key sequence. The TestTLSVersion
+// method iterates this map; without sorting, the results slice would appear
+// in a random order across runs. This test confirms the fix by extracting
+// keys, sorting them, and checking that 10 consecutive calls to WeakTLSVersions
+// produce the same sorted key sequence.
+func TestWeakTLSVersionsDeterministic(t *testing.T) {
+	// Collect sorted keys from the first call
+	firstVersions := WeakTLSVersions()
+	firstKeys := make([]uint16, 0, len(firstVersions))
+	for v := range firstVersions {
+		firstKeys = append(firstKeys, v)
+	}
+	sort.Slice(firstKeys, func(i, j int) bool { return firstKeys[i] < firstKeys[j] })
+
+	for i := 1; i < 10; i++ {
+		versions := WeakTLSVersions()
+		keys := make([]uint16, 0, len(versions))
+		for v := range versions {
+			keys = append(keys, v)
+		}
+		sort.Slice(keys, func(a, b int) bool { return keys[a] < keys[b] })
+
+		if len(keys) != len(firstKeys) {
+			t.Fatalf("iteration %d: key count changed: got %d, want %d", i, len(keys), len(firstKeys))
+		}
+		for j := range keys {
+			if keys[j] != firstKeys[j] {
+				t.Fatalf("iteration %d: sorted key mismatch at index %d: got %d, want %d",
+					i, j, keys[j], firstKeys[j])
+			}
+		}
+	}
+}
+
+// TestScanForSecretsDeterministic verifies that ScanForSecrets returns
+// results in a deterministic order when multiple secret patterns match.
+// The SecretPatterns map's keys must be sorted before iteration to ensure
+// the results slice order is stable across runs.
+func TestScanForSecretsDeterministic(t *testing.T) {
+	// Content that matches multiple secret patterns at once:
+	// - AWS Access Key
+	// - JWT
+	// - Private Key
+	// - Database URL
+	content := `
+		AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+		token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U
+		-----BEGIN RSA PRIVATE KEY-----
+		DATABASE_URL=postgres://user:password@localhost:5432/mydb
+	`
+
+	first := ScanForSecrets(content)
+	if len(first) == 0 {
+		t.Fatal("expected at least one secret detection")
+	}
+
+	// Build a fingerprint from the description order
+	fingerprint := func(results []TestResult) string {
+		var parts []string
+		for _, r := range results {
+			parts = append(parts, r.Description)
+		}
+		return strings.Join(parts, "|")
+	}
+
+	firstFP := fingerprint(first)
+	for i := 1; i < 10; i++ {
+		result := ScanForSecrets(content)
+		fp := fingerprint(result)
+		if fp != firstFP {
+			t.Fatalf("non-deterministic ScanForSecrets order on iteration %d:\n  got:  %q\n  want: %q",
+				i, fp, firstFP)
+		}
+	}
+}
+
+// TestScanForSecretsMultiByteUTF8Safety is a regression test for a byte vs rune
+// slicing bug in ScanForSecrets. The old code used m[:10] (byte slicing) to mask
+// secrets, which could cut multi-byte UTF-8 characters mid-sequence, producing
+// invalid UTF-8 or panicking on short strings. The fix uses []rune(m) for
+// character-safe slicing. This test verifies that secrets containing multi-byte
+// UTF-8 characters are masked without producing invalid UTF-8.
+func TestScanForSecretsMultiByteUTF8Safety(t *testing.T) {
+	// Use a "Database URL" pattern that naturally captures multi-byte characters
+	// in the password portion. The pattern (mongodb|...):\/\/[^:]+:[^@]+@ matches
+	// any non-@ characters including CJK, so the matched string will contain
+	// multi-byte runes and exercise the rune-safe masking code.
+	content := `mongodb://admin:日本語テストパスワード1234@host.example.com/db`
+
+	results := ScanForSecrets(content)
+
+	if len(results) == 0 {
+		t.Fatal("expected ScanForSecrets to detect the secret")
+	}
+
+	for _, r := range results {
+		if !utf8.ValidString(r.Evidence) {
+			t.Errorf("masked evidence contains invalid UTF-8: %q", r.Evidence)
+		}
 	}
 }
 

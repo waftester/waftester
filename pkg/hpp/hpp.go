@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -318,6 +319,13 @@ func (t *Tester) getResponse(ctx context.Context, targetURL string) (string, err
 }
 
 // detectVulnerability checks if the response indicates HPP vulnerability
+var hppErrorPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)array to string conversion`),
+	regexp.MustCompile(`(?i)invalid.*parameter`),
+	regexp.MustCompile(`(?i)multiple.*values`),
+	regexp.MustCompile(`(?i)unexpected.*array`),
+}
+
 func (t *Tester) detectVulnerability(response, baseline string, payload Payload) string {
 	// Check for different indicators based on payload type
 	switch payload.Type {
@@ -369,12 +377,7 @@ func (t *Tester) detectVulnerability(response, baseline string, payload Payload)
 	}
 
 	// Check for error messages that indicate HPP handling
-	errorPatterns := []*regexp.Regexp{
-		regexp.MustCompile(`(?i)array to string conversion`),
-		regexp.MustCompile(`(?i)invalid.*parameter`),
-		regexp.MustCompile(`(?i)multiple.*values`),
-		regexp.MustCompile(`(?i)unexpected.*array`),
-	}
+	errorPatterns := hppErrorPatterns
 
 	for _, p := range errorPatterns {
 		if match := p.FindString(response); match != "" {
@@ -446,7 +449,10 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*ScanResult, error
 	}
 
 	// Detect technology
-	tech, _ := t.DetectTechnology(ctx, targetURL)
+	tech, err := t.DetectTechnology(ctx, targetURL)
+	if err != nil && ctx.Err() != nil {
+		return result, ctx.Err()
+	}
 	if t.config.Technology != TechUnknown {
 		tech = t.config.Technology
 	}
@@ -629,32 +635,37 @@ func GenerateWAFBypassPayloads(param, attackPayload string) []Payload {
 }
 
 func splitPayload(payload string) []string {
-	// Split at natural boundaries
+	// Split at natural boundaries (rune-aware to avoid breaking multi-byte chars)
 	var parts []string
-	mid := len(payload) / 2
-	if mid > 0 && mid < len(payload) {
-		parts = append(parts, payload[:mid], payload[mid:])
+	runes := []rune(payload)
+	mid := len(runes) / 2
+	if mid > 0 && mid < len(runes) {
+		parts = append(parts, string(runes[:mid]), string(runes[mid:]))
 	}
 	return parts
 }
 
 func chunkPayload(payload string, n int) []string {
+	if n <= 0 || len(payload) == 0 {
+		return []string{payload}
+	}
+	runes := []rune(payload)
 	var chunks []string
-	chunkSize := len(payload) / n
+	chunkSize := len(runes) / n
 	if chunkSize == 0 {
 		chunkSize = 1
 	}
 
-	for i := 0; i < len(payload); i += chunkSize {
+	for i := 0; i < len(runes); i += chunkSize {
 		end := i + chunkSize
-		if end > len(payload) {
-			end = len(payload)
+		if end > len(runes) {
+			end = len(runes)
 		}
-		chunks = append(chunks, payload[i:end])
+		chunks = append(chunks, string(runes[i:end]))
 	}
 
-	// Merge last small chunk if needed
-	if len(chunks) > n && len(chunks[len(chunks)-1]) < chunkSize/2 {
+	// Merge last small chunk if needed (use rune count for consistency)
+	if len(chunks) > n && len([]rune(chunks[len(chunks)-1])) < chunkSize/2 {
 		chunks[len(chunks)-2] += chunks[len(chunks)-1]
 		chunks = chunks[:len(chunks)-1]
 	}
@@ -677,6 +688,7 @@ func IsParameterDuplicate(rawURL string) (bool, []string) {
 			duplicates = append(duplicates, key)
 		}
 	}
+	sort.Strings(duplicates)
 
 	return len(duplicates) > 0, duplicates
 }

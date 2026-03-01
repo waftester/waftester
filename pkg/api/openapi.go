@@ -166,7 +166,9 @@ func (p *Parser) parseSwagger2(raw map[string]interface{}) (*OpenAPISpec, error)
 		// Apply global consumes to routes that have no content type.
 		for i := range spec.Routes {
 			if len(spec.Routes[i].ContentType) == 0 && len(globalConsumes) > 0 {
-				spec.Routes[i].ContentType = globalConsumes
+				ct := make([]string, len(globalConsumes))
+				copy(ct, globalConsumes)
+				spec.Routes[i].ContentType = ct
 			}
 		}
 	}
@@ -198,7 +200,14 @@ func (p *Parser) parseSwagger2(raw map[string]interface{}) (*OpenAPISpec, error)
 func (p *Parser) parseSwagger2Paths(paths map[string]interface{}) []Route {
 	var routes []Route
 
-	for path, methods := range paths {
+	sortedPaths := make([]string, 0, len(paths))
+	for path := range paths {
+		sortedPaths = append(sortedPaths, path)
+	}
+	sort.Strings(sortedPaths)
+
+	for _, path := range sortedPaths {
+		methods := paths[path]
 		methodsMap, ok := methods.(map[string]interface{})
 		if !ok {
 			continue
@@ -210,7 +219,14 @@ func (p *Parser) parseSwagger2Paths(paths map[string]interface{}) []Route {
 			pathParams = p.parseParameters(pathParamsRaw)
 		}
 
-		for method, operation := range methodsMap {
+		sortedMethods := make([]string, 0, len(methodsMap))
+		for m := range methodsMap {
+			sortedMethods = append(sortedMethods, m)
+		}
+		sort.Strings(sortedMethods)
+
+		for _, method := range sortedMethods {
+			operation := methodsMap[method]
 			// Skip non-HTTP methods (like "parameters").
 			if !isHTTPMethod(method) {
 				continue
@@ -390,7 +406,14 @@ func (p *Parser) parseOpenAPI3Paths(paths map[string]interface{}) []Route {
 			pathParams = p.parseParameters(pathParamsRaw)
 		}
 
-		for method, operation := range methodsMap {
+		sortedMethods3 := make([]string, 0, len(methodsMap))
+		for m := range methodsMap {
+			sortedMethods3 = append(sortedMethods3, m)
+		}
+		sort.Strings(sortedMethods3)
+
+		for _, method := range sortedMethods3 {
+			operation := methodsMap[method]
 			if !isHTTPMethod(method) {
 				continue
 			}

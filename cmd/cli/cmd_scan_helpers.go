@@ -3,6 +3,7 @@ package main
 import (
 	"net"
 	"net/http"
+	"sort"
 	"strings"
 )
 
@@ -166,9 +167,14 @@ var scanTipsByType = map[string]string{
 // Falls back to a generic tip when no type-specific tips match.
 func buildScanTips(shouldScan func(string) bool) []string {
 	var tips []string
-	for scanType, tip := range scanTipsByType {
+	tipKeys := make([]string, 0, len(scanTipsByType))
+	for k := range scanTipsByType {
+		tipKeys = append(tipKeys, k)
+	}
+	sort.Strings(tipKeys)
+	for _, scanType := range tipKeys {
 		if shouldScan(scanType) {
-			tips = append(tips, tip)
+			tips = append(tips, scanTipsByType[scanType])
 		}
 	}
 	// Always include a generic tip so the list is never empty

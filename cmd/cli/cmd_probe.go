@@ -20,6 +20,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"strconv"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -656,7 +657,11 @@ func runProbe() {
 		// Note: Rate limiting is handled by the runner package
 		// Delay between requests can still be applied if needed
 		if *cfg.Delay > 0 {
-			time.Sleep(*cfg.Delay)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(*cfg.Delay):
+			}
 		}
 
 		// Initial HTTP Probe for response time and status
@@ -949,11 +954,16 @@ func runProbe() {
 				}
 				fmt.Printf("\n[DEBUG] Response:\n")
 				fmt.Printf("  Status: %d %s\n", initialResp.StatusCode, http.StatusText(initialResp.StatusCode))
-				for k, v := range initialResp.Header {
-					fmt.Printf("  %s: %s\n", k, strings.Join(v, ", "))
+				debugHeaderKeys := make([]string, 0, len(initialResp.Header))
+				for k := range initialResp.Header {
+					debugHeaderKeys = append(debugHeaderKeys, k)
+				}
+				sort.Strings(debugHeaderKeys)
+				for _, k := range debugHeaderKeys {
+					fmt.Printf("  %s: %s\n", k, strings.Join(initialResp.Header[k], ", "))
 				}
 				if len(bodyStr) > 500 {
-					fmt.Printf("\n  Body (truncated): %s...\n", bodyStr[:500])
+					fmt.Printf("\n  Body (truncated): %s...\n", string([]rune(bodyStr)[:500]))
 				} else {
 					fmt.Printf("\n  Body: %s\n", bodyStr)
 				}
@@ -961,18 +971,24 @@ func runProbe() {
 
 			// Body preview
 			if *cfg.BodyPreview > 0 && len(bodyStr) > 0 {
+				bodyRunes := []rune(bodyStr)
 				previewLen := *cfg.BodyPreview
-				if previewLen > len(bodyStr) {
-					previewLen = len(bodyStr)
+				if previewLen > len(bodyRunes) {
+					previewLen = len(bodyRunes)
 				}
-				results.BodyPreview = bodyStr[:previewLen]
+				results.BodyPreview = string(bodyRunes[:previewLen])
 			}
 
 			// Header hash
 			if *cfg.HeaderHash {
+				headerKeys := make([]string, 0, len(initialResp.Header))
+				for k := range initialResp.Header {
+					headerKeys = append(headerKeys, k)
+				}
+				sort.Strings(headerKeys)
 				headerContent := ""
-				for k, v := range initialResp.Header {
-					headerContent += fmt.Sprintf("%s: %s\n", k, strings.Join(v, ", "))
+				for _, k := range headerKeys {
+					headerContent += fmt.Sprintf("%s: %s\n", k, strings.Join(initialResp.Header[k], ", "))
 				}
 				results.HeaderHash = fmt.Sprintf("md5:%x", md5.Sum([]byte(headerContent)))
 			}
@@ -2050,30 +2066,36 @@ func runProbe() {
 			// JSONL output (one JSON per line)
 			// Apply field exclusions if any
 			if len(excludedOutputFields) > 0 {
-				jsonData, _ := json.Marshal(results)
-				var m map[string]interface{}
-				json.Unmarshal(jsonData, &m)
-				for field := range excludedOutputFields {
-					delete(m, field)
+				jsonData, jsonErr := json.Marshal(results)
+				if jsonErr == nil {
+					var m map[string]interface{}
+					json.Unmarshal(jsonData, &m)
+					for field := range excludedOutputFields {
+						delete(m, field)
+					}
+					jsonData, _ = json.Marshal(m)
 				}
-				jsonData, _ = json.Marshal(m)
 				fmt.Println(string(jsonData))
 			} else {
-				jsonData, _ := json.Marshal(results)
-				fmt.Println(string(jsonData))
+				jsonData, jsonErr := json.Marshal(results)
+				if jsonErr == nil {
+					fmt.Println(string(jsonData))
+				}
 			}
 		} else if *cfg.JSONOutput || *cfg.OutputFile != "" {
 			// Apply field exclusions if any
 			var jsonData []byte
 			var err error
 			if len(excludedOutputFields) > 0 {
-				rawData, _ := json.Marshal(results)
-				var m map[string]interface{}
-				json.Unmarshal(rawData, &m)
-				for field := range excludedOutputFields {
-					delete(m, field)
+				rawData, rawErr := json.Marshal(results)
+				if rawErr == nil {
+					var m map[string]interface{}
+					json.Unmarshal(rawData, &m)
+					for field := range excludedOutputFields {
+						delete(m, field)
+					}
+					jsonData, err = json.MarshalIndent(m, "", "  ")
 				}
-				jsonData, err = json.MarshalIndent(m, "", "  ")
 			} else {
 				jsonData, err = json.MarshalIndent(results, "", "  ")
 			}
@@ -2364,7 +2386,9 @@ func runProbe() {
 	}
 
 	// Enterprise file exports (--json-export, --sarif-export, etc.)
-	writeProbeExports(&cfg.Out, allProbeResults, time.Since(probeStartTime))
+	cfg.Out.MaybeExport(func() execResults {
+		return probeResultsToExecution(allProbeResults, time.Since(probeStartTime))
+	})
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// DISPATCHER SUMMARY EMISSION

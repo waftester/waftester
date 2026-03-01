@@ -89,9 +89,14 @@ func NewTester(config *TesterConfig) *Tester {
 		config = DefaultConfig()
 	}
 
+	client := config.Client
+	if client == nil {
+		client = httpclient.Default()
+	}
+
 	t := &Tester{
 		config: config,
-		client: httpclient.Default(),
+		client: client,
 	}
 
 	t.payloads = t.generatePayloads()
@@ -155,8 +160,8 @@ func (t *Tester) generatePayloads() []*Payload {
 		{
 			Name:        "Unicode Encoded",
 			Type:        VulnEncodedRedirect,
-			Value:       fmt.Sprintf("http://%s", strings.ReplaceAll(domain, ".", "\u002e")),
-			Description: "Unicode dot encoding",
+			Value:       fmt.Sprintf("http://%s", strings.ReplaceAll(domain, ".", "\uff0e")),
+			Description: "Unicode fullwidth dot encoding",
 		},
 		{
 			Name:        "Hex Encoded Slashes",
@@ -249,10 +254,13 @@ func (t *Tester) generatePayloads() []*Payload {
 	}
 }
 
-// GetPayloads returns all payloads, optionally filtered by type
+// GetPayloads returns all payloads, optionally filtered by type.
+// Returns a defensive copy to prevent callers from mutating internal state.
 func (t *Tester) GetPayloads(vulnType VulnerabilityType) []*Payload {
 	if vulnType == "" {
-		return t.payloads
+		cp := make([]*Payload, len(t.payloads))
+		copy(cp, t.payloads)
+		return cp
 	}
 
 	var filtered []*Payload

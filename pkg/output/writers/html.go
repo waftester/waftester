@@ -397,7 +397,7 @@ func generateRiskChartSVG(counts map[string]int) string {
 		sb.WriteString(fmt.Sprintf(`<rect x="%.1f" y="%.1f" width="16" height="16" fill="%s" rx="2"/>`,
 			legendX, legendY, seg.color))
 		sb.WriteString(fmt.Sprintf(`<text x="%.1f" y="%.1f" class="legend-text">%s: %d (%.1f%%)</text>`,
-			legendX+22, legendY+12, capitalize(seg.name), seg.count, seg.percent))
+			legendX+22, legendY+12, html.EscapeString(capitalize(seg.name)), seg.count, seg.percent))
 		legendY += 28
 	}
 
@@ -505,7 +505,7 @@ func generateTopRecommendations(results []*events.ResultEvent, severityCounts ma
 	var worstCat string
 	var worstCount int
 	for cat, count := range categoryBypasses {
-		if count > worstCount {
+		if count > worstCount || (count == worstCount && cat < worstCat) {
 			worstCat = cat
 			worstCount = count
 		}
@@ -635,8 +635,12 @@ func (hw *HTMLWriter) prepareTemplateData() *templateData {
 		}
 
 		if hw.config.IncludeJSON {
-			jsonBytes, _ := jsonutil.MarshalIndent(r, "", "  ")
-			finding.JSONData = html.EscapeString(string(jsonBytes))
+			jsonBytes, jsonErr := jsonutil.MarshalIndent(r, "", "  ")
+			if jsonErr != nil {
+				finding.JSONData = html.EscapeString(fmt.Sprintf("(JSON serialization error: %v)", jsonErr))
+			} else {
+				finding.JSONData = html.EscapeString(string(jsonBytes))
+			}
 		}
 
 		data.Findings = append(data.Findings, finding)

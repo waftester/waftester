@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -113,12 +114,38 @@ func TestCheckerCheckOneHTTPBodyMatch(t *testing.T) {
 }
 
 func TestCheckerCheckOneTCP(t *testing.T) {
+	// Start a real TCP listener so the health check can connect
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+
 	checker := NewChecker(nil)
-	check := &Check{Name: "test", Endpoint: "localhost:8080", Type: CheckTypeTCP}
+	check := &Check{Name: "test", Endpoint: ln.Addr().String(), Type: CheckTypeTCP, Timeout: 2 * time.Second}
+
+	result, checkErr := checker.CheckOne(context.Background(), check)
+	require.NoError(t, checkErr)
+	assert.Equal(t, StatusHealthy, result.Status)
+}
+
+// TestCheckerCheckOneTCPUnhealthy is a regression test for the TCP health check.
+// The old checkTCP only validated the "host:port" format but never actually
+// connected. The fix added net.Dialer.DialContext so a real TCP connection is
+// attempted. This test verifies that a known-unreachable endpoint is reported
+// as unhealthy (which would have passed with the old format-only check).
+func TestCheckerCheckOneTCPUnhealthy(t *testing.T) {
+	checker := NewChecker(nil)
+	// Port 1 on loopback is almost certainly not listening and will be refused.
+	check := &Check{
+		Name:     "unreachable",
+		Endpoint: "127.0.0.1:1",
+		Type:     CheckTypeTCP,
+		Timeout:  2 * time.Second,
+	}
 
 	result, err := checker.CheckOne(context.Background(), check)
 	require.NoError(t, err)
-	assert.Equal(t, StatusHealthy, result.Status)
+	assert.Equal(t, StatusUnhealthy, result.Status, "TCP check against non-listening port must be unhealthy")
+	assert.Contains(t, result.Message, "TCP connection failed", "message should indicate connection failure")
 }
 
 func TestCheckerCheckAll(t *testing.T) {

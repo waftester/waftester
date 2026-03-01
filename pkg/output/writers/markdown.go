@@ -162,9 +162,7 @@ func (mw *MarkdownWriter) Close() error {
 		return fmt.Errorf("failed to write Markdown: %w", err)
 	}
 
-	if closer, ok := mw.w.(io.Closer); ok {
-		return closer.Close()
-	}
+	// Do not close the underlying writer -- the caller owns its lifecycle
 	return nil
 }
 
@@ -831,6 +829,6 @@ func capitalizeFirst(s string) string {
 	if s == "" {
 		return s
 	}
-	// For severity values like "critical", "high", etc.
-	return strings.ToUpper(s[:1]) + s[1:]
+	r := []rune(s)
+	return strings.ToUpper(string(r[:1])) + string(r[1:])
 }

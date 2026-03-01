@@ -71,9 +71,14 @@ func NewScanner(config Config) *Scanner {
 		config.RateLimit = 100
 	}
 
+	client := config.Client
+	if client == nil {
+		client = httpclient.Probing()
+	}
+
 	return &Scanner{
 		config:  config,
-		client:  httpclient.Probing(),
+		client:  client,
 		results: make([]Result, 0),
 	}
 }
@@ -149,6 +154,11 @@ func (s *Scanner) TestResourceExhaustion(ctx context.Context, targetURL string) 
 	results := make([]Result, 0)
 
 	for _, payload := range ResourceExhaustionPayloads() {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
 		result := s.testResourcePayload(ctx, targetURL, payload)
 		results = append(results, result)
 	}

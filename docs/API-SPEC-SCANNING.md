@@ -1,6 +1,6 @@
 # API Spec Scanning
 
-> Document Version: 2.8.9
+> Document Version: 2.9.39
 
 WAFtester can drive security scans from API specifications instead of blind URL fuzzing. Provide an OpenAPI, Swagger, Postman, HAR, GraphQL, gRPC, or AsyncAPI spec and WAFtester generates targeted attacks against every documented endpoint, parameter, and schema constraint.
 
@@ -26,7 +26,7 @@ waftester scan --spec openapi.yaml
 waftester scan --spec openapi.yaml -u https://api.example.com
 
 # Auto mode with Postman collection + environment
-waftester auto --spec collection.json --spec-env environment.json
+waftester auto --spec collection.json --env environment.json
 
 # Dry-run to preview the scan plan without sending requests
 waftester scan --spec openapi.yaml --dry-run
@@ -35,7 +35,7 @@ waftester scan --spec openapi.yaml --dry-run
 waftester validate --spec openapi.yaml
 
 # Scan specific endpoint groups only
-waftester scan --spec openapi.yaml -u https://api.example.com --groups users,auth
+waftester scan --spec openapi.yaml -u https://api.example.com --group users,auth
 ```
 
 > **Note:** The `-u` flag is optional when the spec contains server URLs (OpenAPI `servers`, Swagger `host`, Postman `baseUrl`). WAFtester resolves the target from the spec automatically. Use `-u` to override.
@@ -150,17 +150,16 @@ Compare scan results against a saved baseline to track regressions:
 
 ```bash
 # Save a baseline
-waftester scan --spec openapi.yaml -u https://api.example.com -o baseline.json
+waftester scan --spec openapi.yaml -u https://api.example.com -format json -o baseline.json
 
-# Compare against baseline
-waftester scan --spec openapi.yaml -u https://api.example.com --compare baseline.json
+# Run a new scan
+waftester scan --spec openapi.yaml -u https://api.example.com -format json -o current.json
+
+# Compare the two results
+waftester compare baseline.json current.json
 ```
 
-The comparison report shows:
-- **New** — findings not in the baseline (potential new vulnerabilities)
-- **Fixed** — baseline findings no longer present (resolved issues)
-- **Regressed** — findings with worse severity than baseline
-- **Unchanged** — findings present in both with same severity
+The comparison report shows severity deltas, new/fixed categories, WAF vendor changes, and a severity-weighted verdict. Exits with code 1 on regression for CI/CD gating.
 
 ## Correlation IDs
 
@@ -172,13 +171,7 @@ X-Correlation-ID: waftester-a3f8c21e-post-users-sqli-body.email-0042
 
 Format: `waftester-{session}-{endpoint}-{attack}-{param}-{seq}`
 
-Export all correlation records:
-
-```bash
-waftester scan --spec openapi.yaml -u https://api.example.com --export-correlations correlations.json
-```
-
-Each record includes: session ID, correlation ID, endpoint tag, attack category, injection point, payload hash (not plaintext), blocked status, and WAF response.
+Each record includes: session ID, correlation ID, endpoint tag, attack category, injection point, payload hash (not plaintext), blocked status, and WAF response. Correlation data appears in JSON and SARIF output formats.
 
 ## Checkpointing and Resume
 
@@ -200,7 +193,7 @@ Checkpoint data is stored in `~/.waftester/checkpoints/` and includes completed 
 
 ```bash
 waftester scan --spec openapi.yaml -u https://api.example.com
-waftester scan --spec openapi.json -u https://api.example.com --groups users
+waftester scan --spec openapi.json -u https://api.example.com --group users
 ```
 
 ### Swagger 2.0
@@ -216,7 +209,7 @@ waftester scan --spec swagger.json -u https://api.example.com
 waftester scan --spec collection.json -u https://api.example.com
 
 # Collection with environment variables
-waftester auto --spec collection.json --spec-env production.json -u https://api.example.com
+waftester auto --spec collection.json --env production.json -u https://api.example.com
 ```
 
 Postman environment variables (`{{baseUrl}}`, `{{apiKey}}`) are substituted before parsing.

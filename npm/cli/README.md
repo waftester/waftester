@@ -5,14 +5,14 @@
 [![license](https://img.shields.io/npm/l/@waftester/cli)](https://github.com/waftester/waftester/blob/main/LICENSE)
 [![platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-blue)](https://npmjs.com/package/@waftester/cli)
 
-The most comprehensive WAF testing CLI & MCP server. Detect, fingerprint, and bypass Web Application Firewalls with **2,800+ payloads**, **90+ tamper scripts**, and quantitative security metrics (FPR, F1, MCC).
+The most comprehensive WAF testing CLI & MCP server. Detect, fingerprint, and bypass Web Application Firewalls with **2,800+ payloads**, **96 tamper scripts**, and quantitative security metrics (FPR, F1, MCC).
 
 ## Why WAFtester?
 
 | Traditional Approach | WAFtester |
 |---------------------|-----------|
 | Chain 5+ tools (wafw00f, sqlmap, nuclei, scripts) | Single `auto` command — end-to-end |
-| Manually select tampers per WAF vendor | Auto-selects from 90+ tampers based on detected WAF |
+| Manually select tampers per WAF vendor | Auto-selects from 96 tampers based on detected WAF |
 | Binary pass/fail results | Statistical metrics: FPR, Precision, F1 Score, MCC |
 | HTTP only | Native GraphQL, gRPC, SOAP, WebSocket support |
 | Manual result correlation | Unified JSON, SARIF, HTML, JUnit, CycloneDX output |
@@ -213,8 +213,15 @@ waf-tester scan --spec openapi.yaml -u https://api.example.com --dry-run
 | JSONL | Streaming, real-time | `-stream -json` |
 | SARIF | GitHub/GitLab Security, VS Code | `-format sarif` |
 | HTML | Stakeholder reports | `-format html` |
-| JUnit | CI/CD test frameworks | `-format junit` |
-| CycloneDX | SBOM vulnerability exchange | `-format cyclonedx` |
+| PDF | Executive reports with severity matrix | `-format pdf` |
+| Markdown | Documentation, wikis | `-format md` |
+| CSV | Spreadsheets, data analysis | `-format csv` |
+| JUnit | CI/CD test frameworks | `-junit-export results.xml` |
+| XML | Legacy integrations | `-xml-export results.xml` |
+| CycloneDX | SBOM vulnerability exchange | `-cyclonedx-export results.json` |
+| SonarQube | SonarQube import | `-sonarqube-export results.json` |
+| GitLab SAST | GitLab security dashboard | `-gitlab-sast-export results.json` |
+| Console | Terminal display (default) | `-format console` |
 
 ## CI/CD Integration
 
@@ -246,7 +253,7 @@ Use the official [WAFtester Action](https://github.com/marketplace/actions/wafte
 
 Also integrates with SonarQube, GitLab SAST, DefectDojo, Elasticsearch, Slack, Teams, PagerDuty, Jira, Azure DevOps, and OpenTelemetry.
 
-## All 36 Commands
+## All 33 Commands
 
 | Command | Description |
 |---------|-------------|
@@ -262,7 +269,6 @@ Also integrates with SonarQube, GitLab SAST, DefectDojo, Elasticsearch, Slack, T
 | `mutate` | Mutation matrix testing (49 mutator functions) |
 | `headless` | Browser-based testing for JS-rendered targets |
 | `template` | Run Nuclei-compatible YAML templates (HTTP, DNS, TCP, UDP) |
-| `openapi` | Scan OpenAPI/Swagger spec endpoints |
 | `grpc` | Test gRPC services via reflection |
 | `soap` | Test SOAP/WSDL endpoints |
 | `mcp` | Start MCP server for AI-powered testing |
@@ -272,11 +278,18 @@ Also integrates with SonarQube, GitLab SAST, DefectDojo, Elasticsearch, Slack, T
 | `cloud` | Cloud resource discovery |
 | `report` | Generate reports from saved results |
 | `run` | Execute specific payload categories against target |
-| `benchmark` | Performance benchmarking and rate limit detection |
-| `compare` | Compare assessments across WAF configs or vendors |
 | `race` | Race condition testing |
 | `smuggle` | HTTP request smuggling tests |
-| ... | 10 more specialized commands |
+| `learn` | Analyze target and generate test plans |
+| `fp` | False positive testing with benign traffic corpus |
+| `protocol` | Protocol detection and fingerprinting |
+| `validate` | Payload and spec validation |
+| `workflow` | YAML workflow orchestration |
+| `plugin` | Plugin management |
+| `compare` | Compare two scan result JSON files (severity deltas, risk scores, CI exit code) |
+| `update` | Check for and install updates |
+| `docs` | Built-in command reference |
+| `validate-templates` | Validate Nuclei/custom scan templates |
 
 ## Platform Support
 

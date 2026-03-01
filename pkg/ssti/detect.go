@@ -174,7 +174,7 @@ func (d *Detector) analyzeResponse(targetURL, parameter string, payload *Payload
 	if payload.ExpectedOutput != "" {
 		if strings.Contains(body, payload.ExpectedOutput) {
 			// Skip if expected output was already in baseline (false positive)
-			if baselineBody == "" || !strings.Contains(baselineBody, payload.ExpectedOutput) {
+			if baselineBody != "" && !strings.Contains(baselineBody, payload.ExpectedOutput) {
 				matched = true
 				evidence = payload.ExpectedOutput
 				confidence = "high"
@@ -383,19 +383,17 @@ func (d *Detector) getBaselineBody(ctx context.Context, targetURL *url.URL, para
 
 // FingerprintEngine attempts to identify the template engine being used
 func (d *Detector) FingerprintEngine(ctx context.Context, targetURL string, parameter string) (TemplateEngine, error) {
-	// Use fingerprinting payloads that have unique outputs per engine
-	fingerprints := map[string]TemplateEngine{
-		// Jinja2/Twig specific
-		"{{7*'7'}}": EngineJinja2, // Returns "7777777" in Jinja2, error in Twig
-
-		// Twig specific
-		"{{_self.env.registerUndefinedFilterCallback('id')}}": EngineTwig,
-
-		// Smarty specific
-		"{$smarty.version}": EngineSmarty,
-
-		// Freemarker specific
-		"${.data_model}": EngineFreemarker,
+	// Use fingerprinting payloads that have unique outputs per engine.
+	// Use a slice for deterministic iteration order.
+	type fingerprint struct {
+		payload string
+		engine  TemplateEngine
+	}
+	fingerprints := []fingerprint{
+		{"{{7*'7'}}", EngineJinja2}, // Returns "7777777" in Jinja2, error in Twig
+		{"{{_self.env.registerUndefinedFilterCallback('id')}}", EngineTwig},
+		{"{$smarty.version}", EngineSmarty},
+		{"${.data_model}", EngineFreemarker},
 	}
 
 	parsedURL, err := url.Parse(targetURL)
@@ -403,7 +401,8 @@ func (d *Detector) FingerprintEngine(ctx context.Context, targetURL string, para
 		return EngineUnknown, err
 	}
 
-	for payload, engine := range fingerprints {
+	for _, fp := range fingerprints {
+		payload, engine := fp.payload, fp.engine
 		testURL := *parsedURL
 		query := testURL.Query()
 		query.Set(parameter, payload)
@@ -437,6 +436,15 @@ func (d *Detector) FingerprintEngine(ctx context.Context, targetURL string, para
 		case EngineSmarty:
 			if regexcache.MustGet(`Smarty[_\-]?[0-9]`).MatchString(string(body)) {
 				return EngineSmarty, nil
+			}
+		case EngineTwig:
+			if strings.Contains(string(body), "Twig") {
+				return EngineTwig, nil
+			}
+		case EngineFreemarker:
+			bodyStr := string(body)
+			if strings.Contains(bodyStr, "freemarker") || strings.Contains(bodyStr, "FreeMarker") {
+				return EngineFreemarker, nil
 			}
 		}
 	}

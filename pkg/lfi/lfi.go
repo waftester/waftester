@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -36,16 +37,16 @@ func DefaultConfig() Config {
 
 // Result represents an LFI test result
 type Result struct {
-	URL          string    `json:"url"`
-	Parameter    string    `json:"parameter"`
-	Payload      string    `json:"payload"`
-	StatusCode   int       `json:"status_code"`
-	ResponseSize int       `json:"response_size"`
-	Vulnerable   bool      `json:"vulnerable"`
-	FileContent  string    `json:"file_content,omitempty"`
-	Evidence     string    `json:"evidence,omitempty"`
-	Severity     finding.Severity    `json:"severity"`
-	Timestamp    time.Time `json:"timestamp"`
+	URL          string           `json:"url"`
+	Parameter    string           `json:"parameter"`
+	Payload      string           `json:"payload"`
+	StatusCode   int              `json:"status_code"`
+	ResponseSize int              `json:"response_size"`
+	Vulnerable   bool             `json:"vulnerable"`
+	FileContent  string           `json:"file_content,omitempty"`
+	Evidence     string           `json:"evidence,omitempty"`
+	Severity     finding.Severity `json:"severity"`
+	Timestamp    time.Time        `json:"timestamp"`
 }
 
 // Scanner performs LFI testing
@@ -65,9 +66,14 @@ func NewScanner(config Config) *Scanner {
 		config.Timeout = httpclient.TimeoutProbing
 	}
 
+	client := config.Client
+	if client == nil {
+		client = httpclient.Default()
+	}
+
 	return &Scanner{
 		config:  config,
-		client:  httpclient.Default(),
+		client:  client,
 		results: make([]Result, 0),
 	}
 }
@@ -76,7 +82,12 @@ func NewScanner(config Config) *Scanner {
 func (s *Scanner) Scan(ctx context.Context, targetURL string, params map[string]string) ([]Result, error) {
 	results := make([]Result, 0)
 
-	for param := range params {
+	paramKeys := make([]string, 0, len(params))
+	for k := range params {
+		paramKeys = append(paramKeys, k)
+	}
+	sort.Strings(paramKeys)
+	for _, param := range paramKeys {
 		for _, payload := range Payloads(s.config.OS) {
 			select {
 			case <-ctx.Done():
@@ -168,19 +179,23 @@ func (s *Scanner) detectVulnerability(body string, markers []string) (bool, stri
 		}
 	}
 
-	// Generic file content patterns
-	patterns := map[string]string{
-		"root:x:0:0":    "passwd file",
-		"[fonts]":       "win.ini file",
-		"[extensions]":  "system.ini file",
-		"[boot loader]": "boot.ini file",
-		"<?php":         "PHP source",
-		"#!/bin":        "shell script",
+	// Generic file content patterns (ordered for deterministic matching)
+	type lfiPattern struct {
+		pattern string
+		desc    string
+	}
+	patterns := []lfiPattern{
+		{"root:x:0:0", "passwd file"},
+		{"[fonts]", "win.ini file"},
+		{"[extensions]", "system.ini file"},
+		{"[boot loader]", "boot.ini file"},
+		{"<?php", "PHP source"},
+		{"#!/bin", "shell script"},
 	}
 
-	for pattern, desc := range patterns {
-		if strings.Contains(body, pattern) {
-			return true, desc + " detected"
+	for _, p := range patterns {
+		if strings.Contains(body, p.pattern) {
+			return true, p.desc + " detected"
 		}
 	}
 

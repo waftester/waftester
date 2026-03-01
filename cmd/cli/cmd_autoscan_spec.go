@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -55,7 +56,7 @@ func runSpecPipeline(cfg specPipelineConfig) {
 
 	if cfg.timeout > 0 {
 		var tCancel context.CancelFunc
-		ctx, tCancel = context.WithTimeout(ctx, time.Duration(cfg.timeout)*time.Minute)
+		ctx, tCancel = context.WithTimeout(ctx, time.Duration(cfg.timeout)*time.Second)
 		defer tCancel()
 	}
 
@@ -201,13 +202,17 @@ func runSpecPipeline(cfg specPipelineConfig) {
 			Intensity string            `json:"intensity"`
 			Plan      *apispec.ScanPlan `json:"plan"`
 		}
-		data, _ := json.MarshalIndent(dryRunOutput{
+		data, marshalErr := json.MarshalIndent(dryRunOutput{
 			DryRun:    true,
 			Target:    cfg.target,
 			SpecFile:  source,
 			Intensity: cfg.intensity,
 			Plan:      plan,
 		}, "", "  ")
+		if marshalErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to marshal dry-run output: %v", marshalErr))
+			os.Exit(1)
+		}
 		fmt.Println(string(data)) // debug:keep — JSON dry-run output
 		return
 	}
@@ -316,12 +321,15 @@ func runSpecPipeline(cfg specPipelineConfig) {
 		Duration string                  `json:"duration"`
 		Result   *apispec.SpecScanResult `json:"result"`
 	}
-	data, _ := json.MarshalIndent(scanOutput{
+	data, marshalErr := json.MarshalIndent(scanOutput{
 		Target:   scanTarget,
 		SpecFile: source,
 		Duration: elapsed.String(),
 		Result:   result,
 	}, "", "  ")
+	if marshalErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Failed to marshal scan output: %v", marshalErr))
+	}
 
 	if cfg.outFlags.JSONMode {
 		fmt.Println(string(data)) // debug:keep — JSON result output
@@ -330,8 +338,14 @@ func runSpecPipeline(cfg specPipelineConfig) {
 		totalFindings := result.TotalFindings()
 		if totalFindings > 0 {
 			ui.PrintInfo(fmt.Sprintf("  Findings: %d total", totalFindings))
-			for sev, count := range result.BySeverity() {
-				fmt.Fprintf(os.Stderr, "    %s: %d\n", sev, count)
+			bySev := result.BySeverity()
+			sevKeys := make([]string, 0, len(bySev))
+			for sev := range bySev {
+				sevKeys = append(sevKeys, sev)
+			}
+			sort.Strings(sevKeys)
+			for _, sev := range sevKeys {
+				fmt.Fprintf(os.Stderr, "    %s: %d\n", sev, bySev[sev])
 			}
 		} else {
 			ui.PrintInfo("  No findings detected.")

@@ -423,7 +423,7 @@ func (l *Limiter) calculateDelay() time.Duration {
 	var delay time.Duration
 
 	// Use delay range if both set
-	if l.config.DelayMin > 0 && l.config.DelayMax > 0 {
+	if l.config.DelayMin > 0 && l.config.DelayMax > 0 && l.config.DelayMax > l.config.DelayMin {
 		diff := l.config.DelayMax - l.config.DelayMin
 		delay = l.config.DelayMin + time.Duration(rand.Int63n(int64(diff)))
 	} else if l.currentDelay > 0 {
@@ -487,11 +487,10 @@ type Stats struct {
 
 func (l *Limiter) Stats() Stats {
 	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	stats := Stats{
 		CurrentDelay: l.currentDelay,
 	}
+	l.mu.Unlock()
 
 	l.hostLimitersMu.RLock()
 	stats.HostLimiterCount = len(l.hostLimiters)

@@ -832,7 +832,7 @@ func evaluateMatcher(m *Matcher, resp *ResponseData) bool {
 
 func matchWords(words []string, content, condition string, caseInsensitive bool) bool {
 	if len(words) == 0 {
-		return true
+		return false
 	}
 
 	if condition == "and" {
@@ -863,7 +863,7 @@ func matchWords(words []string, content, condition string, caseInsensitive bool)
 
 func matchRegex(patterns []string, content, condition string) bool {
 	if len(patterns) == 0 {
-		return true
+		return false
 	}
 
 	if condition == "and" {

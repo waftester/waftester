@@ -6,6 +6,7 @@ package cors
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -85,9 +86,14 @@ func NewTester(config *TesterConfig) *Tester {
 		config = DefaultConfig()
 	}
 
+	client := config.Client
+	if client == nil {
+		client = httpclient.Default()
+	}
+
 	return &Tester{
 		config: config,
-		client: httpclient.Default(),
+		client: client,
 	}
 }
 
@@ -102,9 +108,16 @@ func GenerateTestOrigins(targetURL string) []*TestOrigin {
 	scheme := parsed.Scheme
 	baseDomain := extractBaseDomain(host)
 
+	// Strip port for IP detection
+	hostOnly := host
+	if idx := strings.LastIndex(hostOnly, ":"); idx != -1 {
+		hostOnly = hostOnly[:idx]
+	}
+	isIP := net.ParseIP(hostOnly) != nil
+
 	var origins []*TestOrigin
 
-	// Origin reflection tests
+	// Origin reflection tests (valid for all targets)
 	origins = append(origins, &TestOrigin{
 		Origin:      "https://evil.com",
 		Type:        VulnOriginReflection,
@@ -117,44 +130,46 @@ func GenerateTestOrigins(targetURL string) []*TestOrigin {
 		Description: "Test with different domain",
 	})
 
-	// Null origin test
+	// Null origin test (valid for all targets)
 	origins = append(origins, &TestOrigin{
 		Origin:      "null",
 		Type:        VulnNullOrigin,
 		Description: "Test for null origin acceptance",
 	})
 
-	// Subdomain trust tests
-	origins = append(origins, &TestOrigin{
-		Origin:      fmt.Sprintf("%s://evil.%s", scheme, baseDomain),
-		Type:        VulnSubdomainTrust,
-		Description: "Test for malicious subdomain trust",
-	})
+	// Domain-specific tests: subdomain trust and weak regex bypass
+	// are meaningless for IP address targets
+	if !isIP {
+		origins = append(origins, &TestOrigin{
+			Origin:      fmt.Sprintf("%s://evil.%s", scheme, baseDomain),
+			Type:        VulnSubdomainTrust,
+			Description: "Test for malicious subdomain trust",
+		})
 
-	origins = append(origins, &TestOrigin{
-		Origin:      fmt.Sprintf("%s://test.%s", scheme, baseDomain),
-		Type:        VulnSubdomainTrust,
-		Description: "Test for arbitrary subdomain trust",
-	})
+		origins = append(origins, &TestOrigin{
+			Origin:      fmt.Sprintf("%s://test.%s", scheme, baseDomain),
+			Type:        VulnSubdomainTrust,
+			Description: "Test for arbitrary subdomain trust",
+		})
 
-	// Weak regex bypass tests
-	origins = append(origins, &TestOrigin{
-		Origin:      fmt.Sprintf("%s://%sevil.com", scheme, strings.TrimSuffix(baseDomain, ".")),
-		Type:        VulnWeakRegex,
-		Description: "Test for suffix matching bypass",
-	})
+		origins = append(origins, &TestOrigin{
+			Origin:      fmt.Sprintf("%s://%sevil.com", scheme, strings.TrimSuffix(baseDomain, ".")),
+			Type:        VulnWeakRegex,
+			Description: "Test for suffix matching bypass",
+		})
 
-	origins = append(origins, &TestOrigin{
-		Origin:      fmt.Sprintf("%s://evil.com.%s", scheme, baseDomain),
-		Type:        VulnWeakRegex,
-		Description: "Test for prefix bypass",
-	})
+		origins = append(origins, &TestOrigin{
+			Origin:      fmt.Sprintf("%s://evil.com.%s", scheme, baseDomain),
+			Type:        VulnWeakRegex,
+			Description: "Test for prefix bypass",
+		})
 
-	origins = append(origins, &TestOrigin{
-		Origin:      fmt.Sprintf("%s://%s.evil.com", scheme, baseDomain),
-		Type:        VulnWeakRegex,
-		Description: "Test for domain as subdomain of attacker",
-	})
+		origins = append(origins, &TestOrigin{
+			Origin:      fmt.Sprintf("%s://%s.evil.com", scheme, baseDomain),
+			Type:        VulnWeakRegex,
+			Description: "Test for domain as subdomain of attacker",
+		})
+	}
 
 	// Protocol downgrade
 	if scheme == "https" {
@@ -180,6 +195,12 @@ func extractBaseDomain(host string) string {
 	// Remove port if present
 	if idx := strings.LastIndex(host, ":"); idx != -1 {
 		host = host[:idx]
+	}
+
+	// If host is an IP address, return it as-is — domain-based tests
+	// (subdomain trust, weak regex) are meaningless for IP targets
+	if net.ParseIP(host) != nil {
+		return host
 	}
 
 	// Use publicsuffix for correct multi-part TLD handling (e.g., .co.uk, .com.au)
@@ -399,7 +420,12 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*Result, error) {
 	}
 
 	// Test preflight
-	preflightVuln, _ := t.TestPreflight(ctx, targetURL, "https://evil.com")
+	preflightVuln, preflightErr := t.TestPreflight(ctx, targetURL, "https://evil.com")
+	if preflightErr != nil && ctx.Err() != nil {
+		result.Vulnerabilities = vulns
+		result.Duration = time.Since(start)
+		return result, ctx.Err()
+	}
 	if preflightVuln != nil {
 		vulns = append(vulns, preflightVuln)
 		t.config.NotifyVulnerabilityFound()

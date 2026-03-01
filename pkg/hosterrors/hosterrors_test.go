@@ -237,7 +237,7 @@ func TestIsNetworkError_NetError(t *testing.T) {
 		expected bool
 	}{
 		{"timeout error", &mockNetError{timeout: true, temporary: false}, true},
-		{"permanent error", &mockNetError{timeout: false, temporary: false}, true},
+		{"permanent error", &mockNetError{timeout: false, temporary: false}, false},
 		{"temporary error", &mockNetError{timeout: false, temporary: true}, false},
 	}
 

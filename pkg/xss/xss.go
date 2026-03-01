@@ -422,12 +422,13 @@ func checkReflection(body, payload string) (bool, string) {
 		return true, decoded
 	}
 
-	// Check for HTML entity decoded
-	htmlDecoded := strings.ReplaceAll(payload, "&lt;", "<")
-	htmlDecoded = strings.ReplaceAll(htmlDecoded, "&gt;", ">")
-	htmlDecoded = strings.ReplaceAll(htmlDecoded, "&quot;", `"`)
-	if htmlDecoded != payload && strings.Contains(body, htmlDecoded) {
-		return true, htmlDecoded
+	// Check if the server HTML-encoded the payload in the response body.
+	// Build the entity-encoded form of the payload and look for it.
+	htmlEncoded := strings.ReplaceAll(payload, "<", "&lt;")
+	htmlEncoded = strings.ReplaceAll(htmlEncoded, ">", "&gt;")
+	htmlEncoded = strings.ReplaceAll(htmlEncoded, `"`, "&quot;")
+	if htmlEncoded != payload && strings.Contains(body, htmlEncoded) {
+		return true, htmlEncoded
 	}
 
 	// Check for UTF-8 normalized variants (NFKC normalization maps
@@ -458,30 +459,34 @@ func DetectContext(body, payload string) InjectionContext {
 		return ContextUnknown
 	}
 
-	// Get context around payload
-	start := payloadPos - 100
+	// Get context around payload (rune-safe slicing to avoid splitting multi-byte chars)
+	runes := []rune(body)
+	runePos := len([]rune(body[:payloadPos]))
+	runePayloadLen := len([]rune(payload))
+	start := runePos - 100
 	if start < 0 {
 		start = 0
 	}
-	end := payloadPos + len(payload) + 100
-	if end > len(body) {
-		end = len(body)
+	end := runePos + runePayloadLen + 100
+	if end > len(runes) {
+		end = len(runes)
 	}
-	context := body[start:end]
+	context := string(runes[start:end])
+	beforePayload := string(runes[start:runePos])
 
 	// Check for script context
-	if regexcache.MustGet(`<script[^>]*>[^<]*$`).MatchString(context[:payloadPos-start]) {
+	if regexcache.MustGet(`<script[^>]*>[^<]*$`).MatchString(beforePayload) {
 		return ContextJavaScript
 	}
 
 	// Check for style context
-	if regexcache.MustGet(`<style[^>]*>[^<]*$`).MatchString(context[:payloadPos-start]) {
+	if regexcache.MustGet(`<style[^>]*>[^<]*$`).MatchString(beforePayload) {
 		return ContextCSS
 	}
 
 	// Check for attribute context
 	attrPattern := regexcache.MustGet(`[a-z]+\s*=\s*["'][^"']*$`)
-	if attrPattern.MatchString(context[:payloadPos-start]) {
+	if attrPattern.MatchString(beforePayload) {
 		return ContextAttribute
 	}
 
@@ -542,12 +547,6 @@ func (t *Tester) TestParameter(ctx context.Context, targetURL, param, method str
 			// Key matches dedup.go: URL|Parameter|Type|Context
 			t.config.NotifyUniqueVuln(fmt.Sprintf("%s|%s|%s|%s", targetURL, param, XSSReflected, injCtx))
 		}
-	}
-
-	// Check for DOM-based XSS indicators
-	if t.config.TestDOMXSS {
-		domVulns := t.checkDOMXSS(ctx, targetURL)
-		vulns = append(vulns, domVulns...)
 	}
 
 	return vulns, nil
@@ -668,6 +667,12 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) (*ScanResult, error
 
 		result.TestedParams++
 		result.Vulnerabilities = append(result.Vulnerabilities, vulns...)
+	}
+
+	// DOM XSS check: run once per URL, not per parameter.
+	if t.config.TestDOMXSS {
+		domVulns := t.checkDOMXSS(ctx, targetURL)
+		result.Vulnerabilities = append(result.Vulnerabilities, domVulns...)
 	}
 
 	result.Duration = time.Since(startTime)

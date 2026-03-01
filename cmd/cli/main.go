@@ -147,6 +147,8 @@ func main() {
 		runSOAP()
 	case "openapi", "openapi-fuzz", "swagger":
 		exitWithError("The 'openapi' command has been removed. Use 'auto --spec <file>' instead.")
+	case "compare", "diff":
+		runCompare()
 	case "cicd", "ci-cd", "pipeline":
 		runCICD()
 	case "plugin", "plugins":

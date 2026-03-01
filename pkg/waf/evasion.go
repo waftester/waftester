@@ -98,7 +98,9 @@ func (e *Evasion) TransformWithCategory(payload, category string) []TransformedP
 
 // GetTechniques returns all available techniques
 func (e *Evasion) GetTechniques() []EvasionTechnique {
-	return e.techniques
+	result := make([]EvasionTechnique, len(e.techniques))
+	copy(result, e.techniques)
+	return result
 }
 
 func (e *Evasion) initTechniques() {
@@ -254,30 +256,34 @@ func (e *Evasion) initTechniques() {
 			Transform: func(payload string) []string {
 				results := make([]string, 0, 3)
 
-				// Alternating case
+				// Alternating case (use rune index, not byte offset)
 				alt := bufpool.GetString()
 				defer bufpool.PutString(alt)
-				for i, r := range payload {
-					if i%2 == 0 {
+				idx := 0
+				for _, r := range payload {
+					if idx%2 == 0 {
 						alt.WriteRune(unicode.ToUpper(r))
 					} else {
 						alt.WriteRune(unicode.ToLower(r))
 					}
+					idx++
 				}
 				results = append(results, alt.String())
 
 				// First letter upper of each word
 				results = append(results, cases.Title(language.English).String(strings.ToLower(payload)))
 
-				// Random-like pattern
+				// Random-like pattern (use rune index, not byte offset)
 				random := bufpool.GetString()
 				defer bufpool.PutString(random)
-				for i, r := range payload {
-					if (i+1)%3 == 0 {
+				ridx := 0
+				for _, r := range payload {
+					if (ridx+1)%3 == 0 {
 						random.WriteString(strings.ToUpper(string(r)))
 					} else {
 						random.WriteString(strings.ToLower(string(r)))
 					}
+					ridx++
 				}
 				results = append(results, random.String())
 
@@ -554,21 +560,24 @@ func (e *Evasion) initTechniques() {
 			Description: "Split payload into chunks",
 			Category:    "chunking",
 			Transform: func(payload string) []string {
-				if len(payload) < 4 {
+				runes := []rune(payload)
+				if len(runes) < 4 {
 					return []string{payload}
 				}
 
 				results := make([]string, 0, 3)
 
-				// Split with concat
-				mid := len(payload) / 2
-				results = append(results, payload[:mid]+"'+'"+payload[mid:])
+				// Split at rune boundary to preserve multi-byte characters
+				mid := len(runes) / 2
+				left := string(runes[:mid])
+				right := string(runes[mid:])
+				results = append(results, left+"'+'"+right)
 
 				// Split with comments (SQL)
-				results = append(results, payload[:mid]+"/*split*/"+payload[mid:])
+				results = append(results, left+"/*split*/"+right)
 
 				// String concat
-				results = append(results, "concat('"+payload[:mid]+"','"+payload[mid:]+"')")
+				results = append(results, "concat('"+left+"','"+right+"')")
 
 				return results
 			},

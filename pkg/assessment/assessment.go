@@ -115,18 +115,27 @@ func New(cfg *Config, opts ...Option) *Assessment {
 		cfg = DefaultConfig()
 	}
 
-	// Use provided HTTPClient (e.g., JA3-aware) or create default
+	// Use provided HTTPClient (e.g., JA3-aware) or create default.
+	// Check both the package-specific HTTPClient and the standard Base.Client.
 	var httpClient *http.Client
 	if cfg.HTTPClient != nil {
 		httpClient = cfg.HTTPClient
+	} else if cfg.Client != nil {
+		httpClient = cfg.Client
 	} else {
 		httpClient = httpclient.Default()
+	}
+
+	// Guard against zero-rate limiter which would block all requests forever.
+	rateLimit := cfg.RateLimit
+	if rateLimit <= 0 {
+		rateLimit = 100 // match DefaultConfig()
 	}
 
 	a := &Assessment{
 		config:        cfg,
 		httpClient:    httpClient,
-		limiter:       rate.NewLimiter(rate.Limit(cfg.RateLimit), int(cfg.RateLimit)),
+		limiter:       rate.NewLimiter(rate.Limit(rateLimit), max(int(rateLimit), 1)),
 		corpusManager: corpus.NewManager("", cfg.Verbose),
 		calculator:    metrics.NewCalculator(),
 		attackResults: make([]metrics.AttackResult, 0),
@@ -648,7 +657,7 @@ func (a *Assessment) executeAttackTest(ctx context.Context, payload AttackPayloa
 // executeFPTest executes a single false positive test
 func (a *Assessment) executeFPTest(ctx context.Context, payload corpus.Payload) metrics.BenignResult {
 	result := metrics.BenignResult{
-		ID:      payload.Text[:min(20, len(payload.Text))],
+		ID:      truncateRunes(payload.Text, 20),
 		Corpus:  payload.Source,
 		Payload: payload.Text,
 	}
@@ -794,4 +803,13 @@ func getBuiltinAttackPayloads() []AttackPayload {
 	}
 
 	return payloads
+}
+
+// truncateRunes safely truncates a string to maxRunes rune characters.
+func truncateRunes(s string, maxRunes int) string {
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return s
+	}
+	return string(runes[:maxRunes])
 }

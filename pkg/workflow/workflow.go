@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -553,6 +554,7 @@ func generateMatrixCombinations(matrix map[string][]string) []map[string]string 
 	for k := range matrix {
 		keys = append(keys, k)
 	}
+	sort.Strings(keys)
 
 	// Generate all combinations
 	var result []map[string]string
@@ -581,9 +583,20 @@ func generateMatrixCombinations(matrix map[string][]string) []map[string]string 
 // expand performs simple string variable substitution on input.
 // Uses plain string replacement instead of text/template to avoid
 // template injection from untrusted workflow YAML files.
+// Keys are sorted so that longer keys are replaced first, preventing
+// partial matches (e.g. "{{host}}" being replaced before "{{hostname}}").
 func (e *Engine) expand(input string, vars map[string]string) string {
+	keys := make([]string, 0, len(vars))
+	for k := range vars {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		// Longest first so "hostname" is replaced before "host"
+		return len(keys[i]) > len(keys[j])
+	})
 	result := input
-	for k, v := range vars {
+	for _, k := range keys {
+		v := vars[k]
 		result = strings.ReplaceAll(result, "{{"+k+"}}", v)
 		result = strings.ReplaceAll(result, "{{."+k+"}}", v)
 	}

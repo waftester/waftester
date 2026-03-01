@@ -47,10 +47,10 @@ type CrawlResult struct {
 	RedirectChain []string          `json:"redirect_chain,omitempty"` // Full redirect history
 	Error         string            `json:"error,omitempty"`
 	APIEndpoints  []APIEndpointInfo `json:"api_endpoints,omitempty"`
-	Subdomains    []string          `json:"subdomains,omitempty"`    // Discovered subdomains
-	Emails        []string          `json:"emails,omitempty"`        // Extracted email addresses
-	Parameters    []string          `json:"parameters,omitempty"`    // Discovered parameter names
-	Secrets       []SecretFinding   `json:"secrets,omitempty"`       // Potential secrets/tokens
+	Subdomains    []string          `json:"subdomains,omitempty"` // Discovered subdomains
+	Emails        []string          `json:"emails,omitempty"`     // Extracted email addresses
+	Parameters    []string          `json:"parameters,omitempty"` // Discovered parameter names
+	Secrets       []SecretFinding   `json:"secrets,omitempty"`    // Potential secrets/tokens
 	Timestamp     time.Time         `json:"timestamp"`
 }
 
@@ -114,10 +114,10 @@ type Config struct {
 	ExtractSecrets   bool `json:"extract_secrets"`
 
 	// Advanced crawling options
-	PathClimbing     bool `json:"path_climbing"`      // Crawl parent paths (/a/b/c → /a/b/, /a/)
-	FormFilling      bool `json:"form_filling"`        // Auto-fill and submit forms
-	CrossDomainJS    bool `json:"cross_domain_js"`     // Analyze JS files from CDNs outside scope
-	SkipJSLibraries  bool `json:"skip_js_libraries"`   // Skip analysis of jQuery/React/Angular/etc.
+	PathClimbing    bool `json:"path_climbing"`     // Crawl parent paths (/a/b/c → /a/b/, /a/)
+	FormFilling     bool `json:"form_filling"`      // Auto-fill and submit forms
+	CrossDomainJS   bool `json:"cross_domain_js"`   // Analyze JS files from CDNs outside scope
+	SkipJSLibraries bool `json:"skip_js_libraries"` // Skip analysis of jQuery/React/Angular/etc.
 
 	// Request options
 	UserAgent  string            `json:"user_agent"`
@@ -301,15 +301,16 @@ func (c *Crawler) Crawl(ctx context.Context, startURL string) (<-chan *CrawlResu
 	// Fetch sitemap.xml for additional crawl targets
 	c.loadSitemaps(parsed)
 
+	// Add start URL to queue BEFORE starting workers to avoid a race where
+	// workers find an empty queue and exit before the seed is enqueued.
+	c.inFlight.Add(1)
+	c.queue <- &crawlTask{URL: startURL, Depth: 0}
+
 	// Start workers
 	for i := 0; i < c.config.MaxConcurrency; i++ {
 		c.wg.Add(1)
 		go c.worker()
 	}
-
-	// Add start URL to queue
-	c.inFlight.Add(1)
-	c.queue <- &crawlTask{URL: startURL, Depth: 0}
 
 	// Monitor and close results when done
 	go func() {
@@ -409,9 +410,13 @@ func (c *Crawler) worker() {
 				return
 			}
 
-			// Add delay
+			// Add delay (context-aware)
 			if c.config.Delay > 0 {
-				time.Sleep(c.config.Delay)
+				select {
+				case <-c.ctx.Done():
+					return
+				case <-time.After(c.config.Delay):
+				}
 			}
 
 			// Queue new URLs if within depth
@@ -790,7 +795,19 @@ func (c *Crawler) queueURL(rawURL string, depth int) {
 		return
 	}
 
-	// Check if already visited
+	// Check scope, extension, and robots BEFORE marking as visited to avoid
+	// unbounded memory growth from out-of-scope URLs polluting the visited map.
+	if !c.inScope(normalized) {
+		return
+	}
+	if !c.allowedExtension(normalized) {
+		return
+	}
+	if c.config.FollowRobots && c.isRobotsDisallowed(normalized) {
+		return
+	}
+
+	// Check if already visited (after scope filtering)
 	c.visitedMu.Lock()
 	if c.visited[normalized] {
 		c.visitedMu.Unlock()
@@ -798,21 +815,6 @@ func (c *Crawler) queueURL(rawURL string, depth int) {
 	}
 	c.visited[normalized] = true
 	c.visitedMu.Unlock()
-
-	// Check scope
-	if !c.inScope(normalized) {
-		return
-	}
-
-	// Check extension
-	if !c.allowedExtension(normalized) {
-		return
-	}
-
-	// Enforce robots.txt disallowed paths
-	if c.config.FollowRobots && c.isRobotsDisallowed(normalized) {
-		return
-	}
 
 	// Add to queue (non-blocking)
 	c.inFlight.Add(1)
@@ -1544,11 +1546,12 @@ func buildRedirectChain(resp *http.Response) []string {
 
 	// Walk backwards through the request chain
 	var chain []string
-	for r := resp.Request; r != nil; r = r.Response.Request {
+	for r := resp.Request; r != nil; {
 		chain = append(chain, r.URL.String())
 		if r.Response == nil {
 			break
 		}
+		r = r.Response.Request
 	}
 
 	// Reverse to get chronological order

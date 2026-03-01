@@ -10,6 +10,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -276,8 +277,18 @@ func (d *Discoverer) Discover(ctx context.Context) (*DiscoveryResult, error) {
 	fmt.Fprintf(os.Stderr, "\r  [9/9] %s Attack surface analyzed%s\n", ui.Icon("✅", "+"), clearEOL)
 
 	result.Duration = time.Since(start)
-	result.Endpoints = d.endpoints
+	d.mu.Lock()
+	result.Endpoints = make([]Endpoint, len(d.endpoints))
+	copy(result.Endpoints, d.endpoints)
+	d.mu.Unlock()
 	result.Statistics.TotalEndpoints = len(d.endpoints)
+
+	// Populate TotalParameters by counting all parameters across endpoints
+	totalParams := 0
+	for _, ep := range d.endpoints {
+		totalParams += len(ep.Parameters)
+	}
+	result.Statistics.TotalParameters = totalParams
 
 	return result, nil
 }
@@ -366,18 +377,24 @@ func (d *Discoverer) discoverFromExternalSources(ctx context.Context, result *Di
 
 	// Probe robots.txt paths
 	for _, path := range allSources.RobotsPaths {
+		if ctx.Err() != nil {
+			return
+		}
 		d.probeEndpoint(ctx, path, result)
 	}
 
 	// Probe sitemap URLs
 	for _, path := range allSources.SitemapURLs {
+		if ctx.Err() != nil {
+			return
+		}
 		d.probeEndpoint(ctx, path, result)
 	}
 
 	// Probe Wayback URLs (limit to avoid overwhelming)
 	maxWayback := 100
 	for i, path := range allSources.WaybackURLs {
-		if i >= maxWayback {
+		if i >= maxWayback || ctx.Err() != nil {
 			break
 		}
 		d.probeEndpoint(ctx, path, result)
@@ -386,7 +403,7 @@ func (d *Discoverer) discoverFromExternalSources(ctx context.Context, result *Di
 	// Probe CommonCrawl URLs (limit)
 	maxCC := 50
 	for i, path := range allSources.CommonCrawl {
-		if i >= maxCC {
+		if i >= maxCC || ctx.Err() != nil {
 			break
 		}
 		d.probeEndpoint(ctx, path, result)
@@ -395,7 +412,7 @@ func (d *Discoverer) discoverFromExternalSources(ctx context.Context, result *Di
 	// Probe OTX URLs (limit)
 	maxOTX := 50
 	for i, path := range allSources.OTXURLs {
-		if i >= maxOTX {
+		if i >= maxOTX || ctx.Err() != nil {
 			break
 		}
 		d.probeEndpoint(ctx, path, result)
@@ -404,7 +421,7 @@ func (d *Discoverer) discoverFromExternalSources(ctx context.Context, result *Di
 	// Probe VirusTotal URLs if available (limit)
 	maxVT := 25
 	for i, path := range allSources.VirusTotalURLs {
-		if i >= maxVT {
+		if i >= maxVT || ctx.Err() != nil {
 			break
 		}
 		d.probeEndpoint(ctx, path, result)
@@ -632,6 +649,7 @@ func (d *Discoverer) analyzeAttackSurface(result *DiscoveryResult) {
 	for cat := range categories {
 		surface.RelevantCategories = append(surface.RelevantCategories, cat)
 	}
+	sort.Strings(surface.RelevantCategories)
 
 	// Always include these baseline categories
 	baseline := []string{"xss", "waf-validation", "protocol"}

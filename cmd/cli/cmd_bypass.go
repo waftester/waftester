@@ -1,11 +1,9 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"html"
 	"os"
 	"sync"
 	"time"
@@ -107,7 +105,7 @@ func runBypassFinder() {
 		defer bypassDispCtx.Close()
 		bypassDispCtx.RegisterDetectionCallbacks(ctx)
 	}
-	bypassCtx := context.Background()
+	bypassCtx := ctx
 
 	// Emit start event for scan lifecycle hooks
 	if bypassDispCtx != nil {
@@ -380,7 +378,11 @@ func runBypassFinder() {
 			}
 			fmt.Printf("  [%d] %s | %s | %s\n",
 				bp.StatusCode, bp.EncoderUsed, bp.LocationUsed, bp.EvasionUsed)
-			fmt.Printf("      Payload: %.60s...\n", bp.MutatedPayload)
+			displayPayload := bp.MutatedPayload
+				if payloadRunes := []rune(displayPayload); len(payloadRunes) > 60 {
+					displayPayload = string(payloadRunes[:60])
+				}
+				fmt.Printf("      Payload: %s...\n", displayPayload)
 			fmt.Println()
 			shown++
 		}
@@ -413,7 +415,9 @@ func runBypassFinder() {
 	}
 
 	// Write enterprise export files (--json-export, --sarif-export, etc.)
-	writeBypassExports(&outputFlags, targetURL, bypassPayloads, totalTested, bypassRate)
+	outputFlags.MaybeExport(func() execResults {
+		return bypassResultsToExecution(targetURL, bypassPayloads, totalTested, time.Since(bypassStartTime))
+	})
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// DISPATCHER SUMMARY EMISSION
@@ -422,152 +426,5 @@ func runBypassFinder() {
 	if bypassDispCtx != nil {
 		blocked := int(totalTested) - len(bypassPayloads)
 		_ = bypassDispCtx.EmitSummary(ctx, int(totalTested), blocked, len(bypassPayloads), time.Since(bypassStartTime))
-	}
-}
-
-// writeBypassExports writes bypass results to enterprise export files (--json-export, --sarif-export, etc.).
-func writeBypassExports(outFlags *OutputFlags, target string, bypasses []*mutation.TestResult, totalTested int64, bypassRate float64) {
-	result := &mutation.WAFBypassResult{
-		Found:          len(bypasses) > 0,
-		BypassPayloads: bypasses,
-		TotalTested:    totalTested,
-		BypassRate:     bypassRate,
-	}
-
-	if outFlags.JSONExport != "" {
-		if err := writeJSONFile(outFlags.JSONExport, result); err != nil {
-			ui.PrintError(fmt.Sprintf("JSON export: %v", err))
-		} else {
-			ui.PrintSuccess(fmt.Sprintf("JSON export saved to %s", outFlags.JSONExport))
-		}
-	}
-
-	if outFlags.JSONLExport != "" {
-		f, err := os.Create(outFlags.JSONLExport)
-		if err != nil {
-			ui.PrintError(fmt.Sprintf("JSONL export: %v", err))
-		} else {
-			enc := json.NewEncoder(f)
-			for _, bp := range bypasses {
-				_ = enc.Encode(bp)
-			}
-			f.Close()
-			ui.PrintSuccess(fmt.Sprintf("JSONL export saved to %s", outFlags.JSONLExport))
-		}
-	}
-
-	if outFlags.CSVExport != "" {
-		f, err := os.Create(outFlags.CSVExport)
-		if err != nil {
-			ui.PrintError(fmt.Sprintf("CSV export: %v", err))
-		} else {
-			fmt.Fprintln(f, "status_code,payload,encoder,evasion,location,latency_ms,url")
-			for _, bp := range bypasses {
-				fmt.Fprintf(f, "%d,%q,%s,%s,%s,%d,%s\n",
-					bp.StatusCode, bp.MutatedPayload, bp.EncoderUsed, bp.EvasionUsed, bp.LocationUsed, bp.LatencyMs, bp.URL)
-			}
-			f.Close()
-			ui.PrintSuccess(fmt.Sprintf("CSV export saved to %s", outFlags.CSVExport))
-		}
-	}
-
-	if outFlags.SARIFExport != "" {
-		if err := writeJSONFile(outFlags.SARIFExport, buildBypassSARIF(target, bypasses)); err != nil {
-			ui.PrintError(fmt.Sprintf("SARIF export: %v", err))
-		} else {
-			ui.PrintSuccess(fmt.Sprintf("SARIF export saved to %s", outFlags.SARIFExport))
-		}
-	}
-
-	if outFlags.HTMLExport != "" {
-		f, err := os.Create(outFlags.HTMLExport)
-		if err != nil {
-			ui.PrintError(fmt.Sprintf("HTML export: %v", err))
-		} else {
-			fmt.Fprintf(f, "<html><head><title>WAF Bypass Results</title></head><body>\n")
-			fmt.Fprintf(f, "<h1>WAF Bypass Results</h1>\n")
-			fmt.Fprintf(f, "<p>Target: %s | Total: %d | Bypasses: %d | Rate: %.2f%%</p>\n",
-				html.EscapeString(target), totalTested, len(bypasses), bypassRate)
-			if len(bypasses) > 0 {
-				fmt.Fprintf(f, "<table border='1'><tr><th>Status</th><th>Payload</th><th>Encoder</th><th>Evasion</th><th>Location</th></tr>\n")
-				for _, bp := range bypasses {
-					fmt.Fprintf(f, "<tr><td>%d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>\n",
-						bp.StatusCode, html.EscapeString(bp.MutatedPayload), html.EscapeString(bp.EncoderUsed), html.EscapeString(bp.EvasionUsed), html.EscapeString(bp.LocationUsed))
-				}
-				fmt.Fprintf(f, "</table>\n")
-			}
-			fmt.Fprintf(f, "</body></html>\n")
-			f.Close()
-			ui.PrintSuccess(fmt.Sprintf("HTML export saved to %s", outFlags.HTMLExport))
-		}
-	}
-
-	if outFlags.MDExport != "" {
-		f, err := os.Create(outFlags.MDExport)
-		if err != nil {
-			ui.PrintError(fmt.Sprintf("Markdown export: %v", err))
-		} else {
-			fmt.Fprintf(f, "# WAF Bypass Results\n\n")
-			fmt.Fprintf(f, "- **Target:** %s\n- **Total Tested:** %d\n- **Bypasses:** %d\n- **Bypass Rate:** %.2f%%\n\n",
-				target, totalTested, len(bypasses), bypassRate)
-			if len(bypasses) > 0 {
-				fmt.Fprintf(f, "| Status | Payload | Encoder | Evasion | Location |\n")
-				fmt.Fprintf(f, "|--------|---------|---------|---------|----------|\n")
-				for _, bp := range bypasses {
-					fmt.Fprintf(f, "| %d | %s | %s | %s | %s |\n",
-						bp.StatusCode, bp.MutatedPayload, bp.EncoderUsed, bp.EvasionUsed, bp.LocationUsed)
-				}
-			}
-			f.Close()
-			ui.PrintSuccess(fmt.Sprintf("Markdown export saved to %s", outFlags.MDExport))
-		}
-	}
-}
-
-// writeJSONFile marshals v to a JSON file with indentation.
-func writeJSONFile(path string, v interface{}) (err error) {
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if cerr := f.Close(); err == nil {
-			err = cerr
-		}
-	}()
-	enc := json.NewEncoder(f)
-	enc.SetIndent("", "  ")
-	return enc.Encode(v)
-}
-
-// buildBypassSARIF creates a minimal SARIF 2.1.0 structure for bypass findings.
-func buildBypassSARIF(target string, bypasses []*mutation.TestResult) map[string]interface{} {
-	results := make([]map[string]interface{}, 0, len(bypasses))
-	for _, bp := range bypasses {
-		results = append(results, map[string]interface{}{
-			"ruleId":  "waf-bypass",
-			"level":   "warning",
-			"message": map[string]string{"text": fmt.Sprintf("WAF bypass found: %s via %s/%s", bp.MutatedPayload, bp.EncoderUsed, bp.EvasionUsed)},
-			"locations": []map[string]interface{}{
-				{"physicalLocation": map[string]interface{}{
-					"artifactLocation": map[string]string{"uri": bp.URL},
-				}},
-			},
-		})
-	}
-	return map[string]interface{}{
-		"$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
-		"version": "2.1.0",
-		"runs": []map[string]interface{}{
-			{
-				"tool": map[string]interface{}{
-					"driver": map[string]interface{}{
-						"name":    "WAFtester",
-						"version": defaults.Version,
-					},
-				},
-				"results": results,
-			},
-		},
 	}
 }

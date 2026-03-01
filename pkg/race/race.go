@@ -92,9 +92,14 @@ func NewTester(config *TesterConfig) *Tester {
 		config = DefaultConfig()
 	}
 
+	client := config.Client
+	if client == nil {
+		client = httpclient.Default()
+	}
+
 	return &Tester{
 		config: config,
-		client: httpclient.Default(),
+		client: client,
 	}
 }
 
@@ -177,7 +182,13 @@ func (t *Tester) sendRequest(ctx context.Context, rc *RequestConfig) (*http.Resp
 func (t *Tester) TestDoubleSubmit(ctx context.Context, request *RequestConfig, numRequests int) (*Vulnerability, error) {
 	requests := make([]*RequestConfig, numRequests)
 	for i := 0; i < numRequests; i++ {
-		requests[i] = request
+		// Deep-copy to avoid concurrent goroutines sharing the same
+		// Headers map and other mutable fields.
+		cp := *request
+		if request.Headers != nil {
+			cp.Headers = request.Headers.Clone()
+		}
+		requests[i] = &cp
 	}
 
 	responses := t.SendConcurrent(ctx, requests)
@@ -214,10 +225,8 @@ func (t *Tester) TestDoubleSubmit(ctx context.Context, request *RequestConfig, n
 
 // TestTokenReuse tests for token/nonce reuse vulnerabilities
 func (t *Tester) TestTokenReuse(ctx context.Context, request *RequestConfig, numRequests int) (*Vulnerability, error) {
-	requests := make([]*RequestConfig, numRequests)
-	for i := 0; i < numRequests; i++ {
-		requests[i] = request
-	}
+	// Create independent copies to avoid sharing the same request across goroutines
+	requests := CreateBurst(request, numRequests)
 
 	responses := t.SendConcurrent(ctx, requests)
 
@@ -254,10 +263,8 @@ func (t *Tester) TestTokenReuse(ctx context.Context, request *RequestConfig, num
 
 // TestLimitBypass tests for rate limit bypass via race condition
 func (t *Tester) TestLimitBypass(ctx context.Context, request *RequestConfig, numRequests int, expectedLimit int) (*Vulnerability, error) {
-	requests := make([]*RequestConfig, numRequests)
-	for i := 0; i < numRequests; i++ {
-		requests[i] = request
-	}
+	// Create independent copies to avoid sharing the same request across goroutines
+	requests := CreateBurst(request, numRequests)
 
 	responses := t.SendConcurrent(ctx, requests)
 
@@ -371,8 +378,8 @@ func AnalyzeResponses(responses []*Response) *RaceAnalysis {
 
 		// Hash or truncate body for comparison
 		bodyKey := r.Body
-		if len(bodyKey) > 500 {
-			bodyKey = bodyKey[:500]
+		if len([]rune(bodyKey)) > 500 {
+			bodyKey = string([]rune(bodyKey)[:500])
 		}
 		uniqueBodies[bodyKey]++
 	}
@@ -424,11 +431,15 @@ type RaceAnalysis struct {
 func CreateBurst(baseRequest *RequestConfig, count int) []*RequestConfig {
 	requests := make([]*RequestConfig, count)
 	for i := 0; i < count; i++ {
+		var headers http.Header
+		if baseRequest.Headers != nil {
+			headers = baseRequest.Headers.Clone()
+		}
 		requests[i] = &RequestConfig{
 			Method:  baseRequest.Method,
 			URL:     baseRequest.URL,
 			Body:    baseRequest.Body,
-			Headers: baseRequest.Headers.Clone(),
+			Headers: headers,
 			Cookies: append([]*http.Cookie{}, baseRequest.Cookies...),
 		}
 	}

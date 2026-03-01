@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"text/template"
 	"time"
@@ -283,29 +284,67 @@ func Validate(templateStr string) error {
 	return err
 }
 
-// ListPresets returns available preset names
+// ListPresets returns available preset names in sorted order.
 func ListPresets() []string {
 	presets := make([]string, 0, len(Presets))
 	for name := range Presets {
 		presets = append(presets, name)
 	}
+	sort.Strings(presets)
 	return presets
 }
 
 // Helper functions
 
 func defaultValue(def, val interface{}) interface{} {
-	if val == nil || val == "" || val == 0 {
+	if val == nil || val == "" {
 		return def
+	}
+	switch v := val.(type) {
+	case int:
+		if v == 0 {
+			return def
+		}
+	case int64:
+		if v == 0 {
+			return def
+		}
+	case float64:
+		if v == 0 {
+			return def
+		}
+	case bool:
+		if !v {
+			return def
+		}
 	}
 	return val
 }
 
 func coalesce(values ...interface{}) interface{} {
 	for _, v := range values {
-		if v != nil && v != "" && v != 0 {
-			return v
+		if v == nil || v == "" {
+			continue
 		}
+		switch tv := v.(type) {
+		case int:
+			if tv == 0 {
+				continue
+			}
+		case int64:
+			if tv == 0 {
+				continue
+			}
+		case float64:
+			if tv == 0 {
+				continue
+			}
+		case bool:
+			if !tv {
+				continue
+			}
+		}
+		return v
 	}
 	return ""
 }
@@ -317,14 +356,20 @@ func ternary(condition bool, trueVal, falseVal interface{}) interface{} {
 	return falseVal
 }
 
-func toJSON(v interface{}) string {
-	data, _ := json.Marshal(v)
-	return string(data)
+func toJSON(v interface{}) (string, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return "", fmt.Errorf("toJson: %w", err)
+	}
+	return string(data), nil
 }
 
-func toPrettyJSON(v interface{}) string {
-	data, _ := json.MarshalIndent(v, "", "  ")
-	return string(data)
+func toPrettyJSON(v interface{}) (string, error) {
+	data, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("toPrettyJson: %w", err)
+	}
+	return string(data), nil
 }
 
 func formatTime(t time.Time, format string) string {
@@ -426,8 +471,9 @@ func evaluateStatusCode(expr string, statusCode int) bool {
 		parts := strings.Split(expr, "==")
 		if len(parts) == 2 {
 			var val int
-			fmt.Sscanf(parts[1], "%d", &val)
-			return statusCode == val
+			if n, _ := fmt.Sscanf(parts[1], "%d", &val); n == 1 {
+				return statusCode == val
+			}
 		}
 	}
 
@@ -435,8 +481,9 @@ func evaluateStatusCode(expr string, statusCode int) bool {
 		parts := strings.Split(expr, ">=")
 		if len(parts) == 2 {
 			var val int
-			fmt.Sscanf(parts[1], "%d", &val)
-			return statusCode >= val
+			if n, _ := fmt.Sscanf(parts[1], "%d", &val); n == 1 {
+				return statusCode >= val
+			}
 		}
 	}
 
@@ -444,8 +491,9 @@ func evaluateStatusCode(expr string, statusCode int) bool {
 		parts := strings.Split(expr, "<=")
 		if len(parts) == 2 {
 			var val int
-			fmt.Sscanf(parts[1], "%d", &val)
-			return statusCode <= val
+			if n, _ := fmt.Sscanf(parts[1], "%d", &val); n == 1 {
+				return statusCode <= val
+			}
 		}
 	}
 
@@ -453,8 +501,9 @@ func evaluateStatusCode(expr string, statusCode int) bool {
 		parts := strings.Split(expr, ">")
 		if len(parts) == 2 {
 			var val int
-			fmt.Sscanf(parts[1], "%d", &val)
-			return statusCode > val
+			if n, _ := fmt.Sscanf(parts[1], "%d", &val); n == 1 {
+				return statusCode > val
+			}
 		}
 	}
 
@@ -462,8 +511,9 @@ func evaluateStatusCode(expr string, statusCode int) bool {
 		parts := strings.Split(expr, "<")
 		if len(parts) == 2 {
 			var val int
-			fmt.Sscanf(parts[1], "%d", &val)
-			return statusCode < val
+			if n, _ := fmt.Sscanf(parts[1], "%d", &val); n == 1 {
+				return statusCode < val
+			}
 		}
 	}
 

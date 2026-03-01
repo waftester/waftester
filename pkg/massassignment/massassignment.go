@@ -64,9 +64,14 @@ func NewScanner(config Config) *Scanner {
 		config.Timeout = httpclient.TimeoutProbing
 	}
 
+	client := config.Client
+	if client == nil {
+		client = httpclient.Default()
+	}
+
 	return &Scanner{
 		config:  config,
-		client:  httpclient.Default(),
+		client:  client,
 		results: make([]Result, 0),
 	}
 }
@@ -78,6 +83,11 @@ func (s *Scanner) Scan(ctx context.Context, targetURL string, originalData map[s
 	results := make([]Result, 0)
 
 	for _, param := range DangerousParameters() {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
 		result := s.testParameter(ctx, targetURL, param, originalData)
 		if result.Vulnerable {
 			results = append(results, result)

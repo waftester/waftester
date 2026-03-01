@@ -199,17 +199,13 @@ func (b *Browser) Visit(ctx context.Context, targetURL string) (*PageResult, err
 		FinalURL: targetURL,
 	}
 
-	// Check if already visited
-	b.mu.RLock()
+	// Check and mark as visited atomically
+	b.mu.Lock()
 	if b.urlCache[targetURL] {
-		b.mu.RUnlock()
+		b.mu.Unlock()
 		result.Error = "URL already visited in this session"
 		return result, nil
 	}
-	b.mu.RUnlock()
-
-	// Mark as visited
-	b.mu.Lock()
 	b.urlCache[targetURL] = true
 	b.mu.Unlock()
 
@@ -287,7 +283,7 @@ func extractAttribute(html, attr string) []string {
 		if value != "" && value != "#" && !strings.HasPrefix(value, "javascript:") {
 			results = append(results, value)
 		}
-		remaining = remaining[endIdx:]
+		remaining = remaining[endIdx+1:]
 	}
 
 	// Also check single quotes
@@ -307,7 +303,7 @@ func extractAttribute(html, attr string) []string {
 		if value != "" && value != "#" && !strings.HasPrefix(value, "javascript:") {
 			results = append(results, value)
 		}
-		remaining = remaining[endIdx:]
+		remaining = remaining[endIdx+1:]
 	}
 
 	return results

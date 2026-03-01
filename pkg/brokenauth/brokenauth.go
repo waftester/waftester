@@ -50,6 +50,7 @@ type Result struct {
 // Scanner performs broken authentication testing
 type Scanner struct {
 	config  Config
+	client  *http.Client
 	results []Result
 	mu      sync.RWMutex
 }
@@ -63,8 +64,14 @@ func NewScanner(config Config) *Scanner {
 		config.Timeout = httpclient.TimeoutScanning
 	}
 
+	client := config.Client
+	if client == nil {
+		client = httpclient.Default()
+	}
+
 	return &Scanner{
 		config:  config,
+		client:  client,
 		results: make([]Result, 0),
 	}
 }
@@ -74,8 +81,9 @@ func (s *Scanner) TestSessionManagement(ctx context.Context, loginURL string, cr
 	results := make([]Result, 0)
 
 	jar, _ := cookiejar.New(nil)
-	client := httpclient.Scanning()
-	client.Jar = jar
+	cloned := *s.client
+	cloned.Jar = jar
+	client := &cloned
 
 	// Login
 	loginReq, err := http.NewRequestWithContext(ctx, "POST", loginURL, strings.NewReader(credentials.Encode()))
@@ -158,9 +166,15 @@ func (s *Scanner) TestPasswordPolicy(ctx context.Context, registerURL string) ([
 
 	weakPasswords := WeakPasswords()
 
-	client := httpclient.Default()
+	client := s.client
 
 	for _, pwd := range weakPasswords {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
+
 		result := Result{
 			URL:         registerURL,
 			TestType:    "weak_password",
@@ -220,9 +234,15 @@ func (s *Scanner) TestAccountLockout(ctx context.Context, loginURL string, usern
 		Timestamp:   time.Now(),
 	}
 
-	client := httpclient.Default()
+	client := s.client
 
 	for i := 0; i < attempts; i++ {
+		select {
+		case <-ctx.Done():
+			return result, ctx.Err()
+		default:
+		}
+
 		data := url.Values{
 			"username": {username},
 			"password": {"wrongpassword" + time.Now().Format("150405")},

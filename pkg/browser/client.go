@@ -324,9 +324,12 @@ func (c *Client) doOnce(ctx context.Context, req *Request) (*Response, error) {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Apply browser profile headers
-	httpReq.Header.Set("User-Agent", c.profile.UserAgent)
-	for k, v := range c.profile.Headers {
+	// Apply browser profile headers (snapshot under lock to avoid race with SetProfile)
+	c.mu.Lock()
+	profile := c.profile
+	c.mu.Unlock()
+	httpReq.Header.Set("User-Agent", profile.UserAgent)
+	for k, v := range profile.Headers {
 		httpReq.Header.Set(k, v)
 	}
 
@@ -343,8 +346,13 @@ func (c *Client) doOnce(ctx context.Context, req *Request) (*Response, error) {
 	// Referer
 	if req.Referer != "" {
 		httpReq.Header.Set("Referer", req.Referer)
-	} else if c.referer != "" {
-		httpReq.Header.Set("Referer", c.referer)
+	} else {
+		c.mu.Lock()
+		ref := c.referer
+		c.mu.Unlock()
+		if ref != "" {
+			httpReq.Header.Set("Referer", ref)
+		}
 	}
 
 	// Origin
@@ -376,10 +384,13 @@ func (c *Client) doOnce(ctx context.Context, req *Request) (*Response, error) {
 	// Read body
 	var respBody []byte
 	if httpResp.Header.Get("Content-Encoding") == "gzip" {
-		gzr, err := gzip.NewReader(httpResp.Body)
-		if err == nil {
+		gzr, gzErr := gzip.NewReader(httpResp.Body)
+		if gzErr == nil {
 			defer gzr.Close() // Ensure closure even on panic
-			respBody, _ = iohelper.ReadBodyDefault(gzr)
+			respBody, gzErr = iohelper.ReadBodyDefault(gzr)
+			if gzErr != nil {
+				respBody = nil // Don't use partially decompressed data
+			}
 		}
 	}
 	if len(respBody) == 0 {
@@ -457,7 +468,9 @@ func (c *Client) PostJSON(urlStr string, jsonBody string) (*Response, error) {
 func (c *Client) History() []*Request {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.history
+	result := make([]*Request, len(c.history))
+	copy(result, c.history)
+	return result
 }
 
 // ClearHistory clears the request history
@@ -473,19 +486,27 @@ func (c *Client) ClearCookies() error {
 	if err != nil {
 		return err
 	}
+	c.mu.Lock()
 	c.cookieJar = jar
 	c.http.Jar = jar
+	c.mu.Unlock()
 	return nil
 }
 
 // SetCookie sets a cookie
 func (c *Client) SetCookie(u *url.URL, cookie *http.Cookie) {
-	c.cookieJar.SetCookies(u, []*http.Cookie{cookie})
+	c.mu.Lock()
+	jar := c.cookieJar
+	c.mu.Unlock()
+	jar.SetCookies(u, []*http.Cookie{cookie})
 }
 
 // Cookies returns cookies for a URL
 func (c *Client) Cookies(u *url.URL) []*http.Cookie {
-	return c.cookieJar.Cookies(u)
+	c.mu.Lock()
+	jar := c.cookieJar
+	c.mu.Unlock()
+	return jar.Cookies(u)
 }
 
 // Profile returns the current browser profile
@@ -495,7 +516,9 @@ func (c *Client) Profile() *Profile {
 
 // SetProfile changes the browser profile
 func (c *Client) SetProfile(p *Profile) {
+	c.mu.Lock()
 	c.profile = p
+	c.mu.Unlock()
 }
 
 // Close closes the client and releases resources
@@ -596,6 +619,14 @@ func NewRunner(opts ...Option) (*Runner, error) {
 
 // Run executes a test case
 func (r *Runner) Run(tc *TestCase) *Result {
+	// Guard against nil request
+	if tc.Request == nil {
+		return &Result{
+			TestCase: tc,
+			Error:    fmt.Errorf("test case has nil request"),
+		}
+	}
+
 	// Set profile if specified
 	if tc.Profile != nil {
 		r.client.SetProfile(tc.Profile)
@@ -635,7 +666,9 @@ func (r *Runner) RunAll(testCases []*TestCase) []*Result {
 func (r *Runner) Results() []*Result {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.results
+	result := make([]*Result, len(r.results))
+	copy(result, r.results)
+	return result
 }
 
 // Summary returns a summary of results

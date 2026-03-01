@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/textproto"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 
@@ -101,9 +102,14 @@ func NewTester(config *TesterConfig) *Tester {
 		config = DefaultConfig()
 	}
 
+	client := config.Client
+	if client == nil {
+		client = httpclient.Default()
+	}
+
 	return &Tester{
 		config: config,
-		client: httpclient.Default(),
+		client: client,
 	}
 }
 
@@ -137,7 +143,13 @@ func (t *Tester) TestUpload(ctx context.Context, targetURL string, payload Uploa
 		return nil, fmt.Errorf("writing file content: %w", err)
 	}
 
-	for key, value := range t.config.ExtraFields {
+	extraKeys := make([]string, 0, len(t.config.ExtraFields))
+	for key := range t.config.ExtraFields {
+		extraKeys = append(extraKeys, key)
+	}
+	sort.Strings(extraKeys)
+	for _, key := range extraKeys {
+		value := t.config.ExtraFields[key]
 		if err := writer.WriteField(key, value); err != nil {
 			return nil, fmt.Errorf("writing field %s: %w", key, err)
 		}
@@ -209,6 +221,7 @@ func (t *Tester) Scan(ctx context.Context, targetURL string) ([]Vulnerability, e
 	var vulns []Vulnerability
 	var mu sync.Mutex
 	var wg sync.WaitGroup
+	var firstErr error
 
 	payloads := GetAllPayloads()
 	sem := make(chan struct{}, t.config.Concurrency)
@@ -243,6 +256,11 @@ payloadLoop:
 
 			vuln, err := t.TestUpload(ctx, targetURL, p)
 			if err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = err
+				}
+				mu.Unlock()
 				return
 			}
 
@@ -255,7 +273,7 @@ payloadLoop:
 	}
 
 	wg.Wait()
-	return vulns, nil
+	return vulns, firstErr
 }
 
 // GetAllPayloads returns all upload test payloads.
@@ -350,12 +368,22 @@ func (t *Tester) applyHeaders(req *http.Request) {
 	if t.config.AuthHeader != "" {
 		req.Header.Set("Authorization", t.config.AuthHeader)
 	}
-	for name, value := range t.config.Cookies {
-		req.AddCookie(&http.Cookie{Name: name, Value: value})
+	cookieNames := make([]string, 0, len(t.config.Cookies))
+	for name := range t.config.Cookies {
+		cookieNames = append(cookieNames, name)
+	}
+	sort.Strings(cookieNames)
+	for _, name := range cookieNames {
+		req.AddCookie(&http.Cookie{Name: name, Value: t.config.Cookies[name]})
 	}
 }
 
 func (t *Tester) isUploadSuccessful(statusCode int, body string) bool {
+	// Redirects after upload often indicate the file was accepted
+	if statusCode == 301 || statusCode == 302 || statusCode == 303 {
+		return true
+	}
+
 	if statusCode >= 200 && statusCode < 300 {
 		successIndicators := []string{"success", "uploaded", "complete", "file_url", "location", "path", "url"}
 		lowerBody := strings.ToLower(body)
@@ -364,10 +392,9 @@ func (t *Tester) isUploadSuccessful(statusCode int, body string) bool {
 				return true
 			}
 		}
-		return true
-	}
-	if statusCode == 301 || statusCode == 302 || statusCode == 303 {
-		return true
+		// 2xx without any success indicator — the server accepted the request
+		// but we can't confirm the file was actually stored. Don't flag as vuln.
+		return false
 	}
 	return false
 }

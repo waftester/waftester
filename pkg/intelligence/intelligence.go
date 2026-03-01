@@ -427,17 +427,9 @@ func (e *Engine) feedAdvancedModules(finding *Finding) []Anomaly {
 			e.banditPattern.Record(finding.Payload, !finding.Blocked)
 		}
 
-		// CUSUM change-point detection
-		if e.calibrator != nil {
-			blockRate := 0.0
-			if finding.Blocked {
-				blockRate = 1.0
-			}
-			e.calibrator.Observe("block_rate", blockRate)
-			if finding.Latency > 0 {
-				e.calibrator.Observe("latency_ms", float64(finding.Latency.Milliseconds()))
-			}
-		}
+		// CUSUM change-point detection is handled by AnomalyDetector.ObserveResponse;
+		// feeding here as well would double-count every observation, making the
+		// detector trigger alarms roughly twice as fast as intended.
 
 		// Influence graph propagation
 		if e.influenceGraph != nil && finding.Category != "" {
@@ -523,8 +515,10 @@ func (e *Engine) generateInsights(f *Finding) []*Insight {
 		})
 	}
 
-	// Check for vulnerability patterns
-	if !f.Blocked && f.Confidence >= e.config.MinConfidence {
+	// Check for vulnerability patterns — only for testing-phase findings with
+	// actual HTTP responses. Recon findings always have Blocked=false which
+	// would generate spurious "Bypass Detected" insights for every endpoint.
+	if !f.Blocked && f.IsTestingPhase() && f.StatusCode > 0 && f.Confidence >= e.config.MinConfidence {
 		severity := severityToPriority(f.Severity)
 		insights = append(insights, &Insight{
 			Type:        InsightVulnerability,
@@ -1123,8 +1117,15 @@ func (e *Engine) RecommendResourceAllocation() []*ResourceAllocation {
 	categoryTotal := make(map[string]float64)
 
 	for _, f := range e.memory.GetAll() {
+		// Only consider testing-phase findings for resource allocation.
+		// Recon findings have Blocked=false by default, which would give
+		// categories like "endpoint" a 100% bypass rate and starve real
+		// attack categories of resources.
+		if !f.IsTestingPhase() {
+			continue
+		}
 		categoryTotal[f.Category]++
-		if !f.Blocked {
+		if !f.Blocked && f.StatusCode > 0 {
 			categorySuccess[f.Category]++
 		}
 	}

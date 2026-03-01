@@ -288,11 +288,11 @@ func Sign(header *Header, claims *Claims, secret []byte) (string, error) {
 	switch {
 	case algLower == "none" || algLower == "":
 		signature = ""
-	case Algorithm(header.Alg) == AlgHS256:
+	case algLower == "hs256":
 		signature = signHMAC(signingInput, secret, sha256.New)
-	case Algorithm(header.Alg) == AlgHS384:
+	case algLower == "hs384":
 		signature = signHMAC(signingInput, secret, sha512.New384)
-	case Algorithm(header.Alg) == AlgHS512:
+	case algLower == "hs512":
 		signature = signHMAC(signingInput, secret, sha512.New)
 	default:
 		return "", fmt.Errorf("unsupported algorithm: %s", header.Alg)
@@ -940,7 +940,11 @@ func EstimateSecretEntropy(secret string) float64 {
 
 	// Calculate entropy using Shannon entropy formula
 	var entropy float64
-	length := float64(len(secret))
+	runeCount := 0
+	for range secret {
+		runeCount++
+	}
+	length := float64(runeCount)
 
 	for _, count := range chars {
 		p := float64(count) / length
@@ -1071,7 +1075,10 @@ func (s *Scanner) extractTokens(ctx context.Context, client *http.Client, target
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		io.Copy(io.Discard, resp.Body) //nolint:errcheck // drain for connection reuse
+		resp.Body.Close()
+	}()
 
 	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
 

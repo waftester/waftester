@@ -450,14 +450,49 @@ func (s *AuthenticatedScanner) runChromedpScan(ctx context.Context, result *Brow
 	}
 
 	allocCtx, allocCancel := chromedp.NewExecAllocator(ctx, opts...)
-	defer allocCancel()
+	// NOTE: allocCancel and browserCancel are called explicitly below with a
+	// timeout to prevent the process freeze on Windows where Chrome child
+	// processes (GPU, renderer) can block indefinitely during cleanup.
 
 	if progressFn != nil {
 		progressFn("Browser allocator initialized")
 	}
 
 	browserCtx, browserCancel := chromedp.NewContext(allocCtx)
-	defer browserCancel()
+
+	// cancelBrowser is a helper that cancels chromedp contexts with a timeout.
+	// On Windows, chromedp's allocator cancel can block waiting for Chrome
+	// child processes (GPU, renderer) to exit. This wrapper ensures cleanup
+	// completes within 5 seconds, then force-kills the browser process tree.
+	cancelBrowser := func() {
+		// Capture the browser process BEFORE cancelling contexts — after
+		// cancel the process reference may be nil.
+		var proc *os.Process
+		if c := chromedp.FromContext(browserCtx); c != nil && c.Browser != nil {
+			proc = c.Browser.Process()
+		}
+
+		done := make(chan struct{})
+		go func() {
+			browserCancel()
+			allocCancel()
+			close(done)
+		}()
+		select {
+		case <-done:
+			// Clean shutdown
+		case <-time.After(5 * time.Second):
+			// Graceful cancel blocked — force-kill the Chrome process tree.
+			// Uses killProcessTree for platform-aware cleanup (taskkill on Windows).
+			if proc != nil {
+				killProcessTree(proc)
+			}
+			if progressFn != nil {
+				progressFn("Browser cleanup timed out — force-killed Chrome process")
+			}
+		}
+	}
+	defer cancelBrowser()
 
 	if progressFn != nil {
 		progressFn("Browser context created, launching...")
@@ -623,7 +658,18 @@ func (s *AuthenticatedScanner) runChromedpScan(ctx context.Context, result *Brow
 		}
 		s.mu.Lock()
 		defer s.mu.Unlock()
+		// Deduplicate: GetCookies returns all cookies for the browser context,
+		// which may overlap with cookies collected from earlier navigations.
+		seen := make(map[string]bool, len(result.StorageData.Cookies))
+		for _, existing := range result.StorageData.Cookies {
+			seen[existing.Name+"|"+existing.Domain+"|"+existing.Path] = true
+		}
 		for _, c := range cookies {
+			key := c.Name + "|" + c.Domain + "|" + c.Path
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
 			result.StorageData.Cookies = append(result.StorageData.Cookies, CookieInfo{
 				Name:     c.Name,
 				Domain:   c.Domain,
@@ -649,6 +695,12 @@ func (s *AuthenticatedScanner) runChromedpScan(ctx context.Context, result *Brow
 	maxLinks := 50 // Total limit to prevent excessive crawling
 	visitedCount := 0
 
+	targetParsed, err := url.Parse(s.config.TargetURL)
+	if err != nil {
+		return fmt.Errorf("invalid target URL: %w", err)
+	}
+	targetHost := targetParsed.Host
+
 	// Recursive crawl helper function
 	var crawlPage func(pageURL string, currentDepth int)
 	crawlPage = func(pageURL string, currentDepth int) {
@@ -656,50 +708,28 @@ func (s *AuthenticatedScanner) runChromedpScan(ctx context.Context, result *Brow
 			return
 		}
 
-		// Find links on current page
-		var links []string
+		// CHROME: extract links from DOM
+		var rawLinks []string
 		_ = chromedp.Run(browserCtx,
-			chromedp.Evaluate(`Array.from(document.querySelectorAll('a[href]')).map(a => a.href)`, &links),
+			chromedp.Evaluate(`Array.from(document.querySelectorAll('a[href]')).map(a => a.href)`, &rawLinks),
 		)
 
-		// Sort links to prioritize FocusPatterns (e.g., /api/, /admin/)
-		if len(s.config.FocusPatterns) > 0 {
-			sort.SliceStable(links, func(i, j int) bool {
-				iPriority := s.matchesFocusPattern(links[i])
-				jPriority := s.matchesFocusPattern(links[j])
-				return iPriority && !jPriority
-			})
-		}
+		// PURE: filter and sort
+		filtered := s.filterCrawlLinks(rawLinks, targetHost, visited, maxLinks-visitedCount)
 
-		for _, link := range links {
+		for _, link := range filtered {
 			if visitedCount >= maxLinks {
 				if progressFn != nil {
 					progressFn(fmt.Sprintf("Reached max link limit (%d), stopping crawl", maxLinks))
 				}
 				return
 			}
-			if visited[link] || s.shouldIgnoreURL(link) {
-				continue
-			}
-
-			// Security: Only crawl same-origin links to prevent token leakage
-			linkParsed, err := url.Parse(link)
-			if err != nil {
-				continue
-			}
-			targetParsed, err := url.Parse(s.config.TargetURL)
-			if err != nil {
-				continue
-			}
-			if linkParsed.Host != targetParsed.Host {
-				continue // Skip cross-origin links
-			}
 
 			visited[link] = true
 			visitedCount++
 
-			// Navigate to link
-			err = chromedp.Run(browserCtx,
+			// CHROME: navigate to link
+			err := chromedp.Run(browserCtx,
 				chromedp.Navigate(link),
 				chromedp.Sleep(duration.RetryFast),
 			)
@@ -728,15 +758,10 @@ func (s *AuthenticatedScanner) runChromedpScan(ctx context.Context, result *Brow
 				}
 			}
 
+			// PURE: build route
+			route := buildDiscoveredRoute(link, title, currentDepth)
 			s.mu.Lock()
-			result.DiscoveredRoutes = append(result.DiscoveredRoutes, DiscoveredRoute{
-				FullURL:       link,
-				Path:          extractPath(link),
-				Method:        "GET",
-				RequiresAuth:  true,
-				PageTitle:     title,
-				DiscoveredVia: fmt.Sprintf("browser_crawl_depth_%d", currentDepth),
-			})
+			result.DiscoveredRoutes = append(result.DiscoveredRoutes, route)
 			s.mu.Unlock()
 
 			// Recursively crawl this page for more links
@@ -755,8 +780,7 @@ func (s *AuthenticatedScanner) runChromedpScan(ctx context.Context, result *Brow
 		tokenCount := len(result.ExposedTokens)
 		apiCount := len(result.ThirdPartyAPIs)
 		s.mu.Unlock()
-		progressFn(fmt.Sprintf("Discovered %d routes, %d tokens, %d third-party APIs",
-			routeCount, tokenCount, apiCount))
+		progressFn(formatScanSummary(routeCount, tokenCount, apiCount))
 	}
 
 	return nil
@@ -885,8 +909,9 @@ func (s *AuthenticatedScanner) analyzeToken(key, value, location string) *Expose
 	}
 
 	// Truncate for display
-	if len(value) > 50 {
-		token.Value = value[:25] + "..." + value[len(value)-15:]
+	runes := []rune(value)
+	if len(runes) > 50 {
+		token.Value = string(runes[:25]) + "..." + string(runes[len(runes)-15:])
 	} else {
 		token.Value = value
 	}
@@ -1065,6 +1090,68 @@ func (s *AuthenticatedScanner) classifyThirdPartyAPI(requestURL, targetDomain st
 	api.RequestType = "unknown"
 	api.Severity = "low"
 	return api
+}
+
+// filterCrawlLinks filters raw page links for crawling: removes visited,
+// ignored, and cross-origin links, then sorts by focus pattern priority.
+// Returns at most maxRemaining links.
+func (s *AuthenticatedScanner) filterCrawlLinks(
+	rawLinks []string,
+	targetHost string,
+	visited map[string]bool,
+	maxRemaining int,
+) []string {
+	if len(rawLinks) == 0 || maxRemaining <= 0 {
+		return nil
+	}
+
+	// Sort links to prioritize FocusPatterns (e.g., /api/, /admin/)
+	if len(s.config.FocusPatterns) > 0 {
+		sort.SliceStable(rawLinks, func(i, j int) bool {
+			iPriority := s.matchesFocusPattern(rawLinks[i])
+			jPriority := s.matchesFocusPattern(rawLinks[j])
+			return iPriority && !jPriority
+		})
+	}
+
+	seen := make(map[string]bool)
+	var result []string
+	for _, link := range rawLinks {
+		if len(result) >= maxRemaining {
+			break
+		}
+		if seen[link] || visited[link] || s.shouldIgnoreURL(link) {
+			continue
+		}
+		linkParsed, err := url.Parse(link)
+		if err != nil {
+			continue
+		}
+		if linkParsed.Host != targetHost {
+			continue
+		}
+		seen[link] = true
+		result = append(result, link)
+	}
+	return result
+}
+
+// buildDiscoveredRoute creates a DiscoveredRoute from crawl data.
+func buildDiscoveredRoute(link, title string, depth int) DiscoveredRoute {
+	return DiscoveredRoute{
+		FullURL:       link,
+		Path:          extractPath(link),
+		Method:        "GET",
+		RequiresAuth:  true,
+		PageTitle:     title,
+		DiscoveredVia: fmt.Sprintf("browser_crawl_depth_%d", depth),
+	}
+}
+
+// formatScanSummary creates the final scan progress message.
+func formatScanSummary(routeCount, tokenCount, apiCount int) string {
+	return fmt.Sprintf("Discovered %d routes, %d tokens, %d third-party APIs",
+		routeCount, tokenCount, apiCount)
 }
 
 // handleNetworkRequest processes network request events from chromedp
@@ -1254,7 +1341,7 @@ func (s *AuthenticatedScanner) isAuthenticationComplete(currentURL string, resul
 	if len(result.ExposedTokens) > 0 {
 		for _, token := range result.ExposedTokens {
 			// Match lowercase types set by analyzeToken()
-			if token.Type == "jwt" || token.Type == "bearer" || token.Type == "session" || token.Type == "oauth" || token.Type == "access_token" {
+			if token.Type == "jwt" || token.Type == "bearer" || token.Type == "session" || token.Type == "oauth" {
 				return true
 			}
 		}

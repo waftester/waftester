@@ -79,7 +79,7 @@ func extractFromResponseHeaders(headers http.Header, base *url.URL) ([]string, [
 			attr = strings.TrimSpace(attr)
 			lower := strings.ToLower(attr)
 			if strings.HasPrefix(lower, "path=") {
-				p := strings.TrimPrefix(attr[5:], "")
+				p := strings.Trim(attr[5:], `"'`)
 				if p != "/" && p != "" {
 					if resolved := resolveURL(p, base); resolved != "" {
 						links = append(links, resolved)

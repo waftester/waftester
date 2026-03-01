@@ -3,6 +3,7 @@ package dsl
 import (
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/waftester/waftester/pkg/regexcache"
 )
@@ -136,14 +137,14 @@ func Evaluate(expr string, data *ResponseData) bool {
 		return "false"
 	})
 
-	// Handle len(var) — replace with actual length
+	// Handle len(var) — replace with actual character count (not byte count)
 	lenRe := regexcache.MustGet(`len\s*\(\s*(\w+)\s*\)`)
 	expr = lenRe.ReplaceAllStringFunc(expr, func(match string) string {
 		parts := lenRe.FindStringSubmatch(match)
 		if len(parts) == 2 {
 			if val, ok := variables[parts[1]]; ok {
 				if strVal, ok := val.(string); ok {
-					return strconv.Itoa(len(strVal))
+					return strconv.Itoa(utf8.RuneCountInString(strVal))
 				}
 			}
 		}

@@ -765,10 +765,11 @@ func isFileContent(body string) bool {
 }
 
 func truncateBody(body string, maxLen int) string {
-	if len(body) <= maxLen {
+	runes := []rune(body)
+	if len(runes) <= maxLen {
 		return body
 	}
-	return body[:maxLen] + "..."
+	return string(runes[:maxLen]) + "..."
 }
 
 // InternalNetworkScanner scans for internal network access
@@ -891,6 +892,7 @@ func (d *Detector) Detect(ctx context.Context, target, param string) (*Result, e
 		}
 
 		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+		io.Copy(io.Discard, resp.Body) // drain remainder for connection reuse
 		resp.Body.Close()
 
 		bodyStr := string(bodyBytes)

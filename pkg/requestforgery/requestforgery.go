@@ -238,6 +238,12 @@ func (t *Tester) TestRequestSplitting(ctx context.Context, param string) ([]Test
 	payloads := RequestSplittingPayloads()
 
 	for _, p := range payloads {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
+
 		// Inject in query parameter
 		fullURL := t.target + "?" + param + "=" + url.QueryEscape(p.Payload)
 
@@ -270,7 +276,7 @@ func (t *Tester) TestRequestSplitting(ctx context.Context, param string) ([]Test
 			strings.Contains(bodyStr, "X-Injected") {
 			result.Vulnerable = true
 			result.Description = fmt.Sprintf("Request splitting via %s", p.Description)
-			result.Evidence = string(body[:min(200, len(body))])
+			result.Evidence = truncateBytesSafe(body, 200)
 			result.Remediation = "Reject input containing CRLF characters"
 		}
 
@@ -287,6 +293,12 @@ func (t *Tester) TestHostHeaderInjection(ctx context.Context) ([]TestResult, err
 	payloads := HostHeaderPayloads()
 
 	for _, p := range payloads {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
+
 		req, err := http.NewRequestWithContext(ctx, "GET", t.target, nil)
 		if err != nil {
 			continue
@@ -385,6 +397,12 @@ func (t *Tester) TestProxyHeaderInjection(ctx context.Context) ([]TestResult, er
 	payloads := ProxyHeaderPayloads()
 
 	for _, p := range payloads {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
+
 		req, err := http.NewRequestWithContext(ctx, "GET", t.target, nil)
 		if err != nil {
 			continue
@@ -423,7 +441,7 @@ func (t *Tester) TestProxyHeaderInjection(ctx context.Context) ([]TestResult, er
 			if strings.Contains(bodyStr, "admin") || strings.Contains(bodyStr, "internal") {
 				result.Vulnerable = true
 				result.Description = fmt.Sprintf("Access control bypassed via %s", p.Header)
-				result.Evidence = string(body[:min(200, len(body))])
+				result.Evidence = truncateBytesSafe(body, 200)
 			}
 		}
 
@@ -551,6 +569,12 @@ func (t *Tester) TestCacheKeyInjection(ctx context.Context) ([]TestResult, error
 	payloads := CacheKeyPayloads()
 
 	for _, p := range payloads {
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		default:
+		}
+
 		fullURL := t.target + "?" + p.Param
 
 		req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
@@ -662,4 +686,15 @@ func SummarizeResults(results []TestResult) map[string]int {
 	}
 
 	return summary
+}
+
+// truncateBytesSafe truncates a byte slice to maxBytes without splitting multi-byte UTF-8 runes.
+func truncateBytesSafe(b []byte, maxBytes int) string {
+	if len(b) <= maxBytes {
+		return string(b)
+	}
+	for maxBytes > 0 && maxBytes < len(b) && b[maxBytes]>>6 == 0b10 {
+		maxBytes--
+	}
+	return string(b[:maxBytes])
 }

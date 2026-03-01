@@ -246,6 +246,10 @@ func (c *AdvancedCalibrator) CalibrateHost(ctx context.Context, targetURL string
 			start := time.Now()
 			resp, err := c.client.Do(req)
 			if err != nil {
+				// Distinguish context cancellation from transient errors
+				if ctx.Err() != nil {
+					return nil, ctx.Err()
+				}
 				continue
 			}
 			latency := time.Since(start)
@@ -354,7 +358,12 @@ func (c *AdvancedCalibrator) detectWildcard(responses []calibrationResponse, bas
 func (c *AdvancedCalibrator) GetBaseline(host string) *Baseline {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.hostBaselines[host]
+	b := c.hostBaselines[host]
+	if b == nil {
+		return nil
+	}
+	copy := *b
+	return &copy
 }
 
 // ToFilterConfig converts a baseline to filter configuration

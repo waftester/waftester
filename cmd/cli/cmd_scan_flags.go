@@ -101,6 +101,9 @@ type scanConfig struct {
 	// Streaming mode
 	StreamMode *bool
 
+	// Timestamp output
+	Timestamp *bool
+
 	// Detection control
 	NoDetect *bool
 }
@@ -240,6 +243,10 @@ func registerScanFlags() (*flag.FlagSet, *scanConfig) {
 	// Streaming mode (CI-friendly output)
 	cfg.StreamMode = fs.Bool("stream", false, "Streaming output mode for CI/scripts")
 
+	// Timestamp output
+	cfg.Timestamp = fs.Bool("ts", false, "Add timestamp to vulnerability output")
+	fs.BoolVar(cfg.Timestamp, "timestamp", false, "Add timestamp to vulnerability output (alias)")
+
 	// Detection (v2.5.2)
 	cfg.NoDetect = fs.Bool("no-detect", false, "Disable connection drop and silent ban detection")
 
@@ -263,6 +270,15 @@ func (cfg *scanConfig) validate() {
 	}
 	if *cfg.MaxErrors < 1 {
 		exitWithError("--max-errors must be at least 1, got %d", *cfg.MaxErrors)
+	}
+	if *cfg.Retries < 0 {
+		exitWithError("--retries must be non-negative, got %d", *cfg.Retries)
+	}
+	if cfg.Common.Timeout < 1 {
+		exitWithError("--timeout must be at least 1, got %d", cfg.Common.Timeout)
+	}
+	if *cfg.MaxRedirects < 0 {
+		exitWithError("--max-redirects must be non-negative, got %d", *cfg.MaxRedirects)
 	}
 }
 

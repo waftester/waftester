@@ -208,6 +208,9 @@ func (f *Fingerprinter) profileTiming(ctx context.Context, target string) Timing
 	// Normal requests
 	var normalTimes []float64
 	for i := 0; i < 5; i++ {
+		if ctx.Err() != nil {
+			break
+		}
 		start := time.Now()
 		req, err := http.NewRequestWithContext(ctx, "GET", target, nil)
 		if err != nil {
@@ -224,6 +227,9 @@ func (f *Fingerprinter) profileTiming(ctx context.Context, target string) Timing
 	// Blocked requests
 	var blockedTimes []float64
 	for i := 0; i < 5; i++ {
+		if ctx.Err() != nil {
+			break
+		}
 		start := time.Now()
 		req, err := http.NewRequestWithContext(ctx, "GET", target+"?id=1' OR '1'='1", nil)
 		if err != nil {
@@ -242,7 +248,10 @@ func (f *Fingerprinter) profileTiming(ctx context.Context, target string) Timing
 	}
 	if len(blockedTimes) > 0 {
 		profile.BlockedAvgMs = average(blockedTimes)
-		profile.Variance = profile.BlockedAvgMs - profile.NormalAvgMs
+		// Only compute timing difference when we have a valid normal baseline.
+		if len(normalTimes) > 0 {
+			profile.Variance = profile.BlockedAvgMs - profile.NormalAvgMs
+		}
 	}
 
 	return profile

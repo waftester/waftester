@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/waftester/waftester/pkg/regexcache"
@@ -145,9 +146,14 @@ var FieldPatterns = map[string]string{
 
 // NewFormFiller creates a new form filler with optional custom values
 func NewFormFiller(customValues map[string]string) *FormFiller {
+	// Defensive copy of global FieldPatterns to prevent mutation via LoadFormConfig
+	patternsCopy := make(map[string]string, len(FieldPatterns))
+	for k, v := range FieldPatterns {
+		patternsCopy[k] = v
+	}
 	filler := &FormFiller{
 		defaults:    make(map[string]string),
-		patterns:    FieldPatterns,
+		patterns:    patternsCopy,
 		customRules: make(map[string]string),
 	}
 
@@ -210,8 +216,14 @@ func (f *FormFiller) GetValueForField(field FormField) string {
 		return val
 	}
 
-	// 3. Check patterns
-	for pattern, value := range f.patterns {
+	// 3. Check patterns (sorted for deterministic first-match)
+	patternKeys := make([]string, 0, len(f.patterns))
+	for k := range f.patterns {
+		patternKeys = append(patternKeys, k)
+	}
+	sort.Strings(patternKeys)
+	for _, pattern := range patternKeys {
+		value := f.patterns[pattern]
 		re, err := regexcache.Get(pattern)
 		if err != nil {
 			continue

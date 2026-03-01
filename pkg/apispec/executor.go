@@ -203,7 +203,7 @@ func (e *AdaptiveExecutor) phaseFingerprint(ctx context.Context, plan *ScanPlan)
 		return fpResult, fmt.Errorf("baseline request: %w", err)
 	}
 	body, _ := iohelper.ReadBodyDefault(resp.Body)
-	resp.Body.Close()
+	iohelper.DrainAndClose(resp.Body)
 
 	fpResult.BaselineStatus = resp.StatusCode
 	fpResult.BaselineSize = len(body)
@@ -218,7 +218,7 @@ func (e *AdaptiveExecutor) phaseFingerprint(ctx context.Context, plan *ScanPlan)
 		blockResp, blockErr := client.Do(blockReq)
 		if blockErr == nil {
 			blockBody, _ := iohelper.ReadBodyDefault(blockResp.Body)
-			blockResp.Body.Close()
+			iohelper.DrainAndClose(blockResp.Body)
 
 			// If the block response differs from baseline, it's a WAF block signature.
 			if blockResp.StatusCode != resp.StatusCode || len(blockBody) != len(body) {

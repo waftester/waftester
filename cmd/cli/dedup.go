@@ -218,7 +218,7 @@ func deduplicateAllFindings(r *ScanResult) {
 	if r.GraphQL != nil && len(r.GraphQL.Vulnerabilities) > 0 {
 		r.GraphQL.Vulnerabilities = DeduplicateFindings(r.GraphQL.Vulnerabilities,
 			func(v *graphql.Vulnerability) string {
-				return string(v.Type)
+				return fmt.Sprintf("%s|%s", v.Type, v.Query)
 			},
 			func(v **graphql.Vulnerability, n int) { (*v).ConfirmedBy = n },
 		)
@@ -233,7 +233,7 @@ func deduplicateAllFindings(r *ScanResult) {
 	if r.SSRF != nil && len(r.SSRF.Vulnerabilities) > 0 {
 		r.SSRF.Vulnerabilities = DeduplicateFindings(r.SSRF.Vulnerabilities,
 			func(v ssrf.Vulnerability) string {
-				return fmt.Sprintf("%s|%s", v.Parameter, v.Type)
+				return fmt.Sprintf("%s|%s|%s", v.Parameter, v.Type, v.Payload)
 			},
 			func(v *ssrf.Vulnerability, n int) { v.ConfirmedBy = n },
 		)
@@ -246,7 +246,7 @@ func deduplicateAllFindings(r *ScanResult) {
 	if r.Smuggling != nil && len(r.Smuggling.Vulnerabilities) > 0 {
 		r.Smuggling.Vulnerabilities = DeduplicateFindings(r.Smuggling.Vulnerabilities,
 			func(v smuggling.Vulnerability) string {
-				return fmt.Sprintf("%s|%s", v.Type, v.Technique)
+				return fmt.Sprintf("%s|%s|%s", v.Type, v.Technique, v.FrontEnd)
 			},
 			func(v *smuggling.Vulnerability, n int) { v.ConfirmedBy = n },
 		)
@@ -408,7 +408,7 @@ func deduplicateAllFindings(r *ScanResult) {
 	if len(r.JWT) > 0 {
 		r.JWT = DeduplicateFindings(r.JWT,
 			func(v *jwt.Vulnerability) string {
-				return string(v.Type)
+				return fmt.Sprintf("%s|%s", v.Type, v.Original)
 			},
 			func(v **jwt.Vulnerability, n int) { (*v).ConfirmedBy = n },
 		)

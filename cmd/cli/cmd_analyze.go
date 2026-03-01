@@ -297,8 +297,9 @@ func fetchContent(req *http.Request) (string, error) {
 }
 
 func truncateSecret(s string) string {
-	if len(s) <= 20 {
+	runes := []rune(s)
+	if len(runes) <= 20 {
 		return s
 	}
-	return s[:10] + "..." + s[len(s)-5:]
+	return string(runes[:10]) + "..." + string(runes[len(runes)-5:])
 }

@@ -583,9 +583,14 @@ func (d *Discoverer) deduplicate(params []DiscoveredParam) []DiscoveredParam {
 		}
 	}
 
+	names := make([]string, 0, len(seen))
+	for name := range seen {
+		names = append(names, name)
+	}
+	sort.Strings(names)
 	var result []DiscoveredParam
-	for _, p := range seen {
-		result = append(result, *p)
+	for _, name := range names {
+		result = append(result, *seen[name])
 	}
 	return result
 }
@@ -813,6 +818,13 @@ func DiscoverFromJSON(data []byte) []DiscoveredParam {
 }
 
 func extractKeys(obj map[string]interface{}, prefix string, params *[]DiscoveredParam) {
+	extractKeysWithDepth(obj, prefix, params, 0)
+}
+
+func extractKeysWithDepth(obj map[string]interface{}, prefix string, params *[]DiscoveredParam, depth int) {
+	if depth > 20 {
+		return
+	}
 	for key, value := range obj {
 		fullKey := key
 		if prefix != "" {
@@ -827,7 +839,7 @@ func extractKeys(obj map[string]interface{}, prefix string, params *[]Discovered
 		})
 
 		if nested, ok := value.(map[string]interface{}); ok {
-			extractKeys(nested, fullKey, params)
+			extractKeysWithDepth(nested, fullKey, params, depth+1)
 		}
 	}
 }

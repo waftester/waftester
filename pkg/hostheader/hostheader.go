@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -188,8 +189,7 @@ func (t *Tester) generatePayloads() []Payload {
 		desc   string
 	}{
 		{"Host", "", "Empty host with absolute URL"},
-		{"Host", ".", "Dot host"},
-		{"Host", "..", "Double dot host"},
+		{"Host", "evil.localhost", "Dot-separated host"},
 	}
 
 	for _, p := range absolutePayloads {
@@ -206,7 +206,7 @@ func (t *Tester) generatePayloads() []Payload {
 // GetPayloads returns all payloads or filtered by header
 func (t *Tester) GetPayloads(header string) []Payload {
 	if header == "" {
-		return t.payloads
+		return append([]Payload(nil), t.payloads...)
 	}
 
 	var filtered []Payload
@@ -226,17 +226,20 @@ func checkReflection(body, injectedValue string) (bool, string) {
 
 	// Direct check
 	if strings.Contains(body, injectedValue) {
-		// Find context
+		// Find context (rune-safe slicing to avoid splitting multi-byte chars)
 		idx := strings.Index(body, injectedValue)
-		start := idx - 50
+		runes := []rune(body)
+		runeIdx := len([]rune(body[:idx]))
+		runeValLen := len([]rune(injectedValue))
+		start := runeIdx - 50
 		if start < 0 {
 			start = 0
 		}
-		end := idx + len(injectedValue) + 50
-		if end > len(body) {
-			end = len(body)
+		end := runeIdx + runeValLen + 50
+		if end > len(runes) {
+			end = len(runes)
 		}
-		return true, body[start:end]
+		return true, string(runes[start:end])
 	}
 
 	return false, ""
@@ -306,7 +309,7 @@ func (t *Tester) TestURL(ctx context.Context, targetURL string) ([]Vulnerability
 		}
 
 		// Check for cache poisoning indicators
-		cacheHeaders := []string{"X-Cache", "CF-Cache-Status", "Age", "Cache-Control"}
+		cacheHeaders := []string{"X-Cache", "CF-Cache-Status", "Age"}
 		for _, cacheHeader := range cacheHeaders {
 			if resp.Header.Get(cacheHeader) != "" {
 				// If we have cache indicators and host is reflected, it's cache poisoning
@@ -362,7 +365,7 @@ func (t *Tester) TestPasswordReset(ctx context.Context, targetURL string, email 
 	}
 
 	// Create password reset request
-	form := strings.NewReader(fmt.Sprintf("email=%s", email))
+	form := strings.NewReader(url.Values{"email": {email}}.Encode())
 	req, err := http.NewRequestWithContext(ctx, "POST", targetURL, form)
 	if err != nil {
 		return nil, err

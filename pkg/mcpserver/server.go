@@ -604,10 +604,13 @@ func enrichedError(msg string, recoverySteps []string) *mcp.CallToolResult {
 		Error         string   `json:"error"`
 		RecoverySteps []string `json:"recovery_steps"`
 	}
-	data, _ := json.MarshalIndent(errResponse{
+	data, marshalErr := json.MarshalIndent(errResponse{
 		Error:         msg,
 		RecoverySteps: recoverySteps,
 	}, "", "  ")
+	if marshalErr != nil {
+		return errorResult(msg)
+	}
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			&mcp.TextContent{Text: string(data)},
@@ -686,6 +689,11 @@ func isCloudMetadataHost(host string) bool {
 			host = v4.String()
 			ip = net.ParseIP(host) // re-parse normalized form
 		}
+	}
+
+	// Block "0" which some OSes resolve to localhost/0.0.0.0.
+	if host == "0" || host == "0.0.0.0" {
+		return true
 	}
 
 	// Check known metadata IP/hostname entries

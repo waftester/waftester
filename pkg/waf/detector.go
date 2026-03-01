@@ -218,6 +218,9 @@ func (d *Detector) activeDetection(ctx context.Context, target string, result *D
 	}
 
 	for _, attack := range attackPayloads {
+		if ctx.Err() != nil {
+			return
+		}
 		req, err := http.NewRequestWithContext(ctx, attack.method, target+attack.payload, nil)
 		if err != nil {
 			continue
@@ -297,6 +300,9 @@ func (d *Detector) behavioralAnalysis(ctx context.Context, target string, result
 	}
 
 	for _, test := range tests {
+		if ctx.Err() != nil {
+			return
+		}
 		testURL := target + test.path
 		req, err := http.NewRequestWithContext(ctx, test.method, testURL, nil)
 		if err != nil {
@@ -495,16 +501,26 @@ func (d *Detector) checkWAFSignature(sig WAFSignature, resp *http.Response, body
 		}
 	}
 
-	// Check body patterns
-	if body != "" {
+	// Check body patterns.
+	// Require a minimum body length to avoid false positives on very short
+	// error pages (e.g. plain "Not Found" or empty responses) that can
+	// accidentally match generic patterns like "not acceptable" or "aws".
+	const minBodyLen = 50
+	if body != "" && len(body) >= minBodyLen {
 		for _, pattern := range sig.BodyPatterns {
 			if pattern.MatchString(body) {
+				// Reduce confidence for short bodies that are more likely
+				// to be generic error pages rather than real WAF block pages.
+				conf := 0.7
+				if len(body) < 200 {
+					conf = 0.3
+				}
 				evidence = append(evidence, Evidence{
 					Type:       "body",
 					Source:     "response_body",
 					Value:      strutil.Truncate(pattern.FindString(body), 100),
 					Indicates:  sig.Name,
-					Confidence: 0.7,
+					Confidence: conf,
 				})
 			}
 		}
@@ -609,7 +625,10 @@ func (d *Detector) consolidateResults(result *DetectionResult) {
 
 	// Sort by confidence
 	sort.Slice(result.WAFs, func(i, j int) bool {
-		return result.WAFs[i].Confidence > result.WAFs[j].Confidence
+		if result.WAFs[i].Confidence != result.WAFs[j].Confidence {
+			return result.WAFs[i].Confidence > result.WAFs[j].Confidence
+		}
+		return result.WAFs[i].Name < result.WAFs[j].Name
 	})
 
 	// Set detected flag

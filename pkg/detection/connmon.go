@@ -190,9 +190,15 @@ func (cm *ConnectionMonitor) RecordDrop(host string, err error) *DropResult {
 	state.lastDropType.Store(int32(dropType))
 	state.lastDropTime.Store(time.Now().UnixNano())
 
-	// Reset recovery state on drop
-	state.recoverySuccesses.Store(0)
-	state.inRecovery.Store(false)
+	// Only reset recovery state if we haven't yet crossed the dropping
+	// threshold. Once past the threshold, recovery probes are the only way
+	// out — resetting successes on every failed probe would trap
+	// intermittent hosts permanently because they could never accumulate
+	// the required DropDetectRecoveryProbes consecutive successes.
+	if consecutive < int64(defaults.DropDetectConsecutiveThreshold) {
+		state.recoverySuccesses.Store(0)
+		state.inRecovery.Store(false)
+	}
 
 	return &DropResult{
 		Dropped:      true,
@@ -204,13 +210,14 @@ func (cm *ConnectionMonitor) RecordDrop(host string, err error) *DropResult {
 }
 
 // RecordSuccess records a successful connection for recovery tracking.
-func (cm *ConnectionMonitor) RecordSuccess(host string) {
+// Returns true if the host completed full recovery (was dropping, now recovered).
+func (cm *ConnectionMonitor) RecordSuccess(host string) bool {
 	cm.mu.RLock()
 	state, exists := cm.hostDrops[host]
 	cm.mu.RUnlock()
 
 	if !exists {
-		return
+		return false
 	}
 
 	// If we're in a dropping state, track recovery
@@ -224,14 +231,33 @@ func (cm *ConnectionMonitor) RecordSuccess(host string) {
 
 		// Full recovery after enough successful probes
 		if successes >= int64(defaults.DropDetectRecoveryProbes) {
-			state.consecutiveDrops.Store(0)
-			state.inRecovery.Store(false)
+			// Order matters: zero successes first to prevent re-trigger,
+			// then clear recovery flag, then reset drops.
 			state.recoverySuccesses.Store(0)
+			state.inRecovery.Store(false)
+			state.consecutiveDrops.Store(0)
+			return true
 		}
 	}
+	return false
+}
+
+// WasDropping returns true if the host has ever crossed the dropping threshold,
+// even if IsDropping currently returns false (recovery window open).
+// Used to clear hosterrors marks when a recovery probe is allowed through.
+func (cm *ConnectionMonitor) WasDropping(host string) bool {
+	cm.mu.RLock()
+	state, exists := cm.hostDrops[host]
+	cm.mu.RUnlock()
+	if !exists {
+		return false
+	}
+	return state.consecutiveDrops.Load() >= int64(defaults.DropDetectConsecutiveThreshold)
 }
 
 // IsDropping returns true if the host is currently in a dropping state.
+// Periodically allows a recovery probe through (every RecoveryWindow) so that
+// hosts that have recovered are not permanently blacklisted.
 func (cm *ConnectionMonitor) IsDropping(host string) bool {
 	cm.mu.RLock()
 	state, exists := cm.hostDrops[host]
@@ -241,7 +267,19 @@ func (cm *ConnectionMonitor) IsDropping(host string) bool {
 		return false
 	}
 
-	return state.consecutiveDrops.Load() >= int64(defaults.DropDetectConsecutiveThreshold)
+	if state.consecutiveDrops.Load() < int64(defaults.DropDetectConsecutiveThreshold) {
+		return false
+	}
+
+	// Allow a recovery probe through every RecoveryWindow so the host has a
+	// chance to recover. Without this, skipped hosts never get re-tested and
+	// the detection is permanent (death spiral).
+	lastDrop := time.Unix(0, state.lastDropTime.Load())
+	if time.Since(lastDrop) >= defaults.DropDetectRecoveryWindow() {
+		return false // allow one probe through
+	}
+
+	return true
 }
 
 // GetDropState returns the current drop state for a host.
@@ -302,9 +340,13 @@ func (cm *ConnectionMonitor) CheckTarpit(host string, latency time.Duration) *Dr
 		state.lastDropType.Store(int32(DropTypeTarpit))
 		state.lastDropTime.Store(time.Now().UnixNano())
 
-		// Reset recovery state
-		state.recoverySuccesses.Store(0)
-		state.inRecovery.Store(false)
+		// Only reset recovery state below threshold — same guard as RecordDrop.
+		// Once past the threshold, recovery probes are the only way out;
+		// resetting on every tarpit would trap intermittent hosts permanently.
+		if consecutive < int64(defaults.DropDetectConsecutiveThreshold) {
+			state.recoverySuccesses.Store(0)
+			state.inRecovery.Store(false)
+		}
 
 		return &DropResult{
 			Dropped:      true,

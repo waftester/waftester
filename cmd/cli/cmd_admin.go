@@ -97,7 +97,19 @@ func runValidate() {
 			os.Exit(1)
 		}
 		defer f.Close()
-		fmt.Fprintf(f, "%+v\n", result)
+		data, marshalErr := json.MarshalIndent(result, "", "  ")
+		if marshalErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to marshal admin result: %v", marshalErr))
+			return
+		}
+		if _, writeErr := f.Write(data); writeErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to write results: %v", writeErr))
+			os.Exit(1)
+		}
+		if _, writeErr := f.Write([]byte("\n")); writeErr != nil {
+			ui.PrintError(fmt.Sprintf("Failed to write results: %v", writeErr))
+			os.Exit(1)
+		}
 		ui.PrintSuccess(fmt.Sprintf("Results written to %s", *outputJSON))
 	}
 
@@ -368,13 +380,13 @@ func runEnterpriseReport() {
 	// Validate workspace directory
 	if *workspaceDir == "" {
 		ui.PrintError("Workspace directory is required. Use -workspace <path>")
-		fmt.Println()                                                                               // debug:keep
-		fmt.Println("Usage: waf-tester report -workspace <path> [-output <file>] [-target <name>]") // debug:keep
-		fmt.Println()                                                                               // debug:keep
-		fmt.Println("Options:")                                                                     // debug:keep
-		fmt.Println("  -workspace <path>  Path to workspace directory containing results.json")     // debug:keep
+		fmt.Println()                                                                                    // debug:keep
+		fmt.Println("Usage: waf-tester report -workspace <path> [-output <file>] [-target <name>]")      // debug:keep
+		fmt.Println()                                                                                    // debug:keep
+		fmt.Println("Options:")                                                                          // debug:keep
+		fmt.Println("  -workspace <path>  Path to workspace directory containing results.json")          // debug:keep
 		fmt.Println("  -output <file>     Output HTML file (default: workspace/enterprise-report.html)") // debug:keep
-		fmt.Println("  -target <name>     Target name for report header") // debug:keep
+		fmt.Println("  -target <name>     Target name for report header")                                // debug:keep
 		os.Exit(1)
 	}
 

@@ -5,13 +5,10 @@ import (
 	"fmt"
 	"html"
 	"io"
-	"net/url"
-	"os"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -34,11 +31,27 @@ func sortedSeverities(m map[string]int) []string {
 	return keys
 }
 
+// csvQuote returns s wrapped in double quotes with internal double quotes
+// doubled, if s contains a comma, double quote, or newline. Otherwise it
+// returns s unchanged. This follows RFC 4180 quoting rules.
+func csvQuote(s string) string {
+	if strings.ContainsAny(s, ",\"\n\r") {
+		return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
+	}
+	return s
+}
+
 // printScanCSV writes scan results in CSV format.
 func printScanCSV(w io.Writer, target string, result *ScanResult) {
 	fmt.Fprintln(w, "target,category,severity,count")
-	for cat, count := range result.ByCategory {
-		fmt.Fprintf(w, "%s,%s,various,%d\n", target, cat, count)
+	cats := make([]string, 0, len(result.ByCategory))
+	for cat := range result.ByCategory {
+		cats = append(cats, cat)
+	}
+	sort.Strings(cats)
+	for _, cat := range cats {
+		count := result.ByCategory[cat]
+		fmt.Fprintf(w, "%s,%s,various,%d\n", csvQuote(target), csvQuote(cat), count)
 	}
 }
 
@@ -69,7 +82,13 @@ func printScanMarkdown(w io.Writer, result *ScanResult) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "| Category | Count |")
 	fmt.Fprintln(w, "|----------|-------|")
-	for cat, count := range result.ByCategory {
+	mdCats := make([]string, 0, len(result.ByCategory))
+	for cat := range result.ByCategory {
+		mdCats = append(mdCats, cat)
+	}
+	sort.Strings(mdCats)
+	for _, cat := range mdCats {
+		count := result.ByCategory[cat]
 		if count > 0 {
 			fmt.Fprintf(w, "| %s | %d |\n", cat, count)
 		}
@@ -97,7 +116,13 @@ func printScanHTML(w io.Writer, result *ScanResult) {
 		fmt.Fprintf(w, "<tr><td class='%s'>%s</td><td>%d</td></tr>\n", strings.ToLower(html.EscapeString(sev)), html.EscapeString(sev), count)
 	}
 	fmt.Fprintln(w, "</table><h2>By Category</h2><table><tr><th>Category</th><th>Count</th></tr>")
-	for cat, count := range result.ByCategory {
+	htmlCats := make([]string, 0, len(result.ByCategory))
+	for cat := range result.ByCategory {
+		htmlCats = append(htmlCats, cat)
+	}
+	sort.Strings(htmlCats)
+	for _, cat := range htmlCats {
+		count := result.ByCategory[cat]
 		if count > 0 {
 			fmt.Fprintf(w, "<tr><td>%s</td><td>%d</td></tr>\n", html.EscapeString(cat), count)
 		}
@@ -107,8 +132,14 @@ func printScanHTML(w io.Writer, result *ScanResult) {
 
 // printScanSARIF writes scan results in SARIF 2.1.0 format for CI/CD integration.
 func printScanSARIF(w io.Writer, target string, result *ScanResult) {
-	var sarifResults []map[string]interface{}
-	for cat, count := range result.ByCategory {
+	sarifResults := make([]map[string]interface{}, 0)
+	sarifCats := make([]string, 0, len(result.ByCategory))
+	for cat := range result.ByCategory {
+		sarifCats = append(sarifCats, cat)
+	}
+	sort.Strings(sarifCats)
+	for _, cat := range sarifCats {
+		count := result.ByCategory[cat]
 		if count > 0 {
 			sarifResults = append(sarifResults, map[string]interface{}{
 				"ruleId":  cat,
@@ -147,7 +178,13 @@ func printScanSARIF(w io.Writer, target string, result *ScanResult) {
 
 // printScanJSONL writes scan results in JSON Lines format.
 func printScanJSONL(w io.Writer, target string, result *ScanResult) {
-	for cat, count := range result.ByCategory {
+	jlCats := make([]string, 0, len(result.ByCategory))
+	for cat := range result.ByCategory {
+		jlCats = append(jlCats, cat)
+	}
+	sort.Strings(jlCats)
+	for _, cat := range jlCats {
+		count := result.ByCategory[cat]
 		line, err := json.Marshal(map[string]interface{}{"category": cat, "count": count, "target": target})
 		if err != nil {
 			continue
@@ -182,7 +219,13 @@ func printScanConsoleSummary(result *ScanResult) {
 		fmt.Println() // debug:keep
 
 		ui.PrintSection("By Category")
-		for cat, count := range result.ByCategory {
+		detailCats := make([]string, 0, len(result.ByCategory))
+		for cat := range result.ByCategory {
+			detailCats = append(detailCats, cat)
+		}
+		sort.Strings(detailCats)
+		for _, cat := range detailCats {
+			count := result.ByCategory[cat]
 			if count > 0 {
 				word := "vulnerabilities"
 				if count == 1 {
@@ -385,243 +428,4 @@ func collectScanFindings(result *ScanResult) []scanFinding {
 		add(v.URL, "", v.Payload, v.Parameter, "rce", string(v.Severity))
 	}
 	return findings
-}
-
-// writeScanHAR generates a HAR 1.2 document from scan vulnerability findings.
-// Each vulnerability becomes a HAR entry representing the request that triggered it.
-func writeScanHAR(w io.Writer, result *ScanResult) error {
-	findings := collectScanFindings(result)
-
-	type nv struct {
-		Name  string `json:"name"`
-		Value string `json:"value"`
-	}
-	type harContent struct {
-		Size     int    `json:"size"`
-		MimeType string `json:"mimeType"`
-	}
-	type harTimings struct {
-		Send    float64 `json:"send"`
-		Wait    float64 `json:"wait"`
-		Receive float64 `json:"receive"`
-	}
-	type harRequest struct {
-		Method      string `json:"method"`
-		URL         string `json:"url"`
-		HTTPVersion string `json:"httpVersion"`
-		Headers     []nv   `json:"headers"`
-		QueryString []nv   `json:"queryString"`
-		Cookies     []nv   `json:"cookies"`
-		HeadersSize int    `json:"headersSize"`
-		BodySize    int    `json:"bodySize"`
-	}
-	type harResponse struct {
-		Status      int        `json:"status"`
-		StatusText  string     `json:"statusText"`
-		HTTPVersion string     `json:"httpVersion"`
-		Headers     []nv       `json:"headers"`
-		Cookies     []nv       `json:"cookies"`
-		Content     harContent `json:"content"`
-		RedirectURL string     `json:"redirectURL"`
-		HeadersSize int        `json:"headersSize"`
-		BodySize    int        `json:"bodySize"`
-	}
-	type harEntry struct {
-		Pageref         string      `json:"pageref"`
-		StartedDateTime string      `json:"startedDateTime"`
-		Time            float64     `json:"time"`
-		Request         harRequest  `json:"request"`
-		Response        harResponse `json:"response"`
-		Cache           struct{}    `json:"cache"`
-		Timings         harTimings  `json:"timings"`
-		Comment         string      `json:"comment,omitempty"`
-	}
-	type pageTimings struct {
-		OnLoad float64 `json:"onLoad"`
-	}
-	type harPage struct {
-		StartedDateTime string      `json:"startedDateTime"`
-		ID              string      `json:"id"`
-		Title           string      `json:"title"`
-		PageTimings     pageTimings `json:"pageTimings"`
-	}
-
-	startTime := result.StartTime.Format("2006-01-02T15:04:05.000Z")
-	pageID := "page_1"
-
-	entries := make([]harEntry, 0, len(findings))
-	for _, f := range findings {
-		method := f.Method
-		if method == "" {
-			method = "GET"
-		}
-		reqURL := f.URL
-		if reqURL == "" {
-			reqURL = result.Target
-		}
-
-		var qs []nv
-		if parsed, err := url.Parse(reqURL); err == nil && parsed.RawQuery != "" {
-			for k, vs := range parsed.Query() {
-				for _, v := range vs {
-					qs = append(qs, nv{Name: k, Value: v})
-				}
-			}
-		}
-
-		latencyMs := float64(f.ResponseTime.Milliseconds())
-		comment := fmt.Sprintf("[%s] %s", f.Severity, f.Category)
-		if f.Parameter != "" {
-			comment += " param=" + f.Parameter
-		}
-
-		entries = append(entries, harEntry{
-			Pageref:         pageID,
-			StartedDateTime: startTime,
-			Time:            latencyMs,
-			Request: harRequest{
-				Method:      method,
-				URL:         reqURL,
-				HTTPVersion: "HTTP/1.1",
-				Headers:     []nv{},
-				QueryString: qs,
-				Cookies:     []nv{},
-				HeadersSize: -1,
-				BodySize:    -1,
-			},
-			Response: harResponse{
-				Status:      0,
-				StatusText:  "",
-				HTTPVersion: "HTTP/1.1",
-				Headers:     []nv{},
-				Cookies:     []nv{},
-				Content:     harContent{Size: 0, MimeType: "text/html"},
-				RedirectURL: "",
-				HeadersSize: -1,
-				BodySize:    -1,
-			},
-			Cache: struct{}{},
-			Timings: harTimings{
-				Send:    0,
-				Wait:    latencyMs,
-				Receive: 0,
-			},
-			Comment: comment,
-		})
-	}
-
-	doc := map[string]interface{}{
-		"log": map[string]interface{}{
-			"version": "1.2",
-			"creator": map[string]string{
-				"name":    "waftester",
-				"version": defaults.Version,
-			},
-			"pages": []harPage{{
-				StartedDateTime: startTime,
-				ID:              pageID,
-				Title:           "WAFtester Scan: " + result.Target,
-				PageTimings:     pageTimings{OnLoad: float64(result.Duration.Milliseconds())},
-			}},
-			"entries": entries,
-		},
-	}
-
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	return enc.Encode(doc)
-}
-
-// writeScanExports writes scan results to all configured enterprise export files.
-// The scan command produces ScanResult (vulnerability findings), not ExecutionResults
-// (test pass/fail), so it needs its own export logic using the scan-specific formatters.
-func writeScanExports(outFlags *OutputFlags, target string, result *ScanResult) {
-	if !outFlags.HasEnterpriseExports() {
-		return
-	}
-
-	outFlags.PrintOutputConfig()
-
-	writeToFile := func(path string, writeFn func(w io.Writer) error) {
-		f, err := os.Create(path)
-		if err != nil {
-			ui.PrintError(fmt.Sprintf("export %s: %v", path, err))
-			return
-		}
-		if err := writeFn(f); err != nil {
-			_ = f.Close()
-			ui.PrintError(fmt.Sprintf("export %s: %v", path, err))
-			return
-		}
-		if err := f.Close(); err != nil {
-			ui.PrintError(fmt.Sprintf("export %s: %v", path, err))
-			return
-		}
-		ui.PrintSuccess(fmt.Sprintf("Exported: %s", path))
-	}
-
-	if outFlags.JUnitExport != "" {
-		ui.PrintError("JUnit export is not supported for scan")
-	}
-	if outFlags.PDFExport != "" {
-		ui.PrintError("PDF export is not supported for scan")
-	}
-	if outFlags.SonarQubeExport != "" {
-		ui.PrintError("SonarQube export is not supported for scan")
-	}
-	if outFlags.GitLabSASTExport != "" {
-		ui.PrintError("GitLab SAST export is not supported for scan")
-	}
-	if outFlags.DefectDojoExport != "" {
-		ui.PrintError("DefectDojo export is not supported for scan")
-	}
-	if outFlags.HARExport != "" {
-		writeToFile(outFlags.HARExport, func(w io.Writer) error {
-			return writeScanHAR(w, result)
-		})
-	}
-	if outFlags.CycloneDXExport != "" {
-		ui.PrintError("CycloneDX export is not supported for scan")
-	}
-	if outFlags.XMLExport != "" {
-		ui.PrintError("XML export is not supported for scan")
-	}
-
-	if outFlags.JSONExport != "" {
-		writeToFile(outFlags.JSONExport, func(w io.Writer) error {
-			enc := json.NewEncoder(w)
-			enc.SetIndent("", "  ")
-			return enc.Encode(result)
-		})
-	}
-	if outFlags.JSONLExport != "" {
-		writeToFile(outFlags.JSONLExport, func(w io.Writer) error {
-			printScanJSONL(w, target, result)
-			return nil
-		})
-	}
-	if outFlags.SARIFExport != "" {
-		writeToFile(outFlags.SARIFExport, func(w io.Writer) error {
-			printScanSARIF(w, target, result)
-			return nil
-		})
-	}
-	if outFlags.CSVExport != "" {
-		writeToFile(outFlags.CSVExport, func(w io.Writer) error {
-			printScanCSV(w, target, result)
-			return nil
-		})
-	}
-	if outFlags.HTMLExport != "" {
-		writeToFile(outFlags.HTMLExport, func(w io.Writer) error {
-			printScanHTML(w, result)
-			return nil
-		})
-	}
-	if outFlags.MDExport != "" {
-		writeToFile(outFlags.MDExport, func(w io.Writer) error {
-			printScanMarkdown(w, result)
-			return nil
-		})
-	}
 }
