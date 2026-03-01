@@ -924,3 +924,62 @@ func TestRepeat_NormalCount(t *testing.T) {
 		t.Errorf("expected %q, got %q", "xxxxx", output)
 	}
 }
+
+// Regression: evaluateStatusCode Sscanf must validate return value.
+// Before the fix, unparseable values left val=0 and comparisons like
+// statusCode >= 0 would return true for any status code.
+func TestEvaluateStatusCode_InvalidValues(t *testing.T) {
+	tests := []struct {
+		name     string
+		expr     string
+		code     int
+		expected bool
+	}{
+		{
+			name:     "non-numeric value with >=",
+			expr:     "status_code>=abc",
+			code:     200,
+			expected: false,
+		},
+		{
+			name:     "empty value with ==",
+			expr:     "status_code==",
+			code:     200,
+			expected: false,
+		},
+		{
+			name:     "non-numeric value with >",
+			expr:     "status_code>xyz",
+			code:     500,
+			expected: false,
+		},
+		{
+			name:     "valid == still works",
+			expr:     "status_code==200",
+			code:     200,
+			expected: true,
+		},
+		{
+			name:     "valid >= still works",
+			expr:     "status_code>=400",
+			code:     500,
+			expected: true,
+		},
+		{
+			name:     "valid >= boundary false",
+			expr:     "status_code>=400",
+			code:     200,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := evaluateStatusCode(tt.expr, tt.code)
+			if got != tt.expected {
+				t.Errorf("evaluateStatusCode(%q, %d) = %v, want %v",
+					tt.expr, tt.code, got, tt.expected)
+			}
+		})
+	}
+}
