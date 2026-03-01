@@ -47,6 +47,7 @@ import (
 	"github.com/waftester/waftester/pkg/templateresolver"
 	tlsja3 "github.com/waftester/waftester/pkg/tls"
 	"github.com/waftester/waftester/pkg/ui"
+	"github.com/waftester/waftester/pkg/urlutil"
 	"github.com/waftester/waftester/pkg/waf/strategy"
 	"github.com/waftester/waftester/pkg/waf/vendors"
 )
@@ -1146,7 +1147,7 @@ func runAutoScan() {
 
 			var jsURL string
 			if !strings.HasPrefix(jsPath, "http") {
-				jsURL = strings.TrimSuffix(target, "/") + jsPath
+				jsURL = urlutil.JoinPath(target, jsPath)
 			} else {
 				jsURL = jsPath
 			}
@@ -1445,7 +1446,7 @@ func runAutoScan() {
 				strings.HasSuffix(ep.Path, ".png") || strings.HasSuffix(ep.Path, ".jpg") {
 				continue
 			}
-			fullURL := strings.TrimSuffix(target, "/") + ep.Path
+			fullURL := urlutil.JoinPath(target, ep.Path)
 			testEndpoints = append(testEndpoints, fullURL)
 		}
 

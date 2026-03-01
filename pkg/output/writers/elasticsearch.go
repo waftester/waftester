@@ -17,6 +17,7 @@ import (
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 // Compile-time interface check.
@@ -158,7 +159,7 @@ func (ew *ElasticsearchWriter) bulkInsert(ctx context.Context, evts []events.Eve
 	}
 
 	// Build URL
-	url := strings.TrimSuffix(ew.config.URL, "/") + "/_bulk"
+	url := urlutil.JoinPath(ew.config.URL, "/_bulk")
 	if ew.config.Pipeline != "" {
 		url += "?pipeline=" + ew.config.Pipeline
 	}

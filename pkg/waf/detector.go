@@ -18,6 +18,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/strutil"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 // DetectionResult contains comprehensive WAF/CDN detection results
@@ -342,7 +343,7 @@ func (d *Detector) tlsFingerprinting(ctx context.Context, target string, result 
 		return // Only for HTTPS
 	}
 
-	host := strings.TrimPrefix(target, "https://")
+	host := urlutil.StripScheme(target)
 	host = strings.Split(host, "/")[0]
 	if !strings.Contains(host, ":") {
 		host += ":443"
