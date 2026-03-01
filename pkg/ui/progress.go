@@ -498,7 +498,7 @@ func (s *StatsDisplay) render() {
 	}
 	remaining := s.total - int(current)
 	eta := time.Duration(float64(remaining) / rps * float64(time.Second))
-	if rps <= 0 || math.IsNaN(eta.Seconds()) || math.IsInf(eta.Seconds(), 0) {
+	if rps <= 0 || eta < 0 || math.IsNaN(eta.Seconds()) || math.IsInf(eta.Seconds(), 0) {
 		eta = 0
 	}
 

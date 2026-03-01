@@ -35,6 +35,7 @@ func TestFormatClock(t *testing.T) {
 		expected string
 	}{
 		{"zero", 0, "00:00"},
+		{"negative_clamped", -5 * time.Second, "00:00"},
 		{"thirty_seconds", 30 * time.Second, "00:30"},
 		{"ninety_seconds", 90 * time.Second, "01:30"},
 		{"one_hour", 60 * time.Minute, "01:00:00"},
@@ -58,6 +59,7 @@ func TestFormatCompact(t *testing.T) {
 		dur      time.Duration
 		expected string
 	}{
+		{"negative_clamped", -90 * time.Second, "0.0s"},
 		{"sub_minute", 30500 * time.Millisecond, "30.5s"},
 		{"exact_minute", 60 * time.Second, "1m0s"},
 		{"mixed", 150 * time.Second, "2m30s"},
