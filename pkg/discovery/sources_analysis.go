@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/subdomain"
 )
 
 // Pre-compiled regex for title extraction (used in fingerprinting)
@@ -86,34 +87,11 @@ func ExtractS3Buckets(content string) []string {
 // ==================== SUBDOMAIN EXTRACTION ====================
 // From gospider - finds subdomains in responses
 
-// ExtractSubdomains finds subdomains of the target domain in content
+// ExtractSubdomains finds subdomains of the target domain in content.
+// Delegates to the shared subdomain package for consistent behavior
+// across discovery, crawler, and JS analyzer.
 func ExtractSubdomains(content string, baseDomain string) []string {
-	seen := make(map[string]bool)
-	var subdomains []string
-
-	// Escape all regex metacharacters in domain
-	escapedDomain := regexp.QuoteMeta(baseDomain)
-
-	// Pattern to match subdomains
-	subdomainRe, err := regexcache.Get(`(?i)([a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?\.)+` + escapedDomain)
-	if err != nil {
-		return nil
-	}
-
-	matches := subdomainRe.FindAllString(content, -1)
-	for _, match := range matches {
-		match = strings.ToLower(match)
-		// Skip if it's just the base domain
-		if match == baseDomain {
-			continue
-		}
-		if !seen[match] {
-			seen[match] = true
-			subdomains = append(subdomains, match)
-		}
-	}
-
-	return subdomains
+	return subdomain.ExtractStrict(content, baseDomain)
 }
 
 // ==================== DIRECTORY LISTING DETECTION ====================

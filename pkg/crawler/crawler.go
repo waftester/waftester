@@ -24,6 +24,7 @@ import (
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/js"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/subdomain"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -1352,30 +1353,9 @@ func (c *Crawler) climbPaths(rawURL string, depth int) {
 // ---------- Subdomain discovery ----------
 
 // extractSubdomains finds subdomains of baseDomain mentioned in text content.
+// Delegates to the shared subdomain package for consistent behavior.
 func extractSubdomains(text, baseDomain string) []string {
-	// Build a regex that matches *.baseDomain
-	escaped := regexp.QuoteMeta(baseDomain)
-	re, err := regexp.Compile(`(?i)([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.` + escaped + `)`)
-	if err != nil {
-		return nil
-	}
-
-	matches := re.FindAllString(text, -1)
-	if len(matches) == 0 {
-		return nil
-	}
-
-	seen := make(map[string]bool, len(matches))
-	var result []string
-	for _, m := range matches {
-		lower := strings.ToLower(m)
-		if lower == baseDomain || seen[lower] {
-			continue
-		}
-		seen[lower] = true
-		result = append(result, lower)
-	}
-	return result
+	return subdomain.ExtractStrict(text, baseDomain)
 }
 
 // ---------- Cross-domain JS analysis ----------
