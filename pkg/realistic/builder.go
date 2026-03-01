@@ -4,6 +4,7 @@ package realistic
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -77,8 +78,9 @@ func NewBuilder(baseURL string) *Builder {
 	}
 }
 
-// BuildRequest creates a realistic HTTP request with payload injected
-func (b *Builder) BuildRequest(payload string, template *RequestTemplate) (*http.Request, error) {
+// BuildRequest creates a realistic HTTP request with payload injected.
+// Pass a context to enable cancellation and deadline propagation.
+func (b *Builder) BuildRequest(ctx context.Context, payload string, template *RequestTemplate) (*http.Request, error) {
 	if template == nil {
 		template = DefaultTemplate(payload)
 	}
@@ -91,24 +93,24 @@ func (b *Builder) BuildRequest(payload string, template *RequestTemplate) (*http
 
 	switch template.InjectionLoc {
 	case LocationQuery, "":
-		req, err = b.buildQueryRequest(targetURL, payload, template)
+		req, err = b.buildQueryRequest(ctx, targetURL, payload, template)
 	case LocationBody:
-		req, err = b.buildFormRequest(targetURL, payload, template)
+		req, err = b.buildFormRequest(ctx, targetURL, payload, template)
 	case LocationJSON:
-		req, err = b.buildJSONRequest(targetURL, payload, template)
+		req, err = b.buildJSONRequest(ctx, targetURL, payload, template)
 	case LocationHeader:
-		req, err = b.buildHeaderRequest(targetURL, payload, template)
+		req, err = b.buildHeaderRequest(ctx, targetURL, payload, template)
 	case LocationCookie:
-		req, err = b.buildCookieRequest(targetURL, payload, template)
+		req, err = b.buildCookieRequest(ctx, targetURL, payload, template)
 	case LocationXForwarded:
-		req, err = b.buildXForwardedRequest(targetURL, payload, template)
+		req, err = b.buildXForwardedRequest(ctx, targetURL, payload, template)
 	case LocationPath:
-		req, err = b.buildPathRequest(targetURL, payload, template)
+		req, err = b.buildPathRequest(ctx, targetURL, payload, template)
 	case LocationMultipart:
-		req, err = b.buildMultipartRequest(targetURL, payload, template)
+		req, err = b.buildMultipartRequest(ctx, targetURL, payload, template)
 	case LocationUserAgent, LocationReferer, LocationFragment:
 		// These locations use header injection or are client-side only
-		req, err = b.buildQueryRequest(targetURL, payload, template)
+		req, err = b.buildQueryRequest(ctx, targetURL, payload, template)
 	}
 
 	if err != nil {
@@ -122,7 +124,7 @@ func (b *Builder) BuildRequest(payload string, template *RequestTemplate) (*http
 }
 
 // buildQueryRequest injects payload into URL query parameter
-func (b *Builder) buildQueryRequest(targetURL, payload string, template *RequestTemplate) (*http.Request, error) {
+func (b *Builder) buildQueryRequest(ctx context.Context, targetURL, payload string, template *RequestTemplate) (*http.Request, error) {
 	u, err := url.Parse(targetURL)
 	if err != nil {
 		return nil, err
@@ -151,11 +153,11 @@ func (b *Builder) buildQueryRequest(targetURL, payload string, template *Request
 		method = "GET"
 	}
 
-	return http.NewRequest(method, u.String(), nil)
+	return http.NewRequestWithContext(ctx, method, u.String(), nil)
 }
 
 // buildFormRequest injects payload into form body
-func (b *Builder) buildFormRequest(targetURL, payload string, template *RequestTemplate) (*http.Request, error) {
+func (b *Builder) buildFormRequest(ctx context.Context, targetURL, payload string, template *RequestTemplate) (*http.Request, error) {
 	form := url.Values{}
 
 	// Add legitimate fields
@@ -177,7 +179,7 @@ func (b *Builder) buildFormRequest(targetURL, payload string, template *RequestT
 		method = "POST"
 	}
 
-	req, err := http.NewRequest(method, targetURL, strings.NewReader(form.Encode()))
+	req, err := http.NewRequestWithContext(ctx, method, targetURL, strings.NewReader(form.Encode()))
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +189,7 @@ func (b *Builder) buildFormRequest(targetURL, payload string, template *RequestT
 }
 
 // buildJSONRequest injects payload into JSON body field
-func (b *Builder) buildJSONRequest(targetURL, payload string, template *RequestTemplate) (*http.Request, error) {
+func (b *Builder) buildJSONRequest(ctx context.Context, targetURL, payload string, template *RequestTemplate) (*http.Request, error) {
 	data := make(map[string]interface{})
 
 	// Copy template data
@@ -212,7 +214,7 @@ func (b *Builder) buildJSONRequest(targetURL, payload string, template *RequestT
 		method = "POST"
 	}
 
-	req, err := http.NewRequest(method, targetURL, bytes.NewReader(jsonBytes))
+	req, err := http.NewRequestWithContext(ctx, method, targetURL, bytes.NewReader(jsonBytes))
 	if err != nil {
 		return nil, err
 	}
@@ -222,13 +224,13 @@ func (b *Builder) buildJSONRequest(targetURL, payload string, template *RequestT
 }
 
 // buildHeaderRequest injects payload into a custom header
-func (b *Builder) buildHeaderRequest(targetURL, payload string, template *RequestTemplate) (*http.Request, error) {
+func (b *Builder) buildHeaderRequest(ctx context.Context, targetURL, payload string, template *RequestTemplate) (*http.Request, error) {
 	method := template.Method
 	if method == "" {
 		method = "GET"
 	}
 
-	req, err := http.NewRequest(method, targetURL, nil)
+	req, err := http.NewRequestWithContext(ctx, method, targetURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -243,13 +245,13 @@ func (b *Builder) buildHeaderRequest(targetURL, payload string, template *Reques
 }
 
 // buildCookieRequest injects payload into a cookie
-func (b *Builder) buildCookieRequest(targetURL, payload string, template *RequestTemplate) (*http.Request, error) {
+func (b *Builder) buildCookieRequest(ctx context.Context, targetURL, payload string, template *RequestTemplate) (*http.Request, error) {
 	method := template.Method
 	if method == "" {
 		method = "GET"
 	}
 
-	req, err := http.NewRequest(method, targetURL, nil)
+	req, err := http.NewRequestWithContext(ctx, method, targetURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -275,13 +277,13 @@ func (b *Builder) buildCookieRequest(targetURL, payload string, template *Reques
 }
 
 // buildXForwardedRequest injects payload into X-Forwarded-For
-func (b *Builder) buildXForwardedRequest(targetURL, payload string, template *RequestTemplate) (*http.Request, error) {
+func (b *Builder) buildXForwardedRequest(ctx context.Context, targetURL, payload string, template *RequestTemplate) (*http.Request, error) {
 	method := template.Method
 	if method == "" {
 		method = "GET"
 	}
 
-	req, err := http.NewRequest(method, targetURL, nil)
+	req, err := http.NewRequestWithContext(ctx, method, targetURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -294,7 +296,7 @@ func (b *Builder) buildXForwardedRequest(targetURL, payload string, template *Re
 }
 
 // buildPathRequest injects payload into URL path
-func (b *Builder) buildPathRequest(targetURL, payload string, template *RequestTemplate) (*http.Request, error) {
+func (b *Builder) buildPathRequest(ctx context.Context, targetURL, payload string, template *RequestTemplate) (*http.Request, error) {
 	// Replace placeholder in path or append
 	path := template.Path
 	if strings.Contains(path, "{payload}") {
@@ -310,11 +312,11 @@ func (b *Builder) buildPathRequest(targetURL, payload string, template *RequestT
 		method = "GET"
 	}
 
-	return http.NewRequest(method, fullURL, nil)
+	return http.NewRequestWithContext(ctx, method, fullURL, nil)
 }
 
 // buildMultipartRequest creates multipart form with payload
-func (b *Builder) buildMultipartRequest(targetURL, payload string, template *RequestTemplate) (*http.Request, error) {
+func (b *Builder) buildMultipartRequest(ctx context.Context, targetURL, payload string, template *RequestTemplate) (*http.Request, error) {
 	var buf bytes.Buffer
 
 	boundary := fmt.Sprintf("----WebKitFormBoundary%s", randomString(16))
@@ -342,7 +344,7 @@ func (b *Builder) buildMultipartRequest(targetURL, payload string, template *Req
 		method = "POST"
 	}
 
-	req, err := http.NewRequest(method, targetURL, &buf)
+	req, err := http.NewRequestWithContext(ctx, method, targetURL, &buf)
 	if err != nil {
 		return nil, err
 	}
