@@ -261,6 +261,52 @@ func TestTestParameter(t *testing.T) {
 	})
 }
 
+// TestTestParameterDoesNotMutateURL is a regression test for a shared URL
+// mutation bug. The old code called q := u.Query() / u.RawQuery = q.Encode()
+// directly on the parsed *url.URL, mutating it across loop iterations. The fix
+// clones the URL per iteration with `cloned := *u`. This test verifies the
+// original URL (including its query params) is preserved after TestParameter
+// returns, and that every tested request includes the original query params.
+func TestTestParameterDoesNotMutateURL(t *testing.T) {
+	var receivedQueries []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedQueries = append(receivedQueries, r.URL.RawQuery)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Normal content"))
+	}))
+	defer server.Close()
+
+	targetURL := server.URL + "/page?existing=value"
+	originalURL := targetURL // save for comparison
+
+	tester := NewTester(nil)
+	ctx := context.Background()
+
+	payloads := []Payload{
+		{Value: "../../../etc/passwd", Description: "traversal1", Platform: PlatformLinux},
+		{Value: "../../etc/shadow", Description: "traversal2", Platform: PlatformLinux},
+		{Value: "../proc/version", Description: "traversal3", Platform: PlatformLinux},
+	}
+
+	_, err := tester.TestParameter(ctx, targetURL, "file", payloads)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// The targetURL string itself should not be modified.
+	if targetURL != originalURL {
+		t.Errorf("targetURL was mutated: got %q, want %q", targetURL, originalURL)
+	}
+
+	// Every request the server received should contain the original "existing=value"
+	// param, proving the URL was not mutated across iterations.
+	for i, q := range receivedQueries {
+		if !strings.Contains(q, "existing=value") {
+			t.Errorf("request %d missing original query param 'existing=value': got %q", i, q)
+		}
+	}
+}
+
 func TestDetectEvidence(t *testing.T) {
 	tester := NewTester(nil)
 

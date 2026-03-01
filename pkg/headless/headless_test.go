@@ -3,6 +3,7 @@ package headless
 import (
 	"net/url"
 	"testing"
+	"time"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -439,4 +440,54 @@ func containsAll(s string, substrs []string) bool {
 		}
 	}
 	return true
+}
+
+// TestExtractAttributeEmptyValues is a regression test for an infinite loop bug.
+// When extractAttribute encountered empty attribute values like href="", the old
+// code used remaining = remaining[endIdx:] which didn't advance past the closing
+// quote, causing an infinite loop. The fix changed it to remaining[endIdx+1:].
+// This test will hang (and be killed by the timeout) if the fix is reverted.
+func TestExtractAttributeEmptyValues(t *testing.T) {
+	html := `<a href="">link</a><a href="https://example.com">real</a>`
+
+	done := make(chan []string, 1)
+	go func() {
+		done <- extractAttribute(html, "href")
+	}()
+
+	select {
+	case results := <-done:
+		// The empty href="" should be skipped; only the real URL should appear.
+		if len(results) != 1 {
+			t.Fatalf("expected 1 result, got %d: %v", len(results), results)
+		}
+		if results[0] != "https://example.com" {
+			t.Errorf("expected 'https://example.com', got %q", results[0])
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("extractAttribute hung on empty attribute value — infinite loop regression")
+	}
+}
+
+// TestExtractAttributeMultipleEmptyValues tests with several consecutive empty
+// attributes to ensure the parser advances correctly through all of them.
+func TestExtractAttributeMultipleEmptyValues(t *testing.T) {
+	html := `<a href="">1</a><a href="">2</a><a href="">3</a><a href="https://real.com">4</a>`
+
+	done := make(chan []string, 1)
+	go func() {
+		done <- extractAttribute(html, "href")
+	}()
+
+	select {
+	case results := <-done:
+		if len(results) != 1 {
+			t.Fatalf("expected 1 result (only non-empty), got %d: %v", len(results), results)
+		}
+		if results[0] != "https://real.com" {
+			t.Errorf("expected 'https://real.com', got %q", results[0])
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("extractAttribute hung on multiple empty attribute values — infinite loop regression")
+	}
 }
