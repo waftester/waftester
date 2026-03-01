@@ -1,6 +1,7 @@
 package duration
 
 import (
+	"math"
 	"testing"
 	"time"
 )
@@ -11,6 +12,7 @@ func TestFormatPrecision(t *testing.T) {
 		dur      time.Duration
 		expected string
 	}{
+		{"negative_clamped", -5 * time.Second, "0µs"},
 		{"zero", 0, "0µs"},
 		{"microseconds", 500 * time.Microsecond, "500µs"},
 		{"milliseconds", 250 * time.Millisecond, "250ms"},
@@ -83,6 +85,9 @@ func TestFormatSeconds(t *testing.T) {
 		seconds  float64
 		expected string
 	}{
+		{"negative_clamped", -5.0, "0.0s"},
+		{"nan_clamped", math.NaN(), "0.0s"},
+		{"inf_clamped", math.Inf(1), "0.0s"},
 		{"zero", 0, "0.0s"},
 		{"short", 5.3, "5.3s"},
 		{"just_under_minute", 59.9, "59.9s"},
