@@ -23,6 +23,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 // VulnerabilityType represents the type of OAuth vulnerability.
@@ -628,7 +629,7 @@ func ValidateIDToken(token string, expectedIssuer, expectedAudience string) erro
 
 // DiscoverOIDCEndpoints discovers OIDC endpoints from well-known configuration.
 func DiscoverOIDCEndpoints(ctx context.Context, issuer string) (*OAuthEndpoint, error) {
-	wellKnownURL := strings.TrimSuffix(issuer, "/") + "/.well-known/openid-configuration"
+	wellKnownURL := urlutil.JoinPath(issuer, "/.well-known/openid-configuration")
 
 	req, err := http.NewRequestWithContext(ctx, "GET", wellKnownURL, nil)
 	if err != nil {

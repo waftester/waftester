@@ -13,6 +13,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 // AdvancedCalibrator provides ffuf-style advanced auto-calibration with
@@ -214,7 +215,7 @@ func (c *AdvancedCalibrator) CalibrateHost(ctx context.Context, targetURL string
 				path = strings.ReplaceAll(path, strategy.Keyword, randomString(12))
 			}
 
-			reqURL := strings.TrimSuffix(targetURL, "/") + path
+			reqURL := urlutil.JoinPath(targetURL, path)
 
 			method := strategy.Method
 			if method == "" {

