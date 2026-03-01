@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/strutil"
 )
@@ -228,7 +229,7 @@ func PrintSummary(s Summary) {
 	fmt.Fprintln(os.Stderr, BracketStyle.Render("  "+separator))
 
 	// Performance stats
-	printRow("Duration:", formatDuration(s.Duration), StatValueStyle)
+	printRow("Duration:", duration.FormatClock(s.Duration), StatValueStyle)
 	printRow("Req/sec:", fmt.Sprintf("%.1f", s.RequestsPerSec), StatValueStyle)
 
 	fmt.Fprintln(os.Stderr, BracketStyle.Render("  "+bottomBorder))

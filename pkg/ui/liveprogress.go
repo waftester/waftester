@@ -405,10 +405,10 @@ func (lp *LiveProgress) renderInteractive(spinner Spinner) {
 	// Line 2: Metrics, rate, elapsed, ETA
 	if metricsStr != "" {
 		fmt.Fprintf(lp.config.Writer, "  %s  \033[33m%.1f/s\033[0m  %s %s  ETA: %s\n",
-			metricsStr, rate, Icon("⏱️", ""), formatElapsedCompact(elapsed), eta)
+			metricsStr, rate, Icon("⏱️", ""), duration.FormatCompact(elapsed), eta)
 	} else {
 		fmt.Fprintf(lp.config.Writer, "  %s \033[33m%.1f %s/s\033[0m  %s %s  ETA: %s\n",
-			Icon("📊", "#"), rate, lp.config.Unit, Icon("⏱️", ""), formatElapsedCompact(elapsed), eta)
+			Icon("📊", "#"), rate, lp.config.Unit, Icon("⏱️", ""), duration.FormatCompact(elapsed), eta)
 	}
 
 	// Line 3: Tips (if configured for 3 lines)
@@ -441,8 +441,8 @@ func (lp *LiveProgress) renderStreaming() {
 
 	// Format output
 	output := lp.config.StreamFormat
-	output = strings.ReplaceAll(output, "{time}", formatElapsedCompact(elapsed))
-	output = strings.ReplaceAll(output, "{elapsed}", formatElapsedCompact(elapsed))
+	output = strings.ReplaceAll(output, "{time}", duration.FormatCompact(elapsed))
+	output = strings.ReplaceAll(output, "{elapsed}", duration.FormatCompact(elapsed))
 	output = strings.ReplaceAll(output, "{completed}", fmt.Sprintf("%d", completed))
 	output = strings.ReplaceAll(output, "{total}", fmt.Sprintf("%d", total))
 	output = strings.ReplaceAll(output, "{percent}", fmt.Sprintf("%.1f", percent))
@@ -504,16 +504,6 @@ func (lp *LiveProgress) buildMetricsString() string {
 	}
 
 	return strings.Join(parts, "  ")
-}
-
-// formatElapsedCompact formats duration compactly
-func formatElapsedCompact(d time.Duration) string {
-	if d < time.Minute {
-		return fmt.Sprintf("%.1fs", d.Seconds())
-	}
-	mins := int(d.Minutes())
-	secs := int(d.Seconds()) % 60
-	return fmt.Sprintf("%dm%ds", mins, secs)
 }
 
 // === Convenience Constructors ===

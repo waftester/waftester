@@ -10,6 +10,7 @@ import (
 
 	pdfapi "github.com/pdfcpu/pdfcpu/pkg/api"
 	pdfmodel "github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
+	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/output/events"
 )
 
@@ -902,9 +903,9 @@ func TestPDF_FormatDuration(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		result := formatDuration(tc.seconds)
+		result := duration.FormatSeconds(tc.seconds)
 		if result != tc.expected {
-			t.Errorf("formatDuration(%v) = %q, want %q", tc.seconds, result, tc.expected)
+			t.Errorf("duration.FormatSeconds(%v) = %q, want %q", tc.seconds, result, tc.expected)
 		}
 	}
 }
