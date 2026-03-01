@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -712,7 +711,7 @@ func (a *Assessment) SaveResults(m *metrics.EnterpriseMetrics, filename string) 
 		return err
 	}
 
-	return os.WriteFile(filename, data, 0644)
+	return iohelper.WriteAtomic(filename, data, 0644)
 }
 
 // GetAttackResults returns the attack test results

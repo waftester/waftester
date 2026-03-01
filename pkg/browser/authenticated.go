@@ -20,6 +20,7 @@ import (
 	"github.com/chromedp/cdproto/storage"
 	"github.com/chromedp/chromedp"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // AuthenticatedScanner provides authenticated browser-based discovery
@@ -1516,12 +1517,8 @@ func (s *AuthenticatedScanner) calculateRiskSummary(result *BrowserScanResult) *
 
 // SaveResult saves the browser scan result to a JSON file
 func (r *BrowserScanResult) SaveResult(filepath string) error {
-	data, err := json.MarshalIndent(r, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal result: %w", err)
-	}
 	// Use 0600 permissions - scan results may contain sensitive token info
-	return os.WriteFile(filepath, data, 0600)
+	return iohelper.WriteAtomicJSON(filepath, r, 0600)
 }
 
 // GetSortedRoutes returns routes sorted by path
