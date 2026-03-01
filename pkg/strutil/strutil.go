@@ -2,6 +2,7 @@
 package strutil
 
 import (
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -25,6 +26,23 @@ func Truncate(s string, maxLen int) string {
 	return string([]rune(s)[:maxLen-3]) + "..."
 }
 
+// Unique returns a new slice with duplicate elements removed, preserving
+// order of first appearance. Works with any comparable type.
+func Unique[T comparable](s []T) []T {
+	if len(s) == 0 {
+		return nil
+	}
+	seen := make(map[T]bool, len(s))
+	result := make([]T, 0, len(s))
+	for _, v := range s {
+		if !seen[v] {
+			seen[v] = true
+			result = append(result, v)
+		}
+	}
+	return result
+}
+
 // SplitTrimmed splits s by sep, trims whitespace from each element,
 // and returns only non-empty results. Useful for parsing comma-separated
 // lists from CLI flags and config values.
@@ -41,4 +59,30 @@ func SplitTrimmed(s, sep string) []string {
 		}
 	}
 	return result
+}
+
+// Atoi converts a string to int, returning 0 if parsing fails.
+// Useful for best-effort numeric parsing in CLI and config values.
+func Atoi(s string) int {
+	n, _ := strconv.Atoi(s)
+	return n
+}
+
+// SanitizeFilename replaces characters unsafe for filenames with underscores
+// and limits the result to maxLen runes. If maxLen <= 0, defaults to 100.
+func SanitizeFilename(s string, maxLen int) string {
+	if maxLen <= 0 {
+		maxLen = 100
+	}
+	replacer := strings.NewReplacer(
+		"/", "_", "\\", "_", ":", "_", "?", "_",
+		"&", "_", "=", "_", "#", "_", " ", "_",
+		"<", "_", ">", "_", "|", "_", "\"", "_",
+		"*", "_",
+	)
+	s = replacer.Replace(s)
+	if len([]rune(s)) > maxLen {
+		s = string([]rune(s)[:maxLen])
+	}
+	return s
 }

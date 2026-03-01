@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/attackconfig"
+	"github.com/waftester/waftester/pkg/strutil"
+	"github.com/waftester/waftester/pkg/urlutil"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -245,9 +247,9 @@ func TestSanitizeFilename(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			result := sanitizeFilename(tt.input)
+			result := strutil.SanitizeFilename(urlutil.StripScheme(tt.input), 0)
 			if result != tt.expected {
-				t.Errorf("sanitizeFilename(%s) = %s, want %s", tt.input, result, tt.expected)
+				t.Errorf("SanitizeFilename(%s) = %s, want %s", tt.input, result, tt.expected)
 			}
 		})
 	}
@@ -255,7 +257,7 @@ func TestSanitizeFilename(t *testing.T) {
 
 func TestSanitizeFilename_LongURL(t *testing.T) {
 	longURL := "https://example.com/" + string(make([]byte, 200))
-	result := sanitizeFilename(longURL)
+	result := strutil.SanitizeFilename(urlutil.StripScheme(longURL), 0)
 
 	if len(result) > 100 {
 		t.Errorf("expected max 100 chars, got %d", len(result))

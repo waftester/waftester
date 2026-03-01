@@ -21,7 +21,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
-	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/strutil"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -149,7 +149,7 @@ func (m *Manager) LoadMultiple(sources []string) (*Wordlist, error) {
 	}
 
 	// Deduplicate
-	allWords = deduplicate(allWords)
+	allWords = strutil.Unique(allWords)
 
 	return &Wordlist{
 		Name:   strings.Join(names, "+"),
@@ -236,7 +236,7 @@ func (m *Manager) loadFromFile(path string) (*Wordlist, error) {
 // loadFromURL downloads and loads a wordlist from a URL
 func (m *Manager) loadFromURL(url string) (*Wordlist, error) {
 	// Check if cached locally
-	cachePath := filepath.Join(m.cacheDir, sanitizeFilename(url))
+	cachePath := filepath.Join(m.cacheDir, strutil.SanitizeFilename(url, 0))
 	if info, err := os.Stat(cachePath); err == nil {
 		// Use cached version if less than 24 hours old
 		if time.Since(info.ModTime()) < 24*time.Hour {
@@ -441,7 +441,7 @@ func generateFromPattern(pattern string, count int) []string {
 		words = append(words, word)
 	}
 
-	return deduplicate(words)
+	return strutil.Unique(words)
 }
 
 func expandPattern(pattern string) string {
@@ -497,7 +497,7 @@ func generateMutations(base string, rules []MutationRule) []string {
 				newWords = append(newWords, mutated, mutated2, mutated3)
 			}
 		}
-		words = deduplicate(newWords)
+		words = strutil.Unique(newWords)
 	}
 
 	// Add common variations
@@ -528,7 +528,7 @@ func generateMutations(base string, rules []MutationRule) []string {
 		}
 	}
 
-	return deduplicate(variations)
+	return strutil.Unique(variations)
 }
 
 func defaultMutationRules() []MutationRule {
@@ -641,7 +641,7 @@ func (m *Manager) Transform(wl *Wordlist, transforms []Transform) (*Wordlist, er
 		}
 	}
 
-	deduped := deduplicate(words)
+	deduped := strutil.Unique(words)
 	return &Wordlist{
 		Name:   wl.Name + "-transformed",
 		Words:  deduped,
@@ -840,7 +840,7 @@ func (m *Manager) ListBuiltIn() []string {
 func (m *Manager) GetStats(wl *Wordlist) WordlistStats {
 	stats := WordlistStats{
 		TotalWords:  len(wl.Words),
-		UniqueWords: len(deduplicate(wl.Words)),
+		UniqueWords: len(strutil.Unique(wl.Words)),
 	}
 
 	lengthSum := 0
@@ -873,19 +873,6 @@ type WordlistStats struct {
 
 // Helper functions
 
-func deduplicate(words []string) []string {
-	seen := make(map[string]struct{}, len(words))
-	result := make([]string, 0, len(words))
-
-	for _, word := range words {
-		if _, ok := seen[word]; !ok {
-			seen[word] = struct{}{}
-			result = append(result, word)
-		}
-	}
-
-	return result
-}
 
 func detectWordlistType(path string, words []string) WordlistType {
 	name := strings.ToLower(filepath.Base(path))
@@ -916,15 +903,6 @@ func detectWordlistType(path string, words []string) WordlistType {
 	}
 
 	return TypeGeneral
-}
-
-func sanitizeFilename(url string) string {
-	// Create a safe filename from URL
-	safe := regexcache.MustGet(`[^a-zA-Z0-9.-]`).ReplaceAllString(url, "_")
-	if len(safe) > 100 {
-		safe = safe[:100]
-	}
-	return safe
 }
 
 func randomInt(max int) int {
