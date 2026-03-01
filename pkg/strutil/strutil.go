@@ -2,6 +2,7 @@
 package strutil
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -85,4 +86,16 @@ func SanitizeFilename(s string, maxLen int) string {
 		s = string([]rune(s)[:maxLen])
 	}
 	return s
+}
+
+// SortedMapKeys returns the keys of a map sorted in ascending order.
+// Uses generics to accept maps with any value type, including named map types
+// like http.Header and url.Values.
+func SortedMapKeys[M ~map[string]V, V any](m M) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
