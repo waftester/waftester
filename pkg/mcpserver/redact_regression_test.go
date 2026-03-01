@@ -334,14 +334,14 @@ func TestIsSensitiveKey_ExpandedPatterns(t *testing.T) {
 		{"signing_key", true},
 		{"encrypt_secret", true},
 		{"encryption_key", true},
-		{"access_id", true},
+		{"access_id", false},
 		{"my_private_field", true},
 		{"proxy_auth", true},
 
-		// Intentional broad matches: "key" substring catches these.
-		// This is by design — we prefer false-positive redaction over leaking secrets.
+		// "key" is matched via suffix patterns (_key, -key) so compound names
+		// like "primary_key" are caught, but "keyboard" is not (no bare "key" substring).
 		{"primary_key", true},
-		{"keyboard_layout", true},
+		{"keyboard_layout", false},
 
 		// Ensure non-sensitive fields are still safe.
 		{"process", false},

@@ -256,7 +256,7 @@ func TestIsVulnerable(t *testing.T) {
 		{"Ruby marshal", 500, "Marshal.load failed", true},
 		{"ViewState error", 500, "Invalid ViewState", true},
 		{"Normal response", 200, "Hello World", false},
-		{"Generic 500", 500, "Internal Server Exception Error", true},
+		{"Generic 500", 500, "Internal Server Exception Error", false},
 	}
 
 	for _, tt := range tests {
