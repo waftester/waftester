@@ -197,7 +197,7 @@ func (p *Progress) renderTurbo(spinner string, workerIndicator string) {
 
 	// Calculate ETA
 	eta := time.Duration(0)
-	if current > 0 && current < total {
+	if current > 0 && current < total && rps > 0 {
 		remaining := total - current
 		eta = time.Duration(float64(remaining) / rps * float64(time.Second))
 	}
