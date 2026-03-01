@@ -11,6 +11,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/ui"
 	"golang.org/x/text/cases"
@@ -144,7 +145,7 @@ var templateFuncs = template.FuncMap{
 	// Time functions
 	"now":        time.Now,
 	"formatTime": formatTime,
-	"duration":   formatDuration,
+	"duration":   duration.FormatPrecision,
 
 	// Numeric functions
 	"add": func(a, b int) int { return a + b },
@@ -374,16 +375,6 @@ func toPrettyJSON(v interface{}) (string, error) {
 
 func formatTime(t time.Time, format string) string {
 	return t.Format(format)
-}
-
-func formatDuration(d time.Duration) string {
-	if d < time.Millisecond {
-		return fmt.Sprintf("%dµs", d.Microseconds())
-	}
-	if d < time.Second {
-		return fmt.Sprintf("%dms", d.Milliseconds())
-	}
-	return fmt.Sprintf("%.2fs", d.Seconds())
 }
 
 func severityColor(severity string) string {

@@ -197,9 +197,9 @@ func runFP() {
 	// Show completion summary
 	elapsed := progress.GetElapsed()
 	if *streamMode {
-		fmt.Printf("[COMPLETE] %d tests in %s, FPs=%d\n", result.TotalTests, formatElapsed(elapsed), result.FalsePositives)
+		fmt.Printf("[COMPLETE] %d tests in %s, FPs=%d\n", result.TotalTests, duration.FormatCompact(elapsed), result.FalsePositives)
 	} else {
-		ui.Printf("  %s Completed %d tests in %s\n", ui.Icon("\u2705", "+"), result.TotalTests, formatElapsed(elapsed))
+		ui.Printf("  %s Completed %d tests in %s\n", ui.Icon("\u2705", "+"), result.TotalTests, duration.FormatCompact(elapsed))
 		if result.FalsePositives > 0 {
 			if ui.StdoutIsTerminal() {
 				ui.Printf("  %s  \033[31m%d false positives detected\033[0m\n", ui.Icon("\u26a0\ufe0f", "!"), result.FalsePositives)
@@ -382,13 +382,4 @@ func repeatChar(char string, count int) string {
 		result += char
 	}
 	return result
-}
-
-func formatElapsed(d time.Duration) string {
-	if d < time.Minute {
-		return fmt.Sprintf("%.1fs", d.Seconds())
-	}
-	mins := int(d.Minutes())
-	secs := int(d.Seconds()) % 60
-	return fmt.Sprintf("%dm%ds", mins, secs)
 }

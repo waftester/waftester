@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/strutil"
 )
 
@@ -798,7 +799,7 @@ func TestStatsDisplayStartStop(t *testing.T) {
 	sd.Stop()
 }
 
-// TestFormatDuration tests formatDuration helper
+// TestFormatDuration tests duration.FormatClock helper
 func TestFormatDuration(t *testing.T) {
 	tests := []struct {
 		duration time.Duration
@@ -813,9 +814,9 @@ func TestFormatDuration(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := formatDuration(tt.duration)
+		result := duration.FormatClock(tt.duration)
 		if result != tt.expected {
-			t.Errorf("formatDuration(%v) = %q, want %q", tt.duration, result, tt.expected)
+			t.Errorf("duration.FormatClock(%v) = %q, want %q", tt.duration, result, tt.expected)
 		}
 	}
 }

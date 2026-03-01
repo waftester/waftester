@@ -252,9 +252,9 @@ func runAssess() {
 
 	// Show completion summary
 	if *streamMode {
-		fmt.Printf("[COMPLETE] Assessment in %s, Grade=%s\n", formatElapsedAssess(elapsed), result.Grade)
+		fmt.Printf("[COMPLETE] Assessment in %s, Grade=%s\n", duration.FormatCompact(elapsed), result.Grade)
 	} else {
-		ui.Printf("  %s Assessment completed in %s\n", ui.Icon("✅", "+"), formatElapsedAssess(elapsed))
+		ui.Printf("  %s Assessment completed in %s\n", ui.Icon("✅", "+"), duration.FormatCompact(elapsed))
 		fmt.Println()
 	}
 
@@ -529,13 +529,4 @@ func assessTruncateString(s string, maxLen int) string {
 		return s
 	}
 	return string(runes[:maxLen-3]) + "..."
-}
-
-func formatElapsedAssess(d time.Duration) string {
-	if d < time.Minute {
-		return fmt.Sprintf("%.1fs", d.Seconds())
-	}
-	mins := int(d.Minutes())
-	secs := int(d.Seconds()) % 60
-	return fmt.Sprintf("%dm%ds", mins, secs)
 }
