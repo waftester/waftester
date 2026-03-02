@@ -35,6 +35,7 @@ func runBypassFinder() {
 	category := bypassFlags.String("category", "injection", "Payload category to test")
 	concurrency := bypassFlags.Int("c", 10, "Concurrency")
 	rateLimit := bypassFlags.Float64("rl", 30, "Rate limit")
+	timeout := bypassFlags.Int("timeout", defaults.DefaultConfigTimeoutSec, "Request timeout in seconds")
 	outputFile := bypassFlags.String("o", "bypasses.json", "Output file for bypass results")
 	skipVerify := bypassFlags.Bool("k", false, "Skip TLS verification")
 
@@ -90,7 +91,7 @@ func runBypassFinder() {
 	fmt.Println()
 
 	// Setup context
-	ctx, cancel := cli.SignalContext(30 * time.Second)
+	ctx, cancel := cli.SignalContext(time.Duration(*timeout) * time.Second)
 	defer cancel()
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -379,10 +380,10 @@ func runBypassFinder() {
 			fmt.Printf("  [%d] %s | %s | %s\n",
 				bp.StatusCode, bp.EncoderUsed, bp.LocationUsed, bp.EvasionUsed)
 			displayPayload := bp.MutatedPayload
-				if payloadRunes := []rune(displayPayload); len(payloadRunes) > 60 {
-					displayPayload = string(payloadRunes[:60])
-				}
-				fmt.Printf("      Payload: %s...\n", displayPayload)
+			if payloadRunes := []rune(displayPayload); len(payloadRunes) > 60 {
+				displayPayload = string(payloadRunes[:60])
+			}
+			fmt.Printf("      Payload: %s...\n", displayPayload)
 			fmt.Println()
 			shown++
 		}

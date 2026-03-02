@@ -27,7 +27,8 @@ func runCloud() {
 
 	// Target options
 	domain := cloudFlags.String("domain", "", "Target domain to discover")
-	domainShort := cloudFlags.String("d", "", "Target domain (shorthand)")
+	cloudFlags.StringVar(domain, "d", "", "Target domain (alias)")
+	cloudFlags.StringVar(domain, "u", "", "Target domain (alias)")
 	orgName := cloudFlags.String("org", "", "Organization name for brute forcing")
 
 	// Discovery options
@@ -54,9 +55,6 @@ func runCloud() {
 
 	// Get domain
 	targetDomain := *domain
-	if targetDomain == "" {
-		targetDomain = *domainShort
-	}
 	if targetDomain == "" && *orgName == "" {
 		ui.PrintError("Domain or organization name required")
 		fmt.Println()

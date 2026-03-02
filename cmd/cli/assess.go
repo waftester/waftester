@@ -40,6 +40,7 @@ func runAssess() {
 	// Performance
 	concurrency := assessFlags.Int("c", 25, "Number of concurrent workers")
 	rateLimit := assessFlags.Float64("rate", 100.0, "Requests per second limit")
+	assessFlags.Float64Var(rateLimit, "rl", 100.0, "Requests per second limit (alias)")
 	timeout := assessFlags.Int("timeout", 10, "Request timeout in seconds")
 
 	// Attack testing
