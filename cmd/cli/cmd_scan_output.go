@@ -138,15 +138,15 @@ func printScanCompletionBanner(result *ScanResult, totalScans int32, scanErrors 
 	if totalScans == 1 {
 		typeWord = "scan type"
 	}
-	fmt.Fprintln(os.Stderr)                                                                                                                                       // debug:keep
-	ui.PrintSuccess(fmt.Sprintf("Scan complete in %s", result.Duration.Round(time.Millisecond)))                                                                  // debug:keep
-	fmt.Fprintf(os.Stderr, "  %s Results: %s%d %s%s across %d %s\n", ui.Icon("📊", "#"), vulnColor, result.TotalVulns, vulnWord, colorReset, totalScans, typeWord) // debug:keep
+	fmt.Fprintln(os.Stderr)
+	ui.PrintSuccess(fmt.Sprintf("Scan complete in %s", result.Duration.Round(time.Millisecond)))
+	fmt.Fprintf(os.Stderr, "  %s Results: %s%d %s%s across %d %s\n", ui.Icon("📊", "#"), vulnColor, result.TotalVulns, vulnWord, colorReset, totalScans, typeWord)
 	if scanErrors != nil {
 		if errCount := atomic.LoadInt32(scanErrors); errCount > 0 {
 			ui.PrintWarning(fmt.Sprintf("%d scanner(s) encountered errors (use -verbose for details)", errCount))
 		}
 	}
-	fmt.Fprintln(os.Stderr) // debug:keep
+	fmt.Fprintln(os.Stderr)
 }
 
 // writeScanJSON marshals results to JSON and writes to file and/or stdout.
@@ -176,6 +176,6 @@ func writeScanJSON(ctx context.Context, result *ScanResult, cfg scanOutputConfig
 	}
 
 	if cfg.JSONOutput && !cfg.StreamJSON {
-		fmt.Println(string(jsonData)) // debug:keep
+		fmt.Println(string(jsonData))
 	}
 }

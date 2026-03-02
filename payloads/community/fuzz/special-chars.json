@@ -621,24 +621,6 @@
       "category": "Fuzz"
   },
   {
-      "id": "FUZZ-EMPTY-001",
-      "payload": "",
-      "tags": ["empty", "string"],
-      "expected_block": false,
-      "severity_hint": "Low",
-      "notes": "Empty string",
-      "category": "Fuzz"
-  },
-  {
-      "id": "FUZZ-EMPTY-002",
-      "payload": "   ",
-      "tags": ["whitespace", "only"],
-      "expected_block": false,
-      "severity_hint": "Low",
-      "notes": "Whitespace only",
-      "category": "Fuzz"
-  },
-  {
       "id": "FUZZ-EMPTY-003",
       "payload": "\\t\\n\\r",
       "tags": ["whitespace", "control"],

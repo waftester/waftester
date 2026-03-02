@@ -49,7 +49,7 @@ func runValidate() {
 	ui.PrintSection("Payload Validation")
 	ui.PrintConfigLine("Payload Dir", *payloadDir)
 	ui.PrintConfigLine("Fail Fast", fmt.Sprintf("%v", *failFast))
-	fmt.Println() // debug:keep
+	fmt.Println()
 
 	// Initialize dispatcher for hooks
 	validateOutputFlags := OutputFlags{
@@ -126,7 +126,7 @@ func runValidateSpec(specPath, specURL string, allowInternal, verbose bool, outp
 		source = specURL
 	}
 	ui.PrintConfigLine("Spec", source)
-	fmt.Println() // debug:keep
+	fmt.Println()
 
 	result, err := apispec.ValidateSpec(source, allowInternal)
 	if err != nil {
@@ -154,7 +154,7 @@ func runValidateSpec(specPath, specURL string, allowInternal, verbose bool, outp
 
 	// Print spec summary if parsed successfully.
 	if result.Spec != nil {
-		fmt.Println() // debug:keep
+		fmt.Println()
 		ui.PrintConfigLine("Format", string(result.Spec.Format))
 		ui.PrintConfigLine("Title", result.Spec.Title)
 		if result.Spec.Version != "" {
@@ -166,7 +166,7 @@ func runValidateSpec(specPath, specURL string, allowInternal, verbose bool, outp
 		}
 
 		if verbose {
-			fmt.Println() // debug:keep
+			fmt.Println()
 			for _, ep := range result.Spec.Endpoints {
 				fmt.Fprintf(os.Stderr, "  %s %s", ep.Method, ep.Path)
 				if len(ep.Parameters) > 0 {
@@ -186,7 +186,7 @@ func runValidateSpec(specPath, specURL string, allowInternal, verbose bool, outp
 		}
 	}
 
-	fmt.Println() // debug:keep
+	fmt.Println()
 	if result.Valid {
 		ui.PrintSuccess(fmt.Sprintf("Spec validation passed (%d warnings)", len(result.Warnings)))
 	} else {
@@ -216,7 +216,7 @@ func runValidateTemplates() {
 
 	ui.PrintConfigLine("Template Dir", *templateDir)
 	ui.PrintConfigLine("Strict Mode", fmt.Sprintf("%v", *strict))
-	fmt.Println() // debug:keep
+	fmt.Println()
 
 	// Initialize dispatcher for hooks
 	vtOutputFlags := OutputFlags{
@@ -265,13 +265,13 @@ func runValidateTemplates() {
 	ui.PrintConfigLine("Invalid", fmt.Sprintf("%d", summary.InvalidFiles))
 	ui.PrintConfigLine("Total Errors", fmt.Sprintf("%d", summary.TotalErrors))
 	ui.PrintConfigLine("Total Warnings", fmt.Sprintf("%d", summary.TotalWarnings))
-	fmt.Println() // debug:keep
+	fmt.Println()
 
 	// Print detailed results if verbose
 	if *verbose {
 		for _, result := range summary.Results {
 			if !result.Valid || len(result.Warnings) > 0 {
-				fmt.Printf("\n%s\n", result.File) // debug:keep
+				fmt.Printf("\n%s\n", result.File)
 				for _, e := range result.Errors {
 					ui.PrintError(fmt.Sprintf("  ERROR: %s", e))
 				}
@@ -353,13 +353,13 @@ func runEnterpriseReport() {
 	// Validate workspace directory
 	if *workspaceDir == "" {
 		ui.PrintError("Workspace directory is required. Use -workspace <path>")
-		fmt.Println()                                                                                    // debug:keep
-		fmt.Println("Usage: waf-tester report -workspace <path> [-output <file>] [-target <name>]")      // debug:keep
-		fmt.Println()                                                                                    // debug:keep
-		fmt.Println("Options:")                                                                          // debug:keep
-		fmt.Println("  -workspace <path>  Path to workspace directory containing results.json")          // debug:keep
-		fmt.Println("  -output <file>     Output HTML file (default: workspace/enterprise-report.html)") // debug:keep
-		fmt.Println("  -target <name>     Target name for report header")                                // debug:keep
+		fmt.Println()
+		fmt.Println("Usage: waf-tester report -workspace <path> [-output <file>] [-target <name>]")
+		fmt.Println()
+		fmt.Println("Options:")
+		fmt.Println("  -workspace <path>  Path to workspace directory containing results.json")
+		fmt.Println("  -output <file>     Output HTML file (default: workspace/enterprise-report.html)")
+		fmt.Println("  -target <name>     Target name for report header")
 		os.Exit(1)
 	}
 
@@ -395,7 +395,7 @@ func runEnterpriseReport() {
 	ui.PrintConfigLine("Workspace", *workspaceDir)
 	ui.PrintConfigLine("Target", target)
 	ui.PrintConfigLine("Output", output)
-	fmt.Println() // debug:keep
+	fmt.Println()
 
 	// Initialize dispatcher for hooks
 	reportOutputFlags := OutputFlags{
@@ -466,7 +466,7 @@ func runUpdate() {
 	ui.PrintConfigLine("Payload Dir", *payloadDir)
 	ui.PrintConfigLine("Dry Run", fmt.Sprintf("%v", *dryRun))
 	ui.PrintConfigLine("Auto Apply", fmt.Sprintf("%v", *autoApply))
-	fmt.Println() // debug:keep
+	fmt.Println()
 
 	// Initialize dispatcher for hooks
 	updateOutputFlags := OutputFlags{
