@@ -221,7 +221,7 @@ func runSpecScan(
 				if marshalErr != nil {
 					return
 				}
-				fmt.Println(string(data)) // debug:keep
+				fmt.Println(string(data))
 			} else {
 				ui.PrintWarning(fmt.Sprintf("[%s] %s %s — %s: %s (param: %s)",
 					strings.ToUpper(f.Severity), f.Method, f.Path, f.Category, f.Title, f.Parameter))
@@ -305,7 +305,7 @@ func runSpecDryRun(plan *apispec.ScanPlan, endpoints []apispec.Endpoint, streamJ
 			ui.PrintWarning(fmt.Sprintf("Failed to marshal plan: %v", marshalErr))
 			return
 		}
-		fmt.Println(string(data)) // debug:keep
+		fmt.Println(string(data))
 		os.Exit(0)
 	}
 
