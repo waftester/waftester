@@ -2,6 +2,7 @@ package test
 
 import (
 	"encoding/json"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -1496,3 +1497,189 @@ func TestAutoscanANSICleanupStreamGuard(t *testing.T) {
 		}
 	}
 }
+
+// =============================================================================
+// Wave 3 Runtime Audit Regression Tests
+// =============================================================================
+
+// TestProbeRateLimitMinuteCeilingDivision verifies that cmd_probe.go uses
+// ceiling integer division when converting --rlm (rate-limit-per-minute) to
+// per-second rate. Without ceiling division, values < 60 truncate to 0.
+func TestProbeRateLimitMinuteCeilingDivision(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_probe.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_probe.go: %v", err)
+	}
+	content := string(data)
+	// Must use ceiling division pattern: (value + 59) / 60
+	if !strings.Contains(content, "+ 59) / 60") {
+		t.Error("cmd_probe.go --rlm conversion must use ceiling division: (value + 59) / 60")
+	}
+	// Must NOT have bare integer division: / 60 without the +59 adjustment
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.Contains(trimmed, "RateLimitMinute") &&
+			strings.Contains(trimmed, "/ 60") &&
+			!strings.Contains(trimmed, "+ 59") {
+			t.Errorf("cmd_probe.go:%d has bare integer division of RateLimitMinute/60 (truncates <60 to 0): %s",
+				i+1, trimmed)
+		}
+	}
+}
+
+// TestTemplateBreakInSelectUsesGoto verifies that cmd_template.go uses
+// goto (or labeled break) instead of bare break inside select{} for context
+// cancellation. A bare break only exits the select, not the enclosing for loop.
+func TestTemplateBreakInSelectUsesGoto(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_template.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_template.go: %v", err)
+	}
+	content := string(data)
+	// Must have "goto done" for breaking out of the task dispatch loop
+	if !strings.Contains(content, "goto done") {
+		t.Error("cmd_template.go must use 'goto done' (not bare break) to exit the task dispatch loop on context cancellation")
+	}
+}
+
+// TestAutoscanDivisionByZeroGuard verifies that cmd_autoscan.go guards
+// against division by zero when computing progress percentage for param
+// discovery. Without the guard, totalEndpoints==0 causes float64 +Inf
+// which can panic in strings.Repeat with a negative count.
+func TestAutoscanDivisionByZeroGuard(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_autoscan.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_autoscan.go: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "totalEndpoints > 0") {
+		t.Error("cmd_autoscan.go must guard param-discovery progress division with 'totalEndpoints > 0'")
+	}
+}
+
+// TestNoDeadFlagRespectNoFollow verifies that cmd_crawl.go does not define
+// a respectNoFollow flag (the crawler has no NoFollow support, so the flag
+// was parsed but silently ignored).
+func TestNoDeadFlagRespectNoFollow(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_crawl.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_crawl.go: %v", err)
+	}
+	content := string(data)
+	if strings.Contains(content, "respectNoFollow") || strings.Contains(content, "respect-nofollow") {
+		t.Error("cmd_crawl.go contains dead flag 'respectNoFollow' — crawler has no NoFollow support")
+	}
+}
+
+// TestNoDeadFlagsFuzz verifies that cmd_fuzz.go does not define dead flags
+// for fuzzPosition or calibrationWords (neither is wired to the fuzzer).
+func TestNoDeadFlagsFuzz(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_fuzz.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_fuzz.go: %v", err)
+	}
+	content := string(data)
+	deadFlags := []struct {
+		varName  string
+		flagName string
+	}{
+		{"fuzzPosition", "fuzz-position"},
+		{"calibrationWords", "calibration-words"},
+	}
+	for _, df := range deadFlags {
+		if strings.Contains(content, df.varName) {
+			t.Errorf("cmd_fuzz.go contains dead flag variable %q (defined but never wired to fuzzer)", df.varName)
+		}
+	}
+}
+
+// TestAssessUsesSignalContext verifies that assess.go creates its root context
+// from cli.SignalContext (for graceful Ctrl+C handling) instead of bare
+// context.Background().
+func TestAssessUsesSignalContext(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "assess.go"))
+	if err != nil {
+		t.Fatalf("cannot read assess.go: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "cli.SignalContext") {
+		t.Error("assess.go must use cli.SignalContext for graceful Ctrl+C handling instead of bare context.Background()")
+	}
+}
+
+// TestFinalizeScanOutputReturnsExitCode verifies that finalizeScanOutput in
+// cmd_scan_output.go returns an int exit code instead of calling os.Exit()
+// directly. Calling os.Exit() inside a helper skips all deferred cleanup
+// in the caller.
+func TestFinalizeScanOutputReturnsExitCode(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_scan_output.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_scan_output.go: %v", err)
+	}
+	content := string(data)
+	// Signature must return int
+	if !strings.Contains(content, "finalizeScanOutput(") {
+		t.Fatal("finalizeScanOutput function not found")
+	}
+	// Find the function and check it returns int
+	funcIdx := strings.Index(content, "func finalizeScanOutput(")
+	if funcIdx < 0 {
+		t.Fatal("finalizeScanOutput function not found")
+	}
+	// Check the signature line includes ") int {"
+	sigEnd := strings.Index(content[funcIdx:], "{")
+	if sigEnd < 0 {
+		t.Fatal("cannot find opening brace of finalizeScanOutput")
+	}
+	sig := content[funcIdx : funcIdx+sigEnd+1]
+	if !strings.Contains(sig, "int") {
+		t.Error("finalizeScanOutput must return int exit code, not void")
+	}
+}
+
+// TestProgressStopWaitsForGoroutine verifies that Progress.Stop() and
+// StatsDisplay.Stop() in pkg/ui/progress.go call wg.Wait() to ensure
+// the render goroutine has fully exited before returning. Without this,
+// the goroutine leaks and may write to a closed channel.
+func TestProgressStopWaitsForGoroutine(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "pkg", "ui", "progress.go"))
+	if err != nil {
+		t.Fatalf("cannot read progress.go: %v", err)
+	}
+	content := string(data)
+
+	// Both types must have a WaitGroup field
+	for _, typeName := range []string{"Progress", "StatsDisplay"} {
+		typeStart := strings.Index(content, fmt.Sprintf("type %s struct {", typeName))
+		if typeStart < 0 {
+			t.Fatalf("type %s struct not found", typeName)
+		}
+		typeEnd := strings.Index(content[typeStart:], "\n}")
+		if typeEnd < 0 {
+			t.Fatalf("end of type %s not found", typeName)
+		}
+		typeBody := content[typeStart : typeStart+typeEnd]
+		if !strings.Contains(typeBody, "sync.WaitGroup") {
+			t.Errorf("type %s must have a sync.WaitGroup field to track render goroutine lifecycle", typeName)
+		}
+	}
+
+	// Stop methods must call wg.Wait()
+	if !strings.Contains(content, "p.wg.Wait()") {
+		t.Error("Progress.Stop() must call p.wg.Wait() to ensure render goroutine has exited")
+	}
+	if !strings.Contains(content, "s.wg.Wait()") {
+		t.Error("StatsDisplay.Stop() must call s.wg.Wait() to ensure render goroutine has exited")
+	}
+}
+
+
