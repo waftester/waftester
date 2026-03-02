@@ -813,6 +813,48 @@ func TestPayloadJSON_NoDuplicateIDs(t *testing.T) {
 	}
 }
 
+// TestPayloadJSON_NoEmptyPayloads verifies that no payload JSON file contains
+// entries with empty or whitespace-only payload strings. Such entries fail
+// Payload.Validate() at runtime and produce WARN log noise.
+func TestPayloadJSON_NoEmptyPayloads(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	payloadsDir := filepath.Join(repoRoot, "payloads")
+
+	err := filepath.Walk(payloadsDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !strings.HasSuffix(info.Name(), ".json") {
+			return err
+		}
+		if info.Name() == "ids-map.json" || info.Name() == "version.json" {
+			return nil
+		}
+
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			t.Errorf("read %s: %v", path, readErr)
+			return nil
+		}
+
+		var payloads []struct {
+			ID      string `json:"id"`
+			Payload string `json:"payload"`
+		}
+		if jsonErr := json.Unmarshal(data, &payloads); jsonErr != nil {
+			return nil // skip non-payload JSON files
+		}
+
+		rel, _ := filepath.Rel(payloadsDir, path)
+		for i, p := range payloads {
+			if strings.TrimSpace(p.Payload) == "" {
+				t.Errorf("%s[%d] (id=%s): empty or whitespace-only payload", rel, i, p.ID)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk payloads: %v", err)
+	}
+}
+
 // =============================================================================
 // SCANNER ↔ MAPPER COMPLETENESS TESTS
 // =============================================================================
@@ -936,56 +978,56 @@ func TestScannerPackages_HaveMapperEntries(t *testing.T) {
 	// Some package names don't match their category tags (e.g. "cmdi" → rce).
 	// This map tells the test how to verify these packages.
 	pkgToMapperKey := map[string]string{
-		"cmdi":            "cmdi",
-		"cors":            "cors",
-		"crlf":            "crlf",
-		"csrf":            "csrf",
-		"hostheader":      "hostheader",
-		"hpp":             "hpp",
-		"lfi":             "lfi",
-		"nosqli":          "nosqli",
-		"rce":             "rce",
-		"redirect":        "redirect",
-		"smuggling":       "smuggling",
-		"sqli":            "sqli",
-		"ssrf":            "ssrf",
-		"ssti":            "ssti",
-		"xss":             "xss",
-		"xxe":             "xxe",
-		"graphql":         "graphql",
-		"xpath":           "xpath",
-		"websocket":       "websocket",
-		"upload":          "upload",
-		"race":            "race",
-		"clickjack":       "clickjack",
-		"accesscontrol":   "accesscontrol",
-		"subtakeover":     "subtakeover",
-		"sessionfixation": "sessionfixation",
-		"massassignment":  "massassignment",
-		"responsesplit":   "response-splitting",
-		"ssi":             "ssi",
-		"prototype":       "prototype",
-		"deserialize":     "deserialize",
-		"bizlogic":        "bizlogic",
-		"brokenauth":      "brokenauth",
+		"cmdi":              "cmdi",
+		"cors":              "cors",
+		"crlf":              "crlf",
+		"csrf":              "csrf",
+		"hostheader":        "hostheader",
+		"hpp":               "hpp",
+		"lfi":               "lfi",
+		"nosqli":            "nosqli",
+		"rce":               "rce",
+		"redirect":          "redirect",
+		"smuggling":         "smuggling",
+		"sqli":              "sqli",
+		"ssrf":              "ssrf",
+		"ssti":              "ssti",
+		"xss":               "xss",
+		"xxe":               "xxe",
+		"graphql":           "graphql",
+		"xpath":             "xpath",
+		"websocket":         "websocket",
+		"upload":            "upload",
+		"race":              "race",
+		"clickjack":         "clickjack",
+		"accesscontrol":     "accesscontrol",
+		"subtakeover":       "subtakeover",
+		"sessionfixation":   "sessionfixation",
+		"massassignment":    "massassignment",
+		"responsesplit":     "response-splitting",
+		"ssi":               "ssi",
+		"prototype":         "prototype",
+		"deserialize":       "deserialize",
+		"bizlogic":          "bizlogic",
+		"brokenauth":        "brokenauth",
 		"securitymisconfig": "securitymisconfig",
-		"sensitivedata":   "sensitivedata",
-		"cryptofailure":   "cryptofailure",
-		"apiabuse":        "apiabuse",
-		"xmlinjection":    "xml-injection",
+		"sensitivedata":     "sensitivedata",
+		"cryptofailure":     "cryptofailure",
+		"apiabuse":          "apiabuse",
+		"xmlinjection":      "xml-injection",
 	}
 
 	// Operational packages that embed attackconfig.Base for shared config
 	// but are not attack categories themselves.
 	operationalPackages := map[string]bool{
-		"apifuzz":     true, // API fuzzing engine (uses Fuzz category)
-		"assessment":  true, // assessment orchestrator
-		"dnsbrute":    true, // DNS enumeration utility
-		"leakypaths":  true, // path discovery utility
-		"params":      true, // parameter discovery utility
-		"recon":       true, // reconnaissance utility
-		"recursive":   true, // recursive scanning utility
-		"screenshot":  true, // screenshot utility
+		"apifuzz":    true, // API fuzzing engine (uses Fuzz category)
+		"assessment": true, // assessment orchestrator
+		"dnsbrute":   true, // DNS enumeration utility
+		"leakypaths": true, // path discovery utility
+		"params":     true, // parameter discovery utility
+		"recon":      true, // reconnaissance utility
+		"recursive":  true, // recursive scanning utility
+		"screenshot": true, // screenshot utility
 	}
 
 	var missing []string
@@ -1151,7 +1193,7 @@ func TestCategoryDescriptions_FullCoverage(t *testing.T) {
 	//
 	// Parse the wellKnown slice literal
 	wellKnown := extractWellKnownAliases(t, mapperPath)
-	_ = wellKnown  // informational: tested via recognized set
+	_ = wellKnown // informational: tested via recognized set
 
 	var missing []string
 	for _, tag := range primaryTags {
@@ -1323,5 +1365,134 @@ func TestMapperAliases_TargetValidCanonical(t *testing.T) {
 		t.Errorf("alias() calls point to unregistered canonical names:\n  %s\n"+
 			"Fix: register the canonical name first, or fix the typo",
 			strings.Join(bad, "\n  "))
+	}
+}
+
+// =============================================================================
+// WAVE 2 STRUCTURAL TESTS
+// =============================================================================
+
+// TestOpenAPIDeprecationMessage verifies that the openapi command in main.go
+// shows a deprecation message pointing users to 'auto --spec' instead.
+func TestOpenAPIDeprecationMessage(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "main.go"))
+	if err != nil {
+		t.Fatalf("cannot read main.go: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, `"openapi"`) {
+		t.Error("main.go should handle the 'openapi' command (even if deprecated)")
+	}
+	if !strings.Contains(content, "auto --spec") {
+		t.Error("openapi deprecation message should point users to 'auto --spec'")
+	}
+}
+
+// TestNoDebugKeepComments verifies that production code in cmd/cli/ does not
+// contain leftover // debug:keep markers on output statements.
+func TestNoDebugKeepComments(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	cliDir := filepath.Join(repoRoot, "cmd", "cli")
+	err := filepath.Walk(cliDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for i, line := range strings.Split(string(data), "\n") {
+			if strings.Contains(line, "// debug:keep") {
+				rel, _ := filepath.Rel(repoRoot, path)
+				t.Errorf("%s:%d contains '// debug:keep' marker — remove from production code", rel, i+1)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk error: %v", err)
+	}
+}
+
+// TestAnalyzeStartTimeBeforeAnalyze verifies that cmd_analyze.go sets
+// analyzeStartTime BEFORE calling analyzer.Analyze(), not after.
+func TestAnalyzeStartTimeBeforeAnalyze(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_analyze.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_analyze.go: %v", err)
+	}
+	content := string(data)
+	startTimeIdx := strings.Index(content, "analyzeStartTime")
+	analyzeIdx := strings.Index(content, "analyzer.Analyze(")
+	if startTimeIdx < 0 {
+		t.Fatal("analyzeStartTime not found in cmd_analyze.go")
+	}
+	if analyzeIdx < 0 {
+		t.Fatal("analyzer.Analyze( not found in cmd_analyze.go")
+	}
+	if startTimeIdx > analyzeIdx {
+		t.Error("analyzeStartTime is set AFTER analyzer.Analyze() — duration will be near-zero; move it before the call")
+	}
+}
+
+// TestTemplateFlagsNotDiscarded verifies that cmd_template.go does not contain
+// the pattern `_ = *concurrency` (or similar) which silently discards flag values.
+func TestTemplateFlagsNotDiscarded(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_template.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_template.go: %v", err)
+	}
+	content := string(data)
+	discardedFlags := []string{"_ = *concurrency", "_ = *rateLimit", "_ = *timeout", "_ = *retries"}
+	for _, pattern := range discardedFlags {
+		if strings.Contains(content, pattern) {
+			t.Errorf("cmd_template.go contains %q — flag value is silently discarded instead of being used", pattern)
+		}
+	}
+}
+
+// TestAutoscanANSICleanupStreamGuard verifies that the standalone ANSI cleanup
+// lines (\033[2A\033[J) in cmd_autoscan.go that appear outside of goroutines
+// are guarded by !cfg.Out.StreamMode. The goroutine bodies are already
+// guarded by the outer if-block that starts the goroutine.
+func TestAutoscanANSICleanupStreamGuard(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_autoscan.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_autoscan.go: %v", err)
+	}
+	lines := strings.Split(string(data), "\n")
+
+	// Find standalone if-guarded ANSI cleanup blocks (not inside goroutines).
+	// Pattern: if !quietMode && StderrIsTerminal() { ... \033[2A\033[J }
+	// These MUST also include !cfg.Out.StreamMode.
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		// Match only the if-guard lines that control ANSI cleanup
+		if !strings.HasPrefix(trimmed, "if ") || !strings.Contains(line, "StderrIsTerminal()") {
+			continue
+		}
+		// Check if the next line (or line after) contains the ANSI cleanup
+		hasANSI := false
+		for fwd := 1; fwd <= 3 && i+fwd < len(lines); fwd++ {
+			if strings.Contains(lines[i+fwd], `\033[2A\033[J`) {
+				hasANSI = true
+				break
+			}
+		}
+		if !hasANSI {
+			continue
+		}
+		// This is an if-guard for ANSI cleanup — it must include StreamMode
+		if !strings.Contains(line, "StreamMode") {
+			t.Errorf("cmd_autoscan.go:%d has ANSI cleanup guard without StreamMode check: %s",
+				i+1, trimmed)
+		}
 	}
 }
