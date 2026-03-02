@@ -1876,7 +1876,7 @@ func TestVendorCategoryListDynamic(t *testing.T) {
 	if strings.Contains(content, `[]string{"cloud", "cdn-integrated"`) {
 		t.Error("vendor.go still hardcodes category list — should derive from map keys dynamically")
 	}
-	if !strings.Contains(content, "sort.Strings") {
+	if !strings.Contains(content, "sort.Strings") && !strings.Contains(content, "strutil.SortedMapKeys") {
 		t.Error("vendor.go should sort category keys for deterministic output")
 	}
 }

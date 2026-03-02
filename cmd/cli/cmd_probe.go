@@ -2376,7 +2376,7 @@ func runProbe() {
 				}
 			}
 		} else {
-			fmt.Fprintf(os.Stderr, "[!] PDCP auth config not found: %s\n", *cfg.PdAuthConfig)
+			ui.PrintWarning(fmt.Sprintf("PDCP auth config not found: %s", *cfg.PdAuthConfig))
 		}
 	}
 	if *cfg.PdDashboard {
@@ -2397,7 +2397,7 @@ func runProbe() {
 			fmt.Fprintf(os.Stderr, "[*] PDCP dashboard upload file: %s (%d bytes, ready)\n", *cfg.PdDashboardUpload, info.Size())
 			fmt.Fprintln(os.Stderr, "    Note: Actual upload requires PDCP API authentication")
 		} else {
-			fmt.Fprintf(os.Stderr, "[!] PDCP dashboard upload file not found: %s\n", *cfg.PdDashboardUpload)
+			ui.PrintWarning(fmt.Sprintf("PDCP dashboard upload file not found: %s", *cfg.PdDashboardUpload))
 		}
 	}
 

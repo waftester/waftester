@@ -5,11 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
 	"github.com/waftester/waftester/pkg/cli"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 	"github.com/waftester/waftester/pkg/waf/vendors"
@@ -437,11 +437,7 @@ func displaySupportedVendors() {
 	border := ui.Icon("║", "|")
 	bullet := ui.Icon("•", "-")
 
-	categoryKeys := make([]string, 0, len(categories))
-	for k := range categories {
-		categoryKeys = append(categoryKeys, k)
-	}
-	sort.Strings(categoryKeys)
+	categoryKeys := strutil.SortedMapKeys(categories)
 
 	for _, cat := range categoryKeys {
 		vendorList := categories[cat]
