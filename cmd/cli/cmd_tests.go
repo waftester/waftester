@@ -149,7 +149,7 @@ func runTests() {
 		if !cfg.Silent {
 			ui.PrintSuccess(fmt.Sprintf("Loaded test plan: %d tests across %d categories",
 				plan.TotalTests, len(plan.TestGroups)))
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 	}
 
@@ -240,7 +240,7 @@ func runTests() {
 			}
 		}
 		if !cfg.Silent {
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 	}
 
@@ -350,7 +350,7 @@ func runTests() {
 
 	if totalTargets > 1 && !cfg.Silent {
 		ui.PrintSection(fmt.Sprintf("Multi-Target Mode: Testing %d targets", totalTargets))
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	for targetIdx, currentTarget := range targets {
@@ -359,7 +359,7 @@ func runTests() {
 
 		if totalTargets > 1 && !cfg.Silent {
 			ui.PrintSection(fmt.Sprintf("Target %d/%d: %s", targetIdx+1, totalTargets, currentTarget))
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 
 		// Create output writer with verbose, timestamp, and silent options
@@ -405,7 +405,7 @@ func runTests() {
 		// Print section header
 		if !cfg.Silent {
 			ui.PrintSection("Executing Tests")
-			fmt.Printf("\n  %s Running with %s parallel workers @ %s req/sec max\n\n",
+			fmt.Fprintf(os.Stderr, "\n  %s Running with %s parallel workers @ %s req/sec max\n\n",
 				ui.SpinnerStyle.Render(">>>"),
 				ui.StatValueStyle.Render(fmt.Sprintf("%d", cfg.Concurrency)),
 				ui.StatValueStyle.Render(fmt.Sprintf("%d", cfg.RateLimit)),

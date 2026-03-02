@@ -154,7 +154,7 @@ func runGRPCList(ctx context.Context, client *grpc.Client, jsonOutput bool) {
 
 	ui.PrintSection("Available Services")
 	for _, svc := range services {
-		fmt.Printf("  %s %s\n", ui.Icon("•", "-"), svc)
+		fmt.Fprintf(os.Stderr, "  %s %s\n", ui.Icon("•", "-"), svc)
 	}
 	fmt.Fprintln(os.Stderr)
 	ui.PrintSuccess(fmt.Sprintf("Found %d services", len(services)))
@@ -190,9 +190,9 @@ func runGRPCDescribe(ctx context.Context, client *grpc.Client, serviceName strin
 			streamInfo = " [server stream]"
 		}
 
-		fmt.Printf("  %s%s\n", method.Name, streamInfo)
-		fmt.Printf("    Input:  %s\n", method.InputType)
-		fmt.Printf("    Output: %s\n", method.OutputType)
+		fmt.Fprintf(os.Stderr, "  %s%s\n", method.Name, streamInfo)
+		fmt.Fprintf(os.Stderr, "    Input:  %s\n", method.InputType)
+		fmt.Fprintf(os.Stderr, "    Output: %s\n", method.OutputType)
 		fmt.Fprintln(os.Stderr)
 	}
 
