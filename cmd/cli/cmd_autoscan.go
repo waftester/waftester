@@ -1188,7 +1188,7 @@ func runAutoScan() {
 			case <-ctx.Done():
 			case <-time.After(50 * time.Millisecond):
 			}
-			if !quietMode && ui.StderrIsTerminal() {
+			if !cfg.Out.StreamMode && !quietMode && ui.StderrIsTerminal() {
 				fmt.Fprintf(os.Stderr, "\033[2A\033[J")
 			}
 		}
@@ -1494,8 +1494,13 @@ func runAutoScan() {
 				fmt.Fprintln(os.Stderr)
 			} // end if !cfg.Out.StreamMode
 
+			// Phase-level timeout: 5 minutes max for all param discovery
+			phaseCtx, phaseCancel := context.WithTimeout(ctx, 5*time.Minute)
 			for _, endpoint := range testEndpoints {
-				result, err := paramDiscoverer.Discover(ctx, endpoint)
+				// Per-endpoint timeout: 30s max per endpoint
+				epCtx, epCancel := context.WithTimeout(phaseCtx, 30*time.Second)
+				result, err := paramDiscoverer.Discover(epCtx, endpoint)
+				epCancel()
 				if err != nil {
 					if cfg.Common.Verbose && !quietMode {
 						fmt.Fprintln(os.Stderr)
@@ -1508,6 +1513,7 @@ func runAutoScan() {
 				atomic.AddInt32(&paramsFoundCount, int32(len(result.Parameters)))
 				atomic.AddInt32(&paramCompleted, 1)
 			}
+			phaseCancel()
 
 			// Stop progress display
 			close(paramProgressDone)
@@ -1515,7 +1521,7 @@ func runAutoScan() {
 			case <-ctx.Done():
 			case <-time.After(50 * time.Millisecond):
 			}
-			if !quietMode && ui.StderrIsTerminal() {
+			if !cfg.Out.StreamMode && !quietMode && ui.StderrIsTerminal() {
 				fmt.Fprintf(os.Stderr, "\033[2A\033[J")
 			}
 
@@ -3985,7 +3991,7 @@ func runAutoScan() {
 		if marshalErr != nil {
 			ui.PrintError(fmt.Sprintf("Failed to marshal JSON summary: %v", marshalErr))
 		} else {
-			fmt.Println(string(jsonBytes)) // debug:keep
+			fmt.Println(string(jsonBytes))
 		}
 	}
 
