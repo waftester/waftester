@@ -251,7 +251,7 @@ func (r *RateLimiter) Wait(ctx context.Context) error {
 			if r.tokens > r.maxTokens {
 				r.tokens = r.maxTokens
 			}
-			r.lastRefill = time.Now()
+			r.lastRefill = r.lastRefill.Add(time.Duration(refillCount) * r.refillRate)
 		}
 
 		if r.tokens > 0 {

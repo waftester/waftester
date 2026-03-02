@@ -103,6 +103,12 @@ func (c *CrtshClient) FetchIPs(ctx context.Context, domain string) ([]Result, er
 		return nil, err
 	}
 
+	// Cap DNS resolution to avoid unbounded queries for popular domains
+	const maxResolve = 200
+	if len(subdomains) > maxResolve {
+		subdomains = subdomains[:maxResolve]
+	}
+
 	var results []Result
 	seen := make(map[string]bool)
 
