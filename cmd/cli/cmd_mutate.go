@@ -286,7 +286,7 @@ func runMutate() {
 		shown := 0
 		for _, task := range tasks {
 			if shown >= 20 {
-				fmt.Printf("  ... and %d more\n", len(tasks)-20)
+				fmt.Fprintf(os.Stderr, "  ... and %d more\n", len(tasks)-20)
 				break
 			}
 			evasion := ""
@@ -297,7 +297,7 @@ func runMutate() {
 			if mutRunes := []rune(displayMutated); len(mutRunes) > 50 {
 				displayMutated = string(mutRunes[:50])
 			}
-			fmt.Printf("  [%s] [%s]%s: %s...\n",
+			fmt.Fprintf(os.Stderr, "  [%s] [%s]%s: %s...\n",
 				task.EncodedPayload.MutatorName,
 				task.Location.MutatorName,
 				evasion,
