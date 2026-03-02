@@ -115,8 +115,10 @@ type Executor struct {
 	detector      *detection.Detector      // Connection drop and silent ban detection (v2.5.2)
 }
 
-// NewExecutor creates a new mutation executor
-func NewExecutor(config *ExecutorConfig) *Executor {
+// NewExecutor creates a new mutation executor.
+// ctx is used as the parent for any startup network calls (e.g. auto-calibration)
+// so they respect SIGINT/SIGTERM. Pass context.Background() if no signal context is available.
+func NewExecutor(ctx context.Context, config *ExecutorConfig) *Executor {
 	if config == nil {
 		config = DefaultExecutorConfig()
 	}
@@ -137,8 +139,8 @@ func NewExecutor(config *ExecutorConfig) *Executor {
 		// Auto-calibrate if requested
 		if config.AutoCalibrate && config.TargetURL != "" {
 			calibrator := realistic.NewCalibrator(config.TargetURL)
-			ctx, cancel := context.WithTimeout(context.Background(), duration.ContextShort)
-			result, err := calibrator.Calibrate(ctx)
+			calCtx, cancel := context.WithTimeout(ctx, duration.ContextShort)
+			result, err := calibrator.Calibrate(calCtx)
 			cancel()
 			if err == nil && result.Success {
 				exec.blockDetector.Baseline = calibrator.Detector.Baseline
@@ -461,9 +463,17 @@ func (e *Executor) executeTask(ctx context.Context, task MutationTask) *TestResu
 				result.ResponseHeaders[k] = v[0]
 			}
 		}
-		// First 200 chars of response
+		// First 200 runes of response
 		if len(bodyBytes) > 200 {
-			result.ResponseSnippet = string([]rune(string(bodyBytes[:300]))[:200])
+			upper := len(bodyBytes)
+			if upper > 300 {
+				upper = 300
+			}
+			runes := []rune(string(bodyBytes[:upper]))
+			if len(runes) > 200 {
+				runes = runes[:200]
+			}
+			result.ResponseSnippet = string(runes)
 		} else {
 			result.ResponseSnippet = string(bodyBytes)
 		}

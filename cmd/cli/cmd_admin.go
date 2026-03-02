@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -9,6 +8,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/apispec"
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/report"
@@ -49,7 +49,7 @@ func runValidate() {
 	ui.PrintSection("Payload Validation")
 	ui.PrintConfigLine("Payload Dir", *payloadDir)
 	ui.PrintConfigLine("Fail Fast", fmt.Sprintf("%v", *failFast))
-	fmt.Println() // debug:keep
+	fmt.Fprintln(os.Stderr)
 
 	// Initialize dispatcher for hooks
 	validateOutputFlags := OutputFlags{
@@ -68,7 +68,8 @@ func runValidate() {
 		defer validateDispCtx.Close()
 	}
 	validateStartTime := time.Now()
-	validateCtx := context.Background()
+	validateCtx, validateCtxCancel := cli.SignalContext(30 * time.Second)
+	defer validateCtxCancel()
 
 	// Emit start event for scan lifecycle hooks
 	if validateDispCtx != nil {
@@ -79,7 +80,6 @@ func runValidate() {
 	if err != nil {
 		if validateDispCtx != nil {
 			_ = validateDispCtx.EmitError(validateCtx, "validate", fmt.Sprintf("Validation error: %v", err), true)
-			_ = validateDispCtx.Close()
 		}
 		ui.PrintError(fmt.Sprintf("Validation error: %v", err))
 		os.Exit(1)
@@ -126,7 +126,7 @@ func runValidateSpec(specPath, specURL string, allowInternal, verbose bool, outp
 		source = specURL
 	}
 	ui.PrintConfigLine("Spec", source)
-	fmt.Println() // debug:keep
+	fmt.Fprintln(os.Stderr)
 
 	result, err := apispec.ValidateSpec(source, allowInternal)
 	if err != nil {
@@ -154,7 +154,7 @@ func runValidateSpec(specPath, specURL string, allowInternal, verbose bool, outp
 
 	// Print spec summary if parsed successfully.
 	if result.Spec != nil {
-		fmt.Println() // debug:keep
+		fmt.Fprintln(os.Stderr)
 		ui.PrintConfigLine("Format", string(result.Spec.Format))
 		ui.PrintConfigLine("Title", result.Spec.Title)
 		if result.Spec.Version != "" {
@@ -166,7 +166,7 @@ func runValidateSpec(specPath, specURL string, allowInternal, verbose bool, outp
 		}
 
 		if verbose {
-			fmt.Println() // debug:keep
+			fmt.Fprintln(os.Stderr)
 			for _, ep := range result.Spec.Endpoints {
 				fmt.Fprintf(os.Stderr, "  %s %s", ep.Method, ep.Path)
 				if len(ep.Parameters) > 0 {
@@ -186,7 +186,7 @@ func runValidateSpec(specPath, specURL string, allowInternal, verbose bool, outp
 		}
 	}
 
-	fmt.Println() // debug:keep
+	fmt.Fprintln(os.Stderr)
 	if result.Valid {
 		ui.PrintSuccess(fmt.Sprintf("Spec validation passed (%d warnings)", len(result.Warnings)))
 	} else {
@@ -216,7 +216,7 @@ func runValidateTemplates() {
 
 	ui.PrintConfigLine("Template Dir", *templateDir)
 	ui.PrintConfigLine("Strict Mode", fmt.Sprintf("%v", *strict))
-	fmt.Println() // debug:keep
+	fmt.Fprintln(os.Stderr)
 
 	// Initialize dispatcher for hooks
 	vtOutputFlags := OutputFlags{
@@ -235,7 +235,8 @@ func runValidateTemplates() {
 		defer vtDispCtx.Close()
 	}
 	vtStartTime := time.Now()
-	vtCtx := context.Background()
+	vtCtx, vtCtxCancel := cli.SignalContext(30 * time.Second)
+	defer vtCtxCancel()
 
 	// Emit start event for scan lifecycle hooks
 	if vtDispCtx != nil {
@@ -265,13 +266,13 @@ func runValidateTemplates() {
 	ui.PrintConfigLine("Invalid", fmt.Sprintf("%d", summary.InvalidFiles))
 	ui.PrintConfigLine("Total Errors", fmt.Sprintf("%d", summary.TotalErrors))
 	ui.PrintConfigLine("Total Warnings", fmt.Sprintf("%d", summary.TotalWarnings))
-	fmt.Println() // debug:keep
+	fmt.Fprintln(os.Stderr)
 
 	// Print detailed results if verbose
 	if *verbose {
 		for _, result := range summary.Results {
 			if !result.Valid || len(result.Warnings) > 0 {
-				fmt.Printf("\n%s\n", result.File) // debug:keep
+				fmt.Fprintf(os.Stderr, "\n%s\n", result.File)
 				for _, e := range result.Errors {
 					ui.PrintError(fmt.Sprintf("  ERROR: %s", e))
 				}
@@ -353,13 +354,13 @@ func runEnterpriseReport() {
 	// Validate workspace directory
 	if *workspaceDir == "" {
 		ui.PrintError("Workspace directory is required. Use -workspace <path>")
-		fmt.Println()                                                                                    // debug:keep
-		fmt.Println("Usage: waf-tester report -workspace <path> [-output <file>] [-target <name>]")      // debug:keep
-		fmt.Println()                                                                                    // debug:keep
-		fmt.Println("Options:")                                                                          // debug:keep
-		fmt.Println("  -workspace <path>  Path to workspace directory containing results.json")          // debug:keep
-		fmt.Println("  -output <file>     Output HTML file (default: workspace/enterprise-report.html)") // debug:keep
-		fmt.Println("  -target <name>     Target name for report header")                                // debug:keep
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Usage: waf-tester report -workspace <path> [-output <file>] [-target <name>]")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Options:")
+		fmt.Fprintln(os.Stderr, "  -workspace <path>  Path to workspace directory containing results.json")
+		fmt.Fprintln(os.Stderr, "  -output <file>     Output HTML file (default: workspace/enterprise-report.html)")
+		fmt.Fprintln(os.Stderr, "  -target <name>     Target name for report header")
 		os.Exit(1)
 	}
 
@@ -395,7 +396,7 @@ func runEnterpriseReport() {
 	ui.PrintConfigLine("Workspace", *workspaceDir)
 	ui.PrintConfigLine("Target", target)
 	ui.PrintConfigLine("Output", output)
-	fmt.Println() // debug:keep
+	fmt.Fprintln(os.Stderr)
 
 	// Initialize dispatcher for hooks
 	reportOutputFlags := OutputFlags{
@@ -414,7 +415,8 @@ func runEnterpriseReport() {
 		defer reportDispCtx.Close()
 	}
 	reportStartTime := time.Now()
-	reportCtx := context.Background()
+	reportCtx, reportCtxCancel := cli.SignalContext(30 * time.Second)
+	defer reportCtxCancel()
 
 	// Emit start event for scan lifecycle hooks
 	if reportDispCtx != nil {
@@ -427,7 +429,6 @@ func runEnterpriseReport() {
 		if reportDispCtx != nil {
 			_ = reportDispCtx.EmitBypass(reportCtx, "report-generation-failure", "medium", target, err.Error(), 0)
 			_ = reportDispCtx.EmitSummary(reportCtx, 1, 0, 1, time.Since(reportStartTime))
-			_ = reportDispCtx.Close()
 		}
 		ui.PrintError(fmt.Sprintf("Report generation failed: %v", err))
 		os.Exit(1)
@@ -466,7 +467,7 @@ func runUpdate() {
 	ui.PrintConfigLine("Payload Dir", *payloadDir)
 	ui.PrintConfigLine("Dry Run", fmt.Sprintf("%v", *dryRun))
 	ui.PrintConfigLine("Auto Apply", fmt.Sprintf("%v", *autoApply))
-	fmt.Println() // debug:keep
+	fmt.Fprintln(os.Stderr)
 
 	// Initialize dispatcher for hooks
 	updateOutputFlags := OutputFlags{
@@ -485,7 +486,8 @@ func runUpdate() {
 		defer updateDispCtx.Close()
 	}
 	updateStartTime := time.Now()
-	updateCtx := context.Background()
+	updateCtx, updateCtxCancel := cli.SignalContext(30 * time.Second)
+	defer updateCtxCancel()
 
 	// Emit start event for scan lifecycle hooks
 	if updateDispCtx != nil {

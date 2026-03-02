@@ -8,6 +8,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/discovery"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/input"
@@ -40,6 +41,17 @@ func runDiscover() {
 	discoverWebhook := discoverFlags.String("webhook-url", "", "Generic webhook URL")
 
 	discoverFlags.Parse(os.Args[2:])
+
+	// Validate numeric flags
+	if *concurrency < 1 {
+		exitWithError("--concurrency must be at least 1, got %d", *concurrency)
+	}
+	if *timeout < 1 {
+		exitWithError("--timeout must be at least 1, got %d", *timeout)
+	}
+	if *maxDepth < 1 {
+		exitWithError("--depth must be at least 1, got %d", *maxDepth)
+	}
 
 	// Collect targets using shared TargetSource
 	ts := &input.TargetSource{
@@ -75,9 +87,12 @@ func runDiscover() {
 	if discoverDispErr != nil {
 		ui.PrintWarning(fmt.Sprintf("Dispatcher warning: %v", discoverDispErr))
 	}
+	sigCtx, sigCancel := cli.SignalContext(30 * time.Second)
+	defer sigCancel()
+
 	if discoverDispCtx != nil {
 		defer discoverDispCtx.Close()
-		_ = discoverDispCtx.EmitStart(context.Background(), target, 0, *concurrency, nil)
+		_ = discoverDispCtx.EmitStart(sigCtx, target, 0, *concurrency, nil)
 	}
 
 	// Create discoverer
@@ -93,7 +108,7 @@ func runDiscover() {
 	discoverer := discovery.NewDiscoverer(cfg)
 
 	// Setup context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), duration.ContextMedium)
+	ctx, cancel := context.WithTimeout(sigCtx, duration.ContextMedium)
 	defer cancel()
 
 	// Run discovery
@@ -106,7 +121,6 @@ func runDiscover() {
 		ui.PrintError(errMsg)
 		if discoverDispCtx != nil {
 			_ = discoverDispCtx.EmitError(ctx, "discover", errMsg, true)
-			_ = discoverDispCtx.Close()
 		}
 		os.Exit(1)
 	}
@@ -123,7 +137,7 @@ func runDiscover() {
 	fmt.Fprintln(os.Stderr)
 
 	// Emit security findings to hooks in real-time
-	discoverCtx := context.Background()
+	discoverCtx := sigCtx
 	if discoverDispCtx != nil {
 		// Emit WAF detection
 		if result.WAFDetected {

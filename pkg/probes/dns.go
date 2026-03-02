@@ -211,15 +211,15 @@ func (d *DNSProber) lookupASN(ctx context.Context, resolver *net.Resolver, ip st
 	return asn
 }
 
-// ResolveIP is a simple IP resolution helper
-func ResolveIP(host string) ([]string, error) {
-	ips, err := net.LookupIP(host)
+// ResolveIP resolves IPs for a host using the given context for cancellation.
+func ResolveIP(ctx context.Context, host string) ([]string, error) {
+	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
 	if err != nil {
 		return nil, err
 	}
 	var result []string
 	for _, ip := range ips {
-		result = append(result, ip.String())
+		result = append(result, ip.IP.String())
 	}
 	return result, nil
 }

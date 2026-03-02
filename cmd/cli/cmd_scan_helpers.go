@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"strings"
@@ -92,17 +93,17 @@ func detectTechStack(resp *http.Response, body []byte) []string {
 }
 
 // performDNSRecon performs DNS reconnaissance on a domain and returns findings.
-func performDNSRecon(domain string) *DNSReconResult {
+func performDNSRecon(ctx context.Context, domain string) *DNSReconResult {
 	result := &DNSReconResult{}
 
 	// Resolve CNAME chain
-	cnames, err := net.LookupCNAME(domain)
+	cnames, err := net.DefaultResolver.LookupCNAME(ctx, domain)
 	if err == nil && cnames != "" && cnames != domain+"." {
 		result.CNAMEs = []string{strings.TrimSuffix(cnames, ".")}
 	}
 
 	// MX Records
-	mxRecords, err := net.LookupMX(domain)
+	mxRecords, err := net.DefaultResolver.LookupMX(ctx, domain)
 	if err == nil {
 		for _, mx := range mxRecords {
 			result.MXRecords = append(result.MXRecords, mx.Host)
@@ -110,13 +111,13 @@ func performDNSRecon(domain string) *DNSReconResult {
 	}
 
 	// TXT Records
-	txtRecords, err := net.LookupTXT(domain)
+	txtRecords, err := net.DefaultResolver.LookupTXT(ctx, domain)
 	if err == nil {
 		result.TXTRecords = txtRecords
 	}
 
 	// NS Records
-	nsRecords, err := net.LookupNS(domain)
+	nsRecords, err := net.DefaultResolver.LookupNS(ctx, domain)
 	if err == nil {
 		for _, ns := range nsRecords {
 			result.NSRecords = append(result.NSRecords, ns.Host)

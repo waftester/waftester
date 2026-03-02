@@ -211,6 +211,38 @@ func TestLiveProgressGetElapsed(t *testing.T) {
 	}
 }
 
+func TestLiveProgressSetMetric(t *testing.T) {
+	cfg := LiveProgressConfig{
+		Mode: OutputModeSilent,
+		Metrics: []MetricConfig{
+			{Name: "requests", Label: "Reqs", Icon: ">"},
+			{Name: "vulns", Label: "Vulns", Icon: "!"},
+		},
+	}
+
+	p := NewLiveProgress(cfg)
+
+	// SetMetric should set the value directly (not increment)
+	p.SetMetric("requests", 42)
+	if got := p.GetMetric("requests"); got != 42 {
+		t.Errorf("SetMetric(requests, 42): got %d, want 42", got)
+	}
+
+	// Overwrite with a new value
+	p.SetMetric("requests", 100)
+	if got := p.GetMetric("requests"); got != 100 {
+		t.Errorf("SetMetric(requests, 100): got %d, want 100", got)
+	}
+
+	// Other metrics should be unaffected
+	if got := p.GetMetric("vulns"); got != 0 {
+		t.Errorf("vulns should be 0, got %d", got)
+	}
+
+	// Setting a non-existent metric should not panic
+	p.SetMetric("nonexistent", 99)
+}
+
 func TestLiveProgressRateSource(t *testing.T) {
 	var buf bytes.Buffer
 	var reqCount int64

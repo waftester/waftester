@@ -83,8 +83,8 @@ func readLines(path string) ([]string, error) {
 }
 
 func readStdin() ([]string, error) {
-	stat, _ := os.Stdin.Stat()
-	if (stat.Mode() & os.ModeCharDevice) != 0 {
+	stat, err := os.Stdin.Stat()
+	if err != nil || (stat.Mode()&os.ModeCharDevice) != 0 {
 		// Not a pipe, return empty
 		return nil, nil
 	}

@@ -48,7 +48,9 @@ func runFuzz() {
 
 	// Execution
 	concurrency := fuzzFlags.Int("t", 40, "Number of concurrent threads")
+	fuzzFlags.IntVar(concurrency, "c", 40, "Number of concurrent threads (alias)")
 	rateLimit := fuzzFlags.Int("rate", 100, "Requests per second")
+	fuzzFlags.IntVar(rateLimit, "rl", 100, "Requests per second (alias)")
 	timeout := fuzzFlags.Int("timeout", 10, "Request timeout in seconds")
 	followRedirects := fuzzFlags.Bool("r", false, "Follow redirects")
 	skipVerify := fuzzFlags.Bool("k", false, "Skip TLS verification")
@@ -102,47 +104,14 @@ func runFuzz() {
 	wordlistPrefix := fuzzFlags.String("wprefix", "", "Add prefix to each word")
 	wordlistSuffix := fuzzFlags.String("wsuffix", "", "Add suffix to each word")
 
-	// Recursion options
-	recursion := fuzzFlags.Bool("recursion", false, "Enable recursive fuzzing")
-	recursionDepth := fuzzFlags.Int("recursion-depth", 2, "Max recursion depth")
-	fuzzFlags.IntVar(recursionDepth, "rd", 2, "Recursion depth (alias)")
-
-	// Sniper/clusterbomb modes
-	fuzzMode := fuzzFlags.String("mode", "sniper", "Fuzzing mode: sniper, pitchfork, clusterbomb")
-	fuzzPosition := fuzzFlags.String("fuzz-position", "", "Position to fuzz: url, header, body, cookie")
-	fuzzFlags.StringVar(fuzzPosition, "fp", "", "Fuzz position (alias)")
-
-	// Response analysis
-	extractRegex := fuzzFlags.String("extract", "", "Extract matching content (regex)")
-	fuzzFlags.StringVar(extractRegex, "er", "", "Extract regex (alias)")
-	extractPreset := fuzzFlags.String("extract-preset", "", "Extract preset: emails, urls, ips, secrets")
-	fuzzFlags.StringVar(extractPreset, "epr", "", "Extract preset (alias)")
-
-	// Store responses
-	storeResponse := fuzzFlags.Bool("sr", false, "Store HTTP responses to directory")
-	fuzzFlags.BoolVar(storeResponse, "store-response", false, "Store response (alias)")
-	storeResponseDir := fuzzFlags.String("srd", "./responses", "Directory for stored responses")
-	fuzzFlags.StringVar(storeResponseDir, "store-response-dir", "./responses", "Store response dir (alias)")
-	storeOnlyMatches := fuzzFlags.Bool("som", false, "Store only matching responses")
-	fuzzFlags.BoolVar(storeOnlyMatches, "store-only-matches", false, "Store only matches (alias)")
-
 	// Network options
 	proxy := fuzzFlags.String("proxy", "", "HTTP/SOCKS5 proxy URL")
 	fuzzFlags.StringVar(proxy, "x", "", "Proxy (alias)")
-	retries := fuzzFlags.Int("retries", 0, "Number of retries on failure")
-	delay := fuzzFlags.Duration("delay", 0, "Delay between requests")
-	jitter := fuzzFlags.Duration("jitter", 0, "Random jitter for delay")
 
 	// Debug
 	debug := fuzzFlags.Bool("debug", false, "Debug mode - show request/response")
-	debugRequest := fuzzFlags.Bool("debug-request", false, "Show request content")
-	fuzzFlags.BoolVar(debugRequest, "dreq", false, "Debug request (alias)")
-	debugResponse := fuzzFlags.Bool("debug-response", false, "Show response content")
-	fuzzFlags.BoolVar(debugResponse, "dresp", false, "Debug response (alias)")
 
 	// Auto-calibration options
-	calibrationWords := fuzzFlags.String("calibration-words", "", "Specific words for baseline (comma-separated)")
-	fuzzFlags.StringVar(calibrationWords, "cw", "", "Calibration words (alias)")
 
 	// Enterprise output flags (unified with other commands)
 	var outputFlags OutputFlags
@@ -164,6 +133,17 @@ func runFuzz() {
 
 	fuzzFlags.Parse(os.Args[2:])
 
+	// Validate numeric flags
+	if *concurrency < 1 {
+		exitWithError("--concurrency (-t) must be at least 1, got %d", *concurrency)
+	}
+	if *rateLimit < 1 {
+		exitWithError("--rate-limit (--rate/--rl) must be at least 1, got %d", *rateLimit)
+	}
+	if *timeout < 1 {
+		exitWithError("--timeout must be at least 1, got %d", *timeout)
+	}
+
 	// Disable detection if requested
 	if *noDetect {
 		detection.Disable()
@@ -177,7 +157,7 @@ func runFuzz() {
 	outputFlags.ApplyUISettings()
 
 	// Apply debug mode output
-	if *debug || *debugRequest || *debugResponse {
+	if *debug {
 		ui.PrintInfo("Debug mode enabled")
 	}
 
@@ -209,7 +189,9 @@ func runFuzz() {
 		}
 		if urlutil.IsHTTPURL(*wordlist) {
 			// Download wordlist with timeout
-			dlCtx, dlCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			dlSigCtx, dlSigCancel := cli.SignalContext(30 * time.Second)
+			defer dlSigCancel()
+			dlCtx, dlCancel := context.WithTimeout(dlSigCtx, 30*time.Second)
 			defer dlCancel()
 			req, reqErr := http.NewRequestWithContext(dlCtx, http.MethodGet, *wordlist, nil)
 			if reqErr != nil {
@@ -265,7 +247,11 @@ func runFuzz() {
 	}
 
 	// Apply wordlist transformations
-	if *wordlistSkip > 0 && *wordlistSkip < len(words) {
+	if *wordlistSkip > 0 {
+		if *wordlistSkip >= len(words) {
+			ui.PrintError(fmt.Sprintf("Skip value %d >= wordlist size %d, no words remaining", *wordlistSkip, len(words)))
+			os.Exit(1)
+		}
 		words = words[*wordlistSkip:]
 	}
 	if *wordlistMax > 0 && *wordlistMax < len(words) {
@@ -370,10 +356,10 @@ func runFuzz() {
 			userSetRL := false
 			userSetConc := false
 			fuzzFlags.Visit(func(f *flag.Flag) {
-				if f.Name == "rate" {
+				if f.Name == "rate" || f.Name == "rl" {
 					userSetRL = true
 				}
-				if f.Name == "t" {
+				if f.Name == "t" || f.Name == "c" {
 					userSetConc = true
 				}
 			})
@@ -482,38 +468,27 @@ func runFuzz() {
 			Concurrency: *concurrency,
 			Timeout:     time.Duration(*timeout) * time.Second,
 		},
-		RateLimit:      *rateLimit,
-		SkipVerify:     *skipVerify,
-		Method:         *method,
-		Headers:        headers,
-		Data:           *data,
-		Cookies:        *cookies,
-		FollowRedir:    *followRedirects,
-		Extensions:     exts,
-		MatchStatus:    parseIntList(*matchStatus),
-		MatchSize:      parseIntList(*matchSize),
-		MatchWords:     parseIntList(*matchWords),
-		MatchLines:     parseIntList(*matchLines),
-		MatchRegex:     matchRe,
-		FilterStatus:   parseIntList(*filterStatus),
-		FilterSize:     parseIntList(*filterSize),
-		FilterWords:    parseIntList(*filterWords),
-		FilterLines:    parseIntList(*filterLines),
-		FilterRegex:    filterRe,
-		Recursive:      *recursion,
-		RecursionDepth: *recursionDepth,
-		Proxy:          *proxy,
-		Retries:        *retries,
-		Delay:          *delay,
-		Jitter:         *jitter,
-		Debug:          *debug,
-		Verbose:        *verbose,
-		StoreResponses: *storeResponse,
-		StoreDir:       *storeResponseDir,
-		StoreMatches:   *storeOnlyMatches,
-		Mode:           *fuzzMode,
-		ExtractRegex:   *extractRegex,
-		ExtractPreset:  *extractPreset,
+		RateLimit:    *rateLimit,
+		SkipVerify:   *skipVerify,
+		Method:       *method,
+		Headers:      headers,
+		Data:         *data,
+		Cookies:      *cookies,
+		FollowRedir:  *followRedirects,
+		Extensions:   exts,
+		MatchStatus:  parseIntList(*matchStatus),
+		MatchSize:    parseIntList(*matchSize),
+		MatchWords:   parseIntList(*matchWords),
+		MatchLines:   parseIntList(*matchLines),
+		MatchRegex:   matchRe,
+		FilterStatus: parseIntList(*filterStatus),
+		FilterSize:   parseIntList(*filterSize),
+		FilterWords:  parseIntList(*filterWords),
+		FilterLines:  parseIntList(*filterLines),
+		FilterRegex:  filterRe,
+		Proxy:        *proxy,
+		Debug:        *debug,
+		Verbose:      *verbose,
 	}
 
 	// Wire tamper engine into fuzz config (nil-safe: only set if engine was created)
@@ -540,7 +515,7 @@ func runFuzz() {
 	if !*silent && !*jsonOutput {
 		if *streamMode {
 			// Streaming mode: simple line output
-			fmt.Printf("[INFO] Starting fuzz: target=%s words=%d concurrency=%d rate=%d\n",
+			fmt.Fprintf(os.Stderr, "[INFO] Starting fuzz: target=%s words=%d concurrency=%d rate=%d\n",
 				targetURL, len(words), *concurrency, *rateLimit)
 		} else {
 			// Interactive mode: full manifest
@@ -608,7 +583,7 @@ func runFuzz() {
 			ui.PrintConfigLine("Baseline", fmt.Sprintf("Status=%d Size=%d Words=%d Lines=%d",
 				calibration.BaselineStatus, calibration.BaselineSize,
 				calibration.BaselineWords, calibration.BaselineLines))
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 	}
 
@@ -620,7 +595,7 @@ func runFuzz() {
 	var totalReqs, matchCount int64
 	totalWords := len(words)
 	if len(cfg.Extensions) > 0 {
-		totalWords = len(words) * len(cfg.Extensions)
+		totalWords = len(words) * (len(cfg.Extensions) + 1)
 	}
 
 	// Use unified LiveProgress for progress display
@@ -695,7 +670,7 @@ func runFuzz() {
 			// Include timestamp prefix if requested
 			if *timestamp {
 				ts := time.Now().Format("15:04:05")
-				fmt.Printf("[%s] %s %-50s [%s] [%s] [%s] [%s]\n",
+				fmt.Fprintf(os.Stderr, "[%s] %s %-50s [%s] [%s] [%s] [%s]\n",
 					ts,
 					statusColor.Render(fmt.Sprintf("%d", result.StatusCode)),
 					result.Input,
@@ -705,7 +680,7 @@ func runFuzz() {
 					ui.ConfigValueStyle.Render(result.ResponseTime.Round(time.Millisecond).String()),
 				)
 			} else {
-				fmt.Printf("%s %-50s [%s] [%s] [%s] [%s]\n",
+				fmt.Fprintf(os.Stderr, "%s %-50s [%s] [%s] [%s] [%s]\n",
 					statusColor.Render(fmt.Sprintf("%d", result.StatusCode)),
 					result.Input,
 					ui.ConfigValueStyle.Render(fmt.Sprintf("%d B", result.ContentLength)),
@@ -724,7 +699,7 @@ func runFuzz() {
 
 	// Print summary
 	if !*silent && !*jsonOutput && !*csvFuzz && !*markdownFuzz && !*htmlFuzz {
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 		ui.PrintSection("Summary")
 		ui.PrintConfigLine("Total Requests", fmt.Sprintf("%d", stats.TotalRequests))
 		ui.PrintConfigLine("Matches", fmt.Sprintf("%d", stats.Matches))
@@ -732,7 +707,7 @@ func runFuzz() {
 		ui.PrintConfigLine("Errors", fmt.Sprintf("%d", stats.Errors))
 		ui.PrintConfigLine("Duration", duration.Round(time.Millisecond).String())
 		ui.PrintConfigLine("Requests/sec", fmt.Sprintf("%.2f", stats.RequestsPerSec))
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Enterprise file exports (--json-export, --sarif-export, etc.)
@@ -824,7 +799,7 @@ func runFuzz() {
 			errMsg := fmt.Sprintf("JSON encoding error: %v", err)
 			ui.PrintError(errMsg)
 			if fuzzDispCtx != nil {
-				_ = fuzzDispCtx.EmitError(context.Background(), "fuzz", errMsg, true)
+				_ = fuzzDispCtx.EmitError(ctx, "fuzz", errMsg, true)
 				_ = fuzzDispCtx.Close()
 			}
 			os.Exit(1)
@@ -835,7 +810,7 @@ func runFuzz() {
 				errMsg := fmt.Sprintf("Error writing output: %v", err)
 				ui.PrintError(errMsg)
 				if fuzzDispCtx != nil {
-					_ = fuzzDispCtx.EmitError(context.Background(), "fuzz", errMsg, true)
+					_ = fuzzDispCtx.EmitError(ctx, "fuzz", errMsg, true)
 					_ = fuzzDispCtx.Close()
 				}
 				os.Exit(1)

@@ -171,4 +171,11 @@ func (cfg *autoscanConfig) validate() {
 	if cfg.Common.Timeout <= 0 {
 		exitWithError("--timeout must be a positive integer")
 	}
+	switch *cfg.SpecIntensity {
+	case "quick", "normal", "deep", "paranoid":
+		// valid
+	default:
+		exitWithError("--intensity must be one of: quick, normal, deep, paranoid; got %q", *cfg.SpecIntensity)
+	}
+	cfg.Smart.Validate()
 }

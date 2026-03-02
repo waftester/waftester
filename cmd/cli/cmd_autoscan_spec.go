@@ -213,7 +213,7 @@ func runSpecPipeline(cfg specPipelineConfig) {
 			ui.PrintError(fmt.Sprintf("Failed to marshal dry-run output: %v", marshalErr))
 			os.Exit(1)
 		}
-		fmt.Println(string(data)) // debug:keep — JSON dry-run output
+		fmt.Println(string(data))
 		return
 	}
 
@@ -332,7 +332,7 @@ func runSpecPipeline(cfg specPipelineConfig) {
 	}
 
 	if cfg.outFlags.JSONMode {
-		fmt.Println(string(data)) // debug:keep — JSON result output
+		fmt.Println(string(data))
 	} else {
 		ui.PrintSuccess(fmt.Sprintf("Scan complete in %s", elapsed))
 		totalFindings := result.TotalFindings()

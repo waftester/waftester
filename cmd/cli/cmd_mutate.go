@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -85,6 +86,17 @@ func runMutate() {
 
 	mutateFlags.Parse(os.Args[2:])
 
+	// Validate numeric flags
+	if *concurrency < 1 {
+		exitWithError("--concurrency (-c) must be at least 1, got %d", *concurrency)
+	}
+	if *rateLimit <= 0 {
+		exitWithError("--rate-limit (--rl) must be positive, got %f", *rateLimit)
+	}
+	if *timeout < 1 {
+		exitWithError("--timeout must be at least 1, got %d", *timeout)
+	}
+
 	// Disable detection if requested
 	if *noDetect {
 		detection.Disable()
@@ -116,7 +128,7 @@ func runMutate() {
 	effectiveMode := *mode
 	if *smartMode && targetURL != "" {
 		ui.PrintSection("🧠 Smart Mode: WAF Detection & Optimization")
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 
 		smartModeValue := *smartModeType
 		if smartModeValue == "" {
@@ -172,7 +184,7 @@ func runMutate() {
 		}
 		ui.PrintInfo(fmt.Sprintf("📊 WAF-optimized: %d encoders, %d evasions, %.0f req/sec",
 			len(cfg.Pipeline.Encoders), len(cfg.Pipeline.Evasions), cfg.RateLimit))
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	} else {
 		// Configure pipeline based on mode (only if not using smart mode)
 		switch *mode {
@@ -184,6 +196,8 @@ func runMutate() {
 			cfg.Pipeline = mutation.FullCoveragePipelineConfig()
 		case "bypass":
 			cfg.Pipeline = mutation.BypassPipelineConfig()
+		default:
+			exitWithError("--mode must be one of: quick, standard, full, bypass; got %q", *mode)
 		}
 	} // End of else block for non-smart mode
 
@@ -206,7 +220,7 @@ func runMutate() {
 	ui.PrintConfigLine("Mode", effectiveMode)
 	ui.PrintConfigLine("Concurrency", fmt.Sprintf("%d", cfg.Concurrency))
 	ui.PrintConfigLine("Rate Limit", fmt.Sprintf("%.0f req/sec", cfg.RateLimit))
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Load payloads
 	var testPayloads []string
@@ -260,12 +274,12 @@ func runMutate() {
 	}
 
 	// Create executor
-	executor := mutation.NewExecutor(cfg)
+	executor := mutation.NewExecutor(ctx, cfg)
 
 	// Generate tasks
 	tasks := executor.GenerateTasks(testPayloads, nil)
 	ui.PrintConfigLine("Total Mutations", fmt.Sprintf("%d", len(tasks)))
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Dry run - just show what would be tested
 	if *dryRun {
@@ -273,7 +287,7 @@ func runMutate() {
 		shown := 0
 		for _, task := range tasks {
 			if shown >= 20 {
-				fmt.Printf("  ... and %d more\n", len(tasks)-20)
+				fmt.Fprintf(os.Stderr, "  ... and %d more\n", len(tasks)-20)
 				break
 			}
 			evasion := ""
@@ -284,7 +298,7 @@ func runMutate() {
 			if mutRunes := []rune(displayMutated); len(mutRunes) > 50 {
 				displayMutated = string(mutRunes[:50])
 			}
-			fmt.Printf("  [%s] [%s]%s: %s...\n",
+			fmt.Fprintf(os.Stderr, "  [%s] [%s]%s: %s...\n",
 				task.EncodedPayload.MutatorName,
 				task.Location.MutatorName,
 				evasion,
@@ -350,8 +364,8 @@ func runMutate() {
 	if smartResult != nil && smartResult.WAFDetected {
 		wafName = smartResult.VendorName
 	}
-	fmt.Printf("  Target: %s (%s)\n", targetURL, wafName)
-	fmt.Printf("  Mutations: %d | Mode: %s\n\n", len(tasks), effectiveMode)
+	fmt.Fprintf(os.Stderr, "  Target: %s (%s)\n", targetURL, wafName)
+	fmt.Fprintf(os.Stderr, "  Mutations: %d | Mode: %s\n\n", len(tasks), effectiveMode)
 
 	// Determine output mode for progress
 	outputMode := ui.DefaultOutputMode()
@@ -424,7 +438,9 @@ func runMutate() {
 
 		// Write to output file
 		if writer != nil {
-			writer.Encode(r)
+			if encErr := writer.Encode(r); encErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Error writing result to output file: %v", encErr))
+			}
 		}
 
 		// Verbose output
@@ -435,14 +451,14 @@ func runMutate() {
 			} else if r.ErrorMessage != "" {
 				status = "!"
 			}
-			fmt.Printf("  [%s] %s | %s | %s | %dms\n",
+			fmt.Fprintf(os.Stderr, "  [%s] %s | %s | %s | %dms\n",
 				status, r.EncoderUsed, r.LocationUsed, r.EvasionUsed, r.LatencyMs)
 		}
 	})
 
 	// Print final results with celebration or commiseration
-	fmt.Println()
-	fmt.Println("  " + ui.SanitizeString("═══════════════════════════════════════════════════════════"))
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "  "+ui.SanitizeString("═══════════════════════════════════════════════════════════"))
 
 	tty := ui.StdoutIsTerminal()
 	a := func(code string) string {
@@ -466,23 +482,23 @@ func runMutate() {
 		ui.Printf("  %s %sWAF held strong - no bypasses found%s\n", ui.Icon("🛡️", "#"), a("\033[1;36m"), a("\033[0m"))
 	}
 
-	fmt.Println("  " + ui.SanitizeString("═══════════════════════════════════════════════════════════"))
-	fmt.Println()
+	fmt.Fprintln(os.Stderr, "  "+ui.SanitizeString("═══════════════════════════════════════════════════════════"))
+	fmt.Fprintln(os.Stderr)
 
 	ui.Printf("  %s %sFinal Stats:%s\n", ui.Icon("📊", "#"), a("\033[1m"), a("\033[0m"))
 	bullet := ui.Icon("•", "-")
-	fmt.Printf("     %s Total Tests:   %d\n", bullet, stats.TotalTests)
+	fmt.Fprintf(os.Stderr, "     %s Total Tests:   %d\n", bullet, stats.TotalTests)
 	passRate, blockRate := float64(0), float64(0)
 	if stats.TotalTests > 0 {
 		passRate = float64(stats.Passed) / float64(stats.TotalTests) * 100
 		blockRate = float64(stats.Blocked) / float64(stats.TotalTests) * 100
 	}
-	fmt.Printf("     %s Bypasses:      %s%d%s (%.1f%%)\n", bullet, a("\033[32m"), stats.Passed, a("\033[0m"), passRate)
-	fmt.Printf("     %s Blocked:       %s%d%s (%.1f%%)\n", bullet, a("\033[31m"), stats.Blocked, a("\033[0m"), blockRate)
-	fmt.Printf("     %s Errors:        %d\n", bullet, stats.Errors)
-	fmt.Printf("     %s Duration:      %s\n", bullet, stats.Duration.Round(time.Millisecond))
-	fmt.Printf("     %s Throughput:    %.1f req/s\n", bullet, stats.RequestsPerSec)
-	fmt.Println()
+	fmt.Fprintf(os.Stderr, "     %s Bypasses:      %s%d%s (%.1f%%)\n", bullet, a("\033[32m"), stats.Passed, a("\033[0m"), passRate)
+	fmt.Fprintf(os.Stderr, "     %s Blocked:       %s%d%s (%.1f%%)\n", bullet, a("\033[31m"), stats.Blocked, a("\033[0m"), blockRate)
+	fmt.Fprintf(os.Stderr, "     %s Errors:        %d\n", bullet, stats.Errors)
+	fmt.Fprintf(os.Stderr, "     %s Duration:      %s\n", bullet, stats.Duration.Round(time.Millisecond))
+	fmt.Fprintf(os.Stderr, "     %s Throughput:    %.1f req/s\n", bullet, stats.RequestsPerSec)
+	fmt.Fprintln(os.Stderr)
 
 	// Top encoders if bypasses found
 	if stats.Passed > 0 && len(stats.ByEncoder) > 0 {
@@ -495,10 +511,10 @@ func runMutate() {
 		for _, enc := range encKeys {
 			count := stats.ByEncoder[enc]
 			if count > 0 {
-				fmt.Printf("     %s %-20s %d hits\n", ui.Icon("•", "-"), enc, count)
+				fmt.Fprintf(os.Stderr, "     %s %-20s %d hits\n", ui.Icon("•", "-"), enc, count)
 			}
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	if *outputFile != "" {
@@ -541,16 +557,16 @@ func sanitizeForDisplay(s string) string {
 func printMutationStats() {
 	ui.PrintSection("Mutation Registry Statistics")
 
-	// Create temporary executor to get stats
-	executor := mutation.NewExecutor(nil)
+	// Create temporary executor to get stats (no calibration, so Background is fine)
+	executor := mutation.NewExecutor(context.Background(), nil)
 	stats := executor.GetStats()
 
-	fmt.Printf("  Encoders:   %d registered\n", stats["encoders"])
-	fmt.Printf("  Locations:  %d registered\n", stats["locations"])
-	fmt.Printf("  Evasions:   %d registered\n", stats["evasions"])
-	fmt.Printf("  Protocols:  %d registered\n", stats["protocols"])
-	fmt.Printf("  Total:      %d mutators\n", stats["total"])
-	fmt.Println()
+	fmt.Fprintf(os.Stderr, "  Encoders:   %d registered\n", stats["encoders"])
+	fmt.Fprintf(os.Stderr, "  Locations:  %d registered\n", stats["locations"])
+	fmt.Fprintf(os.Stderr, "  Evasions:   %d registered\n", stats["evasions"])
+	fmt.Fprintf(os.Stderr, "  Protocols:  %d registered\n", stats["protocols"])
+	fmt.Fprintf(os.Stderr, "  Total:      %d mutators\n", stats["total"])
+	fmt.Fprintln(os.Stderr)
 
 	// List all registered mutators
 	reg := mutation.DefaultRegistry
@@ -560,15 +576,15 @@ func printMutationStats() {
 		ui.PrintSection(cases.Title(language.English).String(cat) + " Mutators")
 		mutators := reg.GetByCategory(cat)
 		for _, m := range mutators {
-			fmt.Printf("  %-25s %s\n", m.Name(), m.Description())
+			fmt.Fprintf(os.Stderr, "  %-25s %s\n", m.Name(), m.Description())
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Show example combinations
 	ui.PrintSection("Example Coverage Calculation")
-	fmt.Println("  For 100 payloads with default pipeline:")
-	fmt.Printf("    Quick mode:    ~%d tests\n", 100*3*3)
-	fmt.Printf("    Standard mode: ~%d tests\n", 100*stats["encoders"]*3)
-	fmt.Printf("    Full mode:     ~%d tests\n", 100*stats["encoders"]*stats["locations"]*(1+stats["evasions"]))
+	fmt.Fprintln(os.Stderr, "  For 100 payloads with default pipeline:")
+	fmt.Fprintf(os.Stderr, "    Quick mode:    ~%d tests\n", 100*3*3)
+	fmt.Fprintf(os.Stderr, "    Standard mode: ~%d tests\n", 100*stats["encoders"]*3)
+	fmt.Fprintf(os.Stderr, "    Full mode:     ~%d tests\n", 100*stats["encoders"]*stats["locations"]*(1+stats["evasions"]))
 }

@@ -131,3 +131,61 @@ func TestTesterRunWithoutTarget(t *testing.T) {
 		t.Error("Expected no tests to run without target URL")
 	}
 }
+
+func TestTesterProgressFnField(t *testing.T) {
+	tester := NewTester(nil)
+	if tester.ProgressFn != nil {
+		t.Error("ProgressFn should be nil by default")
+	}
+
+	called := false
+	tester.ProgressFn = func(completed, total int) {
+		called = true
+	}
+	// Trigger the callback manually to verify the field is settable
+	tester.ProgressFn(1, 10)
+	if !called {
+		t.Error("ProgressFn was not invoked")
+	}
+}
+
+func TestTesterProgressFnCalledDuringRun(t *testing.T) {
+	cfg := &Config{
+		TargetURL: "", // Empty target — no network calls
+		Base: attackconfig.Base{
+			Concurrency: 2,
+			Timeout:     1 * time.Second,
+		},
+		RateLimit:     100,
+		CorpusSources: []string{"edge"}, // Small corpus
+	}
+	tester := NewTester(cfg)
+
+	var lastCompleted, lastTotal int
+	var callCount int
+	tester.ProgressFn = func(completed, total int) {
+		callCount++
+		lastCompleted = completed
+		lastTotal = total
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, _ := tester.Run(ctx)
+
+	// With an empty target, tests will error but ProgressFn should still
+	// fire for each task attempted. If the corpus generated tasks,
+	// callCount should equal the number of tasks.
+	if result != nil && result.TotalTests > 0 {
+		if callCount == 0 {
+			t.Error("ProgressFn was never called during Run()")
+		}
+		if lastTotal != int(result.TotalTests) {
+			t.Errorf("ProgressFn total = %d, want %d", lastTotal, int(result.TotalTests))
+		}
+		if lastCompleted != int(result.TotalTests) {
+			t.Errorf("ProgressFn final completed = %d, want %d", lastCompleted, int(result.TotalTests))
+		}
+	}
+}

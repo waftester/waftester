@@ -35,7 +35,8 @@ func runBypassFinder() {
 	category := bypassFlags.String("category", "injection", "Payload category to test")
 	concurrency := bypassFlags.Int("c", 10, "Concurrency")
 	rateLimit := bypassFlags.Float64("rl", 30, "Rate limit")
-	outputFile := bypassFlags.String("o", "bypasses.json", "Output file for bypass results")
+	timeout := bypassFlags.Int("timeout", defaults.DefaultConfigTimeoutSec, "Request timeout in seconds")
+	outputFile := bypassFlags.String("o", "", "Output file for bypass results")
 	skipVerify := bypassFlags.Bool("k", false, "Skip TLS verification")
 
 	// Streaming mode (CI-friendly output)
@@ -58,6 +59,18 @@ func runBypassFinder() {
 	noDetect := bypassFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
 
 	bypassFlags.Parse(os.Args[2:])
+
+	// Validate numeric flags
+	if *concurrency < 1 {
+		exitWithError("--concurrency (-c) must be at least 1, got %d", *concurrency)
+	}
+	if *rateLimit <= 0 {
+		exitWithError("--rate-limit (--rl) must be positive, got %f", *rateLimit)
+	}
+	if *timeout < 1 {
+		exitWithError("--timeout must be at least 1, got %d", *timeout)
+	}
+	smartFlags.Validate()
 
 	// Disable detection if requested
 	if *noDetect {
@@ -87,10 +100,10 @@ func runBypassFinder() {
 	} else {
 		ui.PrintConfigLine("Mode", "Bypass Hunter (all evasions enabled)")
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Setup context
-	ctx, cancel := cli.SignalContext(30 * time.Second)
+	ctx, cancel := cli.SignalContext(time.Duration(*timeout) * time.Second)
 	defer cancel()
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -116,7 +129,7 @@ func runBypassFinder() {
 	var smartResult *SmartModeResult
 	if *smartFlags.Enabled {
 		ui.PrintSection("🧠 Smart Mode: WAF Detection & Optimization")
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 
 		smartConfig := &SmartModeConfig{
 			DetectionTimeout: duration.HTTPScanning,
@@ -177,6 +190,7 @@ func runBypassFinder() {
 	cfg.SkipVerify = *skipVerify
 	cfg.RealisticMode = *realisticMode || *realisticShort || *smartFlags.Enabled
 	cfg.AutoCalibrate = *autoCalibrate || *smartFlags.Enabled
+	cfg.Timeout = time.Duration(*timeout) * time.Second
 
 	// Apply smart mode optimizations
 	if *smartFlags.Enabled && smartResult != nil {
@@ -205,7 +219,7 @@ func runBypassFinder() {
 		cfg.Pipeline = mutation.FullCoveragePipelineConfig()
 	}
 
-	executor := mutation.NewExecutor(cfg)
+	executor := mutation.NewExecutor(ctx, cfg)
 
 	// Count combinations
 	expectedTests := executor.CountCombinations(len(testPayloads))
@@ -258,7 +272,7 @@ func runBypassFinder() {
 		manifest.AddEstimate(len(tasks), *rateLimit)
 		manifest.Print()
 	} else {
-		fmt.Printf("[INFO] Starting bypass hunt: target=%s waf=%s payloads=%d mutations=%d\n",
+		fmt.Fprintf(os.Stderr, "[INFO] Starting bypass hunt: target=%s waf=%s payloads=%d mutations=%d\n",
 			targetURL, wafName, len(testPayloads), len(tasks))
 	}
 
@@ -354,14 +368,14 @@ func runBypassFinder() {
 	}
 
 	ui.PrintSection("Bypass Hunt Results")
-	fmt.Printf("  Total Tested:    %d\n", totalTested)
-	fmt.Printf("  Bypasses Found:  %d\n", len(bypassPayloads))
-	fmt.Printf("  Bypass Rate:     %.2f%%\n", bypassRate)
-	fmt.Println()
+	fmt.Fprintf(os.Stderr, "  Total Tested:    %d\n", totalTested)
+	fmt.Fprintf(os.Stderr, "  Bypasses Found:  %d\n", len(bypassPayloads))
+	fmt.Fprintf(os.Stderr, "  Bypass Rate:     %.2f%%\n", bypassRate)
+	fmt.Fprintln(os.Stderr)
 
 	if len(bypassPayloads) > 0 {
 		ui.PrintWarning(fmt.Sprintf("🚨 Found %d WAF bypasses!", len(bypassPayloads)))
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 
 		// Show top bypasses
 		ui.PrintSection("Top Bypasses")
@@ -370,20 +384,20 @@ func runBypassFinder() {
 			if shown >= 10 {
 				remaining := len(bypassPayloads) - 10
 				if *outputFile != "" {
-					fmt.Printf("  ... and %d more (see %s)\n", remaining, *outputFile)
+					fmt.Fprintf(os.Stderr, "  ... and %d more (see %s)\n", remaining, *outputFile)
 				} else {
-					fmt.Printf("  ... and %d more (use -o <file> to export all)\n", remaining)
+					fmt.Fprintf(os.Stderr, "  ... and %d more (use -o <file> to export all)\n", remaining)
 				}
 				break
 			}
-			fmt.Printf("  [%d] %s | %s | %s\n",
+			fmt.Fprintf(os.Stderr, "  [%d] %s | %s | %s\n",
 				bp.StatusCode, bp.EncoderUsed, bp.LocationUsed, bp.EvasionUsed)
 			displayPayload := bp.MutatedPayload
-				if payloadRunes := []rune(displayPayload); len(payloadRunes) > 60 {
-					displayPayload = string(payloadRunes[:60])
-				}
-				fmt.Printf("      Payload: %s...\n", displayPayload)
-			fmt.Println()
+			if payloadRunes := []rune(displayPayload); len(payloadRunes) > 60 {
+				displayPayload = string(payloadRunes[:60])
+			}
+			fmt.Fprintf(os.Stderr, "      Payload: %s...\n", displayPayload)
+			fmt.Fprintln(os.Stderr)
 			shown++
 		}
 
@@ -393,7 +407,6 @@ func runBypassFinder() {
 			if err != nil {
 				ui.PrintError(fmt.Sprintf("Cannot create output file %s: %v", *outputFile, err))
 			} else {
-				defer f.Close()
 				enc := json.NewEncoder(f)
 				enc.SetIndent("", "  ")
 				// Create result structure for JSON output
@@ -403,8 +416,12 @@ func runBypassFinder() {
 					TotalTested:    totalTested,
 					BypassRate:     bypassRate,
 				}
-				if err := enc.Encode(result); err != nil {
-					ui.PrintError(fmt.Sprintf("Error encoding results: %v", err))
+				encErr := enc.Encode(result)
+				closeErr := f.Close()
+				if encErr != nil {
+					ui.PrintError(fmt.Sprintf("Error encoding results: %v", encErr))
+				} else if closeErr != nil {
+					ui.PrintError(fmt.Sprintf("Failed to close output file: %v", closeErr))
 				} else {
 					ui.PrintSuccess(fmt.Sprintf("Full results saved to %s", *outputFile))
 				}

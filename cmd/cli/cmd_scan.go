@@ -158,15 +158,7 @@ func runScan() {
 
 	// Handle resume from checkpoint
 	if *cfg.Resume {
-		checkpointPath := *cfg.CheckpointFile
-		if checkpointPath == "" {
-			checkpointPath = "scan-resume.cfg"
-		}
-		if _, err := os.Stat(checkpointPath); err == nil {
-			ui.PrintInfo(fmt.Sprintf("Resuming from checkpoint: %s", checkpointPath))
-		} else {
-			ui.PrintWarning("No checkpoint file found, starting fresh")
-		}
+		ui.PrintWarning("--resume is not yet implemented; starting fresh scan")
 	}
 
 	// Collect targets using shared TargetSource
@@ -194,11 +186,10 @@ func runScan() {
 	}
 
 	// Setup context with timeout
-	// Overall scan deadline: 60× per-request timeout (e.g., -timeout 30 → 30min scan deadline)
 	ctx, cancel := cli.SignalContext(30 * time.Second)
 	defer cancel()
 
-	ctx, tCancel := context.WithTimeout(ctx, time.Duration(cfg.Common.Timeout)*time.Minute)
+	ctx, tCancel := context.WithTimeout(ctx, duration.ContextMax)
 	defer tCancel()
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -248,7 +239,7 @@ func runScan() {
 				if f.Name == "rate-limit" || f.Name == "rl" {
 					userSetRL = true
 				}
-				if f.Name == "concurrency" {
+				if f.Name == "concurrency" || f.Name == "c" {
 					userSetConc = true
 				}
 			})
@@ -657,13 +648,31 @@ func runScan() {
 		RateSource:   &httpReqCount,
 		Metrics: []ui.MetricConfig{
 			{Name: "vulns", Label: "Vulns", Icon: ui.Icon("🚨", "!"), Highlight: true},
+			{Name: "requests", Label: "Reqs", Icon: ui.Icon("📡", ">")},
 		},
 		Tips:           scanTips,
-		StreamFormat:   "[PROGRESS] {completed}/{total} ({percent}%) | vulns: {metric:vulns} | active: {status} | {elapsed}",
+		StreamFormat:   "[PROGRESS] {completed}/{total} ({percent}%) | vulns: {metric:vulns} | reqs: {metric:requests} | active: {status} | {elapsed}",
 		StreamInterval: duration.StreamStd,
 	})
 	progress.Start()
 	defer progress.Stop()
+
+	// Sync HTTP request counter into the "requests" metric so the progress
+	// display shows a running total alongside the per-type completion counter.
+	reqSyncDone := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(250 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-reqSyncDone:
+				return
+			case <-ticker.C:
+				progress.SetMetric("requests", atomic.LoadInt64(&httpReqCount))
+			}
+		}
+	}()
+	defer close(reqSyncDone)
 
 	// Streaming JSON event emitter for real-time output
 	// Also dispatches to hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
@@ -735,7 +744,7 @@ func runScan() {
 		if marshalErr != nil {
 			return
 		}
-		fmt.Println(string(eventData)) // debug:keep
+		fmt.Println(string(eventData))
 	}
 
 	// Emit scan start event
@@ -2870,7 +2879,7 @@ func runScan() {
 		}
 		domain := parsedURL.Hostname()
 
-		dnsResult := performDNSRecon(domain)
+		dnsResult := performDNSRecon(ctx, domain)
 		totalRecords = dnsReconTotalRecords(dnsResult)
 
 		if totalRecords > 0 {

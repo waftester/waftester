@@ -98,9 +98,9 @@ func runTemplateList() {
 	}
 
 	ui.PrintSection("Template Library (Bundled)")
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	w := tabwriter.NewWriter(os.Stderr, 0, 0, 3, ' ', 0)
 	fmt.Fprintf(w, "  CATEGORY\tCOUNT\tDESCRIPTION\n")
 	fmt.Fprintf(w, "  %s\t%s\t%s\n", strings.Repeat(ui.Icon("─", "-"), 8), strings.Repeat(ui.Icon("─", "-"), 5), strings.Repeat(ui.Icon("─", "-"), 11))
 	for _, cat := range categories {
@@ -109,15 +109,15 @@ func runTemplateList() {
 	}
 	w.Flush()
 
-	fmt.Println()
-	fmt.Println("  Use 'waf-tester templates list <category>' to see templates in a category.")
-	fmt.Println("  Use 'waf-tester templates show <category>/<name>' to view a template.")
-	fmt.Println()
-	fmt.Println("  Short names work with flags:")
-	fmt.Println("    --policy strict          (resolves to policies/strict.yaml)")
-	fmt.Println("    --overrides api-only     (resolves to overrides/api-only.yaml)")
-	fmt.Println("    --template-config dark   (resolves to report-configs/dark.yaml)")
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "  Use 'waf-tester templates list <category>' to see templates in a category.")
+	fmt.Fprintln(os.Stderr, "  Use 'waf-tester templates show <category>/<name>' to view a template.")
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "  Short names work with flags:")
+	fmt.Fprintln(os.Stderr, "    --policy strict          (resolves to policies/strict.yaml)")
+	fmt.Fprintln(os.Stderr, "    --overrides api-only     (resolves to overrides/api-only.yaml)")
+	fmt.Fprintln(os.Stderr, "    --template-config dark   (resolves to report-configs/dark.yaml)")
+	fmt.Fprintln(os.Stderr)
 }
 
 func listCategoryTemplates(kind templateresolver.Kind, jsonOutput bool) {
@@ -138,16 +138,16 @@ func listCategoryTemplates(kind templateresolver.Kind, jsonOutput bool) {
 	}
 
 	ui.PrintSection(fmt.Sprintf("Templates: %s (%d)", kind, len(infos)))
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	w := tabwriter.NewWriter(os.Stderr, 0, 0, 3, ' ', 0)
 	fmt.Fprintf(w, "  NAME\tPATH\n")
 	fmt.Fprintf(w, "  %s\t%s\n", strings.Repeat(ui.Icon("─", "-"), 4), strings.Repeat(ui.Icon("─", "-"), 4))
 	for _, info := range infos {
 		fmt.Fprintf(w, "  %s\t%s\n", info.Name, info.Path)
 	}
 	w.Flush()
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 }
 
 func runTemplateShow() {
@@ -155,12 +155,12 @@ func runTemplateShow() {
 
 	if len(os.Args) < 4 {
 		ui.PrintError("Template path required. Usage: waf-tester templates show <category>/<name>")
-		fmt.Println()
-		fmt.Println("Examples:")
-		fmt.Println("  waf-tester templates show policies/strict")
-		fmt.Println("  waf-tester templates show workflows/full-scan")
-		fmt.Println("  waf-tester templates show output/slack-notification")
-		fmt.Println("  waf-tester templates show nuclei/http/waf-bypass/sqli-basic")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Examples:")
+		fmt.Fprintln(os.Stderr, "  waf-tester templates show policies/strict")
+		fmt.Fprintln(os.Stderr, "  waf-tester templates show workflows/full-scan")
+		fmt.Fprintln(os.Stderr, "  waf-tester templates show output/slack-notification")
+		fmt.Fprintln(os.Stderr, "  waf-tester templates show nuclei/http/waf-bypass/sqli-basic")
 		os.Exit(1)
 	}
 
@@ -218,7 +218,7 @@ func runTemplateShow() {
 	}
 
 	ui.PrintSection(fmt.Sprintf("Template: %s (source: %s)", ref, result.Source))
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 	fmt.Println(string(data))
 }
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/assessment"
 	"github.com/waftester/waftester/pkg/attackconfig"
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
@@ -40,6 +41,7 @@ func runAssess() {
 	// Performance
 	concurrency := assessFlags.Int("c", 25, "Number of concurrent workers")
 	rateLimit := assessFlags.Float64("rate", 100.0, "Requests per second limit")
+	assessFlags.Float64Var(rateLimit, "rl", 100.0, "Requests per second limit (alias)")
 	timeout := assessFlags.Int("timeout", 10, "Request timeout in seconds")
 
 	// Attack testing
@@ -120,7 +122,7 @@ func runAssess() {
 	}
 
 	// Configuration is displayed via execution manifest below
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Resolve template directory (extracts embedded templates if needed)
 	templateDir := defaults.TemplateDir
@@ -156,7 +158,9 @@ func runAssess() {
 	assess := assessment.New(config)
 
 	// Setup context with timeout (30 min max)
-	ctx, cancel := context.WithTimeout(context.Background(), duration.ContextMax)
+	sigCtx, sigCancel := cli.SignalContext(30 * time.Second)
+	defer sigCancel()
+	ctx, cancel := context.WithTimeout(sigCtx, duration.ContextMax)
 	defer cancel()
 
 	// Initialize dispatcher for hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
@@ -199,7 +203,7 @@ func runAssess() {
 		manifest.AddWithIcon("🔍", "WAF Detection", fmt.Sprintf("%v", *detectWAF))
 		manifest.Print()
 	} else {
-		fmt.Printf("[INFO] Starting enterprise assessment: target=%s concurrency=%d rate=%.0f\n",
+		fmt.Fprintf(os.Stderr, "[INFO] Starting enterprise assessment: target=%s concurrency=%d rate=%.0f\n",
 			*target, *concurrency, *rateLimit)
 	}
 
@@ -252,10 +256,10 @@ func runAssess() {
 
 	// Show completion summary
 	if *streamMode {
-		fmt.Printf("[COMPLETE] Assessment in %s, Grade=%s\n", duration.FormatCompact(elapsed), result.Grade)
+		fmt.Fprintf(os.Stderr, "[COMPLETE] Assessment in %s, Grade=%s\n", duration.FormatCompact(elapsed), result.Grade)
 	} else {
 		ui.Printf("  %s Assessment completed in %s\n", ui.Icon("✅", "+"), duration.FormatCompact(elapsed))
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Emit findings to all hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
@@ -328,9 +332,9 @@ func parseCorpusSourcesAssess(sources string) []string {
 }
 
 func displayAssessmentResults(m *metrics.EnterpriseMetrics, duration time.Duration) {
-	fmt.Println()
-	fmt.Println(ui.SectionStyle.Render("ENTERPRISE WAF ASSESSMENT RESULTS"))
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, ui.SectionStyle.Render("ENTERPRISE WAF ASSESSMENT RESULTS"))
+	fmt.Fprintln(os.Stderr)
 
 	// Grade banner
 	gradeColor := getGradeColor(m.Grade)
@@ -339,92 +343,92 @@ func displayAssessmentResults(m *metrics.EnterpriseMetrics, duration time.Durati
 		gradeReset = "\033[0m"
 	}
 	if ui.UnicodeTerminal() {
-		fmt.Println("╔══════════════════════════════════════════════════════════════════╗")
-		fmt.Printf("║  %-64s ║\n", fmt.Sprintf("Grade: %s%s%s  -  %s", gradeColor, m.Grade, gradeReset, m.GradeReason))
-		fmt.Println("╠══════════════════════════════════════════════════════════════════╣")
-		fmt.Printf("║  %-64s ║\n", fmt.Sprintf("Target: %s", assessTruncateString(m.TargetURL, 50)))
-		fmt.Printf("║  %-64s ║\n", fmt.Sprintf("WAF: %s", m.WAFVendor))
-		fmt.Printf("║  %-64s ║\n", fmt.Sprintf("Duration: %.2fs | Tests: %d", duration.Seconds(), m.TotalRequests))
-		fmt.Println("╚══════════════════════════════════════════════════════════════════╝")
+		fmt.Fprintln(os.Stderr, "╔══════════════════════════════════════════════════════════════════╗")
+		fmt.Fprintf(os.Stderr, "║  %-64s ║\n", fmt.Sprintf("Grade: %s%s%s  -  %s", gradeColor, m.Grade, gradeReset, m.GradeReason))
+		fmt.Fprintln(os.Stderr, "╠══════════════════════════════════════════════════════════════════╣")
+		fmt.Fprintf(os.Stderr, "║  %-64s ║\n", fmt.Sprintf("Target: %s", assessTruncateString(m.TargetURL, 50)))
+		fmt.Fprintf(os.Stderr, "║  %-64s ║\n", fmt.Sprintf("WAF: %s", m.WAFVendor))
+		fmt.Fprintf(os.Stderr, "║  %-64s ║\n", fmt.Sprintf("Duration: %.2fs | Tests: %d", duration.Seconds(), m.TotalRequests))
+		fmt.Fprintln(os.Stderr, "╚══════════════════════════════════════════════════════════════════╝")
 	} else {
-		fmt.Println("+------------------------------------------------------------------+")
-		fmt.Printf("|  %-64s |\n", fmt.Sprintf("Grade: %s%s%s  -  %s", gradeColor, m.Grade, gradeReset, m.GradeReason))
-		fmt.Println("+------------------------------------------------------------------+")
-		fmt.Printf("|  %-64s |\n", fmt.Sprintf("Target: %s", assessTruncateString(m.TargetURL, 50)))
-		fmt.Printf("|  %-64s |\n", fmt.Sprintf("WAF: %s", m.WAFVendor))
-		fmt.Printf("|  %-64s |\n", fmt.Sprintf("Duration: %.2fs | Tests: %d", duration.Seconds(), m.TotalRequests))
-		fmt.Println("+------------------------------------------------------------------+")
+		fmt.Fprintln(os.Stderr, "+------------------------------------------------------------------+")
+		fmt.Fprintf(os.Stderr, "|  %-64s |\n", fmt.Sprintf("Grade: %s%s%s  -  %s", gradeColor, m.Grade, gradeReset, m.GradeReason))
+		fmt.Fprintln(os.Stderr, "+------------------------------------------------------------------+")
+		fmt.Fprintf(os.Stderr, "|  %-64s |\n", fmt.Sprintf("Target: %s", assessTruncateString(m.TargetURL, 50)))
+		fmt.Fprintf(os.Stderr, "|  %-64s |\n", fmt.Sprintf("WAF: %s", m.WAFVendor))
+		fmt.Fprintf(os.Stderr, "|  %-64s |\n", fmt.Sprintf("Duration: %.2fs | Tests: %d", duration.Seconds(), m.TotalRequests))
+		fmt.Fprintln(os.Stderr, "+------------------------------------------------------------------+")
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Confusion Matrix
-	fmt.Println(ui.SectionStyle.Render("CONFUSION MATRIX"))
-	fmt.Println()
+	fmt.Fprintln(os.Stderr, ui.SectionStyle.Render("CONFUSION MATRIX"))
+	fmt.Fprintln(os.Stderr)
 	if ui.UnicodeTerminal() {
-		fmt.Println("              │  Predicted  │  Predicted  │")
-		fmt.Println("              │   Blocked   │   Allowed   │")
-		fmt.Println("  ────────────┼─────────────┼─────────────┤")
-		fmt.Printf("  Attack      │  %9d  │  %9d  │ (TP, FN)\n", m.Matrix.TruePositives, m.Matrix.FalseNegatives)
-		fmt.Printf("  Benign      │  %9d  │  %9d  │ (FP, TN)\n", m.Matrix.FalsePositives, m.Matrix.TrueNegatives)
+		fmt.Fprintln(os.Stderr, "              │  Predicted  │  Predicted  │")
+		fmt.Fprintln(os.Stderr, "              │   Blocked   │   Allowed   │")
+		fmt.Fprintln(os.Stderr, "  ────────────┼─────────────┼─────────────┤")
+		fmt.Fprintf(os.Stderr, "  Attack      │  %9d  │  %9d  │ (TP, FN)\n", m.Matrix.TruePositives, m.Matrix.FalseNegatives)
+		fmt.Fprintf(os.Stderr, "  Benign      │  %9d  │  %9d  │ (FP, TN)\n", m.Matrix.FalsePositives, m.Matrix.TrueNegatives)
 	} else {
-		fmt.Println("              |  Predicted  |  Predicted  |")
-		fmt.Println("              |   Blocked   |   Allowed   |")
-		fmt.Println("  ------------+-------------+-------------|")
-		fmt.Printf("  Attack      |  %9d  |  %9d  | (TP, FN)\n", m.Matrix.TruePositives, m.Matrix.FalseNegatives)
-		fmt.Printf("  Benign      |  %9d  |  %9d  | (FP, TN)\n", m.Matrix.FalsePositives, m.Matrix.TrueNegatives)
+		fmt.Fprintln(os.Stderr, "              |  Predicted  |  Predicted  |")
+		fmt.Fprintln(os.Stderr, "              |   Blocked   |   Allowed   |")
+		fmt.Fprintln(os.Stderr, "  ------------+-------------+-------------|")
+		fmt.Fprintf(os.Stderr, "  Attack      |  %9d  |  %9d  | (TP, FN)\n", m.Matrix.TruePositives, m.Matrix.FalseNegatives)
+		fmt.Fprintf(os.Stderr, "  Benign      |  %9d  |  %9d  | (FP, TN)\n", m.Matrix.FalsePositives, m.Matrix.TrueNegatives)
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Primary Metrics
-	fmt.Println(ui.SectionStyle.Render("PRIMARY METRICS"))
-	fmt.Println()
-	fmt.Printf("  %-28s %s\n", "Detection Rate (TPR/Recall):", formatMetric(m.DetectionRate*100, "%"))
-	fmt.Printf("  %-28s %s\n", "False Positive Rate (FPR):", formatMetric(m.FalsePositiveRate*100, "%"))
-	fmt.Printf("  %-28s %s\n", "Precision:", formatMetric(m.Precision*100, "%"))
-	fmt.Printf("  %-28s %s\n", "Specificity (TNR):", formatMetric(m.Specificity*100, "%"))
-	fmt.Println()
+	fmt.Fprintln(os.Stderr, ui.SectionStyle.Render("PRIMARY METRICS"))
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintf(os.Stderr, "  %-28s %s\n", "Detection Rate (TPR/Recall):", formatMetric(m.DetectionRate*100, "%"))
+	fmt.Fprintf(os.Stderr, "  %-28s %s\n", "False Positive Rate (FPR):", formatMetric(m.FalsePositiveRate*100, "%"))
+	fmt.Fprintf(os.Stderr, "  %-28s %s\n", "Precision:", formatMetric(m.Precision*100, "%"))
+	fmt.Fprintf(os.Stderr, "  %-28s %s\n", "Specificity (TNR):", formatMetric(m.Specificity*100, "%"))
+	fmt.Fprintln(os.Stderr)
 
 	// Balanced Metrics
-	fmt.Println(ui.SectionStyle.Render("BALANCED METRICS"))
-	fmt.Println()
-	fmt.Printf("  %-28s %s\n", "F1 Score:", formatMetric(m.F1Score*100, "%"))
-	fmt.Printf("  %-28s %s\n", "F2 Score (recall-weighted):", formatMetric(m.F2Score*100, "%"))
-	fmt.Printf("  %-28s %s\n", "Balanced Accuracy:", formatMetric(m.BalancedAccuracy*100, "%"))
-	fmt.Printf("  %-28s %s\n", "MCC:", formatMCC(m.MCC))
-	fmt.Println()
+	fmt.Fprintln(os.Stderr, ui.SectionStyle.Render("BALANCED METRICS"))
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintf(os.Stderr, "  %-28s %s\n", "F1 Score:", formatMetric(m.F1Score*100, "%"))
+	fmt.Fprintf(os.Stderr, "  %-28s %s\n", "F2 Score (recall-weighted):", formatMetric(m.F2Score*100, "%"))
+	fmt.Fprintf(os.Stderr, "  %-28s %s\n", "Balanced Accuracy:", formatMetric(m.BalancedAccuracy*100, "%"))
+	fmt.Fprintf(os.Stderr, "  %-28s %s\n", "MCC:", formatMCC(m.MCC))
+	fmt.Fprintln(os.Stderr)
 
 	// WAF-Specific Metrics
-	fmt.Println(ui.SectionStyle.Render("WAF-SPECIFIC METRICS"))
-	fmt.Println()
-	fmt.Printf("  %-28s %s\n", "Bypass Resistance:", formatMetric(m.BypassResistance*100, "%"))
-	fmt.Printf("  %-28s %.4f\n", "Mutation Potency:", m.MutationPotency)
-	fmt.Printf("  %-28s %s\n", "Block Consistency:", formatMetric(m.BlockConsistency*100, "%"))
-	fmt.Println()
+	fmt.Fprintln(os.Stderr, ui.SectionStyle.Render("WAF-SPECIFIC METRICS"))
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintf(os.Stderr, "  %-28s %s\n", "Bypass Resistance:", formatMetric(m.BypassResistance*100, "%"))
+	fmt.Fprintf(os.Stderr, "  %-28s %.4f\n", "Mutation Potency:", m.MutationPotency)
+	fmt.Fprintf(os.Stderr, "  %-28s %s\n", "Block Consistency:", formatMetric(m.BlockConsistency*100, "%"))
+	fmt.Fprintln(os.Stderr)
 
 	// Latency
 	if m.AvgLatencyMs > 0 {
-		fmt.Println(ui.SectionStyle.Render("LATENCY"))
-		fmt.Println()
-		fmt.Printf("  %-28s %.1f ms\n", "Average:", m.AvgLatencyMs)
-		fmt.Printf("  %-28s %.1f ms\n", "P50:", m.P50LatencyMs)
-		fmt.Printf("  %-28s %.1f ms\n", "P95:", m.P95LatencyMs)
-		fmt.Printf("  %-28s %.1f ms\n", "P99:", m.P99LatencyMs)
-		fmt.Println()
+		fmt.Fprintln(os.Stderr, ui.SectionStyle.Render("LATENCY"))
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintf(os.Stderr, "  %-28s %.1f ms\n", "Average:", m.AvgLatencyMs)
+		fmt.Fprintf(os.Stderr, "  %-28s %.1f ms\n", "P50:", m.P50LatencyMs)
+		fmt.Fprintf(os.Stderr, "  %-28s %.1f ms\n", "P95:", m.P95LatencyMs)
+		fmt.Fprintf(os.Stderr, "  %-28s %.1f ms\n", "P99:", m.P99LatencyMs)
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Detection Stats (v2.5.2 - using unified detection output package)
 	detStats := detectionoutput.FromDetector()
 	if detStats.HasData() {
-		fmt.Println(ui.SectionStyle.Render("DETECTION STATS"))
+		fmt.Fprintln(os.Stderr, ui.SectionStyle.Render("DETECTION STATS"))
 		detStats.PrintConsole()
 	}
 
 	// Category Breakdown
 	if len(m.CategoryMetrics) > 0 {
-		fmt.Println(ui.SectionStyle.Render("CATEGORY BREAKDOWN"))
-		fmt.Println()
-		fmt.Println("  Category          │ Tests │ Blocked │ Detection │ Grade")
-		fmt.Println("  ──────────────────┼───────┼─────────┼───────────┼──────")
+		fmt.Fprintln(os.Stderr, ui.SectionStyle.Render("CATEGORY BREAKDOWN"))
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "  Category          │ Tests │ Blocked │ Detection │ Grade")
+		fmt.Fprintln(os.Stderr, "  ──────────────────┼───────┼─────────┼───────────┼──────")
 		cats := make([]string, 0, len(m.CategoryMetrics))
 		for cat := range m.CategoryMetrics {
 			cats = append(cats, cat)
@@ -432,20 +436,20 @@ func displayAssessmentResults(m *metrics.EnterpriseMetrics, duration time.Durati
 		sort.Strings(cats)
 		for _, cat := range cats {
 			cm := m.CategoryMetrics[cat]
-			fmt.Printf("  %-18s│ %5d │ %7d │   %5.1f%%  │   %s\n",
+			fmt.Fprintf(os.Stderr, "  %-18s│ %5d │ %7d │   %5.1f%%  │   %s\n",
 				assessTruncateString(cat, 18), cm.TotalTests, cm.Blocked, cm.DetectionRate*100, cm.Grade)
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Recommendations
 	if len(m.Recommendations) > 0 {
-		fmt.Println(ui.SectionStyle.Render("RECOMMENDATIONS"))
-		fmt.Println()
+		fmt.Fprintln(os.Stderr, ui.SectionStyle.Render("RECOMMENDATIONS"))
+		fmt.Fprintln(os.Stderr)
 		for i, rec := range m.Recommendations {
-			fmt.Printf("  %d. %s\n", i+1, rec)
+			fmt.Fprintf(os.Stderr, "  %d. %s\n", i+1, rec)
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 }
 
