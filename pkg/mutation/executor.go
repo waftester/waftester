@@ -461,9 +461,17 @@ func (e *Executor) executeTask(ctx context.Context, task MutationTask) *TestResu
 				result.ResponseHeaders[k] = v[0]
 			}
 		}
-		// First 200 chars of response
+		// First 200 runes of response
 		if len(bodyBytes) > 200 {
-			result.ResponseSnippet = string([]rune(string(bodyBytes[:300]))[:200])
+			upper := len(bodyBytes)
+			if upper > 300 {
+				upper = 300
+			}
+			runes := []rune(string(bodyBytes[:upper]))
+			if len(runes) > 200 {
+				runes = runes[:200]
+			}
+			result.ResponseSnippet = string(runes)
 		} else {
 			result.ResponseSnippet = string(bodyBytes)
 		}
