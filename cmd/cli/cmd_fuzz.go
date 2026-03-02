@@ -111,8 +111,6 @@ func runFuzz() {
 
 	// Sniper/clusterbomb modes
 	fuzzMode := fuzzFlags.String("mode", "sniper", "Fuzzing mode: sniper, pitchfork, clusterbomb")
-	fuzzPosition := fuzzFlags.String("fuzz-position", "", "Position to fuzz: url, header, body, cookie")
-	fuzzFlags.StringVar(fuzzPosition, "fp", "", "Fuzz position (alias)")
 
 	// Response analysis
 	extractRegex := fuzzFlags.String("extract", "", "Extract matching content (regex)")
@@ -143,8 +141,6 @@ func runFuzz() {
 	fuzzFlags.BoolVar(debugResponse, "dresp", false, "Debug response (alias)")
 
 	// Auto-calibration options
-	calibrationWords := fuzzFlags.String("calibration-words", "", "Specific words for baseline (comma-separated)")
-	fuzzFlags.StringVar(calibrationWords, "cw", "", "Calibration words (alias)")
 
 	// Enterprise output flags (unified with other commands)
 	var outputFlags OutputFlags
