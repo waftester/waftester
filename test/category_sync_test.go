@@ -1682,4 +1682,298 @@ func TestProgressStopWaitsForGoroutine(t *testing.T) {
 	}
 }
 
+// =============================================================================
+// WAVE 4 RUNTIME BUG REGRESSION TESTS
+// =============================================================================
 
+// TestSOAPFuzzBlockedNotOverwritten verifies cmd_soap.go uses "else if" (not
+// bare "if") for resp handling, so error-path fr.Blocked=true is not overwritten.
+func TestSOAPFuzzBlockedNotOverwritten(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_soap.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_soap.go: %v", err)
+	}
+	content := string(data)
+
+	// The error path sets fr.Blocked = true. A bare "if resp != nil" after it
+	// would overwrite that. The correct pattern is "} else if resp != nil {".
+	if strings.Contains(content, "fr.Blocked = true\n\t\t}\n\n\t\tif resp != nil") ||
+		strings.Contains(content, "fr.Blocked = true\r\n\t\t}\r\n\r\n\t\tif resp != nil") {
+		t.Error("cmd_soap.go uses bare 'if resp != nil' after error path — must use 'else if' to prevent overwriting fr.Blocked")
+	}
+	if !strings.Contains(content, "} else if resp != nil {") {
+		t.Error("cmd_soap.go must use '} else if resp != nil {' to guard response handling")
+	}
+}
+
+// TestFPEmitSummaryArgOrder verifies fp.go EmitSummary call passes
+// FalsePositives as the blocked argument (3rd arg) and TotalTests-FalsePositives
+// as the bypassed argument (4th arg).
+func TestFPEmitSummaryArgOrder(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "fp.go"))
+	if err != nil {
+		t.Fatalf("cannot read fp.go: %v", err)
+	}
+	content := string(data)
+
+	// Correct order: EmitSummary(ctx, total, blocked=FalsePositives, bypassed=TotalTests-FalsePositives, elapsed)
+	if strings.Contains(content, "TotalTests-result.FalsePositives), int(result.FalsePositives)") {
+		t.Error("fp.go EmitSummary has blocked/bypassed arguments swapped — FalsePositives should be the blocked arg")
+	}
+	if !strings.Contains(content, "int(result.FalsePositives), int(result.TotalTests-result.FalsePositives)") {
+		t.Error("fp.go EmitSummary must pass FalsePositives as blocked (3rd) and TotalTests-FalsePositives as bypassed (4th)")
+	}
+}
+
+// TestHeadlessUsesSignalContext verifies the headless browser command in
+// cmd_misc.go uses cli.SignalContext instead of context.Background() so
+// Ctrl+C can cancel it.
+func TestHeadlessUsesSignalContext(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_misc.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_misc.go: %v", err)
+	}
+	content := string(data)
+
+	// Find the headless section and check it uses SignalContext
+	headlessIdx := strings.Index(content, "HEADLESS")
+	if headlessIdx < 0 {
+		t.Fatal("cannot find HEADLESS section in cmd_misc.go")
+	}
+	headlessSection := content[headlessIdx:]
+	// Truncate to just the headless function (next section marker or EOF)
+	if nextSection := strings.Index(headlessSection[1:], "// ===="); nextSection > 0 {
+		headlessSection = headlessSection[:nextSection+1]
+	}
+	if strings.Contains(headlessSection, "ctx := context.Background()") ||
+		strings.Contains(headlessSection, "ctx = context.Background()") {
+		t.Error("headless command must use cli.SignalContext instead of context.Background()")
+	}
+}
+
+// TestSmartModeChecksAllAliases verifies that scan and fuzz Visit callbacks
+// check all flag aliases (including short forms) for smart mode detection.
+func TestSmartModeChecksAllAliases(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+
+	// Check scan
+	scanData, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_scan.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_scan.go: %v", err)
+	}
+	scanContent := string(scanData)
+	if !strings.Contains(scanContent, `f.Name == "concurrency" || f.Name == "c"`) {
+		t.Error("cmd_scan.go smart mode must check both 'concurrency' and 'c' aliases")
+	}
+
+	// Check fuzz
+	fuzzData, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_fuzz.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_fuzz.go: %v", err)
+	}
+	fuzzContent := string(fuzzData)
+	if !strings.Contains(fuzzContent, `f.Name == "rate" || f.Name == "rl"`) {
+		t.Error("cmd_fuzz.go smart mode must check both 'rate' and 'rl' aliases")
+	}
+	if !strings.Contains(fuzzContent, `f.Name == "t" || f.Name == "c"`) {
+		t.Error("cmd_fuzz.go smart mode must check both 't' and 'c' aliases for concurrency")
+	}
+}
+
+// TestBypassTimeoutWiredToConfig verifies cmd_bypass.go wires the --timeout
+// flag to cfg.Timeout so the executor actually uses the user-specified timeout.
+func TestBypassTimeoutWiredToConfig(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_bypass.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_bypass.go: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "cfg.Timeout") {
+		t.Error("cmd_bypass.go must wire --timeout flag to cfg.Timeout")
+	}
+}
+
+// TestNoDeadFuzzFlagsWave4 verifies cmd_fuzz.go doesn't contain dead flag
+// definitions that were removed in wave 4 (recursion, mode, extract, store, etc.).
+func TestNoDeadFuzzFlagsWave4(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_fuzz.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_fuzz.go: %v", err)
+	}
+	content := string(data)
+	// Check for variable names from removed flag definitions
+	deadVars := []string{
+		"recursion :=", "recursionDepth :=",
+		"fuzzMode :=",
+		"extractRegex :=", "extractPreset :=",
+		"storeResponse :=", "storeResponseDir :=", "storeOnlyMatches :=",
+		"retries :=", "jitter :=",
+		"debugRequest :=", "debugResponse :=",
+	}
+	for _, v := range deadVars {
+		if strings.Contains(content, v) {
+			t.Errorf("cmd_fuzz.go still contains dead flag variable %q — should have been removed", v)
+		}
+	}
+}
+
+// TestOutputFileFailureCausesExit verifies cmd_misc.go output file error paths
+// call os.Exit(1) instead of silently continuing.
+func TestOutputFileFailureCausesExit(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_misc.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_misc.go: %v", err)
+	}
+	content := string(data)
+
+	// Every "Failed to create output file" must be followed by os.Exit(1) within a few lines
+	parts := strings.Split(content, "Failed to create output file")
+	if len(parts) < 2 {
+		t.Fatal("expected at least one 'Failed to create output file' in cmd_misc.go")
+	}
+	for i := 1; i < len(parts); i++ {
+		// Check the next ~100 chars for os.Exit(1)
+		snippet := parts[i]
+		if len(snippet) > 100 {
+			snippet = snippet[:100]
+		}
+		if !strings.Contains(snippet, "os.Exit(1)") {
+			t.Errorf("output file creation failure #%d in cmd_misc.go missing os.Exit(1) after error", i)
+		}
+	}
+}
+
+// TestFPPayloadNoDoubleEllipsis verifies fp.go doesn't use the %.60s... pattern
+// with strutil.Truncate (which already appends "..."), preventing double ellipsis.
+func TestFPPayloadNoDoubleEllipsis(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "fp.go"))
+	if err != nil {
+		t.Fatalf("cannot read fp.go: %v", err)
+	}
+	content := string(data)
+	if strings.Contains(content, "%.60s...") {
+		t.Error("fp.go uses percent-60s-ellipsis with strutil.Truncate — causes double ellipsis; use bare percent-s instead")
+	}
+}
+
+// TestVendorCategoryListDynamic verifies vendor.go doesn't hardcode the category
+// slice for displaying vendor lists, using sorted map keys instead.
+func TestVendorCategoryListDynamic(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "vendor.go"))
+	if err != nil {
+		t.Fatalf("cannot read vendor.go: %v", err)
+	}
+	content := string(data)
+	// The old hardcoded pattern had all categories in a single slice literal
+	if strings.Contains(content, `[]string{"cloud", "cdn-integrated"`) {
+		t.Error("vendor.go still hardcodes category list — should derive from map keys dynamically")
+	}
+	if !strings.Contains(content, "sort.Strings") {
+		t.Error("vendor.go should sort category keys for deterministic output")
+	}
+}
+
+// TestScanResumeWarning verifies cmd_scan.go --resume flag prints a "not yet
+// implemented" warning instead of misleading checkpoint messages.
+func TestScanResumeWarning(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_scan.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_scan.go: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "not yet implemented") {
+		t.Error("cmd_scan.go --resume handler must warn that resume is not yet implemented")
+	}
+	if strings.Contains(content, "Resuming from checkpoint") {
+		t.Error("cmd_scan.go should not print misleading 'Resuming from checkpoint' message")
+	}
+}
+
+// TestVendorNoDoubleClose verifies vendor.go error path doesn't explicitly
+// close the dispatcher after a defer already handles it.
+func TestVendorNoDoubleClose(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "vendor.go"))
+	if err != nil {
+		t.Fatalf("cannot read vendor.go: %v", err)
+	}
+	content := string(data)
+	// The error path should emit error but NOT call Close() explicitly
+	errIdx := strings.Index(content, "Vendor detection error")
+	if errIdx < 0 {
+		t.Fatal("cannot find error handling section in vendor.go")
+	}
+	// Check a 200-char window after the error emit for explicit Close()
+	window := content[errIdx:]
+	if len(window) > 200 {
+		window = window[:200]
+	}
+	if strings.Contains(window, "vendorDispCtx.Close()") {
+		t.Error("vendor.go error path explicitly calls Close() after defer already handles it — remove double close")
+	}
+}
+
+// TestWorkflowUsesSignalContext verifies the workflow command in cmd_misc.go
+// uses cli.SignalContext as the parent context (not context.Background).
+func TestWorkflowUsesSignalContext(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_misc.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_misc.go: %v", err)
+	}
+	content := string(data)
+
+	// Find the workflow section (skip past the header block)
+	workflowIdx := strings.Index(content, "WORKFLOW COMMAND")
+	if workflowIdx < 0 {
+		t.Fatal("cannot find WORKFLOW COMMAND section in cmd_misc.go")
+	}
+	// Skip 200 chars past header to avoid matching the header's own ===== lines
+	searchStart := workflowIdx + 200
+	if searchStart > len(content) {
+		searchStart = len(content)
+	}
+	workflowSection := content[workflowIdx:searchStart]
+	remainder := content[searchStart:]
+	if nextSection := strings.Index(remainder, "// ===="); nextSection > 0 {
+		workflowSection += remainder[:nextSection]
+	} else {
+		workflowSection += remainder
+	}
+	if !strings.Contains(workflowSection, "cli.SignalContext") {
+		t.Error("workflow command must use cli.SignalContext for signal-aware context")
+	}
+}
+
+// TestHookDispatcherUsesParentContext verifies that cmd_misc.go hook dispatcher
+// contexts use the parent signal-aware context, not context.Background().
+func TestHookDispatcherUsesParentContext(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_misc.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_misc.go: %v", err)
+	}
+	content := string(data)
+
+	// Look for dispatcher context assignments using context.Background()
+	// These should use the parent signal-aware ctx instead
+	dispatcherBgPatterns := []string{
+		"smugglerCtx := context.Background()",
+		"raceCtx := context.Background()",
+		"workflowCtx := context.Background()",
+	}
+	for _, pattern := range dispatcherBgPatterns {
+		if strings.Contains(content, pattern) {
+			t.Errorf("cmd_misc.go contains '%s' — hook dispatchers must use parent signal context", pattern)
+		}
+	}
+}
