@@ -200,14 +200,10 @@ func runGRPCDescribe(ctx context.Context, client *grpc.Client, serviceName strin
 }
 
 func runGRPCCall(ctx context.Context, client *grpc.Client, callSpec, data, metadata string, jsonOutput, verbose bool) {
-	// Parse call spec: service/method or service.method
-	parts := strings.Split(callSpec, "/")
-	if len(parts) != 2 {
-		parts = strings.Split(callSpec, ".")
-		if len(parts) < 2 {
-			ui.PrintError("Invalid call format. Use: service/method or package.service.method")
-			os.Exit(1)
-		}
+	// Validate call spec: must contain "/" or "." separator
+	if !strings.Contains(callSpec, "/") && !strings.Contains(callSpec, ".") {
+		ui.PrintError("Invalid call format. Use: service/method or package.service.method")
+		os.Exit(1)
 	}
 
 	// Parse metadata

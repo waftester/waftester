@@ -178,6 +178,7 @@ func runBypassFinder() {
 	cfg.SkipVerify = *skipVerify
 	cfg.RealisticMode = *realisticMode || *realisticShort || *smartFlags.Enabled
 	cfg.AutoCalibrate = *autoCalibrate || *smartFlags.Enabled
+	cfg.Timeout = time.Duration(*timeout) * time.Second
 
 	// Apply smart mode optimizations
 	if *smartFlags.Enabled && smartResult != nil {
@@ -394,7 +395,6 @@ func runBypassFinder() {
 			if err != nil {
 				ui.PrintError(fmt.Sprintf("Cannot create output file %s: %v", *outputFile, err))
 			} else {
-				defer f.Close()
 				enc := json.NewEncoder(f)
 				enc.SetIndent("", "  ")
 				// Create result structure for JSON output
@@ -404,8 +404,12 @@ func runBypassFinder() {
 					TotalTested:    totalTested,
 					BypassRate:     bypassRate,
 				}
-				if err := enc.Encode(result); err != nil {
-					ui.PrintError(fmt.Sprintf("Error encoding results: %v", err))
+				encErr := enc.Encode(result)
+				closeErr := f.Close()
+				if encErr != nil {
+					ui.PrintError(fmt.Sprintf("Error encoding results: %v", encErr))
+				} else if closeErr != nil {
+					ui.PrintError(fmt.Sprintf("Failed to close output file: %v", closeErr))
 				} else {
 					ui.PrintSuccess(fmt.Sprintf("Full results saved to %s", *outputFile))
 				}

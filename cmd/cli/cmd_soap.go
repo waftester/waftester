@@ -297,9 +297,7 @@ func runSOAPFuzz(ctx context.Context, client *soap.Client, endpoint, payloadDir,
 
 		if err != nil {
 			fr.Blocked = true
-		}
-
-		if resp != nil {
+		} else if resp != nil {
 			fr.StatusCode = resp.StatusCode
 			fr.Blocked = resp.Blocked
 			fr.Latency = resp.Latency.String()

@@ -158,15 +158,7 @@ func runScan() {
 
 	// Handle resume from checkpoint
 	if *cfg.Resume {
-		checkpointPath := *cfg.CheckpointFile
-		if checkpointPath == "" {
-			checkpointPath = "scan-resume.cfg"
-		}
-		if _, err := os.Stat(checkpointPath); err == nil {
-			ui.PrintInfo(fmt.Sprintf("Resuming from checkpoint: %s", checkpointPath))
-		} else {
-			ui.PrintWarning("No checkpoint file found, starting fresh")
-		}
+		ui.PrintWarning("--resume is not yet implemented; starting fresh scan")
 	}
 
 	// Collect targets using shared TargetSource
@@ -248,7 +240,7 @@ func runScan() {
 				if f.Name == "rate-limit" || f.Name == "rl" {
 					userSetRL = true
 				}
-				if f.Name == "concurrency" {
+				if f.Name == "concurrency" || f.Name == "c" {
 					userSetConc = true
 				}
 			})
