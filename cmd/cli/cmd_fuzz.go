@@ -133,6 +133,17 @@ func runFuzz() {
 
 	fuzzFlags.Parse(os.Args[2:])
 
+	// Validate numeric flags
+	if *concurrency < 1 {
+		exitWithError("--concurrency (-t) must be at least 1, got %d", *concurrency)
+	}
+	if *rateLimit < 1 {
+		exitWithError("--rate-limit (--rate/--rl) must be at least 1, got %d", *rateLimit)
+	}
+	if *timeout < 1 {
+		exitWithError("--timeout must be at least 1, got %d", *timeout)
+	}
+
 	// Disable detection if requested
 	if *noDetect {
 		detection.Disable()
@@ -504,7 +515,7 @@ func runFuzz() {
 	if !*silent && !*jsonOutput {
 		if *streamMode {
 			// Streaming mode: simple line output
-			fmt.Printf("[INFO] Starting fuzz: target=%s words=%d concurrency=%d rate=%d\n",
+			fmt.Fprintf(os.Stderr, "[INFO] Starting fuzz: target=%s words=%d concurrency=%d rate=%d\n",
 				targetURL, len(words), *concurrency, *rateLimit)
 		} else {
 			// Interactive mode: full manifest
@@ -572,7 +583,7 @@ func runFuzz() {
 			ui.PrintConfigLine("Baseline", fmt.Sprintf("Status=%d Size=%d Words=%d Lines=%d",
 				calibration.BaselineStatus, calibration.BaselineSize,
 				calibration.BaselineWords, calibration.BaselineLines))
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 	}
 
@@ -688,7 +699,7 @@ func runFuzz() {
 
 	// Print summary
 	if !*silent && !*jsonOutput && !*csvFuzz && !*markdownFuzz && !*htmlFuzz {
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 		ui.PrintSection("Summary")
 		ui.PrintConfigLine("Total Requests", fmt.Sprintf("%d", stats.TotalRequests))
 		ui.PrintConfigLine("Matches", fmt.Sprintf("%d", stats.Matches))
@@ -696,7 +707,7 @@ func runFuzz() {
 		ui.PrintConfigLine("Errors", fmt.Sprintf("%d", stats.Errors))
 		ui.PrintConfigLine("Duration", duration.Round(time.Millisecond).String())
 		ui.PrintConfigLine("Requests/sec", fmt.Sprintf("%.2f", stats.RequestsPerSec))
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Enterprise file exports (--json-export, --sarif-export, etc.)

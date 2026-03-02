@@ -99,6 +99,10 @@ func runCloud() {
 		}
 	}
 
+	if len(providerList) == 0 {
+		exitWithError("--providers must contain at least one valid provider (aws, azure, gcp); got %q", *providers)
+	}
+
 	// Setup context
 	ctx, cancel := cli.SignalContext(30 * time.Second)
 	defer cancel()

@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"strings"
 	"time"
 
 	"github.com/waftester/waftester/pkg/apispec"
@@ -280,6 +281,20 @@ func (cfg *scanConfig) validate() {
 	}
 	if *cfg.MaxRedirects < 0 {
 		exitWithError("--max-redirects must be non-negative, got %d", *cfg.MaxRedirects)
+	}
+	cfg.Smart.Validate()
+	// Validate --format values
+	if cfg.Out.Format != "" {
+		validFormats := map[string]bool{
+			"console": true, "json": true, "jsonl": true, "sarif": true,
+			"csv": true, "md": true, "html": true,
+		}
+		for _, f := range strings.Split(cfg.Out.Format, ",") {
+			f = strings.TrimSpace(f)
+			if f != "" && !validFormats[f] {
+				exitWithError("--format contains unknown format %q; valid: console, json, jsonl, sarif, csv, md, html", f)
+			}
+		}
 	}
 }
 

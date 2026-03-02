@@ -42,6 +42,17 @@ func runDiscover() {
 
 	discoverFlags.Parse(os.Args[2:])
 
+	// Validate numeric flags
+	if *concurrency < 1 {
+		exitWithError("--concurrency must be at least 1, got %d", *concurrency)
+	}
+	if *timeout < 1 {
+		exitWithError("--timeout must be at least 1, got %d", *timeout)
+	}
+	if *maxDepth < 1 {
+		exitWithError("--depth must be at least 1, got %d", *maxDepth)
+	}
+
 	// Collect targets using shared TargetSource
 	ts := &input.TargetSource{
 		URLs:     targetURLs,

@@ -85,6 +85,17 @@ func runMutate() {
 
 	mutateFlags.Parse(os.Args[2:])
 
+	// Validate numeric flags
+	if *concurrency < 1 {
+		exitWithError("--concurrency (-c) must be at least 1, got %d", *concurrency)
+	}
+	if *rateLimit <= 0 {
+		exitWithError("--rate-limit (--rl) must be positive, got %f", *rateLimit)
+	}
+	if *timeout < 1 {
+		exitWithError("--timeout must be at least 1, got %d", *timeout)
+	}
+
 	// Disable detection if requested
 	if *noDetect {
 		detection.Disable()
@@ -184,6 +195,8 @@ func runMutate() {
 			cfg.Pipeline = mutation.FullCoveragePipelineConfig()
 		case "bypass":
 			cfg.Pipeline = mutation.BypassPipelineConfig()
+		default:
+			exitWithError("--mode must be one of: quick, standard, full, bypass; got %q", *mode)
 		}
 	} // End of else block for non-smart mode
 
@@ -424,7 +437,9 @@ func runMutate() {
 
 		// Write to output file
 		if writer != nil {
-			writer.Encode(r)
+			if encErr := writer.Encode(r); encErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Error writing result to output file: %v", encErr))
+			}
 		}
 
 		// Verbose output
