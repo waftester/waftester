@@ -128,7 +128,7 @@ func runSmuggle() {
 	if smuggleDispCtx != nil {
 		defer smuggleDispCtx.Close()
 	}
-	smugglerCtx := context.Background()
+	smugglerCtx := ctx
 
 	// Emit start event for scan lifecycle hooks
 	if smuggleDispCtx != nil {
@@ -256,15 +256,18 @@ func runSmuggle() {
 		f, err := os.Create(*outputFile)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Failed to create output file: %v", err))
+			os.Exit(1)
 		} else {
 			enc := json.NewEncoder(f)
 			enc.SetIndent("", "  ")
 			encErr := enc.Encode(allResults)
 			closeErr := f.Close()
 			if encErr != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to encode results: %v", encErr))
+				ui.PrintError(fmt.Sprintf("Failed to encode results: %v", encErr))
+				os.Exit(1)
 			} else if closeErr != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to close output file: %v", closeErr))
+				ui.PrintError(fmt.Sprintf("Failed to close output file: %v", closeErr))
+				os.Exit(1)
 			} else {
 				ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
 			}
@@ -362,7 +365,7 @@ func runRace() {
 	if raceDispCtx != nil {
 		defer raceDispCtx.Close()
 	}
-	raceCtx := context.Background()
+	raceCtx := ctx
 
 	// Emit start event for scan lifecycle hooks
 	if raceDispCtx != nil {
@@ -468,15 +471,18 @@ func runRace() {
 		f, err := os.Create(*outputFile)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Failed to create output file: %v", err))
+			os.Exit(1)
 		} else {
 			enc := json.NewEncoder(f)
 			enc.SetIndent("", "  ")
 			encErr := enc.Encode(vulns)
 			closeErr := f.Close()
 			if encErr != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to encode results: %v", encErr))
+				ui.PrintError(fmt.Sprintf("Failed to encode results: %v", encErr))
+				os.Exit(1)
 			} else if closeErr != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to close output file: %v", closeErr))
+				ui.PrintError(fmt.Sprintf("Failed to close output file: %v", closeErr))
+				os.Exit(1)
 			} else {
 				ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
 			}
@@ -559,7 +565,9 @@ func runWorkflow() {
 	if workflowDispCtx != nil {
 		defer workflowDispCtx.Close()
 	}
-	workflowCtx := context.Background()
+	sigCtx, sigCancel := cli.SignalContext(30 * time.Second)
+	defer sigCancel()
+	workflowCtx := sigCtx
 
 	// Emit start event for scan lifecycle hooks
 	if workflowDispCtx != nil {
@@ -582,7 +590,7 @@ func runWorkflow() {
 
 	// Execute workflow with timeout
 	timeoutDuration := time.Duration(*timeout) * time.Second
-	ctx, cancel := context.WithTimeout(context.Background(), timeoutDuration)
+	ctx, cancel := context.WithTimeout(sigCtx, timeoutDuration)
 	defer cancel()
 
 	ui.PrintInfo(fmt.Sprintf("Executing workflow: %s", wf.Name))
@@ -663,15 +671,18 @@ func runWorkflow() {
 		f, err := os.Create(*outputFile)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Failed to create output file: %v", err))
+			os.Exit(1)
 		} else {
 			enc := json.NewEncoder(f)
 			enc.SetIndent("", "  ")
 			encErr := enc.Encode(result)
 			closeErr := f.Close()
 			if encErr != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to encode results: %v", encErr))
+				ui.PrintError(fmt.Sprintf("Failed to encode results: %v", encErr))
+				os.Exit(1)
 			} else if closeErr != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to close output file: %v", closeErr))
+				ui.PrintError(fmt.Sprintf("Failed to close output file: %v", closeErr))
+				os.Exit(1)
 			} else {
 				ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
 			}
@@ -843,7 +854,8 @@ func runHeadless() {
 	}
 	headlessStartTime := time.Now()
 
-	ctx := context.Background()
+	ctx, ctxCancel := cli.SignalContext(30 * time.Second)
+	defer ctxCancel()
 
 	// Emit start event for scan lifecycle hooks
 	if headlessDispCtx != nil {
@@ -1042,15 +1054,18 @@ func runHeadless() {
 		f, err := os.Create(*outputFile)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Failed to create output file: %v", err))
+			os.Exit(1)
 		} else {
 			enc := json.NewEncoder(f)
 			enc.SetIndent("", "  ")
 			encErr := enc.Encode(allResults)
 			closeErr := f.Close()
 			if encErr != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to encode results: %v", encErr))
+				ui.PrintError(fmt.Sprintf("Failed to encode results: %v", encErr))
+				os.Exit(1)
 			} else if closeErr != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to close output file: %v", closeErr))
+				ui.PrintError(fmt.Sprintf("Failed to close output file: %v", closeErr))
+				os.Exit(1)
 			} else {
 				ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
 			}
