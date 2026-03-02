@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/retry"
 	"github.com/waftester/waftester/pkg/strutil"
 	"gopkg.in/yaml.v3"
@@ -494,7 +495,7 @@ func (e *Engine) executeStep(ctx context.Context, step *Step, vars map[string]st
 			if verr := e.validateFilePath(outputPath); verr != nil {
 				result.Status = "failed"
 				result.Error = fmt.Sprintf("security: output path: %v", verr)
-			} else if err := os.WriteFile(outputPath, output, 0644); err == nil {
+			} else if err := iohelper.WriteAtomic(outputPath, output, 0644); err == nil {
 				result.OutputFile = outputPath
 			}
 		}
@@ -753,7 +754,7 @@ func SaveWorkflow(wf *Workflow, path string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	return iohelper.WriteAtomic(path, data, 0644)
 }
 
 // ToJSON converts workflow result to JSON

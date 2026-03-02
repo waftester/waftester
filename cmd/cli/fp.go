@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -12,6 +11,7 @@ import (
 	"github.com/waftester/waftester/pkg/attackconfig"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/fp"
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -221,10 +221,7 @@ func runFP() {
 
 	// Save to file if requested
 	if *output != "" {
-		data, err := json.MarshalIndent(result, "", "  ")
-		if err != nil {
-			ui.PrintError(fmt.Sprintf("Error marshaling results: %v", err))
-		} else if err := os.WriteFile(*output, data, 0644); err != nil {
+		if err := iohelper.WriteAtomicJSON(*output, result, 0644); err != nil {
 			ui.PrintError(fmt.Sprintf("Error saving output: %v", err))
 		} else {
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *output))
@@ -266,14 +263,13 @@ func parseCorpusSources(sources string) []string {
 }
 
 func loadDynamicCorpus(tester *fp.Tester, filename string) error {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return fmt.Errorf("read corpus %s: %w", filename, err)
-	}
-
 	var payloads []string
-	if err := json.Unmarshal(data, &payloads); err != nil {
-		// Try line-by-line format
+	if err := iohelper.ReadJSON(filename, &payloads); err != nil {
+		// Not valid JSON array — try line-by-line text format
+		data, readErr := os.ReadFile(filename)
+		if readErr != nil {
+			return fmt.Errorf("read corpus %s: %w", filename, readErr)
+		}
 		payloads = strutil.SplitTrimmed(string(data), "\n")
 	}
 

@@ -513,11 +513,9 @@ func runAutoScan() {
 	if *cfg.Smart.Enabled && shouldSkipPhase("smart-mode") {
 		ui.PrintInfo("⏭️  Skipping smart mode (already completed)")
 		// Reload cached smart mode results for downstream phases
-		if data, err := os.ReadFile(smartModeFile); err == nil {
-			var cached smartModeCache
-			if err := json.Unmarshal(data, &cached); err == nil {
-				smartResult = cached.toSmartModeResult()
-			}
+		var cached smartModeCache
+		if iohelper.ReadJSON(smartModeFile, &cached) == nil {
+			smartResult = cached.toSmartModeResult()
 		}
 	}
 
@@ -585,10 +583,8 @@ func runAutoScan() {
 		// Persist smart mode results for resume
 		if smartResult != nil {
 			cached := newSmartModeCache(smartResult)
-			if data, err := json.MarshalIndent(cached, "", "  "); err == nil {
-				if werr := os.WriteFile(smartModeFile, data, 0644); werr != nil {
-					ui.PrintWarning(fmt.Sprintf("Failed to save smart mode cache: %v", werr))
-				}
+			if werr := iohelper.WriteAtomicJSON(smartModeFile, cached, 0644); werr != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to save smart mode cache: %v", werr))
 			}
 		}
 		printStatusLn()
@@ -663,11 +659,9 @@ func runAutoScan() {
 	if shouldSkipPhase("discovery") {
 		ui.PrintInfo("⏭️  Skipping discovery (already completed)")
 		// Load previous discovery results if available
-		if data, err := os.ReadFile(discoveryFile); err == nil {
-			var loaded discovery.DiscoveryResult
-			if err := json.Unmarshal(data, &loaded); err == nil {
-				discResult = &loaded
-			}
+		var loaded discovery.DiscoveryResult
+		if iohelper.ReadJSON(discoveryFile, &loaded) == nil {
+			discResult = &loaded
 		}
 	}
 
@@ -819,10 +813,7 @@ func runAutoScan() {
 			ui.PrintWarning(fmt.Sprintf("Leaky paths scan warning: %v", err))
 		} else {
 			// Save results
-			leakyData, marshalErr := json.MarshalIndent(leakyResult, "", "  ")
-			if marshalErr != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to marshal leaky paths: %v", marshalErr))
-			} else if err := os.WriteFile(leakyPathsFile, leakyData, 0644); err != nil {
+			if err := iohelper.WriteAtomicJSON(leakyPathsFile, leakyResult, 0644); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Failed to write leaky paths: %v", err))
 			}
 
@@ -947,23 +938,21 @@ func runAutoScan() {
 	} else if *cfg.EnableLeakyPaths && shouldSkipPhase("leaky-paths") {
 		// Resume: reload leaky-paths results for G2/G9 enrichments
 		ui.PrintInfo("⏭️  Skipping leaky-paths (already completed)")
-		if data, err := os.ReadFile(leakyPathsFile); err == nil {
-			var loaded leakypaths.ScanSummary
-			if err := json.Unmarshal(data, &loaded); err == nil {
-				leakyResult = &loaded
-				// G2: Re-inject leaky path endpoints into discovery
-				if leakyResult.InterestingHits > 0 {
-					for _, result := range leakyResult.Results {
-						if !result.Interesting {
-							continue
-						}
-						discResult.Endpoints = append(discResult.Endpoints, discovery.Endpoint{
-							Path:     result.Path,
-							Method:   "GET",
-							Category: result.Category,
-							Service:  "leaky-paths",
-						})
+		var loaded leakypaths.ScanSummary
+		if iohelper.ReadJSON(leakyPathsFile, &loaded) == nil {
+			leakyResult = &loaded
+			// G2: Re-inject leaky path endpoints into discovery
+			if leakyResult.InterestingHits > 0 {
+				for _, result := range leakyResult.Results {
+					if !result.Interesting {
+						continue
 					}
+					discResult.Endpoints = append(discResult.Endpoints, discovery.Endpoint{
+						Path:     result.Path,
+						Method:   "GET",
+						Category: result.Category,
+						Service:  "leaky-paths",
+					})
 				}
 			}
 		}
@@ -990,11 +979,9 @@ func runAutoScan() {
 	if shouldSkipPhase("js-analysis") {
 		ui.PrintInfo("⏭️  Skipping JS analysis (already completed)")
 		// Reload JS data from disk for summary/report usage
-		if data, err := os.ReadFile(jsAnalysisFile); err == nil {
-			var loaded js.ExtractedData
-			if err := json.Unmarshal(data, &loaded); err == nil {
-				allJSData = &loaded
-			}
+		var loaded js.ExtractedData
+		if err := iohelper.ReadJSON(jsAnalysisFile, &loaded); err == nil {
+			allJSData = &loaded
 		}
 
 		// Re-inject JS endpoints into discResult — downstream phases (clustering,
@@ -1218,10 +1205,7 @@ func runAutoScan() {
 		sort.Strings(allJSData.Subdomains)
 
 		// Save JS analysis
-		jsDataBytes, marshalErr := json.MarshalIndent(allJSData, "", "  ")
-		if marshalErr != nil {
-			ui.PrintWarning(fmt.Sprintf("Failed to marshal JS analysis: %v", marshalErr))
-		} else if err := os.WriteFile(jsAnalysisFile, jsDataBytes, 0644); err != nil {
+		if err := iohelper.WriteAtomicJSON(jsAnalysisFile, allJSData, 0644); err != nil {
 			ui.PrintWarning(fmt.Sprintf("Failed to write JS analysis: %v", err))
 		}
 
@@ -1553,10 +1537,7 @@ func runAutoScan() {
 			}
 
 			// Save results
-			paramData, marshalErr := json.MarshalIndent(paramResult, "", "  ")
-			if marshalErr != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to marshal params: %v", marshalErr))
-			} else if err := os.WriteFile(paramsFile, paramData, 0644); err != nil {
+			if err := iohelper.WriteAtomicJSON(paramsFile, paramResult, 0644); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Failed to write params: %v", err))
 			}
 
@@ -1671,11 +1652,9 @@ func runAutoScan() {
 	} else if *cfg.EnableParamDiscovery && shouldSkipPhase("param-discovery") {
 		// Resume: reload param discovery results for G1 enrichment
 		ui.PrintInfo("⏭️  Skipping param-discovery (already completed)")
-		if data, err := os.ReadFile(paramsFile); err == nil {
-			var loaded params.DiscoveryResult
-			if err := json.Unmarshal(data, &loaded); err == nil {
-				paramResult = &loaded
-			}
+		var loaded params.DiscoveryResult
+		if err := iohelper.ReadJSON(paramsFile, &loaded); err == nil {
+			paramResult = &loaded
 		}
 	}
 	// Full Recon Mode - runs unified reconnaissance if enabled
@@ -1726,10 +1705,7 @@ func runAutoScan() {
 		} else {
 			// Save recon results
 			reconFile := filepath.Join(workspaceDir, "full-recon.json")
-			reconData, marshalErr := json.MarshalIndent(fullReconResult, "", "  ")
-			if marshalErr != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to marshal recon data: %v", marshalErr))
-			} else if err := os.WriteFile(reconFile, reconData, 0644); err != nil {
+			if err := iohelper.WriteAtomicJSON(reconFile, fullReconResult, 0644); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Failed to write recon: %v", err))
 			}
 
@@ -1776,11 +1752,9 @@ func runAutoScan() {
 	} else if *cfg.EnableFullRecon && shouldSkipPhase("full-recon") {
 		ui.PrintInfo("⏭️  Skipping full-recon (already completed)")
 		reconFile := filepath.Join(workspaceDir, "full-recon.json")
-		if data, err := os.ReadFile(reconFile); err == nil {
-			var loaded recon.FullReconResult
-			if err := json.Unmarshal(data, &loaded); err == nil {
-				fullReconResult = &loaded
-			}
+		var loaded recon.FullReconResult
+		if err := iohelper.ReadJSON(reconFile, &loaded); err == nil {
+			fullReconResult = &loaded
 		}
 	}
 
@@ -1864,11 +1838,9 @@ func runAutoScan() {
 
 	if shouldSkipPhase("learning") {
 		ui.PrintInfo("⏭️  Skipping learning phase (already completed)")
-		if data, err := os.ReadFile(testPlanFile); err == nil {
-			var loaded learning.TestPlan
-			if err := json.Unmarshal(data, &loaded); err == nil {
-				testPlan = &loaded
-			}
+		var loaded learning.TestPlan
+		if err := iohelper.ReadJSON(testPlanFile, &loaded); err == nil {
+			testPlan = &loaded
 		}
 	}
 
@@ -1882,10 +1854,7 @@ func runAutoScan() {
 		testPlan = learner.GenerateTestPlan()
 
 		// Save test plan
-		planData, marshalErr := json.MarshalIndent(testPlan, "", "  ")
-		if marshalErr != nil {
-			ui.PrintWarning(fmt.Sprintf("Failed to marshal test plan: %v", marshalErr))
-		} else if err := os.WriteFile(testPlanFile, planData, 0644); err != nil {
+		if err := iohelper.WriteAtomicJSON(testPlanFile, testPlan, 0644); err != nil {
 			ui.PrintWarning(fmt.Sprintf("Failed to write test plan: %v", err))
 		}
 
@@ -1983,21 +1952,21 @@ func runAutoScan() {
 
 	if shouldSkipPhase("waf-testing") {
 		ui.PrintInfo("⏭️  Skipping WAF testing (already completed)")
-		if data, err := os.ReadFile(wafResultsFile); err == nil {
-			if uerr := json.Unmarshal(data, &results); uerr != nil {
-				ui.PrintWarning(fmt.Sprintf("Corrupt results-summary.json, continuing with empty results: %v", uerr))
+		if err := iohelper.ReadJSON(wafResultsFile, &results); err != nil {
+			if os.IsNotExist(err) {
+				ui.PrintWarning(fmt.Sprintf("Missing results-summary.json, continuing with empty results: %v", err))
+			} else {
+				ui.PrintWarning(fmt.Sprintf("Corrupt results-summary.json, continuing with empty results: %v", err))
 			}
-		} else {
-			ui.PrintWarning(fmt.Sprintf("Missing results-summary.json, continuing with empty results: %v", err))
 		}
 
 		// Reload prepared payloads for brain-feedback and mutation-pass sub-passes.
-		if data, err := os.ReadFile(payloadsCheckpoint); err == nil {
-			if uerr := json.Unmarshal(data, &allPayloads); uerr != nil {
-				ui.PrintWarning(fmt.Sprintf("Corrupt payloads checkpoint: %v", uerr))
+		if err := iohelper.ReadJSON(payloadsCheckpoint, &allPayloads); err != nil {
+			if os.IsNotExist(err) {
+				ui.PrintWarning("Payloads checkpoint not found — brain-feedback and mutation-pass will have no payloads")
+			} else {
+				ui.PrintWarning(fmt.Sprintf("Corrupt payloads checkpoint: %v", err))
 			}
-		} else {
-			ui.PrintWarning("Payloads checkpoint not found — brain-feedback and mutation-pass will have no payloads")
 		}
 
 		// Re-run calibration so sub-pass executors have a valid filter config.
@@ -2436,10 +2405,8 @@ func runAutoScan() {
 		}
 
 		// Save prepared payloads so brain-feedback/mutation-pass can resume independently.
-		if cpData, cpErr := json.Marshal(allPayloads); cpErr == nil {
-			if writeErr := os.WriteFile(payloadsCheckpoint, cpData, 0644); writeErr != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to save payloads checkpoint: %v", writeErr))
-			}
+		if writeErr := iohelper.WriteAtomicJSON(payloadsCheckpoint, allPayloads, 0644); writeErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to save payloads checkpoint: %v", writeErr))
 		}
 
 		// Auto-calibration
@@ -2611,10 +2578,8 @@ func runAutoScan() {
 
 		// Flush results immediately so crash before brain-feedback doesn't
 		// lose all waf-testing data. On resume, the skip path reads this file.
-		if summaryData, err := json.MarshalIndent(results, "", "  "); err == nil {
-			if writeErr := os.WriteFile(wafResultsFile, summaryData, 0644); writeErr != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to save waf results: %v", writeErr))
-			}
+		if writeErr := iohelper.WriteAtomicJSON(wafResultsFile, results, 0644); writeErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to save waf results: %v", writeErr))
 		}
 
 		// End WAF testing phase for Brain (only when waf-testing ran fresh)
@@ -2790,10 +2755,8 @@ func runAutoScan() {
 		if len(results.Latencies) > 0 {
 			recalculateLatencyStats(&results)
 		}
-		if summaryData, err := json.MarshalIndent(results, "", "  "); err == nil {
-			if writeErr := os.WriteFile(wafResultsFile, summaryData, 0644); writeErr != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to save interim results: %v", writeErr))
-			}
+		if writeErr := iohelper.WriteAtomicJSON(wafResultsFile, results, 0644); writeErr != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to save interim results: %v", writeErr))
 		}
 	}
 
@@ -2985,10 +2948,8 @@ func runAutoScan() {
 	}
 
 	// Save results summary AFTER feedback merge so resume loads complete data
-	if summaryData, err := json.MarshalIndent(results, "", "  "); err == nil {
-		if writeErr := os.WriteFile(wafResultsFile, summaryData, 0644); writeErr != nil {
-			ui.PrintWarning(fmt.Sprintf("Failed to save results summary: %v", writeErr))
-		}
+	if writeErr := iohelper.WriteAtomicJSON(wafResultsFile, results, 0644); writeErr != nil {
+		ui.PrintWarning(fmt.Sprintf("Failed to save results summary: %v", writeErr))
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -3005,21 +2966,19 @@ func runAutoScan() {
 
 	if shouldSkipPhase("vendor-detection") {
 		ui.PrintInfo("⏭️  Skipping vendor-detection (already completed)")
-		if data, err := os.ReadFile(vendorDetectionFile); err == nil {
-			var cached struct {
-				VendorName          string   `json:"vendor_name"`
-				VendorConfidence    float64  `json:"vendor_confidence"`
-				BypassHints         []string `json:"bypass_hints,omitempty"`
-				RecommendedEncoders []string `json:"recommended_encoders,omitempty"`
-				RecommendedEvasions []string `json:"recommended_evasions,omitempty"`
-			}
-			if err := json.Unmarshal(data, &cached); err == nil {
-				vendorName = cached.VendorName
-				vendorConfidence = cached.VendorConfidence
-				bypassHints = cached.BypassHints
-				recommendedEncoders = cached.RecommendedEncoders
-				recommendedEvasions = cached.RecommendedEvasions
-			}
+		var cached struct {
+			VendorName          string   `json:"vendor_name"`
+			VendorConfidence    float64  `json:"vendor_confidence"`
+			BypassHints         []string `json:"bypass_hints,omitempty"`
+			RecommendedEncoders []string `json:"recommended_encoders,omitempty"`
+			RecommendedEvasions []string `json:"recommended_evasions,omitempty"`
+		}
+		if err := iohelper.ReadJSON(vendorDetectionFile, &cached); err == nil {
+			vendorName = cached.VendorName
+			vendorConfidence = cached.VendorConfidence
+			bypassHints = cached.BypassHints
+			recommendedEncoders = cached.RecommendedEncoders
+			recommendedEvasions = cached.RecommendedEvasions
 		}
 	} else {
 		printStatusLn()
@@ -3112,16 +3071,14 @@ func runAutoScan() {
 		printStatusLn()
 
 		// Save vendor detection results for resume
-		vendorCache, marshalErr := json.MarshalIndent(struct {
+		vendorCacheObj := struct {
 			VendorName          string   `json:"vendor_name"`
 			VendorConfidence    float64  `json:"vendor_confidence"`
 			BypassHints         []string `json:"bypass_hints,omitempty"`
 			RecommendedEncoders []string `json:"recommended_encoders,omitempty"`
 			RecommendedEvasions []string `json:"recommended_evasions,omitempty"`
-		}{vendorName, vendorConfidence, bypassHints, recommendedEncoders, recommendedEvasions}, "", "  ")
-		if marshalErr != nil {
-			ui.PrintWarning(fmt.Sprintf("Failed to marshal vendor detection: %v", marshalErr))
-		} else if err := os.WriteFile(vendorDetectionFile, vendorCache, 0644); err != nil {
+		}{vendorName, vendorConfidence, bypassHints, recommendedEncoders, recommendedEvasions}
+		if err := iohelper.WriteAtomicJSON(vendorDetectionFile, vendorCacheObj, 0644); err != nil {
 			ui.PrintWarning(fmt.Sprintf("Failed to save vendor detection: %v", err))
 		}
 		markPhaseCompleted("vendor-detection")
@@ -3507,10 +3464,7 @@ func runAutoScan() {
 		summary["payload_recommendations"] = recData
 	}
 
-	summaryData, marshalErr := json.MarshalIndent(summary, "", "  ")
-	if marshalErr != nil {
-		ui.PrintWarning(fmt.Sprintf("Failed to marshal summary: %v", marshalErr))
-	} else if err := os.WriteFile(summaryFile, summaryData, 0644); err != nil {
+	if err := iohelper.WriteAtomicJSON(summaryFile, summary, 0644); err != nil {
 		ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
 	}
 
@@ -3638,10 +3592,7 @@ func runAutoScan() {
 
 			// Save assessment results
 			assessFile := filepath.Join(workspaceDir, "assessment.json")
-			assessData, marshalErr := json.MarshalIndent(assessResult, "", "  ")
-			if marshalErr != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to marshal assessment: %v", marshalErr))
-			} else if err := os.WriteFile(assessFile, assessData, 0644); err != nil {
+			if err := iohelper.WriteAtomicJSON(assessFile, assessResult, 0644); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Failed to write assessment: %v", err))
 			}
 			ui.PrintSuccess(fmt.Sprintf("📊 Assessment saved to: %s", assessFile))
@@ -3669,13 +3620,8 @@ func runAutoScan() {
 				"false_positive_rate": assessResult.FalsePositiveRate,
 				"bypass_resistance":   assessResult.BypassResistance,
 			}
-			if data, mErr := json.MarshalIndent(summary, "", "  "); mErr != nil {
-				ui.PrintWarning(fmt.Sprintf("Failed to marshal summary: %v", mErr))
-			} else {
-				summaryData = data
-				if err := os.WriteFile(summaryFile, summaryData, 0644); err != nil {
-					ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
-				}
+			if err := iohelper.WriteAtomicJSON(summaryFile, summary, 0644); err != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
 			}
 		}
 		markPhaseCompleted("assessment")
@@ -3683,23 +3629,21 @@ func runAutoScan() {
 	} else if *cfg.EnableAssess && shouldSkipPhase("assessment") {
 		// Reload enterprise metrics from previous assessment so summary.json stays complete.
 		assessFile := filepath.Join(workspaceDir, "assessment.json")
-		if data, err := os.ReadFile(assessFile); err == nil {
-			var prev map[string]interface{}
-			if json.Unmarshal(data, &prev) == nil {
-				metrics := make(map[string]interface{})
-				for _, key := range []string{
-					"grade", "grade_reason", "f1_score", "f2_score",
-					"precision", "recall", "specificity", "mcc",
-					"balanced_accuracy", "detection_rate", "false_positive_rate",
-					"bypass_resistance",
-				} {
-					if v, ok := prev[key]; ok {
-						metrics[key] = v
-					}
+		var prev map[string]interface{}
+		if iohelper.ReadJSON(assessFile, &prev) == nil {
+			metrics := make(map[string]interface{})
+			for _, key := range []string{
+				"grade", "grade_reason", "f1_score", "f2_score",
+				"precision", "recall", "specificity", "mcc",
+				"balanced_accuracy", "detection_rate", "false_positive_rate",
+				"bypass_resistance",
+			} {
+				if v, ok := prev[key]; ok {
+					metrics[key] = v
 				}
-				if len(metrics) > 0 {
-					summary["enterprise_metrics"] = metrics
-				}
+			}
+			if len(metrics) > 0 {
+				summary["enterprise_metrics"] = metrics
 			}
 		}
 	}
@@ -3944,13 +3888,8 @@ func runAutoScan() {
 				}
 
 				// Save updated summary
-				if data, mErr := json.MarshalIndent(summary, "", "  "); mErr != nil {
-					ui.PrintWarning(fmt.Sprintf("Failed to marshal summary: %v", mErr))
-				} else {
-					summaryData = data
-					if err := os.WriteFile(summaryFile, summaryData, 0644); err != nil {
-						ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
-					}
+				if err := iohelper.WriteAtomicJSON(summaryFile, summary, 0644); err != nil {
+					ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
 				}
 
 				// Regenerate enterprise report to include browser findings
@@ -4056,9 +3995,7 @@ func runAutoScan() {
 	// Write final summary to disk after all phases (including resume reloads)
 	// have contributed their data. This ensures enterprise_metrics, browser_scan,
 	// and payload_recommendations survive resume scenarios.
-	if finalData, err := json.MarshalIndent(summary, "", "  "); err == nil {
-		_ = os.WriteFile(summaryFile, finalData, 0644)
-	}
+	_ = iohelper.WriteAtomicJSON(summaryFile, summary, 0644)
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// DISPATCHER SUMMARY EMISSION

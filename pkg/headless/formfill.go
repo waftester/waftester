@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"os"
 	"sort"
 	"strings"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 )
 
@@ -172,19 +172,14 @@ func NewFormFiller(customValues map[string]string) *FormFiller {
 
 // LoadFormConfig loads form fill configuration from a JSON file
 func (f *FormFiller) LoadFormConfig(path string) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("read form config %s: %w", path, err)
-	}
-
 	var config struct {
 		Defaults map[string]string `json:"defaults"`
 		Patterns map[string]string `json:"patterns"`
 		Custom   map[string]string `json:"custom"`
 	}
 
-	if err := json.Unmarshal(data, &config); err != nil {
-		return fmt.Errorf("parse form config: %w", err)
+	if err := iohelper.ReadJSON(path, &config); err != nil {
+		return fmt.Errorf("load form config %s: %w", path, err)
 	}
 
 	for k, v := range config.Defaults {

@@ -142,6 +142,14 @@ func TestNoInlineJSONRead(t *testing.T) {
 		"pkg/compare/compare.go":          "Loads JSON with custom error wrapping",
 		"pkg/output/policy/policy.go":     "Loads YAML or JSON based on extension",
 		"pkg/history/store.go":            "Uses iohelper.ReadJSON already, json.Unmarshal for inline bytes",
+		"pkg/output/testutil/helpers.go":  "Test utility — unmarshals inline bytes, not file reads",
+		"pkg/ftw/ftw.go":                  "Loads YAML-or-JSON with extension detection between read and unmarshal",
+		"pkg/openapi/parser.go":           "Tries JSON then YAML unmarshal on same data",
+		"pkg/api/openapi.go":              "Unmarshals to raw map for schema inspection before typed parse",
+		"pkg/update/update.go":            "Reads+merges JSON payloads with intermediate byte processing",
+		"cmd/mcp-smoke/main.go":           "Unmarshals MCP response strings, not file reads",
+		"cmd/cli/cmd_probe.go":            "Loads metrics/fingerprints with intermediate processing",
+		"pkg/params/params.go":            "DiscoverFromJSON unmarshals caller-provided bytes, not file reads",
 	}
 
 	dirs := []string{"pkg", "cmd"}

@@ -831,7 +831,7 @@ func runFuzz() {
 		}
 
 		if *outputFile != "" {
-			if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
+			if err := iohelper.WriteAtomic(*outputFile, jsonData, 0644); err != nil {
 				errMsg := fmt.Sprintf("Error writing output: %v", err)
 				ui.PrintError(errMsg)
 				if fuzzDispCtx != nil {
