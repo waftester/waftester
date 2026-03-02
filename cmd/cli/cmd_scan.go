@@ -2879,7 +2879,7 @@ func runScan() {
 		}
 		domain := parsedURL.Hostname()
 
-		dnsResult := performDNSRecon(domain)
+		dnsResult := performDNSRecon(ctx, domain)
 		totalRecords = dnsReconTotalRecords(dnsResult)
 
 		if totalRecords > 0 {
