@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/apispec"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/report"
 	"github.com/waftester/waftester/pkg/templateresolver"
 	"github.com/waftester/waftester/pkg/templatevalidator"
@@ -87,27 +87,12 @@ func runValidate() {
 
 	if *outputJSON != "" {
 		// Write JSON output
-		f, err := os.Create(*outputJSON)
-		if err != nil {
+		if err := iohelper.WriteAtomicJSON(*outputJSON, result, 0644); err != nil {
 			if validateDispCtx != nil {
-				_ = validateDispCtx.EmitError(validateCtx, "validate", fmt.Sprintf("Cannot create output file: %v", err), true)
+				_ = validateDispCtx.EmitError(validateCtx, "validate", fmt.Sprintf("Cannot write output file: %v", err), true)
 				_ = validateDispCtx.Close()
 			}
-			ui.PrintError(fmt.Sprintf("Cannot create output file: %v", err))
-			os.Exit(1)
-		}
-		defer f.Close()
-		data, marshalErr := json.MarshalIndent(result, "", "  ")
-		if marshalErr != nil {
-			ui.PrintWarning(fmt.Sprintf("Failed to marshal admin result: %v", marshalErr))
-			return
-		}
-		if _, writeErr := f.Write(data); writeErr != nil {
-			ui.PrintError(fmt.Sprintf("Failed to write results: %v", writeErr))
-			os.Exit(1)
-		}
-		if _, writeErr := f.Write([]byte("\n")); writeErr != nil {
-			ui.PrintError(fmt.Sprintf("Failed to write results: %v", writeErr))
+			ui.PrintError(fmt.Sprintf("Failed to write results: %v", err))
 			os.Exit(1)
 		}
 		ui.PrintSuccess(fmt.Sprintf("Results written to %s", *outputJSON))
@@ -194,11 +179,8 @@ func runValidateSpec(specPath, specURL string, allowInternal, verbose bool, outp
 
 	// Write JSON output if requested.
 	if outputFile != "" {
-		data, marshalErr := json.MarshalIndent(result, "", "  ")
-		if marshalErr != nil {
-			ui.PrintWarning(fmt.Sprintf("Failed to marshal results: %v", marshalErr))
-		} else if writeErr := os.WriteFile(outputFile, data, 0o644); writeErr != nil {
-			ui.PrintWarning(fmt.Sprintf("Failed to write output: %v", writeErr))
+		if err := iohelper.WriteAtomicJSON(outputFile, result, 0o644); err != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to write output: %v", err))
 		} else {
 			ui.PrintInfo(fmt.Sprintf("Results written to %s", outputFile))
 		}
@@ -320,21 +302,12 @@ func runValidateTemplates() {
 
 	if *outputJSON != "" {
 		// Write JSON output
-		data, err := json.MarshalIndent(summary, "", "  ")
-		if err != nil {
+		if err := iohelper.WriteAtomicJSON(*outputJSON, summary, 0644); err != nil {
 			if vtDispCtx != nil {
-				_ = vtDispCtx.EmitError(vtCtx, "validate-templates", fmt.Sprintf("Cannot marshal results: %v", err), true)
+				_ = vtDispCtx.EmitError(vtCtx, "validate-templates", fmt.Sprintf("Cannot write output file: %v", err), true)
 				_ = vtDispCtx.Close()
 			}
-			ui.PrintError(fmt.Sprintf("Cannot marshal results: %v", err))
-			os.Exit(1)
-		}
-		if err := os.WriteFile(*outputJSON, data, 0644); err != nil {
-			if vtDispCtx != nil {
-				_ = vtDispCtx.EmitError(vtCtx, "validate-templates", fmt.Sprintf("Cannot create output file: %v", err), true)
-				_ = vtDispCtx.Close()
-			}
-			ui.PrintError(fmt.Sprintf("Cannot create output file: %v", err))
+			ui.PrintError(fmt.Sprintf("Cannot write output file: %v", err))
 			os.Exit(1)
 		}
 		ui.PrintSuccess(fmt.Sprintf("Results written to %s", *outputJSON))

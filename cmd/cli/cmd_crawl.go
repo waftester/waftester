@@ -19,6 +19,7 @@ import (
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/input"
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -589,7 +590,7 @@ func runCrawl() {
 		}
 
 		if *outputFile != "" {
-			if err := os.WriteFile(*outputFile, jsonData, 0644); err != nil {
+			if err := iohelper.WriteAtomic(*outputFile, jsonData, 0644); err != nil {
 				errMsg := fmt.Sprintf("Error writing output: %v", err)
 				ui.PrintError(errMsg)
 				if crawlDispCtx != nil {

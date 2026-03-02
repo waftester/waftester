@@ -19,6 +19,7 @@ import (
 	"github.com/waftester/waftester/pkg/hpp"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/idor"
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ldap"
 	"github.com/waftester/waftester/pkg/lfi"
 	"github.com/waftester/waftester/pkg/massassignment"
@@ -885,14 +886,8 @@ func injectableParamNames(ep apispec.Endpoint) []string {
 
 // writeSpecOutput writes spec scan results to the configured output file.
 func writeSpecOutput(result *apispec.SpecScanResult, outFlags *OutputFlags) {
-	data, err := json.MarshalIndent(result, "", "  ")
-	if err != nil {
-		ui.PrintWarning(fmt.Sprintf("Failed to marshal spec results: %v", err))
-		return
-	}
-
-	if writeErr := os.WriteFile(outFlags.OutputFile, data, 0o644); writeErr != nil {
-		ui.PrintWarning(fmt.Sprintf("Failed to write output file: %v", writeErr))
+	if err := iohelper.WriteAtomicJSON(outFlags.OutputFile, result, 0o644); err != nil {
+		ui.PrintWarning(fmt.Sprintf("Failed to write output file: %v", err))
 		return
 	}
 

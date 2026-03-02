@@ -24,6 +24,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/strutil"
 	embedded "github.com/waftester/waftester/presets"
 )
@@ -115,11 +116,14 @@ func loadFromDisk(dir string, reg map[string]*Preset) {
 			continue
 		}
 
-		data, err := os.ReadFile(resolved)
-		if err != nil {
+		var p Preset
+		if err := iohelper.ReadJSON(resolved, &p); err != nil {
 			continue
 		}
-		parseAndRegister(data, entry.Name(), reg)
+		if p.Name == "" {
+			p.Name = strings.TrimSuffix(entry.Name(), ".json")
+		}
+		reg[strings.ToLower(p.Name)] = &p
 	}
 }
 

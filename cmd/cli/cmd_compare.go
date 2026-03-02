@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/waftester/waftester/pkg/compare"
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -67,26 +68,22 @@ func runCompare() {
 
 	switch *format {
 	case "json":
-		data, err := json.MarshalIndent(result, "", "  ")
-		if err != nil {
-			exitWithError("Marshaling result: %v", err)
-		}
 		if *output != "" {
-			if err := os.WriteFile(*output, data, 0o644); err != nil {
+			if err := iohelper.WriteAtomicJSON(*output, result, 0o644); err != nil {
 				exitWithError("Writing output: %v", err)
 			}
 			ui.PrintSuccess(fmt.Sprintf("Comparison written to %s", *output))
 		} else {
+			data, err := json.MarshalIndent(result, "", "  ")
+			if err != nil {
+				exitWithError("Marshaling result: %v", err)
+			}
 			fmt.Println(string(data))
 		}
 	default:
 		printCompareConsole(result, *beforePath, *afterPath)
 		if *output != "" {
-			data, err := json.MarshalIndent(result, "", "  ")
-			if err != nil {
-				exitWithError("Marshaling result: %v", err)
-			}
-			if err := os.WriteFile(*output, data, 0o644); err != nil {
+			if err := iohelper.WriteAtomicJSON(*output, result, 0o644); err != nil {
 				exitWithError("Writing output: %v", err)
 			}
 			fmt.Fprintln(os.Stderr)

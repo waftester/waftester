@@ -861,7 +861,7 @@ func runProbe() {
 					respContent += fmt.Sprintf("%s: %s\n", k, strings.Join(v, ", "))
 				}
 				respContent += "\n" + bodyStr
-				if err := os.WriteFile(respFile, []byte(respContent), 0644); err != nil {
+				if err := iohelper.WriteAtomic(respFile, []byte(respContent), 0644); err != nil {
 					if showDetails {
 						ui.PrintError(fmt.Sprintf("Failed to save response: %v", err))
 					}
@@ -2101,7 +2101,7 @@ func runProbe() {
 			}
 
 			if *cfg.OutputFile != "" {
-				if err := os.WriteFile(*cfg.OutputFile, jsonData, 0644); err != nil {
+				if err := iohelper.WriteAtomic(*cfg.OutputFile, jsonData, 0644); err != nil {
 					errMsg := fmt.Sprintf("Error writing output: %v", err)
 					ui.PrintError(errMsg)
 					if probeDispCtx != nil {
@@ -2128,7 +2128,7 @@ func runProbe() {
 					} else {
 						csvBytes = []byte(csvContent)
 					}
-					if err := os.WriteFile(csvFile, csvBytes, 0644); err == nil {
+					if err := iohelper.WriteAtomic(csvFile, csvBytes, 0644); err == nil {
 						ui.PrintSuccess(fmt.Sprintf("CSV saved to %s", csvFile))
 					}
 
@@ -2137,7 +2137,7 @@ func runProbe() {
 					txtLine := fmt.Sprintf("%s [%d] [%s] [%s] [%s]\n",
 						results.Target, results.StatusCode, results.ResponseTime,
 						results.ContentType, results.Server)
-					if err := os.WriteFile(txtFile, []byte(txtLine), 0644); err == nil {
+					if err := iohelper.WriteAtomic(txtFile, []byte(txtLine), 0644); err == nil {
 						ui.PrintSuccess(fmt.Sprintf("TXT saved to %s", txtFile))
 					}
 				}
@@ -2239,7 +2239,7 @@ func runProbe() {
 </html>`, time.Now().Format(time.RFC1123), statsTotal, statsSuccess, statsFailed,
 			elapsed.Round(time.Millisecond), float64(statsTotal)/elapsed.Seconds())
 
-		if err := os.WriteFile(*cfg.HTMLOutput, []byte(htmlContent), 0644); err != nil {
+		if err := iohelper.WriteAtomic(*cfg.HTMLOutput, []byte(htmlContent), 0644); err != nil {
 			ui.PrintError(fmt.Sprintf("Error writing HTML report: %v", err))
 		} else {
 			fmt.Printf("[*] HTML report saved to: %s\n", *cfg.HTMLOutput)
@@ -2302,31 +2302,25 @@ func runProbe() {
 	// Vision recon clusters - save to file if any screenshots were clustered
 	if *cfg.StoreVisionRecon && len(visionClusters) > 0 {
 		clusterFile := "vision_clusters.json"
-		data, err := json.MarshalIndent(visionClusters, "", "  ")
-		if err == nil {
-			if err := os.WriteFile(clusterFile, data, 0644); err == nil {
-				// Count unique clusters
-				uniqueClusters := make(map[int]bool)
-				for _, c := range visionClusters {
-					uniqueClusters[c.Cluster] = true
-				}
-				fmt.Printf("[*] Saved %d screenshots in %d visual clusters to: %s\n",
-					len(visionClusters), len(uniqueClusters), clusterFile)
-			} else {
-				ui.PrintWarning(fmt.Sprintf("Failed to write vision clusters: %v", err))
+		if err := iohelper.WriteAtomicJSON(clusterFile, visionClusters, 0644); err == nil {
+			// Count unique clusters
+			uniqueClusters := make(map[int]bool)
+			for _, c := range visionClusters {
+				uniqueClusters[c.Cluster] = true
 			}
+			fmt.Printf("[*] Saved %d screenshots in %d visual clusters to: %s\n",
+				len(visionClusters), len(uniqueClusters), clusterFile)
+		} else {
+			ui.PrintWarning(fmt.Sprintf("Failed to write vision clusters: %v", err))
 		}
 	}
 
 	// Filter error page path - save filtered error pages to file
 	if *cfg.FilterErrorPage && len(filteredErrorPages) > 0 {
-		data, err := json.MarshalIndent(filteredErrorPages, "", "  ")
-		if err == nil {
-			if err := os.WriteFile(*cfg.FilterErrorPagePath, data, 0644); err == nil {
-				fmt.Printf("[*] Saved %d filtered error pages to: %s\n", len(filteredErrorPages), *cfg.FilterErrorPagePath)
-			} else {
-				ui.PrintWarning(fmt.Sprintf("Failed to write filtered error pages: %v", err))
-			}
+		if err := iohelper.WriteAtomicJSON(*cfg.FilterErrorPagePath, filteredErrorPages, 0644); err == nil {
+			fmt.Printf("[*] Saved %d filtered error pages to: %s\n", len(filteredErrorPages), *cfg.FilterErrorPagePath)
+		} else {
+			ui.PrintWarning(fmt.Sprintf("Failed to write filtered error pages: %v", err))
 		}
 	}
 

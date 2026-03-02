@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 	"github.com/waftester/waftester/pkg/waf/vendors"
 )
@@ -159,10 +159,7 @@ func runVendorDetect() {
 			saveOutput.AutoTune = vendors.GetAutoTuneConfig(result)
 		}
 
-		data, marshalErr := json.MarshalIndent(saveOutput, "", "  ")
-		if marshalErr != nil {
-			ui.PrintError(fmt.Sprintf("Error marshaling results: %v", marshalErr))
-		} else if err := os.WriteFile(*output, data, 0644); err != nil {
+		if err := iohelper.WriteAtomicJSON(*output, saveOutput, 0644); err != nil {
 			ui.PrintError(fmt.Sprintf("Error saving output: %v", err))
 		} else {
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *output))

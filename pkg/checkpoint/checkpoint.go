@@ -92,14 +92,9 @@ func (m *Manager) Load() (*State, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	data, err := os.ReadFile(m.FilePath)
-	if err != nil {
-		return nil, fmt.Errorf("reading checkpoint %s: %w", m.FilePath, err)
-	}
-
 	var state State
-	if err := json.Unmarshal(data, &state); err != nil {
-		return nil, fmt.Errorf("parsing checkpoint: %w", err)
+	if err := iohelper.ReadJSON(m.FilePath, &state); err != nil {
+		return nil, fmt.Errorf("reading checkpoint %s: %w", m.FilePath, err)
 	}
 
 	// Ensure the Completed map is initialized

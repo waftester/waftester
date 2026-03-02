@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/cli"
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/plugin"
 	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
@@ -210,13 +211,8 @@ func runPluginRun(manager *plugin.Manager, name, targetURL, configFile, configJS
 	// Parse configuration
 	config := make(map[string]interface{})
 	if configFile != "" {
-		data, err := os.ReadFile(configFile)
-		if err != nil {
-			ui.PrintError(fmt.Sprintf("Failed to read config file: %v", err))
-			os.Exit(1)
-		}
-		if err := json.Unmarshal(data, &config); err != nil {
-			ui.PrintError(fmt.Sprintf("Invalid config file: %v", err))
+		if err := iohelper.ReadJSON(configFile, &config); err != nil {
+			ui.PrintError(fmt.Sprintf("Failed to load config file: %v", err))
 			os.Exit(1)
 		}
 	} else if configJSON != "" {
@@ -251,12 +247,7 @@ func runPluginRun(manager *plugin.Manager, name, targetURL, configFile, configJS
 
 	// Output results
 	if outputFile != "" {
-		data, marshalErr := json.MarshalIndent(result, "", "  ")
-		if marshalErr != nil {
-			ui.PrintError(fmt.Sprintf("Failed to marshal results: %v", marshalErr))
-			os.Exit(1)
-		}
-		if err := os.WriteFile(outputFile, data, 0644); err != nil {
+		if err := iohelper.WriteAtomicJSON(outputFile, result, 0644); err != nil {
 			ui.PrintError(fmt.Sprintf("Failed to write output: %v", err))
 		} else {
 			ui.PrintSuccess(fmt.Sprintf("Results written to %s", outputFile))

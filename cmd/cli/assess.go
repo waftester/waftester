@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -16,6 +15,7 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/duration"
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/metrics"
 	detectionoutput "github.com/waftester/waftester/pkg/output/detection"
 	"github.com/waftester/waftester/pkg/strutil"
@@ -296,32 +296,22 @@ func runAssess() {
 
 	// Save to file if requested
 	if *output != "" {
-		var data []byte
-		var marshalErr error
+		var saveErr error
 		switch strings.ToLower(*format) {
 		case "json":
-			data, marshalErr = json.MarshalIndent(result, "", "  ")
+			saveErr = iohelper.WriteAtomicJSON(*output, result, 0644)
 		default:
-			data = []byte(result.Summary())
+			saveErr = iohelper.WriteAtomic(*output, []byte(result.Summary()), 0644)
 		}
 
-		if marshalErr != nil {
-			ui.PrintError(fmt.Sprintf("Error encoding output: %v", marshalErr))
+		if saveErr != nil {
+			ui.PrintError(fmt.Sprintf("Error saving output: %v", saveErr))
 			if dispCtx != nil {
 				_ = dispCtx.Close()
 			}
 			os.Exit(1)
 		}
-
-		if err := os.WriteFile(*output, data, 0644); err != nil {
-			ui.PrintError(fmt.Sprintf("Error saving output: %v", err))
-			if dispCtx != nil {
-				_ = dispCtx.Close()
-			}
-			os.Exit(1)
-		} else {
-			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *output))
-		}
+		ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *output))
 	}
 
 	// Exit code based on grade
