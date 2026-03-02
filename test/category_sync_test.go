@@ -1977,3 +1977,224 @@ func TestHookDispatcherUsesParentContext(t *testing.T) {
 		}
 	}
 }
+
+// =============================================================================
+// WAVE 5 REGRESSION TESTS
+// =============================================================================
+//
+// These tests guard against the 25 bugs found in the Wave 5 runtime audit.
+
+// TestExecutorBodySliceSafe ensures pkg/mutation/executor.go doesn't use
+// a hardcoded bodyBytes[:300] that panics when body is 201-299 bytes.
+func TestExecutorBodySliceSafe(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "pkg", "mutation", "executor.go"))
+	if err != nil {
+		t.Fatalf("cannot read executor.go: %v", err)
+	}
+	content := string(data)
+
+	// Should NOT contain hardcoded bodyBytes[:300] — must use safe upper-bound
+	if strings.Contains(content, "bodyBytes[:300]") {
+		t.Error("executor.go contains hardcoded bodyBytes[:300] — panics when body is 201-299 bytes")
+	}
+	// Should contain safe slicing pattern
+	if !strings.Contains(content, "upper := len(bodyBytes)") {
+		t.Error("executor.go missing safe upper-bound calculation for body snippet")
+	}
+}
+
+// TestProbeOutputDirErrorChecked ensures cmd_probe.go checks os.MkdirAll errors.
+func TestProbeOutputDirErrorChecked(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_probe.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_probe.go: %v", err)
+	}
+	content := string(data)
+
+	// Count MkdirAll calls vs error checks
+	mkdirCount := strings.Count(content, "os.MkdirAll(")
+	if mkdirCount == 0 {
+		t.Skip("no MkdirAll calls found in cmd_probe.go")
+	}
+	// Every MkdirAll should have its error checked (err, mkErr, etc.)
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.Contains(trimmed, "os.MkdirAll(") &&
+			!strings.Contains(trimmed, "if ") &&
+			!strings.Contains(trimmed, "Err :=") &&
+			!strings.Contains(trimmed, "err :=") &&
+			!strings.Contains(trimmed, "err =") {
+			t.Errorf("cmd_probe.go line ~%d: os.MkdirAll without error check", i+1)
+		}
+	}
+}
+
+// TestFuzzProgressCountsExtensions ensures cmd_fuzz.go multiplies wordlist
+// size by (extensions + 1) for accurate progress tracking.
+func TestFuzzProgressCountsExtensions(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_fuzz.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_fuzz.go: %v", err)
+	}
+	content := string(data)
+
+	// Should contain the extension multiplier pattern
+	if !strings.Contains(content, "(len(cfg.Extensions) + 1)") {
+		t.Error("cmd_fuzz.go missing extensions multiplier — progress total will be wrong")
+	}
+}
+
+// TestCalibrationThresholdFloor ensures fuzzer.go uses max(1, ...) for
+// sizeThreshold to prevent zero-threshold from filtering nothing.
+func TestCalibrationThresholdFloor(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "pkg", "fuzz", "fuzzer.go"))
+	if err != nil {
+		t.Fatalf("cannot read fuzzer.go: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "max(1,") {
+		t.Error("fuzzer.go sizeThreshold missing max(1, ...) floor — zero baseline causes no filtering")
+	}
+}
+
+// TestNoContextBackgroundInCLI ensures no context.Background() remains in
+// CLI command files that should use signal-aware contexts.
+func TestNoContextBackgroundInCLI(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	files := []string{
+		filepath.Join(repoRoot, "cmd", "cli", "cmd_analyze.go"),
+		filepath.Join(repoRoot, "cmd", "cli", "cmd_discover.go"),
+		filepath.Join(repoRoot, "cmd", "cli", "cmd_soap.go"),
+		filepath.Join(repoRoot, "cmd", "cli", "tampers.go"),
+		filepath.Join(repoRoot, "cmd", "cli", "cmd_admin.go"),
+		filepath.Join(repoRoot, "cmd", "cli", "fp.go"),
+	}
+
+	for _, f := range files {
+		data, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatalf("cannot read %s: %v", f, err)
+		}
+		if strings.Contains(string(data), "context.Background()") {
+			t.Errorf("%s still contains context.Background() — should use cli.SignalContext or parent ctx",
+				filepath.Base(f))
+		}
+	}
+}
+
+// TestProbeDeadFlagsWarning ensures dead probe flags have deprecation warnings.
+func TestProbeDeadFlagsWarning(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_probe.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_probe.go: %v", err)
+	}
+	content := string(data)
+
+	deadFlags := []string{"--rr", "--im", "--ehb"}
+	for _, flag := range deadFlags {
+		if !strings.Contains(content, flag) {
+			t.Errorf("cmd_probe.go missing deprecation warning for dead flag %s", flag)
+		}
+	}
+}
+
+// TestScanTimeoutUsesContextMax ensures cmd_scan.go uses duration.ContextMax
+// instead of confusing minutes-based timeout arithmetic.
+func TestScanTimeoutUsesContextMax(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_scan.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_scan.go: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "duration.ContextMax") {
+		t.Error("cmd_scan.go should use duration.ContextMax for overall scan timeout")
+	}
+	// Should NOT contain the old confusing minutes-based pattern
+	if strings.Contains(content, "time.Duration(cfg.Common.Timeout)*time.Minute") {
+		t.Error("cmd_scan.go still uses confusing timeout*Minute — should use duration.ContextMax")
+	}
+}
+
+// TestFuzzWordlistSkipBounds ensures cmd_fuzz.go errors when skip >= wordlist size.
+func TestFuzzWordlistSkipBounds(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_fuzz.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_fuzz.go: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "wordlistSkip >= len(words)") &&
+		!strings.Contains(content, "*wordlistSkip >= len(words)") {
+		t.Error("cmd_fuzz.go missing bounds check for wordlist skip >= wordlist size")
+	}
+}
+
+// TestAnalyzeUsesSignalContext ensures cmd_analyze.go uses SignalContext
+// for both HTTP fetch and hook emission (not context.Background()).
+func TestAnalyzeUsesSignalContext(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_analyze.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_analyze.go: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "cli.SignalContext") {
+		t.Error("cmd_analyze.go missing cli.SignalContext — HTTP fetch cannot be cancelled")
+	}
+	if strings.Contains(content, "context.Background()") {
+		t.Error("cmd_analyze.go still uses context.Background() — should use signal-aware context")
+	}
+}
+
+// TestCrawlFuzzFatalExitUsesParentCtx ensures cmd_crawl.go and cmd_fuzz.go
+// fatal-exit paths use the parent ctx, not context.Background().
+func TestCrawlFuzzFatalExitUsesParentCtx(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+
+	for _, file := range []string{"cmd_crawl.go", "cmd_fuzz.go"} {
+		data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", file))
+		if err != nil {
+			t.Fatalf("cannot read %s: %v", file, err)
+		}
+		if strings.Contains(string(data), "context.Background()") {
+			t.Errorf("%s still contains context.Background() — fatal-exit paths should use parent ctx", file)
+		}
+	}
+}
+
+// TestVendorProtocolTestSignalContext ensures vendor.go protocol-test uses
+// signal-aware context, not context.Background().
+func TestVendorProtocolTestSignalContext(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "vendor.go"))
+	if err != nil {
+		t.Fatalf("cannot read vendor.go: %v", err)
+	}
+	if strings.Contains(string(data), "context.Background()") {
+		t.Error("vendor.go still contains context.Background() — protocol test should use signal context")
+	}
+}
+
+// TestBypassTimeoutWiredToExecutor ensures cmd_bypass.go passes timeout
+// to the executor config.
+func TestBypassTimeoutWiredToExecutor(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_bypass.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_bypass.go: %v", err)
+	}
+	if !strings.Contains(string(data), "cfg.Timeout") {
+		t.Error("cmd_bypass.go doesn't wire timeout to executor config")
+	}
+}
