@@ -349,16 +349,21 @@ func (d *Detector) tlsFingerprinting(ctx context.Context, target string, result 
 		host += ":443"
 	}
 
-	dialer := &net.Dialer{Timeout: d.timeout}
-	conn, err := tls.DialWithDialer(dialer, "tcp", host, &tls.Config{
-		InsecureSkipVerify: true,
-	})
+	tlsDialer := &tls.Dialer{
+		NetDialer: &net.Dialer{Timeout: d.timeout},
+		Config:    &tls.Config{InsecureSkipVerify: true},
+	}
+	netConn, err := tlsDialer.DialContext(ctx, "tcp", host)
 	if err != nil {
 		return
 	}
-	defer conn.Close()
+	defer netConn.Close()
 
-	state := conn.ConnectionState()
+	tlsConn, ok := netConn.(*tls.Conn)
+	if !ok {
+		return
+	}
+	state := tlsConn.ConnectionState()
 
 	// Extract TLS version
 	tlsVersion := ""
