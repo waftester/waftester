@@ -2345,3 +2345,106 @@ func TestNoStatusOnStdout(t *testing.T) {
 		}
 	}
 }
+
+// =============================================================================
+// WAVE 7: STDOUT→STDERR OUTPUT HYGIENE REGRESSION TESTS
+// =============================================================================
+
+// TestNoLiveProgressOnStdout verifies that live progress bars and result lines
+// in cmd_fuzz.go, cmd_template.go, and cmd_openapi.go use os.Stderr.
+// These lines actively corrupt piped JSON output (e.g., `waftester fuzz --json | jq`).
+func TestNoLiveProgressOnStdout(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	files := map[string][]string{
+		"cmd/cli/cmd_fuzz.go":     {"fmt.Printf(\"[%s]", "fmt.Printf(\"%s %-50s"},
+		"cmd/cli/cmd_template.go": {"fmt.Printf(\"\\r[%d/%d]", "fmt.Printf(\"%s[%s]%s %s"},
+		"cmd/cli/cmd_openapi.go":  {"fmt.Printf(\"\\r[%s]"},
+	}
+	for file, patterns := range files {
+		data, err := os.ReadFile(filepath.Join(repoRoot, file))
+		if err != nil {
+			t.Fatalf("cannot read %s: %v", file, err)
+		}
+		src := string(data)
+		for _, pat := range patterns {
+			if strings.Contains(src, pat) {
+				t.Errorf("%s still has stdout progress pattern %q — should use fmt.Fprintf(os.Stderr, ...)", file, pat)
+			}
+		}
+	}
+}
+
+// TestHelpTextOnStderr verifies that usage/help text in CLI commands writes to
+// stderr, not stdout. Users who pipe output expect only JSON/CSV data on stdout.
+func TestHelpTextOnStderr(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	// Each file with its help-text indicator patterns that should NOT appear as
+	// bare fmt.Println (they should be fmt.Fprintln(os.Stderr, ...))
+	files := map[string][]string{
+		"cmd/cli/cmd_probe.go":    {"fmt.Println(\"  resp.status"},
+		"cmd/cli/cmd_soap.go":     {"fmt.Println(\"  Examples:"},
+		"cmd/cli/cmd_template.go": {"fmt.Println(\"  Examples:"},
+		"cmd/cli/cmd_cicd.go":     {"fmt.Println(\"  Examples:"},
+		"cmd/cli/cmd_openapi.go":  {"fmt.Println(\"  Examples:"},
+	}
+	for file, patterns := range files {
+		data, err := os.ReadFile(filepath.Join(repoRoot, file))
+		if err != nil {
+			t.Fatalf("cannot read %s: %v", file, err)
+		}
+		src := string(data)
+		for _, pat := range patterns {
+			if strings.Contains(src, pat) {
+				t.Errorf("%s still has stdout help text %q — should use fmt.Fprintln(os.Stderr, ...)", file, pat)
+			}
+		}
+	}
+}
+
+// TestTampersInteractiveOnStderr verifies that testTamperTransformation and
+// runBypassDiscovery interactive/progress output uses os.Stderr.
+func TestTampersInteractiveOnStderr(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "tampers.go"))
+	if err != nil {
+		t.Fatalf("cannot read tampers.go: %v", err)
+	}
+	src := string(data)
+
+	// These patterns should NOT appear as fmt.Printf (they should be fmt.Fprintf(os.Stderr, ...))
+	stdoutPatterns := []string{
+		"fmt.Printf(\"  Applying tampers:",
+		"fmt.Printf(\"  Step %d:",
+		"fmt.Printf(\"  Tampers tested:",
+		"fmt.Printf(\"  Bypasses found:",
+		"fmt.Printf(\"  Duration:",
+	}
+	for _, pat := range stdoutPatterns {
+		if strings.Contains(src, pat) {
+			t.Errorf("tampers.go still has stdout pattern %q — should use fmt.Fprintf(os.Stderr, ...)", pat)
+		}
+	}
+}
+
+// TestGrpcListingOnStderr verifies that gRPC service/method listing display
+// uses os.Stderr for non-JSON output.
+func TestGrpcListingOnStderr(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_grpc.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_grpc.go: %v", err)
+	}
+	src := string(data)
+
+	// Service listing and method details should use stderr
+	stdoutPatterns := []string{
+		"fmt.Printf(\"  %s %s\\n\", ui.Icon",
+		"fmt.Printf(\"    Input:",
+		"fmt.Printf(\"    Output:",
+	}
+	for _, pat := range stdoutPatterns {
+		if strings.Contains(src, pat) {
+			t.Errorf("cmd_grpc.go still has stdout listing pattern %q — should use fmt.Fprintf(os.Stderr, ...)", pat)
+		}
+	}
+}
