@@ -104,41 +104,12 @@ func runFuzz() {
 	wordlistPrefix := fuzzFlags.String("wprefix", "", "Add prefix to each word")
 	wordlistSuffix := fuzzFlags.String("wsuffix", "", "Add suffix to each word")
 
-	// Recursion options
-	recursion := fuzzFlags.Bool("recursion", false, "Enable recursive fuzzing")
-	recursionDepth := fuzzFlags.Int("recursion-depth", 2, "Max recursion depth")
-	fuzzFlags.IntVar(recursionDepth, "rd", 2, "Recursion depth (alias)")
-
-	// Sniper/clusterbomb modes
-	fuzzMode := fuzzFlags.String("mode", "sniper", "Fuzzing mode: sniper, pitchfork, clusterbomb")
-
-	// Response analysis
-	extractRegex := fuzzFlags.String("extract", "", "Extract matching content (regex)")
-	fuzzFlags.StringVar(extractRegex, "er", "", "Extract regex (alias)")
-	extractPreset := fuzzFlags.String("extract-preset", "", "Extract preset: emails, urls, ips, secrets")
-	fuzzFlags.StringVar(extractPreset, "epr", "", "Extract preset (alias)")
-
-	// Store responses
-	storeResponse := fuzzFlags.Bool("sr", false, "Store HTTP responses to directory")
-	fuzzFlags.BoolVar(storeResponse, "store-response", false, "Store response (alias)")
-	storeResponseDir := fuzzFlags.String("srd", "./responses", "Directory for stored responses")
-	fuzzFlags.StringVar(storeResponseDir, "store-response-dir", "./responses", "Store response dir (alias)")
-	storeOnlyMatches := fuzzFlags.Bool("som", false, "Store only matching responses")
-	fuzzFlags.BoolVar(storeOnlyMatches, "store-only-matches", false, "Store only matches (alias)")
-
 	// Network options
 	proxy := fuzzFlags.String("proxy", "", "HTTP/SOCKS5 proxy URL")
 	fuzzFlags.StringVar(proxy, "x", "", "Proxy (alias)")
-	retries := fuzzFlags.Int("retries", 0, "Number of retries on failure")
-	delay := fuzzFlags.Duration("delay", 0, "Delay between requests")
-	jitter := fuzzFlags.Duration("jitter", 0, "Random jitter for delay")
 
 	// Debug
 	debug := fuzzFlags.Bool("debug", false, "Debug mode - show request/response")
-	debugRequest := fuzzFlags.Bool("debug-request", false, "Show request content")
-	fuzzFlags.BoolVar(debugRequest, "dreq", false, "Debug request (alias)")
-	debugResponse := fuzzFlags.Bool("debug-response", false, "Show response content")
-	fuzzFlags.BoolVar(debugResponse, "dresp", false, "Debug response (alias)")
 
 	// Auto-calibration options
 
@@ -175,7 +146,7 @@ func runFuzz() {
 	outputFlags.ApplyUISettings()
 
 	// Apply debug mode output
-	if *debug || *debugRequest || *debugResponse {
+	if *debug {
 		ui.PrintInfo("Debug mode enabled")
 	}
 
@@ -368,10 +339,10 @@ func runFuzz() {
 			userSetRL := false
 			userSetConc := false
 			fuzzFlags.Visit(func(f *flag.Flag) {
-				if f.Name == "rate" {
+				if f.Name == "rate" || f.Name == "rl" {
 					userSetRL = true
 				}
-				if f.Name == "t" {
+				if f.Name == "t" || f.Name == "c" {
 					userSetConc = true
 				}
 			})
@@ -480,38 +451,27 @@ func runFuzz() {
 			Concurrency: *concurrency,
 			Timeout:     time.Duration(*timeout) * time.Second,
 		},
-		RateLimit:      *rateLimit,
-		SkipVerify:     *skipVerify,
-		Method:         *method,
-		Headers:        headers,
-		Data:           *data,
-		Cookies:        *cookies,
-		FollowRedir:    *followRedirects,
-		Extensions:     exts,
-		MatchStatus:    parseIntList(*matchStatus),
-		MatchSize:      parseIntList(*matchSize),
-		MatchWords:     parseIntList(*matchWords),
-		MatchLines:     parseIntList(*matchLines),
-		MatchRegex:     matchRe,
-		FilterStatus:   parseIntList(*filterStatus),
-		FilterSize:     parseIntList(*filterSize),
-		FilterWords:    parseIntList(*filterWords),
-		FilterLines:    parseIntList(*filterLines),
-		FilterRegex:    filterRe,
-		Recursive:      *recursion,
-		RecursionDepth: *recursionDepth,
-		Proxy:          *proxy,
-		Retries:        *retries,
-		Delay:          *delay,
-		Jitter:         *jitter,
-		Debug:          *debug,
-		Verbose:        *verbose,
-		StoreResponses: *storeResponse,
-		StoreDir:       *storeResponseDir,
-		StoreMatches:   *storeOnlyMatches,
-		Mode:           *fuzzMode,
-		ExtractRegex:   *extractRegex,
-		ExtractPreset:  *extractPreset,
+		RateLimit:    *rateLimit,
+		SkipVerify:   *skipVerify,
+		Method:       *method,
+		Headers:      headers,
+		Data:         *data,
+		Cookies:      *cookies,
+		FollowRedir:  *followRedirects,
+		Extensions:   exts,
+		MatchStatus:  parseIntList(*matchStatus),
+		MatchSize:    parseIntList(*matchSize),
+		MatchWords:   parseIntList(*matchWords),
+		MatchLines:   parseIntList(*matchLines),
+		MatchRegex:   matchRe,
+		FilterStatus: parseIntList(*filterStatus),
+		FilterSize:   parseIntList(*filterSize),
+		FilterWords:  parseIntList(*filterWords),
+		FilterLines:  parseIntList(*filterLines),
+		FilterRegex:  filterRe,
+		Proxy:        *proxy,
+		Debug:        *debug,
+		Verbose:      *verbose,
 	}
 
 	// Wire tamper engine into fuzz config (nil-safe: only set if engine was created)

@@ -5,9 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 	"github.com/waftester/waftester/pkg/waf/vendors"
@@ -85,7 +87,8 @@ func runVendorDetect() {
 		defer vendorDispCtx.Close()
 	}
 	vendorStartTime := time.Now()
-	vendorCtx := context.Background()
+	vendorCtx, vendorCancel := cli.SignalContext(30 * time.Second)
+	defer vendorCancel()
 
 	// Emit start event for scan lifecycle hooks
 	if vendorDispCtx != nil {
@@ -98,7 +101,7 @@ func runVendorDetect() {
 	// Run detection
 	ui.PrintInfo("Detecting WAF vendor...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(vendorCtx, time.Duration(*timeout)*time.Second)
 	defer cancel()
 
 	result, err := detector.Detect(ctx, *target)
@@ -106,7 +109,6 @@ func runVendorDetect() {
 		// Emit error to hooks
 		if vendorDispCtx != nil {
 			_ = vendorDispCtx.EmitError(vendorCtx, "vendor", fmt.Sprintf("Vendor detection error: %v", err), true)
-			_ = vendorDispCtx.Close()
 		}
 		ui.PrintError(fmt.Sprintf("%v", err))
 		os.Exit(1)
@@ -434,7 +436,13 @@ func displaySupportedVendors() {
 	border := ui.Icon("║", "|")
 	bullet := ui.Icon("•", "-")
 
-	for _, cat := range []string{"cloud", "cdn-integrated", "appliance", "software", "wordpress-plugin", "bot-management"} {
+	categoryKeys := make([]string, 0, len(categories))
+	for k := range categories {
+		categoryKeys = append(categoryKeys, k)
+	}
+	sort.Strings(categoryKeys)
+
+	for _, cat := range categoryKeys {
 		vendorList := categories[cat]
 		if len(vendorList) == 0 {
 			continue

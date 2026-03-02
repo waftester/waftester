@@ -257,7 +257,7 @@ func runFP() {
 			_ = fpDispCtx.EmitBypass(fpCtx, "fp-rating-poor", "high", *target, ratingDesc, 0)
 		}
 
-		_ = fpDispCtx.EmitSummary(fpCtx, int(result.TotalTests), int(result.TotalTests-result.FalsePositives), int(result.FalsePositives), elapsed)
+		_ = fpDispCtx.EmitSummary(fpCtx, int(result.TotalTests), int(result.FalsePositives), int(result.TotalTests-result.FalsePositives), elapsed)
 	}
 }
 
@@ -355,7 +355,7 @@ func displayFPResults(result *fp.Result) {
 		}
 		for i := 0; i < maxItems; i++ {
 			fpDetail := result.FalsePositiveDetails[i]
-			fmt.Fprintf(os.Stderr, "  [%d] Payload: %.60s...\n", i+1, strutil.Truncate(fpDetail.Payload, 60))
+			fmt.Fprintf(os.Stderr, "  [%d] Payload: %s\n", i+1, strutil.Truncate(fpDetail.Payload, 60))
 			fmt.Fprintf(os.Stderr, "      Location: %s | Status: %d | Rule: %d\n",
 				fpDetail.Location, fpDetail.StatusCode, fpDetail.RuleID)
 		}

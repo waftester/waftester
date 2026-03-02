@@ -113,8 +113,6 @@ func runCrawl() {
 
 	// Debug
 	debug := crawlFlags.Bool("debug", false, "Debug mode")
-	debugRequest := crawlFlags.Bool("debug-request", false, "Show request details")
-	crawlFlags.BoolVar(debugRequest, "dreq", false, "Debug request (alias)")
 
 	// Streaming mode (CI-friendly output)
 	streamMode := crawlFlags.Bool("stream", false, "Streaming output mode for CI/scripts")
@@ -142,7 +140,7 @@ func runCrawl() {
 	outputFlags.ApplyUISettings()
 
 	// Apply debug mode output
-	if *debug || *debugRequest {
+	if *debug {
 		ui.PrintInfo("Debug mode enabled")
 	}
 
