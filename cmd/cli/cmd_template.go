@@ -91,13 +91,13 @@ func runTemplate() {
 	// Normal execution requires target
 	if targetURL == "" && *targetList == "" {
 		ui.PrintError("Target URL or target list required")
-		fmt.Println()
-		fmt.Println("Usage: waf-tester template -u <target> -t <templates>")
-		fmt.Println()
-		fmt.Println("Examples:")
-		fmt.Println("  waf-tester template -u https://example.com -t templates/")
-		fmt.Println("  waf-tester template -u https://example.com -t sqli.yaml")
-		fmt.Println("  waf-tester template -l targets.txt -t templates/ --tags waf")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Usage: waf-tester template -u <target> -t <templates>")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Examples:")
+		fmt.Fprintln(os.Stderr, "  waf-tester template -u https://example.com -t templates/")
+		fmt.Fprintln(os.Stderr, "  waf-tester template -u https://example.com -t sqli.yaml")
+		fmt.Fprintln(os.Stderr, "  waf-tester template -l targets.txt -t templates/ --tags waf")
 		os.Exit(1)
 	}
 
@@ -123,7 +123,7 @@ func runTemplate() {
 		}
 		ui.PrintConfigLine("Concurrency", fmt.Sprintf("%d", *concurrency))
 		ui.PrintConfigLine("Rate Limit", fmt.Sprintf("%d/s", *rateLimit))
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Setup context with cancellation
@@ -174,7 +174,7 @@ func runTemplate() {
 
 	if !*silent {
 		ui.PrintSuccess(fmt.Sprintf("Loaded %d templates", len(templates)))
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Enrich templates with JSON payload database
@@ -299,14 +299,14 @@ func runTemplate() {
 					resultsMu.Unlock()
 				} else {
 					severityColor := getSeverityColor(result.Severity)
-					fmt.Printf("%s[%s]%s %s - %s\n",
+					fmt.Fprintf(os.Stderr, "%s[%s]%s %s - %s\n",
 						severityColor, result.Severity, ui.Reset,
 						result.TemplateName, tgt)
 				}
 			}
 
 			if !*silent && !*jsonOutput && done%10 == 0 {
-				fmt.Printf("\r[%d/%d] Processed, %d matches found", done, total, atomic.LoadInt64(&matched))
+				fmt.Fprintf(os.Stderr, "\r[%d/%d] Processed, %d matches found", done, total, atomic.LoadInt64(&matched))
 			}
 		}(task.target, task.template)
 	}
@@ -317,8 +317,8 @@ done:
 	finalMatched := atomic.LoadInt64(&matched)
 
 	if !*silent && !*jsonOutput {
-		fmt.Println()
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr)
 		ui.PrintSection("Results")
 		ui.PrintConfigLine("Templates", fmt.Sprintf("%d", len(templates)))
 		ui.PrintConfigLine("Targets", fmt.Sprintf("%d", len(targets)))
@@ -364,7 +364,7 @@ func runTemplateValidation(templatePath string, verbose bool) {
 	}
 
 	ui.PrintConfigLine("Files", fmt.Sprintf("%d", len(files)))
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	valid := 0
 	invalid := 0
@@ -382,7 +382,7 @@ func runTemplateValidation(templatePath string, verbose bool) {
 		}
 	}
 
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 	ui.PrintSection("Summary")
 	ui.PrintConfigLine("Valid", fmt.Sprintf("%d", valid))
 	if invalid > 0 {
