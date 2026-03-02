@@ -55,6 +55,7 @@ type Progress struct {
 	done    chan struct{}
 	mu      sync.Mutex
 	running bool
+	wg      sync.WaitGroup
 }
 
 // NewProgress creates a new progress display
@@ -84,20 +85,26 @@ func (p *Progress) Start() {
 	p.startTime = time.Now()
 	p.mu.Unlock()
 
-	go p.renderLoop()
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		p.renderLoop()
+	}()
 }
 
 // Stop halts the progress display
 func (p *Progress) Stop() {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if p.running {
-		close(p.done)
-		p.running = false
-		if !IsSilent() {
-			fmt.Fprintln(os.Stderr) // New line after progress
-		}
+	if !p.running {
+		p.mu.Unlock()
+		return
+	}
+	close(p.done)
+	p.running = false
+	p.mu.Unlock()
+	p.wg.Wait()
+	if !IsSilent() {
+		fmt.Fprintln(os.Stderr) // New line after progress
 	}
 }
 
@@ -402,6 +409,7 @@ type StatsDisplay struct {
 	done      chan struct{}
 	running   bool
 	mu        sync.Mutex
+	wg        sync.WaitGroup
 }
 
 // NewStatsDisplay creates a new statistics display
@@ -436,17 +444,24 @@ func (s *StatsDisplay) Start() {
 	s.startTime = time.Now()
 	s.mu.Unlock()
 
-	go s.renderLoop()
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		s.renderLoop()
+	}()
 }
 
 // Stop halts the statistics display
 func (s *StatsDisplay) Stop() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.running {
-		close(s.done)
-		s.running = false
+	if !s.running {
+		s.mu.Unlock()
+		return
 	}
+	close(s.done)
+	s.running = false
+	s.mu.Unlock()
+	s.wg.Wait()
 }
 
 // Update updates the statistics counters
