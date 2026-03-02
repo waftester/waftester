@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/ui"
 )
 
@@ -162,7 +163,7 @@ func writeScanJSON(ctx context.Context, result *ScanResult, cfg scanOutputConfig
 	}
 
 	if cfg.OutputFile != "" {
-		if err := os.WriteFile(cfg.OutputFile, jsonData, 0644); err != nil {
+		if err := iohelper.WriteAtomic(cfg.OutputFile, jsonData, 0644); err != nil {
 			errMsg := fmt.Sprintf("Error writing output: %v", err)
 			ui.PrintError(errMsg)
 			if cfg.DispCtx != nil {

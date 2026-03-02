@@ -463,7 +463,7 @@ func updateFromGitHubRepo(cfg *UpdateConfig, report *UpdateReport, tag string) e
 
 		// Write to local payload directory
 		destPath := filepath.Join(cfg.PayloadDir, category+".json")
-		if err := os.WriteFile(destPath, body, 0644); err != nil {
+		if err := iohelper.WriteAtomic(destPath, body, 0644); err != nil {
 			fmt.Printf("%s (write error)\n", red("failed"))
 			continue
 		}
@@ -508,22 +508,14 @@ func downloadAndMergePayload(cfg *UpdateConfig, url, filename string) (int, erro
 
 	// Check for existing file and merge
 	destPath := filepath.Join(cfg.PayloadDir, filename)
-	existingData, err := os.ReadFile(destPath)
-	if err == nil {
-		var existingPayloads []interface{}
-		if json.Unmarshal(existingData, &existingPayloads) == nil {
-			// Merge: add new payloads that don't exist
-			newPayloads = mergePayloads(existingPayloads, newPayloads)
-		}
+	var existingPayloads []interface{}
+	if iohelper.ReadJSON(destPath, &existingPayloads) == nil {
+		// Merge: add new payloads that don't exist
+		newPayloads = mergePayloads(existingPayloads, newPayloads)
 	}
 
 	// Write merged payloads
-	merged, err := json.MarshalIndent(newPayloads, "", "  ")
-	if err != nil {
-		return 0, err
-	}
-
-	if err := os.WriteFile(destPath, merged, 0644); err != nil {
+	if err := iohelper.WriteAtomicJSON(destPath, newPayloads, 0644); err != nil {
 		return 0, err
 	}
 
@@ -579,16 +571,10 @@ func isUnsafePayload(payload string) bool {
 
 func getCurrentVersion(payloadDir string) (string, error) {
 	versionPath := filepath.Join(payloadDir, "version.json")
-	data, err := os.ReadFile(versionPath)
-	if err != nil {
-		return "", err
-	}
-
 	var version VersionInfo
-	if err := json.Unmarshal(data, &version); err != nil {
+	if err := iohelper.ReadJSON(versionPath, &version); err != nil {
 		return "", err
 	}
-
 	return version.Version, nil
 }
 
@@ -604,9 +590,8 @@ func writeVersion(payloadDir, version, source string) error {
 		if !info.IsDir() && strings.HasSuffix(path, ".json") {
 			basename := filepath.Base(path)
 			if basename != "ids-map.json" && basename != "version.json" {
-				data, _ := os.ReadFile(path)
 				var payloads []interface{}
-				if json.Unmarshal(data, &payloads) == nil {
+				if iohelper.ReadJSON(path, &payloads) == nil {
 					payloadCount += len(payloads)
 				}
 			}
@@ -621,12 +606,7 @@ func writeVersion(payloadDir, version, source string) error {
 		Source:       source,
 	}
 
-	data, err := json.MarshalIndent(versionInfo, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal version info: %w", err)
-	}
-
-	if err := os.WriteFile(versionPath, data, 0644); err != nil {
+	if err := iohelper.WriteAtomicJSON(versionPath, versionInfo, 0644); err != nil {
 		return fmt.Errorf("write version %s: %w", versionPath, err)
 	}
 	return nil

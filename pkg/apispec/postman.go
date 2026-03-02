@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"os"
 	"strings"
 	"time"
+
+	"github.com/waftester/waftester/pkg/iohelper"
 )
 
 // Postman Collection v2.0/v2.1 internal types for JSON unmarshalling.
@@ -512,11 +513,6 @@ func substituteVars(s string, vars map[string]Variable) string {
 // a map of variable name to value. Merge precedence when combined with
 // collection variables: env file < collection vars < --var CLI.
 func LoadPostmanEnvironment(path string) (map[string]string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read postman environment: %w", err)
-	}
-
 	var env struct {
 		Name   string `json:"name"`
 		Values []struct {
@@ -526,8 +522,8 @@ func LoadPostmanEnvironment(path string) (map[string]string, error) {
 		} `json:"values"`
 	}
 
-	if err := json.Unmarshal(data, &env); err != nil {
-		return nil, fmt.Errorf("parse postman environment: %w", err)
+	if err := iohelper.ReadJSON(path, &env); err != nil {
+		return nil, fmt.Errorf("load postman environment %s: %w", path, err)
 	}
 
 	result := make(map[string]string, len(env.Values))

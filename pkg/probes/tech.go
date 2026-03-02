@@ -5,10 +5,8 @@ import (
 	"crypto/md5"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"regexp"
 	"strings"
 
@@ -403,14 +401,9 @@ type CustomFingerprint struct {
 
 // LoadCustomFingerprints loads fingerprints from a JSON file
 func (t *TechDetector) LoadCustomFingerprints(filename string) error {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return fmt.Errorf("failed to read fingerprint file: %w", err)
-	}
-
 	var fingerprints []CustomFingerprint
-	if err := json.Unmarshal(data, &fingerprints); err != nil {
-		return fmt.Errorf("failed to parse fingerprint file: %w", err)
+	if err := iohelper.ReadJSON(filename, &fingerprints); err != nil {
+		return fmt.Errorf("failed to load fingerprint file: %w", err)
 	}
 
 	for _, fp := range fingerprints {

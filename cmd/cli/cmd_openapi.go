@@ -11,6 +11,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/metrics"
 	"github.com/waftester/waftester/pkg/openapi"
 	"github.com/waftester/waftester/pkg/templateresolver"
@@ -372,12 +373,7 @@ done:
 
 	// Output results
 	if outputFile != "" {
-		data, marshalErr := json.MarshalIndent(results, "", "  ")
-		if marshalErr != nil {
-			ui.PrintError(fmt.Sprintf("Failed to marshal results: %v", marshalErr))
-			os.Exit(1)
-		}
-		if err := os.WriteFile(outputFile, data, 0644); err != nil {
+		if err := iohelper.WriteAtomicJSON(outputFile, results, 0644); err != nil {
 			ui.PrintError(fmt.Sprintf("Failed to write output: %v", err))
 		} else {
 			ui.PrintSuccess(fmt.Sprintf("Results written to %s", outputFile))
