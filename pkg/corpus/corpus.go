@@ -528,7 +528,9 @@ func (m *Manager) LoadCustomCorpus(filename string) (*Corpus, error) {
 	var payloads []Payload
 	if err := json.NewDecoder(f).Decode(&payloads); err != nil {
 		// Try line-by-line format
-		f.Seek(0, 0)
+		if _, err := f.Seek(0, 0); err != nil {
+			return nil, fmt.Errorf("failed to seek in corpus file: %w", err)
+		}
 		scanner := bufio.NewScanner(f)
 		for scanner.Scan() {
 			line := strings.TrimSpace(scanner.Text())
