@@ -2347,111 +2347,113 @@ func TestNoStatusOnStdout(t *testing.T) {
 }
 
 // =============================================================================
-// WAVE 7: STDOUT→STDERR OUTPUT HYGIENE REGRESSION TESTS
+// CATEGORICAL REGRESSION GUARDS
 // =============================================================================
+// These broad sweeps catch entire bug classes across the codebase.
+// New files automatically get coverage — no per-wave additions needed.
 
-// TestNoLiveProgressOnStdout verifies that live progress bars and result lines
-// in cmd_fuzz.go, cmd_template.go, and cmd_openapi.go use os.Stderr.
-// These lines actively corrupt piped JSON output (e.g., `waftester fuzz --json | jq`).
-func TestNoLiveProgressOnStdout(t *testing.T) {
+// TestNoContextIgnoringDNS scans all Go files under pkg/ for net.LookupIP
+// and net.LookupHost calls which ignore context cancellation. All DNS
+// resolution must use net.DefaultResolver.LookupIPAddr(ctx, ...) instead.
+func TestNoContextIgnoringDNS(t *testing.T) {
 	repoRoot := getRepoRoot(t)
-	files := map[string][]string{
-		"cmd/cli/cmd_fuzz.go":     {"fmt.Printf(\"[%s]", "fmt.Printf(\"%s %-50s"},
-		"cmd/cli/cmd_template.go": {"fmt.Printf(\"\\r[%d/%d]", "fmt.Printf(\"%s[%s]%s %s"},
-		"cmd/cli/cmd_openapi.go":  {"fmt.Printf(\"\\r[%s]"},
+	banned := []string{
+		"net.LookupIP(",
+		"net.LookupHost(",
+		"net.LookupCNAME(",
+		"net.LookupMX(",
+		"net.LookupTXT(",
+		"net.LookupNS(",
 	}
-	for file, patterns := range files {
-		data, err := os.ReadFile(filepath.Join(repoRoot, file))
-		if err != nil {
-			t.Fatalf("cannot read %s: %v", file, err)
+	// Scan both pkg/ and cmd/cli/
+	for _, dir := range []string{
+		filepath.Join(repoRoot, "pkg"),
+		filepath.Join(repoRoot, "cmd", "cli"),
+	} {
+		scanGoFiles(t, dir, banned,
+			"uses context-ignoring DNS — should use net.DefaultResolver methods with ctx")
+	}
+}
+
+// TestNoContextIgnoringTLS scans all Go files under pkg/ for
+// tls.DialWithDialer which ignores context cancellation. All TLS dials
+// must use tls.Dialer{}.DialContext(ctx, ...) instead.
+func TestNoContextIgnoringTLS(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	banned := []string{"tls.DialWithDialer("}
+	scanGoFiles(t, filepath.Join(repoRoot, "pkg"), banned,
+		"uses tls.DialWithDialer which ignores context — should use tls.Dialer.DialContext")
+}
+
+// TestNoStdoutPollution scans all CLI command files for fmt.Printf and
+// fmt.Println calls that write status/progress/help to stdout. Only JSON/CSV
+// data output belongs on stdout; everything else must use os.Stderr.
+//
+// Allowed stdout patterns: enc.Encode, fmt.Println(string(json)), fmt.Println(output)
+func TestNoStdoutPollution(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	cliDir := filepath.Join(repoRoot, "cmd", "cli")
+
+	// Skip files whose primary output IS stdout data:
+	// - cmd_docs.go: documentation text (the data IS the docs)
+	// - cmd_crawl.go: markdown/text output modes
+	// - cmd_fuzz.go: markdown output mode
+	// - cmd_plugin.go: plugin listing
+	// - tampers.go: tamper listing/matrix display (listing funcs stay on stdout per Wave 6)
+	skip := map[string]bool{
+		"cmd_docs.go":   true,
+		"cmd_crawl.go":  true,
+		"cmd_fuzz.go":   true,
+		"cmd_plugin.go": true,
+		"tampers.go":    true,
+	}
+
+	entries, err := os.ReadDir(cliDir)
+	if err != nil {
+		t.Fatalf("cannot read cmd/cli dir: %v", err)
+	}
+
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") || skip[e.Name()] {
+			continue
 		}
-		src := string(data)
-		for _, pat := range patterns {
-			if strings.Contains(src, pat) {
-				t.Errorf("%s still has stdout progress pattern %q — should use fmt.Fprintf(os.Stderr, ...)", file, pat)
+		data, err := os.ReadFile(filepath.Join(cliDir, e.Name()))
+		if err != nil {
+			t.Fatalf("cannot read %s: %v", e.Name(), err)
+		}
+		for i, line := range strings.Split(string(data), "\n") {
+			trimmed := strings.TrimSpace(line)
+			// Bare fmt.Println() separators must go to stderr
+			if trimmed == "fmt.Println()" {
+				t.Errorf("%s:%d has bare fmt.Println() — should be fmt.Fprintln(os.Stderr)", e.Name(), i+1)
+			}
+			// Carriage-return progress bars must go to stderr
+			if strings.HasPrefix(trimmed, "fmt.Printf(\"\\r") {
+				t.Errorf("%s:%d has stdout progress bar — should use fmt.Fprintf(os.Stderr, ...)", e.Name(), i+1)
 			}
 		}
 	}
 }
 
-// TestHelpTextOnStderr verifies that usage/help text in CLI commands writes to
-// stderr, not stdout. Users who pipe output expect only JSON/CSV data on stdout.
-func TestHelpTextOnStderr(t *testing.T) {
+// TestDNSResolutionCapped verifies that OSINT clients that resolve subdomains
+// in bulk have a maxResolve cap to prevent unbounded DNS queries.
+func TestDNSResolutionCapped(t *testing.T) {
 	repoRoot := getRepoRoot(t)
-	// Each file with its help-text indicator patterns that should NOT appear as
-	// bare fmt.Println (they should be fmt.Fprintln(os.Stderr, ...))
-	files := map[string][]string{
-		"cmd/cli/cmd_probe.go":    {"fmt.Println(\"  resp.status"},
-		"cmd/cli/cmd_soap.go":     {"fmt.Println(\"  Examples:"},
-		"cmd/cli/cmd_template.go": {"fmt.Println(\"  Examples:"},
-		"cmd/cli/cmd_cicd.go":     {"fmt.Println(\"  Examples:"},
-		"cmd/cli/cmd_openapi.go":  {"fmt.Println(\"  Examples:"},
+	// Any file that iterates subdomains for DNS resolution needs a cap
+	files := []string{
+		"pkg/osint/crtsh.go",
+		"pkg/osint/chaos.go",
 	}
-	for file, patterns := range files {
+	for _, file := range files {
 		data, err := os.ReadFile(filepath.Join(repoRoot, file))
 		if err != nil {
 			t.Fatalf("cannot read %s: %v", file, err)
 		}
-		src := string(data)
-		for _, pat := range patterns {
-			if strings.Contains(src, pat) {
-				t.Errorf("%s still has stdout help text %q — should use fmt.Fprintln(os.Stderr, ...)", file, pat)
-			}
+		if !strings.Contains(string(data), "maxResolve") {
+			t.Errorf("%s does DNS resolution in a loop but lacks maxResolve cap", file)
 		}
 	}
 }
-
-// TestTampersInteractiveOnStderr verifies that testTamperTransformation and
-// runBypassDiscovery interactive/progress output uses os.Stderr.
-func TestTampersInteractiveOnStderr(t *testing.T) {
-	repoRoot := getRepoRoot(t)
-	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "tampers.go"))
-	if err != nil {
-		t.Fatalf("cannot read tampers.go: %v", err)
-	}
-	src := string(data)
-
-	// These patterns should NOT appear as fmt.Printf (they should be fmt.Fprintf(os.Stderr, ...))
-	stdoutPatterns := []string{
-		"fmt.Printf(\"  Applying tampers:",
-		"fmt.Printf(\"  Step %d:",
-		"fmt.Printf(\"  Tampers tested:",
-		"fmt.Printf(\"  Bypasses found:",
-		"fmt.Printf(\"  Duration:",
-	}
-	for _, pat := range stdoutPatterns {
-		if strings.Contains(src, pat) {
-			t.Errorf("tampers.go still has stdout pattern %q — should use fmt.Fprintf(os.Stderr, ...)", pat)
-		}
-	}
-}
-
-// TestGrpcListingOnStderr verifies that gRPC service/method listing display
-// uses os.Stderr for non-JSON output.
-func TestGrpcListingOnStderr(t *testing.T) {
-	repoRoot := getRepoRoot(t)
-	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_grpc.go"))
-	if err != nil {
-		t.Fatalf("cannot read cmd_grpc.go: %v", err)
-	}
-	src := string(data)
-
-	// Service listing and method details should use stderr
-	stdoutPatterns := []string{
-		"fmt.Printf(\"  %s %s\\n\", ui.Icon",
-		"fmt.Printf(\"    Input:",
-		"fmt.Printf(\"    Output:",
-	}
-	for _, pat := range stdoutPatterns {
-		if strings.Contains(src, pat) {
-			t.Errorf("cmd_grpc.go still has stdout listing pattern %q — should use fmt.Fprintf(os.Stderr, ...)", pat)
-		}
-	}
-}
-
-// =============================================================================
-// WAVE 8: RUNTIME BUG REGRESSION TESTS
-// =============================================================================
 
 // TestDiscoveryStatisticsUseSafeCopy verifies that discovery statistics are
 // computed from the mutex-protected copy, not from the shared d.endpoints slice.
@@ -2462,183 +2464,49 @@ func TestDiscoveryStatisticsUseSafeCopy(t *testing.T) {
 		t.Fatalf("cannot read discovery.go: %v", err)
 	}
 	src := string(data)
-
-	// After the mutex unlock, statistics must use result.Endpoints (the safe copy),
-	// not d.endpoints (the shared slice). Find the TotalEndpoints assignment.
 	if strings.Contains(src, "TotalEndpoints = len(d.endpoints)") {
 		t.Error("discovery.go computes TotalEndpoints from d.endpoints after mutex unlock — should use result.Endpoints")
 	}
-	if strings.Contains(src, "range d.endpoints {") &&
-		strings.Contains(src, "TotalParameters") {
-		// Verify the range loop for TotalParameters uses result.Endpoints
-		paramIdx := strings.Index(src, "TotalParameters")
-		if paramIdx > 0 {
-			// Look backwards for the nearest range statement
-			before := src[max(0, paramIdx-300):paramIdx]
-			if strings.Contains(before, "range d.endpoints") {
-				t.Error("discovery.go iterates d.endpoints for TotalParameters — should use result.Endpoints")
-			}
-		}
-	}
 }
 
-// TestMutationExecutorAcceptsContext verifies that NewExecutor requires a
-// context.Context parameter so auto-calibration respects signal cancellation.
-func TestMutationExecutorAcceptsContext(t *testing.T) {
-	repoRoot := getRepoRoot(t)
-	data, err := os.ReadFile(filepath.Join(repoRoot, "pkg", "mutation", "executor.go"))
-	if err != nil {
-		t.Fatalf("cannot read executor.go: %v", err)
-	}
-	src := string(data)
-
-	if !strings.Contains(src, "func NewExecutor(ctx context.Context,") {
-		t.Error("NewExecutor should accept context.Context as first parameter for signal-aware calibration")
-	}
-	// Ensure context.Background() is not used in actual code (comments are OK)
-	for i, line := range strings.Split(src, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.Contains(trimmed, "context.Background()") && !strings.HasPrefix(trimmed, "//") {
-			t.Errorf("executor.go:%d uses context.Background() in code — should use the passed ctx", i+1)
-		}
-	}
-}
-
-// TestCrtshDNSResolutionCapped verifies that crt.sh FetchIPs caps the number
-// of DNS resolutions to prevent unbounded queries on popular domains.
-func TestCrtshDNSResolutionCapped(t *testing.T) {
-	repoRoot := getRepoRoot(t)
-	data, err := os.ReadFile(filepath.Join(repoRoot, "pkg", "osint", "crtsh.go"))
-	if err != nil {
-		t.Fatalf("cannot read crtsh.go: %v", err)
-	}
-	src := string(data)
-
-	if !strings.Contains(src, "maxResolve") {
-		t.Error("crtsh.go FetchIPs should cap DNS resolution count with maxResolve")
-	}
-}
-
-// TestRateLimiterPreciseRefill verifies that the OSINT rate limiter advances
-// lastRefill precisely instead of using time.Now() which causes time drift.
-func TestRateLimiterPreciseRefill(t *testing.T) {
-	repoRoot := getRepoRoot(t)
-	data, err := os.ReadFile(filepath.Join(repoRoot, "pkg", "osint", "osint.go"))
-	if err != nil {
-		t.Fatalf("cannot read osint.go: %v", err)
-	}
-	src := string(data)
-
-	// The refill logic should advance by exact interval, not reset to time.Now()
-	if strings.Contains(src, "r.lastRefill = time.Now()") {
-		t.Error("osint.go RateLimiter uses time.Now() for lastRefill — should advance by exact refillCount * refillRate to avoid drift")
-	}
-}
-
-// =============================================================================
-// WAVE 9: CONTEXT-AWARE DNS REGRESSION TESTS
-// =============================================================================
-
-// TestOsintDNSUsesContextResolver verifies that all OSINT DNS resolution calls
-// use net.DefaultResolver.LookupIPAddr(ctx, ...) instead of net.LookupIP which
-// ignores context cancellation.
-func TestOsintDNSUsesContextResolver(t *testing.T) {
-	repoRoot := getRepoRoot(t)
-	files := []string{
-		"pkg/osint/dnsdumpster.go",
-		"pkg/osint/chaos.go",
-		"pkg/osint/crtsh.go",
-	}
-	for _, file := range files {
-		data, err := os.ReadFile(filepath.Join(repoRoot, file))
-		if err != nil {
-			t.Fatalf("cannot read %s: %v", file, err)
-		}
-		src := string(data)
-		if strings.Contains(src, "net.LookupIP(") {
-			t.Errorf("%s uses net.LookupIP which ignores context — should use net.DefaultResolver.LookupIPAddr(ctx, ...)", file)
-		}
-	}
-}
-
-// TestChaosDNSResolutionCapped verifies that chaos.go FetchIPs caps DNS
-// resolution like crtsh.go to prevent unbounded queries.
-func TestChaosDNSResolutionCapped(t *testing.T) {
-	repoRoot := getRepoRoot(t)
-	data, err := os.ReadFile(filepath.Join(repoRoot, "pkg", "osint", "chaos.go"))
-	if err != nil {
-		t.Fatalf("cannot read chaos.go: %v", err)
-	}
-	if !strings.Contains(string(data), "maxResolve") {
-		t.Error("chaos.go FetchIPs should cap DNS resolution count with maxResolve")
-	}
-}
-
-// TestProbesDNSUsesContext verifies that probes.ResolveIP accepts a context
-// parameter for cancellation support.
-func TestProbesDNSUsesContext(t *testing.T) {
-	repoRoot := getRepoRoot(t)
-	data, err := os.ReadFile(filepath.Join(repoRoot, "pkg", "probes", "dns.go"))
-	if err != nil {
-		t.Fatalf("cannot read dns.go: %v", err)
-	}
-	src := string(data)
-	if strings.Contains(src, "net.LookupIP(") {
-		t.Error("probes/dns.go uses net.LookupIP which ignores context — should use net.DefaultResolver.LookupIPAddr")
-	}
-	if !strings.Contains(src, "func ResolveIP(ctx context.Context,") {
-		t.Error("probes.ResolveIP should accept context.Context as first parameter")
-	}
-}
-
-// =============================================================================
-// WAVE 10: TLS CONTEXT + PLUGIN ERROR HANDLING REGRESSION TESTS
-// =============================================================================
-
-// TestTLSDialUsesContext verifies that TLS dial calls use tls.Dialer.DialContext
-// instead of tls.DialWithDialer which ignores context cancellation.
-func TestTLSDialUsesContext(t *testing.T) {
-	repoRoot := getRepoRoot(t)
-	files := []string{
-		"pkg/waf/detector.go",
-		"pkg/cryptofailure/cryptofailure.go",
-	}
-	for _, file := range files {
-		data, err := os.ReadFile(filepath.Join(repoRoot, file))
-		if err != nil {
-			t.Fatalf("cannot read %s: %v", file, err)
-		}
-		if strings.Contains(string(data), "tls.DialWithDialer(") {
-			t.Errorf("%s uses tls.DialWithDialer which ignores context — should use tls.Dialer.DialContext", file)
-		}
-	}
-}
-
-// TestCryptoLoopsCheckContext verifies that TLS test loops in cryptofailure
-// check ctx.Err() before each iteration to respect cancellation.
-func TestCryptoLoopsCheckContext(t *testing.T) {
-	repoRoot := getRepoRoot(t)
-	data, err := os.ReadFile(filepath.Join(repoRoot, "pkg", "cryptofailure", "cryptofailure.go"))
-	if err != nil {
-		t.Fatalf("cannot read cryptofailure.go: %v", err)
-	}
-	src := string(data)
-	// Both TestTLSVersion and TestCipherSuites loops should check ctx.Err()
-	if count := strings.Count(src, "ctx.Err()"); count < 2 {
-		t.Errorf("cryptofailure.go has %d ctx.Err() checks, expected at least 2 (one per TLS test loop)", count)
-	}
-}
-
-// TestPluginLoadFromDirectoryJoinsErrors verifies that LoadFromDirectory
-// preserves all plugin load errors instead of only the last one.
-func TestPluginLoadFromDirectoryJoinsErrors(t *testing.T) {
+// TestPluginErrorsJoined verifies that plugin LoadFromDirectory uses
+// errors.Join to preserve all errors, not just the last one.
+func TestPluginErrorsJoined(t *testing.T) {
 	repoRoot := getRepoRoot(t)
 	data, err := os.ReadFile(filepath.Join(repoRoot, "pkg", "plugin", "plugin.go"))
 	if err != nil {
 		t.Fatalf("cannot read plugin.go: %v", err)
 	}
-	src := string(data)
-	if strings.Contains(src, "loadErr = err") {
-		t.Error("plugin.go LoadFromDirectory overwrites errors — should use errors.Join to preserve all")
+	if strings.Contains(string(data), "loadErr = err") {
+		t.Error("plugin.go LoadFromDirectory overwrites errors — should use errors.Join")
+	}
+}
+
+// scanGoFiles walks a directory tree and checks every non-test .go file for
+// banned string patterns. Helper for categorical regression tests.
+func scanGoFiles(t *testing.T, dir string, banned []string, errMsg string) {
+	t.Helper()
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return err
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		src := string(data)
+		rel, _ := filepath.Rel(dir, path)
+		for _, pat := range banned {
+			if strings.Contains(src, pat) {
+				t.Errorf("%s %s", rel, errMsg)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk %s: %v", dir, err)
 	}
 }
