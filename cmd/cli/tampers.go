@@ -157,7 +157,10 @@ func listTampers(category string, jsonOut bool) {
 
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		enc.Encode(result)
+		if err := enc.Encode(result); err != nil {
+			ui.PrintError(fmt.Sprintf("Failed to encode JSON: %v", err))
+			os.Exit(1)
+		}
 		return
 	}
 
@@ -204,10 +207,13 @@ func showTampersForWAF(wafVendor string, jsonOut bool) {
 	if jsonOut {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		enc.Encode(map[string]interface{}{
+		if err := enc.Encode(map[string]interface{}{
 			"vendor":          vendor,
 			"recommendations": recs,
-		})
+		}); err != nil {
+			ui.PrintError(fmt.Sprintf("Failed to encode JSON: %v", err))
+			os.Exit(1)
+		}
 		return
 	}
 
@@ -315,7 +321,10 @@ func showWAFMatrix(jsonOut bool) {
 
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		enc.Encode(matrix)
+		if err := enc.Encode(matrix); err != nil {
+			ui.PrintError(fmt.Sprintf("Failed to encode JSON: %v", err))
+			os.Exit(1)
+		}
 		return
 	}
 
@@ -385,7 +394,10 @@ func runBypassDiscovery(targetURL, wafVendor string, concurrency, topN, confirmC
 	if jsonOut {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		enc.Encode(result)
+		if err := enc.Encode(result); err != nil {
+			ui.PrintError(fmt.Sprintf("Failed to encode JSON: %v", err))
+			os.Exit(1)
+		}
 		return
 	}
 

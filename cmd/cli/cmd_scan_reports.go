@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -195,11 +196,11 @@ func printScanJSONL(w io.Writer, target string, result *ScanResult) {
 
 // printScanConsoleSummary writes scan results to console with colored formatting.
 func printScanConsoleSummary(result *ScanResult) {
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 	ui.PrintSection("Scan Results")
 	ui.PrintConfigLine("Duration", result.Duration.Round(time.Millisecond).String())
 	ui.PrintConfigLine("Total Vulnerabilities", fmt.Sprintf("%d", result.TotalVulns))
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	if result.TotalVulns > 0 {
 		ui.PrintSection("By Severity")
@@ -216,7 +217,7 @@ func printScanConsoleSummary(result *ScanResult) {
 				ui.PrintInfo(fmt.Sprintf("  %s: %d", sev, count))
 			}
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 
 		ui.PrintSection("By Category")
 		detailCats := make([]string, 0, len(result.ByCategory))
@@ -234,7 +235,7 @@ func printScanConsoleSummary(result *ScanResult) {
 				ui.PrintConfigLine(cat, fmt.Sprintf("%d %s", count, word))
 			}
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 
 		// Print detailed findings
 		if result.SQLi != nil && len(result.SQLi.Vulnerabilities) > 0 {
@@ -249,7 +250,7 @@ func printScanConsoleSummary(result *ScanResult) {
 			if len(result.SQLi.Vulnerabilities) > 5 {
 				ui.PrintInfo(fmt.Sprintf("  ... and %d more", len(result.SQLi.Vulnerabilities)-5))
 			}
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 
 		if result.XSS != nil && len(result.XSS.Vulnerabilities) > 0 {
@@ -264,7 +265,7 @@ func printScanConsoleSummary(result *ScanResult) {
 			if len(result.XSS.Vulnerabilities) > 5 {
 				ui.PrintInfo(fmt.Sprintf("  ... and %d more", len(result.XSS.Vulnerabilities)-5))
 			}
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 	} else {
 		ui.PrintSuccess("No vulnerabilities found!")

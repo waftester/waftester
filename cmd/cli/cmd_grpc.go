@@ -68,14 +68,14 @@ func runGRPC() {
 	}
 	if targetAddr == "" {
 		ui.PrintError("Target gRPC server address required")
-		fmt.Println()
-		fmt.Println("Usage: waf-tester grpc -u <host:port> [options]")
-		fmt.Println()
-		fmt.Println("Examples:")
-		fmt.Println("  waf-tester grpc -u localhost:50051 --list")
-		fmt.Println("  waf-tester grpc -u localhost:50051 --describe grpc.health.v1.Health")
-		fmt.Println("  waf-tester grpc -u localhost:50051 --call service.Method -d '{\"field\": \"value\"}'")
-		fmt.Println("  waf-tester grpc -u localhost:50051 --fuzz --category sqli")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Usage: waf-tester grpc -u <host:port> [options]")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Examples:")
+		fmt.Fprintln(os.Stderr, "  waf-tester grpc -u localhost:50051 --list")
+		fmt.Fprintln(os.Stderr, "  waf-tester grpc -u localhost:50051 --describe grpc.health.v1.Health")
+		fmt.Fprintln(os.Stderr, "  waf-tester grpc -u localhost:50051 --call service.Method -d '{\"field\": \"value\"}'")
+		fmt.Fprintln(os.Stderr, "  waf-tester grpc -u localhost:50051 --fuzz --category sqli")
 		os.Exit(1)
 	}
 
@@ -91,7 +91,7 @@ func runGRPC() {
 			ui.PrintConfigLine("Mode", "Fuzz gRPC Methods")
 			ui.PrintConfigLine("Category", *payloadCategory)
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Setup context
@@ -110,7 +110,7 @@ func runGRPC() {
 	defer client.Close()
 
 	ui.PrintSuccess("Connected to gRPC server")
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Execute requested operation
 	switch {
@@ -156,7 +156,7 @@ func runGRPCList(ctx context.Context, client *grpc.Client, jsonOutput bool) {
 	for _, svc := range services {
 		fmt.Printf("  %s %s\n", ui.Icon("•", "-"), svc)
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 	ui.PrintSuccess(fmt.Sprintf("Found %d services", len(services)))
 }
 
@@ -178,7 +178,7 @@ func runGRPCDescribe(ctx context.Context, client *grpc.Client, serviceName strin
 	}
 
 	ui.PrintSection(fmt.Sprintf("Service: %s", desc.Name))
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	for _, method := range desc.Methods {
 		streamInfo := ""
@@ -193,7 +193,7 @@ func runGRPCDescribe(ctx context.Context, client *grpc.Client, serviceName strin
 		fmt.Printf("  %s%s\n", method.Name, streamInfo)
 		fmt.Printf("    Input:  %s\n", method.InputType)
 		fmt.Printf("    Output: %s\n", method.OutputType)
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	ui.PrintSuccess(fmt.Sprintf("Found %d methods", len(desc.Methods)))
@@ -237,7 +237,7 @@ func runGRPCCall(ctx context.Context, client *grpc.Client, callSpec, data, metad
 	} else {
 		ui.PrintSection("Response")
 		fmt.Println(string(result.Response))
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 		ui.PrintConfigLine("Latency", result.Latency.String())
 		if result.Blocked {
 			ui.PrintWarning("Request appears to be blocked")
@@ -270,7 +270,7 @@ func runGRPCFuzz(ctx context.Context, client *grpc.Client, payloadDir, templateD
 	if !jsonOutput {
 		ui.PrintConfigLine("Services", fmt.Sprintf("%d", len(services)))
 		ui.PrintConfigLine("Payloads", fmt.Sprintf("%d", len(payloads)))
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	for _, svc := range services {
@@ -328,7 +328,7 @@ func runGRPCFuzz(ctx context.Context, client *grpc.Client, payloadDir, templateD
 				if !jsonOutput && fr.Blocked {
 					ui.PrintWarning(fmt.Sprintf("[BLOCKED] %s/%s: %s", svc, method.Name, truncatePayload(payload, 50)))
 				} else if !jsonOutput && !fr.Blocked {
-					fmt.Printf("[PASSED] %s/%s: %s\n", svc, method.Name, truncatePayload(payload, 50))
+					fmt.Fprintf(os.Stderr, "[PASSED] %s/%s: %s\n", svc, method.Name, truncatePayload(payload, 50))
 				}
 			}
 		}
@@ -352,7 +352,7 @@ grpcFuzzDone:
 		}
 		fmt.Println(string(data))
 	} else {
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 		blocked := 0
 		for _, r := range results {
 			if r.Blocked {
