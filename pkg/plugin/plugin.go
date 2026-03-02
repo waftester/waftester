@@ -284,13 +284,17 @@ func (m *Manager) ScanAll(ctx context.Context, target *Target) map[string]*ScanR
 }
 
 // Cleanup releases resources for all plugins
-func (m *Manager) Cleanup() {
+func (m *Manager) Cleanup() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	var errs []error
 	for _, scanner := range m.Plugins {
-		scanner.Cleanup()
+		if err := scanner.Cleanup(); err != nil {
+			errs = append(errs, err)
+		}
 	}
+	return errors.Join(errs...)
 }
 
 // PluginInfo returns info about a plugin
@@ -338,14 +342,14 @@ func (m *Manager) LoadFromDirectory(dir string) error {
 		return fmt.Errorf("failed to glob plugins: %w", err)
 	}
 
-	var loadErr error
+	var errs []error
 	for _, file := range files {
 		if err := m.LoadPlugin(file); err != nil {
-			loadErr = err
+			errs = append(errs, err)
 		}
 	}
 
-	return loadErr
+	return errors.Join(errs...)
 }
 
 // IsBuiltin returns whether a plugin is built-in or external
