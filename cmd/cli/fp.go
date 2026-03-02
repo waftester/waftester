@@ -78,7 +78,7 @@ func runFP() {
 	ui.PrintConfigLine("Rate Limit", fmt.Sprintf("%.1f req/s", *rateLimit))
 	ui.PrintConfigLine("Paranoia Level", fmt.Sprintf("%d", *paranoiaLevel))
 	ui.PrintConfigLine("Corpus", *corpusSources)
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Local WAF test
 	if *localTest {
@@ -127,7 +127,7 @@ func runFP() {
 		manifest.Print()
 	} else {
 		// Streaming mode: simple line output for CI/scripts
-		fmt.Printf("[INFO] Starting false positive test: target=%s payloads=%d concurrency=%d rate=%.0f\n",
+		fmt.Fprintf(os.Stderr, "[INFO] Starting false positive test: target=%s payloads=%d concurrency=%d rate=%.0f\n",
 			*target, corpusCount, *concurrency, *rateLimit)
 	}
 
@@ -203,7 +203,7 @@ func runFP() {
 	// Show completion summary
 	elapsed := progress.GetElapsed()
 	if *streamMode {
-		fmt.Printf("[COMPLETE] %d tests in %s, FPs=%d\n", result.TotalTests, duration.FormatCompact(elapsed), result.FalsePositives)
+		fmt.Fprintf(os.Stderr, "[COMPLETE] %d tests in %s, FPs=%d\n", result.TotalTests, duration.FormatCompact(elapsed), result.FalsePositives)
 	} else {
 		ui.Printf("  %s Completed %d tests in %s\n", ui.Icon("\u2705", "+"), result.TotalTests, duration.FormatCompact(elapsed))
 		if result.FalsePositives > 0 {
@@ -219,7 +219,7 @@ func runFP() {
 				ui.Printf("  %s No false positives detected\n", ui.Icon("\u2728", "+"))
 			}
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 
 		// Display results
 		displayFPResults(result)
@@ -284,33 +284,33 @@ func loadDynamicCorpus(tester *fp.Tester, filename string) error {
 }
 
 func displayFPResults(result *fp.Result) {
-	fmt.Println()
-	fmt.Println(ui.SectionStyle.Render("FALSE POSITIVE ANALYSIS RESULTS"))
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, ui.SectionStyle.Render("FALSE POSITIVE ANALYSIS RESULTS"))
+	fmt.Fprintln(os.Stderr)
 
 	// Summary box
 	if ui.UnicodeTerminal() {
-		fmt.Println("╔══════════════════════════════════════════════════════════════╗")
-		fmt.Println("║                    FP TESTING SUMMARY                        ║")
-		fmt.Println("╠══════════════════════════════════════════════════════════════╣")
-		fmt.Printf("║  Total Tests:        %-40d ║\n", result.TotalTests)
-		fmt.Printf("║  False Positives:    %-40d ║\n", result.FalsePositives)
-		fmt.Printf("║  FP Rate:            %-40.2f ║\n", result.FPRatio*100)
-		fmt.Printf("║  True Negatives:     %-40d ║\n", result.TrueNegatives)
-		fmt.Printf("║  Errors:             %-40d ║\n", result.Errors)
-		fmt.Println("╚══════════════════════════════════════════════════════════════╝")
+		fmt.Fprintln(os.Stderr, "╔══════════════════════════════════════════════════════════════╗")
+		fmt.Fprintln(os.Stderr, "║                    FP TESTING SUMMARY                        ║")
+		fmt.Fprintln(os.Stderr, "╠══════════════════════════════════════════════════════════════╣")
+		fmt.Fprintf(os.Stderr, "║  Total Tests:        %-40d ║\n", result.TotalTests)
+		fmt.Fprintf(os.Stderr, "║  False Positives:    %-40d ║\n", result.FalsePositives)
+		fmt.Fprintf(os.Stderr, "║  FP Rate:            %-40.2f ║\n", result.FPRatio*100)
+		fmt.Fprintf(os.Stderr, "║  True Negatives:     %-40d ║\n", result.TrueNegatives)
+		fmt.Fprintf(os.Stderr, "║  Errors:             %-40d ║\n", result.Errors)
+		fmt.Fprintln(os.Stderr, "╚══════════════════════════════════════════════════════════════╝")
 	} else {
-		fmt.Println("+--------------------------------------------------------------+")
-		fmt.Println("|                    FP TESTING SUMMARY                        |")
-		fmt.Println("+--------------------------------------------------------------+")
-		fmt.Printf("|  Total Tests:        %-40d |\n", result.TotalTests)
-		fmt.Printf("|  False Positives:    %-40d |\n", result.FalsePositives)
-		fmt.Printf("|  FP Rate:            %-40.2f |\n", result.FPRatio*100)
-		fmt.Printf("|  True Negatives:     %-40d |\n", result.TrueNegatives)
-		fmt.Printf("|  Errors:             %-40d |\n", result.Errors)
-		fmt.Println("+--------------------------------------------------------------+")
+		fmt.Fprintln(os.Stderr, "+--------------------------------------------------------------+")
+		fmt.Fprintln(os.Stderr, "|                    FP TESTING SUMMARY                        |")
+		fmt.Fprintln(os.Stderr, "+--------------------------------------------------------------+")
+		fmt.Fprintf(os.Stderr, "|  Total Tests:        %-40d |\n", result.TotalTests)
+		fmt.Fprintf(os.Stderr, "|  False Positives:    %-40d |\n", result.FalsePositives)
+		fmt.Fprintf(os.Stderr, "|  FP Rate:            %-40.2f |\n", result.FPRatio*100)
+		fmt.Fprintf(os.Stderr, "|  True Negatives:     %-40d |\n", result.TrueNegatives)
+		fmt.Fprintf(os.Stderr, "|  Errors:             %-40d |\n", result.Errors)
+		fmt.Fprintln(os.Stderr, "+--------------------------------------------------------------+")
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Rating
 	var rating string
@@ -326,55 +326,55 @@ func displayFPResults(result *fp.Result) {
 	default:
 		rating = "CRITICAL - >10% FP rate, significant tuning required"
 	}
-	fmt.Printf("Rating: %s\n\n", rating)
+	fmt.Fprintf(os.Stderr, "Rating: %s\n\n", rating)
 
 	// By corpus
 	if len(result.ByCorpus) > 0 {
-		fmt.Println(ui.SectionStyle.Render("FP BY CORPUS SOURCE"))
+		fmt.Fprintln(os.Stderr, ui.SectionStyle.Render("FP BY CORPUS SOURCE"))
 		for corpus, count := range result.ByCorpus {
-			fmt.Printf("  %-20s %d FPs\n", corpus, count)
+			fmt.Fprintf(os.Stderr, "  %-20s %d FPs\n", corpus, count)
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// By location
 	if len(result.ByLocation) > 0 {
-		fmt.Println(ui.SectionStyle.Render("FP BY INJECTION LOCATION"))
+		fmt.Fprintln(os.Stderr, ui.SectionStyle.Render("FP BY INJECTION LOCATION"))
 		for location, count := range result.ByLocation {
-			fmt.Printf("  %-20s %d FPs\n", location, count)
+			fmt.Fprintf(os.Stderr, "  %-20s %d FPs\n", location, count)
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Top FP details (max 10)
 	if len(result.FalsePositiveDetails) > 0 {
-		fmt.Println(ui.SectionStyle.Render("FALSE POSITIVE DETAILS"))
+		fmt.Fprintln(os.Stderr, ui.SectionStyle.Render("FALSE POSITIVE DETAILS"))
 		maxItems := 10
 		if len(result.FalsePositiveDetails) < maxItems {
 			maxItems = len(result.FalsePositiveDetails)
 		}
 		for i := 0; i < maxItems; i++ {
 			fpDetail := result.FalsePositiveDetails[i]
-			fmt.Printf("  [%d] Payload: %.60s...\n", i+1, strutil.Truncate(fpDetail.Payload, 60))
-			fmt.Printf("      Location: %s | Status: %d | Rule: %d\n",
+			fmt.Fprintf(os.Stderr, "  [%d] Payload: %.60s...\n", i+1, strutil.Truncate(fpDetail.Payload, 60))
+			fmt.Fprintf(os.Stderr, "      Location: %s | Status: %d | Rule: %d\n",
 				fpDetail.Location, fpDetail.StatusCode, fpDetail.RuleID)
 		}
 		if len(result.FalsePositiveDetails) > maxItems {
-			fmt.Printf("  ... and %d more\n", len(result.FalsePositiveDetails)-maxItems)
+			fmt.Fprintf(os.Stderr, "  ... and %d more\n", len(result.FalsePositiveDetails)-maxItems)
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 }
 
 func runLocalFPTest(paranoiaLevel int, verbose bool) {
 	ui.PrintInfo("Running local WAF FP simulation...")
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	waf := fp.NewLocalWAF(paranoiaLevel)
 	stats := waf.TestCorpus(verbose)
 
-	fmt.Println()
-	fmt.Println(fp.FormatLocalFPReport(stats))
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, fp.FormatLocalFPReport(stats))
 }
 
 // Helper functions for progress display
