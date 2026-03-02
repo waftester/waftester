@@ -2534,3 +2534,59 @@ func TestRateLimiterPreciseRefill(t *testing.T) {
 		t.Error("osint.go RateLimiter uses time.Now() for lastRefill — should advance by exact refillCount * refillRate to avoid drift")
 	}
 }
+
+// =============================================================================
+// WAVE 9: CONTEXT-AWARE DNS REGRESSION TESTS
+// =============================================================================
+
+// TestOsintDNSUsesContextResolver verifies that all OSINT DNS resolution calls
+// use net.DefaultResolver.LookupIPAddr(ctx, ...) instead of net.LookupIP which
+// ignores context cancellation.
+func TestOsintDNSUsesContextResolver(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	files := []string{
+		"pkg/osint/dnsdumpster.go",
+		"pkg/osint/chaos.go",
+		"pkg/osint/crtsh.go",
+	}
+	for _, file := range files {
+		data, err := os.ReadFile(filepath.Join(repoRoot, file))
+		if err != nil {
+			t.Fatalf("cannot read %s: %v", file, err)
+		}
+		src := string(data)
+		if strings.Contains(src, "net.LookupIP(") {
+			t.Errorf("%s uses net.LookupIP which ignores context — should use net.DefaultResolver.LookupIPAddr(ctx, ...)", file)
+		}
+	}
+}
+
+// TestChaosDNSResolutionCapped verifies that chaos.go FetchIPs caps DNS
+// resolution like crtsh.go to prevent unbounded queries.
+func TestChaosDNSResolutionCapped(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "pkg", "osint", "chaos.go"))
+	if err != nil {
+		t.Fatalf("cannot read chaos.go: %v", err)
+	}
+	if !strings.Contains(string(data), "maxResolve") {
+		t.Error("chaos.go FetchIPs should cap DNS resolution count with maxResolve")
+	}
+}
+
+// TestProbesDNSUsesContext verifies that probes.ResolveIP accepts a context
+// parameter for cancellation support.
+func TestProbesDNSUsesContext(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "pkg", "probes", "dns.go"))
+	if err != nil {
+		t.Fatalf("cannot read dns.go: %v", err)
+	}
+	src := string(data)
+	if strings.Contains(src, "net.LookupIP(") {
+		t.Error("probes/dns.go uses net.LookupIP which ignores context — should use net.DefaultResolver.LookupIPAddr")
+	}
+	if !strings.Contains(src, "func ResolveIP(ctx context.Context,") {
+		t.Error("probes.ResolveIP should accept context.Context as first parameter")
+	}
+}
