@@ -255,7 +255,7 @@ func (t *Tester) CheckSubdomain(ctx context.Context, subdomain string) (*ScanRes
 	}
 
 	// Resolve CNAME chain
-	cnameChain, err := t.resolveCNAMEChain(subdomain)
+	cnameChain, err := t.resolveCNAMEChain(ctx, subdomain)
 	if err != nil {
 		// NXDOMAIN might indicate vulnerability
 		var dnsErr *net.DNSError
@@ -303,7 +303,7 @@ func (t *Tester) CheckSubdomain(ctx context.Context, subdomain string) (*ScanRes
 }
 
 // resolveCNAMEChain resolves the full CNAME chain for a domain
-func (t *Tester) resolveCNAMEChain(domain string) ([]string, error) {
+func (t *Tester) resolveCNAMEChain(ctx context.Context, domain string) ([]string, error) {
 	var chain []string
 	current := domain
 	seen := make(map[string]bool)
@@ -314,7 +314,7 @@ func (t *Tester) resolveCNAMEChain(domain string) ([]string, error) {
 		}
 		seen[current] = true
 
-		cname, err := net.LookupCNAME(current)
+		cname, err := net.DefaultResolver.LookupCNAME(ctx, current)
 		if err != nil {
 			if len(chain) == 0 {
 				return nil, err
@@ -405,8 +405,8 @@ func (t *Tester) checkSingleURL(ctx context.Context, subdomain, targetURL string
 }
 
 // CheckNS checks for dangling NS records
-func (t *Tester) CheckNS(domain string) (*Vulnerability, error) {
-	ns, err := net.LookupNS(domain)
+func (t *Tester) CheckNS(ctx context.Context, domain string) (*Vulnerability, error) {
+	ns, err := net.DefaultResolver.LookupNS(ctx, domain)
 	if err != nil {
 		// No NS records might indicate issue
 		return nil, err
@@ -414,7 +414,7 @@ func (t *Tester) CheckNS(domain string) (*Vulnerability, error) {
 
 	for _, record := range ns {
 		// Try to resolve each NS
-		_, err := net.LookupHost(record.Host)
+		_, err := net.DefaultResolver.LookupHost(ctx, record.Host)
 		if err != nil { //nolint:nilerr // intentional: DNS resolution failure IS the vulnerability
 			t.config.NotifyVulnerabilityFound()
 			return &Vulnerability{
@@ -436,15 +436,15 @@ func (t *Tester) CheckNS(domain string) (*Vulnerability, error) {
 }
 
 // CheckMX checks for dangling MX records
-func (t *Tester) CheckMX(domain string) (*Vulnerability, error) {
-	mx, err := net.LookupMX(domain)
+func (t *Tester) CheckMX(ctx context.Context, domain string) (*Vulnerability, error) {
+	mx, err := net.DefaultResolver.LookupMX(ctx, domain)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, record := range mx {
 		// Try to resolve each MX
-		_, err := net.LookupHost(record.Host)
+		_, err := net.DefaultResolver.LookupHost(ctx, record.Host)
 		if err != nil { //nolint:nilerr // intentional: DNS resolution failure IS the vulnerability
 			t.config.NotifyVulnerabilityFound()
 			return &Vulnerability{
