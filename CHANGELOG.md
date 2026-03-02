@@ -5,6 +5,29 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.42] - 2026-03-02
+
+### Fixed
+
+- **CRLF scanner silently running zero tests** — `NewTester` did not fill default `TestParams`/`TestHeaders` when empty; scanner also only tested params, missing header injection
+- **49 bugs across 25 files** — Data race on `CurrentTemplateIdx`, nil `AnalyzeResponse` panic, duplicate cookies in request templates, empty `BaseURL` passed to `UnifiedDetector`, ETA float-to-int overflow on Inf, and 43 more edge cases
+- **Sscanf return values unchecked in 4 decoders** — Nuclei DSL status evaluator, port parser, chunk-size parser, and `FormatPrecision`/`FormatSeconds` clamping for NaN/Inf
+- **Nil request panic** — 35 edge case tests added; negative duration clamping, control character sanitization in `SanitizeFilename`, index mismatch in `ExtractSubdomains`
+- **Cookie and header payload sanitization** — `req.AddCookie` silently strips attack characters (`"`, `;`, `\r\n`); migrated payload cookies to `httputil.SetPayloadCookie` and payload headers to `httputil.SetPayloadHeader`
+- **Atomic JSON file writes** — All JSON persistence migrated from `json.MarshalIndent` + `os.WriteFile` to `iohelper.WriteAtomicJSON` (crash-safe temp+rename) across 40+ files
+- **`http.NewRequest` missing context** — 31 calls migrated to `http.NewRequestWithContext` for proper cancellation propagation
+
+### Changed
+
+- **Subdomain extraction unified** — Three duplicate `ExtractSubdomains` implementations consolidated into `pkg/subdomain` with scope-filtered extraction (anchored regex when `baseDomain` provided)
+- **Effectiveness calculation centralized** — Four inconsistent WAF effectiveness formulas unified to `metrics.CalcEffectiveness` (Blocked / (Blocked+Failed), excluding skipped)
+- **Blocked status code checks centralized** — 14 inline status code comparisons across 11 files migrated to `defaults.IsBlockedStatus`
+- **Duration formatting deduplicated** — Six duplicate `formatDuration` functions replaced by `duration.FormatClock`, `FormatCompact`, and `FormatSeconds`
+- **HTTP status helpers** — 17 inline `StatusCode >= 200 && < 300` checks replaced by `httputil.IsSuccess` / `IsSuccessOrRedirect`
+- **JSON read/write patterns unified** — `iohelper.ReadJSON` replaces `os.ReadFile` + `json.Unmarshal` across 40+ load functions; enforced via CI contract tests
+- **URL utility consolidation** — `urlutil.IsHTTPURL` (12 files), `urlutil.StripScheme` (3 files), `urlutil.JoinPath` (4 files) replace inline patterns
+- **Sorted map keys deduplicated** — 47 inline for-range+append+sort patterns replaced by generic `strutil.SortedMapKeys[V any]`
+- **Six CI contract tests** — Source-scanning tests in `pkg/contracts` enforce migration patterns (JSONWrite, JSONRead, SortedMapKeys, IsHTTPURL, StripScheme, JoinPath) with documented allowlists
 ## [2.9.41] - 2026-03-01
 
 ### Fixed
@@ -2754,6 +2777,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.42]: https://github.com/waftester/waftester/compare/v2.9.41...v2.9.42
 [2.9.41]: https://github.com/waftester/waftester/compare/v2.9.40...v2.9.41
 [2.9.40]: https://github.com/waftester/waftester/compare/v2.9.39...v2.9.40
 [2.9.39]: https://github.com/waftester/waftester/compare/v2.9.38...v2.9.39
