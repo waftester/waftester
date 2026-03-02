@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/attackconfig"
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/fp"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -147,14 +148,15 @@ func runFP() {
 	if fpDispCtx != nil {
 		defer fpDispCtx.Close()
 	}
-	fpCtx := context.Background()
+	fpCtx, fpCtxCancel := cli.SignalContext(30 * time.Second)
+	defer fpCtxCancel()
 
 	// Emit start event for scan lifecycle hooks
 	if fpDispCtx != nil {
 		_ = fpDispCtx.EmitStart(fpCtx, *target, corpusCount, *concurrency, nil)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), duration.ContextMax)
+	ctx, cancel := context.WithTimeout(fpCtx, duration.ContextMax)
 	defer cancel()
 
 	// Determine output mode

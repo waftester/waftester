@@ -178,7 +178,9 @@ func runFuzz() {
 		}
 		if urlutil.IsHTTPURL(*wordlist) {
 			// Download wordlist with timeout
-			dlCtx, dlCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			dlSigCtx, dlSigCancel := cli.SignalContext(30 * time.Second)
+			defer dlSigCancel()
+			dlCtx, dlCancel := context.WithTimeout(dlSigCtx, 30*time.Second)
 			defer dlCancel()
 			req, reqErr := http.NewRequestWithContext(dlCtx, http.MethodGet, *wordlist, nil)
 			if reqErr != nil {
@@ -234,7 +236,11 @@ func runFuzz() {
 	}
 
 	// Apply wordlist transformations
-	if *wordlistSkip > 0 && *wordlistSkip < len(words) {
+	if *wordlistSkip > 0 {
+		if *wordlistSkip >= len(words) {
+			ui.PrintError(fmt.Sprintf("Skip value %d >= wordlist size %d, no words remaining", *wordlistSkip, len(words)))
+			os.Exit(1)
+		}
 		words = words[*wordlistSkip:]
 	}
 	if *wordlistMax > 0 && *wordlistMax < len(words) {
@@ -578,7 +584,7 @@ func runFuzz() {
 	var totalReqs, matchCount int64
 	totalWords := len(words)
 	if len(cfg.Extensions) > 0 {
-		totalWords = len(words) * len(cfg.Extensions)
+		totalWords = len(words) * (len(cfg.Extensions) + 1)
 	}
 
 	// Use unified LiveProgress for progress display
@@ -782,7 +788,7 @@ func runFuzz() {
 			errMsg := fmt.Sprintf("JSON encoding error: %v", err)
 			ui.PrintError(errMsg)
 			if fuzzDispCtx != nil {
-				_ = fuzzDispCtx.EmitError(context.Background(), "fuzz", errMsg, true)
+				_ = fuzzDispCtx.EmitError(ctx, "fuzz", errMsg, true)
 				_ = fuzzDispCtx.Close()
 			}
 			os.Exit(1)
@@ -793,7 +799,7 @@ func runFuzz() {
 				errMsg := fmt.Sprintf("Error writing output: %v", err)
 				ui.PrintError(errMsg)
 				if fuzzDispCtx != nil {
-					_ = fuzzDispCtx.EmitError(context.Background(), "fuzz", errMsg, true)
+					_ = fuzzDispCtx.EmitError(ctx, "fuzz", errMsg, true)
 					_ = fuzzDispCtx.Close()
 				}
 				os.Exit(1)

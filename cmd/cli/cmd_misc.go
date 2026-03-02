@@ -829,6 +829,7 @@ func runHeadless() {
 	if *screenshot {
 		if err := os.MkdirAll(*screenshotDir, 0755); err != nil {
 			ui.PrintError(fmt.Sprintf("Failed to create screenshot directory: %v", err))
+			*screenshot = false
 		}
 	}
 

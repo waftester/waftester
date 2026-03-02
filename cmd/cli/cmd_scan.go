@@ -186,11 +186,10 @@ func runScan() {
 	}
 
 	// Setup context with timeout
-	// Overall scan deadline: 60× per-request timeout (e.g., -timeout 30 → 30min scan deadline)
 	ctx, cancel := cli.SignalContext(30 * time.Second)
 	defer cancel()
 
-	ctx, tCancel := context.WithTimeout(ctx, time.Duration(cfg.Common.Timeout)*time.Minute)
+	ctx, tCancel := context.WithTimeout(ctx, duration.ContextMax)
 	defer tCancel()
 
 	// ═══════════════════════════════════════════════════════════════════════════
