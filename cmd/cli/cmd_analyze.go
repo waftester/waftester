@@ -61,6 +61,10 @@ func runAnalyze() {
 
 	var jsCode string
 
+	// Signal-aware context for Ctrl+C cancellation
+	sigCtx, sigCancel := cli.SignalContext(30 * time.Second)
+	defer sigCancel()
+
 	if *file != "" {
 		ui.PrintConfigLine("File", *file)
 		data, err := os.ReadFile(*file)
@@ -72,7 +76,7 @@ func runAnalyze() {
 	} else {
 		ui.PrintConfigLine("Target", target)
 		// Fetch JavaScript from URL
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(*timeout)*time.Second)
+		ctx, cancel := context.WithTimeout(sigCtx, time.Duration(*timeout)*time.Second)
 		defer cancel()
 
 		// Use a simple HTTP client to fetch
@@ -114,9 +118,8 @@ func runAnalyze() {
 		defer analyzeDispCtx.Close()
 	}
 
-	// Emit security findings to hooks in real-time
-	ctx, ctxCancel := cli.SignalContext(30 * time.Second)
-	defer ctxCancel()
+	// Reuse signal-aware context for hook emission
+	ctx := sigCtx
 
 	// Emit start event for scan lifecycle hooks
 	if analyzeDispCtx != nil {
@@ -241,8 +244,7 @@ func runAnalyze() {
 			errMsg := fmt.Sprintf("JSON encoding error: %v", err)
 			ui.PrintError(errMsg)
 			if analyzeDispCtx != nil {
-				_ = analyzeDispCtx.EmitError(context.Background(), "analyze", errMsg, true)
-				_ = analyzeDispCtx.Close()
+				_ = analyzeDispCtx.EmitError(ctx, "analyze", errMsg, true)
 			}
 			os.Exit(1)
 		}
@@ -252,8 +254,7 @@ func runAnalyze() {
 				errMsg := fmt.Sprintf("Error writing output: %v", err)
 				ui.PrintError(errMsg)
 				if analyzeDispCtx != nil {
-					_ = analyzeDispCtx.EmitError(context.Background(), "analyze", errMsg, true)
-					_ = analyzeDispCtx.Close()
+					_ = analyzeDispCtx.EmitError(ctx, "analyze", errMsg, true)
 				}
 				os.Exit(1)
 			}

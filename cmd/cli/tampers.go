@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -68,7 +69,9 @@ func runTampers() {
 		}
 	}
 	tampersStartTime := time.Now()
-	tampersCtx := context.Background()
+	tampersSignalCtx, tampersSignalCancel := cli.SignalContext(30 * time.Second)
+	defer tampersSignalCancel()
+	tampersCtx := tampersSignalCtx
 
 	// Emit start event for scan lifecycle hooks
 	if tampersDispCtx != nil {
@@ -350,7 +353,9 @@ func runBypassDiscovery(targetURL, wafVendor string, concurrency, topN, confirmC
 	}
 	fmt.Println()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	sigCtx, sigCancel := cli.SignalContext(30 * time.Second)
+	defer sigCancel()
+	ctx, cancel := context.WithTimeout(sigCtx, 10*time.Minute)
 	defer cancel()
 
 	cfg := tampers.BypassDiscoveryConfig{

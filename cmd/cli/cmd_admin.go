@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -9,6 +8,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/apispec"
+	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/report"
@@ -68,7 +68,8 @@ func runValidate() {
 		defer validateDispCtx.Close()
 	}
 	validateStartTime := time.Now()
-	validateCtx := context.Background()
+	validateCtx, validateCtxCancel := cli.SignalContext(30 * time.Second)
+	defer validateCtxCancel()
 
 	// Emit start event for scan lifecycle hooks
 	if validateDispCtx != nil {
@@ -79,7 +80,6 @@ func runValidate() {
 	if err != nil {
 		if validateDispCtx != nil {
 			_ = validateDispCtx.EmitError(validateCtx, "validate", fmt.Sprintf("Validation error: %v", err), true)
-			_ = validateDispCtx.Close()
 		}
 		ui.PrintError(fmt.Sprintf("Validation error: %v", err))
 		os.Exit(1)
@@ -235,7 +235,8 @@ func runValidateTemplates() {
 		defer vtDispCtx.Close()
 	}
 	vtStartTime := time.Now()
-	vtCtx := context.Background()
+	vtCtx, vtCtxCancel := cli.SignalContext(30 * time.Second)
+	defer vtCtxCancel()
 
 	// Emit start event for scan lifecycle hooks
 	if vtDispCtx != nil {
@@ -414,7 +415,8 @@ func runEnterpriseReport() {
 		defer reportDispCtx.Close()
 	}
 	reportStartTime := time.Now()
-	reportCtx := context.Background()
+	reportCtx, reportCtxCancel := cli.SignalContext(30 * time.Second)
+	defer reportCtxCancel()
 
 	// Emit start event for scan lifecycle hooks
 	if reportDispCtx != nil {
@@ -427,7 +429,6 @@ func runEnterpriseReport() {
 		if reportDispCtx != nil {
 			_ = reportDispCtx.EmitBypass(reportCtx, "report-generation-failure", "medium", target, err.Error(), 0)
 			_ = reportDispCtx.EmitSummary(reportCtx, 1, 0, 1, time.Since(reportStartTime))
-			_ = reportDispCtx.Close()
 		}
 		ui.PrintError(fmt.Sprintf("Report generation failed: %v", err))
 		os.Exit(1)
@@ -485,7 +486,8 @@ func runUpdate() {
 		defer updateDispCtx.Close()
 	}
 	updateStartTime := time.Now()
-	updateCtx := context.Background()
+	updateCtx, updateCtxCancel := cli.SignalContext(30 * time.Second)
+	defer updateCtxCancel()
 
 	// Emit start event for scan lifecycle hooks
 	if updateDispCtx != nil {

@@ -141,7 +141,9 @@ func runSOAPWSDLList(wsdlURL string, jsonOutput, verbose bool, timeout int) {
 		fmt.Println()
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+	sigCtx, sigCancel := cli.SignalContext(30 * time.Second)
+	defer sigCancel()
+	ctx, cancel := context.WithTimeout(sigCtx, time.Duration(timeout)*time.Second)
 	defer cancel()
 
 	wsdlDef, err := soap.FetchAndParseWSDL(ctx, wsdlURL)

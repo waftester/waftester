@@ -92,6 +92,17 @@ func runProbe() {
 		return
 	}
 
+	// Warn about unimplemented flags
+	if *cfg.RawRequestFile != "" {
+		ui.PrintWarning("--rr/--request is not yet implemented; flag will be ignored")
+	}
+	if *cfg.InputMode != "" {
+		ui.PrintWarning("--im/--input-mode is not yet implemented; flag will be ignored")
+	}
+	if *cfg.ExcludeHeadlessBody {
+		ui.PrintWarning("--ehb/--exclude-headless-body is not yet implemented; flag will be ignored")
+	}
+
 	// Apply unified output settings
 	cfg.Out.ApplyUISettings()
 
@@ -851,7 +862,11 @@ func runProbe() {
 			// Store response if requested
 			if *cfg.StoreResponse {
 				respDir := *cfg.StoreResponseDir
-				os.MkdirAll(respDir, 0755)
+				if mkErr := os.MkdirAll(respDir, 0755); mkErr != nil {
+					if showDetails {
+						ui.PrintError(fmt.Sprintf("Failed to create response directory: %v", mkErr))
+					}
+				}
 				// Sanitize filename from URL
 				safeName := strings.ReplaceAll(host, ":", "_")
 				safeName = strings.ReplaceAll(safeName, "/", "_")
@@ -874,7 +889,11 @@ func runProbe() {
 			if *cfg.Screenshot {
 				// Create screenshots directory
 				screenshotDir := "screenshots"
-				os.MkdirAll(screenshotDir, 0755)
+				if mkErr := os.MkdirAll(screenshotDir, 0755); mkErr != nil {
+					if showDetails {
+						ui.PrintError(fmt.Sprintf("Failed to create screenshot directory: %v", mkErr))
+					}
+				}
 				safeName := strings.ReplaceAll(host, ":", "_")
 				safeName = strings.ReplaceAll(safeName, "/", "_")
 				screenshotFile := filepath.Join(screenshotDir, fmt.Sprintf("%s_%d.png", safeName, time.Now().Unix()))
@@ -1497,7 +1516,10 @@ func runProbe() {
 			codes := strings.Split(*cfg.MatchCode, ",")
 			matched := false
 			for _, c := range codes {
-				code, _ := strconv.Atoi(strings.TrimSpace(c))
+				code, err := strconv.Atoi(strings.TrimSpace(c))
+				if err != nil {
+					continue
+				}
 				if results.StatusCode == code {
 					matched = true
 					break
@@ -1512,7 +1534,10 @@ func runProbe() {
 		if *cfg.FilterCode != "" && !skipOutput {
 			codes := strings.Split(*cfg.FilterCode, ",")
 			for _, c := range codes {
-				code, _ := strconv.Atoi(strings.TrimSpace(c))
+				code, err := strconv.Atoi(strings.TrimSpace(c))
+				if err != nil {
+					continue
+				}
 				if results.StatusCode == code {
 					skipOutput = true
 					break
@@ -1662,17 +1687,19 @@ func runProbe() {
 
 		// Match response time - only show if response time matches condition
 		if *cfg.MatchRespTime != "" && !skipOutput {
-			dur, _ := time.ParseDuration(results.ResponseTime)
-			if !matchTimeCondition(dur, *cfg.MatchRespTime) {
-				skipOutput = true
+			if dur, err := time.ParseDuration(results.ResponseTime); err == nil {
+				if !matchTimeCondition(dur, *cfg.MatchRespTime) {
+					skipOutput = true
+				}
 			}
 		}
 
 		// Filter response time - skip if response time matches condition
 		if *cfg.FilterRespTime != "" && !skipOutput {
-			dur, _ := time.ParseDuration(results.ResponseTime)
-			if matchTimeCondition(dur, *cfg.FilterRespTime) {
-				skipOutput = true
+			if dur, err := time.ParseDuration(results.ResponseTime); err == nil {
+				if matchTimeCondition(dur, *cfg.FilterRespTime) {
+					skipOutput = true
+				}
 			}
 		}
 
@@ -2060,11 +2087,12 @@ func runProbe() {
 				jsonData, jsonErr := json.Marshal(results)
 				if jsonErr == nil {
 					var m map[string]interface{}
-					json.Unmarshal(jsonData, &m)
-					for field := range excludedOutputFields {
-						delete(m, field)
+					if unmarshalErr := json.Unmarshal(jsonData, &m); unmarshalErr == nil {
+						for field := range excludedOutputFields {
+							delete(m, field)
+						}
+						jsonData, _ = json.Marshal(m)
 					}
-					jsonData, _ = json.Marshal(m)
 				}
 				fmt.Println(string(jsonData))
 			} else {
@@ -2081,11 +2109,12 @@ func runProbe() {
 				rawData, rawErr := json.Marshal(results)
 				if rawErr == nil {
 					var m map[string]interface{}
-					json.Unmarshal(rawData, &m)
-					for field := range excludedOutputFields {
-						delete(m, field)
+					if unmarshalErr := json.Unmarshal(rawData, &m); unmarshalErr == nil {
+						for field := range excludedOutputFields {
+							delete(m, field)
+						}
+						jsonData, err = json.MarshalIndent(m, "", "  ")
 					}
-					jsonData, err = json.MarshalIndent(m, "", "  ")
 				}
 			} else {
 				jsonData, err = json.MarshalIndent(results, "", "  ")
@@ -2258,7 +2287,9 @@ func runProbe() {
 			} else {
 				fmt.Printf("[*] Memory profile saved to: %s\n", *cfg.MemProfile)
 			}
-			f.Close()
+			if closeErr := f.Close(); closeErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Could not close memory profile: %v", closeErr))
+			}
 		}
 	}
 

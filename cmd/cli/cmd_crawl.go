@@ -580,7 +580,7 @@ func runCrawl() {
 			errMsg := fmt.Sprintf("JSON encoding error: %v", err)
 			ui.PrintError(errMsg)
 			if crawlDispCtx != nil {
-				_ = crawlDispCtx.EmitError(context.Background(), "crawl", errMsg, true)
+				_ = crawlDispCtx.EmitError(ctx, "crawl", errMsg, true)
 				_ = crawlDispCtx.Close()
 			}
 			os.Exit(1)
@@ -591,7 +591,7 @@ func runCrawl() {
 				errMsg := fmt.Sprintf("Error writing output: %v", err)
 				ui.PrintError(errMsg)
 				if crawlDispCtx != nil {
-					_ = crawlDispCtx.EmitError(context.Background(), "crawl", errMsg, true)
+					_ = crawlDispCtx.EmitError(ctx, "crawl", errMsg, true)
 					_ = crawlDispCtx.Close()
 				}
 				os.Exit(1)

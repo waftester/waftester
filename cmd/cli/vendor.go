@@ -316,7 +316,8 @@ func runProtocolDetect() {
 		defer protoDispCtx.Close()
 	}
 	protoStartTime := time.Now()
-	protoCtx := context.Background()
+	protoCtx, protoCancel := cli.SignalContext(30 * time.Second)
+	defer protoCancel()
 
 	// Emit start event for scan lifecycle hooks
 	if protoDispCtx != nil {
