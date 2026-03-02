@@ -38,6 +38,7 @@ func runCrawl() {
 	depth := crawlFlags.Int("depth", 3, "Maximum crawl depth")
 	maxPages := crawlFlags.Int("max-pages", 100, "Maximum pages to crawl")
 	concurrency := crawlFlags.Int("concurrency", 5, "Concurrent crawlers")
+	crawlFlags.IntVar(concurrency, "c", 5, "Concurrent crawlers (alias)")
 	timeout := crawlFlags.Int("timeout", 10, "Request timeout in seconds")
 	delay := crawlFlags.Int("delay", 0, "Delay between requests in milliseconds")
 	includeScope := crawlFlags.String("include", "", "Include URL pattern (regex)")

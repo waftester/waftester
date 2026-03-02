@@ -48,7 +48,9 @@ func runFuzz() {
 
 	// Execution
 	concurrency := fuzzFlags.Int("t", 40, "Number of concurrent threads")
+	fuzzFlags.IntVar(concurrency, "c", 40, "Number of concurrent threads (alias)")
 	rateLimit := fuzzFlags.Int("rate", 100, "Requests per second")
+	fuzzFlags.IntVar(rateLimit, "rl", 100, "Requests per second (alias)")
 	timeout := fuzzFlags.Int("timeout", 10, "Request timeout in seconds")
 	followRedirects := fuzzFlags.Bool("r", false, "Follow redirects")
 	skipVerify := fuzzFlags.Bool("k", false, "Skip TLS verification")
