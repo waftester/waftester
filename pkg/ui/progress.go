@@ -488,8 +488,8 @@ func (s *StatsDisplay) render() {
 
 	elapsed := time.Since(s.startTime)
 	rps := float64(current) / elapsed.Seconds()
-	if elapsed.Seconds() < 1 {
-		rps = float64(current)
+	if math.IsNaN(rps) || math.IsInf(rps, 0) {
+		rps = 0
 	}
 
 	percent := float64(current) / float64(s.total) * 100

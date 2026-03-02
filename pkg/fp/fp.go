@@ -82,6 +82,9 @@ type Tester struct {
 	httpClient *http.Client
 	limiter    *rate.Limiter
 	corpus     *Corpus
+
+	// ProgressFn is called after each test completes with (completed, total).
+	ProgressFn func(completed, total int)
 }
 
 // NewTester creates a new FP tester
@@ -139,6 +142,8 @@ func (t *Tester) Run(ctx context.Context) (*Result, error) {
 	// Results tracking
 	var fpMu sync.Mutex
 	var blocked, passed, errors int64
+	var completed int64
+	total := int(result.TotalTests)
 
 	// Worker pool
 	var wg sync.WaitGroup
@@ -163,10 +168,7 @@ func (t *Tester) Run(ctx context.Context) (*Result, error) {
 
 				if err != nil {
 					atomic.AddInt64(&errors, 1)
-					continue
-				}
-
-				if isBlocked {
+				} else if isBlocked {
 					// This is a FALSE POSITIVE - benign content was blocked
 					atomic.AddInt64(&blocked, 1)
 					fpMu.Lock()
@@ -183,6 +185,12 @@ func (t *Tester) Run(ctx context.Context) (*Result, error) {
 				} else {
 					// TRUE NEGATIVE - benign content was correctly allowed
 					atomic.AddInt64(&passed, 1)
+				}
+
+				// Report progress
+				done := int(atomic.AddInt64(&completed, 1))
+				if t.ProgressFn != nil {
+					t.ProgressFn(done, total)
 				}
 			}
 		}()

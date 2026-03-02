@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/cli"
-	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/input"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -36,6 +35,7 @@ func runAnalyze() {
 	extractEndpoints := analyzeFlags.Bool("endpoints", true, "Extract API endpoints")
 	extractSecrets := analyzeFlags.Bool("secrets", true, "Extract secrets/credentials")
 	extractDOMSinks := analyzeFlags.Bool("sinks", true, "Extract DOM XSS sinks")
+	timeout := analyzeFlags.Int("timeout", 30, "Request timeout in seconds")
 	jsonOutput := analyzeFlags.Bool("json", false, "Output in JSON format")
 
 	// Enterprise hook flags (Slack, Teams, PagerDuty, OTEL, etc.)
@@ -72,7 +72,7 @@ func runAnalyze() {
 	} else {
 		ui.PrintConfigLine("Target", target)
 		// Fetch JavaScript from URL
-		ctx, cancel := context.WithTimeout(context.Background(), duration.ContextShort)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(*timeout)*time.Second)
 		defer cancel()
 
 		// Use a simple HTTP client to fetch
@@ -89,9 +89,9 @@ func runAnalyze() {
 	}
 	fmt.Println()
 
+	analyzeStartTime := time.Now()
 	analyzer := js.NewAnalyzer()
 	result := analyzer.Analyze(jsCode)
-	analyzeStartTime := time.Now()
 
 	// Initialize dispatcher for hooks (Slack, Teams, PagerDuty, OTEL, etc.)
 	analyzeOutputFlags := OutputFlags{
