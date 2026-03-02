@@ -578,7 +578,7 @@ func (c *Calibration) ShouldFilter(result *Result) bool {
 
 	// Check size similarity
 	sizeDiff := abs(result.ContentLength - c.BaselineSize)
-	sizeThreshold := int(float64(c.BaselineSize) * (1 - c.Threshold))
+	sizeThreshold := max(1, int(float64(c.BaselineSize)*(1-c.Threshold)))
 	if sizeDiff > sizeThreshold {
 		return false // Different enough = interesting
 	}
