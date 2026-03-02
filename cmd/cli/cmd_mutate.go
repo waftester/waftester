@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -273,7 +274,7 @@ func runMutate() {
 	}
 
 	// Create executor
-	executor := mutation.NewExecutor(cfg)
+	executor := mutation.NewExecutor(ctx, cfg)
 
 	// Generate tasks
 	tasks := executor.GenerateTasks(testPayloads, nil)
@@ -556,8 +557,8 @@ func sanitizeForDisplay(s string) string {
 func printMutationStats() {
 	ui.PrintSection("Mutation Registry Statistics")
 
-	// Create temporary executor to get stats
-	executor := mutation.NewExecutor(nil)
+	// Create temporary executor to get stats (no calibration, so Background is fine)
+	executor := mutation.NewExecutor(context.Background(), nil)
 	stats := executor.GetStats()
 
 	fmt.Fprintf(os.Stderr, "  Encoders:   %d registered\n", stats["encoders"])
