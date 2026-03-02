@@ -301,7 +301,7 @@ func runProbe() {
 	if len(targets) == 1 && !*cfg.Silent && !*cfg.Oneliner && !*cfg.JSONL {
 		ui.PrintConfigLine("Target", targets[0])
 		ui.PrintConfigLine("Timeout", fmt.Sprintf("%ds", *cfg.Timeout))
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Config file loading (if specified)
@@ -562,7 +562,7 @@ func runProbe() {
 		}()
 
 		go func() {
-			fmt.Printf("[*] HTTP API server started at %s (endpoints: /health, /stats)\n", apiAddr)
+			fmt.Fprintf(os.Stderr, "[*] HTTP API server started at %s (endpoints: /health, /stats)\n", apiAddr)
 			if err := apiServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				ui.PrintWarning(fmt.Sprintf("HTTP API server error: %v", err))
 			}
@@ -740,18 +740,18 @@ func runProbe() {
 
 		// Debug request output
 		if *cfg.DebugReq {
-			fmt.Printf("\n--- DEBUG REQUEST ---\n")
-			fmt.Printf("%s %s HTTP/1.1\n", *cfg.HTTPMethod, currentTarget)
-			fmt.Printf("Host: %s\n", host)
+			fmt.Fprintf(os.Stderr, "\n--- DEBUG REQUEST ---\n")
+			fmt.Fprintf(os.Stderr, "%s %s HTTP/1.1\n", *cfg.HTTPMethod, currentTarget)
+			fmt.Fprintf(os.Stderr, "Host: %s\n", host)
 			if *cfg.CustomHeaders != "" {
 				for _, h := range strings.Split(*cfg.CustomHeaders, ";") {
-					fmt.Println(strings.TrimSpace(h))
+					fmt.Fprintln(os.Stderr, strings.TrimSpace(h))
 				}
 			}
 			if *cfg.RequestBody != "" {
-				fmt.Printf("\n%s\n", *cfg.RequestBody)
+				fmt.Fprintf(os.Stderr, "\n%s\n", *cfg.RequestBody)
 			}
-			fmt.Printf("--- END REQUEST ---\n\n")
+			fmt.Fprintf(os.Stderr, "--- END REQUEST ---\n\n")
 		}
 
 		if err == nil {
@@ -760,12 +760,12 @@ func runProbe() {
 
 			// Debug response output
 			if *cfg.DebugResp {
-				fmt.Printf("\n--- DEBUG RESPONSE ---\n")
-				fmt.Printf("HTTP/1.1 %d %s\n", initialResp.StatusCode, http.StatusText(initialResp.StatusCode))
+				fmt.Fprintf(os.Stderr, "\n--- DEBUG RESPONSE ---\n")
+				fmt.Fprintf(os.Stderr, "HTTP/1.1 %d %s\n", initialResp.StatusCode, http.StatusText(initialResp.StatusCode))
 				for k, v := range initialResp.Header {
-					fmt.Printf("%s: %s\n", k, strings.Join(v, ", "))
+					fmt.Fprintf(os.Stderr, "%s: %s\n", k, strings.Join(v, ", "))
 				}
-				fmt.Printf("--- END RESPONSE ---\n\n")
+				fmt.Fprintf(os.Stderr, "--- END RESPONSE ---\n\n")
 			}
 
 			results.Alive = true
@@ -965,22 +965,22 @@ func runProbe() {
 
 			// Debug mode - show request/response
 			if *cfg.Debug {
-				fmt.Printf("\n[DEBUG] Request:\n")
-				fmt.Printf("  Method: %s\n", *cfg.HTTPMethod)
-				fmt.Printf("  URL: %s\n", currentTarget)
+				fmt.Fprintf(os.Stderr, "\n[DEBUG] Request:\n")
+				fmt.Fprintf(os.Stderr, "  Method: %s\n", *cfg.HTTPMethod)
+				fmt.Fprintf(os.Stderr, "  URL: %s\n", currentTarget)
 				if *cfg.CustomHeaders != "" {
-					fmt.Printf("  Headers: %s\n", *cfg.CustomHeaders)
+					fmt.Fprintf(os.Stderr, "  Headers: %s\n", *cfg.CustomHeaders)
 				}
-				fmt.Printf("\n[DEBUG] Response:\n")
-				fmt.Printf("  Status: %d %s\n", initialResp.StatusCode, http.StatusText(initialResp.StatusCode))
+				fmt.Fprintf(os.Stderr, "\n[DEBUG] Response:\n")
+				fmt.Fprintf(os.Stderr, "  Status: %d %s\n", initialResp.StatusCode, http.StatusText(initialResp.StatusCode))
 				debugHeaderKeys := strutil.SortedMapKeys(initialResp.Header)
 				for _, k := range debugHeaderKeys {
-					fmt.Printf("  %s: %s\n", k, strings.Join(initialResp.Header[k], ", "))
+					fmt.Fprintf(os.Stderr, "  %s: %s\n", k, strings.Join(initialResp.Header[k], ", "))
 				}
 				if len(bodyStr) > 500 {
-					fmt.Printf("\n  Body (truncated): %s...\n", string([]rune(bodyStr)[:500]))
+					fmt.Fprintf(os.Stderr, "\n  Body (truncated): %s...\n", string([]rune(bodyStr)[:500]))
 				} else {
-					fmt.Printf("\n  Body: %s\n", bodyStr)
+					fmt.Fprintf(os.Stderr, "\n  Body: %s\n", bodyStr)
 				}
 			}
 
@@ -1106,7 +1106,7 @@ func runProbe() {
 				if results.BodyHash != "" {
 					ui.PrintConfigLine("Body Hash", results.BodyHash)
 				}
-				fmt.Println()
+				fmt.Fprintln(os.Stderr)
 			}
 		} else {
 			results.Alive = false
@@ -1166,7 +1166,7 @@ func runProbe() {
 				if dnsResult.ASN != nil {
 					ui.PrintConfigLine("ASN", fmt.Sprintf("AS%d - %s", dnsResult.ASN.Number, dnsResult.ASN.Organization))
 				}
-				fmt.Println()
+				fmt.Fprintln(os.Stderr)
 			}
 		}
 
@@ -1197,7 +1197,7 @@ func runProbe() {
 					if tlsInfo.SelfSigned {
 						ui.PrintWarning("Certificate is self-signed")
 					}
-					fmt.Println()
+					fmt.Fprintln(os.Stderr)
 				}
 
 				// Extract additional domains from TLS certificate (SANs) if requested
@@ -1230,7 +1230,7 @@ func runProbe() {
 				} else {
 					ui.PrintInfo("Could not calculate JARM fingerprint")
 				}
-				fmt.Println()
+				fmt.Fprintln(os.Stderr)
 			}
 		}
 
@@ -1261,7 +1261,7 @@ func runProbe() {
 					if len(headers.MissingHeaders) > 0 {
 						ui.PrintWarning(fmt.Sprintf("Missing headers: %v", headers.MissingHeaders))
 					}
-					fmt.Println()
+					fmt.Fprintln(os.Stderr)
 				}
 			}
 		}
@@ -1276,7 +1276,7 @@ func runProbe() {
 					for _, d := range cspDomains {
 						ui.PrintConfigLine("Domain", d)
 					}
-					fmt.Println()
+					fmt.Fprintln(os.Stderr)
 				}
 			}
 		}
@@ -1306,7 +1306,7 @@ func runProbe() {
 						for _, cpe := range results.CPEs {
 							ui.PrintConfigLine("CPE", cpe)
 						}
-						fmt.Println()
+						fmt.Fprintln(os.Stderr)
 					}
 				}
 
@@ -1329,7 +1329,7 @@ func runProbe() {
 					if techResult.BodyHash.MD5 != "" {
 						ui.PrintConfigLine("Body Hash", techResult.BodyHash.MD5[:16]+"...")
 					}
-					fmt.Println()
+					fmt.Fprintln(os.Stderr)
 				}
 			}
 		}
@@ -1355,7 +1355,7 @@ func runProbe() {
 					if alpn != "" {
 						ui.PrintConfigLine("ALPN", alpn)
 					}
-					fmt.Println()
+					fmt.Fprintln(os.Stderr)
 				}
 			}
 		}
@@ -1388,7 +1388,7 @@ func runProbe() {
 					} else {
 						ui.PrintInfo("No WAF/CDN detected")
 					}
-					fmt.Println()
+					fmt.Fprintln(os.Stderr)
 				}
 			}
 		}
@@ -1429,7 +1429,7 @@ func runProbe() {
 				for _, vh := range foundVHosts {
 					ui.PrintConfigLine("VHost", vh)
 				}
-				fmt.Println()
+				fmt.Fprintln(os.Stderr)
 			}
 		}
 
@@ -1452,7 +1452,7 @@ func runProbe() {
 				} else {
 					ui.PrintInfo("No favicon found")
 				}
-				fmt.Println()
+				fmt.Fprintln(os.Stderr)
 			}
 		}
 
@@ -2184,7 +2184,7 @@ func runProbe() {
 
 		// Trace mode: detailed debug output
 		if isTraceMode {
-			fmt.Printf("[TRACE] Target: %s, Alive: %t, Status: %d, Time: %v\n",
+			fmt.Fprintf(os.Stderr, "[TRACE] Target: %s, Alive: %t, Status: %d, Time: %v\n",
 				currentTarget, results.Alive, results.StatusCode, results.ResponseTime)
 		}
 
@@ -2210,13 +2210,13 @@ func runProbe() {
 	failed := atomic.LoadInt64(&statsFailed)
 	if *cfg.ShowStats && total > 0 {
 		elapsed := time.Since(statsStart)
-		fmt.Printf("\n[STATS] Scanned: %d | Success: %d | Failed: %d | Time: %s | Rate: %.1f/s\n",
+		fmt.Fprintf(os.Stderr, "\n[STATS] Scanned: %d | Success: %d | Failed: %d | Time: %s | Rate: %.1f/s\n",
 			total, success, failed, elapsed.Round(time.Millisecond), float64(total)/elapsed.Seconds())
 	}
 
 	// Verbose summary
 	if *cfg.Verbose && total > 1 {
-		fmt.Printf("\n[VERBOSE] Completed probing %d targets\n", total)
+		fmt.Fprintf(os.Stderr, "\n[VERBOSE] Completed probing %d targets\n", total)
 	}
 
 	// Generate HTML summary report if requested
@@ -2271,7 +2271,7 @@ func runProbe() {
 		if err := iohelper.WriteAtomic(*cfg.HTMLOutput, []byte(htmlContent), 0644); err != nil {
 			ui.PrintError(fmt.Sprintf("Error writing HTML report: %v", err))
 		} else {
-			fmt.Printf("[*] HTML report saved to: %s\n", *cfg.HTMLOutput)
+			fmt.Fprintf(os.Stderr, "[*] HTML report saved to: %s\n", *cfg.HTMLOutput)
 		}
 	}
 
@@ -2285,7 +2285,7 @@ func runProbe() {
 			if err := pprof.WriteHeapProfile(f); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Could not write memory profile: %v", err))
 			} else {
-				fmt.Printf("[*] Memory profile saved to: %s\n", *cfg.MemProfile)
+				fmt.Fprintf(os.Stderr, "[*] Memory profile saved to: %s\n", *cfg.MemProfile)
 			}
 			if closeErr := f.Close(); closeErr != nil {
 				ui.PrintWarning(fmt.Sprintf("Could not close memory profile: %v", closeErr))
@@ -2305,7 +2305,7 @@ func runProbe() {
 			if err := json.Unmarshal(content, &fingerprints); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Could not parse custom fingerprint file: %v", err))
 			} else {
-				fmt.Printf("[*] Loaded %d custom fingerprints from: %s\n", len(fingerprints), *cfg.CustomFingerprintFile)
+				fmt.Fprintf(os.Stderr, "[*] Loaded %d custom fingerprints from: %s\n", len(fingerprints), *cfg.CustomFingerprintFile)
 			}
 		}
 	}
@@ -2318,16 +2318,16 @@ func runProbe() {
 
 	// Headless options acknowledgment
 	if *cfg.SystemChrome {
-		fmt.Println("[*] Using system Chrome for screenshots")
+		fmt.Fprintln(os.Stderr, "[*] Using system Chrome for screenshots")
 	}
 	if *cfg.HeadlessOptions != "" {
-		fmt.Printf("[*] Headless options: %s\n", *cfg.HeadlessOptions)
+		fmt.Fprintf(os.Stderr, "[*] Headless options: %s\n", *cfg.HeadlessOptions)
 	}
 	if *cfg.ScreenshotIdle > 1 {
-		fmt.Printf("[*] Screenshot idle time: %d seconds\n", *cfg.ScreenshotIdle)
+		fmt.Fprintf(os.Stderr, "[*] Screenshot idle time: %d seconds\n", *cfg.ScreenshotIdle)
 	}
 	if *cfg.JavascriptCode != "" {
-		fmt.Printf("[*] JavaScript code to execute: %s\n", *cfg.JavascriptCode)
+		fmt.Fprintf(os.Stderr, "[*] JavaScript code to execute: %s\n", *cfg.JavascriptCode)
 	}
 
 	// Vision recon clusters - save to file if any screenshots were clustered
@@ -2339,7 +2339,7 @@ func runProbe() {
 			for _, c := range visionClusters {
 				uniqueClusters[c.Cluster] = true
 			}
-			fmt.Printf("[*] Saved %d screenshots in %d visual clusters to: %s\n",
+			fmt.Fprintf(os.Stderr, "[*] Saved %d screenshots in %d visual clusters to: %s\n",
 				len(visionClusters), len(uniqueClusters), clusterFile)
 		} else {
 			ui.PrintWarning(fmt.Sprintf("Failed to write vision clusters: %v", err))
@@ -2349,7 +2349,7 @@ func runProbe() {
 	// Filter error page path - save filtered error pages to file
 	if *cfg.FilterErrorPage && len(filteredErrorPages) > 0 {
 		if err := iohelper.WriteAtomicJSON(*cfg.FilterErrorPagePath, filteredErrorPages, 0644); err == nil {
-			fmt.Printf("[*] Saved %d filtered error pages to: %s\n", len(filteredErrorPages), *cfg.FilterErrorPagePath)
+			fmt.Fprintf(os.Stderr, "[*] Saved %d filtered error pages to: %s\n", len(filteredErrorPages), *cfg.FilterErrorPagePath)
 		} else {
 			ui.PrintWarning(fmt.Sprintf("Failed to write filtered error pages: %v", err))
 		}
@@ -2361,43 +2361,43 @@ func runProbe() {
 	// which is a proprietary service. These flags are acknowledged for compatibility
 	// but require PDCP account and API keys to function.
 	if *cfg.PdAuth {
-		fmt.Println("[*] PDCP authentication enabled (requires pdcp.io account)")
-		fmt.Println("    Note: PDCP integration requires ProjectDiscovery Cloud Platform subscription")
+		fmt.Fprintln(os.Stderr, "[*] PDCP authentication enabled (requires pdcp.io account)")
+		fmt.Fprintln(os.Stderr, "    Note: PDCP integration requires ProjectDiscovery Cloud Platform subscription")
 	}
 	if *cfg.PdAuthConfig != "" {
 		// Load auth config from file (JSON with api_key, team_id fields)
 		if data, err := os.ReadFile(*cfg.PdAuthConfig); err == nil {
-			fmt.Printf("[*] PDCP auth config loaded: %s (%d bytes)\n", *cfg.PdAuthConfig, len(data))
+			fmt.Fprintf(os.Stderr, "[*] PDCP auth config loaded: %s (%d bytes)\n", *cfg.PdAuthConfig, len(data))
 			// Parse and validate the config structure
 			var authCfg map[string]interface{}
 			if json.Unmarshal(data, &authCfg) == nil {
 				if _, ok := authCfg["api_key"]; ok {
-					fmt.Println("    API key found in config")
+					fmt.Fprintln(os.Stderr, "    API key found in config")
 				}
 			}
 		} else {
-			fmt.Printf("[!] PDCP auth config not found: %s\n", *cfg.PdAuthConfig)
+			fmt.Fprintf(os.Stderr, "[!] PDCP auth config not found: %s\n", *cfg.PdAuthConfig)
 		}
 	}
 	if *cfg.PdDashboard {
-		fmt.Println("[*] Dashboard upload enabled (requires pdcp.io account)")
+		fmt.Fprintln(os.Stderr, "[*] Dashboard upload enabled (requires pdcp.io account)")
 	}
 	if *cfg.PdTeamID != "" {
-		fmt.Printf("[*] PDCP Team ID: %s\n", *cfg.PdTeamID)
+		fmt.Fprintf(os.Stderr, "[*] PDCP Team ID: %s\n", *cfg.PdTeamID)
 	}
 	if *cfg.PdAssetID != "" {
-		fmt.Printf("[*] PDCP Asset ID: %s\n", *cfg.PdAssetID)
+		fmt.Fprintf(os.Stderr, "[*] PDCP Asset ID: %s\n", *cfg.PdAssetID)
 	}
 	if *cfg.PdAssetName != "" {
-		fmt.Printf("[*] PDCP Asset name: %s\n", *cfg.PdAssetName)
+		fmt.Fprintf(os.Stderr, "[*] PDCP Asset name: %s\n", *cfg.PdAssetName)
 	}
 	if *cfg.PdDashboardUpload != "" {
 		// Validate and prepare file for PDCP dashboard upload
 		if info, err := os.Stat(*cfg.PdDashboardUpload); err == nil {
-			fmt.Printf("[*] PDCP dashboard upload file: %s (%d bytes, ready)\n", *cfg.PdDashboardUpload, info.Size())
-			fmt.Println("    Note: Actual upload requires PDCP API authentication")
+			fmt.Fprintf(os.Stderr, "[*] PDCP dashboard upload file: %s (%d bytes, ready)\n", *cfg.PdDashboardUpload, info.Size())
+			fmt.Fprintln(os.Stderr, "    Note: Actual upload requires PDCP API authentication")
 		} else {
-			fmt.Printf("[!] PDCP dashboard upload file not found: %s\n", *cfg.PdDashboardUpload)
+			fmt.Fprintf(os.Stderr, "[!] PDCP dashboard upload file not found: %s\n", *cfg.PdDashboardUpload)
 		}
 	}
 

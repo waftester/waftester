@@ -138,10 +138,10 @@ func Sanitizef(format string, args ...interface{}) string {
 	return SanitizeString(fmt.Sprintf(format, args...))
 }
 
-// Printf writes to stdout with terminal-appropriate sanitization.
-// Drop-in replacement for fmt.Printf when output may contain emoji.
+// Printf writes to stderr with terminal-appropriate sanitization.
+// Status and progress output belongs on stderr; data output uses fmt.Println(stdout).
 func Printf(format string, args ...interface{}) {
-	fmt.Print(Sanitizef(format, args...))
+	fmt.Fprint(os.Stderr, Sanitizef(format, args...))
 }
 
 // Fprintf writes to w with terminal-appropriate sanitization.

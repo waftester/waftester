@@ -91,7 +91,7 @@ func runAnalyze() {
 			os.Exit(1)
 		}
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	analyzeStartTime := time.Now()
 	analyzer := js.NewAnalyzer()
@@ -168,7 +168,7 @@ func runAnalyze() {
 			if len(result.URLs) > 10 {
 				ui.PrintInfo(fmt.Sprintf("  ... and %d more", len(result.URLs)-10))
 			}
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 
 		if *extractEndpoints && len(result.Endpoints) > 0 {
@@ -183,7 +183,7 @@ func runAnalyze() {
 			if len(result.Endpoints) > 10 {
 				ui.PrintInfo(fmt.Sprintf("  ... and %d more", len(result.Endpoints)-10))
 			}
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 
 		if *extractSecrets && len(result.Secrets) > 0 {
@@ -195,7 +195,7 @@ func runAnalyze() {
 				}
 				ui.PrintError(fmt.Sprintf("  [%s] %s: %s", confidence, secret.Type, truncateSecret(secret.Value)))
 			}
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 
 		if *extractDOMSinks && len(result.DOMSinks) > 0 {
@@ -203,7 +203,7 @@ func runAnalyze() {
 			for _, sink := range result.DOMSinks {
 				ui.PrintWarning(fmt.Sprintf("  [%s] %s at line %d", sink.Severity, sink.Sink, sink.Line))
 			}
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 
 		if len(result.CloudURLs) > 0 {
@@ -211,7 +211,7 @@ func runAnalyze() {
 			for _, cloud := range result.CloudURLs {
 				ui.PrintInfo(fmt.Sprintf("  [%s] %s", cloud.Service, cloud.URL))
 			}
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 
 		if len(result.Subdomains) > 0 {
@@ -219,7 +219,7 @@ func runAnalyze() {
 			for _, sub := range result.Subdomains[:min(10, len(result.Subdomains))] {
 				ui.PrintInfo("  " + sub)
 			}
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 	}
 
