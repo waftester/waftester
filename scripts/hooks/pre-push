@@ -13,6 +13,71 @@ ERRORS=0
 PUSH_REFS=$(cat)
 
 # ============================================================================
+# COMMITTER IDENTITY — block pushes with wrong committer identity
+# ============================================================================
+# The committer field is set by whoever performs the git operation (merge,
+# rebase, cherry-pick). GitHub's API sets it to the authenticated user's
+# profile, not the project identity. This check catches that before push.
+echo "Checking committer identity..."
+
+COMMITTER_VIOLATIONS=""
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [ -z "$local_sha" ] && continue
+    # Skip deletes
+    if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+        continue
+    fi
+    # Skip tag pushes (handled by tag CI gate)
+    case "$remote_ref" in
+        refs/tags/*) continue ;;
+    esac
+
+    # Determine commit range
+    if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+        # New branch — check all commits not on main
+        merge_base=$(git merge-base "$local_sha" origin/main 2>/dev/null || echo "")
+        if [ -n "$merge_base" ]; then
+            RANGE="${merge_base}..${local_sha}"
+        else
+            RANGE="$local_sha"
+        fi
+    else
+        RANGE="${remote_sha}..${local_sha}"
+    fi
+
+    # Check committer email on all non-merge commits in range
+    BAD=$(git log --no-merges --format="%H %ce" "$RANGE" 2>/dev/null \
+        | grep -ivE "dev@waftester\.com|dependabot\[bot\]|noreply\.github\.com" || true)
+    if [ -n "$BAD" ]; then
+        COMMITTER_VIOLATIONS="${COMMITTER_VIOLATIONS}
+${BAD}"
+    fi
+done < <(echo "$PUSH_REFS")
+
+COMMITTER_VIOLATIONS=$(echo "$COMMITTER_VIOLATIONS" | grep -v '^$' || true)
+if [ -n "$COMMITTER_VIOLATIONS" ]; then
+    echo ""
+    echo "╔══════════════════════════════════════════════════════════════════╗"
+    echo "║  BLOCKED: Wrong committer identity in commits                  ║"
+    echo "╚══════════════════════════════════════════════════════════════════╝"
+    echo ""
+    echo "  The following commits have unauthorized committer emails:"
+    echo "$COMMITTER_VIOLATIONS" | while read -r sha email; do
+        echo "    ✗ ${sha:0:7} ($email)"
+    done
+    echo ""
+    echo "  All commits must have committer: WAFtester <dev@waftester.com>"
+    echo "  Fix with: git filter-repo --commit-callback '..."
+    echo "    if commit.committer_email != b\"dev@waftester.com\":"
+    echo "        commit.committer_name = b\"WAFtester\""
+    echo "        commit.committer_email = b\"dev@waftester.com\"' --force"
+    echo ""
+    ERRORS=$((ERRORS + 1))
+else
+    echo "  ✓ All committer identities correct"
+fi
+
+# ============================================================================
 # GO VET — catch vet issues locally before CI discovers them
 # ============================================================================
 echo "Running go vet..."

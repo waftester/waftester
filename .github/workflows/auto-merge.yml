@@ -64,17 +64,54 @@ jobs:
           echo "eligible=$ELIGIBLE" >> $GITHUB_OUTPUT
           echo "Auto-merge eligible: $ELIGIBLE (branch=$BRANCH, author=$AUTHOR)"
 
-      - name: Rebase merge PR
+      # Local merge + push to control the committer identity.
+      # Using gh pr merge (GitHub API) stamps the committer as the token
+      # owner's GitHub profile, leaking personal identity. Local git merge
+      # uses git config, keeping committer as WAFtester.
+      - name: Checkout repository
+        if: steps.eligible.outputs.eligible == 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          ref: main
+          token: ${{ secrets.ADMIN_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Merge PR locally and push
         if: steps.eligible.outputs.eligible == 'true'
         env:
           PR_NUM: ${{ steps.find_pr.outputs.pr }}
           BRANCH: ${{ steps.find_pr.outputs.branch }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Rebase merge preserves original commit authors (WAFtester, dependabot)
-          # and avoids creating a merge commit attributed to whoever merges.
-          gh pr merge "$PR_NUM" --repo ${{ github.repository }} \
-            --rebase --delete-branch \
-            --body "Auto-merged by CI after all checks passed."
+          # Set committer identity — this is the whole point.
+          # git config controls the committer field for local operations.
+          git config user.name "WAFtester"
+          git config user.email "dev@waftester.com"
 
-          echo "Merged PR #$PR_NUM ($BRANCH) via rebase"
+          # Fetch the PR branch
+          git fetch origin "$BRANCH"
+
+          # Fast-forward merge — no new commits, preserves CI status on
+          # the tip commit so the push passes required status checks.
+          if git merge --ff-only "origin/$BRANCH"; then
+            echo "Fast-forward merge successful"
+          else
+            # PR branch has diverged from main. Rebase locally to create
+            # new commits with the correct committer identity.
+            echo "Fast-forward not possible, rebasing..."
+            git rebase "origin/$BRANCH" || {
+              echo "::error::Rebase failed — manual merge required for PR #$PR_NUM"
+              exit 1
+            }
+          fi
+
+          # Push to main. The token used in checkout handles authentication.
+          # The committer field is set by git config above, not by the token.
+          git push origin main
+
+          # Close the PR (the branch was merged, but GitHub doesn't auto-detect
+          # local merges) and delete the branch.
+          gh pr close "$PR_NUM" --comment "Merged to main via local fast-forward (identity-safe auto-merge)." || true
+          git push origin --delete "$BRANCH" 2>/dev/null || true
+
+          echo "Merged PR #$PR_NUM ($BRANCH) via local merge + push"

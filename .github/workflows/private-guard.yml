@@ -102,6 +102,33 @@ jobs:
 
           echo "✅ All recent commits use authorized identities"
 
+      - name: Check commit committer identity
+        run: |
+          echo "Checking commit committer identities..."
+
+          # The committer field is set by whoever performs the git operation
+          # (merge, rebase, cherry-pick). GitHub's API and web UI set it to
+          # the authenticated user's profile, leaking personal identity.
+          ALLOWED_EMAILS="dev@waftester.com|noreply\.github\.com|dependabot\[bot\]"
+
+          VIOLATIONS=$(git log --no-merges --format="%H %ce" HEAD~5..HEAD 2>/dev/null \
+            | grep -ivE "$ALLOWED_EMAILS" || true)
+
+          if [ -n "$VIOLATIONS" ]; then
+            echo ""
+            echo "::error::Unauthorized committer identity found in recent commits!"
+            echo ""
+            echo "$VIOLATIONS" | while read -r line; do
+              echo "  ✗ $line"
+            done
+            echo ""
+            echo "All commits must have committer: WAFtester <dev@waftester.com>"
+            echo "Use git filter-repo to fix committer identity."
+            exit 1
+          fi
+
+          echo "✅ All recent commits have authorized committer identities"
+
       - name: Verify .gitignore protections
         run: |
           echo "Verifying .gitignore has required private path exclusions..."
