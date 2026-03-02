@@ -178,6 +178,12 @@ func runFP() {
 
 	progress.Start()
 
+	// Wire progress callback so LiveProgress updates in real time
+	tester.ProgressFn = func(completed, total int) {
+		progress.SetTotal(total)
+		progress.SetCompleted(completed)
+	}
+
 	// Run tests
 	result, err := tester.Run(ctx)
 

@@ -657,13 +657,31 @@ func runScan() {
 		RateSource:   &httpReqCount,
 		Metrics: []ui.MetricConfig{
 			{Name: "vulns", Label: "Vulns", Icon: ui.Icon("🚨", "!"), Highlight: true},
+			{Name: "requests", Label: "Reqs", Icon: ui.Icon("📡", ">")},
 		},
 		Tips:           scanTips,
-		StreamFormat:   "[PROGRESS] {completed}/{total} ({percent}%) | vulns: {metric:vulns} | active: {status} | {elapsed}",
+		StreamFormat:   "[PROGRESS] {completed}/{total} ({percent}%) | vulns: {metric:vulns} | reqs: {metric:requests} | active: {status} | {elapsed}",
 		StreamInterval: duration.StreamStd,
 	})
 	progress.Start()
 	defer progress.Stop()
+
+	// Sync HTTP request counter into the "requests" metric so the progress
+	// display shows a running total alongside the per-type completion counter.
+	reqSyncDone := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(250 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-reqSyncDone:
+				return
+			case <-ticker.C:
+				progress.SetMetric("requests", atomic.LoadInt64(&httpReqCount))
+			}
+		}
+	}()
+	defer close(reqSyncDone)
 
 	// Streaming JSON event emitter for real-time output
 	// Also dispatches to hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
@@ -735,7 +753,7 @@ func runScan() {
 		if marshalErr != nil {
 			return
 		}
-		fmt.Println(string(eventData)) // debug:keep
+		fmt.Println(string(eventData))
 	}
 
 	// Emit scan start event
