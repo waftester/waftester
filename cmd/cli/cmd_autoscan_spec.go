@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
 	"github.com/waftester/waftester/pkg/apispec"
 	"github.com/waftester/waftester/pkg/cli"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
 	"golang.org/x/time/rate"
 )
@@ -339,11 +339,7 @@ func runSpecPipeline(cfg specPipelineConfig) {
 		if totalFindings > 0 {
 			ui.PrintInfo(fmt.Sprintf("  Findings: %d total", totalFindings))
 			bySev := result.BySeverity()
-			sevKeys := make([]string, 0, len(bySev))
-			for sev := range bySev {
-				sevKeys = append(sevKeys, sev)
-			}
-			sort.Strings(sevKeys)
+			sevKeys := strutil.SortedMapKeys(bySev)
 			for _, sev := range sevKeys {
 				fmt.Fprintf(os.Stderr, "    %s: %d\n", sev, bySev[sev])
 			}

@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -516,11 +515,7 @@ func identifyFile(evidence string) string {
 		"PHP source":     "PHP file",
 	}
 
-	indicatorKeys := make([]string, 0, len(fileIndicators))
-	for k := range fileIndicators {
-		indicatorKeys = append(indicatorKeys, k)
-	}
-	sort.Strings(indicatorKeys)
+	indicatorKeys := strutil.SortedMapKeys(fileIndicators)
 	for _, indicator := range indicatorKeys {
 		if strings.Contains(strings.ToLower(evidence), strings.ToLower(indicator)) {
 			return fileIndicators[indicator]

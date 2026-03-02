@@ -14,6 +14,7 @@ import (
 	"github.com/waftester/waftester/pkg/defaults"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // WAFVendor represents a detected WAF vendor
@@ -192,11 +193,7 @@ func (d *VendorDetector) checkSignature(sig *WAFSignature, resp *http.Response, 
 		headers = sig.AttackHeaders
 	}
 
-	headerKeys := make([]string, 0, len(headers))
-	for h := range headers {
-		headerKeys = append(headerKeys, h)
-	}
-	sort.Strings(headerKeys)
+	headerKeys := strutil.SortedMapKeys(headers)
 	for _, headerName := range headerKeys {
 		pattern := headers[headerName]
 		value := resp.Header.Get(headerName)

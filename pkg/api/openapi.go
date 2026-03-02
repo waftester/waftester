@@ -7,12 +7,11 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"sort"
 	"strings"
 
 	"github.com/waftester/waftester/pkg/defaults"
-	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/strutil"
 	"gopkg.in/yaml.v3"
 )
 
@@ -201,11 +200,7 @@ func (p *Parser) parseSwagger2(raw map[string]interface{}) (*OpenAPISpec, error)
 func (p *Parser) parseSwagger2Paths(paths map[string]interface{}) []Route {
 	var routes []Route
 
-	sortedPaths := make([]string, 0, len(paths))
-	for path := range paths {
-		sortedPaths = append(sortedPaths, path)
-	}
-	sort.Strings(sortedPaths)
+	sortedPaths := strutil.SortedMapKeys(paths)
 
 	for _, path := range sortedPaths {
 		methods := paths[path]
@@ -220,11 +215,7 @@ func (p *Parser) parseSwagger2Paths(paths map[string]interface{}) []Route {
 			pathParams = p.parseParameters(pathParamsRaw)
 		}
 
-		sortedMethods := make([]string, 0, len(methodsMap))
-		for m := range methodsMap {
-			sortedMethods = append(sortedMethods, m)
-		}
-		sort.Strings(sortedMethods)
+		sortedMethods := strutil.SortedMapKeys(methodsMap)
 
 		for _, method := range sortedMethods {
 			operation := methodsMap[method]
@@ -388,11 +379,7 @@ func (p *Parser) parseOpenAPI3Paths(paths map[string]interface{}) []Route {
 	var routes []Route
 
 	// Sort paths for deterministic output order.
-	sortedPaths := make([]string, 0, len(paths))
-	for path := range paths {
-		sortedPaths = append(sortedPaths, path)
-	}
-	sort.Strings(sortedPaths)
+	sortedPaths := strutil.SortedMapKeys(paths)
 
 	for _, path := range sortedPaths {
 		methods := paths[path]
@@ -407,11 +394,7 @@ func (p *Parser) parseOpenAPI3Paths(paths map[string]interface{}) []Route {
 			pathParams = p.parseParameters(pathParamsRaw)
 		}
 
-		sortedMethods3 := make([]string, 0, len(methodsMap))
-		for m := range methodsMap {
-			sortedMethods3 = append(sortedMethods3, m)
-		}
-		sort.Strings(sortedMethods3)
+		sortedMethods3 := strutil.SortedMapKeys(methodsMap)
 
 		for _, method := range sortedMethods3 {
 			operation := methodsMap[method]

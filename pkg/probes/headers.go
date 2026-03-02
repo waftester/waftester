@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/urlutil"
 )
 
@@ -187,11 +188,7 @@ func (e *HeaderExtractor) Extract(resp *http.Response) *SecurityHeaders {
 	}
 
 	// Sort header names for deterministic output
-	headerNames := make([]string, 0, len(h))
-	for name := range h {
-		headerNames = append(headerNames, name)
-	}
-	sort.Strings(headerNames)
+	headerNames := strutil.SortedMapKeys(h)
 	for _, name := range headerNames {
 		lower := strings.ToLower(name)
 		if !standardHeaders[lower] && !isKnownSecurityHeader(lower) {
@@ -324,11 +321,7 @@ func (e *HeaderExtractor) findWeakHeaders(h *SecurityHeaders) []string {
 
 	// Check CSP for unsafe directives (sorted for deterministic output)
 	if csp := h.CSPDirectives; len(csp) > 0 {
-		directives := make([]string, 0, len(csp))
-		for d := range csp {
-			directives = append(directives, d)
-		}
-		sort.Strings(directives)
+		directives := strutil.SortedMapKeys(csp)
 		for _, directive := range directives {
 			for _, v := range csp[directive] {
 				if v == "'unsafe-inline'" || v == "'unsafe-eval'" {
@@ -468,11 +461,7 @@ func analyzeCSPIssues(directives map[string][]string) []string {
 	}
 
 	// Sort dangerous directive keys for deterministic output
-	dangerousKeys := make([]string, 0, len(dangerous))
-	for k := range dangerous {
-		dangerousKeys = append(dangerousKeys, k)
-	}
-	sort.Strings(dangerousKeys)
+	dangerousKeys := strutil.SortedMapKeys(dangerous)
 	for _, directive := range dangerousKeys {
 		dangerousVals := dangerous[directive]
 		if vals, ok := directives[directive]; ok {

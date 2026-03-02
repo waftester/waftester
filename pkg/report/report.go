@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/finding"
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // ReportFormat defines output format
@@ -719,11 +720,7 @@ func CompareReports(baseline, current *Report) *ComparisonReport {
 	}
 
 	// Find new and unchanged (deterministic order).
-	currentKeys := make([]string, 0, len(currentMap))
-	for key := range currentMap {
-		currentKeys = append(currentKeys, key)
-	}
-	sort.Strings(currentKeys)
+	currentKeys := strutil.SortedMapKeys(currentMap)
 	for _, key := range currentKeys {
 		f := currentMap[key]
 		if _, exists := baselineMap[key]; exists {
@@ -734,11 +731,7 @@ func CompareReports(baseline, current *Report) *ComparisonReport {
 	}
 
 	// Find fixed (deterministic order).
-	baselineKeys := make([]string, 0, len(baselineMap))
-	for key := range baselineMap {
-		baselineKeys = append(baselineKeys, key)
-	}
-	sort.Strings(baselineKeys)
+	baselineKeys := strutil.SortedMapKeys(baselineMap)
 	for _, key := range baselineKeys {
 		f := baselineMap[key]
 		if _, exists := currentMap[key]; !exists {

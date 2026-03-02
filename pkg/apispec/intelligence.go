@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // IntelligenceOptions controls the behavior of BuildIntelligentPlan.
@@ -125,11 +127,7 @@ func BuildIntelligentPlan(spec *Spec, opts IntelligenceOptions) *ScanPlan {
 		targets := injectableTargets(*ep)
 
 		// Create plan entries.
-		selKeys := make([]string, 0, len(selections))
-		for k := range selections {
-			selKeys = append(selKeys, k)
-		}
-		sort.Strings(selKeys)
+		selKeys := strutil.SortedMapKeys(selections)
 		for _, selKey := range selKeys {
 			sel := selections[selKey]
 			count := estimatePayloads(sel.Category, intensity)

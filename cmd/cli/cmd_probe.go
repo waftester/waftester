@@ -19,7 +19,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/pprof"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -39,6 +38,7 @@ import (
 	"github.com/waftester/waftester/pkg/probes"
 	"github.com/waftester/waftester/pkg/regexcache"
 	"github.com/waftester/waftester/pkg/runner"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
 	"github.com/waftester/waftester/pkg/urlutil"
 	"github.com/waftester/waftester/pkg/waf"
@@ -954,11 +954,7 @@ func runProbe() {
 				}
 				fmt.Printf("\n[DEBUG] Response:\n")
 				fmt.Printf("  Status: %d %s\n", initialResp.StatusCode, http.StatusText(initialResp.StatusCode))
-				debugHeaderKeys := make([]string, 0, len(initialResp.Header))
-				for k := range initialResp.Header {
-					debugHeaderKeys = append(debugHeaderKeys, k)
-				}
-				sort.Strings(debugHeaderKeys)
+				debugHeaderKeys := strutil.SortedMapKeys(initialResp.Header)
 				for _, k := range debugHeaderKeys {
 					fmt.Printf("  %s: %s\n", k, strings.Join(initialResp.Header[k], ", "))
 				}
@@ -981,11 +977,7 @@ func runProbe() {
 
 			// Header hash
 			if *cfg.HeaderHash {
-				headerKeys := make([]string, 0, len(initialResp.Header))
-				for k := range initialResp.Header {
-					headerKeys = append(headerKeys, k)
-				}
-				sort.Strings(headerKeys)
+				headerKeys := strutil.SortedMapKeys(initialResp.Header)
 				headerContent := ""
 				for _, k := range headerKeys {
 					headerContent += fmt.Sprintf("%s: %s\n", k, strings.Join(initialResp.Header[k], ", "))
