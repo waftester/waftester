@@ -160,6 +160,9 @@ func (t *Tester) TestTLSVersion(ctx context.Context) ([]TestResult, error) {
 	sort.Slice(versionKeys, func(i, j int) bool { return versionKeys[i] < versionKeys[j] })
 
 	for _, version := range versionKeys {
+		if ctx.Err() != nil {
+			return results, ctx.Err()
+		}
 		name := weakVersions[version]
 		config := &tls.Config{
 			MinVersion:         version,
@@ -167,8 +170,11 @@ func (t *Tester) TestTLSVersion(ctx context.Context) ([]TestResult, error) {
 			InsecureSkipVerify: true,
 		}
 
-		dialer := &net.Dialer{Timeout: t.timeout}
-		conn, err := tls.DialWithDialer(dialer, "tcp", host, config)
+		tlsDialer := &tls.Dialer{
+			NetDialer: &net.Dialer{Timeout: t.timeout},
+			Config:    config,
+		}
+		conn, err := tlsDialer.DialContext(ctx, "tcp", host)
 
 		result := TestResult{
 			VulnType: WeakTLSVersion,
@@ -208,6 +214,9 @@ func (t *Tester) TestCipherSuites(ctx context.Context) ([]TestResult, error) {
 	sort.Slice(cipherKeys, func(i, j int) bool { return cipherKeys[i] < cipherKeys[j] })
 
 	for _, cipher := range cipherKeys {
+		if ctx.Err() != nil {
+			return results, ctx.Err()
+		}
 		name := weakCiphers[cipher]
 		config := &tls.Config{
 			MinVersion:         tls.VersionTLS12,
@@ -216,8 +225,11 @@ func (t *Tester) TestCipherSuites(ctx context.Context) ([]TestResult, error) {
 			InsecureSkipVerify: true,
 		}
 
-		dialer := &net.Dialer{Timeout: t.timeout}
-		conn, err := tls.DialWithDialer(dialer, "tcp", host, config)
+		tlsDialer := &tls.Dialer{
+			NetDialer: &net.Dialer{Timeout: t.timeout},
+			Config:    config,
+		}
+		conn, err := tlsDialer.DialContext(ctx, "tcp", host)
 
 		result := TestResult{
 			VulnType: WeakCipherSuite,
@@ -248,18 +260,21 @@ func (t *Tester) TestCertificate(ctx context.Context) ([]TestResult, error) {
 
 	host := t.tlsHost()
 
-	config := &tls.Config{
-		InsecureSkipVerify: true,
+	tlsDialer := &tls.Dialer{
+		NetDialer: &net.Dialer{Timeout: t.timeout},
+		Config:    &tls.Config{InsecureSkipVerify: true},
 	}
-
-	dialer := &net.Dialer{Timeout: t.timeout}
-	conn, err := tls.DialWithDialer(dialer, "tcp", host, config)
+	netConn, err := tlsDialer.DialContext(ctx, "tcp", host)
 	if err != nil {
 		return results, fmt.Errorf("failed to connect: %w", err)
 	}
-	defer conn.Close()
+	defer netConn.Close()
 
-	state := conn.ConnectionState()
+	tlsConn, ok := netConn.(*tls.Conn)
+	if !ok {
+		return results, fmt.Errorf("connection is not TLS")
+	}
+	state := tlsConn.ConnectionState()
 	if len(state.PeerCertificates) == 0 {
 		return results, fmt.Errorf("no certificates found")
 	}

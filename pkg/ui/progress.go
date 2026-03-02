@@ -47,7 +47,7 @@ type Progress struct {
 
 	// Worker activity tracking
 	activeWorkers int64
-	peakRPS       float64
+	peakRPS       atomic.Uint64 // stores math.Float64bits
 	recentResults []RecentResult
 	resultsMu     sync.Mutex
 
@@ -55,6 +55,7 @@ type Progress struct {
 	done    chan struct{}
 	mu      sync.Mutex
 	running bool
+	wg      sync.WaitGroup
 }
 
 // NewProgress creates a new progress display
@@ -84,20 +85,26 @@ func (p *Progress) Start() {
 	p.startTime = time.Now()
 	p.mu.Unlock()
 
-	go p.renderLoop()
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		p.renderLoop()
+	}()
 }
 
 // Stop halts the progress display
 func (p *Progress) Stop() {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if p.running {
-		close(p.done)
-		p.running = false
-		if !IsSilent() {
-			fmt.Fprintln(os.Stderr) // New line after progress
-		}
+	if !p.running {
+		p.mu.Unlock()
+		return
+	}
+	close(p.done)
+	p.running = false
+	p.mu.Unlock()
+	p.wg.Wait()
+	if !IsSilent() {
+		fmt.Fprintln(os.Stderr) // New line after progress
 	}
 }
 
@@ -190,9 +197,16 @@ func (p *Progress) renderTurbo(spinner string, workerIndicator string) {
 		rps = 0
 	}
 
-	// Track peak RPS
-	if rps > p.peakRPS {
-		p.peakRPS = rps
+	// Track peak RPS (lock-free via atomic Float64bits)
+	for {
+		oldBits := p.peakRPS.Load()
+		oldPeak := math.Float64frombits(oldBits)
+		if rps <= oldPeak {
+			break
+		}
+		if p.peakRPS.CompareAndSwap(oldBits, math.Float64bits(rps)) {
+			break
+		}
 	}
 
 	// Calculate ETA
@@ -402,6 +416,7 @@ type StatsDisplay struct {
 	done      chan struct{}
 	running   bool
 	mu        sync.Mutex
+	wg        sync.WaitGroup
 }
 
 // NewStatsDisplay creates a new statistics display
@@ -436,17 +451,24 @@ func (s *StatsDisplay) Start() {
 	s.startTime = time.Now()
 	s.mu.Unlock()
 
-	go s.renderLoop()
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		s.renderLoop()
+	}()
 }
 
 // Stop halts the statistics display
 func (s *StatsDisplay) Stop() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.running {
-		close(s.done)
-		s.running = false
+	if !s.running {
+		s.mu.Unlock()
+		return
 	}
+	close(s.done)
+	s.running = false
+	s.mu.Unlock()
+	s.wg.Wait()
 }
 
 // Update updates the statistics counters
@@ -488,8 +510,8 @@ func (s *StatsDisplay) render() {
 
 	elapsed := time.Since(s.startTime)
 	rps := float64(current) / elapsed.Seconds()
-	if elapsed.Seconds() < 1 {
-		rps = float64(current)
+	if math.IsNaN(rps) || math.IsInf(rps, 0) {
+		rps = 0
 	}
 
 	percent := float64(current) / float64(s.total) * 100

@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"strings"
 	"time"
 
 	"github.com/waftester/waftester/pkg/apispec"
@@ -127,6 +128,7 @@ func registerScanFlags() (*flag.FlagSet, *scanConfig) {
 	cfg.Types = fs.String("types", "all", "Scan types: all, or comma-separated (sqli,xss,traversal,cmdi,nosqli,hpp,crlf,prototype,cors,redirect,hostheader,websocket,cache,upload,deserialize,oauth,ssrf,ssti,xxe,smuggling,graphql,jwt,subtakeover,bizlogic,race,apifuzz,ldap,ssi,xpath,xmlinjection,rfi,lfi,rce,csrf,clickjack,idor,massassignment,wafdetect,waffprint,wafevasion,tlsprobe,httpprobe,secheaders,jsanalyze,apidepth,osint,vhost,techdetect,dnsrecon)")
 	fs.StringVar(cfg.Types, "t", "all", "Scan types (alias)")
 	cfg.Concurrency = fs.Int("concurrency", 5, "Concurrent scanners")
+	fs.IntVar(cfg.Concurrency, "c", 5, "Concurrent scanners (alias)")
 	cfg.OutputFile = fs.String("output", "", "Output results to JSON file")
 	cfg.JSONOutput = fs.Bool("json", false, "Output in JSON format")
 
@@ -279,6 +281,20 @@ func (cfg *scanConfig) validate() {
 	}
 	if *cfg.MaxRedirects < 0 {
 		exitWithError("--max-redirects must be non-negative, got %d", *cfg.MaxRedirects)
+	}
+	cfg.Smart.Validate()
+	// Validate --format values
+	if cfg.Out.Format != "" {
+		validFormats := map[string]bool{
+			"console": true, "json": true, "jsonl": true, "sarif": true,
+			"csv": true, "md": true, "html": true,
+		}
+		for _, f := range strings.Split(cfg.Out.Format, ",") {
+			f = strings.TrimSpace(f)
+			if f != "" && !validFormats[f] {
+				exitWithError("--format contains unknown format %q; valid: console, json, jsonl, sarif, csv, md, html", f)
+			}
+		}
 	}
 }
 

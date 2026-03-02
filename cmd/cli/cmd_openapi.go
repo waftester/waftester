@@ -79,13 +79,13 @@ func runOpenAPI() {
 
 	if specPath == "" {
 		ui.PrintError("OpenAPI specification required")
-		fmt.Println()
-		fmt.Println("Usage: waf-tester openapi -spec <file> [options]")
-		fmt.Println()
-		fmt.Println("Examples:")
-		fmt.Println("  waf-tester openapi -spec openapi.yaml --list")
-		fmt.Println("  waf-tester openapi -spec openapi.yaml --fuzz -u https://api.example.com")
-		fmt.Println("  waf-tester openapi --spec-url https://api.example.com/openapi.json --fuzz")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Usage: waf-tester openapi -spec <file> [options]")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Examples:")
+		fmt.Fprintln(os.Stderr, "  waf-tester openapi -spec openapi.yaml --list")
+		fmt.Fprintln(os.Stderr, "  waf-tester openapi -spec openapi.yaml --fuzz -u https://api.example.com")
+		fmt.Fprintln(os.Stderr, "  waf-tester openapi --spec-url https://api.example.com/openapi.json --fuzz")
 		os.Exit(1)
 	}
 
@@ -105,7 +105,7 @@ func runOpenAPI() {
 		} else if *fuzz {
 			ui.PrintConfigLine("Mode", fmt.Sprintf("Fuzz (%s)", *scanType))
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Parse spec
@@ -125,7 +125,7 @@ func runOpenAPI() {
 
 	if !*jsonOutput {
 		ui.PrintSuccess(fmt.Sprintf("Parsed: %s v%s", spec.Info.Title, spec.Info.Version))
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Determine base URL
@@ -248,12 +248,12 @@ func runOpenAPIList(spec *openapi.Spec, baseURL string, jsonOutput bool) {
 			paramInfo += " [body]"
 		}
 
-		fmt.Printf("  %s%-7s%s %s%s\n", color, ep.Method, ui.Reset, ep.Path, paramInfo)
+		fmt.Fprintf(os.Stderr, "  %s%-7s%s %s%s\n", color, ep.Method, ui.Reset, ep.Path, paramInfo)
 		if ep.Summary != "" {
-			fmt.Printf("          %s\n", ep.Summary)
+			fmt.Fprintf(os.Stderr, "          %s\n", ep.Summary)
 		}
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 	ui.PrintSuccess(fmt.Sprintf("Found %d endpoints", len(endpoints)))
 }
 
@@ -311,7 +311,7 @@ func runOpenAPIFuzz(ctx context.Context, spec *openapi.Spec, baseURL, payloadDir
 	if !jsonOutput {
 		ui.PrintConfigLine("Test Cases", fmt.Sprintf("%d", len(testCases)))
 		ui.PrintConfigLine("Payloads", fmt.Sprintf("%d per location", len(payloads)))
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	for _, tc := range testCases {
@@ -361,14 +361,14 @@ func runOpenAPIFuzz(ctx context.Context, spec *openapi.Spec, baseURL, payloadDir
 
 		// Progress
 		if !jsonOutput && len(tc.Parameters) > 0 {
-			fmt.Printf("\r[%s] %s - tested %d parameters",
+			fmt.Fprintf(os.Stderr, "\r[%s] %s - tested %d parameters",
 				tc.Method, tc.Path, len(tc.Parameters))
 		}
 	}
 
 done:
 	if !jsonOutput {
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Output results
@@ -388,7 +388,7 @@ done:
 		}
 		fmt.Println(string(data))
 	} else {
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 		blocked := 0
 		for _, r := range results {
 			if r.Blocked {

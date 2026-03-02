@@ -113,7 +113,7 @@ func (p *ModSecParser) FindByMarker(marker string) ([]LogEntry, error) {
 			}
 		}
 
-		// End of entry marker (ModSecurity uses --XXXXX-Z--)
+		// End of entry marker (ModSecurity uses --<id>-Z--)
 		if strings.HasPrefix(line, "--") && strings.HasSuffix(line, "-Z--") {
 			if inMatchingEntry {
 				entry := LogEntry{
@@ -144,10 +144,13 @@ func (p *ModSecParser) FindByMarker(marker string) ([]LogEntry, error) {
 		entries = append(entries, entry)
 	}
 
-	// Cache result
+	// Only cache if scan completed without error
+	if err := scanner.Err(); err != nil {
+		return entries, err
+	}
 	p.cache[marker] = entries
 
-	return entries, scanner.Err()
+	return entries, nil
 }
 
 // extractRuleIDs finds all rule IDs in a log line

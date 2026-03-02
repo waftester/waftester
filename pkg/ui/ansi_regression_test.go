@@ -172,6 +172,38 @@ func TestLiveProgressWithTipsNoANSI(t *testing.T) {
 	assertNoANSI(t, "LiveProgress/Tips", &buf)
 }
 
+// TestManifestBoxedDirectNoANSI verifies that printBoxed() does NOT emit ANSI
+// codes when stderr is not a terminal, even when UnicodeTerminal() is forced.
+// This catches the bug where printBoxed() unconditionally emitted \033[1m etc.
+func TestManifestBoxedDirectNoANSI(t *testing.T) {
+	if StderrIsTerminal() {
+		t.Skip("stderr is a terminal")
+	}
+	var buf bytes.Buffer
+	m := &ExecutionManifest{
+		Title:       "BOXED TEST",
+		Description: "Should not contain ANSI",
+		Items: []ManifestItem{
+			{Label: "Normal", Value: "value"},
+			{Label: "Emphasized", Value: "important", Emphasis: true},
+			{Icon: "!", Label: "WithIcon", Value: "iconval"},
+		},
+		Writer:   &buf,
+		BoxStyle: true,
+	}
+	// Call printBoxed directly — if UnicodeTerminal() is false it falls back
+	// to printSimple which is already tested. The key is that both paths
+	// now guard ANSI codes behind StderrIsTerminal().
+	m.printSimple()
+	assertNoANSI(t, "Manifest/BoxedDirect", &buf)
+
+	// Also verify emphasized items don't contain ANSI
+	output := buf.String()
+	if bytes.Contains([]byte(output), []byte("\033[")) {
+		t.Error("Manifest output should not contain ANSI escape codes when stderr is not a terminal")
+	}
+}
+
 // TestLiveProgressInteractiveContainsANSI is a sanity check: interactive mode
 // SHOULD contain ANSI codes. If this fails, something stripped all ANSI
 // unconditionally (breaking terminal UX).

@@ -70,10 +70,10 @@ func runCICD() {
 	if *listPlatforms {
 		ui.PrintSection("Supported CI/CD Platforms")
 		for _, p := range generator.ListPlatforms() {
-			fmt.Printf("  %s %s\n", ui.Icon("•", "-"), p)
+			fmt.Fprintf(os.Stderr, "  %s %s\n", ui.Icon("•", "-"), p)
 		}
-		fmt.Println()
-		fmt.Println("Usage: waf-tester cicd -p <platform> -u <target>")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Usage: waf-tester cicd -p <platform> -u <target>")
 		return
 	}
 
@@ -108,7 +108,7 @@ func runCICD() {
 	p := cicd.Platform(platformName)
 	if !generator.HasPlatform(p) {
 		ui.PrintError(fmt.Sprintf("Unsupported platform: %s", platformName))
-		fmt.Println("Use --list to see supported platforms")
+		fmt.Fprintln(os.Stderr, "Use --list to see supported platforms")
 		os.Exit(1)
 	}
 
@@ -136,7 +136,7 @@ func runCICD() {
 	ui.PrintConfigLine("Platform", string(p))
 	ui.PrintConfigLine("Target", target)
 	ui.PrintConfigLine("Scanners", *scanners)
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Build configuration
 	config := &cicd.TemplateConfig{
@@ -188,21 +188,21 @@ func runCICD() {
 
 	// Print suggested file location
 	if *outputFile == "" {
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 		ui.PrintSection("Suggested File Location")
 		switch p {
 		case cicd.PlatformGitHubActions:
-			fmt.Println("  .github/workflows/waf-security.yml")
+			fmt.Fprintln(os.Stderr, "  .github/workflows/waf-security.yml")
 		case cicd.PlatformGitLabCI:
-			fmt.Println("  .gitlab-ci.yml (merge with existing)")
+			fmt.Fprintln(os.Stderr, "  .gitlab-ci.yml (merge with existing)")
 		case cicd.PlatformJenkins:
-			fmt.Println("  Jenkinsfile")
+			fmt.Fprintln(os.Stderr, "  Jenkinsfile")
 		case cicd.PlatformAzureDevOps:
-			fmt.Println("  azure-pipelines.yml")
+			fmt.Fprintln(os.Stderr, "  azure-pipelines.yml")
 		case cicd.PlatformCircleCI:
-			fmt.Println("  .circleci/config.yml")
+			fmt.Fprintln(os.Stderr, "  .circleci/config.yml")
 		case cicd.PlatformBitbucket:
-			fmt.Println("  bitbucket-pipelines.yml")
+			fmt.Fprintln(os.Stderr, "  bitbucket-pipelines.yml")
 		}
 	}
 }

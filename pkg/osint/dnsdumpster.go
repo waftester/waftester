@@ -39,7 +39,7 @@ func (c *DNSDumpsterClient) FetchSubdomains(ctx context.Context, domain string) 
 func (c *DNSDumpsterClient) FetchIPs(ctx context.Context, domain string) ([]Result, error) {
 	// DNSDumpster provides IP data but requires session-based scraping
 	// For now, fall back to DNS resolution of the main domain
-	ips, err := net.LookupIP(domain)
+	ips, err := net.DefaultResolver.LookupIPAddr(ctx, domain)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func (c *DNSDumpsterClient) FetchIPs(ctx context.Context, domain string) ([]Resu
 		results = append(results, Result{
 			Source:    SourceDNSDumpster,
 			Type:      "ip",
-			Value:     ip.String(),
+			Value:     ip.IP.String(),
 			Metadata:  map[string]string{"domain": domain},
 			Timestamp: time.Now(),
 		})

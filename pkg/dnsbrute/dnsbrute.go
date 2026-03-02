@@ -205,10 +205,8 @@ func (b *Bruteforcer) Run(ctx context.Context, domain string, words []string) ([
 		}
 	}
 
-	b.stats.Duration = time.Since(b.startTime)
-	if b.stats.Duration.Seconds() > 0 {
-		b.stats.Rate = float64(b.stats.Tested) / b.stats.Duration.Seconds()
-	}
+	// Duration and Rate are computed on-the-fly by GetStats();
+	// writing them here would race with concurrent GetStats() callers.
 
 	return b.results, nil
 }

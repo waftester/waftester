@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/waftester/waftester/pkg/cli"
-	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/input"
 	"github.com/waftester/waftester/pkg/iohelper"
@@ -36,6 +35,7 @@ func runAnalyze() {
 	extractEndpoints := analyzeFlags.Bool("endpoints", true, "Extract API endpoints")
 	extractSecrets := analyzeFlags.Bool("secrets", true, "Extract secrets/credentials")
 	extractDOMSinks := analyzeFlags.Bool("sinks", true, "Extract DOM XSS sinks")
+	timeout := analyzeFlags.Int("timeout", 30, "Request timeout in seconds")
 	jsonOutput := analyzeFlags.Bool("json", false, "Output in JSON format")
 
 	// Enterprise hook flags (Slack, Teams, PagerDuty, OTEL, etc.)
@@ -61,6 +61,10 @@ func runAnalyze() {
 
 	var jsCode string
 
+	// Signal-aware context for Ctrl+C cancellation
+	sigCtx, sigCancel := cli.SignalContext(30 * time.Second)
+	defer sigCancel()
+
 	if *file != "" {
 		ui.PrintConfigLine("File", *file)
 		data, err := os.ReadFile(*file)
@@ -72,7 +76,7 @@ func runAnalyze() {
 	} else {
 		ui.PrintConfigLine("Target", target)
 		// Fetch JavaScript from URL
-		ctx, cancel := context.WithTimeout(context.Background(), duration.ContextShort)
+		ctx, cancel := context.WithTimeout(sigCtx, time.Duration(*timeout)*time.Second)
 		defer cancel()
 
 		// Use a simple HTTP client to fetch
@@ -87,11 +91,11 @@ func runAnalyze() {
 			os.Exit(1)
 		}
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
+	analyzeStartTime := time.Now()
 	analyzer := js.NewAnalyzer()
 	result := analyzer.Analyze(jsCode)
-	analyzeStartTime := time.Now()
 
 	// Initialize dispatcher for hooks (Slack, Teams, PagerDuty, OTEL, etc.)
 	analyzeOutputFlags := OutputFlags{
@@ -114,9 +118,8 @@ func runAnalyze() {
 		defer analyzeDispCtx.Close()
 	}
 
-	// Emit security findings to hooks in real-time
-	ctx, ctxCancel := cli.SignalContext(30 * time.Second)
-	defer ctxCancel()
+	// Reuse signal-aware context for hook emission
+	ctx := sigCtx
 
 	// Emit start event for scan lifecycle hooks
 	if analyzeDispCtx != nil {
@@ -165,7 +168,7 @@ func runAnalyze() {
 			if len(result.URLs) > 10 {
 				ui.PrintInfo(fmt.Sprintf("  ... and %d more", len(result.URLs)-10))
 			}
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 
 		if *extractEndpoints && len(result.Endpoints) > 0 {
@@ -180,7 +183,7 @@ func runAnalyze() {
 			if len(result.Endpoints) > 10 {
 				ui.PrintInfo(fmt.Sprintf("  ... and %d more", len(result.Endpoints)-10))
 			}
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 
 		if *extractSecrets && len(result.Secrets) > 0 {
@@ -192,7 +195,7 @@ func runAnalyze() {
 				}
 				ui.PrintError(fmt.Sprintf("  [%s] %s: %s", confidence, secret.Type, truncateSecret(secret.Value)))
 			}
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 
 		if *extractDOMSinks && len(result.DOMSinks) > 0 {
@@ -200,7 +203,7 @@ func runAnalyze() {
 			for _, sink := range result.DOMSinks {
 				ui.PrintWarning(fmt.Sprintf("  [%s] %s at line %d", sink.Severity, sink.Sink, sink.Line))
 			}
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 
 		if len(result.CloudURLs) > 0 {
@@ -208,7 +211,7 @@ func runAnalyze() {
 			for _, cloud := range result.CloudURLs {
 				ui.PrintInfo(fmt.Sprintf("  [%s] %s", cloud.Service, cloud.URL))
 			}
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 
 		if len(result.Subdomains) > 0 {
@@ -216,7 +219,7 @@ func runAnalyze() {
 			for _, sub := range result.Subdomains[:min(10, len(result.Subdomains))] {
 				ui.PrintInfo("  " + sub)
 			}
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 	}
 
@@ -241,8 +244,7 @@ func runAnalyze() {
 			errMsg := fmt.Sprintf("JSON encoding error: %v", err)
 			ui.PrintError(errMsg)
 			if analyzeDispCtx != nil {
-				_ = analyzeDispCtx.EmitError(context.Background(), "analyze", errMsg, true)
-				_ = analyzeDispCtx.Close()
+				_ = analyzeDispCtx.EmitError(ctx, "analyze", errMsg, true)
 			}
 			os.Exit(1)
 		}
@@ -252,8 +254,7 @@ func runAnalyze() {
 				errMsg := fmt.Sprintf("Error writing output: %v", err)
 				ui.PrintError(errMsg)
 				if analyzeDispCtx != nil {
-					_ = analyzeDispCtx.EmitError(context.Background(), "analyze", errMsg, true)
-					_ = analyzeDispCtx.Close()
+					_ = analyzeDispCtx.EmitError(ctx, "analyze", errMsg, true)
 				}
 				os.Exit(1)
 			}

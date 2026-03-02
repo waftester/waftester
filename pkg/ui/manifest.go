@@ -131,6 +131,8 @@ func (m *ExecutionManifest) printBoxed() {
 		return
 	}
 
+	tty := StderrIsTerminal()
+
 	// Calculate max width
 	maxWidth := len(m.Title) + 4
 	for _, item := range m.Items {
@@ -152,18 +154,32 @@ func (m *ExecutionManifest) printBoxed() {
 
 	// Title
 	titlePadding := (maxWidth - len(m.Title)) / 2
-	fmt.Fprintf(w, "  ║%s\033[1m%s\033[0m%s║\n",
-		strings.Repeat(" ", titlePadding),
-		m.Title,
-		strings.Repeat(" ", maxWidth-titlePadding-len(m.Title)))
+	if tty {
+		fmt.Fprintf(w, "  ║%s\033[1m%s\033[0m%s║\n",
+			strings.Repeat(" ", titlePadding),
+			m.Title,
+			strings.Repeat(" ", maxWidth-titlePadding-len(m.Title)))
+	} else {
+		fmt.Fprintf(w, "  ║%s%s%s║\n",
+			strings.Repeat(" ", titlePadding),
+			m.Title,
+			strings.Repeat(" ", maxWidth-titlePadding-len(m.Title)))
+	}
 
 	// Description
 	if m.Description != "" {
 		descPadding := (maxWidth - len(m.Description)) / 2
-		fmt.Fprintf(w, "  ║%s\033[2m%s\033[0m%s║\n",
-			strings.Repeat(" ", descPadding),
-			m.Description,
-			strings.Repeat(" ", maxWidth-descPadding-len(m.Description)))
+		if tty {
+			fmt.Fprintf(w, "  ║%s\033[2m%s\033[0m%s║\n",
+				strings.Repeat(" ", descPadding),
+				m.Description,
+				strings.Repeat(" ", maxWidth-descPadding-len(m.Description)))
+		} else {
+			fmt.Fprintf(w, "  ║%s%s%s║\n",
+				strings.Repeat(" ", descPadding),
+				m.Description,
+				strings.Repeat(" ", maxWidth-descPadding-len(m.Description)))
+		}
 	}
 
 	fmt.Fprintf(w, "  ╠%s╣\n", strings.Repeat("═", maxWidth))
@@ -177,8 +193,8 @@ func (m *ExecutionManifest) printBoxed() {
 
 		valueStr := fmt.Sprintf("%v", item.Value)
 
-		// Apply emphasis styling
-		if item.Emphasis {
+		// Apply emphasis styling only when writing to a terminal
+		if item.Emphasis && tty {
 			valueStr = fmt.Sprintf("\033[1;36m%s\033[0m", valueStr)
 		}
 

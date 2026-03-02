@@ -79,13 +79,13 @@ func runSOAP() {
 	// Need endpoint for other operations
 	if endpointURL == "" {
 		ui.PrintError("SOAP endpoint URL required")
-		fmt.Println()
-		fmt.Println("Usage: waf-tester soap -u <endpoint> [options]")
-		fmt.Println()
-		fmt.Println("Examples:")
-		fmt.Println("  waf-tester soap --wsdl https://example.com/service?wsdl --list")
-		fmt.Println("  waf-tester soap -u https://example.com/service --operation GetUser -d '<GetUser><id>1</id></GetUser>'")
-		fmt.Println("  waf-tester soap -u https://example.com/service --fuzz --category xxe")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Usage: waf-tester soap -u <endpoint> [options]")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Examples:")
+		fmt.Fprintln(os.Stderr, "  waf-tester soap --wsdl https://example.com/service?wsdl --list")
+		fmt.Fprintln(os.Stderr, "  waf-tester soap -u https://example.com/service --operation GetUser -d '<GetUser><id>1</id></GetUser>'")
+		fmt.Fprintln(os.Stderr, "  waf-tester soap -u https://example.com/service --fuzz --category xxe")
 		os.Exit(1)
 	}
 
@@ -98,7 +98,7 @@ func runSOAP() {
 			ui.PrintConfigLine("Mode", "Fuzz SOAP Operations")
 			ui.PrintConfigLine("Category", *payloadCategory)
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Setup context
@@ -138,10 +138,12 @@ func runSOAP() {
 func runSOAPWSDLList(wsdlURL string, jsonOutput, verbose bool, timeout int) {
 	if !jsonOutput {
 		ui.PrintConfigLine("WSDL", wsdlURL)
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+	sigCtx, sigCancel := cli.SignalContext(30 * time.Second)
+	defer sigCancel()
+	ctx, cancel := context.WithTimeout(sigCtx, time.Duration(timeout)*time.Second)
 	defer cancel()
 
 	wsdlDef, err := soap.FetchAndParseWSDL(ctx, wsdlURL)
@@ -168,15 +170,15 @@ func runSOAPWSDLList(wsdlURL string, jsonOutput, verbose bool, timeout int) {
 
 	ui.PrintSection("Available Operations")
 	for _, op := range operations {
-		fmt.Printf("  %s %s\n", ui.Icon("•", "-"), op.Name)
+		fmt.Fprintf(os.Stderr, "  %s %s\n", ui.Icon("•", "-"), op.Name)
 		if verbose && op.SOAPAction != "" {
-			fmt.Printf("    SOAPAction: %s\n", op.SOAPAction)
+			fmt.Fprintf(os.Stderr, "    SOAPAction: %s\n", op.SOAPAction)
 		}
 		if verbose && op.Input != "" {
-			fmt.Printf("    Input: %s\n", op.Input)
+			fmt.Fprintf(os.Stderr, "    Input: %s\n", op.Input)
 		}
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 	ui.PrintSuccess(fmt.Sprintf("Found %d operations", len(operations)))
 }
 
@@ -213,7 +215,7 @@ func runSOAPCall(ctx context.Context, client *soap.Client, operation, action, da
 	if verbose && !jsonOutput {
 		ui.PrintConfigLine("Operation", operation)
 		ui.PrintConfigLine("Action", action)
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	resp, err := client.Call(req)
@@ -243,7 +245,7 @@ func runSOAPCall(ctx context.Context, client *soap.Client, operation, action, da
 
 	ui.PrintSection("Response")
 	fmt.Println(resp.Body)
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 	ui.PrintConfigLine("Status", fmt.Sprintf("%d", resp.StatusCode))
 	ui.PrintConfigLine("Latency", resp.Latency.String())
 	if resp.Blocked {
@@ -271,7 +273,7 @@ func runSOAPFuzz(ctx context.Context, client *soap.Client, endpoint, payloadDir,
 
 	if !jsonOutput {
 		ui.PrintConfigLine("Payloads", fmt.Sprintf("%d", len(payloads)))
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	for _, payload := range payloads {
@@ -297,9 +299,7 @@ func runSOAPFuzz(ctx context.Context, client *soap.Client, endpoint, payloadDir,
 
 		if err != nil {
 			fr.Blocked = true
-		}
-
-		if resp != nil {
+		} else if resp != nil {
 			fr.StatusCode = resp.StatusCode
 			fr.Blocked = resp.Blocked
 			fr.Latency = resp.Latency.String()
@@ -314,7 +314,7 @@ func runSOAPFuzz(ctx context.Context, client *soap.Client, endpoint, payloadDir,
 			if fr.Blocked {
 				ui.PrintWarning(fmt.Sprintf("[BLOCKED] %s", truncatePayload(payload, 60)))
 			} else {
-				fmt.Printf("[PASSED] %s\n", truncatePayload(payload, 60))
+				fmt.Fprintf(os.Stderr, "[PASSED] %s\n", truncatePayload(payload, 60))
 			}
 		}
 	}
@@ -337,7 +337,7 @@ soapFuzzDone:
 			fmt.Println(string(data))
 		}
 	} else {
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 		blocked := 0
 		for _, r := range results {
 			if r.Blocked {
