@@ -15,6 +15,7 @@ import (
 	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/output/dispatcher"
 	"github.com/waftester/waftester/pkg/output/events"
+	"github.com/waftester/waftester/pkg/strutil"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -619,11 +620,7 @@ func (pw *PDFWriter) addFindingsSectionFromGroups(pdf *gofpdf.Fpdf, bypasses []*
 	}
 
 	// Get sorted category names
-	categories := make([]string, 0, len(byCategory))
-	for cat := range byCategory {
-		categories = append(categories, cat)
-	}
-	sort.Strings(categories)
+	categories := strutil.SortedMapKeys(byCategory)
 
 	_, pageH := pdf.GetPageSize()
 	pageBreakY := pageH - 47 // footer + margin + buffer
@@ -862,11 +859,7 @@ func (pw *PDFWriter) addFindingCard(pdf *gofpdf.Fpdf, finding *events.ResultEven
 			pdf.CellFormat(25, 5, "Headers:", "", 1, "L", false, 0, "")
 			pdf.SetFont("Courier", "", 7)
 			pdf.SetTextColor(100, 100, 100)
-			hdrKeys := make([]string, 0, len(finding.Evidence.RequestHeaders))
-			for k := range finding.Evidence.RequestHeaders {
-				hdrKeys = append(hdrKeys, k)
-			}
-			sort.Strings(hdrKeys)
+			hdrKeys := strutil.SortedMapKeys(finding.Evidence.RequestHeaders)
 			for _, hdr := range hdrKeys {
 				line := truncateString(fmt.Sprintf("%s: %s", hdr, finding.Evidence.RequestHeaders[hdr]), 100)
 				pdf.CellFormat(0, 3.5, "  "+line, "", 1, "L", false, 0, "")
@@ -999,11 +992,7 @@ func (pw *PDFWriter) addTableOfContents(pdf *gofpdf.Fpdf, byCategory map[string]
 	}
 
 	// Add per-category finding sections in sorted order.
-	categories := make([]string, 0, len(byCategory))
-	for cat := range byCategory {
-		categories = append(categories, cat)
-	}
-	sort.Strings(categories)
+	categories := strutil.SortedMapKeys(byCategory)
 	for _, cat := range categories {
 		entries = append(entries, fmt.Sprintf("Findings: %s", strings.ToUpper(cat)))
 	}

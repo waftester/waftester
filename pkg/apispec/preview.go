@@ -3,11 +3,10 @@ package apispec
 import (
 	"fmt"
 	"io"
-	"sort"
 	"strings"
+	"time"
 
 	"github.com/waftester/waftester/pkg/strutil"
-	"time"
 )
 
 // PreviewConfig controls preview rendering behavior.
@@ -118,11 +117,7 @@ func renderCategoryBreakdown(w io.Writer, plan *ScanPlan) {
 	}
 
 	// Sort alphabetically.
-	names := make([]string, 0, len(categories))
-	for name := range categories {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := strutil.SortedMapKeys(categories)
 
 	fmt.Fprintf(w, "\n  Attack categories:\n")
 	for _, name := range names {

@@ -4,9 +4,9 @@ package js
 
 import (
 	"regexp"
-	"sort"
 
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // EnhancedSecretPatterns returns additional secret patterns from SecretFinder
@@ -323,11 +323,7 @@ func SecretCategory(secretType string) string {
 
 	bestCategory := "generic"
 	bestLen := 0
-	catKeys := make([]string, 0, len(categories))
-	for cat := range categories {
-		catKeys = append(catKeys, cat)
-	}
-	sort.Strings(catKeys)
+	catKeys := strutil.SortedMapKeys(categories)
 	for _, category := range catKeys {
 		for _, prefix := range categories[category] {
 			if len(secretType) >= len(prefix) && secretType[:len(prefix)] == prefix && len(prefix) > bestLen {

@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -871,11 +870,7 @@ func (t *Tester) applyHeaders(req *http.Request) {
 		req.Header.Set("Authorization", t.config.AuthHeader)
 	}
 
-	cookieNames := make([]string, 0, len(t.config.Cookies))
-	for name := range t.config.Cookies {
-		cookieNames = append(cookieNames, name)
-	}
-	sort.Strings(cookieNames)
+	cookieNames := strutil.SortedMapKeys(t.config.Cookies)
 	for _, name := range cookieNames {
 		req.AddCookie(&http.Cookie{Name: name, Value: t.config.Cookies[name]})
 	}
@@ -973,11 +968,7 @@ func ParseOpenAPISpec(spec []byte) ([]Endpoint, error) {
 		return nil, fmt.Errorf("no paths found in spec")
 	}
 
-	pathKeys := make([]string, 0, len(paths))
-	for p := range paths {
-		pathKeys = append(pathKeys, p)
-	}
-	sort.Strings(pathKeys)
+	pathKeys := strutil.SortedMapKeys(paths)
 
 	for _, path := range pathKeys {
 		methods := paths[path]
@@ -986,11 +977,7 @@ func ParseOpenAPISpec(spec []byte) ([]Endpoint, error) {
 			continue
 		}
 
-		methodKeys := make([]string, 0, len(methodsMap))
-		for m := range methodsMap {
-			methodKeys = append(methodKeys, m)
-		}
-		sort.Strings(methodKeys)
+		methodKeys := strutil.SortedMapKeys(methodsMap)
 
 		for _, method := range methodKeys {
 			details := methodsMap[method]
@@ -1107,5 +1094,3 @@ func IntPtr(i int) *int {
 func Float64Ptr(f float64) *float64 {
 	return &f
 }
-
-

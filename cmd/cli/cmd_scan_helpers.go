@@ -3,7 +3,6 @@ package main
 import (
 	"net"
 	"net/http"
-	"sort"
 	"strings"
 
 	"github.com/waftester/waftester/pkg/strutil"
@@ -160,11 +159,7 @@ var scanTipsByType = map[string]string{
 // Falls back to a generic tip when no type-specific tips match.
 func buildScanTips(shouldScan func(string) bool) []string {
 	var tips []string
-	tipKeys := make([]string, 0, len(scanTipsByType))
-	for k := range scanTipsByType {
-		tipKeys = append(tipKeys, k)
-	}
-	sort.Strings(tipKeys)
+	tipKeys := strutil.SortedMapKeys(scanTipsByType)
 	for _, scanType := range tipKeys {
 		if shouldScan(scanType) {
 			tips = append(tips, scanTipsByType[scanType])
