@@ -88,7 +88,7 @@ func runBypassFinder() {
 	} else {
 		ui.PrintConfigLine("Mode", "Bypass Hunter (all evasions enabled)")
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Setup context
 	ctx, cancel := cli.SignalContext(time.Duration(*timeout) * time.Second)
@@ -117,7 +117,7 @@ func runBypassFinder() {
 	var smartResult *SmartModeResult
 	if *smartFlags.Enabled {
 		ui.PrintSection("🧠 Smart Mode: WAF Detection & Optimization")
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 
 		smartConfig := &SmartModeConfig{
 			DetectionTimeout: duration.HTTPScanning,
@@ -259,7 +259,7 @@ func runBypassFinder() {
 		manifest.AddEstimate(len(tasks), *rateLimit)
 		manifest.Print()
 	} else {
-		fmt.Printf("[INFO] Starting bypass hunt: target=%s waf=%s payloads=%d mutations=%d\n",
+		fmt.Fprintf(os.Stderr, "[INFO] Starting bypass hunt: target=%s waf=%s payloads=%d mutations=%d\n",
 			targetURL, wafName, len(testPayloads), len(tasks))
 	}
 
@@ -355,14 +355,14 @@ func runBypassFinder() {
 	}
 
 	ui.PrintSection("Bypass Hunt Results")
-	fmt.Printf("  Total Tested:    %d\n", totalTested)
-	fmt.Printf("  Bypasses Found:  %d\n", len(bypassPayloads))
-	fmt.Printf("  Bypass Rate:     %.2f%%\n", bypassRate)
-	fmt.Println()
+	fmt.Fprintf(os.Stderr, "  Total Tested:    %d\n", totalTested)
+	fmt.Fprintf(os.Stderr, "  Bypasses Found:  %d\n", len(bypassPayloads))
+	fmt.Fprintf(os.Stderr, "  Bypass Rate:     %.2f%%\n", bypassRate)
+	fmt.Fprintln(os.Stderr)
 
 	if len(bypassPayloads) > 0 {
 		ui.PrintWarning(fmt.Sprintf("🚨 Found %d WAF bypasses!", len(bypassPayloads)))
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 
 		// Show top bypasses
 		ui.PrintSection("Top Bypasses")
@@ -371,20 +371,20 @@ func runBypassFinder() {
 			if shown >= 10 {
 				remaining := len(bypassPayloads) - 10
 				if *outputFile != "" {
-					fmt.Printf("  ... and %d more (see %s)\n", remaining, *outputFile)
+					fmt.Fprintf(os.Stderr, "  ... and %d more (see %s)\n", remaining, *outputFile)
 				} else {
-					fmt.Printf("  ... and %d more (use -o <file> to export all)\n", remaining)
+					fmt.Fprintf(os.Stderr, "  ... and %d more (use -o <file> to export all)\n", remaining)
 				}
 				break
 			}
-			fmt.Printf("  [%d] %s | %s | %s\n",
+			fmt.Fprintf(os.Stderr, "  [%d] %s | %s | %s\n",
 				bp.StatusCode, bp.EncoderUsed, bp.LocationUsed, bp.EvasionUsed)
 			displayPayload := bp.MutatedPayload
 			if payloadRunes := []rune(displayPayload); len(payloadRunes) > 60 {
 				displayPayload = string(payloadRunes[:60])
 			}
-			fmt.Printf("      Payload: %s...\n", displayPayload)
-			fmt.Println()
+			fmt.Fprintf(os.Stderr, "      Payload: %s...\n", displayPayload)
+			fmt.Fprintln(os.Stderr)
 			shown++
 		}
 

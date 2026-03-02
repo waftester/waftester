@@ -124,10 +124,10 @@ func runPluginList(manager *plugin.Manager, jsonOutput bool) {
 
 	if len(plugins) == 0 {
 		ui.PrintWarning("No plugins installed")
-		fmt.Println()
-		fmt.Println("Plugin directory: ./plugins")
-		fmt.Println()
-		fmt.Println("To install a plugin, place the .so file in the plugins directory")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Plugin directory: ./plugins")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "To install a plugin, place the .so file in the plugins directory")
 		return
 	}
 
@@ -137,9 +137,9 @@ func runPluginList(manager *plugin.Manager, jsonOutput bool) {
 		if manager.IsBuiltin(p.Name) {
 			builtinTag = " [builtin]"
 		}
-		fmt.Printf("  %s %s v%s%s\n", ui.Icon("•", "-"), p.Name, p.Version, builtinTag)
-		fmt.Printf("    %s\n", p.Description)
-		fmt.Println()
+		fmt.Fprintf(os.Stderr, "  %s %s v%s%s\n", ui.Icon("•", "-"), p.Name, p.Version, builtinTag)
+		fmt.Fprintf(os.Stderr, "    %s\n", p.Description)
+		fmt.Fprintln(os.Stderr)
 	}
 	ui.PrintSuccess(fmt.Sprintf("Total: %d plugins", len(plugins)))
 }

@@ -57,13 +57,13 @@ func runCloud() {
 	targetDomain := *domain
 	if targetDomain == "" && *orgName == "" {
 		ui.PrintError("Domain or organization name required")
-		fmt.Println()
-		fmt.Println("Usage: waf-tester cloud -d <domain> [options]")
-		fmt.Println()
-		fmt.Println("Examples:")
-		fmt.Println("  waf-tester cloud -d example.com")
-		fmt.Println("  waf-tester cloud -d example.com --providers aws,gcp")
-		fmt.Println("  waf-tester cloud --org mycompany --types storage")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Usage: waf-tester cloud -d <domain> [options]")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Examples:")
+		fmt.Fprintln(os.Stderr, "  waf-tester cloud -d example.com")
+		fmt.Fprintln(os.Stderr, "  waf-tester cloud -d example.com --providers aws,gcp")
+		fmt.Fprintln(os.Stderr, "  waf-tester cloud --org mycompany --types storage")
 		os.Exit(1)
 	}
 
@@ -79,7 +79,7 @@ func runCloud() {
 		if *passiveOnly {
 			ui.PrintConfigLine("Mode", "Passive only")
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Parse providers
@@ -171,14 +171,14 @@ func runCloud() {
 				url = resource.Endpoints[0]
 			}
 
-			fmt.Printf("  %s%s%s %s (%s)\n", statusColor, statusIcon, ui.Reset, url, resource.Type)
+			fmt.Fprintf(os.Stderr, "  %s%s%s %s (%s)\n", statusColor, statusIcon, ui.Reset, url, resource.Type)
 			if *verbose && len(resource.Details) > 0 {
 				for k, v := range resource.Details {
-					fmt.Printf("    %s: %s\n", k, v)
+					fmt.Fprintf(os.Stderr, "    %s: %s\n", k, v)
 				}
 			}
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Print summary

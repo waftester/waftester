@@ -71,8 +71,6 @@ func runCrawl() {
 	crawlFlags.BoolVar(samePort, "sp", false, "Same port (alias)")
 	respectRobots := crawlFlags.Bool("respect-robots", false, "Respect robots.txt")
 	crawlFlags.BoolVar(respectRobots, "rr", false, "Respect robots (alias)")
-	respectNoFollow := crawlFlags.Bool("respect-nofollow", false, "Respect nofollow links")
-	crawlFlags.BoolVar(respectNoFollow, "rnf", false, "Respect nofollow (alias)")
 
 	// Output options
 	outputURLs := crawlFlags.Bool("output-urls", false, "Output only URLs (one per line)")
@@ -188,7 +186,7 @@ func runCrawl() {
 			ui.PrintConfigLine("JS Rendering", "Enabled")
 		}
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Build custom headers map
 	customHeaders := make(map[string]string)
@@ -310,7 +308,7 @@ func runCrawl() {
 	}
 
 	ui.PrintInfo("Starting crawler...")
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	results, err := c.Crawl(ctx, target)
 	if err != nil {
@@ -441,7 +439,7 @@ func runCrawl() {
 		if len(allSubdomains) > 0 {
 			ui.PrintConfigLine("Subdomains Found", fmt.Sprintf("%d", len(allSubdomains)))
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 
 		if *verbose && len(allForms) > 0 {
 			ui.PrintSection("Forms")
@@ -456,7 +454,7 @@ func runCrawl() {
 					ui.PrintInfo(fmt.Sprintf("  Inputs: %s", strings.Join(inputs, ", ")))
 				}
 			}
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 
 		if *verbose && len(allScripts) > 0 && len(allScripts) <= 10 {
@@ -464,7 +462,7 @@ func runCrawl() {
 			for _, script := range allScripts {
 				ui.PrintInfo("  " + script)
 			}
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 
 		if *verbose && len(allSecrets) > 0 {
@@ -472,7 +470,7 @@ func runCrawl() {
 			for _, s := range allSecrets {
 				ui.PrintWarning(fmt.Sprintf("  [%s] %s", s.Type, s.Match))
 			}
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 
 		if *verbose && len(allSubdomains) > 0 {
@@ -480,7 +478,7 @@ func runCrawl() {
 			for _, sub := range allSubdomains {
 				ui.PrintInfo("  " + sub)
 			}
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 
 		if *verbose && len(allEmails) > 0 {
@@ -488,13 +486,13 @@ func runCrawl() {
 			for _, email := range allEmails {
 				ui.PrintInfo("  " + email)
 			}
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 
 		if *verbose && len(allParams) > 0 {
 			ui.PrintSection("Parameters")
 			ui.PrintInfo("  " + strings.Join(allParams, ", "))
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 	}
 

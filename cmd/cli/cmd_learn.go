@@ -55,7 +55,7 @@ func runLearn() {
 	ui.PrintConfigLine("Discovery File", *discoveryFile)
 	ui.PrintConfigLine("Payload Dir", *payloadDir)
 	ui.PrintConfigLine("Output Plan", *outputPlan)
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Initialize dispatcher for hooks
 	learnOutputFlags := OutputFlags{
@@ -97,7 +97,7 @@ func runLearn() {
 	}
 
 	ui.PrintSuccess(fmt.Sprintf("Loaded discovery for %s (%d endpoints)", disc.Target, len(disc.Endpoints)))
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Generate test plan
 	ui.PrintInfo("Analyzing attack surface and generating test plan...")
@@ -126,29 +126,29 @@ func runLearn() {
 	}
 	ui.PrintConfigLine("Total Tests", fmt.Sprintf("%d", plan.TotalTests))
 	ui.PrintConfigLine("Estimated Time", plan.EstimatedTime)
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Show test groups
 	ui.PrintSection("Test Categories (by priority)")
 	for _, group := range plan.TestGroups {
-		fmt.Printf("  [P%d] %s - %s\n",
+		fmt.Fprintf(os.Stderr, "  [P%d] %s - %s\n",
 			group.Priority,
 			ui.StatValueStyle.Render(group.Category),
 			group.Reason,
 		)
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Show endpoint-specific tests if verbose
 	if *verbose {
 		ui.PrintSection("Endpoint-Specific Tests")
 		for _, set := range plan.EndpointTests {
-			fmt.Printf("  %s %s\n", set.Endpoint.Method, set.Endpoint.Path)
-			fmt.Printf("    Attack Categories: %v\n", set.AttackCategories)
-			fmt.Printf("    Injection Points: %d\n", len(set.InjectPoints))
-			fmt.Printf("    Custom Payloads: %d\n", len(set.CustomPayloads))
+			fmt.Fprintf(os.Stderr, "  %s %s\n", set.Endpoint.Method, set.Endpoint.Path)
+			fmt.Fprintf(os.Stderr, "    Attack Categories: %v\n", set.AttackCategories)
+			fmt.Fprintf(os.Stderr, "    Injection Points: %d\n", len(set.InjectPoints))
+			fmt.Fprintf(os.Stderr, "    Custom Payloads: %d\n", len(set.CustomPayloads))
 		}
-		fmt.Println()
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Show recommended config
@@ -160,7 +160,7 @@ func runLearn() {
 	if len(cfg.FocusAreas) > 0 {
 		ui.PrintConfigLine("Focus Areas", fmt.Sprintf("%v", cfg.FocusAreas))
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Save test plan
 	if err := plan.SavePlan(*outputPlan); err != nil {
@@ -188,7 +188,7 @@ func runLearn() {
 		ui.PrintSuccess(fmt.Sprintf("Custom payloads saved to %s", *outputPayloads))
 	}
 
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	// Build the run command
 	categories := ""
