@@ -189,14 +189,15 @@ func (d *Discoverer) Discover(ctx context.Context) (*DiscoveryResult, error) {
 				return
 			}
 			frame := 0
+			ticker := time.NewTicker(100 * time.Millisecond)
+			defer ticker.Stop()
 			for {
 				select {
 				case <-done:
 					return
-				default:
+				case <-ticker.C:
 					fmt.Fprintf(os.Stderr, "\r  [%d/9] %s %s ", phaseNum, spinnerFrames[frame%len(spinnerFrames)], phaseName)
 					frame++
-					time.Sleep(100 * time.Millisecond)
 				}
 			}
 		}()

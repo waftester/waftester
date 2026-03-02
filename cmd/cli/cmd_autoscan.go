@@ -623,25 +623,25 @@ func runAutoScan() {
 	// ═══════════════════════════════════════════════════════════════════════════
 	if *cfg.SpecDryRun {
 		ui.PrintSection("Auto Scan Plan (dry-run)")
-		fmt.Printf("  Target:        %s\n", target)
-		fmt.Printf("  Concurrency:   %d\n", *cfg.Concurrency)
-		fmt.Printf("  Rate Limit:    %d req/sec\n", *cfg.RateLimit)
-		fmt.Printf("  Timeout:       %ds\n", cfg.Common.Timeout)
-		fmt.Printf("  Smart Mode:    %v\n", *cfg.Smart.Enabled)
-		fmt.Printf("  Brain Mode:    %v\n", *cfg.EnableBrain)
-		fmt.Println()
+		fmt.Fprintf(os.Stderr, "  Target:        %s\n", target)
+		fmt.Fprintf(os.Stderr, "  Concurrency:   %d\n", *cfg.Concurrency)
+		fmt.Fprintf(os.Stderr, "  Rate Limit:    %d req/sec\n", *cfg.RateLimit)
+		fmt.Fprintf(os.Stderr, "  Timeout:       %ds\n", cfg.Common.Timeout)
+		fmt.Fprintf(os.Stderr, "  Smart Mode:    %v\n", *cfg.Smart.Enabled)
+		fmt.Fprintf(os.Stderr, "  Brain Mode:    %v\n", *cfg.EnableBrain)
+		fmt.Fprintln(os.Stderr)
 		ui.PrintSection("Phases")
 		if *cfg.Smart.Enabled {
-			fmt.Println("  0. Smart Mode - WAF Detection & Strategy Optimization")
+			fmt.Fprintln(os.Stderr, "  0. Smart Mode - WAF Detection & Strategy Optimization")
 		}
-		fmt.Println("  1. Target Discovery & Reconnaissance")
-		fmt.Println("  2. Leaky Path Scanning")
-		fmt.Println("  3. Learning Phase - WAF Behavior Analysis")
-		fmt.Println("  4. Core Vulnerability Scanning")
-		fmt.Println("  5. Tamper Discovery & Bypass Analysis")
-		fmt.Println("  6. Enterprise Assessment")
-		fmt.Println("  7. Report Generation")
-		fmt.Println()
+		fmt.Fprintln(os.Stderr, "  1. Target Discovery & Reconnaissance")
+		fmt.Fprintln(os.Stderr, "  2. Leaky Path Scanning")
+		fmt.Fprintln(os.Stderr, "  3. Learning Phase - WAF Behavior Analysis")
+		fmt.Fprintln(os.Stderr, "  4. Core Vulnerability Scanning")
+		fmt.Fprintln(os.Stderr, "  5. Tamper Discovery & Bypass Analysis")
+		fmt.Fprintln(os.Stderr, "  6. Enterprise Assessment")
+		fmt.Fprintln(os.Stderr, "  7. Report Generation")
+		fmt.Fprintln(os.Stderr)
 		ui.PrintInfo("No requests sent. Remove --dry-run to execute.")
 		return
 	}
@@ -1077,11 +1077,11 @@ func runAutoScan() {
 		// Animated progress for JS analysis
 		jsProgressDone := make(chan struct{})
 		jsSpinnerFrames := ui.DefaultSpinner().Frames
-		jsFrameIdx := 0
 		jsStartTime := time.Now()
 
 		if totalJSFiles > 1 && !cfg.Out.StreamMode && !quietMode && ui.StderrIsTerminal() {
 			go func() {
+				jsFrameIdx := 0
 				ticker := time.NewTicker(100 * time.Millisecond)
 				defer ticker.Stop()
 				for {
@@ -1450,11 +1450,11 @@ func runAutoScan() {
 			var paramsFoundCount int32
 			paramProgressDone := make(chan struct{})
 			paramSpinnerFrames := ui.DefaultSpinner().Frames
-			paramFrameIdx := 0
 			totalEndpoints := len(testEndpoints)
 
 			if !cfg.Out.StreamMode && !quietMode && ui.StderrIsTerminal() {
 				go func() {
+					paramFrameIdx := 0
 					ticker := time.NewTicker(100 * time.Millisecond)
 					defer ticker.Stop()
 					for {
