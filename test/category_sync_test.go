@@ -2198,3 +2198,150 @@ func TestBypassTimeoutWiredToExecutor(t *testing.T) {
 		t.Error("cmd_bypass.go doesn't wire timeout to executor config")
 	}
 }
+
+// =============================================================================
+// WAVE 6 REGRESSION TESTS
+// =============================================================================
+
+// TestFuzzBypassCrawlMutateDiscoverValidation ensures numeric validation
+// guards are present in all five commands that accept concurrency/timeout flags.
+func TestFuzzBypassCrawlMutateDiscoverValidation(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	cases := []struct {
+		file   string
+		marker string
+	}{
+		{"cmd/cli/cmd_fuzz.go", "must be at least 1"},
+		{"cmd/cli/cmd_bypass.go", "must be at least 1"},
+		{"cmd/cli/cmd_crawl.go", "must be at least 1"},
+		{"cmd/cli/cmd_mutate.go", "must be at least 1"},
+		{"cmd/cli/cmd_discover.go", "must be at least 1"},
+	}
+	for _, tc := range cases {
+		data, err := os.ReadFile(filepath.Join(repoRoot, tc.file))
+		if err != nil {
+			t.Fatalf("cannot read %s: %v", tc.file, err)
+		}
+		if !strings.Contains(string(data), tc.marker) {
+			t.Errorf("%s missing numeric validation marker %q", tc.file, tc.marker)
+		}
+	}
+}
+
+// TestEnumFlagsValidated ensures enum flags have validation in six files.
+func TestEnumFlagsValidated(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	cases := []struct {
+		file   string
+		marker string
+	}{
+		{"cmd/cli/cmd_misc.go", `"double_submit", "token_reuse", "limit_bypass", "toctou"`},
+		{"cmd/cli/cmd_mutate.go", `exitWithError("--mode`},
+		{"cmd/cli/cmd_cloud.go", "at least one valid provider"},
+		{"cmd/cli/cmd_autoscan_flags.go", `"quick", "normal", "deep", "paranoid"`},
+		{"cmd/cli/cmd_smart_flags.go", `func (sf *SmartModeFlags) Validate()`},
+		{"cmd/cli/cmd_scan_flags.go", `validFormats`},
+	}
+	for _, tc := range cases {
+		data, err := os.ReadFile(filepath.Join(repoRoot, tc.file))
+		if err != nil {
+			t.Fatalf("cannot read %s: %v", tc.file, err)
+		}
+		if !strings.Contains(string(data), tc.marker) {
+			t.Errorf("%s missing enum validation marker %q", tc.file, tc.marker)
+		}
+	}
+}
+
+// TestPeakRPSAtomic verifies that peakRPS uses atomic.Uint64 + Float64bits
+// to prevent data races.
+func TestPeakRPSAtomic(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "pkg", "ui", "progress.go"))
+	if err != nil {
+		t.Fatalf("cannot read progress.go: %v", err)
+	}
+	src := string(data)
+	if !strings.Contains(src, "peakRPS") {
+		t.Fatal("peakRPS field not found in progress.go")
+	}
+	if !strings.Contains(src, "atomic.Uint64") {
+		t.Error("peakRPS should use atomic.Uint64 for lock-free concurrency")
+	}
+	if !strings.Contains(src, "Float64bits") {
+		t.Error("peakRPS should use math.Float64bits for atomic float storage")
+	}
+}
+
+// TestAutoscanFrameIdxLocal verifies that jsFrameIdx and paramFrameIdx are
+// declared inside their goroutines to prevent data races on the closure capture.
+func TestAutoscanFrameIdxLocal(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_autoscan.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_autoscan.go: %v", err)
+	}
+	src := string(data)
+
+	// The pattern should be: "go func() {\n\t\t\t\t\tjsFrameIdx := 0"
+	// NOT: "jsFrameIdx := 0\n\n\t\tif ... {\n\t\t\tgo func()"
+	if strings.Contains(src, "jsFrameIdx := 0\n\t\tjsStartTime") {
+		t.Error("jsFrameIdx should be declared inside the goroutine, not outside")
+	}
+	if strings.Contains(src, "paramFrameIdx := 0\n\t\t\ttotalEndpoints") {
+		t.Error("paramFrameIdx should be declared inside the goroutine, not outside")
+	}
+}
+
+// TestMutateEncodeErrorChecked verifies that writer.Encode errors are checked
+// in cmd_mutate.go.
+func TestMutateEncodeErrorChecked(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "cmd", "cli", "cmd_mutate.go"))
+	if err != nil {
+		t.Fatalf("cannot read cmd_mutate.go: %v", err)
+	}
+	src := string(data)
+	// Should not have bare "writer.Encode(r)" without error check
+	if strings.Contains(src, "writer.Encode(r)\n") {
+		t.Error("cmd_mutate.go has unchecked writer.Encode(r) — error must be handled")
+	}
+}
+
+// TestUIPrintfStderr verifies that ui.Printf writes to os.Stderr, not os.Stdout.
+func TestUIPrintfStderr(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "pkg", "ui", "terminal.go"))
+	if err != nil {
+		t.Fatalf("cannot read terminal.go: %v", err)
+	}
+	src := string(data)
+	// Printf should write to os.Stderr
+	if strings.Contains(src, "func Printf(") && !strings.Contains(src, "fmt.Fprint(os.Stderr") {
+		t.Error("ui.Printf should write to os.Stderr, not os.Stdout")
+	}
+}
+
+// TestNoStatusOnStdout verifies that cmd_analyze.go and cmd_scan_reports.go
+// don't have bare fmt.Println() calls that would pollute stdout.
+func TestNoStatusOnStdout(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	files := []string{
+		"cmd/cli/cmd_analyze.go",
+		"cmd/cli/cmd_scan_reports.go",
+	}
+	for _, file := range files {
+		data, err := os.ReadFile(filepath.Join(repoRoot, file))
+		if err != nil {
+			t.Fatalf("cannot read %s: %v", file, err)
+		}
+		src := string(data)
+		// Look for bare fmt.Println() — these should be fmt.Fprintln(os.Stderr)
+		for i, line := range strings.Split(src, "\n") {
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "fmt.Println()" {
+				t.Errorf("%s:%d has bare fmt.Println() — should be fmt.Fprintln(os.Stderr)", file, i+1)
+			}
+		}
+	}
+}
