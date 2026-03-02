@@ -47,7 +47,7 @@ type Progress struct {
 
 	// Worker activity tracking
 	activeWorkers int64
-	peakRPS       float64
+	peakRPS       atomic.Uint64 // stores math.Float64bits
 	recentResults []RecentResult
 	resultsMu     sync.Mutex
 
@@ -197,9 +197,16 @@ func (p *Progress) renderTurbo(spinner string, workerIndicator string) {
 		rps = 0
 	}
 
-	// Track peak RPS
-	if rps > p.peakRPS {
-		p.peakRPS = rps
+	// Track peak RPS (lock-free via atomic Float64bits)
+	for {
+		oldBits := p.peakRPS.Load()
+		oldPeak := math.Float64frombits(oldBits)
+		if rps <= oldPeak {
+			break
+		}
+		if p.peakRPS.CompareAndSwap(oldBits, math.Float64bits(rps)) {
+			break
+		}
 	}
 
 	// Calculate ETA
