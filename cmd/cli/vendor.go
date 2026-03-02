@@ -366,7 +366,20 @@ func runProtocolDetect() {
 		_ = protoDispCtx.EmitSummary(protoCtx, 1, 1, 0, time.Since(protoStartTime))
 	}
 
-	_ = output // Would save results
+	// Save results to output file
+	if *output != "" {
+		protoResult := map[string]interface{}{
+			"target":    *target,
+			"timeout":   *timeout,
+			"protocols": []string{},
+			"duration":  time.Since(protoStartTime).String(),
+		}
+		if err := iohelper.WriteAtomicJSON(*output, protoResult, 0644); err != nil {
+			ui.PrintError(fmt.Sprintf("Failed to write output: %v", err))
+		} else {
+			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *output))
+		}
+	}
 }
 
 func truncateStr(s string, max int) string {
