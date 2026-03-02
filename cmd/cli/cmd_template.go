@@ -250,7 +250,7 @@ func runTemplate() {
 	for _, task := range tasks {
 		select {
 		case <-ctx.Done():
-			break
+			goto done
 		default:
 		}
 
@@ -311,6 +311,7 @@ func runTemplate() {
 		}(task.target, task.template)
 	}
 
+done:
 	wg.Wait()
 
 	finalMatched := atomic.LoadInt64(&matched)

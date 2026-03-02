@@ -1471,9 +1471,15 @@ func runAutoScan() {
 							spinner := paramSpinnerFrames[paramFrameIdx%len(paramSpinnerFrames)]
 							paramFrameIdx++
 
-							percent := float64(done) / float64(totalEndpoints) * 100
+							var percent float64
+							if totalEndpoints > 0 {
+								percent = float64(done) / float64(totalEndpoints) * 100
+							}
 							progressWidth := 25
 							fillWidth := int(float64(progressWidth) * percent / 100)
+							if fillWidth > progressWidth {
+								fillWidth = progressWidth
+							}
 							bar := fmt.Sprintf("[%s%s]",
 								strings.Repeat(ui.Icon("█", "#"), fillWidth),
 								strings.Repeat(ui.Icon("░", "."), progressWidth-fillWidth))

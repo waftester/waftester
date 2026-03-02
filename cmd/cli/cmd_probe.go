@@ -398,7 +398,7 @@ func runProbe() {
 	// Rate limiting is handled via rateLimit flag (requests per second)
 	// rateLimitMinute can be converted: rps = rlm / 60
 	if *cfg.RateLimitMinute > 0 && *cfg.RateLimit == 0 {
-		*cfg.RateLimit = *cfg.RateLimitMinute / 60
+		*cfg.RateLimit = (*cfg.RateLimitMinute + 59) / 60
 		if *cfg.RateLimit < 1 {
 			*cfg.RateLimit = 1
 		}
