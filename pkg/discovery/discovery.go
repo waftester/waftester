@@ -282,11 +282,13 @@ func (d *Discoverer) Discover(ctx context.Context) (*DiscoveryResult, error) {
 	result.Endpoints = make([]Endpoint, len(d.endpoints))
 	copy(result.Endpoints, d.endpoints)
 	d.mu.Unlock()
-	result.Statistics.TotalEndpoints = len(d.endpoints)
+
+	// Use the safe copy (not d.endpoints) to avoid racing with concurrent appends
+	result.Statistics.TotalEndpoints = len(result.Endpoints)
 
 	// Populate TotalParameters by counting all parameters across endpoints
 	totalParams := 0
-	for _, ep := range d.endpoints {
+	for _, ep := range result.Endpoints {
 		totalParams += len(ep.Parameters)
 	}
 	result.Statistics.TotalParameters = totalParams

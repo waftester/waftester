@@ -395,7 +395,7 @@ func (s *Server) handleBypass(ctx context.Context, req *mcp.CallToolRequest) (*m
 			pipeline = mutation.DefaultPipelineConfig()
 		}
 
-		executor := mutation.NewExecutor(&mutation.ExecutorConfig{
+		executor := mutation.NewExecutor(taskCtx, &mutation.ExecutorConfig{
 			TargetURL:   args.Target,
 			Concurrency: args.Concurrency,
 			RateLimit:   float64(args.RateLimit),

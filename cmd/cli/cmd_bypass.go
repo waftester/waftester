@@ -219,7 +219,7 @@ func runBypassFinder() {
 		cfg.Pipeline = mutation.FullCoveragePipelineConfig()
 	}
 
-	executor := mutation.NewExecutor(cfg)
+	executor := mutation.NewExecutor(ctx, cfg)
 
 	// Count combinations
 	expectedTests := executor.CountCombinations(len(testPayloads))
