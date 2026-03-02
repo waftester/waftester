@@ -5,6 +5,24 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.43] - 2026-03-02
+
+### Fixed
+
+- **90+ runtime bug fixes across 63 files** — Context-aware DNS (12 call sites replacing net.Lookup* with DefaultResolver), context-aware TLS (4 tls.DialWithDialer sites migrated to tls.Dialer.DialContext), signal context propagation (context.Background() replaced across CLI), discovery statistics race condition, mutation executor body-slice panic, stdin nil dereference, fuzz calibration threshold, and 70+ more edge cases
+- **stdout/stderr output hygiene** — 122 lines of status, progress bars, help text, and separator output migrated from stdout to stderr across 10 CLI commands so piped workflows (--json | jq) work cleanly
+- **Concurrency fixes** — Progress/StatsDisplay goroutine leak, autoscan/dnsbrute/discovery race conditions, atomic peakRPS counter, goroutine-local frameIdx
+- **CLI validation hardening** — Numeric and enum validation for 11 commands, 22 logic bug fixes across 9 CLI command files, missing flag aliases across 6 commands
+- **OSINT reliability** — crt.sh and Chaos DNS resolution capped at 200 subdomains, rate limiter time drift fixed (lastRefill advances by exact interval instead of time.Now())
+- **Plugin error handling** — LoadFromDirectory preserves all errors via errors.Join instead of silently dropping all but the last; Cleanup now returns joined errors
+- **ModSec log correlation** — Parser caches results only after scanner.Err() check, preventing stale partial entries on I/O failure
+- **Corpus loader** — Seek error checked on JSON-to-line format fallback, preventing silently truncated payloads
+- **UI rendering** — Progress counters, RPS spike guard, ANSI escape codes guarded for non-TTY output, analyze timing correction
+
+### Changed
+
+- **Regression test suite** — 15 per-wave tests consolidated into 6 categorical sweeps using scanGoFiles directory walker (TestNoContextIgnoringDNS, TestNoContextIgnoringTLS, TestNoStdoutPollution, TestDNSResolutionCapped, TestDiscoveryStatisticsUseSafeCopy, TestPluginErrorsJoined) plus 50+ targeted regression tests
+
 ## [2.9.42] - 2026-03-02
 
 ### Fixed
@@ -2777,6 +2795,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.43]: https://github.com/waftester/waftester/compare/v2.9.42...v2.9.43
 [2.9.42]: https://github.com/waftester/waftester/compare/v2.9.41...v2.9.42
 [2.9.41]: https://github.com/waftester/waftester/compare/v2.9.40...v2.9.41
 [2.9.40]: https://github.com/waftester/waftester/compare/v2.9.39...v2.9.40
