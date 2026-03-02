@@ -463,8 +463,8 @@ func runProbe() {
 	ignoreStdin := *cfg.NoStdin
 	if !ignoreStdin {
 		// Check if stdin has data (non-blocking)
-		stat, _ := os.Stdin.Stat()
-		if (stat.Mode() & os.ModeCharDevice) == 0 {
+		stat, err := os.Stdin.Stat()
+		if err == nil && (stat.Mode()&os.ModeCharDevice) == 0 {
 			// stdin has data - could be used for target input
 			// (currently targets are loaded from args/file)
 		}
