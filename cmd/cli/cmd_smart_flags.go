@@ -23,3 +23,16 @@ func (sf *SmartModeFlags) RegisterBypass(fs *flag.FlagSet) {
 	sf.Mode = fs.String("smart-mode", "bypass", "Smart mode type: quick, standard, full, bypass, stealth")
 	sf.Verbose = fs.Bool("smart-verbose", false, "Show detailed WAF detection info")
 }
+
+// Validate checks that the smart mode type is a known value.
+func (sf *SmartModeFlags) Validate() {
+	if sf.Mode == nil {
+		return
+	}
+	switch *sf.Mode {
+	case "quick", "standard", "full", "bypass", "stealth":
+		// valid
+	default:
+		exitWithError("--smart-mode must be one of: quick, standard, full, bypass, stealth; got %q", *sf.Mode)
+	}
+}

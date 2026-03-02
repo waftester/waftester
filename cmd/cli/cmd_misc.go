@@ -97,10 +97,10 @@ func runSmuggle() {
 	detector := smuggling.NewDetector(cfg)
 
 	if *verbose {
-		fmt.Printf("  Mode: %s\n", map[bool]string{true: "Safe (timing only)", false: "Full (payload injection)"}[*safeMode])
-		fmt.Printf("  Timeout: %ds\n", *timeout)
-		fmt.Printf("  Delay: %dms\n", *delay)
-		fmt.Println()
+		fmt.Fprintf(os.Stderr, "  Mode: %s\n", map[bool]string{true: "Safe (timing only)", false: "Full (payload injection)"}[*safeMode])
+		fmt.Fprintf(os.Stderr, "  Timeout: %ds\n", *timeout)
+		fmt.Fprintf(os.Stderr, "  Delay: %dms\n", *delay)
+		fmt.Fprintln(os.Stderr)
 	}
 
 	ctx, cancel := cli.SignalContext(30 * time.Second)
@@ -152,7 +152,7 @@ func runSmuggle() {
 			manifest.AddWithIcon("⏱️", "Timeout", fmt.Sprintf("%ds per target", *timeout))
 			manifest.Print()
 		} else {
-			fmt.Printf("[INFO] Starting smuggle detection: targets=%d mode=%s\n",
+			fmt.Fprintf(os.Stderr, "[INFO] Starting smuggle detection: targets=%d mode=%s\n",
 				len(targets), map[bool]string{true: "safe", false: "full"}[*safeMode])
 		}
 
@@ -208,18 +208,18 @@ func runSmuggle() {
 			if len(result.Vulnerabilities) > 0 {
 				for _, vuln := range result.Vulnerabilities {
 					severity := ui.SeverityStyle(vuln.Severity)
-					fmt.Printf("  [%s] %s - %s\n", severity.Render(vuln.Severity), vuln.Type, vuln.Description)
+					fmt.Fprintf(os.Stderr, "  [%s] %s - %s\n", severity.Render(vuln.Severity), vuln.Type, vuln.Description)
 					if *verbose {
-						fmt.Printf("    Confidence: %.0f%%\n", vuln.Confidence*100)
-						fmt.Printf("    Exploitable: %v\n", vuln.Exploitable)
+						fmt.Fprintf(os.Stderr, "    Confidence: %.0f%%\n", vuln.Confidence*100)
+						fmt.Fprintf(os.Stderr, "    Exploitable: %v\n", vuln.Exploitable)
 					}
 				}
 			} else {
 				ui.PrintSuccess("  No smuggling vulnerabilities detected")
 			}
 
-			fmt.Printf("  Tested: %s in %v\n", strings.Join(result.TestedTechniques, ", "), result.Duration.Round(time.Millisecond))
-			fmt.Println()
+			fmt.Fprintf(os.Stderr, "  Tested: %s in %v\n", strings.Join(result.TestedTechniques, ", "), result.Duration.Round(time.Millisecond))
+			fmt.Fprintln(os.Stderr)
 		}
 	}
 
@@ -235,8 +235,8 @@ func runSmuggle() {
 	}
 
 	ui.PrintSection("Summary")
-	fmt.Printf("  Targets tested: %d\n", len(allResults))
-	fmt.Printf("  Vulnerabilities found: %d\n", totalVulns)
+	fmt.Fprintf(os.Stderr, "  Targets tested: %d\n", len(allResults))
+	fmt.Fprintf(os.Stderr, "  Vulnerabilities found: %d\n", totalVulns)
 
 	// Emit summary to hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
 	if smuggleDispCtx != nil {
@@ -312,6 +312,14 @@ func runRace() {
 
 	fs.Parse(os.Args[2:])
 
+	// Validate attack type
+	switch *attackType {
+	case "double_submit", "token_reuse", "limit_bypass", "toctou":
+		// valid
+	default:
+		exitWithError("--attack must be one of: double_submit, token_reuse, limit_bypass, toctou; got %q", *attackType)
+	}
+
 	if *targetURL == "" {
 		ui.PrintError("Target URL required. Use -u <url>")
 		os.Exit(1)
@@ -337,11 +345,11 @@ func runRace() {
 	tester := race.NewTester(config)
 
 	if *verbose {
-		fmt.Printf("  Target: %s\n", *targetURL)
-		fmt.Printf("  Attack: %s\n", *attackType)
-		fmt.Printf("  Concurrency: %d\n", *concurrency)
-		fmt.Printf("  Iterations: %d\n", *iterations)
-		fmt.Println()
+		fmt.Fprintf(os.Stderr, "  Target: %s\n", *targetURL)
+		fmt.Fprintf(os.Stderr, "  Attack: %s\n", *attackType)
+		fmt.Fprintf(os.Stderr, "  Concurrency: %d\n", *concurrency)
+		fmt.Fprintf(os.Stderr, "  Iterations: %d\n", *iterations)
+		fmt.Fprintln(os.Stderr)
 	}
 
 	ctx, cancel := cli.SignalContext(30 * time.Second)
@@ -409,14 +417,14 @@ func runRace() {
 		}
 
 		if *verbose {
-			fmt.Println("  Response distribution:")
+			fmt.Fprintln(os.Stderr, "  Response distribution:")
 			sortedStatuses := make([]int, 0, len(statusCounts))
 			for status := range statusCounts {
 				sortedStatuses = append(sortedStatuses, status)
 			}
 			sort.Ints(sortedStatuses)
 			for _, status := range sortedStatuses {
-				fmt.Printf("    HTTP %d: %d responses\n", status, statusCounts[status])
+				fmt.Fprintf(os.Stderr, "    HTTP %d: %d responses\n", status, statusCounts[status])
 			}
 		}
 	}
@@ -430,10 +438,10 @@ func runRace() {
 	} else if vuln != nil {
 		vulns = append(vulns, vuln)
 		severity := ui.SeverityStyle(string(vuln.Severity))
-		fmt.Printf("  [%s] %s\n", severity.Render(string(vuln.Severity)), vuln.Description)
+		fmt.Fprintf(os.Stderr, "  [%s] %s\n", severity.Render(string(vuln.Severity)), vuln.Description)
 		if *verbose {
-			fmt.Printf("    Evidence: %s\n", vuln.Evidence)
-			fmt.Printf("    Remediation: %s\n", vuln.Remediation)
+			fmt.Fprintf(os.Stderr, "    Evidence: %s\n", vuln.Evidence)
+			fmt.Fprintf(os.Stderr, "    Remediation: %s\n", vuln.Remediation)
 		}
 
 		// Real-time streaming to hooks (Slack, Teams, PagerDuty, OTEL, etc.)
@@ -447,7 +455,7 @@ func runRace() {
 
 	// Summary
 	ui.PrintSection("Summary")
-	fmt.Printf("  Vulnerabilities found: %d\n", len(vulns))
+	fmt.Fprintf(os.Stderr, "  Vulnerabilities found: %d\n", len(vulns))
 
 	// Emit summary to hooks (Slack, Teams, PagerDuty, OTEL, Prometheus, etc.)
 	if raceDispCtx != nil {
@@ -575,12 +583,12 @@ func runWorkflow() {
 	}
 
 	if *verbose {
-		fmt.Printf("  Workflow: %s\n", wf.Name)
+		fmt.Fprintf(os.Stderr, "  Workflow: %s\n", wf.Name)
 		if wf.Description != "" {
-			fmt.Printf("  Description: %s\n", wf.Description)
+			fmt.Fprintf(os.Stderr, "  Description: %s\n", wf.Description)
 		}
-		fmt.Printf("  Steps: %d\n", len(wf.Steps))
-		fmt.Println()
+		fmt.Fprintf(os.Stderr, "  Steps: %d\n", len(wf.Steps))
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Create engine
@@ -597,7 +605,7 @@ func runWorkflow() {
 	if *dryRun {
 		ui.PrintInfo("(dry-run mode - no commands will be executed)")
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	result, err := engine.Execute(ctx, wf, inputs)
 	if err != nil {
@@ -633,26 +641,26 @@ func runWorkflow() {
 			}
 		}
 
-		fmt.Printf("  %s %s (%s) - %v\n", statusIcon, sr.StepName, sr.Status, sr.Duration.Round(time.Millisecond))
+		fmt.Fprintf(os.Stderr, "  %s %s (%s) - %v\n", statusIcon, sr.StepName, sr.Status, sr.Duration.Round(time.Millisecond))
 		if *verbose && sr.Output != "" {
 			lines := strings.Split(sr.Output, "\n")
 			for i, line := range lines {
 				if i < 5 { // Show first 5 lines
-					fmt.Printf("    %s\n", line)
+					fmt.Fprintf(os.Stderr, "    %s\n", line)
 				}
 			}
 			if len(lines) > 5 {
-				fmt.Printf("    ... (%d more lines)\n", len(lines)-5)
+				fmt.Fprintf(os.Stderr, "    ... (%d more lines)\n", len(lines)-5)
 			}
 		}
 	}
 
 	// Summary
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 	ui.PrintSection("Summary")
-	fmt.Printf("  Status: %s\n", result.Status)
-	fmt.Printf("  Duration: %v\n", result.Duration.Round(time.Millisecond))
-	fmt.Printf("  Steps: %d total, %d succeeded, %d failed, %d skipped\n",
+	fmt.Fprintf(os.Stderr, "  Status: %s\n", result.Status)
+	fmt.Fprintf(os.Stderr, "  Duration: %v\n", result.Duration.Round(time.Millisecond))
+	fmt.Fprintf(os.Stderr, "  Steps: %d total, %d succeeded, %d failed, %d skipped\n",
 		len(result.Steps),
 		countStepStatus(result.Steps, "success"),
 		countStepStatus(result.Steps, "failed"),
@@ -810,10 +818,10 @@ func runHeadless() {
 	}
 
 	if *verbose {
-		fmt.Printf("  Headless: %v\n", *headlessMode)
-		fmt.Printf("  Timeout: %ds\n", *timeout)
-		fmt.Printf("  Wait: %ds\n", *waitTime)
-		fmt.Println()
+		fmt.Fprintf(os.Stderr, "  Headless: %v\n", *headlessMode)
+		fmt.Fprintf(os.Stderr, "  Timeout: %ds\n", *timeout)
+		fmt.Fprintf(os.Stderr, "  Wait: %ds\n", *waitTime)
+		fmt.Fprintln(os.Stderr)
 	}
 
 	// Create browser
@@ -885,7 +893,7 @@ func runHeadless() {
 			}
 			manifest.Print()
 		} else {
-			fmt.Printf("[INFO] Starting headless browsing: targets=%d headless=%v\n",
+			fmt.Fprintf(os.Stderr, "[INFO] Starting headless browsing: targets=%d headless=%v\n",
 				len(targets), *headlessMode)
 		}
 
@@ -930,28 +938,28 @@ func runHeadless() {
 		}
 
 		if len(targets) == 1 {
-			fmt.Printf("  Status: %d\n", result.StatusCode)
-			fmt.Printf("  Title: %s\n", result.Title)
+			fmt.Fprintf(os.Stderr, "  Status: %d\n", result.StatusCode)
+			fmt.Fprintf(os.Stderr, "  Title: %s\n", result.Title)
 
 			if *extractURLs && len(result.FoundURLs) > 0 {
-				fmt.Printf("  URLs found: %d\n", len(result.FoundURLs))
+				fmt.Fprintf(os.Stderr, "  URLs found: %d\n", len(result.FoundURLs))
 				if *verbose {
 					for i, u := range result.FoundURLs {
 						if i < 10 {
-							fmt.Printf("    - %s\n", u.URL)
+							fmt.Fprintf(os.Stderr, "    - %s\n", u.URL)
 						}
 					}
 					if len(result.FoundURLs) > 10 {
-						fmt.Printf("    ... and %d more\n", len(result.FoundURLs)-10)
+						fmt.Fprintf(os.Stderr, "    ... and %d more\n", len(result.FoundURLs)-10)
 					}
 				}
 			}
 
 			if *screenshot && result.ScreenshotPath != "" {
-				fmt.Printf("  Screenshot: %s\n", result.ScreenshotPath)
+				fmt.Fprintf(os.Stderr, "  Screenshot: %s\n", result.ScreenshotPath)
 			}
 
-			fmt.Println()
+			fmt.Fprintln(os.Stderr)
 		}
 	}
 
@@ -1003,10 +1011,10 @@ func runHeadless() {
 				if *verbose {
 					for i, u := range discoveredURLs {
 						if i >= 10 {
-							fmt.Printf("    ... and %d more\n", len(discoveredURLs)-10)
+							fmt.Fprintf(os.Stderr, "    ... and %d more\n", len(discoveredURLs)-10)
 							break
 						}
-						fmt.Printf("    - %s\n", u)
+						fmt.Fprintf(os.Stderr, "    - %s\n", u)
 					}
 				}
 			}
@@ -1024,12 +1032,12 @@ func runHeadless() {
 
 	// Summary
 	ui.PrintSection("Summary")
-	fmt.Printf("  Pages visited: %d\n", len(allResults))
+	fmt.Fprintf(os.Stderr, "  Pages visited: %d\n", len(allResults))
 	totalURLs := 0
 	for _, r := range allResults {
 		totalURLs += len(r.FoundURLs)
 	}
-	fmt.Printf("  URLs extracted: %d\n", totalURLs)
+	fmt.Fprintf(os.Stderr, "  URLs extracted: %d\n", totalURLs)
 	if len(eventCrawlResults) > 0 {
 		eventURLs := 0
 		eventXHR := 0
@@ -1037,9 +1045,9 @@ func runHeadless() {
 			eventURLs += len(r.DiscoveredURLs)
 			eventXHR += len(r.XHRRequests)
 		}
-		fmt.Printf("  Event crawl clicks: %d\n", len(eventCrawlResults))
-		fmt.Printf("  Event crawl URLs: %d\n", eventURLs)
-		fmt.Printf("  Event crawl XHR: %d\n", eventXHR)
+		fmt.Fprintf(os.Stderr, "  Event crawl clicks: %d\n", len(eventCrawlResults))
+		fmt.Fprintf(os.Stderr, "  Event crawl URLs: %d\n", eventURLs)
+		fmt.Fprintf(os.Stderr, "  Event crawl XHR: %d\n", eventXHR)
 	}
 
 	// Output

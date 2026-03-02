@@ -36,7 +36,7 @@ func runBypassFinder() {
 	concurrency := bypassFlags.Int("c", 10, "Concurrency")
 	rateLimit := bypassFlags.Float64("rl", 30, "Rate limit")
 	timeout := bypassFlags.Int("timeout", defaults.DefaultConfigTimeoutSec, "Request timeout in seconds")
-	outputFile := bypassFlags.String("o", "bypasses.json", "Output file for bypass results")
+	outputFile := bypassFlags.String("o", "", "Output file for bypass results")
 	skipVerify := bypassFlags.Bool("k", false, "Skip TLS verification")
 
 	// Streaming mode (CI-friendly output)
@@ -59,6 +59,18 @@ func runBypassFinder() {
 	noDetect := bypassFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
 
 	bypassFlags.Parse(os.Args[2:])
+
+	// Validate numeric flags
+	if *concurrency < 1 {
+		exitWithError("--concurrency (-c) must be at least 1, got %d", *concurrency)
+	}
+	if *rateLimit <= 0 {
+		exitWithError("--rate-limit (--rl) must be positive, got %f", *rateLimit)
+	}
+	if *timeout < 1 {
+		exitWithError("--timeout must be at least 1, got %d", *timeout)
+	}
+	smartFlags.Validate()
 
 	// Disable detection if requested
 	if *noDetect {

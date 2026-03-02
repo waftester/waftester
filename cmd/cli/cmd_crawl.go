@@ -126,6 +126,20 @@ func runCrawl() {
 
 	crawlFlags.Parse(os.Args[2:])
 
+	// Validate numeric flags
+	if *concurrency < 1 {
+		exitWithError("--concurrency (-c) must be at least 1, got %d", *concurrency)
+	}
+	if *timeout < 1 {
+		exitWithError("--timeout must be at least 1, got %d", *timeout)
+	}
+	if *depth < 1 {
+		exitWithError("--depth must be at least 1, got %d", *depth)
+	}
+	if *maxPages < 1 {
+		exitWithError("--max-pages must be at least 1, got %d", *maxPages)
+	}
+
 	// Disable detection if requested
 	if *noDetect {
 		detection.Disable()
