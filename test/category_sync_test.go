@@ -2590,3 +2590,55 @@ func TestProbesDNSUsesContext(t *testing.T) {
 		t.Error("probes.ResolveIP should accept context.Context as first parameter")
 	}
 }
+
+// =============================================================================
+// WAVE 10: TLS CONTEXT + PLUGIN ERROR HANDLING REGRESSION TESTS
+// =============================================================================
+
+// TestTLSDialUsesContext verifies that TLS dial calls use tls.Dialer.DialContext
+// instead of tls.DialWithDialer which ignores context cancellation.
+func TestTLSDialUsesContext(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	files := []string{
+		"pkg/waf/detector.go",
+		"pkg/cryptofailure/cryptofailure.go",
+	}
+	for _, file := range files {
+		data, err := os.ReadFile(filepath.Join(repoRoot, file))
+		if err != nil {
+			t.Fatalf("cannot read %s: %v", file, err)
+		}
+		if strings.Contains(string(data), "tls.DialWithDialer(") {
+			t.Errorf("%s uses tls.DialWithDialer which ignores context — should use tls.Dialer.DialContext", file)
+		}
+	}
+}
+
+// TestCryptoLoopsCheckContext verifies that TLS test loops in cryptofailure
+// check ctx.Err() before each iteration to respect cancellation.
+func TestCryptoLoopsCheckContext(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "pkg", "cryptofailure", "cryptofailure.go"))
+	if err != nil {
+		t.Fatalf("cannot read cryptofailure.go: %v", err)
+	}
+	src := string(data)
+	// Both TestTLSVersion and TestCipherSuites loops should check ctx.Err()
+	if count := strings.Count(src, "ctx.Err()"); count < 2 {
+		t.Errorf("cryptofailure.go has %d ctx.Err() checks, expected at least 2 (one per TLS test loop)", count)
+	}
+}
+
+// TestPluginLoadFromDirectoryJoinsErrors verifies that LoadFromDirectory
+// preserves all plugin load errors instead of only the last one.
+func TestPluginLoadFromDirectoryJoinsErrors(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "pkg", "plugin", "plugin.go"))
+	if err != nil {
+		t.Fatalf("cannot read plugin.go: %v", err)
+	}
+	src := string(data)
+	if strings.Contains(src, "loadErr = err") {
+		t.Error("plugin.go LoadFromDirectory overwrites errors — should use errors.Join to preserve all")
+	}
+}
