@@ -7,10 +7,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
+
+	"golang.org/x/time/rate"
 
 	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/nuclei"
 	"github.com/waftester/waftester/pkg/payloadprovider"
@@ -125,9 +130,12 @@ func runTemplate() {
 	ctx, cancel := cli.SignalContext(30 * time.Second)
 	defer cancel()
 
-	// Create engine
+	// Create engine with user-specified timeout
 	engine := nuclei.NewEngine()
 	engine.Verbose = *verbose
+	engine.HTTPClient = httpclient.New(httpclient.Config{
+		Timeout: time.Duration(*timeout) * time.Second,
+	})
 
 	// Load templates
 	var templates []*nuclei.Template
@@ -215,46 +223,80 @@ func runTemplate() {
 		targets = append(targets, listTargets...)
 	}
 
-	// Execute templates
-	var results []*nuclei.Result
-	matched := 0
-	total := len(templates) * len(targets)
-	processed := 0
-
-	_ = *concurrency
-	_ = *rateLimit
-	_ = *timeout
-	_ = *retries
-
+	// Build task list: all (target, template) pairs
+	type templateTask struct {
+		target   string
+		template *nuclei.Template
+	}
+	var tasks []templateTask
 	for _, tgt := range targets {
 		for _, tmpl := range templates {
-			select {
-			case <-ctx.Done():
-				goto done
-			default:
-			}
+			tasks = append(tasks, templateTask{target: tgt, template: tmpl})
+		}
+	}
 
-			result, err := engine.Execute(ctx, tmpl, tgt)
-			processed++
+	// Execute templates with concurrency, rate limiting, and retries
+	var (
+		results   []*nuclei.Result
+		resultsMu sync.Mutex
+		matched   int64
+		processed int64
+		total     = int64(len(tasks))
+		sem       = make(chan struct{}, *concurrency)
+		limiter   = rate.NewLimiter(rate.Limit(*rateLimit), 1)
+		wg        sync.WaitGroup
+	)
 
-			if err != nil {
-				if *verbose {
-					ui.PrintError(fmt.Sprintf("[%s] %s: %v", tmpl.ID, tgt, err))
+	for _, task := range tasks {
+		select {
+		case <-ctx.Done():
+			break
+		default:
+		}
+
+		if err := limiter.Wait(ctx); err != nil {
+			break
+		}
+
+		sem <- struct{}{}
+		wg.Add(1)
+
+		go func(tgt string, tmpl *nuclei.Template) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			var result *nuclei.Result
+			var execErr error
+			for attempt := 0; attempt <= *retries; attempt++ {
+				result, execErr = engine.Execute(ctx, tmpl, tgt)
+				if execErr == nil {
+					break
 				}
-				continue
+			}
+			done := atomic.AddInt64(&processed, 1)
+
+			if execErr != nil {
+				if *verbose {
+					ui.PrintError(fmt.Sprintf("[%s] %s: %v", tmpl.ID, tgt, execErr))
+				}
+				return
 			}
 
+			resultsMu.Lock()
 			results = append(results, result)
+			resultsMu.Unlock()
 
 			if result.Matched {
-				matched++
+				atomic.AddInt64(&matched, 1)
 				if *jsonOutput {
 					jsonBytes, jsonErr := json.Marshal(result)
 					if jsonErr != nil {
 						ui.PrintWarning(fmt.Sprintf("JSON marshal error: %v", jsonErr))
-						continue
+						return
 					}
+					resultsMu.Lock()
 					fmt.Println(string(jsonBytes))
+					resultsMu.Unlock()
 				} else {
 					severityColor := getSeverityColor(result.Severity)
 					fmt.Printf("%s[%s]%s %s - %s\n",
@@ -263,20 +305,23 @@ func runTemplate() {
 				}
 			}
 
-			if !*silent && !*jsonOutput && processed%10 == 0 {
-				fmt.Printf("\r[%d/%d] Processed, %d matches found", processed, total, matched)
+			if !*silent && !*jsonOutput && done%10 == 0 {
+				fmt.Printf("\r[%d/%d] Processed, %d matches found", done, total, atomic.LoadInt64(&matched))
 			}
-		}
+		}(task.target, task.template)
 	}
 
-done:
+	wg.Wait()
+
+	finalMatched := atomic.LoadInt64(&matched)
+
 	if !*silent && !*jsonOutput {
 		fmt.Println()
 		fmt.Println()
 		ui.PrintSection("Results")
 		ui.PrintConfigLine("Templates", fmt.Sprintf("%d", len(templates)))
 		ui.PrintConfigLine("Targets", fmt.Sprintf("%d", len(targets)))
-		ui.PrintConfigLine("Matches", fmt.Sprintf("%d", matched))
+		ui.PrintConfigLine("Matches", fmt.Sprintf("%d", finalMatched))
 	}
 
 	// Write output file
@@ -378,6 +423,3 @@ func getSeverityColor(severity string) string {
 		return ui.Reset
 	}
 }
-
-// Unused but kept for interface compatibility
-var _ = time.Now
