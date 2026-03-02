@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
 	"gopkg.in/yaml.v3"
 )
@@ -308,19 +309,14 @@ func LoadFTWFile(path string) (*FTWTest, error) {
 
 // SaveFTWFile saves an FTW test file
 func SaveFTWFile(ftw *FTWTest, path string) error {
-	var data []byte
-	var err error
-
 	if strings.HasSuffix(path, ".json") {
-		data, err = json.MarshalIndent(ftw, "", "  ")
-	} else {
-		data, err = yaml.Marshal(ftw)
+		return iohelper.WriteAtomicJSON(path, ftw, 0644)
 	}
+	data, err := yaml.Marshal(ftw)
 	if err != nil {
 		return fmt.Errorf("failed to marshal: %w", err)
 	}
-
-	return os.WriteFile(path, data, 0644)
+	return iohelper.WriteAtomic(path, data, 0644)
 }
 
 // LoadTestCaseFile loads internal test cases from file
@@ -345,19 +341,14 @@ func LoadTestCaseFile(path string) ([]*TestCase, error) {
 
 // SaveTestCaseFile saves internal test cases to file
 func SaveTestCaseFile(tests []*TestCase, path string) error {
-	var data []byte
-	var err error
-
 	if strings.HasSuffix(path, ".json") {
-		data, err = json.MarshalIndent(tests, "", "  ")
-	} else {
-		data, err = yaml.Marshal(tests)
+		return iohelper.WriteAtomicJSON(path, tests, 0644)
 	}
+	data, err := yaml.Marshal(tests)
 	if err != nil {
 		return fmt.Errorf("failed to marshal: %w", err)
 	}
-
-	return os.WriteFile(path, data, 0644)
+	return iohelper.WriteAtomic(path, data, 0644)
 }
 
 // sanitizeID creates a safe ID from a test title

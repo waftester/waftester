@@ -1,10 +1,10 @@
 package scoring
 
 import (
-	"sort"
 	"strings"
 
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/strutil"
 )
 
 // Input contains all data needed for risk calculation
@@ -87,13 +87,9 @@ func Calculate(input Input) Result {
 		var bestImpact float64
 		var bestReason string
 		var bestPattern string
-		patternKeys := make([]string, 0, len(sensitivePatterns))
-	for p := range sensitivePatterns {
-		patternKeys = append(patternKeys, p)
-	}
-	sort.Strings(patternKeys)
-	for _, pattern := range patternKeys {
-		info := sensitivePatterns[pattern]
+		patternKeys := strutil.SortedMapKeys(sensitivePatterns)
+		for _, pattern := range patternKeys {
+			info := sensitivePatterns[pattern]
 			if containsSecurityPattern(input.ResponseContains, pattern) {
 				if info.Impact > bestImpact || (info.Impact == bestImpact && pattern < bestPattern) {
 					bestImpact = info.Impact

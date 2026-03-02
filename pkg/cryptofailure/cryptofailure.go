@@ -17,6 +17,7 @@ import (
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/urlutil"
 )
 
@@ -433,11 +434,7 @@ func ScanForSecrets(content string) []TestResult {
 
 	patterns := SecretPatterns()
 
-	patternNames := make([]string, 0, len(patterns))
-	for name := range patterns {
-		patternNames = append(patternNames, name)
-	}
-	sort.Strings(patternNames)
+	patternNames := strutil.SortedMapKeys(patterns)
 
 	for _, name := range patternNames {
 		pattern := patterns[name]
@@ -476,11 +473,7 @@ func ScanForWeakHashing(content string) []TestResult {
 
 	patterns := WeakHashPatterns()
 
-	hashNames := make([]string, 0, len(patterns))
-	for name := range patterns {
-		hashNames = append(hashNames, name)
-	}
-	sort.Strings(hashNames)
+	hashNames := strutil.SortedMapKeys(patterns)
 
 	for _, name := range hashNames {
 		pattern := patterns[name]

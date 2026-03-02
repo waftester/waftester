@@ -6,13 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
-	"sort"
 	"strings"
 	"text/template"
 	"time"
 
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/regexcache"
+	"github.com/waftester/waftester/pkg/strutil"
 	"github.com/waftester/waftester/pkg/ui"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -287,12 +287,7 @@ func Validate(templateStr string) error {
 
 // ListPresets returns available preset names in sorted order.
 func ListPresets() []string {
-	presets := make([]string, 0, len(Presets))
-	for name := range Presets {
-		presets = append(presets, name)
-	}
-	sort.Strings(presets)
-	return presets
+	return strutil.SortedMapKeys(Presets)
 }
 
 // Helper functions

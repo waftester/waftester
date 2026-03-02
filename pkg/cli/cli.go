@@ -685,15 +685,11 @@ func LoadConfig(path string) (*Config, error) {
 
 // SaveConfig saves CLI config to file.
 func SaveConfig(config *Config, path string) error {
-	data, err := json.MarshalIndent(config, "", "  ")
-	if err != nil {
-		return err
-	}
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	return iohelper.WriteAtomicJSON(path, config, 0644)
 }
 
 // Commands returns list of available commands.
