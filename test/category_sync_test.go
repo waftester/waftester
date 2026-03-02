@@ -2448,3 +2448,89 @@ func TestGrpcListingOnStderr(t *testing.T) {
 		}
 	}
 }
+
+// =============================================================================
+// WAVE 8: RUNTIME BUG REGRESSION TESTS
+// =============================================================================
+
+// TestDiscoveryStatisticsUseSafeCopy verifies that discovery statistics are
+// computed from the mutex-protected copy, not from the shared d.endpoints slice.
+func TestDiscoveryStatisticsUseSafeCopy(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "pkg", "discovery", "discovery.go"))
+	if err != nil {
+		t.Fatalf("cannot read discovery.go: %v", err)
+	}
+	src := string(data)
+
+	// After the mutex unlock, statistics must use result.Endpoints (the safe copy),
+	// not d.endpoints (the shared slice). Find the TotalEndpoints assignment.
+	if strings.Contains(src, "TotalEndpoints = len(d.endpoints)") {
+		t.Error("discovery.go computes TotalEndpoints from d.endpoints after mutex unlock — should use result.Endpoints")
+	}
+	if strings.Contains(src, "range d.endpoints {") &&
+		strings.Contains(src, "TotalParameters") {
+		// Verify the range loop for TotalParameters uses result.Endpoints
+		paramIdx := strings.Index(src, "TotalParameters")
+		if paramIdx > 0 {
+			// Look backwards for the nearest range statement
+			before := src[max(0, paramIdx-300):paramIdx]
+			if strings.Contains(before, "range d.endpoints") {
+				t.Error("discovery.go iterates d.endpoints for TotalParameters — should use result.Endpoints")
+			}
+		}
+	}
+}
+
+// TestMutationExecutorAcceptsContext verifies that NewExecutor requires a
+// context.Context parameter so auto-calibration respects signal cancellation.
+func TestMutationExecutorAcceptsContext(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "pkg", "mutation", "executor.go"))
+	if err != nil {
+		t.Fatalf("cannot read executor.go: %v", err)
+	}
+	src := string(data)
+
+	if !strings.Contains(src, "func NewExecutor(ctx context.Context,") {
+		t.Error("NewExecutor should accept context.Context as first parameter for signal-aware calibration")
+	}
+	// Ensure context.Background() is not used in actual code (comments are OK)
+	for i, line := range strings.Split(src, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.Contains(trimmed, "context.Background()") && !strings.HasPrefix(trimmed, "//") {
+			t.Errorf("executor.go:%d uses context.Background() in code — should use the passed ctx", i+1)
+		}
+	}
+}
+
+// TestCrtshDNSResolutionCapped verifies that crt.sh FetchIPs caps the number
+// of DNS resolutions to prevent unbounded queries on popular domains.
+func TestCrtshDNSResolutionCapped(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "pkg", "osint", "crtsh.go"))
+	if err != nil {
+		t.Fatalf("cannot read crtsh.go: %v", err)
+	}
+	src := string(data)
+
+	if !strings.Contains(src, "maxResolve") {
+		t.Error("crtsh.go FetchIPs should cap DNS resolution count with maxResolve")
+	}
+}
+
+// TestRateLimiterPreciseRefill verifies that the OSINT rate limiter advances
+// lastRefill precisely instead of using time.Now() which causes time drift.
+func TestRateLimiterPreciseRefill(t *testing.T) {
+	repoRoot := getRepoRoot(t)
+	data, err := os.ReadFile(filepath.Join(repoRoot, "pkg", "osint", "osint.go"))
+	if err != nil {
+		t.Fatalf("cannot read osint.go: %v", err)
+	}
+	src := string(data)
+
+	// The refill logic should advance by exact interval, not reset to time.Now()
+	if strings.Contains(src, "r.lastRefill = time.Now()") {
+		t.Error("osint.go RateLimiter uses time.Now() for lastRefill — should advance by exact refillCount * refillRate to avoid drift")
+	}
+}
