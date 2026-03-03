@@ -5,6 +5,41 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Design system documentation** (`docs/design-system.md`) — Comprehensive visual identity guide for HTML/PDF output including color palette, typography, depth tiers, and forbidden patterns
+- **`DefaultHTMLConfig()` factory function** — Returns config with all features enabled; use as starting point and override specific fields
+- **`HTMLConfig.UseSystemFonts` option** — Opt-out of Google Fonts CDN for privacy/offline environments
+- **20 negative tests for HTML writer** — Error boundaries, nil handling, XSS escaping, config edge cases
+
+### Fixed
+
+- **HTMLConfig defaults bug** — Setting ANY single bool field to `true` no longer breaks defaults for ALL other fields; semantic change: `HTMLConfig{}` now means "all features OFF", use `DefaultHTMLConfig()` for defaults
+- **CSS `rgba()` syntax compatibility** — Changed from modern `rgb(0 0 0 / 0.1)` to `rgba(0,0,0,0.1)` for Safari <14.1 and Firefox <104
+- **SVG pie chart colors** — Risk chart colors now match CSS variable definitions
+- **External links security** — Added `noreferrer` attribute to all `target="_blank"` links
+
+### Changed
+
+- **`pkg/output/builder.go`** — Now uses `DefaultHTMLConfig()` then overrides `IncludeEvidence` based on template settings
+
+### Migration Guide
+
+**HTMLConfig semantic change:**
+```go
+// BEFORE (v2.9.43): Zero-value had implicit defaults
+cfg := HTMLConfig{IncludeEvidence: true}  // Got all defaults
+
+// AFTER: Zero-value means all features OFF
+cfg := HTMLConfig{IncludeEvidence: true}  // Only IncludeEvidence is true
+
+// MIGRATION: Use factory function
+cfg := DefaultHTMLConfig()
+cfg.IncludeEvidence = true  // Starts with all defaults
+```
+
 ## [2.9.43] - 2026-03-02
 
 ### Fixed
