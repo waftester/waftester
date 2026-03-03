@@ -382,9 +382,10 @@ func generateRiskChartSVG(counts map[string]int) string {
 		return ""
 	}
 
-	// Build SVG
+	// Build SVG with accessibility attributes
 	var sb strings.Builder
-	sb.WriteString(`<svg viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg" class="risk-chart">`)
+	sb.WriteString(`<svg viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg" class="risk-chart" role="img" aria-labelledby="risk-chart-title">`)
+	sb.WriteString(`<title id="risk-chart-title">Risk distribution pie chart showing vulnerability severity breakdown</title>`)
 
 	// Pie chart center and radius
 	cx, cy, r := 80.0, 100.0, 70.0
@@ -1285,6 +1286,17 @@ const htmlTemplate = `<!DOCTYPE html>
                 animation-iteration-count: 1 !important;
                 transition-duration: 0.01ms !important;
             }
+        }
+
+        /* Accessibility: Focus visible styles */
+        :focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        /* Remove default focus outline when not using keyboard */
+        :focus:not(:focus-visible) {
+            outline: none;
         }
 
         /* Reset and base styles */

@@ -3539,8 +3539,87 @@ func TestHTMLWriter_CSS_DarkModeAndResponsive(t *testing.T) {
 		}
 	}
 
+	// Accessibility CSS validation
+	accessibilityChecks := []struct {
+		pattern string
+		name    string
+	}{
+		{":focus-visible", "focus-visible selector"},
+		{"outline:", "focus outline style"},
+		{"outline-offset:", "focus outline offset"},
+	}
+
+	for _, check := range accessibilityChecks {
+		if !strings.Contains(output, check.pattern) {
+			t.Errorf("Missing accessibility %s: %q not found", check.name, check.pattern)
+		}
+	}
+
 	// Browser compatibility - verify rgba() not rgb() with / syntax
 	if strings.Contains(output, "rgb(0 0 0 /") || strings.Contains(output, "rgb(255 255 255 /") {
 		t.Error("Found modern rgb() syntax that breaks Safari<14.1 - use rgba() instead")
+	}
+}
+
+// TestHTMLWriter_Accessibility_SVGChart verifies SVG chart has proper
+// accessibility attributes for screen readers.
+func TestHTMLWriter_Accessibility_SVGChart(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	cfg := DefaultHTMLConfig()
+	cfg.ShowRiskChart = true
+	writer := NewHTMLWriter(&buf, cfg)
+
+	// Write findings to trigger risk chart generation
+	severities := []events.Severity{events.SeverityCritical, events.SeverityHigh, events.SeverityMedium}
+	for i, sev := range severities {
+		err := writer.Write(&events.ResultEvent{
+			BaseEvent: events.BaseEvent{
+				Type: events.EventTypeResult,
+				Time: time.Now(),
+				Scan: "a11y-test",
+			},
+			Test: events.TestInfo{
+				ID:       fmt.Sprintf("A11Y-%d", i),
+				Category: "sqli",
+				Severity: sev,
+			},
+			Target: events.TargetInfo{
+				URL:    "https://example.com",
+				Method: "GET",
+			},
+			Result: events.ResultInfo{
+				Outcome:    events.OutcomeBypass,
+				StatusCode: 200,
+				LatencyMs:  10,
+			},
+		})
+		if err != nil {
+			t.Fatalf("Write failed: %v", err)
+		}
+	}
+
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+
+	htmlOutput := buf.String()
+
+	// SVG accessibility checks
+	svgChecks := []struct {
+		pattern string
+		name    string
+	}{
+		{`role="img"`, "SVG role attribute"},
+		{`aria-labelledby=`, "SVG aria-labelledby reference"},
+		{`<title id=`, "SVG title element with id"},
+		{"Risk distribution", "Descriptive title text"},
+	}
+
+	for _, check := range svgChecks {
+		if !strings.Contains(htmlOutput, check.pattern) {
+			t.Errorf("Missing SVG accessibility %s: %q not found", check.name, check.pattern)
+		}
 	}
 }
