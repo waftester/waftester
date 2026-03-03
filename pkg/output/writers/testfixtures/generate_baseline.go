@@ -5,11 +5,11 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"time"
 
+	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/output/events"
 	"github.com/waftester/waftester/pkg/output/writers"
 )
@@ -58,12 +58,7 @@ func generateBaselines() error {
 		},
 	}
 
-	metricsJSON, err := json.MarshalIndent(metrics, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal metrics: %w", err)
-	}
-
-	if err := os.WriteFile("baseline_metrics.json", metricsJSON, 0644); err != nil {
+	if err := iohelper.WriteAtomicJSON("baseline_metrics.json", metrics, 0644); err != nil {
 		return fmt.Errorf("write metrics: %w", err)
 	}
 
