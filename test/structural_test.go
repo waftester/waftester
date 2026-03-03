@@ -2050,20 +2050,21 @@ func TestNoDirectPrintInPkg(t *testing.T) {
 
 	// Packages that legitimately produce console output.
 	allowlist := map[string]bool{
-		"ui":          true,
-		"interactive": true,
-		"mcpserver":   true,
-		"output":      true,
-		"discovery":   true,
-		"fp":          true,
-		"core":        true,
-		"corpus":      true,
-		"params":      true,
-		"report":      true,
-		"update":      true,
-		"validate":    true,
-		"input":       true,
-		"hooks":       true,
+		"ui":           true,
+		"interactive":  true,
+		"mcpserver":    true,
+		"output":       true,
+		"discovery":    true,
+		"fp":           true,
+		"core":         true,
+		"corpus":       true,
+		"params":       true,
+		"report":       true,
+		"update":       true,
+		"validate":     true,
+		"input":        true,
+		"hooks":        true,
+		"testfixtures": true, // standalone dev tool with //go:build ignore
 	}
 
 	// Patterns that indicate direct stdout/stderr output.

@@ -5,7 +5,7 @@ All notable changes to WAFtester will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.9.44] - 2026-03-03
 
 ### Added
 
@@ -2830,6 +2830,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ---
 
+[2.9.44]: https://github.com/waftester/waftester/compare/v2.9.43...v2.9.44
 [2.9.43]: https://github.com/waftester/waftester/compare/v2.9.42...v2.9.43
 [2.9.42]: https://github.com/waftester/waftester/compare/v2.9.41...v2.9.42
 [2.9.41]: https://github.com/waftester/waftester/compare/v2.9.40...v2.9.41
