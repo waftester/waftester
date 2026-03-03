@@ -98,6 +98,16 @@ jobs:
         with:
           version: latest
 
+      - name: Design system forbidden patterns
+        run: |
+          # Check for forbidden AI-slop colors in HTML template (see docs/design-system.md)
+          FORBIDDEN_COLORS='#8b5cf6|#7c3aed|#a78bfa|#6366f1|#4f46e5|#d946ef'
+          if grep -iE "$FORBIDDEN_COLORS" pkg/output/writers/html.go; then
+            echo "::error::Found forbidden AI-slop colors in html.go — see docs/design-system.md"
+            exit 1
+          fi
+          echo "✓ No forbidden colors found"
+
   # Umbrella job — branch protection requires this single check name
   ci:
     if: always()
