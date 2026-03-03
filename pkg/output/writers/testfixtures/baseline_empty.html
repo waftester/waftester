@@ -4,51 +4,85 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WAFtester Baseline Report</title>
+    
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
     <style>
          
         :root {
             --bg-primary: #ffffff;
-            --bg-secondary: #f8f9fa;
+            --bg-secondary: #f8fafc;
+            --bg-recessed: #f1f5f9;
             --bg-card: #ffffff;
-            --text-primary: #212529;
-            --text-secondary: #6c757d;
-            --border-color: #dee2e6;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-dim: #94a3b8;
+            --border-color: #e2e8f0;
             --shadow: 0 2px 8px rgba(0,0,0,0.1);
-            --accent: #0d6efd;
-            --severity-critical: #dc3545;
-            --severity-high: #fd7e14;
-            --severity-medium: #ffc107;
-            --severity-low: #20c997;
-            --severity-info: #0dcaf0;
-            --outcome-bypass: #dc3545;
-            --outcome-blocked: #198754;
-            --outcome-error: #6c757d;
-            --outcome-timeout: #6f42c1;
-            --owasp-pass: #198754;
-            --owasp-fail: #dc3545;
-            --owasp-none: #6c757d;
+            
+             
+            --accent: #0d9488;
+            --accent-hover: #14b8a6;
+            --accent-muted: #5eead4;
+            
+             
+            --severity-critical: #dc2626;
+            --severity-high: #ea580c;
+            --severity-medium: #ca8a04;
+            --severity-low: #16a34a;
+            --severity-info: #2563eb;
+            --outcome-bypass: #dc2626;
+            --outcome-blocked: #16a34a;
+            --outcome-error: #64748b;
+            --outcome-timeout: #64748b;
+            --owasp-pass: #16a34a;
+            --owasp-fail: #dc2626;
+            --owasp-none: #64748b;
 
              
-            --font-mono: 'Geist Mono', 'JetBrains Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
+            --font-body: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            --font-mono: 'IBM Plex Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
+            --text-xs: 0.75rem;
+            --text-sm: 0.875rem;
+            --text-base: 1rem;
+            --text-lg: 1.125rem;
+            --text-xl: 1.25rem;
+            --text-2xl: 1.5rem;
+
+             
             --terminal-green: #33ff00;
             --header-gradient: linear-gradient(135deg, #1a365d 0%, #0f2942 100%);
 
              
-            --risk-3: #ed5033;   
-            --risk-2: #ffb900;   
-            --risk-1: #ece04c;   
-            --risk-0: #278feb;   
-            --risk-pass: #16cd71;   
+            --risk-3: #dc2626;   
+            --risk-2: #ca8a04;   
+            --risk-1: #16a34a;   
+            --risk-0: #2563eb;   
+            --risk-pass: #16a34a;   
         }
 
         [data-theme="dark"] {
-            --bg-primary: #1a1a2e;
-            --bg-secondary: #16213e;
-            --bg-card: #0f3460;
-            --text-primary: #e8e8e8;
-            --text-secondary: #a0a0a0;
-            --border-color: #3a3a5c;
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-recessed: #334155;
+            --bg-card: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-dim: #64748b;
+            --border-color: #334155;
             --shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+         
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
         }
 
          
@@ -57,12 +91,56 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            font-family: var(--font-body);
             background: var(--bg-primary);
             color: var(--text-primary);
             margin: 0;
             padding: 0;
             line-height: 1.6;
+            font-size: var(--text-sm);
+        }
+
+         
+        .depth-hero {
+            background: var(--bg-card);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+        }
+
+        .depth-default {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.375rem;
+            padding: 1rem;
+        }
+
+        .depth-recessed {
+            background: var(--bg-recessed);
+            border-radius: 0.25rem;
+            padding: 0.5rem 0.75rem;
+            color: var(--text-secondary);
+        }
+
+         
+        .section-label {
+            font-size: var(--text-xs);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .section-label::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
         }
 
          
@@ -164,16 +242,20 @@
             font-size: 2.5rem;
             font-weight: 700;
             line-height: 1;
+            font-family: var(--font-mono);
         }
 
         .summary-card .label {
             color: var(--text-secondary);
             font-size: 0.875rem;
             margin-top: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
         }
 
         .grade-card .value {
             font-size: 3rem;
+            font-family: var(--font-mono);
         }
 
          
@@ -1023,15 +1105,15 @@
     <div class="report-meta">
         
         
-        <div class="meta-item"><span class="meta-label">Generated:</span> 2026-03-02 23:56:20 &#43;04</div>
+        <div class="meta-item"><span class="meta-label">Generated:</span> 2026-03-03 11:30:10 &#43;04</div>
         
     </div>
 
     <main class="container">
         
         
-        <section class="executive-summary" aria-label="Executive Summary">
-            <h2>📋 Executive Summary</h2>
+        <section class="executive-summary depth-hero" aria-label="Executive Summary">
+            <span class="section-label">Executive Summary</span>
             <div class="summary-grid">
                 <div class="summary-card grade-card">
                     <div class="value">F</div>
@@ -1066,7 +1148,7 @@
             <h3>Key Recommendations</h3>
             <ul class="recommendations-list">
                 
-                <li>✅ Excellent WAF coverage - no bypasses detected in this scan</li>
+                <li>Excellent WAF coverage — no bypasses detected in this scan</li>
                 
             </ul>
             
@@ -1109,7 +1191,7 @@
         <section class="collapsible-section owasp-section" id="owasp-section" aria-label="OWASP Top 10 Coverage">
             <div class="section-header" onclick="toggleSection('owasp-section')">
                 <span class="section-toggle">▼</span>
-                <h2>📊 OWASP Top 10 2021 Coverage</h2>
+                <span class="section-label">OWASP Top 10 2021 Coverage</span>
             </div>
             <div class="collapsible-content">
                 <div class="owasp-grid">
@@ -1117,7 +1199,7 @@
                     <div class="owasp-item">
                         <div class="owasp-status none" aria-label="none"></div>
                         <div class="owasp-info">
-                            <a href="https://owasp.org/Top10/A01_2021-Broken_Access_Control/" target="_blank" rel="noopener" class="ref-link">A01:2021</a>
+                            <a href="https://owasp.org/Top10/A01_2021-Broken_Access_Control/" target="_blank" rel="noopener noreferrer" class="ref-link">A01:2021</a>
                             <div class="owasp-name">Broken Access Control</div>
                         </div>
                         <div class="owasp-stats">
@@ -1128,7 +1210,7 @@
                     <div class="owasp-item">
                         <div class="owasp-status none" aria-label="none"></div>
                         <div class="owasp-info">
-                            <a href="https://owasp.org/Top10/A02_2021-Cryptographic_Failures/" target="_blank" rel="noopener" class="ref-link">A02:2021</a>
+                            <a href="https://owasp.org/Top10/A02_2021-Cryptographic_Failures/" target="_blank" rel="noopener noreferrer" class="ref-link">A02:2021</a>
                             <div class="owasp-name">Cryptographic Failures</div>
                         </div>
                         <div class="owasp-stats">
@@ -1139,7 +1221,7 @@
                     <div class="owasp-item">
                         <div class="owasp-status none" aria-label="none"></div>
                         <div class="owasp-info">
-                            <a href="https://owasp.org/Top10/A03_2021-Injection/" target="_blank" rel="noopener" class="ref-link">A03:2021</a>
+                            <a href="https://owasp.org/Top10/A03_2021-Injection/" target="_blank" rel="noopener noreferrer" class="ref-link">A03:2021</a>
                             <div class="owasp-name">Injection</div>
                         </div>
                         <div class="owasp-stats">
@@ -1150,7 +1232,7 @@
                     <div class="owasp-item">
                         <div class="owasp-status none" aria-label="none"></div>
                         <div class="owasp-info">
-                            <a href="https://owasp.org/Top10/A04_2021-Insecure_Design/" target="_blank" rel="noopener" class="ref-link">A04:2021</a>
+                            <a href="https://owasp.org/Top10/A04_2021-Insecure_Design/" target="_blank" rel="noopener noreferrer" class="ref-link">A04:2021</a>
                             <div class="owasp-name">Insecure Design</div>
                         </div>
                         <div class="owasp-stats">
@@ -1161,7 +1243,7 @@
                     <div class="owasp-item">
                         <div class="owasp-status none" aria-label="none"></div>
                         <div class="owasp-info">
-                            <a href="https://owasp.org/Top10/A05_2021-Security_Misconfiguration/" target="_blank" rel="noopener" class="ref-link">A05:2021</a>
+                            <a href="https://owasp.org/Top10/A05_2021-Security_Misconfiguration/" target="_blank" rel="noopener noreferrer" class="ref-link">A05:2021</a>
                             <div class="owasp-name">Security Misconfiguration</div>
                         </div>
                         <div class="owasp-stats">
@@ -1172,7 +1254,7 @@
                     <div class="owasp-item">
                         <div class="owasp-status none" aria-label="none"></div>
                         <div class="owasp-info">
-                            <a href="https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/" target="_blank" rel="noopener" class="ref-link">A06:2021</a>
+                            <a href="https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/" target="_blank" rel="noopener noreferrer" class="ref-link">A06:2021</a>
                             <div class="owasp-name">Vulnerable and Outdated Components</div>
                         </div>
                         <div class="owasp-stats">
@@ -1183,7 +1265,7 @@
                     <div class="owasp-item">
                         <div class="owasp-status none" aria-label="none"></div>
                         <div class="owasp-info">
-                            <a href="https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/" target="_blank" rel="noopener" class="ref-link">A07:2021</a>
+                            <a href="https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/" target="_blank" rel="noopener noreferrer" class="ref-link">A07:2021</a>
                             <div class="owasp-name">Identification and Authentication Failures</div>
                         </div>
                         <div class="owasp-stats">
@@ -1194,7 +1276,7 @@
                     <div class="owasp-item">
                         <div class="owasp-status none" aria-label="none"></div>
                         <div class="owasp-info">
-                            <a href="https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/" target="_blank" rel="noopener" class="ref-link">A08:2021</a>
+                            <a href="https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/" target="_blank" rel="noopener noreferrer" class="ref-link">A08:2021</a>
                             <div class="owasp-name">Software and Data Integrity Failures</div>
                         </div>
                         <div class="owasp-stats">
@@ -1205,7 +1287,7 @@
                     <div class="owasp-item">
                         <div class="owasp-status none" aria-label="none"></div>
                         <div class="owasp-info">
-                            <a href="https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/" target="_blank" rel="noopener" class="ref-link">A09:2021</a>
+                            <a href="https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/" target="_blank" rel="noopener noreferrer" class="ref-link">A09:2021</a>
                             <div class="owasp-name">Security Logging and Monitoring Failures</div>
                         </div>
                         <div class="owasp-stats">
@@ -1216,7 +1298,7 @@
                     <div class="owasp-item">
                         <div class="owasp-status none" aria-label="none"></div>
                         <div class="owasp-info">
-                            <a href="https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_%28SSRF%29/" target="_blank" rel="noopener" class="ref-link">A10:2021</a>
+                            <a href="https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_%28SSRF%29/" target="_blank" rel="noopener noreferrer" class="ref-link">A10:2021</a>
                             <div class="owasp-name">Server-Side Request Forgery</div>
                         </div>
                         <div class="owasp-stats">
@@ -1240,12 +1322,12 @@
         <section class="findings-section collapsible-section" id="findings-section" aria-label="Security Findings">
             <div class="section-header" onclick="toggleSection('findings-section')">
                 <span class="section-toggle">▼</span>
-                <h2>🔍 Findings (0)</h2>
+                <span class="section-label">Findings (0)</span>
             </div>
             <div class="collapsible-content">
             
             <div class="findings-toolbar no-print">
-                <input type="text" class="filter-input" id="findingsFilter" placeholder="🔍 Filter findings..." onkeyup="filterFindings()">
+                <input type="text" class="filter-input" id="findingsFilter" placeholder="Filter findings..." onkeyup="filterFindings()">
                 <select class="filter-select" id="severityFilter" onchange="filterFindings()">
                     <option value="">All Severities</option>
                     <option value="critical">Critical</option>
@@ -1276,7 +1358,7 @@
     </noscript>
 
     <footer class="footer">
-        <p>Generated by WAFtester on 2026-03-02 23:56:20 &#43;04</p>
+        <p>Generated by WAFtester on 2026-03-03 11:30:10 &#43;04</p>
         
         
     </footer>
@@ -1446,7 +1528,7 @@
         function exportJSON() {
             const data = {
                 title: "WAFtester Baseline Report",
-                generated: "2026-03-02 23:56:20 \u002b04",
+                generated: "2026-03-03 11:30:10 \u002b04",
                 target: "",
                 grade: "F",
                 blockRate: "0.0",
