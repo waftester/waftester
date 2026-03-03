@@ -76,6 +76,55 @@ jobs:
       - name: Structural tests
         run: cd test && go test -v -timeout 5m ./...
 
+      - name: Generate HTML test report
+        run: |
+          # Build the CLI
+          go build -o waftester ./cmd/cli
+          # Generate a test HTML report using the baseline generator
+          cd pkg/output/writers/testfixtures
+          go run generate_baseline.go
+          echo "✓ HTML report generation works"
+
+      - name: Validate HTML structure
+        run: |
+          # Check generated HTML has required structure
+          HTML_FILE="pkg/output/writers/testfixtures/baseline_small.html"
+          if [ ! -f "$HTML_FILE" ]; then
+            echo "::error::Baseline HTML file not generated"
+            exit 1
+          fi
+          
+          # Verify DOCTYPE
+          if ! head -1 "$HTML_FILE" | grep -q "<!DOCTYPE html>"; then
+            echo "::error::Missing DOCTYPE in generated HTML"
+            exit 1
+          fi
+          
+          # Verify design system elements
+          if ! grep -q "IBM Plex" "$HTML_FILE"; then
+            echo "::error::Missing IBM Plex fonts in generated HTML"
+            exit 1
+          fi
+          
+          if ! grep -q "#0d9488" "$HTML_FILE"; then
+            echo "::error::Missing teal accent color in generated HTML"
+            exit 1
+          fi
+          
+          if ! grep -q "Executive Summary" "$HTML_FILE"; then
+            echo "::error::Missing Executive Summary section"
+            exit 1
+          fi
+          
+          echo "✓ HTML structure validated"
+
+      - name: Upload HTML test artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: html-test-reports
+          path: pkg/output/writers/testfixtures/baseline_*.html
+          retention-days: 7
+
       # Hardcode enforcement runs as part of normal test suite
       # See pkg/defaults/defaults_test.go for TestNoHardcoded* tests
 
