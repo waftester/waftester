@@ -230,13 +230,9 @@ func BuildDispatcher(cfg Config) (*dispatcher.Dispatcher, error) {
 			return nil, err
 		}
 
-		// Build HTMLConfig with optional template customization
-		htmlCfg := writers.HTMLConfig{
-			Title:           "WAFtester Security Report",
-			Theme:           "auto",
-			IncludeEvidence: !cfg.OmitEvidence,
-			IncludeJSON:     true,
-		}
+		// Build HTMLConfig starting with all defaults, then override as needed
+		htmlCfg := writers.DefaultHTMLConfig()
+		htmlCfg.IncludeEvidence = !cfg.OmitEvidence
 
 		// Load template config if provided
 		if cfg.TemplateConfigPath != "" {

@@ -62,6 +62,37 @@ type HTMLConfig struct {
 
 	// PrintOptimized adds print-optimized styles for PDF export (default: true)
 	PrintOptimized bool
+
+	// UseSystemFonts disables external Google Fonts CDN to improve privacy
+	// and support offline/air-gapped environments (default: false)
+	UseSystemFonts bool
+}
+
+// DefaultHTMLConfig returns an HTMLConfig with all features enabled.
+// Use this as a starting point and override specific fields as needed.
+//
+// Example:
+//
+//	cfg := DefaultHTMLConfig()
+//	cfg.ShowRiskChart = false  // Disable just this feature
+//	cfg.Title = "My Report"    // Custom title
+//	w := NewHTMLWriter(out, cfg)
+//
+// For zero-value behavior (all features OFF), use HTMLConfig{} directly.
+func DefaultHTMLConfig() HTMLConfig {
+	return HTMLConfig{
+		Title:                "WAFtester Security Report",
+		Theme:                "auto",
+		IncludeEvidence:      true,
+		IncludeJSON:          true,
+		ShowExecutiveSummary: true,
+		ShowRiskChart:        true,
+		ShowRiskMatrix:       true,
+		ShowCurlCommands:     true,
+		MaxResponseLength:    5 * 1024, // 5KB
+		PrintOptimized:       true,
+		UseSystemFonts:       false, // Use Google Fonts CDN by default
+	}
 }
 
 // HTMLWriter writes events as a styled HTML report.
@@ -77,7 +108,16 @@ type HTMLWriter struct {
 
 // NewHTMLWriter creates a new HTML report writer.
 // The writer buffers all events and writes a complete HTML report on Close.
+//
+// For sensible defaults, use DefaultHTMLConfig() as the config:
+//
+//	w := NewHTMLWriter(out, DefaultHTMLConfig())
+//
+// For minimal output (all features off), use HTMLConfig{}:
+//
+//	w := NewHTMLWriter(out, HTMLConfig{})
 func NewHTMLWriter(w io.Writer, config HTMLConfig) *HTMLWriter {
+	// Apply defaults only to non-bool fields with zero values
 	if config.Title == "" {
 		config.Title = "WAFtester Security Report"
 	}
@@ -87,19 +127,9 @@ func NewHTMLWriter(w io.Writer, config HTMLConfig) *HTMLWriter {
 	if config.MaxResponseLength <= 0 {
 		config.MaxResponseLength = 5 * 1024 // 5KB default
 	}
-	// Set defaults to true for new features
-	if !config.ShowExecutiveSummary && !config.ShowRiskChart && !config.ShowRiskMatrix &&
-		!config.ShowCurlCommands && !config.PrintOptimized &&
-		!config.IncludeEvidence && !config.IncludeJSON {
-		// Zero-value config: enable all features by default.
-		config.ShowExecutiveSummary = true
-		config.ShowRiskChart = true
-		config.ShowRiskMatrix = true
-		config.ShowCurlCommands = true
-		config.PrintOptimized = true
-		config.IncludeEvidence = true
-		config.IncludeJSON = true
-	}
+	// Bool fields: use caller-provided values as-is
+	// Callers wanting defaults should use DefaultHTMLConfig()
+
 	return &HTMLWriter{
 		w:       w,
 		config:  config,
@@ -319,13 +349,13 @@ func generateRiskChartSVG(counts map[string]int) string {
 		return ""
 	}
 
-	// Define colors for each severity
+	// Define colors matching CSS variables (updated design system)
 	colors := map[string]string{
-		"critical": "#dc3545",
-		"high":     "#fd7e14",
-		"medium":   "#ffc107",
-		"low":      "#28a745",
-		"info":     "#17a2b8",
+		"critical": "#dc2626", // --severity-critical
+		"high":     "#ea580c", // --severity-high
+		"medium":   "#ca8a04", // --severity-medium
+		"low":      "#16a34a", // --severity-low
+		"info":     "#2563eb", // --severity-info
 	}
 
 	// Calculate pie chart segments
@@ -483,14 +513,14 @@ func generateTopRecommendations(results []*events.ResultEvent, severityCounts ma
 	// Critical bypasses recommendation
 	if severityCounts["critical"] > 0 {
 		recommendations = append(recommendations,
-			fmt.Sprintf("🚨 Address %d critical severity bypass(es) immediately - these represent highest risk vulnerabilities",
+			fmt.Sprintf("Address %d critical severity bypass(es) immediately — these represent highest risk vulnerabilities",
 				severityCounts["critical"]))
 	}
 
 	// High severity recommendation
 	if severityCounts["high"] > 0 {
 		recommendations = append(recommendations,
-			fmt.Sprintf("⚠️ Review %d high severity bypass(es) - update WAF rules to block these attack patterns",
+			fmt.Sprintf("Review %d high severity bypass(es) — update WAF rules to block these attack patterns",
 				severityCounts["high"]))
 	}
 
@@ -514,7 +544,7 @@ func generateTopRecommendations(results []*events.ResultEvent, severityCounts ma
 
 	if worstCat != "" && len(recommendations) < 3 {
 		recommendations = append(recommendations,
-			fmt.Sprintf("📋 Focus on %s protection - %d bypass(es) detected in this category",
+			fmt.Sprintf("Focus on %s protection — %d bypass(es) detected in this category",
 				worstCat, worstCount))
 	}
 
@@ -525,7 +555,7 @@ func generateTopRecommendations(results []*events.ResultEvent, severityCounts ma
 			totalBypasses += c
 		}
 		if totalBypasses == 0 {
-			recommendations = append(recommendations, "✅ Excellent WAF coverage - no bypasses detected in this scan")
+			recommendations = append(recommendations, "Excellent WAF coverage — no bypasses detected in this scan")
 		}
 	}
 
@@ -1176,51 +1206,85 @@ const htmlTemplate = `<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.Config.Title}}</title>
+    {{if not .Config.UseSystemFonts}}
+    <!-- Design System: IBM Plex fonts for professional, non-generic appearance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    {{end}}
     <style>
         /* CSS Variables for theming */
         :root {
             --bg-primary: #ffffff;
-            --bg-secondary: #f8f9fa;
+            --bg-secondary: #f8fafc;
+            --bg-recessed: #f1f5f9;
             --bg-card: #ffffff;
-            --text-primary: #212529;
-            --text-secondary: #6c757d;
-            --border-color: #dee2e6;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-dim: #94a3b8;
+            --border-color: #e2e8f0;
             --shadow: 0 2px 8px rgba(0,0,0,0.1);
-            --accent: #0d6efd;
-            --severity-critical: #dc3545;
-            --severity-high: #fd7e14;
-            --severity-medium: #ffc107;
-            --severity-low: #20c997;
-            --severity-info: #0dcaf0;
-            --outcome-bypass: #dc3545;
-            --outcome-blocked: #198754;
-            --outcome-error: #6c757d;
-            --outcome-timeout: #6f42c1;
-            --owasp-pass: #198754;
-            --owasp-fail: #dc3545;
-            --owasp-none: #6c757d;
+            
+            /* Design System: Teal accent (NOT purple/violet AI defaults) */
+            --accent: #0d9488;
+            --accent-hover: #14b8a6;
+            --accent-muted: #5eead4;
+            
+            /* ZAP-inspired severity colors */
+            --severity-critical: #dc2626;
+            --severity-high: #ea580c;
+            --severity-medium: #ca8a04;
+            --severity-low: #16a34a;
+            --severity-info: #2563eb;
+            --outcome-bypass: #dc2626;
+            --outcome-blocked: #16a34a;
+            --outcome-error: #64748b;
+            --outcome-timeout: #64748b;
+            --owasp-pass: #16a34a;
+            --owasp-fail: #dc2626;
+            --owasp-none: #64748b;
 
-            /* Nuclei-inspired terminal aesthetic */
-            --font-mono: 'Geist Mono', 'JetBrains Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
+            /* Design System: Typography */
+            --font-body: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            --font-mono: 'IBM Plex Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
+            --text-xs: 0.75rem;
+            --text-sm: 0.875rem;
+            --text-base: 1rem;
+            --text-lg: 1.125rem;
+            --text-xl: 1.25rem;
+            --text-2xl: 1.5rem;
+
+            /* Legacy compatibility */
             --terminal-green: #33ff00;
             --header-gradient: linear-gradient(135deg, #1a365d 0%, #0f2942 100%);
 
             /* ZAP Corporate Color Palette */
-            --risk-3: #ed5033;  /* Critical/High */
-            --risk-2: #ffb900;  /* Medium */
-            --risk-1: #ece04c;  /* Low */
-            --risk-0: #278feb;  /* Info */
-            --risk-pass: #16cd71;  /* Pass */
+            --risk-3: #dc2626;  /* Critical/High */
+            --risk-2: #ca8a04;  /* Medium */
+            --risk-1: #16a34a;  /* Low */
+            --risk-0: #2563eb;  /* Info */
+            --risk-pass: #16a34a;  /* Pass */
         }
 
         [data-theme="dark"] {
-            --bg-primary: #1a1a2e;
-            --bg-secondary: #16213e;
-            --bg-card: #0f3460;
-            --text-primary: #e8e8e8;
-            --text-secondary: #a0a0a0;
-            --border-color: #3a3a5c;
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-recessed: #334155;
+            --bg-card: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-dim: #64748b;
+            --border-color: #334155;
             --shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        /* Reduced motion preference */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
         }
 
         /* Reset and base styles */
@@ -1229,12 +1293,56 @@ const htmlTemplate = `<!DOCTYPE html>
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            font-family: var(--font-body);
             background: var(--bg-primary);
             color: var(--text-primary);
             margin: 0;
             padding: 0;
             line-height: 1.6;
+            font-size: var(--text-sm);
+        }
+
+        /* Design System: Depth Tiers */
+        .depth-hero {
+            background: var(--bg-card);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+        }
+
+        .depth-default {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.375rem;
+            padding: 1rem;
+        }
+
+        .depth-recessed {
+            background: var(--bg-recessed);
+            border-radius: 0.25rem;
+            padding: 0.5rem 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* Design System: Section Labels (replaces emoji headers) */
+        .section-label {
+            font-size: var(--text-xs);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .section-label::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
         }
 
         /* Header */
@@ -1336,16 +1444,20 @@ const htmlTemplate = `<!DOCTYPE html>
             font-size: 2.5rem;
             font-weight: 700;
             line-height: 1;
+            font-family: var(--font-mono);
         }
 
         .summary-card .label {
             color: var(--text-secondary);
             font-size: 0.875rem;
             margin-top: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
         }
 
         .grade-card .value {
             font-size: 3rem;
+            font-family: var(--font-mono);
         }
 
         /* Severity cards */
@@ -2202,8 +2314,8 @@ const htmlTemplate = `<!DOCTYPE html>
     <main class="container">
         {{if .Config.ShowExecutiveSummary}}
         <!-- Executive Summary Section -->
-        <section class="executive-summary" aria-label="Executive Summary">
-            <h2>📋 Executive Summary</h2>
+        <section class="executive-summary depth-hero" aria-label="Executive Summary">
+            <span class="section-label">Executive Summary</span>
             <div class="summary-grid">
                 <div class="summary-card grade-card">
                     <div class="value">{{.Grade}}</div>
@@ -2296,7 +2408,7 @@ const htmlTemplate = `<!DOCTYPE html>
         <section class="collapsible-section" id="risk-chart-section">
             <div class="section-header" onclick="toggleSection('risk-chart-section')">
                 <span class="section-toggle">▼</span>
-                <h2>📊 Risk Distribution</h2>
+                <span class="section-label">Risk Distribution</span>
             </div>
             <div class="collapsible-content">
                 {{.RiskChartSVG | safeHTML}}
@@ -2333,7 +2445,7 @@ const htmlTemplate = `<!DOCTYPE html>
         <section class="collapsible-section owasp-section" id="risk-matrix-section">
             <div class="section-header" onclick="toggleSection('risk-matrix-section')">
                 <span class="section-toggle">▼</span>
-                <h2>📈 Risk × Outcome Matrix</h2>
+                <span class="section-label">Risk × Outcome Matrix</span>
             </div>
             <div class="collapsible-content">
                 {{.RiskMatrixHTML | safeHTML}}
@@ -2346,7 +2458,7 @@ const htmlTemplate = `<!DOCTYPE html>
         <section class="collapsible-section owasp-section" id="sev-conf-section">
             <div class="section-header" onclick="toggleSection('sev-conf-section')">
                 <span class="section-toggle">▼</span>
-                <h2>🎯 Severity × Confidence Matrix</h2>
+                <span class="section-label">Severity × Confidence Matrix</span>
             </div>
             <div class="collapsible-content">
                 <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">Cross-tabulation of bypass findings by severity and detection confidence. Red-highlighted cells indicate confirmed, exploitable vulnerabilities.</p>
@@ -2360,7 +2472,7 @@ const htmlTemplate = `<!DOCTYPE html>
         <section class="collapsible-section owasp-section" id="site-breakdown-section">
             <div class="section-header" onclick="toggleSection('site-breakdown-section')">
                 <span class="section-toggle">▼</span>
-                <h2>🌐 Site Breakdown</h2>
+                <span class="section-label">Site Breakdown</span>
             </div>
             <div class="collapsible-content">
                 <table class="site-breakdown-table">
@@ -2397,7 +2509,7 @@ const htmlTemplate = `<!DOCTYPE html>
         <section class="collapsible-section owasp-section" id="owasp-section" aria-label="OWASP Top 10 Coverage">
             <div class="section-header" onclick="toggleSection('owasp-section')">
                 <span class="section-toggle">▼</span>
-                <h2>📊 OWASP Top 10 2021 Coverage</h2>
+                <span class="section-label">OWASP Top 10 2021 Coverage</span>
             </div>
             <div class="collapsible-content">
                 <div class="owasp-grid">
@@ -2422,7 +2534,7 @@ const htmlTemplate = `<!DOCTYPE html>
         <section class="collapsible-section owasp-section" id="passing-section">
             <div class="section-header" onclick="toggleSection('passing-section')">
                 <span class="section-toggle">▼</span>
-                <h2>✅ Passing Categories</h2>
+                <span class="section-label">Passing Categories</span>
             </div>
             <div class="collapsible-content">
                 <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">Attack categories where the WAF blocked 100% of test payloads.</p>
@@ -2444,7 +2556,7 @@ const htmlTemplate = `<!DOCTYPE html>
         <section class="collapsible-section owasp-section" id="evasion-section">
             <div class="section-header" onclick="toggleSection('evasion-section')">
                 <span class="section-toggle">▼</span>
-                <h2>🛡️ Evasion Technique Effectiveness</h2>
+                <span class="section-label">Evasion Technique Effectiveness</span>
             </div>
             <div class="collapsible-content">
                 <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">Effectiveness of evasion techniques and tamper chains. Higher bypass rates indicate techniques the WAF does not handle well.</p>
@@ -2479,7 +2591,7 @@ const htmlTemplate = `<!DOCTYPE html>
         <section class="collapsible-section owasp-section" id="insights-section">
             <div class="section-header" onclick="toggleSection('insights-section')">
                 <span class="section-toggle">▼</span>
-                <h2>💡 Scan Insights</h2>
+                <span class="section-label">Scan Insights</span>
             </div>
             <div class="collapsible-content">
                 <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">Automated observations derived from the scan results.</p>
@@ -2503,7 +2615,7 @@ const htmlTemplate = `<!DOCTYPE html>
         <section class="collapsible-section owasp-section" id="remediation-section">
             <div class="section-header" onclick="toggleSection('remediation-section')">
                 <span class="section-toggle">▼</span>
-                <h2>🔧 Remediation Guidance</h2>
+                <span class="section-label">Remediation Guidance</span>
             </div>
             <div class="collapsible-content">
                 <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">Targeted remediation guidance for each attack category where bypasses were detected.</p>
@@ -2523,12 +2635,12 @@ const htmlTemplate = `<!DOCTYPE html>
         <section class="findings-section collapsible-section" id="findings-section" aria-label="Security Findings">
             <div class="section-header" onclick="toggleSection('findings-section')">
                 <span class="section-toggle">▼</span>
-                <h2>🔍 Findings ({{len .Findings}})</h2>
+                <span class="section-label">Findings ({{len .Findings}})</span>
             </div>
             <div class="collapsible-content">
             <!-- Findings Filter Toolbar -->
             <div class="findings-toolbar no-print">
-                <input type="text" class="filter-input" id="findingsFilter" placeholder="🔍 Filter findings..." onkeyup="filterFindings()">
+                <input type="text" class="filter-input" id="findingsFilter" placeholder="Filter findings..." onkeyup="filterFindings()">
                 <select class="filter-select" id="severityFilter" onchange="filterFindings()">
                     <option value="">All Severities</option>
                     <option value="critical">Critical</option>
@@ -2619,7 +2731,7 @@ const htmlTemplate = `<!DOCTYPE html>
                         <div class="code-block">Payload: {{$f.Payload}}</div>
                         {{end}}
                         {{if $f.CurlCommand}}
-                        <div class="curl-command"><code>{{$f.CurlCommand}}</code><button class="copy-btn" data-curl="{{$f.CurlCommand}}" onclick="copyCurl(this); event.stopPropagation();">📋 Copy</button></div>
+                        <div class="curl-command"><code>{{$f.CurlCommand}}</code><button class="copy-btn" data-curl="{{$f.CurlCommand}}" onclick="copyCurl(this); event.stopPropagation();">Copy</button></div>
                         {{end}}
                         {{if $f.ResponsePreview}}
                         <h4>Response Preview</h4>
