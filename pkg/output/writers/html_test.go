@@ -3393,3 +3393,154 @@ func TestHTMLWriter_Integration_MultiSiteReport(t *testing.T) {
 		t.Error("Expected 9 findings (3 sites × 3 findings each)")
 	}
 }
+
+// TestHTMLWriter_Integration_MixedWAFResponses tests report generation
+// simulating a WAF that blocks some requests and allows others (bypasses).
+func TestHTMLWriter_Integration_MixedWAFResponses(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, DefaultHTMLConfig())
+
+	// Simulate mixed WAF responses: some blocked, some bypassed
+	wafResponses := []struct {
+		payload    string
+		statusCode int
+		outcome    events.Outcome
+		severity   events.Severity
+	}{
+		// Blocked by WAF (403 responses)
+		{"<script>alert(1)</script>", 403, events.OutcomeBlocked, events.SeverityHigh},
+		{"<img src=x onerror=alert(1)>", 403, events.OutcomeBlocked, events.SeverityHigh},
+		{"<svg onload=alert(1)>", 403, events.OutcomeBlocked, events.SeverityHigh},
+		// Bypassed WAF (200 responses with payload reflected)
+		{"<ScRiPt>alert(1)</ScRiPt>", 200, events.OutcomeBypass, events.SeverityCritical},
+		{"<img/src=x onerror=alert(1)>", 200, events.OutcomeBypass, events.SeverityCritical},
+		// Errors (timeout, connection refused)
+		{"<script>timeout</script>", 0, events.OutcomeTimeout, events.SeverityHigh},
+		{"<script>error</script>", 0, events.OutcomeError, events.SeverityHigh},
+	}
+
+	for i, resp := range wafResponses {
+		result := &events.ResultEvent{
+			BaseEvent: events.BaseEvent{Type: events.EventTypeResult},
+			Test: events.TestInfo{
+				ID:       fmt.Sprintf("XSS-%03d", i+1),
+				Category: "xss",
+				Severity: resp.severity,
+			},
+			Target: events.TargetInfo{
+				URL:    "https://waf.example.com/search?q=test",
+				Method: "GET",
+			},
+			Result: events.ResultInfo{
+				Outcome:    resp.outcome,
+				StatusCode: resp.statusCode,
+			},
+			Evidence: &events.Evidence{
+				Payload:         resp.payload,
+				ResponsePreview: fmt.Sprintf("HTTP/1.1 %d\r\n\r\nResponse body", resp.statusCode),
+			},
+		}
+		w.Write(result)
+	}
+
+	// Write summary with mixed outcomes
+	summary := &events.SummaryEvent{
+		Totals: events.SummaryTotals{
+			Tests:    7,
+			Blocked:  3,
+			Bypasses: 2,
+			Errors:   1,
+			Timeouts: 1,
+		},
+		Effectiveness: events.EffectivenessInfo{
+			BlockRatePct:   60.0,
+			Grade:          "C",
+			Recommendation: "WAF is blocking some attacks but evasion techniques bypass detection.",
+		},
+	}
+	w.Write(summary)
+
+	err := w.Close()
+	if err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify mixed outcome representation
+	checks := []struct {
+		contains string
+		name     string
+	}{
+		{"outcome-blocked", "blocked badge"},
+		{"outcome-bypass", "bypass badge"},
+		{"outcome-timeout", "timeout badge"},
+		{"outcome-error", "error badge"},
+		{"severity-critical", "critical severity"},
+		{"severity-high", "high severity"},
+		{"Findings (7)", "finding count"},
+		{"Executive Summary", "executive summary"},
+	}
+
+	for _, check := range checks {
+		if !strings.Contains(output, check.contains) {
+			t.Errorf("Missing %s: %q not found", check.name, check.contains)
+		}
+	}
+
+	// Verify bypass payloads are shown (these are the critical findings)
+	if !strings.Contains(output, "&lt;ScRiPt&gt;") {
+		t.Error("Bypass payload should be HTML-escaped and visible")
+	}
+}
+
+// TestHTMLWriter_CSS_DarkModeAndResponsive verifies CSS includes dark mode
+// and responsive media queries (validates browser compatibility prerequisites).
+func TestHTMLWriter_CSS_DarkModeAndResponsive(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, DefaultHTMLConfig())
+
+	// Write minimal data
+	result := makeHTMLTestResultEvent("TEST-001", "xss", events.SeverityHigh, events.OutcomeBypass, nil)
+	w.Write(result)
+	w.Close()
+
+	output := buf.String()
+
+	// Dark mode CSS validation
+	darkModeChecks := []struct {
+		pattern string
+		name    string
+	}{
+		{"prefers-color-scheme: dark", "dark mode media query"},
+		{"data-theme", "theme data attribute"},
+		{`[data-theme="dark"]`, "dark theme selector"},
+	}
+
+	for _, check := range darkModeChecks {
+		if !strings.Contains(output, check.pattern) {
+			t.Errorf("Missing %s: %q not found in CSS", check.name, check.pattern)
+		}
+	}
+
+	// Responsive CSS validation
+	responsiveChecks := []struct {
+		pattern string
+		name    string
+	}{
+		{"@media", "media query"},
+		{"max-width:", "responsive breakpoint"},
+		{"viewport", "viewport meta tag"},
+	}
+
+	for _, check := range responsiveChecks {
+		if !strings.Contains(output, check.pattern) {
+			t.Errorf("Missing %s: %q not found", check.name, check.pattern)
+		}
+	}
+
+	// Browser compatibility - verify rgba() not rgb() with / syntax
+	if strings.Contains(output, "rgb(0 0 0 /") || strings.Contains(output, "rgb(255 255 255 /") {
+		t.Error("Found modern rgb() syntax that breaks Safari<14.1 - use rgba() instead")
+	}
+}
