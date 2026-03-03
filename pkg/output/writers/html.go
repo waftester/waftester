@@ -1279,6 +1279,16 @@ const htmlTemplate = `<!DOCTYPE html>
             --shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
 
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-in {
+            animation: fadeIn 0.3s ease-out both;
+        }
+
         /* Reduced motion preference */
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after {
@@ -1457,6 +1467,7 @@ const htmlTemplate = `<!DOCTYPE html>
             font-weight: 700;
             line-height: 1;
             font-family: var(--font-mono);
+            font-variant-numeric: tabular-nums;
         }
 
         .summary-card .label {

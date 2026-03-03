@@ -288,3 +288,25 @@ When implementing or reviewing HTML output:
 - [ ] Print styles hide interactive elements
 - [ ] Respects prefers-reduced-motion
 - [ ] Respects prefers-color-scheme for auto theme
+
+---
+
+## PDF Output
+
+The PDF writer uses gofpdf which has limited font support. Custom fonts require embedding TTF files.
+
+### Current Approach
+
+PDF reports use Helvetica (built-in) for compatibility:
+- Body: Helvetica (closest built-in to IBM Plex Sans feel)
+- Mono: Courier (built-in monospace)
+- Colors: Same severity palette as HTML (#dc2626, #ea580c, #ca8a04, #16a34a, #2563eb)
+
+### Future Enhancement
+
+To embed IBM Plex fonts:
+1. Download TTF files from Google Fonts
+2. Use gofpdf's `AddUTF8Font` method
+3. Bundle fonts in `pkg/output/writers/fonts/`
+
+This is not a priority since HTML is the primary output format.

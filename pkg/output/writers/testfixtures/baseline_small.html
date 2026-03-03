@@ -77,6 +77,16 @@
         }
 
          
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-in {
+            animation: fadeIn 0.3s ease-out both;
+        }
+
+         
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after {
                 animation-duration: 0.01ms !important;
@@ -254,6 +264,7 @@
             font-weight: 700;
             line-height: 1;
             font-family: var(--font-mono);
+            font-variant-numeric: tabular-nums;
         }
 
         .summary-card .label {
@@ -1116,7 +1127,7 @@
     <div class="report-meta">
         
         
-        <div class="meta-item"><span class="meta-label">Generated:</span> 2026-03-03 14:54:18 &#43;04</div>
+        <div class="meta-item"><span class="meta-label">Generated:</span> 2026-03-03 15:04:19 &#43;04</div>
         
     </div>
 
@@ -1885,17 +1896,17 @@
                 <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">Targeted remediation guidance for each attack category where bypasses were detected.</p>
                 
                 <div class="remediation-card">
-                    <h4>Local File Inclusion / Path Traversal</h4>
-                    <span class="bypass-count">4 bypass(es) detected</span>
-                    <div class="guidance-text">Normalize file paths and verify against an allowlist of permitted directories. Ensure WAF rules block ../ sequences in all encodings (URL-encoded, double-encoded, UTF-8 overlong). Disable directory listing.</div>
-                    <a href="https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/05-Authorization_Testing/01-Testing_Directory_Traversal_File_Include" target="_blank" rel="noopener noreferrer" class="ref-link">Reference →</a>
-                </div>
-                
-                <div class="remediation-card">
                     <h4>SQL Injection</h4>
                     <span class="bypass-count">4 bypass(es) detected</span>
                     <div class="guidance-text">Enable parameterized queries and prepared statements. Verify WAF rules cover UNION, stacked queries, blind, and error-based SQLi variants. Ensure rules match case-insensitive patterns and common evasion encodings (URL, hex, Unicode).</div>
                     <a href="https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html" target="_blank" rel="noopener noreferrer" class="ref-link">Reference →</a>
+                </div>
+                
+                <div class="remediation-card">
+                    <h4>Local File Inclusion / Path Traversal</h4>
+                    <span class="bypass-count">4 bypass(es) detected</span>
+                    <div class="guidance-text">Normalize file paths and verify against an allowlist of permitted directories. Ensure WAF rules block ../ sequences in all encodings (URL-encoded, double-encoded, UTF-8 overlong). Disable directory listing.</div>
+                    <a href="https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/05-Authorization_Testing/01-Testing_Directory_Traversal_File_Include" target="_blank" rel="noopener noreferrer" class="ref-link">Reference →</a>
                 </div>
                 
                 <div class="remediation-card">
@@ -1983,7 +1994,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -2023,7 +2034,7 @@
                         <div class="json-content" id="json-0">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;ssti-012&amp;#34;,
@@ -2089,7 +2100,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -2129,7 +2140,7 @@
                         <div class="json-content" id="json-1">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;xss-036&amp;#34;,
@@ -2195,7 +2206,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -2235,7 +2246,7 @@
                         <div class="json-content" id="json-2">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;rce-024&amp;#34;,
@@ -2301,7 +2312,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -2341,7 +2352,7 @@
                         <div class="json-content" id="json-3">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;lfi-048&amp;#34;,
@@ -2407,7 +2418,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -2447,7 +2458,7 @@
                         <div class="json-content" id="json-4">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9779117&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;sqli-000&amp;#34;,
@@ -2513,7 +2524,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -2553,7 +2564,7 @@
                         <div class="json-content" id="json-5">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;xss-021&amp;#34;,
@@ -2619,7 +2630,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -2659,7 +2670,7 @@
                         <div class="json-content" id="json-6">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;sqli-045&amp;#34;,
@@ -2725,7 +2736,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -2765,7 +2776,7 @@
                         <div class="json-content" id="json-7">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9779117&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;rce-009&amp;#34;,
@@ -2831,7 +2842,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -2871,7 +2882,7 @@
                         <div class="json-content" id="json-8">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;lfi-033&amp;#34;,
@@ -2937,7 +2948,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -2977,7 +2988,7 @@
                         <div class="json-content" id="json-9">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;sqli-030&amp;#34;,
@@ -3043,7 +3054,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -3083,7 +3094,7 @@
                         <div class="json-content" id="json-10">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;ssti-042&amp;#34;,
@@ -3149,7 +3160,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -3189,7 +3200,7 @@
                         <div class="json-content" id="json-11">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9779117&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;xss-006&amp;#34;,
@@ -3255,7 +3266,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -3295,7 +3306,7 @@
                         <div class="json-content" id="json-12">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;lfi-018&amp;#34;,
@@ -3361,7 +3372,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -3401,7 +3412,7 @@
                         <div class="json-content" id="json-13">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;ssti-027&amp;#34;,
@@ -3467,7 +3478,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -3507,7 +3518,7 @@
                         <div class="json-content" id="json-14">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;rce-039&amp;#34;,
@@ -3573,7 +3584,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -3613,7 +3624,7 @@
                         <div class="json-content" id="json-15">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;sqli-015&amp;#34;,
@@ -3679,7 +3690,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -3719,7 +3730,7 @@
                         <div class="json-content" id="json-16">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9779117&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;lfi-003&amp;#34;,
@@ -3785,7 +3796,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -3825,7 +3836,7 @@
                         <div class="json-content" id="json-17">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;rce-044&amp;#34;,
@@ -3891,7 +3902,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -3931,7 +3942,7 @@
                         <div class="json-content" id="json-18">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;sqli-020&amp;#34;,
@@ -3997,7 +4008,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -4037,7 +4048,7 @@
                         <div class="json-content" id="json-19">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9779117&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;lfi-008&amp;#34;,
@@ -4103,7 +4114,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -4143,7 +4154,7 @@
                         <div class="json-content" id="json-20">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;ssti-032&amp;#34;,
@@ -4209,7 +4220,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -4249,7 +4260,7 @@
                         <div class="json-content" id="json-21">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;ssti-017&amp;#34;,
@@ -4315,7 +4326,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -4355,7 +4366,7 @@
                         <div class="json-content" id="json-22">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;xss-041&amp;#34;,
@@ -4421,7 +4432,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -4461,7 +4472,7 @@
                         <div class="json-content" id="json-23">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;rce-029&amp;#34;,
@@ -4527,7 +4538,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -4567,7 +4578,7 @@
                         <div class="json-content" id="json-24">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9779117&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;sqli-005&amp;#34;,
@@ -4633,7 +4644,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -4673,7 +4684,7 @@
                         <div class="json-content" id="json-25">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;lfi-038&amp;#34;,
@@ -4739,7 +4750,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -4779,7 +4790,7 @@
                         <div class="json-content" id="json-26">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;rce-014&amp;#34;,
@@ -4845,7 +4856,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -4885,7 +4896,7 @@
                         <div class="json-content" id="json-27">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;xss-026&amp;#34;,
@@ -4951,7 +4962,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -4991,7 +5002,7 @@
                         <div class="json-content" id="json-28">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9779117&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;ssti-002&amp;#34;,
@@ -5057,7 +5068,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -5097,7 +5108,7 @@
                         <div class="json-content" id="json-29">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;lfi-023&amp;#34;,
@@ -5163,7 +5174,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -5203,7 +5214,7 @@
                         <div class="json-content" id="json-30">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;sqli-035&amp;#34;,
@@ -5269,7 +5280,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -5309,7 +5320,7 @@
                         <div class="json-content" id="json-31">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;ssti-047&amp;#34;,
@@ -5375,7 +5386,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -5415,7 +5426,7 @@
                         <div class="json-content" id="json-32">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;xss-011&amp;#34;,
@@ -5481,7 +5492,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -5521,7 +5532,7 @@
                         <div class="json-content" id="json-33">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;sqli-040&amp;#34;,
@@ -5587,7 +5598,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -5627,7 +5638,7 @@
                         <div class="json-content" id="json-34">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9779117&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;rce-004&amp;#34;,
@@ -5693,7 +5704,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -5733,7 +5744,7 @@
                         <div class="json-content" id="json-35">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;xss-016&amp;#34;,
@@ -5799,7 +5810,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -5839,7 +5850,7 @@
                         <div class="json-content" id="json-36">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;lfi-028&amp;#34;,
@@ -5905,7 +5916,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -5945,7 +5956,7 @@
                         <div class="json-content" id="json-37">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;rce-049&amp;#34;,
@@ -6011,7 +6022,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -6051,7 +6062,7 @@
                         <div class="json-content" id="json-38">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9779117&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;xss-001&amp;#34;,
@@ -6117,7 +6128,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -6157,7 +6168,7 @@
                         <div class="json-content" id="json-39">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;ssti-037&amp;#34;,
@@ -6223,7 +6234,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -6263,7 +6274,7 @@
                         <div class="json-content" id="json-40">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;lfi-013&amp;#34;,
@@ -6329,7 +6340,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -6369,7 +6380,7 @@
                         <div class="json-content" id="json-41">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;sqli-025&amp;#34;,
@@ -6435,7 +6446,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -6475,7 +6486,7 @@
                         <div class="json-content" id="json-42">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;sqli-010&amp;#34;,
@@ -6541,7 +6552,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -6581,7 +6592,7 @@
                         <div class="json-content" id="json-43">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;rce-034&amp;#34;,
@@ -6647,7 +6658,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -6687,7 +6698,7 @@
                         <div class="json-content" id="json-44">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;xss-046&amp;#34;,
@@ -6753,7 +6764,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -6793,7 +6804,7 @@
                         <div class="json-content" id="json-45">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;ssti-022&amp;#34;,
@@ -6859,7 +6870,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -6899,7 +6910,7 @@
                         <div class="json-content" id="json-46">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;lfi-043&amp;#34;,
@@ -6965,7 +6976,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -7005,7 +7016,7 @@
                         <div class="json-content" id="json-47">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9779117&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;ssti-007&amp;#34;,
@@ -7071,7 +7082,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -7111,7 +7122,7 @@
                         <div class="json-content" id="json-48">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;xss-031&amp;#34;,
@@ -7177,7 +7188,7 @@
                         
                         <div class="detail-item">
                             <div class="detail-label">Timestamp</div>
-                            <div class="detail-value timestamp">2026-03-03 14:54:18</div>
+                            <div class="detail-value timestamp">2026-03-03 15:04:19</div>
                         </div>
                         
                         
@@ -7217,7 +7228,7 @@
                         <div class="json-content" id="json-49">
                             <pre class="code-block">{
   &amp;#34;type&amp;#34;: &amp;#34;result&amp;#34;,
-  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T14:54:18.9784427&#43;04:00&amp;#34;,
+  &amp;#34;timestamp&amp;#34;: &amp;#34;2026-03-03T15:04:19.7493331&#43;04:00&amp;#34;,
   &amp;#34;scan_id&amp;#34;: &amp;#34;baseline-scan-001&amp;#34;,
   &amp;#34;test&amp;#34;: {
     &amp;#34;id&amp;#34;: &amp;#34;rce-019&amp;#34;,
@@ -7263,7 +7274,7 @@
     </noscript>
 
     <footer class="footer">
-        <p>Generated by WAFtester on 2026-03-03 14:54:18 &#43;04</p>
+        <p>Generated by WAFtester on 2026-03-03 15:04:19 &#43;04</p>
         
         
     </footer>
@@ -7433,7 +7444,7 @@
         function exportJSON() {
             const data = {
                 title: "WAFtester Baseline Report",
-                generated: "2026-03-03 14:54:18 \u002b04",
+                generated: "2026-03-03 15:04:19 \u002b04",
                 target: "",
                 grade: "F",
                 blockRate: "50.0",

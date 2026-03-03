@@ -1,24 +1,24 @@
 {
   "files": {
     "baseline_empty.html": {
-      "lines": 1566,
-      "size_bytes": 49290,
-      "size_kb": 48.134765625
+      "lines": 1577,
+      "size_bytes": 49588,
+      "size_kb": 48.42578125
     },
     "baseline_large.html": {
-      "lines": 59660,
-      "size_bytes": 2846552,
-      "size_kb": 2779.8359375
+      "lines": 59671,
+      "size_bytes": 2846503,
+      "size_kb": 2779.7880859375
     },
     "baseline_small.html": {
-      "lines": 7460,
-      "size_bytes": 334896,
-      "size_kb": 327.046875
+      "lines": 7471,
+      "size_bytes": 335194,
+      "size_kb": 327.337890625
     }
   },
-  "generated_at": "2026-03-03T14:54:19+04:00",
+  "generated_at": "2026-03-03T15:04:19+04:00",
   "performance": {
-    "large_report_generation_ms": 240,
-    "total_generation_ms": 267
+    "large_report_generation_ms": 143,
+    "total_generation_ms": 175
   }
 }

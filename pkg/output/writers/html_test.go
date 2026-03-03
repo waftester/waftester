@@ -3555,6 +3555,22 @@ func TestHTMLWriter_CSS_DarkModeAndResponsive(t *testing.T) {
 		}
 	}
 
+	// Animation and KPI number CSS validation
+	designSystemChecks := []struct {
+		pattern string
+		name    string
+	}{
+		{"@keyframes", "keyframe animation"},
+		{"tabular-nums", "tabular numeric for KPI alignment"},
+		{".animate-in", "animation class"},
+	}
+
+	for _, check := range designSystemChecks {
+		if !strings.Contains(output, check.pattern) {
+			t.Errorf("Missing design system %s: %q not found", check.name, check.pattern)
+		}
+	}
+
 	// Browser compatibility - verify rgba() not rgb() with / syntax
 	if strings.Contains(output, "rgb(0 0 0 /") || strings.Contains(output, "rgb(255 255 255 /") {
 		t.Error("Found modern rgb() syntax that breaks Safari<14.1 - use rgba() instead")
