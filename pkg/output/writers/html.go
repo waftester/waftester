@@ -2517,7 +2517,7 @@ const htmlTemplate = `<!DOCTYPE html>
                     <div class="owasp-item">
                         <div class="owasp-status {{.Status}}" aria-label="{{.Status}}"></div>
                         <div class="owasp-info">
-                            {{if .Link}}<a href="{{.Link}}" target="_blank" rel="noopener" class="ref-link">{{.Code}}</a>{{else}}<div class="owasp-code">{{.Code}}</div>{{end}}
+                            {{if .Link}}<a href="{{.Link}}" target="_blank" rel="noopener noreferrer" class="ref-link">{{.Code}}</a>{{else}}<div class="owasp-code">{{.Code}}</div>{{end}}
                             <div class="owasp-name">{{.Name}}</div>
                         </div>
                         <div class="owasp-stats">
@@ -2624,7 +2624,7 @@ const htmlTemplate = `<!DOCTYPE html>
                     <h4>{{.Title}}</h4>
                     <span class="bypass-count">{{.BypassCount}} bypass(es) detected</span>
                     <div class="guidance-text">{{.Guidance}}</div>
-                    {{if .ReferenceURL}}<a href="{{.ReferenceURL}}" target="_blank" rel="noopener" class="ref-link">Reference →</a>{{end}}
+                    {{if .ReferenceURL}}<a href="{{.ReferenceURL}}" target="_blank" rel="noopener noreferrer" class="ref-link">Reference →</a>{{end}}
                 </div>
                 {{end}}
             </div>
@@ -2697,7 +2697,7 @@ const htmlTemplate = `<!DOCTYPE html>
                         {{if $f.OWASPLinks}}
                         <div class="detail-item">
                             <div class="detail-label">OWASP</div>
-                            <div class="detail-value">{{range $j, $o := $f.OWASPLinks}}{{if $j}}, {{end}}<a href="{{$o.URL}}" target="_blank" rel="noopener" class="ref-link">{{$o.Code}}</a>{{end}}</div>
+                            <div class="detail-value">{{range $j, $o := $f.OWASPLinks}}{{if $j}}, {{end}}<a href="{{$o.URL}}" target="_blank" rel="noopener noreferrer" class="ref-link">{{$o.Code}}</a>{{end}}</div>
                         </div>
                         {{else if $f.OWASP}}
                         <div class="detail-item">
@@ -2708,7 +2708,7 @@ const htmlTemplate = `<!DOCTYPE html>
                         {{if $f.CWELinks}}
                         <div class="detail-item">
                             <div class="detail-label">CWE</div>
-                            <div class="detail-value">{{range $j, $c := $f.CWELinks}}{{if $j}}, {{end}}<a href="{{$c.URL}}" target="_blank" rel="noopener" class="ref-link">CWE-{{$c.ID}}{{if $c.Name}}: {{$c.Name}}{{end}}</a>{{end}}</div>
+                            <div class="detail-value">{{range $j, $c := $f.CWELinks}}{{if $j}}, {{end}}<a href="{{$c.URL}}" target="_blank" rel="noopener noreferrer" class="ref-link">CWE-{{$c.ID}}{{if $c.Name}}: {{$c.Name}}{{end}}</a>{{end}}</div>
                         </div>
                         {{else if $f.CWE}}
                         <div class="detail-item">
