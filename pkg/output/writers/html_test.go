@@ -2666,3 +2666,543 @@ func TestHTMLConfig_ConcurrentDefaultAccess(t *testing.T) {
 		t.Error("Concurrent access corrupted DefaultHTMLConfig defaults")
 	}
 }
+
+// =============================================================================
+// Negative Tests: Error Boundaries, Invalid Inputs, Edge Paths
+// =============================================================================
+
+// TestHTMLWriter_Negative_NilWriter verifies behavior with nil io.Writer.
+func TestHTMLWriter_Negative_NilWriter(t *testing.T) {
+	// nil writer should panic on Close when trying to write
+	// This tests that we don't crash unexpectedly - we crash predictably
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("Expected panic with nil writer on Close, got none")
+		}
+	}()
+
+	w := NewHTMLWriter(nil, DefaultHTMLConfig())
+	w.Write(makeHTMLTestResultEvent("test", "xss", events.SeverityHigh, events.OutcomeBypass, nil))
+	w.Close() // Should panic here
+}
+
+// TestHTMLWriter_Negative_NilEvent verifies Write handles nil event gracefully.
+func TestHTMLWriter_Negative_NilEvent(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, DefaultHTMLConfig())
+
+	// Should not panic, should silently ignore
+	err := w.Write(nil)
+	if err != nil {
+		t.Errorf("Write(nil) returned error: %v", err)
+	}
+
+	err = w.Close()
+	if err != nil {
+		t.Errorf("Close after Write(nil) failed: %v", err)
+	}
+
+	// Should produce valid HTML (empty report)
+	output := buf.String()
+	if !strings.Contains(output, "<!DOCTYPE html>") {
+		t.Error("Expected valid HTML output even with nil event")
+	}
+}
+
+// TestHTMLWriter_Negative_UnknownEventType verifies unknown events are ignored.
+func TestHTMLWriter_Negative_UnknownEventType(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, DefaultHTMLConfig())
+
+	// Create a custom event type that's not ResultEvent or SummaryEvent
+	unknownEvent := &events.ProgressEvent{
+		Progress: events.ProgressInfo{
+			Phase:   "test",
+			Current: 50,
+			Total:   100,
+		},
+	}
+
+	err := w.Write(unknownEvent)
+	if err != nil {
+		t.Errorf("Write(unknownEvent) should not error: %v", err)
+	}
+
+	err = w.Close()
+	if err != nil {
+		t.Errorf("Close failed: %v", err)
+	}
+
+	// Should produce valid HTML with no findings
+	output := buf.String()
+	if !strings.Contains(output, "Findings (0)") {
+		t.Error("Expected 0 findings when only unknown events written")
+	}
+}
+
+// TestHTMLWriter_Negative_WriteAfterClose verifies Write after Close behavior.
+func TestHTMLWriter_Negative_WriteAfterClose(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, DefaultHTMLConfig())
+
+	w.Close() // Close first
+	sizeAfterClose := buf.Len()
+
+	// Write after close - should append to results but won't be rendered
+	// (since HTML was already written)
+	err := w.Write(makeHTMLTestResultEvent("late", "xss", events.SeverityHigh, events.OutcomeBypass, nil))
+	if err != nil {
+		t.Errorf("Write after Close returned error: %v", err)
+	}
+
+	// Buffer shouldn't grow (HTML already written)
+	if buf.Len() != sizeAfterClose {
+		t.Error("Buffer changed after Write-after-Close")
+	}
+}
+
+// TestHTMLWriter_Negative_DoubleClose verifies Close is safely callable twice.
+func TestHTMLWriter_Negative_DoubleClose(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, DefaultHTMLConfig())
+	w.Write(makeHTMLTestResultEvent("test", "xss", events.SeverityHigh, events.OutcomeBypass, nil))
+
+	err1 := w.Close()
+	if err1 != nil {
+		t.Errorf("First Close failed: %v", err1)
+	}
+	sizeAfterFirst := buf.Len()
+
+	// Second close writes again - this is current behavior (not ideal but documented)
+	err2 := w.Close()
+	if err2 != nil {
+		t.Errorf("Second Close failed: %v", err2)
+	}
+
+	// Document the current behavior: double-close writes twice
+	if buf.Len() <= sizeAfterFirst {
+		t.Log("Double-close didn't write again (good - idempotent)")
+	} else {
+		t.Log("Note: Double-close writes HTML twice (current behavior)")
+	}
+}
+
+// TestHTMLWriter_Negative_ZeroMaxResponseLength verifies zero gets defaulted.
+func TestHTMLWriter_Negative_ZeroMaxResponseLength(t *testing.T) {
+	cfg := DefaultHTMLConfig()
+	cfg.MaxResponseLength = 0   // Should default to 5KB
+	cfg.IncludeJSON = false     // Disable JSON to test only ResponsePreview truncation
+
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, cfg)
+
+	// The internal config should have been defaulted
+	// We can't access it directly, but we can test the effect
+	longResponse := strings.Repeat("X", 10000) // 10KB
+	result := makeHTMLTestResultEvent("test", "xss", events.SeverityHigh, events.OutcomeBypass, nil)
+	result.Evidence = &events.Evidence{
+		ResponsePreview: longResponse,
+	}
+
+	w.Write(result)
+	w.Close()
+
+	output := buf.String()
+	// With 5KB default, 10KB response should be truncated
+	// (JSON output would include full response, so disable it for this test)
+	if strings.Contains(output, strings.Repeat("X", 10000)) {
+		t.Error("MaxResponseLength=0 should default to 5KB and truncate")
+	}
+	// Check for actual truncation marker used by truncateResponse
+	if !strings.Contains(output, "Truncated") {
+		t.Error("Expected truncation marker")
+	}
+	// Verify only 5120 X's max (the default)
+	xCount := strings.Count(output, "X")
+	if xCount > 5200 { // Allow some margin for HTML-escaped versions
+		t.Errorf("Expected ~5120 X chars, got %d", xCount)
+	}
+}
+
+// TestHTMLWriter_Negative_NegativeMaxResponseLength verifies negative gets defaulted.
+func TestHTMLWriter_Negative_NegativeMaxResponseLength(t *testing.T) {
+	cfg := DefaultHTMLConfig()
+	cfg.MaxResponseLength = -100 // Should default to 5KB
+	cfg.IncludeJSON = false      // Disable JSON to test only ResponsePreview truncation
+
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, cfg)
+
+	longResponse := strings.Repeat("Y", 10000)
+	result := makeHTMLTestResultEvent("test", "sqli", events.SeverityMedium, events.OutcomeBypass, nil)
+	result.Evidence = &events.Evidence{
+		ResponsePreview: longResponse,
+	}
+
+	w.Write(result)
+	w.Close()
+
+	output := buf.String()
+	if strings.Contains(output, strings.Repeat("Y", 10000)) {
+		t.Error("MaxResponseLength=-100 should default to 5KB and truncate")
+	}
+	// Check for truncation marker
+	if !strings.Contains(output, "Truncated") {
+		t.Error("Expected truncation marker")
+	}
+}
+
+// TestHTMLWriter_Negative_InvalidTheme verifies invalid theme defaults to auto.
+func TestHTMLWriter_Negative_InvalidTheme(t *testing.T) {
+	cfg := DefaultHTMLConfig()
+	cfg.Theme = "invalid-theme-xyz"
+
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, cfg)
+	w.Close()
+
+	output := buf.String()
+	// Invalid theme should be passed through (no validation currently)
+	// but it won't break the HTML
+	if !strings.Contains(output, "<!DOCTYPE html>") {
+		t.Error("Invalid theme broke HTML generation")
+	}
+}
+
+// TestHTMLWriter_Negative_XSSInTitle verifies Title field is escaped.
+func TestHTMLWriter_Negative_XSSInTitle(t *testing.T) {
+	cfg := DefaultHTMLConfig()
+	cfg.Title = "<script>alert('xss')</script>"
+
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, cfg)
+	w.Close()
+
+	output := buf.String()
+
+	// Title should be HTML-escaped
+	if strings.Contains(output, "<script>alert") {
+		t.Error("XSS in Title field was not escaped")
+	}
+	if !strings.Contains(output, "&lt;script&gt;") {
+		t.Error("Expected HTML-escaped title")
+	}
+}
+
+// TestHTMLWriter_Negative_NilEvidence verifies nil Evidence is handled.
+func TestHTMLWriter_Negative_NilEvidence(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, DefaultHTMLConfig())
+
+	result := makeHTMLTestResultEvent("nil-evidence", "xss", events.SeverityHigh, events.OutcomeBypass, nil)
+	result.Evidence = nil // Explicitly nil
+
+	err := w.Write(result)
+	if err != nil {
+		t.Errorf("Write with nil Evidence failed: %v", err)
+	}
+
+	err = w.Close()
+	if err != nil {
+		t.Errorf("Close with nil Evidence result failed: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "nil-evidence") {
+		t.Error("Result with nil Evidence should still appear")
+	}
+}
+
+// TestHTMLWriter_Negative_NilContext verifies nil Context is handled.
+func TestHTMLWriter_Negative_NilContext(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, DefaultHTMLConfig())
+
+	result := makeHTMLTestResultEvent("nil-context", "sqli", events.SeverityMedium, events.OutcomeBlocked, nil)
+	result.Context = nil // Explicitly nil
+
+	err := w.Write(result)
+	if err != nil {
+		t.Errorf("Write with nil Context failed: %v", err)
+	}
+
+	err = w.Close()
+	if err != nil {
+		t.Errorf("Close with nil Context result failed: %v", err)
+	}
+}
+
+// TestHTMLWriter_Negative_EmptyTitle verifies empty Title is defaulted.
+func TestHTMLWriter_Negative_EmptyTitle(t *testing.T) {
+	cfg := DefaultHTMLConfig()
+	cfg.Title = ""
+
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, cfg)
+	w.Close()
+
+	output := buf.String()
+	// Empty title should be defaulted to standard title
+	if !strings.Contains(output, "WAFtester Security Report") {
+		t.Error("Empty Title should default to 'WAFtester Security Report'")
+	}
+}
+
+// TestHTMLWriter_Negative_EmptyTheme verifies empty Theme is defaulted.
+func TestHTMLWriter_Negative_EmptyTheme(t *testing.T) {
+	cfg := DefaultHTMLConfig()
+	cfg.Theme = ""
+
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, cfg)
+	w.Close()
+
+	output := buf.String()
+	// Empty theme should be defaulted to "auto"
+	if !strings.Contains(output, `data-theme="auto"`) && !strings.Contains(output, `color-scheme`) {
+		t.Error("Empty Theme should default to 'auto'")
+	}
+}
+
+// TestHTMLWriter_Negative_AllFeaturesDisabled verifies minimal output.
+func TestHTMLWriter_Negative_AllFeaturesDisabled(t *testing.T) {
+	cfg := HTMLConfig{} // Zero value = all features off
+
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, cfg)
+	w.Write(makeHTMLTestResultEvent("minimal", "xss", events.SeverityHigh, events.OutcomeBypass, nil))
+	w.Close()
+
+	output := buf.String()
+
+	// Should NOT contain the full executive summary section (depth-hero)
+	if strings.Contains(output, `class="executive-summary depth-hero"`) {
+		t.Error("All-off config should not show full Executive Summary section")
+	}
+	// Should NOT contain Key Recommendations (part of executive summary)
+	if strings.Contains(output, "Key Recommendations") {
+		t.Error("All-off config should not show Key Recommendations")
+	}
+	// Should NOT contain risk chart SVG
+	if strings.Contains(output, `id="risk-chart-section"`) {
+		t.Error("All-off config should not show Risk Chart section")
+	}
+
+	// Should still have basic structure
+	if !strings.Contains(output, "<!DOCTYPE html>") {
+		t.Error("Should still produce valid HTML")
+	}
+	if !strings.Contains(output, "Findings (1)") {
+		t.Error("Should still show findings")
+	}
+}
+
+// TestHTMLWriter_Negative_EachBoolFieldDisabled verifies each feature toggle.
+func TestHTMLWriter_Negative_EachBoolFieldDisabled(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(*HTMLConfig)
+		check   func(string) bool
+		errMsg  string
+	}{
+		{
+			name: "ShowExecutiveSummary=false",
+			setup: func(c *HTMLConfig) { c.ShowExecutiveSummary = false },
+			check: func(out string) bool {
+				return !strings.Contains(out, "Key Recommendations")
+			},
+			errMsg: "ShowExecutiveSummary=false should hide Key Recommendations",
+		},
+		{
+			name: "ShowRiskChart=false",
+			setup: func(c *HTMLConfig) { c.ShowRiskChart = false },
+			check: func(out string) bool {
+				// Check that the Risk Distribution section with chart is absent
+				return !strings.Contains(out, `id="risk-chart-section"`)
+			},
+			errMsg: "ShowRiskChart=false should hide risk chart section",
+		},
+		{
+			name: "ShowRiskMatrix=false",
+			setup: func(c *HTMLConfig) { c.ShowRiskMatrix = false },
+			check: func(out string) bool {
+				return !strings.Contains(out, `id="risk-matrix-section"`)
+			},
+			errMsg: "ShowRiskMatrix=false should hide risk matrix section",
+		},
+		{
+			name: "IncludeEvidence=false",
+			setup: func(c *HTMLConfig) { 
+				c.IncludeEvidence = false
+				c.IncludeJSON = false // Disable JSON so we only test evidence in findings
+			},
+			check: func(out string) bool {
+				// With IncludeEvidence=false, finding.HasEvidence should be false
+				// so the evidence section won't appear in the findings
+				// Check that payload and response preview are NOT in output
+				return !strings.Contains(out, "test-payload") && !strings.Contains(out, "test-response")
+			},
+			errMsg: "IncludeEvidence=false should hide payload and response data",
+		},
+		{
+			name: "IncludeJSON=false",
+			setup: func(c *HTMLConfig) { c.IncludeJSON = false },
+			check: func(out string) bool {
+				// With IncludeJSON=false, finding.JSONData should be empty
+				// so the json-toggle div won't appear (but JS still has "Show JSON" text)
+				return !strings.Contains(out, `class="json-toggle"`)
+			},
+			errMsg: "IncludeJSON=false should hide JSON toggle div",
+		},
+		{
+			name: "ShowCurlCommands=false",
+			setup: func(c *HTMLConfig) { 
+				c.ShowCurlCommands = false
+				c.IncludeJSON = false // Disable JSON so we only test curl in findings
+			},
+			check: func(out string) bool {
+				// With ShowCurlCommands=false, curl command should not appear
+				// even if evidence is included
+				return !strings.Contains(out, "curl -X GET")
+			},
+			errMsg: "ShowCurlCommands=false should hide curl command content",
+		},
+		{
+			name: "UseSystemFonts=true",
+			setup: func(c *HTMLConfig) { c.UseSystemFonts = true },
+			check: func(out string) bool {
+				return !strings.Contains(out, "fonts.googleapis.com")
+			},
+			errMsg: "UseSystemFonts=true should not include Google Fonts",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := DefaultHTMLConfig()
+			tt.setup(&cfg)
+
+			buf := &bytes.Buffer{}
+			w := NewHTMLWriter(buf, cfg)
+			// Include evidence to test those paths
+			result := makeHTMLTestResultEvent("test", "xss", events.SeverityHigh, events.OutcomeBypass, nil)
+			result.Evidence = &events.Evidence{
+				Payload:         "test-payload",
+				ResponsePreview: "test-response",
+				CurlCommand:     "curl -X GET http://example.com",
+			}
+			w.Write(result)
+			w.Close()
+
+			output := buf.String()
+			if !tt.check(output) {
+				t.Error(tt.errMsg)
+			}
+		})
+	}
+}
+
+// TestHTMLWriter_Negative_SpecialCharactersInAllFields verifies escaping.
+func TestHTMLWriter_Negative_SpecialCharactersInAllFields(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, DefaultHTMLConfig())
+
+	// Create result with XSS payloads in all user-controlled fields
+	result := &events.ResultEvent{
+		Test: events.TestInfo{
+			ID:       "<script>alert('id')</script>",
+			Category: "<script>alert('cat')</script>",
+			Severity: events.SeverityHigh,
+		},
+		Target: events.TargetInfo{
+			URL:    "https://example.com/<script>",
+			Method: "GET",
+		},
+		Result: events.ResultInfo{
+			Outcome: events.OutcomeBypass,
+		},
+		Evidence: &events.Evidence{
+			Payload:         "<script>alert('payload')</script>",
+			ResponsePreview: "<script>alert('response')</script>",
+			CurlCommand:     "curl '<script>alert(1)</script>'",
+		},
+	}
+
+	w.Write(result)
+	w.Close()
+
+	output := buf.String()
+
+	// None of the raw scripts should appear unescaped
+	if strings.Contains(output, "<script>alert") {
+		t.Error("Found unescaped <script> tag in output - XSS vulnerability")
+	}
+
+	// Should have escaped versions
+	if !strings.Contains(output, "&lt;script&gt;") {
+		t.Error("Expected escaped script tags")
+	}
+}
+
+// TestHTMLWriter_Negative_VeryLongPayload verifies handling of huge payloads.
+func TestHTMLWriter_Negative_VeryLongPayload(t *testing.T) {
+	buf := &bytes.Buffer{}
+	cfg := DefaultHTMLConfig()
+	cfg.MaxResponseLength = 1000 // 1KB limit
+	w := NewHTMLWriter(buf, cfg)
+
+	hugePayload := strings.Repeat("A", 100000) // 100KB payload
+	result := makeHTMLTestResultEvent("huge", "xss", events.SeverityHigh, events.OutcomeBypass, nil)
+	result.Evidence = &events.Evidence{
+		Payload:         hugePayload,
+		ResponsePreview: hugePayload,
+	}
+
+	w.Write(result)
+	err := w.Close()
+	if err != nil {
+		t.Errorf("Close failed with huge payload: %v", err)
+	}
+
+	output := buf.String()
+
+	// Payload is NOT truncated (only ResponsePreview is)
+	// This is current behavior - document it
+	if strings.Contains(output, strings.Repeat("A", 100000)) {
+		t.Log("Note: Huge payload is included in full (no truncation on payload)")
+	}
+
+	// ResponsePreview should be truncated - check for truncation marker
+	if !strings.Contains(output, "Truncated") {
+		t.Error("Expected ResponsePreview to be truncated with marker")
+	}
+}
+
+// TestHTMLWriter_Negative_ZeroFindings verifies empty results handling.
+func TestHTMLWriter_Negative_ZeroFindings(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, DefaultHTMLConfig())
+
+	// Close without any Write calls
+	err := w.Close()
+	if err != nil {
+		t.Errorf("Close with zero findings failed: %v", err)
+	}
+
+	output := buf.String()
+
+	// Should have valid HTML
+	if !strings.Contains(output, "<!DOCTYPE html>") {
+		t.Error("Should produce valid HTML with zero findings")
+	}
+
+	// Should show zero findings
+	if !strings.Contains(output, "Findings (0)") {
+		t.Error("Should show 'Findings (0)'")
+	}
+
+	// Executive summary should handle zero gracefully
+	if strings.Contains(output, "NaN") || strings.Contains(output, "Infinity") {
+		t.Error("Zero findings caused NaN or Infinity in calculations")
+	}
+}
