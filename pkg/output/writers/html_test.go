@@ -3206,3 +3206,190 @@ func TestHTMLWriter_Negative_ZeroFindings(t *testing.T) {
 		t.Error("Zero findings caused NaN or Infinity in calculations")
 	}
 }
+
+// =============================================================================
+// Integration Tests: Full Pipeline with Realistic Data
+// =============================================================================
+
+// TestHTMLWriter_Integration_FullReportFlow tests complete report generation
+// with a realistic mix of findings across severities and outcomes.
+func TestHTMLWriter_Integration_FullReportFlow(t *testing.T) {
+	buf := &bytes.Buffer{}
+	cfg := DefaultHTMLConfig()
+	cfg.Title = "Integration Test Report"
+	w := NewHTMLWriter(buf, cfg)
+
+	// Write a realistic mix of findings
+	testCases := []struct {
+		id       string
+		category string
+		severity events.Severity
+		outcome  events.Outcome
+		owasp    []string
+	}{
+		{"XSS-001", "xss", events.SeverityCritical, events.OutcomeBypass, []string{"A03:2021"}},
+		{"XSS-002", "xss", events.SeverityHigh, events.OutcomeBlocked, []string{"A03:2021"}},
+		{"SQLI-001", "sqli", events.SeverityCritical, events.OutcomeBypass, []string{"A03:2021"}},
+		{"SQLI-002", "sqli", events.SeverityHigh, events.OutcomeBlocked, []string{"A03:2021"}},
+		{"SQLI-003", "sqli", events.SeverityMedium, events.OutcomeBlocked, []string{"A03:2021"}},
+		{"SSRF-001", "ssrf", events.SeverityHigh, events.OutcomeBypass, []string{"A10:2021"}},
+		{"LFI-001", "lfi", events.SeverityMedium, events.OutcomeBlocked, nil},
+		{"RCE-001", "rce", events.SeverityCritical, events.OutcomeError, nil},
+		{"XXE-001", "xxe", events.SeverityHigh, events.OutcomeTimeout, nil},
+		{"CORS-001", "cors", events.SeverityLow, events.OutcomePass, nil},
+	}
+
+	for _, tc := range testCases {
+		result := makeHTMLTestResultEvent(tc.id, tc.category, tc.severity, tc.outcome, tc.owasp)
+		result.Evidence = &events.Evidence{
+			Payload:         "test-payload-" + tc.id,
+			ResponsePreview: "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<html>...</html>",
+			CurlCommand:     "curl -X POST 'https://example.com/api' -d 'payload=" + tc.id + "'",
+		}
+		w.Write(result)
+	}
+
+	// Write summary
+	summary := &events.SummaryEvent{
+		Totals: events.SummaryTotals{
+			Tests:    10,
+			Blocked:  4,
+			Bypasses: 3,
+			Errors:   1,
+		},
+	}
+	w.Write(summary)
+
+	err := w.Close()
+	if err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify structure
+	checks := []struct {
+		contains string
+		name     string
+	}{
+		{"<!DOCTYPE html>", "DOCTYPE"},
+		{"Integration Test Report", "custom title"},
+		{"Executive Summary", "executive summary"},
+		{"Findings (10)", "finding count"},
+		{"XSS-001", "first finding ID"},
+		{"CORS-001", "last finding ID"},
+		{"A03:2021", "OWASP code"},
+		{"Risk Distribution", "risk chart section"},
+		{"severity-critical", "critical badge"},
+		{"severity-high", "high badge"},
+		{"outcome-bypass", "bypass badge"},
+		{"outcome-blocked", "blocked badge"},
+	}
+
+	for _, check := range checks {
+		if !strings.Contains(output, check.contains) {
+			t.Errorf("Missing %s: %q not found in output", check.name, check.contains)
+		}
+	}
+
+	// Verify no broken template markers
+	if strings.Contains(output, "{{") || strings.Contains(output, "}}") {
+		t.Error("Found unprocessed template markers")
+	}
+}
+
+// TestHTMLWriter_Integration_BuilderCompatibility tests that the builder.go
+// pattern (DefaultHTMLConfig + override) works correctly.
+func TestHTMLWriter_Integration_BuilderCompatibility(t *testing.T) {
+	// Simulate the pattern used in pkg/output/builder.go
+	cfg := DefaultHTMLConfig()
+	cfg.IncludeEvidence = false // OmitEvidence = true in builder
+	cfg.IncludeJSON = false     // Also disable JSON to avoid evidence in JSON dump
+
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, cfg)
+
+	result := makeHTMLTestResultEvent("TEST-001", "xss", events.SeverityHigh, events.OutcomeBypass, nil)
+	result.Evidence = &events.Evidence{
+		Payload:         "sensitive-payload",
+		ResponsePreview: "sensitive-response",
+		CurlCommand:     "curl sensitive",
+	}
+	w.Write(result)
+	w.Close()
+
+	output := buf.String()
+
+	// With IncludeEvidence=false, evidence should not appear in findings
+	if strings.Contains(output, "sensitive-payload") {
+		t.Error("IncludeEvidence=false but payload appears in output")
+	}
+	if strings.Contains(output, "sensitive-response") {
+		t.Error("IncludeEvidence=false but response appears in output")
+	}
+
+	// But other defaults should still work (executive summary, risk chart)
+	if !strings.Contains(output, "Executive Summary") {
+		t.Error("DefaultHTMLConfig() should enable Executive Summary even when IncludeEvidence=false")
+	}
+	if !strings.Contains(output, "Risk Distribution") {
+		t.Error("DefaultHTMLConfig() should enable Risk Chart even when IncludeEvidence=false")
+	}
+}
+
+// TestHTMLWriter_Integration_MultiSiteReport tests report generation with
+// findings from multiple target sites.
+func TestHTMLWriter_Integration_MultiSiteReport(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, DefaultHTMLConfig())
+
+	// Findings from multiple sites
+	sites := []string{
+		"https://api.example.com",
+		"https://app.example.com",
+		"https://admin.example.com",
+	}
+
+	for i, site := range sites {
+		for j := 0; j < 3; j++ {
+			result := &events.ResultEvent{
+				BaseEvent: events.BaseEvent{
+					Type: events.EventTypeResult,
+				},
+				Test: events.TestInfo{
+					ID:       fmt.Sprintf("TEST-%d-%d", i, j),
+					Category: "xss",
+					Severity: events.SeverityHigh,
+				},
+				Target: events.TargetInfo{
+					URL:    site + "/endpoint",
+					Method: "GET",
+				},
+				Result: events.ResultInfo{
+					Outcome:    events.OutcomeBypass,
+					StatusCode: 200,
+				},
+			}
+			w.Write(result)
+		}
+	}
+
+	err := w.Close()
+	if err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify all sites appear in output
+	for _, site := range sites {
+		if !strings.Contains(output, site) {
+			t.Errorf("Site %s not found in multi-site report", site)
+		}
+	}
+
+	// Verify finding count
+	if !strings.Contains(output, "Findings (9)") {
+		t.Error("Expected 9 findings (3 sites × 3 findings each)")
+	}
+}
