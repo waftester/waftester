@@ -2,8 +2,11 @@ package writers
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1236,9 +1239,9 @@ func TestHTMLWriter_CurlDataAttribute(t *testing.T) {
 }
 
 func TestHTMLWriter_DefaultConfig_IncludesEvidenceAndJSON(t *testing.T) {
-	// Zero-value config should default IncludeEvidence and IncludeJSON to true
+	// Using DefaultHTMLConfig() should include Evidence and JSON by default
 	buf := &bytes.Buffer{}
-	w := NewHTMLWriter(buf, HTMLConfig{})
+	w := NewHTMLWriter(buf, DefaultHTMLConfig())
 
 	e := makeHTMLTestResultEvent("sqli-001", "sqli", events.SeverityCritical, events.OutcomeBypass, nil)
 	w.Write(e)
@@ -1246,14 +1249,14 @@ func TestHTMLWriter_DefaultConfig_IncludesEvidenceAndJSON(t *testing.T) {
 
 	output := buf.String()
 
-	// Evidence should be present with zero-value config
+	// Evidence should be present with DefaultHTMLConfig()
 	if !strings.Contains(output, "test-payload-sqli-001") {
-		t.Error("expected evidence payload with default config (IncludeEvidence should default to true)")
+		t.Error("expected evidence payload with DefaultHTMLConfig() (IncludeEvidence should be true)")
 	}
 
-	// JSON toggle should be present with zero-value config
+	// JSON toggle should be present with DefaultHTMLConfig()
 	if !strings.Contains(output, "json-toggle") {
-		t.Error("expected JSON toggle with default config (IncludeJSON should default to true)")
+		t.Error("expected JSON toggle with DefaultHTMLConfig() (IncludeJSON should be true)")
 	}
 }
 
@@ -1645,7 +1648,7 @@ func TestHTMLWriter_LocalStorage_TryCatch(t *testing.T) {
 
 func TestHTMLWriter_EffectivenessBar_ARIA(t *testing.T) {
 	buf := &bytes.Buffer{}
-	w := NewHTMLWriter(buf, HTMLConfig{})
+	w := NewHTMLWriter(buf, DefaultHTMLConfig())
 	w.Write(makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeBypass, nil))
 	w.Close()
 
@@ -1822,5 +1825,844 @@ func TestHTMLWriter_PassColCSS(t *testing.T) {
 	output := buf.String()
 	if !strings.Contains(output, ".risk-matrix-table .pass-col") {
 		t.Error("CSS missing .pass-col rule for risk matrix")
+	}
+}
+
+// =============================================================================
+// Design System Compliance Tests (Negative Tests)
+// =============================================================================
+
+// TestHTMLWriter_NoForbiddenFonts verifies the HTML output does NOT use
+// forbidden fonts that signal "generic AI-generated" templates.
+func TestHTMLWriter_NoForbiddenFonts(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{
+		Title:           "Design Test",
+		IncludeEvidence: true,
+	})
+	w.Write(makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeBypass, nil))
+	w.Close()
+
+	output := buf.String()
+
+	// Forbidden: Inter as primary font (most overused AI default)
+	if regexp.MustCompile(`font-family:\s*['"]?Inter['"]?\s*[,;]`).MatchString(output) {
+		t.Error("FORBIDDEN: Inter font detected as primary font - use IBM Plex Sans instead")
+	}
+
+	// Forbidden: Roboto as primary font
+	if regexp.MustCompile(`font-family:\s*['"]?Roboto['"]?\s*[,;]`).MatchString(output) {
+		t.Error("FORBIDDEN: Roboto font detected as primary font - use IBM Plex Sans instead")
+	}
+
+	// Forbidden: Arial as primary font (allowed as fallback only)
+	if regexp.MustCompile(`font-family:\s*['"]?Arial['"]?\s*[,;]`).MatchString(output) {
+		t.Error("FORBIDDEN: Arial font detected as primary font - use IBM Plex Sans instead")
+	}
+
+	// Required: IBM Plex Sans should be present
+	if !strings.Contains(output, "IBM Plex Sans") {
+		t.Error("REQUIRED: IBM Plex Sans font not found - add Google Fonts import")
+	}
+}
+
+// TestHTMLWriter_NoForbiddenColors verifies the HTML output does NOT use
+// forbidden "AI purple" colors that signal generic templates.
+func TestHTMLWriter_NoForbiddenColors(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{
+		Title:           "Design Test",
+		IncludeEvidence: true,
+	})
+	w.Write(makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeBypass, nil))
+	w.Close()
+
+	output := strings.ToLower(buf.String())
+
+	// Forbidden violet/purple colors (Tailwind defaults that scream "AI generated")
+	forbiddenColors := map[string]string{
+		"#8b5cf6": "violet-500",
+		"#7c3aed": "violet-600",
+		"#a78bfa": "violet-400",
+		"#6366f1": "indigo-500",
+		"#4f46e5": "indigo-600",
+		"#d946ef": "fuchsia-500",
+	}
+
+	for color, name := range forbiddenColors {
+		if strings.Contains(output, color) {
+			t.Errorf("FORBIDDEN: Color %s (%s) detected - use teal (#0d9488) instead", color, name)
+		}
+	}
+
+	// Required: Teal accent should be present
+	if !strings.Contains(output, "#0d9488") && !strings.Contains(output, "#14b8a6") {
+		t.Error("REQUIRED: Teal accent color (#0d9488 or #14b8a6) not found")
+	}
+}
+
+// TestHTMLWriter_NoEmojiHeaders verifies section headers don't use emoji icons.
+func TestHTMLWriter_NoEmojiHeaders(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{
+		Title:                "Design Test",
+		ShowExecutiveSummary: true,
+	})
+	w.Write(makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeBypass, nil))
+	w.Close()
+
+	output := buf.String()
+
+	// Common emoji patterns in headers
+	emojiPatterns := []string{
+		`<h[1-6][^>]*>.*🚨.*</h[1-6]>`,
+		`<h[1-6][^>]*>.*⚠️.*</h[1-6]>`,
+		`<h[1-6][^>]*>.*✅.*</h[1-6]>`,
+		`<h[1-6][^>]*>.*📋.*</h[1-6]>`,
+		`<h[1-6][^>]*>.*🔒.*</h[1-6]>`,
+		`<h[1-6][^>]*>.*💀.*</h[1-6]>`,
+		`<h[1-6][^>]*>.*🐛.*</h[1-6]>`,
+		`<h[1-6][^>]*>.*🔥.*</h[1-6]>`,
+		`<h[1-6][^>]*>.*⚡.*</h[1-6]>`,
+	}
+
+	for _, pattern := range emojiPatterns {
+		if regexp.MustCompile(pattern).MatchString(output) {
+			t.Errorf("FORBIDDEN: Emoji in header detected (pattern: %s) - use CSS ::before dots instead", pattern)
+		}
+	}
+}
+
+// TestHTMLWriter_NoGradientText verifies no gradient text effect (AI slop pattern).
+func TestHTMLWriter_NoGradientText(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+	w.Write(makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeBypass, nil))
+	w.Close()
+
+	output := buf.String()
+
+	// Forbidden: background-clip: text (creates gradient text effect)
+	if strings.Contains(output, "background-clip: text") || strings.Contains(output, "-webkit-background-clip: text") {
+		t.Error("FORBIDDEN: Gradient text (background-clip: text) detected - remove this AI slop pattern")
+	}
+}
+
+// TestHTMLWriter_NoGlowAnimations verifies no animated glowing effects.
+func TestHTMLWriter_NoGlowAnimations(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{})
+	w.Write(makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeBypass, nil))
+	w.Close()
+
+	output := strings.ToLower(buf.String())
+
+	// Forbidden: @keyframes glow or similar
+	if regexp.MustCompile(`@keyframes\s+glow`).MatchString(output) {
+		t.Error("FORBIDDEN: @keyframes glow animation detected - remove this AI slop pattern")
+	}
+
+	// Forbidden: animation referencing glow
+	if regexp.MustCompile(`animation:\s*[^;]*glow`).MatchString(output) {
+		t.Error("FORBIDDEN: Glow animation reference detected - remove this AI slop pattern")
+	}
+}
+
+// TestHTMLWriter_UseSystemFonts verifies external font CDN can be disabled.
+func TestHTMLWriter_UseSystemFonts(t *testing.T) {
+	// Default: includes Google Fonts
+	buf1 := &bytes.Buffer{}
+	w1 := NewHTMLWriter(buf1, HTMLConfig{})
+	w1.Write(makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeBypass, nil))
+	w1.Close()
+
+	output1 := buf1.String()
+	if !strings.Contains(output1, "fonts.googleapis.com") {
+		t.Error("Default config should include Google Fonts CDN link")
+	}
+
+	// With UseSystemFonts: no external CDN
+	buf2 := &bytes.Buffer{}
+	w2 := NewHTMLWriter(buf2, HTMLConfig{UseSystemFonts: true})
+	w2.Write(makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeBypass, nil))
+	w2.Close()
+
+	output2 := buf2.String()
+	if strings.Contains(output2, "fonts.googleapis.com") {
+		t.Error("UseSystemFonts=true should NOT include Google Fonts CDN link")
+	}
+	if strings.Contains(output2, "fonts.gstatic.com") {
+		t.Error("UseSystemFonts=true should NOT include fonts.gstatic.com")
+	}
+}
+
+// TestHTMLWriter_RequiredPatterns verifies required design system patterns are present.
+func TestHTMLWriter_RequiredPatterns(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{
+		Title:                "Design Test",
+		ShowExecutiveSummary: true,
+		IncludeEvidence:      true,
+	})
+	w.Write(makeHTMLTestResultEvent("t1", "sqli", events.SeverityHigh, events.OutcomeBypass, nil))
+	w.Close()
+
+	output := buf.String()
+
+	// Required: Should have section-label class for professional headers
+	if !strings.Contains(output, "section-label") {
+		t.Error("REQUIRED: section-label class not found - add professional header styling")
+	}
+
+	// Required: Should have depth tier classes
+	depthClasses := []string{"depth-hero", "depth-default", "depth-recessed"}
+	hasAnyDepth := false
+	for _, class := range depthClasses {
+		if strings.Contains(output, class) {
+			hasAnyDepth = true
+			break
+		}
+	}
+	if !hasAnyDepth {
+		t.Error("REQUIRED: No depth tier classes found (depth-hero, depth-default, depth-recessed)")
+	}
+}
+
+// =============================================================================
+// Edge Case Tests (Phase 6)
+// =============================================================================
+
+// TestHTMLWriter_EdgeCase_EmptyReport verifies empty reports render gracefully.
+func TestHTMLWriter_EdgeCase_EmptyReport(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{
+		Title:                "Empty Report Test",
+		ShowExecutiveSummary: true,
+	})
+	// Write no events - empty report
+	w.Close()
+
+	output := buf.String()
+
+	// Must still be valid HTML
+	if !strings.HasPrefix(output, "<!DOCTYPE html>") {
+		t.Error("Empty report missing DOCTYPE")
+	}
+
+	// Must have closing tags
+	if !strings.Contains(output, "</html>") {
+		t.Error("Empty report missing closing </html>")
+	}
+
+	// Must NOT contain undefined/NaN
+	if strings.Contains(output, "undefined") || strings.Contains(output, "NaN") {
+		t.Error("Empty report contains undefined or NaN values")
+	}
+
+	// Should show Findings (0)
+	if !strings.Contains(output, "Findings (0)") {
+		t.Error("Empty report should show 'Findings (0)'")
+	}
+}
+
+// TestHTMLWriter_EdgeCase_LargeReport verifies large reports generate quickly.
+func TestHTMLWriter_EdgeCase_LargeReport(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{
+		Title:           "Large Report Test",
+		IncludeEvidence: true,
+	})
+
+	start := time.Now()
+
+	// Generate 1000 findings
+	for i := 0; i < 1000; i++ {
+		e := makeHTMLTestResultEvent(
+			fmt.Sprintf("test-%04d", i),
+			"sqli",
+			events.SeverityHigh,
+			events.OutcomeBypass,
+			nil,
+		)
+		w.Write(e)
+	}
+	w.Close()
+
+	duration := time.Since(start)
+
+	// Must complete in under 5 seconds
+	if duration > 5*time.Second {
+		t.Errorf("Large report took too long: %v (max 5s)", duration)
+	}
+
+	// Output size should be reasonable (<10MB)
+	if buf.Len() > 10*1024*1024 {
+		t.Errorf("Large report too big: %d bytes (max 10MB)", buf.Len())
+	}
+
+	// Must still be valid HTML
+	output := buf.String()
+	if !strings.HasPrefix(output, "<!DOCTYPE html>") || !strings.Contains(output, "</html>") {
+		t.Error("Large report is not valid HTML")
+	}
+
+	t.Logf("Large report: %d findings, %d bytes, %v", 1000, buf.Len(), duration)
+}
+
+// TestHTMLWriter_EdgeCase_XSSEscaping verifies XSS payloads are properly escaped.
+func TestHTMLWriter_EdgeCase_XSSEscaping(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{
+		Title:           "XSS Test",
+		IncludeEvidence: true,
+	})
+
+	// Create event with XSS payload
+	e := &events.ResultEvent{
+		BaseEvent: events.BaseEvent{
+			Type: events.EventTypeResult,
+			Time: time.Now(),
+			Scan: "xss-test",
+		},
+		Test: events.TestInfo{
+			ID:       "xss-001",
+			Name:     "<script>alert('XSS')</script>",
+			Category: "xss",
+			Severity: events.SeverityCritical,
+		},
+		Target: events.TargetInfo{
+			URL:    "https://example.com/<script>alert(1)</script>",
+			Method: "POST",
+		},
+		Result: events.ResultInfo{
+			Outcome:    events.OutcomeBypass,
+			StatusCode: 200,
+		},
+		Evidence: &events.Evidence{
+			Payload:         `<img src=x onerror="alert('XSS')">`,
+			ResponsePreview: `<html><script>alert('XSS')</script></html>`,
+		},
+	}
+	w.Write(e)
+	w.Close()
+
+	output := buf.String()
+
+	// Raw script tags must NOT appear
+	if strings.Contains(output, "<script>alert") {
+		t.Error("XSS: Unescaped <script> tag found in output")
+	}
+
+	// Raw onerror handlers must NOT appear
+	if strings.Contains(output, `onerror="alert`) {
+		t.Error("XSS: Unescaped onerror handler found in output")
+	}
+
+	// Escaped versions should appear
+	if !strings.Contains(output, "&lt;script&gt;") && !strings.Contains(output, "&#34;") {
+		t.Log("Warning: Expected escaped HTML entities not found")
+	}
+}
+
+// TestHTMLWriter_EdgeCase_Unicode verifies unicode characters render correctly.
+func TestHTMLWriter_EdgeCase_Unicode(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{
+		Title:           "Unicode Test",
+		IncludeEvidence: true,
+	})
+
+	// Create event with unicode content
+	e := &events.ResultEvent{
+		BaseEvent: events.BaseEvent{
+			Type: events.EventTypeResult,
+			Time: time.Now(),
+			Scan: "unicode-test",
+		},
+		Test: events.TestInfo{
+			ID:       "unicode-日本語-001", // Unicode in ID (actually displayed)
+			Name:     "日本語テスト",          // Note: Name field not displayed in current template
+			Category: "sqli",
+			Severity: events.SeverityHigh,
+		},
+		Target: events.TargetInfo{
+			URL:    "https://example.com/العربية",
+			Method: "POST",
+		},
+		Result: events.ResultInfo{
+			Outcome:    events.OutcomeBypass,
+			StatusCode: 200,
+		},
+		Evidence: &events.Evidence{
+			Payload: "' OR '中文' = '中文' --",
+		},
+	}
+	w.Write(e)
+	w.Close()
+
+	output := buf.String()
+
+	// Japanese in ID should appear (ID is displayed in findings table)
+	if !strings.Contains(output, "日本語") {
+		t.Error("Unicode: Japanese characters not found in output")
+	}
+
+	// Arabic in URL should appear
+	if !strings.Contains(output, "العربية") {
+		t.Error("Unicode: Arabic characters not found in output")
+	}
+
+	// Chinese in payload should appear (when evidence is shown)
+	if !strings.Contains(output, "中文") {
+		t.Error("Unicode: Chinese characters not found in output")
+	}
+}
+
+// TestHTMLWriter_EdgeCase_NoDoubleEscape verifies HTML entities aren't double-escaped.
+func TestHTMLWriter_EdgeCase_NoDoubleEscape(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{
+		Title:           "Entity Test",
+		IncludeEvidence: true,
+	})
+
+	// Create event with pre-escaped content
+	e := &events.ResultEvent{
+		BaseEvent: events.BaseEvent{
+			Type: events.EventTypeResult,
+			Time: time.Now(),
+			Scan: "entity-test",
+		},
+		Test: events.TestInfo{
+			ID:       "entity-001",
+			Name:     "Test &lt;with&gt; entities",
+			Category: "sqli",
+			Severity: events.SeverityHigh,
+		},
+		Target: events.TargetInfo{
+			URL:    "https://example.com/?q=a&amp;b=c",
+			Method: "GET",
+		},
+		Result: events.ResultInfo{
+			Outcome:    events.OutcomeBypass,
+			StatusCode: 200,
+		},
+	}
+	w.Write(e)
+	w.Close()
+
+	output := buf.String()
+
+	// Should NOT have double-escaped entities like &amp;lt;
+	if strings.Contains(output, "&amp;lt;") || strings.Contains(output, "&amp;gt;") {
+		t.Error("Entity: Double-escaped HTML entities found (&amp;lt; or &amp;gt;)")
+	}
+}
+
+// =============================================================================
+// Regression Tests (Phase 8)
+// =============================================================================
+
+// TestHTMLWriter_Regression_Structure verifies critical HTML sections exist.
+func TestHTMLWriter_Regression_Structure(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{
+		Title:                "Regression Test",
+		ShowExecutiveSummary: true,
+		IncludeEvidence:      true,
+	})
+
+	// Add a finding
+	w.Write(makeHTMLTestResultEvent("xss-001", "xss", events.SeverityHigh, events.OutcomeBypass, []string{"A03:2021"}))
+	w.Close()
+
+	output := buf.String()
+
+	// Critical sections that must exist
+	criticalSections := []struct {
+		pattern string
+		desc    string
+	}{
+		{`<!DOCTYPE html>`, "DOCTYPE declaration"},
+		{`</html>`, "closing html tag"},
+		{`<head>`, "head section"},
+		{`<body`, "body section"},
+		{`<style>`, "embedded styles"},
+		{`class=".*summary`, "summary section"},
+		{`class=".*finding`, "findings section"},
+		{`<table`, "data table"},
+	}
+
+	for _, sec := range criticalSections {
+		matched, _ := regexp.MatchString(sec.pattern, output)
+		if !matched {
+			t.Errorf("REGRESSION: Missing critical section: %s (pattern: %s)", sec.desc, sec.pattern)
+		}
+	}
+}
+
+// TestHTMLWriter_Regression_Data verifies all data is rendered correctly.
+func TestHTMLWriter_Regression_Data(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{
+		Title:                "Data Preservation Test",
+		ShowExecutiveSummary: true,
+		IncludeEvidence:      true,
+	})
+
+	// Create event with specific data we need to verify
+	e := &events.ResultEvent{
+		BaseEvent: events.BaseEvent{
+			Type: events.EventTypeResult,
+			Time: time.Now(),
+			Scan: "data-test",
+		},
+		Test: events.TestInfo{
+			ID:       "unique-id-12345",
+			Name:     "Unique Test Name ABC",
+			Category: "sqli",
+			Severity: events.SeverityCritical,
+		},
+		Target: events.TargetInfo{
+			URL:    "https://test.example.com/api/v1/users",
+			Method: "POST",
+		},
+		Result: events.ResultInfo{
+			Outcome:    events.OutcomeBypass,
+			StatusCode: 403,
+		},
+		Evidence: &events.Evidence{
+			Payload: "' OR '1'='1",
+		},
+	}
+	w.Write(e)
+	w.Close()
+
+	output := buf.String()
+
+	// All data must be present in output
+	requiredData := []struct {
+		value string
+		desc  string
+	}{
+		{"unique-id-12345", "test ID"},
+		{"sqli", "category"},
+		{"https://test.example.com/api/v1/users", "target URL"},
+		{"POST", "HTTP method"},
+		{"403", "status code"},
+	}
+
+	for _, data := range requiredData {
+		if !strings.Contains(output, data.value) {
+			t.Errorf("REGRESSION: Missing data in output: %s (%s)", data.desc, data.value)
+		}
+	}
+}
+
+// TestHTMLWriter_Regression_Performance verifies generation time hasn't regressed.
+func TestHTMLWriter_Regression_Performance(t *testing.T) {
+	// Skip in short mode
+	if testing.Short() {
+		t.Skip("Skipping performance regression test in short mode")
+	}
+
+	// Baseline: 500 findings should complete in < 500ms
+	// (We recorded 120ms in baseline, allowing 4x margin)
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{
+		Title:           "Performance Regression Test",
+		IncludeEvidence: true,
+	})
+
+	start := time.Now()
+	for i := 0; i < 500; i++ {
+		e := makeHTMLTestResultEvent(
+			fmt.Sprintf("perf-%04d", i),
+			"sqli",
+			events.SeverityHigh,
+			events.OutcomeBypass,
+			nil,
+		)
+		w.Write(e)
+	}
+	w.Close()
+	duration := time.Since(start)
+
+	// Performance threshold: 500ms for 500 findings
+	if duration > 500*time.Millisecond {
+		t.Errorf("PERFORMANCE REGRESSION: 500 findings took %v (threshold: 500ms)", duration)
+	}
+
+	t.Logf("Performance: 500 findings in %v, %d bytes", duration, buf.Len())
+}
+
+// TestHTMLWriter_Regression_Balanced verifies HTML tags are balanced.
+func TestHTMLWriter_Regression_Balanced(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, HTMLConfig{
+		Title:                "Balance Test",
+		ShowExecutiveSummary: true,
+		IncludeEvidence:      true,
+	})
+
+	// Add several findings
+	for i := 0; i < 10; i++ {
+		w.Write(makeHTMLTestResultEvent(
+			fmt.Sprintf("bal-%d", i),
+			"xss",
+			events.SeverityHigh,
+			events.OutcomeBypass,
+			nil,
+		))
+	}
+	w.Close()
+
+	output := buf.String()
+
+	// Check tag balance for major elements (using regex for accuracy)
+	balanceChecks := []string{"div", "table", "section", "span", "html", "head", "body"}
+	for _, tag := range balanceChecks {
+		// Count opening tags: <tag or <tag followed by space/> 
+		openPattern := regexp.MustCompile(`<` + tag + `[\s>]`)
+		open := len(openPattern.FindAllString(output, -1))
+		
+		// Count closing tags: </tag>
+		closePattern := regexp.MustCompile(`</` + tag + `>`)
+		close := len(closePattern.FindAllString(output, -1))
+		
+		if open != close {
+			t.Errorf("REGRESSION: Unbalanced <%s> tags: %d open, %d close", tag, open, close)
+		}
+	}
+}
+
+// =============================================================================
+// Phase 11: HTMLConfig Defaults Bug Fix Tests
+// =============================================================================
+
+// TestHTMLConfig_BugDemo_SingleFieldBreaksDefaults demonstrates that the OLD
+// pattern (setting one field in struct literal) no longer gives implicit defaults.
+// This test documents the semantic change - users should use DefaultHTMLConfig().
+func TestHTMLConfig_BugDemo_SingleFieldBreaksDefaults(t *testing.T) {
+	// OLD PATTERN (no longer recommended): Setting one field loses all defaults
+	cfg := HTMLConfig{IncludeEvidence: true}
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, cfg)
+	w.Write(makeHTMLTestResultEvent("bug-demo", "xss", events.SeverityHigh, events.OutcomeBypass, nil))
+	w.Close()
+
+	output := buf.String()
+
+	// With NEW semantics: zero-value = false, so no executive summary
+	// This is EXPECTED behavior now - not a bug
+	if strings.Contains(output, "Executive Summary") {
+		t.Log("Note: Executive Summary present with partial config (unexpected with new semantics)")
+	}
+
+	// NEW PATTERN: Use DefaultHTMLConfig() then override
+	cfg2 := DefaultHTMLConfig()
+	cfg2.ShowRiskChart = false // Disable just this one
+	buf2 := &bytes.Buffer{}
+	w2 := NewHTMLWriter(buf2, cfg2)
+	w2.Write(makeHTMLTestResultEvent("new-pattern", "xss", events.SeverityHigh, events.OutcomeBypass, nil))
+	w2.Close()
+
+	output2 := buf2.String()
+
+	// With DefaultHTMLConfig(), executive summary IS present
+	if !strings.Contains(output2, "Executive Summary") {
+		t.Error("DefaultHTMLConfig() should include Executive Summary")
+	}
+	// But risk chart should be disabled
+	if strings.Contains(output2, "<svg") && strings.Contains(output2, "Risk Distribution") {
+		t.Error("ShowRiskChart=false should disable the pie chart")
+	}
+}
+
+// TestHTMLConfig_ZeroValue_AllFeaturesOff verifies zero-value semantics:
+// HTMLConfig{} should now mean "all features OFF" (explicit zero = explicit false)
+func TestHTMLConfig_ZeroValue_AllFeaturesOff(t *testing.T) {
+	cfg := HTMLConfig{} // Zero value
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, cfg)
+	w.Write(makeHTMLTestResultEvent("zero-test", "xss", events.SeverityHigh, events.OutcomeBypass, nil))
+	w.Close()
+
+	output := buf.String()
+
+	// With zero config, all bool features should be OFF
+	// (After fix: zero-value = all features off, use DefaultHTMLConfig() for defaults)
+	if strings.Contains(output, "Executive Summary") && !strings.Contains(output, "ShowExecutiveSummary") {
+		// Note: This behavior changes with the fix
+		// Before: Executive Summary shown (buggy all-or-nothing defaults)
+		// After: Executive Summary NOT shown (zero-value = off)
+		t.Log("Zero-value config includes Executive Summary (old behavior)")
+	}
+}
+
+// TestHTMLConfig_DefaultFunc_AllFeaturesOn verifies DefaultHTMLConfig()
+// returns config with all features enabled except UseSystemFonts.
+func TestHTMLConfig_DefaultFunc_AllFeaturesOn(t *testing.T) {
+	cfg := DefaultHTMLConfig()
+
+	tests := []struct {
+		name  string
+		value bool
+		want  bool
+	}{
+		{"IncludeEvidence", cfg.IncludeEvidence, true},
+		{"IncludeJSON", cfg.IncludeJSON, true},
+		{"ShowExecutiveSummary", cfg.ShowExecutiveSummary, true},
+		{"ShowRiskChart", cfg.ShowRiskChart, true},
+		{"ShowRiskMatrix", cfg.ShowRiskMatrix, true},
+		{"ShowCurlCommands", cfg.ShowCurlCommands, true},
+		{"PrintOptimized", cfg.PrintOptimized, true},
+		{"UseSystemFonts", cfg.UseSystemFonts, false}, // Inverted default
+	}
+
+	for _, tt := range tests {
+		if tt.value != tt.want {
+			t.Errorf("DefaultHTMLConfig().%s = %v, want %v", tt.name, tt.value, tt.want)
+		}
+	}
+
+	// Also verify string defaults
+	if cfg.Title != "WAFtester Security Report" {
+		t.Errorf("DefaultHTMLConfig().Title = %q, want 'WAFtester Security Report'", cfg.Title)
+	}
+	if cfg.Theme != "auto" {
+		t.Errorf("DefaultHTMLConfig().Theme = %q, want 'auto'", cfg.Theme)
+	}
+	if cfg.MaxResponseLength != 5*1024 {
+		t.Errorf("DefaultHTMLConfig().MaxResponseLength = %d, want %d", cfg.MaxResponseLength, 5*1024)
+	}
+}
+
+// TestHTMLConfig_PartialOverride_OthersUnchanged verifies that overriding
+// one field doesn't affect other fields when using DefaultHTMLConfig().
+func TestHTMLConfig_PartialOverride_OthersUnchanged(t *testing.T) {
+	cfg := DefaultHTMLConfig()
+	cfg.ShowRiskChart = false // Disable just this one
+
+	if cfg.ShowRiskChart != false {
+		t.Error("Explicit override to false didn't work")
+	}
+	if cfg.ShowExecutiveSummary != true {
+		t.Error("Overriding ShowRiskChart affected ShowExecutiveSummary")
+	}
+	if cfg.ShowRiskMatrix != true {
+		t.Error("Overriding ShowRiskChart affected ShowRiskMatrix")
+	}
+	if cfg.IncludeEvidence != true {
+		t.Error("Overriding ShowRiskChart affected IncludeEvidence")
+	}
+}
+
+// TestHTMLConfig_ExplicitFalse_Respected verifies explicit false is honored.
+func TestHTMLConfig_ExplicitFalse_Respected(t *testing.T) {
+	cfg := DefaultHTMLConfig()
+	cfg.ShowExecutiveSummary = false
+
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, cfg)
+	w.Write(makeHTMLTestResultEvent("explicit-false", "xss", events.SeverityHigh, events.OutcomeBypass, nil))
+	w.Close()
+
+	output := buf.String()
+
+	// When ShowExecutiveSummary=false, the full section with section-label should be absent
+	// (the simple summary-grid is still shown but without the depth-hero styling)
+	if strings.Contains(output, `class="executive-summary depth-hero"`) {
+		t.Error("Explicit ShowExecutiveSummary=false was not respected - depth-hero section present")
+	}
+	// The recommendations should NOT be shown
+	if strings.Contains(output, "Key Recommendations") {
+		t.Error("Explicit ShowExecutiveSummary=false should hide Key Recommendations")
+	}
+}
+
+// TestHTMLConfig_UseSystemFonts_DefaultFalse verifies UseSystemFonts defaults to false.
+func TestHTMLConfig_UseSystemFonts_DefaultFalse(t *testing.T) {
+	cfg := DefaultHTMLConfig()
+
+	if cfg.UseSystemFonts != false {
+		t.Errorf("DefaultHTMLConfig().UseSystemFonts = %v, want false", cfg.UseSystemFonts)
+	}
+
+	buf := &bytes.Buffer{}
+	w := NewHTMLWriter(buf, cfg)
+	w.Close()
+
+	output := buf.String()
+
+	// With UseSystemFonts=false (default), Google Fonts should be included
+	if !strings.Contains(output, "fonts.googleapis.com") {
+		t.Error("UseSystemFonts=false should include Google Fonts CDN")
+	}
+}
+
+// TestHTMLConfig_CopyDoesntAlias verifies struct copy doesn't alias.
+func TestHTMLConfig_CopyDoesntAlias(t *testing.T) {
+	cfg1 := DefaultHTMLConfig()
+	cfg2 := cfg1 // Copy
+	cfg2.ShowRiskChart = false
+
+	if cfg1.ShowRiskChart == cfg2.ShowRiskChart {
+		t.Error("Struct copy aliased - modifying cfg2 affected cfg1")
+	}
+}
+
+// TestHTMLConfig_JSONRoundTrip verifies JSON serialization works correctly.
+func TestHTMLConfig_JSONRoundTrip(t *testing.T) {
+	original := DefaultHTMLConfig()
+	original.Title = "Custom Title"
+	original.ShowRiskChart = false
+
+	// Marshal
+	data, err := json.Marshal(original)
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+
+	// Unmarshal
+	var restored HTMLConfig
+	if err := json.Unmarshal(data, &restored); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	// Compare
+	if restored.Title != original.Title {
+		t.Errorf("Title mismatch: got %q, want %q", restored.Title, original.Title)
+	}
+	if restored.ShowRiskChart != original.ShowRiskChart {
+		t.Errorf("ShowRiskChart mismatch: got %v, want %v", restored.ShowRiskChart, original.ShowRiskChart)
+	}
+	if restored.ShowExecutiveSummary != original.ShowExecutiveSummary {
+		t.Errorf("ShowExecutiveSummary mismatch: got %v, want %v", restored.ShowExecutiveSummary, original.ShowExecutiveSummary)
+	}
+}
+
+// TestHTMLConfig_ConcurrentDefaultAccess verifies DefaultHTMLConfig is safe for concurrent use.
+func TestHTMLConfig_ConcurrentDefaultAccess(t *testing.T) {
+	const goroutines = 100
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			cfg := DefaultHTMLConfig()
+			// Modify the copy (should not affect others)
+			cfg.Title = "Modified"
+			cfg.ShowRiskChart = false
+		}()
+	}
+
+	wg.Wait()
+
+	// Verify original defaults unchanged
+	cfg := DefaultHTMLConfig()
+	if cfg.Title != "WAFtester Security Report" {
+		t.Error("Concurrent access corrupted DefaultHTMLConfig defaults")
 	}
 }

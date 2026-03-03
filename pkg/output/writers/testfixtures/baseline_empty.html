@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="auto">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WAFtester Baseline Report</title>
+    <style>
+         
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --bg-card: #ffffff;
+            --text-primary: #212529;
+            --text-secondary: #6c757d;
+            --border-color: #dee2e6;
+            --shadow: 0 2px 8px rgba(0,0,0,0.1);
+            --accent: #0d6efd;
+            --severity-critical: #dc3545;
+            --severity-high: #fd7e14;
+            --severity-medium: #ffc107;
+            --severity-low: #20c997;
+            --severity-info: #0dcaf0;
+            --outcome-bypass: #dc3545;
+            --outcome-blocked: #198754;
+            --outcome-error: #6c757d;
+            --outcome-timeout: #6f42c1;
+            --owasp-pass: #198754;
+            --owasp-fail: #dc3545;
+            --owasp-none: #6c757d;
+
+             
+            --font-mono: 'Geist Mono', 'JetBrains Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
+            --terminal-green: #33ff00;
+            --header-gradient: linear-gradient(135deg, #1a365d 0%, #0f2942 100%);
+
+             
+            --risk-3: #ed5033;   
+            --risk-2: #ffb900;   
+            --risk-1: #ece04c;   
+            --risk-0: #278feb;   
+            --risk-pass: #16cd71;   
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-card: #0f3460;
+            --text-primary: #e8e8e8;
+            --text-secondary: #a0a0a0;
+            --border-color: #3a3a5c;
+            --shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+         
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+
+         
+        .header {
+            background: var(--bg-secondary);
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo {
+            max-height: 40px;
+        }
+
+        .header-title h1 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .header-title .company-name {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+         
+        .btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: var(--bg-secondary);
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+         
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+         
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .summary-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--accent);
+            text-align: center;
+            position: relative;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .summary-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .summary-card.blocked-card { border-left-color: var(--outcome-blocked); }
+        .summary-card.bypass-card { border-left-color: var(--outcome-bypass); }
+        .summary-card.error-card { border-left-color: var(--outcome-error); }
+        .summary-card.timeout-card { border-left-color: var(--outcome-timeout); }
+        .summary-card.grade-card { border-left-color: var(--accent); }
+
+        .summary-card .value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .summary-card .label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        .grade-card .value {
+            font-size: 3rem;
+        }
+
+         
+        .severity-cards {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 2rem;
+        }
+
+        .severity-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .severity-critical { background: var(--severity-critical); color: white; }
+        .severity-high { background: var(--severity-high); color: white; }
+        .severity-medium { background: var(--severity-medium); color: #000; }
+        .severity-low { background: var(--severity-low); color: white; }
+        .severity-info { background: var(--severity-info); color: #000; }
+
+         
+        .owasp-section {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            margin-bottom: 2rem;
+        }
+
+        .owasp-section h2 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+        }
+
+        .owasp-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .owasp-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            border-radius: 8px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+        }
+
+        .owasp-status {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .owasp-status.pass::before { content: '✔'; color: var(--owasp-pass); }
+        .owasp-status.fail::before { content: '✖'; color: var(--owasp-fail); }
+        .owasp-status.none::before { content: '○'; color: var(--owasp-none); }
+
+        .owasp-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .owasp-code {
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .owasp-name {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        .owasp-stats {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+         
+        .findings-section {
+            margin-bottom: 2rem;
+        }
+
+        .finding {
+            background: var(--bg-card);
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .finding-header {
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s;
+        }
+
+        .finding-header:hover {
+            background: var(--bg-secondary);
+        }
+
+        .finding-toggle {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            transition: transform 0.2s;
+        }
+
+        .finding.expanded .finding-toggle {
+            transform: rotate(90deg);
+        }
+
+        .finding-title {
+            flex: 1;
+            font-weight: 600;
+        }
+
+        .finding-meta {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .outcome-bypass { background: var(--outcome-bypass); color: white; }
+        .outcome-blocked { background: var(--outcome-blocked); color: white; }
+        .outcome-error { background: var(--outcome-error); color: white; }
+        .outcome-timeout { background: var(--outcome-timeout); color: white; }
+        .outcome-pass { background: var(--owasp-pass); color: white; }
+
+        .finding-body {
+            display: none;
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .finding.expanded .finding-body {
+            display: block;
+        }
+
+        .finding-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .detail-item {
+            background: var(--bg-secondary);
+            padding: 0.75rem;
+            border-radius: 6px;
+        }
+
+        .detail-label {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .detail-value {
+            font-weight: 500;
+            word-break: break-all;
+        }
+
+         
+        .evidence-section {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .evidence-section h4 {
+            margin: 0 0 0.5rem 0;
+            font-size: 0.875rem;
+        }
+
+        .code-block {
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            padding: 1rem;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.8rem;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+         
+        .json-toggle {
+            margin-top: 1rem;
+        }
+
+        .json-toggle-btn {
+            background: none;
+            border: none;
+            color: var(--accent);
+            cursor: pointer;
+            font-size: 0.875rem;
+            padding: 0;
+            text-decoration: underline;
+        }
+
+        .json-content {
+            display: none;
+            margin-top: 0.5rem;
+        }
+
+        .json-content.visible {
+            display: block;
+        }
+
+         
+        .footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+         
+        @media print {
+            .header-actions,
+            .theme-toggle,
+            .json-toggle,
+            .btn,
+            .no-print {
+                display: none !important;
+            }
+
+            body {
+                background: white;
+                color: black;
+                font-size: 12pt;
+            }
+
+            .finding {
+                page-break-inside: avoid;
+            }
+
+            .finding-body,
+            .collapsible-content {
+                display: block !important;
+            }
+
+            .page-break {
+                page-break-before: always;
+            }
+
+            .container {
+                max-width: 100%;
+                padding: 0;
+            }
+
+            .summary-card,
+            .owasp-section,
+            .finding {
+                box-shadow: none;
+                border: 1px solid #ccc;
+            }
+        }
+
+        @page {
+            margin: 1cm;
+        }
+
+         
+        .terminal-banner {
+            background: #0a0a0a;
+            padding: 1rem;
+            overflow: hidden;
+        }
+
+        .ascii-art {
+            font-family: var(--font-mono);
+            font-size: 0.5rem;
+            color: var(--terminal-green);
+            text-align: center;
+            margin: 0;
+            line-height: 1.2;
+        }
+
+        [data-theme="light"] .terminal-banner {
+            background: var(--bg-secondary);
+        }
+
+        [data-theme="light"] .ascii-art {
+            color: #087f5b;
+        }
+
+        @media (max-width: 768px) {
+            .terminal-banner { display: none; }
+        }
+
+        @media print {
+            .terminal-banner { display: none !important; }
+        }
+
+         
+        .report-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            padding: 1rem 2rem;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.875rem;
+        }
+
+        .meta-item {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .meta-label {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+         
+        .copy-btn {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+            margin-left: 0.5rem;
+        }
+
+        .copy-btn:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        .copy-btn.copied {
+            background: var(--outcome-blocked);
+            color: white;
+        }
+
+         
+        .findings-toolbar {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-input {
+            flex: 1;
+            min-width: 200px;
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 0.875rem;
+        }
+
+        .filter-select {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 0.875rem;
+        }
+
+        .filter-count {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            align-self: center;
+        }
+
+         
+        .risk-chart {
+            max-width: 400px;
+            height: auto;
+        }
+
+        .risk-chart .legend-text {
+            font-size: 13px;
+            fill: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+         
+        .risk-matrix-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.875rem;
+        }
+
+        .risk-matrix-table th,
+        .risk-matrix-table td {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .risk-matrix-table th {
+            background: var(--bg-secondary);
+            font-weight: 600;
+        }
+
+        .risk-matrix-table .severity-label {
+            text-align: left;
+            text-transform: capitalize;
+            font-weight: 500;
+        }
+
+        .risk-matrix-table .has-bypasses {
+            background: rgba(220, 53, 69, 0.2);
+            color: var(--severity-critical);
+            font-weight: 600;
+        }
+
+        .risk-matrix-table .bypass-col { color: var(--outcome-bypass); }
+        .risk-matrix-table .blocked-col { color: var(--outcome-blocked); }
+        .risk-matrix-table .error-col { color: var(--outcome-error); }
+        .risk-matrix-table .timeout-col { color: var(--outcome-timeout); }
+        .risk-matrix-table .pass-col { color: var(--owasp-pass); }
+
+        .risk-matrix-table .totals-row {
+            background: var(--bg-secondary);
+        }
+
+        .risk-matrix-table .grand-total {
+            font-weight: 700;
+        }
+
+        .risk-matrix-table .severity-critical-row .severity-label { color: var(--severity-critical); }
+        .risk-matrix-table .severity-high-row .severity-label { color: var(--severity-high); }
+        .risk-matrix-table .severity-medium-row .severity-label { color: var(--severity-medium); }
+        .risk-matrix-table .severity-low-row .severity-label { color: var(--severity-low); }
+        .risk-matrix-table .severity-info-row .severity-label { color: var(--severity-info); }
+
+         
+        .executive-summary {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            margin-bottom: 2rem;
+        }
+
+        .executive-summary h2 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+        }
+
+        .recommendations-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .recommendations-list li {
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            border-left: 4px solid var(--accent);
+        }
+
+         
+        .effectiveness-bar {
+            height: 24px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+
+        .effectiveness-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--outcome-bypass), var(--severity-medium), var(--outcome-blocked));
+            border-radius: 12px;
+            transition: width 0.5s ease;
+        }
+
+         
+        .collapsible-section {
+            margin-bottom: 2rem;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            cursor: pointer;
+            user-select: none;
+            padding: 0.5rem 0;
+        }
+
+        .section-header:hover {
+            opacity: 0.8;
+        }
+
+        .section-toggle {
+            transition: transform 0.2s;
+        }
+
+        .collapsible-section.collapsed .section-toggle {
+            transform: rotate(-90deg);
+        }
+
+        .collapsible-section.collapsed .collapsible-content {
+            display: none;
+        }
+
+         
+        .site-breakdown-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.875rem;
+        }
+
+        .site-breakdown-table th,
+        .site-breakdown-table td {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border-color);
+            text-align: left;
+        }
+
+        .site-breakdown-table th {
+            background: var(--bg-secondary);
+            font-weight: 600;
+        }
+
+        .site-breakdown-table .url-cell {
+            word-break: break-all;
+            max-width: 300px;
+        }
+
+        .site-breakdown-table .num-cell {
+            text-align: center;
+        }
+
+         
+        .ref-link {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .ref-link:hover {
+            text-decoration: underline;
+        }
+
+         
+        .curl-command {
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+            margin: 0.5rem 0;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.8rem;
+            border-left: 3px solid var(--accent);
+            overflow-x: auto;
+        }
+
+        .curl-command code {
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+         
+        .timestamp {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+        }
+
+         
+        .sev-conf-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.875rem;
+        }
+
+        .sev-conf-table th,
+        .sev-conf-table td {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .sev-conf-table thead th {
+            background: var(--bg-secondary);
+            font-weight: 600;
+        }
+
+        .sev-conf-table .severity-label {
+            text-align: left;
+            font-weight: 600;
+        }
+
+        .sev-conf-table .sev-conf-hot {
+            background: rgba(220, 38, 38, 0.15);
+            color: var(--severity-critical);
+            font-weight: 700;
+        }
+
+        .sev-conf-table .sev-conf-empty {
+            color: var(--text-secondary);
+            opacity: 0.5;
+        }
+
+        .sev-conf-table .totals-row {
+            background: var(--bg-secondary);
+        }
+
+         
+        .passing-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.875rem;
+        }
+
+        .passing-table th,
+        .passing-table td {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border-color);
+            text-align: left;
+        }
+
+        .passing-table thead th {
+            background: #16a34a;
+            color: white;
+            font-weight: 600;
+        }
+
+        [data-theme="dark"] .passing-table thead th {
+            background: #15803d;
+        }
+
+        .passing-table .pass-status {
+            color: #16a34a;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .passing-table .num-cell {
+            text-align: center;
+        }
+
+        .passing-summary {
+            color: #16a34a;
+            font-style: italic;
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+         
+        .evasion-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.875rem;
+        }
+
+        .evasion-table th,
+        .evasion-table td {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border-color);
+            text-align: left;
+        }
+
+        .evasion-table thead th {
+            background: var(--bg-secondary);
+            font-weight: 600;
+        }
+
+        .evasion-table .num-cell {
+            text-align: center;
+        }
+
+        .evasion-table .rate-high {
+            color: var(--severity-critical);
+            font-weight: 700;
+        }
+
+        .evasion-table .rate-medium {
+            color: #ca8a04;
+            font-weight: 600;
+        }
+
+        .evasion-table .rate-low {
+            color: #16a34a;
+        }
+
+        .evasion-subtitle {
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 1.5rem 0 0.5rem 0;
+            color: var(--text-primary);
+        }
+
+         
+        .remediation-card {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1rem;
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--severity-high);
+        }
+
+        .remediation-card h4 {
+            margin: 0 0 0.5rem 0;
+            font-size: 0.95rem;
+        }
+
+        .remediation-card .bypass-count {
+            color: var(--severity-critical);
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+
+        .remediation-card .guidance-text {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin: 0.5rem 0;
+            line-height: 1.5;
+        }
+
+        .remediation-card .ref-link {
+            font-size: 0.8rem;
+        }
+
+         
+        .insights-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .insight-card {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow);
+        }
+
+        .insight-card .insight-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .insight-card .insight-icon {
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            padding: 0.25rem 0.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .insight-card .insight-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .insight-card .insight-body {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            
+            <div class="header-title">
+                <h1>WAFtester Baseline Report</h1>
+                
+            </div>
+        </div>
+        <div class="header-actions no-print">
+            <button class="btn theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">
+                🌓 Theme
+            </button>
+            <button class="btn" onclick="expandAllFindings()" aria-label="Expand all findings">
+                📂 Expand All
+            </button>
+            <button class="btn" onclick="collapseAllFindings()" aria-label="Collapse all findings">
+                📁 Collapse All
+            </button>
+            <button class="btn" onclick="exportJSON()" aria-label="Export as JSON">
+                💾 Export JSON
+            </button>
+            <button class="btn btn-primary" onclick="printReport()" aria-label="Export to PDF">
+                📄 Export PDF
+            </button>
+        </div>
+    </header>
+
+    
+    <div class="terminal-banner no-print">
+        <pre class="ascii-art">
+██╗    ██╗ █████╗ ███████╗████████╗███████╗███████╗████████╗███████╗██████╗ 
+██║    ██║██╔══██╗██╔════╝╚══██╔══╝██╔════╝██╔════╝╚══██╔══╝██╔════╝██╔══██╗
+██║ █╗ ██║███████║█████╗     ██║   █████╗  ███████╗   ██║   █████╗  ██████╔╝
+██║███╗██║██╔══██║██╔══╝     ██║   ██╔══╝  ╚════██║   ██║   ██╔══╝  ██╔══██╗
+╚███╔███╔╝██║  ██║██║        ██║   ███████╗███████║   ██║   ███████╗██║  ██║
+ ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝        ╚═╝   ╚══════╝╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
+        </pre>
+    </div>
+
+    
+    <div class="report-meta">
+        
+        
+        <div class="meta-item"><span class="meta-label">Generated:</span> 2026-03-02 23:56:20 &#43;04</div>
+        
+    </div>
+
+    <main class="container">
+        
+        
+        <section class="executive-summary" aria-label="Executive Summary">
+            <h2>📋 Executive Summary</h2>
+            <div class="summary-grid">
+                <div class="summary-card grade-card">
+                    <div class="value">F</div>
+                    <div class="label">Security Grade</div>
+                </div>
+                <div class="summary-card">
+                    <div class="value">0</div>
+                    <div class="label">Total Tests</div>
+                </div>
+                <div class="summary-card blocked-card">
+                    <div class="value" style="color: var(--outcome-blocked)">0</div>
+                    <div class="label">Blocked</div>
+                </div>
+                <div class="summary-card bypass-card">
+                    <div class="value" style="color: var(--outcome-bypass)">0</div>
+                    <div class="label">Bypasses</div>
+                </div>
+                <div class="summary-card">
+                    <div class="value">0.0%</div>
+                    <div class="label">Block Rate</div>
+                </div>
+                
+                
+            </div>
+
+            
+            <div class="effectiveness-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Block rate 0.0%">
+                <div class="effectiveness-fill" style="width: 0.0%;"></div>
+            </div>
+
+            
+            <h3>Key Recommendations</h3>
+            <ul class="recommendations-list">
+                
+                <li>✅ Excellent WAF coverage - no bypasses detected in this scan</li>
+                
+            </ul>
+            
+        </section>
+        
+
+        
+
+        
+        <section class="severity-cards" aria-label="Bypasses by Severity">
+            <span class="severity-badge severity-critical">
+                <span>Critical</span>
+                <span>0</span>
+            </span>
+            <span class="severity-badge severity-high">
+                <span>High</span>
+                <span>0</span>
+            </span>
+            <span class="severity-badge severity-medium">
+                <span>Medium</span>
+                <span>0</span>
+            </span>
+            <span class="severity-badge severity-low">
+                <span>Low</span>
+                <span>0</span>
+            </span>
+            <span class="severity-badge severity-info">
+                <span>Info</span>
+                <span>0</span>
+            </span>
+        </section>
+
+        
+
+        
+
+        
+
+        
+        <section class="collapsible-section owasp-section" id="owasp-section" aria-label="OWASP Top 10 Coverage">
+            <div class="section-header" onclick="toggleSection('owasp-section')">
+                <span class="section-toggle">▼</span>
+                <h2>📊 OWASP Top 10 2021 Coverage</h2>
+            </div>
+            <div class="collapsible-content">
+                <div class="owasp-grid">
+                    
+                    <div class="owasp-item">
+                        <div class="owasp-status none" aria-label="none"></div>
+                        <div class="owasp-info">
+                            <a href="https://owasp.org/Top10/A01_2021-Broken_Access_Control/" target="_blank" rel="noopener" class="ref-link">A01:2021</a>
+                            <div class="owasp-name">Broken Access Control</div>
+                        </div>
+                        <div class="owasp-stats">
+                            
+                        </div>
+                    </div>
+                    
+                    <div class="owasp-item">
+                        <div class="owasp-status none" aria-label="none"></div>
+                        <div class="owasp-info">
+                            <a href="https://owasp.org/Top10/A02_2021-Cryptographic_Failures/" target="_blank" rel="noopener" class="ref-link">A02:2021</a>
+                            <div class="owasp-name">Cryptographic Failures</div>
+                        </div>
+                        <div class="owasp-stats">
+                            
+                        </div>
+                    </div>
+                    
+                    <div class="owasp-item">
+                        <div class="owasp-status none" aria-label="none"></div>
+                        <div class="owasp-info">
+                            <a href="https://owasp.org/Top10/A03_2021-Injection/" target="_blank" rel="noopener" class="ref-link">A03:2021</a>
+                            <div class="owasp-name">Injection</div>
+                        </div>
+                        <div class="owasp-stats">
+                            
+                        </div>
+                    </div>
+                    
+                    <div class="owasp-item">
+                        <div class="owasp-status none" aria-label="none"></div>
+                        <div class="owasp-info">
+                            <a href="https://owasp.org/Top10/A04_2021-Insecure_Design/" target="_blank" rel="noopener" class="ref-link">A04:2021</a>
+                            <div class="owasp-name">Insecure Design</div>
+                        </div>
+                        <div class="owasp-stats">
+                            
+                        </div>
+                    </div>
+                    
+                    <div class="owasp-item">
+                        <div class="owasp-status none" aria-label="none"></div>
+                        <div class="owasp-info">
+                            <a href="https://owasp.org/Top10/A05_2021-Security_Misconfiguration/" target="_blank" rel="noopener" class="ref-link">A05:2021</a>
+                            <div class="owasp-name">Security Misconfiguration</div>
+                        </div>
+                        <div class="owasp-stats">
+                            
+                        </div>
+                    </div>
+                    
+                    <div class="owasp-item">
+                        <div class="owasp-status none" aria-label="none"></div>
+                        <div class="owasp-info">
+                            <a href="https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/" target="_blank" rel="noopener" class="ref-link">A06:2021</a>
+                            <div class="owasp-name">Vulnerable and Outdated Components</div>
+                        </div>
+                        <div class="owasp-stats">
+                            
+                        </div>
+                    </div>
+                    
+                    <div class="owasp-item">
+                        <div class="owasp-status none" aria-label="none"></div>
+                        <div class="owasp-info">
+                            <a href="https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/" target="_blank" rel="noopener" class="ref-link">A07:2021</a>
+                            <div class="owasp-name">Identification and Authentication Failures</div>
+                        </div>
+                        <div class="owasp-stats">
+                            
+                        </div>
+                    </div>
+                    
+                    <div class="owasp-item">
+                        <div class="owasp-status none" aria-label="none"></div>
+                        <div class="owasp-info">
+                            <a href="https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/" target="_blank" rel="noopener" class="ref-link">A08:2021</a>
+                            <div class="owasp-name">Software and Data Integrity Failures</div>
+                        </div>
+                        <div class="owasp-stats">
+                            
+                        </div>
+                    </div>
+                    
+                    <div class="owasp-item">
+                        <div class="owasp-status none" aria-label="none"></div>
+                        <div class="owasp-info">
+                            <a href="https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/" target="_blank" rel="noopener" class="ref-link">A09:2021</a>
+                            <div class="owasp-name">Security Logging and Monitoring Failures</div>
+                        </div>
+                        <div class="owasp-stats">
+                            
+                        </div>
+                    </div>
+                    
+                    <div class="owasp-item">
+                        <div class="owasp-status none" aria-label="none"></div>
+                        <div class="owasp-info">
+                            <a href="https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_%28SSRF%29/" target="_blank" rel="noopener" class="ref-link">A10:2021</a>
+                            <div class="owasp-name">Server-Side Request Forgery</div>
+                        </div>
+                        <div class="owasp-stats">
+                            
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+        </section>
+
+        
+
+        
+
+        
+
+        
+
+        
+        <section class="findings-section collapsible-section" id="findings-section" aria-label="Security Findings">
+            <div class="section-header" onclick="toggleSection('findings-section')">
+                <span class="section-toggle">▼</span>
+                <h2>🔍 Findings (0)</h2>
+            </div>
+            <div class="collapsible-content">
+            
+            <div class="findings-toolbar no-print">
+                <input type="text" class="filter-input" id="findingsFilter" placeholder="🔍 Filter findings..." onkeyup="filterFindings()">
+                <select class="filter-select" id="severityFilter" onchange="filterFindings()">
+                    <option value="">All Severities</option>
+                    <option value="critical">Critical</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                    <option value="info">Info</option>
+                </select>
+                <select class="filter-select" id="outcomeFilter" onchange="filterFindings()">
+                    <option value="">All Outcomes</option>
+                    <option value="bypass">Bypass</option>
+                    <option value="blocked">Blocked</option>
+                    <option value="error">Error</option>
+                    <option value="timeout">Timeout</option>
+                    <option value="pass">Pass</option>
+                </select>
+                <span id="filterCount" class="filter-count" style="display:none"></span>
+            </div>
+            
+            <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">No findings to display.</p>
+            
+            </div>
+        </section>
+    </main>
+
+    <noscript>
+    <style>.finding-body { display: block !important; } .finding-toggle { display: none !important; }</style>
+    </noscript>
+
+    <footer class="footer">
+        <p>Generated by WAFtester on 2026-03-02 23:56:20 &#43;04</p>
+        
+        
+    </footer>
+
+    <script>
+        
+        (function() {
+            try {
+                var saved = localStorage.getItem('waftester-theme');
+                if (saved) {
+                    document.documentElement.setAttribute('data-theme', saved);
+                } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    var current = document.documentElement.getAttribute('data-theme');
+                    if (current === 'auto') {
+                        document.documentElement.setAttribute('data-theme', 'dark');
+                    }
+                }
+            } catch(e) {}
+        })();
+
+        function toggleTheme() {
+            var html = document.documentElement;
+            var current = html.getAttribute('data-theme');
+            var next = current === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', next);
+            try { localStorage.setItem('waftester-theme', next); } catch(e) {}
+        }
+
+        
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            if (section) {
+                section.classList.toggle('collapsed');
+            }
+        }
+
+        
+        function toggleFinding(index) {
+            const finding = document.getElementById('finding-' + index);
+            if (finding) {
+                finding.classList.toggle('expanded');
+                const header = finding.querySelector('.finding-header');
+                if (header) {
+                    header.setAttribute('aria-expanded', finding.classList.contains('expanded'));
+                }
+            }
+        }
+
+        
+        function toggleJSON(index) {
+            const content = document.getElementById('json-' + index);
+            if (content) {
+                content.classList.toggle('visible');
+                const btn = content.previousElementSibling;
+                if (btn) {
+                    btn.textContent = content.classList.contains('visible') ? 'Hide JSON' : 'Show JSON';
+                }
+            }
+        }
+
+        
+        function expandAllFindings() {
+            document.querySelectorAll('.finding').forEach(function(finding) {
+                finding.classList.add('expanded');
+                const header = finding.querySelector('.finding-header');
+                if (header) {
+                    header.setAttribute('aria-expanded', 'true');
+                }
+            });
+        }
+
+        
+        function collapseAllFindings() {
+            document.querySelectorAll('.finding').forEach(function(finding) {
+                finding.classList.remove('expanded');
+                const header = finding.querySelector('.finding-header');
+                if (header) {
+                    header.setAttribute('aria-expanded', 'false');
+                }
+            });
+        }
+
+        
+        function printReport() {
+            expandAllFindings();
+            document.querySelectorAll('.collapsible-section').forEach(function(section) {
+                section.classList.remove('collapsed');
+            });
+            requestAnimationFrame(function() {
+                requestAnimationFrame(function() {
+                    window.print();
+                });
+            });
+        }
+
+        
+        document.querySelectorAll('.finding-header').forEach(function(header) {
+            header.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    header.click();
+                }
+            });
+        });
+
+        
+        document.querySelectorAll('.section-header').forEach(function(header) {
+            header.setAttribute('tabindex', '0');
+            header.setAttribute('role', 'button');
+            header.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    header.click();
+                }
+            });
+        });
+
+        
+        function copyToClipboard(text, button) {
+            navigator.clipboard.writeText(text).then(function() {
+                const originalText = button.textContent;
+                button.textContent = '✓ Copied!';
+                button.classList.add('copied');
+                setTimeout(function() {
+                    button.textContent = originalText;
+                    button.classList.remove('copied');
+                }, 2000);
+            }).catch(function(err) {
+                console.error('Failed to copy:', err);
+            });
+        }
+
+        
+        function copyCurl(button) {
+            copyToClipboard(button.getAttribute('data-curl'), button);
+        }
+
+        
+        function filterFindings() {
+            const text = document.getElementById('findingsFilter').value.toLowerCase();
+            const severity = document.getElementById('severityFilter').value;
+            const outcome = document.getElementById('outcomeFilter').value;
+            const counter = document.getElementById('filterCount');
+            var total = 0, visible = 0;
+            
+            document.querySelectorAll('.finding').forEach(function(finding) {
+                total++;
+                const content = finding.textContent.toLowerCase();
+                const matchesText = !text || content.includes(text);
+                const matchesSeverity = !severity || finding.querySelector('.badge.severity-' + severity);
+                const matchesOutcome = !outcome || finding.querySelector('.badge.outcome-' + outcome);
+                var show = matchesText && matchesSeverity && matchesOutcome;
+                finding.style.display = show ? '' : 'none';
+                if (show) visible++;
+            });
+            if (counter) {
+                if (text || severity || outcome) {
+                    counter.textContent = visible + ' of ' + total;
+                    counter.style.display = '';
+                } else {
+                    counter.style.display = 'none';
+                }
+            }
+        }
+
+        
+        function exportJSON() {
+            const data = {
+                title: "WAFtester Baseline Report",
+                generated: "2026-03-02 23:56:20 \u002b04",
+                target: "",
+                grade: "F",
+                blockRate: "0.0",
+                totals: {
+                    tests:  0 ,
+                    blocked:  0 ,
+                    bypasses:  0 ,
+                    errors:  0 ,
+                    timeouts:  0 
+                }
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'waftester-report.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>

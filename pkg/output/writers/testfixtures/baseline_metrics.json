@@ -1,0 +1,24 @@
+{
+  "files": {
+    "baseline_empty.html": {
+      "lines": 1473,
+      "size_bytes": 46442,
+      "size_kb": 45.353515625
+    },
+    "baseline_large.html": {
+      "lines": 59567,
+      "size_bytes": 2832595,
+      "size_kb": 2766.2060546875
+    },
+    "baseline_small.html": {
+      "lines": 7367,
+      "size_bytes": 330839,
+      "size_kb": 323.0849609375
+    }
+  },
+  "generated_at": "2026-03-02T23:56:20+04:00",
+  "performance": {
+    "large_report_generation_ms": 120,
+    "total_generation_ms": 151
+  }
+}
