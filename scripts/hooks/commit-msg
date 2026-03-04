@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Commit-msg hook: strip unauthorized Co-authored-by trailers and enforce
+# that all attribution points to the project identity.
+#
+# GitHub counts Co-authored-by trailers as contributors. AI tools (Copilot,
+# Claude) and bots (dependabot) add these automatically. This hook removes
+# them at commit time so they never enter history.
+
+set -euo pipefail
+
+COMMIT_MSG_FILE="$1"
+ALLOWED_EMAIL="dev@waftester.com"
+
+# ============================================================================
+# STRIP UNAUTHORIZED CO-AUTHORED-BY TRAILERS
+# ============================================================================
+# Keep only Co-authored-by lines for the project identity.
+# Remove all others (Copilot, Claude, dependabot, personal accounts, etc.).
+#
+# Known offenders added by AI tools:
+#   Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+#   Co-authored-by: claude <noreply@anthropic.com>
+#
+# Rather than maintaining a blocklist, we use an allowlist: only
+# Co-authored-by: WAFtester <dev@waftester.com> is permitted.
+
+BEFORE=$(wc -l < "$COMMIT_MSG_FILE")
+
+# Remove any Co-authored-by line that does NOT contain the allowed email.
+# Use a temp file to avoid sed -i portability issues between GNU and BSD.
+TMPFILE=$(mktemp)
+grep -iv '^Co-authored-by:' "$COMMIT_MSG_FILE" > "$TMPFILE" || true
+# Re-add only allowed co-author lines
+grep -i '^Co-authored-by:' "$COMMIT_MSG_FILE" \
+    | grep -i "$ALLOWED_EMAIL" >> "$TMPFILE" || true
+mv "$TMPFILE" "$COMMIT_MSG_FILE"
+
+AFTER=$(wc -l < "$COMMIT_MSG_FILE")
+
+if [ "$BEFORE" -ne "$AFTER" ]; then
+    REMOVED=$((BEFORE - AFTER))
+    echo "  ✓ Stripped $REMOVED unauthorized Co-authored-by trailer(s)"
+fi
+
+# ============================================================================
+# STRIP SIGNED-OFF-BY FROM NON-PROJECT IDENTITIES
+# ============================================================================
+TMPFILE2=$(mktemp)
+grep -iv '^Signed-off-by:' "$COMMIT_MSG_FILE" > "$TMPFILE2" || true
+grep -i '^Signed-off-by:' "$COMMIT_MSG_FILE" \
+    | grep -i "$ALLOWED_EMAIL" >> "$TMPFILE2" || true
+mv "$TMPFILE2" "$COMMIT_MSG_FILE"
+
+# ============================================================================
+# CLEAN UP TRAILING BLANK LINES
+# ============================================================================
+# The removal above can leave trailing blank lines. Clean them up.
+sed -i -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$COMMIT_MSG_FILE" 2>/dev/null || true

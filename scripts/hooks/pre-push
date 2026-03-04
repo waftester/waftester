@@ -13,14 +13,19 @@ ERRORS=0
 PUSH_REFS=$(cat)
 
 # ============================================================================
-# COMMITTER IDENTITY — block pushes with wrong committer identity
+# IDENTITY — block pushes with wrong author, committer, or co-author
 # ============================================================================
-# The committer field is set by whoever performs the git operation (merge,
-# rebase, cherry-pick). GitHub's API sets it to the authenticated user's
-# profile, not the project identity. This check catches that before push.
+# GitHub counts three identity sources as contributors:
+#   1. Author (GIT_AUTHOR_NAME/EMAIL)
+#   2. Committer (GIT_COMMITTER_NAME/EMAIL)
+#   3. Co-authored-by trailers in commit messages
+#
+# All three must be the project identity. AI tools (Copilot, Claude) and
+# bots (dependabot) add unauthorized identities that leak to the public
+# contributor list.
 echo "Checking committer identity..."
 
-COMMITTER_VIOLATIONS=""
+IDENTITY_VIOLATIONS=""
 while read -r local_ref local_sha remote_ref remote_sha; do
     [ -z "$local_sha" ] && continue
     # Skip deletes
@@ -46,31 +51,55 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     fi
 
     # Check committer email on all non-merge commits in range
-    BAD=$(git log --no-merges --format="%H %ce" "$RANGE" 2>/dev/null \
-        | grep -ivE "dev@waftester\.com|dependabot\[bot\]|noreply\.github\.com" || true)
-    if [ -n "$BAD" ]; then
-        COMMITTER_VIOLATIONS="${COMMITTER_VIOLATIONS}
-${BAD}"
+    BAD_COMMITTER=$(git log --no-merges --format="%H committer:%ce" "$RANGE" 2>/dev/null \
+        | grep -ivE "dev@waftester\.com" || true)
+    if [ -n "$BAD_COMMITTER" ]; then
+        IDENTITY_VIOLATIONS="${IDENTITY_VIOLATIONS}
+${BAD_COMMITTER}"
+    fi
+
+    # Check author email on all non-merge commits in range
+    BAD_AUTHOR=$(git log --no-merges --format="%H author:%ae" "$RANGE" 2>/dev/null \
+        | grep -ivE "dev@waftester\.com" || true)
+    if [ -n "$BAD_AUTHOR" ]; then
+        IDENTITY_VIOLATIONS="${IDENTITY_VIOLATIONS}
+${BAD_AUTHOR}"
+    fi
+
+    # Check Co-authored-by trailers for unauthorized identities
+    BAD_COAUTHOR=$(git log --no-merges --format="%H %b" "$RANGE" 2>/dev/null \
+        | grep -i 'co-authored-by:' | grep -iv "dev@waftester\.com" || true)
+    if [ -n "$BAD_COAUTHOR" ]; then
+        IDENTITY_VIOLATIONS="${IDENTITY_VIOLATIONS}
+${BAD_COAUTHOR}"
     fi
 done < <(echo "$PUSH_REFS")
 
-COMMITTER_VIOLATIONS=$(echo "$COMMITTER_VIOLATIONS" | grep -v '^$' || true)
-if [ -n "$COMMITTER_VIOLATIONS" ]; then
+IDENTITY_VIOLATIONS=$(echo "$IDENTITY_VIOLATIONS" | grep -v '^$' || true)
+if [ -n "$IDENTITY_VIOLATIONS" ]; then
     echo ""
     echo "╔══════════════════════════════════════════════════════════════════╗"
-    echo "║  BLOCKED: Wrong committer identity in commits                  ║"
+    echo "║  BLOCKED: Unauthorized identity in commits                     ║"
     echo "╚══════════════════════════════════════════════════════════════════╝"
     echo ""
-    echo "  The following commits have unauthorized committer emails:"
-    echo "$COMMITTER_VIOLATIONS" | while read -r sha email; do
-        echo "    ✗ ${sha:0:7} ($email)"
+    echo "  Violations found (author, committer, or Co-authored-by):"
+    echo "$IDENTITY_VIOLATIONS" | head -10 | while read -r line; do
+        echo "    ✗ $line"
     done
     echo ""
-    echo "  All commits must have committer: WAFtester <dev@waftester.com>"
-    echo "  Fix with: git filter-repo --commit-callback '..."
-    echo "    if commit.committer_email != b\"dev@waftester.com\":"
-    echo "        commit.committer_name = b\"WAFtester\""
-    echo "        commit.committer_email = b\"dev@waftester.com\"' --force"
+    echo "  All commits must use: WAFtester <dev@waftester.com>"
+    echo ""
+    echo "  Fix author/committer:"
+    echo "    git filter-branch -f --env-filter '"
+    echo "      export GIT_AUTHOR_NAME=\"WAFtester\""
+    echo "      export GIT_AUTHOR_EMAIL=\"dev@waftester.com\""
+    echo "      export GIT_COMMITTER_NAME=\"WAFtester\""
+    echo "      export GIT_COMMITTER_EMAIL=\"dev@waftester.com\""
+    echo "    ' -- HEAD~N..HEAD"
+    echo ""
+    echo "  Fix Co-authored-by trailers:"
+    echo "    git filter-branch -f --msg-filter '"
+    echo "      sed \"/^Co-authored-by:/d\"' -- HEAD~N..HEAD"
     echo ""
     ERRORS=$((ERRORS + 1))
 else
