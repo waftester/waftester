@@ -14,6 +14,11 @@ cp "$REPO_ROOT/scripts/hooks/pre-commit" "$HOOKS_DIR/pre-commit"
 chmod +x "$HOOKS_DIR/pre-commit"
 echo "  ✓ pre-commit hook installed"
 
+# Install commit-msg hook
+cp "$REPO_ROOT/scripts/hooks/commit-msg" "$HOOKS_DIR/commit-msg"
+chmod +x "$HOOKS_DIR/commit-msg"
+echo "  ✓ commit-msg hook installed"
+
 # Install pre-push hook
 cp "$REPO_ROOT/scripts/hooks/pre-push" "$HOOKS_DIR/pre-push"
 chmod +x "$HOOKS_DIR/pre-push"
