@@ -221,9 +221,17 @@ func buildExecutiveSummary(r *EnterpriseReport) string {
 
 	detPct := r.DetectionRate * 100
 	grade := r.OverallGrade.Mark
+	if grade == "" {
+		grade = "N/A"
+	}
+
+	target := r.TargetName
+	if target == "" {
+		target = "the target"
+	}
 
 	sb.WriteString(fmt.Sprintf("The WAF protecting %s achieved an overall grade of %s with a %.1f%% detection rate",
-		r.TargetName, grade, detPct))
+		target, grade, detPct))
 
 	if r.WAFVendor != "" {
 		sb.WriteString(fmt.Sprintf(" (identified as %s)", r.WAFVendor))
