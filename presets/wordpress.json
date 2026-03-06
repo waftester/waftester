@@ -1,0 +1,31 @@
+{
+  "name": "wordpress",
+  "description": "WordPress CMS — login, REST API, XML-RPC, admin, uploads",
+  "endpoints": [
+    "/wp-login.php",
+    "/wp-admin/",
+    "/wp-admin/admin-ajax.php",
+    "/wp-admin/admin-post.php",
+    "/xmlrpc.php",
+    "/wp-json/",
+    "/wp-json/wp/v2/users",
+    "/wp-json/wp/v2/posts",
+    "/wp-json/wp/v2/pages",
+    "/wp-json/wp/v2/media",
+    "/wp-json/wp/v2/comments",
+    "/wp-json/wp/v2/settings",
+    "/wp-content/uploads/",
+    "/wp-includes/",
+    "/wp-cron.php",
+    "/wp-signup.php",
+    "/wp-trackback.php",
+    "/?author=1",
+    "/?rest_route=/",
+    "/feed/"
+  ],
+  "attack_surface": {
+    "has_auth_endpoints": true,
+    "has_api_endpoints": true,
+    "has_file_upload": true
+  }
+}

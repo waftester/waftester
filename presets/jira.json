@@ -1,0 +1,31 @@
+{
+  "name": "jira",
+  "description": "Jira project management — REST API v2/v3, Agile API, admin, attachments",
+  "endpoints": [
+    "/login.jsp",
+    "/rest/api/2/issue/",
+    "/rest/api/2/search",
+    "/rest/api/2/user",
+    "/rest/api/2/project",
+    "/rest/api/2/dashboard",
+    "/rest/api/2/filter",
+    "/rest/api/2/field",
+    "/rest/api/2/configuration",
+    "/rest/api/2/serverInfo",
+    "/rest/api/2/myself",
+    "/rest/api/2/permissions",
+    "/rest/agile/1.0/board",
+    "/rest/agile/1.0/sprint",
+    "/rest/auth/1/session",
+    "/secure/admin/",
+    "/secure/Dashboard.jspa",
+    "/secure/ManageFilters.jspa",
+    "/plugins/servlet/",
+    "/status"
+  ],
+  "attack_surface": {
+    "has_auth_endpoints": true,
+    "has_api_endpoints": true,
+    "has_file_upload": true
+  }
+}
