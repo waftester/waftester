@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.9.46] - 2026-03-06
+
+### Added
+
+- **Enterprise report: Compliance Assessment** — WAF test results mapped to PCI-DSS, OWASP, SOC2, ISO27001, and HIPAA compliance frameworks with pass/fail/partial status per control
+- **Enterprise report: Remediation Priority Matrix** — Prioritized remediation actions sorted by CVSS severity and bypass count, with critical/high/medium/low badges and specific recommended actions
+- **Enterprise report: About This Report** — Scan scope, parameters, tested categories, and testing limitations section with 2-column layout
+- **Enterprise report: Methodology** — OWASP Testing Framework alignment, detection classification definitions (TP/TN/FP/FN), and metric explanations (Detection Rate, F1 Score, MCC)
+- **Enterprise report: Glossary** — Reference definitions for WAF, CVSS, OWASP Top 10, grade scale, evasion techniques, PCI DSS, and SOC 2
+- **Enterprise report: Disclaimer** — Confidentiality notice, liability limitations, and authorized testing statement
+- **Enterprise report: Print CSS** — Proper page breaks, hidden UI elements, section formatting for PDF export
+- **Enterprise report: Test Health section** — Execution statistics showing pass/fail/skip/error breakdown with health indicators
+- **Enterprise report: Severity Breakdown** — Visual severity distribution across critical/high/medium/low/info findings
+- **Enterprise report: OWASP Top 10 Mapping** — Findings mapped to OWASP 2021 categories with coverage indicators
+- **Enterprise report: WAF Intelligence** — Vendor-specific insights with known bypass techniques and recommended evasion strategies
+- **Enterprise report: Enriched recommendations** — Expanded from 3 generic to 9 context-aware recommendations based on WAF vendor, detection rate, and weak categories
+
 ## [2.9.45] - 2026-03-06
 
 ### Added
@@ -2835,6 +2852,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 - All payload files included in release archives
 
 ## [2.3.0] - 2026-01-27
+[2.9.46]: https://github.com/waftester/waftester/compare/v2.9.45...v2.9.46
 
 ### Added
 - Initial public release
