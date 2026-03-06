@@ -302,3 +302,233 @@ func containsSubstr(s, substr string) bool {
 	}
 	return false
 }
+
+// Regression test: BuildFromMetrics sets BypassedRequests and BenignPassed from confusion matrix.
+func TestBuildFromMetrics_SplitPassedCounts(t *testing.T) {
+	t.Parallel()
+
+	metrics := map[string]interface{}{
+		"confusion_matrix": map[string]interface{}{
+			"true_positives":  46.0,
+			"true_negatives":  29.0,
+			"false_positives": 0.0,
+			"false_negatives": 180.0,
+		},
+		"total_requests": 255.0,
+	}
+
+	report, err := BuildFromMetrics(metrics, "test.example.com", 0)
+	if err != nil {
+		t.Fatalf("BuildFromMetrics error: %v", err)
+	}
+
+	if report.BypassedRequests != 180 {
+		t.Errorf("BypassedRequests = %d; want 180 (false negatives)", report.BypassedRequests)
+	}
+	if report.BenignPassed != 29 {
+		t.Errorf("BenignPassed = %d; want 29 (true negatives)", report.BenignPassed)
+	}
+	if report.BlockedRequests != 46 {
+		t.Errorf("BlockedRequests = %d; want 46 (TP + FP)", report.BlockedRequests)
+	}
+	if report.PassedRequests != 209 {
+		t.Errorf("PassedRequests = %d; want 209 (TN + FN)", report.PassedRequests)
+	}
+}
+
+// Regression test: loadTestHealth extracts data from results-summary format.
+func TestLoadTestHealth(t *testing.T) {
+	t.Parallel()
+
+	report := &EnterpriseReport{
+		AllResults: []TestResult{
+			{Outcome: "Skipped"},
+			{Outcome: "Skipped"},
+			{Outcome: "Error"},
+		},
+	}
+
+	summary := map[string]interface{}{
+		"TotalTests":    165.0,
+		"ErrorTests":    12.0,
+		"hosts_skipped": 104.0,
+		"filtered_tests": 49.0,
+		"SeverityBreakdown": map[string]interface{}{
+			"critical": 68.0,
+			"high":     45.0,
+			"medium":   3.0,
+		},
+		"owasp_breakdown": map[string]interface{}{
+			"A03:2021 - Injection": 116.0,
+		},
+		"TopErrors": []interface{}{
+			"[DETECTION] connection_dropping (52)",
+			"[eof] host skipped (3)",
+		},
+	}
+
+	loadTestHealth(report, summary)
+
+	if report.TestHealth == nil {
+		t.Fatal("TestHealth should not be nil")
+	}
+	if report.TestHealth.TotalPlanned != 165 {
+		t.Errorf("TotalPlanned = %d; want 165", report.TestHealth.TotalPlanned)
+	}
+	if report.TestHealth.Skipped != 2 {
+		t.Errorf("Skipped = %d; want 2 (from AllResults)", report.TestHealth.Skipped)
+	}
+	if report.TestHealth.HostsSkipped != 104 {
+		t.Errorf("HostsSkipped = %d; want 104", report.TestHealth.HostsSkipped)
+	}
+	if len(report.TestHealth.TopErrors) != 2 {
+		t.Errorf("TopErrors count = %d; want 2", len(report.TestHealth.TopErrors))
+	}
+
+	// Severity breakdown
+	if len(report.SeverityBreakdown) != 3 {
+		t.Errorf("SeverityBreakdown count = %d; want 3", len(report.SeverityBreakdown))
+	}
+	if report.SeverityBreakdown["critical"] != 68 {
+		t.Errorf("SeverityBreakdown[critical] = %d; want 68", report.SeverityBreakdown["critical"])
+	}
+
+	// OWASP breakdown
+	if len(report.OWASPBreakdown) != 1 {
+		t.Errorf("OWASPBreakdown count = %d; want 1", len(report.OWASPBreakdown))
+	}
+	if report.OWASPBreakdown["A03:2021 - Injection"] != 116 {
+		t.Errorf("OWASPBreakdown[Injection] = %d; want 116", report.OWASPBreakdown["A03:2021 - Injection"])
+	}
+}
+
+// Regression test: loadVendorInsights extracts vendor intelligence.
+func TestLoadVendorInsights(t *testing.T) {
+	t.Parallel()
+
+	report := &EnterpriseReport{}
+	vendor := map[string]interface{}{
+		"vendor_confidence": 0.312,
+		"bypass_hints": []interface{}{
+			"Try double URL encoding",
+			"Use SQL comments for bypass",
+		},
+		"recommended_encoders": []interface{}{
+			"overlong_utf8",
+			"double_url",
+		},
+		"recommended_evasions": []interface{}{
+			"sql_comment",
+			"whitespace_alt",
+		},
+	}
+
+	loadVendorInsights(report, vendor)
+
+	if report.VendorInsights == nil {
+		t.Fatal("VendorInsights should not be nil")
+	}
+	if report.VendorInsights.VendorConfidence != 0.312 {
+		t.Errorf("VendorConfidence = %v; want 0.312", report.VendorInsights.VendorConfidence)
+	}
+	if len(report.VendorInsights.BypassHints) != 2 {
+		t.Errorf("BypassHints count = %d; want 2", len(report.VendorInsights.BypassHints))
+	}
+	if len(report.VendorInsights.RecommendedEncoders) != 2 {
+		t.Errorf("RecommendedEncoders count = %d; want 2", len(report.VendorInsights.RecommendedEncoders))
+	}
+	if len(report.VendorInsights.RecommendedEvasions) != 2 {
+		t.Errorf("RecommendedEvasions count = %d; want 2", len(report.VendorInsights.RecommendedEvasions))
+	}
+}
+
+// Regression test: enrichRecommendations adds actionable guidance.
+func TestEnrichRecommendations(t *testing.T) {
+	t.Parallel()
+
+	report := &EnterpriseReport{
+		WAFVendor:     "ModSecurity / Coraza",
+		DetectionRate: 0.20,
+		TotalRequests: 255,
+		ErrorRequests: 49,
+		BypassedRequests: 180,
+		TestHealth: &TestHealthData{
+			Skipped: 52,
+		},
+		CategoryResults: []CategoryResult{
+			{
+				Category:      "auth",
+				DisplayName:   "Authentication Bypass",
+				DetectionRate: 0.17,
+				TotalTests:    180,
+				Blocked:       31,
+				Bypassed:      149,
+			},
+		},
+		Recommendations: []string{
+			"Detection rate is 20.35%. Consider increasing paranoia level.",
+		},
+		AllResults: make([]TestResult, 10),
+	}
+
+	enrichRecommendations(report)
+
+	// Should have more than the original 1 recommendation
+	if len(report.Recommendations) < 3 {
+		t.Errorf("Expected at least 3 recommendations, got %d", len(report.Recommendations))
+	}
+
+	// Should mention skipped tests
+	foundSkipped := false
+	foundModSec := false
+	foundCategory := false
+	for _, r := range report.Recommendations {
+		if contains(r, "skipped") {
+			foundSkipped = true
+		}
+		if contains(r, "paranoia level") && contains(r, "PL2") {
+			foundModSec = true
+		}
+		if contains(r, "Authentication Bypass") {
+			foundCategory = true
+		}
+	}
+	if !foundSkipped {
+		t.Error("Recommendations should mention skipped tests")
+	}
+	if !foundModSec {
+		t.Error("Recommendations should have ModSecurity-specific advice")
+	}
+	if !foundCategory {
+		t.Error("Recommendations should mention weak category by display name")
+	}
+}
+
+// Regression test: Executive summary mentions bypass count when no individual findings.
+func TestBuildExecutiveSummary_MentionsBypassesWithoutFindings(t *testing.T) {
+	t.Parallel()
+
+	report := &EnterpriseReport{
+		TargetName:    "example.com",
+		WAFVendor:     "Cloudflare",
+		DetectionRate: 0.50,
+		OverallGrade:  Grade{Mark: "F"},
+		ConfusionMatrix: ConfusionMatrixData{
+			TruePositives:  50,
+			FalseNegatives: 50,
+		},
+		TestHealth: &TestHealthData{
+			Skipped: 40,
+		},
+		AllResults: make([]TestResult, 10),
+	}
+
+	summary := buildExecutiveSummary(report)
+
+	if !contains(summary, "50 bypassed") {
+		t.Errorf("Summary should mention FN count, got: %s", summary)
+	}
+	if !contains(summary, "50 payloads bypassed") {
+		t.Errorf("Summary should mention aggregate bypasses when no individual findings, got: %s", summary)
+	}
+}

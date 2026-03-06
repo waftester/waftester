@@ -80,11 +80,47 @@ type EnterpriseReport struct {
 	P95LatencyMs int `json:"p95_latency_ms"`
 	P99LatencyMs int `json:"p99_latency_ms"`
 
+	// Split assessment counts: bypasses (FN) vs benign-passed (TN)
+	BypassedRequests int `json:"bypassed_requests"`
+	BenignPassed     int `json:"benign_passed"`
+
+	// Test execution health (loaded from results-summary.json)
+	TestHealth *TestHealthData `json:"test_health,omitempty"`
+
+	// Severity breakdown of tested payloads
+	SeverityBreakdown map[string]int `json:"severity_breakdown,omitempty"`
+
+	// OWASP Top 10 mapping
+	OWASPBreakdown map[string]int `json:"owasp_breakdown,omitempty"`
+
+	// WAF vendor-specific insights (loaded from vendor-detection.json)
+	VendorInsights *VendorInsights `json:"vendor_insights,omitempty"`
+
 	// All test results (complete list)
 	AllResults []TestResult `json:"all_results,omitempty"`
 
 	// Browser scan findings (from authenticated scanning)
 	BrowserFindings *BrowserScanFindings `json:"browser_findings,omitempty"`
+}
+
+// TestHealthData tracks test execution health and failures
+type TestHealthData struct {
+	TotalPlanned  int      `json:"total_planned"`
+	Executed      int      `json:"executed"`
+	Skipped       int      `json:"skipped"`
+	Errors        int      `json:"errors"`
+	HostsSkipped  int      `json:"hosts_skipped"`
+	FilteredTests int      `json:"filtered_tests"`
+	TopErrors     []string `json:"top_errors,omitempty"`
+	HealthPct     float64  `json:"health_pct"` // percentage of planned tests that executed
+}
+
+// VendorInsights contains WAF vendor-specific intelligence
+type VendorInsights struct {
+	VendorConfidence    float64  `json:"vendor_confidence"`
+	BypassHints         []string `json:"bypass_hints,omitempty"`
+	RecommendedEncoders []string `json:"recommended_encoders,omitempty"`
+	RecommendedEvasions []string `json:"recommended_evasions,omitempty"`
 }
 
 // BrowserScanFindings contains browser-based discovery findings
@@ -407,6 +443,10 @@ func NewEnterpriseHTMLGenerator() (*EnterpriseHTMLGenerator, error) {
 		},
 		"formatMCC": func(v float64) string {
 			return fmt.Sprintf("%+.4f", v)
+		},
+		"humanizeEncoder": func(s string) string {
+			r := strings.NewReplacer("_", " ", "-", " ")
+			return strings.Title(r.Replace(s)) //nolint:staticcheck
 		},
 	}
 
