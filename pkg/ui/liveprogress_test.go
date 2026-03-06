@@ -277,8 +277,10 @@ func TestLiveProgressRateSource(t *testing.T) {
 	if !bytes.Contains([]byte(output), []byte("/s")) {
 		t.Error("Expected /s rate indicator in output")
 	}
-	// Completed is 0, but rate should NOT be 0.0 because RateSource has 20
-	if bytes.Contains([]byte(output), []byte("0.0/s")) {
+	// Completed is 0, but rate should NOT be 0.0 because RateSource has 20.
+	// Use \033[33m prefix to anchor the match — avoids false positives
+	// from rates like "200.0/s" which contain "0.0/s" as a substring.
+	if bytes.Contains([]byte(output), []byte("\033[33m0.0/s")) {
 		t.Error("Rate should not be 0.0/s when RateSource has requests; got 0.0/s")
 	}
 }
