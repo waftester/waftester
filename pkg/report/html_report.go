@@ -96,6 +96,19 @@ type EnterpriseReport struct {
 	// WAF vendor-specific insights (loaded from vendor-detection.json)
 	VendorInsights *VendorInsights `json:"vendor_insights,omitempty"`
 
+	// Compliance assessment results (from compliance.go)
+	ComplianceResults []ComplianceControl `json:"compliance_results,omitempty"`
+
+	// Report metadata for "About This Report" section
+	ScanScope        []string `json:"scan_scope,omitempty"`
+	ScanExclusions   []string `json:"scan_exclusions,omitempty"`
+	ScanLimitations  []string `json:"scan_limitations,omitempty"`
+	ScanParameters   []string `json:"scan_parameters,omitempty"`
+	TestedCategories []string `json:"tested_categories,omitempty"`
+
+	// Remediation priority (aggregated from findings)
+	RemediationPriority []RemediationItem `json:"remediation_priority,omitempty"`
+
 	// All test results (complete list)
 	AllResults []TestResult `json:"all_results,omitempty"`
 
@@ -121,6 +134,15 @@ type VendorInsights struct {
 	BypassHints         []string `json:"bypass_hints,omitempty"`
 	RecommendedEncoders []string `json:"recommended_encoders,omitempty"`
 	RecommendedEvasions []string `json:"recommended_evasions,omitempty"`
+}
+
+// RemediationItem represents a prioritized remediation action
+type RemediationItem struct {
+	Category    string  `json:"category"`
+	BypassCount int     `json:"bypass_count"`
+	MaxCVSS     float64 `json:"max_cvss"`
+	Action      string  `json:"action"`
+	Priority    string  `json:"priority"` // critical, high, medium, low
 }
 
 // BrowserScanFindings contains browser-based discovery findings
@@ -448,6 +470,19 @@ func NewEnterpriseHTMLGenerator() (*EnterpriseHTMLGenerator, error) {
 			r := strings.NewReplacer("_", " ", "-", " ")
 			return strings.Title(r.Replace(s)) //nolint:staticcheck
 		},
+		"statusColor": func(s string) string {
+			switch s {
+			case "PASS":
+				return "var(--green)"
+			case "FAIL":
+				return "var(--red)"
+			case "PARTIAL":
+				return "var(--orange)"
+			default:
+				return "var(--text-secondary)"
+			}
+		},
+		"toUpper": strings.ToUpper,
 	}
 
 	tmpl, err := template.New("enterprise").Funcs(funcMap).Parse(EnterpriseHTMLTemplate)

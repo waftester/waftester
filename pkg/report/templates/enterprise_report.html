@@ -1251,6 +1251,8 @@
         @media print {
             body {
                 background: white;
+                color: black;
+                font-size: 11pt;
             }
             .container {
                 max-width: 100%;
@@ -1258,7 +1260,41 @@
             }
             .section {
                 box-shadow: none;
-                border: 1px solid var(--dark-grey);
+                border: 1px solid #ccc;
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            .theme-toggle {
+                display: none !important;
+            }
+            .header {
+                page-break-after: always;
+                break-after: page;
+                text-align: center;
+                padding: 120px 40px 40px;
+                border: none;
+            }
+            .header__title {
+                font-size: 28pt;
+            }
+            #methodology, #compliance, #remediation-priority, #glossary {
+                page-break-before: always;
+                break-before: page;
+            }
+            .finding-card__details {
+                display: block !important;
+            }
+            a[href]:after {
+                content: none;
+            }
+            .stat-card, .metric-card {
+                border: 1px solid #ccc;
+            }
+            .footer {
+                page-break-before: always;
+                break-before: page;
+                text-align: center;
+                padding-top: 40px;
             }
         }
     </style>
@@ -1329,6 +1365,7 @@
             {{end}}
             <div class="toc__title">Jump To</div>
             <ul class="toc__list">
+                <li><a class="toc__link" href="#about">📝 About This Report</a></li>
                 <li><a class="toc__link" href="#stats">📊 Stats</a></li>
                 {{if .TestHealth}}<li><a class="toc__link" href="#test-health">🩺 Test Execution</a></li>{{end}}
                 {{if .EnterpriseMetrics}}<li><a class="toc__link" href="#enterprise-metrics">📈 Enterprise Metrics</a></li>{{end}}
@@ -1338,14 +1375,74 @@
                 {{if .OWASPBreakdown}}<li><a class="toc__link" href="#owasp">🛡️ OWASP Mapping</a></li>{{end}}
                 {{if .Bypasses}}<li><a class="toc__link" href="#bypasses">⚠️ Bypasses ({{len .Bypasses}})</a></li>{{end}}
                 {{if .FalsePositives}}<li><a class="toc__link" href="#false-positives">🚫 False Positives</a></li>{{end}}
+                {{if .RemediationPriority}}<li><a class="toc__link" href="#remediation-priority">🎯 Remediation Priority</a></li>{{end}}
+                {{if .ComplianceResults}}<li><a class="toc__link" href="#compliance">📋 Compliance</a></li>{{end}}
                 {{if .BrowserFindings}}<li><a class="toc__link" href="#browser">🌐 Browser Scan</a></li>{{end}}
                 {{if .VendorInsights}}<li><a class="toc__link" href="#vendor-insights">🔍 WAF Intelligence</a></li>{{end}}
                 {{if .Recommendations}}<li><a class="toc__link" href="#recommendations">💡 Recommendations</a></li>{{end}}
                 {{if .ComparisonTable}}<li><a class="toc__link" href="#comparison">📈 Benchmark</a></li>{{end}}
                 {{if .AllResults}}<li><a class="toc__link" href="#results">📊 All Results</a></li>{{end}}
                 <li><a class="toc__link" href="#latency">⏱️ Latency</a></li>
+                <li><a class="toc__link" href="#methodology">📖 Methodology</a></li>
+                <li><a class="toc__link" href="#glossary">📚 Glossary</a></li>
             </ul>
         </nav>
+
+        <!-- About This Report -->
+        <section class="section" id="about">
+            <h2 class="section__title">📝 About This Report</h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div>
+                    <h4 style="font-size: 13px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">Report Details</h4>
+                    <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+                        <tr><td style="padding: 6px 0; color: var(--text-secondary); width: 140px;">Generated</td><td style="padding: 6px 0; color: var(--text-primary);">{{.TestingDate}}</td></tr>
+                        <tr><td style="padding: 6px 0; color: var(--text-secondary);">Tool</td><td style="padding: 6px 0; color: var(--text-primary);">{{.ToolName}} v{{.ToolVersion}}</td></tr>
+                        <tr><td style="padding: 6px 0; color: var(--text-secondary);">Duration</td><td style="padding: 6px 0; color: var(--text-primary);">{{.ScanDuration}}</td></tr>
+                        <tr><td style="padding: 6px 0; color: var(--text-secondary);">Report Version</td><td style="padding: 6px 0; color: var(--text-primary);">{{.ReportVersion}}</td></tr>
+                    </table>
+                </div>
+                <div>
+                    {{if .ScanParameters}}
+                    <h4 style="font-size: 13px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">Scan Parameters</h4>
+                    <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px;">
+                        {{range .ScanParameters}}
+                        <li style="padding: 4px 0; color: var(--text-primary);">• {{.}}</li>
+                        {{end}}
+                    </ul>
+                    {{end}}
+                </div>
+            </div>
+            {{if .ScanScope}}
+            <div style="margin-top: 16px;">
+                <h4 style="font-size: 13px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Scope</h4>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    {{range .ScanScope}}
+                    <span style="display: inline-block; padding: 4px 12px; background: var(--bg-secondary); border-radius: 6px; font-size: 13px; font-family: monospace; color: var(--text-primary);">{{.}}</span>
+                    {{end}}
+                </div>
+            </div>
+            {{end}}
+            {{if .TestedCategories}}
+            <div style="margin-top: 16px;">
+                <h4 style="font-size: 13px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Categories Tested</h4>
+                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                    {{range .TestedCategories}}
+                    <span style="display: inline-block; padding: 3px 10px; background: var(--blue); color: white; border-radius: 12px; font-size: 12px;">{{.}}</span>
+                    {{end}}
+                </div>
+            </div>
+            {{end}}
+            {{if .ScanLimitations}}
+            <div style="margin-top: 16px;">
+                <h4 style="font-size: 13px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Limitations</h4>
+                <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: var(--text-secondary); line-height: 1.8;">
+                    {{range .ScanLimitations}}
+                    <li>{{.}}</li>
+                    {{end}}
+                </ul>
+            </div>
+            {{end}}
+        </section>
 
         <!-- Quick Stats -->
         <div class="stats-grid" id="stats">
@@ -1981,6 +2078,70 @@
         </section>
         {{end}}
 
+        {{if .RemediationPriority}}
+        <!-- Remediation Priority Matrix -->
+        <section class="section" id="remediation-priority">
+            <h2 class="section__title">🎯 Remediation Priority Matrix</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;">
+                Prioritized remediation actions sorted by risk impact and bypass volume.
+            </p>
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Priority</th>
+                        <th>Category</th>
+                        <th>Bypasses</th>
+                        <th>Max CVSS</th>
+                        <th>Recommended Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .RemediationPriority}}
+                    <tr>
+                        <td><span style="display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; color: white; background: {{if eq .Priority "critical"}}var(--red){{else if eq .Priority "high"}}var(--orange){{else if eq .Priority "medium"}}#eab308{{else}}var(--green){{end}};">{{upper .Priority}}</span></td>
+                        <td style="font-weight: 600;">{{.Category}}</td>
+                        <td>{{.BypassCount}}</td>
+                        <td>{{if gt .MaxCVSS 0.0}}{{printf "%.1f" .MaxCVSS}}{{else}}-{{end}}</td>
+                        <td style="font-size: 13px;">{{.Action}}</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </section>
+        {{end}}
+
+        {{if .ComplianceResults}}
+        <!-- Compliance Assessment -->
+        <section class="section" id="compliance">
+            <h2 class="section__title">📋 Compliance Assessment</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;">
+                WAF test results mapped to industry compliance frameworks. Status reflects WAF block rate against attack categories relevant to each control.
+            </p>
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Framework</th>
+                        <th>Control ID</th>
+                        <th>Control Name</th>
+                        <th>Status</th>
+                        <th>Evidence</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .ComplianceResults}}
+                    <tr>
+                        <td style="font-weight: 600; white-space: nowrap;">{{printf "%s" .Framework}}</td>
+                        <td style="font-family: monospace; font-size: 13px;">{{.ControlID}}</td>
+                        <td>{{.ControlName}}</td>
+                        <td><span style="display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; color: white; background: {{if eq (printf "%s" .Status) "PASS"}}var(--green){{else if eq (printf "%s" .Status) "FAIL"}}var(--red){{else if eq (printf "%s" .Status) "PARTIAL"}}var(--orange){{else}}var(--text-secondary){{end}};">{{printf "%s" .Status}}</span></td>
+                        <td style="font-size: 13px;">{{.Evidence}}</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </section>
+        {{end}}
+
         {{if .Recommendations}}
         <!-- Recommendations -->
         <section class="section" id="recommendations">
@@ -2107,10 +2268,103 @@
             </div>
         </section>
 
+        <!-- Methodology -->
+        <section class="section" id="methodology">
+            <h2 class="section__title">🔬 Testing Methodology</h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                <div>
+                    <h3 style="font-size: 16px; margin-bottom: 12px; color: var(--text-primary);">Approach</h3>
+                    <p style="color: var(--text-secondary); font-size: 14px; line-height: 1.6; margin-bottom: 12px;">
+                        This assessment follows the <strong>OWASP Web Application Firewall Testing Framework</strong> methodology. Each attack category is tested with curated payloads that represent real-world exploitation techniques ranging from basic to advanced evasion.
+                    </p>
+                    <p style="color: var(--text-secondary); font-size: 14px; line-height: 1.6;">
+                        Payloads are sent as HTTP requests to the target application. The WAF's response (block, allow, or error) is recorded and classified against expected outcomes to calculate detection accuracy.
+                    </p>
+                </div>
+                <div>
+                    <h3 style="font-size: 16px; margin-bottom: 12px; color: var(--text-primary);">Detection Classification</h3>
+                    <table class="comparison-table" style="font-size: 13px;">
+                        <tr><td style="font-weight: 600; width: 130px;">True Positive</td><td>Malicious payload correctly blocked by WAF</td></tr>
+                        <tr><td style="font-weight: 600;">True Negative</td><td>Benign payload correctly allowed through</td></tr>
+                        <tr><td style="font-weight: 600;">False Negative</td><td>Malicious payload incorrectly allowed (bypass)</td></tr>
+                        <tr><td style="font-weight: 600;">False Positive</td><td>Benign payload incorrectly blocked</td></tr>
+                        <tr><td style="font-weight: 600;">Skipped</td><td>Test not executed (connection error, rate limit, or timeout)</td></tr>
+                    </table>
+                </div>
+            </div>
+            <div style="margin-top: 20px;">
+                <h3 style="font-size: 16px; margin-bottom: 12px; color: var(--text-primary);">Metrics</h3>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+                    <div style="padding: 12px 16px; background: var(--bg-secondary); border-radius: 8px;">
+                        <strong style="font-size: 13px;">Detection Rate</strong>
+                        <p style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">TP / (TP + FN) — percentage of attacks blocked.</p>
+                    </div>
+                    <div style="padding: 12px 16px; background: var(--bg-secondary); border-radius: 8px;">
+                        <strong style="font-size: 13px;">F1 Score</strong>
+                        <p style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Harmonic mean of precision and recall (0–1). Balances FP and FN.</p>
+                    </div>
+                    <div style="padding: 12px 16px; background: var(--bg-secondary); border-radius: 8px;">
+                        <strong style="font-size: 13px;">MCC</strong>
+                        <p style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Matthews Correlation Coefficient (−1 to +1). Most reliable single metric for binary classification.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Glossary -->
+        <section class="section" id="glossary">
+            <h2 class="section__title">📚 Glossary</h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div style="padding: 12px 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <strong style="font-size: 14px;">WAF</strong>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">Web Application Firewall — inspects HTTP traffic and blocks malicious requests based on rules, signatures, or behavioral analysis.</p>
+                </div>
+                <div style="padding: 12px 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <strong style="font-size: 14px;">CVSS</strong>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">Common Vulnerability Scoring System (0–10). Industry standard for vulnerability severity. Critical ≥ 9.0, High ≥ 7.0, Medium ≥ 4.0, Low &lt; 4.0.</p>
+                </div>
+                <div style="padding: 12px 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <strong style="font-size: 14px;">OWASP Top 10</strong>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">The Open Web Application Security Project's list of the 10 most critical web application security risks, updated periodically.</p>
+                </div>
+                <div style="padding: 12px 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <strong style="font-size: 14px;">False Negative (Bypass)</strong>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">A malicious payload that the WAF failed to detect and block. Represents a WAF rule gap or evasion vector.</p>
+                </div>
+                <div style="padding: 12px 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <strong style="font-size: 14px;">Grade Scale</strong>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">A+ ≥ 97%, A ≥ 93%, B ≥ 80%, C ≥ 70%, D ≥ 60%, F &lt; 60%. Based on overall WAF detection rate.</p>
+                </div>
+                <div style="padding: 12px 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <strong style="font-size: 14px;">Evasion Technique</strong>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">Methods used to modify attack payloads (encoding, case variation, null bytes, etc.) to bypass WAF signature-based detection.</p>
+                </div>
+                <div style="padding: 12px 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <strong style="font-size: 14px;">PCI DSS</strong>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">Payment Card Industry Data Security Standard. Requirement 6.6 mandates WAF deployment or code review for payment applications.</p>
+                </div>
+                <div style="padding: 12px 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <strong style="font-size: 14px;">SOC 2</strong>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">Service Organization Control 2. Controls CC6.1 and CC6.6 require logical access and threat management including WAF protections.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Disclaimer -->
+        <section class="section" id="disclaimer" style="border-top: 2px solid var(--border); padding-top: 32px;">
+            <h2 class="section__title" style="font-size: 18px;">⚠️ Disclaimer</h2>
+            <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.7;">
+                <p><strong>Confidentiality Notice:</strong> This report is intended solely for the authorized recipients identified above. It contains security assessment data that, if disclosed, could be used to exploit vulnerabilities in the tested systems. Do not distribute without authorization.</p>
+                <p style="margin-top: 8px;"><strong>Limitation of Liability:</strong> This assessment represents a point-in-time evaluation based on the payloads and techniques available at the time of testing. It does not guarantee the absence of additional vulnerabilities. WAF configurations, application code, and threat landscapes change continuously. Regular re-testing is recommended.</p>
+                <p style="margin-top: 8px;"><strong>Authorized Testing:</strong> This scan was conducted against targets for which authorization was obtained. Unauthorized security testing may violate applicable laws and regulations.</p>
+            </div>
+        </section>
+
         <!-- Footer -->
         <footer class="footer">
             <p>Generated by <strong>{{.ToolName}}</strong> v{{.ToolVersion}} on {{.TestingDate}}</p>
             <p>Enterprise WAF Security Assessment Platform</p>
+            <p style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">Report ID: {{.TestingDate}}-{{.TargetURL}} | Classification: Confidential</p>
         </footer>
     </div>
 

@@ -238,8 +238,8 @@ func TestBuildFromMetrics_HasExecutiveSummary(t *testing.T) {
 	t.Parallel()
 
 	metrics := map[string]interface{}{
-		"detection_rate":          0.85,
-		"false_positive_rate":     0.02,
+		"detection_rate":         0.85,
+		"false_positive_rate":    0.02,
 		"bypass_resistance":      0.90,
 		"grade":                  "B",
 		"waf_vendor":             "ModSecurity",
@@ -349,9 +349,9 @@ func TestLoadTestHealth(t *testing.T) {
 	}
 
 	summary := map[string]interface{}{
-		"TotalTests":    165.0,
-		"ErrorTests":    12.0,
-		"hosts_skipped": 104.0,
+		"TotalTests":     165.0,
+		"ErrorTests":     12.0,
+		"hosts_skipped":  104.0,
 		"filtered_tests": 49.0,
 		"SeverityBreakdown": map[string]interface{}{
 			"critical": 68.0,
@@ -447,10 +447,10 @@ func TestEnrichRecommendations(t *testing.T) {
 	t.Parallel()
 
 	report := &EnterpriseReport{
-		WAFVendor:     "ModSecurity / Coraza",
-		DetectionRate: 0.20,
-		TotalRequests: 255,
-		ErrorRequests: 49,
+		WAFVendor:        "ModSecurity / Coraza",
+		DetectionRate:    0.20,
+		TotalRequests:    255,
+		ErrorRequests:    49,
 		BypassedRequests: 180,
 		TestHealth: &TestHealthData{
 			Skipped: 52,
@@ -530,5 +530,126 @@ func TestBuildExecutiveSummary_MentionsBypassesWithoutFindings(t *testing.T) {
 	}
 	if !contains(summary, "50 payloads bypassed") {
 		t.Errorf("Summary should mention aggregate bypasses when no individual findings, got: %s", summary)
+	}
+}
+
+func TestBuildComplianceResults(t *testing.T) {
+	t.Parallel()
+
+	report := &EnterpriseReport{
+		TotalRequests:   100,
+		BlockedRequests: 80,
+		CategoryResults: []CategoryResult{
+			{Category: "sql_injection", DisplayName: "SQL Injection", TotalTests: 50},
+			{Category: "xss", DisplayName: "Cross-Site Scripting", TotalTests: 30},
+		},
+	}
+
+	buildComplianceResults(report)
+
+	if len(report.ComplianceResults) == 0 {
+		t.Fatal("ComplianceResults should not be empty after build")
+	}
+
+	// Should have results from multiple frameworks
+	frameworks := make(map[string]bool)
+	for _, c := range report.ComplianceResults {
+		frameworks[string(c.Framework)] = true
+		if c.ControlID == "" {
+			t.Error("ComplianceControl should have a ControlID")
+		}
+		if c.Status == "" {
+			t.Error("ComplianceControl should have a Status")
+		}
+	}
+	if len(frameworks) < 3 {
+		t.Errorf("Expected compliance results from at least 3 frameworks, got %d", len(frameworks))
+	}
+}
+
+func TestBuildRemediationPriority(t *testing.T) {
+	t.Parallel()
+
+	report := &EnterpriseReport{
+		Bypasses: []BypassFinding{
+			{Category: "sqli", CVSSScore: 9.8},
+			{Category: "sqli", CVSSScore: 9.1},
+			{Category: "sqli", CVSSScore: 8.5},
+			{Category: "xss", CVSSScore: 6.1},
+			{Category: "lfi", CVSSScore: 3.5},
+		},
+	}
+
+	buildRemediationPriority(report)
+
+	if len(report.RemediationPriority) != 3 {
+		t.Fatalf("Expected 3 remediation items, got %d", len(report.RemediationPriority))
+	}
+
+	// First should be critical (sqli has CVSS 9.8)
+	if report.RemediationPriority[0].Priority != "critical" {
+		t.Errorf("Expected first item priority=critical, got %s", report.RemediationPriority[0].Priority)
+	}
+	if report.RemediationPriority[0].Category != "sqli" {
+		t.Errorf("Expected first item category=sqli, got %s", report.RemediationPriority[0].Category)
+	}
+	if report.RemediationPriority[0].BypassCount != 3 {
+		t.Errorf("Expected sqli bypass count=3, got %d", report.RemediationPriority[0].BypassCount)
+	}
+
+	// lfi with CVSS 3.5 should be low priority
+	found := false
+	for _, item := range report.RemediationPriority {
+		if item.Category == "lfi" {
+			found = true
+			if item.Priority != "low" {
+				t.Errorf("Expected lfi priority=low, got %s", item.Priority)
+			}
+		}
+	}
+	if !found {
+		t.Error("Expected to find lfi in remediation priority")
+	}
+}
+
+func TestBuildRemediationPriority_Empty(t *testing.T) {
+	t.Parallel()
+
+	report := &EnterpriseReport{}
+	buildRemediationPriority(report)
+
+	if len(report.RemediationPriority) != 0 {
+		t.Errorf("Expected 0 remediation items for empty report, got %d", len(report.RemediationPriority))
+	}
+}
+
+func TestPopulateScanMetadata(t *testing.T) {
+	t.Parallel()
+
+	report := &EnterpriseReport{
+		TargetURL:    "https://example.com",
+		WAFVendor:    "Cloudflare",
+		ScanDuration: "2m30s",
+		TotalRequests: 200,
+		CategoryResults: []CategoryResult{
+			{Category: "sqli", DisplayName: "SQL Injection"},
+			{Category: "xss", DisplayName: "Cross-Site Scripting"},
+		},
+		TestHealth: &TestHealthData{Skipped: 15},
+	}
+
+	populateScanMetadata(report, "example.com")
+
+	if len(report.ScanScope) == 0 {
+		t.Error("ScanScope should be populated")
+	}
+	if len(report.TestedCategories) != 2 {
+		t.Errorf("Expected 2 tested categories, got %d", len(report.TestedCategories))
+	}
+	if len(report.ScanLimitations) < 4 {
+		t.Errorf("Expected at least 4 limitations (3 default + 1 skipped), got %d", len(report.ScanLimitations))
+	}
+	if len(report.ScanParameters) < 3 {
+		t.Errorf("Expected at least 3 scan parameters, got %d", len(report.ScanParameters))
 	}
 }

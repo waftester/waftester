@@ -702,6 +702,15 @@ func GenerateEnterpriseHTMLReportFromWorkspace(workspaceDir string, targetName s
 	// Enrich recommendations with specific actionable guidance
 	enrichRecommendations(report)
 
+	// Build compliance assessment
+	buildComplianceResults(report)
+
+	// Build remediation priority matrix
+	buildRemediationPriority(report)
+
+	// Populate scan metadata
+	populateScanMetadata(report, targetName)
+
 	// Regenerate executive summary with enriched data
 	report.ExecutiveSummary = buildExecutiveSummary(report)
 
@@ -1025,4 +1034,134 @@ func parseBrowserFindings(data map[string]interface{}) *BrowserScanFindings {
 	}
 
 	return findings
+}
+
+// buildComplianceResults generates compliance control assessments
+func buildComplianceResults(r *EnterpriseReport) {
+	// Build statistics from the report data
+	stats := &Statistics{
+		TotalRequests:   r.TotalRequests,
+		BlockedRequests: r.BlockedRequests,
+		ByCategory:      make(map[string]int),
+	}
+	if r.TotalRequests > 0 {
+		stats.BlockRate = float64(r.BlockedRequests) / float64(r.TotalRequests) * 100
+	}
+	for _, cat := range r.CategoryResults {
+		stats.ByCategory[cat.Category] = cat.TotalTests
+	}
+
+	// Map across all supported frameworks
+	var controls []ComplianceControl
+	for _, fw := range GetSupportedFrameworks() {
+		mapper := NewComplianceMapper(fw)
+		controls = append(controls, mapper.MapResults(stats)...)
+	}
+	r.ComplianceResults = controls
+}
+
+// buildRemediationPriority creates a prioritized remediation matrix from findings
+func buildRemediationPriority(r *EnterpriseReport) {
+	// Group bypasses by category
+	catMap := make(map[string]*RemediationItem)
+	for _, b := range r.Bypasses {
+		key := b.Category
+		if item, ok := catMap[key]; ok {
+			item.BypassCount++
+			if b.CVSSScore > item.MaxCVSS {
+				item.MaxCVSS = b.CVSSScore
+			}
+		} else {
+			catMap[key] = &RemediationItem{
+				Category:    key,
+				BypassCount: 1,
+				MaxCVSS:     b.CVSSScore,
+			}
+		}
+	}
+
+	// Also add categories from CategoryResults that have bypasses but no detailed findings
+	for _, cat := range r.CategoryResults {
+		if cat.Bypassed > 0 {
+			if _, exists := catMap[cat.Category]; !exists {
+				catMap[cat.Category] = &RemediationItem{
+					Category:    cat.DisplayName,
+					BypassCount: cat.Bypassed,
+				}
+			}
+		}
+	}
+
+	// Convert to sorted slice, assign priority and action
+	items := make([]RemediationItem, 0, len(catMap))
+	for _, item := range catMap {
+		switch {
+		case item.MaxCVSS >= 9.0 || item.BypassCount >= 10:
+			item.Priority = "critical"
+			item.Action = fmt.Sprintf("Immediately add WAF rules for %s — %d bypasses detected", item.Category, item.BypassCount)
+		case item.MaxCVSS >= 7.0 || item.BypassCount >= 5:
+			item.Priority = "high"
+			item.Action = fmt.Sprintf("Add detection rules for %s attacks — %d bypasses need coverage", item.Category, item.BypassCount)
+		case item.MaxCVSS >= 4.0 || item.BypassCount >= 2:
+			item.Priority = "medium"
+			item.Action = fmt.Sprintf("Review and improve %s detection rules — %d bypasses found", item.Category, item.BypassCount)
+		default:
+			item.Priority = "low"
+			item.Action = fmt.Sprintf("Monitor %s category — %d bypass found", item.Category, item.BypassCount)
+		}
+		items = append(items, *item)
+	}
+
+	// Sort: critical first, then by bypass count
+	sort.Slice(items, func(i, j int) bool {
+		priorityOrder := map[string]int{"critical": 0, "high": 1, "medium": 2, "low": 3}
+		if priorityOrder[items[i].Priority] != priorityOrder[items[j].Priority] {
+			return priorityOrder[items[i].Priority] < priorityOrder[items[j].Priority]
+		}
+		return items[i].BypassCount > items[j].BypassCount
+	})
+
+	r.RemediationPriority = items
+}
+
+// populateScanMetadata fills scope, limitations, and tested categories
+func populateScanMetadata(r *EnterpriseReport, targetName string) {
+	// Scan scope
+	if r.TargetURL != "" {
+		r.ScanScope = []string{r.TargetURL}
+	} else if targetName != "" {
+		r.ScanScope = []string{targetName}
+	}
+
+	// Tested categories (from results)
+	seen := make(map[string]bool)
+	for _, cat := range r.CategoryResults {
+		if !seen[cat.Category] {
+			r.TestedCategories = append(r.TestedCategories, cat.DisplayName)
+			seen[cat.Category] = true
+		}
+	}
+
+	// Limitations
+	r.ScanLimitations = []string{
+		"Testing does not include denial-of-service (DoS) attempts",
+		"Rate-limited to avoid service degradation",
+		"Results reflect WAF configuration at time of scan only",
+	}
+	if r.TestHealth != nil && r.TestHealth.Skipped > 0 {
+		r.ScanLimitations = append(r.ScanLimitations,
+			fmt.Sprintf("%d tests were skipped due to connection issues, which may understate the actual bypass rate", r.TestHealth.Skipped))
+	}
+
+	// Scan parameters
+	r.ScanParameters = []string{
+		fmt.Sprintf("Total attack payloads: %d", r.TotalRequests),
+		fmt.Sprintf("Attack categories tested: %d", len(r.CategoryResults)),
+	}
+	if r.WAFVendor != "" {
+		r.ScanParameters = append(r.ScanParameters, fmt.Sprintf("Detected WAF vendor: %s", r.WAFVendor))
+	}
+	if r.ScanDuration != "" {
+		r.ScanParameters = append(r.ScanParameters, fmt.Sprintf("Scan duration: %s", r.ScanDuration))
+	}
 }
