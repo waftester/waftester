@@ -1,0 +1,33 @@
+{
+  "name": "nextcloud",
+  "description": "Nextcloud file sharing and collaboration — WebDAV, OCS API, app ecosystem",
+  "endpoints": [
+    "/login",
+    "/index.php/login",
+    "/remote.php/dav/",
+    "/remote.php/webdav/",
+    "/ocs/v2.php/cloud/users",
+    "/ocs/v2.php/cloud/groups",
+    "/ocs/v2.php/apps/files_sharing/api/v1/shares",
+    "/ocs/v2.php/core/getapppassword",
+    "/ocs/v1.php/cloud/capabilities",
+    "/apps/",
+    "/apps/files/",
+    "/apps/gallery/",
+    "/status.php",
+    "/cron.php",
+    "/index.php/settings/admin",
+    "/index.php/settings/personal",
+    "/index.php/core/preview",
+    "/index.php/apps/files/ajax/upload.php",
+    "/public.php",
+    "/.well-known/caldav",
+    "/.well-known/carddav"
+  ],
+  "attack_surface": {
+    "has_auth_endpoints": true,
+    "has_api_endpoints": true,
+    "has_file_upload": true,
+    "has_websockets": true
+  }
+}

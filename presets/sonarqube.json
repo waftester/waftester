@@ -1,0 +1,30 @@
+{
+  "name": "sonarqube",
+  "description": "SonarQube code quality platform — Web API, project analysis, admin",
+  "endpoints": [
+    "/sessions/new",
+    "/api/authentication/login",
+    "/api/authentication/logout",
+    "/api/authentication/validate",
+    "/api/system/status",
+    "/api/system/health",
+    "/api/system/info",
+    "/api/server/version",
+    "/api/users/search",
+    "/api/projects/search",
+    "/api/components/search",
+    "/api/issues/search",
+    "/api/rules/search",
+    "/api/qualityprofiles/search",
+    "/api/qualitygates/list",
+    "/api/settings/values",
+    "/api/plugins/installed",
+    "/api/webservices/list",
+    "/api/ce/activity",
+    "/api/measures/component"
+  ],
+  "attack_surface": {
+    "has_auth_endpoints": true,
+    "has_api_endpoints": true
+  }
+}

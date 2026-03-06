@@ -1,0 +1,30 @@
+{
+  "name": "jenkins",
+  "description": "Jenkins CI/CD server — Script Console, REST API, CLI, job management",
+  "endpoints": [
+    "/login",
+    "/j_security_check",
+    "/logout",
+    "/api/json",
+    "/api/xml",
+    "/script",
+    "/scriptText",
+    "/manage",
+    "/configSubmit",
+    "/cli",
+    "/job/",
+    "/queue/api/json",
+    "/computer/api/json",
+    "/credentials/",
+    "/pluginManager/",
+    "/securityRealm/",
+    "/administrativeMonitor/",
+    "/crumbIssuer/api/json",
+    "/whoAmI/api/json",
+    "/user/"
+  ],
+  "attack_surface": {
+    "has_auth_endpoints": true,
+    "has_api_endpoints": true
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "keycloak",
+  "description": "Keycloak IAM — OpenID Connect, SAML, user federation, admin console",
+  "endpoints": [
+    "/auth/",
+    "/auth/admin/",
+    "/auth/realms/master/",
+    "/auth/realms/master/protocol/openid-connect/auth",
+    "/auth/realms/master/protocol/openid-connect/token",
+    "/auth/realms/master/protocol/openid-connect/userinfo",
+    "/auth/realms/master/protocol/openid-connect/certs",
+    "/auth/realms/master/protocol/saml",
+    "/auth/realms/master/account/",
+    "/auth/realms/master/clients-registrations/",
+    "/auth/realms/master/.well-known/openid-configuration",
+    "/auth/admin/realms/",
+    "/auth/admin/serverinfo",
+    "/auth/resources/",
+    "/realms/master/",
+    "/realms/master/protocol/openid-connect/token",
+    "/admin/",
+    "/health",
+    "/health/ready",
+    "/health/live"
+  ],
+  "attack_surface": {
+    "has_auth_endpoints": true,
+    "has_api_endpoints": true,
+    "has_oauth": true,
+    "has_saml": true
+  }
+}

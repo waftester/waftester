@@ -1,0 +1,36 @@
+{
+  "name": "gitlab",
+  "description": "GitLab self-hosted DevOps platform — API v4, GraphQL, OAuth, container registry",
+  "endpoints": [
+    "/users/sign_in",
+    "/users/sign_up",
+    "/users/password/new",
+    "/api/v4/projects",
+    "/api/v4/users",
+    "/api/v4/groups",
+    "/api/v4/namespaces",
+    "/api/v4/runners",
+    "/api/v4/jobs",
+    "/api/v4/pipelines",
+    "/api/v4/snippets",
+    "/-/graphql",
+    "/oauth/authorize",
+    "/oauth/token",
+    "/admin/",
+    "/explore",
+    "/search",
+    "/uploads/",
+    "/v2/",
+    "/-/health",
+    "/-/readiness",
+    "/-/liveness"
+  ],
+  "attack_surface": {
+    "has_auth_endpoints": true,
+    "has_api_endpoints": true,
+    "has_file_upload": true,
+    "has_oauth": true,
+    "has_graphql": true,
+    "has_websockets": true
+  }
+}

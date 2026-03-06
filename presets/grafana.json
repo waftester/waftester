@@ -1,0 +1,30 @@
+{
+  "name": "grafana",
+  "description": "Grafana observability platform — dashboards, data sources, alerting API",
+  "endpoints": [
+    "/login",
+    "/logout",
+    "/api/login/ping",
+    "/api/org/",
+    "/api/orgs/",
+    "/api/users/",
+    "/api/dashboards/",
+    "/api/datasources/",
+    "/api/alerts/",
+    "/api/alert-notifications/",
+    "/api/annotations/",
+    "/api/search",
+    "/api/admin/",
+    "/api/plugins/",
+    "/api/folders/",
+    "/api/ruler/",
+    "/api/serviceaccounts/",
+    "/d/",
+    "/explore",
+    "/api/health"
+  ],
+  "attack_surface": {
+    "has_auth_endpoints": true,
+    "has_api_endpoints": true
+  }
+}
