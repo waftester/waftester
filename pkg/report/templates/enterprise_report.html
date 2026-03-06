@@ -1330,12 +1330,16 @@
             <div class="toc__title">Jump To</div>
             <ul class="toc__list">
                 <li><a class="toc__link" href="#stats">📊 Stats</a></li>
+                {{if .TestHealth}}<li><a class="toc__link" href="#test-health">🩺 Test Execution</a></li>{{end}}
                 {{if .EnterpriseMetrics}}<li><a class="toc__link" href="#enterprise-metrics">📈 Enterprise Metrics</a></li>{{end}}
                 <li><a class="toc__link" href="#confusion-matrix">🎯 Confusion Matrix</a></li>
                 <li><a class="toc__link" href="#categories">📋 Categories</a></li>
+                {{if .SeverityBreakdown}}<li><a class="toc__link" href="#severity">🔴 Severity Breakdown</a></li>{{end}}
+                {{if .OWASPBreakdown}}<li><a class="toc__link" href="#owasp">🛡️ OWASP Mapping</a></li>{{end}}
                 {{if .Bypasses}}<li><a class="toc__link" href="#bypasses">⚠️ Bypasses ({{len .Bypasses}})</a></li>{{end}}
                 {{if .FalsePositives}}<li><a class="toc__link" href="#false-positives">🚫 False Positives</a></li>{{end}}
                 {{if .BrowserFindings}}<li><a class="toc__link" href="#browser">🌐 Browser Scan</a></li>{{end}}
+                {{if .VendorInsights}}<li><a class="toc__link" href="#vendor-insights">🔍 WAF Intelligence</a></li>{{end}}
                 {{if .Recommendations}}<li><a class="toc__link" href="#recommendations">💡 Recommendations</a></li>{{end}}
                 {{if .ComparisonTable}}<li><a class="toc__link" href="#comparison">📈 Benchmark</a></li>{{end}}
                 {{if .AllResults}}<li><a class="toc__link" href="#results">📊 All Results</a></li>{{end}}
@@ -1350,18 +1354,67 @@
                 <div class="stat-card__label">Total Requests</div>
             </div>
             <div class="stat-card">
-                <div class="stat-card__value">{{.BlockedRequests}}</div>
-                <div class="stat-card__label">Blocked</div>
+                <div class="stat-card__value" style="color: var(--green);">{{.BlockedRequests}}</div>
+                <div class="stat-card__label">Blocked (TP)</div>
             </div>
             <div class="stat-card">
-                <div class="stat-card__value">{{.PassedRequests}}</div>
-                <div class="stat-card__label">Passed</div>
+                <div class="stat-card__value" style="color: var(--red);">{{.BypassedRequests}}</div>
+                <div class="stat-card__label">Bypassed (FN)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card__value">{{.BenignPassed}}</div>
+                <div class="stat-card__label">Benign Passed (TN)</div>
             </div>
             <div class="stat-card">
                 <div class="stat-card__value">{{.AvgLatencyMs}}ms</div>
                 <div class="stat-card__label">Avg Latency</div>
             </div>
         </div>
+
+        {{if .TestHealth}}
+        <!-- Test Execution Health -->
+        <section class="section" id="test-health">
+            <h2 class="section__title">🩺 Test Execution Health</h2>
+            {{if gt .TestHealth.Skipped 0}}
+            <div style="background: linear-gradient(135deg, #fef3c7, #fde68a); border-radius: var(--br-medium); padding: 16px 20px; margin-bottom: 20px; border-left: 4px solid #f59e0b;">
+                <div style="font-weight: 700; color: #92400e; margin-bottom: 8px;">⚠️ Degraded Test Coverage</div>
+                <p style="color: #78350f; margin: 0; font-size: 14px; line-height: 1.6;">
+                    {{.TestHealth.Skipped}} of {{.TestHealth.TotalPlanned}} planned tests were skipped due to connection issues.
+                    {{if gt .TestHealth.HostsSkipped 0}}The WAF dropped {{.TestHealth.HostsSkipped}} connections, suggesting aggressive rate limiting or connection-level filtering. {{end}}
+                    Results may understate the true bypass rate — re-run with lower concurrency or delayed timing for full coverage.
+                </p>
+            </div>
+            {{end}}
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-card__value">{{.TestHealth.TotalPlanned}}</div>
+                    <div class="stat-card__label">Planned Tests</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card__value" style="color: {{if ge .TestHealth.HealthPct 70.0}}var(--green){{else if ge .TestHealth.HealthPct 40.0}}var(--orange){{else}}var(--red){{end}};">{{printf "%.0f" .TestHealth.HealthPct}}%</div>
+                    <div class="stat-card__label">Execution Rate</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card__value" style="color: var(--orange);">{{.TestHealth.Skipped}}</div>
+                    <div class="stat-card__label">Skipped</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card__value" style="color: var(--red);">{{.TestHealth.Errors}}</div>
+                    <div class="stat-card__label">Errors</div>
+                </div>
+            </div>
+            {{if .TestHealth.TopErrors}}
+            <div style="margin-top: 16px;">
+                <h4 style="font-size: 14px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">Top Error Patterns</h4>
+                <ul style="list-style: none; padding: 0; margin: 0;">
+                    {{range .TestHealth.TopErrors}}
+                    <li style="padding: 8px 12px; background: var(--bg-secondary); border-radius: 6px; margin-bottom: 4px; font-size: 13px; font-family: monospace; color: var(--text-primary); word-break: break-all;">{{.}}</li>
+                    {{end}}
+                </ul>
+            </div>
+            {{end}}
+        </section>
+        {{end}}
 
         {{if .EnterpriseMetrics}}
         <!-- Enterprise Metrics -->
@@ -1482,6 +1535,46 @@
                 </tbody>
             </table>
         </section>
+
+        {{if .SeverityBreakdown}}
+        <!-- Severity Breakdown -->
+        <section class="section" id="severity">
+            <h2 class="section__title">🔴 Severity Breakdown</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;">Distribution of tested payloads by severity level.</p>
+            <div class="stats-grid">
+                {{range $sev, $count := .SeverityBreakdown}}
+                <div class="stat-card">
+                    <div class="stat-card__value"><span class="severity-badge severity-badge--{{$sev}}">{{$count}}</span></div>
+                    <div class="stat-card__label">{{$sev | upper}}</div>
+                </div>
+                {{end}}
+            </div>
+        </section>
+        {{end}}
+
+        {{if .OWASPBreakdown}}
+        <!-- OWASP Top 10 Mapping -->
+        <section class="section" id="owasp">
+            <h2 class="section__title">🛡️ OWASP Top 10 Mapping</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;">Tested payloads mapped to OWASP Top 10 (2021) categories.</p>
+            <table class="category-table">
+                <thead>
+                    <tr>
+                        <th>OWASP Category</th>
+                        <th>Payloads Tested</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range $cat, $count := .OWASPBreakdown}}
+                    <tr>
+                        <td><strong>{{$cat}}</strong></td>
+                        <td>{{$count}}</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </section>
+        {{end}}
 
         {{if .Bypasses}}
         <!-- Bypasses - Enterprise Detail View -->
@@ -1839,6 +1932,52 @@
             </div>
             {{end}}
             {{end}}
+        </section>
+        {{end}}
+
+        {{if .VendorInsights}}
+        <!-- WAF Intelligence -->
+        <section class="section" id="vendor-insights">
+            <h2 class="section__title">🔍 WAF Intelligence</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;">
+                Vendor-specific intelligence for {{if .WAFVendor}}{{.WAFVendor}}{{else}}the detected WAF{{end}}
+                {{if .VendorInsights.VendorConfidence}} (detection confidence: {{printf "%.0f" (mult .VendorInsights.VendorConfidence 100)}}%){{end}}.
+            </p>
+
+            {{if .VendorInsights.BypassHints}}
+            <div style="margin-bottom: 20px;">
+                <h4 style="font-size: 14px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;">🎯 Known Bypass Vectors</h4>
+                <ul style="list-style: none; padding: 0; margin: 0;">
+                    {{range .VendorInsights.BypassHints}}
+                    <li style="padding: 10px 14px; background: var(--bg-secondary); border-radius: 6px; margin-bottom: 6px; font-size: 13px; color: var(--text-primary); border-left: 3px solid var(--orange);">{{.}}</li>
+                    {{end}}
+                </ul>
+            </div>
+            {{end}}
+
+            <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+                {{if .VendorInsights.RecommendedEncoders}}
+                <div style="flex: 1; min-width: 250px;">
+                    <h4 style="font-size: 14px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;">🔧 Recommended Encodings</h4>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                        {{range .VendorInsights.RecommendedEncoders}}
+                        <span style="padding: 4px 10px; background: var(--bg-secondary); border-radius: 12px; font-size: 12px; font-weight: 500; color: var(--text-primary); border: 1px solid var(--border-color);">{{humanizeEncoder .}}</span>
+                        {{end}}
+                    </div>
+                </div>
+                {{end}}
+
+                {{if .VendorInsights.RecommendedEvasions}}
+                <div style="flex: 1; min-width: 250px;">
+                    <h4 style="font-size: 14px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;">🛡️ Evasion Techniques to Test</h4>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                        {{range .VendorInsights.RecommendedEvasions}}
+                        <span style="padding: 4px 10px; background: var(--bg-secondary); border-radius: 12px; font-size: 12px; font-weight: 500; color: var(--text-primary); border: 1px solid var(--border-color);">{{humanizeEncoder .}}</span>
+                        {{end}}
+                    </div>
+                </div>
+                {{end}}
+            </div>
         </section>
         {{end}}
 

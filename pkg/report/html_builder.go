@@ -147,6 +147,8 @@ func BuildFromMetrics(m interface{}, targetName string, scanDuration time.Durati
 	// Calculate blocked/passed from confusion matrix
 	report.BlockedRequests = report.ConfusionMatrix.TruePositives + report.ConfusionMatrix.FalsePositives
 	report.PassedRequests = report.ConfusionMatrix.TrueNegatives + report.ConfusionMatrix.FalseNegatives
+	report.BypassedRequests = report.ConfusionMatrix.FalseNegatives
+	report.BenignPassed = report.ConfusionMatrix.TrueNegatives
 
 	// Extract category metrics
 	if catMetrics, ok := metricsMap["category_metrics"].(map[string]interface{}); ok {
@@ -262,11 +264,22 @@ func buildExecutiveSummary(r *EnterpriseReport) string {
 		}
 	}
 
+	// Test health warning
+	if r.TestHealth != nil && r.TestHealth.Skipped > 0 {
+		skipPct := float64(r.TestHealth.Skipped) / float64(len(r.AllResults)+r.TestHealth.Skipped) * 100
+		if skipPct > 30 {
+			sb.WriteString(fmt.Sprintf("Note: %.0f%% of test cases were skipped due to connection issues, which may understate the true bypass rate. ",
+				skipPct))
+		}
+	}
+
 	// Bypass summary
 	if len(r.Bypasses) > 0 {
 		sb.WriteString(fmt.Sprintf("%d bypass findings require remediation.", len(r.Bypasses)))
+	} else if fn > 0 {
+		sb.WriteString(fmt.Sprintf("While %d payloads bypassed detection in aggregate testing, no individual bypass findings were captured in the results.", fn))
 	} else {
-		sb.WriteString("No active bypasses were confirmed during testing.")
+		sb.WriteString("No bypasses were detected during testing.")
 	}
 
 	return sb.String()
@@ -668,6 +681,30 @@ func GenerateEnterpriseHTMLReportFromWorkspace(workspaceDir string, targetName s
 		}
 	}
 
+	// Load test execution health from results-summary.json
+	summaryPath := filepath.Join(workspaceDir, "results-summary.json")
+	if summaryData, err := os.ReadFile(summaryPath); err == nil {
+		var summary map[string]interface{}
+		if json.Unmarshal(summaryData, &summary) == nil {
+			loadTestHealth(report, summary)
+		}
+	}
+
+	// Load vendor insights from vendor-detection.json
+	vendorPath := filepath.Join(workspaceDir, "vendor-detection.json")
+	if vendorData, err := os.ReadFile(vendorPath); err == nil {
+		var vendor map[string]interface{}
+		if json.Unmarshal(vendorData, &vendor) == nil {
+			loadVendorInsights(report, vendor)
+		}
+	}
+
+	// Enrich recommendations with specific actionable guidance
+	enrichRecommendations(report)
+
+	// Regenerate executive summary with enriched data
+	report.ExecutiveSummary = buildExecutiveSummary(report)
+
 	// Generate HTML
 	generator, err := NewEnterpriseHTMLGenerator()
 	if err != nil {
@@ -675,6 +712,148 @@ func GenerateEnterpriseHTMLReportFromWorkspace(workspaceDir string, targetName s
 	}
 
 	return generator.GenerateToFile(report, outputPath)
+}
+
+// loadTestHealth extracts test execution health data from results-summary.json
+func loadTestHealth(r *EnterpriseReport, summary map[string]interface{}) {
+	h := &TestHealthData{}
+
+	if v, ok := summary["TotalTests"].(float64); ok {
+		h.TotalPlanned = int(v)
+	}
+	if v, ok := summary["ErrorTests"].(float64); ok {
+		h.Errors = int(v)
+	}
+	if v, ok := summary["hosts_skipped"].(float64); ok {
+		h.HostsSkipped = int(v)
+	}
+	if v, ok := summary["filtered_tests"].(float64); ok {
+		h.FilteredTests = int(v)
+	}
+
+	// Count skipped from AllResults (most accurate)
+	for _, tr := range r.AllResults {
+		if tr.Outcome == "Skipped" {
+			h.Skipped++
+		}
+	}
+
+	h.Executed = h.TotalPlanned - h.Skipped - h.Errors - h.FilteredTests
+	if h.Executed < 0 {
+		h.Executed = 0
+	}
+	if h.TotalPlanned > 0 {
+		h.HealthPct = float64(h.Executed) / float64(h.TotalPlanned) * 100
+	}
+
+	// Top errors
+	if topErrs, ok := summary["TopErrors"].([]interface{}); ok {
+		seen := make(map[string]bool)
+		for _, e := range topErrs {
+			if s, ok := e.(string); ok && !seen[s] {
+				seen[s] = true
+				h.TopErrors = append(h.TopErrors, s)
+			}
+		}
+	}
+
+	r.TestHealth = h
+
+	// Severity breakdown
+	if sevMap, ok := summary["SeverityBreakdown"].(map[string]interface{}); ok {
+		r.SeverityBreakdown = make(map[string]int, len(sevMap))
+		for k, v := range sevMap {
+			if n, ok := v.(float64); ok {
+				r.SeverityBreakdown[k] = int(n)
+			}
+		}
+	}
+
+	// OWASP breakdown
+	if owaspMap, ok := summary["owasp_breakdown"].(map[string]interface{}); ok {
+		r.OWASPBreakdown = make(map[string]int, len(owaspMap))
+		for k, v := range owaspMap {
+			if n, ok := v.(float64); ok {
+				r.OWASPBreakdown[k] = int(n)
+			}
+		}
+	}
+}
+
+// loadVendorInsights extracts WAF vendor intelligence from vendor-detection.json
+func loadVendorInsights(r *EnterpriseReport, vendor map[string]interface{}) {
+	vi := &VendorInsights{}
+
+	if v, ok := vendor["vendor_confidence"].(float64); ok {
+		vi.VendorConfidence = v
+	}
+	if hints, ok := vendor["bypass_hints"].([]interface{}); ok {
+		for _, h := range hints {
+			if s, ok := h.(string); ok {
+				vi.BypassHints = append(vi.BypassHints, s)
+			}
+		}
+	}
+	if encs, ok := vendor["recommended_encoders"].([]interface{}); ok {
+		for _, e := range encs {
+			if s, ok := e.(string); ok {
+				vi.RecommendedEncoders = append(vi.RecommendedEncoders, s)
+			}
+		}
+	}
+	if evs, ok := vendor["recommended_evasions"].([]interface{}); ok {
+		for _, e := range evs {
+			if s, ok := e.(string); ok {
+				vi.RecommendedEvasions = append(vi.RecommendedEvasions, s)
+			}
+		}
+	}
+
+	r.VendorInsights = vi
+}
+
+// enrichRecommendations adds specific, actionable guidance beyond the generic assessment recommendations
+func enrichRecommendations(r *EnterpriseReport) {
+	// Add test health warnings
+	if r.TestHealth != nil && r.TestHealth.Skipped > 0 {
+		r.Recommendations = append(r.Recommendations,
+			fmt.Sprintf("⚠️ %d tests were skipped due to connection dropping. Re-run with --rate-limit or --delay flags to avoid triggering WAF rate limits and get complete coverage.",
+				r.TestHealth.Skipped))
+	}
+
+	// Add category-specific recommendations
+	for _, cat := range r.CategoryResults {
+		if cat.DetectionRate < 0.5 && cat.Bypassed > 10 {
+			r.Recommendations = append(r.Recommendations,
+				fmt.Sprintf("%s: %d of %d attacks bypassed the WAF (%.0f%% undetected). Add specific %s rules — this represents a critical coverage gap.",
+					cat.DisplayName, cat.Bypassed, cat.TotalTests, (1-cat.DetectionRate)*100, cat.Category))
+		}
+	}
+
+	// ModSecurity-specific advice when vendor is known
+	if strings.Contains(r.WAFVendor, "ModSecurity") || strings.Contains(r.WAFVendor, "Coraza") {
+		if r.DetectionRate < 0.6 {
+			r.Recommendations = append(r.Recommendations,
+				"ModSecurity/Coraza detected at low paranoia level. Increase CRS paranoia level (PL2 or PL3) for significantly better detection. PL1→PL2 typically improves detection by 10-15%.")
+		}
+	}
+
+	// Bypass resistance advisory
+	if r.BypassedRequests > 0 && len(r.Bypasses) == 0 {
+		r.Recommendations = append(r.Recommendations,
+			fmt.Sprintf("The assessment found %d payloads bypassing detection in aggregate. Run with --smart mode to generate detailed per-bypass findings with CWE references and remediation guidance.",
+				r.BypassedRequests))
+	}
+
+	// Error rate
+	if r.ErrorRequests > 0 {
+		errPct := float64(r.ErrorRequests) / float64(r.TotalRequests) * 100
+		if errPct > 10 {
+			r.Recommendations = append(r.Recommendations,
+				fmt.Sprintf("%.0f%% request error rate detected. This may indicate connection instability, DNS issues, or aggressive WAF throttling. Verify network connectivity and WAF rate limit configuration.",
+					errPct))
+		}
+	}
 }
 
 // parseBrowserFindings converts browser-scan.json data into report format
