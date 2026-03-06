@@ -49,6 +49,9 @@ type EnterpriseReport struct {
 	// Charts data (for JS rendering)
 	RadarChartData *RadarChartData `json:"radar_chart_data"`
 
+	// Executive summary (auto-generated narrative)
+	ExecutiveSummary string `json:"executive_summary,omitempty"`
+
 	// Detailed findings
 	Bypasses       []BypassFinding        `json:"bypasses,omitempty"`
 	FalsePositives []FalsePositiveFinding `json:"false_positives,omitempty"`
@@ -59,11 +62,17 @@ type EnterpriseReport struct {
 	// Comparison table (vs other WAFs)
 	ComparisonTable []ComparisonRow `json:"comparison_table,omitempty"`
 
-	// Scan summary
+	// Scan summary (from assessment.json confusion matrix — reflects ALL tests)
 	TotalRequests   int `json:"total_requests"`
 	BlockedRequests int `json:"blocked_requests"`
 	PassedRequests  int `json:"passed_requests"`
 	ErrorRequests   int `json:"error_requests"`
+
+	// Per-outcome counts from AllResults (for results table filter buttons)
+	ResultsBlockedCount int `json:"results_blocked_count"`
+	ResultsPassedCount  int `json:"results_passed_count"`
+	ResultsErrorCount   int `json:"results_error_count"`
+	ResultsSkippedCount int `json:"results_skipped_count"`
 
 	// Latency
 	AvgLatencyMs int `json:"avg_latency_ms"`
@@ -88,6 +97,18 @@ type BrowserScanFindings struct {
 	ThirdPartyAPIs   []BrowserThirdParty   `json:"third_party_apis,omitempty"`
 	RiskSummary      *BrowserRiskSummary   `json:"risk_summary,omitempty"`
 	ScanDuration     string                `json:"scan_duration,omitempty"`
+
+	// Grouped views for display
+	GroupedTokens     []TokenGroup `json:"grouped_tokens,omitempty"`
+	GroupedThirdParty []TokenGroup `json:"grouped_third_party,omitempty"`
+}
+
+// TokenGroup groups items by type with a count
+type TokenGroup struct {
+	Name     string `json:"name"`
+	Count    int    `json:"count"`
+	Severity string `json:"severity"`
+	Risk     string `json:"risk,omitempty"`
 }
 
 // BrowserRoute represents a discovered application route
@@ -459,8 +480,13 @@ func DefaultComparisonTable() []ComparisonRow {
 	}
 }
 
-// BuildRadarChartData creates radar chart data from category results
+// BuildRadarChartData creates radar chart data from category results.
+// Returns nil when fewer than 3 categories — radar charts need at least 3 axes.
 func BuildRadarChartData(categories []CategoryResult) *RadarChartData {
+	if len(categories) < 3 {
+		return nil
+	}
+
 	data := &RadarChartData{
 		Categories: make([]string, len(categories)),
 		Values:     make([]float64, len(categories)),

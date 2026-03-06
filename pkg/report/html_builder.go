@@ -209,7 +209,59 @@ func BuildFromMetrics(m interface{}, targetName string, scanDuration time.Durati
 	// Add comparison table
 	report.ComparisonTable = DefaultComparisonTable()
 
+	// Generate executive summary
+	report.ExecutiveSummary = buildExecutiveSummary(report)
+
 	return report, nil
+}
+
+// buildExecutiveSummary generates a narrative summary from report data.
+func buildExecutiveSummary(r *EnterpriseReport) string {
+	var sb strings.Builder
+
+	detPct := r.DetectionRate * 100
+	grade := r.OverallGrade.Mark
+
+	sb.WriteString(fmt.Sprintf("The WAF protecting %s achieved an overall grade of %s with a %.1f%% detection rate",
+		r.TargetName, grade, detPct))
+
+	if r.WAFVendor != "" {
+		sb.WriteString(fmt.Sprintf(" (identified as %s)", r.WAFVendor))
+	}
+	sb.WriteString(". ")
+
+	// Confusion matrix insight
+	tp := r.ConfusionMatrix.TruePositives
+	fn := r.ConfusionMatrix.FalseNegatives
+	fp := r.ConfusionMatrix.FalsePositives
+	sb.WriteString(fmt.Sprintf("Out of %d attack payloads tested, %d were correctly blocked and %d bypassed the WAF", tp+fn, tp, fn))
+	if fp > 0 {
+		sb.WriteString(fmt.Sprintf(", with %d false positives on benign requests", fp))
+	}
+	sb.WriteString(". ")
+
+	// Category highlights
+	if len(r.CategoryResults) > 0 {
+		var weakest CategoryResult
+		for _, c := range r.CategoryResults {
+			if weakest.Category == "" || c.DetectionRate < weakest.DetectionRate {
+				weakest = c
+			}
+		}
+		if weakest.DetectionRate < 0.8 {
+			sb.WriteString(fmt.Sprintf("The weakest category is %s at %.0f%% detection. ",
+				weakest.DisplayName, weakest.DetectionRate*100))
+		}
+	}
+
+	// Bypass summary
+	if len(r.Bypasses) > 0 {
+		sb.WriteString(fmt.Sprintf("%d bypass findings require remediation.", len(r.Bypasses)))
+	} else {
+		sb.WriteString("No active bypasses were confirmed during testing.")
+	}
+
+	return sb.String()
 }
 
 // GenerateEnterpriseHTMLReport is a convenience function that creates the report and writes to file
@@ -541,19 +593,24 @@ func (r *EnterpriseReport) LoadAllResultsFromFile(resultsFilePath string) error 
 		r.AllResults = append(r.AllResults, tr)
 	}
 
-	// Update summary counts
-	r.TotalRequests = len(r.AllResults)
-	r.BlockedRequests = 0
-	r.PassedRequests = 0
-	r.ErrorRequests = 0
+	// Count per-outcome totals for the results table filter buttons.
+	// Do NOT overwrite TotalRequests/BlockedRequests/PassedRequests — those
+	// come from assessment.json (confusion matrix) and reflect ALL tests
+	// including mutations. AllResults may be a subset.
+	r.ResultsBlockedCount = 0
+	r.ResultsPassedCount = 0
+	r.ResultsErrorCount = 0
+	r.ResultsSkippedCount = 0
 	for _, tr := range r.AllResults {
 		switch tr.Outcome {
 		case "Blocked":
-			r.BlockedRequests++
+			r.ResultsBlockedCount++
 		case "Pass":
-			r.PassedRequests++
+			r.ResultsPassedCount++
 		case "Error":
-			r.ErrorRequests++
+			r.ResultsErrorCount++
+		case "Skipped":
+			r.ResultsSkippedCount++
 		}
 	}
 
@@ -638,14 +695,19 @@ func parseBrowserFindings(data map[string]interface{}) *BrowserScanFindings {
 		}
 	}
 
-	// Discovered routes
+	// Discovered routes (deduplicated by path)
 	if routes, ok := data["discovered_routes"].([]interface{}); ok {
+		seen := make(map[string]bool)
 		for _, r := range routes {
 			if route, ok := r.(map[string]interface{}); ok {
 				br := BrowserRoute{}
 				if v, ok := route["path"].(string); ok {
 					br.Path = v
 				}
+				if br.Path == "" || seen[br.Path] {
+					continue
+				}
+				seen[br.Path] = true
 				if v, ok := route["requires_auth"].(bool); ok {
 					br.RequiresAuth = v
 				}
@@ -685,13 +747,16 @@ func parseBrowserFindings(data map[string]interface{}) *BrowserScanFindings {
 		}
 	}
 
-	// Third-party APIs
+	// Third-party APIs (skip entries with empty names)
 	if apis, ok := data["third_party_apis"].([]interface{}); ok {
 		for _, a := range apis {
 			if api, ok := a.(map[string]interface{}); ok {
 				btp := BrowserThirdParty{}
 				if v, ok := api["name"].(string); ok {
 					btp.Name = v
+				}
+				if btp.Name == "" {
+					continue
 				}
 				if v, ok := api["request_type"].(string); ok {
 					btp.RequestType = v
@@ -732,6 +797,44 @@ func parseBrowserFindings(data map[string]interface{}) *BrowserScanFindings {
 				}
 			}
 		}
+	}
+
+	// Group exposed tokens by type for summary display
+	if len(findings.ExposedTokens) > 0 {
+		tokenCounts := make(map[string]*TokenGroup)
+		for _, t := range findings.ExposedTokens {
+			key := t.Type
+			if g, exists := tokenCounts[key]; exists {
+				g.Count++
+			} else {
+				tokenCounts[key] = &TokenGroup{Name: t.Type, Count: 1, Severity: t.Severity, Risk: t.Risk}
+			}
+		}
+		for _, g := range tokenCounts {
+			findings.GroupedTokens = append(findings.GroupedTokens, *g)
+		}
+		sort.Slice(findings.GroupedTokens, func(i, j int) bool {
+			return findings.GroupedTokens[i].Count > findings.GroupedTokens[j].Count
+		})
+	}
+
+	// Group third-party APIs by name for summary display
+	if len(findings.ThirdPartyAPIs) > 0 {
+		apiCounts := make(map[string]*TokenGroup)
+		for _, a := range findings.ThirdPartyAPIs {
+			key := a.Name
+			if g, exists := apiCounts[key]; exists {
+				g.Count++
+			} else {
+				apiCounts[key] = &TokenGroup{Name: a.Name, Count: 1, Severity: a.Severity}
+			}
+		}
+		for _, g := range apiCounts {
+			findings.GroupedThirdParty = append(findings.GroupedThirdParty, *g)
+		}
+		sort.Slice(findings.GroupedThirdParty, func(i, j int) bool {
+			return findings.GroupedThirdParty[i].Count > findings.GroupedThirdParty[j].Count
+		})
 	}
 
 	return findings

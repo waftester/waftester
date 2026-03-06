@@ -38,6 +38,12 @@ func generateAutoMarkdownReport(filename, target, domain string, duration time.D
 	// Executive Summary
 	sb.WriteString("## 📋 Executive Summary\n\n")
 
+	// Calculate skipped tests — these inflate effectiveness when excluded
+	skippedTests := results.TotalTests - results.BlockedTests - results.PassedTests - results.FailedTests - results.ErrorTests
+	if skippedTests < 0 {
+		skippedTests = 0
+	}
+
 	if wafEffectiveness >= 95 {
 		sb.WriteString(fmt.Sprintf("**WAF Effectiveness: %.1f%% - EXCELLENT** ✅\n\n", wafEffectiveness))
 		sb.WriteString("The WAF is performing exceptionally well, blocking virtually all attack attempts.\n\n")
@@ -47,6 +53,15 @@ func generateAutoMarkdownReport(filename, target, domain string, duration time.D
 	} else {
 		sb.WriteString(fmt.Sprintf("**WAF Effectiveness: %.1f%% - NEEDS ATTENTION** ❌\n\n", wafEffectiveness))
 		sb.WriteString("The WAF requires immediate attention. Multiple bypasses detected.\n\n")
+	}
+
+	// Warn when many tests were skipped, as effectiveness only covers executed attacks
+	if skippedTests > 0 && results.TotalTests > 0 {
+		skipPct := float64(skippedTests) / float64(results.TotalTests) * 100
+		if skipPct > 20 {
+			sb.WriteString(fmt.Sprintf("> **Note:** %.0f%% of tests (%d/%d) were skipped (host dropped connections). "+
+				"Effectiveness is calculated only from tests that received a response.\n\n", skipPct, skippedTests, results.TotalTests))
+		}
 	}
 
 	// Key Findings
@@ -159,6 +174,9 @@ func generateAutoMarkdownReport(filename, target, domain string, duration time.D
 	sb.WriteString(fmt.Sprintf("| Passed | %d |\n", results.PassedTests))
 	sb.WriteString(fmt.Sprintf("| Failed (Bypass) | %d |\n", results.FailedTests))
 	sb.WriteString(fmt.Sprintf("| Error | %d |\n", results.ErrorTests))
+	if skippedTests > 0 {
+		sb.WriteString(fmt.Sprintf("| Skipped (dropped) | %d |\n", skippedTests))
+	}
 	sb.WriteString("\n")
 
 	// Latency Statistics
@@ -194,7 +212,7 @@ func generateAutoMarkdownReport(filename, target, domain string, duration time.D
 	}
 
 	// Category breakdown if available
-	if results.CategoryBreakdown != nil && len(results.CategoryBreakdown) > 0 {
+	if len(results.CategoryBreakdown) > 0 {
 		sb.WriteString("### By Category\n\n")
 		sb.WriteString("| Category | Tests |\n")
 		sb.WriteString("|----------|-------|\n")
@@ -205,7 +223,7 @@ func generateAutoMarkdownReport(filename, target, domain string, duration time.D
 	}
 
 	// OWASP Top 10 breakdown if available
-	if results.OWASPBreakdown != nil && len(results.OWASPBreakdown) > 0 {
+	if len(results.OWASPBreakdown) > 0 {
 		sb.WriteString("### OWASP Top 10 2021 Coverage\n\n")
 		sb.WriteString("| OWASP Category | Tests |\n")
 		sb.WriteString("|----------------|-------|\n")
@@ -216,7 +234,7 @@ func generateAutoMarkdownReport(filename, target, domain string, duration time.D
 	}
 
 	// Encoding effectiveness if available
-	if results.EncodingStats != nil && len(results.EncodingStats) > 0 {
+	if len(results.EncodingStats) > 0 {
 		sb.WriteString("### Encoding Effectiveness\n\n")
 		sb.WriteString("| Encoding | Tests | Bypasses | Bypass Rate |\n")
 		sb.WriteString("|----------|-------|----------|-------------|\n")

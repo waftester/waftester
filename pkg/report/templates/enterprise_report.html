@@ -554,6 +554,7 @@
         .outcome-badge--blocked { background: #22c55e; color: white; }
         .outcome-badge--pass { background: #ef4444; color: white; }
         .outcome-badge--error { background: #f97316; color: white; }
+        .outcome-badge--skipped { background: #94a3b8; color: white; }
 
         /* Results table with filtering */
         .results-section {
@@ -1196,6 +1197,43 @@
             font-weight: 600;
         }
 
+        /* Table of Contents */
+        .toc {
+            background: var(--bg-primary);
+            border-radius: var(--br-large);
+            padding: 20px 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+        .toc__title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+        .toc__list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            list-style: none;
+        }
+        .toc__link {
+            display: inline-block;
+            padding: 6px 14px;
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            font-size: 13px;
+            color: var(--text-primary);
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+        .toc__link:hover {
+            background: var(--blue);
+            color: white;
+        }
+
         /* Footer */
         .footer {
             text-align: center;
@@ -1281,8 +1319,32 @@
             </div>
         </section>
 
+        <!-- Table of Contents -->
+        <nav class="toc">
+            {{if .ExecutiveSummary}}
+            <div style="margin-bottom: 16px; padding: 16px; background: var(--bg-secondary); border-radius: var(--br-medium); border-left: 4px solid var(--blue);">
+                <div style="font-size: 14px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Executive Summary</div>
+                <p style="font-size: 14px; line-height: 1.7; color: var(--text-primary); margin: 0;">{{.ExecutiveSummary}}</p>
+            </div>
+            {{end}}
+            <div class="toc__title">Jump To</div>
+            <ul class="toc__list">
+                <li><a class="toc__link" href="#stats">📊 Stats</a></li>
+                {{if .EnterpriseMetrics}}<li><a class="toc__link" href="#enterprise-metrics">📈 Enterprise Metrics</a></li>{{end}}
+                <li><a class="toc__link" href="#confusion-matrix">🎯 Confusion Matrix</a></li>
+                <li><a class="toc__link" href="#categories">📋 Categories</a></li>
+                {{if .Bypasses}}<li><a class="toc__link" href="#bypasses">⚠️ Bypasses ({{len .Bypasses}})</a></li>{{end}}
+                {{if .FalsePositives}}<li><a class="toc__link" href="#false-positives">🚫 False Positives</a></li>{{end}}
+                {{if .BrowserFindings}}<li><a class="toc__link" href="#browser">🌐 Browser Scan</a></li>{{end}}
+                {{if .AllResults}}<li><a class="toc__link" href="#results">📊 All Results</a></li>{{end}}
+                {{if .Recommendations}}<li><a class="toc__link" href="#recommendations">💡 Recommendations</a></li>{{end}}
+                {{if .ComparisonTable}}<li><a class="toc__link" href="#comparison">📈 Benchmark</a></li>{{end}}
+                <li><a class="toc__link" href="#latency">⏱️ Latency</a></li>
+            </ul>
+        </nav>
+
         <!-- Quick Stats -->
-        <div class="stats-grid">
+        <div class="stats-grid" id="stats">
             <div class="stat-card">
                 <div class="stat-card__value">{{.TotalRequests}}</div>
                 <div class="stat-card__label">Total Requests</div>
@@ -1303,7 +1365,7 @@
 
         {{if .EnterpriseMetrics}}
         <!-- Enterprise Metrics -->
-        <section class="section">
+        <section class="section" id="enterprise-metrics">
             <h2 class="section__title">📊 Enterprise Metrics</h2>
             <div class="metrics-grid">
                 <div class="metric-item">
@@ -1348,7 +1410,7 @@
 
         <div class="charts-grid">
             <!-- Confusion Matrix -->
-            <section class="section">
+            <section class="section" id="confusion-matrix">
                 <h2 class="section__title">🎯 Confusion Matrix</h2>
                 <div class="confusion-matrix">
                     <div></div>
@@ -1387,7 +1449,7 @@
         </div>
 
         <!-- Category Results -->
-        <section class="section">
+        <section class="section" id="categories">
             <h2 class="section__title">📋 Category Breakdown</h2>
             <table class="category-table">
                 <thead>
@@ -1423,7 +1485,7 @@
 
         {{if .Bypasses}}
         <!-- Bypasses - Enterprise Detail View -->
-        <section class="section">
+        <section class="section" id="bypasses">
             <h2 class="section__title">⚠️ WAF Bypasses ({{len .Bypasses}})</h2>
             <p style="color: #64748b; margin-bottom: 20px; font-size: 14px;">
                 The following attacks successfully bypassed WAF protection. Each finding includes reproduction steps, impact analysis, and remediation guidance.
@@ -1620,7 +1682,7 @@
 
         {{if .FalsePositives}}
         <!-- False Positives -->
-        <section class="section">
+        <section class="section" id="false-positives">
             <h2 class="section__title">🚫 False Positives ({{len .FalsePositives}})</h2>
             <table class="findings-table">
                 <thead>
@@ -1645,7 +1707,7 @@
 
         {{if .BrowserFindings}}
         <!-- Browser Scan Findings -->
-        <section class="section">
+        <section class="section" id="browser">
             <h2 class="section__title">🌐 Authenticated Browser Scan Findings</h2>
             <p style="color: #64748b; margin-bottom: 20px; font-size: 14px;">
                 The following findings were discovered during authenticated browser scanning, capturing real browser network traffic, storage data, and third-party integrations.
@@ -1681,8 +1743,22 @@
             {{end}}
 
             <div class="browser-grid">
-                <!-- Exposed Tokens -->
-                {{if .BrowserFindings.ExposedTokens}}
+                <!-- Exposed Tokens (grouped by type) -->
+                {{if .BrowserFindings.GroupedTokens}}
+                <div class="browser-card">
+                    <div class="browser-card__title">⚠️ Exposed Tokens/Secrets ({{len .BrowserFindings.ExposedTokens}} total, {{len .BrowserFindings.GroupedTokens}} types)</div>
+                    <ul class="browser-card__list">
+                        {{range .BrowserFindings.GroupedTokens}}
+                        <li class="browser-card__item browser-card__item--{{.Severity}}">
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600;">{{.Name}} <span style="background: var(--bg-secondary); padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700;">×{{.Count}}</span></div>
+                                {{if .Risk}}<div style="font-size: 11px; color: #dc2626; margin-top: 4px;">{{.Risk}}</div>{{end}}
+                            </div>
+                        </li>
+                        {{end}}
+                    </ul>
+                </div>
+                {{else if .BrowserFindings.ExposedTokens}}
                 <div class="browser-card">
                     <div class="browser-card__title">⚠️ Exposed Tokens/Secrets ({{len .BrowserFindings.ExposedTokens}})</div>
                     <ul class="browser-card__list">
@@ -1699,8 +1775,21 @@
                 </div>
                 {{end}}
 
-                <!-- Third-Party APIs -->
-                {{if .BrowserFindings.ThirdPartyAPIs}}
+                <!-- Third-Party APIs (grouped by name) -->
+                {{if .BrowserFindings.GroupedThirdParty}}
+                <div class="browser-card">
+                    <div class="browser-card__title">🔗 Third-Party Integrations ({{len .BrowserFindings.ThirdPartyAPIs}} total, {{len .BrowserFindings.GroupedThirdParty}} services)</div>
+                    <ul class="browser-card__list">
+                        {{range .BrowserFindings.GroupedThirdParty}}
+                        <li class="browser-card__item browser-card__item--{{.Severity}}">
+                            <div>
+                                <div style="font-weight: 600;">{{.Name}} <span style="background: var(--bg-secondary); padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700;">×{{.Count}}</span></div>
+                            </div>
+                        </li>
+                        {{end}}
+                    </ul>
+                </div>
+                {{else if .BrowserFindings.ThirdPartyAPIs}}
                 <div class="browser-card">
                     <div class="browser-card__title">🔗 Third-Party Integrations ({{len .BrowserFindings.ThirdPartyAPIs}})</div>
                     <ul class="browser-card__list">
@@ -1755,7 +1844,7 @@
 
         {{if .Recommendations}}
         <!-- Recommendations -->
-        <section class="section">
+        <section class="section" id="recommendations">
             <h2 class="section__title">💡 Recommendations</h2>
             <ul class="recommendation-list">
                 {{range .Recommendations}}
@@ -1770,7 +1859,7 @@
 
         {{if .ComparisonTable}}
         <!-- Industry Comparison -->
-        <section class="section">
+        <section class="section" id="comparison">
             <h2 class="section__title">📈 Industry Benchmark Comparison</h2>
             <table class="comparison-table">
                 <thead>
@@ -1803,15 +1892,16 @@
 
         {{if .AllResults}}
         <!-- All Test Results -->
-        <section class="section results-section">
+        <section class="section results-section" id="results">
             <h2 class="section__title">📊 All Test Results ({{len .AllResults}} total)</h2>
             
             <div class="results-controls">
                 <input type="text" class="results-search" id="resultsSearch" placeholder="Search by ID, payload, category, URL..." onkeyup="filterResults()">
                 <button class="results-filter active" onclick="filterByOutcome('all')" data-outcome="all">All ({{len .AllResults}})</button>
-                <button class="results-filter" onclick="filterByOutcome('Blocked')" data-outcome="Blocked">Blocked ({{.BlockedRequests}})</button>
-                <button class="results-filter" onclick="filterByOutcome('Pass')" data-outcome="Pass">⚠️ Bypassed ({{.PassedRequests}})</button>
-                <button class="results-filter" onclick="filterByOutcome('Error')" data-outcome="Error">Errors ({{.ErrorRequests}})</button>
+                <button class="results-filter" onclick="filterByOutcome('Blocked')" data-outcome="Blocked">Blocked ({{.ResultsBlockedCount}})</button>
+                <button class="results-filter" onclick="filterByOutcome('Pass')" data-outcome="Pass">⚠️ Bypassed ({{.ResultsPassedCount}})</button>
+                <button class="results-filter" onclick="filterByOutcome('Skipped')" data-outcome="Skipped">Skipped ({{.ResultsSkippedCount}})</button>
+                <button class="results-filter" onclick="filterByOutcome('Error')" data-outcome="Error">Errors ({{.ResultsErrorCount}})</button>
                 <span class="results-count" id="resultsCount">Showing {{len .AllResults}} results</span>
                 <div class="export-buttons">
                     <button class="export-btn" onclick="exportTableToCSV('waftester-results.csv')" title="Export to CSV">📄 CSV</button>
@@ -1832,6 +1922,7 @@
                             <th onclick="sortTable(5)">Latency ↕</th>
                             <th>Payload</th>
                             <th>Endpoint</th>
+                            <th>Reason</th>
                         </tr>
                     </thead>
                     <tbody id="resultsBody">
@@ -1845,6 +1936,7 @@
                             <td>{{.LatencyMs}}ms</td>
                             <td class="payload-cell" title="{{.Payload}}"><code>{{truncate .Payload 60}}</code></td>
                             <td><a href="{{.RequestURL}}" target="_blank" title="{{.RequestURL}}">{{truncate .TargetPath 30}}</a></td>
+                            <td style="font-size: 11px; color: var(--text-secondary);">{{.ErrorMessage}}</td>
                         </tr>
                         {{end}}
                     </tbody>
@@ -1854,7 +1946,7 @@
         {{end}}
 
         <!-- Latency Stats -->
-        <section class="section">
+        <section class="section" id="latency">
             <h2 class="section__title">⏱️ Latency Statistics</h2>
             <div class="stats-grid">
                 <div class="stat-card">
