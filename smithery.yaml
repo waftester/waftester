@@ -1,0 +1,25 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      payloadDir:
+        type: string
+        description: "Override default payload directory path."
+      presetDir:
+        type: string
+        description: "Override default service preset directory path."
+      templateDir:
+        type: string
+        description: "Override default Nuclei template directory path."
+  commandFunction: |-
+    config => {
+      const args = ["-y", "@waftester/cli", "mcp"];
+      const env = {};
+      if (config.payloadDir) env.WAF_TESTER_PAYLOAD_DIR = config.payloadDir;
+      if (config.presetDir) env.WAF_TESTER_PRESET_DIR = config.presetDir;
+      if (config.templateDir) env.WAF_TESTER_TEMPLATE_DIR = config.templateDir;
+      return { command: "npx", args, env };
+    }
