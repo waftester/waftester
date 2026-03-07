@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "waftester.fullname" . }}-test-connection"
+  labels:
+    {{- include "waftester.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+    - name: wget
+      image: busybox:1.37
+      command: ['wget']
+      args: ['--spider', '--timeout=5', '{{ include "waftester.fullname" . }}:{{ .Values.service.port }}/health']
+  restartPolicy: Never

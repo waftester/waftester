@@ -1,0 +1,29 @@
+apiVersion: v2
+name: waftester
+description: WAF security testing platform with MCP server, 2800+ attack payloads, and enterprise-grade assessment
+type: application
+version: 0.1.0
+appVersion: "2.9.46"
+home: https://waftester.com
+icon: https://waftester.com/favicon.svg
+sources:
+  - https://github.com/waftester/waftester
+keywords:
+  - waf
+  - security
+  - security-testing
+  - penetration-testing
+  - mcp-server
+  - web-application-firewall
+  - devsecops
+maintainers:
+  - name: WAFtester
+    url: https://github.com/waftester
+annotations:
+  artifacthub.io/license: BUSL-1.1
+  artifacthub.io/category: security
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://github.com/waftester/waftester/blob/main/docs/EXAMPLES.md
+    - name: Docker Hub
+      url: https://hub.docker.com/r/waftester/waftester
