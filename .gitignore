@@ -113,6 +113,7 @@ resume.cfg
 workspaces/
 *-results.json
 bypasses.json
+payload-update-report.json
 *-report.md
 *-report.html
 *-discovery.json
@@ -133,6 +134,7 @@ license.key
 # Testing
 #===============================================================================
 # Test artifacts
+test/scenario-results/
 *.har
 *.sarif
 *.junit.xml
