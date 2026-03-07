@@ -46,8 +46,8 @@ npm-staging/
 # Go
 #===============================================================================
 # Binaries
-waftester
-waftester.exe
+/waftester
+/waftester.exe
 *.exe
 *.exe~
 *.dll
@@ -162,6 +162,9 @@ checksums.txt
 !LICENSE*
 secrets/
 credentials/
+
+# Helm chart (versioned)
+!charts/
 
 # VS Code local state
 .vscode/memory.jsonl

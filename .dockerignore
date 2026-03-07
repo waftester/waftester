@@ -29,6 +29,9 @@ docs/
 test/
 mutation-results.json
 
+# Helm charts
+charts/
+
 # Scripts & tooling
 scripts/
 
