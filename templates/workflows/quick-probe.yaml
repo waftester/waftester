@@ -27,41 +27,37 @@ inputs:
 steps:
   - id: detect
     name: Detect WAF presence
-    command: wafdetect
+    command: vendor
     args:
       - "-u"
       - "{{.target}}"
-      - "-o"
-      - "{{.output_dir}}/waf-detection.json"
-      - "--json"
+      - "-json"
 
   - id: fingerprint
     name: Fingerprint WAF technology
-    command: waffprint
+    command: vendor
     args:
       - "-u"
       - "{{.target}}"
-      - "-o"
-      - "{{.output_dir}}/waf-fingerprint.json"
-      - "--json"
+      - "-verbose"
 
   - id: quick_scan
     name: Run quick scan (critical + high only)
-    command: run
+    command: scan
     args:
       - "-u"
       - "{{.target}}"
-      - "-s"
+      - "-types"
       - "sqli,xss,rce,ssrf"
       - "-c"
       - "10"
-      - "--rate-limit"
+      - "-rate-limit"
       - "{{.rate_limit}}"
-      - "--severity"
+      - "-match-severity"
       - "critical,high"
-      - "-o"
+      - "-format"
       - "json"
-      - "--output-file"
+      - "-output"
       - "{{.output_dir}}/quick-results.json"
     condition: "steps.detect.success"
 
@@ -75,6 +71,4 @@ steps:
       - "{{.output_dir}}/quick-report.html"
       - "-f"
       - "html"
-      - "--template-config"
-      - "templates/report-configs/minimal.yaml"
     condition: "steps.quick_scan.success"

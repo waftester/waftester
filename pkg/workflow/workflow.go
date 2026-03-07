@@ -409,6 +409,13 @@ func (e *Engine) executeStep(ctx context.Context, step *Step, vars map[string]st
 
 	// Dry run mode
 	if e.DryRun {
+		if !isWafTesterCommand(command) && !e.isAllowedExternalCommand(command) {
+			result.Status = "failed"
+			result.Error = fmt.Sprintf("unknown command %q: not a waftester command or allowed external command", command)
+			result.EndTime = time.Now()
+			result.Duration = result.EndTime.Sub(result.StartTime)
+			return result
+		}
 		result.Status = "success"
 		result.EndTime = time.Now()
 		result.Duration = result.EndTime.Sub(result.StartTime)
@@ -664,8 +671,20 @@ func (e *Engine) evaluateCondition(condition string, vars map[string]string) boo
 
 func isWafTesterCommand(cmd string) bool {
 	wafCommands := []string{
+		"auto", "superpower", "sp",
 		"discover", "scan", "probe", "fuzz", "run",
-		"learn", "report", "wafdetect", "waffprint",
+		"learn", "report", "vendor", "waf-detect", "detect-waf",
+		"tampers", "tamper", "protocol", "proto",
+		"bypass", "fp", "falsepositive", "false-positive",
+		"assess", "assessment", "benchmark",
+		"mutate", "crawl", "analyze", "validate",
+		"headless", "smuggle", "race",
+		"compare", "diff", "cicd", "ci-cd", "pipeline",
+		"template", "templates", "nuclei",
+		"grpc", "grpc-test", "soap", "wsdl",
+		"cloud", "cloud-discover",
+		"plugin", "plugins", "mcp", "mcp-server",
+		"update",
 	}
 	for _, c := range wafCommands {
 		if cmd == c {

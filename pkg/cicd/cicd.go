@@ -178,7 +178,7 @@ jobs:
           else
             curl -fsSL "https://github.com/waftester/waftester/releases/download/{{ .WafTesterVersion }}/waftester_Linux_x86_64.tar.gz" | tar xz
           fi
-          install -m 755 waf-tester /usr/local/bin/
+          install -m 755 waftester /usr/local/bin/
 
 {{- range .PreCommands }}
       - name: Pre-scan command
@@ -189,14 +189,14 @@ jobs:
         id: scan
         run: |
           TARGET_URL="{{ if .TargetEnvVar }}${{ "{{" }} {{ .TargetEnvVar }} {{ "}}" }}{{ else }}{{ .TargetURL }}{{ end }}"
-          waf-tester run \
+          waftester scan \
             -u "$TARGET_URL" \
-            -s {{ range $i, $s := .Scanners }}{{ if $i }},{{ end }}{{ $s }}{{ end }} \
-            -o {{ .OutputFormat }} \
+            -types {{ range $i, $s := .Scanners }}{{ if $i }},{{ end }}{{ $s }}{{ end }} \
+            -format {{ .OutputFormat }} \
             -c {{ .ConcurrencyLimit }} \
-            --rate-limit {{ .RateLimit }} \
-            {{ .CustomArgs }} \
-            --output-file results.{{ .OutputFormat }}
+            -rate-limit {{ .RateLimit }}{{ if .CustomArgs }} \
+            {{ .CustomArgs }}{{ end }} \
+            -output results.{{ .OutputFormat }}
         continue-on-error: {{ not .FailOnHigh }}
 
 {{- range .PostCommands }}
@@ -279,7 +279,7 @@ waf-security-scan:
       else
         curl -fsSL "https://github.com/waftester/waftester/releases/download/{{ .WafTesterVersion }}/waftester_Linux_x86_64.tar.gz" | tar xz
       fi
-      install -m 755 waf-tester /usr/local/bin/
+      install -m 755 waftester /usr/local/bin/
 {{- range .PreCommands }}
     - {{ . }}
 {{- end }}
@@ -287,14 +287,14 @@ waf-security-scan:
   script:
     - |
       TARGET_URL="{{ if .TargetEnvVar }}${{ .TargetEnvVar }}{{ else }}{{ .TargetURL }}{{ end }}"
-      waf-tester run \
+      waftester scan \
         -u "$TARGET_URL" \
-        -s {{ range $i, $s := .Scanners }}{{ if $i }},{{ end }}{{ $s }}{{ end }} \
-        -o {{ .OutputFormat }} \
+        -types {{ range $i, $s := .Scanners }}{{ if $i }},{{ end }}{{ $s }}{{ end }} \
+        -format {{ .OutputFormat }} \
         -c {{ .ConcurrencyLimit }} \
-        --rate-limit {{ .RateLimit }} \
-        {{ .CustomArgs }} \
-        --output-file results.{{ .OutputFormat }}
+        -rate-limit {{ .RateLimit }}{{ if .CustomArgs }} \
+        {{ .CustomArgs }}{{ end }} \
+        -output results.{{ .OutputFormat }}
   
   after_script:
 {{- range .PostCommands }}
@@ -351,7 +351,7 @@ pipeline {
                     else
                       curl -fsSL "https://github.com/waftester/waftester/releases/download/${WAF_TESTER_VERSION}/waftester_Linux_x86_64.tar.gz" | tar xz
                     fi
-                    install -m 755 waf-tester /usr/local/bin/
+                    install -m 755 waftester /usr/local/bin/
                 '''
             }
         }
@@ -369,14 +369,14 @@ pipeline {
         stage('WAF Security Scan') {
             steps {
                 sh '''
-                    waf-tester run \
+                    waftester scan \
                         -u "${TARGET_URL}" \
-                        -s {{ range $i, $s := .Scanners }}{{ if $i }},{{ end }}{{ $s }}{{ end }} \
-                        -o {{ .OutputFormat }} \
+                        -types {{ range $i, $s := .Scanners }}{{ if $i }},{{ end }}{{ $s }}{{ end }} \
+                        -format {{ .OutputFormat }} \
                         -c {{ .ConcurrencyLimit }} \
-                        --rate-limit {{ .RateLimit }} \
-                        {{ .CustomArgs }} \
-                        --output-file results.{{ .OutputFormat }}
+                        -rate-limit {{ .RateLimit }}{{ if .CustomArgs }} \
+                        {{ .CustomArgs }}{{ end }} \
+                        -output results.{{ .OutputFormat }}
                 '''
             }
         }
@@ -461,8 +461,8 @@ stages:
               else
                 curl -fsSL "https://github.com/waftester/waftester/releases/download/$(WAF_TESTER_VERSION)/waftester_Linux_x86_64.tar.gz" | tar xz
               fi
-              install -m 755 waf-tester /usr/local/bin/
-            displayName: 'Install waf-tester'
+              install -m 755 waftester /usr/local/bin/
+            displayName: 'Install waftester'
 
 {{- range .PreCommands }}
           - script: {{ . }}
@@ -471,14 +471,14 @@ stages:
 
           - script: |
               TARGET_URL="{{ if .TargetEnvVar }}$({{ .TargetEnvVar }}){{ else }}{{ .TargetURL }}{{ end }}"
-              waf-tester run \
+              waftester scan \
                 -u "$TARGET_URL" \
-                -s {{ range $i, $s := .Scanners }}{{ if $i }},{{ end }}{{ $s }}{{ end }} \
-                -o {{ .OutputFormat }} \
+                -types {{ range $i, $s := .Scanners }}{{ if $i }},{{ end }}{{ $s }}{{ end }} \
+                -format {{ .OutputFormat }} \
                 -c {{ .ConcurrencyLimit }} \
-                --rate-limit {{ .RateLimit }} \
-                {{ .CustomArgs }} \
-                --output-file results.{{ .OutputFormat }}
+                -rate-limit {{ .RateLimit }}{{ if .CustomArgs }} \
+                {{ .CustomArgs }}{{ end }} \
+                -output results.{{ .OutputFormat }}
             displayName: 'Run WAF Security Scan'
 {{- if not .FailOnHigh }}
             continueOnError: true
@@ -523,7 +523,7 @@ jobs:
             else
               curl -fsSL "https://github.com/waftester/waftester/releases/download/{{ .WafTesterVersion }}/waftester_Linux_x86_64.tar.gz" | tar xz
             fi
-            install -m 755 waf-tester /usr/local/bin/
+            install -m 755 waftester /usr/local/bin/
 
 {{- range .PreCommands }}
       - run:
@@ -535,14 +535,14 @@ jobs:
           name: Run WAF Security Scan
           command: |
             TARGET_URL="{{ if .TargetEnvVar }}${{ .TargetEnvVar }}{{ else }}{{ .TargetURL }}{{ end }}"
-            waf-tester run \
+            waftester scan \
               -u "$TARGET_URL" \
-              -s {{ range $i, $s := .Scanners }}{{ if $i }},{{ end }}{{ $s }}{{ end }} \
-              -o {{ .OutputFormat }} \
+              -types {{ range $i, $s := .Scanners }}{{ if $i }},{{ end }}{{ $s }}{{ end }} \
+              -format {{ .OutputFormat }} \
               -c {{ .ConcurrencyLimit }} \
-              --rate-limit {{ .RateLimit }} \
-              {{ .CustomArgs }} \
-              --output-file results.{{ .OutputFormat }}
+              -rate-limit {{ .RateLimit }}{{ if .CustomArgs }} \
+              {{ .CustomArgs }}{{ end }} \
+              -output results.{{ .OutputFormat }}
 {{- if not .FailOnHigh }}
           no_output_timeout: {{ .Timeout }}
           when: always
@@ -611,20 +611,20 @@ pipelines:
               else
                 curl -fsSL "https://github.com/waftester/waftester/releases/download/{{ $.WafTesterVersion }}/waftester_Linux_x86_64.tar.gz" | tar xz
               fi
-              install -m 755 waf-tester /usr/local/bin/
+              install -m 755 waftester /usr/local/bin/
 {{- range $.PreCommands }}
             - {{ . }}
 {{- end }}
             - |
               TARGET_URL="{{ if $.TargetEnvVar }}${{ $.TargetEnvVar }}{{ else }}{{ $.TargetURL }}{{ end }}"
-              waf-tester run \
+              waftester scan \
                 -u "$TARGET_URL" \
-                -s {{ range $i, $s := $.Scanners }}{{ if $i }},{{ end }}{{ $s }}{{ end }} \
-                -o {{ $.OutputFormat }} \
+                -types {{ range $i, $s := $.Scanners }}{{ if $i }},{{ end }}{{ $s }}{{ end }} \
+                -format {{ $.OutputFormat }} \
                 -c {{ $.ConcurrencyLimit }} \
-                --rate-limit {{ $.RateLimit }} \
-                {{ $.CustomArgs }} \
-                --output-file results.{{ $.OutputFormat }}
+                -rate-limit {{ $.RateLimit }}{{ if $.CustomArgs }} \
+                {{ $.CustomArgs }}{{ end }} \
+                -output results.{{ $.OutputFormat }}
 {{- range $.PostCommands }}
             - {{ . }}
 {{- end }}
@@ -648,20 +648,20 @@ pipelines:
               else
                 curl -fsSL "https://github.com/waftester/waftester/releases/download/{{ .WafTesterVersion }}/waftester_Linux_x86_64.tar.gz" | tar xz
               fi
-              install -m 755 waf-tester /usr/local/bin/
+              install -m 755 waftester /usr/local/bin/
 {{- range .PreCommands }}
             - {{ . }}
 {{- end }}
             - |
               TARGET_URL="{{ if .TargetEnvVar }}${{ .TargetEnvVar }}{{ else }}{{ .TargetURL }}{{ end }}"
-              waf-tester run \
+              waftester scan \
                 -u "$TARGET_URL" \
-                -s {{ range $i, $s := .Scanners }}{{ if $i }},{{ end }}{{ $s }}{{ end }} \
-                -o {{ .OutputFormat }} \
+                -types {{ range $i, $s := .Scanners }}{{ if $i }},{{ end }}{{ $s }}{{ end }} \
+                -format {{ .OutputFormat }} \
                 -c {{ .ConcurrencyLimit }} \
-                --rate-limit {{ .RateLimit }} \
-                {{ .CustomArgs }} \
-                --output-file results.{{ .OutputFormat }}
+                -rate-limit {{ .RateLimit }}{{ if .CustomArgs }} \
+                {{ .CustomArgs }}{{ end }} \
+                -output results.{{ .OutputFormat }}
 {{- range .PostCommands }}
             - {{ . }}
 {{- end }}
@@ -684,17 +684,17 @@ pipelines:
               else
                 curl -fsSL "https://github.com/waftester/waftester/releases/download/{{ .WafTesterVersion }}/waftester_Linux_x86_64.tar.gz" | tar xz
               fi
-              install -m 755 waf-tester /usr/local/bin/
+              install -m 755 waftester /usr/local/bin/
             - |
               TARGET_URL="{{ if .TargetEnvVar }}${{ .TargetEnvVar }}{{ else }}{{ .TargetURL }}{{ end }}"
-              waf-tester run \
+              waftester scan \
                 -u "$TARGET_URL" \
-                -s {{ range $i, $s := .Scanners }}{{ if $i }},{{ end }}{{ $s }}{{ end }} \
-                -o {{ .OutputFormat }} \
+                -types {{ range $i, $s := .Scanners }}{{ if $i }},{{ end }}{{ $s }}{{ end }} \
+                -format {{ .OutputFormat }} \
                 -c {{ .ConcurrencyLimit }} \
-                --rate-limit {{ .RateLimit }} \
-                {{ .CustomArgs }} \
-                --output-file results.{{ .OutputFormat }}
+                -rate-limit {{ .RateLimit }}{{ if .CustomArgs }} \
+                {{ .CustomArgs }}{{ end }} \
+                -output results.{{ .OutputFormat }}
 {{- if .UploadArtifacts }}
           artifacts:
             - results.{{ .OutputFormat }}

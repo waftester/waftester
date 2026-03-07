@@ -62,8 +62,8 @@ type VersionInfo struct {
 
 // OWASP payload sources (curated community payloads)
 var owaspSources = map[string]string{
-	"xss":       "https://raw.githubusercontent.com/payloadbox/xss-payload-list/master/Intruder/xss-payload-list.txt",
-	"sqli":      "https://raw.githubusercontent.com/payloadbox/sql-injection-payload-list/master/Intruder/sql-injection-payload-list.txt",
+	"xss":       "https://raw.githubusercontent.com/swisskyrepo/PayloadsAllTheThings/master/XSS%20Injection/Intruder/xss-payload-list.txt",
+	"sqli":      "https://raw.githubusercontent.com/swisskyrepo/PayloadsAllTheThings/master/SQL%20Injection/Intruder/FUZZDB_sqli.txt",
 	"traversal": "https://raw.githubusercontent.com/swisskyrepo/PayloadsAllTheThings/master/Directory%20Traversal/Intruder/traversal.txt",
 }
 
@@ -210,14 +210,14 @@ func UpdatePayloads(cfg *UpdateConfig) (*UpdateReport, error) {
 
 	if cfg.DryRun {
 		fmt.Printf("   %s DRY RUN - No changes were made\n", yellow(ui.Icon("⚠", "!")))
+	} else if cfg.Source != "Manual" && report.PayloadsAdded == 0 && report.PayloadsUpdated == 0 && report.PayloadsRemoved == 0 {
+		fmt.Printf("   %s No changes to apply — version unchanged at %s\n", yellow(ui.Icon("⚠", "!")), currentVersion)
+		report.NewVersion = currentVersion
 	} else {
-		// Write version file
-		if !cfg.DryRun {
-			if err := writeVersion(cfg.PayloadDir, newVersion, cfg.Source); err != nil {
-				return report, fmt.Errorf("failed to update version: %w", err)
-			}
-			fmt.Printf("   %s Version updated to %s\n", green(ui.Icon("✓", "+")), newVersion)
+		if err := writeVersion(cfg.PayloadDir, newVersion, cfg.Source); err != nil {
+			return report, fmt.Errorf("failed to update version: %w", err)
 		}
+		fmt.Printf("   %s Version updated to %s\n", green(ui.Icon("✓", "+")), newVersion)
 	}
 
 	// Write report

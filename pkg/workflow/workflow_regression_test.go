@@ -2,6 +2,7 @@
 package workflow
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 )
@@ -128,7 +129,11 @@ func TestIsWafTesterCommand_Regression(t *testing.T) {
 		{"probe", true},
 		{"fuzz", true},
 		{"report", true},
-		{"wafdetect", true},
+		{"vendor", true},
+		{"bypass", true},
+		{"assess", true},
+		{"crawl", true},
+		{"headless", true},
 		{"echo", false},
 		{"python", false},
 		{"rm", false},
@@ -161,5 +166,79 @@ func TestValidateFilePath_SiblingDirectoryBypass(t *testing.T) {
 	err := engine.validateFilePath(siblingFile)
 	if err == nil {
 		t.Error("SECURITY: validateFilePath should reject sibling directory paths that share a prefix")
+	}
+}
+
+// Regression: dry-run mode must reject unknown commands
+func TestDryRun_RejectsUnknownCommands(t *testing.T) {
+	engine := NewEngine()
+	engine.DryRun = true
+
+	wf := &Workflow{
+		Name: "test-dryrun-reject",
+		Steps: []Step{
+			{Name: "bad", Command: "rm -rf /"},
+		},
+	}
+
+	result, err := engine.Execute(context.Background(), wf, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Steps) == 0 {
+		t.Fatal("expected step results")
+	}
+	if result.Steps[0].Status != "failed" {
+		t.Errorf("dry-run should reject unknown command, got status %q", result.Steps[0].Status)
+	}
+}
+
+// Regression: dry-run accepts valid waftester commands
+func TestDryRun_AcceptsWafTesterCommands(t *testing.T) {
+	engine := NewEngine()
+	engine.DryRun = true
+
+	wf := &Workflow{
+		Name: "test-dryrun-accept",
+		Steps: []Step{
+			{Name: "ok", Command: "scan", Args: []string{"-u", "https://example.com"}},
+		},
+	}
+
+	result, err := engine.Execute(context.Background(), wf, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Steps) == 0 {
+		t.Fatal("expected step results")
+	}
+	if result.Steps[0].Status != "success" {
+		t.Errorf("dry-run should accept 'scan', got status %q error %q",
+			result.Steps[0].Status, result.Steps[0].Error)
+	}
+}
+
+// Regression: dry-run accepts allowed external commands
+func TestDryRun_AcceptsAllowedExternalCommands(t *testing.T) {
+	engine := NewEngine()
+	engine.DryRun = true
+
+	wf := &Workflow{
+		Name: "test-dryrun-external",
+		Steps: []Step{
+			{Name: "ok", Command: "echo", Args: []string{"hello"}},
+		},
+	}
+
+	result, err := engine.Execute(context.Background(), wf, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Steps) == 0 {
+		t.Fatal("expected step results")
+	}
+	if result.Steps[0].Status != "success" {
+		t.Errorf("dry-run should accept 'echo', got status %q error %q",
+			result.Steps[0].Status, result.Steps[0].Error)
 	}
 }

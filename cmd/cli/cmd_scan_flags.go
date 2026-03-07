@@ -127,9 +127,11 @@ func registerScanFlags() (*flag.FlagSet, *scanConfig) {
 	// Scan types
 	cfg.Types = fs.String("types", "all", "Scan types: all, or comma-separated (sqli,xss,traversal,cmdi,nosqli,hpp,crlf,prototype,cors,redirect,hostheader,websocket,cache,upload,deserialize,oauth,ssrf,ssti,xxe,smuggling,graphql,jwt,subtakeover,bizlogic,race,apifuzz,ldap,ssi,xpath,xmlinjection,rfi,lfi,rce,csrf,clickjack,idor,massassignment,wafdetect,waffprint,wafevasion,tlsprobe,httpprobe,secheaders,jsanalyze,apidepth,osint,vhost,techdetect,dnsrecon)")
 	fs.StringVar(cfg.Types, "t", "all", "Scan types (alias)")
+	fs.StringVar(cfg.Types, "category", "all", "Scan types (alias for -types)")
 	cfg.Concurrency = fs.Int("concurrency", 5, "Concurrent scanners")
 	fs.IntVar(cfg.Concurrency, "c", 5, "Concurrent scanners (alias)")
 	cfg.OutputFile = fs.String("output", "", "Output results to JSON file")
+	fs.StringVar(cfg.OutputFile, "o", "", "Output file (alias for -output)")
 	cfg.JSONOutput = fs.Bool("json", false, "Output in JSON format")
 
 	// Smart mode (WAF-aware testing with 197+ vendor signatures)

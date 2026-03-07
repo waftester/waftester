@@ -47,8 +47,13 @@ func runLearn() {
 	}
 	target, err := ts.GetSingleTarget()
 	if err != nil {
-		ui.PrintError("Target URL is required. Use -u https://example.com, -l file.txt, or -stdin")
-		os.Exit(1)
+		// No explicit target — try loading from discovery file
+		disc, discErr := discovery.LoadResult(*discoveryFile)
+		if discErr != nil || disc.Target == "" {
+			ui.PrintError("Target URL is required. Use -u https://example.com, -l file.txt, or -stdin")
+			os.Exit(1)
+		}
+		target = disc.Target
 	}
 
 	ui.PrintConfigLine("Target", target)
@@ -82,7 +87,7 @@ func runLearn() {
 		_ = learnDispCtx.EmitStart(learnCtx, target, 0, 1, nil)
 	}
 
-	// Load discovery results
+	// Load discovery results (may already be loaded above for target extraction)
 	ui.PrintInfo("Loading discovery results...")
 	disc, err := discovery.LoadResult(*discoveryFile)
 	if err != nil {

@@ -98,8 +98,8 @@ func TestGenerator_Generate_GitHubActions(t *testing.T) {
 	if !strings.Contains(output, "name: WAF Security Scan") {
 		t.Error("missing workflow name")
 	}
-	if !strings.Contains(output, "waf-tester run") {
-		t.Error("missing waf-tester command")
+	if !strings.Contains(output, "waftester scan") {
+		t.Error("missing waftester scan command")
 	}
 	if !strings.Contains(output, "https://example.com") {
 		t.Error("missing target URL")
@@ -121,8 +121,8 @@ func TestGenerator_Generate_GitLabCI(t *testing.T) {
 	if !strings.Contains(output, "stages:") {
 		t.Error("missing stages")
 	}
-	if !strings.Contains(output, "waf-tester run") {
-		t.Error("missing waf-tester command")
+	if !strings.Contains(output, "waftester scan") {
+		t.Error("missing waftester scan command")
 	}
 }
 
@@ -215,8 +215,8 @@ func TestGenerator_Generate_InstallPattern(t *testing.T) {
 		if !strings.Contains(output, "releases/latest/download/") {
 			t.Errorf("%s: missing GitHub Releases latest download URL", platform)
 		}
-		if !strings.Contains(output, "install -m 755 waf-tester") {
-			t.Errorf("%s: missing 'install -m 755 waf-tester' command", platform)
+		if !strings.Contains(output, "install -m 755 waftester") {
+			t.Errorf("%s: missing 'install -m 755 waftester' command", platform)
 		}
 	}
 }
@@ -346,6 +346,48 @@ func TestGenerator_Generate_MultipleScanners(t *testing.T) {
 
 	if !strings.Contains(output, "sqli,xss,lfi") {
 		t.Error("missing comma-separated scanners")
+	}
+}
+
+// Regression: templates must NOT contain old binary name "waf-tester"
+func TestGenerator_Generate_NoOldBinaryName(t *testing.T) {
+	g := NewGenerator()
+	for _, platform := range g.ListPlatforms() {
+		config := DefaultConfig(platform, "https://example.com")
+		output, err := g.Generate(config)
+		if err != nil {
+			t.Fatalf("%s: unexpected error: %v", platform, err)
+		}
+
+		if strings.Contains(output, "waf-tester run") {
+			t.Errorf("%s: template still contains old 'waf-tester run' command", platform)
+		}
+		if strings.Contains(output, "install -m 755 waf-tester") {
+			t.Errorf("%s: template still contains old 'install -m 755 waf-tester' command", platform)
+		}
+	}
+}
+
+// Regression: templates must use correct flag names (-types, -format, -rate-limit, -output)
+func TestGenerator_Generate_CorrectFlags(t *testing.T) {
+	g := NewGenerator()
+	config := DefaultConfig(PlatformGitHubActions, "https://example.com")
+	output, err := g.Generate(config)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(output, "-types") {
+		t.Error("missing -types flag in template")
+	}
+	if !strings.Contains(output, "-format") {
+		t.Error("missing -format flag in template")
+	}
+	if !strings.Contains(output, "-rate-limit") {
+		t.Error("missing -rate-limit flag in template")
+	}
+	if !strings.Contains(output, "-output") {
+		t.Error("missing -output flag in template")
 	}
 }
 

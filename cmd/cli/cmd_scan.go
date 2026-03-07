@@ -177,11 +177,14 @@ func runScan() {
 		// Target will be resolved from spec if not provided via -u.
 	} else {
 		ts := cfg.Common.TargetSource()
-		var terr error
-		target, terr = ts.GetSingleTarget()
-		if terr != nil {
+		allTargets, getAllErr := ts.GetTargets()
+		if getAllErr != nil || len(allTargets) == 0 {
 			ui.PrintError("Target URL is required. Use -u https://example.com, -l file.txt, or -stdin")
 			os.Exit(1)
+		}
+		target = allTargets[0]
+		if len(allTargets) > 1 {
+			ui.PrintWarning(fmt.Sprintf("Multiple targets provided; scanning only the first: %s (use 'auto' for multi-target scanning)", target))
 		}
 	}
 

@@ -321,7 +321,17 @@ func (c *Calculator) calculateWAFMetrics(m *EnterpriseMetrics) {
 	if mutatedTotal > 0 {
 		m.BypassResistance = 1.0 - float64(mutatedBypassed)/float64(mutatedTotal)
 	} else {
-		m.BypassResistance = 1.0 // No mutations = no bypasses possible
+		// No mutations tested — cannot determine bypass resistance.
+		// Check overall block rate as fallback.
+		if len(c.attackResults) > 0 {
+			blockedCount := 0
+			for _, r := range c.attackResults {
+				if r.Blocked {
+					blockedCount++
+				}
+			}
+			m.BypassResistance = float64(blockedCount) / float64(len(c.attackResults))
+		}
 	}
 
 	// Mutation Potency = average bypass rate per mutation type

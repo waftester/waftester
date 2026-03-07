@@ -87,8 +87,23 @@ func finalizeScanOutput(ctx context.Context, result *ScanResult, cfg scanOutputC
 	// Check format type flag
 	if cfg.FormatType != "" && cfg.FormatType != "console" {
 		switch cfg.FormatType {
+		case "json":
+			writeScanJSON(ctx, result, cfg)
+			return 0
 		case "jsonl":
 			printScanJSONL(os.Stdout, cfg.Target, result)
+			return 0
+		case "sarif":
+			printScanSARIF(os.Stdout, cfg.Target, result)
+			return 0
+		case "csv":
+			printScanCSV(os.Stdout, cfg.Target, result)
+			return 0
+		case "md":
+			printScanMarkdown(os.Stdout, result)
+			return 0
+		case "html":
+			printScanHTML(os.Stdout, result)
 			return 0
 		}
 	}
@@ -141,7 +156,7 @@ func printScanCompletionBanner(result *ScanResult, totalScans int32, scanErrors 
 	fmt.Fprintf(os.Stderr, "  %s Results: %s%d %s%s across %d %s\n", ui.Icon("📊", "#"), vulnColor, result.TotalVulns, vulnWord, colorReset, totalScans, typeWord)
 	if scanErrors != nil {
 		if errCount := atomic.LoadInt32(scanErrors); errCount > 0 {
-			ui.PrintWarning(fmt.Sprintf("%d scanner(s) encountered errors (use -verbose for details)", errCount))
+			ui.PrintWarning(fmt.Sprintf("%d scanner(s) encountered errors (see verbose output above for details)", errCount))
 		}
 	}
 	fmt.Fprintln(os.Stderr)

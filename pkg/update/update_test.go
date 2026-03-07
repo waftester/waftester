@@ -1380,3 +1380,42 @@ func TestGitHubReleaseJSONSerialization(t *testing.T) {
 		t.Errorf("Expected 2 assets after round-trip")
 	}
 }
+
+// Regression: version must NOT bump when no payloads changed (GitHub source)
+func TestUpdatePayloads_NoBumpWithoutChanges(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	versionInfo := VersionInfo{Version: "1.0.0"}
+	versionData, _ := json.Marshal(versionInfo)
+	os.WriteFile(filepath.Join(tmpDir, "version.json"), versionData, 0644)
+
+	cfg := &UpdateConfig{
+		PayloadDir:  tmpDir,
+		Source:      "GitHub",
+		DryRun:      false,
+		VersionBump: "patch",
+	}
+
+	report, err := UpdatePayloads(cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// With GitHub source and no payload changes, version should stay at 1.0.0
+	version, _ := getCurrentVersion(tmpDir)
+	if version != "1.0.0" {
+		t.Errorf("version should stay at 1.0.0 when no payloads changed (GitHub source), got %s", version)
+	}
+	if report.NewVersion != "1.0.0" {
+		t.Errorf("report.NewVersion should be 1.0.0, got %s", report.NewVersion)
+	}
+}
+
+// Regression: OWASP source URLs must not point to 404 pages
+func TestOwaspSources_URLsNotPayloadbox(t *testing.T) {
+	for cat, url := range owaspSources {
+		if strings.Contains(url, "payloadbox") {
+			t.Errorf("owaspSources[%q] still points to payloadbox (404): %s", cat, url)
+		}
+	}
+}

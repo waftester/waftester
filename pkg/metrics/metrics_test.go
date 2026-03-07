@@ -479,3 +479,35 @@ func contains(s, substr string) bool {
 	}
 	return false
 }
+
+// Regression: bypass resistance must be 0 when no attacks are blocked, not 100%
+func TestCalculator_BypassResistance_ZeroWhenNothingBlocked(t *testing.T) {
+	calc := NewCalculator()
+
+	// All attacks pass through (no WAF or WAF not blocking)
+	for i := 0; i < 10; i++ {
+		calc.AddAttackResult(AttackResult{Category: "sqli", Blocked: false, IsMutated: false})
+	}
+
+	m := calc.Calculate("https://test.example.com", "None", 5*time.Second)
+
+	if m.BypassResistance > 0.01 {
+		t.Errorf("BypassResistance = %f, want 0.0 when nothing is blocked", m.BypassResistance)
+	}
+}
+
+// Regression: bypass resistance must be 0 when no mutations tested and no blocks
+func TestCalculator_BypassResistance_NoMutationsNoBlocks(t *testing.T) {
+	calc := NewCalculator()
+
+	// Only non-mutated attacks, none blocked
+	for i := 0; i < 5; i++ {
+		calc.AddAttackResult(AttackResult{Category: "xss", Blocked: false, IsMutated: false})
+	}
+
+	m := calc.Calculate("https://test.example.com", "None", 3*time.Second)
+
+	if m.BypassResistance > 0.01 {
+		t.Errorf("BypassResistance = %f, want 0.0 when no mutations and nothing blocked", m.BypassResistance)
+	}
+}

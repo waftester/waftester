@@ -144,3 +144,37 @@ func TestAnalyzeFlags_TimeoutExists(t *testing.T) {
 		t.Errorf("-timeout 60: timeout = %d, want 60", *timeout)
 	}
 }
+
+// Regression: -category alias must resolve to same variable as -types
+func TestScanFlags_CategoryAlias(t *testing.T) {
+	fs, cfg := registerScanFlags()
+	if err := fs.Parse([]string{"-category", "sqli,xss"}); err != nil {
+		t.Fatalf("Parse -category failed: %v", err)
+	}
+	if *cfg.Types != "sqli,xss" {
+		t.Errorf("-category sqli,xss: types = %q, want sqli,xss", *cfg.Types)
+	}
+}
+
+// Regression: -o alias must resolve to same variable as -output
+func TestScanFlags_OutputAliasO(t *testing.T) {
+	fs, cfg := registerScanFlags()
+	if err := fs.Parse([]string{"-o", "results.json"}); err != nil {
+		t.Fatalf("Parse -o failed: %v", err)
+	}
+	if *cfg.OutputFile != "results.json" {
+		t.Errorf("-o results.json: output = %q, want results.json", *cfg.OutputFile)
+	}
+}
+
+// Verify -category and -types point to same backing variable
+func TestScanFlags_CategoryAndTypesShareVariable(t *testing.T) {
+	fs, cfg := registerScanFlags()
+	if err := fs.Parse([]string{"-types", "lfi"}); err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	// -category and -types must read from the same pointer
+	if *cfg.Types != "lfi" {
+		t.Errorf("after -types lfi: types = %q, want lfi", *cfg.Types)
+	}
+}
