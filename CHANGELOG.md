@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.9.48] - 2026-03-07
+
+### Fixed
+
+- **Scan flag aliases** — Added `-category` alias for `-types` and `-o` alias for `-output` to match documented CLI usage
+- **Format flag handling** — `-format json/sarif/csv/md/html` now produces the correct output format instead of being silently ignored
+- **Learn target fallback** — `learn` command extracts target URL from discovery file when no `-u` flag is provided
+- **Verbose error message** — No longer suggests use -verbose when verbose is already enabled
+- **Multi-target warning** — Scan now warns when multiple targets are supplied (only first is used)
+- **Workflow command validation** — `isWafTesterCommand` expanded from 9 to 30+ entries covering all CLI commands; dry-run mode rejects unknown commands
+- **Workflow template** — `quick-probe.yaml` updated: wafdetect to vendor, run to scan, corrected all flag names
+- **CI/CD templates** — All 6 platform templates fixed: binary name waf-tester to waftester, command run to scan, corrected flag names
+- **Bypass resistance metric** — No longer reports 100% when no mutations were tested; correctly reports 0% when nothing is blocked
+- **Payload update URLs** — Replaced dead payloadbox URLs with working PayloadsAllTheThings repositories
+- **Version bump logic** — Payload version only bumps when payloads actually changed (GitHub source)
+
 ## [2.9.47] - 2026-03-07
 
 ### Added
@@ -2844,6 +2860,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 
 ## [2.3.1] - 2026-01-31
 
+[2.9.48]: https://github.com/waftester/waftester/compare/v2.9.47...v2.9.48
 ### Added
 - Authenticated browser scanning with manual login support (MFA, CAPTCHA, SSO)
 - Community payloads now bundled in release archives
