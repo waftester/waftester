@@ -111,7 +111,7 @@ waf-tester discover -u https://automation.example.com -service n8n
 WAF_TESTER_PRESET_DIR=./my-presets waf-tester auto -u https://target.com -service myapp
 ```
 
-Built-in presets: `authentik`, `n8n`, `immich`, `webapp`, `intranet`. Create custom presets by adding JSON files — see the [Examples Guide](https://github.com/waftester/waftester/blob/main/docs/EXAMPLES.md#service-presets).
+Built-in presets: `authentik`, `gitlab`, `grafana`, `immich`, `intranet`, `jenkins`, `jira`, `keycloak`, `n8n`, `nextcloud`, `sonarqube`, `webapp`, `wordpress`. Create custom presets by adding JSON files — see the [Examples Guide](https://github.com/waftester/waftester/blob/main/docs/EXAMPLES.md#service-presets).
 
 ### Targeted Scanning
 
@@ -253,7 +253,7 @@ Use the official [WAFtester Action](https://github.com/marketplace/actions/wafte
 
 Also integrates with SonarQube, GitLab SAST, DefectDojo, Elasticsearch, Slack, Teams, PagerDuty, Jira, Azure DevOps, and OpenTelemetry.
 
-## All 33 Commands
+## All 36 Commands
 
 | Command | Description |
 |---------|-------------|

@@ -3,7 +3,7 @@ name: waftester
 description: WAF security testing platform with MCP server, 2800+ attack payloads, and enterprise-grade assessment
 type: application
 version: 0.1.0
-appVersion: "2.9.46"
+appVersion: "2.9.47"
 home: https://waftester.com
 icon: https://waftester.com/favicon.svg
 sources:

@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.9.47] - 2026-03-07
+
+### Added
+
+- **Helm chart for Kubernetes** — Production-ready Helm chart (`charts/waftester/`) for deploying the MCP server on K8s with health probes, hardened security defaults (non-root, read-only rootfs, drop ALL caps, seccomp), optional ingress, HPA autoscaling, and Prometheus ServiceMonitor
+- **8 service presets** — Endpoint presets for WordPress, GitLab, Jenkins, Grafana, Keycloak, Nextcloud, Jira, and SonarQube giving the discovery engine immediate platform knowledge without crawling (total presets: 5 → 13)
+- **Smithery MCP directory listing** — `smithery.yaml` configuration for listing on smithery.ai MCP directory with stdio transport
+
 ## [2.9.46] - 2026-03-06
 
 ### Added
@@ -2852,6 +2860,7 @@ Comprehensive audit and fix of all 33 CLI commands for unified payload flag cons
 - All payload files included in release archives
 
 ## [2.3.0] - 2026-01-27
+[2.9.47]: https://github.com/waftester/waftester/compare/v2.9.46...v2.9.47
 [2.9.46]: https://github.com/waftester/waftester/compare/v2.9.45...v2.9.46
 
 ### Added
