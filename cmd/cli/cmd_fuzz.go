@@ -32,6 +32,13 @@ import (
 )
 
 func runFuzz() {
+	var exitCode int
+	defer func() {
+		if exitCode != 0 {
+			os.Exit(exitCode)
+		}
+	}()
+
 	ui.PrintCompactBanner()
 	ui.PrintSection("Content Fuzzer")
 
@@ -171,13 +178,15 @@ func runFuzz() {
 	targetURL, err := ts.GetSingleTarget()
 	if err != nil {
 		ui.PrintError("Target URL with FUZZ keyword is required. Use -u https://example.com/FUZZ, -l file.txt, or -stdin")
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	if !strings.Contains(targetURL, "FUZZ") && !strings.Contains(*data, "FUZZ") {
 		ui.PrintError("FUZZ keyword not found in URL or POST data.")
 		ui.PrintInfo("Example: waf-tester fuzz -u https://example.com/FUZZ -w wordlist.txt")
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	// Load wordlist
@@ -186,7 +195,8 @@ func runFuzz() {
 		// Reject non-HTTP URL schemes (SSRF protection)
 		if strings.Contains(*wordlist, "://") && !urlutil.IsHTTPURL(*wordlist) {
 			ui.PrintError("Wordlist URL must use http:// or https:// scheme")
-			os.Exit(1)
+			exitCode = 1
+			return
 		}
 		if urlutil.IsHTTPURL(*wordlist) {
 			// Download wordlist with timeout
@@ -197,7 +207,8 @@ func runFuzz() {
 			req, reqErr := http.NewRequestWithContext(dlCtx, http.MethodGet, *wordlist, nil)
 			if reqErr != nil {
 				ui.PrintError(fmt.Sprintf("Invalid wordlist URL: %v", reqErr))
-				os.Exit(1)
+				exitCode = 1
+				return
 			}
 			dlClient := http.DefaultClient
 			if *skipVerify {
@@ -210,7 +221,8 @@ func runFuzz() {
 			resp, err := dlClient.Do(req)
 			if err != nil {
 				ui.PrintError(fmt.Sprintf("Failed to download wordlist: %v", err))
-				os.Exit(1)
+				exitCode = 1
+				return
 			}
 			defer iohelper.DrainAndClose(resp.Body)
 			scanner := bufio.NewScanner(resp.Body)
@@ -222,14 +234,16 @@ func runFuzz() {
 			}
 			if err := scanner.Err(); err != nil {
 				ui.PrintError(fmt.Sprintf("Failed to read wordlist: %v", err))
-				os.Exit(1)
+				exitCode = 1
+				return
 			}
 		} else {
 			// Read from file
 			file, err := os.Open(*wordlist)
 			if err != nil {
 				ui.PrintError(fmt.Sprintf("Failed to open wordlist: %v", err))
-				os.Exit(1)
+				exitCode = 1
+				return
 			}
 			defer file.Close()
 			scanner := bufio.NewScanner(file)
@@ -241,7 +255,8 @@ func runFuzz() {
 			}
 			if err := scanner.Err(); err != nil {
 				ui.PrintError(fmt.Sprintf("Failed to read wordlist: %v", err))
-				os.Exit(1)
+				exitCode = 1
+				return
 			}
 		}
 	} else {
@@ -252,14 +267,16 @@ func runFuzz() {
 
 	if len(words) == 0 {
 		ui.PrintError("Wordlist is empty")
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	// Apply wordlist transformations
 	if *wordlistSkip > 0 {
 		if *wordlistSkip >= len(words) {
 			ui.PrintError(fmt.Sprintf("Skip value %d >= wordlist size %d, no words remaining", *wordlistSkip, len(words)))
-			os.Exit(1)
+			exitCode = 1
+			return
 		}
 		words = words[*wordlistSkip:]
 	}
@@ -317,7 +334,8 @@ func runFuzz() {
 		matchRe, err = regexcache.Get(*matchRegex)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Invalid match regex: %v", err))
-			os.Exit(1)
+			exitCode = 1
+			return
 		}
 	}
 	if *filterRegex != "" {
@@ -325,7 +343,8 @@ func runFuzz() {
 		filterRe, err = regexcache.Get(*filterRegex)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Invalid filter regex: %v", err))
-			os.Exit(1)
+			exitCode = 1
+			return
 		}
 	}
 
@@ -811,7 +830,8 @@ func runFuzz() {
 				_ = fuzzDispCtx.EmitError(ctx, "fuzz", errMsg, true)
 				_ = fuzzDispCtx.Close()
 			}
-			os.Exit(1)
+			exitCode = 1
+			return
 		}
 
 		if *outputFile != "" {
@@ -822,7 +842,8 @@ func runFuzz() {
 					_ = fuzzDispCtx.EmitError(ctx, "fuzz", errMsg, true)
 					_ = fuzzDispCtx.Close()
 				}
-				os.Exit(1)
+				exitCode = 1
+				return
 			}
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
 		}

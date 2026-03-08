@@ -20,6 +20,13 @@ import (
 )
 
 func runValidate() {
+	var exitCode int
+	defer func() {
+		if exitCode != 0 {
+			os.Exit(exitCode)
+		}
+	}()
+
 	ui.PrintCompactBanner()
 
 	validateFlags := flag.NewFlagSet("validate", flag.ExitOnError)
@@ -42,7 +49,7 @@ func runValidate() {
 
 	// Route to spec validation if --spec or --spec-url provided.
 	if *specPath != "" || *specURL != "" {
-		runValidateSpec(*specPath, *specURL, *allowInternal, *verbose, *outputJSON)
+		exitCode = runValidateSpec(*specPath, *specURL, *allowInternal, *verbose, *outputJSON)
 		return
 	}
 
@@ -82,7 +89,8 @@ func runValidate() {
 			_ = validateDispCtx.EmitError(validateCtx, "validate", fmt.Sprintf("Validation error: %v", err), true)
 		}
 		ui.PrintError(fmt.Sprintf("Validation error: %v", err))
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	if *outputJSON != "" {
@@ -93,7 +101,8 @@ func runValidate() {
 				_ = validateDispCtx.Close()
 			}
 			ui.PrintError(fmt.Sprintf("Failed to write results: %v", err))
-			os.Exit(1)
+			exitCode = 1
+			return
 		}
 		ui.PrintSuccess(fmt.Sprintf("Results written to %s", *outputJSON))
 	}
@@ -106,7 +115,8 @@ func runValidate() {
 			_ = validateDispCtx.Close()
 		}
 		ui.PrintError("Validation failed!")
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	// Emit success
@@ -118,7 +128,7 @@ func runValidate() {
 
 // runValidateSpec validates an API spec file for correctness, security
 // concerns (SSRF, credentials), and completeness.
-func runValidateSpec(specPath, specURL string, allowInternal, verbose bool, outputFile string) {
+func runValidateSpec(specPath, specURL string, allowInternal, verbose bool, outputFile string) int {
 	ui.PrintSection("API Spec Validation")
 
 	source := specPath
@@ -131,7 +141,7 @@ func runValidateSpec(specPath, specURL string, allowInternal, verbose bool, outp
 	result, err := apispec.ValidateSpec(source, allowInternal)
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Spec validation error: %v", err))
-		os.Exit(1)
+		return 1
 	}
 
 	// Print errors.
@@ -189,13 +199,20 @@ func runValidateSpec(specPath, specURL string, allowInternal, verbose bool, outp
 	fmt.Fprintln(os.Stderr)
 	if result.Valid {
 		ui.PrintSuccess(fmt.Sprintf("Spec validation passed (%d warnings)", len(result.Warnings)))
-	} else {
-		ui.PrintError(fmt.Sprintf("Spec validation failed (%d errors, %d warnings)", len(result.Errors), len(result.Warnings)))
-		os.Exit(1)
+		return 0
 	}
+	ui.PrintError(fmt.Sprintf("Spec validation failed (%d errors, %d warnings)", len(result.Errors), len(result.Warnings)))
+	return 1
 }
 
 func runValidateTemplates() {
+	var exitCode int
+	defer func() {
+		if exitCode != 0 {
+			os.Exit(exitCode)
+		}
+	}()
+
 	ui.PrintCompactBanner()
 	ui.PrintSection("Template Validation")
 
@@ -256,7 +273,8 @@ func runValidateTemplates() {
 			_ = vtDispCtx.Close()
 		}
 		ui.PrintError(fmt.Sprintf("Validation error: %v", err))
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	// Print summary
@@ -309,7 +327,8 @@ func runValidateTemplates() {
 				_ = vtDispCtx.Close()
 			}
 			ui.PrintError(fmt.Sprintf("Cannot write output file: %v", err))
-			os.Exit(1)
+			exitCode = 1
+			return
 		}
 		ui.PrintSuccess(fmt.Sprintf("Results written to %s", *outputJSON))
 	}
@@ -323,7 +342,8 @@ func runValidateTemplates() {
 			_ = vtDispCtx.Close()
 		}
 		ui.PrintError(fmt.Sprintf("Validation failed! %d invalid templates found.", summary.InvalidFiles))
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	// Emit success
@@ -334,6 +354,13 @@ func runValidateTemplates() {
 }
 
 func runEnterpriseReport() {
+	var exitCode int
+	defer func() {
+		if exitCode != 0 {
+			os.Exit(exitCode)
+		}
+	}()
+
 	ui.PrintCompactBanner()
 	ui.PrintSection("Enterprise HTML Report Generator")
 
@@ -361,20 +388,23 @@ func runEnterpriseReport() {
 		fmt.Fprintln(os.Stderr, "  -workspace <path>  Path to workspace directory containing results.json")
 		fmt.Fprintln(os.Stderr, "  -output <file>     Output HTML file (default: workspace/enterprise-report.html)")
 		fmt.Fprintln(os.Stderr, "  -target <name>     Target name for report header")
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	// Check workspace exists
 	if _, err := os.Stat(*workspaceDir); os.IsNotExist(err) {
 		ui.PrintError(fmt.Sprintf("Workspace directory not found: %s", *workspaceDir))
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	// Check results.json exists
 	resultsPath := filepath.Join(*workspaceDir, "results.json")
 	if _, err := os.Stat(resultsPath); os.IsNotExist(err) {
 		ui.PrintError(fmt.Sprintf("results.json not found in workspace: %s", *workspaceDir))
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	// Determine target name
@@ -431,7 +461,8 @@ func runEnterpriseReport() {
 			_ = reportDispCtx.EmitSummary(reportCtx, 1, 0, 1, time.Since(reportStartTime))
 		}
 		ui.PrintError(fmt.Sprintf("Report generation failed: %v", err))
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	// Emit success
@@ -442,6 +473,13 @@ func runEnterpriseReport() {
 }
 
 func runUpdate() {
+	var exitCode int
+	defer func() {
+		if exitCode != 0 {
+			os.Exit(exitCode)
+		}
+	}()
+
 	ui.PrintCompactBanner()
 	ui.PrintSection("Payload Update")
 
@@ -513,7 +551,8 @@ func runUpdate() {
 			_ = updateDispCtx.Close()
 		}
 		ui.PrintError(fmt.Sprintf("Update error: %v", err))
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	// Emit success

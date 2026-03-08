@@ -25,6 +25,13 @@ import (
 
 // runCrawl executes the web crawler
 func runCrawl() {
+	var exitCode int
+	defer func() {
+		if exitCode != 0 {
+			os.Exit(exitCode)
+		}
+	}()
+
 	ui.PrintCompactBanner()
 	ui.PrintSection("Web Crawler")
 
@@ -180,7 +187,8 @@ func runCrawl() {
 	target, err := ts.GetSingleTarget()
 	if err != nil {
 		ui.PrintError("Target URL is required. Use -u https://example.com, -l file.txt, or -stdin")
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	ui.PrintConfigLine("Target", target)
@@ -330,7 +338,8 @@ func runCrawl() {
 			_ = crawlDispCtx.EmitError(ctx, "crawl", errMsg, true)
 			_ = crawlDispCtx.Close()
 		}
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	// Collect results with live progress
@@ -597,7 +606,8 @@ func runCrawl() {
 				_ = crawlDispCtx.EmitError(ctx, "crawl", errMsg, true)
 				_ = crawlDispCtx.Close()
 			}
-			os.Exit(1)
+			exitCode = 1
+			return
 		}
 
 		if *outputFile != "" {
@@ -608,7 +618,8 @@ func runCrawl() {
 					_ = crawlDispCtx.EmitError(ctx, "crawl", errMsg, true)
 					_ = crawlDispCtx.Close()
 				}
-				os.Exit(1)
+				exitCode = 1
+				return
 			}
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *outputFile))
 		}

@@ -48,6 +48,13 @@ func (s *specRateLimiter) OnSuccess()                     {}
 // runSpecPipeline runs the spec-driven scan pipeline:
 // parse spec -> intelligence engine -> preview -> execute.
 func runSpecPipeline(cfg specPipelineConfig) {
+	var exitCode int
+	defer func() {
+		if exitCode != 0 {
+			os.Exit(exitCode)
+		}
+	}()
+
 	startTime := time.Now()
 
 	// Create a cancellable context from OS signals.
@@ -86,7 +93,8 @@ func runSpecPipeline(cfg specPipelineConfig) {
 	spec, err := apispec.ParseContext(ctx, source)
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Failed to parse spec: %v", err))
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	// Resolve spec-embedded variable defaults so SSRF check sees real URLs.
@@ -97,7 +105,8 @@ func runSpecPipeline(cfg specPipelineConfig) {
 	// SSRF blocklist: reject specs targeting internal networks.
 	if ssrfErr := apispec.CheckServerURLs(spec); ssrfErr != nil {
 		ui.PrintError(ssrfErr.Error())
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	ui.PrintSuccess(fmt.Sprintf("Parsed %s spec: %s v%s (%d endpoints)",
@@ -164,7 +173,8 @@ func runSpecPipeline(cfg specPipelineConfig) {
 		scanCfg, loadErr = apispec.LoadScanConfigFile(cfg.scanConfigPath)
 		if loadErr != nil {
 			ui.PrintError(fmt.Sprintf("Failed to load scan config: %v", loadErr))
-			os.Exit(1)
+			exitCode = 1
+			return
 		}
 	} else {
 		// Auto-load .waftester-spec.yaml from CWD if present.
@@ -211,7 +221,8 @@ func runSpecPipeline(cfg specPipelineConfig) {
 		}, "", "  ")
 		if marshalErr != nil {
 			ui.PrintError(fmt.Sprintf("Failed to marshal dry-run output: %v", marshalErr))
-			os.Exit(1)
+			exitCode = 1
+			return
 		}
 		fmt.Println(string(data))
 		return
@@ -236,7 +247,8 @@ func runSpecPipeline(cfg specPipelineConfig) {
 	}
 	if scanTarget == "" {
 		ui.PrintError("No target URL. Provide -u or ensure the spec has a server URL.")
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	// Phase 4: Execute.

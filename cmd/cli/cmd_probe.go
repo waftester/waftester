@@ -46,6 +46,13 @@ import (
 
 // runProbe executes protocol probing (TLS, HTTP/2, headers, WAF detection)
 func runProbe() {
+	var exitCode int
+	defer func() {
+		if exitCode != 0 {
+			os.Exit(exitCode)
+		}
+	}()
+
 	probeFlags, cfg := registerProbeFlags()
 	probeFlags.Parse(os.Args[2:])
 
@@ -147,7 +154,8 @@ func runProbe() {
 			_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
 			_ = probeDispCtx.Close()
 		}
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	if len(targets) == 0 {
@@ -155,7 +163,8 @@ func runProbe() {
 		if probeDispCtx != nil {
 			_ = probeDispCtx.Close()
 		}
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	// Path expansion: if -path flag is set, expand targets with those paths
@@ -322,7 +331,8 @@ func runProbe() {
 				_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
 				_ = probeDispCtx.Close()
 			}
-			os.Exit(1)
+			exitCode = 1
+			return
 		}
 		// Parse config file (JSON format)
 		if err := json.Unmarshal(configData, &loadedConfig); err != nil {
@@ -2129,7 +2139,8 @@ func runProbe() {
 					_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
 					_ = probeDispCtx.Close()
 				}
-				os.Exit(1)
+				exitCode = 1
+				return
 			}
 
 			if *cfg.JSONOutput {
@@ -2171,7 +2182,8 @@ func runProbe() {
 			if probeDispCtx != nil {
 				_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
 			}
-			os.Exit(1)
+			exitCode = 1
+			return
 		}
 		if err := iohelper.WriteAtomic(*cfg.OutputFile, jsonData, 0644); err != nil {
 			errMsg := fmt.Sprintf("Error writing output: %v", err)
@@ -2179,7 +2191,8 @@ func runProbe() {
 			if probeDispCtx != nil {
 				_ = probeDispCtx.EmitError(ctx, "probe", errMsg, true)
 			}
-			os.Exit(1)
+			exitCode = 1
+			return
 		}
 		ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *cfg.OutputFile))
 

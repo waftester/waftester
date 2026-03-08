@@ -891,3 +891,27 @@ func TestGoroutines_HaveDeferRecover(t *testing.T) {
 		}
 	}
 }
+
+// #14-22: os.Exit(1) must not appear in command functions (bypasses defers).
+// Only the deferred exitCode pattern is allowed.
+func TestNoDirectOsExit1_InCommandFunctions(t *testing.T) {
+	files := []string{
+		"cmd_scan.go",
+		"cmd_fuzz.go",
+		"cmd_probe.go",
+		"cmd_crawl.go",
+		"cmd_autoscan.go",
+		"cmd_autoscan_spec.go",
+		"cmd_admin.go",
+	}
+
+	for _, f := range files {
+		src, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(src), "os.Exit(1)") {
+			t.Errorf("%s: contains os.Exit(1) — use exitCode = 1; return instead", f)
+		}
+	}
+}

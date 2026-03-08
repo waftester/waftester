@@ -141,6 +141,13 @@ func (c *smartModeCache) toSmartModeResult() *SmartModeResult {
 // runAutoScan is the SUPERPOWER command - full automated scan in a single command
 // It chains: discover → deep JS analysis → learn → run → comprehensive report
 func runAutoScan() {
+	var exitCode int
+	defer func() {
+		if exitCode != 0 {
+			os.Exit(exitCode)
+		}
+	}()
+
 	startTime := time.Now()
 
 	autoFlags, cfg := registerAutoscanFlags()
@@ -213,7 +220,8 @@ func runAutoScan() {
 	target, err := ts.GetSingleTarget()
 	if err != nil && !specModeActive {
 		ui.PrintError("Target URL is required. Use: waf-tester auto -u https://example.com")
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	// Parse domain from target (may be empty in spec mode).
@@ -222,7 +230,8 @@ func runAutoScan() {
 		parsedURL, parseErr := url.Parse(target)
 		if parseErr != nil {
 			ui.PrintError(fmt.Sprintf("Invalid target URL: %v", parseErr))
-			os.Exit(1)
+			exitCode = 1
+			return
 		}
 		domain = parsedURL.Hostname()
 	} else {
@@ -248,7 +257,8 @@ func runAutoScan() {
 	}
 	if err := os.MkdirAll(workspaceDir, 0755); err != nil {
 		ui.PrintError(fmt.Sprintf("Cannot create workspace: %v", err))
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	// Define output files
@@ -506,15 +516,16 @@ func runAutoScan() {
 	autoProgress.Start()
 	defer autoProgress.Stop()
 
-	// fatalExit stops progress and dispatcher before os.Exit.
-	// os.Exit does not run defers, so cleanup must be explicit.
+	// fatalExit stops progress and dispatcher, then sets exitCode=1.
+	// Caller must return immediately after calling fatalExit.
 	fatalExit := func() {
 		if autoDispCtx != nil {
 			autoDispCtx.Close()
 		}
 		autoProgress.Stop()
 		cancel()
-		os.Exit(1)
+		exitCode = 1
+		// Caller must return immediately after calling fatalExit.
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -732,6 +743,7 @@ func runAutoScan() {
 				_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
 			}
 			fatalExit()
+			return
 		}
 
 		ui.PrintSuccess(fmt.Sprintf("%s Discovered %d endpoints", ui.Icon("✓", "+"), len(discResult.Endpoints)))
@@ -2119,6 +2131,7 @@ func runAutoScan() {
 				_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
 			}
 			fatalExit()
+			return
 		}
 
 		// Filter payloads based on test plan categories
@@ -2143,6 +2156,7 @@ func runAutoScan() {
 				if reloadErr != nil {
 					ui.PrintError(fmt.Sprintf("Failed to reload payloads: %v", reloadErr))
 					fatalExit()
+					return
 				}
 			}
 		}
@@ -2564,6 +2578,7 @@ func runAutoScan() {
 				_ = autoDispCtx.EmitError(ctx, "auto", errMsg, true)
 			}
 			fatalExit()
+			return
 		}
 
 		// Print section header
@@ -4064,5 +4079,6 @@ func runAutoScan() {
 	ciExit := results.FailedTests > 0 || (wafEffectiveness < 50 && attackTests > 0) || allErrored || assessFailing
 	if ciExit {
 		fatalExit()
+		return
 	}
 }

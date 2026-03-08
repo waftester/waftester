@@ -79,6 +79,13 @@ import (
 )
 
 func runScan() {
+	var exitCode int
+	defer func() {
+		if exitCode != 0 {
+			os.Exit(exitCode)
+		}
+	}()
+
 	scanFlags, cfg := registerScanFlags()
 	cfg.Out.Version = ui.Version
 	scanFlags.Parse(os.Args[2:])
@@ -180,7 +187,8 @@ func runScan() {
 		allTargets, getAllErr := ts.GetTargets()
 		if getAllErr != nil || len(allTargets) == 0 {
 			ui.PrintError("Target URL is required. Use -u https://example.com, -l file.txt, or -stdin")
-			os.Exit(1)
+			exitCode = 1
+			return
 		}
 		target = allTargets[0]
 		if len(allTargets) > 1 {
@@ -402,10 +410,8 @@ func runScan() {
 		includeRe, err = regexp.Compile(*cfg.IncludePatterns)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Invalid --include-patterns regex: %v", err))
-			if dispCtx != nil {
-				_ = dispCtx.Close()
-			}
-			os.Exit(1)
+			exitCode = 1
+			return
 		}
 	}
 	if *cfg.ExcludePatterns != "" {
@@ -413,10 +419,8 @@ func runScan() {
 		excludeRe, err = regexp.Compile(*cfg.ExcludePatterns)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Invalid --exclude-patterns regex: %v", err))
-			if dispCtx != nil {
-				_ = dispCtx.Close()
-			}
-			os.Exit(1)
+			exitCode = 1
+			return
 		}
 	}
 
@@ -2957,7 +2961,7 @@ func runScan() {
 	progress.Stop()
 
 	// Finalize: output, exports, and exit code
-	exitCode := finalizeScanOutput(ctx, result, scanOutputConfig{
+	exitCode = finalizeScanOutput(ctx, result, scanOutputConfig{
 		Target:       target,
 		StreamJSON:   streamJSON,
 		TotalScans:   totalScans,
@@ -2974,7 +2978,4 @@ func runScan() {
 		OutFlags:     &cfg.Out,
 		DispCtx:      dispCtx,
 	})
-	if exitCode != 0 {
-		os.Exit(exitCode)
-	}
 }
