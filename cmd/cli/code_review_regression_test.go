@@ -605,3 +605,18 @@ func TestGraphQLSingleLockRegion(t *testing.T) {
 		t.Errorf("graphql scanner has %d mu.Lock() calls; want 1 (single lock region)", lockCount)
 	}
 }
+
+// L2: XXE and GraphQL scanners must not call baseConfig() twice.
+// The second call creates a redundant config — reuse the value already
+// assigned to cfg.Base / testerCfg.Base.
+func TestNoRedundantBaseConfigCalls(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile("cmd_scan.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	if strings.Contains(content, "baseConfig().HTTPHeader()") {
+		t.Error("found baseConfig().HTTPHeader() — reuse the cfg.Base value instead of calling baseConfig() again")
+	}
+}

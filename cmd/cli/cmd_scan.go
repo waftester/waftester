@@ -1565,7 +1565,7 @@ func runScan() {
 		}()
 		cfg := xxe.DefaultConfig()
 		cfg.Base = baseConfig()
-		cfg.Headers = baseConfig().HTTPHeader()
+		cfg.Headers = cfg.Base.HTTPHeader()
 		detector := xxe.NewDetector(cfg)
 		vulns, err := detector.Detect(ctx, target, "POST")
 		if err != nil {
@@ -1635,7 +1635,7 @@ func runScan() {
 		}()
 		testerCfg := graphql.DefaultConfig()
 		testerCfg.Base = baseConfig()
-		testerCfg.Headers = baseConfig().HTTPHeader()
+		testerCfg.Headers = testerCfg.Base.HTTPHeader()
 		// Attempt common GraphQL endpoints
 		graphqlEndpoints := []string{
 			target + "/graphql",
