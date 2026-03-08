@@ -25,10 +25,6 @@ import (
 // =============================================================================
 
 func runOpenAPI() {
-	ui.PrintCompactBanner()
-	ui.PrintSection("OpenAPI Security Scanner")
-	ui.PrintWarning("DEPRECATED: 'openapi' command will be removed in a future release. Use 'auto --spec <file>' instead.")
-
 	openapiFlags := flag.NewFlagSet("openapi", flag.ExitOnError)
 
 	// Spec options
@@ -61,11 +57,18 @@ func runOpenAPI() {
 	outputFile := openapiFlags.String("o", "", "Output file (JSON)")
 	jsonOutput := openapiFlags.Bool("json", false, "Output in JSON format")
 	verbose := openapiFlags.Bool("v", false, "Verbose output")
+	streamMode := openapiFlags.Bool("stream", false, "Streaming output mode for CI/scripts")
 
 	// Detection
 	noDetect := openapiFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
 
 	openapiFlags.Parse(os.Args[2:])
+
+	if !*streamMode {
+		ui.PrintCompactBanner()
+		ui.PrintSection("OpenAPI Security Scanner")
+		ui.PrintWarning("DEPRECATED: 'openapi' command will be removed in a future release. Use 'auto --spec <file>' instead.")
+	}
 
 	if *noDetect {
 		detection.Disable()

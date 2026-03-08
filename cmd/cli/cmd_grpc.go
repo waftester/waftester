@@ -23,9 +23,6 @@ import (
 // =============================================================================
 
 func runGRPC() {
-	ui.PrintCompactBanner()
-	ui.PrintSection("gRPC Service Tester")
-
 	grpcFlags := flag.NewFlagSet("grpc", flag.ExitOnError)
 
 	// Target options
@@ -54,11 +51,17 @@ func runGRPC() {
 	outputFile := grpcFlags.String("o", "", "Output file (JSON)")
 	jsonOutput := grpcFlags.Bool("json", false, "Output in JSON format")
 	verbose := grpcFlags.Bool("v", false, "Verbose output")
+	streamMode := grpcFlags.Bool("stream", false, "Streaming output mode for CI/scripts")
 
 	// Detection
 	noDetect := grpcFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
 
 	grpcFlags.Parse(os.Args[2:])
+
+	if !*streamMode {
+		ui.PrintCompactBanner()
+		ui.PrintSection("gRPC Service Tester")
+	}
 
 	if *noDetect {
 		detection.Disable()

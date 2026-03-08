@@ -23,9 +23,6 @@ import (
 // =============================================================================
 
 func runSOAP() {
-	ui.PrintCompactBanner()
-	ui.PrintSection("SOAP/WSDL Service Tester")
-
 	soapFlags := flag.NewFlagSet("soap", flag.ExitOnError)
 
 	// Target options
@@ -57,11 +54,17 @@ func runSOAP() {
 	outputFile := soapFlags.String("o", "", "Output file (JSON)")
 	jsonOutput := soapFlags.Bool("json", false, "Output in JSON format")
 	verbose := soapFlags.Bool("v", false, "Verbose output")
+	streamMode := soapFlags.Bool("stream", false, "Streaming output mode for CI/scripts")
 
 	// Detection
 	noDetect := soapFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
 
 	soapFlags.Parse(os.Args[2:])
+
+	if !*streamMode {
+		ui.PrintCompactBanner()
+		ui.PrintSection("SOAP/WSDL Service Tester")
+	}
 
 	if *noDetect {
 		detection.Disable()

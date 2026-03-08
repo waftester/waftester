@@ -943,3 +943,23 @@ func TestFuzzErrorNotConflatedWithBlock(t *testing.T) {
 		}
 	}
 }
+
+// #33-36: All fuzz/protocol commands must have --stream flag.
+func TestStreamFlagExists(t *testing.T) {
+	files := []string{
+		"cmd_misc.go",    // race, smuggle, headless
+		"cmd_grpc.go",
+		"cmd_soap.go",
+		"cmd_openapi.go",
+	}
+
+	for _, f := range files {
+		src, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(src), `"stream"`) {
+			t.Errorf("%s: missing --stream flag", f)
+		}
+	}
+}

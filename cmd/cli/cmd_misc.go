@@ -289,9 +289,6 @@ func runSmuggle() {
 // =============================================================================
 
 func runRace() {
-	ui.PrintCompactBanner()
-	ui.PrintSection("Race Condition Testing")
-
 	fs := flag.NewFlagSet("race", flag.ExitOnError)
 
 	// Target options
@@ -311,6 +308,7 @@ func runRace() {
 	outputFile := fs.String("o", "", "Output file (JSON)")
 	jsonOutput := fs.Bool("json", false, "JSON output to stdout")
 	verbose := fs.Bool("v", false, "Verbose output")
+	streamMode := fs.Bool("stream", false, "Streaming output mode for CI/scripts")
 
 	// Detection
 	raceNoDetect := fs.Bool("no-detect", false, "Disable connection drop and silent ban detection")
@@ -323,6 +321,11 @@ func runRace() {
 	raceWebhook := fs.String("webhook-url", "", "Generic webhook URL")
 
 	fs.Parse(os.Args[2:])
+
+	if !*streamMode {
+		ui.PrintCompactBanner()
+		ui.PrintSection("Race Condition Testing")
+	}
 
 	if *raceNoDetect {
 		detection.Disable()
