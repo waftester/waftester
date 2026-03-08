@@ -349,3 +349,19 @@ func TestRunCommandRegistersDetectionCallbacks(t *testing.T) {
 		t.Error("cmd_tests.go must call RegisterDetectionCallbacks on dispatcher")
 	}
 }
+
+// M1 (logical-order): cmd_scan.go early exits must not use os.Exit(0) which skips defers.
+func TestScanNoOsExitInEarlyPaths(t *testing.T) {
+	src, err := os.ReadFile("cmd_scan.go")
+	if err != nil {
+		t.Fatalf("failed to read cmd_scan.go: %v", err)
+	}
+	content := string(src)
+
+	// Count os.Exit(0) — should only be at the very end or not at all
+	// The early-exit paths (dry-run, robots, URL excluded) must use return
+	earlySection := content[:strings.Index(content, "var mu sync.Mutex")]
+	if strings.Contains(earlySection, "os.Exit(0)") {
+		t.Error("early-exit paths in scan must use return, not os.Exit(0) — defers are skipped")
+	}
+}

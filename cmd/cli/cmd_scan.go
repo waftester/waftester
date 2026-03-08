@@ -460,10 +460,7 @@ func runScan() {
 		}
 		fmt.Fprintln(os.Stderr)
 		ui.PrintHelp("Remove -dry-run flag to execute scans")
-		if dispCtx != nil {
-			_ = dispCtx.Close()
-		}
-		os.Exit(0)
+		return
 	}
 
 	// Build HTTP client using shared factory (DNS cache, HTTP/2, sockopt, detection wrapper)
@@ -574,10 +571,7 @@ func runScan() {
 					(strings.HasPrefix(targetPath, disallowed) &&
 						(strings.HasSuffix(disallowed, "/") || targetPath[len(disallowed)] == '/')) {
 					ui.PrintWarning(fmt.Sprintf("Target path %q is disallowed by robots.txt (matched %q) — skipping scan", targetPath, disallowed))
-					if dispCtx != nil {
-						_ = dispCtx.Close()
-					}
-					os.Exit(0)
+					return
 				}
 			}
 			if cfg.Common.Verbose {
@@ -591,10 +585,7 @@ func runScan() {
 	// Check URL include/exclude patterns against the target
 	if !shouldScanURL(target) {
 		ui.PrintWarning("Target URL excluded by --include-patterns / --exclude-patterns")
-		if dispCtx != nil {
-			_ = dispCtx.Close()
-		}
-		os.Exit(0)
+		return
 	}
 
 	var mu sync.Mutex
