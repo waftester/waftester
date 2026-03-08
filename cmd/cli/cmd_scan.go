@@ -284,6 +284,10 @@ func runScan() {
 			tamperProfile = tampers.ProfileAggressive
 		case "bypass":
 			tamperProfile = tampers.ProfileBypass
+		case "", "standard":
+			// default profile, already set
+		default:
+			ui.PrintWarning(fmt.Sprintf("Unknown tamper profile %q, using standard", *cfg.Tamper.Profile))
 		}
 
 		// If custom tamper list provided, use custom profile

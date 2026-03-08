@@ -720,3 +720,18 @@ func TestGetProjectRoot_NoFalsePositive(t *testing.T) {
 		t.Error("getProjectRoot should only accept projectRoot when workspaces/ directory actually exists (statErr == nil)")
 	}
 }
+
+// Test #26-27: tamper profile switch must have default case warning
+func TestTamperProfileSwitch_HasDefault(t *testing.T) {
+	for _, file := range []string{"cmd_scan.go", "cmd_autoscan.go"} {
+		src, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		content := string(src)
+
+		if !strings.Contains(content, `Unknown tamper profile`) {
+			t.Errorf("%s: tamper profile switch must have default case that warns about unknown values", file)
+		}
+	}
+}
