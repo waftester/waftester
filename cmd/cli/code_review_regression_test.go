@@ -963,3 +963,81 @@ func TestStreamFlagExists(t *testing.T) {
 		}
 	}
 }
+
+// #43: loadUnifiedByCategory must convert unified payloads, not discard nuclei.
+func TestLoadUnifiedByCategory_ConvertsPayloads(t *testing.T) {
+	src, err := os.ReadFile("unified_payloads.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(src)
+
+	// Must NOT have the old pattern that returned only filtered JSON payloads
+	if strings.Contains(s, "payloads.Filter(jp, category,") {
+		t.Error("loadUnifiedByCategory still filters JSON-only instead of returning unified payloads")
+	}
+
+	// Must convert UnifiedPayload to payloads.Payload
+	if !strings.Contains(s, "payloads.Payload{") {
+		t.Error("loadUnifiedByCategory does not convert UnifiedPayload to payloads.Payload")
+	}
+}
+
+// #47: --continue-on-error must not be registered as an unused flag.
+func TestNoContinueOnErrorDeadFlag(t *testing.T) {
+	src, err := os.ReadFile("cmd_misc.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(src), `"continue-on-error"`) {
+		t.Error("cmd_misc.go: --continue-on-error flag still registered (unused)")
+	}
+}
+
+// #48: Race generic attacks must analyze responses for vulnerabilities.
+func TestRaceGenericAttacksAnalyze(t *testing.T) {
+	src, err := os.ReadFile("cmd_misc.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(src)
+
+	// The default case must set vuln when inconsistencies detected
+	if !strings.Contains(s, "race.Vulnerability{") {
+		t.Error("cmd_misc.go: race default case does not create Vulnerability for inconsistent responses")
+	}
+}
+
+// #49: discover context timeout must not use hardcoded duration.ContextMedium.
+func TestDiscoverContextTimeout_NotHardcoded(t *testing.T) {
+	src, err := os.ReadFile("cmd_discover.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(src), "duration.ContextMedium") {
+		t.Error("cmd_discover.go: still uses hardcoded duration.ContextMedium for context timeout")
+	}
+}
+
+// #51: template command must have --skip-verify flag.
+func TestTemplateHasSkipVerify(t *testing.T) {
+	src, err := os.ReadFile("cmd_template.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(src), `"skip-verify"`) {
+		t.Error("cmd_template.go: missing --skip-verify flag")
+	}
+}
+
+// #61: race command must have --realistic flag.
+func TestRaceHasRealisticFlag(t *testing.T) {
+	src, err := os.ReadFile("cmd_misc.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(src)
+	if !strings.Contains(s, `"realistic"`) {
+		t.Error("cmd_misc.go: race command missing --realistic flag")
+	}
+}
