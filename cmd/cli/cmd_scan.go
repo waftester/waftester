@@ -667,6 +667,11 @@ func runScan() {
 	// display shows a running total alongside the per-type completion counter.
 	reqSyncDone := make(chan struct{})
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				ui.PrintWarning(fmt.Sprintf("request sync goroutine panicked: %v", r))
+			}
+		}()
 		ticker := time.NewTicker(250 * time.Millisecond)
 		defer ticker.Stop()
 		for {

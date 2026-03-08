@@ -704,6 +704,11 @@ func runAutoScan() {
 		// reflects intermediate results instead of staying at 0.
 		discDone := make(chan struct{})
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					ui.PrintWarning(fmt.Sprintf("discovery progress goroutine panicked: %v", r))
+				}
+			}()
 			ticker := time.NewTicker(2 * time.Second)
 			defer ticker.Stop()
 			for {
@@ -1100,6 +1105,11 @@ func runAutoScan() {
 
 		if totalJSFiles > 1 && !cfg.Out.StreamMode && !quietMode && ui.StderrIsTerminal() {
 			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						ui.PrintWarning(fmt.Sprintf("JS analysis progress goroutine panicked: %v", r))
+					}
+				}()
 				jsFrameIdx := 0
 				ticker := time.NewTicker(100 * time.Millisecond)
 				defer ticker.Stop()
@@ -1473,6 +1483,11 @@ func runAutoScan() {
 
 			if !cfg.Out.StreamMode && !quietMode && ui.StderrIsTerminal() {
 				go func() {
+					defer func() {
+						if r := recover(); r != nil {
+							ui.PrintWarning(fmt.Sprintf("param detection progress goroutine panicked: %v", r))
+						}
+					}()
 					paramFrameIdx := 0
 					ticker := time.NewTicker(100 * time.Millisecond)
 					defer ticker.Stop()

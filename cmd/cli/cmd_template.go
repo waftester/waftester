@@ -272,6 +272,11 @@ func runTemplate() {
 		go func(tgt string, tmpl *nuclei.Template) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			defer func() {
+				if r := recover(); r != nil {
+					ui.PrintWarning(fmt.Sprintf("template execution panicked for %s: %v", tgt, r))
+				}
+			}()
 
 			var result *nuclei.Result
 			var execErr error

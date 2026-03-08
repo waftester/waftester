@@ -863,3 +863,31 @@ func TestMiscCommands_RegisterDetectionCallbacks(t *testing.T) {
 		}
 	}
 }
+
+// TestGoroutines_HaveDeferRecover verifies that goroutines in key files
+// have defer/recover blocks to prevent unhandled panics from crashing the process.
+// Regression test for findings #8-13.
+func TestGoroutines_HaveDeferRecover(t *testing.T) {
+	cases := []struct {
+		file    string
+		pattern string
+	}{
+		{"cmd_template.go", "template execution panicked"},
+		{"cmd_probe.go", "API server shutdown panicked"},
+		{"cmd_probe.go", "API server panicked"},
+		{"cmd_scan.go", "request sync goroutine panicked"},
+		{"cmd_autoscan.go", "discovery progress goroutine panicked"},
+		{"cmd_autoscan.go", "JS analysis progress goroutine panicked"},
+		{"cmd_autoscan.go", "param detection progress goroutine panicked"},
+	}
+
+	for _, c := range cases {
+		src, err := os.ReadFile(c.file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(src), c.pattern) {
+			t.Errorf("%s: missing recover with message %q", c.file, c.pattern)
+		}
+	}
+}

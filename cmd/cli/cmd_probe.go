@@ -555,6 +555,11 @@ func runProbe() {
 
 		// Graceful shutdown when parent context is cancelled
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					ui.PrintWarning(fmt.Sprintf("API server shutdown panicked: %v", r))
+				}
+			}()
 			<-ctx.Done()
 			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer shutdownCancel()
@@ -562,6 +567,11 @@ func runProbe() {
 		}()
 
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					ui.PrintWarning(fmt.Sprintf("API server panicked: %v", r))
+				}
+			}()
 			fmt.Fprintf(os.Stderr, "[*] HTTP API server started at %s (endpoints: /health, /stats)\n", apiAddr)
 			if err := apiServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				ui.PrintWarning(fmt.Sprintf("HTTP API server error: %v", err))
