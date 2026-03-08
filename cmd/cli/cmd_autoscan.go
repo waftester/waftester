@@ -3352,7 +3352,7 @@ func runAutoScan() {
 		"target":            target,
 		"domain":            domain,
 		"timestamp":         time.Now().UTC().Format(time.RFC3339),
-		"duration_seconds":  0, // updated after all phases complete
+		"duration_seconds":  time.Since(startTime).Seconds(), // interim; updated after all phases
 		"waf_effectiveness": wafEffectiveness,
 		"pass":              results.FailedTests == 0,
 		"stats": map[string]interface{}{
@@ -3567,7 +3567,7 @@ func runAutoScan() {
 
 			// Generate Enterprise HTML Report now that assessment.json exists
 			htmlReportFile := filepath.Join(workspaceDir, "enterprise-report.html")
-			if err := report.GenerateEnterpriseHTMLReportFromWorkspace(workspaceDir, domain, scanDuration, htmlReportFile); err != nil {
+			if err := report.GenerateEnterpriseHTMLReportFromWorkspace(workspaceDir, domain, time.Since(startTime), htmlReportFile); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Enterprise HTML report generation error: %v", err))
 			} else if !quietMode {
 				fmt.Fprintf(os.Stderr, "    %s Enterprise:  %s\n", ui.Icon("•", "-"), htmlReportFile)
@@ -3862,7 +3862,7 @@ func runAutoScan() {
 
 				// Regenerate enterprise report to include browser findings
 				htmlReportFile := filepath.Join(workspaceDir, "enterprise-report.html")
-				if err := report.GenerateEnterpriseHTMLReportFromWorkspace(workspaceDir, domain, scanDuration, htmlReportFile); err != nil {
+				if err := report.GenerateEnterpriseHTMLReportFromWorkspace(workspaceDir, domain, time.Since(startTime), htmlReportFile); err != nil {
 					ui.PrintWarning(fmt.Sprintf("Enterprise report regeneration error: %v", err))
 				} else {
 					ui.PrintSuccess("✓ Enterprise report updated with browser findings")

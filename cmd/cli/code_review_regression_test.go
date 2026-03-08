@@ -776,3 +776,32 @@ func TestSeverityFilter_CSRFClickjack_ElseNil(t *testing.T) {
 		}
 	}
 }
+
+// Test #37-38: scanDuration must not be zero in interim reports
+func TestAutoScan_InterimDurationNotZero(t *testing.T) {
+	src, err := os.ReadFile("cmd_autoscan.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(src)
+
+	// Initial summary.json must not hardcode 0 for duration
+	if strings.Contains(content, `"duration_seconds":  0`) {
+		t.Error("summary.json initial write must use time.Since(startTime) not 0")
+	}
+
+	// Between PHASE 6 marker and where scanDuration is finally computed,
+	// there should be no use of the uninitialized scanDuration variable.
+	assessIdx := strings.Index(content, "PHASE 6: ENTERPRISE ASSESSMENT")
+	computeIdx := strings.Index(content, "scanDuration = time.Since(startTime)")
+	if assessIdx < 0 || computeIdx < 0 {
+		t.Fatal("Could not find PHASE 6 or scanDuration computation markers")
+	}
+	if assessIdx < computeIdx {
+		between := content[assessIdx:computeIdx]
+		// Allow the variable declaration but not use in function calls
+		if strings.Contains(between, "scanDuration,") || strings.Contains(between, "scanDuration)") {
+			t.Error("Assessment/browser phases must not use scanDuration — it's zero until computed after all phases")
+		}
+	}
+}
