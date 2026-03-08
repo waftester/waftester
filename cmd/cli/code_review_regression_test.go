@@ -481,3 +481,23 @@ func TestBypassGracePeriod30Seconds(t *testing.T) {
 		t.Error("bypass SignalContext must use 30 * time.Second like all other commands")
 	}
 }
+
+// M7 (logical-order): bypass -o file must be written even with 0 bypasses.
+func TestBypassOutputFileWrittenAlways(t *testing.T) {
+	src, err := os.ReadFile("cmd_bypass.go")
+	if err != nil {
+		t.Fatalf("failed to read cmd_bypass.go: %v", err)
+	}
+	content := string(src)
+
+	// The output file creation must be outside the "if len(bypassPayloads) > 0" block.
+	// Verify by checking that os.Create(*outputFile) appears after the else branch.
+	elseIdx := strings.Index(content, `No bypasses found - WAF held strong`)
+	createIdx := strings.Index(content, `os.Create(*outputFile)`)
+	if elseIdx < 0 || createIdx < 0 {
+		t.Fatal("expected both 'No bypasses found' and 'os.Create(*outputFile)' in source")
+	}
+	if createIdx < elseIdx {
+		t.Error("-o file must be written after the bypass/no-bypass display logic (i.e., always written)")
+	}
+}

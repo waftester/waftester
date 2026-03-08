@@ -400,35 +400,34 @@ func runBypassFinder() {
 			fmt.Fprintln(os.Stderr)
 			shown++
 		}
-
-		// Save to file
-		if *outputFile != "" {
-			f, err := os.Create(*outputFile)
-			if err != nil {
-				ui.PrintError(fmt.Sprintf("Cannot create output file %s: %v", *outputFile, err))
-			} else {
-				enc := json.NewEncoder(f)
-				enc.SetIndent("", "  ")
-				// Create result structure for JSON output
-				result := &mutation.WAFBypassResult{
-					Found:          true,
-					BypassPayloads: bypassPayloads,
-					TotalTested:    totalTested,
-					BypassRate:     bypassRate,
-				}
-				encErr := enc.Encode(result)
-				closeErr := f.Close()
-				if encErr != nil {
-					ui.PrintError(fmt.Sprintf("Error encoding results: %v", encErr))
-				} else if closeErr != nil {
-					ui.PrintError(fmt.Sprintf("Failed to close output file: %v", closeErr))
-				} else {
-					ui.PrintSuccess(fmt.Sprintf("Full results saved to %s", *outputFile))
-				}
-			}
-		}
 	} else {
 		ui.PrintSuccess("✓ No bypasses found - WAF held strong!")
+	}
+
+	// Save to file (always write when -o specified, even with 0 bypasses)
+	if *outputFile != "" {
+		f, err := os.Create(*outputFile)
+		if err != nil {
+			ui.PrintError(fmt.Sprintf("Cannot create output file %s: %v", *outputFile, err))
+		} else {
+			enc := json.NewEncoder(f)
+			enc.SetIndent("", "  ")
+			result := &mutation.WAFBypassResult{
+				Found:          len(bypassPayloads) > 0,
+				BypassPayloads: bypassPayloads,
+				TotalTested:    totalTested,
+				BypassRate:     bypassRate,
+			}
+			encErr := enc.Encode(result)
+			closeErr := f.Close()
+			if encErr != nil {
+				ui.PrintError(fmt.Sprintf("Error encoding results: %v", encErr))
+			} else if closeErr != nil {
+				ui.PrintError(fmt.Sprintf("Failed to close output file: %v", closeErr))
+			} else {
+				ui.PrintSuccess(fmt.Sprintf("Full results saved to %s", *outputFile))
+			}
+		}
 	}
 
 	// Write enterprise export files (--json-export, --sarif-export, etc.)
