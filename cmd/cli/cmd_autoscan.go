@@ -1789,6 +1789,35 @@ func runAutoScan() {
 		}
 	}
 
+	// Feed full recon findings into the brain for later phases
+	if brain != nil && fullReconResult != nil && fullReconResult.JSAnalysis != nil {
+		for _, ep := range fullReconResult.JSAnalysis.Endpoints {
+			brain.LearnFromFinding(&intelligence.Finding{
+				Phase:      "full-recon",
+				Category:   "js-endpoint",
+				Severity:   "info",
+				Path:       ep.Path,
+				Evidence:   ep.Path,
+				Confidence: 0.6,
+			})
+		}
+		for _, secret := range fullReconResult.JSAnalysis.Secrets {
+			conf := 0.5
+			if secret.Confidence == "high" {
+				conf = 0.9
+			} else if secret.Confidence == "medium" {
+				conf = 0.7
+			}
+			brain.LearnFromFinding(&intelligence.Finding{
+				Phase:      "full-recon",
+				Category:   "js-secret",
+				Severity:   "high",
+				Evidence:   secret.Type,
+				Confidence: conf,
+			})
+		}
+	}
+
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 2.8: ENDPOINT CLUSTERING (Brain-powered deduplication)
 	// Feeds discovered endpoints into the brain's EndpointClusterer to identify

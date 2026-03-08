@@ -669,3 +669,31 @@ func TestProbeHasNoDetectFlag(t *testing.T) {
 		t.Error("probe command must check NoDetect flag before enabling detection")
 	}
 }
+
+// L5: fullReconResult must be fed into the brain after Phase 2.7,
+// not just used for display.
+func TestFullReconResultFedToBrain(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile("cmd_autoscan.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+
+	// After the full-recon phase block, fullReconResult should be fed to brain
+	reconPhaseIdx := strings.Index(content, `markPhaseCompleted("full-recon")`)
+	if reconPhaseIdx < 0 {
+		t.Fatal("full-recon phase completion not found")
+	}
+	afterRecon := content[reconPhaseIdx:]
+
+	// Should find brain.LearnFromFinding with "full-recon" phase before next major phase
+	nextPhaseIdx := strings.Index(afterRecon, "PHASE 2.8")
+	if nextPhaseIdx < 0 {
+		t.Fatal("PHASE 2.8 marker not found after full-recon")
+	}
+	betweenPhases := afterRecon[:nextPhaseIdx]
+	if !strings.Contains(betweenPhases, `"full-recon"`) || !strings.Contains(betweenPhases, "LearnFromFinding") {
+		t.Error("fullReconResult must be fed to brain via LearnFromFinding between phases 2.7 and 2.8")
+	}
+}
