@@ -420,3 +420,21 @@ func TestAutoscanCtxChecksBetweenPhases(t *testing.T) {
 		}
 	}
 }
+
+// M4 (logical-order): assessment must not re-detect WAF when vendor is already known.
+func TestAutoscanAssessmentNoRedundantWAFDetect(t *testing.T) {
+	src, err := os.ReadFile("cmd_autoscan.go")
+	if err != nil {
+		t.Fatalf("failed to read cmd_autoscan.go: %v", err)
+	}
+	content := string(src)
+
+	// DetectWAF should be conditional on whether we already have a vendor,
+	// not unconditionally true.
+	if strings.Contains(content, `DetectWAF:       true,`) {
+		t.Error("assessment DetectWAF must be conditional (assessWAFVendor == \"\"), not unconditionally true")
+	}
+	if !strings.Contains(content, `DetectWAF:       assessWAFVendor == ""`) {
+		t.Error("expected DetectWAF to be set based on assessWAFVendor availability")
+	}
+}

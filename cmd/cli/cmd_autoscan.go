@@ -3471,7 +3471,7 @@ func runAutoScan() {
 			HTTPClient:      ja3Client, // JA3 TLS fingerprint rotation
 			EnableFPTesting: true,
 			CorpusSources:   strings.Split(*cfg.AssessCorpus, ","),
-			DetectWAF:       true,
+			DetectWAF:       assessWAFVendor == "",
 			WAFVendor:       assessWAFVendor,
 			PayloadDir:      payloadDir,
 			TemplateDir:     assessTemplateDir,
