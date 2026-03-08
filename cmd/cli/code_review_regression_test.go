@@ -557,3 +557,20 @@ func TestOpenAPIFuzzRequiresBaseURL(t *testing.T) {
 		t.Error("baseURL validation must appear before runOpenAPIFuzz call")
 	}
 }
+
+// M11 (logical-order): workflow must exit non-zero on engine error even with partial result.
+func TestWorkflowExitOnEngineError(t *testing.T) {
+	src, err := os.ReadFile("cmd_misc.go")
+	if err != nil {
+		t.Fatalf("failed to read cmd_misc.go: %v", err)
+	}
+	content := string(src)
+
+	// The exit condition must include workflowFailed, not just result.Status
+	if !strings.Contains(content, "workflowFailed") {
+		t.Error("workflow must track engine error via workflowFailed variable")
+	}
+	if !strings.Contains(content, `result.Status == "failed" || workflowFailed`) {
+		t.Error("workflow exit condition must check both result.Status and workflowFailed")
+	}
+}

@@ -612,6 +612,7 @@ func runWorkflow() {
 	fmt.Fprintln(os.Stderr)
 
 	result, err := engine.Execute(ctx, wf, inputs)
+	workflowFailed := err != nil
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Workflow failed: %v", err))
 		// Emit error to hooks (Slack, Teams, PagerDuty, OTEL, etc.)
@@ -704,7 +705,7 @@ func runWorkflow() {
 		}
 	}
 
-	if result.Status == "failed" {
+	if result.Status == "failed" || workflowFailed {
 		// Emit summary for failed workflow
 		if workflowDispCtx != nil {
 			failedCount := countStepStatus(result.Steps, "failed")
