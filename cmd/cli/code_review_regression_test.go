@@ -735,3 +735,22 @@ func TestTamperProfileSwitch_HasDefault(t *testing.T) {
 		}
 	}
 }
+
+// Test #28-29: race command must always produce output regardless of vuln count
+func TestRaceCommand_AlwaysProducesOutput(t *testing.T) {
+	src, err := os.ReadFile("cmd_misc.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(src)
+
+	// The old bug: `if *jsonOutput && len(vulns) > 0` — skipped output when no vulns
+	if strings.Contains(content, `*jsonOutput && len(vulns) > 0`) {
+		t.Error("race --json must produce output even when no vulns found (condition must not check len(vulns))")
+	}
+
+	// The old bug: `if *outputFile != "" && len(vulns) > 0` — skipped file write when no vulns
+	if strings.Contains(content, `*outputFile != "" && len(vulns) > 0`) {
+		t.Error("race -o must write output file even when no vulns found (condition must not check len(vulns))")
+	}
+}

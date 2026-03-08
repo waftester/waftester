@@ -471,23 +471,31 @@ func runRace() {
 	}
 
 	// Output
-	if *jsonOutput && len(vulns) > 0 {
+	if *jsonOutput {
+		result := vulns
+		if result == nil {
+			result = []*race.Vulnerability{}
+		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		if err := enc.Encode(vulns); err != nil {
+		if err := enc.Encode(result); err != nil {
 			ui.PrintWarning(fmt.Sprintf("Failed to encode JSON: %v", err))
 		}
 	}
 
-	if *outputFile != "" && len(vulns) > 0 {
+	if *outputFile != "" {
 		f, err := os.Create(*outputFile)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Failed to create output file: %v", err))
 			os.Exit(1)
 		} else {
+			result := vulns
+			if result == nil {
+				result = []*race.Vulnerability{}
+			}
 			enc := json.NewEncoder(f)
 			enc.SetIndent("", "  ")
-			encErr := enc.Encode(vulns)
+			encErr := enc.Encode(result)
 			closeErr := f.Close()
 			if encErr != nil {
 				ui.PrintError(fmt.Sprintf("Failed to encode results: %v", encErr))
