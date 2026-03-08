@@ -314,6 +314,10 @@ func runRace() {
 	// Detection
 	raceNoDetect := fs.Bool("no-detect", false, "Disable connection drop and silent ban detection")
 
+	// Realistic mode (adds browser-like headers to avoid WAF detection)
+	realisticMode := fs.Bool("realistic", false, "Add realistic browser headers to race requests")
+	realisticShort := fs.Bool("R", false, "Realistic mode (shorthand)")
+
 	// Enterprise hook flags (Slack, Teams, PagerDuty, OTEL, etc.)
 	raceSlack := fs.String("slack-webhook", "", "Slack webhook URL for notifications")
 	raceTeams := fs.String("teams-webhook", "", "Teams webhook URL for notifications")
@@ -357,6 +361,19 @@ func runRace() {
 			if len(parts) == 2 {
 				headerMap.Add(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
 			}
+		}
+	}
+
+	// Realistic mode: add browser-like headers to avoid WAF detection
+	if *realisticMode || *realisticShort {
+		if headerMap.Get("User-Agent") == "" {
+			headerMap.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+		}
+		if headerMap.Get("Accept") == "" {
+			headerMap.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+		}
+		if headerMap.Get("Accept-Language") == "" {
+			headerMap.Set("Accept-Language", "en-US,en;q=0.9")
 		}
 	}
 
