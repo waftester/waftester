@@ -365,3 +365,24 @@ func TestScanNoOsExitInEarlyPaths(t *testing.T) {
 		t.Error("early-exit paths in scan must use return, not os.Exit(0) — defers are skipped")
 	}
 }
+
+// M2 (logical-order): Dry-run phase list must match actual phase names.
+func TestAutoscanDryRunPhaseNames(t *testing.T) {
+	src, err := os.ReadFile("cmd_autoscan.go")
+	if err != nil {
+		t.Fatalf("failed to read cmd_autoscan.go: %v", err)
+	}
+	content := string(src)
+
+	// Key actual phases that must appear in the dry-run output
+	for _, phase := range []string{
+		"Deep JavaScript Analysis",
+		"Intelligent Test Plan Generation",
+		"WAF Security Testing",
+		"Enterprise Assessment",
+	} {
+		if !strings.Contains(content, phase) {
+			t.Errorf("dry-run phase list should include %q", phase)
+		}
+	}
+}

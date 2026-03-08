@@ -646,15 +646,19 @@ func runAutoScan() {
 		fmt.Fprintln(os.Stderr)
 		ui.PrintSection("Phases")
 		if *cfg.Smart.Enabled {
-			fmt.Fprintln(os.Stderr, "  0. Smart Mode - WAF Detection & Strategy Optimization")
+			fmt.Fprintln(os.Stderr, "  0. Smart Mode — WAF Detection & Strategy Optimization")
 		}
 		fmt.Fprintln(os.Stderr, "  1. Target Discovery & Reconnaissance")
-		fmt.Fprintln(os.Stderr, "  2. Leaky Path Scanning")
-		fmt.Fprintln(os.Stderr, "  3. Learning Phase - WAF Behavior Analysis")
-		fmt.Fprintln(os.Stderr, "  4. Core Vulnerability Scanning")
-		fmt.Fprintln(os.Stderr, "  5. Tamper Discovery & Bypass Analysis")
+		fmt.Fprintln(os.Stderr, "  2. Deep JavaScript Analysis")
+		fmt.Fprintln(os.Stderr, "  3. Intelligent Test Plan Generation")
+		fmt.Fprintln(os.Stderr, "  4. WAF Security Testing")
+		fmt.Fprintln(os.Stderr, "  5. Report & Summary Generation")
 		fmt.Fprintln(os.Stderr, "  6. Enterprise Assessment")
-		fmt.Fprintln(os.Stderr, "  7. Report Generation")
+		if *cfg.EnableBrowserScan {
+			fmt.Fprintln(os.Stderr, "  7. Authenticated Browser Scanning")
+			fmt.Fprintln(os.Stderr, "  8. Browser Findings Analysis")
+			fmt.Fprintln(os.Stderr, "  9. Browser Findings Integration")
+		}
 		fmt.Fprintln(os.Stderr)
 		ui.PrintInfo("No requests sent. Remove --dry-run to execute.")
 		return
