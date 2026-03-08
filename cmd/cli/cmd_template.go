@@ -105,6 +105,20 @@ func runTemplate() {
 		templatePath = defaults.TemplateBaseDir
 	}
 
+	// Collect and validate targets before expensive template loading.
+	targets := []string{}
+	if targetURL != "" {
+		targets = append(targets, targetURL)
+	}
+	if *targetList != "" {
+		listTargets, err := readTargetsFromFile(*targetList)
+		if err != nil {
+			ui.PrintError(fmt.Sprintf("Failed to read target list: %v", err))
+			os.Exit(1)
+		}
+		targets = append(targets, listTargets...)
+	}
+
 	// Resolve template path: if it doesn't exist on disk, try embedded templates.
 	if info, err := os.Stat(templatePath); err != nil || !info.IsDir() {
 		if resolved, resolveErr := templateresolver.ResolveNucleiDir(templatePath); resolveErr == nil {
@@ -207,20 +221,6 @@ func runTemplate() {
 	if len(templates) == 0 {
 		ui.PrintWarning("No templates match the specified filters")
 		os.Exit(0)
-	}
-
-	// Collect targets
-	targets := []string{}
-	if targetURL != "" {
-		targets = append(targets, targetURL)
-	}
-	if *targetList != "" {
-		listTargets, err := readTargetsFromFile(*targetList)
-		if err != nil {
-			ui.PrintError(fmt.Sprintf("Failed to read target list: %v", err))
-			os.Exit(1)
-		}
-		targets = append(targets, listTargets...)
 	}
 
 	// Build task list: all (target, template) pairs

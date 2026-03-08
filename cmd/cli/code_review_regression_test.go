@@ -519,3 +519,22 @@ func TestRaceCommandAcceptsAllAttackTypes(t *testing.T) {
 		t.Error("race attack type help text must include toctou")
 	}
 }
+
+// M9 (logical-order): target list must be validated before templates are loaded.
+func TestTemplateTargetsBeforeTemplateLoading(t *testing.T) {
+	src, err := os.ReadFile("cmd_template.go")
+	if err != nil {
+		t.Fatalf("failed to read cmd_template.go: %v", err)
+	}
+	content := string(src)
+
+	// readTargetsFromFile must appear before LoadDirectory/LoadTemplate
+	targetsIdx := strings.Index(content, "readTargetsFromFile")
+	loadIdx := strings.Index(content, "nuclei.LoadDirectory")
+	if targetsIdx < 0 || loadIdx < 0 {
+		t.Fatal("expected both readTargetsFromFile and nuclei.LoadDirectory in source")
+	}
+	if targetsIdx > loadIdx {
+		t.Error("target list validation (readTargetsFromFile) must happen before template loading (nuclei.LoadDirectory)")
+	}
+}
