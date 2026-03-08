@@ -15,6 +15,7 @@ import (
 	"github.com/chromedp/chromedp"
 	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/detection"
+	"github.com/waftester/waftester/pkg/finding"
 	"github.com/waftester/waftester/pkg/headless"
 	"github.com/waftester/waftester/pkg/race"
 	"github.com/waftester/waftester/pkg/smuggling"
@@ -432,11 +433,42 @@ func runRace() {
 		}
 		responses := tester.SendConcurrent(ctx, requests)
 
-		// Analyze responses
+		// Analyze responses for race condition indicators
 		statusCounts := make(map[int]int)
+		var successCount int
 		for _, r := range responses {
 			if r.Error == nil {
 				statusCounts[r.StatusCode]++
+				if r.StatusCode >= 200 && r.StatusCode < 300 {
+					successCount++
+				}
+			}
+		}
+
+		// Detect inconsistent responses (different status codes for identical requests)
+		if len(statusCounts) > 1 {
+			var evidence strings.Builder
+			evidence.WriteString("Inconsistent responses for identical concurrent requests: ")
+			first := true
+			for status, count := range statusCounts {
+				if !first {
+					evidence.WriteString(", ")
+				}
+				fmt.Fprintf(&evidence, "HTTP %d (%d responses)", status, count)
+				first = false
+			}
+			vuln = &race.Vulnerability{
+				Vulnerability: finding.Vulnerability{
+					URL:         *targetURL,
+					Method:      *method,
+					Severity:    finding.Medium,
+					Description: fmt.Sprintf("Race condition detected: %d different status codes from %d identical concurrent requests", len(statusCounts), *concurrency),
+					Evidence:    evidence.String(),
+					Remediation: "Implement proper locking, use database transactions, or add request deduplication",
+					Confidence:  0.6,
+				},
+				Type:      race.AttackType(*attackType),
+				Responses: responses,
 			}
 		}
 
