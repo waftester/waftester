@@ -620,3 +620,28 @@ func TestNoRedundantBaseConfigCalls(t *testing.T) {
 		t.Error("found baseConfig().HTTPHeader() — reuse the cfg.Base value instead of calling baseConfig() again")
 	}
 }
+
+// L3: runScanner must have panic recovery so one scanner panic doesn't
+// crash the entire program.
+func TestRunScannerHasPanicRecovery(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile("cmd_scan.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+
+	// Find the runScanner function
+	idx := strings.Index(content, "runScanner := func(")
+	if idx < 0 {
+		t.Fatal("runScanner function not found in cmd_scan.go")
+	}
+	// Check within first ~30 lines of the function for recover()
+	section := content[idx:]
+	if len(section) > 800 {
+		section = section[:800]
+	}
+	if !strings.Contains(section, "recover()") {
+		t.Error("runScanner goroutine must have panic recovery via recover()")
+	}
+}

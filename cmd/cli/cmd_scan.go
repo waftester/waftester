@@ -789,6 +789,16 @@ func runScan() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					atomic.AddInt32(&scanErrors, 1)
+					ui.PrintWarning(fmt.Sprintf("%s scanner panicked: %v", name, r))
+					emitEvent("scanner_panic", map[string]interface{}{
+						"scanner": name,
+						"error":   fmt.Sprintf("%v", r),
+					})
+				}
+			}()
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
