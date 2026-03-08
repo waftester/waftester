@@ -318,3 +318,21 @@ func TestAutoscanResumeSkipIncrementsProgress(t *testing.T) {
 		}
 	}
 }
+
+// H5 (logical-order): OnAnomaly must be registered before the WAF testing executor runs.
+func TestAutoscanOnAnomalyBeforeExecutor(t *testing.T) {
+	src, err := os.ReadFile("cmd_autoscan.go")
+	if err != nil {
+		t.Fatalf("failed to read cmd_autoscan.go: %v", err)
+	}
+	content := string(src)
+
+	anomalyIdx := strings.Index(content, `brain.OnAnomaly(func(anomaly`)
+	executeIdx := strings.Index(content, "executor.ExecuteWithProgress")
+	if anomalyIdx < 0 || executeIdx < 0 {
+		t.Fatal("expected OnAnomaly and ExecuteWithProgress in cmd_autoscan.go")
+	}
+	if anomalyIdx > executeIdx {
+		t.Error("OnAnomaly must be registered before ExecuteWithProgress for main WAF testing")
+	}
+}

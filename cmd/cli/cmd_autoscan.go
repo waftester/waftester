@@ -2015,6 +2015,13 @@ func runAutoScan() {
 				Burst:             *cfg.Concurrency,
 			})
 		}
+
+		// Wire anomaly detection for sub-passes on resume
+		if brain != nil {
+			brain.OnAnomaly(func(anomaly *intelligence.Anomaly) {
+				autoEscalate(fmt.Sprintf("brain anomaly: %s (confidence %.0f%%)", anomaly.Type, anomaly.Confidence*100))
+			})
+		}
 	} else {
 		printStatusLn(ui.SectionStyle.Render("PHASE 4: WAF Security Testing"))
 		printStatusLn()
@@ -2509,6 +2516,12 @@ func runAutoScan() {
 		// Start waf-testing phase for Brain
 		if brain != nil {
 			brain.StartPhase(ctx, "waf-testing")
+
+			// Wire anomaly detection before executor runs so the main WAF
+			// testing phase gets anomaly callbacks (auto-escalation).
+			brain.OnAnomaly(func(anomaly *intelligence.Anomaly) {
+				autoEscalate(fmt.Sprintf("brain anomaly: %s (confidence %.0f%%)", anomaly.Type, anomaly.Confidence*100))
+			})
 		}
 
 		var anomalyCheckCounter int32 // Rate-limit ShouldPauseScan checks
@@ -2612,14 +2625,6 @@ func runAutoScan() {
 		}
 		saveBrainState()
 	} // end waf-testing skip guard
-
-	// E5: Wire brain anomaly detection to auto-escalation.
-	// Registered outside the skip guard so sub-passes get anomaly callbacks on resume.
-	if brain != nil {
-		brain.OnAnomaly(func(anomaly *intelligence.Anomaly) {
-			autoEscalate(fmt.Sprintf("brain anomaly: %s (confidence %.0f%%)", anomaly.Type, anomaly.Confidence*100))
-		})
-	}
 
 	// E2: Brain feedback loop — predictor-guided second pass
 	// Instead of blindly re-running all payloads from "focus categories",
