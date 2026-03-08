@@ -132,6 +132,9 @@ type OutputFlags struct {
 	// templateCleanups accumulates cleanup functions from ResolveTemplatePaths
 	// so that multiple calls to ToConfig() don't orphan temp files.
 	templateCleanups []func()
+
+	// templatePathsResolved guards ResolveTemplatePaths against double resolution.
+	templatePathsResolved bool
 }
 
 // CleanupTemplates removes any temp files created by embedded template resolution.
@@ -502,6 +505,11 @@ func (o *OutputFlags) BuildDispatcher() (*dispatcher.Dispatcher, error) {
 // any code that reads these files. Returns a cleanup function that removes
 // any temp files created for embedded templates.
 func (o *OutputFlags) ResolveTemplatePaths() (cleanup func()) {
+	if o.templatePathsResolved {
+		return nil
+	}
+	o.templatePathsResolved = true
+
 	var cleanups []func()
 
 	if o.PolicyFile != "" {
