@@ -697,3 +697,26 @@ func TestFullReconResultFedToBrain(t *testing.T) {
 		t.Error("fullReconResult must be fed to brain via LearnFromFinding between phases 2.7 and 2.8")
 	}
 }
+
+// ============================================================
+// Second audit regression tests (findings #1-61)
+// ============================================================
+
+// Test #39: getProjectRoot must only accept path when workspaces/ actually exists
+func TestGetProjectRoot_NoFalsePositive(t *testing.T) {
+	src, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(src)
+
+	// The old tautology: statErr == nil || os.IsNotExist(statErr) always true
+	if strings.Contains(content, "os.IsNotExist(statErr)") {
+		t.Error("getProjectRoot must not accept path when workspaces/ doesn't exist — the os.IsNotExist tautology must be removed")
+	}
+
+	// Verify the correct check is present
+	if !strings.Contains(content, `statErr == nil {`) {
+		t.Error("getProjectRoot should only accept projectRoot when workspaces/ directory actually exists (statErr == nil)")
+	}
+}

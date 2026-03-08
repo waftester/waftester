@@ -49,9 +49,9 @@ func getProjectRoot() string {
 			projectRoot := filepath.Join(exeDir, "..", "..")
 			projectRoot, err = filepath.Abs(projectRoot)
 			if err == nil {
-				// Verify this looks like the project root (has workspaces dir or can create it)
+				// Verify this looks like the project root (has workspaces dir)
 				workspacesDir := filepath.Join(projectRoot, "workspaces")
-				if _, statErr := os.Stat(workspacesDir); statErr == nil || os.IsNotExist(statErr) {
+				if _, statErr := os.Stat(workspacesDir); statErr == nil {
 					return projectRoot
 				}
 			}
