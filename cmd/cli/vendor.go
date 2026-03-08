@@ -17,6 +17,13 @@ import (
 
 // runVendorDetect executes the vendor WAF detection command
 func runVendorDetect() {
+	var exitCode int
+	defer func() {
+		if exitCode != 0 {
+			os.Exit(exitCode)
+		}
+	}()
+
 	ui.PrintCompactBanner()
 	ui.PrintSection("Vendor WAF Detection")
 
@@ -62,7 +69,8 @@ func runVendorDetect() {
 		fmt.Fprintln(os.Stderr, "  -list           List all supported WAF vendors")
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintf(os.Stderr, "Supported WAF vendors: %d (ported from wafw00f)\n", len(vendors.GetAllSignatures()))
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	ui.PrintConfigLine("Target", *target)
@@ -89,6 +97,10 @@ func runVendorDetect() {
 	vendorStartTime := time.Now()
 	vendorCtx, vendorCancel := cli.SignalContext(30 * time.Second)
 	defer vendorCancel()
+	if vendorDispCtx != nil {
+		vendorDispCtx.RegisterDetectionCallbacks(vendorCtx)
+	}
+	defer vendorCancel()
 
 	// Emit start event for scan lifecycle hooks
 	if vendorDispCtx != nil {
@@ -111,7 +123,8 @@ func runVendorDetect() {
 			_ = vendorDispCtx.EmitError(vendorCtx, "vendor", fmt.Sprintf("Vendor detection error: %v", err), true)
 		}
 		ui.PrintError(fmt.Sprintf("%v", err))
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	fmt.Fprintln(os.Stderr)
@@ -269,6 +282,13 @@ func displayVendorResults(result *vendors.DetectionResult, showHints bool) {
 
 // runProtocolDetect executes protocol detection for enterprise protocols
 func runProtocolDetect() {
+	var exitCode int
+	defer func() {
+		if exitCode != 0 {
+			os.Exit(exitCode)
+		}
+	}()
+
 	ui.PrintCompactBanner()
 	ui.PrintSection("Enterprise Protocol Detection")
 
@@ -293,7 +313,8 @@ func runProtocolDetect() {
 		fmt.Fprintln(os.Stderr, "Usage: waf-tester protocol -u <url> [options]")
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintln(os.Stderr, "Detects enterprise protocols: gRPC, gRPC-Web, SOAP, XML-RPC, WCF, GraphQL, Protobuf")
-		os.Exit(1)
+		exitCode = 1
+		return
 	}
 
 	ui.PrintConfigLine("Target", *target)
@@ -317,6 +338,10 @@ func runProtocolDetect() {
 	}
 	protoStartTime := time.Now()
 	protoCtx, protoCancel := cli.SignalContext(30 * time.Second)
+	defer protoCancel()
+	if protoDispCtx != nil {
+		protoDispCtx.RegisterDetectionCallbacks(protoCtx)
+	}
 	defer protoCancel()
 
 	// Emit start event for scan lifecycle hooks
@@ -379,7 +404,8 @@ func runProtocolDetect() {
 		}
 		if err := iohelper.WriteAtomicJSON(*output, protoResult, 0644); err != nil {
 			ui.PrintError(fmt.Sprintf("Failed to write output: %v", err))
-			os.Exit(1)
+			exitCode = 1
+			return
 		} else {
 			ui.PrintSuccess(fmt.Sprintf("Results saved to %s", *output))
 		}
