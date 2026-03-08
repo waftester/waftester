@@ -549,7 +549,6 @@ func runWorkflow() {
 
 	// Execution options
 	dryRun := fs.Bool("dry-run", false, "Show what would be executed without running")
-	_ = fs.Bool("continue-on-error", false, "Continue workflow on step failure (reserved for future use)")
 	timeout := fs.Int("timeout", 300, "Workflow timeout in seconds")
 
 	// Output options
