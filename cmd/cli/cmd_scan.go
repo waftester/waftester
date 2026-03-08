@@ -1658,25 +1658,20 @@ func runScan() {
 				}
 				vulnCount += len(scanResult.Vulnerabilities)
 				foundEndpoint = endpoint
+				result.ByCategory["graphql"] = vulnCount
+				result.TotalVulns += len(scanResult.Vulnerabilities)
 				for _, v := range scanResult.Vulnerabilities {
 					emitEvent("vulnerability", map[string]interface{}{
 						"category": "graphql",
 						"severity": v.Severity,
 						"type":     v.Type,
 					})
+					result.BySeverity[string(v.Severity)]++
 				}
 				mu.Unlock()
 			}
 		}
-		if vulnCount > 0 {
-			mu.Lock()
-			result.ByCategory["graphql"] = vulnCount
-			result.TotalVulns += vulnCount
-			for _, v := range result.GraphQL.Vulnerabilities {
-				result.BySeverity[string(v.Severity)]++
-			}
-			mu.Unlock()
-		} else if cfg.Common.Verbose {
+		if vulnCount == 0 && cfg.Common.Verbose {
 			ui.PrintInfo("No GraphQL endpoint found or no vulnerabilities detected")
 		}
 	})

@@ -574,3 +574,34 @@ func TestWorkflowExitOnEngineError(t *testing.T) {
 		t.Error("workflow exit condition must check both result.Status and workflowFailed")
 	}
 }
+
+// L1: GraphQL scanner must use a single lock region for shared state updates.
+// Two separate lock regions create a gap where another goroutine can modify
+// result.GraphQL.Vulnerabilities between the append and the counter update.
+func TestGraphQLSingleLockRegion(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile("cmd_scan.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+
+	// Find the graphql scanner section
+	graphqlIdx := strings.Index(content, `runScanner("graphql"`)
+	if graphqlIdx < 0 {
+		t.Fatal("graphql scanner not found in cmd_scan.go")
+	}
+	section := content[graphqlIdx:]
+
+	// Find the next runScanner call to bound the section
+	nextScanner := strings.Index(section[1:], "runScanner(")
+	if nextScanner > 0 {
+		section = section[:nextScanner+1]
+	}
+
+	// Count mu.Lock() calls — should be exactly 1 (single lock region)
+	lockCount := strings.Count(section, "mu.Lock()")
+	if lockCount > 1 {
+		t.Errorf("graphql scanner has %d mu.Lock() calls; want 1 (single lock region)", lockCount)
+	}
+}
