@@ -645,3 +645,27 @@ func TestRunScannerHasPanicRecovery(t *testing.T) {
 		t.Error("runScanner goroutine must have panic recovery via recover()")
 	}
 }
+
+// L4: Probe command must have --no-detect flag like all other commands
+// that use EnableDetection().
+func TestProbeHasNoDetectFlag(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile("cmd_probe_flags.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	if !strings.Contains(content, `"no-detect"`) {
+		t.Error("probe command missing --no-detect flag")
+	}
+
+	// Also verify the probe command conditionally calls EnableDetection
+	probeData, err := os.ReadFile("cmd_probe.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	probeContent := string(probeData)
+	if !strings.Contains(probeContent, "NoDetect") {
+		t.Error("probe command must check NoDetect flag before enabling detection")
+	}
+}

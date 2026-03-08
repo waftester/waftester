@@ -577,7 +577,9 @@ func runProbe() {
 
 	// Create runner for parallel target processing
 	probeRunner := runner.NewRunner[*ProbeResults]()
-	probeRunner.EnableDetection() // Enable connection drop and silent ban detection
+	if !*cfg.NoDetect {
+		probeRunner.EnableDetection()
+	}
 	probeRunner.Concurrency = workerCount
 	probeRunner.Timeout = time.Duration(*cfg.Timeout*5) * time.Second
 	if *cfg.RateLimit > 0 {

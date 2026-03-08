@@ -124,6 +124,9 @@ type probeConfig struct {
 	// Batch 2: Missing Rate-Limit flags
 	RateLimitMinute *int
 
+	// Detection
+	NoDetect *bool
+
 	// Batch 3: Missing Misc flags
 	ProbeAllIPs       *bool
 	TLSProbeExtracted *bool
@@ -387,6 +390,9 @@ func registerProbeFlags() (*flag.FlagSet, *probeConfig) {
 	// Batch 2: Missing Rate-Limit flags
 	cfg.RateLimitMinute = probeFlags.Int("rlm", 0, "Rate limit per minute (0=unlimited)")
 	probeFlags.IntVar(cfg.RateLimitMinute, "rate-limit-minute", 0, "Rate limit per minute (0=unlimited)")
+
+	// Detection
+	cfg.NoDetect = probeFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
 
 	// Batch 3: Missing Misc flags
 	cfg.ProbeAllIPs = probeFlags.Bool("pa", false, "Probe all IPs associated with host")
