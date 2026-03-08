@@ -105,3 +105,78 @@ func TestLoadUnifiedByCategory_BadDir(t *testing.T) {
 		t.Error("expected error for non-existent payload directory")
 	}
 }
+
+// --- Negative / edge-case tests ---
+
+func TestGetFallbackFuzzPayloads_EmptyCategory(t *testing.T) {
+	payloads := getFallbackFuzzPayloads("")
+	if len(payloads) == 0 {
+		t.Error("empty category should return default fallback payloads")
+	}
+}
+
+func TestGetUnifiedFuzzPayloads_EmptyCategory(t *testing.T) {
+	// Empty category with bad dirs → falls back
+	payloads := getUnifiedFuzzPayloads("/nonexistent", "/nonexistent", "", 50, false)
+	if len(payloads) == 0 {
+		t.Error("empty category should still return fallback payloads")
+	}
+}
+
+func TestGetUnifiedFuzzPayloads_ZeroLimit(t *testing.T) {
+	// limit=0 should still return payloads (fallback path doesn't cap)
+	payloads := getUnifiedFuzzPayloads("/nonexistent", "/nonexistent", "sqli", 0, false)
+	if len(payloads) == 0 {
+		t.Error("zero limit should return fallback payloads")
+	}
+}
+
+func TestGetUnifiedFuzzPayloads_NegativeLimit(t *testing.T) {
+	payloads := getUnifiedFuzzPayloads("/nonexistent", "/nonexistent", "xss", -1, false)
+	if len(payloads) == 0 {
+		t.Error("negative limit should return fallback payloads")
+	}
+}
+
+func TestGetUnifiedFuzzPayloads_EmptyDirs(t *testing.T) {
+	payloads := getUnifiedFuzzPayloads("", "", "sqli", 10, false)
+	if len(payloads) == 0 {
+		t.Error("empty dirs should trigger fallback")
+	}
+}
+
+func TestLoadUnifiedPayloads_EmptyDirs(t *testing.T) {
+	_, _, err := loadUnifiedPayloads("", "", false)
+	if err == nil {
+		t.Error("expected error for empty directory paths")
+	}
+}
+
+func TestLoadUnifiedByCategory_EmptyCategory(t *testing.T) {
+	_, err := loadUnifiedByCategory("/nonexistent", "/nonexistent", "", false)
+	if err == nil {
+		t.Error("expected error for empty category with bad dir")
+	}
+}
+
+func TestGetFallbackFuzzPayloads_WhitespaceCategory(t *testing.T) {
+	payloads := getFallbackFuzzPayloads("   ")
+	if len(payloads) == 0 {
+		t.Error("whitespace category should return default fallback")
+	}
+}
+
+func TestGetFallbackFuzzPayloads_NoEmptyPayloads(t *testing.T) {
+	// All categories must return non-empty payload strings
+	categories := []string{"sqli", "xss", "cmdi", "traversal", "ssrf", "ssti", "xxe", "", "unknown"}
+	for _, cat := range categories {
+		t.Run(cat, func(t *testing.T) {
+			payloads := getFallbackFuzzPayloads(cat)
+			for i, p := range payloads {
+				if p == "" {
+					t.Errorf("getFallbackFuzzPayloads(%q)[%d] is empty string", cat, i)
+				}
+			}
+		})
+	}
+}

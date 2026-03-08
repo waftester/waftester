@@ -579,3 +579,192 @@ func TestDatabase_ConcurrentAccess(t *testing.T) {
 
 	wg.Wait()
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Negative / edge-case tests for payloads.Database.
+// These catch bugs that normal happy-path tests miss:
+//   - nil/empty inputs to every public method
+//   - boundary values (0, negative)
+//   - malformed JSON variants
+//   - empty-string keys in category/vendor/tag indexes
+// ─────────────────────────────────────────────────────────────────────────────
+
+// newEmptyDB creates a Database without loading built-in payloads.
+func newEmptyDB() *Database {
+	return &Database{
+		payloads:   make([]Payload, 0),
+		byCategory: make(map[string][]Payload),
+		byVendor:   make(map[string][]Payload),
+		byTag:      make(map[string][]Payload),
+		bySeverity: make(map[string][]Payload),
+	}
+}
+
+func TestDatabase_SearchEmptyQuery(t *testing.T) {
+	t.Parallel()
+	db := newEmptyDB()
+	db.Add(Payload{ID: "1", Payload: "test", Category: "sqli"})
+	db.Add(Payload{ID: "2", Payload: "other", Category: "xss"})
+
+	// Empty query matches everything (every string contains "")
+	results := db.Search("")
+	assert.Equal(t, 2, len(results), "empty search query should match all payloads")
+}
+
+func TestDatabase_ByCategoryEmptyString(t *testing.T) {
+	t.Parallel()
+	db := newEmptyDB()
+	db.Add(Payload{ID: "1", Payload: "test", Category: ""})
+	db.Add(Payload{ID: "2", Payload: "test2", Category: "sqli"})
+
+	empty := db.ByCategory("")
+	assert.Len(t, empty, 1, "should find payload with empty category")
+	assert.Equal(t, "1", empty[0].ID)
+}
+
+func TestDatabase_ByVendorEmptyString(t *testing.T) {
+	t.Parallel()
+	db := newEmptyDB()
+	db.Add(Payload{ID: "1", Payload: "test", Vendor: ""})
+
+	// Empty vendor is not indexed (addLocked skips empty Vendor)
+	results := db.ByVendor("")
+	assert.Empty(t, results, "empty vendor should not match anything")
+}
+
+func TestDatabase_BySeverityEmptyString(t *testing.T) {
+	t.Parallel()
+	db := newEmptyDB()
+	db.Add(Payload{ID: "1", Payload: "test", SeverityHint: ""})
+
+	// Empty severity is not indexed (addLocked checks SeverityHint != "")
+	results := db.BySeverity("")
+	assert.Empty(t, results, "empty severity should not be indexed")
+}
+
+func TestDatabase_AddBatchNil(t *testing.T) {
+	t.Parallel()
+	db := newEmptyDB()
+	db.AddBatch(nil)
+	assert.Equal(t, 0, db.Count())
+}
+
+func TestDatabase_AddBatchEmpty(t *testing.T) {
+	t.Parallel()
+	db := newEmptyDB()
+	db.AddBatch([]Payload{})
+	assert.Equal(t, 0, db.Count())
+}
+
+func TestDatabase_LoadFromJSON_Nil(t *testing.T) {
+	t.Parallel()
+	db := newEmptyDB()
+	err := db.LoadFromJSON(nil)
+	assert.Error(t, err, "nil JSON data should produce an error")
+}
+
+func TestDatabase_LoadFromJSON_EmptyArray(t *testing.T) {
+	t.Parallel()
+	db := newEmptyDB()
+	err := db.LoadFromJSON([]byte("[]"))
+	assert.NoError(t, err, "valid empty JSON array should succeed")
+	assert.Equal(t, 0, db.Count())
+}
+
+func TestDatabase_LoadFromJSON_JSONObject(t *testing.T) {
+	t.Parallel()
+	db := newEmptyDB()
+	err := db.LoadFromJSON([]byte(`{"id": "1"}`))
+	assert.Error(t, err, "JSON object (not array) should produce an error")
+}
+
+func TestDatabase_LoadFromJSON_EmptyBytes(t *testing.T) {
+	t.Parallel()
+	db := newEmptyDB()
+	err := db.LoadFromJSON([]byte(""))
+	assert.Error(t, err, "empty bytes should produce an error")
+}
+
+func TestDatabase_ExportJSON_EmptyDatabase(t *testing.T) {
+	t.Parallel()
+	db := newEmptyDB()
+	data, err := db.ExportJSON()
+	require.NoError(t, err, "exporting empty database should not error")
+	assert.NotEmpty(t, data, "export should produce some output")
+}
+
+func TestDatabase_FilterWithEmptyVendor(t *testing.T) {
+	t.Parallel()
+	db := newEmptyDB()
+	db.Add(Payload{ID: "1", Payload: "test", Category: "sqli", Vendor: "cloudflare"})
+	db.Add(Payload{ID: "2", Payload: "test2", Category: "sqli", Vendor: ""})
+
+	results := db.Filter(WithVendors(""))
+	// EqualFold("cloudflare","") is false, so only payload 2 matches
+	assert.Len(t, results, 1, "empty vendor filter should only match empty-vendor payloads")
+}
+
+func TestDatabase_RankedPayloads_ZeroLimit(t *testing.T) {
+	t.Parallel()
+	db := newEmptyDB()
+	db.Add(Payload{ID: "1", Payload: "test", Category: "sqli"})
+
+	results := db.RankedPayloads("sqli", "", 0)
+	assert.Empty(t, results, "zero limit should return no payloads")
+}
+
+func TestDatabase_RankedPayloads_NegativeLimit(t *testing.T) {
+	t.Parallel()
+	db := newEmptyDB()
+	db.Add(Payload{ID: "1", Payload: "test", Category: "sqli"})
+
+	results := db.RankedPayloads("sqli", "", -1)
+	assert.Empty(t, results, "negative limit should return no payloads")
+}
+
+func TestDatabase_SearchOnEmptyDB(t *testing.T) {
+	t.Parallel()
+	db := newEmptyDB()
+	results := db.Search("anything")
+	assert.Empty(t, results)
+}
+
+func TestDatabase_VendorNotes_Extraction(t *testing.T) {
+	t.Parallel()
+	db := newEmptyDB()
+	db.Add(Payload{ID: "1", Payload: "test", Category: "sqli", Notes: "vendor:cloudflare bypass"})
+
+	results := db.ByVendor("cloudflare")
+	assert.Len(t, results, 1, "vendor from Notes should be indexed")
+}
+
+func TestDatabase_FilterCombinedMismatch(t *testing.T) {
+	t.Parallel()
+	db := newEmptyDB()
+	db.Add(Payload{ID: "1", Payload: "test", Category: "sqli", Tags: []string{"evasion"}})
+	db.Add(Payload{ID: "2", Payload: "test2", Category: "xss", Tags: []string{"exploit"}})
+
+	// Mismatched: right category, wrong tag
+	results := db.Filter(WithCategories("sqli"), WithTags("exploit"))
+	assert.Empty(t, results, "mismatched category+tag should return nothing")
+}
+
+func TestGetStats_Nil(t *testing.T) {
+	t.Parallel()
+	stats := GetStats(nil)
+	assert.Equal(t, 0, stats.TotalPayloads)
+	assert.Empty(t, stats.ByCategory)
+}
+
+func TestCopyPayloads_Nil(t *testing.T) {
+	t.Parallel()
+	result := copyPayloads(nil)
+	assert.Nil(t, result, "copyPayloads(nil) should return nil")
+}
+
+func TestCopyPayloads_Empty(t *testing.T) {
+	t.Parallel()
+	result := copyPayloads([]Payload{})
+	assert.NotNil(t, result, "copyPayloads(empty) should return non-nil empty slice")
+	assert.Len(t, result, 0)
+}

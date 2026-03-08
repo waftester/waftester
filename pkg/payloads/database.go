@@ -434,7 +434,10 @@ func (db *Database) RankedPayloads(category, vendor string, limit int) []Payload
 		return items[i].score > items[j].score
 	})
 
-	if limit <= 0 || limit > len(items) {
+	if limit <= 0 {
+		return nil
+	}
+	if limit > len(items) {
 		limit = len(items)
 	}
 	result := make([]Payload, limit)

@@ -233,3 +233,193 @@ func TestDescribeTampers(t *testing.T) {
 		}
 	}
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Negative / edge-case tests for tamper Engine
+// ─────────────────────────────────────────────────────────────────────────────
+
+func TestNewEngine_NilConfig(t *testing.T) {
+	engine := NewEngine(nil)
+	if engine == nil {
+		t.Fatal("NewEngine(nil) should return a valid engine")
+	}
+	if engine.profile != ProfileStandard {
+		t.Errorf("nil config should default to ProfileStandard, got %s", engine.profile)
+	}
+}
+
+func TestNewEngine_UnknownProfile(t *testing.T) {
+	engine := NewEngine(&EngineConfig{
+		Profile: "nonexistent-profile",
+	})
+	// Unknown profile should fall through to the default case in GetSelectedTampers
+	tampers := engine.GetSelectedTampers()
+	// Default case is ProfileStandard, so should return standard tampers
+	if len(tampers) == 0 {
+		t.Error("unknown profile should fall through to standard and return tampers")
+	}
+}
+
+func TestEngineCustomTampers_EmptyList(t *testing.T) {
+	engine := NewEngine(&EngineConfig{
+		Profile:       ProfileCustom,
+		CustomTampers: []string{},
+	})
+	tampers := engine.GetSelectedTampers()
+	if len(tampers) != 0 {
+		t.Errorf("custom profile with no tampers should return empty list, got %d", len(tampers))
+	}
+}
+
+func TestEngineCustomTampers_NilList(t *testing.T) {
+	engine := NewEngine(&EngineConfig{
+		Profile:       ProfileCustom,
+		CustomTampers: nil,
+	})
+	tampers := engine.GetSelectedTampers()
+	if tampers != nil {
+		t.Errorf("custom profile with nil tampers should return nil, got %v", tampers)
+	}
+}
+
+func TestEngineTransform_EmptyInput(t *testing.T) {
+	engine := NewEngine(&EngineConfig{
+		Profile:       ProfileCustom,
+		CustomTampers: []string{"space2comment"},
+	})
+	result := engine.Transform("")
+	if result != "" {
+		t.Errorf("transforming empty string should return empty, got %q", result)
+	}
+}
+
+func TestEngineTransformWith_UnknownTamper(t *testing.T) {
+	engine := NewEngine(nil)
+	payload := "SELECT * FROM users"
+	result := engine.TransformWith(payload, "nonexistent_tamper_xyz")
+	// Unknown tamper should return payload unchanged
+	if result != payload {
+		t.Errorf("unknown tamper should return original payload, got %q", result)
+	}
+}
+
+func TestEngineSetWAFVendor_Empty(t *testing.T) {
+	engine := NewEngine(&EngineConfig{
+		Profile:   ProfileStandard,
+		WAFVendor: "cloudflare",
+	})
+	engine.SetWAFVendor("")
+	// Should clear vendor
+	engine.mu.RLock()
+	v := engine.wafVendor
+	engine.mu.RUnlock()
+	if v != "" {
+		t.Errorf("SetWAFVendor('') should clear vendor, got %q", v)
+	}
+}
+
+func TestValidateTamperNames_Nil(t *testing.T) {
+	valid, invalid := ValidateTamperNames(nil)
+	if len(valid) != 0 || len(invalid) != 0 {
+		t.Errorf("nil input: got valid=%d, invalid=%d", len(valid), len(invalid))
+	}
+}
+
+func TestValidateTamperNames_EmptyStrings(t *testing.T) {
+	valid, invalid := ValidateTamperNames([]string{""})
+	if len(valid) != 0 {
+		t.Errorf("empty string should not be valid, got %v", valid)
+	}
+	if len(invalid) != 1 {
+		t.Errorf("empty string should be invalid, got %v", invalid)
+	}
+}
+
+func TestValidateTamperNames_AllInvalid(t *testing.T) {
+	valid, invalid := ValidateTamperNames([]string{"fake1", "fake2", "fake3"})
+	if len(valid) != 0 {
+		t.Errorf("all-invalid input should have 0 valid, got %v", valid)
+	}
+	if len(invalid) != 3 {
+		t.Errorf("all-invalid input should have 3 invalid, got %v", invalid)
+	}
+}
+
+func TestParseTamperList_CommasOnly(t *testing.T) {
+	result := ParseTamperList(",,,")
+	if len(result) != 0 {
+		t.Errorf("commas-only should return empty list, got %v", result)
+	}
+}
+
+func TestParseTamperList_WhitespaceOnly(t *testing.T) {
+	result := ParseTamperList("   ")
+	if len(result) != 0 {
+		t.Errorf("whitespace-only should return empty list, got %v", result)
+	}
+}
+
+func TestEngineRecordSuccess_EmptyList(t *testing.T) {
+	engine := NewEngine(&EngineConfig{
+		Profile:       ProfileStandard,
+		EnableMetrics: true,
+	})
+	// Should not panic
+	engine.RecordSuccess(nil)
+	engine.RecordSuccess([]string{})
+}
+
+func TestEngineRecordFailure_EmptyList(t *testing.T) {
+	engine := NewEngine(&EngineConfig{
+		Profile:       ProfileStandard,
+		EnableMetrics: true,
+	})
+	// Should not panic
+	engine.RecordFailure(nil)
+	engine.RecordFailure([]string{})
+}
+
+func TestEngineGetAdaptiveScores_EmptyEngine(t *testing.T) {
+	engine := NewEngine(nil)
+	scores := engine.GetAdaptiveScores()
+	if scores == nil {
+		t.Error("GetAdaptiveScores should return non-nil map")
+	}
+	if len(scores) != 0 {
+		t.Errorf("new engine should have no scores, got %d", len(scores))
+	}
+}
+
+func TestEngineTransformRequest_NilRequest(t *testing.T) {
+	engine := NewEngine(&EngineConfig{
+		Profile:       ProfileCustom,
+		CustomTampers: []string{"space2comment"},
+	})
+	result := engine.TransformRequest(nil)
+	if result != nil {
+		t.Error("TransformRequest(nil) should return nil")
+	}
+}
+
+func TestEngineSetProfile(t *testing.T) {
+	engine := NewEngine(nil)
+
+	engine.SetProfile(ProfileAggressive)
+	engine.mu.RLock()
+	p := engine.profile
+	engine.mu.RUnlock()
+	if p != ProfileAggressive {
+		t.Errorf("expected ProfileAggressive, got %s", p)
+	}
+}
+
+func TestEngineDescribeTampers_EmptyCustom(t *testing.T) {
+	engine := NewEngine(&EngineConfig{
+		Profile:       ProfileCustom,
+		CustomTampers: []string{},
+	})
+	infos := engine.DescribeTampers()
+	if len(infos) != 0 {
+		t.Errorf("empty custom tampers should describe 0 tampers, got %d", len(infos))
+	}
+}
