@@ -10,7 +10,6 @@ import (
 
 	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/discovery"
-	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/input"
 	"github.com/waftester/waftester/pkg/ui"
 )
@@ -107,8 +106,10 @@ func runDiscover() {
 
 	discoverer := discovery.NewDiscoverer(cfg)
 
-	// Setup context with timeout
-	ctx, cancel := context.WithTimeout(sigCtx, duration.ContextMedium)
+	// Setup context with timeout derived from user settings
+	// Overall budget = HTTP timeout × depth × concurrency (defaults: 10s × 3 × 10 = 5min)
+	contextBudget := time.Duration(*timeout) * time.Second * time.Duration(*maxDepth) * time.Duration(*concurrency)
+	ctx, cancel := context.WithTimeout(sigCtx, contextBudget)
 	defer cancel()
 
 	// Run discovery
