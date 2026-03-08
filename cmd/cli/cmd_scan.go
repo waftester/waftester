@@ -602,16 +602,11 @@ func runScan() {
 		close(tlsDone)
 	}
 
-	// Clamp rate limit to minimum of 1 (0 or negative would block forever)
-	if *cfg.RateLimit < 1 {
-		*cfg.RateLimit = 1
-	}
-
-	// Create per-host rate limiter when --rate-limit-per-host is set.
-	// Global rate limiting is enforced at the HTTP transport level via
-	// rateLimitTransport, so no standalone scanLimiter is needed.
+	// Create per-host rate limiter when --rate-limit-per-host is set and a
+	// positive rate limit was specified. When --rate-limit is 0 the user
+	// wants unlimited throughput — don't silently clamp to 1 req/s.
 	var perHostLimiter *ratelimit.Limiter
-	if *cfg.RateLimitPerHost {
+	if *cfg.RateLimitPerHost && *cfg.RateLimit > 0 {
 		perHostLimiter = ratelimit.New(&ratelimit.Config{
 			RequestsPerSecond: *cfg.RateLimit,
 			PerHost:           true,

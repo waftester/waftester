@@ -256,3 +256,24 @@ func TestAutoscanDiscoveryResultsPersisted(t *testing.T) {
 		t.Error("discovery WriteAtomicJSON should appear after markPhaseCompleted")
 	}
 }
+
+// H1 (logical-order): Rate-limit 0 must not silently clamp to 1 req/s.
+// The per-host limiter must only be created when rate-limit > 0.
+func TestScanNoRateLimitClampToOne(t *testing.T) {
+	src, err := os.ReadFile("cmd_scan.go")
+	if err != nil {
+		t.Fatalf("failed to read cmd_scan.go: %v", err)
+	}
+	content := string(src)
+
+	// The old unconditional clamp pattern must not exist
+	if strings.Contains(content, `if *cfg.RateLimit < 1 {`) {
+		t.Error("rate-limit must not silently clamp 0 to 1 — user intends unlimited")
+	}
+
+	// Per-host limiter must be guarded by RateLimit > 0
+	if strings.Contains(content, `if *cfg.RateLimitPerHost {`) &&
+		!strings.Contains(content, `RateLimitPerHost && *cfg.RateLimit > 0`) {
+		t.Error("per-host limiter must be guarded by RateLimit > 0")
+	}
+}
