@@ -293,7 +293,7 @@ func runRace() {
 	headers := fs.String("H", "", "Headers (format: 'Header: Value' comma-separated)")
 
 	// Attack options
-	attackType := fs.String("attack", "double_submit", "Attack type: double_submit, token_reuse, limit_bypass, toctou")
+	attackType := fs.String("attack", "double_submit", "Attack type: double_submit, token_reuse, limit_bypass, toctou, session_fixation, resource_exhaust")
 	concurrency := fs.Int("c", 50, "Concurrent requests")
 	iterations := fs.Int("n", 1, "Number of iterations")
 	timeout := fs.Int("timeout", 30, "Request timeout in seconds")
@@ -313,11 +313,15 @@ func runRace() {
 	fs.Parse(os.Args[2:])
 
 	// Validate attack type
-	switch *attackType {
-	case "double_submit", "token_reuse", "limit_bypass":
-		// valid
-	default:
-		exitWithError("--attack must be one of: double_submit, token_reuse, limit_bypass; got %q", *attackType)
+	validType := false
+	for _, at := range race.AllAttackTypes() {
+		if race.AttackType(*attackType) == at {
+			validType = true
+			break
+		}
+	}
+	if !validType {
+		exitWithError("--attack must be one of: double_submit, token_reuse, limit_bypass, toctou, session_fixation, resource_exhaust; got %q", *attackType)
 	}
 
 	if *targetURL == "" {

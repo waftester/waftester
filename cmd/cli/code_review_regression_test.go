@@ -501,3 +501,21 @@ func TestBypassOutputFileWrittenAlways(t *testing.T) {
 		t.Error("-o file must be written after the bypass/no-bypass display logic (i.e., always written)")
 	}
 }
+
+// M8 (logical-order): race command must accept all valid attack types.
+func TestRaceCommandAcceptsAllAttackTypes(t *testing.T) {
+	src, err := os.ReadFile("cmd_misc.go")
+	if err != nil {
+		t.Fatalf("failed to read cmd_misc.go: %v", err)
+	}
+	content := string(src)
+
+	// Must use AllAttackTypes() for validation, not a hardcoded switch
+	if !strings.Contains(content, "race.AllAttackTypes()") {
+		t.Error("race attack type validation must use race.AllAttackTypes() instead of hardcoded switch")
+	}
+	// Must accept toctou (was missing from the old switch)
+	if !strings.Contains(content, "toctou") {
+		t.Error("race attack type help text must include toctou")
+	}
+}
