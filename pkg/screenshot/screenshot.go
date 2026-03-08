@@ -322,20 +322,29 @@ func (b *BatchCapturer) Stop() {
 	b.stopOnce.Do(func() {
 		b.stopped.Store(true)
 		close(b.done)
-		// Wait for workers to exit, then close channels so drain goroutines terminate
+		// Wait for workers to exit.
 		b.wg.Wait()
-		close(b.queue)
-		close(b.results)
-		// Drain remaining items
-		go func() {
-			for range b.queue {
+		// Drain remaining queued items to prevent goroutine leaks.
+		// Don't close b.queue/b.results — concurrent Add() callers may
+		// still hold a reference in their select statement. The channels
+		// will be GC'd with the BatchCapturer.
+	drainQueue:
+		for {
+			select {
+			case <-b.queue:
+			default:
+				break drainQueue
 			}
-		}()
-		go func() {
-			for range b.results {
+		}
+	drainResults:
+		for {
+			select {
+			case <-b.results:
+			default:
+				break drainResults
 			}
-			close(b.drainDone)
-		}()
+		}
+		close(b.drainDone)
 	})
 }
 

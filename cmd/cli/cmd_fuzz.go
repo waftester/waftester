@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"crypto/tls"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
@@ -24,6 +23,7 @@ import (
 	"github.com/waftester/waftester/pkg/duration"
 	"github.com/waftester/waftester/pkg/evasion/advanced/tampers"
 	"github.com/waftester/waftester/pkg/fuzz"
+	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/input"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/regexcache"
@@ -210,13 +210,9 @@ func runFuzz() {
 				exitCode = 1
 				return
 			}
-			dlClient := http.DefaultClient
+			dlClient := httpclient.Default()
 			if *skipVerify {
-				dlClient = &http.Client{
-					Transport: &http.Transport{
-						TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // user-requested via -k flag
-					},
-				}
+				dlClient = httpclient.New(httpclient.Config{InsecureSkipVerify: true})
 			}
 			resp, err := dlClient.Do(req)
 			if err != nil {

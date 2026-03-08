@@ -226,10 +226,11 @@ func TestExpandProbeTargetPorts(t *testing.T) {
 	if len(expanded) != 2 {
 		t.Fatalf("expected 2 expanded targets, got %d", len(expanded))
 	}
-	if expanded[0] != "http://example.com:80" {
-		t.Errorf("expected http://example.com:80, got %s", expanded[0])
+	// RequestURI() returns "/" for bare URLs, so expect trailing slash
+	if expanded[0] != "http://example.com:80/" {
+		t.Errorf("expected http://example.com:80/, got %s", expanded[0])
 	}
-	if expanded[1] != "https://example.com:443" {
-		t.Errorf("expected https://example.com:443, got %s", expanded[1])
+	if expanded[1] != "https://example.com:443/" {
+		t.Errorf("expected https://example.com:443/, got %s", expanded[1])
 	}
 }

@@ -56,11 +56,12 @@ func bypassResultsToExecution(target string, bypasses []*mutation.TestResult, to
 
 	res.BlockedTests = clampNonNegative(res.TotalTests - res.FailedTests)
 
-	// EncodingStats here only contain bypass counts (blocked results aren't
-	// passed to this function), so per-encoding BypassRate cannot be computed
-	// meaningfully. Leave at 0; the full rate is in res.BlockedTests/TotalTests.
+	// Compute per-encoding BypassRate from bypass counts.
+	// All tests tracked per encoding are bypasses (blocked results aren't
+	// passed to this function), so BypassRate = 100% for each.
 	for _, enc := range res.EncodingStats {
 		if enc.TotalTests > 0 {
+			enc.BypassRate = float64(enc.Bypasses) / float64(enc.TotalTests) * 100
 			enc.BlockedTests = 0
 		}
 	}
