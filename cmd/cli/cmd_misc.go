@@ -14,6 +14,7 @@ import (
 
 	"github.com/chromedp/chromedp"
 	"github.com/waftester/waftester/pkg/cli"
+	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/headless"
 	"github.com/waftester/waftester/pkg/race"
 	"github.com/waftester/waftester/pkg/smuggling"
@@ -48,6 +49,9 @@ func runSmuggle() {
 	verbose := fs.Bool("v", false, "Verbose output")
 	streamMode := fs.Bool("stream", false, "Streaming output mode for CI/scripts")
 
+	// Detection
+	noDetect := fs.Bool("no-detect", false, "Disable connection drop and silent ban detection")
+
 	// Enterprise hook flags (Slack, Teams, PagerDuty, OTEL, etc.)
 	smuggleSlack := fs.String("slack-webhook", "", "Slack webhook URL for notifications")
 	smuggleTeams := fs.String("teams-webhook", "", "Teams webhook URL for notifications")
@@ -56,6 +60,10 @@ func runSmuggle() {
 	smuggleWebhook := fs.String("webhook-url", "", "Generic webhook URL")
 
 	fs.Parse(os.Args[2:])
+
+	if *noDetect {
+		detection.Disable()
+	}
 
 	// Collect targets
 	targets := []string{}
@@ -303,6 +311,9 @@ func runRace() {
 	jsonOutput := fs.Bool("json", false, "JSON output to stdout")
 	verbose := fs.Bool("v", false, "Verbose output")
 
+	// Detection
+	raceNoDetect := fs.Bool("no-detect", false, "Disable connection drop and silent ban detection")
+
 	// Enterprise hook flags (Slack, Teams, PagerDuty, OTEL, etc.)
 	raceSlack := fs.String("slack-webhook", "", "Slack webhook URL for notifications")
 	raceTeams := fs.String("teams-webhook", "", "Teams webhook URL for notifications")
@@ -311,6 +322,10 @@ func runRace() {
 	raceWebhook := fs.String("webhook-url", "", "Generic webhook URL")
 
 	fs.Parse(os.Args[2:])
+
+	if *raceNoDetect {
+		detection.Disable()
+	}
 
 	// Validate attack type
 	validType := false
@@ -777,6 +792,9 @@ func runHeadless() {
 	maxClicks := fs.Int("max-clicks", 50, "Maximum elements to click during event crawl")
 	clickTimeout := fs.Int("click-timeout", 5, "Timeout per click in seconds")
 
+	// Detection
+	headlessNoDetect := fs.Bool("no-detect", false, "Disable connection drop and silent ban detection")
+
 	// Enterprise hook flags (Slack, Teams, PagerDuty, OTEL, etc.)
 	headlessSlack := fs.String("slack-webhook", "", "Slack webhook URL for notifications")
 	headlessTeams := fs.String("teams-webhook", "", "Teams webhook URL for notifications")
@@ -785,6 +803,10 @@ func runHeadless() {
 	headlessWebhook := fs.String("webhook-url", "", "Generic webhook URL")
 
 	fs.Parse(os.Args[2:])
+
+	if *headlessNoDetect {
+		detection.Disable()
+	}
 
 	// Collect targets
 	targets := []string{}

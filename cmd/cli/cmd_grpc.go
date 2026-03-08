@@ -11,6 +11,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/grpc"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/templateresolver"
@@ -54,7 +55,14 @@ func runGRPC() {
 	jsonOutput := grpcFlags.Bool("json", false, "Output in JSON format")
 	verbose := grpcFlags.Bool("v", false, "Verbose output")
 
+	// Detection
+	noDetect := grpcFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
+
 	grpcFlags.Parse(os.Args[2:])
+
+	if *noDetect {
+		detection.Disable()
+	}
 
 	// Resolve nuclei template directory with embedded fallback.
 	if resolved, err := templateresolver.ResolveNucleiDir(*templateDir); err == nil {

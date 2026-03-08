@@ -11,6 +11,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/soap"
 	"github.com/waftester/waftester/pkg/templateresolver"
@@ -57,7 +58,14 @@ func runSOAP() {
 	jsonOutput := soapFlags.Bool("json", false, "Output in JSON format")
 	verbose := soapFlags.Bool("v", false, "Verbose output")
 
+	// Detection
+	noDetect := soapFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
+
 	soapFlags.Parse(os.Args[2:])
+
+	if *noDetect {
+		detection.Disable()
+	}
 
 	// Resolve nuclei template directory with embedded fallback.
 	if resolved, err := templateresolver.ResolveNucleiDir(*templateDir); err == nil {

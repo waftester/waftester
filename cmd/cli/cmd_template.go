@@ -15,6 +15,7 @@ import (
 
 	"github.com/waftester/waftester/pkg/cli"
 	"github.com/waftester/waftester/pkg/defaults"
+	"github.com/waftester/waftester/pkg/detection"
 	"github.com/waftester/waftester/pkg/httpclient"
 	"github.com/waftester/waftester/pkg/iohelper"
 	"github.com/waftester/waftester/pkg/nuclei"
@@ -64,7 +65,14 @@ func runTemplate() {
 	enrichPayloads := templateFlags.Bool("enrich", false, "Enrich templates with JSON payload database")
 	payloadDir := templateFlags.String("payloads", defaults.PayloadDir, "Directory containing JSON payloads")
 
+	// Detection
+	noDetect := templateFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
+
 	templateFlags.Parse(os.Args[2:])
+
+	if *noDetect {
+		detection.Disable()
+	}
 
 	// Get target URL
 	targetURL := *target

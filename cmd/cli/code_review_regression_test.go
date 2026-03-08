@@ -805,3 +805,34 @@ func TestAutoScan_InterimDurationNotZero(t *testing.T) {
 		}
 	}
 }
+
+// Test #1-7: all HTTP-attacking commands must have --no-detect flag
+func TestAllAttackCommands_HaveNoDetectFlag(t *testing.T) {
+	checks := []struct {
+		file    string
+		command string
+	}{
+		{"cmd_misc.go", "smuggle"},
+		{"cmd_misc.go", "race"},
+		{"cmd_misc.go", "headless"},
+		{"cmd_template.go", "template"},
+		{"cmd_grpc.go", "grpc"},
+		{"cmd_soap.go", "soap"},
+		{"cmd_openapi.go", "openapi"},
+	}
+
+	for _, c := range checks {
+		src, err := os.ReadFile(c.file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		content := string(src)
+
+		if !strings.Contains(content, `"no-detect"`) {
+			t.Errorf("%s (%s): must have --no-detect flag", c.file, c.command)
+		}
+		if !strings.Contains(content, "detection.Disable()") {
+			t.Errorf("%s (%s): must call detection.Disable() when --no-detect is set", c.file, c.command)
+		}
+	}
+}
