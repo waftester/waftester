@@ -386,3 +386,37 @@ func TestAutoscanDryRunPhaseNames(t *testing.T) {
 		}
 	}
 }
+
+// M3 (logical-order): ctx.Err() checks must exist between major phases.
+func TestAutoscanCtxChecksBetweenPhases(t *testing.T) {
+	src, err := os.ReadFile("cmd_autoscan.go")
+	if err != nil {
+		t.Fatalf("failed to read cmd_autoscan.go: %v", err)
+	}
+	content := string(src)
+
+	// Between each phase boundary, there must be a ctx.Err() check
+	boundaries := []struct {
+		before string
+		after  string
+	}{
+		{"PHASE 2: DEEP JAVASCRIPT", "ctx.Err()"},
+		{"PHASE 3: INTELLIGENT LEARNING", "ctx.Err()"},
+		{"PHASE 4: WAF SECURITY TESTING", "ctx.Err()"},
+	}
+	for _, b := range boundaries {
+		phaseIdx := strings.Index(content, b.before)
+		if phaseIdx < 0 {
+			t.Fatalf("expected %q in cmd_autoscan.go", b.before)
+		}
+		// Look in the 300 chars before the phase header for ctx.Err()
+		start := phaseIdx - 300
+		if start < 0 {
+			start = 0
+		}
+		window := content[start:phaseIdx]
+		if !strings.Contains(window, b.after) {
+			t.Errorf("missing ctx.Err() check before %q", b.before)
+		}
+	}
+}

@@ -973,6 +973,11 @@ func runAutoScan() {
 	// Refresh endpoint counter after leaky-paths resume enrichment
 	autoProgress.SetMetric("endpoints", int64(len(discResult.Endpoints)))
 
+	// Bail early if context was cancelled during discovery/leaky-paths
+	if ctx.Err() != nil {
+		return
+	}
+
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 2: DEEP JAVASCRIPT ANALYSIS
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -1857,6 +1862,11 @@ func runAutoScan() {
 		}
 	}
 
+	// Bail early if context was cancelled during JS analysis
+	if ctx.Err() != nil {
+		return
+	}
+
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 3: INTELLIGENT LEARNING
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -1905,6 +1915,11 @@ func runAutoScan() {
 		autoProgress.Increment()
 		markPhaseCompleted("learning")
 	} // end learning skip guard
+
+	// Bail early if context was cancelled during learning
+	if ctx.Err() != nil {
+		return
+	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PHASE 4: WAF SECURITY TESTING
