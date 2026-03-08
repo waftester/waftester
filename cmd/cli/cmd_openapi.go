@@ -157,6 +157,10 @@ func runOpenAPI() {
 		runOpenAPIList(spec, targetBaseURL, *jsonOutput)
 
 	case *fuzz:
+		if targetBaseURL == "" {
+			ui.PrintError("Base URL required for fuzzing. Use --base-url or -u, or ensure the spec has servers defined.")
+			os.Exit(1)
+		}
 		runOpenAPIFuzz(ctx, spec, targetBaseURL, *payloadDir, *templateDir, *scanType, *path, *method, authHeaders,
 			*outputFile, *jsonOutput, *verbose)
 

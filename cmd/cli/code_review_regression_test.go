@@ -538,3 +538,22 @@ func TestTemplateTargetsBeforeTemplateLoading(t *testing.T) {
 		t.Error("target list validation (readTargetsFromFile) must happen before template loading (nuclei.LoadDirectory)")
 	}
 }
+
+// M10 (logical-order): openapi fuzz must validate baseURL before fuzzing.
+func TestOpenAPIFuzzRequiresBaseURL(t *testing.T) {
+	src, err := os.ReadFile("cmd_openapi.go")
+	if err != nil {
+		t.Fatalf("failed to read cmd_openapi.go: %v", err)
+	}
+	content := string(src)
+
+	// There must be a baseURL check before runOpenAPIFuzz
+	checkIdx := strings.Index(content, `Base URL required for fuzzing`)
+	fuzzIdx := strings.Index(content, "runOpenAPIFuzz(")
+	if checkIdx < 0 {
+		t.Error("openapi fuzz must validate baseURL is non-empty before calling runOpenAPIFuzz")
+	}
+	if checkIdx > 0 && fuzzIdx > 0 && checkIdx > fuzzIdx {
+		t.Error("baseURL validation must appear before runOpenAPIFuzz call")
+	}
+}
