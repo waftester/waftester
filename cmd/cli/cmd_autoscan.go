@@ -3270,106 +3270,13 @@ func runAutoScan() {
 		skippedTests = 0
 	}
 
-	scanDuration := time.Since(startTime)
+	// scanDuration is computed after all phases (assessment + browser) complete,
+	// so the reported time includes the full scan. See "FINAL REPORT" below.
+	var scanDuration time.Duration
 
-	// Print summary (only in non-JSON mode)
-	if !quietMode {
-		fmt.Fprintf(os.Stderr, "  %s\n", strings.Repeat(ui.Icon("═", "="), 60))
-		fmt.Fprintln(os.Stderr, "                    SUPERPOWER SCAN COMPLETE")
-		fmt.Fprintf(os.Stderr, "  %s\n", strings.Repeat(ui.Icon("═", "="), 60))
-		fmt.Fprintln(os.Stderr)
-
-		ui.PrintConfigLine("Target", target)
-		ui.PrintConfigLine("Duration", scanDuration.Round(time.Second).String())
-		ui.PrintConfigLine("Workspace", workspaceDir)
-		fmt.Fprintln(os.Stderr)
-
-		fmt.Fprintf(os.Stderr, "  +------------------------------------------------+\n")
-		fmt.Fprintf(os.Stderr, "  |  Total Endpoints:    %-26d |\n", len(discResult.Endpoints))
-		fmt.Fprintf(os.Stderr, "  |  JS Files Analyzed:  %-26d |\n", atomic.LoadInt32(&jsAnalyzed))
-		fmt.Fprintf(os.Stderr, "  |  Secrets Found:      %-26d |\n", len(allJSData.Secrets))
-		fmt.Fprintf(os.Stderr, "  |  Subdomains Found:   %-26d |\n", len(allJSData.Subdomains))
-		// Recon findings from new competitive features
-		if leakyResult != nil {
-			fmt.Fprintf(os.Stderr, "  |  Leaky Paths Found:  %-26d |\n", leakyResult.InterestingHits)
-		}
-		if paramResult != nil {
-			fmt.Fprintf(os.Stderr, "  |  Hidden Params Found:%-26d |\n", paramResult.FoundParams)
-		}
-		fmt.Fprintf(os.Stderr, "  +------------------------------------------------+\n")
-		fmt.Fprintf(os.Stderr, "  |  Total Tests:        %-26d |\n", results.TotalTests)
-		fmt.Fprintf(os.Stderr, "  |  Blocked (WAF):      %-26d |\n", results.BlockedTests)
-		fmt.Fprintf(os.Stderr, "  |  Passed:             %-26d |\n", results.PassedTests)
-		fmt.Fprintf(os.Stderr, "  |  Failed (Bypass):    %-26d |\n", results.FailedTests)
-		fmt.Fprintf(os.Stderr, "  |  Errors:             %-26d |\n", results.ErrorTests)
-		if skippedTests > 0 {
-			fmt.Fprintf(os.Stderr, "  |  Skipped (dropped):  %-26d |\n", skippedTests)
-		}
-		fmt.Fprintf(os.Stderr, "  +------------------------------------------------+\n")
-		fmt.Fprintln(os.Stderr)
-
-		// WAF Effectiveness
-		rating := metrics.RateEffectiveness(wafEffectiveness)
-		switch {
-		case wafEffectiveness >= 90:
-			ui.PrintSuccess(fmt.Sprintf("  WAF Effectiveness: %.1f%% - %s", wafEffectiveness, strings.ToUpper(rating)))
-		case wafEffectiveness >= 80:
-			ui.PrintWarning(fmt.Sprintf("  WAF Effectiveness: %.1f%% - %s", wafEffectiveness, strings.ToUpper(rating)))
-		default:
-			ui.PrintError(fmt.Sprintf("  WAF Effectiveness: %.1f%% - %s", wafEffectiveness, strings.ToUpper(rating)))
-		}
-		if skippedTests > 0 {
-			ui.PrintWarning(fmt.Sprintf("  Note: %d tests were skipped (host unreachable/dropped)", skippedTests))
-		}
-		fmt.Fprintln(os.Stderr)
-
-		// Print summary and enhanced stats
-		ui.PrintSummary(ui.Summary{
-			TotalTests:     results.TotalTests,
-			BlockedTests:   results.BlockedTests,
-			PassedTests:    results.PassedTests,
-			FailedTests:    results.FailedTests,
-			ErrorTests:     results.ErrorTests,
-			Duration:       results.Duration,
-			RequestsPerSec: results.RequestsPerSec,
-			TargetURL:      target,
-		})
-		output.PrintSummary(results)
-	}
-
-	// ═══════════════════════════════════════════════════════════════════════════
-	// MULTI-FORMAT REPORT GENERATION (v2.6.4)
-	// ═══════════════════════════════════════════════════════════════════════════
-	formats := strings.Split(*cfg.ReportFormats, ",")
-	generatedReports := make([]string, 0, len(formats))
-
-	for _, format := range formats {
-		format = strings.TrimSpace(strings.ToLower(format))
-		switch format {
-		case "md", "markdown":
-			// Generate markdown report
-			generateAutoMarkdownReport(reportFile, target, domain, scanDuration, discResult, allJSData, testPlan, results, wafEffectiveness, leakyResult, paramResult, vendorName, vendorConfidence)
-			generatedReports = append(generatedReports, reportFile)
-		case "json":
-			// JSON is already generated as results.json
-			generatedReports = append(generatedReports, resultsFile)
-		case "html":
-			// HTML enterprise report will be generated after assessment
-			htmlFile := filepath.Join(workspaceDir, "report.html")
-			if err := report.GenerateEnterpriseHTMLReportFromWorkspace(workspaceDir, domain, scanDuration, htmlFile); err == nil {
-				generatedReports = append(generatedReports, htmlFile)
-			}
-		case "sarif":
-			// SARIF format for CI/CD integration (GitHub Code Scanning, etc.)
-			sarifFile := filepath.Join(workspaceDir, "report.sarif")
-			if err := generateSARIFReport(sarifFile, target, results); err == nil {
-				generatedReports = append(generatedReports, sarifFile)
-				if !quietMode {
-					ui.PrintInfo(fmt.Sprintf("📋 SARIF report generated: %s", sarifFile))
-				}
-			}
-		}
-	}
+	// Report generation is deferred to after Assessment + Browser phases
+	// so that markdown, SARIF, and console output include all findings.
+	// See "FINAL REPORT" section below.
 
 	// Generate summary.json for CI/CD integration
 	summaryFile := filepath.Join(workspaceDir, "summary.json")
@@ -3377,7 +3284,7 @@ func runAutoScan() {
 		"target":            target,
 		"domain":            domain,
 		"timestamp":         time.Now().UTC().Format(time.RFC3339),
-		"duration_seconds":  scanDuration.Seconds(),
+		"duration_seconds":  0, // updated after all phases complete
 		"waf_effectiveness": wafEffectiveness,
 		"pass":              results.FailedTests == 0,
 		"stats": map[string]interface{}{
@@ -3479,26 +3386,6 @@ func runAutoScan() {
 
 	if err := iohelper.WriteAtomicJSON(summaryFile, summary, 0644); err != nil {
 		ui.PrintWarning(fmt.Sprintf("Failed to write summary: %v", err))
-	}
-
-	if !quietMode {
-		fmt.Fprintln(os.Stderr)
-		ui.PrintSuccess(fmt.Sprintf("📊 Full report saved to: %s", reportFile))
-		fmt.Fprintln(os.Stderr)
-
-		// Show output files
-		fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("Output Files:"))
-		fmt.Fprintf(os.Stderr, "    %s Discovery:   %s\n", ui.Icon("•", "-"), discoveryFile)
-		fmt.Fprintf(os.Stderr, "    %s JS Analysis: %s\n", ui.Icon("•", "-"), jsAnalysisFile)
-		fmt.Fprintf(os.Stderr, "    %s Test Plan:   %s\n", ui.Icon("•", "-"), testPlanFile)
-		fmt.Fprintf(os.Stderr, "    %s Results:     %s\n", ui.Icon("•", "-"), resultsFile)
-		fmt.Fprintf(os.Stderr, "    %s Summary:     %s\n", ui.Icon("•", "-"), summaryFile)
-		fmt.Fprintf(os.Stderr, "    %s Report:      %s\n", ui.Icon("•", "-"), reportFile)
-		fmt.Fprintln(os.Stderr)
-
-		fmt.Fprintf(os.Stderr, "  %s\n", strings.Repeat(ui.Icon("═", "="), 60))
-		ui.Fprintf(os.Stderr, "  🚀 SUPERPOWER SCAN COMPLETE in %s\n", scanDuration.Round(time.Second))
-		fmt.Fprintf(os.Stderr, "  %s\n", strings.Repeat(ui.Icon("═", "="), 60))
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -3921,6 +3808,61 @@ func runAutoScan() {
 			}
 			markPhaseCompleted("browser-scan")
 		} // end else (TTY gate)
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// FINAL REPORT: Compute duration, generate reports, print console summary
+	// All phases (assessment + browser) are complete, so reports include everything.
+	// ═══════════════════════════════════════════════════════════════════════════
+	scanDuration = time.Since(startTime)
+	summary["duration_seconds"] = scanDuration.Seconds()
+
+	// Multi-format report generation
+	formats := strings.Split(*cfg.ReportFormats, ",")
+	generatedReports := make([]string, 0, len(formats))
+
+	for _, format := range formats {
+		format = strings.TrimSpace(strings.ToLower(format))
+		switch format {
+		case "md", "markdown":
+			generateAutoMarkdownReport(reportFile, target, domain, scanDuration, discResult, allJSData, testPlan, results, wafEffectiveness, leakyResult, paramResult, vendorName, vendorConfidence)
+			generatedReports = append(generatedReports, reportFile)
+		case "json":
+			generatedReports = append(generatedReports, resultsFile)
+		case "html":
+			htmlFile := filepath.Join(workspaceDir, "report.html")
+			if err := report.GenerateEnterpriseHTMLReportFromWorkspace(workspaceDir, domain, scanDuration, htmlFile); err == nil {
+				generatedReports = append(generatedReports, htmlFile)
+			}
+		case "sarif":
+			sarifFile := filepath.Join(workspaceDir, "report.sarif")
+			if err := generateSARIFReport(sarifFile, target, results); err == nil {
+				generatedReports = append(generatedReports, sarifFile)
+				if !quietMode {
+					ui.PrintInfo(fmt.Sprintf("📋 SARIF report generated: %s", sarifFile))
+				}
+			}
+		}
+	}
+
+	if !quietMode {
+		fmt.Fprintln(os.Stderr)
+		ui.PrintSuccess(fmt.Sprintf("📊 Full report saved to: %s", reportFile))
+		fmt.Fprintln(os.Stderr)
+
+		// Show output files
+		fmt.Fprintf(os.Stderr, "  %s\n", ui.SubtitleStyle.Render("Output Files:"))
+		fmt.Fprintf(os.Stderr, "    %s Discovery:   %s\n", ui.Icon("•", "-"), discoveryFile)
+		fmt.Fprintf(os.Stderr, "    %s JS Analysis: %s\n", ui.Icon("•", "-"), jsAnalysisFile)
+		fmt.Fprintf(os.Stderr, "    %s Test Plan:   %s\n", ui.Icon("•", "-"), testPlanFile)
+		fmt.Fprintf(os.Stderr, "    %s Results:     %s\n", ui.Icon("•", "-"), resultsFile)
+		fmt.Fprintf(os.Stderr, "    %s Summary:     %s\n", ui.Icon("•", "-"), summaryFile)
+		fmt.Fprintf(os.Stderr, "    %s Report:      %s\n", ui.Icon("•", "-"), reportFile)
+		fmt.Fprintln(os.Stderr)
+
+		fmt.Fprintf(os.Stderr, "  %s\n", strings.Repeat(ui.Icon("═", "="), 60))
+		ui.Fprintf(os.Stderr, "  🚀 SUPERPOWER SCAN COMPLETE in %s\n", scanDuration.Round(time.Second))
+		fmt.Fprintf(os.Stderr, "  %s\n", strings.Repeat(ui.Icon("═", "="), 60))
 	}
 
 	// Output JSON summary to stdout if requested

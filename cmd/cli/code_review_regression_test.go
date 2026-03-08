@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -199,5 +200,35 @@ func TestSOAPPayloadCDATAWrapping(t *testing.T) {
 	}
 	if !strings.Contains(wrapped, payload) {
 		t.Error("payload content should be preserved inside CDATA")
+	}
+}
+
+// C1 (logical-order): Report generation must happen after assessment and browser phases.
+// scanDuration must be computed after all phases complete, not before assessment.
+func TestAutoscanReportAfterAllPhases(t *testing.T) {
+	src, err := os.ReadFile("cmd_autoscan.go")
+	if err != nil {
+		t.Fatalf("failed to read cmd_autoscan.go: %v", err)
+	}
+	content := string(src)
+
+	// FINAL REPORT block must appear after PHASE 9 (browser integration)
+	phase9Idx := strings.Index(content, "PHASE 9: Browser Findings Integration")
+	finalReportIdx := strings.Index(content, "FINAL REPORT: Compute duration")
+	if phase9Idx < 0 || finalReportIdx < 0 {
+		t.Fatal("expected PHASE 9 and FINAL REPORT markers in cmd_autoscan.go")
+	}
+	if finalReportIdx < phase9Idx {
+		t.Error("FINAL REPORT must appear after PHASE 9 — reports should include all findings")
+	}
+
+	// scanDuration assignment must appear after browser phase, not before assessment
+	phase6Idx := strings.Index(content, "PHASE 6: ENTERPRISE ASSESSMENT")
+	scanDurAssign := strings.Index(content, "scanDuration = time.Since(startTime)")
+	if phase6Idx < 0 || scanDurAssign < 0 {
+		t.Fatal("expected PHASE 6 and scanDuration assignment markers")
+	}
+	if scanDurAssign < phase6Idx {
+		t.Error("scanDuration must be computed after assessment phase, not before")
 	}
 }
