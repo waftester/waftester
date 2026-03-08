@@ -295,3 +295,26 @@ func TestScanTamperValidationBeforeEngine(t *testing.T) {
 		t.Error("tamper validation must happen before engine construction")
 	}
 }
+
+// H4 (logical-order): Resume skip paths must call autoProgress.Increment() to
+// keep the progress bar in sync. Missing increments cause the bar to stall.
+func TestAutoscanResumeSkipIncrementsProgress(t *testing.T) {
+	src, err := os.ReadFile("cmd_autoscan.go")
+	if err != nil {
+		t.Fatalf("failed to read cmd_autoscan.go: %v", err)
+	}
+	content := string(src)
+
+	// Check each skip phase path has Increment() nearby
+	for _, phase := range []string{"js-analysis", "learning", "waf-testing"} {
+		skipIdx := strings.Index(content, `shouldSkipPhase("`+phase+`")`)
+		if skipIdx < 0 {
+			t.Fatalf("expected shouldSkipPhase(%q) in cmd_autoscan.go", phase)
+		}
+		// Look within the next 200 chars for Increment
+		window := content[skipIdx : skipIdx+min(300, len(content)-skipIdx)]
+		if !strings.Contains(window, "autoProgress.Increment()") {
+			t.Errorf("skip path for %q must call autoProgress.Increment()", phase)
+		}
+	}
+}

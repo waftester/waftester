@@ -986,6 +986,8 @@ func runAutoScan() {
 
 	if shouldSkipPhase("js-analysis") {
 		ui.PrintInfo("⏭️  Skipping JS analysis (already completed)")
+		autoProgress.SetStatus("Learning")
+		autoProgress.Increment()
 		// Reload JS data from disk for summary/report usage
 		var loaded js.ExtractedData
 		if err := iohelper.ReadJSON(jsAnalysisFile, &loaded); err == nil {
@@ -1858,6 +1860,8 @@ func runAutoScan() {
 
 	if shouldSkipPhase("learning") {
 		ui.PrintInfo("⏭️  Skipping learning phase (already completed)")
+		autoProgress.SetStatus("Testing")
+		autoProgress.Increment()
 		var loaded learning.TestPlan
 		if err := iohelper.ReadJSON(testPlanFile, &loaded); err == nil {
 			testPlan = &loaded
@@ -1972,6 +1976,8 @@ func runAutoScan() {
 
 	if shouldSkipPhase("waf-testing") {
 		ui.PrintInfo("⏭️  Skipping WAF testing (already completed)")
+		autoProgress.SetStatus("Report")
+		autoProgress.Increment()
 		if err := iohelper.ReadJSON(wafResultsFile, &results); err != nil {
 			if os.IsNotExist(err) {
 				ui.PrintWarning(fmt.Sprintf("Missing results-summary.json, continuing with empty results: %v", err))
