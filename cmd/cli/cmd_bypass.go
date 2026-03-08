@@ -103,7 +103,7 @@ func runBypassFinder() {
 	fmt.Fprintln(os.Stderr)
 
 	// Setup context
-	ctx, cancel := cli.SignalContext(time.Duration(*timeout) * time.Second)
+	ctx, cancel := cli.SignalContext(30 * time.Second)
 	defer cancel()
 
 	// ═══════════════════════════════════════════════════════════════════════════

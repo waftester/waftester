@@ -464,3 +464,20 @@ func TestAutoscanCIExitIncludesAssessmentGrade(t *testing.T) {
 		t.Error("ci_exit_code must be updated for assessment grade after enterprise_metrics are set")
 	}
 }
+
+// M6 (logical-order): bypass command grace period must be 30s, not HTTP timeout.
+func TestBypassGracePeriod30Seconds(t *testing.T) {
+	src, err := os.ReadFile("cmd_bypass.go")
+	if err != nil {
+		t.Fatalf("failed to read cmd_bypass.go: %v", err)
+	}
+	content := string(src)
+
+	// Grace period must NOT be tied to the HTTP timeout variable
+	if strings.Contains(content, "SignalContext(time.Duration(*timeout)") {
+		t.Error("bypass SignalContext grace period must be 30s, not tied to HTTP timeout")
+	}
+	if !strings.Contains(content, "SignalContext(30 * time.Second)") {
+		t.Error("bypass SignalContext must use 30 * time.Second like all other commands")
+	}
+}
