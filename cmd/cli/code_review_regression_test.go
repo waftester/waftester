@@ -438,3 +438,29 @@ func TestAutoscanAssessmentNoRedundantWAFDetect(t *testing.T) {
 		t.Error("expected DetectWAF to be set based on assessWAFVendor availability")
 	}
 }
+
+// M5 (logical-order): CI exit code must consider enterprise assessment grade.
+func TestAutoscanCIExitIncludesAssessmentGrade(t *testing.T) {
+	src, err := os.ReadFile("cmd_autoscan.go")
+	if err != nil {
+		t.Fatalf("failed to read cmd_autoscan.go: %v", err)
+	}
+	content := string(src)
+
+	// The ciExit computation must include assessFailing
+	if !strings.Contains(content, "assessFailing") {
+		t.Error("ciExit must consider enterprise assessment grade (assessFailing variable missing)")
+	}
+
+	// ci_exit_code in summary must also be updated for assessment grade
+	ciExitIdx := strings.LastIndex(content, `summary["ci_exit_code"] = 1`)
+	assessIdx := strings.Index(content, `enterprise_metrics`)
+	if ciExitIdx < 0 || assessIdx < 0 {
+		t.Fatal("expected both ci_exit_code assignment and enterprise_metrics in source")
+	}
+	// The last ci_exit_code=1 assignment should be after enterprise_metrics
+	// (indicating it's set in the final flush based on grade)
+	if ciExitIdx < assessIdx {
+		t.Error("ci_exit_code must be updated for assessment grade after enterprise_metrics are set")
+	}
+}

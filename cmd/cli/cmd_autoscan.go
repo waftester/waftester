@@ -3985,6 +3985,12 @@ func runAutoScan() {
 	// Write final summary to disk after all phases (including resume reloads)
 	// have contributed their data. This ensures enterprise_metrics, browser_scan,
 	// and payload_recommendations survive resume scenarios.
+	// Update ci_exit_code to include assessment grade (computed after assessment phase).
+	if em, ok := summary["enterprise_metrics"].(map[string]interface{}); ok {
+		if grade, ok := em["grade"].(string); ok && (grade == "D" || grade == "F") {
+			summary["ci_exit_code"] = 1
+		}
+	}
 	_ = iohelper.WriteAtomicJSON(summaryFile, summary, 0644)
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -3999,8 +4005,15 @@ func runAutoScan() {
 	// - Actual WAF bypasses found
 	// - WAF effectiveness critically low (most tests skipped/failed)
 	// - All tests errored out (denominator=0 but tests existed — scan failure)
+	// - Enterprise assessment grade is D or F (failing WAF quality)
 	allErrored := results.TotalTests > 0 && results.BlockedTests == 0 && results.FailedTests == 0 && results.PassedTests == 0 && attackTests == 0
-	ciExit := results.FailedTests > 0 || (wafEffectiveness < 50 && attackTests > 0) || allErrored
+	assessFailing := false
+	if em, ok := summary["enterprise_metrics"].(map[string]interface{}); ok {
+		if grade, ok := em["grade"].(string); ok && (grade == "D" || grade == "F") {
+			assessFailing = true
+		}
+	}
+	ciExit := results.FailedTests > 0 || (wafEffectiveness < 50 && attackTests > 0) || allErrored || assessFailing
 	if ciExit {
 		fatalExit()
 	}
