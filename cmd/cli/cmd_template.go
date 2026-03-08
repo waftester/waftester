@@ -68,6 +68,9 @@ func runTemplate() {
 	// Detection
 	noDetect := templateFlags.Bool("no-detect", false, "Disable connection drop and silent ban detection")
 
+	// TLS options
+	skipVerify := templateFlags.Bool("skip-verify", false, "Skip TLS certificate verification")
+
 	templateFlags.Parse(os.Args[2:])
 
 	if *noDetect {
@@ -156,7 +159,8 @@ func runTemplate() {
 	engine := nuclei.NewEngine()
 	engine.Verbose = *verbose
 	engine.HTTPClient = httpclient.New(httpclient.Config{
-		Timeout: time.Duration(*timeout) * time.Second,
+		Timeout:            time.Duration(*timeout) * time.Second,
+		InsecureSkipVerify: *skipVerify,
 	})
 
 	// Load templates
